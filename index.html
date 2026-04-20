@@ -207,6 +207,8 @@ select option{background:#0f1020;}
     <button class="tab-btn" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn" onclick="switchTab('codex',this)">Codex</button>
     <button class="tab-btn" onclick="switchTab('rules',this)">Rules</button>
+    <button class="tab-btn" onclick="switchTab('caravan',this)">Caravan</button>
+    <button class="tab-btn" onclick="switchTab('holding',this)">Holding</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
     <span class="cl">Credits</span>
@@ -330,6 +332,10 @@ select option{background:#0f1020;}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">
         <div><span class="sub-label">Path Tokens</span>
           <div class="counter-row"><button class="step-btn" onclick="changeCounter('pathTokens',-1)">−</button><span class="counter-val teal-val" id="pathTokensVal">0</span><button class="step-btn" onclick="changeCounter('pathTokens',1)">+</button></div>
+          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">
+            <button class="btn btn-xs btn-teal" onclick="spendPathTokensUpgrade15()" title="Spend 15 Path Tokens to step up one Action Die">−15: Step Up Die</button>
+            <button class="btn btn-xs" onclick="spendPathTokensUpgrade20()" title="Spend 20 Path Tokens to gain a new Personal Trait">−20: New Trait</button>
+          </div>
         </div>
         <div><span class="sub-label">Teamwork Pts</span>
           <div class="counter-row"><button class="step-btn" onclick="changeCounter('tmw',-1)">−</button><span class="counter-val grey-val" id="tmwVal">0</span><button class="step-btn" onclick="changeCounter('tmw',1)">+</button><button class="btn btn-xs btn-teal" onclick="openTMWActions()" style="margin-left:.2rem;">Use</button></div>
@@ -405,6 +411,10 @@ select option{background:#0f1020;}
           <button class="btn btn-sm" onclick="rollAllTraits()">⚄ Roll All</button>
         </div>
         <div id="traitsDisplay"></div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:.45rem;margin-top:.45rem;">
+        <div style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;">Path Token Traits (−20 each)</div>
+        <div id="extraTraitsDisplay"></div>
       </div>
     </div>
   </div>
@@ -566,10 +576,18 @@ select option{background:#0f1020;}
         </div>
       </div>
     </div>
+    <div class="card" style="grid-column:1/-1;">
+      <div class="section-title">Zone Map — Combat Positions</div>
+      <div style="font-size:.78rem;color:var(--muted3);margin-bottom:.5rem;">Track where each combatant stands. Engaged = melee/Strike · Close = spells/items · Nearby = ranged/Shoot · Far = out of range. Also used for ship &amp; Caravan chase spacing.</div>
+      <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.55rem;">
+        <button class="btn btn-sm btn-teal" onclick="addCombatUnit('ally')">+ Ally / Self</button>
+        <button class="btn btn-sm btn-red" onclick="addCombatUnit('enemy')">+ Enemy</button>
+        <button class="btn btn-sm" onclick="clearCombatMap()">Clear Map</button>
+      </div>
+      <div id="combatMapZones"></div>
+    </div>
   </div>
 </div>
-
-<!-- NAVAL TAB -->
 <div class="tab-panel" id="tab-naval"></div>
 
 <!-- MERCHANTS TAB -->
@@ -764,6 +782,12 @@ select option{background:#0f1020;}
     </div>
   </div>
 </div>
+
+<!-- CARAVAN TAB -->
+<div class="tab-panel" id="tab-caravan"></div>
+
+<!-- HOLDING TAB -->
+<div class="tab-panel" id="tab-holding"></div>
 
 <!-- MODAL -->
 <div class="overlay" id="rollModal">
@@ -1436,5 +1460,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="./beyond-light-expansion.js"></script>
 <script src="./missions-system.js"></script>
 <script src="./jobs-integration.js"></script>
+<script src="./new-features.js"></script>
 </body>
 </html>

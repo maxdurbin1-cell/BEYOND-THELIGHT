@@ -3,6 +3,7 @@
   const LAST_SEA_ROWS = 12;
   const LAST_SEA_HEX = 28;
   const NAVAL_ZONES = ["Engaged", "Close", "Nearby", "Far"];
+
   const LAST_SEA_TERRAINS = [
     {
       name: "Grassland",
@@ -50,6 +51,7 @@
       ]
     }
   ];
+
   const LAST_SEA_ECOLOGY = [
     "Overgrown",
     "Decaying",
@@ -62,6 +64,7 @@
     "Hallucinogenic herbs",
     "Floating rocks"
   ];
+
   const LAST_SEA_WEATHER = {
     spring: [
       { label: "Salt Mist", rough: false, desc: "A cool marine haze softens the horizon but leaves the water workable." },
@@ -88,10 +91,12 @@
       { label: "Breaker Storm", rough: true, desc: "Hard waves hammer the hull in heavy repeating walls." }
     ]
   };
+
   const OPEN_SEA_PERILS = ["Whirlpool", "Fogged Tsunami", "Maelstrom", "Typhoon", "Cyclone"];
   const ISLAND_PERILS = ["Fog", "Earthquake", "Quicksand", "Flood", "Rockslide", "Storm", "Forest Fire", "Chasm"];
   const ARMADA_ACTIONS = ["Investigate", "Capture", "Hunt", "Transport", "Destroy", "Aid", "Guard"];
   const ARMADA_TARGETS = ["Pirate", "Beast", "Ruler", "Island", "Treasure", "Landmark", "Settlement"];
+
   const NAVAL_SHIPS = [
     { name: "Skiff", cost: 2500, defend: 4, strike: null, shoot: null, feature: "Swift Escape - +1 to Control rolls." },
     { name: "Transport", cost: 5500, defend: 6, strike: null, shoot: null, feature: "Cargo Hold - additional storage and crew space." },
@@ -100,6 +105,7 @@
     { name: "Battleship", cost: 30000, defend: 12, strike: 10, shoot: 10, feature: "Armored Fortress - +1 to defensive checks." },
     { name: "Carrier", cost: 50000, defend: 20, strike: 12, shoot: 12, feature: "Command Authority - +1 to Lead checks." }
   ];
+
   const NAVAL_UPGRADES = [
     {
       id: "installed-weapons",
@@ -142,12 +148,14 @@
       effect: "Ship grants +1 Lead and +1 extra action."
     }
   ];
+
   const NAVAL_RANKS = [
     { name: "Rookie", train: 0, baseCost: 1000 },
     { name: "Experienced", train: 5, baseCost: 2000 },
     { name: "Veteran", train: 10, baseCost: 4000 },
     { name: "Elite", train: 15, baseCost: 8000 }
   ];
+
   const NAVAL_ROLE_META = {
     Gunner: {
       pair: "Strike / Shoot",
@@ -166,12 +174,14 @@
       summary: "Drives morale, tactics, diplomacy, and command under pressure."
     }
   };
+
   const NAVAL_ROLE_COSTS = {
     Rookie: { Gunner: 0, Navigator: 0, Engineer: 0, Captain: 0 },
     Experienced: { Gunner: 1000, Navigator: 1200, Engineer: 1400, Captain: 1600 },
     Veteran: { Gunner: 1800, Navigator: 2000, Engineer: 2200, Captain: 2400 },
     Elite: { Gunner: 2600, Navigator: 2800, Engineer: 3000, Captain: 3200 }
   };
+
   const NAVAL_ABILITIES = {
     Gunner: {
       Experienced: ["Trick Shot - reroll 1s on a Strike or Shoot roll once per combat."],
@@ -206,6 +216,7 @@
       Elite: ["Master Strategist - grant +2 actions during naval combat."]
     }
   };
+
   const SHIP_NAME_FIRST = [
     "Crimson", "Rust", "Raider", "Seer", "Leviathan", "Rebel", "Silver", "Cinder", "Phantom", "Whisper",
     "Solar", "Tempest", "Horizon", "Storm", "Marrow", "Black", "Night", "Star", "Ghost", "Sable"
@@ -236,6 +247,7 @@
     "Harpoon rigs and solar fins mark it as a hunter of monsters.",
     "An antique long hull rides high and somehow never seems to sink."
   ];
+
   const GAMBLING_LEVELS = [
     { level: 1, label: "Easy", die: 20, buyIn: 10 },
     { level: 2, label: "Steady", die: 12, buyIn: 20 },
@@ -244,10 +256,12 @@
     { level: 5, label: "Dangerous", die: 6, buyIn: 50 },
     { level: 6, label: "Hard", die: 4, buyIn: 60 }
   ];
+
   function ensureExpansionState() {
     if (typeof S === "undefined") {
       return;
     }
+
     S.lastSea = {
       layout: "random",
       map: [],
@@ -260,6 +274,7 @@
     S.lastSea.map = Array.isArray(S.lastSea.map) ? S.lastSea.map : [];
     S.lastSea.islands = Array.isArray(S.lastSea.islands) ? S.lastSea.islands : [];
     S.lastSea.notes = { ...(S.lastSea.notes || {}) };
+
     S.naval = {
       ship: null,
       crew: [],
@@ -279,6 +294,7 @@
     };
     S.naval.crew = Array.isArray(S.naval.crew) ? S.naval.crew : [];
     S.naval.log = Array.isArray(S.naval.log) ? S.naval.log : [];
+
     S.gambling = {
       difficulty: 1,
       guess: "under",
@@ -288,9 +304,11 @@
     };
     S.gambling.history = Array.isArray(S.gambling.history) ? S.gambling.history : [];
   }
+
   function capitalize(text) {
     return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
   }
+
   function mountExpansionPanels() {
     const lastSeaPanel = document.getElementById("tab-lastsea");
     if (lastSeaPanel && !lastSeaPanel.dataset.mounted) {
@@ -336,6 +354,7 @@
         </div>
       `;
     }
+
     const navalPanel = document.getElementById("tab-naval");
     if (navalPanel && !navalPanel.dataset.mounted) {
       navalPanel.dataset.mounted = "1";
@@ -432,6 +451,7 @@
         </div>
       `;
     }
+
     const gamblingPanel = document.getElementById("tab-gambling");
     if (gamblingPanel && !gamblingPanel.dataset.mounted) {
       gamblingPanel.dataset.mounted = "1";
@@ -480,11 +500,13 @@
       `;
     }
   }
+
   function appendRuleCards() {
     const rulesGrid = document.querySelector("#tab-rules > div");
     if (!rulesGrid || document.getElementById("lastSeaRulesCard")) {
       return;
     }
+
     rulesGrid.insertAdjacentHTML(
       "beforeend",
       `
@@ -518,6 +540,7 @@
       `
     );
   }
+
   function getLastSeaLayout() {
     const mode = S.lastSea.layout || "random";
     if (mode === "tiny") {
@@ -543,6 +566,7 @@
       ]
     ]);
   }
+
   function seaNeighborCoords(col, row) {
     const even = col % 2 === 0;
     const deltas = even
@@ -552,12 +576,15 @@
       .map(([dc, dr]) => ({ col: col + dc, row: row + dr }))
       .filter((item) => item.col >= 0 && item.col < LAST_SEA_COLS && item.row >= 0 && item.row < LAST_SEA_ROWS);
   }
+
   function seaKey(col, row) {
     return `${col},${row}`;
   }
+
   function getSeaCell(col, row) {
     return S.lastSea.map.find((hex) => hex.col === col && hex.row === row);
   }
+
   function describeSeaHex() {
     return `${pick([
       "Deep blue water folds in long glassy swells.",
@@ -571,6 +598,7 @@
       "Salt hangs in the air like old memory."
     ])}`;
   }
+
   function describeIslandHex(terrain, ecology, siteType) {
     const siteNote =
       siteType === "landmark"
@@ -582,10 +610,12 @@
             : "The shoreline looks mostly untouched.";
     return `${pick(terrain.coast)} Ecology: ${ecology}. ${siteNote}`;
   }
+
   function rollLastSeaWeather() {
     const season = S.currentSeason || "spring";
     return { ...pick(LAST_SEA_WEATHER[season]) };
   }
+
   function makeSettlementData() {
     return {
       name: `${pick(SETTLEMENT_STYLES)} ${pick(SETTLEMENT_FEATURES)}`,
@@ -599,6 +629,7 @@
       news: pick(SETTLEMENT_NEWS)
     };
   }
+
   function makeLandmarkData() {
     return {
       name: pick(MONUMENT_FORMS),
@@ -611,6 +642,7 @@
       ])
     };
   }
+
   function makeDungeonData() {
     return {
       name: pick(["Flooded Vault", "Salt Ruin", "Coral Shrine", "Sunken Watchpost", "Storm Crypt", "Sea Cistern"]),
@@ -622,6 +654,7 @@
       rooms: roll(4) + 2
     };
   }
+
   function createSeaSite(type) {
     if (type === "settlement") {
       return makeSettlementData();
@@ -631,26 +664,31 @@
     }
     return makeDungeonData();
   }
+
   function createSeaCluster(hexCount, islandIndex) {
     for (let attempt = 0; attempt < 140; attempt += 1) {
       const startCol = roll(LAST_SEA_COLS - 2);
       const startRow = roll(LAST_SEA_ROWS - 2);
       const cluster = [seaKey(startCol, startRow)];
       const frontier = [seaKey(startCol, startRow)];
+
       while (cluster.length < hexCount && frontier.length) {
         const current = pick(frontier);
         const [col, row] = current.split(",").map(Number);
         const neighbors = seaNeighborCoords(col, row)
           .map((item) => seaKey(item.col, item.row))
           .filter((key) => !cluster.includes(key) && !S.lastSea.map.some((hex) => hex.key === key && hex.type === "island"));
+
         if (!neighbors.length) {
           frontier.splice(frontier.indexOf(current), 1);
           continue;
         }
+
         const next = pick(neighbors);
         cluster.push(next);
         frontier.push(next);
       }
+
       if (cluster.length === hexCount) {
         return cluster.map((key) => {
           const [col, row] = key.split(",").map(Number);
@@ -660,29 +698,35 @@
     }
     return [];
   }
+
   function updateLastSeaGroupList() {
     const container = document.getElementById("lastSeaIslandGroups");
     if (!container) {
       return;
     }
+
     if (!S.lastSea.islands.length) {
       container.innerHTML = "";
       return;
     }
+
     container.innerHTML = S.lastSea.islands
       .map((island) => `<span class="sea-chip">${island.name} - ${island.hexes} hexes - ${island.days} day${island.days > 1 ? "s" : ""}${island.river ? " - river-broken" : ""}</span>`)
       .join("");
   }
+
   function generateLastSea() {
     ensureExpansionState();
     const layoutSelect = document.getElementById("lastSeaLayoutSelect");
     if (layoutSelect) {
       S.lastSea.layout = layoutSelect.value;
     }
+
     S.lastSea.map = [];
     S.lastSea.selectedKey = null;
     S.lastSea.islands = [];
     S.lastSea.weather = rollLastSeaWeather();
+
     for (let col = 0; col < LAST_SEA_COLS; col += 1) {
       for (let row = 0; row < LAST_SEA_ROWS; row += 1) {
         S.lastSea.map.push({
@@ -697,12 +741,14 @@
         });
       }
     }
+
     const layouts = getLastSeaLayout();
     layouts.forEach((layout, index) => {
       const terrain = pick(LAST_SEA_TERRAINS);
       const ecology = pick(LAST_SEA_ECOLOGY);
       const cluster = createSeaCluster(layout.hexes, index);
       const name = layouts.length === 1 ? "Island Prime" : `Island ${index + 1}`;
+
       const islandMeta = {
         id: `island-${index + 1}`,
         name,
@@ -713,8 +759,10 @@
         ecology
       };
       S.lastSea.islands.push(islandMeta);
+
       const siteTypes = layout.hexes >= 9 ? ["settlement", "landmark", "dungeon"] : layout.hexes >= 6 ? pickN(["settlement", "landmark", "dungeon"], 2) : [pick(["settlement", "landmark", "dungeon"])];
       const siteCells = pickN(cluster, siteTypes.length);
+
       cluster.forEach((cell, position) => {
         const hex = getSeaCell(cell.col, cell.row);
         if (!hex) {
@@ -735,11 +783,13 @@
         hex.title = siteType && hex.siteData && hex.siteData.name ? hex.siteData.name : `${terrain.name} Shore ${position + 1}`;
       });
     });
+
     renderLastSeaMap();
     renderLastSeaInfo();
     updateLastSeaGroupList();
     showNotif("Last Sea charted.", "good");
   }
+
   function clearLastSea() {
     ensureExpansionState();
     S.lastSea.map = [];
@@ -750,6 +800,7 @@
     renderLastSeaMap();
     renderLastSeaInfo();
   }
+
   function seaHexToPixel(col, row) {
     const width = LAST_SEA_HEX * 2;
     const height = Math.sqrt(3) * LAST_SEA_HEX;
@@ -758,17 +809,20 @@
       y: row * height + (col % 2) * height / 2 + LAST_SEA_HEX + 12
     };
   }
+
   function seaHexPoints(cx, cy) {
     return Array.from({ length: 6 }, (_, index) => {
       const angle = Math.PI / 180 * (60 * index - 30);
       return `${cx + (LAST_SEA_HEX - 1) * Math.cos(angle)},${cy + (LAST_SEA_HEX - 1) * Math.sin(angle)}`;
     }).join(" ");
   }
+
   function renderLastSeaMap() {
     const svg = document.getElementById("lastSeaSvg");
     if (!svg) {
       return;
     }
+
     if (!S.lastSea.map.length) {
       svg.setAttribute("width", "620");
       svg.setAttribute("height", "560");
@@ -778,23 +832,28 @@
       `;
       return;
     }
+
     const width = LAST_SEA_COLS * LAST_SEA_HEX * 1.52 + LAST_SEA_HEX + 24;
     const height = LAST_SEA_ROWS * Math.sqrt(3) * LAST_SEA_HEX + LAST_SEA_HEX + 24;
     svg.setAttribute("width", width);
     svg.setAttribute("height", height);
     svg.innerHTML = "";
+
     S.lastSea.map.forEach((hex) => {
       const { x, y } = seaHexToPixel(hex.col, hex.row);
       const fill = hex.type === "sea" ? "#103247" : hex.terrainColor || "#486734";
       const stroke = S.lastSea.selectedKey === hex.key ? "#e8c050" : hex.type === "sea" ? "#2ec4b6" : "#c9a227";
+
       const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
       group.setAttribute("class", "svg-hex");
+
       const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
       polygon.setAttribute("points", seaHexPoints(x, y));
       polygon.setAttribute("fill", fill);
       polygon.setAttribute("stroke", stroke);
       polygon.setAttribute("stroke-width", S.lastSea.selectedKey === hex.key ? "2.6" : "1.3");
       group.appendChild(polygon);
+
       if (hex.icon) {
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
@@ -806,6 +865,7 @@
         text.textContent = hex.icon;
         group.appendChild(text);
       }
+
       const note = S.lastSea.notes[hex.key];
       if (note) {
         const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -816,6 +876,7 @@
         dot.setAttribute("pointer-events", "none");
         group.appendChild(dot);
       }
+
       group.addEventListener("click", () => {
         S.lastSea.selectedKey = hex.key;
         renderLastSeaMap();
@@ -830,6 +891,7 @@
       svg.appendChild(group);
     });
   }
+
   function renderCurrentSeaWeather() {
     if (!S.lastSea.weather) {
       S.lastSea.weather = rollLastSeaWeather();
@@ -843,11 +905,13 @@
       </div>
     `;
   }
+
   function renderLastSeaInfo(cell) {
     const panel = document.getElementById("lastSeaInfo");
     if (!panel) {
       return;
     }
+
     const hex = cell || S.lastSea.map.find((item) => item.key === S.lastSea.selectedKey);
     if (!hex) {
       panel.innerHTML = `
@@ -864,6 +928,7 @@
       `;
       return;
     }
+
     const island = S.lastSea.islands.find((item) => item.id === hex.islandId);
     const note = S.lastSea.notes[hex.key] || "";
     panel.innerHTML = `
@@ -913,6 +978,7 @@
       </div>
     `;
   }
+
   function describeSeaSite(type, data) {
     if (type === "settlement") {
       return `${data.style} settlement with a ${data.feature.toLowerCase()}. ${data.news}`;
@@ -922,9 +988,11 @@
     }
     return `${data.name}. Built by ${data.builder}. Entrance: ${data.entrance}. ${data.novelty}.`;
   }
+
   function buildRoyalArmadaText() {
     return `${pick(ARMADA_ACTIONS)} ${pick(ARMADA_TARGETS)}`;
   }
+
   function buildSeaEncounter() {
     const rolled = roll(6);
     if (rolled === 1) {
@@ -948,6 +1016,7 @@
     }
     return `<div class="sea-result-title">Open Sea Encounter - Royal Armada</div>A Royal Armada patrol demands answers. Mission: <strong style="color:var(--gold2);">${buildRoyalArmadaText()}</strong>.`;
   }
+
   function buildSeaExploration(hex) {
     const option = pick(["weather", "encounter", "peril", "uneventful"]);
     if (option === "weather") {
@@ -963,6 +1032,7 @@
     }
     return `<div class="sea-result-title">Uneventful Sailing</div>The ship cuts across open water without trouble.`;
   }
+
   function createLandEncounterResult(hex, type, data) {
     hex.encounter = { type, data };
     if (type === "landmark") {
@@ -993,10 +1063,12 @@
       </div>
     `;
   }
+
   function buildLandEncounter(hex) {
     if (hex.siteType && hex.siteData && Math.random() < 0.65) {
       return createLandEncounterResult(hex, hex.siteType, hex.siteData);
     }
+
     const rolled = roll(6);
     if (rolled === 1) {
       return createLandEncounterResult(hex, "dungeon", makeDungeonData());
@@ -1018,6 +1090,7 @@
     const pirates = roll(6);
     return `<div class="sea-result-title">Land Encounter - Pirates</div>${pirates} pirate${pirates > 1 ? "s" : ""} haunt the path inland. DD4 | 8 Stress.`;
   }
+
   function buildIslandExploration(hex) {
     const option = pick(["land", "peril", "exhaustion", "weather", "uneventful"]);
     if (option === "land") {
@@ -1035,6 +1108,7 @@
     }
     return `<div class="sea-result-title">Uneventful Travel</div>You cross the island without incident.`;
   }
+
   function exploreLastSeaHex(col, row) {
     ensureExpansionState();
     const hex = getSeaCell(col, row);
@@ -1044,11 +1118,13 @@
     hex.resultHtml = hex.type === "sea" ? buildSeaExploration(hex) : buildIslandExploration(hex);
     renderLastSeaInfo(hex);
   }
+
   function setLastSeaNote(col, row, value) {
     ensureExpansionState();
     S.lastSea.notes[seaKey(col, row)] = value;
     renderLastSeaMap();
   }
+
   function buildDungeonModal(data) {
     let html = `
       <div class="room-block">
@@ -1056,6 +1132,7 @@
         <div class="rb-text">${data.entrance}</div>
       </div>
     `;
+
     for (let index = 1; index <= data.rooms; index += 1) {
       const type = pick(RUIN_ROOM_TYPES);
       const text =
@@ -1077,6 +1154,7 @@
     }
     return html;
   }
+
   function openSeaDungeon(col, row) {
     const hex = getSeaCell(col, row);
     const data = hex && hex.encounter && hex.encounter.type === "dungeon" ? hex.encounter.data : hex && hex.siteType === "dungeon" ? hex.siteData : null;
@@ -1085,18 +1163,22 @@
     }
     openModal(data.name, buildDungeonModal(data));
   }
+
   function getRankData(rank) {
     return NAVAL_RANKS.find((item) => item.name === rank) || NAVAL_RANKS[0];
   }
+
   function getShipClass(name) {
     return NAVAL_SHIPS.find((ship) => ship.name === name) || NAVAL_SHIPS[0];
   }
+
   function rollCrewName() {
     const input = document.getElementById("navalCrewName");
     if (input) {
       input.value = `${pick(Math.random() < 0.5 ? NAMES.f : NAMES.m)} ${pick(NAMES.l)}`;
     }
   }
+
   function generateShipIdentity() {
     ensureExpansionState();
     const name = `${pick(SHIP_NAME_FIRST)} ${pick(SHIP_NAME_LAST)}`;
@@ -1110,6 +1192,7 @@
     }
     renderNaval();
   }
+
   function createShipFromClass(className) {
     const shipClass = getShipClass(className);
     return {
@@ -1128,6 +1211,7 @@
       leadBonus: shipClass.name === "Carrier" ? 1 : 0
     };
   }
+
   function buyShip(className) {
     ensureExpansionState();
     const shipClass = getShipClass(className);
@@ -1135,6 +1219,7 @@
       showNotif("Not enough Credits for that ship.", "warn");
       return;
     }
+
     S.naval.selectedClass = className;
     S.credits -= shipClass.cost;
     S.naval.ship = createShipFromClass(className);
@@ -1145,9 +1230,11 @@
     renderNaval();
     showNotif(`${className} added to the fleet.`, "good");
   }
+
   function getNavalUpgrade(id) {
     return NAVAL_UPGRADES.find((upgrade) => upgrade.id === id);
   }
+
   function buyNavalUpgrade(id) {
     ensureExpansionState();
     const ship = S.naval.ship;
@@ -1168,9 +1255,11 @@
       showNotif("Not enough Credits or Path Tokens.", "warn");
       return;
     }
+
     S.credits -= upgrade.cost;
     S.pathTokens -= upgrade.pathCost;
     ship.upgrades.push(id);
+
     if (id === "installed-weapons") {
       ship.strikeDie = ship.strikeDie || 4;
       ship.shootDie = ship.shootDie || 4;
@@ -1185,13 +1274,16 @@
       ship.leadBonus += 1;
       ship.extraActions += 1;
     }
+
     updateCreditsUI();
     renderNaval();
     showNotif(`${upgrade.name} installed.`, "good");
   }
+
   function getCrewCost(role, rank) {
     return getRankData(rank).baseCost + (NAVAL_ROLE_COSTS[rank][role] || 0);
   }
+
   function getCrewAbilities(role, rank) {
     const abilities = [];
     if (rank === "Experienced" || rank === "Veteran" || rank === "Elite") {
@@ -1205,6 +1297,7 @@
     }
     return abilities;
   }
+
   function hireNavalCrew() {
     ensureExpansionState();
     const role = document.getElementById("navalCrewRole")?.value || "Captain";
@@ -1216,6 +1309,7 @@
       showNotif("Not enough Credits to hire that crew member.", "warn");
       return;
     }
+
     S.credits -= cost;
     S.naval.crew.push({
       id: Date.now() + Math.random(),
@@ -1230,11 +1324,13 @@
     renderNaval();
     showNotif(`${name} hired as ${rank} ${role}.`, "good");
   }
+
   function removeNavalCrew(id) {
     ensureExpansionState();
     S.naval.crew = S.naval.crew.filter((member) => member.id !== id);
     renderNaval();
   }
+
   function trainNavalCrew(id) {
     ensureExpansionState();
     const crew = S.naval.crew.find((member) => member.id === id);
@@ -1256,10 +1352,12 @@
     renderNaval();
     showNotif(`${crew.name} trained to ${nextRank.name}.`, "good");
   }
+
   function getEffectiveShipDie(ship, stat, isPlayer) {
     if (!ship) {
       return null;
     }
+
     let value = stat === "hull" ? ship.hullDie : stat === "strike" ? ship.strikeDie : ship.shootDie;
     if (isPlayer && S.naval.powerShift) {
       if (S.naval.powerShift.from === stat && value) {
@@ -1271,19 +1369,23 @@
     }
     return value;
   }
+
   function getShipThreshold(ship, isPlayer) {
     const hull = getEffectiveShipDie(ship, "hull", isPlayer) || 4;
     return hull * 2;
   }
+
   function countCrewRole(role, rank) {
     return S.naval.crew.filter((member) => member.role === role && (!rank || member.rank === rank)).length;
   }
+
   function getPlayerActionCount() {
     const ship = S.naval.ship;
     const crewCount = Math.max(1, S.naval.crew.length || 0);
     const eliteCaptainBonus = countCrewRole("Captain", "Elite") ? 2 : 0;
     return crewCount + (ship ? ship.extraActions || 0 : 0) + eliteCaptainBonus;
   }
+
   function renderShipSummary(ship, isPlayer) {
     if (!ship) {
       return `<div class="ship-copy">No ship purchased yet.</div>`;
@@ -1308,6 +1410,7 @@
       </div>
     `;
   }
+
   function renderNavalZoneTrack() {
     const track = document.getElementById("navalZoneTrack");
     const readout = document.getElementById("navalZoneReadout");
@@ -1319,6 +1422,7 @@
     }
     track.innerHTML = NAVAL_ZONES.map((zone) => `<span class="zone-pill ${zone === S.naval.zone ? "on" : ""}">${zone}</span>`).join("");
   }
+
   function renderNaval() {
     ensureExpansionState();
     const shipSummary = document.getElementById("navalShipSummary");
@@ -1330,6 +1434,7 @@
     const credits = document.getElementById("navalCredits");
     const path = document.getElementById("navalPathTokens");
     const trauma = document.getElementById("navalCrewTrauma");
+
     if (credits) {
       credits.textContent = `${S.credits} ₵`;
     }
@@ -1339,12 +1444,14 @@
     if (trauma) {
       trauma.textContent = String(S.naval.crewTrauma || 0);
     }
+
     if (shipSummary) {
       const identityLine = !S.naval.ship && (S.naval.pendingName || S.naval.pendingLook)
         ? `<div class="ship-copy" style="margin-bottom:.45rem;"><strong style="color:var(--gold2);">${S.naval.pendingName || "Unnamed hull"}</strong><br>${S.naval.pendingLook || ""}</div>`
         : "";
       shipSummary.innerHTML = `${identityLine}${renderShipSummary(S.naval.ship, true)}`;
     }
+
     if (shipGrid) {
       shipGrid.innerHTML = NAVAL_SHIPS.map((ship) => {
         const owned = S.naval.ship && S.naval.ship.className === ship.name;
@@ -1366,6 +1473,7 @@
         `;
       }).join("");
     }
+
     if (upgradeList) {
       if (!S.naval.ship) {
         upgradeList.innerHTML = '<div class="upgrade-card"><div class="upgrade-copy">Buy a ship first to see compatible upgrades.</div></div>';
@@ -1383,6 +1491,7 @@
         `).join("");
       }
     }
+
     if (crewRoster) {
       if (!S.naval.crew.length) {
         crewRoster.innerHTML = '<div class="crew-card"><div class="ship-copy">No crew hired yet.</div></div>';
@@ -1410,6 +1519,7 @@
         `).join("");
       }
     }
+
     if (combatSummary) {
       combatSummary.innerHTML = `
         <div class="combat-card" style="margin-bottom:.45rem;">${renderShipSummary(S.naval.ship, true)}</div>
@@ -1424,18 +1534,22 @@
         </div>
       `;
     }
+
     if (combatLog) {
       combatLog.innerHTML = S.naval.log.length
         ? S.naval.log.map((entry) => `<div class="log-entry ${entry.type || ""}">${entry.text}</div>`).join("")
         : '<div class="log-entry">Combat log is empty.</div>';
     }
+
     renderNavalZoneTrack();
   }
+
   function selectNavalClass(className) {
     ensureExpansionState();
     S.naval.selectedClass = className;
     renderNaval();
   }
+
   function spawnEnemyShip() {
     ensureExpansionState();
     const className = document.getElementById("navalEnemyClass")?.value || S.naval.enemyClass || "Frigate";
@@ -1445,6 +1559,7 @@
     renderNaval();
     showNotif(`Enemy ${className} sighted.`, "warn");
   }
+
   function startNavalCombat() {
     ensureExpansionState();
     if (!S.naval.ship) {
@@ -1468,15 +1583,18 @@
     S.naval.log = [{ text: "Naval combat begins. Crew to stations.", type: "good" }];
     renderNaval();
   }
+
   function clearNavalLog() {
     ensureExpansionState();
     S.naval.log = [];
     renderNaval();
   }
+
   function navalLog(text, type) {
     S.naval.log.unshift({ text, type });
     S.naval.log = S.naval.log.slice(0, 30);
   }
+
   function shipBreakTest(ship, side) {
     while (!ship.wrecked) {
       const threshold = getShipThreshold(ship, side === "player");
@@ -1497,10 +1615,12 @@
       navalLog(`${side === "player" ? "Your" : "Enemy"} hull breaks. Defend drops to d${ship.hullDie}.`, "warn");
     }
   }
+
   function damageShip(ship, amount, side) {
     ship.stress += amount;
     shipBreakTest(ship, side);
   }
+
   function repairPlayerShipToFull() {
     ensureExpansionState();
     if (!S.naval.ship) {
@@ -1510,10 +1630,12 @@
     S.naval.ship.wrecked = false;
     renderNaval();
   }
+
   function currentZoneIndex() {
     const index = NAVAL_ZONES.indexOf(S.naval.zone);
     return index >= 0 ? index : 1;
   }
+
   function adjustNavalZone(direction) {
     ensureExpansionState();
     if (!S.naval.ship) {
@@ -1535,6 +1657,7 @@
     }
     renderNaval();
   }
+
   function applyPowerShift() {
     ensureExpansionState();
     const from = document.getElementById("navalPowerFrom")?.value || "shoot";
@@ -1547,11 +1670,13 @@
     navalLog(`Power diverted from ${from} to ${to} for this round.`, "good");
     renderNaval();
   }
+
   function clearPowerShift() {
     ensureExpansionState();
     S.naval.powerShift = null;
     renderNaval();
   }
+
   function nextNavalRound() {
     ensureExpansionState();
     S.naval.round += 1;
@@ -1560,6 +1685,7 @@
     navalLog(`Round ${S.naval.round} begins.`, "");
     renderNaval();
   }
+
   function navalAttack(mode) {
     ensureExpansionState();
     const ship = S.naval.ship;
@@ -1572,6 +1698,7 @@
       showNotif("One of the ships is already wrecked.", "warn");
       return;
     }
+
     if (mode === "strike" && S.naval.zone !== "Close") {
       showNotif("Cannons need Close range.", "warn");
       return;
@@ -1588,11 +1715,13 @@
       showNotif("Target is too far for ship weapons.", "warn");
       return;
     }
+
     const die = getEffectiveShipDie(ship, mode, true);
     if (!die) {
       showNotif("This ship has no weapon die for that action.", "warn");
       return;
     }
+
     const attack = explodingRoll(die);
     attack.total += S.naval.tacticsBonus || 0;
     const defend = explodingRoll(getEffectiveShipDie(enemy, "hull", false) || 4);
@@ -1607,6 +1736,7 @@
     S.naval.tacticsBonus = 0;
     renderNaval();
   }
+
   function enemyNavalAttack() {
     ensureExpansionState();
     const ship = S.naval.ship;
@@ -1614,6 +1744,7 @@
     if (!ship || !enemy || ship.wrecked || enemy.wrecked) {
       return;
     }
+
     let mode = null;
     if (S.naval.zone === "Close") {
       mode = "strike";
@@ -1624,12 +1755,14 @@
       renderNaval();
       return;
     }
+
     const die = getEffectiveShipDie(enemy, mode, false);
     if (!die) {
       navalLog("Enemy ship lacks the weapon profile for that shot.", "");
       renderNaval();
       return;
     }
+
     const attack = explodingRoll(die);
     const defend = explodingRoll(getEffectiveShipDie(ship, "hull", true) || 4);
     const success = attack.total >= defend.total;
@@ -1642,6 +1775,7 @@
     }
     renderNaval();
   }
+
   function navalRepair() {
     ensureExpansionState();
     if (!S.naval.ship) {
@@ -1658,6 +1792,7 @@
     }
     renderNaval();
   }
+
   function navalTactics() {
     ensureExpansionState();
     const lead = explodingRoll(S.stats.lead || 4);
@@ -1672,6 +1807,7 @@
     }
     renderNaval();
   }
+
   function navalMorale() {
     ensureExpansionState();
     const spirit = explodingRoll(S.stats.spirit || 4);
@@ -1686,6 +1822,7 @@
     }
     renderNaval();
   }
+
   function navalSurvey() {
     ensureExpansionState();
     const mind = explodingRoll(S.stats.mind || 4);
@@ -1699,6 +1836,7 @@
     }
     renderNaval();
   }
+
   function wreckEnemyShip() {
     ensureExpansionState();
     if (!S.naval.enemyShip) {
@@ -1708,6 +1846,7 @@
     navalLog("Enemy ship is marked wrecked.", "good");
     renderNaval();
   }
+
   function renderGambling() {
     ensureExpansionState();
     const level = GAMBLING_LEVELS.find((item) => item.level === S.gambling.difficulty) || GAMBLING_LEVELS[0];
@@ -1717,6 +1856,7 @@
     const die = document.getElementById("gamblingDieReadout");
     const grid = document.getElementById("gamblingDifficultyGrid");
     const history = document.getElementById("gamblingHistory");
+
     if (credits) {
       credits.textContent = `${S.credits} ₵`;
     }
@@ -1750,16 +1890,19 @@
         : '<div class="history-card">No games played yet.</div>';
     }
   }
+
   function setGamblingDifficulty(level) {
     ensureExpansionState();
     S.gambling.difficulty = level;
     renderGambling();
   }
+
   function setGamblingGuess(guess) {
     ensureExpansionState();
     S.gambling.guess = guess;
     renderGambling();
   }
+
   function getAdventurePosition(adventure, low, high) {
     if (adventure < low) {
       return "under";
@@ -1769,6 +1912,7 @@
     }
     return "middle";
   }
+
   function playGamblingRound() {
     ensureExpansionState();
     const level = GAMBLING_LEVELS.find((item) => item.level === S.gambling.difficulty) || GAMBLING_LEVELS[0];
@@ -1776,6 +1920,7 @@
       showNotif("Not enough Credits for that buy-in.", "warn");
       return;
     }
+
     const dreadOne = roll(level.die);
     const dreadTwo = roll(level.die);
     const low = Math.min(dreadOne, dreadTwo);
@@ -1783,14 +1928,17 @@
     const adventure = roll(level.die);
     const actual = getAdventurePosition(adventure, low, high);
     const success = actual === S.gambling.guess;
+
     if (success) {
       S.credits += level.buyIn;
     } else {
       S.credits -= level.buyIn;
     }
+
     document.getElementById("gambleDieOne").textContent = String(low);
     document.getElementById("gambleDieTwo").textContent = String(high);
     document.getElementById("gambleAdventure").textContent = String(adventure);
+
     const outcome = document.getElementById("gamblingOutcome");
     if (outcome) {
       outcome.className = `gamble-outcome ${success ? "good" : "warn"}`;
@@ -1801,6 +1949,7 @@
         ${success ? `You gain ${level.buyIn} Credits.` : `You lose ${level.buyIn} Credits.`}
       `;
     }
+
     S.gambling.history.unshift(
       `Level ${level.level} (${level.label}) - Dread ${low}/${high}, Adventure ${adventure}, guessed ${S.gambling.guess}, result ${actual}, ${success ? `won ${level.buyIn} C` : `lost ${level.buyIn} C`}.`
     );
@@ -1808,6 +1957,7 @@
     updateCreditsUI();
     renderGambling();
   }
+
   function clearGamblingHistory() {
     ensureExpansionState();
     S.gambling.history = [];
@@ -1824,6 +1974,7 @@
     });
     renderGambling();
   }
+
   function syncExpansionUIs() {
     ensureExpansionState();
     mountExpansionPanels();
@@ -1837,12 +1988,14 @@
       layoutSelect.value = S.lastSea.layout || "random";
     }
   }
+
   function setLastSeaSeason(season, button) {
     setSeason(season, button);
     ensureExpansionState();
     S.lastSea.weather = rollLastSeaWeather();
     renderLastSeaInfo();
   }
+
   document.addEventListener("DOMContentLoaded", () => {
     ensureExpansionState();
     mountExpansionPanels();
@@ -1851,29 +2004,34 @@
     renderNaval();
     renderGambling();
   });
+
   const baseUpdateCreditsUI = updateCreditsUI;
   updateCreditsUI = function () {
     baseUpdateCreditsUI();
     renderNaval();
     renderGambling();
   };
+
   const baseLoadCharacter = loadCharacter;
   loadCharacter = function () {
     baseLoadCharacter();
     syncExpansionUIs();
   };
+
   const baseClearCharacter = clearCharacter;
   clearCharacter = function () {
     baseClearCharacter();
     ensureExpansionState();
     syncExpansionUIs();
   };
+
   const baseGenerateCharacter = generateCharacter;
   generateCharacter = function () {
     baseGenerateCharacter();
     ensureExpansionState();
     syncExpansionUIs();
   };
+
   window.setLastSeaSeason = setLastSeaSeason;
   window.generateLastSea = generateLastSea;
   window.clearLastSea = clearLastSea;

@@ -863,7 +863,7 @@
     var event = pick(events);
     var borderColor = type === "commoner" ? "var(--teal)" : "var(--purple)";
     var labelColor  = type === "commoner" ? "var(--teal)" : "var(--purple)";
-    var label = type === "commoner" ? "\u{1F465} Commoner Petition" : "\uD83D\uDCFF Acolyte Decree";
+    var label = type === "commoner" ? "\uD83D\uDC65 Commoner Petition" : "\uD83D\uDCFF Acolyte Decree";
     el.innerHTML = '<div style="background:var(--surface);border-left:2px solid ' + borderColor + ';padding:.5rem .65rem;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.12em;color:' + labelColor + ';text-transform:uppercase;margin-bottom:.18rem;">' + label + '</div>'
       + '<div style="font-size:.83rem;color:var(--text2);line-height:1.6;">' + event + '</div>'
@@ -1069,9 +1069,13 @@
 
   function addCombatUnit(side) {
     ensureNewFeatureState();
+    var enemyCount = 0;
+    for (var i = 0; i < S.combatMap.units.length; i++) {
+      if (S.combatMap.units[i].side === "enemy") { enemyCount++; }
+    }
     var defaultName = side === "ally"
       ? (S.name && S.name.trim() ? S.name : "Self")
-      : "Enemy " + (S.combatMap.units.filter(function(u){ return u.side === "enemy"; }).length + 1);
+      : "Enemy " + (enemyCount + 1);
     var name = prompt((side === "ally" ? "Add ally name:" : "Add enemy name:"), defaultName);
     if (!name) { return; }
     S.combatMap.units.push({ id: combatMapUnitId++, name: name.trim(), side: side, zone: side === "ally" ? "Nearby" : "Nearby" });

@@ -1336,6 +1336,7 @@
         html += '<div style="display:flex;align-items:center;gap:.4rem;font-size:.74rem;padding:.08rem 0;">'
           + '<span style="color:var(--muted2);font-size:.58rem;font-family:\'Cinzel\',serif;white-space:nowrap;">Slot ' + (i + 1) + ':</span>'
           + '<span style="color:' + (mod ? 'var(--teal)' : 'var(--muted)') + ';flex:1;">' + (mod || '\u2014 Empty \u2014') + '</span>'
+          + (mod ? '<button class="bp-info-btn" title="Mod info" onclick="showWeaponModInfo(\'' + mod.replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">?</button>' : '')
           + (mod ? '<button class="btn btn-xs btn-red" style="padding:.04rem .28rem;font-size:.58rem;" onclick="removeWeaponMod(' + slotIdx + ')">✕</button>' : '')
           + '</div>';
         if (mod) { modIdx++; }
@@ -1349,7 +1350,9 @@
       html += '<div style="font-size:.72rem;color:var(--muted2);margin-top:.3rem;padding-top:.3rem;border-top:1px solid var(--border);">'
         + '<strong style="color:var(--text2);">Unassigned:</strong> '
         + unassigned.map(function(mod, i) {
-            return mod + ' <button class="btn btn-xs btn-red" style="padding:.02rem .22rem;font-size:.56rem;" onclick="removeWeaponMod(' + (modIdx + i) + ')">✕</button>';
+            return mod
+              + ' <button class="bp-info-btn" title="Mod info" onclick="showWeaponModInfo(\'' + mod.replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">?</button>'
+              + ' <button class="btn btn-xs btn-red" style="padding:.02rem .22rem;font-size:.56rem;" onclick="removeWeaponMod(' + (modIdx + i) + ')">✕</button>';
           }).join(' · ')
         + '</div>';
     }
@@ -1362,6 +1365,93 @@
     S.weaponMods.splice(idx, 1);
     renderWeaponModsPanel();
     showNotif('Weapon Mod removed.', '');
+  }
+
+  function showWeaponModInfo(modName) {
+    var mods = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA.weapon_mods) ? SHOP_DATA.weapon_mods : [];
+    var item = null;
+    for (var i = 0; i < mods.length; i++) { if (mods[i].name === modName) { item = mods[i]; break; } }
+    if (!item) { openModal('Weapon Mod', '<div style="font-size:.9rem;color:var(--text2);">' + modName + '</div>'); return; }
+    var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">🔩 ' + item.name + '</div>'
+      + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">' + item.stat + '</div>'
+      + '<div>' + item.desc + '</div>'
+      + '</div>';
+    openModal(item.name, html);
+  }
+
+  // ── AUGMENTATIONS PANEL ───────────────────────────────────────────────────────
+  function renderAugmentationsPanel() {
+    var el = document.getElementById('augmentationsDisplay');
+    if (!el) { return; }
+    ensureNewFeatureState();
+    var augs = Array.isArray(S.augmentations) ? S.augmentations : [];
+    if (!augs.length) {
+      el.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">No augmentations installed.</div>';
+      return;
+    }
+    var html = augs.map(function(name, i) {
+      var aug = null;
+      var list = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA.augmentations) ? SHOP_DATA.augmentations : [];
+      for (var j = 0; j < list.length; j++) { if (list[j].name === name) { aug = list[j]; break; } }
+      return '<div style="display:flex;align-items:center;gap:.35rem;background:var(--surface);border:1px solid var(--border2);padding:.25rem .45rem;margin-bottom:.2rem;border-radius:3px;">'
+        + '<span style="font-size:.75rem;color:var(--gold2);flex:1;font-family:\'Cinzel\',serif;">' + name + '</span>'
+        + (aug ? '<span style="font-size:.64rem;color:var(--muted2);">' + aug.stat.replace('Augmentation | ','') + '</span>' : '')
+        + '<button class="bp-info-btn" title="Augmentation info" onclick="showAugmentationInfo(\'' + name.replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">?</button>'
+        + '<button class="btn btn-xs btn-red" style="padding:.03rem .28rem;font-size:.58rem;" onclick="removeAugmentation(' + i + ')">✕</button>'
+        + '</div>';
+    }).join('');
+    el.innerHTML = html;
+  }
+
+  function showAugmentationInfo(augName) {
+    var list = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA.augmentations) ? SHOP_DATA.augmentations : [];
+    var item = null;
+    for (var i = 0; i < list.length; i++) { if (list[i].name === augName) { item = list[i]; break; } }
+    if (!item) { openModal('Augmentation', '<div style="font-size:.9rem;color:var(--text2);">' + augName + '</div>'); return; }
+    var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">🦾 ' + item.name + '</div>'
+      + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">' + item.stat + '</div>'
+      + '<div>' + item.desc + '</div>'
+      + '</div>';
+    openModal(item.name, html);
+  }
+
+  function removeAugmentation(idx) {
+    ensureNewFeatureState();
+    if (!Array.isArray(S.augmentations)) { return; }
+    S.augmentations.splice(idx, 1);
+    renderAugmentationsPanel();
+    if (typeof renderOSHacksPanel === 'function') { renderOSHacksPanel(); }
+    if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
+    showNotif('Augmentation removed.', '');
+  }
+
+  // ── CHAR TAB DREAD DIE ROLLER ─────────────────────────────────────────────────
+  var charDreadDieSize = 8;
+
+  function initCharDreadDiceOpts() {
+    var el = document.getElementById('charDreadDiceOpts');
+    if (!el) { return; }
+    el.innerHTML = [4, 6, 8, 10, 12, 20].map(function(d) {
+      return '<div class="d-opt' + (d === charDreadDieSize ? ' dread-sel' : '') + '" data-v="' + d + '" '
+        + 'onclick="selectCharDreadDie(' + d + ')">d' + d + '</div>';
+    }).join('');
+  }
+
+  function selectCharDreadDie(d) {
+    charDreadDieSize = d;
+    var opts = document.querySelectorAll('#charDreadDiceOpts .d-opt');
+    opts.forEach(function(opt) { opt.classList.toggle('dread-sel', parseInt(opt.dataset.v, 10) === d); });
+  }
+
+  function rollCharDreadDie() {
+    var result = explodingRoll(charDreadDieSize);
+    var el = document.getElementById('charDreadResult');
+    if (!el) { return; }
+    el.innerHTML = '<span style="color:var(--red);font-size:1.1rem;font-weight:700;">' + result.total + '</span>'
+      + ' <span style="font-size:.75rem;color:var(--muted2);">Dread d' + charDreadDieSize + (result.exploded ? ' ✦ Exploded!' : '') + '</span>'
+      + '<div style="font-size:.73rem;color:var(--muted2);margin-top:.15rem;">Beat this with your stat die to succeed. (GM decides if failure costs Stress)</div>';
   }
 
   // ── HACK EFFECTS TABLE ────────────────────────────────────────────────────────
@@ -1562,6 +1652,13 @@
 
   window.renderWeaponModsPanel  = renderWeaponModsPanel;
   window.removeWeaponMod        = removeWeaponMod;
+  window.showWeaponModInfo      = showWeaponModInfo;
+  window.renderAugmentationsPanel = renderAugmentationsPanel;
+  window.showAugmentationInfo   = showAugmentationInfo;
+  window.removeAugmentation     = removeAugmentation;
+  window.initCharDreadDiceOpts  = initCharDreadDiceOpts;
+  window.selectCharDreadDie     = selectCharDreadDie;
+  window.rollCharDreadDie       = rollCharDreadDie;
   window.renderOSHacksPanel     = renderOSHacksPanel;
   window.removeOwnedHack        = removeOwnedHack;
   window.setHackGuess           = setHackGuess;

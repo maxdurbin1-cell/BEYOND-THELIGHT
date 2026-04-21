@@ -374,6 +374,13 @@ select option{background:#0f1020;}
         </div>
         <div id="passionResult" style="font-size:.82rem;color:var(--muted3);margin-top:.35rem;min-height:1rem;line-height:1.4;"></div>
       </div>
+      <div style="padding-top:.45rem;border-top:1px solid var(--border);margin-top:.45rem;">
+        <div class="sub-label">🎲 Dread Die Roller</div>
+        <div style="font-size:.73rem;color:var(--muted2);margin-bottom:.35rem;">Standalone check — GM decides if failure costs Stress.</div>
+        <div id="charDreadDiceOpts" style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.4rem;"></div>
+        <button class="btn btn-sm btn-primary" onclick="rollCharDreadDie()">⚄ Roll Dread Die</button>
+        <div id="charDreadResult" style="margin-top:.35rem;min-height:1rem;font-size:.82rem;line-height:1.4;"></div>
+      </div>
     </div>
     <!-- ── OS HACKS PANEL — visible only when OPERATING SYSTEM augmentation is installed ── -->
     <div class="card" id="osHacksPanel" style="display:none;">
@@ -430,6 +437,13 @@ select option{background:#0f1020;}
             <button class="btn btn-xs" onclick="renderWeaponModsPanel()">↻ Refresh</button>
           </div>
           <div id="weaponModsDisplay"><div style="font-size:.76rem;color:var(--muted2);">Equip a +1/+2/+3/+4 weapon to unlock mod slots.</div></div>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:.4rem;margin-top:.4rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+            <span class="sub-label" style="margin-bottom:0;">🦾 Augmentations</span>
+            <button class="btn btn-xs" onclick="renderAugmentationsPanel()">↻ Refresh</button>
+          </div>
+          <div id="augmentationsDisplay"><div style="font-size:.76rem;color:var(--muted2);">No augmentations installed.</div></div>
         </div>
       </div>
     </div>
@@ -1029,8 +1043,95 @@ function rollWildernessFull(){
   </div>`;
 }
 
-function openTMWActions(){openModal('Teamwork Points',`<div style="font-size:.85rem;color:var(--muted3);line-height:1.6;margin-bottom:.6rem;">Current TMW Pool: <strong style="color:var(--teal);">${S.tmw}</strong><br><br>Spend <strong>1 TMW</strong> to add +1 to any roll.<br>Spend <strong>2 TMW</strong> to Push Your Luck: re-roll, step up Dread. Fail = Negative Condition. Success = Positive Condition.</div><div style="display:flex;gap:.4rem;flex-wrap:wrap;"><button class="btn btn-teal" onclick="spendTMW(1)">Spend 1 TMW (+1 to roll)</button><button class="btn btn-primary" onclick="spendTMW(2)">Spend 2 TMW (Push Your Luck)</button></div>`);}
-function spendTMW(n){if(S.tmw<n){showNotif('Not enough TMW!','warn');return;}S.tmw-=n;updateTMWPool();showNotif(`Spent ${n} TMW. Pool: ${S.tmw}`);closeModal();}
+function openTMWActions() {
+  var pool = S.tmw || 0;
+  var html = '<div style="font-size:.85rem;color:var(--muted3);line-height:1.6;margin-bottom:.55rem;">'
+    + 'TMW Pool: <strong style="color:var(--teal);">' + pool + '</strong></div>'
+    + '<div style="border-bottom:1px solid var(--border);padding-bottom:.65rem;margin-bottom:.65rem;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">⚑ Teamwork Bonus</div>'
+    + '<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.4rem;">Spend N TMW to add +N to any roll. If the bonus converts a failure to a success, you earn +1 TMW back.</div>'
+    + '<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem;">'
+    + '<span style="font-size:.82rem;color:var(--text2);">Spend</span>'
+    + '<input type="number" id="tmwSpendAmt" min="1" max="' + pool + '" value="1" style="width:3.5rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .35rem;font-size:.85rem;border-radius:3px;">'
+    + '<span style="font-size:.8rem;color:var(--muted2);">TMW = <strong style="color:var(--teal);">+<span id="tmwBonusDisplay">1</span></strong> to roll</span>'
+    + '</div>'
+    + '<div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;">'
+    + '<button class="btn btn-teal btn-sm" onclick="applyTeamworkBonus()">Apply Bonus</button>'
+    + '<button class="btn btn-xs btn-green" id="tmwSuccessBtn" style="display:none;" onclick="teamworkSuccess()">✔ It succeeded (+1 TMW)</button>'
+    + '</div></div>'
+    + '<div>'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">🎲 Push Your Luck (−2 TMW)</div>'
+    + '<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.4rem;">Steps up Dread one level and re-rolls your chosen pool. Success = Positive Condition. Failure = Negative Condition (clears when you roll in that pool).</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;">'
+    + '<button class="btn btn-xs" style="background:var(--surface);" onclick="pushLuck(\'Body/Strike/Shoot\')">🎲 Body / Strike / Shoot</button>'
+    + '<button class="btn btn-xs" style="background:var(--surface);" onclick="pushLuck(\'Mind/Control\')">🎲 Mind / Control</button>'
+    + '<button class="btn btn-xs" style="background:var(--surface);" onclick="pushLuck(\'Spirit/Lead\')">🎲 Spirit / Lead</button>'
+    + '<button class="btn btn-xs" style="background:var(--surface);" onclick="pushLuck(\'Defend\')">🎲 Defend</button>'
+    + '</div></div>';
+  openModal('Teamwork Points', html);
+  setTimeout(function() {
+    var inp = document.getElementById('tmwSpendAmt');
+    if (inp) { inp.oninput = function() { var d = document.getElementById('tmwBonusDisplay'); if (d) d.textContent = this.value; }; }
+  }, 40);
+}
+
+function applyTeamworkBonus() {
+  var inp = document.getElementById('tmwSpendAmt');
+  var n = inp ? Math.max(1, Math.min(parseInt(inp.value, 10) || 1, S.tmw || 0)) : 1;
+  if ((S.tmw || 0) < n) { showNotif('Not enough TMW!', 'warn'); return; }
+  S.tmw = Math.max(0, (S.tmw || 0) - n);
+  updateTMWPool();
+  showNotif('Spent ' + n + ' TMW — apply +' + n + ' to your roll!', 'good');
+  var btn = document.getElementById('tmwSuccessBtn');
+  if (btn) { btn.style.display = ''; }
+}
+
+function teamworkSuccess() {
+  S.tmw = (S.tmw || 0) + 1;
+  updateTMWPool();
+  showNotif('+1 TMW rewarded for converting a failure to success!', 'good');
+  closeModal();
+}
+
+function pushLuck(pool) {
+  if ((S.tmw || 0) < 2) { showNotif('Need 2 TMW to Push Your Luck!', 'warn'); return; }
+  S.tmw = Math.max(0, (S.tmw || 0) - 2);
+  updateTMWPool();
+  var oldDread = S.combat ? (S.combat.enemyDread || 8) : 8;
+  var newDread = stepUp(oldDread);
+  if (S.combat) S.combat.enemyDread = newDread;
+  if (typeof updateCombatUI === 'function') updateCombatUI();
+  var statKey, posCond, negCond;
+  if (pool.indexOf('Body') >= 0) { statKey = 'body'; posCond = 'empowered'; negCond = 'weakened'; }
+  else if (pool.indexOf('Mind') >= 0) { statKey = 'mind'; posCond = 'focused'; negCond = 'distracted'; }
+  else if (pool.indexOf('Spirit') >= 0) { statKey = 'spirit'; posCond = 'bolstered'; negCond = 'shaken'; }
+  else { statKey = 'defend'; posCond = 'protected'; negCond = 'vulnerable'; }
+  var die = typeof getEffectiveDie === 'function' ? getEffectiveDie(statKey) : (S.stats[statKey] || 4);
+  var actionRoll = explodingRoll(die);
+  var dreadRoll = explodingRoll(newDread);
+  var success = actionRoll.total >= dreadRoll.total;
+  var condName = success ? posCond : negCond;
+  S.conditions[condName] = true;
+  if (typeof updateConditionButtons === 'function') updateConditionButtons();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  var condLabel = condName.charAt(0).toUpperCase() + condName.slice(1);
+  var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+    + '<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.45rem;">Dread stepped up: <span style="color:var(--red);">d' + oldDread + ' → d' + newDread + '</span></div>'
+    + '<div style="display:flex;gap:1rem;margin-bottom:.5rem;align-items:center;">'
+    + '<div style="text-align:center;"><div style="font-size:1.8rem;font-weight:700;color:var(--teal);">' + actionRoll.total + (actionRoll.exploded ? '✦' : '') + '</div><div style="font-size:.7rem;color:var(--muted2);">' + pool.split('/')[0] + ' d' + die + '</div></div>'
+    + '<div style="font-size:1.1rem;color:var(--border2);">vs</div>'
+    + '<div style="text-align:center;"><div style="font-size:1.8rem;font-weight:700;color:var(--red);">' + dreadRoll.total + (dreadRoll.exploded ? '✦' : '') + '</div><div style="font-size:.7rem;color:var(--muted2);">Dread d' + newDread + '</div></div>'
+    + '</div>'
+    + '<div style="font-size:1rem;font-weight:700;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? '✔ Success!' : '✘ Failure!') + '</div>'
+    + '<div style="margin-top:.3rem;font-size:.82rem;padding:.35rem .5rem;border-left:3px solid ' + (success ? 'var(--teal)' : 'var(--red)') + ';background:var(--surface);">'
+    + (success
+       ? '⚡ <strong style="color:var(--teal);">' + condLabel + '</strong> applied — ' + pool + ' ↑. Clears after use in this pool.'
+       : '⚠ <strong style="color:var(--red);">' + condLabel + '</strong> applied — ' + pool + ' ↓. Clears when you next roll in this pool.')
+    + '</div></div>';
+  openModal('Push Your Luck — ' + pool, html);
+}
+
+function spendTMW(n) { if (S.tmw < n) { showNotif('Not enough TMW!', 'warn'); return; } S.tmw -= n; updateTMWPool(); showNotif('Spent ' + n + ' TMW. Pool: ' + S.tmw); closeModal(); }
 
 // ── COMBAT ───────────────────────────────────────────────────────────────────
 function startCombat(){S.combat.active=true;S.combat.round=1;updateCombatUI();}
@@ -1325,6 +1426,7 @@ function buyItem(cost, name, cat) {
     if (S.augmentations.indexOf(name) < 0) {
       S.augmentations.push(name);
       if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+      if (typeof renderAugmentationsPanel === 'function') renderAugmentationsPanel();
       updateAllStatDisplays();
     }
   } else if (cat === 'os_hacks') {
@@ -1982,6 +2084,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   updateCombatUI();renderEnemies();
   if(typeof renderOSHacksPanel==='function')renderOSHacksPanel();
   if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
+  if(typeof renderAugmentationsPanel==='function')renderAugmentationsPanel();
+  if(typeof initCharDreadDiceOpts==='function')initCharDreadDiceOpts();
 });
 </script>
 <script src="./beyond-light-missing-functions.js"></script>

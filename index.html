@@ -198,6 +198,7 @@ select option{background:#0f1020;}
   <div class="logo">BEYOND<span>:</span> THE LIGHT</div>
   <nav>
     <button class="tab-btn active" onclick="switchTab('character',this)">Character</button>
+    <button class="tab-btn" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn" onclick="switchTab('lastsea',this)">Last Sea</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
@@ -218,10 +219,6 @@ select option{background:#0f1020;}
 
   
 <!-- CHARACTER TAB -->
-  <div class="card" style="grid-column:1/-1;">
-  <div class="section-title">Active Missions</div>
-  <div id="missionTrackerContainer"></div>
-</div>
 <div class="tab-panel active" id="tab-character">
   <div class="char-top">
     <div class="char-top-title">Wayfarer Sheet</div>
@@ -231,19 +228,6 @@ select option{background:#0f1020;}
       <button class="btn" onclick="loadCharacter()">📂 Load</button>
       <button class="btn btn-red btn-sm" onclick="clearCharacter()">✕ Clear</button>
     </div>
-    <div class="card" style="grid-column:1/-1;">
-  <div class="section-title">Active Missions</div>
-  <div id="missionTrackerContainer">
-    <div style="font-size:.8rem;color:var(--muted2);">No active missions.</div>
-  </div>
-</div>
-
-<div class="card" style="grid-column:1/-1;">
-  <div class="section-title">Completed Missions</div>
-  <div id="completedMissionsContainer">
-    <div style="font-size:.8rem;color:var(--muted2);">No completed missions yet.</div>
-  </div>
-</div>
   </div>
   <div class="char-grid">
     <div class="card">
@@ -448,6 +432,7 @@ select option{background:#0f1020;}
     <div class="leg-item"><div class="leg-dot" style="background:#5a1040;border:1px solid #e080c0;"></div>Lost City</div>
     <div class="leg-item"><div class="leg-dot" style="background:#282828;border:1px dashed #555;"></div>Barrier</div>
     <div class="leg-item"><div class="leg-dot" style="background:#3a2800;border:1px solid #f0a840;"></div>Trade Route</div>
+    <div class="leg-item"><div class="leg-dot" style="background:rgba(200,50,50,.12);border:1px solid rgba(200,50,50,.55);color:#e05050;font-size:.72rem;text-align:center;line-height:1.35;">&#9876;</div>Mission</div>
   </div>
   <div class="map-layout">
     <div class="map-scroll" id="mapScroll">
@@ -789,6 +774,48 @@ select option{background:#0f1020;}
 <!-- HOLDING TAB -->
 <div class="tab-panel" id="tab-holding"></div>
 
+<!-- MISSIONS TAB -->
+<div class="tab-panel" id="tab-missions">
+  <div style="max-width:1100px;">
+    <div class="ship-banner">
+      <h3>Missions</h3>
+      <p>Accept missions from the board. Each mission is a 3-step process: gather information (optional), travel to site, then face the confrontation. Success earns Credits, Renown, and loot from the merchant tables.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
+      <!-- Mission Board -->
+      <div class="card" style="grid-column:1/-1;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:.4rem;">
+          <div class="section-title" style="margin:0;">Mission Board</div>
+          <div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:.7rem;color:var(--muted2);">1–4 missions posted at a time</span>
+            <button class="btn btn-primary" onclick="generateMissions()">⚄ Generate Missions</button>
+          </div>
+        </div>
+        <div style="font-size:.7rem;color:var(--muted2);margin-bottom:.45rem;">
+          Easy d4 · Medium d6 · Hard d8 · Challenging d10 · Very Hard d12 · Impossible d20
+        </div>
+        <div id="jobsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.5rem;">
+          <div style="grid-column:1/-1;font-size:.83rem;color:var(--muted2);padding:.75rem;text-align:center;">No missions available. Click "Generate Missions" to post new missions.</div>
+        </div>
+      </div>
+      <!-- Active Missions -->
+      <div class="card">
+        <div class="section-title">Active Missions</div>
+        <div id="missionTrackerContainer">
+          <div style="font-size:.83rem;color:var(--muted2);">No active missions. Accept a mission from the board above.</div>
+        </div>
+      </div>
+      <!-- Completed Missions -->
+      <div class="card">
+        <div class="section-title">Completed Missions <span style="font-size:.58rem;color:var(--muted);">(last 10)</span></div>
+        <div id="completedMissionsContainer">
+          <div style="font-size:.8rem;color:var(--muted2);">No completed missions yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL -->
 <div class="overlay" id="rollModal">
   <div class="modal">
@@ -1070,6 +1097,7 @@ function renderHexMap(){
       dot.setAttribute('r','4');dot.setAttribute('fill','var(--teal)');dot.setAttribute('pointer-events','none');
       g.appendChild(dot);
     }
+    if(S.missionTokens&&S.missionTokens[`${hex.col},${hex.row}`]){const mt=document.createElementNS('http://www.w3.org/2000/svg','text');mt.setAttribute('x',x+HEX_SIZE*.55);mt.setAttribute('y',y-HEX_SIZE*.3);mt.setAttribute('text-anchor','middle');mt.setAttribute('font-size','10');mt.setAttribute('fill','#e05050');mt.setAttribute('pointer-events','none');mt.textContent='⚔';g.appendChild(mt);}
     g.addEventListener('click',()=>{selectedHex=hex;renderHexMap();renderHexInfo(hex);});
     g.addEventListener('mousemove',()=>{const c=document.getElementById('hexCoords');if(c)c.textContent=`[${hex.col+1},${hex.row+1}] ${hex.terrain.name} — ${hex.name||hex.type}`;});
     svg.appendChild(g);

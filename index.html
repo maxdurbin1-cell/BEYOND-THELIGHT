@@ -1279,6 +1279,7 @@ function pushLuck(pool) {
        : '⚠ <strong style="color:var(--red);">' + condLabel + '</strong> applied — ' + pool + ' ↓. Clears when you next roll in this pool.')
     + '</div></div>';
   openModal('Push Your Luck — ' + pool, html);
+  if (success) { addSuccessRoll(); }
 }
 
 function spendTMW(n) { if (S.tmw < n) { showNotif('Not enough TMW!', 'warn'); return; } S.tmw -= n; updateTMWPool(); showNotif('Spent ' + n + ' TMW. Pool: ' + S.tmw); closeModal(); }
@@ -1517,7 +1518,7 @@ function rollAttack(type) {
   if(!success){
     var tmwAmt = (S.flavor||'').toLowerCase().indexOf('failed rolls grant +2')>=0 ? 2 : 1;
     changeCounter('tmw', tmwAmt);
-  }
+  } else { addSuccessRoll(); }
   clearConditionOnUse(type);
 }
 
@@ -1575,10 +1576,10 @@ function rollDefend() {
     changeStress(diff);
     var tmwAmt = (S.flavor||'').toLowerCase().indexOf('failed rolls grant +2')>=0 ? 2 : 1;
     changeCounter('tmw', tmwAmt);
-  }
+  } else { addSuccessRoll(); }
   clearConditionOnUse('defend');
 }
-function rollTraumaCheck(){const a=explodingRoll(S.stats.adventure),d=explodingRoll(S.combat.enemyDread);const success=a.total>=d.total;const el=document.getElementById('traumaResult');if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;if(!success)changeTrauma(1);}
+function rollTraumaCheck(){const a=explodingRoll(S.stats.adventure),d=explodingRoll(S.combat.enemyDread);const success=a.total>=d.total;const el=document.getElementById('traumaResult');if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;if(success){addSuccessRoll();}else{changeTrauma(1);}}
 
 let enemyIdCounter=1;
 function addEnemy(){const name=prompt('Enemy name:','Enemy '+(S.enemies.length+1))||'Enemy';const maxStress=S.combat.enemyDread*2;S.enemies.push({id:enemyIdCounter++,name,dread:S.combat.enemyDread,stress:0,maxStress});renderEnemies();}
@@ -1967,7 +1968,7 @@ function useToolkit(statKey, backpackIndex) {
   removeBackpackItem(backpackIndex);
   clearConditionOnUse(statKey);
 }
-function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);}
+function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){addSuccessRoll();}}
 
 // ── MAP GENERATION ────────────────────────────────────────────────────────────
 // FIX: 12×12 grid

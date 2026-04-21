@@ -1648,6 +1648,7 @@
         + malwareHtml
         + '</div>';
     }
+    if (success && typeof addSuccessRoll === 'function') { addSuccessRoll(); }
   }
 
   window.renderWeaponModsPanel  = renderWeaponModsPanel;

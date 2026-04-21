@@ -1679,6 +1679,7 @@
       const nextIndex = Math.max(0, Math.min(NAVAL_ZONES.length - 1, currentZoneIndex() + direction));
       S.naval.zone = NAVAL_ZONES[nextIndex];
       navalLog(`Navigator shifts the range to ${S.naval.zone} (${controlTotal} vs ${target.total}).`, "good");
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       const stress = Math.max(1, target.total - controlTotal);
       damageShip(S.naval.ship, stress, "player");
@@ -1759,6 +1760,7 @@
       const stress = Math.max(1, attack.total - defend.total);
       damageShip(enemy, stress, "enemy");
       navalLog(`${mode === "strike" ? "Cannons" : "Crossbows"} hit for ${stress} Stress (${attack.total} vs ${defend.total}).`, "good");
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       navalLog(`${mode === "strike" ? "Cannons" : "Crossbows"} miss (${attack.total} vs ${defend.total}).`, "warn");
     }
@@ -1960,6 +1962,7 @@
 
     if (success) {
       S.credits += level.buyIn;
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       S.credits -= level.buyIn;
     }

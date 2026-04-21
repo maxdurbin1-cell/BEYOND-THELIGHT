@@ -362,10 +362,14 @@ function changeCounter(key, delta) {
 }
 
 function addSuccessRoll() {
-  changeCounter("successRolls", 1);
-  if (S.successRolls > 0 && S.successRolls % 3 === 0) {
+  S.successRolls = (S.successRolls || 0) + 1;
+  var srEl = document.getElementById("successRollsVal");
+  if (srEl) { srEl.textContent = S.successRolls; }
+  if (S.successRolls >= 3) {
+    S.successRolls = 0;
+    if (srEl) { srEl.textContent = "0"; }
     changeCounter("pathTokens", 1);
-    showNotif("3 successful rolls: +1 Path Token", "good");
+    showNotif("3 successful rolls — +1 Path Token!", "good");
   }
 }
 

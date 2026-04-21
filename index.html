@@ -359,10 +359,37 @@ select option{background:#0f1020;}
         <div id="passionResult" style="font-size:.82rem;color:var(--muted3);margin-top:.35rem;min-height:1rem;line-height:1.4;"></div>
       </div>
     </div>
+    <!-- ── OS HACKS PANEL — visible only when OPERATING SYSTEM augmentation is installed ── -->
+    <div class="card" id="osHacksPanel" style="display:none;">
+      <div class="section-title">💻 OS Interface</div>
+      <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.5rem;">Hacking requires the <strong style="color:var(--gold2);">OPERATING SYSTEM</strong> augmentation. Roll two Dread Dice, guess <strong style="color:var(--gold);">Below</strong> / <strong style="color:var(--gold);">Between</strong> / <strong style="color:var(--gold);">Above</strong>, then roll your <strong style="color:var(--teal);">Control</strong> die.</div>
+      <div id="ownedHacksList"></div>
+      <div style="border-top:1px solid var(--border);padding-top:.5rem;margin-top:.4rem;">
+        <div class="sub-label">Cast a Hack</div>
+        <div style="margin-bottom:.35rem;">
+          <span class="sub-label" style="font-size:.58rem;">Select Hack:</span>
+          <select id="hackSelect" onchange="if(S.hackRoller)S.hackRoller.selectedHack=this.value" style="background:var(--card2);border:1px solid var(--border2);color:var(--text2);padding:.25rem .4rem;font-size:.78rem;width:100%;margin-top:.15rem;"></select>
+        </div>
+        <div style="margin-bottom:.35rem;">
+          <span class="sub-label" style="font-size:.58rem;">Dread Die:</span>
+          <div id="hackDreadOpts" style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.2rem;"></div>
+        </div>
+        <div style="margin-bottom:.5rem;">
+          <span class="sub-label" style="font-size:.58rem;">Your Guess:</span>
+          <div class="guess-grid" style="margin:.25rem 0 0;">
+            <button class="guess-btn" id="hack-guess-below" onclick="setHackGuess('below')">Below</button>
+            <button class="guess-btn" id="hack-guess-between" onclick="setHackGuess('between')">Between</button>
+            <button class="guess-btn" id="hack-guess-above" onclick="setHackGuess('above')">Above</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="castHack()">⚄ Cast Hack</button>
+        <div id="hackRollResult" style="margin-top:.5rem;"></div>
+      </div>
+    </div>
     <div class="card">
       <div class="section-title">Equipment</div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" onchange="S.equipment.weapon1=this.value"></div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" onchange="S.equipment.weapon2=this.value"></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel()"></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel()"></div>
       <div class="form-row"><span class="sub-label">Armor</span>
         <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button></div>
       </div>
@@ -381,6 +408,13 @@ select option{background:#0f1020;}
           <input class="bp-input" id="bp5" placeholder="Slot 6" onchange="S.backpack[5]=this.value">
         </div>
         <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">Always carry: Rations (1₵) · Rope (2₵) · Mapping Materials (3₵)</div>
+        <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.4rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+            <span class="sub-label" style="margin-bottom:0;">🔩 Weapon Mods</span>
+            <button class="btn btn-xs" onclick="renderWeaponModsPanel()">↻ Refresh</button>
+          </div>
+          <div id="weaponModsDisplay"><div style="font-size:.76rem;color:var(--muted2);">Equip a +1/+2/+3/+4 weapon to unlock mod slots.</div></div>
+        </div>
       </div>
     </div>
     <div class="card">
@@ -1005,7 +1039,7 @@ function skirmishAction(side,action){const army=side==='A'?S.combat.armyA:S.comb
 const SHOP_RULES={
   augmentations:`<span class="srb-title">🦾 Augmentations — Available Upgrades</span>
 Wayfarers can install Augmentations equal to their <strong>Body Die ÷ 2</strong> (e.g. d8 Body = 4 Augmentations). Each installed Augmentation occupies a <strong>Talent Slot</strong>.<br>
-Space Hubs have Doctors called <strong>Wiredogs</strong> who perform installations. To install an Augmentation a character must:
+Holdings have Doctors called <strong>Wiredogs</strong> who perform installations. To install an Augmentation a character must:
 <ul>
   <li>Spend <strong>+5 Path Tokens</strong></li>
   <li>Pay the listed Credit cost</li>
@@ -1023,7 +1057,7 @@ Weapons have as many available Mod Slots as their bonus damage value. <strong>Ad
   <li><em>Heavy</em> Weapons (+4 Strike/Shoot) — <strong>4 Mod Slots</strong></li>
 </ul>`
 };
-function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;const rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/'/g,"\\'")}')">Buy</button></div></div>`).join('');}
+function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;const rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/'/g,"\\'")}','${cat}')">Buy</button></div></div>`).join('');}
 function buyItem(cost,name){if(S.credits<cost){showNotif('Not enough credits!','warn');return;}S.credits-=cost;updateCreditsUI();showNotif(`Bought: ${name} (−${cost}₵)`,'good');}
 function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);}
 
@@ -1511,6 +1545,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   showShopCat('weapons',document.querySelector('.shop-cats .scat'));
   showCodexCat('histories',document.querySelector('.codex-cats .scat'));
   updateCombatUI();renderEnemies();
+  if(typeof renderOSHacksPanel==='function')renderOSHacksPanel();
+  if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
 });
 </script>
 <script src="./beyond-light-missing-functions.js"></script>

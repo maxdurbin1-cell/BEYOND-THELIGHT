@@ -139,6 +139,14 @@
 
     S.extraTraits = Array.isArray(S.extraTraits) ? S.extraTraits : [];
 
+    S.augmentations = Array.isArray(S.augmentations) ? S.augmentations : [];
+    S.ownedHacks    = Array.isArray(S.ownedHacks)    ? S.ownedHacks    : [];
+    S.weaponMods    = Array.isArray(S.weaponMods)    ? S.weaponMods    : [];
+    S.hackRoller    = Object.assign(
+      { dreadDie: 6, guess: null, selectedHack: null },
+      S.hackRoller || {}
+    );
+
     var prevMap = S.combatMap || {};
     S.combatMap = Object.assign({ units: [] }, prevMap);
     if (!Array.isArray(S.combatMap.units)) { S.combatMap.units = []; }
@@ -1186,4 +1194,324 @@
   window.removeCombatUnit         = removeCombatUnit;
   window.clearCombatMap           = clearCombatMap;
   window.renderCombatMap          = renderCombatMap;
+
+  // ── SHOP: SMART BUY ───────────────────────────────────────────────────────────
+  function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+  function getAvailableWeaponModSlots() {
+    ensureNewFeatureState();
+    var total = 0;
+    [S.equipment.weapon1, S.equipment.weapon2].forEach(function(w) {
+      if (!w) { return; }
+      var m = w.match(/\+(\d)/);
+      if (m) {
+        var b = parseInt(m[1], 10);
+        if (b >= 1 && b <= 4) { total += b; }
+      }
+    });
+    return total;
+  }
+
+  window.buyItem = function(cost, name, cat) {
+    ensureNewFeatureState();
+    cat = cat || 'other';
+
+    if (cat === 'augmentations') {
+      if ((S.renown || 0) < 3) {
+        showNotif('Renown +3 required to install Augmentations!', 'warn'); return;
+      }
+      if ((S.pathTokens || 0) < 5) {
+        showNotif('Need 5 Path Tokens to install an Augmentation!', 'warn'); return;
+      }
+      if ((S.credits || 0) < cost) {
+        showNotif('Not enough credits!', 'warn'); return;
+      }
+      var maxAugs = Math.floor((S.stats.body || 4) / 2);
+      if (S.augmentations.length >= maxAugs) {
+        showNotif('No Augmentation slots available (Body \u00f7 2 = ' + maxAugs + ')!', 'warn'); return;
+      }
+      S.credits   -= cost;
+      S.pathTokens = Math.max(0, (S.pathTokens || 0) - 5);
+      updateCreditsUI();
+      var ptEl = document.getElementById('pathTokensVal');
+      if (ptEl) { ptEl.textContent = S.pathTokens; }
+      S.augmentations.push(name);
+      var augData = (SHOP_DATA.augmentations || []).find(function(a) { return a.name === name; });
+      var traitLabel = '\ud83e\uddb6 ' + name + (augData ? ' \u2014 ' + augData.stat : ' \u2014 Augmentation');
+      S.extraTraits.push(traitLabel);
+      if (typeof renderExtraTraits === 'function') { renderExtraTraits(); }
+      renderOSHacksPanel();
+      showNotif('Augmentation installed: ' + name + ' (\u22125 Path Tokens, \u2212' + cost + '\u20b5)', 'good');
+      return;
+    }
+
+    if (cat === 'os_hacks') {
+      if (S.augmentations.indexOf('OPERATING SYSTEM') < 0) {
+        showNotif('OPERATING SYSTEM augmentation required to buy Hacks!', 'warn'); return;
+      }
+      if ((S.credits || 0) < cost) {
+        showNotif('Not enough credits!', 'warn'); return;
+      }
+      S.credits -= cost;
+      updateCreditsUI();
+      S.ownedHacks.push(name);
+      renderOSHacksPanel();
+      showNotif('Hack acquired: ' + name + ' (\u2212' + cost + '\u20b5)', 'good');
+      return;
+    }
+
+    if (cat === 'weapon_mods') {
+      if ((S.credits || 0) < cost) {
+        showNotif('Not enough credits!', 'warn'); return;
+      }
+      var available = getAvailableWeaponModSlots();
+      if (S.weaponMods.length >= available) {
+        showNotif('No mod slots available! Equip a +# weapon first.', 'warn'); return;
+      }
+      S.credits -= cost;
+      updateCreditsUI();
+      S.weaponMods.push(name);
+      renderWeaponModsPanel();
+      showNotif('Weapon Mod acquired: ' + name + ' (\u2212' + cost + '\u20b5)', 'good');
+      return;
+    }
+
+    // Default: all other items → Backpack
+    if ((S.credits || 0) < cost) {
+      showNotif('Not enough credits!', 'warn'); return;
+    }
+    S.credits -= cost;
+    updateCreditsUI();
+    var emptyIdx = -1;
+    for (var i = 0; i < S.backpack.length; i++) {
+      if (!S.backpack[i]) { emptyIdx = i; break; }
+    }
+    if (emptyIdx >= 0) {
+      S.backpack[emptyIdx] = name;
+      var bpEl = document.getElementById('bp' + emptyIdx);
+      if (bpEl) { bpEl.value = name; }
+      showNotif('Bought: ' + name + ' \u2192 Backpack Slot ' + (emptyIdx + 1) + ' (\u2212' + cost + '\u20b5)', 'good');
+    } else {
+      showNotif('Bought: ' + name + ' (\u2212' + cost + '\u20b5) \u2014 Backpack full! Add manually.', 'warn');
+    }
+  };
+
+  // ── WEAPON MODS PANEL ─────────────────────────────────────────────────────────
+  function renderWeaponModsPanel() {
+    var el = document.getElementById('weaponModsDisplay');
+    if (!el) { return; }
+    ensureNewFeatureState();
+
+    var weaponEntries = [
+      { label: 'Slot 1', name: S.equipment.weapon1 || '' },
+      { label: 'Slot 2', name: S.equipment.weapon2 || '' }
+    ].filter(function(w) { return w.name.trim(); });
+
+    if (!weaponEntries.length) {
+      el.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">No weapons equipped.</div>';
+      return;
+    }
+
+    var html = '';
+    var modIdx = 0;
+
+    weaponEntries.forEach(function(w) {
+      var m = w.name.match(/\+(\d)/);
+      var bonus = m ? parseInt(m[1], 10) : 0;
+      if (bonus < 1 || bonus > 4) {
+        html += '<div style="font-size:.76rem;color:var(--muted2);padding:.2rem 0;">'
+          + '<strong style="color:var(--text2);">' + w.label + ':</strong> ' + w.name
+          + ' — No mod slots (Ad# or no bonus)</div>';
+        return;
+      }
+      var isRanged = /shoot/i.test(w.name);
+      var typeLabel = isRanged ? 'Ranged' : 'Melee';
+      html += '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .6rem;margin-bottom:.3rem;">'
+        + '<div style="font-size:.75rem;font-family:\'Cinzel\',serif;color:var(--gold2);margin-bottom:.2rem;">'
+        + w.label + ': ' + w.name
+        + ' <span style="color:var(--muted2);font-size:.62rem;">(' + bonus + ' ' + typeLabel + ' Mod Slot' + (bonus > 1 ? 's' : '') + ')</span></div>';
+      for (var i = 0; i < bonus; i++) {
+        var mod = S.weaponMods[modIdx] || null;
+        var slotIdx = modIdx;
+        html += '<div style="display:flex;align-items:center;gap:.4rem;font-size:.74rem;padding:.08rem 0;">'
+          + '<span style="color:var(--muted2);font-size:.58rem;font-family:\'Cinzel\',serif;white-space:nowrap;">Slot ' + (i + 1) + ':</span>'
+          + '<span style="color:' + (mod ? 'var(--teal)' : 'var(--muted)') + ';flex:1;">' + (mod || '\u2014 Empty \u2014') + '</span>'
+          + (mod ? '<button class="btn btn-xs btn-red" style="padding:.04rem .28rem;font-size:.58rem;" onclick="removeWeaponMod(' + slotIdx + ')">✕</button>' : '')
+          + '</div>';
+        if (mod) { modIdx++; }
+      }
+      html += '</div>';
+    });
+
+    // Unassigned mods overflow
+    var unassigned = S.weaponMods.slice(modIdx);
+    if (unassigned.length) {
+      html += '<div style="font-size:.72rem;color:var(--muted2);margin-top:.3rem;padding-top:.3rem;border-top:1px solid var(--border);">'
+        + '<strong style="color:var(--text2);">Unassigned:</strong> '
+        + unassigned.map(function(mod, i) {
+            return mod + ' <button class="btn btn-xs btn-red" style="padding:.02rem .22rem;font-size:.56rem;" onclick="removeWeaponMod(' + (modIdx + i) + ')">✕</button>';
+          }).join(' · ')
+        + '</div>';
+    }
+
+    el.innerHTML = html;
+  }
+
+  function removeWeaponMod(idx) {
+    ensureNewFeatureState();
+    S.weaponMods.splice(idx, 1);
+    renderWeaponModsPanel();
+    showNotif('Weapon Mod removed.', '');
+  }
+
+  // ── OS HACKS PANEL ────────────────────────────────────────────────────────────
+  function renderOSHacksPanel() {
+    var panel = document.getElementById('osHacksPanel');
+    if (!panel) { return; }
+    ensureNewFeatureState();
+
+    var hasOS = S.augmentations.indexOf('OPERATING SYSTEM') >= 0;
+    panel.style.display = hasOS ? '' : 'none';
+    if (!hasOS) { return; }
+
+    // Owned Hacks list
+    var listEl = document.getElementById('ownedHacksList');
+    if (listEl) {
+      if (!S.ownedHacks.length) {
+        listEl.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.35rem;">No Hacks acquired yet. Buy them in the Merchants tab.</div>';
+      } else {
+        listEl.innerHTML = S.ownedHacks.map(function(hackName, i) {
+          var hackData = (SHOP_DATA.os_hacks || []).find(function(h) { return h.name === hackName; });
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.22rem .4rem;background:var(--surface);border:1px solid var(--border2);margin-bottom:.18rem;">'
+            + '<div>'
+            + '<span style="font-size:.78rem;color:var(--teal);">' + hackName + '</span>'
+            + (hackData ? '<span style="font-size:.66rem;color:var(--muted2);margin-left:.4rem;">' + hackData.stat + '</span>' : '')
+            + '</div>'
+            + '<button class="btn btn-xs btn-red" onclick="removeOwnedHack(' + i + ')">✕</button>'
+            + '</div>';
+        }).join('');
+      }
+    }
+
+    // Hack selector
+    var sel = document.getElementById('hackSelect');
+    if (sel) {
+      var prev = S.hackRoller.selectedHack;
+      sel.innerHTML = '<option value="">— Select Hack —</option>'
+        + S.ownedHacks.map(function(h) {
+          return '<option value="' + h + '"' + (h === prev ? ' selected' : '') + '>' + h + '</option>';
+        }).join('');
+    }
+
+    // Dread die options
+    var dreadOpts = document.getElementById('hackDreadOpts');
+    if (dreadOpts) {
+      dreadOpts.innerHTML = [4, 6, 8, 10, 12, 20].map(function(d) {
+        return '<div class="d-opt' + (S.hackRoller.dreadDie === d ? ' dread-sel' : '') + '" '
+          + 'data-v="' + d + '" onclick="setHackDreadDie(' + d + ')">'
+          + 'd' + d + '</div>';
+      }).join('');
+    }
+
+    // Guess buttons
+    ['below', 'between', 'above'].forEach(function(g) {
+      var btn = document.getElementById('hack-guess-' + g);
+      if (btn) { btn.classList.toggle('sel', S.hackRoller.guess === g); }
+    });
+  }
+
+  function removeOwnedHack(idx) {
+    ensureNewFeatureState();
+    S.ownedHacks.splice(idx, 1);
+    if (S.hackRoller.selectedHack && S.ownedHacks.indexOf(S.hackRoller.selectedHack) < 0) {
+      S.hackRoller.selectedHack = null;
+    }
+    renderOSHacksPanel();
+  }
+
+  function setHackGuess(guess) {
+    ensureNewFeatureState();
+    S.hackRoller.guess = guess;
+    ['below', 'between', 'above'].forEach(function(g) {
+      var btn = document.getElementById('hack-guess-' + g);
+      if (btn) { btn.classList.toggle('sel', g === guess); }
+    });
+  }
+
+  function setHackDreadDie(die) {
+    ensureNewFeatureState();
+    S.hackRoller.dreadDie = die;
+    var opts = document.querySelectorAll('#hackDreadOpts .d-opt');
+    opts.forEach(function(opt) {
+      opt.classList.toggle('dread-sel', parseInt(opt.dataset.v, 10) === die);
+    });
+  }
+
+  function castHack() {
+    ensureNewFeatureState();
+
+    // Sync selected hack from dropdown
+    var sel = document.getElementById('hackSelect');
+    if (sel && sel.value) { S.hackRoller.selectedHack = sel.value; }
+
+    if (!S.hackRoller.guess) {
+      showNotif('Select a guess first: Below, Between, or Above!', 'warn'); return;
+    }
+    if (!S.hackRoller.selectedHack && S.ownedHacks.length) {
+      S.hackRoller.selectedHack = S.ownedHacks[0];
+    }
+
+    var dreadDie  = S.hackRoller.dreadDie || 6;
+    var d1        = roll(dreadDie);
+    var d2        = roll(dreadDie);
+    var low       = Math.min(d1, d2);
+    var high      = Math.max(d1, d2);
+    var ctrlDie   = S.stats.control || 4;
+    var ctrlRoll  = explodingRoll(ctrlDie);
+    var ctrlVal   = ctrlRoll.total;
+
+    var actual;
+    if      (ctrlVal < low)  { actual = 'below'; }
+    else if (ctrlVal > high) { actual = 'above'; }
+    else                     { actual = 'between'; }
+
+    var success = actual === S.hackRoller.guess;
+    var resultEl = document.getElementById('hackRollResult');
+    if (resultEl) {
+      resultEl.innerHTML =
+        '<div class="gamble-rolls">'
+        + '<div class="gamble-die"><div class="gd-label">Dread Low</div><div class="gd-value" style="color:var(--red);">' + low + '</div></div>'
+        + '<div class="gamble-die"><div class="gd-label">Control d' + ctrlDie + (ctrlRoll.exploded ? '*' : '') + '</div><div class="gd-value" style="color:var(--teal);">' + ctrlVal + '</div></div>'
+        + '<div class="gamble-die"><div class="gd-label">Dread High</div><div class="gd-value" style="color:var(--red);">' + high + '</div></div>'
+        + '</div>'
+        + '<div class="gamble-outcome ' + (success ? 'good' : 'warn') + '" style="margin-top:.4rem;">'
+        + '<strong style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? 'Hack Succeeded!' : 'Hack Failed \u2014 Malware!') + '</strong><br>'
+        + 'Dread d' + dreadDie + ': ' + low + '\u2013' + high
+        + ' &nbsp;|&nbsp; Guess: <strong>' + capFirst(S.hackRoller.guess) + '</strong>'
+        + ' &nbsp;|&nbsp; Control: ' + ctrlVal + ' (<em>' + capFirst(actual) + '</em>)'
+        + (success && S.hackRoller.selectedHack
+            ? '<br><span style="color:var(--teal);">' + S.hackRoller.selectedHack + ' uploaded to target interface.</span>'
+            : '')
+        + (!success
+            ? '<br><span style="color:var(--red2);">You are infected with Malware! (Distracted applied)</span>'
+            : '')
+        + '</div>';
+    }
+
+    // Malware: apply Distracted condition on failure
+    if (!success && typeof updateConditionButtons === 'function') {
+      S.conditions.distracted = true;
+      updateConditionButtons();
+      if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
+    }
+  }
+
+  window.renderWeaponModsPanel  = renderWeaponModsPanel;
+  window.removeWeaponMod        = removeWeaponMod;
+  window.renderOSHacksPanel     = renderOSHacksPanel;
+  window.removeOwnedHack        = removeOwnedHack;
+  window.setHackGuess           = setHackGuess;
+  window.setHackDreadDie        = setHackDreadDie;
+  window.castHack               = castHack;
+  window.getAvailableWeaponModSlots = getAvailableWeaponModSlots;
 }());

@@ -514,6 +514,10 @@ function clearCharacter() {
   S.soulArray = [];
   S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, adventure: 4 };
   S.traits = {};
+  S.augmentations = [];
+  S.ownedHacks    = [];
+  S.weaponMods    = [];
+  S.hackRoller    = { dreadDie: 6, guess: null, selectedHack: null };
   clearAllConditions();
   syncCharacterFields();
   buildStatRows();
@@ -523,6 +527,8 @@ function clearCharacter() {
   updateTrauma();
   renderTraits();
   updateTMWPool();
+  if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
+  if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
 }
 
 function saveCharacter() {
@@ -568,6 +574,8 @@ function loadCharacter() {
     updateConditionButtons();
     renderEnemies();
     updateCombatUI();
+    if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
+    if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
     showNotif("Character loaded", "good");
   } catch (error) {
     showNotif("Saved character is invalid", "warn");

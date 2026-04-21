@@ -161,6 +161,12 @@ function quickRollStat(key) {
     addAdvDie = wpDef.addAdvDie;
   }
 
+  // Personal Flavor / Mutation bonuses
+  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {flat:0, advDie:0, holyShield:false};
+  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(key) : {flat:0, advDie:0};
+  advDieVal = Math.max(advDieVal, flB.advDie, mtB.advDie);
+  flatBonus += flB.flat + mtB.flat;
+
   // Augmentation additive bonus
   const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
 
@@ -169,7 +175,10 @@ function quickRollStat(key) {
   const advRoll = advDieVal > 0 ? explodingRoll(advDieVal) : null;
   const baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
   // +N flat bonus
-  const withFlat = baseTotal + flatBonus;
+  let withFlat = baseTotal + flatBonus;
+  // Holy Shield: add spirit die (Flavor)
+  const holyShieldRoll = flB.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
+  if (holyShieldRoll) withFlat += holyShieldRoll.total;
   // +A.D. additive adventure die
   const adBonus = addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
   const withAD = withFlat + (adBonus ? adBonus.total : 0);
@@ -186,7 +195,8 @@ function quickRollStat(key) {
       details.push('d' + die + ' = ' + a.total + ' <em>(kept)</em>, Ad' + advDieVal + ' = ' + advRoll.total);
     }
   }
-  if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon)');
+  if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon/flavor/mutation)');
+  if (holyShieldRoll) details.push('Holy Shield +Spirit d' + (S.stats.spirit||4) + ' = ' + holyShieldRoll.total);
   if (adBonus) details.push('+A.D. d' + (S.stats.adventure || 4) + ' = ' + adBonus.total + ' (additive)');
   if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
 

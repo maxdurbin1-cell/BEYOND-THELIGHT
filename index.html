@@ -568,6 +568,7 @@ select option{background:#0f1020;}
             <span class="counter-val gold-val" id="actionsLeft" style="font-size:1.6rem;">3</span>
             <button class="step-btn" onclick="S.combat.actionsLeft++;updateCombatUI()">+</button>
           </div>
+          <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;" id="maxActionsHint"></div>
         </div>
       </div>
     </div>
@@ -937,9 +938,109 @@ const TEMPLE_MOODS=['Ancient and silent — dust on every surface','Desecrated, 
 const TEMPLE_SAGES=['A quiet sage who only answers questions with questions','A blind woman who can describe what she cannot see','An elderly scholar still debating the nature of the BEYOND','A young acolyte who has memorized every prayer but never traveled','A disgraced priest hiding from something in the capital','A sage who claims to be 300 years old and refuses to explain how'];
 const MONUMENT_FORMS=['A great stone arch with inscription worn smooth','A towering obelisk of unknown material','A ring of upright stones in perfect alignment','A carved face, larger than a house, watching the horizon','A cracked dome rising from the undergrowth','Twin pillars that hum faintly in any wind'];
 const MONUMENT_EFFECTS=['Protected (Defend ↑ one Step)','Bolstered (Spirit/Lead ↑) in addition to Protected','All Trauma checks have Advantage until next dawn','Gain a vision of the nearest Event\'s next Mystery','Something whispers a Sage-level hint about the nearest Event','All Stress from the last Scene is cleared'];
+// Pick from an array if array, else return the value directly (used by terrain descriptions)
+function pickTd(v){return Array.isArray(v)?pick(v):v;}
+
 const TERRAIN_TYPES=[{name:'Marsh',color:'#1e3a22'},{name:'Forest',color:'#163320'},{name:'Valley',color:'#3a4418'},{name:'Lake',color:'#142840'},{name:'Mountain',color:'#3d3328'},{name:'Desert',color:'#584e26'},{name:'Hills',color:'#354027'},{name:'Meadow',color:'#2c4420'},{name:'Heath',color:'#332b40'},{name:'Crags',color:'#382e24'},{name:'Bog',color:'#1e2e1e'},{name:'Glades',color:'#123020'}];
 
-const TERRAIN_DESC={Marsh:{land:'Sodden, squelching ground. Dead trees stand half-submerged, their branches white as bone.',sky:'A low overcast sky, ash-grey and windless.',water:'Brackish channels run slow and rust-colored.',flora:'Pale sedge grass, black fungi on driftwood.',fauna:'Herons pick through shallows. Something large moves in deeper channels.',wonder:'A sunken structure breaks the waterline to the east.'},Forest:{land:'Dense canopy overhead. Roots erupt through the old road; moss seals what stone remains.',sky:'The sky is a puzzle of green and grey glimpsed through leaves.',water:'A cold, narrow stream cuts between hills of blackthorn.',flora:'Ferns and wild garlic carpet the ground. Irradiated blossoms pulse softly.',fauna:'Deer tracks, a fox cry somewhere distant.',wonder:'A collapsed arch juts above the treeline — the ghost of a bridge.'},Valley:{land:'The land falls into a wide bowl of tall grass and loose stone.',sky:'Enormous and unobstructed. Clouds form and dissolve within an hour.',water:'A river threads the floor, shallow and wide.',flora:'Scrub-willows line the banks. Poppies and thistles grow wild.',fauna:'Crows in vast numbers circle above something dead at the valley\'s far end.',wonder:'Near the river: a cairn, deliberately stacked, marked with unknown symbols.'},Lake:{land:'Still water that mirrors the sky so precisely the world seems to have doubled.',sky:'Clear, or lightly hazed. The horizon disappears.',water:'Colourless in the shallows, black in the deep.',flora:'Reeds and flowering iris crowd the margins.',fauna:'Silence but for the occasional plop of a fish. A heron, patient as philosophy.',wonder:'In the lake\'s center, a low structure breaks the waterline.'},Mountain:{land:'Above the treeline: grey-white stone, sharp-angled, steep.',sky:'Fast-moving, complex weather. Clouds form here first.',water:'Small springs leak from rock faces, collecting in cold pools.',flora:'Lichen maps the stone. One ancient, storm-bent pine at the last viable elevation.',fauna:'Eagles and strange pale insects share the upper air.',wonder:'At the cliff face: a carved doorway sealed with a massive stone.'},Desert:{land:'Sand that shifts audibly in any wind. The heat lies flat across it like a hand.',sky:'Vast, bleached white at noon. At dusk, colours so extreme they seem painted.',water:'None visible. The scent of moisture when the wind shifts is illusory.',flora:'Brittlegrass and dust-succulents root in the hardpack.',fauna:'Lizards and sand-beetles by day. At night, something larger crosses without leaving tracks.',wonder:'A perfect circle of standing stones atop a distant dune.'},Hills:{land:'Rolling land stretching every direction under a wide grey-blue sky.',sky:'A working sky — clouds arrive, do something, move on.',water:'A seasonal stream threads between two hills.',flora:'Hedgerow and bramble form borders of old fields.',fauna:'Rabbits, crows, the occasional hawk.',wonder:'On the hill\'s crown: the remnant of a wall, one course of stone remaining.'},Meadow:{land:'Open land, long grass pale gold or green. Edged with woodland on three sides.',sky:'Clouds move fast overhead. A huge sky.',water:'A pond in the low ground, ringed by rushes.',flora:'Wildflowers: yellow, white, a deep bruised purple.',fauna:'Starlings in a murmuration overhead.',wonder:'A wooden post stands alone in the field\'s centre, notched for many years.'},Heath:{land:'Flat, open, dun-coloured land. Heather and gorse in tangled mounds.',sky:'Enormous and pale.',water:'Drainage ditches cut across in straight lines.',flora:'Heather, gorse, cotton grass, bog myrtle.',fauna:'Grouse and harriers. You hear something below the ground — rhythmic, distant.',wonder:'Set back from the path: a ring of standing stones, each engraved with the same face.'},Crags:{land:'Rock formations rise in unexpected angles. Crevices catch wind and turn it into voices.',sky:'Framed by rock on three sides.',water:'Small springs leak from rock faces. Cold, clean, perfectly clear.',flora:'Sparse, wind-twisted shrubs from improbable ledges.',fauna:'Ravens. Something watching from height without fear.',wonder:'A cave mouth, half-hidden by a fallen boulder.'},Bog:{land:'Untrustworthy ground — soft patches alternate with firm without warning.',sky:'Low and grey and close.',water:'Everywhere. Brown with peat tannins.',flora:'Sundew and bog myrtle grow thick. Cotton grass moves in the lightest wind.',fauna:'Frogs, marsh harriers, the distant call of something unplaceable.',wonder:'At the water\'s edge, a preserved wooden structure.'},Glades:{land:'Open clearings in dense woodland. Each feels deliberate.',sky:'The light here is particular: golden, even, arriving from the wrong angle.',water:'No surface water. But the ground is wet, and moss grows everywhere.',flora:'Fern, a profusion of flowering plants. Insects of unusual size.',fauna:'Deer pass through without sound.',wonder:'A broad flat stone at the glade\'s centre, marked with interlocking circles.'}};
+const TERRAIN_DESC={
+Marsh:{
+  land:['Sodden, squelching ground. Dead trees stand half-submerged, their branches white as bone.','Toxic runoff has pooled between the reed-beds — neon green on the surface, black below. Warning beacons mounted on rusted poles blink in the fog.','Steam drifts across a flooded machinery yard. Corroded turbines jut from the mud like sunken gods.','A contaminated bog. Bioluminescent fungal mats glow faint violet under the overcast. Old chain-link fences trail into the water.','The wetland reeks of methane and old iron. A collapsed processing rig lists to one side, hull half-buried.'],
+  sky:['A low overcast sky, ash-grey and windless.','Smog hangs low, pressing the horizon flat. A helicopter went past some hours ago and hasn\'t come back.','Surveillance drones idle far overhead, their navigation lights blinking on a fixed patrol route.','The sky is a bruised yellow-grey. Somewhere above the cloud layer a satellite burns on re-entry.','Heavy cloud, the colour of old lead. Lightning forks far off — not weather. Something electrical.'],
+  water:['Brackish channels run slow and rust-colored.','Industrial runoff stains the water chemical orange.','A slow black current carries floating circuit boards and insulation foam.','Drainage pipes emptying from nowhere. The flow is warm and smells of solvents.','Rust-brown water. You can see the bottom — it\'s covered in glass and crushed canisters.'],
+  flora:['Pale sedge grass, black fungi on driftwood.','Irradiated reed-mutants, their heads swollen like lanterns. No insects, no birdsong — something in the water.','Fibrous purple moss covers every hard surface. In direct light it contracts slightly.','Carnivorous plants, adaptively evolved. Their trigger-hairs are nearly invisible.','A pale vine has swallowed the ruins here. Its leaves taste of battery acid.'],
+  fauna:['Herons pick through shallows. Something large moves in deeper channels.','Hairless reptiles with too many joints. They hunt in coordinated silence.','Mutant crabs, carapace fused with scrap metal, sort through debris with clockwork efficiency.','Nothing visible. But the mud around the channel edge shows dozens of fresh prints.','Bloated leeches the size of hands cling to every submerged object.'],
+  wonder:['A sunken structure breaks the waterline to the east.','A half-submerged transit sign still illuminates. TERMINAL B. AN ARROW POINTING DOWN.','A pre-collapse communications relay stands on a promontory, dish still aimed at the sky.','A figure in a hazmat suit stands at the channel\'s edge and does not move.','Broken columns of black glass rise from the water in a perfect line — not natural formation.']
+},
+Forest:{
+  land:['Dense canopy overhead. Roots erupt through the old road; moss seals what stone remains.','The forest has grown through and over an entire district. Apartment block skeletons wear ivy like armor. Asphalt has been split by root systems over decades.','Redwood-sized trees, bark black as engine block. The growth rings are too wide to be natural.','Old-growth pines surround the ruins of a logging camp. The machinery is still here. Something drove the loggers off and it wasn\'t weather.','A cathedral of fungal towers, ten meters high, caps spanning the gaps where daylight might otherwise reach.'],
+  sky:['The sky is a puzzle of green and grey glimpsed through leaves.','Visible in gaps between the canopy: observation blimps, drifting north, slow as sleep.','A chemical contrail cuts the sky above the treeline. It turns at a right angle that aircraft shouldn\'t.','Shards of sunlight through a particulate haze. Everything is faintly amber.','The canopy has sealed overhead so completely the sky is a rumor.'],
+  water:['A cold, narrow stream cuts between hills of blackthorn.','Coolant runoff from somewhere upstream has made the creek unnaturally warm and faintly luminescent.','A creek runs clear and fast — the cleanest water for a day\'s travel. That makes it suspicious.','Water pools in the craters left by old aerial bombardment. The trees have grown close around each one.','An underground aquifer seeps up through cracked basement floors. Potable. Just.'],
+  flora:['Ferns and wild garlic carpet the ground. Irradiated blossoms pulse softly.','The undergrowth is dense with engineered cropplants gone feral. They grow in unnatural geometric patterns.','Phosphorescent moss carpets the ground between the roots, pulsing gently when stepped on.','The forest floor is perfectly clear — nothing grows between the enormous trunks. That is wrong.','Creeping vine networks visible on every surface — they appear to share a root system.'],
+  fauna:['Deer tracks, a fox cry somewhere distant.','Synthetic-looking birds — too symmetrical, too precise — in the high branches. They watch but do not call.','A bear-sized creature, its hide partially replaced with armor-plating, moves through the middle distance.','The rustling overhead is consistent and follows you. You have not seen what makes it.','Moths the size of fists, drawn to any light source. In large numbers they can block vision entirely.'],
+  wonder:['A collapsed arch juts above the treeline — the ghost of a bridge.','A pre-collapse research installation, half-swallowed. Its emergency lights are still cycling.','A transmission tower, antenna intact. If you can climb it, you might reach something.','A perfectly circular clearing in the forest, with a single unidentified object at its center.','A rail line through the trees. Overgrown but unbroken. The tracks have not rusted.']
+},
+Valley:{
+  land:['The land falls into a wide bowl of tall grass and loose stone.','The valley floor is a patchwork of ruined agricultural machinery, old drainage channels, and collapsed greenhouse frames. A settlement clings to the eastern slope.','Steam vents crack the valley floor where old geothermal infrastructure has failed. Pressure readings are wrong. The land is not safe.','A dry riverbed cuts the valley. The bridges above it are early-collapse construction — iron, cable, and wishful thinking.','Terraced cultivation rises up both slopes. Below the terraces: scorch marks in a regular pattern. Old. Not accidental.'],
+  sky:['Enormous and unobstructed. Clouds form and dissolve within an hour.','Clear and searchable, which means you are also visible. Three drones hold position far to the north.','An enormous sky at all times. You can see weather two days away. You can also be seen two days away.','A surveillance satellite crosses the noon sky every six hours, track as predictable as a clock.','Thermal updrafts carry ash from somewhere beyond the ridge. It has been falling for days.'],
+  water:['A river threads the floor, shallow and wide.','An irrigation system, still partially functional — water flows in cracked concrete channels down from the ridge.','The river runs brown with agricultural runoff. Upstream the valley narrows toward an old chemical facility.','Contaminated tributaries merge in the valley floor. The combined flow has unusual surface tension.','A hydroelectric dam, obsolete but structurally sound, impounds a deep reservoir behind the northern wall.'],
+  flora:['Scrub-willows line the banks. Poppies and thistles grow wild.','Engineered grasses cover the lower valley — drought-tolerant, pest-resistant, and not quite right. They grow at uniform height.','Wild crop mutants have colonized the valley floor. The fruit is edible. Probably.','Stunted shrubs along the old road, their trunks wrapped in old insulation stripping as if someone tried to protect them.','The lower ground is colonized by a spreading red moss that has no equivalent in the catalogues.'],
+  fauna:['Crows in vast numbers circle above something dead at the valley\'s far end.','Feral dogs have organized into territorial packs here. You can tell their borders by the scratched marks on infrastructure.','Mutant cattle, six-legged and slow, graze the fallow fields. Their milk glows faintly. Locals claim it is fine.','Wolf-analogues with elongated skulls and no visible ears. They communicate in subsonic bursts.','Carrion birds, but not any species you can name. Their wingspan is two meters. Their patience is endless.'],
+  wonder:['Near the river: a cairn, deliberately stacked, marked with unknown symbols.','An observation post on the eastern ridge — unmanned but recently maintained. The viewfinder still works. Whoever watched this valley has moved on.','A functioning broadcast antenna, power source unknown. It transmits a repeating pattern. Twenty-two pulses, then silence.','A pre-collapse factory, sealed but intact. Its loading bays face a road that no longer exists.','Twin cooling towers, dormant, flanking the valley entrance. At their bases: offerings. Fresh ones.']
+},
+Lake:{
+  land:['Still water that mirrors the sky so precisely the world seems to have doubled.','The lake is ringed by old luxury structures — hotels, marinas, observation platforms — all in controlled decay. The water is still impossibly clear.','A tailings pond from defunct mining operations, the water a vivid turquoise from mineral suspension. Beautiful. Lethal. Locals stay back.','A crater lake, product of an air-strike or impact event from the last century. The crater rim is a circle of blasted stone.','The shoreline is a grid of cracked concrete and iron mooring rings — this was a busy port. It is very quiet now.'],
+  sky:['Clear, or lightly hazed. The horizon disappears.','The lake is mirror-flat. The sky reflects perfectly — you are walking on clouds.','An impossible clear sky. Sound travels too far here — you can hear conversations on the far shore.','Overcast, the lake the same grey as the clouds above it. Hard to tell where one ends.','Stars reflect off the water at night with mathematical precision. Sailors used this lake for navigation.'],
+  water:['Colourless in the shallows, black in the deep.','Perfectly transparent — you can see the bottom sixty meters down and the shapes are not natural.','The water is inexplicably warm. Chemical testing would reveal reasons you might not want to know.','Bioluminescent organisms produce a faint blue glow after sundown. The effect is beautiful.','Thermoclines create visible layers — cool clear surface, warm hazy middle, cold dark bottom. Each layer has different life in it.'],
+  flora:['Reeds and flowering iris crowd the margins.','Invasive filtration plants, introduced to clean the water, have overrun the shoreline. They work.','Old water-lily hybrids, their pads half a meter across, completely covering the shallows.','A ring of engineered bulrushes — tall, upright, genetically identical — surrounds the water in a perfect circle.','The margins support nothing. The water is too clean. Sterilizing agents were introduced and never broke down.'],
+  fauna:['Silence but for the occasional plop of a fish. A heron, patient as philosophy.','Engineered fish — too regular, too uniform — patrol the shallows in tight formations.','Something below the surface occasionally displaces water in a manner inconsistent with any catalogued fish.','Migratory birds use the lake as a waypoint. The ones that arrive this week have never been here before.','An otter colony, but the otters are too large and their behavior is too deliberate to be entirely natural.'],
+  wonder:['In the lake\'s center, a low structure breaks the waterline.','Beneath the surface: an entire village. Houses, streets, a market square — all submerged and preserved under silt.','A drilling platform, decommissioned and sinking, anchored to the lake floor by cable too strong to cut.','A perfectly symmetric island, artifical in origin, overgrown and silent. No boats moored. No doors on the structures.','An automated buoy transmits a weather report on a frequency no one uses anymore. The readings are always accurate.']
+},
+Mountain:{
+  land:['Above the treeline: grey-white stone, sharp-angled, steep.','A mountain range that has been strip-mined, terraced, cabled, and tunneled for a century. The operations stopped. The damage didn\'t.','Volcanic peaks, two of them still venting. The local factions have built on the stable ones.','The high reaches are riddled with natural and artificial cave systems. You can\'t always tell which is which.','Tectonic activity has pushed metal-bearing rock to the surface in jagged spines. The veins catch light like circuitry.'],
+  sky:['Fast-moving, complex weather. Clouds form here first.','Airship lanes intersect above this range — the mountains are a navigation landmark for continental routes.','At altitude, the sky goes deep blue-black and you can see satellites in their orbits, slow and methodical.','A permanent cloud layer sits above five hundred meters. Above it: total clarity. Below it: nothing.','Weather is manufactured at this altitude — seed-cloud generators on three peaks keep the valley farms irrigated.'],
+  water:['Small springs leak from rock faces, collecting in cold pools.','Snowmelt feeds a clean fast river; water purification outposts operate at the lower elevations.','The mountain streams carry trace minerals that turn them orange. People have built filtration here. It is not enough.','Hot springs at the base of the volcanic formation. Used medicinally for centuries. Occupied now.','Glacial melt — the glacier is retreating. Where it retreats it leaves behind objects that have been frozen for centuries.'],
+  flora:['Lichen maps the stone. One ancient, storm-bent pine at the last viable elevation.','Extremophile microbes coat the rock in flat grey-green. At altitude this is all there is.','Hearty alpine shrubs, their roots finding purchase in impossible cracks. They have grown around old military wire.','Black moss and metallic-veined fungi. Neither species is catalogued. Both appear to be thriving.','The treeline is sharp — below it, dense; above, nothing. Something killed all the high-altitude trees.'],
+  fauna:['Eagles and strange pale insects share the upper air.','Goat-analogues with armored forelimbs, adapted for the uneven terrain. They are not afraid of people.','A nesting colony of something large in the upper crags. Evidence: enormous shed feathers, bones of large prey.','Adapted rodents with enlarged lungs and reflective eyes. They are everywhere.','Mountain predators that have learned to use the old military infrastructure as shelter. They know the tunnels better than you.'],
+  wonder:['At the cliff face: a carved doorway sealed with a massive stone.','A pre-collapse tracking station, antenna array still aimed precisely at the sky. Its receivers are warm.','Mine shafts sealed with blast doors — the locks are still active. Someone did not want what\'s inside to come out.','A monastery, carved into the peak face, occupied by scholars who have not come down for forty years.','A series of signal mirrors installed by unknown parties, aimed to catch the dawn. They flash a code. No one has decoded it.']
+},
+Desert:{
+  land:['Sand that shifts audibly in any wind. The heat lies flat across it like a hand.','A scorched plain, cracked into hexagonal tiles by decades of heat. Below the crust: old foundations.','Salt flats that reflect the sun like a mirror. Visibility is extreme in all directions. There is no cover.','Dunes over industrial landfill — the sand is not natural. Objects emerge from the crests in windstorms.','A glass desert, created by an ancient detonation. The surface is fused smooth. Walking on it sounds like walking on ice.'],
+  sky:['Vast, bleached white at noon. At dusk, colours so extreme they seem painted.','Radio signals cross the desert with no interference. Whatever is transmitting from the northern range comes in clear.','The sun here is a problem in ways that pure heat doesn\'t explain. Radiation readings climb in the afternoon.','Dust storms on the eastern horizon, moving slow. They have been moving slow for three days.','Thermal columns lift anything light into a permanent high-altitude circulation. Old debris has been circling for years.'],
+  water:['None visible. The scent of moisture when the wind shifts is illusory.','Below the crust: aquifer water, reachable with the right drill. The factions with drills control this region.','An automated water extraction facility, solar-powered, slow, and completely undefended. Everyone leaves it alone.','Subsurface pipes carry water from the coast, maintained by a guild who considers neutrality a survival strategy.','The only water is in the settlement tanks. The settlement charges accordingly.'],
+  flora:['Brittlegrass and dust-succulents root in the hardpack.','Heat-adapted crop mutants, engineered to survive with minimal water. They have escaped cultivation and gone feral.','Nothing photosynthesizes here. There are lichen on the underside of stones and that is all.','Synthetic vegetation markers — survey stakes with artificial leaves — left by a cartography team that never returned.','A garden of glass and steel aerials juts from the ground, built by someone who misunderstood what plants needed.'],
+  fauna:['Lizards and sand-beetles by day. At night, something larger crosses without leaving tracks.','Sand-adapted rodents who have evolved to never drink water. They are the prey here. What eats them is below ground.','A pack of feral vehicles — mechanized, solar-charging scavengers adapted from old agricultural drones.','Scorpions the size of dogs, their venom evolved to dissolve synthetic fiber. They avoid the settlements. Mostly.','Pale, eyeless cave-fish have been reported in the aquifer tunnels. Reports from people who went underground and came back changed.'],
+  wonder:['A perfect circle of standing stones atop a distant dune.','A pre-collapse highway, perfectly preserved under the sand except where wind has cleared a twenty-meter section. It goes north, into nothing.','A fully operational solar array, ancient, generating power for something that is no longer there. Wires run into the sand.','A countdown clock, embedded in a concrete pillar, with zero time remaining. It has been at zero for decades.','An underground mall, sealed at all access points. Its neon signs still cycle through advertisements. Goods still in the cases.']
+},
+Hills:{
+  land:['Rolling land stretching every direction under a wide grey-blue sky.','The hills are old slag heaps, colonized by vegetation over centuries. Below the roots: industrial waste.','Windmill farms, obsolete, the turbines motionless and rusting. A newer turbine installation is visible to the north — active.','The hills are cut through with old road networks. Signs point to settlements that no longer exist.','Terraced fortifications on every high ground. The conflicts that built them ended long ago. The fortifications haven\'t.'],
+  sky:['A working sky — clouds arrive, do something, move on.','Clean air. From the high ground you can see for sixty kilometers. You can also be seen.','Wind turbines on the ridge catch a consistent southwest airflow — the whole area smells faintly of ozone.','An aerial freight corridor runs overhead on a fixed route. Regular as a clock. Useful for navigation.','Kite-surveillance arrays flown from the settlements — cheap, low-tech, effective. They have been watching you since the last ridge.'],
+  water:['A seasonal stream threads between two hills.','Runoff from the old industrial terracing has been slowly acidifying the groundwater. The streams are orange.','A reliable spring, fortified and guarded. The faction that controls the water controls the hills.','Cisterns carved into the hilltops — ancient, still functional. Refilled each rain season.','A long aqueduct, roman-scaled but not roman-aged, running from the distant mountains to the valley floor.'],
+  flora:['Hedgerow and bramble form borders of old fields.','Pioneer species on the slag — fireweed and buddleia in enormous masses, purple-pink over grey.','Old orchard trees, massive and unmanaged, their fruit sour and enormous. No one tends them.','The hedgerows have been cut and layered along the old field patterns. Someone still does maintenance here.','A deliberate belt of planted thorns rings each hilltop settlement. Inside: cultivation. Outside: something else.'],
+  fauna:['Rabbits, crows, the occasional hawk.','Feral goats have colonized the industrial terraces. They eat the pioneer vegetation and are eaten by everything else.','A fox, unnaturally large, watches from the ridge. It has a tracking tag. Someone knows where it goes.','Ground-nesting birds, territorial and loud. Their calls carry warnings across the hill network faster than radio.','Wolf-packs that have organized around the old field boundaries, treating them as territorial borders.'],
+  wonder:['On the hill\'s crown: the remnant of a wall, one course of stone remaining.','A signal tower, decommissioned but structurally intact. The door has been repaired recently, from inside.','A bunker entrance, overgrown but sealed. The blast door is undamaged. Whatever is inside was never opened.','A stone circle, each monolith topped with a different carved face, each face wearing an expression of surprise.','An antenna array camouflaged as a copse of birch trees. Someone spent considerable effort on the disguise.']
+},
+Meadow:{
+  land:['Open land, long grass pale gold or green. Edged with woodland on three sides.','The meadow was a testing ground. Strange craters dot the ground, their geometry too consistent to be geological.','Kilometer-scale radio antenna lies here, horizontal, a grid of wire and poles across a vast flat plain.','Old airfield. Runways still visible under the grass. The hardstand remains. One structure still stands at the far end.','Mass graves and memorial markers in alternating rows. The meadow has been a battlefield more than once.'],
+  sky:['Clouds move fast overhead. A huge sky.','The meadow is an ideal landing zone. Three visible approach paths. Whoever flies here knows this.','Hot air balloons cluster in the west, carrying observation platforms. They move with prevailing wind.','An enormous sky. You can see weather forming. You can also be seen from enormous distance.','Crop-duster drones, autonomous, still completing circuits over fields that no longer contain crops.'],
+  water:['A pond in the low ground, ringed by rushes.','An irrigation grid, pipes exposed by erosion. Some sections still carry pressure.','The pond is a reservoir, its dam visible to the north. It feeds a settlement channel that hasn\'t been maintained.','Surface water collects in the old crater depressions. Good water; strange location to find it.','An artesian well, capped but not sealed. Pressure means it would flow if opened.'],
+  flora:['Wildflowers: yellow, white, a deep bruised purple.','Engineered wildflower mix — scattered by aerial seeding to stabilize the topsoil after bombardment. It worked.','Grasses grow in deliberate rows here, following the contours of something below.','Poppies. Enormous ones, head-height, filling the eastern section. Something in the soil.','A flowering plant that is not in any catalogue. Purple-black blooms. It will have a name by next season.'],
+  fauna:['Starlings in a murmuration overhead.','Wild horses, unshod and large, moving in disciplined herds across the flat ground.','Bees the size of thumbs, engineered for triple-crop pollination. The hives are somewhere near.','A lone aurochs-analogue, monstrous in size, grazing the far end. Everything else stays well back.','Prairie dog analogues, their burrow system honeycombng the ground. You feel the hollow sound underfoot.'],
+  wonder:['A wooden post stands alone in the field\'s centre, notched for many years.','A land art installation, vast enough to be visible from altitude. The pattern means something. No one remembers what.','A buried cargo container, one end jutting from the earth, its contents intact. Someone put it there on purpose.','A perfectly maintained garden in the field\'s center — not old, not wild. Someone tends this.','A crashed observation satellite, impact crater from old entry, the instruments corroded but the housing intact.']
+},
+Heath:{
+  land:['Flat, open, dun-coloured land. Heather and gorse in tangled mounds.','The heath was a proving ground. Unexploded ordnance signs, accurate or optimistic, are posted at intervals.','A flat expanse of low scrub and hard-packed earth, crisscrossed with old survey lines marked in faded orange paint.','Remnant military heathland — the gorse was planted as cover. The infrastructure below it was never removed.','Peat extraction has left a grid of long dark trenches. They fill with water in the rain season.'],
+  sky:['Enormous and pale.','Weather radar installations on three high points track you and everything else.','An immense sky, almost oppressively open. Nowhere to hide. Shadows are your only cover.','A surveillance blimp on a two-kilometer tether over the eastern town. Its cameras pan slowly.','Range of visibility: fifty kilometers. You have been observed since you left the last hex.'],
+  water:['Drainage ditches cut across in straight lines.','Old drainage system, Victorian-era engineering. Still functional. The channels maintain the heath\'s geometry.','Peat-black streams running through cut channels. The water is safe if filtered. Tastes of iron.','A filtration pond, fenced and locked. The sign says PRIVATE. The chain is old.','Groundwater rises through the peat in the wet season, turning the eastern section into a floating mat.'],
+  flora:['Heather, gorse, cotton grass, bog myrtle.','Invasive species have replaced fifty percent of the native heath plants over two generations. The balance keeps shifting.','Fire-adapted heathland, regrowing after managed burns. The new growth is intensely colored.','Peat-tolerant mutant species, their cell structure thickened against the acidic soil, spreading from the drainage channels.','A single ancient hawthorn, lightning-struck, still alive at the center. Everything else was planted around it.'],
+  fauna:['Grouse and harriers. You hear something below the ground — rhythmic, distant.','Reptile analogues, cold-adapted, using the dark peat to regulate temperature. They are faster than they look.','Burrowing mammals that have built a network below the heath. Their tunnels follow the old drainage lines.','Night-hunting birds with enormous eyes, roosting by day in the gorse. They watch visitors with interest.','Insects of unusual variety and some unusual size. The heath\'s chemistry has been producing mutations for decades.'],
+  wonder:['Set back from the path: a ring of standing stones, each engraved with the same face.','A Cold War listening station, abandoned, its dish still pointed at a coordinates in the north. The data spools are missing.','Crop circles in the heath grass. Geometric, large, recent. Made by pressure not by cutting.','An earthwork constructed over centuries — barely visible as topography but recognizable from height.','A buried capsule from a land-art project, its timer finally expired. The instructions say to open it.']
+},
+Crags:{
+  land:['Rock formations rise in unexpected angles. Crevices catch wind and turn it into voices.','The crags are riddled with military tunnel complexes. Most are sealed. Some aren\'t.','Obsidian formations — volcanic glass, jet black, razor-edged. They were here before the region was colonized and they will be here after.','Eroded industrial scaffolding has become part of the rock face. The distinction between made and formed has blurred.','Ancient cliff carvings, overlaid with fresh graffiti, overlaid with faction markings. Every era has written here.'],
+  sky:['Framed by rock on three sides.','Wind turbines on the cliff edges generate power for the valley below. The sound is constant, low, omnipresent.','The crags create a natural radar shadow. This is why certain traffic routes around this area.','Rappelling anchors on the highest faces — someone uses this terrain regularly, and not for climbing.','An observation post in the upper crags, camouflaged with rock paint, unmanned since whenever.'],
+  water:['Small springs leak from rock faces. Cold, clean, perfectly clear.','Aquifer outlets, ancient and reliable. Factions have fought wars over these specific springs.','Runoff from the plateau above carries metallic trace elements. The water tastes of copper and tin.','A sealed borehole. Industrial. Whatever they were drilling for, they stopped mid-shaft.','A waterfall, seasonal, dropping forty meters into a rock pool. The sound covers conversation.'],
+  flora:['Sparse, wind-twisted shrubs from improbable ledges.','Cliff-adapted succulents with water-storage leaves the color of chrome. Unknown species.','Root networks descend through the rock face, their source invisible above. The roots are as thick as cables.','Lichen that forms circuit-board patterns when colonies meet. It takes decades to develop.','Poisonous plants growing only in sheltered crevices — they survive by being found only by accident.'],
+  fauna:['Ravens. Something watching from height without fear.','Cliff-nesting drones, their solar panels indistinguishable from lichen at a distance.','Rock-adapted predators using the natural echoes to hunt by sound. They do not need to see prey.','Goats with electromagnetic sensitivity — they avoid certain rock formations entirely, for reasons that would concern you.','A colony of bat-analogues with wingspan too large for the cavity they inhabit. They go out at dusk in a column like smoke.'],
+  wonder:['A cave mouth, half-hidden by a fallen boulder.','A crevice that opens into a chamber whose ceiling bears a star map, painted in materials that predate the province.','An iron door set into the cliff face, no handle, no visible hinge, warm to the touch on the coldest day.','A resonance point in the crags where standing in one spot allows you to hear conversations from elsewhere in the formation.','A rock formation that casts a shadow in the shape of a face at noon. Different face at dusk. Different again at dawn.']
+},
+Bog:{
+  land:['Untrustworthy ground — soft patches alternate with firm without warning.','An industrial peat extraction site, partially reclaimed. The tracks still run but the machinery is long stripped.','A flooded sub-settlement — entire streets subsided into the bog over decades. Chimneys break the surface.','Contaminated ground. Old waste disposal sites mapped but not decontaminated. The moss grows very thick here.','The bog surface is alive — pressure at one point causes distant movement. Everything is connected underground.'],
+  sky:['Low and grey and close.','Methane vents flame spontaneously from the bog surface on windless nights. The sky is orange over the extraction site.','Drone traffic avoids this zone. Electromagnetic interference from below-surface deposits causes navigation failure.','Fog forms here without weather cause — outgassing from the anaerobic layers below creates permanent low visibility.','A surveillance tower leans at fifteen degrees, its base sinking slowly. The cameras still work.'],
+  water:['Everywhere. Brown with peat tannins.','Everywhere, and contaminated. Boil anything you collect. Filter anything you use for cooling.','The bog water carries ancient organic compounds that react badly with certain metals. Check your equipment.','Pools that appear shallow are deep. Pools that appear deep are impassable. Trust none of it.','Black water that reflects no light. Standing over it, you cannot see your own face.'],
+  flora:['Sundew and bog myrtle grow thick. Cotton grass moves in the lightest wind.','Sphagnum moss in unnatural density. Three meters deep in places. More below.','Bog-cotton like white static across the low ground. It fills the gaps between structures.','A carnivorous plant network the extent of a soccer pitch. It has been here long enough to trap things larger than insects.','Preserved plant species from previous centuries emerging from melting peat layers. Several predate documented taxonomy.'],
+  fauna:['Frogs, marsh harriers, the distant call of something unplaceable.','Bog-adapted deer with widened hooves. They know the firm paths. You do not. Follow them.','Preserved megafauna, recently uncovered by erosion. Technically dead. Theoretically preserved. How recently is a question.','Bloodworms, a meter long, emerging from waterlogged soil in low-pressure conditions.','An absence of expected fauna. No birds. No insects. Something in the water chemistry has cleared this area.'],
+  wonder:['At the water\'s edge, a preserved wooden structure.','A pre-collapse laboratory, its equipment visible through the observation windows, sinking slowly but not yet submerged.','A cairn of skulls — not threatening, built with care, maintained, added to over years — at the dry center of the bog.','An ancient trackway, perfectly preserved under the peat, uncovered by erosion. Thousands of years old. Still solid.','A signal fire, maintained by someone, burning on the only solid promontory in the bog. No one is visible tending it.']
+},
+Glades:{
+  land:['Open clearings in dense woodland. Each feels deliberate.','Forest management zones, old-growth surrounded by younger planted sections. The clearings are fire-breaks.','The glades are surveillance dead zones, unmonitored by the province\'s grid. People who need to not be seen come here.','Clearing fields in what was once continuous forest. The stumps are enormous. Something took the logs.','Garden-scale clearings, maintained by no visible means. The grass is even, the edges clean.'],
+  sky:['The light here is particular: golden, even, arriving from the wrong angle.','Pollen and spores catch the light in golden columns between the trees. The canopy is dense enough to filter the sky to amber.','The clearings act as optical illusions — sunlight entering from angles inconsistent with the sun\'s actual position.','Drone-exclusion zone, unofficial. The canopy prevents satellite imaging. The clearings are too small for aerial observation.','Bioluminescent spores in the night glades — the source is in the deep growth, not visible by day.'],
+  water:['No surface water. But the ground is wet, and moss grows everywhere.','Hidden springs, their outlets directed underground by the root systems. Water is everywhere but not obvious.','A subterranean stream, audible but inaccessible. The ground thrums slightly.','Condensation from the forest canopy collects in pools in the clearing centers. Clean. Small. Seasonal.','A pipe system, old and partially functional, irrigating the glades from an unknown upstream source.'],
+  flora:['Fern, a profusion of flowering plants. Insects of unusual size.','Engineered hardwoods form the outer ring; inside, wild species that predate cultivation by centuries.','Mycorrhizal network made visible by fungal fruiting bodies in a regular pattern across the clearing floors.','A ring of identical trees at the glade\'s perimeter. Same age. Same species. Different from everything outside.','Medicinal plants in concentrations too dense to be accidental. Someone curates this space.'],
+  fauna:['Deer pass through without sound.','Nocturnal animals that use the glades exclusively at night. By day: empty. By night: entirely inhabited.','Rare birds, several species, that exist nowhere else in the province. The glades are their entire world.','A wolf, very old, very large, that appears at the clearing edge at irregular intervals and then withdraws.','Insect species of unsettling intelligence, building architecturally complex structures in the ground and bark.'],
+  wonder:['A broad flat stone at the glade\'s centre, marked with interlocking circles.','A working fountain in the glade\'s center — pipe, basin, overflow — connected to infrastructure that shouldn\'t reach this far.','A stone table, unweathered, set for a meal that has never been cleared. The food is always fresh.','A perfectly preserved communications relay, camouflaged in bark paint, transmitting something on a narrow encrypted beam.','A hollow beneath the oldest tree, large enough to shelter four. Inside: a ledger. Every page filled with names and dates.']
+}
+};
 const WEATHER={spring:[{result:'Rainstorm',rough:true,desc:'Sheets of driving rain. Visibility falls to nothing.'},{result:'Cold Drizzle',rough:false,desc:'A persistent grey drizzle. Roads are muddy but passable.'},{result:'Clear and Sunny',rough:false,desc:'A bright morning. Good light for navigation.'},{result:'Overcast',rough:false,desc:'Heavy cloud but dry. Comfortable traveling weather.'},{result:'Clear and Warm',rough:false,desc:'Blue sky, light breeze. Near-perfect for travel.'},{result:'Clear and Warm',rough:false,desc:'A fine spring day. Nothing impedes the road.'}],harvest:[{result:'Wild Winds',rough:true,desc:'Gales that knock travelers sideways. Navigation is nearly impossible.'},{result:'Heavy Rain',rough:false,desc:'Sustained downpour. Everything gets wet. Roads hold.'},{result:'Clear and Warm',rough:false,desc:'Harvest sunshine, golden and full.'},{result:'Cool Rain',rough:false,desc:'Refreshing after the heat. Light and intermittent.'},{result:'Overcast',rough:false,desc:'Clouds in every direction but nothing falls.'},{result:'Overcast',rough:false,desc:'Grey and still. A quiet traveling day.'}],winter:[{result:'Snowstorm',rough:true,desc:'Blizzard conditions. White-out visibility. All paths vanish.'},{result:'Hail',rough:false,desc:'Hard pellets of ice. Stings exposed skin. Brief but sharp.'},{result:'Bitter Cold',rough:false,desc:'Still and freezing. Every breath is visible. Water freezes.'},{result:'Clear and Crisp',rough:false,desc:'Bright winter day. Cold but navigable. The sky is enormous.'},{result:'Overcast',rough:false,desc:'Heavy grey clouds. No snow yet. Cold but not deadly.'},{result:'Overcast',rough:false,desc:'A dull winter day. Nothing unusual.'}]};
 const VENTURE_RESULTS=['Shift in Weather — reroll the weather for this Phase.','Overland Encounter — something found on the road.','Wonder — you spot something remarkable in the distance.','Landmark — spot a Landmark 1 Hex Zone away.','Event — roll on the Events of the Aether for a Mystery encounter.','Event — roll on the Events of the Aether for a Mystery encounter.'];
 const TASK_VERBS=['Investigate','Capture','Hunt','Transport','Aid','Guard','Destroy','Conceal','Salvage','Retrieve'];
@@ -1029,11 +1130,11 @@ function rollWildernessFull(){
   el.style.display='block';
   el.innerHTML=`<div class="wild-roll-output">
     <div class="wild-section"><div class="wild-section-label">Terrain: ${terrain.name}</div></div>
-    <div class="wild-section"><div class="wild-section-label">🌍 Land</div><div class="wild-section-text">${td2.land}</div></div>
-    <div class="wild-section"><div class="wild-section-label">☁ Sky</div><div class="wild-section-text">${td2.sky}</div></div>
-    <div class="wild-section"><div class="wild-section-label">💧 Water</div><div class="wild-section-text">${td2.water}</div></div>
-    <div class="wild-section"><div class="wild-section-label">🌿 Flora & Fauna</div><div class="wild-section-text">${td2.flora} ${td2.fauna}</div></div>
-    <div class="wild-section"><div class="wild-section-label">✦ Wonder</div><div class="wild-section-text">${td2.wonder}</div></div>
+    <div class="wild-section"><div class="wild-section-label">🌍 Land</div><div class="wild-section-text">${pickTd(td2.land)}</div></div>
+    <div class="wild-section"><div class="wild-section-label">☁ Sky</div><div class="wild-section-text">${pickTd(td2.sky)}</div></div>
+    <div class="wild-section"><div class="wild-section-label">💧 Water</div><div class="wild-section-text">${pickTd(td2.water)}</div></div>
+    <div class="wild-section"><div class="wild-section-label">🌿 Flora & Fauna</div><div class="wild-section-text">${pickTd(td2.flora)} ${pickTd(td2.fauna)}</div></div>
+    <div class="wild-section"><div class="wild-section-label">✦ Wonder</div><div class="wild-section-text">${pickTd(td2.wonder)}</div></div>
     <div class="wild-section">
       <div class="wild-section-label">🌦 Weather (d6=${wr}) — ${season.charAt(0).toUpperCase()+season.slice(1)}</div>
       <div class="wild-section-text ${weatherResult.rough?'weather-rough':''}">${weatherResult.result} — ${weatherResult.desc}${weatherResult.rough?' <strong style="color:var(--red2);">⚠ ROUGH WEATHER</strong>':''}</div>
@@ -1134,11 +1235,45 @@ function pushLuck(pool) {
 function spendTMW(n) { if (S.tmw < n) { showNotif('Not enough TMW!', 'warn'); return; } S.tmw -= n; updateTMWPool(); showNotif('Spent ' + n + ' TMW. Pool: ' + S.tmw); closeModal(); }
 
 // ── COMBAT ───────────────────────────────────────────────────────────────────
-function startCombat(){S.combat.active=true;S.combat.round=1;updateCombatUI();}
-function nextRound(){S.combat.round++;S.combat.actionsLeft=3;updateCombatUI();}
+function startCombat(){S.combat.active=true;S.combat.round=1;S.combat.actionsLeft=getMaxActions();updateCombatUI();}
+function nextRound(){S.combat.round++;S.combat.actionsLeft=getMaxActions();updateCombatUI();}
 function endCombat(){S.combat.active=false;S.combat.round=0;halfStress();clearAllConditions();updateCombatUI();showNotif('Scene ended — Recovery applied','good');}
-function updateCombatUI(){const el=document.getElementById('combatStatus');if(el)el.textContent=S.combat.active?`Round ${S.combat.round} — Active Scene`:'No active scene.';const al=document.getElementById('actionsLeft');if(al)al.textContent=S.combat.actionsLeft;}
+function updateCombatUI(){const el=document.getElementById('combatStatus');if(el)el.textContent=S.combat.active?`Round ${S.combat.round} — Active Scene`:'No active scene.';const al=document.getElementById('actionsLeft');if(al)al.textContent=S.combat.actionsLeft;const ml=document.getElementById('maxActionsHint');if(ml)ml.textContent='(max '+getMaxActions()+')';}
 function setEnemyDread(n){S.combat.enemyDread=n;document.getElementById('enemyDreadDisplay').textContent='d'+n;}
+
+// Return maximum actions per round from armor + bonuses.
+function parseArmorActions(){var a=(S&&S.equipment)?S.equipment.armor||'':'';var m=a.match(/(\d+)\s+Action/i);return m?parseInt(m[1],10):3;}
+function getMaxActions(){var base=parseArmorActions();if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0)base+=2;var fl=(S.flavor||'').toLowerCase();if(fl.indexOf('moves like the wind')>=0)base+=1;return base;}
+
+// Flavor / Mutation bonuses for roll functions.
+// Returns { flat, advDie, holyShield } — holyShield means "add spirit die value".
+function getFlavorBonus(stat){
+  var f=(S.flavor||'').toLowerCase();
+  var flat=0,advDie=0,holyShield=false,trickshot=false,electricBurst=false,mindsheild=false,feats=false;
+  if(stat==='defend'){
+    if(f.indexOf('stone skin')>=0&&advDie<4)advDie=4;
+    if(f.indexOf('scaled skin')>=0)flat+=3;
+    if(f.indexOf('holy shield')>=0)holyShield=true;
+  }
+  if(stat==='shoot'){
+    if(f.indexOf('trickshot')>=0&&advDie<10)advDie=10;
+    if(f.indexOf('emit burst of electricity')>=0&&advDie<8)advDie=8;
+  }
+  if(stat==='body'&&f.indexOf('feats of strength')>=0&&advDie<10)advDie=10;
+  if(stat==='adventure'&&f.indexOf('mindshield')>=0&&advDie<8)advDie=8;
+  return{flat:flat,advDie:advDie,holyShield:holyShield};
+}
+function getMutationBonus(stat){
+  var m=(S.mutation||'').toLowerCase();
+  var flat=0,advDie=0;
+  if(stat==='defend'){if(m.indexOf('thick scales')>=0)flat+=2;}
+  if(stat==='body'){
+    if(m.indexOf('rippling muscles')>=0)flat+=3;
+    if(m.indexOf('superhuman reflexes')>=0){var sd=stepUp(S.stats.body||4);if(sd>advDie)advDie=sd;}
+  }
+  if(stat==='lead'&&m.indexOf('eyes bulge')>=0&&advDie<4)advDie=4;
+  return{flat:flat,advDie:advDie};
+}
 function getAugBonus(stat){if(!S||!Array.isArray(S.augmentations))return 0;var map={body:['NAUTRAM 6T',4],strike:['AI_EYE',4],mind:['3H7-ARCANE',4],spirit:['VOICE SYNTHESIZER',4],control:['NIGHTGUARD',4],lead:['ANALYZER',6],shoot:['RADAR SENSOR',6],defend:['SUBDERMAL ARMOR',4]};var e=map[stat];if(!e)return 0;return S.augmentations.indexOf(e[0])>=0?e[1]:0;}
 
 // Parse weapon slot texts to find bonuses for a given stat:
@@ -1202,6 +1337,8 @@ function rollAttack(type) {
   var die = type === 'strike' ? S.stats.strike : S.stats.shoot;
   var augDie = getAugBonus(type);
   var wpBonus = parseWeaponBonuses(type);
+  var flBonus = getFlavorBonus(type);
+  var mtBonus = getMutationBonus(type);
   var mods = Array.isArray(S.weaponMods) ? S.weaponMods : [];
 
   // Smart Aim mod: step-up advantage on Shoot roll
@@ -1209,13 +1346,15 @@ function rollAttack(type) {
     var smartAdvDie = stepUp(die);
     if (smartAdvDie > wpBonus.advDie) wpBonus.advDie = smartAdvDie;
   }
+  // Merge flavor/mutation advantage dice
+  var advDie = Math.max(wpBonus.advDie, flBonus.advDie, mtBonus.advDie);
 
   var a = explodingRoll(die);
   // AdN advantage: roll both, keep highest
-  var advRoll = wpBonus.advDie > 0 ? explodingRoll(wpBonus.advDie) : null;
+  var advRoll = advDie > 0 ? explodingRoll(advDie) : null;
   var baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
   // +N flat bonus added to total
-  baseTotal += wpBonus.flat;
+  baseTotal += wpBonus.flat + flBonus.flat + mtBonus.flat;
   // +A.D. additive adventure die
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
   if (adBonus) baseTotal += adBonus.total;
@@ -1231,12 +1370,12 @@ function rollAttack(type) {
   var breakdown = '';
   if (advRoll) {
     if (advRoll.total >= a.total) {
-      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(Ad' + wpBonus.advDie + '=' + advRoll.total + ' kept, d' + die + '=' + a.total + ')</span>';
+      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(Ad' + advDie + '=' + advRoll.total + ' kept, d' + die + '=' + a.total + ')</span>';
     } else {
-      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(d' + die + '=' + a.total + ' kept, Ad' + wpBonus.advDie + '=' + advRoll.total + ')</span>';
+      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(d' + die + '=' + a.total + ' kept, Ad' + advDie + '=' + advRoll.total + ')</span>';
     }
   }
-  if (wpBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + wpBonus.flat + ')</span>';
+  if (wpBonus.flat + flBonus.flat + mtBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + (wpBonus.flat + flBonus.flat + mtBonus.flat) + ')</span>';
   if (adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.=' + adBonus.total + ')</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d' + augDie + '=' + augRoll.total + ')</span>' : '';
 
@@ -1246,11 +1385,14 @@ function rollAttack(type) {
     if (mods.indexOf('Laser Accelerator') >= 0) modNotes.push('Laser Accelerator: ' + total + ' Stress directly (no Dread)');
     if (mods.indexOf('Shock Taser') >= 0 && a.exploded) modNotes.push('Shock Taser: enemy loses next Turn!');
     if (mods.indexOf('Reflex Sight') >= 0 && a.total > d.total) modNotes.push('Reflex Sight: +2 Stress');
-    if (mods.indexOf('Smart Aim') >= 0 && advRoll) modNotes.push('Smart Aim: Adv d' + wpBonus.advDie + ' used');
+    if (mods.indexOf('Smart Aim') >= 0 && advRoll) modNotes.push('Smart Aim: Adv d' + advDie + ' used');
+    if (flBonus.advDie >= 8) modNotes.push('Trickshot/Electricity (Flavor): Ad' + flBonus.advDie);
   } else {
     if (mods.indexOf('Kinetic Engine') >= 0 && (a.total === 1 || a.total === 2)) modNotes.push('Kinetic Engine: attack again free!');
     if (mods.indexOf('Heat Chamber') >= 0 && a.exploded) modNotes.push('Heat Chamber: enemy Vulnerable!');
     if (mods.indexOf('Vibrating Motor') >= 0 && a.total > d.total) modNotes.push('Vibrating Motor: +2 Stress');
+    if (flBonus.advDie > 0) modNotes.push('Flavor: Ad' + flBonus.advDie);
+    if (mtBonus.flat > 0) modNotes.push('Mutation: +' + mtBonus.flat);
   }
   var modHtml = modNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">' + modNotes.join(' · ') + '</span>' : '';
 
@@ -1266,15 +1408,20 @@ function rollAttack(type) {
 function rollDefend() {
   var armorAdv = parseArmorAdvDie();
   var wpBonus = parseWeaponBonuses('defend');
-  var advDie = Math.max(armorAdv, wpBonus.advDie);
+  var flBonus = getFlavorBonus('defend');
+  var mtBonus = getMutationBonus('defend');
+  var advDie = Math.max(armorAdv, wpBonus.advDie, flBonus.advDie);
   var augDie = getAugBonus('defend');
 
   var a = explodingRoll(S.stats.defend);
   // AdN armor/weapon advantage: roll both, keep highest
   var advRoll = advDie > 0 ? explodingRoll(advDie) : null;
   var baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
-  // +N flat weapon bonus (e.g. Riot Shield +3 Defend)
-  baseTotal += wpBonus.flat;
+  // +N flat weapon/flavor/mutation bonus
+  baseTotal += wpBonus.flat + flBonus.flat + mtBonus.flat;
+  // Holy Shield: add spirit die value
+  var holyShieldRoll = flBonus.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
+  if (holyShieldRoll) baseTotal += holyShieldRoll.total;
   // +A.D. from Shield: roll adventure die and ADD to result
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
   if (adBonus) baseTotal += adBonus.total;
@@ -1294,15 +1441,20 @@ function rollDefend() {
       breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(d' + S.stats.defend + '=' + a.total + ' kept, Ad' + advDie + '=' + advRoll.total + ')</span>';
     }
   }
-  if (wpBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + wpBonus.flat + ')</span>';
+  if (wpBonus.flat + flBonus.flat + mtBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + (wpBonus.flat + flBonus.flat + mtBonus.flat) + ')</span>';
+  if (holyShieldRoll) breakdown += ' <span style="font-size:.7rem;color:var(--gold);">(Holy Shield +Spirit d' + (S.stats.spirit||4) + '=' + holyShieldRoll.total + ')</span>';
   if (adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.=' + adBonus.total + ')</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d' + augDie + '=' + augRoll.total + ')</span>' : '';
+  var defNotes = [];
+  if (flBonus.advDie > 0) defNotes.push('Flavor Adv: Ad' + flBonus.advDie);
+  if (mtBonus.flat > 0) defNotes.push('Mutation: +' + mtBonus.flat);
+  var defNoteHtml = defNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">' + defNotes.join(' · ') + '</span>' : '';
 
   var el = document.getElementById('defendResult');
   if (el) el.innerHTML = '<span style="color:var(--teal);">' + total + '</span>' + breakdown + augNote
     + ' vs <span style="color:var(--red);">' + d.total + '</span> — '
     + (success ? '<strong style="color:var(--green2);">Defended!</strong>' : '<strong style="color:var(--red);">−' + diff + ' Stress</strong>')
-    + (a.exploded ? ' ✦ Perfect!' : '');
+    + (a.exploded ? ' ✦ Perfect!' : '') + defNoteHtml;
   if (!success) changeStress(diff);
   clearConditionOnUse('defend');
 }
@@ -1726,9 +1878,9 @@ function renderHexInfo(hex){
 
   // ── WILDERNESS ──
   if(hex.type==='wilderness'){
-    if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${td.land}</div></div>`;
-    if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${td.flora} ${td.fauna||''}</div></div>`;
-    if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${td.wonder}</div></div>`;
+    if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTd(td.land)}</div></div>`;
+    if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTd(td.flora)} ${pickTd(td.fauna)||''}</div></div>`;
+    if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
     html+=`<div style="margin:.35rem 0;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
 

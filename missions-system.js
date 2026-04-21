@@ -12,8 +12,16 @@
   };
   var DIFF_KEYS = Object.keys(DIFFICULTIES);
 
-  var LOOT_COUNT_DIVISOR     = 6;
-  var MAX_COMPLETED_MISSIONS = 10;
+  var LOOT_COUNT_DIVISOR      = 6;
+  var MAX_COMPLETED_MISSIONS  = 10;
+  var LOOT_FALLBACK = {
+    easy:        ['Healing Salve'],
+    medium:      ['Rope', 'Torch'],
+    hard:        ['Scroll', 'Iron Tools'],
+    challenging: ['Enchanted Dagger'],
+    very_hard:   ['Rare Weapon'],
+    impossible:  ['Legendary Item']
+  };
 
   var INFO_FEATURES = [
     { id: 1, name: 'Hidden Cache',      icon: '\u{1F4E6}', effect: 'loot',      effectDesc: 'Gain a free loot roll from the merchant tables.' },
@@ -99,8 +107,7 @@
     var diff  = DIFFICULTIES[difficulty] || DIFFICULTIES.easy;
     var table = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA[diff.lootCat]) || [];
     if (!table.length) {
-      var fb = { easy:['Healing Salve'],medium:['Rope','Torch'],hard:['Scroll','Iron Tools'],challenging:['Enchanted Dagger'],very_hard:['Rare Weapon'],impossible:['Legendary Item'] };
-      return (fb[difficulty] || ['Unknown reward']);
+      return (LOOT_FALLBACK[difficulty] || ['Unknown reward']);
     }
     var count = Math.max(1, Math.ceil(diff.dread / LOOT_COUNT_DIVISOR));
     var loot = [];
@@ -213,14 +220,23 @@
     var success=advR.total>=dreadR.total;
     var fod = success ? rollInfoFeature() : rollInfoDanger();
 
-    var rollBlock = div('bg sv bd2 p5 mb4',
-      div('f76 muted2 mb3','Adventure d'+advDie+' vs Dread d'+dreadDie)
-      + grid2(
-          col(cinzel52+' teal uc','Your Roll') + bigNum(advR.total,'teal') + (advR.exploded?div('f62 gold2','\u2746 Crit!'):''),
-          col(cinzel52+' red2 uc','Dread Roll') + bigNum(dreadR.total,'red')
-        )
-      + center(cinzel78+' '+(success?'green2':'red2'), success?'\u2713 Information gathered \u2014 +5 bonus secured':'\u2717 Contacts run dry \u2014 Additional Danger incoming')
-    );
+    var rollBlock = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.45rem;">'
+      + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Adventure d'+advDie+' vs Dread d'+dreadDie+'</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.3rem;">'
+        + '<div style="text-align:center;">'
+          + '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.1rem;">Your Roll</div>'
+          + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--teal);">'+advR.total+'</div>'
+          + (advR.exploded?'<div style="font-size:.62rem;color:var(--gold2);">\u2746 Crit!</div>':'')
+        + '</div>'
+        + '<div style="text-align:center;">'
+          + '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.1rem;">Dread Roll</div>'
+          + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--red);">'+dreadR.total+'</div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="text-align:center;font-family:\'Cinzel\',serif;font-size:.78rem;color:'+(success?'var(--green2)':'var(--red2)')+';">'
+        + (success?'\u2713 Information gathered \u2014 +5 bonus secured':'\u2717 Contacts run dry \u2014 Additional Danger incoming')
+      + '</div>'
+    + '</div>';
 
     var resultBlock='';
     if (success) {
@@ -270,8 +286,8 @@
       mission.infoFeature=f;
       switch(f.effect) {
         case 'loot':
-          var el=rollShopLoot(mission.difficulty); mission.loot=mission.loot.concat(el);
-          showNotif('\uD83D\uDCE6 Hidden Cache! Found: '+el.join(', '),'good'); break;
+          var lootItems=rollShopLoot(mission.difficulty); mission.loot=mission.loot.concat(lootItems);
+          showNotif('\uD83D\uDCE6 Hidden Cache! Found: '+lootItems.join(', '),'good'); break;
         case 'bypass':
           mission.bypassSecurity=true;
           showNotif('\uD83D\uDEAA Back Entrance \u2014 Security bypassed!','good'); break;

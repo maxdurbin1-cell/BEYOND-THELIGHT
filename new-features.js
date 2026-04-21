@@ -1364,6 +1364,26 @@
     showNotif('Weapon Mod removed.', '');
   }
 
+  // ── HACK EFFECTS TABLE ────────────────────────────────────────────────────────
+  var HACK_EFFECTS = {
+    'Javelin':              { tmw: 1,  effect: function() { var d=roll(10); return 'Deals <strong>'+d+' Stress</strong> to the target. (1d10)'; } },
+    'Ember':                { tmw: 2,  effect: function() { return 'Target is <strong>Vulnerable</strong>.'; } },
+    'Short Circuit':        { tmw: 4,  effect: function() { return 'Target <strong>loses 2 Rounds</strong>.'; } },
+    'Reboot Optics':        { tmw: 3,  effect: function() { return 'Enemy rolls with <strong>Step Up Disadvantage</strong> for 3 Rounds (rolls higher die, takes lowest).'; } },
+    'Weapon Glitch':        { tmw: 2,  effect: function() { return "Target's <strong>weapons don't work</strong> for 2 Rounds."; } },
+    'Ping':                 { tmw: 1,  effect: function() { return 'Enemy <strong>Dread reduced by one Step</strong>.'; } },
+    'Sonic Shock':          { tmw: 2,  effect: function() { var d=roll(4); return 'Gain <strong>+'+d+'</strong> to Attack rolls against that enemy. (d4 rolled)'; } },
+    'Take Control':         { tmw: 1,  effect: function() { return 'You <strong>remotely operate</strong> a small electronic device.'; } },
+    'Counterspell':         { tmw: 2,  effect: function() { return '<strong>Enemy Hack countered!</strong>'; } },
+    'Brake':                { tmw: 5,  effect: function() { return 'Vehicle is <strong>forced to stop</strong>.'; } },
+    'LASHOUT (Master)':     { tmw: 10, effect: function() { return 'Enemy <strong>forced to attack</strong> nearest ally/hostile (or commits suicide if alone).'; } },
+    'SUICIDE (Master)':     { tmw: 15, effect: function() { return 'Enemy <strong>forced to kill themselves</strong>.'; } },
+    'COLLAPSE (Master)':    { tmw: 12, effect: function() { return 'Enemy <strong>crippled for the day</strong> — cannot act.'; } },
+    'DETONATE GRENADE (Master)': { tmw: 10, effect: function() { var d=roll(10)+roll(10); return 'Explosion deals <strong>'+d+' Stress</strong>. (2d10)'; } },
+    'AEGIES (Master)':      { tmw: 10, effect: function() { return 'You gain <strong>+10 to Defend Rolls</strong> for this Combat Scene.'; } },
+    'PARASYTE (Master)':    { tmw: 12, effect: function() { var ad=S.stats&&S.stats.adventure?S.stats.adventure:4; var d=roll(ad); return 'Enemy takes <strong>'+d+' Stress per Round</strong> for 12 Rounds. (Adventure d'+ad+' rolled)'; } }
+  };
+
   // ── OS HACKS PANEL ────────────────────────────────────────────────────────────
   function renderOSHacksPanel() {
     var panel = document.getElementById('osHacksPanel');
@@ -1454,21 +1474,42 @@
     var sel = document.getElementById('hackSelect');
     if (sel && sel.value) { S.hackRoller.selectedHack = sel.value; }
 
+    var hackName = S.hackRoller.selectedHack;
+    if (!hackName && S.ownedHacks.length) { hackName = S.ownedHacks[0]; S.hackRoller.selectedHack = hackName; }
+
+    if (!hackName) {
+      showNotif('Select a Hack to cast first!', 'warn'); return;
+    }
     if (!S.hackRoller.guess) {
       showNotif('Select a guess first: Below, Between, or Above!', 'warn'); return;
     }
-    if (!S.hackRoller.selectedHack && S.ownedHacks.length) {
-      S.hackRoller.selectedHack = S.ownedHacks[0];
+
+    // Get TMW cost
+    var hackData = HACK_EFFECTS[hackName];
+    var tmwCost = hackData ? hackData.tmw : 0;
+    if (tmwCost > 0 && (S.tmw || 0) < tmwCost) {
+      showNotif('Need ' + tmwCost + ' TMW to cast ' + hackName + '! (have ' + (S.tmw || 0) + ')', 'warn'); return;
     }
 
-    var dreadDie  = S.hackRoller.dreadDie || 6;
-    var d1        = roll(dreadDie);
-    var d2        = roll(dreadDie);
-    var low       = Math.min(d1, d2);
-    var high      = Math.max(d1, d2);
-    var ctrlDie   = S.stats.control || 4;
-    var ctrlRoll  = explodingRoll(ctrlDie);
-    var ctrlVal   = ctrlRoll.total;
+    // Deduct TMW (spent to activate)
+    if (tmwCost > 0) {
+      S.tmw = Math.max(0, (S.tmw || 0) - tmwCost);
+      updateTMWPool();
+    }
+
+    var dreadDie = S.hackRoller.dreadDie || 6;
+    var d1 = roll(dreadDie);
+    var d2 = roll(dreadDie);
+    var low  = Math.min(d1, d2);
+    var high = Math.max(d1, d2);
+
+    // Control roll + optional NIGHTGUARD bonus (+d4)
+    var ctrlDie  = (typeof getAugBonus === 'function') ? null : null; // resolve below
+    ctrlDie = S.stats.control || 4;
+    var ctrlRoll = explodingRoll(ctrlDie);
+    var augBonusDie = (typeof getAugBonus === 'function') ? getAugBonus('control') : 0;
+    var augRoll  = augBonusDie > 0 ? explodingRoll(augBonusDie) : null;
+    var ctrlVal  = ctrlRoll.total + (augRoll ? augRoll.total : 0);
 
     var actual;
     if      (ctrlVal < low)  { actual = 'below'; }
@@ -1476,6 +1517,28 @@
     else                     { actual = 'between'; }
 
     var success = actual === S.hackRoller.guess;
+    var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.72rem;">(+d'+augBonusDie+'='+augRoll.total+')</span>' : '';
+
+    var effectHtml = '';
+    if (success && hackData && hackData.effect) {
+      effectHtml = '<br><span style="color:var(--teal);">' + hackData.effect() + '</span>';
+    }
+
+    // Malware on failure: lose 1 TMW + take d6 Stress + Distracted
+    var malwareHtml = '';
+    if (!success) {
+      var malwareDmg = roll(6);
+      S.tmw = Math.max(0, (S.tmw || 0) - 1);
+      updateTMWPool();
+      changeStress(malwareDmg);
+      malwareHtml = '<br><span style="color:var(--red2);">⚠ Malware! Lost 1 TMW &amp; took <strong>' + malwareDmg + ' Stress</strong> (1d6). Distracted applied.</span>';
+      if (typeof updateConditionButtons === 'function') {
+        S.conditions.distracted = true;
+        updateConditionButtons();
+        if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
+      }
+    }
+
     var resultEl = document.getElementById('hackRollResult');
     if (resultEl) {
       resultEl.innerHTML =
@@ -1484,25 +1547,16 @@
         + '<div class="gamble-die"><div class="gd-label">Control d' + ctrlDie + (ctrlRoll.exploded ? '*' : '') + '</div><div class="gd-value" style="color:var(--teal);">' + ctrlVal + '</div></div>'
         + '<div class="gamble-die"><div class="gd-label">Dread High</div><div class="gd-value" style="color:var(--red);">' + high + '</div></div>'
         + '</div>'
+        + (tmwCost > 0 ? '<div style="font-size:.72rem;color:var(--muted2);margin:.25rem 0;">−' + tmwCost + ' TMW spent · ' + (S.tmw || 0) + ' remaining</div>' : '')
+        + augNote
         + '<div class="gamble-outcome ' + (success ? 'good' : 'warn') + '" style="margin-top:.4rem;">'
-        + '<strong style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? 'Hack Succeeded!' : 'Hack Failed \u2014 Malware!') + '</strong><br>'
-        + 'Dread d' + dreadDie + ': ' + low + '\u2013' + high
+        + '<strong style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? '✔ Hack Succeeded!' : '✘ Hack Failed — Malware!') + '</strong><br>'
+        + 'Dread d' + dreadDie + ': ' + low + '–' + high
         + ' &nbsp;|&nbsp; Guess: <strong>' + capFirst(S.hackRoller.guess) + '</strong>'
         + ' &nbsp;|&nbsp; Control: ' + ctrlVal + ' (<em>' + capFirst(actual) + '</em>)'
-        + (success && S.hackRoller.selectedHack
-            ? '<br><span style="color:var(--teal);">' + S.hackRoller.selectedHack + ' uploaded to target interface.</span>'
-            : '')
-        + (!success
-            ? '<br><span style="color:var(--red2);">You are infected with Malware! (Distracted applied)</span>'
-            : '')
+        + effectHtml
+        + malwareHtml
         + '</div>';
-    }
-
-    // Malware: apply Distracted condition on failure
-    if (!success && typeof updateConditionButtons === 'function') {
-      S.conditions.distracted = true;
-      updateConditionButtons();
-      if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
     }
   }
 

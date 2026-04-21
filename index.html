@@ -1238,7 +1238,7 @@ Weapons have as many available Mod Slots as their bonus damage value. <strong>Ad
   <li><em>Heavy</em> Weapons (+4 Strike/Shoot) — <strong>4 Mod Slots</strong></li>
 </ul>`
 };
-function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;const rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},${JSON.stringify(item.name)},'${cat}')">Buy</button></div></div>`).join('');}
+function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;const rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}')">Buy</button></div></div>`).join('');}
 
 // Format stat string into equipment-slot format: "Ad6 Strike | Engaged" → "(Ad6 Strike)"
 function formatStatForSlot(stat) {
@@ -1453,7 +1453,7 @@ function useBackpackItem(index) {
   if (cat === 'toolkits') {
     var tkStats = TOOLKIT_STATS[name] || ['lead'];
     var statOptions = tkStats.map(function(s) {
-      return '<button class="btn btn-sm btn-teal" style="margin:.2rem;" onclick="useToolkit(' + JSON.stringify(s) + ',' + index + ');closeModal();">' + s.charAt(0).toUpperCase() + s.slice(1) + '</button>';
+      return '<button class="btn btn-sm btn-teal" style="margin:.2rem;" onclick="useToolkit(\'' + s + '\',' + index + ');closeModal();">' + s.charAt(0).toUpperCase() + s.slice(1) + '</button>';
     }).join('');
     openModal(name + ' — Use',
       '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'

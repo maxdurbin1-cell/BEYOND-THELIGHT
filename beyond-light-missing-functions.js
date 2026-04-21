@@ -70,12 +70,14 @@ function updateDieDisplay(key) {
     const wb = parseWeaponBonuses(key);
     if (wb.advDie > 0) displayText += '/Ad' + wb.advDie;
     else if (wb.flat > 0) displayText += '+' + wb.flat;
+    if (wb.addAdvDie) displayText += '+A.D.';
   } else if (key === 'defend') {
     const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
-    const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0};
+    const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
     const advDie = Math.max(armorAdv, wpDef.advDie);
     if (advDie > 0) displayText += '/Ad' + advDie;
     if (wpDef.flat > 0) displayText += '+' + wpDef.flat;
+    if (wpDef.addAdvDie) displayText += '+A.D.';
   }
   // Augmentation additive bonus hint
   const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
@@ -145,28 +147,35 @@ function quickRollStat(key) {
   const label = key.charAt(0).toUpperCase() + key.slice(1);
 
   // Weapon advantage / flat bonuses for strike and shoot
-  let advDieVal = 0, flatBonus = 0;
+  let advDieVal = 0, flatBonus = 0, addAdvDie = false;
   if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
     const wb = parseWeaponBonuses(key);
     advDieVal = wb.advDie;
     flatBonus = wb.flat;
+    addAdvDie = wb.addAdvDie;
   } else if (key === 'defend') {
     const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
-    const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0};
+    const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
     advDieVal = Math.max(armorAdv, wpDef.advDie);
     flatBonus = wpDef.flat;
+    addAdvDie = wpDef.addAdvDie;
   }
 
   // Augmentation additive bonus
   const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
 
   const a = explodingRoll(die);
+  // AdN advantage: roll both, keep highest
   const advRoll = advDieVal > 0 ? explodingRoll(advDieVal) : null;
-  // Advantage: roll both, keep highest
   const baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
+  // +N flat bonus
   const withFlat = baseTotal + flatBonus;
+  // +A.D. additive adventure die
+  const adBonus = addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
+  const withAD = withFlat + (adBonus ? adBonus.total : 0);
+  // Augmentation additive
   const augRoll = augDie > 0 ? explodingRoll(augDie) : null;
-  const total = withFlat + (augRoll ? augRoll.total : 0);
+  const total = withAD + (augRoll ? augRoll.total : 0);
 
   // Build detail breakdown
   const details = [];
@@ -178,6 +187,7 @@ function quickRollStat(key) {
     }
   }
   if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon)');
+  if (adBonus) details.push('+A.D. d' + (S.stats.adventure || 4) + ' = ' + adBonus.total + ' (additive)');
   if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
 
   const detailHtml = details.length
@@ -193,6 +203,9 @@ function quickRollStat(key) {
       detailHtml +
       "</div>"
   );
+
+  // Clear positive condition on use (one-shot mechanic)
+  if (typeof clearConditionOnUse === 'function') clearConditionOnUse(key);
 }
 
 function updateRenown() {

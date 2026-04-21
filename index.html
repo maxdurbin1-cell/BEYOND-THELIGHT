@@ -69,8 +69,17 @@ select option{background:#0f1020;}
 .char-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.85rem;}
 @media(max-width:1100px){.char-grid{grid-template-columns:1fr 1fr;}}@media(max-width:680px){.char-grid{grid-template-columns:1fr;}}
 .backpack-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.25rem;}
+.bp-cell{display:flex;gap:.1rem;align-items:stretch;}
+.bp-cell .bp-input{flex:1;min-width:0;}
 .bp-input{background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'Crimson Pro',serif;font-size:.82rem;padding:.28rem .4rem;width:100%;outline:none;transition:border-color .15s;min-height:1.8rem;}
 .bp-input:focus{border-color:var(--teal);}
+.bp-info-btn{background:var(--card2);border:1px solid var(--border2);color:var(--muted2);font-size:.6rem;padding:0 .25rem;cursor:pointer;border-radius:2px;flex-shrink:0;line-height:1.8rem;}
+.bp-info-btn:hover{color:var(--gold);border-color:var(--gold);}
+.ctx-bar{display:flex;gap:.3rem;align-items:center;margin-bottom:.35rem;flex-wrap:wrap;}
+.ctx-lbl{font-family:'Cinzel',sans-serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-right:.3rem;}
+.ctx-btn{background:transparent;border:1px solid var(--border2);color:var(--muted2);font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;padding:.15rem .5rem;cursor:pointer;border-radius:2px;text-transform:uppercase;transition:all .15s;}
+.ctx-btn:hover{color:var(--gold);}
+.ctx-btn.on{color:var(--gold);border-color:var(--gold);background:rgba(201,162,39,.08);}
 .map-layout{display:grid;grid-template-columns:1fr 380px;gap:.85rem;height:calc(100vh - 160px);}
 @media(max-width:900px){.map-layout{grid-template-columns:1fr;height:auto;}}
 .map-scroll{overflow:auto;background:var(--card);border:1px solid var(--border);position:relative;}
@@ -201,20 +210,27 @@ select option{background:#0f1020;}
 <body>
 <header>
   <div class="logo">BEYOND<span>:</span> THE LIGHT</div>
+  <div class="ctx-bar">
+    <span class="ctx-lbl">Location:</span>
+    <button class="ctx-btn on" onclick="setContext('traveling',this)">🌍 Traveling</button>
+    <button class="ctx-btn" onclick="setContext('holding',this)">🏰 Holding</button>
+    <button class="ctx-btn" onclick="setContext('temple',this)">⛩ Temple</button>
+    <button class="ctx-btn" onclick="setContext('sea',this)">⚓ At Sea</button>
+  </div>
   <nav>
     <button class="tab-btn active" onclick="switchTab('character',this)">Character</button>
     <button class="tab-btn" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn" onclick="switchTab('map',this)">Province</button>
-    <button class="tab-btn" onclick="switchTab('lastsea',this)">Last Sea</button>
+    <button class="tab-btn ctx-sea ctx-holding" style="display:none;" onclick="switchTab('lastsea',this)">Last Sea</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
-    <button class="tab-btn" onclick="switchTab('naval',this)">Naval</button>
-    <button class="tab-btn" onclick="switchTab('shop',this)">Merchants</button>
-    <button class="tab-btn" onclick="switchTab('gambling',this)">Gambling</button>
+    <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('naval',this)">Naval</button>
+    <button class="tab-btn ctx-holding ctx-temple ctx-sea" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
+    <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn" onclick="switchTab('codex',this)">Codex</button>
     <button class="tab-btn" onclick="switchTab('rules',this)">Rules</button>
-    <button class="tab-btn" onclick="switchTab('caravan',this)">Caravan</button>
-    <button class="tab-btn" onclick="switchTab('holding',this)">Holding</button>
+    <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
+    <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('holding',this)">Holding</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
     <span class="cl">Credits</span>
@@ -400,12 +416,12 @@ select option{background:#0f1020;}
           <button class="btn btn-sm" onclick="rollBackpack()">⚄ Roll Backpack</button>
         </div>
         <div class="backpack-grid">
-          <input class="bp-input" id="bp0" placeholder="Slot 1" onchange="S.backpack[0]=this.value">
-          <input class="bp-input" id="bp1" placeholder="Slot 2" onchange="S.backpack[1]=this.value">
-          <input class="bp-input" id="bp2" placeholder="Slot 3" onchange="S.backpack[2]=this.value">
-          <input class="bp-input" id="bp3" placeholder="Slot 4" onchange="S.backpack[3]=this.value">
-          <input class="bp-input" id="bp4" placeholder="Slot 5" onchange="S.backpack[4]=this.value">
-          <input class="bp-input" id="bp5" placeholder="Slot 6" onchange="S.backpack[5]=this.value">
+          <div class="bp-cell"><input class="bp-input" id="bp0" placeholder="Slot 1" onchange="S.backpack[0]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(0)" title="Item info">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp1" placeholder="Slot 2" onchange="S.backpack[1]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(1)" title="Item info">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp2" placeholder="Slot 3" onchange="S.backpack[2]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(2)" title="Item info">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp3" placeholder="Slot 4" onchange="S.backpack[3]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(3)" title="Item info">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp4" placeholder="Slot 5" onchange="S.backpack[4]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(4)" title="Item info">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp5" placeholder="Slot 6" onchange="S.backpack[5]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(5)" title="Item info">?</button></div>
         </div>
         <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">Always carry: Rations (1₵) · Rope (2₵) · Mapping Materials (3₵)</div>
         <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.4rem;">
@@ -1024,39 +1040,61 @@ function updateCombatUI(){const el=document.getElementById('combatStatus');if(el
 function setEnemyDread(n){S.combat.enemyDread=n;document.getElementById('enemyDreadDisplay').textContent='d'+n;}
 function getAugBonus(stat){if(!S||!Array.isArray(S.augmentations))return 0;var map={body:['NAUTRAM 6T',4],strike:['AI_EYE',4],mind:['3H7-ARCANE',4],spirit:['VOICE SYNTHESIZER',4],control:['NIGHTGUARD',4],lead:['ANALYZER',6],shoot:['RADAR SENSOR',6],defend:['SUBDERMAL ARMOR',4]};var e=map[stat];if(!e)return 0;return S.augmentations.indexOf(e[0])>=0?e[1]:0;}
 
-// Parse weapon slot texts to find flat (+N) and advantage-die (AdN) bonuses for a given stat.
-// Advantage dice (AdN) are rolled separately and the highest result is kept.
-// Flat bonuses (+N) are always added to the final total.
+// Parse weapon slot texts to find bonuses for a given stat:
+//   flat    — +N bonus always added to total
+//   advDie  — AdN advantage die (roll both, keep highest)
+//   addAdvDie — +A.D. bonus: roll the Adventure Die and ADD to total
 function parseWeaponBonuses(stat) {
-  if (!S || !S.equipment) return {flat:0, advDie:0};
+  if (!S || !S.equipment) return {flat:0, advDie:0, addAdvDie:false};
   var weapons = [S.equipment.weapon1 || '', S.equipment.weapon2 || ''];
-  var flat = 0, advDie = 0;
+  var flat = 0, advDie = 0, addAdvDie = false;
   var label = stat.charAt(0).toUpperCase() + stat.slice(1);
   weapons.forEach(function(w) {
     if (!w) return;
-    // Flat: +N Strike / +N Shoot / +N Defend/Strike etc.
+    // Flat: +N Strike / +N Shoot / +N Defend / +N Defend/Strike etc.
     var fm = w.match(new RegExp('[+](\\d+)\\s+(?:[A-Za-z]+\\/)*' + label, 'i'));
     if (fm) flat += parseInt(fm[1], 10);
     // Advantage die: AdN Strike / AdN Shoot / AdN Defend
     var am = w.match(new RegExp('\\bAd(\\d+)\\s+' + label, 'i'));
     if (am) { var d = parseInt(am[1], 10); if (d > advDie) advDie = d; }
-    // A.D. (Adventure Die advantage) for Defend — e.g. Shield (+A.D. Defend)
-    if (stat === 'defend' && /[+]?A\.D\./i.test(w)) {
-      var adv = (S.stats && S.stats.adventure) || 4;
-      if (adv > advDie) advDie = adv;
-    }
+    // A.D. bonus (+A.D. StatLabel) — roll Adventure Die and ADD to result
+    if (new RegExp('[+]?A\\.D\\.\\s+' + label, 'i').test(w)) addAdvDie = true;
   });
-  return {flat: flat, advDie: advDie};
+  return {flat: flat, advDie: advDie, addAdvDie: addAdvDie};
 }
 
 // Parse armor text to get the Advantage die size (AdN) for Defend rolls.
+// Armor grants AdN advantage (roll both, keep highest). +A.D. on armor would be additive.
 function parseArmorAdvDie() {
   if (!S || !S.equipment) return 0;
   var armor = S.equipment.armor || '';
   var m = armor.match(/\bAd(\d+)/i);
   if (m) return parseInt(m[1], 10);
-  if (/[+]?A\.D\./i.test(armor)) return (S.stats && S.stats.adventure) || 4;
   return 0;
+}
+
+// Auto-clear a positive condition after the player uses the relevant stat.
+// Empowered lasts for one strike/shoot/body use; Protected for one defend; etc.
+function clearConditionOnUse(key) {
+  if (!S || !S.conditions) return;
+  var changed = false;
+  if (['body','strike','shoot'].indexOf(key) >= 0 && S.conditions.empowered) {
+    S.conditions.empowered = false; changed = true;
+  }
+  if (key === 'defend' && S.conditions.protected) {
+    S.conditions.protected = false; changed = true;
+  }
+  if (['mind','control'].indexOf(key) >= 0 && S.conditions.focused) {
+    S.conditions.focused = false; changed = true;
+  }
+  if (['spirit','lead'].indexOf(key) >= 0 && S.conditions.bolstered) {
+    S.conditions.bolstered = false; changed = true;
+  }
+  if (changed) {
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    showNotif('Condition used up!', '');
+  }
 }
 
 function rollAttack(type) {
@@ -1072,11 +1110,15 @@ function rollAttack(type) {
   }
 
   var a = explodingRoll(die);
+  // AdN advantage: roll both, keep highest
   var advRoll = wpBonus.advDie > 0 ? explodingRoll(wpBonus.advDie) : null;
-  // Take highest of base vs advantage die, then apply flat bonus
   var baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
+  // +N flat bonus added to total
   baseTotal += wpBonus.flat;
-  // Augmentation bonus is always additive
+  // +A.D. additive adventure die
+  var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
+  if (adBonus) baseTotal += adBonus.total;
+  // Augmentation bonus always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
 
@@ -1084,7 +1126,7 @@ function rollAttack(type) {
   var success = total >= d.total;
   var diff = Math.max(1, total - d.total);
 
-  // Build breakdown label
+  // Build breakdown
   var breakdown = '';
   if (advRoll) {
     if (advRoll.total >= a.total) {
@@ -1094,6 +1136,7 @@ function rollAttack(type) {
     }
   }
   if (wpBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + wpBonus.flat + ')</span>';
+  if (adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.=' + adBonus.total + ')</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d' + augDie + '=' + augRoll.total + ')</span>' : '';
 
   var modNotes = [];
@@ -1116,6 +1159,7 @@ function rollAttack(type) {
     + (success ? '<strong style="color:var(--green2);">HIT! ' + diff + ' Stress</strong>' : '<strong style="color:var(--red);">Miss</strong>')
     + (a.exploded ? ' ✦ Crit!' : '') + modHtml;
   if (!success) changeCounter('tmw', 1);
+  clearConditionOnUse(type);
 }
 
 function rollDefend() {
@@ -1125,11 +1169,15 @@ function rollDefend() {
   var augDie = getAugBonus('defend');
 
   var a = explodingRoll(S.stats.defend);
+  // AdN armor/weapon advantage: roll both, keep highest
   var advRoll = advDie > 0 ? explodingRoll(advDie) : null;
-  // Take highest of base vs advantage die, then apply flat weapon bonus
   var baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
+  // +N flat weapon bonus (e.g. Riot Shield +3 Defend)
   baseTotal += wpBonus.flat;
-  // Augmentation bonus (SUBDERMAL ARMOR +d4) is always additive
+  // +A.D. from Shield: roll adventure die and ADD to result
+  var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
+  if (adBonus) baseTotal += adBonus.total;
+  // Augmentation bonus (SUBDERMAL ARMOR +d4) always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
 
@@ -1146,6 +1194,7 @@ function rollDefend() {
     }
   }
   if (wpBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + wpBonus.flat + ')</span>';
+  if (adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.=' + adBonus.total + ')</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d' + augDie + '=' + augRoll.total + ')</span>' : '';
 
   var el = document.getElementById('defendResult');
@@ -1154,6 +1203,7 @@ function rollDefend() {
     + (success ? '<strong style="color:var(--green2);">Defended!</strong>' : '<strong style="color:var(--red);">−' + diff + ' Stress</strong>')
     + (a.exploded ? ' ✦ Perfect!' : '');
   if (!success) changeStress(diff);
+  clearConditionOnUse('defend');
 }
 function rollTraumaCheck(){const a=explodingRoll(S.stats.adventure),d=explodingRoll(S.combat.enemyDread);const success=a.total>=d.total;const el=document.getElementById('traumaResult');if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;if(!success)changeTrauma(1);}
 
@@ -1188,8 +1238,255 @@ Weapons have as many available Mod Slots as their bonus damage value. <strong>Ad
   <li><em>Heavy</em> Weapons (+4 Strike/Shoot) — <strong>4 Mod Slots</strong></li>
 </ul>`
 };
-function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;const rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/'/g,"\\'")}','${cat}')">Buy</button></div></div>`).join('');}
-function buyItem(cost,name){if(S.credits<cost){showNotif('Not enough credits!','warn');return;}S.credits-=cost;updateCreditsUI();showNotif(`Bought: ${name} (−${cost}₵)`,'good');}
+function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;const rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},${JSON.stringify(item.name)},'${cat}')">Buy</button></div></div>`).join('');}
+
+// Format stat string into equipment-slot format: "Ad6 Strike | Engaged" → "(Ad6 Strike)"
+function formatStatForSlot(stat) {
+  if (!stat) return '';
+  var main = stat.split('|')[0].trim();
+  return '(' + main + ')';
+}
+
+// Add a text string to the first empty backpack slot. Returns true on success.
+function addToBackpack(text) {
+  for (var i = 0; i < 6; i++) {
+    if (!S.backpack[i]) {
+      S.backpack[i] = text;
+      var el = document.getElementById('bp' + i);
+      if (el) el.value = text;
+      return true;
+    }
+  }
+  showNotif('Backpack full!', 'warn');
+  return false;
+}
+
+// Find a shop item by display name (matches exactly or by prefix before " (")
+function findShopItem(nameText) {
+  if (!nameText) return null;
+  var cleanName = nameText.split('(')[0].trim().replace(/\s+[-–]\s+.*/, '').trim();
+  var allCats = Object.keys(SHOP_DATA);
+  for (var ci = 0; ci < allCats.length; ci++) {
+    var items = SHOP_DATA[allCats[ci]];
+    if (!Array.isArray(items)) continue;
+    for (var ii = 0; ii < items.length; ii++) {
+      if (items[ii].name === cleanName || items[ii].name === nameText) {
+        return {item: items[ii], cat: allCats[ci]};
+      }
+    }
+  }
+  return null;
+}
+
+// Toolkit → which stats it benefits (for A.D. advantage roll)
+var TOOLKIT_STATS = {
+  "Navigator's Suitcase": ['lead'],
+  "Ambassador's Trunk": ['lead','spirit'],
+  "Excavator's Kit": ['lead','body'],
+  "Dungeoneer's Kit": ['body','lead','control'],
+  "Scavenger's Pouch": ['control','lead'],
+  "Biologist's Backpack": ['mind'],
+  "Mechanic's Roll": ['control','body'],
+  "Survivalist's Satchel": ['body','lead'],
+  "Hacker's Holster": ['control'],
+  "Alchemist's Vials": ['mind','body']
+};
+
+function buyItem(cost, name, cat) {
+  if (S.credits < cost) { showNotif('Not enough credits!', 'warn'); return; }
+
+  // Find the item to get its stat string
+  var found = findShopItem(name);
+  var stat = found ? found.item.stat : '';
+  var statStr = formatStatForSlot(stat);
+  var slotText = statStr ? name + ' ' + statStr : name;
+
+  var weaponCats = ['weapons','melee_exp','ranged_exp'];
+  var armorCats = ['armor','armor_exp'];
+
+  if (weaponCats.indexOf(cat) >= 0) {
+    if (!S.equipment.weapon1) {
+      S.equipment.weapon1 = slotText;
+      setInputValue('eqWeapon1', slotText);
+      if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+    } else if (!S.equipment.weapon2) {
+      S.equipment.weapon2 = slotText;
+      setInputValue('eqWeapon2', slotText);
+    } else {
+      addToBackpack(slotText);
+    }
+    updateAllStatDisplays();
+  } else if (armorCats.indexOf(cat) >= 0) {
+    S.equipment.armor = slotText;
+    setInputValue('eqArmor', slotText);
+    updateAllStatDisplays();
+  } else if (cat === 'augmentations') {
+    if (!Array.isArray(S.augmentations)) S.augmentations = [];
+    if (S.augmentations.indexOf(name) < 0) {
+      S.augmentations.push(name);
+      if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+      updateAllStatDisplays();
+    }
+  } else if (cat === 'os_hacks') {
+    if (!Array.isArray(S.ownedHacks)) S.ownedHacks = [];
+    if (S.ownedHacks.indexOf(name) < 0) {
+      S.ownedHacks.push(name);
+      if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+    }
+  } else if (cat === 'weapon_mods') {
+    if (!Array.isArray(S.weaponMods)) S.weaponMods = [];
+    if (S.weaponMods.indexOf(name) < 0) {
+      S.weaponMods.push(name);
+      if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+    }
+  } else if (cat === 'services') {
+    // Services take immediate effect — show an info modal, no backpack slot needed
+    var svc = found ? found.item : null;
+    if (svc) {
+      var svcHtml = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+        + '<strong style="color:var(--gold);">' + svc.name + '</strong> — ' + svc.stat
+        + '<br><em style="color:var(--muted2);">' + svc.desc + '</em></div>';
+      openModal(svc.name, svcHtml);
+      // Immediate effects
+      if (name === 'Bed & Board') {
+        S.stress = 0;
+        clearAllConditions();
+        updateStressUI();
+        showNotif('Long Rest: all Stress cleared, all Conditions removed', 'good');
+      } else if (name === 'Sage (Temple)') {
+        if (S.trauma > 0) { S.trauma--; if (typeof updateTrauma === 'function') updateTrauma(); showNotif('Trauma reduced by 1', 'good'); }
+      } else if (name === 'Mercenary') {
+        S.enemies.push({id: Date.now(), name: 'Mercenary (Ally)', dread: 6, stress: 0, maxStress: 12, ally: true});
+        if (typeof renderEnemies === 'function') renderEnemies();
+        showNotif('Mercenary added to Combat tracker', 'good');
+      }
+    }
+  } else {
+    // Essentials, toolkits, items, scrolls, remedies, tradegoods, strange → backpack
+    addToBackpack(slotText);
+  }
+
+  S.credits -= cost;
+  updateCreditsUI();
+  showNotif('Bought: ' + name + ' (−' + cost + '₵)', 'good');
+}
+
+// Show item info modal for a backpack slot
+function showBackpackItem(index) {
+  var text = S.backpack[index];
+  if (!text) return;
+  var found = findShopItem(text);
+  if (!found) {
+    // Unknown item — just show the text
+    openModal('Backpack Item', '<div style="font-size:.9rem;color:var(--text2);">' + text + '</div>');
+    return;
+  }
+  var item = found.item;
+  var cat = found.cat;
+  var isConsumable = ['essentials','items','remedies','toolkits'].indexOf(cat) >= 0;
+  var btnHtml = isConsumable
+    ? '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useBackpackItem(' + index + ');closeModal();">⚑ Use</button> '
+    : '';
+  btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem(' + index + ');closeModal();">✕ Remove</button>';
+  var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">' + item.name + '</div>'
+    + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">' + item.stat + '</div>'
+    + '<div>' + item.desc + '</div>'
+    + '<div style="margin-top:.5rem;">' + btnHtml + '</div>'
+    + '</div>';
+  openModal(item.name, html);
+}
+
+function removeBackpackItem(index) {
+  S.backpack[index] = '';
+  var el = document.getElementById('bp' + index);
+  if (el) el.value = '';
+}
+
+// Execute item use effect from backpack slot
+function useBackpackItem(index) {
+  var text = S.backpack[index];
+  if (!text) return;
+  var found = findShopItem(text);
+  if (!found) return;
+  var item = found.item;
+  var name = item.name;
+  var cat = found.cat;
+
+  // Healing / Stress restore
+  if (['Healing Salve','Wound Salve','Stimulant'].indexOf(name) >= 0) {
+    var heal = explodingRoll(4).total;
+    changeStress(-heal);
+    showNotif(name + ': restored ' + heal + ' Stress', 'good');
+    removeBackpackItem(index);
+    return;
+  }
+  // Trauma
+  if (['Depressant','Sage (Temple)','Trauma Serum'].indexOf(name) >= 0) {
+    if (S.trauma > 0) { S.trauma--; if (typeof updateTrauma === 'function') updateTrauma(); }
+    showNotif(name + ': −1 Trauma', 'good');
+    removeBackpackItem(index);
+    return;
+  }
+  // Condition removers
+  var condMap = {
+    'Fever Tincture': 'weakened',
+    'Mind Draught':   'distracted',
+    'Spirit Tonic':   'shaken',
+    'Fortifying Broth':'vulnerable'
+  };
+  if (condMap[name]) {
+    S.conditions[condMap[name]] = false;
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    showNotif(name + ': ' + condMap[name] + ' removed', 'good');
+    removeBackpackItem(index);
+    return;
+  }
+  // Snake Oil
+  if (name === 'Snake Oil') {
+    openModal('Snake Oil', '<div style="font-size:.9rem;color:var(--text2);">Generic remedies against bugs, parasites, diseases, rashes, and blisters.<br><em style="color:var(--muted2);">Nothing serious — but it smells terrible.</em></div>');
+    removeBackpackItem(index);
+    return;
+  }
+  // Toolkits — prompt for stat, then roll Action Die vs Adventure Die (take highest)
+  if (cat === 'toolkits') {
+    var tkStats = TOOLKIT_STATS[name] || ['lead'];
+    var statOptions = tkStats.map(function(s) {
+      return '<button class="btn btn-sm btn-teal" style="margin:.2rem;" onclick="useToolkit(' + JSON.stringify(s) + ',' + index + ');closeModal();">' + s.charAt(0).toUpperCase() + s.slice(1) + '</button>';
+    }).join('');
+    openModal(name + ' — Use',
+      '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+      + item.desc + '<br><br>'
+      + '<strong style="color:var(--gold);">Roll which stat with A.D. Advantage?</strong><br>'
+      + statOptions + '</div>');
+    return;
+  }
+  // Default: just show description
+  openModal(name, '<div style="font-size:.9rem;color:var(--text2);">' + item.desc + '</div>');
+  removeBackpackItem(index);
+}
+
+// Perform a toolkit roll: roll stat die AND adventure die, show both, keep highest
+function useToolkit(statKey, backpackIndex) {
+  var statDie = getEffectiveDie(statKey);
+  var advDie = S.stats.adventure || 4;
+  var statRoll = explodingRoll(statDie);
+  var advRoll = explodingRoll(advDie);
+  var kept = statRoll.total >= advRoll.total ? statRoll.total : advRoll.total;
+  var label = statKey.charAt(0).toUpperCase() + statKey.slice(1);
+  var keptNote = statRoll.total >= advRoll.total
+    ? '(' + label + ' d' + statDie + '=' + statRoll.total + ' kept, A.D. d' + advDie + '=' + advRoll.total + ')'
+    : '(A.D. d' + advDie + '=' + advRoll.total + ' kept, ' + label + ' d' + statDie + '=' + statRoll.total + ')';
+  openModal('Toolkit Roll',
+    '<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">'
+    + label + ' vs A.D. Advantage<br>'
+    + '<strong style="color:var(--teal);">Result: ' + kept + '</strong> '
+    + '<span style="font-size:.78rem;color:var(--muted2);">' + keptNote + '</span>'
+    + '</div>');
+  removeBackpackItem(backpackIndex);
+  clearConditionOnUse(statKey);
+}
 function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);}
 
 // ── MAP GENERATION ────────────────────────────────────────────────────────────
@@ -1200,6 +1497,13 @@ let usedPerils=[],usedBarriers=[];
 
 function setAge(age,btn){S.currentAge=age;document.querySelectorAll('.age-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
 function setSeason(season,btn){S.currentSeason=season;document.querySelectorAll('.season-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+function setContext(ctx,btn){
+  document.querySelectorAll('.ctx-btn').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  // Hide all context-gated tabs, then show those matching the selected context
+  document.querySelectorAll('nav .tab-btn[class*="ctx-"]').forEach(t=>{t.style.display='none';});
+  document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';});
+}
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
 function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
 

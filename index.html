@@ -388,10 +388,10 @@ select option{background:#0f1020;}
     </div>
     <div class="card">
       <div class="section-title">Equipment</div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel()"></div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel()"></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"></div>
       <div class="form-row"><span class="sub-label">Armor</span>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button></div>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button></div>
       </div>
       <div class="form-row"><span class="sub-label">Readied Item</span><input type="text" id="eqReadied" placeholder="Item granting Adventure Die bonus" onchange="S.equipment.readied=this.value"></div>
       <div>
@@ -1023,8 +1023,138 @@ function endCombat(){S.combat.active=false;S.combat.round=0;halfStress();clearAl
 function updateCombatUI(){const el=document.getElementById('combatStatus');if(el)el.textContent=S.combat.active?`Round ${S.combat.round} — Active Scene`:'No active scene.';const al=document.getElementById('actionsLeft');if(al)al.textContent=S.combat.actionsLeft;}
 function setEnemyDread(n){S.combat.enemyDread=n;document.getElementById('enemyDreadDisplay').textContent='d'+n;}
 function getAugBonus(stat){if(!S||!Array.isArray(S.augmentations))return 0;var map={body:['NAUTRAM 6T',4],strike:['AI_EYE',4],mind:['3H7-ARCANE',4],spirit:['VOICE SYNTHESIZER',4],control:['NIGHTGUARD',4],lead:['ANALYZER',6],shoot:['RADAR SENSOR',6],defend:['SUBDERMAL ARMOR',4]};var e=map[stat];if(!e)return 0;return S.augmentations.indexOf(e[0])>=0?e[1]:0;}
-function rollAttack(type){const die=type==='strike'?S.stats.strike:S.stats.shoot;const augDie=getAugBonus(type);const a=explodingRoll(die);const augRoll=augDie>0?explodingRoll(augDie):null;const total=a.total+(augRoll?augRoll.total:0);const d=explodingRoll(S.combat.enemyDread);const success=total>=d.total,diff=Math.max(1,total-d.total);const augNote=augRoll?` <span style="color:var(--gold2);font-size:.78rem;">(+d${augDie}=${augRoll.total})</span>`:'';const el=document.getElementById('attackResult');const mods=Array.isArray(S.weaponMods)?S.weaponMods:[];const modNotes=[];if(type==='shoot'){if(mods.includes('Silencer'))modNotes.push('Silencer: ×3 Stress if surprise');if(mods.includes('Shock Taser')&&a.exploded)modNotes.push('Shock Taser: enemy loses next Turn!');if(mods.includes('Reflex Sight')&&a.total>d.total)modNotes.push('Reflex Sight: +2 Stress');}else{if(mods.includes('Kinetic Engine')&&(a.total===1||a.total===2))modNotes.push('Kinetic Engine: attack again free!');if(mods.includes('Heat Chamber')&&a.exploded)modNotes.push('Heat Chamber: enemy Vulnerable!');if(mods.includes('Vibrating Motor')&&a.total>d.total)modNotes.push('Vibrating Motor: +2 Stress');}const modHtml=modNotes.length?`<br><span style="font-size:.72rem;color:var(--gold);">${modNotes.join(' · ')}</span>`:'';if(el)el.innerHTML=`<span style="color:var(--teal);">${total}</span>${augNote} vs <span style="color:var(--red);">${d.total}</span> — ${success?`<strong style="color:var(--green2);">HIT! ${diff} Stress</strong>`:'<strong style="color:var(--red);">Miss</strong>'}${a.exploded?' ✦ Crit!':''}${modHtml}`;if(!success)changeCounter('tmw',1);}
-function rollDefend(){const augDie=getAugBonus('defend');const a=explodingRoll(S.stats.defend);const augRoll=augDie>0?explodingRoll(augDie):null;const total=a.total+(augRoll?augRoll.total:0);const d=explodingRoll(S.combat.enemyDread);const success=total>=d.total,diff=Math.max(1,d.total-total);const augNote=augRoll?` <span style="color:var(--gold2);font-size:.78rem;">(+d${augDie}=${augRoll.total})</span>`:'';const el=document.getElementById('defendResult');if(el)el.innerHTML=`<span style="color:var(--teal);">${total}</span>${augNote} vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">Defended!</strong>':`<strong style="color:var(--red);">−${diff} Stress</strong>`}${a.exploded?' ✦ Perfect!':''}`;if(!success)changeStress(diff);}
+
+// Parse weapon slot texts to find flat (+N) and advantage-die (AdN) bonuses for a given stat.
+// Advantage dice (AdN) are rolled separately and the highest result is kept.
+// Flat bonuses (+N) are always added to the final total.
+function parseWeaponBonuses(stat) {
+  if (!S || !S.equipment) return {flat:0, advDie:0};
+  var weapons = [S.equipment.weapon1 || '', S.equipment.weapon2 || ''];
+  var flat = 0, advDie = 0;
+  var label = stat.charAt(0).toUpperCase() + stat.slice(1);
+  weapons.forEach(function(w) {
+    if (!w) return;
+    // Flat: +N Strike / +N Shoot / +N Defend/Strike etc.
+    var fm = w.match(new RegExp('[+](\\d+)\\s+(?:[A-Za-z]+\\/)*' + label, 'i'));
+    if (fm) flat += parseInt(fm[1], 10);
+    // Advantage die: AdN Strike / AdN Shoot / AdN Defend
+    var am = w.match(new RegExp('\\bAd(\\d+)\\s+' + label, 'i'));
+    if (am) { var d = parseInt(am[1], 10); if (d > advDie) advDie = d; }
+    // A.D. (Adventure Die advantage) for Defend — e.g. Shield (+A.D. Defend)
+    if (stat === 'defend' && /[+]?A\.D\./i.test(w)) {
+      var adv = (S.stats && S.stats.adventure) || 4;
+      if (adv > advDie) advDie = adv;
+    }
+  });
+  return {flat: flat, advDie: advDie};
+}
+
+// Parse armor text to get the Advantage die size (AdN) for Defend rolls.
+function parseArmorAdvDie() {
+  if (!S || !S.equipment) return 0;
+  var armor = S.equipment.armor || '';
+  var m = armor.match(/\bAd(\d+)/i);
+  if (m) return parseInt(m[1], 10);
+  if (/[+]?A\.D\./i.test(armor)) return (S.stats && S.stats.adventure) || 4;
+  return 0;
+}
+
+function rollAttack(type) {
+  var die = type === 'strike' ? S.stats.strike : S.stats.shoot;
+  var augDie = getAugBonus(type);
+  var wpBonus = parseWeaponBonuses(type);
+  var mods = Array.isArray(S.weaponMods) ? S.weaponMods : [];
+
+  // Smart Aim mod: step-up advantage on Shoot roll
+  if (type === 'shoot' && mods.indexOf('Smart Aim') >= 0) {
+    var smartAdvDie = stepUp(die);
+    if (smartAdvDie > wpBonus.advDie) wpBonus.advDie = smartAdvDie;
+  }
+
+  var a = explodingRoll(die);
+  var advRoll = wpBonus.advDie > 0 ? explodingRoll(wpBonus.advDie) : null;
+  // Take highest of base vs advantage die, then apply flat bonus
+  var baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
+  baseTotal += wpBonus.flat;
+  // Augmentation bonus is always additive
+  var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
+  var total = baseTotal + (augRoll ? augRoll.total : 0);
+
+  var d = explodingRoll(S.combat.enemyDread);
+  var success = total >= d.total;
+  var diff = Math.max(1, total - d.total);
+
+  // Build breakdown label
+  var breakdown = '';
+  if (advRoll) {
+    if (advRoll.total >= a.total) {
+      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(Ad' + wpBonus.advDie + '=' + advRoll.total + ' kept, d' + die + '=' + a.total + ')</span>';
+    } else {
+      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(d' + die + '=' + a.total + ' kept, Ad' + wpBonus.advDie + '=' + advRoll.total + ')</span>';
+    }
+  }
+  if (wpBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + wpBonus.flat + ')</span>';
+  var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d' + augDie + '=' + augRoll.total + ')</span>' : '';
+
+  var modNotes = [];
+  if (type === 'shoot') {
+    if (mods.indexOf('Silencer') >= 0) modNotes.push('Silencer: ×3 Stress if surprise');
+    if (mods.indexOf('Laser Accelerator') >= 0) modNotes.push('Laser Accelerator: ' + total + ' Stress directly (no Dread)');
+    if (mods.indexOf('Shock Taser') >= 0 && a.exploded) modNotes.push('Shock Taser: enemy loses next Turn!');
+    if (mods.indexOf('Reflex Sight') >= 0 && a.total > d.total) modNotes.push('Reflex Sight: +2 Stress');
+    if (mods.indexOf('Smart Aim') >= 0 && advRoll) modNotes.push('Smart Aim: Adv d' + wpBonus.advDie + ' used');
+  } else {
+    if (mods.indexOf('Kinetic Engine') >= 0 && (a.total === 1 || a.total === 2)) modNotes.push('Kinetic Engine: attack again free!');
+    if (mods.indexOf('Heat Chamber') >= 0 && a.exploded) modNotes.push('Heat Chamber: enemy Vulnerable!');
+    if (mods.indexOf('Vibrating Motor') >= 0 && a.total > d.total) modNotes.push('Vibrating Motor: +2 Stress');
+  }
+  var modHtml = modNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">' + modNotes.join(' · ') + '</span>' : '';
+
+  var el = document.getElementById('attackResult');
+  if (el) el.innerHTML = '<span style="color:var(--teal);">' + total + '</span>' + breakdown + augNote
+    + ' vs <span style="color:var(--red);">' + d.total + '</span> — '
+    + (success ? '<strong style="color:var(--green2);">HIT! ' + diff + ' Stress</strong>' : '<strong style="color:var(--red);">Miss</strong>')
+    + (a.exploded ? ' ✦ Crit!' : '') + modHtml;
+  if (!success) changeCounter('tmw', 1);
+}
+
+function rollDefend() {
+  var armorAdv = parseArmorAdvDie();
+  var wpBonus = parseWeaponBonuses('defend');
+  var advDie = Math.max(armorAdv, wpBonus.advDie);
+  var augDie = getAugBonus('defend');
+
+  var a = explodingRoll(S.stats.defend);
+  var advRoll = advDie > 0 ? explodingRoll(advDie) : null;
+  // Take highest of base vs advantage die, then apply flat weapon bonus
+  var baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
+  baseTotal += wpBonus.flat;
+  // Augmentation bonus (SUBDERMAL ARMOR +d4) is always additive
+  var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
+  var total = baseTotal + (augRoll ? augRoll.total : 0);
+
+  var d = explodingRoll(S.combat.enemyDread);
+  var success = total >= d.total;
+  var diff = Math.max(1, d.total - total);
+
+  var breakdown = '';
+  if (advRoll) {
+    if (advRoll.total >= a.total) {
+      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(Ad' + advDie + '=' + advRoll.total + ' kept, d' + S.stats.defend + '=' + a.total + ')</span>';
+    } else {
+      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(d' + S.stats.defend + '=' + a.total + ' kept, Ad' + advDie + '=' + advRoll.total + ')</span>';
+    }
+  }
+  if (wpBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + wpBonus.flat + ')</span>';
+  var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d' + augDie + '=' + augRoll.total + ')</span>' : '';
+
+  var el = document.getElementById('defendResult');
+  if (el) el.innerHTML = '<span style="color:var(--teal);">' + total + '</span>' + breakdown + augNote
+    + ' vs <span style="color:var(--red);">' + d.total + '</span> — '
+    + (success ? '<strong style="color:var(--green2);">Defended!</strong>' : '<strong style="color:var(--red);">−' + diff + ' Stress</strong>')
+    + (a.exploded ? ' ✦ Perfect!' : '');
+  if (!success) changeStress(diff);
+}
 function rollTraumaCheck(){const a=explodingRoll(S.stats.adventure),d=explodingRoll(S.combat.enemyDread);const success=a.total>=d.total;const el=document.getElementById('traumaResult');if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;if(!success)changeTrauma(1);}
 
 let enemyIdCounter=1;

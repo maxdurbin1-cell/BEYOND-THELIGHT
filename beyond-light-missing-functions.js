@@ -63,7 +63,25 @@ function updateDieDisplay(key) {
     return;
   }
   const value = key === "adventure" ? (S.stats.adventure || 4) : getEffectiveDie(key);
-  el.textContent = "d" + value;
+  let displayText = "d" + value;
+
+  // Append weapon/armor bonus hints so the player can see what will be rolled
+  if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
+    const wb = parseWeaponBonuses(key);
+    if (wb.advDie > 0) displayText += '/Ad' + wb.advDie;
+    else if (wb.flat > 0) displayText += '+' + wb.flat;
+  } else if (key === 'defend') {
+    const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
+    const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0};
+    const advDie = Math.max(armorAdv, wpDef.advDie);
+    if (advDie > 0) displayText += '/Ad' + advDie;
+    if (wpDef.flat > 0) displayText += '+' + wpDef.flat;
+  }
+  // Augmentation additive bonus hint
+  const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
+  if (augDie > 0) displayText += '+d' + augDie;
+
+  el.textContent = displayText;
   el.className = dieClass(value);
   el.style.cursor = "pointer";
 }
@@ -124,14 +142,55 @@ function stepDie(key, delta) {
 
 function quickRollStat(key) {
   const die = key === "adventure" ? (S.stats.adventure || 4) : getEffectiveDie(key);
-  const result = explodingRoll(die);
   const label = key.charAt(0).toUpperCase() + key.slice(1);
+
+  // Weapon advantage / flat bonuses for strike and shoot
+  let advDieVal = 0, flatBonus = 0;
+  if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
+    const wb = parseWeaponBonuses(key);
+    advDieVal = wb.advDie;
+    flatBonus = wb.flat;
+  } else if (key === 'defend') {
+    const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
+    const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0};
+    advDieVal = Math.max(armorAdv, wpDef.advDie);
+    flatBonus = wpDef.flat;
+  }
+
+  // Augmentation additive bonus
+  const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
+
+  const a = explodingRoll(die);
+  const advRoll = advDieVal > 0 ? explodingRoll(advDieVal) : null;
+  // Advantage: roll both, keep highest
+  const baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
+  const withFlat = baseTotal + flatBonus;
+  const augRoll = augDie > 0 ? explodingRoll(augDie) : null;
+  const total = withFlat + (augRoll ? augRoll.total : 0);
+
+  // Build detail breakdown
+  const details = [];
+  if (advRoll) {
+    if (advRoll.total >= a.total) {
+      details.push('Ad' + advDieVal + ' = ' + advRoll.total + ' <em>(kept)</em>, d' + die + ' = ' + a.total);
+    } else {
+      details.push('d' + die + ' = ' + a.total + ' <em>(kept)</em>, Ad' + advDieVal + ' = ' + advRoll.total);
+    }
+  }
+  if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon)');
+  if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
+
+  const detailHtml = details.length
+    ? '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;">' + details.join('<br>') + '</div>'
+    : '';
+
   openModal(
     label + " Roll",
     '<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">' +
-      "<strong style=\"color:var(--teal);\">" + label + " d" + die + "</strong><br>" +
-      "Result: <strong style=\"color:var(--gold2);\">" + result.total + "</strong>" +
-      (result.exploded ? ' <span style="color:var(--gold);">Critical explosion!</span>' : "") +
+      '<strong style="color:var(--teal);">' + label + ' d' + die + '</strong>' +
+      (a.exploded ? ' <span style="color:var(--gold);">✦ Critical!</span>' : '') +
+      '<br>Result: <strong style="color:var(--gold2);">' + total + '</strong>' +
+      detailHtml +
       "</div>"
   );
 }

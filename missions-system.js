@@ -14,6 +14,10 @@
 
   var DIFF_KEYS = Object.keys(DIFFICULTIES);
 
+  // ── CONSTANTS ─────────────────────────────────────────────────────────────────
+  var LOOT_COUNT_DIVISOR    = 6;  // dread / this = number of loot items rolled
+  var MAX_COMPLETED_MISSIONS = 10; // history length shown in Completed Missions
+
   // ── FLAVOR DATA ───────────────────────────────────────────────────────────────
   var MISSION_VERBS   = ['Hunt', 'Guard', 'Rescue', 'Deliver', 'Investigate', 'Eliminate', 'Retrieve', 'Escort', 'Sabotage', 'Recover'];
   var MISSION_TARGETS = ['Bandits', 'Beasts', 'Refugees', 'Cargo', 'Mutineers', 'Threats', 'Artifacts', 'a VIP', 'Deserters', 'a Rival'];
@@ -56,7 +60,7 @@
       return (fallback[difficulty] || ['Unknown reward']);
     }
     var dread = diff.dread;
-    var count = Math.max(1, Math.ceil(dread / 6));
+    var count = Math.max(1, Math.ceil(dread / LOOT_COUNT_DIVISOR));
     var loot = [];
     for (var i = 0; i < count; i++) {
       loot.push(pick(table).name);
@@ -357,7 +361,7 @@
     }
 
     removeMissionToken(mission);
-    if (S.completedMissions.length >= 10) S.completedMissions.shift();
+    if (S.completedMissions.length >= MAX_COMPLETED_MISSIONS) S.completedMissions.shift();
     S.completedMissions.push(mission);
     S.activeMissions.splice(idx, 1);
     renderMissionTracker();
@@ -510,7 +514,7 @@
     var container = document.getElementById('completedMissionsContainer');
     if (!container) return;
     ensureState();
-    var recent = (S.completedMissions || []).slice().reverse().slice(0, 10);
+    var recent = (S.completedMissions || []).slice().reverse().slice(0, MAX_COMPLETED_MISSIONS);
     if (!recent.length) {
       container.innerHTML = '<div style="font-size:.8rem;color:var(--muted2);">No completed missions yet.</div>';
       return;

@@ -574,6 +574,22 @@ select option{background:#0f1020;}
     </div>
     <div class="card">
       <div class="section-title">Roll Checks</div>
+      <!-- Roll Modifier Tracker -->
+      <div style="background:rgba(46,196,182,.06);border:1px solid var(--border2);border-radius:5px;padding:.4rem .5rem;margin-bottom:.55rem;">
+        <div style="font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.3rem;">⚙ Roll Modifiers</div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">
+          <select id="rollModDieSel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.15rem .3rem;font-size:.78rem;border-radius:3px;">
+            <option value="0">— Adv Die —</option>
+            <option value="4">d4</option><option value="6">d6</option><option value="8">d8</option>
+            <option value="10">d10</option><option value="12">d12</option><option value="20">d20</option>
+          </select>
+          <button class="btn btn-xs btn-teal" onclick="addRollModAdv()">+ Adv</button>
+          <input type="number" id="rollModFlatInp" value="0" min="-20" max="20" style="width:3rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.15rem .3rem;font-size:.78rem;border-radius:3px;" placeholder="Flat">
+          <button class="btn btn-xs" onclick="setRollModFlat()">Set Flat</button>
+          <button class="btn btn-xs btn-red" onclick="clearRollMod()">✕ Clear</button>
+        </div>
+        <div id="rollModDisplay" style="font-size:.72rem;color:var(--muted2);margin-top:.25rem;">None active</div>
+      </div>
       <div style="margin-bottom:.6rem;"><span class="sub-label">Attack (Strike / Shoot)</span>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.25rem;">
           <button class="btn btn-primary" onclick="rollAttack('strike')">⚄ Roll Strike</button>
@@ -1106,7 +1122,7 @@ const SHOP_DATA={weapons:[{name:'Sword',stat:'+1 Strike | Engaged',desc:'A relia
 const STAT_KEYS=['body','strike','shoot','mind','spirit','defend','control','lead'];
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',background:'',age:'',omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},backpack:['','','','','',''],conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring'};
+let S={name:'',background:'',age:'',omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0}};
 let hexNotes={};
 // ── WILDERNESS FULL (continued) ──────────────────────────────────────────────
 function rollWildernessFull(){
@@ -1246,35 +1262,97 @@ function parseArmorActions(){var a=(S&&S.equipment)?S.equipment.armor||'':'';var
 function getMaxActions(){var base=parseArmorActions();if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0)base+=2;var fl=(S.flavor||'').toLowerCase();if(fl.indexOf('moves like the wind')>=0)base+=1;return base;}
 
 // Flavor / Mutation bonuses for roll functions.
-// Returns { flat, advDie, holyShield } — holyShield means "add spirit die value".
+// Returns { flat, advDie (max), advDice (array), holyShield }
 function getFlavorBonus(stat){
   var f=(S.flavor||'').toLowerCase();
-  var flat=0,advDie=0,holyShield=false,trickshot=false,electricBurst=false,mindsheild=false,feats=false;
+  var flat=0,advDice=[],holyShield=false;
   if(stat==='defend'){
-    if(f.indexOf('stone skin')>=0&&advDie<4)advDie=4;
+    if(f.indexOf('stone skin')>=0)advDice.push(4);
     if(f.indexOf('scaled skin')>=0)flat+=3;
     if(f.indexOf('holy shield')>=0)holyShield=true;
   }
   if(stat==='shoot'){
-    if(f.indexOf('trickshot')>=0&&advDie<10)advDie=10;
-    if(f.indexOf('emit burst of electricity')>=0&&advDie<8)advDie=8;
+    if(f.indexOf('trickshot')>=0)advDice.push(10);
+    if(f.indexOf('emit burst of electricity')>=0)advDice.push(8);
   }
-  if(stat==='body'&&f.indexOf('feats of strength')>=0&&advDie<10)advDie=10;
-  if(stat==='adventure'&&f.indexOf('mindshield')>=0&&advDie<8)advDie=8;
-  return{flat:flat,advDie:advDie,holyShield:holyShield};
+  if(stat==='body'&&f.indexOf('feats of strength')>=0)advDice.push(10);
+  if(stat==='adventure'&&f.indexOf('mindshield')>=0)advDice.push(8);
+  var advDie=advDice.length?Math.max.apply(null,advDice):0;
+  return{flat:flat,advDie:advDie,advDice:advDice,holyShield:holyShield};
 }
 function getMutationBonus(stat){
   var m=(S.mutation||'').toLowerCase();
-  var flat=0,advDie=0;
+  var flat=0,advDice=[];
   if(stat==='defend'){if(m.indexOf('thick scales')>=0)flat+=2;}
   if(stat==='body'){
     if(m.indexOf('rippling muscles')>=0)flat+=3;
-    if(m.indexOf('superhuman reflexes')>=0){var sd=stepUp(S.stats.body||4);if(sd>advDie)advDie=sd;}
+    if(m.indexOf('superhuman reflexes')>=0)advDice.push(stepUp(S.stats.body||4));
   }
-  if(stat==='lead'&&m.indexOf('eyes bulge')>=0&&advDie<4)advDie=4;
-  return{flat:flat,advDie:advDie};
+  if(stat==='lead'&&m.indexOf('eyes bulge')>=0)advDice.push(4);
+  var advDie=advDice.length?Math.max.apply(null,advDice):0;
+  return{flat:flat,advDie:advDie,advDice:advDice};
 }
 function getAugBonus(stat){if(!S||!Array.isArray(S.augmentations))return 0;var map={body:['NAUTRAM 6T',4],strike:['AI_EYE',4],mind:['3H7-ARCANE',4],spirit:['VOICE SYNTHESIZER',4],control:['NIGHTGUARD',4],lead:['ANALYZER',6],shoot:['RADAR SENSOR',6],defend:['SUBDERMAL ARMOR',4]};var e=map[stat];if(!e)return 0;return S.augmentations.indexOf(e[0])>=0?e[1]:0;}
+
+// ── MULTI-ADVANTAGE DICE HELPERS ──────────────────────────────────────────────
+// Roll the base die plus every advantage die in advDiceArr; keep the highest.
+// Returns { total, base:{total,exploded}, advRolls:[{die,roll}], breakdown, exploded }
+function rollWithAdvantage(baseDie, advDiceArr){
+  var base=explodingRoll(baseDie);
+  var advRolls=(advDiceArr||[]).filter(function(d){return d>0;}).map(function(d){return{die:d,roll:explodingRoll(d)};});
+  var best=base.total,bestSrc='base';
+  for(var i=0;i<advRolls.length;i++){if(advRolls[i].roll.total>best){best=advRolls[i].roll.total;bestSrc='adv'+i;}}
+  var parts=[];
+  if(advRolls.length){
+    parts.push('d'+baseDie+'='+(bestSrc==='base'?'<em>'+base.total+'✓</em>':base.total));
+    advRolls.forEach(function(ar,i){
+      var kept=bestSrc==='adv'+i;
+      parts.push('Ad'+ar.die+'='+(kept?'<em>'+ar.roll.total+'✓</em>':ar.roll.total));
+    });
+  }
+  var breakdown=parts.length?' <span style="font-size:.7rem;color:var(--muted2);">('+parts.join(', ')+')</span>':'';
+  var anyExploded=base.exploded||advRolls.some(function(r){return r.roll.exploded;});
+  return{total:best,base:base,advRolls:advRolls,breakdown:breakdown,exploded:anyExploded};
+}
+
+// Collect all advantage die sizes from weapon, flavor, mutation, and manual rollMod.
+function collectAdvDice(){
+  var arr=[];
+  var mod=S&&S.rollMod?S.rollMod:{advDice:[],flat:0};
+  if(Array.isArray(mod.advDice))arr=arr.concat(mod.advDice.filter(function(d){return d>0;}));
+  return arr;
+}
+
+// ── ROLL MODIFIER UI HELPERS ──────────────────────────────────────────────────
+function addRollModAdv(){
+  var sel=document.getElementById('rollModDieSel');
+  var d=sel?parseInt(sel.value,10):0;
+  if(!d)return;
+  if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+  S.rollMod.advDice.push(d);
+  updateRollModDisplay();
+}
+function setRollModFlat(){
+  var inp=document.getElementById('rollModFlatInp');
+  var v=inp?parseInt(inp.value,10)||0:0;
+  if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+  S.rollMod.flat=v;
+  updateRollModDisplay();
+}
+function clearRollMod(){
+  S.rollMod={advDice:[],flat:0};
+  var inp=document.getElementById('rollModFlatInp');if(inp)inp.value='0';
+  updateRollModDisplay();
+}
+function updateRollModDisplay(){
+  var el=document.getElementById('rollModDisplay');
+  if(!el)return;
+  if(!S.rollMod||(!S.rollMod.advDice.length&&!S.rollMod.flat)){el.textContent='None active';el.style.color='var(--muted2)';return;}
+  var parts=[];
+  if(S.rollMod.advDice.length)parts.push('Adv: '+S.rollMod.advDice.map(function(d){return 'Ad'+d;}).join('+'));
+  if(S.rollMod.flat)parts.push((S.rollMod.flat>0?'+':'')+S.rollMod.flat+' flat');
+  el.textContent=parts.join(' | ');el.style.color='var(--gold)';
+}
 
 // Parse weapon slot texts to find bonuses for a given stat:
 //   flat    — +N bonus always added to total
@@ -1341,23 +1419,23 @@ function rollAttack(type) {
   var mtBonus = getMutationBonus(type);
   var mods = Array.isArray(S.weaponMods) ? S.weaponMods : [];
 
-  // Smart Aim mod: step-up advantage on Shoot roll
-  if (type === 'shoot' && mods.indexOf('Smart Aim') >= 0) {
-    var smartAdvDie = stepUp(die);
-    if (smartAdvDie > wpBonus.advDie) wpBonus.advDie = smartAdvDie;
-  }
-  // Merge flavor/mutation advantage dice
-  var advDie = Math.max(wpBonus.advDie, flBonus.advDie, mtBonus.advDie);
+  // Collect ALL advantage dice from every source — roll each, keep highest
+  var advDiceArr = [];
+  if(wpBonus.advDie > 0) advDiceArr.push(wpBonus.advDie);
+  advDiceArr = advDiceArr.concat(flBonus.advDice||[]).concat(mtBonus.advDice||[]);
+  // Smart Aim: step-up advantage
+  if(type==='shoot' && mods.indexOf('Smart Aim')>=0) advDiceArr.push(stepUp(die));
+  // Manual roll modifier advantage
+  if(S.rollMod && Array.isArray(S.rollMod.advDice)) advDiceArr = advDiceArr.concat(S.rollMod.advDice);
 
-  var a = explodingRoll(die);
-  // AdN advantage: roll both, keep highest
-  var advRoll = advDie > 0 ? explodingRoll(advDie) : null;
-  var baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
-  // +N flat bonus added to total
-  baseTotal += wpBonus.flat + flBonus.flat + mtBonus.flat;
+  var ra = rollWithAdvantage(die, advDiceArr);
+  var a = ra.base;
+  // +N flat bonus
+  var flatTotal = wpBonus.flat + flBonus.flat + mtBonus.flat + (S.rollMod ? S.rollMod.flat : 0);
+  var baseTotal = ra.total + flatTotal;
   // +A.D. additive adventure die
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
-  if (adBonus) baseTotal += adBonus.total;
+  if(adBonus) baseTotal += adBonus.total;
   // Augmentation bonus always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
@@ -1366,42 +1444,40 @@ function rollAttack(type) {
   var success = total >= d.total;
   var diff = Math.max(1, total - d.total);
 
-  // Build breakdown
-  var breakdown = '';
-  if (advRoll) {
-    if (advRoll.total >= a.total) {
-      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(Ad' + advDie + '=' + advRoll.total + ' kept, d' + die + '=' + a.total + ')</span>';
-    } else {
-      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(d' + die + '=' + a.total + ' kept, Ad' + advDie + '=' + advRoll.total + ')</span>';
-    }
-  }
-  if (wpBonus.flat + flBonus.flat + mtBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + (wpBonus.flat + flBonus.flat + mtBonus.flat) + ')</span>';
-  if (adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.=' + adBonus.total + ')</span>';
-  var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d' + augDie + '=' + augRoll.total + ')</span>' : '';
+  var breakdown = ra.breakdown;
+  if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
+  if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
+  var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var modNotes = [];
-  if (type === 'shoot') {
-    if (mods.indexOf('Silencer') >= 0) modNotes.push('Silencer: ×3 Stress if surprise');
-    if (mods.indexOf('Laser Accelerator') >= 0) modNotes.push('Laser Accelerator: ' + total + ' Stress directly (no Dread)');
-    if (mods.indexOf('Shock Taser') >= 0 && a.exploded) modNotes.push('Shock Taser: enemy loses next Turn!');
-    if (mods.indexOf('Reflex Sight') >= 0 && a.total > d.total) modNotes.push('Reflex Sight: +2 Stress');
-    if (mods.indexOf('Smart Aim') >= 0 && advRoll) modNotes.push('Smart Aim: Adv d' + advDie + ' used');
-    if (flBonus.advDie >= 8) modNotes.push('Trickshot/Electricity (Flavor): Ad' + flBonus.advDie);
+  if(type==='shoot'){
+    if(mods.indexOf('Silencer')>=0) modNotes.push('Silencer: ×3 Stress if surprise');
+    if(mods.indexOf('Laser Accelerator')>=0) modNotes.push('Laser Accelerator: '+total+' Stress directly (no Dread)');
+    if(mods.indexOf('Shock Taser')>=0 && a.exploded) modNotes.push('Shock Taser: enemy loses next Turn!');
+    if(mods.indexOf('Reflex Sight')>=0 && a.total > d.total) modNotes.push('Reflex Sight: +2 Stress');
+    if(mods.indexOf('Smart Aim')>=0 && advDiceArr.length) modNotes.push('Smart Aim: Ad'+stepUp(die)+' used');
+    if(flBonus.advDice.length) modNotes.push('Flavor Adv: '+flBonus.advDice.map(function(d){return 'Ad'+d;}).join('+'));
   } else {
-    if (mods.indexOf('Kinetic Engine') >= 0 && (a.total === 1 || a.total === 2)) modNotes.push('Kinetic Engine: attack again free!');
-    if (mods.indexOf('Heat Chamber') >= 0 && a.exploded) modNotes.push('Heat Chamber: enemy Vulnerable!');
-    if (mods.indexOf('Vibrating Motor') >= 0 && a.total > d.total) modNotes.push('Vibrating Motor: +2 Stress');
-    if (flBonus.advDie > 0) modNotes.push('Flavor: Ad' + flBonus.advDie);
-    if (mtBonus.flat > 0) modNotes.push('Mutation: +' + mtBonus.flat);
+    if(mods.indexOf('Kinetic Engine')>=0 && (a.total===1||a.total===2)) modNotes.push('Kinetic Engine: attack again free!');
+    if(mods.indexOf('Heat Chamber')>=0 && a.exploded) modNotes.push('Heat Chamber: enemy Vulnerable!');
+    if(mods.indexOf('Vibrating Motor')>=0 && a.total > d.total) modNotes.push('Vibrating Motor: +2 Stress');
+    if(flBonus.advDice.length) modNotes.push('Flavor Adv: '+flBonus.advDice.map(function(x){return 'Ad'+x;}).join('+'));
+    if(mtBonus.flat > 0) modNotes.push('Mutation: +'+mtBonus.flat);
   }
-  var modHtml = modNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">' + modNotes.join(' · ') + '</span>' : '';
+  if(mtBonus.advDice.length) modNotes.push('Mutation Adv: '+mtBonus.advDice.map(function(x){return 'Ad'+x;}).join('+'));
+  if(S.rollMod && (S.rollMod.advDice.length||S.rollMod.flat)) modNotes.push('Manual Mod active');
+  var modHtml = modNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">'+modNotes.join(' · ')+'</span>' : '';
 
   var el = document.getElementById('attackResult');
-  if (el) el.innerHTML = '<span style="color:var(--teal);">' + total + '</span>' + breakdown + augNote
-    + ' vs <span style="color:var(--red);">' + d.total + '</span> — '
-    + (success ? '<strong style="color:var(--green2);">HIT! ' + diff + ' Stress</strong>' : '<strong style="color:var(--red);">Miss</strong>')
-    + (a.exploded ? ' ✦ Crit!' : '') + modHtml;
-  if (!success) changeCounter('tmw', 1);
+  if(el) el.innerHTML = '<span style="color:var(--teal);">'+total+'</span>'+breakdown+augNote
+    +' vs <span style="color:var(--red);">'+d.total+'</span> — '
+    +(success ? '<strong style="color:var(--green2);">HIT! '+diff+' Stress</strong>' : '<strong style="color:var(--red);">Miss</strong>')
+    +(ra.exploded ? ' ✦ Crit!' : '')+modHtml;
+
+  if(!success){
+    var tmwAmt = (S.flavor||'').toLowerCase().indexOf('failed rolls grant +2')>=0 ? 2 : 1;
+    changeCounter('tmw', tmwAmt);
+  }
   clearConditionOnUse(type);
 }
 
@@ -1410,21 +1486,25 @@ function rollDefend() {
   var wpBonus = parseWeaponBonuses('defend');
   var flBonus = getFlavorBonus('defend');
   var mtBonus = getMutationBonus('defend');
-  var advDie = Math.max(armorAdv, wpBonus.advDie, flBonus.advDie);
   var augDie = getAugBonus('defend');
 
-  var a = explodingRoll(S.stats.defend);
-  // AdN armor/weapon advantage: roll both, keep highest
-  var advRoll = advDie > 0 ? explodingRoll(advDie) : null;
-  var baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
-  // +N flat weapon/flavor/mutation bonus
-  baseTotal += wpBonus.flat + flBonus.flat + mtBonus.flat;
+  // Collect ALL advantage dice — armor, weapon, flavor, mutation, manual rollMod
+  var advDiceArr = [];
+  if(armorAdv > 0) advDiceArr.push(armorAdv);
+  if(wpBonus.advDie > 0) advDiceArr.push(wpBonus.advDie);
+  advDiceArr = advDiceArr.concat(flBonus.advDice||[]).concat(mtBonus.advDice||[]);
+  if(S.rollMod && Array.isArray(S.rollMod.advDice)) advDiceArr = advDiceArr.concat(S.rollMod.advDice);
+
+  var ra = rollWithAdvantage(S.stats.defend, advDiceArr);
+  var a = ra.base;
+  var flatTotal = wpBonus.flat + flBonus.flat + mtBonus.flat + (S.rollMod ? S.rollMod.flat : 0);
+  var baseTotal = ra.total + flatTotal;
   // Holy Shield: add spirit die value
   var holyShieldRoll = flBonus.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
-  if (holyShieldRoll) baseTotal += holyShieldRoll.total;
+  if(holyShieldRoll) baseTotal += holyShieldRoll.total;
   // +A.D. from Shield: roll adventure die and ADD to result
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
-  if (adBonus) baseTotal += adBonus.total;
+  if(adBonus) baseTotal += adBonus.total;
   // Augmentation bonus (SUBDERMAL ARMOR +d4) always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
@@ -1433,29 +1513,29 @@ function rollDefend() {
   var success = total >= d.total;
   var diff = Math.max(1, d.total - total);
 
-  var breakdown = '';
-  if (advRoll) {
-    if (advRoll.total >= a.total) {
-      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(Ad' + advDie + '=' + advRoll.total + ' kept, d' + S.stats.defend + '=' + a.total + ')</span>';
-    } else {
-      breakdown = ' <span style="font-size:.7rem;color:var(--muted2);">(d' + S.stats.defend + '=' + a.total + ' kept, Ad' + advDie + '=' + advRoll.total + ')</span>';
-    }
-  }
-  if (wpBonus.flat + flBonus.flat + mtBonus.flat > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+' + (wpBonus.flat + flBonus.flat + mtBonus.flat) + ')</span>';
-  if (holyShieldRoll) breakdown += ' <span style="font-size:.7rem;color:var(--gold);">(Holy Shield +Spirit d' + (S.stats.spirit||4) + '=' + holyShieldRoll.total + ')</span>';
-  if (adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.=' + adBonus.total + ')</span>';
-  var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d' + augDie + '=' + augRoll.total + ')</span>' : '';
+  var breakdown = ra.breakdown;
+  if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
+  if(holyShieldRoll) breakdown += ' <span style="font-size:.7rem;color:var(--gold);">(Holy Shield +Spirit d'+(S.stats.spirit||4)+'='+holyShieldRoll.total+')</span>';
+  if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
+  var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
+
   var defNotes = [];
-  if (flBonus.advDie > 0) defNotes.push('Flavor Adv: Ad' + flBonus.advDie);
-  if (mtBonus.flat > 0) defNotes.push('Mutation: +' + mtBonus.flat);
-  var defNoteHtml = defNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">' + defNotes.join(' · ') + '</span>' : '';
+  if(flBonus.advDice.length) defNotes.push('Flavor Adv: '+flBonus.advDice.map(function(x){return 'Ad'+x;}).join('+'));
+  if(mtBonus.flat > 0) defNotes.push('Mutation: +'+mtBonus.flat);
+  if(S.rollMod && (S.rollMod.advDice.length||S.rollMod.flat)) defNotes.push('Manual Mod active');
+  var defNoteHtml = defNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">'+defNotes.join(' · ')+'</span>' : '';
 
   var el = document.getElementById('defendResult');
-  if (el) el.innerHTML = '<span style="color:var(--teal);">' + total + '</span>' + breakdown + augNote
-    + ' vs <span style="color:var(--red);">' + d.total + '</span> — '
-    + (success ? '<strong style="color:var(--green2);">Defended!</strong>' : '<strong style="color:var(--red);">−' + diff + ' Stress</strong>')
-    + (a.exploded ? ' ✦ Perfect!' : '') + defNoteHtml;
-  if (!success) changeStress(diff);
+  if(el) el.innerHTML = '<span style="color:var(--teal);">'+total+'</span>'+breakdown+augNote
+    +' vs <span style="color:var(--red);">'+d.total+'</span> — '
+    +(success ? '<strong style="color:var(--green2);">Defended!</strong>' : '<strong style="color:var(--red);">−'+diff+' Stress</strong>')
+    +(ra.exploded ? ' ✦ Perfect!' : '')+defNoteHtml;
+
+  if(!success){
+    changeStress(diff);
+    var tmwAmt = (S.flavor||'').toLowerCase().indexOf('failed rolls grant +2')>=0 ? 2 : 1;
+    changeCounter('tmw', tmwAmt);
+  }
   clearConditionOnUse('defend');
 }
 function rollTraumaCheck(){const a=explodingRoll(S.stats.adventure),d=explodingRoll(S.combat.enemyDread);const success=a.total>=d.total;const el=document.getElementById('traumaResult');if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;if(!success)changeTrauma(1);}
@@ -1625,28 +1705,77 @@ function buyItem(cost, name, cat) {
   showNotif('Bought: ' + name + ' (−' + cost + '₵)', 'good');
 }
 
+// Item use config: maxUses=null means infinite, N means limited.
+// rollStat: stat key to roll; rollAdvDie: true means roll stat AND A.D., take highest.
+const ITEM_USE_CFG = {
+  'Healing Salve':    {maxUses:1},
+  'Wound Salve':      {maxUses:1},
+  'Stimulant':        {maxUses:1},
+  'Depressant':       {maxUses:1},
+  'Sage (Temple)':    {maxUses:1},
+  'Trauma Serum':     {maxUses:1},
+  'Blight Repellent': {maxUses:1},
+  'Fever Tincture':   {maxUses:1},
+  'Mind Draught':     {maxUses:1},
+  'Spirit Tonic':     {maxUses:1},
+  'Fortifying Broth': {maxUses:1},
+  'Snake Oil':        {maxUses:1},
+  'Antitoxin':        {maxUses:1},
+  'Rations':          {maxUses:1},
+  'Torch':            {maxUses:1},
+  'Caltrops':         {maxUses:1,rollDesc:'Scatter to slow pursuers — no roll needed.'},
+  'Grappling Hook':   {maxUses:3},
+  'Lockpicks':        {maxUses:3, rollStat:'control', rollAdvDie:true, rollDesc:'Control + A.D. to pick the lock.'},
+  'Compass':          {maxUses:null, rollStat:'lead',    rollAdvDie:true, rollDesc:'Lead + A.D. advantage for navigation.'},
+  'Spyglass':         {maxUses:null, rollStat:'lead',    rollAdvDie:true, rollDesc:'Lead + A.D. advantage to notice details.'},
+  'Rope (50ft)':      {maxUses:null},
+  'Mapping Materials':{maxUses:null},
+  'Lantern':          {maxUses:null},
+  'Lamp, Iron':       {maxUses:null},
+  'Lamp, Solar':      {maxUses:null},
+  'Lamp, Spectrum':   {maxUses:null},
+};
+
+function getItemUsesRemaining(index){
+  var text=S.backpack[index];if(!text)return null;
+  var found=findShopItem(text);if(!found)return null;
+  var cfg=ITEM_USE_CFG[found.item.name];
+  if(!cfg||cfg.maxUses===null||cfg.maxUses===undefined)return null;
+  if(S.backpackUses===undefined)S.backpackUses={};
+  if(S.backpackUses[index]===undefined)S.backpackUses[index]=cfg.maxUses;
+  return S.backpackUses[index];
+}
+
 // Show item info modal for a backpack slot
 function showBackpackItem(index) {
   var text = S.backpack[index];
   if (!text) return;
   var found = findShopItem(text);
   if (!found) {
-    // Unknown item — just show the text
-    openModal('Backpack Item', '<div style="font-size:.9rem;color:var(--text2);">' + text + '</div>');
+    // Unknown/custom item — show text + generic A.D. roll if text mentions a die
+    var hasAD = /A\.D\.|Ad\d|d\d/i.test(text);
+    var btnHtml = hasAD
+      ? '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useCustomItem(\''+text.replace(/'/g,"\\'")+'\',' + index + ');closeModal();">⚄ Roll A.D.</button> '
+      : '';
+    btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
+    openModal('Backpack Item','<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+'</div>');
     return;
   }
   var item = found.item;
   var cat = found.cat;
-  var isConsumable = ['essentials','items','remedies','toolkits'].indexOf(cat) >= 0;
+  var isConsumable = ['essentials','items','remedies','toolkits','scrolls'].indexOf(cat) >= 0;
+  var usesRemaining = getItemUsesRemaining(index);
+  var usesHtml = usesRemaining !== null ? '<div style="font-size:.72rem;color:var(--gold);margin-top:.2rem;">Uses remaining: '+usesRemaining+'</div>' : '';
   var btnHtml = isConsumable
-    ? '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useBackpackItem(' + index + ');closeModal();">⚑ Use</button> '
+    ? '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useBackpackItem('+index+');closeModal();">⚑ Use</button> '
     : '';
-  btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem(' + index + ');closeModal();">✕ Remove</button>';
+  btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
   var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
-    + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">' + item.name + '</div>'
-    + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">' + item.stat + '</div>'
-    + '<div>' + item.desc + '</div>'
-    + '<div style="margin-top:.5rem;">' + btnHtml + '</div>'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
+    + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
+    + '<div>'+item.desc+'</div>'
+    + usesHtml
+    + '<div style="margin-top:.5rem;">'+btnHtml+'</div>'
     + '</div>';
   openModal(item.name, html);
 }
@@ -1667,58 +1796,115 @@ function useBackpackItem(index) {
   var name = item.name;
   var cat = found.cat;
 
+  // Helper: decrement use count, remove if exhausted; returns false if no uses remain
+  function spendUse(){
+    var remaining = getItemUsesRemaining(index);
+    if(remaining === null) return true; // infinite
+    if(remaining <= 0) { showNotif(name+': no uses remaining!',''); return false; }
+    S.backpackUses[index] = remaining - 1;
+    if(S.backpackUses[index] <= 0){ delete S.backpackUses[index]; removeBackpackItem(index); }
+    return true;
+  }
+
+  // Scrolls — require Mind vs Adventure Die roll to cast
+  if(cat === 'scrolls'){
+    var mindDie = S.stats.mind || 4;
+    var advDieSize = S.stats.adventure || 4;
+    var mR = explodingRoll(mindDie);
+    var aR = explodingRoll(advDieSize);
+    var castSuccess = mR.total >= aR.total;
+    var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+      + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d'+mindDie+' vs Adventure d'+advDieSize+'</div>'
+      + '<strong style="color:'+(castSuccess?'var(--green2)':'var(--red)')+';">'
+        +(castSuccess?'✦ Cast! — ':'✕ Failed — ')+'</strong>'
+      + '<strong style="color:var(--teal);">'+mR.total+'</strong> vs <strong style="color:var(--red);">'+aR.total+'</strong><br><br>'
+      + (castSuccess ? '<em style="color:var(--text2);">'+item.desc+'</em>' : '<em style="color:var(--muted2);">The words dissolve before you can speak them. Scroll consumed.</em>')
+      + '</div>';
+    openModal(name, html);
+    removeBackpackItem(index); // always consumed on attempt
+    return;
+  }
+
   // Healing / Stress restore
-  if (['Healing Salve','Wound Salve','Stimulant'].indexOf(name) >= 0) {
+  if(['Healing Salve','Wound Salve','Stimulant'].indexOf(name) >= 0){
+    if(!spendUse()) return;
     var heal = explodingRoll(4).total;
     changeStress(-heal);
-    showNotif(name + ': restored ' + heal + ' Stress', 'good');
-    removeBackpackItem(index);
+    showNotif(name+': restored '+heal+' Stress','good');
     return;
   }
   // Trauma
-  if (['Depressant','Sage (Temple)','Trauma Serum'].indexOf(name) >= 0) {
-    if (S.trauma > 0) { S.trauma--; if (typeof updateTrauma === 'function') updateTrauma(); }
-    showNotif(name + ': −1 Trauma', 'good');
-    removeBackpackItem(index);
+  if(['Depressant','Sage (Temple)','Trauma Serum'].indexOf(name) >= 0){
+    if(!spendUse()) return;
+    if(S.trauma > 0){ S.trauma--; if(typeof updateTrauma==='function')updateTrauma(); }
+    showNotif(name+': −1 Trauma','good');
     return;
   }
   // Condition removers
-  var condMap = {
-    'Fever Tincture': 'weakened',
-    'Mind Draught':   'distracted',
-    'Spirit Tonic':   'shaken',
-    'Fortifying Broth':'vulnerable'
-  };
-  if (condMap[name]) {
+  var condMap={'Fever Tincture':'weakened','Mind Draught':'distracted','Spirit Tonic':'shaken','Fortifying Broth':'vulnerable'};
+  if(condMap[name]){
+    if(!spendUse()) return;
     S.conditions[condMap[name]] = false;
-    if (typeof updateConditionButtons === 'function') updateConditionButtons();
-    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
-    showNotif(name + ': ' + condMap[name] + ' removed', 'good');
-    removeBackpackItem(index);
+    if(typeof updateConditionButtons==='function') updateConditionButtons();
+    if(typeof updateAllStatDisplays==='function') updateAllStatDisplays();
+    showNotif(name+': '+condMap[name]+' removed','good');
     return;
   }
   // Snake Oil
-  if (name === 'Snake Oil') {
-    openModal('Snake Oil', '<div style="font-size:.9rem;color:var(--text2);">Generic remedies against bugs, parasites, diseases, rashes, and blisters.<br><em style="color:var(--muted2);">Nothing serious — but it smells terrible.</em></div>');
-    removeBackpackItem(index);
+  if(name === 'Snake Oil'){
+    if(!spendUse()) return;
+    openModal('Snake Oil','<div style="font-size:.9rem;color:var(--text2);">Generic remedies against bugs, parasites, diseases, rashes, and blisters.<br><em style="color:var(--muted2);">Nothing serious — but it smells terrible.</em></div>');
     return;
   }
   // Toolkits — prompt for stat, then roll Action Die vs Adventure Die (take highest)
-  if (cat === 'toolkits') {
+  if(cat === 'toolkits'){
     var tkStats = TOOLKIT_STATS[name] || ['lead'];
-    var statOptions = tkStats.map(function(s) {
-      return '<button class="btn btn-sm btn-teal" style="margin:.2rem;" onclick="useToolkit(\'' + s + '\',' + index + ');closeModal();">' + s.charAt(0).toUpperCase() + s.slice(1) + '</button>';
+    var statOptions = tkStats.map(function(s){
+      return '<button class="btn btn-sm btn-teal" style="margin:.2rem;" onclick="useToolkit(\''+s+'\','+index+');closeModal();">'+s.charAt(0).toUpperCase()+s.slice(1)+'</button>';
     }).join('');
-    openModal(name + ' — Use',
-      '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
-      + item.desc + '<br><br>'
-      + '<strong style="color:var(--gold);">Roll which stat with A.D. Advantage?</strong><br>'
-      + statOptions + '</div>');
+    openModal(name+' — Use',
+      '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'+item.desc+'<br><br>'
+      +'<strong style="color:var(--gold);">Roll which stat with A.D. Advantage?</strong><br>'
+      +statOptions+'</div>');
     return;
   }
-  // Default: just show description
-  openModal(name, '<div style="font-size:.9rem;color:var(--text2);">' + item.desc + '</div>');
-  removeBackpackItem(index);
+  // Items with a defined roll config (Compass, Spyglass, Lockpicks, etc.)
+  var cfg = ITEM_USE_CFG[name];
+  if(cfg && cfg.rollStat){
+    if(!spendUse()) return;
+    var statDie = typeof getEffectiveDie==='function' ? getEffectiveDie(cfg.rollStat) : (S.stats[cfg.rollStat]||4);
+    var statRoll = explodingRoll(statDie);
+    var html='<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">';
+    html+='<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.35rem;">'+cfg.rollDesc+'</div>';
+    if(cfg.rollAdvDie){
+      var aDie = S.stats.adventure||4;
+      var aRoll = explodingRoll(aDie);
+      var kept = Math.max(statRoll.total, aRoll.total);
+      var keptNote = statRoll.total>=aRoll.total
+        ? '('+cfg.rollStat+' d'+statDie+'=<em>'+statRoll.total+'✓</em>, A.D. d'+aDie+'='+aRoll.total+')'
+        : '(A.D. d'+aDie+'=<em>'+aRoll.total+'✓</em>, '+cfg.rollStat+' d'+statDie+'='+statRoll.total+')';
+      html+='Result: <strong style="color:var(--teal);">'+kept+'</strong> <span style="font-size:.72rem;color:var(--muted2);">'+keptNote+'</span>';
+    } else {
+      html+='Result: <strong style="color:var(--teal);">'+statRoll.total+'</strong> <span style="font-size:.72rem;color:var(--muted2);">('+cfg.rollStat+' d'+statDie+')</span>';
+    }
+    html+='</div>';
+    openModal(name+' — Use', html);
+    return;
+  }
+  // Items with no special roll — just show description and spend use
+  if(!spendUse()) return;
+  openModal(name,'<div style="font-size:.9rem;color:var(--text2);">'+item.desc+'</div>');
+}
+
+// Use a custom (non-shop) item that references a die — roll A.D. and show result
+function useCustomItem(text, index){
+  var advDie = S.stats.adventure||4;
+  var r = explodingRoll(advDie);
+  openModal('Item Roll','<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">'
+    +'<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.3rem;">'+text+'</div>'
+    +'Adventure Die d'+advDie+' = <strong style="color:var(--teal);">'+r.total+'</strong>'
+    +(r.exploded?' ✦':'')+'</div>');
+  // Custom items are infinite use — no removal
 }
 
 // Perform a toolkit roll: roll stat die AND adventure die, show both, keep highest

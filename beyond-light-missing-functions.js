@@ -79,6 +79,11 @@ function updateDieDisplay(key) {
     if (wpDef.flat > 0) displayText += '+' + wpDef.flat;
     if (wpDef.addAdvDie) displayText += '+A.D.';
   }
+  // Flavor / Mutation advantage hints for all stats
+  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {advDie:0};
+  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(key) : {advDie:0};
+  const flMtAdv = Math.max(flB.advDie || 0, mtB.advDie || 0);
+  if (flMtAdv > 0) displayText += '/Ad' + flMtAdv;
   // Augmentation additive bonus hint
   const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
   if (augDie > 0) displayText += '+d' + augDie;
@@ -146,36 +151,44 @@ function quickRollStat(key) {
   const die = key === "adventure" ? (S.stats.adventure || 4) : getEffectiveDie(key);
   const label = key.charAt(0).toUpperCase() + key.slice(1);
 
-  // Weapon advantage / flat bonuses for strike and shoot
-  let advDieVal = 0, flatBonus = 0, addAdvDie = false;
+  // Collect advantage dice from weapons/armor, flavor, mutation, and manual rollMod
+  let advDiceArr = [], flatBonus = 0, addAdvDie = false;
   if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
     const wb = parseWeaponBonuses(key);
-    advDieVal = wb.advDie;
+    if (wb.advDie > 0) advDiceArr.push(wb.advDie);
     flatBonus = wb.flat;
     addAdvDie = wb.addAdvDie;
   } else if (key === 'defend') {
     const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
     const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
-    advDieVal = Math.max(armorAdv, wpDef.advDie);
+    if (armorAdv > 0) advDiceArr.push(armorAdv);
+    if (wpDef.advDie > 0) advDiceArr.push(wpDef.advDie);
     flatBonus = wpDef.flat;
     addAdvDie = wpDef.addAdvDie;
   }
 
-  // Personal Flavor / Mutation bonuses
-  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {flat:0, advDie:0, holyShield:false};
-  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(key) : {flat:0, advDie:0};
-  advDieVal = Math.max(advDieVal, flB.advDie, mtB.advDie);
+  // Personal Flavor / Mutation bonuses — collect their advDice arrays
+  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {flat:0, advDie:0, advDice:[], holyShield:false};
+  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(key) : {flat:0, advDie:0, advDice:[]};
+  advDiceArr = advDiceArr.concat(flB.advDice || []).concat(mtB.advDice || []);
   flatBonus += flB.flat + mtB.flat;
+
+  // Manual rollMod
+  const mod = S && S.rollMod ? S.rollMod : {advDice:[], flat:0};
+  if (Array.isArray(mod.advDice)) advDiceArr = advDiceArr.concat(mod.advDice);
+  flatBonus += mod.flat || 0;
 
   // Augmentation additive bonus
   const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
 
-  const a = explodingRoll(die);
-  // AdN advantage: roll both, keep highest
-  const advRoll = advDieVal > 0 ? explodingRoll(advDieVal) : null;
-  const baseTotal = (advRoll && advRoll.total > a.total) ? advRoll.total : a.total;
+  // Roll base die + ALL advantage dice, take highest
+  const ra = typeof rollWithAdvantage === 'function'
+    ? rollWithAdvantage(die, advDiceArr)
+    : {total: explodingRoll(die).total, base: explodingRoll(die), advRolls: [], breakdown: '', exploded: false};
+  const a = ra.base;
+
   // +N flat bonus
-  let withFlat = baseTotal + flatBonus;
+  let withFlat = ra.total + flatBonus;
   // Holy Shield: add spirit die (Flavor)
   const holyShieldRoll = flB.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
   if (holyShieldRoll) withFlat += holyShieldRoll.total;
@@ -188,27 +201,23 @@ function quickRollStat(key) {
 
   // Build detail breakdown
   const details = [];
-  if (advRoll) {
-    if (advRoll.total >= a.total) {
-      details.push('Ad' + advDieVal + ' = ' + advRoll.total + ' <em>(kept)</em>, d' + die + ' = ' + a.total);
-    } else {
-      details.push('d' + die + ' = ' + a.total + ' <em>(kept)</em>, Ad' + advDieVal + ' = ' + advRoll.total);
-    }
-  }
-  if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon/flavor/mutation)');
+  if (ra.advRolls.length) details.push(ra.breakdown.replace(/<[^>]+>/g, '').trim()); // plain-text from breakdown
+  if (ra.advRolls.length === 0 && advDiceArr.length === 0) {} // no adv dice, no note needed
+  if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon/flavor/mutation/mod)');
   if (holyShieldRoll) details.push('Holy Shield +Spirit d' + (S.stats.spirit||4) + ' = ' + holyShieldRoll.total);
   if (adBonus) details.push('+A.D. d' + (S.stats.adventure || 4) + ' = ' + adBonus.total + ' (additive)');
   if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
+  if (mod.advDice.length || mod.flat) details.push('Manual modifier active');
 
-  const detailHtml = details.length
-    ? '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;">' + details.join('<br>') + '</div>'
+  const detailHtml = (ra.breakdown || details.length)
+    ? '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;">' + (ra.breakdown || '') + (details.slice(1).length ? '<br>' + details.slice(1).join('<br>') : '') + '</div>'
     : '';
 
   openModal(
     label + " Roll",
     '<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">' +
       '<strong style="color:var(--teal);">' + label + ' d' + die + '</strong>' +
-      (a.exploded ? ' <span style="color:var(--gold);">✦ Critical!</span>' : '') +
+      (ra.exploded ? ' <span style="color:var(--gold);">✦ Critical!</span>' : '') +
       '<br>Result: <strong style="color:var(--gold2);">' + total + '</strong>' +
       detailHtml +
       "</div>"

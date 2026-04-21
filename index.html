@@ -96,6 +96,11 @@ select option{background:#0f1020;}
 .shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem;}
 .shop-card{background:var(--card);border:1px solid var(--border);padding:.7rem;display:flex;flex-direction:column;gap:.3rem;transition:border-color .15s;}
 .shop-card:hover{border-color:rgba(201,162,39,.25);}
+.shop-rule-box{background:rgba(201,162,39,.05);border:1px solid rgba(201,162,39,.25);padding:.75rem 1rem;margin-bottom:.85rem;font-size:.78rem;color:var(--text2);line-height:1.6;}
+.shop-rule-box strong{color:var(--gold2);}
+.shop-rule-box .srb-title{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:.45rem;display:block;}
+.shop-rule-box ul{margin:.3rem 0 0 1.1rem;padding:0;}
+.shop-rule-box li{margin-bottom:.15rem;}
 .s-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}.s-stat{font-size:.72rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}.s-desc{font-size:.78rem;color:var(--muted3);flex:1;line-height:1.5;}
 .s-foot{display:flex;justify-content:space-between;align-items:center;margin-top:.2rem;padding-top:.3rem;border-top:1px solid var(--border);}
 .s-cost{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);}
@@ -997,7 +1002,28 @@ function enemyAttack(id){const e=S.enemies.find(x=>x.id===id);if(!e)return;const
 function rollArmyStress(side){const s=rollMulti(12,2),dread=s>=13?6:4;if(side==='A'){S.combat.armyA={stress:s,dread};document.getElementById('armyAStress').textContent=s;document.getElementById('armyADread').textContent='d'+dread;}else{S.combat.armyB={stress:s,dread};document.getElementById('armyBStress').textContent=s;document.getElementById('armyBDread').textContent='d'+dread;}}
 function skirmishAction(side,action){const army=side==='A'?S.combat.armyA:S.combat.armyB;const opp=side==='A'?S.combat.armyB:S.combat.armyA;const rEl=document.getElementById('skirmishResult'+side);if(!army.stress){if(rEl)rEl.innerHTML='<span style="color:var(--red);">Roll army stress first!</span>';return;}if(action==='strike'){const a=explodingRoll(army.dread),d=explodingRoll(opp.dread||6);const diff=Math.max(1,a.total-d.total);if(a.total>=d.total){opp.stress=Math.max(0,opp.stress-diff);document.getElementById('army'+(side==='A'?'B':'A')+'Stress').textContent=opp.stress;if(rEl)rEl.innerHTML=`<span style="color:var(--green2);">Strike: ${a.total} vs ${d.total} — ${diff} Stress dealt</span>`;}else{if(rEl)rEl.innerHTML=`<span style="color:var(--red);">Strike: ${a.total} vs ${d.total} — Miss</span>`;}}else if(action==='parry'){if(rEl)rEl.innerHTML='<span style="color:var(--green);">Reaction Parry — Protected gained</span>';}else if(action==='frighten'){if(rEl)rEl.innerHTML='<span style="color:var(--red);">Frighten — Enemy Vulnerable</span>';}if(opp.stress<=0&&opp.dread)showNotif(`Army ${side==='A'?'B':'A'} defeated!`,'good');}
 // ── SHOP ─────────────────────────────────────────────────────────────────────
-function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;if(!items.length){c.innerHTML='<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/'/g,"\\'")}')">Buy</button></div></div>`).join('');}
+const SHOP_RULES={
+  augmentations:`<span class="srb-title">🦾 Augmentations — Available Upgrades</span>
+Wayfarers can install Augmentations equal to their <strong>Body Die ÷ 2</strong> (e.g. d8 Body = 4 Augmentations). Each installed Augmentation occupies a <strong>Talent Slot</strong>.<br>
+Space Hubs have Doctors called <strong>Wiredogs</strong> who perform installations. To install an Augmentation a character must:
+<ul>
+  <li>Spend <strong>+5 Path Tokens</strong></li>
+  <li>Pay the listed Credit cost</li>
+  <li>Have <strong>Renown +3</strong> with that Faction</li>
+</ul>`,
+  os_hacks:`<span class="srb-title">💻 OS Hacks — Casting a Hack</span>
+Hacks require the <strong>Operating System</strong> augmentation (2,000₵) to be installed. Roll <strong>two of the same Dread Dice</strong>, separating them from highest to lowest. Then guess whether your <strong>Control, Hack Check</strong> will roll <em>below</em>, <em>between</em>, or <em>above</em> the Dread Dice. Meeting one of the numbers counts as a success. If you <strong>win</strong>, the Hack is uploaded and the effect takes place. If you <strong>lose</strong>, the Hack fails and you are infected with <strong>Malware</strong>.<br>
+Hack activation costs <strong>TMW (Teamwork Points)</strong> as listed. <strong>Master Hacks</strong> are found only at Black Market Dealers.`,
+  weapon_mods:`<span class="srb-title">🔩 Weapon Mods — Available Upgrades</span>
+Weapons have as many available Mod Slots as their bonus damage value. <strong>Ad# weapons cannot be modded</strong> — only <strong>+# weapons</strong> classified as Simple–Heavy are eligible.
+<ul>
+  <li><em>Simple</em> Weapons (+1 Strike/Shoot) — <strong>1 Mod Slot</strong></li>
+  <li><em>Martial</em> Weapons (+2 Strike/Shoot) — <strong>2 Mod Slots</strong></li>
+  <li><em>Exotic</em> Weapons (+3 Strike/Shoot) — <strong>3 Mod Slots</strong></li>
+  <li><em>Heavy</em> Weapons (+4 Strike/Shoot) — <strong>4 Mod Slots</strong></li>
+</ul>`
+};
+function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;const rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/'/g,"\\'")}')">Buy</button></div></div>`).join('');}
 function buyItem(cost,name){if(S.credits<cost){showNotif('Not enough credits!','warn');return;}S.credits-=cost;updateCreditsUI();showNotif(`Bought: ${name} (−${cost}₵)`,'good');}
 function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);}
 

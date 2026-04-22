@@ -1993,8 +1993,13 @@ function showBackpackItem(index) {
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon2\');">⚔ W2</button> ';
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'armor\');">⚔ Armor</button> ';
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'readied\');">⚔ Readied</button> ';
+    btnHtml += '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellBackpackItem('+index+');closeModal();">💰 Sell</button> ';
+    var storOpts = '<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
+    if (S.caravan && S.caravan.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
+    if (S.holding && S.holding.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
+    storOpts += '</div></div>';
     btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
-    openModal('Backpack Item','<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+'</div>');
+    openModal('Backpack Item','<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>');
     return;
   }
   var item = found.item;
@@ -2012,13 +2017,18 @@ function showBackpackItem(index) {
   btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon2\');">⚔ W2</button> ';
   btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'armor\');">⚔ Armor</button> ';
   btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'readied\');">⚔ Readied</button> ';
+  btnHtml += '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellBackpackItem('+index+');closeModal();">💰 Sell for ' + (item.cost || 0) + '₵</button> ';
+  var storOpts = '<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
+  if (S.caravan && S.caravan.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
+  if (S.holding && S.holding.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
+  storOpts += '</div></div>';
   btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
   var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
     + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
     + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
     + '<div>'+item.desc+'</div>'
     + usesHtml
-    + '<div style="margin-top:.5rem;">'+btnHtml+'</div>'
+    + '<div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>'
     + '</div>';
   openModal(item.name, html);
 }
@@ -2029,18 +2039,104 @@ function removeBackpackItem(index) {
   if (el) el.value = '';
 }
 
-function equipBackpackItem(index,slot){
-  var item=S.backpack[index];
-  if(!item)return;
-  if(!S.equipment)S.equipment={};
-  if(slot==='weapon1'){S.equipment.weapon1=item;var el=document.getElementById('eqWeapon1');if(el)el.value=item;}
-  else if(slot==='weapon2'){S.equipment.weapon2=item;var el=document.getElementById('eqWeapon2');if(el)el.value=item;}
-  else if(slot==='armor'){S.equipment.armor=item;var el=document.getElementById('eqArmor');if(el)el.value=item;}
-  else if(slot==='readied'){S.equipment.readied=item;var el=document.getElementById('eqReadied');if(el)el.value=item;}
-  if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
-  if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
+// Sell backpack item
+function sellBackpackItem(index) {
+  if (!S || !S.backpack) return;
+  var text = S.backpack[index] || '';
+  if (!text) return;
+  var found = findShopItem(text);
+  var price = found && found.item ? (found.item.cost || 0) : 0;
+  if (price === 0) { price = Math.max(10, Math.floor(text.length * 2)); }
+  S.backpack[index] = '';
+  var bpEl = document.getElementById('bp' + index);
+  if (bpEl) bpEl.value = '';
+  S.credits = (S.credits || 0) + price;
+  updateCreditsUI();
+  showNotif('Sold: ' + text + ' for ' + price + '₵', 'good');
+}
+
+// Move backpack item to caravan or holding storage
+function moveBackpackToStorage(index, storageType) {
+  if (!S || !S.backpack) return;
+  var item = S.backpack[index] || '';
+  if (!item) { showNotif('No item to move!', 'neutral'); return; }
+  if (storageType === 'caravan') {
+    if (!S.caravan || !S.caravan.cargo) { showNotif('No Caravan available!', 'warn'); return; }
+    var emptyIdx = -1;
+    for (var i = 0; i < S.caravan.cargo.length; i++) {
+      if (!S.caravan.cargo[i]) { emptyIdx = i; break; }
+    }
+    if (emptyIdx < 0) { showNotif('Caravan cargo full!', 'warn'); return; }
+    S.caravan.cargo[emptyIdx] = item;
+    S.backpack[index] = '';
+    var bpEl = document.getElementById('bp' + index);
+    if (bpEl) bpEl.value = '';
+    showNotif('Moved to Caravan: ' + item + ' → Cargo Slot ' + (emptyIdx + 1), 'good');
+  } else if (storageType === 'holding') {
+    if (!S.holding || !S.holding.vault) { if (!S.holding) S.holding = {}; S.holding.vault = []; }
+    if (!Array.isArray(S.holding.vault)) S.holding.vault = [];
+    S.holding.vault.push(item);
+    S.backpack[index] = '';
+    var bpEl = document.getElementById('bp' + index);
+    if (bpEl) bpEl.value = '';
+    showNotif('Moved to Holding Vault: ' + item, 'good');
+  }
+}
+
+function equipBackpackItem(index, slot) {
+  if (!S || !S.backpack || !S.equipment) return;
+  var item = S.backpack[index];
+  if (!item) return;
+  
+  var found = findShopItem(item);
+  var cat = found ? found.cat : null;
+  
+  // Validate slot type
+  var isWeapon = cat === 'weapons';
+  var isArmor = cat === 'armor';
+  var canEquip = false;
+  
+  if (slot === 'weapon1' || slot === 'weapon2') {
+    if (!isWeapon) {
+      showNotif('Only weapons can be equipped in weapon slots!', 'warn');
+      return;
+    }
+    canEquip = true;
+  } else if (slot === 'armor') {
+    if (!isArmor) {
+      showNotif('Only armor can be equipped in the armor slot!', 'warn');
+      return;
+    }
+    canEquip = true;
+  } else if (slot === 'readied') {
+    // Readied items can be various types - consumables, items, etc.
+    if (!found || (cat !== 'essentials' && cat !== 'items' && cat !== 'remedies' && cat !== 'toolkits' && cat !== 'augmentations')) {
+      // Allow custom items as readied
+      canEquip = true;
+    } else {
+      canEquip = true;
+    }
+  }
+  
+  if (!canEquip && (slot === 'weapon1' || slot === 'weapon2' || slot === 'armor')) {
+    return;
+  }
+  
+  // Equip the item (item stays with full description)
+  S.equipment[slot] = item;
+  var inputId = slot === 'weapon1' ? 'eqWeapon1' : slot === 'weapon2' ? 'eqWeapon2' : slot === 'armor' ? 'eqArmor' : 'eqReadied';
+  var el = document.getElementById(inputId);
+  if (el) el.value = item;
+  
+  // Remove from backpack
+  S.backpack[index] = '';
+  var bpEl = document.getElementById('bp' + index);
+  if (bpEl) bpEl.value = '';
+  
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
   closeModal();
-  showNotif('Equipped: '+item,'good');
+  showNotif('Equipped: ' + item, 'good');
 }
 
 // Show info panel for an equipped item (weapon, armor, readied)

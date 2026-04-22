@@ -1235,6 +1235,7 @@
       upgrades: [],
       stress: 0,
       wrecked: false,
+      @@cargo: [],
       navBonus: 0,
       extraActions: shipClass.name === "Frigate" ? 1 : 0,
       leadBonus: shipClass.name === "Carrier" ? 1 : 0

@@ -112,7 +112,8 @@
         { type: "Dwelling", name: "Nomad Camp",        notes: "" },
         { type: "Temple",   name: "Temple of the Forgotten", notes: "" }
       ],
-      extraLandmarks: [],
+       extraLandmarks: [], 
+       vault: [],
       council: {
         regent:    { name: "", retainers: 3, task: "", status: "Idle" },
         commander: { name: "", retainers: 3, task: "", status: "Idle" },
@@ -126,6 +127,7 @@
     if (!Array.isArray(S.holding.landmarks))      { S.holding.landmarks = []; }
     if (!Array.isArray(S.holding.extraLandmarks)) { S.holding.extraLandmarks = []; }
     if (!Array.isArray(S.holding.crises))         { S.holding.crises = []; }
+      if (!Array.isArray(S.holding.vault))          { S.holding.vault = []; }
     if (!Array.isArray(S.holding.taxLog))         { S.holding.taxLog = []; }
 
     if (!S.holding.council || typeof S.holding.council !== "object") {

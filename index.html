@@ -1390,10 +1390,12 @@ const ENEMY_ACTION_EVENTS=[
 
 function triggerEnemyActionEvent(){
   if(!Array.isArray(S.enemies)||!S.enemies.length){showNotif('Add an enemy first.','warn');return;}
+  // Enemy action advances enemy turn pacing toward player action reset.
+  maybeResetActionsAfterDefend();
   var ev=pick(ENEMY_ACTION_EVENTS);
   if(ev.kind==='defendCheck'){
     var dd=S.combat&&S.combat.enemyDread?S.combat.enemyDread:8;
-    openModal('Enemy Action — '+ev.name,'<div style="font-size:.86rem;line-height:1.6;">'+ev.desc+'<br><br><button class="btn btn-sm btn-teal" onclick="rollDefend();closeModal();">Roll Defend</button> <span style="font-size:.75rem;color:var(--muted2);margin-left:.35rem;">Enemy Dread d'+dd+'</span></div>');
+    openModal('Enemy Action — '+ev.name,'<div style="font-size:.86rem;line-height:1.6;">'+ev.desc+'<br><br><button class="btn btn-sm btn-teal" onclick="rollDefend(true);closeModal();">Roll Defend</button> <span style="font-size:.75rem;color:var(--muted2);margin-left:.35rem;">Enemy Dread d'+dd+'</span></div>');
   }else if(ev.kind==='saveCondition'){
     var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats[ev.stat]||4);
     var pr=explodingRoll(statDie);var dr=explodingRoll(S.combat.enemyDread||8);var ok=pr.total>=dr.total;
@@ -1544,22 +1546,35 @@ function parseArmorAdvDie() {
 function clearConditionOnUse(key) {
   if (!S || !S.conditions) return;
   var changed = false;
+  var cleared = [];
   if (['body','strike','shoot'].indexOf(key) >= 0 && S.conditions.empowered) {
-    S.conditions.empowered = false; changed = true;
+    S.conditions.empowered = false; changed = true; cleared.push('Empowered');
+  }
+  if (['body','strike','shoot'].indexOf(key) >= 0 && S.conditions.weakened) {
+    S.conditions.weakened = false; changed = true; cleared.push('Weakened');
   }
   if (key === 'defend' && S.conditions.protected) {
-    S.conditions.protected = false; changed = true;
+    S.conditions.protected = false; changed = true; cleared.push('Protected');
+  }
+  if (key === 'defend' && S.conditions.vulnerable) {
+    S.conditions.vulnerable = false; changed = true; cleared.push('Vulnerable');
   }
   if (['mind','control'].indexOf(key) >= 0 && S.conditions.focused) {
-    S.conditions.focused = false; changed = true;
+    S.conditions.focused = false; changed = true; cleared.push('Focused');
+  }
+  if (['mind','control'].indexOf(key) >= 0 && S.conditions.distracted) {
+    S.conditions.distracted = false; changed = true; cleared.push('Distracted');
   }
   if (['spirit','lead'].indexOf(key) >= 0 && S.conditions.bolstered) {
-    S.conditions.bolstered = false; changed = true;
+    S.conditions.bolstered = false; changed = true; cleared.push('Bolstered');
+  }
+  if (['spirit','lead'].indexOf(key) >= 0 && S.conditions.shaken) {
+    S.conditions.shaken = false; changed = true; cleared.push('Shaken');
   }
   if (changed) {
     if (typeof updateConditionButtons === 'function') updateConditionButtons();
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
-    showNotif('Condition used up!', '');
+    showNotif((cleared.length?cleared.join(', '):'Condition') + ' cleared after pool use.', 'good');
   }
 }
 
@@ -1644,8 +1659,8 @@ function rollAttack(type) {
   clearConditionOnUse(type);
 }
 
-function rollDefend() {
-  maybeResetActionsAfterDefend();
+function rollDefend(skipEnemyTurnTick) {
+  if(!skipEnemyTurnTick) maybeResetActionsAfterDefend();
 
   var armorAdv = parseArmorAdvDie();
   var wpBonus = parseWeaponBonuses('defend');
@@ -2743,6 +2758,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!S.quickPanel)S.quickPanel={};
     if(!Array.isArray(S.quickPanel.diceResults))S.quickPanel.diceResults=[];
     if(typeof S.quickPanel.flatMod!=='number')S.quickPanel.flatMod=0;
+    if(typeof S.quickPanel.advMode!=='string')S.quickPanel.advMode='normal';
+    if(typeof S.quickPanel.advDie!=='number')S.quickPanel.advDie=6;
     if(typeof S.quickPanel.notes!=='string')S.quickPanel.notes='';
     if(typeof S.quickPanel.quickEnemyDread!=='number')S.quickPanel.quickEnemyDread=(S.combat&&S.combat.enemyDread)||8;
     if(typeof S.quickPanel.lastCombatRoll!=='string')S.quickPanel.lastCombatRoll='No combat roll yet.';
@@ -2795,16 +2812,20 @@ document.addEventListener('DOMContentLoaded',()=>{
   function qpRollWithAdvMode(die){
     ensureQPState();
     var mode=(document.getElementById('qpAdvMode')||{}).value||'normal';
+    var advDie=parseInt((document.getElementById('qpAdvDie')||{}).value,10);
+    if(isNaN(advDie))advDie=6;
     var flat=parseInt((document.getElementById('qpFlatMod')||{}).value,10);
     if(isNaN(flat))flat=0;
+    S.quickPanel.advMode=mode;
+    S.quickPanel.advDie=advDie;
     S.quickPanel.flatMod=flat;
     var r1=qpRoll(die),r2=null,total=r1;
     if(mode==='adv'||mode==='dis'){
-      r2=qpRoll(die);
+      r2=qpRoll(advDie);
       total=(mode==='adv')?Math.max(r1,r2):Math.min(r1,r2);
     }
     total+=flat;
-    return {mode:mode,r1:r1,r2:r2,total:total,flat:flat};
+    return {mode:mode,r1:r1,r2:r2,total:total,flat:flat,advDie:advDie};
   }
 
   function qpRenderDiceResults(){
@@ -2821,11 +2842,18 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.qpRollStat = function(statKey, label) {
     var die = (typeof getEffectiveDie==='function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) ? S.stats[statKey] : 4);
     var rr = qpRollWithAdvMode(die);
-    var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
+    var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' vs d'+rr.advDie+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
     var detail2 = rr.flat ? (' <span style="color:var(--gold2);">'+(rr.flat>0?'+':'')+rr.flat+'</span>') : '';
     document.getElementById('qpRollResult').innerHTML =
       '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + '</span> = <strong style="color:var(--teal);font-size:1.2rem;">' + rr.total + '</strong>';
     qpPushDiceResult(label+' d'+die,rr.total,'var(--teal)');
+    if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
+    var condEl=document.getElementById('qpCondState');
+    if(condEl){
+      var activeConds=[];
+      ['empowered','protected','focused','bolstered','weakened','vulnerable','distracted','shaken'].forEach(function(k){if(S.conditions&&S.conditions[k])activeConds.push(k);});
+      condEl.textContent=activeConds.length?('Active conditions: '+activeConds.join(', ')):'No active conditions.';
+    }
     var box=document.getElementById('qpDiceResults');if(box)box.innerHTML=qpRenderDiceResults();
   };
 
@@ -2904,11 +2932,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   function buildQPDice() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
     var stats = [
-      ['adventure','Adv'],['body','Body'],['mind','Mind'],['spirit','Spirit'],
+      ['adventure','Adv'],['body','Body'],['mind','Mind'],['spirit','Spirit'],['lead','Lead'],
       ['strike','Strike'],['shoot','Shoot'],['defend','Defend'],['control','Control']
     ];
     var rows = stats.map(function(s){
-      var die = (S.stats && S.stats[s[0]]) ? S.stats[s[0]] : 4;
+      var die = s[0]==='adventure' ? ((S.stats && S.stats.adventure) ? S.stats.adventure : 4) : ((typeof getEffectiveDie==='function') ? getEffectiveDie(s[0]) : ((S.stats && S.stats[s[0]]) ? S.stats[s[0]] : 4));
       return '<button class="btn btn-xs btn-teal" onclick="qpRollStat(\''+s[0]+'\',\''+s[1]+'\')" style="font-size:.62rem;padding:.2rem .4rem;">'+s[1]+' d'+die+'</button>';
     });
     var freeRolls = [4,6,8,10,12,20].map(function(d){
@@ -2924,9 +2952,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     return '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Stat Rolls</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;">' + rows.join('') + '</div></div>'
       + '<div style="display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem;">'
-      + '<select id="qpAdvMode" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .3rem;font-size:.72rem;"><option value="normal">Normal</option><option value="adv">Advantage</option><option value="dis">Disadvantage</option></select>'
+      + '<select id="qpAdvMode" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .3rem;font-size:.72rem;"><option value="normal"'+(S.quickPanel.advMode==='normal'?' selected':'')+'>Normal</option><option value="adv"'+(S.quickPanel.advMode==='adv'?' selected':'')+'>Advantage</option><option value="dis"'+(S.quickPanel.advMode==='dis'?' selected':'')+'>Disadvantage</option></select>'
+      + '<select id="qpAdvDie" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .3rem;font-size:.72rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===S.quickPanel.advDie?' selected':'')+'>d'+d+'</option>';}).join('')+'</select>'
       + '<input id="qpFlatMod" type="number" value="'+(S.quickPanel.flatMod||0)+'" min="-20" max="20" style="width:4rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/>'
-      + '<span style="font-size:.68rem;color:var(--muted2);">Flat Mod</span>'
+      + '<span style="font-size:.68rem;color:var(--muted2);">Adv/Dis Die + Flat Mod</span>'
       + '</div>'
       + '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">Free Roll</div>'
       + '<div style="display:flex;gap:.25rem;">' + freeRolls.join('') + '</div></div>'
@@ -2935,7 +2964,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<button class="btn btn-xs btn-red" onclick="qpRollDread()" style="font-size:.62rem;padding:.2rem .4rem;">Roll Dread d'+dreadDie+'</button>'
       + dreadOptions + '</div></div>'
       + '<div class="qp-result" id="qpRollResult" style="min-height:2rem;">—</div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.3rem;">'+condText+'</div>'
+        + '<div id="qpCondState" style="font-size:.68rem;color:var(--muted2);margin-top:.3rem;">'+condText+'</div>'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.45rem;"><div style="font-family:Cinzel,serif;font-size:.54rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;">Roll Comparison</div><button class="btn btn-xs" onclick="qpClearDiceResults()">Clear</button></div>'
       + '<div id="qpDiceResults" style="margin-top:.2rem;">'+qpRenderDiceResults()+'</div>';
   }
@@ -2973,6 +3002,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<button class="btn btn-xs btn-red" onclick="if(typeof changeStress===\'function\')changeStress(1);renderQP(\'char\')">+1 Stress</button>'
         + '<button class="btn btn-xs btn-green" onclick="if(typeof changeStress===\'function\')changeStress(-1);renderQP(\'char\')">−1 Stress</button>'
         + '<span style="font-size:.75rem;color:var(--red);margin-left:auto;">Trauma: '+trauma+'</span>'
+        + '<button class="btn btn-xs btn-red" onclick="if(typeof changeTrauma===\'function\')changeTrauma(1);renderQP(\'char\')">+ Trauma</button>'
+        + '<button class="btn btn-xs btn-green" onclick="if(typeof changeTrauma===\'function\')changeTrauma(-1);renderQP(\'char\')">− Trauma</button>'
       + '</div></div>'
       + '<div><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Conditions</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:.2rem;">' + condsHtml + '</div></div>'

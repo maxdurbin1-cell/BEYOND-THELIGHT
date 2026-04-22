@@ -2008,6 +2008,10 @@ function showBackpackItem(index) {
   } else if (isConsumable) {
     btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useBackpackItem('+index+');closeModal();">⚑ Use</button> ';
   }
+  btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon1\');">⚔ W1</button> ';
+  btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon2\');">⚔ W2</button> ';
+  btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'armor\');">⚔ Armor</button> ';
+  btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'readied\');">⚔ Readied</button> ';
   btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
   var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
     + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
@@ -2738,6 +2742,69 @@ function clearEventLeadFromHex(col,row){
   if(!h||!h.data||!h.data.eventLead)return;
   delete h.data.eventLead;
 }
+
+function getStatModifiers(stat){
+  const mods={total:0,sources:[]};
+  if(!S.equipment)S.equipment={};
+  if(!S.stats)S.stats={};
+  if(stat==='strike'||stat==='shoot'||stat==='defend'){
+    if(S.equipment.weapon1&&S.equipment.weapon1.includes('+')){const m=parseInt(S.equipment.weapon1.match(/\+(\d+)/)?.[1]||0);if(m){mods.total+=m;mods.sources.push('+'+m+' (W1)');}}}
+  if(stat==='defend'||stat==='body'){
+    if(S.equipment.armor&&S.equipment.armor.includes('+')){const m=parseInt(S.equipment.armor.match(/\+(\d+)/)?.[1]||0);if(m){mods.total+=m;mods.sources.push('+'+m+' (Armor)');}}}
+  if(S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood')){
+    mods.sources.push('+Ad6 (Hood)');
+  }
+  return mods;
+}
+
+function generateMerchantCaravan(){
+  const pools=['items','essentials','toolkits','scrolls','services','remedies'];
+  const caravan=[];
+  const count=4+Math.floor(Math.random()*7);
+  for(let i=0;i<count;i++){
+    const pool=pick(pools);
+    const list=(SHOP_DATA&&SHOP_DATA[pool])||[];
+    if(list.length)caravan.push(pick(list));
+  }
+  return caravan;
+}
+
+function generateBlackMarketHacks(){
+  if(!SHOP_DATA||!SHOP_DATA.services)return[];
+  const hacks=SHOP_DATA.services.filter(h=>h.name&&h.name.toLowerCase().includes('hack'));
+  const count=1+Math.floor(Math.random()*2);
+  const selected=[];
+  for(let i=0;i<count&&hacks.length>0;i++){
+    selected.push(hacks.splice(Math.floor(Math.random()*hacks.length),1)[0]);
+  }
+  return selected;
+}
+
+function attemptThievery(targetName){
+  const controlDie=(typeof getEffectiveDie==='function')?getEffectiveDie('control'):(S.stats.control||4);
+  let rollDice=[controlDie];
+  if(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood')){
+    rollDice.push('d6');
+  }
+  const rolls=rollDice.map(d=>explodingRoll(d));
+  const playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
+  const dreadRoll=explodingRoll(12);
+  const success=playerTotal>=dreadRoll.total;
+  if(success){
+    if(typeof addToBackpack==='function'){
+      const stored=addToBackpack(targetName);
+      showNotif(`Successfully stole: ${targetName}${stored?' (backpack)':' (no space)'}`, 'good');
+    }else{
+      showNotif(`Successfully stole: ${targetName}`, 'good');
+    }
+    appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`);
+  }else{
+    showNotif(`Thievery failed! Caught! (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`, 'warn');
+    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
+  }
+}
+
 
 function advanceEventMystery(eventHex,sourceLabel){
   if(!eventHex||eventHex.type!=='event'||!eventHex.data?.mysteries)return null;

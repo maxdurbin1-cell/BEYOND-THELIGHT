@@ -627,7 +627,7 @@
               return '<div style="padding:.2rem;text-align:center;font-size:.65rem;background:' + (done ? 'var(--green2)' : cur ? 'var(--teal)' : 'var(--surface)') + ';border-radius:3px;color:' + (done || cur ? 'var(--text)' : 'var(--muted2)') + ';">' + s + '</div>';
             }).join('')
         + '</div>'
-        + '<button class="btn btn-xs btn-primary" onclick="if(typeof switchTab===\'function\')switchTab(\'holding\')" style="margin-top:.3rem;">Open Holding Tab →</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="if(typeof advanceHoldingQuest===\'function\')advanceHoldingQuest()" style="margin-top:.3rem;">Advance Quest →</button>'
       + '</div>';
     }
 

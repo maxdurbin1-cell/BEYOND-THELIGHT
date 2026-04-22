@@ -234,7 +234,6 @@ select option{background:#0f1020;}
     <span class="ctx-lbl">Location:</span>
     <button class="ctx-btn on" onclick="setContext('traveling',this)">🌍 Traveling</button>
     <button class="ctx-btn" onclick="setContext('holding',this)">🏰 Holding</button>
-    <button class="ctx-btn" onclick="setContext('temple',this)">⛩ Temple</button>
     <button class="ctx-btn" onclick="setContext('sea',this)">⚓ At Sea</button>
   </div>
   <nav>
@@ -244,7 +243,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-sea ctx-holding" style="display:none;" onclick="switchTab('lastsea',this)">Last Sea</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
     <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('naval',this)">Naval</button>
-    <button class="tab-btn ctx-holding ctx-temple ctx-sea" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
+    <button class="tab-btn ctx-holding ctx-sea" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
     <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn" onclick="switchTab('codex',this)">Codex</button>
@@ -2540,6 +2539,9 @@ function setContext(ctx,btn){
   // Hide all context-gated tabs, then show those matching the selected context
   document.querySelectorAll('nav .tab-btn[class*="ctx-"]').forEach(t=>{t.style.display='none';});
   document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';});
+  // Holding tab only appears once the Holding quest is completed and Holding exists.
+  const holdingBtn=document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
+  if(holdingBtn&&(!S||!S.holding||!S.holding.name))holdingBtn.style.display='none';
 }
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
 function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}

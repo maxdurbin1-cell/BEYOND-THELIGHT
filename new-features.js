@@ -201,6 +201,18 @@
     renderHoldingUI();
   }
 
+  function updateHoldingTabVisibility() {
+    if (typeof document === "undefined") { return; }
+    var holdingBtn = document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
+    if (!holdingBtn) { return; }
+    // Only show Holding tab once the special quest is completed and a Holding exists.
+    if (S && S.holding && S.holding.name) {
+      holdingBtn.style.display = "";
+    } else {
+      holdingBtn.style.display = "none";
+    }
+  }
+
   // ── CARAVAN HTML ──────────────────────────────────────────────────────────────
   function buildCaravanHTML() {
     return [
@@ -412,6 +424,9 @@
             '<div class="section-title">Holding Vault</div>',
             '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Secure Storage — move items here from your Backpack.</div>',
             '<div id="holdingVault" style="min-height:2rem;"></div>',
+            '<div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;">',
+              '<button class="btn btn-xs btn-primary" onclick="moveBackpackToVault()">Stow from Backpack</button>',
+            '</div>',
           '</div>',
           '<div class="card">',
             '<div class="section-title">Holding Acquisition</div>',
@@ -1044,7 +1059,7 @@
     if (!S.missionTokens) { return; }
     Object.keys(S.missionTokens).forEach(function(k) {
       var t = S.missionTokens[k];
-      if (t && t.type && t.type.indexOf('holding_') === 0) {
+      if (t && (t.missionId === 'holding_quest' || (t.type && t.type.indexOf('holding_') === 0))) {
         delete S.missionTokens[k];
       }
     });
@@ -1062,10 +1077,10 @@
       return;
     }
     if (q.step <= 0 && q.infoHex) {
-      S.missionTokens[q.infoHex.col + ',' + q.infoHex.row] = { missionId: 'holding_quest', title: 'Gather Information', type: 'holding_info' };
+      S.missionTokens[q.infoHex.col + ',' + q.infoHex.row] = { missionId: 'holding_quest', title: 'Gather Information', type: 'informer' };
     }
     if (q.step <= 1 && q.siteHex) {
-      S.missionTokens[q.siteHex.col + ',' + q.siteHex.row] = { missionId: 'holding_quest', title: 'Go To Site', type: 'holding_site' };
+      S.missionTokens[q.siteHex.col + ',' + q.siteHex.row] = { missionId: 'holding_quest', title: 'Go To Site', type: 'site' };
     }
     if (q.step >= 2 && q.holdingHex) {
       S.missionTokens[q.holdingHex.col + ',' + q.holdingHex.row] = { missionId: 'holding_quest', title: 'Your Holding', type: 'holding_home' };
@@ -1087,9 +1102,7 @@
       holdingHex: null
     };
     placeHoldingQuestTokens();
-    // Switch to Holding tab if not already there
-    var holdingTab = document.querySelector('[data-panel="tab-holding"]') || document.querySelector('[onclick*="tab-holding"]');
-    if (holdingTab) { holdingTab.click(); }
+    updateHoldingTabVisibility();
     renderHoldingUI();
     if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
     if (typeof renderQP === 'function') { renderQP('missions'); }
@@ -1123,6 +1136,7 @@
       }
       placeHoldingQuestTokens();
     }
+    updateHoldingTabVisibility();
     renderHoldingUI();
     if (typeof renderMissionBoard === "function") { renderMissionBoard(); }
     if (typeof renderQP === 'function') { renderQP('missions'); }

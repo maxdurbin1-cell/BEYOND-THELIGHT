@@ -448,12 +448,12 @@ select option{background:#0f1020;}
     </div>
     <div class="card">
       <div class="section-title">Equipment</div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"></div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info">?</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info">?</button></div></div>
       <div class="form-row"><span class="sub-label">Armor</span>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button></div>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button><button class="bp-info-btn" onclick="showEquippedItem('armor')" title="Item info">?</button></div>
       </div>
-      <div class="form-row"><span class="sub-label">Readied Item</span><input type="text" id="eqReadied" placeholder="Item granting Adventure Die bonus" onchange="S.equipment.readied=this.value"></div>
+      <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Adventure Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" title="Item info">?</button></div></div>
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
           <span class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
@@ -2041,6 +2041,130 @@ function equipBackpackItem(index,slot){
   if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
   closeModal();
   showNotif('Equipped: '+item,'good');
+}
+
+// Show info panel for an equipped item (weapon, armor, readied)
+function showEquippedItem(slot) {
+  if (!S || !S.equipment) return;
+  var text = S.equipment[slot] || '';
+  if (!text) {
+    showNotif('No item equipped in this slot.', 'neutral');
+    return;
+  }
+  var found = findShopItem(text);
+  var item = found ? found.item : null;
+  var storageOptions = '<div style="margin-top:.8rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
+  if (S.caravan && S.caravan.name) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'caravan' + "'" + ');closeModal();">📦 Caravan</button>'; }
+  if (S.holding && S.holding.name) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'holding' + "'" + ');closeModal();">🏛 Holding</button>'; }
+  storageOptions += '</div></div>';
+  var btnHtml = '';
+  if (item) {
+    btnHtml = '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellEquippedItem(' + "'" + slot + "'" + ');closeModal();">💰 Sell for ' + (item.cost || 0) + '₵</button> ';
+    btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
+    btnHtml += storageOptions;
+    var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
+      + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
+      + '<div>'+item.desc+'</div>'
+      + '<div style="margin-top:.5rem;">'+btnHtml+'</div>'
+      + '</div>';
+    openModal(item.name, html);
+  } else {
+    // Custom item without shop data
+    btnHtml = '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellEquippedCustomItem(' + "'" + slot + "'" + ');closeModal();">💰 Sell</button> ';
+    btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
+    btnHtml += storageOptions;
+    var html = '<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+'</div>';
+    openModal('Equipped Item', html);
+  }
+}
+
+// Unequip item and return to backpack if space
+function unequipItem(slot) {
+  if (!S || !S.equipment) return;
+  var item = S.equipment[slot] || '';
+  if (!item) return;
+  S.equipment[slot] = '';
+  var el = document.getElementById('eq' + (slot === 'weapon1' ? 'Weapon1' : slot === 'weapon2' ? 'Weapon2' : slot === 'armor' ? 'Armor' : 'Readied'));
+  if (el) el.value = '';
+  var emptyIdx = -1;
+  for (var i = 0; i < S.backpack.length; i++) {
+    if (!S.backpack[i]) { emptyIdx = i; break; }
+  }
+  if (emptyIdx >= 0) {
+    S.backpack[emptyIdx] = item;
+    var bpEl = document.getElementById('bp' + emptyIdx);
+    if (bpEl) bpEl.value = item;
+    showNotif('Unequipped: ' + item + ' → Backpack Slot ' + (emptyIdx + 1), 'good');
+  } else {
+    showNotif('Backpack full! Item stored in ' + slot + ' to drop later.', 'warn');
+    S.equipment[slot] = item;
+  }
+  if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+}
+
+// Sell equipped item
+function sellEquippedItem(slot) {
+  if (!S || !S.equipment) return;
+  var text = S.equipment[slot] || '';
+  if (!text) return;
+  var found = findShopItem(text);
+  var price = found && found.item ? (found.item.cost || 0) : 0;
+  S.equipment[slot] = '';
+  var el = document.getElementById('eq' + (slot === 'weapon1' ? 'Weapon1' : slot === 'weapon2' ? 'Weapon2' : slot === 'armor' ? 'Armor' : 'Readied'));
+  if (el) el.value = '';
+  S.credits = (S.credits || 0) + price;
+  updateCreditsUI();
+  showNotif('Sold: ' + text + ' for ' + price + '₵', 'good');
+  if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+}
+
+// Sell equipped custom item (without shop data) for estimated price
+function sellEquippedCustomItem(slot) {
+  if (!S || !S.equipment) return;
+  var text = S.equipment[slot] || '';
+  if (!text) return;
+  var estimatedPrice = Math.max(10, Math.floor(text.length * 2));
+  S.equipment[slot] = '';
+  var el = document.getElementById('eq' + (slot === 'weapon1' ? 'Weapon1' : slot === 'weapon2' ? 'Weapon2' : slot === 'armor' ? 'Armor' : 'Readied'));
+  if (el) el.value = '';
+  S.credits = (S.credits || 0) + estimatedPrice;
+  updateCreditsUI();
+  showNotif('Sold: ' + text + ' for ~' + estimatedPrice + '₵', 'good');
+  if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+}
+
+// Move equipped item to caravan or holding storage
+function moveEquippedToStorage(slot, storageType) {
+  if (!S || !S.equipment) return;
+  var item = S.equipment[slot] || '';
+  if (!item) { showNotif('No item to move!', 'neutral'); return; }
+  if (storageType === 'caravan') {
+    if (!S.caravan || !S.caravan.cargo) { showNotif('No Caravan available!', 'warn'); return; }
+    var emptyIdx = -1;
+    for (var i = 0; i < S.caravan.cargo.length; i++) {
+      if (!S.caravan.cargo[i]) { emptyIdx = i; break; }
+    }
+    if (emptyIdx < 0) { showNotif('Caravan cargo full!', 'warn'); return; }
+    S.caravan.cargo[emptyIdx] = item;
+    S.equipment[slot] = '';
+    var el = document.getElementById('eq' + (slot === 'weapon1' ? 'Weapon1' : slot === 'weapon2' ? 'Weapon2' : slot === 'armor' ? 'Armor' : 'Readied'));
+    if (el) el.value = '';
+    showNotif('Moved to Caravan: ' + item + ' → Cargo Slot ' + (emptyIdx + 1), 'good');
+  } else if (storageType === 'holding') {
+    if (!S.holding || !S.holding.vault) { if (!S.holding) S.holding = {}; S.holding.vault = []; }
+    if (!Array.isArray(S.holding.vault)) S.holding.vault = [];
+    S.holding.vault.push(item);
+    S.equipment[slot] = '';
+    var el = document.getElementById('eq' + (slot === 'weapon1' ? 'Weapon1' : slot === 'weapon2' ? 'Weapon2' : slot === 'armor' ? 'Armor' : 'Readied'));
+    if (el) el.value = '';
+    showNotif('Moved to Holding: ' + item, 'good');
+  }
+  if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
 }
 
 // Execute item use effect from backpack slot

@@ -2917,20 +2917,56 @@ function showBlackMarket(col,row){
   if(!hex)return;
   const bm=initBlackMarketHex(hex);
   let html='<div style="font-size:.82rem;color:var(--red2);margin-bottom:.3rem;"><strong>\u26a0 Black Market Dealer</strong></div>';
-  html+='<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.3rem;">'+bm.dealer+' — Master Hacks Only</div>';
+  html+='<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.4rem;">'+bm.dealer+' — Master Hacks & Augmentations</div>';
+  
+  // Display Master Hacks
+  html+='<div style="font-size:.75rem;color:var(--teal);font-weight:700;margin-bottom:.2rem;">MASTER HACKS</div>';
   bm.hacks.forEach((hack,idx)=>{
-    html+='<div style="display:flex;gap:.3rem;margin-bottom:.2rem;align-items:center;">';
+    html+='<div style="display:flex;gap:.3rem;margin-bottom:.2rem;align-items:center;margin-left:.3rem;">';
     html+='<span style="flex:1;font-size:.78rem;color:var(--text2);">'+hack.name+'</span>';
     html+='<span style="font-size:.72rem;color:var(--gold);">'+hack.cost+'\u20b5</span>';
     html+='<button class="btn btn-xs btn-red" onclick="buyFromBlackMarket('+col+','+row+','+idx+');">Buy</button>';
     html+='</div>';
   });
+  
+  // Display Operating System
+  const osItem=(SHOP_DATA.augmentations||[]).find(a=>a.name==='OPERATING SYSTEM');
+  if(osItem){
+    html+='<div style="font-size:.75rem;color:var(--gold);font-weight:700;margin-top:.35rem;margin-bottom:.2rem;">AUGMENTATIONS</div>';
+    html+='<div style="display:flex;gap:.3rem;margin-bottom:.2rem;align-items:center;margin-left:.3rem;">';
+    html+='<span style="flex:1;font-size:.78rem;color:var(--text2);">'+osItem.name+'</span>';
+    html+='<span style="font-size:.72rem;color:var(--gold);">'+osItem.cost+'\u20b5</span>';
+    html+='<button class="btn btn-xs btn-primary" onclick="buyFromBlackMarket('+col+','+row+',-1);">Buy</button>';
+    html+='</div>';
+  }
+  
   openModal('Black Market ['+( col+1)+','+(row+1)+']',html);
 }
 
 function buyFromBlackMarket(col,row,hackIdx){
   const hex=mapData.find(h=>h.col===col&&h.row===row);
   if(!hex)return;
+  
+  // Handle Operating System purchase
+  if(hackIdx===-1){
+    const osItem=(SHOP_DATA.augmentations||[]).find(a=>a.name==='OPERATING SYSTEM');
+    if(!osItem)return;
+    const cost=parseInt(osItem.cost)||0;
+    if(S.credits<cost){showNotif('Not enough credits (need '+cost+'₵)','warn');return;}
+    S.credits-=cost;
+    if(!S.augmentations)S.augmentations=[];
+    if(S.augmentations.indexOf('OPERATING SYSTEM')<0){
+      S.augmentations.push('OPERATING SYSTEM');
+      showNotif(`Black market purchase: ${osItem.name} for ${cost}₵`,'good');
+    }else{
+      showNotif(`You already have the OPERATING SYSTEM augmentation`,'warn');
+      S.credits+=cost;
+    }
+    if(typeof updateCreditsUI==='function')updateCreditsUI();
+    return;
+  }
+  
+  // Handle Master Hack purchase
   const bm=hex.data?.blackMarket;
   if(!bm||!bm.hacks[hackIdx])return;
   const hack=bm.hacks[hackIdx];

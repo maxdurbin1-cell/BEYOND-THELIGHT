@@ -2431,7 +2431,8 @@ function renderHexInfo(hex){
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button><button class="btn btn-sm btn-info" onclick="showMerchantCaravan(${hex.col},${hex.row})">📋 Merchant</button><button class="btn btn-sm btn-dark" onclick="if(Math.random()>.15)showBlackMarket(${hex.col},${hex.row});else showNotif('No dealer here.','warn');">⚠ Black Market</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
     if(d.eventLead){
-      html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Interact here to reveal the next mystery in that chain.</div><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="revealEventLeadMystery(${hex.col},${hex.row})">⚄ Reveal Next Mystery (Lead)</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
+      const leadCid=`${hex.col}-${hex.row}`;
+      html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Roll an Approach check to reveal the next mystery.</div><label style="font-size:.72rem;color:var(--muted2);display:block;margin-top:.35rem;">Approach: <select id="leadStat-${leadCid}" style="width:100%;">${typeof buildApproachSelectHTML==='function'?buildApproachSelectHTML('lead'):'<option value="lead" selected>LEAD</option>'}</select></label><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="resolveEventLeadAction(${hex.col},${hex.row})">⚄ Roll Lead Mystery Check</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
     }
 
   // ── TRADE ROUTE ── (FIX: no td reference)
@@ -3025,6 +3026,12 @@ function advanceEventMystery(eventHex,sourceLabel){
 }
 
 function revealEventLeadMystery(col,row){
+  // Backward-compatible wrapper for older UI hooks.
+  const sel=document.getElementById(`leadStat-${col}-${row}`);
+  if(sel&&typeof resolveEventLeadAction==='function'){
+    resolveEventLeadAction(col,row);
+    return;
+  }
   const leadHex=mapData.find(h=>h.col===col&&h.row===row);
   if(!leadHex||!leadHex.data||!leadHex.data.eventLead)return;
   const lead=leadHex.data.eventLead;
@@ -3043,6 +3050,60 @@ function revealEventLeadMystery(col,row){
       +(result.leadText?`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🧭 New Lead</div><div style="font-size:.8rem;color:var(--muted3);">${result.leadText}</div></div>`:'');
   }
   showNotif(`${lead.eventName}: mystery progressed from lead hex.`, 'good');
+  renderHexMap();
+}
+
+function resolveEventLeadAction(col,row){
+  const leadHex=mapData.find(h=>h.col===col&&h.row===row);
+  if(!leadHex||!leadHex.data||!leadHex.data.eventLead)return;
+  const lead=leadHex.data.eventLead;
+  const eventHex=mapData.find(h=>h.col===lead.eventCol&&h.row===lead.eventRow&&h.type==='event');
+  if(!eventHex){showNotif('Event source no longer exists on this map.','warn');return;}
+
+  const ch=ensureEventChallengeState(eventHex);if(!ch)return;
+  if(ch.completed){showNotif('This Event has already been completed.','good');return;}
+
+  const statSel=document.getElementById(`leadStat-${col}-${row}`);
+  const statKey=statSel?statSel.value:'lead';
+  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(statKey):(S.stats[statKey]||4);
+  const a=explodingRoll(die);
+  const d=explodingRoll(ch.dread||8);
+  const success=a.total>=d.total;
+
+  if(success){
+    ch.dread=stepDown(ch.dread||8);
+  }else{
+    ch.dread=stepUp(ch.dread||8);
+  }
+  recordEventMysteryRoll(eventHex,statKey,success,a.total,d.total);
+
+  const leadEl=document.getElementById(`lead-${col}-${row}`);
+  let html=`<div class="venture-result"><div class="vr-type">${lead.eventName} — ${getApproachForStat(statKey)} check (${statKey.toUpperCase()})</div>`+
+    `<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — `+
+    (success?'<strong style="color:var(--green2);">Success</strong>':'<strong style="color:var(--red2);">Failure</strong>')+
+    `<br><span style="font-size:.75rem;color:var(--muted2);">Dread now ${ch.dread} · Mysteries Solved ${getEventMysteryProgress(eventHex).completed}/6</span></div>`;
+
+  if(success){
+    const result=advanceEventMystery(eventHex,`Lead Hex [${col+1},${row+1}]`);
+    clearEventLeadFromHex(col,row);
+    if(eventHex.data&&eventHex.data.activeLead&&eventHex.data.activeLead.targetCol===col&&eventHex.data.activeLead.targetRow===row){
+      delete eventHex.data.activeLead;
+    }
+    if(result){
+      html+=`<div class="venture-result" style="margin-top:.28rem;"><div class="vr-type">${lead.eventName} — Mystery ${result.idx} of ${result.total}</div>${result.text}</div>`+
+        (result.leadText?`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🧭 New Lead</div><div style="font-size:.8rem;color:var(--muted3);">${result.leadText}</div></div>`:'');
+    }
+  }else{
+    html+=`<div style="font-size:.76rem;color:var(--muted2);margin-top:.2rem;">No mystery revealed. Try another approach from this lead hex.</div>`;
+  }
+
+  if(leadEl)leadEl.innerHTML=html;
+  appendHexNote(col,row,`[Lead ${lead.eventName}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
+  appendQuickPanelNote(`[Lead ${lead.eventName}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
+  if(success&&typeof addSuccessRoll==='function')addSuccessRoll();
+  if(!success&&typeof addTMWOnFail==='function')addTMWOnFail();
+  if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
+  if(getEventMysteryProgress(eventHex).completed>=6){completeEventChallenge(eventHex,'lead action');}
   renderHexMap();
 }
 function revealSageHint(col,row){
@@ -3065,12 +3126,12 @@ function rollHexEncounter(col,row){
     html+='</div>';
   }else if(vr===2){
     const enc=roll(6);let title,desc,actionHTML='';
-    if(enc===1){const n=roll(4)+3;title=`${n} Bandits`;desc=`${pick(['Ragged scavengers in patchwork armor','Desperate deserters looking for easy marks','Professional road agents — this is their stretch','Cult enforcer unit collecting "donations"'])} — DD4 | ${n*2} Stress per enemy.`;}
-    else if(enc===2){title='Merchant Caravan';desc=`Goods. `;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-info" onclick="showMerchantCaravan(${col},${row})">Shop</button><button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan==='function')haggleMerchantCaravan(${col},${row})">Haggle</button></div>`;}
+    if(enc===1){const n=roll(4)+3;title=`${n} Bandits`;desc=`${pick(['Ragged scavengers in patchwork armor','Desperate deserters looking for easy marks','Professional road agents — this is their stretch','Cult enforcer unit collecting "donations"'])} — DD4 | ${n*2} Stress per enemy.`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptThievery('Bandit Cache')">Thievery: Bandit Cache</button></div>`;}
+    else if(enc===2){title='Merchant Caravan';desc=`Goods. `;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-info" onclick="showMerchantCaravan(${col},${row})">Shop</button><button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan==='function')haggleMerchantCaravan(${col},${row})">Haggle</button><button class="btn btn-xs btn-warn" onclick="attemptThievery('Caravan Goods')">Thievery</button></div>`;}
     else if(enc===3){const na=roll(4)+4,nb=roll(4)+4;title='Skirmish';desc=`${na} ${pick(['cavalry in worn plate','spearmen in dyed leather','crossbow skirmishers','banner-bearers in painted steel'])} vs ${nb} ${pick(['mounted raiders in black iron','hooded irregulars','desert fighters in layered cloth','shield-wall soldiers'])}. Intervening gains +1 Renown or 2d10×20₵.`;}
     else if(enc===4){const n=roll(4)+2;title=`${n} Hostile Beasts`;desc=`${pick(['Mutated wolves, pale-eyed and coordinated','Irradiated boars, tusks glowing faintly','Blade-winged birds hunting as one','Something vast and hard to name'])} — DD4 | ${n*2} Stress.`;}
     else if(enc===5){title='Royal Caravan';desc=`Pay 50₵ tax OR complete a task. Rolling for task...`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-gold" onclick="if(typeof handleRoyalCaravanEncounter==='function')handleRoyalCaravanEncounter(${col},${row})">Interact</button></div>`;}
-    else{title='Black Market';desc=`Hidden dealers. Roll Control (vs DD12) to gain entry.`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-dark" onclick="showBlackMarket(${col},${row})">Access</button></div>`;}
+    else{title='Black Market';desc=`Hidden dealers. Roll Control (vs DD12) to gain entry.`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="showBlackMarket(${col},${row})">Access</button><button class="btn btn-xs btn-warn" onclick="attemptThievery('Contraband Crate')">Thievery</button></div>`;}
     html=`<div class="encounter-block"><strong style="color:var(--teal);">Overland Encounter — d6=${vr}</strong><br><strong>${title}</strong><br>${desc}${actionHTML}</div>`;
   }else{
     const hexObj=mapData.find(h=>h.col===col&&h.row===row);
@@ -3081,15 +3142,15 @@ function rollHexEncounter(col,row){
 }
 
 function rollTradeRouteEncounter(){
-  const r=roll(10);let result='',title='';
+  const r=roll(10);let result='',title='',actionHTML='';
   if(r<=2){title='Safe Route';result=pick(TRADE_SAFE_EVENTS);}
   else if(r<=4){title='Profitable Route';result=pick(TRADE_PROFITABLE_EVENTS);}
   else if(r<=6){title='Aggressive/Illegal Route';result=pick(TRADE_AGGRESSIVE_EVENTS);}
   else if(r<=8){title='Trade Obstacle';result=pick(TRADE_OBSTACLES);}
-  else{title='Traveling Wayfarer';const w=pick(TRAVELING_WAYFARERS);result=`<strong>${w[1]} ${w[2]}</strong> (${w[0]}) — ${w[3]}`;}
+  else{title='Traveling Wayfarer';const w=pick(TRAVELING_WAYFARERS);result=`<strong>${w[1]} ${w[2]}</strong> (${w[0]}) — ${w[3]}`;actionHTML='<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptThievery(\'Wayfarer Satchel\')">Thievery: Satchel</button></div>';}
   const hex=selectedHex;if(!hex)return;
   const el=document.getElementById(`hexEnc-${hex.col}-${hex.row}`);
-  if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">Trade Route d10=${r}: ${title}</div>${result}</div>`;
+  if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">Trade Route d10=${r}: ${title}</div>${result}${actionHTML}</div>`;
 }
 
 // ── ROOM GENERATORS ──────────────────────────────────────────────────────────

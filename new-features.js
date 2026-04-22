@@ -1228,7 +1228,10 @@
       }
       var maxAugs = Math.floor((S.stats.body || 4) / 2);
       if (S.augmentations.length >= maxAugs) {
-        showNotif('No Augmentation slots available (Body \u00f7 2 = ' + maxAugs + ')!', 'warn'); return;
+        showNotif('No Augmentation slots available (Body ÷ 2 = ' + maxAugs + ')!', 'warn'); return;
+      }
+      if (S.augmentations.indexOf(name) >= 0) {
+        showNotif(name + ' is already installed!', 'warn'); return;
       }
       S.credits   -= cost;
       S.pathTokens = Math.max(0, (S.pathTokens || 0) - 5);
@@ -1241,6 +1244,10 @@
       S.extraTraits.push(traitLabel);
       if (typeof renderExtraTraits === 'function') { renderExtraTraits(); }
       renderOSHacksPanel();
+      if (typeof renderAugmentationsPanel === 'function') { renderAugmentationsPanel(); }
+      // Refresh shop display to show installed status
+      var shopCatBtn = document.querySelector('.shop-cats .scat.on');
+      if (typeof showShopCat === 'function') { showShopCat('augmentations', shopCatBtn); }
       showNotif('Augmentation installed: ' + name + ' (\u22125 Path Tokens, \u2212' + cost + '\u20b5)', 'good');
       return;
     }

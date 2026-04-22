@@ -62,6 +62,8 @@ select option{background:#0f1020;}
 .cond-btn:hover{border-color:var(--border2);color:var(--text);}
 .cond-btn.pos.on{border-color:var(--green);color:var(--green);background:rgba(76,175,116,.08);}
 .cond-btn.neg.on{border-color:var(--red);color:var(--red);background:rgba(201,64,64,.08);}
+.cond-btn.trauma-on{border-color:#c03080;color:#e060a0;background:rgba(192,48,128,.12);cursor:not-allowed;}
+.cond-btn.trauma-on::after{content:" 🔒";font-size:.55rem;}
 .counter-row{display:flex;align-items:center;gap:.4rem;padding:.2rem 0;}
 .counter-val{font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;min-width:2.2rem;text-align:center;line-height:1;}
 .gold-val{color:var(--gold);}.teal-val{color:var(--teal);}.red-val{color:var(--red);}.grey-val{color:var(--muted3);}
@@ -1155,7 +1157,7 @@ const SHOP_DATA={weapons:[{name:'Sword',stat:'+1 Strike | Engaged',desc:'A relia
 const STAT_KEYS=['body','strike','shoot','mind','spirit','defend','control','lead'];
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',background:'',age:'',omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0}};
+let S={name:'',background:'',age:'',omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0}};
 let hexNotes={};
 // ── WILDERNESS FULL (continued) ──────────────────────────────────────────────
 function rollWildernessFull(){

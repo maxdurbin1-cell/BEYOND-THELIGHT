@@ -37,17 +37,18 @@ function applyDieSteps(baseDie, steps) {
 }
 
 function getConditionStep(key) {
+  const tc = S.traumaConditions || {};
   if (["body", "strike", "shoot"].includes(key)) {
-    return (S.conditions.empowered ? 1 : 0) - (S.conditions.weakened ? 1 : 0);
+    return (S.conditions.empowered ? 1 : 0) - (S.conditions.weakened ? 1 : 0) - (tc.weakened ? 1 : 0);
   }
   if (key === "defend") {
-    return (S.conditions.protected ? 1 : 0) - (S.conditions.vulnerable ? 1 : 0);
+    return (S.conditions.protected ? 1 : 0) - (S.conditions.vulnerable ? 1 : 0) - (tc.vulnerable ? 1 : 0);
   }
   if (["mind", "control"].includes(key)) {
-    return (S.conditions.focused ? 1 : 0) - (S.conditions.distracted ? 1 : 0);
+    return (S.conditions.focused ? 1 : 0) - (S.conditions.distracted ? 1 : 0) - (tc.distracted ? 1 : 0);
   }
   if (["spirit", "lead"].includes(key)) {
-    return (S.conditions.bolstered ? 1 : 0) - (S.conditions.shaken ? 1 : 0);
+    return (S.conditions.bolstered ? 1 : 0) - (S.conditions.shaken ? 1 : 0) - (tc.shaken ? 1 : 0);
   }
   return 0;
 }
@@ -301,21 +302,32 @@ function updateTrauma() {
   if (val) {
     val.textContent = trauma;
   }
-  if (!effect) {
-    return;
-  }
 
-  let text = "No current Trauma effects.";
-  if (trauma >= 1 && trauma <= 2) {
-    text = "Trauma effect: Weakened.";
-  } else if (trauma >= 3 && trauma <= 4) {
-    text = "Trauma effect: Distracted.";
-  } else if (trauma === 5) {
-    text = "Trauma effect: Shaken.";
-  } else if (trauma >= 6) {
-    text = "Trauma effect: Vulnerable.";
+  // Sync permanent trauma conditions (cumulative, cleared only by Sage).
+  if (!S.traumaConditions) {
+    S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
   }
-  effect.textContent = text;
+  S.traumaConditions.weakened    = trauma >= 1;
+  S.traumaConditions.distracted  = trauma >= 3;
+  S.traumaConditions.shaken      = trauma >= 5;
+  S.traumaConditions.vulnerable  = trauma >= 6;
+
+  // Update stat dice immediately so the die steps are reflected everywhere.
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof updateConditionButtons === 'function') updateConditionButtons();
+
+  if (!effect) { return; }
+
+  if (trauma === 0) {
+    effect.textContent = "No current Trauma effects.";
+  } else {
+    const active = [];
+    if (S.traumaConditions.weakened)   active.push("Weakened (Body/Strike/Shoot ↓)");
+    if (S.traumaConditions.distracted) active.push("Distracted (Mind/Control ↓)");
+    if (S.traumaConditions.shaken)     active.push("Shaken (Spirit/Lead ↓)");
+    if (S.traumaConditions.vulnerable) active.push("Vulnerable (Defend ↓)");
+    effect.textContent = "Trauma: " + active.join(" · ");
+  }
 }
 
 function changeTrauma(delta) {
@@ -386,6 +398,14 @@ function updateConditionButtons() {
       el.classList.toggle("on", !!on);
     }
   });
+  // Show trauma-locked negative conditions with a distinct style.
+  const tc = S.traumaConditions || {};
+  ['weakened','distracted','shaken','vulnerable'].forEach(function(key) {
+    const el = document.getElementById("cond-" + key);
+    if (el) {
+      el.classList.toggle("trauma-on", !!tc[key]);
+    }
+  });
 }
 
 function toggleCond(key) {
@@ -398,6 +418,7 @@ function toggleCond(key) {
 }
 
 function clearAllConditions() {
+  // Only clear temporary combat conditions; trauma conditions are permanent.
   Object.keys(S.conditions).forEach((key) => {
     S.conditions[key] = false;
   });
@@ -601,6 +622,7 @@ function generateCharacter() {
   S.pathTokens = 0;
   S.tmw = 0;
   S.successRolls = 0;
+  S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
   clearAllConditions();
   syncCharacterFields();
   updateAllStatDisplays();
@@ -638,6 +660,7 @@ function clearCharacter() {
   S.ownedHacks    = [];
   S.weaponMods    = [];
   S.hackRoller    = { dreadDie: 6, guess: null, selectedHack: null };
+  S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
   clearAllConditions();
   syncCharacterFields();
   buildStatRows();

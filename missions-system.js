@@ -529,7 +529,23 @@
       S.credits=(S.credits||0)+(mission.reward||100); S.renown=(S.renown||0)+1;
       if (typeof updateCreditsUI==='function') updateCreditsUI();
       if (typeof updateRenown==='function') updateRenown();
+      // Add mission loot directly to backpack slots when possible.
+      var stored=[]; var dropped=[];
+      if (typeof addToBackpack === 'function') {
+        for (var li=0; li<newLoot.length; li++) {
+          if (addToBackpack(newLoot[li])) stored.push(newLoot[li]);
+          else dropped.push(newLoot[li]);
+        }
+      } else {
+        dropped = newLoot.slice();
+      }
       showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 Loot: '+mission.loot.join(', '),'good');
+      if (stored.length) {
+        showNotif('Added to backpack: ' + stored.join(', '), 'good');
+      }
+      if (dropped.length) {
+        showNotif('Backpack full. Unstored loot: ' + dropped.join(', '), 'warn');
+      }
     } else {
       S.renown=Math.max(0,(S.renown||0)-1);
       if (typeof updateRenown==='function') updateRenown();

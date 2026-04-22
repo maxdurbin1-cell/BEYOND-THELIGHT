@@ -268,6 +268,7 @@ function completeTaskAtHex(col,row){
   if(!hex||!hex.data||!hex.data.taskSite)return;
 
   const task=hex.data.taskSite;
+  const councilTaskId=task.councilTaskId;
   const adDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
   const a=explodingRoll(adDie);
   const d=explodingRoll(8);
@@ -279,11 +280,13 @@ function completeTaskAtHex(col,row){
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     showNotif(`Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
     appendHexNote(col,row,`[Task Complete] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total} — success, Renown +1`);
+    if(councilTaskId&&typeof onHoldingCouncilTaskResolved==='function')onHoldingCouncilTaskResolved(councilTaskId,true);
     delete hex.data.taskSite;
   }else{
     if(typeof addTMWOnFail==='function')addTMWOnFail();
     showNotif(`Task Failed: ${task.verb} ${task.target} (${a.total} vs ${d.total})`,'warn');
     appendHexNote(col,row,`[Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total}`);
+    if(councilTaskId&&typeof onHoldingCouncilTaskResolved==='function')onHoldingCouncilTaskResolved(councilTaskId,false);
   }
 }
 

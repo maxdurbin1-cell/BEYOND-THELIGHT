@@ -1790,7 +1790,7 @@ function showShopCat(cat,btn){
   if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}
 
   const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];
-  c.innerHTML=rule+items.map(item=>{
+  let cardsHtml=items.map(item=>{
     const isInstalled=(cat==='augmentations')?installedAugs.indexOf(item.name)>=0:false;
     const buyBtn=isInstalled
       ? '<button class="btn btn-xs" disabled style="opacity:.55;cursor:default;">Installed</button>'
@@ -1798,6 +1798,12 @@ function showShopCat(cat,btn){
     const augBadge=isInstalled?' <span style="font-size:.6rem;color:var(--green);font-family:Cinzel,serif;letter-spacing:.08em;">✓ INSTALLED</span>':'';
     return `<div class="shop-card"><div class="s-name">${item.name}${augBadge}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span>${buyBtn}</div></div>`;
   }).join('');
+
+  if(cat==='services'){
+    cardsHtml += `<div class="shop-card"><div class="s-name">Retainer Contract</div><div class="s-stat">+1 Hire Token</div><div class="s-desc">Grants one Retainer hire for any Councilor in your Holding.</div><div class="s-foot"><span class="s-cost">200 ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(200,'Retainer Contract','services')">Buy</button></div></div>`;
+  }
+
+  c.innerHTML=rule+cardsHtml;
 }
 
 // Format stat string into equipment-slot format: "Ad6 Strike | Engaged" → "(Ad6 Strike)"
@@ -2702,8 +2708,8 @@ function renderHexInfo(hex){
 
   if(S.missionTokens&&S.missionTokens[nk]){
     const mt=S.missionTokens[nk];
-    const markerTitle=mt.type==='holding_info'?'Holding Quest: Gather Information'
-      :mt.type==='holding_site'?'Holding Quest: Go To Site'
+    const markerTitle=(mt.missionId==='holding_quest'&&mt.type==='informer')?'Holding Quest: Gather Information'
+      :(mt.missionId==='holding_quest'&&mt.type==='site')?'Holding Quest: Go To Site'
       :mt.type==='holding_home'?'Holding Site: Establish Here'
       :mt.type==='informer'?'Mission Informer'
       :'Mission Site';

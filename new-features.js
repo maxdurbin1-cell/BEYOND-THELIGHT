@@ -141,14 +141,18 @@
         diplomat:  { name: "", retainers: 3, task: "", status: "Idle" },
         elder:     { name: "", retainers: 3, task: "", status: "Idle" }
       },
+      councilTasks: [],
+      pendingCourtType: "commoner",
+      retainerContracts: 0,
+      regentFailures: 0,
       crises: [],
       taxLog: []
     }, prevHolding);
-
     if (!Array.isArray(S.holding.landmarks))      { S.holding.landmarks = []; }
     if (!Array.isArray(S.holding.extraLandmarks)) { S.holding.extraLandmarks = []; }
     if (!Array.isArray(S.holding.crises))         { S.holding.crises = []; }
       if (!Array.isArray(S.holding.vault))          { S.holding.vault = []; }
+    if (!Array.isArray(S.holding.councilTasks))    { S.holding.councilTasks = []; }
     if (!Array.isArray(S.holding.taxLog))         { S.holding.taxLog = []; }
 
     if (!S.holding.council || typeof S.holding.council !== "object") {
@@ -170,7 +174,7 @@
       S.hackRoller || {}
     );
     S.holdingQuest  = Object.assign(
-      { active: false, step: 0, hexId: null, infoHex: null, siteHex: null, holdingHex: null },
+      { active: false, step: 0, hexId: null, infoHex: null, siteHex: null, holdingHex: null, failed: false, attempts: 0 },
       S.holdingQuest || {}
     );
 
@@ -388,6 +392,7 @@
           '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.55rem;">',
             '<button class="btn btn-primary" onclick="generateCourtEvent(\'commoner\')">👥 Hear a Commoner</button>',
             '<button class="btn btn-teal" onclick="generateCourtEvent(\'acolyte\')">📿 Hear an Acolyte</button>',
+            '<button class="btn btn-sm" onclick="generateCourtEvent(\'military\')">⚔ Hear a Commander Request</button>',
           '</div>',
           '<div id="holdingCourtResult"></div>',
         '</div>',
@@ -467,6 +472,7 @@
             }).join('')
           + '</div></div>';
         if (body) { body.style.display = "none"; }
+          + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.2rem;">Task Capacity: <span style="color:var(--gold2);">' + activeTasks + '/' + retainers + '</span></div>'
         return;
       } else {
         gate.innerHTML = '';
@@ -938,6 +944,11 @@
       councilEl.innerHTML = COUNCIL_ROLES.map(function(role) {
         var mem = (h.council && h.council[role.key]) || {};
         var retainers = mem.retainers !== undefined ? mem.retainers : 3;
+        var activeTasks = (h.councilTasks || []).filter(function(t) { return t.role === role.key && t.status === 'assigned'; }).length;
+        var taskValue = mem.task || "";
+        if (role.key === 'regent' && (h.crises || []).length) {
+          taskValue = 'Resolve Active Crises (' + h.crises.length + ')';
+        }
         return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;margin-bottom:.3rem;">'
           + '<div style="font-family:\'Cinzel\',serif;font-size:.68rem;color:var(--gold2);margin-bottom:.15rem;">' + role.name + '</div>'
           + '<div style="font-size:.7rem;color:var(--muted3);margin-bottom:.28rem;">' + role.desc + '</div>'
@@ -949,9 +960,11 @@
           + '<button class="step-btn" onclick="adjustRetainers(\'' + role.key + '\',1)">+</button>'
           + '</div></div>'
           + '</div>'
-          + '<div style="margin-bottom:.28rem;"><span class="sub-label">Current Task</span><input type="text" style="width:100%;" value="' + (mem.task || "").replace(/"/g, "&quot;") + '" placeholder="Assigned task\u2026" onchange="updateCouncilMember(\'' + role.key + '\',\'task\',this.value)"></div>'
+          + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.2rem;">Task Capacity: <span style="color:var(--gold2);">' + activeTasks + '/' + retainers + '</span></div>'
+          + '<div style="margin-bottom:.28rem;"><span class="sub-label">Current Task</span><input type="text" style="width:100%;" value="' + taskValue.replace(/"/g, "&quot;") + '" placeholder="Assigned task\u2026" onchange="updateCouncilMember(\'' + role.key + '\',\'task\',this.value)"></div>'
           + '<div style="display:flex;align-items:center;gap:.4rem;">'
           + '<button class="btn btn-xs btn-teal" onclick="rollCouncilTask(\'' + role.key + '\')">⚄ Roll Task (Ad vs d6)</button>'
+          + '<button class="btn btn-xs" onclick="hireRetainer(\'' + role.key + '\')">+ Retainer (200₵)</button>'
           + '<span id="councilResult-' + role.key + '" style="font-size:.76rem;color:var(--muted3);"></span>'
           + '</div>'
           + '</div>';
@@ -1005,13 +1018,13 @@
 
         questEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;margin-bottom:.4rem;">' + progressHtml + '</div>'
           + (locHtml ? '<div style="margin-bottom:.3rem;">' + locHtml + '</div>' : '')
-          + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">Advance Quest →</button>';
+          + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">⚄ Roll Current Step</button>';
       } else if (!h.name) {
         if ((S.renown || 0) < 9) {
           questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Currently: ' + (S.renown || 0) + '</div>';
         } else {
           questEl.innerHTML = '<div style="display:flex;gap:.3rem;align-items:center;">'
-            + '<div style="flex:1;font-size:.75rem;color:var(--text2);">You are ready to establish your own Holding!</div>'
+            + '<div style="flex:1;font-size:.75rem;color:var(--text2);">You are ready to establish your own Holding!' + (qh.failed ? ' Previous attempt failed — you can retry.' : '') + '</div>'
             + '<button class="btn btn-sm btn-teal" onclick="startHoldingQuest();">Begin Quest →</button>'
             + '</div>';
         }
@@ -1099,7 +1112,9 @@
       hexId: null,
       infoHex: infoHex,
       siteHex: siteHex,
-      holdingHex: null
+      holdingHex: null,
+      failed: false,
+      attempts: ((S.holdingQuest && S.holdingQuest.attempts) || 0) + 1
     };
     placeHoldingQuestTokens();
     updateHoldingTabVisibility();
@@ -1113,20 +1128,42 @@
     ensureNewFeatureState();
     var q = S.holdingQuest;
     if (!q || !q.active) { return; }
+
+    var advDie = (S.stats && S.stats.adventure) || 4;
+    var dreadByStep = [6, 8, 10];
+    var stepNames = ['Gather Information', 'Go To Site', 'Establish Holding'];
+    var stepIdx = q.step;
+    var dreadDie = dreadByStep[stepIdx] || 10;
+    var a = explodingRoll(advDie);
+    var d = explodingRoll(dreadDie);
+    var success = a.total >= d.total;
+
+    if (!success) {
+      q.active = false;
+      q.failed = true;
+      clearHoldingQuestTokens();
+      if (typeof renderHexMap === 'function') { renderHexMap(); }
+      showNotif('Holding Quest failed on "' + (stepNames[stepIdx] || 'Step') + '" (' + a.total + ' vs ' + d.total + '). Retry from Missions.', 'warn');
+      renderHoldingUI();
+      if (typeof renderMissionBoard === "function") { renderMissionBoard(); }
+      if (typeof renderQP === 'function') { renderQP('missions'); }
+      return;
+    }
+
+    if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     q.step++;
     if (q.step === 1) {
-      // Step 1 complete: informer done, keep site marker.
       placeHoldingQuestTokens();
-      showNotif("Quest advanced → Go To Site", "good");
+      showNotif('Step complete: Gather Information (' + a.total + ' vs ' + d.total + ')', 'good');
     }
     if (q.step === 2) {
-      // Step 2 complete: site resolved, place Holding marker on chosen wilderness site.
       q.holdingHex = q.siteHex || q.holdingHex || q.infoHex || null;
       placeHoldingQuestTokens();
-      showNotif("Quest advanced → Establish Holding", "good");
+      showNotif('Step complete: Go To Site (' + a.total + ' vs ' + d.total + ')', 'good');
     }
     if (q.step >= 3) {
       q.active = false;
+      q.failed = false;
       // Prompt for holding name if not set
       if (!S.holding.name) {
         rollHoldingName();
@@ -1240,16 +1277,111 @@
     if (el) { el.textContent = mem.retainers; }
   }
 
+  function activeCouncilTaskCount(role) {
+    return (S.holding.councilTasks || []).filter(function(t) { return t.role === role && t.status === "assigned"; }).length;
+  }
+
+  function hireRetainer(role) {
+    ensureNewFeatureState();
+    if (!S.holding.council[role]) { return; }
+    if ((S.holding.retainerContracts || 0) > 0) {
+      S.holding.retainerContracts--;
+      S.holding.council[role].retainers = (S.holding.council[role].retainers || 0) + 1;
+      renderHoldingUI();
+      showNotif("Retainer assigned to " + capFirst(role) + " (contract used)", "good");
+      return;
+    }
+    if ((S.credits || 0) < 200) { showNotif("Need 200₵ to hire a Retainer.", "warn"); return; }
+    S.credits -= 200;
+    updateCreditsUI();
+    S.holding.council[role].retainers = (S.holding.council[role].retainers || 0) + 1;
+    renderHoldingUI();
+    showNotif("Retainer hired for " + capFirst(role) + " (−200₵)", "good");
+  }
+
+  function removeCouncilTaskSite(taskId) {
+    if (typeof mapData === "undefined" || !Array.isArray(mapData)) { return; }
+    mapData.forEach(function(hex) {
+      var d = hex.data || {};
+      if (d.taskSite && d.taskSite.councilTaskId === taskId) {
+        delete d.taskSite;
+      }
+    });
+    if (typeof renderHexMap === "function") { renderHexMap(); }
+  }
+
+  function assignCourtTaskToMapAndCouncil(taskObj) {
+    if (typeof mapData === "undefined" || !Array.isArray(mapData) || !mapData.length) {
+      return false;
+    }
+    var candidates = mapData.filter(function(h) { return h.type === "wilderness"; });
+    if (!candidates.length) { return false; }
+    var dest = candidates[Math.floor(Math.random() * candidates.length)];
+    dest.data = dest.data || {};
+    dest.data.taskSite = {
+      verb: taskObj.verb,
+      target: taskObj.target,
+      originCol: taskObj.originCol,
+      originRow: taskObj.originRow,
+      councilTaskId: taskObj.id
+    };
+    taskObj.destCol = dest.col;
+    taskObj.destRow = dest.row;
+    S.holding.councilTasks.push(taskObj);
+    var roleTasks = S.holding.councilTasks.filter(function(t) { return t.role === taskObj.role && t.status === "assigned"; });
+    if (S.holding.council[taskObj.role]) {
+      S.holding.council[taskObj.role].task = roleTasks.length + " active task" + (roleTasks.length === 1 ? "" : "s");
+      S.holding.council[taskObj.role].status = "Assigned";
+    }
+    if (typeof renderHexMap === "function") { renderHexMap(); }
+    return true;
+  }
+
   function rollCouncilTask(role) {
     var advDie = (S.stats && S.stats.adventure) || 4;
+    var dreadTarget = (role === "regent" && (S.holding.crises || []).length > 0) ? 8 : 6;
     var a = explodingRoll(advDie);
-    var d = explodingRoll(6);
+    var d = explodingRoll(dreadTarget);
     var success = a.total >= d.total;
     var el = document.getElementById("councilResult-" + role);
     if (el) {
       el.innerHTML = '<span style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">'
         + a.total + ' vs ' + d.total + ' \u2014 ' + (success ? '\u2713 Success' : '\u2717 Failed') + '</span>';
     }
+
+    if (role === "regent") {
+      if (!(S.holding.crises || []).length) {
+        showNotif("No active crises for the Regent to handle.", "neutral");
+      } else if (success) {
+        S.holding.regentFailures = 0;
+        resolveCrisis(0);
+        showNotif("Regent resolved one active Crisis.", "good");
+      } else {
+        S.holding.regentFailures = (S.holding.regentFailures || 0) + 1;
+        if (S.holding.regentFailures >= 3 && roll(6) <= 3) {
+          if (S.holdingQuest) { S.holdingQuest.holdingHex = null; }
+          clearHoldingQuestTokens();
+          if (typeof renderHexMap === "function") { renderHexMap(); }
+          showNotif("Regent failures caused your Holding marker to disappear from the Province map!", "warn");
+        } else {
+          showNotif("Regent failed to resolve the Crisis.", "warn");
+        }
+      }
+      renderHoldingUI();
+    } else {
+      var tasks = (S.holding.councilTasks || []).filter(function(t) { return t.role === role && t.status === "assigned"; });
+      if (!tasks.length) {
+        showNotif(capFirst(role) + " has no assigned tasks.", "neutral");
+      } else if (success) {
+        tasks[0].status = "resolved";
+        removeCouncilTaskSite(tasks[0].id);
+        showNotif(capFirst(role) + " completed task: " + tasks[0].verb + " " + tasks[0].target, "good");
+        renderHoldingUI();
+      } else {
+        showNotif(capFirst(role) + " failed assigned task.", "warn");
+      }
+    }
+
     if (success) {
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
@@ -1260,11 +1392,18 @@
   function generateCourtEvent(type) {
     var el = document.getElementById("holdingCourtResult");
     if (!el) { return; }
-    var events = type === "commoner" ? COURT_COMMONER_TASKS : COURT_ACOLYTE_TASKS;
+    S.holding.pendingCourtType = type;
+    var events = type === "commoner" ? COURT_COMMONER_TASKS : (type === "military" ? [
+      "Scouts report hostile movement near the border roads.",
+      "A fortified raider camp threatens nearby villages.",
+      "Supply lines are being cut by organized ambushers.",
+      "A garrison requests reinforcements before nightfall.",
+      "An old watchtower has gone silent and must be reclaimed."
+    ] : COURT_ACOLYTE_TASKS);
     var event = pick(events);
-    var borderColor = type === "commoner" ? "var(--teal)" : "var(--purple)";
-    var labelColor  = type === "commoner" ? "var(--teal)" : "var(--purple)";
-    var label = type === "commoner" ? "\uD83D\uDC65 Commoner Petition" : "\uD83D\uDCFF Acolyte Decree";
+    var borderColor = type === "commoner" ? "var(--teal)" : (type === "military" ? "var(--red2)" : "var(--purple)");
+    var labelColor  = borderColor;
+    var label = type === "commoner" ? "\uD83D\uDC65 Commoner Petition" : (type === "military" ? "⚔ Commander Request" : "\uD83D\uDCFF Acolyte Decree");
     el.innerHTML = '<div style="background:var(--surface);border-left:2px solid ' + borderColor + ';padding:.5rem .65rem;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.12em;color:' + labelColor + ';text-transform:uppercase;margin-bottom:.18rem;">' + label + '</div>'
       + '<div style="font-size:.83rem;color:var(--text2);line-height:1.6;">' + event + '</div>'
@@ -1274,9 +1413,54 @@
   }
 
   function generateCourtTask() {
-    var task = pick(TASK_VERBS) + " " + pick(TASK_TARGETS) + ", " + (roll(4) + 1) + " hexes " + pick(TASK_DIRS) + ".";
+    ensureNewFeatureState();
+    var pType = S.holding.pendingCourtType || "commoner";
+    var role = pType === "commoner" ? "diplomat" : (pType === "acolyte" ? "elder" : "commander");
+    var retainers = ((S.holding.council[role] || {}).retainers) || 0;
+    if (activeCouncilTaskCount(role) >= retainers) {
+      showNotif(capFirst(role) + " is at capacity. Hire more Retainers.", "warn");
+      return;
+    }
+
+    var verb = pick(TASK_VERBS);
+    var target = pick(TASK_TARGETS);
+    var task = verb + " " + target + ", " + (roll(4) + 1) + " hexes " + pick(TASK_DIRS) + ".";
+    var taskObj = {
+      id: Date.now() + Math.random(),
+      type: pType,
+      role: role,
+      verb: verb,
+      target: target,
+      summary: verb + " " + target,
+      status: "assigned",
+      createdAt: new Date().toISOString(),
+      originCol: null,
+      originRow: null
+    };
+    if (!assignCourtTaskToMapAndCouncil(taskObj)) {
+      showNotif("No valid wilderness hex available for this task.", "warn");
+      return;
+    }
+
     var el = document.getElementById("courtTaskResult");
-    if (el) { el.textContent = "Task: " + task; }
+    if (el) { el.innerHTML = "Task: " + task + " Assigned to <strong>" + capFirst(role) + "</strong> at Hex [" + (taskObj.destCol + 1) + "," + (taskObj.destRow + 1) + "]"; }
+    showNotif("Court task assigned to " + capFirst(role) + ".", "good");
+    renderHoldingUI();
+  }
+
+  function onHoldingCouncilTaskResolved(taskId, success) {
+    ensureNewFeatureState();
+    var tasks = S.holding.councilTasks || [];
+    var t = tasks.filter(function(x) { return x.id === taskId; })[0];
+    if (!t) { return; }
+    t.status = success ? "resolved" : "failed";
+    removeCouncilTaskSite(taskId);
+    if (success) {
+      showNotif("Council task resolved: " + t.summary, "good");
+    } else {
+      showNotif("Council task failed: " + t.summary, "warn");
+    }
+    renderHoldingUI();
   }
 
   function rollLeadershipPeril() {
@@ -1569,6 +1753,7 @@
   window.removeExtraLandmark  = removeExtraLandmark;
   window.updateCouncilMember  = updateCouncilMember;
   window.adjustRetainers      = adjustRetainers;
+  window.hireRetainer         = hireRetainer;
   window.rollCouncilTask      = rollCouncilTask;
   window.generateCourtEvent   = generateCourtEvent;
   window.generateCourtTask    = generateCourtTask;
@@ -1579,6 +1764,7 @@
   window.clearAllCrises       = clearAllCrises;
   window.startHoldingQuest    = startHoldingQuest;
   window.advanceHoldingQuest  = advanceHoldingQuest;
+  window.onHoldingCouncilTaskResolved = onHoldingCouncilTaskResolved;
   window.moveVaultItemToBackpack = moveVaultItemToBackpack;
   window.moveBackpackToVault  = moveBackpackToVault;
   window.buyCaravan           = buyCaravan;
@@ -1619,6 +1805,18 @@
   window.buyItem = function(cost, name, cat) {
     ensureNewFeatureState();
     cat = cat || 'other';
+
+    if (name === 'Retainer Contract') {
+      if ((S.credits || 0) < 200) {
+        showNotif('Need 200₵ to buy a Retainer Contract!', 'warn'); return;
+      }
+      S.credits -= 200;
+      updateCreditsUI();
+      S.holding.retainerContracts = (S.holding.retainerContracts || 0) + 1;
+      showNotif('Retainer Contract purchased (−200₵). Use in Holding Council.', 'good');
+      if (typeof renderHoldingUI === 'function') { renderHoldingUI(); }
+      return;
+    }
 
     if (cat === 'augmentations') {
       if ((S.renown || 0) < 3) {

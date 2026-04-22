@@ -1594,6 +1594,17 @@
     if ((S.credits || 0) < cost) {
       showNotif('Not enough credits!', 'warn'); return;
     }
+    var foundItem = null;
+    if (typeof findShopItem === 'function') {
+      foundItem = findShopItem(name);
+    }
+    var weaponCats = ['weapons', 'melee_exp', 'ranged_exp'];
+    var armorCats  = ['armor', 'armor_exp'];
+    var backpackText = name;
+    if (foundItem && foundItem.item && foundItem.item.stat && (weaponCats.indexOf(cat) >= 0 || armorCats.indexOf(cat) >= 0)) {
+      backpackText = name + ' (' + foundItem.item.stat + ')';
+    }
+
     S.credits -= cost;
     updateCreditsUI();
     var emptyIdx = -1;
@@ -1601,9 +1612,9 @@
       if (!S.backpack[i]) { emptyIdx = i; break; }
     }
     if (emptyIdx >= 0) {
-      S.backpack[emptyIdx] = name;
+      S.backpack[emptyIdx] = backpackText;
       var bpEl = document.getElementById('bp' + emptyIdx);
-      if (bpEl) { bpEl.value = name; }
+      if (bpEl) { bpEl.value = backpackText; }
       showNotif('Bought: ' + name + ' \u2192 Backpack Slot ' + (emptyIdx + 1) + ' (\u2212' + cost + '\u20b5)', 'good');
     } else {
       showNotif('Bought: ' + name + ' (\u2212' + cost + '\u20b5) \u2014 Backpack full! Add manually.', 'warn');

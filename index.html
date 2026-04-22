@@ -1878,9 +1878,8 @@ function buyItem(cost, name, cat) {
     }
     updateAllStatDisplays();
   } else if (armorCats.indexOf(cat) >= 0) {
-    S.equipment.armor = slotText;
-    setInputValue('eqArmor', slotText);
-    updateAllStatDisplays();
+    addToBackpack(slotText);
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   } else if (cat === 'augmentations') {
     if (!Array.isArray(S.augmentations)) S.augmentations = [];
     if (S.augmentations.indexOf(name) < 0) {
@@ -2100,12 +2099,28 @@ function equipBackpackItem(index, slot) {
   }
   // readied slot accepts anything
   
-  // Build equipment string: "Name (stat)" for weapons/armor so stats display and mod slots work
+  // Build equipment string: "Name (stat)" for weapons/armor so stats display and mod slots work.
+  // Append only when that exact stat block is not already present.
   var equipStr = item;
   if (found && found.item && found.item.stat && (isWeapon || isArmor)) {
-    // Only append stat if not already present in item string
-    if (item.indexOf('(') === -1) {
+    if (item.indexOf(found.item.stat) === -1) {
       equipStr = item + ' (' + found.item.stat + ')';
+    }
+  }
+
+  // Preserve currently equipped item by moving it back to backpack on swap.
+  var displaced = S.equipment[slot] || '';
+  var displacedStored = false;
+  if (displaced) {
+    var emptyIdx = -1;
+    for (var bi = 0; bi < S.backpack.length; bi++) {
+      if (bi !== index && !S.backpack[bi]) { emptyIdx = bi; break; }
+    }
+    if (emptyIdx >= 0) {
+      S.backpack[emptyIdx] = displaced;
+      var displacedEl = document.getElementById('bp' + emptyIdx);
+      if (displacedEl) displacedEl.value = displaced;
+      displacedStored = true;
     }
   }
   
@@ -2114,15 +2129,25 @@ function equipBackpackItem(index, slot) {
   var el = document.getElementById(inputId);
   if (el) el.value = equipStr;
   
-  // Remove from backpack
-  S.backpack[index] = '';
+  // If no extra backpack space while swapping, keep the displaced item in the source backpack slot.
+  if (displaced && !displacedStored) {
+    S.backpack[index] = displaced;
+  } else {
+    S.backpack[index] = '';
+  }
   var bpEl = document.getElementById('bp' + index);
-  if (bpEl) bpEl.value = '';
+  if (bpEl) bpEl.value = S.backpack[index] || '';
   
   if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
   closeModal();
-  showNotif('Equipped: ' + equipStr, 'good');
+  if (displaced && !displacedStored) {
+    showNotif('Equipped: ' + equipStr + ' (swapped with ' + displaced + ')', 'good');
+  } else if (displaced) {
+    showNotif('Equipped: ' + equipStr + ' (moved ' + displaced + ' to Backpack)', 'good');
+  } else {
+    showNotif('Equipped: ' + equipStr, 'good');
+  }
 }
 
 // Show info panel for an equipped item (weapon, armor, readied)

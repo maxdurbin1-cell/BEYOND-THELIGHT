@@ -592,11 +592,50 @@
   function renderMissionBoard() {
     var container=document.getElementById('jobsGrid'); if (!container) return;
     ensureState();
-    if (!S.availableJobs.length) {
+
+    // Special: Holding Establishment quest card (only when Renown ≥ 9 and no holding yet)
+    var holdingQuestHtml = '';
+    var renown = S.renown || 0;
+    var holdingQuest = S.holdingQuest || {};
+    var holdingEstablished = S.holding && S.holding.name;
+    if (renown >= 9 && !holdingEstablished && !holdingQuest.active) {
+      holdingQuestHtml = '<div class="shop-card" style="display:flex;flex-direction:column;border-color:var(--gold);background:rgba(201,162,39,.05);">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.5rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;margin-bottom:.18rem;">LORD\'S CALLING</div>'
+        + '<div class="s-name" style="color:var(--gold);">Establish Your Holding</div>'
+        + '<div style="display:flex;gap:.35rem;align-items:center;font-family:\'Rajdhani\',sans-serif;font-size:.72rem;font-weight:700;margin:.15rem 0;">'
+          + '<span style="color:var(--gold);text-transform:uppercase;">Lord</span>'
+          + '<span style="color:var(--muted2);">·</span>'
+          + '<span style="font-family:\'Cinzel\',serif;font-size:.55rem;color:var(--gold);">Renown 9</span>'
+        + '</div>'
+        + '<div style="font-size:.78rem;color:var(--muted3);flex:1;margin:.2rem 0;line-height:1.45;">You have earned the right to rule. Gather followers, scout a defensible location, and claim your domain. This Holding will be marked on the Province map.</div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;padding-top:.3rem;border-top:1px solid var(--border);">'
+          + '<span style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:.78rem;color:var(--gold2);">Special Quest</span>'
+          + '<button class="btn btn-xs btn-teal" onclick="startHoldingQuest()">Begin →</button>'
+        + '</div>'
+      + '</div>';
+    } else if (renown >= 9 && holdingQuest.active && !holdingEstablished) {
+      var steps = ['Recruit Followers', 'Scout Location', 'Establish Holding'];
+      var curStep = steps[holdingQuest.step] || 'Complete';
+      holdingQuestHtml = '<div class="shop-card" style="display:flex;flex-direction:column;border-color:var(--teal);background:rgba(46,196,182,.05);">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.5rem;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:.18rem;">IN PROGRESS</div>'
+        + '<div class="s-name" style="color:var(--teal);">Establish Your Holding</div>'
+        + '<div style="font-size:.78rem;color:var(--muted3);margin:.2rem 0;">Current Step: <strong style="color:var(--text);">' + curStep + '</strong></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.2rem;margin:.4rem 0;">'
+          + steps.map(function(s, i) {
+              var done = holdingQuest.step > i;
+              var cur  = holdingQuest.step === i;
+              return '<div style="padding:.2rem;text-align:center;font-size:.65rem;background:' + (done ? 'var(--green2)' : cur ? 'var(--teal)' : 'var(--surface)') + ';border-radius:3px;color:' + (done || cur ? 'var(--text)' : 'var(--muted2)') + ';">' + s + '</div>';
+            }).join('')
+        + '</div>'
+        + '<button class="btn btn-xs btn-primary" onclick="startHoldingQuest()" style="margin-top:.3rem;">Open Holding Tab →</button>'
+      + '</div>';
+    }
+
+    if (!S.availableJobs.length && !holdingQuestHtml) {
       container.innerHTML='<div style="grid-column:1/-1;font-size:.83rem;color:var(--muted2);padding:.75rem;text-align:center;">No missions available. Click \u201cGenerate Missions\u201d to post new missions.</div>';
       return;
     }
-    container.innerHTML=S.availableJobs.map(function(job){
+    container.innerHTML = holdingQuestHtml + S.availableJobs.map(function(job){
       var diff=DIFFICULTIES[job.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);
       return '<div class="shop-card" style="display:flex;flex-direction:column;">'
         +'<div class="s-name" style="color:var(--gold2);">'+job.title+'</div>'

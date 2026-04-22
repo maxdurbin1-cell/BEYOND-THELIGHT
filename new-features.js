@@ -10,6 +10,26 @@
     Large:  { crew: 6, cargo: 20, dread: 10, stress: 20, modSlots: 3, cost: 3000 }
   };
 
+  var CARAVAN_NAME_FIRST = ["Iron","Ash","Dust","Red","Grey","Black","Sand","Salt","Broken","Rusty","Wild","Old","Long","Hard","Pale"];
+  var CARAVAN_NAME_LAST  = ["Runner","Hauler","Wheel","Drifter","Walker","Mover","Pilgrim","Cart","Rig","Crawler","Nomad","Road","Serpent","Fort","Wagon"];
+  var CARAVAN_POWER_SOURCES = [
+    "Steam-driven boiler engine — fed by salvaged coal, scorching and unreliable.",
+    "Six armored draft horses in heavy harness.",
+    "Arcane drive crystals pulled from a Lost City, humming faintly.",
+    "Biodiesel engine cobbled from salvaged pre-collapse parts.",
+    "Clockwork spring mechanism, wound manually each morning before departure.",
+    "Repurposed diesel engine, leaks oil and leaves a black trail.",
+    "Plasma coil array, looted from a transport depot — fragile but fast.",
+    "Solar collector panels on the roof, sluggish at night or under cloud.",
+    "Ethanol furnace burning fermented waste grain.",
+    "Wind sail rigged above the flatbed — works only on open terrain.",
+    "Hybrid: beast-drawn by day, small salvaged generator by night.",
+    "Magnetic levitation array — silent but delicate."
+  ];
+
+  var HOLDING_NAME_FIRST = ["Iron","Stone","Ash","Grey","Black","Red","Old","High","Far","Last","Dark","Cold","Storm","Salt","Ember"];
+  var HOLDING_NAME_LAST  = ["Keep","Hold","Gate","Reach","Watch","Bastion","Spire","Haven","Seat","Citadel","Tower","Wall","Fort","Mire","End"];
+
   var CHASE_ZONES = ["Engaged", "Close", "Nearby", "Far"];
 
   var CARAVAN_MODS = [
@@ -76,6 +96,7 @@
 
     var prevCaravan = S.caravan || {};
     S.caravan = Object.assign({
+      owned: false,
       name: "",
       powerSource: "",
       size: "Small",
@@ -147,8 +168,8 @@
     S.hackRoller    = Object.assign(
       { dreadDie: 6, guess: null, selectedHack: null },
       S.hackRoller || {}
-    @@S.holdingQuest  = S.holdingQuest  || { active: false, step: 0, hexId: null };
     );
+    S.holdingQuest  = S.holdingQuest  || { active: false, step: 0, hexId: null };
 
     var prevMap = S.combatMap || {};
     S.combatMap = Object.assign({ units: [] }, prevMap);
@@ -184,6 +205,8 @@
         '<h3>Caravan Management</h3>',
         '<p>Your Transporter — vehicle, crew, cargo, and chase combat. The Driver rolls Control vs Enemy Dread to shift zones during a chase. Other Wayfarers act on their own turns.</p>',
       '</div>',
+      '<div id="caravanGate"></div>',
+      '<div id="caravanBody">',
       '<div class="sea-summary">',
         '<div class="info-cell"><span class="ic-label">Credits</span><span id="caravanCredits">0 ₵</span></div>',
         '<div class="info-cell"><span class="ic-label">Chase Zone</span><span id="caravanZoneReadout">Close</span></div>',
@@ -195,10 +218,18 @@
         '<div class="card">',
           '<div class="section-title">Transporter Identity</div>',
           '<div class="form-row"><span class="sub-label">Name</span>',
-            '<input type="text" id="caravanName" placeholder="Your Transporter\'s name…" onchange="S.caravan.name=this.value">',
+            '<div style="display:flex;gap:.3rem;align-items:center;">',
+              '<input type="text" id="caravanName" placeholder="Your Transporter\'s name…" style="flex:1;" onchange="S.caravan.name=this.value">',
+              '<button class="btn btn-xs btn-teal" onclick="rollCaravanName()" title="Roll random name">⚄</button>',
+              '<button class="btn btn-xs" onclick="clearCaravanName()" title="Clear name">✕</button>',
+            '</div>',
           '</div>',
           '<div class="form-row"><span class="sub-label">Power Source / Description</span>',
             '<textarea id="caravanPowerSource" rows="2" placeholder="Steam engine, beast-drawn, arcane drive…" style="resize:none;width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:.35rem .45rem;font-family:\'Crimson Pro\',serif;font-size:.9rem;" onchange="S.caravan.powerSource=this.value"></textarea>',
+            '<div style="display:flex;gap:.3rem;margin-top:.25rem;">',
+              '<button class="btn btn-xs btn-teal" onclick="rollCaravanPowerSource()">⚄ Roll Power Source</button>',
+              '<button class="btn btn-xs" onclick="clearCaravanPowerSource()">✕ Clear</button>',
+            '</div>',
           '</div>',
           '<div class="section-title" style="margin-top:.5rem;">Size</div>',
           '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.35rem;margin-bottom:.6rem;" id="caravanSizeGrid"></div>',
@@ -286,17 +317,18 @@
             '</div>',
           '</div>',
         '</div>',
-      '</div>'
+      '</div>',
+      '</div>' // end caravanBody
     ].join("");
   }
-
-  // ── HOLDING HTML ─────────────────────────────────────────────────────────────
   function buildHoldingHTML() {
     return [
       '<div class="ship-banner">',
         '<h3>Holding Management — Lordship</h3>',
         '<p>Requires Renown 9 (Lord). Govern your Realm — manage Landmarks, the Council, the Court, and seasonal Crises. A Realm constitutes the adjacent Hex Zones around your Holding.</p>',
       '</div>',
+      '<div id="holdingGate"></div>',
+      '<div id="holdingBody">',
       '<div class="sea-summary">',
         '<div class="info-cell"><span class="ic-label">Renown</span><span id="holdingRenownReadout">0</span></div>',
         '<div class="info-cell"><span class="ic-label">Credits</span><span id="holdingCreditsReadout">0 ₵</span></div>',
@@ -308,7 +340,11 @@
         '<div class="card">',
           '<div class="section-title">Realm Identity</div>',
           '<div class="form-row"><span class="sub-label">Holding Name</span>',
-            '<input type="text" id="holdingName" placeholder="Name your domain…" onchange="S.holding.name=this.value">',
+            '<div style="display:flex;gap:.3rem;align-items:center;">',
+              '<input type="text" id="holdingName" placeholder="Name your domain…" style="flex:1;" onchange="S.holding.name=this.value">',
+              '<button class="btn btn-xs btn-teal" onclick="rollHoldingName()" title="Roll random name">⚄</button>',
+              '<button class="btn btn-xs" onclick="clearHoldingName()" title="Clear name">✕</button>',
+            '</div>',
           '</div>',
           '<div class="form-row"><span class="sub-label">Holding Type</span>',
             '<select id="holdingType" onchange="S.holding.type=this.value">',
@@ -365,21 +401,22 @@
           '<div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;">',
             '<button class="btn btn-sm" onclick="addManualCrisis()">+ Add Crisis</button>',
             '<button class="btn btn-sm btn-red" onclick="clearAllCrises()">Clear All</button>',
-          @@      // Holding Vault + Quest
-          @@      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;max-width:1100px;margin-top:.85rem;">',
-          @@        '<div class="card">',
-          @@          '<div class="section-title">Holding Vault</div>',
-          @@          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Secure Storage — move items here from your equipment or backpack.</div>',
-          @@          '<div id="holdingVault" style="min-height:2rem;"></div>',
-          @@        '</div>',
-          @@        '<div class="card">',
-          @@          '<div class="section-title">Holding Acquisition</div>',
-          @@          '<div id="holdingQuestStatus"></div>',
-          @@        '</div>',
-          @@      '</div>',
           '</div>',
         '</div>',
-      '</div>'
+        // Holding Vault + Quest row
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;max-width:1100px;margin-top:.85rem;">',
+          '<div class="card">',
+            '<div class="section-title">Holding Vault</div>',
+            '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Secure Storage — move items here from your Backpack.</div>',
+            '<div id="holdingVault" style="min-height:2rem;"></div>',
+          '</div>',
+          '<div class="card">',
+            '<div class="section-title">Holding Acquisition</div>',
+            '<div id="holdingQuestStatus"></div>',
+          '</div>',
+        '</div>',
+      '</div>',
+      '</div>' // end holdingBody
     ].join("");
   }
 
@@ -391,6 +428,34 @@
     var c = S.caravan;
     var sz = CARAVAN_SIZES[c.size] || CARAVAN_SIZES.Small;
 
+    // Purchase gate
+    var gate = document.getElementById("caravanGate");
+    var body = document.getElementById("caravanBody");
+    if (gate) {
+      if (!c.owned) {
+        gate.innerHTML = '<div class="card" style="max-width:540px;margin-top:.6rem;">'
+          + '<div class="section-title">Acquire a Transporter</div>'
+          + '<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.6rem;">You do not own a Transporter yet. Purchase one to begin managing your caravan.</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;">'
+          + Object.keys(CARAVAN_SIZES).map(function(size) {
+              var s = CARAVAN_SIZES[size];
+              return '<div style="border:1px solid var(--border2);padding:.6rem;text-align:center;">'
+                + '<div style="font-family:\'Cinzel\',serif;font-size:.65rem;color:var(--gold2);text-transform:uppercase;">' + size + '</div>'
+                + '<div style="font-size:.75rem;color:var(--muted2);margin:.2rem 0;">DD' + s.dread + ' | ' + s.stress + ' Stress</div>'
+                + '<div style="font-size:.74rem;color:var(--muted2);">' + s.crew + ' Crew · ' + s.cargo + ' Cargo</div>'
+                + '<div style="font-family:\'Rajdhani\',sans-serif;font-weight:700;color:var(--gold);margin:.3rem 0;">' + s.cost.toLocaleString() + '\u20B5</div>'
+                + '<button class="btn btn-sm btn-primary" onclick="buyCaravan(\'' + size + '\')">Purchase</button>'
+                + '</div>';
+            }).join('')
+          + '</div></div>';
+        if (body) { body.style.display = "none"; }
+        return;
+      } else {
+        gate.innerHTML = '';
+        if (body) { body.style.display = ""; }
+      }
+    }
+
     // Header readouts
     var el;
     el = document.getElementById("caravanCredits");      if (el) { el.textContent = (S.credits || 0) + " \u20B5"; }
@@ -398,11 +463,11 @@
     el = document.getElementById("caravanStressReadout"); if (el) { el.textContent = c.stress + " / " + sz.stress; }
     el = document.getElementById("caravanModSlotsReadout"); if (el) { el.textContent = c.mods.length + " / " + sz.modSlots; }
 
-    // Name / power source (set once)
+    // Name / power source (set once, allow re-render when changed)
     var nameEl = document.getElementById("caravanName");
-    if (nameEl && !nameEl.dataset.nfSet) { nameEl.value = c.name || ""; nameEl.dataset.nfSet = "1"; }
+    if (nameEl) { nameEl.value = c.name || ""; }
     var psEl = document.getElementById("caravanPowerSource");
-    if (psEl && !psEl.dataset.nfSet) { psEl.value = c.powerSource || ""; psEl.dataset.nfSet = "1"; }
+    if (psEl) { psEl.value = c.powerSource || ""; }
 
     // Size grid
     var sg = document.getElementById("caravanSizeGrid");
@@ -419,51 +484,6 @@
       }).join("");
     }
 
-@@    // Holding Vault
-@@    var vaultEl = document.getElementById("holdingVault");
-@@    if (vaultEl) {
-@@      if (!h.vault || h.vault.length === 0) {
-@@        vaultEl.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">Vault is empty.</div>';
-@@      } else {
-@@        vaultEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:.4rem;">' + h.vault.map(function(item, i) {
-@@          return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.3rem;text-align:center;border-radius:3px;font-size:.75rem;color:var(--text2);" onclick="moveVaultItemToBackpack(' + i + ');" style="cursor:pointer;">'
-@@            + '<div style="word-wrap:break-word;overflow:hidden;text-overflow:ellipsis;">' + item + '</div>'
-@@            + '<div style="font-size:.65rem;color:var(--muted);margin-top:.15rem;">Click to backpack</div>'
-@@            + '</div>';
-@@        }).join('') + '</div>';
-@@      }
-@@    }
-@@
-@@    // Holding Acquisition Quest
-@@    var questEl = document.getElementById("holdingQuestStatus");
-@@    if (questEl) {
-@@      if (!h.name) {
-@@        if ((S.renown || 0) < 9) {
-@@          questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Currently: ' + (S.renown || 0) + '</div>';
-@@        } else {
-@@          questEl.innerHTML = '<div style="display:flex;gap:.3rem;align-items:center;">'
-@@            + '<div style="flex:1;font-size:.75rem;color:var(--text2);">You are ready to establish your own Holding!</div>'
-@@            + '<button class="btn btn-sm btn-teal" onclick="startHoldingQuest();">Begin Quest →</button>'
-@@            + '</div>';
-@@        }
-@@      } else if ((S.holdingQuest || {}).active) {
-@@        var q = S.holdingQuest;
-@@        var steps = ['Recruit Followers', 'Scout Location', 'Establish Holding'];
-@@        var progressHtml = '';
-@@        for (var si = 0; si < 3; si++) {
-@@          var isDone = q.step > si;
-@@          var isCurrent = q.step === si;
-@@          progressHtml += '<div style="flex:1;text-align:center;padding:.3rem;background:' + (isDone?'var(--green2)':isCurrent?'var(--teal)':'var(--surface)') + ';border:1px solid ' + (isDone?'rgba(46,196,182,.5)':isCurrent?'var(--teal)':'var(--border2)') + ';border-radius:3px;">'
-@@            + '<div style="font-size:.65rem;color:' + (isDone||isCurrent?'var(--text)':'var(--muted2)') + ';">' + steps[si] + '</div>'
-@@            + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:.9rem;font-weight:700;color:' + (isDone||isCurrent?'var(--text)':'var(--muted)') + ';">Step ' + (si+1) + '</div>'
-@@            + '</div>';
-@@        }
-@@        questEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;margin-bottom:.4rem;">' + progressHtml + '</div>'
-@@          + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">Advance Quest →</button>';
-@@      } else {
-@@        questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">Holding established: <strong style="color:var(--gold)">' + h.name + '</strong></div>';
-@@      }
-@@    }
     // Stat block
     var effectiveDread = getCaravanDread();
     var sb = document.getElementById("caravanStatBlock");
@@ -635,6 +655,67 @@
     showNotif("Transporter fully repaired!", "good");
   }
 
+  function buyCaravan(size) {
+    var s = CARAVAN_SIZES[size];
+    if (!s) { return; }
+    if ((S.credits || 0) < s.cost) {
+      showNotif("Need " + s.cost.toLocaleString() + "\u20B5 to purchase a " + size + " Transporter!", "warn"); return;
+    }
+    S.credits -= s.cost;
+    S.caravan.owned = true;
+    S.caravan.size = size;
+    S.caravan.cargo = Array(s.cargo).fill("");
+    updateCreditsUI();
+    // Reset mounted so HTML rebuilds fresh
+    var panel = document.getElementById("tab-caravan");
+    if (panel) { delete panel.dataset.mounted; }
+    mountCaravanPanel();
+    showNotif(size + " Transporter purchased!", "good");
+  }
+
+  function rollCaravanName() {
+    var name = pick(CARAVAN_NAME_FIRST) + " " + pick(CARAVAN_NAME_LAST);
+    S.caravan.name = name;
+    var el = document.getElementById("caravanName");
+    if (el) { el.value = name; }
+    showNotif("Transporter named: " + name, "good");
+  }
+
+  function clearCaravanName() {
+    S.caravan.name = "";
+    var el = document.getElementById("caravanName");
+    if (el) { el.value = ""; }
+  }
+
+  function rollCaravanPowerSource() {
+    var src = pick(CARAVAN_POWER_SOURCES);
+    S.caravan.powerSource = src;
+    var el = document.getElementById("caravanPowerSource");
+    if (el) { el.value = src; }
+  }
+
+  function clearCaravanPowerSource() {
+    S.caravan.powerSource = "";
+    var el = document.getElementById("caravanPowerSource");
+    if (el) { el.value = ""; }
+  }
+
+  function rollHoldingName() {
+    var name = pick(HOLDING_NAME_FIRST) + " " + pick(HOLDING_NAME_LAST);
+    S.holding.name = name;
+    var el = document.getElementById("holdingName");
+    if (el) { el.value = name; }
+    renderHoldingUI();
+    showNotif("Holding named: " + name, "good");
+  }
+
+  function clearHoldingName() {
+    S.holding.name = "";
+    var el = document.getElementById("holdingName");
+    if (el) { el.value = ""; }
+    renderHoldingUI();
+  }
+
   function changeCaravanCrew(delta) {
     var max = (CARAVAN_SIZES[S.caravan.size] || CARAVAN_SIZES.Small).crew;
     S.caravan.crew = Math.max(0, Math.min(max, S.caravan.crew + delta));
@@ -774,13 +855,43 @@
     var h = S.holding;
     var el;
 
+    // Holding gate — locked if Renown < 9 and no quest active and no holding yet
+    var gateEl = document.getElementById("holdingGate");
+    var bodyEl = document.getElementById("holdingBody");
+    var renown = S.renown || 0;
+    var questActive = (S.holdingQuest || {}).active;
+    var holdingEstablished = !!h.name;
+    if (gateEl) {
+      if (!holdingEstablished && !questActive) {
+        if (renown < 9) {
+          gateEl.innerHTML = '<div class="card" style="max-width:540px;margin-top:.6rem;">'
+            + '<div class="section-title">Holding Locked</div>'
+            + '<div style="font-size:.8rem;color:var(--muted2);">You require <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Your current Renown: <strong style="color:var(--teal);">' + renown + '</strong>.</div>'
+            + '</div>';
+          if (bodyEl) { bodyEl.style.display = "none"; }
+          return;
+        } else {
+          gateEl.innerHTML = '<div class="card" style="max-width:540px;margin-top:.6rem;">'
+            + '<div class="section-title">Establish Your Holding</div>'
+            + '<div style="font-size:.8rem;color:var(--text2);margin-bottom:.5rem;">You have achieved the Renown of a Lord. Begin the Establishment Quest to claim your domain. This quest will also mark your Province on the map.</div>'
+            + '<button class="btn btn-primary" onclick="startHoldingQuest()">Begin Establishment Quest</button>'
+            + '</div>';
+          if (bodyEl) { bodyEl.style.display = "none"; }
+          return;
+        }
+      } else {
+        gateEl.innerHTML = '';
+        if (bodyEl) { bodyEl.style.display = ""; }
+      }
+    }
+
     el = document.getElementById("holdingRenownReadout");    if (el) { el.textContent = S.renown || 0; }
     el = document.getElementById("holdingCreditsReadout");   if (el) { el.textContent = (S.credits || 0) + " \u20B5"; }
     el = document.getElementById("holdingLandmarkCount");    if (el) { el.textContent = h.landmarks.length + h.extraLandmarks.length; }
     el = document.getElementById("holdingCrisisCount");      if (el) { el.textContent = h.crises.length; }
 
     var hn = document.getElementById("holdingName");
-    if (hn && !hn.dataset.nfSet) { hn.value = h.name || ""; hn.dataset.nfSet = "1"; }
+    if (hn) { hn.value = h.name || ""; }
     var ht = document.getElementById("holdingType");
     if (ht) { ht.value = h.type || "Citadel"; }
 
@@ -830,6 +941,53 @@
     }
 
     renderHoldingCrises();
+
+    // Holding Vault
+    var vaultEl = document.getElementById("holdingVault");
+    if (vaultEl) {
+      if (!h.vault || h.vault.length === 0) {
+        vaultEl.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">Vault is empty.</div>';
+      } else {
+        vaultEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:.4rem;">'
+          + h.vault.map(function(item, i) {
+            return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.3rem;text-align:center;border-radius:3px;font-size:.75rem;color:var(--text2);cursor:pointer;" onclick="moveVaultItemToBackpack(' + i + ');">'
+              + '<div style="word-wrap:break-word;overflow:hidden;text-overflow:ellipsis;">' + item + '</div>'
+              + '<div style="font-size:.65rem;color:var(--muted);margin-top:.15rem;">Click → Backpack</div>'
+              + '</div>';
+          }).join('') + '</div>';
+      }
+    }
+
+    // Holding Acquisition Quest
+    var questEl = document.getElementById("holdingQuestStatus");
+    if (questEl) {
+      if (!h.name) {
+        if ((S.renown || 0) < 9) {
+          questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Currently: ' + (S.renown || 0) + '</div>';
+        } else {
+          questEl.innerHTML = '<div style="display:flex;gap:.3rem;align-items:center;">'
+            + '<div style="flex:1;font-size:.75rem;color:var(--text2);">You are ready to establish your own Holding!</div>'
+            + '<button class="btn btn-sm btn-teal" onclick="startHoldingQuest();">Begin Quest →</button>'
+            + '</div>';
+        }
+      } else if ((S.holdingQuest || {}).active) {
+        var q = S.holdingQuest;
+        var steps = ['Recruit Followers', 'Scout Location', 'Establish Holding'];
+        var progressHtml = '';
+        for (var si = 0; si < 3; si++) {
+          var isDone = q.step > si;
+          var isCurrent = q.step === si;
+          progressHtml += '<div style="flex:1;text-align:center;padding:.3rem;background:' + (isDone ? 'var(--green2)' : isCurrent ? 'var(--teal)' : 'var(--surface)') + ';border:1px solid ' + (isDone ? 'rgba(46,196,182,.5)' : isCurrent ? 'var(--teal)' : 'var(--border2)') + ';border-radius:3px;">'
+            + '<div style="font-size:.65rem;color:' + (isDone || isCurrent ? 'var(--text)' : 'var(--muted2)') + ';">' + steps[si] + '</div>'
+            + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:.9rem;font-weight:700;color:' + (isDone || isCurrent ? 'var(--text)' : 'var(--muted)') + ';">Step ' + (si + 1) + '</div>'
+            + '</div>';
+        }
+        questEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;margin-bottom:.4rem;">' + progressHtml + '</div>'
+          + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">Advance Quest →</button>';
+      } else {
+        questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">Holding established: <strong style="color:var(--gold)">' + h.name + '</strong></div>';
+      }
+    }
   }
 
   function renderHoldingCrises() {
@@ -854,6 +1012,74 @@
   }
 
   // ── HOLDING FUNCTIONS ─────────────────────────────────────────────────────────
+  function startHoldingQuest() {
+    ensureNewFeatureState();
+    S.holdingQuest = { active: true, step: 0, hexId: null };
+    // Switch to Holding tab if not already there
+    var holdingTab = document.querySelector('[data-panel="tab-holding"]') || document.querySelector('[onclick*="tab-holding"]');
+    if (holdingTab) { holdingTab.click(); }
+    renderHoldingUI();
+    renderMissionBoard && renderMissionBoard();
+    showNotif("Holding Establishment Quest begun!", "good");
+  }
+
+  function advanceHoldingQuest() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest;
+    if (!q || !q.active) { return; }
+    q.step++;
+    if (q.step >= 3) {
+      q.active = false;
+      // Prompt for holding name if not set
+      if (!S.holding.name) {
+        rollHoldingName();
+        showNotif("Holding established! Name your domain.", "good");
+      } else {
+        showNotif("Holding established: " + S.holding.name + "!", "good");
+      }
+    } else {
+      var steps = ['Recruit Followers', 'Scout Location', 'Establish Holding'];
+      showNotif("Quest advanced → " + steps[q.step], "good");
+    }
+    renderHoldingUI();
+    if (typeof renderMissionBoard === "function") { renderMissionBoard(); }
+  }
+
+  function moveVaultItemToBackpack(i) {
+    ensureNewFeatureState();
+    var h = S.holding;
+    if (!h.vault || !h.vault[i]) { return; }
+    var item = h.vault[i];
+    h.vault.splice(i, 1);
+    if (!Array.isArray(S.backpack)) { S.backpack = Array(10).fill(""); }
+    var slotIdx = S.backpack.indexOf("");
+    if (slotIdx >= 0) {
+      S.backpack[slotIdx] = item;
+    } else {
+      S.backpack.push(item);
+    }
+    renderHoldingUI();
+    if (typeof renderBackpackUI === "function") { renderBackpackUI(); }
+    showNotif("Moved to Backpack: " + item, "good");
+  }
+
+  function moveBackpackToVault() {
+    ensureNewFeatureState();
+    var bp = S.backpack || [];
+    var lastIdx = -1;
+    for (var i = bp.length - 1; i >= 0; i--) {
+      if (bp[i] && bp[i].trim()) { lastIdx = i; break; }
+    }
+    if (lastIdx < 0) { showNotif("Backpack is empty!", "warn"); return; }
+    if (!Array.isArray(S.holding.vault)) { S.holding.vault = []; }
+    var item = bp[lastIdx];
+    S.holding.vault.push(item);
+    S.backpack[lastIdx] = "";
+    renderHoldingUI();
+    if (typeof renderBackpackUI === "function") { renderBackpackUI(); }
+    showNotif("Moved to Vault: " + item, "good");
+  }
+
   function collectTax() {
     var allLandmarks = S.holding.landmarks.concat(S.holding.extraLandmarks);
     var total = 0;
@@ -1022,89 +1248,6 @@
     renderHoldingCrises();
   }
 
-@@  // ── HOLDING VAULT ─────────────────────────────────────────────────────────────
-@@  function moveVaultItemToBackpack(index) {
-@@    if (!S.holding || !S.holding.vault) return;
-@@    var item = S.holding.vault[index];
-@@    if (!item) return;
-@@    var emptyIdx = -1;
-@@    for (var i = 0; i < S.backpack.length; i++) {
-@@      if (!S.backpack[i]) { emptyIdx = i; break; }
-@@    }
-@@    if (emptyIdx < 0) {
-@@      showNotif('Backpack full! Cannot move ' + item, 'warn');
-@@      return;
-@@    }
-@@    S.backpack[emptyIdx] = item;
-@@    var bpEl = document.getElementById('bp' + emptyIdx);
-@@    if (bpEl) bpEl.value = item;
-@@    S.holding.vault.splice(index, 1);
-@@    renderHoldingUI();
-@@    showNotif('Moved from vault to backpack: ' + item, 'good');
-@@  }
-@@
-@@  // ── HOLDING ACQUISITION QUEST ────────────────────────────────────────────────
-@@  function startHoldingQuest() {
-@@    ensureNewFeatureState();
-@@    if ((S.renown || 0) < 9) {
-@@      showNotif('Renown 9 required!', 'warn');
-@@      return;
-@@    }
-@@    if (S.holding.name) {
-@@      showNotif('You already own a Holding!', 'warn');
-@@      return;
-@@    }
-@@    S.holdingQuest.active = true;
-@@    S.holdingQuest.step = 0;
-@@    renderHoldingUI();
-@@    showNotif('Holding Quest begun! Begin step 1...', 'good');
-@@  }
-@@
-@@  function advanceHoldingQuest() {
-@@    ensureNewFeatureState();
-@@    if (!S.holdingQuest || !S.holdingQuest.active) return;
-@@    var quest = S.holdingQuest;
-@@    var steps = ['Recruit Followers', 'Scout Location', 'Establish Holding'];
-@@    var descriptions = [
-@@      'Recruit d6 Followers → gain 1~6 Retainers',
-@@      'Scout Location via mapping or exploration',
-@@      'Establish your Holding permanently'
-@@    ];
-@@    var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.6;"><strong style="color:var(--gold2);">Step ' + (quest.step + 1) + ': ' + steps[quest.step] + '</strong><br>' + descriptions[quest.step] + '</div>';
-@@    if (quest.step === 0) {
-@@      var roll = roll(6);
-@@      var retainers = roll;
-@@      if (!S.holding.council) S.holding.council = {};
-@@      if (!S.holding.council.regent) S.holding.council.regent = { name: '', retainers: 0, task: '', status: 'Idle' };
-@@      S.holding.council.regent.retainers = (S.holding.council.regent.retainers || 3) + retainers;
-@@      html += '<div style="margin-top:.5rem;padding:.4rem;background:rgba(46,196,182,.08);border:1px solid rgba(46,196,182,.3);border-radius:3px;"><strong style="color:var(--teal);">Result: d6 roll = ' + roll + ' new Retainers!</strong></div>';
-@@      quest.step = 1;
-@@    } else if (quest.step === 1) {
-@@      html += '<div style="margin-top:.5rem;padding:.4rem;background:rgba(46,196,182,.08);border:1px solid rgba(46,196,182,.3);border-radius:3px;"><strong style="color:var(--teal);">Location scouted and chosen.</strong></div>';
-@@      quest.step = 2;
-@@    } else if (quest.step === 2) {
-@@      var holdingName = prompt('Name your Holding:', 'My Realm');
-@@      if (holdingName && holdingName.trim()) {
-@@        S.holding.name = holdingName;
-@@        S.holding.type = 'Citadel';
-@@        quest.active = false;
-@@        html = '<div style="font-size:.85rem;color:var(--green2);margin-bottom:.4rem;"><strong>\u2713 Holding Established!</strong></div>'
-@@          + '<div style="background:rgba(76,175,116,.08);border:1px solid rgba(76,175,116,.3);padding:.4rem;border-radius:3px;color:var(--text2);">'
-@@          + '<div style="font-family:\'Cinzel\',serif;font-size:.8rem;letter-spacing:.1em;color:var(--green2);margin-bottom:.2rem;">' + S.holding.name.toUpperCase() + '</div>'
-@@          + '<div style="font-size:.78rem;">Your domain is now established. Manage it from the Holdings tab.</div>'
-@@          + '</div>';
-@@        renderHoldingUI();
-@@        openModal('Holding Established!', html);
-@@        return;
-@@      } else {
-@@        return;
-@@      }
-@@    }
-@@    renderHoldingUI();
-@@    if (quest.step < 3) {
-@@      openModal('Holding Quest — Step ' + quest.step, html + '<div style="margin-top:1rem;"><button class="btn btn-primary" onclick="closeModal();">Continue</button></div>');
-@@    }
-@@  }
   // ── PATH TOKEN UPGRADES ────────────────────────────────────────────────────────
   function spendPathTokensUpgrade15() {
     ensureNewFeatureState();
@@ -1337,10 +1480,18 @@
   window.addManualCrisis      = addManualCrisis;
   window.resolveCrisis        = resolveCrisis;
   window.clearAllCrises       = clearAllCrises;
+  window.startHoldingQuest    = startHoldingQuest;
+  window.advanceHoldingQuest  = advanceHoldingQuest;
+  window.moveVaultItemToBackpack = moveVaultItemToBackpack;
+  window.moveBackpackToVault  = moveBackpackToVault;
+  window.buyCaravan           = buyCaravan;
+  window.rollCaravanName      = rollCaravanName;
+  window.clearCaravanName     = clearCaravanName;
+  window.rollCaravanPowerSource = rollCaravanPowerSource;
+  window.clearCaravanPowerSource = clearCaravanPowerSource;
+  window.rollHoldingName      = rollHoldingName;
+  window.clearHoldingName     = clearHoldingName;
   window.spendPathTokensUpgrade15 = spendPathTokensUpgrade15;
-  @@  window.moveVaultItemToBackpack  = moveVaultItemToBackpack;
-  @@  window.startHoldingQuest        = startHoldingQuest;
-  @@  window.advanceHoldingQuest      = advanceHoldingQuest;
   window.doPathUpgrade15          = doPathUpgrade15;
   window.spendPathTokensUpgrade20 = spendPathTokensUpgrade20;
   window.renderExtraTraits        = renderExtraTraits;

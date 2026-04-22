@@ -2090,43 +2090,29 @@ function equipBackpackItem(index, slot) {
   
   var found = findShopItem(item);
   var cat = found ? found.cat : null;
-  
-  // Validate slot type
-  var isWeapon = cat === 'weapons';
-  var isArmor = cat === 'armor';
-  var canEquip = false;
+  var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
+  var isArmor = (cat === 'armor' || cat === 'armor_exp');
   
   if (slot === 'weapon1' || slot === 'weapon2') {
-    if (!isWeapon) {
-      showNotif('Only weapons can be equipped in weapon slots!', 'warn');
-      return;
-    }
-    canEquip = true;
+    if (!isWeapon) { showNotif('Only weapons can be equipped in weapon slots!', 'warn'); return; }
   } else if (slot === 'armor') {
-    if (!isArmor) {
-      showNotif('Only armor can be equipped in the armor slot!', 'warn');
-      return;
-    }
-    canEquip = true;
-  } else if (slot === 'readied') {
-    // Readied items can be various types - consumables, items, etc.
-    if (!found || (cat !== 'essentials' && cat !== 'items' && cat !== 'remedies' && cat !== 'toolkits' && cat !== 'augmentations')) {
-      // Allow custom items as readied
-      canEquip = true;
-    } else {
-      canEquip = true;
+    if (!isArmor) { showNotif('Only armor can be equipped in the armor slot!', 'warn'); return; }
+  }
+  // readied slot accepts anything
+  
+  // Build equipment string: "Name (stat)" for weapons/armor so stats display and mod slots work
+  var equipStr = item;
+  if (found && found.item && found.item.stat && (isWeapon || isArmor)) {
+    // Only append stat if not already present in item string
+    if (item.indexOf('(') === -1) {
+      equipStr = item + ' (' + found.item.stat + ')';
     }
   }
   
-  if (!canEquip && (slot === 'weapon1' || slot === 'weapon2' || slot === 'armor')) {
-    return;
-  }
-  
-  // Equip the item (item stays with full description)
-  S.equipment[slot] = item;
+  S.equipment[slot] = equipStr;
   var inputId = slot === 'weapon1' ? 'eqWeapon1' : slot === 'weapon2' ? 'eqWeapon2' : slot === 'armor' ? 'eqArmor' : 'eqReadied';
   var el = document.getElementById(inputId);
-  if (el) el.value = item;
+  if (el) el.value = equipStr;
   
   // Remove from backpack
   S.backpack[index] = '';
@@ -2136,7 +2122,7 @@ function equipBackpackItem(index, slot) {
   if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
   closeModal();
-  showNotif('Equipped: ' + item, 'good');
+  showNotif('Equipped: ' + equipStr, 'good');
 }
 
 // Show info panel for an equipped item (weapon, armor, readied)

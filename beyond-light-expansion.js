@@ -478,6 +478,25 @@
             <div class="combat-log" id="navalCombatLog"></div>
           </div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;max-width:1100px;margin-top:.85rem;">
+          <div class="card">
+            <div class="section-title">Ship Name</div>
+            <div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.5rem;">
+              <input type="text" id="shipNameInput" placeholder="Ship name…" style="flex:1;" onchange="if(S.naval.ship){S.naval.ship.name=this.value;}else{S.naval.pendingName=this.value;} renderNaval();">
+              <button class="btn btn-xs btn-teal" onclick="generateShipIdentity()" title="Roll random name">⚄ Roll</button>
+              <button class="btn btn-xs" onclick="if(S.naval.ship){S.naval.ship.name='';}else{S.naval.pendingName='';} document.getElementById('shipNameInput').value=''; renderNaval();">✕</button>
+            </div>
+            <div id="shipNameDisplay" style="font-size:.78rem;color:var(--muted2);"></div>
+          </div>
+          <div class="card">
+            <div class="section-title">Ship Cargo</div>
+            <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Stow items in the ship's hold. Click an item to move it to your Backpack.</div>
+            <div id="navalCargoList" style="min-height:2rem;"></div>
+            <div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;">
+              <button class="btn btn-xs btn-primary" onclick="stowItemInShip()">Stow from Backpack</button>
+            </div>
+          </div>
+        </div>
       `;
     }
 
@@ -1235,7 +1254,7 @@
       upgrades: [],
       stress: 0,
       wrecked: false,
-      @@cargo: [],
+      cargo: [],
       navBonus: 0,
       extraActions: shipClass.name === "Frigate" ? 1 : 0,
       leadBonus: shipClass.name === "Carrier" ? 1 : 0
@@ -1572,12 +1591,80 @@
     }
 
     renderNavalZoneTrack();
+
+    // Ship Name input
+    const shipNameInput = document.getElementById("shipNameInput");
+    if (shipNameInput) {
+      const currentName = S.naval.ship ? S.naval.ship.name : (S.naval.pendingName || "");
+      shipNameInput.value = currentName;
+    }
+    const shipNameDisplay = document.getElementById("shipNameDisplay");
+    if (shipNameDisplay) {
+      const currentName = S.naval.ship ? S.naval.ship.name : (S.naval.pendingName || "");
+      shipNameDisplay.textContent = currentName ? ('Current name: ' + currentName) : 'No ship name set.';
+    }
+
+    // Ship Cargo
+    const navCargoList = document.getElementById("navalCargoList");
+    if (navCargoList) {
+      const cargo = S.naval.ship ? (S.naval.ship.cargo || []) : [];
+      if (!cargo.length) {
+        navCargoList.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">Hold is empty.</div>';
+      } else {
+        navCargoList.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:.3rem;">'
+          + cargo.map(function(item, i) {
+              return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.3rem;text-align:center;border-radius:3px;font-size:.74rem;color:var(--text2);cursor:pointer;" onclick="unloadShipCargo(' + i + ');">'
+                + '<div style="word-wrap:break-word;overflow:hidden;text-overflow:ellipsis;">' + item + '</div>'
+                + '<div style="font-size:.63rem;color:var(--muted);margin-top:.12rem;">Click → Backpack</div>'
+                + '</div>';
+            }).join('') + '</div>';
+      }
+    }
   }
 
   function selectNavalClass(className) {
     ensureExpansionState();
     S.naval.selectedClass = className;
     renderNaval();
+  }
+
+  function stowItemInShip() {
+    ensureExpansionState();
+    if (!S.naval.ship) { showNotif("No ship to stow items in!", "warn"); return; }
+    if (!Array.isArray(S.naval.ship.cargo)) { S.naval.ship.cargo = []; }
+    var bp = S.backpack || [];
+    var filled = bp.filter(function(s){ return s && s.trim(); });
+    if (!filled.length) { showNotif("Backpack is empty!", "warn"); return; }
+    // Stow the last non-empty item
+    var lastIdx = -1;
+    for (var i = bp.length - 1; i >= 0; i--) {
+      if (bp[i] && bp[i].trim()) { lastIdx = i; break; }
+    }
+    if (lastIdx < 0) { showNotif("Nothing to stow.", "warn"); return; }
+    var item = bp[lastIdx];
+    S.naval.ship.cargo.push(item);
+    S.backpack[lastIdx] = "";
+    renderNaval();
+    if (typeof renderBackpackUI === "function") { renderBackpackUI(); }
+    showNotif("Stowed: " + item, "good");
+  }
+
+  function unloadShipCargo(i) {
+    ensureExpansionState();
+    if (!S.naval.ship || !S.naval.ship.cargo) { return; }
+    var item = S.naval.ship.cargo[i];
+    if (!item) { return; }
+    S.naval.ship.cargo.splice(i, 1);
+    if (!Array.isArray(S.backpack)) { S.backpack = Array(10).fill(""); }
+    var slotIdx = S.backpack.indexOf("");
+    if (slotIdx >= 0) {
+      S.backpack[slotIdx] = item;
+    } else {
+      S.backpack.push(item);
+    }
+    renderNaval();
+    if (typeof renderBackpackUI === "function") { renderBackpackUI(); }
+    showNotif("Moved to Backpack: " + item, "good");
   }
 
   function spawnEnemyShip() {
@@ -2082,6 +2169,8 @@
   window.removeNavalCrew = removeNavalCrew;
   window.trainNavalCrew = trainNavalCrew;
   window.selectNavalClass = selectNavalClass;
+  window.stowItemInShip = stowItemInShip;
+  window.unloadShipCargo = unloadShipCargo;
   window.spawnEnemyShip = spawnEnemyShip;
   window.startNavalCombat = startNavalCombat;
   window.nextNavalRound = nextNavalRound;

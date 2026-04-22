@@ -28,14 +28,26 @@ function buildApproachSelectHTML(selectedStat){
 function promiseWildernessExploration(col,row){
   const hex=mapData.find(h=>h.col===col&&h.row===row);
   if(!hex||hex.type!=='wilderness')return;
-  performWildernessObservation(col,row);
+  const options=getAvailableObservationDirections(col,row);
+  if(!options.length){
+    showNotif('No adjacent hexes available to observe from this edge.','warn');
+    return;
+  }
+  let html='<div style="font-size:.82rem;color:var(--text2);margin-bottom:.35rem;">Choose one adjacent direction to observe (Lead vs DD6).</div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem;">';
+  options.forEach(opt=>{
+    html+=`<button class="btn btn-sm btn-gold" onclick="performWildernessObservation(${col},${row},'${opt.key}')">${opt.label}</button>`;
+  });
+  html+='</div>';
+  openModal('Observe Adjacent Hex',html);
 }
 
-function performWildernessObservation(col,row){
+function performWildernessObservation(col,row,directionKey){
   const leadDie=typeof getEffectiveDie==='function'?getEffectiveDie('lead'):(S.stats.lead||4);
   const leadRoll=explodingRoll(leadDie);
   const dreadRoll=explodingRoll(6);
   const success=leadRoll.total>=dreadRoll.total;
+  const target=getAdjacentHexByDirection(col,row,directionKey);
   
   let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
     +'<div style="text-align:center;"><div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Lead Die</div>'
@@ -45,18 +57,40 @@ function performWildernessObservation(col,row){
     +'</div>';
     
   if(success){
-    const observedHexes=getAdjacentHexes(col,row);
-    let findings='';
-    observedHexes.forEach(h=>{
-      findings+=`<div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);margin-bottom:.18rem;">${formatObservedHexSummary(h)}</div>`;
-    });
-    html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Successful Observation</div><div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">General signs from adjacent hexes:</div>${findings||'<em style="color:var(--muted);">Only distant haze surrounds you.</em>'}</div>`;
+    if(!target){
+      html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No Adjacent Hex</div>There is no mapped hex in that direction.</div>`;
+    }else{
+      html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Successful Observation (${target.label})</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);">${formatObservedHexSummary(target.hex)}</div></div>`;
+    }
   }else{
     html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">✗ Observation Failed</div>The horizon is obscured. No details visible.</div>`;
   }
   
   openModal('Observation — Adjacent Hexes',html);
-  appendHexNote(col,row,`[Observation] Lead vs DD6 (adjacent): ${leadRoll.total} vs ${dreadRoll.total} => ${success?'success':'failure'}`);
+  appendHexNote(col,row,`[Observation] Lead vs DD6 (${directionKey||'adjacent'}): ${leadRoll.total} vs ${dreadRoll.total} => ${success?'success':'failure'}`);
+}
+
+function getAvailableObservationDirections(col,row){
+  const dirs=[
+    {key:'north',label:'North',dc:0,dr:-1},
+    {key:'northeast',label:'Northeast',dc:1,dr:-1},
+    {key:'east',label:'East',dc:1,dr:0},
+    {key:'southeast',label:'Southeast',dc:1,dr:1},
+    {key:'south',label:'South',dc:0,dr:1},
+    {key:'southwest',label:'Southwest',dc:-1,dr:1},
+    {key:'west',label:'West',dc:-1,dr:0},
+    {key:'northwest',label:'Northwest',dc:-1,dr:-1}
+  ];
+  return dirs.filter(d=>mapData.some(h=>h.col===col+d.dc&&h.row===row+d.dr));
+}
+
+function getAdjacentHexByDirection(col,row,directionKey){
+  const dirs=getAvailableObservationDirections(col,row);
+  const d=dirs.find(x=>x.key===directionKey);
+  if(!d)return null;
+  const hex=mapData.find(h=>h.col===col+d.dc&&h.row===row+d.dr);
+  if(!hex)return null;
+  return {hex:hex,label:d.label};
 }
 
 function getAdjacentHexes(col,row){
@@ -78,23 +112,38 @@ function formatObservedHexSummary(hex){
     const wonder=(hex.data&&hex.data.wonder)?hex.data.wonder:'';
     const terrain=hex.terrain&&hex.terrain.name?hex.terrain.name:'Unknown';
     return wonder
-      ? `<strong>Wilderness</strong> — ${terrain}. Wonder: ${wonder}`
-      : `<strong>Wilderness</strong> — ${terrain}.`;
+      ? `<strong>${terrain}</strong> — Wonder: ${wonder}`
+      : `<strong>${terrain}</strong> — no obvious wonder visible.`;
   }
 
-  if(hex.type==='holding'||hex.type==='seat'||hex.type==='dwelling'||hex.type==='temple'){
+  if(hex.type==='gate'){
     const d=hex.data||{};
-    const general=(d.style&&d.feature)?`${d.style} ${d.feature}`:(d.news||d.mood?.mood||hex.name||'A notable sanctuary structure');
-    return `<strong>Temple</strong> — ${general}.`;
+    const terrain=hex.terrain&&hex.terrain.name?hex.terrain.name:'Unknown';
+    const gateName=hex.name||'Gate';
+    const detail=d.fn||d.leads||d.where||'Unknown destination';
+    return `<strong>Gate</strong> — ${gateName}: ${detail} into ${terrain} terrain.`;
   }
 
-  if(hex.type==='event')return '<strong>Omen Site</strong> — troubling signs gather here.';
-  if(hex.type==='trade')return '<strong>Temple</strong> — traveler outpost and roadside structures.';
+  if(hex.type==='temple'){
+    const d=hex.data||{};
+    return `<strong>Temple</strong> — ${hex.name||'Sanctuary'}. ${d.mood||'Ancient'}.`;
+  }
+
+  if(hex.type==='holding'||hex.type==='seat'||hex.type==='dwelling'){
+    const d=hex.data||{};
+    const kind=hex.type.charAt(0).toUpperCase()+hex.type.slice(1);
+    const general=(d.style&&d.feature)?`${d.style} ${d.feature}`:(d.news||d.mood?.mood||hex.name||'Settlement activity');
+    return `<strong>${kind}</strong> — ${general}.`;
+  }
+
+  if(hex.type==='event')return `<strong>Event</strong> — ${hex.name||'Omen Site'}.`;
+  if(hex.type==='trade')return '<strong>Trade Route</strong> — caravan traffic and roadside posts.';
   if(hex.type==='ruins'||hex.type==='lostcity'||hex.type==='gate'||hex.type==='barrier'||hex.type==='peril'||hex.type==='monument'){
-    return `<strong>Temple</strong> — ${hex.name||'Ancient construction'}.`;
+    const kind=hex.type.charAt(0).toUpperCase()+hex.type.slice(1);
+    return `<strong>${kind}</strong> — ${hex.name||'Ancient construction'}.`;
   }
 
-  return '<strong>Temple</strong> — distant built forms on the horizon.';
+  return '<strong>Unknown</strong> — distant forms on the horizon.';
 }
 
 function getHexesInDirection(col,row,direction,range){
@@ -151,41 +200,55 @@ function generateTaskForHex(col,row){
   const targets=['Bandits','Beasts','Refugees','Cargo','Matters','Threats','Artifacts','VIPs'];
   const dirs=['north','northeast','east','southeast','south','southwest','west','northwest'];
   
+  const candidates=[];
+  dirs.forEach(dir=>{
+    const distance=roll(4)+1;
+    let destCol=col,destRow=row;
+    for(let i=0;i<distance;i++){
+      switch(dir){
+        case 'north': destRow--; break;
+        case 'south': destRow++; break;
+        case 'east': destCol++; break;
+        case 'west': destCol--; break;
+        case 'northeast': destCol++; destRow--; break;
+        case 'northwest': destCol--; destRow--; break;
+        case 'southeast': destCol++; destRow++; break;
+        case 'southwest': destCol--; destRow++; break;
+      }
+    }
+    const destHex=mapData.find(h=>h.col===destCol&&h.row===destRow);
+    if(destHex)candidates.push({dir:dir,distance:distance,destCol:destCol,destRow:destRow});
+  });
+  if(!candidates.length){showNotif('No valid task destination found from this holding.','warn');return;}
+
+  const targetSpec=pick(candidates);
   const verb=pick(verbs);
   const target=pick(targets);
-  const distance=roll(4)+1;
-  const dir=pick(dirs);
-  
-  const task={col:col,row:row,verb:verb,target:target,distance:distance,direction:dir,completed:false,createdAt:new Date().toISOString()};
-  hex.data=hex.data||{};
-  hex.data.task=task;
-  
-  // Find the destination hex
-  let destCol=col,destRow=row;
-  for(let i=0;i<distance;i++){
-    switch(dir){
-      case 'north': destRow--; break;
-      case 'south': destRow++; break;
-      case 'east': destCol++; break;
-      case 'west': destCol--; break;
-      case 'northeast': destCol++; destRow--; break;
-      case 'northwest': destCol--; destRow--; break;
-      case 'southeast': destCol++; destRow++; break;
-      case 'southwest': destCol--; destRow++; break;
-    }
-  }
-  
-  const destHex=mapData.find(h=>h.col===destCol&&h.row===destRow);
-  if(destHex){
-    destHex.data=destHex.data||{};
-    destHex.data.taskSite={verb:verb,target:target,originCol:col,originRow:row};
-  }
-  
-  let html=`<div style="font-size:.84rem;color:var(--text2);line-height:1.6;"><strong style="color:var(--gold2);">Task Generated</strong><br>${verb} ${target}, ${distance} hex${distance!==1?'es':''} to the ${dir}.<br><br>Travel to Hex [${destCol+1},${destRow+1}] and complete the task.<br><br><strong style="color:var(--gold);">Success = +1 Renown</strong></div>`;
-  html+=`<div style="margin-top:.4rem;display:flex;justify-content:flex-end;"><button class="btn btn-sm btn-primary" onclick="closeModal();">Understood</button></div>`;
-  
+  const distance=targetSpec.distance;
+  const dir=targetSpec.dir;
+  const destCol=targetSpec.destCol;
+  const destRow=targetSpec.destRow;
+
+  let html=`<div style="font-size:.84rem;color:var(--text2);line-height:1.6;"><strong style="color:var(--gold2);">Task Offer</strong><br>${verb} ${target}, ${distance} hex${distance!==1?'es':''} to the ${dir}.<br><br>Destination: Hex [${destCol+1},${destRow+1}]<br><br><strong style="color:var(--gold);">Success = +1 Renown</strong></div>`;
+  html+=`<div style="margin-top:.4rem;display:flex;justify-content:flex-end;gap:.3rem;"><button class="btn btn-sm btn-warn" onclick="closeModal();">Decline</button><button class="btn btn-sm btn-success" onclick="acceptGeneratedHoldingTask(${col},${row},'${verb}','${target}',${distance},'${dir}',${destCol},${destRow});">Accept Task</button></div>`;
+
   openModal('Task Assignment',html);
-  showNotif(`Task: ${verb} ${target} ${distance} hex${distance!==1?'es':''} ${dir}`,'good');
+}
+
+function acceptGeneratedHoldingTask(col,row,verb,target,distance,dir,destCol,destRow){
+  const originHex=mapData.find(h=>h.col===col&&h.row===row);
+  const destHex=mapData.find(h=>h.col===destCol&&h.row===destRow);
+  if(!originHex||!destHex){showNotif('Task destination could not be resolved.','warn');return;}
+
+  originHex.data=originHex.data||{};
+  originHex.data.task={col:col,row:row,verb:verb,target:target,distance:distance,direction:dir,completed:false,createdAt:new Date().toISOString()};
+  destHex.data=destHex.data||{};
+  destHex.data.taskSite={verb:verb,target:target,originCol:col,originRow:row};
+
+  showNotif(`Task accepted: ${verb} ${target} ${distance} hex${distance!==1?'es':''} ${dir}`,'good');
+  appendHexNote(col,row,`[Task Accepted] ${verb} ${target} — destination [${destCol+1},${destRow+1}]`);
+  closeModal();
+  if(typeof renderHexMap==='function')renderHexMap();
 }
 
 function completeTaskAtHex(col,row){

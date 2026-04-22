@@ -2509,8 +2509,9 @@ function renderHexInfo(hex){
       html+=`<div class="event-mystery-wrap" style="margin-top:.5rem;">`+
         `<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.25rem;"><strong>${challenge.profile.foe}</strong> · Dread ${challenge.dread} · Mysteries ${prog.completed}/6</div>`+
         `<div style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem;">Defeats: ${prog.failures} (4+ = no reward)</div>`+
-        `<label style="font-size:.72rem;color:var(--muted2);display:block;margin-bottom:.3rem;">Stat: <select id="evStat-${cid}" style="width:100%;"><option value="body">Body-Power</option><option value="mind">Mind-Intellect</option><option value="control">Control</option><option value="lead" selected>Lead</option><option value="spirit">Spirit</option><option value="strike">STRIKE</option><option value="shoot">SHOOT</option><option value="defend">DEFEND</option></select></label>`+
+        `<label style="font-size:.72rem;color:var(--muted2);display:block;margin-bottom:.3rem;">Stat: <select id="evStat-${cid}" style="width:100%;" onchange="updateEventEnemiesDisplay(${hex.col},${hex.row})"><option value="body">Body-Power</option><option value="mind">Mind-Intellect</option><option value="control">Control</option><option value="lead" selected>Lead</option><option value="spirit">Spirit</option><option value="strike">STRIKE</option><option value="shoot">SHOOT</option><option value="defend">DEFEND</option></select></label>`+
         `<button class="btn btn-sm btn-primary" onclick="resolveEventAction(${hex.col},${hex.row})" style="width:100%;">Roll Check</button>`+
+        `<div id="evEnemies-${cid}" style="margin-top:.3rem;"></div>`+
         `<div style="font-size:.72rem;color:var(--muted2);margin-top:.25rem;font-style:italic;">${challenge.profile.special}</div>`+
         `<div id="evResult-${cid}" style="margin-top:.35rem;"></div>`+
         `</div>`;
@@ -2813,6 +2814,30 @@ function formatStatWithModifiers(stat,shortForm){
   }
   const labels={body:'Body - Power',mind:'Mind - Intellect',control:'Control - Will',lead:'Lead - Guidance',spirit:'Spirit - Resilience',strike:'STRIKE - Combat',shoot:'SHOOT - Combat',defend:'DEFEND - Combat'};
   return `${labels[stat]||stat}${modStr}`;
+}
+
+function updateEventEnemiesDisplay(col,row){
+  const hex=mapData.find(h=>h.col===col&&h.row===row&&h.type==='event');if(!hex)return;
+  const ch=ensureEventChallengeState(hex);
+  const statSel=document.getElementById(`evStat-${col}-${row}`);
+  const stat=statSel?statSel.value:'lead';
+  const enemyContainer=document.getElementById(`evEnemies-${col}-${row}`);
+  if(!enemyContainer)return;
+  
+  if(stat==='strike'||stat==='shoot'||stat==='defend'){
+    const enemies=generateEventCombatEnemies(ch.dread);
+    let html=`<div style="margin-top:.4rem;padding:.4rem;background:rgba(201,64,64,.06);border:1px solid rgba(201,64,64,.2);border-radius:2px;">`+
+      `<div style="font-size:.72rem;color:var(--red2);margin-bottom:.25rem;"><strong>Combat Encounter</strong> - ${enemies.count} ${enemies.count===1?'Enemy':'Enemies'}</div>`;
+    enemies.enemies.forEach(e=>{
+      html+=`<div style="font-size:.7rem;color:var(--muted2);margin:.2rem 0;">${e.name} - ${e.stress} Stress</div>`;
+    });
+    html+=`<div style="font-size:.68rem;color:var(--gold);margin-top:.2rem;">Total: ${enemies.totalStress} Stress | Dread ${enemies.dreadDie}</div>`+
+      `<div style="font-size:.68rem;color:var(--muted);margin-top:.15rem;">Set up enemies in Combat tab or Quick Panel, then defeat them.</div>`+
+      `</div>`;
+    enemyContainer.innerHTML=html;
+  }else{
+    enemyContainer.innerHTML='';
+  }
 }
 
 

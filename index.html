@@ -2318,6 +2318,14 @@ function renderHexMap(){
       dot.setAttribute('r','4');dot.setAttribute('fill','var(--teal)');dot.setAttribute('pointer-events','none');
       g.appendChild(dot);
     }
+    if(hex.type==='wilderness'&&hex.data&&hex.data.eventLead){
+      const lead=document.createElementNS('http://www.w3.org/2000/svg','text');
+      lead.setAttribute('x',x-HEX_SIZE*.52);lead.setAttribute('y',y-HEX_SIZE*.32);
+      lead.setAttribute('text-anchor','middle');lead.setAttribute('font-size','13');
+      lead.setAttribute('fill','#c9a227');lead.setAttribute('pointer-events','none');
+      lead.textContent='🕸';
+      g.appendChild(lead);
+    }
     if(S.missionTokens&&S.missionTokens[`${hex.col},${hex.row}`]){
       const mt=S.missionTokens[`${hex.col},${hex.row}`];
       const isInformer=mt.type==='informer';
@@ -2374,6 +2382,9 @@ function renderHexInfo(hex){
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
     html+=`<div style="margin:.35rem 0;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
+    if(d.eventLead){
+      html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Interact here to reveal the next mystery in that chain.</div><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="revealEventLeadMystery(${hex.col},${hex.row})">⚄ Reveal Next Mystery (Lead)</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
+    }
 
   // ── TRADE ROUTE ── (FIX: no td reference)
   }else if(hex.type==='trade'){
@@ -2459,6 +2470,9 @@ function renderHexInfo(hex){
   // ── EVENT ──
   }else if(hex.type==='event'){
     html+=`<div class="mystery-card">${d.whisper||'Mystery awaits...'}</div>`;
+    if(d.activeLead){
+      html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🧭 Active Lead</div><div style="font-size:.8rem;color:var(--muted3);">Investigate Hex [${d.activeLead.targetCol+1},${d.activeLead.targetRow+1}] to continue this Event chain.</div></div>`;
+    }
     if(d.mysteries&&d.mysteries.length){
       html+=`<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap;">
         <button class="btn btn-sm btn-primary" onclick="revealMystery(${hex.col},${hex.row})">⚄ Reveal Next Mystery</button>
@@ -2501,10 +2515,106 @@ function renderHexInfo(hex){
 // ── HEX ENCOUNTER ROLLS ──────────────────────────────────────────────────────
 function revealMystery(col,row){
   const hex=mapData.find(h=>h.col===col&&h.row===row);if(!hex||!hex.data?.mysteries)return;
-  const m=hex.data.mysteries[hex.data.mysteryIdx%hex.data.mysteries.length];
-  hex.data.mysteryIdx++;
+  const result=advanceEventMystery(hex,'Event Hex');
   const el=document.getElementById(`mr-${col}-${row}`);
-  if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">Mystery ${hex.data.mysteryIdx} of ${hex.data.mysteries.length}</div>${m}</div>`;
+  if(!el||!result)return;
+  el.innerHTML=`<div class="venture-result"><div class="vr-type">Mystery ${result.idx} of ${result.total}</div>${result.text}</div>`
+    +(result.leadText?`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🧭 Investigation Lead</div><div style="font-size:.8rem;color:var(--muted3);">${result.leadText}</div></div>`:'');
+}
+
+function appendHexNote(col,row,text){
+  const k=`${col},${row}`;
+  const prev=hexNotes[k]||'';
+  if(prev.indexOf(text)>=0)return;
+  hexNotes[k]=prev?(prev+'\n'+text):text;
+}
+
+function appendQuickPanelNote(text){
+  if(!S.quickPanel)S.quickPanel={};
+  const prev=S.quickPanel.notes||'';
+  if(prev.indexOf(text)>=0)return;
+  S.quickPanel.notes=prev?(prev+'\n'+text):text;
+}
+
+function pickEventLeadHex(originCol,originRow){
+  const candidates=mapData.filter(h=>h.type==='wilderness'&&!(h.col===originCol&&h.row===originRow)&&!(h.data&&h.data.eventLead));
+  if(!candidates.length)return null;
+  // Bias toward nearby hexes to make the chain feel geographically coherent.
+  candidates.sort((a,b)=>{
+    const da=Math.abs(a.col-originCol)+Math.abs(a.row-originRow);
+    const db=Math.abs(b.col-originCol)+Math.abs(b.row-originRow);
+    return da-db;
+  });
+  const pool=candidates.slice(0,Math.min(10,candidates.length));
+  return pick(pool);
+}
+
+function createEventLead(eventHex){
+  if(!eventHex||eventHex.type!=='event')return null;
+  const d=eventHex.data||{};
+  if(!Array.isArray(d.mysteries))return null;
+  if(d.mysteryIdx>=d.mysteries.length)return null;
+  const target=pickEventLeadHex(eventHex.col,eventHex.row);
+  if(!target)return null;
+  target.data=target.data||{};
+  target.data.eventLead={eventCol:eventHex.col,eventRow:eventHex.row,eventName:eventHex.name,nextMystery:d.mysteryIdx+1};
+  d.activeLead={targetCol:target.col,targetRow:target.row};
+  const leadTxt=`Investigate Hex [${target.col+1},${target.row+1}] to reveal next ${eventHex.name} mystery.`;
+  appendHexNote(eventHex.col,eventHex.row,`[Event Lead] ${leadTxt}`);
+  appendHexNote(target.col,target.row,`[Event Lead: ${eventHex.name}] Reveal the next mystery here.`);
+  appendQuickPanelNote(`[Event ${eventHex.name} @ Hex ${eventHex.col+1},${eventHex.row+1}] ${leadTxt}`);
+  return {hex:target,text:leadTxt};
+}
+
+function clearEventLeadFromHex(col,row){
+  const h=mapData.find(x=>x.col===col&&x.row===row);
+  if(!h||!h.data||!h.data.eventLead)return;
+  delete h.data.eventLead;
+}
+
+function advanceEventMystery(eventHex,sourceLabel){
+  if(!eventHex||eventHex.type!=='event'||!eventHex.data?.mysteries)return null;
+  const d=eventHex.data;
+  const total=d.mysteries.length;
+  const idx=(d.mysteryIdx%total)+1;
+  const text=d.mysteries[d.mysteryIdx%total];
+  d.mysteryIdx++;
+
+  const source=`${sourceLabel} [${eventHex.col+1},${eventHex.row+1}]`;
+  appendHexNote(eventHex.col,eventHex.row,`[${eventHex.name}] Mystery ${idx}/${total}: ${text}`);
+  appendQuickPanelNote(`[${eventHex.name}] Mystery ${idx}/${total} from ${source}: ${text}`);
+
+  let leadText='';
+  if(d.mysteryIdx<total){
+    const lead=createEventLead(eventHex);
+    if(lead)leadText=lead.text;
+    else leadText='No valid wilderness hex available for a new lead. Continue investigating this Event hex.';
+  }else{
+    leadText=`${eventHex.name} mystery chain completed in this Province.`;
+  }
+  return {idx:idx,total:total,text:text,leadText:leadText};
+}
+
+function revealEventLeadMystery(col,row){
+  const leadHex=mapData.find(h=>h.col===col&&h.row===row);
+  if(!leadHex||!leadHex.data||!leadHex.data.eventLead)return;
+  const lead=leadHex.data.eventLead;
+  const eventHex=mapData.find(h=>h.col===lead.eventCol&&h.row===lead.eventRow&&h.type==='event');
+  if(!eventHex){showNotif('Event source no longer exists on this map.','warn');return;}
+
+  const result=advanceEventMystery(eventHex,`Lead Hex [${col+1},${row+1}]`);
+  clearEventLeadFromHex(col,row);
+  if(eventHex.data&&eventHex.data.activeLead&&eventHex.data.activeLead.targetCol===col&&eventHex.data.activeLead.targetRow===row){
+    delete eventHex.data.activeLead;
+  }
+
+  const el=document.getElementById(`lead-${col}-${row}`);
+  if(el&&result){
+    el.innerHTML=`<div class="venture-result"><div class="vr-type">${lead.eventName} — Mystery ${result.idx} of ${result.total}</div>${result.text}</div>`
+      +(result.leadText?`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🧭 New Lead</div><div style="font-size:.8rem;color:var(--muted3);">${result.leadText}</div></div>`:'');
+  }
+  showNotif(`${lead.eventName}: mystery progressed from lead hex.`, 'good');
+  renderHexMap();
 }
 function revealSageHint(col,row){
   const hex=mapData.find(h=>h.col===col&&h.row===row);if(!hex||!hex.data?.mysteries)return;

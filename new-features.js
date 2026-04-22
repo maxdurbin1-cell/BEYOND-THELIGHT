@@ -169,7 +169,10 @@
       { dreadDie: 6, guess: null, selectedHack: null },
       S.hackRoller || {}
     );
-    S.holdingQuest  = S.holdingQuest  || { active: false, step: 0, hexId: null };
+    S.holdingQuest  = Object.assign(
+      { active: false, step: 0, hexId: null, infoHex: null, siteHex: null, holdingHex: null },
+      S.holdingQuest || {}
+    );
 
     var prevMap = S.combatMap || {};
     S.combatMap = Object.assign({ units: [] }, prevMap);
@@ -961,7 +964,34 @@
     // Holding Acquisition Quest
     var questEl = document.getElementById("holdingQuestStatus");
     if (questEl) {
-      if (!h.name) {
+      var qh = S.holdingQuest || {};
+      if (qh.active) {
+        var steps = ['Gather Information', 'Go To Site', 'Establish Holding'];
+        var progressHtml = '';
+        for (var si = 0; si < 3; si++) {
+          var isDone = qh.step > si;
+          var isCurrent = qh.step === si;
+          progressHtml += '<div style="flex:1;text-align:center;padding:.3rem;background:' + (isDone ? 'var(--green2)' : isCurrent ? 'var(--teal)' : 'var(--surface)') + ';border:1px solid ' + (isDone ? 'rgba(46,196,182,.5)' : isCurrent ? 'var(--teal)' : 'var(--border2)') + ';border-radius:3px;">'
+            + '<div style="font-size:.65rem;color:' + (isDone || isCurrent ? 'var(--text)' : 'var(--muted2)') + ';">' + steps[si] + '</div>'
+            + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:.9rem;font-weight:700;color:' + (isDone || isCurrent ? 'var(--text)' : 'var(--muted)') + ';">Step ' + (si + 1) + '</div>'
+            + '</div>';
+        }
+
+        var locHtml = '';
+        if (qh.infoHex && qh.step <= 0) {
+          locHtml += '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.12rem;">👁 Gather Information: Hex [' + (qh.infoHex.col + 1) + ',' + (qh.infoHex.row + 1) + ']</div>';
+        }
+        if (qh.siteHex && qh.step <= 1) {
+          locHtml += '<div style="font-size:.72rem;color:var(--red2);margin-bottom:.12rem;">⚔ Go To Site: Hex [' + (qh.siteHex.col + 1) + ',' + (qh.siteHex.row + 1) + ']</div>';
+        }
+        if (qh.holdingHex && qh.step >= 2) {
+          locHtml += '<div style="font-size:.72rem;color:var(--teal);margin-bottom:.12rem;">🏛 Proposed Holding: Hex [' + (qh.holdingHex.col + 1) + ',' + (qh.holdingHex.row + 1) + ']</div>';
+        }
+
+        questEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;margin-bottom:.4rem;">' + progressHtml + '</div>'
+          + (locHtml ? '<div style="margin-bottom:.3rem;">' + locHtml + '</div>' : '')
+          + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">Advance Quest →</button>';
+      } else if (!h.name) {
         if ((S.renown || 0) < 9) {
           questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Currently: ' + (S.renown || 0) + '</div>';
         } else {
@@ -970,20 +1000,6 @@
             + '<button class="btn btn-sm btn-teal" onclick="startHoldingQuest();">Begin Quest →</button>'
             + '</div>';
         }
-      } else if ((S.holdingQuest || {}).active) {
-        var q = S.holdingQuest;
-        var steps = ['Recruit Followers', 'Scout Location', 'Establish Holding'];
-        var progressHtml = '';
-        for (var si = 0; si < 3; si++) {
-          var isDone = q.step > si;
-          var isCurrent = q.step === si;
-          progressHtml += '<div style="flex:1;text-align:center;padding:.3rem;background:' + (isDone ? 'var(--green2)' : isCurrent ? 'var(--teal)' : 'var(--surface)') + ';border:1px solid ' + (isDone ? 'rgba(46,196,182,.5)' : isCurrent ? 'var(--teal)' : 'var(--border2)') + ';border-radius:3px;">'
-            + '<div style="font-size:.65rem;color:' + (isDone || isCurrent ? 'var(--text)' : 'var(--muted2)') + ';">' + steps[si] + '</div>'
-            + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:.9rem;font-weight:700;color:' + (isDone || isCurrent ? 'var(--text)' : 'var(--muted)') + ';">Step ' + (si + 1) + '</div>'
-            + '</div>';
-        }
-        questEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;margin-bottom:.4rem;">' + progressHtml + '</div>'
-          + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">Advance Quest →</button>';
       } else {
         questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">Holding established: <strong style="color:var(--gold)">' + h.name + '</strong></div>';
       }
@@ -1012,14 +1028,71 @@
   }
 
   // ── HOLDING FUNCTIONS ─────────────────────────────────────────────────────────
+  function getRandomWildernessHexes(count) {
+    if (typeof mapData === 'undefined' || !Array.isArray(mapData) || !mapData.length) {
+      return [];
+    }
+    var wild = mapData.filter(function(h) { return h.type === 'wilderness'; });
+    if (!wild.length) { return []; }
+    var shuffled = wild.slice().sort(function() { return Math.random() - 0.5; });
+    return shuffled.slice(0, Math.min(count, shuffled.length)).map(function(h) {
+      return { col: h.col, row: h.row };
+    });
+  }
+
+  function clearHoldingQuestTokens() {
+    if (!S.missionTokens) { return; }
+    Object.keys(S.missionTokens).forEach(function(k) {
+      var t = S.missionTokens[k];
+      if (t && t.type && t.type.indexOf('holding_') === 0) {
+        delete S.missionTokens[k];
+      }
+    });
+  }
+
+  function placeHoldingQuestTokens() {
+    S.missionTokens = S.missionTokens || {};
+    clearHoldingQuestTokens();
+    var q = S.holdingQuest || {};
+    if (!q.active) {
+      if (q.holdingHex) {
+        S.missionTokens[q.holdingHex.col + ',' + q.holdingHex.row] = { missionId: 'holding_quest', title: 'Establish Your Holding', type: 'holding_home' };
+      }
+      if (typeof renderHexMap === 'function') { renderHexMap(); }
+      return;
+    }
+    if (q.step <= 0 && q.infoHex) {
+      S.missionTokens[q.infoHex.col + ',' + q.infoHex.row] = { missionId: 'holding_quest', title: 'Gather Information', type: 'holding_info' };
+    }
+    if (q.step <= 1 && q.siteHex) {
+      S.missionTokens[q.siteHex.col + ',' + q.siteHex.row] = { missionId: 'holding_quest', title: 'Go To Site', type: 'holding_site' };
+    }
+    if (q.step >= 2 && q.holdingHex) {
+      S.missionTokens[q.holdingHex.col + ',' + q.holdingHex.row] = { missionId: 'holding_quest', title: 'Your Holding', type: 'holding_home' };
+    }
+    if (typeof renderHexMap === 'function') { renderHexMap(); }
+  }
+
   function startHoldingQuest() {
     ensureNewFeatureState();
-    S.holdingQuest = { active: true, step: 0, hexId: null };
+    var spots = getRandomWildernessHexes(2);
+    var infoHex = spots[0] || null;
+    var siteHex = spots[1] || spots[0] || null;
+    S.holdingQuest = {
+      active: true,
+      step: 0,
+      hexId: null,
+      infoHex: infoHex,
+      siteHex: siteHex,
+      holdingHex: null
+    };
+    placeHoldingQuestTokens();
     // Switch to Holding tab if not already there
     var holdingTab = document.querySelector('[data-panel="tab-holding"]') || document.querySelector('[onclick*="tab-holding"]');
     if (holdingTab) { holdingTab.click(); }
     renderHoldingUI();
-    renderMissionBoard && renderMissionBoard();
+    if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
+    if (typeof renderQP === 'function') { renderQP('missions'); }
     showNotif("Holding Establishment Quest begun!", "good");
   }
 
@@ -1028,6 +1101,17 @@
     var q = S.holdingQuest;
     if (!q || !q.active) { return; }
     q.step++;
+    if (q.step === 1) {
+      // Step 1 complete: informer done, keep site marker.
+      placeHoldingQuestTokens();
+      showNotif("Quest advanced → Go To Site", "good");
+    }
+    if (q.step === 2) {
+      // Step 2 complete: site resolved, place Holding marker on chosen wilderness site.
+      q.holdingHex = q.siteHex || q.holdingHex || q.infoHex || null;
+      placeHoldingQuestTokens();
+      showNotif("Quest advanced → Establish Holding", "good");
+    }
     if (q.step >= 3) {
       q.active = false;
       // Prompt for holding name if not set
@@ -1037,12 +1121,11 @@
       } else {
         showNotif("Holding established: " + S.holding.name + "!", "good");
       }
-    } else {
-      var steps = ['Recruit Followers', 'Scout Location', 'Establish Holding'];
-      showNotif("Quest advanced → " + steps[q.step], "good");
+      placeHoldingQuestTokens();
     }
     renderHoldingUI();
     if (typeof renderMissionBoard === "function") { renderMissionBoard(); }
+    if (typeof renderQP === 'function') { renderQP('missions'); }
   }
 
   function moveVaultItemToBackpack(i) {

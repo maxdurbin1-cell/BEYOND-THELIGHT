@@ -614,7 +614,7 @@
         + '</div>'
       + '</div>';
     } else if (renown >= 9 && holdingQuest.active && !holdingEstablished) {
-      var steps = ['Recruit Followers', 'Scout Location', 'Establish Holding'];
+      var steps = ['Gather Information', 'Go To Site', 'Establish Holding'];
       var curStep = steps[holdingQuest.step] || 'Complete';
       holdingQuestHtml = '<div class="shop-card" style="display:flex;flex-direction:column;border-color:var(--teal);background:rgba(46,196,182,.05);">'
         + '<div style="font-family:\'Cinzel\',serif;font-size:.5rem;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:.18rem;">IN PROGRESS</div>'
@@ -627,7 +627,7 @@
               return '<div style="padding:.2rem;text-align:center;font-size:.65rem;background:' + (done ? 'var(--green2)' : cur ? 'var(--teal)' : 'var(--surface)') + ';border-radius:3px;color:' + (done || cur ? 'var(--text)' : 'var(--muted2)') + ';">' + s + '</div>';
             }).join('')
         + '</div>'
-        + '<button class="btn btn-xs btn-primary" onclick="startHoldingQuest()" style="margin-top:.3rem;">Open Holding Tab →</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="if(typeof switchTab===\'function\')switchTab(\'holding\')" style="margin-top:.3rem;">Open Holding Tab →</button>'
       + '</div>';
     }
 

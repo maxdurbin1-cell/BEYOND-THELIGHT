@@ -2167,6 +2167,9 @@ function showEquippedItem(slot) {
   var btnHtml = '';
   if (item) {
     btnHtml = '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellEquippedItem(' + "'" + slot + "'" + ');closeModal();">💰 Sell for ' + (item.cost || 0) + '₵</button> ';
+    if (slot === 'readied') {
+      btnHtml += '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useEquippedReadiedItem();closeModal();">⚑ Use</button> ';
+    }
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
     btnHtml += storageOptions;
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
@@ -2179,11 +2182,69 @@ function showEquippedItem(slot) {
   } else {
     // Custom item without shop data
     btnHtml = '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellEquippedCustomItem(' + "'" + slot + "'" + ');closeModal();">💰 Sell</button> ';
+    if (slot === 'readied') {
+      btnHtml += '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useEquippedReadiedItem();closeModal();">⚑ Use</button> ';
+    }
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
     btnHtml += storageOptions;
     var html = '<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+'</div>';
     openModal('Equipped Item', html);
   }
+}
+
+// Use currently equipped Readied Item by routing through backpack mechanics.
+// This preserves existing item behavior paths (scrolls, toolkits, consumables, custom items).
+function useEquippedReadiedItem() {
+  if (!S || !S.equipment || !S.backpack) return;
+  var text = S.equipment.readied || '';
+  if (!text) { showNotif('No Readied Item equipped.', 'warn'); return; }
+
+  var emptyIdx = -1;
+  for (var i = 0; i < S.backpack.length; i++) {
+    if (!S.backpack[i]) { emptyIdx = i; break; }
+  }
+  if (emptyIdx < 0) {
+    showNotif('Backpack full! Free one slot to use equipped Readied Item.', 'warn');
+    return;
+  }
+
+  S.backpack[emptyIdx] = text;
+  var bpEl = document.getElementById('bp' + emptyIdx);
+  if (bpEl) bpEl.value = text;
+
+  S.equipment.readied = '';
+  var eqEl = document.getElementById('eqReadied');
+  if (eqEl) eqEl.value = '';
+
+  var found = (typeof findShopItem === 'function') ? findShopItem(text) : null;
+
+  // Toolkits require follow-up selection buttons tied to a backpack index.
+  if (found && found.cat === 'toolkits') {
+    useBackpackItem(emptyIdx);
+    showNotif('Toolkit moved to Backpack for use selection.', 'good');
+    return;
+  }
+
+  // Use the item from temporary backpack slot.
+  if (found) {
+    useBackpackItem(emptyIdx);
+  } else if (/^Scroll:/i.test(text.trim())) {
+    castScrollFromBackpack(emptyIdx);
+  } else if (/A\.D\.|Ad\d|d\d/i.test(text)) {
+    useCustomItem(text, emptyIdx);
+  } else {
+    showNotif('This readied item has no direct use action.', 'warn');
+  }
+
+  // If item was not consumed immediately, auto-ready it back.
+  if (S.backpack[emptyIdx]) {
+    S.equipment.readied = S.backpack[emptyIdx];
+    if (eqEl) eqEl.value = S.backpack[emptyIdx];
+    S.backpack[emptyIdx] = '';
+    if (bpEl) bpEl.value = '';
+  }
+
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
 }
 
 // Unequip item and return to backpack if space
@@ -2596,13 +2657,14 @@ function renderHexMap(){
     }
     if(S.missionTokens&&S.missionTokens[`${hex.col},${hex.row}`]){
       const mt=S.missionTokens[`${hex.col},${hex.row}`];
-      const isInformer=mt.type==='informer';
-      const icon=isInformer?'👁':'⚔';
-      const color=isInformer?'#e8c050':'#e05050';
+      let icon='⚔',color='#e05050',label='SITE',fill='rgba(224,80,80,.18)';
+      if(mt.type==='informer'||mt.type==='holding_info'){icon='👁';color='#e8c050';label='INFORMER';fill='rgba(232,192,80,.18)';}
+      if(mt.type==='holding_site'){icon='🧭';color='#ff8450';label='HOLDING SITE';fill='rgba(255,132,80,.18)';}
+      if(mt.type==='holding_home'){icon='🏛';color='#46c4b6';label='HOLDING';fill='rgba(70,196,182,.2)';}
       // Outer glow circle
       const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');
       glow.setAttribute('cx',x+HEX_SIZE*.5);glow.setAttribute('cy',y-HEX_SIZE*.35);
-      glow.setAttribute('r','11');glow.setAttribute('fill',isInformer?'rgba(232,192,80,.18)':'rgba(224,80,80,.18)');
+      glow.setAttribute('r','11');glow.setAttribute('fill',fill);
       glow.setAttribute('stroke',color);glow.setAttribute('stroke-width','1.5');glow.setAttribute('pointer-events','none');
       g.appendChild(glow);
       const micon=document.createElementNS('http://www.w3.org/2000/svg','text');
@@ -2615,7 +2677,7 @@ function renderHexMap(){
       mlabel.setAttribute('text-anchor','middle');mlabel.setAttribute('font-size','6');
       mlabel.setAttribute('font-family','Cinzel,serif');mlabel.setAttribute('fill',color);
       mlabel.setAttribute('pointer-events','none');
-      mlabel.textContent=isInformer?'INFORMER':'SITE';g.appendChild(mlabel);
+      mlabel.textContent=label;g.appendChild(mlabel);
     }
     g.addEventListener('click',()=>{selectedHex=hex;renderHexMap();renderHexInfo(hex);});
     g.addEventListener('mousemove',()=>{const c=document.getElementById('hexCoords');if(c)c.textContent=`[${hex.col+1},${hex.row+1}] ${hex.terrain.name} — ${hex.name||hex.type}`;});
@@ -2635,6 +2697,19 @@ function renderHexInfo(hex){
   html+=`<div class="hex-type-tag ${hex.type}">${hex.type.toUpperCase()}</div>`;
   html+=`<div class="hex-name">${hex.name||hex.terrain.name}</div>`;
   html+=`<div class="hex-desc" style="margin-bottom:.4rem;">${hex.terrain.name} terrain</div>`;
+
+  if(S.missionTokens&&S.missionTokens[nk]){
+    const mt=S.missionTokens[nk];
+    const markerTitle=mt.type==='holding_info'?'Holding Quest: Gather Information'
+      :mt.type==='holding_site'?'Holding Quest: Go To Site'
+      :mt.type==='holding_home'?'Holding Site: Establish Here'
+      :mt.type==='informer'?'Mission Informer'
+      :'Mission Site';
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
+      <div class="nb-label" style="color:var(--gold2);">📍 ${markerTitle}</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}</div>
+    </div>`;
+  }
 
   if(d.taskSite||d.royalTask){
     const t=d.royalTask||d.taskSite;
@@ -3938,6 +4013,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       generateMissions();
     } else if (action === 'accept' && typeof acceptJob === 'function') {
       acceptJob(missionId);
+    } else if (action === 'holdingStart' && typeof startHoldingQuest === 'function') {
+      startHoldingQuest();
+    } else if (action === 'holdingAdvance' && typeof advanceHoldingQuest === 'function') {
+      advanceHoldingQuest();
     } else if (action === 'step1' && typeof startMissionStep1 === 'function') {
       startMissionStep1(missionId);
     } else if (action === 'skip1' && typeof skipMissionStep1 === 'function') {
@@ -4083,6 +4162,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
     var jobs = S.availableJobs || [];
     var missions = S.activeMissions || [];
+    var holdingQuest = S.holdingQuest || {};
+    var holdingEstablished = S.holding && S.holding.name;
+    var renown = S.renown || 0;
     var jobsHtml = '<div style="margin-bottom:.55rem;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.3rem;">'
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;">Mission Board</div>'
@@ -4099,6 +4181,42 @@ document.addEventListener('DOMContentLoaded',()=>{
           }).join('')
         : '<div style="font-size:.75rem;color:var(--muted2);">No posted jobs. Generate missions to create new contracts.</div>')
       + '</div>';
+
+    var holdingHtml = '';
+    if (renown >= 9 && !holdingEstablished) {
+      var hSteps = ['Gather Information', 'Go To Site', 'Establish Holding'];
+      if (!holdingQuest.active) {
+        holdingHtml = '<div style="margin-bottom:.55rem;">'
+          + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Special Quest</div>'
+          + '<div style="background:var(--surface);border:1px solid rgba(201,162,39,.45);padding:.45rem .55rem;">'
+            + '<div style="font-size:.72rem;color:var(--gold2);font-family:Cinzel,serif;">Establish Your Holding</div>'
+            + '<div style="font-size:.7rem;color:var(--muted2);margin:.2rem 0;">Required: Renown 9</div>'
+            + '<button class="btn btn-xs btn-teal" onclick="qpMissionAction(\'holdingStart\')">Begin</button>'
+          + '</div>'
+        + '</div>';
+      } else {
+        var cur = hSteps[holdingQuest.step] || 'Complete';
+        var loc = '';
+        if (holdingQuest.infoHex && holdingQuest.step <= 0) {
+          loc += '<div style="font-size:.68rem;color:var(--gold);margin-top:.12rem;">👁 Info: Hex [' + (holdingQuest.infoHex.col + 1) + ',' + (holdingQuest.infoHex.row + 1) + ']</div>';
+        }
+        if (holdingQuest.siteHex && holdingQuest.step <= 1) {
+          loc += '<div style="font-size:.68rem;color:var(--red2);margin-top:.12rem;">🧭 Site: Hex [' + (holdingQuest.siteHex.col + 1) + ',' + (holdingQuest.siteHex.row + 1) + ']</div>';
+        }
+        if (holdingQuest.holdingHex && holdingQuest.step >= 2) {
+          loc += '<div style="font-size:.68rem;color:var(--teal);margin-top:.12rem;">🏛 Holding: Hex [' + (holdingQuest.holdingHex.col + 1) + ',' + (holdingQuest.holdingHex.row + 1) + ']</div>';
+        }
+        holdingHtml = '<div style="margin-bottom:.55rem;">'
+          + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Special Quest</div>'
+          + '<div style="background:var(--surface);border:1px solid rgba(46,196,182,.45);padding:.45rem .55rem;">'
+            + '<div style="font-size:.72rem;color:var(--teal);font-family:Cinzel,serif;">Establish Your Holding</div>'
+            + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;">Current Step: <strong style="color:var(--text);">' + cur + '</strong></div>'
+            + loc
+            + '<button class="btn btn-xs btn-primary" style="margin-top:.25rem;" onclick="qpMissionAction(\'holdingAdvance\')">Advance</button>'
+          + '</div>'
+        + '</div>';
+      }
+    }
 
     var activeHtml = missions.length ? missions.map(function(m){
       var activeStep = 1;
@@ -4140,6 +4258,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }).join('') : '<div style="font-size:.78rem;color:var(--muted2);">No active missions yet.</div>';
 
     return jobsHtml
+      + holdingHtml
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Active Missions</div>'
       + activeHtml;
   }

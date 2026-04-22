@@ -2348,6 +2348,21 @@ function renderHexMap(){
       lead.textContent='🕸';
       g.appendChild(lead);
     }
+    if(hex.data&&(hex.data.taskSite||hex.data.royalTask)){
+      const taskGlow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      taskGlow.setAttribute('cx',x-HEX_SIZE*.52);taskGlow.setAttribute('cy',y+HEX_SIZE*.46);
+      taskGlow.setAttribute('r','9');taskGlow.setAttribute('fill','rgba(201,162,39,.18)');
+      taskGlow.setAttribute('stroke','#c9a227');taskGlow.setAttribute('stroke-width','1.3');
+      taskGlow.setAttribute('pointer-events','none');
+      g.appendChild(taskGlow);
+
+      const taskIcon=document.createElementNS('http://www.w3.org/2000/svg','text');
+      taskIcon.setAttribute('x',x-HEX_SIZE*.52);taskIcon.setAttribute('y',y+HEX_SIZE*.53);
+      taskIcon.setAttribute('text-anchor','middle');taskIcon.setAttribute('font-size','12');
+      taskIcon.setAttribute('fill','#c9a227');taskIcon.setAttribute('pointer-events','none');
+      taskIcon.textContent='📜';
+      g.appendChild(taskIcon);
+    }
     if(S.missionTokens&&S.missionTokens[`${hex.col},${hex.row}`]){
       const mt=S.missionTokens[`${hex.col},${hex.row}`];
       const isInformer=mt.type==='informer';
@@ -2390,6 +2405,17 @@ function renderHexInfo(hex){
   html+=`<div class="hex-name">${hex.name||hex.terrain.name}</div>`;
   html+=`<div class="hex-desc" style="margin-bottom:.4rem;">${hex.terrain.name} terrain</div>`;
 
+  if(d.taskSite||d.royalTask){
+    const t=d.royalTask||d.taskSite;
+    const taskType=d.royalTask?'Royal Task':'Task Site';
+    const completeFn=d.royalTask?'completeRoyalTask':'completeTaskAtHex';
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
+      <div class="nb-label" style="color:var(--gold2);">📜 ${taskType}</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${t.verb} ${t.target} can be completed here.</div>
+      <div style="margin-top:.3rem;"><button class="btn btn-sm btn-gold" onclick="if(typeof ${completeFn}==='function')${completeFn}(${hex.col},${hex.row});">Complete Task (+1 Renown)</button></div>
+    </div>`;
+  }
+
   // Weather
   html+=`<div class="weather-block ${weatherResult.rough?'rough':'clear'}">
     <div class="weather-label" style="color:${weatherResult.rough?'var(--red2)':'var(--teal)'};">🌦 ${season.charAt(0).toUpperCase()+season.slice(1)} Weather: ${weatherResult.result}</div>
@@ -2402,7 +2428,7 @@ function renderHexInfo(hex){
     if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTd(td.land)}</div></div>`;
     if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTd(td.flora)} ${pickTd(td.fauna)||''}</div></div>`;
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button><button class="btn btn-sm btn-info" onclick="showMerchantCaravan(${hex.col},${hex.row})">📋 Merchant</button><button class="btn btn-sm btn-dark" onclick="if(Math.random()>.15)showBlackMarket(${hex.col},${hex.row});else showNotif('No dealer here.','warn');">⚠ Black Market</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Lead vs DD6</button></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button><button class="btn btn-sm btn-info" onclick="showMerchantCaravan(${hex.col},${hex.row})">📋 Merchant</button><button class="btn btn-sm btn-dark" onclick="if(Math.random()>.15)showBlackMarket(${hex.col},${hex.row});else showNotif('No dealer here.','warn');">⚠ Black Market</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
     if(d.eventLead){
       html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Interact here to reveal the next mystery in that chain.</div><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="revealEventLeadMystery(${hex.col},${hex.row})">⚄ Reveal Next Mystery (Lead)</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;

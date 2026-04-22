@@ -28,18 +28,10 @@ function buildApproachSelectHTML(selectedStat){
 function promiseWildernessExploration(col,row){
   const hex=mapData.find(h=>h.col===col&&h.row===row);
   if(!hex||hex.type!=='wilderness')return;
-  
-  const directions=['north','northeast','east','southeast','south','southwest','west','northwest'];
-  let dirHTML='<div style="font-size:.82rem;color:var(--text2);margin-bottom:.4rem;"><strong>Which direction are you looking?</strong></div>';
-  dirHTML+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;">';
-  directions.forEach(dir=>{
-    dirHTML+=`<button class="btn btn-sm" onclick="performWildernessObservation(${col},${row},'${dir}')">${dir.charAt(0).toUpperCase()+dir.slice(1)}</button>`;
-  });
-  dirHTML+='</div>';
-  openModal('Wilderness Observation — Lead/Notice vs DD6',dirHTML);
+  performWildernessObservation(col,row);
 }
 
-function performWildernessObservation(col,row,direction){
+function performWildernessObservation(col,row){
   const leadDie=typeof getEffectiveDie==='function'?getEffectiveDie('lead'):(S.stats.lead||4);
   const leadRoll=explodingRoll(leadDie);
   const dreadRoll=explodingRoll(6);
@@ -53,30 +45,56 @@ function performWildernessObservation(col,row,direction){
     +'</div>';
     
   if(success){
-    const observedHexes=getHexesInDirection(col,row,direction,2);
+    const observedHexes=getAdjacentHexes(col,row);
     let findings='';
     observedHexes.forEach(h=>{
-      if(h.type==='wilderness'&&h.data&&h.data.wonder){
-        findings+=`<div style="padding:.2rem .4rem;border-left:2px solid var(--gold2);color:var(--gold2);"><strong>${h.data.wonder}</strong></div>`;
-      }else if(h.type==='event'){
-        findings+=`<div style="padding:.2rem .4rem;border-left:2px solid var(--red2);color:var(--red2);">🕸 <strong>${h.name}</strong> (Event)</div>`;
-      }else if(h.type==='holding'||h.type==='seat'){
-        findings+=`<div style="padding:.2rem .4rem;border-left:2px solid var(--gold);">🏛 <strong>${h.name}</strong> (Holding)</div>`;
-      }else if(h.type==='wilderness'){
-        findings+=`<div style="padding:.2rem .4rem;border-left:2px solid var(--border);">Wilderness — ${h.terrain&&h.terrain.name?h.terrain.name:'remote'}</div>`;
-      }else if(h.type==='dwelling'){
-        findings+=`<div style="padding:.2rem .4rem;border-left:2px solid var(--teal);">🏚 Dwelling</div>`;
-      }else if(h.type==='trade'){
-        findings+=`<div style="padding:.2rem .4rem;border-left:2px solid var(--gold);">🏛 Trade Route</div>`;
-      }
+      findings+=`<div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);margin-bottom:.18rem;">${formatObservedHexSummary(h)}</div>`;
     });
-    html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Successful Observation</div>You see ${direction}:<br>${findings||'<em style="color:var(--muted);">Just wilderness...</em>'}</div>`;
+    html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Successful Observation</div><div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">General signs from adjacent hexes:</div>${findings||'<em style="color:var(--muted);">Only distant haze surrounds you.</em>'}</div>`;
   }else{
     html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">✗ Observation Failed</div>The horizon is obscured. No details visible.</div>`;
   }
   
-  openModal(`Observation — Looking ${direction}`,html);
-  appendHexNote(col,row,`[Observation] Lead vs DD6 (${direction}): ${leadRoll.total} vs ${dreadRoll.total} => ${success?'success':'failure'}`);
+  openModal('Observation — Adjacent Hexes',html);
+  appendHexNote(col,row,`[Observation] Lead vs DD6 (adjacent): ${leadRoll.total} vs ${dreadRoll.total} => ${success?'success':'failure'}`);
+}
+
+function getAdjacentHexes(col,row){
+  const offsets=[
+    [-1,-1],[0,-1],[1,-1],
+    [-1,0],        [1,0],
+    [-1,1], [0,1], [1,1]
+  ];
+  const out=[];
+  offsets.forEach(([dc,dr])=>{
+    const h=mapData.find(x=>x.col===col+dc&&x.row===row+dr);
+    if(h)out.push(h);
+  });
+  return out;
+}
+
+function formatObservedHexSummary(hex){
+  if(hex.type==='wilderness'){
+    const wonder=(hex.data&&hex.data.wonder)?hex.data.wonder:'';
+    const terrain=hex.terrain&&hex.terrain.name?hex.terrain.name:'Unknown';
+    return wonder
+      ? `<strong>Wilderness</strong> — ${terrain}. Wonder: ${wonder}`
+      : `<strong>Wilderness</strong> — ${terrain}.`;
+  }
+
+  if(hex.type==='holding'||hex.type==='seat'||hex.type==='dwelling'||hex.type==='temple'){
+    const d=hex.data||{};
+    const general=(d.style&&d.feature)?`${d.style} ${d.feature}`:(d.news||d.mood?.mood||hex.name||'A notable sanctuary structure');
+    return `<strong>Temple</strong> — ${general}.`;
+  }
+
+  if(hex.type==='event')return '<strong>Omen Site</strong> — troubling signs gather here.';
+  if(hex.type==='trade')return '<strong>Temple</strong> — traveler outpost and roadside structures.';
+  if(hex.type==='ruins'||hex.type==='lostcity'||hex.type==='gate'||hex.type==='barrier'||hex.type==='peril'||hex.type==='monument'){
+    return `<strong>Temple</strong> — ${hex.name||'Ancient construction'}.`;
+  }
+
+  return '<strong>Temple</strong> — distant built forms on the horizon.';
 }
 
 function getHexesInDirection(col,row,direction,range){

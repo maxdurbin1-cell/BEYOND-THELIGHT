@@ -678,6 +678,11 @@
     S.caravan.chase.log.push(entry);
     renderCaravanUI();
     showNotif(success ? "Drive success! " + zoneMsg : "Drive failed — " + zoneMsg, success ? "good" : "warn");
+    if (success) {
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+    } else {
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
+    }
   }
 
   function rollChaseEnemyAttack() {
@@ -861,6 +866,11 @@
     if (el) {
       el.innerHTML = '<span style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">'
         + a.total + ' vs ' + d.total + ' \u2014 ' + (success ? '\u2713 Success' : '\u2717 Failed') + '</span>';
+    }
+    if (success) {
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+    } else {
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
   }
 

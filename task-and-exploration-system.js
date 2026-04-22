@@ -57,12 +57,14 @@ function performWildernessObservation(col,row,directionKey){
     +'</div>';
     
   if(success){
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
     if(!target){
       html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No Adjacent Hex</div>There is no mapped hex in that direction.</div>`;
     }else{
       html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Successful Observation (${target.label})</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);">${formatObservedHexSummary(target.hex)}</div></div>`;
     }
   }else{
+    if(typeof addTMWOnFail==='function')addTMWOnFail();
     html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">✗ Observation Failed</div>The horizon is obscured. No details visible.</div>`;
   }
   
@@ -184,9 +186,11 @@ function haggleMerchantCaravan(col,row){
     S.data.haggleDiscount=true;
     html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;color:var(--text);"><strong style="color:var(--green2);">✓ Haggle Success</strong> — Items cost 20% less!</div>`;
     showNotif('Haggle success! Merchant gives better prices.','good');
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
   }else{
     html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;color:var(--text);"><strong style="color:var(--red2);">✗ Haggle Failed</strong> — No discount.</div>`;
     showNotif('Haggle failed. No discount.','warn');
+    if(typeof addTMWOnFail==='function')addTMWOnFail();
   }
   
   openModal('Haggle Check (Spirit vs DD8)',html);
@@ -254,15 +258,25 @@ function acceptGeneratedHoldingTask(col,row,verb,target,distance,dir,destCol,des
 function completeTaskAtHex(col,row){
   const hex=mapData.find(h=>h.col===col&&h.row===row);
   if(!hex||!hex.data||!hex.data.taskSite)return;
-  
+
   const task=hex.data.taskSite;
-  S.renown=(S.renown||0)+1;
-  if(typeof updateRenown==='function')updateRenown();
-  
-  showNotif(`Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
-  appendHexNote(col,row,`[Task Complete] ${task.verb} ${task.target} — Renown +1`);
-  
-  delete hex.data.taskSite;
+  const adDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
+  const a=explodingRoll(adDie);
+  const d=explodingRoll(8);
+  const success=a.total>=d.total;
+
+  if(success){
+    S.renown=(S.renown||0)+1;
+    if(typeof updateRenown==='function')updateRenown();
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+    showNotif(`Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
+    appendHexNote(col,row,`[Task Complete] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total} — success, Renown +1`);
+    delete hex.data.taskSite;
+  }else{
+    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    showNotif(`Task Failed: ${task.verb} ${task.target} (${a.total} vs ${d.total})`,'warn');
+    appendHexNote(col,row,`[Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total}`);
+  }
 }
 
 function handleRoyalCaravanEncounter(col,row){
@@ -319,13 +333,23 @@ function acceptRoyalCaravanTask(col,row,verb,target,distance,dir){
 function completeRoyalTask(col,row){
   const hex=mapData.find(h=>h.col===col&&h.row===row);
   if(!hex||!hex.data||!hex.data.royalTask)return;
-  
+
   const task=hex.data.royalTask;
-  S.renown=(S.renown||0)+1;
-  if(typeof updateRenown==='function')updateRenown();
-  
-  showNotif(`Royal Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
-  appendHexNote(col,row,`[Royal Task] Completed ${task.verb} ${task.target} — Renown +1`);
-  
-  delete hex.data.royalTask;
+  const adDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
+  const a=explodingRoll(adDie);
+  const d=explodingRoll(8);
+  const success=a.total>=d.total;
+
+  if(success){
+    S.renown=(S.renown||0)+1;
+    if(typeof updateRenown==='function')updateRenown();
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+    showNotif(`Royal Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
+    appendHexNote(col,row,`[Royal Task Complete] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total} — success, Renown +1`);
+    delete hex.data.royalTask;
+  }else{
+    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    showNotif(`Royal Task Failed: ${task.verb} ${task.target} (${a.total} vs ${d.total})`,'warn');
+    appendHexNote(col,row,`[Royal Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total}`);
+  }
 }

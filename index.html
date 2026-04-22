@@ -2953,6 +2953,7 @@ function attemptBlackMarketAccess(col,row){
       `<div style="margin-top:.25rem;font-size:.8rem;color:var(--gold2);">Visible Master Hacks today: ${offers||'Unknown'}</div>`+
       `<div style="margin-top:.35rem;"><button class="btn btn-sm btn-dark" onclick="showBlackMarket(${col},${row});">Enter Black Market</button></div>`;
     showNotif('You gain access to the Black Market.','good');
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
   }else{
     html+=`<div style="margin-top:.35rem;font-size:.8rem;color:var(--muted2);">Lookouts clock you immediately and throw you out before any deal starts.</div>`;
     showNotif('Black Market access failed. You were thrown out.','warn');
@@ -3005,6 +3006,7 @@ function attemptEncounterThievery(source,col,row){
   const dreadRoll=explodingRoll(12);
   const success=playerTotal>=dreadRoll.total;
   if(success){
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
     if(reward.kind==='credits'){
       S.credits=(S.credits||0)+reward.amount;
       if(typeof updateCreditsUI==='function')updateCreditsUI();
@@ -3080,6 +3082,7 @@ function attemptThievery(targetName){
   const dreadRoll=explodingRoll(12);
   const success=playerTotal>=dreadRoll.total;
   if(success){
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
     if(typeof addToBackpack==='function'){
       const stored=addToBackpack(targetName);
       showNotif(`Successfully stole: ${targetName}${stored?' (backpack)':' (no space)'}`, 'good');

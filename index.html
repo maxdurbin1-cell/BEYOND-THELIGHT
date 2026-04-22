@@ -1989,6 +1989,10 @@ function showBackpackItem(index) {
     } else if (hasAD) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useCustomItem(\''+text.replace(/'/g,"\\'")+'\',' + index + ');">⚄ Roll A.D.</button> ';
     }
+    btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon1\');">⚔ W1</button> ';
+    btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon2\');">⚔ W2</button> ';
+    btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'armor\');">⚔ Armor</button> ';
+    btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'readied\');">⚔ Readied</button> ';
     btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
     openModal('Backpack Item','<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+'</div>');
     return;
@@ -2019,6 +2023,20 @@ function removeBackpackItem(index) {
   S.backpack[index] = '';
   var el = document.getElementById('bp' + index);
   if (el) el.value = '';
+}
+
+function equipBackpackItem(index,slot){
+  var item=S.backpack[index];
+  if(!item)return;
+  if(!S.equipment)S.equipment={};
+  if(slot==='weapon1'){S.equipment.weapon1=item;var el=document.getElementById('eqWeapon1');if(el)el.value=item;}
+  else if(slot==='weapon2'){S.equipment.weapon2=item;var el=document.getElementById('eqWeapon2');if(el)el.value=item;}
+  else if(slot==='armor'){S.equipment.armor=item;var el=document.getElementById('eqArmor');if(el)el.value=item;}
+  else if(slot==='readied'){S.equipment.readied=item;var el=document.getElementById('eqReadied');if(el)el.value=item;}
+  if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+  if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
+  closeModal();
+  showNotif('Equipped: '+item,'good');
 }
 
 // Execute item use effect from backpack slot
@@ -2483,25 +2501,13 @@ function renderHexInfo(hex){
     }
     if(challenge){
       const cid=`${hex.col}-${hex.row}`;
+      const prog=getEventMysteryProgress(hex);
       html+=`<div class="event-mystery-wrap" style="margin-top:.5rem;">`+
-        `<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.25rem;"><strong>${challenge.profile.foe}</strong> · Dread d${challenge.dread} · Progress ${challenge.progress}/3</div>`+
-        `<div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;">`+
-        `<label style="font-size:.72rem;color:var(--muted2);">Approach <select id="evApproach-${cid}">`+
-        `<option value="slay">Fight / Slay</option>`+
-        `<option value="tame">Tame / Endure</option>`+
-        `<option value="parley">Parley / Read</option>`+
-        `</select></label>`+
-        `<label style="font-size:.72rem;color:var(--muted2);">Stat <select id="evStat-${cid}">`+
-        `<option value="strike">STRIKE</option>`+
-        `<option value="defend">DEFEND</option>`+
-        `<option value="endure">ENDURE</option>`+
-        `<option value="read">READ</option>`+
-        `<option value="move">MOVE</option>`+
-        `<option value="lead">LEAD</option>`+
-        `</select></label>`+
-        `<button class="btn btn-sm" onclick="resolveEventAction(${hex.col},${hex.row})">Roll Event Action</button>`+
-        `</div>`+
-        `<div style="font-size:.72rem;color:var(--muted2);margin-top:.25rem;">${challenge.profile.special}</div>`+
+        `<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.25rem;"><strong>${challenge.profile.foe}</strong> · Dread ${challenge.dread} · Mysteries ${prog.completed}/6</div>`+
+        `<div style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem;">Defeats: ${prog.failures} (4+ = no reward)</div>`+
+        `<label style="font-size:.72rem;color:var(--muted2);display:block;margin-bottom:.3rem;">Stat: <select id="evStat-${cid}" style="width:100%;"><option value="body">Body-Power</option><option value="mind">Mind-Intellect</option><option value="control">Control</option><option value="lead" selected>Lead</option><option value="spirit">Spirit</option><option value="strike">STRIKE</option><option value="shoot">SHOOT</option><option value="defend">DEFEND</option></select></label>`+
+        `<button class="btn btn-sm btn-primary" onclick="resolveEventAction(${hex.col},${hex.row})" style="width:100%;">Roll Check</button>`+
+        `<div style="font-size:.72rem;color:var(--muted2);margin-top:.25rem;font-style:italic;">${challenge.profile.special}</div>`+
         `<div id="evResult-${cid}" style="margin-top:.35rem;"></div>`+
         `</div>`;
     }
@@ -2573,6 +2579,23 @@ function getEventEncounterProfile(eventName){
   return {foe:nm+' Manifestation',baseDread:8,stress:20,special:'On failure, pressure rises and dread escalates.'};
 }
 
+function getApproachForStat(stat){
+  const m={'body':'Power','strike':'Combat','shoot':'Combat','defend':'Combat','mind':'Intellect','control':'Intellect','lead':'Guidance','spirit':'Resilience'};
+  return m[stat]||'Unknown';
+}
+
+function generateEventCombatEnemies(dreadDie){
+  const dreadVal=parseInt(dreadDie.replace(/d/,''))||6;
+  const stressPerEnemy=2*dreadVal;
+  const enemyCount=1+Math.floor(Math.random()*4);
+  const enemies=[];
+  if(enemyCount>=1)enemies.push({name:'Corrupted Scout',stress:stressPerEnemy});
+  if(enemyCount>=2)enemies.push({name:'Twisted Guard',stress:stressPerEnemy});
+  if(enemyCount>=3)enemies.push({name:'Warped Sentinel',stress:stressPerEnemy});
+  if(enemyCount>=4)enemies.push({name:'Blight Manifestation',stress:stressPerEnemy});
+  return {count:enemyCount,enemies:enemies,dreadDie:dreadDie,totalStress:stressPerEnemy*enemyCount};
+}
+
 function ensureEventChallengeState(eventHex){
   if(!eventHex||eventHex.type!=='event')return null;
   eventHex.data=eventHex.data||{};
@@ -2580,9 +2603,8 @@ function ensureEventChallengeState(eventHex){
   if(!eventHex.data.challenge){
     eventHex.data.challenge={
       dread:profile.baseDread,
-      progress:0,
-      failures:0,
-      approach:'slay',
+      mysteryRolls:[],
+      approach:'direct',
       completed:false,
       rewardClaimed:false,
       profile:profile
@@ -2591,72 +2613,80 @@ function ensureEventChallengeState(eventHex){
   return eventHex.data.challenge;
 }
 
+function recordEventMysteryRoll(eventHex,stat,success,rollValue,dreadValue){
+  const ch=ensureEventChallengeState(eventHex);
+  if(!ch)return;
+  ch.mysteryRolls.push({stat:stat,success:success,roll:rollValue,dread:dreadValue});
+}
+
+function getEventMysteryProgress(eventHex){
+  const ch=ensureEventChallengeState(eventHex);
+  if(!ch)return{completed:0,failures:0};
+  const rolls=ch.mysteryRolls||[];
+  const completed=rolls.filter(r=>r.success).length;
+  const failures=rolls.filter(r=>!r.success).length;
+  return{completed:completed,failures:failures};
+}
+
+function shouldGrantEventReward(eventHex){
+  const prog=getEventMysteryProgress(eventHex);
+  return prog.failures<4;
+}
+
 function completeEventChallenge(eventHex,approach){
   if(!eventHex||eventHex.type!=='event')return;
   const ch=ensureEventChallengeState(eventHex);
   if(!ch||ch.rewardClaimed)return;
+  const prog=getEventMysteryProgress(eventHex);
+  if(prog.completed<6){showNotif('Complete all 6 mysteries to resolve this Event.','warn');return;}
   ch.completed=true;
   ch.rewardClaimed=true;
-  S.renown=(S.renown||0)+1;
-  if(typeof updateRenown==='function')updateRenown();
-
-  // Reward one random merchant item and place into backpack if possible.
-  const rewardPools=['items','essentials','toolkits','scrolls','services','remedies'];
-  const pool=pick(rewardPools);
-  const list=(SHOP_DATA&&SHOP_DATA[pool])||[];
-  const item=list.length?pick(list):{name:'Mysterious Relic'};
-  let stored=false;
-  if(typeof addToBackpack==='function')stored=addToBackpack(item.name);
-  appendHexNote(eventHex.col,eventHex.row,`[${eventHex.name}] Event completed via ${approach}. Reward: ${item.name}. +1 Renown.`);
-  appendQuickPanelNote(`[Event Complete] ${eventHex.name} resolved via ${approach}. Reward: ${item.name}. +1 Renown.`);
-  showNotif(`${eventHex.name} resolved! +1 Renown. Reward: ${item.name}${stored?' (backpack)':' (no backpack slot)'}`, stored?'good':'warn');
+  if(shouldGrantEventReward(eventHex)){
+    S.renown=(S.renown||0)+1;
+    if(typeof updateRenown==='function')updateRenown();
+    const rewardPools=['items','essentials','toolkits','scrolls','services','remedies'];
+    const pool=pick(rewardPools);
+    const list=(SHOP_DATA&&SHOP_DATA[pool])||[];
+    const item=list.length?pick(list):{name:'Mysterious Relic'};
+    let stored=false;
+    if(typeof addToBackpack==='function')stored=addToBackpack(item.name);
+    appendHexNote(eventHex.col,eventHex.row,`[${eventHex.name}] Event completed! +1 Renown · Reward: ${item.name}`);
+    appendQuickPanelNote(`[Event Complete] ${eventHex.name} resolved. +1 Renown · Reward: ${item.name}`);
+    showNotif(`${eventHex.name} resolved! +1 Renown. Reward: ${item.name}${stored?' (backpack)':' (no backpack slot)'}`, 'good');
+  }else{
+    appendHexNote(eventHex.col,eventHex.row,`[${eventHex.name}] Event failed — too many defeats. No reward.`);
+    appendQuickPanelNote(`[Event Failed] ${eventHex.name} — Dread overwhelmed. No reward.`);
+    showNotif(`${eventHex.name} overwhelms! Too many failures. No reward.`, 'warn');
+  }
 }
 
 function resolveEventAction(col,row){
   const hex=mapData.find(h=>h.col===col&&h.row===row&&h.type==='event');if(!hex)return;
   const ch=ensureEventChallengeState(hex);if(!ch)return;
   if(ch.completed){showNotif('This Event has already been completed.','good');return;}
-
-  const approachSel=document.getElementById(`evApproach-${col}-${row}`);
   const statSel=document.getElementById(`evStat-${col}-${row}`);
-  const approach=approachSel?approachSel.value:'slay';
   const statKey=statSel?statSel.value:'lead';
-  ch.approach=approach;
-
+  ch.approach=getApproachForStat(statKey);
   const die=(typeof getEffectiveDie==='function')?getEffectiveDie(statKey):(S.stats[statKey]||4);
   const a=explodingRoll(die);
   const d=explodingRoll(ch.dread||8);
   const success=a.total>=d.total;
-
-  if(success){
-    ch.progress=(ch.progress||0)+1;
-    ch.dread=stepDown(ch.dread||8);
-  }else{
-    ch.failures=(ch.failures||0)+1;
-    ch.dread=stepUp(ch.dread||8);
-  }
-
+  if(success){ch.dread=stepDown(ch.dread||8);}else{ch.dread=stepUp(ch.dread||8);}
+  recordEventMysteryRoll(hex,statKey,success,a.total,d.total);
+  const prog=getEventMysteryProgress(hex);
   const resEl=document.getElementById(`evResult-${col}-${row}`);
   if(resEl){
-    resEl.innerHTML=`<div class="venture-result"><div class="vr-type">${hex.name} — ${approach.toUpperCase()} check (${statKey.toUpperCase()})</div>`+
+    resEl.innerHTML=`<div class="venture-result"><div class="vr-type">${hex.name} — ${getApproachForStat(statKey)} check (${statKey.toUpperCase()})</div>`+
       `<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — `+
       (success?'<strong style="color:var(--green2);">Success</strong>':'<strong style="color:var(--red2);">Failure</strong>')+
-      `<br><span style="font-size:.75rem;color:var(--muted2);">Dread now d${ch.dread} · Progress ${ch.progress}/3 · Failures ${ch.failures}/3</span></div>`;
+      `<br><span style="font-size:.75rem;color:var(--muted2);">Dread now ${ch.dread} · Mysteries Solved ${prog.completed}/6 · Defeats ${prog.failures}</span></div>`;
   }
-
-  appendHexNote(col,row,`[${hex.name}] ${approach}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread d${ch.dread}).`);
-  appendQuickPanelNote(`[${hex.name}] ${approach}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread d${ch.dread}).`);
-
+  appendHexNote(col,row,`[${hex.name}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
+  appendQuickPanelNote(`[${hex.name}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
   if(success&&typeof addSuccessRoll==='function')addSuccessRoll();
   if(!success&&typeof addTMWOnFail==='function')addTMWOnFail();
   if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
-
-  if((ch.progress||0)>=3){
-    completeEventChallenge(hex,approach);
-  }else if((ch.failures||0)>=3){
-    showNotif(`${hex.name} escalates! Dread has peaked at d${ch.dread}. Regroup or push through.`, 'warn');
-    ch.failures=0;
-  }
+  if(prog.completed>=6){completeEventChallenge(hex,'direct action');}
 }
 
 function appendHexNote(col,row,text){

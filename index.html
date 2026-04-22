@@ -595,7 +595,7 @@ select option{background:#0f1020;}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">
         <div><span class="sub-label">Spacing / Zone</span>
-          <select id="spacingSelect" onchange="S.combat.spacing=this.value">
+          <select id="spacingSelect" onchange="setCombatSpacing(this.value,true)">
             <option>Engaged (Strike)</option><option>Close (Scrolls)</option><option>Nearby (Shoot)</option>
           </select>
         </div>
@@ -1305,8 +1305,8 @@ function pushLuck(pool) {
 function spendTMW(n) { if (S.tmw < n) { showNotif('Not enough TMW!', 'warn'); return; } S.tmw -= n; updateTMWPool(); showNotif('Spent ' + n + ' TMW. Pool: ' + S.tmw); closeModal(); }
 
 // ── COMBAT ───────────────────────────────────────────────────────────────────
-function startCombat(){S.combat.active=true;S.combat.round=1;S.combat.actionsLeft=getMaxActions();updateCombatUI();}
-function nextRound(){S.combat.round++;S.combat.actionsLeft=getMaxActions();updateCombatUI();}
+function startCombat(){S.combat.active=true;S.combat.round=1;S.combat.actionsLeft=getMaxActions();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
+function nextRound(){S.combat.round++;S.combat.actionsLeft=getMaxActions();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
 function endCombat(){S.combat.active=false;S.combat.round=0;halfStress();clearAllConditions();updateCombatUI();showNotif('Scene ended — Recovery applied','good');}
 function updateCombatUI(){const el=document.getElementById('combatStatus');if(el)el.textContent=S.combat.active?`Round ${S.combat.round} — Active Scene`:'No active scene.';const al=document.getElementById('actionsLeft');if(al)al.textContent=S.combat.actionsLeft;const ml=document.getElementById('maxActionsHint');if(ml)ml.textContent='(max '+getMaxActions()+')';}
 function setEnemyDread(n){S.combat.enemyDread=n;document.getElementById('enemyDreadDisplay').textContent='d'+n;}
@@ -1314,6 +1314,97 @@ function setEnemyDread(n){S.combat.enemyDread=n;document.getElementById('enemyDr
 // Return maximum actions per round from armor + bonuses.
 function parseArmorActions(){var a=(S&&S.equipment)?S.equipment.armor||'':'';var m=a.match(/(\d+)\s+Action/i);return m?parseInt(m[1],10):3;}
 function getMaxActions(){var base=parseArmorActions();if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0)base+=2;var fl=(S.flavor||'').toLowerCase();if(fl.indexOf('moves like the wind')>=0)base+=1;return base;}
+
+function getCombatRange(){
+  var spacing=(S.combat&&S.combat.spacing)?S.combat.spacing:'Engaged (Strike)';
+  spacing=String(spacing||'').toLowerCase();
+  if(spacing.indexOf('engaged')>=0)return 'engaged';
+  if(spacing.indexOf('close')>=0)return 'close';
+  if(spacing.indexOf('nearby')>=0)return 'nearby';
+  if(spacing.indexOf('far')>=0)return 'far';
+  return 'engaged';
+}
+
+function setCombatSpacing(newSpacing,consume){
+  if(!S.combat)S.combat={};
+  var oldSpacing=S.combat.spacing||'Engaged (Strike)';
+  if(oldSpacing===newSpacing)return;
+  if(consume){
+    if((S.combat.actionsLeft||0)<=0){showNotif('No Actions remaining. Cannot move range.','warn');var sel=document.getElementById('spacingSelect');if(sel)sel.value=oldSpacing;return;}
+    S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);
+    showNotif('Moved to '+newSpacing+' (−1 Action).','good');
+  }
+  S.combat.spacing=newSpacing;
+  var sel2=document.getElementById('spacingSelect');if(sel2)sel2.value=newSpacing;
+  updateCombatUI();
+  if(typeof renderQP==='function')renderQP('combat');
+}
+
+function weaponTextAllowsShootRange(range){
+  var ws=[(S.equipment&&S.equipment.weapon1)||'',(S.equipment&&S.equipment.weapon2)||''];
+  var joined=ws.join(' | ').toLowerCase();
+  var hasShoot=joined.indexOf('shoot')>=0;
+  if(!hasShoot)return range==='nearby';
+  if(range==='nearby')return true;
+  if(range==='close')return joined.indexOf('close')>=0;
+  if(range==='far')return joined.indexOf('far')>=0;
+  return false;
+}
+
+function canUseAttackAtCurrentRange(type){
+  var range=getCombatRange();
+  if(type==='strike')return range==='engaged';
+  if(type==='shoot')return weaponTextAllowsShootRange(range);
+  return true;
+}
+
+function consumeCombatAction(label){
+  if(!S.combat)return true;
+  if((S.combat.actionsLeft||0)<=0){showNotif('No Actions remaining for this turn.','warn');return false;}
+  S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);
+  updateCombatUI();
+  if(typeof renderQP==='function')renderQP('combat');
+  if(label)showNotif(label+' (−1 Action)','good');
+  return true;
+}
+
+function maybeResetActionsAfterDefend(){
+  if(!S.combat)return;
+  S.combat.enemyDefendsThisTurn=(S.combat.enemyDefendsThisTurn||0)+1;
+  if(S.combat.enemyDefendsThisTurn>=2){
+    S.combat.enemyDefendsThisTurn=0;
+    S.combat.actionsLeft=getMaxActions();
+    updateCombatUI();
+    showNotif('Enemy turn complete. Your Actions are reset.','good');
+    if(typeof renderQP==='function')renderQP('combat');
+  }
+}
+
+const ENEMY_ACTION_EVENTS=[
+  {name:'Mercenary: Scrap Rifle',desc:'Enemy fires. You must Defend or take d6 Stress.',kind:'defendCheck',die:6},
+  {name:'Mercenary: Hack Volt',desc:'Roll Spirit vs enemy Dread or become Distracted.',kind:'saveCondition',stat:'spirit',condition:'distracted'},
+  {name:'Brutal Rush',desc:'Roll Body vs enemy Dread or become Vulnerable.',kind:'saveCondition',stat:'body',condition:'vulnerable'},
+  {name:'Neuro Pulse',desc:'Roll Mind vs enemy Dread or become Shaken.',kind:'saveCondition',stat:'mind',condition:'shaken'},
+  {name:'Suppressive Fire',desc:'You lose 1 Action unless you Defend successfully.',kind:'loseAction'}
+];
+
+function triggerEnemyActionEvent(){
+  if(!Array.isArray(S.enemies)||!S.enemies.length){showNotif('Add an enemy first.','warn');return;}
+  var ev=pick(ENEMY_ACTION_EVENTS);
+  if(ev.kind==='defendCheck'){
+    var dd=S.combat&&S.combat.enemyDread?S.combat.enemyDread:8;
+    openModal('Enemy Action — '+ev.name,'<div style="font-size:.86rem;line-height:1.6;">'+ev.desc+'<br><br><button class="btn btn-sm btn-teal" onclick="rollDefend();closeModal();">Roll Defend</button> <span style="font-size:.75rem;color:var(--muted2);margin-left:.35rem;">Enemy Dread d'+dd+'</span></div>');
+  }else if(ev.kind==='saveCondition'){
+    var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats[ev.stat]||4);
+    var pr=explodingRoll(statDie);var dr=explodingRoll(S.combat.enemyDread||8);var ok=pr.total>=dr.total;
+    if(!ok){S.conditions[ev.condition]=true;if(typeof updateConditionButtons==='function')updateConditionButtons();if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();}
+    openModal('Enemy Action — '+ev.name,'<div style="font-size:.86rem;line-height:1.6;">'+ev.desc+'<br><br>'+ev.stat.toUpperCase()+' d'+statDie+': <strong style="color:var(--teal);">'+pr.total+'</strong> vs Dread: <strong style="color:var(--red);">'+dr.total+'</strong><br>'+(ok?'<span style="color:var(--green2);">Saved.</span>':'<span style="color:var(--red2);">Failed — '+ev.condition+' applied.</span>')+'</div>');
+  }else if(ev.kind==='loseAction'){
+    if((S.combat.actionsLeft||0)>0)S.combat.actionsLeft=Math.max(0,S.combat.actionsLeft-1);
+    updateCombatUI();
+    openModal('Enemy Action — '+ev.name,'<div style="font-size:.86rem;line-height:1.6;">'+ev.desc+'<br><br><span style="color:var(--red2);">You lose 1 Action.</span></div>');
+  }
+}
 
 // Flavor / Mutation bonuses for roll functions.
 // Returns { flat, advDie (max), advDice (array), holyShield }
@@ -1473,6 +1564,13 @@ function clearConditionOnUse(key) {
 }
 
 function rollAttack(type) {
+  if(!canUseAttackAtCurrentRange(type)){
+    if(type==='strike')showNotif('Strike requires Engaged range. Move first.','warn');
+    else showNotif('Shoot requires a valid range for your weapon (default: Nearby).','warn');
+    return;
+  }
+  if(!consumeCombatAction(type==='strike'?'Strike action':'Shoot action'))return;
+
   var die = type === 'strike' ? S.stats.strike : S.stats.shoot;
   var augDie = getAugBonus(type);
   var wpBonus = parseWeaponBonuses(type);
@@ -1547,6 +1645,8 @@ function rollAttack(type) {
 }
 
 function rollDefend() {
+  maybeResetActionsAfterDefend();
+
   var armorAdv = parseArmorAdvDie();
   var wpBonus = parseWeaponBonuses('defend');
   var flBonus = getFlavorBonus('defend');
@@ -1605,7 +1705,13 @@ function rollDefend() {
 function rollTraumaCheck(){const a=explodingRoll(S.stats.adventure),d=explodingRoll(S.combat.enemyDread);const success=a.total>=d.total;const el=document.getElementById('traumaResult');if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;if(success){addSuccessRoll();}else{changeTrauma(1);addTMWOnFail();}}
 
 let enemyIdCounter=1;
-function addEnemy(){const name=prompt('Enemy name:','Enemy '+(S.enemies.length+1))||'Enemy';const maxStress=S.combat.enemyDread*2;S.enemies.push({id:enemyIdCounter++,name,dread:S.combat.enemyDread,stress:0,maxStress});renderEnemies();}
+function addEnemy(nameArg,dreadArg){
+  const resolvedName=(typeof nameArg==='string'&&nameArg.trim())?nameArg.trim():(prompt('Enemy name:','Enemy '+(S.enemies.length+1))||'Enemy');
+  const dd=parseInt(dreadArg,10)||S.combat.enemyDread;
+  const maxStress=dd*2;
+  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress});
+  renderEnemies();
+}
 function clearEnemies(){S.enemies=[];renderEnemies();}
 function applyStressToCurrentEnemy(stress,source){
   if(!Array.isArray(S.enemies)||!S.enemies.length)return;
@@ -1651,7 +1757,34 @@ Weapons have as many available Mod Slots as their bonus damage value. <strong>Ad
   <li><em>Heavy</em> Weapons (+4 Strike/Shoot) — <strong>4 Mod Slots</strong></li>
 </ul>`
 };
-function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;let rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(cat==='augmentations'){const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];const bodyDie=S.stats&&S.stats.body?S.stats.body:4;const maxAugs=Math.floor(bodyDie/2);const slotsUsed=installedAugs.length;rule=`<div class="shop-rule-box"><span class="srb-title" style="display:flex;justify-content:space-between;align-items:center;"><span>🦾 Augmentations — Available Upgrades</span><span style="font-family:'Rajdhani',sans-serif;font-size:.82rem;letter-spacing:0;color:${slotsUsed>=maxAugs?'var(--red2)':'var(--green2)'};">${slotsUsed}/${maxAugs} Slots Used (Body d${bodyDie})</span></span>${SHOP_RULES[cat].replace(/^<span[^>]*>.*?<\/span>\s*/,'')}`;}if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}if(cat==='augmentations'){const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];c.innerHTML=rule+items.map(item=>{const isInstalled=installedAugs.indexOf(item.name)>=0;return`<div class="shop-card"${isInstalled?' style="opacity:.55;border-color:var(--green);background:rgba(76,175,116,.04);"':''}><div class="s-name">${item.name}${isInstalled?' <span style="font-size:.6rem;color:var(--green);font-family:Cinzel,serif;letter-spacing:.08em;">✓ INSTALLED</span>':''}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span>${isInstalled?'<button class="btn btn-xs" disabled style="opacity:.4;cursor:default;">Installed</button>':`<button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}')">Buy</button>`}</div></div>`;}).join('');}else{c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}')">Buy</button></div></div>`).join('');}}
+function showShopCat(cat,btn){
+  document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  const items=SHOP_DATA[cat]||[];
+  const c=document.getElementById('shopGrid');
+  if(!c)return;
+  let rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';
+
+  if(cat==='augmentations'){
+    const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];
+    const bodyDie=S.stats&&S.stats.body?S.stats.body:4;
+    const maxAugs=Math.floor(bodyDie/2);
+    const slotsUsed=installedAugs.length;
+    rule=`<div class="shop-rule-box"><span class="srb-title" style="display:flex;justify-content:space-between;align-items:center;"><span>🦾 Augmentations — Available Upgrades</span><span style="font-family:'Rajdhani',sans-serif;font-size:.82rem;letter-spacing:0;color:${slotsUsed>=maxAugs?'var(--red2)':'var(--green2)'};">${slotsUsed}/${maxAugs} Slots Used (Body d${bodyDie})</span></span>${SHOP_RULES[cat].replace(/^<span[^>]*>.*?<\/span>\s*/,'')}</div>`;
+  }
+
+  if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}
+
+  const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];
+  c.innerHTML=rule+items.map(item=>{
+    const isInstalled=(cat==='augmentations')?installedAugs.indexOf(item.name)>=0:false;
+    const buyBtn=isInstalled
+      ? '<button class="btn btn-xs" disabled style="opacity:.55;cursor:default;">Installed</button>'
+      : `<button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}')">Buy</button>`;
+    const augBadge=isInstalled?' <span style="font-size:.6rem;color:var(--green);font-family:Cinzel,serif;letter-spacing:.08em;">✓ INSTALLED</span>':'';
+    return `<div class="shop-card"><div class="s-name">${item.name}${augBadge}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span>${buyBtn}</div></div>`;
+  }).join('');
+}
 
 // Format stat string into equipment-slot format: "Ad6 Strike | Engaged" → "(Ad6 Strike)"
 function formatStatForSlot(stat) {
@@ -2597,6 +2730,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     <button class="qp-tab" onclick="switchQP('char',this)">👤 Char</button>
     <button class="qp-tab" onclick="switchQP('combat',this)">⚔ Combat</button>
     <button class="qp-tab" onclick="switchQP('missions',this)">🗺 Missions</button>
+    <button class="qp-tab" onclick="switchQP('notes',this)">📝 Notes</button>
     <button class="qp-close" onclick="toggleQuickPanel()">✕</button>
   </div>
   <div id="qpContent"></div>
@@ -2604,6 +2738,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script>
 (function(){
   var _qpTab = 'dice';
+
+  function ensureQPState(){
+    if(!S.quickPanel)S.quickPanel={};
+    if(!Array.isArray(S.quickPanel.diceResults))S.quickPanel.diceResults=[];
+    if(typeof S.quickPanel.flatMod!=='number')S.quickPanel.flatMod=0;
+    if(typeof S.quickPanel.notes!=='string')S.quickPanel.notes='';
+    if(typeof S.quickPanel.quickEnemyDread!=='number')S.quickPanel.quickEnemyDread=(S.combat&&S.combat.enemyDread)||8;
+    if(typeof S.quickPanel.lastCombatRoll!=='string')S.quickPanel.lastCombatRoll='No combat roll yet.';
+  }
 
   window.toggleQuickPanel = function() {
     var panel = document.getElementById('quickPanel');
@@ -2621,12 +2764,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   function renderQP(tab) {
+    ensureQPState();
     var c = document.getElementById('qpContent');
     if (!c) return;
     if (tab === 'dice')    c.innerHTML = buildQPDice();
     else if (tab === 'char')   c.innerHTML = buildQPChar();
     else if (tab === 'combat') c.innerHTML = buildQPCombat();
     else if (tab === 'missions') c.innerHTML = buildQPMissions();
+    else if (tab === 'notes') c.innerHTML = buildQPNotes();
   }
 
   function qpRoll(sides) {
@@ -2641,27 +2786,71 @@ document.addEventListener('DOMContentLoaded',()=>{
     return val;
   }
 
+  function qpPushDiceResult(label,val,color){
+    ensureQPState();
+    S.quickPanel.diceResults.unshift({label:label,val:val,color:color||'var(--teal)'});
+    if(S.quickPanel.diceResults.length>10)S.quickPanel.diceResults.length=10;
+  }
+
+  function qpRollWithAdvMode(die){
+    ensureQPState();
+    var mode=(document.getElementById('qpAdvMode')||{}).value||'normal';
+    var flat=parseInt((document.getElementById('qpFlatMod')||{}).value,10);
+    if(isNaN(flat))flat=0;
+    S.quickPanel.flatMod=flat;
+    var r1=qpRoll(die),r2=null,total=r1;
+    if(mode==='adv'||mode==='dis'){
+      r2=qpRoll(die);
+      total=(mode==='adv')?Math.max(r1,r2):Math.min(r1,r2);
+    }
+    total+=flat;
+    return {mode:mode,r1:r1,r2:r2,total:total,flat:flat};
+  }
+
+  function qpRenderDiceResults(){
+    ensureQPState();
+    if(!S.quickPanel.diceResults.length)return '<div style="font-size:.76rem;color:var(--muted2);">No rolls yet. Results stay here for comparison.</div>';
+    return S.quickPanel.diceResults.map(function(r,i){
+      return '<div style="display:flex;justify-content:space-between;gap:.4rem;padding:.2rem .1rem;border-bottom:1px solid rgba(255,255,255,.04);">'
+        + '<span style="font-size:.74rem;color:var(--muted2);">'+(i+1)+'. '+r.label+'</span>'
+        + '<strong style="font-family:Rajdhani,sans-serif;color:'+(r.color||'var(--teal)')+';font-size:1rem;">'+r.val+'</strong>'
+      + '</div>';
+    }).join('');
+  }
+
   window.qpRollStat = function(statKey, label) {
-    var die = (S.stats && S.stats[statKey]) ? S.stats[statKey] : 4;
-    var result = qpRoll(die);
+    var die = (typeof getEffectiveDie==='function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) ? S.stats[statKey] : 4);
+    var rr = qpRollWithAdvMode(die);
+    var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
+    var detail2 = rr.flat ? (' <span style="color:var(--gold2);">'+(rr.flat>0?'+':'')+rr.flat+'</span>') : '';
     document.getElementById('qpRollResult').innerHTML =
-      '<span style="color:var(--muted2);">' + label + ' d' + die + '</span> = <strong style="color:var(--teal);font-size:1.2rem;">' + result + '</strong>';
+      '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + '</span> = <strong style="color:var(--teal);font-size:1.2rem;">' + rr.total + '</strong>';
+    qpPushDiceResult(label+' d'+die,rr.total,'var(--teal)');
+    var box=document.getElementById('qpDiceResults');if(box)box.innerHTML=qpRenderDiceResults();
   };
 
   window.qpRollDie = function(sides) {
-    var result = qpRoll(sides);
+    var rr = qpRollWithAdvMode(sides);
     document.getElementById('qpRollResult').innerHTML =
-      '<span style="color:var(--muted2);">d' + sides + '</span> = <strong style="color:var(--gold2);font-size:1.2rem;">' + result + '</strong>';
+      '<span style="color:var(--muted2);">d' + sides + '</span> = <strong style="color:var(--gold2);font-size:1.2rem;">' + rr.total + '</strong>';
+    qpPushDiceResult('Free d'+sides,rr.total,'var(--gold2)');
+    var box=document.getElementById('qpDiceResults');if(box)box.innerHTML=qpRenderDiceResults();
   };
+
+  window.qpClearDiceResults=function(){ensureQPState();S.quickPanel.diceResults=[];var box=document.getElementById('qpDiceResults');if(box)box.innerHTML=qpRenderDiceResults();};
 
   window.qpToggleCond = function(key) {
     if (typeof toggleCond === 'function') { toggleCond(key); }
-    renderQP('char');
+    if(_qpTab==='char')renderQP('char');
+    if(_qpTab==='dice')renderQP('dice');
   };
 
   window.qpRollDread = function() {
     var dread = (S.combat && S.combat.enemyDread) ? S.combat.enemyDread : 8;
-    qpRollDie(dread);
+    var rr=qpRollWithAdvMode(dread);
+    document.getElementById('qpRollResult').innerHTML = '<span style="color:var(--muted2);">Dread d'+dread+'</span> = <strong style="color:var(--red2);font-size:1.2rem;">'+rr.total+'</strong>';
+    qpPushDiceResult('Dread d'+dread,rr.total,'var(--red2)');
+    var box=document.getElementById('qpDiceResults');if(box)box.innerHTML=qpRenderDiceResults();
   };
 
   window.qpSetDreadDie = function(die) {
@@ -2677,13 +2866,23 @@ document.addEventListener('DOMContentLoaded',()=>{
     } else if (kind === 'trauma') {
       if (typeof rollTraumaCheck === 'function') { rollTraumaCheck(); }
     }
+    if(kind==='strike'||kind==='shoot')S.quickPanel.lastCombatRoll=(document.getElementById('attackResult')||{}).innerHTML||S.quickPanel.lastCombatRoll;
+    else if(kind==='defend')S.quickPanel.lastCombatRoll=(document.getElementById('defendResult')||{}).innerHTML||S.quickPanel.lastCombatRoll;
+    else if(kind==='trauma')S.quickPanel.lastCombatRoll=(document.getElementById('traumaResult')||{}).innerHTML||S.quickPanel.lastCombatRoll;
     renderQP('combat');
   };
 
   window.qpQuickAddEnemy = function() {
-    if (typeof addEnemy === 'function') { addEnemy(); }
+    var name=(document.getElementById('qpEnemyName')||{}).value||'';
+    var dread=parseInt((document.getElementById('qpEnemyDreadSel')||{}).value,10)||((S.combat&&S.combat.enemyDread)||8);
+    if(typeof setEnemyDread==='function')setEnemyDread(dread);
+    if (typeof addEnemy === 'function') { addEnemy(name||undefined,dread); }
     renderQP('combat');
   };
+
+  window.qpMoveRange=function(newSpacing){setCombatSpacing(newSpacing,true);renderQP('combat');};
+  window.qpEnemyAction=function(){triggerEnemyActionEvent();renderQP('combat');};
+  window.qpSaveNotes=function(){ensureQPState();S.quickPanel.notes=(document.getElementById('qpNotesArea')||{}).value||'';showNotif('Quick notes saved.','good');};
 
   window.qpMissionAction = function(action, missionId) {
     if (action === 'generate' && typeof generateMissions === 'function') {
@@ -2719,15 +2918,26 @@ document.addEventListener('DOMContentLoaded',()=>{
     var dreadOptions = [4,6,8,10,12,20].map(function(d){
       return '<button class="btn btn-xs'+(d===dreadDie?' btn-primary':'')+'" onclick="qpSetDreadDie('+d+')" style="font-size:.6rem;padding:.15rem .35rem;">d'+d+'</button>';
     }).join('');
+    var activeConds=[];
+    ['empowered','protected','focused','bolstered','weakened','vulnerable','distracted','shaken'].forEach(function(k){if(S.conditions&&S.conditions[k])activeConds.push(k);});
+    var condText=activeConds.length?('Active conditions: '+activeConds.join(', ')):'No active conditions.';
     return '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Stat Rolls</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;">' + rows.join('') + '</div></div>'
+      + '<div style="display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem;">'
+      + '<select id="qpAdvMode" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .3rem;font-size:.72rem;"><option value="normal">Normal</option><option value="adv">Advantage</option><option value="dis">Disadvantage</option></select>'
+      + '<input id="qpFlatMod" type="number" value="'+(S.quickPanel.flatMod||0)+'" min="-20" max="20" style="width:4rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/>'
+      + '<span style="font-size:.68rem;color:var(--muted2);">Flat Mod</span>'
+      + '</div>'
       + '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">Free Roll</div>'
       + '<div style="display:flex;gap:.25rem;">' + freeRolls.join('') + '</div></div>'
       + '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--red2);text-transform:uppercase;margin-bottom:.3rem;">Dread Die</div>'
       + '<div style="display:flex;align-items:center;gap:.25rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-red" onclick="qpRollDread()" style="font-size:.62rem;padding:.2rem .4rem;">Roll Dread d'+dreadDie+'</button>'
       + dreadOptions + '</div></div>'
-      + '<div class="qp-result" id="qpRollResult" style="min-height:2rem;">—</div>';
+      + '<div class="qp-result" id="qpRollResult" style="min-height:2rem;">—</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.3rem;">'+condText+'</div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.45rem;"><div style="font-family:Cinzel,serif;font-size:.54rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;">Roll Comparison</div><button class="btn btn-xs" onclick="qpClearDiceResults()">Clear</button></div>'
+      + '<div id="qpDiceResults" style="margin-top:.2rem;">'+qpRenderDiceResults()+'</div>';
   }
 
   function buildQPChar() {
@@ -2794,10 +3004,13 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'
       + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;">'
+      + '<input id="qpEnemyName" type="text" placeholder="Enemy name" style="flex:1;min-width:7rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/>'
+      + '<select id="qpEnemyDreadSel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===dread?' selected':'')+'>d'+d+'</option>';}).join('')+'</select>'
       + '<button class="btn btn-xs btn-teal" onclick="qpQuickAddEnemy()">+ Enemy</button>'
       + '<button class="btn btn-xs" onclick="if(typeof clearEnemies===\'function\')clearEnemies();renderQP(\'combat\')">Clear</button>'
-      + '<button class="btn btn-xs" onclick="if(S.combat){S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);}if(typeof updateCombatUI===\'function\')updateCombatUI();renderQP(\'combat\')">− Action</button>'
-      + '<button class="btn btn-xs" onclick="if(S.combat){S.combat.actionsLeft=(S.combat.actionsLeft||0)+1;}if(typeof updateCombatUI===\'function\')updateCombatUI();renderQP(\'combat\')">+ Action</button>'
+      + '<button class="btn btn-xs" onclick="qpMoveRange(\'Engaged (Strike)\')">Move: Engaged</button>'
+      + '<button class="btn btn-xs" onclick="qpMoveRange(\'Close (Scrolls)\')">Move: Close</button>'
+      + '<button class="btn btn-xs" onclick="qpMoveRange(\'Nearby (Shoot)\')">Move: Nearby</button>'
       + '</div>'
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Enemies</div>'
       + eneHtml + '</div>'
@@ -2807,6 +3020,10 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<button class="btn btn-xs btn-primary" onclick="qpCombatAction(\'shoot\')">🔫 Shoot</button>'
         + '<button class="btn btn-xs btn-teal" onclick="qpCombatAction(\'defend\')">🛡 Defend</button>'
         + '<button class="btn btn-xs" onclick="qpCombatAction(\'trauma\')">💀 Trauma</button>'
+        + '<button class="btn btn-xs btn-red" onclick="qpEnemyAction()">☠ Enemy Action</button>'
+      + '</div>'
+      + '<div style="margin-top:.35rem;background:var(--surface);border:1px solid var(--border);padding:.35rem .45rem;font-size:.78rem;line-height:1.4;min-height:2rem;" id="qpCombatRollResult">'
+        + (S.quickPanel.lastCombatRoll||'No combat roll yet.')
       + '</div>';
   }
 
@@ -2873,6 +3090,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     return jobsHtml
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Active Missions</div>'
       + activeHtml;
+  }
+
+  function buildQPNotes(){
+    ensureQPState();
+    return '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Quick Notes</div>'
+      + '<textarea id="qpNotesArea" style="width:100%;min-height:220px;background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:.45rem .55rem;font-size:.84rem;line-height:1.45;" placeholder="Session notes, clues, NPC names, combat plans...">'+(S.quickPanel.notes||'')+'</textarea>'
+      + '<div style="display:flex;justify-content:flex-end;margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="qpSaveNotes()">Save Notes</button></div>';
   }
 
   window.renderQP = renderQP;

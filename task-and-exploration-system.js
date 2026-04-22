@@ -113,6 +113,8 @@ function haggleMerchantCaravan(col,row){
     +'</div>';
   
   if(success){
+    S.data=S.data||{};
+    S.data.haggleDiscount=true;
     html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;color:var(--text);"><strong style="color:var(--green2);">✓ Haggle Success</strong> — Items cost 20% less!</div>`;
     showNotif('Haggle success! Merchant gives better prices.','good');
   }else{
@@ -180,4 +182,69 @@ function completeTaskAtHex(col,row){
   appendHexNote(col,row,`[Task Complete] ${task.verb} ${task.target} — Renown +1`);
   
   delete hex.data.taskSite;
+}
+
+function handleRoyalCaravanEncounter(col,row){
+  const verbs=['Hunt','Guard','Rescue','Deliver','Investigate','Eliminate','Retrieve','Escort'];
+  const targets=['Bandits','Beasts','Refugees','Cargo','Matters','Threats','Artifacts','VIPs'];
+  const dirs=['north','northeast','east','southeast','south','southwest','west','northwest'];
+  
+  const verb=pick(verbs);
+  const target=pick(targets);
+  const distance=roll(4)+1;
+  const dir=pick(dirs);
+  
+  let html=`<div style="font-size:.84rem;color:var(--text2);line-height:1.6;"><strong style="color:var(--gold2);">Royal Caravan Encounter</strong><br><br>The Royal Caravan demands payment: <strong>50₵</strong> tax to pass safely.<br><br>Or complete a task for them:<br><strong style="color:var(--gold);">${verb} ${target}, ${distance} hex${distance!==1?'es':''} to the ${dir}.</strong><br><br>Task completion: +1 Renown</div>`;
+  html+=`<div style="margin-top:.4rem;display:flex;justify-content:flex-end;gap:.3rem;"><button class="btn btn-sm btn-warn" onclick="payRoyalCaravanTax(${col},${row},50);">Pay 50₵ Tax</button><button class="btn btn-sm btn-success" onclick="acceptRoyalCaravanTask(${col},${row},'${verb}','${target}',${distance},'${dir}');">Accept Task</button></div>`;
+  
+  openModal('Royal Caravan',html);
+}
+
+function payRoyalCaravanTax(col,row,amount){
+  if(S.credits<amount){showNotif(`Not enough credits (need ${amount}₵)`,'warn');return;}
+  S.credits-=amount;
+  showNotif(`Paid ${amount}₵ tax to Royal Caravan`,'info');
+  if(typeof updateCreditsUI==='function')updateCreditsUI();
+  appendHexNote(col,row,`[Royal Caravan] Paid ${amount}₵ tax`);
+  closeModal();
+}
+
+function acceptRoyalCaravanTask(col,row,verb,target,distance,dir){
+  let destCol=col,destRow=row;
+  for(let i=0;i<distance;i++){
+    switch(dir){
+      case 'north': destRow--; break;
+      case 'south': destRow++; break;
+      case 'east': destCol++; break;
+      case 'west': destCol--; break;
+      case 'northeast': destCol++; destRow--; break;
+      case 'northwest': destCol--; destRow--; break;
+      case 'southeast': destCol++; destRow++; break;
+      case 'southwest': destCol--; destRow++; break;
+    }
+  }
+  
+  const destHex=mapData.find(h=>h.col===destCol&&h.row===destRow);
+  if(destHex){
+    destHex.data=destHex.data||{};
+    destHex.data.royalTask={verb:verb,target:target,originCol:col,originRow:row};
+  }
+  
+  showNotif(`Task Accepted: ${verb} ${target} ${distance} hex${distance!==1?'es':''} ${dir}`,'good');
+  appendHexNote(col,row,`[Royal Caravan] Accepted task: ${verb} ${target}`);
+  closeModal();
+}
+
+function completeRoyalTask(col,row){
+  const hex=mapData.find(h=>h.col===col&&h.row===row);
+  if(!hex||!hex.data||!hex.data.royalTask)return;
+  
+  const task=hex.data.royalTask;
+  S.renown=(S.renown||0)+1;
+  if(typeof updateRenown==='function')updateRenown();
+  
+  showNotif(`Royal Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
+  appendHexNote(col,row,`[Royal Task] Completed ${task.verb} ${task.target} — Renown +1`);
+  
+  delete hex.data.royalTask;
 }

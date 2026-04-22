@@ -3043,7 +3043,7 @@ function rollHexEncounter(col,row){
     else if(enc===2){title='Merchant Caravan';desc=`Goods. `;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-info" onclick="showMerchantCaravan(${col},${row})">Shop</button><button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan==='function')haggleMerchantCaravan(${col},${row})">Haggle</button></div>`;}
     else if(enc===3){const na=roll(4)+4,nb=roll(4)+4;title='Skirmish';desc=`${na} ${pick(['cavalry in worn plate','spearmen in dyed leather','crossbow skirmishers','banner-bearers in painted steel'])} vs ${nb} ${pick(['mounted raiders in black iron','hooded irregulars','desert fighters in layered cloth','shield-wall soldiers'])}. Intervening gains +1 Renown or 2d10×20₵.`;}
     else if(enc===4){const n=roll(4)+2;title=`${n} Hostile Beasts`;desc=`${pick(['Mutated wolves, pale-eyed and coordinated','Irradiated boars, tusks glowing faintly','Blade-winged birds hunting as one','Something vast and hard to name'])} — DD4 | ${n*2} Stress.`;}
-    else if(enc===5){title='Royal Caravan';desc=`Pay <strong>50₵ tax</strong> OR complete a TASK: <em style="color:var(--gold2);">${pick(TASK_VERBS)} ${pick(TASK_TARGETS)}, ${roll(4)+1} hexes ${pick(TASK_DIRS)}.</em>`;}
+    else if(enc===5){title='Royal Caravan';desc=`Pay 50₵ tax OR complete a task. Rolling for task...`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-gold" onclick="if(typeof handleRoyalCaravanEncounter==='function')handleRoyalCaravanEncounter(${col},${row})">Interact</button></div>`;}
     else{title='Black Market';desc=`Hidden dealers. Roll Control (vs DD12) to gain entry.`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-dark" onclick="showBlackMarket(${col},${row})">Access</button></div>`;}
     html=`<div class="encounter-block"><strong style="color:var(--teal);">Overland Encounter — d6=${vr}</strong><br><strong>${title}</strong><br>${desc}${actionHTML}</div>`;
   }else{
@@ -3249,6 +3249,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="./missions-system.js"></script>
 <script src="./jobs-integration.js"></script>
 <script src="./new-features.js"></script>
+<script src="./task-and-exploration-system.js"></script>
 
 <!-- ── QUICK PANEL ── -->
 <button id="quickPanelToggle" onclick="toggleQuickPanel()">⚙ Quick&nbsp;Panel</button>

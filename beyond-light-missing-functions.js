@@ -37,17 +37,18 @@ function applyDieSteps(baseDie, steps) {
 }
 
 function getConditionStep(key) {
+  const tc = S.traumaConditions || {};
   if (["body", "strike", "shoot"].includes(key)) {
-    return (S.conditions.empowered ? 1 : 0) - (S.conditions.weakened ? 1 : 0);
+    return (S.conditions.empowered ? 1 : 0) - (S.conditions.weakened ? 1 : 0) - (tc.weakened ? 1 : 0);
   }
   if (key === "defend") {
-    return (S.conditions.protected ? 1 : 0) - (S.conditions.vulnerable ? 1 : 0);
+    return (S.conditions.protected ? 1 : 0) - (S.conditions.vulnerable ? 1 : 0) - (tc.vulnerable ? 1 : 0);
   }
   if (["mind", "control"].includes(key)) {
-    return (S.conditions.focused ? 1 : 0) - (S.conditions.distracted ? 1 : 0);
+    return (S.conditions.focused ? 1 : 0) - (S.conditions.distracted ? 1 : 0) - (tc.distracted ? 1 : 0);
   }
   if (["spirit", "lead"].includes(key)) {
-    return (S.conditions.bolstered ? 1 : 0) - (S.conditions.shaken ? 1 : 0);
+    return (S.conditions.bolstered ? 1 : 0) - (S.conditions.shaken ? 1 : 0) - (tc.shaken ? 1 : 0);
   }
   return 0;
 }
@@ -63,7 +64,32 @@ function updateDieDisplay(key) {
     return;
   }
   const value = key === "adventure" ? (S.stats.adventure || 4) : getEffectiveDie(key);
-  el.textContent = "d" + value;
+  let displayText = "d" + value;
+
+  // Append weapon/armor bonus hints so the player can see what will be rolled
+  if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
+    const wb = parseWeaponBonuses(key);
+    if (wb.advDie > 0) displayText += '/Ad' + wb.advDie;
+    else if (wb.flat > 0) displayText += '+' + wb.flat;
+    if (wb.addAdvDie) displayText += '+A.D.';
+  } else if (key === 'defend') {
+    const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
+    const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
+    const advDie = Math.max(armorAdv, wpDef.advDie);
+    if (advDie > 0) displayText += '/Ad' + advDie;
+    if (wpDef.flat > 0) displayText += '+' + wpDef.flat;
+    if (wpDef.addAdvDie) displayText += '+A.D.';
+  }
+  // Flavor / Mutation advantage hints for all stats
+  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {advDie:0};
+  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(key) : {advDie:0};
+  const flMtAdv = Math.max(flB.advDie || 0, mtB.advDie || 0);
+  if (flMtAdv > 0) displayText += '/Ad' + flMtAdv;
+  // Augmentation additive bonus hint
+  const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
+  if (augDie > 0) displayText += '+d' + augDie;
+
+  el.textContent = displayText;
   el.className = dieClass(value);
   el.style.cursor = "pointer";
 }
@@ -124,16 +150,82 @@ function stepDie(key, delta) {
 
 function quickRollStat(key) {
   const die = key === "adventure" ? (S.stats.adventure || 4) : getEffectiveDie(key);
-  const result = explodingRoll(die);
   const label = key.charAt(0).toUpperCase() + key.slice(1);
+
+  // Collect advantage dice from weapons/armor, flavor, mutation, and manual rollMod
+  let advDiceArr = [], flatBonus = 0, addAdvDie = false;
+  if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
+    const wb = parseWeaponBonuses(key);
+    if (wb.advDie > 0) advDiceArr.push(wb.advDie);
+    flatBonus = wb.flat;
+    addAdvDie = wb.addAdvDie;
+  } else if (key === 'defend') {
+    const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
+    const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
+    if (armorAdv > 0) advDiceArr.push(armorAdv);
+    if (wpDef.advDie > 0) advDiceArr.push(wpDef.advDie);
+    flatBonus = wpDef.flat;
+    addAdvDie = wpDef.addAdvDie;
+  }
+
+  // Personal Flavor / Mutation bonuses — collect their advDice arrays
+  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {flat:0, advDie:0, advDice:[], holyShield:false};
+  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(key) : {flat:0, advDie:0, advDice:[]};
+  advDiceArr = advDiceArr.concat(flB.advDice || []).concat(mtB.advDice || []);
+  flatBonus += flB.flat + mtB.flat;
+
+  // Manual rollMod
+  const mod = S && S.rollMod ? S.rollMod : {advDice:[], flat:0};
+  if (Array.isArray(mod.advDice)) advDiceArr = advDiceArr.concat(mod.advDice);
+  flatBonus += mod.flat || 0;
+
+  // Augmentation additive bonus
+  const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
+
+  // Roll base die + ALL advantage dice, take highest
+  const ra = typeof rollWithAdvantage === 'function'
+    ? rollWithAdvantage(die, advDiceArr)
+    : {total: explodingRoll(die).total, base: explodingRoll(die), advRolls: [], breakdown: '', exploded: false};
+  const a = ra.base;
+
+  // +N flat bonus
+  let withFlat = ra.total + flatBonus;
+  // Holy Shield: add spirit die (Flavor)
+  const holyShieldRoll = flB.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
+  if (holyShieldRoll) withFlat += holyShieldRoll.total;
+  // +A.D. additive adventure die
+  const adBonus = addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
+  const withAD = withFlat + (adBonus ? adBonus.total : 0);
+  // Augmentation additive
+  const augRoll = augDie > 0 ? explodingRoll(augDie) : null;
+  const total = withAD + (augRoll ? augRoll.total : 0);
+
+  // Build detail breakdown
+  const details = [];
+  if (ra.advRolls.length) details.push(ra.breakdown.replace(/<[^>]+>/g, '').trim()); // plain-text from breakdown
+  if (ra.advRolls.length === 0 && advDiceArr.length === 0) {} // no adv dice, no note needed
+  if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon/flavor/mutation/mod)');
+  if (holyShieldRoll) details.push('Holy Shield +Spirit d' + (S.stats.spirit||4) + ' = ' + holyShieldRoll.total);
+  if (adBonus) details.push('+A.D. d' + (S.stats.adventure || 4) + ' = ' + adBonus.total + ' (additive)');
+  if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
+  if (mod.advDice.length || mod.flat) details.push('Manual modifier active');
+
+  const detailHtml = (ra.breakdown || details.length)
+    ? '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;">' + (ra.breakdown || '') + (details.slice(1).length ? '<br>' + details.slice(1).join('<br>') : '') + '</div>'
+    : '';
+
   openModal(
     label + " Roll",
     '<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">' +
-      "<strong style=\"color:var(--teal);\">" + label + " d" + die + "</strong><br>" +
-      "Result: <strong style=\"color:var(--gold2);\">" + result.total + "</strong>" +
-      (result.exploded ? ' <span style="color:var(--gold);">Critical explosion!</span>' : "") +
+      '<strong style="color:var(--teal);">' + label + ' d' + die + '</strong>' +
+      (ra.exploded ? ' <span style="color:var(--gold);">✦ Critical!</span>' : '') +
+      '<br>Result: <strong style="color:var(--gold2);">' + total + '</strong>' +
+      detailHtml +
       "</div>"
   );
+
+  // Clear positive condition on use (one-shot mechanic)
+  if (typeof clearConditionOnUse === 'function') clearConditionOnUse(key);
 }
 
 function updateRenown() {
@@ -210,21 +302,32 @@ function updateTrauma() {
   if (val) {
     val.textContent = trauma;
   }
-  if (!effect) {
-    return;
-  }
 
-  let text = "No current Trauma effects.";
-  if (trauma >= 1 && trauma <= 2) {
-    text = "Trauma effect: Weakened.";
-  } else if (trauma >= 3 && trauma <= 4) {
-    text = "Trauma effect: Distracted.";
-  } else if (trauma === 5) {
-    text = "Trauma effect: Shaken.";
-  } else if (trauma >= 6) {
-    text = "Trauma effect: Vulnerable.";
+  // Sync permanent trauma conditions (cumulative, cleared only by Sage).
+  if (!S.traumaConditions) {
+    S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
   }
-  effect.textContent = text;
+  S.traumaConditions.weakened    = trauma >= 1;
+  S.traumaConditions.distracted  = trauma >= 3;
+  S.traumaConditions.shaken      = trauma >= 5;
+  S.traumaConditions.vulnerable  = trauma >= 6;
+
+  // Update stat dice immediately so the die steps are reflected everywhere.
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof updateConditionButtons === 'function') updateConditionButtons();
+
+  if (!effect) { return; }
+
+  if (trauma === 0) {
+    effect.textContent = "No current Trauma effects.";
+  } else {
+    const active = [];
+    if (S.traumaConditions.weakened)   active.push("Weakened (Body/Strike/Shoot ↓)");
+    if (S.traumaConditions.distracted) active.push("Distracted (Mind/Control ↓)");
+    if (S.traumaConditions.shaken)     active.push("Shaken (Spirit/Lead ↓)");
+    if (S.traumaConditions.vulnerable) active.push("Vulnerable (Defend ↓)");
+    effect.textContent = "Trauma: " + active.join(" · ");
+  }
 }
 
 function changeTrauma(delta) {
@@ -271,11 +374,21 @@ function changeCounter(key, delta) {
 }
 
 function addSuccessRoll() {
-  changeCounter("successRolls", 1);
-  if (S.successRolls > 0 && S.successRolls % 3 === 0) {
+  S.successRolls = (S.successRolls || 0) + 1;
+  var srEl = document.getElementById("successRollsVal");
+  if (srEl) { srEl.textContent = S.successRolls; }
+  if (S.successRolls >= 3) {
+    S.successRolls = 0;
+    if (srEl) { srEl.textContent = "0"; }
     changeCounter("pathTokens", 1);
-    showNotif("3 successful rolls: +1 Path Token", "good");
+    showNotif("3 successful rolls — +1 Path Token!", "good");
   }
+}
+
+// Every failed roll grants +1 TMW (or +2 if the "Failed rolls grant +2" flavor is active).
+function addTMWOnFail() {
+  var amt = (S.flavor || '').toLowerCase().indexOf('failed rolls grant +2') >= 0 ? 2 : 1;
+  changeCounter('tmw', amt);
 }
 
 function updateConditionButtons() {
@@ -283,6 +396,14 @@ function updateConditionButtons() {
     const el = document.getElementById("cond-" + key);
     if (el) {
       el.classList.toggle("on", !!on);
+    }
+  });
+  // Show trauma-locked negative conditions with a distinct style.
+  const tc = S.traumaConditions || {};
+  ['weakened','distracted','shaken','vulnerable'].forEach(function(key) {
+    const el = document.getElementById("cond-" + key);
+    if (el) {
+      el.classList.toggle("trauma-on", !!tc[key]);
     }
   });
 }
@@ -297,6 +418,7 @@ function toggleCond(key) {
 }
 
 function clearAllConditions() {
+  // Only clear temporary combat conditions; trauma conditions are permanent.
   Object.keys(S.conditions).forEach((key) => {
     S.conditions[key] = false;
   });
@@ -419,14 +541,33 @@ function rollArmor() {
 }
 
 function rollBackpack() {
-  const entry = pick(pick(BACKPACK_TABLE));
-  const parts = entry.split(" | ");
-  S.equipment.weapon1 = parts[0] || "";
-  S.equipment.armor = parts[1] || "";
-  S.backpack = ["", "", "", "", "", ""];
-  if (parts[2]) {
-    S.backpack[0] = parts[2];
-  }
+  // Pull starting gear from any shop category (the Merchant is fair game).
+  var weapons = [].concat(SHOP_DATA.weapons || [], SHOP_DATA.melee_exp || [], SHOP_DATA.ranged_exp || []);
+  var armors  = [].concat(SHOP_DATA.armor   || [], SHOP_DATA.armor_exp  || []);
+  var bonusPool = [].concat(
+    SHOP_DATA.scrolls   || [],
+    SHOP_DATA.items     || [],
+    SHOP_DATA.toolkits  || [],
+    SHOP_DATA.essentials || [],
+    SHOP_DATA.remedies  || []
+  );
+
+  var weapon = pick(weapons);
+  var armor  = pick(armors);
+  var bonus  = pick(bonusPool);
+
+  // Format weapon for the equipment slot (stat needed for roll parsing).
+  var wpStat = (weapon.stat || '').split('|')[0].trim();
+  S.equipment.weapon1 = wpStat ? weapon.name + ' (' + wpStat + ')' : weapon.name;
+
+  // Format armor for the equipment slot — include both the die AND actions so parsers work.
+  var arStat = (armor.stat || '').replace(/\s*\|\s*/, ', ');
+  S.equipment.armor = arStat ? armor.name + ' (' + arStat + ')' : armor.name;
+
+  S.backpack = ['', '', '', '', '', ''];
+  // Store bonus item by name only (findShopItem will locate its full data when used).
+  S.backpack[0] = bonus.name;
+
   syncCharacterFields();
 }
 
@@ -481,6 +622,7 @@ function generateCharacter() {
   S.pathTokens = 0;
   S.tmw = 0;
   S.successRolls = 0;
+  S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
   clearAllConditions();
   syncCharacterFields();
   updateAllStatDisplays();
@@ -514,6 +656,11 @@ function clearCharacter() {
   S.soulArray = [];
   S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, adventure: 4 };
   S.traits = {};
+  S.augmentations = [];
+  S.ownedHacks    = [];
+  S.weaponMods    = [];
+  S.hackRoller    = { dreadDie: 6, guess: null, selectedHack: null };
+  S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
   clearAllConditions();
   syncCharacterFields();
   buildStatRows();
@@ -523,6 +670,8 @@ function clearCharacter() {
   updateTrauma();
   renderTraits();
   updateTMWPool();
+  if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
+  if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
 }
 
 function saveCharacter() {
@@ -568,6 +717,8 @@ function loadCharacter() {
     updateConditionButtons();
     renderEnemies();
     updateCombatUI();
+    if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
+    if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
     showNotif("Character loaded", "good");
   } catch (error) {
     showNotif("Saved character is invalid", "warn");
@@ -659,7 +810,7 @@ function rollCheck() {
 
   renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success);
   if (!success) {
-    changeCounter("tmw", 1);
+    addTMWOnFail();
     changeStress(Math.max(1, dreadRoll.total - actionRoll.total));
   } else {
     addSuccessRoll();

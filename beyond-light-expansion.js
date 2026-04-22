@@ -11,7 +11,11 @@
       coast: [
         "Low grass sweeps down to a bright salt shore.",
         "The coast opens into rolling green ground cut by old stone walls.",
-        "Gentle land rises above the tide line in broad sunlit bands."
+        "Gentle land rises above the tide line in broad sunlit bands.",
+        "Reclaimed farmland runs to the shore; rusted irrigation pipes protrude from the bluff.",
+        "Coastal meadow, the grass unusually tall, hiding old survey stakes and boundary markers.",
+        "The shoreline is a tangle of sea-grass and wind-turbine foundations, half-buried by drift sand.",
+        "Agriculture domes, some cracked, some intact, hug the tideline. A crop of something green glows through the translucent panels at night."
       ]
     },
     {
@@ -20,7 +24,11 @@
       coast: [
         "Dense jungle presses almost into the surf.",
         "Vines hang over black sand and the air is wet with heat.",
-        "Palm trunks and tangled roots crowd the shallows."
+        "Palm trunks and tangled roots crowd the shallows.",
+        "The jungle has swallowed a port district; loading cranes stand in the surf like rusted herons.",
+        "Bioluminescent canopy edges the shore. The light pulsing below the waterline suggests the phenomenon continues underwater.",
+        "A processing facility, long-abandoned, disappears into the treeline. Its waste pipes still drain into the bay.",
+        "Irradiated jungle — the leaves are enormous, the colors wrong, the animals unrecognizable. The shore itself steams slightly."
       ]
     },
     {
@@ -29,7 +37,11 @@
       coast: [
         "Dark forest edges the shore in a wall of cedar and fern.",
         "Pine-shadowed bluffs rise above cold water.",
-        "Tall trees lean over a pebbled strand full of driftwood."
+        "Tall trees lean over a pebbled strand full of driftwood.",
+        "A logging road leads from the shore into the dark. The machinery is still here. No one is.",
+        "The forest grows to the cliff edge and over it. Root systems hold the bluff, for now.",
+        "Fog clings to the forest line. The trees are enormous, old-growth, their trunks wrapped in what appears to be communications cable.",
+        "A research outpost in the tree canopy, its observation platform overlooking the sea. No one answers the radio."
       ]
     },
     {
@@ -38,7 +50,11 @@
       coast: [
         "Golden dunes tumble straight into the sea.",
         "Dry salt flats glitter behind the beach.",
-        "Wind-carved stone and hard sand stretch inland from the shore."
+        "Wind-carved stone and hard sand stretch inland from the shore.",
+        "A solar array, partially buried, lines the coastal ridge. Some panels still track the sun.",
+        "The desert comes to a sudden hard edge at the waterline — as if cut by something. The contrast is disorienting.",
+        "Old pipeline infrastructure runs parallel to the shore. It carried water, once. Now it carries sand.",
+        "Ruins of a desalination plant, its intake pipes destroyed, its processing chambers intact. Someone could restart it."
       ]
     },
     {
@@ -47,7 +63,11 @@
       coast: [
         "Cliffs rise almost vertically from the breakers.",
         "Jagged stone shelves force the sea into white spray.",
-        "A steep volcanic spine dominates the island."
+        "A steep volcanic spine dominates the island.",
+        "Mining terrace scars the cliffside from waterline to summit. The ore lifts are frozen in position.",
+        "Basalt columns, natural but impossibly regular, line the shore like a circuit board writ large.",
+        "Geothermal vents in the shallows boil the surf. The rock above them is warm. The structures built on them are rust-eaten but standing.",
+        "A missile silo, decommissioned, its blast doors open to the sea air. Something is nesting inside."
       ]
     }
   ];
@@ -72,7 +92,10 @@
       { label: "Crosswind Squall", rough: true, desc: "Short violent gusts kick the waves sideways and fight the helm." },
       { label: "Clear Current", rough: false, desc: "Cold bright light and a steady current make for excellent sailing." },
       { label: "Bloom Tide", rough: false, desc: "Pollen and sea-glow drift over the surface in strange pastel bands." },
-      { label: "Stormfront", rough: true, desc: "Dark clouds stack low over the sea and every sail strains under the pressure." }
+      { label: "Stormfront", rough: true, desc: "Dark clouds stack low over the sea and every sail strains under the pressure." },
+      { label: "Acid Fog", rough: true, desc: "A chemical haze drifts from the industrial coasts. Metal corrodes faster in this. Filter your breathing." },
+      { label: "Neon Haze", rough: false, desc: "Refraction from surface pollutants creates low-lying light columns. Navigation is possible. Strange, but possible." },
+      { label: "EMP Weather", rough: true, desc: "Ionized air interferes with electronic navigation. Run manual. Get where you are going before sundown." }
     ],
     harvest: [
       { label: "Golden Wind", rough: false, desc: "Warm dry winds fill every sail and push ships forward cleanly." },
@@ -80,7 +103,10 @@
       { label: "Boiling Heat", rough: false, desc: "The day is punishingly bright and the decks burn underfoot." },
       { label: "Ash Shower", rough: false, desc: "Soft black flakes drift from somewhere beyond the horizon." },
       { label: "Typhoon Edge", rough: true, desc: "You catch only the outer rim of a greater storm, but it is enough to batter the hull." },
-      { label: "Trade Breeze", rough: false, desc: "Ideal winds and long gentle swells carry the ship with almost no resistance." }
+      { label: "Trade Breeze", rough: false, desc: "Ideal winds and long gentle swells carry the ship with almost no resistance." },
+      { label: "Bioluminescent Tide", rough: false, desc: "The wake glows blue-green. Navigation by compass is unreliable but the water is calm and the sight is extraordinary." },
+      { label: "Thermal Inversion", rough: true, desc: "Heat layers trap exhaust near the surface. Visibility is poor, the air acrid, and the sea deceptively calm." },
+      { label: "Static Surge", rough: false, desc: "Ball lightning rolls across the surface. Engines glow faintly blue. Nobody can explain it. Everything still works." }
     ],
     winter: [
       { label: "Ice Rain", rough: true, desc: "Freezing spray hardens on rope, rail, and skin." },
@@ -88,7 +114,10 @@
       { label: "Needle Wind", rough: true, desc: "Sharp bitter winds slice across the deck and shove the ship off line." },
       { label: "Grey Overcast", rough: false, desc: "A dim winter ceiling hangs low but leaves the route passable." },
       { label: "Moonlit Cold", rough: false, desc: "The night is frigid and clear. Every wave flashes silver." },
-      { label: "Breaker Storm", rough: true, desc: "Hard waves hammer the hull in heavy repeating walls." }
+      { label: "Breaker Storm", rough: true, desc: "Hard waves hammer the hull in heavy repeating walls." },
+      { label: "Drift Protocol", rough: false, desc: "Old automated distress signals activate in the cold, their source unknown. They are years old. Something adrift is still broadcasting." },
+      { label: "Ice Channel", rough: false, desc: "Floating ice forms a navigable lane between drifts. The silence here is absolute. Move quietly." },
+      { label: "Blood Sleet", rough: true, desc: "Red-tinged precipitation from an unknown source. It stains sails and exposed skin. Navigation is unaffected. Morale is not." }
     ]
   };
 
@@ -1650,10 +1679,12 @@
       const nextIndex = Math.max(0, Math.min(NAVAL_ZONES.length - 1, currentZoneIndex() + direction));
       S.naval.zone = NAVAL_ZONES[nextIndex];
       navalLog(`Navigator shifts the range to ${S.naval.zone} (${controlTotal} vs ${target.total}).`, "good");
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       const stress = Math.max(1, target.total - controlTotal);
       damageShip(S.naval.ship, stress, "player");
       navalLog(`Navigator loses the line (${controlTotal} vs ${target.total}) and the ship takes ${stress} Stress.`, "warn");
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
     renderNaval();
   }
@@ -1730,8 +1761,10 @@
       const stress = Math.max(1, attack.total - defend.total);
       damageShip(enemy, stress, "enemy");
       navalLog(`${mode === "strike" ? "Cannons" : "Crossbows"} hit for ${stress} Stress (${attack.total} vs ${defend.total}).`, "good");
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       navalLog(`${mode === "strike" ? "Cannons" : "Crossbows"} miss (${attack.total} vs ${defend.total}).`, "warn");
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
     S.naval.tacticsBonus = 0;
     renderNaval();
@@ -1931,8 +1964,10 @@
 
     if (success) {
       S.credits += level.buyIn;
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       S.credits -= level.buyIn;
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
 
     document.getElementById("gambleDieOne").textContent = String(low);

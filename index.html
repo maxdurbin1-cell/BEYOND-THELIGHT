@@ -2805,6 +2805,16 @@ function attemptThievery(targetName){
   }
 }
 
+function formatStatWithModifiers(stat,shortForm){
+  const mods=getStatModifiers(stat);
+  const modStr=mods.sources.length>0?` ${mods.sources.join(' ')}`:'';
+  if(shortForm){
+    return `${stat.toUpperCase()}${modStr}`;
+  }
+  const labels={body:'Body - Power',mind:'Mind - Intellect',control:'Control - Will',lead:'Lead - Guidance',spirit:'Spirit - Resilience',strike:'STRIKE - Combat',shoot:'SHOOT - Combat',defend:'DEFEND - Combat'};
+  return `${labels[stat]||stat}${modStr}`;
+}
+
 
 function advanceEventMystery(eventHex,sourceLabel){
   if(!eventHex||eventHex.type!=='event'||!eventHex.data?.mysteries)return null;

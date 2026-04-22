@@ -2402,7 +2402,7 @@ function renderHexInfo(hex){
     if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTd(td.land)}</div></div>`;
     if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTd(td.flora)} ${pickTd(td.fauna)||''}</div></div>`;
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button><button class="btn btn-sm btn-info" onclick="showMerchantCaravan(${hex.col},${hex.row})">📋 Merchant Caravan</button><button class="btn btn-sm btn-dark" onclick="if(Math.random()>.5)showBlackMarket(${hex.col},${hex.row});else showNotif('No dealer here.','warn');">⚠ Black Market</button></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button><button class="btn btn-sm btn-info" onclick="showMerchantCaravan(${hex.col},${hex.row})">📋 Merchant</button><button class="btn btn-sm btn-dark" onclick="if(Math.random()>.15)showBlackMarket(${hex.col},${hex.row});else showNotif('No dealer here.','warn');">⚠ Black Market</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Lead vs DD6</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
     if(d.eventLead){
       html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Interact here to reveal the next mystery in that chain.</div><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="revealEventLeadMystery(${hex.col},${hex.row})">⚄ Reveal Next Mystery (Lead)</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
@@ -2509,7 +2509,7 @@ function renderHexInfo(hex){
       html+=`<div class="event-mystery-wrap" style="margin-top:.5rem;">`+
         `<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.25rem;"><strong>${challenge.profile.foe}</strong> · Dread ${challenge.dread} · Mysteries ${prog.completed}/6</div>`+
         `<div style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem;">Defeats: ${prog.failures} (4+ = no reward)</div>`+
-        `<label style="font-size:.72rem;color:var(--muted2);display:block;margin-bottom:.3rem;">Stat: <select id="evStat-${cid}" style="width:100%;" onchange="updateEventEnemiesDisplay(${hex.col},${hex.row})"><option value="body">Body-Power</option><option value="mind">Mind-Intellect</option><option value="control">Control</option><option value="lead" selected>Lead</option><option value="spirit">Spirit</option><option value="strike">STRIKE</option><option value="shoot">SHOOT</option><option value="defend">DEFEND</option></select></label>`+
+        `<label style="font-size:.72rem;color:var(--muted2);display:block;margin-bottom:.3rem;">Approach: <select id="evStat-${cid}" style="width:100%;" onchange="updateEventEnemiesDisplay(${hex.col},${hex.row})">${typeof buildApproachSelectHTML==='function'?buildApproachSelectHTML('lead'):'<option selected>Loading...</option>'}</select></label>`+
         `<button class="btn btn-sm btn-primary" onclick="resolveEventAction(${hex.col},${hex.row})" style="width:100%;">Roll Check</button>`+
         `<div id="evEnemies-${cid}" style="margin-top:.3rem;"></div>`+
         `<div style="font-size:.72rem;color:var(--muted2);margin-top:.25rem;font-style:italic;">${challenge.profile.special}</div>`+
@@ -2819,14 +2819,16 @@ function buyFromCaravan(col,row,itemIdx){
   const caravan=hex.data?.caravan;
   if(!caravan||!caravan.items[itemIdx])return;
   const item=caravan.items[itemIdx];
-  const cost=parseInt(item.cost)||0;
-  if(S.credits<cost){showNotif('Not enough credits (need '+cost+'\u20b5)','warn');return;}
+  let cost=parseInt(item.cost)||0;
+  const haggleDiscount=(S.data&&S.data.haggleDiscount)?0.8:1;
+  cost=Math.floor(cost*haggleDiscount);
+  if(S.credits<cost){showNotif('Not enough credits (need '+cost+'₵)','warn');return;}
   S.credits-=cost;
   if(typeof addToBackpack==='function'){
     const stored=addToBackpack(item.name);
-    showNotif(`Purchased: ${item.name} for ${cost}\u20b5 ${stored?'(backpack)':'(no space)'}`,stored?'good':'warn');
+    showNotif(`Purchased: ${item.name} for ${cost}₵ ${stored?'(backpack)':'(no space)'}`,stored?'good':'warn');
   }else{
-    showNotif(`Purchased: ${item.name} for ${cost}\u20b5`,'good');
+    showNotif(`Purchased: ${item.name} for ${cost}₵`,'good');
   }
   if(typeof updateCreditsUI==='function')updateCreditsUI();
 }
@@ -2886,15 +2888,30 @@ function showTradeGoods(col,row){
 
 function buyTradeGood(name,costStr){
   const cost=parseInt(costStr)||0;
-  if(S.credits<cost){showNotif('Not enough credits (need '+cost+'\u20b5)','warn');return;}
+  if(S.credits<cost){showNotif('Not enough credits (need '+cost+'₵)','warn');return;}
   S.credits-=cost;
   if(typeof addToBackpack==='function'){
     const stored=addToBackpack(name);
-    showNotif(`Purchased: ${name} for ${cost}\u20b5 ${stored?'(backpack)':'(no space)'}`,stored?'good':'warn');
+    showNotif(`Purchased: ${name} for ${cost}₵ ${stored?'(backpack)':'(no space)'}`,stored?'good':'warn');
   }else{
-    showNotif(`Purchased: ${name} for ${cost}\u20b5`,'good');
+    showNotif(`Purchased: ${name} for ${cost}₵`,'good');
   }
   if(typeof updateCreditsUI==='function')updateCreditsUI();
+}
+
+function haggleMerchantCaravan(col,row){
+  const spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
+  const roll1=explodingRoll(spiritDie);
+  const roll2=explodingRoll('d8');
+  const success=roll1.total>=roll2.total;
+  if(success){
+    S.data=S.data||{};
+    S.data.haggleDiscount=true;
+    showNotif(`Haggle Success! (${roll1.total} vs DD8=${roll2.total}) 20% Discount Granted!`,'good');
+    appendQuickPanelNote(`[Merchant Haggle] Negotiated 20% discount with caravan at [${col+1},${row+1}]`);
+  }else{
+    showNotif(`Haggle Failed (${roll1.total} vs DD8=${roll2.total}). Regular pricing.`,'warn');
+  }
 }
 
 function attemptThievery(targetName){
@@ -3021,14 +3038,14 @@ function rollHexEncounter(col,row){
     if(w.rough)html+=`<div class="rough-weather-alert">Lead vs DD8 required. Failure: remain in Hex, lose 1 Phase.</div>`;
     html+='</div>';
   }else if(vr===2){
-    const enc=roll(6);let title,desc;
+    const enc=roll(6);let title,desc,actionHTML='';
     if(enc===1){const n=roll(4)+3;title=`${n} Bandits`;desc=`${pick(['Ragged scavengers in patchwork armor','Desperate deserters looking for easy marks','Professional road agents — this is their stretch','Cult enforcer unit collecting "donations"'])} — DD4 | ${n*2} Stress per enemy.`;}
-    else if(enc===2){title='Merchant Caravan';desc=`Goods worth ${rollMulti(6,2)*10}₵. They are ${pick(['nervous','friendly','over-armed','travelling unusually fast'])}. Roll Haggle (Spirit vs DD8) for better prices.`;}
+    else if(enc===2){title='Merchant Caravan';desc=`Goods. `;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-info" onclick="showMerchantCaravan(${col},${row})">Shop</button><button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan==='function')haggleMerchantCaravan(${col},${row})">Haggle</button></div>`;}
     else if(enc===3){const na=roll(4)+4,nb=roll(4)+4;title='Skirmish';desc=`${na} ${pick(['cavalry in worn plate','spearmen in dyed leather','crossbow skirmishers','banner-bearers in painted steel'])} vs ${nb} ${pick(['mounted raiders in black iron','hooded irregulars','desert fighters in layered cloth','shield-wall soldiers'])}. Intervening gains +1 Renown or 2d10×20₵.`;}
     else if(enc===4){const n=roll(4)+2;title=`${n} Hostile Beasts`;desc=`${pick(['Mutated wolves, pale-eyed and coordinated','Irradiated boars, tusks glowing faintly','Blade-winged birds hunting as one','Something vast and hard to name'])} — DD4 | ${n*2} Stress.`;}
     else if(enc===5){title='Royal Caravan';desc=`Pay <strong>50₵ tax</strong> OR complete a TASK: <em style="color:var(--gold2);">${pick(TASK_VERBS)} ${pick(TASK_TARGETS)}, ${roll(4)+1} hexes ${pick(TASK_DIRS)}.</em>`;}
-    else{const w=pick(TRAVELING_WAYFARERS);title=`Wayfarer: ${w[1]} ${w[2]}`;desc=`${w[0]} — ${w[3]} <strong>Drive:</strong> ${w[4]}`;}
-    html=`<div class="encounter-block"><strong style="color:var(--teal);">Overland Encounter — d6=${vr}</strong><br><strong>${title}</strong><br>${desc}</div>`;
+    else{title='Black Market';desc=`Hidden dealers. Roll Control (vs DD12) to gain entry.`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-dark" onclick="showBlackMarket(${col},${row})">Access</button></div>`;}
+    html=`<div class="encounter-block"><strong style="color:var(--teal);">Overland Encounter — d6=${vr}</strong><br><strong>${title}</strong><br>${desc}${actionHTML}</div>`;
   }else{
     const hexObj=mapData.find(h=>h.col===col&&h.row===row);
     html=`<div style="font-size:.82rem;color:var(--green2);padding:.3rem 0;">d6=${vr} — All Clear. Uneventful travel through the ${hexObj?.terrain?.name||'wilderness'}.</div>`;

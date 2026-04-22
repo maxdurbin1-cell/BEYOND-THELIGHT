@@ -124,18 +124,45 @@
     ensureState();
     if (typeof mapData !== 'undefined' && mapData.length) {
       var candidates = mapData.filter(function(h) { return h.type === 'wilderness'; });
-      if (candidates.length) {
-        var hex = pick(candidates);
-        S.missionTokens[hex.col + ',' + hex.row] = { missionId: mission.id, title: mission.title };
-        mission.mapHex = { col: hex.col, row: hex.row };
-        if (typeof renderHexMap === 'function') renderHexMap();
+      if (candidates.length >= 2) {
+        // Pick two distinct hexes: one for the Informer (step 1), one for the Site (steps 2-3)
+        var shuffled = candidates.slice().sort(function(){ return Math.random()-0.5; });
+        var informerHex = shuffled[0];
+        var siteHex = shuffled[1];
+        S.missionTokens[informerHex.col + ',' + informerHex.row] = { missionId: mission.id, title: mission.title, type: 'informer' };
+        S.missionTokens[siteHex.col + ',' + siteHex.row]      = { missionId: mission.id, title: mission.title, type: 'site' };
+        mission.informerHex = { col: informerHex.col, row: informerHex.row };
+        mission.siteHex     = { col: siteHex.col,     row: siteHex.row };
+        // Keep mapHex pointing to site for backwards compatibility
+        mission.mapHex = mission.siteHex;
+      } else if (candidates.length === 1) {
+        var hex = candidates[0];
+        S.missionTokens[hex.col + ',' + hex.row] = { missionId: mission.id, title: mission.title, type: 'site' };
+        mission.siteHex = { col: hex.col, row: hex.row };
+        mission.mapHex  = mission.siteHex;
       }
+      if (typeof renderHexMap === 'function') renderHexMap();
     }
   }
 
   function removeMissionToken(mission) {
-    if (!mission || !mission.mapHex) return;
-    delete S.missionTokens[mission.mapHex.col + ',' + mission.mapHex.row];
+    if (!mission) return;
+    if (mission.informerHex) {
+      delete S.missionTokens[mission.informerHex.col + ',' + mission.informerHex.row];
+    }
+    if (mission.siteHex) {
+      delete S.missionTokens[mission.siteHex.col + ',' + mission.siteHex.row];
+    }
+    // Fallback for old missions that only have mapHex
+    if (mission.mapHex && !mission.siteHex) {
+      delete S.missionTokens[mission.mapHex.col + ',' + mission.mapHex.row];
+    }
+    if (typeof renderHexMap === 'function') renderHexMap();
+  }
+
+  function removeInformerToken(mission) {
+    if (!mission || !mission.informerHex) return;
+    delete S.missionTokens[mission.informerHex.col + ',' + mission.informerHex.row];
     if (typeof renderHexMap === 'function') renderHexMap();
   }
 
@@ -280,6 +307,7 @@
     var mission = getMission(missionId);
     if (!mission) return;
     mission.steps[1].completed=true; mission.steps[1].skipped=false;
+    removeInformerToken(mission);
     if (success) {
       mission.bonus=5;
       var f=typeof encodedResult==='string'?JSON.parse(encodedResult):encodedResult;
@@ -315,6 +343,7 @@
   function skipMissionStep1(missionId) {
     var mission=getMission(missionId); if (!mission) return;
     mission.steps[1].completed=true; mission.steps[1].skipped=true;
+    removeInformerToken(mission);
     renderMissionTracker();
   }
 

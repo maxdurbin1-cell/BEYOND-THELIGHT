@@ -203,6 +203,24 @@ select option{background:#0f1020;}
 .mission-step .step-label{font-size:.75rem;color:var(--text2);}
 .job-card{background:var(--card);border:1px solid var(--border);padding:.7rem;display:flex;flex-direction:column;gap:.3rem;transition:border-color .15s;}
 .job-card:hover{border-color:rgba(201,162,39,.25);}
+/* ── QUICK PANEL ── */
+#quickPanelToggle{position:fixed;bottom:1.2rem;right:1.2rem;z-index:1000;background:rgba(11,12,26,.95);border:1px solid var(--border2);color:var(--gold);font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;padding:.45rem .8rem;cursor:pointer;text-transform:uppercase;backdrop-filter:blur(10px);transition:border-color .2s,color .2s;}
+#quickPanelToggle:hover,#quickPanelToggle.open{border-color:var(--gold);background:rgba(201,162,39,.08);}
+#quickPanel{position:fixed;bottom:3.8rem;right:1.2rem;width:360px;max-height:calc(100vh - 6rem);background:rgba(11,12,26,.97);border:1px solid var(--border2);z-index:999;display:none;flex-direction:column;backdrop-filter:blur(12px);box-shadow:0 4px 32px rgba(0,0,0,.6);}
+#quickPanel.open{display:flex;}
+.qp-header{display:flex;gap:0;border-bottom:1px solid var(--border);}
+.qp-tab{flex:1;background:transparent;border:none;border-right:1px solid var(--border);color:var(--muted2);font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;padding:.35rem .2rem;cursor:pointer;text-transform:uppercase;transition:all .12s;}
+.qp-tab:last-child{border-right:none;}
+.qp-tab:hover{color:var(--gold);}
+.qp-tab.on{color:var(--gold);background:rgba(201,162,39,.07);}
+.qp-close{background:transparent;border:none;border-left:1px solid var(--border);color:var(--muted);font-size:.9rem;padding:.3rem .55rem;cursor:pointer;flex-shrink:0;}
+.qp-close:hover{color:var(--red);}
+#qpContent{overflow-y:auto;padding:.7rem;flex:1;font-size:.82rem;line-height:1.5;}
+.qp-stat-row{display:flex;justify-content:space-between;align-items:center;padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.03);}
+.qp-die{font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;color:var(--teal);}
+.qp-roll-grid{display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin:.4rem 0;}
+.qp-roll-grid button{font-size:.62rem;padding:.22rem .4rem;}
+.qp-result{background:var(--surface);border:1px solid var(--border);padding:.4rem .6rem;margin-top:.4rem;min-height:1.8rem;font-size:.82rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-size:.9rem;}
 .job-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
 .job-difficulty{font-size:.7rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}
 .job-reward{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);margin-top:.2rem;}
@@ -1612,7 +1630,7 @@ Weapons have as many available Mod Slots as their bonus damage value. <strong>Ad
   <li><em>Heavy</em> Weapons (+4 Strike/Shoot) — <strong>4 Mod Slots</strong></li>
 </ul>`
 };
-function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;const rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}')">Buy</button></div></div>`).join('');}
+function showShopCat(cat,btn){document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');const items=SHOP_DATA[cat]||[];const c=document.getElementById('shopGrid');if(!c)return;let rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';if(cat==='augmentations'){const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];const bodyDie=S.stats&&S.stats.body?S.stats.body:4;const maxAugs=Math.floor(bodyDie/2);const slotsUsed=installedAugs.length;rule=`<div class="shop-rule-box"><span class="srb-title" style="display:flex;justify-content:space-between;align-items:center;"><span>🦾 Augmentations — Available Upgrades</span><span style="font-family:'Rajdhani',sans-serif;font-size:.82rem;letter-spacing:0;color:${slotsUsed>=maxAugs?'var(--red2)':'var(--green2)'};">${slotsUsed}/${maxAugs} Slots Used (Body d${bodyDie})</span></span>${SHOP_RULES[cat].replace(/^<span[^>]*>.*?<\/span>\s*/,'')}`;}if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}if(cat==='augmentations'){const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];c.innerHTML=rule+items.map(item=>{const isInstalled=installedAugs.indexOf(item.name)>=0;return`<div class="shop-card"${isInstalled?' style="opacity:.55;border-color:var(--green);background:rgba(76,175,116,.04);"':''}><div class="s-name">${item.name}${isInstalled?' <span style="font-size:.6rem;color:var(--green);font-family:Cinzel,serif;letter-spacing:.08em;">✓ INSTALLED</span>':''}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span>${isInstalled?'<button class="btn btn-xs" disabled style="opacity:.4;cursor:default;">Installed</button>':`<button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}')">Buy</button>`}</div></div>`;}).join('');}else{c.innerHTML=rule+items.map(item=>`<div class="shop-card"><div class="s-name">${item.name}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}')">Buy</button></div></div>`).join('');}}
 
 // Format stat string into equipment-slot format: "Ad6 Strike | Engaged" → "(Ad6 Strike)"
 function formatStatForSlot(stat) {
@@ -2131,7 +2149,29 @@ function renderHexMap(){
       dot.setAttribute('r','4');dot.setAttribute('fill','var(--teal)');dot.setAttribute('pointer-events','none');
       g.appendChild(dot);
     }
-    if(S.missionTokens&&S.missionTokens[`${hex.col},${hex.row}`]){const mt=document.createElementNS('http://www.w3.org/2000/svg','text');mt.setAttribute('x',x+HEX_SIZE*.55);mt.setAttribute('y',y-HEX_SIZE*.3);mt.setAttribute('text-anchor','middle');mt.setAttribute('font-size','10');mt.setAttribute('fill','#e05050');mt.setAttribute('pointer-events','none');mt.textContent='⚔';g.appendChild(mt);}
+    if(S.missionTokens&&S.missionTokens[`${hex.col},${hex.row}`]){
+      const mt=S.missionTokens[`${hex.col},${hex.row}`];
+      const isInformer=mt.type==='informer';
+      const icon=isInformer?'👁':'⚔';
+      const color=isInformer?'#e8c050':'#e05050';
+      // Outer glow circle
+      const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      glow.setAttribute('cx',x+HEX_SIZE*.5);glow.setAttribute('cy',y-HEX_SIZE*.35);
+      glow.setAttribute('r','11');glow.setAttribute('fill',isInformer?'rgba(232,192,80,.18)':'rgba(224,80,80,.18)');
+      glow.setAttribute('stroke',color);glow.setAttribute('stroke-width','1.5');glow.setAttribute('pointer-events','none');
+      g.appendChild(glow);
+      const micon=document.createElementNS('http://www.w3.org/2000/svg','text');
+      micon.setAttribute('x',x+HEX_SIZE*.5);micon.setAttribute('y',y-HEX_SIZE*.27);
+      micon.setAttribute('text-anchor','middle');micon.setAttribute('font-size','15');
+      micon.setAttribute('fill',color);micon.setAttribute('pointer-events','none');
+      micon.textContent=icon;g.appendChild(micon);
+      const mlabel=document.createElementNS('http://www.w3.org/2000/svg','text');
+      mlabel.setAttribute('x',x+HEX_SIZE*.5);mlabel.setAttribute('y',y-HEX_SIZE*.62);
+      mlabel.setAttribute('text-anchor','middle');mlabel.setAttribute('font-size','6');
+      mlabel.setAttribute('font-family','Cinzel,serif');mlabel.setAttribute('fill',color);
+      mlabel.setAttribute('pointer-events','none');
+      mlabel.textContent=isInformer?'INFORMER':'SITE';g.appendChild(mlabel);
+    }
     g.addEventListener('click',()=>{selectedHex=hex;renderHexMap();renderHexInfo(hex);});
     g.addEventListener('mousemove',()=>{const c=document.getElementById('hexCoords');if(c)c.textContent=`[${hex.col+1},${hex.row+1}] ${hex.terrain.name} — ${hex.name||hex.type}`;});
     svg.appendChild(g);
@@ -2527,5 +2567,190 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="./missions-system.js"></script>
 <script src="./jobs-integration.js"></script>
 <script src="./new-features.js"></script>
+
+<!-- ── QUICK PANEL ── -->
+<button id="quickPanelToggle" onclick="toggleQuickPanel()">⚙ Quick&nbsp;Panel</button>
+<div id="quickPanel">
+  <div class="qp-header">
+    <button class="qp-tab on" onclick="switchQP('dice',this)">🎲 Dice</button>
+    <button class="qp-tab" onclick="switchQP('char',this)">👤 Char</button>
+    <button class="qp-tab" onclick="switchQP('combat',this)">⚔ Combat</button>
+    <button class="qp-tab" onclick="switchQP('missions',this)">🗺 Missions</button>
+    <button class="qp-close" onclick="toggleQuickPanel()">✕</button>
+  </div>
+  <div id="qpContent"></div>
+</div>
+<script>
+(function(){
+  var _qpTab = 'dice';
+
+  window.toggleQuickPanel = function() {
+    var panel = document.getElementById('quickPanel');
+    var btn   = document.getElementById('quickPanelToggle');
+    var open  = panel.classList.toggle('open');
+    btn.classList.toggle('open', open);
+    if (open) renderQP(_qpTab);
+  };
+
+  window.switchQP = function(tab, el) {
+    _qpTab = tab;
+    document.querySelectorAll('.qp-tab').forEach(function(b){ b.classList.remove('on'); });
+    if (el) el.classList.add('on');
+    renderQP(tab);
+  };
+
+  function renderQP(tab) {
+    var c = document.getElementById('qpContent');
+    if (!c) return;
+    if (tab === 'dice')    c.innerHTML = buildQPDice();
+    else if (tab === 'char')   c.innerHTML = buildQPChar();
+    else if (tab === 'combat') c.innerHTML = buildQPCombat();
+    else if (tab === 'missions') c.innerHTML = buildQPMissions();
+  }
+
+  function qpRoll(sides) {
+    var max = sides, min = 1;
+    var val = Math.floor(Math.random() * max) + min;
+    // Exploding: keep rolling and adding on max
+    while (val === sides) {
+      var extra = Math.floor(Math.random() * max) + min;
+      val += extra;
+      if (extra < sides) break;
+    }
+    return val;
+  }
+
+  window.qpRollStat = function(statKey, label) {
+    var die = (S.stats && S.stats[statKey]) ? S.stats[statKey] : 4;
+    var result = qpRoll(die);
+    document.getElementById('qpRollResult').innerHTML =
+      '<span style="color:var(--muted2);">' + label + ' d' + die + '</span> = <strong style="color:var(--teal);font-size:1.2rem;">' + result + '</strong>';
+  };
+
+  window.qpRollDie = function(sides) {
+    var result = qpRoll(sides);
+    document.getElementById('qpRollResult').innerHTML =
+      '<span style="color:var(--muted2);">d' + sides + '</span> = <strong style="color:var(--gold2);font-size:1.2rem;">' + result + '</strong>';
+  };
+
+  window.qpToggleCond = function(key) {
+    if (typeof toggleCond === 'function') { toggleCond(key); }
+    renderQP('char');
+  };
+
+  function buildQPDice() {
+    if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
+    var stats = [
+      ['adventure','Adv'],['body','Body'],['mind','Mind'],['spirit','Spirit'],
+      ['strike','Strike'],['shoot','Shoot'],['defend','Defend'],['control','Control']
+    ];
+    var rows = stats.map(function(s){
+      var die = (S.stats && S.stats[s[0]]) ? S.stats[s[0]] : 4;
+      return '<button class="btn btn-xs btn-teal" onclick="qpRollStat(\''+s[0]+'\',\''+s[1]+'\')" style="font-size:.62rem;padding:.2rem .4rem;">'+s[1]+' d'+die+'</button>';
+    });
+    var freeRolls = [4,6,8,10,12,20].map(function(d){
+      return '<button class="btn btn-xs" onclick="qpRollDie('+d+')" style="font-size:.62rem;padding:.2rem .4rem;">d'+d+'</button>';
+    });
+    return '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Stat Rolls</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;">' + rows.join('') + '</div></div>'
+      + '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">Free Roll</div>'
+      + '<div style="display:flex;gap:.25rem;">' + freeRolls.join('') + '</div></div>'
+      + '<div class="qp-result" id="qpRollResult" style="min-height:2rem;">—</div>';
+  }
+
+  function buildQPChar() {
+    if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
+    var stress = S.stress || 0; var maxStress = S.maxStress || 20;
+    var trauma = S.trauma || 0;
+    var pct = Math.min(100, Math.round(stress / maxStress * 100));
+    var barColor = pct >= 80 ? 'var(--red)' : pct >= 50 ? 'var(--gold)' : 'var(--green2)';
+
+    var condsDef = [
+      {k:'empowered',l:'⚡ Empowered',pos:true},{k:'protected',l:'🛡 Protected',pos:true},
+      {k:'focused',l:'🎯 Focused',pos:true},{k:'bolstered',l:'✨ Bolstered',pos:true},
+      {k:'weakened',l:'💔 Weakened',pos:false},{k:'vulnerable',l:'🩸 Vulnerable',pos:false},
+      {k:'distracted',l:'🌀 Distracted',pos:false},{k:'shaken',l:'😱 Shaken',pos:false}
+    ];
+    var condsHtml = condsDef.map(function(cd){
+      var on = S.conditions && S.conditions[cd.k];
+      var borderC = on ? (cd.pos?'var(--green)':'var(--red)') : 'var(--border)';
+      var bg = on ? (cd.pos?'rgba(76,175,116,.09)':'rgba(201,64,64,.09)') : 'transparent';
+      var textC = on ? (cd.pos?'var(--green2)':'var(--red2)') : 'var(--muted2)';
+      return '<button onclick="qpToggleCond(\''+cd.k+'\')" style="background:'+bg+';border:1px solid '+borderC+';color:'+textC+';font-size:.6rem;padding:.2rem .35rem;cursor:pointer;font-family:Cinzel,serif;letter-spacing:.04em;transition:all .15s;">'+cd.l+'</button>';
+    }).join('');
+
+    return '<div style="margin-bottom:.5rem;">'
+      + '<div style="display:flex;justify-content:space-between;font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">'
+        + '<span>Stress</span><span style="color:'+barColor+';">'+stress+'/'+maxStress+'</span></div>'
+      + '<div style="height:8px;background:var(--surface);border:1px solid var(--border);margin-bottom:.3rem;">'
+        + '<div style="height:100%;width:'+pct+'%;background:'+barColor+';transition:width .3s;"></div></div>'
+      + '<div style="display:flex;gap:.3rem;align-items:center;">'
+        + '<button class="btn btn-xs btn-red" onclick="if(typeof changeStress===\'function\')changeStress(1);renderQP(\'char\')">+1 Stress</button>'
+        + '<button class="btn btn-xs btn-green" onclick="if(typeof changeStress===\'function\')changeStress(-1);renderQP(\'char\')">−1 Stress</button>'
+        + '<span style="font-size:.75rem;color:var(--red);margin-left:auto;">Trauma: '+trauma+'</span>'
+      + '</div></div>'
+      + '<div><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Conditions</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:.2rem;">' + condsHtml + '</div></div>'
+      + '<div style="margin-top:.5rem;display:flex;gap:.3rem;align-items:center;">'
+        + '<span style="font-family:Cinzel,serif;font-size:.56rem;color:var(--muted2);text-transform:uppercase;">Path Tokens:</span>'
+        + '<strong style="color:var(--teal);">'+(S.pathTokens||0)+'</strong>'
+        + '<span style="font-family:Cinzel,serif;font-size:.56rem;color:var(--muted2);text-transform:uppercase;margin-left:.5rem;">TMW:</span>'
+        + '<strong style="color:var(--muted3);">'+(S.tmw||0)+'</strong>'
+      + '</div>';
+  }
+
+  function buildQPCombat() {
+    if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
+    var dread = S.combat && S.combat.enemyDread ? S.combat.enemyDread : 6;
+    var enemies = S.enemies || [];
+    var eneHtml = enemies.length
+      ? enemies.map(function(e){ return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.04);">'
+          + '<span style="font-size:.78rem;color:var(--text);">'+e.name+'</span>'
+          + '<span style="font-family:Rajdhani,sans-serif;font-size:.85rem;color:var(--red);">'+e.stress+' Stress · d'+e.dread+'</span>'
+        + '</div>'; }).join('')
+      : '<div style="font-size:.78rem;color:var(--muted2);">No enemies set.</div>';
+    return '<div style="margin-bottom:.5rem;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Enemies</div>'
+      + eneHtml + '</div>'
+      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Quick Actions</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;">'
+        + '<button class="btn btn-xs btn-primary" onclick="if(typeof rollAttack===\'function\')rollAttack(\'strike\')">⚔ Strike</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="if(typeof rollAttack===\'function\')rollAttack(\'shoot\')">🔫 Shoot</button>'
+        + '<button class="btn btn-xs btn-teal" onclick="if(typeof rollDefend===\'function\')rollDefend()">🛡 Defend</button>'
+        + '<button class="btn btn-xs" onclick="if(typeof rollTraumaCheck===\'function\')rollTraumaCheck()">💀 Trauma</button>'
+      + '</div>';
+  }
+
+  function buildQPMissions() {
+    if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
+    var missions = S.activeMissions || [];
+    if (!missions.length) return '<div style="color:var(--muted2);font-size:.82rem;">No active missions.</div>';
+    return missions.map(function(m){
+      var activeStep = 1;
+      if (m.steps[1] && m.steps[1].completed) activeStep = 2;
+      if (m.steps[2] && m.steps[2].completed) activeStep = 3;
+      var stepNames = { 1:'Gather Info', 2:'Go to Site', 3:'Confrontation' };
+      var stepColors = ['var(--gold)','var(--teal)','var(--red2)'];
+      var col = stepColors[activeStep-1] || 'var(--teal)';
+      var diffLabel = m.difficulty ? m.difficulty.charAt(0).toUpperCase()+m.difficulty.slice(1) : 'Unknown';
+      var hexInfo = '';
+      if (m.informerHex && activeStep === 1) {
+        hexInfo += '<div style="font-size:.7rem;color:var(--gold);margin-top:.15rem;">👁 Informer: Hex ['+(m.informerHex.col+1)+','+(m.informerHex.row+1)+']</div>';
+      }
+      if (m.siteHex) {
+        hexInfo += '<div style="font-size:.7rem;color:var(--red2);margin-top:.1rem;">⚔ Site: Hex ['+(m.siteHex.col+1)+','+(m.siteHex.row+1)+']</div>';
+      }
+      return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.35rem;">'
+        + '<div style="font-family:Cinzel,serif;font-size:.72rem;color:var(--gold2);">'+m.title+'</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.1rem;">'+diffLabel+' · DD'+m.dread+' · '+m.reward+'₵</div>'
+        + '<div style="font-size:.72rem;color:'+col+';margin-top:.15rem;font-family:Cinzel,serif;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;">▶ Step '+activeStep+': '+stepNames[activeStep]+'</div>'
+        + hexInfo
+      + '</div>';
+    }).join('');
+  }
+
+  window.renderQP = renderQP;
+})();
+</script>
 </body>
 </html>

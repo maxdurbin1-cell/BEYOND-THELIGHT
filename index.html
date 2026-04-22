@@ -130,7 +130,7 @@ select option{background:#0f1020;}
 .overlay.open{opacity:1;pointer-events:all;}
 .modal{background:var(--card);border:1px solid var(--border2);max-width:600px;width:100%;padding:1.3rem;max-height:88vh;overflow-y:auto;}
 .modal-header{font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.12em;color:var(--gold);margin-bottom:.85rem;padding-bottom:.55rem;border-bottom:1px solid var(--border);}
-.notif{position:fixed;bottom:1.2rem;right:1.2rem;background:var(--card2);border:1px solid var(--gold);color:var(--text);padding:.6rem .9rem;font-size:.85rem;max-width:320px;z-index:1000;transform:translateX(120%);transition:transform .3s ease;line-height:1.4;}
+.notif{position:fixed;bottom:1.2rem;left:1.2rem;background:var(--card2);border:1px solid var(--gold);color:var(--text);padding:.6rem .9rem;font-size:.85rem;max-width:320px;z-index:1200;transform:translateX(-120%);transition:transform .3s ease;line-height:1.4;}
 .notif.show{transform:translateX(0);}.notif.warn{border-color:var(--red);}.notif.good{border-color:var(--green);}
 .enemy-card{background:var(--surface);border:1px solid var(--border2);padding:.6rem;display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem;}
 .e-pip{width:.8rem;height:.8rem;border:1px solid var(--border2);cursor:pointer;transition:all .1s;}
@@ -1535,6 +1535,11 @@ function rollAttack(type) {
     +(success ? '<strong style="color:var(--green2);">HIT! '+diff+' Stress</strong>' : '<strong style="color:var(--red);">Miss</strong>')
     +(ra.exploded ? ' ✦ Crit!' : '')+modHtml;
 
+  // Auto-apply stress to the first tracked enemy on successful Strike/Shoot.
+  if(success && Array.isArray(S.enemies) && S.enemies.length){
+    applyStressToCurrentEnemy(diff, type);
+  }
+
   if(!success){
     addTMWOnFail();
   } else { addSuccessRoll(); }
@@ -1602,8 +1607,24 @@ function rollTraumaCheck(){const a=explodingRoll(S.stats.adventure),d=explodingR
 let enemyIdCounter=1;
 function addEnemy(){const name=prompt('Enemy name:','Enemy '+(S.enemies.length+1))||'Enemy';const maxStress=S.combat.enemyDread*2;S.enemies.push({id:enemyIdCounter++,name,dread:S.combat.enemyDread,stress:0,maxStress});renderEnemies();}
 function clearEnemies(){S.enemies=[];renderEnemies();}
+function applyStressToCurrentEnemy(stress,source){
+  if(!Array.isArray(S.enemies)||!S.enemies.length)return;
+  const dmg=Math.max(1,parseInt(stress,10)||1);
+  const e=S.enemies[0];
+  e.stress=Math.min(e.maxStress,(e.stress||0)+dmg);
+  if(e.stress>=e.maxStress){
+    const defeated=e.name;
+    S.enemies.shift();
+    const next=S.enemies.length?(' Next target: '+S.enemies[0].name+'.'):'';
+    showNotif(defeated+' eliminated!'+next,'good');
+  }else{
+    showNotif((source==='shoot'?'Shoot':'Strike')+' dealt '+dmg+' Stress to '+e.name+'.','good');
+  }
+  renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+}
 function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';return;}c.innerHTML=S.enemies.map(e=>`<div class="enemy-card"><div style="flex:1;"><div style="font-family:\'Cinzel\',serif;font-size:.7rem;color:var(--gold2);">${e.name}</div><div style="font-size:.72rem;color:var(--muted2);">DD${e.dread} | ${e.stress}/${e.maxStress} Stress</div><div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button></div></div>`).join('');}
-function enemyPip(id,i){const e=S.enemies.find(x=>x.id===id);if(!e)return;e.stress=i<e.stress?i:i+1;if(e.stress>=e.maxStress)showNotif(`${e.name} defeated!`,'good');renderEnemies();}
+function enemyPip(id,i){const e=S.enemies.find(x=>x.id===id);if(!e)return;e.stress=i<e.stress?i:i+1;if(e.stress>=e.maxStress){showNotif(`${e.name} defeated!`,'good');S.enemies=S.enemies.filter(x=>x.id!==id);}renderEnemies();if(typeof renderQP==='function')renderQP('combat');}
 function removeEnemy(id){S.enemies=S.enemies.filter(e=>e.id===id?false:true);renderEnemies();}
 function enemyAttack(id){const e=S.enemies.find(x=>x.id===id);if(!e)return;const atk=explodingRoll(e.dread),def=explodingRoll(S.stats.defend);const hit=atk.total>def.total,dmg=Math.max(1,atk.total-def.total);showNotif(`${e.name}: ${atk.total} vs your ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'warn':'good');if(hit)changeStress(dmg);}
 function rollArmyStress(side){const s=rollMulti(12,2),dread=s>=13?6:4;if(side==='A'){S.combat.armyA={stress:s,dread};document.getElementById('armyAStress').textContent=s;document.getElementById('armyADread').textContent='d'+dread;}else{S.combat.armyB={stress:s,dread};document.getElementById('armyBStress').textContent=s;document.getElementById('armyBDread').textContent='d'+dread;}}
@@ -2638,6 +2659,49 @@ document.addEventListener('DOMContentLoaded',()=>{
     renderQP('char');
   };
 
+  window.qpRollDread = function() {
+    var dread = (S.combat && S.combat.enemyDread) ? S.combat.enemyDread : 8;
+    qpRollDie(dread);
+  };
+
+  window.qpSetDreadDie = function(die) {
+    if (typeof setEnemyDread === 'function') { setEnemyDread(die); }
+    renderQP('dice');
+  };
+
+  window.qpCombatAction = function(kind) {
+    if (kind === 'strike' || kind === 'shoot') {
+      if (typeof rollAttack === 'function') { rollAttack(kind); }
+    } else if (kind === 'defend') {
+      if (typeof rollDefend === 'function') { rollDefend(); }
+    } else if (kind === 'trauma') {
+      if (typeof rollTraumaCheck === 'function') { rollTraumaCheck(); }
+    }
+    renderQP('combat');
+  };
+
+  window.qpQuickAddEnemy = function() {
+    if (typeof addEnemy === 'function') { addEnemy(); }
+    renderQP('combat');
+  };
+
+  window.qpMissionAction = function(action, missionId) {
+    if (action === 'generate' && typeof generateMissions === 'function') {
+      generateMissions();
+    } else if (action === 'accept' && typeof acceptJob === 'function') {
+      acceptJob(missionId);
+    } else if (action === 'step1' && typeof startMissionStep1 === 'function') {
+      startMissionStep1(missionId);
+    } else if (action === 'skip1' && typeof skipMissionStep1 === 'function') {
+      skipMissionStep1(missionId);
+    } else if (action === 'step2' && typeof startMissionStep2 === 'function') {
+      startMissionStep2(missionId);
+    } else if (action === 'step3' && typeof startMissionStep3 === 'function') {
+      startMissionStep3(missionId);
+    }
+    renderQP('missions');
+  };
+
   function buildQPDice() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
     var stats = [
@@ -2651,16 +2715,26 @@ document.addEventListener('DOMContentLoaded',()=>{
     var freeRolls = [4,6,8,10,12,20].map(function(d){
       return '<button class="btn btn-xs" onclick="qpRollDie('+d+')" style="font-size:.62rem;padding:.2rem .4rem;">d'+d+'</button>';
     });
+    var dreadDie = (S.combat && S.combat.enemyDread) ? S.combat.enemyDread : 8;
+    var dreadOptions = [4,6,8,10,12,20].map(function(d){
+      return '<button class="btn btn-xs'+(d===dreadDie?' btn-primary':'')+'" onclick="qpSetDreadDie('+d+')" style="font-size:.6rem;padding:.15rem .35rem;">d'+d+'</button>';
+    }).join('');
     return '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Stat Rolls</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;">' + rows.join('') + '</div></div>'
       + '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">Free Roll</div>'
       + '<div style="display:flex;gap:.25rem;">' + freeRolls.join('') + '</div></div>'
+      + '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--red2);text-transform:uppercase;margin-bottom:.3rem;">Dread Die</div>'
+      + '<div style="display:flex;align-items:center;gap:.25rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-red" onclick="qpRollDread()" style="font-size:.62rem;padding:.2rem .4rem;">Roll Dread d'+dreadDie+'</button>'
+      + dreadOptions + '</div></div>'
       + '<div class="qp-result" id="qpRollResult" style="min-height:2rem;">—</div>';
   }
 
   function buildQPChar() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
-    var stress = S.stress || 0; var maxStress = S.maxStress || 20;
+    var stress = S.stress || 0;
+    var defendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : ((S.stats && S.stats.defend) ? S.stats.defend : 4);
+    var maxStress = defendDie * 2;
     var trauma = S.trauma || 0;
     var pct = Math.min(100, Math.round(stress / maxStress * 100));
     var barColor = pct >= 80 ? 'var(--red)' : pct >= 50 ? 'var(--gold)' : 'var(--green2)';
@@ -2684,6 +2758,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<span>Stress</span><span style="color:'+barColor+';">'+stress+'/'+maxStress+'</span></div>'
       + '<div style="height:8px;background:var(--surface);border:1px solid var(--border);margin-bottom:.3rem;">'
         + '<div style="height:100%;width:'+pct+'%;background:'+barColor+';transition:width .3s;"></div></div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.3rem;">Max Stress = 2× Defend Die (d'+defendDie+' = '+maxStress+')</div>'
       + '<div style="display:flex;gap:.3rem;align-items:center;">'
         + '<button class="btn btn-xs btn-red" onclick="if(typeof changeStress===\'function\')changeStress(1);renderQP(\'char\')">+1 Stress</button>'
         + '<button class="btn btn-xs btn-green" onclick="if(typeof changeStress===\'function\')changeStress(-1);renderQP(\'char\')">−1 Stress</button>'
@@ -2702,30 +2777,61 @@ document.addEventListener('DOMContentLoaded',()=>{
   function buildQPCombat() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
     var dread = S.combat && S.combat.enemyDread ? S.combat.enemyDread : 6;
+    var playerMaxActions = (typeof getMaxActions === 'function') ? getMaxActions() : 3;
+    var playerActions = (S.combat && typeof S.combat.actionsLeft === 'number') ? S.combat.actionsLeft : playerMaxActions;
+    var enemyActions = 2;
     var enemies = S.enemies || [];
     var eneHtml = enemies.length
       ? enemies.map(function(e){ return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.04);">'
           + '<span style="font-size:.78rem;color:var(--text);">'+e.name+'</span>'
-          + '<span style="font-family:Rajdhani,sans-serif;font-size:.85rem;color:var(--red);">'+e.stress+' Stress · d'+e.dread+'</span>'
+          + '<span style="font-family:Rajdhani,sans-serif;font-size:.85rem;color:var(--red);">'+e.stress+'/'+e.maxStress+' Stress · d'+e.dread+'</span>'
         + '</div>'; }).join('')
       : '<div style="font-size:.78rem;color:var(--muted2);">No enemies set.</div>';
     return '<div style="margin-bottom:.5rem;">'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'
+      + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerActions+'/'+playerMaxActions+'</strong></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Actions: <strong style="color:var(--red2);">'+enemyActions+'</strong></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="qpQuickAddEnemy()">+ Enemy</button>'
+      + '<button class="btn btn-xs" onclick="if(typeof clearEnemies===\'function\')clearEnemies();renderQP(\'combat\')">Clear</button>'
+      + '<button class="btn btn-xs" onclick="if(S.combat){S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);}if(typeof updateCombatUI===\'function\')updateCombatUI();renderQP(\'combat\')">− Action</button>'
+      + '<button class="btn btn-xs" onclick="if(S.combat){S.combat.actionsLeft=(S.combat.actionsLeft||0)+1;}if(typeof updateCombatUI===\'function\')updateCombatUI();renderQP(\'combat\')">+ Action</button>'
+      + '</div>'
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Enemies</div>'
       + eneHtml + '</div>'
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Quick Actions</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;">'
-        + '<button class="btn btn-xs btn-primary" onclick="if(typeof rollAttack===\'function\')rollAttack(\'strike\')">⚔ Strike</button>'
-        + '<button class="btn btn-xs btn-primary" onclick="if(typeof rollAttack===\'function\')rollAttack(\'shoot\')">🔫 Shoot</button>'
-        + '<button class="btn btn-xs btn-teal" onclick="if(typeof rollDefend===\'function\')rollDefend()">🛡 Defend</button>'
-        + '<button class="btn btn-xs" onclick="if(typeof rollTraumaCheck===\'function\')rollTraumaCheck()">💀 Trauma</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="qpCombatAction(\'strike\')">⚔ Strike</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="qpCombatAction(\'shoot\')">🔫 Shoot</button>'
+        + '<button class="btn btn-xs btn-teal" onclick="qpCombatAction(\'defend\')">🛡 Defend</button>'
+        + '<button class="btn btn-xs" onclick="qpCombatAction(\'trauma\')">💀 Trauma</button>'
       + '</div>';
   }
 
   function buildQPMissions() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
+    var jobs = S.availableJobs || [];
     var missions = S.activeMissions || [];
-    if (!missions.length) return '<div style="color:var(--muted2);font-size:.82rem;">No active missions.</div>';
-    return missions.map(function(m){
+    var jobsHtml = '<div style="margin-bottom:.55rem;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.3rem;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;">Mission Board</div>'
+      + '<button class="btn btn-xs btn-primary" onclick="qpMissionAction(\'generate\')">⚄ Generate</button>'
+      + '</div>'
+      + (jobs.length
+        ? jobs.map(function(j){
+            var diffLabel = j.difficulty ? j.difficulty.charAt(0).toUpperCase()+j.difficulty.slice(1) : 'Unknown';
+            return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .5rem;margin-bottom:.25rem;">'
+              + '<div style="font-size:.72rem;color:var(--gold2);font-family:Cinzel,serif;">'+j.title+'</div>'
+              + '<div style="font-size:.68rem;color:var(--muted2);margin:.1rem 0 .25rem;">'+diffLabel+' · DD'+j.dread+' · '+j.reward+'₵</div>'
+              + '<button class="btn btn-xs btn-teal" onclick="qpMissionAction(\'accept\','+j.id+')">Accept</button>'
+            + '</div>';
+          }).join('')
+        : '<div style="font-size:.75rem;color:var(--muted2);">No posted jobs. Generate missions to create new contracts.</div>')
+      + '</div>';
+
+    var activeHtml = missions.length ? missions.map(function(m){
       var activeStep = 1;
       if (m.steps[1] && m.steps[1].completed) activeStep = 2;
       if (m.steps[2] && m.steps[2].completed) activeStep = 3;
@@ -2740,13 +2846,33 @@ document.addEventListener('DOMContentLoaded',()=>{
       if (m.siteHex) {
         hexInfo += '<div style="font-size:.7rem;color:var(--red2);margin-top:.1rem;">⚔ Site: Hex ['+(m.siteHex.col+1)+','+(m.siteHex.row+1)+']</div>';
       }
+      var actionBtns = '';
+      if (activeStep === 1) {
+        actionBtns = '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">'
+          + '<button class="btn btn-xs btn-teal" onclick="qpMissionAction(\'step1\','+m.id+')">▶ Info</button>'
+          + '<button class="btn btn-xs" onclick="qpMissionAction(\'skip1\','+m.id+')">Skip</button>'
+        + '</div>';
+      } else if (activeStep === 2) {
+        actionBtns = '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">'
+          + '<button class="btn btn-xs btn-teal" onclick="qpMissionAction(\'step2\','+m.id+')">▶ Site</button>'
+        + '</div>';
+      } else {
+        actionBtns = '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">'
+          + '<button class="btn btn-xs btn-primary" onclick="qpMissionAction(\'step3\','+m.id+')">▶ Confront</button>'
+        + '</div>';
+      }
       return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.35rem;">'
         + '<div style="font-family:Cinzel,serif;font-size:.72rem;color:var(--gold2);">'+m.title+'</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.1rem;">'+diffLabel+' · DD'+m.dread+' · '+m.reward+'₵</div>'
         + '<div style="font-size:.72rem;color:'+col+';margin-top:.15rem;font-family:Cinzel,serif;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;">▶ Step '+activeStep+': '+stepNames[activeStep]+'</div>'
         + hexInfo
+        + actionBtns
       + '</div>';
-    }).join('');
+    }).join('') : '<div style="font-size:.78rem;color:var(--muted2);">No active missions yet.</div>';
+
+    return jobsHtml
+      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Active Missions</div>'
+      + activeHtml;
   }
 
   window.renderQP = renderQP;

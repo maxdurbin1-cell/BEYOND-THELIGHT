@@ -61,6 +61,14 @@ function performWildernessObservation(col,row,directionKey){
     if(!target){
       html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No Adjacent Hex</div>There is no mapped hex in that direction.</div>`;
     }else{
+      // Assign a wonder to the target hex if it doesn't have one yet
+      if(target.hex.type==='wilderness'&&!target.hex.data.wonder&&target.hex.terrain&&typeof pick==='function'){
+        const terrainData=TERRAIN_DESC[target.hex.terrain.name];
+        if(terrainData&&terrainData.wonder&&Array.isArray(terrainData.wonder)){
+          if(!target.hex.data)target.hex.data={};
+          target.hex.data.wonder=pick(terrainData.wonder);
+        }
+      }
       html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Successful Observation (${target.label})</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);">${formatObservedHexSummary(target.hex)}</div></div>`;
     }
   }else{
@@ -114,7 +122,7 @@ function formatObservedHexSummary(hex){
     const wonder=(hex.data&&hex.data.wonder)?hex.data.wonder:'';
     const terrain=hex.terrain&&hex.terrain.name?hex.terrain.name:'Unknown';
     return wonder
-      ? `<strong>${terrain}</strong> — Wonder: ${wonder}`
+      ? `<strong>${terrain}</strong><div style="margin-top:.25rem;font-style:italic;color:var(--gold);">${wonder}</div>`
       : `<strong>${terrain}</strong> — no obvious wonder visible.`;
   }
 

@@ -2805,6 +2805,18 @@ function initMerchantCaravanHex(hex){
   return hex.data.caravan;
 }
 
+function generateBlackMarketHacks(){
+  const masterHacks=(SHOP_DATA.os_hacks||[]).filter(h=>h.name.includes('Master'));
+  const count=1+Math.floor(Math.random()*2);
+  const hacks=[];
+  for(let i=0;i<count&&masterHacks.length;i++){
+    const idx=Math.floor(Math.random()*masterHacks.length);
+    hacks.push(masterHacks[idx]);
+    masterHacks.splice(idx,1);
+  }
+  return hacks;
+}
+
 function initBlackMarketHex(hex){
   if(!hex.data)hex.data={};
   if(!hex.data.blackMarket){
@@ -2948,10 +2960,16 @@ function attemptBlackMarketAccess(col,row){
 
   if(success){
     const bm=initBlackMarketHex(hex);
-    const offers=(bm.hacks||[]).slice(0,2).map(h=>h.name).join(' • ');
-    html+=`<div style="margin-top:.35rem;font-size:.8rem;color:var(--muted2);">You slip into a hidden lane of signal-jammers, ghost terminals, and encrypted crates.</div>`+
-      `<div style="margin-top:.25rem;font-size:.8rem;color:var(--gold2);">Visible Master Hacks today: ${offers||'Unknown'}</div>`+
-      `<div style="margin-top:.35rem;"><button class="btn btn-sm btn-dark" onclick="showBlackMarket(${col},${row});">Enter Black Market</button></div>`;
+    const hackNames=(bm.hacks||[]).slice(0,2).map(h=>h.name).join(' • ');
+    const osItem=(SHOP_DATA.augmentations||[]).find(a=>a.name==='OPERATING SYSTEM');
+    
+    html+=`<div style="margin-top:.35rem;font-size:.8rem;color:var(--muted2);">You slip into a hidden lane of signal-jammers, ghost terminals, and encrypted crates.</div>`;
+    html+=`<div style="margin-top:.25rem;font-size:.8rem;color:var(--gold2);">Available today:</div>`;
+    html+=`<div style="margin-top:.1rem;margin-left:.3rem;font-size:.78rem;color:var(--teal);">• Master Hacks: ${hackNames||'Unknown'}</div>`;
+    if(osItem){
+      html+=`<div style="margin-top:.1rem;margin-left:.3rem;font-size:.78rem;color:var(--gold);">• ${osItem.name} (${osItem.cost}₵)</div>`;
+    }
+    html+=`<div style="margin-top:.35rem;"><button class="btn btn-sm btn-dark" onclick="showBlackMarket(${col},${row});">Enter Black Market</button></div>`;
     showNotif('You gain access to the Black Market.','good');
     if(typeof addSuccessRoll==='function')addSuccessRoll();
   }else{

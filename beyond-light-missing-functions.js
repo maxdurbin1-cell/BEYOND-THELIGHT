@@ -373,6 +373,12 @@ function addSuccessRoll() {
   }
 }
 
+// Every failed roll grants +1 TMW (or +2 if the "Failed rolls grant +2" flavor is active).
+function addTMWOnFail() {
+  var amt = (S.flavor || '').toLowerCase().indexOf('failed rolls grant +2') >= 0 ? 2 : 1;
+  changeCounter('tmw', amt);
+}
+
 function updateConditionButtons() {
   Object.entries(S.conditions || {}).forEach(([key, on]) => {
     const el = document.getElementById("cond-" + key);
@@ -514,14 +520,33 @@ function rollArmor() {
 }
 
 function rollBackpack() {
-  const entry = pick(pick(BACKPACK_TABLE));
-  const parts = entry.split(" | ");
-  S.equipment.weapon1 = parts[0] || "";
-  S.equipment.armor = parts[1] || "";
-  S.backpack = ["", "", "", "", "", ""];
-  if (parts[2]) {
-    S.backpack[0] = parts[2];
-  }
+  // Pull starting gear from any shop category (the Merchant is fair game).
+  var weapons = [].concat(SHOP_DATA.weapons || [], SHOP_DATA.melee_exp || [], SHOP_DATA.ranged_exp || []);
+  var armors  = [].concat(SHOP_DATA.armor   || [], SHOP_DATA.armor_exp  || []);
+  var bonusPool = [].concat(
+    SHOP_DATA.scrolls   || [],
+    SHOP_DATA.items     || [],
+    SHOP_DATA.toolkits  || [],
+    SHOP_DATA.essentials || [],
+    SHOP_DATA.remedies  || []
+  );
+
+  var weapon = pick(weapons);
+  var armor  = pick(armors);
+  var bonus  = pick(bonusPool);
+
+  // Format weapon for the equipment slot (stat needed for roll parsing).
+  var wpStat = (weapon.stat || '').split('|')[0].trim();
+  S.equipment.weapon1 = wpStat ? weapon.name + ' (' + wpStat + ')' : weapon.name;
+
+  // Format armor for the equipment slot — include both the die AND actions so parsers work.
+  var arStat = (armor.stat || '').replace(/\s*\|\s*/, ', ');
+  S.equipment.armor = arStat ? armor.name + ' (' + arStat + ')' : armor.name;
+
+  S.backpack = ['', '', '', '', '', ''];
+  // Store bonus item by name only (findShopItem will locate its full data when used).
+  S.backpack[0] = bonus.name;
+
   syncCharacterFields();
 }
 
@@ -762,7 +787,7 @@ function rollCheck() {
 
   renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success);
   if (!success) {
-    changeCounter("tmw", 1);
+    addTMWOnFail();
     changeStress(Math.max(1, dreadRoll.total - actionRoll.total));
   } else {
     addSuccessRoll();

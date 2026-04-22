@@ -307,6 +307,7 @@
     } else {
       var dan=typeof encodedResult==='string'?JSON.parse(encodedResult):encodedResult;
       mission.additionalDanger=dan;
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
     renderMissionTracker();
   }

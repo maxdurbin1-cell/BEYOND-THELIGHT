@@ -1684,6 +1684,7 @@
       const stress = Math.max(1, target.total - controlTotal);
       damageShip(S.naval.ship, stress, "player");
       navalLog(`Navigator loses the line (${controlTotal} vs ${target.total}) and the ship takes ${stress} Stress.`, "warn");
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
     renderNaval();
   }
@@ -1763,6 +1764,7 @@
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       navalLog(`${mode === "strike" ? "Cannons" : "Crossbows"} miss (${attack.total} vs ${defend.total}).`, "warn");
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
     S.naval.tacticsBonus = 0;
     renderNaval();
@@ -1965,6 +1967,7 @@
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       S.credits -= level.buyIn;
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
 
     document.getElementById("gambleDieOne").textContent = String(low);

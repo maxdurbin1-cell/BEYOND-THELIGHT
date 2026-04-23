@@ -1389,7 +1389,7 @@ function renderStarSystemMap() {
   ensureStarsState();
 
   if (!S.starSystem.hexes.length) {
-    host.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">No star system generated yet.</div>';
+    host.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);padding:.55rem;border:1px solid var(--border);background:rgba(6,8,16,.45);">No galaxy generated yet. Click <strong style="color:var(--gold2);">Generate Galaxy Map</strong>.</div>';
     return;
   }
 
@@ -3022,3 +3022,4 @@ window.registerProvinceHexTravel = registerProvinceHexTravel;
 window.registerLastSeaHexTravel = registerLastSeaHexTravel;
 window.registerLastSeaIslandTravel = registerLastSeaIslandTravel;
 window.getGameDatePhaseText = getGameDatePhaseText;
+window.buildGalaxyPanel = buildGalaxyPanel;

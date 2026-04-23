@@ -26,6 +26,17 @@ function switchTab(tabId, btn) {
   if (tabId === "caravan" && typeof window.renderCaravanUI === "function") {
     window.renderCaravanUI();
   }
+  if (tabId === "galaxy") {
+    if (typeof window.buildGalaxyPanel === "function") {
+      window.buildGalaxyPanel();
+    }
+    if (typeof window.generateStarSystemMap === "function") {
+      const hasHexes = !!(window.S && S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length);
+      if (!hasHexes) {
+        window.generateStarSystemMap("cluster");
+      }
+    }
+  }
 }
 
 function setInputValue(id, value) {

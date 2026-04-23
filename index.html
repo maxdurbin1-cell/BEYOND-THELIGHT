@@ -2745,6 +2745,10 @@ function setContext(ctx,btn){
   document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';});
   // Store active context for expansion scripts
   window._activeContext = ctx;
+  if(ctx==='space'){
+    const galaxyBtn=document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
+    if(galaxyBtn) switchTab('galaxy',galaxyBtn);
+  }
 }
 function ensureMapClickMode(){if(!S.mapClickMode)S.mapClickMode='travel';return S.mapClickMode;}
 function updateMapClickModeUI(){

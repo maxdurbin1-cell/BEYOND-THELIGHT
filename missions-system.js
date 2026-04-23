@@ -578,8 +578,24 @@
       try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
     }
     try { removeMissionToken(mission); } catch (err) {}
+    var completedEntry = {
+      id: mission.id,
+      title: mission.title || 'Unknown Mission',
+      difficulty: mission.difficulty || 'easy',
+      location: mission.location || 'Unknown',
+      success: !!success,
+      reward: Number(mission.reward || 0),
+      loot: Array.isArray(mission.loot) ? mission.loot.slice() : [],
+      infoFeature: mission.infoFeature && mission.infoFeature.name ? {
+        icon: mission.infoFeature.icon || '',
+        name: mission.infoFeature.name || ''
+      } : null,
+      additionalDanger: mission.additionalDanger || null,
+      completedAt: mission.completedAt,
+      missionType: 'standard'
+    };
     if (S.completedMissions.length>=MAX_COMPLETED_MISSIONS) S.completedMissions.shift();
-    S.completedMissions.push(mission);
+    S.completedMissions.push(completedEntry);
     S.activeMissions.splice(idx,1);
     try {
       renderMissionBoard(); renderMissionTracker(); renderCompletedMissions();
@@ -727,36 +743,45 @@
     var recent=(S.completedMissions||[]).slice().reverse().slice(0,MAX_COMPLETED_MISSIONS);
     if (!recent.length) { container.innerHTML='<div style="font-size:.8rem;color:var(--muted2);">No completed missions yet.</div>'; return; }
     container.innerHTML=recent.map(function(mission){
-      var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy;
-      var diffName = mission.isHoldingQuest ? 'Special Quest' : diff.name;
-      var outCol=mission.success?'var(--green2)':'var(--red2)';
-      var outcome=mission.success?'\u2713 SUCCESS':'\u2717 FAILED';
-      var dangerLabel='';
-      if (mission.additionalDanger) {
-        if (mission.additionalDanger.type === 'mercenary') {
-          dangerLabel = 'Mercenary';
-        } else if (mission.additionalDanger.data && mission.additionalDanger.data.name) {
-          dangerLabel = mission.additionalDanger.data.name;
-        } else if (mission.additionalDanger.name) {
-          dangerLabel = mission.additionalDanger.name;
+      try {
+        var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy;
+        var diffName = mission.isHoldingQuest ? 'Special Quest' : diff.name;
+        var outCol=mission.success?'var(--green2)':'var(--red2)';
+        var outcome=mission.success?'\u2713 SUCCESS':'\u2717 FAILED';
+        var dangerLabel='';
+        if (mission.additionalDanger) {
+          if (mission.additionalDanger.type === 'mercenary') {
+            dangerLabel = 'Mercenary';
+          } else if (mission.additionalDanger.data && mission.additionalDanger.data.name) {
+            dangerLabel = mission.additionalDanger.data.name;
+          } else if (mission.additionalDanger.name) {
+            dangerLabel = mission.additionalDanger.name;
+          }
         }
+        var loot = Array.isArray(mission.loot) ? mission.loot : [];
+        var reward = Number(mission.reward || 0);
+        var lootLine=(mission.success&&loot.length)
+          ?'<div style="font-size:.7rem;color:var(--gold2);margin-top:.1rem;">Loot: '+loot.join(', ')+' \u00B7 +'+reward+'\u20B5 \u00B7 +1 Renown</div>'
+          :'<div style="font-size:.7rem;color:var(--red2);margin-top:.1rem;">\u22121 Renown</div>';
+        var featureBits=[];
+        if (mission.infoFeature && mission.infoFeature.icon && mission.infoFeature.name) {
+          featureBits.push(mission.infoFeature.icon+' '+mission.infoFeature.name);
+        }
+        if (dangerLabel) {
+          featureBits.push('\u26a0 '+dangerLabel);
+        }
+        var featureLine=featureBits.length?'<div style="font-size:.66rem;color:var(--muted2);margin-top:.05rem;">'+featureBits.join(' \u00B7 ')+'</div>':'';
+        return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid '+outCol+';padding:.4rem .5rem;margin-bottom:.3rem;">'
+          +'<div style="font-family:\'Cinzel\',serif;font-size:.75rem;color:'+outCol+';margin-bottom:.08rem;">'+outcome+' \u2014 '+(mission.title || 'Unknown Mission')+'</div>'
+          +'<div style="font-size:.68rem;color:var(--muted2);">'+diffName+' \u00B7 '+(mission.location || 'Unknown')+'</div>'
+          +featureLine+lootLine
+        +'</div>';
+      } catch (err) {
+        return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--red2);padding:.4rem .5rem;margin-bottom:.3rem;">'
+          +'<div style="font-family:\'Cinzel\',serif;font-size:.75rem;color:var(--red2);margin-bottom:.08rem;">Mission Record Unavailable</div>'
+          +'<div style="font-size:.68rem;color:var(--muted2);">A completed mission entry had invalid data.</div>'
+        +'</div>';
       }
-      var lootLine=(mission.success&&mission.loot&&mission.loot.length)
-        ?'<div style="font-size:.7rem;color:var(--gold2);margin-top:.1rem;">Loot: '+mission.loot.join(', ')+' \u00B7 +'+mission.reward+'\u20B5 \u00B7 +1 Renown</div>'
-        :'<div style="font-size:.7rem;color:var(--red2);margin-top:.1rem;">\u22121 Renown</div>';
-      var featureBits=[];
-      if (mission.infoFeature && mission.infoFeature.icon && mission.infoFeature.name) {
-        featureBits.push(mission.infoFeature.icon+' '+mission.infoFeature.name);
-      }
-      if (dangerLabel) {
-        featureBits.push('\u26a0 '+dangerLabel);
-      }
-      var featureLine=featureBits.length?'<div style="font-size:.66rem;color:var(--muted2);margin-top:.05rem;">'+featureBits.join(' \u00B7 ')+'</div>':'';
-      return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid '+outCol+';padding:.4rem .5rem;margin-bottom:.3rem;">'
-        +'<div style="font-family:\'Cinzel\',serif;font-size:.75rem;color:'+outCol+';margin-bottom:.08rem;">'+outcome+' \u2014 '+mission.title+'</div>'
-        +'<div style="font-size:.68rem;color:var(--muted2);">'+diffName+' \u00B7 '+mission.location+'</div>'
-        +featureLine+lootLine
-      +'</div>';
     }).join('');
   }
 

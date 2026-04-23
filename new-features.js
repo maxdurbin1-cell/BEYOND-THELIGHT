@@ -230,16 +230,7 @@
   }
 
   function updateHoldingTabVisibility() {
-    if (typeof document === "undefined") { return; }
-    var holdingBtn = document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
-    if (!holdingBtn) { return; }
-    var questDone = !!(S && S.holdingQuest && S.holdingQuest.step3Completed && !S.holdingQuest.failed);
-    // Show Holding tab once ownership is established by state or completed special quest.
-    if (S && S.holding && (S.holding.established || S.holding.name || questDone)) {
-      holdingBtn.style.display = "";
-    } else {
-      holdingBtn.style.display = "none";
-    }
+    // Holdings tab is always visible; gate is handled inside the panel.
   }
 
   // ── CARAVAN HTML ──────────────────────────────────────────────────────────────
@@ -1032,23 +1023,23 @@
     var questDone = !!(S.holdingQuest && S.holdingQuest.step3Completed && !S.holdingQuest.failed);
     var holdingEstablished = !!(h.established || h.name || questDone);
     if (gateEl) {
-      if (!holdingEstablished && !questActive) {
-        if (renown < 9) {
-          gateEl.innerHTML = '<div class="card" style="max-width:540px;margin-top:.6rem;">'
-            + '<div class="section-title">Holding Locked</div>'
-            + '<div style="font-size:.8rem;color:var(--muted2);">You require <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Your current Renown: <strong style="color:var(--teal);">' + renown + '</strong>.</div>'
-            + '</div>';
-          if (bodyEl) { bodyEl.style.display = "none"; }
-          return;
-        } else {
-          gateEl.innerHTML = '<div class="card" style="max-width:540px;margin-top:.6rem;">'
-            + '<div class="section-title">Establish Your Holding</div>'
-            + '<div style="font-size:.8rem;color:var(--text2);margin-bottom:.5rem;">You have achieved the Renown of a Lord. Begin the Establishment Quest to claim your domain. This quest will also mark your Province on the map.</div>'
-            + '<button class="btn btn-primary" onclick="startHoldingQuest()">Begin Establishment Quest</button>'
-            + '</div>';
-          if (bodyEl) { bodyEl.style.display = "none"; }
-          return;
-        }
+      if (!holdingEstablished) {
+        var gateMsg = '<div class="card" style="max-width:580px;margin-top:.6rem;border:1px solid rgba(201,162,39,.35);">'
+          + '<div class="section-title" style="color:var(--gold2);">⚔ Holding Not Yet Established</div>'
+          + '<div style="font-size:.85rem;color:var(--text2);line-height:1.6;margin-bottom:.6rem;">'
+          + 'You must complete the <strong style="color:var(--gold);">Establishment Quest</strong> — including a successful <strong>Confrontation Stage</strong> — to unlock your Holding.'
+          + '</div>'
+          + '<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.5rem;">'
+          + (questActive
+              ? '📋 Quest is <strong style="color:var(--teal);">in progress</strong>. Return to the <strong>Missions</strong> tab to continue.'
+              : ((S.renown||0) >= 9
+                  ? '✅ You have sufficient Renown. Start the quest from the <strong>Missions</strong> tab.'
+                  : '🔒 Requires <strong style="color:var(--gold2);">Renown 9</strong>. Current Renown: <strong style="color:var(--teal);">' + (S.renown||0) + '</strong>.'))
+          + '</div>'
+          + '</div>';
+        gateEl.innerHTML = gateMsg;
+        if (bodyEl) { bodyEl.style.display = "none"; }
+        return;
       } else {
         gateEl.innerHTML = '';
         if (bodyEl) { bodyEl.style.display = ""; }
@@ -1613,14 +1604,9 @@
       var holdingCtxBtn = document.querySelector('.ctx-btn[onclick*="setContext(\'holding\'"]');
       setContext('holding', holdingCtxBtn || null);
     }
-    var holdingBtn = document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
-    if (holdingBtn) { holdingBtn.style.display = ''; }
-    var holdingCtxTabs = document.querySelectorAll('nav .tab-btn.ctx-holding');
-    if (holdingCtxTabs && holdingCtxTabs.length) {
-      holdingCtxTabs.forEach(function(tabBtn) { tabBtn.style.display = ''; });
-    }
     if (typeof switchTab === 'function') {
-      switchTab('holding', holdingBtn || null);
+      var holdingTabBtn = document.querySelector("button.tab-btn[onclick*=\"switchTab('holding'\"]");
+      switchTab('holding', holdingTabBtn || null);
     }
   }
 

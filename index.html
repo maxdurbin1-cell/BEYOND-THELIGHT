@@ -249,7 +249,7 @@ select option{background:#0f1020;}
     <button class="tab-btn" onclick="switchTab('codex',this)">Codex</button>
     <button class="tab-btn" onclick="switchTab('rules',this)">Rules</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
-    <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
+    <button class="tab-btn" onclick="switchTab('holding',this)">Holdings</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
     <span class="cl">Credits</span>
@@ -2572,10 +2572,6 @@ function setContext(ctx,btn){
   // Hide all context-gated tabs, then show those matching the selected context
   document.querySelectorAll('nav .tab-btn[class*="ctx-"]').forEach(t=>{t.style.display='none';});
   document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';});
-  // Holding tab appears once the special quest is completed or holding ownership is established.
-  const holdingBtn=document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
-  const questDone=!!(S&&S.holdingQuest&&S.holdingQuest.step3Completed&&!S.holdingQuest.failed);
-  if(holdingBtn&&(!S||!S.holding||(!S.holding.name&&!S.holding.established&&!questDone)))holdingBtn.style.display='none';
 }
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
 function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}

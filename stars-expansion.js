@@ -414,6 +414,9 @@ function ensureStarsState() {
   if (!S.starSystem.activeDeadMoon) S.starSystem.activeDeadMoon = null;
   if (!S.starSystem.activeDeadMoonMap) S.starSystem.activeDeadMoonMap = null;
   if (!S.starSystem.activeDerelict) S.starSystem.activeDerelict = null;
+  if (!S.starSystem.currentWeather || typeof S.starSystem.currentWeather !== 'object') S.starSystem.currentWeather = null;
+  if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
+  if (typeof S.starSystem.empoweredChecks !== 'number') S.starSystem.empoweredChecks = 0;
 
   if (!S.radiationState) {
     S.radiationState = {
@@ -618,6 +621,7 @@ const STAR_SIGHTING_COLORS = {
   nothing:          { label: 'NOTHING', color: '#4caf7a' },
   hub:              { label: 'SPACE HUB', color: '#f1f1f1' },
   planet:           { label: 'PLANET', color: '#f2d75a' },
+  radio_task:       { label: 'RADIO TASK', color: '#50c8ff' },
   world_that_was:   { label: 'THE WORLD THAT WAS', color: '#00d0d8' },
   star:             { label: 'MAIN STAR', color: '#ff9a3c' },
 };
@@ -688,6 +692,174 @@ const STAR_PERIL_SNIPPETS = [
   'A hull resonance causes stress fractures near the engine spine.',
   'Guidance logic loops and predicts impossible destinations.',
 ];
+
+const STAR_PERIL_SITES = [
+  {
+    title: 'Storm Crater',
+    text: 'A massive impact crater, still steaming faintly. The ground here is wrong.',
+    check: ['lead', 'body'],
+    dd: 6,
+    success: 'Passage gained and crew momentum spikes. Empowered: Body/Strike/Shoot step up on your next relevant check.',
+  },
+  {
+    title: 'Collapsed Beacon Spine',
+    text: 'A dead relay tower lists across shattered regolith, emitting intermittent panic bursts.',
+    check: ['control', 'mind'],
+    dd: 8,
+    success: 'You route around unstable debris and lock in a safe path through the lane.',
+  },
+  {
+    title: 'Ion Grave Drift',
+    text: 'Fields of charged wreckage scrape the hull whenever the winds surge.',
+    check: ['lead', 'control'],
+    dd: 8,
+    success: 'Thruster timing is perfect. You cross before the drift closes.',
+  },
+  {
+    title: 'Shatterglass Shelf',
+    text: 'Crystalline planes refract scans and split every heading into false corridors.',
+    check: ['mind', 'lead'],
+    dd: 10,
+    success: 'You identify the true lane and avoid the dead mirrors.',
+  },
+];
+
+const STAR_PERIL_FAILURES = [
+  { id: 'stress', label: 'Crew panic wave', apply: (diff) => { if (typeof changeMentalStress === 'function') changeMentalStress(Math.max(1, diff)); return `+${Math.max(1, diff)} Mental Stress.`; } },
+  { id: 'rads', label: 'Irradiated surge', apply: (diff) => { if (typeof changeRads === 'function') changeRads(Math.max(50, diff * 50)); return `+${Math.max(50, diff * 50)} Radiation.`; } },
+  { id: 'health', label: 'Hull shock to crew', apply: (diff) => { if (typeof changeStress === 'function') changeStress(Math.max(1, diff)); return `${Math.max(1, diff)} Health damage.`; } },
+  { id: 'condition', label: 'Condition strain', apply: () => 'Condition inflicted: Distracted until end of current phase.' },
+  { id: 'trauma', label: 'Trauma check trigger', apply: () => 'Trigger a Trauma Check before taking another traversal action.' },
+];
+
+const STAR_WEATHER_FRONTS = [
+  {
+    name: 'Rainstorm',
+    desc: 'Sheets of driving rain. Visibility falls to nothing.',
+    check: 'lead',
+    dd: 8,
+    failure: 'Remain in this Hex and lose 1 Phase.',
+  },
+  {
+    name: 'Ion Squall',
+    desc: 'Blue lightning sheets across sensor arrays and scrambles lane markers.',
+    check: 'control',
+    dd: 8,
+    failure: 'Navigation resets. Remain in Hex and lose 1 Phase.',
+  },
+  {
+    name: 'Ash Drift',
+    desc: 'Dark particulate haze clogs vents and drags on thruster output.',
+    check: 'body',
+    dd: 6,
+    failure: 'Suffer +1 Health damage and lose 1 Phase.',
+  },
+  {
+    name: 'Grav Tide',
+    desc: 'Micro-gravity shears ripple through the lane and bend approach vectors.',
+    check: 'mind',
+    dd: 10,
+    failure: 'Remain in Hex and take +1 Mental Stress.',
+  },
+];
+
+const STAR_CONTACT_ARCHETYPES = [
+  {
+    kind: 'Royal Ship',
+    summary: 'Command vessel carrying court envoys, strict tariffs, and political leverage.',
+    options: [
+      { id: 'pay', label: 'Pay Tariff', text: 'Pay 2d6x10 Credits to pass peacefully.', payout: 'creditsLoss' },
+      { id: 'charter', label: 'Request Royal Task', text: 'Lead vs DD8. Success: gain Task and +1 Political Renown.', check: 'lead', dd: 8, renown: 'political' },
+    ],
+  },
+  {
+    kind: 'Merchant Ship',
+    summary: 'Cargo flotilla with legal manifests, eager brokers, and distracted guards.',
+    options: [
+      { id: 'trade', label: 'Trade Fairly', text: 'Buy one merchant loot package and gain +1 Corporation Renown.', renown: 'corporations', trade: true },
+      { id: 'thieve', label: 'Attempt Thievery', text: 'Control vs DD8. Success: steal loot. Failure: flagged and forced combat response.', check: 'control', dd: 8, steal: true },
+    ],
+  },
+  {
+    kind: 'Black Market Ship',
+    summary: 'Masked signatures and encrypted channels. Contraband prices are brutal.',
+    options: [
+      { id: 'buy', label: 'Buy Contraband', text: 'Spend 100 Credits for 2 merchant loot items.', contraband: true },
+      { id: 'intel', label: 'Gather Intel', text: 'Mind vs DD8. Success: reveal nearest hidden signature and generate task.', check: 'mind', dd: 8, reveal: true },
+    ],
+  },
+  {
+    kind: 'Bandit Ship',
+    summary: 'Patchwork hull and hardpoint batteries. They want tribute now.',
+    options: [
+      { id: 'tribute', label: 'Pay Tribute', text: 'Pay 100 Credits and avoid combat.', payout: 'banditPay' },
+      { id: 'defy', label: 'Defy Bandits', text: 'Lead vs DD10. Success: gain loot and +1 Underworld Renown. Failure: immediate combat cue.', check: 'lead', dd: 10, renown: 'underworld', steal: true },
+    ],
+  },
+];
+
+function getGalaxyMerchantLootPool() {
+  if (typeof SHOP_DATA === 'undefined' || !SHOP_DATA) return [];
+  const keys = ['weapons', 'melee_exp', 'ranged_exp', 'armor', 'armor_exp', 'items', 'toolkits', 'essentials', 'remedies', 'scrolls', 'vehicle_mods', 'trade_goods', 'cosmic', 'space_armor'];
+  const pool = [];
+  keys.forEach((k) => {
+    const list = SHOP_DATA[k];
+    if (Array.isArray(list)) {
+      list.forEach((it) => {
+        if (it && it.name) pool.push(it.name);
+      });
+    }
+  });
+  return pool;
+}
+
+function rollGalaxyMerchantLoot(fallbackPool) {
+  let result = '';
+  if (typeof rollForLoot === 'function') {
+    try {
+      const rolled = rollForLoot('easy');
+      if (Array.isArray(rolled) && rolled.length) result = pick(rolled);
+    } catch (err) {}
+  }
+  if (!result) {
+    const pool = getGalaxyMerchantLootPool();
+    if (pool.length) result = pick(pool);
+  }
+  if (!result) {
+    const fallback = Array.isArray(fallbackPool) && fallbackPool.length ? fallbackPool : MYSTERY_TRADE;
+    result = pick(fallback);
+  }
+  return result;
+}
+
+function loseGamePhases(count) {
+  ensureStarsState();
+  let n = Math.max(1, parseInt(count, 10) || 1);
+  while (n > 0) {
+    if ((S.gameDate.phase || 0) < DAY_PHASES.length - 1) {
+      S.gameDate.phase = (S.gameDate.phase || 0) + 1;
+    } else {
+      S.gameDate.phase = 0;
+      advanceDay(1, true);
+    }
+    n -= 1;
+  }
+  updateDateUI();
+}
+
+function resolveGalaxySkillCheck(primaryKey, secondaryKey, dd, label) {
+  const p = (typeof getEffectiveDie === 'function') ? getEffectiveDie(primaryKey) : ((S.stats && S.stats[primaryKey]) || 4);
+  const s = secondaryKey ? ((typeof getEffectiveDie === 'function') ? getEffectiveDie(secondaryKey) : ((S.stats && S.stats[secondaryKey]) || 4)) : 0;
+  const die = Math.max(p || 4, s || 0, 4);
+  const action = explodingRoll(die);
+  const dread = explodingRoll(dd);
+  const success = action.total >= dread.total;
+  return {
+    success,
+    delta: Math.max(1, Math.abs(action.total - dread.total)),
+    text: `${label}: d${die}=${action.total} vs DD${dd}=${dread.total}`,
+  };
+}
 
 const STAR_SPACE_ENCOUNTERS = [
   {
@@ -1118,7 +1290,7 @@ function createFacilityRoomEntry(challenge, roomId) {
     module: FACILITY_ROOM_TABLE[roll(FACILITY_ROOM_TABLE.length) - 1],
     encounter: encounterType,
     result: facilityEncounterText(encounterType),
-    loot: pick(MYSTERY_TRADE),
+    loot: rollGalaxyMerchantLoot(MYSTERY_TRADE),
     completed: false,
     revealed: false,
     specialTarget: roomId === challenge.specialRoomId,
@@ -1385,7 +1557,7 @@ function exploreDeadMoonSite() {
     'No combat: echoes of the past (+5 Stress).',
     'A wandering Antagonist crosses the corridor.',
   ]);
-  const loot = pick(DEAD_MOON_LOOT);
+  const loot = rollGalaxyMerchantLoot(DEAD_MOON_LOOT);
   const out = document.getElementById('starExplorationDetail');
   if (out) {
     out.innerHTML = `
@@ -1456,7 +1628,7 @@ function exploreSpaceHubModule() {
       'Maintenance alarms trigger a sudden lockdown.',
       'A merchant offers contraband refuel if paid in data crystals.',
     ]),
-    loot: pick(MYSTERY_TRADE),
+    loot: rollGalaxyMerchantLoot(MYSTERY_TRADE),
     completed: false,
   };
   hub.modules.push(module);
@@ -1499,10 +1671,73 @@ function renderSpaceHubPanel() {
     </div>`;
 }
 
+function createGalaxyPerilState(ring) {
+  const site = pick(STAR_PERIL_SITES);
+  return {
+    ring: ring || 'middle',
+    title: site.title,
+    text: site.text,
+    check: site.check,
+    dd: site.dd,
+    success: site.success,
+    cleared: false,
+  };
+}
+
+function resolveGalaxyPerilTraversal() {
+  ensureStarsState();
+  const hex = getCurrentStarHex();
+  const peril = (hex && getHexPersistentState(hex, 'peril', function() { return createGalaxyPerilState(hex.ring || 'middle'); })) || createGalaxyPerilState('middle');
+  const check = resolveGalaxySkillCheck(peril.check[0], peril.check[1], peril.dd, 'Traversal Check');
+  const out = document.getElementById('starExplorationDetail');
+  if (check.success) {
+    peril.cleared = true;
+    S.starSystem.empoweredChecks = (S.starSystem.empoweredChecks || 0) + 1;
+    if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    if (out) {
+      out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">⚠ ${peril.title}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.55;">${peril.text}<br>${check.text}<br><span style="color:var(--green2);">Success:</span> ${peril.success}</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="runGalaxyEncounterRoll()">Continue Exploring</button></div>`;
+    }
+    return;
+  }
+
+  const consequence = pick(STAR_PERIL_FAILURES);
+  const consequenceText = consequence.apply(check.delta);
+  loseGamePhases(1);
+  if (typeof addTMWOnFail === 'function') addTMWOnFail();
+  if (out) {
+    out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">⚠ ${peril.title}</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.55;">${peril.text}<br>${check.text}<br><span style="color:var(--red2);">Failure:</span> ${consequenceText} You cannot pass this phase.</div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;"><button class="btn btn-xs" onclick="resolveGalaxyPerilTraversal()">Retry Traversal</button></div>`;
+  }
+}
+
+function createMysteryContactOptions(kind) {
+  const found = STAR_CONTACT_ARCHETYPES.find(entry => entry.kind === kind);
+  return (found ? found.options : STAR_CONTACT_ARCHETYPES[1].options).map((opt) => ({
+    id: opt.id,
+    label: opt.label,
+    text: opt.text,
+    check: opt.check || null,
+    dd: opt.dd || 0,
+    renown: opt.renown || null,
+    trade: !!opt.trade,
+    steal: !!opt.steal,
+    reveal: !!opt.reveal,
+    contraband: !!opt.contraband,
+    payout: opt.payout || '',
+    resolved: false,
+  }));
+}
+
 function createMysteryState(ring) {
+  const archetype = pick(STAR_CONTACT_ARCHETYPES);
   const disposition = pick(MYSTERY_DISPOSITION);
   return {
     ring: ring || 'middle',
+    archetype: archetype.kind,
+    archetypeSummary: archetype.summary,
     proximity: pick(MYSTERY_PROXIMITY),
     disposition,
     crewType: pick(MYSTERY_CREWS),
@@ -1514,9 +1749,79 @@ function createMysteryState(ring) {
       want: pick(MYSTERY_WANTS),
       quirk: pick(MYSTERY_QUIRKS),
     })),
-    trade: Array.from({ length: 3 }, () => pick(MYSTERY_TRADE)),
+    trade: Array.from({ length: 3 }, () => rollGalaxyMerchantLoot(MYSTERY_TRADE)),
+    options: createMysteryContactOptions(archetype.kind),
     missionHook: pick(['escort their convoy to a Space Hub', 'hunt a pirate that has been shadowing them', 'recover a relic from a derelict they mapped', 'deliver spare parts through a blockade']),
   };
+}
+
+function resolveMysteryContactOption(optionId) {
+  ensureStarsState();
+  const mystery = S.starSystem.activeMystery;
+  if (!mystery) return;
+  const option = (mystery.options || []).find(o => o.id === optionId);
+  if (!option) return;
+  const out = document.getElementById('starExplorationDetail');
+
+  if (option.payout === 'creditsLoss') {
+    const fee = (roll(6) + roll(6)) * 10;
+    if (typeof changeCredits === 'function') changeCredits(-fee);
+    option.resolved = true;
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You pay ${fee} credits and continue safely.</div>`;
+    return;
+  }
+  if (option.payout === 'banditPay') {
+    if (typeof changeCredits === 'function') changeCredits(-100);
+    option.resolved = true;
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Bandit Tribute Paid</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You lose 100 credits but avoid escalation.</div>`;
+    return;
+  }
+  if (option.trade) {
+    const loot = rollGalaxyMerchantLoot();
+    takeGalaxyLoot(loot, 'pack');
+    if (option.renown) changeFactionRenown(option.renown, 1);
+    option.resolved = true;
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Merchant Trade</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Trade completed. Loot: ${loot}. +1 faction renown applied.</div>${buildLootActions(loot)}`;
+    return;
+  }
+  if (option.contraband) {
+    if (typeof changeCredits === 'function') changeCredits(-100);
+    const lootA = rollGalaxyMerchantLoot();
+    const lootB = rollGalaxyMerchantLoot();
+    option.resolved = true;
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Black Market Deal</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Spent 100 credits. Contraband offers: ${lootA}, ${lootB}</div>${buildLootActions(lootA)}${buildLootActions(lootB)}`;
+    return;
+  }
+
+  const check = option.check ? resolveGalaxySkillCheck(option.check, option.check === 'lead' ? 'mind' : 'lead', option.dd, option.label) : { success: true, text: option.label, delta: 1 };
+  if (check.success) {
+    if (option.renown) changeFactionRenown(option.renown, 1);
+    if (option.steal) {
+      const loot = rollGalaxyMerchantLoot();
+      takeGalaxyLoot(loot, 'pack');
+      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. Loot secured: ${loot}.</div>${buildLootActions(loot)}`;
+    } else if (option.reveal) {
+      const hidden = (S.starSystem.hexes || []).find(h => h.hiddenOutcome && !h.scanned);
+      if (hidden) {
+        hidden.scanned = true;
+        hidden.explored = true;
+        hidden.type = convertOutcomeToHexType(hidden.hiddenOutcome);
+        hidden.detail = `${hidden.hiddenOutcome} signature revealed through black market intelligence.`;
+      }
+      if (typeof generateMissions === 'function') generateMissions();
+      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Black Market Intel</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Hidden signature revealed and task generated.</div>`;
+      renderStarSystemMap();
+    } else {
+      if (typeof generateMissions === 'function') generateMissions();
+      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. New task generated.</div>`;
+    }
+    option.resolved = true;
+    return;
+  }
+
+  if (out) {
+    out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${option.steal ? 'Hostiles respond; go to Combat/Ship pages to resolve.' : 'Negotiation collapses this phase.'}</div>`;
+  }
 }
 
 function renderMysteryPanel() {
@@ -1526,6 +1831,7 @@ function renderMysteryPanel() {
   out.innerHTML = `
     <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Mystery Contact: ${mystery.shipName}</div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
+      <strong>${mystery.archetype}</strong> · ${mystery.archetypeSummary}<br>
       ${mystery.crewType} ${mystery.shipType} at ${mystery.proximity} range. Disposition: <strong>${mystery.disposition}</strong>.<br>
       Mission Hook: ${mystery.missionHook}.
     </div>
@@ -1539,6 +1845,7 @@ function renderMysteryPanel() {
       <div class="sub-label">Trade Items</div>
       ${mystery.trade.map(item => `<div style="padding:.25rem 0;border-bottom:1px dotted var(--border2);">${item}${buildLootActions(item)}</div>`).join('')}
     </div>`;
+  out.innerHTML += `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);display:flex;gap:.25rem;flex-wrap:wrap;">${(mystery.options || []).map(opt => `<button class="btn btn-xs ${opt.resolved ? '' : 'btn-teal'}" onclick="resolveMysteryContactOption('${opt.id}')">${opt.label}</button>`).join('')}</div>`;
 }
 
 function renderDerelictPanel() {
@@ -1617,6 +1924,57 @@ function areDeadMoonCellsAdjacent(a, b) {
   return rowDelta + colDelta === 1;
 }
 
+function buildDeadMoonSiteOptions() {
+  return [
+    {
+      id: 'explore',
+      label: 'Explore Site',
+      stat: 'lead',
+      dd: 10,
+      successText: 'Success: gain random Scroll and +1 Religious Renown.',
+      failText: 'Failure: trigger guardian combat on the combat pages.',
+      renown: 'religious',
+      reward: 'scroll',
+    },
+    {
+      id: 'avoid',
+      label: 'Avoid Traps',
+      stat: 'control',
+      dd: 8,
+      successText: 'Success: gain 300 credits and +1 Underworld Renown.',
+      failText: 'Failure: trigger guardians DD8|16 HP on combat pages.',
+      renown: 'underworld',
+      reward: 'credits',
+    },
+  ];
+}
+
+function resolveDeadMoonSiteOption(optionId) {
+  ensureStarsState();
+  const map = S.starSystem.activeDeadMoonMap;
+  if (!map) return;
+  const cell = map.cells.find(c => c.id === map.currentId);
+  if (!cell || !Array.isArray(cell.siteOptions)) return;
+  const option = cell.siteOptions.find(o => o.id === optionId);
+  if (!option) return;
+  const check = resolveGalaxySkillCheck(option.stat, option.stat === 'lead' ? 'mind' : 'lead', option.dd, option.label);
+  if (check.success) {
+    if (option.renown) changeFactionRenown(option.renown, 1);
+    if (option.reward === 'credits' && typeof changeCredits === 'function') changeCredits(300);
+    if (option.reward === 'scroll') {
+      const loot = rollGalaxyMerchantLoot((SHOP_DATA && SHOP_DATA.scrolls) ? SHOP_DATA.scrolls.map(i => i.name) : ['Spell Scrolls']);
+      cell.loot = loot;
+      takeGalaxyLoot(loot, 'pack');
+    }
+    option.resolved = true;
+    cell.note = `${check.text}. ${option.successText}`;
+  } else {
+    cell.note = `${check.text}. ${option.failText}`;
+    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+  }
+  renderDeadMoonMapPanel();
+}
+
 function deadMoonCellClick(cellId) {
   const map = S.starSystem.activeDeadMoonMap;
   if (!map) return;
@@ -1640,11 +1998,12 @@ function exploreDeadMoonMapCell() {
   cell.visited = true;
   if (cell.marker === 'site') {
     const room = pick(DEAD_MOON_SITE_ENCOUNTERS[dm.direction]);
-    const loot = pick(DEAD_MOON_LOOT);
+    const loot = rollGalaxyMerchantLoot(DEAD_MOON_LOOT);
     cell.loot = loot;
+    cell.siteOptions = buildDeadMoonSiteOptions();
     cell.note = `Site of Interest: ${dm.site}. Room/Event: ${room}. Encounter: ${pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction])}. Loot: ${loot}`;
   } else if (cell.marker === 'loot') {
-    const loot = pick(DEAD_MOON_LOOT);
+    const loot = rollGalaxyMerchantLoot(DEAD_MOON_LOOT);
     cell.loot = loot;
     cell.note = `Loot cache discovered: ${loot}`;
   } else if (cell.marker === 'hazard') {
@@ -1679,9 +2038,13 @@ function renderDeadMoonMapPanel() {
     </div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="exploreDeadMoonMapCell()">Explore Cell</button>
-      ${selected && selected.loot ? buildLootActions(selected.loot) : ''}
+      ${current && current.loot ? buildLootActions(current.loot) : ''}
+      ${selected && selected.loot && selected.id !== current.id ? buildLootActions(selected.loot) : ''}
       <button class="btn btn-xs" onclick="rollDeadMoonDirection()">Roll New Direction</button>
     </div>`;
+  if (current && Array.isArray(current.siteOptions) && current.siteOptions.length) {
+    out.innerHTML += `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">${current.siteOptions.map(opt => `<button class="btn btn-xs ${opt.resolved ? '' : 'btn-teal'}" onclick="resolveDeadMoonSiteOption('${opt.id}')">${opt.label}</button>`).join('')}</div>`;
+  }
 }
 
 function rollDerelictShipModule() {
@@ -1700,7 +2063,7 @@ function rollDerelictShipModule() {
     encounter: pick(['Skittering within the walls', 'Banging inside vents', 'Something crawls beneath the floor', 'Thumps in the ceiling', 'Death worm outlines under plating', 'Paralyzing crawlers DD4|8 Health', 'Toxic crawlers DD4|8 Health + d100 Rads', 'Nothing']),
     trigger: pick(FACILITY_TRIGGERS),
     obstacle: pick(FACILITY_OBSTACLES),
-    loot: pick(['d6 Standard Fuel (+1 fuel slot)', 'd4 Hub Jumps', 'd4 Hyperdrives', 'First-Aid Kit', 'Toolkit', 'Hack Data Drive', 'Spell Scrolls', 'Exocraft', 'Vehicle Mod', 'Ranged Weapon', 'Melee Weapon', 'Armor']),
+    loot: rollGalaxyMerchantLoot(['d6 Standard Fuel (+1 fuel slot)', 'd4 Hub Jumps', 'd4 Hyperdrives', 'First-Aid Kit', 'Toolkit', 'Hack Data Drive', 'Spell Scrolls', 'Exocraft', 'Vehicle Mod', 'Ranged Weapon', 'Melee Weapon', 'Armor']),
     completed: false,
   };
   ds.roomList.push(room);
@@ -1805,7 +2168,11 @@ function buildStarExplorationDetail(ring, outcome) {
     return `Mystery contact detected. Open channel and assess crew intentions.`;
   }
   if (outcome === 'Peril') {
-    return `Peril: ${pick(STAR_PERIL_SNIPPETS)}`;
+    const hex = getCurrentStarHex();
+    const peril = getHexPersistentState(hex, 'peril', function() { return createGalaxyPerilState(ring); });
+    return `<div style="font-size:.75rem;color:var(--gold2);">⚠ ${peril.title}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.55;margin-top:.15rem;">${peril.text}<br><strong>⚔ Traversal Check</strong><br>Roll ${peril.check.map(k => k.charAt(0).toUpperCase() + k.slice(1)).join(' or ')} vs DD${peril.dd}. Failure: Stress/Radiation/Health/Condition/Trauma risk and lose 1 Phase.</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="resolveGalaxyPerilTraversal()">Traverse Peril</button></div>`;
   }
   if (outcome === 'Galactic Facility') {
     const hex = getCurrentStarHex();
@@ -1992,6 +2359,26 @@ function generateStarSystemMap(galaxyType) {
   showNotif(`Generated ${generateStarSystemName()} (${type}) with 37 hexes.`, 'good');
 }
 
+function getStarHexGlyph(hex) {
+  const map = {
+    star: '☉',
+    hub: '⌂',
+    planet: '◍',
+    world_that_was: '⛧',
+    peril: '⚠',
+    dead_moon: '☾',
+    derelict_ship: '☠',
+    mystery: '?',
+    facility: '▣',
+    skirmish: '✦',
+    encounter: '✶',
+    radio_task: '✉',
+    location: '◈',
+    nothing: '·',
+  };
+  return map[hex.type] || String(hex.id);
+}
+
 function renderStarSystemMap() {
   const host = document.getElementById('starSystemMap');
   if (!host) return;
@@ -2016,7 +2403,7 @@ function renderStarSystemMap() {
     const fill = STAR_SIGHTING_COLORS[key].color;
     const border = hex.id === S.starSystem.currentHexId ? '#ffffff' : '#2d3142';
     const opacity = hex.explored ? 0.9 : 0.55;
-    const label = hex.ring === 'core' ? '☉' : String(hex.id);
+    const label = getStarHexGlyph(hex);
     return `
       <g onclick="selectStarSystemHex(${hex.id})" style="cursor:pointer;">
         <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hex.id === S.starSystem.currentHexId ? 2 : 1}" />
@@ -2204,8 +2591,15 @@ function updateStarSystemReadouts() {
       if (current.type === 'dead_moon') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDeadMoonMap=getHexPersistentState(h,\'deadMoonMap\',createDeadMoonMapState);renderDeadMoonMapPanel();">Land On Dead Moon</button>');
       if (current.type === 'mystery') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeMystery=getHexPersistentState(h,\'mystery\',function(){return createMysteryState(h.ring);});renderMysteryPanel();">Hail Mystery Contact</button>');
       if (current.type === 'facility') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeFacility=getHexPersistentState(h,\'facility\',createFacilityState);renderFacilityPanel();">Dock At Facility</button>');
+      if (current.type === 'radio_task') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="resolveGalaxyRadioTask()">Resolve Radio Task</button>');
       panel.innerHTML = `
         <div style="display:grid;gap:.35rem;">
+          ${S.starSystem.currentWeather ? `<div class="weather-block ${S.starSystem.currentWeather.rough ? 'rough' : 'clear'}" style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+            <div style="font-size:.78rem;color:${S.starSystem.currentWeather.rough ? 'var(--red2)' : 'var(--teal)'};"><strong>Weather:</strong> ${S.starSystem.currentWeather.name}</div>
+            <div style="font-size:.74rem;color:var(--muted2);line-height:1.45;">${S.starSystem.currentWeather.desc}</div>
+            <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">⚠ ${S.starSystem.currentWeather.checkLabel} vs DD${S.starSystem.currentWeather.dd}. Failure: ${S.starSystem.currentWeather.failure}</div>
+            <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;"><button class="btn btn-xs" onclick="resolveGalaxyWeatherCheck()">Traverse Weather</button><button class="btn btn-xs" onclick="rollStarSystemWeather()">Roll Weather</button></div>
+          </div>` : ''}
           <div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.83rem;color:var(--muted2);line-height:1.65;">
             <strong style="color:var(--text);">Hex:</strong> ${current.id} (${current.ring.toUpperCase()} Ring)<br>
             <strong style="color:var(--text);">Land:</strong> ${current.land || 'Unknown'}<br>
@@ -2268,20 +2662,47 @@ function runSystemAnalysisCheck() {
 }
 
 function rollStarSystemWeather() {
-  const weather = pick(STAR_WEATHER.weather);
-  const env = pick(STAR_WEATHER.environment);
-  const wind = pick(STAR_WEATHER.wind);
-  const phenomenon = pick(STAR_WEATHER.phenomena);
-  const hue = pick(STAR_WEATHER.color);
-  const wonder = pick(STAR_WEATHER.wonder);
-  const intensity = roll(6);
-  const bold = intensity >= 5;
-  const sentence = `Cosmic conditions are marked by ${weather} ${env}. The cosmic winds ${wind} through ${phenomenon} of ${hue} hues. Additionally, while traveling, one can observe ${wonder}.`;
+  ensureStarsState();
+  const base = pick(STAR_WEATHER_FRONTS);
+  const weather = {
+    name: base.name,
+    desc: base.desc,
+    check: base.check,
+    checkLabel: base.check.charAt(0).toUpperCase() + base.check.slice(1),
+    dd: base.dd,
+    failure: base.failure,
+    rough: base.dd >= 8,
+  };
+  S.starSystem.currentWeather = weather;
 
   const el = document.getElementById('starWeatherResult');
   if (el) {
-    el.innerHTML = `${sentence}<br><span style="color:${bold ? 'var(--red2)' : 'var(--muted2)'};">Intensity d6=${intensity}${bold ? ' — Control/Drive vs DD6 or +2 Stress.' : ''}</span>`;
+    el.innerHTML = `<div class="weather-block ${weather.rough ? 'rough' : 'clear'}" style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      <div style="font-size:.78rem;color:${weather.rough ? 'var(--red2)' : 'var(--teal)'};">${weather.name}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.45;">${weather.desc}</div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">⚠ ${weather.checkLabel} vs DD${weather.dd} required. Failure: ${weather.failure}</div>
+    </div>`;
   }
+  updateStarSystemReadouts();
+}
+
+function resolveGalaxyWeatherCheck() {
+  ensureStarsState();
+  const weather = S.starSystem.currentWeather || pick(STAR_WEATHER_FRONTS);
+  const check = resolveGalaxySkillCheck(weather.check, null, weather.dd, weather.name + ' Traversal');
+  const el = document.getElementById('starWeatherResult');
+  if (check.success) {
+    S.starSystem.currentWeather = null;
+    if (el) el.innerHTML = `<span style="color:var(--green2);">${check.text}. Success: weather lane cleared.</span>`;
+    showNotif('Weather traversal succeeded.', 'good');
+  } else {
+    loseGamePhases(1);
+    if (weather.name === 'Ash Drift' && typeof changeStress === 'function') changeStress(1);
+    if (weather.name === 'Grav Tide' && typeof changeMentalStress === 'function') changeMentalStress(1);
+    if (el) el.innerHTML = `<span style="color:var(--red2);">${check.text}. Failure: ${weather.failure}</span>`;
+    showNotif('Weather traversal failed: phase lost.', 'warn');
+  }
+  updateStarSystemReadouts();
 }
 
 function rollMonthlyStarRadioEvent() {
@@ -2296,8 +2717,44 @@ function rollMonthlyStarRadioEvent() {
   } else {
     seen[d20] = true;
     S.starSystem.radioEventsSeen = seen;
-    S.starSystem.lastRadioEvent = `Radio Event ${d20}: ${STAR_RADIO_EVENTS[d20 - 1]} (Deadline: 10 Days)`;
+    const candidates = (S.starSystem.hexes || []).filter(h => h.ring !== 'core' && h.type !== 'star');
+    if (candidates.length) {
+      const markerHex = pick(candidates);
+      markerHex.type = 'radio_task';
+      markerHex.scanned = true;
+      markerHex.explored = true;
+      markerHex.detail = `Radio Task ${d20}: ${STAR_RADIO_EVENTS[d20 - 1]}`;
+      markerHex.radioTaskId = d20;
+      markerHex.radioTaskResolved = false;
+      if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
+      S.starSystem.radioTaskMarkers.push({ eventId: d20, hexId: markerHex.id, text: STAR_RADIO_EVENTS[d20 - 1], resolved: false });
+      S.starSystem.lastRadioEvent = `Radio Event ${d20}: ${STAR_RADIO_EVENTS[d20 - 1]} (Marker at Hex ${markerHex.id}, Deadline: 10 Days)`;
+      renderStarSystemMap();
+    } else {
+      S.starSystem.lastRadioEvent = `Radio Event ${d20}: ${STAR_RADIO_EVENTS[d20 - 1]} (No viable marker hex.)`;
+    }
   }
+  updateStarSystemReadouts();
+}
+
+function resolveGalaxyRadioTask() {
+  ensureStarsState();
+  const current = getCurrentStarHex();
+  if (!current || current.type !== 'radio_task') {
+    showNotif('No radio task marker in this hex.', 'warn');
+    return;
+  }
+  if (typeof generateMissions === 'function') generateMissions();
+  if (typeof switchTab === 'function') switchTab('missions', document.querySelector('.tab-btn[onclick*="missions"]'));
+  if (typeof changeCounter === 'function') changeCounter('renown', 1);
+  current.radioTaskResolved = true;
+  current.type = 'location';
+  current.detail = 'Resolved radio contract. Local contacts leave a stable route and future work.';
+  (S.starSystem.radioTaskMarkers || []).forEach((m) => {
+    if (m.hexId === current.id) m.resolved = true;
+  });
+  showNotif('Radio task resolved: +1 Renown and new task generated.', 'good');
+  renderStarSystemMap();
   updateStarSystemReadouts();
 }
 
@@ -3464,9 +3921,11 @@ function getGalaxySystemPanelMarkup() {
         <div class="sub-label">Explore</div>
         <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
           <button class="btn btn-xs btn-teal" onclick="runGalaxyEncounterRoll()">⚄ Roll Encounter</button>
+          <button class="btn btn-xs" onclick="rollStarSystemWeather()">Roll Weather</button>
           <button class="btn btn-xs" onclick="rollMonthlyStarRadioEvent()">Monthly Radio</button>
           <button class="btn btn-xs" onclick="if(typeof generateMissions==='function')generateMissions();switchTab('missions',document.querySelector(\".tab-btn[onclick*=\\\"missions\\\"]\"));">Generate Task</button>
         </div>
+        <div id="starWeatherResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-top:.25rem;"></div>
         <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-top:.25rem;"></div>
         <div id="starExplorationDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:3rem;padding:.35rem;border:1px solid var(--border);background:rgba(255,255,255,.01);margin-top:.25rem;"></div>
       </div>

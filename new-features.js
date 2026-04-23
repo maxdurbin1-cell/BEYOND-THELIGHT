@@ -199,6 +199,8 @@
       },
       S.holdingQuest || {}
     );
+    // Backfill ownership for saves where quest was completed before established flag existed.
+    if (S.holdingQuest.step3Completed && !S.holdingQuest.failed) { S.holding.established = true; }
 
     var prevMap = S.combatMap || {};
     S.combatMap = Object.assign({ units: [] }, prevMap);
@@ -231,8 +233,9 @@
     if (typeof document === "undefined") { return; }
     var holdingBtn = document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
     if (!holdingBtn) { return; }
-    // Only show Holding tab once the special quest is completed and a Holding exists.
-    if (S && S.holding && (S.holding.established || S.holding.name)) {
+    var questDone = !!(S && S.holdingQuest && S.holdingQuest.step3Completed && !S.holdingQuest.failed);
+    // Show Holding tab once ownership is established by state or completed special quest.
+    if (S && S.holding && (S.holding.established || S.holding.name || questDone)) {
       holdingBtn.style.display = "";
     } else {
       holdingBtn.style.display = "none";
@@ -1555,7 +1558,8 @@
     if (!success) {
       q.active = false;
       q.failed = true;
-      q.step3Completed = true;
+      q.step3Completed = false;
+      q.step2Completed = false;
       q.step = 0;
       clearHoldingQuestTokens();
       if (typeof renderHexMap === 'function') { renderHexMap(); }

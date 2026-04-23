@@ -1029,7 +1029,8 @@
     var bodyEl = document.getElementById("holdingBody");
     var renown = S.renown || 0;
     var questActive = (S.holdingQuest || {}).active;
-    var holdingEstablished = !!(h.established || h.name);
+    var questDone = !!(S.holdingQuest && S.holdingQuest.step3Completed && !S.holdingQuest.failed);
+    var holdingEstablished = !!(h.established || h.name || questDone);
     if (gateEl) {
       if (!holdingEstablished && !questActive) {
         if (renown < 9) {

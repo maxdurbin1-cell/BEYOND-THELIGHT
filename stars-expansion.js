@@ -332,9 +332,18 @@ function ensureStarsState() {
     shields: 0,
     defendDie: 6,
   };
-  S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0 };
+  S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false };
+  if (!S.gameDate.seededRandom && S.gameDate.day === 1 && S.gameDate.month === 1 && S.gameDate.year === 1) {
+    S.gameDate.day = roll(DAYS_PER_MONTH);
+    S.gameDate.month = roll(MONTHS_PER_YEAR);
+    S.gameDate.year = roll(999);
+    S.gameDate.phase = roll(DAY_PHASES.length) - 1;
+    S.gameDate.seededRandom = true;
+  }
   if (typeof S.gameDate.phase !== 'number') S.gameDate.phase = 0;
   if (typeof S.gameDate.provinceHexClicks !== 'number') S.gameDate.provinceHexClicks = 0;
+  if (typeof S.gameDate.lastSeaIslandClicks !== 'number') S.gameDate.lastSeaIslandClicks = 0;
+  if (typeof S.gameDate.seededRandom !== 'boolean') S.gameDate.seededRandom = true;
 }
 
 // ── HEALTH FUNCTIONS (renamed from Stress) ────────────────────────────────
@@ -650,30 +659,7 @@ function getCurrentPhaseLabel() {
 
 function getProvinceTravelClicksPerDay() {
   ensureStarsState();
-
-  let clicksPerDay = DATE_TRAVEL.foot.hexPerDay;
-  const bag = Array.isArray(S.backpack) ? S.backpack.filter(Boolean).join(' ').toLowerCase() : '';
-  const eq = [
-    S && S.equipment ? (S.equipment.weapon1 || '') : '',
-    S && S.equipment ? (S.equipment.weapon2 || '') : '',
-    S && S.equipment ? (S.equipment.armor || '') : '',
-    S && S.equipment ? (S.equipment.readied || '') : ''
-  ].join(' ').toLowerCase();
-
-  const inventoryText = (bag + ' ' + eq).trim();
-  const hasHorse = inventoryText.indexOf('horse') >= 0 || inventoryText.indexOf('mount') >= 0;
-  const hasBoat = inventoryText.indexOf('boat') >= 0;
-
-  if (hasHorse) clicksPerDay = Math.max(clicksPerDay, DATE_TRAVEL.horse.hexPerDay);
-  if (hasBoat) clicksPerDay = Math.max(clicksPerDay, DATE_TRAVEL.boat.hexPerDay);
-
-  if (S.caravan && (S.caravan.owned || S.caravan.name)) {
-    const sz = String(S.caravan.size || 'Small').toLowerCase();
-    if (sz === 'large') clicksPerDay = Math.max(clicksPerDay, DATE_TRAVEL.boat.hexPerDay);
-    else clicksPerDay = Math.max(clicksPerDay, DATE_TRAVEL.horse.hexPerDay);
-  }
-
-  return clicksPerDay;
+  return 3;
 }
 
 function refreshPhaseFromProvinceClicks() {
@@ -733,6 +719,20 @@ function registerLastSeaHexTravel(hexClicks) {
   advanceDay(clicks * DAYS_PER_WEEK);
 }
 
+function registerLastSeaIslandTravel(hexClicks) {
+  ensureStarsState();
+  const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
+
+  S.gameDate.lastSeaIslandClicks = (S.gameDate.lastSeaIslandClicks || 0) + clicks;
+  while (S.gameDate.lastSeaIslandClicks >= DAY_PHASES.length) {
+    S.gameDate.lastSeaIslandClicks -= DAY_PHASES.length;
+    advanceDay(1, true);
+  }
+
+  S.gameDate.phase = clampPhase(S.gameDate.lastSeaIslandClicks || 0);
+  updateDateUI();
+}
+
 function getGameDatePhaseText() {
   ensureStarsState();
   const d = S.gameDate;
@@ -754,6 +754,22 @@ function updateDateUI() {
   if (seaEl) {
     seaEl.textContent = getGameDatePhaseText();
   }
+}
+
+function removeLegacyHealthLabel() {
+  const badLabel = 'Health (was Stress)';
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let current = walker.nextNode();
+  while (current) {
+    if (current.nodeValue && current.nodeValue.indexOf(badLabel) >= 0) {
+      nodes.push(current);
+    }
+    current = walker.nextNode();
+  }
+  nodes.forEach(node => {
+    node.nodeValue = node.nodeValue.replaceAll(badLabel, 'Health');
+  });
 }
 
 // ── STARSHIP FUNCTIONS ────────────────────────────────────────────────────────
@@ -1326,12 +1342,9 @@ function buildDateTimePanel() {
   <div style="padding-top:.4rem;border-top:1px solid var(--border);">
     <div class="sub-label">Travel Distances</div>
     <div style="font-size:.77rem;color:var(--muted3);line-height:1.7;">
-      🏃 Foot: 3 Hex Clicks = 1 Day<br>
-      🐴 Horse: 6 Hex Clicks = 1 Day<br>
-      ⛵ Boat: 9 Hex Clicks = 1 Day<br>
-      📦 Caravan (Small/Medium): 6 Hex Clicks = 1 Day<br>
-      📦 Caravan (Large): 9 Hex Clicks = 1 Day<br>
-      🚢 Last Sea Ship: 1 Hex Click = 1 Week<br>
+      🗺 Province: 3 Hex Clicks = 1 Day<br>
+      🏝 Last Sea Island: 1 Hex Click = 1 Phase (3 clicks = 1 Day)<br>
+      🚢 Last Sea Open Sea: 1 Hex Click = 1 Week<br>
       📅 1 Week = 5 Days · 1 Month = 30 Days
     </div>
   </div>
@@ -1397,6 +1410,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateFactionRenownUI();
   updateStarshipUI();
   updateDateUI();
+  removeLegacyHealthLabel();
 
   // Add cosmic shop category buttons if shop tabs are present
   const shopCats = document.querySelector('.shop-cats');
@@ -1446,4 +1460,5 @@ window.hasHoldingFactionThreshold = hasHoldingFactionThreshold;
 window.getProvinceTravelClicksPerDay = getProvinceTravelClicksPerDay;
 window.registerProvinceHexTravel = registerProvinceHexTravel;
 window.registerLastSeaHexTravel = registerLastSeaHexTravel;
+window.registerLastSeaIslandTravel = registerLastSeaIslandTravel;
 window.getGameDatePhaseText = getGameDatePhaseText;

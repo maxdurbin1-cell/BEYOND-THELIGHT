@@ -296,6 +296,7 @@
       map: [],
       islands: [],
       notes: {},
+      clickMode: "travel",
       selectedKey: null,
       weather: null,
       ...(S.lastSea || {})
@@ -356,6 +357,7 @@
           </select>
           <button class="btn btn-primary" onclick="generateLastSea()">Chart Last Sea</button>
           <button class="btn" onclick="clearLastSea()">Clear</button>
+          <button class="btn btn-sm btn-teal" id="lastSeaClickModeBtn" onclick="toggleLastSeaClickMode()">Map Click: Travel</button>
           <span id="lastSeaTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Month 1, Day 1, Year 1 — Morning</span>
           <span id="lastSeaCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
         </div>
@@ -927,8 +929,12 @@
       }
 
       group.addEventListener("click", () => {
-        if (typeof registerLastSeaHexTravel === "function") {
-          registerLastSeaHexTravel(1);
+        if (S.lastSea.clickMode === "travel") {
+          if (hex.type === "island" && typeof registerLastSeaIslandTravel === "function") {
+            registerLastSeaIslandTravel(1);
+          } else if (typeof registerLastSeaHexTravel === "function") {
+            registerLastSeaHexTravel(1);
+          }
         }
         S.lastSea.selectedKey = hex.key;
         renderLastSeaMap();
@@ -2114,6 +2120,36 @@
     if (layoutSelect) {
       layoutSelect.value = S.lastSea.layout || "random";
     }
+    updateLastSeaClickModeUI();
+  }
+
+  function ensureLastSeaClickMode() {
+    ensureExpansionState();
+    if (S.lastSea.clickMode !== "inspect" && S.lastSea.clickMode !== "travel") {
+      S.lastSea.clickMode = "travel";
+    }
+    return S.lastSea.clickMode;
+  }
+
+  function updateLastSeaClickModeUI() {
+    const button = document.getElementById("lastSeaClickModeBtn");
+    if (!button) {
+      return;
+    }
+    const mode = ensureLastSeaClickMode();
+    button.textContent = `Map Click: ${mode === "travel" ? "Travel" : "Inspect"}`;
+    if (mode === "travel") {
+      button.classList.add("btn-teal");
+    } else {
+      button.classList.remove("btn-teal");
+    }
+  }
+
+  function toggleLastSeaClickMode() {
+    const mode = ensureLastSeaClickMode();
+    S.lastSea.clickMode = mode === "travel" ? "inspect" : "travel";
+    updateLastSeaClickModeUI();
+    showNotif(`Last Sea clicks now ${S.lastSea.clickMode === "travel" ? "advance travel time." : "inspect only."}`, "good");
   }
 
   function setLastSeaSeason(season, button) {
@@ -2130,6 +2166,7 @@
     renderLastSeaInfo();
     renderNaval();
     renderGambling();
+    updateLastSeaClickModeUI();
   });
 
   const baseUpdateCreditsUI = updateCreditsUI;
@@ -2160,6 +2197,7 @@
   };
 
   window.setLastSeaSeason = setLastSeaSeason;
+  window.toggleLastSeaClickMode = toggleLastSeaClickMode;
   window.generateLastSea = generateLastSea;
   window.clearLastSea = clearLastSea;
   window.exploreLastSeaHex = exploreLastSeaHex;

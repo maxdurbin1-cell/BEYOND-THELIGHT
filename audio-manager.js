@@ -30,7 +30,15 @@
           if (this.audioContext.state === 'suspended') {
             this.audioContext.resume().then(() => {
               console.log('🔊 Audio context resumed');
+              // Start tab music as soon as audio is unlocked.
+              if (!this.currentMusic) {
+                this.switchTabMusic(this.currentTab || 'character');
+              }
+            }).catch((err) => {
+              console.warn('🔊 Failed to resume audio context:', err);
             });
+          } else if (!this.currentMusic) {
+            this.switchTabMusic(this.currentTab || 'character');
           }
         };
         
@@ -58,7 +66,11 @@
 
       // Resume audio context if needed
       if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
+        this.audioContext.resume().then(() => {
+          this.playSFX(soundId, volume);
+        }).catch((err) => {
+          console.warn('🔊 Unable to resume audio for SFX:', err);
+        });
         return;
       }
       
@@ -99,6 +111,9 @@
       if (this.audioContext.state === 'suspended') {
         this.audioContext.resume().then(() => {
           console.log('🔊 Audio context resumed by playMusic');
+          this.playMusic(musicId, fadeIn);
+        }).catch((err) => {
+          console.warn('🔊 Unable to resume audio for music:', err);
         });
         return;
       }

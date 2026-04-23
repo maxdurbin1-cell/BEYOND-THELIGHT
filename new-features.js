@@ -155,7 +155,7 @@
       if (!Array.isArray(S.holding.vault))          { S.holding.vault = []; }
     if (!Array.isArray(S.holding.councilTasks))    { S.holding.councilTasks = []; }
     if (!Array.isArray(S.holding.taxLog))         { S.holding.taxLog = []; }
-    if (S.holding.name && !S.holding.established) { S.holding.established = true; }
+    // Ownership is established by successful quest completion, not by entering a name.
 
     if (!S.holding.council || typeof S.holding.council !== "object") {
       S.holding.council = {
@@ -1021,7 +1021,7 @@
     var renown = S.renown || 0;
     var questActive = (S.holdingQuest || {}).active;
     var questDone = !!(S.holdingQuest && S.holdingQuest.step3Completed && !S.holdingQuest.failed);
-    var holdingEstablished = !!(h.established || h.name || questDone);
+    var holdingEstablished = !!(h.established || questDone);
     if (gateEl) {
       if (!holdingEstablished) {
         var gateMsg = '<div class="card" style="max-width:580px;margin-top:.6rem;border:1px solid rgba(201,162,39,.35);">'
@@ -1156,7 +1156,7 @@
         questEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;margin-bottom:.4rem;">' + progressHtml + '</div>'
           + (locHtml ? '<div style="margin-bottom:.3rem;">' + locHtml + '</div>' : '')
           + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">⚄ Roll Current Step</button>';
-      } else if (!(h.established || h.name)) {
+      } else if (!(h.established || questDone)) {
         if ((S.renown || 0) < 9) {
           questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Currently: ' + (S.renown || 0) + '</div>';
         } else {
@@ -1582,6 +1582,22 @@
       for (var li = 0; li < loot.length; li++) { addToBackpack(loot[li]); }
     }
 
+    if (!Array.isArray(S.completedMissions)) { S.completedMissions = []; }
+    if (S.completedMissions.length >= 10) { S.completedMissions.shift(); }
+    S.completedMissions.push({
+      id: 'holding-quest-' + Date.now(),
+      title: 'Establish Your Holding',
+      difficulty: 'special',
+      location: 'Province',
+      success: true,
+      reward: (q.rewardCredits || 250),
+      loot: loot.slice(),
+      infoFeature: q.infoFeature || null,
+      additionalDanger: q.additionalDanger || null,
+      completedAt: new Date().toISOString(),
+      isHoldingQuest: true
+    });
+
     if (!S.holding.name) {
       rollHoldingName();
     }
@@ -1622,7 +1638,8 @@
     ensureNewFeatureState();
     var q = S.holdingQuest || {};
     var renown = S.renown || 0;
-    var holdingEstablished = S.holding && (S.holding.established || S.holding.name);
+    var questDone = !!(q.step3Completed && !q.failed);
+    var holdingEstablished = S.holding && (S.holding.established || questDone);
     if (renown < 9 || holdingEstablished) { return ''; }
 
     if (!q.active) {
@@ -1662,7 +1679,8 @@
   function getHoldingQuestTrackerCardHtml() {
     ensureNewFeatureState();
     var q = S.holdingQuest || {};
-    var holdingEstablished = S.holding && (S.holding.established || S.holding.name);
+    var questDone = !!(q.step3Completed && !q.failed);
+    var holdingEstablished = S.holding && (S.holding.established || questDone);
     if (!q.active || holdingEstablished) { return ''; }
 
     var s1 = { completed: !!q.step1Completed, skipped: !!q.step1Skipped };

@@ -683,6 +683,7 @@
     if (!recent.length) { container.innerHTML='<div style="font-size:.8rem;color:var(--muted2);">No completed missions yet.</div>'; return; }
     container.innerHTML=recent.map(function(mission){
       var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy;
+      var diffName = mission.isHoldingQuest ? 'Special Quest' : diff.name;
       var outCol=mission.success?'var(--green2)':'var(--red2)';
       var outcome=mission.success?'\u2713 SUCCESS':'\u2717 FAILED';
       var lootLine=(mission.success&&mission.loot&&mission.loot.length)
@@ -691,7 +692,7 @@
       var featureLine=mission.infoFeature?'<div style="font-size:.66rem;color:var(--muted2);margin-top:.05rem;">'+mission.infoFeature.icon+' '+mission.infoFeature.name+(mission.additionalDanger?' \u00B7 \u26a0 '+(mission.additionalDanger.type==='mercenary'?'Mercenary':mission.additionalDanger.data.name):'')+'</div>':'';
       return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid '+outCol+';padding:.4rem .5rem;margin-bottom:.3rem;">'
         +'<div style="font-family:\'Cinzel\',serif;font-size:.75rem;color:'+outCol+';margin-bottom:.08rem;">'+outcome+' \u2014 '+mission.title+'</div>'
-        +'<div style="font-size:.68rem;color:var(--muted2);">'+diff.name+' \u00B7 '+mission.location+'</div>'
+        +'<div style="font-size:.68rem;color:var(--muted2);">'+diffName+' \u00B7 '+mission.location+'</div>'
         +featureLine+lootLine
       +'</div>';
     }).join('');

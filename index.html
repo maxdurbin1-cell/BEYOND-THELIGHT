@@ -4195,7 +4195,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     var jobs = S.availableJobs || [];
     var missions = S.activeMissions || [];
     var holdingQuest = S.holdingQuest || {};
-    var holdingEstablished = S.holding && S.holding.name;
+    var questDone = !!(holdingQuest.step3Completed && !holdingQuest.failed);
+    var holdingEstablished = !!(S.holding && (S.holding.established || questDone));
     var renown = S.renown || 0;
     var jobsHtml = '<div style="margin-bottom:.55rem;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.3rem;">'

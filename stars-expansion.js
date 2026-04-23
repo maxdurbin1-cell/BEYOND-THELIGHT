@@ -130,16 +130,16 @@ const RADIATION_TIERS = [
 ];
 
 const TEAMWORK_EVENTS_D10 = [
-  'Boost — spend 2 TMW to give an ally +1 Action this Turn.',
-  'Cover Fire — spend 2 TMW to force all enemies to use 1 Action defensively.',
-  'First Aid — spend 3 TMW to restore d4 Health to one ally.',
-  'Distract — spend 2 TMW; target enemy uses next Action on decoy.',
-  'Rally — spend 3 TMW; remove one Negative Condition from an ally.',
-  'Suppression — spend 4 TMW; all enemy ranged attacks have Disadvantage this Round.',
-  'Overwatch — spend 3 TMW; react to one enemy move with a free Shoot attack.',
-  'Coordinate — spend 2 TMW; your next Attack roll uses an Advantage Die.',
-  'Emergency Shield — spend 4 TMW; reduce incoming damage by 2 Stress (once).',
-  'All Out Assault — spend 5 TMW; the entire party gains +1 Action this Round.',
+  { cost: 2, text: 'Boost — spend 2 TMW to give an ally +1 Action this Turn.' },
+  { cost: 2, text: 'Cover Fire — spend 2 TMW to force all enemies to use 1 Action defensively.' },
+  { cost: 3, text: 'First Aid — spend 3 TMW to restore d4 Health to one ally.' },
+  { cost: 2, text: 'Distract — spend 2 TMW; target enemy uses next Action on decoy.' },
+  { cost: 3, text: 'Rally — spend 3 TMW; remove one Negative Condition from an ally.' },
+  { cost: 4, text: 'Suppression — spend 4 TMW; all enemy ranged attacks have Disadvantage this Round.' },
+  { cost: 3, text: 'Overwatch — spend 3 TMW; react to one enemy move with a free Shoot attack.' },
+  { cost: 2, text: 'Coordinate — spend 2 TMW; your next Attack roll uses an Advantage Die.' },
+  { cost: 4, text: 'Emergency Shield — spend 4 TMW; reduce incoming damage by 2 Stress (once).' },
+  { cost: 5, text: 'All Out Assault — spend 5 TMW; the entire party gains +1 Action this Round.' },
 ];
 
 const ORACLE_YES_NO = [
@@ -332,7 +332,9 @@ function ensureStarsState() {
     shields: 0,
     defendDie: 6,
   };
-  S.gameDate = S.gameDate || { day: 1, month: 1, year: 1 };
+  S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0 };
+  if (typeof S.gameDate.phase !== 'number') S.gameDate.phase = 0;
+  if (typeof S.gameDate.provinceHexClicks !== 'number') S.gameDate.provinceHexClicks = 0;
 }
 
 // ── HEALTH FUNCTIONS (renamed from Stress) ────────────────────────────────
@@ -633,15 +635,108 @@ const DATE_TRAVEL = {
 };
 const DAYS_PER_WEEK  = 5;
 const DAYS_PER_MONTH = 30;
+const MONTHS_PER_YEAR = 12;
+const DAY_PHASES = ['Morning', 'Afternoon', 'Night'];
 
-function advanceDay(days) {
+function clampPhase(value) {
+  const max = DAY_PHASES.length - 1;
+  return Math.max(0, Math.min(max, value));
+}
+
+function getCurrentPhaseLabel() {
+  ensureStarsState();
+  return DAY_PHASES[clampPhase(S.gameDate.phase || 0)];
+}
+
+function getProvinceTravelClicksPerDay() {
+  ensureStarsState();
+
+  let clicksPerDay = DATE_TRAVEL.foot.hexPerDay;
+  const bag = Array.isArray(S.backpack) ? S.backpack.filter(Boolean).join(' ').toLowerCase() : '';
+  const eq = [
+    S && S.equipment ? (S.equipment.weapon1 || '') : '',
+    S && S.equipment ? (S.equipment.weapon2 || '') : '',
+    S && S.equipment ? (S.equipment.armor || '') : '',
+    S && S.equipment ? (S.equipment.readied || '') : ''
+  ].join(' ').toLowerCase();
+
+  const inventoryText = (bag + ' ' + eq).trim();
+  const hasHorse = inventoryText.indexOf('horse') >= 0 || inventoryText.indexOf('mount') >= 0;
+  const hasBoat = inventoryText.indexOf('boat') >= 0;
+
+  if (hasHorse) clicksPerDay = Math.max(clicksPerDay, DATE_TRAVEL.horse.hexPerDay);
+  if (hasBoat) clicksPerDay = Math.max(clicksPerDay, DATE_TRAVEL.boat.hexPerDay);
+
+  if (S.caravan && (S.caravan.owned || S.caravan.name)) {
+    const sz = String(S.caravan.size || 'Small').toLowerCase();
+    if (sz === 'large') clicksPerDay = Math.max(clicksPerDay, DATE_TRAVEL.boat.hexPerDay);
+    else clicksPerDay = Math.max(clicksPerDay, DATE_TRAVEL.horse.hexPerDay);
+  }
+
+  return clicksPerDay;
+}
+
+function refreshPhaseFromProvinceClicks() {
+  const clicksPerDay = Math.max(3, getProvinceTravelClicksPerDay());
+  const clicksPerPhase = Math.max(1, Math.floor(clicksPerDay / DAY_PHASES.length));
+  const phase = Math.floor((S.gameDate.provinceHexClicks || 0) / clicksPerPhase);
+  S.gameDate.phase = clampPhase(phase);
+}
+
+function advanceDay(days, preserveTravelState) {
   ensureStarsState();
   S.gameDate.day += days;
+
   while (S.gameDate.day > DAYS_PER_MONTH) {
     S.gameDate.day -= DAYS_PER_MONTH;
     S.gameDate.month++;
   }
+  while (S.gameDate.day < 1) {
+    S.gameDate.month--;
+    S.gameDate.day += DAYS_PER_MONTH;
+  }
+  while (S.gameDate.month > MONTHS_PER_YEAR) {
+    S.gameDate.month -= MONTHS_PER_YEAR;
+    S.gameDate.year++;
+  }
+  while (S.gameDate.month < 1) {
+    S.gameDate.year = Math.max(1, (S.gameDate.year || 1) - 1);
+    S.gameDate.month += MONTHS_PER_YEAR;
+  }
+
+  if (days !== 0 && !preserveTravelState) {
+    S.gameDate.phase = 0;
+    S.gameDate.provinceHexClicks = 0;
+  }
   updateDateUI();
+}
+
+function registerProvinceHexTravel(hexClicks) {
+  ensureStarsState();
+  const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
+  const clicksPerDay = Math.max(3, getProvinceTravelClicksPerDay());
+
+  S.gameDate.provinceHexClicks = (S.gameDate.provinceHexClicks || 0) + clicks;
+
+  while (S.gameDate.provinceHexClicks >= clicksPerDay) {
+    S.gameDate.provinceHexClicks -= clicksPerDay;
+    advanceDay(1, true);
+  }
+
+  refreshPhaseFromProvinceClicks();
+  updateDateUI();
+}
+
+function registerLastSeaHexTravel(hexClicks) {
+  ensureStarsState();
+  const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
+  advanceDay(clicks * DAYS_PER_WEEK);
+}
+
+function getGameDatePhaseText() {
+  ensureStarsState();
+  const d = S.gameDate;
+  return `Month ${d.month}, Day ${d.day}, Year ${d.year} — ${getCurrentPhaseLabel()}`;
 }
 
 function updateDateUI() {
@@ -649,7 +744,15 @@ function updateDateUI() {
   const el = document.getElementById('gameDateDisplay');
   if (el) {
     const d = S.gameDate;
-    el.textContent = `Day ${d.day}, Month ${d.month}, Year ${d.year}`;
+    el.textContent = `Month ${d.month}, Day ${d.day}, Year ${d.year} — ${getCurrentPhaseLabel()}`;
+  }
+  const mapEl = document.getElementById('mapTimeDisplay');
+  if (mapEl) {
+    mapEl.textContent = getGameDatePhaseText();
+  }
+  const seaEl = document.getElementById('lastSeaTimeDisplay');
+  if (seaEl) {
+    seaEl.textContent = getGameDatePhaseText();
   }
 }
 
@@ -828,11 +931,23 @@ function rollEnemyActivity() {
 }
 
 function rollTeamworkEvent() {
-  const r = roll(10);
-  const entry = TEAMWORK_EVENTS_D10[r - 1];
+  ensureStarsState();
+  const currentTmw = Number(S.tmw || 0);
+  const eligible = TEAMWORK_EVENTS_D10.filter((item) => currentTmw >= item.cost);
   const el = document.getElementById('teamworkEventResult');
+
+  if (!eligible.length) {
+    if (el) {
+      el.innerHTML = '<span style="color:var(--red2);">No Teamwork Events available. You need at least 2 TMW.</span>';
+    }
+    showNotif('Not enough TMW for any Teamwork Event.', 'warn');
+    return;
+  }
+
+  const r = roll(eligible.length);
+  const entry = eligible[r - 1];
   if (el) {
-    el.innerHTML = `<div class="roll-badge">d10 = ${r}</div> ${entry}`;
+    el.innerHTML = `<div class="roll-badge">d${eligible.length} = ${r}</div> ${entry.text}<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">Available at your current TMW: ${currentTmw}</div>`;
   }
 }
 
@@ -867,7 +982,7 @@ function buildStarsCharacterPanels() {
   <div class="section-title">Health &amp; Vitality</div>
   <div style="margin-bottom:.5rem;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">
-      <span class="sub-label" style="margin-bottom:0;">Health <span style="font-size:.62rem;color:var(--muted2);">(was Stress)</span></span>
+      <span class="sub-label" style="margin-bottom:0;">Health</span>
       <span style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.1rem;">
         <span id="healthVal" style="color:var(--red);">0</span>
         <span style="color:var(--muted);font-size:.85rem;"> / </span>
@@ -1211,10 +1326,12 @@ function buildDateTimePanel() {
   <div style="padding-top:.4rem;border-top:1px solid var(--border);">
     <div class="sub-label">Travel Distances</div>
     <div style="font-size:.77rem;color:var(--muted3);line-height:1.7;">
-      🏃 Foot: 3 Hexes = 1 Day<br>
-      🐴 Horse: 6 Hexes = 1 Day<br>
-      ⛵ Boat: 9 Hexes = 1 Day<br>
-      🚀 Starship: 1 Hex = 1 Week<br>
+      🏃 Foot: 3 Hex Clicks = 1 Day<br>
+      🐴 Horse: 6 Hex Clicks = 1 Day<br>
+      ⛵ Boat: 9 Hex Clicks = 1 Day<br>
+      📦 Caravan (Small/Medium): 6 Hex Clicks = 1 Day<br>
+      📦 Caravan (Large): 9 Hex Clicks = 1 Day<br>
+      🚢 Last Sea Ship: 1 Hex Click = 1 Week<br>
       📅 1 Week = 5 Days · 1 Month = 30 Days
     </div>
   </div>
@@ -1326,3 +1443,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 window.getHighestFactionRenown = getHighestFactionRenown;
 window.hasHoldingFactionThreshold = hasHoldingFactionThreshold;
+window.getProvinceTravelClicksPerDay = getProvinceTravelClicksPerDay;
+window.registerProvinceHexTravel = registerProvinceHexTravel;
+window.registerLastSeaHexTravel = registerLastSeaHexTravel;
+window.getGameDatePhaseText = getGameDatePhaseText;

@@ -356,6 +356,7 @@
           </select>
           <button class="btn btn-primary" onclick="generateLastSea()">Chart Last Sea</button>
           <button class="btn" onclick="clearLastSea()">Clear</button>
+          <span id="lastSeaTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Month 1, Day 1, Year 1 — Morning</span>
           <span id="lastSeaCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
         </div>
         <div class="sea-summary">
@@ -926,6 +927,9 @@
       }
 
       group.addEventListener("click", () => {
+        if (typeof registerLastSeaHexTravel === "function") {
+          registerLastSeaHexTravel(1);
+        }
         S.lastSea.selectedKey = hex.key;
         renderLastSeaMap();
         renderLastSeaInfo(hex);

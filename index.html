@@ -525,6 +525,8 @@ select option{background:#0f1020;}
     <span style="color:var(--muted);font-size:.6rem;margin:0 .3rem;">|</span>
     <button class="btn btn-primary" onclick="generateMap()">⚄ Generate Province</button>
     <button class="btn" onclick="clearMap()">✕ Clear</button>
+    <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Click: Travel</button>
+    <span id="mapTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Month 1, Day 1, Year 1 — Morning</span>
     <span id="hexCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
   </div>
   <div class="map-legend">
@@ -655,6 +657,7 @@ select option{background:#0f1020;}
     </div>
     <div class="card" style="grid-column:1/-1;">
       <div class="section-title">Skirmish — Army Battle</div>
+      <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.45rem;">Shared Round: <span id="skirmishRound" style="color:var(--gold2);font-weight:700;">1</span> · Each side has 2 actions, then both reset together.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
         <div>
           <div class="sub-label">Your Army (2d12 Stress)</div>
@@ -662,6 +665,7 @@ select option{background:#0f1020;}
             <span class="counter-val teal-val" id="armyAStress" style="font-size:1.2rem;">—</span>
             <button class="btn btn-sm btn-teal" onclick="rollArmyStress('A')">⚄ Roll</button>
           </div>
+          <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.2rem;">Actions: <span id="armyAActions" style="color:var(--gold2);">2</span> / 2</div>
           <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Dread: <span id="armyADread" style="color:var(--teal);">—</span></div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
             <button class="btn btn-sm btn-primary" onclick="skirmishAction('A','strike')">⚔ Strike</button>
@@ -676,6 +680,7 @@ select option{background:#0f1020;}
             <span class="counter-val red-val" id="armyBStress" style="font-size:1.2rem;">—</span>
             <button class="btn btn-sm btn-red" onclick="rollArmyStress('B')">⚄ Roll</button>
           </div>
+          <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.2rem;">Actions: <span id="armyBActions" style="color:var(--gold2);">2</span> / 2</div>
           <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Dread: <span id="armyBDread" style="color:var(--red);">—</span></div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
             <button class="btn btn-sm btn-red" onclick="skirmishAction('B','strike')">⚔ Strike</button>
@@ -1832,8 +1837,62 @@ function enemyAttack(id){
   showNotif(`${e.name}: ${atk.total} vs your ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'warn':'good');
   if(hit)changeStress(dmg);
 }
-function rollArmyStress(side){const s=rollMulti(12,2),dread=s>=13?6:4;if(side==='A'){S.combat.armyA={stress:s,dread};document.getElementById('armyAStress').textContent=s;document.getElementById('armyADread').textContent='d'+dread;}else{S.combat.armyB={stress:s,dread};document.getElementById('armyBStress').textContent=s;document.getElementById('armyBDread').textContent='d'+dread;}}
-function skirmishAction(side,action){const army=side==='A'?S.combat.armyA:S.combat.armyB;const opp=side==='A'?S.combat.armyB:S.combat.armyA;const rEl=document.getElementById('skirmishResult'+side);if(!army.stress){if(rEl)rEl.innerHTML='<span style="color:var(--red);">Roll army stress first!</span>';return;}if(action==='strike'){const a=explodingRoll(army.dread),d=explodingRoll(opp.dread||6);const diff=Math.max(1,a.total-d.total);if(a.total>=d.total){opp.stress=Math.max(0,opp.stress-diff);document.getElementById('army'+(side==='A'?'B':'A')+'Stress').textContent=opp.stress;if(rEl)rEl.innerHTML=`<span style="color:var(--green2);">Strike: ${a.total} vs ${d.total} — ${diff} Stress dealt</span>`;}else{if(rEl)rEl.innerHTML=`<span style="color:var(--red);">Strike: ${a.total} vs ${d.total} — Miss</span>`;}}else if(action==='parry'){if(rEl)rEl.innerHTML='<span style="color:var(--green);">Reaction Parry — Protected gained</span>';}else if(action==='frighten'){if(rEl)rEl.innerHTML='<span style="color:var(--red);">Frighten — Enemy Vulnerable</span>';}if(opp.stress<=0&&opp.dread)showNotif(`Army ${side==='A'?'B':'A'} defeated!`,'good');}
+function updateSkirmishActionUI(side){
+  const army=side==='A'?S.combat.armyA:S.combat.armyB;
+  const el=document.getElementById(side==='A'?'armyAActions':'armyBActions');
+  if(el)el.textContent=(typeof army.actions==='number'?army.actions:2);
+}
+function updateSkirmishRoundUI(){const el=document.getElementById('skirmishRound');if(el)el.textContent=(S.combat.skirmishRound||1);}
+function resetSkirmishActions(){
+  if(!S.combat.armyA)S.combat.armyA={};
+  if(!S.combat.armyB)S.combat.armyB={};
+  S.combat.armyA.actions=2;
+  S.combat.armyB.actions=2;
+  updateSkirmishActionUI('A');
+  updateSkirmishActionUI('B');
+}
+function advanceSkirmishRound(){
+  if(typeof S.combat.skirmishRound!=='number')S.combat.skirmishRound=1;
+  S.combat.skirmishRound+=1;
+  resetSkirmishActions();
+  updateSkirmishRoundUI();
+  showNotif('Skirmish Round '+S.combat.skirmishRound+' begins. Both sides reset to 2 actions.','good');
+}
+function rollArmyStress(side){
+  const s=rollMulti(12,2),dread=s>=13?6:4;
+  if(typeof S.combat.skirmishRound!=='number')S.combat.skirmishRound=1;
+  if(side==='A'){
+    S.combat.armyA={stress:s,dread,actions:2};
+    document.getElementById('armyAStress').textContent=s;
+    document.getElementById('armyADread').textContent='d'+dread;
+  }else{
+    S.combat.armyB={stress:s,dread,actions:2};
+    document.getElementById('armyBStress').textContent=s;
+    document.getElementById('armyBDread').textContent='d'+dread;
+  }
+  updateSkirmishActionUI(side);
+  updateSkirmishRoundUI();
+}
+function skirmishAction(side,action){
+  const army=side==='A'?S.combat.armyA:S.combat.armyB;
+  const opp=side==='A'?S.combat.armyB:S.combat.armyA;
+  const rEl=document.getElementById('skirmishResult'+side);
+  if(!army.stress){if(rEl)rEl.innerHTML='<span style="color:var(--red);">Roll army stress first!</span>';return;}
+  if(typeof army.actions!=='number')army.actions=2;
+  if(army.actions<=0){if(rEl)rEl.innerHTML='<span style="color:var(--red2);">No actions left this round (2 max).</span>';return;}
+  army.actions=Math.max(0,army.actions-1);
+  updateSkirmishActionUI(side);
+  if(action==='strike'){
+    const a=explodingRoll(army.dread),d=explodingRoll(opp.dread||6);const diff=Math.max(1,a.total-d.total);
+    if(a.total>=d.total){opp.stress=Math.max(0,opp.stress-diff);document.getElementById('army'+(side==='A'?'B':'A')+'Stress').textContent=opp.stress;if(rEl)rEl.innerHTML=`<span style="color:var(--green2);">Strike: ${a.total} vs ${d.total} — ${diff} Stress dealt</span>`;}else{if(rEl)rEl.innerHTML=`<span style="color:var(--red);">Strike: ${a.total} vs ${d.total} — Miss</span>`;}
+  }else if(action==='parry'){
+    if(rEl)rEl.innerHTML='<span style="color:var(--green);">Reaction Parry — Protected gained</span>';
+  }else if(action==='frighten'){
+    if(rEl)rEl.innerHTML='<span style="color:var(--red);">Frighten — Enemy Vulnerable</span>';
+  }
+  if((S.combat.armyA.actions||0)<=0&&(S.combat.armyB.actions||0)<=0){advanceSkirmishRound();}
+  if(opp.stress<=0&&opp.dread)showNotif(`Army ${side==='A'?'B':'A'} defeated!`,'good');
+}
 // ── SHOP ─────────────────────────────────────────────────────────────────────
 const SHOP_RULES={
   augmentations:`<span class="srb-title">🦾 Augmentations — Available Upgrades</span>
@@ -2660,6 +2719,20 @@ function setContext(ctx,btn){
   // Store active context for expansion scripts
   window._activeContext = ctx;
 }
+function ensureMapClickMode(){if(!S.mapClickMode)S.mapClickMode='travel';return S.mapClickMode;}
+function updateMapClickModeUI(){
+  const b=document.getElementById('mapClickModeBtn');
+  if(!b)return;
+  const m=ensureMapClickMode();
+  b.textContent='Map Click: '+(m==='travel'?'Travel':'Inspect');
+  if(m==='travel'){b.classList.add('btn-teal');}else{b.classList.remove('btn-teal');}
+}
+function toggleMapClickMode(){
+  ensureMapClickMode();
+  S.mapClickMode=S.mapClickMode==='travel'?'inspect':'travel';
+  updateMapClickModeUI();
+  showNotif('Map clicks now '+(S.mapClickMode==='travel'?'advance travel time.':'inspect only.'),'good');
+}
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
 function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
 
@@ -2798,7 +2871,12 @@ function renderHexMap(){
       mlabel.setAttribute('pointer-events','none');
       mlabel.textContent=label;g.appendChild(mlabel);
     }
-    g.addEventListener('click',()=>{selectedHex=hex;renderHexMap();renderHexInfo(hex);});
+    g.addEventListener('click',()=>{
+      if(ensureMapClickMode()==='travel'&&typeof registerProvinceHexTravel==='function')registerProvinceHexTravel(1);
+      selectedHex=hex;
+      renderHexMap();
+      renderHexInfo(hex);
+    });
     g.addEventListener('mousemove',()=>{const c=document.getElementById('hexCoords');if(c)c.textContent=`[${hex.col+1},${hex.row+1}] ${hex.terrain.name} — ${hex.name||hex.type}`;});
     svg.appendChild(g);
   });
@@ -3938,7 +4016,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   buildStatRows();updateRenown();updateCreditsUI();updateStressUI();updateTrauma();renderTraits();updateTMWPool();
   showShopCat('weapons',document.querySelector('.shop-cats .scat'));
   showCodexCat('histories',document.querySelector('.codex-cats .scat'));
-  updateCombatUI();renderEnemies();
+  updateCombatUI();renderEnemies();updateMapClickModeUI();updateSkirmishRoundUI();resetSkirmishActions();
   if(typeof renderOSHacksPanel==='function')renderOSHacksPanel();
   if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
   if(typeof renderAugmentationsPanel==='function')renderAugmentationsPanel();
@@ -4192,11 +4270,12 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   function buildQPChar() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
-    var stress = S.stress || 0;
+    var health = (typeof S.health === 'number') ? S.health : (S.stress || 0);
+    var mentalStress = (typeof S.mentalStress === 'number') ? S.mentalStress : 0;
     var defendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : ((S.stats && S.stats.defend) ? S.stats.defend : 4);
-    var maxStress = defendDie * 2;
+    var maxHealth = defendDie * 2;
     var trauma = S.trauma || 0;
-    var pct = Math.min(100, Math.round(stress / maxStress * 100));
+    var pct = Math.min(100, Math.round(health / maxHealth * 100));
     var barColor = pct >= 80 ? 'var(--red)' : pct >= 50 ? 'var(--gold)' : 'var(--green2)';
 
     var condsDef = [
@@ -4215,13 +4294,16 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;justify-content:space-between;font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">'
-        + '<span>Stress</span><span style="color:'+barColor+';">'+stress+'/'+maxStress+'</span></div>'
+        + '<span>Health</span><span style="color:'+barColor+';">'+health+'/'+maxHealth+'</span></div>'
       + '<div style="height:8px;background:var(--surface);border:1px solid var(--border);margin-bottom:.3rem;">'
         + '<div style="height:100%;width:'+pct+'%;background:'+barColor+';transition:width .3s;"></div></div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.3rem;">Max Stress = 2× Defend Die (d'+defendDie+' = '+maxStress+')</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.3rem;">Max Health = 2× Defend Die (d'+defendDie+' = '+maxHealth+')</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.3rem;">Mental Stress: <span style="color:var(--purple);">'+mentalStress+'/20</span></div>'
       + '<div style="display:flex;gap:.3rem;align-items:center;">'
-        + '<button class="btn btn-xs btn-red" onclick="if(typeof changeStress===\'function\')changeStress(1);renderQP(\'char\')">+1 Stress</button>'
-        + '<button class="btn btn-xs btn-green" onclick="if(typeof changeStress===\'function\')changeStress(-1);renderQP(\'char\')">−1 Stress</button>'
+        + '<button class="btn btn-xs btn-red" onclick="if(typeof changeHealth===\'function\')changeHealth(1);else if(typeof changeStress===\'function\')changeStress(1);renderQP(\'char\')">+1 Damage</button>'
+        + '<button class="btn btn-xs btn-green" onclick="if(typeof changeHealth===\'function\')changeHealth(-1);else if(typeof changeStress===\'function\')changeStress(-1);renderQP(\'char\')">−1 Damage</button>'
+        + '<button class="btn btn-xs" onclick="if(typeof changeMentalStress===\'function\')changeMentalStress(1);renderQP(\'char\')">+ Stress</button>'
+        + '<button class="btn btn-xs btn-green" onclick="if(typeof changeMentalStress===\'function\')changeMentalStress(-1);renderQP(\'char\')">− Stress</button>'
         + '<span style="font-size:.75rem;color:var(--red);margin-left:auto;">Trauma: '+trauma+'</span>'
         + '<button class="btn btn-xs btn-red" onclick="if(typeof changeTrauma===\'function\')changeTrauma(1);renderQP(\'char\')">+ Trauma</button>'
         + '<button class="btn btn-xs btn-green" onclick="if(typeof changeTrauma===\'function\')changeTrauma(-1);renderQP(\'char\')">− Trauma</button>'
@@ -4287,6 +4369,15 @@ document.addEventListener('DOMContentLoaded',()=>{
     var questDone = !!(holdingQuest.step3Completed && !holdingQuest.failed);
     var holdingEstablished = !!(S.holding && (S.holding.established || questDone));
     var renown = Number(S.renown || 0);
+    var dateText = (typeof getGameDatePhaseText === 'function') ? getGameDatePhaseText() : 'Month 1, Day 1, Year 1 — Morning';
+    var clicksPerDay = (typeof getProvinceTravelClicksPerDay === 'function') ? getProvinceTravelClicksPerDay() : 3;
+    var travelMode = clicksPerDay >= 9 ? 'Boat / Large Caravan' : (clicksPerDay >= 6 ? 'Horse / Small-Medium Caravan' : 'On Foot');
+    var travelSummary = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .5rem;margin-bottom:.55rem;">'
+      + '<div style="font-size:.7rem;color:var(--gold2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;">Travel Clock</div>'
+      + '<div style="font-size:.74rem;color:var(--text2);margin-top:.15rem;">' + dateText + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;">Province pace: ' + clicksPerDay + ' hex clicks / day (' + travelMode + ')</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);">Last Sea ship pace: 1 hex click = 1 week</div>'
+      + '</div>';
     var jobsHtml = '<div style="margin-bottom:.55rem;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.3rem;">'
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;">Mission Board</div>'
@@ -4379,7 +4470,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '</div>';
     }).join('') : '<div style="font-size:.78rem;color:var(--muted2);">No active missions yet.</div>';
 
-    return jobsHtml
+    return travelSummary
+      + jobsHtml
       + holdingHtml
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Active Missions</div>'
       + activeHtml;

@@ -9,6 +9,13 @@ function switchTab(tabId, btn) {
   if (btn) {
     btn.classList.add("active");
   }
+  // Lazily mount feature panels on first visit
+  if (tabId === "holding" && typeof mountHoldingPanel === "function") {
+    mountHoldingPanel();
+  }
+  if (tabId === "caravan" && typeof mountCaravanPanel === "function") {
+    mountCaravanPanel();
+  }
 }
 
 function setInputValue(id, value) {

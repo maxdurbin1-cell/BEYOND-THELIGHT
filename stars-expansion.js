@@ -575,6 +575,100 @@ const STAR_LOCATION_BY_RING = {
   ],
 };
 
+const STAR_LOCATION_DETAILS = {
+  inner: [
+    { name: 'Helios Farm Relay', services: 'Fuel rationing, med-bay triage, seed vault contracts.', hook: 'The solar greenhouse is failing and needs escort parts from the middle ring.' },
+    { name: 'Solar Mirror Foundry', services: 'Hull plating, reflective armor mods, precision tools.', hook: 'A mirror array now points at a forbidden moon colony at fixed dusk.' },
+    { name: 'Sunline Data Shrine', services: 'Oracle archives, legal charter copies, encrypted comm access.', hook: 'A monk offers old collapse coordinates in exchange for recovering a stolen reliquary.' },
+    { name: 'Thermal Crown Refinery', services: 'Standard fuel, reactor balancing, hazard pay missions.', hook: 'The refinery wants a team to clear raiders from a nearby processing spur.' },
+  ],
+  middle: [
+    { name: 'Orbital Research Lattice', services: 'Prototype scanners, anomaly dossiers, science contracts.', hook: 'A lattice pod reports impossible life-sign loops from a sealed ring segment.' },
+    { name: 'Colony Ring Habitat', services: 'Crew hiring hall, cargo swaps, social recovery downtime.', hook: 'A labor strike could become a skirmish unless both sides are escorted to talks.' },
+    { name: 'Archive Habitat 7', services: 'Map libraries, old-world records, translation stations.', hook: 'An archive map points to a dead moon vault marked do-not-open.' },
+    { name: 'Merchant Halo Port', services: 'Full trade post, ship repairs, cargo brokerage.', hook: 'A broker offers double pay if you carry disputed medicine through pirate space.' },
+  ],
+  outer: [
+    { name: 'Icebound Archive', services: 'Cryo-storage vaults, emergency shelter, sparse intel.', hook: 'A frozen chamber contains a live distress capsule with a corporate kill order attached.' },
+    { name: 'Graveyard Dock', services: 'Salvage market, black-ops buyers, recycled modules.', hook: 'A buyer requests proof from a derelict marked by your faction enemies.' },
+    { name: 'Drift Market Anchorage', services: 'Contraband exchange, temporary docking, mercenary rumors.', hook: 'Three factions bid for the same artifact before sunset cycle.' },
+    { name: 'Warden Beacon Outpost', services: 'Navigation relay, patrol logs, safe jump vectors.', hook: 'The beacon warns of an incoming militant convoy demanding inspections.' },
+  ],
+};
+
+const STAR_SKIRMISH_CAUSES = [
+  'territory dispute over fuel lanes',
+  'religious blockade on pilgrim traffic',
+  'salvage rights argument near a derelict belt',
+  'retaliation after a broken escort contract',
+  'spy extraction gone loud in open orbit',
+  'debt enforcement by a pirate syndicate',
+];
+
+const STAR_SKIRMISH_STAKES = [
+  'winner controls docking rights for 30 days',
+  'loser pays 2d6x10 credits in reparations',
+  'neutral colonies lose access to medicine',
+  'trade route between two rings is cut',
+  'hostages are executed if no deal is reached',
+  'a major power will intervene if battle escalates',
+];
+
+const STAR_DOWNTIME_ACTIONS = {
+  repairs: {
+    label: 'Patch Ship Systems',
+    check: 'Control vs DD6',
+    success: () => {
+      const maxShields = (S.starship.defendDie || 6) * 2;
+      S.starship.shields = Math.max(0, Math.min(maxShields, (S.starship.shields || 0) - 2));
+      updateStarshipUI();
+      return 'Repairs hold. Reduce ship shield damage by 2.';
+    },
+    failure: () => {
+      if (typeof changeStress === 'function') changeStress(1);
+      return 'A coolant flare injures the team. +1 Health damage to the Wayfarer.';
+    },
+  },
+  drill: {
+    label: 'Run Crew Drill',
+    check: 'Lead vs DD6',
+    success: () => {
+      if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+      return 'Crew cohesion improves. +1 Teamwork Point.';
+    },
+    failure: () => {
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      return 'Tempers flare during the drill. +1 Mental Stress.';
+    },
+  },
+  salvage: {
+    label: 'Sweep Nearby Debris',
+    check: 'Mind vs DD8',
+    success: () => {
+      const credits = (roll(6) + 1) * 10;
+      const fuelFound = roll(4) === 4;
+      if (typeof changeCredits === 'function') changeCredits(credits);
+      if (fuelFound) S.starship.fuel.standard = (S.starship.fuel.standard || 0) + 1;
+      updateStarshipUI();
+      return `Recovered caches worth ${credits} credits${fuelFound ? ' and 1 Standard Fuel.' : '.'}`;
+    },
+    failure: () => {
+      if (typeof changeRads === 'function') changeRads(50);
+      return 'Salvage team hits a hot pocket. +50 Radiation.';
+    },
+  },
+  rest: {
+    label: 'Quiet Rest Cycle',
+    check: 'No roll',
+    success: () => {
+      if (typeof changeStress === 'function') changeStress(-1);
+      if (typeof changeMentalStress === 'function') changeMentalStress(-2);
+      return 'Crew decompresses. Recover 1 Health damage and 2 Mental Stress.';
+    },
+    failure: () => 'Rest completed without incident.',
+  },
+};
+
 const DEAD_MOON_DIRECTIONS = {
   north: ['Tower', 'Wreckage', 'Forgotten Orchard', 'Collapsed Lab'],
   south: ['Dead Gateway', 'Abandoned Lab', 'Engine Room', 'Observation Dome'],
@@ -1010,6 +1104,96 @@ function rollDerelictShipModule() {
   }
 }
 
+function buildGalaxyLocationDetail(ring) {
+  const entries = STAR_LOCATION_DETAILS[ring] || STAR_LOCATION_DETAILS.middle;
+  const entry = entries[roll(entries.length) - 1];
+  return `
+    <div style="font-size:.75rem;color:var(--gold2);">Location: ${entry.name}</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.15rem;">
+      Services: ${entry.services}<br>
+      Hook: ${entry.hook}<br>
+      Landing at this location repairs hull stress and grants merchant access.
+    </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs btn-teal" onclick="landAtGalaxyLocation()">Land (+1 Travel Day)</button>
+    </div>`;
+}
+
+function landAtGalaxyLocation() {
+  ensureStarsState();
+  S.starship.shields = 0;
+  updateStarshipUI();
+  registerStarshipTravelDays(1);
+  showNotif('Docked successfully: hull stress reset and travel day advanced.', 'good');
+}
+
+function buildGalaxySkirmishDetail() {
+  const factions = (S.starSystem.factions || []).slice(0, 2);
+  const left = factions[0] || pick(['Dustline Pirates', 'Vanta Runners', 'Frontier Militia']);
+  const right = factions[1] || pick(['Crown Patrol', 'Null Saints', 'Free Orbit Assembly']);
+  const cause = pick(STAR_SKIRMISH_CAUSES);
+  const stakes = pick(STAR_SKIRMISH_STAKES);
+  const zone = pick(COMBAT_ZONES_PRESETS);
+  return `
+    <div style="font-size:.75rem;color:var(--gold2);">Skirmish Contact</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.15rem;">
+      Sides: <strong>${left}</strong> vs <strong>${right}</strong><br>
+      Cause: ${cause}<br>
+      Stakes: ${stakes}<br>
+      Suggested battlefield: <strong>${zone.name}</strong> (${zone.desc})
+    </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs btn-teal" onclick="switchTab('combat', document.querySelector(\".tab-btn[onclick*=\\\"combat\\\"]\"))">Go To Combat Tab</button>
+    </div>`;
+}
+
+function buildUneventfulVoyageDetail() {
+  return `
+    <div style="font-size:.75rem;color:var(--gold2);">Uneventful Voyage</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.15rem;">
+      No hostile contact. Crew may perform one downtime action while crossing this lane.
+    </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs" onclick="resolveGalaxyDowntimeAction('repairs')">Patch Ship Systems</button>
+      <button class="btn btn-xs" onclick="resolveGalaxyDowntimeAction('drill')">Run Crew Drill</button>
+      <button class="btn btn-xs" onclick="resolveGalaxyDowntimeAction('salvage')">Sweep Debris</button>
+      <button class="btn btn-xs btn-teal" onclick="resolveGalaxyDowntimeAction('rest')">Quiet Rest</button>
+    </div>
+    <div style="font-size:.7rem;color:var(--muted2);margin-top:.25rem;">Each downtime action advances +1 Starship Travel Day.</div>`;
+}
+
+function resolveGalaxyDowntimeAction(actionId) {
+  ensureStarsState();
+  const action = STAR_DOWNTIME_ACTIONS[actionId];
+  const out = document.getElementById('starExplorationDetail');
+  if (!action || !out) return;
+
+  let success = true;
+  let actionResult = '';
+  if (actionId === 'rest') {
+    actionResult = action.success();
+  } else {
+    const statKey = actionId === 'repairs' ? 'control' : (actionId === 'drill' ? 'lead' : 'mind');
+    const die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) || 4);
+    const actionRoll = explodingRoll(die);
+    const dreadRoll = explodingRoll(actionId === 'salvage' ? 8 : 6);
+    success = actionRoll.total >= dreadRoll.total;
+    actionResult = success ? action.success() : action.failure();
+    if (success && typeof addSuccessRoll === 'function') addSuccessRoll();
+    if (!success && typeof addTMWOnFail === 'function') addTMWOnFail();
+    actionResult = `${action.check}: d${die}=${actionRoll.total} vs DD${actionId === 'salvage' ? 8 : 6}=${dreadRoll.total}. ${actionResult}`;
+  }
+
+  registerStarshipTravelDays(1);
+  out.innerHTML = `
+    <div style="font-size:.75rem;color:${success ? 'var(--green2)' : 'var(--red2)'};">Downtime: ${action.label}</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.15rem;">${actionResult}</div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs btn-teal" onclick="rollStarSystemExploration()">Continue Exploring</button>
+      <button class="btn btn-xs" onclick="resolveGalaxyDowntimeAction('${actionId}')">Repeat Action</button>
+    </div>`;
+}
+
 function buildStarExplorationDetail(ring, outcome) {
   if (outcome === 'Mystery') {
     return `Mystery: ${pick(STAR_MYSTERY_SNIPPETS)}`;
@@ -1044,8 +1228,7 @@ function buildStarExplorationDetail(ring, outcome) {
       <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">${e.options.map(o => '• ' + o).join('<br>')}</div>`;
   }
   if (outcome === 'Locations') {
-    const loc = pick(STAR_LOCATION_BY_RING[ring] || STAR_LOCATION_BY_RING.middle);
-    return `Location: ${loc}. Space Port landing repairs Starship Hull automatically and grants access to Merchant Trade Post.`;
+    return buildGalaxyLocationDetail(ring);
   }
   if (outcome === 'Dead Moon') {
     const dm = createDeadMoonState();
@@ -1059,7 +1242,7 @@ function buildStarExplorationDetail(ring, outcome) {
       </div>`;
   }
   if (outcome === 'Skirmish') {
-    return 'Skirmish: use current Skirmish rules. Determine factions and battlefield from the selected hex context.';
+    return buildGalaxySkirmishDetail();
   }
   if (outcome === 'Derelict Ship') {
     const ds = createDerelictShipState();
@@ -1071,7 +1254,7 @@ function buildStarExplorationDetail(ring, outcome) {
         <button class="btn btn-xs btn-teal" onclick="rollDerelictShipModule()">Explore Module</button>
       </div>`;
   }
-  return 'Uneventful Voyage: crew may perform downtime activities; no hostile contact.';
+  return buildUneventfulVoyageDetail();
 }
 
 function starHexDistance(a, b) {
@@ -1992,11 +2175,11 @@ function getGameDatePhaseText() {
 function updateDateUI() {
   ensureStarsState();
   updateCharacterAgeProgressUI();
-  const el = document.getElementById('gameDateDisplay');
-  if (el) {
-    const d = S.gameDate;
-    el.textContent = `Month ${d.month}, Day ${d.day}, Year ${d.year} — ${getCurrentPhaseLabel()}`;
-  }
+  const d = S.gameDate;
+  ['gameDateDisplay', 'gameDateDisplayGalaxy'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = `Month ${d.month}, Day ${d.day}, Year ${d.year} — ${getCurrentPhaseLabel()}`;
+  });
   const mapEl = document.getElementById('mapTimeDisplay');
   if (mapEl) {
     mapEl.textContent = getGameDatePhaseText();
@@ -2469,6 +2652,80 @@ function buildOraclePanel() {
 </div>`;
 }
 
+function getGalaxySystemPanelMarkup() {
+  return `
+<div class="card" style="max-width:940px;">
+  <div class="section-title">🛰 Galaxy Wilderness Exploration</div>
+  <div style="font-size:.76rem;color:var(--muted2);line-height:1.6;margin-bottom:.45rem;">
+    Rings: Inner (6), Middle (12), Outer (18). Roll wilderness outcomes, resolve encounters, and track travel radio events.
+  </div>
+  <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.45rem;">
+    <select id="starGalaxyType" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.74rem;">
+      <option value="cluster">Cluster</option>
+      <option value="spiral">Spiral</option>
+      <option value="elliptical">Elliptical</option>
+    </select>
+    <button class="btn btn-sm btn-teal" onclick="generateStarSystemMap((document.getElementById('starGalaxyType')||{}).value)">Generate Galaxy Map</button>
+    <span style="font-size:.72rem;color:var(--muted2);">Main Star: <strong id="starMainStar" style="color:var(--gold2);"></strong></span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:.55rem;">
+    <div>
+      <div id="starSystemMap"></div>
+      <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.4rem;">
+        ${Object.entries(STAR_SIGHTING_COLORS).filter(([k]) => k !== 'star').map(([k, v]) => `<span style="font-size:.64rem;padding:.08rem .3rem;border:1px solid var(--border2);color:${v.color};">${v.label}</span>`).join('')}
+      </div>
+    </div>
+
+    <div>
+      <div class="sub-label">Wilderness Roll (Ring Table)</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;">
+        <select id="starRingSelect" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.74rem;">
+          <option value="inner">Inner Ring</option>
+          <option value="middle" selected>Middle Ring</option>
+          <option value="outer">Outer Ring</option>
+        </select>
+        <button class="btn btn-xs btn-teal" onclick="rollStarSystemExploration()">⚄ Explore (d10)</button>
+      </div>
+      <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-bottom:.35rem;"></div>
+      <div id="starExplorationDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:3rem;padding:.35rem;border:1px solid var(--border);background:rgba(255,255,255,.01);"></div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.25rem;">
+        <div class="sub-label">System Analysis (Mind/Control vs DD8)</div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin:.2rem 0 .25rem 0;">
+          <button class="btn btn-xs" onclick="runSystemAnalysisCheck()">Analyze Selected Hex</button>
+          <button class="btn btn-xs" onclick="registerStarshipTravelDays(1)">+1 Starship Travel Day</button>
+          <button class="btn btn-xs" onclick="registerStarshipTravelDays(5)">+1 Starship Week</button>
+        </div>
+        <div id="starAnalysisResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;"></div>
+      </div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
+        <div class="sub-label">Cosmic Weather</div>
+        <button class="btn btn-xs" onclick="rollStarSystemWeather()">⚄ Roll Cosmic Weather</button>
+        <div id="starWeatherResult" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1rem;margin-top:.2rem;"></div>
+      </div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
+        <div class="sub-label">Selected Hex</div>
+        <div id="starSystemHexDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1.6rem;"></div>
+      </div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
+        <div class="sub-label">Major Powers & Factions</div>
+        <div id="starSystemPowers" style="font-size:.74rem;color:var(--muted2);line-height:1.45;"></div>
+      </div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
+        <div class="sub-label">Isolated Travelers Radio</div>
+        <button class="btn btn-xs btn-teal" onclick="rollMonthlyStarRadioEvent()">⚄ Force Monthly Radio Roll</button>
+        <div id="starSystemRadioLog" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1rem;margin-top:.2rem;"></div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
 function buildStarshipPanel() {
   const target = document.getElementById('starsStarshipPanel');
   if (!target) return;
@@ -2529,77 +2786,20 @@ function buildStarshipPanel() {
   </div>
 </div>`;
 
-  target.innerHTML += `
-<div class="card" style="max-width:900px;margin-top:.75rem;">
-  <div class="section-title">🛰 Star System Map (Scaffold)</div>
-  <div style="font-size:.76rem;color:var(--muted2);line-height:1.6;margin-bottom:.45rem;">
-    Rings: Inner (6), Middle (12), Outer (18). This scaffold supports ring exploration rolls, system analysis, sightings, trade routes, and monthly starship radio events.
-  </div>
-  <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.45rem;">
-    <select id="starGalaxyType" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.74rem;">
-      <option value="cluster">Cluster</option>
-      <option value="spiral">Spiral</option>
-      <option value="elliptical">Elliptical</option>
-    </select>
-    <button class="btn btn-sm btn-teal" onclick="generateStarSystemMap((document.getElementById('starGalaxyType')||{}).value)">Generate Star System</button>
-    <span style="font-size:.72rem;color:var(--muted2);">Main Star: <strong id="starMainStar" style="color:var(--gold2);"></strong></span>
-  </div>
+  if (!document.getElementById('starsGalaxyPanel')) {
+    target.innerHTML += `<div style="margin-top:.75rem;">${getGalaxySystemPanelMarkup()}</div>`;
+  }
 
-  <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:.55rem;">
-    <div>
-      <div id="starSystemMap"></div>
-      <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.4rem;">
-        ${Object.entries(STAR_SIGHTING_COLORS).filter(([k]) => k !== 'star').map(([k, v]) => `<span style="font-size:.64rem;padding:.08rem .3rem;border:1px solid var(--border2);color:${v.color};">${v.label}</span>`).join('')}
-      </div>
-    </div>
+  const mainStarEl = document.getElementById('starMainStar');
+  if (mainStarEl) mainStarEl.textContent = S.starSystem && S.starSystem.mainStar ? S.starSystem.mainStar : 'Uncharted';
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+}
 
-    <div>
-      <div class="sub-label">Exploration Roll (Ring Table)</div>
-      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;">
-        <select id="starRingSelect" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.74rem;">
-          <option value="inner">Inner Ring</option>
-          <option value="middle" selected>Middle Ring</option>
-          <option value="outer">Outer Ring</option>
-        </select>
-        <button class="btn btn-xs btn-teal" onclick="rollStarSystemExploration()">⚄ Explore (d10)</button>
-      </div>
-      <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-bottom:.35rem;"></div>
-      <div id="starExplorationDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:3rem;padding:.35rem;border:1px solid var(--border);background:rgba(255,255,255,.01);"></div>
-
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.25rem;">
-        <div class="sub-label">System Analysis (Mind/Control vs DD8)</div>
-        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin:.2rem 0 .25rem 0;">
-          <button class="btn btn-xs" onclick="runSystemAnalysisCheck()">Analyze Selected Hex</button>
-          <button class="btn btn-xs" onclick="registerStarshipTravelDays(1)">+1 Starship Travel Day</button>
-          <button class="btn btn-xs" onclick="registerStarshipTravelDays(5)">+1 Starship Week</button>
-        </div>
-        <div id="starAnalysisResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;"></div>
-      </div>
-
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
-        <div class="sub-label">Cosmic Weather</div>
-        <button class="btn btn-xs" onclick="rollStarSystemWeather()">⚄ Roll Cosmic Weather</button>
-        <div id="starWeatherResult" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1rem;margin-top:.2rem;"></div>
-      </div>
-
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
-        <div class="sub-label">Selected Hex</div>
-        <div id="starSystemHexDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1.6rem;"></div>
-      </div>
-
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
-        <div class="sub-label">Major Powers & Factions</div>
-        <div id="starSystemPowers" style="font-size:.74rem;color:var(--muted2);line-height:1.45;"></div>
-      </div>
-
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
-        <div class="sub-label">Isolated Travelers Radio</div>
-        <button class="btn btn-xs btn-teal" onclick="rollMonthlyStarRadioEvent()">⚄ Force Monthly Radio Roll</button>
-        <div id="starSystemRadioLog" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1rem;margin-top:.2rem;"></div>
-      </div>
-    </div>
-  </div>
-</div>`;
+function buildGalaxyPanel() {
+  const target = document.getElementById('starsGalaxyPanel');
+  if (!target) return;
+  target.innerHTML = getGalaxySystemPanelMarkup();
 
   const mainStarEl = document.getElementById('starMainStar');
   if (mainStarEl) mainStarEl.textContent = S.starSystem && S.starSystem.mainStar ? S.starSystem.mainStar : 'Uncharted';
@@ -2673,12 +2873,18 @@ function buildStarsCombatPanel() {
 }
 
 function buildDateTimePanel() {
-  const target = document.getElementById('starsDatePanel');
-  if (!target) return;
-  target.innerHTML = `
+  const targets = [
+    { id: 'starsDatePanel', displayId: 'gameDateDisplay' },
+    { id: 'starsDatePanelGalaxy', displayId: 'gameDateDisplayGalaxy' },
+  ];
+
+  targets.forEach(({ id, displayId }) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    target.innerHTML = `
 <div class="card">
   <div class="section-title">📅 Date &amp; Time</div>
-  <div style="font-size:.82rem;color:var(--muted3);margin-bottom:.5rem;" id="gameDateDisplay">Day 1, Month 1, Year 1</div>
+  <div style="font-size:.82rem;color:var(--muted3);margin-bottom:.5rem;" id="${displayId}">Day 1, Month 1, Year 1</div>
   <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.45rem;">
     <button class="btn btn-sm btn-teal" onclick="advanceDay(1)">+1 Day</button>
     <button class="btn btn-sm" onclick="advanceDay(5)">+1 Week (5 days)</button>
@@ -2695,6 +2901,7 @@ function buildDateTimePanel() {
     </div>
   </div>
 </div>`;
+  });
 }
 
 // ── ADD SHOP DATA ─────────────────────────────────────────────────────────────
@@ -2745,6 +2952,7 @@ document.addEventListener('DOMContentLoaded', function() {
   buildStarsCharacterPanels();
   buildOraclePanel();
   buildStarshipPanel();
+  buildGalaxyPanel();
   buildStarsCombatPanel();
   buildDateTimePanel();
 

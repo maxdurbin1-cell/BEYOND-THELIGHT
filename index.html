@@ -235,14 +235,16 @@ select option{background:#0f1020;}
     <button class="ctx-btn on" onclick="setContext('traveling',this)">🌍 Traveling</button>
     <button class="ctx-btn" onclick="setContext('holding',this)">🏰 Holding</button>
     <button class="ctx-btn" onclick="setContext('sea',this)">⚓ At Sea</button>
+    <button class="ctx-btn" onclick="setContext('space',this)">🚀 Space</button>
   </div>
   <nav>
     <button class="tab-btn active" onclick="switchTab('character',this)">Character</button>
     <button class="tab-btn" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
+    <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
-    <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
+    <button class="tab-btn ctx-sea ctx-space" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn" onclick="switchTab('dice',this)">Dice</button>
@@ -587,6 +589,12 @@ select option{background:#0f1020;}
 
 <!-- LAST SEA TAB -->
 <div class="tab-panel" id="tab-lastsea"></div>
+
+<!-- GALAXY TAB -->
+<div class="tab-panel" id="tab-galaxy">
+  <div id="starsGalaxyPanel" style="padding:.85rem;max-width:980px;"></div>
+  <div id="starsDatePanelGalaxy" style="padding:.85rem;max-width:460px;"></div>
+</div>
 
 <!-- COMBAT TAB -->
 <div class="tab-panel" id="tab-combat">

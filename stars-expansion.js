@@ -385,9 +385,15 @@ function updateHealthUI() {
 
 function changeMentalStress(delta) {
   ensureStarsState();
-  S.mentalStress = Math.max(0, Math.min(20, (S.mentalStress || 0) + delta));
+  const before = S.mentalStress || 0;
+  S.mentalStress = Math.max(0, Math.min(20, before + delta));
   updateMentalStressUI();
   checkStressThreshold();
+  if (delta > 0 && S.mentalStress > before) {
+    rollNervousTic();
+    rollObsession();
+    showNotif('Psych Profile shifted: rolled Nervous Tic + Obsession.', 'warn');
+  }
 }
 
 function clearMentalStress() {
@@ -492,14 +498,20 @@ function updateRadsUI() {
 function rollInjury() {
   ensureStarsState();
   const result = INJURIES_D20[roll(20) - 1];
-  showNotif(`Injury: ${result}`, 'warn');
+  let finalResult = result;
+  if (result.indexOf('Critical') === 0) {
+    finalResult = 'CRITICAL: ' + CRITICAL_INJURIES_D10[roll(10) - 1];
+    showNotif(`Critical Injury: ${finalResult.replace('CRITICAL: ', '')}`, 'warn');
+  } else {
+    showNotif(`Injury: ${finalResult}`, 'warn');
+  }
   if (S.injuries.length < 3) {
-    S.injuries.push(result);
+    S.injuries.push(finalResult);
     updateInjuriesUI();
   } else {
     showNotif('3 Injuries reached — character is DEAD.', 'warn');
   }
-  return result;
+  return finalResult;
 }
 
 function rollCriticalInjury() {
@@ -513,6 +525,12 @@ function rollCriticalInjury() {
     showNotif('3 Injuries reached — character is DEAD.', 'warn');
   }
   return result;
+}
+
+function registerIncomingCritical(sourceLabel) {
+  const source = sourceLabel || 'Dread Crit';
+  showNotif(`${source}: rolling Injury (d20).`, 'warn');
+  return rollInjury();
 }
 
 function clearInjury(idx) {
@@ -842,11 +860,9 @@ function rollObsession() {
 // ── HTML PANEL BUILDERS ───────────────────────────────────────────────────────
 
 function buildStarsCharacterPanels() {
-  // Inject into #starsCharPanels div (added to index.html)
-  const target = document.getElementById('starsCharPanels');
-  if (!target) return;
-  target.innerHTML = `
-<!-- HEALTH (renamed Stress) -->
+  const resourceTarget = document.getElementById('starsResourceVitalityPanels');
+  if (resourceTarget) {
+    resourceTarget.innerHTML = `
 <div class="card">
   <div class="section-title">Health &amp; Vitality</div>
   <div style="margin-bottom:.5rem;">
@@ -867,7 +883,6 @@ function buildStarsCharacterPanels() {
     <div class="stress-track" id="healthPips"></div>
   </div>
 
-  <!-- MENTAL STRESS (new system) -->
   <div style="margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">
       <span class="sub-label" style="margin-bottom:0;">Mental Stress <span style="font-size:.62rem;color:var(--muted2);">/ 20</span></span>
@@ -886,7 +901,6 @@ function buildStarsCharacterPanels() {
     <div style="font-size:.75rem;margin-top:.3rem;" id="stressTierDisplay"><span style="color:var(--muted2);">Stable</span></div>
   </div>
 
-  <!-- RADIATION -->
   <div style="margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">
       <span class="sub-label" style="margin-bottom:0;">Radiation ☢</span>
@@ -902,20 +916,22 @@ function buildStarsCharacterPanels() {
     <div style="font-size:.7rem;color:var(--muted2);margin-top:.15rem;">Without RadSuit: d100 Rads per Phase in irradiated areas.</div>
   </div>
 
-  <!-- INJURIES -->
   <div style="margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
       <span class="sub-label" style="margin-bottom:0;">Injuries <span style="font-size:.62rem;color:var(--muted2);">(max 3 before death)</span></span>
       <div style="display:flex;gap:.25rem;">
-        <button class="btn btn-sm btn-red" onclick="rollInjury()">⚄ d20 Injury</button>
-        <button class="btn btn-sm" onclick="rollCriticalInjury()">⚄ d10 Critical</button>
+        <button class="btn btn-sm btn-red" onclick="registerIncomingCritical('Incoming Critical')">Apply Incoming Crit</button>
       </div>
     </div>
+    <div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;line-height:1.5;">Injuries roll when a Critical hits the Wayfarer (Combat Dread Crit).</div>
     <div id="injuriesDisplay"><div style="font-size:.77rem;color:var(--muted2);">No injuries.</div></div>
   </div>
-</div>
+</div>`;
+  }
 
-<!-- MENTAL STRESS DETAILS -->
+  const target = document.getElementById('starsCharPanels');
+  if (!target) return;
+  target.innerHTML = `
 <div class="card">
   <div class="section-title">Psyche Profile</div>
   <div style="margin-bottom:.5rem;">
@@ -947,6 +963,54 @@ function buildStarsCharacterPanels() {
   <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Completing quests grants +1 with one faction and −1 with another. Range: −10 to +12.</div>
   <div id="factionRenownDisplay"></div>
 </div>`;
+}
+
+function getHighestFactionRenown() {
+  ensureStarsState();
+  return Object.values(S.factionRenown || {}).reduce((mx, val) => Math.max(mx, Number(val) || 0), 0);
+}
+
+function hasHoldingFactionThreshold() {
+  return getHighestFactionRenown() >= 9;
+}
+
+function tryUnlockHoldingFromFaction() {
+  if (!hasHoldingFactionThreshold()) return;
+  if (typeof renderHoldingUI === 'function') {
+    try { renderHoldingUI(); } catch (err) {}
+  }
+  if (typeof renderMissionBoard === 'function') {
+    try { renderMissionBoard(); } catch (err) {}
+  }
+}
+
+function patchStarsCrossSystemHooks() {
+  const baseRollCheck = typeof rollCheck === 'function' ? rollCheck : null;
+  if (baseRollCheck && !window._starsRollCheckPatched) {
+    window._starsRollCheckPatched = true;
+    rollCheck = function() {
+      const beforeCount = (S && Array.isArray(S.injuries)) ? S.injuries.length : 0;
+      const out = baseRollCheck.apply(this, arguments);
+      const noteEl = document.getElementById('resNote');
+      const noteText = noteEl ? String(noteEl.textContent || '') : '';
+      if (noteText.indexOf('Dread die exploded') >= 0) {
+        registerIncomingCritical('Dread Critical');
+      }
+      const afterCount = (S && Array.isArray(S.injuries)) ? S.injuries.length : beforeCount;
+      if (afterCount > beforeCount) updateInjuriesUI();
+      return out;
+    };
+  }
+
+  const baseResolveMission = typeof resolveMission === 'function' ? resolveMission : null;
+  if (baseResolveMission && !window._starsResolveMissionPatched) {
+    window._starsResolveMissionPatched = true;
+    resolveMission = function(missionId, success) {
+      const out = baseResolveMission.apply(this, arguments);
+      if (success) tryUnlockHoldingFromFaction();
+      return out;
+    };
+  }
 }
 
 function rollStressReaction() {
@@ -1199,6 +1263,7 @@ function injectStarsShopData() {
 document.addEventListener('DOMContentLoaded', function() {
   ensureStarsState();
   injectStarsShopData();
+  patchStarsCrossSystemHooks();
 
   // Build panels
   buildStarsCharacterPanels();
@@ -1258,3 +1323,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   renderStarsCombatZone(1);
 });
+
+window.getHighestFactionRenown = getHighestFactionRenown;
+window.hasHoldingFactionThreshold = hasHoldingFactionThreshold;

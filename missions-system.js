@@ -90,6 +90,13 @@
   var MISSION_VERBS   = ['Hunt','Guard','Rescue','Deliver','Investigate','Eliminate','Retrieve','Escort','Sabotage','Recover'];
   var MISSION_TARGETS = ['Bandits','Beasts','Refugees','Cargo','Mutineers','Threats','Artifacts','a VIP','Deserters','a Rival'];
   var MISSION_LOCS    = ['Forest Outpost','Mountain Pass','Ancient Ruins','Riverside Town','Hidden Camp','Abandoned Temple','Deep Cave','Border Shrine','Trade Road','Iron Mine'];
+  var MISSION_FACTION_CONFLICTS = [
+    { gain:'corporations', lose:'underworld', gainName:'Corporations',       loseName:'The Underworld' },
+    { gain:'religious',    lose:'corporations', gainName:'Religious Entities', loseName:'Corporations' },
+    { gain:'political',    lose:'military', gainName:'Political Groups',     loseName:'Military Orders' },
+    { gain:'military',     lose:'religious', gainName:'Military Orders',     loseName:'Religious Entities' },
+    { gain:'underworld',   lose:'political', gainName:'The Underworld',      loseName:'Political Groups' }
+  ];
 
   var GUARD_NAMES = ['Warden Skell','Captain Mira','Enforcer Bonn','Sentinel Garr','Guard Voss','Warden Thane','Blade-for-hire Coll','Sentinel Ruk','Agent Sera','Watcher Drev','Constable Fenn','Marksman Ord'];
   var TARGET_NAMES = ['Lord Kastian','The Grey Merchant','Warden Cress','Elder Vorn','Captain Halved','The Iron Buyer','Countess Daela','Agent Zero','Baron Fell','Treasurer Olin','The Pale Architect','Commander Dusk'];
@@ -209,11 +216,32 @@
     return guards;
   }
 
-  function makeMission(title, difficulty, location, region) {
+  function pickFactionConflict() {
+    return pick(MISSION_FACTION_CONFLICTS);
+  }
+
+  function applyFactionStandingDelta(gainKey, loseKey) {
+    if (!gainKey || !loseKey) { return; }
+    if (typeof changeFactionRenown === 'function') {
+      changeFactionRenown(gainKey, 1);
+      changeFactionRenown(loseKey, -1);
+      return;
+    }
+    S.factionRenown = S.factionRenown || { corporations:0, religious:0, political:0, military:0, underworld:0 };
+    S.factionRenown[gainKey] = Math.max(-10, Math.min(12, (S.factionRenown[gainKey] || 0) + 1));
+    S.factionRenown[loseKey] = Math.max(-10, Math.min(12, (S.factionRenown[loseKey] || 0) - 1));
+  }
+
+  function makeMission(title, difficulty, location, region, factionData) {
     var diff = DIFFICULTIES[difficulty] || DIFFICULTIES.easy;
+    var f = factionData || pickFactionConflict();
     return {
       id: Date.now() + Math.floor(Math.random() * 10000), title:title, difficulty:difficulty, dread:diff.dread,
       location:location||'Unknown', region:region||'province', reward:diff.credits, bonus:0,
+      factionGain: f.gain,
+      factionLose: f.lose,
+      factionGainName: f.gainName,
+      factionLoseName: f.loseName,
       infoFeature:null, additionalDanger:null, bypassSecurity:false, hackSystem:false,
       siteRoll:null, rooms:generateRoomObjects(difficulty), guards:generateGuards(diff.dread),
       target:pick(TARGET_NAMES), loot:[],  mapHex:null,
@@ -234,7 +262,20 @@
     for (var i = 0; i < count; i++) {
       var diffKey = pick(DIFF_KEYS);
       var diff    = DIFFICULTIES[diffKey];
-      S.availableJobs.push({ id:seed + i + 1, title:pick(MISSION_VERBS)+' '+pick(MISSION_TARGETS), difficulty:diffKey, dread:diff.dread, location:pick(MISSION_LOCS), reward:diff.credits, region:'province' });
+      var f = pickFactionConflict();
+      S.availableJobs.push({
+        id:seed + i + 1,
+        title:pick(MISSION_VERBS)+' '+pick(MISSION_TARGETS),
+        difficulty:diffKey,
+        dread:diff.dread,
+        location:pick(MISSION_LOCS),
+        reward:diff.credits,
+        region:'province',
+        factionGain:f.gain,
+        factionLose:f.lose,
+        factionGainName:f.gainName,
+        factionLoseName:f.loseName
+      });
     }
     renderMissionBoard();
     showNotif('Posted '+count+' mission'+(count!==1?'s':'')+' on the board!','good');
@@ -245,7 +286,12 @@
     var job = null;
     for (var i = 0; i < S.availableJobs.length; i++) { if (String(S.availableJobs[i].id) === String(jobId)) { job = S.availableJobs[i]; break; } }
     if (!job) return;
-    var mission = makeMission(job.title, job.difficulty, job.location, job.region||'province');
+    var mission = makeMission(job.title, job.difficulty, job.location, job.region||'province', {
+      gain:job.factionGain,
+      lose:job.factionLose,
+      gainName:job.factionGainName,
+      loseName:job.factionLoseName
+    });
     S.activeMissions.push(mission);
     S.availableJobs = S.availableJobs.filter(function(j){return String(j.id)!==String(jobId);});
     assignMissionToken(mission);
@@ -558,6 +604,7 @@
       }
       mission.loot=mission.loot.concat(newLoot);
       S.credits=(S.credits||0)+(mission.reward||100); S.renown=(S.renown||0)+1;
+      applyFactionStandingDelta(mission.factionGain, mission.factionLose);
       try { if (typeof updateCreditsUI==='function') updateCreditsUI(); } catch (err) {}
       try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
       // Add mission loot directly to backpack slots when possible.
@@ -591,6 +638,10 @@
         name: mission.infoFeature.name || ''
       } : null,
       additionalDanger: mission.additionalDanger || null,
+      factionGain: mission.factionGain || null,
+      factionLose: mission.factionLose || null,
+      factionGainName: mission.factionGainName || null,
+      factionLoseName: mission.factionLoseName || null,
       completedAt: mission.completedAt,
       missionType: 'standard'
     };
@@ -607,7 +658,7 @@
       if (typeof window.AudioManager !== 'undefined') {
         window.AudioManager.missionComplete();
       }
-      try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
+      try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 '+(mission.factionGainName||'Faction')+' +1 / '+(mission.factionLoseName||'Faction')+' -1 \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
       if (stored.length) {
         try { showNotif('Added to backpack: ' + stored.join(', '), 'good'); } catch (err) {}
       }
@@ -678,6 +729,7 @@
           +'<span style="color:var(--muted2);">\u00B7</span>'
           +'<span style="font-family:\'Cinzel\',serif;font-size:.55rem;color:'+dc+';">DD d'+diff.dread+'</span>'
         +'</div>'
+        +'<div style="font-size:.68rem;color:var(--teal);margin:.08rem 0;">'+(job.factionGainName||'Faction')+' +1 \u00B7 '+(job.factionLoseName||'Faction')+' -1</div>'
         +'<div style="font-size:.78rem;color:var(--muted3);flex:1;margin:.2rem 0;line-height:1.45;">'+job.location+'</div>'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;padding-top:.3rem;border-top:1px solid var(--border);">'
           +'<span style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:.95rem;color:var(--gold);">'+job.reward+' \u20B5</span>'
@@ -730,6 +782,7 @@
           +'<div>'
             +'<div style="font-family:\'Cinzel\',serif;font-size:.8rem;color:var(--gold2);margin-bottom:.1rem;">'+mission.title+'</div>'
             +'<div style="font-size:.7rem;color:'+dc+';">'+diff.name+' \u00B7 DD d'+diff.dread+' \u00B7 '+mission.location+'</div>'
+            +'<div style="font-size:.66rem;color:var(--teal);margin-top:.12rem;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
             +(badges?'<div style="margin-top:.2rem;">'+badges+'</div>':'')
           +'</div>'
           +'<button class="btn btn-xs btn-red" onclick="abandonMission('+mission.id+')">Abandon</button>'
@@ -764,6 +817,9 @@
         }
         var loot = Array.isArray(mission.loot) ? mission.loot : [];
         var reward = Number(mission.reward || 0);
+        var factionLine = mission.success
+          ? '<div style="font-size:.68rem;color:var(--teal);margin-top:.08rem;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
+          : '';
         var lootLine=(mission.success&&loot.length)
           ?'<div style="font-size:.7rem;color:var(--gold2);margin-top:.1rem;">Loot: '+loot.join(', ')+' \u00B7 +'+reward+'\u20B5 \u00B7 +1 Renown</div>'
           :'<div style="font-size:.7rem;color:var(--red2);margin-top:.1rem;">\u22121 Renown</div>';
@@ -778,7 +834,7 @@
         return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid '+outCol+';padding:.4rem .5rem;margin-bottom:.3rem;">'
           +'<div style="font-family:\'Cinzel\',serif;font-size:.75rem;color:'+outCol+';margin-bottom:.08rem;">'+outcome+' \u2014 '+(mission.title || 'Unknown Mission')+'</div>'
           +'<div style="font-size:.68rem;color:var(--muted2);">'+diffName+' \u00B7 '+(mission.location || 'Unknown')+'</div>'
-          +featureLine+lootLine
+          +featureLine+factionLine+lootLine
         +'</div>';
       } catch (err) {
         return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--red2);padding:.4rem .5rem;margin-bottom:.3rem;">'

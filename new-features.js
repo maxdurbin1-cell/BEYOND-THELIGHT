@@ -949,6 +949,18 @@
     showNotif("Chase ended.", "");
   }
 
+  function getHoldingGateRenown() {
+    var base = S.renown || 0;
+    var fr = S.factionRenown || null;
+    if (!fr || typeof fr !== 'object') { return base; }
+    var maxFaction = base;
+    Object.keys(fr).forEach(function(key) {
+      var val = Number(fr[key] || 0);
+      if (val > maxFaction) { maxFaction = val; }
+    });
+    return maxFaction;
+  }
+
   function adjustChaseZone(dir) {
     var idx = CHASE_ZONES.indexOf(S.caravan.chase.zone);
     var newIdx = Math.max(0, Math.min(CHASE_ZONES.length - 1, idx + dir));
@@ -1022,7 +1034,7 @@
     // Holding gate — locked if Renown < 9 and no quest active and no holding yet
     var gateEl = document.getElementById("holdingGate");
     var bodyEl = document.getElementById("holdingBody");
-    var renown = S.renown || 0;
+    var renown = getHoldingGateRenown();
     var q = S.holdingQuest || {};
     var questActive = q.active;
     var questDone = !!(q.step3Completed && !q.failed);
@@ -1056,9 +1068,9 @@
           + '<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.5rem;">'
           + (questActive
               ? '📋 Quest is <strong style="color:var(--teal);">in progress</strong>. Return to the <strong>Missions</strong> tab to continue.'
-              : ((S.renown||0) >= 9
+                : (renown >= 9
                   ? '✅ You have sufficient Renown. Start the quest from the <strong>Missions</strong> tab.'
-                  : '🔒 Requires <strong style="color:var(--gold2);">Renown 9</strong>. Current Renown: <strong style="color:var(--teal);">' + (S.renown||0) + '</strong>.'))
+                  : '🔒 Requires <strong style="color:var(--gold2);">Renown 9</strong> in any Faction Standing. Current highest: <strong style="color:var(--teal);">' + renown + '</strong>.'))
           + '</div>'
           + gateProgress
           + '</div>';
@@ -1071,7 +1083,7 @@
       }
     }
 
-    el = document.getElementById("holdingRenownReadout");    if (el) { el.textContent = S.renown || 0; }
+    el = document.getElementById("holdingRenownReadout");    if (el) { el.textContent = getHoldingGateRenown(); }
     el = document.getElementById("holdingCreditsReadout");   if (el) { el.textContent = (S.credits || 0) + " \u20B5"; }
     el = document.getElementById("holdingLandmarkCount");    if (el) { el.textContent = h.landmarks.length + h.extraLandmarks.length; }
     el = document.getElementById("holdingCrisisCount");      if (el) { el.textContent = h.crises.length; }
@@ -1182,8 +1194,8 @@
           + (locHtml ? '<div style="margin-bottom:.3rem;">' + locHtml + '</div>' : '')
           + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">⚄ Roll Current Step</button>';
       } else if (!(h.established || questDone)) {
-        if ((S.renown || 0) < 9) {
-          questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Currently: ' + (S.renown || 0) + '</div>';
+        if (renown < 9) {
+          questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> in any Faction Standing to establish a Holding. Current highest: ' + renown + '</div>';
         } else {
           questEl.innerHTML = '<div style="display:flex;gap:.3rem;align-items:center;">'
             + '<div style="flex:1;font-size:.75rem;color:var(--text2);">You are ready to establish your own Holding!' + (qh.failed ? ' Previous attempt failed — you can retry.' : '') + '</div>'
@@ -1265,8 +1277,8 @@
 
   function startHoldingQuest() {
     ensureNewFeatureState();
-    if ((S.renown || 0) < 9) {
-      showNotif("Need Renown 9 to begin the Holding quest.", "warn");
+    if (getHoldingGateRenown() < 9) {
+      showNotif("Need Renown 9 in any Faction Standing to begin the Holding quest.", "warn");
       return;
     }
     var spots = getRandomWildernessHexes(2);
@@ -1682,7 +1694,7 @@
   function getHoldingQuestBoardCardHtml() {
     ensureNewFeatureState();
     var q = S.holdingQuest || {};
-    var renown = S.renown || 0;
+    var renown = getHoldingGateRenown();
     var questDone = !!(q.step3Completed && !q.failed);
     var holdingEstablished = S.holding && (S.holding.established || questDone);
     if (renown < 9 || holdingEstablished) { return ''; }

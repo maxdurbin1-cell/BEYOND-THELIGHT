@@ -24,8 +24,23 @@
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         this.audioContext = new AudioContext();
+        
+        // Resume audio context on user interaction (required by some browsers)
+        const resumeAudio = () => {
+          if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume().then(() => {
+              console.log('🔊 Audio context resumed');
+            });
+          }
+        };
+        
+        document.addEventListener('click', resumeAudio, { once: true });
+        document.addEventListener('keydown', resumeAudio, { once: true });
+        document.addEventListener('touchstart', resumeAudio, { once: true });
+        
         this.createSoundLibrary();
         console.log('🔊 Audio Manager initialized');
+        console.log('🔊 Audio Context State:', this.audioContext.state);
       } catch (e) {
         console.warn('⚠️ Web Audio API not available:', e);
         this.enabled = false;
@@ -40,29 +55,33 @@
      */
     playSFX(soundId, volume = 1) {
       if (!this.enabled || !this.audioContext) return;
+
+      // Resume audio context if needed
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume();
+        return;
+      }
       
       const finalVolume = this.masterVolume * this.sfxVolume * volume;
       
       try {
         const audioData = this.audioCache[soundId];
         if (!audioData) {
-          console.warn(`Sound not found: ${soundId}`);
+          console.warn(`🔊 Sound not found: ${soundId}`);
           return;
         }
 
-        this.audioContext.decodeAudioData(audioData.cloneNode ? audioData : audioData, (buffer) => {
-          const source = this.audioContext.createBufferSource();
-          const gainNode = this.audioContext.createGain();
+        const source = this.audioContext.createBufferSource();
+        const gainNode = this.audioContext.createGain();
 
-          source.buffer = buffer;
-          gainNode.gain.value = finalVolume;
+        source.buffer = audioData;
+        gainNode.gain.value = finalVolume;
 
-          source.connect(gainNode);
-          gainNode.connect(this.audioContext.destination);
-          source.start(0);
-        });
+        source.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        source.start(0);
       } catch (e) {
-        console.warn(`Error playing sound ${soundId}:`, e);
+        console.warn(`🔊 Error playing sound ${soundId}:`, e);
       }
     },
 
@@ -71,17 +90,28 @@
      * @param {string} musicId - ID of the music to play
      */
     playMusic(musicId, fadeIn = true) {
-      if (!this.enabled || !this.audioContext) return;
+      if (!this.enabled || !this.audioContext) {
+        console.warn('🔊 Audio system disabled or no audio context');
+        return;
+      }
+
+      // Resume audio context if needed (browser autoplay policy)
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume().then(() => {
+          console.log('🔊 Audio context resumed by playMusic');
+        });
+        return;
+      }
 
       // Stop current music
       if (this.currentMusic) {
-        this.stopMusic();
+        this.stopMusic(false);
       }
 
       try {
         const musicData = this.audioCache[musicId];
         if (!musicData) {
-          console.warn(`Music not found: ${musicId}`);
+          console.warn(`🔊 Music not found: ${musicId}`);
           return;
         }
 
@@ -97,6 +127,7 @@
         source.start(0);
 
         this.currentMusic = { source, gainNode };
+        console.log(`🔊 Now playing: ${musicId} (Context state: ${this.audioContext.state})`);
 
         // Fade in if requested
         if (fadeIn) {
@@ -110,7 +141,7 @@
           }
         }
       } catch (e) {
-        console.warn(`Error playing music ${musicId}:`, e);
+        console.warn(`🔊 Error playing music ${musicId}:`, e);
       }
     },
 
@@ -130,12 +161,22 @@
           );
         }
         setTimeout(() => {
-          this.currentMusic.source.stop();
-          this.currentMusic = null;
+          try {
+            if (this.currentMusic) {
+              this.currentMusic.source.stop();
+              this.currentMusic = null;
+            }
+          } catch (e) {
+            console.warn('🔊 Error stopping music:', e);
+          }
         }, duration * 1000);
       } else {
-        this.currentMusic.source.stop();
-        this.currentMusic = null;
+        try {
+          this.currentMusic.source.stop();
+          this.currentMusic = null;
+        } catch (e) {
+          console.warn('🔊 Error stopping music:', e);
+        }
       }
     },
 
@@ -340,16 +381,29 @@
     caravanDamaged() { this.playSFX('sfx-caravan-damage', 0.7); },
   };
 
-  // Initialize on load
+  // Initialize on page load
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       AudioManager.init();
-      // Start with character music
-      AudioManager.playMusic('music-character', false);
+      console.log('🔊 Audio system ready. Click anywhere to enable music.');
+      // Start with character music after first user interaction
+      setTimeout(() => {
+        if (AudioManager.audioContext && AudioManager.audioContext.state === 'running') {
+          AudioManager.playMusic('music-character', false);
+          console.log('🔊 Starting character music...');
+        }
+      }, 100);
     });
   } else {
     AudioManager.init();
-    AudioManager.playMusic('music-character', false);
+    console.log('🔊 Audio system ready. Click anywhere to enable music.');
+    // Start with character music after first user interaction
+    setTimeout(() => {
+      if (AudioManager.audioContext && AudioManager.audioContext.state === 'running') {
+        AudioManager.playMusic('music-character', false);
+        console.log('🔊 Starting character music...');
+      }
+    }, 100);
   }
 
   // Expose globally

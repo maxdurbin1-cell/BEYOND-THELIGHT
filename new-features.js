@@ -1276,22 +1276,109 @@
       var roomCount = roll(5) + 1;
       q.siteRooms = [];
       for (var i = 0; i < roomCount; i++) {
-        q.siteRooms.push('Room ' + (i + 1) + ': ' + pick(['Collapsed Hall', 'Guard Post', 'Storage Vault', 'Barracks', 'Watch Deck', 'Foundation Chamber', 'Ruined Entrance', 'Supply Hall']));
+        q.siteRooms.push({
+          label: 'Room ' + (i + 1) + ': ' + pick(['Collapsed Hall', 'Guard Post', 'Storage Vault', 'Barracks', 'Watch Deck', 'Foundation Chamber', 'Ruined Entrance', 'Supply Hall']),
+          explored: false,
+          find: null,
+          confrontTriggered: false,
+          confrontResolved: false
+        });
       }
+    } else if (typeof q.siteRooms[0] === 'string') {
+      q.siteRooms = q.siteRooms.map(function(label) {
+        return {
+          label: label,
+          explored: false,
+          find: null,
+          confrontTriggered: false,
+          confrontResolved: false
+        };
+      });
     }
+
+    holdingQuestRenderSiteModal();
+  }
+
+  function holdingQuestRenderSiteModal() {
+    var q = S.holdingQuest;
+    if (!q || !q.active || !Array.isArray(q.siteRooms)) { return; }
 
     var dangerHtml = q.additionalDanger
       ? '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.35rem .5rem;margin-bottom:.4rem;font-size:.76rem;color:var(--muted3);"><strong style="color:var(--red2);">\u26A0 Additional Danger:</strong> ' + q.additionalDanger.name + ' — ' + q.additionalDanger.desc + '</div>'
       : '';
-    var roomsHtml = q.siteRooms.map(function(r){ return '<div style="padding:.22rem .35rem;border:1px solid var(--border2);margin-bottom:.2rem;font-size:.76rem;color:var(--text2);">' + r + '</div>'; }).join('');
+
+    var roomsHtml = '<div style="font-family:\'Cinzel\',serif;font-size:.58rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.3rem;">Site Layout — ' + q.siteRooms.length + ' Rooms</div>';
+    q.siteRooms.forEach(function(room, idx) {
+      var explored = !!room.explored;
+      var confrontActive = !!(room.confrontTriggered && !room.confrontResolved);
+      var findHtml = '';
+      if (explored && room.find) {
+        var findColor = room.find.type === 'trap' ? 'var(--red2)' : room.find.type === 'cache' ? 'var(--green2)' : 'var(--muted3)';
+        findHtml = '<div style="font-size:.7rem;color:' + findColor + ';margin-top:.2rem;padding-top:.2rem;border-top:1px dashed var(--border);">' + room.find.text + '</div>';
+      }
+      var actionBtn = '';
+      if (!explored) {
+        actionBtn = '<button class="btn btn-xs btn-teal" onclick="holdingQuestExploreRoom(' + idx + ')" style="margin-top:.2rem;">Investigate</button>';
+      } else if (confrontActive) {
+        actionBtn = '<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u26A1 Confrontation triggered!</div><button class="btn btn-xs btn-red" onclick="holdingQuestResolveRoomConfrontation(' + idx + ',false)">Fail</button><button class="btn btn-xs btn-primary" onclick="holdingQuestResolveRoomConfrontation(' + idx + ',true)">Succeed</button></div>';
+      }
+      roomsHtml += '<div style="padding:.3rem .4rem;margin-bottom:.25rem;border:1px solid ' + (confrontActive ? 'var(--red2)' : explored ? 'var(--border)' : 'var(--border2)') + ';background:' + (confrontActive ? 'rgba(200,50,50,.05)' : 'var(--surface)') + ';">'
+        + '<div style="font-size:.75rem;color:' + (explored ? 'var(--muted2)' : 'var(--text)') + ';">' + (explored ? '\u2713 ' : '') + room.label + '</div>'
+        + findHtml + actionBtn
+        + '</div>';
+    });
+
+    var allExplored = q.siteRooms.every(function(r){ return !!r.explored; });
+    var hasActive = q.siteRooms.some(function(r){ return !!(r.confrontTriggered && !r.confrontResolved); });
+    var proceedBtn = '';
+    if (!hasActive) {
+      proceedBtn = '<div style="display:flex;justify-content:flex-end;margin-top:.45rem;">'
+        + '<button class="btn btn-sm ' + (allExplored ? 'btn-teal' : '') + '" onclick="completeHoldingQuestStep2();closeModal();">' + (allExplored ? 'Proceed to Confrontation' : 'Skip Remaining Rooms → Confrontation') + '</button>'
+        + '</div>';
+    }
+
     var html = dangerHtml
       + '<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.45rem;">Step 2 — Site Layout — 2-6 Rooms</div>'
-      + '<div style="font-family:\'Cinzel\',serif;font-size:.58rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.3rem;">Site Layout — ' + q.siteRooms.length + ' Rooms</div>'
       + roomsHtml
-      + '<div style="display:flex;justify-content:flex-end;margin-top:.45rem;">'
-      + '<button class="btn btn-sm btn-teal" onclick="completeHoldingQuestStep2();closeModal();">Proceed to Confrontation</button>'
-      + '</div>';
+      + proceedBtn;
     openModal('Step 2 — Go to Site', html);
+  }
+
+  function holdingQuestExploreRoom(roomIdx) {
+    var q = S.holdingQuest;
+    if (!q || !q.active || !q.siteRooms || !q.siteRooms[roomIdx]) { return; }
+    var room = q.siteRooms[roomIdx];
+    if (room.explored) { return; }
+    room.explored = true;
+    var r = roll(6);
+    if (r === 1) {
+      room.confrontTriggered = true;
+      room.find = { type: 'confront', text: '\u26A1 Security squad spotted you in this room! Resolve below.' };
+    } else if (r <= 3) {
+      room.find = { type: 'trap', text: pick(['TRAP — Unstable flooring: take +1 Stress if you linger.', 'TRAP — Alarm tripline: security gets ready for final stand.', 'TRAP — Toxic burst: Body test later or start wounded.']) };
+    } else if (r === 4) {
+      room.find = { type: 'puzzle', text: pick(['PUZZLE — Broken lock mechanism conceals a route.', 'PUZZLE — Ciphered route notes hint at a weak flank.', 'PUZZLE — Foundation diagram reveals hidden support paths.']) };
+    } else if (r === 5) {
+      room.find = { type: 'cache', text: 'CACHE — ' + pick(['Emergency rations and maps.', 'Old claim records proving ownership.', 'Unused construction supplies and coin pouches.']) };
+    } else {
+      room.find = { type: 'flavor', text: pick(['Quiet corridor with old banners.', 'A ruined chamber once used as barracks.', 'A half-collapsed hall overlooking the valley.']) };
+    }
+    holdingQuestRenderSiteModal();
+  }
+
+  function holdingQuestResolveRoomConfrontation(roomIdx, success) {
+    var q = S.holdingQuest;
+    if (!q || !q.active || !q.siteRooms || !q.siteRooms[roomIdx]) { return; }
+    var room = q.siteRooms[roomIdx];
+    room.confrontResolved = true;
+    if (!success) {
+      S.renown = Math.max(0, (S.renown || 0) - 1);
+      if (typeof updateRenown === 'function') { updateRenown(); }
+      showNotif('Room confrontation failed. −1 Renown.', 'warn');
+    } else {
+      showNotif('Room confrontation succeeded!', 'good');
+    }
+    holdingQuestRenderSiteModal();
   }
 
   function completeHoldingQuestStep2() {
@@ -1314,12 +1401,23 @@
     if (!q.step2Completed) { showNotif('Complete Step 2 first.', 'warn'); return; }
 
     if (!q.securityCount) {
-      q.securityCount = roll(4) + 1;
+      q.securityCount = 2;
     }
 
-    var html = '<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.45rem;line-height:1.5;">'
-      + 'Confrontation: ' + q.securityCount + ' Security + Roll Adventure d8 + 5 vs Dread d8 — then click your outcome Success or Failure.'
-      + '</div>'
+    var dangerBanner = q.additionalDanger
+      ? '<div style="background:rgba(200,50,50,.07);border:1px solid rgba(200,50,50,.35);padding:.3rem .5rem;margin-bottom:.45rem;font-size:.74rem;"><strong style="color:var(--red2);">\u26A0 ' + q.additionalDanger.name + '</strong> <span style="color:var(--muted3);">— ' + q.additionalDanger.desc + '</span></div>'
+      : '';
+    var featureBadge = q.infoFeature
+      ? '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.35rem;padding:.2rem .4rem;border:1px solid rgba(46,196,182,.3);">' + q.infoFeature.icon + ' ' + q.infoFeature.name + ' — ' + q.infoFeature.effectDesc + '</div>'
+      : '';
+    var securityRows = '';
+    for (var si = 0; si < q.securityCount; si++) {
+      securityRows += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.74rem;color:var(--muted3);padding:.15rem 0;border-bottom:1px solid var(--border);"><span>Security Unit ' + (si + 1) + '</span><span style="color:var(--red2);font-family:\'Rajdhani\',sans-serif;font-weight:700;">DD8 | 16 HP</span></div>';
+    }
+    var securitySection = '<div style="margin-bottom:.4rem;"><div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.15rem;">Security (' + q.securityCount + ' Units)</div>' + securityRows + '</div>';
+    var rollInstr = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Confrontation: 2 Security + Roll Adventure d8 + 5 vs Dread d8 — then click your outcome Success or Failure.</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice, then choose Success/Failure below.</div></div>';
+
+    var html = dangerBanner + featureBadge + securitySection + rollInstr
       + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
       + '<button class="btn btn-sm btn-red" onclick="resolveHoldingQuestStep3(false);closeModal();">\u2717 Failure — Roll Failed</button>'
       + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestStep3(true);closeModal();">\u2713 Success — Roll Succeeded</button>'
@@ -1382,6 +1480,10 @@
 
     showNotif('Holding established! +1 Renown · +' + (q.rewardCredits || 250) + '₵' + (loot.length ? ' · Loot: ' + loot.join(', ') : ''), 'good');
 
+    if (typeof setContext === 'function') {
+      var holdingCtxBtn = document.querySelector('.ctx-btn[onclick*="setContext(\'holding\'"]');
+      setContext('holding', holdingCtxBtn || null);
+    }
     var holdingBtn = document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
     if (typeof switchTab === 'function') {
       switchTab('holding', holdingBtn || null);
@@ -2069,6 +2171,8 @@
   window.completeHoldingQuestStep1 = completeHoldingQuestStep1;
   window.skipHoldingQuestStep1 = skipHoldingQuestStep1;
   window.holdingQuestStartStep2 = holdingQuestStartStep2;
+  window.holdingQuestExploreRoom = holdingQuestExploreRoom;
+  window.holdingQuestResolveRoomConfrontation = holdingQuestResolveRoomConfrontation;
   window.completeHoldingQuestStep2 = completeHoldingQuestStep2;
   window.holdingQuestStartStep3 = holdingQuestStartStep3;
   window.resolveHoldingQuestStep3 = resolveHoldingQuestStep3;

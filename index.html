@@ -240,15 +240,15 @@ select option{background:#0f1020;}
     <button class="tab-btn active" onclick="switchTab('character',this)">Character</button>
     <button class="tab-btn" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn" onclick="switchTab('map',this)">Province</button>
-    <button class="tab-btn ctx-sea ctx-holding" style="display:none;" onclick="switchTab('lastsea',this)">Last Sea</button>
+    <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
-    <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('naval',this)">Naval</button>
-    <button class="tab-btn ctx-holding ctx-sea" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
-    <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
+    <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
+    <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn" onclick="switchTab('codex',this)">Codex</button>
     <button class="tab-btn" onclick="switchTab('rules',this)">Rules</button>
-    <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
+    <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('holding',this)">Holding</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
@@ -2078,6 +2078,7 @@ function moveBackpackToStorage(index, storageType) {
     S.backpack[index] = '';
     var bpEl = document.getElementById('bp' + index);
     if (bpEl) bpEl.value = '';
+    if (typeof renderCaravanUI === 'function') renderCaravanUI();
     showNotif('Moved to Caravan: ' + item + ' → Cargo Slot ' + (emptyIdx + 1), 'good');
   } else if (storageType === 'ship') {
     if (!S.naval || !S.naval.ship) { showNotif('No Ship available!', 'warn'); return; }
@@ -2340,6 +2341,7 @@ function moveEquippedToStorage(slot, storageType) {
     S.equipment[slot] = '';
     var el = document.getElementById('eq' + (slot === 'weapon1' ? 'Weapon1' : slot === 'weapon2' ? 'Weapon2' : slot === 'armor' ? 'Armor' : 'Readied'));
     if (el) el.value = '';
+    if (typeof renderCaravanUI === 'function') renderCaravanUI();
     showNotif('Moved to Caravan: ' + item + ' → Cargo Slot ' + (emptyIdx + 1), 'good');
   } else if (storageType === 'ship') {
     if (!S.naval || !S.naval.ship) { showNotif('No Ship available!', 'warn'); return; }

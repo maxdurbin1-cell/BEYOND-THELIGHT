@@ -2001,7 +2001,7 @@ function showBackpackItem(index) {
     var storOpts = '<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
     if (S.caravan && (S.caravan.owned || S.caravan.name)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
     if (S.naval && S.naval.ship) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'ship'" + ');closeModal();">⛵ Ship</button>'; }
-    if (S.holding && S.holding.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
+    if (S.holding && (S.holding.name || S.holding.established)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
     storOpts += '</div></div>';
     btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
     openModal('Backpack Item','<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>');
@@ -2026,7 +2026,7 @@ function showBackpackItem(index) {
   var storOpts = '<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
   if (S.caravan && (S.caravan.owned || S.caravan.name)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
   if (S.naval && S.naval.ship) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'ship'" + ');closeModal();">⛵ Ship</button>'; }
-  if (S.holding && S.holding.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
+  if (S.holding && (S.holding.name || S.holding.established)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
   storOpts += '</div></div>';
   btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
   var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
@@ -2069,8 +2069,9 @@ function moveBackpackToStorage(index, storageType) {
   if (storageType === 'caravan') {
     if (!S.caravan || (!S.caravan.owned && !S.caravan.name)) { showNotif('No Caravan available!', 'warn'); return; }
     if (!Array.isArray(S.caravan.cargo)) S.caravan.cargo = [];
+    var cargoMax = (typeof getCaravanCargoMax === 'function') ? getCaravanCargoMax() : S.caravan.cargo.length;
     var emptyIdx = -1;
-    for (var i = 0; i < S.caravan.cargo.length; i++) {
+    for (var i = 0; i < cargoMax; i++) {
       if (!S.caravan.cargo[i]) { emptyIdx = i; break; }
     }
     if (emptyIdx < 0) { showNotif('Caravan cargo full!', 'warn'); return; }
@@ -2181,7 +2182,7 @@ function showEquippedItem(slot) {
   var storageOptions = '<div style="margin-top:.8rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
   if (S.caravan && (S.caravan.owned || S.caravan.name)) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'caravan' + "'" + ');closeModal();">📦 Caravan</button>'; }
   if (S.naval && S.naval.ship) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'ship' + "'" + ');closeModal();">⛵ Ship</button>'; }
-  if (S.holding && S.holding.name) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'holding' + "'" + ');closeModal();">🏛 Holding</button>'; }
+  if (S.holding && (S.holding.name || S.holding.established)) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'holding' + "'" + ');closeModal();">🏛 Holding</button>'; }
   storageOptions += '</div></div>';
   var btnHtml = '';
   if (item) {
@@ -2332,8 +2333,9 @@ function moveEquippedToStorage(slot, storageType) {
   if (storageType === 'caravan') {
     if (!S.caravan || (!S.caravan.owned && !S.caravan.name)) { showNotif('No Caravan available!', 'warn'); return; }
     if (!Array.isArray(S.caravan.cargo)) S.caravan.cargo = [];
+    var cargoMax = (typeof getCaravanCargoMax === 'function') ? getCaravanCargoMax() : S.caravan.cargo.length;
     var emptyIdx = -1;
-    for (var i = 0; i < S.caravan.cargo.length; i++) {
+    for (var i = 0; i < cargoMax; i++) {
       if (!S.caravan.cargo[i]) { emptyIdx = i; break; }
     }
     if (emptyIdx < 0) { showNotif('Caravan cargo full!', 'warn'); return; }
@@ -2572,7 +2574,7 @@ function setContext(ctx,btn){
   document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';});
   // Holding tab only appears once the Holding quest is completed and Holding exists.
   const holdingBtn=document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
-  if(holdingBtn&&(!S||!S.holding||!S.holding.name))holdingBtn.style.display='none';
+  if(holdingBtn&&(!S||!S.holding||(!S.holding.name&&!S.holding.established)))holdingBtn.style.display='none';
 }
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
 function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}

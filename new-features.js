@@ -127,6 +127,7 @@
     var prevHolding = S.holding || {};
     S.holding = Object.assign({
       name: "",
+      established: false,
       type: "Citadel",
       landmarks: [
         { type: "Dwelling", name: "Riverside Shelter", notes: "" },
@@ -154,6 +155,7 @@
       if (!Array.isArray(S.holding.vault))          { S.holding.vault = []; }
     if (!Array.isArray(S.holding.councilTasks))    { S.holding.councilTasks = []; }
     if (!Array.isArray(S.holding.taxLog))         { S.holding.taxLog = []; }
+    if (S.holding.name && !S.holding.established) { S.holding.established = true; }
 
     if (!S.holding.council || typeof S.holding.council !== "object") {
       S.holding.council = {
@@ -230,7 +232,7 @@
     var holdingBtn = document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
     if (!holdingBtn) { return; }
     // Only show Holding tab once the special quest is completed and a Holding exists.
-    if (S && S.holding && S.holding.name) {
+    if (S && S.holding && (S.holding.established || S.holding.name)) {
       holdingBtn.style.display = "";
     } else {
       holdingBtn.style.display = "none";
@@ -562,7 +564,13 @@
       var cargo = c.cargo.slice(0, maxCargo);
       while (cargo.length < maxCargo) { cargo.push(""); }
       cg.innerHTML = cargo.map(function(item, i) {
-        return '<input class="bp-input" placeholder="Slot ' + (i + 1) + '" value="' + (item || "").replace(/"/g, "&quot;") + '" onchange="updateCaravanCargo(' + i + ',this.value)">';
+        if (!item) {
+          return '<input class="bp-input" placeholder="Slot ' + (i + 1) + '" value="" onchange="updateCaravanCargo(' + i + ',this.value)">';
+        }
+        return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.28rem .35rem;border-radius:4px;cursor:pointer;" onclick="openCaravanCargoItem(' + i + ')">'
+          + '<div style="font-size:.72rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + String(item).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>'
+          + '<div style="font-size:.62rem;color:var(--muted2);margin-top:.12rem;">Click: use / equip / move</div>'
+          + '</div>';
       }).join("");
     }
 
@@ -775,6 +783,120 @@
     S.caravan.cargo[i] = value;
   }
 
+  function moveCaravanCargoToBackpack(i) {
+    ensureNewFeatureState();
+    var item = (S.caravan.cargo || [])[i] || "";
+    if (!item) { showNotif("No cargo item in that slot.", "warn"); return; }
+    if (!Array.isArray(S.backpack)) { S.backpack = Array(10).fill(""); }
+    var slotIdx = S.backpack.indexOf("");
+    if (slotIdx < 0) {
+      showNotif("Backpack full.", "warn"); return;
+    }
+    S.backpack[slotIdx] = item;
+    S.caravan.cargo[i] = "";
+    if (typeof renderBackpackUI === 'function') { renderBackpackUI(); }
+    renderCaravanUI();
+    showNotif("Moved to Backpack: " + item, "good");
+  }
+
+  function equipCaravanCargoItem(i, slot) {
+    ensureNewFeatureState();
+    var item = (S.caravan.cargo || [])[i] || "";
+    if (!item) { return; }
+    var found = (typeof findShopItem === 'function') ? findShopItem(item) : null;
+    var cat = found ? found.cat : null;
+    var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
+    var isArmor = (cat === 'armor' || cat === 'armor_exp');
+    if ((slot === 'weapon1' || slot === 'weapon2') && !isWeapon) {
+      showNotif('Only weapons can be equipped in weapon slots!', 'warn'); return;
+    }
+    if (slot === 'armor' && !isArmor) {
+      showNotif('Only armor can be equipped in the armor slot!', 'warn'); return;
+    }
+
+    var equipStr = item;
+    if (found && found.item && found.item.stat && (isWeapon || isArmor) && String(item).indexOf(found.item.stat) === -1) {
+      equipStr = item + ' (' + found.item.stat + ')';
+    }
+
+    var displaced = S.equipment[slot] || '';
+    if (displaced) {
+      if (!Array.isArray(S.backpack)) { S.backpack = Array(10).fill(''); }
+      var bpSlot = S.backpack.indexOf('');
+      if (bpSlot < 0) {
+        showNotif('Backpack full. Unequip or free one slot first.', 'warn'); return;
+      }
+      S.backpack[bpSlot] = displaced;
+      if (typeof renderBackpackUI === 'function') { renderBackpackUI(); }
+    }
+
+    S.equipment[slot] = equipStr;
+    S.caravan.cargo[i] = '';
+    var inputId = slot === 'weapon1' ? 'eqWeapon1' : slot === 'weapon2' ? 'eqWeapon2' : slot === 'armor' ? 'eqArmor' : 'eqReadied';
+    var el = document.getElementById(inputId);
+    if (el) { el.value = equipStr; }
+    if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
+    if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
+    renderCaravanUI();
+    showNotif('Equipped from Caravan: ' + equipStr, 'good');
+  }
+
+  function useCaravanCargoItem(i) {
+    ensureNewFeatureState();
+    var item = (S.caravan.cargo || [])[i] || '';
+    if (!item) { return; }
+    if (!Array.isArray(S.backpack)) { S.backpack = Array(10).fill(''); }
+    var slotIdx = S.backpack.indexOf('');
+    if (slotIdx < 0) {
+      showNotif('Backpack full! Free one slot to use cargo item.', 'warn'); return;
+    }
+
+    S.backpack[slotIdx] = item;
+    S.caravan.cargo[i] = '';
+    var found = (typeof findShopItem === 'function') ? findShopItem(item) : null;
+
+    if (found) {
+      useBackpackItem(slotIdx);
+    } else if (/^Scroll:/i.test(String(item).trim())) {
+      castScrollFromBackpack(slotIdx);
+    } else if (/A\.D\.|Ad\d|d\d/i.test(String(item))) {
+      useCustomItem(item, slotIdx);
+    } else {
+      // No direct use path, put it back.
+      S.caravan.cargo[i] = S.backpack[slotIdx];
+      S.backpack[slotIdx] = '';
+      if (typeof renderBackpackUI === 'function') { renderBackpackUI(); }
+      renderCaravanUI();
+      showNotif('This cargo item has no direct use action.', 'warn');
+      return;
+    }
+
+    if (S.backpack[slotIdx]) {
+      // Item was not consumed; return to original cargo slot.
+      S.caravan.cargo[i] = S.backpack[slotIdx];
+      S.backpack[slotIdx] = '';
+    }
+    if (typeof renderBackpackUI === 'function') { renderBackpackUI(); }
+    renderCaravanUI();
+  }
+
+  function openCaravanCargoItem(i) {
+    ensureNewFeatureState();
+    var item = (S.caravan.cargo || [])[i] || '';
+    if (!item) { return; }
+    var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="margin-bottom:.45rem;">' + item + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-teal" onclick="useCaravanCargoItem(' + i + ');closeModal();">⚑ Use</button>'
+      + '<button class="btn btn-xs" onclick="moveCaravanCargoToBackpack(' + i + ');closeModal();">↙ Backpack</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="equipCaravanCargoItem(' + i + ',\'weapon1\');closeModal();">⚔ W1</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="equipCaravanCargoItem(' + i + ',\'weapon2\');closeModal();">⚔ W2</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="equipCaravanCargoItem(' + i + ',\'armor\');closeModal();">⚔ Armor</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="equipCaravanCargoItem(' + i + ',\'readied\');closeModal();">⚔ Readied</button>'
+      + '</div></div>';
+    openModal('Caravan Cargo Item', html);
+  }
+
   function installMod(modId) {
     var sz = CARAVAN_SIZES[S.caravan.size] || CARAVAN_SIZES.Small;
     if (S.caravan.mods.length >= sz.modSlots) {
@@ -904,7 +1026,7 @@
     var bodyEl = document.getElementById("holdingBody");
     var renown = S.renown || 0;
     var questActive = (S.holdingQuest || {}).active;
-    var holdingEstablished = !!h.name;
+    var holdingEstablished = !!(h.established || h.name);
     if (gateEl) {
       if (!holdingEstablished && !questActive) {
         if (renown < 9) {
@@ -1039,7 +1161,7 @@
         questEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;margin-bottom:.4rem;">' + progressHtml + '</div>'
           + (locHtml ? '<div style="margin-bottom:.3rem;">' + locHtml + '</div>' : '')
           + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">⚄ Roll Current Step</button>';
-      } else if (!h.name) {
+      } else if (!(h.established || h.name)) {
         if ((S.renown || 0) < 9) {
           questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> to establish a Holding. Currently: ' + (S.renown || 0) + '</div>';
         } else {
@@ -1469,6 +1591,7 @@
     if (!S.holding.name) {
       S.holding.name = 'New Holding';
     }
+    S.holding.established = true;
     q.holdingHex = q.holdingHex || q.siteHex || q.infoHex || null;
     placeHoldingQuestTokens();
     updateHoldingTabVisibility();
@@ -1502,7 +1625,7 @@
     ensureNewFeatureState();
     var q = S.holdingQuest || {};
     var renown = S.renown || 0;
-    var holdingEstablished = S.holding && S.holding.name;
+    var holdingEstablished = S.holding && (S.holding.established || S.holding.name);
     if (renown < 9 || holdingEstablished) { return ''; }
 
     if (!q.active) {
@@ -1542,7 +1665,7 @@
   function getHoldingQuestTrackerCardHtml() {
     ensureNewFeatureState();
     var q = S.holdingQuest || {};
-    var holdingEstablished = S.holding && S.holding.name;
+    var holdingEstablished = S.holding && (S.holding.established || S.holding.name);
     if (!q.active || holdingEstablished) { return ''; }
 
     var s1 = { completed: !!q.step1Completed, skipped: !!q.step1Skipped };
@@ -2140,6 +2263,11 @@
   window.changeCaravanCrew    = changeCaravanCrew;
   window.changeCaravanWheels  = changeCaravanWheels;
   window.updateCaravanCargo   = updateCaravanCargo;
+  window.getCaravanCargoMax   = getCaravanCargoMax;
+  window.moveCaravanCargoToBackpack = moveCaravanCargoToBackpack;
+  window.equipCaravanCargoItem = equipCaravanCargoItem;
+  window.useCaravanCargoItem = useCaravanCargoItem;
+  window.openCaravanCargoItem = openCaravanCargoItem;
   window.installMod           = installMod;
   window.removeMod            = removeMod;
   window.setChaseEnemyDread   = setChaseEnemyDread;

@@ -287,7 +287,10 @@ function completeTaskAtHex(col,row){
     showNotif(`Task Failed: ${task.verb} ${task.target} (${a.total} vs ${d.total})`,'warn');
     appendHexNote(col,row,`[Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total}`);
     if(councilTaskId&&typeof onHoldingCouncilTaskResolved==='function')onHoldingCouncilTaskResolved(councilTaskId,false);
+    delete hex.data.taskSite;
   }
+
+  renderHexMap();
 }
 
 function handleRoyalCaravanEncounter(col,row){
@@ -362,5 +365,8 @@ function completeRoyalTask(col,row){
     if(typeof addTMWOnFail==='function')addTMWOnFail();
     showNotif(`Royal Task Failed: ${task.verb} ${task.target} (${a.total} vs ${d.total})`,'warn');
     appendHexNote(col,row,`[Royal Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total}`);
+    delete hex.data.royalTask;
   }
+
+  renderHexMap();
 }

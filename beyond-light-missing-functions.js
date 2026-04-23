@@ -523,6 +523,7 @@ function rollAllTraits() {
 
 function syncCharacterFields() {
   setInputValue("charName", S.name);
+  setInputValue("charCareer", S.career);
   setInputValue("charBackground", S.background);
   setInputValue("charAge", S.age);
   setInputValue("charOmen", S.omen);
@@ -543,8 +544,53 @@ function rollName() {
 }
 
 function rollBackground() {
-  S.background = pick(CAREERS);
+  var backgrounds = [
+    'Street-raised scavenger',
+    'Temple-taught acolyte',
+    'Ex-militia survivor',
+    'Refugee caravan drifter',
+    'Dockside fixer',
+    'Vault-born technician',
+    'Ruin scholar apprentice',
+    'Frontier homesteader',
+    'Guild runaway',
+    'Nomad clan scout'
+  ];
+  S.background = pick(backgrounds);
   setInputValue("charBackground", S.background);
+}
+
+function rollCareer() {
+  S.career = pick(CAREERS);
+  setInputValue("charCareer", S.career);
+}
+
+function workJobDay() {
+  var bodyDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('body') : ((S.stats && S.stats.body) || 4);
+  var bodyRoll = explodingRoll(bodyDie);
+  var dreadRoll = explodingRoll(6);
+  var success = bodyRoll.total >= dreadRoll.total;
+  var resultEl = document.getElementById('workJobResult');
+
+  if (success) {
+    if (typeof changeCredits === 'function') changeCredits(100);
+    else {
+      S.credits = (S.credits || 0) + 100;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    }
+    if (typeof advanceDay === 'function') advanceDay(1);
+    if (resultEl) {
+      resultEl.innerHTML = '<span style="color:var(--green2);">Success:</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + ' -> +100 Credits, +1 Day.';
+    }
+    showNotif('Work complete: +100 Credits and 1 day passed.', 'good');
+    if (typeof addSuccessRoll === 'function') addSuccessRoll();
+  } else {
+    if (resultEl) {
+      resultEl.innerHTML = '<span style="color:var(--red2);">Failed:</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + '. No pay.';
+    }
+    showNotif('Work failed: no Credits earned.', 'warn');
+    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+  }
 }
 
 function rollOmen() {

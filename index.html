@@ -275,18 +275,29 @@ select option{background:#0f1020;}
       <div class="form-row"><span class="sub-label">Name</span>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charName" placeholder="Wayfarer name…" onchange="S.name=this.value"><button class="btn btn-icon btn-sm" onclick="rollName()">⚄</button></div>
       </div>
-      <div class="form-row"><span class="sub-label">Career / Background</span>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="charBackground" placeholder="Soldier, Merchant…" style="flex:1;" onchange="S.background=this.value"><button class="btn btn-icon btn-sm" onclick="rollBackground()">⚄</button></div>
+      <div class="form-row"><span class="sub-label">Career</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="charCareer" placeholder="Soldier, Merchant…" style="flex:1;" onchange="S.career=this.value"><button class="btn btn-icon btn-sm" onclick="rollCareer()">⚄</button></div>
+      </div>
+      <div class="form-row"><span class="sub-label">Background</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="charBackground" placeholder="Street-raised, Temple-trained…" style="flex:1;" onchange="S.background=this.value"><button class="btn btn-icon btn-sm" onclick="rollBackground()">⚄</button></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.6rem;">
         <div><span class="sub-label">Age</span>
-          <select id="charAge" onchange="S.age=this.value">
+          <select id="charAge" onchange="S.age=this.value;if(typeof syncCharacterAgeFromSelection==='function')syncCharacterAgeFromSelection();">
             <option value="">Choose…</option>
             <option>Youth (0-29)</option><option>Endeavor (30-59)</option><option>Twilight (60-100)</option>
           </select>
+          <div id="charAgeProgress" style="font-size:.73rem;color:var(--muted2);margin-top:.2rem;">Chronological Age: 25</div>
         </div>
         <div><span class="sub-label">Omen of Birth</span>
           <div style="display:flex;gap:.25rem;"><input type="text" id="charOmen" placeholder="Spring…" style="flex:1;" onchange="S.omen=this.value"><button class="btn btn-icon btn-sm" onclick="rollOmen()">⚄</button></div>
+        </div>
+      </div>
+      <div style="margin-bottom:.6rem;">
+        <span class="sub-label">Work Your Job</span>
+        <div style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-sm btn-teal" onclick="workJobDay()">Work (Body vs Dread d6)</button>
+          <span id="workJobResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;">Roll to earn 100 Credits and advance 1 day.</span>
         </div>
       </div>
       <div class="form-row"><span class="sub-label">Why are you on the road?</span>
@@ -1194,7 +1205,7 @@ const SHOP_DATA={weapons:[{name:'Sword',stat:'+1 Strike | Engaged',desc:'A relia
 const STAT_KEYS=['body','strike','shoot','mind','spirit','defend','control','lead'];
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',background:'',age:'',omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0}};
+let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0}};
 let hexNotes={};
 // ── WILDERNESS FULL (continued) ──────────────────────────────────────────────
 function rollWildernessFull(){
@@ -2716,8 +2727,8 @@ let mapData=[];
 const HEX_SIZE=30,COLS=12,ROWS=12;
 let usedPerils=[],usedBarriers=[];
 
-function setAge(age,btn){S.currentAge=age;document.querySelectorAll('.age-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
-function setSeason(season,btn){S.currentSeason=season;document.querySelectorAll('.season-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+function setAge(age,btn){S.currentAge=age;document.querySelectorAll('.age-btn').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');else{var autoBtn=document.getElementById('age-'+age);if(autoBtn)autoBtn.classList.add('on');}}
+function setSeason(season,btn){S.currentSeason=season;document.querySelectorAll('.season-btn').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');else{var autoBtn=document.getElementById('season-'+season);if(autoBtn)autoBtn.classList.add('on');}}
 function setContext(ctx,btn){
   document.querySelectorAll('.ctx-btn').forEach(b=>b.classList.remove('on'));
   if(btn)btn.classList.add('on');

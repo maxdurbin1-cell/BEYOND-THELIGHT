@@ -361,7 +361,7 @@ function ensureStarsState() {
     shields: 0,
     defendDie: 6,
   };
-  S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false };
+  S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false, ageEpochYear: null, ageEpochIndex: null };
   if (!S.gameDate.seededRandom) {
     S.gameDate.day = roll(DAYS_PER_MONTH - 1) + 1;
     S.gameDate.month = roll(MONTHS_PER_YEAR - 1) + 1;
@@ -373,6 +373,13 @@ function ensureStarsState() {
   if (typeof S.gameDate.provinceHexClicks !== 'number') S.gameDate.provinceHexClicks = 0;
   if (typeof S.gameDate.lastSeaIslandClicks !== 'number') S.gameDate.lastSeaIslandClicks = 0;
   if (typeof S.gameDate.seededRandom !== 'boolean') S.gameDate.seededRandom = true;
+  if (typeof S.gameDate.ageEpochYear !== 'number') S.gameDate.ageEpochYear = S.gameDate.year || 1;
+  if (typeof S.gameDate.ageEpochIndex !== 'number') {
+    const startAge = S.currentAge || 'green';
+    const idx = WORLD_AGE_ORDER.indexOf(startAge);
+    S.gameDate.ageEpochIndex = idx >= 0 ? idx : 0;
+  }
+  if (typeof S.characterYears !== 'number') S.characterYears = getCharacterYearsFromBand(S.age);
 
   if (!S.radiationState) {
     S.radiationState = {
@@ -830,6 +837,75 @@ const DAYS_PER_WEEK  = 5;
 const DAYS_PER_MONTH = 30;
 const MONTHS_PER_YEAR = 12;
 const DAY_PHASES = ['Morning', 'Afternoon', 'Night'];
+const SEASON_ORDER = ['spring', 'harvest', 'winter'];
+const WORLD_AGE_ORDER = ['green', 'golden', 'grey'];
+
+function getCharacterYearsFromBand(label) {
+  const text = String(label || '').toLowerCase();
+  if (text.indexOf('twilight') >= 0) return 60;
+  if (text.indexOf('endeavor') >= 0) return 30;
+  if (text.indexOf('youth') >= 0) return 18;
+  return 25;
+}
+
+function getCharacterAgeBandFromYears(years) {
+  const y = Math.max(0, Number(years) || 0);
+  if (y >= 60) return 'Twilight (60-100)';
+  if (y >= 30) return 'Endeavor (30-59)';
+  return 'Youth (0-29)';
+}
+
+function updateCharacterAgeProgressUI() {
+  const years = Math.max(0, Number(S.characterYears) || 0);
+  const ageText = document.getElementById('charAgeProgress');
+  if (ageText) ageText.textContent = `Chronological Age: ${years}`;
+}
+
+function syncCharacterAgeFromSelection() {
+  ensureStarsState();
+  S.characterYears = getCharacterYearsFromBand(S.age);
+  updateCharacterAgeProgressUI();
+}
+
+function applyYearProgression(yearsPassed) {
+  ensureStarsState();
+  const years = Math.max(0, parseInt(yearsPassed, 10) || 0);
+  if (!years) return;
+
+  const oldSeason = S.currentSeason || 'spring';
+  const oldAge = S.currentAge || 'green';
+
+  const currentSeasonIndex = Math.max(0, SEASON_ORDER.indexOf(oldSeason));
+  const newSeason = SEASON_ORDER[(currentSeasonIndex + years) % SEASON_ORDER.length];
+  S.currentSeason = newSeason;
+  if (typeof setSeason === 'function') setSeason(newSeason);
+
+  const yearsSinceEpoch = Math.max(0, (S.gameDate.year || 1) - (S.gameDate.ageEpochYear || 1));
+  const worldAgeStep = Math.floor(yearsSinceEpoch / 30);
+  const baseIndex = Math.max(0, Math.min(WORLD_AGE_ORDER.length - 1, S.gameDate.ageEpochIndex || 0));
+  const nextWorldAge = WORLD_AGE_ORDER[Math.min(WORLD_AGE_ORDER.length - 1, baseIndex + worldAgeStep)] || 'grey';
+  S.currentAge = nextWorldAge;
+  if (typeof setAge === 'function') setAge(nextWorldAge);
+
+  if (typeof S.characterYears !== 'number') S.characterYears = getCharacterYearsFromBand(S.age);
+  const beforeBand = getCharacterAgeBandFromYears(S.characterYears);
+  S.characterYears += years;
+  const afterBand = getCharacterAgeBandFromYears(S.characterYears);
+  S.age = afterBand;
+  const ageSelect = document.getElementById('charAge');
+  if (ageSelect) ageSelect.value = afterBand;
+  updateCharacterAgeProgressUI();
+
+  if (oldSeason !== newSeason) {
+    showNotif(`Year advanced: Season is now ${newSeason}.`, 'good');
+  }
+  if (oldAge !== nextWorldAge) {
+    showNotif(`30-year threshold reached: World Age is now ${nextWorldAge}.`, 'warn');
+  }
+  if (beforeBand !== afterBand) {
+    showNotif(`You have aged into ${afterBand}.`, 'warn');
+  }
+}
 
 function clampPhase(value) {
   const max = DAY_PHASES.length - 1;
@@ -855,6 +931,7 @@ function refreshPhaseFromProvinceClicks() {
 
 function advanceDay(days, preserveTravelState) {
   ensureStarsState();
+  const startYear = S.gameDate.year || 1;
   S.gameDate.day += days;
 
   while (S.gameDate.day > DAYS_PER_MONTH) {
@@ -878,6 +955,9 @@ function advanceDay(days, preserveTravelState) {
     S.gameDate.phase = 0;
     S.gameDate.provinceHexClicks = 0;
   }
+
+  const endYear = S.gameDate.year || 1;
+  if (endYear > startYear) applyYearProgression(endYear - startYear);
   updateDateUI();
 }
 
@@ -917,6 +997,7 @@ function getGameDatePhaseText() {
 
 function updateDateUI() {
   ensureStarsState();
+  updateCharacterAgeProgressUI();
   const el = document.getElementById('gameDateDisplay');
   if (el) {
     const d = S.gameDate;

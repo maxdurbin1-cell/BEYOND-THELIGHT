@@ -566,6 +566,11 @@ function rollCareer() {
 }
 
 function workJobDay() {
+  if (!S.career || !String(S.career).trim()) {
+    rollCareer();
+    showNotif('Career was empty, so a random Career was rolled first.', 'good');
+  }
+
   var bodyDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('body') : ((S.stats && S.stats.body) || 4);
   var bodyRoll = explodingRoll(bodyDie);
   var dreadRoll = explodingRoll(6);
@@ -580,13 +585,18 @@ function workJobDay() {
     }
     if (typeof advanceDay === 'function') advanceDay(1);
     if (resultEl) {
-      resultEl.innerHTML = '<span style="color:var(--green2);">Success:</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + ' -> +100 Credits, +1 Day.';
+      resultEl.innerHTML = '<span style="color:var(--green2);font-weight:700;">SUCCESS ✓</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + ' -> +100 Credits, +1 Day, +1 Successful Roll.';
     }
-    showNotif('Work complete: +100 Credits and 1 day passed.', 'good');
+    showNotif('Work complete: +100 Credits, +1 day, and +1 Successful Roll.', 'good');
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    else {
+      S.successRolls = (S.successRolls || 0) + 1;
+      var sr = document.getElementById('successRollsVal');
+      if (sr) sr.textContent = S.successRolls;
+    }
   } else {
     if (resultEl) {
-      resultEl.innerHTML = '<span style="color:var(--red2);">Failed:</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + '. No pay.';
+      resultEl.innerHTML = '<span style="color:var(--red2);font-weight:700;">FAILED ✗</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + '. No pay.';
     }
     showNotif('Work failed: no Credits earned.', 'warn');
     if (typeof addTMWOnFail === 'function') addTMWOnFail();

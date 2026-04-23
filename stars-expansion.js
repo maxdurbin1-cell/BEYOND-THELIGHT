@@ -333,10 +333,10 @@ function ensureStarsState() {
     defendDie: 6,
   };
   S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false };
-  if (!S.gameDate.seededRandom && S.gameDate.day === 1 && S.gameDate.month === 1 && S.gameDate.year === 1) {
-    S.gameDate.day = roll(DAYS_PER_MONTH);
-    S.gameDate.month = roll(MONTHS_PER_YEAR);
-    S.gameDate.year = roll(999);
+  if (!S.gameDate.seededRandom) {
+    S.gameDate.day = roll(DAYS_PER_MONTH - 1) + 1;
+    S.gameDate.month = roll(MONTHS_PER_YEAR - 1) + 1;
+    S.gameDate.year = roll(998) + 1;
     S.gameDate.phase = roll(DAY_PHASES.length) - 1;
     S.gameDate.seededRandom = true;
   }
@@ -353,6 +353,7 @@ function changeHealth(delta) {
   const defendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : (S.stats && S.stats.defend ? S.stats.defend : 4);
   const maxHealth = defendDie * 2;
   S.health = Math.max(0, Math.min(maxHealth, (S.health || 0) + delta));
+  S.stress = S.health;
   updateHealthUI();
   if (S.health >= maxHealth) {
     showNotif('Health at maximum — you are incapacitated!', 'warn');
@@ -362,6 +363,7 @@ function changeHealth(delta) {
 function halfHealth() {
   ensureStarsState();
   S.health = Math.floor((S.health || 0) / 2);
+  S.stress = S.health;
   updateHealthUI();
   showNotif('Recovery: Health halved.', 'good');
 }
@@ -369,6 +371,7 @@ function halfHealth() {
 function clearHealth() {
   ensureStarsState();
   S.health = 0;
+  S.stress = S.health;
   updateHealthUI();
   showNotif('Long Rest: Health fully recovered.', 'good');
 }
@@ -380,8 +383,14 @@ function updateHealthUI() {
   const val = document.getElementById('healthVal');
   const maxVal = document.getElementById('maxHealthVal');
   const pips = document.getElementById('healthPips');
+  const coreVal = document.getElementById('stressVal');
+  const coreMaxVal = document.getElementById('maxStressVal');
+  const corePips = document.getElementById('stressPips');
+  S.stress = S.health || 0;
   if (val)    val.textContent    = S.health || 0;
   if (maxVal) maxVal.textContent = maxHealth;
+  if (coreVal) coreVal.textContent = S.health || 0;
+  if (coreMaxVal) coreMaxVal.textContent = maxHealth;
   if (pips) {
     let html = '';
     for (let i = 0; i < maxHealth; i++) {
@@ -389,6 +398,12 @@ function updateHealthUI() {
       html += `<div class="pip ${filled ? 'pip-health' : ''}"></div>`;
     }
     pips.innerHTML = html;
+  }
+  if (corePips) {
+    corePips.innerHTML = Array.from({ length: maxHealth }, (_, index) => {
+      const filled = index < (S.health || 0) ? ' filled' : '';
+      return '<div class="s-pip' + filled + '" onclick="setStress(' + (index + 1) + ')"></div>';
+    }).join('');
   }
 }
 
@@ -400,11 +415,6 @@ function changeMentalStress(delta) {
   S.mentalStress = Math.max(0, Math.min(20, before + delta));
   updateMentalStressUI();
   checkStressThreshold();
-  if (delta > 0 && S.mentalStress > before) {
-    rollNervousTic();
-    rollObsession();
-    showNotif('Psych Profile shifted: rolled Nervous Tic + Obsession.', 'warn');
-  }
 }
 
 function clearMentalStress() {
@@ -415,11 +425,45 @@ function clearMentalStress() {
 }
 
 function checkStressThreshold() {
-  const s = S.mentalStress || 0;
+  let s = S.mentalStress || 0;
+  if (!S.mentalStressState) S.mentalStressState = { breakdownLatch: false, breakingObsessionApplied: false };
+
+  if (s >= 10 && S.conditions) {
+    S.conditions.shaken = true;
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  }
+
+  if (s >= 15 && !S.mentalStressState.breakingObsessionApplied) {
+    rollObsession();
+    S.mentalStressState.breakingObsessionApplied = true;
+    showNotif('Breaking: Obsession takes hold.', 'warn');
+  }
+  if (s < 15) {
+    S.mentalStressState.breakingObsessionApplied = false;
+  }
+
+  if (s >= 20 && !S.mentalStressState.breakdownLatch) {
+    if (typeof changeTrauma === 'function') changeTrauma(1);
+    else {
+      S.trauma = Math.max(0, (S.trauma || 0) + 1);
+      if (typeof updateTrauma === 'function') updateTrauma();
+    }
+    S.mentalStress = 3;
+    S.mentalStressState.breakdownLatch = true;
+    showNotif('Breakdown: +1 Trauma, Mental Stress reset to 3.', 'warn');
+    updateMentalStressUI();
+    s = S.mentalStress || 0;
+  }
+  if (s < 20) {
+    S.mentalStressState.breakdownLatch = false;
+  }
+
   let tier = null;
   for (let i = STRESS_BUILDUP.length - 1; i >= 0; i--) {
     if (s >= STRESS_BUILDUP[i].threshold) { tier = STRESS_BUILDUP[i]; break; }
   }
+
   const el = document.getElementById('stressTierDisplay');
   if (el) {
     if (tier) {
@@ -722,15 +766,7 @@ function registerLastSeaHexTravel(hexClicks) {
 function registerLastSeaIslandTravel(hexClicks) {
   ensureStarsState();
   const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
-
-  S.gameDate.lastSeaIslandClicks = (S.gameDate.lastSeaIslandClicks || 0) + clicks;
-  while (S.gameDate.lastSeaIslandClicks >= DAY_PHASES.length) {
-    S.gameDate.lastSeaIslandClicks -= DAY_PHASES.length;
-    advanceDay(1, true);
-  }
-
-  S.gameDate.phase = clampPhase(S.gameDate.lastSeaIslandClicks || 0);
-  updateDateUI();
+  advanceDay(clicks);
 }
 
 function getGameDatePhaseText() {
@@ -995,26 +1031,8 @@ function buildStarsCharacterPanels() {
   if (resourceTarget) {
     resourceTarget.innerHTML = `
 <div class="card">
-  <div class="section-title">Health &amp; Vitality</div>
-  <div style="margin-bottom:.5rem;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">
-      <span class="sub-label" style="margin-bottom:0;">Health</span>
-      <span style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.1rem;">
-        <span id="healthVal" style="color:var(--red);">0</span>
-        <span style="color:var(--muted);font-size:.85rem;"> / </span>
-        <span id="maxHealthVal" style="color:var(--muted2);">8</span>
-      </span>
-    </div>
-    <div style="display:flex;gap:.3rem;margin-bottom:.3rem;">
-      <button class="btn btn-sm btn-red" onclick="changeHealth(1)">+ Damage</button>
-      <button class="btn btn-sm btn-green" onclick="changeHealth(-1)">− Damage</button>
-      <button class="btn btn-sm" onclick="halfHealth()">Recovery</button>
-      <button class="btn btn-sm btn-teal" onclick="clearHealth()">Long Rest</button>
-    </div>
-    <div class="stress-track" id="healthPips"></div>
-  </div>
-
-  <div style="margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border);">
+  <div class="section-title">Mental Stress &amp; Vitality</div>
+  <div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">
       <span class="sub-label" style="margin-bottom:0;">Mental Stress <span style="font-size:.62rem;color:var(--muted2);">/ 20</span></span>
       <span style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.1rem;">
@@ -1116,6 +1134,31 @@ function tryUnlockHoldingFromFaction() {
 }
 
 function patchStarsCrossSystemHooks() {
+  const baseSetStress = typeof setStress === 'function' ? setStress : null;
+  if (baseSetStress && !window._starsSetStressPatched) {
+    window._starsSetStressPatched = true;
+    setStress = function(value) {
+      const out = baseSetStress.apply(this, arguments);
+      S.health = S.stress || 0;
+      updateHealthUI();
+      return out;
+    };
+  }
+
+  const baseStartCombat = typeof startCombat === 'function' ? startCombat : null;
+  if (baseStartCombat && !window._starsStartCombatPatched) {
+    window._starsStartCombatPatched = true;
+    startCombat = function() {
+      const out = baseStartCombat.apply(this, arguments);
+      if ((S.mentalStress || 0) >= 10) {
+        S.tmw = Math.max(0, (S.tmw || 0) - 1);
+        if (typeof updateTMWPool === 'function') updateTMWPool();
+        showNotif('Fraying: -1 TMW at scene start.', 'warn');
+      }
+      return out;
+    };
+  }
+
   const baseRollCheck = typeof rollCheck === 'function' ? rollCheck : null;
   if (baseRollCheck && !window._starsRollCheckPatched) {
     window._starsRollCheckPatched = true;
@@ -1343,7 +1386,7 @@ function buildDateTimePanel() {
     <div class="sub-label">Travel Distances</div>
     <div style="font-size:.77rem;color:var(--muted3);line-height:1.7;">
       🗺 Province: 3 Hex Clicks = 1 Day<br>
-      🏝 Last Sea Island: 1 Hex Click = 1 Phase (3 clicks = 1 Day)<br>
+      🏝 Last Sea Island: 1 Hex Click = 1 Day<br>
       🚢 Last Sea Open Sea: 1 Hex Click = 1 Week<br>
       📅 1 Week = 5 Days · 1 Month = 30 Days
     </div>

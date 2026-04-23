@@ -1999,7 +1999,8 @@ function showBackpackItem(index) {
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'readied\');">⚔ Readied</button> ';
     btnHtml += '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellBackpackItem('+index+');closeModal();">💰 Sell</button> ';
     var storOpts = '<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
-    if (S.caravan && S.caravan.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
+    if (S.caravan && (S.caravan.owned || S.caravan.name)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
+    if (S.naval && S.naval.ship) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'ship'" + ');closeModal();">⛵ Ship</button>'; }
     if (S.holding && S.holding.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
     storOpts += '</div></div>';
     btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
@@ -2023,7 +2024,8 @@ function showBackpackItem(index) {
   btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'readied\');">⚔ Readied</button> ';
   btnHtml += '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellBackpackItem('+index+');closeModal();">💰 Sell for ' + (item.cost || 0) + '₵</button> ';
   var storOpts = '<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
-  if (S.caravan && S.caravan.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
+  if (S.caravan && (S.caravan.owned || S.caravan.name)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
+  if (S.naval && S.naval.ship) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'ship'" + ');closeModal();">⛵ Ship</button>'; }
   if (S.holding && S.holding.name) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
   storOpts += '</div></div>';
   btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
@@ -2059,13 +2061,14 @@ function sellBackpackItem(index) {
   showNotif('Sold: ' + text + ' for ' + price + '₵', 'good');
 }
 
-// Move backpack item to caravan or holding storage
+// Move backpack item to caravan, ship, or holding storage
 function moveBackpackToStorage(index, storageType) {
   if (!S || !S.backpack) return;
   var item = S.backpack[index] || '';
   if (!item) { showNotif('No item to move!', 'neutral'); return; }
   if (storageType === 'caravan') {
-    if (!S.caravan || !S.caravan.cargo) { showNotif('No Caravan available!', 'warn'); return; }
+    if (!S.caravan || (!S.caravan.owned && !S.caravan.name)) { showNotif('No Caravan available!', 'warn'); return; }
+    if (!Array.isArray(S.caravan.cargo)) S.caravan.cargo = [];
     var emptyIdx = -1;
     for (var i = 0; i < S.caravan.cargo.length; i++) {
       if (!S.caravan.cargo[i]) { emptyIdx = i; break; }
@@ -2076,6 +2079,15 @@ function moveBackpackToStorage(index, storageType) {
     var bpEl = document.getElementById('bp' + index);
     if (bpEl) bpEl.value = '';
     showNotif('Moved to Caravan: ' + item + ' → Cargo Slot ' + (emptyIdx + 1), 'good');
+  } else if (storageType === 'ship') {
+    if (!S.naval || !S.naval.ship) { showNotif('No Ship available!', 'warn'); return; }
+    if (!Array.isArray(S.naval.ship.cargo)) S.naval.ship.cargo = [];
+    S.naval.ship.cargo.push(item);
+    S.backpack[index] = '';
+    var bpEl = document.getElementById('bp' + index);
+    if (bpEl) bpEl.value = '';
+    if (typeof renderNaval === 'function') renderNaval();
+    showNotif('Moved to Ship Hold: ' + item, 'good');
   } else if (storageType === 'holding') {
     if (!S.holding || !S.holding.vault) { if (!S.holding) S.holding = {}; S.holding.vault = []; }
     if (!Array.isArray(S.holding.vault)) S.holding.vault = [];
@@ -2166,7 +2178,8 @@ function showEquippedItem(slot) {
   var found = findShopItem(text);
   var item = found ? found.item : null;
   var storageOptions = '<div style="margin-top:.8rem;padding-top:.6rem;border-top:1px solid var(--border);"><div class="sub-label" style="margin-bottom:.3rem;">Move to Storage:</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">';
-  if (S.caravan && S.caravan.name) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'caravan' + "'" + ');closeModal();">📦 Caravan</button>'; }
+  if (S.caravan && (S.caravan.owned || S.caravan.name)) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'caravan' + "'" + ');closeModal();">📦 Caravan</button>'; }
+  if (S.naval && S.naval.ship) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'ship' + "'" + ');closeModal();">⛵ Ship</button>'; }
   if (S.holding && S.holding.name) { storageOptions += '<button class="btn btn-xs btn-teal" onclick="moveEquippedToStorage(' + "'" + slot + "'" + ', ' + "'" + 'holding' + "'" + ');closeModal();">🏛 Holding</button>'; }
   storageOptions += '</div></div>';
   var btnHtml = '';
@@ -2310,13 +2323,14 @@ function sellEquippedCustomItem(slot) {
   if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
 }
 
-// Move equipped item to caravan or holding storage
+// Move equipped item to caravan, ship, or holding storage
 function moveEquippedToStorage(slot, storageType) {
   if (!S || !S.equipment) return;
   var item = S.equipment[slot] || '';
   if (!item) { showNotif('No item to move!', 'neutral'); return; }
   if (storageType === 'caravan') {
-    if (!S.caravan || !S.caravan.cargo) { showNotif('No Caravan available!', 'warn'); return; }
+    if (!S.caravan || (!S.caravan.owned && !S.caravan.name)) { showNotif('No Caravan available!', 'warn'); return; }
+    if (!Array.isArray(S.caravan.cargo)) S.caravan.cargo = [];
     var emptyIdx = -1;
     for (var i = 0; i < S.caravan.cargo.length; i++) {
       if (!S.caravan.cargo[i]) { emptyIdx = i; break; }
@@ -2327,6 +2341,15 @@ function moveEquippedToStorage(slot, storageType) {
     var el = document.getElementById('eq' + (slot === 'weapon1' ? 'Weapon1' : slot === 'weapon2' ? 'Weapon2' : slot === 'armor' ? 'Armor' : 'Readied'));
     if (el) el.value = '';
     showNotif('Moved to Caravan: ' + item + ' → Cargo Slot ' + (emptyIdx + 1), 'good');
+  } else if (storageType === 'ship') {
+    if (!S.naval || !S.naval.ship) { showNotif('No Ship available!', 'warn'); return; }
+    if (!Array.isArray(S.naval.ship.cargo)) S.naval.ship.cargo = [];
+    S.naval.ship.cargo.push(item);
+    S.equipment[slot] = '';
+    var el = document.getElementById('eq' + (slot === 'weapon1' ? 'Weapon1' : slot === 'weapon2' ? 'Weapon2' : slot === 'armor' ? 'Armor' : 'Readied'));
+    if (el) el.value = '';
+    if (typeof renderNaval === 'function') renderNaval();
+    showNotif('Moved to Ship Hold: ' + item, 'good');
   } else if (storageType === 'holding') {
     if (!S.holding || !S.holding.vault) { if (!S.holding) S.holding = {}; S.holding.vault = []; }
     if (!Array.isArray(S.holding.vault)) S.holding.vault = [];

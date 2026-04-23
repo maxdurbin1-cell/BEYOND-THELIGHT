@@ -174,7 +174,27 @@
       S.hackRoller || {}
     );
     S.holdingQuest  = Object.assign(
-      { active: false, step: 0, hexId: null, infoHex: null, siteHex: null, holdingHex: null, failed: false, attempts: 0 },
+      {
+        active: false,
+        step: 0,
+        hexId: null,
+        infoHex: null,
+        siteHex: null,
+        holdingHex: null,
+        failed: false,
+        attempts: 0,
+        step1Completed: false,
+        step1Skipped: false,
+        step2Completed: false,
+        step3Completed: false,
+        bonus: 0,
+        infoFeature: null,
+        additionalDanger: null,
+        siteRooms: null,
+        securityCount: 0,
+        rewardCredits: 250,
+        rewardLoot: []
+      },
       S.holdingQuest || {}
     );
 
@@ -1103,6 +1123,10 @@
 
   function startHoldingQuest() {
     ensureNewFeatureState();
+    if ((S.renown || 0) < 9) {
+      showNotif("Need Renown 9 to begin the Holding quest.", "warn");
+      return;
+    }
     var spots = getRandomWildernessHexes(2);
     var infoHex = spots[0] || null;
     var siteHex = spots[1] || spots[0] || null;
@@ -1114,69 +1138,346 @@
       siteHex: siteHex,
       holdingHex: null,
       failed: false,
-      attempts: ((S.holdingQuest && S.holdingQuest.attempts) || 0) + 1
+      attempts: ((S.holdingQuest && S.holdingQuest.attempts) || 0) + 1,
+      step1Completed: false,
+      step1Skipped: false,
+      step2Completed: false,
+      step3Completed: false,
+      bonus: 0,
+      infoFeature: null,
+      additionalDanger: null,
+      siteRooms: null,
+      securityCount: 0,
+      rewardCredits: 250,
+      rewardLoot: []
     };
     placeHoldingQuestTokens();
     updateHoldingTabVisibility();
     renderHoldingUI();
     if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
+    if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
     if (typeof renderQP === 'function') { renderQP('missions'); }
     showNotif("Holding Establishment Quest begun!", "good");
   }
 
-  function advanceHoldingQuest() {
+  function holdingQuestRollFeature() {
+    var table = [
+      { icon: '\ud83d\udce6', name: 'Hidden Cache', effectDesc: 'Gain bonus loot when the Holding is secured.' },
+      { icon: '\ud83d\udeaa', name: 'Back Entrance', effectDesc: 'Security is easier to bypass during setup.' },
+      { icon: '\u2728', name: 'Local Support', effectDesc: 'Your retainers gain confidence in your claim.' },
+      { icon: '\u2697', name: 'Recovered Records', effectDesc: 'Old deeds validate your Holding claim.' },
+      { icon: '\ud83d\udcbb', name: 'Survey Data', effectDesc: 'You identify the safest foundation points.' },
+      { icon: '\ud83d\udee1', name: 'Defensible Terrain', effectDesc: 'Your claim starts with stronger perimeter control.' }
+    ];
+    return table[roll(6) - 1];
+  }
+
+  function holdingQuestRollDanger() {
+    var table = [
+      { name: 'Mercenary Patrol', desc: 'A roaming patrol contests your claim.' },
+      { name: 'Rival Claimant', desc: 'Another faction challenges your right to settle.' },
+      { name: 'Hostile Terrain', desc: 'Collapse zones and hidden hazards slow setup.' },
+      { name: 'Supply Shortage', desc: 'Establishment costs and pressure increase.' },
+      { name: 'Raider Scouts', desc: 'Scouts map your camp before confrontation.' },
+      { name: 'Warden Scrutiny', desc: 'Authorities demand proof and military readiness.' }
+    ];
+    return table[roll(6) - 1];
+  }
+
+  function holdingQuestStartStep1() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest;
+    if (!q || !q.active) { return; }
+    if (q.step1Completed) { showNotif('Step 1 already completed.', 'warn'); return; }
+
+    var advDie = 8;
+    var dreadDie = 8;
+    var a = explodingRoll(advDie);
+    var d = explodingRoll(dreadDie);
+    var success = a.total >= d.total;
+    var rolled = success ? holdingQuestRollFeature() : holdingQuestRollDanger();
+    var encoded = encodeURIComponent(JSON.stringify(rolled));
+
+    var resultHtml = success
+      ? '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.45rem .55rem;margin-bottom:.45rem;">'
+        + '<div style="font-size:.74rem;color:var(--teal);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;">Hidden Feature Revealed</div>'
+        + '<div style="font-size:.82rem;color:var(--text2);margin-top:.15rem;">' + rolled.icon + ' ' + rolled.name + ' — ' + rolled.effectDesc + '</div>'
+        + '</div>'
+      : '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.45rem .55rem;margin-bottom:.45rem;">'
+        + '<div style="font-size:.74rem;color:var(--red2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;">Additional Danger</div>'
+        + '<div style="font-size:.82rem;color:var(--text2);margin-top:.15rem;">' + rolled.name + ' — ' + rolled.desc + '</div>'
+        + '</div>';
+
+    var html = '<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.5rem;line-height:1.5;">'
+      + '<strong style="color:var(--gold2);">Step 1: Gather Information</strong> — optional. Success grants +5 bonus and reveals a hidden feature. Failure introduces Additional Danger. You may also skip.'
+      + '</div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.45rem;">'
+      + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Adventure d' + advDie + ' vs Dread d' + dreadDie + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.3rem;">'
+      + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--teal);text-transform:uppercase;">Your Roll</div><div style="font-family:\'Rajdhani\',sans-serif;font-size:1.8rem;font-weight:700;color:var(--teal);">' + a.total + '</div></div>'
+      + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--red2);text-transform:uppercase;">Dread Roll</div><div style="font-family:\'Rajdhani\',sans-serif;font-size:1.8rem;font-weight:700;color:var(--red);">' + d.total + '</div></div>'
+      + '</div>'
+      + '<div style="text-align:center;font-family:\'Cinzel\',serif;font-size:.76rem;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">'
+      + (success ? '\u2713 Information gathered — +5 bonus secured' : '\u2717 Contacts run dry — Additional Danger incoming')
+      + '</div></div>'
+      + resultHtml
+      + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm" onclick="skipHoldingQuestStep1();closeModal();">Skip This Step</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="completeHoldingQuestStep1(' + success + ',decodeURIComponent(\'' + encoded + '\'));closeModal();">Confirm</button>'
+      + '</div>';
+    openModal('Step 1 — Gather Information', html);
+  }
+
+  function completeHoldingQuestStep1(success, encodedResult) {
     ensureNewFeatureState();
     var q = S.holdingQuest;
     if (!q || !q.active) { return; }
 
-    var advDie = (S.stats && S.stats.adventure) || 4;
-    var dreadByStep = [6, 8, 10];
-    var stepNames = ['Gather Information', 'Go To Site', 'Establish Holding'];
-    var stepIdx = q.step;
-    var dreadDie = dreadByStep[stepIdx] || 10;
-    var a = explodingRoll(advDie);
-    var d = explodingRoll(dreadDie);
-    var success = a.total >= d.total;
+    q.step1Completed = true;
+    q.step1Skipped = false;
+    q.step = 1;
+    if (success) {
+      q.bonus = 5;
+      q.infoFeature = typeof encodedResult === 'string' ? JSON.parse(encodedResult) : encodedResult;
+      showNotif('Step 1 complete: +5 Holding quest bonus.', 'good');
+    } else {
+      q.additionalDanger = typeof encodedResult === 'string' ? JSON.parse(encodedResult) : encodedResult;
+      q.bonus = 0;
+      showNotif('Step 1 complete: Additional Danger added.', 'warn');
+    }
+    placeHoldingQuestTokens();
+    renderHoldingUI();
+    if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
+    if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
+  }
+
+  function skipHoldingQuestStep1() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest;
+    if (!q || !q.active) { return; }
+    q.step1Completed = true;
+    q.step1Skipped = true;
+    q.bonus = 0;
+    q.step = 1;
+    placeHoldingQuestTokens();
+    renderHoldingUI();
+    if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
+    if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
+  }
+
+  function holdingQuestStartStep2() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest;
+    if (!q || !q.active) { return; }
+    if (!q.step1Completed) { showNotif('Complete or skip Step 1 first.', 'warn'); return; }
+    if (q.step2Completed) { showNotif('Step 2 already completed.', 'warn'); return; }
+
+    if (!Array.isArray(q.siteRooms) || !q.siteRooms.length) {
+      var roomCount = roll(5) + 1;
+      q.siteRooms = [];
+      for (var i = 0; i < roomCount; i++) {
+        q.siteRooms.push('Room ' + (i + 1) + ': ' + pick(['Collapsed Hall', 'Guard Post', 'Storage Vault', 'Barracks', 'Watch Deck', 'Foundation Chamber', 'Ruined Entrance', 'Supply Hall']));
+      }
+    }
+
+    var dangerHtml = q.additionalDanger
+      ? '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.35rem .5rem;margin-bottom:.4rem;font-size:.76rem;color:var(--muted3);"><strong style="color:var(--red2);">\u26A0 Additional Danger:</strong> ' + q.additionalDanger.name + ' — ' + q.additionalDanger.desc + '</div>'
+      : '';
+    var roomsHtml = q.siteRooms.map(function(r){ return '<div style="padding:.22rem .35rem;border:1px solid var(--border2);margin-bottom:.2rem;font-size:.76rem;color:var(--text2);">' + r + '</div>'; }).join('');
+    var html = dangerHtml
+      + '<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.45rem;">Step 2 — Site Layout — 2-6 Rooms</div>'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.58rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.3rem;">Site Layout — ' + q.siteRooms.length + ' Rooms</div>'
+      + roomsHtml
+      + '<div style="display:flex;justify-content:flex-end;margin-top:.45rem;">'
+      + '<button class="btn btn-sm btn-teal" onclick="completeHoldingQuestStep2();closeModal();">Proceed to Confrontation</button>'
+      + '</div>';
+    openModal('Step 2 — Go to Site', html);
+  }
+
+  function completeHoldingQuestStep2() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest;
+    if (!q || !q.active) { return; }
+    q.step2Completed = true;
+    q.step = 2;
+    q.holdingHex = q.siteHex || q.holdingHex || q.infoHex || null;
+    placeHoldingQuestTokens();
+    renderHoldingUI();
+    if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
+    if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
+  }
+
+  function holdingQuestStartStep3() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest;
+    if (!q || !q.active) { return; }
+    if (!q.step2Completed) { showNotif('Complete Step 2 first.', 'warn'); return; }
+
+    if (!q.securityCount) {
+      q.securityCount = roll(4) + 1;
+    }
+
+    var html = '<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.45rem;line-height:1.5;">'
+      + 'Confrontation: ' + q.securityCount + ' Security + Roll Adventure d8 + 5 vs Dread d8 — then click your outcome Success or Failure.'
+      + '</div>'
+      + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm btn-red" onclick="resolveHoldingQuestStep3(false);closeModal();">\u2717 Failure — Roll Failed</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestStep3(true);closeModal();">\u2713 Success — Roll Succeeded</button>'
+      + '</div>';
+    openModal('Step 3 — Confrontation', html);
+  }
+
+  function resolveHoldingQuestStep3(success) {
+    ensureNewFeatureState();
+    var q = S.holdingQuest;
+    if (!q || !q.active) { return; }
 
     if (!success) {
       q.active = false;
       q.failed = true;
+      q.step3Completed = true;
       clearHoldingQuestTokens();
       if (typeof renderHexMap === 'function') { renderHexMap(); }
-      showNotif('Holding Quest failed on "' + (stepNames[stepIdx] || 'Step') + '" (' + a.total + ' vs ' + d.total + '). Retry from Missions.', 'warn');
+      showNotif('Holding quest failed. Retry from Available Quests.', 'warn');
       renderHoldingUI();
-      if (typeof renderMissionBoard === "function") { renderMissionBoard(); }
+      if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
+      if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
       if (typeof renderQP === 'function') { renderQP('missions'); }
       return;
     }
 
-    if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
-    q.step++;
-    if (q.step === 1) {
-      placeHoldingQuestTokens();
-      showNotif('Step complete: Gather Information (' + a.total + ' vs ' + d.total + ')', 'good');
+    q.step3Completed = true;
+    q.step = 3;
+    q.active = false;
+    q.failed = false;
+
+    S.renown = (S.renown || 0) + 1;
+    if (typeof updateRenown === 'function') { updateRenown(); }
+    S.credits = (S.credits || 0) + (q.rewardCredits || 250);
+    if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
+
+    var loot = [];
+    if (typeof rollForLoot === 'function') {
+      loot = rollForLoot('challenging') || [];
     }
-    if (q.step === 2) {
-      q.holdingHex = q.siteHex || q.holdingHex || q.infoHex || null;
-      placeHoldingQuestTokens();
-      showNotif('Step complete: Go To Site (' + a.total + ' vs ' + d.total + ')', 'good');
+    q.rewardLoot = loot.slice();
+    if (typeof addToBackpack === 'function') {
+      for (var li = 0; li < loot.length; li++) { addToBackpack(loot[li]); }
     }
-    if (q.step >= 3) {
-      q.active = false;
-      q.failed = false;
-      // Prompt for holding name if not set
-      if (!S.holding.name) {
-        rollHoldingName();
-        showNotif("Holding established! Name your domain.", "good");
-      } else {
-        showNotif("Holding established: " + S.holding.name + "!", "good");
-      }
-      placeHoldingQuestTokens();
+
+    if (!S.holding.name) {
+      rollHoldingName();
     }
+    if (!S.holding.name) {
+      S.holding.name = 'New Holding';
+    }
+    q.holdingHex = q.holdingHex || q.siteHex || q.infoHex || null;
+    placeHoldingQuestTokens();
     updateHoldingTabVisibility();
     renderHoldingUI();
-    if (typeof renderMissionBoard === "function") { renderMissionBoard(); }
+    if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
+    if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
+    if (typeof renderCompletedMissions === 'function') { renderCompletedMissions(); }
     if (typeof renderQP === 'function') { renderQP('missions'); }
+
+    showNotif('Holding established! +1 Renown · +' + (q.rewardCredits || 250) + '₵' + (loot.length ? ' · Loot: ' + loot.join(', ') : ''), 'good');
+
+    var holdingBtn = document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
+    if (typeof switchTab === 'function') {
+      switchTab('holding', holdingBtn || null);
+    }
+  }
+
+  function advanceHoldingQuest() {
+    var q = S.holdingQuest || {};
+    if (!q.active) { return; }
+    if (!q.step1Completed) { holdingQuestStartStep1(); return; }
+    if (!q.step2Completed) { holdingQuestStartStep2(); return; }
+    holdingQuestStartStep3();
+  }
+
+  function getHoldingQuestBoardCardHtml() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest || {};
+    var renown = S.renown || 0;
+    var holdingEstablished = S.holding && S.holding.name;
+    if (renown < 9 || holdingEstablished) { return ''; }
+
+    if (!q.active) {
+      return '<div class="shop-card" style="display:flex;flex-direction:column;border-color:var(--gold);background:rgba(201,162,39,.05);">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.5rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;margin-bottom:.18rem;">LORD\'S CALLING</div>'
+        + '<div class="s-name" style="color:var(--gold);">Establish Your Holding</div>'
+        + '<div style="font-size:.78rem;color:var(--muted3);flex:1;margin:.2rem 0;line-height:1.45;">Complete a mission-style 3-step quest to claim your domain in the Province.</div>'
+        + (q.failed ? '<div style="font-size:.74rem;color:var(--red2);margin:.15rem 0;">Previous attempt failed. You can retry now.</div>' : '')
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;padding-top:.3rem;border-top:1px solid var(--border);">'
+        + '<span style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:.78rem;color:var(--gold2);">Special Quest</span>'
+        + '<button class="btn btn-xs btn-teal" onclick="startHoldingQuest()">Begin \u2192</button>'
+        + '</div>'
+        + '</div>';
+    }
+
+    var s1Done = !!q.step1Completed;
+    var s2Done = !!q.step2Completed;
+    var s3Done = !!q.step3Completed;
+    var btn1 = s1Done
+      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Info</button>'
+      : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep1()">\u25B6 Info</button><button class="btn btn-xs" onclick="skipHoldingQuestStep1()" style="font-size:.62rem;">Skip</button>';
+    var btn2 = s2Done
+      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Site</button>'
+      : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep2()"' + (!s1Done ? ' disabled style="opacity:.45;"' : '') + '>\u25B6 Site</button>';
+    var btn3 = s3Done
+      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Confront</button>'
+      : '<button class="btn btn-xs btn-primary" onclick="holdingQuestStartStep3()"' + (!s2Done ? ' disabled style="opacity:.45;"' : '') + '>\u25B6 Confront</button>';
+
+    return '<div class="shop-card" style="display:flex;flex-direction:column;border-color:var(--teal);background:rgba(46,196,182,.05);">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.5rem;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:.18rem;">IN PROGRESS</div>'
+      + '<div class="s-name" style="color:var(--teal);">Establish Your Holding</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin:.15rem 0;">Step 1-3 flow matches Missions tab progression.</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">' + btn1 + btn2 + btn3 + '</div>'
+      + '</div>';
+  }
+
+  function getHoldingQuestTrackerCardHtml() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest || {};
+    var holdingEstablished = S.holding && S.holding.name;
+    if (!q.active || holdingEstablished) { return ''; }
+
+    var s1 = { completed: !!q.step1Completed, skipped: !!q.step1Skipped };
+    var s2 = { completed: !!q.step2Completed };
+    var s3 = { completed: !!q.step3Completed };
+    var steps = [s1, s2, s3];
+    var labels = {1:'Gather Info',2:'Go to Site',3:'Confrontation'};
+    var stepsHtml = [1,2,3].map(function(n) {
+      var step = steps[n - 1];
+      var isActive = (n === 1 && !s1.completed) || (n === 2 && s1.completed && !s2.completed) || (n === 3 && s2.completed && !s3.completed);
+      var color = step.completed ? 'var(--green2)' : isActive ? 'var(--teal)' : 'var(--border2)';
+      var textCol = step.completed ? 'var(--muted2)' : isActive ? 'var(--text)' : 'var(--muted)';
+      var marker = step.completed ? (step.skipped ? '\u2014' : '\u2713') : String(n);
+      return '<div style="display:flex;align-items:center;gap:.3rem;padding:.15rem .2rem;">'
+        + '<div style="width:1.3rem;height:1.3rem;border-radius:50%;border:1.5px solid ' + color + ';display:flex;align-items:center;justify-content:center;font-size:.65rem;color:' + color + ';flex-shrink:0;">' + marker + '</div>'
+        + '<div style="font-size:.75rem;color:' + textCol + ';">' + labels[n] + (n === 1 ? ' <span style="color:var(--muted);font-size:.62rem;">[optional]</span>' : '') + '</div>'
+        + '</div>';
+    }).join('');
+
+    var btn1 = s1.completed
+      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Info</button>'
+      : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep1()">\u25B6 Info</button><button class="btn btn-xs" onclick="skipHoldingQuestStep1()" style="font-size:.62rem;">Skip</button>';
+    var btn2 = s2.completed
+      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Site</button>'
+      : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep2()"' + (!s1.completed ? ' disabled style="opacity:.45;"' : '') + '>\u25B6 Site</button>';
+    var btn3 = s3.completed
+      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Confront</button>'
+      : '<button class="btn btn-xs btn-primary" onclick="holdingQuestStartStep3()"' + (!s2.completed ? ' disabled style="opacity:.45;"' : '') + '>\u25B6 Confront</button>';
+
+    return '<div style="background:var(--surface);border:1px solid rgba(46,196,182,.5);padding:.6rem;margin-bottom:.5rem;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.3rem;">'
+      + '<div><div style="font-family:\'Cinzel\',serif;font-size:.8rem;color:var(--teal);margin-bottom:.1rem;">Establish Your Holding</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);">Special Quest · DD d8 · Province</div></div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border);padding:.2rem .3rem;margin-bottom:.3rem;">' + stepsHtml + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">' + btn1 + btn2 + btn3 + '</div>'
+      + '</div>';
   }
 
   function moveVaultItemToBackpack(i) {
@@ -1764,6 +2065,15 @@
   window.clearAllCrises       = clearAllCrises;
   window.startHoldingQuest    = startHoldingQuest;
   window.advanceHoldingQuest  = advanceHoldingQuest;
+  window.holdingQuestStartStep1 = holdingQuestStartStep1;
+  window.completeHoldingQuestStep1 = completeHoldingQuestStep1;
+  window.skipHoldingQuestStep1 = skipHoldingQuestStep1;
+  window.holdingQuestStartStep2 = holdingQuestStartStep2;
+  window.completeHoldingQuestStep2 = completeHoldingQuestStep2;
+  window.holdingQuestStartStep3 = holdingQuestStartStep3;
+  window.resolveHoldingQuestStep3 = resolveHoldingQuestStep3;
+  window.getHoldingQuestBoardCardHtml = getHoldingQuestBoardCardHtml;
+  window.getHoldingQuestTrackerCardHtml = getHoldingQuestTrackerCardHtml;
   window.onHoldingCouncilTaskResolved = onHoldingCouncilTaskResolved;
   window.moveVaultItemToBackpack = moveVaultItemToBackpack;
   window.moveBackpackToVault  = moveBackpackToVault;
@@ -1885,7 +2195,7 @@
       return;
     }
 
-    // Default: all other items → Backpack
+    // Default purchases: equip weapons/armor when slots are open, else backpack.
     if ((S.credits || 0) < cost) {
       showNotif('Not enough credits!', 'warn'); return;
     }
@@ -1898,6 +2208,62 @@
     var backpackText = name;
     if (foundItem && foundItem.item && foundItem.item.stat && (weaponCats.indexOf(cat) >= 0 || armorCats.indexOf(cat) >= 0)) {
       backpackText = name + ' (' + foundItem.item.stat + ')';
+    }
+
+    if (weaponCats.indexOf(cat) >= 0) {
+      S.credits -= cost;
+      updateCreditsUI();
+      if (!S.equipment.weapon1) {
+        S.equipment.weapon1 = backpackText;
+        setInputValue('eqWeapon1', backpackText);
+        showNotif('Bought: ' + name + ' → Equipped to Weapon 1 (−' + cost + '₵)', 'good');
+      } else if (!S.equipment.weapon2) {
+        S.equipment.weapon2 = backpackText;
+        setInputValue('eqWeapon2', backpackText);
+        showNotif('Bought: ' + name + ' → Equipped to Weapon 2 (−' + cost + '₵)', 'good');
+      } else {
+        var wSlot = -1;
+        for (var wi = 0; wi < S.backpack.length; wi++) {
+          if (!S.backpack[wi]) { wSlot = wi; break; }
+        }
+        if (wSlot >= 0) {
+          S.backpack[wSlot] = backpackText;
+          var wEl = document.getElementById('bp' + wSlot);
+          if (wEl) { wEl.value = backpackText; }
+          showNotif('Bought: ' + name + ' → Backpack Slot ' + (wSlot + 1) + ' (−' + cost + '₵)', 'good');
+        } else {
+          showNotif('Bought: ' + name + ' (−' + cost + '₵) — Backpack full!', 'warn');
+        }
+      }
+      if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
+      if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
+      return;
+    }
+
+    if (armorCats.indexOf(cat) >= 0) {
+      S.credits -= cost;
+      updateCreditsUI();
+      if (!S.equipment.armor) {
+        S.equipment.armor = backpackText;
+        setInputValue('eqArmor', backpackText);
+        showNotif('Bought: ' + name + ' → Equipped to Armor (−' + cost + '₵)', 'good');
+      } else {
+        var aSlot = -1;
+        for (var ai = 0; ai < S.backpack.length; ai++) {
+          if (!S.backpack[ai]) { aSlot = ai; break; }
+        }
+        if (aSlot >= 0) {
+          S.backpack[aSlot] = backpackText;
+          var aEl = document.getElementById('bp' + aSlot);
+          if (aEl) { aEl.value = backpackText; }
+          showNotif('Bought: ' + name + ' → Backpack Slot ' + (aSlot + 1) + ' (−' + cost + '₵)', 'good');
+        } else {
+          showNotif('Bought: ' + name + ' (−' + cost + '₵) — Backpack full!', 'warn');
+        }
+      }
+      if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
+      if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
+      return;
     }
 
     S.credits -= cost;

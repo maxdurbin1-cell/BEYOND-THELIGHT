@@ -191,7 +191,7 @@
   function makeMission(title, difficulty, location, region) {
     var diff = DIFFICULTIES[difficulty] || DIFFICULTIES.easy;
     return {
-      id: Date.now() + Math.random(), title:title, difficulty:difficulty, dread:diff.dread,
+      id: Date.now() + Math.floor(Math.random() * 10000), title:title, difficulty:difficulty, dread:diff.dread,
       location:location||'Unknown', region:region||'province', reward:diff.credits, bonus:0,
       infoFeature:null, additionalDanger:null, bypassSecurity:false, hackSystem:false,
       siteRoll:null, rooms:generateRoomObjects(difficulty), guards:generateGuards(diff.dread),
@@ -208,11 +208,12 @@
   function generateMissions() {
     ensureState();
     S.availableJobs = [];
+    var seed = Date.now();
     var count = Math.max(1, Math.min(4, roll(4)));
     for (var i = 0; i < count; i++) {
       var diffKey = pick(DIFF_KEYS);
       var diff    = DIFFICULTIES[diffKey];
-      S.availableJobs.push({ id:Date.now()+Math.random(), title:pick(MISSION_VERBS)+' '+pick(MISSION_TARGETS), difficulty:diffKey, dread:diff.dread, location:pick(MISSION_LOCS), reward:diff.credits, region:'province' });
+      S.availableJobs.push({ id:seed + i + 1, title:pick(MISSION_VERBS)+' '+pick(MISSION_TARGETS), difficulty:diffKey, dread:diff.dread, location:pick(MISSION_LOCS), reward:diff.credits, region:'province' });
     }
     renderMissionBoard();
     showNotif('Posted '+count+' mission'+(count!==1?'s':'')+' on the board!','good');
@@ -221,11 +222,11 @@
   function acceptJob(jobId) {
     ensureState();
     var job = null;
-    for (var i = 0; i < S.availableJobs.length; i++) { if (S.availableJobs[i].id === jobId) { job = S.availableJobs[i]; break; } }
+    for (var i = 0; i < S.availableJobs.length; i++) { if (String(S.availableJobs[i].id) === String(jobId)) { job = S.availableJobs[i]; break; } }
     if (!job) return;
     var mission = makeMission(job.title, job.difficulty, job.location, job.region||'province');
     S.activeMissions.push(mission);
-    S.availableJobs = S.availableJobs.filter(function(j){return j.id!==jobId;});
+    S.availableJobs = S.availableJobs.filter(function(j){return String(j.id)!==String(jobId);});
     assignMissionToken(mission);
     renderMissionBoard();
     renderMissionTracker();
@@ -520,7 +521,7 @@
   function resolveMission(missionId,success) {
     ensureState();
     var idx=-1;
-    for (var i=0;i<S.activeMissions.length;i++) { if (S.activeMissions[i].id===missionId){idx=i;break;} }
+    for (var i=0;i<S.activeMissions.length;i++) { if (String(S.activeMissions[i].id)===String(missionId)){idx=i;break;} }
     if (idx===-1) return;
     var mission=S.activeMissions[idx];
     mission.steps[3].completed=true; mission.completedAt=new Date().toISOString(); mission.success=success;
@@ -571,7 +572,7 @@
   /* ── HELPERS ── */
   function getMission(missionId) {
     var missions=(typeof S!=='undefined'&&S.activeMissions)||[];
-    for (var i=0;i<missions.length;i++) { if (missions[i].id===missionId) return missions[i]; }
+    for (var i=0;i<missions.length;i++) { if (String(missions[i].id)===String(missionId)) return missions[i]; }
     return null;
   }
 
@@ -593,42 +594,10 @@
     var container=document.getElementById('jobsGrid'); if (!container) return;
     ensureState();
 
-    // Special: Holding Establishment quest card (only when Renown ≥ 9 and no holding yet)
+    // Special: Holding Establishment quest card.
     var holdingQuestHtml = '';
-    var renown = S.renown || 0;
-    var holdingQuest = S.holdingQuest || {};
-    var holdingEstablished = S.holding && S.holding.name;
-    if (renown >= 9 && !holdingEstablished && !holdingQuest.active) {
-      holdingQuestHtml = '<div class="shop-card" style="display:flex;flex-direction:column;border-color:var(--gold);background:rgba(201,162,39,.05);">'
-        + '<div style="font-family:\'Cinzel\',serif;font-size:.5rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;margin-bottom:.18rem;">LORD\'S CALLING</div>'
-        + '<div class="s-name" style="color:var(--gold);">Establish Your Holding</div>'
-        + '<div style="display:flex;gap:.35rem;align-items:center;font-family:\'Rajdhani\',sans-serif;font-size:.72rem;font-weight:700;margin:.15rem 0;">'
-          + '<span style="color:var(--gold);text-transform:uppercase;">Lord</span>'
-          + '<span style="color:var(--muted2);">·</span>'
-          + '<span style="font-family:\'Cinzel\',serif;font-size:.55rem;color:var(--gold);">Renown 9</span>'
-        + '</div>'
-        + '<div style="font-size:.78rem;color:var(--muted3);flex:1;margin:.2rem 0;line-height:1.45;">You have earned the right to rule. Gather followers, scout a defensible location, and claim your domain. This Holding will be marked on the Province map.</div>'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;padding-top:.3rem;border-top:1px solid var(--border);">'
-          + '<span style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:.78rem;color:var(--gold2);">Special Quest</span>'
-          + '<button class="btn btn-xs btn-teal" onclick="startHoldingQuest()">Begin →</button>'
-        + '</div>'
-      + '</div>';
-    } else if (renown >= 9 && holdingQuest.active && !holdingEstablished) {
-      var steps = ['Gather Information', 'Go To Site', 'Establish Holding'];
-      var curStep = steps[holdingQuest.step] || 'Complete';
-      holdingQuestHtml = '<div class="shop-card" style="display:flex;flex-direction:column;border-color:var(--teal);background:rgba(46,196,182,.05);">'
-        + '<div style="font-family:\'Cinzel\',serif;font-size:.5rem;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:.18rem;">IN PROGRESS</div>'
-        + '<div class="s-name" style="color:var(--teal);">Establish Your Holding</div>'
-        + '<div style="font-size:.78rem;color:var(--muted3);margin:.2rem 0;">Current Step: <strong style="color:var(--text);">' + curStep + '</strong></div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.2rem;margin:.4rem 0;">'
-          + steps.map(function(s, i) {
-              var done = holdingQuest.step > i;
-              var cur  = holdingQuest.step === i;
-              return '<div style="padding:.2rem;text-align:center;font-size:.65rem;background:' + (done ? 'var(--green2)' : cur ? 'var(--teal)' : 'var(--surface)') + ';border-radius:3px;color:' + (done || cur ? 'var(--text)' : 'var(--muted2)') + ';">' + s + '</div>';
-            }).join('')
-        + '</div>'
-        + '<button class="btn btn-xs btn-primary" onclick="if(typeof advanceHoldingQuest===\'function\')advanceHoldingQuest()" style="margin-top:.3rem;">Advance Quest →</button>'
-      + '</div>';
+    if (typeof window.getHoldingQuestBoardCardHtml === 'function') {
+      holdingQuestHtml = window.getHoldingQuestBoardCardHtml() || '';
     }
 
     if (!S.availableJobs.length && !holdingQuestHtml) {
@@ -657,11 +626,15 @@
   function renderMissionTracker() {
     var container=document.getElementById('missionTrackerContainer'); if (!container) return;
     ensureState();
-    if (!S.activeMissions.length) {
+    var holdingTrackerHtml = '';
+    if (typeof window.getHoldingQuestTrackerCardHtml === 'function') {
+      holdingTrackerHtml = window.getHoldingQuestTrackerCardHtml() || '';
+    }
+    if (!S.activeMissions.length && !holdingTrackerHtml) {
       container.innerHTML='<div style="font-size:.83rem;color:var(--muted2);padding:.3rem 0;">No active missions. Accept a mission from the board above.</div>';
       return;
     }
-    container.innerHTML=S.activeMissions.map(function(mission){
+    container.innerHTML=holdingTrackerHtml + S.activeMissions.map(function(mission){
       var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);
       var s1=mission.steps[1],s2=mission.steps[2],s3=mission.steps[3];
       var stepLabels={1:'Gather Info',2:'Go to Site',3:'Confrontation'};

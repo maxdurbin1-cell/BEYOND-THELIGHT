@@ -374,6 +374,8 @@ function ensureStarsState() {
     starshipTravelDays: 0,
     radioEventsSeen: {},
     lastRadioEvent: '',
+    activeDeadMoon: null,
+    activeDerelict: null,
   };
   S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false, ageEpochYear: null, ageEpochIndex: null };
   if (!S.gameDate.seededRandom) {
@@ -399,6 +401,8 @@ function ensureStarsState() {
   if (!Array.isArray(S.starSystem.majorPowers)) S.starSystem.majorPowers = [];
   if (!Array.isArray(S.starSystem.factions)) S.starSystem.factions = [];
   if (!S.starSystem.radioEventsSeen || typeof S.starSystem.radioEventsSeen !== 'object') S.starSystem.radioEventsSeen = {};
+  if (!S.starSystem.activeDeadMoon) S.starSystem.activeDeadMoon = null;
+  if (!S.starSystem.activeDerelict) S.starSystem.activeDerelict = null;
 
   if (!S.radiationState) {
     S.radiationState = {
@@ -577,6 +581,73 @@ const DEAD_MOON_DIRECTIONS = {
   east: ['Aerial Facility', 'Overgrown Ruins', 'Fuel Depot', 'Training Yard'],
   west: ['Quarry', 'Derelict Docking Bay', 'Echoing Halls', 'Bio-engine Vault'],
 };
+
+const DEAD_MOON_DIRECTION_CONTEXT = {
+  north: 'Rough terrain and writhing netted tentacles under frequent violet lightning.',
+  south: 'Burned plains around a twisted communications tower and shattered relics.',
+  east: 'Monumental towers over bone-like terrain and scorched embankments.',
+  west: 'Spare trees over broken ground and black water-fed shorelines.',
+};
+
+const DEAD_MOON_TRAVEL_EVENTS = {
+  north: [
+    'Purple lightning tears through the sky; Body save or suffer 2 stress.',
+    'Skull shards crash from elevated ruins; Body vs DD6 or take d6 damage.',
+    'Yellow hull fungus pulses in a black cloud; +1 Action cost for this leg.',
+    'Insectoid swarm DD4 | 8 Health appears among twisted roots.',
+  ],
+  south: [
+    'Slime-like moth swarm DD8 | 8 Health crawls from broken ducts.',
+    'Chunks of metal rain down; Body save or struck for d10 damage.',
+    'Echoing warning: execute lockdown. Automated wardens activate.',
+    'Sire-Moths emerging from wreckage: DD8 | 8 Health.',
+  ],
+  east: [
+    'Bone-shard winds strip exposed armor, movement slowed.',
+    'Howl echoes in the distance: all gain +10 stress.',
+    'Gaunt hounds descend from ribbed structures DD12 | 12 Health.',
+    'Lifelike statues ignite with pale fire, forcing retreat lines.',
+  ],
+  west: [
+    'Corpse of d10 grabber trees appears in the fog.',
+    'Tirelike mutant striders and husked bodies block the path.',
+    'Sonic-laced wind induces sudden fatigue for one phase.',
+    'Insectoid tree colony DD10 | 20 Health stirs near black water.',
+  ],
+};
+
+const DEAD_MOON_SITE_ENCOUNTERS = {
+  north: ['Rusted sentry nest', 'Collapsed anti-orbital battery', 'Dormant cryo wing', 'Bone-stitched ward chamber'],
+  south: ['Abandoned Lab', 'Armory', 'Living Quarters', 'Control Room', 'Research Station', 'Storage', 'Engine Room', 'Observation Dome', 'Security Checkpoint', 'Medical Bay'],
+  east: ['Burning promenade', 'Fractured oracle hall', 'Ruined fuel catwalk', 'Collapsed defense chapel'],
+  west: ['Quarry Loot Vault', 'Derelict Docking Ring', 'Echoing Hall of Masks', 'Bio-engine reliquary'],
+};
+
+const DEAD_MOON_LOOT = [
+  'Biooculars', 'Camping Gear', 'Depressant', 'Water Filter', 'Fuel Tank (+3 Standard Fuel)', 'Antidote',
+  'Laser Cutter (+d4 Shoot)', 'Data Crystals worth 50 credits', 'Pills (Heal d4)', 'Unknown geometric stack',
+];
+
+const DERELICT_SHIP_TYPES = ['Space Hub', 'Cruiser', 'Freighter', 'Frigate', 'Research Vessel', 'Shuttle', 'Troopship'];
+const DERELICT_SHIP_STATUS = ['Habitable (Functioning)', 'Habitable (Non-Functioning)', 'Inhabitable (RadSuit Needed)'];
+const DERELICT_ENGINE_STATUS = ['Unstable Core', 'Stable Engine', 'Thrusters', 'Jump Drive', 'Non-Functioning Engine'];
+const DERELICT_MODULE_TABLE = [
+  'COMMAND: single cockpit scarred by gunfire.',
+  'LIFE SUPPORT: functional but unstable (all injuries/health/stress checks).',
+  'COMPUTER: intact map of nearest random hexes.',
+  'WEAPON: Laser Cutter (+d4 Shoot).',
+  'WEAPON: Railgun (Ad6 Strike).',
+  'JUMP DRIVE: salvageable (+3 Hub Jumps).',
+  'HYPERDRIVE: salvageable (+3 random coordinate jumps).',
+  'ENGINE: salvageable (+3 Standard Fuel).',
+  'GALLEY: while here, find loot.',
+  'BARRACKS: Traveling Wayfarer corpse and clues.',
+  'MEDBAY: stocked but partially powered.',
+  'LAB: quarantine zone, Body vs DD10 to enter safely.',
+  'C-CHAMBER: filled with corpses. +10 Stress.',
+  'CARGO HOLD: scavengers DD4 | 8 Health guarding cargo.',
+  'ENGINE: d12 squatter cluster around warm conduits.',
+];
 
 const FACILITY_CHALLENGES = [
   'The site is in deep debt. Pay 2d6x10 credits to stabilize operations.',
@@ -842,6 +913,103 @@ function resolveFacilityObjective() {
   }
 }
 
+function createDeadMoonState() {
+  const direction = pick(Object.keys(DEAD_MOON_DIRECTIONS));
+  const site = pick(DEAD_MOON_DIRECTIONS[direction]);
+  return {
+    direction,
+    site,
+    irradiated: roll(100) <= 25,
+    exploredSteps: 0,
+  };
+}
+
+function rollDeadMoonDirection() {
+  ensureStarsState();
+  const dm = S.starSystem.activeDeadMoon || createDeadMoonState();
+  S.starSystem.activeDeadMoon = dm;
+  dm.direction = pick(Object.keys(DEAD_MOON_DIRECTIONS));
+  dm.site = pick(DEAD_MOON_DIRECTIONS[dm.direction]);
+  const travel = pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction]);
+  const out = document.getElementById('starExplorationDetail');
+  if (out) {
+    out.innerHTML = `
+      <div style="font-size:.75rem;color:var(--gold2);">Dead Moon Direction: ${dm.direction.toUpperCase()}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${DEAD_MOON_DIRECTION_CONTEXT[dm.direction]}<br>Travel Event: ${travel}<br>Site of Interest: <strong>${dm.site}</strong>${dm.irradiated ? '<br><span style="color:var(--red2);">Irradiated zone active: +d100 Rads/day without protection.</span>' : ''}</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+        <button class="btn btn-xs btn-teal" onclick="exploreDeadMoonSite()">Explore Site</button>
+        <button class="btn btn-xs" onclick="rollDeadMoonDirection()">Roll New Direction</button>
+      </div>`;
+  }
+}
+
+function exploreDeadMoonSite() {
+  ensureStarsState();
+  const dm = S.starSystem.activeDeadMoon || createDeadMoonState();
+  S.starSystem.activeDeadMoon = dm;
+  dm.exploredSteps += 1;
+  const direction = dm.direction || 'north';
+  const room = pick(DEAD_MOON_SITE_ENCOUNTERS[direction]);
+  const encounter = pick([
+    'd10 Simiic Moths DD8 | 8 Health',
+    'd6 Gaunt Hounds DD12 | 12 Health',
+    'd10 Grabber Trees DD10 | 20 Health',
+    'd4 Rust Sentinels DD12 | 24 Health',
+    'No combat: echoes of the past (+5 Stress).',
+    'A wandering Antagonist crosses the corridor.',
+  ]);
+  const loot = pick(DEAD_MOON_LOOT);
+  const out = document.getElementById('starExplorationDetail');
+  if (out) {
+    out.innerHTML = `
+      <div style="font-size:.75rem;color:var(--gold2);">Dead Moon Site Exploration ${dm.exploredSteps}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Direction: <strong>${direction.toUpperCase()}</strong> · Site: <strong>${dm.site}</strong><br>Room/Event: ${room}<br>Encounter: ${encounter}<br>Loot: ${loot}</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+        <button class="btn btn-xs btn-teal" onclick="exploreDeadMoonSite()">Explore Next Room</button>
+        <button class="btn btn-xs" onclick="rollDeadMoonDirection()">Change Direction</button>
+      </div>`;
+  }
+}
+
+function createDerelictShipState() {
+  return {
+    shipType: DERELICT_SHIP_TYPES[roll(7) - 1],
+    status: DERELICT_SHIP_STATUS[Math.min(2, Math.floor((roll(10) - 1) / 4))],
+    engine: DERELICT_ENGINE_STATUS[Math.min(4, Math.floor((roll(10) - 1) / 2))],
+    survivorCount: roll(10) - 1,
+    modules: Math.max(1, roll(8)),
+    explored: 0,
+    ruinCause: pick(['space debris', 'pirates', 'cannibalism', 'starvation', 'mob hit', 'system failure', 'loss of air', 'open hatch', 'uncontrollable fire']),
+  };
+}
+
+function rollDerelictShipModule() {
+  ensureStarsState();
+  const ds = S.starSystem.activeDerelict || createDerelictShipState();
+  S.starSystem.activeDerelict = ds;
+  if (ds.explored >= ds.modules) {
+    const outDone = document.getElementById('starExplorationDetail');
+    if (outDone) outDone.innerHTML = '<span style="color:var(--gold2);">All derelict modules explored. Return to ship.</span>';
+    return;
+  }
+  ds.explored += 1;
+  const module = DERELICT_MODULE_TABLE[roll(DERELICT_MODULE_TABLE.length) - 1];
+  const encounter = pick(['Skittering within the walls', 'Banging inside vents', 'Something crawls beneath the floor', 'Thumps in the ceiling', 'Death worm outlines under plating', 'Paralyzing crawlers DD4|8 Health', 'Toxic crawlers DD4|8 Health + d100 Rads', 'Nothing']);
+  const trigger = pick(FACILITY_TRIGGERS);
+  const obstacle = pick(FACILITY_OBSTACLES);
+  const loot = pick(['d6 Standard Fuel (+1 fuel slot)', 'd4 Hub Jumps', 'd4 Hyperdrives', 'First-Aid Kit', 'Toolkit', 'Hack Data Drive', 'Spell Scrolls', 'Exocraft', 'Vehicle Mod', 'Ranged Weapon', 'Melee Weapon', 'Armor']);
+
+  const out = document.getElementById('starExplorationDetail');
+  if (out) {
+    out.innerHTML = `
+      <div style="font-size:.75rem;color:var(--gold2);">Derelict Module ${ds.explored}/${ds.modules}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Ship: <strong>${ds.shipType}</strong> · Status: ${ds.status} · Engine: ${ds.engine}<br>Module: ${module}<br>Encounter: ${encounter}<br>Trigger: ${trigger}<br>Obstacle: ${obstacle}<br>Loot: ${loot}</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+        <button class="btn btn-xs btn-teal" onclick="rollDerelictShipModule()">Explore Next Module</button>
+      </div>`;
+  }
+}
+
 function buildStarExplorationDetail(ring, outcome) {
   if (outcome === 'Mystery') {
     return `Mystery: ${pick(STAR_MYSTERY_SNIPPETS)}`;
@@ -880,14 +1048,28 @@ function buildStarExplorationDetail(ring, outcome) {
     return `Location: ${loc}. Space Port landing repairs Starship Hull automatically and grants access to Merchant Trade Post.`;
   }
   if (outcome === 'Dead Moon') {
-    const dir = pick(Object.keys(DEAD_MOON_DIRECTIONS));
-    return `Dead Moon: VaccSuit recommended, 25% chance irradiated (+d100 rads/day). Direction ${dir.toUpperCase()} reveals ${pick(DEAD_MOON_DIRECTIONS[dir])}.`;
+    const dm = createDeadMoonState();
+    S.starSystem.activeDeadMoon = dm;
+    return `
+      <div style="font-size:.75rem;color:var(--gold2);">Dead Moon</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Dead Moons are unique to the Inner Rings and often desecrated by collapse-era hubris. VaccSuit recommended. ${dm.irradiated ? '<span style="color:var(--red2);">Irradiated: +d100 Rads/day.</span>' : 'No immediate radiation spike detected.'}<br>Initial Direction: <strong>${dm.direction.toUpperCase()}</strong> · Site: <strong>${dm.site}</strong></div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+        <button class="btn btn-xs btn-teal" onclick="rollDeadMoonDirection()">Roll Direction Travel</button>
+        <button class="btn btn-xs" onclick="exploreDeadMoonSite()">Explore Site of Interest</button>
+      </div>`;
   }
   if (outcome === 'Skirmish') {
     return 'Skirmish: use current Skirmish rules. Determine factions and battlefield from the selected hex context.';
   }
   if (outcome === 'Derelict Ship') {
-    return 'Derelict Ship: roll ship type, module count, and ruin cause. Explore modules for loot, triggers, and encounters.';
+    const ds = createDerelictShipState();
+    S.starSystem.activeDerelict = ds;
+    return `
+      <div style="font-size:.75rem;color:var(--gold2);">Derelict Ship</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">A random vessel drifts from nightmare-space. Type: <strong>${ds.shipType}</strong>. Status: ${ds.status}. Engine: ${ds.engine}. Survivors: ${ds.survivorCount}. Cause of ruin: ${ds.ruinCause}. Modules: ${ds.modules}.</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+        <button class="btn btn-xs btn-teal" onclick="rollDerelictShipModule()">Explore Module</button>
+      </div>`;
   }
   return 'Uneventful Voyage: crew may perform downtime activities; no hostile contact.';
 }

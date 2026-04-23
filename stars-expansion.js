@@ -471,6 +471,285 @@ const STAR_RADIO_EVENTS = [
   'Ancient gate signature appears briefly in inner ring.',
 ];
 
+const STAR_MYSTERY_SNIPPETS = [
+  'A nomad ship transmits a fragmented plea before vanishing behind static.',
+  'Royal Armada signatures flood the scanner, but no ships are visible.',
+  'A drifting transport reports a crew that does not remember boarding.',
+  'A hostile frigate keeps perfect distance and never enters weapons range.',
+  'A deep-space entity shadows your hull in silence.',
+  'A damaged vessel asks for 2d6x10 credits in tax to pass safely.',
+  'A friendly ship offers trade and refueling if you dock.',
+  'A nearby moon reflects signals from a city that no longer exists.',
+  'A ghostly flotilla circles a dead planet in synchronized motion.',
+  'A sealed transmission repeats: "Do not approach the eye."',
+];
+
+const STAR_PERIL_SNIPPETS = [
+  'Malfunction: Systems desynchronize and oxygen use spikes.',
+  'Space anomaly: A gravitic fold pulls the crew through temporal lag.',
+  'Onboard issue: panic spreads as visions and sickness emerge.',
+  'Misjump: Arrival vector is wrong; navigation confidence collapses.',
+  'Life-support sputters while cabin pressure slowly drops.',
+  'A fuel recycler leaks volatile residue into ventilation.',
+  'A hard reboot causes 3-second input lag across controls.',
+  'The crew reports hearing voices through dead comm channels.',
+  'A hull resonance causes stress fractures near the engine spine.',
+  'Guidance logic loops and predicts impossible destinations.',
+];
+
+const STAR_SPACE_ENCOUNTERS = [
+  {
+    title: 'Weeping Willow',
+    text: 'A colossal weeping willow grows in a Star Hub greenhouse. Terraforming Seeds could restore a nearby desert world.',
+    options: ['Finish mission: deliver seeds to a desert planet (+1 Political Group).'],
+  },
+  {
+    title: 'Unusual Radar Signal',
+    text: 'A stationary Transporter has become an improvised corporate explosive foundry.',
+    options: ['Support mission: gain random Ranged Weapon (+1 Corporation).', 'Infiltrate: Control vs DD4 or fight 4 Corpos DD4|8 HP.'],
+  },
+  {
+    title: 'Derelict Space Station',
+    text: 'A drifting station contains ancient data drives.',
+    options: ['Recover data: Control between 2xDread(d6) -> gain random Master Hack (+1 Pirates).'],
+  },
+  {
+    title: 'Ghost Ship',
+    text: 'A crewless vessel holds an advanced toolkit and destination marker.',
+    options: ['Retrieve toolkit (+1 Rebel Faction).', 'Follow message: gain Ice Planet hook/mystery intel.'],
+  },
+  {
+    title: 'Stranded Scientist',
+    text: 'A scientist on a remote asteroid asks help finishing experiments.',
+    options: ['Assist: gain random Augmentation (+1 Religious Group).', 'Secure data: fight Experiment DD8|16 HP, gain random Cosmic Essential.'],
+  },
+  {
+    title: 'Space Anomaly',
+    text: 'An alien artifact emits unknown energy and warps nearby instruments.',
+    options: ['Study: Mind vs DD8, gain special Exocraft (+1 Religious Group).', 'Retrieve: fight Alien Guardian DD10|20 HP, gain random Trade Good.'],
+  },
+  {
+    title: 'Pirate Ambush',
+    text: 'Pirates demand tribute in open space.',
+    options: ['Pay 200 credits to avoid conflict.', 'Fight Pirate Leader DD10|20 HP, gain random Melee Weapon (+1 Political Group).'],
+  },
+  {
+    title: 'Cosmic Distress Beacon',
+    text: 'A crashed merchant vessel near a Dead Moon has survivors and scattered cargo.',
+    options: ['Aid survivors to nearest Space Hub (+1 Rebel Faction, random Armor).'],
+  },
+  {
+    title: 'Ancient Ruins',
+    text: 'A barren planet reveals a temple full of traps and relics.',
+    options: ['Explore: Lead vs DD10, gain random Scroll (+1 Religious Group).', 'Avoid traps: fight Guardians DD8|16 HP, gain 300 credits (+1 Pirates).'],
+  },
+  {
+    title: 'Black Market',
+    text: 'A hidden asteroid market trades mods, intel, and contraband.',
+    options: ['Trade: spend 100 credits, gain random Vehicle Mod (+1 Pirates).', 'Gather intel: Lead vs DD6 or fight 12 Pirates DD4|8 HP (+2 Corporation).'],
+  },
+];
+
+const STAR_LOCATION_BY_RING = {
+  inner: [
+    'Helios Farm Relay',
+    'Solar Mirror Foundry',
+    'Sunline Data Shrine',
+    'Thermal Crown Refinery',
+  ],
+  middle: [
+    'Orbital Research Lattice',
+    'Colony Ring Habitat',
+    'Archive Habitat 7',
+    'Merchant Halo Port',
+  ],
+  outer: [
+    'Icebound Archive',
+    'Graveyard Dock',
+    'Drift Market Anchorage',
+    'Warden Beacon Outpost',
+  ],
+};
+
+const DEAD_MOON_DIRECTIONS = {
+  north: ['Tower', 'Wreckage', 'Forgotten Orchard', 'Collapsed Lab'],
+  south: ['Dead Gateway', 'Abandoned Lab', 'Engine Room', 'Observation Dome'],
+  east: ['Aerial Facility', 'Overgrown Ruins', 'Fuel Depot', 'Training Yard'],
+  west: ['Quarry', 'Derelict Docking Bay', 'Echoing Halls', 'Bio-engine Vault'],
+};
+
+const FACILITY_CHALLENGES = [
+  'The site is in deep debt. Pay 2d6x10 credits to stabilize operations.',
+  '1d6 Missing Person(s). Find them in modules (1-in-6 chance per module).',
+  '1 Grifter + d4 goons DD4|8 HP seized resources in a random module.',
+  'Workers request resource acquisition support. Mine and return credits value.',
+  'Eliminate Antagonist: strange creature in a random module.',
+  'Find Missing Item for a Traveling Wayfarer (1-in-6 chance per module).',
+];
+
+const FACILITY_CONNECTORS = ['service hatch', 'freight elevator', 'narrow gantry', 'maintenance corridor', 'sealed pressure door', 'spiral ramp'];
+const FACILITY_MODULES = ['power core', 'research deck', 'cargo bay', 'hab quarter', 'reactor spine', 'data vault', 'observation deck', 'hydroponics'];
+const FACILITY_ENCOUNTER_TYPES = ['Resource', 'Artifact', 'Hazard', 'Locked Access Point', 'Dread Event', 'Fixed Event', 'Discovery', 'Situation', 'Trigger/Obstacle', 'Antagonist'];
+const FACILITY_DISPOSITIONS = ['wary', 'friendly', 'hostile', 'exhausted', 'silent', 'curious'];
+const FACILITY_WORKERS = ['dockworkers', 'mechanics', 'scientists', 'traders', 'wardens', 'aug-techs'];
+const FACILITY_ACTIONS = ['repairing', 'arguing over', 'cataloging', 'transporting', 'guarding', 'testing'];
+const FACILITY_SUBJECTS = ['fuel tanks', 'data crates', 'damaged drones', 'sealed cargo', 'strange residue', 'navigation relays'];
+
+function randomFacilityCode() {
+  const a = ['Din', 'Tho', 'Kai', 'Vor', 'Hel', 'Ash', 'Nox', 'Ira'];
+  const b = ['THo', 'VAR', 'ZEN', 'QAL', 'MIR', 'RON', 'PHA', 'UL'];
+  return `${pick(a)}-${pick(b)} ${roll(999)}`;
+}
+
+function createFacilityState() {
+  const sizeTable = [
+    { label: 'Small', modules: 4 },
+    { label: 'Medium', modules: 6 },
+    { label: 'Large', modules: 8 },
+  ];
+  const size = sizeTable[roll(sizeTable.length) - 1];
+  return {
+    code: randomFacilityCode(),
+    arrival: pick(['silent in low orbit', 'under sporadic weapons fire', 'half-powered and drifting', 'ringed by maintenance drones', 'flickering with unstable lights']),
+    sizeLabel: size.label,
+    sizeModules: size.modules,
+    purpose: pick(['research', 'refining', 'military logistics', 'terraforming support', 'communications relay', 'bio-industrial']),
+    description: pick(['a fractured moonlet', 'a drifting asteroid shard', 'an ion cloud', 'a ring of frozen debris', 'a dormant station skeleton']),
+    structure: pick(['spindle-like', 'cathedral-like', 'radial', 'modular', 'terraced', 'fortified']),
+    material: pick(['alloyed steel', 'carbon glass', 'ceramic composite', 'salvaged hull plating', 'reactive crystal']),
+    quirk: pick(['Workers speak in coded chants.', 'Every hallway points toward a central shrine.', 'Gravity pulses unpredictably.', 'Doors only open in paired sequence.']),
+    challenge: FACILITY_CHALLENGES[roll(6) - 1],
+    modulesCompleted: 0,
+    objectiveCompleted: false,
+  };
+}
+
+function facilityEncounterText(type) {
+  if (type === 'Resource') {
+    return 'Resource: crystalline seams hang from the ceiling. Mind/Control vs DD8 to mine d6 Data Crystals (50 credits each).';
+  }
+  if (type === 'Artifact') {
+    return `Artifact: you find ${pick(['a pre-collapse hololith', 'a quantum lockbox', 'a coded reliquary', 'a ceremonial exocore'])} worth 2d6x10 credits. Control vs DD8 on interaction.`;
+  }
+  if (type === 'Hazard') {
+    return `Hazard: ${pick(['psychic disturbance (+5 Stress, rolls -5 in module)', 'reactive gas leak', 'unstable flooring over a deep shaft', 'radiation-slick condensate'])}.`;
+  }
+  if (type === 'Locked Access Point') {
+    return 'Locked Access Point: Mind/Perception DD8 to detect trigger, Control/Tech DD8 to disable; failure alerts nearest antagonist.';
+  }
+  if (type === 'Dread Event') {
+    return `Dread Event: ${pick(['gain TAINT while at site', 'all crew gain d4 Stress', 'lose 1 random item on failed AD vs DD6', 'all crew gain +15 Stress', 'all characters take +1 Trauma'])}.`;
+  }
+  if (type === 'Fixed Event') {
+    return `Fixed Event: ${pick(['terrible visions cause friendly fire risk', 'corrosive growth threatens gear', 'bone throne hides a clue', 'all electronics fail in this module', 'random character is bitten (+1 dmg)'])}.`;
+  }
+  if (type === 'Discovery') {
+    return `Discovery: ${pick(['collapsed bodies under debris', 'radiation leak', 'tracks leading to next module', 'exit to landing pads', 'gravity flips upside down'])}.`;
+  }
+  if (type === 'Situation') {
+    return `Situation: ${pick(['anxious survivors guarding a cache', 'a tense truce between crews', 'a desperate medic triaging workers', 'a hidden cult-like ritual'])}.`;
+  }
+  if (type === 'Trigger/Obstacle') {
+    return `Trigger/Obstacle: Adventure Die vs DD8; detect with Mind/Perception, dismantle via Control/Tech. Failure triggers trap sequence.`;
+  }
+  return `Antagonist: ${pick(['Aberration', 'Synthetic', 'Local Fauna'])} ${pick(['Brute', 'Lurker', 'Ranged', 'Swarm', 'Psychic'])} encountered (size scales DD4-DD20).`;
+}
+
+function rollFacilityModule() {
+  ensureStarsState();
+  const f = S.starSystem.activeFacility;
+  const out = document.getElementById('starExplorationDetail');
+  if (!f) {
+    if (out) out.innerHTML = '<span style="color:var(--muted2);">No active facility. Roll Galactic Facility first.</span>';
+    return;
+  }
+  if (f.modulesCompleted >= f.sizeModules) {
+    if (out) out.innerHTML = '<span style="color:var(--gold2);">All modules explored. Resolve the site objective.</span>';
+    return;
+  }
+
+  f.modulesCompleted += 1;
+  const connector = pick(FACILITY_CONNECTORS);
+  const moduleName = pick(FACILITY_MODULES);
+  const encType = pick(FACILITY_ENCOUNTER_TYPES);
+  const text = facilityEncounterText(encType);
+  const chance = roll(6);
+  const foundTarget = chance === 1 ? ' (1-in-6 special target found.)' : '';
+
+  if (out) {
+    out.innerHTML = `
+      <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Facility Module ${f.modulesCompleted}/${f.sizeModules}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You go through <strong>${connector}</strong> and enter the <strong>${moduleName}</strong> module. ${text}${foundTarget}</div>`;
+  }
+}
+
+function resolveFacilityObjective() {
+  ensureStarsState();
+  const f = S.starSystem.activeFacility;
+  const out = document.getElementById('starExplorationDetail');
+  if (!f) return;
+  if (f.objectiveCompleted) {
+    if (out) out.innerHTML = '<span style="color:var(--muted2);">Objective already completed for this facility.</span>';
+    return;
+  }
+  f.objectiveCompleted = true;
+  if (typeof changeCounter === 'function') changeCounter('renown', 1);
+  showNotif('Facility objective completed: +1 Renown.', 'good');
+  if (out) {
+    out.innerHTML = `<div style="font-size:.75rem;color:var(--green2);">Objective completed for ${f.code}. +1 Renown granted.</div>`;
+  }
+}
+
+function buildStarExplorationDetail(ring, outcome) {
+  if (outcome === 'Mystery') {
+    return `Mystery: ${pick(STAR_MYSTERY_SNIPPETS)}`;
+  }
+  if (outcome === 'Peril') {
+    return `Peril: ${pick(STAR_PERIL_SNIPPETS)}`;
+  }
+  if (outcome === 'Galactic Facility') {
+    const f = createFacilityState();
+    S.starSystem.activeFacility = f;
+    const workerCount = roll(6);
+    return `
+      <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.2rem;">Galactic Facility ${f.code}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
+        As your starship exits jump, the site is <strong>${f.arrival}</strong>.<br>
+        It is a <strong>${f.sizeLabel}</strong> <strong>${f.purpose}</strong> facility near <strong>${f.description}</strong>, a <strong>${f.structure}</strong> structure made of <strong>${f.material}</strong>.<br>
+        Settlement Quirk: ${f.quirk}<br>
+        Current Challenge: ${f.challenge}<br>
+        Docking area: you meet d6 <strong>${pick(FACILITY_DISPOSITIONS)}</strong> ${pick(FACILITY_WORKERS)} ${pick(FACILITY_ACTIONS)} ${pick(FACILITY_SUBJECTS)}. Leader ${pick(['Lian','Kasha','Huang','Mira','Goran','Pae'])} offers contracts/trade/refuel.
+      </div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+        <button class="btn btn-xs btn-teal" onclick="rollFacilityModule()">Explore Next Module</button>
+        <button class="btn btn-xs" onclick="resolveFacilityObjective()">Complete Site Objective (+1 Renown)</button>
+      </div>
+      <div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Modules equal size (${workerCount ? f.sizeModules : f.sizeModules}). Use module rolls until objective is resolved.</div>`;
+  }
+  if (outcome === 'Space Encounter') {
+    const e = STAR_SPACE_ENCOUNTERS[roll(10) - 1];
+    return `
+      <div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${e.title}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.15rem;">${e.text}</div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">${e.options.map(o => '• ' + o).join('<br>')}</div>`;
+  }
+  if (outcome === 'Locations') {
+    const loc = pick(STAR_LOCATION_BY_RING[ring] || STAR_LOCATION_BY_RING.middle);
+    return `Location: ${loc}. Space Port landing repairs Starship Hull automatically and grants access to Merchant Trade Post.`;
+  }
+  if (outcome === 'Dead Moon') {
+    const dir = pick(Object.keys(DEAD_MOON_DIRECTIONS));
+    return `Dead Moon: VaccSuit recommended, 25% chance irradiated (+d100 rads/day). Direction ${dir.toUpperCase()} reveals ${pick(DEAD_MOON_DIRECTIONS[dir])}.`;
+  }
+  if (outcome === 'Skirmish') {
+    return 'Skirmish: use current Skirmish rules. Determine factions and battlefield from the selected hex context.';
+  }
+  if (outcome === 'Derelict Ship') {
+    return 'Derelict Ship: roll ship type, module count, and ruin cause. Explore modules for loot, triggers, and encounters.';
+  }
+  return 'Uneventful Voyage: crew may perform downtime activities; no hostile contact.';
+}
+
 function starHexDistance(a, b) {
   return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
 }
@@ -705,6 +984,12 @@ function rollStarSystemExploration() {
 
   const out = document.getElementById('starExplorationResult');
   if (out) out.innerHTML = `<span style="color:var(--gold2);">d10=${d10}</span> -> ${ring.toUpperCase()} ring: <strong>${outcome}</strong>`;
+
+  const detailEl = document.getElementById('starExplorationDetail');
+  if (detailEl) {
+    const detailText = buildStarExplorationDetail(ring, outcome);
+    detailEl.innerHTML = `<div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${detailText}</div>`;
+  }
   renderStarSystemMap();
   updateStarSystemReadouts();
 }
@@ -1955,6 +2240,7 @@ function buildStarshipPanel() {
         <button class="btn btn-xs btn-teal" onclick="rollStarSystemExploration()">⚄ Explore (d10)</button>
       </div>
       <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-bottom:.35rem;"></div>
+      <div id="starExplorationDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:3rem;padding:.35rem;border:1px solid var(--border);background:rgba(255,255,255,.01);"></div>
 
       <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.25rem;">
         <div class="sub-label">System Analysis (Mind/Control vs DD8)</div>

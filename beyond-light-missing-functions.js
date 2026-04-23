@@ -578,22 +578,32 @@ function workJobDay() {
   var resultEl = document.getElementById('workJobResult');
 
   if (success) {
+    var successBefore = S.successRolls || 0;
+    var pathBefore = S.pathTokens || 0;
+
     if (typeof changeCredits === 'function') changeCredits(100);
     else {
       S.credits = (S.credits || 0) + 100;
       if (typeof updateCreditsUI === 'function') updateCreditsUI();
     }
     if (typeof advanceDay === 'function') advanceDay(1);
-    if (resultEl) {
-      resultEl.innerHTML = '<span style="color:var(--green2);font-weight:700;">SUCCESS ✓</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + ' -> +100 Credits, +1 Day, +1 Successful Roll.';
-    }
-    showNotif('Work complete: +100 Credits, +1 day, and +1 Successful Roll.', 'good');
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
     else {
       S.successRolls = (S.successRolls || 0) + 1;
       var sr = document.getElementById('successRollsVal');
       if (sr) sr.textContent = S.successRolls;
     }
+
+    var successAfter = S.successRolls || 0;
+    var pathAfter = S.pathTokens || 0;
+    var rollover = pathAfter > pathBefore
+      ? (' (3 successes converted to +1 Path Token: ' + pathBefore + ' -> ' + pathAfter + ')')
+      : (' (Success Rolls: ' + successBefore + ' -> ' + successAfter + ')');
+
+    if (resultEl) {
+      resultEl.innerHTML = '<span style="color:var(--green2);font-weight:700;">SUCCESS ✓</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + ' -> +100 Credits, +1 Day, +1 Successful Roll.' + rollover;
+    }
+    showNotif('Work complete: +100 Credits, +1 day, and +1 Successful Roll.', 'good');
   } else {
     if (resultEl) {
       resultEl.innerHTML = '<span style="color:var(--red2);font-weight:700;">FAILED ✗</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + '. No pay.';
@@ -696,6 +706,7 @@ function rollAllStats() {
 
 function generateCharacter() {
   rollName();
+  rollCareer();
   rollBackground();
   S.age = pick(["Youth (0-29)", "Endeavor (30-59)", "Twilight (60-100)"]);
   rollOmen();
@@ -730,6 +741,7 @@ function generateCharacter() {
 
 function clearCharacter() {
   S.name = "";
+  S.career = "";
   S.background = "";
   S.age = "";
   S.omen = "";

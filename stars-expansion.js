@@ -434,6 +434,105 @@ function cloneStarsData(value) {
   return JSON.parse(JSON.stringify(value || null));
 }
 
+function syncSpaceCombatStateFromNaval() {
+  ensureStarsState();
+  if ((window._activeContext || S._navalContext) !== 'space') return;
+  if (!S.naval || !S.naval.ship) return;
+  S.starship.defendDie = S.naval.ship.hullDie || S.starship.defendDie || 6;
+  S.starship.shields = S.naval.ship.stress || 0;
+  if (Array.isArray(S.naval.ship.cargo)) S.starship.cargo = S.naval.ship.cargo;
+}
+
+function syncNavalCombatStateFromStarship() {
+  ensureStarsState();
+  if ((window._activeContext || S._navalContext) !== 'space') return;
+  if (!S.naval || !S.naval.ship) return;
+  S.naval.ship.hullDie = S.starship.defendDie || S.naval.ship.hullDie || 6;
+  S.naval.ship.stress = S.starship.shields || 0;
+  if (Array.isArray(S.starship.cargo)) S.naval.ship.cargo = S.starship.cargo;
+}
+
+function applySpaceNavalPresentation() {
+  const navalTab = document.getElementById('tab-naval');
+  if (!navalTab) return;
+  const inSpace = (window._activeContext || S._navalContext) === 'space';
+  const tabBtn = document.querySelector('.tab-btn.ctx-space[onclick*="naval"]');
+  if (tabBtn) tabBtn.textContent = inSpace ? 'Starship' : 'Ship';
+  if (!inSpace) {
+    const existing = document.getElementById('starsSpaceNavalCard');
+    if (existing) existing.remove();
+    return;
+  }
+
+  const bannerTitle = navalTab.querySelector('.ship-banner h3');
+  const bannerBody = navalTab.querySelector('.ship-banner p');
+  if (bannerTitle) bannerTitle.textContent = 'Starship System';
+  if (bannerBody) {
+    bannerBody.textContent = 'Acquire a starship, crew its bridge, and run void combat with captain, gunner, navigator, and engineer actions. Hull Stress matches the Starship shields track and fuel reserves stay synced to the Space panels.';
+  }
+
+  const sectionTitles = navalTab.querySelectorAll('.section-title');
+  if (sectionTitles[0]) sectionTitles[0].textContent = 'Starport';
+  if (sectionTitles[1]) sectionTitles[1].textContent = 'Hire Void Crew';
+  if (sectionTitles[2]) sectionTitles[2].textContent = 'Starship Combat';
+  if (sectionTitles[3]) sectionTitles[3].textContent = 'Starship Callsign';
+  if (sectionTitles[4]) sectionTitles[4].textContent = 'Starship Cargo';
+
+  navalTab.querySelectorAll('.info-cell .ic-label').forEach(label => {
+    if (label.textContent === 'Zone') label.textContent = 'Range Band';
+  });
+  navalTab.querySelectorAll('.sub-label').forEach(label => {
+    if (label.textContent === 'Enemy Ship') label.textContent = 'Hostile Vessel';
+  });
+  navalTab.querySelectorAll('button').forEach(button => {
+    const text = button.textContent.trim();
+    if (text === 'Roll Ship Identity') button.textContent = 'Roll Starship Identity';
+    if (text === 'Full Drydock Repair') button.textContent = 'Full Dock Refit';
+    if (text === 'Spawn Enemy') button.textContent = 'Spawn Hostile Vessel';
+    if (text === 'Start / Reset Combat') button.textContent = 'Start / Reset Engagement';
+    if (text === 'Fire Cannons') button.textContent = 'Fire Batteries';
+    if (text === 'Loose Crossbows') button.textContent = 'Launch Volley';
+    if (text === 'Engineer Repair') button.textContent = 'Patch Shields';
+    if (text === 'Enemy Attack') button.textContent = 'Hostile Attack';
+    if (text === 'Wreck Enemy') button.textContent = 'Disable Hostile';
+    if (text === 'Stow from Backpack') button.textContent = 'Load from Backpack';
+  });
+
+  const shipNameInput = document.getElementById('shipNameInput');
+  if (shipNameInput) shipNameInput.placeholder = 'Starship callsign…';
+  const shipNameDisplay = document.getElementById('shipNameDisplay');
+  if (shipNameDisplay) shipNameDisplay.textContent = shipNameDisplay.textContent.replace('Current name', 'Current callsign').replace('No ship name set.', 'No starship callsign set.');
+
+  const cargoInfo = document.querySelector('#navalCargoList')?.previousElementSibling;
+  if (cargoInfo && cargoInfo.textContent.indexOf('Stow items in the ship\'s hold.') >= 0) {
+    cargoInfo.textContent = 'Stow items in the starship hold. Click an item to move it to your Backpack.';
+  }
+
+  let card = document.getElementById('starsSpaceNavalCard');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'starsSpaceNavalCard';
+    card.className = 'combat-card';
+    card.style.margin = '0 0 .65rem 0';
+    const combatCard = document.getElementById('navalCombatSummary');
+    if (combatCard) combatCard.parentNode.insertBefore(card, combatCard);
+  }
+  const currentHex = typeof getCurrentStarHex === 'function' ? getCurrentStarHex() : null;
+  const currentLabel = currentHex ? (STAR_SIGHTING_COLORS[currentHex.type] || { label: currentHex.type }).label : 'Uncharted';
+  card.innerHTML = `
+    <div class="ship-copy">
+      Current Sector: <strong style="color:var(--gold2);">${S.starSystem.mainStar || 'Uncharted'}</strong><br>
+      Current Hex: <strong style="color:var(--teal);">${currentHex ? currentHex.label : 'No selection'}</strong> · ${currentLabel}<br>
+      Fuel: <strong style="color:var(--gold2);">${S.starship.fuel.standard || 0}</strong> Standard · <strong style="color:var(--teal);">${S.starship.fuel.hubJump || 0}</strong> Hub · <strong style="color:var(--purple);">${S.starship.fuel.hyperdrive || 0}</strong> Hyperdrive<br>
+      Shields / Hull Stress: <strong style="color:var(--red2);">${S.starship.shields || 0}</strong> / ${(S.starship.defendDie || 6) * 2}
+    </div>
+    <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">
+      <button class="btn btn-xs btn-teal" onclick="switchTab('galaxy',document.querySelector('.tab-btn[onclick*=\\\"galaxy\\\"]'))">Galaxy</button>
+      <button class="btn btn-xs" onclick="changeStarshipFuel('standard',1)">+1 Standard Fuel</button>
+      <button class="btn btn-xs" onclick="switchTab('combat',document.querySelector('.tab-btn[onclick*=\\\"combat\\\"]'))">Stars Combat</button>
+    </div>`;
+}
+
 function syncNavalStateForContext(nextContext) {
   if (typeof S !== 'object' || !S) return;
   const targetCtx = nextContext || window._activeContext || 'traveling';
@@ -453,8 +552,8 @@ function syncNavalStateForContext(nextContext) {
   if (typeof renderNaval === 'function') {
     try { renderNaval(); } catch (err) {}
   }
-  const navalHeader = document.querySelector('#tab-naval .ship-banner h3');
-  if (navalHeader) navalHeader.textContent = targetCtx === 'space' ? 'Starship System' : 'Naval System';
+  if (targetCtx === 'space') syncSpaceCombatStateFromNaval();
+  applySpaceNavalPresentation();
 }
 
 function ensureSpaceCargoTarget() {
@@ -723,6 +822,7 @@ const MYSTERY_TRADE = ['Cosmic Essential', 'Standard Fuel', 'Hub Jump Fuel', 'Hy
 
 const DEAD_MOON_MAP_MARKERS = {
   landing: { label: 'Landing Site', color: '#2ec4b6' },
+  route: { label: 'Approach Route', color: '#6a6f86' },
   site: { label: 'Site of Interest', color: '#c9a227' },
   hazard: { label: 'Hazard', color: '#b05252' },
   loot: { label: 'Loot', color: '#e6d77a' },
@@ -964,6 +1064,15 @@ const FACILITY_OBSTACLES = [
   'security door lockout seals exits until bypassed.',
   'tracking darts mark all intruders for pursuit.',
 ];
+const FACILITY_ROOM_TABLE = [
+  'Docking Station', 'Security Station', 'Control Room', 'Living Quarters', 'Engine Room', 'Observation Dome',
+  'Armory', 'Storage', 'Medical Bay', 'Research Station', 'Hydroponics', 'Maintenance Trench',
+];
+const FACILITY_SIZE_LABELS = {
+  4: 'Small',
+  6: 'Medium',
+  8: 'Large',
+};
 const CREATURE_TYPES = ['Aberration', 'Synthetic', 'Local Fauna'];
 const CREATURE_DRIVES = ['Territorial', 'Predation', 'Destructive', 'Parasitization'];
 const CREATURE_ROLES = ['Brute', 'Lurker', 'Ranged', 'Swarm', 'Psychic'];
@@ -980,6 +1089,55 @@ function randomFacilityCode() {
   return `${pick(a)}-${pick(b)} ${roll(999)}`;
 }
 
+function createFacilityChallengeState(sizeModules) {
+  const rollResult = roll(6);
+  const challenge = FACILITY_CHALLENGES[rollResult - 1];
+  const targetLabelByRoll = {
+    1: 'Debt cache / creditors',
+    2: 'Missing person',
+    3: 'Grifter and goons',
+    4: 'Resource cache',
+    5: 'Facility antagonist',
+    6: 'Missing item',
+  };
+  return {
+    roll: rollResult,
+    text: challenge,
+    specialRoomId: roll(sizeModules),
+    targetLabel: targetLabelByRoll[rollResult] || 'Objective target',
+    targetFound: false,
+    resolved: false,
+  };
+}
+
+function createFacilityRoomEntry(challenge, roomId) {
+  const encounterType = pick(FACILITY_ENCOUNTER_TYPES);
+  const room = {
+    id: roomId,
+    connector: pick(FACILITY_CONNECTORS),
+    module: FACILITY_ROOM_TABLE[roll(FACILITY_ROOM_TABLE.length) - 1],
+    encounter: encounterType,
+    result: facilityEncounterText(encounterType),
+    loot: pick(MYSTERY_TRADE),
+    completed: false,
+    revealed: false,
+    specialTarget: roomId === challenge.specialRoomId,
+    specialText: '',
+  };
+  if (room.specialTarget) {
+    const specialByRoll = {
+      1: 'Credit ledgers and the debt enforcer are here. Pay 2d6x10 Credits or seize 1 Loot and make enemies.',
+      2: 'The missing person is here, shaken but alive. Escort them out to resolve the objective.',
+      3: 'The grifter and d4 goons hold this room. Fight or bargain to reclaim the site.',
+      4: 'A dense resource cache is here. Gain 2d6x10 Credits when secured.',
+      5: `The site antagonist is here: ${generateFacilityAntagonist()}`,
+      6: 'The missing item is here among the debris. Recover it to complete the job.',
+    };
+    room.specialText = specialByRoll[challenge.roll] || '';
+  }
+  return room;
+}
+
 function createFacilityState() {
   const sizeTable = [
     { label: 'Small', modules: 4 },
@@ -987,6 +1145,7 @@ function createFacilityState() {
     { label: 'Large', modules: 8 },
   ];
   const size = sizeTable[roll(sizeTable.length) - 1];
+  const challenge = createFacilityChallengeState(size.modules);
   return {
     code: randomFacilityCode(),
     arrival: pick(['silent in low orbit', 'under sporadic weapons fire', 'half-powered and drifting', 'ringed by maintenance drones', 'flickering with unstable lights']),
@@ -997,7 +1156,7 @@ function createFacilityState() {
     structure: pick(['spindle-like', 'cathedral-like', 'radial', 'modular', 'terraced', 'fortified']),
     material: pick(['alloyed steel', 'carbon glass', 'ceramic composite', 'salvaged hull plating', 'reactive crystal']),
     quirk: pick(['Workers speak in coded chants.', 'Every hallway points toward a central shrine.', 'Gravity pulses unpredictably.', 'Doors only open in paired sequence.']),
-    challenge: FACILITY_CHALLENGES[roll(6) - 1],
+    challenge,
     location: pick(['Docking Station', 'Maintenance Port', 'Habitat Spine', 'Cargo Airlock', 'Observation Concourse']),
     workersSeen: roll(6),
     leader: {
@@ -1007,7 +1166,7 @@ function createFacilityState() {
     },
     modulesCompleted: 0,
     objectiveCompleted: false,
-    moduleLog: [],
+    moduleLog: Array.from({ length: size.modules }, (_, idx) => createFacilityRoomEntry(challenge, idx + 1)),
   };
 }
 
@@ -1015,13 +1174,16 @@ function renderFacilityPanel() {
   const f = S.starSystem.activeFacility;
   const out = document.getElementById('starExplorationDetail');
   if (!f || !out) return;
+  const revealedModules = f.moduleLog.filter(module => module.revealed);
+  const unrevealedCount = f.moduleLog.length - revealedModules.length;
   out.innerHTML = `
     <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.2rem;">Galactic Facility ${f.code}</div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
       As your starship exits its jump, you see the site is <strong>${f.arrival}</strong>.<br>
       The site is a <strong>${f.sizeLabel}</strong> <strong>${f.purpose}</strong> facility.<br>
       The site is near ${f.description}, a <strong>${f.structure}</strong> structure made out of <strong>${f.material}</strong>. Its layout is organic, sprawling, and maze-like. ${f.quirk}<br>
-      Challenge: ${f.challenge}<br>
+      Challenge: ${f.challenge.text}<br>
+      Module Table: ${FACILITY_SIZE_LABELS[f.sizeModules]} facility = ${f.sizeModules} rooms. One room contains <strong>${f.challenge.targetLabel}</strong>.<br>
       After the Docking Station, you arrive at a <strong>${f.location}</strong>. Here you see d6 ${pick(FACILITY_DISPOSITIONS)} ${pick(FACILITY_WORKERS)} ${pick(FACILITY_ACTIONS)} ${pick(FACILITY_SUBJECTS)} DD4 | 4 Health. Their leader is ${f.leader.name}, who has ${f.leader.feature}. If confronted, can offer a ${f.leader.job}.
     </div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
@@ -1029,14 +1191,16 @@ function renderFacilityPanel() {
       <button class="btn btn-xs" onclick="resolveFacilityObjective()">Complete Objective (+1 Renown)</button>
     </div>
     <div style="margin-top:.35rem;display:grid;gap:.3rem;">
-      ${f.moduleLog.length ? f.moduleLog.map(module => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      ${revealedModules.length ? revealedModules.map(module => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
         <strong style="color:${module.completed ? 'var(--green2)' : 'var(--gold2)'};">Module ${module.id}: ${module.module}</strong><br>
         Connector: ${module.connector}<br>
         Encounter: ${module.result}<br>
+        ${module.specialText ? `Objective: ${module.specialText}<br>` : ''}
         Loot: ${module.loot}
         ${buildLootActions(module.loot)}
         <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeFacilityModule(${module.id})">${module.completed ? 'Completed' : 'Mark Completed'}</button></div>
       </div>`).join('') : '<div style="font-size:.73rem;color:var(--muted2);">No modules explored yet.</div>'}
+      ${unrevealedCount ? `<div style="font-size:.72rem;color:var(--muted2);">${unrevealedCount} unexplored module(s) remain.</div>` : ''}
     </div>`;
 }
 
@@ -1046,6 +1210,7 @@ function completeFacilityModule(moduleId) {
   const module = f.moduleLog.find(m => m.id === moduleId);
   if (!module) return;
   module.completed = true;
+  if (module.specialTarget) f.challenge.targetFound = true;
   renderFacilityPanel();
 }
 
@@ -1133,15 +1298,12 @@ function rollFacilityModule() {
     return;
   }
 
+  const nextRoom = f.moduleLog.find(module => !module.revealed);
+  if (!nextRoom) return;
   f.modulesCompleted += 1;
-  const connector = pick(FACILITY_CONNECTORS);
-  const moduleName = pick(FACILITY_MODULES);
-  const encType = pick(FACILITY_ENCOUNTER_TYPES);
-  const text = facilityEncounterText(encType);
-  const loot = pick(MYSTERY_TRADE);
-  const chance = roll(6);
-  const foundTarget = chance === 1 ? ' (1-in-6 special target found.)' : '';
-  f.moduleLog.push({ id: f.moduleLog.length + 1, connector, module: moduleName, encounter: encType, result: `You go through ${connector} and enter the ${moduleName} module. ${text}${foundTarget}`, loot, completed: false });
+  nextRoom.revealed = true;
+  nextRoom.result = `You go through ${nextRoom.connector} and enter the ${nextRoom.module}. ${nextRoom.result}`;
+  if (nextRoom.specialTarget) f.challenge.targetFound = true;
   renderFacilityPanel();
 }
 
@@ -1154,7 +1316,12 @@ function resolveFacilityObjective() {
     if (out) out.innerHTML = '<span style="color:var(--muted2);">Objective already completed for this facility.</span>';
     return;
   }
+  if (!f.challenge.targetFound && f.challenge.roll !== 1 && f.challenge.roll !== 4) {
+    if (out) out.innerHTML = '<span style="color:var(--gold2);">The objective target has not been found yet. Explore more modules.</span>';
+    return;
+  }
   f.objectiveCompleted = true;
+  f.challenge.resolved = true;
   if (typeof changeCounter === 'function') changeCounter('renown', 1);
   showNotif('Facility objective completed: +1 Renown.', 'good');
   if (out) {
@@ -1173,20 +1340,31 @@ function createDeadMoonState() {
   };
 }
 
+function getDeadMoonDirectionProfile(direction) {
+  const profiles = {
+    north: { landing: '5-2', site: '0-2', title: 'North Approach', tableLabel: 'Tower / Wreckage / Forgotten Orchard / Collapsed Lab' },
+    south: { landing: '0-2', site: '5-2', title: 'South Approach', tableLabel: 'Dead Gateway / Abandoned Lab / Engine Room / Observation Dome' },
+    east: { landing: '2-0', site: '2-5', title: 'East Approach', tableLabel: 'Aerial Facility / Overgrown Ruins / Fuel Depot / Training Yard' },
+    west: { landing: '2-5', site: '2-0', title: 'West Approach', tableLabel: 'Quarry / Derelict Docking Bay / Echoing Halls / Bio-engine Vault' },
+  };
+  return profiles[direction] || profiles.north;
+}
+
 function rollDeadMoonDirection() {
   ensureStarsState();
   const dm = S.starSystem.activeDeadMoon || createDeadMoonState();
   S.starSystem.activeDeadMoon = dm;
   dm.direction = pick(Object.keys(DEAD_MOON_DIRECTIONS));
   dm.site = pick(DEAD_MOON_DIRECTIONS[dm.direction]);
+  S.starSystem.activeDeadMoonMap = createDeadMoonMapState(dm);
   const travel = pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction]);
   const out = document.getElementById('starExplorationDetail');
   if (out) {
     out.innerHTML = `
       <div style="font-size:.75rem;color:var(--gold2);">Dead Moon Direction: ${dm.direction.toUpperCase()}</div>
-      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${DEAD_MOON_DIRECTION_CONTEXT[dm.direction]}<br>Travel Event: ${travel}<br>Site of Interest: <strong>${dm.site}</strong>${dm.irradiated ? '<br><span style="color:var(--red2);">Irradiated zone active: +d100 Rads/day without protection.</span>' : ''}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${DEAD_MOON_DIRECTION_CONTEXT[dm.direction]}<br>d4 Travel Table: ${DEAD_MOON_TRAVEL_EVENTS[dm.direction].join(' | ')}<br>d4 Site Table: ${DEAD_MOON_DIRECTIONS[dm.direction].join(' | ')}<br>Rolled Travel Event: ${travel}<br>Site of Interest: <strong>${dm.site}</strong>${dm.irradiated ? '<br><span style="color:var(--red2);">Irradiated zone active: +d100 Rads/day without protection.</span>' : ''}</div>
       <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
-        <button class="btn btn-xs btn-teal" onclick="exploreDeadMoonSite()">Explore Site</button>
+        <button class="btn btn-xs btn-teal" onclick="renderDeadMoonMapPanel()">Land & Explore 6x6 Map</button>
         <button class="btn btn-xs" onclick="rollDeadMoonDirection()">Roll New Direction</button>
       </div>`;
   }
@@ -1393,7 +1571,9 @@ function completeDerelictRoom(roomId) {
   renderDerelictPanel();
 }
 
-function createDeadMoonMapState() {
+function createDeadMoonMapState(deadMoonState) {
+  const dm = deadMoonState || S.starSystem.activeDeadMoon || createDeadMoonState();
+  const profile = getDeadMoonDirectionProfile(dm.direction);
   const cells = [];
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 6; col++) {
@@ -1407,21 +1587,46 @@ function createDeadMoonMapState() {
       });
     }
   }
-  const landing = cells.find(c => c.row === 5 && c.col === 2) || cells[0];
+  const landing = cells.find(c => c.id === profile.landing) || cells[0];
   landing.marker = 'landing';
-  const site = pick(cells.filter(c => c.id !== landing.id));
+  landing.visited = true;
+  landing.note = `Landing zone established. ${DEAD_MOON_DIRECTION_CONTEXT[dm.direction]}`;
+  const site = cells.find(c => c.id === profile.site) || pick(cells.filter(c => c.id !== landing.id));
   site.marker = 'site';
+  const [landingRow, landingCol] = landing.id.split('-').map(Number);
+  const [siteRow, siteCol] = site.id.split('-').map(Number);
+  let pathRow = landingRow;
+  let pathCol = landingCol;
+  while (pathRow !== siteRow || pathCol !== siteCol) {
+    if (pathRow < siteRow) pathRow += 1;
+    else if (pathRow > siteRow) pathRow -= 1;
+    else if (pathCol < siteCol) pathCol += 1;
+    else if (pathCol > siteCol) pathCol -= 1;
+    const pathCell = cells.find(c => c.row === pathRow && c.col === pathCol);
+    if (pathCell && pathCell.marker === 'empty') pathCell.marker = 'route';
+  }
   pick(cells.filter(c => c.marker === 'empty')).marker = 'loot';
   pick(cells.filter(c => c.marker === 'empty')).marker = 'hazard';
-  return { cells, selectedId: landing.id, siteId: site.id };
+  return { cells, selectedId: landing.id, currentId: landing.id, siteId: site.id, direction: dm.direction, profileTitle: profile.title, tableLabel: profile.tableLabel };
+}
+
+function areDeadMoonCellsAdjacent(a, b) {
+  if (!a || !b) return false;
+  const rowDelta = Math.abs(a.row - b.row);
+  const colDelta = Math.abs(a.col - b.col);
+  return rowDelta + colDelta === 1;
 }
 
 function deadMoonCellClick(cellId) {
   const map = S.starSystem.activeDeadMoonMap;
   if (!map) return;
-  map.selectedId = cellId;
   const cell = map.cells.find(c => c.id === cellId);
-  if (cell && !cell.visited) registerStarshipTravelDays(1);
+  const current = map.cells.find(c => c.id === map.currentId);
+  map.selectedId = cellId;
+  if (cell && current && cell.id !== current.id && areDeadMoonCellsAdjacent(cell, current)) {
+    map.currentId = cell.id;
+    if (!cell.visited) registerStarshipTravelDays(1);
+  }
   renderDeadMoonMapPanel();
 }
 
@@ -1429,16 +1634,26 @@ function exploreDeadMoonMapCell() {
   ensureStarsState();
   if (!S.starSystem.activeDeadMoonMap) S.starSystem.activeDeadMoonMap = createDeadMoonMapState();
   const map = S.starSystem.activeDeadMoonMap;
-  const cell = map.cells.find(c => c.id === map.selectedId);
+  const dm = S.starSystem.activeDeadMoon || createDeadMoonState();
+  const cell = map.cells.find(c => c.id === map.currentId);
   if (!cell) return;
   cell.visited = true;
-  cell.note = cell.marker === 'site'
-    ? `Site of Interest: ${pick(Object.values(DEAD_MOON_DIRECTIONS).flat())}`
-    : cell.marker === 'loot'
-      ? `Loot cache discovered: ${pick(DEAD_MOON_LOOT)}`
-      : cell.marker === 'hazard'
-        ? `Hazard encountered: ${pick(DEAD_MOON_TRAVEL_EVENTS[pick(Object.keys(DEAD_MOON_TRAVEL_EVENTS))])}`
-        : 'The area is quiet but oppressive.';
+  if (cell.marker === 'site') {
+    const room = pick(DEAD_MOON_SITE_ENCOUNTERS[dm.direction]);
+    const loot = pick(DEAD_MOON_LOOT);
+    cell.loot = loot;
+    cell.note = `Site of Interest: ${dm.site}. Room/Event: ${room}. Encounter: ${pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction])}. Loot: ${loot}`;
+  } else if (cell.marker === 'loot') {
+    const loot = pick(DEAD_MOON_LOOT);
+    cell.loot = loot;
+    cell.note = `Loot cache discovered: ${loot}`;
+  } else if (cell.marker === 'hazard') {
+    cell.note = `Hazard encountered: ${pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction])}`;
+  } else if (cell.marker === 'route') {
+    cell.note = `Approach route explored: ${pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction])}`;
+  } else {
+    cell.note = 'The area is quiet but oppressive.';
+  }
   renderDeadMoonMapPanel();
 }
 
@@ -1447,18 +1662,25 @@ function renderDeadMoonMapPanel() {
   const out = document.getElementById('starExplorationDetail');
   if (!map || !out) return;
   const selected = map.cells.find(c => c.id === map.selectedId);
+  const current = map.cells.find(c => c.id === map.currentId);
   out.innerHTML = `
-    <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.25rem;">Dead Moon Landing Map (6x6)</div>
+    <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.25rem;">Dead Moon Landing Map (6x6) · ${map.profileTitle}</div>
+    <div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.35rem;">Direction Table: ${map.tableLabel}<br>Click an adjacent cell to move 1 day. Current position is outlined in teal. Selected cell is outlined in gold.</div>
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.2rem;">
-      ${map.cells.map(cell => `<button class="btn btn-xs ${cell.id === map.selectedId ? 'btn-teal' : ''}" style="padding:.4rem .2rem;background:${DEAD_MOON_MAP_MARKERS[cell.marker].color};color:#111;" onclick="deadMoonCellClick('${cell.id}')">${cell.row + 1},${cell.col + 1}</button>`).join('')}
+      ${map.cells.map(cell => `<button class="btn btn-xs" style="padding:.45rem .2rem;background:${DEAD_MOON_MAP_MARKERS[cell.marker].color};color:#111;border:${cell.id === map.currentId ? '2px solid var(--teal)' : cell.id === map.selectedId ? '2px solid var(--gold2)' : '1px solid rgba(255,255,255,.08)'};box-shadow:${cell.visited ? 'inset 0 0 0 1px rgba(255,255,255,.35)' : 'none'};" onclick="deadMoonCellClick('${cell.id}')">${cell.id === map.currentId ? '◉' : cell.marker === 'site' ? '◆' : cell.marker === 'loot' ? '▣' : cell.marker === 'hazard' ? '!' : cell.marker === 'route' ? '·' : ' '}</button>`).join('')}
     </div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.35rem;">
+      Current: <strong>${current.row + 1},${current.col + 1}</strong> · ${DEAD_MOON_MAP_MARKERS[current.marker].label}<br>
       Selected: <strong>${selected.row + 1},${selected.col + 1}</strong> · ${DEAD_MOON_MAP_MARKERS[selected.marker].label}<br>
       ${selected.note}
     </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;font-size:.68rem;color:var(--muted2);">
+      ${Object.entries(DEAD_MOON_MAP_MARKERS).map(([, marker]) => `<span style="display:inline-flex;align-items:center;gap:.2rem;"><span style="display:inline-block;width:.65rem;height:.65rem;background:${marker.color};border:1px solid rgba(255,255,255,.12);"></span>${marker.label}</span>`).join('')}
+    </div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="exploreDeadMoonMapCell()">Explore Cell</button>
-      ${selected && selected.note.indexOf('Loot cache discovered: ') === 0 ? buildLootActions(selected.note.replace('Loot cache discovered: ', '')) : ''}
+      ${selected && selected.loot ? buildLootActions(selected.loot) : ''}
+      <button class="btn btn-xs" onclick="rollDeadMoonDirection()">Roll New Direction</button>
     </div>`;
 }
 
@@ -2737,6 +2959,7 @@ function changeShields(delta) {
   const def = S.starship.defendDie || 6;
   const maxShields = def * 2;
   S.starship.shields = Math.max(0, Math.min(maxShields, (S.starship.shields || 0) + delta));
+  syncNavalCombatStateFromStarship();
   updateStarshipUI();
 }
 
@@ -2744,6 +2967,7 @@ function restoreShields() {
   ensureStarsState();
   const def = S.starship.defendDie || 6;
   S.starship.shields = 0;
+  syncNavalCombatStateFromStarship();
   updateStarshipUI();
   showNotif('Shields restored at Landing Dock (−100₵).', 'good');
   changeCredits(-100);
@@ -2751,6 +2975,7 @@ function restoreShields() {
 
 function updateStarshipUI() {
   ensureStarsState();
+  syncSpaceCombatStateFromNaval();
   const ship = S.starship;
   const def  = ship.defendDie || 6;
   const maxShields = def * 2;
@@ -2772,12 +2997,14 @@ function updateStarshipUI() {
   const mainStarEl = document.getElementById('starMainStar');
   if (mainStarEl) mainStarEl.textContent = (S.starSystem && S.starSystem.mainStar) ? S.starSystem.mainStar : 'Uncharted';
   updateStarSystemReadouts();
+  applySpaceNavalPresentation();
 }
 
 function stepShipDefend(dir) {
   ensureStarsState();
   const cur = S.starship.defendDie || 6;
   S.starship.defendDie = dir > 0 ? stepUp(cur) : stepDown(cur);
+  syncNavalCombatStateFromStarship();
   updateStarshipUI();
 }
 
@@ -3119,6 +3346,17 @@ function patchStarsCrossSystemHooks() {
     setContext = function(ctx, btn) {
       const out = baseSetContext.apply(this, arguments);
       syncNavalStateForContext(ctx);
+      return out;
+    };
+  }
+
+  const baseRenderNaval = typeof renderNaval === 'function' ? renderNaval : null;
+  if (baseRenderNaval && !window._starsRenderNavalPatched) {
+    window._starsRenderNavalPatched = true;
+    renderNaval = function() {
+      const out = baseRenderNaval.apply(this, arguments);
+      syncSpaceCombatStateFromNaval();
+      applySpaceNavalPresentation();
       return out;
     };
   }

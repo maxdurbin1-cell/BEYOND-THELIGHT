@@ -714,10 +714,27 @@
       var diffName = mission.isHoldingQuest ? 'Special Quest' : diff.name;
       var outCol=mission.success?'var(--green2)':'var(--red2)';
       var outcome=mission.success?'\u2713 SUCCESS':'\u2717 FAILED';
+      var dangerLabel='';
+      if (mission.additionalDanger) {
+        if (mission.additionalDanger.type === 'mercenary') {
+          dangerLabel = 'Mercenary';
+        } else if (mission.additionalDanger.data && mission.additionalDanger.data.name) {
+          dangerLabel = mission.additionalDanger.data.name;
+        } else if (mission.additionalDanger.name) {
+          dangerLabel = mission.additionalDanger.name;
+        }
+      }
       var lootLine=(mission.success&&mission.loot&&mission.loot.length)
         ?'<div style="font-size:.7rem;color:var(--gold2);margin-top:.1rem;">Loot: '+mission.loot.join(', ')+' \u00B7 +'+mission.reward+'\u20B5 \u00B7 +1 Renown</div>'
         :'<div style="font-size:.7rem;color:var(--red2);margin-top:.1rem;">\u22121 Renown</div>';
-      var featureLine=mission.infoFeature?'<div style="font-size:.66rem;color:var(--muted2);margin-top:.05rem;">'+mission.infoFeature.icon+' '+mission.infoFeature.name+(mission.additionalDanger?' \u00B7 \u26a0 '+(mission.additionalDanger.type==='mercenary'?'Mercenary':mission.additionalDanger.data.name):'')+'</div>':'';
+      var featureBits=[];
+      if (mission.infoFeature && mission.infoFeature.icon && mission.infoFeature.name) {
+        featureBits.push(mission.infoFeature.icon+' '+mission.infoFeature.name);
+      }
+      if (dangerLabel) {
+        featureBits.push('\u26a0 '+dangerLabel);
+      }
+      var featureLine=featureBits.length?'<div style="font-size:.66rem;color:var(--muted2);margin-top:.05rem;">'+featureBits.join(' \u00B7 ')+'</div>':'';
       return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid '+outCol+';padding:.4rem .5rem;margin-bottom:.3rem;">'
         +'<div style="font-family:\'Cinzel\',serif;font-size:.75rem;color:'+outCol+';margin-bottom:.08rem;">'+outcome+' \u2014 '+mission.title+'</div>'
         +'<div style="font-size:.68rem;color:var(--muted2);">'+diffName+' \u00B7 '+mission.location+'</div>'

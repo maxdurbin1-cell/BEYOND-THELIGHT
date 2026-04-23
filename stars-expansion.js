@@ -475,6 +475,15 @@ const STAR_RADIO_EVENTS = [
   'Ancient gate signature appears briefly in inner ring.',
 ];
 
+const STAR_HEX_LAND = ['Dust belt', 'Broken orbit shelf', 'Comet wake corridor', 'Glass asteroid plain', 'Frozen shard lane', 'Ion reef', 'Debris graveyard'];
+const STAR_HEX_FLORA = ['Bioluminescent spores', 'Void lichen webs', 'Crystal vines', 'Electroplankton cloud', 'Spore drift', 'Metal moss', 'Star bloom colony'];
+const STAR_HEX_WONDER = ['Echo beacon', 'Split moon halo', 'Solar lace', 'Ancestral relay', 'Mirror tide', 'Gravity lens', 'Singing wreck'];
+
+function pickRingEncounterOutcome(ring) {
+  const table = STAR_RING_TABLES[ring] || STAR_RING_TABLES.middle;
+  return table[roll(table.length) - 1];
+}
+
 const STAR_MYSTERY_SNIPPETS = [
   'A nomad ship transmits a fragmented plea before vanishing behind static.',
   'Royal Armada signatures flood the scanner, but no ships are visible.',
@@ -1322,6 +1331,12 @@ function generateStarSystemMap(galaxyType) {
         id: idx++, q, r, dist, ring,
         type: dist === 0 ? 'star' : 'nothing',
         explored: dist === 0,
+        scanned: dist === 0,
+        hiddenOutcome: null,
+        analysisDetail: '',
+        land: dist === 0 ? 'Solar Crown' : pick(STAR_HEX_LAND),
+        flora: dist === 0 ? 'Solar filaments' : pick(STAR_HEX_FLORA),
+        wonder: dist === 0 ? 'Main sequence furnace' : pick(STAR_HEX_WONDER),
         detail: dist === 0 ? 'Central star anchor.' : '',
       });
     }
@@ -1348,16 +1363,19 @@ function generateStarSystemMap(galaxyType) {
     }
 
     pool.forEach((hex) => {
-      const outcome = pickStarOutcomeForRing(ring);
-      hex.type = convertOutcomeToHexType(outcome);
-      hex.detail = `${outcome} detected in ${ring} ring.`;
+      hex.type = 'nothing';
+      hex.hiddenOutcome = pickRingEncounterOutcome(ring);
+      hex.detail = 'Unresolved signal. Run System Analysis to reveal signature.';
     });
   });
 
-  const worldPool = [...byRing.middle, ...byRing.outer].filter(h => h.type !== 'hub');
+  const worldPool = [...byRing.middle].filter(h => h.type !== 'hub' && h.type !== 'planet');
   if (worldPool.length) {
     const target = worldPool[roll(worldPool.length) - 1];
     target.type = 'world_that_was';
+    target.hiddenOutcome = null;
+    target.scanned = true;
+    target.explored = true;
     target.detail = 'The World That Was: cyberpunk remnant zone.';
     S.starSystem.worldThatWasHexId = target.id;
   }
@@ -1374,9 +1392,10 @@ function generateStarSystemMap(galaxyType) {
   S.starSystem.mainStar = pick(['Smoldering Red Star', 'Glowering Orange Star', 'White Dwarf Halo Star']);
   S.starSystem.hexes = cells;
   S.starSystem.tradeRoutes = planetsByRing;
-  S.starSystem.currentHexId = S.starSystem.currentHexId == null ? 0 : S.starSystem.currentHexId;
+  S.starSystem.currentHexId = 0;
   S.starSystem.majorPowers = powerSet.majorPowers;
   S.starSystem.factions = powerSet.factions;
+  S.starSystem.selectedRing = 'middle';
 
   renderStarSystemMap();
   updateStarSystemReadouts();
@@ -1407,7 +1426,7 @@ function renderStarSystemMap() {
     const fill = STAR_SIGHTING_COLORS[key].color;
     const border = hex.id === S.starSystem.currentHexId ? '#ffffff' : '#2d3142';
     const opacity = hex.explored ? 0.9 : 0.55;
-    const label = hex.ring === 'core' ? '★' : String(hex.id);
+    const label = hex.ring === 'core' ? '☉' : String(hex.id);
     return `
       <g onclick="selectStarSystemHex(${hex.id})" style="cursor:pointer;">
         <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hex.id === S.starSystem.currentHexId ? 2 : 1}" />
@@ -1431,11 +1450,25 @@ function renderStarSystemMap() {
       ${routeLines}
       ${svgHexes}
     </svg>`;
+
+  const fuel = document.getElementById('starFuelReadout');
+  if (fuel) {
+    fuel.textContent = `Fuel S/H/H: ${S.starship.fuel.standard || 0}/${S.starship.fuel.hubJump || 0}/${S.starship.fuel.hyperdrive || 0}`;
+  }
+  const coords = document.getElementById('starCoords');
+  const cur = getCurrentStarHex();
+  if (coords && cur) {
+    coords.textContent = `Hex ${cur.id} (q:${cur.q}, r:${cur.r})`;
+  }
 }
 
 function selectStarSystemHex(hexId) {
   ensureStarsState();
   S.starSystem.currentHexId = hexId;
+  const h = getCurrentStarHex();
+  if (h && h.ring && h.ring !== 'core') S.starSystem.selectedRing = h.ring;
+  const ringSel = document.getElementById('starRingSelect');
+  if (ringSel && h && h.ring && h.ring !== 'core') ringSel.value = h.ring;
   renderStarSystemMap();
   updateStarSystemReadouts();
 }
@@ -1445,8 +1478,108 @@ function getCurrentStarHex() {
   return S.starSystem.hexes.find(h => h.id === S.starSystem.currentHexId) || S.starSystem.hexes[0] || null;
 }
 
+function getNearestHubHex(fromHex) {
+  const hubs = (S.starSystem.hexes || []).filter(h => h.type === 'hub');
+  if (!fromHex || !hubs.length) return null;
+  return hubs.slice().sort((a, b) => starHexDistance(fromHex, a) - starHexDistance(fromHex, b))[0];
+}
+
+function canHyperdriveToHex(hex) {
+  if (!hex) return false;
+  if (hex.type === 'hub' || hex.type === 'planet' || hex.type === 'world_that_was' || hex.type === 'star') return true;
+  return !!hex.scanned;
+}
+
+function travelToSelectedGalaxyHex() {
+  ensureStarsState();
+  const fromHex = getCurrentStarHex();
+  const toHex = S.starSystem.hexes.find(h => h.id === Number(S.starSystem.currentHexId));
+  const mode = (document.getElementById('starTravelMode') || {}).value || 'standard';
+  if (!fromHex || !toHex) return;
+
+  if (mode === 'hub') {
+    if ((S.starship.fuel.hubJump || 0) <= 0) return showNotif('No Hub Jump fuel available.', 'warn');
+    const nearest = getNearestHubHex(fromHex);
+    if (!nearest) return showNotif('No Space Hub found in this sector.', 'warn');
+    S.starship.fuel.hubJump -= 1;
+    S.starSystem.currentHexId = nearest.id;
+    registerStarshipTravelDays(DAYS_PER_WEEK * 3);
+    updateStarshipUI();
+    renderStarSystemMap();
+    updateStarSystemReadouts();
+    return showNotif('Hub Jump complete: arrived at nearest Space Hub (+3 weeks).', 'good');
+  }
+
+  const distance = starHexDistance(fromHex, toHex);
+  if (distance <= 0) return showNotif('Select another hex to travel.', 'warn');
+
+  if (mode === 'hyper') {
+    if ((S.starship.fuel.hyperdrive || 0) <= 0) return showNotif('No Hyperdrive fuel available.', 'warn');
+    if (!canHyperdriveToHex(toHex)) return showNotif('Hyperdrive requires a known/scanned destination.', 'warn');
+    S.starship.fuel.hyperdrive -= 1;
+    S.starSystem.currentHexId = toHex.id;
+    registerStarshipTravelDays(Math.max(1, Math.round(distance)) * DAYS_PER_WEEK);
+    updateStarshipUI();
+    renderStarSystemMap();
+    updateStarSystemReadouts();
+    return showNotif(`Hyperdrive jump complete (${Math.max(1, Math.round(distance))} weeks).`, 'good');
+  }
+
+  if (distance > 1) return showNotif('Standard travel moves 1 adjacent hex per week.', 'warn');
+  if ((S.starship.fuel.standard || 0) <= 0) return showNotif('No Standard Fuel available.', 'warn');
+  S.starship.fuel.standard -= 1;
+  S.starSystem.currentHexId = toHex.id;
+  registerStarshipTravelDays(DAYS_PER_WEEK);
+  updateStarshipUI();
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+  showNotif('Standard travel complete: 1 hex / 1 week, fuel -1.', 'good');
+}
+
+function runGalaxyEncounterRoll() {
+  ensureStarsState();
+  const hex = getCurrentStarHex();
+  if (!hex) return;
+  const ring = (hex.ring && hex.ring !== 'core') ? hex.ring : (S.starSystem.selectedRing || 'middle');
+  const outcome = hex.hiddenOutcome || pickRingEncounterOutcome(ring);
+  const out = document.getElementById('starExplorationResult');
+  if (out) out.innerHTML = `<span style="color:var(--gold2);">Encounter</span> -> ${ring.toUpperCase()} ring: <strong>${outcome}</strong>`;
+
+  const detailEl = document.getElementById('starExplorationDetail');
+  if (detailEl) {
+    const detailText = buildStarExplorationDetail(ring, outcome);
+    detailEl.innerHTML = `<div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${detailText}</div>`;
+  }
+}
+
+function runFurtherSystemAnalysis() {
+  ensureStarsState();
+  const hex = getCurrentStarHex();
+  const out = document.getElementById('starAnalysisResult');
+  if (!hex) return;
+  if (!hex.scanned) return out && (out.innerHTML = '<span style="color:var(--red2);">Run System Analysis first.</span>');
+
+  const mindDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('mind') : ((S.stats && S.stats.mind) || 4);
+  const techDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
+  const die = Math.max(mindDie, techDie);
+  const action = explodingRoll(die);
+  const dread = explodingRoll(8);
+  const success = action.total >= dread.total;
+  registerStarshipTravelDays(1);
+
+  if (success) {
+    const sig = hex.hiddenOutcome || (hex.type === 'hub' ? 'Galactic Facility' : hex.type === 'planet' ? 'Locations' : 'Uneventful Voyage');
+    hex.analysisDetail = `Further analysis: ${sig}. ${sig === 'Space Encounter' ? 'Scanner identifies vessel class and likely crew disposition.' : 'Additional telemetry refines target details and approach risks.'}`;
+    if (out) out.innerHTML = `<span style="color:var(--green2);">Further Analysis Success</span>: d${die}=${action.total} vs DD8=${dread.total}.`;
+  } else {
+    if (out) out.innerHTML = `<span style="color:var(--red2);">Further Analysis Failed</span>: d${die}=${action.total} vs DD8=${dread.total}. Day spent with noisy telemetry.`;
+  }
+  updateStarSystemReadouts();
+}
+
 function updateStarSystemReadouts() {
   const detail = document.getElementById('starSystemHexDetail');
+  const panel = document.getElementById('starHexInfoBody');
   const powers = document.getElementById('starSystemPowers');
   const radio = document.getElementById('starSystemRadioLog');
   const current = getCurrentStarHex();
@@ -1456,6 +1589,23 @@ function updateStarSystemReadouts() {
     else {
       const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
       detail.innerHTML = `Hex ${current.id} · ${current.ring.toUpperCase()} RING · <span style="color:${sig.color};">${sig.label}</span><br><span style="color:var(--muted2);">${current.detail || 'No detail yet.'}</span>`;
+    }
+  }
+  if (panel) {
+    if (!current) {
+      panel.innerHTML = '<div style="font-size:.83rem;color:var(--muted2);">Select a hex to inspect.</div>';
+    } else {
+      const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
+      panel.innerHTML = `
+        <div style="font-size:.83rem;color:var(--muted2);line-height:1.65;">
+          <strong style="color:var(--text);">Hex:</strong> ${current.id} (${current.ring.toUpperCase()} Ring)<br>
+          <strong style="color:var(--text);">Land:</strong> ${current.land || 'Unknown'}<br>
+          <strong style="color:var(--text);">Flora:</strong> ${current.flora || 'Unknown'}<br>
+          <strong style="color:var(--text);">Wonder:</strong> ${current.wonder || 'Unknown'}<br>
+          <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
+          <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>
+          ${current.analysisDetail ? `<strong style="color:var(--text);">Further Analysis:</strong> ${current.analysisDetail}` : ''}
+        </div>`;
     }
   }
   if (powers) {
@@ -1469,36 +1619,7 @@ function updateStarSystemReadouts() {
 }
 
 function rollStarSystemExploration() {
-  ensureStarsState();
-  const ringSel = document.getElementById('starRingSelect');
-  const ring = ringSel ? ringSel.value : (S.starSystem.selectedRing || 'middle');
-  S.starSystem.selectedRing = ring;
-
-  const table = STAR_RING_TABLES[ring] || STAR_RING_TABLES.middle;
-  const d10 = roll(10);
-  const idx = (d10 - 1) % table.length;
-  const outcome = table[idx];
-  const type = convertOutcomeToHexType(outcome);
-
-  const candidates = S.starSystem.hexes.filter(h => h.ring === ring && h.type !== 'hub' && h.type !== 'planet' && h.type !== 'star');
-  if (candidates.length) {
-    const target = candidates[roll(candidates.length) - 1];
-    target.type = type;
-    target.detail = `${outcome} generated by exploration roll.`;
-    target.explored = true;
-    S.starSystem.currentHexId = target.id;
-  }
-
-  const out = document.getElementById('starExplorationResult');
-  if (out) out.innerHTML = `<span style="color:var(--gold2);">d10=${d10}</span> -> ${ring.toUpperCase()} ring: <strong>${outcome}</strong>`;
-
-  const detailEl = document.getElementById('starExplorationDetail');
-  if (detailEl) {
-    const detailText = buildStarExplorationDetail(ring, outcome);
-    detailEl.innerHTML = `<div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${detailText}</div>`;
-  }
-  renderStarSystemMap();
-  updateStarSystemReadouts();
+  runGalaxyEncounterRoll();
 }
 
 function runSystemAnalysisCheck() {
@@ -1515,8 +1636,14 @@ function runSystemAnalysisCheck() {
 
   const el = document.getElementById('starAnalysisResult');
   if (success) {
+    hex.scanned = true;
     hex.explored = true;
-    if (!hex.detail) hex.detail = 'System Analysis confirms an unresolved anomaly.';
+    if (hex.hiddenOutcome) {
+      hex.type = convertOutcomeToHexType(hex.hiddenOutcome);
+      hex.detail = `${hex.hiddenOutcome} detected ahead.`;
+    } else if (!hex.detail) {
+      hex.detail = 'System Analysis confirms stable telemetry in this hex.';
+    }
     if (el) el.innerHTML = `<span style="color:var(--green2);">Success</span>: d${die}=${action.total} vs DD8=${dread.total}. Hex ${hex.id} fully scanned.`;
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
   } else {
@@ -2654,71 +2781,60 @@ function buildOraclePanel() {
 
 function getGalaxySystemPanelMarkup() {
   return `
-<div class="card" style="max-width:940px;">
-  <div class="section-title">🛰 Galaxy Wilderness Exploration</div>
-  <div style="font-size:.76rem;color:var(--muted2);line-height:1.6;margin-bottom:.45rem;">
-    Rings: Inner (6), Middle (12), Outer (18). Roll wilderness outcomes, resolve encounters, and track travel radio events.
+<div class="map-controls">
+  <select id="starGalaxyType" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .35rem;font-size:.75rem;">
+    <option value="cluster">Cluster</option>
+    <option value="spiral">Spiral</option>
+    <option value="elliptical">Elliptical</option>
+  </select>
+  <button class="btn btn-primary" onclick="generateStarSystemMap((document.getElementById('starGalaxyType')||{}).value)">⚄ Generate Galaxy</button>
+  <span style="color:var(--muted);font-size:.6rem;margin:0 .3rem;">|</span>
+  <select id="starTravelMode" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .35rem;font-size:.75rem;">
+    <option value="standard">Standard</option>
+    <option value="hub">Hub Jump</option>
+    <option value="hyper">Hyperdrive</option>
+  </select>
+  <button class="btn btn-sm btn-teal" onclick="travelToSelectedGalaxyHex()">Travel To Selected</button>
+  <span id="starFuelReadout" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Fuel S/H/H: 0/0/0</span>
+  <span id="starCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
+</div>
+
+<div class="map-legend">
+  ${Object.entries(STAR_SIGHTING_COLORS).filter(([k]) => k !== 'star').map(([k, v]) => `<div class="leg-item"><div class="leg-dot" style="background:${v.color};"></div>${v.label}</div>`).join('')}
+</div>
+
+<div class="map-layout">
+  <div class="map-scroll" id="starMapScroll">
+    <div id="starSystemMap"></div>
   </div>
-  <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.45rem;">
-    <select id="starGalaxyType" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.74rem;">
-      <option value="cluster">Cluster</option>
-      <option value="spiral">Spiral</option>
-      <option value="elliptical">Elliptical</option>
-    </select>
-    <button class="btn btn-sm btn-teal" onclick="generateStarSystemMap((document.getElementById('starGalaxyType')||{}).value)">Generate Galaxy Map</button>
-    <span style="font-size:.72rem;color:var(--muted2);">Main Star: <strong id="starMainStar" style="color:var(--gold2);"></strong></span>
-  </div>
+  <div class="hex-info" id="starHexInfo">
+    <div class="hex-info-inner">
+      <div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;">Galaxy Sector</div>
+      <div id="starHexInfoBody" style="font-size:.83rem;color:var(--muted2);line-height:1.65;margin-top:.4rem;">Generate a galaxy, then click a hex to inspect.</div>
 
-  <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:.55rem;">
-    <div>
-      <div id="starSystemMap"></div>
-      <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.4rem;">
-        ${Object.entries(STAR_SIGHTING_COLORS).filter(([k]) => k !== 'star').map(([k, v]) => `<span style="font-size:.64rem;padding:.08rem .3rem;border:1px solid var(--border2);color:${v.color};">${v.label}</span>`).join('')}
-      </div>
-    </div>
-
-    <div>
-      <div class="sub-label">Wilderness Roll (Ring Table)</div>
-      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;">
-        <select id="starRingSelect" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.74rem;">
-          <option value="inner">Inner Ring</option>
-          <option value="middle" selected>Middle Ring</option>
-          <option value="outer">Outer Ring</option>
-        </select>
-        <button class="btn btn-xs btn-teal" onclick="rollStarSystemExploration()">⚄ Explore (d10)</button>
-      </div>
-      <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-bottom:.35rem;"></div>
-      <div id="starExplorationDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:3rem;padding:.35rem;border:1px solid var(--border);background:rgba(255,255,255,.01);"></div>
-
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.25rem;">
-        <div class="sub-label">System Analysis (Mind/Control vs DD8)</div>
-        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin:.2rem 0 .25rem 0;">
-          <button class="btn btn-xs" onclick="runSystemAnalysisCheck()">Analyze Selected Hex</button>
-          <button class="btn btn-xs" onclick="registerStarshipTravelDays(1)">+1 Starship Travel Day</button>
-          <button class="btn btn-xs" onclick="registerStarshipTravelDays(5)">+1 Starship Week</button>
+      <div style="padding-top:.45rem;border-top:1px solid var(--border);margin-top:.45rem;">
+        <div class="sub-label">Observe Adjacent (System Analysis)</div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
+          <button class="btn btn-xs btn-teal" onclick="runSystemAnalysisCheck()">Analyze Hex (DD8)</button>
+          <button class="btn btn-xs" onclick="runFurtherSystemAnalysis()">Further Analysis (+1 Day)</button>
         </div>
-        <div id="starAnalysisResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;"></div>
+        <div id="starAnalysisResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;margin-top:.2rem;"></div>
       </div>
 
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
-        <div class="sub-label">Cosmic Weather</div>
-        <button class="btn btn-xs" onclick="rollStarSystemWeather()">⚄ Roll Cosmic Weather</button>
-        <div id="starWeatherResult" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1rem;margin-top:.2rem;"></div>
+      <div style="padding-top:.45rem;border-top:1px solid var(--border);margin-top:.45rem;">
+        <div class="sub-label">Explore</div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
+          <button class="btn btn-xs btn-teal" onclick="runGalaxyEncounterRoll()">⚄ Roll Encounter</button>
+          <button class="btn btn-xs" onclick="rollMonthlyStarRadioEvent()">Monthly Radio</button>
+          <button class="btn btn-xs" onclick="if(typeof generateMissions==='function')generateMissions();switchTab('missions',document.querySelector(\".tab-btn[onclick*=\\\"missions\\\"]\"));">Generate Task</button>
+        </div>
+        <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-top:.25rem;"></div>
+        <div id="starExplorationDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:3rem;padding:.35rem;border:1px solid var(--border);background:rgba(255,255,255,.01);margin-top:.25rem;"></div>
       </div>
 
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
-        <div class="sub-label">Selected Hex</div>
-        <div id="starSystemHexDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1.6rem;"></div>
-      </div>
-
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
-        <div class="sub-label">Major Powers & Factions</div>
-        <div id="starSystemPowers" style="font-size:.74rem;color:var(--muted2);line-height:1.45;"></div>
-      </div>
-
-      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
-        <div class="sub-label">Isolated Travelers Radio</div>
-        <button class="btn btn-xs btn-teal" onclick="rollMonthlyStarRadioEvent()">⚄ Force Monthly Radio Roll</button>
+      <div style="padding-top:.45rem;border-top:1px solid var(--border);margin-top:.45rem;">
+        <div id="starSystemHexDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1.3rem;"></div>
+        <div id="starSystemPowers" style="font-size:.74rem;color:var(--muted2);line-height:1.45;margin-top:.2rem;"></div>
         <div id="starSystemRadioLog" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1rem;margin-top:.2rem;"></div>
       </div>
     </div>

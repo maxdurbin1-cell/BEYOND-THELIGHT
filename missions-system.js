@@ -545,41 +545,58 @@
     for (var i=0;i<S.activeMissions.length;i++) { if (String(S.activeMissions[i].id)===String(missionId)){idx=i;break;} }
     if (idx===-1) return;
     var mission=S.activeMissions[idx];
+    if (!Array.isArray(mission.loot)) mission.loot = [];
+    if (!mission.steps || typeof mission.steps !== 'object') mission.steps = {};
+    if (!mission.steps[3]) mission.steps[3] = { name:'Confrontation', required:true, completed:false };
     mission.steps[3].completed=true; mission.completedAt=new Date().toISOString(); mission.success=success;
+    var stored=[]; var dropped=[]; var newLoot=[];
     if (success) {
-      var newLoot=rollShopLoot(mission.difficulty); mission.loot=mission.loot.concat(newLoot);
+      try {
+        newLoot=rollShopLoot(mission.difficulty) || [];
+      } catch (err) {
+        newLoot=[];
+      }
+      mission.loot=mission.loot.concat(newLoot);
       S.credits=(S.credits||0)+(mission.reward||100); S.renown=(S.renown||0)+1;
       if (typeof updateCreditsUI==='function') updateCreditsUI();
       if (typeof updateRenown==='function') updateRenown();
       // Add mission loot directly to backpack slots when possible.
-      var stored=[]; var dropped=[];
       if (typeof addToBackpack === 'function') {
         for (var li=0; li<newLoot.length; li++) {
-          if (addToBackpack(newLoot[li])) stored.push(newLoot[li]);
-          else dropped.push(newLoot[li]);
+          try {
+            if (addToBackpack(newLoot[li])) stored.push(newLoot[li]);
+            else dropped.push(newLoot[li]);
+          } catch (err) {
+            dropped.push(newLoot[li]);
+          }
         }
       } else {
         dropped = newLoot.slice();
       }
-      showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 Loot: '+mission.loot.join(', '),'good');
-      if (stored.length) {
-        showNotif('Added to backpack: ' + stored.join(', '), 'good');
-      }
-      if (dropped.length) {
-        showNotif('Backpack full. Unstored loot: ' + dropped.join(', '), 'warn');
-      }
     } else {
       S.renown=Math.max(0,(S.renown||0)-1);
       if (typeof updateRenown==='function') updateRenown();
-      showNotif('Mission failed. \u22121 Renown.','warn');
     }
-    removeMissionToken(mission);
+    try { removeMissionToken(mission); } catch (err) {}
     if (S.completedMissions.length>=MAX_COMPLETED_MISSIONS) S.completedMissions.shift();
     S.completedMissions.push(mission);
     S.activeMissions.splice(idx,1);
-    renderMissionBoard(); renderMissionTracker(); renderCompletedMissions();
-    if (typeof renderBackpackUI === 'function') renderBackpackUI();
-    if (typeof renderQP === 'function') renderQP('missions');
+    try {
+      renderMissionBoard(); renderMissionTracker(); renderCompletedMissions();
+      if (typeof renderBackpackUI === 'function') renderBackpackUI();
+      if (typeof renderQP === 'function') renderQP('missions');
+    } catch (err) {}
+    if (success) {
+      try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
+      if (stored.length) {
+        try { showNotif('Added to backpack: ' + stored.join(', '), 'good'); } catch (err) {}
+      }
+      if (dropped.length) {
+        try { showNotif('Backpack full. Unstored loot: ' + dropped.join(', '), 'warn'); } catch (err) {}
+      }
+    } else {
+      try { showNotif('Mission failed. \u22121 Renown.','warn'); } catch (err) {}
+    }
   }
 
   function resolveMissionOutcome(missionId, success) {

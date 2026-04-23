@@ -1599,12 +1599,18 @@
     if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
 
     var loot = [];
-    if (typeof rollForLoot === 'function') {
-      loot = rollForLoot('challenging') || [];
+    try {
+      if (typeof rollForLoot === 'function') {
+        loot = rollForLoot('challenging') || [];
+      }
+    } catch (err) {
+      loot = [];
     }
     q.rewardLoot = loot.slice();
     if (typeof addToBackpack === 'function') {
-      for (var li = 0; li < loot.length; li++) { addToBackpack(loot[li]); }
+      for (var li = 0; li < loot.length; li++) {
+        try { addToBackpack(loot[li]); } catch (err) {}
+      }
     }
 
     if (!Array.isArray(S.completedMissions)) { S.completedMissions = []; }
@@ -1631,15 +1637,17 @@
     }
     S.holding.established = true;
     q.holdingHex = q.holdingHex || q.siteHex || q.infoHex || null;
-    placeHoldingQuestTokens();
-    updateHoldingTabVisibility();
-    renderHoldingUI();
-    if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
-    if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
-    if (typeof renderCompletedMissions === 'function') { renderCompletedMissions(); }
-    if (typeof renderQP === 'function') { renderQP('missions'); }
+    try {
+      placeHoldingQuestTokens();
+      updateHoldingTabVisibility();
+      renderHoldingUI();
+      if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
+      if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
+      if (typeof renderCompletedMissions === 'function') { renderCompletedMissions(); }
+      if (typeof renderQP === 'function') { renderQP('missions'); }
+    } catch (err) {}
 
-    showNotif('Holding established! +1 Renown · +' + (q.rewardCredits || 250) + '₵' + (loot.length ? ' · Loot: ' + loot.join(', ') : ''), 'good');
+    try { showNotif('Holding established! +1 Renown · +' + (q.rewardCredits || 250) + '₵' + (loot.length ? ' · Loot: ' + loot.join(', ') : ''), 'good'); } catch (err) {}
 
     if (typeof setContext === 'function') {
       var holdingCtxBtn = document.querySelector('.ctx-btn[onclick*="setContext(\'holding\'"]');

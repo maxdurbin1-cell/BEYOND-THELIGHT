@@ -1556,6 +1556,7 @@
       q.active = false;
       q.failed = true;
       q.step3Completed = true;
+      q.step = 0;
       clearHoldingQuestTokens();
       if (typeof renderHexMap === 'function') { renderHexMap(); }
       showNotif('Holding quest failed. Retry from Available Quests.', 'warn');
@@ -1608,6 +1609,11 @@
       setContext('holding', holdingCtxBtn || null);
     }
     var holdingBtn = document.querySelector("button.tab-btn.ctx-holding[onclick*=\"switchTab('holding'\"]");
+    if (holdingBtn) { holdingBtn.style.display = ''; }
+    var holdingCtxTabs = document.querySelectorAll('nav .tab-btn.ctx-holding');
+    if (holdingCtxTabs && holdingCtxTabs.length) {
+      holdingCtxTabs.forEach(function(tabBtn) { tabBtn.style.display = ''; });
+    }
     if (typeof switchTab === 'function') {
       switchTab('holding', holdingBtn || null);
     }

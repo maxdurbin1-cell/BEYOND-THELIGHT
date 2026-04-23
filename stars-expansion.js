@@ -374,9 +374,16 @@ function ensureStarsState() {
     starshipTravelDays: 0,
     radioEventsSeen: {},
     lastRadioEvent: '',
+    activeFacility: null,
+    activeHub: null,
+    activeMystery: null,
     activeDeadMoon: null,
+    activeDeadMoonMap: null,
     activeDerelict: null,
   };
+  S.spaceNaval = S.spaceNaval || null;
+  S.seaNaval = S.seaNaval || null;
+  if (!Array.isArray(S.starship.cargo)) S.starship.cargo = [];
   S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false, ageEpochYear: null, ageEpochIndex: null };
   if (!S.gameDate.seededRandom) {
     S.gameDate.day = roll(DAYS_PER_MONTH - 1) + 1;
@@ -401,7 +408,11 @@ function ensureStarsState() {
   if (!Array.isArray(S.starSystem.majorPowers)) S.starSystem.majorPowers = [];
   if (!Array.isArray(S.starSystem.factions)) S.starSystem.factions = [];
   if (!S.starSystem.radioEventsSeen || typeof S.starSystem.radioEventsSeen !== 'object') S.starSystem.radioEventsSeen = {};
+  if (!S.starSystem.activeFacility) S.starSystem.activeFacility = null;
+  if (!S.starSystem.activeHub) S.starSystem.activeHub = null;
+  if (!S.starSystem.activeMystery) S.starSystem.activeMystery = null;
   if (!S.starSystem.activeDeadMoon) S.starSystem.activeDeadMoon = null;
+  if (!S.starSystem.activeDeadMoonMap) S.starSystem.activeDeadMoonMap = null;
   if (!S.starSystem.activeDerelict) S.starSystem.activeDerelict = null;
 
   if (!S.radiationState) {
@@ -417,6 +428,75 @@ function ensureStarsState() {
   RAD_PENALTY_STATS.forEach((k) => {
     if (typeof S.radiationState.statPenalty[k] !== 'number') S.radiationState.statPenalty[k] = 0;
   });
+}
+
+function cloneStarsData(value) {
+  return JSON.parse(JSON.stringify(value || null));
+}
+
+function syncNavalStateForContext(nextContext) {
+  if (typeof S !== 'object' || !S) return;
+  const targetCtx = nextContext || window._activeContext || 'traveling';
+  const prevCtx = S._navalContext || 'sea';
+
+  if (prevCtx === 'space') S.spaceNaval = cloneStarsData(S.naval);
+  else S.seaNaval = cloneStarsData(S.naval);
+
+  if (targetCtx === 'space') {
+    S.naval = cloneStarsData(S.spaceNaval || S.naval || {});
+    S._navalContext = 'space';
+  } else {
+    S.naval = cloneStarsData(S.seaNaval || S.naval || {});
+    S._navalContext = 'sea';
+  }
+
+  if (typeof renderNaval === 'function') {
+    try { renderNaval(); } catch (err) {}
+  }
+  const navalHeader = document.querySelector('#tab-naval .ship-banner h3');
+  if (navalHeader) navalHeader.textContent = targetCtx === 'space' ? 'Starship System' : 'Naval System';
+}
+
+function ensureSpaceCargoTarget() {
+  ensureStarsState();
+  if (window._activeContext === 'space' && S.naval && S.naval.ship) {
+    if (!Array.isArray(S.naval.ship.cargo)) S.naval.ship.cargo = [];
+    return S.naval.ship.cargo;
+  }
+  if (!Array.isArray(S.starship.cargo)) S.starship.cargo = [];
+  return S.starship.cargo;
+}
+
+function addItemToBackpack(item) {
+  if (!item) return false;
+  if (!Array.isArray(S.backpack)) S.backpack = ['', '', '', '', '', ''];
+  const slotIdx = S.backpack.indexOf('');
+  if (slotIdx >= 0) S.backpack[slotIdx] = item;
+  else S.backpack.push(item);
+  if (typeof renderBackpackUI === 'function') renderBackpackUI();
+  return true;
+}
+
+function addItemToSpaceShipCargo(item) {
+  if (!item) return false;
+  const cargo = ensureSpaceCargoTarget();
+  cargo.push(item);
+  if (typeof renderNaval === 'function' && window._activeContext === 'space') renderNaval();
+  return true;
+}
+
+function takeGalaxyLoot(item, destination) {
+  if (!item) return;
+  const ok = destination === 'ship' ? addItemToSpaceShipCargo(item) : addItemToBackpack(item);
+  if (ok) showNotif(`Loot secured: ${item}`, 'good');
+}
+
+function buildLootActions(item) {
+  if (!item) return '';
+  return `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
+    <button class="btn btn-xs btn-teal" onclick="takeGalaxyLoot(${JSON.stringify(item)},'pack')">Take To Backpack</button>
+    <button class="btn btn-xs" onclick="takeGalaxyLoot(${JSON.stringify(item)},'ship')">Store In Ship</button>
+  </div>`;
 }
 
 // ── STAR SYSTEM MAP SCAFFOLD ────────────────────────────────────────────────
@@ -623,6 +703,32 @@ const STAR_SKIRMISH_STAKES = [
   'a major power will intervene if battle escalates',
 ];
 
+const SPACE_HUB_STATIONS = ['Shuttle', 'Black Market', 'Moon Lab', 'Marshal Satellite', 'Small Port', 'Asteroid Bar'];
+const SPACE_HUB_MODULES = ['Bridge', 'Engine Room', 'Cargo Hold', 'Crew Quarters', 'Medical Bay', 'Armory', 'Common Room', 'Observation Deck', 'Hangar', 'Hydroponics Garden', 'Communication Center', 'Navigation Room'];
+const SPACE_HUB_ENGINE = ['Industrial Generator', 'Photovoltaic Solar Panel', 'Antimatter Dynamo', 'Fusion Reactor', 'Chemical Engine', 'Gravitational Wave Turbine'];
+const SPACE_HUB_CREW = ['Mechanics', 'Scientists', 'Traders', 'Pirates', 'Marshals', 'Miners'];
+const SPACE_HUB_FEATURES = ['cybernetic eye', 'silver vocalizer', 'scarred exo-arm', 'ritual tattoos', 'data veil', 'burned visor'];
+const SPACE_HUB_JOBS = ['Escort pilgrims', 'Hunt pirates', 'Recover artifact', 'Break blockade', 'Map dead moon route', 'Deliver medicine'];
+const SPACE_HUB_WANTS = ['New crew', 'Fuel', 'Way Parts', 'Credits', 'Data Crystals', 'Rumors'];
+
+const MYSTERY_PROXIMITY = ['Far', 'Nearby', 'Close'];
+const MYSTERY_DISPOSITION = ['Hostile', 'Indifferent', 'Friendly'];
+const MYSTERY_SHIP_TYPES = ['Skiff', 'Transport', 'Frigate'];
+const MYSTERY_CREWS = ['Nomad', 'Pirate', 'Merchant', 'Cultist', 'Corporate', 'Salvager'];
+const MYSTERY_CREW_NAMES = ['Lian', 'Nora', 'Axe', 'Bell', 'Bink', 'Duni', 'Kasha', 'Suana', 'Huang', 'Miesha', 'Goran', 'Pae'];
+const MYSTERY_QUIRKS = ['never swears', 'talks a lot', 'flirty', 'very polite', 'nosepicker', 'always eating'];
+const MYSTERY_WANTS = ['Crew', 'Cargo', 'Credits', 'Fuel', 'Drugs', 'Women'];
+const MYSTERY_JOBS = ['Holorum', 'Many Rings', 'War Paints', 'A lot of Piercings', 'Glowing Tattoos', 'Beastlike'];
+const MYSTERY_TRADE = ['Cosmic Essential', 'Standard Fuel', 'Hub Jump Fuel', 'Hyperdrive Core', 'First-Aid Kit', 'Toolkit', 'Hack Data Drive', 'Spell Scrolls', 'Exocraft', 'Vehicle Mod', 'Ranged Weapon', 'Melee Weapon', 'Armor'];
+
+const DEAD_MOON_MAP_MARKERS = {
+  landing: { label: 'Landing Site', color: '#2ec4b6' },
+  site: { label: 'Site of Interest', color: '#c9a227' },
+  hazard: { label: 'Hazard', color: '#b05252' },
+  loot: { label: 'Loot', color: '#e6d77a' },
+  empty: { label: 'Dust', color: '#3b342f' },
+};
+
 const STAR_DOWNTIME_ACTIONS = {
   repairs: {
     label: 'Patch Ship Systems',
@@ -753,12 +859,12 @@ const DERELICT_MODULE_TABLE = [
 ];
 
 const FACILITY_CHALLENGES = [
-  'The site is in deep debt. Pay 2d6x10 credits to stabilize operations.',
-  '1d6 Missing Person(s). Find them in modules (1-in-6 chance per module).',
-  '1 Grifter + d4 goons DD4|8 HP seized resources in a random module.',
-  'Workers request resource acquisition support. Mine and return credits value.',
-  'Eliminate Antagonist: strange creature in a random module.',
-  'Find Missing Item for a Traveling Wayfarer (1-in-6 chance per module).',
+  'The site is in deep debt. Pay Debt: 2d6x10 Credits | Gain 1x Loot.',
+  '1d6 Missing Person(s). 1-in-6 chance of encountering them in a Module.',
+  '1 Grifter & d4 Goons (DD4 | 8 Health) seized resources and hide in a random Module.',
+  'Acquire Resources. Gain credits based on the amount of Resources found.',
+  'Eliminate Antagonist. A strange creature resides in a random Module.',
+  'Find Missing Item. A Traveling Wayfarer lost a Random Item. 1-in-6 chance per Module.',
 ];
 
 const FACILITY_CONNECTORS = ['service hatch', 'freight elevator', 'narrow gantry', 'maintenance corridor', 'sealed pressure door', 'spiral ramp'];
@@ -892,10 +998,55 @@ function createFacilityState() {
     material: pick(['alloyed steel', 'carbon glass', 'ceramic composite', 'salvaged hull plating', 'reactive crystal']),
     quirk: pick(['Workers speak in coded chants.', 'Every hallway points toward a central shrine.', 'Gravity pulses unpredictably.', 'Doors only open in paired sequence.']),
     challenge: FACILITY_CHALLENGES[roll(6) - 1],
+    location: pick(['Docking Station', 'Maintenance Port', 'Habitat Spine', 'Cargo Airlock', 'Observation Concourse']),
+    workersSeen: roll(6),
+    leader: {
+      name: pick(MYSTERY_CREW_NAMES),
+      feature: pick(SPACE_HUB_FEATURES),
+      job: pick(SPACE_HUB_JOBS),
+    },
     modulesCompleted: 0,
     objectiveCompleted: false,
     moduleLog: [],
   };
+}
+
+function renderFacilityPanel() {
+  const f = S.starSystem.activeFacility;
+  const out = document.getElementById('starExplorationDetail');
+  if (!f || !out) return;
+  out.innerHTML = `
+    <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.2rem;">Galactic Facility ${f.code}</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
+      As your starship exits its jump, you see the site is <strong>${f.arrival}</strong>.<br>
+      The site is a <strong>${f.sizeLabel}</strong> <strong>${f.purpose}</strong> facility.<br>
+      The site is near ${f.description}, a <strong>${f.structure}</strong> structure made out of <strong>${f.material}</strong>. Its layout is organic, sprawling, and maze-like. ${f.quirk}<br>
+      Challenge: ${f.challenge}<br>
+      After the Docking Station, you arrive at a <strong>${f.location}</strong>. Here you see d6 ${pick(FACILITY_DISPOSITIONS)} ${pick(FACILITY_WORKERS)} ${pick(FACILITY_ACTIONS)} ${pick(FACILITY_SUBJECTS)} DD4 | 4 Health. Their leader is ${f.leader.name}, who has ${f.leader.feature}. If confronted, can offer a ${f.leader.job}.
+    </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs btn-teal" onclick="rollFacilityModule()">Explore Module</button>
+      <button class="btn btn-xs" onclick="resolveFacilityObjective()">Complete Objective (+1 Renown)</button>
+    </div>
+    <div style="margin-top:.35rem;display:grid;gap:.3rem;">
+      ${f.moduleLog.length ? f.moduleLog.map(module => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+        <strong style="color:${module.completed ? 'var(--green2)' : 'var(--gold2)'};">Module ${module.id}: ${module.module}</strong><br>
+        Connector: ${module.connector}<br>
+        Encounter: ${module.result}<br>
+        Loot: ${module.loot}
+        ${buildLootActions(module.loot)}
+        <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeFacilityModule(${module.id})">${module.completed ? 'Completed' : 'Mark Completed'}</button></div>
+      </div>`).join('') : '<div style="font-size:.73rem;color:var(--muted2);">No modules explored yet.</div>'}
+    </div>`;
+}
+
+function completeFacilityModule(moduleId) {
+  const f = S.starSystem.activeFacility;
+  if (!f) return;
+  const module = f.moduleLog.find(m => m.id === moduleId);
+  if (!module) return;
+  module.completed = true;
+  renderFacilityPanel();
 }
 
 function generateFacilityAntagonist() {
@@ -987,16 +1138,11 @@ function rollFacilityModule() {
   const moduleName = pick(FACILITY_MODULES);
   const encType = pick(FACILITY_ENCOUNTER_TYPES);
   const text = facilityEncounterText(encType);
+  const loot = pick(MYSTERY_TRADE);
   const chance = roll(6);
   const foundTarget = chance === 1 ? ' (1-in-6 special target found.)' : '';
-  f.moduleLog.push({ module: moduleName, encounter: encType, result: text });
-
-  if (out) {
-    out.innerHTML = `
-      <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Facility Module ${f.modulesCompleted}/${f.sizeModules}</div>
-      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You go through <strong>${connector}</strong> and enter the <strong>${moduleName}</strong> module. ${text}${foundTarget}</div>
-      <div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Encounters can be Antagonist, Artifact, Resource, Hazard, Locked Access Point, Dread Event, Fixed Event, Discovery, Situation, or Trigger/Obstacle.</div>`;
-  }
+  f.moduleLog.push({ id: f.moduleLog.length + 1, connector, module: moduleName, encounter: encType, result: `You go through ${connector} and enter the ${moduleName} module. ${text}${foundTarget}`, loot, completed: false });
+  renderFacilityPanel();
 }
 
 function resolveFacilityObjective() {
@@ -1067,6 +1213,7 @@ function exploreDeadMoonSite() {
     out.innerHTML = `
       <div style="font-size:.75rem;color:var(--gold2);">Dead Moon Site Exploration ${dm.exploredSteps}</div>
       <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Direction: <strong>${direction.toUpperCase()}</strong> · Site: <strong>${dm.site}</strong><br>Room/Event: ${room}<br>Encounter: ${encounter}<br>Loot: ${loot}</div>
+      ${buildLootActions(loot)}
       <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
         <button class="btn btn-xs btn-teal" onclick="exploreDeadMoonSite()">Explore Next Room</button>
         <button class="btn btn-xs" onclick="rollDeadMoonDirection()">Change Direction</button>
@@ -1082,8 +1229,237 @@ function createDerelictShipState() {
     survivorCount: roll(10) - 1,
     modules: Math.max(1, roll(8)),
     explored: 0,
+    roomList: [],
     ruinCause: pick(['space debris', 'pirates', 'cannibalism', 'starvation', 'mob hit', 'system failure', 'loss of air', 'open hatch', 'uncontrollable fire']),
   };
+}
+
+function createSpaceHubState(ring) {
+  const moduleCount = 4 + roll(3);
+  return {
+    code: randomFacilityCode(),
+    ring: ring || 'middle',
+    stationType: pick(SPACE_HUB_STATIONS),
+    modulesTotal: moduleCount,
+    engine: pick(SPACE_HUB_ENGINE),
+    crew: pick(SPACE_HUB_CREW),
+    name: `${pick(['Eclipse', 'Tempest', 'Valefor', 'Murmur', 'Lago', 'Balam'])} Station`,
+    crewCount: roll(10) * 10,
+    workers: Array.from({ length: Math.max(1, roll(6)) }, () => ({
+      disposition: pick(FACILITY_DISPOSITIONS),
+      worker: pick(FACILITY_WORKERS),
+      action: pick(FACILITY_ACTIONS),
+      subject: pick(FACILITY_SUBJECTS),
+    })),
+    leader: {
+      name: pick(MYSTERY_CREW_NAMES),
+      feature: pick(SPACE_HUB_FEATURES),
+      job: pick(SPACE_HUB_JOBS),
+      want: pick(SPACE_HUB_WANTS),
+      quirk: pick(MYSTERY_QUIRKS),
+    },
+    modules: [],
+  };
+}
+
+function exploreSpaceHubModule() {
+  ensureStarsState();
+  const hub = S.starSystem.activeHub;
+  if (!hub) return;
+  if (hub.modules.length >= hub.modulesTotal) return renderSpaceHubPanel();
+  const module = {
+    id: hub.modules.length + 1,
+    name: pick(SPACE_HUB_MODULES),
+    event: pick([
+      'Traveling Wayfarer seeks passage and offers local rumors.',
+      'Black market exchange is underway behind sealed shutters.',
+      'A patrol from the resident faction checks all cargo manifests.',
+      'A crew dispute spills into the corridor.',
+      'Maintenance alarms trigger a sudden lockdown.',
+      'A merchant offers contraband refuel if paid in data crystals.',
+    ]),
+    loot: pick(MYSTERY_TRADE),
+    completed: false,
+  };
+  hub.modules.push(module);
+  renderSpaceHubPanel();
+}
+
+function completeSpaceHubModule(moduleId) {
+  const hub = S.starSystem.activeHub;
+  if (!hub) return;
+  const module = hub.modules.find(m => m.id === moduleId);
+  if (!module) return;
+  module.completed = true;
+  renderSpaceHubPanel();
+}
+
+function renderSpaceHubPanel() {
+  const hub = S.starSystem.activeHub;
+  const out = document.getElementById('starExplorationDetail');
+  if (!hub || !out) return;
+  out.innerHTML = `
+    <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Space Hub: ${hub.name}</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
+      Station Type: <strong>${hub.stationType}</strong> · Engine: ${hub.engine} · Crew: ${hub.crew}<br>
+      Leader: <strong>${hub.leader.name}</strong> (${hub.leader.feature}, ${hub.leader.quirk}) wants ${hub.leader.want} and offers job: ${hub.leader.job}.<br>
+      Dockside: ${hub.workers.map(w => `${w.disposition} ${w.worker} ${w.action} ${w.subject}`).join(' · ')}
+    </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs btn-teal" onclick="exploreSpaceHubModule()">Explore Hub Module</button>
+      <button class="btn btn-xs" onclick="changeStarshipFuel('standard',1)">Refuel Standard +1</button>
+      <button class="btn btn-xs" onclick="if(typeof generateMissions==='function')generateMissions()">Generate Task</button>
+    </div>
+    <div style="margin-top:.35rem;display:grid;gap:.3rem;">
+      ${hub.modules.length ? hub.modules.map(module => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+        <strong style="color:${module.completed ? 'var(--green2)' : 'var(--gold2)'};">Module ${module.id}: ${module.name}</strong><br>
+        ${module.event}<br>
+        Loot: ${module.loot}
+        ${buildLootActions(module.loot)}
+        <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeSpaceHubModule(${module.id})">${module.completed ? 'Completed' : 'Mark Completed'}</button></div>
+      </div>`).join('') : '<div style="font-size:.73rem;color:var(--muted2);">No modules explored yet.</div>'}
+    </div>`;
+}
+
+function createMysteryState(ring) {
+  const disposition = pick(MYSTERY_DISPOSITION);
+  return {
+    ring: ring || 'middle',
+    proximity: pick(MYSTERY_PROXIMITY),
+    disposition,
+    crewType: pick(MYSTERY_CREWS),
+    shipType: pick(MYSTERY_SHIP_TYPES),
+    shipName: `${pick(MYSTERY_CREW_NAMES)} ${pick(['Willow', 'Spark', 'Mourn', 'Drift', 'Halo'])}`,
+    contacts: Array.from({ length: Math.max(1, roll(6)) }, () => ({
+      name: pick(MYSTERY_CREW_NAMES),
+      job: pick(MYSTERY_JOBS),
+      want: pick(MYSTERY_WANTS),
+      quirk: pick(MYSTERY_QUIRKS),
+    })),
+    trade: Array.from({ length: 3 }, () => pick(MYSTERY_TRADE)),
+    missionHook: pick(['escort their convoy to a Space Hub', 'hunt a pirate that has been shadowing them', 'recover a relic from a derelict they mapped', 'deliver spare parts through a blockade']),
+  };
+}
+
+function renderMysteryPanel() {
+  const mystery = S.starSystem.activeMystery;
+  const out = document.getElementById('starExplorationDetail');
+  if (!mystery || !out) return;
+  out.innerHTML = `
+    <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Mystery Contact: ${mystery.shipName}</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
+      ${mystery.crewType} ${mystery.shipType} at ${mystery.proximity} range. Disposition: <strong>${mystery.disposition}</strong>.<br>
+      Mission Hook: ${mystery.missionHook}.
+    </div>
+    <div style="margin-top:.35rem;display:grid;gap:.3rem;">
+      ${mystery.contacts.map((contact, idx) => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+        <strong style="color:var(--teal);">${contact.name}</strong> · ${contact.job}<br>
+        Wants: ${contact.want} · Quirk: ${contact.quirk}
+      </div>`).join('')}
+    </div>
+    <div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);">
+      <div class="sub-label">Trade Items</div>
+      ${mystery.trade.map(item => `<div style="padding:.25rem 0;border-bottom:1px dotted var(--border2);">${item}${buildLootActions(item)}</div>`).join('')}
+    </div>`;
+}
+
+function renderDerelictPanel() {
+  const ds = S.starSystem.activeDerelict;
+  const out = document.getElementById('starExplorationDetail');
+  if (!ds || !out) return;
+  out.innerHTML = `
+    <div style="font-size:.75rem;color:var(--gold2);">Derelict Ship</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Type: <strong>${ds.shipType}</strong> · Status: ${ds.status} · Engine: ${ds.engine} · Cause: ${ds.ruinCause}</div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs btn-teal" onclick="rollDerelictShipModule()">Explore Room</button>
+    </div>
+    <div style="margin-top:.35rem;display:grid;gap:.3rem;">${ds.roomList.length ? ds.roomList.map(room => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      <strong style="color:${room.completed ? 'var(--green2)' : 'var(--gold2)'};">Room ${room.id}: ${room.module}</strong><br>
+      Encounter: ${room.encounter}<br>
+      Trigger: ${room.trigger}<br>
+      Obstacle: ${room.obstacle}<br>
+      Loot: ${room.loot}
+      ${buildLootActions(room.loot)}
+      <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeDerelictRoom(${room.id})">${room.completed ? 'Completed' : 'Mark Completed'}</button></div>
+    </div>`).join('') : '<div style="font-size:.73rem;color:var(--muted2);">No rooms explored yet.</div>'}</div>`;
+}
+
+function completeDerelictRoom(roomId) {
+  const ds = S.starSystem.activeDerelict;
+  if (!ds) return;
+  const room = ds.roomList.find(r => r.id === roomId);
+  if (!room) return;
+  room.completed = true;
+  renderDerelictPanel();
+}
+
+function createDeadMoonMapState() {
+  const cells = [];
+  for (let row = 0; row < 6; row++) {
+    for (let col = 0; col < 6; col++) {
+      cells.push({
+        id: `${row}-${col}`,
+        row,
+        col,
+        marker: 'empty',
+        visited: false,
+        note: 'Ash and ruin-strewn regolith.',
+      });
+    }
+  }
+  const landing = cells.find(c => c.row === 5 && c.col === 2) || cells[0];
+  landing.marker = 'landing';
+  const site = pick(cells.filter(c => c.id !== landing.id));
+  site.marker = 'site';
+  pick(cells.filter(c => c.marker === 'empty')).marker = 'loot';
+  pick(cells.filter(c => c.marker === 'empty')).marker = 'hazard';
+  return { cells, selectedId: landing.id, siteId: site.id };
+}
+
+function deadMoonCellClick(cellId) {
+  const map = S.starSystem.activeDeadMoonMap;
+  if (!map) return;
+  map.selectedId = cellId;
+  const cell = map.cells.find(c => c.id === cellId);
+  if (cell && !cell.visited) registerStarshipTravelDays(1);
+  renderDeadMoonMapPanel();
+}
+
+function exploreDeadMoonMapCell() {
+  ensureStarsState();
+  if (!S.starSystem.activeDeadMoonMap) S.starSystem.activeDeadMoonMap = createDeadMoonMapState();
+  const map = S.starSystem.activeDeadMoonMap;
+  const cell = map.cells.find(c => c.id === map.selectedId);
+  if (!cell) return;
+  cell.visited = true;
+  cell.note = cell.marker === 'site'
+    ? `Site of Interest: ${pick(Object.values(DEAD_MOON_DIRECTIONS).flat())}`
+    : cell.marker === 'loot'
+      ? `Loot cache discovered: ${pick(DEAD_MOON_LOOT)}`
+      : cell.marker === 'hazard'
+        ? `Hazard encountered: ${pick(DEAD_MOON_TRAVEL_EVENTS[pick(Object.keys(DEAD_MOON_TRAVEL_EVENTS))])}`
+        : 'The area is quiet but oppressive.';
+  renderDeadMoonMapPanel();
+}
+
+function renderDeadMoonMapPanel() {
+  const map = S.starSystem.activeDeadMoonMap;
+  const out = document.getElementById('starExplorationDetail');
+  if (!map || !out) return;
+  const selected = map.cells.find(c => c.id === map.selectedId);
+  out.innerHTML = `
+    <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.25rem;">Dead Moon Landing Map (6x6)</div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.2rem;">
+      ${map.cells.map(cell => `<button class="btn btn-xs ${cell.id === map.selectedId ? 'btn-teal' : ''}" style="padding:.4rem .2rem;background:${DEAD_MOON_MAP_MARKERS[cell.marker].color};color:#111;" onclick="deadMoonCellClick('${cell.id}')">${cell.row + 1},${cell.col + 1}</button>`).join('')}
+    </div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.35rem;">
+      Selected: <strong>${selected.row + 1},${selected.col + 1}</strong> · ${DEAD_MOON_MAP_MARKERS[selected.marker].label}<br>
+      ${selected.note}
+    </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs btn-teal" onclick="exploreDeadMoonMapCell()">Explore Cell</button>
+      ${selected && selected.note.indexOf('Loot cache discovered: ') === 0 ? buildLootActions(selected.note.replace('Loot cache discovered: ', '')) : ''}
+    </div>`;
 }
 
 function rollDerelictShipModule() {
@@ -1096,21 +1472,17 @@ function rollDerelictShipModule() {
     return;
   }
   ds.explored += 1;
-  const module = DERELICT_MODULE_TABLE[roll(DERELICT_MODULE_TABLE.length) - 1];
-  const encounter = pick(['Skittering within the walls', 'Banging inside vents', 'Something crawls beneath the floor', 'Thumps in the ceiling', 'Death worm outlines under plating', 'Paralyzing crawlers DD4|8 Health', 'Toxic crawlers DD4|8 Health + d100 Rads', 'Nothing']);
-  const trigger = pick(FACILITY_TRIGGERS);
-  const obstacle = pick(FACILITY_OBSTACLES);
-  const loot = pick(['d6 Standard Fuel (+1 fuel slot)', 'd4 Hub Jumps', 'd4 Hyperdrives', 'First-Aid Kit', 'Toolkit', 'Hack Data Drive', 'Spell Scrolls', 'Exocraft', 'Vehicle Mod', 'Ranged Weapon', 'Melee Weapon', 'Armor']);
-
-  const out = document.getElementById('starExplorationDetail');
-  if (out) {
-    out.innerHTML = `
-      <div style="font-size:.75rem;color:var(--gold2);">Derelict Module ${ds.explored}/${ds.modules}</div>
-      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Ship: <strong>${ds.shipType}</strong> · Status: ${ds.status} · Engine: ${ds.engine}<br>Module: ${module}<br>Encounter: ${encounter}<br>Trigger: ${trigger}<br>Obstacle: ${obstacle}<br>Loot: ${loot}</div>
-      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
-        <button class="btn btn-xs btn-teal" onclick="rollDerelictShipModule()">Explore Next Module</button>
-      </div>`;
-  }
+  const room = {
+    id: ds.roomList.length + 1,
+    module: DERELICT_MODULE_TABLE[roll(DERELICT_MODULE_TABLE.length) - 1],
+    encounter: pick(['Skittering within the walls', 'Banging inside vents', 'Something crawls beneath the floor', 'Thumps in the ceiling', 'Death worm outlines under plating', 'Paralyzing crawlers DD4|8 Health', 'Toxic crawlers DD4|8 Health + d100 Rads', 'Nothing']),
+    trigger: pick(FACILITY_TRIGGERS),
+    obstacle: pick(FACILITY_OBSTACLES),
+    loot: pick(['d6 Standard Fuel (+1 fuel slot)', 'd4 Hub Jumps', 'd4 Hyperdrives', 'First-Aid Kit', 'Toolkit', 'Hack Data Drive', 'Spell Scrolls', 'Exocraft', 'Vehicle Mod', 'Ranged Weapon', 'Melee Weapon', 'Armor']),
+    completed: false,
+  };
+  ds.roomList.push(room);
+  renderDerelictPanel();
 }
 
 function buildGalaxyLocationDetail(ring) {
@@ -1205,29 +1577,20 @@ function resolveGalaxyDowntimeAction(actionId) {
 
 function buildStarExplorationDetail(ring, outcome) {
   if (outcome === 'Mystery') {
-    return `Mystery: ${pick(STAR_MYSTERY_SNIPPETS)}`;
+    const hex = getCurrentStarHex();
+    S.starSystem.activeMystery = getHexPersistentState(hex, 'mystery', function() { return createMysteryState(ring); });
+    setTimeout(renderMysteryPanel, 0);
+    return `Mystery contact detected. Open channel and assess crew intentions.`;
   }
   if (outcome === 'Peril') {
     return `Peril: ${pick(STAR_PERIL_SNIPPETS)}`;
   }
   if (outcome === 'Galactic Facility') {
-    const f = createFacilityState();
+    const hex = getCurrentStarHex();
+    const f = getHexPersistentState(hex, 'facility', createFacilityState);
     S.starSystem.activeFacility = f;
-    const workerCount = roll(6);
-    return `
-      <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.2rem;">Galactic Facility ${f.code}</div>
-      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
-        As your starship exits jump, the site is <strong>${f.arrival}</strong>.<br>
-        It is a <strong>${f.sizeLabel}</strong> <strong>${f.purpose}</strong> facility near <strong>${f.description}</strong>, a <strong>${f.structure}</strong> structure made of <strong>${f.material}</strong>.<br>
-        Settlement Quirk: ${f.quirk}<br>
-        Current Challenge: ${f.challenge}<br>
-        Docking area: you meet d6 <strong>${pick(FACILITY_DISPOSITIONS)}</strong> ${pick(FACILITY_WORKERS)} ${pick(FACILITY_ACTIONS)} ${pick(FACILITY_SUBJECTS)}. Leader ${pick(['Lian','Kasha','Huang','Mira','Goran','Pae'])} offers contracts/trade/refuel.
-      </div>
-      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
-        <button class="btn btn-xs btn-teal" onclick="rollFacilityModule()">Explore Next Module</button>
-        <button class="btn btn-xs" onclick="resolveFacilityObjective()">Complete Site Objective (+1 Renown)</button>
-      </div>
-      <div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Modules equal size (${workerCount ? f.sizeModules : f.sizeModules}). Use module rolls until objective is resolved.</div>`;
+    setTimeout(renderFacilityPanel, 0);
+    return `Galactic Facility ${f.code} identified. Docking and module exploration available.`;
   }
   if (outcome === 'Space Encounter') {
     const e = STAR_SPACE_ENCOUNTERS[roll(10) - 1];
@@ -1237,31 +1600,36 @@ function buildStarExplorationDetail(ring, outcome) {
       <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">${e.options.map(o => '• ' + o).join('<br>')}</div>`;
   }
   if (outcome === 'Locations') {
+    const current = getCurrentStarHex();
+    if (current && current.type === 'hub') {
+      S.starSystem.activeHub = getHexPersistentState(current, 'hub', function() { return createSpaceHubState(ring); });
+      setTimeout(renderSpaceHubPanel, 0);
+      return 'Space Hub acquired on scans. Docking protocols available.';
+    }
     return buildGalaxyLocationDetail(ring);
   }
   if (outcome === 'Dead Moon') {
-    const dm = createDeadMoonState();
+    const hex = getCurrentStarHex();
+    const dm = getHexPersistentState(hex, 'deadMoon', createDeadMoonState);
     S.starSystem.activeDeadMoon = dm;
+    S.starSystem.activeDeadMoonMap = getHexPersistentState(hex, 'deadMoonMap', createDeadMoonMapState);
     return `
       <div style="font-size:.75rem;color:var(--gold2);">Dead Moon</div>
       <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Dead Moons are unique to the Inner Rings and often desecrated by collapse-era hubris. VaccSuit recommended. ${dm.irradiated ? '<span style="color:var(--red2);">Irradiated: +d100 Rads/day.</span>' : 'No immediate radiation spike detected.'}<br>Initial Direction: <strong>${dm.direction.toUpperCase()}</strong> · Site: <strong>${dm.site}</strong></div>
       <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
-        <button class="btn btn-xs btn-teal" onclick="rollDeadMoonDirection()">Roll Direction Travel</button>
-        <button class="btn btn-xs" onclick="exploreDeadMoonSite()">Explore Site of Interest</button>
+        <button class="btn btn-xs btn-teal" onclick="renderDeadMoonMapPanel()">Land & Explore 6x6 Map</button>
+        <button class="btn btn-xs" onclick="rollDeadMoonDirection()">Roll Direction Travel</button>
       </div>`;
   }
   if (outcome === 'Skirmish') {
     return buildGalaxySkirmishDetail();
   }
   if (outcome === 'Derelict Ship') {
-    const ds = createDerelictShipState();
+    const hex = getCurrentStarHex();
+    const ds = getHexPersistentState(hex, 'derelict', createDerelictShipState);
     S.starSystem.activeDerelict = ds;
-    return `
-      <div style="font-size:.75rem;color:var(--gold2);">Derelict Ship</div>
-      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">A random vessel drifts from nightmare-space. Type: <strong>${ds.shipType}</strong>. Status: ${ds.status}. Engine: ${ds.engine}. Survivors: ${ds.survivorCount}. Cause of ruin: ${ds.ruinCause}. Modules: ${ds.modules}.</div>
-      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
-        <button class="btn btn-xs btn-teal" onclick="rollDerelictShipModule()">Explore Module</button>
-      </div>`;
+    setTimeout(renderDerelictPanel, 0);
+    return `Derelict contact acquired. Survivors: ${ds.survivorCount}. Rooms can now be explored.`;
   }
   return buildUneventfulVoyageDetail();
 }
@@ -1464,8 +1832,13 @@ function renderStarSystemMap() {
 
 function selectStarSystemHex(hexId) {
   ensureStarsState();
+  const prevId = S.starSystem.currentHexId;
   S.starSystem.currentHexId = hexId;
   const h = getCurrentStarHex();
+  if (prevId != null && prevId !== hexId && h && h.ring !== 'core') {
+    if ((S.starship.fuel.standard || 0) > 0) S.starship.fuel.standard -= 1;
+    registerStarshipTravelDays(DAYS_PER_WEEK);
+  }
   if (h && h.ring && h.ring !== 'core') S.starSystem.selectedRing = h.ring;
   const ringSel = document.getElementById('starRingSelect');
   if (ringSel && h && h.ring && h.ring !== 'core') ringSel.value = h.ring;
@@ -1476,6 +1849,13 @@ function selectStarSystemHex(hexId) {
 function getCurrentStarHex() {
   ensureStarsState();
   return S.starSystem.hexes.find(h => h.id === S.starSystem.currentHexId) || S.starSystem.hexes[0] || null;
+}
+
+function getHexPersistentState(hex, key, factory) {
+  if (!hex) return null;
+  if (!hex.persistentState || typeof hex.persistentState !== 'object') hex.persistentState = {};
+  if (!hex.persistentState[key] && typeof factory === 'function') hex.persistentState[key] = factory();
+  return hex.persistentState[key] || null;
 }
 
 function getNearestHubHex(fromHex) {
@@ -1596,15 +1976,26 @@ function updateStarSystemReadouts() {
       panel.innerHTML = '<div style="font-size:.83rem;color:var(--muted2);">Select a hex to inspect.</div>';
     } else {
       const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
+      const actionButtons = [];
+      if (current.type === 'hub') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeHub=getHexPersistentState(h,\'hub\',function(){return createSpaceHubState(h.ring);});renderSpaceHubPanel();">Open Space Hub</button>');
+      if (current.type === 'derelict_ship') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDerelict=getHexPersistentState(h,\'derelict\',createDerelictShipState);renderDerelictPanel();">Explore Derelict</button>');
+      if (current.type === 'dead_moon') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDeadMoonMap=getHexPersistentState(h,\'deadMoonMap\',createDeadMoonMapState);renderDeadMoonMapPanel();">Land On Dead Moon</button>');
+      if (current.type === 'mystery') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeMystery=getHexPersistentState(h,\'mystery\',function(){return createMysteryState(h.ring);});renderMysteryPanel();">Hail Mystery Contact</button>');
+      if (current.type === 'facility') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeFacility=getHexPersistentState(h,\'facility\',createFacilityState);renderFacilityPanel();">Dock At Facility</button>');
       panel.innerHTML = `
-        <div style="font-size:.83rem;color:var(--muted2);line-height:1.65;">
-          <strong style="color:var(--text);">Hex:</strong> ${current.id} (${current.ring.toUpperCase()} Ring)<br>
-          <strong style="color:var(--text);">Land:</strong> ${current.land || 'Unknown'}<br>
-          <strong style="color:var(--text);">Flora:</strong> ${current.flora || 'Unknown'}<br>
-          <strong style="color:var(--text);">Wonder:</strong> ${current.wonder || 'Unknown'}<br>
-          <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
-          <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>
-          ${current.analysisDetail ? `<strong style="color:var(--text);">Further Analysis:</strong> ${current.analysisDetail}` : ''}
+        <div style="display:grid;gap:.35rem;">
+          <div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.83rem;color:var(--muted2);line-height:1.65;">
+            <strong style="color:var(--text);">Hex:</strong> ${current.id} (${current.ring.toUpperCase()} Ring)<br>
+            <strong style="color:var(--text);">Land:</strong> ${current.land || 'Unknown'}<br>
+            <strong style="color:var(--text);">Flora:</strong> ${current.flora || 'Unknown'}<br>
+            <strong style="color:var(--text);">Wonder:</strong> ${current.wonder || 'Unknown'}
+          </div>
+          <div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.83rem;color:var(--muted2);line-height:1.65;">
+            <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
+            <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>
+            ${current.analysisDetail ? `<strong style="color:var(--text);">Further Analysis:</strong> ${current.analysisDetail}` : ''}
+          </div>
+          ${actionButtons.length ? `<div style="display:flex;gap:.25rem;flex-wrap:wrap;">${actionButtons.join('')}</div>` : ''}
         </div>`;
     }
   }
@@ -2721,6 +3112,16 @@ function patchStarsCrossSystemHooks() {
       return out;
     };
   }
+
+  const baseSetContext = typeof setContext === 'function' ? setContext : null;
+  if (baseSetContext && !window._starsSetContextPatched) {
+    window._starsSetContextPatched = true;
+    setContext = function(ctx, btn) {
+      const out = baseSetContext.apply(this, arguments);
+      syncNavalStateForContext(ctx);
+      return out;
+    };
+  }
 }
 
 function rollStressReaction() {
@@ -3063,6 +3464,7 @@ document.addEventListener('DOMContentLoaded', function() {
   ensureStarsState();
   injectStarsShopData();
   patchStarsCrossSystemHooks();
+  syncNavalStateForContext(window._activeContext || 'traveling');
 
   // Build panels
   buildStarsCharacterPanels();

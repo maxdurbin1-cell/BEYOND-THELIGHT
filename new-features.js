@@ -223,7 +223,8 @@
 
   function mountHoldingPanel() {
     var panel = document.getElementById("tab-holding");
-    if (!panel || panel.dataset.mounted) { return; }
+    if (!panel) { return; }
+    if (panel.dataset.mounted && panel.querySelector("#holdingGate") && panel.querySelector("#holdingBody")) { return; }
     panel.dataset.mounted = "1";
     panel.innerHTML = buildHoldingHTML();
     renderHoldingUI();
@@ -1011,6 +1012,9 @@
   function renderHoldingUI() {
     var panel = document.getElementById("tab-holding");
     if (!panel || !panel.dataset.mounted) { return; }
+    if (!panel.querySelector("#holdingGate") || !panel.querySelector("#holdingBody")) {
+      panel.innerHTML = buildHoldingHTML();
+    }
     ensureNewFeatureState();
     var h = S.holding;
     var el;
@@ -1019,11 +1023,31 @@
     var gateEl = document.getElementById("holdingGate");
     var bodyEl = document.getElementById("holdingBody");
     var renown = S.renown || 0;
-    var questActive = (S.holdingQuest || {}).active;
-    var questDone = !!(S.holdingQuest && S.holdingQuest.step3Completed && !S.holdingQuest.failed);
+    var q = S.holdingQuest || {};
+    var questActive = q.active;
+    var questDone = !!(q.step3Completed && !q.failed);
     var holdingEstablished = !!(h.established || questDone);
     if (gateEl) {
       if (!holdingEstablished) {
+        var gateProgress = '';
+        if (questActive) {
+          var gateSteps = ['Gather Information', 'Go To Site', 'Establish Holding'];
+          var gateLoc = '';
+          if (q.infoHex && q.step <= 0) {
+            gateLoc += '<div style="font-size:.72rem;color:var(--gold2);margin-top:.18rem;">👁 Gather Information: Hex [' + (q.infoHex.col + 1) + ',' + (q.infoHex.row + 1) + ']</div>';
+          }
+          if (q.siteHex && q.step <= 1) {
+            gateLoc += '<div style="font-size:.72rem;color:var(--red2);margin-top:.12rem;">⚔ Go To Site: Hex [' + (q.siteHex.col + 1) + ',' + (q.siteHex.row + 1) + ']</div>';
+          }
+          if (q.holdingHex && q.step >= 2) {
+            gateLoc += '<div style="font-size:.72rem;color:var(--teal);margin-top:.12rem;">🏛 Proposed Holding: Hex [' + (q.holdingHex.col + 1) + ',' + (q.holdingHex.row + 1) + ']</div>';
+          }
+          gateProgress = '<div style="margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border2);">'
+            + '<div style="font-size:.72rem;color:var(--gold2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.18rem;">Quest In Progress</div>'
+            + '<div style="font-size:.78rem;color:var(--text2);">Current Step: <strong style="color:var(--teal);">' + (gateSteps[q.step] || 'Establish Holding') + '</strong></div>'
+            + gateLoc
+            + '</div>';
+        }
         var gateMsg = '<div class="card" style="max-width:580px;margin-top:.6rem;border:1px solid rgba(201,162,39,.35);">'
           + '<div class="section-title" style="color:var(--gold2);">⚔ Holding Not Yet Established</div>'
           + '<div style="font-size:.85rem;color:var(--text2);line-height:1.6;margin-bottom:.6rem;">'
@@ -1036,6 +1060,7 @@
                   ? '✅ You have sufficient Renown. Start the quest from the <strong>Missions</strong> tab.'
                   : '🔒 Requires <strong style="color:var(--gold2);">Renown 9</strong>. Current Renown: <strong style="color:var(--teal);">' + (S.renown||0) + '</strong>.'))
           + '</div>'
+          + gateProgress
           + '</div>';
         gateEl.innerHTML = gateMsg;
         if (bodyEl) { bodyEl.style.display = "none"; }

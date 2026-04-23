@@ -532,8 +532,8 @@
 
     var html=compBanner+featureBadge+guardsSection+mercSection+targetRow+rollInstr
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
-        +'<button class="btn btn-sm btn-red" onclick="resolveMission('+missionId+',false);closeModal();">\u2717 Failure \u2014 Roll Failed</button>'
-        +'<button class="btn btn-sm btn-primary" onclick="resolveMission('+missionId+',true);closeModal();">\u2713 Success \u2014 Roll Succeeded</button>'
+        +'<button class="btn btn-sm btn-red" onclick="resolveMissionOutcome('+missionId+',false)">\u2717 Failure \u2014 Roll Failed</button>'
+        +'<button class="btn btn-sm btn-primary" onclick="resolveMissionOutcome('+missionId+',true)">\u2713 Success \u2014 Roll Succeeded</button>'
       +'</div>';
     openModal('Step 3 \u2014 Confrontation',html);
   }
@@ -577,7 +577,14 @@
     if (S.completedMissions.length>=MAX_COMPLETED_MISSIONS) S.completedMissions.shift();
     S.completedMissions.push(mission);
     S.activeMissions.splice(idx,1);
-    renderMissionTracker(); renderCompletedMissions();
+    renderMissionBoard(); renderMissionTracker(); renderCompletedMissions();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof renderQP === 'function') renderQP('missions');
+  }
+
+  function resolveMissionOutcome(missionId, success) {
+    resolveMission(missionId, success);
+    if (typeof closeModal === 'function') closeModal();
   }
 
   function abandonMission(missionId) { resolveMission(missionId,false); }
@@ -719,15 +726,40 @@
     }).join('');
   }
 
+  function syncMissionUIs() {
+    ensureState();
+    renderMissionBoard();
+    renderMissionTracker();
+    renderCompletedMissions();
+  }
+
   document.addEventListener('DOMContentLoaded',function(){
-    ensureState(); renderMissionBoard(); renderMissionTracker(); renderCompletedMissions();
+    syncMissionUIs();
   });
+
+  var _missionBaseLoad = typeof loadCharacter === 'function' ? loadCharacter : null;
+  if (_missionBaseLoad) {
+    loadCharacter = function() {
+      _missionBaseLoad();
+      syncMissionUIs();
+    };
+  }
+
+  var _missionBaseClear = typeof clearCharacter === 'function' ? clearCharacter : null;
+  if (_missionBaseClear) {
+    clearCharacter = function() {
+      _missionBaseClear();
+      ensureState();
+      syncMissionUIs();
+    };
+  }
 
   window.generateMissions=generateMissions; window.acceptJob=acceptJob; window.abandonMission=abandonMission;
   window.startMissionStep1=startMissionStep1; window.skipMissionStep1=skipMissionStep1; window.completeMissionInfoStep=completeMissionInfoStep;
   window.startMissionStep2=startMissionStep2; window.renderSiteModal=renderSiteModal; window.exploreRoom=exploreRoom;
   window.resolveRoomConfrontation=resolveRoomConfrontation; window.completeMissionSiteStep=completeMissionSiteStep;
   window.startMissionStep3=startMissionStep3; window.resolveMission=resolveMission;
+  window.resolveMissionOutcome=resolveMissionOutcome;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;
   window.createMission=createMission;
   window.completeMissionStep=function(missionId,stepId){

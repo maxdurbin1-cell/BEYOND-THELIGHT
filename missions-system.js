@@ -603,6 +603,10 @@
     try { if (typeof renderBackpackUI === 'function') renderBackpackUI(); } catch (err) {}
     try { if (typeof renderQP === 'function') renderQP('missions'); } catch (err) {}
     if (success) {
+      // AUDIO: Mission complete
+      if (typeof window.AudioManager !== 'undefined') {
+        window.AudioManager.missionComplete();
+      }
       try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
       if (stored.length) {
         try { showNotif('Added to backpack: ' + stored.join(', '), 'good'); } catch (err) {}

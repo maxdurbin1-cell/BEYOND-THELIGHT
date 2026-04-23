@@ -1304,9 +1304,32 @@ function pushLuck(pool) {
 function spendTMW(n) { if (S.tmw < n) { showNotif('Not enough TMW!', 'warn'); return; } S.tmw -= n; updateTMWPool(); showNotif('Spent ' + n + ' TMW. Pool: ' + S.tmw); closeModal(); }
 
 // ── COMBAT ───────────────────────────────────────────────────────────────────
-function startCombat(){S.combat.active=true;S.combat.round=1;S.combat.actionsLeft=getMaxActions();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
+function startCombat(){
+  S.combat.active=true;
+  S.combat.round=1;
+  S.combat.actionsLeft=getMaxActions();
+  S.combat.enemyDefendsThisTurn=0;
+  updateCombatUI();
+  // AUDIO: Combat started
+  if (typeof window.AudioManager !== 'undefined') {
+    window.AudioManager.combatStarted();
+    window.AudioManager.playMusic('music-combat', true);
+  }
+}
 function nextRound(){S.combat.round++;S.combat.actionsLeft=getMaxActions();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
-function endCombat(){S.combat.active=false;S.combat.round=0;halfStress();clearAllConditions();updateCombatUI();showNotif('Scene ended — Recovery applied','good');}
+function endCombat(){
+  S.combat.active=false;
+  S.combat.round=0;
+  halfStress();
+  clearAllConditions();
+  updateCombatUI();
+  showNotif('Scene ended — Recovery applied','good');
+  // AUDIO: Combat ended
+  if (typeof window.AudioManager !== 'undefined') {
+    window.AudioManager.combatEnded();
+    window.AudioManager.switchTabMusic(window.AudioManager.currentTab);
+  }
+}
 function updateCombatUI(){const el=document.getElementById('combatStatus');if(el)el.textContent=S.combat.active?`Round ${S.combat.round} — Active Scene`:'No active scene.';const al=document.getElementById('actionsLeft');if(al)al.textContent=S.combat.actionsLeft;const ml=document.getElementById('maxActionsHint');if(ml)ml.textContent='(max '+getMaxActions()+')';}
 function setEnemyDread(n){S.combat.enemyDread=n;document.getElementById('enemyDreadDisplay').textContent='d'+n;}
 
@@ -1716,7 +1739,23 @@ function rollDefend(skipEnemyTurnTick) {
   } else { addSuccessRoll(); }
   clearConditionOnUse('defend');
 }
-function rollTraumaCheck(){const a=explodingRoll(S.stats.adventure),d=explodingRoll(S.combat.enemyDread);const success=a.total>=d.total;const el=document.getElementById('traumaResult');if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;if(success){addSuccessRoll();}else{changeTrauma(1);addTMWOnFail();}}
+function rollTraumaCheck(){
+  const a=explodingRoll(S.stats.adventure);
+  const d=explodingRoll(S.combat.enemyDread);
+  const success=a.total>=d.total;
+  const el=document.getElementById('traumaResult');
+  if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;
+  if(success){
+    addSuccessRoll();
+  }else{
+    changeTrauma(1);
+    addTMWOnFail();
+    // AUDIO: Trauma received
+    if (typeof window.AudioManager !== 'undefined') {
+      window.AudioManager.traumaReceived();
+    }
+  }
+}
 
 let enemyIdCounter=1;
 function addEnemy(nameArg,dreadArg){
@@ -1744,9 +1783,42 @@ function applyStressToCurrentEnemy(stress,source){
   if(typeof renderQP==='function')renderQP('combat');
 }
 function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';return;}c.innerHTML=S.enemies.map(e=>`<div class="enemy-card"><div style="flex:1;"><div style="font-family:\'Cinzel\',serif;font-size:.7rem;color:var(--gold2);">${e.name}</div><div style="font-size:.72rem;color:var(--muted2);">DD${e.dread} | ${e.stress}/${e.maxStress} Stress</div><div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button></div></div>`).join('');}
-function enemyPip(id,i){const e=S.enemies.find(x=>x.id===id);if(!e)return;e.stress=i<e.stress?i:i+1;if(e.stress>=e.maxStress){showNotif(`${e.name} defeated!`,'good');S.enemies=S.enemies.filter(x=>x.id!==id);}renderEnemies();if(typeof renderQP==='function')renderQP('combat');}
+function enemyPip(id,i){
+  const e=S.enemies.find(x=>x.id===id);
+  if(!e)return;
+  e.stress=i<e.stress?i:i+1;
+  if(e.stress>=e.maxStress){
+    // AUDIO: Enemy defeated
+    if (typeof window.AudioManager !== 'undefined') {
+      window.AudioManager.enemyDefeated();
+    }
+    showNotif(`${e.name} defeated!`,'good');
+    S.enemies=S.enemies.filter(x=>x.id!==id);
+  }
+  renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+}
 function removeEnemy(id){S.enemies=S.enemies.filter(e=>e.id===id?false:true);renderEnemies();}
-function enemyAttack(id){const e=S.enemies.find(x=>x.id===id);if(!e)return;const atk=explodingRoll(e.dread),def=explodingRoll(S.stats.defend);const hit=atk.total>def.total,dmg=Math.max(1,atk.total-def.total);showNotif(`${e.name}: ${atk.total} vs your ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'warn':'good');if(hit)changeStress(dmg);}
+function enemyAttack(id){
+  const e=S.enemies.find(x=>x.id===id);
+  if(!e)return;
+  const atk=explodingRoll(e.dread);
+  const def=explodingRoll(S.stats.defend);
+  const hit=atk.total>def.total;
+  const dmg=Math.max(1,atk.total-def.total);
+  
+  // AUDIO: Hit or blocked
+  if (typeof window.AudioManager !== 'undefined') {
+    if (hit) {
+      window.AudioManager.damageTaken(dmg / 10); // Severity based on damage
+    } else {
+      window.AudioManager.combatMiss();
+    }
+  }
+  
+  showNotif(`${e.name}: ${atk.total} vs your ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'warn':'good');
+  if(hit)changeStress(dmg);
+}
 function rollArmyStress(side){const s=rollMulti(12,2),dread=s>=13?6:4;if(side==='A'){S.combat.armyA={stress:s,dread};document.getElementById('armyAStress').textContent=s;document.getElementById('armyADread').textContent='d'+dread;}else{S.combat.armyB={stress:s,dread};document.getElementById('armyBStress').textContent=s;document.getElementById('armyBDread').textContent='d'+dread;}}
 function skirmishAction(side,action){const army=side==='A'?S.combat.armyA:S.combat.armyB;const opp=side==='A'?S.combat.armyB:S.combat.armyA;const rEl=document.getElementById('skirmishResult'+side);if(!army.stress){if(rEl)rEl.innerHTML='<span style="color:var(--red);">Roll army stress first!</span>';return;}if(action==='strike'){const a=explodingRoll(army.dread),d=explodingRoll(opp.dread||6);const diff=Math.max(1,a.total-d.total);if(a.total>=d.total){opp.stress=Math.max(0,opp.stress-diff);document.getElementById('army'+(side==='A'?'B':'A')+'Stress').textContent=opp.stress;if(rEl)rEl.innerHTML=`<span style="color:var(--green2);">Strike: ${a.total} vs ${d.total} — ${diff} Stress dealt</span>`;}else{if(rEl)rEl.innerHTML=`<span style="color:var(--red);">Strike: ${a.total} vs ${d.total} — Miss</span>`;}}else if(action==='parry'){if(rEl)rEl.innerHTML='<span style="color:var(--green);">Reaction Parry — Protected gained</span>';}else if(action==='frighten'){if(rEl)rEl.innerHTML='<span style="color:var(--red);">Frighten — Enemy Vulnerable</span>';}if(opp.stress<=0&&opp.dread)showNotif(`Army ${side==='A'?'B':'A'} defeated!`,'good');}
 // ── SHOP ─────────────────────────────────────────────────────────────────────
@@ -3858,6 +3930,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(typeof initCharDreadDiceOpts==='function')initCharDreadDiceOpts();
 });
 </script>
+<script src="./audio-manager.js"></script>
 <script src="./beyond-light-missing-functions.js"></script>
 <script src="./beyond-light-expansion.js"></script>
 <script src="./missions-system.js"></script>

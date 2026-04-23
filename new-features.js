@@ -1633,6 +1633,11 @@
       completedAt: new Date().toISOString(),
       isHoldingQuest: true
     });
+    
+    // AUDIO: Mission complete
+    if (typeof window.AudioManager !== 'undefined') {
+      window.AudioManager.missionComplete();
+    }
 
     if (!S.holding.name) {
       rollHoldingName();

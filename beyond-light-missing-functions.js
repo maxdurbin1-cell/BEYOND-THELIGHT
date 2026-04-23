@@ -9,6 +9,10 @@ function switchTab(tabId, btn) {
   if (btn) {
     btn.classList.add("active");
   }
+  // AUDIO: Switch music based on tab
+  if (typeof window.AudioManager !== "undefined") {
+    window.AudioManager.switchTabMusic(tabId);
+  }
   // Lazily mount feature panels on first visit
   if (tabId === "holding" && typeof window.mountHoldingPanel === "function") {
     window.mountHoldingPanel();
@@ -271,7 +275,14 @@ function updateCreditsUI() {
 
 function setStress(value) {
   const maxStress = getEffectiveDie("defend") * 2;
+  const oldStress = S.stress || 0;
   S.stress = Math.max(0, Math.min(value, maxStress));
+  
+  // AUDIO: Play sound if stress increased
+  if (typeof window.AudioManager !== "undefined" && S.stress > oldStress) {
+    window.AudioManager.stressIncreased();
+  }
+  
   updateStressUI();
 }
 
@@ -344,6 +355,12 @@ function updateTrauma() {
 }
 
 function changeTrauma(delta) {
+  if (delta > 0) {
+    // AUDIO: Trauma received
+    if (typeof window.AudioManager !== "undefined") {
+      window.AudioManager.traumaReceived();
+    }
+  }
   S.trauma = Math.max(0, (S.trauma || 0) + delta);
   updateTrauma();
 }
@@ -376,6 +393,10 @@ function changeCounter(key, delta) {
     return;
   }
   if (key === "tmw") {
+    // AUDIO: TMW gained
+    if (typeof window.AudioManager !== "undefined" && delta > 0) {
+      window.AudioManager.tmwGained();
+    }
     updateTMWPool();
     return;
   }

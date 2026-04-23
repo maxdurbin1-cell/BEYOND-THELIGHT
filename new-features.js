@@ -2293,6 +2293,10 @@
   window.rollChaseControl     = rollChaseControl;
   window.rollChaseEnemyAttack = rollChaseEnemyAttack;
   window.renderCaravanUI      = renderCaravanUI;
+  window.mountCaravanPanel    = mountCaravanPanel;
+  window.mountHoldingPanel    = mountHoldingPanel;
+  window.mountNewFeaturePanels = mountNewFeaturePanels;
+  window.renderHoldingUI      = renderHoldingUI;
   window.collectTax           = collectTax;
   window.buyLandmark          = buyLandmark;
   window.updateLandmarkName   = updateLandmarkName;

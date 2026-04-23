@@ -10,11 +10,17 @@ function switchTab(tabId, btn) {
     btn.classList.add("active");
   }
   // Lazily mount feature panels on first visit
-  if (tabId === "holding" && typeof mountHoldingPanel === "function") {
-    mountHoldingPanel();
+  if (tabId === "holding" && typeof window.mountHoldingPanel === "function") {
+    window.mountHoldingPanel();
   }
-  if (tabId === "caravan" && typeof mountCaravanPanel === "function") {
-    mountCaravanPanel();
+  if (tabId === "holding" && typeof window.renderHoldingUI === "function") {
+    window.renderHoldingUI();
+  }
+  if (tabId === "caravan" && typeof window.mountCaravanPanel === "function") {
+    window.mountCaravanPanel();
+  }
+  if (tabId === "caravan" && typeof window.renderCaravanUI === "function") {
+    window.renderCaravanUI();
   }
 }
 

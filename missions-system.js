@@ -101,6 +101,27 @@
     S.completedMissions = S.completedMissions || [];
     S.missionTokens     = S.missionTokens     || {};
     S.availableJobs     = S.availableJobs     || [];
+
+    // Backfill older mission objects so resolve buttons work for legacy saves.
+    S.activeMissions.forEach(function(m) {
+      if (!m || typeof m !== 'object') { return; }
+      if (!m.steps || typeof m.steps !== 'object') { m.steps = {}; }
+      if (!m.steps[1]) { m.steps[1] = { name:'Gather Information', required:false, completed:false, skipped:false }; }
+      if (!m.steps[2]) { m.steps[2] = { name:'Go to Site', required:true, completed:false }; }
+      if (!m.steps[3]) { m.steps[3] = { name:'Confrontation', required:true, completed:false }; }
+      if (!Array.isArray(m.loot)) { m.loot = []; }
+      if (!Array.isArray(m.rooms)) { m.rooms = []; }
+      if (!Array.isArray(m.guards)) { m.guards = []; }
+      if (typeof m.reward !== 'number') {
+        var d = DIFFICULTIES[m.difficulty] || DIFFICULTIES.easy;
+        m.reward = d.credits;
+      }
+      if (typeof m.dread !== 'number') {
+        var dd = DIFFICULTIES[m.difficulty] || DIFFICULTIES.easy;
+        m.dread = dd.dread;
+      }
+      if (typeof m.bonus !== 'number') { m.bonus = 0; }
+    });
   }
 
   function rollShopLoot(difficulty) {

@@ -597,11 +597,11 @@
     if (S.completedMissions.length>=MAX_COMPLETED_MISSIONS) S.completedMissions.shift();
     S.completedMissions.push(completedEntry);
     S.activeMissions.splice(idx,1);
-    try {
-      renderMissionBoard(); renderMissionTracker(); renderCompletedMissions();
-      if (typeof renderBackpackUI === 'function') renderBackpackUI();
-      if (typeof renderQP === 'function') renderQP('missions');
-    } catch (err) {}
+    try { renderMissionBoard(); } catch (err) {}
+    try { renderMissionTracker(); } catch (err) {}
+    try { renderCompletedMissions(); } catch (err) {}
+    try { if (typeof renderBackpackUI === 'function') renderBackpackUI(); } catch (err) {}
+    try { if (typeof renderQP === 'function') renderQP('missions'); } catch (err) {}
     if (success) {
       try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
       if (stored.length) {
@@ -616,8 +616,8 @@
   }
 
   function resolveMissionOutcome(missionId, success) {
+    try { if (typeof closeModal === 'function') closeModal(); } catch (err) {}
     resolveMission(missionId, success);
-    if (typeof closeModal === 'function') closeModal();
   }
 
   function abandonMission(missionId) { resolveMission(missionId,false); }

@@ -1561,10 +1561,15 @@
 
     var html = dangerBanner + featureBadge + securitySection + rollInstr
       + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm btn-red" onclick="resolveHoldingQuestStep3(false);closeModal();">\u2717 Failure — Roll Failed</button>'
-      + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestStep3(true);closeModal();">\u2713 Success — Roll Succeeded</button>'
+      + '<button class="btn btn-sm btn-red" onclick="resolveHoldingQuestOutcome(false)">\u2717 Failure — Roll Failed</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestOutcome(true)">\u2713 Success — Roll Succeeded</button>'
       + '</div>';
     openModal('Step 3 — Confrontation', html);
+  }
+
+  function resolveHoldingQuestOutcome(success) {
+    try { if (typeof closeModal === 'function') closeModal(); } catch (err) {}
+    resolveHoldingQuestStep3(success);
   }
 
   function resolveHoldingQuestStep3(success) {
@@ -1637,26 +1642,28 @@
     }
     S.holding.established = true;
     q.holdingHex = q.holdingHex || q.siteHex || q.infoHex || null;
-    try {
-      placeHoldingQuestTokens();
-      updateHoldingTabVisibility();
-      renderHoldingUI();
-      if (typeof renderMissionBoard === 'function') { renderMissionBoard(); }
-      if (typeof renderMissionTracker === 'function') { renderMissionTracker(); }
-      if (typeof renderCompletedMissions === 'function') { renderCompletedMissions(); }
-      if (typeof renderQP === 'function') { renderQP('missions'); }
-    } catch (err) {}
+    try { placeHoldingQuestTokens(); } catch (err) {}
+    try { updateHoldingTabVisibility(); } catch (err) {}
+    try { renderHoldingUI(); } catch (err) {}
+    try { if (typeof renderMissionBoard === 'function') { renderMissionBoard(); } } catch (err) {}
+    try { if (typeof renderMissionTracker === 'function') { renderMissionTracker(); } } catch (err) {}
+    try { if (typeof renderCompletedMissions === 'function') { renderCompletedMissions(); } } catch (err) {}
+    try { if (typeof renderQP === 'function') { renderQP('missions'); } } catch (err) {}
 
     try { showNotif('Holding established! +1 Renown · +' + (q.rewardCredits || 250) + '₵' + (loot.length ? ' · Loot: ' + loot.join(', ') : ''), 'good'); } catch (err) {}
 
-    if (typeof setContext === 'function') {
-      var holdingCtxBtn = document.querySelector('.ctx-btn[onclick*="setContext(\'holding\'"]');
-      setContext('holding', holdingCtxBtn || null);
-    }
-    if (typeof switchTab === 'function') {
-      var holdingTabBtn = document.querySelector("button.tab-btn[onclick*=\"switchTab('holding'\"]");
-      switchTab('holding', holdingTabBtn || null);
-    }
+    try {
+      if (typeof setContext === 'function') {
+        var holdingCtxBtn = document.querySelector('.ctx-btn[onclick*="setContext(\'holding\'"]');
+        setContext('holding', holdingCtxBtn || null);
+      }
+    } catch (err) {}
+    try {
+      if (typeof switchTab === 'function') {
+        var holdingTabBtn = document.querySelector("button.tab-btn[onclick*=\"switchTab('holding'\"]");
+        switchTab('holding', holdingTabBtn || null);
+      }
+    } catch (err) {}
   }
 
   function advanceHoldingQuest() {

@@ -216,6 +216,8 @@ function quickRollStat(key) {
   // Augmentation additive
   const augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   const total = withAD + (augRoll ? augRoll.total : 0);
+  const radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(key) : 0;
+  const finalTotal = Math.max(0, total - radPenalty);
 
   // Build detail breakdown
   const details = [];
@@ -225,6 +227,7 @@ function quickRollStat(key) {
   if (holyShieldRoll) details.push('Holy Shield +Spirit d' + (S.stats.spirit||4) + ' = ' + holyShieldRoll.total);
   if (adBonus) details.push('+A.D. d' + (S.stats.adventure || 4) + ' = ' + adBonus.total + ' (additive)');
   if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
+  if (radPenalty > 0) details.push('-' + radPenalty + ' Radiation penalty');
   if (mod.advDice.length || mod.flat) details.push('Manual modifier active');
 
   const detailHtml = (ra.breakdown || details.length)
@@ -236,7 +239,7 @@ function quickRollStat(key) {
     '<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">' +
       '<strong style="color:var(--teal);">' + label + ' d' + die + '</strong>' +
       (ra.exploded ? ' <span style="color:var(--gold);">✦ Critical!</span>' : '') +
-      '<br>Result: <strong style="color:var(--gold2);">' + total + '</strong>' +
+      '<br>Result: <strong style="color:var(--gold2);">' + finalTotal + '</strong>' +
       detailHtml +
       "</div>"
   );

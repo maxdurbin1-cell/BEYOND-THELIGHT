@@ -129,6 +129,35 @@ const RADIATION_TIERS = [
   { min: 700, max: Infinity, label: 'Lethal',  effect: 'Dead in d4 Phases without immediate anti-rad treatment and Doctor.' },
 ];
 
+const RAD_PENALTY_STATS = ['body', 'strike', 'shoot', 'mind', 'spirit', 'defend', 'control', 'lead'];
+
+const RAD_MUTATION_CHANCE = {
+  Clean: 0,
+  Low: 5,
+  Moderate: 12,
+  High: 25,
+  Severe: 40,
+  Lethal: 60,
+};
+
+const RAD_INJURY_CHANCE = {
+  Clean: 0,
+  Low: 3,
+  Moderate: 8,
+  High: 18,
+  Severe: 30,
+  Lethal: 45,
+};
+
+const RAD_STAT_PENALTY_CHANCE = {
+  Clean: 0,
+  Low: 10,
+  Moderate: 20,
+  High: 35,
+  Severe: 50,
+  Lethal: 70,
+};
+
 const TEAMWORK_EVENTS_D10 = [
   { cost: 2, text: 'Boost — spend 2 TMW to give an ally +1 Action this Turn.' },
   { cost: 2, text: 'Cover Fire — spend 2 TMW to force all enemies to use 1 Action defensively.' },
@@ -344,6 +373,95 @@ function ensureStarsState() {
   if (typeof S.gameDate.provinceHexClicks !== 'number') S.gameDate.provinceHexClicks = 0;
   if (typeof S.gameDate.lastSeaIslandClicks !== 'number') S.gameDate.lastSeaIslandClicks = 0;
   if (typeof S.gameDate.seededRandom !== 'boolean') S.gameDate.seededRandom = true;
+
+  if (!S.radiationState) {
+    S.radiationState = {
+      gainTicks: 0,
+      statPenalty: {},
+      mutations: [],
+    };
+  }
+  if (typeof S.radiationState.gainTicks !== 'number') S.radiationState.gainTicks = 0;
+  if (!S.radiationState.statPenalty || typeof S.radiationState.statPenalty !== 'object') S.radiationState.statPenalty = {};
+  if (!Array.isArray(S.radiationState.mutations)) S.radiationState.mutations = [];
+  RAD_PENALTY_STATS.forEach((k) => {
+    if (typeof S.radiationState.statPenalty[k] !== 'number') S.radiationState.statPenalty[k] = 0;
+  });
+}
+
+function getRadPenaltyForStat(statKey) {
+  ensureStarsState();
+  return Math.max(0, (S.radiationState && S.radiationState.statPenalty && S.radiationState.statPenalty[statKey]) || 0);
+}
+
+function clearRadiationStatPenalties() {
+  ensureStarsState();
+  RAD_PENALTY_STATS.forEach((k) => {
+    S.radiationState.statPenalty[k] = 0;
+  });
+}
+
+function addRadiationMutation() {
+  ensureStarsState();
+  let mutation = 'Radiation Scarring — strange tissue changes under stress.';
+  if (typeof MUTATIONS !== 'undefined' && Array.isArray(MUTATIONS) && MUTATIONS.length) {
+    mutation = MUTATIONS[roll(MUTATIONS.length) - 1];
+  }
+
+  S.mutation = mutation;
+  const fullLabel = '☢ Mutation: ' + mutation;
+  S.radiationState.mutations.push(fullLabel);
+
+  if (!Array.isArray(S.extraTraits)) S.extraTraits = [];
+  S.extraTraits.push(fullLabel);
+
+  const mutInput = document.getElementById('charMutation');
+  if (mutInput) mutInput.value = S.mutation;
+  if (typeof renderExtraTraits === 'function') renderExtraTraits();
+
+  showNotif('Radiation surge: new mutation gained.', 'warn');
+}
+
+function addRadiationStatPenalty() {
+  ensureStarsState();
+  const key = RAD_PENALTY_STATS[roll(RAD_PENALTY_STATS.length) - 1];
+  S.radiationState.statPenalty[key] = (S.radiationState.statPenalty[key] || 0) + 1;
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  const label = key.charAt(0).toUpperCase() + key.slice(1);
+  showNotif('Radiation penalty: −1 to ' + label + ' rolls.', 'warn');
+}
+
+function applyRadiationProgression(beforeRads, afterRads, gain) {
+  ensureStarsState();
+  if (gain <= 0) return;
+
+  // Every +50 Rads increases immediate strain.
+  S.radiationState.gainTicks += gain;
+  while (S.radiationState.gainTicks >= 50) {
+    S.radiationState.gainTicks -= 50;
+    if (typeof changeMentalStress === 'function') changeMentalStress(1);
+    if (typeof changeHealth === 'function') changeHealth(1);
+    else if (typeof changeStress === 'function') changeStress(1);
+
+    const tier = getRadTier(afterRads);
+    if (roll(100) <= (RAD_STAT_PENALTY_CHANCE[tier.label] || 0)) addRadiationStatPenalty();
+    if (roll(100) <= (RAD_MUTATION_CHANCE[tier.label] || 0)) addRadiationMutation();
+    if (roll(100) <= (RAD_INJURY_CHANCE[tier.label] || 0)) rollInjury();
+  }
+
+  // Tier pressure applies negative conditions as exposure climbs.
+  if (S.conditions) {
+    if (afterRads >= 100) S.conditions.weakened = true;
+    if (afterRads >= 200) S.conditions.vulnerable = true;
+    if (afterRads >= 300) S.conditions.distracted = true;
+    if (afterRads >= 400) S.conditions.shaken = true;
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  }
+
+  if (Math.floor(beforeRads / 100) !== Math.floor(afterRads / 100)) {
+    showNotif('Radiation tier worsened: exposure side effects intensify.', 'warn');
+  }
 }
 
 // ── HEALTH FUNCTIONS (renamed from Stress) ────────────────────────────────
@@ -502,7 +620,16 @@ function updateMentalStressUI() {
 
 function changeRads(delta) {
   ensureStarsState();
-  S.rads = Math.max(0, (S.rads || 0) + delta);
+  const before = S.rads || 0;
+  S.rads = Math.max(0, before + delta);
+  const gain = Math.max(0, S.rads - before);
+  applyRadiationProgression(before, S.rads, gain);
+  if (S.rads === 0) {
+    clearRadiationStatPenalties();
+    S.radiationState.gainTicks = 0;
+    showNotif('Radiation cured: stat roll penalties removed.', 'good');
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  }
   updateRadsUI();
 }
 
@@ -527,8 +654,10 @@ function rollRads() {
 function clearRads() {
   ensureStarsState();
   S.rads = 0;
+  clearRadiationStatPenalties();
+  S.radiationState.gainTicks = 0;
   updateRadsUI();
-  showNotif('Radiation cleared to zero.', 'good');
+  showNotif('Radiation cleared to zero. Penalties removed.', 'good');
 }
 
 function getRadTier(rads) {
@@ -544,7 +673,18 @@ function updateRadsUI() {
   if (val) val.textContent = rads;
   if (tierEl) {
     const color = rads >= 700 ? 'var(--red)' : rads >= 400 ? 'var(--red2)' : rads >= 200 ? 'var(--gold)' : 'var(--teal)';
-    tierEl.innerHTML = `<span style="color:${color};font-weight:700;">${tier.label}</span> — ${tier.effect}`;
+    const penalties = RAD_PENALTY_STATS
+      .filter((k) => (S.radiationState.statPenalty[k] || 0) > 0)
+      .map((k) => `${k}:${S.radiationState.statPenalty[k]}`)
+      .join(', ');
+    const penaltyLine = penalties
+      ? `<div style="font-size:.7rem;color:var(--red2);margin-top:.2rem;">Roll penalties: ${penalties}</div>`
+      : '';
+    const mutationCount = (S.radiationState.mutations || []).length;
+    const mutationLine = mutationCount
+      ? `<div style="font-size:.7rem;color:var(--gold2);margin-top:.15rem;">Rad mutations gained: ${mutationCount}</div>`
+      : '';
+    tierEl.innerHTML = `<span style="color:${color};font-weight:700;">${tier.label}</span> — ${tier.effect}${penaltyLine}${mutationLine}`;
   }
 }
 
@@ -1081,12 +1221,13 @@ function buildStarsCharacterPanels() {
   const psycheTarget = document.getElementById('starsPsycheProfileAnchor');
   const factionTarget = document.getElementById('starsFactionStandingsAnchor');
   const target = document.getElementById('starsCharPanels');
+  if (target) target.innerHTML = '';
 
   if (psycheTarget) {
     psycheTarget.innerHTML = `
-<div class="card" style="margin-top:.4rem;">
-  <div class="section-title">Psyche Profile</div>
-  <div style="margin-bottom:.5rem;">
+<div style="margin-top:.4rem;padding:.4rem;background:var(--surface);border:1px solid var(--border);">
+  <div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.35rem;">Psyche Profile</div>
+  <div style="margin-bottom:.35rem;">
     <span class="sub-label">Nervous Tic (d20)</span>
     <div style="display:flex;gap:.3rem;align-items:center;">
       <input type="text" id="charNervousTic" placeholder="Roll your nervous tic…" style="flex:1;" onchange="S.nervousTic=this.value">
@@ -1102,11 +1243,11 @@ function buildStarsCharacterPanels() {
     </div>
     <div style="font-size:.73rem;color:var(--muted2);margin-top:.2rem;" id="obsessionDisplay">${S.obsession||''}</div>
   </div>
-  <div style="padding-top:.45rem;border-top:1px solid var(--border);margin-top:.45rem;">
-    <div class="sub-label">Stress Reaction (Roll When Needed)</div>
-    <button class="btn btn-sm" onclick="rollStressReaction()">⚄ Roll d10 Reaction</button>
-    <div id="stressReactionResult" style="font-size:.8rem;color:var(--muted3);margin-top:.3rem;min-height:1rem;"></div>
+  <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;display:flex;justify-content:space-between;align-items:center;gap:.3rem;">
+    <span class="sub-label" style="margin-bottom:0;">Stress Reaction</span>
+    <button class="btn btn-xs" onclick="rollStressReaction()">⚄ d10</button>
   </div>
+  <div id="stressReactionResult" style="font-size:.75rem;color:var(--muted3);margin-top:.25rem;min-height:.9rem;"></div>
 </div>`;
   }
 
@@ -1117,9 +1258,7 @@ function buildStarsCharacterPanels() {
 <div id="factionRenownDisplay"></div>`;
   }
 
-  if (!psycheTarget && !factionTarget && target) {
-    target.innerHTML = '';
-  }
+  if (!psycheTarget && !factionTarget && target) target.innerHTML = '';
 }
 
 function getHighestFactionRenown() {

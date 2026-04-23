@@ -1655,20 +1655,23 @@ function rollAttack(type) {
   // Augmentation bonus always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
+  var radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(type) : 0;
+  var effectiveTotal = Math.max(0, total - radPenalty);
 
   var d = explodingRoll(S.combat.enemyDread);
-  var success = total >= d.total;
-  var diff = Math.max(1, total - d.total);
+  var success = effectiveTotal >= d.total;
+  var diff = Math.max(1, effectiveTotal - d.total);
 
   var breakdown = ra.breakdown;
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
+  if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var modNotes = [];
   if(type==='shoot'){
     if(mods.indexOf('Silencer')>=0) modNotes.push('Silencer: ×3 Stress if surprise');
-    if(mods.indexOf('Laser Accelerator')>=0) modNotes.push('Laser Accelerator: '+total+' Stress directly (no Dread)');
+    if(mods.indexOf('Laser Accelerator')>=0) modNotes.push('Laser Accelerator: '+effectiveTotal+' Stress directly (no Dread)');
     if(mods.indexOf('Shock Taser')>=0 && a.exploded) modNotes.push('Shock Taser: enemy loses next Turn!');
     if(mods.indexOf('Reflex Sight')>=0 && a.total > d.total) modNotes.push('Reflex Sight: +2 Stress');
     if(mods.indexOf('Smart Aim')>=0 && advDiceArr.length) modNotes.push('Smart Aim: Ad'+stepUp(die)+' used');
@@ -1685,7 +1688,7 @@ function rollAttack(type) {
   var modHtml = modNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">'+modNotes.join(' · ')+'</span>' : '';
 
   var el = document.getElementById('attackResult');
-  if(el) el.innerHTML = '<span style="color:var(--teal);">'+total+'</span>'+breakdown+augNote
+  if(el) el.innerHTML = '<span style="color:var(--teal);">'+effectiveTotal+'</span>'+breakdown+augNote
     +' vs <span style="color:var(--red);">'+d.total+'</span> — '
     +(success ? '<strong style="color:var(--green2);">HIT! '+diff+' Stress</strong>' : '<strong style="color:var(--red);">Miss</strong>')
     +(ra.exploded ? ' ✦ Crit!' : '')+modHtml;
@@ -1730,15 +1733,18 @@ function rollDefend(skipEnemyTurnTick) {
   // Augmentation bonus (SUBDERMAL ARMOR +d4) always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
+  var radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat('defend') : 0;
+  var effectiveTotal = Math.max(0, total - radPenalty);
 
   var d = explodingRoll(S.combat.enemyDread);
-  var success = total >= d.total;
-  var diff = Math.max(1, d.total - total);
+  var success = effectiveTotal >= d.total;
+  var diff = Math.max(1, d.total - effectiveTotal);
 
   var breakdown = ra.breakdown;
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
   if(holyShieldRoll) breakdown += ' <span style="font-size:.7rem;color:var(--gold);">(Holy Shield +Spirit d'+(S.stats.spirit||4)+'='+holyShieldRoll.total+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
+  if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var defNotes = [];
@@ -1748,7 +1754,7 @@ function rollDefend(skipEnemyTurnTick) {
   var defNoteHtml = defNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">'+defNotes.join(' · ')+'</span>' : '';
 
   var el = document.getElementById('defendResult');
-  if(el) el.innerHTML = '<span style="color:var(--teal);">'+total+'</span>'+breakdown+augNote
+  if(el) el.innerHTML = '<span style="color:var(--teal);">'+effectiveTotal+'</span>'+breakdown+augNote
     +' vs <span style="color:var(--red);">'+d.total+'</span> — '
     +(success ? '<strong style="color:var(--green2);">Defended!</strong>' : '<strong style="color:var(--red);">−'+diff+' Stress</strong>')
     +(ra.exploded ? ' ✦ Perfect!' : '')+defNoteHtml;
@@ -4139,11 +4145,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.qpRollStat = function(statKey, label) {
     var die = (typeof getEffectiveDie==='function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) ? S.stats[statKey] : 4);
     var rr = qpRollWithAdvMode(die);
+    var radPenalty = (typeof getRadPenaltyForStat==='function') ? getRadPenaltyForStat(statKey) : 0;
+    var finalTotal = Math.max(0, rr.total - radPenalty);
     var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' vs d'+rr.advDie+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
     var detail2 = rr.flat ? (' <span style="color:var(--gold2);">'+(rr.flat>0?'+':'')+rr.flat+'</span>') : '';
+    var detail3 = radPenalty ? (' <span style="color:var(--red2);">- '+radPenalty+' rad</span>') : '';
     document.getElementById('qpRollResult').innerHTML =
-      '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + '</span> = <strong style="color:var(--teal);font-size:1.2rem;">' + rr.total + '</strong>';
-    qpPushDiceResult(label+' d'+die,rr.total,'var(--teal)');
+      '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + detail3 + '</span> = <strong style="color:var(--teal);font-size:1.2rem;">' + finalTotal + '</strong>';
+    qpPushDiceResult(label+' d'+die,finalTotal,'var(--teal)');
     if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
     var condEl=document.getElementById('qpCondState');
     if(condEl){

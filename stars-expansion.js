@@ -361,6 +361,20 @@ function ensureStarsState() {
     shields: 0,
     defendDie: 6,
   };
+  S.starSystem = S.starSystem || {
+    galaxyType: 'cluster',
+    mainStar: 'Smoldering Red Star',
+    hexes: [],
+    currentHexId: null,
+    selectedRing: 'middle',
+    tradeRoutes: [],
+    majorPowers: [],
+    factions: [],
+    worldThatWasHexId: null,
+    starshipTravelDays: 0,
+    radioEventsSeen: {},
+    lastRadioEvent: '',
+  };
   S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false, ageEpochYear: null, ageEpochIndex: null };
   if (!S.gameDate.seededRandom) {
     S.gameDate.day = roll(DAYS_PER_MONTH - 1) + 1;
@@ -380,6 +394,11 @@ function ensureStarsState() {
     S.gameDate.ageEpochIndex = idx >= 0 ? idx : 0;
   }
   if (typeof S.characterYears !== 'number') S.characterYears = getCharacterYearsFromBand(S.age);
+  if (!Array.isArray(S.starSystem.hexes)) S.starSystem.hexes = [];
+  if (!Array.isArray(S.starSystem.tradeRoutes)) S.starSystem.tradeRoutes = [];
+  if (!Array.isArray(S.starSystem.majorPowers)) S.starSystem.majorPowers = [];
+  if (!Array.isArray(S.starSystem.factions)) S.starSystem.factions = [];
+  if (!S.starSystem.radioEventsSeen || typeof S.starSystem.radioEventsSeen !== 'object') S.starSystem.radioEventsSeen = {};
 
   if (!S.radiationState) {
     S.radiationState = {
@@ -394,6 +413,372 @@ function ensureStarsState() {
   RAD_PENALTY_STATS.forEach((k) => {
     if (typeof S.radiationState.statPenalty[k] !== 'number') S.radiationState.statPenalty[k] = 0;
   });
+}
+
+// ── STAR SYSTEM MAP SCAFFOLD ────────────────────────────────────────────────
+
+const STAR_RING_TABLES = {
+  inner: ['Peril', 'Space Encounter', 'Locations', 'Dead Moon', 'Uneventful Voyage'],
+  middle: ['Mystery', 'Galactic Facility', 'Skirmish', 'Space Encounter', 'Locations', 'Uneventful Voyage'],
+  outer: ['Peril', 'Space Encounter', 'Locations', 'Derelict Ship', 'Uneventful Voyage'],
+};
+
+const STAR_SIGHTING_COLORS = {
+  peril:            { label: 'PERIL', color: '#7f7f7f' },      // Grey
+  dead_moon:        { label: 'DEAD MOON', color: '#8b5a2b' },  // Brown
+  derelict_ship:    { label: 'DERELICT SHIP', color: '#4a90e2' },
+  mystery:          { label: 'MYSTERY', color: '#ff6fb5' },
+  facility:         { label: 'GALACTIC FACILITY', color: '#d24c4c' },
+  skirmish:         { label: 'SKIRMISH', color: '#8f63d9' },
+  encounter:        { label: 'ENCOUNTER', color: '#d8b75a' },
+  location:         { label: 'LOCATION', color: '#3f88c5' },
+  nothing:          { label: 'NOTHING', color: '#4caf7a' },
+  hub:              { label: 'SPACE HUB', color: '#f1f1f1' },
+  planet:           { label: 'PLANET', color: '#f2d75a' },
+  world_that_was:   { label: 'THE WORLD THAT WAS', color: '#00d0d8' },
+  star:             { label: 'MAIN STAR', color: '#ff9a3c' },
+};
+
+const STAR_WEATHER = {
+  weather: ['ion storms', 'solar static', 'dust tides', 'gravitic waves', 'frozen glare', 'dark-matter squalls'],
+  environment: ['void corridors', 'asteroid alleys', 'plasma belts', 'shattered orbits', 'collapsed lanes'],
+  wind: ['drifts', 'surges', 'howls', 'rips', 'pulses', 'roars'],
+  phenomena: ['magnetic veils', 'charged debris', 'aurora arcs', 'cosmic foam', 'radiant fractures'],
+  color: ['emerald', 'violet', 'amber', 'silver', 'crimson', 'azure'],
+  wonder: ['a ghost satellite', 'an ancient beacon', 'a living comet', 'a mirrored moon', 'a fractured gate'],
+};
+
+const STAR_RADIO_EVENTS = [
+  'Distress ping from an abandoned relay station.',
+  'Corporate interdiction request at a disputed orbit.',
+  'Pirate raid warning on an outer trade lane.',
+  'Temple convoy requests armed escort.',
+  'Black-market signal offers illegal navigation data.',
+  'Colony outbreak alert: quarantine requested.',
+  'Wreck recovery contract posted by salvagers.',
+  'Skirmish flashpoint brewing near a fuel depot.',
+  'Derelict cruiser broadcasts looping code phrase.',
+  'Helios farm reports reactor instability.',
+  'Smuggler corridor discovered through dead moon cluster.',
+  'Faction diplomat requests extraction from hostile station.',
+  'Pirate syndicate announces bounty on a corporate captain.',
+  'Research habitat goes silent after anomaly spike.',
+  'Religious pilgrimage route blocked by raiders.',
+  'Unknown signal mapped to The World That Was coordinates.',
+  'Military patrol seeks volunteer scouts for perimeter sweep.',
+  'Data courier lost in a cosmic weather front.',
+  'Civilian transport stranded with failing shields.',
+  'Ancient gate signature appears briefly in inner ring.',
+];
+
+function starHexDistance(a, b) {
+  return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+}
+
+function starHexRingLabel(dist) {
+  if (dist <= 1) return 'inner';
+  if (dist === 2) return 'middle';
+  return 'outer';
+}
+
+function pickStarOutcomeForRing(ring) {
+  const table = STAR_RING_TABLES[ring] || STAR_RING_TABLES.middle;
+  return table[roll(table.length) - 1];
+}
+
+function convertOutcomeToHexType(outcome) {
+  const map = {
+    'Peril': 'peril',
+    'Space Encounter': 'encounter',
+    'Locations': 'location',
+    'Dead Moon': 'dead_moon',
+    'Uneventful Voyage': 'nothing',
+    'Mystery': 'mystery',
+    'Galactic Facility': 'facility',
+    'Skirmish': 'skirmish',
+    'Derelict Ship': 'derelict_ship',
+  };
+  return map[outcome] || 'nothing';
+}
+
+function generateStarSystemName() {
+  const prefix = ['Star', 'Nova', 'Iron', 'Aether', 'Void', 'Helio', 'Eclipse', 'Starlight'];
+  const suffix = ['Frontier', 'Basin', 'Reach', 'Corridor', 'Expanse', 'March', 'Sector', 'Drift'];
+  return `${pick(prefix)} ${pick(suffix)}`;
+}
+
+function generateMajorPowersAndFactions() {
+  const corpNames = ['Axiom Dynamics', 'Crown Meridian', 'Helix Forge', 'Orion Reach Trust'];
+  const political = ['Free Orbit Assembly', 'Iron Banner Compact', 'Frontier Civic Bloc'];
+  const religious = ['Sunward Covenant', 'Order of the Last Choir', 'Radiant Witness'];
+  const factions = ['Dustline Pirates', 'Black Keel Syndicate', 'Vanta Runners', 'Null Saints'];
+
+  return {
+    majorPowers: [pick(corpNames), pick(political), pick(religious)],
+    factions: [pick(factions), pick(factions.filter(n => n !== factions[0])) || pick(factions)],
+  };
+}
+
+function generateStarSystemMap(galaxyType) {
+  ensureStarsState();
+  const type = galaxyType || S.starSystem.galaxyType || 'cluster';
+  const center = { q: 0, r: 0 };
+  const cells = [];
+  let idx = 0;
+
+  for (let q = -3; q <= 3; q++) {
+    for (let r = -3; r <= 3; r++) {
+      const s = -q - r;
+      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) > 3) continue;
+      const dist = starHexDistance({ q, r }, center);
+      const ring = dist === 0 ? 'core' : starHexRingLabel(dist);
+      cells.push({
+        id: idx++, q, r, dist, ring,
+        type: dist === 0 ? 'star' : 'nothing',
+        explored: dist === 0,
+        detail: dist === 0 ? 'Central star anchor.' : '',
+      });
+    }
+  }
+
+  const byRing = {
+    inner: cells.filter(c => c.ring === 'inner'),
+    middle: cells.filter(c => c.ring === 'middle'),
+    outer: cells.filter(c => c.ring === 'outer'),
+  };
+
+  ['inner', 'middle', 'outer'].forEach((ring) => {
+    const pool = [...byRing[ring]];
+    if (!pool.length) return;
+
+    const hub = pool.splice(roll(pool.length) - 1, 1)[0];
+    hub.type = 'hub';
+    hub.detail = `${ring} ring hub controlled by major powers.`;
+
+    for (let i = 0; i < 4 && pool.length; i++) {
+      const planet = pool.splice(roll(pool.length) - 1, 1)[0];
+      planet.type = 'planet';
+      planet.detail = `${ring} ring planet.`;
+    }
+
+    pool.forEach((hex) => {
+      const outcome = pickStarOutcomeForRing(ring);
+      hex.type = convertOutcomeToHexType(outcome);
+      hex.detail = `${outcome} detected in ${ring} ring.`;
+    });
+  });
+
+  const worldPool = [...byRing.middle, ...byRing.outer].filter(h => h.type !== 'hub');
+  if (worldPool.length) {
+    const target = worldPool[roll(worldPool.length) - 1];
+    target.type = 'world_that_was';
+    target.detail = 'The World That Was: cyberpunk remnant zone.';
+    S.starSystem.worldThatWasHexId = target.id;
+  }
+
+  const planetsByRing = ['inner', 'middle', 'outer'].flatMap((ring) => {
+    const items = byRing[ring].filter(h => h.type === 'planet').sort((a, b) => Math.atan2(a.r, a.q) - Math.atan2(b.r, b.q));
+    const edges = [];
+    for (let i = 0; i < items.length - 1; i++) edges.push([items[i].id, items[i + 1].id]);
+    return edges;
+  });
+
+  const powerSet = generateMajorPowersAndFactions();
+  S.starSystem.galaxyType = type;
+  S.starSystem.mainStar = pick(['Smoldering Red Star', 'Glowering Orange Star', 'White Dwarf Halo Star']);
+  S.starSystem.hexes = cells;
+  S.starSystem.tradeRoutes = planetsByRing;
+  S.starSystem.currentHexId = S.starSystem.currentHexId == null ? 0 : S.starSystem.currentHexId;
+  S.starSystem.majorPowers = powerSet.majorPowers;
+  S.starSystem.factions = powerSet.factions;
+
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+  showNotif(`Generated ${generateStarSystemName()} (${type}) with 37 hexes.`, 'good');
+}
+
+function renderStarSystemMap() {
+  const host = document.getElementById('starSystemMap');
+  if (!host) return;
+  ensureStarsState();
+
+  if (!S.starSystem.hexes.length) {
+    host.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">No star system generated yet.</div>';
+    return;
+  }
+
+  const size = 23;
+  const cx = 340;
+  const cy = 250;
+  const scaleX = size * 1.7;
+  const scaleY = size * 1.45;
+
+  const svgHexes = S.starSystem.hexes.map((hex) => {
+    const x = cx + hex.q * scaleX + hex.r * (scaleX * 0.5);
+    const y = cy + hex.r * scaleY;
+    const pts = hexPointsSVG(x, y, size - 2);
+    const key = STAR_SIGHTING_COLORS[hex.type] ? hex.type : 'nothing';
+    const fill = STAR_SIGHTING_COLORS[key].color;
+    const border = hex.id === S.starSystem.currentHexId ? '#ffffff' : '#2d3142';
+    const opacity = hex.explored ? 0.9 : 0.55;
+    const label = hex.ring === 'core' ? '★' : String(hex.id);
+    return `
+      <g onclick="selectStarSystemHex(${hex.id})" style="cursor:pointer;">
+        <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hex.id === S.starSystem.currentHexId ? 2 : 1}" />
+        <text x="${x}" y="${y + 3}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="#0f111a">${label}</text>
+      </g>`;
+  }).join('');
+
+  const routeLines = (S.starSystem.tradeRoutes || []).map(([aId, bId]) => {
+    const a = S.starSystem.hexes.find(h => h.id === aId);
+    const b = S.starSystem.hexes.find(h => h.id === bId);
+    if (!a || !b) return '';
+    const ax = cx + a.q * scaleX + a.r * (scaleX * 0.5);
+    const ay = cy + a.r * scaleY;
+    const bx = cx + b.q * scaleX + b.r * (scaleX * 0.5);
+    const by = cy + b.r * scaleY;
+    return `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="rgba(214,176,70,.45)" stroke-width="1.3" />`;
+  }).join('');
+
+  host.innerHTML = `
+    <svg width="680" height="500" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;background:rgba(6,8,16,.55);border:1px solid var(--border);">
+      ${routeLines}
+      ${svgHexes}
+    </svg>`;
+}
+
+function selectStarSystemHex(hexId) {
+  ensureStarsState();
+  S.starSystem.currentHexId = hexId;
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+}
+
+function getCurrentStarHex() {
+  ensureStarsState();
+  return S.starSystem.hexes.find(h => h.id === S.starSystem.currentHexId) || S.starSystem.hexes[0] || null;
+}
+
+function updateStarSystemReadouts() {
+  const detail = document.getElementById('starSystemHexDetail');
+  const powers = document.getElementById('starSystemPowers');
+  const radio = document.getElementById('starSystemRadioLog');
+  const current = getCurrentStarHex();
+
+  if (detail) {
+    if (!current) detail.textContent = 'No hex selected.';
+    else {
+      const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
+      detail.innerHTML = `Hex ${current.id} · ${current.ring.toUpperCase()} RING · <span style="color:${sig.color};">${sig.label}</span><br><span style="color:var(--muted2);">${current.detail || 'No detail yet.'}</span>`;
+    }
+  }
+  if (powers) {
+    powers.innerHTML = `
+      <div style="font-size:.72rem;color:var(--muted2);">Major Powers: ${(S.starSystem.majorPowers || []).join(' · ') || 'TBD'}</div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">Factions: ${(S.starSystem.factions || []).join(' · ') || 'TBD'}</div>`;
+  }
+  if (radio) {
+    radio.textContent = S.starSystem.lastRadioEvent || 'No monthly radio events yet.';
+  }
+}
+
+function rollStarSystemExploration() {
+  ensureStarsState();
+  const ringSel = document.getElementById('starRingSelect');
+  const ring = ringSel ? ringSel.value : (S.starSystem.selectedRing || 'middle');
+  S.starSystem.selectedRing = ring;
+
+  const table = STAR_RING_TABLES[ring] || STAR_RING_TABLES.middle;
+  const d10 = roll(10);
+  const idx = (d10 - 1) % table.length;
+  const outcome = table[idx];
+  const type = convertOutcomeToHexType(outcome);
+
+  const candidates = S.starSystem.hexes.filter(h => h.ring === ring && h.type !== 'hub' && h.type !== 'planet' && h.type !== 'star');
+  if (candidates.length) {
+    const target = candidates[roll(candidates.length) - 1];
+    target.type = type;
+    target.detail = `${outcome} generated by exploration roll.`;
+    target.explored = true;
+    S.starSystem.currentHexId = target.id;
+  }
+
+  const out = document.getElementById('starExplorationResult');
+  if (out) out.innerHTML = `<span style="color:var(--gold2);">d10=${d10}</span> -> ${ring.toUpperCase()} ring: <strong>${outcome}</strong>`;
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+}
+
+function runSystemAnalysisCheck() {
+  ensureStarsState();
+  const hex = getCurrentStarHex();
+  if (!hex) return;
+
+  const mindDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('mind') : ((S.stats && S.stats.mind) || 4);
+  const techDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
+  const die = Math.max(mindDie, techDie);
+  const action = explodingRoll(die);
+  const dread = explodingRoll(8);
+  const success = action.total >= dread.total;
+
+  const el = document.getElementById('starAnalysisResult');
+  if (success) {
+    hex.explored = true;
+    if (!hex.detail) hex.detail = 'System Analysis confirms an unresolved anomaly.';
+    if (el) el.innerHTML = `<span style="color:var(--green2);">Success</span>: d${die}=${action.total} vs DD8=${dread.total}. Hex ${hex.id} fully scanned.`;
+    if (typeof addSuccessRoll === 'function') addSuccessRoll();
+  } else {
+    if (el) el.innerHTML = `<span style="color:var(--red2);">Failure</span>: d${die}=${action.total} vs DD8=${dread.total}. Data remains noisy.`;
+    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+  }
+  updateStarSystemReadouts();
+  renderStarSystemMap();
+}
+
+function rollStarSystemWeather() {
+  const weather = pick(STAR_WEATHER.weather);
+  const env = pick(STAR_WEATHER.environment);
+  const wind = pick(STAR_WEATHER.wind);
+  const phenomenon = pick(STAR_WEATHER.phenomena);
+  const hue = pick(STAR_WEATHER.color);
+  const wonder = pick(STAR_WEATHER.wonder);
+  const intensity = roll(6);
+  const bold = intensity >= 5;
+  const sentence = `Cosmic conditions are marked by ${weather} ${env}. The cosmic winds ${wind} through ${phenomenon} of ${hue} hues. Additionally, while traveling, one can observe ${wonder}.`;
+
+  const el = document.getElementById('starWeatherResult');
+  if (el) {
+    el.innerHTML = `${sentence}<br><span style="color:${bold ? 'var(--red2)' : 'var(--muted2)'};">Intensity d6=${intensity}${bold ? ' — Control/Drive vs DD6 or +2 Stress.' : ''}</span>`;
+  }
+}
+
+function rollMonthlyStarRadioEvent() {
+  ensureStarsState();
+  let d20 = roll(20);
+  const seen = S.starSystem.radioEventsSeen || {};
+  if (seen[d20]) {
+    d20 = d20 % 2 === 0 ? Math.max(1, d20 - 1) : Math.min(20, d20 + 1);
+  }
+  if (seen[d20]) {
+    S.starSystem.lastRadioEvent = `Month is quiet. Event ${d20} already resolved.`;
+  } else {
+    seen[d20] = true;
+    S.starSystem.radioEventsSeen = seen;
+    S.starSystem.lastRadioEvent = `Radio Event ${d20}: ${STAR_RADIO_EVENTS[d20 - 1]} (Deadline: 10 Days)`;
+  }
+  updateStarSystemReadouts();
+}
+
+function registerStarshipTravelDays(days) {
+  ensureStarsState();
+  const n = Math.max(1, parseInt(days, 10) || 1);
+  S.starSystem.starshipTravelDays = (S.starSystem.starshipTravelDays || 0) + n;
+  advanceDay(n);
+  while (S.starSystem.starshipTravelDays >= DAYS_PER_MONTH) {
+    S.starSystem.starshipTravelDays -= DAYS_PER_MONTH;
+    rollMonthlyStarRadioEvent();
+  }
+  updateStarSystemReadouts();
 }
 
 function getRadPenaltyForStat(statKey) {
@@ -1073,6 +1458,10 @@ function updateStarshipUI() {
   if (shieldsEl)    shieldsEl.textContent     = ship.shields         || 0;
   if (maxShieldsEl) maxShieldsEl.textContent  = maxShields;
   if (shieldDefEl)  shieldDefEl.textContent   = `d${def}`;
+
+  const mainStarEl = document.getElementById('starMainStar');
+  if (mainStarEl) mainStarEl.textContent = (S.starSystem && S.starSystem.mainStar) ? S.starSystem.mainStar : 'Uncharted';
+  updateStarSystemReadouts();
 }
 
 function stepShipDefend(dir) {
@@ -1530,6 +1919,82 @@ function buildStarshipPanel() {
     </div>
   </div>
 </div>`;
+
+  target.innerHTML += `
+<div class="card" style="max-width:900px;margin-top:.75rem;">
+  <div class="section-title">🛰 Star System Map (Scaffold)</div>
+  <div style="font-size:.76rem;color:var(--muted2);line-height:1.6;margin-bottom:.45rem;">
+    Rings: Inner (6), Middle (12), Outer (18). This scaffold supports ring exploration rolls, system analysis, sightings, trade routes, and monthly starship radio events.
+  </div>
+  <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.45rem;">
+    <select id="starGalaxyType" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.74rem;">
+      <option value="cluster">Cluster</option>
+      <option value="spiral">Spiral</option>
+      <option value="elliptical">Elliptical</option>
+    </select>
+    <button class="btn btn-sm btn-teal" onclick="generateStarSystemMap((document.getElementById('starGalaxyType')||{}).value)">Generate Star System</button>
+    <span style="font-size:.72rem;color:var(--muted2);">Main Star: <strong id="starMainStar" style="color:var(--gold2);"></strong></span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:.55rem;">
+    <div>
+      <div id="starSystemMap"></div>
+      <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.4rem;">
+        ${Object.entries(STAR_SIGHTING_COLORS).filter(([k]) => k !== 'star').map(([k, v]) => `<span style="font-size:.64rem;padding:.08rem .3rem;border:1px solid var(--border2);color:${v.color};">${v.label}</span>`).join('')}
+      </div>
+    </div>
+
+    <div>
+      <div class="sub-label">Exploration Roll (Ring Table)</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;">
+        <select id="starRingSelect" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.74rem;">
+          <option value="inner">Inner Ring</option>
+          <option value="middle" selected>Middle Ring</option>
+          <option value="outer">Outer Ring</option>
+        </select>
+        <button class="btn btn-xs btn-teal" onclick="rollStarSystemExploration()">⚄ Explore (d10)</button>
+      </div>
+      <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-bottom:.35rem;"></div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.25rem;">
+        <div class="sub-label">System Analysis (Mind/Control vs DD8)</div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin:.2rem 0 .25rem 0;">
+          <button class="btn btn-xs" onclick="runSystemAnalysisCheck()">Analyze Selected Hex</button>
+          <button class="btn btn-xs" onclick="registerStarshipTravelDays(1)">+1 Starship Travel Day</button>
+          <button class="btn btn-xs" onclick="registerStarshipTravelDays(5)">+1 Starship Week</button>
+        </div>
+        <div id="starAnalysisResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;"></div>
+      </div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
+        <div class="sub-label">Cosmic Weather</div>
+        <button class="btn btn-xs" onclick="rollStarSystemWeather()">⚄ Roll Cosmic Weather</button>
+        <div id="starWeatherResult" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1rem;margin-top:.2rem;"></div>
+      </div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
+        <div class="sub-label">Selected Hex</div>
+        <div id="starSystemHexDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1.6rem;"></div>
+      </div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
+        <div class="sub-label">Major Powers & Factions</div>
+        <div id="starSystemPowers" style="font-size:.74rem;color:var(--muted2);line-height:1.45;"></div>
+      </div>
+
+      <div style="padding-top:.35rem;border-top:1px solid var(--border);margin-top:.35rem;">
+        <div class="sub-label">Isolated Travelers Radio</div>
+        <button class="btn btn-xs btn-teal" onclick="rollMonthlyStarRadioEvent()">⚄ Force Monthly Radio Roll</button>
+        <div id="starSystemRadioLog" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:1rem;margin-top:.2rem;"></div>
+      </div>
+    </div>
+  </div>
+</div>`;
+
+  const mainStarEl = document.getElementById('starMainStar');
+  if (mainStarEl) mainStarEl.textContent = S.starSystem && S.starSystem.mainStar ? S.starSystem.mainStar : 'Uncharted';
+  renderStarSystemMap();
+  updateStarSystemReadouts();
 }
 
 function buildStarsCombatPanel() {
@@ -1682,6 +2147,12 @@ document.addEventListener('DOMContentLoaded', function() {
   updateStarshipUI();
   updateDateUI();
   removeLegacyHealthLabel();
+  if (!S.starSystem || !Array.isArray(S.starSystem.hexes) || !S.starSystem.hexes.length) {
+    generateStarSystemMap('cluster');
+  } else {
+    renderStarSystemMap();
+    updateStarSystemReadouts();
+  }
 
   // Add cosmic shop category buttons if shop tabs are present
   const shopCats = document.querySelector('.shop-cats');

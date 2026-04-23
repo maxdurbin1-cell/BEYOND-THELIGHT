@@ -1078,10 +1078,13 @@ function buildStarsCharacterPanels() {
 </div>`;
   }
 
+  const psycheTarget = document.getElementById('starsPsycheProfileAnchor');
+  const factionTarget = document.getElementById('starsFactionStandingsAnchor');
   const target = document.getElementById('starsCharPanels');
-  if (!target) return;
-  target.innerHTML = `
-<div class="card">
+
+  if (psycheTarget) {
+    psycheTarget.innerHTML = `
+<div class="card" style="margin-top:.4rem;">
   <div class="section-title">Psyche Profile</div>
   <div style="margin-bottom:.5rem;">
     <span class="sub-label">Nervous Tic (d20)</span>
@@ -1104,14 +1107,19 @@ function buildStarsCharacterPanels() {
     <button class="btn btn-sm" onclick="rollStressReaction()">⚄ Roll d10 Reaction</button>
     <div id="stressReactionResult" style="font-size:.8rem;color:var(--muted3);margin-top:.3rem;min-height:1rem;"></div>
   </div>
-</div>
-
-<!-- FACTION RENOWN -->
-<div class="card" style="grid-column:1/-1;">
-  <div class="section-title">Faction Standings</div>
-  <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Completing quests grants +1 with one faction and −1 with another. Range: −10 to +12.</div>
-  <div id="factionRenownDisplay"></div>
 </div>`;
+  }
+
+  if (factionTarget) {
+    factionTarget.innerHTML = `
+<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.35rem;">Faction Standings</div>
+<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.4rem;">Completing quests grants +1 with one faction and −1 with another. Range: −10 to +12.</div>
+<div id="factionRenownDisplay"></div>`;
+  }
+
+  if (!psycheTarget && !factionTarget && target) {
+    target.innerHTML = '';
+  }
 }
 
 function getHighestFactionRenown() {

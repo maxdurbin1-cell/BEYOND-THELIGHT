@@ -334,12 +334,12 @@ select option{background:#0f1020;}
       </div>
       <div style="margin-bottom:.5rem;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">
-          <span class="sub-label" style="margin-bottom:0;">Stress</span>
+          <span class="sub-label" style="margin-bottom:0;">Health</span>
           <span style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.1rem;"><span id="stressVal" style="color:var(--red);">0</span><span style="color:var(--muted);font-size:.85rem;"> / </span><span id="maxStressVal" style="color:var(--muted2);">8</span></span>
         </div>
         <div style="display:flex;gap:.3rem;margin-bottom:.3rem;">
-          <button class="btn btn-sm btn-red" onclick="changeStress(1)">+ Stress</button>
-          <button class="btn btn-sm btn-green" onclick="changeStress(-1)">− Stress</button>
+          <button class="btn btn-sm btn-red" onclick="changeStress(1)">+ Damage</button>
+          <button class="btn btn-sm btn-green" onclick="changeStress(-1)">− Damage</button>
           <button class="btn btn-sm" onclick="halfStress()">Recovery</button>
           <button class="btn btn-sm btn-teal" onclick="clearStress()">Long Rest</button>
         </div>
@@ -507,6 +507,8 @@ select option{background:#0f1020;}
       </div>
     </div>
   </div>
+  <!-- Stars expansion panels injected here by stars-expansion.js -->
+  <div id="starsCharPanels" style="display:contents;"></div>
 </div>
 
 <!-- PROVINCE TAB -->
@@ -693,9 +695,16 @@ select option{background:#0f1020;}
       </div>
       <div id="combatMapZones"></div>
     </div>
+    <!-- Stars expansion: hex zone map, encounter rollers -->
+    <div id="starsZonePanel" style="display:contents;"></div>
   </div>
 </div>
-<div class="tab-panel" id="tab-naval"></div>
+<div class="tab-panel" id="tab-naval">
+  <!-- Starship panel injected here -->
+  <div id="starsStarshipPanel" style="padding:.85rem;max-width:800px;"></div>
+  <!-- Date panel -->
+  <div id="starsDatePanel" style="padding:.85rem;max-width:400px;"></div>
+</div>
 
 <!-- MERCHANTS TAB -->
 <div class="tab-panel" id="tab-shop">
@@ -914,6 +923,9 @@ select option{background:#0f1020;}
 
 <!-- HOLDING TAB -->
 <div class="tab-panel" id="tab-holding"></div>
+
+<!-- ORACLE TAB -->
+<div class="tab-panel" id="tab-oracle"></div>
 
 <!-- MISSIONS TAB -->
 <div class="tab-panel" id="tab-missions">
@@ -2644,6 +2656,8 @@ function setContext(ctx,btn){
   // Hide all context-gated tabs, then show those matching the selected context
   document.querySelectorAll('nav .tab-btn[class*="ctx-"]').forEach(t=>{t.style.display='none';});
   document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';});
+  // Store active context for expansion scripts
+  window._activeContext = ctx;
 }
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
 function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
@@ -3937,6 +3951,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="./jobs-integration.js"></script>
 <script src="./new-features.js"></script>
 <script src="./task-and-exploration-system.js"></script>
+<script src="./stars-expansion.js"></script>
 
 <!-- ── QUICK PANEL ── -->
 <button id="quickPanelToggle" onclick="toggleQuickPanel()">⚙ Quick&nbsp;Panel</button>

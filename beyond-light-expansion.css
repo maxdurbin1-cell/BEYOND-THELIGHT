@@ -84,3 +84,120 @@
 .history-card{background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;font-size:.8rem;color:var(--text2);line-height:1.5;}
 
 .rules-insert{margin-top:.85rem;}
+
+/* ── STARS EXPANSION ─────────────────────────────────────────────────── */
+
+/* Health & Mental Stress pip tracks */
+.stars-track{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;}
+.pip-health{width:16px;height:16px;border-radius:2px;border:1px solid rgba(201,64,64,.55);background:rgba(201,64,64,.08);cursor:pointer;transition:background .12s;}
+.pip-health.on{background:var(--red);border-color:var(--red2);}
+.pip-stress{width:16px;height:16px;border-radius:2px;border:1px solid rgba(140,90,200,.45);background:rgba(140,90,200,.06);cursor:pointer;transition:background .12s;}
+.pip-stress.pip-stress-low{background:rgba(140,90,200,.22);border-color:rgba(140,90,200,.55);}
+.pip-stress.pip-stress-mid{background:rgba(180,80,200,.5);border-color:rgba(180,80,200,.8);}
+.pip-stress.pip-stress-high{background:rgba(220,60,180,.7);border-color:rgba(220,60,180,.9);}
+.pip-stress.pip-stress-max{background:var(--red);border-color:var(--red2);box-shadow:0 0 4px rgba(201,64,64,.6);}
+.pip-stress.on.pip-stress-low{background:rgba(140,90,200,.6);}
+.pip-stress.on.pip-stress-mid{background:rgba(180,60,220,.85);}
+.pip-stress.on.pip-stress-high{background:rgba(220,40,180,1);}
+.pip-stress.on.pip-stress-max{background:var(--red);box-shadow:0 0 6px var(--red);}
+
+/* Radiation meter */
+.rads-bar-wrap{height:10px;background:rgba(255,255,255,.05);border:1px solid var(--border2);margin:.35rem 0;position:relative;}
+.rads-bar-fill{height:100%;transition:width .3s,background .3s;}
+.rads-tier-label{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.88rem;letter-spacing:.06em;}
+.rads-tier-clean{color:var(--teal);}
+.rads-tier-low{color:var(--green);}
+.rads-tier-moderate{color:#c8b04a;}
+.rads-tier-high{color:#e07830;}
+.rads-tier-severe{color:var(--red2);}
+.rads-tier-lethal{color:var(--red);text-shadow:0 0 6px var(--red);}
+
+/* Injury slots */
+.injury-list{display:flex;flex-direction:column;gap:.35rem;}
+.injury-slot{display:flex;align-items:flex-start;gap:.55rem;padding:.5rem .6rem;background:var(--surface);border:1px solid var(--border2);}
+.injury-slot .inj-icon{font-size:1rem;line-height:1;flex-shrink:0;margin-top:.05rem;}
+.injury-slot .inj-text{flex:1;font-size:.8rem;color:var(--text2);line-height:1.5;}
+.injury-slot.injury-critical{border-color:rgba(201,64,64,.55);background:rgba(201,64,64,.06);}
+.injury-slot.injury-critical .inj-icon{color:var(--red2);}
+.injury-empty{font-size:.78rem;color:var(--muted3);font-style:italic;text-align:center;padding:.5rem;}
+
+/* Oracle panel */
+.oracle-layout{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;}
+@media(max-width:820px){.oracle-layout{grid-template-columns:1fr;}}
+.oracle-result{padding:.75rem;background:var(--surface);border:1px solid var(--border2);min-height:80px;}
+.oracle-roll{font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted3);letter-spacing:.06em;margin-bottom:.25rem;}
+.oracle-outcome{font-family:'Cinzel',serif;font-size:1.1rem;color:var(--gold2);margin-bottom:.2rem;}
+.oracle-detail{font-size:.82rem;color:var(--text2);line-height:1.55;}
+.oracle-words{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem;}
+.oracle-word{padding:.3rem .65rem;background:rgba(46,196,182,.08);border:1px solid rgba(46,196,182,.25);font-family:'Cinzel',serif;font-size:.72rem;color:var(--teal);letter-spacing:.07em;}
+
+/* Faction Renown */
+.faction-list{display:flex;flex-direction:column;gap:.4rem;}
+.faction-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:.55rem;padding:.5rem .65rem;background:var(--surface);border:1px solid var(--border2);}
+.faction-name{font-family:'Cinzel',serif;font-size:.68rem;color:var(--gold2);letter-spacing:.06em;text-transform:uppercase;}
+.faction-title{font-size:.76rem;font-family:'Rajdhani',sans-serif;font-weight:600;color:var(--teal);min-width:80px;text-align:center;}
+.faction-controls{display:flex;gap:.3rem;align-items:center;}
+.faction-val{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;color:var(--text);min-width:26px;text-align:center;}
+
+/* Roll badge */
+.roll-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 .4rem;background:rgba(201,162,39,.15);border:1px solid rgba(201,162,39,.35);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem;color:var(--gold2);border-radius:2px;}
+
+/* Stress reaction / tic / obsession result box */
+.stars-result-box{padding:.65rem .75rem;background:var(--surface);border-left:3px solid var(--purple);margin-top:.45rem;}
+.stars-result-box.warn{border-left-color:var(--red2);}
+.stars-result-box .srb-label{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.2rem;}
+.stars-result-box .srb-text{font-size:.84rem;color:var(--text2);line-height:1.55;}
+
+/* Starship panel */
+.starship-layout{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;}
+@media(max-width:900px){.starship-layout{grid-template-columns:1fr;}}
+.ship-stat-row{display:flex;align-items:center;justify-content:space-between;padding:.4rem .5rem;background:var(--surface);border:1px solid var(--border2);margin-bottom:.3rem;}
+.ship-stat-row .ssr-label{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;}
+.ship-stat-row .ssr-val{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;color:var(--gold2);}
+.fuel-bars{display:flex;flex-direction:column;gap:.4rem;}
+.fuel-row{display:grid;grid-template-columns:100px 1fr auto;align-items:center;gap:.55rem;}
+.fuel-row-label{font-size:.75rem;color:var(--text2);}
+.fuel-bar-track{height:8px;background:rgba(255,255,255,.05);border:1px solid var(--border2);}
+.fuel-bar-fill{height:100%;background:var(--teal);transition:width .25s;}
+.fuel-row-val{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem;color:var(--teal);min-width:40px;text-align:right;}
+.shields-pips{display:flex;gap:.3rem;flex-wrap:wrap;margin:.25rem 0;}
+.pip-shield{width:18px;height:18px;border-radius:50%;border:1px solid rgba(46,196,182,.45);background:rgba(46,196,182,.06);transition:background .12s;}
+.pip-shield.on{background:var(--teal);border-color:var(--teal2);box-shadow:0 0 4px rgba(46,196,182,.5);}
+
+/* Combat zone hex grid */
+.stars-zone-wrap{background:var(--card);border:1px solid var(--border);padding:.7rem;}
+.stars-zone-svg{display:block;max-width:100%;overflow:visible;}
+.stars-hex{cursor:pointer;transition:opacity .1s;}
+.stars-hex:hover polygon{opacity:.8;}
+.zone-legend{display:flex;gap:.55rem;flex-wrap:wrap;margin:.5rem 0;}
+.zone-legend-item{display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted2);}
+.zone-legend-dot{width:10px;height:10px;flex-shrink:0;}
+
+/* Date/Time panel */
+.date-display{display:flex;align-items:baseline;gap:.5rem;padding:.65rem .75rem;background:var(--surface);border:1px solid var(--border2);margin-bottom:.55rem;}
+.date-day{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:2.2rem;color:var(--gold2);line-height:1;}
+.date-sep{font-family:'Cinzel',serif;font-size:.8rem;color:var(--muted3);}
+.date-month,.date-year{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.4rem;color:var(--text);}
+.travel-rates{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.4rem;margin-top:.5rem;}
+.travel-card{background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;text-align:center;}
+.travel-card .tc-icon{font-size:1.3rem;display:block;margin-bottom:.2rem;}
+.travel-card .tc-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;}
+.travel-card .tc-rate{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.95rem;color:var(--teal);}
+
+/* Stars shop category button */
+.stars-shop-card{background:var(--surface);border:1px solid var(--border2);padding:.55rem .65rem;font-size:.78rem;color:var(--text2);line-height:1.5;}
+.stars-shop-card .ssc-name{font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold2);}
+.stars-shop-card .ssc-cost{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.88rem;color:var(--teal);}
+
+/* Exocraft list */
+.exo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.55rem;}
+.exo-card{background:var(--surface);border:1px solid var(--border2);padding:.65rem;}
+.exo-card .ec-name{font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold2);margin-bottom:.2rem;}
+.exo-card .ec-stats{display:flex;gap:.4rem;flex-wrap:wrap;margin:.25rem 0;}
+.exo-card .ec-stat{font-size:.72rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}
+.exo-card .ec-copy{font-size:.77rem;color:var(--muted3);line-height:1.5;}
+
+/* Stars rules insert */
+.stars-rule-row{padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.8rem;color:var(--text2);line-height:1.5;}
+.stars-rule-row:last-child{border-bottom:none;}
+.stars-rule-row strong{color:var(--gold2);}

@@ -594,6 +594,105 @@ const FACILITY_DISPOSITIONS = ['wary', 'friendly', 'hostile', 'exhausted', 'sile
 const FACILITY_WORKERS = ['dockworkers', 'mechanics', 'scientists', 'traders', 'wardens', 'aug-techs'];
 const FACILITY_ACTIONS = ['repairing', 'arguing over', 'cataloging', 'transporting', 'guarding', 'testing'];
 const FACILITY_SUBJECTS = ['fuel tanks', 'data crates', 'damaged drones', 'sealed cargo', 'strange residue', 'navigation relays'];
+const FACILITY_DREAD_EVENTS = [
+  'There is nothing you can do. The darkness has come for you. Gain TAINT while at this site.',
+  'What was that noise? All characters gain d4 Stress.',
+  'A random character misplaces gear: Adventure Die vs DD6 or lose 1 Item.',
+  'You are surrounded and alone. Any character that flees gains +d10 Stress.',
+  'Paralyzing fear grips a random character; they cannot use Talents while at this site.',
+  'All characters spend 1 Day Phase shooting at shadows.',
+  'A random character hyperventilates, spending 1 Oxygen Pellet.',
+  'A cosmic panic wave hits the crew. All characters gain +15 Stress.',
+  'Shadows ambush the crew: d6 Shadows DD4 | 8 Health.',
+  'Pain twists the soul. All characters take +1 Trauma.',
+];
+const FACILITY_TAINT = [
+  'Max Health +5, but gain +1 Stress every module.',
+  'Suffer +d4 when damaged, but permanently +2 Defend rolls.',
+  'Weakened condition, but +5 to Defend rolls for the day.',
+  '-2 all skill checks, but start each module with +1 to A.D. luck checks.',
+  'Lose one Talent, gain +10 Path Tokens.',
+  'Max Health steps down one die tier, but attacks deal +d10 damage.',
+  'No Path Tokens while at site, but immune to Stress effects.',
+  'Lose use of one arm (one-handed weapons only), but +10 Max Health.',
+  '+1 Trauma every module, but advantage on non-combat checks.',
+  'Blind, but immune to radiation.',
+];
+const FACILITY_FIXED_EVENTS = [
+  'A random character sees impossible visions and gains d10 Stress; Mind check to avoid firing wildly.',
+  'Corrosive moss-like growth threatens gear; Body/Agility check or lose random gear piece.',
+  'A throne of bones stands in the center; Perception reveals a hidden skull-clue.',
+  'Floor collapse opens into a deep shaft. No VaccSuit: d20 Stress per round.',
+  'An insistent voice asks: "Why are you here?" Random character gains 5 Stress.',
+  'Two crew feel followed. Gain 5 Stress.',
+  'A figure is glimpsed leaving this room; pursuit finds nothing. Gain 5 Stress.',
+  'Warm slime room with shivering eggs. Something is inside.',
+  'All electronics and lights fail while inside this module.',
+  'A random character is bitten by something unseen. +1 damage.',
+];
+const FACILITY_DISCOVERY = [
+  'collapsed section with bodies beneath debris',
+  'radiation leak',
+  'bones scattered across the floor',
+  'ruined science experiment',
+  'dead creature torn apart',
+  'holo-art projections on the wall',
+  'murals of an ancient era',
+  'towering statues',
+  'unexpected fungal growth',
+  'gravity shifting upside down',
+  'magnetic force pulling you in',
+  'magnetic force pushing you out',
+  'teleport beacon to a random module',
+  'tracks leading onward',
+  'exit path toward landing pads',
+  'pit leading to a lower module',
+  'shaft rising to an upper module',
+  'junk and debris everywhere',
+  'strange atmospheric readings',
+  'debris fields and fractured wiring',
+];
+const FACILITY_SITUATIONS = [
+  'anxious crew hiding in a sealed alcove',
+  'a medic triaging workers beside a coolant spill',
+  'a prayer circle around a broken reactor idol',
+  'traders refusing to move due to rumors of a beast',
+  'two rival teams in a tense stand-off',
+  'a survivor bargaining with hard drives and fuel rods',
+  'a half-mad engineer mapping whispers in the walls',
+  'security wardens guarding a blocked pressure gate',
+  'a scavenger ring auctioning unknown artifacts',
+  'a panicked convoy preparing immediate evacuation',
+];
+const FACILITY_TRIGGERS = [
+  'narrow beam of intense light',
+  'pressure plate hidden under dust',
+  'motion detector tuned to vibration',
+  'spherical microphone trap',
+  'magnetic trigger coil',
+  'heat detector tied to a charge line',
+  'adrenaline sensor keyed to panic response',
+  'metal detector sweeping for concealed gear',
+];
+const FACILITY_OBSTACLES = [
+  'light refracts into lethal focus (d8 damage).',
+  'memory-core dart trap deploys from nearby panel.',
+  'auto-turret fires for one round before cooldown.',
+  'short-burst EMP disables nearby electronics for d6 minutes.',
+  'targeted explosion knocks the nearest character backward (d6 damage).',
+  'hidden charge chain detonates (d12 damage to all nearby).',
+  'security door lockout seals exits until bypassed.',
+  'tracking darts mark all intruders for pursuit.',
+];
+const CREATURE_TYPES = ['Aberration', 'Synthetic', 'Local Fauna'];
+const CREATURE_DRIVES = ['Territorial', 'Predation', 'Destructive', 'Parasitization'];
+const CREATURE_ROLES = ['Brute', 'Lurker', 'Ranged', 'Swarm', 'Psychic'];
+const CREATURE_INTELLIGENCE = ['Animal-like', 'Human-like', 'Above-human'];
+const CREATURE_APPEARANCE = ['Avian', 'Arachnid', 'Insectoid', 'Apeish', 'Reptilian', 'Serpentine', 'Canine', 'Feline', 'Antilopine', 'Bovine', 'Cancrine', 'Chelonian', 'Amorphous', 'Ichthyic', 'Glirine', 'Octopine', 'Fungine', 'Plantlike', 'Petrous', 'Vermian'];
+const CREATURE_COVERING = ['Scales', 'Feathered', 'Skin', 'Fur', 'Chitin', 'Crystals', 'Ooze', 'Stone'];
+const CREATURE_FEATURE = ['Wings', 'Horns', 'Mane', 'Several mouths', 'Numerous limbs', 'Bright colors', 'Suckers', 'Tail', 'Tendrils', 'Translucent'];
+const CREATURE_PSYCHIC_ABILITIES = ['Buffer', 'Control', 'Distressing', 'Dread', 'Inspire Terror', 'Mind Lash', 'Organize', 'Stun', 'Suffocate', 'Telekinetic Push'];
+const CREATURE_ABILITIES = ['Acid Blood', 'Acid Spray', 'Carapace', 'Cleave/Spread Shot', 'Crawler', 'Dazzle', 'Drain', 'Entangle', 'Explosive', 'Flame Attack', 'Immune', 'Infectious', 'Metallic Claws', 'Paralyzing Bite/Shot', 'Putrid', 'Rebirth', 'Regenerate', 'Tough', 'Uncanny Speed', 'Vicious'];
 
 function randomFacilityCode() {
   const a = ['Din', 'Tho', 'Kai', 'Vor', 'Hel', 'Ash', 'Nox', 'Ira'];
@@ -621,7 +720,36 @@ function createFacilityState() {
     challenge: FACILITY_CHALLENGES[roll(6) - 1],
     modulesCompleted: 0,
     objectiveCompleted: false,
+    moduleLog: [],
   };
+}
+
+function generateFacilityAntagonist() {
+  const sizeRoll = roll(20);
+  const typeRoll = roll(6);
+  const intRoll = roll(10);
+  const roleRoll = roll(10);
+  let dread = 10;
+  let hp = 20;
+  let dmgMod = 0;
+  let sizeLabel = 'Humanoid-sized';
+  if (sizeRoll <= 3) { dread = 4; hp = 8; dmgMod = -2; sizeLabel = 'Rodent to Possum-sized'; }
+  else if (sizeRoll <= 8) { dread = 6; hp = 12; dmgMod = -1; sizeLabel = 'Cat to Coyote-sized'; }
+  else if (sizeRoll <= 16) { dread = 10; hp = 20; dmgMod = 0; sizeLabel = 'Humanoid-sized'; }
+  else if (sizeRoll <= 18) { dread = 12; hp = 24; dmgMod = 1; sizeLabel = 'Gorilla-sized'; }
+  else { dread = 20; hp = 40; dmgMod = 2; sizeLabel = 'Cow to Tiger-sized'; }
+
+  const type = CREATURE_TYPES[typeRoll <= 2 ? 0 : typeRoll <= 4 ? 1 : 2];
+  const drive = CREATURE_DRIVES[roll(4) - 1];
+  const role = CREATURE_ROLES[Math.min(4, Math.floor((roleRoll - 1) / 2))];
+  const intel = CREATURE_INTELLIGENCE[intRoll <= 7 ? 0 : intRoll <= 9 ? 1 : 2];
+  const look = CREATURE_APPEARANCE[roll(20) - 1];
+  const cover = CREATURE_COVERING[roll(8) - 1];
+  const feature = CREATURE_FEATURE[roll(10) - 1];
+  const ability = CREATURE_ABILITIES[roll(20) - 1];
+  const psychic = role === 'Psychic' ? CREATURE_PSYCHIC_ABILITIES[roll(10) - 1] : null;
+
+  return `${type} ${look} (${sizeLabel}) DD${dread} | ${hp} Health | Drive: ${drive} | Role: ${role} | Int: ${intel} | ${cover} hide, Feature: ${feature}, Ability: ${ability}${psychic ? ', Psychic: ' + psychic : ''}${dmgMod ? ', DMG Mod ' + (dmgMod > 0 ? '+' : '') + dmgMod : ''}.`;
 }
 
 function facilityEncounterText(type) {
@@ -629,30 +757,42 @@ function facilityEncounterText(type) {
     return 'Resource: crystalline seams hang from the ceiling. Mind/Control vs DD8 to mine d6 Data Crystals (50 credits each).';
   }
   if (type === 'Artifact') {
-    return `Artifact: you find ${pick(['a pre-collapse hololith', 'a quantum lockbox', 'a coded reliquary', 'a ceremonial exocore'])} worth 2d6x10 credits. Control vs DD8 on interaction.`;
+    const artifact = pick(['a pre-collapse hololith', 'a quantum lockbox', 'a coded reliquary', 'a ceremonial exocore', 'an anthropological relic frame']);
+    const outcome = pick(['trigger a dormant ward', 'wake a nearby sentinel', 'scramble your comms for one phase', 'cause an unstable pulse in this module']);
+    return `Artifact: ${artifact} worth 2d6x10 credits. Control vs DD8 when interacting. Failure: ${outcome}.`;
   }
   if (type === 'Hazard') {
-    return `Hazard: ${pick(['psychic disturbance (+5 Stress, rolls -5 in module)', 'reactive gas leak', 'unstable flooring over a deep shaft', 'radiation-slick condensate'])}.`;
+    return `Hazard: ${pick(['Psychic Disturbance (+5 Stress; all rolls in this module at -5)', 'reactive gas leak', 'unstable flooring over a deep shaft', 'radiation-slick condensate'])}.`;
   }
   if (type === 'Locked Access Point') {
     return 'Locked Access Point: Mind/Perception DD8 to detect trigger, Control/Tech DD8 to disable; failure alerts nearest antagonist.';
   }
   if (type === 'Dread Event') {
-    return `Dread Event: ${pick(['gain TAINT while at site', 'all crew gain d4 Stress', 'lose 1 random item on failed AD vs DD6', 'all crew gain +15 Stress', 'all characters take +1 Trauma'])}.`;
+    const eventRoll = roll(10);
+    const eventText = FACILITY_DREAD_EVENTS[eventRoll - 1];
+    if (eventRoll === 1) {
+      const taintRoll = roll(10);
+      return `Dread Event d10=${eventRoll}: ${eventText} TAINT d10=${taintRoll}: ${FACILITY_TAINT[taintRoll - 1]}`;
+    }
+    return `Dread Event d10=${eventRoll}: ${eventText}`;
   }
   if (type === 'Fixed Event') {
-    return `Fixed Event: ${pick(['terrible visions cause friendly fire risk', 'corrosive growth threatens gear', 'bone throne hides a clue', 'all electronics fail in this module', 'random character is bitten (+1 dmg)'])}.`;
+    const r = roll(10);
+    return `Fixed Event d10=${r}: ${FACILITY_FIXED_EVENTS[r - 1]}`;
   }
   if (type === 'Discovery') {
-    return `Discovery: ${pick(['collapsed bodies under debris', 'radiation leak', 'tracks leading to next module', 'exit to landing pads', 'gravity flips upside down'])}.`;
+    const r = roll(20);
+    return `Discovery d20=${r}: ${FACILITY_DISCOVERY[r - 1]}.`;
   }
   if (type === 'Situation') {
-    return `Situation: ${pick(['anxious survivors guarding a cache', 'a tense truce between crews', 'a desperate medic triaging workers', 'a hidden cult-like ritual'])}.`;
+    return `Situation: ${pick(FACILITY_SITUATIONS)}.`;
   }
   if (type === 'Trigger/Obstacle') {
-    return `Trigger/Obstacle: Adventure Die vs DD8; detect with Mind/Perception, dismantle via Control/Tech. Failure triggers trap sequence.`;
+    const t = FACILITY_TRIGGERS[roll(8) - 1];
+    const o = FACILITY_OBSTACLES[roll(8) - 1];
+    return `Trigger/Obstacle: Adventure Die vs DD8. Mind/Perception to spot trigger; Control/Tech to dismantle. Trigger: ${t}. Obstacle: ${o}`;
   }
-  return `Antagonist: ${pick(['Aberration', 'Synthetic', 'Local Fauna'])} ${pick(['Brute', 'Lurker', 'Ranged', 'Swarm', 'Psychic'])} encountered (size scales DD4-DD20).`;
+  return `Antagonist: ${generateFacilityAntagonist()}`;
 }
 
 function rollFacilityModule() {
@@ -675,11 +815,13 @@ function rollFacilityModule() {
   const text = facilityEncounterText(encType);
   const chance = roll(6);
   const foundTarget = chance === 1 ? ' (1-in-6 special target found.)' : '';
+  f.moduleLog.push({ module: moduleName, encounter: encType, result: text });
 
   if (out) {
     out.innerHTML = `
       <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Facility Module ${f.modulesCompleted}/${f.sizeModules}</div>
-      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You go through <strong>${connector}</strong> and enter the <strong>${moduleName}</strong> module. ${text}${foundTarget}</div>`;
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You go through <strong>${connector}</strong> and enter the <strong>${moduleName}</strong> module. ${text}${foundTarget}</div>
+      <div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Encounters can be Antagonist, Artifact, Resource, Hazard, Locked Access Point, Dread Event, Fixed Event, Discovery, Situation, or Trigger/Obstacle.</div>`;
   }
 }
 

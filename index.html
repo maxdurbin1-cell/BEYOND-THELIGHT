@@ -4197,7 +4197,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var holdingQuest = S.holdingQuest || {};
     var questDone = !!(holdingQuest.step3Completed && !holdingQuest.failed);
     var holdingEstablished = !!(S.holding && (S.holding.established || questDone));
-    var renown = S.renown || 0;
+    var renown = Number(S.renown || 0);
     var jobsHtml = '<div style="margin-bottom:.55rem;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.3rem;">'
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;">Mission Board</div>'
@@ -4216,7 +4216,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '</div>';
 
     var holdingHtml = '';
-    if (renown >= 9 && !holdingEstablished) {
+    if (!holdingEstablished && renown >= 9) {
       var hSteps = ['Gather Information', 'Go To Site', 'Establish Holding'];
       if (!holdingQuest.active) {
         holdingHtml = '<div style="margin-bottom:.55rem;">'

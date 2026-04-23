@@ -1594,9 +1594,9 @@
     q.failed = false;
 
     S.renown = (S.renown || 0) + 1;
-    if (typeof updateRenown === 'function') { updateRenown(); }
+    try { if (typeof updateRenown === 'function') { updateRenown(); } } catch (err) {}
     S.credits = (S.credits || 0) + (q.rewardCredits || 250);
-    if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
+    try { if (typeof updateCreditsUI === 'function') { updateCreditsUI(); } } catch (err) {}
 
     var loot = [];
     try {

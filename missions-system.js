@@ -558,8 +558,8 @@
       }
       mission.loot=mission.loot.concat(newLoot);
       S.credits=(S.credits||0)+(mission.reward||100); S.renown=(S.renown||0)+1;
-      if (typeof updateCreditsUI==='function') updateCreditsUI();
-      if (typeof updateRenown==='function') updateRenown();
+      try { if (typeof updateCreditsUI==='function') updateCreditsUI(); } catch (err) {}
+      try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
       // Add mission loot directly to backpack slots when possible.
       if (typeof addToBackpack === 'function') {
         for (var li=0; li<newLoot.length; li++) {
@@ -575,7 +575,7 @@
       }
     } else {
       S.renown=Math.max(0,(S.renown||0)-1);
-      if (typeof updateRenown==='function') updateRenown();
+      try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
     }
     try { removeMissionToken(mission); } catch (err) {}
     if (S.completedMissions.length>=MAX_COMPLETED_MISSIONS) S.completedMissions.shift();

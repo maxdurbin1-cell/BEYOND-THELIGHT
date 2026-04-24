@@ -171,11 +171,17 @@
       var informerTask = createGalaxyTask('Mission Board', {
         title: mission.title + ' (Informer)',
         text: 'Track local informants for mission intel near ' + mission.location + '.',
+        missionId: mission.id,
+        missionStep: 'informer',
+        interaction: 'mission-step',
         reward: { credits: 0 }
       });
       var siteTask = createGalaxyTask('Mission Board', {
         title: mission.title + ' (Site)',
         text: 'Mission board contract: ' + mission.location + '.',
+        missionId: mission.id,
+        missionStep: 'site',
+        interaction: 'mission-step',
         reward: { credits: mission.reward, globalRenown: 1 }
       });
       if (informerTask) {

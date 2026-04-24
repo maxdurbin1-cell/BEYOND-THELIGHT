@@ -768,6 +768,9 @@ function createGalaxyTask(source, config) {
     title: config.title || 'Galaxy Task',
     text: config.text || 'Complete the assigned objective in this sector.',
     reward: Object.assign({}, config.reward || {}),
+    missionId: config.missionId || null,
+    missionStep: config.missionStep || '',
+    interaction: config.interaction || 'roll',
     hexId: hex.id,
     resolved: false,
   };
@@ -825,6 +828,22 @@ function renderGalaxyTaskPanel(taskId) {
   const out = document.getElementById('starExplorationDetail');
   if (!task || !out) return;
   S.starSystem.activeTask = task;
+  if (task.source === 'Mission Board' && task.missionId && task.interaction === 'mission-step') {
+    const stepBtn = task.missionStep === 'informer'
+      ? `<button class="btn btn-xs btn-teal" onclick="if(typeof startMissionStep1==='function'){startMissionStep1(${task.missionId});}">Run Step 1: Info</button>`
+      : `<button class="btn btn-xs btn-teal" onclick="if(typeof startMissionStep2==='function'){startMissionStep2(${task.missionId});}">Run Step 2: Site</button>`;
+    out.innerHTML = `
+      <div style="font-size:.92rem;color:var(--gold2);margin-bottom:.25rem;">Mission Marker: ${task.title}</div>
+      <div style="font-size:.86rem;color:var(--muted2);line-height:1.6;">
+        <strong style="color:var(--text);">Source:</strong> ${task.source}<br>
+        ${task.text}
+      </div>
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">
+        ${stepBtn}
+        <button class="btn btn-xs" onclick="if(typeof switchTab==='function'){switchTab('missions',document.querySelector(\".tab-btn[onclick*=\\\"switchTab('missions'\\\"]\"));} if(typeof renderMissionTracker==='function'){renderMissionTracker();}">Open Mission Tracker</button>
+      </div>`;
+    return;
+  }
   out.innerHTML = `
     <div style="font-size:.92rem;color:var(--gold2);margin-bottom:.25rem;">Galaxy Task: ${task.title}</div>
     <div style="font-size:.86rem;color:var(--muted2);line-height:1.6;">
@@ -2730,10 +2749,16 @@ function resolveSpaceEncounterOption(optionId) {
     option.resolved = true;
     encounter.resolved = true;
     S.starSystem.activeSpaceEncounter = null;
-    const rewardText = applyEncounterRewards(option.success);
+    let rewardText = '';
+    try {
+      rewardText = applyEncounterRewards(option.success);
+    } catch (err) {
+      rewardText = 'Rewards applied with warnings.';
+    }
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }
 

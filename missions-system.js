@@ -357,11 +357,17 @@
     S.availableJobs = [];
     var seed = Date.now();
     var count = Math.max(1, Math.min(4, roll(4)));
+    var activePanel = document.querySelector('.tab-panel.active');
+    var activeTabId = activePanel ? activePanel.id : '';
+    var forceRegion = null;
+    if (activeTabId === 'tab-galaxy') forceRegion = 'galaxy';
+    else if (activeTabId === 'tab-lastsea') forceRegion = 'sea';
+    else if (activeTabId === 'tab-map') forceRegion = 'province';
     for (var i = 0; i < count; i++) {
       var diffKey = pick(DIFF_KEYS);
       var diff    = DIFFICULTIES[diffKey];
       var f = pickFactionConflict();
-      var region = pick(getAvailableMissionRegions());
+      var region = forceRegion || pick(getAvailableMissionRegions());
       S.availableJobs.push({
         id:seed + i + 1,
         title:pick(MISSION_VERBS)+' '+pick(MISSION_TARGETS),

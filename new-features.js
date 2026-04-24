@@ -2420,21 +2420,11 @@
     return total;
   }
 
+  var _baseBuyItem = typeof window.buyItem === 'function' ? window.buyItem : null;
+
   window.buyItem = function(cost, name, cat) {
     ensureNewFeatureState();
     cat = cat || 'other';
-
-    if (name === 'Retainer Contract') {
-      if ((S.credits || 0) < 200) {
-        showNotif('Need 200₵ to buy a Retainer Contract!', 'warn'); return;
-      }
-      S.credits -= 200;
-      updateCreditsUI();
-      S.holding.retainerContracts = (S.holding.retainerContracts || 0) + 1;
-      showNotif('Retainer Contract purchased (−200₵). Use in Holding Council.', 'good');
-      if (typeof renderHoldingUI === 'function') { renderHoldingUI(); }
-      return;
-    }
 
     if (cat === 'augmentations') {
       if ((S.renown || 0) < 3) {
@@ -2453,141 +2443,35 @@
       if (S.augmentations.indexOf(name) >= 0) {
         showNotif(name + ' is already installed!', 'warn'); return;
       }
-      S.credits   -= cost;
+      S.credits = Math.max(0, (S.credits || 0) - cost);
       S.pathTokens = Math.max(0, (S.pathTokens || 0) - 5);
       updateCreditsUI();
       var ptEl = document.getElementById('pathTokensVal');
       if (ptEl) { ptEl.textContent = S.pathTokens; }
       S.augmentations.push(name);
       var augData = (SHOP_DATA.augmentations || []).find(function(a) { return a.name === name; });
-      var traitLabel = '\ud83e\uddb6 ' + name + (augData ? ' \u2014 ' + augData.stat : ' \u2014 Augmentation');
-      S.extraTraits.push(traitLabel);
+      var traitLabel = '🦶 ' + name + (augData ? ' — ' + augData.stat : ' — Augmentation');
+      if (S.extraTraits.indexOf(traitLabel) < 0) S.extraTraits.push(traitLabel);
       if (typeof renderExtraTraits === 'function') { renderExtraTraits(); }
-      renderOSHacksPanel();
+      if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
       if (typeof renderAugmentationsPanel === 'function') { renderAugmentationsPanel(); }
-      // Refresh shop display to show installed status
       var shopCatBtn = document.querySelector('.shop-cats .scat.on');
       if (typeof showShopCat === 'function') { showShopCat('augmentations', shopCatBtn); }
-      showNotif('Augmentation installed: ' + name + ' (\u22125 Path Tokens, \u2212' + cost + '\u20b5)', 'good');
+      showNotif('Augmentation installed: ' + name + ' (−5 Path Tokens, −' + cost + '₵)', 'good');
       return;
     }
 
-    if (cat === 'os_hacks') {
-      if (S.augmentations.indexOf('OPERATING SYSTEM') < 0) {
-        showNotif('OPERATING SYSTEM augmentation required to buy Hacks!', 'warn'); return;
-      }
-      if ((S.credits || 0) < cost) {
-        showNotif('Not enough credits!', 'warn'); return;
-      }
-      S.credits -= cost;
-      updateCreditsUI();
-      S.ownedHacks.push(name);
-      renderOSHacksPanel();
-      showNotif('Hack acquired: ' + name + ' (\u2212' + cost + '\u20b5)', 'good');
+    if (cat === 'os_hacks' && S.augmentations.indexOf('OPERATING SYSTEM') < 0) {
+      showNotif('OPERATING SYSTEM augmentation required to buy Hacks!', 'warn');
       return;
     }
 
-    if (cat === 'weapon_mods') {
-      if ((S.credits || 0) < cost) {
-        showNotif('Not enough credits!', 'warn'); return;
-      }
-      var available = getAvailableWeaponModSlots();
-      if (S.weaponMods.length >= available) {
-        showNotif('No mod slots available! Equip a +# weapon first.', 'warn'); return;
-      }
-      S.credits -= cost;
-      updateCreditsUI();
-      S.weaponMods.push(name);
-      renderWeaponModsPanel();
-      showNotif('Weapon Mod acquired: ' + name + ' (\u2212' + cost + '\u20b5)', 'good');
+    if (_baseBuyItem) {
+      _baseBuyItem(cost, name, cat);
       return;
     }
 
-    // Default purchases: equip weapons/armor when slots are open, else backpack.
-    if ((S.credits || 0) < cost) {
-      showNotif('Not enough credits!', 'warn'); return;
-    }
-    var foundItem = null;
-    if (typeof findShopItem === 'function') {
-      foundItem = findShopItem(name);
-    }
-    var weaponCats = ['weapons', 'melee_exp', 'ranged_exp'];
-    var armorCats  = ['armor', 'armor_exp'];
-    var backpackText = name;
-    if (foundItem && foundItem.item && foundItem.item.stat && (weaponCats.indexOf(cat) >= 0 || armorCats.indexOf(cat) >= 0)) {
-      backpackText = name + ' (' + foundItem.item.stat + ')';
-    }
-
-    if (weaponCats.indexOf(cat) >= 0) {
-      S.credits -= cost;
-      updateCreditsUI();
-      if (!S.equipment.weapon1) {
-        S.equipment.weapon1 = backpackText;
-        setInputValue('eqWeapon1', backpackText);
-        showNotif('Bought: ' + name + ' → Equipped to Weapon 1 (−' + cost + '₵)', 'good');
-      } else if (!S.equipment.weapon2) {
-        S.equipment.weapon2 = backpackText;
-        setInputValue('eqWeapon2', backpackText);
-        showNotif('Bought: ' + name + ' → Equipped to Weapon 2 (−' + cost + '₵)', 'good');
-      } else {
-        var wSlot = -1;
-        for (var wi = 0; wi < S.backpack.length; wi++) {
-          if (!S.backpack[wi]) { wSlot = wi; break; }
-        }
-        if (wSlot >= 0) {
-          S.backpack[wSlot] = backpackText;
-          var wEl = document.getElementById('bp' + wSlot);
-          if (wEl) { wEl.value = backpackText; }
-          showNotif('Bought: ' + name + ' → Backpack Slot ' + (wSlot + 1) + ' (−' + cost + '₵)', 'good');
-        } else {
-          showNotif('Bought: ' + name + ' (−' + cost + '₵) — Backpack full!', 'warn');
-        }
-      }
-      if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
-      if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
-      return;
-    }
-
-    if (armorCats.indexOf(cat) >= 0) {
-      S.credits -= cost;
-      updateCreditsUI();
-      if (!S.equipment.armor) {
-        S.equipment.armor = backpackText;
-        setInputValue('eqArmor', backpackText);
-        showNotif('Bought: ' + name + ' → Equipped to Armor (−' + cost + '₵)', 'good');
-      } else {
-        var aSlot = -1;
-        for (var ai = 0; ai < S.backpack.length; ai++) {
-          if (!S.backpack[ai]) { aSlot = ai; break; }
-        }
-        if (aSlot >= 0) {
-          S.backpack[aSlot] = backpackText;
-          var aEl = document.getElementById('bp' + aSlot);
-          if (aEl) { aEl.value = backpackText; }
-          showNotif('Bought: ' + name + ' → Backpack Slot ' + (aSlot + 1) + ' (−' + cost + '₵)', 'good');
-        } else {
-          showNotif('Bought: ' + name + ' (−' + cost + '₵) — Backpack full!', 'warn');
-        }
-      }
-      if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
-      if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
-      return;
-    }
-
-    S.credits -= cost;
-    updateCreditsUI();
-    var emptyIdx = -1;
-    for (var i = 0; i < S.backpack.length; i++) {
-      if (!S.backpack[i]) { emptyIdx = i; break; }
-    }
-    if (emptyIdx >= 0) {
-      S.backpack[emptyIdx] = backpackText;
-      var bpEl = document.getElementById('bp' + emptyIdx);
-      if (bpEl) { bpEl.value = backpackText; }
-      showNotif('Bought: ' + name + ' \u2192 Backpack Slot ' + (emptyIdx + 1) + ' (\u2212' + cost + '\u20b5)', 'good');
-    } else {
-      showNotif('Bought: ' + name + ' (\u2212' + cost + '\u20b5) \u2014 Backpack full! Add manually.', 'warn');
-    }
+    showNotif('Buy flow unavailable.', 'warn');
   };
 
   // ── WEAPON MODS PANEL ─────────────────────────────────────────────────────────

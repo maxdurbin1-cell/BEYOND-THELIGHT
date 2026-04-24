@@ -2640,6 +2640,8 @@ function resolveMysteryContactOption(optionId) {
       pushRoyalShipLogEntry('pay', `Paid ${fee} credits tariff. Passed peacefully.`);
     }
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You pay ${fee} credits and continue safely. <button class="btn btn-xs" style="margin-left:.4rem;" onclick="renderRoyalShipLog()">View Log</button></div>`;
+    renderMysteryPanel();
+    showNotif('Payment resolved.', 'good');
     return;
   }
   if (option.payout === 'banditPay') {
@@ -2651,7 +2653,9 @@ function resolveMysteryContactOption(optionId) {
     option.resolved = true;
     mystery.resolved = true;
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Bandit Tribute Paid</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You lose 100 credits but avoid escalation.</div>`;
+    renderMysteryPanel();
     renderStarSystemMap();
+    showNotif('Tribute paid. Scenario resolved.', 'good');
     return;
   }
   if (option.trade) {

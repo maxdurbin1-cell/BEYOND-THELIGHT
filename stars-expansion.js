@@ -433,7 +433,7 @@ function ensureStarsState() {
   if (typeof S.starSystem.empoweredChecks !== 'number') S.starSystem.empoweredChecks = 0;
 
   if ((!S.starSystem.hexes || !S.starSystem.hexes.length) && window._lastGeneratedGalaxy && window._lastGeneratedGalaxy.hexes && window._lastGeneratedGalaxy.hexes.length) {
-    S.starSystem = Object.assign({}, window._lastGeneratedGalaxy);
+    S.starSystem = cloneStarsData(window._lastGeneratedGalaxy);
   }
 
   if (!S.radiationState) {
@@ -5268,6 +5268,7 @@ function getTradeRouteModifiers() {
 }
 
 function buildGalaxyPanel() {
+  ensureStarsState();
   const target = document.getElementById('starsGalaxyPanel');
   if (!target) return;
   target.innerHTML = getGalaxySystemPanelMarkup();

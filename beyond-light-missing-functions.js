@@ -841,6 +841,21 @@ function loadCharacter() {
     updateCombatUI();
     if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
     if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
+    // Normalize galaxy/star state fields that may be missing in older saves
+    if (typeof ensureStarsState === 'function') {
+      ensureStarsState();
+    }
+    // Sync snapshot cache so tab-switch continues to work without regenerating
+    if (S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length) {
+      window._lastGeneratedGalaxy = (typeof cloneStarsData === 'function')
+        ? cloneStarsData(S.starSystem)
+        : JSON.parse(JSON.stringify(S.starSystem));
+    }
+    // Rebuild galaxy panel if it is currently visible
+    const galaxyTab = document.getElementById('galaxy');
+    if (galaxyTab && galaxyTab.style.display !== 'none' && typeof buildGalaxyPanel === 'function') {
+      buildGalaxyPanel();
+    }
     showNotif("Character loaded", "good");
   } catch (error) {
     showNotif("Saved character is invalid", "warn");

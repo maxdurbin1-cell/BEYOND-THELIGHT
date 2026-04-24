@@ -414,6 +414,7 @@ function ensureStarsState() {
   if (!S.starSystem.activeDeadMoon) S.starSystem.activeDeadMoon = null;
   if (!S.starSystem.activeDeadMoonMap) S.starSystem.activeDeadMoonMap = null;
   if (!S.starSystem.activeDerelict) S.starSystem.activeDerelict = null;
+  if (!S.starSystem.activeSpaceEncounter) S.starSystem.activeSpaceEncounter = null;
   if (!S.starSystem.currentWeather || typeof S.starSystem.currentWeather !== 'object') S.starSystem.currentWeather = null;
   if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
   if (typeof S.starSystem.empoweredChecks !== 'number') S.starSystem.empoweredChecks = 0;
@@ -865,54 +866,120 @@ const STAR_SPACE_ENCOUNTERS = [
   {
     title: 'Weeping Willow',
     text: 'A colossal weeping willow grows in a Star Hub greenhouse. Terraforming Seeds could restore a nearby desert world.',
-    options: ['Finish mission: deliver seeds to a desert planet (+1 Political Group).'],
+    options: [
+      { id: 'deliver-seeds', label: 'Deliver Seeds', type: 'check', stat: 'lead', dd: 8, success: { renown: 'political', task: true, loot: ['Data Crystals worth 50 credits'] }, failure: { text: 'Seeds degrade in transit. Lose 1 Phase and +1 Mental Stress.' } },
+    ],
   },
   {
     title: 'Unusual Radar Signal',
     text: 'A stationary Transporter has become an improvised corporate explosive foundry.',
-    options: ['Support mission: gain random Ranged Weapon (+1 Corporation).', 'Infiltrate: Control vs DD4 or fight 4 Corpos DD4|8 HP.'],
+    options: [
+      { id: 'support-foundry', label: 'Support Mission', type: 'check', stat: 'control', dd: 6, success: { renown: 'corporations', lootFromMerchant: true }, failure: { text: 'The foundry rejects your protocol package. +1 Stress.' } },
+      { id: 'infiltrate-foundry', label: 'Infiltrate', type: 'check-or-combat', stat: 'control', dd: 4, success: { lootFromMerchant: true }, failure: { combat: 'Fight 4 Corpos DD4|8 HP.' } },
+    ],
   },
   {
     title: 'Derelict Space Station',
     text: 'A drifting station contains ancient data drives.',
-    options: ['Recover data: Control between 2xDread(d6) -> gain random Master Hack (+1 Pirates).'],
+    options: [
+      { id: 'recover-data', label: 'Recover Data', type: 'check', stat: 'control', dd: 8, success: { renown: 'underworld', loot: ['Hack Data Drive'] }, failure: { text: 'Encrypted traps trigger. +50 Radiation.' } },
+    ],
   },
   {
     title: 'Ghost Ship',
     text: 'A crewless vessel holds an advanced toolkit and destination marker.',
-    options: ['Retrieve toolkit (+1 Rebel Faction).', 'Follow message: gain Ice Planet hook/mystery intel.'],
+    options: [
+      { id: 'retrieve-toolkit', label: 'Retrieve Toolkit', type: 'check', stat: 'mind', dd: 6, success: { renown: 'military', loot: ['Toolkit'] }, failure: { text: 'Phantom discharge jolts the crew. +1 Mental Stress.' } },
+      { id: 'follow-message', label: 'Follow Message', type: 'check', stat: 'lead', dd: 8, success: { task: true, revealHex: true }, failure: { text: 'Trail goes cold. Lose 1 Phase.' } },
+    ],
   },
   {
     title: 'Stranded Scientist',
     text: 'A scientist on a remote asteroid asks help finishing experiments.',
-    options: ['Assist: gain random Augmentation (+1 Religious Group).', 'Secure data: fight Experiment DD8|16 HP, gain random Cosmic Essential.'],
+    options: [
+      { id: 'assist-scientist', label: 'Assist Scientist', type: 'check', stat: 'mind', dd: 8, success: { renown: 'religious', loot: ['Operating System'] }, failure: { text: 'Experiment backlash causes +1 Health damage.' } },
+      { id: 'secure-data', label: 'Secure Data', type: 'check-or-combat', stat: 'control', dd: 8, success: { loot: ['Cosmic Essential'] }, failure: { combat: 'Fight Experiment DD8|16 HP.' } },
+    ],
   },
   {
     title: 'Space Anomaly',
     text: 'An alien artifact emits unknown energy and warps nearby instruments.',
-    options: ['Study: Mind vs DD8, gain special Exocraft (+1 Religious Group).', 'Retrieve: fight Alien Guardian DD10|20 HP, gain random Trade Good.'],
+    options: [
+      { id: 'study-anomaly', label: 'Study', type: 'check', stat: 'mind', dd: 8, success: { renown: 'religious', loot: ['Exocraft'] }, failure: { text: 'Feedback wave: +2 Mental Stress.' } },
+      { id: 'retrieve-anomaly', label: 'Retrieve Core', type: 'check-or-combat', stat: 'body', dd: 10, success: { lootFromMerchant: true }, failure: { combat: 'Fight Alien Guardian DD10|20 HP.' } },
+    ],
   },
   {
     title: 'Pirate Ambush',
     text: 'Pirates demand tribute in open space.',
-    options: ['Pay 200 credits to avoid conflict.', 'Fight Pirate Leader DD10|20 HP, gain random Melee Weapon (+1 Political Group).'],
+    options: [
+      { id: 'pay-pirates', label: 'Pay Tribute', type: 'cost', credits: 200, success: { text: 'You avoid conflict.' } },
+      { id: 'fight-pirates', label: 'Defy Pirates', type: 'check-or-combat', stat: 'lead', dd: 10, success: { renown: 'political', lootFromMerchant: true }, failure: { combat: 'Fight Pirate Leader DD10|20 HP.' } },
+    ],
   },
   {
     title: 'Cosmic Distress Beacon',
     text: 'A crashed merchant vessel near a Dead Moon has survivors and scattered cargo.',
-    options: ['Aid survivors to nearest Space Hub (+1 Rebel Faction, random Armor).'],
+    options: [
+      { id: 'aid-survivors', label: 'Aid Survivors', type: 'check', stat: 'lead', dd: 6, success: { renown: 'military', lootFromMerchant: true, task: true }, failure: { text: 'Evacuation is delayed. Lose 1 Phase.' } },
+    ],
   },
   {
     title: 'Ancient Ruins',
     text: 'A barren planet reveals a temple full of traps and relics.',
-    options: ['Explore: Lead vs DD10, gain random Scroll (+1 Religious Group).', 'Avoid traps: fight Guardians DD8|16 HP, gain 300 credits (+1 Pirates).'],
+    options: [
+      { id: 'explore-ruins', label: 'Explore', type: 'check', stat: 'lead', dd: 10, success: { renown: 'religious', loot: ['Spell Scrolls'] }, failure: { text: 'Trap darts hit. +1 Health damage.' } },
+      { id: 'avoid-traps-ruins', label: 'Avoid Traps', type: 'check-or-combat', stat: 'control', dd: 8, success: { renown: 'underworld', credits: 300 }, failure: { combat: 'Fight Guardians DD8|16 HP.' } },
+    ],
   },
   {
     title: 'Black Market',
     text: 'A hidden asteroid market trades mods, intel, and contraband.',
-    options: ['Trade: spend 100 credits, gain random Vehicle Mod (+1 Pirates).', 'Gather intel: Lead vs DD6 or fight 12 Pirates DD4|8 HP (+2 Corporation).'],
+    options: [
+      { id: 'trade-black-market', label: 'Trade', type: 'cost', credits: 100, success: { renown: 'underworld', loot: ['Vehicle Mod'] } },
+      { id: 'intel-black-market', label: 'Gather Intel', type: 'check-or-combat', stat: 'lead', dd: 6, success: { renown: 'corporations', revealHex: true, task: true }, failure: { combat: 'Fight 12 Pirates DD4|8 HP.' } },
+    ],
   },
 ];
+
+function applyEncounterRewards(reward) {
+  if (!reward) return '';
+  const notes = [];
+  if (reward.renown) {
+    changeFactionRenown(reward.renown, 1);
+    notes.push('+1 faction renown');
+  }
+  if (reward.task && typeof generateMissions === 'function') {
+    generateMissions();
+    notes.push('Task generated');
+  }
+  if (reward.revealHex) {
+    const hidden = (S.starSystem.hexes || []).find(h => h.hiddenOutcome && !h.scanned);
+    if (hidden) {
+      hidden.scanned = true;
+      hidden.explored = true;
+      hidden.type = convertOutcomeToHexType(hidden.hiddenOutcome);
+      hidden.detail = `${hidden.hiddenOutcome} signature revealed by encounter intel.`;
+      notes.push(`Hex ${hidden.id} revealed`);
+    }
+  }
+  if (reward.credits && typeof changeCredits === 'function') {
+    changeCredits(reward.credits);
+    notes.push(`+${reward.credits} credits`);
+  }
+  if (reward.creditsLoss && typeof changeCredits === 'function') {
+    changeCredits(-reward.creditsLoss);
+    notes.push(`-${reward.creditsLoss} credits`);
+  }
+  const lootDrops = [];
+  if (Array.isArray(reward.loot)) lootDrops.push(...reward.loot);
+  if (reward.lootFromMerchant) lootDrops.push(rollGalaxyMerchantLoot());
+  lootDrops.forEach((item) => {
+    if (item) takeGalaxyLoot(item, 'pack');
+  });
+  if (lootDrops.length) notes.push(`Loot: ${lootDrops.join(', ')}`);
+  return notes.join(' · ');
+}
 
 const STAR_LOCATION_BY_RING = {
   inner: [
@@ -1279,6 +1346,11 @@ function createFacilityChallengeState(sizeModules) {
     targetLabel: targetLabelByRoll[rollResult] || 'Objective target',
     targetFound: false,
     resolved: false,
+    debtCredits: (roll(6) + roll(6)) * 10,
+    missingPeople: roll(6),
+    resourceCredits: 0,
+    modulesChecked: 0,
+    itemFound: false,
   };
 }
 
@@ -1307,7 +1379,36 @@ function createFacilityRoomEntry(challenge, roomId) {
     };
     room.specialText = specialByRoll[challenge.roll] || '';
   }
+  if (challenge.roll === 2 || challenge.roll === 6) {
+    room.perModuleChance = '1-in-6';
+  }
   return room;
+}
+
+function resolveFacilityChallengeBranch(facility, module) {
+  if (!facility || !facility.challenge || !module) return '';
+  const c = facility.challenge;
+  c.modulesChecked = (c.modulesChecked || 0) + 1;
+  if (c.roll === 2) {
+    const found = roll(6) === 1;
+    if (found) c.targetFound = true;
+    return found ? `Branch Check: Missing Person found in this module (1-in-6). Remaining missing count estimate: ${Math.max(0, c.missingPeople - 1)}.` : 'Branch Check: No missing person in this module (1-in-6 failed).';
+  }
+  if (c.roll === 4) {
+    const credits = (roll(6) + roll(6)) * 10;
+    c.resourceCredits = (c.resourceCredits || 0) + credits;
+    return `Branch Check: Resource cache recovered (${credits} credits). Running total: ${c.resourceCredits}.`;
+  }
+  if (c.roll === 6) {
+    const foundItem = roll(6) === 1;
+    if (foundItem) {
+      c.targetFound = true;
+      c.itemFound = true;
+      return 'Branch Check: Missing item located in this module (1-in-6).';
+    }
+    return 'Branch Check: Missing item not present in this module (1-in-6 failed).';
+  }
+  return module.specialTarget ? 'Branch Check: Objective target located in this module.' : '';
 }
 
 function createFacilityState() {
@@ -1355,6 +1456,7 @@ function renderFacilityPanel() {
       The site is a <strong>${f.sizeLabel}</strong> <strong>${f.purpose}</strong> facility.<br>
       The site is near ${f.description}, a <strong>${f.structure}</strong> structure made out of <strong>${f.material}</strong>. Its layout is organic, sprawling, and maze-like. ${f.quirk}<br>
       Challenge: ${f.challenge.text}<br>
+      Branch State: ${f.challenge.roll === 1 ? `Debt due ${f.challenge.debtCredits} credits.` : f.challenge.roll === 2 ? `Missing Person checks made: ${f.challenge.modulesChecked}.` : f.challenge.roll === 4 ? `Resources secured: ${f.challenge.resourceCredits} credits.` : f.challenge.roll === 6 ? `Missing Item checks made: ${f.challenge.modulesChecked}.` : 'Objective hunt in progress.'}<br>
       Module Table: ${FACILITY_SIZE_LABELS[f.sizeModules]} facility = ${f.sizeModules} rooms. One room contains <strong>${f.challenge.targetLabel}</strong>.<br>
       After the Docking Station, you arrive at a <strong>${f.location}</strong>. Here you see d6 ${pick(FACILITY_DISPOSITIONS)} ${pick(FACILITY_WORKERS)} ${pick(FACILITY_ACTIONS)} ${pick(FACILITY_SUBJECTS)} DD4 | 4 Health. Their leader is ${f.leader.name}, who has ${f.leader.feature}. If confronted, can offer a ${f.leader.job}.
     </div>
@@ -1367,6 +1469,7 @@ function renderFacilityPanel() {
         <strong style="color:${module.completed ? 'var(--green2)' : 'var(--gold2)'};">Module ${module.id}: ${module.module}</strong><br>
         Connector: ${module.connector}<br>
         Encounter: ${module.result}<br>
+        ${module.branchResult ? `Branch: ${module.branchResult}<br>` : ''}
         ${module.specialText ? `Objective: ${module.specialText}<br>` : ''}
         Loot: ${module.loot}
         ${buildLootActions(module.loot)}
@@ -1475,6 +1578,7 @@ function rollFacilityModule() {
   f.modulesCompleted += 1;
   nextRoom.revealed = true;
   nextRoom.result = `You go through ${nextRoom.connector} and enter the ${nextRoom.module}. ${nextRoom.result}`;
+  nextRoom.branchResult = resolveFacilityChallengeBranch(f, nextRoom);
   if (nextRoom.specialTarget) f.challenge.targetFound = true;
   renderFacilityPanel();
 }
@@ -1492,6 +1596,14 @@ function resolveFacilityObjective() {
     if (out) out.innerHTML = '<span style="color:var(--gold2);">The objective target has not been found yet. Explore more modules.</span>';
     return;
   }
+
+  if (f.challenge.roll === 1) {
+    if (typeof changeCredits === 'function') changeCredits(-f.challenge.debtCredits);
+  }
+  if (f.challenge.roll === 4 && f.challenge.resourceCredits > 0) {
+    if (typeof changeCredits === 'function') changeCredits(f.challenge.resourceCredits);
+  }
+
   f.objectiveCompleted = true;
   f.challenge.resolved = true;
   if (typeof changeCounter === 'function') changeCounter('renown', 1);
@@ -1824,6 +1936,59 @@ function resolveMysteryContactOption(optionId) {
   }
 }
 
+function resolveSpaceEncounterOption(optionId) {
+  ensureStarsState();
+  const encounter = S.starSystem.activeSpaceEncounter;
+  if (!encounter || !Array.isArray(encounter.options)) return;
+  const option = encounter.options.find(o => o.id === optionId);
+  if (!option || option.resolved) return;
+  const out = document.getElementById('starExplorationDetail');
+
+  if (option.type === 'cost') {
+    const cost = option.credits || 0;
+    if (cost > 0 && typeof changeCredits === 'function') changeCredits(-cost);
+    option.resolved = true;
+    const rewardText = applyEncounterRewards(option.success);
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
+    return;
+  }
+
+  const check = resolveGalaxySkillCheck(option.stat || 'lead', option.stat === 'lead' ? 'mind' : 'lead', option.dd || 6, option.label);
+  if (check.success) {
+    option.resolved = true;
+    const rewardText = applyEncounterRewards(option.success);
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}</div>`;
+    renderStarSystemMap();
+    return;
+  }
+
+  if (option.failure && option.failure.text) {
+    if (option.failure.text.indexOf('Mental Stress') >= 0 && typeof changeMentalStress === 'function') changeMentalStress(1);
+    if (option.failure.text.indexOf('Health') >= 0 && typeof changeStress === 'function') changeStress(1);
+    if (option.failure.text.indexOf('Radiation') >= 0 && typeof changeRads === 'function') changeRads(50);
+    if (option.failure.text.indexOf('Phase') >= 0) loseGamePhases(1);
+  }
+
+  if (out) {
+    out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div>
+      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${(option.failure && option.failure.combat) ? option.failure.combat + ' Resolve on Combat/Ship pages.' : (option.failure && option.failure.text) ? option.failure.text : 'The window closes.'}</div>`;
+  }
+}
+
+function renderSpaceEncounterPanel() {
+  const encounter = S.starSystem.activeSpaceEncounter;
+  const out = document.getElementById('starExplorationDetail');
+  if (!encounter || !out) return;
+  out.innerHTML = `
+    <div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.15rem;">${encounter.text}</div>
+    <div style="display:grid;gap:.25rem;margin-top:.35rem;">${encounter.options.map(opt => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      <strong style="color:var(--text);">${opt.label}</strong><br>
+      <span style="font-size:.72rem;color:var(--muted2);">${opt.type === 'cost' ? `Pay ${opt.credits || 0} credits.` : `Check ${String(opt.stat || 'lead').toUpperCase()} vs DD${opt.dd || 6}.`} ${opt.failure && opt.failure.combat ? 'Failure may trigger combat.' : ''}</span><br>
+      <button class="btn btn-xs ${opt.resolved ? '' : 'btn-teal'}" style="margin-top:.2rem;" onclick="resolveSpaceEncounterOption('${opt.id}')">${opt.resolved ? 'Resolved' : 'Resolve Option'}</button>
+    </div>`).join('')}</div>`;
+}
+
 function renderMysteryPanel() {
   const mystery = S.starSystem.activeMystery;
   const out = document.getElementById('starExplorationDetail');
@@ -1949,6 +2114,80 @@ function buildDeadMoonSiteOptions() {
   ];
 }
 
+function createDeadMoonRoomChain() {
+  const roomCount = 3 + roll(3);
+  const rooms = [];
+  let keyRoom = roll(roomCount);
+  let lockRoom = roll(roomCount);
+  if (lockRoom === keyRoom) lockRoom = lockRoom === roomCount ? lockRoom - 1 : lockRoom + 1;
+  for (let i = 1; i <= roomCount; i++) {
+    rooms.push({
+      id: i,
+      name: pick(['Collapsed Hall', 'Signal Vault', 'Observation Pit', 'Engine Niche', 'Broken Shrine', 'Cryo Gallery']),
+      hazard: roll(4) === 1,
+      locked: i === lockRoom,
+      hasKey: i === keyRoom,
+      explored: false,
+      note: 'Unexplored room.',
+    });
+  }
+  return { rooms, cursor: 1, keyFound: false, lockOpened: false };
+}
+
+function deadMoonAdvanceRoomChain(cell) {
+  if (!cell || !cell.roomChain || !Array.isArray(cell.roomChain.rooms)) return;
+  const chain = cell.roomChain;
+  const room = chain.rooms.find(r => r.id === chain.cursor);
+  if (!room) return;
+  if (room.locked && !chain.keyFound && !chain.lockOpened) {
+    room.note = 'Locked bulkhead blocks progress. Find the key first.';
+    return;
+  }
+  room.explored = true;
+  if (room.hazard) {
+    room.note = 'Hazard triggered. Clear it with Control vs DD8 or take +1 Health damage.';
+  } else {
+    room.note = 'Room cleared.';
+  }
+  if (room.hasKey) {
+    chain.keyFound = true;
+    room.note += ' Keycard recovered.';
+  }
+  if (room.locked && chain.keyFound) {
+    chain.lockOpened = true;
+    room.note += ' Lock opened with recovered keycard.';
+  }
+  if (chain.cursor < chain.rooms.length) chain.cursor += 1;
+}
+
+function deadMoonAdvanceCurrentRoom() {
+  const map = S.starSystem.activeDeadMoonMap;
+  if (!map) return;
+  const cell = (map.cells || []).find(c => c.id === map.currentId);
+  if (!cell) return;
+  deadMoonAdvanceRoomChain(cell);
+  renderDeadMoonMapPanel();
+}
+
+function resolveDeadMoonHazard() {
+  ensureStarsState();
+  const map = S.starSystem.activeDeadMoonMap;
+  if (!map) return;
+  const cell = map.cells.find(c => c.id === map.currentId);
+  if (!cell || !cell.roomChain) return;
+  const room = cell.roomChain.rooms.find(r => r.id === Math.max(1, cell.roomChain.cursor - 1));
+  if (!room || !room.hazard) return;
+  const check = resolveGalaxySkillCheck('control', 'mind', 8, 'Hazard Clearance');
+  if (check.success) {
+    room.hazard = false;
+    room.note = `${check.text}. Hazard cleared.`;
+  } else {
+    if (typeof changeStress === 'function') changeStress(1);
+    room.note = `${check.text}. Failure: +1 Health damage.`;
+  }
+  renderDeadMoonMapPanel();
+}
+
 function resolveDeadMoonSiteOption(optionId) {
   ensureStarsState();
   const map = S.starSystem.activeDeadMoonMap;
@@ -1967,6 +2206,7 @@ function resolveDeadMoonSiteOption(optionId) {
       takeGalaxyLoot(loot, 'pack');
     }
     option.resolved = true;
+    deadMoonAdvanceRoomChain(cell);
     cell.note = `${check.text}. ${option.successText}`;
   } else {
     cell.note = `${check.text}. ${option.failText}`;
@@ -2001,6 +2241,7 @@ function exploreDeadMoonMapCell() {
     const loot = rollGalaxyMerchantLoot(DEAD_MOON_LOOT);
     cell.loot = loot;
     cell.siteOptions = buildDeadMoonSiteOptions();
+    if (!cell.roomChain) cell.roomChain = createDeadMoonRoomChain();
     cell.note = `Site of Interest: ${dm.site}. Room/Event: ${room}. Encounter: ${pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction])}. Loot: ${loot}`;
   } else if (cell.marker === 'loot') {
     const loot = rollGalaxyMerchantLoot(DEAD_MOON_LOOT);
@@ -2044,6 +2285,14 @@ function renderDeadMoonMapPanel() {
     </div>`;
   if (current && Array.isArray(current.siteOptions) && current.siteOptions.length) {
     out.innerHTML += `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">${current.siteOptions.map(opt => `<button class="btn btn-xs ${opt.resolved ? '' : 'btn-teal'}" onclick="resolveDeadMoonSiteOption('${opt.id}')">${opt.label}</button>`).join('')}</div>`;
+  }
+  if (current && current.roomChain && Array.isArray(current.roomChain.rooms)) {
+    const chain = current.roomChain;
+    out.innerHTML += `<div style="margin-top:.35rem;padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      <div style="font-size:.72rem;color:var(--gold2);">Site Chain: Room ${chain.cursor}/${chain.rooms.length} · Key ${chain.keyFound ? 'Found' : 'Missing'} · Lock ${chain.lockOpened ? 'Opened' : 'Sealed'}</div>
+      <div style="display:grid;gap:.2rem;margin-top:.25rem;">${chain.rooms.map(r => `<div style="font-size:.7rem;color:${r.explored ? 'var(--muted2)' : 'var(--text2)'};">${r.id}. ${r.name}${r.locked ? ' [Lock]' : ''}${r.hasKey ? ' [Key]' : ''}${r.hazard ? ' [Hazard]' : ''} — ${r.note}</div>`).join('')}</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;"><button class="btn btn-xs" onclick="deadMoonAdvanceCurrentRoom()">Advance Room</button><button class="btn btn-xs" onclick="resolveDeadMoonHazard()">Clear Hazard</button></div>
+    </div>`;
   }
 }
 
@@ -2182,11 +2431,11 @@ function buildStarExplorationDetail(ring, outcome) {
     return `Galactic Facility ${f.code} identified. Docking and module exploration available.`;
   }
   if (outcome === 'Space Encounter') {
-    const e = STAR_SPACE_ENCOUNTERS[roll(10) - 1];
-    return `
-      <div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${e.title}</div>
-      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-top:.15rem;">${e.text}</div>
-      <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">${e.options.map(o => '• ' + o).join('<br>')}</div>`;
+    const e = JSON.parse(JSON.stringify(STAR_SPACE_ENCOUNTERS[roll(10) - 1]));
+    e.options = (e.options || []).map(opt => Object.assign({ resolved: false }, opt));
+    S.starSystem.activeSpaceEncounter = e;
+    setTimeout(renderSpaceEncounterPanel, 0);
+    return 'Space encounter lock acquired. Choose an option below to resolve checks, combat cues, and rewards.';
   }
   if (outcome === 'Locations') {
     const current = getCurrentStarHex();

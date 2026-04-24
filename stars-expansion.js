@@ -831,7 +831,9 @@ function renderGalaxyTaskPanel(taskId) {
   if (task.source === 'Mission Board' && task.missionId && task.interaction === 'mission-step') {
     const stepBtn = task.missionStep === 'informer'
       ? `<button class="btn btn-xs btn-teal" onclick="if(typeof startMissionStep1==='function'){startMissionStep1(${task.missionId});}">Run Step 1: Info</button>`
-      : `<button class="btn btn-xs btn-teal" onclick="if(typeof startMissionStep2==='function'){startMissionStep2(${task.missionId});}">Run Step 2: Site</button>`;
+      : (task.missionStep === 'confront'
+        ? `<button class="btn btn-xs btn-primary" onclick="if(typeof startMissionStep3==='function'){startMissionStep3(${task.missionId});}">Run Step 3: Confrontation</button>`
+        : `<button class="btn btn-xs btn-teal" onclick="if(typeof startMissionStep2==='function'){startMissionStep2(${task.missionId});}">Run Step 2: Site</button>`);
     out.innerHTML = `
       <div style="font-size:.92rem;color:var(--gold2);margin-bottom:.25rem;">Mission Marker: ${task.title}</div>
       <div style="font-size:.86rem;color:var(--muted2);line-height:1.6;">
@@ -2758,6 +2760,8 @@ function resolveSpaceEncounterOption(optionId) {
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    const detailEl = document.getElementById('starExplorationDetail');
+    if (detailEl) detailEl.innerHTML += `<div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="clearActiveGalaxyPanels();updateStarSystemReadouts();">Close Encounter</button></div>`;
     showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }

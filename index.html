@@ -2157,43 +2157,15 @@ function buyItem(cost, name, cat) {
   var purchaseApplied = false;
 
   if (weaponCats.indexOf(category) >= 0) {
-    if (!S.equipment.weapon1) {
-      S.equipment.weapon1 = slotText;
-      setInputValue('eqWeapon1', slotText);
-      if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
-      purchaseApplied = true;
-    } else if (!S.equipment.weapon2) {
-      S.equipment.weapon2 = slotText;
-      setInputValue('eqWeapon2', slotText);
-      purchaseApplied = true;
-    } else {
-      purchaseApplied = storePurchasedItem(slotText);
-    }
+    // Merchant purchases go to backpack first; player chooses when to equip/swap.
+    purchaseApplied = storePurchasedItem(slotText);
     updateAllStatDisplays();
   } else if (armorCats.indexOf(category) >= 0) {
     purchaseApplied = storePurchasedItem(slotText);
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   } else if (category === 'space_armor') {
-    var lower = String(name || '').toLowerCase();
-    S.gearLayers = S.gearLayers || { exoskeleton:null, thermal:null, coolant:null, vaccsuit:null, radsuit:null };
-    if (lower.indexOf('exoskeleton') >= 0) {
-      S.gearLayers.exoskeleton = slotText;
-      purchaseApplied = true;
-    } else if (lower.indexOf('thermal') >= 0) {
-      S.gearLayers.thermal = slotText;
-      purchaseApplied = true;
-    } else if (lower.indexOf('coolant') >= 0) {
-      S.gearLayers.coolant = slotText;
-      purchaseApplied = true;
-    } else if (lower.indexOf('vaccsuit') >= 0 || lower.indexOf('radsuit') >= 0) {
-      S.equipment.armor = slotText;
-      setInputValue('eqArmor', slotText);
-      if (lower.indexOf('vaccsuit') >= 0) S.gearLayers.vaccsuit = slotText;
-      if (lower.indexOf('radsuit') >= 0) S.gearLayers.radsuit = slotText;
-      purchaseApplied = true;
-    } else {
-      purchaseApplied = storePurchasedItem(slotText);
-    }
+    // Space armor layers/suits should not overwrite armor slot at purchase time.
+    purchaseApplied = storePurchasedItem(slotText);
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   } else if (category === 'starship_fuel') {
     var fuelName = String(name || '').toLowerCase();

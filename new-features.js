@@ -2468,13 +2468,10 @@
 
     if (_baseBuyItem) {
       var beforeCredits = Number(S.credits || 0);
-      var beforeNotif = (document.getElementById('notif') || {}).textContent || '';
       _baseBuyItem(cost, name, cat);
-      // Fallback: if credits changed but no buy notice was shown, force a clear confirmation.
+      // Always show a clear purchase confirmation when credits changed.
       var afterCredits = Number(S.credits || 0);
-      var notifEl = document.getElementById('notif');
-      var afterNotif = notifEl ? (notifEl.textContent || '') : '';
-      if (afterCredits < beforeCredits && (!afterNotif || afterNotif === beforeNotif)) {
+      if (afterCredits < beforeCredits) {
         showNotif('Bought: ' + name + ' (−' + (beforeCredits - afterCredits) + '₵)', 'good');
       }
       return;

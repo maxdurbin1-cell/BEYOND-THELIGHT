@@ -649,6 +649,21 @@
   function completeMissionSiteStep(missionId) {
     var mission=getMission(missionId); if (!mission) return;
     mission.steps[2].completed=true;
+    if (mission.region === 'galaxy' && mission.galaxyTaskId && S.starSystem && Array.isArray(S.starSystem.taskMarkers)) {
+      var gTask = S.starSystem.taskMarkers.find(function(t){ return t.id === mission.galaxyTaskId; });
+      if (gTask) {
+        gTask.missionStep = 'confront';
+        gTask.interaction = 'mission-step';
+        gTask.title = mission.title + ' (Confrontation)';
+        gTask.text = 'Return to this marker to run Step 3 and resolve the mission confrontation.';
+      }
+      var gHex = (S.starSystem.hexes || []).find(function(h){ return h && h.taskMarker && h.taskMarker.id === mission.galaxyTaskId; });
+      if (gHex && gHex.taskMarker) {
+        gHex.taskMarker.title = mission.title + ' (Confrontation)';
+      }
+      if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+      if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+    }
     renderMissionTracker();
   }
 

@@ -387,6 +387,7 @@ function ensureStarsState() {
     activeDeadMoonMap: null,
     activeDerelict: null,
     activeTask: null,
+    royalShipLog: [],
   };
   S.spaceNaval = S.spaceNaval || null;
   S.seaNaval = S.seaNaval || null;
@@ -423,6 +424,7 @@ function ensureStarsState() {
   if (!S.starSystem.activeDerelict) S.starSystem.activeDerelict = null;
   if (!S.starSystem.activeSpaceEncounter) S.starSystem.activeSpaceEncounter = null;
   if (!S.starSystem.activeTask) S.starSystem.activeTask = null;
+  if (!Array.isArray(S.starSystem.royalShipLog)) S.starSystem.royalShipLog = [];
   if (!S.starSystem.currentWeather || typeof S.starSystem.currentWeather !== 'object') S.starSystem.currentWeather = null;
   if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
   if (!Array.isArray(S.starSystem.taskMarkers)) S.starSystem.taskMarkers = [];
@@ -2226,7 +2228,7 @@ function createMysteryState(ring) {
     })),
     trade: Array.from({ length: 3 }, () => rollGalaxyMerchantLoot(MYSTERY_TRADE)),
     offers: buildGalaxyMerchantOffers(archetype.kind),
-    discountRate: 0,
+    discountRate: isHexOnTradeRoute(S.starSystem.currentHexId) ? 0.1 : 0,
     options: createMysteryContactOptions(archetype.kind),
     missionHook: pick(['escort their convoy to a Space Hub', 'hunt a pirate that has been shadowing them', 'recover a relic from a derelict they mapped', 'deliver spare parts through a blockade']),
   };
@@ -2263,7 +2265,10 @@ function resolveMysteryContactOption(optionId) {
     const fee = (roll(6) + roll(6)) * 10;
     if (typeof changeCredits === 'function') changeCredits(-fee);
     option.resolved = true;
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You pay ${fee} credits and continue safely.</div>`;
+    if (mystery.archetype === 'Royal Ship') {
+      pushRoyalShipLogEntry('pay', `Paid ${fee} credits tariff. Passed peacefully.`);
+    }
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You pay ${fee} credits and continue safely. <button class="btn btn-xs" style="margin-left:.4rem;" onclick="renderRoyalShipLog()">View Log</button></div>`;
     return;
   }
   if (option.payout === 'banditPay') {
@@ -2309,14 +2314,20 @@ function resolveMysteryContactOption(optionId) {
       renderStarSystemMap();
     } else {
       const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
-      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}</div>`;
+      if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
+        pushRoyalShipLogEntry('charter', `${check.text}. Royal task issued.${task ? ` Marker at Hex ${task.hexId}.` : ''}`);
+      }
+      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''} <button class="btn btn-xs" style="margin-left:.4rem;" onclick="renderRoyalShipLog()">View Log</button></div>`;
     }
     option.resolved = true;
     return;
   }
 
   if (out) {
-    out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${option.steal ? 'Hostiles respond; go to Combat/Ship pages to resolve.' : 'Negotiation collapses this phase.'}</div>`;
+    if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
+      pushRoyalShipLogEntry('charter-fail', `${check.text}. Charter request refused.`);
+    }
+    out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${option.steal ? 'Hostiles respond; go to Combat/Ship pages to resolve.' : 'Negotiation collapses this phase.'} <button class="btn btn-xs" style="margin-left:.4rem;" onclick="renderRoyalShipLog()">View Log</button></div>`;
   }
 }
 
@@ -3052,11 +3063,14 @@ function renderStarSystemMap() {
     const opacity = hex.explored ? 0.9 : 0.55;
     const label = getStarHexGlyph(hex);
     const markerGlyph = hasTaskMarker ? '✦' : hex.type === 'radio_task' && !hex.radioTaskResolved ? '✉' : '';
+    const onTradeRoute = (S.starSystem.tradeRoutes || []).some(([aId, bId]) => aId === hex.id || bId === hex.id);
+    const routeBadge = onTradeRoute ? `<circle cx="${x - 13}" cy="${y - 10}" r="4" fill="rgba(214,176,70,.55)" stroke="#d6b046" stroke-width="1"/>` : '';
     return `
       <g onclick="selectStarSystemHex(${hex.id})" style="cursor:pointer;">
         <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hasTaskMarker ? 3 : hex.id === S.starSystem.currentHexId ? 2 : 1}" />
         <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="#0f111a">${label}</text>
-        ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${hasTaskMarker ? '#f2d75a' : '#9de7ff'}">${markerGlyph}</text>` : ''}
+        ${routeBadge}
+        ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${hasTaskMarker ? '#f2d75a' : '#9de7ff'}" onclick="event.stopPropagation(); ${hasTaskMarker ? `openGalaxyTaskFromMap(${hex.id})` : ''}" style="cursor:${hasTaskMarker ? 'zoom-in' : 'pointer'};">${markerGlyph}</text>` : ''}
       </g>`;
   }).join('');
 
@@ -3094,7 +3108,13 @@ function selectStarSystemHex(hexId) {
   S.starSystem.currentHexId = hexId;
   const h = getCurrentStarHex();
   if (prevId != null && prevId !== hexId && h && h.ring !== 'core') {
-    if ((S.starship.fuel.standard || 0) > 0) S.starship.fuel.standard -= 1;
+    const onRoute = isHexOnTradeRoute(hexId);
+    if (onRoute) {
+      // Trade route lane: no fuel cost, apply trade route bonuses
+      applyTradeRouteTravelBonus(hexId);
+    } else {
+      if ((S.starship.fuel.standard || 0) > 0) S.starship.fuel.standard -= 1;
+    }
     registerStarshipTravelDays(DAYS_PER_WEEK);
   }
   if (h && h.ring && h.ring !== 'core') S.starSystem.selectedRing = h.ring;
@@ -3181,9 +3201,15 @@ function runGalaxyEncounterRoll() {
   const hex = getCurrentStarHex();
   if (!hex) return;
   const ring = (hex.ring && hex.ring !== 'core') ? hex.ring : (S.starSystem.selectedRing || 'middle');
-  const outcome = hex.hiddenOutcome || pickRingEncounterOutcome(ring);
+  let outcome = hex.hiddenOutcome || pickRingEncounterOutcome(ring);
+  const tradeBonus = isHexOnTradeRoute(hex.id);
+  // On a trade route, re-roll a non-encounter once to favour Merchant/Contact encounters
+  if (tradeBonus && outcome !== 'Space Encounter' && roll(6) >= 4) {
+    outcome = 'Space Encounter';
+    if (!hex.hiddenOutcome) hex.hiddenOutcome = outcome;
+  }
   const out = document.getElementById('starExplorationResult');
-  if (out) out.innerHTML = `<span style="color:var(--gold2);">Encounter</span> -> ${ring.toUpperCase()} ring: <strong>${outcome}</strong>`;
+  if (out) out.innerHTML = `<span style="color:var(--gold2);">Encounter</span> -> ${ring.toUpperCase()} ring: <strong>${outcome}</strong>${tradeBonus ? ' <span style="color:var(--gold2);font-size:.7rem;">[Trade Route +]</span>' : ''}`;
 
   const detailEl = document.getElementById('starExplorationDetail');
   if (detailEl) {
@@ -4573,6 +4599,7 @@ function getGalaxySystemPanelMarkup() {
         <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
           <button class="btn btn-xs btn-teal" onclick="runSystemAnalysisCheck()">Analyze Hex (DD8)</button>
           <button class="btn btn-xs" onclick="runFurtherSystemAnalysis()">Further Analysis (+1 Day)</button>
+          <button class="btn btn-xs" onclick="renderRoyalShipLog()" title="View Royal Ship contact history">⚓ Royal Log</button>
         </div>
         <div id="starAnalysisResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;margin-top:.2rem;"></div>
       </div>
@@ -4666,6 +4693,94 @@ function buildStarshipPanel() {
   if (mainStarEl) mainStarEl.textContent = S.starSystem && S.starSystem.mainStar ? S.starSystem.mainStar : 'Uncharted';
   renderStarSystemMap();
   updateStarSystemReadouts();
+}
+
+// ── Galaxy Task Map Click ─────────────────────────────────────────────────────
+function openGalaxyTaskFromMap(hexId) {
+  ensureStarsState();
+  // Navigate to that hex if not already there
+  if (S.starSystem.currentHexId !== hexId) {
+    S.starSystem.currentHexId = hexId;
+    renderStarSystemMap();
+    updateStarSystemReadouts();
+  }
+  const hex = S.starSystem.hexes.find(h => h.id === hexId);
+  if (!hex || !hex.taskMarker || hex.taskMarker.resolved) return;
+  renderGalaxyTaskPanel(hex.taskMarker.id);
+}
+
+// ── Royal Ship Log ─────────────────────────────────────────────────────────────
+function pushRoyalShipLogEntry(action, detail) {
+  ensureStarsState();
+  if (!Array.isArray(S.starSystem.royalShipLog)) S.starSystem.royalShipLog = [];
+  const hexId = S.starSystem.currentHexId;
+  S.starSystem.royalShipLog.unshift({ action, detail, hexId, date: getShortGameDate() });
+  if (S.starSystem.royalShipLog.length > 20) S.starSystem.royalShipLog.length = 20;
+}
+
+function getShortGameDate() {
+  if (!S.gameDate) return '?';
+  return `Y${S.gameDate.year} M${S.gameDate.month} D${S.gameDate.day}`;
+}
+
+function renderRoyalShipLog() {
+  ensureStarsState();
+  const out = document.getElementById('starExplorationDetail');
+  if (!out) return;
+  const log = S.starSystem.royalShipLog || [];
+  if (!log.length) {
+    out.innerHTML = '<div style="font-size:.74rem;color:var(--muted2);">No Royal Ship contacts logged yet.</div>';
+    return;
+  }
+  const rows = log.map(e => `<div style="padding:.25rem .3rem;border-bottom:1px solid var(--border);display:grid;grid-template-columns:auto 1fr auto;gap:.35rem;align-items:start;">
+    <span style="font-size:.68rem;color:var(--muted);white-space:nowrap;">${e.date}<br>Hex ${e.hexId ?? '?'}</span>
+    <span style="font-size:.74rem;color:var(--muted2);">${e.detail}</span>
+    <span style="font-size:.74rem;font-weight:bold;color:${e.action === 'charter' ? 'var(--gold2)' : 'var(--red2)'};">${e.action === 'charter' ? 'TASK' : 'TARIFF'}</span>
+  </div>`).join('');
+  out.innerHTML = `
+    <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.3rem;">⚓ Royal Ship Contact Log</div>
+    <div style="max-height:12rem;overflow-y:auto;">${rows}</div>`;
+}
+
+// ── Trade Route Gameplay Effects ───────────────────────────────────────────────
+function isHexOnTradeRoute(hexId) {
+  return (S.starSystem.tradeRoutes || []).some(([aId, bId]) => aId === hexId || bId === hexId);
+}
+
+function applyTradeRouteTravelBonus(hexId) {
+  ensureStarsState();
+  // Discount on merchant offers this hex
+  S.starSystem.tradeRouteDiscount = true;
+  // Small chance of finding a trade route merchant encounter (bonus offer)
+  const bonusRoll = roll(6);
+  let bonusText = '';
+  if (bonusRoll >= 5) {
+    // Bonus: free merchant contact spawns as mystery
+    const offers = buildGalaxyMerchantOffers('merchant');
+    S.starSystem.activeMystery = {
+      archetype: 'Trade Route Merchant',
+      kind: 'merchant',
+      options: [
+        { id: 'buy', label: 'Browse Goods', text: 'Trade route merchant offers discounted goods.', trade: true },
+        { id: 'haggle', label: 'Negotiate', text: 'Lead vs DD6. Gain additional 20% route discount.', check: 'lead', dd: 6, haggle: true },
+      ],
+      offers,
+      discountRate: 0.15,
+    };
+    bonusText = ' Trade route contact spawned — 15% route discount active.';
+  } else {
+    bonusText = ' Route lane passable without fuel cost.';
+  }
+  showNotif(`Trade Route: ${isHexOnTradeRoute(hexId) ? 'Lane active.' : ''}${bonusText}`, 'good');
+}
+
+function getTradeRouteModifiers() {
+  // Returns modifier object for current hex's trade route status
+  ensureStarsState();
+  const onRoute = isHexOnTradeRoute(S.starSystem.currentHexId);
+  const discount = (onRoute && S.starSystem.tradeRouteDiscount) ? 0.15 : 0;
+  const encounterBonus = onRoute ? 1 : 0; // +1 to merchant encounter roll
+  return { onRoute, discount, encounterBonus };
 }
 
 function buildGalaxyPanel() {
@@ -4906,3 +5021,5 @@ window.buildGalaxyPanel = buildGalaxyPanel;
 window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
 window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
 window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;
+window.openGalaxyTaskFromMap = openGalaxyTaskFromMap;
+window.renderRoyalShipLog = renderRoyalShipLog;

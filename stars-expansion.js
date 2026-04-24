@@ -432,6 +432,10 @@ function ensureStarsState() {
   if (!Array.isArray(S.starSystem.taskMarkers)) S.starSystem.taskMarkers = [];
   if (typeof S.starSystem.empoweredChecks !== 'number') S.starSystem.empoweredChecks = 0;
 
+  if ((!S.starSystem.hexes || !S.starSystem.hexes.length) && window._lastGeneratedGalaxy && window._lastGeneratedGalaxy.hexes && window._lastGeneratedGalaxy.hexes.length) {
+    S.starSystem = Object.assign({}, window._lastGeneratedGalaxy);
+  }
+
   if (!S.radiationState) {
     S.radiationState = {
       gainTicks: 0,
@@ -611,13 +615,17 @@ function addItemToSpaceShipCargo(item) {
 
 function takeGalaxyLoot(item, destination) {
   if (!item) return;
-  // Handle both stringified JSON objects and plain strings
+  // Handle object payloads, stringified JSON, and plain text labels.
   let itemName = item;
-  try {
-    const parsed = JSON.parse(item);
-    itemName = parsed.name || item;
-  } catch (e) {
-    // Already a string, use as-is
+  if (typeof item === 'object' && item) {
+    itemName = item.name || item.label || String(item);
+  } else if (typeof item === 'string') {
+    try {
+      const parsed = JSON.parse(item);
+      itemName = (parsed && (parsed.name || parsed.label)) || item;
+    } catch (e) {
+      itemName = item;
+    }
   }
   const ok = destination === 'ship' ? addItemToSpaceShipCargo(itemName) : addItemToBackpack(itemName);
   if (ok) showNotif(`Loot secured: ${itemName}`, 'good');
@@ -629,6 +637,20 @@ function buildLootActions(item) {
     <button class="btn btn-xs btn-teal" onclick="takeGalaxyLoot(${JSON.stringify(item)},'pack')">Take To Backpack</button>
     <button class="btn btn-xs" onclick="takeGalaxyLoot(${JSON.stringify(item)},'ship')">Store In Ship</button>
   </div>`;
+}
+
+function applyGalaxyConditionText(text) {
+  if (!text || typeof setPositiveGalaxyCondition !== 'function') return;
+  const lower = String(text).toLowerCase();
+  if (lower.includes('empowered')) setPositiveGalaxyCondition('empowered');
+  if (lower.includes('focused')) setPositiveGalaxyCondition('focused');
+  if (lower.includes('bolstered')) setPositiveGalaxyCondition('bolstered');
+  if (lower.includes('protected')) setPositiveGalaxyCondition('protected');
+  if (lower.includes('distracted') && S.conditions && ('distracted' in S.conditions)) {
+    S.conditions.distracted = true;
+  }
+  if (typeof updateConditionButtons === 'function') updateConditionButtons();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
 }
 
 function applyGalaxyFailureText(text) {
@@ -652,6 +674,7 @@ function applyGalaxyFailureText(text) {
   if (lower.includes('+50 radiation')) {
     if (typeof changeRads === 'function') changeRads(50);
   }
+  applyGalaxyConditionText(text);
 }
 
 function getMerchantShopEntries(categories) {
@@ -1425,6 +1448,7 @@ function applyEncounterRewards(reward) {
     return task ? `Galaxy task marker placed at Hex ${task.hexId}. Rewards pay out on completion.` : 'No valid hex available for a Galaxy task marker.';
   }
   const notes = [];
+  if (reward.text) notes.push(reward.text);
   if (reward.renown) {
     changeFactionRenown(reward.renown, 1);
     notes.push('+1 faction renown');
@@ -1454,6 +1478,7 @@ function applyEncounterRewards(reward) {
     if (item) takeGalaxyLoot(item, 'pack');
   });
   if (lootDrops.length) notes.push(`Loot: ${lootDrops.join(', ')}`);
+  if (reward.text) applyGalaxyConditionText(reward.text);
   return notes.join(' · ');
 }
 
@@ -2397,6 +2422,9 @@ function renderSpaceHubPanel() {
   const hub = S.starSystem.activeHub;
   const out = document.getElementById('starExplorationDetail');
   if (!hub || !out) return;
+  if (typeof hub._currentModuleView !== 'number') hub._currentModuleView = 0;
+  const moduleIdx = Math.max(0, Math.min(hub.modules.length - 1, hub._currentModuleView || 0));
+  const currentModule = hub.modules[moduleIdx] || null;
   out.innerHTML = `
     <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Space Hub: ${hub.name}</div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
@@ -2411,13 +2439,14 @@ function renderSpaceHubPanel() {
       <button class="btn btn-xs" onclick="var task=createGalaxyTask('Space Hub',{title:'Hub Contract',text:'Carry a Holding-style contract package to the marked hex and report back through Space Hub channels.',reward:{renown:'corporations',globalRenown:1,lootFromMerchant:true}});if(task)showNotif('Galaxy task marker placed at Hex '+task.hexId+'.','good');">Generate Task</button>
     </div>
     <div style="margin-top:.35rem;display:grid;gap:.3rem;">
-      ${hub.modules.length ? hub.modules.map(module => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
-        <strong style="color:${module.completed ? 'var(--green2)' : 'var(--gold2)'};">Module ${module.id}: ${module.name}</strong><br>
-        ${module.event}<br>
-        Loot: ${module.loot}
-        ${buildLootActions(module.loot)}
-        <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeSpaceHubModule(${module.id})">${module.completed ? 'Completed' : 'Mark Completed'}</button></div>
-      </div>`).join('') : '<div style="font-size:.73rem;color:var(--muted2);">No modules explored yet.</div>'}
+      ${hub.modules.length ? `<div style="display:flex;gap:.15rem;flex-wrap:wrap;">${hub.modules.map((module, idx) => `<button class="btn btn-xs ${idx === moduleIdx ? 'btn-teal' : ''}" style="padding:.15rem .3rem;font-size:.65rem;" onclick="S.starSystem.activeHub._currentModuleView=${idx};renderSpaceHubPanel();">M${module.id}${module.completed ? '✓' : ''}</button>`).join('')}</div>
+      ${currentModule ? `<div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+        <strong style="color:${currentModule.completed ? 'var(--green2)' : 'var(--gold2)'};">Module ${currentModule.id}: ${currentModule.name}</strong><br>
+        ${currentModule.event}<br>
+        Loot: ${currentModule.loot}
+        ${buildLootActions(currentModule.loot)}
+        <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeSpaceHubModule(${currentModule.id})">${currentModule.completed ? 'Completed' : 'Mark Completed'}</button></div>
+      </div>` : ''}` : '<div style="font-size:.73rem;color:var(--muted2);">No modules explored yet.</div>'}
     </div>`;
 }
 
@@ -2443,6 +2472,8 @@ function resolveGalaxyPerilTraversal() {
   if (check.success) {
     peril.cleared = true;
     S.starSystem.empoweredChecks = (S.starSystem.empoweredChecks || 0) + 1;
+    setPositiveGalaxyCondition('empowered');
+    applyGalaxyConditionText(peril.success);
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
     if (out) {
       out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">⚠ ${peril.title}</div>
@@ -2673,17 +2704,24 @@ function resolveSpaceEncounterOption(optionId) {
     const cost = option.credits || 0;
     if (cost > 0 && typeof changeCredits === 'function') changeCredits(-cost);
     option.resolved = true;
+    encounter.resolved = true;
+    S.starSystem.activeSpaceEncounter = null;
     const rewardText = applyEncounterRewards(option.success);
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
+    renderStarSystemMap();
+    updateStarSystemReadouts();
     return;
   }
 
   const check = resolveGalaxySkillCheck(option.stat || 'lead', option.stat === 'lead' ? 'mind' : 'lead', option.dd || 6, option.label);
   if (check.success) {
     option.resolved = true;
+    encounter.resolved = true;
+    S.starSystem.activeSpaceEncounter = null;
     const rewardText = applyEncounterRewards(option.success);
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}</div>`;
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}</div>`;
     renderStarSystemMap();
+    updateStarSystemReadouts();
     return;
   }
 
@@ -2692,8 +2730,13 @@ function resolveSpaceEncounterOption(optionId) {
   }
 
   if (out) {
+    option.resolved = true;
+    encounter.resolved = true;
+    S.starSystem.activeSpaceEncounter = null;
     out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div>
       <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${(option.failure && option.failure.combat) ? option.failure.combat + ' Resolve on Combat/Ship pages.' : (option.failure && option.failure.text) ? option.failure.text : 'The window closes.'}</div>`;
+    renderStarSystemMap();
+    updateStarSystemReadouts();
   }
 }
 
@@ -2757,21 +2800,25 @@ function renderDerelictPanel() {
   const ds = S.starSystem.activeDerelict;
   const out = document.getElementById('starExplorationDetail');
   if (!ds || !out) return;
+  if (typeof ds._currentRoomView !== 'number') ds._currentRoomView = 0;
+  const roomIdx = Math.max(0, Math.min(ds.roomList.length - 1, ds._currentRoomView || 0));
+  const currentRoom = ds.roomList[roomIdx] || null;
   out.innerHTML = `
     <div style="font-size:.75rem;color:var(--gold2);">Derelict Ship</div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Type: <strong>${ds.shipType}</strong> · Status: ${ds.status} · Engine: ${ds.engine} · Cause: ${ds.ruinCause}</div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="rollDerelictShipModule()">Explore Room</button>
     </div>
-    <div style="margin-top:.35rem;display:grid;gap:.3rem;">${ds.roomList.length ? ds.roomList.map(room => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
-      <strong style="color:${room.completed ? 'var(--green2)' : 'var(--gold2)'};">Room ${room.id}: ${room.module}</strong><br>
-      Encounter: ${room.encounter}<br>
-      Trigger: ${room.trigger}<br>
-      Obstacle: ${room.obstacle}<br>
-      Loot: ${room.loot}
-      ${buildLootActions(room.loot)}
-      <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeDerelictRoom(${room.id})">${room.completed ? 'Completed' : 'Mark Completed'}</button></div>
-    </div>`).join('') : '<div style="font-size:.73rem;color:var(--muted2);">No rooms explored yet.</div>'}</div>`;
+    <div style="margin-top:.35rem;display:grid;gap:.3rem;">${ds.roomList.length ? `<div style="display:flex;gap:.15rem;flex-wrap:wrap;">${ds.roomList.map((room, idx) => `<button class="btn btn-xs ${idx === roomIdx ? 'btn-teal' : ''}" style="padding:.15rem .3rem;font-size:.65rem;" onclick="S.starSystem.activeDerelict._currentRoomView=${idx};renderDerelictPanel();">R${room.id}${room.completed ? '✓' : ''}</button>`).join('')}</div>
+    ${currentRoom ? `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      <strong style="color:${currentRoom.completed ? 'var(--green2)' : 'var(--gold2)'};">Room ${currentRoom.id}: ${currentRoom.module}</strong><br>
+      Encounter: ${currentRoom.encounter}<br>
+      Trigger: ${currentRoom.trigger}<br>
+      Obstacle: ${currentRoom.obstacle}<br>
+      Loot: ${currentRoom.loot}
+      ${buildLootActions(currentRoom.loot)}
+      <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeDerelictRoom(${currentRoom.id})">${currentRoom.completed ? 'Completed' : 'Mark Completed'}</button></div>
+    </div>` : ''}` : '<div style="font-size:.73rem;color:var(--muted2);">No rooms explored yet.</div>'}</div>`;
 }
 
 function completeDerelictRoom(roomId) {
@@ -3425,6 +3472,7 @@ function generateStarSystemMap(galaxyType) {
   S.starSystem.radioTaskMarkers = [];
   S.starSystem.currentWeather = null;
   S.starSystem.galaxyGenerated = true;
+  window._lastGeneratedGalaxy = cloneStarsData(S.starSystem);
   clearActiveGalaxyPanels();
 
   renderStarSystemMap();
@@ -3463,9 +3511,9 @@ function renderStarSystemMap() {
     return;
   }
 
-  const size = 27;
-  const cx = 430;
-  const cy = 300;
+  const size = 34;
+  const cx = 500;
+  const cy = 360;
   const scaleX = size * 1.7;
   const scaleY = size * 1.45;
 
@@ -3503,7 +3551,7 @@ function renderStarSystemMap() {
   }).join('');
 
   host.innerHTML = `
-    <svg width="860" height="620" xmlns="http://www.w3.org/2000/svg" style="max-width:none;background:linear-gradient(180deg,rgba(5,8,18,.95),rgba(7,10,20,.72));border:1px solid var(--border);">
+    <svg width="1000" height="760" xmlns="http://www.w3.org/2000/svg" style="max-width:none;background:linear-gradient(180deg,rgba(5,8,18,.95),rgba(7,10,20,.72));border:1px solid var(--border);">
       ${routeLines}
       ${svgHexes}
     </svg>`;
@@ -5229,9 +5277,6 @@ function buildGalaxyPanel() {
     const systemName = (S.starSystem && S.starSystem.generatedName) ? S.starSystem.generatedName : 'Uncharted';
     const starName = S.starSystem && S.starSystem.mainStar ? S.starSystem.mainStar : 'Unknown Star';
     mainStarEl.textContent = `${systemName} · ${starName}`;
-  }
-  if (S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length && !S.starSystem.currentWeather) {
-    rollStarSystemWeather();
   }
   renderStarSystemMap();
   updateStarSystemReadouts();

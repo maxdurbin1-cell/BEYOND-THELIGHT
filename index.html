@@ -2138,46 +2138,89 @@ function buyItem(cost, name, cat) {
   var stat = found ? found.item.stat : '';
   var statStr = formatStatForSlot(stat);
   var slotText = statStr ? name + ' ' + statStr : name;
+  var category = cat || (found ? found.cat : 'items');
+  if (category === 'trade_goods') category = 'tradegoods';
 
   var weaponCats = ['weapons','melee_exp','ranged_exp'];
   var armorCats = ['armor','armor_exp'];
+  var purchaseApplied = false;
 
-  if (weaponCats.indexOf(cat) >= 0) {
+  if (weaponCats.indexOf(category) >= 0) {
     if (!S.equipment.weapon1) {
       S.equipment.weapon1 = slotText;
       setInputValue('eqWeapon1', slotText);
       if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+      purchaseApplied = true;
     } else if (!S.equipment.weapon2) {
       S.equipment.weapon2 = slotText;
       setInputValue('eqWeapon2', slotText);
+      purchaseApplied = true;
     } else {
-      addToBackpack(slotText);
+      purchaseApplied = addToBackpack(slotText);
     }
     updateAllStatDisplays();
-  } else if (armorCats.indexOf(cat) >= 0) {
-    addToBackpack(slotText);
+  } else if (armorCats.indexOf(category) >= 0) {
+    purchaseApplied = addToBackpack(slotText);
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
-  } else if (cat === 'augmentations') {
+  } else if (category === 'space_armor') {
+    var lower = String(name || '').toLowerCase();
+    S.gearLayers = S.gearLayers || { exoskeleton:null, thermal:null, coolant:null, vaccsuit:null, radsuit:null };
+    if (lower.indexOf('exoskeleton') >= 0) {
+      S.gearLayers.exoskeleton = slotText;
+      purchaseApplied = true;
+    } else if (lower.indexOf('thermal') >= 0) {
+      S.gearLayers.thermal = slotText;
+      purchaseApplied = true;
+    } else if (lower.indexOf('coolant') >= 0) {
+      S.gearLayers.coolant = slotText;
+      purchaseApplied = true;
+    } else if (lower.indexOf('vaccsuit') >= 0 || lower.indexOf('radsuit') >= 0) {
+      S.equipment.armor = slotText;
+      setInputValue('eqArmor', slotText);
+      if (lower.indexOf('vaccsuit') >= 0) S.gearLayers.vaccsuit = slotText;
+      if (lower.indexOf('radsuit') >= 0) S.gearLayers.radsuit = slotText;
+      purchaseApplied = true;
+    } else {
+      purchaseApplied = addToBackpack(slotText);
+    }
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  } else if (category === 'starship_fuel') {
+    var fuelName = String(name || '').toLowerCase();
+    if (fuelName.indexOf('hub') >= 0) {
+      S.starship.fuel.hubJump = (S.starship.fuel.hubJump || 0) + 1;
+      purchaseApplied = true;
+    } else if (fuelName.indexOf('hyper') >= 0) {
+      S.starship.fuel.hyperdrive = (S.starship.fuel.hyperdrive || 0) + 1;
+      purchaseApplied = true;
+    } else {
+      S.starship.fuel.standard = (S.starship.fuel.standard || 0) + 1;
+      purchaseApplied = true;
+    }
+    if (typeof updateStarshipUI === 'function') updateStarshipUI();
+  } else if (category === 'augmentations') {
     if (!Array.isArray(S.augmentations)) S.augmentations = [];
     if (S.augmentations.indexOf(name) < 0) {
       S.augmentations.push(name);
       if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
       if (typeof renderAugmentationsPanel === 'function') renderAugmentationsPanel();
       updateAllStatDisplays();
+      purchaseApplied = true;
     }
-  } else if (cat === 'os_hacks') {
+  } else if (category === 'os_hacks') {
     if (!Array.isArray(S.ownedHacks)) S.ownedHacks = [];
     if (S.ownedHacks.indexOf(name) < 0) {
       S.ownedHacks.push(name);
       if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+      purchaseApplied = true;
     }
-  } else if (cat === 'weapon_mods') {
+  } else if (category === 'weapon_mods') {
     if (!Array.isArray(S.weaponMods)) S.weaponMods = [];
     if (S.weaponMods.indexOf(name) < 0) {
       S.weaponMods.push(name);
       if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+      purchaseApplied = true;
     }
-  } else if (cat === 'services') {
+  } else if (category === 'services') {
     // Services take immediate effect — show an info modal, no backpack slot needed
     var svc = found ? found.item : null;
     if (svc) {
@@ -2198,10 +2241,16 @@ function buyItem(cost, name, cat) {
         if (typeof renderEnemies === 'function') renderEnemies();
         showNotif('Mercenary added to Combat tracker', 'good');
       }
+      purchaseApplied = true;
     }
   } else {
     // Essentials, toolkits, items, scrolls, remedies, tradegoods, strange → backpack
-    addToBackpack(slotText);
+    purchaseApplied = addToBackpack(slotText);
+  }
+
+  if (!purchaseApplied) {
+    showNotif('Purchase failed or no free slot. No credits spent.', 'warn');
+    return;
   }
 
   S.credits -= cost;

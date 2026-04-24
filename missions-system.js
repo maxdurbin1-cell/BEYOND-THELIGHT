@@ -167,14 +167,24 @@
   function assignMissionToken(mission) {
     ensureState();
     if (mission.region === 'galaxy' && typeof createGalaxyTask === 'function') {
-      var galaxyTask = createGalaxyTask('Mission Board', {
-        title: mission.title,
+      // Mirror province flow with two markers: informer lead + site objective.
+      var informerTask = createGalaxyTask('Mission Board', {
+        title: mission.title + ' (Informer)',
+        text: 'Track local informants for mission intel near ' + mission.location + '.',
+        reward: { credits: 0 }
+      });
+      var siteTask = createGalaxyTask('Mission Board', {
+        title: mission.title + ' (Site)',
         text: 'Mission board contract: ' + mission.location + '.',
         reward: { credits: mission.reward, globalRenown: 1 }
       });
-      if (galaxyTask) {
-        mission.galaxyTaskId = galaxyTask.id;
-        mission.galaxyHexId = galaxyTask.hexId;
+      if (informerTask) {
+        mission.galaxyInformerTaskId = informerTask.id;
+        mission.galaxyInformerHexId = informerTask.hexId;
+      }
+      if (siteTask) {
+        mission.galaxyTaskId = siteTask.id;
+        mission.galaxyHexId = siteTask.hexId;
       }
       return;
     }
@@ -228,6 +238,20 @@
       return;
     }
     if (mission.region === 'galaxy') {
+      var taskIds = [mission.galaxyInformerTaskId, mission.galaxyTaskId].filter(Boolean);
+      if (taskIds.length && S.starSystem && Array.isArray(S.starSystem.taskMarkers)) {
+        S.starSystem.taskMarkers.forEach(function(task) {
+          if (taskIds.indexOf(task.id) >= 0) {
+            task.resolved = true;
+            var hex = (S.starSystem.hexes || []).find(function(h) { return h.id === task.hexId; });
+            if (hex && hex.taskMarker && hex.taskMarker.id === task.id) {
+              hex.taskMarker.resolved = true;
+            }
+          }
+        });
+      }
+      if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+      if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
       return;
     }
     if (mission.informerHex) {

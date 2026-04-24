@@ -916,6 +916,209 @@ const STAR_HEX_LAND = ['Dust belt', 'Broken orbit shelf', 'Comet wake corridor',
 const STAR_HEX_FLORA = ['Bioluminescent spores', 'Void lichen webs', 'Crystal vines', 'Electroplankton cloud', 'Spore drift', 'Metal moss', 'Star bloom colony'];
 const STAR_HEX_WONDER = ['Echo beacon', 'Split moon halo', 'Solar lace', 'Ancestral relay', 'Mirror tide', 'Gravity lens', 'Singing wreck'];
 
+const PLANET_RING_TYPES = {
+  inner: ['Furnace', 'Shattered', 'Tainted', 'Grave'],
+  middle: ['Ocean', 'Jungle', 'Desert', 'Rocky', 'Vital'],
+  outer: ['Ice', 'Jovian', 'Rocky', 'Tainted'],
+};
+
+const PLANET_TYPE_BIOMES = {
+  Jovian: ['Exotic', 'Irradiated', 'Volcanic'],
+  Rocky: ['Barren', 'Irradiated', 'Water'],
+  Ice: ['Frozen', 'Barren', 'Water'],
+  Ocean: ['Water', 'Lush', 'Exotic'],
+  Jungle: ['Water', 'Lush', 'Exotic'],
+  Desert: ['Barren', 'Water', 'Volcanic'],
+  Grave: ['Irradiated', 'Urban Ruins', 'Barren'],
+  Vital: ['Water', 'Lush', 'Exotic'],
+  Furnace: ['Scorched', 'Volcanic', 'Barren'],
+  Tainted: ['Toxic', 'Urban Ruins', 'Irradiated'],
+  Shattered: ['Scorched', 'Volcanic', 'Barren'],
+};
+
+const PLANET_RING_ELEMENTS = {
+  inner: ['Platinum', 'Silicon', 'Iridium', 'Cadmium', 'Sodium', 'Radium', 'Molten Glass'],
+  middle: ['Salt', 'Magnesium', 'Cobalt', 'Aluminum', 'Sulfur', 'Titanium', 'Copper'],
+  outer: ['Helium', 'Neon', 'Methane', 'Hydrogen', 'Ammonia', 'Ice Crystals', 'Rare Elements'],
+};
+
+const PLANET_SIZE_TABLE = ['Dwarf (500 km to 2,500 km)', 'Small (3,000 km to 5,000 km)', 'Midsized (6,000 km to 10,000 km)', 'Large (10,000 km to 15,000 km)', 'Giant (15,000 km to 50,000 km)'];
+const PLANET_TEMPERATURE_TABLE = ['Frigid (< -100 C)', 'Cold (-50 C to 0 C)', 'Temperate (0 C to 30 C)', 'Hot (40 C to 60 C)', 'Scorched (60 C to 100 C)'];
+const PLANET_GRAVITY_TABLE = ['Standard (0.8 g to 1.2 g)', 'Crushing (3 g)', 'Minimal (0.3 g)', 'High (1.3 g to 3 g)', 'Low (0.3 g to 0.8 g)'];
+const PLANET_ATMOSPHERE_TABLE = ['Negligible Vacuum', 'Thick Atmosphere', 'Thin Atmosphere', 'Moderate Atmosphere', 'Dense Atmosphere'];
+
+const PLANET_OBSERVED_FROM_SPACE = [
+  'Complex weather system',
+  'Unusual color banding',
+  'Massive impact scar',
+  'Floating cloud walls',
+  'Persistent electrical storms',
+  'Shimmering debris halo',
+  'Orbital graveyard of wrecks',
+  'Geometric storm fronts',
+  'Sprawling canyon lattice',
+  'Radiant aurora ring',
+];
+
+const PLANET_LANDING_PAD = [
+  'On a fractured plateau surrounded by old sensor towers.',
+  'Within a crater where the winds are calm but visibility is poor.',
+  'Beside an ancient military outpost with intermittent power.',
+  'On the edge of a dry riverbed lined with metallic stones.',
+  'Near a broken dome settlement with sealed access gates.',
+  'On a floating platform anchored to basalt columns.',
+  'Inside a canyon shelf with narrow approach corridors.',
+  'Atop a ridge that overlooks a field of shattered ruins.',
+];
+
+const PLANET_TONE_TABLE = ['Bleak', 'Ethereal', 'Glimmering', 'Ominous', 'Mysterious', 'Vibrant', 'Subdued', 'Stark', 'Soft', 'Fierce'];
+const PLANET_WEATHER_TABLE = ['Dust storms', 'Clear skies', 'Metallic fog', 'Electric storms', 'Acid rain', 'Overcast', 'Sunlit day', 'Twilight dimness', 'Heatwaves', 'Rain'];
+const PLANET_SIGHTS_TABLE = ['Broken cities', 'Comet tails', 'Nebula glow', 'Ancient monoliths', 'Strange cloud arches', 'Orbital ring ruins', 'Flickering starlight', 'Passing shuttles', 'Drifting satellites', 'Crystal towers'];
+
+const PLANET_TERRAIN_TABLE = [
+  { name: 'Hazardous', effect: 'Steep cliffs take +1 Phase of the Day. Pass Body+Agility vs DD20 or take the difference as damage.' },
+  { name: 'Convoluted', effect: 'Unclear pathways slow movement. Crossing takes +1 Phase of Day.' },
+  { name: 'Biome-Exotic', effect: 'A hazardous river blocks the way. Crossing or detouring costs +3 Phase of the Day.' },
+  { name: 'Biome-Irradiated', effect: 'Radiation storm: all characters suffer 200 Rads unless shelter is found.' },
+  { name: 'Biome-Volcanic', effect: 'Lava lake blocks this hex. Forced detour costs +3 Phase of the Day.' },
+  { name: 'Inhabited', effect: 'Actively populated. d4: 1 Hunting Ground, 2 Nest, 3-4 Oasis.' },
+  { name: 'Easy Going', effect: 'No major obstacle: a hidden or sheltered route.' },
+];
+
+const PLANET_NATURE_TABLE = ['vine-draped', 'mist-veiled', 'wind-scoured', 'salt-crowned', 'ember-lit', 'frost-carved', 'root-entwined', 'shard-strewn', 'storm-battered', 'crystal-lined'];
+const PLANET_FORM_TABLE = ['valleys', 'plains', 'cliffs', 'canyons', 'ruins', 'ridges', 'groves', 'dunes', 'basins', 'plateaus'];
+const PLANET_FAUNA_TABLE = ['iron hawks', 'glass serpents', 'reef striders', 'ash foxes', 'void eels', 'bone hounds', 'spore moths', 'cave bats', 'sand drakes', 'shard beetles'];
+const PLANET_WONDER_TABLE = ['collapsed gate', 'singing obelisk', 'ancient relay', 'floating archive', 'burning ridge', 'crystal forest', 'blackwater basin', 'mirrored canyon', 'hollow moon fragment', 'sunken colony'];
+
+const PLANET_POI_TABLE = [
+  'Abandoned Purifier',
+  'Sacred Grove',
+  'Crashed Starship',
+  'Hidden Laboratory',
+  'Floating City',
+  'Rebel Encampment',
+];
+
+const PLANET_MYSTERY_TABLE = [
+  'Echoes of the Lost',
+  'The Enigmatic Signal',
+  'The Vanishing Colony',
+  'The Monolith',
+  'The Forgotten Shrine',
+  'The Shattered Ruins',
+];
+
+const PLANETSIDE_EXPLORATION_TABLE = ['Find', 'Hazard', 'Beast', 'Close Encounter', 'Pirate', 'Empty Colony', 'Merchant Colony', 'Skirmish', 'Galactic Facility'];
+
+function buildPlanetName(ring, planetType) {
+  const ringTag = ring === 'inner' ? 'IR' : ring === 'outer' ? 'OR' : 'MR';
+  const syllA = ['AX', 'VE', 'TO', 'KR', 'YU', 'NE', 'OM', 'ZA', 'QU', 'IL'];
+  const syllB = ['rion', 'this', 'mora', 'vek', 'dara', 'lyx', 'nox', 'cair', 'sul', 'tera'];
+  const code = `${ringTag}-${String(roll(9999)).padStart(4, '0')}`;
+  return `${pick(syllA)}${pick(syllB)} (${planetType}) ${code}`;
+}
+
+function createPlanetProfile(hex) {
+  const ring = (hex && hex.ring) || 'middle';
+  const planetType = pick(PLANET_RING_TYPES[ring] || PLANET_RING_TYPES.middle);
+  const biomeOptions = PLANET_TYPE_BIOMES[planetType] || ['Barren'];
+  const biome = pick(biomeOptions);
+  const singleBiome = roll(10) >= 9;
+  const dayHours = roll(16) + 8;
+  const nightHours = Math.max(4, 30 - dayHours);
+  const terrain = pick(PLANET_TERRAIN_TABLE);
+  return {
+    planetName: buildPlanetName(ring, planetType),
+    ring,
+    planetType,
+    biome,
+    element: pick(PLANET_RING_ELEMENTS[ring] || PLANET_RING_ELEMENTS.middle),
+    size: pick(PLANET_SIZE_TABLE),
+    temperature: pick(PLANET_TEMPERATURE_TABLE),
+    gravity: pick(PLANET_GRAVITY_TABLE),
+    atmosphere: pick(PLANET_ATMOSPHERE_TABLE),
+    hours: `Day ${dayHours}h / Night ${nightHours}h`,
+    singleBiome,
+    observedFromSpace: pick(PLANET_OBSERVED_FROM_SPACE),
+    landingPad: pick(PLANET_LANDING_PAD),
+    tone: pick(PLANET_TONE_TABLE),
+    weather: pick(PLANET_WEATHER_TABLE),
+    sights: pick(PLANET_SIGHTS_TABLE),
+    terrain: terrain.name,
+    terrainEffect: terrain.effect,
+    nature: pick(PLANET_NATURE_TABLE),
+    form: pick(PLANET_FORM_TABLE),
+    fauna: pick(PLANET_FAUNA_TABLE),
+    wonder: pick(PLANET_WONDER_TABLE),
+    furtherAnalysis: null,
+  };
+}
+
+function ensurePlanetProfile(hex) {
+  if (!hex) return null;
+  if (!hex.planetProfile) hex.planetProfile = createPlanetProfile(hex);
+  return hex.planetProfile;
+}
+
+function rollPlanetFurtherAnalysis(hex) {
+  const profile = ensurePlanetProfile(hex);
+  if (!profile) return null;
+  if (profile.furtherAnalysis) return profile.furtherAnalysis;
+  const eventRoll = roll(4);
+  if (eventRoll === 1) {
+    const power = pick((S.starSystem && S.starSystem.majorPowers) || ['Unknown Authority']);
+    profile.furtherAnalysis = { type: 'major_power', title: 'Major Power', text: `${power} currently runs this planet.` };
+  } else if (eventRoll === 2) {
+    const poi = pick(PLANET_POI_TABLE);
+    profile.furtherAnalysis = { type: 'poi', title: 'Point of Interest', text: `${poi} detected at Planetary Hex #${roll(100)}.` };
+  } else if (eventRoll === 3) {
+    const mystery = pick(PLANET_MYSTERY_TABLE);
+    profile.furtherAnalysis = { type: 'mystery', title: 'Mystery', text: `${mystery} signal triangulated at Planetary Hex #${roll(100)}.` };
+  } else {
+    profile.furtherAnalysis = { type: 'merchant_colony', title: 'Merchant Colony', text: `Merchant Colony located at Planetary Hex #${roll(100)}.` };
+  }
+  return profile.furtherAnalysis;
+}
+
+function buildPlanetAnalysisHtml(profile) {
+  if (!profile) return '';
+  const exploreRows = PLANETSIDE_EXPLORATION_TABLE.map((label, idx) => `${idx + 1}${idx === PLANETSIDE_EXPLORATION_TABLE.length - 1 ? '-10' : ''} ${label}`).join(' · ');
+  return `
+    <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Planet Profile</div>
+      <div style="font-size:.9rem;color:var(--text);line-height:1.65;margin-top:.08rem;">
+        <strong>Planet Name:</strong> ${profile.planetName}<br>
+        <strong>Biome:</strong> ${profile.biome}${profile.singleBiome ? ' (Single Biome)' : ' (Multi-Biome)'}<br>
+        <strong>Element:</strong> ${profile.element}<br>
+        <strong>Planet Type:</strong> ${profile.planetType}<br>
+        <strong>Size:</strong> ${profile.size}<br>
+        <strong>Temperature:</strong> ${profile.temperature}<br>
+        <strong>Gravity:</strong> ${profile.gravity}<br>
+        <strong>Atmosphere:</strong> ${profile.atmosphere}<br>
+        <strong>Hours Per Day / Night:</strong> ${profile.hours}
+      </div>
+    </div>
+    <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Observed Surface Data</div>
+      <div style="font-size:.85rem;color:var(--muted2);line-height:1.6;margin-top:.08rem;">
+        <strong>Observed From Space:</strong> ${profile.observedFromSpace}<br>
+        <strong>Landing Pad:</strong> ${profile.landingPad}<br>
+        The sky today shows a/an <strong>${profile.tone}</strong> tone amidst <strong>${profile.weather}</strong>.<br>
+        Beyond the horizon, you see <strong>${profile.sights}</strong>.<br>
+        As you travel, the terrain is <strong>${profile.terrain}</strong>.<br>
+        <strong>Terrain Effect:</strong> ${profile.terrainEffect}<br>
+        While here, you observe the <strong>${profile.nature}</strong> <strong>${profile.form}</strong>.<br>
+        The area is home to <strong>${profile.fauna}</strong> often seen near a/an <strong>${profile.wonder}</strong>.
+      </div>
+    </div>
+    <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+      <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Planet Side Exploration (d10)</div>
+      <div style="font-size:.84rem;color:var(--muted2);line-height:1.6;margin-top:.08rem;">
+        ${exploreRows}
+      </div>
+    </div>`;
+}
+
 function pickRingEncounterOutcome(ring) {
   const table = STAR_RING_TABLES[ring] || STAR_RING_TABLES.middle;
   return table[roll(table.length) - 1];
@@ -3448,8 +3651,15 @@ function runFurtherSystemAnalysis() {
   registerStarshipTravelDays(1);
 
   if (success) {
-    const sig = hex.hiddenOutcome || (hex.type === 'hub' ? 'Galactic Facility' : hex.type === 'planet' ? 'Locations' : 'Uneventful Voyage');
-    hex.analysisDetail = `Further analysis: ${sig}. ${sig === 'Space Encounter' ? 'Scanner identifies vessel class and likely crew disposition.' : 'Additional telemetry refines target details and approach risks.'}`;
+    if (hex.type === 'planet') {
+      const reveal = rollPlanetFurtherAnalysis(hex);
+      hex.analysisDetail = reveal
+        ? `Further analysis: ${reveal.title}. ${reveal.text}`
+        : 'Further analysis completed with no additional signal.';
+    } else {
+      const sig = hex.hiddenOutcome || (hex.type === 'hub' ? 'Galactic Facility' : 'Uneventful Voyage');
+      hex.analysisDetail = `Further analysis: ${sig}. ${sig === 'Space Encounter' ? 'Scanner identifies vessel class and likely crew disposition.' : 'Additional telemetry refines target details and approach risks.'}`;
+    }
     setPositiveGalaxyCondition('focused');
     if (out) out.innerHTML = `<span style="color:var(--green2);">Further Analysis Success</span>: d${die}=${action.total} vs DD8=${dread.total}.`;
   } else {
@@ -3478,6 +3688,7 @@ function updateStarSystemReadouts() {
     } else {
       const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
       const actionButtons = [];
+      const planetProfile = (current.type === 'planet' && current.scanned) ? ensurePlanetProfile(current) : null;
       const hubState = current.type === 'hub'
         ? getHexPersistentState(current, 'hub', function() { return createSpaceHubState(current.ring); })
         : null;
@@ -3509,6 +3720,7 @@ function updateStarSystemReadouts() {
             <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Wonder</div>
             <div style="font-size:.96rem;color:var(--text);margin-top:.08rem;">${current.wonder || 'Unknown'}</div>
           </div>
+          ${planetProfile ? buildPlanetAnalysisHtml(planetProfile) : ''}
           <div style="padding:.4rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--muted2);line-height:1.7;">
             <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
             <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>
@@ -3549,7 +3761,10 @@ function runSystemAnalysisCheck() {
   if (success) {
     hex.scanned = true;
     hex.explored = true;
-    if (hex.hiddenOutcome) {
+    if (hex.type === 'planet') {
+      const profile = ensurePlanetProfile(hex);
+      hex.detail = `Planet ${profile.planetName} catalogued. ${profile.planetType} world with ${profile.biome} biome signatures.`;
+    } else if (hex.hiddenOutcome) {
       hex.type = convertOutcomeToHexType(hex.hiddenOutcome);
       hex.detail = `${hex.hiddenOutcome} detected ahead.`;
     } else if (!hex.detail) {

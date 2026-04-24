@@ -116,6 +116,10 @@ function updateDieDisplay(key) {
   // Augmentation additive bonus hint
   const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
   if (augDie > 0) displayText += '+d' + augDie;
+  const gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses(key, value) : {advDice:[], flat:0, addDice:[]};
+  if (gearBonus.advDice && gearBonus.advDice.length) displayText += '/Ad' + Math.max.apply(null, gearBonus.advDice);
+  if (gearBonus.addDice && gearBonus.addDice.length) displayText += '+d' + gearBonus.addDice.join('+d');
+  if (gearBonus.flat > 0) displayText += '+' + gearBonus.flat;
 
   el.textContent = displayText;
   el.className = dieClass(value);
@@ -207,6 +211,10 @@ function quickRollStat(key) {
   if (Array.isArray(mod.advDice)) advDiceArr = advDiceArr.concat(mod.advDice);
   flatBonus += mod.flat || 0;
 
+  const gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses(key, die) : {advDice:[], flat:0, addDice:[], notes:[]};
+  advDiceArr = advDiceArr.concat(gearBonus.advDice || []);
+  flatBonus += gearBonus.flat || 0;
+
   // Augmentation additive bonus
   const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
 
@@ -224,9 +232,11 @@ function quickRollStat(key) {
   // +A.D. additive adventure die
   const adBonus = addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
   const withAD = withFlat + (adBonus ? adBonus.total : 0);
+  const gearAddRolls = (gearBonus.addDice || []).map(function(dieSize){ return explodingRoll(dieSize); });
   // Augmentation additive
   const augRoll = augDie > 0 ? explodingRoll(augDie) : null;
-  const total = withAD + (augRoll ? augRoll.total : 0);
+  const gearAddTotal = gearAddRolls.reduce(function(sum, roll){ return sum + roll.total; }, 0);
+  const total = withAD + gearAddTotal + (augRoll ? augRoll.total : 0);
   const radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(key) : 0;
   const finalTotal = Math.max(0, total - radPenalty);
 
@@ -237,8 +247,10 @@ function quickRollStat(key) {
   if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon/flavor/mutation/mod)');
   if (holyShieldRoll) details.push('Holy Shield +Spirit d' + (S.stats.spirit||4) + ' = ' + holyShieldRoll.total);
   if (adBonus) details.push('+A.D. d' + (S.stats.adventure || 4) + ' = ' + adBonus.total + ' (additive)');
+  gearAddRolls.forEach(function(rollObj, idx){ details.push('+d' + gearBonus.addDice[idx] + ' gear = ' + rollObj.total); });
   if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
   if (radPenalty > 0) details.push('-' + radPenalty + ' Radiation penalty');
+  if (gearBonus.notes && gearBonus.notes.length) details.push(gearBonus.notes.join(' · '));
   if (mod.advDice.length || mod.flat) details.push('Manual modifier active');
 
   const detailHtml = (ra.breakdown || details.length)

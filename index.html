@@ -1213,8 +1213,103 @@ const SHOP_DATA={weapons:[{name:'Sword',stat:'+1 Strike | Engaged',desc:'A relia
 const STAT_KEYS=['body','strike','shoot','mind','spirit','defend','control','lead'];
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0}};
+let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0}};
 let hexNotes={};
+
+function ensureAdvancedGearState() {
+  if (!S.equipment) S.equipment = { weapon1:'', weapon2:'', armor:'', readied:'' };
+  if (!S.equipmentLayers || typeof S.equipmentLayers !== 'object') S.equipmentLayers = { under:'', over:'', suit:'' };
+  if (!S.gearState || typeof S.gearState !== 'object') S.gearState = { oxygenHours:0, radAbsorbUsed:0, radAbsorbCap:0 };
+  if (!S.environmentContext || typeof S.environmentContext !== 'object') S.environmentContext = { temperature:'', vacuum:false, irradiated:false };
+}
+
+function normalizeItemName(text) {
+  return String(text || '').split('(')[0].trim();
+}
+
+function isSpaceArmorLayerName(name) {
+  return ['Thermal Layer','Coolant Layer','Exoskeleton Layer'].indexOf(name) >= 0;
+}
+
+function isSpaceSuitName(name) {
+  return ['VaccSuit','RadSuit (Light)','RadSuit (Heavy)','HydroSuit'].indexOf(name) >= 0;
+}
+
+function getOwnedItemNames() {
+  ensureAdvancedGearState();
+  var list = [];
+  if (Array.isArray(S.backpack)) list = list.concat(S.backpack.filter(Boolean).map(normalizeItemName));
+  ['weapon1','weapon2','armor','readied'].forEach(function(slot) {
+    if (S.equipment[slot]) list.push(normalizeItemName(S.equipment[slot]));
+  });
+  ['under','over','suit'].forEach(function(slot) {
+    if (S.equipmentLayers[slot]) list.push(normalizeItemName(S.equipmentLayers[slot]));
+  });
+  return list;
+}
+
+function hasOwnedItemName(name) {
+  return getOwnedItemNames().indexOf(name) >= 0;
+}
+
+function getLayerSlotForItem(name) {
+  if (name === 'Thermal Layer' || name === 'Coolant Layer') return 'under';
+  if (name === 'Exoskeleton Layer') return 'over';
+  if (isSpaceSuitName(name)) return 'suit';
+  return '';
+}
+
+function getGearRollBonuses(statKey, baseDie) {
+  ensureAdvancedGearState();
+  var advDice = [];
+  var flat = 0;
+  var addDice = [];
+  var notes = [];
+  var layers = S.equipmentLayers || {};
+  if (statKey === 'defend' && layers.over === 'Exoskeleton Layer') {
+    addDice.push(6);
+    notes.push('Exoskeleton +d6');
+  }
+  if (statKey === 'body' && layers.over === 'Exoskeleton Layer' && typeof stepUp === 'function') {
+    advDice.push(stepUp(baseDie || (S.stats.body || 4)));
+    notes.push('Exoskeleton step-up advantage');
+  }
+  if (statKey === 'body' && layers.under === 'Thermal Layer' && S.environmentContext && S.environmentContext.temperature === 'heat') {
+    flat += 2;
+    notes.push('Thermal Layer +2 in heat');
+  }
+  return { advDice: advDice, flat: flat, addDice: addDice, notes: notes };
+}
+
+function getEquippedProtectionProfile() {
+  ensureAdvancedGearState();
+  var suit = normalizeItemName(S.equipmentLayers.suit || '');
+  var owned = getOwnedItemNames();
+  var hasHeavy = suit === 'RadSuit (Heavy)' || owned.indexOf('RadSuit (Heavy)') >= 0;
+  var hasLight = suit === 'RadSuit (Light)' || owned.indexOf('RadSuit (Light)') >= 0;
+  var hasVacc = suit === 'VaccSuit' || owned.indexOf('VaccSuit') >= 0;
+  var hasFilter = owned.indexOf('Air Filtration') >= 0;
+  return {
+    suit: suit,
+    hasVacc: hasVacc,
+    radCap: hasHeavy ? 400 : hasLight ? 200 : 0,
+    radMultiplier: hasHeavy ? 0 : hasLight ? 0.5 : hasFilter ? 0.5 : 1,
+    hasHydroSuit: suit === 'HydroSuit' || owned.indexOf('HydroSuit') >= 0,
+    hasThermal: owned.indexOf('Thermal Layer') >= 0,
+    hasCoolant: owned.indexOf('Coolant Layer') >= 0
+  };
+}
+
+function refreshArmorSlotMeta() {
+  ensureAdvancedGearState();
+  var armorEl = document.getElementById('eqArmor');
+  if (!armorEl) return;
+  var bits = [];
+  if (S.equipmentLayers.under) bits.push('Under: ' + normalizeItemName(S.equipmentLayers.under));
+  if (S.equipmentLayers.over) bits.push('Over: ' + normalizeItemName(S.equipmentLayers.over));
+  if (S.equipmentLayers.suit) bits.push('Suit: ' + normalizeItemName(S.equipmentLayers.suit));
+  armorEl.title = bits.length ? bits.join(' | ') : 'Armor slot';
+}
 // ── WILDERNESS FULL (continued) ──────────────────────────────────────────────
 function rollWildernessFull(){
   const terrain=pick(TERRAIN_TYPES);
@@ -1731,17 +1826,19 @@ function rollDefend(skipEnemyTurnTick) {
   var flBonus = getFlavorBonus('defend');
   var mtBonus = getMutationBonus('defend');
   var augDie = getAugBonus('defend');
+  var gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses('defend', S.stats.defend) : {advDice:[], flat:0, addDice:[], notes:[]};
 
   // Collect ALL advantage dice — armor, weapon, flavor, mutation, manual rollMod
   var advDiceArr = [];
   if(armorAdv > 0) advDiceArr.push(armorAdv);
   if(wpBonus.advDie > 0) advDiceArr.push(wpBonus.advDie);
   advDiceArr = advDiceArr.concat(flBonus.advDice||[]).concat(mtBonus.advDice||[]);
+  advDiceArr = advDiceArr.concat(gearBonus.advDice||[]);
   if(S.rollMod && Array.isArray(S.rollMod.advDice)) advDiceArr = advDiceArr.concat(S.rollMod.advDice);
 
   var ra = rollWithAdvantage(S.stats.defend, advDiceArr);
   var a = ra.base;
-  var flatTotal = wpBonus.flat + flBonus.flat + mtBonus.flat + (S.rollMod ? S.rollMod.flat : 0);
+  var flatTotal = wpBonus.flat + flBonus.flat + mtBonus.flat + (gearBonus.flat || 0) + (S.rollMod ? S.rollMod.flat : 0);
   var baseTotal = ra.total + flatTotal;
   // Holy Shield: add spirit die value
   var holyShieldRoll = flBonus.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
@@ -1749,6 +1846,8 @@ function rollDefend(skipEnemyTurnTick) {
   // +A.D. from Shield: roll adventure die and ADD to result
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
   if(adBonus) baseTotal += adBonus.total;
+  var gearAddRolls = (gearBonus.addDice || []).map(function(dieSize){ return explodingRoll(dieSize); });
+  gearAddRolls.forEach(function(rollObj){ baseTotal += rollObj.total; });
   // Augmentation bonus (SUBDERMAL ARMOR +d4) always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
@@ -1763,12 +1862,14 @@ function rollDefend(skipEnemyTurnTick) {
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
   if(holyShieldRoll) breakdown += ' <span style="font-size:.7rem;color:var(--gold);">(Holy Shield +Spirit d'+(S.stats.spirit||4)+'='+holyShieldRoll.total+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
+  if(gearAddRolls.length) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(' + gearAddRolls.map(function(rollObj, idx){ return '+d'+gearBonus.addDice[idx]+'='+rollObj.total; }).join(' ') + ')</span>';
   if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var defNotes = [];
   if(flBonus.advDice.length) defNotes.push('Flavor Adv: '+flBonus.advDice.map(function(x){return 'Ad'+x;}).join('+'));
   if(mtBonus.flat > 0) defNotes.push('Mutation: +'+mtBonus.flat);
+  if(gearBonus.notes && gearBonus.notes.length) defNotes.push(gearBonus.notes.join(' · '));
   if(S.rollMod && (S.rollMod.advDice.length||S.rollMod.flat)) defNotes.push('Manual Mod active');
   var defNoteHtml = defNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">'+defNotes.join(' · ')+'</span>' : '';
 
@@ -2180,7 +2281,7 @@ function showBackpackItem(index) {
   }
   var item = found.item;
   var cat = found.cat;
-  var isConsumable = ['essentials','items','remedies','toolkits'].indexOf(cat) >= 0;
+  var isConsumable = ['essentials','items','remedies','toolkits','cosmic'].indexOf(cat) >= 0;
   var usesRemaining = getItemUsesRemaining(index);
   var usesHtml = usesRemaining !== null ? '<div style="font-size:.72rem;color:var(--gold);margin-top:.2rem;">Uses remaining: '+usesRemaining+'</div>' : '';
   var btnHtml = '';
@@ -2274,6 +2375,7 @@ function moveBackpackToStorage(index, storageType) {
 
 function equipBackpackItem(index, slot) {
   if (!S || !S.backpack || !S.equipment) return;
+  ensureAdvancedGearState();
   var item = S.backpack[index];
   if (!item) return;
   
@@ -2281,13 +2383,37 @@ function equipBackpackItem(index, slot) {
   var cat = found ? found.cat : null;
   var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
   var isArmor = (cat === 'armor' || cat === 'armor_exp');
+  var isSpaceArmor = (cat === 'space_armor');
+  var itemName = normalizeItemName(item);
+  var isLayer = isSpaceArmor && isSpaceArmorLayerName(itemName);
+  var isSuit = isSpaceArmor && isSpaceSuitName(itemName);
   
   if (slot === 'weapon1' || slot === 'weapon2') {
     if (!isWeapon) { showNotif('Only weapons can be equipped in weapon slots!', 'warn'); return; }
   } else if (slot === 'armor') {
-    if (!isArmor) { showNotif('Only armor can be equipped in the armor slot!', 'warn'); return; }
+    if (!(isArmor || isSpaceArmor)) { showNotif('Only armor or space armor can be equipped in the armor slot!', 'warn'); return; }
   }
   // readied slot accepts anything
+
+  if (slot === 'armor' && (isLayer || isSuit)) {
+    var gearSlot = getLayerSlotForItem(itemName);
+    var displacedLayer = S.equipmentLayers[gearSlot] || '';
+    if (displacedLayer) {
+      if (!addToBackpack(displacedLayer)) {
+        showNotif('Backpack full! Unequip a layer or suit first.', 'warn');
+        return;
+      }
+    }
+    S.equipmentLayers[gearSlot] = itemName;
+    S.backpack[index] = '';
+    var gearBpEl = document.getElementById('bp' + index);
+    if (gearBpEl) gearBpEl.value = '';
+    refreshArmorSlotMeta();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    closeModal();
+    showNotif((gearSlot === 'under' ? 'Under-layer equipped: ' : gearSlot === 'over' ? 'Over-layer equipped: ' : 'Suit readied: ') + itemName, 'good');
+    return;
+  }
   
   // Build equipment string: "Name (stat)" for weapons/armor so stats display and mod slots work.
   // Append only when that exact stat block is not already present.
@@ -2330,6 +2456,7 @@ function equipBackpackItem(index, slot) {
   
   if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+  refreshArmorSlotMeta();
   closeModal();
   if (displaced && !displacedStored) {
     showNotif('Equipped: ' + equipStr + ' (swapped with ' + displaced + ')', 'good');
@@ -2343,8 +2470,9 @@ function equipBackpackItem(index, slot) {
 // Show info panel for an equipped item (weapon, armor, readied)
 function showEquippedItem(slot) {
   if (!S || !S.equipment) return;
+  ensureAdvancedGearState();
   var text = S.equipment[slot] || '';
-  if (!text) {
+  if (!text && !(slot === 'armor' && (S.equipmentLayers.under || S.equipmentLayers.over || S.equipmentLayers.suit))) {
     showNotif('No item equipped in this slot.', 'neutral');
     return;
   }
@@ -2367,10 +2495,20 @@ function showEquippedItem(slot) {
       + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
       + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
       + '<div>'+item.desc+'</div>'
+      + (slot === 'armor' ? '<div style="margin-top:.45rem;font-size:.76rem;color:var(--muted2);">Under: '+(S.equipmentLayers.under || 'None')+'<br>Over: '+(S.equipmentLayers.over || 'None')+'<br>Suit: '+(S.equipmentLayers.suit || 'None')+'</div>' : '')
       + '<div style="margin-top:.5rem;">'+btnHtml+'</div>'
       + '</div>';
     openModal(item.name, html);
   } else {
+    if (slot === 'armor' && (S.equipmentLayers.under || S.equipmentLayers.over || S.equipmentLayers.suit)) {
+      openModal('Armor Slot','<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">Armor Layers</div>'
+        + 'Base Armor: ' + (S.equipment.armor || 'None') + '<br>'
+        + 'Under Layer: ' + (S.equipmentLayers.under || 'None') + '<br>'
+        + 'Over Layer: ' + (S.equipmentLayers.over || 'None') + '<br>'
+        + 'Suit: ' + (S.equipmentLayers.suit || 'None') + '</div>');
+      return;
+    }
     // Custom item without shop data
     btnHtml = '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellEquippedCustomItem(' + "'" + slot + "'" + ');closeModal();">💰 Sell</button> ';
     if (slot === 'readied') {
@@ -2542,6 +2680,7 @@ function moveEquippedToStorage(slot, storageType) {
 function useBackpackItem(index) {
   var text = S.backpack[index];
   if (!text) return;
+  ensureAdvancedGearState();
   var found = findShopItem(text);
   if (!found) return;
   var item = found.item;
@@ -2588,6 +2727,60 @@ function useBackpackItem(index) {
     if(typeof updateAllStatDisplays==='function') updateAllStatDisplays();
     showNotif(name+': '+condMap[name]+' removed','good');
     return;
+  }
+  if (cat === 'cosmic') {
+    if (name === 'Anti-Rad') {
+      if(!spendUse()) return;
+      if (typeof changeRads === 'function') changeRads(-200);
+      showNotif('Anti-Rad: −200 Radiation', 'good');
+      return;
+    }
+    if (name === 'Stimulant') {
+      if(!spendUse()) return;
+      var stimHeal = explodingRoll(4).total;
+      if (typeof changeHealth === 'function') changeHealth(-stimHeal); else changeStress(-stimHeal);
+      showNotif('Stimulant: restored ' + stimHeal + ' Health', 'good');
+      return;
+    }
+    if (name === 'Depressant') {
+      if(!spendUse()) return;
+      changeStress(-1);
+      showNotif('Depressant: −1 Stress', 'good');
+      return;
+    }
+    if (name === 'Battery Pack') {
+      if(!spendUse()) return;
+      if (typeof toggleCond === 'function') toggleCond('empowered');
+      showNotif('Battery Pack: Empowered condition granted', 'good');
+      return;
+    }
+    if (name === 'Communicator') {
+      if(!spendUse()) return;
+      if (typeof toggleCond === 'function') toggleCond('focused');
+      showNotif('Communicator: Focused condition granted', 'good');
+      return;
+    }
+    if (name === 'Voyager Supplies') {
+      if(!spendUse()) return;
+      changeStress(-2);
+      if (S.conditions && S.conditions.weakened) { S.conditions.weakened = false; if (typeof updateConditionButtons === 'function') updateConditionButtons(); }
+      showNotif('Voyager Supplies: −2 Stress and recover from Weakened', 'good');
+      return;
+    }
+    if (name === 'Oxygen Pellet') {
+      if(!spendUse()) return;
+      S.gearState.oxygenHours = (S.gearState.oxygenHours || 0) + 1;
+      showNotif('Oxygen Pellet: +1 hour breathable air reserve', 'good');
+      return;
+    }
+    if (name === 'E-Picks') {
+      if(!spendUse()) return;
+      var controlDie = typeof getEffectiveDie==='function' ? getEffectiveDie('control') : (S.stats.control||4);
+      var controlRoll = explodingRoll(controlDie);
+      var adRoll = explodingRoll(S.stats.adventure||4);
+      openModal('E-Picks — Use','<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">Electronic picks engaged.<br><strong style="color:var(--teal);">Result: '+Math.max(controlRoll.total, adRoll.total)+'</strong><br><span style="font-size:.76rem;color:var(--muted2);">Control d'+controlDie+'='+controlRoll.total+' vs A.D. d'+(S.stats.adventure||4)+'='+adRoll.total+' (keep highest)</span></div>');
+      return;
+    }
   }
   // Snake Oil
   if(name === 'Snake Oil'){

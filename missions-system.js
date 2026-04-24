@@ -90,6 +90,8 @@
   var MISSION_VERBS   = ['Hunt','Guard','Rescue','Deliver','Investigate','Eliminate','Retrieve','Escort','Sabotage','Recover'];
   var MISSION_TARGETS = ['Bandits','Beasts','Refugees','Cargo','Mutineers','Threats','Artifacts','a VIP','Deserters','a Rival'];
   var MISSION_LOCS    = ['Forest Outpost','Mountain Pass','Ancient Ruins','Riverside Town','Hidden Camp','Abandoned Temple','Deep Cave','Border Shrine','Trade Road','Iron Mine'];
+  var SEA_MISSION_LOCS = ['Storm-lashed Isle','Coral Shrine','Salt Ruin','Smuggler Anchorage','Drowned Watchpost','Reef Crossing'];
+  var GALAXY_MISSION_LOCS = ['Inner Ring Relay','Trade Route Spur','Dead Moon Vault','Derelict Coordinates','Hub Corridor','Outer Signal Graveyard'];
   var MISSION_FACTION_CONFLICTS = [
     { gain:'corporations', lose:'underworld', gainName:'Corporations',       loseName:'The Underworld' },
     { gain:'religious',    lose:'corporations', gainName:'Religious Entities', loseName:'Corporations' },
@@ -108,6 +110,7 @@
     S.completedMissions = S.completedMissions || [];
     S.missionTokens     = S.missionTokens     || {};
     S.availableJobs     = S.availableJobs     || [];
+    if (S.lastSea && !S.lastSea.missionTokens) { S.lastSea.missionTokens = {}; }
 
     // Backfill older mission objects so resolve buttons work for legacy saves.
     S.activeMissions.forEach(function(m) {
@@ -131,6 +134,19 @@
     });
   }
 
+  function getAvailableMissionRegions() {
+    var regions = ['province'];
+    if (S.lastSea && Array.isArray(S.lastSea.map) && S.lastSea.map.length) { regions.push('sea'); }
+    if (S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length) { regions.push('galaxy'); }
+    return regions;
+  }
+
+  function getMissionLocationForRegion(region) {
+    if (region === 'sea') { return pick(SEA_MISSION_LOCS); }
+    if (region === 'galaxy') { return pick(GALAXY_MISSION_LOCS); }
+    return pick(MISSION_LOCS);
+  }
+
   function rollShopLoot(difficulty) {
     var diff  = DIFFICULTIES[difficulty] || DIFFICULTIES.easy;
     var table = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA[diff.lootCat]) || [];
@@ -150,6 +166,36 @@
 
   function assignMissionToken(mission) {
     ensureState();
+    if (mission.region === 'galaxy' && typeof createGalaxyTask === 'function') {
+      var galaxyTask = createGalaxyTask('Mission Board', {
+        title: mission.title,
+        text: 'Mission board contract: ' + mission.location + '.',
+        reward: { credits: mission.reward, globalRenown: 1 }
+      });
+      if (galaxyTask) {
+        mission.galaxyTaskId = galaxyTask.id;
+        mission.galaxyHexId = galaxyTask.hexId;
+      }
+      return;
+    }
+    if (mission.region === 'sea' && S.lastSea && Array.isArray(S.lastSea.map) && S.lastSea.map.length) {
+      S.lastSea.missionTokens = S.lastSea.missionTokens || {};
+      var seaCandidates = S.lastSea.map.filter(function(hex) { return hex.type === 'island' || hex.siteType; });
+      if (!seaCandidates.length) { seaCandidates = S.lastSea.map.slice(); }
+      if (seaCandidates.length) {
+        var siteHex = seaCandidates[Math.floor(Math.random() * seaCandidates.length)];
+        var informerPool = seaCandidates.filter(function(hex) { return hex.key !== siteHex.key; });
+        var informerHex = informerPool.length ? informerPool[Math.floor(Math.random() * informerPool.length)] : null;
+        S.lastSea.missionTokens[siteHex.key] = { missionId: mission.id, title: mission.title, type: 'site' };
+        mission.seaSiteKey = siteHex.key;
+        if (informerHex) {
+          S.lastSea.missionTokens[informerHex.key] = { missionId: mission.id, title: mission.title, type: 'informer' };
+          mission.seaInformerKey = informerHex.key;
+        }
+        if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+      }
+      return;
+    }
     if (typeof mapData !== 'undefined' && mapData.length) {
       var candidates = mapData.filter(function(h) { return h.type === 'wilderness'; });
       if (candidates.length >= 2) {
@@ -175,6 +221,15 @@
 
   function removeMissionToken(mission) {
     if (!mission) return;
+    if (mission.region === 'sea' && S.lastSea && S.lastSea.missionTokens) {
+      if (mission.seaInformerKey) { delete S.lastSea.missionTokens[mission.seaInformerKey]; }
+      if (mission.seaSiteKey) { delete S.lastSea.missionTokens[mission.seaSiteKey]; }
+      if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+      return;
+    }
+    if (mission.region === 'galaxy') {
+      return;
+    }
     if (mission.informerHex) {
       delete S.missionTokens[mission.informerHex.col + ',' + mission.informerHex.row];
     }
@@ -189,6 +244,11 @@
   }
 
   function removeInformerToken(mission) {
+    if (mission && mission.region === 'sea' && mission.seaInformerKey && S.lastSea && S.lastSea.missionTokens) {
+      delete S.lastSea.missionTokens[mission.seaInformerKey];
+      if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+      return;
+    }
     if (!mission || !mission.informerHex) return;
     delete S.missionTokens[mission.informerHex.col + ',' + mission.informerHex.row];
     if (typeof renderHexMap === 'function') renderHexMap();
@@ -263,14 +323,15 @@
       var diffKey = pick(DIFF_KEYS);
       var diff    = DIFFICULTIES[diffKey];
       var f = pickFactionConflict();
+      var region = pick(getAvailableMissionRegions());
       S.availableJobs.push({
         id:seed + i + 1,
         title:pick(MISSION_VERBS)+' '+pick(MISSION_TARGETS),
         difficulty:diffKey,
         dread:diff.dread,
-        location:pick(MISSION_LOCS),
+        location:getMissionLocationForRegion(region),
         reward:diff.credits,
-        region:'province',
+        region:region,
         factionGain:f.gain,
         factionLose:f.lose,
         factionGainName:f.gainName,

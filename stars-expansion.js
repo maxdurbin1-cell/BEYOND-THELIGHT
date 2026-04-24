@@ -371,6 +371,7 @@ function ensureStarsState() {
     mainStar: 'Smoldering Red Star',
     hexes: [],
     currentHexId: null,
+    galaxyGenerated: false,
     selectedRing: 'middle',
     tradeRoutes: [],
     majorPowers: [],
@@ -425,6 +426,7 @@ function ensureStarsState() {
   if (!S.starSystem.activeSpaceEncounter) S.starSystem.activeSpaceEncounter = null;
   if (!S.starSystem.activeTask) S.starSystem.activeTask = null;
   if (!Array.isArray(S.starSystem.royalShipLog)) S.starSystem.royalShipLog = [];
+  if (typeof S.starSystem.galaxyGenerated !== 'boolean') S.starSystem.galaxyGenerated = false;
   if (!S.starSystem.currentWeather || typeof S.starSystem.currentWeather !== 'object') S.starSystem.currentWeather = null;
   if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
   if (!Array.isArray(S.starSystem.taskMarkers)) S.starSystem.taskMarkers = [];
@@ -609,8 +611,16 @@ function addItemToSpaceShipCargo(item) {
 
 function takeGalaxyLoot(item, destination) {
   if (!item) return;
-  const ok = destination === 'ship' ? addItemToSpaceShipCargo(item) : addItemToBackpack(item);
-  if (ok) showNotif(`Loot secured: ${item}`, 'good');
+  // Handle both stringified JSON objects and plain strings
+  let itemName = item;
+  try {
+    const parsed = JSON.parse(item);
+    itemName = parsed.name || item;
+  } catch (e) {
+    // Already a string, use as-is
+  }
+  const ok = destination === 'ship' ? addItemToSpaceShipCargo(itemName) : addItemToBackpack(itemName);
+  if (ok) showNotif(`Loot secured: ${itemName}`, 'good');
 }
 
 function buildLootActions(item) {
@@ -619,6 +629,29 @@ function buildLootActions(item) {
     <button class="btn btn-xs btn-teal" onclick="takeGalaxyLoot(${JSON.stringify(item)},'pack')">Take To Backpack</button>
     <button class="btn btn-xs" onclick="takeGalaxyLoot(${JSON.stringify(item)},'ship')">Store In Ship</button>
   </div>`;
+}
+
+function applyGalaxyFailureText(text) {
+  if (!text) return;
+  const lower = String(text).toLowerCase();
+  if (lower.includes('health damage')) {
+    if (typeof changeHealth === 'function') changeHealth(1);
+    else if (typeof changeStress === 'function') changeStress(1);
+  }
+  if (lower.includes('+2 mental stress')) {
+    if (typeof changeMentalStress === 'function') changeMentalStress(2);
+  } else if (lower.includes('mental stress')) {
+    if (typeof changeMentalStress === 'function') changeMentalStress(1);
+  }
+  if ((lower.includes('+1 stress') || lower.includes(' +1 stress')) && !lower.includes('mental stress')) {
+    if (typeof changeStress === 'function') changeStress(1);
+  }
+  if (lower.includes('lose 1 phase')) {
+    if (typeof loseGamePhases === 'function') loseGamePhases(1);
+  }
+  if (lower.includes('+50 radiation')) {
+    if (typeof changeRads === 'function') changeRads(50);
+  }
 }
 
 function getMerchantShopEntries(categories) {
@@ -770,9 +803,30 @@ function renderGalaxyTaskPanel(taskId) {
       ${task.text}
     </div>
     <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">
-      <button class="btn btn-xs btn-teal" onclick="resolveGalaxyTaskOutcome('${task.id}',true)">Complete Task</button>
+      <button class="btn btn-xs btn-teal" onclick="rollGalaxyTaskCheck('${task.id}',true)">Roll to Succeed</button>
       <button class="btn btn-xs" onclick="resolveGalaxyTaskOutcome('${task.id}',false)">Mark Failed</button>
     </div>`;
+}
+
+function rollGalaxyTaskCheck(taskId, attempt) {
+  ensureStarsState();
+  const task = getGalaxyTaskById(taskId);
+  if (!task || task.resolved) return;
+  const adventureDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 6);
+  const dreadRoll = roll(6);
+  const playerRoll = roll(adventureDie);
+  const success = playerRoll >= dreadRoll;
+  const resultText = success 
+    ? `Rolled d${adventureDie}: ${playerRoll} vs Dread d6: ${dreadRoll} — SUCCESS!` 
+    : `Rolled d${adventureDie}: ${playerRoll} vs Dread d6: ${dreadRoll} — failure.`;
+  const out = document.getElementById('starExplorationDetail');
+  if (out) {
+    out.innerHTML = `<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">${task.title}</div>
+      <div style="font-size:.84rem;color:var(--muted2);line-height:1.6;">${resultText}</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+        <button class="btn btn-xs btn-teal" onclick="resolveGalaxyTaskOutcome('${task.id}',${success})">Accept Result</button>
+      </div>`;
+  }
 }
 
 function resolveGalaxyTaskOutcome(taskId, success) {
@@ -789,8 +843,10 @@ function resolveGalaxyTaskOutcome(taskId, success) {
     showNotif(`Galaxy task completed: ${task.title}`, 'good');
   } else {
     if (typeof changeCounter === 'function') changeCounter('renown', -1);
-    resultText = 'Task failed. -1 global Renown.';
-    showNotif(`Galaxy task failed: ${task.title}`, 'warn');
+    if (typeof changeStress === 'function') changeStress(1);
+    if (typeof loseGamePhases === 'function') loseGamePhases(1);
+    resultText = 'Task failed. -1 Renown, +1 Stress, -1 Phase';
+    showNotif(`Galaxy task failed: ${task.title} — consequences applied`, 'warn');
   }
   if (out) {
     out.innerHTML = `<div style="font-size:.9rem;color:${success ? 'var(--green2)' : 'var(--red2)'};">${task.title}</div><div style="font-size:.84rem;color:var(--muted2);line-height:1.55;margin-top:.2rem;">${resultText}</div>`;
@@ -1751,38 +1807,49 @@ function renderFacilityPanel() {
   const f = S.starSystem.activeFacility;
   const out = document.getElementById('starExplorationDetail');
   if (!f || !out) return;
+
+  if (typeof f._currentModuleView !== 'number') f._currentModuleView = 0;
+
   const revealedModules = f.moduleLog.filter(module => module.revealed);
   const unrevealedCount = f.moduleLog.length - revealedModules.length;
+  const currentIdx = revealedModules.length ? Math.min(f._currentModuleView, revealedModules.length - 1) : 0;
+  const currentModule = revealedModules.length ? revealedModules[currentIdx] : null;
+
+  const facilityDesc = `${f.sizeLabel} ${f.purpose} facility near ${f.description}. Challenge: ${f.challenge.text}. Find: ${f.challenge.targetLabel}.`;
+
+  const moduleTabs = revealedModules.length
+    ? `<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.35rem;margin-bottom:.25rem;">
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:.15rem;">Modules: ${revealedModules.length}/${f.moduleLog.length} explored</div>
+        <div style="display:flex;gap:.15rem;flex-wrap:wrap;">${revealedModules.map((module, idx) => `<button class="btn btn-xs ${idx === currentIdx ? 'btn-teal' : ''}" style="padding:.15rem .25rem;font-size:.65rem;" onclick="S.starSystem.activeFacility._currentModuleView=${idx};renderFacilityPanel();">M${module.id}${module.completed ? '✓' : ''}</button>`).join('')}</div>
+      </div>`
+    : '';
+
+  const moduleCard = currentModule
+    ? `<div style="border:1px solid var(--border);background:rgba(255,255,255,.03);padding:.35rem;border-radius:2px;">
+        <strong style="color:var(--gold2);">Module ${currentModule.id}: ${currentModule.module}</strong><br>
+        <span style="font-size:.73rem;color:var(--muted2);">→ ${currentModule.connector} | ${currentModule.result}${currentModule.branchResult ? ' | ' + currentModule.branchResult : ''}</span>
+        ${currentModule.specialText ? `<div style="font-size:.73rem;color:var(--gold2);margin-top:.15rem;"><strong>⊙ ${currentModule.specialText}</strong></div>` : ''}
+        ${currentModule.encounterState && Array.isArray(currentModule.encounterState.actions) ? `<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">${currentModule.encounterState.actions.map(action => `<button class="btn btn-xs ${action.resolved ? '' : 'btn-teal'}" onclick="resolveFacilityEncounterAction(${currentModule.id},'${action.id}')">${action.resolved ? '✓' : action.label}</button>`).join('')}</div>` : ''}
+        ${Array.isArray(currentModule.encounterLog) && currentModule.encounterLog.length ? `<div style="font-size:.7rem;color:var(--muted2);margin-top:.15rem;line-height:1.3;">${currentModule.encounterLog.slice(0, 2).map(entry => `<div>• ${entry}</div>`).join('')}</div>` : ''}
+        <div style="font-size:.73rem;color:var(--muted2);margin-top:.15rem;">Loot: <strong>${currentModule.loot}</strong></div>
+        ${buildLootActions(currentModule.loot)}
+        <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeFacilityModule(${currentModule.id})">${currentModule.completed ? '✓ Completed' : 'Mark Completed'}</button></div>
+      </div>`
+    : '<div style="font-size:.73rem;color:var(--muted2);">No modules explored yet.</div>';
+
   out.innerHTML = `
-    <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.2rem;">Galactic Facility ${f.code}</div>
-    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
-      As your starship exits its jump, you see the site is <strong>${f.arrival}</strong>.<br>
-      The site is a <strong>${f.sizeLabel}</strong> <strong>${f.purpose}</strong> facility.<br>
-      The site is near ${f.description}, a <strong>${f.structure}</strong> structure made out of <strong>${f.material}</strong>. Its layout is organic, sprawling, and maze-like. ${f.quirk}<br>
-      Challenge: ${f.challenge.text}<br>
-      Branch State: ${f.challenge.roll === 1 ? `Debt due ${f.challenge.debtCredits} credits.` : f.challenge.roll === 2 ? `Missing Person checks made: ${f.challenge.modulesChecked}.` : f.challenge.roll === 4 ? `Resources secured: ${f.challenge.resourceCredits} credits.` : f.challenge.roll === 6 ? `Missing Item checks made: ${f.challenge.modulesChecked}.` : 'Objective hunt in progress.'}<br>
-      Module Table: ${FACILITY_SIZE_LABELS[f.sizeModules]} facility = ${f.sizeModules} rooms. One room contains <strong>${f.challenge.targetLabel}</strong>.<br>
-      After the Docking Station, you arrive at a <strong>${f.location}</strong>. Here you see d6 ${pick(FACILITY_DISPOSITIONS)} ${pick(FACILITY_WORKERS)} ${pick(FACILITY_ACTIONS)} ${pick(FACILITY_SUBJECTS)} DD4 | 4 Health. Their leader is ${f.leader.name}, who has ${f.leader.feature}. If confronted, can offer a ${f.leader.job}.
-    </div>
-    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+    <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.3rem;">Galactic Facility ${f.code}</div>
+    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-bottom:.3rem;">${facilityDesc}</div>
+
+    <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="rollFacilityModule()">Explore Module</button>
-      <button class="btn btn-xs" onclick="resolveFacilityObjective()">Complete Objective (+1 Renown)</button>
+      <button class="btn btn-xs" onclick="resolveFacilityObjective()">Complete Objective</button>
     </div>
-    <div style="margin-top:.35rem;display:grid;gap:.3rem;">
-      ${revealedModules.length ? revealedModules.map(module => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
-        <strong style="color:${module.completed ? 'var(--green2)' : 'var(--gold2)'};">Module ${module.id}: ${module.module}</strong><br>
-        Connector: ${module.connector}<br>
-        Encounter: ${module.result}<br>
-        ${module.branchResult ? `Branch: ${module.branchResult}<br>` : ''}
-        ${module.specialText ? `Objective: ${module.specialText}<br>` : ''}
-        ${module.encounterState && Array.isArray(module.encounterState.actions) ? `<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.25rem;">${module.encounterState.actions.map(action => `<button class="btn btn-xs ${action.resolved ? '' : 'btn-teal'}" onclick="resolveFacilityEncounterAction(${module.id},'${action.id}')">${action.resolved ? 'Resolved' : action.label}</button>`).join('')}</div>` : ''}
-        ${Array.isArray(module.encounterLog) && module.encounterLog.length ? `<div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;line-height:1.45;">${module.encounterLog.map((entry, idx) => `<div>${idx + 1}. ${entry}</div>`).join('')}</div>` : ''}
-        Loot: ${module.loot}
-        ${buildLootActions(module.loot)}
-        <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeFacilityModule(${module.id})">${module.completed ? 'Completed' : 'Mark Completed'}</button></div>
-      </div>`).join('') : '<div style="font-size:.73rem;color:var(--muted2);">No modules explored yet.</div>'}
-      ${unrevealedCount ? `<div style="font-size:.72rem;color:var(--muted2);">${unrevealedCount} unexplored module(s) remain.</div>` : ''}
-    </div>`;
+
+    ${moduleTabs}
+    ${moduleCard}
+    <div style="font-size:.72rem;color:var(--muted2);margin-top:.25rem;">${unrevealedCount} module(s) remain.</div>
+  `;
 }
 
 function completeFacilityModule(moduleId) {
@@ -2061,9 +2128,13 @@ function createDerelictShipState() {
 
 function createSpaceHubState(ring) {
   const moduleCount = 4 + roll(3);
+  const controller = pick((S.starSystem && Array.isArray(S.starSystem.majorPowers) && S.starSystem.majorPowers.length)
+    ? S.starSystem.majorPowers
+    : ['Unaligned Transit Authority']);
   return {
     code: randomFacilityCode(),
     ring: ring || 'middle',
+    controller,
     stationType: pick(SPACE_HUB_STATIONS),
     modulesTotal: moduleCount,
     engine: pick(SPACE_HUB_ENGINE),
@@ -2126,6 +2197,7 @@ function renderSpaceHubPanel() {
   out.innerHTML = `
     <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Space Hub: ${hub.name}</div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
+      Controlled By: <strong style="color:var(--teal);">${hub.controller}</strong><br>
       Station Type: <strong>${hub.stationType}</strong> · Engine: ${hub.engine} · Crew: ${hub.crew}<br>
       Leader: <strong>${hub.leader.name}</strong> (${hub.leader.feature}, ${hub.leader.quirk}) wants ${hub.leader.want} and offers job: ${hub.leader.job}.<br>
       Dockside: ${hub.workers.map(w => `${w.disposition} ${w.worker} ${w.action} ${w.subject}`).join(' · ')}
@@ -2208,8 +2280,63 @@ function createMysteryContactOptions(kind) {
   }));
 }
 
+function pickGalaxyContactArchetype(ring) {
+  const weighted = [];
+  STAR_CONTACT_ARCHETYPES.forEach((archetype) => {
+    let weight = 1;
+    if (archetype.kind === 'Royal Ship') weight = ring === 'inner' ? 3 : ring === 'middle' ? 2 : 1;
+    if (archetype.kind === 'Merchant Ship') weight += 1;
+    for (let index = 0; index < weight; index += 1) weighted.push(archetype);
+  });
+  return pick(weighted);
+}
+
+function buildMysteryMissionHookTask(mystery) {
+  if (!mystery || !mystery.missionHook) return null;
+  const taskMap = {
+    'escort their convoy to a Space Hub': {
+      title: 'Escort Convoy Route',
+      text: 'Escort the convoy through the marked lane and report at the destination hub.',
+      reward: { renown: 'corporations', globalRenown: 1, lootFromMerchant: true },
+    },
+    'hunt a pirate that has been shadowing them': {
+      title: 'Shadow Pirate Hunt',
+      text: 'Track the pirate shadowing this contact and break their pursuit route at the marked hex.',
+      reward: { renown: 'military', globalRenown: 1, lootCategory: 'weapons' },
+    },
+    'recover a relic from a derelict they mapped': {
+      title: 'Mapped Derelict Recovery',
+      text: 'Travel to the marked derelict coordinates and recover the relic before scavengers arrive.',
+      reward: { renown: 'religious', globalRenown: 1, lootCategory: 'cosmic' },
+    },
+    'deliver spare parts through a blockade': {
+      title: 'Blockade Parts Run',
+      text: 'Smuggle the requested parts through the marked route and complete the delivery intact.',
+      reward: { renown: 'rebels', globalRenown: 1, lootCategory: 'toolkits' },
+    },
+  };
+  return taskMap[mystery.missionHook] || null;
+}
+
+function mapMysteryMissionHook() {
+  ensureStarsState();
+  const mystery = S.starSystem.activeMystery;
+  if (!mystery) return;
+  const taskConfig = buildMysteryMissionHookTask(mystery);
+  if (!taskConfig) return;
+  if (mystery.missionTaskId && getGalaxyTaskById(mystery.missionTaskId)) {
+    renderGalaxyTaskPanel(mystery.missionTaskId);
+    return;
+  }
+  const task = createGalaxyTask(mystery.archetype, taskConfig);
+  if (!task) return;
+  mystery.missionTaskId = task.id;
+  showNotif(`Mission hook mapped to Hex ${task.hexId}.`, 'good');
+  renderGalaxyTaskPanel(task.id);
+}
+
 function createMysteryState(ring) {
-  const archetype = pick(STAR_CONTACT_ARCHETYPES);
+  const archetype = pickGalaxyContactArchetype(ring);
   const disposition = pick(MYSTERY_DISPOSITION);
   return {
     ring: ring || 'middle',
@@ -2358,10 +2485,7 @@ function resolveSpaceEncounterOption(optionId) {
   }
 
   if (option.failure && option.failure.text) {
-    if (option.failure.text.indexOf('Mental Stress') >= 0 && typeof changeMentalStress === 'function') changeMentalStress(1);
-    if (option.failure.text.indexOf('Health') >= 0 && typeof changeStress === 'function') changeStress(1);
-    if (option.failure.text.indexOf('Radiation') >= 0 && typeof changeRads === 'function') changeRads(50);
-    if (option.failure.text.indexOf('Phase') >= 0) loseGamePhases(1);
+    applyGalaxyFailureText(option.failure.text);
   }
 
   if (out) {
@@ -2388,12 +2512,23 @@ function renderMysteryPanel() {
   const mystery = S.starSystem.activeMystery;
   const out = document.getElementById('starExplorationDetail');
   if (!mystery || !out) return;
+  if (!mystery.missionTaskId) {
+    const missionTask = buildMysteryMissionHookTask(mystery);
+    if (missionTask) {
+      const task = createGalaxyTask(mystery.archetype, missionTask);
+      if (task) mystery.missionTaskId = task.id;
+    }
+  }
   out.innerHTML = `
     <div style="font-size:.92rem;color:var(--gold2);margin-bottom:.2rem;">Mystery Contact: ${mystery.shipName}</div>
     <div style="font-size:.84rem;color:var(--muted2);line-height:1.6;">
       <strong>${mystery.archetype}</strong> · ${mystery.archetypeSummary}<br>
       ${mystery.crewType} ${mystery.shipType} at ${mystery.proximity} range. Disposition: <strong>${mystery.disposition}</strong>.<br>
       Mission Hook: ${mystery.missionHook}.
+    </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">
+      <button class="btn btn-xs btn-teal" onclick="mapMysteryMissionHook()">Map Mission Hook</button>
+      ${mystery.missionTaskId ? `<button class="btn btn-xs" onclick="renderGalaxyTaskPanel('${mystery.missionTaskId}')">Open Mission Task</button>` : ''}
     </div>
     <div style="margin-top:.35rem;display:grid;gap:.3rem;">
       ${mystery.contacts.map((contact, idx) => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
@@ -3008,6 +3143,7 @@ function generateStarSystemMap(galaxyType) {
   S.starSystem.taskMarkers = [];
   S.starSystem.radioTaskMarkers = [];
   S.starSystem.currentWeather = null;
+  S.starSystem.galaxyGenerated = true;
   clearActiveGalaxyPanels();
 
   renderStarSystemMap();
@@ -3264,6 +3400,9 @@ function updateStarSystemReadouts() {
     } else {
       const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
       const actionButtons = [];
+      const hubState = current.type === 'hub'
+        ? getHexPersistentState(current, 'hub', function() { return createSpaceHubState(current.ring); })
+        : null;
       if (current.type === 'hub') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeHub=getHexPersistentState(h,\'hub\',function(){return createSpaceHubState(h.ring);});renderSpaceHubPanel();">Open Space Hub</button>');
       if (current.type === 'derelict_ship') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDerelict=getHexPersistentState(h,\'derelict\',createDerelictShipState);renderDerelictPanel();">Explore Derelict</button>');
       if (current.type === 'dead_moon') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDeadMoonMap=getHexPersistentState(h,\'deadMoonMap\',createDeadMoonMapState);renderDeadMoonMapPanel();">Land On Dead Moon</button>');
@@ -3280,15 +3419,22 @@ function updateStarSystemReadouts() {
             ${S.starSystem.currentWeather.dd > 0 ? '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;"><button class="btn btn-xs" onclick="resolveGalaxyWeatherCheck()">Traverse Weather</button></div>' : ''}
           </div>` : ''}
           ${current.type === 'radio_task' && !current.radioTaskResolved ? `<div style="padding:.42rem;border:1px solid rgba(80,200,255,.7);background:rgba(80,200,255,.08);font-size:.84rem;color:#dff8ff;line-height:1.55;">Radio event marker active in this hex. Resolve it here before it goes cold.</div>` : ''}
-          <div style="padding:.4rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--muted2);line-height:1.7;">
-            <strong style="color:var(--text);">Hex:</strong> ${current.id} (${current.ring.toUpperCase()} Ring)<br>
-            <strong style="color:var(--text);">Land:</strong> ${current.land || 'Unknown'}<br>
-            <strong style="color:var(--text);">Flora:</strong> ${current.flora || 'Unknown'}<br>
-            <strong style="color:var(--text);">Wonder:</strong> ${current.wonder || 'Unknown'}
+          <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+            <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Land</div>
+            <div style="font-size:.96rem;color:var(--text);margin-top:.08rem;">${current.land || 'Unknown'}</div>
+          </div>
+          <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+            <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Flora / Fauna</div>
+            <div style="font-size:.96rem;color:var(--text);margin-top:.08rem;">${current.flora || 'Unknown'}</div>
+          </div>
+          <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+            <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Wonder</div>
+            <div style="font-size:.96rem;color:var(--text);margin-top:.08rem;">${current.wonder || 'Unknown'}</div>
           </div>
           <div style="padding:.4rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--muted2);line-height:1.7;">
             <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
             <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>
+            ${hubState ? `<strong style="color:var(--text);">Hub Control:</strong> ${hubState.controller}<br>` : ''}
             ${current.analysisDetail ? `<strong style="color:var(--text);">Further Analysis:</strong> ${current.analysisDetail}` : ''}
           </div>
           ${actionButtons.length ? `<div style="display:flex;gap:.25rem;flex-wrap:wrap;">${actionButtons.join('')}</div>` : ''}
@@ -3381,11 +3527,9 @@ function resolveGalaxyWeatherCheck() {
     if (el) el.innerHTML = `<span style="color:var(--green2);">${check.text}. Success: weather lane cleared.</span>`;
     showNotif('Weather traversal succeeded.', 'good');
   } else {
-    loseGamePhases(1);
-    if (weather.name === 'Ash Drift' && typeof changeStress === 'function') changeStress(1);
-    if (weather.name === 'Grav Tide' && typeof changeMentalStress === 'function') changeMentalStress(1);
+    applyGalaxyFailureText(weather.failure);
     if (el) el.innerHTML = `<span style="color:var(--red2);">${check.text}. Failure: ${weather.failure}</span>`;
-    showNotif('Weather traversal failed: phase lost.', 'warn');
+    showNotif(`Weather traversal failed: ${weather.failure}`, 'warn');
   }
   updateStarSystemReadouts();
 }
@@ -4610,7 +4754,6 @@ function getGalaxySystemPanelMarkup() {
           <button class="btn btn-xs btn-teal" onclick="runGalaxyEncounterRoll()">⚄ Roll Encounter</button>
           <button class="btn btn-xs" onclick="rollMonthlyStarRadioEvent()">Monthly Radio</button>
         </div>
-        <div id="starWeatherResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-top:.25rem;"></div>
         <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-top:.25rem;"></div>
         <div id="starExplorationDetail" style="font-size:.86rem;color:var(--muted2);line-height:1.55;min-height:4rem;padding:.5rem;border:1px solid var(--border);background:rgba(255,255,255,.01);margin-top:.25rem;"></div>
       </div>
@@ -4960,9 +5103,11 @@ document.addEventListener('DOMContentLoaded', function() {
   updateStarshipUI();
   updateDateUI();
   removeLegacyHealthLabel();
-  if (!S.starSystem || !Array.isArray(S.starSystem.hexes) || !S.starSystem.hexes.length) {
+  ensureStarsState();
+  // Only auto-generate galaxy on first visit to Galaxy tab, not on subsequent tab switches
+  if (!S.starSystem.galaxyGenerated && (!S.starSystem.hexes || !S.starSystem.hexes.length)) {
     generateStarSystemMap('cluster');
-  } else {
+  } else if (S.starSystem.hexes && S.starSystem.hexes.length) {
     renderStarSystemMap();
     updateStarSystemReadouts();
   }
@@ -5022,4 +5167,5 @@ window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
 window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
 window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;
 window.openGalaxyTaskFromMap = openGalaxyTaskFromMap;
+window.mapMysteryMissionHook = mapMysteryMissionHook;
 window.renderRoyalShipLog = renderRoyalShipLog;

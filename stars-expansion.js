@@ -202,6 +202,7 @@ const FACTION_NAMES = {
   religious:    'Religious Entities',
   political:    'Political Groups',
   military:     'Military Orders',
+  rebels:       'Rebel Faction',
   underworld:   'The Underworld',
 };
 
@@ -354,8 +355,12 @@ function ensureStarsState() {
     religious:    0,
     political:    0,
     military:     0,
+    rebels:       0,
     underworld:   0,
   };
+  Object.keys(FACTION_NAMES).forEach((key) => {
+    if (typeof S.factionRenown[key] !== 'number') S.factionRenown[key] = 0;
+  });
   S.starship = S.starship || {
     fuel:    { standard: 0, hubJump: 0, hyperdrive: 0 },
     shields: 0,
@@ -374,12 +379,14 @@ function ensureStarsState() {
     starshipTravelDays: 0,
     radioEventsSeen: {},
     lastRadioEvent: '',
+    generatedName: '',
     activeFacility: null,
     activeHub: null,
     activeMystery: null,
     activeDeadMoon: null,
     activeDeadMoonMap: null,
     activeDerelict: null,
+    activeTask: null,
   };
   S.spaceNaval = S.spaceNaval || null;
   S.seaNaval = S.seaNaval || null;
@@ -415,8 +422,10 @@ function ensureStarsState() {
   if (!S.starSystem.activeDeadMoonMap) S.starSystem.activeDeadMoonMap = null;
   if (!S.starSystem.activeDerelict) S.starSystem.activeDerelict = null;
   if (!S.starSystem.activeSpaceEncounter) S.starSystem.activeSpaceEncounter = null;
+  if (!S.starSystem.activeTask) S.starSystem.activeTask = null;
   if (!S.starSystem.currentWeather || typeof S.starSystem.currentWeather !== 'object') S.starSystem.currentWeather = null;
   if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
+  if (!Array.isArray(S.starSystem.taskMarkers)) S.starSystem.taskMarkers = [];
   if (typeof S.starSystem.empoweredChecks !== 'number') S.starSystem.empoweredChecks = 0;
 
   if (!S.radiationState) {
@@ -572,10 +581,18 @@ function ensureSpaceCargoTarget() {
 
 function addItemToBackpack(item) {
   if (!item) return false;
+  if (typeof addToBackpack === 'function') {
+    const stored = addToBackpack(item);
+    if (stored && typeof renderBackpackUI === 'function') renderBackpackUI();
+    return !!stored;
+  }
   if (!Array.isArray(S.backpack)) S.backpack = ['', '', '', '', '', ''];
   const slotIdx = S.backpack.indexOf('');
-  if (slotIdx >= 0) S.backpack[slotIdx] = item;
-  else S.backpack.push(item);
+  if (slotIdx < 0) {
+    showNotif('Backpack full!', 'warn');
+    return false;
+  }
+  S.backpack[slotIdx] = item;
   if (typeof renderBackpackUI === 'function') renderBackpackUI();
   return true;
 }
@@ -600,6 +617,184 @@ function buildLootActions(item) {
     <button class="btn btn-xs btn-teal" onclick="takeGalaxyLoot(${JSON.stringify(item)},'pack')">Take To Backpack</button>
     <button class="btn btn-xs" onclick="takeGalaxyLoot(${JSON.stringify(item)},'ship')">Store In Ship</button>
   </div>`;
+}
+
+function getMerchantShopEntries(categories) {
+  if (typeof SHOP_DATA === 'undefined' || !SHOP_DATA) return [];
+  const seen = new Set();
+  const entries = [];
+  (categories || []).forEach((category) => {
+    const list = SHOP_DATA[category];
+    if (!Array.isArray(list)) return;
+    list.forEach((item) => {
+      if (!item || !item.name || seen.has(item.name)) return;
+      seen.add(item.name);
+      entries.push({ name: item.name, cost: item.cost || 0, cat: category, stat: item.stat || '', desc: item.desc || '' });
+    });
+  });
+  return entries;
+}
+
+function rollGalaxyMerchantLootFromCategories(categories, fallbackPool) {
+  const pool = getMerchantShopEntries(categories);
+  if (pool.length) return pick(pool).name;
+  return rollGalaxyMerchantLoot(fallbackPool);
+}
+
+function buildGalaxyMerchantOffers(kind) {
+  const categories = kind === 'Black Market Ship'
+    ? ['weapon_mods', 'vehicle_mods', 'cosmic', 'space_armor', 'os_hacks', 'trade_goods']
+    : ['weapons', 'melee_exp', 'ranged_exp', 'armor', 'armor_exp', 'items', 'toolkits', 'essentials', 'remedies', 'scrolls', 'cosmic', 'space_armor'];
+  const pool = getMerchantShopEntries(categories);
+  const offers = [];
+  const used = new Set();
+  while (pool.length && offers.length < 4) {
+    const offer = pick(pool);
+    if (!offer || used.has(offer.name)) continue;
+    used.add(offer.name);
+    offers.push(Object.assign({}, offer));
+  }
+  return offers;
+}
+
+function getOfferPrice(offer, discountRate) {
+  const rate = typeof discountRate === 'number' ? discountRate : 0;
+  return Math.max(0, Math.ceil((offer.cost || 0) * (1 - rate)));
+}
+
+function clearActiveGalaxyPanels() {
+  ensureStarsState();
+  S.starSystem.activeFacility = null;
+  S.starSystem.activeHub = null;
+  S.starSystem.activeMystery = null;
+  S.starSystem.activeDeadMoon = null;
+  S.starSystem.activeDeadMoonMap = null;
+  S.starSystem.activeDerelict = null;
+  S.starSystem.activeSpaceEncounter = null;
+  S.starSystem.activeTask = null;
+  const result = document.getElementById('starExplorationResult');
+  const detail = document.getElementById('starExplorationDetail');
+  const analysis = document.getElementById('starAnalysisResult');
+  if (result) result.innerHTML = '';
+  if (analysis) analysis.innerHTML = '';
+  if (detail) detail.innerHTML = '<div style="font-size:.88rem;color:var(--muted2);line-height:1.55;">Hex selection updated. Click <strong style="color:var(--gold2);">Roll Encounter</strong> to inspect local activity.</div>';
+}
+
+function setPositiveGalaxyCondition(conditionKey) {
+  if (!S.conditions || !(conditionKey in S.conditions)) return;
+  S.conditions[conditionKey] = true;
+  if (typeof updateConditionButtons === 'function') updateConditionButtons();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+}
+
+function pickGalaxyTaskHex() {
+  const candidates = (S.starSystem.hexes || []).filter((hex) => hex && hex.ring !== 'core' && !hex.radioTaskId && !(hex.taskMarker && !hex.taskMarker.resolved));
+  if (!candidates.length) return null;
+  const preferred = candidates.filter((hex) => ['hub', 'planet', 'location', 'mystery', 'facility'].includes(hex.type));
+  return pick(preferred.length ? preferred : candidates);
+}
+
+function createGalaxyTask(source, config) {
+  ensureStarsState();
+  const hex = pickGalaxyTaskHex();
+  if (!hex) return null;
+  const task = {
+    id: `gal-task-${Date.now()}-${roll(9999)}`,
+    source: source || 'Galaxy',
+    title: config.title || 'Galaxy Task',
+    text: config.text || 'Complete the assigned objective in this sector.',
+    reward: Object.assign({}, config.reward || {}),
+    hexId: hex.id,
+    resolved: false,
+  };
+  hex.taskMarker = {
+    id: task.id,
+    title: task.title,
+    source: task.source,
+    resolved: false,
+  };
+  S.starSystem.taskMarkers.push(task);
+  S.starSystem.lastRadioEvent = `${task.source}: ${task.title} marker placed at Hex ${hex.id}.`;
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+  return task;
+}
+
+function getGalaxyTaskById(taskId) {
+  return (S.starSystem.taskMarkers || []).find((task) => task.id === taskId) || null;
+}
+
+function getCurrentGalaxyTask() {
+  const hex = getCurrentStarHex();
+  if (!hex || !hex.taskMarker || hex.taskMarker.resolved) return null;
+  return getGalaxyTaskById(hex.taskMarker.id);
+}
+
+function applyGalaxyRewardPackage(reward) {
+  if (!reward) return '';
+  const notes = [];
+  if (reward.renown) {
+    changeFactionRenown(reward.renown, 1);
+    notes.push(`+1 ${FACTION_NAMES[reward.renown] || reward.renown} Renown`);
+  }
+  if (reward.globalRenown && typeof changeCounter === 'function') {
+    changeCounter('renown', reward.globalRenown);
+    notes.push(`+${reward.globalRenown} Renown`);
+  }
+  if (reward.credits && typeof changeCredits === 'function') {
+    changeCredits(reward.credits);
+    notes.push(`+${reward.credits} credits`);
+  }
+  const lootDrops = [];
+  if (Array.isArray(reward.loot)) lootDrops.push(...reward.loot);
+  if (reward.lootCategory) lootDrops.push(rollGalaxyMerchantLootFromCategories([reward.lootCategory], reward.loot));
+  if (Array.isArray(reward.lootCategories) && reward.lootCategories.length) lootDrops.push(rollGalaxyMerchantLootFromCategories(reward.lootCategories, reward.loot));
+  if (reward.lootFromMerchant) lootDrops.push(rollGalaxyMerchantLoot());
+  lootDrops.filter(Boolean).forEach((item) => takeGalaxyLoot(item, 'pack'));
+  if (lootDrops.length) notes.push(`Loot: ${lootDrops.join(', ')}`);
+  return notes.join(' · ');
+}
+
+function renderGalaxyTaskPanel(taskId) {
+  ensureStarsState();
+  const task = getGalaxyTaskById(taskId) || getCurrentGalaxyTask();
+  const out = document.getElementById('starExplorationDetail');
+  if (!task || !out) return;
+  S.starSystem.activeTask = task;
+  out.innerHTML = `
+    <div style="font-size:.92rem;color:var(--gold2);margin-bottom:.25rem;">Galaxy Task: ${task.title}</div>
+    <div style="font-size:.86rem;color:var(--muted2);line-height:1.6;">
+      <strong style="color:var(--text);">Source:</strong> ${task.source}<br>
+      ${task.text}
+    </div>
+    <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">
+      <button class="btn btn-xs btn-teal" onclick="resolveGalaxyTaskOutcome('${task.id}',true)">Complete Task</button>
+      <button class="btn btn-xs" onclick="resolveGalaxyTaskOutcome('${task.id}',false)">Mark Failed</button>
+    </div>`;
+}
+
+function resolveGalaxyTaskOutcome(taskId, success) {
+  ensureStarsState();
+  const task = getGalaxyTaskById(taskId);
+  const out = document.getElementById('starExplorationDetail');
+  if (!task || task.resolved) return;
+  const hex = (S.starSystem.hexes || []).find((entry) => entry.id === task.hexId);
+  task.resolved = true;
+  if (hex && hex.taskMarker) hex.taskMarker.resolved = true;
+  let resultText = '';
+  if (success) {
+    resultText = applyGalaxyRewardPackage(task.reward) || 'Task completed.';
+    showNotif(`Galaxy task completed: ${task.title}`, 'good');
+  } else {
+    if (typeof changeCounter === 'function') changeCounter('renown', -1);
+    resultText = 'Task failed. -1 global Renown.';
+    showNotif(`Galaxy task failed: ${task.title}`, 'warn');
+  }
+  if (out) {
+    out.innerHTML = `<div style="font-size:.9rem;color:${success ? 'var(--green2)' : 'var(--red2)'};">${task.title}</div><div style="font-size:.84rem;color:var(--muted2);line-height:1.55;margin-top:.2rem;">${resultText}</div>`;
+  }
+  renderStarSystemMap();
+  updateStarSystemReadouts();
 }
 
 // ── STAR SYSTEM MAP SCAFFOLD ────────────────────────────────────────────────
@@ -735,8 +930,22 @@ const STAR_PERIL_FAILURES = [
 
 const STAR_WEATHER_FRONTS = [
   {
-    name: 'Rainstorm',
-    desc: 'Sheets of driving rain. Visibility falls to nothing.',
+    name: 'Solar Calm',
+    desc: 'Stable lanes and low particulate drift. Pilots can take a clean reading here.',
+    check: 'lead',
+    dd: 0,
+    failure: 'No weather hazard in this hex.',
+  },
+  {
+    name: 'Aurora Drift',
+    desc: 'Soft ion ribbons wash over the hull and sharpen long-range scans.',
+    check: 'mind',
+    dd: 0,
+    failure: 'No weather hazard in this hex.',
+  },
+  {
+    name: 'Static Front',
+    desc: 'Charged vapor reduces visibility and fuzzes short-range telemetry.',
     check: 'lead',
     dd: 8,
     failure: 'Remain in this Hex and lose 1 Phase.',
@@ -770,23 +979,25 @@ const STAR_CONTACT_ARCHETYPES = [
     summary: 'Command vessel carrying court envoys, strict tariffs, and political leverage.',
     options: [
       { id: 'pay', label: 'Pay Tariff', text: 'Pay 2d6x10 Credits to pass peacefully.', payout: 'creditsLoss' },
-      { id: 'charter', label: 'Request Royal Task', text: 'Lead vs DD8. Success: gain Task and +1 Political Renown.', check: 'lead', dd: 8, renown: 'political' },
+      { id: 'charter', label: 'Request Royal Task', text: 'Lead vs DD8. Success: place a Galaxy task marker and earn Political Renown on completion.', check: 'lead', dd: 8, taskConfig: { title: 'Royal Charter Run', text: 'Deliver sealed royal data and escort the envoy route to the marked hex.', reward: { renown: 'political', globalRenown: 1, lootCategory: 'armor' } } },
     ],
   },
   {
     kind: 'Merchant Ship',
     summary: 'Cargo flotilla with legal manifests, eager brokers, and distracted guards.',
     options: [
-      { id: 'trade', label: 'Trade Fairly', text: 'Buy one merchant loot package and gain +1 Corporation Renown.', renown: 'corporations', trade: true },
-      { id: 'thieve', label: 'Attempt Thievery', text: 'Control vs DD8. Success: steal loot. Failure: flagged and forced combat response.', check: 'control', dd: 8, steal: true },
+      { id: 'buy', label: 'Buy', text: 'Open merchant inventory pulled directly from the Merchant tab.', trade: true },
+      { id: 'haggle', label: 'Haggle', text: 'Lead vs DD8. Success: current merchant offers are 20% cheaper.', check: 'lead', dd: 8, haggle: true },
+      { id: 'thieve', label: 'Steal', text: 'Control vs DD8. Success: steal one merchant item. Failure: flagged and forced combat response.', check: 'control', dd: 8, steal: true },
     ],
   },
   {
     kind: 'Black Market Ship',
     summary: 'Masked signatures and encrypted channels. Contraband prices are brutal.',
     options: [
-      { id: 'buy', label: 'Buy Contraband', text: 'Spend 100 Credits for 2 merchant loot items.', contraband: true },
-      { id: 'intel', label: 'Gather Intel', text: 'Mind vs DD8. Success: reveal nearest hidden signature and generate task.', check: 'mind', dd: 8, reveal: true },
+      { id: 'buy', label: 'Buy Contraband', text: 'Open contraband inventory pulled from the Merchant tab.', contraband: true },
+      { id: 'haggle', label: 'Threaten Better Price', text: 'Lead vs DD8. Success: contraband offers are 20% cheaper.', check: 'lead', dd: 8, haggle: true },
+      { id: 'intel', label: 'Steal Intel', text: 'Mind vs DD8. Success: reveal nearest hidden signature and place a Galaxy task marker.', check: 'mind', dd: 8, reveal: true, taskConfig: { title: 'Black Channel Lead', text: 'Follow the underworld route hidden in the stolen cipher packet.', reward: { renown: 'underworld', lootFromMerchant: true } } },
     ],
   },
   {
@@ -921,7 +1132,7 @@ const STAR_SPACE_ENCOUNTERS = [
     title: 'Cosmic Distress Beacon',
     text: 'A crashed merchant vessel near a Dead Moon has survivors and scattered cargo.',
     options: [
-      { id: 'aid-survivors', label: 'Aid Survivors', type: 'check', stat: 'lead', dd: 6, success: { renown: 'military', lootFromMerchant: true, task: true }, failure: { text: 'Evacuation is delayed. Lose 1 Phase.' } },
+      { id: 'aid-survivors', label: 'Aid Survivors', type: 'check', stat: 'lead', dd: 6, success: { renown: 'rebels', lootCategory: 'armor', task: true }, failure: { text: 'Evacuation is delayed. Lose 1 Phase.' } },
     ],
   },
   {
@@ -944,14 +1155,18 @@ const STAR_SPACE_ENCOUNTERS = [
 
 function applyEncounterRewards(reward) {
   if (!reward) return '';
+  if (reward.task) {
+    const task = createGalaxyTask('Galaxy Encounter', {
+      title: reward.taskTitle || 'Generated Space Task',
+      text: reward.taskText || 'Travel to the marked hex and resolve the assignment there.',
+      reward: Object.assign({}, reward),
+    });
+    return task ? `Galaxy task marker placed at Hex ${task.hexId}. Rewards pay out on completion.` : 'No valid hex available for a Galaxy task marker.';
+  }
   const notes = [];
   if (reward.renown) {
     changeFactionRenown(reward.renown, 1);
     notes.push('+1 faction renown');
-  }
-  if (reward.task && typeof generateMissions === 'function') {
-    generateMissions();
-    notes.push('Task generated');
   }
   if (reward.revealHex) {
     const hidden = (S.starSystem.hexes || []).find(h => h.hiddenOutcome && !h.scanned);
@@ -1916,7 +2131,7 @@ function renderSpaceHubPanel() {
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="exploreSpaceHubModule()">Explore Hub Module</button>
       <button class="btn btn-xs" onclick="changeStarshipFuel('standard',1)">Refuel Standard +1</button>
-      <button class="btn btn-xs" onclick="if(typeof generateMissions==='function')generateMissions()">Generate Task</button>
+      <button class="btn btn-xs" onclick="var task=createGalaxyTask('Space Hub',{title:'Hub Contract',text:'Carry a Holding-style contract package to the marked hex and report back through Space Hub channels.',reward:{renown:'corporations',globalRenown:1,lootFromMerchant:true}});if(task)showNotif('Galaxy task marker placed at Hex '+task.hexId+'.','good');">Generate Task</button>
     </div>
     <div style="margin-top:.35rem;display:grid;gap:.3rem;">
       ${hub.modules.length ? hub.modules.map(module => `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
@@ -1981,9 +2196,11 @@ function createMysteryContactOptions(kind) {
     dd: opt.dd || 0,
     renown: opt.renown || null,
     trade: !!opt.trade,
+    haggle: !!opt.haggle,
     steal: !!opt.steal,
     reveal: !!opt.reveal,
     contraband: !!opt.contraband,
+    taskConfig: opt.taskConfig || null,
     payout: opt.payout || '',
     resolved: false,
   }));
@@ -2008,9 +2225,30 @@ function createMysteryState(ring) {
       quirk: pick(MYSTERY_QUIRKS),
     })),
     trade: Array.from({ length: 3 }, () => rollGalaxyMerchantLoot(MYSTERY_TRADE)),
+    offers: buildGalaxyMerchantOffers(archetype.kind),
+    discountRate: 0,
     options: createMysteryContactOptions(archetype.kind),
     missionHook: pick(['escort their convoy to a Space Hub', 'hunt a pirate that has been shadowing them', 'recover a relic from a derelict they mapped', 'deliver spare parts through a blockade']),
   };
+}
+
+function buyGalaxyMerchantOffer(index) {
+  ensureStarsState();
+  const mystery = S.starSystem.activeMystery;
+  if (!mystery || !Array.isArray(mystery.offers)) return;
+  const offer = mystery.offers[index];
+  if (!offer) return;
+  const cost = getOfferPrice(offer, mystery.discountRate || 0);
+  if (typeof buyItem === 'function') {
+    buyItem(cost, offer.name, offer.cat);
+    return;
+  }
+  if ((S.credits || 0) < cost) {
+    showNotif('Not enough credits!', 'warn');
+    return;
+  }
+  if (typeof changeCredits === 'function') changeCredits(-cost);
+  addItemToBackpack(offer.name);
 }
 
 function resolveMysteryContactOption(optionId) {
@@ -2035,27 +2273,27 @@ function resolveMysteryContactOption(optionId) {
     return;
   }
   if (option.trade) {
-    const loot = rollGalaxyMerchantLoot();
-    takeGalaxyLoot(loot, 'pack');
-    if (option.renown) changeFactionRenown(option.renown, 1);
     option.resolved = true;
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Merchant Trade</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Trade completed. Loot: ${loot}. +1 faction renown applied.</div>${buildLootActions(loot)}`;
+    renderMysteryPanel();
     return;
   }
   if (option.contraband) {
-    if (typeof changeCredits === 'function') changeCredits(-100);
-    const lootA = rollGalaxyMerchantLoot();
-    const lootB = rollGalaxyMerchantLoot();
     option.resolved = true;
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Black Market Deal</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Spent 100 credits. Contraband offers: ${lootA}, ${lootB}</div>${buildLootActions(lootA)}${buildLootActions(lootB)}`;
+    renderMysteryPanel();
     return;
   }
 
   const check = option.check ? resolveGalaxySkillCheck(option.check, option.check === 'lead' ? 'mind' : 'lead', option.dd, option.label) : { success: true, text: option.label, delta: 1 };
   if (check.success) {
-    if (option.renown) changeFactionRenown(option.renown, 1);
+    if (option.haggle) {
+      mystery.discountRate = 0.2;
+      option.resolved = true;
+      renderMysteryPanel();
+      showNotif('Haggle success: merchant offers discounted.', 'good');
+      return;
+    }
     if (option.steal) {
-      const loot = rollGalaxyMerchantLoot();
+      const loot = mystery.offers && mystery.offers.length ? pick(mystery.offers).name : rollGalaxyMerchantLoot();
       takeGalaxyLoot(loot, 'pack');
       if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. Loot secured: ${loot}.</div>${buildLootActions(loot)}`;
     } else if (option.reveal) {
@@ -2066,12 +2304,12 @@ function resolveMysteryContactOption(optionId) {
         hidden.type = convertOutcomeToHexType(hidden.hiddenOutcome);
         hidden.detail = `${hidden.hiddenOutcome} signature revealed through black market intelligence.`;
       }
-      if (typeof generateMissions === 'function') generateMissions();
-      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Black Market Intel</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Hidden signature revealed and task generated.</div>`;
+      const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
+      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Black Market Intel</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Hidden signature revealed.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}</div>`;
       renderStarSystemMap();
     } else {
-      if (typeof generateMissions === 'function') generateMissions();
-      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. New task generated.</div>`;
+      const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
+      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}</div>`;
     }
     option.resolved = true;
     return;
@@ -2140,8 +2378,8 @@ function renderMysteryPanel() {
   const out = document.getElementById('starExplorationDetail');
   if (!mystery || !out) return;
   out.innerHTML = `
-    <div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Mystery Contact: ${mystery.shipName}</div>
-    <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">
+    <div style="font-size:.92rem;color:var(--gold2);margin-bottom:.2rem;">Mystery Contact: ${mystery.shipName}</div>
+    <div style="font-size:.84rem;color:var(--muted2);line-height:1.6;">
       <strong>${mystery.archetype}</strong> · ${mystery.archetypeSummary}<br>
       ${mystery.crewType} ${mystery.shipType} at ${mystery.proximity} range. Disposition: <strong>${mystery.disposition}</strong>.<br>
       Mission Hook: ${mystery.missionHook}.
@@ -2154,7 +2392,14 @@ function renderMysteryPanel() {
     </div>
     <div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);">
       <div class="sub-label">Trade Items</div>
-      ${mystery.trade.map(item => `<div style="padding:.25rem 0;border-bottom:1px dotted var(--border2);">${item}${buildLootActions(item)}</div>`).join('')}
+      ${mystery.offers && mystery.offers.length ? mystery.offers.map((offer, index) => `<div style="padding:.35rem 0;border-bottom:1px dotted var(--border2);display:grid;gap:.15rem;">
+        <div><strong style="color:var(--text);">${offer.name}</strong> ${offer.stat ? `· ${offer.stat}` : ''}</div>
+        <div style="font-size:.78rem;color:var(--muted2);line-height:1.45;">${offer.desc || 'Merchant-tab inventory item.'}</div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-xs btn-teal" onclick="buyGalaxyMerchantOffer(${index})">Buy ${getOfferPrice(offer, mystery.discountRate || 0)}₵</button>
+          <span style="font-size:.74rem;color:${mystery.discountRate ? 'var(--green2)' : 'var(--muted2)'};">${mystery.discountRate ? 'Haggled price active' : `Base ${offer.cost || 0}₵`}</span>
+        </div>
+      </div>`).join('') : mystery.trade.map(item => `<div style="padding:.25rem 0;border-bottom:1px dotted var(--border2);">${item}${buildLootActions(item)}</div>`).join('')}
     </div>`;
   out.innerHTML += `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);display:flex;gap:.25rem;flex-wrap:wrap;">${(mystery.options || []).map(opt => `<button class="btn btn-xs ${opt.resolved ? '' : 'btn-teal'}" onclick="resolveMysteryContactOption('${opt.id}')">${opt.label}</button>`).join('')}</div>`;
 }
@@ -2742,16 +2987,22 @@ function generateStarSystemMap(galaxyType) {
   const powerSet = generateMajorPowersAndFactions();
   S.starSystem.galaxyType = type;
   S.starSystem.mainStar = pick(['Smoldering Red Star', 'Glowering Orange Star', 'White Dwarf Halo Star']);
+  S.starSystem.generatedName = generateStarSystemName();
   S.starSystem.hexes = cells;
   S.starSystem.tradeRoutes = planetsByRing;
   S.starSystem.currentHexId = 0;
   S.starSystem.majorPowers = powerSet.majorPowers;
   S.starSystem.factions = powerSet.factions;
   S.starSystem.selectedRing = 'middle';
+  S.starSystem.taskMarkers = [];
+  S.starSystem.radioTaskMarkers = [];
+  S.starSystem.currentWeather = null;
+  clearActiveGalaxyPanels();
 
   renderStarSystemMap();
+  rollStarSystemWeather();
   updateStarSystemReadouts();
-  showNotif(`Generated ${generateStarSystemName()} (${type}) with 37 hexes.`, 'good');
+  showNotif(`Generated ${S.starSystem.generatedName} (${type}) with 37 hexes.`, 'good');
 }
 
 function getStarHexGlyph(hex) {
@@ -2784,9 +3035,9 @@ function renderStarSystemMap() {
     return;
   }
 
-  const size = 23;
-  const cx = 340;
-  const cy = 250;
+  const size = 27;
+  const cx = 430;
+  const cy = 300;
   const scaleX = size * 1.7;
   const scaleY = size * 1.45;
 
@@ -2796,13 +3047,16 @@ function renderStarSystemMap() {
     const pts = hexPointsSVG(x, y, size - 2);
     const key = STAR_SIGHTING_COLORS[hex.type] ? hex.type : 'nothing';
     const fill = STAR_SIGHTING_COLORS[key].color;
-    const border = hex.id === S.starSystem.currentHexId ? '#ffffff' : '#2d3142';
+    const hasTaskMarker = !!(hex.taskMarker && !hex.taskMarker.resolved);
+    const border = hasTaskMarker ? '#f2d75a' : hex.id === S.starSystem.currentHexId ? '#ffffff' : '#2d3142';
     const opacity = hex.explored ? 0.9 : 0.55;
     const label = getStarHexGlyph(hex);
+    const markerGlyph = hasTaskMarker ? '✦' : hex.type === 'radio_task' && !hex.radioTaskResolved ? '✉' : '';
     return `
       <g onclick="selectStarSystemHex(${hex.id})" style="cursor:pointer;">
-        <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hex.id === S.starSystem.currentHexId ? 2 : 1}" />
-        <text x="${x}" y="${y + 3}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="#0f111a">${label}</text>
+        <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hasTaskMarker ? 3 : hex.id === S.starSystem.currentHexId ? 2 : 1}" />
+        <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="#0f111a">${label}</text>
+        ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${hasTaskMarker ? '#f2d75a' : '#9de7ff'}">${markerGlyph}</text>` : ''}
       </g>`;
   }).join('');
 
@@ -2818,7 +3072,7 @@ function renderStarSystemMap() {
   }).join('');
 
   host.innerHTML = `
-    <svg width="680" height="500" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;background:rgba(6,8,16,.55);border:1px solid var(--border);">
+    <svg width="860" height="620" xmlns="http://www.w3.org/2000/svg" style="max-width:none;background:linear-gradient(180deg,rgba(5,8,18,.95),rgba(7,10,20,.72));border:1px solid var(--border);">
       ${routeLines}
       ${svgHexes}
     </svg>`;
@@ -2846,7 +3100,9 @@ function selectStarSystemHex(hexId) {
   if (h && h.ring && h.ring !== 'core') S.starSystem.selectedRing = h.ring;
   const ringSel = document.getElementById('starRingSelect');
   if (ringSel && h && h.ring && h.ring !== 'core') ringSel.value = h.ring;
+  clearActiveGalaxyPanels();
   renderStarSystemMap();
+  rollStarSystemWeather();
   updateStarSystemReadouts();
 }
 
@@ -2954,6 +3210,7 @@ function runFurtherSystemAnalysis() {
   if (success) {
     const sig = hex.hiddenOutcome || (hex.type === 'hub' ? 'Galactic Facility' : hex.type === 'planet' ? 'Locations' : 'Uneventful Voyage');
     hex.analysisDetail = `Further analysis: ${sig}. ${sig === 'Space Encounter' ? 'Scanner identifies vessel class and likely crew disposition.' : 'Additional telemetry refines target details and approach risks.'}`;
+    setPositiveGalaxyCondition('focused');
     if (out) out.innerHTML = `<span style="color:var(--green2);">Further Analysis Success</span>: d${die}=${action.total} vs DD8=${dread.total}.`;
   } else {
     if (out) out.innerHTML = `<span style="color:var(--red2);">Further Analysis Failed</span>: d${die}=${action.total} vs DD8=${dread.total}. Day spent with noisy telemetry.`;
@@ -2972,7 +3229,7 @@ function updateStarSystemReadouts() {
     if (!current) detail.textContent = 'No hex selected.';
     else {
       const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
-      detail.innerHTML = `Hex ${current.id} · ${current.ring.toUpperCase()} RING · <span style="color:${sig.color};">${sig.label}</span><br><span style="color:var(--muted2);">${current.detail || 'No detail yet.'}</span>`;
+      detail.innerHTML = `Hex ${current.id} · ${current.ring.toUpperCase()} RING · <span style="color:${sig.color};">${sig.label}</span>${current.taskMarker && !current.taskMarker.resolved ? ' · <strong style="color:var(--gold2);">TASK MARKER</strong>' : ''}<br><span style="color:var(--muted2);">${current.detail || 'No detail yet.'}</span>`;
     }
   }
   if (panel) {
@@ -2987,21 +3244,23 @@ function updateStarSystemReadouts() {
       if (current.type === 'mystery') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeMystery=getHexPersistentState(h,\'mystery\',function(){return createMysteryState(h.ring);});renderMysteryPanel();">Hail Mystery Contact</button>');
       if (current.type === 'facility') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeFacility=getHexPersistentState(h,\'facility\',createFacilityState);renderFacilityPanel();">Dock At Facility</button>');
       if (current.type === 'radio_task') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="resolveGalaxyRadioTask()">Resolve Radio Task</button>');
+      if (current.taskMarker && !current.taskMarker.resolved) actionButtons.push('<button class="btn btn-xs btn-teal" onclick="renderGalaxyTaskPanel(\'' + current.taskMarker.id + '\')">Open Galaxy Task</button>');
       panel.innerHTML = `
         <div style="display:grid;gap:.35rem;">
           ${S.starSystem.currentWeather ? `<div class="weather-block ${S.starSystem.currentWeather.rough ? 'rough' : 'clear'}" style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
-            <div style="font-size:.78rem;color:${S.starSystem.currentWeather.rough ? 'var(--red2)' : 'var(--teal)'};"><strong>Weather:</strong> ${S.starSystem.currentWeather.name}</div>
-            <div style="font-size:.74rem;color:var(--muted2);line-height:1.45;">${S.starSystem.currentWeather.desc}</div>
-            <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">⚠ ${S.starSystem.currentWeather.checkLabel} vs DD${S.starSystem.currentWeather.dd}. Failure: ${S.starSystem.currentWeather.failure}</div>
-            <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;"><button class="btn btn-xs" onclick="resolveGalaxyWeatherCheck()">Traverse Weather</button><button class="btn btn-xs" onclick="rollStarSystemWeather()">Roll Weather</button></div>
+            <div style="font-size:.9rem;color:${S.starSystem.currentWeather.rough ? 'var(--red2)' : 'var(--teal)'};"><strong>Weather:</strong> ${S.starSystem.currentWeather.name}</div>
+            <div style="font-size:.82rem;color:var(--muted2);line-height:1.5;">${S.starSystem.currentWeather.desc}</div>
+            <div style="font-size:.78rem;color:var(--muted2);margin-top:.2rem;">${S.starSystem.currentWeather.dd > 0 ? `⚠ ${S.starSystem.currentWeather.checkLabel} vs DD${S.starSystem.currentWeather.dd}. Failure: ${S.starSystem.currentWeather.failure}` : 'Clear travel lane. No traversal check required.'}</div>
+            ${S.starSystem.currentWeather.dd > 0 ? '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;"><button class="btn btn-xs" onclick="resolveGalaxyWeatherCheck()">Traverse Weather</button></div>' : ''}
           </div>` : ''}
-          <div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.83rem;color:var(--muted2);line-height:1.65;">
+          ${current.type === 'radio_task' && !current.radioTaskResolved ? `<div style="padding:.42rem;border:1px solid rgba(80,200,255,.7);background:rgba(80,200,255,.08);font-size:.84rem;color:#dff8ff;line-height:1.55;">Radio event marker active in this hex. Resolve it here before it goes cold.</div>` : ''}
+          <div style="padding:.4rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--muted2);line-height:1.7;">
             <strong style="color:var(--text);">Hex:</strong> ${current.id} (${current.ring.toUpperCase()} Ring)<br>
             <strong style="color:var(--text);">Land:</strong> ${current.land || 'Unknown'}<br>
             <strong style="color:var(--text);">Flora:</strong> ${current.flora || 'Unknown'}<br>
             <strong style="color:var(--text);">Wonder:</strong> ${current.wonder || 'Unknown'}
           </div>
-          <div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.83rem;color:var(--muted2);line-height:1.65;">
+          <div style="padding:.4rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--muted2);line-height:1.7;">
             <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
             <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>
             ${current.analysisDetail ? `<strong style="color:var(--text);">Further Analysis:</strong> ${current.analysisDetail}` : ''}
@@ -3075,7 +3334,7 @@ function rollStarSystemWeather() {
     el.innerHTML = `<div class="weather-block ${weather.rough ? 'rough' : 'clear'}" style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
       <div style="font-size:.78rem;color:${weather.rough ? 'var(--red2)' : 'var(--teal)'};">${weather.name}</div>
       <div style="font-size:.74rem;color:var(--muted2);line-height:1.45;">${weather.desc}</div>
-      <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">⚠ ${weather.checkLabel} vs DD${weather.dd} required. Failure: ${weather.failure}</div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">${weather.dd > 0 ? `⚠ ${weather.checkLabel} vs DD${weather.dd} required. Failure: ${weather.failure}` : 'Clear travel lane. No traversal check required.'}</div>
     </div>`;
   }
   updateStarSystemReadouts();
@@ -3084,6 +3343,11 @@ function rollStarSystemWeather() {
 function resolveGalaxyWeatherCheck() {
   ensureStarsState();
   const weather = S.starSystem.currentWeather || pick(STAR_WEATHER_FRONTS);
+  if (!weather.dd) {
+    const el = document.getElementById('starWeatherResult');
+    if (el) el.innerHTML = `<span style="color:var(--green2);">${weather.name}. No traversal hazard in this hex.</span>`;
+    return;
+  }
   const check = resolveGalaxySkillCheck(weather.check, null, weather.dd, weather.name + ' Traversal');
   const el = document.getElementById('starWeatherResult');
   if (check.success) {
@@ -3139,16 +3403,16 @@ function resolveGalaxyRadioTask() {
     showNotif('No radio task marker in this hex.', 'warn');
     return;
   }
-  if (typeof generateMissions === 'function') generateMissions();
-  if (typeof switchTab === 'function') switchTab('missions', document.querySelector('.tab-btn[onclick*="missions"]'));
-  if (typeof changeCounter === 'function') changeCounter('renown', 1);
+  const rewardText = applyGalaxyRewardPackage({ globalRenown: 1, lootFromMerchant: true });
   current.radioTaskResolved = true;
   current.type = 'location';
   current.detail = 'Resolved radio contract. Local contacts leave a stable route and future work.';
   (S.starSystem.radioTaskMarkers || []).forEach((m) => {
     if (m.hexId === current.id) m.resolved = true;
   });
-  showNotif('Radio task resolved: +1 Renown and new task generated.', 'good');
+  showNotif('Radio task resolved.', 'good');
+  const out = document.getElementById('starExplorationDetail');
+  if (out) out.innerHTML = `<div style="font-size:.88rem;color:var(--green2);">Radio Task Resolved</div><div style="font-size:.82rem;color:var(--muted2);line-height:1.55;">${rewardText || 'The crew finishes the assignment and secures local trust.'}</div>`;
   renderStarSystemMap();
   updateStarSystemReadouts();
 }
@@ -4292,6 +4556,7 @@ function getGalaxySystemPanelMarkup() {
 
 <div class="map-legend">
   ${Object.entries(STAR_SIGHTING_COLORS).filter(([k]) => k !== 'star').map(([k, v]) => `<div class="leg-item"><div class="leg-dot" style="background:${v.color};"></div>${v.label}</div>`).join('')}
+  <div class="leg-item"><div class="leg-dot" style="background:var(--gold2);"></div>Galaxy Task</div>
 </div>
 
 <div class="map-layout">
@@ -4316,13 +4581,11 @@ function getGalaxySystemPanelMarkup() {
         <div class="sub-label">Explore</div>
         <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
           <button class="btn btn-xs btn-teal" onclick="runGalaxyEncounterRoll()">⚄ Roll Encounter</button>
-          <button class="btn btn-xs" onclick="rollStarSystemWeather()">Roll Weather</button>
           <button class="btn btn-xs" onclick="rollMonthlyStarRadioEvent()">Monthly Radio</button>
-          <button class="btn btn-xs" onclick="if(typeof generateMissions==='function')generateMissions();switchTab('missions',document.querySelector(\".tab-btn[onclick*=\\\"missions\\\"]\"));">Generate Task</button>
         </div>
         <div id="starWeatherResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-top:.25rem;"></div>
         <div id="starExplorationResult" style="font-size:.75rem;color:var(--muted2);min-height:1rem;margin-top:.25rem;"></div>
-        <div id="starExplorationDetail" style="font-size:.74rem;color:var(--muted2);line-height:1.45;min-height:3rem;padding:.35rem;border:1px solid var(--border);background:rgba(255,255,255,.01);margin-top:.25rem;"></div>
+        <div id="starExplorationDetail" style="font-size:.86rem;color:var(--muted2);line-height:1.55;min-height:4rem;padding:.5rem;border:1px solid var(--border);background:rgba(255,255,255,.01);margin-top:.25rem;"></div>
       </div>
 
       <div style="padding-top:.45rem;border-top:1px solid var(--border);margin-top:.45rem;">
@@ -4411,7 +4674,14 @@ function buildGalaxyPanel() {
   target.innerHTML = getGalaxySystemPanelMarkup();
 
   const mainStarEl = document.getElementById('starMainStar');
-  if (mainStarEl) mainStarEl.textContent = S.starSystem && S.starSystem.mainStar ? S.starSystem.mainStar : 'Uncharted';
+  if (mainStarEl) {
+    const systemName = (S.starSystem && S.starSystem.generatedName) ? S.starSystem.generatedName : 'Uncharted';
+    const starName = S.starSystem && S.starSystem.mainStar ? S.starSystem.mainStar : 'Unknown Star';
+    mainStarEl.textContent = `${systemName} · ${starName}`;
+  }
+  if (S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length && !S.starSystem.currentWeather) {
+    rollStarSystemWeather();
+  }
   renderStarSystemMap();
   updateStarSystemReadouts();
 }
@@ -4633,3 +4903,6 @@ window.registerLastSeaHexTravel = registerLastSeaHexTravel;
 window.registerLastSeaIslandTravel = registerLastSeaIslandTravel;
 window.getGameDatePhaseText = getGameDatePhaseText;
 window.buildGalaxyPanel = buildGalaxyPanel;
+window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
+window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
+window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;

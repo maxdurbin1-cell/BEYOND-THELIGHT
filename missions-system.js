@@ -268,6 +268,20 @@
   }
 
   function removeInformerToken(mission) {
+    if (mission && mission.region === 'galaxy' && mission.galaxyInformerTaskId && S.starSystem && Array.isArray(S.starSystem.taskMarkers)) {
+      S.starSystem.taskMarkers.forEach(function(task) {
+        if (task.id === mission.galaxyInformerTaskId) {
+          task.resolved = true;
+          var hex = (S.starSystem.hexes || []).find(function(h) { return h.id === task.hexId; });
+          if (hex && hex.taskMarker && hex.taskMarker.id === task.id) {
+            hex.taskMarker.resolved = true;
+          }
+        }
+      });
+      if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+      if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+      return;
+    }
     if (mission && mission.region === 'sea' && mission.seaInformerKey && S.lastSea && S.lastSea.missionTokens) {
       delete S.lastSea.missionTokens[mission.seaInformerKey];
       if (typeof renderLastSeaMap === 'function') renderLastSeaMap();

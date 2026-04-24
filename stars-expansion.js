@@ -2619,7 +2619,7 @@ function resolveMysteryContactOption(optionId) {
   const mystery = S.starSystem.activeMystery;
   if (!mystery) return;
   const option = (mystery.options || []).find(o => o.id === optionId);
-  if (!option) return;
+  if (!option || option.resolved) return;
   const out = document.getElementById('starExplorationDetail');
 
   if (option.payout === 'creditsLoss') {
@@ -2793,7 +2793,7 @@ function renderMysteryPanel() {
         </div>
       </div>`).join('') : mystery.trade.map(item => `<div style="padding:.25rem 0;border-bottom:1px dotted var(--border2);">${item}${buildLootActions(item)}</div>`).join('')}
     </div>`;
-  out.innerHTML += `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);display:flex;gap:.25rem;flex-wrap:wrap;">${(mystery.options || []).map(opt => `<button class="btn btn-xs ${opt.resolved ? '' : 'btn-teal'}" onclick="resolveMysteryContactOption('${opt.id}')">${opt.label}</button>`).join('')}</div>`;
+  out.innerHTML += `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);display:flex;gap:.25rem;flex-wrap:wrap;">${(mystery.options || []).map(opt => `<button class="btn btn-xs ${opt.resolved ? '' : 'btn-teal'}" ${opt.resolved ? 'disabled style="opacity:.55;cursor:default;"' : `onclick="resolveMysteryContactOption('${opt.id}')"`}>${opt.resolved ? 'Resolved' : opt.label}</button>`).join('')}</div>`;
 }
 
 function renderDerelictPanel() {

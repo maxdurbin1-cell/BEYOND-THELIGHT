@@ -2223,6 +2223,9 @@ function buyItem(cost, name, cat) {
   } else if (category === 'services') {
     // Services take immediate effect — show an info modal, no backpack slot needed
     var svc = found ? found.item : null;
+    if (!svc && name === 'Retainer Contract') {
+      svc = { name: 'Retainer Contract', stat: '+1 Hire Token', desc: 'Grants one Retainer hire for any Councilor in your Holding.' };
+    }
     if (svc) {
       var svcHtml = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
         + '<strong style="color:var(--gold);">' + svc.name + '</strong> — ' + svc.stat
@@ -2240,6 +2243,11 @@ function buyItem(cost, name, cat) {
         S.enemies.push({id: Date.now(), name: 'Mercenary (Ally)', dread: 6, stress: 0, maxStress: 12, ally: true});
         if (typeof renderEnemies === 'function') renderEnemies();
         showNotif('Mercenary added to Combat tracker', 'good');
+      } else if (name === 'Retainer Contract') {
+        S.holding = S.holding || {};
+        S.holding.retainerContracts = (S.holding.retainerContracts || 0) + 1;
+        if (typeof renderHoldingUI === 'function') renderHoldingUI();
+        showNotif('Retainer Contract added to Holding resources', 'good');
       }
       purchaseApplied = true;
     }

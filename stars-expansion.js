@@ -2752,6 +2752,30 @@ function resolveDeadMoonSiteOption(optionId) {
   renderDeadMoonMapPanel();
 }
 
+function checkDeadMoonGearWarnings(dm) {
+  // Returns an array of warning strings about missing protective gear
+  const warnings = [];
+  const layers = (S.gearLayers) || {};
+  // Dead moons are always vacuum — check vaccsuit
+  if (!layers.vaccsuit && !(S.equipment && S.equipment.armor && /vaccsuit/i.test(S.equipment.armor))) {
+    warnings.push('No VaccSuit equipped — you are exposed to vacuum. Suffer 1 Health per phase.');
+    if (typeof changeHealth === 'function') changeHealth(1);
+  }
+  // Irradiated dead moons need radsuit
+  if (dm && dm.irradiated) {
+    if (!layers.radsuit && !(S.equipment && S.equipment.armor && /radsuit/i.test(S.equipment.armor))) {
+      warnings.push('No RadSuit equipped — irradiated zone. Suffer +d100 Rads this exploration.');
+      const rads = roll(100);
+      if (typeof changeRads === 'function') changeRads(rads);
+    } else if (layers.radsuit && /light/i.test(layers.radsuit)) {
+      const rads = Math.floor(roll(100) / 2);
+      if (typeof changeRads === 'function') changeRads(rads);
+      warnings.push(`Light RadSuit reduces radiation to ${rads} Rads.`);
+    }
+  }
+  return warnings;
+}
+
 function deadMoonCellClick(cellId) {
   const map = S.starSystem.activeDeadMoonMap;
   if (!map) return;
@@ -2772,6 +2796,10 @@ function exploreDeadMoonMapCell() {
   const dm = S.starSystem.activeDeadMoon || createDeadMoonState();
   const cell = map.cells.find(c => c.id === map.currentId);
   if (!cell) return;
+  // Gear check on first exploration of any cell
+  if (!cell.visited) {
+    map.lastGearWarnings = checkDeadMoonGearWarnings(dm);
+  }
   cell.visited = true;
   if (cell.marker === 'site') {
     const room = pick(DEAD_MOON_SITE_ENCOUNTERS[dm.direction]);
@@ -2785,7 +2813,18 @@ function exploreDeadMoonMapCell() {
     cell.loot = loot;
     cell.note = `Loot cache discovered: ${loot}`;
   } else if (cell.marker === 'hazard') {
-    cell.note = `Hazard encountered: ${pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction])}`;
+    if (!cell.hazardType) {
+      const HAZARD_TYPES = [
+        { type: 'Psychic Disturbance', stat: 'mind', dd: 6, failText: 'Suffer +2 Stress.', failFn: function() { if(typeof changeStress==='function') changeStress(2); } },
+        { type: 'Radiation Leak', stat: 'body', dd: 8, failText: 'Suffer +100 Rads.', failFn: function() { if(typeof changeRads==='function') changeRads(100); } },
+        { type: 'Unstable Flooring', stat: 'body', dd: 6, failText: 'Suffer 1 Health damage.', failFn: function() { if(typeof changeHealth==='function') changeHealth(1); } },
+        { type: 'Reactive Gas', stat: 'body', dd: 8, failText: 'Suffer 1 Health damage and +1 Stress.', failFn: function() { if(typeof changeHealth==='function') changeHealth(1); if(typeof changeStress==='function') changeStress(1); } },
+        { type: 'Electromagnetic Pulse', stat: 'craft', dd: 6, failText: 'Lose 1 Phase.', failFn: function() { if(typeof loseGamePhases==='function') loseGamePhases(1); } },
+        { type: 'Bio-Toxin Spores', stat: 'body', dd: 10, failText: 'Suffer 2 Health damage and +100 Rads.', failFn: function() { if(typeof changeHealth==='function') changeHealth(2); if(typeof changeRads==='function') changeRads(100); } },
+      ];
+      cell.hazardType = pick(HAZARD_TYPES);
+    }
+    cell.note = `Hazard: ${cell.hazardType.type}. ${pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction])} Face this hazard before moving on.`;
   } else if (cell.marker === 'route') {
     cell.note = `Approach route explored: ${pick(DEAD_MOON_TRAVEL_EVENTS[dm.direction])}`;
   } else {
@@ -2803,6 +2842,7 @@ function renderDeadMoonMapPanel() {
   out.innerHTML = `
     <div style="font-size:.75rem;color:var(--gold2);margin-bottom:.25rem;">Dead Moon Landing Map (6x6) · ${map.profileTitle}</div>
     <div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.35rem;">Direction Table: ${map.tableLabel}<br>Click an adjacent cell to move 1 day. Current position is outlined in teal. Selected cell is outlined in gold.</div>
+    ${Array.isArray(map.lastGearWarnings) && map.lastGearWarnings.length ? `<div style="padding:.3rem .5rem;margin-bottom:.3rem;background:rgba(180,30,30,.18);border:1px solid var(--red2);border-radius:.2rem;font-size:.72rem;color:var(--red2);">⚠ ${map.lastGearWarnings.join('<br>⚠ ')}</div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.2rem;">
       ${map.cells.map(cell => `<button class="btn btn-xs" style="padding:.45rem .2rem;background:${DEAD_MOON_MAP_MARKERS[cell.marker].color};color:#111;border:${cell.id === map.currentId ? '2px solid var(--teal)' : cell.id === map.selectedId ? '2px solid var(--gold2)' : '1px solid rgba(255,255,255,.08)'};box-shadow:${cell.visited ? 'inset 0 0 0 1px rgba(255,255,255,.35)' : 'none'};" onclick="deadMoonCellClick('${cell.id}')">${cell.id === map.currentId ? '◉' : cell.marker === 'site' ? '◆' : cell.marker === 'loot' ? '▣' : cell.marker === 'hazard' ? '!' : cell.marker === 'route' ? '·' : ' '}</button>`).join('')}
     </div>
@@ -2816,6 +2856,7 @@ function renderDeadMoonMapPanel() {
     </div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="exploreDeadMoonMapCell()">Explore Cell</button>
+      ${current && current.marker === 'hazard' && current.hazardType && !current.hazardResolved ? `<button class="btn btn-xs btn-hazard" style="background:var(--red2);color:#fff;" onclick="rollDeadMoonHazardCheck()">⚠ Face Hazard (${current.hazardType.stat.toUpperCase()} DD${current.hazardType.dd})</button>` : ''}
       ${current && current.loot ? buildLootActions(current.loot) : ''}
       ${selected && selected.loot && selected.id !== current.id ? buildLootActions(selected.loot) : ''}
       <button class="btn btn-xs" onclick="rollDeadMoonDirection()">Roll New Direction</button>
@@ -2830,6 +2871,43 @@ function renderDeadMoonMapPanel() {
       <div style="display:grid;gap:.2rem;margin-top:.25rem;">${chain.rooms.map(r => `<div style="font-size:.7rem;color:${r.explored ? 'var(--muted2)' : 'var(--text2)'};">${r.id}. ${r.name}${r.locked ? ' [Lock]' : ''}${r.hasKey ? ' [Key]' : ''}${r.hazard ? ' [Hazard]' : ''} — ${r.note}</div>`).join('')}</div>
       <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;"><button class="btn btn-xs" onclick="deadMoonAdvanceCurrentRoom()">Advance Room</button><button class="btn btn-xs" onclick="resolveDeadMoonHazard()">Clear Hazard</button></div>
     </div>`;
+  }
+}
+
+function rollDeadMoonHazardCheck() {
+  ensureStarsState();
+  const map = S.starSystem.activeDeadMoonMap;
+  if (!map) return;
+  const cell = map.cells.find(c => c.id === map.currentId);
+  if (!cell || !cell.hazardType) return;
+  const h = cell.hazardType;
+  const advDie = (S.equipment && S.equipment.die) ? S.equipment.die : 'd6';
+  const dreadRoll = roll(6);
+  const advVal = roll(parseInt(advDie.replace('d','')) || 6);
+  const succeeded = advVal >= dreadRoll;
+  const stat = h.stat;
+  let statBonus = 0;
+  if (S.stats && S.stats[stat] != null) statBonus = S.stats[stat];
+  const finalAdv = advVal + statBonus;
+  const resultText = succeeded
+    ? `<span style="color:var(--teal)">SUCCESS (Adv ${finalAdv} vs Dread ${dreadRoll})</span> — Hazard bypassed.`
+    : `<span style="color:var(--red2)">FAILURE (Adv ${finalAdv} vs Dread ${dreadRoll})</span> — ${h.failText}`;
+  if (!succeeded && typeof h.failFn === 'function') h.failFn();
+  cell.hazardResolved = succeeded || undefined;
+  if (succeeded) cell.hazardResolved = true;
+  const out = document.getElementById('starExplorationDetail');
+  if (out) {
+    const existingResult = out.querySelector('#hazardCheckResult');
+    if (existingResult) existingResult.remove();
+    const div = document.createElement('div');
+    div.id = 'hazardCheckResult';
+    div.style.cssText = 'margin-top:.35rem;padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.75rem;line-height:1.5;';
+    div.innerHTML = `<strong>Hazard Check (${stat.toUpperCase()} DD${h.dd}):</strong><br>${resultText}`;
+    out.appendChild(div);
+    if (succeeded) {
+      const btns = out.querySelectorAll('.btn-hazard');
+      btns.forEach(b => b.disabled = true);
+    }
   }
 }
 

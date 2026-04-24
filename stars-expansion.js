@@ -707,8 +707,8 @@ function rollGalaxyMerchantLootFromCategories(categories, fallbackPool) {
 
 function buildGalaxyMerchantOffers(kind) {
   const categories = kind === 'Black Market Ship'
-    ? ['weapon_mods', 'vehicle_mods', 'cosmic', 'space_armor', 'os_hacks', 'trade_goods']
-    : ['weapons', 'melee_exp', 'ranged_exp', 'armor', 'armor_exp', 'items', 'toolkits', 'essentials', 'remedies', 'scrolls', 'cosmic', 'space_armor'];
+    ? ['weapon_mods', 'cosmic', 'space_armor', 'os_hacks', 'tradegoods', 'exocrafts', 'starship_fuel']
+    : ['weapons', 'melee_exp', 'ranged_exp', 'armor', 'armor_exp', 'items', 'toolkits', 'essentials', 'remedies', 'scrolls', 'tradegoods', 'cosmic', 'space_armor', 'exocrafts', 'starship_fuel'];
   const pool = getMerchantShopEntries(categories);
   const offers = [];
   const used = new Set();
@@ -1302,7 +1302,7 @@ const STAR_CONTACT_ARCHETYPES = [
 
 function getGalaxyMerchantLootPool() {
   if (typeof SHOP_DATA === 'undefined' || !SHOP_DATA) return [];
-  const keys = ['weapons', 'melee_exp', 'ranged_exp', 'armor', 'armor_exp', 'items', 'toolkits', 'essentials', 'remedies', 'scrolls', 'vehicle_mods', 'trade_goods', 'cosmic', 'space_armor'];
+  const keys = ['weapons', 'melee_exp', 'ranged_exp', 'armor', 'armor_exp', 'items', 'toolkits', 'essentials', 'remedies', 'scrolls', 'weapon_mods', 'tradegoods', 'cosmic', 'space_armor', 'exocrafts', 'starship_fuel'];
   const pool = [];
   keys.forEach((k) => {
     const list = SHOP_DATA[k];
@@ -1437,7 +1437,7 @@ const STAR_SPACE_ENCOUNTERS = [
     title: 'Black Market',
     text: 'A hidden asteroid market trades mods, intel, and contraband.',
     options: [
-      { id: 'trade-black-market', label: 'Trade', type: 'cost', credits: 100, success: { renown: 'underworld', loot: ['Vehicle Mod'] } },
+      { id: 'trade-black-market', label: 'Trade', type: 'cost', credits: 100, success: { renown: 'underworld', lootCategory: 'weapon_mods' } },
       { id: 'intel-black-market', label: 'Gather Intel', type: 'check-or-combat', stat: 'lead', dd: 6, success: { renown: 'corporations', revealHex: true, task: true }, failure: { combat: 'Fight 12 Pirates DD4|8 HP.' } },
     ],
   },
@@ -2630,6 +2630,10 @@ function resolveMysteryContactOption(optionId) {
 
   if (option.payout === 'creditsLoss') {
     const fee = (roll(6) + roll(6)) * 10;
+    if ((S.credits || 0) < fee) {
+      showNotif(`Not enough credits to pay ${fee}.`, 'warn');
+      return;
+    }
     if (typeof changeCredits === 'function') changeCredits(-fee);
     option.resolved = true;
     if (mystery.archetype === 'Royal Ship') {
@@ -2639,9 +2643,15 @@ function resolveMysteryContactOption(optionId) {
     return;
   }
   if (option.payout === 'banditPay') {
+    if ((S.credits || 0) < 100) {
+      showNotif('Not enough credits to pay tribute.', 'warn');
+      return;
+    }
     if (typeof changeCredits === 'function') changeCredits(-100);
     option.resolved = true;
+    mystery.resolved = true;
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Bandit Tribute Paid</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You lose 100 credits but avoid escalation.</div>`;
+    renderStarSystemMap();
     return;
   }
   if (option.trade) {
@@ -2708,6 +2718,10 @@ function resolveSpaceEncounterOption(optionId) {
 
   if (option.type === 'cost') {
     const cost = option.credits || 0;
+    if (cost > 0 && (S.credits || 0) < cost) {
+      showNotif(`Not enough credits to pay ${cost}.`, 'warn');
+      return;
+    }
     if (cost > 0 && typeof changeCredits === 'function') changeCredits(-cost);
     option.resolved = true;
     encounter.resolved = true;

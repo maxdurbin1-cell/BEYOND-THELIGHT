@@ -2595,6 +2595,7 @@
     var el = document.getElementById('weaponModsDisplay');
     if (!el) { return; }
     ensureNewFeatureState();
+    var mods = Array.isArray(S.weaponMods) ? S.weaponMods : [];
 
     var weaponEntries = [
       { label: 'Slot 1', name: S.equipment.weapon1 || '' },
@@ -2602,7 +2603,19 @@
     ].filter(function(w) { return w.name.trim(); });
 
     if (!weaponEntries.length) {
-      el.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">No weapons equipped.</div>';
+      if (!mods.length) {
+        el.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">No weapons equipped.</div>';
+        return;
+      }
+      el.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">No weapons equipped. Purchased mods are held until a weapon with slots is equipped.</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);">'
+        + '<strong style="color:var(--text2);">Unassigned:</strong> '
+        + mods.map(function(mod, i) {
+            return mod
+              + ' <button class="bp-info-btn" title="Mod info" onclick="showWeaponModInfo(\'' + mod.replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">?</button>'
+              + ' <button class="btn btn-xs btn-red" style="padding:.02rem .22rem;font-size:.56rem;" onclick="removeWeaponMod(' + i + ')">✕</button>';
+          }).join(' · ')
+        + '</div>';
       return;
     }
 

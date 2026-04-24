@@ -2145,6 +2145,12 @@ function buyItem(cost, name, cat) {
   var slotText = statStr ? name + ' ' + statStr : name;
   var category = cat || (found ? found.cat : 'items');
   if (category === 'trade_goods') category = 'tradegoods';
+  if (category === 'exocraft') category = 'exocrafts';
+
+  var storePurchasedItem = function(text) {
+    if (typeof addItemToBackpack === 'function') return addItemToBackpack(text);
+    return addToBackpack(text);
+  };
 
   var weaponCats = ['weapons','melee_exp','ranged_exp'];
   var armorCats = ['armor','armor_exp'];
@@ -2161,11 +2167,11 @@ function buyItem(cost, name, cat) {
       setInputValue('eqWeapon2', slotText);
       purchaseApplied = true;
     } else {
-      purchaseApplied = addToBackpack(slotText);
+      purchaseApplied = storePurchasedItem(slotText);
     }
     updateAllStatDisplays();
   } else if (armorCats.indexOf(category) >= 0) {
-    purchaseApplied = addToBackpack(slotText);
+    purchaseApplied = storePurchasedItem(slotText);
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   } else if (category === 'space_armor') {
     var lower = String(name || '').toLowerCase();
@@ -2186,7 +2192,7 @@ function buyItem(cost, name, cat) {
       if (lower.indexOf('radsuit') >= 0) S.gearLayers.radsuit = slotText;
       purchaseApplied = true;
     } else {
-      purchaseApplied = addToBackpack(slotText);
+      purchaseApplied = storePurchasedItem(slotText);
     }
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   } else if (category === 'starship_fuel') {
@@ -2225,6 +2231,8 @@ function buyItem(cost, name, cat) {
       if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
       purchaseApplied = true;
     }
+  } else if (category === 'tradegoods' || category === 'exocrafts' || category === 'cosmic') {
+    purchaseApplied = storePurchasedItem(slotText);
   } else if (category === 'services') {
     // Services take immediate effect — show an info modal, no backpack slot needed
     var svc = found ? found.item : null;
@@ -2258,7 +2266,7 @@ function buyItem(cost, name, cat) {
     }
   } else {
     // Essentials, toolkits, items, scrolls, remedies, tradegoods, strange → backpack
-    purchaseApplied = addToBackpack(slotText);
+    purchaseApplied = storePurchasedItem(slotText);
   }
 
   if (!purchaseApplied) {

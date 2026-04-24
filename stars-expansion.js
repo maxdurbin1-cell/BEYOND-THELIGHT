@@ -1356,12 +1356,15 @@ function createFacilityChallengeState(sizeModules) {
 
 function createFacilityRoomEntry(challenge, roomId) {
   const encounterType = pick(FACILITY_ENCOUNTER_TYPES);
+  const encounterState = createFacilityEncounterState(encounterType);
   const room = {
     id: roomId,
     connector: pick(FACILITY_CONNECTORS),
     module: FACILITY_ROOM_TABLE[roll(FACILITY_ROOM_TABLE.length) - 1],
     encounter: encounterType,
-    result: facilityEncounterText(encounterType),
+    result: encounterState.summary,
+    encounterState,
+    encounterLog: [],
     loot: rollGalaxyMerchantLoot(MYSTERY_TRADE),
     completed: false,
     revealed: false,
@@ -1383,6 +1386,90 @@ function createFacilityRoomEntry(challenge, roomId) {
     room.perModuleChance = '1-in-6';
   }
   return room;
+}
+
+function createFacilityEncounterState(type) {
+  if (type === 'Resource') {
+    return {
+      summary: 'Resource Node: crystalline seams hang from the ceiling.',
+      actions: [
+        { id: 'mine-resource', label: 'Mine Resource (Mind/Control DD8)', kind: 'check', statA: 'mind', statB: 'control', dd: 8, effect: 'resource-mine' },
+      ],
+    };
+  }
+  if (type === 'Artifact') {
+    return {
+      summary: `Artifact: ${pick(['a pre-collapse hololith', 'a quantum lockbox', 'a coded reliquary', 'a ceremonial exocore', 'an anthropological relic frame'])}.`,
+      actions: [
+        { id: 'analyze-artifact', label: 'Analyze Artifact (Control DD8)', kind: 'check', statA: 'control', statB: 'mind', dd: 8, effect: 'artifact-analyze' },
+      ],
+    };
+  }
+  if (type === 'Hazard') {
+    return {
+      summary: `Hazard: ${pick(['Psychic Disturbance', 'reactive gas leak', 'unstable flooring over a deep shaft', 'radiation-slick condensate'])}.`,
+      actions: [
+        { id: 'stabilize-hazard', label: 'Stabilize Hazard (Body/Control DD8)', kind: 'check', statA: 'body', statB: 'control', dd: 8, effect: 'hazard-stabilize' },
+      ],
+    };
+  }
+  if (type === 'Locked Access Point') {
+    return {
+      summary: 'Locked Access Point: hidden trigger and sealed entry controls.',
+      actions: [
+        { id: 'spot-trigger', label: 'Spot Trigger (Mind DD8)', kind: 'check', statA: 'mind', statB: 'lead', dd: 8, effect: 'lock-spot' },
+        { id: 'disable-lock', label: 'Disable Lock (Control DD8)', kind: 'check', statA: 'control', statB: 'mind', dd: 8, effect: 'lock-disable' },
+      ],
+    };
+  }
+  if (type === 'Dread Event') {
+    return {
+      summary: 'Dread Event: unstable psychic echoes gather in this chamber.',
+      actions: [
+        { id: 'roll-dread', label: 'Roll Dread Event (d10)', kind: 'table', effect: 'dread-roll' },
+      ],
+    };
+  }
+  if (type === 'Fixed Event') {
+    return {
+      summary: 'Fixed Event node: deterministic weirdness with table-driven outcome.',
+      actions: [
+        { id: 'roll-fixed', label: 'Roll Fixed Event (d10)', kind: 'table', effect: 'fixed-roll' },
+      ],
+    };
+  }
+  if (type === 'Discovery') {
+    return {
+      summary: 'Discovery node: hidden structural or environmental reveal.',
+      actions: [
+        { id: 'roll-discovery', label: 'Roll Discovery (d20)', kind: 'table', effect: 'discovery-roll' },
+      ],
+    };
+  }
+  if (type === 'Situation') {
+    return {
+      summary: 'Situation: an active social or logistical problem in progress.',
+      actions: [
+        { id: 'resolve-situation', label: 'Resolve Situation (Lead/Spirit DD8)', kind: 'check', statA: 'lead', statB: 'spirit', dd: 8, effect: 'situation-resolve' },
+      ],
+    };
+  }
+  if (type === 'Trigger/Obstacle') {
+    return {
+      summary: 'Trigger/Obstacle: trap trigger linked to a hostile obstacle.',
+      actions: [
+        { id: 'detect-trigger', label: 'Detect Trigger (Mind DD8)', kind: 'check', statA: 'mind', statB: 'control', dd: 8, effect: 'trigger-detect' },
+        { id: 'disarm-obstacle', label: 'Disarm Obstacle (Control DD8)', kind: 'check', statA: 'control', statB: 'mind', dd: 8, effect: 'trigger-disarm' },
+      ],
+    };
+  }
+  return {
+    summary: `Antagonist: ${generateFacilityAntagonist()}`,
+    actions: [
+      { id: 'profile-antagonist', label: 'Profile Threat (Mind DD8)', kind: 'check', statA: 'mind', statB: 'lead', dd: 8, effect: 'antagonist-profile' },
+      { id: 'engage-antagonist', label: 'Engage Antagonist', kind: 'combatcue', effect: 'antagonist-engage' },
+    ],
+  };
 }
 
 function resolveFacilityChallengeBranch(facility, module) {
@@ -1471,6 +1558,8 @@ function renderFacilityPanel() {
         Encounter: ${module.result}<br>
         ${module.branchResult ? `Branch: ${module.branchResult}<br>` : ''}
         ${module.specialText ? `Objective: ${module.specialText}<br>` : ''}
+        ${module.encounterState && Array.isArray(module.encounterState.actions) ? `<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.25rem;">${module.encounterState.actions.map(action => `<button class="btn btn-xs ${action.resolved ? '' : 'btn-teal'}" onclick="resolveFacilityEncounterAction(${module.id},'${action.id}')">${action.resolved ? 'Resolved' : action.label}</button>`).join('')}</div>` : ''}
+        ${Array.isArray(module.encounterLog) && module.encounterLog.length ? `<div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;line-height:1.45;">${module.encounterLog.map((entry, idx) => `<div>${idx + 1}. ${entry}</div>`).join('')}</div>` : ''}
         Loot: ${module.loot}
         ${buildLootActions(module.loot)}
         <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeFacilityModule(${module.id})">${module.completed ? 'Completed' : 'Mark Completed'}</button></div>
@@ -1517,47 +1606,104 @@ function generateFacilityAntagonist() {
   return `${type} ${look} (${sizeLabel}) DD${dread} | ${hp} Health | Drive: ${drive} | Role: ${role} | Int: ${intel} | ${cover} hide, Feature: ${feature}, Ability: ${ability}${psychic ? ', Psychic: ' + psychic : ''}${dmgMod ? ', DMG Mod ' + (dmgMod > 0 ? '+' : '') + dmgMod : ''}.`;
 }
 
-function facilityEncounterText(type) {
-  if (type === 'Resource') {
-    return 'Resource: crystalline seams hang from the ceiling. Mind/Control vs DD8 to mine d6 Data Crystals (50 credits each).';
+function applyFacilityEncounterEffect(module, action, checkResult, success) {
+  if (!module || !action) return 'No effect.';
+  if (action.effect === 'resource-mine') {
+    if (!success) return 'Mining failed. Crystal seam fractures and yields nothing.';
+    const crystals = roll(6);
+    const credits = crystals * 50;
+    if (typeof changeCredits === 'function') changeCredits(credits);
+    return `Mined ${crystals} Data Crystals (${credits} credits).`;
   }
-  if (type === 'Artifact') {
-    const artifact = pick(['a pre-collapse hololith', 'a quantum lockbox', 'a coded reliquary', 'a ceremonial exocore', 'an anthropological relic frame']);
-    const outcome = pick(['trigger a dormant ward', 'wake a nearby sentinel', 'scramble your comms for one phase', 'cause an unstable pulse in this module']);
-    return `Artifact: ${artifact} worth 2d6x10 credits. Control vs DD8 when interacting. Failure: ${outcome}.`;
-  }
-  if (type === 'Hazard') {
-    return `Hazard: ${pick(['Psychic Disturbance (+5 Stress; all rolls in this module at -5)', 'reactive gas leak', 'unstable flooring over a deep shaft', 'radiation-slick condensate'])}.`;
-  }
-  if (type === 'Locked Access Point') {
-    return 'Locked Access Point: Mind/Perception DD8 to detect trigger, Control/Tech DD8 to disable; failure alerts nearest antagonist.';
-  }
-  if (type === 'Dread Event') {
-    const eventRoll = roll(10);
-    const eventText = FACILITY_DREAD_EVENTS[eventRoll - 1];
-    if (eventRoll === 1) {
-      const taintRoll = roll(10);
-      return `Dread Event d10=${eventRoll}: ${eventText} TAINT d10=${taintRoll}: ${FACILITY_TAINT[taintRoll - 1]}`;
+  if (action.effect === 'artifact-analyze') {
+    if (!success) {
+      const outcome = pick(['dormant ward triggered', 'nearby sentinel awakened', 'comms scrambled for one phase', 'unstable pulse released']);
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      return `Artifact mishandled: ${outcome}. +1 Mental Stress.`;
     }
-    return `Dread Event d10=${eventRoll}: ${eventText}`;
+    const credits = (roll(6) + roll(6)) * 10;
+    if (typeof changeCredits === 'function') changeCredits(credits);
+    return `Artifact secured and sold for ${credits} credits.`;
   }
-  if (type === 'Fixed Event') {
-    const r = roll(10);
-    return `Fixed Event d10=${r}: ${FACILITY_FIXED_EVENTS[r - 1]}`;
+  if (action.effect === 'hazard-stabilize') {
+    if (!success) {
+      if (typeof changeStress === 'function') changeStress(1);
+      return 'Hazard stabilization failed. +1 Health damage.';
+    }
+    return 'Hazard stabilized. Module safe for traversal.';
   }
-  if (type === 'Discovery') {
-    const r = roll(20);
-    return `Discovery d20=${r}: ${FACILITY_DISCOVERY[r - 1]}.`;
+  if (action.effect === 'lock-spot') {
+    return success ? 'Trigger identified.' : 'Trigger remains hidden; obstacle stays armed.';
   }
-  if (type === 'Situation') {
-    return `Situation: ${pick(FACILITY_SITUATIONS)}.`;
+  if (action.effect === 'lock-disable') {
+    return success ? 'Access lock disabled. Module route opened.' : 'Disable attempt failed; local alarm escalates.';
   }
-  if (type === 'Trigger/Obstacle') {
-    const t = FACILITY_TRIGGERS[roll(8) - 1];
-    const o = FACILITY_OBSTACLES[roll(8) - 1];
-    return `Trigger/Obstacle: Adventure Die vs DD8. Mind/Perception to spot trigger; Control/Tech to dismantle. Trigger: ${t}. Obstacle: ${o}`;
+  if (action.effect === 'situation-resolve') {
+    if (!success) return 'Situation worsens; negotiations collapse this phase.';
+    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    return 'Situation resolved. +1 Teamwork Point.';
   }
-  return `Antagonist: ${generateFacilityAntagonist()}`;
+  if (action.effect === 'trigger-detect') {
+    return success ? 'Trigger detected and mapped.' : 'Trigger remains hidden.';
+  }
+  if (action.effect === 'trigger-disarm') {
+    if (!success) {
+      const obstacle = FACILITY_OBSTACLES[roll(8) - 1];
+      return `Disarm failed: ${obstacle}`;
+    }
+    return 'Obstacle disarmed successfully.';
+  }
+  if (action.effect === 'antagonist-profile') {
+    return success ? 'Threat profile completed; advantage on next engagement narrative.' : 'Threat profile failed; antagonist remains unpredictable.';
+  }
+  if (action.effect === 'antagonist-engage') {
+    return 'Combat cue: engage antagonist on Combat/Ship pages.';
+  }
+  return success ? 'Success.' : 'Failure.';
+}
+
+function resolveFacilityEncounterAction(moduleId, actionId) {
+  ensureStarsState();
+  const f = S.starSystem.activeFacility;
+  if (!f) return;
+  const module = f.moduleLog.find(m => m.id === moduleId);
+  if (!module || !module.encounterState || !Array.isArray(module.encounterState.actions)) return;
+  const action = module.encounterState.actions.find(a => a.id === actionId);
+  if (!action) return;
+  if (!Array.isArray(module.encounterLog)) module.encounterLog = [];
+
+  let log = '';
+  if (action.kind === 'table') {
+    if (action.effect === 'dread-roll') {
+      const eventRoll = roll(10);
+      const eventText = FACILITY_DREAD_EVENTS[eventRoll - 1];
+      if (eventRoll === 1) {
+        const taintRoll = roll(10);
+        log = `Dread Event d10=${eventRoll}: ${eventText} TAINT d10=${taintRoll}: ${FACILITY_TAINT[taintRoll - 1]}`;
+      } else {
+        log = `Dread Event d10=${eventRoll}: ${eventText}`;
+      }
+    } else if (action.effect === 'fixed-roll') {
+      const r = roll(10);
+      log = `Fixed Event d10=${r}: ${FACILITY_FIXED_EVENTS[r - 1]}`;
+    } else if (action.effect === 'discovery-roll') {
+      const r = roll(20);
+      log = `Discovery d20=${r}: ${FACILITY_DISCOVERY[r - 1]}`;
+    }
+  } else if (action.kind === 'combatcue') {
+    log = applyFacilityEncounterEffect(module, action, null, true);
+  } else {
+    const statA = action.statA || 'mind';
+    const statB = action.statB || null;
+    const dd = action.dd || 8;
+    const check = resolveGalaxySkillCheck(statA, statB, dd, action.label);
+    const effectText = applyFacilityEncounterEffect(module, action, check, check.success);
+    log = `${check.text}. ${check.success ? 'Success' : 'Failure'}: ${effectText}`;
+  }
+
+  module.encounterLog.push(log);
+  action.resolved = true;
+  renderFacilityPanel();
 }
 
 function rollFacilityModule() {

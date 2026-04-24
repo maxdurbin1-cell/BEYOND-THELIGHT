@@ -633,9 +633,15 @@ function takeGalaxyLoot(item, destination) {
 
 function buildLootActions(item) {
   if (!item) return '';
+  // For onclick attributes, we need to escape the item properly.
+  // If it's a string, wrap it in quotes and use data attributes or pass as literal.
+  // If it's an object, stringify it.
+  const escaped = typeof item === 'string'
+    ? `'${item.replace(/'/g, "\\'")}'`  // Escape single quotes
+    : JSON.stringify(item);
   return `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
-    <button class="btn btn-xs btn-teal" onclick="takeGalaxyLoot(${JSON.stringify(item)},'pack')">Take To Backpack</button>
-    <button class="btn btn-xs" onclick="takeGalaxyLoot(${JSON.stringify(item)},'ship')">Store In Ship</button>
+    <button class="btn btn-xs btn-teal" onclick="takeGalaxyLoot(${escaped},'pack')">Take To Backpack</button>
+    <button class="btn btn-xs" onclick="takeGalaxyLoot(${escaped},'ship')">Store In Ship</button>
   </div>`;
 }
 

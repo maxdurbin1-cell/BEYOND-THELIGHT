@@ -2131,6 +2131,11 @@ var TOOLKIT_STATS = {
 };
 
 function buyItem(cost, name, cat) {
+  // Defensive checks
+  if (!S) { showNotif('Character data not loaded', 'warn'); return; }
+  if (!S.backpack) S.backpack = ['', '', '', '', '', ''];
+  if (!S.equipment) S.equipment = {};
+  
   if (S.credits < cost) { showNotif('Not enough credits!', 'warn'); return; }
 
   // Find the item to get its stat string
@@ -2375,20 +2380,9 @@ function removeBackpackItem(index) {
 }
 
 // Sell backpack item
-function sellBackpackItem(index) {
-  if (!S || !S.backpack) return;
-  var text = S.backpack[index] || '';
-  if (!text) return;
-  var found = findShopItem(text);
-  var price = found && found.item ? (found.item.cost || 0) : 0;
-  if (price === 0) { price = Math.max(10, Math.floor(text.length * 2)); }
-  S.backpack[index] = '';
-  var bpEl = document.getElementById('bp' + index);
-  if (bpEl) bpEl.value = '';
-  S.credits = (S.credits || 0) + price;
-  updateCreditsUI();
-  showNotif('Sold: ' + text + ' for ' + price + '₵', 'good');
-}
+// CONSOLIDATED: This function is overridden by the improved version below at line 3667.
+// Keeping this stub to document the original simpler behavior.
+// No longer used — all sellBackpackItem calls now go to the advanced version.
 
 // Move backpack item to caravan, ship, or holding storage
 function moveBackpackToStorage(index, storageType) {
@@ -3667,13 +3661,28 @@ function openSellBackpackModal(col,row){
 function sellBackpackItem(index,price,col,row){
   const item=S.backpack&&S.backpack[index]?S.backpack[index]:'';
   if(!item){showNotif('No item in that slot.','warn');return;}
+  
+  // If price is missing (called from equipment modal), calculate it
+  if(typeof price !== 'number' || isNaN(price)){
+    const found = findShopItem(item);
+    price = found && found.item ? (found.item.cost || 0) : 0;
+    if(price === 0) { price = Math.max(10, Math.floor(item.length * 2)); }
+  }
+  
   if(price<=0){showNotif('This item has no standard merchant sale value.','warn');return;}
+  
   S.credits=(S.credits||0)+price;
   if(typeof removeBackpackItem==='function')removeBackpackItem(index);
   if(typeof updateCreditsUI==='function')updateCreditsUI();
   showNotif('Sold '+item+' for '+price+'₵','good');
   appendQuickPanelNote('[Trade] Sold '+item+' for '+price+'₵');
-  openSellBackpackModal(col,row);
+  
+  // Only reopen modal if col/row are provided (caravan context)
+  if(typeof col === 'number' && typeof row === 'number'){
+    openSellBackpackModal(col,row);
+  }else{
+    closeModal();
+  }
 }
 
 function buyFromCaravan(col,row,itemIdx){

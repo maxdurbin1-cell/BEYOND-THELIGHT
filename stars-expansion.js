@@ -216,6 +216,24 @@ const ORACLE_COMPLICATIONS = [
   'Yet the solution brings new problems.',
 ];
 
+const ORACLE_OPEN_WORDS = [
+  ['Abandon', 'Awaken', 'Alter', 'Assemble', 'Advance'],
+  ['Battle', 'Bargain', 'Build', 'Break', 'Bind'],
+  ['Chase', 'Chart', 'Cleanse', 'Conceal', 'Create'],
+  ['Damage', 'Decode', 'Defend', 'Deliver', 'Discover'],
+  ['Escape', 'Endure', 'Expose', 'Extract', 'Empower'],
+  ['Force', 'Forge', 'Follow', 'Free', 'Fortify'],
+];
+
+const ORACLE_OPEN_SUBJECTS = [
+  ['Agency', 'Ally', 'Artifact', 'Archive', 'Anomaly'],
+  ['Bond', 'Beacon', 'Barrier', 'Broker', 'Blueprint'],
+  ['Cipher', 'Caravan', 'Council', 'Core', 'Crew'],
+  ['Domain', 'Derelict', 'Dock', 'Data', 'Debtor'],
+  ['Entry', 'Engine', 'Envoy', 'Evidence', 'Expedition'],
+  ['Faction', 'Fleet', 'Frontier', 'Fuel', 'Future'],
+];
+
 
 const FACTION_NAMES = {
   corporations: 'Corporations',
@@ -2683,11 +2701,14 @@ function resolveMysteryContactOption(optionId) {
     }
     if (typeof changeCredits === 'function') changeCredits(-fee);
     option.resolved = true;
+    mystery.resolved = true;
+    S.starSystem.activeMystery = null;
     if (mystery.archetype === 'Royal Ship') {
       pushRoyalShipLogEntry('pay', `Paid ${fee} credits tariff. Passed peacefully.`);
     }
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You pay ${fee} credits and continue safely. <button class="btn btn-xs" style="margin-left:.4rem;" onclick="renderRoyalShipLog()">View Log</button></div>`;
-    renderMysteryPanel();
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You pay ${fee} credits and continue safely.</div><div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="clearActiveGalaxyPanels();updateStarSystemReadouts();">Close Encounter</button></div>`;
+    renderStarSystemMap();
+    updateStarSystemReadouts();
     showNotif('Payment resolved.', 'good');
     return;
   }
@@ -2699,20 +2720,23 @@ function resolveMysteryContactOption(optionId) {
     if (typeof changeCredits === 'function') changeCredits(-100);
     option.resolved = true;
     mystery.resolved = true;
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Bandit Tribute Paid</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You lose 100 credits but avoid escalation.</div>`;
-    renderMysteryPanel();
+    S.starSystem.activeMystery = null;
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Bandit Tribute Paid</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You lose 100 credits but avoid escalation.</div><div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="clearActiveGalaxyPanels();updateStarSystemReadouts();">Close Encounter</button></div>`;
     renderStarSystemMap();
+    updateStarSystemReadouts();
     showNotif('Tribute paid. Scenario resolved.', 'good');
     return;
   }
   if (option.trade) {
     option.resolved = true;
     renderMysteryPanel();
+    showNotif('Merchant channel open. Use the Buy buttons in this panel.', 'good');
     return;
   }
   if (option.contraband) {
     option.resolved = true;
     renderMysteryPanel();
+    showNotif('Contraband channel open. Use the Buy buttons in this panel.', 'good');
     return;
   }
 
@@ -2797,10 +2821,16 @@ function resolveSpaceEncounterOption(optionId) {
     option.resolved = true;
     encounter.resolved = true;
     S.starSystem.activeSpaceEncounter = null;
-    const rewardText = applyEncounterRewards(option.success);
+    let rewardText = '';
+    try {
+      rewardText = applyEncounterRewards(option.success);
+    } catch (err) {
+      rewardText = 'Encounter resolved, but reward text could not be fully rendered.';
+    }
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }
 
@@ -5685,9 +5715,17 @@ window.registerLastSeaHexTravel = registerLastSeaHexTravel;
 window.registerLastSeaIslandTravel = registerLastSeaIslandTravel;
 window.getGameDatePhaseText = getGameDatePhaseText;
 window.buildGalaxyPanel = buildGalaxyPanel;
+window.clearActiveGalaxyPanels = clearActiveGalaxyPanels;
+window.rollOracleYesNo = rollOracleYesNo;
+window.rollOracleOpenEnded = rollOracleOpenEnded;
 window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
 window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
 window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;
+window.resolveMysteryContactOption = resolveMysteryContactOption;
+window.resolveSpaceEncounterOption = resolveSpaceEncounterOption;
+window.resolveGalaxyPerilTraversal = resolveGalaxyPerilTraversal;
+window.resolveGalaxyWeatherCheck = resolveGalaxyWeatherCheck;
+window.resolveGalaxyRadioTask = resolveGalaxyRadioTask;
 window.openGalaxyTaskFromMap = openGalaxyTaskFromMap;
 window.mapMysteryMissionHook = mapMysteryMissionHook;
 window.renderRoyalShipLog = renderRoyalShipLog;

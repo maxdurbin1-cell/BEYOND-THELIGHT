@@ -2375,6 +2375,10 @@
   window.generateLastSea = generateLastSea;
   window.clearLastSea = clearLastSea;
   window.exploreLastSeaHex = exploreLastSeaHex;
+  window.resolveSeaEncounter = resolveSeaEncounter;
+  window.generateTaskForSeaHex = generateTaskForSeaHex;
+  window.acceptSeaTask = acceptSeaTask;
+  window.completeSeaTask = completeSeaTask;
   window.setLastSeaNote = setLastSeaNote;
   window.openSeaDungeon = openSeaDungeon;
   window.generateShipIdentity = generateShipIdentity;

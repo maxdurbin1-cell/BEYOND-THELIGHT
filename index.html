@@ -2264,7 +2264,11 @@ function buyItem(cost, name, cat) {
   }
 
   S.credits -= cost;
-  updateCreditsUI();
+  try {
+    updateCreditsUI();
+  } catch (err) {
+    // Keep purchase flow alive even if a secondary UI render hook fails.
+  }
   var goesToBackpack = ['weapons','melee_exp','ranged_exp','armor','armor_exp','space_armor','tradegoods','exocrafts','cosmic','items','essentials','toolkits','scrolls','remedies','strange'].indexOf(category) >= 0;
   if (goesToBackpack) {
     showNotif(name + ' is now in Backpack (−' + cost + '₵)', 'good');
@@ -4707,9 +4711,9 @@ document.addEventListener('DOMContentLoaded',()=>{
             + (condText ? '<div style="font-size:.7rem;color:var(--orange);margin-top:.1rem;">'+condText+'</div>' : '')
             + '<div style="margin-top:.15rem;display:flex;gap:.15rem;flex-wrap:wrap;font-size:.68rem;">'
               + '<button class="btn btn-xs btn-red" onclick="damageEnemyHealth('+idx+',1)" title="Attack">❌ Health−1</button>'
-              + '<button class="btn btn-xs btn-warn" onclick="applyEnemyCondition('+idx+\',\'Weakened\')\" title="Weaken">📉 Weak</button>'
-              + '<button class="btn btn-xs btn-purple" onclick="applyEnemyCondition('+idx+\',\'Confused\')\" title="Confuse">❓ Confused</button>'
-              + '<button class="btn btn-xs btn-orange" onclick="applyEnemyCondition('+idx+\',\'Panicked\')\" title="Panic">😨 Panic</button>'
+              + '<button class="btn btn-xs btn-warn" onclick="applyEnemyCondition('+idx+',\'Weakened\')" title="Weaken">📉 Weak</button>'
+              + '<button class="btn btn-xs btn-purple" onclick="applyEnemyCondition('+idx+',\'Confused\')" title="Confuse">❓ Confused</button>'
+              + '<button class="btn btn-xs btn-orange" onclick="applyEnemyCondition('+idx+',\'Panicked\')" title="Panic">😨 Panic</button>'
             + '</div>'
           + '</div>';
         }).join('')

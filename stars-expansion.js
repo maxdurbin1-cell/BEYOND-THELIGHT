@@ -2657,8 +2657,14 @@ function buyGalaxyMerchantOffer(index) {
     showNotif('Not enough credits!', 'warn');
     return;
   }
+  const stored = addItemToBackpack(offer.name);
+  if (!stored) {
+    showNotif('Backpack full! Purchase cancelled.', 'warn');
+    return;
+  }
   if (typeof changeCredits === 'function') changeCredits(-cost);
-  addItemToBackpack(offer.name);
+  else S.credits = Math.max(0, (S.credits || 0) - cost);
+  showNotif(offer.name + ' is now in Backpack (−' + cost + '₵)', 'good');
 }
 
 function resolveMysteryContactOption(optionId) {
@@ -4072,8 +4078,6 @@ function resolveGalaxyRadioTask() {
     return;
   }
   promptRadioTaskRoll();
-}
-  updateStarSystemReadouts();
 }
 
 function registerStarshipTravelDays(days) {

@@ -667,6 +667,10 @@ select option{background:#0f1020;}
         <button class="btn btn-sm" onclick="rollTraumaCheck()">⚄ Trauma Check</button>
         <div id="traumaResult" style="margin-top:.3rem;font-size:.85rem;"></div>
       </div>
+      <div style="margin-top:.6rem;"><span class="sub-label">Enemy Action</span>
+        <button class="btn btn-sm btn-red" onclick="triggerEnemyActionEvent()">☠ Enemy Action</button>
+        <div id="enemyActionResult" style="margin-top:.3rem;font-size:.85rem;"></div>
+      </div>
     </div>
     <div class="card" style="grid-column:1/-1;">
       <div class="section-title">Enemy Tracker</div>
@@ -1537,31 +1541,69 @@ function maybeResetActionsAfterDefend(){
 }
 
 const ENEMY_ACTION_EVENTS=[
-  {name:'Mercenary: Scrap Rifle',desc:'Enemy fires. You must Defend or take d6 Stress.',kind:'defendCheck',die:6},
-  {name:'Mercenary: Hack Volt',desc:'Roll Spirit vs enemy Dread or become Distracted.',kind:'saveCondition',stat:'spirit',condition:'distracted'},
-  {name:'Brutal Rush',desc:'Roll Body vs enemy Dread or become Vulnerable.',kind:'saveCondition',stat:'body',condition:'vulnerable'},
-  {name:'Neuro Pulse',desc:'Roll Mind vs enemy Dread or become Shaken.',kind:'saveCondition',stat:'mind',condition:'shaken'},
-  {name:'Suppressive Fire',desc:'You lose 1 Action unless you Defend successfully.',kind:'loseAction'}
+  {name:'Suppressive Burst',desc:'Incoming fire hammers your position.',kind:'defendCheck',bonus:1},
+  {name:'Neuro Spike',desc:'Hostile signal attacks your focus.',kind:'saveCondition',stat:'mind',condition:'distracted'},
+  {name:'Toxic Shrapnel',desc:'Debris bursts through the zone.',kind:'directStress',scale:1},
+  {name:'Rad Leak',desc:'Irradiated coolant vents into your lane.',kind:'radiation',scale:8},
+  {name:'Hull Impact',desc:'A heavy strike slams through cover.',kind:'healthStrike',scale:4},
+  {name:'Terror Broadcast',desc:'A panic-wave forces a trauma response.',kind:'forceTrauma'}
 ];
 
 function triggerEnemyActionEvent(){
   if(!Array.isArray(S.enemies)||!S.enemies.length){showNotif('Add an enemy first.','warn');return;}
-  // Enemy action advances enemy turn pacing toward player action reset.
   maybeResetActionsAfterDefend();
   var ev=pick(ENEMY_ACTION_EVENTS);
+  var dd=S.combat&&S.combat.enemyDread?S.combat.enemyDread:8;
+  var dr=explodingRoll(dd);
+  var summary='';
+
   if(ev.kind==='defendCheck'){
-    var dd=S.combat&&S.combat.enemyDread?S.combat.enemyDread:8;
-    openModal('Enemy Action — '+ev.name,'<div style="font-size:.86rem;line-height:1.6;">'+ev.desc+'<br><br><button class="btn btn-sm btn-teal" onclick="rollDefend(true);closeModal();">Roll Defend</button> <span style="font-size:.75rem;color:var(--muted2);margin-left:.35rem;">Enemy Dread d'+dd+'</span></div>');
+    var defDie=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):(S.stats.defend||4);
+    var pr=explodingRoll(defDie);
+    if(pr.total<dr.total){
+      var dmg=Math.max(1,(dr.total-pr.total)+(ev.bonus||0));
+      changeStress(dmg);
+      summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+dr.total+' — failed, '+dmg+' Stress.';
+    }else{
+      summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+dr.total+' — blocked.';
+    }
   }else if(ev.kind==='saveCondition'){
     var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats[ev.stat]||4);
-    var pr=explodingRoll(statDie);var dr=explodingRoll(S.combat.enemyDread||8);var ok=pr.total>=dr.total;
-    if(!ok){S.conditions[ev.condition]=true;if(typeof updateConditionButtons==='function')updateConditionButtons();if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();}
-    openModal('Enemy Action — '+ev.name,'<div style="font-size:.86rem;line-height:1.6;">'+ev.desc+'<br><br>'+ev.stat.toUpperCase()+' d'+statDie+': <strong style="color:var(--teal);">'+pr.total+'</strong> vs Dread: <strong style="color:var(--red);">'+dr.total+'</strong><br>'+(ok?'<span style="color:var(--green2);">Saved.</span>':'<span style="color:var(--red2);">Failed — '+ev.condition+' applied.</span>')+'</div>');
-  }else if(ev.kind==='loseAction'){
-    if((S.combat.actionsLeft||0)>0)S.combat.actionsLeft=Math.max(0,S.combat.actionsLeft-1);
-    updateCombatUI();
-    openModal('Enemy Action — '+ev.name,'<div style="font-size:.86rem;line-height:1.6;">'+ev.desc+'<br><br><span style="color:var(--red2);">You lose 1 Action.</span></div>');
+    var sr=explodingRoll(statDie);
+    var ok=sr.total>=dr.total;
+    if(!ok){
+      S.conditions[ev.condition]=true;
+      if(typeof updateConditionButtons==='function')updateConditionButtons();
+      if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+    }
+    summary=ev.stat.toUpperCase()+' d'+statDie+'='+sr.total+' vs DD'+dd+'='+dr.total+' — '+(ok?'saved.':'failed, '+ev.condition+' applied.');
+  }else if(ev.kind==='directStress'){
+    var sDmg=Math.max(1,Math.ceil(dr.total/3)+(ev.scale||0));
+    changeStress(sDmg);
+    summary='Direct hit — '+sDmg+' Stress.';
+  }else if(ev.kind==='radiation'){
+    var rGain=Math.max(5,dr.total*(ev.scale||6));
+    if(typeof changeRads==='function')changeRads(rGain);
+    summary='Radiation surge — +'+rGain+' Rads.';
+  }else if(ev.kind==='healthStrike'){
+    var hDmg=Math.max(1,Math.ceil(dr.total/(ev.scale||4)));
+    if(typeof changeHealth==='function')changeHealth(hDmg);else changeStress(hDmg);
+    summary='Critical impact — '+hDmg+' Health damage.';
+  }else if(ev.kind==='forceTrauma'){
+    if(typeof rollTraumaCheck==='function')rollTraumaCheck();
+    summary='Forced Trauma check triggered.';
   }
+
+  if(dr.exploded && typeof registerIncomingCritical==='function'){
+    registerIncomingCritical('Enemy Action Dread Critical');
+    summary += ' Dread exploded: Injury rolled.';
+  }
+
+  var res=document.getElementById('enemyActionResult');
+  if(res)res.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+summary+' <span style="font-size:.74rem;color:var(--muted2);">(DD'+dd+'='+dr.total+(dr.exploded?' ✦':'')+')</span>';
+  showNotif('Enemy Action: '+ev.name,'warn');
+  updateCombatUI();
+  if(typeof renderQP==='function')renderQP('combat');
 }
 
 // Flavor / Mutation bonuses for roll functions.
@@ -2436,12 +2478,12 @@ function equipBackpackItem(index, slot) {
   var item = S.backpack[index];
   if (!item) return;
   
-  var found = findShopItem(item);
+  var itemName = normalizeItemName(item);
+  var found = findShopItem(itemName);
   var cat = found ? found.cat : null;
   var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
   var isArmor = (cat === 'armor' || cat === 'armor_exp');
   var isSpaceArmor = (cat === 'space_armor');
-  var itemName = normalizeItemName(item);
   var isLayer = isSpaceArmor && isSpaceArmorLayerName(itemName);
   var isSuit = isSpaceArmor && isSpaceSuitName(itemName);
   

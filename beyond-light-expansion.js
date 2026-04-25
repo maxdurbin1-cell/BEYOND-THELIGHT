@@ -1196,7 +1196,9 @@
     const hexKey = S.lastSea && S.lastSea.selectedKey;
     if (hexKey && S.lastSea && S.lastSea.map) {
       const hex = S.lastSea.map.find(h => h.key === hexKey);
-      if (hex) hex.resultHtml = '';
+      if (hex) {
+        hex.resultHtml = `<div class="sea-result-title">Encounter Resolved</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${msg || 'Action resolved.'}</div>`;
+      }
     }
     renderLastSeaInfo();
   }

@@ -2709,6 +2709,7 @@ function resolveMysteryContactOption(optionId) {
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You pay ${fee} credits and continue safely.</div><div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="clearActiveGalaxyPanels();updateStarSystemReadouts();">Close Encounter</button></div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    clearActiveGalaxyPanels();
     showNotif('Payment resolved.', 'good');
     return;
   }
@@ -2724,6 +2725,7 @@ function resolveMysteryContactOption(optionId) {
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Bandit Tribute Paid</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You lose 100 credits but avoid escalation.</div><div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="clearActiveGalaxyPanels();updateStarSystemReadouts();">Close Encounter</button></div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    clearActiveGalaxyPanels();
     showNotif('Tribute paid. Scenario resolved.', 'good');
     return;
   }
@@ -2810,8 +2812,7 @@ function resolveSpaceEncounterOption(optionId) {
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
-    const detailEl = document.getElementById('starExplorationDetail');
-    if (detailEl) detailEl.innerHTML += `<div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="clearActiveGalaxyPanels();updateStarSystemReadouts();">Close Encounter</button></div>`;
+    clearActiveGalaxyPanels();
     showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }
@@ -2830,6 +2831,7 @@ function resolveSpaceEncounterOption(optionId) {
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    clearActiveGalaxyPanels();
     showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }
@@ -2846,6 +2848,7 @@ function resolveSpaceEncounterOption(optionId) {
       <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${(option.failure && option.failure.combat) ? option.failure.combat + ' Resolve on Combat/Ship pages.' : (option.failure && option.failure.text) ? option.failure.text : 'The window closes.'}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    clearActiveGalaxyPanels();
   }
 }
 
@@ -4368,15 +4371,29 @@ function changeRads(delta) {
 
 function rollRads() {
   ensureStarsState();
-  const wearing   = (S.equipment && S.equipment.armor && S.equipment.armor.toLowerCase().includes('radsuit'));
+  const suit = (S.equipmentLayers && S.equipmentLayers.suit)
+    ? String(S.equipmentLayers.suit)
+    : ((S.equipment && S.equipment.armor) ? String(S.equipment.armor) : '');
+  const suitLc = suit.toLowerCase();
+  const hasHeavy = suitLc.indexOf('radsuit (heavy)') >= 0;
+  const hasLight = suitLc.indexOf('radsuit (light)') >= 0;
+  const hasVacc = suitLc.indexOf('vaccsuit') >= 0;
+  const wearing = hasHeavy || hasLight || hasVacc || suitLc.indexOf('radsuit') >= 0;
   const airFilter = S.backpack && S.backpack.some && S.backpack.some(b => b && b.toLowerCase().includes('air filtration'));
-  if (wearing) {
-    showNotif('RadSuit equipped — no Rad gain.', 'good');
-    return;
-  }
   let gain = roll(100);
   if (airFilter) {
     gain = Math.floor(gain / 2);
+  }
+  if (hasHeavy) {
+    gain = Math.max(0, gain - 100);
+  } else if (hasLight) {
+    gain = Math.max(0, gain - 50);
+  } else if (hasVacc) {
+    gain = Math.max(0, gain - 25);
+  }
+  if (wearing) {
+    showNotif(`Suit mitigation applied: +${gain} Rads.`, gain > 0 ? 'warn' : 'good');
+  } else if (airFilter) {
     showNotif(`Rad gain: ${gain} (halved by Air Filtration).`, 'warn');
   } else {
     showNotif(`Rad gain: ${gain}.`, 'warn');
@@ -4513,18 +4530,44 @@ function rollOracleYesNo() {
 }
 
 function rollOracleOpenEnded() {
-  const d1 = roll(6);
-  const d2 = roll(6);
-  const verb    = ORACLE_OPEN_WORDS[d1 - 1][Math.floor(Math.random() * 5)];
-  const subject = ORACLE_OPEN_SUBJECTS[d2 - 1][Math.floor(Math.random() * 5)];
-  const el = document.getElementById('oracleOpenResult');
-  if (el) {
-    el.innerHTML = `
-      <div class="oracle-result">
-        <div class="oracle-roll">d6 = ${d1} &amp; ${d2}</div>
-        <div class="oracle-outcome" style="color:var(--gold);">${verb} the ${subject}</div>
-        <div class="oracle-detail">Interpret freely — what does this mean for your current scene?</div>
-      </div>`;
+  try {
+    const d1 = roll(6);
+    const d2 = roll(6);
+    const words = (typeof ORACLE_OPEN_WORDS !== 'undefined' && Array.isArray(ORACLE_OPEN_WORDS))
+      ? ORACLE_OPEN_WORDS
+      : [
+        ['Abandon', 'Awaken', 'Alter', 'Assemble', 'Advance'],
+        ['Battle', 'Bargain', 'Build', 'Break', 'Bind'],
+        ['Chase', 'Chart', 'Cleanse', 'Conceal', 'Create'],
+        ['Damage', 'Decode', 'Defend', 'Deliver', 'Discover'],
+        ['Escape', 'Endure', 'Expose', 'Extract', 'Empower'],
+        ['Force', 'Forge', 'Follow', 'Free', 'Fortify'],
+      ];
+    const subjects = (typeof ORACLE_OPEN_SUBJECTS !== 'undefined' && Array.isArray(ORACLE_OPEN_SUBJECTS))
+      ? ORACLE_OPEN_SUBJECTS
+      : [
+        ['Agency', 'Ally', 'Artifact', 'Archive', 'Anomaly'],
+        ['Bond', 'Beacon', 'Barrier', 'Broker', 'Blueprint'],
+        ['Cipher', 'Caravan', 'Council', 'Core', 'Crew'],
+        ['Domain', 'Derelict', 'Dock', 'Data', 'Debtor'],
+        ['Entry', 'Engine', 'Envoy', 'Evidence', 'Expedition'],
+        ['Faction', 'Fleet', 'Frontier', 'Fuel', 'Future'],
+      ];
+    const verb    = words[d1 - 1][Math.floor(Math.random() * words[d1 - 1].length)];
+    const subject = subjects[d2 - 1][Math.floor(Math.random() * subjects[d2 - 1].length)];
+    const el = document.getElementById('oracleOpenResult');
+    if (el) {
+      el.innerHTML = `
+        <div class="oracle-result">
+          <div class="oracle-roll">d6 = ${d1} &amp; ${d2}</div>
+          <div class="oracle-outcome" style="color:var(--gold);">${verb} the ${subject}</div>
+          <div class="oracle-detail">Interpret freely — what does this mean for your current scene?</div>
+        </div>`;
+    } else {
+      showNotif('Oracle panel is not mounted yet. Open the Oracle tab first.', 'warn');
+    }
+  } catch (err) {
+    showNotif('Oracle open-ended roll failed. Retry after reopening Oracle tab.', 'warn');
   }
 }
 

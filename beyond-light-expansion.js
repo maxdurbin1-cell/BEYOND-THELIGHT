@@ -1058,7 +1058,7 @@
             ? (() => { const mt = S.lastSea.missionTokens[hex.key]; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
                 <div class="nb-label" style="color:var(--gold2);">📍 ${mt.type === 'site' ? 'Sea Mission Site' : 'Sea Informer'}</div>
                 <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}</div>
-                ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Complete Task (+1 Renown)</button></div>` : ''}
+                ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Resolve Task (AD vs DD8)</button></div>` : ''}
               </div>`; })()
             : ""
         }
@@ -1086,6 +1086,19 @@
 
   function buildRoyalArmadaText() {
     return `${pick(ARMADA_ACTIONS)} ${pick(ARMADA_TARGETS)}`;
+  }
+
+  function concludeSeaEncounter(message, tone) {
+    const msg = message || 'Action resolved.';
+    if (msg) showNotif(msg, tone || 'good');
+    const hexKey = S.lastSea && S.lastSea.selectedKey;
+    if (hexKey && S.lastSea && S.lastSea.map) {
+      const hex = S.lastSea.map.find(h => h.key === hexKey);
+      if (hex) {
+        hex.resultHtml = `<div class="sea-result-title">Encounter Resolved</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${msg}</div>`;
+      }
+    }
+    renderLastSeaInfo();
   }
 
   function buildSeaEncounter() {
@@ -1144,7 +1157,7 @@
     const armadaTask = buildRoyalArmadaText();
     desc = `A Royal Armada patrol demands answers. Mission: <strong style="color:var(--gold2);">${armadaTask}</strong>.`;
     actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-      <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('accept','Royal Armada',{renown:1})">📜 Accept Mission (+1 Renown)</button>
+      <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('accept','Royal Armada',{task:'${armadaTask.replace(/'/g, "&#39;")}',reward:{renown:1}})">📜 Accept Mission</button>
       <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('negotiate','Royal Patrol',{cost:30})">💬 Negotiate (−30₵)</button>
       <button class="btn btn-xs btn-warn" onclick="resolveSeaEncounter('resist','Royal Armada',{stress:8})">⚔ Resist (+8 Stress)</button>
     </div>`;
@@ -1158,8 +1171,7 @@
     if (action === 'trade') {
       const shopBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
       if (shopBtn) switchTab('shop', shopBtn);
-      showNotif('Trading with ' + target + ' — browse the Merchants tab', 'good');
-      return;
+      msg = 'Trading with ' + target + ' — browse the Merchants tab.';
     }
 
     if (action === 'fight') {
@@ -1185,22 +1197,22 @@
     } else if (action === 'avoid' || action === 'ignore') {
       msg = `Sailed past ${target}.`;
     } else if (action === 'accept') {
-      if (effects.renown) { S.renown = (S.renown||0) + effects.renown; if (typeof updateRenownUI === 'function') updateRenownUI(); }
-      msg = `Accepted mission from ${target}! +${effects.renown||0} Renown.`;
+      if (effects.task && typeof acceptSeaTask === 'function') {
+        const hexKey = S.lastSea && S.lastSea.selectedKey;
+        const hex = hexKey && S.lastSea && S.lastSea.map ? S.lastSea.map.find(h => h.key === hexKey) : null;
+        if (hex) {
+          acceptSeaTask(hex.col, hex.row, 'Royal Armada', effects.task, null, effects.reward || { renown: 1 });
+          msg = `Accepted mission from ${target}. Task marker placed on the sea map.`;
+        }
+      } else {
+        msg = `Accepted mission from ${target}.`;
+      }
     } else if (action === 'resist') {
       if (effects.stress) { if (typeof changeStress === 'function') changeStress(effects.stress); }
       msg = `Resisted ${target}! +${effects.stress||0} Stress.`;
     }
 
-    if (msg) showNotif(msg, 'good');
-    const hexKey = S.lastSea && S.lastSea.selectedKey;
-    if (hexKey && S.lastSea && S.lastSea.map) {
-      const hex = S.lastSea.map.find(h => h.key === hexKey);
-      if (hex) {
-        hex.resultHtml = `<div class="sea-result-title">Encounter Resolved</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${msg || 'Action resolved.'}</div>`;
-      }
-    }
-    renderLastSeaInfo();
+    concludeSeaEncounter(msg || 'Action resolved.', 'good');
   }
 
   function getShipName() {
@@ -1229,10 +1241,27 @@
   }
   window.generateTaskForSeaHex = generateTaskForSeaHex;
 
-  function acceptSeaTask(col, row, verb, target, destKey) {
+  function acceptSeaTask(col, row, verb, target, destKey, reward) {
     if (!S.lastSea) return;
     S.lastSea.missionTokens = S.lastSea.missionTokens || {};
-    S.lastSea.missionTokens[destKey] = { missionId: 'sea_task', title: verb + ' ' + target, type: 'site' };
+    let resolvedDestKey = destKey;
+    if (!resolvedDestKey && Array.isArray(S.lastSea.map) && S.lastSea.map.length) {
+      const originHex = S.lastSea.map.find(h => h.col === col && h.row === row);
+      const pool = S.lastSea.map.filter(h => !originHex || h.key !== originHex.key);
+      const destHex = pool.length ? pick(pool) : originHex;
+      resolvedDestKey = destHex && destHex.key;
+    }
+    if (!resolvedDestKey) {
+      showNotif('No destination hex available.', 'warn');
+      return;
+    }
+    S.lastSea.missionTokens[resolvedDestKey] = {
+      missionId: 'sea_task',
+      title: verb + ' ' + target,
+      type: 'site',
+      reward: Object.assign({ renown: 1 }, reward || {}),
+      dread: 8,
+    };
     if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
     closeModal();
     showNotif(`Task accepted: ${verb} ${target} — marker placed on map`, 'good');
@@ -1242,11 +1271,28 @@
   function completeSeaTask(hexKey) {
     if (!S.lastSea || !S.lastSea.missionTokens || !S.lastSea.missionTokens[hexKey]) return;
     const task = S.lastSea.missionTokens[hexKey];
+    const adDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+    const actionRoll = explodingRoll(adDie);
+    const dreadRoll = explodingRoll(task.dread || 8);
+    const success = actionRoll.total >= dreadRoll.total;
     delete S.lastSea.missionTokens[hexKey];
-    S.renown = (S.renown || 0) + 1;
-    if (typeof updateRenownUI === 'function') updateRenownUI();
+    let msg = `Task failed: ${task.title}. AD${adDie} ${actionRoll.total} vs DD${task.dread || 8} ${dreadRoll.total}.`;
+    if (success) {
+      const reward = task.reward || { renown: 1 };
+      if (reward.renown) {
+        S.renown = (S.renown || 0) + reward.renown;
+        if (typeof updateRenownUI === 'function') updateRenownUI();
+      }
+      if (reward.credits) {
+        S.credits = (S.credits || 0) + reward.credits;
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      }
+      msg = `Task completed: ${task.title}. AD${adDie} ${actionRoll.total} vs DD${task.dread || 8} ${dreadRoll.total} — success.${reward.renown ? ` +${reward.renown} Renown.` : ''}${reward.credits ? ` +${reward.credits}₵.` : ''}`;
+    } else if (typeof addTMWOnFail === 'function') {
+      addTMWOnFail();
+    }
     if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
-    showNotif(`Task completed: ${task.title} (+1 Renown)`, 'good');
+    showNotif(msg, success ? 'good' : 'warn');
     renderLastSeaInfo();
   }
   window.completeSeaTask = completeSeaTask;
@@ -1360,6 +1406,7 @@
   }
 
   function buildDungeonModal(data) {
+    data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
     let html = `
       <div class="room-block">
         <div class="rb-title">Entrance</div>
@@ -1368,7 +1415,10 @@
     `;
 
     for (let index = 1; index <= data.rooms; index += 1) {
-      const type = pick(RUIN_ROOM_TYPES);
+      if (!data.generatedRooms) data.generatedRooms = [];
+      if (!data.generatedRooms[index - 1]) data.generatedRooms[index - 1] = { type: pick(RUIN_ROOM_TYPES), cleared: false, result: '' };
+      const room = data.generatedRooms[index - 1];
+      const type = room.type;
       const text =
         type === "Lair"
           ? pick(RUIN_LAIR_DESC)
@@ -1383,6 +1433,16 @@
         <div class="room-block">
           <div class="rb-title">Room ${index} - ${type}</div>
           <div class="rb-text">${text}</div>
+          ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : ''}
+          ${room.cleared ? '' : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">Resolve Room (Action vs DD8)</button></div>`}
+        </div>
+      `;
+    }
+    if (data.exploration.discoveredLoot.length) {
+      html += `
+        <div class="room-block">
+          <div class="rb-title">Recovered Loot</div>
+          <div class="rb-text">${data.exploration.discoveredLoot.join(', ')}</div>
         </div>
       `;
     }
@@ -1395,8 +1455,43 @@
     if (!data) {
       return;
     }
+    S.lastSea.activeDungeon = { col, row };
     openModal(data.name, buildDungeonModal(data));
   }
+
+  function rollSeaDungeonLoot() {
+    const table = ['Credits', 'Scroll', 'Armor', 'Weapon', 'Toolkit', 'Strange Item'];
+    const picked = pick(table);
+    if (picked === 'Credits') return `${roll(6) * 10} Credits`;
+    return `1 ${picked}`;
+  }
+
+  function exploreSeaDungeonRoom(roomIndex) {
+    if (!S.lastSea || !S.lastSea.activeDungeon) return;
+    const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
+    const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
+    if (!data || !data.generatedRooms || !data.generatedRooms[roomIndex]) return;
+    const room = data.generatedRooms[roomIndex];
+    if (room.cleared) return;
+    const actionDie = (S.stats && S.stats.action) ? S.stats.action : 4;
+    const actionRoll = explodingRoll(actionDie);
+    const dreadRoll = explodingRoll(8);
+    const success = actionRoll.total >= dreadRoll.total;
+    let result = `AD${actionDie} ${actionRoll.total} vs DD8 ${dreadRoll.total}. `;
+    if (success) {
+      const loot = rollSeaDungeonLoot();
+      data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
+      data.exploration.clearedRooms += 1;
+      data.exploration.discoveredLoot.push(loot);
+      room.result = `${result}Success. Loot: ${loot}.`;
+    } else {
+      if (typeof changeStress === 'function') changeStress(Math.max(1, dreadRoll.total - actionRoll.total));
+      room.result = `${result}Failure. Suffer Stress equal to the difference.`;
+    }
+    room.cleared = true;
+    openModal(data.name, buildDungeonModal(data));
+  }
+  window.exploreSeaDungeonRoom = exploreSeaDungeonRoom;
 
   function getRankData(rank) {
     return NAVAL_RANKS.find((item) => item.name === rank) || NAVAL_RANKS[0];

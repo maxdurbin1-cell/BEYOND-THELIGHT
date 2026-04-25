@@ -399,7 +399,7 @@
         // Council
         '<div class="card">',
           '<div class="section-title">The Council</div>',
-          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Assign tasks. Roll Adventure Die vs Dread d6 for outcomes. Tasks take a Phase to a Season. Councils typically have 3–6 Retainers.</div>',
+          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Assign tasks. Roll Adventure Die vs Dread d8 for outcomes. Tasks take a Phase to a Season. Councils typically have 3–6 Retainers.</div>',
           '<div id="holdingCouncil"></div>',
         '</div>',
         // The Court
@@ -801,7 +801,7 @@
     var found = (typeof findShopItem === 'function') ? findShopItem(item) : null;
     var cat = found ? found.cat : null;
     var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
-    var isArmor = (cat === 'armor' || cat === 'armor_exp');
+    var isArmor = (cat === 'armor' || cat === 'armor_exp' || cat === 'space_armor');
     if ((slot === 'weapon1' || slot === 'weapon2') && !isWeapon) {
       showNotif('Only weapons can be equipped in weapon slots!', 'warn'); return;
     }

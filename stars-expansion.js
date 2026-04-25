@@ -198,6 +198,30 @@ const ORACLE_SILVER_LININGS = [
   'Still, wisdom can prevent greater harm.',
 ];
 
+const ORACLE_POSITIVE_TURNS = [
+  'It holds credits, supplies, or another immediate advantage.',
+  'Someone helpful arrives with the right tool or rumor.',
+  'The opening is real, and it leads to better leverage than expected.',
+  'You also gain a clean escape route once the scene shifts.',
+  'The answer comes with loot, salvage, or a paying opportunity attached.',
+  'A rival stumbles at the same moment, giving you room to act first.',
+  'The discovery includes a clue, cache, or contact worth keeping.',
+  'The result improves your position with a faction or major power.',
+  'The scene breaks in your favor and leaves behind something valuable.',
+  'Momentum builds and the next obstacle looks weaker than it did before.',
+];
+
+const ORACLE_NEGATIVE_TURNS = [
+  'It costs time, draws attention, or leaves you exposed.',
+  'Something useful is lost, spent, or damaged in the process.',
+  'A threat notices you and starts moving in.',
+  'The answer closes one path and forces a harsher route.',
+  'It leaves a stain on trust, reputation, or leverage.',
+  'The failure creates pressure that will matter in the next scene.',
+  'There is no safety in it, only a narrower margin for survival.',
+  'Whoever benefits from this will ask for payment later.',
+];
+
 const ORACLE_COMPLICATIONS = [
   'However, an enemy grows impatient.',
   'But the cost is higher than anticipated.',
@@ -901,12 +925,12 @@ function rollGalaxyTaskCheck(taskId, attempt) {
   const task = getGalaxyTaskById(taskId);
   if (!task || task.resolved) return;
   const adventureDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 6);
-  const dreadRoll = roll(6);
+  const dreadRoll = roll(8);
   const playerRoll = roll(adventureDie);
   const success = playerRoll >= dreadRoll;
   const resultText = success 
-    ? `Rolled d${adventureDie}: ${playerRoll} vs Dread d6: ${dreadRoll} — SUCCESS!` 
-    : `Rolled d${adventureDie}: ${playerRoll} vs Dread d6: ${dreadRoll} — failure.`;
+    ? `Rolled d${adventureDie}: ${playerRoll} vs Dread d8: ${dreadRoll} — SUCCESS!` 
+    : `Rolled d${adventureDie}: ${playerRoll} vs Dread d8: ${dreadRoll} — failure.`;
   const out = document.getElementById('starExplorationDetail');
   if (out) {
     out.innerHTML = `<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">${task.title}</div>
@@ -1272,7 +1296,7 @@ const STAR_PERIL_SITES = [
 const STAR_PERIL_FAILURES = [
   { id: 'stress', label: 'Crew panic wave', apply: (diff) => { if (typeof changeMentalStress === 'function') changeMentalStress(Math.max(1, diff)); return `+${Math.max(1, diff)} Mental Stress.`; } },
   { id: 'rads', label: 'Irradiated surge', apply: (diff) => { if (typeof changeRads === 'function') changeRads(Math.max(50, diff * 50)); return `+${Math.max(50, diff * 50)} Radiation.`; } },
-  { id: 'health', label: 'Hull shock to crew', apply: (diff) => { if (typeof changeStress === 'function') changeStress(Math.max(1, diff)); return `${Math.max(1, diff)} Health damage.`; } },
+  { id: 'stress_damage', label: 'Hull shock to crew', apply: (diff) => { if (typeof changeStress === 'function') changeStress(Math.max(1, diff)); return `+${Math.max(1, diff)} Stress.`; } },
   { id: 'condition', label: 'Condition strain', apply: () => 'Condition inflicted: Distracted until end of current phase.' },
   { id: 'trauma', label: 'Trauma check trigger', apply: () => 'Trigger a Trauma Check before taking another traversal action.' },
 ];
@@ -2693,6 +2717,56 @@ function resolveMysteryContactOption(optionId) {
   if (!option || option.resolved) return;
   const out = document.getElementById('starExplorationDetail');
 
+  function finishMysteryResolution(summary, tone) {
+    option.resolved = true;
+    mystery.resolved = true;
+    S.starSystem.activeMystery = null;
+    if (out) {
+      out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${summary}</div>`;
+    }
+    renderStarSystemMap();
+    updateStarSystemReadouts();
+    showNotif(summary, tone || 'good');
+  }
+
+  function getMysteryResolveRenownKey() {
+    if (option.renown) return option.renown;
+    if (option.taskConfig && option.taskConfig.reward && option.taskConfig.reward.renown) return option.taskConfig.reward.renown;
+    if (mystery.archetype === 'Royal Ship') return 'political';
+    if (mystery.archetype === 'Merchant Ship') return 'corporations';
+    if (mystery.archetype === 'Black Market Ship' || mystery.archetype === 'Bandit Ship') return 'underworld';
+    return '';
+  }
+
+  function awardMysteryResolveBonus() {
+    const notes = [];
+    const renownKey = getMysteryResolveRenownKey();
+    if (renownKey) {
+      changeFactionRenown(renownKey, 1);
+      notes.push(`+1 ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown`);
+    }
+    let loot = '';
+    if (option.steal && mystery.offers && mystery.offers.length) {
+      loot = pick(mystery.offers).name;
+    } else if (option.taskConfig && option.taskConfig.reward && option.taskConfig.reward.lootCategory) {
+      loot = rollGalaxyMerchantLootFromCategories([option.taskConfig.reward.lootCategory]);
+    } else if (option.taskConfig && option.taskConfig.reward && option.taskConfig.reward.lootFromMerchant) {
+      loot = rollGalaxyMerchantLoot();
+    } else if (roll(6) >= 4) {
+      const credits = roll(6) * 10;
+      if (typeof changeCredits === 'function') changeCredits(credits);
+      else S.credits = (S.credits || 0) + credits;
+      notes.push(`+${credits} credits`);
+    } else {
+      loot = rollGalaxyMerchantLoot();
+    }
+    if (loot) {
+      takeGalaxyLoot(loot, 'pack');
+      notes.push(`Loot: ${loot}`);
+    }
+    return notes.join(' · ');
+  }
+
   if (option.payout === 'creditsLoss') {
     const fee = (roll(6) + roll(6)) * 10;
     if ((S.credits || 0) < fee) {
@@ -2700,17 +2774,10 @@ function resolveMysteryContactOption(optionId) {
       return;
     }
     if (typeof changeCredits === 'function') changeCredits(-fee);
-    option.resolved = true;
-    mystery.resolved = true;
-    S.starSystem.activeMystery = null;
     if (mystery.archetype === 'Royal Ship') {
       pushRoyalShipLogEntry('pay', `Paid ${fee} credits tariff. Passed peacefully.`);
     }
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You pay ${fee} credits and continue safely.</div><div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="clearActiveGalaxyPanels();updateStarSystemReadouts();">Close Encounter</button></div>`;
-    renderStarSystemMap();
-    updateStarSystemReadouts();
-    clearActiveGalaxyPanels();
-    showNotif('Payment resolved.', 'good');
+    finishMysteryResolution(`You pay ${fee} credits and continue safely.`, 'good');
     return;
   }
   if (option.payout === 'banditPay') {
@@ -2719,43 +2786,26 @@ function resolveMysteryContactOption(optionId) {
       return;
     }
     if (typeof changeCredits === 'function') changeCredits(-100);
-    option.resolved = true;
-    mystery.resolved = true;
-    S.starSystem.activeMystery = null;
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Bandit Tribute Paid</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">You lose 100 credits but avoid escalation.</div><div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="clearActiveGalaxyPanels();updateStarSystemReadouts();">Close Encounter</button></div>`;
-    renderStarSystemMap();
-    updateStarSystemReadouts();
-    clearActiveGalaxyPanels();
-    showNotif('Tribute paid. Scenario resolved.', 'good');
+    finishMysteryResolution('You lose 100 credits but avoid escalation.', 'good');
     return;
   }
   if (option.trade) {
-    option.resolved = true;
-    renderMysteryPanel();
-    showNotif('Merchant channel open. Use the Buy buttons in this panel.', 'good');
+    const shopBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+    if (shopBtn && typeof switchTab === 'function') switchTab('shop', shopBtn);
+    finishMysteryResolution('Trade concluded. Merchant inventory is now open in the Merchant tab.', 'good');
     return;
   }
   if (option.contraband) {
-    option.resolved = true;
-    renderMysteryPanel();
-    showNotif('Contraband channel open. Use the Buy buttons in this panel.', 'good');
+    const shopBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+    if (shopBtn && typeof switchTab === 'function') switchTab('shop', shopBtn);
+    finishMysteryResolution('Contraband deal concluded. Merchant inventory is now open in the Merchant tab.', 'good');
     return;
   }
 
   const check = option.check ? resolveGalaxySkillCheck(option.check, option.check === 'lead' ? 'mind' : 'lead', option.dd, option.label) : { success: true, text: option.label, delta: 1 };
   if (check.success) {
-    if (option.haggle) {
-      mystery.discountRate = 0.2;
-      option.resolved = true;
-      renderMysteryPanel();
-      showNotif('Haggle success: merchant offers discounted.', 'good');
-      return;
-    }
-    if (option.steal) {
-      const loot = mystery.offers && mystery.offers.length ? pick(mystery.offers).name : rollGalaxyMerchantLoot();
-      takeGalaxyLoot(loot, 'pack');
-      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. Loot secured: ${loot}.</div>${buildLootActions(loot)}`;
-    } else if (option.reveal) {
+    let summary = `${check.text}. Success.`;
+    if (option.reveal) {
       const hidden = (S.starSystem.hexes || []).find(h => h.hiddenOutcome && !h.scanned);
       if (hidden) {
         hidden.scanned = true;
@@ -2764,25 +2814,24 @@ function resolveMysteryContactOption(optionId) {
         hidden.detail = `${hidden.hiddenOutcome} signature revealed through black market intelligence.`;
       }
       const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
-      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Black Market Intel</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Hidden signature revealed.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}</div>`;
-      renderStarSystemMap();
+      const bonus = awardMysteryResolveBonus();
+      summary = `${check.text}. Hidden signature revealed.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}${bonus ? ` ${bonus}.` : ''}`;
     } else {
       const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
       if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
         pushRoyalShipLogEntry('charter', `${check.text}. Royal task issued.${task ? ` Marker at Hex ${task.hexId}.` : ''}`);
       }
-      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''} <button class="btn btn-xs" style="margin-left:.4rem;" onclick="renderRoyalShipLog()">View Log</button></div>`;
+      const bonus = awardMysteryResolveBonus();
+      summary = `${check.text}. Success.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}${bonus ? ` ${bonus}.` : ''}`;
     }
-    option.resolved = true;
+    finishMysteryResolution(summary, 'good');
     return;
   }
 
-  if (out) {
-    if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
-      pushRoyalShipLogEntry('charter-fail', `${check.text}. Charter request refused.`);
-    }
-    out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${option.steal ? 'Hostiles respond; go to Combat/Ship pages to resolve.' : 'Negotiation collapses this phase.'} <button class="btn btn-xs" style="margin-left:.4rem;" onclick="renderRoyalShipLog()">View Log</button></div>`;
+  if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
+    pushRoyalShipLogEntry('charter-fail', `${check.text}. Charter request refused.`);
   }
+  finishMysteryResolution(`${check.text}. Failure. ${option.steal ? 'Hostiles respond; go to Combat/Ship pages to resolve.' : 'Negotiation collapses this phase.'}`, 'warn');
 }
 
 function resolveSpaceEncounterOption(optionId) {
@@ -2906,6 +2955,47 @@ function renderMysteryPanel() {
       </div>`).join('') : mystery.trade.map(item => `<div style="padding:.25rem 0;border-bottom:1px dotted var(--border2);">${item}${buildLootActions(item)}</div>`).join('')}
     </div>`;
   out.innerHTML += `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);display:flex;gap:.25rem;flex-wrap:wrap;">${(mystery.options || []).map(opt => `<button class="btn btn-xs ${opt.resolved ? '' : 'btn-teal'}" ${opt.resolved ? 'disabled style="opacity:.55;cursor:default;"' : `onclick="resolveMysteryContactOption('${opt.id}')"`}>${opt.resolved ? 'Resolved' : opt.label}</button>`).join('')}</div>`;
+}
+
+function rollPlanetExploration() {
+  ensureStarsState();
+  const hex = getCurrentStarHex();
+  if (!hex || hex.type !== 'planet' || !hex.scanned) {
+    showNotif('Scan the planet before starting surface exploration.', 'warn');
+    return;
+  }
+  const profile = ensurePlanetProfile(hex);
+  const d10 = roll(10);
+  const outcome = PLANETSIDE_EXPLORATION_TABLE[Math.min(PLANETSIDE_EXPLORATION_TABLE.length - 1, d10 - 1)] || 'Find';
+  let detail = '';
+  if (outcome === 'Find') {
+    const loot = rollGalaxyMerchantLoot();
+    takeGalaxyLoot(loot, 'pack');
+    detail = `Recovered ${loot} near the ${profile.wonder}.`;
+  } else if (outcome === 'Hazard') {
+    detail = `${profile.terrainEffect} Make an Action Die test vs DD8 before pushing deeper.`;
+  } else if (outcome === 'Beast') {
+    detail = `${profile.fauna} surge from cover. Action Die vs DD8 to outmaneuver them or take Stress.`;
+  } else if (outcome === 'Close Encounter') {
+    detail = `You find locals, scouts, or stranded travelers near the ${profile.form}.`;
+  } else if (outcome === 'Pirate') {
+    detail = `Pirate traces circle the landing zone. Expect tribute, pursuit, or an ambush.`;
+  } else if (outcome === 'Empty Colony') {
+    detail = `An abandoned colony lies open. Salvage and unanswered records remain.`;
+  } else if (outcome === 'Merchant Colony') {
+    detail = `A merchant colony is active here. Open the Merchant tab to trade from orbit or on the ground.`;
+  } else if (outcome === 'Skirmish') {
+    detail = `Two forces are already fighting over the surface route. Choose a side or stay low.`;
+  } else {
+    detail = `A galactic facility sits somewhere beyond the ${profile.terrain}. Secure access before entry.`;
+  }
+  const out = document.getElementById('starExplorationResult');
+  const detailEl = document.getElementById('starExplorationDetail');
+  if (out) out.innerHTML = `<span style="color:var(--gold2);">Planet Exploration</span> -> d10 ${d10}: <strong>${outcome}</strong>`;
+  if (detailEl) {
+    detailEl.innerHTML = `<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">${profile.planetName} Surface Pass</div><div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">${detail}</div>`;
+  }
+  showNotif(`Planet exploration: ${outcome}.`, 'good');
 }
 
 function renderDerelictPanel() {
@@ -3866,6 +3956,7 @@ function updateStarSystemReadouts() {
         ? getHexPersistentState(current, 'hub', function() { return createSpaceHubState(current.ring); })
         : null;
       if (current.type === 'hub') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeHub=getHexPersistentState(h,\'hub\',function(){return createSpaceHubState(h.ring);});renderSpaceHubPanel();">Open Space Hub</button>');
+      if (current.type === 'planet' && current.scanned) actionButtons.push('<button class="btn btn-xs btn-teal" onclick="rollPlanetExploration()">Planet Exploration</button>');
       if (current.type === 'derelict_ship') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDerelict=getHexPersistentState(h,\'derelict\',createDerelictShipState);renderDerelictPanel();">Explore Derelict</button>');
       if (current.type === 'dead_moon') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDeadMoonMap=getHexPersistentState(h,\'deadMoonMap\',createDeadMoonMapState);renderDeadMoonMapPanel();">Land On Dead Moon</button>');
       if (current.type === 'mystery') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeMystery=getHexPersistentState(h,\'mystery\',function(){return createMysteryState(h.ring);});renderMysteryPanel();">Hail Mystery Contact</button>');
@@ -4509,13 +4600,14 @@ function rollOracleYesNo() {
   const entry = ORACLE_YES_NO[r - 1];
   let detail = entry.detail;
   
-  // Add random silver linings or complications for "but" answers
-  if (r === 3) {
-    // No, but... — add silver lining
+  if (r === 1) {
+    detail = entry.detail + ' ' + pick(ORACLE_NEGATIVE_TURNS);
+  } else if (r === 3) {
     detail = entry.detail + ' ' + pick(ORACLE_SILVER_LININGS);
   } else if (r === 4) {
-    // Yes, but... — add complication
     detail = entry.detail + ' ' + pick(ORACLE_COMPLICATIONS);
+  } else if (r === 5 || r === 6) {
+    detail = entry.detail + ' ' + pick(ORACLE_POSITIVE_TURNS);
   }
   
   const el  = document.getElementById('oracleYesNoResult');
@@ -5761,6 +5853,7 @@ window.buildGalaxyPanel = buildGalaxyPanel;
 window.clearActiveGalaxyPanels = clearActiveGalaxyPanels;
 window.rollOracleYesNo = rollOracleYesNo;
 window.rollOracleOpenEnded = rollOracleOpenEnded;
+window.rollPlanetExploration = rollPlanetExploration;
 window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
 window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
 window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;

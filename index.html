@@ -463,12 +463,12 @@ select option{background:#0f1020;}
     </div>
     <div class="card">
       <div class="section-title">Equipment</div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info">?</button></div></div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info">?</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip">✕</button></div></div>
       <div class="form-row"><span class="sub-label">Armor</span>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button><button class="bp-info-btn" onclick="showEquippedItem('armor')" title="Item info">?</button></div>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button><button class="bp-info-btn" onclick="showEquippedItem('armor')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('armor')" title="Unequip">✕</button></div>
       </div>
-      <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Adventure Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" title="Item info">?</button></div></div>
+      <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Adventure Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('readied')" title="Unequip">✕</button></div></div>
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
           <span class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
@@ -2497,6 +2497,49 @@ function equipBackpackItem(index, slot) {
     showNotif('Equipped: ' + equipStr, 'good');
   }
 }
+
+function unequipItem(slot) {
+  if (!S.equipment || !S.equipment[slot]) return;
+  const equipped = S.equipment[slot];
+  
+  // Try to add to backpack
+  if (typeof addToBackpack === 'function') {
+    if (addToBackpack(equipped)) {
+      S.equipment[slot] = '';
+      var inputEl = document.getElementById('eqWeapon1'.replace(/1/, slot === 'weapon1' ? '1' : slot === 'weapon2' ? '2' : slot === 'armor' ? 'Armor' : 'Readied'));
+      if (slot === 'weapon1') document.getElementById('eqWeapon1').value = '';
+      else if (slot === 'weapon2') document.getElementById('eqWeapon2').value = '';
+      else if (slot === 'armor') document.getElementById('eqArmor').value = '';
+      else if (slot === 'readied') document.getElementById('eqReadied').value = '';
+      
+      if (typeof renderBackpackUI === 'function') renderBackpackUI();
+      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+      refreshArmorSlotMeta();
+      showNotif('Unequipped: ' + equipped + ' (moved to Backpack)', 'good');
+      return;
+    }
+  }
+  
+  // Backpack full - just clear the slot
+  if (!S.backpack) S.backpack = ['', '', '', '', '', ''];
+  const emptySlot = S.backpack.indexOf('');
+  if (emptySlot >= 0) {
+    S.backpack[emptySlot] = equipped;
+    S.equipment[slot] = '';
+    if (slot === 'weapon1') document.getElementById('eqWeapon1').value = '';
+    else if (slot === 'weapon2') document.getElementById('eqWeapon2').value = '';
+    else if (slot === 'armor') document.getElementById('eqArmor').value = '';
+    else if (slot === 'readied') document.getElementById('eqReadied').value = '';
+    
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    refreshArmorSlotMeta();
+    showNotif('Unequipped: ' + equipped + ' (moved to Backpack)', 'good');
+  } else {
+    showNotif('Backpack is full! Create space to unequip this item.', 'warn');
+  }
+}
+
 
 // Show info panel for an equipped item (weapon, armor, readied)
 function showEquippedItem(slot) {

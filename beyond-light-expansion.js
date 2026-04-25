@@ -1049,7 +1049,17 @@
             ? `<div class="sea-site">
                  <div class="ss-title">${capitalize(hex.siteType)}</div>
                  <div class="ss-text">${describeSeaSite(hex.siteType, hex.siteData)}</div>
+                 ${hex.siteType === 'settlement' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="generateTaskForSeaHex(${hex.col},${hex.row})">⚄ Generate Task</button></div>` : ''}
                </div>`
+            : ""
+        }
+        ${
+          S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key]
+            ? (() => { const mt = S.lastSea.missionTokens[hex.key]; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
+                <div class="nb-label" style="color:var(--gold2);">📍 ${mt.type === 'site' ? 'Sea Mission Site' : 'Sea Informer'}</div>
+                <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}</div>
+                ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Complete Task (+1 Renown)</button></div>` : ''}
+              </div>`; })()
             : ""
         }
         <div style="margin-top:.55rem;">
@@ -1084,27 +1094,27 @@
     if (rolled === 1) {
       const ships = roll(4);
       desc = `${ships} pirate ship${ships > 1 ? "s" : ""} hunt the lane. DD8 | 16 Stress each.`;
+      const fleeStress = roll(6);
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${ships} pirates')">⚔ Fight</button>
-        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('flee','${ships} pirates')">🏃 Flee</button>
-        <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate',getShipName()||'Pirates')">💬 Negotiate</button>
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${ships} pirates',{stress:${ships*2}})">⚔ Fight (+${ships*2} Stress)</button>
+        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('flee','Pirates',{stress:${fleeStress}})">🏃 Flee (+${fleeStress} Stress)</button>
+        <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate','Pirates',{cost:50})">💬 Negotiate (−50₵)</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Pirate Ships</div>${desc}${actions}`;
     }
     if (rolled === 2) {
-      const goods = rollMulti(6, 2) * 10;
-      desc = `A trading ship drifts nearby with ${goods} Credits in goods possible.`;
+      desc = `A trading ship drifts nearby — goods and rumors available.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-secondary" onclick="resolveSeaEncounter('trade','Trading Ship - ${goods}₵')">📦 Trade</button>
-        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('ignore','Trading Ship')">⛵ Sail On</button>
+        <button class="btn btn-xs btn-secondary" onclick="resolveSeaEncounter('trade','Trading Ship',{})">📦 Open Merchants</button>
+        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('ignore','Trading Ship',{})">⛵ Sail On</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Trading Ship</div>${desc}${actions}`;
     }
     if (rolled === 3) {
       desc = `The Great Serpent rises with ruined ships lashed across its spiny back. DD12 | 24 Stress.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','Great Serpent')">⚔ Engage</button>
-        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('flee','Great Serpent')">🏃 Flee Immediately!</button>
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','Great Serpent',{stress:12})">⚔ Engage (+12 Stress)</button>
+        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('flee','Great Serpent',{stress:6})">🏃 Flee Immediately (+6 Stress)</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - The Great Serpent</div>${desc}${actions}`;
     }
@@ -1112,8 +1122,8 @@
       const crew = roll(6);
       desc = `${crew} crew cling to a sinking skiff and beg for passage to the next Province.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('rescue','${crew} Castaways')">🆘 Rescue</button>
-        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('ignore','Sinking Skiff')">⛵ Leave Them</button>
+        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('rescue','${crew} Castaways',{renown:1})">🆘 Rescue (+1 Renown)</button>
+        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('ignore','Sinking Skiff',{})">⛵ Leave Them</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Sinking Skiff</div>${desc}${actions}`;
     }
@@ -1121,53 +1131,123 @@
       const loot = roll(6);
       const vampires = roll(3);
       const lootText = loot === 6 ? "1 Strange Item" : `${loot} random item${loot > 1 ? "s" : ""}`;
+      const salvageCredits = loot * 25;
+      const vampStress = vampires * 4;
       desc = `An empty transport floats half-derelict. Salvage: ${lootText}. Hidden aboard: ${vampires} vampire${vampires > 1 ? "s" : ""}.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-secondary" onclick="resolveSeaEncounter('salvage','${loutText}')">🪙 Salvage</button>
-        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${vampires} Vampires - DD6')">⚔ Fight Vampires</button>
-        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('avoid','Empty Transport')">⛵ Avoid</button>
+        <button class="btn btn-xs btn-secondary" onclick="resolveSeaEncounter('salvage','${lootText}',{credits:${salvageCredits}})">🪙 Salvage (+${salvageCredits}₵)</button>
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${vampires} Vampires',{stress:${vampStress}})">⚔ Fight Vampires (+${vampStress} Stress)</button>
+        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('avoid','Empty Transport',{})">⛵ Avoid</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Empty Transport</div>${desc}${actions}`;
     }
     const armadaTask = buildRoyalArmadaText();
     desc = `A Royal Armada patrol demands answers. Mission: <strong style="color:var(--gold2);">${armadaTask}</strong>.`;
     actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-      <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('accept','Royal Armada')">📜 Accept Mission</button>
-      <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('negotiate','Royal Patrol')">💬 Negotiate</button>
-      <button class="btn btn-xs btn-warn" onclick="resolveSeaEncounter('resist','Royal Armada')">⚔ Resist</button>
+      <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('accept','Royal Armada',{renown:1})">📜 Accept Mission (+1 Renown)</button>
+      <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('negotiate','Royal Patrol',{cost:30})">💬 Negotiate (−30₵)</button>
+      <button class="btn btn-xs btn-warn" onclick="resolveSeaEncounter('resist','Royal Armada',{stress:8})">⚔ Resist (+8 Stress)</button>
     </div>`;
     return `<div class="sea-result-title">Open Sea Encounter - Royal Armada</div>${desc}${actions}`;
   }
 
-  function resolveSeaEncounter(action, target) {
+  function resolveSeaEncounter(action, target, effects) {
+    effects = effects || {};
     let msg = '';
-    if (action === 'fight') msg = `Engaged ${target} in combat! Add to active mission.`;
-    else if (action === 'flee') msg = `Successfully fled from ${target}! Gained d6 Stress.`;
-    else if (action === 'negotiate') msg = `Negotiated with ${target}. Outcome unclear.`;
-    else if (action === 'trade') msg = `Traded with ${target}. Goods acquired!`;
-    else if (action === 'ignore') msg = `Sailed on past the ${target}.`;
-    else if (action === 'rescue') msg = `Rescued ${target}. Gained +1 Renown!`;
-    else if (action === 'salvage') msg = `Salvaged valuable goods: ${target}`;
-    else if (action === 'avoid') msg = `Safely avoided the ${target}.`;
-    else if (action === 'accept') msg = `Accepted mission from ${target}!`;
-    else if (action === 'resist') msg = `Resisted the ${target}. Liberty gained, but reputation damaged.`;
-    
-    if (msg) showNotif(msg, 'good');
-    // Clear encounter display
-    const panel = document.getElementById('lastSeaInfo');
-    if (panel) {
-      const hexKey = S.lastSea.selectedKey;
-      if (hexKey && S.lastSea.map) {
-        const hex = S.lastSea.map.find(h => h.key === hexKey);
-        if (hex) hex.resultHtml = '';
-      }
-      renderLastSeaInfo();
+
+    if (action === 'trade') {
+      const shopBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+      if (shopBtn) switchTab('shop', shopBtn);
+      showNotif('Trading with ' + target + ' — browse the Merchants tab', 'good');
+      return;
     }
+
+    if (action === 'fight') {
+      if (effects.stress) { if (typeof changeStress === 'function') changeStress(effects.stress); }
+      msg = `Engaged ${target} in combat! +${effects.stress||0} Stress applied.`;
+    } else if (action === 'flee') {
+      if (effects.stress) { if (typeof changeStress === 'function') changeStress(effects.stress); }
+      msg = `Fled from ${target}! +${effects.stress||0} Stress from the retreat.`;
+    } else if (action === 'negotiate') {
+      if (effects.cost && (S.credits||0) >= effects.cost) {
+        S.credits = (S.credits||0) - effects.cost;
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        msg = `Negotiated with ${target} (−${effects.cost}₵).`;
+      } else if (effects.cost) {
+        showNotif(`Not enough credits (need ${effects.cost}₵)`, 'warn'); return;
+      } else { msg = `Negotiated with ${target}.`; }
+    } else if (action === 'rescue') {
+      if (effects.renown) { S.renown = (S.renown||0) + effects.renown; if (typeof updateRenownUI === 'function') updateRenownUI(); }
+      msg = `Rescued ${target}! +${effects.renown||0} Renown.`;
+    } else if (action === 'salvage') {
+      if (effects.credits) { S.credits = (S.credits||0) + effects.credits; if (typeof updateCreditsUI === 'function') updateCreditsUI(); }
+      msg = `Salvaged ${target}! +${effects.credits||0}₵.`;
+    } else if (action === 'avoid' || action === 'ignore') {
+      msg = `Sailed past ${target}.`;
+    } else if (action === 'accept') {
+      if (effects.renown) { S.renown = (S.renown||0) + effects.renown; if (typeof updateRenownUI === 'function') updateRenownUI(); }
+      msg = `Accepted mission from ${target}! +${effects.renown||0} Renown.`;
+    } else if (action === 'resist') {
+      if (effects.stress) { if (typeof changeStress === 'function') changeStress(effects.stress); }
+      msg = `Resisted ${target}! +${effects.stress||0} Stress.`;
+    }
+
+    if (msg) showNotif(msg, 'good');
+    const hexKey = S.lastSea && S.lastSea.selectedKey;
+    if (hexKey && S.lastSea && S.lastSea.map) {
+      const hex = S.lastSea.map.find(h => h.key === hexKey);
+      if (hex) hex.resultHtml = '';
+    }
+    renderLastSeaInfo();
   }
 
   function getShipName() {
     return (S.naval && S.naval.ship && S.naval.ship.name) || 'Our Ship';
   }
+
+  // Generate a task for a sea hex — matches province map generateTaskForHex pattern
+  function generateTaskForSeaHex(col, row) {
+    if (!S.lastSea || !S.lastSea.map) return;
+    const hex = S.lastSea.map.find(h => h.col === col && h.row === row);
+    if (!hex) return;
+    const verbs = ['Hunt', 'Guard', 'Rescue', 'Deliver', 'Investigate', 'Scout', 'Retrieve', 'Escort'];
+    const targets = ['Pirates', 'Sea Creatures', 'Refugees', 'Cargo', 'Dangers', 'Wrecks', 'Relics', 'Survivors'];
+    const candidates = S.lastSea.map.filter(h => h.key !== hex.key);
+    if (!candidates.length) { showNotif('No destination hex available.', 'warn'); return; }
+    const destHex = pick(candidates);
+    const verb = pick(verbs);
+    const target = pick(targets);
+    const destName = destHex.title || destHex.islandName || `[${destHex.col+1},${destHex.row+1}]`;
+    let html = `<div style="font-size:.84rem;color:var(--text2);line-height:1.6;"><strong style="color:var(--gold2);">Sea Task Offer</strong><br>${verb} ${target} near <strong>${destName}</strong>.<br><br><strong style="color:var(--gold);">Success = +1 Renown</strong></div>
+    <div style="margin-top:.4rem;display:flex;justify-content:flex-end;gap:.3rem;">
+      <button class="btn btn-sm btn-warn" onclick="closeModal();">Decline</button>
+      <button class="btn btn-sm btn-success" onclick="acceptSeaTask(${col},${row},'${verb}','${target}','${destHex.key}');">Accept Task</button>
+    </div>`;
+    openModal('Sea Task Assignment', html);
+  }
+  window.generateTaskForSeaHex = generateTaskForSeaHex;
+
+  function acceptSeaTask(col, row, verb, target, destKey) {
+    if (!S.lastSea) return;
+    S.lastSea.missionTokens = S.lastSea.missionTokens || {};
+    S.lastSea.missionTokens[destKey] = { missionId: 'sea_task', title: verb + ' ' + target, type: 'site' };
+    if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+    closeModal();
+    showNotif(`Task accepted: ${verb} ${target} — marker placed on map`, 'good');
+  }
+  window.acceptSeaTask = acceptSeaTask;
+
+  function completeSeaTask(hexKey) {
+    if (!S.lastSea || !S.lastSea.missionTokens || !S.lastSea.missionTokens[hexKey]) return;
+    const task = S.lastSea.missionTokens[hexKey];
+    delete S.lastSea.missionTokens[hexKey];
+    S.renown = (S.renown || 0) + 1;
+    if (typeof updateRenownUI === 'function') updateRenownUI();
+    if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+    showNotif(`Task completed: ${task.title} (+1 Renown)`, 'good');
+    renderLastSeaInfo();
+  }
+  window.completeSeaTask = completeSeaTask;
 
   function buildSeaExploration(hex) {
     const option = pick(["weather", "encounter", "peril", "uneventful"]);
@@ -1202,7 +1282,7 @@
         <div class="sea-site">
           <div class="ss-title">${data.name}</div>
           <div class="ss-text">${data.style} settlement with ${data.cultural.toLowerCase()} roots. ${data.news}</div>
-          <div style="margin-top:.35rem;"><button class="btn btn-xs btn-primary" onclick="generateTask()">Generate Task</button></div>
+          <div style="margin-top:.35rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof generateTaskForSeaHex==='function')generateTaskForSeaHex(${hex.col},${hex.row});else generateTask()">⚄ Generate Task</button></div>
         </div>
       `;
     }

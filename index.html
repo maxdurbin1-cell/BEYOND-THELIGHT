@@ -3032,6 +3032,8 @@ function setContext(ctx,btn){
   if(ctx==='space'){
     const galaxyBtn=document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
     if(galaxyBtn) switchTab('galaxy',galaxyBtn);
+    // Ensure panel is rendered after tab switch
+    if(typeof buildGalaxyPanel==='function') setTimeout(buildGalaxyPanel,0);
   }
 }
 function ensureMapClickMode(){if(!S.mapClickMode)S.mapClickMode='travel';return S.mapClickMode;}

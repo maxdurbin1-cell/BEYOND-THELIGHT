@@ -2467,13 +2467,7 @@
     }
 
     if (_baseBuyItem) {
-      var beforeCredits = Number(S.credits || 0);
       _baseBuyItem(cost, name, cat);
-      // Always show a clear purchase confirmation when credits changed.
-      var afterCredits = Number(S.credits || 0);
-      if (afterCredits < beforeCredits) {
-        showNotif('Bought: ' + name + ' (−' + (beforeCredits - afterCredits) + '₵)', 'good');
-      }
       return;
     }
 

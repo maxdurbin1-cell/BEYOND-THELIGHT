@@ -1,3 +1,36 @@
+function ensureSpaceShopCategories() {
+  if (typeof SHOP_DATA !== "object" || !SHOP_DATA) return;
+
+  if (!SHOP_DATA.space_armor && Array.isArray(window.SPACE_ARMOR)) {
+    SHOP_DATA.space_armor = window.SPACE_ARMOR.slice();
+  }
+  if (!SHOP_DATA.cosmic && Array.isArray(window.COSMIC_ESSENTIALS)) {
+    SHOP_DATA.cosmic = window.COSMIC_ESSENTIALS.slice();
+  }
+  if (!SHOP_DATA.starship_fuel && Array.isArray(window.STARSHIP_FUEL)) {
+    SHOP_DATA.starship_fuel = window.STARSHIP_FUEL.slice();
+  }
+
+  var cats = document.querySelector('.shop-cats');
+  if (!cats) return;
+
+  var defs = [
+    { id: 'cosmic', icon: '🌌', label: 'Cosmic' },
+    { id: 'space_armor', icon: '🧑‍🚀', label: 'Space Armor' },
+    { id: 'exocrafts', icon: '🤖', label: 'Exocrafts' },
+    { id: 'starship_fuel', icon: '⛽', label: 'Starship Fuel' }
+  ];
+
+  defs.forEach(function(def) {
+    if (cats.querySelector('.scat[onclick*="' + def.id + '"]')) return;
+    var b = document.createElement('button');
+    b.className = 'scat';
+    b.setAttribute('onclick', "showShopCat('" + def.id + "',this)");
+    b.textContent = def.icon + ' ' + def.label;
+    cats.appendChild(b);
+  });
+}
+
 function switchTab(tabId, btn) {
   document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
   document.querySelectorAll(".tab-btn").forEach((tab) => tab.classList.remove("active"));
@@ -30,6 +63,31 @@ function switchTab(tabId, btn) {
     if (typeof window.buildGalaxyPanel === "function") {
       window.buildGalaxyPanel();
     }
+    if (typeof window.renderStarSystemMap === "function") {
+      setTimeout(function () { window.renderStarSystemMap(); }, 0);
+    }
+  }
+
+  if (tabId === "combat") {
+    if (typeof window.buildStarsCombatPanel === "function") {
+      window.buildStarsCombatPanel();
+    }
+    if (typeof window.renderStarsCombatZone === "function") {
+      setTimeout(function () { window.renderStarsCombatZone(1); }, 0);
+    }
+  }
+
+  if (tabId === "naval") {
+    if (typeof window.renderNaval === "function") {
+      window.renderNaval();
+    }
+    if (typeof window.applySpaceNavalPresentation === "function") {
+      window.applySpaceNavalPresentation();
+    }
+  }
+
+  if (tabId === "shop") {
+    ensureSpaceShopCategories();
   }
 }
 
@@ -851,10 +909,14 @@ function loadCharacter() {
         ? cloneStarsData(S.starSystem)
         : JSON.parse(JSON.stringify(S.starSystem));
     }
-    // Rebuild galaxy panel if it is currently visible
-    const galaxyTab = document.getElementById('galaxy');
-    if (galaxyTab && galaxyTab.style.display !== 'none' && typeof buildGalaxyPanel === 'function') {
+    // Rebuild galaxy panel if currently visible or if user is in space context.
+    const galaxyTab = document.getElementById('tab-galaxy');
+    const inSpaceCtx = window._activeContext === 'space';
+    if ((inSpaceCtx || (galaxyTab && galaxyTab.classList.contains('active'))) && typeof buildGalaxyPanel === 'function') {
       buildGalaxyPanel();
+      if (typeof renderStarSystemMap === 'function') {
+        setTimeout(function(){ renderStarSystemMap(); }, 0);
+      }
     }
     showNotif("Character loaded", "good");
   } catch (error) {

@@ -2265,7 +2265,12 @@ function buyItem(cost, name, cat) {
 
   S.credits -= cost;
   updateCreditsUI();
-  showNotif(name + ' is in your inventory (−' + cost + '₵)', 'good');
+  var goesToBackpack = ['weapons','melee_exp','ranged_exp','armor','armor_exp','space_armor','tradegoods','exocrafts','cosmic','items','essentials','toolkits','scrolls','remedies','strange'].indexOf(category) >= 0;
+  if (goesToBackpack) {
+    showNotif(name + ' is now in Backpack (−' + cost + '₵)', 'good');
+  } else {
+    showNotif(name + ' purchased (−' + cost + '₵)', 'good');
+  }
 }
 
 // Item use config: maxUses=null means infinite, N means limited.
@@ -3034,6 +3039,9 @@ function setContext(ctx,btn){
     if(galaxyBtn) switchTab('galaxy',galaxyBtn);
     // Ensure panel is rendered after tab switch
     if(typeof buildGalaxyPanel==='function') setTimeout(buildGalaxyPanel,0);
+    if(typeof renderStarSystemMap==='function') setTimeout(renderStarSystemMap,0);
+    if(typeof renderNaval==='function') setTimeout(renderNaval,0);
+    if(typeof applySpaceNavalPresentation==='function') setTimeout(applySpaceNavalPresentation,0);
   }
 }
 function ensureMapClickMode(){if(!S.mapClickMode)S.mapClickMode='travel';return S.mapClickMode;}

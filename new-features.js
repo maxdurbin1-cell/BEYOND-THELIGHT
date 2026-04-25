@@ -1960,7 +1960,7 @@
           if (S.holdingQuest) { S.holdingQuest.holdingHex = null; }
           clearHoldingQuestTokens();
           if (typeof renderHexMap === "function") { renderHexMap(); }
-          showNotif("Regent failures caused your Holding marker to disappear from the Province map!", "warn");
+          showNotif("Regent failures caused your Holding marker to disappear from the Planetary Expedition Map!", "warn");
         } else {
           showNotif("Regent failed to resolve the Crisis.", "warn");
         }

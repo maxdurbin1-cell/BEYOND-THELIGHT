@@ -180,22 +180,42 @@ const ORACLE_YES_NO = [
   { roll: 6, result: 'Yes, and…',    detail: 'The answer is Yes — and something extra goes right.' },
 ];
 
-const ORACLE_OPEN_WORDS = [
-  ['Abandon','Accept','Accuse','Achieve','Advance'],       // 1
-  ['Bargain','Battle','Betray','Block','Break'],           // 2
-  ['Capture','Change','Chase','Claim','Conceal'],          // 3
-  ['Damage','Deceive','Defend','Deliver','Destroy'],       // 4
-  ['Escape','Examine','Expose','Extract','Endure'],        // 5
-  ['Follow','Force','Forget','Fortify','Find'],            // 6
+const ORACLE_SILVER_LININGS = [
+  'However, an opportunity presents itself.',
+  'But ultimately, fortune smiles on persistence.',
+  'Yet a hidden path remains open.',
+  'Still, a trusted ally offers assistance.',
+  'Nevertheless, the worst is avoided.',
+  'But a clue surfaces to guide you forward.',
+  'Though the cost is higher than expected, success remains possible.',
+  'Yet one unexpected advantage comes to light.',
+  'But time remains to change course.',
+  'Though difficult, a solution exists.',
+  'Still, a powerful secret emerges.',
+  'Yet old friends surface to help.',
+  'But fate leaves one card unplayed.',
+  'Though constrained, freedom exists in small choices.',
+  'Still, wisdom can prevent greater harm.',
 ];
-const ORACLE_OPEN_SUBJECTS = [
-  ['Ally','Artifact','Authority','Archive','Agent'],       // 1
-  ['Bargain','Body','Border','Bond','Blueprint'],          // 2
-  ['Clan','Cargo','Cipher','Conflict','Channel'],          // 3
-  ['Data','Deal','Door','Dread','Domain'],                 // 4
-  ['Enemy','Event','Entry','Engine','Evidence'],           // 5
-  ['Faction','Frontier','Fragment','Force','Face'],        // 6
+
+const ORACLE_COMPLICATIONS = [
+  'However, an enemy grows impatient.',
+  'But the cost is higher than anticipated.',
+  'Yet time pressure increases.',
+  'Still, unwanted attention draws near.',
+  'However, a trusted ally becomes unreliable.',
+  'But a new threat emerges.',
+  'Yet resources dwindle faster than expected.',
+  'Still, an old enemy reappears.',
+  'However, collateral damage is unavoidable.',
+  'But the victory is pyrrhic.',
+  'Yet future troubles are seeded.',
+  'Still, one price must be paid.',
+  'However, trust is fractured.',
+  'But the burden falls on unprepared shoulders.',
+  'Yet the solution brings new problems.',
 ];
+
 
 const FACTION_NAMES = {
   corporations: 'Corporations',
@@ -2462,7 +2482,7 @@ function renderSpaceHubPanel() {
     </div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="exploreSpaceHubModule()">Explore Hub Module</button>
-      <button class="btn btn-xs" onclick="changeStarshipFuel('standard',1)">Refuel Standard +1</button>
+      <button class="btn btn-xs" onclick="purchaseSpaceHubFuel('standard')">Refuel Standard +1 (200₵)</button>
       <button class="btn btn-xs" onclick="var task=createGalaxyTask('Space Hub',{title:'Hub Contract',text:'Carry a Holding-style contract package to the marked hex and report back through Space Hub channels.',reward:{renown:'corporations',globalRenown:1,lootFromMerchant:true}});if(task)showNotif('Galaxy task marker placed at Hex '+task.hexId+'.','good');">Generate Task</button>
     </div>
     <div style="margin-top:.35rem;display:grid;gap:.3rem;">
@@ -3703,7 +3723,20 @@ function travelToSelectedGalaxyHex() {
     return showNotif(`Hyperdrive jump complete (${Math.max(1, Math.round(distance))} weeks).`, 'good');
   }
 
-  if (distance > 1) return showNotif('Standard travel moves 1 adjacent hex per week.', 'warn');
+  if (distance > 1) {
+    // Non-adjacent hex: check if Hyperdrive is available to auto-jump
+    if ((S.starship.fuel.hyperdrive || 0) > 0 && canHyperdriveToHex(toHex)) {
+      S.starship.fuel.hyperdrive -= 1;
+      S.starSystem.currentHexId = toHex.id;
+      registerStarshipTravelDays(Math.max(1, Math.round(distance)) * DAYS_PER_WEEK);
+      updateStarshipUI();
+      renderStarSystemMap();
+      updateStarSystemReadouts();
+      return showNotif(`Hyperdrive auto-engaged for non-adjacent hex jump (${Math.max(1, Math.round(distance))} weeks).`, 'good');
+    }
+    return showNotif('Standard travel moves 1 adjacent hex per week. Use Hyperdrive for longer jumps.', 'warn');
+  }
+  
   if ((S.starship.fuel.standard || 0) <= 0) return showNotif('No Standard Fuel available.', 'warn');
   S.starship.fuel.standard -= 1;
   S.starSystem.currentHexId = toHex.id;
@@ -3960,6 +3993,77 @@ function rollMonthlyStarRadioEvent() {
   updateStarSystemReadouts();
 }
 
+function promptRadioTaskRoll() {
+  ensureStarsState();
+  const current = getCurrentStarHex();
+  if (!current || current.type !== 'radio_task') {
+    showNotif('No radio task marker in this hex.', 'warn');
+    return;
+  }
+  
+  const adventureDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+  let html = `<div style="font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.5rem;">
+    <strong>Radio Task Challenge</strong><br>
+    Roll your Adventure Die (${adventureDie}) vs Dread Die (d8)<br>
+    Success = Complete the contract and gain rewards
+  </div>`;
+  html += `<div style="margin-top:.5rem;"><button class="btn btn-primary" onclick="resolveGalaxyRadioTaskWithRoll()">Roll for Success</button></div>`;
+  
+  openModal('Radio Task Resolution', html);
+}
+
+function resolveGalaxyRadioTaskWithRoll() {
+  ensureStarsState();
+  const current = getCurrentStarHex();
+  if (!current || current.type !== 'radio_task') {
+    showNotif('No radio task marker in this hex.', 'warn');
+    return;
+  }
+  
+  const adventureDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+  const adRoll = explodingRoll(adventureDie);
+  const ddRoll = explodingRoll(8);
+  const success = adRoll.total >= ddRoll.total;
+  
+  let resultHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">
+    <div style="text-align:center;">
+      <div style="font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Ad${adventureDie}</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;color:var(--gold);">${adRoll.total}</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">DD8</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;color:var(--red);">${ddRoll.total}</div>
+    </div>
+  </div>`;
+  
+  if (success) {
+    const rewardText = applyGalaxyRewardPackage({ globalRenown: 1, lootFromMerchant: true });
+    current.radioTaskResolved = true;
+    current.type = 'location';
+    current.detail = 'Resolved radio contract. Local contacts leave a stable route and future work.';
+    (S.starSystem.radioTaskMarkers || []).forEach((m) => {
+      if (m.hexId === current.id) m.resolved = true;
+    });
+    showNotif('Radio task completed successfully!', 'good');
+    resultHtml += `<div style="background:rgba(76,175,116,.08);border:1px solid rgba(76,175,116,.4);padding:.4rem;color:var(--green2);"><strong>✓ Success!</strong> ${rewardText || 'The crew finishes the assignment and secures local trust.'}</div>`;
+  } else {
+    current.radioTaskResolved = false;
+    current.detail = 'Radio task failed - contract cancelled.';
+    (S.starSystem.radioTaskMarkers || []).forEach((m) => {
+      if (m.hexId === current.id) m.resolved = true;
+    });
+    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    showNotif('Radio task failed. Contacts disappointed.', 'warn');
+    resultHtml += `<div style="background:rgba(201,64,64,.08);border:1px solid rgba(201,64,64,.4);padding:.4rem;color:var(--red2);"><strong>✗ Failed</strong> — Contract cancelled. Local reputation suffers.</div>`;
+  }
+  
+  const out = document.getElementById('starExplorationDetail');
+  if (out) out.innerHTML = resultHtml;
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+  closeModal();
+}
+
 function resolveGalaxyRadioTask() {
   ensureStarsState();
   const current = getCurrentStarHex();
@@ -3967,17 +4071,8 @@ function resolveGalaxyRadioTask() {
     showNotif('No radio task marker in this hex.', 'warn');
     return;
   }
-  const rewardText = applyGalaxyRewardPackage({ globalRenown: 1, lootFromMerchant: true });
-  current.radioTaskResolved = true;
-  current.type = 'location';
-  current.detail = 'Resolved radio contract. Local contacts leave a stable route and future work.';
-  (S.starSystem.radioTaskMarkers || []).forEach((m) => {
-    if (m.hexId === current.id) m.resolved = true;
-  });
-  showNotif('Radio task resolved.', 'good');
-  const out = document.getElementById('starExplorationDetail');
-  if (out) out.innerHTML = `<div style="font-size:.88rem;color:var(--green2);">Radio Task Resolved</div><div style="font-size:.82rem;color:var(--muted2);line-height:1.55;">${rewardText || 'The crew finishes the assignment and secures local trust.'}</div>`;
-  renderStarSystemMap();
+  promptRadioTaskRoll();
+}
   updateStarSystemReadouts();
 }
 
@@ -4361,13 +4456,24 @@ function updateInjuriesUI() {
 function rollOracleYesNo() {
   const r = roll(6);
   const entry = ORACLE_YES_NO[r - 1];
+  let detail = entry.detail;
+  
+  // Add random silver linings or complications for "but" answers
+  if (r === 3) {
+    // No, but... — add silver lining
+    detail = entry.detail + ' ' + pick(ORACLE_SILVER_LININGS);
+  } else if (r === 4) {
+    // Yes, but... — add complication
+    detail = entry.detail + ' ' + pick(ORACLE_COMPLICATIONS);
+  }
+  
   const el  = document.getElementById('oracleYesNoResult');
   if (el) {
     el.innerHTML = `
       <div class="oracle-result">
         <div class="oracle-roll">d6 = ${r}</div>
         <div class="oracle-outcome" style="color:${r >= 4 ? 'var(--green2)' : r === 3 ? 'var(--gold)' : 'var(--red2)'};">${entry.result}</div>
-        <div class="oracle-detail">${entry.detail}</div>
+        <div class="oracle-detail">${detail}</div>
       </div>`;
   }
 }
@@ -4632,6 +4738,26 @@ function changeStarshipFuel(type, delta) {
   ensureStarsState();
   S.starship.fuel[type] = Math.max(0, (S.starship.fuel[type] || 0) + delta);
   updateStarshipUI();
+}
+
+function purchaseSpaceHubFuel(type) {
+  ensureStarsState();
+  const costs = { standard: 200, hubJump: 500, hyperdrive: 1000 };
+  const cost = costs[type] || 200;
+  
+  if (S.credits < cost) {
+    showNotif(`Not enough credits. Need ${cost}₵, have ${S.credits}₵.`, 'warn');
+    return;
+  }
+  
+  S.credits -= cost;
+  S.starship.fuel[type] = (S.starship.fuel[type] || 0) + 1;
+  updateCreditsUI();
+  updateStarshipUI();
+  
+  const typeLabel = type === 'standard' ? 'Standard Fuel' : type === 'hubJump' ? 'Hub Jump Fuel' : 'Hyperdrive Core';
+  showNotif(`${typeLabel} purchased: −${cost}₵`, 'good');
+  if (typeof renderSpaceHubPanel === 'function') renderSpaceHubPanel();
 }
 
 function changeShields(delta) {

@@ -245,7 +245,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
     <button class="tab-btn ctx-sea ctx-space" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn" onclick="switchTab('codex',this)">Codex</button>
@@ -2248,7 +2248,7 @@ function buyItem(cost, name, cat) {
 
   S.credits -= cost;
   updateCreditsUI();
-  showNotif('Bought: ' + name + ' (−' + cost + '₵)', 'good');
+  showNotif(name + ' is in your inventory (−' + cost + '₵)', 'good');
 }
 
 // Item use config: maxUses=null means infinite, N means limited.

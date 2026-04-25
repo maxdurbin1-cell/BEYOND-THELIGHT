@@ -905,6 +905,33 @@
       polygon.setAttribute("stroke-width", S.lastSea.selectedKey === hex.key ? "2.6" : "1.3");
       group.appendChild(polygon);
 
+      // Render mission tokens for sea missions
+      const missionToken = S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key];
+      if (missionToken) {
+        const tokenIcon = missionToken.type === 'site' ? '🧭' : missionToken.type === 'informer' ? '👁' : '📍';
+        const tokenColor = missionToken.type === 'site' ? '#ff8450' : missionToken.type === 'informer' ? '#e8c050' : '#e05050';
+        
+        const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        glow.setAttribute('cx', x);
+        glow.setAttribute('cy', y - LAST_SEA_HEX * 0.35);
+        glow.setAttribute('r', '8');
+        glow.setAttribute('fill', 'rgba(' + (tokenColor === '#ff8450' ? '255,132,80' : tokenColor === '#e8c050' ? '232,192,80' : '224,80,80') + ',.15)');
+        glow.setAttribute('stroke', tokenColor);
+        glow.setAttribute('stroke-width', '1');
+        glow.setAttribute('pointer-events', 'none');
+        group.appendChild(glow);
+        
+        const micon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        micon.setAttribute('x', x);
+        micon.setAttribute('y', y - LAST_SEA_HEX * 0.25);
+        micon.setAttribute('text-anchor', 'middle');
+        micon.setAttribute('font-size', '10');
+        micon.setAttribute('fill', tokenColor);
+        micon.setAttribute('pointer-events', 'none');
+        micon.textContent = tokenIcon;
+        group.appendChild(micon);
+      }
+
       if (hex.icon) {
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
@@ -1053,26 +1080,93 @@
 
   function buildSeaEncounter() {
     const rolled = roll(6);
+    let desc = '', actions = '';
     if (rolled === 1) {
       const ships = roll(4);
-      return `<div class="sea-result-title">Open Sea Encounter - Pirate Ships</div>${ships} pirate ship${ships > 1 ? "s" : ""} hunt the lane. DD8 | 16 Stress each.`;
+      desc = `${ships} pirate ship${ships > 1 ? "s" : ""} hunt the lane. DD8 | 16 Stress each.`;
+      actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${ships} pirates')">⚔ Fight</button>
+        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('flee','${ships} pirates')">🏃 Flee</button>
+        <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate',getShipName()||'Pirates')">💬 Negotiate</button>
+      </div>`;
+      return `<div class="sea-result-title">Open Sea Encounter - Pirate Ships</div>${desc}${actions}`;
     }
     if (rolled === 2) {
-      return `<div class="sea-result-title">Open Sea Encounter - Trading Ship</div>A trading ship drifts nearby with ${rollMulti(6, 2) * 10} Credits in goods. Treat it like a Merchant Caravan for barter, rumor, or escort work.`;
+      const goods = rollMulti(6, 2) * 10;
+      desc = `A trading ship drifts nearby with ${goods} Credits in goods possible.`;
+      actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-secondary" onclick="resolveSeaEncounter('trade','Trading Ship - ${goods}₵')">📦 Trade</button>
+        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('ignore','Trading Ship')">⛵ Sail On</button>
+      </div>`;
+      return `<div class="sea-result-title">Open Sea Encounter - Trading Ship</div>${desc}${actions}`;
     }
     if (rolled === 3) {
-      return `<div class="sea-result-title">Open Sea Encounter - The Great Serpent</div>The Great Serpent rises with ruined ships lashed across its spiny back. DD12 | 24 Stress.`;
+      desc = `The Great Serpent rises with ruined ships lashed across its spiny back. DD12 | 24 Stress.`;
+      actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','Great Serpent')">⚔ Engage</button>
+        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('flee','Great Serpent')">🏃 Flee Immediately!</button>
+      </div>`;
+      return `<div class="sea-result-title">Open Sea Encounter - The Great Serpent</div>${desc}${actions}`;
     }
     if (rolled === 4) {
-      return `<div class="sea-result-title">Open Sea Encounter - Sinking Skiff</div>${roll(6)} crew cling to a sinking skiff and beg for passage to the next Province.`;
+      const crew = roll(6);
+      desc = `${crew} crew cling to a sinking skiff and beg for passage to the next Province.`;
+      actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('rescue','${crew} Castaways')">🆘 Rescue</button>
+        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('ignore','Sinking Skiff')">⛵ Leave Them</button>
+      </div>`;
+      return `<div class="sea-result-title">Open Sea Encounter - Sinking Skiff</div>${desc}${actions}`;
     }
     if (rolled === 5) {
       const loot = roll(6);
       const vampires = roll(3);
       const lootText = loot === 6 ? "1 Strange Item" : `${loot} random item${loot > 1 ? "s" : ""}`;
-      return `<div class="sea-result-title">Open Sea Encounter - Empty Transport</div>An empty transport floats half-derelict. Salvage: ${lootText}. Hidden aboard: ${vampires} vampire${vampires > 1 ? "s" : ""} (DD6 | 12 Stress).`;
+      desc = `An empty transport floats half-derelict. Salvage: ${lootText}. Hidden aboard: ${vampires} vampire${vampires > 1 ? "s" : ""}.`;
+      actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-secondary" onclick="resolveSeaEncounter('salvage','${loutText}')">🪙 Salvage</button>
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${vampires} Vampires - DD6')">⚔ Fight Vampires</button>
+        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('avoid','Empty Transport')">⛵ Avoid</button>
+      </div>`;
+      return `<div class="sea-result-title">Open Sea Encounter - Empty Transport</div>${desc}${actions}`;
     }
-    return `<div class="sea-result-title">Open Sea Encounter - Royal Armada</div>A Royal Armada patrol demands answers. Mission: <strong style="color:var(--gold2);">${buildRoyalArmadaText()}</strong>.`;
+    const armadaTask = buildRoyalArmadaText();
+    desc = `A Royal Armada patrol demands answers. Mission: <strong style="color:var(--gold2);">${armadaTask}</strong>.`;
+    actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
+      <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('accept','Royal Armada')">📜 Accept Mission</button>
+      <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('negotiate','Royal Patrol')">💬 Negotiate</button>
+      <button class="btn btn-xs btn-warn" onclick="resolveSeaEncounter('resist','Royal Armada')">⚔ Resist</button>
+    </div>`;
+    return `<div class="sea-result-title">Open Sea Encounter - Royal Armada</div>${desc}${actions}`;
+  }
+
+  function resolveSeaEncounter(action, target) {
+    let msg = '';
+    if (action === 'fight') msg = `Engaged ${target} in combat! Add to active mission.`;
+    else if (action === 'flee') msg = `Successfully fled from ${target}! Gained d6 Stress.`;
+    else if (action === 'negotiate') msg = `Negotiated with ${target}. Outcome unclear.`;
+    else if (action === 'trade') msg = `Traded with ${target}. Goods acquired!`;
+    else if (action === 'ignore') msg = `Sailed on past the ${target}.`;
+    else if (action === 'rescue') msg = `Rescued ${target}. Gained +1 Renown!`;
+    else if (action === 'salvage') msg = `Salvaged valuable goods: ${target}`;
+    else if (action === 'avoid') msg = `Safely avoided the ${target}.`;
+    else if (action === 'accept') msg = `Accepted mission from ${target}!`;
+    else if (action === 'resist') msg = `Resisted the ${target}. Liberty gained, but reputation damaged.`;
+    
+    if (msg) showNotif(msg, 'good');
+    // Clear encounter display
+    const panel = document.getElementById('lastSeaInfo');
+    if (panel) {
+      const hexKey = S.lastSea.selectedKey;
+      if (hexKey && S.lastSea.map) {
+        const hex = S.lastSea.map.find(h => h.key === hexKey);
+        if (hex) hex.resultHtml = '';
+      }
+      renderLastSeaInfo();
+    }
+  }
+
+  function getShipName() {
+    return (S.naval && S.naval.ship && S.naval.ship.name) || 'Our Ship';
   }
 
   function buildSeaExploration(hex) {

@@ -251,7 +251,7 @@ select option{background:#0f1020;}
     <button class="tab-btn" onclick="switchTab('codex',this)">Codex</button>
     <button class="tab-btn" onclick="switchTab('rules',this)">Rules</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
-    <button class="tab-btn" onclick="switchTab('holding',this)">Holdings</button>
+    <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
     <span class="cl">Credits</span>
@@ -1908,10 +1908,27 @@ function addEnemy(nameArg,dreadArg){
   const resolvedName=(typeof nameArg==='string'&&nameArg.trim())?nameArg.trim():(prompt('Enemy name:','Enemy '+(S.enemies.length+1))||'Enemy');
   const dd=parseInt(dreadArg,10)||S.combat.enemyDread;
   const maxStress=dd*2;
-  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress});
+  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress,health:0,conditions:[]});
   renderEnemies();
 }
 function clearEnemies(){S.enemies=[];renderEnemies();}
+
+function damageEnemyHealth(idx,amount){
+  if(!Array.isArray(S.enemies)||!S.enemies[idx])return;
+  S.enemies[idx].health=(S.enemies[idx].health||0)+amount;
+  renderQP('combat');
+  showNotif(S.enemies[idx].name+' took '+amount+' Health damage',amount>0?'warn':'good');
+}
+
+function applyEnemyCondition(idx,condition){
+  if(!Array.isArray(S.enemies)||!S.enemies[idx])return;
+  if(!Array.isArray(S.enemies[idx].conditions))S.enemies[idx].conditions=[];
+  if(S.enemies[idx].conditions.indexOf(condition)<0){
+    S.enemies[idx].conditions.push(condition);
+    renderQP('combat');
+    showNotif(S.enemies[idx].name+' is now '+condition, 'warn');
+  }
+}
 function applyStressToCurrentEnemy(stress,source){
   if(!Array.isArray(S.enemies)||!S.enemies.length)return;
   const dmg=Math.max(1,parseInt(stress,10)||1);
@@ -4147,11 +4164,33 @@ function rollTradeRouteEncounter(){
   if(r<=2){title='Safe Route';result=pick(TRADE_SAFE_EVENTS);}
   else if(r<=4){title='Profitable Route';result=pick(TRADE_PROFITABLE_EVENTS);}
   else if(r<=6){title='Aggressive/Illegal Route';result=pick(TRADE_AGGRESSIVE_EVENTS);}
-  else if(r<=8){title='Trade Obstacle';result=pick(TRADE_OBSTACLES);}
+  else if(r<=8){
+    title='Trade Obstacle';
+    const obs=pick(TRADE_OBSTACLES);
+    result=obs;
+    if(obs.includes('100')||obs.includes('Credits')){
+      actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="resolveTradePayment(100,'Paid trade toll')">Pay ${/(\d+)/.exec(obs)?'₵'+(/(\d+)/.exec(obs)[1]):'₵100'} & Resolve</button></div>`;
+    }
+  }
   else{title='Traveling Wayfarer';const w=pick(TRAVELING_WAYFARERS);result=`<strong>${w[1]} ${w[2]}</strong> (${w[0]}) — ${w[3]}`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer')">Thievery</button></div>`;}
   const hex=selectedHex;if(!hex)return;
   const el=document.getElementById(`hexEnc-${hex.col}-${hex.row}`);
   if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">Trade Route d10=${r}: ${title}</div>${result}${actionHTML}</div>`;
+}
+
+// Resolve trade payment and close the encounter
+function resolveTradePayment(cost,reason){
+  const hex=selectedHex;
+  if(!hex)return;
+  if((S.credits||0)<cost){
+    showNotif(`Insufficient credits (need ${cost}₵, have ${S.credits||0}₵)`, 'warn');
+    return;
+  }
+  S.credits=(S.credits||0)-cost;
+  updateCreditsUI();
+  showNotif(`${reason} (−${cost}₵)`, 'good');
+  const el=document.getElementById(`hexEnc-${hex.col}-${hex.row}`);
+  if(el)el.innerHTML='<div class="venture-result"><span style="color:var(--teal);">✓ Encounter resolved</span></div>';
 }
 
 // ── ROOM GENERATORS ──────────────────────────────────────────────────────────
@@ -4647,10 +4686,23 @@ document.addEventListener('DOMContentLoaded',()=>{
     var enemyActions = 2;
     var enemies = S.enemies || [];
     var eneHtml = enemies.length
-      ? enemies.map(function(e){ return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.04);">'
-          + '<span style="font-size:.78rem;color:var(--text);">'+e.name+'</span>'
-          + '<span style="font-family:Rajdhani,sans-serif;font-size:.85rem;color:var(--red);">'+e.stress+'/'+e.maxStress+' Stress · d'+e.dread+'</span>'
-        + '</div>'; }).join('')
+      ? enemies.map(function(e,idx){ 
+          var healthBar = (e.health||0) > 0 ? ' · ' + (e.health||0) + ' Health' : '';
+          var condText = (e.conditions && e.conditions.length) ? ' [' + e.conditions.join(', ') + ']' : '';
+          return '<div style="display:flex;flex-direction:column;padding:.3rem 0;margin-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.04);">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
+              + '<span style="font-size:.78rem;color:var(--text);flex:1;">'+e.name+'</span>'
+              + '<span style="font-family:Rajdhani,sans-serif;font-size:.78rem;color:var(--red);">'+e.stress+'/'+e.maxStress+' Stress · d'+e.dread+healthBar+'</span>'
+            + '</div>'
+            + (condText ? '<div style="font-size:.7rem;color:var(--orange);margin-top:.1rem;">'+condText+'</div>' : '')
+            + '<div style="margin-top:.15rem;display:flex;gap:.15rem;flex-wrap:wrap;font-size:.68rem;">'
+              + '<button class="btn btn-xs btn-red" onclick="damageEnemyHealth('+idx+',1)" title="Attack">❌ Health−1</button>'
+              + '<button class="btn btn-xs btn-warn" onclick="applyEnemyCondition('+idx+\',\'Weakened\')\" title="Weaken">📉 Weak</button>'
+              + '<button class="btn btn-xs btn-purple" onclick="applyEnemyCondition('+idx+\',\'Confused\')\" title="Confuse">❓ Confused</button>'
+              + '<button class="btn btn-xs btn-orange" onclick="applyEnemyCondition('+idx+\',\'Panicked\')\" title="Panic">😨 Panic</button>'
+            + '</div>'
+          + '</div>';
+        }).join('')
       : '<div style="font-size:.78rem;color:var(--muted2);">No enemies set.</div>';
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'

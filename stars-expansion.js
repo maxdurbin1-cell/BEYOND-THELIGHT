@@ -5364,11 +5364,11 @@ function renderPlanetExplorationPanel() {
           </div>
 
           ${planetMissionMarkers.length ? `<div class="sea-site" style="margin-top:.35rem;">
-            <div class="ss-title">Planet Mission Markers</div>
+            <div class="ss-title">Mission Markers</div>
             <div class="planet-micro">${planetMissionMarkers.map((task) => `${task.title} (${task.missionStep || 'site'})`).join(' · ')}</div>
           </div>` : ''}
 
-          ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Hex Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}${selectedTask.lastRollText ? `<br><span style="color:var(--muted2);">${selectedTask.lastRollText}</span>` : ''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="rollPlanetTaskCheck('${selectedTask.id}')">⚄ Roll to Succeed (AD vs Dread d6)</button></div></div>` : ''}
+          ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}${selectedTask.lastRollText ? `<br><span style="color:var(--muted2);">${selectedTask.lastRollText}</span>` : ''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="rollPlanetTaskCheck('${selectedTask.id}')">⚄ Roll to Succeed (AD vs Dread d6)</button></div></div>` : ''}
 
           <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.55rem;">
             <div class="sub-label">📝 Hex Notes</div>

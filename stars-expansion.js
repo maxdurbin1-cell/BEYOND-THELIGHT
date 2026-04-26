@@ -3239,6 +3239,38 @@ function summarizePlanetCell(cell) {
   return `${markerLabel}: ${cell.terrain}${cell.feature ? ` · ${cell.feature}` : ''}`;
 }
 
+function getPlanetHexTypeLabel(cell) {
+  if (!cell) return 'Wilderness';
+  if (cell.marker === 'merchant_colony') return 'Merchant Colony';
+  if (cell.marker === 'empty_colony') return 'Empty Colony';
+  if (cell.marker === 'wayfarer' || cell.marker === 'wayfarer_task') return 'Wayfarer Route';
+  if (cell.marker === 'holding') return 'Space Holding';
+  if (cell.marker === 'ruins') return 'Ruins';
+  if (cell.marker === 'monument') return 'Weird Landmark';
+  if (cell.marker === 'beast') return 'Beast Territory';
+  if (cell.marker === 'pirate') return 'Pirate Territory';
+  if (cell.marker === 'hazard') return 'Hazard Zone';
+  if (cell.marker === 'site') return 'Site';
+  if (cell.tradeRoute) return 'Trade Route';
+  return 'Wilderness';
+}
+
+function buildPlanetNarrativeLines(state, selected) {
+  const profile = (state && state.profile) || {};
+  const terrainLabel = selected && selected.terrain ? selected.terrain : 'Unknown';
+  const markerLabel = getPlanetHexTypeLabel(selected);
+  const land = `${state.observedSurface.land}. ${markerLabel} activity is strongest near ${selected && selected.province ? selected.province : 'this province'}.`;
+  const floraFauna = `${state.observedSurface.floraFauna}. ${profile.fauna || 'Local fauna'} track the safest paths before settlers do.`;
+  const wonder = `${state.observedSurface.wonder}. It remains active enough to influence traffic, weather, or belief.`;
+  return {
+    terrainLabel,
+    markerLabel,
+    land,
+    floraFauna,
+    wonder,
+  };
+}
+
 function observeAdjacentPlanetHexes() {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
@@ -3953,6 +3985,7 @@ function renderPlanetExplorationPanel() {
   const observedCompact = `From orbit: ${state.observedSurface.observedFromSpace} | Landing: ${state.observedSurface.landingPad}`;
   const atmosphereCompact = `${state.weatherLine} Beyond the horizon: ${state.profile.sights}.`;
   const terrainCompact = `Land ${state.observedSurface.land} | Flora/Fauna ${state.observedSurface.floraFauna} | Wonder ${state.observedSurface.wonder}`;
+  const narrative = buildPlanetNarrativeLines(state, selected);
 
   target.innerHTML = `<div style="max-width:1180px;padding:.85rem;display:grid;gap:.65rem;">
     <div class="ship-banner">
@@ -4034,18 +4067,15 @@ function renderPlanetExplorationPanel() {
       </div>
       <div class="planet-info">
         <div class="sea-info-inner">
-          <div class="hex-type-tag ${selected && selected.explored ? 'holding' : 'wilderness'}">Planet Hex</div>
-          <div class="hex-name">Hex #${selected ? selected.id : '-'} · ${selected ? selected.province : '-'}</div>
-          <div class="hex-desc" style="margin-bottom:.38rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
+          <div class="hex-type-tag ${selected && selected.explored ? 'holding' : 'wilderness'}">${narrative.markerLabel}</div>
+          <div class="hex-name">${narrative.terrainLabel}</div>
+          <div class="hex-desc" style="margin-bottom:.2rem;">${narrative.terrainLabel} terrain · Hex #${selected ? selected.id : '-'} · ${selected ? selected.province : '-'}</div>
 
-          <div class="planet-kv">
-            <div class="info-cell"><span class="ic-label">Terrain</span>${selected ? selected.terrain : '-'} terrain</div>
-            <div class="info-cell"><span class="ic-label">Weather</span>${weather ? weather.label : 'Unknown weather'}</div>
-            <div class="info-cell"><span class="ic-label">Land</span>${state.observedSurface.land}</div>
-            <div class="info-cell"><span class="ic-label">Flora & Fauna</span>${state.observedSurface.floraFauna}</div>
-            <div class="info-cell"><span class="ic-label">Wonder</span>${state.observedSurface.wonder}</div>
-            <div class="info-cell"><span class="ic-label">Status</span>${selected && selected.explored ? 'Explored' : 'Unexplored'}</div>
-          </div>
+          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">🌍 Land</span>${narrative.land}</div>
+          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">🌿 Flora & Fauna</span>${narrative.floraFauna}</div>
+          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">✦ Wonder</span>${narrative.wonder}</div>
+          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Status</span>${selected && selected.explored ? 'Explored' : 'Unexplored'}</div>
+          <div class="hex-desc" style="margin-bottom:.38rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
 
           ${weather ? `<div class="weather-block ${weather.rough ? 'rough' : 'clear'}" style="margin-top:.45rem;">
             <div class="weather-label" style="color:${weather.rough ? 'var(--red2)' : 'var(--teal)'};">🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${weather.label}</div>

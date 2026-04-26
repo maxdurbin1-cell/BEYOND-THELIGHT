@@ -23,6 +23,18 @@
 .sea-note{font-size:.78rem;color:var(--muted3);line-height:1.55;}
 .sea-control-bar{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem;}
 
+.planet-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:.85rem;min-height:calc(100vh - 170px);}
+@media(max-width:960px){.planet-layout{grid-template-columns:1fr;min-height:auto;}}
+.planet-scroll{overflow:auto;background:var(--card);border:1px solid var(--border);position:relative;padding:.7rem;}
+.planet-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;}
+.planet-grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:.22rem;}
+.planet-cell{min-height:2.05rem;padding:.14rem .2rem;line-height:1.2;font-size:.62rem;}
+.planet-cell.contract{border-color:#e8c050;color:#ffe58a;background:rgba(232,192,80,.08);}
+.planet-micro{font-size:.74rem;color:var(--muted2);line-height:1.5;}
+.planet-kv{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-top:.35rem;}
+@media(max-width:560px){.planet-kv{grid-template-columns:1fr;}}
+.planet-kv .info-cell{min-height:100%;}
+
 .naval-grid{display:grid;grid-template-columns:1.05fr .95fr 1fr;gap:.85rem;}
 @media(max-width:1200px){.naval-grid{grid-template-columns:1fr;}}
 .ship-class-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.5rem;}

@@ -3640,119 +3640,123 @@ function renderPlanetExplorationPanel() {
   const taskList = state.tasks.filter((t) => !t.resolved);
   const colonySummary = getPlanetColonySummary(state);
   const availableWayfarers = (state.wayfarers || []).filter((wf) => !wf.retired).slice(-6).reverse();
-  const provinceSummary = (state.provinces || []).map((province) => {
-    const provinceCells = state.cells.filter((cell) => cell.province === province);
-    const explored = provinceCells.filter((cell) => cell.explored).length;
-    const merchantColonies = provinceCells.filter((cell) => cell.marker === 'merchant_colony').length;
-    const emptyColonies = provinceCells.filter((cell) => cell.marker === 'empty_colony').length;
-    const wayfarers = provinceCells.filter((cell) => cell.marker === 'wayfarer' || cell.marker === 'wayfarer_task').length;
-    return `${province}: ${explored}/${provinceCells.length} explored · Merchant ${merchantColonies} · Empty ${emptyColonies} · Wayfarers ${wayfarers}`;
-  });
   const recentWayfarers = (state.wayfarers || []).slice(-4).reverse();
   const lastEvent = state.lastEvent;
+  const selectedTask = selected && selected.taskId ? state.tasks.find((task) => task.id === selected.taskId && !task.resolved) : null;
+  const activeContractCount = taskList.filter((task) => task.source === 'wayfarer').length;
+  const availableContacts = availableWayfarers.filter((wf) => !wf.acceptedTaskId);
 
-  target.innerHTML = `<div style="max-width:1100px;padding:.85rem;display:grid;gap:.75rem;">
+  const observedCompact = `From orbit: ${state.observedSurface.observedFromSpace} | Landing: ${state.observedSurface.landingPad}`;
+  const atmosphereCompact = `${state.weatherLine} Beyond the horizon: ${state.profile.sights}.`;
+  const terrainCompact = `Land ${state.observedSurface.land} | Flora/Fauna ${state.observedSurface.floraFauna} | Wonder ${state.observedSurface.wonder}`;
+
+  target.innerHTML = `<div style="max-width:1180px;padding:.85rem;display:grid;gap:.65rem;">
     <div class="ship-banner">
       <h3>Planet Exploration: ${state.profile.planetName}</h3>
-      <p>Dynamic province-style surface map. Landed at hex ${state.landedCellId}. Surface difficulty DD${state.difficulty}. Planet type: ${state.profile.planetType} (${state.profile.biome}).</p>
+      <p>Landed at hex ${state.landedCellId} · Surface DD${state.difficulty} · ${state.profile.planetType} (${state.profile.biome})</p>
     </div>
-    <div class="card">
-      <div class="section-title">Observed Surface Data</div>
-      <div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">
-        <strong>Observed From Space:</strong> ${state.observedSurface.observedFromSpace}<br>
-        <strong>Landing Pad:</strong> ${state.observedSurface.landingPad}<br>
-        ${state.weatherLine}<br>
-        <strong>Land:</strong> ${state.observedSurface.land}<br>
-        <strong>Flora / Fauna:</strong> ${state.observedSurface.floraFauna}<br>
-        <strong>Wonder:</strong> ${state.observedSurface.wonder}<br>
-        Beyond the horizon, you see <strong>${state.profile.sights}</strong>.<br>
-        As you travel, the terrain is <strong>${state.profile.terrain}</strong>.<br>
-        <strong>Terrain Effect:</strong> ${state.profile.terrainEffect}
+    <div class="sea-control-bar">
+      <button class="btn btn-primary" onclick="rollPlanetExploration()">Quick Surface Event</button>
+      <button class="btn btn-sm btn-teal" onclick="createPlanetTask()">Generate Planet Task</button>
+      <button class="btn btn-sm" onclick="claimPlanetColonyRestBoon()">Claim Colony Rest Boon</button>
+      <span style="color:var(--muted);font-size:.6rem;margin:0 .25rem;">|</span>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--gold2);">Open Tasks ${taskList.length}</span>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--teal);">Wayfarer Contracts ${activeContractCount}</span>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--muted2);">Contacts ${availableContacts.length}</span>
+    </div>
+    <div class="sea-summary">
+      <div class="info-cell"><span class="ic-label">Observed Surface Data</span>${observedCompact}</div>
+      <div class="info-cell"><span class="ic-label">Atmosphere + Skyline</span>${atmosphereCompact}</div>
+      <div class="info-cell"><span class="ic-label">Land · Flora/Fauna · Wonder</span>${terrainCompact}</div>
+      <div class="info-cell"><span class="ic-label">Terrain Effect</span>${state.profile.terrainEffect}</div>
+    </div>
+    <div class="sea-legend">
+      <div class="sea-item"><div class="sea-dot" style="background:#214636;border-color:#65c98d;"></div>L Landing</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#3f88c5;border-color:#7fb3df;"></div>T Task</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#6a5800;border-color:#e8c050;"></div>✦ Wayfarer Contract</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#783820;border-color:#f0a840;"></div>M Merchant Colony</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#486734;border-color:#98c074;"></div>E Empty Colony</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#502878;border-color:#c092f0;"></div>W Wayfarer</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#8b3030;border-color:#df6f6f;"></div>! Hazard / ◈ Site</div>
+    </div>
+    <div class="planet-layout">
+      <div class="planet-scroll">
+        <div class="planet-grid">
+          ${state.cells.map((cell) => {
+            const isLanding = cell.id === state.landedCellId;
+            const isSelected = selected && cell.id === selected.id;
+            const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
+            const isWayfarerContract = !!(task && !task.resolved && task.source === 'wayfarer');
+            const tag = isLanding ? 'L'
+              : isWayfarerContract ? '✦'
+              : task && !task.resolved ? 'T'
+              : cell.marker === 'hazard' ? '!'
+              : cell.marker === 'site' ? '◈'
+              : cell.marker === 'merchant_colony' ? 'M'
+              : cell.marker === 'empty_colony' ? 'E'
+              : cell.marker === 'wayfarer' ? 'W'
+              : '';
+            return `<button class="btn btn-xs planet-cell ${isSelected ? 'btn-teal' : ''} ${isWayfarerContract ? 'contract' : ''}" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
+          }).join('')}
+        </div>
+        <div class="sea-group-list" style="margin-top:.55rem;">
+          ${(state.provinces || []).map((province) => {
+            const provinceCells = state.cells.filter((cell) => cell.province === province);
+            const explored = provinceCells.filter((cell) => cell.explored).length;
+            const openTasks = provinceCells.filter((cell) => {
+              if (!cell.taskId) return false;
+              const task = state.tasks.find((t) => t.id === cell.taskId);
+              return !!(task && !task.resolved);
+            }).length;
+            return `<span class="sea-chip">${province} · ${explored}/${provinceCells.length} explored · ${openTasks} open tasks</span>`;
+          }).join('')}
+        </div>
       </div>
-      <div style="margin-top:.4rem;font-size:.78rem;color:var(--muted2);">Planet Side Exploration (d10): 1 Find · 2 Hazard · 3 Beast · 4 Close Encounter · 5 Pirate · 6 Empty Colony · 7 Merchant Colony · 8 Skirmish · 9-10 Galactic Facility</div>
-      ${lastEvent ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.82rem;color:var(--muted2);"><strong style="color:var(--gold2);">Last Event:</strong> d10 ${lastEvent.d10} <strong>${lastEvent.outcome}</strong> — ${lastEvent.detail}${lastEvent.cellId ? ` (Hex #${lastEvent.cellId})` : ''}</div>` : ''}
-    </div>
-    <div class="card">
-      <div class="section-title">Environmental Requirements</div>
-      <div style="font-size:.82rem;color:var(--muted2);line-height:1.55;">${requirements.map((r) => `• ${r}`).join('<br>')}</div>
-      <div style="margin-top:.45rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-teal" onclick="createPlanetTask()">Generate Planet Task</button>
-        <button class="btn btn-xs" onclick="rollPlanetExploration()">Quick Surface Event</button>
-        <button class="btn btn-xs" onclick="claimPlanetColonyRestBoon()">Claim Colony Rest Boon</button>
-      </div>
-    </div>
-    <div class="card">
-      <div class="section-title">Province Overview</div>
-      <div style="font-size:.8rem;color:var(--muted2);line-height:1.55;">${provinceSummary.join('<br>')}</div>
-      <div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Merchant Colonies act like Holdings (trade/task hubs). Empty Colonies act like Dwellings (rest/refuge/task hooks).</div>
-      <div style="margin-top:.25rem;font-size:.76rem;color:var(--muted2);line-height:1.5;">
-        Active Colonies: Merchant ${colonySummary.exploredMerchant}/${colonySummary.merchant} · Empty ${colonySummary.exploredEmpty}/${colonySummary.empty}<br>
-        Phase Output: +${(colonySummary.exploredMerchant * 12) + (colonySummary.exploredEmpty * 4)} credits each phase while explored.<br>
-        Lifetime Colony Credits: ${state.colonyLedger ? state.colonyLedger.totalCreditsEarned : 0}
-        ${colonyOutput ? `<br><strong style="color:var(--gold2);">This Phase:</strong> +${colonyOutput.credits} credits${colonyOutput.boons.length ? ` · ${colonyOutput.boons.join(', ')}` : ''}` : ''}
-      </div>
-    </div>
-    <div class="card">
-      <div class="section-title">Wayfarer Contacts</div>
-      ${availableWayfarers.length ? `<div style="display:grid;gap:.35rem;">${availableWayfarers.map((wf) => {
-        const hasOpenTask = !!wf.acceptedTaskId;
-        return `<div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
-          <div style="font-size:.83rem;color:var(--text);"><strong style="color:var(--gold2);">${wf.name}</strong> · ${wf.role} · ${wf.province}</div>
-          <div style="font-size:.76rem;color:var(--muted2);line-height:1.5;margin-top:.12rem;">${getWayfarerDialogueLine(wf, state)}</div>
-          <div style="font-size:.72rem;color:var(--muted2);margin-top:.14rem;">Focus: ${wf.hook} · Completed Contracts: ${wf.completedTaskCount || 0}</div>
-          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.2rem;">
-            <button class="btn btn-xs btn-teal" ${hasOpenTask ? 'disabled style="opacity:.6;cursor:default;"' : `onclick="acceptPlanetWayfarerTask('${wf.id}')"`}>${hasOpenTask ? 'Contract Accepted' : 'Accept Task'}</button>
-            <button class="btn btn-xs" onclick="explorePlanetCell(${wf.cellId})">Travel To Hex #${wf.cellId}</button>
+      <div class="planet-info">
+        <div class="sea-info-inner">
+          <div class="hex-type-tag ${selected && selected.explored ? 'holding' : 'wilderness'}">Planet Hex</div>
+          <div class="hex-name">Hex #${selected ? selected.id : '-'} · ${selected ? selected.province : '-'}</div>
+          <div class="hex-desc" style="margin-bottom:.38rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
+
+          <div class="planet-kv">
+            <div class="info-cell"><span class="ic-label">Terrain</span>${selected ? selected.terrain : '-'}</div>
+            <div class="info-cell"><span class="ic-label">Feature</span>${selected && selected.feature ? selected.feature : 'None'}</div>
+            <div class="info-cell"><span class="ic-label">Status</span>${selected && selected.explored ? 'Explored' : 'Unexplored'}</div>
+            <div class="info-cell"><span class="ic-label">Planet Side d10</span>1 Find · 2 Hazard · 3 Beast · 4 Encounter · 5 Pirate · 6 Empty · 7 Merchant · 8 Skirmish · 9-10 Facility</div>
           </div>
-        </div>`;
-      }).join('')}</div>` : '<div style="font-size:.78rem;color:var(--muted2);">No active wayfarers yet. Trigger a Close Encounter or explore a W-marked hex.</div>'}
-    </div>
-    <div class="card">
-      <div class="section-title">Planet Surface Grid (100 Hexes)</div>
-      <div style="display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:.2rem;">
-        ${state.cells.map((cell) => {
-          const isLanding = cell.id === state.landedCellId;
-          const isSelected = selected && cell.id === selected.id;
-          const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
-          const isWayfarerContract = !!(task && !task.resolved && task.source === 'wayfarer');
-          const tag = isLanding ? 'L'
-            : isWayfarerContract ? '✦'
-            : task && !task.resolved ? 'T'
-            : cell.marker === 'hazard' ? '!'
-            : cell.marker === 'site' ? '◈'
-            : cell.marker === 'merchant_colony' ? 'M'
-            : cell.marker === 'empty_colony' ? 'E'
-            : cell.marker === 'wayfarer' ? 'W'
-            : '';
-          const extraStyle = isWayfarerContract ? 'border-color:#e8c050;color:#ffe58a;background:rgba(232,192,80,.08);' : '';
-          return `<button class="btn btn-xs ${isSelected ? 'btn-teal' : ''}" style="min-height:2.15rem;padding:.15rem .2rem;line-height:1.2;font-size:.63rem;${extraStyle}" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
-        }).join('')}
-      </div>
-      <div style="font-size:.72rem;color:var(--muted2);margin-top:.3rem;">L = landing zone, T = task marker, ✦ = wayfarer contract, ! = hazard, ◈ = site, M = merchant colony, E = empty colony, W = wayfarer contact.</div>
-    </div>
-    <div class="card">
-      <div class="section-title">Selected Hex ${selected ? selected.id : '-'}</div>
-      <div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">
-        Province: <strong style="color:var(--gold2);">${selected ? selected.province : '-'}</strong><br>
-        Terrain: <strong style="color:var(--text);">${selected ? selected.terrain : '-'}</strong><br>
-        Feature: ${selected && selected.feature ? selected.feature : 'None'}<br>
-        Status: ${selected && selected.explored ? 'Explored' : 'Unexplored'}<br>
-        Note: ${selected && selected.note ? selected.note : 'No report yet.'}
-      </div>
-      ${selected && selected.taskId ? (() => {
-        const t = state.tasks.find((task) => task.id === selected.taskId);
-        if (!t || t.resolved) return '';
-        return `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);">
-          <strong style="color:var(--gold2);">Task: ${t.title}${t.source === 'wayfarer' ? ' ✦ Wayfarer Contract' : ''}</strong><br>
-          <span style="font-size:.78rem;color:var(--muted2);">${t.text}</span>
-          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
-            <button class="btn btn-xs btn-teal" onclick="resolvePlanetTask('${t.id}',true)">Mark Success</button>
-            <button class="btn btn-xs" onclick="resolvePlanetTask('${t.id}',false)">Mark Failed</button>
+
+          <div class="sea-site" style="margin-top:.45rem;">
+            <div class="ss-title">Colony Output</div>
+            <div class="ss-text">Merchant ${colonySummary.exploredMerchant}/${colonySummary.merchant} · Empty ${colonySummary.exploredEmpty}/${colonySummary.empty} · +${(colonySummary.exploredMerchant * 12) + (colonySummary.exploredEmpty * 4)} credits/phase</div>
+            <div class="planet-micro">Lifetime credits ${state.colonyLedger ? state.colonyLedger.totalCreditsEarned : 0}${colonyOutput ? ` · This phase +${colonyOutput.credits}${colonyOutput.boons.length ? ` (${colonyOutput.boons.join(', ')})` : ''}` : ''}</div>
           </div>
-        </div>`;
-      })() : ''}
-      ${taskList.length ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Open Tasks: ${taskList.map((t) => `${t.source === 'wayfarer' ? '✦ ' : ''}${t.title} (#${t.cellId})`).join(' · ')}</div>` : ''}
-      ${recentWayfarers.length ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Recent Wayfarers: ${recentWayfarers.map((wf) => `${wf.name} (${wf.role}) in ${wf.province}`).join(' · ')}</div>` : ''}
+
+          <div class="sea-site" style="margin-top:.35rem;">
+            <div class="ss-title">Requirements</div>
+            <div class="planet-micro">${requirements.slice(0, 3).join(' · ')}</div>
+          </div>
+
+          ${lastEvent ? `<div class="sea-result"><div class="sea-result-title">Last Event</div><div class="planet-micro">d10 ${lastEvent.d10} <strong style="color:var(--gold2);">${lastEvent.outcome}</strong> · ${lastEvent.detail}${lastEvent.cellId ? ` (Hex #${lastEvent.cellId})` : ''}</div></div>` : ''}
+
+          ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Hex Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="resolvePlanetTask('${selectedTask.id}',true)">Mark Success</button><button class="btn btn-xs" onclick="resolvePlanetTask('${selectedTask.id}',false)">Mark Failed</button></div></div>` : ''}
+
+          ${availableWayfarers.length ? `<div style="margin-top:.52rem;"><div class="sub-label">Wayfarer Contacts</div><div style="display:grid;gap:.3rem;">${availableWayfarers.slice(0, 3).map((wf) => {
+            const hasOpenTask = !!wf.acceptedTaskId;
+            return `<div class="npc-block" style="margin:0;">
+              <div class="nb-label">${wf.name} · ${wf.role}</div>
+              <div style="font-size:.78rem;color:var(--muted2);line-height:1.45;">${getWayfarerDialogueLine(wf, state)}</div>
+              <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.2rem;">
+                <button class="btn btn-xs btn-teal" ${hasOpenTask ? 'disabled style="opacity:.6;cursor:default;"' : `onclick="acceptPlanetWayfarerTask('${wf.id}')"`}>${hasOpenTask ? 'Contract Accepted' : 'Accept Task'}</button>
+                <button class="btn btn-xs" onclick="explorePlanetCell(${wf.cellId})">Travel #${wf.cellId}</button>
+              </div>
+            </div>`;
+          }).join('')}</div></div>` : ''}
+
+          ${taskList.length ? `<div style="margin-top:.45rem;border-top:1px solid var(--border);padding-top:.45rem;"><div class="sub-label">Open Tasks</div><div class="planet-micro">${taskList.slice(0, 6).map((t) => `${t.source === 'wayfarer' ? '✦ ' : ''}${t.title} (#${t.cellId})`).join(' · ')}</div></div>` : ''}
+
+          ${recentWayfarers.length ? `<div style="margin-top:.35rem;"><div class="sub-label">Recent Wayfarers</div><div class="planet-micro">${recentWayfarers.map((wf) => `${wf.name} (${wf.role})`).join(' · ')}</div></div>` : ''}
+        </div>
+      </div>
     </div>
   </div>`;
 }

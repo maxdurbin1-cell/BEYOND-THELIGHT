@@ -3482,6 +3482,110 @@ function summarizePlanetCell(cell) {
   return `${markerLabel}: ${cell.terrain}${cell.feature ? ` · ${cell.feature}` : ''}`;
 }
 
+function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask) {
+  const base = {
+    fill: '#1b2436',
+    stroke: '#2f3d58',
+    text: '#d5deee',
+    tag: '#9bb0cf',
+  };
+  if (isLanding) {
+    base.fill = '#214636';
+    base.stroke = '#65c98d';
+    base.tag = '#9cffc3';
+  } else if (isWayfarerContract) {
+    base.fill = '#6a5800';
+    base.stroke = '#e8c050';
+    base.tag = '#ffe58a';
+  } else if (hasTask) {
+    base.fill = '#3f88c5';
+    base.stroke = '#7fb3df';
+  } else if (cell.marker === 'merchant_colony') {
+    base.fill = '#783820';
+    base.stroke = '#f0a840';
+  } else if (cell.marker === 'empty_colony') {
+    base.fill = '#486734';
+    base.stroke = '#98c074';
+  } else if (cell.marker === 'holding') {
+    base.fill = '#7b4c2a';
+    base.stroke = '#c98f5f';
+  } else if (cell.marker === 'wayfarer') {
+    base.fill = '#502878';
+    base.stroke = '#c092f0';
+  } else if (cell.marker === 'ruins') {
+    base.fill = '#3f3f3f';
+    base.stroke = '#888';
+  } else if (cell.marker === 'monument') {
+    base.fill = '#625179';
+    base.stroke = '#b6a3da';
+  } else if (cell.marker === 'beast') {
+    base.fill = '#203b4a';
+    base.stroke = '#5fa7c9';
+  } else if (cell.marker === 'pirate') {
+    base.fill = '#6b2020';
+    base.stroke = '#cc6a6a';
+  } else if (cell.marker === 'hazard') {
+    base.fill = '#8b3030';
+    base.stroke = '#df6f6f';
+  } else if (cell.marker === 'site') {
+    base.fill = '#3a2800';
+    base.stroke = '#f0a840';
+  } else if (cell.tradeRoute) {
+    base.fill = '#3a2800';
+    base.stroke = '#f0a840';
+  }
+  if (isSelected) {
+    base.stroke = '#ffffff';
+  }
+  return base;
+}
+
+function renderPlanetSurfaceSvg(state, selected) {
+  if (!state || !Array.isArray(state.cells) || !state.cells.length) return '';
+  const size = 18;
+  const rows = PLANET_SURFACE_ROWS;
+  const cols = PLANET_SURFACE_COLS;
+  const width = cols * size * 1.55 + size * 2.4;
+  const height = rows * Math.sqrt(3) * size * 0.75 + size * 2.2;
+
+  const cellsSvg = state.cells.map((cell) => {
+    const isLanding = cell.id === state.landedCellId;
+    const isSelected = selected && cell.id === selected.id;
+    const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
+    const isWayfarerContract = !!(task && !task.resolved && task.source === 'wayfarer');
+    const hasTask = !!(task && !task.resolved);
+    const tag = isLanding ? 'L'
+      : isWayfarerContract ? '✦'
+      : hasTask ? 'T'
+      : cell.marker === 'holding' ? 'H'
+      : cell.marker === 'ruins' ? 'R'
+      : cell.marker === 'monument' ? '✧'
+      : cell.marker === 'beast' ? 'B'
+      : cell.marker === 'pirate' ? 'P'
+      : cell.marker === 'hazard' ? '!'
+      : cell.marker === 'site' ? '◈'
+      : cell.marker === 'merchant_colony' ? 'M'
+      : cell.marker === 'empty_colony' ? 'E'
+      : cell.tradeRoute ? '═'
+      : cell.marker === 'wayfarer' ? 'W'
+      : '';
+
+    const x = cell.col * size * 1.55 + (cell.row % 2 === 1 ? size * 0.78 : 0) + size + 6;
+    const y = cell.row * Math.sqrt(3) * size * 0.75 + size * 0.9 + 6;
+    const pts = hexPointsSVG(x, y, size - 1);
+    const visual = getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask);
+    const strokeWidth = isSelected ? 2.4 : isWayfarerContract ? 2 : 1.2;
+
+    return `<g class="planet-hex" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;">
+      <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
+      <text x="${x}" y="${y - 2}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="7.2" fill="${visual.text}">#${cell.id}</text>
+      <text x="${x}" y="${y + 8}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9.2" fill="${visual.tag}">${tag || '·'}</text>
+    </g>`;
+  }).join('');
+
+  return `<div class="planet-svg-wrap"><svg class="planet-svg" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${cellsSvg}</svg></div>`;
+}
+
 function getPlanetHexTypeLabel(cell) {
   if (!cell) return 'Wilderness';
   if (cell.marker === 'merchant_colony') return 'Merchant Colony';
@@ -4373,30 +4477,7 @@ function renderPlanetExplorationPanel() {
     </div>
     <div class="planet-layout">
       <div class="planet-scroll">
-        <div class="planet-grid">
-          ${state.cells.map((cell) => {
-            const isLanding = cell.id === state.landedCellId;
-            const isSelected = selected && cell.id === selected.id;
-            const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
-            const isWayfarerContract = !!(task && !task.resolved && task.source === 'wayfarer');
-            const tag = isLanding ? 'L'
-              : isWayfarerContract ? '✦'
-              : task && !task.resolved ? 'T'
-              : cell.marker === 'holding' ? 'H'
-              : cell.marker === 'ruins' ? 'R'
-              : cell.marker === 'monument' ? '✧'
-              : cell.marker === 'beast' ? 'B'
-              : cell.marker === 'pirate' ? 'P'
-              : cell.marker === 'hazard' ? '!'
-              : cell.marker === 'site' ? '◈'
-              : cell.marker === 'merchant_colony' ? 'M'
-              : cell.marker === 'empty_colony' ? 'E'
-              : cell.tradeRoute ? '═'
-              : cell.marker === 'wayfarer' ? 'W'
-              : '';
-            return `<button class="btn btn-xs planet-cell ${isSelected ? 'btn-teal' : ''} ${isWayfarerContract ? 'contract' : ''} ${cell.row % 2 === 0 ? 'row-even' : 'row-odd'}" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
-          }).join('')}
-        </div>
+        ${renderPlanetSurfaceSvg(state, selected)}
         <div class="sea-group-list" style="margin-top:.55rem;">
           ${(state.provinces || []).map((province) => {
             const provinceCells = state.cells.filter((cell) => cell.province === province);

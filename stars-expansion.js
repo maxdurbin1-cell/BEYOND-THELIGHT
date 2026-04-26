@@ -3537,7 +3537,13 @@ function createPlanetTask(options) {
   };
   state.tasks.push(task);
   cell.taskId = taskId;
-  cell.marker = 'task';
+  if (cfg.source === 'wayfarer') {
+    cell.contractHostMarker = cell.marker === 'wayfarer' ? 'wayfarer' : (cell.contractHostMarker || 'none');
+    cell.marker = 'wayfarer_task';
+    cell.feature = cell.feature || 'Wayfarer contract site';
+  } else {
+    cell.marker = 'task';
+  }
   showNotif(`Planet task generated at hex ${cell.id}.`, 'good');
   renderPlanetExplorationPanel();
   return task;
@@ -3552,6 +3558,10 @@ function resolvePlanetTask(taskId, success) {
   task.resolved = true;
   const cell = state.cells.find((c) => c.id === task.cellId);
   if (cell) cell.note = success ? `Task completed: ${task.title}` : `Task failed: ${task.title}`;
+  if (cell && cell.marker === 'wayfarer_task') {
+    cell.marker = cell.contractHostMarker === 'wayfarer' ? 'wayfarer' : 'none';
+    cell.contractHostMarker = '';
+  }
   if (task.wayfarerId) {
     const wf = getPlanetWayfarerById(state, task.wayfarerId);
     if (wf) {
@@ -3635,7 +3645,7 @@ function renderPlanetExplorationPanel() {
     const explored = provinceCells.filter((cell) => cell.explored).length;
     const merchantColonies = provinceCells.filter((cell) => cell.marker === 'merchant_colony').length;
     const emptyColonies = provinceCells.filter((cell) => cell.marker === 'empty_colony').length;
-    const wayfarers = provinceCells.filter((cell) => cell.marker === 'wayfarer').length;
+    const wayfarers = provinceCells.filter((cell) => cell.marker === 'wayfarer' || cell.marker === 'wayfarer_task').length;
     return `${province}: ${explored}/${provinceCells.length} explored · Merchant ${merchantColonies} · Empty ${emptyColonies} · Wayfarers ${wayfarers}`;
   });
   const recentWayfarers = (state.wayfarers || []).slice(-4).reverse();
@@ -3704,7 +3714,9 @@ function renderPlanetExplorationPanel() {
           const isLanding = cell.id === state.landedCellId;
           const isSelected = selected && cell.id === selected.id;
           const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
+          const isWayfarerContract = !!(task && !task.resolved && task.source === 'wayfarer');
           const tag = isLanding ? 'L'
+            : isWayfarerContract ? '✦'
             : task && !task.resolved ? 'T'
             : cell.marker === 'hazard' ? '!'
             : cell.marker === 'site' ? '◈'
@@ -3712,10 +3724,11 @@ function renderPlanetExplorationPanel() {
             : cell.marker === 'empty_colony' ? 'E'
             : cell.marker === 'wayfarer' ? 'W'
             : '';
-          return `<button class="btn btn-xs ${isSelected ? 'btn-teal' : ''}" style="min-height:2.15rem;padding:.15rem .2rem;line-height:1.2;font-size:.63rem;" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
+          const extraStyle = isWayfarerContract ? 'border-color:#e8c050;color:#ffe58a;background:rgba(232,192,80,.08);' : '';
+          return `<button class="btn btn-xs ${isSelected ? 'btn-teal' : ''}" style="min-height:2.15rem;padding:.15rem .2rem;line-height:1.2;font-size:.63rem;${extraStyle}" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
         }).join('')}
       </div>
-      <div style="font-size:.72rem;color:var(--muted2);margin-top:.3rem;">L = landing zone, T = task marker, ! = hazard, ◈ = site, M = merchant colony, E = empty colony, W = wayfarer contact.</div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-top:.3rem;">L = landing zone, T = task marker, ✦ = wayfarer contract, ! = hazard, ◈ = site, M = merchant colony, E = empty colony, W = wayfarer contact.</div>
     </div>
     <div class="card">
       <div class="section-title">Selected Hex ${selected ? selected.id : '-'}</div>
@@ -3730,7 +3743,7 @@ function renderPlanetExplorationPanel() {
         const t = state.tasks.find((task) => task.id === selected.taskId);
         if (!t || t.resolved) return '';
         return `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);">
-          <strong style="color:var(--gold2);">Task: ${t.title}</strong><br>
+          <strong style="color:var(--gold2);">Task: ${t.title}${t.source === 'wayfarer' ? ' ✦ Wayfarer Contract' : ''}</strong><br>
           <span style="font-size:.78rem;color:var(--muted2);">${t.text}</span>
           <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
             <button class="btn btn-xs btn-teal" onclick="resolvePlanetTask('${t.id}',true)">Mark Success</button>
@@ -3738,7 +3751,7 @@ function renderPlanetExplorationPanel() {
           </div>
         </div>`;
       })() : ''}
-      ${taskList.length ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Open Tasks: ${taskList.map((t) => `${t.title} (#${t.cellId})`).join(' · ')}</div>` : ''}
+      ${taskList.length ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Open Tasks: ${taskList.map((t) => `${t.source === 'wayfarer' ? '✦ ' : ''}${t.title} (#${t.cellId})`).join(' · ')}</div>` : ''}
       ${recentWayfarers.length ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Recent Wayfarers: ${recentWayfarers.map((wf) => `${wf.name} (${wf.role}) in ${wf.province}`).join(' · ')}</div>` : ''}
     </div>
   </div>`;

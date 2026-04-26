@@ -4135,9 +4135,9 @@ function buildPlanetDwellingInfoHtml(state, selected) {
       <div class="rb-label" style="color:var(--green2);">✨ Rest Boon</div>
       <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Bolstered</strong> (Spirit/Lead ↑).<br>${d.blessing}</div>
     </div>
-    <div class="wild-panel"><div class="wp-label">Dwelling - ${d.mood}</div><div class="wp-text">${d.settlement} in ${d.terrain} terrain.<br>Current Need: ${d.currentNeed}</div></div>
+    <div class="wild-panel"><div class="wp-label">Dwelling — ${d.mood}</div><div class="wp-text">${d.settlement} in ${d.terrain} terrain.<br>Current Need: ${d.currentNeed}</div></div>
     <div class="wild-panel"><div class="wp-label">📰 Nomad's News</div><div class="wp-text">${d.rumor}</div></div>
-    <div class="npc-block"><div class="nb-label">🧭 Nomad's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Nomads know about Landmarks and Events in adjacent Hex Zones. They know only a partial Mystery - enough to hint, not enough to spoil.</div></div>`;
+    <div class="npc-block"><div class="nb-label">🧭 Nomad's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Nomads know about Landmarks and Events in adjacent Hex Zones. They know only a partial Mystery — enough to hint, not enough to spoil.</div></div>`;
 }
 
 function buildPlanetTempleInfoHtml(state, selected) {
@@ -4151,9 +4151,9 @@ function buildPlanetTempleInfoHtml(state, selected) {
       <div class="rb-label" style="color:#b060d0;">🎯 Rest Boon</div>
       <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>${t.blessing}</div>
     </div>
-    <div class="wild-panel"><div class="wp-label">Temple - ${t.mood}</div><div class="wp-text">${t.templeName} in ${t.terrain} terrain.<br>Primary Rite: ${t.rite}</div></div>
+    <div class="wild-panel"><div class="wp-label">Temple — ${t.mood}</div><div class="wp-text">${t.templeName} in ${t.terrain} terrain.<br>Primary Rite: ${t.rite}</div></div>
     <div class="wild-panel"><div class="wp-label">📜 Doctrine</div><div class="wp-text">${t.doctrine}</div></div>
-    <div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Sages know 1 random Event in the Province and its approximate direction. They know the nearest Landmark. They know a partial Mystery - enough to hint, not enough to spoil.</div></div>`;
+    <div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Sages know 1 random Event in the Province and its approximate direction. They know the nearest Landmark. They know a partial Mystery — enough to hint, not enough to spoil.</div></div>`;
 }
 
 function buildPlanetNarrativeLines(state, selected) {

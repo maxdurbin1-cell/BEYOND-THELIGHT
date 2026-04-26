@@ -825,7 +825,13 @@ function setPositiveGalaxyCondition(conditionKey) {
   if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
 }
 
-function pickGalaxyTaskHex() {
+function pickGalaxyTaskHex(preferredHexId) {
+  if (preferredHexId != null) {
+    const preferredHex = (S.starSystem.hexes || []).find((hex) => {
+      return hex && hex.id === Number(preferredHexId) && hex.ring !== 'core' && !hex.radioTaskId && !(hex.taskMarker && !hex.taskMarker.resolved);
+    });
+    if (preferredHex) return preferredHex;
+  }
   const candidates = (S.starSystem.hexes || []).filter((hex) => hex && hex.ring !== 'core' && !hex.radioTaskId && !(hex.taskMarker && !hex.taskMarker.resolved));
   if (!candidates.length) return null;
   const preferred = candidates.filter((hex) => ['hub', 'planet', 'location', 'mystery', 'facility'].includes(hex.type));
@@ -834,7 +840,8 @@ function pickGalaxyTaskHex() {
 
 function createGalaxyTask(source, config) {
   ensureStarsState();
-  const hex = pickGalaxyTaskHex();
+  config = config || {};
+  const hex = pickGalaxyTaskHex(config.preferredHexId);
   if (!hex) return null;
   const task = {
     id: `gal-task-${Date.now()}-${roll(9999)}`,
@@ -1194,12 +1201,12 @@ function rollPlanetFurtherAnalysis(hex) {
     profile.furtherAnalysis = { type: 'major_power', title: 'Major Power', text: `${power} currently runs this planet.` };
   } else if (eventRoll === 2) {
     const poi = pick(PLANET_POI_TABLE);
-    profile.furtherAnalysis = { type: 'poi', title: 'Point of Interest', text: `${poi} detected at Planetary Hex #${roll(100)}.` };
+    profile.furtherAnalysis = { type: 'poi', title: 'Point of Interest', text: `${poi} detected at Planetary Hex #${roll(PLANET_SURFACE_ROWS * PLANET_SURFACE_COLS)}.` };
   } else if (eventRoll === 3) {
     const mystery = pick(PLANET_MYSTERY_TABLE);
-    profile.furtherAnalysis = { type: 'mystery', title: 'Mystery', text: `${mystery} signal triangulated at Planetary Hex #${roll(100)}.` };
+    profile.furtherAnalysis = { type: 'mystery', title: 'Mystery', text: `${mystery} signal triangulated at Planetary Hex #${roll(PLANET_SURFACE_ROWS * PLANET_SURFACE_COLS)}.` };
   } else {
-    profile.furtherAnalysis = { type: 'merchant_colony', title: 'Merchant Colony', text: `Merchant Colony located at Planetary Hex #${roll(100)}.` };
+    profile.furtherAnalysis = { type: 'merchant_colony', title: 'Merchant Colony', text: `Merchant Colony located at Planetary Hex #${roll(PLANET_SURFACE_ROWS * PLANET_SURFACE_COLS)}.` };
   }
   return profile.furtherAnalysis;
 }
@@ -3104,6 +3111,8 @@ const PLANET_SURFACE_FEATURES = [
   'Survey Beacon', 'Abandoned Relay', 'Collapsed Habitat', 'Pirate Cache', 'Ancient Vault',
   'Trade Outpost', 'Storm Shelter', 'Mining Camp', 'Signal Tower', 'Buried Monolith'
 ];
+const PLANET_SURFACE_ROWS = 12;
+const PLANET_SURFACE_COLS = 12;
 
 const PLANET_SURFACE_WEATHER = {
   spring: [
@@ -3142,6 +3151,24 @@ function rollPlanetSurfaceWeather(profile) {
     if (!boosted.failure) boosted.failure = '+1 Stress.';
   }
   return boosted;
+}
+
+function createPlanetCellNarrative(state, theme, province) {
+  const terrainRule = pick(PLANET_TERRAIN_TABLE);
+  const localWeather = rollPlanetSurfaceWeather(state.profile);
+  const localTerrain = pick(theme.terrains.concat(PLANET_SURFACE_TERRAINS));
+  const localForm = pick(PLANET_FORM_TABLE);
+  const localNature = pick(PLANET_NATURE_TABLE);
+  const localFauna = pick(PLANET_FAUNA_TABLE);
+  const localWonder = pick(PLANET_WONDER_TABLE);
+  return {
+    terrain: localTerrain,
+    terrainRule: terrainRule,
+    localWeather: localWeather,
+    land: `${localNature} ${localForm} of ${province}`,
+    floraFauna: `${localNature} growth with ${localFauna}`,
+    wonder: localWonder,
+  };
 }
 
 function hasAnyPlanetSuitProtection() {
@@ -3203,6 +3230,78 @@ function applyPlanetHazardFailure(state, checkText) {
   showNotif(`${checkText} Environmental penalties applied.`, 'warn');
 }
 
+function applyPlanetTraversalEffects(state, cell) {
+  if (!state || !cell) return '';
+  if (cell.localWeather) {
+    state.currentWeather = Object.assign({}, cell.localWeather);
+  }
+  const terrainName = String(cell.terrainClass || '').toLowerCase();
+  if (!terrainName) return '';
+
+  if (terrainName === 'hazardous') {
+    if (typeof loseGamePhases === 'function') loseGamePhases(1);
+    const check = resolveGalaxySkillCheck('body', 'agility', 20, `Steep cliffs at Hex ${cell.id}`);
+    if (!check.success) {
+      const damage = Math.max(1, check.delta);
+      if (typeof changeHealth === 'function') changeHealth(damage);
+      return `${check.text}. Failure: take ${damage} Health damage and +1 Phase travel cost.`;
+    }
+    return `${check.text}. Success: cliffs crossed with +1 Phase travel cost.`;
+  }
+  if (terrainName === 'convoluted') {
+    if (typeof loseGamePhases === 'function') loseGamePhases(1);
+    return 'Convoluted routes: movement costs +1 Phase.';
+  }
+  if (terrainName === 'biome-exotic') {
+    if (typeof loseGamePhases === 'function') loseGamePhases(3);
+    return 'Hazardous river crossing: movement costs +3 Phases.';
+  }
+  if (terrainName === 'biome-irradiated') {
+    if (!isPlanetHazardBypassed(state) && typeof changeRads === 'function') {
+      changeRads(200);
+      return 'Radiation storm: +200 Rads (requirements not met).';
+    }
+    return 'Radiation storm present, but current traversal protections bypassed the hazard.';
+  }
+  if (terrainName === 'biome-volcanic') {
+    if (typeof loseGamePhases === 'function') loseGamePhases(3);
+    return 'Lava detour: movement costs +3 Phases.';
+  }
+  if (terrainName === 'inhabited') {
+    const d4 = roll(4);
+    const site = d4 === 1 ? 'Hunting Ground' : d4 === 2 ? 'Nest' : 'Oasis';
+    return `Inhabited sector d4=${d4}: ${site} discovered.`;
+  }
+  return 'Easy route: no additional traversal penalty.';
+}
+
+function applyPlanetWayfarerRequirementPenalty(state, contextLabel) {
+  if (!state || isPlanetHazardBypassed(state)) return '';
+  const mode = pick(['radiation', 'stress', 'trauma', 'condition', 'health']);
+  if (mode === 'radiation') {
+    if (typeof changeRads === 'function') changeRads(100);
+    return `${contextLabel}: requirements unmet, +100 Radiation.`;
+  }
+  if (mode === 'stress') {
+    if (typeof changeStress === 'function') changeStress(2);
+    return `${contextLabel}: requirements unmet, +2 Stress.`;
+  }
+  if (mode === 'trauma') {
+    if (typeof changeTrauma === 'function') changeTrauma(1);
+    return `${contextLabel}: requirements unmet, +1 Trauma.`;
+  }
+  if (mode === 'condition') {
+    if (S.conditions && ('distracted' in S.conditions)) {
+      S.conditions.distracted = true;
+      if (typeof updateConditionButtons === 'function') updateConditionButtons();
+      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    }
+    return `${contextLabel}: requirements unmet, Distracted condition applied.`;
+  }
+  if (typeof changeHealth === 'function') changeHealth(1);
+  return `${contextLabel}: requirements unmet, 1 Health damage.`;
+}
+
 function getPlanetCell(state, col, row) {
   if (!state || !Array.isArray(state.cells)) return null;
   return state.cells.find((cell) => cell.col === col && cell.row === row) || null;
@@ -3259,15 +3358,44 @@ function buildPlanetNarrativeLines(state, selected) {
   const profile = (state && state.profile) || {};
   const terrainLabel = selected && selected.terrain ? selected.terrain : 'Unknown';
   const markerLabel = getPlanetHexTypeLabel(selected);
-  const land = `${state.observedSurface.land}. ${markerLabel} activity is strongest near ${selected && selected.province ? selected.province : 'this province'}.`;
-  const floraFauna = `${state.observedSurface.floraFauna}. ${profile.fauna || 'Local fauna'} track the safest paths before settlers do.`;
-  const wonder = `${state.observedSurface.wonder}. It remains active enough to influence traffic, weather, or belief.`;
+  const landBase = (selected && selected.land) ? selected.land : state.observedSurface.land;
+  const floraBase = (selected && selected.floraFauna) ? selected.floraFauna : state.observedSurface.floraFauna;
+  const wonderBase = (selected && selected.wonder) ? selected.wonder : state.observedSurface.wonder;
+  const terrainEffect = (selected && selected.terrainEffect) ? selected.terrainEffect : profile.terrainEffect;
+  const weather = (selected && selected.localWeather) ? selected.localWeather : state.currentWeather;
+  const land = `${landBase}. ${markerLabel} activity is strongest near ${selected && selected.province ? selected.province : 'this province'}.`;
+  const floraFauna = `${floraBase}. ${profile.fauna || 'Local fauna'} track the safest paths before settlers do.`;
+  const wonder = `${wonderBase}. It remains active enough to influence traffic, weather, or belief.`;
+
+  let detailCardTitle = 'Frontier Report';
+  let detailCardText = 'Unclaimed ground with shifting routes and partial scans.';
+  if (selected && selected.marker === 'merchant_colony') {
+    detailCardTitle = 'Merchant Colony';
+    detailCardText = 'Trade quarter, broker stalls, and convoy logistics. This colony can anchor mission movement markers.';
+  } else if (selected && selected.marker === 'empty_colony') {
+    detailCardTitle = 'Dwelling Colony';
+    detailCardText = 'A salvageable shelter district. Good fallback zone for rest and contract regrouping.';
+  } else if (selected && selected.marker === 'holding') {
+    detailCardTitle = 'Holding Complex';
+    detailCardText = 'A fortified lane control point with clear command routes and protection infrastructure.';
+  } else if (selected && selected.marker === 'monument') {
+    detailCardTitle = 'Temple/Wonder Site';
+    detailCardText = 'A ritual-alignment landmark with focused readings and unusual atmospheric behavior.';
+  } else if (selected && selected.marker === 'site') {
+    detailCardTitle = 'Survey Site';
+    detailCardText = 'Straightforward exploration node: investigate, loot, or establish mission staging.';
+  }
+
   return {
     terrainLabel,
     markerLabel,
     land,
     floraFauna,
     wonder,
+    terrainEffect,
+    weather,
+    detailCardTitle,
+    detailCardText,
   };
 }
 
@@ -3313,48 +3441,62 @@ function rollPlanetHexEncounter() {
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected) return;
 
-  const poolType = selected.marker === 'merchant_colony' || selected.marker === 'holding' ? 'holding'
-    : selected.marker === 'ruins' ? 'ruins'
-    : selected.marker === 'monument' || selected.marker === 'site' ? 'monument'
-    : selected.marker === 'pirate' ? 'pirate'
-    : selected.marker === 'beast' ? 'beast'
-    : pick(['holding', 'ruins', 'monument', 'beast', 'pirate']);
-  const title = pick(PLANET_ENCOUNTER_ARCHETYPES[poolType]);
-  const response = resolveGalaxySkillCheck('adventure', 'lead', 8, `Planet Encounter Hex ${selected.id}`);
+  const d6 = roll(6);
+  let title = '';
   let text = '';
-  if (poolType === 'holding') {
+  if (d6 === 1) {
+    selected.localWeather = rollPlanetSurfaceWeather(state.profile);
+    state.currentWeather = Object.assign({}, selected.localWeather);
+    title = 'Shift in Weather';
+    text = `${selected.localWeather.label} — ${selected.localWeather.desc}`;
+  } else if (d6 === 2) {
+    const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.holding);
+    title = archetype;
     setPositiveGalaxyCondition('protected');
-    text = `${title} offers temporary shelter and route intel. Protected applied.`;
-  } else if (poolType === 'ruins') {
+    text = 'Holding lanes open and scouts report stable roads. Protected applied.';
+  } else if (d6 === 3) {
+    const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.ruins);
+    title = archetype;
     setPositiveGalaxyCondition('empowered');
-    text = `${title} yields combat salvage and old military caches. Empowered applied.`;
-  } else if (poolType === 'monument') {
+    text = 'Ancient war-tech caches recovered. Empowered applied.';
+  } else if (d6 === 4) {
+    const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.monument);
+    title = archetype;
     setPositiveGalaxyCondition('focused');
-    text = `${title} aligns sensor thoughts and stabilizes navigation. Focused applied.`;
-  } else if (poolType === 'beast') {
-    text = `${title} surge through the area. ${response.success ? 'You avoid losses.' : 'You take +1 Stress.'}`;
+    text = 'Navigational harmonics align with your route. Focused applied.';
+  } else if (d6 === 5) {
+    const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.beast);
+    const response = resolveGalaxySkillCheck('adventure', 'lead', 8, `Beast encounter Hex ${selected.id}`);
+    title = archetype;
+    text = `${response.text}. ${response.success ? 'Route secured with no losses.' : 'Failure: +1 Stress.'}`;
     if (!response.success && typeof changeStress === 'function') changeStress(1);
   } else {
-    text = `${title} demand transit tribute. ${response.success ? 'You outmaneuver them.' : 'Lose 20 credits or gain +1 Stress.'}`;
-    if (!response.success) {
+    const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.pirate);
+    const response = resolveGalaxySkillCheck('adventure', 'lead', 8, `Pirate encounter Hex ${selected.id}`);
+    title = archetype;
+    if (response.success) {
+      text = `${response.text}. Transit corridor cleared.`;
+    } else {
       if ((S.credits || 0) >= 20 && typeof changeCredits === 'function') changeCredits(-20);
       else if (typeof changeStress === 'function') changeStress(1);
+      text = `${response.text}. Failure: lose 20 credits or gain +1 Stress.`;
     }
   }
 
-  selected.note = `[Encounter] ${title}. ${text}`;
+  selected.note = `[Encounter] d6=${d6} — ${title}. ${text}`;
   state.lastEvent = {
     timestamp: Date.now(),
-    d10: roll(10),
-    outcome: 'Encounter',
+    d10: d6,
+    outcome: `d6=${d6} — ${title}`,
     detail: `${title}: ${text}`,
     rewardItem: '',
     cellId: selected.id,
+    eventType: 'encounter',
   };
   state.eventLog = Array.isArray(state.eventLog) ? state.eventLog : [];
   state.eventLog.unshift(state.lastEvent);
   state.eventLog = state.eventLog.slice(0, 8);
-  showNotif(`Planet encounter: ${title}.`, response.success ? 'good' : 'warn');
+  showNotif(`Planet encounter: ${title}.`, 'good');
   renderPlanetExplorationPanel();
 }
 
@@ -3378,27 +3520,25 @@ function resolvePlanetWeatherCheck() {
 
 function computePlanetTradeRoutes(state) {
   if (!state || !Array.isArray(state.cells)) return;
-  state.cells.forEach((cell) => { cell.tradeRoute = false; });
+  state.cells.forEach((cell) => {
+    cell.tradeRoute = false;
+    cell.tradeRouteOwnerId = null;
+  });
   const merchants = state.cells.filter((cell) => cell.marker === 'merchant_colony');
-  if (merchants.length < 2) return;
-  const sorted = merchants.slice().sort((a, b) => a.id - b.id);
+  if (!merchants.length) return;
+  const usedRouteIds = new Set();
 
-  function markPath(a, b) {
-    let col = a.col;
-    let row = a.row;
-    while (col !== b.col || row !== b.row) {
-      if (col < b.col) col += 1;
-      else if (col > b.col) col -= 1;
-      else if (row < b.row) row += 1;
-      else if (row > b.row) row -= 1;
-      const cell = getPlanetCell(state, col, row);
-      if (cell && cell.marker !== 'merchant_colony') cell.tradeRoute = true;
-    }
-  }
-
-  for (let i = 1; i < sorted.length; i += 1) {
-    markPath(sorted[i - 1], sorted[i]);
-  }
+  merchants.forEach((merchant) => {
+    const neighbors = getPlanetNeighbors(state, merchant)
+      .filter((cell) => cell.marker !== 'merchant_colony' && !usedRouteIds.has(cell.id));
+    const preferred = neighbors.filter((cell) => !cell.marker || cell.marker === 'none' || cell.marker === 'hazard' || cell.marker === 'site');
+    const routeCell = pick(preferred.length ? preferred : neighbors);
+    if (!routeCell) return;
+    routeCell.tradeRoute = true;
+    routeCell.tradeRouteOwnerId = merchant.id;
+    routeCell.note = routeCell.note || `Trade lane linked to Merchant Colony #${merchant.id}.`;
+    usedRouteIds.add(routeCell.id);
+  });
 }
 
 const PLANET_THEME_BY_BIOME = {
@@ -3619,6 +3759,8 @@ function acceptPlanetWayfarerTask(wayfarerId) {
     return;
   }
   wayfarer.acceptedTaskId = task.id;
+  const penalty = applyPlanetWayfarerRequirementPenalty(state, `Wayfarer ${wayfarer.name}`);
+  if (penalty) showNotif(penalty, 'warn');
   showNotif(`Accepted contract from ${wayfarer.name}.`, 'good');
   renderPlanetExplorationPanel();
 }
@@ -3721,8 +3863,8 @@ function buildPlanetRequirements(profile) {
 function createPlanetSurfaceState(hex) {
   const profile = ensurePlanetProfile(hex);
   const theme = getPlanetTheme(profile);
-  const rows = 10;
-  const cols = 10;
+  const rows = PLANET_SURFACE_ROWS;
+  const cols = PLANET_SURFACE_COLS;
   const cells = [];
   const provinces = buildPlanetProvinceNames(profile);
   let id = 1;
@@ -3738,15 +3880,23 @@ function createPlanetSurfaceState(hex) {
         : rollType === 9 ? pick(['ruins', 'holding', 'monument'])
         : pick(['beast', 'pirate', 'none']);
       const province = getProvinceForCell({ row: r, col: c }, provinces);
+      const localNarrative = createPlanetCellNarrative({ profile }, theme, province);
       cells.push({
         id,
         row: r,
         col: c,
         province,
-        terrain: pick(theme.terrains.concat(PLANET_SURFACE_TERRAINS)),
+        terrain: localNarrative.terrain,
+        terrainClass: localNarrative.terrainRule.name,
+        terrainEffect: localNarrative.terrainRule.effect,
+        localWeather: localNarrative.localWeather,
+        land: localNarrative.land,
+        floraFauna: localNarrative.floraFauna,
+        wonder: localNarrative.wonder,
         feature: marker === 'none' ? '' : pick(theme.features.concat(PLANET_SURFACE_FEATURES)),
         marker,
         tradeRoute: false,
+        tradeRouteOwnerId: null,
         explored: false,
         note: '',
         playerNote: '',
@@ -3880,9 +4030,28 @@ function resolvePlanetTask(taskId, success) {
     changeFactionRenown('political', 1);
     showNotif(`Planet task resolved: ${task.title}`, 'good');
   } else {
+    if (typeof changeStress === 'function') changeStress(1);
     showNotif(`Planet task failed: ${task.title}`, 'warn');
   }
   renderPlanetExplorationPanel();
+}
+
+function rollPlanetTaskCheck(taskId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const task = state.tasks.find((entry) => entry.id === taskId && !entry.resolved);
+  if (!task) return;
+  const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const adRoll = explodingRoll(adDie);
+  const dreadRoll = explodingRoll(6);
+  const success = adRoll.total >= dreadRoll.total;
+  const rollText = `Task roll: AD d${adDie}=${adRoll.total} vs Dread d6=${dreadRoll.total}`;
+  task.lastRollText = rollText;
+  if (typeof openModal === 'function') {
+    openModal('Selected Hex Task', `<div style="font-size:.85rem;color:var(--text2);line-height:1.6;">${rollText}<br><strong style="color:${success ? 'var(--green2)' : 'var(--red2)'};">${success ? 'Success' : 'Failure'}</strong></div>`);
+  }
+  resolvePlanetTask(taskId, success);
 }
 
 function explorePlanetCell(cellId) {
@@ -3891,7 +4060,9 @@ function explorePlanetCell(cellId) {
   if (!state) return;
   const cell = state.cells.find((c) => c.id === Number(cellId));
   if (!cell) return;
+  const prevSelectedId = state.selectedCellId;
   state.selectedCellId = cell.id;
+  const traversalText = prevSelectedId !== cell.id ? applyPlanetTraversalEffects(state, cell) : '';
   const bypass = isPlanetHazardBypassed(state);
   const hazardCount = getPlanetHazardProfile(state.profile).length;
   const baseDd = bypass ? 6 : state.difficulty;
@@ -3918,8 +4089,9 @@ function explorePlanetCell(cellId) {
         cell.note = `Merchant colony in ${cell.province} functioning like a Holding-style trade node.`;
       } else if (cell.marker === 'wayfarer') {
         const wf = createPlanetWayfarer(state, cell, 'cell-explore');
+        const reqPenalty = applyPlanetWayfarerRequirementPenalty(state, `Wayfarer contact at Hex ${cell.id}`);
         if (wf && !cell.taskId && roll(10) >= 4) createPlanetTask();
-        cell.note = `${wf ? wf.name : 'A wayfarer'} offers a contract thread tied to ${state.profile.planetType} routes.`;
+        cell.note = `${wf ? wf.name : 'A wayfarer'} offers a contract thread tied to ${state.profile.planetType} routes.${reqPenalty ? ` ${reqPenalty}` : ''}`;
       } else if (cell.marker === 'ruins') {
         setPositiveGalaxyCondition('empowered');
         cell.note = `Ruins reclaimed in ${cell.province}. Empowered gained from recovered war relics.`;
@@ -3936,11 +4108,14 @@ function explorePlanetCell(cellId) {
       } else {
         cell.note = `Traversed ${cell.terrain} successfully.`;
       }
+      if (traversalText) {
+        cell.note = `${cell.note} ${traversalText}`;
+      }
     }
     computePlanetTradeRoutes(state);
     showNotif(`${check.text} Success.`, 'good');
   } else {
-    cell.note = `${check.text}. Failure — route remains dangerous.`;
+    cell.note = `${check.text}. Failure — route remains dangerous.${traversalText ? ` ${traversalText}` : ''}`;
     if (typeof changeStress === 'function') changeStress(1);
     applyPlanetHazardFailure(state, check.text);
     showNotif(`${check.text} Failure.`, 'warn');
@@ -3977,10 +4152,13 @@ function renderPlanetExplorationPanel() {
   const recentWayfarers = (state.wayfarers || []).slice(-4).reverse();
   const lastEvent = state.lastEvent;
   const selectedTask = selected && selected.taskId ? state.tasks.find((task) => task.id === selected.taskId && !task.resolved) : null;
+  const planetMissionMarkers = (S.starSystem.taskMarkers || []).filter((task) => {
+    return task && !task.resolved && task.source === 'Mission Board' && task.hexId === planetHex.id;
+  });
   const activeContractCount = taskList.filter((task) => task.source === 'wayfarer').length;
   const availableContacts = availableWayfarers.filter((wf) => !wf.acceptedTaskId);
   const bypass = isPlanetHazardBypassed(state);
-  const weather = state.currentWeather;
+  const weather = (selected && selected.localWeather) ? selected.localWeather : state.currentWeather;
 
   const observedCompact = `From orbit: ${state.observedSurface.observedFromSpace} | Landing: ${state.observedSurface.landingPad}`;
   const atmosphereCompact = `${state.weatherLine} Beyond the horizon: ${state.profile.sights}.`;
@@ -4009,7 +4187,7 @@ function renderPlanetExplorationPanel() {
       <div class="info-cell"><span class="ic-label">Observed Surface Data</span>${observedCompact}</div>
       <div class="info-cell"><span class="ic-label">Atmosphere + Skyline</span>${atmosphereCompact}</div>
       <div class="info-cell"><span class="ic-label">Land · Flora/Fauna · Wonder</span>${terrainCompact}</div>
-      <div class="info-cell"><span class="ic-label">Terrain Effect</span>${state.profile.terrainEffect}</div>
+      <div class="info-cell"><span class="ic-label">Terrain Effect</span>${(selected && selected.terrainEffect) ? selected.terrainEffect : state.profile.terrainEffect}</div>
     </div>
     <div class="sea-legend">
       <div class="sea-item"><div class="sea-dot" style="background:#214636;border-color:#65c98d;"></div>L Landing</div>
@@ -4074,14 +4252,22 @@ function renderPlanetExplorationPanel() {
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">🌍 Land</span>${narrative.land}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">🌿 Flora & Fauna</span>${narrative.floraFauna}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">✦ Wonder</span>${narrative.wonder}</div>
+          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Status</span>${selected && selected.explored ? 'Explored' : 'Unexplored'}</div>
           <div class="hex-desc" style="margin-bottom:.38rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
+
+          <div class="sea-site" style="margin-bottom:.45rem;">
+            <div class="ss-title">${narrative.detailCardTitle}</div>
+            <div class="ss-text">${narrative.detailCardText}</div>
+          </div>
 
           ${weather ? `<div class="weather-block ${weather.rough ? 'rough' : 'clear'}" style="margin-top:.45rem;">
             <div class="weather-label" style="color:${weather.rough ? 'var(--red2)' : 'var(--teal)'};">🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${weather.label}</div>
             <div style="font-size:.81rem;color:var(--text2);">${weather.desc}</div>
             ${weather.rough ? `<div style="font-size:.76rem;color:var(--red2);margin-top:.2rem;">Dangerous weather: ${weather.check || 'lead'} vs DD${weather.dd || 6}. Failure: ${weather.failure || '+1 Stress'}</div><div style="margin-top:.25rem;"><button class="btn btn-xs btn-warn" onclick="resolvePlanetWeatherCheck()">⚄ Weather Check</button></div>` : ''}
           </div>` : ''}
+
+          ${lastEvent && lastEvent.eventType === 'encounter' ? `<div class="sea-result" style="margin-top:.45rem;"><div class="sea-result-title">Encounter Card</div><div class="planet-micro"><strong style="color:var(--gold2);">${lastEvent.outcome}</strong><br>${lastEvent.detail}${lastEvent.cellId ? ` (Hex #${lastEvent.cellId})` : ''}</div></div>` : ''}
 
           <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.45rem;">
             <button class="btn btn-primary" onclick="rollPlanetHexEncounter()">⚄ Roll Encounter</button>
@@ -4099,9 +4285,14 @@ function renderPlanetExplorationPanel() {
             <div class="planet-micro">${requirements.slice(0, 3).join(' · ')}<br><strong style="color:var(--gold2);">${requirements[requirements.length - 1] || ''}</strong></div>
           </div>
 
-          ${lastEvent ? `<div class="sea-result"><div class="sea-result-title">Last Event</div><div class="planet-micro">d10 ${lastEvent.d10} <strong style="color:var(--gold2);">${lastEvent.outcome}</strong> · ${lastEvent.detail}${lastEvent.cellId ? ` (Hex #${lastEvent.cellId})` : ''}</div></div>` : ''}
+          ${planetMissionMarkers.length ? `<div class="sea-site" style="margin-top:.35rem;">
+            <div class="ss-title">Planet Mission Markers</div>
+            <div class="planet-micro">${planetMissionMarkers.map((task) => `${task.title} (${task.missionStep || 'site'})`).join(' · ')}</div>
+          </div>` : ''}
 
-          ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Hex Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="resolvePlanetTask('${selectedTask.id}',true)">Mark Success</button><button class="btn btn-xs" onclick="resolvePlanetTask('${selectedTask.id}',false)">Mark Failed</button></div></div>` : ''}
+          ${lastEvent ? `<div class="sea-result"><div class="sea-result-title">Last Event</div><div class="planet-micro">${lastEvent.eventType === 'encounter' ? 'Encounter' : 'd10'} ${lastEvent.d10} <strong style="color:var(--gold2);">${lastEvent.outcome}</strong> · ${lastEvent.detail}${lastEvent.cellId ? ` (Hex #${lastEvent.cellId})` : ''}</div></div>` : ''}
+
+          ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Hex Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}${selectedTask.lastRollText ? `<br><span style="color:var(--muted2);">${selectedTask.lastRollText}</span>` : ''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="rollPlanetTaskCheck('${selectedTask.id}')">⚄ Roll to Succeed (AD vs Dread d6)</button></div></div>` : ''}
 
           <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.55rem;">
             <div class="sub-label">📝 Hex Notes</div>

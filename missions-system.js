@@ -143,8 +143,32 @@
 
   function getMissionLocationForRegion(region) {
     if (region === 'sea') { return pick(SEA_MISSION_LOCS); }
-    if (region === 'galaxy') { return pick(GALAXY_MISSION_LOCS); }
+    if (region === 'galaxy') {
+      var target = getGalaxyPlanetMissionTarget();
+      return target ? target.location : pick(GALAXY_MISSION_LOCS);
+    }
     return pick(MISSION_LOCS);
+  }
+
+  function getGalaxyPlanetMissionTarget() {
+    if (!S.starSystem || !Array.isArray(S.starSystem.hexes) || !S.starSystem.hexes.length) { return null; }
+    var planets = S.starSystem.hexes.filter(function(hex) { return hex && hex.type === 'planet'; });
+    if (!planets.length) { return null; }
+    var chosen = planets[Math.floor(Math.random() * planets.length)];
+    var profile = null;
+    if (typeof ensurePlanetProfile === 'function') {
+      try {
+        profile = ensurePlanetProfile(chosen);
+      } catch (err) {
+        profile = null;
+      }
+    }
+    var planetName = (profile && profile.planetName) || chosen.name || ('Planet Hex ' + chosen.id);
+    return {
+      location: planetName + ' surface corridor',
+      planetHexId: chosen.id,
+      planetName: planetName
+    };
   }
 
   function rollShopLoot(difficulty) {
@@ -168,21 +192,24 @@
     ensureState();
     if (mission.region === 'galaxy' && typeof createGalaxyTask === 'function') {
       // Mirror province flow with two markers: informer lead + site objective.
+      var planetLabel = mission.planetName || mission.location;
       var informerTask = createGalaxyTask('Mission Board', {
         title: mission.title + ' (Informer)',
-        text: 'Track local informants for mission intel near ' + mission.location + '.',
+        text: 'Track local informants for mission intel on ' + planetLabel + '.',
         missionId: mission.id,
         missionStep: 'informer',
         interaction: 'mission-step',
-        reward: { credits: 0 }
+        reward: { credits: 0 },
+        preferredHexId: mission.planetHexId
       });
       var siteTask = createGalaxyTask('Mission Board', {
         title: mission.title + ' (Site)',
-        text: 'Mission board contract: ' + mission.location + '.',
+        text: 'Mission board contract on ' + planetLabel + '.',
         missionId: mission.id,
         missionStep: 'site',
         interaction: 'mission-step',
-        reward: { credits: mission.reward, globalRenown: 1 }
+        reward: { credits: mission.reward, globalRenown: 1 },
+        preferredHexId: mission.planetHexId
       });
       if (informerTask) {
         mission.galaxyInformerTaskId = informerTask.id;
@@ -374,12 +401,15 @@
       var diff    = DIFFICULTIES[diffKey];
       var f = pickFactionConflict();
       var region = forceRegion || pick(getAvailableMissionRegions());
+      var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
       S.availableJobs.push({
         id:seed + i + 1,
         title:pick(MISSION_VERBS)+' '+pick(MISSION_TARGETS),
         difficulty:diffKey,
         dread:diff.dread,
-        location:getMissionLocationForRegion(region),
+        location:planetTarget ? planetTarget.location : getMissionLocationForRegion(region),
+        planetHexId:planetTarget ? planetTarget.planetHexId : null,
+        planetName:planetTarget ? planetTarget.planetName : '',
         reward:diff.credits,
         region:region,
         factionGain:f.gain,
@@ -403,6 +433,10 @@
       gainName:job.factionGainName,
       loseName:job.factionLoseName
     });
+    if (job.region === 'galaxy') {
+      mission.planetHexId = job.planetHexId || null;
+      mission.planetName = job.planetName || '';
+    }
     S.activeMissions.push(mission);
     S.availableJobs = S.availableJobs.filter(function(j){return String(j.id)!==String(jobId);});
     assignMissionToken(mission);
@@ -857,7 +891,8 @@
         +'</div>'
         +'<div style="font-size:.68rem;color:var(--teal);margin:.08rem 0;">'+(job.factionGainName||'Faction')+' +1 \u00B7 '+(job.factionLoseName||'Faction')+' -1</div>'
         +'<div style="font-size:.78rem;color:var(--muted3);flex:1;margin:.2rem 0;line-height:1.45;">'+job.location+'</div>'
-        +'<div style="font-size:.68rem;color:var(--muted3);margin-bottom:.1rem;">'+(job.region==='sea'?'⛵ Sea Region':job.region==='galaxy'?'🌌 Galaxy':'🏕 Province')+'</div>'
+        +'<div style="font-size:.68rem;color:var(--muted3);margin-bottom:.1rem;">'+(job.region==='sea'?'⛵ Sea Region':job.region==='galaxy'?'🌌 Planet Route':'🏕 Province')+'</div>'
+        +(job.region==='galaxy'&&job.planetName?'<div style="font-size:.66rem;color:var(--gold2);margin-bottom:.1rem;">🌍 '+job.planetName+'</div>':'')
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;padding-top:.3rem;border-top:1px solid var(--border);">'
           +'<span style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:.95rem;color:var(--gold);">'+job.reward+' \u20B5</span>'
           +'<button class="btn btn-xs btn-primary" onclick="acceptJob('+job.id+')">Accept</button>'
@@ -909,6 +944,7 @@
           +'<div>'
             +'<div style="font-family:\'Cinzel\',serif;font-size:.8rem;color:var(--gold2);margin-bottom:.1rem;">'+mission.title+'</div>'
             +'<div style="font-size:.7rem;color:'+dc+';">'+diff.name+' \u00B7 DD d'+diff.dread+' \u00B7 '+mission.location+'</div>'
+            +(mission.region==='galaxy'&&mission.planetName?'<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">🌍 Planet Route: '+mission.planetName+'</div>':'')
             +'<div style="font-size:.66rem;color:var(--teal);margin-top:.12rem;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
             +(badges?'<div style="margin-top:.2rem;">'+badges+'</div>':'')
           +'</div>'

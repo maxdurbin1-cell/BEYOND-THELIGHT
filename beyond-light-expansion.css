@@ -29,6 +29,8 @@
 .planet-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;}
 .planet-svg-wrap{overflow:auto;background:rgba(5,8,18,.72);border:1px solid var(--border);padding:.45rem;}
 .planet-svg{max-width:none;display:block;background:linear-gradient(180deg,rgba(5,8,18,.95),rgba(7,10,20,.72));}
+.planet-gridline{fill:rgba(0,0,0,0);stroke:rgba(180,196,226,.12);stroke-width:.8;pointer-events:none;}
+.planet-route-line{stroke:rgba(214,176,70,.45);stroke-width:1.3;stroke-dasharray:4 2;pointer-events:none;}
 .planet-hex polygon{transition:opacity .12s ease,transform .12s ease;}
 .planet-hex:hover polygon{opacity:.86;}
 .planet-micro{font-size:.74rem;color:var(--muted2);line-height:1.5;}

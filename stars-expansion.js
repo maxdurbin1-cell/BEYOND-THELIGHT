@@ -3548,6 +3548,33 @@ function renderPlanetSurfaceSvg(state, selected) {
   const width = cols * size * 1.55 + size * 2.4;
   const height = rows * Math.sqrt(3) * size * 0.75 + size * 2.2;
 
+  const posById = {};
+  state.cells.forEach((cell) => {
+    posById[cell.id] = {
+      x: cell.col * size * 1.55 + (cell.row % 2 === 1 ? size * 0.78 : 0) + size + 6,
+      y: cell.row * Math.sqrt(3) * size * 0.75 + size * 0.9 + 6,
+    };
+  });
+
+  const gridSvg = state.cells.map((cell) => {
+    const pos = posById[cell.id];
+    const pts = hexPointsSVG(pos.x, pos.y, size - 1);
+    return `<polygon class="planet-gridline" points="${pts}" />`;
+  }).join('');
+
+  const routeLinesSvg = state.cells
+    .filter((cell) => cell.tradeRoute && cell.tradeRouteOwnerId != null)
+    .map((routeCell) => {
+      const owner = state.cells.find((entry) => entry.id === routeCell.tradeRouteOwnerId);
+      if (!owner) return '';
+      const a = posById[owner.id];
+      const b = posById[routeCell.id];
+      if (!a || !b) return '';
+      return `<line class="planet-route-line" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" />`;
+    })
+    .filter(Boolean)
+    .join('');
+
   const cellsSvg = state.cells.map((cell) => {
     const isLanding = cell.id === state.landedCellId;
     const isSelected = selected && cell.id === selected.id;
@@ -3570,8 +3597,9 @@ function renderPlanetSurfaceSvg(state, selected) {
       : cell.marker === 'wayfarer' ? 'W'
       : '';
 
-    const x = cell.col * size * 1.55 + (cell.row % 2 === 1 ? size * 0.78 : 0) + size + 6;
-    const y = cell.row * Math.sqrt(3) * size * 0.75 + size * 0.9 + 6;
+    const pos = posById[cell.id];
+    const x = pos.x;
+    const y = pos.y;
     const pts = hexPointsSVG(x, y, size - 1);
     const visual = getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask);
     const strokeWidth = isSelected ? 2.4 : isWayfarerContract ? 2 : 1.2;
@@ -3583,7 +3611,7 @@ function renderPlanetSurfaceSvg(state, selected) {
     </g>`;
   }).join('');
 
-  return `<div class="planet-svg-wrap"><svg class="planet-svg" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${cellsSvg}</svg></div>`;
+  return `<div class="planet-svg-wrap"><svg class="planet-svg" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${gridSvg}${routeLinesSvg}${cellsSvg}</svg></div>`;
 }
 
 function getPlanetHexTypeLabel(cell) {

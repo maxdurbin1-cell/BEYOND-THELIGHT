@@ -4157,10 +4157,103 @@ function buildPlanetProvinceNames(profile) {
 }
 
 function getProvinceForCell(cell, provinces) {
-  const rowBand = cell.row < 5 ? 0 : 2;
-  const colBand = cell.col < 5 ? 0 : 1;
+  const rowMid = Math.floor(PLANET_SURFACE_ROWS / 2);
+  const colMid = Math.floor(PLANET_SURFACE_COLS / 2);
+  const rowBand = cell.row < rowMid ? 0 : 2;
+  const colBand = cell.col < colMid ? 0 : 1;
   const idx = rowBand + colBand;
   return provinces[idx] || provinces[0] || 'Unknown Province';
+}
+
+function weightedPickPlanetMarker(weights) {
+  const entries = Object.entries(weights || {}).filter((entry) => Number(entry[1]) > 0);
+  if (!entries.length) return 'none';
+  const total = entries.reduce((sum, entry) => sum + Number(entry[1] || 0), 0);
+  let cursor = Math.random() * total;
+  for (let i = 0; i < entries.length; i += 1) {
+    cursor -= Number(entries[i][1] || 0);
+    if (cursor <= 0) return entries[i][0];
+  }
+  return entries[entries.length - 1][0];
+}
+
+function shufflePlanetMarkers(list) {
+  const arr = Array.isArray(list) ? list.slice() : [];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+function buildPlanetMarkerPlan(profile, totalCells) {
+  const biome = String((profile && profile.biome) || '').toLowerCase();
+  const temp = String((profile && profile.temperature) || '').toLowerCase();
+  const guaranteed = {
+    seat: 1,
+    holding: 2,
+    dwelling: 2,
+    temple: 1,
+    monument: 2,
+    peril: 2,
+    ruins: 3,
+    event: 2,
+    gate: 1,
+    lostcity: 1,
+    barrier: 2,
+    merchant_colony: 3,
+    empty_colony: 3,
+    wayfarer: 4,
+  };
+  const weights = {
+    none: 28,
+    hazard: 3,
+    site: 4,
+    task: 2,
+    empty_colony: 4,
+    merchant_colony: 4,
+    wayfarer: 5,
+    ruins: 5,
+    holding: 4,
+    monument: 4,
+    seat: 2,
+    dwelling: 4,
+    temple: 3,
+    peril: 4,
+    event: 3,
+    gate: 2,
+    lostcity: 2,
+    barrier: 3,
+    beast: 3,
+    pirate: 2,
+  };
+
+  if (biome.indexOf('irradiated') >= 0 || biome.indexOf('toxic') >= 0) {
+    weights.peril += 2; weights.ruins += 2; weights.barrier += 2; weights.lostcity += 1; weights.hazard += 1;
+  }
+  if (biome.indexOf('volcanic') >= 0 || temp.indexOf('scorched') >= 0) {
+    weights.peril += 2; weights.barrier += 1; weights.hazard += 1; weights.temple = Math.max(1, weights.temple - 1);
+  }
+  if (biome.indexOf('lush') >= 0 || biome.indexOf('water') >= 0) {
+    weights.dwelling += 2; weights.temple += 1; weights.event += 1; weights.wayfarer += 1; weights.barrier = Math.max(1, weights.barrier - 1);
+  }
+  if (biome.indexOf('barren') >= 0 || biome.indexOf('exotic') >= 0) {
+    weights.ruins += 1; weights.lostcity += 1; weights.peril += 1; weights.merchant_colony += 1;
+  }
+
+  const plan = [];
+  Object.keys(guaranteed).forEach((key) => {
+    for (let i = 0; i < guaranteed[key]; i += 1) {
+      if (plan.length < totalCells) plan.push(key);
+    }
+  });
+
+  while (plan.length < totalCells) {
+    plan.push(weightedPickPlanetMarker(weights));
+  }
+  return shufflePlanetMarkers(plan);
 }
 
 function createPlanetWayfarer(state, cell, source) {
@@ -4420,16 +4513,13 @@ function createPlanetSurfaceState(hex) {
   const theme = getPlanetTheme(profile);
   const rows = PLANET_SURFACE_ROWS;
   const cols = PLANET_SURFACE_COLS;
+  const markerPlan = buildPlanetMarkerPlan(profile, rows * cols);
   const cells = [];
   const provinces = buildPlanetProvinceNames(profile);
   let id = 1;
   for (let r = 0; r < rows; r += 1) {
     for (let c = 0; c < cols; c += 1) {
-      const marker = pick([
-        'hazard', 'site', 'task', 'empty_colony', 'merchant_colony', 'wayfarer',
-        'ruins', 'holding', 'monument', 'seat', 'dwelling', 'temple',
-        'peril', 'event', 'gate', 'lostcity', 'barrier', 'beast', 'pirate', 'none'
-      ]);
+      const marker = markerPlan[id - 1] || 'none';
       const province = getProvinceForCell({ row: r, col: c }, provinces);
       const localNarrative = createPlanetCellNarrative({ profile }, theme, province);
       const detailData = {

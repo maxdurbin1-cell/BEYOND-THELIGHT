@@ -428,6 +428,11 @@ function ensureStarsState() {
     shields: 0,
     defendDie: 6,
   };
+  S.exocraftBay = S.exocraftBay || {
+    owned: [],
+    active: '',
+    cargo: ['', '', '', '', '', ''],
+  };
   S.starSystem = S.starSystem || {
     galaxyType: 'cluster',
     mainStar: 'Smoldering Red Star',
@@ -455,6 +460,9 @@ function ensureStarsState() {
   S.spaceNaval = S.spaceNaval || null;
   S.seaNaval = S.seaNaval || null;
   if (!Array.isArray(S.starship.cargo)) S.starship.cargo = [];
+  if (!Array.isArray(S.exocraftBay.owned)) S.exocraftBay.owned = [];
+  if (!Array.isArray(S.exocraftBay.cargo)) S.exocraftBay.cargo = ['', '', '', '', '', ''];
+  if (typeof S.exocraftBay.active !== 'string') S.exocraftBay.active = '';
   S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false, ageEpochYear: null, ageEpochIndex: null };
   if (!S.gameDate.seededRandom) {
     S.gameDate.day = roll(DAYS_PER_MONTH - 1) + 1;
@@ -2722,7 +2730,7 @@ function resolveMysteryContactOption(optionId) {
     mystery.resolved = true;
     S.starSystem.activeMystery = null;
     if (out) {
-      out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">${mystery.archetype}: ${option.label}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${summary}</div>`;
+      out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Encounter Resolved: ${mystery.archetype}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${summary}</div>`;
     }
     renderStarSystemMap();
     updateStarSystemReadouts();
@@ -2842,6 +2850,49 @@ function resolveSpaceEncounterOption(optionId) {
   if (!option || option.resolved) return;
   const out = document.getElementById('starExplorationDetail');
 
+  function getResolveRenownKey() {
+    if (option.success && option.success.renown) return option.success.renown;
+    const lower = String(encounter.title || '').toLowerCase();
+    if (lower.indexOf('black market') >= 0 || lower.indexOf('pirate') >= 0) return 'underworld';
+    if (lower.indexOf('merchant') >= 0 || lower.indexOf('distress beacon') >= 0) return 'corporations';
+    if (lower.indexOf('ruins') >= 0 || lower.indexOf('anomaly') >= 0) return 'religious';
+    return 'political';
+  }
+
+  function grantResolveOptionSuccessBonus() {
+    const notes = [];
+    if (!(option.success && option.success.renown)) {
+      const renownKey = getResolveRenownKey();
+      if (renownKey) {
+        changeFactionRenown(renownKey, 1);
+        notes.push(`+1 ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown`);
+      }
+    }
+
+    const hasRewardPayload = !!(option.success && (
+      option.success.credits ||
+      option.success.lootCategory ||
+      option.success.lootFromMerchant ||
+      (Array.isArray(option.success.loot) && option.success.loot.length)
+    ));
+
+    if (!hasRewardPayload) {
+      if (roll(6) >= 4) {
+        const credits = roll(6) * 10;
+        if (typeof changeCredits === 'function') changeCredits(credits);
+        else S.credits = (S.credits || 0) + credits;
+        notes.push(`+${credits} credits`);
+      } else {
+        const loot = rollGalaxyMerchantLoot();
+        if (loot) {
+          takeGalaxyLoot(loot, 'pack');
+          notes.push(`Loot: ${loot}`);
+        }
+      }
+    }
+    return notes.join(' · ');
+  }
+
   if (option.type === 'cost') {
     const cost = option.credits || 0;
     if (cost > 0 && (S.credits || 0) < cost) {
@@ -2858,10 +2909,9 @@ function resolveSpaceEncounterOption(optionId) {
     } catch (err) {
       rewardText = 'Rewards applied with warnings.';
     }
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
-    clearActiveGalaxyPanels();
     showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }
@@ -2877,10 +2927,10 @@ function resolveSpaceEncounterOption(optionId) {
     } catch (err) {
       rewardText = 'Encounter resolved, but reward text could not be fully rendered.';
     }
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}</div>`;
+    const bonusText = grantResolveOptionSuccessBonus();
+    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}${bonusText ? ` ${bonusText}.` : ''}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
-    clearActiveGalaxyPanels();
     showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }
@@ -2897,7 +2947,6 @@ function resolveSpaceEncounterOption(optionId) {
       <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${(option.failure && option.failure.combat) ? option.failure.combat + ' Resolve on Combat/Ship pages.' : (option.failure && option.failure.text) ? option.failure.text : 'The window closes.'}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
-    clearActiveGalaxyPanels();
   }
   showNotif(`Encounter failed: ${encounter.title}`, 'warn');
 }
@@ -3208,15 +3257,45 @@ function resolveDeadMoonSiteOption(optionId) {
 function checkDeadMoonGearWarnings(dm) {
   // Returns an array of warning strings about missing protective gear
   const warnings = [];
-  const layers = (S.gearLayers) || {};
+  const layers = (S.equipmentLayers) || (S.gearLayers) || {};
+  const armorText = (S.equipment && S.equipment.armor) ? String(S.equipment.armor) : '';
+  const suitText = layers.suit ? String(layers.suit) : '';
+  const hasVaccSuit = /vaccsuit/i.test(suitText) || /vaccsuit/i.test(armorText);
+
+  function consumeOxygenPellet() {
+    if (typeof consumeBackpackItemByName === 'function') {
+      return !!consumeBackpackItemByName('Oxygen Pellet');
+    }
+    if (!Array.isArray(S.backpack)) return false;
+    for (let i = 0; i < S.backpack.length; i += 1) {
+      const slot = String(S.backpack[i] || '').trim();
+      if (!slot) continue;
+      const m = slot.match(/^(.*?)(?:\s*x(\d+))?$/i);
+      const base = (m && m[1]) ? m[1].trim() : slot;
+      const count = (m && m[2]) ? Math.max(1, parseInt(m[2], 10) || 1) : 1;
+      if (!/oxygen pellet/i.test(base)) continue;
+      if (count > 1) S.backpack[i] = `${base} x${count - 1}`;
+      else S.backpack[i] = '';
+      const bpEl = document.getElementById('bp' + i);
+      if (bpEl) bpEl.value = S.backpack[i];
+      return true;
+    }
+    return false;
+  }
+
   // Dead moons are always vacuum — check vaccsuit
-  if (!layers.vaccsuit && !(S.equipment && S.equipment.armor && /vaccsuit/i.test(S.equipment.armor))) {
+  if (!hasVaccSuit) {
     warnings.push('No VaccSuit equipped — you are exposed to vacuum. Suffer 1 Health per phase.');
+    if (typeof changeHealth === 'function') changeHealth(1);
+  } else if (consumeOxygenPellet()) {
+    warnings.push('VaccSuit consumed 1 Oxygen Pellet for breathable air.');
+  } else {
+    warnings.push('VaccSuit equipped but no Oxygen Pellets available — suffer 1 Health this phase.');
     if (typeof changeHealth === 'function') changeHealth(1);
   }
   // Irradiated dead moons need radsuit
   if (dm && dm.irradiated) {
-    if (!layers.radsuit && !(S.equipment && S.equipment.armor && /radsuit/i.test(S.equipment.armor))) {
+    if (!layers.radsuit && !/radsuit/i.test(suitText) && !/radsuit/i.test(armorText)) {
       warnings.push('No RadSuit equipped — irradiated zone. Suffer +d100 Rads this exploration.');
       const rads = roll(100);
       if (typeof changeRads === 'function') changeRads(rads);
@@ -3809,18 +3888,37 @@ function renderStarSystemMap() {
 function selectStarSystemHex(hexId) {
   ensureStarsState();
   const prevId = S.starSystem.currentHexId;
+  const next = (S.starSystem.hexes || []).find(hx => hx.id === hexId);
+  const prev = (S.starSystem.hexes || []).find(hx => hx.id === prevId);
+  if (!next) return;
+
+  if (prevId != null && prevId !== hexId && prev && next && next.ring !== 'core') {
+    const distance = starHexDistance(prev, next);
+    if (distance <= 1) {
+      if ((S.starship.fuel.standard || 0) <= 0) {
+        showNotif('No Standard Fuel available for adjacent travel.', 'warn');
+        return;
+      }
+      S.starship.fuel.standard -= 1;
+      if (isHexOnTradeRoute(hexId)) applyTradeRouteTravelBonus(hexId);
+      registerStarshipTravelDays(DAYS_PER_WEEK);
+      showNotif('Travel complete: adjacent hex, Standard Fuel -1.', 'good');
+    } else {
+      if ((S.starship.fuel.hyperdrive || 0) <= 0) {
+        showNotif('No Hyperdrive fuel available for non-adjacent travel.', 'warn');
+        return;
+      }
+      if (!canHyperdriveToHex(next)) {
+        showNotif('Hyperdrive requires a known/scanned destination.', 'warn');
+        return;
+      }
+      S.starship.fuel.hyperdrive -= 1;
+      registerStarshipTravelDays(Math.max(1, Math.round(distance)) * DAYS_PER_WEEK);
+      showNotif(`Hyperdrive engaged for ${Math.max(1, Math.round(distance))}-hex jump.`, 'good');
+    }
+  }
   S.starSystem.currentHexId = hexId;
   const h = getCurrentStarHex();
-  if (prevId != null && prevId !== hexId && h && h.ring !== 'core') {
-    const onRoute = isHexOnTradeRoute(hexId);
-    if (onRoute) {
-      // Trade route lane: no fuel cost, apply trade route bonuses
-      applyTradeRouteTravelBonus(hexId);
-    } else {
-      if ((S.starship.fuel.standard || 0) > 0) S.starship.fuel.standard -= 1;
-    }
-    registerStarshipTravelDays(DAYS_PER_WEEK);
-  }
   if (h && h.ring && h.ring !== 'core') S.starSystem.selectedRing = h.ring;
   const ringSel = document.getElementById('starRingSelect');
   if (ringSel && h && h.ring && h.ring !== 'core') ringSel.value = h.ring;
@@ -5494,6 +5592,151 @@ function getGalaxySystemPanelMarkup() {
 </div>`;
 }
 
+function normalizeExocraftName(nameText) {
+  const raw = String(nameText || '').trim();
+  if (!raw) return '';
+  const noStack = raw.replace(/\s*x\d+$/i, '').trim();
+  return noStack.replace(/^[^A-Za-z0-9]+\s*/, '').trim();
+}
+
+function addOwnedExocraftByName(nameText) {
+  ensureStarsState();
+  const normalized = normalizeExocraftName(nameText);
+  if (!normalized) return false;
+  const exo = EXOCRAFTS.find((entry) => normalized.toLowerCase().indexOf(entry.name.toLowerCase()) >= 0);
+  if (!exo) return false;
+  if (S.exocraftBay.owned.indexOf(exo.name) < 0) {
+    S.exocraftBay.owned.push(exo.name);
+  }
+  if (!S.exocraftBay.active) S.exocraftBay.active = exo.name;
+  if (typeof renderExocraftPanel === 'function') renderExocraftPanel();
+  showNotif(`${exo.name} added to Exocraft Bay.`, 'good');
+  return true;
+}
+
+function setActiveExocraft(name) {
+  ensureStarsState();
+  if (!name || S.exocraftBay.owned.indexOf(name) < 0) return;
+  S.exocraftBay.active = name;
+  renderExocraftPanel();
+  showNotif(`Active Exocraft: ${name}`, 'good');
+}
+
+function loadExocraftFromBackpack(index) {
+  ensureStarsState();
+  if (!Array.isArray(S.backpack)) return;
+  const raw = S.backpack[index] || '';
+  if (!raw) return;
+  const nameText = normalizeExocraftName(raw);
+  const beforeOwned = (S.exocraftBay.owned || []).length;
+  if (!addOwnedExocraftByName(nameText)) {
+    showNotif('That backpack item is not an Exocraft.', 'warn');
+    return;
+  }
+  if ((S.exocraftBay.owned || []).length <= beforeOwned) {
+    showNotif('Exocraft already owned.', 'warn');
+    return;
+  }
+
+  if (typeof parseBackpackStack === 'function' && typeof buildBackpackStack === 'function') {
+    const parts = parseBackpackStack(raw);
+    if (parts.count > 1) S.backpack[index] = buildBackpackStack(parts.name, parts.count - 1);
+    else S.backpack[index] = '';
+  } else {
+    S.backpack[index] = '';
+  }
+  const bpEl = document.getElementById('bp' + index);
+  if (bpEl) bpEl.value = S.backpack[index] || '';
+  renderExocraftPanel();
+}
+
+function moveBackpackToExocraftCargo() {
+  ensureStarsState();
+  if (!Array.isArray(S.backpack)) return;
+  if (!Array.isArray(S.exocraftBay.cargo)) S.exocraftBay.cargo = ['', '', '', '', '', ''];
+  const lastIdx = (() => {
+    for (let i = S.backpack.length - 1; i >= 0; i -= 1) {
+      if (S.backpack[i]) return i;
+    }
+    return -1;
+  })();
+  if (lastIdx < 0) return showNotif('Backpack is empty!', 'warn');
+  const cargoIdx = S.exocraftBay.cargo.indexOf('');
+  if (cargoIdx < 0) return showNotif('Exocraft cargo full!', 'warn');
+  S.exocraftBay.cargo[cargoIdx] = S.backpack[lastIdx];
+  S.backpack[lastIdx] = '';
+  const bpEl = document.getElementById('bp' + lastIdx);
+  if (bpEl) bpEl.value = '';
+  renderExocraftPanel();
+  showNotif('Moved to Exocraft cargo.', 'good');
+}
+
+function moveExocraftCargoToBackpack(index) {
+  ensureStarsState();
+  if (!Array.isArray(S.exocraftBay.cargo)) return;
+  const item = S.exocraftBay.cargo[index] || '';
+  if (!item) return;
+  if (typeof addToBackpack === 'function') {
+    if (!addToBackpack(item)) return;
+  } else {
+    if (!Array.isArray(S.backpack)) S.backpack = ['', '', '', '', '', ''];
+    const slotIdx = S.backpack.indexOf('');
+    if (slotIdx < 0) return showNotif('Backpack full!', 'warn');
+    S.backpack[slotIdx] = item;
+    const bpEl = document.getElementById('bp' + slotIdx);
+    if (bpEl) bpEl.value = item;
+  }
+  S.exocraftBay.cargo[index] = '';
+  renderExocraftPanel();
+  showNotif(`Moved to Backpack: ${item}`, 'good');
+}
+
+function renderExocraftPanel() {
+  ensureStarsState();
+  const target = document.getElementById('tab-exocrafts');
+  if (!target) return;
+  const active = S.exocraftBay.active || '';
+  const owned = Array.isArray(S.exocraftBay.owned) ? S.exocraftBay.owned : [];
+  const activeData = EXOCRAFTS.find((e) => e.name === active) || null;
+  const cargo = Array.isArray(S.exocraftBay.cargo) ? S.exocraftBay.cargo : ['', '', '', '', '', ''];
+
+  target.innerHTML = `<div style="max-width:1000px;padding:.85rem;display:grid;gap:.75rem;">
+    <div class="ship-banner">
+      <h3>Exocraft Bay</h3>
+      <p>Manage owned Exocrafts and move gear between Backpack and Exocraft cargo, similar to Caravan flow.</p>
+    </div>
+    <div class="card">
+      <div class="section-title">Owned Exocrafts</div>
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem;">
+        <button class="btn btn-xs btn-primary" onclick="moveBackpackToExocraftCargo()">Stow from Backpack</button>
+      </div>
+      ${owned.length ? owned.map((name) => {
+        const info = EXOCRAFTS.find((entry) => entry.name === name);
+        const isOn = active === name;
+        return `<div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);margin-bottom:.25rem;">
+          <strong style="color:${isOn ? 'var(--gold2)' : 'var(--text)'};">${info ? info.logo + ' ' : ''}${name}</strong>
+          <div style="font-size:.75rem;color:var(--muted2);line-height:1.45;">${info ? `${info.power} · ${info.mounts} mounts.` : 'Exocraft'} ${info ? info.desc : ''}</div>
+          <div style="margin-top:.25rem;"><button class="btn btn-xs ${isOn ? '' : 'btn-teal'}" onclick="setActiveExocraft('${name.replace(/'/g, "\\'")}')">${isOn ? 'Active' : 'Set Active'}</button></div>
+        </div>`;
+      }).join('') : '<div style="font-size:.78rem;color:var(--muted2);">No Exocrafts owned yet. Buy one from Merchants or load one from Backpack.</div>'}
+    </div>
+    <div class="card">
+      <div class="section-title">Active Exocraft Cargo</div>
+      <div style="font-size:.78rem;color:var(--muted2);margin-bottom:.35rem;">${activeData ? `${activeData.logo} ${activeData.name} · ${activeData.power}` : 'No active Exocraft selected.'}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.25rem;">
+        ${cargo.map((item, i) => `<div style="border:1px solid var(--border2);padding:.28rem;min-height:2.3rem;background:rgba(255,255,255,.02);font-size:.76rem;color:${item ? 'var(--text2)' : 'var(--muted)'};cursor:${item ? 'pointer' : 'default'};" ${item ? `onclick=\"moveExocraftCargoToBackpack(${i})\"` : ''}>${item || `Slot ${i + 1}`}</div>`).join('')}
+      </div>
+      <div style="font-size:.7rem;color:var(--muted2);margin-top:.3rem;">Click a filled slot to move that item to Backpack.</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Load Exocraft From Backpack</div>
+      <div style="display:flex;gap:.25rem;flex-wrap:wrap;">
+        ${(Array.isArray(S.backpack) ? S.backpack : []).map((item, i) => item ? `<button class="btn btn-xs" onclick="loadExocraftFromBackpack(${i})">BP${i + 1}: ${String(item).replace(/</g,'&lt;')}</button>` : '').join('') || '<span style="font-size:.75rem;color:var(--muted2);">No backpack items available.</span>'}
+      </div>
+    </div>
+  </div>`;
+}
+
 function buildStarshipPanel() {
   const target = document.getElementById('starsStarshipPanel');
   if (!target) return;
@@ -5817,6 +6060,7 @@ document.addEventListener('DOMContentLoaded', function() {
   buildGalaxyPanel();
   buildStarsCombatPanel();
   buildDateTimePanel();
+  renderExocraftPanel();
 
   // Initial UI sync
   updateHealthUI();
@@ -5876,6 +6120,22 @@ document.addEventListener('DOMContentLoaded', function() {
     nav.appendChild(oracleBtn);
   }
 
+  const tabHost = document.getElementById('tab-naval') ? document.getElementById('tab-naval').parentElement : null;
+  if (tabHost && !document.getElementById('tab-exocrafts')) {
+    const panel = document.createElement('div');
+    panel.className = 'tab-panel';
+    panel.id = 'tab-exocrafts';
+    tabHost.appendChild(panel);
+  }
+  if (nav && !document.querySelector('.tab-btn[onclick*="switchTab(\'exocrafts\'"]')) {
+    const exoBtn = document.createElement('button');
+    exoBtn.className = 'tab-btn ctx-space';
+    exoBtn.style.display = 'none';
+    exoBtn.textContent = 'Exocrafts';
+    exoBtn.setAttribute('onclick', "switchTab('exocrafts',this)");
+    nav.appendChild(exoBtn);
+  }
+
   renderStarsCombatZone(1);
 });
 
@@ -5891,6 +6151,12 @@ window.clearActiveGalaxyPanels = clearActiveGalaxyPanels;
 window.rollOracleYesNo = rollOracleYesNo;
 window.rollOracleOpenEnded = rollOracleOpenEnded;
 window.rollPlanetExploration = rollPlanetExploration;
+window.renderExocraftPanel = renderExocraftPanel;
+window.addOwnedExocraftByName = addOwnedExocraftByName;
+window.moveBackpackToExocraftCargo = moveBackpackToExocraftCargo;
+window.moveExocraftCargoToBackpack = moveExocraftCargoToBackpack;
+window.loadExocraftFromBackpack = loadExocraftFromBackpack;
+window.setActiveExocraft = setActiveExocraft;
 window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
 window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
 window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;

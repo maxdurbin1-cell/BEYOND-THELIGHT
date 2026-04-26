@@ -243,6 +243,7 @@ select option{background:#0f1020;}
     <button class="tab-btn" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
+    <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
     <button class="tab-btn ctx-sea ctx-space" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
@@ -736,6 +737,7 @@ select option{background:#0f1020;}
   <!-- Date panel -->
   <div id="starsDatePanel" style="padding:.85rem;max-width:400px;"></div>
 </div>
+<div class="tab-panel" id="tab-exocrafts"></div>
 
 <!-- MERCHANTS TAB -->
 <div class="tab-panel" id="tab-shop">
@@ -2144,13 +2146,60 @@ function formatStatForSlot(stat) {
   return '(' + main + ')';
 }
 
+function parseBackpackStack(text) {
+  var raw = String(text || '').trim();
+  if (!raw) return { name: '', count: 0 };
+  var m = raw.match(/^(.*?)(?:\s*x(\d+))?$/i);
+  var name = (m && m[1]) ? m[1].trim() : raw;
+  var count = (m && m[2]) ? Math.max(1, parseInt(m[2], 10) || 1) : 1;
+  return { name: name, count: count };
+}
+
+function buildBackpackStack(name, count) {
+  var n = String(name || '').trim();
+  var c = Math.max(1, parseInt(count, 10) || 1);
+  return c > 1 ? (n + ' x' + c) : n;
+}
+
+function consumeBackpackItemByName(name) {
+  var target = String(name || '').trim().toLowerCase();
+  if (!target || !Array.isArray(S.backpack)) return false;
+  for (var i = 0; i < S.backpack.length; i++) {
+    var slot = parseBackpackStack(S.backpack[i]);
+    if (!slot.name) continue;
+    if (slot.name.toLowerCase() !== target) continue;
+    if (slot.count > 1) S.backpack[i] = buildBackpackStack(slot.name, slot.count - 1);
+    else S.backpack[i] = '';
+    var el = document.getElementById('bp' + i);
+    if (el) el.value = S.backpack[i];
+    return true;
+  }
+  return false;
+}
+
 // Add a text string to the first empty backpack slot. Returns true on success.
 function addToBackpack(text) {
+  var incoming = parseBackpackStack(text);
+  if (!incoming.name) return false;
+
+  // Stack identical items first.
+  for (var si = 0; si < 6; si++) {
+    if (!S.backpack[si]) continue;
+    var existing = parseBackpackStack(S.backpack[si]);
+    if (!existing.name) continue;
+    if (existing.name.toLowerCase() !== incoming.name.toLowerCase()) continue;
+    var newCount = existing.count + incoming.count;
+    S.backpack[si] = buildBackpackStack(existing.name, newCount);
+    var stackEl = document.getElementById('bp' + si);
+    if (stackEl) stackEl.value = S.backpack[si];
+    return true;
+  }
+
   for (var i = 0; i < 6; i++) {
     if (!S.backpack[i]) {
-      S.backpack[i] = text;
+      S.backpack[i] = buildBackpackStack(incoming.name, incoming.count);
       var el = document.getElementById('bp' + i);
-      if (el) el.value = text;
+      if (el) el.value = S.backpack[i];
       return true;
     }
   }
@@ -2161,7 +2210,8 @@ function addToBackpack(text) {
 // Find a shop item by display name (matches exactly or by prefix before " (")
 function findShopItem(nameText) {
   if (!nameText) return null;
-  var cleanName = nameText.split('(')[0].trim().replace(/\s+[-–]\s+.*/, '').trim();
+  var stackParts = parseBackpackStack(nameText);
+  var cleanName = stackParts.name.split('(')[0].trim().replace(/\s+[-–]\s+.*/, '').trim();
   var allCats = Object.keys(SHOP_DATA);
   for (var ci = 0; ci < allCats.length; ci++) {
     var items = SHOP_DATA[allCats[ci]];
@@ -2209,6 +2259,13 @@ function buyItem(cost, name, cat) {
   var storePurchasedItem = function(text) {
     if (typeof addItemToBackpack === 'function') return addItemToBackpack(text);
     return addToBackpack(text);
+  };
+
+  var storePurchasedExocraft = function(text) {
+    if (typeof addOwnedExocraftByName === 'function') {
+      if (addOwnedExocraftByName(text)) return true;
+    }
+    return storePurchasedItem(text);
   };
 
   var weaponCats = ['weapons','melee_exp','ranged_exp'];
@@ -2262,7 +2319,9 @@ function buyItem(cost, name, cat) {
       if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
       purchaseApplied = true;
     }
-  } else if (category === 'tradegoods' || category === 'exocrafts' || category === 'cosmic') {
+  } else if (category === 'exocrafts') {
+    purchaseApplied = storePurchasedExocraft(slotText);
+  } else if (category === 'tradegoods' || category === 'cosmic') {
     purchaseApplied = storePurchasedItem(slotText);
   } else if (category === 'services') {
     // Services take immediate effect — show an info modal, no backpack slot needed
@@ -2311,9 +2370,11 @@ function buyItem(cost, name, cat) {
   } catch (err) {
     // Keep purchase flow alive even if a secondary UI render hook fails.
   }
-  var goesToBackpack = ['weapons','melee_exp','ranged_exp','armor','armor_exp','space_armor','tradegoods','exocrafts','cosmic','items','essentials','toolkits','scrolls','remedies','strange'].indexOf(category) >= 0;
+  var goesToBackpack = ['weapons','melee_exp','ranged_exp','armor','armor_exp','space_armor','tradegoods','cosmic','items','essentials','toolkits','scrolls','remedies','strange'].indexOf(category) >= 0;
   if (goesToBackpack) {
     showNotif(name + ' is now in Backpack (−' + cost + '₵)', 'good');
+  } else if (category === 'exocrafts' && typeof addOwnedExocraftByName === 'function') {
+    showNotif(name + ' assigned to Exocraft Bay (−' + cost + '₵)', 'good');
   } else {
     showNotif(name + ' purchased (−' + cost + '₵)', 'good');
   }
@@ -2422,9 +2483,15 @@ function showBackpackItem(index) {
 }
 
 function removeBackpackItem(index) {
-  S.backpack[index] = '';
+  var slot = parseBackpackStack(S.backpack[index]);
+  if (!slot.name) return;
+  if (slot.count > 1) {
+    S.backpack[index] = buildBackpackStack(slot.name, slot.count - 1);
+  } else {
+    S.backpack[index] = '';
+  }
   var el = document.getElementById('bp' + index);
-  if (el) el.value = '';
+  if (el) el.value = S.backpack[index] || '';
 }
 
 // Sell backpack item
@@ -2477,10 +2544,12 @@ function equipBackpackItem(index, slot) {
   ensureAdvancedGearState();
   var item = S.backpack[index];
   if (!item) return;
+  var stack = parseBackpackStack(item);
+  var itemForEquip = stack.name || item;
   
-  var found = findShopItem(item);
-  var itemName = found && found.item && found.item.name ? found.item.name : normalizeItemName(item);
-  if (!found && itemName !== item) {
+  var found = findShopItem(itemForEquip);
+  var itemName = found && found.item && found.item.name ? found.item.name : normalizeItemName(itemForEquip);
+  if (!found && itemName !== itemForEquip) {
     found = findShopItem(itemName);
   }
   var cat = found ? found.cat : null;
@@ -2522,10 +2591,10 @@ function equipBackpackItem(index, slot) {
   
   // Build equipment string: "Name (stat)" for weapons/armor so stats display and mod slots work.
   // Append only when that exact stat block is not already present.
-  var equipStr = item;
+  var equipStr = itemForEquip;
   if (found && found.item && found.item.stat && (isWeapon || isArmor)) {
-    if (item.indexOf(found.item.stat) === -1) {
-      equipStr = item + ' (' + found.item.stat + ')';
+    if (itemForEquip.indexOf(found.item.stat) === -1) {
+      equipStr = itemForEquip + ' (' + found.item.stat + ')';
     }
   }
 
@@ -2554,7 +2623,11 @@ function equipBackpackItem(index, slot) {
   if (displaced && !displacedStored) {
     S.backpack[index] = displaced;
   } else {
-    S.backpack[index] = '';
+    if (stack.count > 1) {
+      S.backpack[index] = buildBackpackStack(stack.name, stack.count - 1);
+    } else {
+      S.backpack[index] = '';
+    }
   }
   var bpEl = document.getElementById('bp' + index);
   if (bpEl) bpEl.value = S.backpack[index] || '';

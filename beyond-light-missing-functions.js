@@ -86,6 +86,12 @@ function switchTab(tabId, btn) {
     }
   }
 
+  if (tabId === "exocrafts") {
+    if (typeof window.renderExocraftPanel === "function") {
+      window.renderExocraftPanel();
+    }
+  }
+
   if (tabId === "shop") {
     ensureSpaceShopCategories();
   }

@@ -3019,36 +3019,79 @@ function rollPlanetExploration() {
     return;
   }
   const profile = ensurePlanetProfile(hex);
+  S.starSystem.activePlanetHexId = hex.id;
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
   const d10 = roll(10);
   const outcome = PLANETSIDE_EXPLORATION_TABLE[Math.min(PLANETSIDE_EXPLORATION_TABLE.length - 1, d10 - 1)] || 'Find';
   let detail = '';
+  let rewardItem = '';
+  let affectedCell = null;
+
+  const availableCells = state.cells.filter((cell) => cell.id !== state.landedCellId);
+  const targetCell = availableCells.length ? pick(availableCells) : state.cells[0];
+
   if (outcome === 'Find') {
-    const loot = rollGalaxyMerchantLoot();
-    takeGalaxyLoot(loot, 'pack');
-    detail = `Recovered ${loot} near the ${profile.wonder}.`;
+    rewardItem = rollGalaxyMerchantLoot();
+    takeGalaxyLoot(rewardItem, 'pack');
+    detail = `Recovered ${rewardItem} near the ${profile.wonder}.`;
   } else if (outcome === 'Hazard') {
     detail = `${profile.terrainEffect} Make an Action Die test vs DD8 before pushing deeper.`;
+    if (targetCell) {
+      targetCell.marker = 'hazard';
+      targetCell.feature = targetCell.feature || 'Hazard line';
+      targetCell.note = `Hazard sighted: ${profile.terrainEffect}`;
+      affectedCell = targetCell;
+    }
   } else if (outcome === 'Beast') {
     detail = `${profile.fauna} surge from cover. Action Die vs DD8 to outmaneuver them or take Stress.`;
+    if (targetCell) {
+      targetCell.marker = 'hazard';
+      targetCell.feature = 'Fauna migration';
+      targetCell.note = `Wildlife threat: ${profile.fauna}.`;
+      affectedCell = targetCell;
+    }
   } else if (outcome === 'Close Encounter') {
-    detail = `You find locals, scouts, or stranded travelers near the ${profile.form}.`;
+    const wayfarer = createPlanetWayfarer(state, targetCell, 'encounter');
+    detail = `You meet ${wayfarer.name}, a roaming ${wayfarer.role}, near the ${profile.form}.`;
+    affectedCell = targetCell;
   } else if (outcome === 'Pirate') {
     detail = `Pirate traces circle the landing zone. Expect tribute, pursuit, or an ambush.`;
   } else if (outcome === 'Empty Colony') {
-    detail = `An abandoned colony lies open. Salvage and unanswered records remain.`;
+    if (targetCell) {
+      targetCell.marker = 'empty_colony';
+      targetCell.feature = targetCell.feature || 'Silent colony quarter';
+      targetCell.note = 'Abandoned colony sectors mapped. Functions like a Dwelling-style refuge once secured.';
+      affectedCell = targetCell;
+    }
+    detail = 'An abandoned colony lies open. Salvage and unanswered records remain. It can become a Dwelling-style refuge once stabilized.';
   } else if (outcome === 'Merchant Colony') {
-    detail = `A merchant colony is active here. Open the Merchant tab to trade from orbit or on the ground.`;
+    if (targetCell) {
+      targetCell.marker = 'merchant_colony';
+      targetCell.feature = targetCell.feature || 'Merchant colony ring';
+      targetCell.note = 'Merchant colony established. Functions like a Holding-style trade hub.';
+      affectedCell = targetCell;
+    }
+    detail = 'A merchant colony is active here. It works like a Holding-style trade hub and can generate contracts.';
   } else if (outcome === 'Skirmish') {
     detail = `Two forces are already fighting over the surface route. Choose a side or stay low.`;
   } else {
     detail = `A galactic facility sits somewhere beyond the ${profile.terrain}. Secure access before entry.`;
   }
-  const out = document.getElementById('starExplorationResult');
-  const detailEl = document.getElementById('starExplorationDetail');
-  if (out) out.innerHTML = `<span style="color:var(--gold2);">Planet Exploration</span> -> d10 ${d10}: <strong>${outcome}</strong>`;
-  if (detailEl) {
-    detailEl.innerHTML = `<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">${profile.planetName} Surface Pass</div><div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">${detail}</div>`;
-  }
+  state.lastEvent = {
+    timestamp: Date.now(),
+    d10,
+    outcome,
+    detail,
+    rewardItem,
+    cellId: affectedCell ? affectedCell.id : null,
+  };
+  state.eventLog = Array.isArray(state.eventLog) ? state.eventLog : [];
+  state.eventLog.unshift(state.lastEvent);
+  state.eventLog = state.eventLog.slice(0, 8);
+  if (affectedCell) state.selectedCellId = affectedCell.id;
+
+  renderPlanetExplorationPanel();
   showNotif(`Planet exploration: ${outcome}.`, 'good');
 }
 
@@ -3060,6 +3103,122 @@ const PLANET_SURFACE_FEATURES = [
   'Survey Beacon', 'Abandoned Relay', 'Collapsed Habitat', 'Pirate Cache', 'Ancient Vault',
   'Trade Outpost', 'Storm Shelter', 'Mining Camp', 'Signal Tower', 'Buried Monolith'
 ];
+
+const PLANET_THEME_BY_BIOME = {
+  barren: {
+    terrains: ['Dust Shelf', 'Shard Wastes', 'Dry Faultline', 'Ruin Flats'],
+    features: ['Collapsed Refinery', 'Silent Dig Site', 'Salt Relay', 'Broken Habitat'],
+    roles: ['Scrap Broker', 'Surveyor', 'Outcast Ranger'],
+    taskFocus: ['salvage', 'route marking', 'artifact recovery'],
+  },
+  water: {
+    terrains: ['Flood Basin', 'Tidal Shelf', 'Mist Coast', 'Submerged Steps'],
+    features: ['Tide Beacon', 'Drowned Archive', 'Float Dock', 'Reef Sensor'],
+    roles: ['Navigator', 'Hydrologist', 'Ferry Keeper'],
+    taskFocus: ['escort runs', 'water route scans', 'rescue ops'],
+  },
+  lush: {
+    terrains: ['Canopy Run', 'Vine Trench', 'Spore Meadow', 'Green Ridge'],
+    features: ['Root Shrine', 'Canopy Lift', 'Bio-Lab', 'Seed Cache'],
+    roles: ['Pathfinder', 'Botanist', 'Caretaker'],
+    taskFocus: ['flora samples', 'beast diversion', 'path security'],
+  },
+  volcanic: {
+    terrains: ['Magma Shelf', 'Obsidian Flow', 'Smoke Ridge', 'Ash Basin'],
+    features: ['Heat Tower', 'Sealed Forge', 'Cooled Vent', 'Lava Lift'],
+    roles: ['Heatwright', 'Miner', 'Ash Scout'],
+    taskFocus: ['heat shielding', 'ore retrieval', 'route venting'],
+  },
+  irradiated: {
+    terrains: ['Rad Flats', 'Glass Trench', 'Static Ridge', 'Burn Field'],
+    features: ['Shielded Vault', 'Rad Pump', 'Dosimeter Mast', 'Quarantine Gate'],
+    roles: ['Rad Medic', 'Decontam Tech', 'Signal Keeper'],
+    taskFocus: ['decon supply', 'evac escort', 'rad suppression'],
+  },
+  scorched: {
+    terrains: ['Sunplate Expanse', 'Burn Scar', 'Thermal Rift', 'Molten Dune'],
+    features: ['Cooling Node', 'Sun Shield', 'Heat Sink Yard', 'Cinder Relay'],
+    roles: ['Heat Marshal', 'Shade Runner', 'Route Tuner'],
+    taskFocus: ['cooling logistics', 'heat route mapping', 'shelter repairs'],
+  },
+  toxic: {
+    terrains: ['Fume Marsh', 'Poison Flats', 'Acid Track', 'Sealed Ravine'],
+    features: ['Filter Tower', 'Neutralizer Vat', 'Mask Depot', 'Hazmat Post'],
+    roles: ['Filter Engineer', 'Chem Scout', 'Quarantine Warden'],
+    taskFocus: ['filter upkeep', 'contamination control', 'supply drops'],
+  },
+  frozen: {
+    terrains: ['Ice Shelf', 'Frost Rift', 'Blue Quarry', 'Snow Basin'],
+    features: ['Thermal Node', 'Cryo Beacon', 'Snow Lock', 'Frozen Relay'],
+    roles: ['Ice Runner', 'Thermal Engineer', 'Signal Trapper'],
+    taskFocus: ['heat relay repair', 'cold rescue', 'supply hauling'],
+  },
+  urban: {
+    terrains: ['Collapsed Avenue', 'Skybridge Rubble', 'Arcology Spine', 'Transit Pit'],
+    features: ['Data Core', 'Transit Hub', 'Market Vault', 'Tower Shell'],
+    roles: ['Archivist', 'Circuit Broker', 'Ward Captain'],
+    taskFocus: ['records extraction', 'district recovery', 'security patrol'],
+  },
+  exotic: {
+    terrains: ['Prism Field', 'Echo Ridge', 'Mirage Hollow', 'Fractal Steps'],
+    features: ['Phase Anchor', 'Resonance Gate', 'Light Well', 'Pulse Observatory'],
+    roles: ['Resonance Monk', 'Signal Oracle', 'Phase Surveyor'],
+    taskFocus: ['anomaly mapping', 'signal tuning', 'artifact anchoring'],
+  },
+};
+
+const PLANET_WAYFARER_NAME_FIRST = ['Ari', 'Vale', 'Kest', 'Rho', 'Nyx', 'Tal', 'Vero', 'Mira', 'Cael', 'Orin'];
+const PLANET_WAYFARER_NAME_LAST = ['Quill', 'Drax', 'Sable', 'Rowe', 'Kade', 'Morrow', 'Zenith', 'Pyre', 'Voss', 'Halcyon'];
+
+function getPlanetTheme(profile) {
+  const biome = String((profile && profile.biome) || '').toLowerCase();
+  if (biome.indexOf('urban') >= 0) return PLANET_THEME_BY_BIOME.urban;
+  if (biome.indexOf('water') >= 0 || biome.indexOf('ocean') >= 0) return PLANET_THEME_BY_BIOME.water;
+  if (biome.indexOf('lush') >= 0 || biome.indexOf('jungle') >= 0) return PLANET_THEME_BY_BIOME.lush;
+  if (biome.indexOf('volcanic') >= 0) return PLANET_THEME_BY_BIOME.volcanic;
+  if (biome.indexOf('irradiated') >= 0) return PLANET_THEME_BY_BIOME.irradiated;
+  if (biome.indexOf('scorched') >= 0 || biome.indexOf('furnace') >= 0) return PLANET_THEME_BY_BIOME.scorched;
+  if (biome.indexOf('toxic') >= 0 || biome.indexOf('tainted') >= 0) return PLANET_THEME_BY_BIOME.toxic;
+  if (biome.indexOf('frozen') >= 0 || biome.indexOf('ice') >= 0) return PLANET_THEME_BY_BIOME.frozen;
+  if (biome.indexOf('exotic') >= 0) return PLANET_THEME_BY_BIOME.exotic;
+  if (biome.indexOf('barren') >= 0 || biome.indexOf('grave') >= 0) return PLANET_THEME_BY_BIOME.barren;
+  return PLANET_THEME_BY_BIOME.barren;
+}
+
+function buildPlanetProvinceNames(profile) {
+  const base = String((profile && profile.planetName) || 'Planet').split('(')[0].trim();
+  return [`${base} North Reach`, `${base} Dawn Expanse`, `${base} Rift March`, `${base} Low Basin`];
+}
+
+function getProvinceForCell(cell, provinces) {
+  const rowBand = cell.row < 5 ? 0 : 2;
+  const colBand = cell.col < 5 ? 0 : 1;
+  const idx = rowBand + colBand;
+  return provinces[idx] || provinces[0] || 'Unknown Province';
+}
+
+function createPlanetWayfarer(state, cell, source) {
+  if (!state || !cell) return null;
+  state.wayfarers = Array.isArray(state.wayfarers) ? state.wayfarers : [];
+  const theme = getPlanetTheme(state.profile);
+  const name = `${pick(PLANET_WAYFARER_NAME_FIRST)} ${pick(PLANET_WAYFARER_NAME_LAST)}`;
+  const role = pick(theme.roles);
+  const hook = pick(theme.taskFocus);
+  const wayfarer = {
+    id: `wayfarer-${state.hexId}-${Date.now()}-${roll(999)}`,
+    name,
+    role,
+    hook,
+    source: source || 'surface',
+    cellId: cell.id,
+    province: cell.province,
+  };
+  state.wayfarers.push(wayfarer);
+  cell.marker = 'wayfarer';
+  cell.feature = `${role} camp`;
+  cell.note = `${name} (${role}) offers leads on ${hook}.`;
+  return wayfarer;
+}
 
 function getActivePlanetHex() {
   ensureStarsState();
@@ -3133,20 +3292,30 @@ function buildPlanetRequirements(profile) {
 
 function createPlanetSurfaceState(hex) {
   const profile = ensurePlanetProfile(hex);
+  const theme = getPlanetTheme(profile);
   const rows = 10;
   const cols = 10;
   const cells = [];
+  const provinces = buildPlanetProvinceNames(profile);
   let id = 1;
   for (let r = 0; r < rows; r += 1) {
     for (let c = 0; c < cols; c += 1) {
       const rollType = roll(10);
-      const marker = rollType <= 2 ? 'hazard' : rollType <= 4 ? 'site' : rollType === 5 ? 'task' : 'none';
+      const marker = rollType <= 2 ? 'hazard'
+        : rollType <= 4 ? 'site'
+        : rollType === 5 ? 'task'
+        : rollType === 6 ? 'empty_colony'
+        : rollType === 7 ? 'merchant_colony'
+        : rollType === 8 ? 'wayfarer'
+        : 'none';
+      const province = getProvinceForCell({ row: r, col: c }, provinces);
       cells.push({
         id,
         row: r,
         col: c,
-        terrain: pick(PLANET_SURFACE_TERRAINS),
-        feature: marker === 'none' ? '' : pick(PLANET_SURFACE_FEATURES),
+        province,
+        terrain: pick(theme.terrains.concat(PLANET_SURFACE_TERRAINS)),
+        feature: marker === 'none' ? '' : pick(theme.features.concat(PLANET_SURFACE_FEATURES)),
         marker,
         explored: false,
         note: '',
@@ -3159,15 +3328,28 @@ function createPlanetSurfaceState(hex) {
     landingCell.explored = true;
     landingCell.note = 'Landing zone established.';
   }
+  const weatherLine = `The sky today shows a/an ${profile.tone} tone amidst ${profile.weather}.`;
   return {
     hexId: hex.id,
     planetName: profile.planetName,
     profile,
+    provinces,
+    weatherLine,
+    observedSurface: {
+      observedFromSpace: profile.observedFromSpace,
+      landingPad: profile.landingPad,
+      land: hex.land || profile.form,
+      floraFauna: hex.flora || `${profile.nature} ${profile.fauna}`,
+      wonder: hex.wonder || profile.wonder,
+    },
     difficulty: getPlanetSurfaceDifficulty(profile),
     landedCellId: landingCell ? landingCell.id : 1,
     selectedCellId: landingCell ? landingCell.id : 1,
     cells,
     tasks: [],
+    wayfarers: [],
+    eventLog: [],
+    lastEvent: null,
   };
 }
 
@@ -3200,11 +3382,13 @@ function createPlanetTask() {
   const freeCells = state.cells.filter((c) => !c.taskId);
   if (!freeCells.length) return showNotif('No free cells for additional planet tasks.', 'warn');
   const cell = pick(freeCells);
+  const theme = getPlanetTheme(state.profile);
+  const focus = pick(theme.taskFocus);
   const taskId = `planet-${state.hexId}-${Date.now()}`;
   const task = {
     id: taskId,
-    title: pick(['Survey Ruin', 'Secure Beacon', 'Recover Cargo', 'Purge Hazard Nest', 'Escort Team']),
-    text: pick(['Hold the route against raiders.', 'Retrieve lost telemetry logs.', 'Calibrate the outpost scanner.', 'Extract survivors to landing zone.', 'Map a safe exocraft route.']),
+    title: `${pick(['Survey', 'Secure', 'Recover', 'Escort', 'Stabilize'])} ${state.profile.planetType} ${pick(['Route', 'Colony', 'Outpost', 'Grid', 'Beacon'])}`,
+    text: `Task Focus: ${focus}. Province: ${cell.province}. ${pick(['Hold the route against raiders.', 'Retrieve lost telemetry logs.', 'Calibrate the outpost scanner.', 'Extract survivors to landing zone.', 'Map a safe exocraft route.'])}`,
     reward: { credits: roll(6) * 20 },
     resolved: false,
     cellId: cell.id,
@@ -3254,6 +3438,18 @@ function explorePlanetCell(cellId) {
         cell.note = `Recovered ${loot} from ${cell.feature}.`;
       } else if (cell.marker === 'hazard') {
         cell.note = `Hazard cleared near ${cell.feature || cell.terrain}.`;
+      } else if (cell.marker === 'empty_colony') {
+        if (!cell.taskId && roll(10) >= 5) {
+          createPlanetTask();
+        }
+        cell.note = `Empty colony secured in ${cell.province}. It now behaves like a Dwelling-style fallback site.`;
+      } else if (cell.marker === 'merchant_colony') {
+        if (!cell.taskId && roll(10) >= 4) createPlanetTask();
+        cell.note = `Merchant colony in ${cell.province} functioning like a Holding-style trade node.`;
+      } else if (cell.marker === 'wayfarer') {
+        const wf = createPlanetWayfarer(state, cell, 'cell-explore');
+        if (wf && !cell.taskId && roll(10) >= 4) createPlanetTask();
+        cell.note = `${wf ? wf.name : 'A wayfarer'} offers a contract thread tied to ${state.profile.planetType} routes.`;
       } else {
         cell.note = `Traversed ${cell.terrain} successfully.`;
       }
@@ -3281,10 +3477,37 @@ function renderPlanetExplorationPanel() {
   const selected = state.cells.find((c) => c.id === state.selectedCellId) || state.cells[0];
   const requirements = buildPlanetRequirements(state.profile);
   const taskList = state.tasks.filter((t) => !t.resolved);
+  const provinceSummary = (state.provinces || []).map((province) => {
+    const provinceCells = state.cells.filter((cell) => cell.province === province);
+    const explored = provinceCells.filter((cell) => cell.explored).length;
+    const merchantColonies = provinceCells.filter((cell) => cell.marker === 'merchant_colony').length;
+    const emptyColonies = provinceCells.filter((cell) => cell.marker === 'empty_colony').length;
+    const wayfarers = provinceCells.filter((cell) => cell.marker === 'wayfarer').length;
+    return `${province}: ${explored}/${provinceCells.length} explored · Merchant ${merchantColonies} · Empty ${emptyColonies} · Wayfarers ${wayfarers}`;
+  });
+  const recentWayfarers = (state.wayfarers || []).slice(-4).reverse();
+  const lastEvent = state.lastEvent;
+
   target.innerHTML = `<div style="max-width:1100px;padding:.85rem;display:grid;gap:.75rem;">
     <div class="ship-banner">
       <h3>Planet Exploration: ${state.profile.planetName}</h3>
-      <p>100-hex dynamic planetary map. Landed at hex ${state.landedCellId}. Surface difficulty DD${state.difficulty}.</p>
+      <p>Dynamic province-style surface map. Landed at hex ${state.landedCellId}. Surface difficulty DD${state.difficulty}. Planet type: ${state.profile.planetType} (${state.profile.biome}).</p>
+    </div>
+    <div class="card">
+      <div class="section-title">Observed Surface Data</div>
+      <div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">
+        <strong>Observed From Space:</strong> ${state.observedSurface.observedFromSpace}<br>
+        <strong>Landing Pad:</strong> ${state.observedSurface.landingPad}<br>
+        ${state.weatherLine}<br>
+        <strong>Land:</strong> ${state.observedSurface.land}<br>
+        <strong>Flora / Fauna:</strong> ${state.observedSurface.floraFauna}<br>
+        <strong>Wonder:</strong> ${state.observedSurface.wonder}<br>
+        Beyond the horizon, you see <strong>${state.profile.sights}</strong>.<br>
+        As you travel, the terrain is <strong>${state.profile.terrain}</strong>.<br>
+        <strong>Terrain Effect:</strong> ${state.profile.terrainEffect}
+      </div>
+      <div style="margin-top:.4rem;font-size:.78rem;color:var(--muted2);">Planet Side Exploration (d10): 1 Find · 2 Hazard · 3 Beast · 4 Close Encounter · 5 Pirate · 6 Empty Colony · 7 Merchant Colony · 8 Skirmish · 9-10 Galactic Facility</div>
+      ${lastEvent ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.82rem;color:var(--muted2);"><strong style="color:var(--gold2);">Last Event:</strong> d10 ${lastEvent.d10} <strong>${lastEvent.outcome}</strong> — ${lastEvent.detail}${lastEvent.cellId ? ` (Hex #${lastEvent.cellId})` : ''}</div>` : ''}
     </div>
     <div class="card">
       <div class="section-title">Environmental Requirements</div>
@@ -3295,21 +3518,34 @@ function renderPlanetExplorationPanel() {
       </div>
     </div>
     <div class="card">
+      <div class="section-title">Province Overview</div>
+      <div style="font-size:.8rem;color:var(--muted2);line-height:1.55;">${provinceSummary.join('<br>')}</div>
+      <div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Merchant Colonies act like Holdings (trade/task hubs). Empty Colonies act like Dwellings (rest/refuge/task hooks).</div>
+    </div>
+    <div class="card">
       <div class="section-title">Planet Surface Grid (100 Hexes)</div>
       <div style="display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:.2rem;">
         ${state.cells.map((cell) => {
           const isLanding = cell.id === state.landedCellId;
           const isSelected = selected && cell.id === selected.id;
           const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
-          const tag = isLanding ? 'L' : task && !task.resolved ? 'T' : cell.marker === 'hazard' ? '!' : cell.marker === 'site' ? '◈' : '';
+          const tag = isLanding ? 'L'
+            : task && !task.resolved ? 'T'
+            : cell.marker === 'hazard' ? '!'
+            : cell.marker === 'site' ? '◈'
+            : cell.marker === 'merchant_colony' ? 'M'
+            : cell.marker === 'empty_colony' ? 'E'
+            : cell.marker === 'wayfarer' ? 'W'
+            : '';
           return `<button class="btn btn-xs ${isSelected ? 'btn-teal' : ''}" style="min-height:2.15rem;padding:.15rem .2rem;line-height:1.2;font-size:.63rem;" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
         }).join('')}
       </div>
-      <div style="font-size:.72rem;color:var(--muted2);margin-top:.3rem;">L = landing zone, T = task marker, ! = hazard, ◈ = site.</div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-top:.3rem;">L = landing zone, T = task marker, ! = hazard, ◈ = site, M = merchant colony, E = empty colony, W = wayfarer contact.</div>
     </div>
     <div class="card">
       <div class="section-title">Selected Hex ${selected ? selected.id : '-'}</div>
       <div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">
+        Province: <strong style="color:var(--gold2);">${selected ? selected.province : '-'}</strong><br>
         Terrain: <strong style="color:var(--text);">${selected ? selected.terrain : '-'}</strong><br>
         Feature: ${selected && selected.feature ? selected.feature : 'None'}<br>
         Status: ${selected && selected.explored ? 'Explored' : 'Unexplored'}<br>
@@ -3328,6 +3564,7 @@ function renderPlanetExplorationPanel() {
         </div>`;
       })() : ''}
       ${taskList.length ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Open Tasks: ${taskList.map((t) => `${t.title} (#${t.cellId})`).join(' · ')}</div>` : ''}
+      ${recentWayfarers.length ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Recent Wayfarers: ${recentWayfarers.map((wf) => `${wf.name} (${wf.role}) in ${wf.province}`).join(' · ')}</div>` : ''}
     </div>
   </div>`;
 }
@@ -4374,7 +4611,6 @@ function updateStarSystemReadouts() {
     } else {
       const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
       const actionButtons = [];
-      const planetProfile = (current.type === 'planet' && current.scanned) ? ensurePlanetProfile(current) : null;
       const hubState = current.type === 'hub'
         ? getHexPersistentState(current, 'hub', function() { return createSpaceHubState(current.ring); })
         : null;
@@ -4410,7 +4646,7 @@ function updateStarSystemReadouts() {
             <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Wonder</div>
             <div style="font-size:.96rem;color:var(--text);margin-top:.08rem;">${current.wonder || 'Unknown'}</div>
           </div>
-          ${planetProfile ? buildPlanetAnalysisHtml(planetProfile) : ''}
+          ${(current.type === 'planet' && current.scanned) ? `<div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.82rem;color:var(--muted2);line-height:1.55;">Detailed planet surface data is available in the Planet Exploration tab.</div>` : ''}
           <div style="padding:.4rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--muted2);line-height:1.7;">
             <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
             <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>

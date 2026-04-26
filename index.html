@@ -240,9 +240,10 @@ select option{background:#0f1020;}
   <nav>
     <button class="tab-btn active" onclick="switchTab('character',this)">Character</button>
     <button class="tab-btn" onclick="switchTab('missions',this)">Missions</button>
-    <button class="tab-btn" onclick="switchTab('map',this)">Province</button>
+    <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
+    <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
     <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
     <button class="tab-btn ctx-sea ctx-space" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
@@ -737,6 +738,7 @@ select option{background:#0f1020;}
   <!-- Date panel -->
   <div id="starsDatePanel" style="padding:.85rem;max-width:400px;"></div>
 </div>
+<div class="tab-panel" id="tab-planet"></div>
 <div class="tab-panel" id="tab-exocrafts"></div>
 
 <!-- MERCHANTS TAB -->
@@ -4508,6 +4510,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
   if(typeof renderAugmentationsPanel==='function')renderAugmentationsPanel();
   if(typeof initCharDreadDiceOpts==='function')initCharDreadDiceOpts();
+  const travelCtxBtn=document.querySelector('.ctx-btn[onclick*="setContext(\'traveling\'"]');
+  if(typeof setContext==='function')setContext('traveling',travelCtxBtn||null);
 });
 </script>
 <script src="./audio-manager.js"></script>

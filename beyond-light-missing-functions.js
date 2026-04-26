@@ -86,6 +86,12 @@ function switchTab(tabId, btn) {
     }
   }
 
+  if (tabId === "planet") {
+    if (typeof window.renderPlanetExplorationPanel === "function") {
+      window.renderPlanetExplorationPanel();
+    }
+  }
+
   if (tabId === "exocrafts") {
     if (typeof window.renderExocraftPanel === "function") {
       window.renderExocraftPanel();

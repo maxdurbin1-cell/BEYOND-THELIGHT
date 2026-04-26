@@ -456,6 +456,8 @@ function ensureStarsState() {
     activeDerelict: null,
     activeTask: null,
     royalShipLog: [],
+    activePlanetHexId: null,
+    planetExplorationByHex: {},
   };
   S.spaceNaval = S.spaceNaval || null;
   S.seaNaval = S.seaNaval || null;
@@ -496,6 +498,8 @@ function ensureStarsState() {
   if (!S.starSystem.activeSpaceEncounter) S.starSystem.activeSpaceEncounter = null;
   if (!S.starSystem.activeTask) S.starSystem.activeTask = null;
   if (!Array.isArray(S.starSystem.royalShipLog)) S.starSystem.royalShipLog = [];
+  if (typeof S.starSystem.activePlanetHexId !== 'number') S.starSystem.activePlanetHexId = null;
+  if (!S.starSystem.planetExplorationByHex || typeof S.starSystem.planetExplorationByHex !== 'object') S.starSystem.planetExplorationByHex = {};
   if (typeof S.starSystem.galaxyGenerated !== 'boolean') S.starSystem.galaxyGenerated = false;
   if (!S.starSystem.currentWeather || typeof S.starSystem.currentWeather !== 'object') S.starSystem.currentWeather = null;
   if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
@@ -3048,6 +3052,286 @@ function rollPlanetExploration() {
   showNotif(`Planet exploration: ${outcome}.`, 'good');
 }
 
+const PLANET_SURFACE_TERRAINS = [
+  'Crystal Flats', 'Ash Dunes', 'Frozen Barrens', 'Sulfur Cliffs', 'Glass Canyons',
+  'Basalt Fields', 'Storm Jungle', 'Acid Marsh', 'Iridescent Ridge', 'Orbital Debris Plain'
+];
+const PLANET_SURFACE_FEATURES = [
+  'Survey Beacon', 'Abandoned Relay', 'Collapsed Habitat', 'Pirate Cache', 'Ancient Vault',
+  'Trade Outpost', 'Storm Shelter', 'Mining Camp', 'Signal Tower', 'Buried Monolith'
+];
+
+function getActivePlanetHex() {
+  ensureStarsState();
+  const current = getCurrentStarHex();
+  if (current && current.type === 'planet') {
+    S.starSystem.activePlanetHexId = current.id;
+    return current;
+  }
+  const activeId = S.starSystem.activePlanetHexId;
+  if (activeId == null) return null;
+  return (S.starSystem.hexes || []).find((h) => h.id === activeId) || null;
+}
+
+function getPlanetSurfaceDifficulty(profile) {
+  const t = String((profile && profile.temperature) || '').toLowerCase();
+  const g = String((profile && profile.gravity) || '').toLowerCase();
+  const a = String((profile && profile.atmosphere) || '').toLowerCase();
+  let dd = 6;
+  if (t.indexOf('frigid') >= 0 || t.indexOf('scorched') >= 0) dd += 2;
+  else if (t.indexOf('hot') >= 0 || t.indexOf('cold') >= 0) dd += 1;
+  if (g.indexOf('crushing') >= 0 || g.indexOf('high') >= 0 || g.indexOf('minimal') >= 0) dd += 1;
+  if (a.indexOf('vacuum') >= 0 || a.indexOf('dense') >= 0 || a.indexOf('thick') >= 0) dd += 1;
+  return Math.max(6, Math.min(12, dd));
+}
+
+function hasPlanetProtection(kind) {
+  const armor = String((S.equipment && S.equipment.armor) || '').toLowerCase();
+  const layers = (S.equipmentLayers || {});
+  const suit = String(layers.suit || '').toLowerCase();
+  const under = String(layers.under || '').toLowerCase();
+  const over = String(layers.over || '').toLowerCase();
+  if (kind === 'vacuum') return /vaccsuit|radsuit/.test(suit) || /vaccsuit|radsuit/.test(armor) || over.indexOf('exoskeleton layer') >= 0;
+  if (kind === 'heat') return under.indexOf('coolant layer') >= 0;
+  if (kind === 'cold') return under.indexOf('thermal layer') >= 0;
+  return false;
+}
+
+function buildPlanetRequirements(profile) {
+  const req = [];
+  const atmosphere = String((profile && profile.atmosphere) || '').toLowerCase();
+  const temp = String((profile && profile.temperature) || '').toLowerCase();
+  const hasExocraft = !!(S.exocraftBay && Array.isArray(S.exocraftBay.owned) && S.exocraftBay.owned.length);
+  const activeExo = (S.exocraftBay && S.exocraftBay.active) ? S.exocraftBay.active : '';
+  if (atmosphere.indexOf('vacuum') >= 0) {
+    req.push(hasPlanetProtection('vacuum')
+      ? 'Atmosphere: Vacuum handled (Suit/Exoskeleton equipped).'
+      : 'Atmosphere: Vacuum risk. Equip VaccSuit, RadSuit, or Exoskeleton Layer.');
+  } else if (atmosphere.indexOf('thick') >= 0 || atmosphere.indexOf('dense') >= 0) {
+    req.push('Atmosphere: Dense/Thick. Suit filtration recommended for long traversals.');
+  } else {
+    req.push('Atmosphere: Traversable without sealed suit.');
+  }
+
+  if (temp.indexOf('frigid') >= 0 || temp.indexOf('cold') >= 0) {
+    req.push(hasPlanetProtection('cold')
+      ? 'Temperature: Cold/frigid mitigated by Thermal Layer.'
+      : 'Temperature: Cold/frigid. Thermal Layer recommended.');
+  } else if (temp.indexOf('hot') >= 0 || temp.indexOf('scorched') >= 0) {
+    req.push(hasPlanetProtection('heat')
+      ? 'Temperature: Hot/scorched mitigated by Coolant Layer.'
+      : 'Temperature: Hot/scorched. Coolant Layer recommended.');
+  } else {
+    req.push('Temperature: Temperate window.');
+  }
+
+  req.push(hasExocraft
+    ? `Exocraft: ${activeExo || 'Owned'} available for terrain traversal.`
+    : 'Exocraft: None owned. Planet terrain checks are harsher without one.');
+  return req;
+}
+
+function createPlanetSurfaceState(hex) {
+  const profile = ensurePlanetProfile(hex);
+  const rows = 10;
+  const cols = 10;
+  const cells = [];
+  let id = 1;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      const rollType = roll(10);
+      const marker = rollType <= 2 ? 'hazard' : rollType <= 4 ? 'site' : rollType === 5 ? 'task' : 'none';
+      cells.push({
+        id,
+        row: r,
+        col: c,
+        terrain: pick(PLANET_SURFACE_TERRAINS),
+        feature: marker === 'none' ? '' : pick(PLANET_SURFACE_FEATURES),
+        marker,
+        explored: false,
+        note: '',
+      });
+      id += 1;
+    }
+  }
+  const landingCell = cells[Math.floor(cells.length / 2)];
+  if (landingCell) {
+    landingCell.explored = true;
+    landingCell.note = 'Landing zone established.';
+  }
+  return {
+    hexId: hex.id,
+    planetName: profile.planetName,
+    profile,
+    difficulty: getPlanetSurfaceDifficulty(profile),
+    landedCellId: landingCell ? landingCell.id : 1,
+    selectedCellId: landingCell ? landingCell.id : 1,
+    cells,
+    tasks: [],
+  };
+}
+
+function ensurePlanetSurfaceState(hex) {
+  ensureStarsState();
+  if (!hex || hex.type !== 'planet') return null;
+  const key = String(hex.id);
+  if (!S.starSystem.planetExplorationByHex[key]) {
+    S.starSystem.planetExplorationByHex[key] = createPlanetSurfaceState(hex);
+  }
+  return S.starSystem.planetExplorationByHex[key];
+}
+
+function openActivePlanetMap() {
+  const h = getCurrentStarHex();
+  if (!h || h.type !== 'planet') {
+    showNotif('Select a planet hex before opening planet exploration.', 'warn');
+    return;
+  }
+  S.starSystem.activePlanetHexId = h.id;
+  ensurePlanetSurfaceState(h);
+  const b = document.querySelector('nav .tab-btn[onclick*="switchTab(\'planet\'"]');
+  if (typeof switchTab === 'function' && b) switchTab('planet', b);
+}
+
+function createPlanetTask() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const freeCells = state.cells.filter((c) => !c.taskId);
+  if (!freeCells.length) return showNotif('No free cells for additional planet tasks.', 'warn');
+  const cell = pick(freeCells);
+  const taskId = `planet-${state.hexId}-${Date.now()}`;
+  const task = {
+    id: taskId,
+    title: pick(['Survey Ruin', 'Secure Beacon', 'Recover Cargo', 'Purge Hazard Nest', 'Escort Team']),
+    text: pick(['Hold the route against raiders.', 'Retrieve lost telemetry logs.', 'Calibrate the outpost scanner.', 'Extract survivors to landing zone.', 'Map a safe exocraft route.']),
+    reward: { credits: roll(6) * 20 },
+    resolved: false,
+    cellId: cell.id,
+  };
+  state.tasks.push(task);
+  cell.taskId = taskId;
+  cell.marker = 'task';
+  showNotif(`Planet task generated at hex ${cell.id}.`, 'good');
+  renderPlanetExplorationPanel();
+}
+
+function resolvePlanetTask(taskId, success) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task || task.resolved) return;
+  task.resolved = true;
+  const cell = state.cells.find((c) => c.id === task.cellId);
+  if (cell) cell.note = success ? `Task completed: ${task.title}` : `Task failed: ${task.title}`;
+  if (success) {
+    if (typeof changeCredits === 'function') changeCredits(task.reward.credits || 0);
+    changeFactionRenown('political', 1);
+    showNotif(`Planet task resolved: ${task.title}`, 'good');
+  } else {
+    showNotif(`Planet task failed: ${task.title}`, 'warn');
+  }
+  renderPlanetExplorationPanel();
+}
+
+function explorePlanetCell(cellId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const cell = state.cells.find((c) => c.id === Number(cellId));
+  if (!cell) return;
+  state.selectedCellId = cell.id;
+  const hasExocraft = !!(S.exocraftBay && Array.isArray(S.exocraftBay.owned) && S.exocraftBay.owned.length);
+  const dd = Math.max(6, Math.min(12, state.difficulty + (hasExocraft ? 0 : 1)));
+  const check = resolveGalaxySkillCheck('adventure', 'lead', dd, `Planet Hex ${cell.id}`);
+  if (check.success) {
+    cell.explored = true;
+    if (!cell.note) {
+      if (cell.marker === 'site') {
+        const loot = rollGalaxyMerchantLoot();
+        takeGalaxyLoot(loot, 'pack');
+        cell.note = `Recovered ${loot} from ${cell.feature}.`;
+      } else if (cell.marker === 'hazard') {
+        cell.note = `Hazard cleared near ${cell.feature || cell.terrain}.`;
+      } else {
+        cell.note = `Traversed ${cell.terrain} successfully.`;
+      }
+    }
+    showNotif(`${check.text} Success.`, 'good');
+  } else {
+    cell.note = `${check.text}. Failure — route remains dangerous.`;
+    if (typeof changeStress === 'function') changeStress(1);
+    showNotif(`${check.text} Failure.`, 'warn');
+  }
+  renderPlanetExplorationPanel();
+}
+
+function renderPlanetExplorationPanel() {
+  ensureStarsState();
+  const target = document.getElementById('tab-planet');
+  if (!target) return;
+  const planetHex = getActivePlanetHex();
+  if (!planetHex || planetHex.type !== 'planet') {
+    target.innerHTML = `<div style="padding:.85rem;"><div class="ship-banner"><h3>Planet Exploration</h3><p>Select a Planet hex in Galaxy to begin exploration mapping.</p></div></div>`;
+    return;
+  }
+  const state = ensurePlanetSurfaceState(planetHex);
+  if (!state) return;
+  const selected = state.cells.find((c) => c.id === state.selectedCellId) || state.cells[0];
+  const requirements = buildPlanetRequirements(state.profile);
+  const taskList = state.tasks.filter((t) => !t.resolved);
+  target.innerHTML = `<div style="max-width:1100px;padding:.85rem;display:grid;gap:.75rem;">
+    <div class="ship-banner">
+      <h3>Planet Exploration: ${state.profile.planetName}</h3>
+      <p>100-hex dynamic planetary map. Landed at hex ${state.landedCellId}. Surface difficulty DD${state.difficulty}.</p>
+    </div>
+    <div class="card">
+      <div class="section-title">Environmental Requirements</div>
+      <div style="font-size:.82rem;color:var(--muted2);line-height:1.55;">${requirements.map((r) => `• ${r}`).join('<br>')}</div>
+      <div style="margin-top:.45rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-teal" onclick="createPlanetTask()">Generate Planet Task</button>
+        <button class="btn btn-xs" onclick="rollPlanetExploration()">Quick Surface Event</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Planet Surface Grid (100 Hexes)</div>
+      <div style="display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:.2rem;">
+        ${state.cells.map((cell) => {
+          const isLanding = cell.id === state.landedCellId;
+          const isSelected = selected && cell.id === selected.id;
+          const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
+          const tag = isLanding ? 'L' : task && !task.resolved ? 'T' : cell.marker === 'hazard' ? '!' : cell.marker === 'site' ? '◈' : '';
+          return `<button class="btn btn-xs ${isSelected ? 'btn-teal' : ''}" style="min-height:2.15rem;padding:.15rem .2rem;line-height:1.2;font-size:.63rem;" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
+        }).join('')}
+      </div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-top:.3rem;">L = landing zone, T = task marker, ! = hazard, ◈ = site.</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Selected Hex ${selected ? selected.id : '-'}</div>
+      <div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">
+        Terrain: <strong style="color:var(--text);">${selected ? selected.terrain : '-'}</strong><br>
+        Feature: ${selected && selected.feature ? selected.feature : 'None'}<br>
+        Status: ${selected && selected.explored ? 'Explored' : 'Unexplored'}<br>
+        Note: ${selected && selected.note ? selected.note : 'No report yet.'}
+      </div>
+      ${selected && selected.taskId ? (() => {
+        const t = state.tasks.find((task) => task.id === selected.taskId);
+        if (!t || t.resolved) return '';
+        return `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);">
+          <strong style="color:var(--gold2);">Task: ${t.title}</strong><br>
+          <span style="font-size:.78rem;color:var(--muted2);">${t.text}</span>
+          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
+            <button class="btn btn-xs btn-teal" onclick="resolvePlanetTask('${t.id}',true)">Mark Success</button>
+            <button class="btn btn-xs" onclick="resolvePlanetTask('${t.id}',false)">Mark Failed</button>
+          </div>
+        </div>`;
+      })() : ''}
+      ${taskList.length ? `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Open Tasks: ${taskList.map((t) => `${t.title} (#${t.cellId})`).join(' · ')}</div>` : ''}
+    </div>
+  </div>`;
+}
+
 function renderDerelictPanel() {
   const ds = S.starSystem.activeDerelict;
   const out = document.getElementById('starExplorationDetail');
@@ -3919,6 +4203,10 @@ function selectStarSystemHex(hexId) {
   }
   S.starSystem.currentHexId = hexId;
   const h = getCurrentStarHex();
+  if (h && h.type === 'planet') {
+    S.starSystem.activePlanetHexId = h.id;
+    ensurePlanetSurfaceState(h);
+  }
   if (h && h.ring && h.ring !== 'core') S.starSystem.selectedRing = h.ring;
   const ringSel = document.getElementById('starRingSelect');
   if (ringSel && h && h.ring && h.ring !== 'core') ringSel.value = h.ring;
@@ -4091,7 +4379,10 @@ function updateStarSystemReadouts() {
         ? getHexPersistentState(current, 'hub', function() { return createSpaceHubState(current.ring); })
         : null;
       if (current.type === 'hub') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeHub=getHexPersistentState(h,\'hub\',function(){return createSpaceHubState(h.ring);});renderSpaceHubPanel();">Open Space Hub</button>');
-      if (current.type === 'planet' && current.scanned) actionButtons.push('<button class="btn btn-xs btn-teal" onclick="rollPlanetExploration()">Planet Exploration</button>');
+      if (current.type === 'planet' && current.scanned) {
+        actionButtons.push('<button class="btn btn-xs btn-teal" onclick="rollPlanetExploration()">Planet Exploration</button>');
+        actionButtons.push('<button class="btn btn-xs" onclick="openActivePlanetMap()">Open Planet Map</button>');
+      }
       if (current.type === 'derelict_ship') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDerelict=getHexPersistentState(h,\'derelict\',createDerelictShipState);renderDerelictPanel();">Explore Derelict</button>');
       if (current.type === 'dead_moon') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeDeadMoonMap=getHexPersistentState(h,\'deadMoonMap\',createDeadMoonMapState);renderDeadMoonMapPanel();">Land On Dead Moon</button>');
       if (current.type === 'mystery') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeMystery=getHexPersistentState(h,\'mystery\',function(){return createMysteryState(h.ring);});renderMysteryPanel();">Hail Mystery Contact</button>');
@@ -6060,6 +6351,7 @@ document.addEventListener('DOMContentLoaded', function() {
   buildGalaxyPanel();
   buildStarsCombatPanel();
   buildDateTimePanel();
+  renderPlanetExplorationPanel();
   renderExocraftPanel();
 
   // Initial UI sync
@@ -6121,11 +6413,25 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   const tabHost = document.getElementById('tab-naval') ? document.getElementById('tab-naval').parentElement : null;
+  if (tabHost && !document.getElementById('tab-planet')) {
+    const panel = document.createElement('div');
+    panel.className = 'tab-panel';
+    panel.id = 'tab-planet';
+    tabHost.appendChild(panel);
+  }
   if (tabHost && !document.getElementById('tab-exocrafts')) {
     const panel = document.createElement('div');
     panel.className = 'tab-panel';
     panel.id = 'tab-exocrafts';
     tabHost.appendChild(panel);
+  }
+  if (nav && !document.querySelector('.tab-btn[onclick*="switchTab(\'planet\'"]')) {
+    const planetBtn = document.createElement('button');
+    planetBtn.className = 'tab-btn ctx-space';
+    planetBtn.style.display = 'none';
+    planetBtn.textContent = 'Planet Exploration';
+    planetBtn.setAttribute('onclick', "switchTab('planet',this)");
+    nav.appendChild(planetBtn);
   }
   if (nav && !document.querySelector('.tab-btn[onclick*="switchTab(\'exocrafts\'"]')) {
     const exoBtn = document.createElement('button');
@@ -6151,6 +6457,11 @@ window.clearActiveGalaxyPanels = clearActiveGalaxyPanels;
 window.rollOracleYesNo = rollOracleYesNo;
 window.rollOracleOpenEnded = rollOracleOpenEnded;
 window.rollPlanetExploration = rollPlanetExploration;
+window.renderPlanetExplorationPanel = renderPlanetExplorationPanel;
+window.openActivePlanetMap = openActivePlanetMap;
+window.explorePlanetCell = explorePlanetCell;
+window.createPlanetTask = createPlanetTask;
+window.resolvePlanetTask = resolvePlanetTask;
 window.renderExocraftPanel = renderExocraftPanel;
 window.addOwnedExocraftByName = addOwnedExocraftByName;
 window.moveBackpackToExocraftCargo = moveBackpackToExocraftCargo;

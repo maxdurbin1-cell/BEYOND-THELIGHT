@@ -3142,9 +3142,9 @@ const PLANET_ENCOUNTER_ARCHETYPES = {
 
 const PLANET_HOLDING_STRUCTURES = ['Fortress', 'Citadel', 'Sky Bastion', 'Dock Keep', 'Transit Stronghold'];
 const PLANET_HOLDING_REST_BOONS = [
-  'Resting here grants Protected (Defend up one Step).',
-  'Resting here grants Bolstered (Body up one Step).',
-  'Resting here grants Focused (Mind up one Step).',
+  'Resting here grants Protected (Defend ↑ one Step).',
+  'Resting here grants Bolstered (Body ↑ one Step).',
+  'Resting here grants Focused (Mind ↑ one Step).',
   'Resting here removes 1 Stress if the lane remains secure.',
 ];
 const PLANET_HOLDING_MOODS = ['Distrust', 'Alert', 'Reverent', 'Pragmatic', 'Wary', 'Resolute'];
@@ -3189,8 +3189,13 @@ const PLANET_HOLDING_KNOWLEDGE = [
 ];
 
 function createPlanetHoldingDetail(profile, province, marker, localWeather, terrainName) {
-  const weatherLabel = (localWeather && localWeather.label) ? localWeather.label : 'Unstable Conditions';
-  const weatherDesc = (localWeather && localWeather.desc) ? localWeather.desc : 'Wind and static interfere with scouting reports.';
+  const clearWeather = !localWeather || !localWeather.rough;
+  const weatherLabel = clearWeather
+    ? 'Clear and Sunny'
+    : ((localWeather && localWeather.label) ? localWeather.label : 'Unstable Conditions');
+  const weatherDesc = clearWeather
+    ? 'A bright morning. Good light for navigation.'
+    : ((localWeather && localWeather.desc) ? localWeather.desc : 'Wind and static interfere with scouting reports.');
   return {
     title: marker === 'merchant_colony' ? 'HOLDING' : 'HOLDING',
     structure: pick(PLANET_HOLDING_STRUCTURES),
@@ -4085,7 +4090,8 @@ function buildPlanetHoldingInfoHtml(state, selected) {
       📰 <strong>News & Hooks</strong><br>
       ${h.news}<br>
       🎯 <strong>Lord's Knowledge</strong><br>
-      ${h.knowledge}
+      ${h.knowledge}<br>
+      <button class="btn btn-xs btn-primary" onclick="createPlanetTask()">⚄ Generate Task</button>
     </div>
   </div>`;
 }

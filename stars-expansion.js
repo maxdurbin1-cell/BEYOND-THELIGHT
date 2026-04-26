@@ -3222,12 +3222,40 @@ function cyclePlanetTraversalMode() {
 function applyPlanetHazardFailure(state, checkText) {
   if (!state) return;
   if (isPlanetHazardBypassed(state)) return;
+  const severity = getPlanetSeverityProfile(state);
   const hazards = getPlanetHazardProfile(state.profile);
-  if (hazards.indexOf('radiation') >= 0 && typeof changeRads === 'function') changeRads(50);
-  if (hazards.indexOf('temperature') >= 0 && typeof changeHealth === 'function') changeHealth(1);
-  if (hazards.indexOf('atmosphere') >= 0 && typeof changeMentalStress === 'function') changeMentalStress(1);
-  if (hazards.indexOf('biome') >= 0 && typeof changeStress === 'function') changeStress(1);
-  showNotif(`${checkText} Environmental penalties applied.`, 'warn');
+  if (hazards.indexOf('radiation') >= 0 && typeof changeRads === 'function') changeRads(50 * severity.mult);
+  if (hazards.indexOf('temperature') >= 0 && typeof changeHealth === 'function') changeHealth(Math.max(1, severity.mult - 1));
+  if (hazards.indexOf('atmosphere') >= 0 && typeof changeMentalStress === 'function') changeMentalStress(Math.max(1, severity.mult - 1));
+  if (hazards.indexOf('biome') >= 0 && typeof changeStress === 'function') changeStress(Math.max(1, severity.mult - 1));
+  if (severity.mult >= 3 && S.conditions && ('distracted' in S.conditions) && Math.random() < 0.35) {
+    S.conditions.distracted = true;
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  }
+  showNotif(`${checkText} Environmental penalties applied (${severity.label}).`, 'warn');
+}
+
+function getPlanetSeverityProfile(state) {
+  const profile = (state && state.profile) || {};
+  const biome = String(profile.biome || '').toLowerCase();
+  const temperature = String(profile.temperature || '').toLowerCase();
+  const atmosphere = String(profile.atmosphere || '').toLowerCase();
+
+  let score = 1;
+  if (biome.indexOf('irradiated') >= 0 || biome.indexOf('toxic') >= 0 || biome.indexOf('volcanic') >= 0 || biome.indexOf('exotic') >= 0) score += 1;
+  if (temperature.indexOf('frigid') >= 0 || temperature.indexOf('scorched') >= 0) score += 1;
+  if (atmosphere.indexOf('vacuum') >= 0 || atmosphere.indexOf('dense') >= 0 || atmosphere.indexOf('thick') >= 0) score += 1;
+
+  // Fair progression: as more of a planet is explored, penalty scaling eases slightly.
+  const cells = Array.isArray(state && state.cells) ? state.cells : [];
+  const explored = cells.filter((cell) => cell.explored).length;
+  const exploredRatio = cells.length ? (explored / cells.length) : 0;
+  if (exploredRatio >= 0.45) score -= 1;
+
+  const mult = Math.max(1, Math.min(3, score));
+  const label = mult === 1 ? 'Temperate Tier' : mult === 2 ? 'Harsh Tier' : 'Deadly Tier';
+  return { mult, label };
 }
 
 function applyPlanetTraversalEffects(state, cell) {
@@ -3277,18 +3305,29 @@ function applyPlanetTraversalEffects(state, cell) {
 
 function applyPlanetWayfarerRequirementPenalty(state, contextLabel) {
   if (!state || isPlanetHazardBypassed(state)) return '';
-  const mode = pick(['radiation', 'stress', 'trauma', 'condition', 'health']);
+  const severity = getPlanetSeverityProfile(state);
+  const modePool = severity.mult >= 3
+    ? ['radiation', 'stress', 'trauma', 'condition', 'health', 'radiation', 'stress']
+    : severity.mult === 2
+      ? ['radiation', 'stress', 'trauma', 'condition', 'health', 'stress']
+      : ['radiation', 'stress', 'condition', 'health'];
+  const mode = pick(modePool);
   if (mode === 'radiation') {
-    if (typeof changeRads === 'function') changeRads(100);
-    return `${contextLabel}: requirements unmet, +100 Radiation.`;
+    const rads = 50 * (severity.mult + 1);
+    if (typeof changeRads === 'function') changeRads(rads);
+    return `${contextLabel}: requirements unmet, +${rads} Radiation (${severity.label}).`;
   }
   if (mode === 'stress') {
-    if (typeof changeStress === 'function') changeStress(2);
-    return `${contextLabel}: requirements unmet, +2 Stress.`;
+    const stress = Math.max(1, severity.mult);
+    if (typeof changeStress === 'function') changeStress(stress);
+    return `${contextLabel}: requirements unmet, +${stress} Stress (${severity.label}).`;
   }
   if (mode === 'trauma') {
-    if (typeof changeTrauma === 'function') changeTrauma(1);
-    return `${contextLabel}: requirements unmet, +1 Trauma.`;
+    const trauma = severity.mult >= 3 ? 1 : 0;
+    if (trauma && typeof changeTrauma === 'function') changeTrauma(trauma);
+    if (trauma) return `${contextLabel}: requirements unmet, +${trauma} Trauma (${severity.label}).`;
+    if (typeof changeStress === 'function') changeStress(1);
+    return `${contextLabel}: requirements unmet, +1 Stress (${severity.label}).`;
   }
   if (mode === 'condition') {
     if (S.conditions && ('distracted' in S.conditions)) {
@@ -3296,10 +3335,11 @@ function applyPlanetWayfarerRequirementPenalty(state, contextLabel) {
       if (typeof updateConditionButtons === 'function') updateConditionButtons();
       if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
     }
-    return `${contextLabel}: requirements unmet, Distracted condition applied.`;
+    return `${contextLabel}: requirements unmet, Distracted condition applied (${severity.label}).`;
   }
-  if (typeof changeHealth === 'function') changeHealth(1);
-  return `${contextLabel}: requirements unmet, 1 Health damage.`;
+  const health = Math.max(1, severity.mult - 1);
+  if (typeof changeHealth === 'function') changeHealth(health);
+  return `${contextLabel}: requirements unmet, ${health} Health damage (${severity.label}).`;
 }
 
 function getPlanetCell(state, col, row) {

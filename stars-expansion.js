@@ -3446,6 +3446,191 @@ function applyPlanetWayfarerRequirementPenalty(state, contextLabel) {
   return `${contextLabel}: requirements unmet, ${health} Health damage (${severity.label}).`;
 }
 
+function registerPlanetSurfaceTravel(state) {
+  if (!state) return;
+  if (state.traversalMode === 'exocraft') {
+    state.exocraftClickCounter = (state.exocraftClickCounter || 0) + 1;
+    if (state.exocraftClickCounter >= 2) {
+      state.exocraftClickCounter = 0;
+      if (typeof loseGamePhases === 'function') loseGamePhases(1);
+      else if (typeof advanceDay === 'function') advanceDay(1);
+    }
+    return;
+  }
+  if (typeof advanceDay === 'function') advanceDay(1);
+}
+
+function getPlanetTerrainCheckConfig(cell) {
+  const terrainName = String((cell && cell.terrainClass) || '').toLowerCase();
+  if (terrainName === 'hazardous') return { label: 'Steep cliffs', dread: 20 };
+  if (terrainName === 'convoluted') return { label: 'Convoluted pathways', dread: 8 };
+  if (terrainName === 'biome-exotic') return { label: 'Hazardous river crossing', dread: 10 };
+  if (terrainName === 'biome-irradiated') return { label: 'Radiation storm crossing', dread: 10 };
+  if (terrainName === 'biome-volcanic') return { label: 'Lava lake detour', dread: 10 };
+  if (terrainName === 'inhabited') return { label: 'Inhabited route pressure', dread: 6 };
+  return { label: 'Terrain traversal', dread: 6 };
+}
+
+function rollPlanetTerrainEffectCheck() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected) return;
+  const cfg = getPlanetTerrainCheckConfig(selected);
+  const actionDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const action = explodingRoll(actionDie);
+  const dread = explodingRoll(cfg.dread);
+  const success = action.total >= dread.total;
+  let summary = `Wayfarer Action Die d${actionDie}=${action.total} vs Dread d${cfg.dread}=${dread.total}`;
+  if (!success) {
+    if (typeof loseGamePhases === 'function') loseGamePhases(3);
+    summary += ' — failed, +3 Phase of the Day.';
+  } else {
+    summary += ' — pass.';
+  }
+  state.lastEvent = {
+    timestamp: Date.now(),
+    d10: cfg.dread,
+    outcome: `${cfg.label} Terrain Check`,
+    detail: summary,
+    rewardItem: '',
+    cellId: selected.id,
+    eventType: 'exploration',
+  };
+  showNotif(success ? `${cfg.label}: pass.` : `${cfg.label}: fail (+3 Phase).`, success ? 'good' : 'warn');
+  renderPlanetExplorationPanel();
+}
+
+function rollPlanetTradeRouteEncounter() {
+  const r = roll(10);
+  let title = '';
+  let text = '';
+  if (r <= 2) {
+    title = 'Safe Route';
+    text = pick(['Convoy lanes are stable and guarded.', 'No threats: routine trade traffic only.']);
+  } else if (r <= 4) {
+    title = 'Profitable Route';
+    text = pick(['Broker convoy shares a premium cargo tip.', 'Merchants offer favorable exchange rates this phase.']);
+  } else if (r <= 6) {
+    title = 'Aggressive/Illegal Route';
+    text = pick(['Smugglers shadow your movement.', 'Black market runners demand coded credentials.']);
+  } else if (r <= 8) {
+    title = 'Trade Obstacle';
+    text = pick(['Pay 100 credits toll or lose 1 Phase rerouting.', 'Route blockade slows all movement.']);
+  } else {
+    title = 'Traveling Wayfarer';
+    text = 'A wayfarer broker appears with route rumors and contract hooks.';
+  }
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  state.lastEvent = {
+    timestamp: Date.now(),
+    d10: r,
+    outcome: `Trade Route d10=${r} — ${title}`,
+    detail: text,
+    rewardItem: '',
+    cellId: selected ? selected.id : null,
+    eventType: 'encounter',
+  };
+  showNotif(`Trade Route: ${title}.`, 'good');
+  renderPlanetExplorationPanel();
+}
+
+function showPlanetTradeGoods() {
+  const goods = [rollGalaxyMerchantLoot(), rollGalaxyMerchantLoot(), rollGalaxyMerchantLoot()].filter(Boolean);
+  if (typeof openModal !== 'function') return;
+  openModal('Trade Goods', `<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">${goods.map((g) => `• ${g}`).join('<br>')}</div>`);
+}
+
+function attemptPlanetBlackMarketAccess() {
+  const controlDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
+  const a = explodingRoll(controlDie);
+  const d = explodingRoll(12);
+  const success = a.total >= d.total;
+  if (!success) {
+    showNotif('Black Market access failed. You were thrown out.', 'warn');
+    return;
+  }
+  const offers = [rollGalaxyMerchantLootFromCategories(['augmentations', 'toolkits']), rollGalaxyMerchantLootFromCategories(['services', 'scrolls'])].filter(Boolean);
+  if (typeof openModal === 'function') {
+    openModal('Black Market Access', `<div style="font-size:.82rem;color:var(--text2);line-height:1.6;"><strong style="color:var(--red2);">Black Market Dealer</strong><br>Control d${controlDie}=${a.total} vs DD12=${d.total}<br><br>${offers.map((o) => `• ${o}`).join('<br>')}</div>`);
+  }
+  showNotif('You gain access to the Black Market.', 'good');
+}
+
+function rollPlanetLostCityTravel() {
+  const r = roll(6);
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  let text = '';
+  if (r <= 2) text = 'Irradiated patrol encountered. DD4 | 8 Stress if you engage.';
+  else if (r <= 4) text = 'Collapsed sector crossing. Control vs DD6 or lose 1 Phase.';
+  else text = 'Safe district corridor found.';
+  state.lastEvent = {
+    timestamp: Date.now(),
+    d10: r,
+    outcome: `Lost City Travel d6=${r}`,
+    detail: text,
+    rewardItem: '',
+    cellId: selected ? selected.id : null,
+    eventType: 'encounter',
+  };
+  showNotif(`Lost City Travel: d6=${r}.`, 'good');
+  renderPlanetExplorationPanel();
+}
+
+function generatePlanetRuinRooms(cellId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const cell = state.cells.find((entry) => entry.id === Number(cellId));
+  if (!cell) return;
+  cell.data = cell.data || {};
+  const total = ((cell.data.ruin && cell.data.ruin.rooms) || (roll(4) + 2));
+  if (!Array.isArray(cell.data.ruinRooms) || !cell.data.ruinRooms.length) {
+    cell.data.ruinRooms = Array.from({ length: total }).map((_, i) => ({
+      id: i + 1,
+      cleared: false,
+      dread: 6 + Math.min(4, Math.floor((i + 1) / 2)),
+      loot: rollGalaxyMerchantLoot(),
+    }));
+  }
+  const roomsHtml = cell.data.ruinRooms.map((room) => {
+    return `<div style="padding:.28rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;">Room ${room.id} · DD${room.dread}${room.cleared ? ' · Cleared ✓' : ''}<br>${room.cleared ? `Loot: ${room.loot}` : `<button class='btn btn-xs btn-teal' onclick='resolvePlanetRuinRoom(${cell.id},${room.id})'>Roll Room</button>`}</div>`;
+  }).join('');
+  if (typeof openModal === 'function') {
+    openModal('Ruin Rooms', `<div style="font-size:.82rem;color:var(--text2);line-height:1.5;">${roomsHtml}</div>`);
+  }
+}
+
+function resolvePlanetRuinRoom(cellId, roomId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const cell = state.cells.find((entry) => entry.id === Number(cellId));
+  if (!cell || !cell.data || !Array.isArray(cell.data.ruinRooms)) return;
+  const room = cell.data.ruinRooms.find((entry) => entry.id === Number(roomId));
+  if (!room || room.cleared) return;
+  const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const a = explodingRoll(adDie);
+  const d = explodingRoll(room.dread || 6);
+  const success = a.total >= d.total;
+  if (success) {
+    room.cleared = true;
+    takeGalaxyLoot(room.loot, 'pack');
+    showNotif(`Room ${room.id} cleared. Loot secured: ${room.loot}`, 'good');
+  } else {
+    if (typeof changeStress === 'function') changeStress(Math.max(1, d.total - a.total));
+    showNotif(`Room ${room.id} failed.`, 'warn');
+  }
+  generatePlanetRuinRooms(cellId);
+}
+
 function getPlanetCell(state, col, row) {
   if (!state || !Array.isArray(state.cells)) return null;
   return state.cells.find((cell) => cell.col === col && cell.row === row) || null;
@@ -3515,9 +3700,33 @@ function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, has
   } else if (cell.marker === 'ruins') {
     base.fill = '#3f3f3f';
     base.stroke = '#888';
+  } else if (cell.marker === 'seat') {
+    base.fill = '#8b3030';
+    base.stroke = '#e8c050';
+  } else if (cell.marker === 'dwelling') {
+    base.fill = '#3a6820';
+    base.stroke = '#6ed090';
+  } else if (cell.marker === 'temple') {
+    base.fill = '#502878';
+    base.stroke = '#b060d0';
   } else if (cell.marker === 'monument') {
     base.fill = '#625179';
     base.stroke = '#b6a3da';
+  } else if (cell.marker === 'peril') {
+    base.fill = '#783820';
+    base.stroke = '#e05050';
+  } else if (cell.marker === 'event') {
+    base.fill = '#6a5800';
+    base.stroke = '#c9a227';
+  } else if (cell.marker === 'gate') {
+    base.fill = '#1a5048';
+    base.stroke = '#2ec4b6';
+  } else if (cell.marker === 'lostcity') {
+    base.fill = '#5a1040';
+    base.stroke = '#e080c0';
+  } else if (cell.marker === 'barrier') {
+    base.fill = '#282828';
+    base.stroke = '#555555';
   } else if (cell.marker === 'beast') {
     base.fill = '#203b4a';
     base.stroke = '#5fa7c9';
@@ -3542,7 +3751,7 @@ function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, has
 
 function renderPlanetSurfaceSvg(state, selected) {
   if (!state || !Array.isArray(state.cells) || !state.cells.length) return '';
-  const size = 18;
+  const size = 28;
   const rows = PLANET_SURFACE_ROWS;
   const cols = PLANET_SURFACE_COLS;
   const width = cols * size * 1.55 + size * 2.4;
@@ -3584,9 +3793,17 @@ function renderPlanetSurfaceSvg(state, selected) {
     const tag = isLanding ? 'L'
       : isWayfarerContract ? '✦'
       : hasTask ? 'T'
+      : cell.marker === 'seat' ? '★'
       : cell.marker === 'holding' ? 'H'
+      : cell.marker === 'dwelling' ? '◉'
+      : cell.marker === 'temple' ? '✦'
       : cell.marker === 'ruins' ? 'R'
       : cell.marker === 'monument' ? '✧'
+      : cell.marker === 'peril' ? '⚠'
+      : cell.marker === 'event' ? '✧'
+      : cell.marker === 'gate' ? '◆'
+      : cell.marker === 'lostcity' ? '⬡'
+      : cell.marker === 'barrier' ? '▤'
       : cell.marker === 'beast' ? 'B'
       : cell.marker === 'pirate' ? 'P'
       : cell.marker === 'hazard' ? '!'
@@ -3606,8 +3823,8 @@ function renderPlanetSurfaceSvg(state, selected) {
 
     return `<g class="planet-hex" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;">
       <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
-      <text x="${x}" y="${y - 2}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="7.2" fill="${visual.text}">#${cell.id}</text>
-      <text x="${x}" y="${y + 8}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9.2" fill="${visual.tag}">${tag || '·'}</text>
+      <text x="${x}" y="${y - 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9.1" fill="${visual.text}">#${cell.id}</text>
+      <text x="${x}" y="${y + 11}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="${visual.tag}">${tag || '·'}</text>
     </g>`;
   }).join('');
 
@@ -3619,9 +3836,17 @@ function getPlanetHexTypeLabel(cell) {
   if (cell.marker === 'merchant_colony') return 'Merchant Colony';
   if (cell.marker === 'empty_colony') return 'Empty Colony';
   if (cell.marker === 'wayfarer' || cell.marker === 'wayfarer_task') return 'Wayfarer Route';
+  if (cell.marker === 'seat') return 'Seat';
   if (cell.marker === 'holding') return 'Space Holding';
+  if (cell.marker === 'dwelling') return 'Dwelling';
+  if (cell.marker === 'temple') return 'Temple';
   if (cell.marker === 'ruins') return 'Ruins';
   if (cell.marker === 'monument') return 'Weird Landmark';
+  if (cell.marker === 'peril') return 'Peril';
+  if (cell.marker === 'event') return 'Event ✦';
+  if (cell.marker === 'gate') return 'Gate';
+  if (cell.marker === 'lostcity') return 'Lost City';
+  if (cell.marker === 'barrier') return 'Barrier';
   if (cell.marker === 'beast') return 'Beast Territory';
   if (cell.marker === 'pirate') return 'Pirate Territory';
   if (cell.marker === 'hazard') return 'Hazard Zone';
@@ -3649,14 +3874,41 @@ function buildPlanetNarrativeLines(state, selected) {
     detailCardTitle = 'Merchant Colony';
     detailCardText = 'Trade quarter, broker stalls, and convoy logistics. This colony can anchor mission movement markers.';
   } else if (selected && selected.marker === 'empty_colony') {
-    detailCardTitle = 'Dwelling Colony';
-    detailCardText = 'A salvageable shelter district. Good fallback zone for rest and contract regrouping.';
+    detailCardTitle = 'Lost City Colony';
+    detailCardText = 'Collapsed city district with unstable sectors and hidden passageways. Treat this as Lost City style exploration.';
+  } else if (selected && selected.marker === 'seat') {
+    detailCardTitle = 'Seat';
+    detailCardText = 'Planetary command center equivalent with strategic knowledge and route authority.';
   } else if (selected && selected.marker === 'holding') {
     detailCardTitle = 'Holding Complex';
     detailCardText = 'A fortified lane control point with clear command routes and protection infrastructure.';
+  } else if (selected && selected.marker === 'dwelling') {
+    detailCardTitle = 'Dwelling';
+    detailCardText = 'A refuge waypoint where crews rest and gather rumors from passing wayfarers.';
+  } else if (selected && selected.marker === 'temple') {
+    detailCardTitle = 'Temple';
+    detailCardText = 'A sanctuary node for focused rites, trauma recovery, and mystery hints.';
   } else if (selected && selected.marker === 'monument') {
     detailCardTitle = 'Temple/Wonder Site';
     detailCardText = 'A ritual-alignment landmark with focused readings and unusual atmospheric behavior.';
+  } else if (selected && selected.marker === 'peril') {
+    detailCardTitle = 'Peril';
+    detailCardText = 'A high-risk corridor requiring traversal checks before safe passage.';
+  } else if (selected && selected.marker === 'event') {
+    detailCardTitle = 'Event ✦';
+    detailCardText = 'A dynamic event chain with clues, lead hexes, and escalating outcomes.';
+  } else if (selected && selected.marker === 'gate') {
+    detailCardTitle = 'Gate';
+    detailCardText = 'A transit gate with uncertain destination behavior and traversal side-effects.';
+  } else if (selected && selected.marker === 'lostcity') {
+    detailCardTitle = 'Lost City';
+    detailCardText = 'A derelict urban maze with patrols, salvage pockets, and unstable routes.';
+  } else if (selected && selected.marker === 'barrier') {
+    detailCardTitle = 'Barrier';
+    detailCardText = 'A movement obstacle that blocks direct progression until a check succeeds.';
+  } else if (selected && selected.tradeRoute) {
+    detailCardTitle = 'Trade Route';
+    detailCardText = 'A merchant lane with route encounters, goods flow, and black market contact opportunities.';
   } else if (selected && selected.marker === 'site') {
     detailCardTitle = 'Survey Site';
     detailCardText = 'Straightforward exploration node: investigate, loot, or establish mission staging.';
@@ -3761,7 +4013,6 @@ function rollPlanetHexEncounter() {
     }
   }
 
-  selected.note = `[Encounter] d6=${d6} — ${title}. ${text}`;
   state.lastEvent = {
     timestamp: Date.now(),
     d10: d6,
@@ -4174,17 +4425,27 @@ function createPlanetSurfaceState(hex) {
   let id = 1;
   for (let r = 0; r < rows; r += 1) {
     for (let c = 0; c < cols; c += 1) {
-      const rollType = roll(10);
-      const marker = rollType <= 2 ? 'hazard'
-        : rollType <= 4 ? 'site'
-        : rollType === 5 ? 'task'
-        : rollType === 6 ? 'empty_colony'
-        : rollType === 7 ? 'merchant_colony'
-        : rollType === 8 ? 'wayfarer'
-        : rollType === 9 ? pick(['ruins', 'holding', 'monument'])
-        : pick(['beast', 'pirate', 'none']);
+      const marker = pick([
+        'hazard', 'site', 'task', 'empty_colony', 'merchant_colony', 'wayfarer',
+        'ruins', 'holding', 'monument', 'seat', 'dwelling', 'temple',
+        'peril', 'event', 'gate', 'lostcity', 'barrier', 'beast', 'pirate', 'none'
+      ]);
       const province = getProvinceForCell({ row: r, col: c }, provinces);
       const localNarrative = createPlanetCellNarrative({ profile }, theme, province);
+      const detailData = {
+        ruin: marker === 'ruins' ? {
+          builder: pick(['Miners', 'Pilgrims', 'Wardens', 'Corpo Engineers', 'Colonists']),
+          builtFor: pick(['Prison for a cosmic beast', 'Signal observatory', 'Refuge bunker', 'Archive vault', 'War staging hub']),
+          construction: pick(['Cracked Concrete and Iron', 'Basalt and alloy ribs', 'Ceramic shell and steel lattice']),
+          entrance: pick(['Concealed at the base of an abandoned mineshaft', 'Collapsed cargo hatch', 'Sealed gate under ash']),
+          rooms: roll(4) + 2,
+          novelty: pick(['Floating hallucinogenic spores — Trauma Check required in Rooms 4-6', 'Zero-gravity pockets in collapsed halls', 'Predator spoor across the access corridor'])
+        } : null,
+        peril: marker === 'peril' ? { name: pick(['Storm Crater', 'Electro Rift', 'Acid Shelf']), desc: pick(['Lead or Survival vs DD6 to pass.', 'Control vs DD8 to avoid system strain.', 'Body vs DD8 or take stress from exposure.']) } : null,
+        event: marker === 'event' ? { name: pick(['Event ✦ Distress Beacon', 'Event ✦ Silent Convoy', 'Event ✦ Ghost Signals']), whisper: pick(['A signal repeats beneath static.', 'Tracks stop at the cliff edge.', 'No one admits owning this route.']) } : null,
+        gate: marker === 'gate' ? { name: pick(['Transit Gate', 'Ancient Orbital Gate', 'Derelict Jump Gate']), leads: pick(['Dead Moon lanes', 'Outer colony routes', 'Unknown fringe corridor']) } : null,
+        lostCity: (marker === 'lostcity' || marker === 'empty_colony') ? { watch: 'Irradiated Ones (DD4 | 8 Stress) patrol this district.' } : null,
+      };
       cells.push({
         id,
         row: r,
@@ -4199,6 +4460,7 @@ function createPlanetSurfaceState(hex) {
         wonder: localNarrative.wonder,
         feature: marker === 'none' ? '' : pick(theme.features.concat(PLANET_SURFACE_FEATURES)),
         marker,
+        data: detailData,
         tradeRoute: false,
         tradeRouteOwnerId: null,
         explored: false,
@@ -4364,9 +4626,8 @@ function explorePlanetCell(cellId) {
   if (!state) return;
   const cell = state.cells.find((c) => c.id === Number(cellId));
   if (!cell) return;
-  const prevSelectedId = state.selectedCellId;
+  registerPlanetSurfaceTravel(state);
   state.selectedCellId = cell.id;
-  const traversalText = prevSelectedId !== cell.id ? applyPlanetTraversalEffects(state, cell) : '';
   const bypass = isPlanetHazardBypassed(state);
   const hazardCount = getPlanetHazardProfile(state.profile).length;
   const baseDd = bypass ? 6 : state.difficulty;
@@ -4398,13 +4659,34 @@ function explorePlanetCell(cellId) {
         cell.note = `${wf ? wf.name : 'A wayfarer'} offers a contract thread tied to ${state.profile.planetType} routes.${reqPenalty ? ` ${reqPenalty}` : ''}`;
       } else if (cell.marker === 'ruins') {
         setPositiveGalaxyCondition('empowered');
-        cell.note = `Ruins reclaimed in ${cell.province}. Empowered gained from recovered war relics.`;
+        cell.note = `Ruin site mapped in ${cell.province}. Generate Rooms to delve this dungeon complex.`;
+      } else if (cell.marker === 'lostcity' || cell.marker === 'empty_colony') {
+        cell.note = `Lost city district charted in ${cell.province}. Travel Roll available for dynamic outcomes.`;
+      } else if (cell.marker === 'seat') {
+        setPositiveGalaxyCondition('protected');
+        cell.note = `Seat stabilized in ${cell.province}. Command lanes and mission intelligence improve.`;
       } else if (cell.marker === 'holding') {
         setPositiveGalaxyCondition('protected');
         cell.note = `Space-themed Holding stabilized. Protected gained while routes remain secure.`;
+      } else if (cell.marker === 'dwelling') {
+        setPositiveGalaxyCondition('bolstered');
+        cell.note = `Dwelling refuge established in ${cell.province}. Bolstered gained.`;
+      } else if (cell.marker === 'temple') {
+        setPositiveGalaxyCondition('focused');
+        cell.note = `Temple signals aligned in ${cell.province}. Focused gained.`;
       } else if (cell.marker === 'monument') {
         setPositiveGalaxyCondition('focused');
         cell.note = `Weird landmark resonance observed. Focused gained from alignment data.`;
+      } else if (cell.marker === 'peril') {
+        cell.note = `Peril route active: roll traversal check before crossing.`;
+      } else if (cell.marker === 'event') {
+        cell.note = `Event ✦ discovered. Follow the whisper and linked leads.`;
+      } else if (cell.marker === 'gate') {
+        cell.note = `Gate waypoint found. Unknown destination routes available.`;
+      } else if (cell.marker === 'barrier') {
+        cell.note = `Barrier blocks direct crossing. Roll Domain/Skill style check to pass.`;
+      } else if (cell.tradeRoute) {
+        cell.note = `Trade Route lane connected to nearby Merchant Colony.`;
       } else if (cell.marker === 'beast') {
         cell.note = `Beast territory charted and bypass routes mapped.`;
       } else if (cell.marker === 'pirate') {
@@ -4412,14 +4694,11 @@ function explorePlanetCell(cellId) {
       } else {
         cell.note = `Traversed ${cell.terrain} successfully.`;
       }
-      if (traversalText) {
-        cell.note = `${cell.note} ${traversalText}`;
-      }
     }
     computePlanetTradeRoutes(state);
     showNotif(`${check.text} Success.`, 'good');
   } else {
-    cell.note = `${check.text}. Failure — route remains dangerous.${traversalText ? ` ${traversalText}` : ''}`;
+    cell.note = `${check.text}. Failure — route remains dangerous.`;
     if (typeof changeStress === 'function') changeStress(1);
     applyPlanetHazardFailure(state, check.text);
     showNotif(`${check.text} Failure.`, 'warn');
@@ -4447,11 +4726,10 @@ function renderPlanetExplorationPanel() {
     });
   }
   computePlanetTradeRoutes(state);
-  const colonyOutput = applyPlanetColonyPhaseOutput(state);
+  applyPlanetColonyPhaseOutput(state);
   const selected = state.cells.find((c) => c.id === state.selectedCellId) || state.cells[0];
   const requirements = buildPlanetRequirements(state.profile);
   const taskList = state.tasks.filter((t) => !t.resolved);
-  const colonySummary = getPlanetColonySummary(state);
   const availableWayfarers = (state.wayfarers || []).filter((wf) => !wf.retired).slice(-6).reverse();
   const recentWayfarers = (state.wayfarers || []).slice(-4).reverse();
   const lastEvent = state.lastEvent;
@@ -4494,14 +4772,23 @@ function renderPlanetExplorationPanel() {
       <div class="sea-item"><div class="sea-dot" style="background:#6a5800;border-color:#e8c050;"></div>✦ Wayfarer Contract</div>
       <div class="sea-item"><div class="sea-dot" style="background:#783820;border-color:#f0a840;"></div>M Merchant Colony</div>
       <div class="sea-item"><div class="sea-dot" style="background:#486734;border-color:#98c074;"></div>E Empty Colony</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#8b3030;border-color:#e8c050;"></div>★ Seat</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#3a6820;border-color:#6ed090;"></div>◉ Dwelling</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#502878;border-color:#b060d0;"></div>✦ Temple</div>
       <div class="sea-item"><div class="sea-dot" style="background:#502878;border-color:#c092f0;"></div>W Wayfarer</div>
       <div class="sea-item"><div class="sea-dot" style="background:#7b4c2a;border-color:#c98f5f;"></div>H Space Holding</div>
       <div class="sea-item"><div class="sea-dot" style="background:#3f3f3f;border-color:#888;"></div>R Ruins</div>
       <div class="sea-item"><div class="sea-dot" style="background:#625179;border-color:#b6a3da;"></div>✧ Weird Landmark</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#783820;border-color:#e05050;"></div>⚠ Peril</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#6a5800;border-color:#c9a227;"></div>✧ Event</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#1a5048;border-color:#2ec4b6;"></div>◆ Gate</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#5a1040;border-color:#e080c0;"></div>⬡ Lost City</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#282828;border-color:#555555;"></div>▤ Barrier</div>
       <div class="sea-item"><div class="sea-dot" style="background:#203b4a;border-color:#5fa7c9;"></div>B Beast</div>
       <div class="sea-item"><div class="sea-dot" style="background:#6b2020;border-color:#cc6a6a;"></div>P Pirate</div>
       <div class="sea-item"><div class="sea-dot" style="background:#3a2800;border-color:#f0a840;"></div>═ Trade Route</div>
       <div class="sea-item"><div class="sea-dot" style="background:#8b3030;border-color:#df6f6f;"></div>! Hazard / ◈ Site</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#4b1e1e;border-color:#e05050;"></div>⚔ Missions</div>
     </div>
     <div class="planet-layout">
       <div class="planet-scroll">
@@ -4531,6 +4818,7 @@ function renderPlanetExplorationPanel() {
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Status</span>${selected && selected.explored ? 'Explored' : 'Unexplored'}</div>
           <div class="hex-desc" style="margin-bottom:.38rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
+          <div style="margin-top:.15rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect (Wayfarer AD vs Dread)</button></div>
 
           <div class="sea-site" style="margin-bottom:.45rem;">
             <div class="ss-title">${narrative.detailCardTitle}</div>
@@ -4550,13 +4838,12 @@ function renderPlanetExplorationPanel() {
             <button class="btn btn-teal btn-sm" onclick="observeAdjacentPlanetHexes()">🔍 Observe Adjacent (Lead vs DD6)</button>
             ${(selected && (selected.marker === 'merchant_colony' || selected.marker === 'empty_colony' || selected.marker === 'holding')) ? '<button class="btn btn-sm" onclick="createPlanetTask()">⚄ Generate Task</button>' : ''}
             ${(selected && selected.marker === 'wayfarer') ? '<button class="btn btn-sm" onclick="createPlanetTask({ source: \'wayfarer\', preferredCellId: ' + selected.id + ' })">⚄ Generate Task (Wayfarer)</button>' : ''}
+            ${(selected && selected.tradeRoute) ? '<button class="btn btn-sm" onclick="rollPlanetTradeRouteEncounter()">⚄ Trade Route Encounter</button><button class="btn btn-sm" onclick="showPlanetTradeGoods()">📦 Trade Goods</button><button class="btn btn-sm btn-dark" onclick="attemptPlanetBlackMarketAccess()">Black Market</button>' : ''}
+            ${(selected && (selected.marker === 'lostcity' || selected.marker === 'empty_colony')) ? '<button class="btn btn-sm" onclick="rollPlanetLostCityTravel()">⚄ Lost City Travel (d6)</button>' : ''}
+            ${(selected && selected.marker === 'ruins') ? '<button class="btn btn-sm" onclick="generatePlanetRuinRooms(' + selected.id + ')">⚄ Generate Rooms</button>' : ''}
           </div>
 
-          <div class="sea-site" style="margin-top:.45rem;">
-            <div class="ss-title">Colony Output</div>
-            <div class="ss-text">Merchant ${colonySummary.exploredMerchant}/${colonySummary.merchant} · Empty ${colonySummary.exploredEmpty}/${colonySummary.empty} · +${(colonySummary.exploredMerchant * 12) + (colonySummary.exploredEmpty * 4)} credits/phase</div>
-            <div class="planet-micro">Lifetime credits ${state.colonyLedger ? state.colonyLedger.totalCreditsEarned : 0}${colonyOutput ? ` · This phase +${colonyOutput.credits}${colonyOutput.boons.length ? ` (${colonyOutput.boons.join(', ')})` : ''}` : ''}</div>
-          </div>
+          ${(selected && selected.marker === 'ruins' && selected.data && selected.data.ruin) ? `<div class="sea-site" style="margin-top:.45rem;"><div class="ss-title">Ruin Details</div><div class="ss-text"><strong>Built by:</strong> ${selected.data.ruin.builder}<br><strong>Purpose:</strong> ${selected.data.ruin.builtFor}<br><strong>Construction:</strong> ${selected.data.ruin.construction}<br><strong>Entrance:</strong> ${selected.data.ruin.entrance}<br><strong>Rooms:</strong> ${selected.data.ruin.rooms} total<br><strong>Novelty:</strong> ${selected.data.ruin.novelty}</div></div>` : ''}
 
           <div class="sea-site" style="margin-top:.35rem;">
             <div class="ss-title">Requirements</div>

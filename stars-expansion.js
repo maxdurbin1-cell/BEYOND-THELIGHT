@@ -3140,6 +3140,87 @@ const PLANET_ENCOUNTER_ARCHETYPES = {
   pirate: ['Corsair Skiff', 'Raid Camp', 'Tribute Gate', 'Black-Market Scouts'],
 };
 
+const PLANET_HOLDING_STRUCTURES = ['Fortress', 'Citadel', 'Sky Bastion', 'Dock Keep', 'Transit Stronghold'];
+const PLANET_HOLDING_REST_BOONS = [
+  'Resting here grants Protected (Defend up one Step).',
+  'Resting here grants Bolstered (Body up one Step).',
+  'Resting here grants Focused (Mind up one Step).',
+  'Resting here removes 1 Stress if the lane remains secure.',
+];
+const PLANET_HOLDING_MOODS = ['Distrust', 'Alert', 'Reverent', 'Pragmatic', 'Wary', 'Resolute'];
+const PLANET_HOLDING_CRISES = [
+  'Reinforce Loyalty',
+  'Escort a Missing Envoy',
+  'Break a Smuggler Ring',
+  'Restore Route Beacons',
+  'Settle Council Rivalry',
+];
+const PLANET_HOLDING_CRISES_TEXT = [
+  'Earn trust within the council. A traitor is suspected.',
+  'A messenger from the Seat vanished before reaching this lane.',
+  'Contraband brokers are buying guards and rerouting supply crates.',
+  'The weather ate the marker grid and cargo lanes keep drifting.',
+  'Two wardens contest authority while raiders test the perimeter.',
+];
+const PLANET_HOLDING_CHARACTER = ['Industrious Tomb', 'Scarred Diplomat', 'Quiet Hawk', 'Iron Witness', 'Vigilant Broker'];
+const PLANET_HOLDING_FOCUS = ['Trade and Bazaars', 'Military Drills', 'Pilgrim Traffic', 'Archive Stewardship', 'Engineering Guilds'];
+const PLANET_HOLDING_FOOD = [
+  'Hearty herbal stew and dark bread',
+  'Spiced root broth and iron-grain cakes',
+  'Salted fungus strips and citrus mash',
+  'Hot ration wraps with smoked marrow',
+];
+const PLANET_HOLDING_GOODS = [
+  'Pottery and carved bone ornaments',
+  'Refined fuel cells and route beacons',
+  'Ceramic armor plating and cloth seals',
+  'Map tablets, relic fragments, and survival packs',
+];
+const PLANET_HOLDING_NEWS = [
+  'A messenger from the Seat passed through but never arrived at their destination.',
+  'A dead gate relay began transmitting old military ciphers at dusk.',
+  'Merchant caravans report a beast corridor where no fauna should survive.',
+  'A broker claims a Lost City district has reopened beneath the ash shelf.',
+];
+const PLANET_HOLDING_KNOWLEDGE = [
+  'Lords grasp all Mysteries - their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.',
+  'The ruling council tracks every active Mystery and can mark one hidden route if you earn audience.',
+  'The lord keeps sealed maps to peril lanes and only releases them to proven allies.',
+];
+
+function createPlanetHoldingDetail(profile, province, marker, localWeather, terrainName) {
+  const weatherLabel = (localWeather && localWeather.label) ? localWeather.label : 'Unstable Conditions';
+  const weatherDesc = (localWeather && localWeather.desc) ? localWeather.desc : 'Wind and static interfere with scouting reports.';
+  return {
+    title: marker === 'merchant_colony' ? 'HOLDING' : 'HOLDING',
+    structure: pick(PLANET_HOLDING_STRUCTURES),
+    terrain: terrainName || (profile && profile.terrain) || 'Unknown terrain',
+    weatherLabel,
+    weatherDesc,
+    restBoon: pick(PLANET_HOLDING_REST_BOONS),
+    mood: pick(PLANET_HOLDING_MOODS),
+    crisis: pick(PLANET_HOLDING_CRISES),
+    crisisText: pick(PLANET_HOLDING_CRISES_TEXT),
+    lordTitle: 'Lord',
+    lordName: `High Merchant ${pick(['Orin', 'Selka', 'Varo', 'Ithis', 'Mael'])}`,
+    character: pick(PLANET_HOLDING_CHARACTER),
+    culturalFocus: pick(PLANET_HOLDING_FOCUS),
+    food: pick(PLANET_HOLDING_FOOD),
+    goods: pick(PLANET_HOLDING_GOODS),
+    news: pick(PLANET_HOLDING_NEWS),
+    knowledge: pick(PLANET_HOLDING_KNOWLEDGE),
+    province: province || 'Unknown Province',
+  };
+}
+
+function getPlanetAuthorityFactionKey(authorityName) {
+  const lower = String(authorityName || '').toLowerCase();
+  if (lower.indexOf('pirate') >= 0 || lower.indexOf('underworld') >= 0 || lower.indexOf('syndicate') >= 0) return 'underworld';
+  if (lower.indexOf('corp') >= 0 || lower.indexOf('merchant') >= 0 || lower.indexOf('trade') >= 0) return 'corporations';
+  if (lower.indexOf('church') >= 0 || lower.indexOf('temple') >= 0 || lower.indexOf('cult') >= 0 || lower.indexOf('relig') >= 0) return 'religious';
+  return 'political';
+}
+
 function rollPlanetSurfaceWeather(profile) {
   const season = (S.currentSeason || 'spring').toLowerCase();
   const base = pick((PLANET_SURFACE_WEATHER[season] || PLANET_SURFACE_WEATHER.spring));
@@ -3545,6 +3626,120 @@ function showPlanetTradeGoods() {
   openModal('Trade Goods', `<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">${goods.map((g) => `• ${g}`).join('<br>')}</div>`);
 }
 
+function openPlanetMerchantMarket() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected) return;
+  const canTrade = selected.tradeRoute || selected.marker === 'merchant_colony' || selected.marker === 'holding';
+  if (!canTrade) {
+    showNotif('No merchant market is available on this hex.', 'warn');
+    return;
+  }
+  const discountRate = selected.tradeRoute ? 0.15 : 0;
+  const offers = buildGalaxyMerchantOffers('Merchant Ship');
+  state.activeMerchantOffers = offers;
+  state.activeMerchantDiscountRate = discountRate;
+  if (typeof openModal === 'function') {
+    openModal('Merchant Market', `<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">${offers.map((offer, idx) => {
+      const cost = getOfferPrice(offer, discountRate);
+      return `<div style="padding:.26rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;"><strong style="color:var(--gold2);">${offer.name}</strong> <span style="color:var(--muted2);">(${offer.cat})</span><br>${offer.desc || 'No description.'}<br><strong>Cost:</strong> ${cost}₵${discountRate ? ' (Trade Route discount applied)' : ''}<br><button class='btn btn-xs btn-teal' onclick='buyPlanetMerchantOffer(${idx})'>Buy</button></div>`;
+    }).join('')}</div>`);
+  }
+}
+
+function buyPlanetMerchantOffer(index) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state || !Array.isArray(state.activeMerchantOffers)) return;
+  const offer = state.activeMerchantOffers[Number(index)];
+  if (!offer) return;
+  const discountRate = Number(state.activeMerchantDiscountRate) || 0;
+  const cost = getOfferPrice(offer, discountRate);
+  if (typeof buyItem === 'function') {
+    buyItem(cost, offer.name, offer.cat);
+  } else {
+    if ((S.credits || 0) < cost) {
+      showNotif(`Need ${cost} credits.`, 'warn');
+      return;
+    }
+    if (typeof changeCredits === 'function') changeCredits(-cost);
+    takeGalaxyLoot(offer.name, 'pack');
+  }
+  showNotif(`Purchased ${offer.name} for ${cost}₵.`, 'good');
+}
+
+function attemptPlanetHoldingSteal() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected || !(selected.marker === 'merchant_colony' || selected.marker === 'holding')) return;
+  const controlDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
+  const check = resolveGalaxySkillCheck('control', 'lead', 8, `Steal at Hex ${selected.id}`);
+  if (check.success) {
+    const loot = rollGalaxyMerchantLootFromCategories(['items', 'toolkits', 'tradegoods', 'weapon_mods', 'armor']);
+    takeGalaxyLoot(loot, 'pack');
+    state.lastEvent = {
+      timestamp: Date.now(),
+      d10: 8,
+      outcome: 'Holding Theft Success',
+      detail: `${check.text}. You steal ${loot} without raising the alarm.`,
+      rewardItem: loot,
+      cellId: selected.id,
+      eventType: 'encounter',
+    };
+    showNotif(`Theft succeeded: ${loot}.`, 'good');
+  } else {
+    const authority = state.rulingPower || 'Unknown Authority';
+    const renownKey = getPlanetAuthorityFactionKey(authority);
+    changeFactionRenown(renownKey, -1);
+    if (typeof changeStress === 'function') changeStress(1);
+    state.lastEvent = {
+      timestamp: Date.now(),
+      d10: 8,
+      outcome: 'Holding Theft Failed',
+      detail: `${check.text}. You were caught stealing. -1 ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown with ${authority}.`,
+      rewardItem: '',
+      cellId: selected.id,
+      eventType: 'encounter',
+    };
+    showNotif(`Caught stealing. -1 ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown.`, 'warn');
+  }
+  renderPlanetExplorationPanel();
+}
+
+function rollPlanetObstacleTraversal() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected || !(selected.marker === 'peril' || selected.marker === 'barrier')) return;
+  const check = resolveGalaxySkillCheck('adventure', 'lead', 6, `${selected.marker === 'peril' ? 'Peril' : 'Barrier'} Traversal`);
+  selected.data = selected.data || {};
+  if (check.success) {
+    selected.data.obstacleCleared = true;
+    selected.note = `${selected.marker === 'peril' ? 'Peril route' : 'Barrier route'} cleared. Lost City style travel is now available from this hex.`;
+    showNotif(`${selected.marker === 'peril' ? 'Peril' : 'Barrier'} cleared.`, 'good');
+  } else {
+    if (typeof changeStress === 'function') changeStress(1);
+    if (typeof loseGamePhases === 'function') loseGamePhases(1);
+    selected.note = `${selected.marker === 'peril' ? 'Peril' : 'Barrier'} traversal failed. +1 Stress, lose 1 Phase.`;
+    showNotif(`${selected.marker === 'peril' ? 'Peril' : 'Barrier'} traversal failed.`, 'warn');
+  }
+  state.lastEvent = {
+    timestamp: Date.now(),
+    d10: 6,
+    outcome: `${selected.marker === 'peril' ? 'Peril' : 'Barrier'} Traversal`,
+    detail: `${check.text}. ${check.success ? 'Passage opened.' : 'Passage denied this phase.'}`,
+    rewardItem: '',
+    cellId: selected.id,
+    eventType: 'encounter',
+  };
+  renderPlanetExplorationPanel();
+}
+
 function attemptPlanetBlackMarketAccess() {
   const controlDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
   const a = explodingRoll(controlDie);
@@ -3848,6 +4043,51 @@ function getPlanetHexTypeLabel(cell) {
   if (cell.marker === 'site') return 'Site';
   if (cell.tradeRoute) return 'Trade Route';
   return 'Wilderness';
+}
+
+function isPlanetLocationHex(cell) {
+  return !!(cell && cell.marker && cell.marker !== 'none' && cell.marker !== 'wayfarer_task');
+}
+
+function canUsePlanetWildernessActions(cell) {
+  return !!(cell && !isPlanetLocationHex(cell) && !cell.tradeRoute);
+}
+
+function buildPlanetHoldingInfoHtml(state, selected) {
+  if (!selected || !(selected.marker === 'merchant_colony' || selected.marker === 'holding')) return '';
+  selected.data = selected.data || {};
+  if (!selected.data.holding) {
+    selected.data.holding = createPlanetHoldingDetail((state && state.profile) || {}, selected.province, selected.marker, selected.localWeather, selected.terrain);
+  }
+  const h = selected.data.holding;
+  return `<div class="sea-site" style="margin-bottom:.45rem;">
+    <div class="ss-title">${h.title}</div>
+    <div class="ss-text" style="line-height:1.55;">
+      <strong>${h.structure}</strong><br>
+      ${h.terrain} terrain<br>
+      🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${h.weatherLabel}<br>
+      ${h.weatherDesc}<br>
+      🛡 <strong>Rest Boon</strong><br>
+      ${h.restBoon}<br>
+      <strong>Mood:</strong> ${h.mood}<br>
+      <strong>Crisis:</strong> ${h.crisis}<br>
+      ${h.crisisText}<br>
+      <strong>${h.lordTitle}</strong><br>
+      ${h.lordName}<br>
+      <strong>Character</strong><br>
+      ${h.character}<br>
+      <strong>Cultural Focus</strong><br>
+      ${h.culturalFocus}<br>
+      <strong>Food</strong><br>
+      ${h.food}<br>
+      <strong>Goods</strong><br>
+      ${h.goods}<br>
+      📰 <strong>News & Hooks</strong><br>
+      ${h.news}<br>
+      🎯 <strong>Lord's Knowledge</strong><br>
+      ${h.knowledge}
+    </div>
+  </div>`;
 }
 
 function buildPlanetNarrativeLines(state, selected) {
@@ -4531,6 +4771,9 @@ function createPlanetSurfaceState(hex) {
       const province = getProvinceForCell({ row: r, col: c }, provinces);
       const localNarrative = createPlanetCellNarrative({ profile }, theme, province);
       const detailData = {
+        holding: (marker === 'holding' || marker === 'merchant_colony')
+          ? createPlanetHoldingDetail(profile, province, marker, localNarrative.localWeather, localNarrative.terrain)
+          : null,
         ruin: marker === 'ruins' ? {
           builder: pick(['Miners', 'Pilgrims', 'Wardens', 'Corpo Engineers', 'Colonists']),
           builtFor: pick(['Prison for a cosmic beast', 'Signal observatory', 'Refuge bunker', 'Archive vault', 'War staging hub']),
@@ -4575,10 +4818,14 @@ function createPlanetSurfaceState(hex) {
   const draftState = { cells };
   computePlanetTradeRoutes(draftState);
   const weatherLine = `The sky today shows a/an ${profile.tone} tone amidst ${profile.weather}.`;
+  const majorPowers = (S.starSystem && Array.isArray(S.starSystem.majorPowers) && S.starSystem.majorPowers.length)
+    ? S.starSystem.majorPowers
+    : ['Unknown Authority'];
   return {
     hexId: hex.id,
     planetName: profile.planetName,
     profile,
+    rulingPower: pick(majorPowers),
     provinces,
     weatherLine,
     observedSurface: {
@@ -4837,6 +5084,14 @@ function renderPlanetExplorationPanel() {
   const availableContacts = availableWayfarers.filter((wf) => !wf.acceptedTaskId);
   const bypass = isPlanetHazardBypassed(state);
   const weather = (selected && selected.localWeather) ? selected.localWeather : state.currentWeather;
+  const holdingInfoHtml = buildPlanetHoldingInfoHtml(state, selected);
+  const canRollWildernessActions = canUsePlanetWildernessActions(selected);
+  const canGenerateTask = !!(selected && (selected.marker === 'merchant_colony' || selected.marker === 'empty_colony' || selected.marker === 'holding'));
+  const canUseBlackMarket = !!(selected && (selected.marker === 'merchant_colony' || selected.marker === 'holding' || selected.marker === 'dwelling' || selected.marker === 'seat' || selected.marker === 'wayfarer') && !selected.tradeRoute);
+  const canUseMerchantMarket = !!(selected && (selected.marker === 'merchant_colony' || selected.marker === 'holding' || selected.tradeRoute));
+  const canStealAtHolding = !!(selected && (selected.marker === 'merchant_colony' || selected.marker === 'holding'));
+  const canTraverseObstacle = !!(selected && (selected.marker === 'peril' || selected.marker === 'barrier'));
+  const canUseLostCityTravel = !!(selected && (selected.marker === 'lostcity' || selected.marker === 'empty_colony' || ((selected.marker === 'peril' || selected.marker === 'barrier') && selected.data && selected.data.obstacleCleared)));
 
   const observedCompact = `From orbit: ${state.observedSurface.observedFromSpace} | Landing: ${state.observedSurface.landingPad}`;
   const atmosphereCompact = buildPlanetAtmosphereLine(state, selected);
@@ -4920,6 +5175,8 @@ function renderPlanetExplorationPanel() {
             <div class="ss-text">${narrative.detailCardText}</div>
           </div>
 
+          ${holdingInfoHtml}
+
           ${weather ? `<div class="weather-block ${weather.rough ? 'rough' : 'clear'}" style="margin-top:.45rem;">
             <div class="weather-label" style="color:${weather.rough ? 'var(--red2)' : 'var(--teal)'};">🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${weather.label}</div>
             <div style="font-size:.81rem;color:var(--text2);">${weather.desc}</div>
@@ -4929,13 +5186,16 @@ function renderPlanetExplorationPanel() {
           ${lastEvent && lastEvent.eventType === 'encounter' ? `<div class="sea-result" style="margin-top:.45rem;"><div class="sea-result-title">Encounter Card</div><div class="planet-micro"><strong style="color:var(--gold2);">${lastEvent.outcome}</strong><br>${lastEvent.detail}${lastEvent.cellId ? ` (Hex #${lastEvent.cellId})` : ''}</div></div>` : ''}
 
           <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.45rem;">
-            <button class="btn btn-primary" onclick="rollPlanetHexEncounter()">⚄ Roll Encounter</button>
-            <button class="btn btn-teal btn-sm" onclick="observeAdjacentPlanetHexes()">🔍 Observe Adjacent (Lead vs DD6)</button>
-            ${(selected && (selected.marker === 'merchant_colony' || selected.marker === 'empty_colony' || selected.marker === 'holding')) ? '<button class="btn btn-sm" onclick="createPlanetTask()">⚄ Generate Task</button>' : ''}
-            ${(selected && (selected.marker === 'merchant_colony' || selected.marker === 'holding' || selected.marker === 'dwelling' || selected.marker === 'seat' || selected.marker === 'wayfarer')) ? '<button class="btn btn-sm btn-dark" onclick="attemptPlanetBlackMarketAccess()">Black Market</button>' : ''}
+            ${canRollWildernessActions ? '<button class="btn btn-primary" onclick="rollPlanetHexEncounter()">⚄ Roll Encounter</button>' : ''}
+            ${canRollWildernessActions ? '<button class="btn btn-teal btn-sm" onclick="observeAdjacentPlanetHexes()">🔍 Observe Adjacent (Lead vs DD6)</button>' : ''}
+            ${canGenerateTask ? '<button class="btn btn-sm" onclick="createPlanetTask()">⚄ Generate Task</button>' : ''}
+            ${canUseMerchantMarket ? '<button class="btn btn-sm btn-teal" onclick="openPlanetMerchantMarket()">🛒 Buy Goods</button>' : ''}
+            ${canStealAtHolding ? '<button class="btn btn-sm btn-warn" onclick="attemptPlanetHoldingSteal()">🗡 Steal (Control vs DD8)</button>' : ''}
+            ${canUseBlackMarket ? '<button class="btn btn-sm btn-dark" onclick="attemptPlanetBlackMarketAccess()">Black Market</button>' : ''}
             ${(selected && selected.marker === 'wayfarer') ? '<button class="btn btn-sm" onclick="createPlanetTask({ source: \'wayfarer\', preferredCellId: ' + selected.id + ' })">⚄ Generate Task (Wayfarer)</button>' : ''}
             ${(selected && selected.tradeRoute) ? '<button class="btn btn-sm" onclick="rollPlanetTradeRouteEncounter()">⚄ Trade Route Encounter</button><button class="btn btn-sm" onclick="showPlanetTradeGoods()">📦 Trade Goods</button>' : ''}
-            ${(selected && (selected.marker === 'lostcity' || selected.marker === 'empty_colony')) ? '<button class="btn btn-sm" onclick="rollPlanetLostCityTravel()">⚄ Lost City Travel (d6)</button>' : ''}
+            ${canTraverseObstacle ? '<button class="btn btn-sm btn-primary" onclick="rollPlanetObstacleTraversal()">⚄ Traverse Obstacle (AD vs DD6)</button>' : ''}
+            ${canUseLostCityTravel ? '<button class="btn btn-sm" onclick="rollPlanetLostCityTravel()">⚄ Lost City Travel (d6)</button>' : ''}
             ${(selected && selected.marker === 'ruins') ? '<button class="btn btn-sm" onclick="generatePlanetRuinRooms(' + selected.id + ')">⚄ Generate Rooms</button>' : ''}
           </div>
 
@@ -8118,6 +8378,10 @@ window.setActiveExocraft = setActiveExocraft;
 window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
 window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
 window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;
+window.openPlanetMerchantMarket = openPlanetMerchantMarket;
+window.buyPlanetMerchantOffer = buyPlanetMerchantOffer;
+window.attemptPlanetHoldingSteal = attemptPlanetHoldingSteal;
+window.rollPlanetObstacleTraversal = rollPlanetObstacleTraversal;
 window.resolveMysteryContactOption = resolveMysteryContactOption;
 window.resolveSpaceEncounterOption = resolveSpaceEncounterOption;
 window.resolveGalaxyPerilTraversal = resolveGalaxyPerilTraversal;

@@ -298,6 +298,7 @@
       notes: {},
       clickMode: "travel",
       selectedKey: null,
+      activeEncounterKey: null,
       weather: null,
       ...(S.lastSea || {})
     };
@@ -775,6 +776,7 @@
 
     S.lastSea.map = [];
     S.lastSea.selectedKey = null;
+    S.lastSea.activeEncounterKey = null;
     S.lastSea.islands = [];
     S.lastSea.weather = rollLastSeaWeather();
 
@@ -846,6 +848,7 @@
     S.lastSea.map = [];
     S.lastSea.islands = [];
     S.lastSea.selectedKey = null;
+    S.lastSea.activeEncounterKey = null;
     S.lastSea.weather = null;
     updateLastSeaGroupList();
     renderLastSeaMap();
@@ -1091,13 +1094,14 @@
   function concludeSeaEncounter(message, tone) {
     const msg = message || 'Action resolved.';
     if (msg) showNotif(msg, tone || 'good');
-    const hexKey = S.lastSea && S.lastSea.selectedKey;
+    const hexKey = S.lastSea && (S.lastSea.activeEncounterKey || S.lastSea.selectedKey);
     if (hexKey && S.lastSea && S.lastSea.map) {
       const hex = S.lastSea.map.find(h => h.key === hexKey);
       if (hex) {
         hex.resultHtml = `<div class="sea-result-title">Encounter Resolved</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${msg}</div>`;
       }
     }
+    if (S.lastSea) S.lastSea.activeEncounterKey = null;
     renderLastSeaInfo();
   }
 
@@ -1466,7 +1470,13 @@
     if (!hex) {
       return;
     }
+    S.lastSea.selectedKey = hex.key;
     hex.resultHtml = hex.type === "sea" ? buildSeaExploration(hex) : buildIslandExploration(hex);
+    if (hex.type === "sea") {
+      S.lastSea.activeEncounterKey = hex.key;
+    } else {
+      S.lastSea.activeEncounterKey = null;
+    }
     renderLastSeaInfo(hex);
   }
 
@@ -1562,7 +1572,32 @@
       data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
       data.exploration.clearedRooms += 1;
       data.exploration.discoveredLoot.push(loot);
-      room.result = `${result}Success. Loot: ${loot}.`;
+      let stored = false;
+      if (typeof addToBackpack === 'function') {
+        try {
+          stored = !!addToBackpack(loot);
+        } catch (err) {
+          stored = false;
+        }
+      }
+      if (!stored) {
+        if (!Array.isArray(S.backpack)) {
+          S.backpack = Array(6).fill('');
+        }
+        const slotIdx = S.backpack.indexOf('');
+        if (slotIdx >= 0) {
+          S.backpack[slotIdx] = loot;
+          const bpEl = document.getElementById('bp' + slotIdx);
+          if (bpEl) bpEl.value = loot;
+          stored = true;
+        }
+      }
+      if (stored && typeof renderBackpackUI === 'function') {
+        renderBackpackUI();
+      }
+      room.result = stored
+        ? `${result}Success. Loot: ${loot} added to Backpack.`
+        : `${result}Success. Loot: ${loot}. Backpack full, loot held in Recovered Loot.`;
     } else {
       if (typeof changeStress === 'function') changeStress(Math.max(1, dreadRoll.total - actionRoll.total));
       room.result = `${result}Failure. Suffer Stress equal to the difference.`;

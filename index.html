@@ -2478,12 +2478,18 @@ function equipBackpackItem(index, slot) {
   var item = S.backpack[index];
   if (!item) return;
   
-  var itemName = normalizeItemName(item);
-  var found = findShopItem(itemName);
+  var found = findShopItem(item);
+  var itemName = found && found.item && found.item.name ? found.item.name : normalizeItemName(item);
+  if (!found && itemName !== item) {
+    found = findShopItem(itemName);
+  }
   var cat = found ? found.cat : null;
   var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
   var isArmor = (cat === 'armor' || cat === 'armor_exp');
   var isSpaceArmor = (cat === 'space_armor');
+  if (!(isArmor || isSpaceArmor) && /armor|armour|radsuit|vaccsuit|hydrosuit|suit/i.test(String(itemName || item))) {
+    isArmor = true;
+  }
   var isLayer = isSpaceArmor && isSpaceArmorLayerName(itemName);
   var isSuit = isSpaceArmor && isSpaceSuitName(itemName);
   

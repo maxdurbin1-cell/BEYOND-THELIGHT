@@ -3200,6 +3200,8 @@ function getProvinceForCell(cell, provinces) {
 function createPlanetWayfarer(state, cell, source) {
   if (!state || !cell) return null;
   state.wayfarers = Array.isArray(state.wayfarers) ? state.wayfarers : [];
+  const existing = state.wayfarers.find((entry) => entry.cellId === cell.id && !entry.retired);
+  if (existing) return existing;
   const theme = getPlanetTheme(state.profile);
   const name = `${pick(PLANET_WAYFARER_NAME_FIRST)} ${pick(PLANET_WAYFARER_NAME_LAST)}`;
   const role = pick(theme.roles);
@@ -3212,12 +3214,139 @@ function createPlanetWayfarer(state, cell, source) {
     source: source || 'surface',
     cellId: cell.id,
     province: cell.province,
+    acceptedTaskId: '',
+    completedTaskCount: 0,
+    dialogueSeed: pick(['urgent', 'measured', 'cryptic', 'direct']),
   };
   state.wayfarers.push(wayfarer);
   cell.marker = 'wayfarer';
   cell.feature = `${role} camp`;
   cell.note = `${name} (${role}) offers leads on ${hook}.`;
   return wayfarer;
+}
+
+function getPlanetPhaseStamp() {
+  ensureStarsState();
+  const gd = S.gameDate || {};
+  return `${gd.year || 1}-${gd.month || 1}-${gd.day || 1}-${gd.phase || 0}`;
+}
+
+function getPlanetColonySummary(state) {
+  if (!state || !Array.isArray(state.cells)) return { merchant: 0, empty: 0, exploredMerchant: 0, exploredEmpty: 0 };
+  const merchantCells = state.cells.filter((cell) => cell.marker === 'merchant_colony');
+  const emptyCells = state.cells.filter((cell) => cell.marker === 'empty_colony');
+  return {
+    merchant: merchantCells.length,
+    empty: emptyCells.length,
+    exploredMerchant: merchantCells.filter((cell) => cell.explored).length,
+    exploredEmpty: emptyCells.filter((cell) => cell.explored).length,
+  };
+}
+
+function getWayfarerDialogueLine(wayfarer, state) {
+  if (!wayfarer || !state) return 'A traveler studies the horizon in silence.';
+  const planetType = state.profile ? state.profile.planetType : 'frontier';
+  const province = wayfarer.province || 'outer province';
+  if (wayfarer.dialogueSeed === 'urgent') {
+    return `"${planetType} routes are collapsing near ${province}. I need a capable hand before night phase."`;
+  }
+  if (wayfarer.dialogueSeed === 'cryptic') {
+    return `"I mapped a pattern in ${province}. Follow it and the planet answers with salvage and favor."`;
+  }
+  if (wayfarer.dialogueSeed === 'direct') {
+    return `"Take the contract. Hold this lane in ${province}, and I pay in hard credits."`;
+  }
+  return `"${province} still has survivors and signal ghosts. Help me stabilize this ${planetType} line."`;
+}
+
+function applyPlanetColonyPhaseOutput(state) {
+  if (!state) return null;
+  state.colonyLedger = state.colonyLedger || {
+    lastPhaseStamp: '',
+    totalCreditsEarned: 0,
+    totalBoonTicks: 0,
+  };
+  const colonies = getPlanetColonySummary(state);
+  if (!colonies.exploredMerchant && !colonies.exploredEmpty) return null;
+  const phaseStamp = getPlanetPhaseStamp();
+  if (state.colonyLedger.lastPhaseStamp === phaseStamp) return null;
+  state.colonyLedger.lastPhaseStamp = phaseStamp;
+  const credits = colonies.exploredMerchant * 12 + colonies.exploredEmpty * 4;
+  if (credits > 0 && typeof changeCredits === 'function') changeCredits(credits);
+
+  const boons = [];
+  if (colonies.exploredMerchant > 0) {
+    setPositiveGalaxyCondition('protected');
+    boons.push('Protected');
+  }
+  if (colonies.exploredEmpty > 0) {
+    setPositiveGalaxyCondition('bolstered');
+    if (typeof changeStress === 'function') changeStress(-1);
+    boons.push('Bolstered', 'Stress -1');
+  }
+
+  state.colonyLedger.totalCreditsEarned += credits;
+  if (boons.length) state.colonyLedger.totalBoonTicks += 1;
+  if (credits > 0 || boons.length) {
+    showNotif(`Colony phase output: +${credits} credits${boons.length ? `, ${boons.join(', ')}` : ''}.`, 'good');
+  }
+  return { credits, boons, colonies };
+}
+
+function getPlanetWayfarerById(state, wayfarerId) {
+  if (!state || !Array.isArray(state.wayfarers)) return null;
+  return state.wayfarers.find((wf) => wf.id === wayfarerId) || null;
+}
+
+function acceptPlanetWayfarerTask(wayfarerId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const wayfarer = getPlanetWayfarerById(state, wayfarerId);
+  if (!wayfarer) return;
+  if (wayfarer.acceptedTaskId) {
+    showNotif(`${wayfarer.name} already has an open contract.`, 'warn');
+    return;
+  }
+
+  const task = createPlanetTask({
+    source: 'wayfarer',
+    title: `${wayfarer.name} Contract`,
+    text: `${wayfarer.role} request in ${wayfarer.province}. Focus: ${wayfarer.hook}.`,
+    reward: { credits: roll(6) * 30 },
+    preferredCellId: wayfarer.cellId,
+    wayfarerId: wayfarer.id,
+  });
+  if (!task) {
+    showNotif('No available slot for this wayfarer contract.', 'warn');
+    return;
+  }
+  wayfarer.acceptedTaskId = task.id;
+  showNotif(`Accepted contract from ${wayfarer.name}.`, 'good');
+  renderPlanetExplorationPanel();
+}
+
+function claimPlanetColonyRestBoon() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected || !selected.explored) {
+    showNotif('Explore this hex first to claim colony boons.', 'warn');
+    return;
+  }
+  if (selected.marker === 'merchant_colony') {
+    setPositiveGalaxyCondition('protected');
+    if (typeof changeCredits === 'function') changeCredits(8);
+    showNotif('Merchant colony rest: Protected granted and +8 credits.', 'good');
+  } else if (selected.marker === 'empty_colony') {
+    setPositiveGalaxyCondition('bolstered');
+    if (typeof changeStress === 'function') changeStress(-1);
+    showNotif('Empty colony refuge: Bolstered granted and Stress -1.', 'good');
+  } else {
+    showNotif('No colony boon available on this hex.', 'warn');
+  }
+  renderPlanetExplorationPanel();
 }
 
 function getActivePlanetHex() {
@@ -3350,6 +3479,11 @@ function createPlanetSurfaceState(hex) {
     wayfarers: [],
     eventLog: [],
     lastEvent: null,
+    colonyLedger: {
+      lastPhaseStamp: '',
+      totalCreditsEarned: 0,
+      totalBoonTicks: 0,
+    },
   };
 }
 
@@ -3375,21 +3509,29 @@ function openActivePlanetMap() {
   if (typeof switchTab === 'function' && b) switchTab('planet', b);
 }
 
-function createPlanetTask() {
+function createPlanetTask(options) {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
+  const cfg = options || {};
   const freeCells = state.cells.filter((c) => !c.taskId);
   if (!freeCells.length) return showNotif('No free cells for additional planet tasks.', 'warn');
-  const cell = pick(freeCells);
+  let cell = null;
+  if (cfg.preferredCellId != null) {
+    const preferred = state.cells.find((entry) => entry.id === Number(cfg.preferredCellId) && !entry.taskId);
+    if (preferred) cell = preferred;
+  }
+  if (!cell) cell = pick(freeCells);
   const theme = getPlanetTheme(state.profile);
   const focus = pick(theme.taskFocus);
   const taskId = `planet-${state.hexId}-${Date.now()}`;
   const task = {
     id: taskId,
-    title: `${pick(['Survey', 'Secure', 'Recover', 'Escort', 'Stabilize'])} ${state.profile.planetType} ${pick(['Route', 'Colony', 'Outpost', 'Grid', 'Beacon'])}`,
-    text: `Task Focus: ${focus}. Province: ${cell.province}. ${pick(['Hold the route against raiders.', 'Retrieve lost telemetry logs.', 'Calibrate the outpost scanner.', 'Extract survivors to landing zone.', 'Map a safe exocraft route.'])}`,
-    reward: { credits: roll(6) * 20 },
+    source: cfg.source || 'surface',
+    wayfarerId: cfg.wayfarerId || '',
+    title: cfg.title || `${pick(['Survey', 'Secure', 'Recover', 'Escort', 'Stabilize'])} ${state.profile.planetType} ${pick(['Route', 'Colony', 'Outpost', 'Grid', 'Beacon'])}`,
+    text: cfg.text || `Task Focus: ${focus}. Province: ${cell.province}. ${pick(['Hold the route against raiders.', 'Retrieve lost telemetry logs.', 'Calibrate the outpost scanner.', 'Extract survivors to landing zone.', 'Map a safe exocraft route.'])}`,
+    reward: Object.assign({ credits: roll(6) * 20 }, cfg.reward || {}),
     resolved: false,
     cellId: cell.id,
   };
@@ -3398,6 +3540,7 @@ function createPlanetTask() {
   cell.marker = 'task';
   showNotif(`Planet task generated at hex ${cell.id}.`, 'good');
   renderPlanetExplorationPanel();
+  return task;
 }
 
 function resolvePlanetTask(taskId, success) {
@@ -3409,6 +3552,13 @@ function resolvePlanetTask(taskId, success) {
   task.resolved = true;
   const cell = state.cells.find((c) => c.id === task.cellId);
   if (cell) cell.note = success ? `Task completed: ${task.title}` : `Task failed: ${task.title}`;
+  if (task.wayfarerId) {
+    const wf = getPlanetWayfarerById(state, task.wayfarerId);
+    if (wf) {
+      wf.acceptedTaskId = '';
+      if (success) wf.completedTaskCount = (wf.completedTaskCount || 0) + 1;
+    }
+  }
   if (success) {
     if (typeof changeCredits === 'function') changeCredits(task.reward.credits || 0);
     changeFactionRenown('political', 1);
@@ -3474,9 +3624,12 @@ function renderPlanetExplorationPanel() {
   }
   const state = ensurePlanetSurfaceState(planetHex);
   if (!state) return;
+  const colonyOutput = applyPlanetColonyPhaseOutput(state);
   const selected = state.cells.find((c) => c.id === state.selectedCellId) || state.cells[0];
   const requirements = buildPlanetRequirements(state.profile);
   const taskList = state.tasks.filter((t) => !t.resolved);
+  const colonySummary = getPlanetColonySummary(state);
+  const availableWayfarers = (state.wayfarers || []).filter((wf) => !wf.retired).slice(-6).reverse();
   const provinceSummary = (state.provinces || []).map((province) => {
     const provinceCells = state.cells.filter((cell) => cell.province === province);
     const explored = provinceCells.filter((cell) => cell.explored).length;
@@ -3515,12 +3668,34 @@ function renderPlanetExplorationPanel() {
       <div style="margin-top:.45rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-teal" onclick="createPlanetTask()">Generate Planet Task</button>
         <button class="btn btn-xs" onclick="rollPlanetExploration()">Quick Surface Event</button>
+        <button class="btn btn-xs" onclick="claimPlanetColonyRestBoon()">Claim Colony Rest Boon</button>
       </div>
     </div>
     <div class="card">
       <div class="section-title">Province Overview</div>
       <div style="font-size:.8rem;color:var(--muted2);line-height:1.55;">${provinceSummary.join('<br>')}</div>
       <div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);font-size:.76rem;color:var(--muted2);">Merchant Colonies act like Holdings (trade/task hubs). Empty Colonies act like Dwellings (rest/refuge/task hooks).</div>
+      <div style="margin-top:.25rem;font-size:.76rem;color:var(--muted2);line-height:1.5;">
+        Active Colonies: Merchant ${colonySummary.exploredMerchant}/${colonySummary.merchant} · Empty ${colonySummary.exploredEmpty}/${colonySummary.empty}<br>
+        Phase Output: +${(colonySummary.exploredMerchant * 12) + (colonySummary.exploredEmpty * 4)} credits each phase while explored.<br>
+        Lifetime Colony Credits: ${state.colonyLedger ? state.colonyLedger.totalCreditsEarned : 0}
+        ${colonyOutput ? `<br><strong style="color:var(--gold2);">This Phase:</strong> +${colonyOutput.credits} credits${colonyOutput.boons.length ? ` · ${colonyOutput.boons.join(', ')}` : ''}` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Wayfarer Contacts</div>
+      ${availableWayfarers.length ? `<div style="display:grid;gap:.35rem;">${availableWayfarers.map((wf) => {
+        const hasOpenTask = !!wf.acceptedTaskId;
+        return `<div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
+          <div style="font-size:.83rem;color:var(--text);"><strong style="color:var(--gold2);">${wf.name}</strong> · ${wf.role} · ${wf.province}</div>
+          <div style="font-size:.76rem;color:var(--muted2);line-height:1.5;margin-top:.12rem;">${getWayfarerDialogueLine(wf, state)}</div>
+          <div style="font-size:.72rem;color:var(--muted2);margin-top:.14rem;">Focus: ${wf.hook} · Completed Contracts: ${wf.completedTaskCount || 0}</div>
+          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.2rem;">
+            <button class="btn btn-xs btn-teal" ${hasOpenTask ? 'disabled style="opacity:.6;cursor:default;"' : `onclick="acceptPlanetWayfarerTask('${wf.id}')"`}>${hasOpenTask ? 'Contract Accepted' : 'Accept Task'}</button>
+            <button class="btn btn-xs" onclick="explorePlanetCell(${wf.cellId})">Travel To Hex #${wf.cellId}</button>
+          </div>
+        </div>`;
+      }).join('')}</div>` : '<div style="font-size:.78rem;color:var(--muted2);">No active wayfarers yet. Trigger a Close Encounter or explore a W-marked hex.</div>'}
     </div>
     <div class="card">
       <div class="section-title">Planet Surface Grid (100 Hexes)</div>

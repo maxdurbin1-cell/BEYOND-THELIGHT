@@ -4109,35 +4109,19 @@ function buildPlanetHoldingInfoHtml(state, selected) {
     selected.data.holding = createPlanetHoldingDetail((state && state.profile) || {}, selected.province, selected.marker, selected.localWeather, selected.terrain);
   }
   const h = selected.data.holding;
-  return `<div class="sea-site" style="margin-bottom:.45rem;">
-    <div class="ss-title">${h.title}</div>
-    <div class="ss-text" style="line-height:1.55;">
-      <strong>${h.structure}</strong><br>
-      ${h.terrain} terrain<br>
-      🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${h.weatherLabel}<br>
-      ${h.weatherDesc}<br>
-      🛡 <strong>Rest Boon</strong><br>
-      ${h.restBoon}<br>
-      <strong>Mood:</strong> ${h.mood}<br>
-      <strong>Crisis:</strong> ${h.crisis}<br>
-      ${h.crisisText}<br>
-      <strong>${h.lordTitle}</strong><br>
-      ${h.lordName}<br>
-      <strong>Character</strong><br>
-      ${h.character}<br>
-      <strong>Cultural Focus</strong><br>
-      ${h.culturalFocus}<br>
-      <strong>Food</strong><br>
-      ${h.food}<br>
-      <strong>Goods</strong><br>
-      ${h.goods}<br>
-      📰 <strong>News & Hooks</strong><br>
-      ${h.news}<br>
-      🎯 <strong>Lord's Knowledge</strong><br>
-      ${h.knowledge}<br>
-      <button class="btn btn-xs btn-primary" onclick="createPlanetTask()">⚄ Generate Task</button>
+  return `<div class="rest-boon" style="background:rgba(201,162,39,.06);border-color:rgba(201,162,39,.4);">
+      <div class="rb-label" style="color:var(--gold);">🛡 Rest Boon</div>
+      <div style="font-size:.82rem;color:var(--text2);">${h.restBoon}</div>
     </div>
-  </div>`;
+    <div class="mood-block"><div class="mb-label">Mood: ${h.mood}</div><div style="font-size:.82rem;color:var(--text2);">${h.crisis}<br><em style="font-size:.78rem;">${h.crisisText}</em></div></div>
+    <div class="wild-panel"><div class="wp-label">${h.title}</div><div class="wp-text">${h.structure} · ${h.terrain} terrain<br>🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${h.weatherLabel}<br>${h.weatherDesc}</div></div>
+    <div class="wild-panel"><div class="wp-label">${h.lordTitle}</div><div class="wp-text">${h.lordName}</div></div>
+    <div class="wild-panel"><div class="wp-label">Character</div><div class="wp-text">${h.character}</div></div>
+    <div class="wild-panel"><div class="wp-label">Cultural Focus</div><div class="wp-text">${h.culturalFocus}</div></div>
+    <div class="info-row"><div class="info-cell"><span class="ic-label">Food</span>${h.food}</div><div class="info-cell"><span class="ic-label">Goods</span>${h.goods || '—'}</div></div>
+    <div class="wild-panel"><div class="wp-label">📰 News & Hooks</div><div class="wp-text">${h.news}</div></div>
+    <div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">${h.knowledge}</div></div>
+    <div style="margin:.35rem 0;"><button class="btn btn-sm btn-primary" onclick="createPlanetTask()">⚄ Generate Task</button></div>`;
 }
 
 function buildPlanetDwellingInfoHtml(state, selected) {
@@ -4147,18 +4131,13 @@ function buildPlanetDwellingInfoHtml(state, selected) {
     selected.data.dwelling = createPlanetDwellingDetail((state && state.profile) || {}, selected.province);
   }
   const d = selected.data.dwelling;
-  return `<div class="sea-site" style="margin-bottom:.45rem;">
-    <div class="ss-title">${d.title}</div>
-    <div class="ss-text" style="line-height:1.55;">
-      <strong>${d.settlement}</strong><br>
-      ${d.terrain} terrain<br>
-      <strong>Mood:</strong> ${d.mood}<br>
-      <strong>Current Need:</strong> ${d.currentNeed}<br>
-      <strong>Rest Blessing:</strong> ${d.blessing}<br>
-      📰 <strong>Rumor</strong><br>
-      ${d.rumor}
+  return `<div class="rest-boon" style="background:rgba(160,192,64,.06);border-color:rgba(110,208,144,.4);">
+      <div class="rb-label" style="color:var(--green2);">✨ Rest Boon</div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Bolstered</strong> (Spirit/Lead ↑).<br>${d.blessing}</div>
     </div>
-  </div>`;
+    <div class="wild-panel"><div class="wp-label">Dwelling - ${d.mood}</div><div class="wp-text">${d.settlement} in ${d.terrain} terrain.<br>Current Need: ${d.currentNeed}</div></div>
+    <div class="wild-panel"><div class="wp-label">📰 Nomad's News</div><div class="wp-text">${d.rumor}</div></div>
+    <div class="npc-block"><div class="nb-label">🧭 Nomad's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Nomads know about Landmarks and Events in adjacent Hex Zones. They know only a partial Mystery - enough to hint, not enough to spoil.</div></div>`;
 }
 
 function buildPlanetTempleInfoHtml(state, selected) {
@@ -4168,18 +4147,13 @@ function buildPlanetTempleInfoHtml(state, selected) {
     selected.data.temple = createPlanetTempleDetail((state && state.profile) || {}, selected.province);
   }
   const t = selected.data.temple;
-  return `<div class="sea-site" style="margin-bottom:.45rem;">
-    <div class="ss-title">${t.title}</div>
-    <div class="ss-text" style="line-height:1.55;">
-      <strong>${t.templeName}</strong><br>
-      ${t.terrain} terrain<br>
-      <strong>Mood:</strong> ${t.mood}<br>
-      <strong>Primary Rite:</strong> ${t.rite}<br>
-      <strong>Temple Blessing:</strong> ${t.blessing}<br>
-      🎯 <strong>Doctrine</strong><br>
-      ${t.doctrine}
+  return `<div class="rest-boon" style="background:rgba(80,40,120,.08);border-color:rgba(176,96,208,.4);">
+      <div class="rb-label" style="color:#b060d0;">🎯 Rest Boon</div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>${t.blessing}</div>
     </div>
-  </div>`;
+    <div class="wild-panel"><div class="wp-label">Temple - ${t.mood}</div><div class="wp-text">${t.templeName} in ${t.terrain} terrain.<br>Primary Rite: ${t.rite}</div></div>
+    <div class="wild-panel"><div class="wp-label">📜 Doctrine</div><div class="wp-text">${t.doctrine}</div></div>
+    <div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Sages know 1 random Event in the Province and its approximate direction. They know the nearest Landmark. They know a partial Mystery - enough to hint, not enough to spoil.</div></div>`;
 }
 
 function buildPlanetNarrativeLines(state, selected) {
@@ -5335,22 +5309,22 @@ function renderPlanetExplorationPanel() {
         </div>
       </div>
       <div class="planet-info">
-        <div class="sea-info-inner">
+        <div class="hex-info-inner">
           <div class="hex-type-tag ${selected && selected.explored ? 'holding' : 'wilderness'}">${narrative.markerLabel}</div>
           <div class="hex-name">${narrative.terrainLabel}</div>
-          <div class="hex-desc" style="margin-bottom:.2rem;">${narrative.terrainLabel} terrain · ${selected ? selected.province : '-'}</div>
+          <div class="hex-desc" style="margin-bottom:.4rem;">${narrative.terrainLabel} terrain · ${selected ? selected.province : '-'}</div>
 
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">🌍 Land</span>${narrative.land}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">🌿 Flora & Fauna</span>${narrative.floraFauna}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">✦ Wonder</span>${narrative.wonder}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Status</span>${selected && selected.explored ? 'Explored' : 'Unexplored'}</div>
-          <div class="hex-desc" style="margin-bottom:.38rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
+          <div class="hex-desc" style="margin-bottom:.4rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
           <div style="margin-top:.15rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect (Wayfarer AD vs Dread)</button></div>
 
-          <div class="sea-site" style="margin-bottom:.45rem;">
-            <div class="ss-title">${narrative.detailCardTitle}</div>
-            <div class="ss-text">${narrative.detailCardText}</div>
+          <div class="wild-panel">
+            <div class="wp-label">${narrative.detailCardTitle}</div>
+            <div class="wp-text">${narrative.detailCardText}</div>
           </div>
 
           ${holdingInfoHtml}

@@ -3161,14 +3161,54 @@ function createPlanetCellNarrative(state, theme, province) {
   const localNature = pick(PLANET_NATURE_TABLE);
   const localFauna = pick(PLANET_FAUNA_TABLE);
   const localWonder = pick(PLANET_WONDER_TABLE);
+  const localTone = pick(PLANET_TONE_TABLE);
+  const localSkyWeather = pick(PLANET_WEATHER_TABLE);
+  const localSights = pick(PLANET_SIGHTS_TABLE);
   return {
     terrain: localTerrain,
     terrainRule: terrainRule,
     localWeather: localWeather,
+    localTone,
+    localSkyWeather,
+    localSights,
     land: `${localNature} ${localForm} of ${province}`,
     floraFauna: `${localNature} growth with ${localFauna}`,
     wonder: localWonder,
   };
+}
+
+function buildPlanetAtmosphereLine(state, selected) {
+  if (!state) return '';
+  const useHexData = !!(selected && selected.explored);
+  const tone = (useHexData && selected.localTone) ? selected.localTone : state.profile.tone;
+  const skyWeather = (useHexData && selected.localSkyWeather) ? selected.localSkyWeather : state.profile.weather;
+  const sights = (useHexData && selected.localSights) ? selected.localSights : state.profile.sights;
+  return `The sky today shows a/an ${tone} tone amidst ${skyWeather}. Beyond the horizon: ${sights}.`;
+}
+
+function applyPlanetTerrainSave(state, cell, cfg) {
+  if (!state || !cell || !cfg) return '';
+  const check = resolveGalaxySkillCheck(cfg.primary, cfg.secondary, cfg.dd, `${cfg.label} at Hex ${cell.id}`);
+  if (check.success) {
+    return `${check.text}. Success: ${cfg.onSuccess}`;
+  }
+  if (typeof cfg.onFailure === 'function') cfg.onFailure(check.delta);
+  return `${check.text}. Failure: ${cfg.failText(check.delta)}`;
+}
+
+function getPlanetBeastEncounterText(state, selected) {
+  const count = roll(4);
+  const dread = 8;
+  const hp = 16;
+  const beastName = pick((PLANET_ENCOUNTER_ARCHETYPES.beast || ['Hostile Beasts'])).toLowerCase();
+  return `${count} ${beastName} prowl this route. DD${dread} | ${hp} Health each.`;
+}
+
+function getPlanetPirateEncounterText() {
+  const count = roll(4);
+  const dread = 8;
+  const hp = 16;
+  return `${count} pirate raider${count !== 1 ? 's' : ''} lock this lane. DD${dread} | ${hp} Health each.`;
 }
 
 function hasAnyPlanetSuitProtection() {
@@ -3268,39 +3308,103 @@ function applyPlanetTraversalEffects(state, cell) {
 
   if (terrainName === 'hazardous') {
     if (typeof loseGamePhases === 'function') loseGamePhases(1);
-    const check = resolveGalaxySkillCheck('body', 'agility', 20, `Steep cliffs at Hex ${cell.id}`);
-    if (!check.success) {
-      const damage = Math.max(1, check.delta);
-      if (typeof changeHealth === 'function') changeHealth(damage);
-      return `${check.text}. Failure: take ${damage} Health damage and +1 Phase travel cost.`;
-    }
-    return `${check.text}. Success: cliffs crossed with +1 Phase travel cost.`;
+    return applyPlanetTerrainSave(state, cell, {
+      label: 'Steep cliffs',
+      primary: 'body',
+      secondary: 'agility',
+      dd: 20,
+      onSuccess: 'cliffs crossed with +1 Phase travel cost.',
+      onFailure: (delta) => {
+        if (typeof changeHealth === 'function') changeHealth(Math.max(1, delta));
+      },
+      failText: (delta) => `take ${Math.max(1, delta)} Health damage and +1 Phase travel cost.`,
+    });
   }
   if (terrainName === 'convoluted') {
     if (typeof loseGamePhases === 'function') loseGamePhases(1);
-    return 'Convoluted routes: movement costs +1 Phase.';
+    return applyPlanetTerrainSave(state, cell, {
+      label: 'Convoluted pathways',
+      primary: 'lead',
+      secondary: 'mind',
+      dd: 8,
+      onSuccess: 'you find a stable route with only +1 Phase travel cost.',
+      onFailure: () => {
+        if (typeof changeStress === 'function') changeStress(1);
+      },
+      failText: () => '+1 Stress and +1 Phase travel cost.',
+    });
   }
   if (terrainName === 'biome-exotic') {
     if (typeof loseGamePhases === 'function') loseGamePhases(3);
-    return 'Hazardous river crossing: movement costs +3 Phases.';
+    return applyPlanetTerrainSave(state, cell, {
+      label: 'Hazardous river crossing',
+      primary: 'body',
+      secondary: 'agility',
+      dd: 10,
+      onSuccess: 'you cross with only the baseline +3 Phase detour.',
+      onFailure: () => {
+        if (typeof changeHealth === 'function') changeHealth(1);
+        if (typeof changeStress === 'function') changeStress(1);
+      },
+      failText: () => '1 Health damage, +1 Stress, and +3 Phase travel cost.',
+    });
   }
   if (terrainName === 'biome-irradiated') {
-    if (!isPlanetHazardBypassed(state) && typeof changeRads === 'function') {
-      changeRads(200);
-      return 'Radiation storm: +200 Rads (requirements not met).';
+    if (!isPlanetHazardBypassed(state)) {
+      return applyPlanetTerrainSave(state, cell, {
+        label: 'Radiation storm',
+        primary: 'control',
+        secondary: 'mind',
+        dd: 10,
+        onSuccess: 'radiation exposure minimized.',
+        onFailure: () => {
+          if (typeof changeRads === 'function') changeRads(200);
+        },
+        failText: () => '+200 Rads.',
+      });
     }
     return 'Radiation storm present, but current traversal protections bypassed the hazard.';
   }
   if (terrainName === 'biome-volcanic') {
     if (typeof loseGamePhases === 'function') loseGamePhases(3);
-    return 'Lava detour: movement costs +3 Phases.';
+    return applyPlanetTerrainSave(state, cell, {
+      label: 'Volcanic lava detour',
+      primary: 'body',
+      secondary: 'control',
+      dd: 10,
+      onSuccess: 'detour completed with +3 Phase travel cost.',
+      onFailure: () => {
+        if (typeof changeHealth === 'function') changeHealth(1);
+      },
+      failText: () => '1 Health damage and +3 Phase travel cost.',
+    });
   }
   if (terrainName === 'inhabited') {
     const d4 = roll(4);
     const site = d4 === 1 ? 'Hunting Ground' : d4 === 2 ? 'Nest' : 'Oasis';
-    return `Inhabited sector d4=${d4}: ${site} discovered.`;
+    return applyPlanetTerrainSave(state, cell, {
+      label: 'Inhabited approach',
+      primary: 'lead',
+      secondary: 'spirit',
+      dd: 6,
+      onSuccess: `${site} discovered with stable contact lines.`,
+      onFailure: () => {
+        if (typeof changeStress === 'function') changeStress(1);
+      },
+      failText: () => `${site} discovered under pressure. +1 Stress.`,
+    });
   }
-  return 'Easy route: no additional traversal penalty.';
+  return applyPlanetTerrainSave(state, cell, {
+    label: 'Easy-going route',
+    primary: 'lead',
+    secondary: 'mind',
+    dd: 6,
+    onSuccess: 'safe route confirmed, no additional penalty.',
+    onFailure: () => {
+      if (typeof changeStress === 'function') changeStress(1);
+    },
+    failText: () => '+1 Stress from navigation drift.',
+  });
 }
 
 function applyPlanetWayfarerRequirementPenalty(state, contextLabel) {
@@ -3491,14 +3595,14 @@ function rollPlanetHexEncounter() {
     text = `${selected.localWeather.label} — ${selected.localWeather.desc}`;
   } else if (d6 === 2) {
     const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.holding);
-    title = archetype;
+    title = `${archetype} (Space Holding)`;
     setPositiveGalaxyCondition('protected');
-    text = 'Holding lanes open and scouts report stable roads. Protected applied.';
+    text = 'Route marshals secure colony lanes and establish fallback points. Protected applied.';
   } else if (d6 === 3) {
     const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.ruins);
     title = archetype;
     setPositiveGalaxyCondition('empowered');
-    text = 'Ancient war-tech caches recovered. Empowered applied.';
+    text = 'Ancient salvage core recovered from ruins. Empowered applied.';
   } else if (d6 === 4) {
     const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.monument);
     title = archetype;
@@ -3508,18 +3612,20 @@ function rollPlanetHexEncounter() {
     const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.beast);
     const response = resolveGalaxySkillCheck('adventure', 'lead', 8, `Beast encounter Hex ${selected.id}`);
     title = archetype;
-    text = `${response.text}. ${response.success ? 'Route secured with no losses.' : 'Failure: +1 Stress.'}`;
+    const beastLine = getPlanetBeastEncounterText(state, selected);
+    text = `${beastLine} ${response.text}. ${response.success ? 'Route secured with no losses.' : 'Failure: +1 Stress.'}`;
     if (!response.success && typeof changeStress === 'function') changeStress(1);
   } else {
     const archetype = pick(PLANET_ENCOUNTER_ARCHETYPES.pirate);
     const response = resolveGalaxySkillCheck('adventure', 'lead', 8, `Pirate encounter Hex ${selected.id}`);
     title = archetype;
+    const pirateLine = getPlanetPirateEncounterText();
     if (response.success) {
-      text = `${response.text}. Transit corridor cleared.`;
+      text = `${pirateLine} ${response.text}. Transit corridor cleared.`;
     } else {
       if ((S.credits || 0) >= 20 && typeof changeCredits === 'function') changeCredits(-20);
       else if (typeof changeStress === 'function') changeStress(1);
-      text = `${response.text}. Failure: lose 20 credits or gain +1 Stress.`;
+      text = `${pirateLine} ${response.text}. Failure: lose 20 credits or gain +1 Stress.`;
     }
   }
 
@@ -3802,6 +3908,32 @@ function acceptPlanetWayfarerTask(wayfarerId) {
   const penalty = applyPlanetWayfarerRequirementPenalty(state, `Wayfarer ${wayfarer.name}`);
   if (penalty) showNotif(penalty, 'warn');
   showNotif(`Accepted contract from ${wayfarer.name}.`, 'good');
+  renderPlanetExplorationPanel();
+}
+
+function generatePlanetWayfarerTask(wayfarerId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const wayfarer = getPlanetWayfarerById(state, wayfarerId);
+  if (!wayfarer) return;
+  if (wayfarer.acceptedTaskId) {
+    showNotif(`${wayfarer.name} already has an open contract.`, 'warn');
+    return;
+  }
+  const task = createPlanetTask({
+    source: 'wayfarer',
+    wayfarerId: wayfarer.id,
+    preferredCellId: wayfarer.cellId,
+    title: `${wayfarer.name} Contract`,
+    text: `${wayfarer.role} request in ${wayfarer.province}. Focus: ${wayfarer.hook}.`,
+    reward: { credits: roll(6) * 30 },
+  });
+  if (!task) return;
+  wayfarer.acceptedTaskId = task.id;
+  const penalty = applyPlanetWayfarerRequirementPenalty(state, `Wayfarer ${wayfarer.name}`);
+  if (penalty) showNotif(penalty, 'warn');
+  showNotif(`Generated wayfarer task from ${wayfarer.name}.`, 'good');
   renderPlanetExplorationPanel();
 }
 
@@ -4201,7 +4333,7 @@ function renderPlanetExplorationPanel() {
   const weather = (selected && selected.localWeather) ? selected.localWeather : state.currentWeather;
 
   const observedCompact = `From orbit: ${state.observedSurface.observedFromSpace} | Landing: ${state.observedSurface.landingPad}`;
-  const atmosphereCompact = `${state.weatherLine} Beyond the horizon: ${state.profile.sights}.`;
+  const atmosphereCompact = buildPlanetAtmosphereLine(state, selected);
   const terrainCompact = `Land ${state.observedSurface.land} | Flora/Fauna ${state.observedSurface.floraFauna} | Wonder ${state.observedSurface.wonder}`;
   const narrative = buildPlanetNarrativeLines(state, selected);
 
@@ -4211,11 +4343,6 @@ function renderPlanetExplorationPanel() {
       <p>Landed at hex ${state.landedCellId} · Surface DD${state.difficulty} · ${state.profile.planetType} (${state.profile.biome})</p>
     </div>
     <div class="sea-control-bar">
-      <button class="btn btn-primary" onclick="rollPlanetExploration()">Quick Surface Event</button>
-      <button class="btn btn-sm btn-teal" onclick="createPlanetTask()">Generate Planet Task</button>
-      <button class="btn btn-sm" onclick="rollPlanetHexEncounter()">⚄ Roll Encounter</button>
-      <button class="btn btn-sm" onclick="observeAdjacentPlanetHexes()">🔍 Observe Adjacent (Lead vs DD6)</button>
-      <button class="btn btn-sm" onclick="claimPlanetColonyRestBoon()">Claim Colony Rest Boon</button>
       <button class="btn btn-sm btn-teal" onclick="cyclePlanetTraversalMode()">Traversal: ${state.traversalMode === 'exocraft' ? 'Exocraft' : 'On Foot'}</button>
       <span style="color:var(--muted);font-size:.6rem;margin:0 .25rem;">|</span>
       <span style="font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--gold2);">Open Tasks ${taskList.length}</span>
@@ -4267,7 +4394,7 @@ function renderPlanetExplorationPanel() {
               : cell.tradeRoute ? '═'
               : cell.marker === 'wayfarer' ? 'W'
               : '';
-            return `<button class="btn btn-xs planet-cell ${isSelected ? 'btn-teal' : ''} ${isWayfarerContract ? 'contract' : ''}" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
+            return `<button class="btn btn-xs planet-cell ${isSelected ? 'btn-teal' : ''} ${isWayfarerContract ? 'contract' : ''} ${cell.row % 2 === 0 ? 'row-even' : 'row-odd'}" onclick="explorePlanetCell(${cell.id})">#${cell.id}<br>${tag || '&nbsp;'}</button>`;
           }).join('')}
         </div>
         <div class="sea-group-list" style="margin-top:.55rem;">
@@ -4312,6 +4439,8 @@ function renderPlanetExplorationPanel() {
           <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.45rem;">
             <button class="btn btn-primary" onclick="rollPlanetHexEncounter()">⚄ Roll Encounter</button>
             <button class="btn btn-teal btn-sm" onclick="observeAdjacentPlanetHexes()">🔍 Observe Adjacent (Lead vs DD6)</button>
+            ${(selected && (selected.marker === 'merchant_colony' || selected.marker === 'empty_colony' || selected.marker === 'holding')) ? '<button class="btn btn-sm" onclick="createPlanetTask()">⚄ Generate Task</button>' : ''}
+            ${(selected && selected.marker === 'wayfarer') ? '<button class="btn btn-sm" onclick="createPlanetTask({ source: \'wayfarer\', preferredCellId: ' + selected.id + ' })">⚄ Generate Task (Wayfarer)</button>' : ''}
           </div>
 
           <div class="sea-site" style="margin-top:.45rem;">
@@ -4345,6 +4474,7 @@ function renderPlanetExplorationPanel() {
               <div class="nb-label">${wf.name} · ${wf.role}</div>
               <div style="font-size:.78rem;color:var(--muted2);line-height:1.45;">${getWayfarerDialogueLine(wf, state)}</div>
               <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.2rem;">
+                <button class="btn btn-xs" ${hasOpenTask ? 'disabled style="opacity:.6;cursor:default;"' : `onclick="generatePlanetWayfarerTask('${wf.id}')"`}>Generate Task</button>
                 <button class="btn btn-xs btn-teal" ${hasOpenTask ? 'disabled style="opacity:.6;cursor:default;"' : `onclick="acceptPlanetWayfarerTask('${wf.id}')"`}>${hasOpenTask ? 'Contract Accepted' : 'Accept Task'}</button>
                 <button class="btn btn-xs" onclick="explorePlanetCell(${wf.cellId})">Travel #${wf.cellId}</button>
               </div>

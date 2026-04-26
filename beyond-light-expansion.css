@@ -27,8 +27,9 @@
 @media(max-width:960px){.planet-layout{grid-template-columns:1fr;min-height:auto;}}
 .planet-scroll{overflow:auto;background:var(--card);border:1px solid var(--border);position:relative;padding:.7rem;}
 .planet-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;}
-.planet-grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:.22rem;}
-.planet-cell{min-height:2.05rem;padding:.14rem .2rem;line-height:1.2;font-size:.62rem;}
+.planet-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:.26rem;}
+.planet-cell{min-height:2.2rem;padding:.18rem .24rem;line-height:1.16;font-size:.62rem;clip-path:polygon(25% 5%,75% 5%,98% 50%,75% 95%,25% 95%,2% 50%);border-radius:0;border-width:1px;}
+.planet-cell.row-odd{transform:translateX(.36rem);}
 .planet-cell.contract{border-color:#e8c050;color:#ffe58a;background:rgba(232,192,80,.08);}
 .planet-micro{font-size:.74rem;color:var(--muted2);line-height:1.5;}
 .planet-kv{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-top:.35rem;}

@@ -3196,24 +3196,27 @@ function createPlanetHoldingDetail(profile, province, marker, localWeather, terr
   const weatherDesc = clearWeather
     ? 'A bright morning. Good light for navigation.'
     : ((localWeather && localWeather.desc) ? localWeather.desc : 'Wind and static interfere with scouting reports.');
+  const isMerchantColony = marker === 'merchant_colony';
   return {
     title: marker === 'merchant_colony' ? 'HOLDING' : 'HOLDING',
-    structure: pick(PLANET_HOLDING_STRUCTURES),
+    structure: isMerchantColony ? 'Fortress' : pick(PLANET_HOLDING_STRUCTURES),
     terrain: terrainName || (profile && profile.terrain) || 'Unknown terrain',
     weatherLabel,
     weatherDesc,
-    restBoon: pick(PLANET_HOLDING_REST_BOONS),
-    mood: pick(PLANET_HOLDING_MOODS),
-    crisis: pick(PLANET_HOLDING_CRISES),
-    crisisText: pick(PLANET_HOLDING_CRISES_TEXT),
+    restBoon: isMerchantColony ? 'Resting here grants Protected (Defend ↑ one Step).' : pick(PLANET_HOLDING_REST_BOONS),
+    mood: isMerchantColony ? 'Distrust' : pick(PLANET_HOLDING_MOODS),
+    crisis: isMerchantColony ? 'Reinforce Loyalty' : pick(PLANET_HOLDING_CRISES),
+    crisisText: isMerchantColony ? 'Earn trust within the council. A traitor is suspected.' : pick(PLANET_HOLDING_CRISES_TEXT),
     lordTitle: 'Lord',
-    lordName: `High Merchant ${pick(['Orin', 'Selka', 'Varo', 'Ithis', 'Mael'])}`,
-    character: pick(PLANET_HOLDING_CHARACTER),
-    culturalFocus: pick(PLANET_HOLDING_FOCUS),
-    food: pick(PLANET_HOLDING_FOOD),
-    goods: pick(PLANET_HOLDING_GOODS),
-    news: pick(PLANET_HOLDING_NEWS),
-    knowledge: pick(PLANET_HOLDING_KNOWLEDGE),
+    lordName: isMerchantColony ? 'High Merchant Orin' : `High Merchant ${pick(['Orin', 'Selka', 'Varo', 'Ithis', 'Mael'])}`,
+    character: isMerchantColony ? 'Industrious Tomb' : pick(PLANET_HOLDING_CHARACTER),
+    culturalFocus: isMerchantColony ? 'Trade and Bazaars' : pick(PLANET_HOLDING_FOCUS),
+    food: isMerchantColony ? 'Hearty herbal stew and dark bread' : pick(PLANET_HOLDING_FOOD),
+    goods: isMerchantColony ? 'Pottery and carved bone ornaments' : pick(PLANET_HOLDING_GOODS),
+    news: isMerchantColony ? 'A messenger from the Seat passed through but never arrived at their destination.' : pick(PLANET_HOLDING_NEWS),
+    knowledge: isMerchantColony
+      ? 'Lords grasp all Mysteries - their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.'
+      : pick(PLANET_HOLDING_KNOWLEDGE),
     province: province || 'Unknown Province',
   };
 }

@@ -2899,6 +2899,7 @@ function resolveSpaceEncounterOption(optionId) {
     updateStarSystemReadouts();
     clearActiveGalaxyPanels();
   }
+  showNotif(`Encounter failed: ${encounter.title}`, 'warn');
 }
 
 function renderSpaceEncounterPanel() {
@@ -3719,9 +3720,45 @@ function renderStarSystemMap() {
   const scaleX = size * 1.7;
   const scaleY = size * 1.45;
 
+  const positionForHex = (hex) => {
+    const baseX = cx + hex.q * scaleX + hex.r * (scaleX * 0.5);
+    const baseY = cy + hex.r * scaleY;
+    const type = S.starSystem.galaxyType || 'cluster';
+    const dist = Number(hex.dist) || 0;
+    if (type === 'spiral') {
+      const dx = baseX - cx;
+      const dy = baseY - cy;
+      const radius = Math.sqrt((dx * dx) + (dy * dy));
+      const angle = Math.atan2(dy, dx);
+      const swirl = dist * 0.5;
+      const radialScale = 0.86 + (dist * 0.07);
+      return {
+        x: cx + Math.cos(angle + swirl) * radius * radialScale,
+        y: cy + Math.sin(angle + swirl) * radius * (0.78 + (dist * 0.06)),
+      };
+    }
+    if (type === 'elliptical') {
+      return {
+        x: cx + (baseX - cx) * 1.24,
+        y: cy + (baseY - cy) * 0.68,
+      };
+    }
+    // Cluster keeps the core shape but adds slight deterministic drift by distance.
+    return {
+      x: baseX + (hex.r * 3) + (dist * 2),
+      y: baseY + (hex.q * 2) - (dist * 1.5),
+    };
+  };
+
+  const hexPositions = {};
+  S.starSystem.hexes.forEach((hex) => {
+    hexPositions[hex.id] = positionForHex(hex);
+  });
+
   const svgHexes = S.starSystem.hexes.map((hex) => {
-    const x = cx + hex.q * scaleX + hex.r * (scaleX * 0.5);
-    const y = cy + hex.r * scaleY;
+    const pos = hexPositions[hex.id] || { x: cx, y: cy };
+    const x = pos.x;
+    const y = pos.y;
     const pts = hexPointsSVG(x, y, size - 2);
     const key = STAR_SIGHTING_COLORS[hex.type] ? hex.type : 'nothing';
     const fill = STAR_SIGHTING_COLORS[key].color;
@@ -3742,13 +3779,13 @@ function renderStarSystemMap() {
   }).join('');
 
   const routeLines = (S.starSystem.tradeRoutes || []).map(([aId, bId]) => {
-    const a = S.starSystem.hexes.find(h => h.id === aId);
-    const b = S.starSystem.hexes.find(h => h.id === bId);
+    const a = hexPositions[aId];
+    const b = hexPositions[bId];
     if (!a || !b) return '';
-    const ax = cx + a.q * scaleX + a.r * (scaleX * 0.5);
-    const ay = cy + a.r * scaleY;
-    const bx = cx + b.q * scaleX + b.r * (scaleX * 0.5);
-    const by = cy + b.r * scaleY;
+    const ax = a.x;
+    const ay = a.y;
+    const bx = b.x;
+    const by = b.y;
     return `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="rgba(214,176,70,.45)" stroke-width="1.3" />`;
   }).join('');
 

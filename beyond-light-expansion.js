@@ -1109,8 +1109,9 @@
       desc = `${ships} pirate ship${ships > 1 ? "s" : ""} hunt the lane. DD8 | 16 Stress each.`;
       const fleeStress = roll(6);
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${ships} pirates',{stress:${ships*2}})">⚔ Fight (+${ships*2} Stress)</button>
-        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('flee','Pirates',{stress:${fleeStress}})">🏃 Flee (+${fleeStress} Stress)</button>
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${ships} pirates',{mentalStress:${ships*2},requireOutcome:true,dread:8})">⚔ Fight (+${ships*2} Mental Stress)</button>
+        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('flee','Pirates',{mentalStress:${fleeStress},controlRoll:true,dread:8,requireFightOnFail:true})">🏃 Flee (Control vs DD8)</button>
+        <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('tribute','Pirates',{cost:50})">🪙 Pay Tribute (−50₵)</button>
         <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate','Pirates',{cost:50})">💬 Negotiate (−50₵)</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Pirate Ships</div>${desc}${actions}`;
@@ -1126,8 +1127,9 @@
     if (rolled === 3) {
       desc = `The Great Serpent rises with ruined ships lashed across its spiny back. DD12 | 24 Stress.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','Great Serpent',{stress:12})">⚔ Engage (+12 Stress)</button>
-        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('flee','Great Serpent',{stress:6})">🏃 Flee Immediately (+6 Stress)</button>
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','Great Serpent',{mentalStress:12,requireOutcome:true,dread:12})">⚔ Engage (+12 Mental Stress)</button>
+        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('flee','Great Serpent',{mentalStress:6,controlRoll:true,dread:12,requireFightOnFail:true})">🏃 Flee (Control vs DD12)</button>
+        <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate','Great Serpent',{})">💬 Negotiate Retreat</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - The Great Serpent</div>${desc}${actions}`;
     }
@@ -1167,6 +1169,26 @@
   function resolveSeaEncounter(action, target, effects) {
     effects = effects || {};
     let msg = '';
+    const addMentalStress = function(amount) {
+      const val = Math.max(0, Number(amount) || 0);
+      if (!val) return;
+      if (typeof changeMentalStress === 'function') {
+        changeMentalStress(val);
+        return;
+      }
+      S.mentalStress = (S.mentalStress || 0) + val;
+      if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+    };
+
+    if (action === 'fightOutcome') {
+      const won = !!effects.won;
+      if (won) {
+        concludeSeaEncounter(`You defeated ${target}. Encounter resolved.`, 'good');
+      } else {
+        concludeSeaEncounter(`Combat with ${target} ended in failure. Encounter resolved as failed.`, 'warn');
+      }
+      return;
+    }
 
     if (action === 'trade') {
       const shopBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
@@ -1175,19 +1197,67 @@
     }
 
     if (action === 'fight') {
-      if (effects.stress) { if (typeof changeStress === 'function') changeStress(effects.stress); }
-      msg = `Engaged ${target} in combat! +${effects.stress||0} Stress applied.`;
+      const stressApplied = effects.mentalStress != null ? effects.mentalStress : (effects.stress || 0);
+      if (stressApplied) { addMentalStress(stressApplied); }
+      if (effects.requireOutcome) {
+        const hexKey = S.lastSea && S.lastSea.selectedKey;
+        if (hexKey && S.lastSea && S.lastSea.map) {
+          const hex = S.lastSea.map.find(h => h.key === hexKey);
+          if (hex) {
+            hex.resultHtml = `<div class="sea-result-title">Combat Outcome</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You engage ${target}. +${stressApplied || 0} Mental Stress applied. Choose the result to close this encounter.</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-success" onclick="resolveSeaEncounter('fightOutcome','${String(target).replace(/'/g, "&#39;")}',{won:true})">✓ Defeated</button><button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('fightOutcome','${String(target).replace(/'/g, "&#39;")}',{won:false})">✗ Failed</button></div>`;
+          }
+        }
+        renderLastSeaInfo();
+        showNotif(`Engaged ${target}. Choose combat outcome to resolve.`, 'warn');
+        return;
+      }
+      msg = `Engaged ${target} in combat! +${stressApplied||0} Mental Stress applied.`;
     } else if (action === 'flee') {
-      if (effects.stress) { if (typeof changeStress === 'function') changeStress(effects.stress); }
-      msg = `Fled from ${target}! +${effects.stress||0} Stress from the retreat.`;
+      if (effects.controlRoll) {
+        const controlDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
+        const dreadDie = effects.dread || 8;
+        const actionRoll = explodingRoll(controlDie);
+        const dreadRoll = explodingRoll(dreadDie);
+        const success = actionRoll.total >= dreadRoll.total;
+        if (!success && effects.requireFightOnFail) {
+          const failStress = Math.max(1, effects.mentalStress || (dreadRoll.total - actionRoll.total));
+          addMentalStress(failStress);
+          const escapedTarget = String(target).replace(/'/g, "&#39;");
+          const hexKey = S.lastSea && S.lastSea.selectedKey;
+          if (hexKey && S.lastSea && S.lastSea.map) {
+            const hex = S.lastSea.map.find(h => h.key === hexKey);
+            if (hex) {
+              hex.resultHtml = `<div class="sea-result-title">Flee Failed</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control d${controlDie}=${actionRoll.total} vs Dread d${dreadDie}=${dreadRoll.total}. You fail to escape and take +${failStress} Mental Stress. You must fight ${target}.</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${escapedTarget}',{mentalStress:${failStress},requireOutcome:true,dread:${dreadDie}})">⚔ Fight ${target}</button><button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate','${escapedTarget}',{})">💬 Negotiate</button></div>`;
+            }
+          }
+          renderLastSeaInfo();
+          showNotif(`Flee failed against ${target}. You must fight.`, 'warn');
+          return;
+        }
+        msg = `Escaped ${target}. Control d${controlDie}=${actionRoll.total} vs Dread d${dreadDie}=${dreadRoll.total}.`;
+      } else {
+        const stressApplied = effects.mentalStress != null ? effects.mentalStress : (effects.stress || 0);
+        if (stressApplied) { addMentalStress(stressApplied); }
+        msg = `Fled from ${target}! +${stressApplied||0} Mental Stress from the retreat.`;
+      }
+    } else if (action === 'tribute') {
+      if (effects.cost && (S.credits||0) >= effects.cost) {
+        S.credits = (S.credits||0) - effects.cost;
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        msg = `Paid tribute to ${target} (−${effects.cost}₵).`;
+      } else if (effects.cost) {
+        showNotif(`Not enough credits (need ${effects.cost}₵)`, 'warn'); return;
+      } else {
+        msg = `Paid tribute to ${target}.`;
+      }
     } else if (action === 'negotiate') {
       if (effects.cost && (S.credits||0) >= effects.cost) {
         S.credits = (S.credits||0) - effects.cost;
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
-        msg = `Negotiated with ${target} (−${effects.cost}₵).`;
+        msg = `Negotiated with ${target} (−${effects.cost}₵). You walk away without Mental Stress.`;
       } else if (effects.cost) {
         showNotif(`Not enough credits (need ${effects.cost}₵)`, 'warn'); return;
-      } else { msg = `Negotiated with ${target}.`; }
+      } else { msg = `Negotiated with ${target}. You walk away without Mental Stress.`; }
     } else if (action === 'rescue') {
       if (effects.renown) { S.renown = (S.renown||0) + effects.renown; if (typeof updateRenownUI === 'function') updateRenownUI(); }
       msg = `Rescued ${target}! +${effects.renown||0} Renown.`;
@@ -1208,8 +1278,9 @@
         msg = `Accepted mission from ${target}.`;
       }
     } else if (action === 'resist') {
-      if (effects.stress) { if (typeof changeStress === 'function') changeStress(effects.stress); }
-      msg = `Resisted ${target}! +${effects.stress||0} Stress.`;
+      const stressApplied = effects.mentalStress != null ? effects.mentalStress : (effects.stress || 0);
+      if (stressApplied) { addMentalStress(stressApplied); }
+      msg = `Resisted ${target}! +${stressApplied||0} Mental Stress.`;
     }
 
     concludeSeaEncounter(msg || 'Action resolved.', 'good');
@@ -1460,6 +1531,14 @@
   }
 
   function rollSeaDungeonLoot() {
+    if (typeof rollForLoot === 'function') {
+      try {
+        const rolled = rollForLoot('easy');
+        if (Array.isArray(rolled) && rolled.length) {
+          return pick(rolled);
+        }
+      } catch (err) {}
+    }
     const table = ['Credits', 'Scroll', 'Armor', 'Weapon', 'Toolkit', 'Strange Item'];
     const picked = pick(table);
     if (picked === 'Credits') return `${roll(6) * 10} Credits`;

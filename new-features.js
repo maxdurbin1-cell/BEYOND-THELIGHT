@@ -800,8 +800,13 @@
     if (!item) { return; }
     var found = (typeof findShopItem === 'function') ? findShopItem(item) : null;
     var cat = found ? found.cat : null;
+    var itemLc = String(item).toLowerCase();
     var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
     var isArmor = (cat === 'armor' || cat === 'armor_exp' || cat === 'space_armor');
+    // Fallback when shop lookup is unavailable: still allow recognizable armor names.
+    if (!isArmor) {
+      isArmor = /armor|armour|suit|radsuit|vaccsuit|hydrosuit|coolant layer/.test(itemLc);
+    }
     if ((slot === 'weapon1' || slot === 'weapon2') && !isWeapon) {
       showNotif('Only weapons can be equipped in weapon slots!', 'warn'); return;
     }

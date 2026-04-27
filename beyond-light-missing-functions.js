@@ -791,7 +791,41 @@ function rollAllStats() {
   updateAllStatDisplays();
 }
 
+function resetRunProgressState() {
+  S.injuries = [];
+  S.mentalStress = 0;
+  S.rads = 0;
+  S.radiationState = {
+    gainTicks: 0,
+    statPenalty: { body: 0, strike: 0, shoot: 0, mind: 0, spirit: 0, defend: 0, control: 0, lead: 0 },
+    mutations: []
+  };
+  S.scarState = {
+    avoidedDeaths: 0,
+    results: [],
+    tmwCostPenalty: 0,
+    rollPenalty: 0,
+    cannotEscapeCombat: false,
+    loseHealthOnFailedRoll: false,
+    baseTeamwork: 0,
+    inProgress: false
+  };
+
+  S.activeMissions = [];
+  S.completedMissions = [];
+  S.availableJobs = [];
+  S.missionTokens = {};
+
+  if (S.lastSea) {
+    S.lastSea.missionTokens = {};
+  }
+
+  S.storyline = {};
+  S.worldThatWas = {};
+}
+
 function generateCharacter() {
+  resetRunProgressState();
   rollName();
   rollCareer();
   rollBackground();
@@ -827,6 +861,7 @@ function generateCharacter() {
 }
 
 function clearCharacter() {
+  resetRunProgressState();
   S.name = "";
   S.career = "";
   S.background = "";

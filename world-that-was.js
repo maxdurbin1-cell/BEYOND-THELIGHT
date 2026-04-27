@@ -355,6 +355,31 @@
     });
   }
 
+  function ensureWorldServiceBonuses() {
+    if (typeof S === "undefined") return;
+    S.worldServiceBonuses = S.worldServiceBonuses || {};
+    if (typeof S.worldServiceBonuses.nextAdventureBonus !== "number") S.worldServiceBonuses.nextAdventureBonus = 0;
+    if (typeof S.worldServiceBonuses.nextTradeBonus !== "number") S.worldServiceBonuses.nextTradeBonus = 0;
+  }
+
+  function grantWorldServiceBonus(kind, amount, cap) {
+    ensureWorldServiceBonuses();
+    if (!S || !S.worldServiceBonuses) return;
+    const key = String(kind || "nextAdventureBonus");
+    const add = Math.max(0, Number(amount || 0));
+    const max = Math.max(0, Number(cap || 6));
+    S.worldServiceBonuses[key] = Math.min(max, Number(S.worldServiceBonuses[key] || 0) + add);
+  }
+
+  function consumeWorldServiceBonus(kind) {
+    ensureWorldServiceBonuses();
+    if (!S || !S.worldServiceBonuses) return 0;
+    const key = String(kind || "nextAdventureBonus");
+    const val = Math.max(0, Number(S.worldServiceBonuses[key] || 0));
+    if (val > 0) S.worldServiceBonuses[key] = 0;
+    return val;
+  }
+
   function addWorldItem(itemKey, amount) {
     ensureWorldInventory();
     if (!S || !S.worldInventory) return;
@@ -412,12 +437,14 @@
     const dd = dreadDie || 8;
     const a = (typeof explodingRoll === "function") ? explodingRoll(ad) : { total: safeRoll(ad) };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dd) : { total: safeRoll(dd) };
+    const serviceBonus = String(statKey || "") === "adventure" ? consumeWorldServiceBonus("nextAdventureBonus") : 0;
+    const actionTotal = a.total + serviceBonus;
     return {
       ad: ad,
       dd: dd,
-      actionTotal: a.total,
+      actionTotal: actionTotal,
       dreadTotal: d.total,
-      success: a.total >= d.total
+      success: actionTotal >= d.total
     };
   }
 
@@ -467,7 +494,7 @@
       action: base.action || "Resolve the operation",
       reward: base.reward || "Loot and influence",
       mode: "skill",
-      stat: safePick(ACTION_STATS, "body"),
+      stat: "adventure",
       dread: Math.max(4, safePick([6, 8, 8, 10], 8) + danger.eventDreadBias)
     };
   }
@@ -477,6 +504,15 @@
     const evt = safePick(zf.events, zf.events[0]);
     const danger = dangerForZone(zoneName);
     if (safeRoll(100) > danger.encounterChance) return null;
+    if (safeRoll(100) <= 35) {
+      return {
+        title: "Encounter: Traveling Wayfarer",
+        text: "A roaming Wayfarer calls out with rumors, trade offers, and route warnings.",
+        action: "Parley with the Wayfarer",
+        reward: "Intel and backpack loot",
+        mode: "wayfarer"
+      };
+    }
     return buildWorldEvent(zoneName, {
       title: "Encounter: " + (evt && evt.title ? evt.title : "District Surge"),
       text: evt && evt.text ? evt.text : "Unexpected district contact.",
@@ -611,7 +647,13 @@
     w.currentZone = w.currentZone || "Cyber Hub";
     w.minimalMapMode = !!w.minimalMapMode;
     w.storyObjectiveHexId = w.storyObjectiveHexId || null;
-    w.storyObjectiveHexId = null;
+    w.ui = w.ui || {};
+    w.ui.openAccordions = w.ui.openAccordions || {
+      encounter: true,
+      worldsystems: false,
+      services: false,
+      powertasks: false
+    };
 
     w.holdings = Array.isArray(w.holdings) ? w.holdings : [];
     w.activeTasks = Array.isArray(w.activeTasks) ? w.activeTasks : [];
@@ -952,7 +994,6 @@
       if (hex.landingPad) setMarker(w, hex, "landing", "Landing Pad", "Launch back to space from this district.");
       if (hex.serviceNode) setMarker(w, hex, "service", "Service Hub", "District services available here.");
       if (hex.structure) setMarker(w, hex, "structure", hex.structure.name || "Explorable Structure", "Enter and generate interior rooms.");
-      if (hex.wayfarer) setMarker(w, hex, "wayfarer", "Wayfarer", "Carries rumors and local history.");
       if (hex.hazard) {
         setMarker(
           w,
@@ -1049,6 +1090,31 @@
     svg.setAttribute("height", String(svgH));
     svg.innerHTML = "";
 
+    const stationHexes = w.hexes.filter(function (h) { return h.station; });
+    for (let i = 0; i < stationHexes.length; i += 1) {
+      const a = stationHexes[i];
+      const ga = { c: Math.floor(a.col / 4), r: Math.floor(a.row / 4) };
+      const pa = hexToPixel(a.col, a.row);
+      for (let j = i + 1; j < stationHexes.length; j += 1) {
+        const b = stationHexes[j];
+        const gb = { c: Math.floor(b.col / 4), r: Math.floor(b.row / 4) };
+        const adjacent = (ga.c === gb.c && Math.abs(ga.r - gb.r) === 1) || (ga.r === gb.r && Math.abs(ga.c - gb.c) === 1);
+        if (!adjacent) continue;
+        const pb = hexToPixel(b.col, b.row);
+        const rail = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        rail.setAttribute("x1", String(pa.x));
+        rail.setAttribute("y1", String(pa.y));
+        rail.setAttribute("x2", String(pb.x));
+        rail.setAttribute("y2", String(pb.y));
+        rail.setAttribute("stroke", "#7ed7ff");
+        rail.setAttribute("stroke-opacity", minimal ? "0.42" : "0.62");
+        rail.setAttribute("stroke-width", minimal ? "1.8" : "2.2");
+        rail.setAttribute("stroke-dasharray", "4 3");
+        rail.setAttribute("pointer-events", "none");
+        svg.appendChild(rail);
+      }
+    }
+
     w.hexes.forEach(function (hex) {
       const p = hexToPixel(hex.col, hex.row);
       const zone = w.zones.find(function (z) { return z.name === hex.zone; });
@@ -1119,7 +1185,7 @@
         g.appendChild(you);
       }
 
-      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task");
+      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task" || marker.type === "story");
       if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -1187,54 +1253,50 @@
     const name = String(svc.name || "").toLowerCase();
 
     if (name.indexOf("med") >= 0 || name.indexOf("therapy") >= 0 || name.indexOf("recovery") >= 0) {
-      if (!spendWorldItem("water", 1)) {
-        if (typeof showNotif === "function") showNotif("Need 1 Water for medical treatment.", "warn");
-        return false;
-      }
+      const hadWater = spendWorldItem("water", 1);
       if (typeof changeStress === "function") changeStress(-Math.max(2, safeRoll(4)));
       addWorldItem("meds", 1);
       addZoneReputation(hex.zone, 1);
-      if (typeof showNotif === "function") showNotif("Service effect: recovered stress.", "good");
+      putLootInBackpack("Medical Patch");
+      grantWorldServiceBonus("nextAdventureBonus", 1, 6);
+      if (typeof showNotif === "function") showNotif("Service effect: recovered stress, added Medical Patch, next Adventure +1.", "good");
+      if (!hadWater && typeof showNotif === "function") showNotif("No Water consumed. Clinic supplied emergency reserves.", "good");
       return true;
     }
 
     if (name.indexOf("intel") >= 0 || name.indexOf("data") >= 0 || name.indexOf("courier") >= 0 || name.indexOf("signal") >= 0) {
-      if (!spendWorldItem("dataDrives", 1)) {
-        if (typeof showNotif === "function") showNotif("Need 1 Data Drive to run this service.", "warn");
-        return false;
-      }
+      spendWorldItem("dataDrives", 1);
       const target = safePick(w.hexes.filter(function (h) { return h.id !== hex.id; }), null);
       if (target) {
         setMarker(w, target, "job", "Intel Lead", "Service generated this lead");
       }
       addWorldItem("scrap", 1);
       addZoneReputation(hex.zone, 1);
-      if (typeof showNotif === "function") showNotif("Service effect: spawned intel lead marker.", "good");
+      putLootInBackpack("Intel Packet");
+      grantWorldServiceBonus("nextAdventureBonus", 2, 6);
+      if (typeof showNotif === "function") showNotif("Service effect: spawned intel lead, added Intel Packet, next Adventure +2.", "good");
       return true;
     }
 
     if (name.indexOf("security") >= 0 || name.indexOf("militia") >= 0 || name.indexOf("ward") >= 0) {
-      if (!spendWorldItem("fuelCells", 1)) {
-        if (typeof showNotif === "function") showNotif("Need 1 Fuel Cell to power district security.", "warn");
-        return false;
-      }
+      spendWorldItem("fuelCells", 1);
       hex.skirmish = false;
       const zone = zoneForHex(hex);
       if (zone && zone.leader) hex.controller = zone.leader;
       addZoneReputation(hex.zone, 2);
-      if (typeof showNotif === "function") showNotif("Service effect: district stabilized.", "good");
+      putLootInBackpack("Ward Sigil");
+      grantWorldServiceBonus("nextAdventureBonus", 1, 6);
+      if (typeof showNotif === "function") showNotif("Service effect: district stabilized, added Ward Sigil, next Adventure +1.", "good");
       return true;
     }
 
     if (name.indexOf("repair") >= 0 || name.indexOf("maintenance") >= 0 || name.indexOf("forge") >= 0 || name.indexOf("dock") >= 0) {
-      if (!spendWorldItem("scrap", 1)) {
-        if (typeof showNotif === "function") showNotif("Need 1 Scrap for maintenance work.", "warn");
-        return false;
-      }
+      spendWorldItem("scrap", 1);
       setCredits(getCredits() + 20);
       addWorldItem("fuelCells", 1);
       addZoneReputation(hex.zone, 1);
-      if (typeof showNotif === "function") showNotif("Service effect: +20 Credits from repaired asset resale.", "good");
+      putLootInBackpack("Refit Kit");
+      if (typeof showNotif === "function") showNotif("Service effect: +20 Credits and Refit Kit added to backpack.", "good");
       return true;
     }
 
@@ -1242,7 +1304,8 @@
     addWorldItem("scrap", 1);
     addZoneReputation(hex.zone, 1);
     grantRandomLoot("easy");
-    if (typeof showNotif === "function") showNotif("Service effect: recovered district salvage.", "good");
+    putLootInBackpack("District Salvage");
+    if (typeof showNotif === "function") showNotif("Service effect: recovered district salvage and backpack loot.", "good");
     return true;
   }
 
@@ -1370,7 +1433,7 @@
       return;
     }
 
-    const stat = evt.stat || "body";
+    const stat = "adventure";
     const check = rollAgainstDread(stat, evt.dread || 8);
 
     if (check.success) {
@@ -1431,6 +1494,18 @@
   function resolveDistrictEncounter() {
     const hex = getSelectedHex();
     if (!hex || !hex.encounter) return;
+    if (hex.encounter.mode === "wayfarer") {
+      addZoneReputation(hex.zone, 1);
+      addWorldItem("dataDrives", 1);
+      addWorldItem("water", 1);
+      putLootInBackpack("Wayfarer Clue Cache");
+      if (typeof showNotif === "function") showNotif("Wayfarer encounter resolved: gained resources and clue cache.", "good");
+      hex.encounter = null;
+      advanceWorldTime("wayfarer encounter");
+      if (registerWorldAction("encounter resolve")) return;
+      renderWorldThatWas();
+      return;
+    }
     if (hex.encounter.mode === "combat") {
       if (typeof showNotif === "function") {
         showNotif("Encounter combat: " + hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each).", "warn");
@@ -1475,10 +1550,17 @@
     } else if (marker.type === "service" || marker.type === "wayfarer" || marker.type === "structure" || marker.type === "hazard" || marker.type === "peril" || marker.type === "barrier" || marker.type === "landing" || marker.type === "station" || marker.type === "story") {
       if (typeof showNotif === "function") showNotif("Visit this district and use the panel actions for this marker.", "good");
     } else {
-      if (typeof showNotif === "function") showNotif("District job completed. +80 Credits.", "good");
-      setCredits(getCredits() + 80);
-      addWorldItem("scrap", 1);
-      addZoneReputation(hex.zone, 1);
+      const check = rollAgainstDread("adventure", 6);
+      if (check.success) {
+        setCredits(getCredits() + 80);
+        addWorldItem("scrap", 1);
+        addZoneReputation(hex.zone, 1);
+        putLootInBackpack("District Contract Token");
+        if (typeof showNotif === "function") showNotif("District job success: Adventure " + check.actionTotal + " vs " + check.dreadTotal + ".", "good");
+      } else {
+        hex.skirmish = true;
+        if (typeof showNotif === "function") showNotif("District job failed: Adventure " + check.actionTotal + " vs " + check.dreadTotal + ". Skirmish triggered.", "warn");
+      }
       delete w.markers[hexId];
     }
 
@@ -1642,6 +1724,9 @@
     if (!check.success) {
       selected.skirmish = true;
       if (typeof showNotif === "function") showNotif("Task failed: " + statLabel(t.rollStat || "adventure") + " check missed DD" + (t.dread || 6) + ".", "warn");
+      w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
+      delete w.markers[t.hexId];
+      syncWorldMarkers();
       advanceWorldTime("task failure");
       if (registerWorldAction("task fail")) return;
       renderWorldThatWas();
@@ -1682,15 +1767,25 @@
   function travelByTrainTo(zoneName) {
     const w = ensureWorldState();
     if (!w) return;
+    const selected = getSelectedHex();
+    if (!selected || !selected.station) {
+      if (typeof showNotif === "function") showNotif("Rail travel requires standing on a rail station hex.", "warn");
+      return;
+    }
     if (w.currentZone === zoneName) {
       if (typeof showNotif === "function") showNotif("Already in " + zoneName + ".", "warn");
+      return;
+    }
+
+    const zone = w.zones.find(function (z) { return z.name === zoneName; });
+    if (!zone || !zone.stationHexId) {
+      if (typeof showNotif === "function") showNotif("No rail station available in " + zoneName + ".", "warn");
       return;
     }
 
     if (!spendCredits(30, "train travel")) return;
 
     w.currentZone = zoneName;
-    const zone = w.zones.find(function (z) { return z.name === zoneName; });
     if (zone && zone.stationHexId) {
       w.selectedHexId = zone.stationHexId;
     }
@@ -1857,6 +1952,30 @@
       + "</details>";
   }
 
+  function isWorldAccordionOpen(key, fallback) {
+    const w = ensureWorldState();
+    if (!w || !w.ui || !w.ui.openAccordions) return !!fallback;
+    if (typeof w.ui.openAccordions[key] !== "boolean") return !!fallback;
+    return !!w.ui.openAccordions[key];
+  }
+
+  function setWorldAccordionOpen(key, open) {
+    const w = ensureWorldState();
+    if (!w) return;
+    w.ui = w.ui || {};
+    w.ui.openAccordions = w.ui.openAccordions || {};
+    w.ui.openAccordions[key] = !!open;
+  }
+
+  function buildWtwAccordionStateful(title, body, fallbackOpen, key) {
+    const opened = isWorldAccordionOpen(key, fallbackOpen);
+    return ""
+      + "<details class='wtw-accordion'" + (opened ? " open" : "") + " ontoggle='wtwSetAccordion(\"" + key + "\", this.open)'>"
+      + "<summary>" + title + "</summary>"
+      + "<div class='wtw-accordion-body'>" + body + "</div>"
+      + "</details>";
+  }
+
   function renderWorldThatWasInfo() {
     const w = ensureWorldState();
     const panel = document.getElementById("wtwInfo");
@@ -1877,7 +1996,7 @@
     const markerTypeLabel = marker && WTW_MARKER_STYLE[marker.type] ? WTW_MARKER_STYLE[marker.type].title : "District Marker";
     const eventCheck = evt.mode === "combat"
       ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " enemies (DD" + (evt.dread || 8) + " | " + (evt.enemyHealth || 16) + " HP each)")
-      : ("<strong>Check:</strong> " + statLabel(evt.stat || "body") + " d" + getActionDie(evt.stat || "body") + " vs DD" + (evt.dread || 8));
+      : ("<strong>Check:</strong> Adventure d" + getActionDie("adventure") + " vs DD" + (evt.dread || 8));
 
     const encounterHtml = hex.encounter
       ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>" : "") + "</div></div>")
@@ -1914,7 +2033,7 @@
     const travelHtml = "<div class='wtw-card'>"
       + "<div class='wtw-card-title' style='color:#7ed7ff;'>Travel Infrastructure</div>"
       + "<div class='wtw-card-text'>"
-      + (hex.station ? "This district contains a rail station.<br>" : "No rail station in this district.<br>")
+      + (hex.station ? "This district contains a rail station. Rail travel costs 30 Credits to another station.<br>" : "No rail station in this district. Move to a station to use rail travel.<br>")
       + (hex.landingPad ? "Landing pad available: launch to space for 40 Credits." : "No landing pad in this district.")
       + "</div>"
       + (hex.landingPad ? "<div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwLaunchToSpace(\"" + hex.id + "\")'>Launch To Space</button></div>" : "")
@@ -1962,10 +2081,10 @@
       + "</div>"
       + summaryGrid
       + eventCard
-      + buildWtwAccordion("Encounter & Markers", encounterHtml + markerHtml, true)
-      + buildWtwAccordion("Hazards, Wayfarers, Exploration & Travel", worldSystems, false)
-      + buildWtwAccordion("District Services", servicesHtml || "<div class='wtw-muted'>No services available here.</div>", false)
-      + buildWtwAccordion("Zone Power & Tasks", powerSection, false)
+        + buildWtwAccordionStateful("Encounter & Markers", encounterHtml + markerHtml, true, "encounter")
+        + buildWtwAccordionStateful("Hazards, Wayfarers, Exploration & Travel", worldSystems, false, "worldsystems")
+        + buildWtwAccordionStateful("District Services", servicesHtml || "<div class='wtw-muted'>No services available here.</div>", false, "services")
+        + buildWtwAccordionStateful("Zone Power & Tasks", powerSection, false, "powertasks")
       + "</div>";
   }
 
@@ -2162,6 +2281,7 @@
     syncWorldMarkers();
     renderWorldThatWas();
   };
+  window.wtwSetAccordion = setWorldAccordionOpen;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initWorldThatWas);

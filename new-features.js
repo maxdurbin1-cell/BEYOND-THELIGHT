@@ -1976,12 +1976,9 @@
       if (!tasks.length) {
         showNotif(capFirst(role) + " has no assigned tasks.", "neutral");
       } else if (success) {
-        tasks[0].status = "resolved";
-        removeCouncilTaskSite(tasks[0].id);
-        showNotif(capFirst(role) + " completed task: " + tasks[0].verb + " " + tasks[0].target, "good");
-        renderHoldingUI();
+        onHoldingCouncilTaskResolved(tasks[0].id, true);
       } else {
-        showNotif(capFirst(role) + " failed assigned task.", "warn");
+        onHoldingCouncilTaskResolved(tasks[0].id, false);
       }
     }
 
@@ -2058,6 +2055,12 @@
     if (!t) { return; }
     t.status = success ? "resolved" : "failed";
     removeCouncilTaskSite(taskId);
+    S.holding.councilTasks = tasks.filter(function(x) { return x.id !== taskId; });
+    var roleTasks = S.holding.councilTasks.filter(function(x) { return x.role === t.role && x.status === "assigned"; });
+    if (S.holding.council[t.role]) {
+      S.holding.council[t.role].task = roleTasks.length ? (roleTasks.length + " active task" + (roleTasks.length === 1 ? "" : "s")) : "";
+      S.holding.council[t.role].status = roleTasks.length ? "Assigned" : "Idle";
+    }
     if (success) {
       showNotif("Council task resolved: " + t.summary, "good");
     } else {

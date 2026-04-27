@@ -1,7 +1,7 @@
 // world-that-was.js
 (function () {
-  const WTW_SCHEMA_VERSION = 2;
-  const WTW_HEX = 24;
+  const WTW_SCHEMA_VERSION = 3;
+  const WTW_HEX = 34;
   const MAP_COLS = 12;
   const MAP_ROWS = 12;
 
@@ -32,6 +32,20 @@
   const MAJOR_POWERS = ["Axiom Cartel", "Helix Union", "Titan Crown"];
   const FACTIONS = ["Veil Runners", "Dust Saints"];
   const HOLDERS = MAJOR_POWERS.concat(FACTIONS);
+  const ACTION_STATS = ["body", "mind", "spirit", "control", "lead", "strike", "shoot", "defend"];
+  const FALLBACK_LOOT = ["Trade Good", "Toolkit", "Remedy", "Scroll", "Weapon Mod", "Armor Plate", "Data Cache", "Relic Shard"];
+  const ZONE_DANGER = {
+    "Cyber Hub": { eventCombatChance: 30, eventDreadBias: 0, encounterChance: 26, skirmishChance: 14, cycleShiftBonus: 0 },
+    "Green House": { eventCombatChance: 20, eventDreadBias: -1, encounterChance: 18, skirmishChance: 10, cycleShiftBonus: -1 },
+    "Industrial Sector": { eventCombatChance: 42, eventDreadBias: 1, encounterChance: 35, skirmishChance: 22, cycleShiftBonus: 1 },
+    "Neon City": { eventCombatChance: 36, eventDreadBias: 0, encounterChance: 30, skirmishChance: 18, cycleShiftBonus: 0 },
+    "Outskirts": { eventCombatChance: 44, eventDreadBias: 1, encounterChance: 37, skirmishChance: 24, cycleShiftBonus: 1 },
+    "Residential Blocks": { eventCombatChance: 24, eventDreadBias: -1, encounterChance: 20, skirmishChance: 12, cycleShiftBonus: -1 },
+    "The Undercity": { eventCombatChance: 52, eventDreadBias: 2, encounterChance: 42, skirmishChance: 30, cycleShiftBonus: 2 },
+    "The Wastes": { eventCombatChance: 58, eventDreadBias: 2, encounterChance: 48, skirmishChance: 34, cycleShiftBonus: 2 },
+    "The Ports": { eventCombatChance: 38, eventDreadBias: 0, encounterChance: 32, skirmishChance: 20, cycleShiftBonus: 0 }
+  };
+  const WORLD_ITEMS = ["water", "meds", "dataDrives", "scrap", "fuelCells"];
 
   const ZONE_FLAVOR = {
     "Cyber Hub": {
@@ -246,6 +260,166 @@
     return Math.floor(Math.random() * max) + 1;
   }
 
+  function dangerForZone(zoneName) {
+    return ZONE_DANGER[zoneName] || { eventCombatChance: 35, eventDreadBias: 0, encounterChance: 25, skirmishChance: 16, cycleShiftBonus: 0 };
+  }
+
+  function ensureWorldInventory() {
+    if (typeof S === "undefined") return;
+    S.worldInventory = S.worldInventory || {};
+    WORLD_ITEMS.forEach(function (k) {
+      if (typeof S.worldInventory[k] !== "number") S.worldInventory[k] = 0;
+    });
+  }
+
+  function addWorldItem(itemKey, amount) {
+    ensureWorldInventory();
+    if (!S || !S.worldInventory) return;
+    const key = String(itemKey || "");
+    const add = Math.max(0, amount || 0);
+    S.worldInventory[key] = (S.worldInventory[key] || 0) + add;
+  }
+
+  function spendWorldItem(itemKey, amount) {
+    ensureWorldInventory();
+    if (!S || !S.worldInventory) return false;
+    const key = String(itemKey || "");
+    const need = Math.max(1, amount || 1);
+    const have = S.worldInventory[key] || 0;
+    if (have < need) return false;
+    S.worldInventory[key] = have - need;
+    return true;
+  }
+
+  function inventoryLabel(key) {
+    if (key === "dataDrives") return "Data Drives";
+    if (key === "fuelCells") return "Fuel Cells";
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+
+  function zoneRepTier(v) {
+    if (v >= 10) return "Champion";
+    if (v >= 7) return "Trusted";
+    if (v >= 4) return "Known";
+    if (v >= 1) return "Noted";
+    return "Unknown";
+  }
+
+  function addZoneReputation(zoneName, amount) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const z = String(zoneName || "Unknown");
+    w.zoneReputation = w.zoneReputation || {};
+    w.zoneReputation[z] = (w.zoneReputation[z] || 0) + (amount || 1);
+  }
+
+  function getActionDie(statKey) {
+    if (!S || !S.stats) return 4;
+    const die = S.stats[String(statKey || "body").toLowerCase()];
+    return typeof die === "number" ? die : 4;
+  }
+
+  function statLabel(statKey) {
+    const k = String(statKey || "body");
+    return k.charAt(0).toUpperCase() + k.slice(1);
+  }
+
+  function rollAgainstDread(statKey, dreadDie) {
+    const ad = getActionDie(statKey);
+    const dd = dreadDie || 8;
+    const a = (typeof explodingRoll === "function") ? explodingRoll(ad) : { total: safeRoll(ad) };
+    const d = (typeof explodingRoll === "function") ? explodingRoll(dd) : { total: safeRoll(dd) };
+    return {
+      ad: ad,
+      dd: dd,
+      actionTotal: a.total,
+      dreadTotal: d.total,
+      success: a.total >= d.total
+    };
+  }
+
+  function putLootInBackpack(lootName) {
+    const item = String(lootName || "Salvage Cache");
+    if (typeof addItemToBackpack === "function") {
+      try {
+        if (addItemToBackpack(item)) return true;
+      } catch (err) {}
+    }
+    if (typeof addToBackpack === "function") {
+      try {
+        if (addToBackpack(item)) return true;
+      } catch (err) {}
+    }
+    if (!Array.isArray(S.backpack)) S.backpack = ["", "", "", "", "", ""];
+    const slot = S.backpack.indexOf("");
+    if (slot >= 0) {
+      S.backpack[slot] = item;
+      const el = document.getElementById("bp" + slot);
+      if (el) el.value = item;
+      return true;
+    }
+    return false;
+  }
+
+  function buildWorldEvent(zoneName, template) {
+    const base = Object.assign({}, template || {});
+    const danger = dangerForZone(zoneName);
+    if (safeRoll(100) <= danger.eventCombatChance) {
+      const dread = Math.max(4, safePick([6, 8, 8, 10], 8) + danger.eventDreadBias);
+      const enemies = safePick([1, 2, 2, 3, 4], 2);
+      return {
+        title: base.title || "District Conflict",
+        text: base.text || "Violence erupts across the district.",
+        action: base.action || "Engage hostiles",
+        reward: base.reward || "Loot and influence",
+        mode: "combat",
+        enemies: enemies,
+        dread: dread,
+        enemyHealth: 2 * dread
+      };
+    }
+    return {
+      title: base.title || "District Operation",
+      text: base.text || "A high-risk operation needs action.",
+      action: base.action || "Resolve the operation",
+      reward: base.reward || "Loot and influence",
+      mode: "skill",
+      stat: safePick(ACTION_STATS, "body"),
+      dread: Math.max(4, safePick([6, 8, 8, 10], 8) + danger.eventDreadBias)
+    };
+  }
+
+  function buildDistrictEncounter(zoneName) {
+    const zf = ZONE_FLAVOR[zoneName] || ZONE_FLAVOR["Cyber Hub"];
+    const evt = safePick(zf.events, zf.events[0]);
+    const danger = dangerForZone(zoneName);
+    if (safeRoll(100) > danger.encounterChance) return null;
+    return buildWorldEvent(zoneName, {
+      title: "Encounter: " + (evt && evt.title ? evt.title : "District Surge"),
+      text: evt && evt.text ? evt.text : "Unexpected district contact.",
+      action: evt && evt.action ? evt.action : "Respond immediately",
+      reward: "Immediate loot / control impact"
+    });
+  }
+
+  function registerWorldAction(reason) {
+    const w = ensureWorldState();
+    if (!w) return false;
+    w.activityClicks = (typeof w.activityClicks === "number" ? w.activityClicks : 0) + 1;
+    if (w.activityClicks >= 10) {
+      w.activityClicks = 0;
+      advanceWorldThatWas(true);
+      if (typeof showNotif === "function") {
+        showNotif("World pressure built up. Control cycle advanced.", "good");
+      }
+      return true;
+    }
+    if (reason && typeof showNotif === "function") {
+      showNotif("World activity: " + w.activityClicks + "/10", "good");
+    }
+    return false;
+  }
+
   function getCredits() {
     if (typeof S === "undefined") return 0;
     return typeof S.credits === "number" ? S.credits : 0;
@@ -286,14 +460,23 @@
   }
 
   function grantRandomLoot(tier) {
+    let granted = [];
     if (typeof rollForLoot === "function") {
-      const loot = rollForLoot(tier || "medium");
-      if (loot && loot.length && typeof showNotif === "function") {
-        showNotif("Loot: " + loot.join(", "), "good");
-      }
-      return;
+      try {
+        const loot = rollForLoot(tier || "medium");
+        if (Array.isArray(loot) && loot.length) granted = loot.slice(0, 1);
+      } catch (err) {}
     }
-    if (typeof showNotif === "function") showNotif("Loot granted.", "good");
+    if (!granted.length) {
+      granted = [safePick(FALLBACK_LOOT, "Trade Good")];
+    }
+    const stored = granted.map(function (name) {
+      const ok = putLootInBackpack(name);
+      return ok ? name + " (Backpack)" : name + " (Backpack Full)";
+    });
+    if (typeof showNotif === "function") showNotif("Loot: " + stored.join(", "), "good");
+    if (typeof renderUI === "function") renderUI();
+    return granted;
   }
 
   function advanceWorldTime(reason) {
@@ -309,6 +492,7 @@
   function ensureWorldState() {
     if (typeof S === "undefined") return null;
     ensurePowerRenown();
+    ensureWorldInventory();
 
     S.worldThatWas = S.worldThatWas || {};
     const w = S.worldThatWas;
@@ -331,6 +515,11 @@
 
     w.holdings = Array.isArray(w.holdings) ? w.holdings : [];
     w.activeTasks = Array.isArray(w.activeTasks) ? w.activeTasks : [];
+    w.activityClicks = typeof w.activityClicks === "number" ? w.activityClicks : 0;
+    w.zoneReputation = w.zoneReputation || {};
+    ZONE_NAMES.forEach(function (z) {
+      if (typeof w.zoneReputation[z] !== "number") w.zoneReputation[z] = 0;
+    });
 
     w.skirmishState = w.skirmishState || {
       activeHexId: null,
@@ -354,6 +543,11 @@
       w.currentZone = "Cyber Hub";
       w.holdings = [];
       w.activeTasks = [];
+      w.activityClicks = 0;
+      w.zoneReputation = {};
+      ZONE_NAMES.forEach(function (z) {
+        w.zoneReputation[z] = 0;
+      });
       w.skirmishState = {
         activeHexId: null,
         round: 1,
@@ -372,6 +566,7 @@
 
   function buildDistrictNarrative(zoneName) {
     const zf = ZONE_FLAVOR[zoneName] || ZONE_FLAVOR["Cyber Hub"];
+    const baseEvent = Object.assign({}, safePick(zf.events, zf.events[0]));
     return {
       location: safePick(zf.locations, "a contested district"),
       sight: safePick(zf.sights, "flickering lights"),
@@ -381,7 +576,7 @@
       fauna: safePick(zf.fauna, "scrap hounds"),
       land: safePick(zf.land, "broken roads"),
       weather: safePick(zf.weather, "cold rain"),
-      event: Object.assign({}, safePick(zf.events, zf.events[0]))
+      event: buildWorldEvent(zoneName, baseEvent)
     };
   }
 
@@ -442,6 +637,7 @@
     for (let row = 0; row < MAP_ROWS; row += 1) {
       for (let col = 0; col < MAP_COLS; col += 1) {
         const zoneName = mapZoneFromCoord(col, row);
+        const danger = dangerForZone(zoneName);
         const n = buildDistrictNarrative(zoneName);
         const hexId = "wtw-" + col + "-" + row;
         const hex = {
@@ -452,11 +648,12 @@
           col: col,
           row: row,
           controller: safePick(HOLDERS, HOLDERS[0]),
-          skirmish: safeRoll(100) <= 16,
+          skirmish: safeRoll(100) <= danger.skirmishChance,
           narrative: n,
           station: false,
           markerType: null,
-          serviceRefresh: safeRoll(100) <= 55
+          serviceRefresh: safeRoll(100) <= 55,
+          encounter: null
         };
         idxByZone[zoneName] += 1;
         w.hexes.push(hex);
@@ -472,6 +669,14 @@
     generateHoldings(w);
     syncWorldMarkers();
     updateZoneControl();
+
+    if (S && S.worldInventory) {
+      if ((S.worldInventory.water || 0) === 0) S.worldInventory.water = 2;
+      if ((S.worldInventory.meds || 0) === 0) S.worldInventory.meds = 1;
+      if ((S.worldInventory.dataDrives || 0) === 0) S.worldInventory.dataDrives = 1;
+      if ((S.worldInventory.scrap || 0) === 0) S.worldInventory.scrap = 2;
+      if ((S.worldInventory.fuelCells || 0) === 0) S.worldInventory.fuelCells = 1;
+    }
 
     w.tick = 1;
     w.generated = true;
@@ -553,8 +758,9 @@
     });
 
     w.hexes.forEach(function (hex) {
+      const danger = dangerForZone(hex.zone);
       if (!w.markers[hex.id]) {
-        hex.markerType = safeRoll(100) <= 12 ? "job" : null;
+        hex.markerType = safeRoll(100) <= Math.max(8, Math.floor(danger.encounterChance / 2)) ? "job" : null;
         if (hex.markerType === "job") {
           w.markers[hex.id] = { type: "job", title: "District Job", subtitle: "Quick contract available" };
         }
@@ -604,7 +810,7 @@
     }
 
     const svgW = 980;
-    const svgH = 760;
+    const svgH = 980;
     svg.setAttribute("width", String(svgW));
     svg.setAttribute("height", String(svgH));
     svg.innerHTML = "";
@@ -700,6 +906,77 @@
     return dominance >= 0.5 ? base.concat(power) : base.concat(power.slice(0, 1));
   }
 
+  function hexById(hexId) {
+    const w = ensureWorldState();
+    if (!w) return null;
+    return w.hexes.find(function (h) { return h.id === hexId; }) || null;
+  }
+
+  function applyWorldServiceEffect(hex, svc) {
+    const w = ensureWorldState();
+    if (!w || !hex || !svc) return false;
+    const name = String(svc.name || "").toLowerCase();
+
+    if (name.indexOf("med") >= 0 || name.indexOf("therapy") >= 0 || name.indexOf("recovery") >= 0) {
+      if (!spendWorldItem("water", 1)) {
+        if (typeof showNotif === "function") showNotif("Need 1 Water for medical treatment.", "warn");
+        return false;
+      }
+      if (typeof changeStress === "function") changeStress(-Math.max(2, safeRoll(4)));
+      addWorldItem("meds", 1);
+      addZoneReputation(hex.zone, 1);
+      if (typeof showNotif === "function") showNotif("Service effect: recovered stress.", "good");
+      return true;
+    }
+
+    if (name.indexOf("intel") >= 0 || name.indexOf("data") >= 0 || name.indexOf("courier") >= 0 || name.indexOf("signal") >= 0) {
+      if (!spendWorldItem("dataDrives", 1)) {
+        if (typeof showNotif === "function") showNotif("Need 1 Data Drive to run this service.", "warn");
+        return false;
+      }
+      const target = safePick(w.hexes.filter(function (h) { return h.id !== hex.id; }), null);
+      if (target) {
+        w.markers[target.id] = { type: "job", title: "Intel Lead", subtitle: "Service generated this lead" };
+      }
+      addWorldItem("scrap", 1);
+      addZoneReputation(hex.zone, 1);
+      if (typeof showNotif === "function") showNotif("Service effect: spawned intel lead marker.", "good");
+      return true;
+    }
+
+    if (name.indexOf("security") >= 0 || name.indexOf("militia") >= 0 || name.indexOf("ward") >= 0) {
+      if (!spendWorldItem("fuelCells", 1)) {
+        if (typeof showNotif === "function") showNotif("Need 1 Fuel Cell to power district security.", "warn");
+        return false;
+      }
+      hex.skirmish = false;
+      const zone = zoneForHex(hex);
+      if (zone && zone.leader) hex.controller = zone.leader;
+      addZoneReputation(hex.zone, 2);
+      if (typeof showNotif === "function") showNotif("Service effect: district stabilized.", "good");
+      return true;
+    }
+
+    if (name.indexOf("repair") >= 0 || name.indexOf("maintenance") >= 0 || name.indexOf("forge") >= 0 || name.indexOf("dock") >= 0) {
+      if (!spendWorldItem("scrap", 1)) {
+        if (typeof showNotif === "function") showNotif("Need 1 Scrap for maintenance work.", "warn");
+        return false;
+      }
+      setCredits(getCredits() + 20);
+      addWorldItem("fuelCells", 1);
+      addZoneReputation(hex.zone, 1);
+      if (typeof showNotif === "function") showNotif("Service effect: +20 Credits from repaired asset resale.", "good");
+      return true;
+    }
+
+    addWorldItem("water", 1);
+    addWorldItem("scrap", 1);
+    addZoneReputation(hex.zone, 1);
+    grantRandomLoot("easy");
+    if (typeof showNotif === "function") showNotif("Service effect: recovered district salvage.", "good");
+    return true;
+  }
+
   function spendService(hexId, serviceIdx) {
     const w = ensureWorldState();
     if (!w) return;
@@ -710,22 +987,20 @@
     if (!svc) return;
     if (!spendCredits(svc.cost, svc.name)) return;
 
-    const resultRoll = safeRoll(100);
-    if (resultRoll <= 35) {
-      grantRandomLoot("easy");
-    } else if (resultRoll <= 70) {
-      if (typeof changeCounter === "function") changeCounter("renown", 1);
-      if (typeof showNotif === "function") showNotif("Service success: +1 Renown.", "good");
-    } else {
-      if (typeof showNotif === "function") showNotif("Service complete: utility benefit applied.", "good");
+    const ok = applyWorldServiceEffect(hex, svc);
+    if (!ok) {
+      setCredits(getCredits() + svc.cost);
+      return;
     }
 
     if (hex.serviceRefresh && safeRoll(100) <= 25) {
-      hex.narrative.event = Object.assign({}, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
+      hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
       if (typeof showNotif === "function") showNotif("District activity changed after service interaction.", "good");
     }
 
     advanceWorldTime("service action");
+    updateZoneControl();
+    if (registerWorldAction("service")) return;
     renderWorldThatWas();
   }
 
@@ -735,25 +1010,99 @@
     const hex = w.hexes.find(function (h) { return h.id === hexId; });
     if (!hex) return;
 
-    const advDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 6;
-    const dreadDie = 8;
-    const a = (typeof explodingRoll === "function") ? explodingRoll(advDie) : { total: safeRoll(advDie) };
-    const d = (typeof explodingRoll === "function") ? explodingRoll(dreadDie) : { total: safeRoll(dreadDie) };
-    const success = a.total >= d.total;
+    const evt = hex.narrative && hex.narrative.event ? hex.narrative.event : null;
+    if (!evt) return;
 
-    if (success) {
+    if (evt.mode === "combat") {
+      if (typeof showNotif === "function") {
+        showNotif("Combat event: " + evt.enemies + " enemies (DD" + evt.dread + " | " + evt.enemyHealth + " HP each).", "warn");
+      }
+      openWorldSkirmishCombat();
+      return;
+    }
+
+    const stat = evt.stat || "body";
+    const check = rollAgainstDread(stat, evt.dread || 8);
+
+    if (check.success) {
       const zone = zoneForHex(hex);
       addPowerRenown(zone ? zone.leader : MAJOR_POWERS[0], 1);
+      addZoneReputation(hex.zone, 1);
+      addWorldItem("dataDrives", 1);
       grantRandomLoot("medium");
-      if (typeof showNotif === "function") showNotif("Event resolved: " + hex.narrative.event.title + ".", "good");
+      if (typeof showNotif === "function") {
+        showNotif("Event success: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ".", "good");
+      }
     } else if (typeof showNotif === "function") {
-      showNotif("Event failed: pressure in district rises.", "warn");
+      showNotif("Event failed: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ".", "warn");
       hex.skirmish = true;
     }
+
+    hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
 
     advanceWorldTime("event resolution");
     updateZoneControl();
     syncWorldMarkers();
+    if (registerWorldAction("event")) return;
+    renderWorldThatWas();
+  }
+
+  function completeCombatEventVictory(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.narrative || !hex.narrative.event || hex.narrative.event.mode !== "combat") return;
+    const zone = zoneForHex(hex);
+    addPowerRenown(zone ? zone.leader : MAJOR_POWERS[0], 1);
+    addZoneReputation(hex.zone, 2);
+    addWorldItem("scrap", 2);
+    grantRandomLoot("medium");
+    setCredits(getCredits() + 90);
+    hex.skirmish = false;
+    hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
+    advanceWorldTime("combat event victory");
+    updateZoneControl();
+    syncWorldMarkers();
+    if (registerWorldAction("combat event")) return;
+    renderWorldThatWas();
+  }
+
+  function rollDistrictEncounter() {
+    const hex = getSelectedHex();
+    if (!hex) return;
+    hex.encounter = buildDistrictEncounter(hex.zone);
+    if (!hex.encounter) {
+      if (typeof showNotif === "function") showNotif("No active encounter in this district right now.", "good");
+      renderWorldThatWas();
+      return;
+    }
+    if (typeof showNotif === "function") showNotif("Encounter rolled in " + hex.zone + ".", "good");
+    if (registerWorldAction("encounter roll")) return;
+    renderWorldThatWas();
+  }
+
+  function resolveDistrictEncounter() {
+    const hex = getSelectedHex();
+    if (!hex || !hex.encounter) return;
+    if (hex.encounter.mode === "combat") {
+      if (typeof showNotif === "function") {
+        showNotif("Encounter combat: " + hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each).", "warn");
+      }
+      openWorldSkirmishCombat();
+      return;
+    }
+    const check = rollAgainstDread(hex.encounter.stat || "body", hex.encounter.dread || 8);
+    if (check.success) {
+      addZoneReputation(hex.zone, 1);
+      addWorldItem("water", 1);
+      grantRandomLoot("easy");
+      setCredits(getCredits() + 30);
+      if (typeof showNotif === "function") showNotif("Encounter resolved successfully.", "good");
+    } else {
+      hex.skirmish = true;
+      if (typeof showNotif === "function") showNotif("Encounter failed. Skirmish triggered.", "warn");
+    }
+    hex.encounter = null;
+    advanceWorldTime("district encounter");
+    if (registerWorldAction("encounter resolve")) return;
     renderWorldThatWas();
   }
 
@@ -777,10 +1126,13 @@
     } else {
       if (typeof showNotif === "function") showNotif("District job completed. +80 Credits.", "good");
       setCredits(getCredits() + 80);
+      addWorldItem("scrap", 1);
+      addZoneReputation(hex.zone, 1);
       delete w.markers[hexId];
     }
 
     advanceWorldTime("district marker");
+    if (registerWorldAction("marker")) return;
     renderWorldThatWas();
   }
 
@@ -840,6 +1192,7 @@
       return;
     }
 
+    if (registerWorldAction("skirmish action")) return;
     renderWorldThatWas();
   }
 
@@ -872,6 +1225,7 @@
     const hex = getSelectedHex();
     if (!w || !hex || !hex.skirmish) return;
 
+    w.skirmishState.activeHexId = hex.id;
     const adv = (S.stats && S.stats.adventure) ? S.stats.adventure : 6;
     const a = safeRoll(adv);
     const d = safeRoll(8);
@@ -895,8 +1249,11 @@
 
     const taskId = "task-" + Date.now() + "-" + safeRoll(9999);
     const title = safePick(POWER_TASKS[h.power], "Run district operation");
-    const zoneHexes = w.hexes.filter(function (hex) { return hex.zone === h.zone; });
-    const taskHex = safePick(zoneHexes, zoneHexes[0]);
+    const selected = getSelectedHex();
+    const zoneHexes = w.hexes.filter(function (hex) { return hex.zone === h.zone && (!selected || hex.id !== selected.id); });
+    const taskHex = safePick(zoneHexes, zoneHexes[0]) || selected;
+    const rewardCredits = 120 + safeRoll(8) * 20;
+    const rollStat = safePick(ACTION_STATS, "body");
 
     const t = {
       id: taskId,
@@ -904,12 +1261,17 @@
       power: h.power,
       title: title,
       hexId: taskHex ? taskHex.id : null,
-      status: "active"
+      status: "active",
+      rollStat: rollStat,
+      dread: 8,
+      rewardCredits: rewardCredits,
+      rewardTier: safePick(["easy", "medium", "medium", "challenging"], "medium")
     };
 
     w.activeTasks.unshift(t);
     syncWorldMarkers();
-    if (typeof showNotif === "function") showNotif("Task accepted: " + title + ".", "good");
+    if (typeof showNotif === "function") showNotif("Task accepted: " + title + ". Travel to district and resolve.", "good");
+    if (registerWorldAction("task accept")) return;
     renderWorldThatWas();
   }
 
@@ -919,17 +1281,50 @@
     const t = w.activeTasks.find(function (x) { return x.id === taskId; });
     if (!t) return;
 
+    const selected = getSelectedHex();
+    if (!selected || selected.id !== t.hexId) {
+      if (typeof showNotif === "function") showNotif("Travel to the task district before completing.", "warn");
+      return;
+    }
+
+    const check = rollAgainstDread(t.rollStat || "body", t.dread || 8);
+    if (!check.success) {
+      selected.skirmish = true;
+      if (typeof showNotif === "function") showNotif("Task failed: " + statLabel(t.rollStat) + " check missed DD" + (t.dread || 8) + ".", "warn");
+      advanceWorldTime("task failure");
+      if (registerWorldAction("task fail")) return;
+      renderWorldThatWas();
+      return;
+    }
+
     t.status = "done";
     addPowerRenown(t.power, 1);
-    grantRandomLoot("medium");
+    addZoneReputation(selected.zone, 2);
+    addWorldItem("dataDrives", 1);
+    addWorldItem("fuelCells", 1);
+    grantRandomLoot(t.rewardTier || "medium");
+    setCredits(getCredits() + (t.rewardCredits || 150));
 
     if (typeof showNotif === "function") {
-      showNotif("Holding task completed for " + t.power + ".", "good");
+      showNotif("Task complete: +" + (t.rewardCredits || 150) + " Credits, +1 " + t.power + " renown.", "good");
     }
 
     w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
+    delete w.markers[t.hexId];
     syncWorldMarkers();
     advanceWorldTime("holding task");
+    if (registerWorldAction("task complete")) return;
+    renderWorldThatWas();
+  }
+
+  function jumpToTaskHex(taskId) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const t = w.activeTasks.find(function (x) { return x.id === taskId; });
+    if (!t || !t.hexId) return;
+    w.selectedHexId = t.hexId;
+    const hex = hexById(t.hexId);
+    if (hex) w.currentZone = hex.zone;
     renderWorldThatWas();
   }
 
@@ -950,11 +1345,12 @@
     }
 
     advanceWorldTime("train travel");
+    if (registerWorldAction("train")) return;
     if (typeof showNotif === "function") showNotif("Traveled by rail to " + zoneName + " for 30 Credits.", "good");
     renderWorldThatWas();
   }
 
-  function advanceWorldThatWas() {
+  function advanceWorldThatWas(fromActivity) {
     const w = ensureWorldState();
     if (!w || !w.hexes.length) return;
 
@@ -962,23 +1358,30 @@
 
     const shifts = Math.max(2, safeRoll(5));
     for (let i = 0; i < shifts; i += 1) {
-      const target = safePick(w.hexes, null);
+      const weighted = [];
+      w.hexes.forEach(function (hex) {
+        const weight = Math.max(1, 1 + dangerForZone(hex.zone).cycleShiftBonus);
+        for (let wi = 0; wi < weight; wi += 1) weighted.push(hex);
+      });
+      const target = safePick(weighted, null);
       if (!target) break;
       target.controller = safePick(HOLDERS, target.controller);
-      if (safeRoll(100) <= 33) target.skirmish = true;
+      if (safeRoll(100) <= Math.min(55, 24 + dangerForZone(target.zone).skirmishChance)) target.skirmish = true;
     }
 
     w.hexes.forEach(function (hex) {
-      if (!hex.skirmish && safeRoll(100) <= 9) hex.skirmish = true;
-      if (hex.skirmish && safeRoll(100) <= 18) hex.skirmish = false;
-      if (safeRoll(100) <= 10) {
-        hex.narrative.event = Object.assign({}, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
+      const danger = dangerForZone(hex.zone);
+      if (!hex.skirmish && safeRoll(100) <= Math.max(5, Math.floor(danger.skirmishChance / 2))) hex.skirmish = true;
+      if (hex.skirmish && safeRoll(100) <= Math.max(10, 24 - danger.cycleShiftBonus * 3)) hex.skirmish = false;
+      if (safeRoll(100) <= Math.max(8, Math.floor(danger.encounterChance / 3))) {
+        hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
       }
     });
 
     updateZoneControl();
     syncWorldMarkers();
     advanceWorldTime("control cycle");
+    if (typeof showNotif === "function" && !fromActivity) showNotif("Control cycle advanced manually.", "good");
     renderWorldThatWas();
   }
 
@@ -1026,12 +1429,17 @@
     }
 
     return w.activeTasks.slice(0, 5).map(function (t) {
+      const taskHex = hexById(t.hexId);
+      const selected = getSelectedHex();
+      const atLocation = !!selected && selected.id === t.hexId;
       return ""
         + "<div class='npc-block' style='margin-bottom:.3rem;'>"
         + "<div class='nb-label'>" + t.title + "</div>"
-        + "<div style='font-size:.76rem;color:var(--muted3);'>Power: " + t.power + "</div>"
+        + "<div style='font-size:.76rem;color:var(--muted3);'>Power: " + t.power + " · Target: " + (taskHex ? (taskHex.zone + " / " + taskHex.district) : "Unknown") + "</div>"
+        + "<div style='font-size:.74rem;color:var(--muted2);'>Roll: " + statLabel(t.rollStat || "body") + " vs DD" + (t.dread || 8) + " · Reward: " + (t.rewardCredits || 150) + " Credits + Loot</div>"
         + "<div style='margin-top:.25rem;display:flex;gap:.25rem;flex-wrap:wrap;'>"
-        + "<button class='btn btn-xs btn-teal' onclick='wtwCompleteTask(\"" + t.id + "\")'>Complete</button>"
+        + "<button class='btn btn-xs' onclick='wtwTrackTask(\"" + t.id + "\")'>Track</button>"
+        + "<button class='btn btn-xs btn-teal' onclick='wtwCompleteTask(\"" + t.id + "\")'" + (atLocation ? "" : " disabled") + ">Complete</button>"
         + "</div>"
         + "</div>";
     }).join("");
@@ -1103,8 +1511,17 @@
 
     const marker = w.markers[hex.id];
     const zone = zoneForHex(hex);
+    const zoneRep = w.zoneReputation && typeof w.zoneReputation[hex.zone] === "number" ? w.zoneReputation[hex.zone] : 0;
     const services = zoneServicesForHex(hex);
     const n = hex.narrative;
+    const evt = n.event || {};
+    const eventCheck = evt.mode === "combat"
+      ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " enemies (DD" + (evt.dread || 8) + " | " + (evt.enemyHealth || 16) + " HP each)")
+      : ("<strong>Check:</strong> " + statLabel(evt.stat || "body") + " d" + getActionDie(evt.stat || "body") + " vs DD" + (evt.dread || 8));
+
+    const encounterHtml = hex.encounter
+      ? ("<div class='npc-block' style='margin:.45rem 0;border-color:rgba(46,196,182,.35);'><div class='nb-label'>Rolled Encounter</div><div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>" : "") + "</div></div>")
+      : "<div style='font-size:.74rem;color:var(--muted2);margin:.3rem 0 .5rem;'>No rolled encounter in this district.</div>";
 
     const servicesHtml = services.map(function (svc, idx) {
       return ""
@@ -1125,8 +1542,11 @@
       + "<div class='hex-name'>" + hex.zone + " - " + hex.district + "</div>"
       + "<div class='hex-desc' style='margin-bottom:.45rem;'>Amidst " + n.location + ", the " + n.sight + ", " + n.description + ", serves as a beacon for " + n.feature + ".</div>"
       + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Controller</span>" + hex.controller + "</div><div class='info-cell'><span class='ic-label'>Zone Leader</span>" + ((zone && zone.leader) || "Unknown") + "</div></div>"
+      + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Zone Reputation</span>" + zoneRep + " (" + zoneRepTier(zoneRep) + ")</div><div class='info-cell'><span class='ic-label'>Danger Profile</span>" + dangerForZone(hex.zone).encounterChance + "% encounter / " + dangerForZone(hex.zone).skirmishChance + "% skirmish</div></div>"
       + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Fauna / Flora</span>" + n.fauna + " / " + n.flora + "</div><div class='info-cell'><span class='ic-label'>Land / Weather</span>" + n.land + " / " + n.weather + "</div></div>"
-      + "<div class='mystery-card' style='margin:.45rem 0;'><strong>Random Event:</strong> " + n.event.title + "<br>" + n.event.text + "<br><br><strong>Action:</strong> " + n.event.action + "<br><strong>Reward:</strong> " + n.event.reward + "<div style='margin-top:.3rem;'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button></div></div>"
+      + "<div class='mystery-card' style='margin:.45rem 0;'><strong>Random Event:</strong> " + evt.title + "<br>" + evt.text + "<br><br><strong>Action:</strong> " + evt.action + "<br>" + eventCheck + "<br><strong>Reward:</strong> " + evt.reward + "<div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>" + (evt.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button>" : "") + "</div></div>"
+      + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;'><button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
+      + encounterHtml
       + (marker ? "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);'><div class='nb-label'>Marker - " + marker.title + "</div><div style='font-size:.78rem;color:var(--muted3);'>" + marker.subtitle + "</div><div style='margin-top:.28rem;'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Resolve Marker</button></div></div>" : "")
       + renderSkirmishWidget(hex)
       + "<div class='sub-label'>District Services</div>"
@@ -1171,9 +1591,17 @@
     const tickEl = document.getElementById("wtwTick");
     const zoneEl = document.getElementById("wtwCurrentZone");
     const railEl = document.getElementById("wtwRailControls");
+    const activityEl = document.getElementById("wtwActivity");
+    const invEl = document.getElementById("wtwInventoryReadout");
     if (tickEl) tickEl.textContent = "Cycle " + (w.tick || 0);
     if (zoneEl) zoneEl.textContent = w.currentZone || "Unknown";
     if (railEl) railEl.innerHTML = renderZoneRailControls();
+    if (activityEl) activityEl.textContent = String(w.activityClicks || 0) + "/10";
+    if (invEl && S && S.worldInventory) {
+      invEl.innerHTML = WORLD_ITEMS.map(function (k) {
+        return "<span class='sea-chip'>" + inventoryLabel(k) + ": " + (S.worldInventory[k] || 0) + "</span>";
+      }).join(" ");
+    }
 
     renderWorldThatWasMap();
     renderWorldThatWasInfo();
@@ -1190,9 +1618,11 @@
       + "<button class='btn btn-primary' onclick='generateWorldThatWasMap()'>Generate World That Was</button>"
       + "<button class='btn' onclick='advanceWorldThatWas()'>Advance Control Cycle</button>"
       + "<button class='btn btn-sm btn-teal' onclick='wtwSyncMarkers()'>Refresh Markers</button>"
+      + "<button class='btn btn-sm' onclick='wtwRollEncounter()'>Roll Encounter</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToGalaxy()'>Return to Galaxy</button>"
       + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.3rem;'>Current Zone: <strong id='wtwCurrentZone' style='color:var(--gold2);'>-</strong></span>"
       + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.5rem;' id='wtwTick'>Cycle 0</span>"
+      + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.5rem;'>Activity: <strong id='wtwActivity' style='color:var(--teal);'>0/10</strong></span>"
       + "</div>"
       + "<div class='sea-summary' style='margin-bottom:.5rem;'>"
       + "<div class='info-cell'><span class='ic-label'>Map Rules</span>12x12 districts, 9 mega-zones, dynamic control shifts, train-linked travel.</div>"
@@ -1201,6 +1631,7 @@
       + "<div class='info-cell'><span class='ic-label'>Renown</span>Holding tasks and event wins grant +1 power renown and loot.</div>"
       + "</div>"
       + "<div id='wtwRailControls' style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'></div>"
+      + "<div id='wtwInventoryReadout' class='sea-group-list' style='margin-bottom:.45rem;'></div>"
       + "<div id='wtwPowerReadout' class='sea-group-list' style='margin-bottom:.45rem;'></div>"
       + "<div class='map-layout'>"
       + "<div class='map-scroll'><svg id='wtwMapSvg' width='900' height='740' xmlns='http://www.w3.org/2000/svg'></svg></div>"
@@ -1285,7 +1716,11 @@
   window.wtwSkAction = skirmishActionInInfo;
   window.wtwTakeHoldingTask = createHoldingTask;
   window.wtwCompleteTask = completeHoldingTask;
+  window.wtwTrackTask = jumpToTaskHex;
   window.wtwTravelRail = travelByTrainTo;
+  window.wtwRollEncounter = rollDistrictEncounter;
+  window.wtwResolveEncounter = resolveDistrictEncounter;
+  window.wtwWinCombatEvent = completeCombatEventVictory;
   window.wtwSyncMarkers = function () {
     syncWorldMarkers();
     renderWorldThatWas();

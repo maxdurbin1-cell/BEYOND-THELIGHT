@@ -394,6 +394,18 @@
           success: { next: "sea_mutiny", text: "A clerk gives sworn names linking sea judges to orbital financiers.", effects: { renown: 1, flags: { witnessChain: true } } },
           fail: { next: "sea_mutiny", text: "The clerks panic and burn part of the archive.", effects: { mentalStress: 1 } },
         },
+        {
+          id: "o3",
+          text: "Steal a dripping glyph-slab and decode first symbols",
+          puzzle: {
+            mode: "code",
+            title: "Puzzle: Drowned Glyph",
+            prompt: "The slab reads SER next to a sunburst icon. Enter the plain meaning.",
+            answer: "star",
+          },
+          success: { next: "sea_mutiny", text: "You decode SER and log it in your fieldbook as a core key for Voss's legal liturgy.", effects: { lexicon: { ser: "star" }, flags: { glyphTrailStarted: true }, merchantReward: { credits: 80, factionKey: "underworld", factionRenown: 1 } } },
+          fail: { next: "sea_mutiny", text: "You cannot crack the slab under pressure, but the symbol sketch survives.", effects: { mentalStress: 1 } },
+        },
       ],
     },
 
@@ -419,6 +431,14 @@
           baseDread: 8,
           success: { next: "sea_chase", text: "Shared command steadies the ship and creates loyalty.", effects: { npc: { lyra: 1, mara: 1 }, flags: { splitCommand: true } } },
           fail: { next: "sea_chase", text: "Compromise reads as weakness during a storm watch.", effects: { faction: { underworld: 1 }, health: 1 } },
+        },
+        {
+          id: "o3",
+          text: "Stage a fake haunting trial to flush mutineers",
+          stat: "control",
+          baseDread: 10,
+          success: { next: "sea_chase", text: "Half the conspirators confess to ghosts that are actually your disguised crew.", effects: { renown: 1, npc: { iosef: 1 } } },
+          fail: { next: "sea_chase", text: "The stunt partly works, but panic breaks two launch rails.", effects: { health: 1, credits: -40 } },
         },
       ],
     },
@@ -491,6 +511,43 @@
           success: { next: "oracle_parley", text: "The oracle speaks in contradictions that still map to real jump corridors.", effects: { flags: { oracleTrust: true }, npc: { iosef: 1 } } },
           fail: { next: "oracle_parley", text: "The oracle mocks your certainty but still leaves cryptic coordinates.", effects: { tmw: 1 } },
         },
+        {
+          id: "o5",
+          text: "Debrief with Brother Iosef about legal scripture",
+          stat: "spirit",
+          baseDread: 8,
+          req: { backgroundIncludes: ["temple", "scholar", "historian", "noble"] },
+          success: { next: "iosef_colloquy", text: "Iosef opens a sealed notebook: half prayers, half battle orders.", effects: { npc: { iosef: 2 } } },
+          fail: { next: "iosef_colloquy", text: "He still talks, but keeps the crucial pages hidden.", effects: { npc: { iosef: 1 } } },
+        },
+      ],
+    },
+
+    iosef_colloquy: {
+      chapter: "c3",
+      title: "Brother Iosef's Field Catechism",
+      location: "Space / Chapel Dock",
+      mood: "Confession and strategy",
+      text: "Iosef admits he once served in Voss Karr's legal battalions. He offers to teach one passphrase that can unmask false verdicts, but only if your life path can carry it.",
+      options: [
+        {
+          id: "o1",
+          text: "Scholar's reading: parse doctrine as history",
+          stat: "mind",
+          baseDread: 8,
+          req: { backgroundIncludes: ["scholar", "historian"] },
+          success: { next: "planet_descent", text: "You extract the phrase anchor: 'Star binds oath' in archaic court tongue.", effects: { flags: { phraseKeyUnlocked: true }, lexicon: { va: "bind" }, npc: { iosef: 1 } } },
+          fail: { next: "planet_descent", text: "You grasp only fragments and must infer the rest later.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Merchant's reading: treat doctrine as contract law",
+          stat: "control",
+          baseDread: 8,
+          req: { careerIncludes: ["merchant", "noble", "investigator"] },
+          success: { next: "planet_descent", text: "You catch the enforceable clause and turn it into legal leverage.", effects: { flags: { phraseKeyUnlocked: true }, merchantReward: { credits: 110, factionKey: "political", factionRenown: 1 }, lexicon: { va: "bind" } } },
+          fail: { next: "planet_descent", text: "The clause slips past you, but Iosef still circles one glyph in red.", effects: { lexicon: { va: "bind" } } },
+        },
       ],
     },
 
@@ -520,6 +577,30 @@
           },
           success: { next: "planet_descent", text: "She laughs and grants a star-market voucher with anti-tax signatures.", effects: { merchantReward: { credits: 180, factionKey: "corporations", factionRenown: 1, item: "Retainer Contract", openShop: true } } },
           fail: { next: "planet_descent", text: "Wrong answer. She still gives a warning: 'Do not trust clean ledgers.'", effects: { flags: { oracleWarning: true } } },
+        },
+        {
+          id: "o3",
+          text: "Complete the oracle's crossword of dead languages",
+          puzzle: {
+            mode: "crossword",
+            title: "Puzzle: Dead-Language Crossword",
+            prompt: "Fill all clues correctly. The initials form a tribunal command phrase.",
+            clues: [
+              { clue: "Ancient glyph for celestial witness", answer: "ser" },
+              { clue: "Verb meaning to bind by decree", answer: "va" },
+              { clue: "Oath sealed before a court", answer: "tor" }
+            ]
+          },
+          success: {
+            next: "planet_descent",
+            text: "The crossword resolves into a legal canticle. You can now read tribunal inscriptions.",
+            effects: {
+              lexicon: { ser: "star", va: "bind", tor: "oath" },
+              flags: { oracleCanticleSolved: true, phraseKeyUnlocked: true },
+              merchantReward: { credits: 150, factionKey: "religious", factionRenown: 1 }
+            }
+          },
+          fail: { next: "planet_descent", text: "You misplace two glyphs and the oracle cuts the session short.", effects: { mentalStress: 1 } },
         },
       ],
     },
@@ -624,6 +705,19 @@
           req: { backgroundIncludes: ["drifter", "merchant", "smuggler", "outlaw"] },
           success: { next: "undercity_market", text: "You slip under the city and find the loyalty-price algorithms.", effects: { flags: { undercityIntel: true }, credits: 120 } },
           fail: { next: "undercity_market", text: "You are spotted but still map two underground routes.", effects: { health: 1 } },
+        },
+        {
+          id: "o5",
+          text: "Read the black-glass inscription aloud",
+          puzzle: {
+            mode: "code",
+            title: "Puzzle: Tribunal Canticle",
+            prompt: "If SER=star, VA=bind, TOR=oath, translate and enter the phrase: SER VA TOR.",
+            answer: "star bind oath",
+          },
+          req: { lexiconCountAtLeast: { count: 2 } },
+          success: { next: "age_shift", text: "The trees answer in legal chorus, exposing hidden exits and sponsor caches.", effects: { renown: 1, merchantReward: { credits: 170, factionKey: "political", factionRenown: 1, item: "Trade Good" } } },
+          fail: { next: "age_shift", text: "Your pronunciation fractures the ritual, but the path still opens in panic.", effects: { mentalStress: 1, tmw: 1 } },
         },
       ],
     },
@@ -757,6 +851,43 @@
           text: "Proceed to final judgment",
           success: { next: "finale_choice", text: "The city holds its breath." },
         },
+        {
+          id: "o2",
+          text: "Invoke the decoded canticle before witnesses",
+          req: { flagEq: { key: "phraseKeyUnlocked", value: true }, lexiconKnown: ["ser", "va", "tor"] },
+          success: { next: "finale_canticle", text: "The courtroom wards unlock and Voss loses control of his legal machinery.", effects: { renown: 2, faction: { religious: 1, political: 1 } } },
+        },
+      ],
+    },
+
+    finale_canticle: {
+      chapter: "c4",
+      title: "The Third Tongue",
+      location: "World That Was",
+      mood: "Ritual courtroom duel",
+      text: "You speak the reconstructed phrase. Statues crack. Archived verdicts replay in public. Voss Karr tries to counter with forged scripture.",
+      options: [
+        {
+          id: "o1",
+          text: "Let Iosef and Lyra co-deliver the final testimony",
+          stat: "lead",
+          baseDread: 10,
+          req: { npcAffinity: { npc: "iosef", min: 2 } },
+          success: { next: "ending_openhand", text: "Their testimony lands like thunder. The city chooses distributed justice.", effects: { faction: { political: 1, rebels: 1 }, renown: 2 } },
+          fail: { next: "finale_choice", text: "The testimony splinters under counterclaims; you must choose direct judgment.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Challenge Voss to a last legal paradox",
+          puzzle: {
+            mode: "code",
+            title: "Puzzle: Final Paradox",
+            prompt: "Complete the paradox phrase with one word: 'No law is lawful unless it can be ____ by the powerless.'",
+            answer: "challenged",
+          },
+          success: { next: "ending_openhand", text: "He fails to answer before the city. Authority disperses in real time.", effects: { renown: 3, merchantReward: { credits: 220, factionKey: "corporations", factionRenown: 1, openShop: true } } },
+          fail: { next: "finale_choice", text: "He twists the argument and the room demands a harsher verdict.", effects: { tmw: 1 } },
+        },
       ],
     },
 
@@ -862,6 +993,7 @@
     if (!st.history || typeof st.history !== "object") st.history = { sceneVisits: {}, optionsTaken: {} };
     if (!st.history.sceneVisits || typeof st.history.sceneVisits !== "object") st.history.sceneVisits = {};
     if (!st.history.optionsTaken || typeof st.history.optionsTaken !== "object") st.history.optionsTaken = {};
+    if (!st.lexicon || typeof st.lexicon !== "object") st.lexicon = {};
     return st;
   }
 
@@ -919,6 +1051,19 @@
       const st = ensureStoryState();
       if (!st) return false;
       if ((st.usedStats || []).length < Number(req.usedStatCountAtLeast.count || 0)) return false;
+    }
+    if (Array.isArray(req.lexiconKnown) && req.lexiconKnown.length) {
+      const st = ensureStoryState();
+      if (!st) return false;
+      const hasAll = req.lexiconKnown.every(function (token) {
+        return !!st.lexicon[String(token || "").toLowerCase()];
+      });
+      if (!hasAll) return false;
+    }
+    if (req.lexiconCountAtLeast && req.lexiconCountAtLeast.count) {
+      const st = ensureStoryState();
+      if (!st) return false;
+      if (Object.keys(st.lexicon || {}).length < Number(req.lexiconCountAtLeast.count || 0)) return false;
     }
     return true;
   }
@@ -979,6 +1124,13 @@
       });
     }
 
+    if (effects.lexicon && typeof effects.lexicon === "object") {
+      const st = ensureStoryState();
+      Object.keys(effects.lexicon).forEach(function (glyph) {
+        st.lexicon[String(glyph || "").toLowerCase()] = String(effects.lexicon[glyph] || "").toLowerCase();
+      });
+    }
+
     if (effects.merchantReward && typeof effects.merchantReward === "object") {
       grantMerchantReward(effects.merchantReward);
     }
@@ -1032,6 +1184,7 @@
       sequence: [],
       selected: [],
       bank: [],
+      clues: [],
       typed: "",
     };
     return window._storyPuzzle;
@@ -1048,6 +1201,7 @@
     p.sequence = [];
     p.selected = [];
     p.bank = [];
+    p.clues = [];
     p.typed = "";
   }
 
@@ -1072,6 +1226,15 @@
           return "<button class='btn btn-xs' onclick='storyPuzzlePress(\"" + word.replace(/"/g, "") + "\")'>" + word + "</button>";
         }).join("")
         + "</div>";
+    } else if (p.mode === "crossword") {
+      controls = ""
+        + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Crossword style clues: fill each answer, then submit.</div>"
+        + p.clues.map(function (c, i) {
+          return "<div style='margin-bottom:.3rem;'>"
+            + "<div style='font-size:.76rem;color:var(--text2);margin-bottom:.12rem;'>" + (i + 1) + ". " + c.clue + "</div>"
+            + "<input id='storyCross_" + i + "' class='input' placeholder='Answer " + (i + 1) + "' style='width:100%;'/>"
+            + "</div>";
+        }).join("");
     } else {
       controls = ""
         + "<input id='storyPuzzleInput' class='input' placeholder='Type your decoded answer' style='width:100%;margin-bottom:.45rem;'/>";
@@ -1103,6 +1266,7 @@
     p.sequence = Array.isArray(puzzle.sequence) ? puzzle.sequence.slice() : [];
     p.selected = [];
     p.bank = Array.isArray(puzzle.bank) ? puzzle.bank.slice() : [];
+    p.clues = Array.isArray(puzzle.clues) ? puzzle.clues.slice() : [];
     p.typed = "";
 
     renderPuzzleModal();
@@ -1115,6 +1279,13 @@
     }
     if (p.mode === "rearrange") {
       return p.selected.join(" ").trim().toLowerCase() === p.answer;
+    }
+    if (p.mode === "crossword") {
+      return p.clues.every(function (c, i) {
+        const el = document.getElementById("storyCross_" + i);
+        const val = (el && typeof el.value === "string") ? el.value.trim().toLowerCase() : "";
+        return val === String(c.answer || "").trim().toLowerCase();
+      });
     }
     const el = document.getElementById("storyPuzzleInput");
     const val = (el && typeof el.value === "string") ? el.value.trim().toLowerCase() : "";
@@ -1256,6 +1427,7 @@
       st.chapter = "c1";
       st.flags = {};
       st.history = { sceneVisits: {}, optionsTaken: {} };
+      st.lexicon = {};
       st.log = [];
       st.usedStats = [];
       st.completedSystems = [];
@@ -1306,6 +1478,8 @@
     if (req.flagEq && req.flagEq.key) bits.push("Flag " + req.flagEq.key + " = " + req.flagEq.value);
     if (req.sceneSeenAtLeast && req.sceneSeenAtLeast.sceneId) bits.push("Seen " + req.sceneSeenAtLeast.sceneId + " x" + req.sceneSeenAtLeast.min);
     if (req.usedStatCountAtLeast && req.usedStatCountAtLeast.count) bits.push("Used stats ≥ " + req.usedStatCountAtLeast.count);
+    if (Array.isArray(req.lexiconKnown) && req.lexiconKnown.length) bits.push("Glyphs: " + req.lexiconKnown.join(", "));
+    if (req.lexiconCountAtLeast && req.lexiconCountAtLeast.count) bits.push("Known glyphs ≥ " + req.lexiconCountAtLeast.count);
     return bits.join(" · ");
   }
 
@@ -1364,6 +1538,10 @@
       return k.charAt(0).toUpperCase() + k.slice(1) + ": " + st.npc[k];
     }).join(" · ");
 
+    const lexiconText = Object.keys(st.lexicon || {}).length
+      ? Object.keys(st.lexicon).map(function (k) { return k + "=" + st.lexicon[k]; }).join(" · ")
+      : "None decoded yet";
+
     const logHtml = st.log.length
       ? st.log.map(function (line) { return "<div class='story-log-item'>" + line + "</div>"; }).join("")
       : "<div class='story-log-item'>Your story choices will appear here.</div>";
@@ -1403,6 +1581,7 @@
           return "<span class='sea-chip'>" + FACTION_LABELS[k] + ": " + getFactionValue(k) + "</span>";
         }).join("")
       + "</div>"
+      + "<div class='story-label'>Decoded Lexicon</div><div class='story-value'>" + lexiconText + "</div>"
       + "</div>"
       + "<div class='story-card'>"
       + "<div class='story-label'>Choice Log</div>"
@@ -1483,7 +1662,7 @@
   window.storyJumpSystem = jumpSystemById;
   window.storyPuzzlePress = function (value) {
     const p = ensurePuzzleSession();
-    if (p.mode === "code") return;
+    if (p.mode === "code" || p.mode === "crossword") return;
     p.selected.push(String(value || ""));
     renderPuzzleModal();
   };

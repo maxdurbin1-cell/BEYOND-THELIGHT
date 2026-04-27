@@ -4135,7 +4135,7 @@ function summarizePlanetCell(cell) {
   return `${markerLabel}: ${cell.terrain}${cell.feature ? ` · ${cell.feature}` : ''}`;
 }
 
-function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask) {
+function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask, isStoryObjective) {
   const base = {
     fill: '#1b2436',
     stroke: '#2f3d58',
@@ -4146,6 +4146,10 @@ function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, has
     base.fill = '#214636';
     base.stroke = '#65c98d';
     base.tag = '#9cffc3';
+  } else if (isStoryObjective) {
+    base.fill = '#6a5800';
+    base.stroke = '#f0d070';
+    base.tag = '#f0d070';
   } else if (isWayfarerContract) {
     base.fill = '#6a5800';
     base.stroke = '#e8c050';
@@ -4234,10 +4238,12 @@ function renderPlanetSurfaceSvg(state, selected) {
   const cellsSvg = state.cells.map((cell) => {
     const isLanding = cell.id === state.landedCellId;
     const isSelected = selected && cell.id === selected.id;
+    const isStoryObjective = state.storyObjectiveCellId === cell.id;
     const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
     const isWayfarerContract = !!(task && !task.resolved && task.source === 'wayfarer');
     const hasTask = !!(task && !task.resolved);
     const tag = isLanding ? 'L'
+      : isStoryObjective ? '➤'
       : isWayfarerContract ? '✦'
       : hasTask ? 'T'
       : cell.marker === 'seat' ? '★'
@@ -4258,12 +4264,17 @@ function renderPlanetSurfaceSvg(state, selected) {
     const x = pos.x;
     const y = pos.y;
     const pts = hexPointsSVG(x, y, size - 1);
-    const visual = getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask);
+    const visual = getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask, isStoryObjective);
     const strokeWidth = isSelected ? 2.4 : isWayfarerContract ? 2 : 1.2;
+    const selectedOverlay = isSelected
+      ? `<circle cx="${x}" cy="${y}" r="18" fill="rgba(232,192,80,.08)" stroke="#f0d070" stroke-width="1.8" pointer-events="none" />
+         <text x="${x}" y="${y - 20}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="8" fill="#f0d070" pointer-events="none">YOU</text>`
+      : '';
 
     return `<g class="planet-hex" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;">
       <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
       <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="${visual.tag}">${tag || '·'}</text>
+      ${selectedOverlay}
     </g>`;
   }).join('');
 
@@ -5285,6 +5296,7 @@ function createPlanetSurfaceState(hex) {
       totalCreditsEarned: 0,
       totalBoonTicks: 0,
     },
+    storyObjectiveCellId: null,
   };
 }
 
@@ -5531,6 +5543,8 @@ function renderPlanetExplorationPanel() {
     </div>
     <div class="sea-control-bar">
       <button class="btn btn-sm btn-teal" onclick="cyclePlanetTraversalMode()">Traversal: ${state.traversalMode === 'exocraft' ? 'Exocraft' : 'On Foot'}</button>
+      <span style="color:var(--muted);font-size:.6rem;margin:0 .25rem;">|</span>
+      <span id="planetTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--gold2);">${typeof getGameDatePhaseText === 'function' ? getGameDatePhaseText() : 'Month 1, Day 1, Year 1 — Morning'}</span>
       <span style="color:var(--muted);font-size:.6rem;margin:0 .25rem;">|</span>
       <span style="font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--gold2);">Open Tasks ${taskList.length}</span>
       <span style="font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--teal);">Wayfarer Contracts ${activeContractCount}</span>
@@ -6449,6 +6463,9 @@ function renderStarSystemMap() {
   };
 
   const hexPositions = {};
+  const storyObjectiveHexId = (S.storyline && S.storyline.travelMarkers && typeof S.storyline.travelMarkers.galaxyHexId === 'number')
+    ? S.storyline.travelMarkers.galaxyHexId
+    : null;
   S.starSystem.hexes.forEach((hex) => {
     hexPositions[hex.id] = positionForHex(hex);
   });
@@ -6465,13 +6482,22 @@ function renderStarSystemMap() {
     const opacity = hex.explored ? 0.9 : 0.55;
     const label = getStarHexGlyph(hex);
     const markerGlyph = hasTaskMarker ? '✦' : hex.type === 'radio_task' && !hex.radioTaskResolved ? '✉' : '';
+    const isStoryObjective = storyObjectiveHexId === hex.id;
+    const storyGlyph = isStoryObjective
+      ? `<text x="${x - 14}" y="${y - 12}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="14" fill="#f0d070" pointer-events="none">➤</text>`
+      : '';
+    const storyRing = isStoryObjective
+      ? `<circle cx="${x}" cy="${y}" r="28" fill="rgba(240,208,112,.06)" stroke="#f0d070" stroke-width="1.4" pointer-events="none" />`
+      : '';
     const onTradeRoute = (S.starSystem.tradeRoutes || []).some(([aId, bId]) => aId === hex.id || bId === hex.id);
     const routeBadge = onTradeRoute ? `<circle cx="${x - 13}" cy="${y - 10}" r="4" fill="rgba(214,176,70,.55)" stroke="#d6b046" stroke-width="1"/>` : '';
     return `
       <g onclick="selectStarSystemHex(${hex.id})" style="cursor:pointer;">
         <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hasTaskMarker ? 3 : hex.id === S.starSystem.currentHexId ? 2 : 1}" />
+        ${storyRing}
         <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="#0f111a">${label}</text>
         ${routeBadge}
+        ${storyGlyph}
         ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${hasTaskMarker ? '#f2d75a' : '#9de7ff'}" onclick="event.stopPropagation(); ${hasTaskMarker ? `openGalaxyTaskFromMap(${hex.id})` : ''}" style="cursor:${hasTaskMarker ? 'zoom-in' : 'pointer'};">${markerGlyph}</text>` : ''}
       </g>`;
   }).join('');
@@ -7946,6 +7972,14 @@ function updateDateUI() {
   const seaEl = document.getElementById('lastSeaTimeDisplay');
   if (seaEl) {
     seaEl.textContent = getGameDatePhaseText();
+  }
+  const planetEl = document.getElementById('planetTimeDisplay');
+  if (planetEl) {
+    planetEl.textContent = getGameDatePhaseText();
+  }
+  const worldEl = document.getElementById('wtwTimeDisplay');
+  if (worldEl) {
+    worldEl.textContent = getGameDatePhaseText();
   }
 }
 

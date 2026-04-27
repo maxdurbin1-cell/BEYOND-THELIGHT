@@ -1024,7 +1024,172 @@
     if (!st.history.optionsTaken || typeof st.history.optionsTaken !== "object") st.history.optionsTaken = {};
     if (!st.lexicon || typeof st.lexicon !== "object") st.lexicon = {};
     if (!Array.isArray(st.dialogueMemory)) st.dialogueMemory = [];
+    if (!st.pendingTravel || typeof st.pendingTravel !== "object") st.pendingTravel = null;
+    if (!st.travelMarkers || typeof st.travelMarkers !== "object") {
+      st.travelMarkers = {
+        provinceKey: "",
+        lastSeaKey: "",
+        galaxyHexId: null,
+        worldHexId: "",
+        planetHexId: null,
+        planetCellId: null,
+      };
+    }
     return st;
+  }
+
+  function randomPick(list) {
+    if (!Array.isArray(list) || !list.length) return null;
+    return list[Math.floor(Math.random() * list.length)] || null;
+  }
+
+  function storySystemFromJump(jump) {
+    const tab = jump && jump.tab ? lc(jump.tab) : "";
+    const ctx = jump && jump.context ? lc(jump.context) : "";
+    if (tab === "map" || ctx === "traveling") return "province";
+    if (tab === "lastsea" || ctx === "lastsea") return "lastsea";
+    if (tab === "galaxy") return "galaxy";
+    if (tab === "worldthatwas") return "wtw";
+    if (tab === "planet") return "planet";
+    return "";
+  }
+
+  function clearStoryTravelMarkers() {
+    const st = ensureStoryState();
+    if (!st || !st.travelMarkers) return;
+
+    if (st.travelMarkers.provinceKey && S && S.missionTokens) {
+      const t = S.missionTokens[st.travelMarkers.provinceKey];
+      if (t && t.missionId === "storyline") delete S.missionTokens[st.travelMarkers.provinceKey];
+    }
+    if (st.travelMarkers.lastSeaKey && S && S.lastSea && S.lastSea.missionTokens) {
+      const t = S.lastSea.missionTokens[st.travelMarkers.lastSeaKey];
+      if (t && t.missionId === "storyline") delete S.lastSea.missionTokens[st.travelMarkers.lastSeaKey];
+    }
+    if (S && S.worldThatWas && st.travelMarkers.worldHexId) {
+      S.worldThatWas.storyObjectiveHexId = null;
+      if (typeof window.wtwSyncMarkers === "function") window.wtwSyncMarkers();
+    }
+    if (S && S.starSystem && st.travelMarkers.planetHexId != null) {
+      const pState = S.starSystem.planetExplorationByHex && S.starSystem.planetExplorationByHex[String(st.travelMarkers.planetHexId)];
+      if (pState) pState.storyObjectiveCellId = null;
+    }
+
+    st.travelMarkers.provinceKey = "";
+    st.travelMarkers.lastSeaKey = "";
+    st.travelMarkers.galaxyHexId = null;
+    st.travelMarkers.worldHexId = "";
+    st.travelMarkers.planetHexId = null;
+    st.travelMarkers.planetCellId = null;
+  }
+
+  function setStoryTravelObjective(sceneId, option) {
+    const st = ensureStoryState();
+    if (!st || !option || !option.jump) return null;
+    clearStoryTravelMarkers();
+
+    const system = storySystemFromJump(option.jump);
+    if (!system) return null;
+
+    if (system === "province") {
+      if (typeof mapData === "undefined" || !Array.isArray(mapData) || !mapData.length) return null;
+      const target = randomPick(mapData);
+      if (!target) return null;
+      S.missionTokens = S.missionTokens || {};
+      const key = target.col + "," + target.row;
+      S.missionTokens[key] = {
+        missionId: "storyline",
+        title: "Story Objective",
+        type: "story_choice",
+        sceneId: sceneId,
+        optionId: option.id,
+      };
+      st.travelMarkers.provinceKey = key;
+      if (typeof renderHexMap === "function") renderHexMap();
+      return { system: system, targetValue: key, label: "Province Hex [" + (target.col + 1) + "," + (target.row + 1) + "]" };
+    }
+
+    if (system === "lastsea") {
+      if (!S.lastSea || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return null;
+      const target = randomPick(S.lastSea.map);
+      if (!target) return null;
+      S.lastSea.missionTokens = S.lastSea.missionTokens || {};
+      S.lastSea.missionTokens[target.key] = {
+        missionId: "storyline",
+        title: "Story Route",
+        type: "story",
+        sceneId: sceneId,
+        optionId: option.id,
+      };
+      st.travelMarkers.lastSeaKey = target.key;
+      if (typeof renderLastSeaMap === "function") renderLastSeaMap();
+      return { system: system, targetValue: target.key, label: "Sea Hex " + target.key };
+    }
+
+    if (system === "galaxy") {
+      if (!S.starSystem || !Array.isArray(S.starSystem.hexes) || !S.starSystem.hexes.length) return null;
+      const candidates = S.starSystem.hexes.filter(function (h) { return h.type !== "star"; });
+      const target = randomPick(candidates.length ? candidates : S.starSystem.hexes);
+      if (!target) return null;
+      st.travelMarkers.galaxyHexId = Number(target.id);
+      if (typeof renderStarSystemMap === "function") renderStarSystemMap();
+      return { system: system, targetValue: Number(target.id), label: "Galaxy Hex #" + target.id };
+    }
+
+    if (system === "wtw") {
+      if (!S.worldThatWas || !Array.isArray(S.worldThatWas.hexes) || !S.worldThatWas.hexes.length) return null;
+      const target = randomPick(S.worldThatWas.hexes);
+      if (!target) return null;
+      S.worldThatWas.storyObjectiveHexId = target.id;
+      st.travelMarkers.worldHexId = target.id;
+      if (typeof window.wtwSyncMarkers === "function") window.wtwSyncMarkers();
+      return { system: system, targetValue: target.id, label: "World District " + target.id };
+    }
+
+    if (system === "planet") {
+      if (!S.starSystem || !S.starSystem.planetExplorationByHex || typeof S.starSystem.planetExplorationByHex !== "object") return null;
+      const keys = Object.keys(S.starSystem.planetExplorationByHex || {});
+      if (!keys.length) return null;
+      const pickedHexKey = S.starSystem.activePlanetHexId != null && S.starSystem.planetExplorationByHex[String(S.starSystem.activePlanetHexId)]
+        ? String(S.starSystem.activePlanetHexId)
+        : keys[0];
+      const state = S.starSystem.planetExplorationByHex[pickedHexKey];
+      if (!state || !Array.isArray(state.cells) || !state.cells.length) return null;
+      const cell = randomPick(state.cells);
+      if (!cell) return null;
+      state.storyObjectiveCellId = cell.id;
+      st.travelMarkers.planetHexId = Number(pickedHexKey);
+      st.travelMarkers.planetCellId = Number(cell.id);
+      if (typeof renderPlanetExplorationPanel === "function") renderPlanetExplorationPanel();
+      return { system: system, targetValue: Number(cell.id), label: "Planet Hex #" + cell.id };
+    }
+
+    return null;
+  }
+
+  function isStoryObjectiveReached(pending) {
+    if (!pending || !pending.system) return false;
+    if (pending.system === "province") {
+      if (typeof selectedHex === "undefined" || !selectedHex) return false;
+      return (selectedHex.col + "," + selectedHex.row) === String(pending.targetValue || "");
+    }
+    if (pending.system === "lastsea") {
+      return !!(S.lastSea && S.lastSea.selectedKey && String(S.lastSea.selectedKey) === String(pending.targetValue || ""));
+    }
+    if (pending.system === "galaxy") {
+      return !!(S.starSystem && Number(S.starSystem.currentHexId) === Number(pending.targetValue));
+    }
+    if (pending.system === "wtw") {
+      return !!(S.worldThatWas && String(S.worldThatWas.selectedHexId || "") === String(pending.targetValue || ""));
+    }
+    if (pending.system === "planet") {
+      if (!S.starSystem || !S.starSystem.planetExplorationByHex) return false;
+      const planetHexId = pending.planetHexId != null ? pending.planetHexId : (S.starSystem.activePlanetHexId != null ? S.starSystem.activePlanetHexId : null);
+      if (planetHexId == null) return false;
+      const state = S.starSystem.planetExplorationByHex[String(planetHexId)];
+      return !!(state && Number(state.selectedCellId) === Number(pending.targetValue));
+    }
+    return false;
   }
 
   function addDialogueMemory(speaker, line) {
@@ -1258,6 +1423,7 @@
       gridRows: 0,
       gridCols: 0,
       typed: "",
+      lastClue: "",
     };
     return window._storyPuzzle;
   }
@@ -1278,6 +1444,7 @@
     p.gridRows = 0;
     p.gridCols = 0;
     p.typed = "";
+    p.lastClue = "";
   }
 
   function puzzleTierForScene(sceneId) {
@@ -1352,6 +1519,63 @@
     return scoreTokens(val, p.answer);
   }
 
+  function clueTextForPuzzle(p) {
+    if (!p) return "";
+    if (p.mode === "tune") {
+      if (Array.isArray(p.sequence) && p.sequence.length) {
+        return "Tune starts with " + p.sequence[0] + " and has " + p.sequence.length + " notes.";
+      }
+      return "Listen for repeated notes in the sequence.";
+    }
+    if (p.mode === "rearrange") {
+      const words = String(p.answer || "").split(/\s+/).filter(Boolean);
+      if (!words.length) return "Arrange words in a sentence-like order.";
+      return "Phrase has " + words.length + " words and starts with '" + words[0].toUpperCase() + "'.";
+    }
+    if (p.mode === "crossword") {
+      const clue = (p.clues || []).find(function (entry) { return entry && entry.answer; });
+      if (!clue) return "Check clue wording for tense and noun form.";
+      const ans = String(clue.answer || "").trim().toUpperCase();
+      return "One crossword answer starts with '" + (ans.charAt(0) || "?") + "'.";
+    }
+    if (p.mode === "crossword_grid") {
+      const rows = Array.isArray(p.gridTemplate) ? p.gridTemplate : [];
+      for (let r = 0; r < rows.length; r++) {
+        const row = String(rows[r] || "").toUpperCase();
+        for (let c = 0; c < row.length; c++) {
+          const ch = row[c];
+          if (!ch || ch === "#") continue;
+          const el = document.getElementById("storyGrid_" + r + "_" + c);
+          if (el && !String(el.value || "").trim()) {
+            el.value = ch;
+            return "A grid cell was revealed for you.";
+          }
+        }
+      }
+      return "Most grid cells are already filled; check intersections carefully.";
+    }
+    const answer = String(p.answer || "").trim();
+    if (!answer) return "Focus on keywords in the prompt.";
+    return "Answer length is " + answer.length + ". It starts with '" + answer.charAt(0).toUpperCase() + "'.";
+  }
+
+  function rollStoryPuzzleClue() {
+    const p = ensurePuzzleSession();
+    if (!p || !p.sceneId || !p.optionId) return;
+    const check = rollStoryCheck("mind", 6);
+    if (!check.success) {
+      if (typeof showNotif === "function") {
+        showNotif("Clue roll failed: Mind d" + check.actionDie + "=" + check.action.total + " vs DD6=" + check.dread.total + ".", "warn");
+      }
+      return;
+    }
+    p.lastClue = clueTextForPuzzle(p) || "A useful clue emerges from the puzzle structure.";
+    if (typeof showNotif === "function") {
+      showNotif("Clue found: Mind d" + check.actionDie + "=" + check.action.total + " vs DD6=" + check.dread.total + ".", "good");
+    }
+    renderPuzzleModal();
+  }
+
   function renderPuzzleModal() {
     const p = ensurePuzzleSession();
     let controls = "";
@@ -1411,8 +1635,10 @@
     const html = ""
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.4rem;'>" + p.prompt + "</div>"
       + "<div style='font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;'>Difficulty: " + tier.label + " · Full success ≥ " + Math.round(tier.success * 100) + "% · Partial ≥ " + Math.round(tier.partial * 100) + "%</div>"
+      + (p.lastClue ? ("<div style='font-size:.74rem;color:var(--gold2);margin-bottom:.35rem;border:1px solid rgba(201,162,39,.4);background:rgba(201,162,39,.08);padding:.3rem .42rem;'><strong>Clue:</strong> " + p.lastClue + "</div>") : "")
       + controls
       + "<div style='display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;'>"
+      + "<button class='btn btn-sm btn-teal' onclick='storyPuzzleRollForClue()'>Roll for Clue (Mind vs DD6)</button>"
       + "<button class='btn btn-sm' onclick='storyPuzzleClear()'>Reset</button>"
       + "<button class='btn btn-sm btn-red' onclick='storyPuzzleResolve(false)'>Force Through (Fail)</button>"
       + "<button class='btn btn-sm btn-primary' onclick='storyPuzzleResolve(true)'>Submit</button>"
@@ -1440,6 +1666,7 @@
     p.gridRows = Number(puzzle.gridRows || p.gridTemplate.length || 0);
     p.gridCols = Number(puzzle.gridCols || (p.gridTemplate[0] ? p.gridTemplate[0].length : 0));
     p.typed = "";
+    p.lastClue = "";
 
     renderPuzzleModal();
   }
@@ -1597,6 +1824,7 @@
       if (next) st.chapter = next.chapter;
     }
     if (outcome && outcome.restart) {
+      clearStoryTravelMarkers();
       st.sceneId = "intro";
       st.chapter = "c1";
       st.flags = {};
@@ -1607,6 +1835,7 @@
       st.usedStats = [];
       st.completedSystems = [];
       st.seedTag = "W-" + Math.floor(Math.random() * 9000 + 1000);
+      st.pendingTravel = null;
       st.lastResult = "Cycle reset. A new Wayfarer enters the same legend from a different angle.";
     }
 
@@ -1629,6 +1858,45 @@
 
     const option = (scene.options || []).find(function (o) { return o.id === optionId; });
     if (!option) return;
+
+    const st = ensureStoryState();
+    const pending = st && st.pendingTravel
+      && st.pendingTravel.sceneId === sceneId
+      && st.pendingTravel.optionId === optionId
+      ? st.pendingTravel
+      : null;
+
+    if (option.jump) {
+      if (!pending) {
+        const objective = setStoryTravelObjective(sceneId, option);
+        if (objective) {
+          st.pendingTravel = {
+            sceneId: sceneId,
+            optionId: optionId,
+            system: objective.system,
+            targetValue: objective.targetValue,
+            targetLabel: objective.label,
+            planetHexId: st.travelMarkers.planetHexId,
+          };
+          doJump(option.jump);
+          if (typeof showNotif === "function") {
+            showNotif("Story marker placed: " + objective.label + ". Travel there, then choose again.", "good");
+          }
+          renderStorylinePanel();
+          return;
+        }
+      } else if (!isStoryObjectiveReached(pending)) {
+        doJump(option.jump);
+        if (typeof showNotif === "function") {
+          showNotif("Story marker not reached yet: " + (pending.targetLabel || "travel objective") + ".", "warn");
+        }
+        renderStorylinePanel();
+        return;
+      } else {
+        clearStoryTravelMarkers();
+        st.pendingTravel = null;
+      }
+    }
 
     if (option.puzzle) {
       startStoryPuzzle(sceneId, option);
@@ -1699,11 +1967,21 @@
       const unlocked = hasReq(option.req);
       const reqText = renderRequirement(option.req);
       const dd = option.stat ? getOptionDread(st.sceneId, option) : 0;
+      const pending = st.pendingTravel
+        && st.pendingTravel.sceneId === st.sceneId
+        && st.pendingTravel.optionId === option.id
+        ? st.pendingTravel
+        : null;
+      const pendingReached = pending ? isStoryObjectiveReached(pending) : false;
+      const btnLabel = pending
+        ? (pendingReached ? "Choose (Arrived)" : "Go To Marker")
+        : "Choose";
       return "<div class='story-opt " + (unlocked ? "" : "locked") + "'>"
         + "<div class='story-opt-text'>" + option.text + "</div>"
         + (option.stat ? ("<div class='story-opt-roll'>" + (STAT_LABELS[option.stat] || option.stat) + " vs DD" + dd + "</div>") : "")
+        + (pending ? ("<div class='story-opt-req'>Story marker: " + (pending.targetLabel || "Travel target") + (pendingReached ? " ✓" : "") + "</div>") : "")
         + (reqText ? ("<div class='story-opt-req'>" + reqText + "</div>") : "")
-        + "<button class='btn btn-sm " + (unlocked ? "btn-primary" : "") + "' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\")'") : "disabled") + ">Choose</button>"
+        + "<button class='btn btn-sm " + (unlocked ? "btn-primary" : "") + "' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\")'") : "disabled") + ">" + btnLabel + "</button>"
       + "</div>";
     }).join("");
 
@@ -1748,6 +2026,7 @@
       + "<div class='story-body'>" + scene.text + "</div>"
       + (variantText ? ("<div class='story-result'><strong>Variant:</strong> " + variantText + "</div>") : "")
       + (st.lastResult ? ("<div class='story-result'><strong>Last Outcome:</strong> " + st.lastResult + "</div>") : "")
+      + (st.pendingTravel ? ("<div class='story-result'><strong>Travel Objective:</strong> " + (st.pendingTravel.targetLabel || "Travel marker") + " · " + (isStoryObjectiveReached(st.pendingTravel) ? "Arrived" : "En route") + "</div>") : "")
       + "<div class='story-options'>" + options + "</div>"
       + "</div>"
       + "<div class='story-column story-right'>"
@@ -1855,6 +2134,7 @@
     if (el) el.value = "";
     renderPuzzleModal();
   };
+  window.storyPuzzleRollForClue = rollStoryPuzzleClue;
   window.storyPuzzleResolve = function (attemptSubmit) {
     const p = ensurePuzzleSession();
     const scene = SCENES[p.sceneId];

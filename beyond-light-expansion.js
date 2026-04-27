@@ -911,14 +911,14 @@
       // Render mission tokens for sea missions
       const missionToken = S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key];
       if (missionToken) {
-        const tokenIcon = missionToken.type === 'site' ? '🧭' : missionToken.type === 'informer' ? '👁' : '📍';
-        const tokenColor = missionToken.type === 'site' ? '#ff8450' : missionToken.type === 'informer' ? '#e8c050' : '#e05050';
+        const tokenIcon = missionToken.type === 'site' ? '🧭' : missionToken.type === 'informer' ? '👁' : missionToken.type === 'story' ? '➤' : '📍';
+        const tokenColor = missionToken.type === 'site' ? '#ff8450' : missionToken.type === 'informer' ? '#e8c050' : missionToken.type === 'story' ? '#f0d070' : '#e05050';
         
         const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         glow.setAttribute('cx', x);
         glow.setAttribute('cy', y - LAST_SEA_HEX * 0.35);
         glow.setAttribute('r', '8');
-        glow.setAttribute('fill', 'rgba(' + (tokenColor === '#ff8450' ? '255,132,80' : tokenColor === '#e8c050' ? '232,192,80' : '224,80,80') + ',.15)');
+        glow.setAttribute('fill', 'rgba(' + (tokenColor === '#ff8450' ? '255,132,80' : tokenColor === '#e8c050' ? '232,192,80' : tokenColor === '#f0d070' ? '240,208,112' : '224,80,80') + ',.15)');
         glow.setAttribute('stroke', tokenColor);
         glow.setAttribute('stroke-width', '1');
         glow.setAttribute('pointer-events', 'none');

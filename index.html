@@ -3309,6 +3309,7 @@ function renderHexMap(){
       if(mt.type==='informer'||mt.type==='holding_info'){icon='👁';color='#e8c050';label='INFORMER';fill='rgba(232,192,80,.18)';}
       if(mt.type==='holding_site'){icon='🧭';color='#ff8450';label='HOLDING SITE';fill='rgba(255,132,80,.18)';}
       if(mt.type==='holding_home'){icon='🏛';color='#46c4b6';label='HOLDING';fill='rgba(70,196,182,.2)';}
+      if(mt.type==='story_choice'){icon='➤';color='#f0d070';label='STORY';fill='rgba(240,208,112,.2)';}
       // Outer glow circle
       const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');
       glow.setAttribute('cx',x+HEX_SIZE*.5);glow.setAttribute('cy',y-HEX_SIZE*.35);
@@ -3326,6 +3327,23 @@ function renderHexMap(){
       mlabel.setAttribute('font-family','Cinzel,serif');mlabel.setAttribute('fill',color);
       mlabel.setAttribute('pointer-events','none');
       mlabel.textContent=label;g.appendChild(mlabel);
+    }
+    if(selectedHex&&selectedHex===hex){
+      const youRing=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      youRing.setAttribute('cx',x);youRing.setAttribute('cy',y);
+      youRing.setAttribute('r',String(HEX_SIZE*.72));
+      youRing.setAttribute('fill','rgba(232,192,80,.08)');
+      youRing.setAttribute('stroke','#f0d070');
+      youRing.setAttribute('stroke-width','1.8');
+      youRing.setAttribute('pointer-events','none');
+      g.appendChild(youRing);
+
+      const youTag=document.createElementNS('http://www.w3.org/2000/svg','text');
+      youTag.setAttribute('x',x);youTag.setAttribute('y',y-HEX_SIZE*.62);
+      youTag.setAttribute('text-anchor','middle');youTag.setAttribute('font-size','7');
+      youTag.setAttribute('fill','#f0d070');youTag.setAttribute('pointer-events','none');
+      youTag.textContent='YOU';
+      g.appendChild(youTag);
     }
     g.addEventListener('click',()=>{
       if(ensureMapClickMode()==='travel'&&typeof registerProvinceHexTravel==='function')registerProvinceHexTravel(1);
@@ -3355,6 +3373,7 @@ function renderHexInfo(hex){
     const mt=S.missionTokens[nk];
     const markerTitle=(mt.missionId==='holding_quest'&&mt.type==='informer')?'Holding Quest: Gather Information'
       :(mt.missionId==='holding_quest'&&mt.type==='site')?'Holding Quest: Go To Site'
+      :mt.type==='story_choice'?'Story Objective'
       :mt.type==='holding_home'?'Holding Site: Establish Here'
       :mt.type==='informer'?'Mission Informer'
       :'Mission Site';

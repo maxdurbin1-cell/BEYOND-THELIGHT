@@ -268,10 +268,12 @@ function completeTaskAtHex(col,row){
   if(!hex||!hex.data||!hex.data.taskSite)return;
 
   const task=hex.data.taskSite;
+  const originHex=mapData.find(h=>h.col===task.originCol&&h.row===task.originRow);
+  const originTask=originHex&&originHex.data?originHex.data.task:null;
   const councilTaskId=task.councilTaskId;
   const adDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
   const a=explodingRoll(adDie);
-  const d=explodingRoll(8);
+  const d=explodingRoll(6);
   const success=a.total>=d.total;
 
   if(success){
@@ -279,13 +281,31 @@ function completeTaskAtHex(col,row){
     if(typeof updateRenown==='function')updateRenown();
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     showNotif(`Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
-    appendHexNote(col,row,`[Task Complete] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total} — success, Renown +1`);
+    appendHexNote(col,row,`[Task Complete] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD6 ${d.total} — success, Renown +1`);
+    if(originTask){
+      originTask.completed=true;
+      originTask.status='concluded';
+      originTask.result='success';
+      originTask.completedAt=new Date().toISOString();
+    }
+    if(originHex&&originHex.data&&originHex.data.task){
+      delete originHex.data.task;
+    }
     if(councilTaskId&&typeof onHoldingCouncilTaskResolved==='function')onHoldingCouncilTaskResolved(councilTaskId,true);
     delete hex.data.taskSite;
   }else{
     if(typeof addTMWOnFail==='function')addTMWOnFail();
     showNotif(`Task Failed: ${task.verb} ${task.target} (${a.total} vs ${d.total})`,'warn');
-    appendHexNote(col,row,`[Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total}`);
+    appendHexNote(col,row,`[Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD6 ${d.total}`);
+    if(originTask){
+      originTask.completed=true;
+      originTask.status='concluded';
+      originTask.result='failed';
+      originTask.completedAt=new Date().toISOString();
+    }
+    if(originHex&&originHex.data&&originHex.data.task){
+      delete originHex.data.task;
+    }
     if(councilTaskId&&typeof onHoldingCouncilTaskResolved==='function')onHoldingCouncilTaskResolved(councilTaskId,false);
     delete hex.data.taskSite;
   }

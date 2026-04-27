@@ -51,6 +51,7 @@
   const WTW_MARKER_STYLE = {
     mission: { icon: "!", color: "#e8c050", priority: 100, title: "Mission Marker" },
     task: { icon: "T", color: "#46c4b6", priority: 90, title: "Holding Task" },
+    story: { icon: "➤", color: "#f0d070", priority: 88, title: "Story Objective" },
     landing: { icon: "L", color: "#7ed7ff", priority: 80, title: "Landing Pad" },
     station: { icon: "R", color: "#7ed7ff", priority: 75, title: "Rail Station" },
     service: { icon: "S", color: "#7ee0b2", priority: 70, title: "District Service" },
@@ -580,6 +581,11 @@
     if (typeof renderUI === "function") renderUI();
   }
 
+  function getWorldDateTimeText() {
+    if (typeof getGameDatePhaseText === "function") return getGameDatePhaseText();
+    return "Month 1, Day 1, Year 1 — Morning";
+  }
+
   function ensureWorldState() {
     if (typeof S === "undefined") return null;
     ensurePowerRenown();
@@ -604,6 +610,8 @@
     w.trainZones = Array.isArray(w.trainZones) ? w.trainZones : [];
     w.currentZone = w.currentZone || "Cyber Hub";
     w.minimalMapMode = !!w.minimalMapMode;
+    w.storyObjectiveHexId = w.storyObjectiveHexId || null;
+    w.storyObjectiveHexId = null;
 
     w.holdings = Array.isArray(w.holdings) ? w.holdings : [];
     w.activeTasks = Array.isArray(w.activeTasks) ? w.activeTasks : [];
@@ -975,6 +983,13 @@
       setMarker(w, hex, "task", t.title, "Holding task");
     });
 
+    if (w.storyObjectiveHexId) {
+      const storyHex = hexById(w.storyObjectiveHexId);
+      if (storyHex) {
+        setMarker(w, storyHex, "story", "Story Objective", "Travel here to continue the storyline.");
+      }
+    }
+
     w.hexes.forEach(function (hex) {
       const danger = dangerForZone(hex.zone);
       if (!w.markers[hex.id]) {
@@ -1073,13 +1088,35 @@
 
       if (hex.station && (!minimal || w.selectedHexId === hex.id)) {
         const st = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        st.setAttribute("x", String(p.x - 4));
+        st.setAttribute("x", String(p.x - 10));
         st.setAttribute("y", String(p.y + 15));
-        st.setAttribute("font-size", "9");
+        st.setAttribute("font-size", "8.5");
         st.setAttribute("fill", "#7ed7ff");
         st.setAttribute("pointer-events", "none");
-        st.textContent = "R";
+        st.textContent = "Rail";
         g.appendChild(st);
+      }
+
+      if (w.selectedHexId === hex.id) {
+        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        ring.setAttribute("cx", String(p.x));
+        ring.setAttribute("cy", String(p.y));
+        ring.setAttribute("r", minimal ? "15" : "18");
+        ring.setAttribute("fill", "rgba(232,192,80,.1)");
+        ring.setAttribute("stroke", "#f0d070");
+        ring.setAttribute("stroke-width", "1.7");
+        ring.setAttribute("pointer-events", "none");
+        g.appendChild(ring);
+
+        const you = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        you.setAttribute("x", String(p.x));
+        you.setAttribute("y", String(p.y - 18));
+        you.setAttribute("text-anchor", "middle");
+        you.setAttribute("font-size", "7");
+        you.setAttribute("fill", "#f0d070");
+        you.setAttribute("pointer-events", "none");
+        you.textContent = "YOU";
+        g.appendChild(you);
       }
 
       const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task");
@@ -1435,7 +1472,7 @@
         completeHoldingTask(task.id);
         return;
       }
-    } else if (marker.type === "service" || marker.type === "wayfarer" || marker.type === "structure" || marker.type === "hazard" || marker.type === "peril" || marker.type === "barrier" || marker.type === "landing" || marker.type === "station") {
+    } else if (marker.type === "service" || marker.type === "wayfarer" || marker.type === "structure" || marker.type === "hazard" || marker.type === "peril" || marker.type === "barrier" || marker.type === "landing" || marker.type === "station" || marker.type === "story") {
       if (typeof showNotif === "function") showNotif("Visit this district and use the panel actions for this marker.", "good");
     } else {
       if (typeof showNotif === "function") showNotif("District job completed. +80 Credits.", "good");
@@ -1567,7 +1604,7 @@
     const zoneHexes = w.hexes.filter(function (hex) { return hex.zone === h.zone && (!selected || hex.id !== selected.id); });
     const taskHex = safePick(zoneHexes, zoneHexes[0]) || selected;
     const rewardCredits = 120 + safeRoll(8) * 20;
-    const rollStat = safePick(ACTION_STATS, "body");
+    const rollStat = "adventure";
 
     const t = {
       id: taskId,
@@ -1577,7 +1614,7 @@
       hexId: taskHex ? taskHex.id : null,
       status: "active",
       rollStat: rollStat,
-      dread: 8,
+      dread: 6,
       rewardCredits: rewardCredits,
       rewardTier: safePick(["easy", "medium", "medium", "challenging"], "medium")
     };
@@ -1601,10 +1638,10 @@
       return;
     }
 
-    const check = rollAgainstDread(t.rollStat || "body", t.dread || 8);
+    const check = rollAgainstDread(t.rollStat || "adventure", t.dread || 6);
     if (!check.success) {
       selected.skirmish = true;
-      if (typeof showNotif === "function") showNotif("Task failed: " + statLabel(t.rollStat) + " check missed DD" + (t.dread || 8) + ".", "warn");
+      if (typeof showNotif === "function") showNotif("Task failed: " + statLabel(t.rollStat || "adventure") + " check missed DD" + (t.dread || 6) + ".", "warn");
       advanceWorldTime("task failure");
       if (registerWorldAction("task fail")) return;
       renderWorldThatWas();
@@ -1972,6 +2009,7 @@
     const padsEl = document.getElementById("wtwLandingControls");
     const activityEl = document.getElementById("wtwActivity");
     const mapModeBtn = document.getElementById("wtwMapModeBtn");
+    const timeEl = document.getElementById("wtwTimeDisplay");
     const invEl = document.getElementById("wtwInventoryReadout");
     if (tickEl) tickEl.textContent = "Cycle " + (w.tick || 0);
     if (zoneEl) zoneEl.textContent = w.currentZone || "Unknown";
@@ -1979,6 +2017,7 @@
     if (padsEl) padsEl.innerHTML = renderLandingPadControls();
     if (activityEl) activityEl.textContent = String(w.activityClicks || 0) + "/10";
     if (mapModeBtn) mapModeBtn.textContent = w.minimalMapMode ? "Map: Minimal" : "Map: Detailed";
+    if (timeEl) timeEl.textContent = getWorldDateTimeText();
     if (invEl && S && S.worldInventory) {
       invEl.innerHTML = WORLD_ITEMS.map(function (k) {
         return "<span class='sea-chip'>" + inventoryLabel(k) + ": " + (S.worldInventory[k] || 0) + "</span>";
@@ -2010,6 +2049,7 @@
       + "<span class='wtw-stat-pill'>Zone: <strong id='wtwCurrentZone' style='color:var(--gold2);'>-</strong></span>"
       + "<span class='wtw-stat-pill' id='wtwTick'>Cycle 0</span>"
       + "<span class='wtw-stat-pill'>Activity: <strong id='wtwActivity' style='color:var(--teal);'>0/10</strong></span>"
+      + "<span class='wtw-stat-pill' id='wtwTimeDisplay'>Month 1, Day 1, Year 1 — Morning</span>"
       + "</div>"
       + "</div>"
       + "<div class='wtw-quickstats'>"

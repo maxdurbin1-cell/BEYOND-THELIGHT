@@ -1050,8 +1050,8 @@ function renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success) 
 function rollCheck() {
   const actionDie = window.selectedDice.action;
   const dreadDie = window.selectedDice.dread;
-  const actionRoll = explodingRoll(actionDie);
-  const dreadRoll = explodingRoll(dreadDie);
+  const actionRoll = explodingRoll(actionDie, { type: "action", major: true, label: "Check Action" });
+  const dreadRoll = explodingRoll(dreadDie, { type: "dread", major: true, label: "Check Dread" });
   const success = actionRoll.total >= dreadRoll.total;
 
   renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success);
@@ -1065,7 +1065,7 @@ function rollCheck() {
 
 function rollSingle(kind) {
   const die = window.selectedDice[kind];
-  const result = explodingRoll(die);
+  const result = explodingRoll(die, { type: kind === "action" ? "action" : "dread", label: kind === "action" ? "Action" : "Dread" });
   showNotif((kind === "action" ? "Action" : "Dread") + " d" + die + ": " + result.total, result.exploded ? "good" : "");
 }
 
@@ -1090,7 +1090,7 @@ function rollWilderness() {
 }
 
 function rollFreedie(sides) {
-  const result = sides === 100 ? Math.floor(Math.random() * 100) + 1 : explodingRoll(sides).total;
+  const result = sides === 100 ? Math.floor(Math.random() * 100) + 1 : explodingRoll(sides, { type: "neutral", label: "Free d" + sides }).total;
   const el = document.getElementById("freeDiceResult");
   if (el) {
     el.textContent = "d" + sides + ": " + result;

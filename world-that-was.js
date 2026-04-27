@@ -1704,16 +1704,16 @@
     if (!w || !hex) return "";
 
     const holdings = w.holdings.filter(function (h) { return h.zone === hex.zone; });
-    if (!holdings.length) return "<div style='font-size:.74rem;color:var(--muted2);'>No power holdings registered in this zone.</div>";
+    if (!holdings.length) return "<div class='wtw-muted'>No power holdings registered in this zone.</div>";
 
     return holdings.map(function (h) {
       return ""
-        + "<div class='npc-block' style='margin-bottom:.35rem;'>"
-        + "<div class='nb-label'>" + h.name + " · " + h.power + "</div>"
-        + "<div style='font-size:.77rem;color:var(--muted3);line-height:1.45;'>"
+        + "<div class='wtw-list-card'>"
+        + "<div class='title'>" + h.name + " · " + h.power + "</div>"
+        + "<div class='meta'>"
         + "Mood: " + h.mood + "<br>Crisis: " + h.crisis + ""
         + "</div>"
-        + "<div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'>"
+        + "<div class='actions'>"
         + "<button class='btn btn-xs btn-primary' onclick='wtwTakeHoldingTask(\"" + h.id + "\")'>Take Task</button>"
         + "</div>"
         + "</div>";
@@ -1725,7 +1725,7 @@
     if (!w) return "";
 
     if (!w.activeTasks.length) {
-      return "<div style='font-size:.74rem;color:var(--muted2);'>No active holding tasks.</div>";
+      return "<div class='wtw-muted'>No active holding tasks.</div>";
     }
 
     return w.activeTasks.slice(0, 5).map(function (t) {
@@ -1733,11 +1733,11 @@
       const selected = getSelectedHex();
       const atLocation = !!selected && selected.id === t.hexId;
       return ""
-        + "<div class='npc-block' style='margin-bottom:.3rem;'>"
-        + "<div class='nb-label'>" + t.title + "</div>"
-        + "<div style='font-size:.76rem;color:var(--muted3);'>Power: " + t.power + " · Target: " + (taskHex ? (taskHex.zone + " / " + taskHex.district) : "Unknown") + "</div>"
-        + "<div style='font-size:.74rem;color:var(--muted2);'>Roll: " + statLabel(t.rollStat || "body") + " vs DD" + (t.dread || 8) + " · Reward: " + (t.rewardCredits || 150) + " Credits + Loot</div>"
-        + "<div style='margin-top:.25rem;display:flex;gap:.25rem;flex-wrap:wrap;'>"
+        + "<div class='wtw-list-card'>"
+        + "<div class='title'>" + t.title + "</div>"
+        + "<div class='meta'>Power: " + t.power + " · Target: " + (taskHex ? (taskHex.zone + " / " + taskHex.district) : "Unknown") + "</div>"
+        + "<div class='meta'>Roll: " + statLabel(t.rollStat || "body") + " vs DD" + (t.dread || 8) + " · Reward: " + (t.rewardCredits || 150) + " Credits + Loot</div>"
+        + "<div class='actions'>"
         + "<button class='btn btn-xs' onclick='wtwTrackTask(\"" + t.id + "\")'>Track</button>"
         + "<button class='btn btn-xs btn-teal' onclick='wtwCompleteTask(\"" + t.id + "\")'" + (atLocation ? "" : " disabled") + ">Complete</button>"
         + "</div>"
@@ -1748,7 +1748,7 @@
   function renderSkirmishWidget(hex) {
     const w = ensureWorldState();
     if (!w || !hex || !hex.skirmish) {
-      return "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.4rem;'>No active skirmish in this district.</div>";
+      return "<div class='wtw-muted'>No active skirmish in this district.</div>";
     }
 
     const st = w.skirmishState || {};
@@ -1756,10 +1756,10 @@
 
     if (!ready) {
       return ""
-        + "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(224,80,80,.45);background:rgba(224,80,80,.08);'>"
-        + "<div class='nb-label' style='color:#e05050;'>Active Skirmish</div>"
-        + "<div style='font-size:.78rem;color:var(--muted3);margin-bottom:.3rem;'>Initialize skirmish controls in this panel, or open full Combat tab.</div>"
-        + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;'>"
+        + "<div class='wtw-card'>"
+        + "<div class='wtw-card-title' style='color:#e05050;'>Active Skirmish</div>"
+        + "<div class='wtw-card-text'>Initialize skirmish controls in this panel, or open full Combat tab.</div>"
+        + "<div class='wtw-card-actions'>"
         + "<button class='btn btn-xs btn-red' onclick='wtwInitSkirmish()'>Init Skirmish Controls</button>"
         + "<button class='btn btn-xs btn-teal' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>"
         + "<button class='btn btn-xs' onclick='resolveWorldSkirmish()'>Quick Resolve</button>"
@@ -1768,9 +1768,9 @@
     }
 
     return ""
-      + "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(224,80,80,.45);background:rgba(224,80,80,.08);'>"
-      + "<div class='nb-label' style='color:#e05050;'>Skirmish Controls (Info Panel)</div>"
-      + "<div style='font-size:.74rem;color:var(--muted3);margin-bottom:.28rem;'>Round " + st.round + " · Actions reset together at 0/0.</div>"
+      + "<div class='wtw-card'>"
+      + "<div class='wtw-card-title' style='color:#e05050;'>Skirmish Controls</div>"
+      + "<div class='wtw-card-text'>Round " + st.round + " · Actions reset together at 0/0.</div>"
       + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.4rem;'>"
       + "<div>"
       + "<div style='font-size:.74rem;color:var(--text2);'>Your Army Stress: <strong style='color:var(--teal);'>" + st.armyAStress + "</strong></div>"
@@ -1791,11 +1791,19 @@
       + "</div>"
       + "</div>"
       + "</div>"
-      + "<div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'>"
+      + "<div class='wtw-card-actions'>"
       + "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>"
       + "<button class='btn btn-xs' onclick='resolveWorldSkirmish()'>Quick Resolve</button>"
       + "</div>"
       + "</div>";
+  }
+
+  function buildWtwAccordion(title, body, opened) {
+    return ""
+      + "<details class='wtw-accordion'" + (opened ? " open" : "") + ">"
+      + "<summary>" + title + "</summary>"
+      + "<div class='wtw-accordion-body'>" + body + "</div>"
+      + "</details>";
   }
 
   function renderWorldThatWasInfo() {
@@ -1805,7 +1813,7 @@
 
     const hex = getSelectedHex();
     if (!hex) {
-      panel.innerHTML = "<div class='hex-info-inner'><div style='font-size:.84rem;color:var(--muted2);line-height:1.6;'>Generate the map and select a district hex.</div></div>";
+      panel.innerHTML = "<div class='hex-info-inner'><div class='wtw-muted'>Generate the map and select a district hex.</div></div>";
       return;
     }
 
@@ -1821,84 +1829,92 @@
       : ("<strong>Check:</strong> " + statLabel(evt.stat || "body") + " d" + getActionDie(evt.stat || "body") + " vs DD" + (evt.dread || 8));
 
     const encounterHtml = hex.encounter
-      ? ("<div class='npc-block' style='margin:.45rem 0;border-color:rgba(46,196,182,.35);'><div class='nb-label'>Rolled Encounter</div><div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>" : "") + "</div></div>")
-      : "<div style='font-size:.74rem;color:var(--muted2);margin:.3rem 0 .5rem;'>No rolled encounter in this district.</div>";
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>" : "") + "</div></div>")
+      : "<div class='wtw-muted'>No rolled encounter in this district.</div>";
 
     const servicesHtml = services.map(function (svc, idx) {
       return ""
-        + "<div class='npc-block' style='margin-bottom:.25rem;'>"
-        + "<div class='nb-label'>" + svc.name + "</div>"
-        + "<div style='font-size:.78rem;color:var(--muted3);line-height:1.4;'>Cost: " + svc.cost + " Credits<br>" + svc.desc + "</div>"
-        + "<div style='margin-top:.25rem;'><button class='btn btn-xs btn-teal' onclick='wtwBuyService(\"" + hex.id + "\"," + idx + ")'>Use Service</button></div>"
+        + "<div class='wtw-list-card'>"
+        + "<div class='title'>" + svc.name + "</div>"
+        + "<div class='meta'>Cost: " + svc.cost + " Credits<br>" + svc.desc + "</div>"
+        + "<div class='actions'><button class='btn btn-xs btn-teal' onclick='wtwBuyService(\"" + hex.id + "\"," + idx + ")'>Use Service</button></div>"
         + "</div>";
     }).join("");
 
     const hazardHtml = hex.hazard
-      ? ("<div class='npc-block' style='margin-bottom:.35rem;border-color:rgba(255,138,114,.45);background:rgba(255,138,114,.08);'><div class='nb-label' style='color:#ff8a72;'>" + (hex.hazard.type || "hazard").toUpperCase() + ": " + hex.hazard.name + "</div><div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'><strong>Risk:</strong> " + hex.hazard.desc + "<br><strong>Check:</strong> " + statLabel(hex.hazard.stat || "body") + " vs DD" + (hex.hazard.dread || 8) + "<br><strong>On fail:</strong> gain " + (hex.hazard.condition || "weakened") + "</div><div style='margin-top:.3rem;'><button class='btn btn-xs btn-red' onclick='wtwResolveHazard(\"" + hex.id + "\")'>Face Hazard</button></div></div>")
-      : "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>No active district hazard in this hex.</div>";
+      ? ("<div class='wtw-card'><div class='wtw-card-title' style='color:#ff8a72;'>" + (hex.hazard.type || "hazard").toUpperCase() + ": " + hex.hazard.name + "</div><div class='wtw-card-text'><strong>Risk:</strong> " + hex.hazard.desc + "<br><strong>Check:</strong> " + statLabel(hex.hazard.stat || "body") + " vs DD" + (hex.hazard.dread || 8) + "<br><strong>On fail:</strong> gain " + (hex.hazard.condition || "weakened") + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-red' onclick='wtwResolveHazard(\"" + hex.id + "\")'>Face Hazard</button></div></div>")
+      : "<div class='wtw-muted'>No active district hazard in this hex.</div>";
 
     const wayfarerHtml = hex.wayfarer
-      ? ("<div class='npc-block' style='margin-bottom:.35rem;border-color:rgba(212,184,255,.45);background:rgba(212,184,255,.07);'><div class='nb-label' style='color:#d4b8ff;'>Wayfarer: " + hex.wayfarer.name + "</div><div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'><strong>Rumor:</strong> " + hex.wayfarer.rumor + "<br><strong>History:</strong> " + hex.wayfarer.history + "</div><div style='margin-top:.3rem;'><button class='btn btn-xs btn-teal' onclick='wtwTalkWayfarer(\"" + hex.id + "\")'>Talk</button></div></div>")
-      : "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>No wayfarer currently visible.</div>";
+      ? ("<div class='wtw-card'><div class='wtw-card-title' style='color:#d4b8ff;'>Wayfarer: " + hex.wayfarer.name + "</div><div class='wtw-card-text'><strong>Rumor:</strong> " + hex.wayfarer.rumor + "<br><strong>History:</strong> " + hex.wayfarer.history + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwTalkWayfarer(\"" + hex.id + "\")'>Talk</button></div></div>")
+      : "<div class='wtw-muted'>No wayfarer currently visible.</div>";
 
     const structureRooms = (hex.structure && Array.isArray(hex.structure.generatedRooms)) ? hex.structure.generatedRooms : [];
     const structureRoomHtml = structureRooms.length
       ? ("<div style='margin-top:.25rem;'>" + structureRooms.map(function (room, idx) {
           return "<div class='room-block'><div class='rb-title'>Room " + (idx + 1) + "</div><div class='rb-text'>" + room + "</div></div>";
         }).join("") + "</div>")
-      : "<div style='font-size:.74rem;color:var(--muted2);margin-top:.2rem;'>No rooms generated yet.</div>";
+      : "<div class='wtw-muted' style='margin-top:.2rem;'>No rooms generated yet.</div>";
 
     const structureHtml = hex.structure
-      ? ("<div class='npc-block' style='margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);'><div class='nb-label' style='color:var(--gold2);'>" + (hex.structure.kind || "Structure") + ": " + (hex.structure.name || "Unknown Site") + "</div><div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'>Enter and generate interior rooms for exploration.</div><div style='margin-top:.3rem;'><button class='btn btn-xs btn-primary' onclick='wtwExploreStructure(\"" + hex.id + "\")'>Generate Rooms</button></div>" + structureRoomHtml + "</div>")
-      : "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>No explorable structure in this district.</div>";
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>" + (hex.structure.kind || "Structure") + ": " + (hex.structure.name || "Unknown Site") + "</div><div class='wtw-card-text'>Enter and generate interior rooms for exploration.</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwExploreStructure(\"" + hex.id + "\")'>Generate Rooms</button></div>" + structureRoomHtml + "</div>")
+      : "<div class='wtw-muted'>No explorable structure in this district.</div>";
 
-    const travelHtml = "<div class='npc-block' style='margin-bottom:.35rem;border-color:rgba(126,215,255,.4);background:rgba(126,215,255,.08);'>"
-      + "<div class='nb-label' style='color:#7ed7ff;'>Travel Infrastructure</div>"
-      + "<div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'>"
+    const travelHtml = "<div class='wtw-card'>"
+      + "<div class='wtw-card-title' style='color:#7ed7ff;'>Travel Infrastructure</div>"
+      + "<div class='wtw-card-text'>"
       + (hex.station ? "This district contains a rail station.<br>" : "No rail station in this district.<br>")
       + (hex.landingPad ? "Landing pad available: launch to space for 40 Credits." : "No landing pad in this district.")
       + "</div>"
-      + (hex.landingPad ? "<div style='margin-top:.3rem;'><button class='btn btn-xs btn-teal' onclick='wtwLaunchToSpace(\"" + hex.id + "\")'>Launch To Space</button></div>" : "")
+      + (hex.landingPad ? "<div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwLaunchToSpace(\"" + hex.id + "\")'>Launch To Space</button></div>" : "")
       + "</div>";
 
     const controlRows = Object.keys((zone && zone.controlBreakdown) || {}).map(function (name) {
       return "<span style='display:inline-block;margin-right:.4rem;color:" + controllerColor(name) + ";'>" + name + ": " + zone.controlBreakdown[name] + "</span>";
     }).join(" ");
 
+    const summaryGrid = ""
+      + "<div class='wtw-mini-grid'>"
+      + "<div class='wtw-mini-cell'><span class='lbl'>Controller</span>" + hex.controller + "</div>"
+      + "<div class='wtw-mini-cell'><span class='lbl'>Zone Leader</span>" + ((zone && zone.leader) || "Unknown") + "</div>"
+      + "<div class='wtw-mini-cell'><span class='lbl'>Zone Reputation</span>" + zoneRep + " (" + zoneRepTier(zoneRep) + ")</div>"
+      + "<div class='wtw-mini-cell'><span class='lbl'>Danger Profile</span>" + dangerForZone(hex.zone).encounterChance + "% encounter / " + dangerForZone(hex.zone).skirmishChance + "% skirmish</div>"
+      + "<div class='wtw-mini-cell'><span class='lbl'>Fauna / Flora</span>" + n.fauna + " / " + n.flora + "</div>"
+      + "<div class='wtw-mini-cell'><span class='lbl'>Land / Weather</span>" + n.land + " / " + n.weather + "</div>"
+      + "</div>";
+
+    const eventCard = ""
+      + "<div class='wtw-card'>"
+      + "<div class='wtw-card-title'>Random Event</div>"
+      + "<div class='wtw-card-text'><strong>" + evt.title + "</strong><br>" + evt.text + "<br><br><strong>Action:</strong> " + evt.action + "<br>" + eventCheck + "<br><strong>Reward:</strong> " + evt.reward + "</div>"
+      + "<div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>" + (evt.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button>" : "") + "<button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
+      + "</div>";
+
+    const markerHtml = marker
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>" + markerTypeLabel + "</div><div class='wtw-card-text'><strong>" + marker.title + "</strong><br>" + marker.subtitle + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Review Marker</button></div></div>")
+      : "<div class='wtw-muted'>No marker in this district.</div>";
+
+    const worldSystems = hazardHtml + wayfarerHtml + structureHtml + travelHtml + renderSkirmishWidget(hex);
+    const powerSection = ""
+      + "<div class='wtw-card-text' style='margin-bottom:.3rem;'><strong>Control Breakdown:</strong><br>" + controlRows + "</div>"
+      + "<div class='wtw-card-title' style='margin-top:.3rem;'>Zone Holdings</div>"
+      + renderHoldingsPanel(hex)
+      + "<div class='wtw-card-title' style='margin-top:.3rem;'>Active Tasks</div>"
+      + renderActiveTasksPanel();
+
     panel.innerHTML = ""
       + "<div class='hex-info-inner'>"
+      + "<div class='wtw-header'>"
       + "<div class='hex-type-tag wilderness'>District Hex</div>"
-      + "<div class='hex-name'>" + hex.zone + " - " + hex.district + "</div>"
-      + "<div class='hex-desc' style='margin-bottom:.45rem;'>Amidst " + n.location + ", the " + n.sight + ", " + n.description + ", serves as a beacon for " + n.feature + ".</div>"
-      + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Controller</span>" + hex.controller + "</div><div class='info-cell'><span class='ic-label'>Zone Leader</span>" + ((zone && zone.leader) || "Unknown") + "</div></div>"
-      + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Zone Reputation</span>" + zoneRep + " (" + zoneRepTier(zoneRep) + ")</div><div class='info-cell'><span class='ic-label'>Danger Profile</span>" + dangerForZone(hex.zone).encounterChance + "% encounter / " + dangerForZone(hex.zone).skirmishChance + "% skirmish</div></div>"
-      + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Fauna / Flora</span>" + n.fauna + " / " + n.flora + "</div><div class='info-cell'><span class='ic-label'>Land / Weather</span>" + n.land + " / " + n.weather + "</div></div>"
-      + "<div class='mystery-card' style='margin:.45rem 0;'><strong>Random Event:</strong> " + evt.title + "<br>" + evt.text + "<br><br><strong>Action:</strong> " + evt.action + "<br>" + eventCheck + "<br><strong>Reward:</strong> " + evt.reward + "<div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>" + (evt.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button>" : "") + "</div></div>"
-      + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;'><button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
-      + encounterHtml
-      + (marker ? "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);'><div class='nb-label'>" + markerTypeLabel + " - " + marker.title + "</div><div style='font-size:.78rem;color:var(--muted3);'>" + marker.subtitle + "</div><div style='margin-top:.28rem;'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Review Marker</button></div></div>" : "")
-      + "<div class='sub-label'>Hazards / Perils / Barriers</div>"
-      + hazardHtml
-      + "<div class='sub-label'>Wayfarers</div>"
-      + wayfarerHtml
-      + "<div class='sub-label'>Explorable Areas</div>"
-      + structureHtml
-      + "<div class='sub-label'>Travel Nodes</div>"
-      + travelHtml
-      + renderSkirmishWidget(hex)
-      + "<div class='sub-label'>District Services</div>"
-      + servicesHtml
-      + "<div style='margin-top:.5rem;border-top:1px solid var(--border);padding-top:.45rem;font-size:.74rem;color:var(--muted2);'>"
-      + "<strong style='color:var(--gold2);'>Control Breakdown:</strong><br>" + controlRows
+      + "<div class='wtw-headline'>" + hex.zone + " - " + hex.district + "</div>"
+      + "<div class='wtw-summary'>Amidst " + n.location + ", the " + n.sight + ", " + n.description + ", serves as a beacon for " + n.feature + ".</div>"
       + "</div>"
-      + "<div style='margin-top:.5rem;border-top:1px solid var(--border);padding-top:.45rem;'>"
-      + "<div class='section-title' style='margin-bottom:.4rem;'>Zone Holdings</div>"
-      + renderHoldingsPanel(hex)
-      + "</div>"
-      + "<div style='margin-top:.5rem;border-top:1px solid var(--border);padding-top:.45rem;'>"
-      + "<div class='section-title' style='margin-bottom:.4rem;'>Active Tasks</div>"
-      + renderActiveTasksPanel()
-      + "</div>"
+      + summaryGrid
+      + eventCard
+      + buildWtwAccordion("Encounter & Markers", encounterHtml + markerHtml, true)
+      + buildWtwAccordion("Hazards, Wayfarers, Exploration & Travel", worldSystems, false)
+      + buildWtwAccordion("District Services", servicesHtml || "<div class='wtw-muted'>No services available here.</div>", false)
+      + buildWtwAccordion("Zone Power & Tasks", powerSection, false)
       + "</div>";
   }
 
@@ -1964,30 +1980,37 @@
 
     panel.dataset.mounted = "1";
     panel.innerHTML = ""
-      + "<div class='map-controls'>"
-      + "<button class='btn btn-primary' onclick='generateWorldThatWasMap()'>Generate World That Was</button>"
-      + "<button class='btn' onclick='advanceWorldThatWas()'>Advance Control Cycle</button>"
+      + "<div class='wtw-shell'>"
+      + "<div class='wtw-toolbar'>"
+      + "<div class='wtw-toolbar-actions'>"
+      + "<button class='btn btn-primary' onclick='generateWorldThatWasMap()'>Generate</button>"
+      + "<button class='btn btn-sm' onclick='advanceWorldThatWas()'>Advance Cycle</button>"
       + "<button class='btn btn-sm btn-teal' onclick='wtwSyncMarkers()'>Refresh Markers</button>"
       + "<button class='btn btn-sm' onclick='wtwRollEncounter()'>Roll Encounter</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToGalaxy()'>Return to Galaxy</button>"
-      + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.3rem;'>Current Zone: <strong id='wtwCurrentZone' style='color:var(--gold2);'>-</strong></span>"
-      + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.5rem;' id='wtwTick'>Cycle 0</span>"
-      + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.5rem;'>Activity: <strong id='wtwActivity' style='color:var(--teal);'>0/10</strong></span>"
       + "</div>"
-      + "<div class='sea-summary' style='margin-bottom:.5rem;'>"
-      + "<div class='info-cell'><span class='ic-label'>Map Rules</span>12x12 districts, 9 mega-zones, dynamic control shifts, train-linked travel.</div>"
-      + "<div class='info-cell'><span class='ic-label'>Dynamic Layer</span>Events, services, skirmishes, holdings tasks, mission markers, wayfarers, hazards, and structures.</div>"
-      + "<div class='info-cell'><span class='ic-label'>Train Network</span>Travel to any zone station for 30 Credits and +1 time step.</div>"
-      + "<div class='info-cell'><span class='ic-label'>Landing Pads</span>Each zone has a launch pad. Launch to space from the selected pad for 40 Credits.</div>"
-      + "<div class='info-cell'><span class='ic-label'>Renown</span>Holding tasks and event wins grant +1 power renown and loot.</div>"
+      + "<div class='wtw-toolbar-meta'>"
+      + "<span class='wtw-stat-pill'>Zone: <strong id='wtwCurrentZone' style='color:var(--gold2);'>-</strong></span>"
+      + "<span class='wtw-stat-pill' id='wtwTick'>Cycle 0</span>"
+      + "<span class='wtw-stat-pill'>Activity: <strong id='wtwActivity' style='color:var(--teal);'>0/10</strong></span>"
       + "</div>"
-      + "<div id='wtwRailControls' style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'></div>"
-      + "<div id='wtwLandingControls' style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'></div>"
-      + "<div id='wtwInventoryReadout' class='sea-group-list' style='margin-bottom:.45rem;'></div>"
-      + "<div id='wtwPowerReadout' class='sea-group-list' style='margin-bottom:.45rem;'></div>"
+      + "</div>"
+      + "<div class='wtw-quickstats'>"
+      + "<div class='wtw-kv'><span class='k'>Map Rules</span><div class='v'>12x12 districts, 9 mega-zones, dynamic control shifts.</div></div>"
+      + "<div class='wtw-kv'><span class='k'>Travel</span><div class='v'>Rail to any zone station for 30 Credits and +1 time step.</div></div>"
+      + "<div class='wtw-kv'><span class='k'>Landing Pads</span><div class='v'>Each zone has a launch pad. Launch from selected pad for 40 Credits.</div></div>"
+      + "<div class='wtw-kv'><span class='k'>Progress</span><div class='v'>Events, services, skirmishes, tasks, wayfarers, hazards, and structures.</div></div>"
+      + "</div>"
+      + "<div id='wtwRailControls' class='wtw-chip-wrap'></div>"
+      + "<div id='wtwLandingControls' class='wtw-chip-wrap'></div>"
+      + "<div class='wtw-strip'>"
+      + "<div class='wtw-strip-card'><div class='wtw-strip-title'>World Inventory</div><div id='wtwInventoryReadout' class='wtw-chip-wrap'></div></div>"
+      + "<div class='wtw-strip-card'><div class='wtw-strip-title'>Power Balance</div><div id='wtwPowerReadout' class='wtw-chip-wrap'></div></div>"
+      + "</div>"
       + "<div class='map-layout'>"
       + "<div class='map-scroll'><svg id='wtwMapSvg' width='900' height='740' xmlns='http://www.w3.org/2000/svg'></svg></div>"
       + "<div class='hex-info' id='wtwInfo'></div>"
+      + "</div>"
       + "</div>";
   }
 

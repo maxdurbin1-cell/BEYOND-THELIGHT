@@ -149,6 +149,15 @@
       crises: [],
       taxLog: []
     }, prevHolding);
+    S.holding.wayfarerHome = Object.assign({
+      decorLevel: 0,
+      securityLevel: 0,
+      workshopLevel: 0,
+      marketLevel: 0,
+      decorTheme: "Frontier",
+      log: []
+    }, S.holding.wayfarerHome || {});
+    if (!Array.isArray(S.holding.wayfarerHome.log)) { S.holding.wayfarerHome.log = []; }
     if (!Array.isArray(S.holding.landmarks))      { S.holding.landmarks = []; }
     if (!Array.isArray(S.holding.extraLandmarks)) { S.holding.extraLandmarks = []; }
     if (!Array.isArray(S.holding.crises))         { S.holding.crises = []; }
@@ -453,6 +462,11 @@
           '<div class="card">',
             '<div class="section-title">Holding Acquisition</div>',
             '<div id="holdingQuestStatus"></div>',
+          '</div>',
+          '<div class="card">',
+            '<div class="section-title">Wayfarer Home</div>',
+            '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Upgrade your home with decor, security, workshop, and market amenities. Bonuses feed mission and district economy outcomes.</div>',
+            '<div id="wayfarerHomePanel"></div>',
           '</div>',
         '</div>',
       '</div>',
@@ -1211,6 +1225,89 @@
         questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">Holding established: <strong style="color:var(--gold)">' + h.name + '</strong></div>';
       }
     }
+
+    var homeEl = document.getElementById("wayfarerHomePanel");
+    if (homeEl) {
+      var home = h.wayfarerHome || {};
+      var levels = [
+        { key: "decorLevel", name: "Decor", desc: "Adds social prestige and narrative flair." },
+        { key: "securityLevel", name: "Security", desc: "Improves defensive readiness and crisis resilience." },
+        { key: "workshopLevel", name: "Workshop", desc: "Improves technical salvage and mission support." },
+        { key: "marketLevel", name: "Market", desc: "Improves mission and district economy payouts." }
+      ];
+      homeEl.innerHTML = levels.map(function (entry) {
+        var lvl = Number(home[entry.key] || 0);
+        var nextCost = getWayfarerHomeUpgradeCost(entry.key, lvl);
+        var cap = lvl >= 3;
+        return '<div style="border:1px solid var(--border2);background:var(--surface);padding:.38rem .45rem;margin-bottom:.3rem;">'
+          + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;letter-spacing:.08em;color:var(--gold2);text-transform:uppercase;">' + entry.name + ' Lv.' + lvl + '</div>'
+          + '<div style="font-size:.74rem;color:var(--muted3);margin:.15rem 0 .25rem 0;line-height:1.45;">' + entry.desc + '</div>'
+          + '<button class="btn btn-xs ' + (cap ? '' : 'btn-teal') + '" ' + (cap ? 'disabled' : ('onclick="buyWayfarerHomeUpgrade(\'' + entry.key + '\')"')) + '>' + (cap ? 'Max Level' : ('Upgrade (' + nextCost + '₵)')) + '</button>'
+          + '</div>';
+      }).join('')
+      + '<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);">'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.22rem;">Decor Theme</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs" onclick="setWayfarerHomeDecorTheme(\'Frontier\')">Frontier</button>'
+      + '<button class="btn btn-xs" onclick="setWayfarerHomeDecorTheme(\'Noir\')">Noir</button>'
+      + '<button class="btn btn-xs" onclick="setWayfarerHomeDecorTheme(\'Neon\')">Neon</button>'
+      + '<button class="btn btn-xs" onclick="setWayfarerHomeDecorTheme(\'Industrial\')">Industrial</button>'
+      + '</div>'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-top:.25rem;">Current Theme: ' + (home.decorTheme || 'Frontier') + '</div>'
+      + '</div>';
+    }
+  }
+
+  function getWayfarerHomeUpgradeCost(key, level) {
+    var base = {
+      decorLevel: 350,
+      securityLevel: 500,
+      workshopLevel: 450,
+      marketLevel: 600
+    };
+    var start = base[key] || 400;
+    return start + (Number(level || 0) * 250);
+  }
+
+  function buyWayfarerHomeUpgrade(key) {
+    ensureNewFeatureState();
+    var home = S.holding.wayfarerHome || {};
+    var lvl = Number(home[key] || 0);
+    if (lvl >= 3) {
+      showNotif('This home upgrade is already maxed.', 'warn');
+      return;
+    }
+    var cost = getWayfarerHomeUpgradeCost(key, lvl);
+    if ((S.credits || 0) < cost) {
+      showNotif('Not enough Credits for this home upgrade.', 'warn');
+      return;
+    }
+    S.credits = Math.max(0, (S.credits || 0) - cost);
+    updateCreditsUI();
+    home[key] = lvl + 1;
+    home.log.unshift(capFirst(key.replace('Level', '')) + ' upgraded to Lv.' + home[key] + ' (-' + cost + '₵)');
+    home.log = home.log.slice(0, 10);
+    S.holding.wayfarerHome = home;
+    renderHoldingUI();
+    showNotif('Wayfarer Home upgraded: ' + key.replace('Level', '') + ' Lv.' + home[key], 'good');
+  }
+
+  function setWayfarerHomeDecorTheme(theme) {
+    ensureNewFeatureState();
+    S.holding.wayfarerHome.decorTheme = String(theme || 'Frontier');
+    renderHoldingUI();
+    showNotif('Wayfarer Home theme set: ' + S.holding.wayfarerHome.decorTheme, 'good');
+  }
+
+  function getWayfarerHomeBonuses() {
+    ensureNewFeatureState();
+    var home = S.holding.wayfarerHome || {};
+    return {
+      decor: Number(home.decorLevel || 0),
+      security: Number(home.securityLevel || 0),
+      workshop: Number(home.workshopLevel || 0),
+      market: Number(home.marketLevel || 0)
+    };
   }
 
   function renderHoldingCrises() {
@@ -2391,6 +2488,9 @@
   window.getHoldingQuestBoardCardHtml = getHoldingQuestBoardCardHtml;
   window.getHoldingQuestTrackerCardHtml = getHoldingQuestTrackerCardHtml;
   window.onHoldingCouncilTaskResolved = onHoldingCouncilTaskResolved;
+  window.buyWayfarerHomeUpgrade = buyWayfarerHomeUpgrade;
+  window.setWayfarerHomeDecorTheme = setWayfarerHomeDecorTheme;
+  window.getWayfarerHomeBonuses = getWayfarerHomeBonuses;
   window.moveVaultItemToBackpack = moveVaultItemToBackpack;
   window.moveBackpackToVault  = moveBackpackToVault;
   window.buyCaravan           = buyCaravan;

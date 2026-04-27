@@ -844,7 +844,12 @@
           baseDread: 8,
           req: { npcAffinity: { npc: "lyra", min: 1 } },
           success: { next: "finale_gate", text: "Lyra's testimony shifts neutral observers to your side.", effects: { faction: { political: 1 }, npc: { lyra: 1 } } },
-          fail: { next: "finale_gate", text: "She falters under pressure, but the record still condemns Voss.", effects: { mentalStress: 1 } },
+          fail: {
+            next: "lyra_martyr",
+            text: "An assassin round strikes Lyra mid-testimony. The chamber erupts.",
+            effects: { mentalStress: 2, faction: { military: -1 } },
+            irreversible: { killNpc: ["lyra"], lockFlags: ["lyraArcLocked"], unlockFlags: ["martyrUprising"] }
+          },
         },
         {
           id: "o2",
@@ -853,7 +858,42 @@
           baseDread: 8,
           req: { npcAffinity: { npc: "mara", min: 1 } },
           success: { next: "finale_gate", text: "Data storms break across every district screen.", effects: { faction: { corporations: -1, rebels: 1 }, npc: { mara: 1 } } },
-          fail: { next: "finale_gate", text: "The stream drops repeatedly, but enough evidence survives.", effects: { tmw: 1 } },
+          fail: {
+            next: "mara_blackout",
+            text: "Mara's uplink is traced and burned. Her network collapses in minutes.",
+            effects: { tmw: 1, mentalStress: 1 },
+            irreversible: { killNpc: ["mara"], lockFlags: ["maraArcLocked"], unlockFlags: ["blackoutDoctrine"] }
+          },
+        },
+      ],
+    },
+
+    lyra_martyr: {
+      chapter: "c4",
+      title: "Lyra's Last Oath",
+      location: "World That Was",
+      mood: "Irreversible grief",
+      text: "Lyra dies with one command: finish this in daylight, not shadow. Her death hardens half the city and radicalizes the rest.",
+      options: [
+        {
+          id: "o1",
+          text: "Carry her oath to the final court",
+          success: { next: "finale_gate", text: "Her name becomes a rallying cry in every district square." },
+        },
+      ],
+    },
+
+    mara_blackout: {
+      chapter: "c4",
+      title: "Signal Funeral",
+      location: "World That Was",
+      mood: "Collapsed networks",
+      text: "With Mara gone, the city loses its fastest truth-channel. You must now win by witness and force, not broadcast.",
+      options: [
+        {
+          id: "o1",
+          text: "Advance to final court without her network",
+          success: { next: "finale_gate", text: "You proceed with fewer allies and no clean comms cover." },
         },
       ],
     },
@@ -960,6 +1000,15 @@
           req: { flagEq: { key: "allySummit", value: true } },
           success: { next: "ending_openhand", text: "District delegates sign in real time as Voss loses narrative control.", effects: { renown: 3, faction: { political: 2, rebels: 1 } } },
           fail: { next: "ending_openhand", text: "The charter launches amid chaos, but it still decentralizes power.", effects: { mentalStress: 2, renown: 1 } },
+        },
+        {
+          id: "o5",
+          text: "Issue the Martyr Verdict",
+          stat: "lead",
+          baseDread: 14,
+          req: { flagEq: { key: "lyraDead", value: true } },
+          success: { next: "ending_iron", text: "You invoke Lyra's name and the city backs a hard verdict with irreversible force.", effects: { renown: 3, faction: { military: 1, political: -1 } } },
+          fail: { next: "ending_iron", text: "The chamber fractures, but vengeance still carries the day.", effects: { health: 1, mentalStress: 2 } },
         },
       ],
     },
@@ -1248,6 +1297,7 @@
     if (req.npcAffinity && req.npcAffinity.npc) {
       const st = ensureStoryState();
       if (!st) return false;
+      if (st.flags[req.npcAffinity.npc + "Dead"]) return false;
       if ((st.npc[req.npcAffinity.npc] || 0) < Number(req.npcAffinity.min || 0)) return false;
     }
     if (req.flagEq && req.flagEq.key) {
@@ -1817,6 +1867,7 @@
     }
 
     if (outcome && outcome.effects) applyEffects(outcome.effects);
+    if (outcome && outcome.irreversible) applyIrreversibleOutcome(outcome.irreversible);
     if (outcome && outcome.text) st.lastResult = outcome.text;
     if (outcome && outcome.next) {
       st.sceneId = outcome.next;
@@ -1850,6 +1901,33 @@
     pushLog(msg);
 
     if (typeof renderUI === "function") renderUI();
+  }
+
+  function applyIrreversibleOutcome(irrev) {
+    const st = ensureStoryState();
+    if (!st || !irrev) return;
+
+    const deadList = Array.isArray(irrev.killNpc) ? irrev.killNpc : [];
+    deadList.forEach(function (npc) {
+      const key = String(npc || "").trim();
+      if (!key) return;
+      st.flags[key + "Dead"] = true;
+      st.flags[key + "Alive"] = false;
+      st.npc[key] = -99;
+      if (typeof showNotif === "function") {
+        showNotif("Story consequence: " + key.charAt(0).toUpperCase() + key.slice(1) + " is gone. Related branches are permanently altered.", "warn");
+      }
+    });
+
+    const lockFlags = Array.isArray(irrev.lockFlags) ? irrev.lockFlags : [];
+    lockFlags.forEach(function (flag) {
+      st.flags[String(flag)] = true;
+    });
+
+    const unlockFlags = Array.isArray(irrev.unlockFlags) ? irrev.unlockFlags : [];
+    unlockFlags.forEach(function (flag) {
+      st.flags[String(flag)] = true;
+    });
   }
 
   function runStoryOption(sceneId, optionId) {

@@ -438,7 +438,12 @@
     const a = (typeof explodingRoll === "function") ? explodingRoll(ad) : { total: safeRoll(ad) };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dd) : { total: safeRoll(dd) };
     const serviceBonus = String(statKey || "") === "adventure" ? consumeWorldServiceBonus("nextAdventureBonus") : 0;
-    const actionTotal = a.total + serviceBonus;
+    let homeSecurityBonus = 0;
+    if ((statKey === "adventure" || statKey === "defend") && typeof getWayfarerHomeBonuses === "function") {
+      const hb = getWayfarerHomeBonuses() || {};
+      homeSecurityBonus = Math.min(2, Math.max(0, Number(hb.security || 0)));
+    }
+    const actionTotal = a.total + serviceBonus + homeSecurityBonus;
     return {
       ad: ad,
       dd: dd,

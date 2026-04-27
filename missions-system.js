@@ -764,6 +764,27 @@
       }
       mission.loot=mission.loot.concat(newLoot);
       S.credits=(S.credits||0)+(mission.reward||100); S.renown=(S.renown||0)+1;
+
+      if (typeof getWayfarerHomeBonuses === 'function') {
+        var homeBonus = getWayfarerHomeBonuses() || {};
+        var marketBonus = Math.max(0, Number(homeBonus.market || 0)) * 25;
+        var decorBonus = Math.max(0, Number(homeBonus.decor || 0)) >= 2 ? 1 : 0;
+        var workshopLoot = Math.max(0, Number(homeBonus.workshop || 0)) >= 1 ? 'Workshop Supply Crate' : '';
+
+        if (marketBonus) {
+          S.credits = (S.credits || 0) + marketBonus;
+          mission.homeBonusCredits = marketBonus;
+        }
+        if (decorBonus) {
+          S.renown = (S.renown || 0) + decorBonus;
+          mission.homeBonusRenown = decorBonus;
+        }
+        if (workshopLoot) {
+          mission.loot.push(workshopLoot);
+          newLoot.push(workshopLoot);
+        }
+      }
+
       applyFactionStandingDelta(mission.factionGain, mission.factionLose);
       try { if (typeof updateCreditsUI==='function') updateCreditsUI(); } catch (err) {}
       try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
@@ -818,7 +839,13 @@
       if (typeof window.AudioManager !== 'undefined') {
         window.AudioManager.missionComplete();
       }
-      try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 '+(mission.factionGainName||'Faction')+' +1 / '+(mission.factionLoseName||'Faction')+' -1 \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
+      var homeText = '';
+      if (mission.homeBonusCredits || mission.homeBonusRenown) {
+        homeText = ' \u00B7 Home Bonus:'
+          + (mission.homeBonusCredits ? (' +' + mission.homeBonusCredits + '\u20B5') : '')
+          + (mission.homeBonusRenown ? (' +' + mission.homeBonusRenown + ' Renown') : '');
+      }
+      try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 '+(mission.factionGainName||'Faction')+' +1 / '+(mission.factionLoseName||'Faction')+' -1' + homeText + ' \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
       if (stored.length) {
         try { showNotif('Added to backpack: ' + stored.join(', '), 'good'); } catch (err) {}
       }

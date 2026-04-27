@@ -1,5 +1,6 @@
 // world-that-was.js
 (function () {
+  const WTW_SCHEMA_VERSION = 2;
   const WTW_HEX = 24;
   const MAP_COLS = 12;
   const MAP_ROWS = 12;
@@ -323,6 +324,7 @@
     w.selectedHexId = w.selectedHexId || null;
     w.tick = typeof w.tick === "number" ? w.tick : 0;
     w.generated = !!w.generated;
+    w.schemaVersion = typeof w.schemaVersion === "number" ? w.schemaVersion : 1;
 
     w.trainZones = Array.isArray(w.trainZones) ? w.trainZones : [];
     w.currentZone = w.currentZone || "Cyber Hub";
@@ -340,6 +342,30 @@
       armyADread: null,
       armyBDread: null
     };
+
+    // Migrate legacy world data (old 45-hex map) to the new 12x12 schema.
+    if (w.schemaVersion < WTW_SCHEMA_VERSION || (Array.isArray(w.hexes) && w.hexes.length && w.hexes.length !== MAP_COLS * MAP_ROWS)) {
+      w.hexes = [];
+      w.zones = [];
+      w.markers = {};
+      w.generated = false;
+      w.selectedHexId = null;
+      w.trainZones = [];
+      w.currentZone = "Cyber Hub";
+      w.holdings = [];
+      w.activeTasks = [];
+      w.skirmishState = {
+        activeHexId: null,
+        round: 1,
+        armyAStress: null,
+        armyBStress: null,
+        armyAActions: 2,
+        armyBActions: 2,
+        armyADread: null,
+        armyBDread: null
+      };
+    }
+    w.schemaVersion = WTW_SCHEMA_VERSION;
 
     return w;
   }
@@ -1156,7 +1182,7 @@
 
   function mountWorldThatWasPanel() {
     const panel = document.getElementById("tab-worldthatwas");
-    if (!panel || panel.dataset.mounted === "1") return;
+    if (!panel) return;
 
     panel.dataset.mounted = "1";
     panel.innerHTML = ""

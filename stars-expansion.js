@@ -5519,6 +5519,7 @@ function renderPlanetExplorationPanel() {
   const availableContacts = availableWayfarers.filter((wf) => !wf.acceptedTaskId);
   const bypass = isPlanetHazardBypassed(state);
   const weather = (selected && selected.localWeather) ? selected.localWeather : state.currentWeather;
+  const isStoryObjectiveSelected = !!(selected && state.storyObjectiveCellId === selected.id);
   const holdingInfoHtml = buildPlanetHoldingInfoHtml(state, selected);
   const dwellingInfoHtml = buildPlanetDwellingInfoHtml(state, selected);
   const templeInfoHtml = buildPlanetTempleInfoHtml(state, selected);
@@ -5601,6 +5602,8 @@ function renderPlanetExplorationPanel() {
             <div style="font-size:.81rem;color:var(--text2);">${weather.desc}</div>
             ${weather.rough ? `<div style="font-size:.76rem;color:var(--red2);margin-top:.2rem;">Dangerous weather: ${weather.check || 'lead'} vs DD${weather.dd || 6}. Failure: ${weather.failure || '+1 Stress'}</div><div style="margin-top:.25rem;"><button class="btn btn-xs btn-warn" onclick="resolvePlanetWeatherCheck()">⚄ Weather Check</button></div>` : ''}
           </div>` : ''}
+
+          ${isStoryObjectiveSelected ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:rgba(240,208,112,.45);background:rgba(240,208,112,.08);"><div class="ss-title">Story Objective</div><div class="ss-text">This surface cell is your active storyline target.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div></div>` : ''}
 
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Planet Intel</span>${isWildernessIntel ? `${narrative.land} ${narrative.floraFauna} ${narrative.wonder}` : 'Location dossier active. Land, Flora/Fauna, and Wonder intel populate in Wilderness hexes.'}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}<div style="margin-top:.22rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect</button></div></div>

@@ -1059,9 +1059,10 @@
         ${
           S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key]
             ? (() => { const mt = S.lastSea.missionTokens[hex.key]; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
-                <div class="nb-label" style="color:var(--gold2);">📍 ${mt.type === 'site' ? 'Sea Mission Site' : 'Sea Informer'}</div>
+                <div class="nb-label" style="color:var(--gold2);">📍 ${mt.type === 'site' ? 'Sea Mission Site' : mt.type === 'story' ? 'Story Objective' : 'Sea Informer'}</div>
                 <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}</div>
                 ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Resolve Task (AD vs DD8)</button></div>` : ''}
+                ${mt.type === 'story' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div>` : ''}
               </div>`; })()
             : ""
         }

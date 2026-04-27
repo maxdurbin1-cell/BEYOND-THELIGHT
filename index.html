@@ -3380,6 +3380,7 @@ function renderHexInfo(hex){
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
       <div class="nb-label" style="color:var(--gold2);">📍 ${markerTitle}</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}</div>
+      ${mt.type==='story_choice' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div>` : ''}
     </div>`;
   }
 

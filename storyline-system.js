@@ -279,6 +279,20 @@
           success: { next: "mission_bridge", text: "Your credentials pass and you walk out with route discounts and introductions.", effects: { merchantReward: { credits: 140, factionKey: "corporations", factionRenown: 1, openShop: true } } },
           fail: { next: "mission_bridge", text: "Your cover slips under scrutiny, but a junior clerk still gives one useful waypoint.", effects: { mentalStress: 1 } },
         },
+        {
+          id: "o3",
+          text: "Memorize the broker's rotating sigils",
+          puzzle: {
+            mode: "memory",
+            title: "Puzzle: Broker Memory Test",
+            prompt: "The broker flashes a five-sigil route key once, then demands it back from memory.",
+            sequence: ["LANTERN", "RED", "KEY", "ASH", "KEY"],
+            bank: ["LANTERN", "RED", "KEY", "ASH", "VEIL"],
+          },
+          success: { next: "mission_bridge", text: "You recite the sigils from memory. A second route opens behind the first ledger seal.", effects: { flags: { brokerMemorySolved: true }, renown: 1 } },
+          partial: { next: "mission_bridge", text: "You recover most of the sigils. The broker sells you a weaker but usable path-marker.", effects: { credits: -20, tmw: 1 } },
+          fail: { next: "mission_bridge", text: "The last sigil slips your mind. You still buy a rough route from a rival stall.", effects: { mentalStress: 1 } },
+        },
       ],
     },
 
@@ -325,8 +339,14 @@
         {
           id: "o2",
           text: "Skip to direct confrontation",
-          jump: { tab: "combat" },
-          success: { next: "marshal_ambush", text: "Steel answers before strategy does." },
+          combat: {
+            title: "Story Combat: Red Ledger Intercept",
+            dread: 10,
+            enemies: ["Marshal Captain", "Seal-Bearer", "Contract Gunner"],
+            briefing: "Voss Karr's advance team catches your approach before you reach the camp. Break through them to reach the main ambush."
+          },
+          success: { next: "marshal_ambush", text: "Steel answers before strategy does. You cut through the intercept team and reach the real kill zone." },
+          fail: { next: "marshal_ambush", text: "You break contact battered, but the route still drives you straight into the ambush.", effects: { health: 1, mentalStress: 1 } },
         },
         {
           id: "o3",
@@ -354,16 +374,24 @@
         {
           id: "o1",
           text: "Duel the captain blade-to-blade",
-          stat: "strike",
-          baseDread: 10,
+          combat: {
+            title: "Story Combat: Marshal Captain",
+            dread: 10,
+            enemies: ["Marshal Captain", "Lantern Marshal"],
+            briefing: "The captain steps forward under lantern rain while one marshal keeps pressure from the flank."
+          },
           success: { next: "sea_court", text: "You cut the marshal's contract seal in half and take his sea transit key.", effects: { renown: 1 } },
           fail: { next: "sea_court", text: "You win late and bleeding; the key is cracked but usable.", effects: { health: 2 } },
         },
         {
           id: "o2",
           text: "Counter-snipe through reeds and static",
-          stat: "shoot",
-          baseDread: 10,
+          combat: {
+            title: "Story Combat: Reedline Ambush",
+            dread: 10,
+            enemies: ["Rifle Marshal", "Static Spotter", "Marshal Scout"],
+            briefing: "The ambushers spread through the reeds and force you into a shifting firefight."
+          },
           success: { next: "sea_court", text: "One precise shot breaks the ambush line.", effects: { tmw: 1 } },
           fail: { next: "sea_court", text: "You suppress them but take return fire.", effects: { health: 1, mentalStress: 1 } },
         },
@@ -528,8 +556,12 @@
         {
           id: "o2",
           text: "Hold and board for evidence",
-          stat: "body",
-          baseDread: 12,
+          combat: {
+            title: "Story Combat: Crimson Frigate Boarding",
+            dread: 12,
+            enemies: ["Frigate Warden", "Boarding Marine", "Boarding Marine"],
+            briefing: "You hook into the crimson frigate and fight deck-to-deck for the ledger and jump coordinates."
+          },
           success: { next: "space_noir", text: "You seize Voss's planet ledger and coordinates.", effects: { credits: 200 } },
           fail: { next: "space_noir", text: "You take the ledger but lose crew to the surf.", effects: { mentalStress: 2 } },
         },
@@ -588,6 +620,20 @@
           req: { backgroundIncludes: ["temple", "scholar", "historian", "noble"] },
           success: { next: "iosef_colloquy", text: "Iosef opens a sealed notebook: half prayers, half battle orders.", effects: { npc: { iosef: 2 } } },
           fail: { next: "iosef_colloquy", text: "He still talks, but keeps the crucial pages hidden.", effects: { npc: { iosef: 1 } } },
+        },
+        {
+          id: "o6",
+          text: "Rebuild the shattered summit image from dock-cam fragments",
+          puzzle: {
+            mode: "mosaic",
+            title: "Puzzle: Dock-Cam Mosaic",
+            prompt: "Reassemble the surveillance fragments into the correct four-part image sequence.",
+            bank: ["[CROWN]", "[WIRE]", "[MOON]", "[EYE]"],
+            answer: "[moon] [eye] [wire] [crown]",
+          },
+          success: { next: "planet_descent", text: "The rebuilt image exposes the colony tag on Voss Karr's next laboratory world.", effects: { flags: { summitImageSolved: true }, merchantReward: { credits: 150, factionKey: "political", factionRenown: 1 } } },
+          partial: { next: "planet_descent", text: "You rebuild enough of the image to isolate the target colony, but lose finer details in the static.", effects: { credits: 60 } },
+          fail: { next: "planet_descent", text: "The fragments remain noisy, but Mara still forces a best-guess descent window.", effects: { tmw: 1, mentalStress: 1 } },
         },
       ],
     },
@@ -771,16 +817,24 @@
         {
           id: "o2",
           text: "Duel the Warden in ritual combat",
-          stat: "strike",
-          baseDread: 12,
+          combat: {
+            title: "Story Combat: Mirror Warden",
+            dread: 12,
+            enemies: ["Mirror Warden", "Glass Acolyte"],
+            briefing: "The colony Warden answers your challenge with ritual steel and a witness-acolyte at their side."
+          },
           success: { next: "age_shift", text: "You win and claim a temporal seal from the Warden's spine-plate.", effects: { renown: 1 } },
           fail: { next: "age_shift", text: "You survive on grit; the seal cracks but works once.", effects: { health: 2 } },
         },
         {
           id: "o3",
           text: "Outshoot the turret choir at dusk",
-          stat: "shoot",
-          baseDread: 12,
+          combat: {
+            title: "Story Combat: Turret Choir",
+            dread: 12,
+            enemies: ["Turret Choir Node", "Turret Choir Node", "Choir Spotter"],
+            briefing: "Automated gun-nests harmonize their fire as dusk falls across the orchard."
+          },
           success: { next: "age_shift", text: "Every shot rewrites a route through the siege.", effects: { credits: 150 } },
           fail: { next: "age_shift", text: "You break through but lose ammo and calm.", effects: { tmw: 1, mentalStress: 1 } },
         },
@@ -838,8 +892,12 @@
         {
           id: "o1",
           text: "Take the favor and run the smuggling strike",
-          stat: "shoot",
-          baseDread: 10,
+          combat: {
+            title: "Story Combat: Smuggling Strike",
+            dread: 10,
+            enemies: ["Checkpoint Enforcer", "Checkpoint Enforcer", "Route Broker"],
+            briefing: "The broker's favor turns into a live raid through checkpoints and hired guns."
+          },
           success: { next: "age_shift", text: "You complete the strike and gain an exile-route shard.", effects: { flags: { exileRouteKnown: true }, renown: 1 } },
           fail: { next: "age_shift", text: "The strike turns loud, but you still secure part of the route.", effects: { mentalStress: 1, tmw: 1 } },
         },
@@ -886,13 +944,24 @@
           id: "o1",
           text: "Win district skirmishes to collapse his logistics",
           jump: { tab: "worldthatwas" },
+          combat: {
+            title: "Story Combat: District Logistics Break",
+            dread: 12,
+            enemies: ["Supply Marshal", "Logistics Enforcer", "Ration Guard", "Drone Porter"],
+            briefing: "You have reached the district chokepoint. Break the supply ring and Voss's logistics start to starve."
+          },
           success: { next: "finale_gate", text: "Control shifts. His armies begin to starve." },
+          fail: { next: "finale_gate", text: "The district bleeds, but you still rupture enough supply lines to expose the final gate.", effects: { health: 2, mentalStress: 1 } },
         },
         {
           id: "o2",
           text: "Face him in direct duel",
-          stat: "defend",
-          baseDread: 20,
+          combat: {
+            title: "Story Combat: Voss Karr",
+            dread: 20,
+            enemies: ["Voss Karr", "Judgment Shade"],
+            briefing: "Voss meets you behind the terror field with scripture, steel, and a generated bodyguard of doctrine."
+          },
           success: { next: "finale_choice", text: "You endure his terror field and close to speaking distance." },
           fail: { next: "finale_choice", text: "You are battered, but his mask cracks and reveals fear.", effects: { health: 2 } },
         },
@@ -1188,6 +1257,7 @@
     if (!st.lexicon || typeof st.lexicon !== "object") st.lexicon = {};
     if (!Array.isArray(st.dialogueMemory)) st.dialogueMemory = [];
     if (!st.pendingTravel || typeof st.pendingTravel !== "object") st.pendingTravel = null;
+    if (!st.pendingCombat || typeof st.pendingCombat !== "object") st.pendingCombat = null;
     if (!st.travelMarkers || typeof st.travelMarkers !== "object") {
       st.travelMarkers = {
         provinceKey: "",
@@ -1207,10 +1277,14 @@
   }
 
   function storySystemFromJump(jump) {
+    const explicitSystem = jump && jump.storySystem ? lc(jump.storySystem) : "";
     const tab = jump && jump.tab ? lc(jump.tab) : "";
     const ctx = jump && jump.context ? lc(jump.context) : "";
+    if (explicitSystem) return explicitSystem;
     if (tab === "map" || ctx === "traveling") return "province";
+    if (tab === "missions") return "province";
     if (tab === "lastsea" || ctx === "lastsea") return "lastsea";
+    if (tab === "naval") return "lastsea";
     if (tab === "galaxy") return "galaxy";
     if (tab === "worldthatwas") return "wtw";
     if (tab === "planet") return "planet";
@@ -1244,6 +1318,129 @@
     st.travelMarkers.worldHexId = "";
     st.travelMarkers.planetHexId = null;
     st.travelMarkers.planetCellId = null;
+  }
+
+  function buildStoryCombat(option) {
+    if (!option || !option.combat) return null;
+    const spec = option.combat;
+    const enemyNames = Array.isArray(spec.enemies) && spec.enemies.length
+      ? spec.enemies.slice()
+      : [String(spec.enemyName || option.text || "Story Enemy")];
+    return {
+      title: String(spec.title || option.text || "Story Combat"),
+      dread: Math.max(4, Number(spec.dread || 8)),
+      enemyNames: enemyNames,
+      briefing: String(spec.briefing || "Fight through the encounter, then return to Storyline to resolve the branch."),
+    };
+  }
+
+  function seedStoryCombatMap(encounter) {
+    if (!S || !S.combatMap || !Array.isArray(S.combatMap.units)) return;
+    S.combatMap.units = S.combatMap.units.filter(function (unit) {
+      return unit && unit.side === "ally";
+    });
+    encounter.enemyNames.forEach(function (name, idx) {
+      S.combatMap.units.push({
+        id: Date.now() + idx,
+        name: name,
+        side: "enemy",
+        zone: idx === 0 ? "Engaged" : (idx === 1 ? "Nearby" : "Close")
+      });
+    });
+    if (typeof renderCombatMap === "function") renderCombatMap();
+  }
+
+  function clearStoryCombatState() {
+    const st = ensureStoryState();
+    if (typeof clearEnemies === "function") clearEnemies();
+    else if (S) S.enemies = [];
+    if (S && S.combatMap && Array.isArray(S.combatMap.units)) {
+      S.combatMap.units = S.combatMap.units.filter(function (unit) {
+        return unit && unit.side === "ally";
+      });
+      if (typeof renderCombatMap === "function") renderCombatMap();
+    }
+    if (st) st.pendingCombat = null;
+  }
+
+  function getStoryCombatResult(pending) {
+    if (!pending) return "";
+    if (Array.isArray(S.enemies) && !S.enemies.length) return "success";
+    if (S && S.combat && S.combat.active === false && Array.isArray(S.enemies) && S.enemies.length) return "fail";
+    return "";
+  }
+
+  function openStoryCombatModal(encounter) {
+    if (typeof openModal !== "function") return;
+    const html = ""
+      + "<div style='font-size:.9rem;color:var(--gold2);font-family:Cinzel,serif;margin-bottom:.5rem;'>Combat Objective Started</div>"
+      + "<div style='font-size:.83rem;color:var(--text2);line-height:1.65;margin-bottom:.55rem;'>"
+      + encounter.briefing
+      + "</div>"
+      + "<div style='font-size:.8rem;color:var(--muted2);border:1px solid rgba(224,80,80,.25);background:rgba(224,80,80,.06);padding:.35rem .5rem;margin-bottom:.55rem;'>"
+      + "Enemies: <strong style='color:#ff8a72;'>" + encounter.enemyNames.join(", ") + "</strong><br>"
+      + "Threat: <strong style='color:var(--gold2);'>DD" + encounter.dread + "</strong><br>"
+      + "Win by clearing the enemy list. If you end the combat scene while enemies remain, the branch resolves as a setback."
+      + "</div>"
+      + "<div style='text-align:right;margin-top:.6rem;'>"
+      + "<button class='btn btn-sm btn-red' onclick='closeModal()'>Go To Combat</button>"
+      + "</div>";
+    openModal("Storyline: Combat Required", html);
+  }
+
+  function openStoryCombatReminderModal(pending) {
+    if (typeof openModal !== "function") return;
+    const html = ""
+      + "<div style='font-size:.9rem;color:#ff8a72;font-family:Cinzel,serif;margin-bottom:.5rem;'>Combat Still Active</div>"
+      + "<div style='font-size:.83rem;color:var(--text2);line-height:1.65;margin-bottom:.45rem;'>"
+      + "Your storyline combat is still unresolved against <strong style='color:var(--gold2);'>" + (pending.enemyNames || []).join(", ") + "</strong>."
+      + "</div>"
+      + "<div style='font-size:.78rem;color:var(--muted2);'>Clear the enemy list for success, or end the combat scene with enemies remaining to take the fail branch. Then return here and choose the option again.</div>"
+      + "<div style='text-align:right;margin-top:.6rem;'>"
+      + "<button class='btn btn-sm' onclick='closeModal()'>Back</button>"
+      + "</div>";
+    openModal("Storyline: Combat Objective Active", html);
+  }
+
+  function startStoryCombat(sceneId, option) {
+    const st = ensureStoryState();
+    const encounter = buildStoryCombat(option);
+    if (!st || !encounter) return false;
+
+    clearStoryCombatState();
+    st.pendingCombat = {
+      sceneId: sceneId,
+      optionId: option.id,
+      title: encounter.title,
+      dread: encounter.dread,
+      enemyNames: encounter.enemyNames.slice(),
+      briefing: encounter.briefing,
+    };
+
+    if (typeof setEnemyDread === "function") setEnemyDread(encounter.dread);
+    else {
+      S.combat = S.combat || {};
+      S.combat.enemyDread = encounter.dread;
+    }
+
+    if (typeof clearEnemies === "function") clearEnemies();
+    else S.enemies = [];
+
+    encounter.enemyNames.forEach(function (name) {
+      if (typeof addEnemy === "function") addEnemy(name, encounter.dread);
+      else {
+        S.enemies = Array.isArray(S.enemies) ? S.enemies : [];
+        S.enemies.push({ id: Date.now() + S.enemies.length, name: name, dread: encounter.dread, stress: 0, maxStress: encounter.dread * 2, health: 0, conditions: [] });
+      }
+    });
+
+    seedStoryCombatMap(encounter);
+
+    if (typeof startCombat === "function") startCombat();
+    const btn = document.querySelector(".tab-btn[onclick*=\"switchTab('combat'\"]");
+    if (typeof switchTab === "function") switchTab("combat", btn || null);
+    openStoryCombatModal(encounter);
+    return true;
   }
 
   function setStoryTravelObjective(sceneId, option) {
@@ -1622,6 +1819,7 @@
       gridCols: 0,
       typed: "",
       lastClue: "",
+      revealed: false,
     };
     return window._storyPuzzle;
   }
@@ -1643,6 +1841,7 @@
     p.gridCols = 0;
     p.typed = "";
     p.lastClue = "";
+    p.revealed = false;
   }
 
   function puzzleTierForScene(sceneId) {
@@ -1694,7 +1893,18 @@
       }
       return correct / maxLen;
     }
+    if (p.mode === "memory") {
+      const maxLen = Math.max(p.sequence.length, p.selected.length, 1);
+      let correct = 0;
+      for (let i = 0; i < maxLen; i++) {
+        if (lc(p.sequence[i]) === lc(p.selected[i])) correct += 1;
+      }
+      return correct / maxLen;
+    }
     if (p.mode === "rearrange") {
+      return scoreTokens(p.selected.join(" "), p.answer);
+    }
+    if (p.mode === "mosaic") {
       return scoreTokens(p.selected.join(" "), p.answer);
     }
     if (p.mode === "crossword_grid") {
@@ -1725,10 +1935,21 @@
       }
       return "Listen for repeated notes in the sequence.";
     }
+    if (p.mode === "memory") {
+      if (Array.isArray(p.sequence) && p.sequence.length) {
+        return "Sequence starts with '" + p.sequence[0] + "' and contains " + p.sequence.length + " sigils.";
+      }
+      return "Look for repeated symbols in the hidden sequence.";
+    }
     if (p.mode === "rearrange") {
       const words = String(p.answer || "").split(/\s+/).filter(Boolean);
       if (!words.length) return "Arrange words in a sentence-like order.";
       return "Phrase has " + words.length + " words and starts with '" + words[0].toUpperCase() + "'.";
+    }
+    if (p.mode === "mosaic") {
+      const parts = String(p.answer || "").split(/\s+/).filter(Boolean);
+      if (!parts.length) return "Place the fragments into a coherent image order.";
+      return "The image uses " + parts.length + " tiles and begins with " + parts[0] + ".";
     }
     if (p.mode === "crossword") {
       const clue = (p.clues || []).find(function (entry) { return entry && entry.answer; });
@@ -1787,12 +2008,31 @@
           return "<button class='btn btn-xs btn-teal' onclick='storyPuzzlePress(\"" + n + "\")'>" + n + "</button>";
         }).join("")
         + "</div>";
+    } else if (p.mode === "memory") {
+      controls = ""
+        + "<div style='margin-bottom:.35rem;color:var(--muted2);font-size:.78rem;'>Memory track: <strong style='color:var(--teal);'>" + (p.selected.join(" → ") || "(empty)") + "</strong></div>"
+        + "<div style='margin-bottom:.35rem;color:" + (p.revealed ? "var(--gold2)" : "var(--muted2)") + ";font-size:.76rem;'>"
+        + (p.revealed ? ("Memorize: <strong>" + p.sequence.join(" • ") + "</strong>") : "Sequence hidden. Reveal it briefly, then rebuild it from memory.")
+        + "</div>"
+        + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'>"
+        + p.bank.map(function (token) {
+          return "<button class='btn btn-xs btn-teal' onclick='storyPuzzlePress(\"" + String(token).replace(/"/g, "") + "\")'>" + token + "</button>";
+        }).join("")
+        + "</div>";
     } else if (p.mode === "rearrange") {
       controls = ""
         + "<div style='margin-bottom:.35rem;color:var(--muted2);font-size:.78rem;'>Arrange phrase: <strong style='color:var(--gold2);'>" + (p.selected.join(" ") || "(empty)") + "</strong></div>"
         + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'>"
         + p.bank.map(function (word) {
           return "<button class='btn btn-xs' onclick='storyPuzzlePress(\"" + word.replace(/"/g, "") + "\")'>" + word + "</button>";
+        }).join("")
+        + "</div>";
+    } else if (p.mode === "mosaic") {
+      controls = ""
+        + "<div style='margin-bottom:.35rem;color:var(--muted2);font-size:.78rem;'>Mosaic order: <strong style='color:var(--gold2);'>" + (p.selected.join(" ") || "(empty)") + "</strong></div>"
+        + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'>"
+        + p.bank.map(function (tile) {
+          return "<button class='btn btn-xs' style='min-width:76px;min-height:46px;font-family:Rajdhani,sans-serif;' onclick='storyPuzzlePress(\"" + String(tile).replace(/"/g, "") + "\")'>" + tile + "</button>";
         }).join("")
         + "</div>";
     } else if (p.mode === "crossword") {
@@ -1836,6 +2076,7 @@
       + (p.lastClue ? ("<div style='font-size:.74rem;color:var(--gold2);margin-bottom:.35rem;border:1px solid rgba(201,162,39,.4);background:rgba(201,162,39,.08);padding:.3rem .42rem;'><strong>Clue:</strong> " + p.lastClue + "</div>") : "")
       + controls
       + "<div style='display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;'>"
+      + (p.mode === "memory" ? "<button class='btn btn-sm btn-teal' onclick='storyPuzzleReveal()'>Reveal Sequence</button>" : "")
       + "<button class='btn btn-sm btn-teal' onclick='storyPuzzleRollForClue()'>Roll for Clue (Mind vs DD6)</button>"
       + "<button class='btn btn-sm' onclick='storyPuzzleClear()'>Reset</button>"
       + "<button class='btn btn-sm btn-red' onclick='storyPuzzleResolve(false)'>Force Through (Fail)</button>"
@@ -1865,6 +2106,10 @@
     p.gridCols = Number(puzzle.gridCols || (p.gridTemplate[0] ? p.gridTemplate[0].length : 0));
     p.typed = "";
     p.lastClue = "";
+    p.revealed = false;
+    if (p.mode === "memory" && !p.bank.length) {
+      p.bank = Array.from(new Set(p.sequence));
+    }
 
     renderPuzzleModal();
   }
@@ -1874,7 +2119,13 @@
     if (p.mode === "tune") {
       return p.selected.join("-").trim().toLowerCase() === p.sequence.join("-").trim().toLowerCase();
     }
+    if (p.mode === "memory") {
+      return p.selected.join("|").trim().toLowerCase() === p.sequence.join("|").trim().toLowerCase();
+    }
     if (p.mode === "rearrange") {
+      return p.selected.join(" ").trim().toLowerCase() === p.answer;
+    }
+    if (p.mode === "mosaic") {
       return p.selected.join(" ").trim().toLowerCase() === p.answer;
     }
     if (p.mode === "crossword") {
@@ -2161,6 +2412,11 @@
       && st.pendingTravel.optionId === optionId
       ? st.pendingTravel
       : null;
+    const pendingCombat = st && st.pendingCombat
+      && st.pendingCombat.sceneId === sceneId
+      && st.pendingCombat.optionId === optionId
+      ? st.pendingCombat
+      : null;
 
     if (option.jump) {
       if (!pending) {
@@ -2192,6 +2448,30 @@
         clearStoryTravelMarkers();
         st.pendingTravel = null;
       }
+    }
+
+    if (option.combat) {
+      if (!pendingCombat) {
+        startStoryCombat(sceneId, option);
+        renderStorylinePanel();
+        return;
+      }
+
+      const combatResult = getStoryCombatResult(pendingCombat);
+      if (!combatResult) {
+        const btn = document.querySelector(".tab-btn[onclick*=\"switchTab('combat'\"]");
+        if (typeof switchTab === "function") switchTab("combat", btn || null);
+        openStoryCombatReminderModal(pendingCombat);
+        renderStorylinePanel();
+        return;
+      }
+
+      clearStoryCombatState();
+      if (combatResult === "success" && S && S.combat && S.combat.active && typeof endCombat === "function") {
+        endCombat();
+      }
+      resolveStoryOption(sceneId, option, combatResult);
+      return;
     }
 
     if (option.puzzle) {
@@ -2248,6 +2528,12 @@
       + "<button class='btn btn-sm' onclick='closeModal()'>Back</button>"
       + "</div>";
     openModal("Storyline: Travel Objective Active", html);
+  }
+
+  function openStorylineTab() {
+    const btn = document.querySelector(".tab-btn[onclick*=\"switchTab('" + STORY_TAB_ID + "'\"]");
+    if (typeof switchTab === "function") switchTab(STORY_TAB_ID, btn || null);
+    renderStorylinePanel();
   }
 
   function renderRequirement(req) {
@@ -2324,14 +2610,24 @@
         && st.pendingTravel.optionId === option.id
         ? st.pendingTravel
         : null;
+      const pendingCombat = st.pendingCombat
+        && st.pendingCombat.sceneId === st.sceneId
+        && st.pendingCombat.optionId === option.id
+        ? st.pendingCombat
+        : null;
       const pendingReached = pending ? isStoryObjectiveReached(pending) : false;
+      const pendingCombatResult = pendingCombat ? getStoryCombatResult(pendingCombat) : "";
       const btnLabel = pending
         ? (pendingReached ? "✓ Choose (Arrived)" : "▶ Go To Marker")
-        : "Choose";
+        : pendingCombat
+          ? (pendingCombatResult === "success" ? "✓ Resolve Victory" : pendingCombatResult === "fail" ? "Resolve Setback" : "▶ Enter Combat")
+          : "Choose";
       return "<div class='story-opt " + (unlocked ? "" : "locked") + "'>"
         + "<div class='story-opt-text'>" + option.text + "</div>"
         + (option.stat ? ("<div class='story-opt-roll'>" + (STAT_LABELS[option.stat] || option.stat) + " vs DD" + dd + "</div>") : "")
         + (pending ? ("<div class='story-opt-req' style='color:var(--gold2);'>➤ Marker: " + (pending.targetLabel || "Travel target") + (pendingReached ? " ✓ Arrived" : " — travel there") + "</div>") : "")
+        + (option.combat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat: " + ((option.combat.enemies || []).length || 1) + " foe" + ((((option.combat.enemies || []).length || 1) === 1) ? "" : "s") + " · DD" + Number(option.combat.dread || 8) + "</div>") : "")
+        + (pendingCombat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat target: " + (pendingCombat.enemyNames || []).join(", ") + (pendingCombatResult === "success" ? " ✓ Victory ready" : pendingCombatResult === "fail" ? " — setback ready" : " — fight unresolved") + "</div>") : "")
         + (reqText ? ("<div class='story-opt-req'>" + reqText + "</div>") : "")
         + "<button class='btn btn-sm " + (unlocked ? "btn-primary" : "") + "' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\")'") : "disabled") + ">" + btnLabel + "</button>"
       + "</div>";
@@ -2381,6 +2677,14 @@
       + (st.pendingTravel ? ("<div class='story-result' style='border:1px solid rgba(240,208,112,.4);background:rgba(240,208,112,.08);'>"
         + "<strong style='color:var(--gold2);'>➤ Travel Objective:</strong> Navigate to <strong>" + (st.pendingTravel.targetLabel || "story marker") + "</strong>"
         + " · " + (isStoryObjectiveReached(st.pendingTravel) ? "<span style='color:var(--teal);'>✓ Arrived — choose the option again</span>" : "<span style='color:#f0a050;'>En route — find the ➤ marker on the map</span>")
+        + "</div>") : "")
+      + (st.pendingCombat ? ("<div class='story-result' style='border:1px solid rgba(224,80,80,.4);background:rgba(224,80,80,.08);'>"
+        + "<strong style='color:#ff8a72;'>⚔ Combat Objective:</strong> " + (st.pendingCombat.title || "Story combat")
+        + " · " + (getStoryCombatResult(st.pendingCombat) === "success"
+          ? "<span style='color:var(--teal);'>✓ Victory ready — choose the option again</span>"
+          : getStoryCombatResult(st.pendingCombat) === "fail"
+            ? "<span style='color:#f0a050;'>Setback ready — choose the option again</span>"
+            : "<span style='color:#ff8a72;'>Fight is active — clear the enemy list or end the scene to resolve</span>")
         + "</div>") : "")
       + "<div class='story-options'>" + options + "</div>"
       + "</div>"
@@ -2495,6 +2799,7 @@
   });
 
   window.renderStorylinePanel = renderStorylinePanel;
+  window.openStorylineTab = openStorylineTab;
   window.runStoryOption = runStoryOption;
   window.storyJumpSystem = jumpSystemById;
 
@@ -2550,14 +2855,22 @@
   window.storyPuzzlePress = function (value) {
     const p = ensurePuzzleSession();
     if (p.mode === "code" || p.mode === "crossword" || p.mode === "crossword_grid") return;
+    if (p.mode === "memory") p.revealed = false;
     p.selected.push(String(value || ""));
     renderPuzzleModal();
   };
   window.storyPuzzleClear = function () {
     const p = ensurePuzzleSession();
     p.selected = [];
+    p.revealed = false;
     const el = document.getElementById("storyPuzzleInput");
     if (el) el.value = "";
+    renderPuzzleModal();
+  };
+  window.storyPuzzleReveal = function () {
+    const p = ensurePuzzleSession();
+    if (p.mode !== "memory") return;
+    p.revealed = true;
     renderPuzzleModal();
   };
   window.storyPuzzleRollForClue = rollStoryPuzzleClue;

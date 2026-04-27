@@ -2174,7 +2174,7 @@
       + "</div>";
 
     const markerHtml = marker
-      ? ("<div class='wtw-card'><div class='wtw-card-title'>" + markerTypeLabel + "</div><div class='wtw-card-text'><strong>" + marker.title + "</strong><br>" + marker.subtitle + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Review Marker</button></div></div>")
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>" + markerTypeLabel + "</div><div class='wtw-card-text'><strong>" + marker.title + "</strong><br>" + marker.subtitle + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Review Marker</button>" + (marker.type === "story" ? "<button class='btn btn-xs btn-teal' onclick='if(typeof openStorylineTab===\"function\")openStorylineTab()'>Continue Storyline</button>" : "") + "</div></div>")
       : "<div class='wtw-muted'>No marker in this district.</div>";
 
     const worldSystems = hazardHtml + wayfarerHtml + structureHtml + travelHtml + renderSkirmishWidget(hex);

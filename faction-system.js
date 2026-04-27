@@ -349,6 +349,16 @@
     political: "lead",
   };
 
+  const FACTION_LORE_ROLE_MAP = {
+    corporations: "Brokers",
+    religious: "Mages",
+    military: "Warriors",
+    underworld: "Rogues",
+    rebels: "Vanguards",
+    scholars: "Sages",
+    political: "Envoys",
+  };
+
   const BASE_REGION_TYPES = [
     "Sea Region Hex Map",
     "Province Map",
@@ -722,6 +732,14 @@
         <div class="faction-intro">
           <h2>FACTION SYSTEM</h2>
           <p>The world is divided. Six factions compete, cooperate, and conspire. Your loyalty shapes endings, and each Renown rank grants a roll bonus to that faction's signature Action Die during its story pressure.</p>
+          <p style="margin-top:.45rem;color:var(--muted2);font-size:.82rem;line-height:1.6;">
+            Lore Focus Mapping:
+            <strong style="color:var(--gold2);">Mages = Mind</strong>,
+            <strong style="color:var(--gold2);">Warriors = Strike</strong>,
+            <strong style="color:var(--gold2);">Rogues/Brokers = Control</strong>,
+            <strong style="color:var(--gold2);">Vanguards/Envoys = Lead</strong>,
+            <strong style="color:var(--gold2);">Sages = Mind</strong>.
+          </p>
         </div>
 
         <div class="faction-grid">
@@ -730,6 +748,7 @@
     Object.values(FACTIONS).forEach((faction) => {
       const renown = getFactionRenown(faction.id);
       const actionDie = FACTION_ACTION_DIE_MAP[faction.id] || "mind";
+      const loreRole = FACTION_LORE_ROLE_MAP[faction.id] || "Specialists";
       const base = (S && S.factionBases && S.factionBases[faction.id]) ? S.factionBases[faction.id] : null;
       html += `
         <div class="faction-card" data-faction="${faction.id}">
@@ -754,8 +773,12 @@
               <span>${renown}</span>
             </div>
             <div class="stat">
+              <label>Lore Focus:</label>
+              <span>${loreRole} = ${toTitle(actionDie)}</span>
+            </div>
+            <div class="stat">
               <label>Action Die Bonus:</label>
-              <span>+${Math.max(0, renown)} ${toTitle(actionDie)} (faction story)</span>
+              <span>+${Math.max(0, renown)} ${toTitle(actionDie)} (${loreRole} story)</span>
             </div>
             <div class="stat">
               <label>Faction Base:</label>
@@ -922,11 +945,12 @@
 
     const renown = getFactionRenown(factionId);
     const actionDie = FACTION_ACTION_DIE_MAP[factionId] || "mind";
+    const loreRole = FACTION_LORE_ROLE_MAP[factionId] || "Specialists";
     let html = `
       <div class="faction-detail">
         <h3>${faction.emoji} ${faction.name}</h3>
         <div style="font-size:.82rem;color:var(--text2);margin-bottom:.55rem;">
-          Signature Action Die: <strong style="color:var(--gold2);">${toTitle(actionDie)}</strong> · Storyline Bonus: <strong style="color:var(--teal);">+${Math.max(0, renown)}</strong>
+          Lore Focus: <strong style="color:var(--gold2);">${loreRole} = ${toTitle(actionDie)}</strong> · Storyline Bonus: <strong style="color:var(--teal);">+${Math.max(0, renown)}</strong>
         </div>
         <h4>Faction Missions</h4>
     `;

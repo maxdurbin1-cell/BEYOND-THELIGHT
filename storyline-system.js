@@ -81,6 +81,11 @@
       location: "Province",
       mood: "Weird noir, frontier grit",
       text: "Dawn drags over dead orchards. Six bodies hang from ironwood limbs, each branded with a crimson judicial sigil. A letter is nailed into your shadow: 'Come collect your sentence, Wayfarer. -Voss Karr'. The sheriff, Lyra Keene, lights a cigarette with shaking hands. Beside her stands Brother Iosef, a priest with a revolver and a rosary made of shell casings.",
+      variants: [
+        { when: { factionAtLeast: { key: "military", min: 2 } }, text: "The hanging knots are regulation military style, too precise for random killers." },
+        { when: { factionAtLeast: { key: "underworld", min: 2 } }, text: "Street whispers say the sigil was sold as a contract brand three nights ago." },
+        { when: { backgroundIncludes: ["scholar", "historian"] }, text: "You have seen this exact emblem in a forbidden atlas of collapsed republics." },
+      ],
       lessons: ["province", "missions"],
       options: [
         {
@@ -280,8 +285,75 @@
           text: "Accept trial by cannon and storm",
           stat: "defend",
           baseDread: 10,
-          success: { next: "sea_chase", text: "You weather the barrage and earn fear-respect.", effects: { renown: 1 } },
+          success: { next: "storm_archive", text: "You weather the barrage and earn fear-respect.", effects: { renown: 1, flags: { seaTrialWon: true } } },
           fail: { next: "sea_chase", text: "You survive but your ship limps toward open water.", effects: { health: 1, mentalStress: 1 } },
+        },
+        {
+          id: "o4",
+          text: "Invoke old convoy law and request military witness",
+          stat: "lead",
+          baseDread: 10,
+          req: { factionAtLeast: { key: "military", min: 2 } },
+          success: { next: "storm_archive", text: "A convoy captain signs your temporary immunity writ.", effects: { faction: { military: 1 }, flags: { gotConvoyWrit: true } } },
+          fail: { next: "sea_chase", text: "The captain refuses to stake rank on you.", effects: { faction: { military: -1 }, mentalStress: 1 } },
+        },
+      ],
+    },
+
+    storm_archive: {
+      chapter: "c2",
+      title: "Vault Beneath the Tide",
+      location: "Sea Region",
+      mood: "Paranoid heist",
+      text: "You descend in a coffin-sub to a court archive buried in storm silt. Ledgers hum with names, verdicts, and hidden payment channels feeding Voss Karr's network.",
+      lessons: ["naval", "missions"],
+      variants: [
+        { when: { flagEq: { key: "seaTrialWon", value: true } }, text: "Because you survived trial by cannon, archivists hesitate before raising alarms." },
+        { when: { factionAtLeast: { key: "corporations", min: 2 } }, text: "Corporate account signatures flicker across multiple shell houses you recognize." },
+      ],
+      options: [
+        {
+          id: "o1",
+          text: "Forge credentials and clone the payment tree",
+          stat: "control",
+          baseDread: 10,
+          success: { next: "sea_mutiny", text: "You leave with a clean mirror of their revenue channels.", effects: { credits: 180, flags: { ledgerCloned: true } } },
+          fail: { next: "sea_mutiny", text: "You copy partial data while alarms close in.", effects: { health: 1, tmw: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Extract witness testimony from chained clerks",
+          stat: "spirit",
+          baseDread: 8,
+          req: { backgroundIncludes: ["temple", "physician", "investigator"] },
+          success: { next: "sea_mutiny", text: "A clerk gives sworn names linking sea judges to orbital financiers.", effects: { renown: 1, flags: { witnessChain: true } } },
+          fail: { next: "sea_mutiny", text: "The clerks panic and burn part of the archive.", effects: { mentalStress: 1 } },
+        },
+      ],
+    },
+
+    sea_mutiny: {
+      chapter: "c2",
+      title: "Mutiny in Lantern Fog",
+      location: "Sea to Space",
+      mood: "Operatic mutiny",
+      text: "Crew morale fractures as rumors spread that Voss Karr already owns your route. Officers argue over whether to run, revolt, or sell you out for pardon.",
+      options: [
+        {
+          id: "o1",
+          text: "Hold command with steel discipline",
+          stat: "defend",
+          baseDread: 10,
+          success: { next: "sea_chase", text: "Order returns. Your jump prep runs on razor precision.", effects: { faction: { military: 1 } } },
+          fail: { next: "sea_chase", text: "You keep command but lose trust in the lower decks.", effects: { mentalStress: 1, npc: { lyra: -1 } } },
+        },
+        {
+          id: "o2",
+          text: "Negotiate split command with trusted officers",
+          stat: "lead",
+          baseDread: 8,
+          success: { next: "sea_chase", text: "Shared command steadies the ship and creates loyalty.", effects: { npc: { lyra: 1, mara: 1 }, flags: { splitCommand: true } } },
+          fail: { next: "sea_chase", text: "Compromise reads as weakness during a storm watch.", effects: { faction: { underworld: 1 }, health: 1 } },
         },
       ],
     },
@@ -316,6 +388,10 @@
       location: "Space / Galaxy",
       mood: "Cyberpunk noir",
       text: "In orbit above a dead moon, corporate chapels beam ads as prayer. Voss Karr is negotiating with major powers, promising 'peace through curated dread'. Mara Quill, an ex-assassin turned smuggler poet, offers to help if you trust her.",
+      variants: [
+        { when: { factionAtLeast: { key: "corporations", min: 3 } }, text: "Invitations to a private board-synod arrive with your name pre-approved." },
+        { when: { factionAtLeast: { key: "rebels", min: 2 } }, text: "Graffiti on cargo hulls marks a rebel channel willing to leak Voss's summit agenda." },
+      ],
       lessons: ["space", "planets"],
       options: [
         {
@@ -331,6 +407,43 @@
           text: "Keep Mara at arm's length and scan planets",
           jump: { context: "space", tab: "planet" },
           success: { next: "planet_descent", text: "You find a colony where Voss tests social control algorithms." },
+        },
+        {
+          id: "o3",
+          text: "Infiltrate the corporate synod in orbit",
+          stat: "control",
+          baseDread: 10,
+          req: { factionAtLeastAny: [{ key: "corporations", min: 2 }, { key: "political", min: 2 }] },
+          success: { next: "corp_synod", text: "You pass biometric scrutiny and enter the synod chamber.", effects: { flags: { synodAccess: true } } },
+          fail: { next: "corp_synod", text: "You get in disguised, but security flags your gait profile.", effects: { mentalStress: 1 } },
+        },
+      ],
+    },
+
+    corp_synod: {
+      chapter: "c3",
+      title: "The Gilded Synod",
+      location: "Space / Corporate Chapel",
+      mood: "Political knife fight",
+      text: "Board lords, military envoys, and temple auditors debate whether Voss Karr should become a permanent trans-regional magistrate. Your evidence can sway the room or burn every bridge.",
+      lessons: ["space", "missions"],
+      options: [
+        {
+          id: "o1",
+          text: "Leak the tide-ledger transaction tree",
+          stat: "mind",
+          baseDread: 10,
+          req: { flagEq: { key: "ledgerCloned", value: true } },
+          success: { next: "mara_arc", text: "The synod fractures as payment routes implicate half the chamber.", effects: { faction: { corporations: -1, political: 1 }, flags: { powerCoalitionCracked: true } } },
+          fail: { next: "mara_arc", text: "Your leak lands, but counter-spin paints you as a forger.", effects: { faction: { corporations: 1 }, mentalStress: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Cut a temporary pact to isolate Voss",
+          stat: "lead",
+          baseDread: 8,
+          success: { next: "planet_descent", text: "Three blocs quietly agree to starve his private fleets.", effects: { faction: { political: 1, military: 1 }, flags: { provisionalPact: true } } },
+          fail: { next: "planet_descent", text: "No pact, but your terms spread through backchannels.", effects: { renown: 1 } },
         },
       ],
     },
@@ -368,6 +481,10 @@
       location: "Planets",
       mood: "Blood-soaked fantasy sci-fi",
       text: "On the colony planet, black glass trees reflect futures where you become Voss Karr. Citizens wear mood collars keyed to faction rank. Dialogue itself is a weapon.",
+      variants: [
+        { when: { flagEq: { key: "provisionalPact", value: true } }, text: "Because of your synod pact, local garrisons hesitate to fire first." },
+        { when: { flagEq: { key: "witnessChain", value: true } }, text: "Witnesses from the sea archive have already seeded resistance cells across the colony." },
+      ],
       lessons: ["planets", "missions"],
       options: [
         {
@@ -395,6 +512,41 @@
           success: { next: "age_shift", text: "Every shot rewrites a route through the siege.", effects: { credits: 150 } },
           fail: { next: "age_shift", text: "You break through but lose ammo and calm.", effects: { tmw: 1, mentalStress: 1 } },
         },
+        {
+          id: "o4",
+          text: "Infiltrate the undercity ration market",
+          stat: "adventure",
+          baseDread: 10,
+          req: { backgroundIncludes: ["drifter", "merchant", "smuggler", "outlaw"] },
+          success: { next: "undercity_market", text: "You slip under the city and find the loyalty-price algorithms.", effects: { flags: { undercityIntel: true }, credits: 120 } },
+          fail: { next: "undercity_market", text: "You are spotted but still map two underground routes.", effects: { health: 1 } },
+        },
+      ],
+    },
+
+    undercity_market: {
+      chapter: "c3",
+      title: "Market of Borrowed Faces",
+      location: "Planets / Undercity",
+      mood: "Surreal criminal bazaar",
+      text: "Brokers sell identities by the hour. A hidden broker offers Voss Karr's emergency exile route in exchange for one dangerous favor.",
+      options: [
+        {
+          id: "o1",
+          text: "Take the favor and run the smuggling strike",
+          stat: "shoot",
+          baseDread: 10,
+          success: { next: "age_shift", text: "You complete the strike and gain an exile-route shard.", effects: { flags: { exileRouteKnown: true }, renown: 1 } },
+          fail: { next: "age_shift", text: "The strike turns loud, but you still secure part of the route.", effects: { mentalStress: 1, tmw: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Refuse and buy the route with leverage",
+          stat: "control",
+          baseDread: 8,
+          success: { next: "age_shift", text: "You trade blackmail files for clean coordinates.", effects: { flags: { exileRouteKnown: true }, credits: -140 } },
+          fail: { next: "age_shift", text: "The broker doubles the price and marks your profile.", effects: { credits: -180, faction: { underworld: -1 } } },
+        },
       ],
     },
 
@@ -420,6 +572,10 @@
       location: "World That Was",
       mood: "Urban mythic finale",
       text: "Districts pulse with active skirmishes. Voss Karr broadcasts verdicts through station speakers: every failure proves people need chains. You can break his machine by force, by testimony, or by making his allies abandon him.",
+      variants: [
+        { when: { flagEq: { key: "powerCoalitionCracked", value: true } }, text: "Half his allied banners are missing from the plaza; rumor says they withdrew overnight." },
+        { when: { flagEq: { key: "exileRouteKnown", value: true } }, text: "A maintenance map reveals Voss's private escape corridor beneath District Twelve." },
+      ],
       lessons: ["wtw", "skirmish", "combat"],
       options: [
         {
@@ -444,6 +600,43 @@
           req: { factionAtLeastAny: [{ key: "corporations", min: 4 }, { key: "political", min: 4 }, { key: "military", min: 4 }] },
           success: { next: "finale_choice", text: "His coalition fractures on live feed.", effects: { renown: 2 } },
           fail: { next: "finale_choice", text: "They stall, but your leaks still wound him.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o4",
+          text: "Call in your allies for a public reckoning",
+          stat: "lead",
+          baseDread: 10,
+          req: { usedStatCountAtLeast: { count: 5 } },
+          success: { next: "ally_reckoning", text: "Lyra, Mara, and city witnesses converge on the courthouse steps.", effects: { flags: { allySummit: true } } },
+          fail: { next: "ally_reckoning", text: "Only some allies answer, but it is still enough to force a hearing.", effects: { mentalStress: 1 } },
+        },
+      ],
+    },
+
+    ally_reckoning: {
+      chapter: "c4",
+      title: "Witness Parliament",
+      location: "World That Was",
+      mood: "Defiant civic drama",
+      text: "Survivors, defectors, and old rivals testify in a rolling tribunal. Voss Karr's certainty slips as every district narrates its own wounds.",
+      options: [
+        {
+          id: "o1",
+          text: "Let Lyra lead the testimony",
+          stat: "spirit",
+          baseDread: 8,
+          req: { npcAffinity: { npc: "lyra", min: 1 } },
+          success: { next: "finale_gate", text: "Lyra's testimony shifts neutral observers to your side.", effects: { faction: { political: 1 }, npc: { lyra: 1 } } },
+          fail: { next: "finale_gate", text: "She falters under pressure, but the record still condemns Voss.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Let Mara broadcast the hidden ledgers",
+          stat: "mind",
+          baseDread: 8,
+          req: { npcAffinity: { npc: "mara", min: 1 } },
+          success: { next: "finale_gate", text: "Data storms break across every district screen.", effects: { faction: { corporations: -1, rebels: 1 }, npc: { mara: 1 } } },
+          fail: { next: "finale_gate", text: "The stream drops repeatedly, but enough evidence survives.", effects: { tmw: 1 } },
         },
       ],
     },
@@ -495,6 +688,15 @@
           success: { next: "ending_blacksun", text: "He becomes prisoner of his own doctrine.", effects: { faction: { corporations: -1, rebels: 1 }, renown: 3 } },
           fail: { next: "ending_blacksun", text: "The ritual is imperfect, but his authority breaks anyway.", effects: { tmw: 1 } },
         },
+        {
+          id: "o4",
+          text: "Draft a distributed civic charter on live feed",
+          stat: "control",
+          baseDread: 10,
+          req: { flagEq: { key: "allySummit", value: true } },
+          success: { next: "ending_openhand", text: "District delegates sign in real time as Voss loses narrative control.", effects: { renown: 3, faction: { political: 2, rebels: 1 } } },
+          fail: { next: "ending_openhand", text: "The charter launches amid chaos, but it still decentralizes power.", effects: { mentalStress: 2, renown: 1 } },
+        },
       ],
     },
 
@@ -524,6 +726,15 @@
       text: "You made law itself your weapon. Voss Karr lives under the weight of every verdict he issued. The world is stranger, freer, and less certain.",
       options: [{ id: "o1", text: "Restart from Chapter 1 with carried reputation", success: { restart: true, text: "Cycle again, different this time." } }],
     },
+
+    ending_openhand: {
+      chapter: "c4",
+      title: "Ending: Open Hand Assembly",
+      location: "Epilogue",
+      mood: "Messy democratic sunrise",
+      text: "You reject singular rule and spread authority across districts. Governance becomes louder, slower, and harder to corrupt in one stroke.",
+      options: [{ id: "o1", text: "Restart from Chapter 1 with carried reputation", success: { restart: true, text: "The next cycle starts with more voices." } }],
+    },
   };
 
   function lc(value) {
@@ -544,6 +755,7 @@
     if (!Array.isArray(st.completedSystems)) st.completedSystems = [];
     if (!st.seedTag) st.seedTag = "W-" + Math.floor(Math.random() * 9000 + 1000);
     if (!st.lastResult) st.lastResult = "";
+    if (!st.history || typeof st.history !== "object") st.history = { sceneVisits: {}, optionsTaken: {} };
     return st;
   }
 
@@ -580,6 +792,27 @@
       const st = ensureStoryState();
       if (!st) return false;
       if ((st.npc[req.npcAffinity.npc] || 0) < Number(req.npcAffinity.min || 0)) return false;
+    }
+    if (req.flagEq && req.flagEq.key) {
+      const st = ensureStoryState();
+      if (!st) return false;
+      if (st.flags[req.flagEq.key] !== req.flagEq.value) return false;
+    }
+    if (req.flagNot && req.flagNot.key) {
+      const st = ensureStoryState();
+      if (!st) return false;
+      if (st.flags[req.flagNot.key] === req.flagNot.value) return false;
+    }
+    if (req.sceneSeenAtLeast && req.sceneSeenAtLeast.sceneId) {
+      const st = ensureStoryState();
+      if (!st) return false;
+      const seen = Number((st.history && st.history.sceneVisits && st.history.sceneVisits[req.sceneSeenAtLeast.sceneId]) || 0);
+      if (seen < Number(req.sceneSeenAtLeast.min || 1)) return false;
+    }
+    if (req.usedStatCountAtLeast && req.usedStatCountAtLeast.count) {
+      const st = ensureStoryState();
+      if (!st) return false;
+      if ((st.usedStats || []).length < Number(req.usedStatCountAtLeast.count || 0)) return false;
     }
     return true;
   }
@@ -632,6 +865,35 @@
         st.npc[npc] = Number(st.npc[npc] || 0) + Number(effects.npc[npc] || 0);
       });
     }
+
+    if (effects.flags && typeof effects.flags === "object") {
+      const st = ensureStoryState();
+      Object.keys(effects.flags).forEach(function (key) {
+        st.flags[key] = effects.flags[key];
+      });
+    }
+  }
+
+  function seedNumber(seedTag) {
+    const nums = String(seedTag || "").replace(/\D/g, "");
+    return Number(nums || 0);
+  }
+
+  function sceneVariantText(scene, st) {
+    if (!scene || !Array.isArray(scene.variants) || !scene.variants.length) return "";
+
+    const eligible = scene.variants.filter(function (variant) {
+      return hasReq(variant && variant.when ? variant.when : null);
+    });
+    if (!eligible.length) return "";
+
+    const seed = seedNumber(st.seedTag);
+    const lyra = Number(st.npc.lyra || 0);
+    const mara = Number(st.npc.mara || 0);
+    const iosef = Number(st.npc.iosef || 0);
+    const bias = Math.max(0, lyra + mara + iosef);
+    const index = (seed + bias + Number(st.log.length || 0)) % eligible.length;
+    return String((eligible[index] && eligible[index].text) || "");
   }
 
   function doJump(jump) {
@@ -691,6 +953,9 @@
 
   function applyOutcome(sceneId, option, outcome, checkResult) {
     const st = ensureStoryState();
+    const scene = SCENES[sceneId];
+
+    if (scene) markLessonProgress(scene);
 
     if (checkResult && option.stat) {
       if (st.usedStats.indexOf(option.stat) < 0) st.usedStats.push(option.stat);
@@ -709,9 +974,12 @@
     if (outcome && outcome.restart) {
       st.sceneId = "intro";
       st.chapter = "c1";
+      st.flags = {};
+      st.history = { sceneVisits: {}, optionsTaken: {} };
       st.log = [];
       st.usedStats = [];
       st.completedSystems = [];
+      st.seedTag = "W-" + Math.floor(Math.random() * 9000 + 1000);
       st.lastResult = "Cycle reset. A new Wayfarer enters the same legend from a different angle.";
     }
 
@@ -735,6 +1003,9 @@
 
     const option = (scene.options || []).find(function (o) { return o.id === optionId; });
     if (!option) return;
+
+    st.history.sceneVisits[sceneId] = Number(st.history.sceneVisits[sceneId] || 0) + 1;
+    st.history.optionsTaken[sceneId + ":" + optionId] = Number(st.history.optionsTaken[sceneId + ":" + optionId] || 0) + 1;
 
     if (!hasReq(option.req)) {
       if (typeof showNotif === "function") showNotif("This dialogue path is locked by your history, rank, or season.", "warn");
@@ -767,6 +1038,10 @@
     }
     if (req.age) bits.push("Age: " + req.age);
     if (req.season) bits.push("Season: " + req.season);
+    if (req.npcAffinity && req.npcAffinity.npc) bits.push("Affinity " + req.npcAffinity.npc + " ≥ " + req.npcAffinity.min);
+    if (req.flagEq && req.flagEq.key) bits.push("Flag " + req.flagEq.key + " = " + req.flagEq.value);
+    if (req.sceneSeenAtLeast && req.sceneSeenAtLeast.sceneId) bits.push("Seen " + req.sceneSeenAtLeast.sceneId + " x" + req.sceneSeenAtLeast.min);
+    if (req.usedStatCountAtLeast && req.usedStatCountAtLeast.count) bits.push("Used stats ≥ " + req.usedStatCountAtLeast.count);
     return bits.join(" · ");
   }
 
@@ -803,6 +1078,7 @@
 
     const scene = SCENES[st.sceneId] || SCENES.intro;
     const chapter = getChapterMeta(scene.chapter);
+    const variantText = sceneVariantText(scene, st);
 
     const options = (scene.options || []).map(function (option) {
       const unlocked = hasReq(option.req);
@@ -847,6 +1123,7 @@
       + "<div class='story-villain'>Villain Arc: " + chapter.villainBeat + "</div>"
       + "</div>"
       + "<div class='story-body'>" + scene.text + "</div>"
+      + (variantText ? ("<div class='story-result'><strong>Variant:</strong> " + variantText + "</div>") : "")
       + (st.lastResult ? ("<div class='story-result'><strong>Last Outcome:</strong> " + st.lastResult + "</div>") : "")
       + "<div class='story-options'>" + options + "</div>"
       + "</div>"

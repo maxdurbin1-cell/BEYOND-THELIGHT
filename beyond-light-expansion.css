@@ -118,6 +118,38 @@
 	.wtw-shell .map-layout{height:auto;}
 	.wtw-mini-grid{grid-template-columns:1fr;}
 }
+
+/* Storyline system */
+.story-shell{display:grid;grid-template-columns:260px minmax(0,1fr) 310px;gap:.65rem;padding:.7rem;}
+.story-column{background:var(--card);border:1px solid var(--border);padding:.55rem;}
+.story-header{border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.5rem .6rem;margin-bottom:.5rem;}
+.story-title{font-family:'Cinzel',serif;font-size:.86rem;letter-spacing:.04em;color:var(--gold2);}
+.story-sub{font-size:.76rem;color:var(--muted2);margin-top:.12rem;}
+.story-villain{font-size:.74rem;color:var(--red2);margin-top:.22rem;line-height:1.4;}
+.story-body{font-size:.86rem;line-height:1.62;color:var(--text2);margin-bottom:.55rem;}
+.story-result{font-size:.78rem;color:var(--teal);background:rgba(46,196,182,.07);border:1px solid rgba(46,196,182,.35);padding:.35rem .45rem;margin-bottom:.45rem;}
+.story-options{display:grid;gap:.35rem;}
+.story-opt{border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.4rem .45rem;display:grid;gap:.2rem;}
+.story-opt.locked{opacity:.62;}
+.story-opt-text{font-size:.8rem;color:var(--text);line-height:1.42;}
+.story-opt-roll{font-size:.72rem;color:var(--gold2);font-family:'Rajdhani',sans-serif;}
+.story-opt-req{font-size:.69rem;color:var(--muted2);line-height:1.35;}
+.story-card{border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.4rem .45rem;margin-bottom:.45rem;}
+.story-label{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;margin:.15rem 0 .08rem;}
+.story-value{font-size:.76rem;color:var(--text2);line-height:1.4;}
+.story-chapter{border:1px solid var(--border2);background:rgba(255,255,255,.015);padding:.28rem .36rem;margin-bottom:.25rem;}
+.story-chapter.on{border-color:var(--gold2);background:rgba(201,162,39,.08);}
+.story-ch-title{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;}
+.story-ch-meta{font-size:.68rem;color:var(--muted2);line-height:1.35;margin-top:.08rem;}
+.story-lesson{display:flex;justify-content:space-between;align-items:center;gap:.3rem;padding:.2rem .25rem;border:1px solid var(--border2);background:rgba(255,255,255,.015);margin-bottom:.18rem;font-size:.72rem;color:var(--muted2);}
+.story-lesson.done{border-color:rgba(76,175,116,.55);background:rgba(76,175,116,.08);color:var(--green2);}
+.story-factions{display:flex;gap:.25rem;flex-wrap:wrap;}
+.story-log{max-height:240px;overflow:auto;display:grid;gap:.22rem;}
+.story-log-item{font-size:.72rem;color:var(--muted2);line-height:1.35;border-bottom:1px solid rgba(255,255,255,.05);padding-bottom:.18rem;}
+
+@media(max-width:1100px){
+	.story-shell{grid-template-columns:1fr;}
+}
 .combat-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.4rem;}
 @media(max-width:560px){.combat-actions{grid-template-columns:1fr;}}
 .ship-banner{background:linear-gradient(135deg,rgba(46,196,182,.08),rgba(201,162,39,.08));border:1px solid rgba(201,162,39,.25);padding:.75rem;margin-bottom:.55rem;}

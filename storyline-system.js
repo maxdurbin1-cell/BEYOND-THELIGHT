@@ -293,6 +293,33 @@
           partial: { next: "mission_bridge", text: "You recover most of the sigils. The broker sells you a weaker but usable path-marker.", effects: { credits: -20, tmw: 1 } },
           fail: { next: "mission_bridge", text: "The last sigil slips your mind. You still buy a rough route from a rival stall.", effects: { mentalStress: 1 } },
         },
+        {
+          id: "o4",
+          text: "Use lockpicks to crack the broker's chained dispatch box",
+          stat: "mind",
+          baseDread: 8,
+          req: { backpackAny: ["lockpick", "dungeoneer's kit", "scavenger's pouch"] },
+          success: { next: "mission_bridge", text: "Tumblers whisper open. Inside is a pre-stamped Red Ledger route permit.", effects: { credits: 60, renown: 1 } },
+          fail: { next: "mission_bridge", text: "The picks snap and alarms hiss, but you still salvage a half-burned route stub.", effects: { mentalStress: 1, tmw: 1 } },
+        },
+        {
+          id: "o5",
+          text: "Route an OS Hack through the market shutters",
+          stat: "control",
+          baseDread: 10,
+          req: { augmentationsAny: ["operating system"], ownedHacksAny: ["ping", "take control", "weapon glitch", "reboot optics", "javelin"] },
+          success: { next: "mission_bridge", text: "Your intrusion tags every watcher in the square and opens a ghost corridor to the ledger convoy.", effects: { faction: { corporations: 1 }, tmw: 1 } },
+          fail: { next: "mission_bridge", text: "Counter-hackers burn your line, but your spoofed identity still buys one safe lane.", effects: { credits: -25, tmw: 1 } },
+        },
+        {
+          id: "o6",
+          text: "Cast a scroll ward to force the broker's oath",
+          stat: "spirit",
+          baseDread: 9,
+          req: { backpackAny: ["scroll", "warding sigil", "none can lie", "bind oath", "speak with the dead"] },
+          success: { next: "mission_bridge", text: "The ward seals the contract in light. The broker cannot deny your claim to the Red Ledger route.", effects: { renown: 1, faction: { religious: 1 } } },
+          fail: { next: "mission_bridge", text: "The rite wavers, but fear of retaliation still gets you a legal copy of the route.", effects: { mentalStress: 1 } },
+        },
       ],
     },
 
@@ -1576,6 +1603,63 @@
     });
   }
 
+  function normalizedLoadoutText() {
+    const bits = [];
+    if (Array.isArray(S.backpack)) {
+      S.backpack.forEach(function (item) {
+        if (item) bits.push(lc(item));
+      });
+    }
+    if (S && S.equipment && typeof S.equipment === "object") {
+      ["weapon1", "weapon2", "armor", "readied"].forEach(function (k) {
+        if (S.equipment[k]) bits.push(lc(S.equipment[k]));
+      });
+    }
+    return bits.join(" | ");
+  }
+
+  function hasAnyInList(values, terms) {
+    if (!Array.isArray(values) || !values.length || !Array.isArray(terms) || !terms.length) return false;
+    const pool = values.map(function (v) { return lc(v); });
+    return terms.some(function (term) {
+      const t = lc(term);
+      return pool.some(function (entry) { return entry.indexOf(t) >= 0; });
+    });
+  }
+
+  function chapterFallbackScene(sceneId) {
+    const scene = SCENES[sceneId] || {};
+    const fallbackByChapter = {
+      c1: "mission_bridge",
+      c2: "sea_court",
+      c3: "planet_descent",
+      c4: "finale_choice",
+    };
+    const fallback = fallbackByChapter[scene.chapter || "c1"] || "intro";
+    return SCENES[fallback] ? fallback : "intro";
+  }
+
+  function normalizeOutcome(sceneId, option, outcome, label) {
+    const fallbackOutcome = option.success || option.partial || option.fail || null;
+    const normalized = (outcome && typeof outcome === "object")
+      ? Object.assign({}, outcome)
+      : (fallbackOutcome ? Object.assign({}, fallbackOutcome) : {});
+
+    if (!normalized.next && !normalized.restart) {
+      const fallbackNext =
+        (option.success && option.success.next) ||
+        (option.partial && option.partial.next) ||
+        (option.fail && option.fail.next) ||
+        chapterFallbackScene(sceneId);
+      if (fallbackNext && SCENES[fallbackNext]) normalized.next = fallbackNext;
+      if (!normalized.text) normalized.text = "The moment buckles, but the route stays open.";
+      if (typeof showNotif === "function") {
+        showNotif("Story fallback routed from missing " + label + " outcome.", "warn");
+      }
+    }
+    return normalized;
+  }
+
   function getFactionValue(key) {
     if (!S || !S.factionRenown || typeof S.factionRenown !== "object") return 0;
     return Number(S.factionRenown[key] || 0);
@@ -1685,6 +1769,19 @@
       const m = lc((S && S.mutation) || "");
       const terms = Array.isArray(req.mutationIncludes) ? req.mutationIncludes : [req.mutationIncludes];
       if (!terms.some(function (t) { return m.indexOf(lc(t)) >= 0; })) return false;
+    }
+    if (Array.isArray(req.augmentationsAny) && req.augmentationsAny.length) {
+      const augs = Array.isArray(S.augmentations) ? S.augmentations : [];
+      if (!hasAnyInList(augs, req.augmentationsAny)) return false;
+    }
+    if (Array.isArray(req.ownedHacksAny) && req.ownedHacksAny.length) {
+      const hacks = Array.isArray(S.ownedHacks) ? S.ownedHacks : [];
+      if (!hasAnyInList(hacks, req.ownedHacksAny)) return false;
+    }
+    if (Array.isArray(req.backpackAny) && req.backpackAny.length) {
+      const loadout = normalizedLoadoutText();
+      const ok = req.backpackAny.some(function (term) { return loadout.indexOf(lc(term)) >= 0; });
+      if (!ok) return false;
     }
     return true;
   }
@@ -2177,6 +2274,8 @@
       outcome = option.success;
     }
 
+    outcome = normalizeOutcome(sceneId, option, outcome, forcedResult || "normal");
+
     applyOutcome(sceneId, option, outcome, checkResult);
     renderStorylinePanel();
   }
@@ -2310,6 +2409,7 @@
   function applyOutcome(sceneId, option, outcome, checkResult) {
     const st = ensureStoryState();
     const scene = SCENES[sceneId];
+    const safeOutcome = normalizeOutcome(sceneId, option, outcome, "resolved");
 
     if (scene) markLessonProgress(scene);
 
@@ -2323,7 +2423,7 @@
         // Success → advance streak toward Path Token
         recordSuccessRoll();
         // Renown bonus for overcoming high dread
-        if (checkResult.dreadDie >= 12 && outcome && outcome.effects && !outcome.effects.renown) {
+        if (checkResult.dreadDie >= 12 && safeOutcome && safeOutcome.effects && !safeOutcome.effects.renown) {
           if (typeof changeCounter === "function") changeCounter("renown", 1);
           if (typeof showNotif === "function") showNotif("+1 Renown for overcoming high dread.", "good");
         }
@@ -2335,15 +2435,27 @@
       }
     }
 
-    if (outcome && outcome.effects) applyEffects(outcome.effects);
-    if (outcome && outcome.irreversible) applyIrreversibleOutcome(outcome.irreversible);
-    if (outcome && outcome.text) st.lastResult = outcome.text;
-    if (outcome && outcome.next) {
-      st.sceneId = outcome.next;
+    if (safeOutcome && safeOutcome.effects) {
+      try {
+        applyEffects(safeOutcome.effects);
+      } catch (_err) {
+        if (typeof showNotif === "function") showNotif("Story effects partially failed; route still advanced.", "warn");
+      }
+    }
+    if (safeOutcome && safeOutcome.irreversible) {
+      try {
+        applyIrreversibleOutcome(safeOutcome.irreversible);
+      } catch (_err) {
+        if (typeof showNotif === "function") showNotif("Story irreversible effects failed safely.", "warn");
+      }
+    }
+    if (safeOutcome && safeOutcome.text) st.lastResult = safeOutcome.text;
+    if (safeOutcome && safeOutcome.next) {
+      st.sceneId = safeOutcome.next;
       const next = SCENES[st.sceneId];
       if (next) st.chapter = next.chapter;
     }
-    if (outcome && outcome.restart) {
+    if (safeOutcome && safeOutcome.restart) {
       clearStoryTravelMarkers();
       st.sceneId = "intro";
       st.chapter = "c1";
@@ -2361,7 +2473,7 @@
 
     const msg = [
       option.text,
-      outcome && outcome.text ? outcome.text : "",
+      safeOutcome && safeOutcome.text ? safeOutcome.text : "",
       checkResult
         ? ("[" + STAT_LABELS[option.stat] + " d" + checkResult.actionDie + "=" + checkResult.action.total + " vs DD" + checkResult.dreadDie + "=" + checkResult.dread.total + "]")
         : "",
@@ -2563,6 +2675,9 @@
     if (Array.isArray(req.reputationAny)) bits.push("Reputation: " + req.reputationAny.join(" / "));
     if (req.misfortuneIs) bits.push("Misfortune: " + req.misfortuneIs);
     if (req.mutationIncludes) bits.push("Mutation: " + (Array.isArray(req.mutationIncludes) ? req.mutationIncludes.join(" / ") : req.mutationIncludes));
+    if (Array.isArray(req.augmentationsAny) && req.augmentationsAny.length) bits.push("Augmentations: " + req.augmentationsAny.join(" / "));
+    if (Array.isArray(req.ownedHacksAny) && req.ownedHacksAny.length) bits.push("OS Hack: " + req.ownedHacksAny.join(" / "));
+    if (Array.isArray(req.backpackAny) && req.backpackAny.length) bits.push("Loadout item: " + req.backpackAny.join(" / "));
     return bits.join(" · ");
   }
 
@@ -2827,7 +2942,7 @@
     window._pendingStoryRoll = null;
     if (typeof closeModal === "function") closeModal();
     if (typeof showNotif === "function") showNotif("Spent 3 Teamwork to succeed. Story advances.", "good");
-    applyOutcome(p.sceneId, p.option, p.option.success, fakeCheck);
+    applyOutcome(p.sceneId, p.option, normalizeOutcome(p.sceneId, p.option, p.option.success, "success"), fakeCheck);
     renderStorylinePanel();
   };
 
@@ -2843,12 +2958,12 @@
       if (typeof showNotif === "function") {
         showNotif("Push Luck succeeded! " + statName + " d" + newCheck.actionDie + " [" + newCheck.action.total + "] vs D" + pushDread + " [" + newCheck.dread.total + "].", "good");
       }
-      applyOutcome(p.sceneId, p.option, p.option.success, newCheck);
+      applyOutcome(p.sceneId, p.option, normalizeOutcome(p.sceneId, p.option, p.option.success, "success"), newCheck);
     } else {
       if (typeof showNotif === "function") {
         showNotif("Push Luck failed. " + statName + " d" + newCheck.actionDie + " [" + newCheck.action.total + "] vs D" + pushDread + " [" + newCheck.dread.total + "]. +1 Teamwork.", "warn");
       }
-      applyOutcome(p.sceneId, p.option, p.option.fail || p.option.success, newCheck);
+      applyOutcome(p.sceneId, p.option, normalizeOutcome(p.sceneId, p.option, p.option.fail || p.option.success, "fail"), newCheck);
     }
     renderStorylinePanel();
   };

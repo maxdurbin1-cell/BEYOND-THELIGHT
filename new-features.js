@@ -2773,6 +2773,9 @@
     // Get TMW cost
     var hackData = HACK_EFFECTS[hackName];
     var tmwCost = hackData ? hackData.tmw : 0;
+    if (tmwCost > 0 && typeof getScarTmwCostPenalty === 'function') {
+      tmwCost += Math.max(0, Number(getScarTmwCostPenalty() || 0));
+    }
     if (tmwCost > 0 && (S.tmw || 0) < tmwCost) {
       showNotif('Need ' + tmwCost + ' TMW to cast ' + hackName + '! (have ' + (S.tmw || 0) + ')', 'warn'); return;
     }

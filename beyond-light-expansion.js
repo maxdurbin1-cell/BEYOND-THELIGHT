@@ -2117,6 +2117,9 @@
         ship.wrecked = true;
         ship.stress = threshold;
         navalLog(`${side === "player" ? "Your" : "Enemy"} ship is wrecked and out of action.`, "warn");
+        if (side === "player" && typeof window.handleScarEncounter === "function") {
+          window.handleScarEncounter({ source: 'starship-wrecked', shipWrecked: true });
+        }
         return;
       }
       ship.stress -= threshold;

@@ -120,6 +120,39 @@ const ENEMY_ACTIVITY_D6 = [
   'Interrogating — holding an NPC. Distracted; you have Surprise this Scene.',
 ];
 
+const SCAR_RESULTS_D6 = [
+  {
+    id: 1,
+    title: 'Android Rebirth',
+    text: 'Your mind is stepped up and a random Augmentation module is installed.',
+  },
+  {
+    id: 2,
+    title: 'Signal Corruption',
+    text: 'All hacks, skills, or abilities that cost TMW now cost +1 TMW.',
+  },
+  {
+    id: 3,
+    title: 'Alien Symbiote',
+    text: 'All rolls are at -1, and you can no longer flee combat encounters.',
+  },
+  {
+    id: 4,
+    title: 'Temporal Shear',
+    text: 'You lose all Augmentations and all Path Tokens.',
+  },
+  {
+    id: 5,
+    title: 'Lingering Wound',
+    text: 'You take 1 Health damage every time you lose a roll.',
+  },
+  {
+    id: 6,
+    title: 'Void Claim',
+    text: 'The void takes you. Game over.',
+  },
+];
+
 const RADIATION_TIERS = [
   { min: 0,   max: 99,  label: 'Clean',       effect: 'No effect.' },
   { min: 100, max: 199, label: 'Low',          effect: 'Mild nausea. −1 to Body checks.' },
@@ -505,6 +538,16 @@ function ensureStarsState() {
   if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
   if (!Array.isArray(S.starSystem.taskMarkers)) S.starSystem.taskMarkers = [];
   if (typeof S.starSystem.empoweredChecks !== 'number') S.starSystem.empoweredChecks = 0;
+
+  S.scarState = S.scarState || {};
+  if (typeof S.scarState.avoidedDeaths !== 'number') S.scarState.avoidedDeaths = 0;
+  if (!Array.isArray(S.scarState.results)) S.scarState.results = [];
+  if (typeof S.scarState.tmwCostPenalty !== 'number') S.scarState.tmwCostPenalty = 0;
+  if (typeof S.scarState.rollPenalty !== 'number') S.scarState.rollPenalty = 0;
+  if (typeof S.scarState.cannotEscapeCombat !== 'boolean') S.scarState.cannotEscapeCombat = false;
+  if (typeof S.scarState.loseHealthOnFailedRoll !== 'boolean') S.scarState.loseHealthOnFailedRoll = false;
+  if (typeof S.scarState.baseTeamwork !== 'number') S.scarState.baseTeamwork = Number(S.tmw || 0);
+  if (typeof S.scarState.inProgress !== 'boolean') S.scarState.inProgress = false;
 
   if ((!S.starSystem.hexes || !S.starSystem.hexes.length) && window._lastGeneratedGalaxy && window._lastGeneratedGalaxy.hexes && window._lastGeneratedGalaxy.hexes.length) {
     S.starSystem = cloneStarsData(window._lastGeneratedGalaxy);
@@ -6933,6 +6976,265 @@ function registerStarshipTravelDays(days) {
   updateStarSystemReadouts();
 }
 
+function getScarRollPenalty() {
+  ensureStarsState();
+  return Number(S.scarState.rollPenalty || 0);
+}
+
+function getScarTmwCostPenalty() {
+  ensureStarsState();
+  return Math.max(0, Number(S.scarState.tmwCostPenalty || 0));
+}
+
+function applyScarFactionPenalty(mission, delta) {
+  if (!mission) return;
+  const amount = Number(delta) || 0;
+  const applyKey = (key) => {
+    if (!key) return;
+    if (typeof changeFactionRenown === 'function') {
+      changeFactionRenown(key, amount);
+      return;
+    }
+    if (!S.factionRenown || typeof S.factionRenown !== 'object') return;
+    const cur = Number(S.factionRenown[key] || 0);
+    S.factionRenown[key] = Math.max(-10, Math.min(12, cur + amount));
+  };
+  applyKey(mission.factionGain);
+  applyKey(mission.factionLose);
+  if (typeof updateFactionRenownUI === 'function') updateFactionRenownUI();
+}
+
+function expireCurrentMapEventsForScarDeath() {
+  ensureStarsState();
+
+  if (S.missionTokens && typeof S.missionTokens === 'object') {
+    S.missionTokens = {};
+  }
+  if (S.lastSea && S.lastSea.missionTokens && typeof S.lastSea.missionTokens === 'object') {
+    S.lastSea.missionTokens = {};
+  }
+
+  (S.starSystem.hexes || []).forEach((hex) => {
+    if (!hex) return;
+    if (hex.type === 'radio_task') {
+      hex.type = 'location';
+      hex.radioTaskResolved = true;
+      hex.detail = 'Expired radio contract marker.';
+    }
+    if (hex.taskMarker && !hex.taskMarker.resolved) {
+      hex.taskMarker.resolved = true;
+    }
+  });
+  if (Array.isArray(S.starSystem.radioTaskMarkers)) {
+    S.starSystem.radioTaskMarkers.forEach((entry) => {
+      if (entry) entry.resolved = true;
+    });
+    S.starSystem.radioTaskMarkers = [];
+  }
+  if (Array.isArray(S.starSystem.taskMarkers)) {
+    S.starSystem.taskMarkers.forEach((task) => {
+      if (task) task.resolved = true;
+    });
+  }
+
+  if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+  if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+  if (typeof renderMissionBoard === 'function') renderMissionBoard();
+  if (typeof renderMissionTracker === 'function') renderMissionTracker();
+}
+
+function placeCharacterAtStarMapCenter() {
+  ensureStarsState();
+  if (!Array.isArray(S.starSystem.hexes) || !S.starSystem.hexes.length) return;
+  const centerHex = S.starSystem.hexes.find((hex) => hex && hex.id === 0)
+    || S.starSystem.hexes.find((hex) => hex && hex.ring === 'core')
+    || S.starSystem.hexes[0];
+  if (!centerHex) return;
+  S.starSystem.currentHexId = centerHex.id;
+  if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+  if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+}
+
+function applyScarRecoveryReset(trigger) {
+  ensureStarsState();
+  const defendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : (S.stats && S.stats.defend ? S.stats.defend : 4);
+  const maxHealth = defendDie * 2;
+  S.health = Math.max(1, Math.floor(maxHealth / 2));
+  S.stress = S.health;
+
+  const trackedTeamwork = Number(S.scarState.baseTeamwork || 0);
+  const currentTmw = Number(S.tmw || 0);
+  const baselineTeamwork = Math.max(trackedTeamwork, currentTmw, 8);
+  S.scarState.baseTeamwork = baselineTeamwork;
+  S.tmw = Math.floor(baselineTeamwork / 2);
+
+  S.rads = 0;
+  if (typeof clearRadiationStatPenalties === 'function') clearRadiationStatPenalties();
+  if (S.radiationState) S.radiationState.gainTicks = 0;
+  S.injuries = [];
+  S.mentalStress = 0;
+  S.trauma = 0;
+
+  if (S.conditions && typeof S.conditions === 'object') {
+    Object.keys(S.conditions).forEach((key) => {
+      S.conditions[key] = false;
+    });
+  }
+
+  if (trigger && trigger.shipWrecked) {
+    if (S.starship) {
+      S.starship.defendDie = 4;
+      S.starship.shields = 4;
+    }
+    if (S.naval && S.naval.ship) {
+      S.naval.ship.hullDie = 4;
+      S.naval.ship.stress = 4;
+      S.naval.ship.wrecked = false;
+    }
+  }
+
+  if (typeof updateHealthUI === 'function') updateHealthUI();
+  if (typeof updateTMWPool === 'function') updateTMWPool();
+  if (typeof updateRadsUI === 'function') updateRadsUI();
+  if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
+  if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+  if (typeof updateTrauma === 'function') updateTrauma();
+  if (typeof updateConditionButtons === 'function') updateConditionButtons();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof updateStarshipUI === 'function') updateStarshipUI();
+  if (typeof renderNaval === 'function') renderNaval();
+
+  placeCharacterAtStarMapCenter();
+}
+
+function applyScarResult(resultId) {
+  ensureStarsState();
+  const entry = SCAR_RESULTS_D6.find((item) => item.id === resultId);
+
+  if (resultId === 1) {
+    if (S.stats && typeof S.stats.mind === 'number') {
+      S.stats.mind = stepUp(S.stats.mind);
+    }
+    S.augmentations = Array.isArray(S.augmentations) ? S.augmentations : [];
+    const augList = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && Array.isArray(SHOP_DATA.augmentations)) ? SHOP_DATA.augmentations : [];
+    const candidates = augList.filter((aug) => aug && aug.name && S.augmentations.indexOf(aug.name) < 0);
+    const chosen = candidates.length ? pick(candidates) : null;
+    if (chosen && chosen.name) {
+      S.augmentations.push(chosen.name);
+      if (typeof renderAugmentationsPanel === 'function') renderAugmentationsPanel();
+      showNotif(`Scar 1: Mind stepped up and augmentation installed (${chosen.name}).`, 'warn');
+    } else {
+      showNotif('Scar 1: Mind stepped up. No new augmentation was available.', 'warn');
+    }
+  } else if (resultId === 2) {
+    S.scarState.tmwCostPenalty = (S.scarState.tmwCostPenalty || 0) + 1;
+    showNotif('Scar 2: TMW costs for hacks/abilities are increased by +1.', 'warn');
+  } else if (resultId === 3) {
+    S.scarState.rollPenalty = (S.scarState.rollPenalty || 0) - 1;
+    S.scarState.cannotEscapeCombat = true;
+    showNotif('Scar 3: All rolls are penalized and retreat is no longer possible.', 'warn');
+  } else if (resultId === 4) {
+    S.augmentations = [];
+    S.pathTokens = 0;
+    if (typeof renderAugmentationsPanel === 'function') renderAugmentationsPanel();
+    if (typeof changeCounter === 'function') {
+      changeCounter('pathTokens', 0);
+    } else {
+      const ptEl = document.getElementById('pathTokensVal');
+      if (ptEl) ptEl.textContent = String(S.pathTokens || 0);
+    }
+    showNotif('Scar 4: All augmentations and path tokens were lost.', 'warn');
+  } else if (resultId === 5) {
+    S.scarState.loseHealthOnFailedRoll = true;
+    showNotif('Scar 5: Failed rolls now deal 1 additional Health damage.', 'warn');
+  }
+
+  if (entry) {
+    S.scarState.results.push({
+      id: entry.id,
+      title: entry.title,
+      text: entry.text,
+      date: `${S.gameDate.year || 1}-${S.gameDate.month || 1}-${S.gameDate.day || 1}`,
+    });
+  }
+
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+}
+
+function processScarDeath(trigger, rawRoll, bonus, totalRoll) {
+  ensureStarsState();
+  let failedMissionTitle = '';
+  if (Array.isArray(S.activeMissions) && S.activeMissions.length) {
+    const mission = S.activeMissions.shift();
+    failedMissionTitle = mission && mission.title ? mission.title : 'Current Mission';
+    applyScarFactionPenalty(mission, -1);
+    if (Array.isArray(S.completedMissions)) {
+      S.completedMissions.push({
+        id: mission.id,
+        title: mission.title || 'Unknown Mission',
+        location: mission.location || 'Unknown',
+        success: false,
+        reward: 0,
+        loot: [],
+        factionGain: mission.factionGain || null,
+        factionLose: mission.factionLose || null,
+        completedAt: new Date().toISOString(),
+        missionType: 'scar-death',
+      });
+      if (S.completedMissions.length > 10) S.completedMissions.shift();
+    }
+  }
+
+  if (typeof advanceDay === 'function') {
+    const daysToNextMonth = DAYS_PER_MONTH - Math.max(0, (S.gameDate.day || 1) - 1);
+    advanceDay(Math.max(1, daysToNextMonth));
+  }
+  expireCurrentMapEventsForScarDeath();
+
+  if (typeof renderMissionBoard === 'function') renderMissionBoard();
+  if (typeof renderMissionTracker === 'function') renderMissionTracker();
+  if (typeof renderCompletedMissions === 'function') renderCompletedMissions();
+
+  const detail = failedMissionTitle ? `<br>Mission failed: ${failedMissionTitle} (Patron and Antagonist Renown -1).` : '';
+  if (typeof openModal === 'function') {
+    openModal('Game Over — Claimed By The Void', `<div style="font-size:.86rem;color:var(--text2);line-height:1.65;">
+      Scar roll: d6=${rawRoll} + ${bonus} = <strong style="color:var(--red2);">${totalRoll}</strong>.<br>
+      The mark of Death finally takes hold. Your journey ends here.${detail}<br>
+      Time advances to the next month and all current map events expire.
+    </div>`);
+  }
+  showNotif('Scar roll reached 6+: Game Over. Begin a new adventure.', 'warn');
+}
+
+function handleScarEncounter(trigger) {
+  ensureStarsState();
+  const info = trigger || {};
+  if (S.scarState.inProgress) return { skipped: true };
+  S.scarState.inProgress = true;
+
+  try {
+    const priorAvoids = Math.max(0, Number(S.scarState.avoidedDeaths || 0));
+    const rawRoll = roll(6);
+    const totalRoll = rawRoll + priorAvoids;
+
+    if (totalRoll >= 6) {
+      processScarDeath(info, rawRoll, priorAvoids, totalRoll);
+      return { dead: true, rawRoll, totalRoll };
+    }
+
+    S.scarState.avoidedDeaths = priorAvoids + 1;
+    applyScarRecoveryReset(info);
+    applyScarResult(totalRoll);
+
+    const scar = SCAR_RESULTS_D6.find((entry) => entry.id === totalRoll);
+    const scarText = scar ? scar.text : 'A lingering mark of death remains.';
+    showNotif(`Scar roll d6=${rawRoll} (+${priorAvoids}) => ${totalRoll}. Death avoided: ${scarText}`, 'warn');
+    return { dead: false, rawRoll, totalRoll };
+  } finally {
+    S.scarState.inProgress = false;
+  }
+}
+
 function getRadPenaltyForStat(statKey) {
   ensureStarsState();
   return Math.max(0, (S.radiationState && S.radiationState.statPenalty && S.radiationState.statPenalty[statKey]) || 0);
@@ -7018,7 +7320,8 @@ function changeHealth(delta) {
   S.stress = S.health;
   updateHealthUI();
   if (S.health >= maxHealth) {
-    showNotif('Health at maximum — you are incapacitated!', 'warn');
+    showNotif('Health at maximum — near death. Rolling Scar check.', 'warn');
+    handleScarEncounter({ source: 'health-cap' });
   }
 }
 
@@ -7262,7 +7565,8 @@ function rollInjury() {
     S.injuries.push(finalResult);
     updateInjuriesUI();
   } else {
-    showNotif('3 Injuries reached — character is DEAD.', 'warn');
+    showNotif('3 Injuries reached — rolling Scar check.', 'warn');
+    handleScarEncounter({ source: 'injury-limit' });
   }
   return finalResult;
 }
@@ -7275,7 +7579,8 @@ function rollCriticalInjury() {
     S.injuries.push('CRITICAL: ' + result);
     updateInjuriesUI();
   } else {
-    showNotif('3 Injuries reached — character is DEAD.', 'warn');
+    showNotif('3 Injuries reached — rolling Scar check.', 'warn');
+    handleScarEncounter({ source: 'injury-limit' });
   }
   return result;
 }
@@ -8028,6 +8333,46 @@ function patchStarsCrossSystemHooks() {
     resolveMission = function(missionId, success) {
       const out = baseResolveMission.apply(this, arguments);
       if (success) tryUnlockHoldingFromFaction();
+      return out;
+    };
+  }
+
+  const baseExplodingRoll = typeof explodingRoll === 'function' ? explodingRoll : null;
+  if (baseExplodingRoll && !window._starsExplodingRollPatched) {
+    window._starsExplodingRollPatched = true;
+    explodingRoll = function(n) {
+      const out = baseExplodingRoll.apply(this, arguments);
+      const penalty = getScarRollPenalty();
+      if (penalty) {
+        out.total = Math.max(0, out.total + penalty);
+      }
+      return out;
+    };
+  }
+
+  const baseResolveSeaEncounter = typeof resolveSeaEncounter === 'function' ? resolveSeaEncounter : null;
+  if (baseResolveSeaEncounter && !window._starsResolveSeaEncounterPatched) {
+    window._starsResolveSeaEncounterPatched = true;
+    resolveSeaEncounter = function(action) {
+      ensureStarsState();
+      if (action === 'flee' && S.scarState && S.scarState.cannotEscapeCombat) {
+        showNotif('Scar effect: you cannot flee combat encounters.', 'warn');
+        return;
+      }
+      return baseResolveSeaEncounter.apply(this, arguments);
+    };
+  }
+
+  const baseAddTMWOnFail = typeof addTMWOnFail === 'function' ? addTMWOnFail : null;
+  if (baseAddTMWOnFail && !window._starsAddTMWOnFailPatched) {
+    window._starsAddTMWOnFailPatched = true;
+    addTMWOnFail = function() {
+      const out = baseAddTMWOnFail.apply(this, arguments);
+      ensureStarsState();
+      if (S.scarState && S.scarState.loseHealthOnFailedRoll && typeof changeHealth === 'function') {
+        changeHealth(1);
+        showNotif('Scar effect: lingering wound causes +1 Health damage on failure.', 'warn');
+      }
       return out;
     };
   }
@@ -8788,3 +9133,5 @@ window.resolveGalaxyRadioTask = resolveGalaxyRadioTask;
 window.openGalaxyTaskFromMap = openGalaxyTaskFromMap;
 window.mapMysteryMissionHook = mapMysteryMissionHook;
 window.renderRoyalShipLog = renderRoyalShipLog;
+window.handleScarEncounter = handleScarEncounter;
+window.getScarTmwCostPenalty = getScarTmwCostPenalty;

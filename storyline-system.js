@@ -21,6 +21,7 @@
     military: "Military Orders",
     underworld: "The Underworld",
     rebels: "Rebels",
+    scholars: "Archive Keepers",
   };
 
   const STORY_SYSTEMS = [
@@ -1692,6 +1693,47 @@
     return Number(S.factionRenown[key] || 0);
   }
 
+  function inferOptionFactionKey(option) {
+    if (!option || typeof option !== "object") return "";
+    const candidates = [];
+
+    if (option.req && option.req.factionAtLeast && option.req.factionAtLeast.key) {
+      candidates.push(String(option.req.factionAtLeast.key));
+    }
+    if (option.req && Array.isArray(option.req.factionAtLeastAny)) {
+      option.req.factionAtLeastAny.forEach(function (entry) {
+        if (entry && entry.key) candidates.push(String(entry.key));
+      });
+    }
+
+    const effectBuckets = [
+      option.success && option.success.effects ? option.success.effects : null,
+      option.partial && option.partial.effects ? option.partial.effects : null,
+      option.fail && option.fail.effects ? option.fail.effects : null,
+    ];
+
+    effectBuckets.forEach(function (effects) {
+      if (!effects) return;
+      if (effects.faction && typeof effects.faction === "object") {
+        Object.keys(effects.faction).forEach(function (key) { candidates.push(String(key)); });
+      }
+      if (effects.merchantReward && effects.merchantReward.factionKey) {
+        candidates.push(String(effects.merchantReward.factionKey));
+      }
+    });
+
+    const unique = candidates.filter(function (key, idx) {
+      return key && candidates.indexOf(key) === idx;
+    });
+
+    if (!unique.length) return "";
+
+    unique.sort(function (a, b) {
+      return getFactionValue(b) - getFactionValue(a);
+    });
+    return unique[0] || "";
+  }
+
   function hasReq(req) {
     if (!req) return true;
     const career = lc(S.career);
@@ -2282,13 +2324,15 @@
 
     let checkResult = null;
     let outcome = option.success;
+    const factionContext = inferOptionFactionKey(option);
+    st.activeFactionKey = factionContext || "";
 
     if (option.stat && forcedResult !== "success" && forcedResult !== "fail" && forcedResult !== "partial") {
       const dd = getOptionDread(sceneId, option);
-      checkResult = rollStoryCheck(option.stat, dd);
+      checkResult = rollStoryCheck(option.stat, dd, factionContext);
       if (!checkResult.success) {
         // Intercept fail: show modal for Teamwork spend, Push Luck, or Accept
-        window._pendingStoryRoll = { sceneId: sceneId, option: option, checkResult: checkResult, dreadDie: dd };
+        window._pendingStoryRoll = { sceneId: sceneId, option: option, checkResult: checkResult, dreadDie: dd, factionContext: factionContext };
         renderStoryRollModal(sceneId, option, checkResult, dd);
         return;
       }
@@ -2313,12 +2357,16 @@
     const currentTeamwork = (typeof S !== "undefined" && typeof S.tmw === "number") ? S.tmw : 0;
     const canSpend = currentTeamwork >= 3;
     const statName = STAT_LABELS[option.stat] || option.stat;
+    const bonus = Number(checkResult.factionBonus || 0);
+    const actionTotalLabel = bonus > 0
+      ? (checkResult.action.total + " + " + bonus + " = " + checkResult.effectiveTotal)
+      : String(checkResult.action.total);
     const html = ""
       + "<div style='text-align:center;font-family:Cinzel,serif;font-size:1.05rem;color:#ff6060;margin-bottom:.6rem;letter-spacing:.08em;'>✗ FAILED ROLL</div>"
       + "<div style='display:flex;justify-content:center;gap:1.5rem;margin-bottom:.65rem;'>"
       + "<div style='text-align:center;'>"
       + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>" + statName + " d" + checkResult.actionDie + "</div>"
-      + "<div style='font-size:2.1rem;font-weight:700;color:var(--text2);'>" + checkResult.action.total + "</div>"
+      + "<div style='font-size:2.1rem;font-weight:700;color:var(--text2);'>" + actionTotalLabel + "</div>"
       + "</div>"
       + "<div style='text-align:center;padding-top:.65rem;font-size:1.3rem;color:var(--muted2);'>vs</div>"
       + "<div style='text-align:center;'>"
@@ -2327,6 +2375,9 @@
       + "</div>"
       + "</div>"
       + "<div style='font-size:.79rem;color:var(--text2);margin-bottom:.55rem;text-align:center;font-style:italic;'>\"" + option.text + "\"</div>"
+      + (bonus > 0
+        ? ("<div style='font-size:.74rem;color:var(--gold2);text-align:center;margin-bottom:.45rem;'>Faction bonus: +" + bonus + " from " + (FACTION_LABELS[checkResult.factionKey] || checkResult.factionKey) + " renown.</div>")
+        : "")
       + "<div style='background:rgba(255,96,96,.06);border:1px solid rgba(255,96,96,.25);padding:.45rem .55rem;border-radius:4px;margin-bottom:.55rem;'>"
       + "<div style='font-size:.76rem;font-family:Cinzel,serif;color:var(--gold2);margin-bottom:.25rem;'>Choose Your Response</div>"
       + "<div style='font-size:.77rem;color:var(--text2);line-height:1.6;'>"
@@ -2400,11 +2451,24 @@
     st.optionDread[sceneId + ":" + optionId] = die;
   }
 
-  function rollStoryCheck(statKey, dreadDie) {
+  function rollStoryCheck(statKey, dreadDie, factionKey) {
     const actionDie = (typeof getEffectiveDie === "function") ? getEffectiveDie(statKey) : Number((S.stats && S.stats[statKey]) || 4);
     const a = (typeof explodingRoll === "function") ? explodingRoll(actionDie) : { total: Math.floor(Math.random() * actionDie) + 1, exploded: false };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dreadDie) : { total: Math.floor(Math.random() * dreadDie) + 1, exploded: false };
-    return { success: a.total >= d.total, actionDie: actionDie, dreadDie: dreadDie, action: a, dread: d };
+    const bonus = (typeof window.getFactionStoryRollBonus === "function" && factionKey)
+      ? Number(window.getFactionStoryRollBonus(factionKey, statKey) || 0)
+      : 0;
+    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus);
+    return {
+      success: effectiveTotal >= d.total,
+      actionDie: actionDie,
+      dreadDie: dreadDie,
+      action: a,
+      dread: d,
+      factionKey: factionKey || "",
+      factionBonus: Math.max(0, bonus),
+      effectiveTotal: effectiveTotal,
+    };
   }
 
   function markLessonProgress(scene) {
@@ -2502,7 +2566,10 @@
       option.text,
       safeOutcome && safeOutcome.text ? safeOutcome.text : "",
       checkResult
-        ? ("[" + STAT_LABELS[option.stat] + " d" + checkResult.actionDie + "=" + checkResult.action.total + " vs DD" + checkResult.dreadDie + "=" + checkResult.dread.total + "]")
+        ? ("[" + STAT_LABELS[option.stat] + " d" + checkResult.actionDie + "=" + checkResult.action.total
+          + (checkResult.factionBonus ? (" +" + checkResult.factionBonus) : "")
+          + " => " + (checkResult.effectiveTotal || checkResult.action.total)
+          + " vs DD" + checkResult.dreadDie + "=" + checkResult.dread.total + "]")
         : "",
     ].filter(Boolean).join(" - ");
 
@@ -2747,6 +2814,10 @@
       const unlocked = hasReq(option.req);
       const reqText = renderRequirement(option.req);
       const dd = option.stat ? getOptionDread(st.sceneId, option) : 0;
+      const optionFaction = inferOptionFactionKey(option);
+      const optionBonus = (option.stat && optionFaction && typeof window.getFactionStoryRollBonus === "function")
+        ? Number(window.getFactionStoryRollBonus(optionFaction, option.stat) || 0)
+        : 0;
       const pending = st.pendingTravel
         && st.pendingTravel.sceneId === st.sceneId
         && st.pendingTravel.optionId === option.id
@@ -2767,6 +2838,7 @@
       return "<div class='story-opt " + (unlocked ? "" : "locked") + "'>"
         + "<div class='story-opt-text'>" + option.text + "</div>"
         + (option.stat ? ("<div class='story-opt-roll'>" + (STAT_LABELS[option.stat] || option.stat) + " vs DD" + dd + "</div>") : "")
+        + (optionBonus > 0 ? ("<div class='story-opt-req' style='color:var(--gold2);'>Faction bonus: +" + optionBonus + " from " + (FACTION_LABELS[optionFaction] || optionFaction) + "</div>") : "")
         + (pending ? ("<div class='story-opt-req' style='color:var(--gold2);'>➤ Marker: " + (pending.targetLabel || "Travel target") + (pendingReached ? " ✓ Arrived" : " — travel there") + "</div>") : "")
         + (option.combat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat: " + ((option.combat.enemies || []).length || 1) + " foe" + ((((option.combat.enemies || []).length || 1) === 1) ? "" : "s") + " · DD" + Number(option.combat.dread || 8) + "</div>") : "")
         + (pendingCombat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat target: " + (pendingCombat.enemyNames || []).join(", ") + (pendingCombatResult === "success" ? " ✓ Victory ready" : pendingCombatResult === "fail" ? " — setback ready" : " — fight unresolved") + "</div>") : "")
@@ -2977,18 +3049,21 @@
     const p = window._pendingStoryRoll;
     if (!p) { if (typeof closeModal === "function") closeModal(); return; }
     const pushDread = typeof stepUp === "function" ? stepUp(p.dreadDie) : Math.min(20, p.dreadDie + 2);
-    const newCheck = rollStoryCheck(p.option.stat, pushDread);
+    const newCheck = rollStoryCheck(p.option.stat, pushDread, p.factionContext || inferOptionFactionKey(p.option));
     const statName = STAT_LABELS[p.option.stat] || p.option.stat;
+    const actionLabel = newCheck.factionBonus
+      ? (newCheck.action.total + " + " + newCheck.factionBonus + " = " + newCheck.effectiveTotal)
+      : String(newCheck.action.total);
     window._pendingStoryRoll = null;
     if (typeof closeModal === "function") closeModal();
     if (newCheck.success) {
       if (typeof showNotif === "function") {
-        showNotif("Push Luck succeeded! " + statName + " d" + newCheck.actionDie + " [" + newCheck.action.total + "] vs D" + pushDread + " [" + newCheck.dread.total + "].", "good");
+        showNotif("Push Luck succeeded! " + statName + " d" + newCheck.actionDie + " [" + actionLabel + "] vs D" + pushDread + " [" + newCheck.dread.total + "].", "good");
       }
       applyOutcome(p.sceneId, p.option, normalizeOutcome(p.sceneId, p.option, p.option.success, "success"), newCheck);
     } else {
       if (typeof showNotif === "function") {
-        showNotif("Push Luck failed. " + statName + " d" + newCheck.actionDie + " [" + newCheck.action.total + "] vs D" + pushDread + " [" + newCheck.dread.total + "]. +1 Teamwork.", "warn");
+        showNotif("Push Luck failed. " + statName + " d" + newCheck.actionDie + " [" + actionLabel + "] vs D" + pushDread + " [" + newCheck.dread.total + "]. +1 Teamwork.", "warn");
       }
       applyOutcome(p.sceneId, p.option, normalizeOutcome(p.sceneId, p.option, p.option.fail || p.option.success, "fail"), newCheck);
     }

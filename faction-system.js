@@ -339,6 +339,143 @@
     }
   };
 
+  const FACTION_ACTION_DIE_MAP = {
+    corporations: "control",
+    religious: "spirit",
+    military: "strike",
+    underworld: "control",
+    rebels: "lead",
+    scholars: "mind",
+    political: "lead",
+  };
+
+  const BASE_REGION_TYPES = [
+    "Sea Region Hex Map",
+    "Province Map",
+    "Galaxy Map",
+    "Random Planet",
+    "World That Was",
+  ];
+
+  const BASE_FLAVOR = {
+    corporations: {
+      names: ["Ledger Bastion", "Golden Audit Spire", "Dividend Vault", "Mercantile Spine"],
+      details: ["armed accountants", "sealed transaction courts", "private drone docks", "writ-enforced checkpoints"],
+      taskVerbs: ["audit", "secure", "broker", "extract"],
+      taskTargets: ["shadow contracts", "shipping ledgers", "proxy directors", "fuel futures"],
+      missionHooks: ["buy out a rival route", "silence an embezzlement ring", "recover a vanished escrow AI", "enforce a debt embargo"],
+    },
+    religious: {
+      names: ["Choir Reliquary", "Sanctum of the Last Hymn", "Ashen Cathedral", "Pilgrim Spiral"],
+      details: ["candlelit surgical bays", "trial chapels", "choirs under vow", "penitent processions"],
+      taskVerbs: ["sanctify", "escort", "investigate", "recover"],
+      taskTargets: ["a broken relic", "a missing cantor", "a blasphemous codex", "a cursed hospice wing"],
+      missionHooks: ["judge a miracle as fraud or truth", "cleanse a shrine seized by raiders", "guard a midnight pilgrimage", "trace false prophecy broadcasts"],
+    },
+    military: {
+      names: ["Iron Redoubt", "Cohort Citadel", "Siege Registry", "Bastion Nine"],
+      details: ["drill yards", "munitions depots", "war councils", "strict curfews"],
+      taskVerbs: ["fortify", "recon", "intercept", "drill"],
+      taskTargets: ["a breached wall", "hostile scouts", "stolen munitions", "a mutinous platoon"],
+      missionHooks: ["hold a chokepoint until dawn", "rescue a trapped convoy", "retake a silent watchtower", "break a siege beacon network"],
+    },
+    underworld: {
+      names: ["Crown Hollow", "Black Lantern Den", "Ratline Court", "Whisper Forge"],
+      details: ["hidden tunnels", "coded taverns", "smuggler shrines", "lookouts on every rooftop"],
+      taskVerbs: ["smuggle", "tail", "blackmail", "stash"],
+      taskTargets: ["a marked witness", "a sealed cargo canister", "a double agent", "a vanished fence"],
+      missionHooks: ["run medicine through a military cordon", "steal a priest's confession archive", "extract a turncoat alive", "replace bounty posters with forgeries"],
+    },
+    rebels: {
+      names: ["People's Switchyard", "The Red Assembly", "Freewire Camp", "Hammerfall Commune"],
+      details: ["crowded planning tents", "jury-rigged comm towers", "public debate pits", "shared kitchens"],
+      taskVerbs: ["recruit", "sabotage", "evacuate", "broadcast"],
+      taskTargets: ["a captured cell", "a power relay", "a ration convoy", "a hidden press node"],
+      missionHooks: ["spark a synchronized strike", "escort families out of a kill-zone", "hijack propaganda feeds", "trade hostages for ceasefire hours"],
+    },
+    scholars: {
+      names: ["Archive Vault 7", "The Lantern Athenaeum", "Dustglass Institute", "Quiet Stack Citadel"],
+      details: ["sealed stacks", "field laboratories", "cipher circles", "forbidden reading rooms"],
+      taskVerbs: ["catalog", "decode", "preserve", "cross-examine"],
+      taskTargets: ["a fractured star-chart", "court transcripts", "contaminated samples", "a pre-collapse core"],
+      missionHooks: ["recover a lost thesis from raider hands", "verify plague-origin evidence", "escort novice archivists", "negotiate for restricted manuscripts"],
+    },
+  };
+
+  function pick(arr) {
+    if (!Array.isArray(arr) || !arr.length) return "";
+    return arr[Math.floor(Math.random() * arr.length)] || "";
+  }
+
+  function toTitle(text) {
+    return String(text || "").charAt(0).toUpperCase() + String(text || "").slice(1);
+  }
+
+  function getFactionRenown(factionId) {
+    if (typeof S === "undefined" || !S || !S.factionRenown || typeof S.factionRenown !== "object") return 0;
+    return Number(S.factionRenown[factionId] || 0);
+  }
+
+  function ensureFactionState() {
+    if (typeof S === "undefined" || !S) return;
+    if (!S.factionRenown || typeof S.factionRenown !== "object") S.factionRenown = {};
+    if (!S.factionBases || typeof S.factionBases !== "object") S.factionBases = {};
+
+    Object.keys(FACTIONS).forEach((id) => {
+      if (typeof S.factionRenown[id] !== "number") S.factionRenown[id] = 0;
+      if (!S.factionBases[id]) {
+        const theme = BASE_FLAVOR[id] || BASE_FLAVOR.scholars;
+        const regionType = pick(BASE_REGION_TYPES);
+        S.factionBases[id] = {
+          regionType,
+          baseName: pick(theme.names),
+          ambientDetail: pick(theme.details),
+          rumorClock: 0,
+        };
+      }
+    });
+  }
+
+  function generateFactionBaseTask(factionId) {
+    const theme = BASE_FLAVOR[factionId] || BASE_FLAVOR.scholars;
+    return {
+      title: toTitle(pick(theme.taskVerbs)) + " " + pick(theme.taskTargets),
+      check: toTitle(FACTION_ACTION_DIE_MAP[factionId] || "mind") + " check recommended",
+      reward: "+1 " + toTitle(factionId) + " Renown on success",
+    };
+  }
+
+  function generateFactionBaseMission(factionId) {
+    const theme = BASE_FLAVOR[factionId] || BASE_FLAVOR.scholars;
+    const renown = getFactionRenown(factionId);
+    const tier = renown >= 6 ? "High Stakes" : renown >= 3 ? "Trusted Operative" : "Initiate";
+    return {
+      title: toTitle(tier) + ": " + toTitle(pick(theme.missionHooks)),
+      difficulty: renown >= 6 ? "very_hard" : renown >= 3 ? "hard" : "medium",
+      payout: (120 + Math.max(0, renown) * 45) + " Credits",
+    };
+  }
+
+  function generateFactionBaseEvents(factionId) {
+    const factionName = FACTIONS[factionId] ? FACTIONS[factionId].name : "the faction";
+    const pool = [
+      "A Wayfarer arrives with rumors about a forgotten route tied to " + factionName + ".",
+      "A hazard alarm blares: toxic seepage floods one corridor and everyone scrambles.",
+      "A peril unfolds as a trusted quartermaster is accused of selling access codes.",
+      "Monsters probe the perimeter and the base is forced into emergency defense drills.",
+      "A hidden cache is discovered behind old masonry, packed with pre-collapse records.",
+      "Two operatives argue over doctrine, and the dispute spills into the command floor.",
+      "A courier returns from the frontier carrying contradictory reports of an incoming raid.",
+      "A secret chamber is found under the base, containing names no one wants spoken aloud.",
+    ];
+    const events = [];
+    while (events.length < 3 && pool.length) {
+      const idx = Math.floor(Math.random() * pool.length);
+      events.push(pool.splice(idx, 1)[0]);
+    }
+    return events;
+  }
+
   // ============================================================================
   // STORY PATHWAYS — The Five Philosophical Ends
   // ============================================================================
@@ -576,6 +713,7 @@
   // ============================================================================
 
   function setupFactionTab() {
+    ensureFactionState();
     const factionPanel = document.getElementById(FACTION_TAB_ID);
     if (!factionPanel) return;
 
@@ -583,13 +721,16 @@
       <div class="faction-container">
         <div class="faction-intro">
           <h2>FACTION SYSTEM</h2>
-          <p>The world is divided. Six factions compete, cooperate, and conspire. Your loyalty—or lack of it—will shape the ending you receive.</p>
+          <p>The world is divided. Six factions compete, cooperate, and conspire. Your loyalty shapes endings, and each Renown rank grants a roll bonus to that faction's signature Action Die during its story pressure.</p>
         </div>
 
         <div class="faction-grid">
     `;
 
     Object.values(FACTIONS).forEach((faction) => {
+      const renown = getFactionRenown(faction.id);
+      const actionDie = FACTION_ACTION_DIE_MAP[faction.id] || "mind";
+      const base = (S && S.factionBases && S.factionBases[faction.id]) ? S.factionBases[faction.id] : null;
       html += `
         <div class="faction-card" data-faction="${faction.id}">
           <div class="faction-header">
@@ -608,7 +749,22 @@
               <label>Ideal Ending:</label>
               <span>${faction.idealEnding}</span>
             </div>
+            <div class="stat">
+              <label>Renown:</label>
+              <span>${renown}</span>
+            </div>
+            <div class="stat">
+              <label>Action Die Bonus:</label>
+              <span>+${Math.max(0, renown)} ${toTitle(actionDie)} (faction story)</span>
+            </div>
+            <div class="stat">
+              <label>Faction Base:</label>
+              <span>${base ? base.regionType : "Uncharted"}</span>
+            </div>
           </div>
+          <button class="btn btn-sm" onclick="factionSystem.visitBase('${faction.id}')" style="margin-bottom:.4rem;">
+            Visit Faction Base
+          </button>
           <button class="btn btn-primary faction-expand" onclick="factionSystem.expandFaction('${faction.id}')">
             View Missions & Pathways
           </button>
@@ -699,19 +855,85 @@
     factionPanel.innerHTML = html;
   }
 
+  function getFactionStoryRollBonus(factionId, statKey) {
+    const mapped = FACTION_ACTION_DIE_MAP[factionId] || "";
+    if (!mapped || mapped !== statKey) return 0;
+    return Math.max(0, getFactionRenown(factionId));
+  }
+
+  function resolveFactionBaseAnchor(base) {
+    if (!base || !base.regionType) return "Unknown location";
+
+    if (base.regionType === "Province Map") {
+      if (typeof mapData !== "undefined" && Array.isArray(mapData) && mapData.length) {
+        const hex = mapData[Math.floor(Math.random() * mapData.length)];
+        return "Province Hex [" + (hex.col + 1) + "," + (hex.row + 1) + "]";
+      }
+      return "Province frontier outpost";
+    }
+
+    if (base.regionType === "Sea Region Hex Map") {
+      if (S && S.lastSea && Array.isArray(S.lastSea.map) && S.lastSea.map.length) {
+        const seaHex = S.lastSea.map[Math.floor(Math.random() * S.lastSea.map.length)];
+        return "Sea Hex " + seaHex.key;
+      }
+      return "A storm-lashed sea fort";
+    }
+
+    if (base.regionType === "Galaxy Map") {
+      if (S && S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length) {
+        const hx = S.starSystem.hexes[Math.floor(Math.random() * S.starSystem.hexes.length)];
+        return "Galaxy Hex #" + hx.id;
+      }
+      return "A drifting orbital station";
+    }
+
+    if (base.regionType === "Random Planet") {
+      if (S && S.starSystem && S.starSystem.planetExplorationByHex) {
+        const keys = Object.keys(S.starSystem.planetExplorationByHex);
+        if (keys.length) return "Planet node #" + keys[Math.floor(Math.random() * keys.length)];
+      }
+      return "An unlisted colony world";
+    }
+
+    if (base.regionType === "World That Was") {
+      if (S && S.worldThatWas && Array.isArray(S.worldThatWas.hexes) && S.worldThatWas.hexes.length) {
+        const district = S.worldThatWas.hexes[Math.floor(Math.random() * S.worldThatWas.hexes.length)];
+        return "World District " + district.id;
+      }
+      return "A ruined district in the World That Was";
+    }
+
+    return base.regionType;
+  }
+
+  function openFactionModal(title, html) {
+    if (typeof openModal === "function") {
+      openModal(title, html);
+      return;
+    }
+    alert(title + "\n\n" + String(html || "").replace(/<[^>]+>/g, " "));
+  }
+
   function expandFaction(factionId) {
+    ensureFactionState();
     const faction = FACTIONS[factionId];
     if (!faction) return;
 
+    const renown = getFactionRenown(factionId);
+    const actionDie = FACTION_ACTION_DIE_MAP[factionId] || "mind";
     let html = `
       <div class="faction-detail">
         <h3>${faction.emoji} ${faction.name}</h3>
+        <div style="font-size:.82rem;color:var(--text2);margin-bottom:.55rem;">
+          Signature Action Die: <strong style="color:var(--gold2);">${toTitle(actionDie)}</strong> · Storyline Bonus: <strong style="color:var(--teal);">+${Math.max(0, renown)}</strong>
+        </div>
         <h4>Faction Missions</h4>
     `;
 
     faction.factionMissions.forEach((mission) => {
       html += `
-        <div class="mission-detail">
+        <div class="mission-detail" style="border:1px solid var(--border2);padding:.55rem;margin-bottom:.45rem;">
           <h5>${mission.title}</h5>
           <p>${mission.desc}</p>
           <div class="mission-stats">Difficulty: ${mission.difficulty} — Reward: ${mission.reward}⚜</div>
@@ -727,8 +949,57 @@
       `;
     });
 
-    html += `</div>`;
-    alert(html); // Placeholder—would be a modal in full implementation
+    html += `<div style="margin-top:.6rem;"><button class="btn btn-sm btn-primary" onclick="factionSystem.visitBase('${factionId}')">Visit ${faction.name} Base</button></div></div>`;
+    openFactionModal(faction.name, html);
+  }
+
+  function visitFactionBase(factionId) {
+    ensureFactionState();
+    const faction = FACTIONS[factionId];
+    const base = S && S.factionBases ? S.factionBases[factionId] : null;
+    if (!faction || !base) return;
+
+    base.rumorClock = Number(base.rumorClock || 0) + 1;
+    const task = generateFactionBaseTask(factionId);
+    const mission = generateFactionBaseMission(factionId);
+    const events = generateFactionBaseEvents(factionId);
+    const anchor = resolveFactionBaseAnchor(base);
+
+    const html = `
+      <div style="font-size:.83rem;color:var(--text2);line-height:1.65;">
+        <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.92rem;letter-spacing:.08em;margin-bottom:.35rem;">${faction.emoji} ${base.baseName}</div>
+        <div style="margin-bottom:.45rem;"><strong>Region:</strong> ${base.regionType} · <strong>Anchor:</strong> ${anchor}</div>
+        <div style="margin-bottom:.5rem;">The base feels lived in: ${base.ambientDetail}. Word of your arrivals has spread <strong>${base.rumorClock}</strong> times through this network.</div>
+
+        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.5rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Generated Task</div>
+          <div><strong>${task.title}</strong></div>
+          <div style="color:var(--muted2);">${task.check}</div>
+          <div style="color:var(--gold2);">${task.reward}</div>
+        </div>
+
+        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.5rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Generated Mission</div>
+          <div><strong>${mission.title}</strong></div>
+          <div style="color:var(--muted2);">Difficulty: ${mission.difficulty}</div>
+          <div style="color:var(--gold2);">Payout: ${mission.payout}</div>
+        </div>
+
+        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.5rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Base Random Events</div>
+          <ul style="margin:.35rem 0 0 1rem;">
+            ${events.map((e) => `<li>${e}</li>`).join("")}
+          </ul>
+        </div>
+
+        <div style="display:flex;gap:.4rem;justify-content:flex-end;margin-top:.6rem;flex-wrap:wrap;">
+          <button class="btn btn-sm" onclick="factionSystem.visitBase('${factionId}')">Generate New Base Events</button>
+          <button class="btn btn-sm btn-primary" onclick="factionSystem.expandFaction('${factionId}')">Back To Faction Missions</button>
+        </div>
+      </div>
+    `;
+
+    openFactionModal("Faction Base: " + faction.name, html);
   }
 
   // ============================================================================
@@ -737,14 +1008,19 @@
 
   window.factionSystem = {
     FACTIONS,
+    FACTION_ACTION_DIE_MAP,
     STORY_PATHWAYS,
     FACTION_DYNAMICS,
     TRUST_LEVELS,
     BETRAYAL_SCENARIOS,
     setupFactionTab,
     expandFaction,
+    visitBase: visitFactionBase,
+    getFactionStoryRollBonus,
     generateAdaptiveChoices
   };
+
+  window.getFactionStoryRollBonus = getFactionStoryRollBonus;
 
   // Auto-setup when page loads
   if (document.readyState === "loading") {

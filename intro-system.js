@@ -217,18 +217,20 @@ Enter the game.
               ${screen.content.split('\n').map(line => `<p>${line.trim()}</p>`).join('')}
             </div>
           </div>
-          <div class="intro-nav">
-            ${index > 0 ? `<button class="btn btn-sm intro-prev" onclick="introSystem.prevScreen()">← BACK</button>` : ''}
-            ${index < INTRO_CONTENT.screens.length - 1 ? `
-              <button class="btn btn-primary intro-next" onclick="introSystem.nextScreen()">NEXT →</button>
-            ` : `
-              <button class="btn btn-primary intro-start" onclick="introSystem.startGame()">ENTER THE WORLD</button>
-            `}
-          </div>
-          <div class="intro-progress">
-            ${Array.from({length: INTRO_CONTENT.screens.length}).map((_, i) => 
-              `<span class="progress-dot ${i <= index ? 'active' : ''}"></span>`
-            ).join('')}
+          <div class="intro-footer">
+            <div class="intro-nav">
+              ${index > 0 ? `<button class="btn btn-sm intro-prev" onclick="introSystem.prevScreen()">← BACK</button>` : ''}
+              ${index < INTRO_CONTENT.screens.length - 1 ? `
+                <button class="btn btn-primary intro-next" onclick="introSystem.nextScreen()">NEXT →</button>
+              ` : `
+                <button class="btn btn-primary intro-start" onclick="introSystem.startGame()">ENTER THE WORLD</button>
+              `}
+            </div>
+            <div class="intro-progress">
+              ${Array.from({length: INTRO_CONTENT.screens.length}).map((_, i) => 
+                `<span class="progress-dot ${i <= index ? 'active' : ''}"></span>`
+              ).join('')}
+            </div>
           </div>
         </div>
       `;

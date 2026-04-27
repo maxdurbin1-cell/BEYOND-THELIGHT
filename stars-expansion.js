@@ -3513,16 +3513,23 @@ function applyPlanetTraversalEffects(state, cell) {
   if (terrainName === 'inhabited') {
     const d4 = roll(4);
     const site = d4 === 1 ? 'Hunting Ground' : d4 === 2 ? 'Nest' : 'Oasis';
+    if (site === 'Oasis') {
+      return 'Actively populated. Oasis: guarded water and safe travel corridor secured. No roll required.';
+    }
     return applyPlanetTerrainSave(state, cell, {
       label: 'Inhabited approach',
       primary: 'lead',
       secondary: 'spirit',
       dd: 6,
-      onSuccess: `${site} discovered with stable contact lines.`,
+      onSuccess: site === 'Hunting Ground'
+        ? 'Hunting Ground discovered: bone totems, bait lines, and fresh tracks mapped.'
+        : 'Nest discovered: clustered eggs, brood husks, and territorial warning calls identified.',
       onFailure: () => {
         if (typeof changeStress === 'function') changeStress(1);
       },
-      failText: () => `${site} discovered under pressure. +1 Stress.`,
+      failText: () => site === 'Hunting Ground'
+        ? 'Hunting Ground discovered under pressure. Predators close in. +1 Stress.'
+        : 'Nest discovered under pressure. Swarm agitation rises. +1 Stress.',
     });
   }
   return applyPlanetTerrainSave(state, cell, {
@@ -3926,6 +3933,50 @@ function rollPlanetLostCityTravel() {
   renderPlanetExplorationPanel();
 }
 
+function rollPlanetLostCityIrradiatedPatrol() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected || selected.marker !== 'empty_colony') return;
+  const count = roll(6);
+  const text = `${count} Irradiated emerge from collapsed service tunnels — d4 | 8 Stress.`;
+  state.lastEvent = {
+    timestamp: Date.now(),
+    d10: 4,
+    outcome: `${count} Irradiated Patrol`,
+    detail: text,
+    rewardItem: '',
+    cellId: selected.id,
+    eventType: 'encounter',
+  };
+  showNotif(text, 'warn');
+  renderPlanetExplorationPanel();
+}
+
+function resolvePlanetLostCityRoom(cellId, roomId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const cell = state.cells.find((entry) => entry.id === Number(cellId));
+  if (!cell || !cell.data || !Array.isArray(cell.data.lostCityRooms)) return;
+  const room = cell.data.lostCityRooms.find((entry) => entry.id === Number(roomId));
+  if (!room || room.cleared) return;
+  const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const action = explodingRoll(adDie);
+  const dread = explodingRoll(room.dread || 4);
+  const success = action.total >= dread.total;
+  if (success) {
+    room.cleared = true;
+    takeGalaxyLoot(room.loot, 'pack');
+    showNotif(`Lost City room ${room.id} cleared. Loot secured: ${room.loot}`, 'good');
+  } else {
+    if (typeof changeStress === 'function') changeStress(1);
+    showNotif(`Lost City room ${room.id} failed. +1 Stress.`, 'warn');
+  }
+  openPlanetLostCityBuildingExploration();
+}
+
 function openPlanetLostCityBuildingExploration() {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
@@ -3934,9 +3985,19 @@ function openPlanetLostCityBuildingExploration() {
   if (!selected || selected.marker !== 'empty_colony') return;
   selected.data = selected.data || {};
   const lc = selected.data.lostCity || {};
-  const rooms = Array.from({ length: 2 + Math.floor(Math.random() * 3) }).map((_, idx) => {
-    return `${idx + 1}. ${pick(['Collapsed atrium', 'Archive vault', 'Transit tunnel', 'Barricaded market floor', 'Signal control booth'])} — ${pick(['Loot cache', 'Hazard pocket', 'Scavenger traces', 'Silent corridor'])}`;
-  });
+  if (!Array.isArray(selected.data.lostCityRooms) || !selected.data.lostCityRooms.length) {
+    selected.data.lostCityRooms = Array.from({ length: 2 + Math.floor(Math.random() * 3) }).map((_, idx) => ({
+      id: idx + 1,
+      cleared: false,
+      area: pick(['Collapsed atrium', 'Archive vault', 'Transit tunnel', 'Barricaded market floor', 'Signal control booth']),
+      detail: pick(['Scavenger traces and blood-smear handprints', 'A silent corridor with flickering hazard strobes', 'Ash-choked access hatch and warped blast doors', 'Drone carcasses piled near ventilation grates']),
+      dread: 4,
+      loot: rollGalaxyMerchantLoot(),
+    }));
+  }
+  const roomsHtml = selected.data.lostCityRooms.map((room) => {
+    return `<div style='padding:.24rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;'><strong>${room.id}. ${room.area}</strong><br>${room.detail}<br>${room.cleared ? `Loot: ${room.loot} ✓` : `<button class='btn btn-xs btn-teal' onclick='resolvePlanetLostCityRoom(${selected.id},${room.id})'>Explore Room (AD vs d4)</button>`}</div>`;
+  }).join('');
   if (typeof openModal === 'function') {
     openModal('Lost City Building Exploration', `<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">
       <strong style="color:var(--gold2);">${lc.buildingCondition || 'Collapsed'} ${lc.buildingThis || 'District Block'}</strong><br>
@@ -3944,8 +4005,9 @@ function openPlanetLostCityBuildingExploration() {
       Built For: ${lc.buildingFor || 'Unknown'}<br>
       Inside: ${lc.buildingInside || 'Unknown'}<br>
       Now: ${lc.buildingNow || 'Unknown'}<br><br>
+      <div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.3rem;'><button class='btn btn-xs btn-warn' onclick='rollPlanetLostCityIrradiatedPatrol()'>Irradiated Patrol (d6 count)</button><button class='btn btn-xs' onclick='rollPlanetLostCityTravel()'>District Travel (d6)</button></div>
       <strong style="color:var(--gold2);">Building Exploration</strong><br>
-      ${rooms.map((line) => `• ${line}`).join('<br>')}
+      ${roomsHtml}
     </div>`);
   }
 }
@@ -3963,11 +4025,12 @@ function generatePlanetRuinRooms(cellId) {
       id: i + 1,
       cleared: false,
       dread: 6 + Math.min(4, Math.floor((i + 1) / 2)),
+      detail: pick(['Wet scraping sounds behind collapsed bulkheads', 'A ritual circle etched into rusted plating', 'Broken stasis pods with claw marks on the inside', 'A pressure door that pulses like a heartbeat']),
       loot: rollGalaxyMerchantLoot(),
     }));
   }
   const roomsHtml = cell.data.ruinRooms.map((room) => {
-    return `<div style="padding:.28rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;">Room ${room.id} · DD${room.dread}${room.cleared ? ' · Cleared ✓' : ''}<br>${room.cleared ? `Loot: ${room.loot}` : `<button class='btn btn-xs btn-teal' onclick='resolvePlanetRuinRoom(${cell.id},${room.id})'>Roll Room</button>`}</div>`;
+    return `<div style="padding:.28rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;">Room ${room.id} · DD${room.dread}${room.cleared ? ' · Cleared ✓' : ''}<br>${room.detail}<br>${room.cleared ? `Loot: ${room.loot}` : `<button class='btn btn-xs btn-teal' onclick='resolvePlanetRuinRoom(${cell.id},${room.id})'>Roll Room</button>`}</div>`;
   }).join('');
   if (typeof openModal === 'function') {
     openModal('Ruin Rooms', `<div style="font-size:.82rem;color:var(--text2);line-height:1.5;">${roomsHtml}</div>`);
@@ -4201,7 +4264,7 @@ function buildPlanetHoldingInfoHtml(state, selected) {
       <div style="font-size:.82rem;color:var(--text2);">${h.restBoon}</div>
     </div>
     <div class="mood-block"><div class="mb-label">Mood: ${h.mood}</div><div style="font-size:.82rem;color:var(--text2);">${h.crisis}<br><em style="font-size:.78rem;">${h.crisisText}</em></div></div>
-    <div class="wild-panel"><div class="wp-label">${h.title}</div><div class="wp-text">${h.structure} · ${h.terrain} terrain<br>🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${h.weatherLabel}<br>${h.weatherDesc}</div></div>
+    <div class="wild-panel"><div class="wp-label">${h.title}</div><div class="wp-text">${h.structure} · ${h.terrain} terrain</div></div>
     <div class="wild-panel"><div class="wp-label">${h.lordTitle}</div><div class="wp-text">${h.lordName}</div></div>
     <div class="wild-panel"><div class="wp-label">Character</div><div class="wp-text">${h.character}</div></div>
     <div class="wild-panel"><div class="wp-label">Cultural Focus</div><div class="wp-text">${h.culturalFocus}</div></div>
@@ -4450,14 +4513,21 @@ function rollPlanetHexEncounter() {
   } else if (d10 === 3) {
     const beasts = roll(6) + 2;
     title = `${beasts} Hostile Beasts`;
-    text = 'Something vast and hard to name — DD4 | 10 Stress.';
+    text = 'Their jaws click in perfect rhythm while they drag fresh bones through the brush — DD4 | 10 Stress.';
   } else if (d10 === 4) {
     const pirates = roll(4) + 1;
     title = `${pirates} Pirates`;
-    text = 'Raiders lock the lane — DD4 | 10 Stress.';
+    text = 'They wear trophy masks made from prior crews and broadcast screams on open comms — DD4 | 10 Stress.';
   } else if (d10 === 5) {
+    const groupA = roll(6) + 2;
+    const groupB = roll(6) + 2;
+    const factionA = pick(['Kingdom Loyalists', 'The Corps', 'The Free Company', 'Warden Clans']);
+    const factionB = pick(['Void Raiders', 'Underworld Brokers', 'Rebel Cells', 'Ash Nomads']);
     title = 'Skirmish';
-    text = 'Two factions collide nearby. Choose to intervene or avoid.';
+    text = `${groupA} ${factionA} clash with ${groupB} ${factionB}. Gunfire and distress pings saturate the district.`;
+    if (typeof openModal === 'function') {
+      openModal('Skirmish', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Skirmish</strong><br>${text}<br><br>Intervene for potential salvage, or avoid and keep moving.<div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-warn' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}")'>Intervene</button><button class='btn btn-xs' onclick='resolvePlanetSkirmishChoice("avoid",${groupA},${groupB},"${factionA}","${factionB}")'>Avoid</button></div></div>`);
+    }
   } else if (d10 === 6) {
     title = 'Merchant Caravan';
     text = 'Traveling convoy: Haggle, Buy, or Steal.';
@@ -4474,7 +4544,7 @@ function rollPlanetHexEncounter() {
     openPlanetCaravanMarket();
   } else if (d10 === 9) {
     title = 'Blackmarket Exocraft';
-    text = 'A hidden exocraft rig offers forbidden software and hacks.';
+    text = 'A hidden exocraft rig opens a sealed catalog: buy Hacks and Operating System modules.';
     attemptPlanetBlackMarketAccess();
   } else {
     selected.localWeather = rollPlanetSurfaceWeather(state.profile);
@@ -4557,6 +4627,48 @@ function resolvePlanetWeatherCheck() {
   } else {
     showNotif('Weather check passed. Safe traversal window.', 'good');
   }
+}
+
+function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected) return;
+  if (choice === 'avoid') {
+    if (typeof loseGamePhases === 'function') loseGamePhases(1);
+    showNotif('You avoid the firefight and lose 1 Phase rerouting.', 'info');
+    return;
+  }
+  const check = resolveGalaxySkillCheck('adventure', 'lead', 8, 'Skirmish Intervention');
+  if (check.success) {
+    const loot = rollGalaxyMerchantLootFromCategories(['items', 'toolkits', 'weapon_mods', 'armor']);
+    takeGalaxyLoot(loot, 'pack');
+    showNotif(`Skirmish won between ${factionA} and ${factionB}. Loot secured: ${loot}.`, 'good');
+    state.lastEvent = {
+      timestamp: Date.now(),
+      d10: 8,
+      outcome: 'Skirmish Intervention Success',
+      detail: `${check.text}. ${groupA} ${factionA} vs ${groupB} ${factionB}. Loot: ${loot}.`,
+      rewardItem: loot,
+      cellId: selected.id,
+      eventType: 'encounter',
+    };
+  } else {
+    if (typeof changeStress === 'function') changeStress(1);
+    if (typeof changeHealth === 'function') changeHealth(1);
+    showNotif(`Skirmish intervention failed. ${groupA} ${factionA} vs ${groupB} ${factionB}.`, 'warn');
+    state.lastEvent = {
+      timestamp: Date.now(),
+      d10: 8,
+      outcome: 'Skirmish Intervention Failed',
+      detail: `${check.text}. You are pushed back under crossfire. +1 Stress, +1 Health damage.`,
+      rewardItem: '',
+      cellId: selected.id,
+      eventType: 'encounter',
+    };
+  }
+  renderPlanetExplorationPanel();
 }
 
 function computePlanetTradeRoutes(state) {
@@ -5357,7 +5469,7 @@ function renderPlanetExplorationPanel() {
   const templeInfoHtml = buildPlanetTempleInfoHtml(state, selected);
   const interactionProfile = getPlanetInteractionProfile(selected);
   const canRollWildernessActions = canUsePlanetWildernessActions(selected);
-  const canGenerateTask = !!(selected && selected.marker === 'empty_colony');
+  const canGenerateTask = !!(selected && selected.marker === 'merchant_colony');
   const canUseMerchantMarket = !!(selected && (selected.marker === 'merchant_colony' || selected.tradeRoute));
   const canStealAtHolding = !!(selected && selected.marker === 'merchant_colony');
   const canTraverseObstacle = !!(selected && (selected.marker === 'peril' || selected.marker === 'barrier'));
@@ -5366,6 +5478,7 @@ function renderPlanetExplorationPanel() {
   const observedCompact = `From orbit: ${state.observedSurface.observedFromSpace}`;
   const atmosphereCompact = buildPlanetAtmosphereLine(state, selected);
   const weatherCompact = weather ? `${weather.label} · DD${weather.dd || 6}${weather.rough ? ' · rough' : ''}` : 'Unknown';
+  const isWildernessIntel = !!(selected && !isPlanetLocationHex(selected) && !selected.tradeRoute);
   const narrative = buildPlanetNarrativeLines(state, selected);
 
   target.innerHTML = `<div style="max-width:1180px;padding:.85rem;display:grid;gap:.65rem;">
@@ -5383,8 +5496,8 @@ function renderPlanetExplorationPanel() {
     </div>
     <div class="sea-summary">
       <div class="info-cell"><span class="ic-label">Surface Scan</span>${observedCompact}<br>${atmosphereCompact}</div>
-      <div class="info-cell"><span class="ic-label">Terrain Effect</span>${(selected && selected.terrainEffect) ? selected.terrainEffect : state.profile.terrainEffect}</div>
       <div class="info-cell"><span class="ic-label">Weather Pressure</span>${weatherCompact}</div>
+      <div class="info-cell"><span class="ic-label">Terrain Effect</span>${(selected && selected.terrainEffect) ? selected.terrainEffect : state.profile.terrainEffect}<div style="margin-top:.25rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect</button></div></div>
     </div>
     <div class="sea-legend">
       <div class="sea-item"><div class="sea-dot" style="background:#214636;border-color:#65c98d;"></div>L Landing</div>
@@ -5426,11 +5539,16 @@ function renderPlanetExplorationPanel() {
           <div class="hex-name">${narrative.terrainLabel}</div>
           <div class="hex-desc" style="margin-bottom:.4rem;">${narrative.terrainLabel} terrain · ${selected ? selected.province : '-'}</div>
 
-          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Planet Intel</span>${narrative.land} ${narrative.floraFauna} ${narrative.wonder}</div>
-          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}</div>
+          ${weather ? `<div class="weather-block ${weather.rough ? 'rough' : 'clear'}" style="margin-bottom:.35rem;">
+            <div class="weather-label" style="color:${weather.rough ? 'var(--red2)' : 'var(--teal)'};">🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${weather.label}</div>
+            <div style="font-size:.81rem;color:var(--text2);">${weather.desc}</div>
+            ${weather.rough ? `<div style="font-size:.76rem;color:var(--red2);margin-top:.2rem;">Dangerous weather: ${weather.check || 'lead'} vs DD${weather.dd || 6}. Failure: ${weather.failure || '+1 Stress'}</div><div style="margin-top:.25rem;"><button class="btn btn-xs btn-warn" onclick="resolvePlanetWeatherCheck()">⚄ Weather Check</button></div>` : ''}
+          </div>` : ''}
+
+          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Planet Intel</span>${isWildernessIntel ? `${narrative.land} ${narrative.floraFauna} ${narrative.wonder}` : 'Location dossier active. Land, Flora/Fauna, and Wonder intel populate in Wilderness hexes.'}</div>
+          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}<div style="margin-top:.22rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect</button></div></div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Status</span>${selected && selected.explored ? 'Explored' : 'Unexplored'}</div>
           <div class="hex-desc" style="margin-bottom:.4rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
-          <div style="margin-top:.15rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect (Wayfarer AD vs Dread)</button></div>
 
           <div class="wild-panel">
             <div class="wp-label">${narrative.detailCardTitle}</div>
@@ -5440,12 +5558,6 @@ function renderPlanetExplorationPanel() {
           ${holdingInfoHtml}
           ${dwellingInfoHtml}
           ${templeInfoHtml}
-
-          ${weather ? `<div class="weather-block ${weather.rough ? 'rough' : 'clear'}" style="margin-top:.45rem;">
-            <div class="weather-label" style="color:${weather.rough ? 'var(--red2)' : 'var(--teal)'};">🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${weather.label}</div>
-            <div style="font-size:.81rem;color:var(--text2);">${weather.desc}</div>
-            ${weather.rough ? `<div style="font-size:.76rem;color:var(--red2);margin-top:.2rem;">Dangerous weather: ${weather.check || 'lead'} vs DD${weather.dd || 6}. Failure: ${weather.failure || '+1 Stress'}</div><div style="margin-top:.25rem;"><button class="btn btn-xs btn-warn" onclick="resolvePlanetWeatherCheck()">⚄ Weather Check</button></div>` : ''}
-          </div>` : ''}
 
           ${lastEvent && lastEvent.eventType === 'encounter' ? `<div class="sea-result" style="margin-top:.45rem;"><div class="sea-result-title">Encounter Card</div><div class="planet-micro"><strong style="color:var(--gold2);">${lastEvent.outcome}</strong><br>${lastEvent.detail}</div></div>` : ''}
 
@@ -8665,6 +8777,9 @@ window.interactPlanetExocraftConvoy = interactPlanetExocraftConvoy;
 window.payPlanetExocraftConvoyTax = payPlanetExocraftConvoyTax;
 window.acceptPlanetExocraftConvoyTask = acceptPlanetExocraftConvoyTask;
 window.openPlanetLostCityBuildingExploration = openPlanetLostCityBuildingExploration;
+window.resolvePlanetLostCityRoom = resolvePlanetLostCityRoom;
+window.rollPlanetLostCityIrradiatedPatrol = rollPlanetLostCityIrradiatedPatrol;
+window.resolvePlanetSkirmishChoice = resolvePlanetSkirmishChoice;
 window.resolveMysteryContactOption = resolveMysteryContactOption;
 window.resolveSpaceEncounterOption = resolveSpaceEncounterOption;
 window.resolveGalaxyPerilTraversal = resolveGalaxyPerilTraversal;

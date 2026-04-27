@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./beyond-light-expansion.css">
+<link rel="stylesheet" href="./faction-intro-system.css">
 <style>
 :root{--bg:#06070e;--surface:#0b0c1a;--card:#0f1020;--card2:#131428;--border:#1a1c35;--border2:#252848;--gold:#c9a227;--gold2:#e8c050;--gold3:#f0d070;--teal:#2ec4b6;--teal2:#50ddd0;--red:#c94040;--red2:#e05050;--green:#4caf74;--green2:#6ed090;--purple:#8060c0;--text:#d8d0c0;--text2:#b0a890;--muted:#4a4870;--muted2:#7a7898;--muted3:#9a98b8;}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
@@ -255,6 +256,9 @@ select option{background:#0f1020;}
 </style>
 </head>
 <body>
+<!-- INTRO PAGE -->
+<div id="intro" class="intro-overlay"></div>
+
 <header>
   <div class="logo">BEYOND<span>:</span> THE LIGHT</div>
   <div class="ctx-bar">
@@ -266,6 +270,7 @@ select option{background:#0f1020;}
   </div>
   <nav>
     <button class="tab-btn active" onclick="switchTab('character',this)">Character</button>
+    <button class="tab-btn" onclick="switchTab('factions',this)">Factions</button>
     <button class="tab-btn" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
@@ -5313,5 +5318,21 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.renderQP = renderQP;
 })();
 </script>
+
+<!-- FACTIONS TAB PANEL -->
+<div class="tab-panel" id="tab-factions">
+  <div id="factions"></div>
+</div>
+
+<!-- STORYLINE TAB PANEL -->
+<div class="tab-panel" id="tab-storyline">
+  <div id="storyline"></div>
+</div>
+
+<!-- SCRIPT INCLUDES FOR NEW SYSTEMS -->
+<script src="./faction-system.js"></script>
+<script src="./intro-system.js"></script>
+<script src="./storyline-choices-system.js"></script>
+
 </body>
 </html>

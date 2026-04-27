@@ -243,6 +243,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
+    <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('worldthatwas',this)">World That Was</button>
     <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
     <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn" onclick="switchTab('combat',this)">Combat</button>
@@ -597,6 +598,9 @@ select option{background:#0f1020;}
   <div id="starsGalaxyPanel" style="padding:.85rem;max-width:980px;"></div>
   <div id="starsDatePanelGalaxy" style="padding:.85rem;max-width:460px;"></div>
 </div>
+
+<!-- WORLD THAT WAS TAB -->
+<div class="tab-panel" id="tab-worldthatwas"></div>
 
 <!-- COMBAT TAB -->
 <div class="tab-panel" id="tab-combat">
@@ -4522,6 +4526,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="./new-features.js"></script>
 <script src="./task-and-exploration-system.js"></script>
 <script src="./stars-expansion.js"></script>
+<script src="./world-that-was.js"></script>
 
 <!-- ── QUICK PANEL ── -->
 <button id="quickPanelToggle" onclick="toggleQuickPanel()">⚙ Quick&nbsp;Panel</button>

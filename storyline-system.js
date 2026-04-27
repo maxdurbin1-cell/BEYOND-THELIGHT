@@ -1911,7 +1911,13 @@
     if (option.stat && forcedResult !== "success" && forcedResult !== "fail" && forcedResult !== "partial") {
       const dd = getOptionDread(sceneId, option);
       checkResult = rollStoryCheck(option.stat, dd);
-      outcome = checkResult.success ? option.success : (option.fail || option.success);
+      if (!checkResult.success) {
+        // Intercept fail: show modal for Teamwork spend, Push Luck, or Accept
+        window._pendingStoryRoll = { sceneId: sceneId, option: option, checkResult: checkResult, dreadDie: dd };
+        renderStoryRollModal(sceneId, option, checkResult, dd);
+        return;
+      }
+      outcome = option.success;
     } else if (forcedResult === "fail") {
       outcome = option.fail || option.success;
     } else if (forcedResult === "partial") {
@@ -1922,6 +1928,42 @@
 
     applyOutcome(sceneId, option, outcome, checkResult);
     renderStorylinePanel();
+  }
+
+  function renderStoryRollModal(sceneId, option, checkResult, dreadDie) {
+    if (typeof openModal !== "function") return;
+    const pushDread = typeof stepUp === "function" ? stepUp(dreadDie) : Math.min(20, dreadDie + 2);
+    const currentTeamwork = (typeof S !== "undefined" && typeof S.tmw === "number") ? S.tmw : 0;
+    const canSpend = currentTeamwork >= 3;
+    const statName = STAT_LABELS[option.stat] || option.stat;
+    const html = ""
+      + "<div style='text-align:center;font-family:Cinzel,serif;font-size:1.05rem;color:#ff6060;margin-bottom:.6rem;letter-spacing:.08em;'>✗ FAILED ROLL</div>"
+      + "<div style='display:flex;justify-content:center;gap:1.5rem;margin-bottom:.65rem;'>"
+      + "<div style='text-align:center;'>"
+      + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>" + statName + " d" + checkResult.actionDie + "</div>"
+      + "<div style='font-size:2.1rem;font-weight:700;color:var(--text2);'>" + checkResult.action.total + "</div>"
+      + "</div>"
+      + "<div style='text-align:center;padding-top:.65rem;font-size:1.3rem;color:var(--muted2);'>vs</div>"
+      + "<div style='text-align:center;'>"
+      + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>Dread D" + dreadDie + "</div>"
+      + "<div style='font-size:2.1rem;font-weight:700;color:#e05050;'>" + checkResult.dread.total + "</div>"
+      + "</div>"
+      + "</div>"
+      + "<div style='font-size:.79rem;color:var(--text2);margin-bottom:.55rem;text-align:center;font-style:italic;'>\"" + option.text + "\"</div>"
+      + "<div style='background:rgba(255,96,96,.06);border:1px solid rgba(255,96,96,.25);padding:.45rem .55rem;border-radius:4px;margin-bottom:.55rem;'>"
+      + "<div style='font-size:.76rem;font-family:Cinzel,serif;color:var(--gold2);margin-bottom:.25rem;'>Choose Your Response</div>"
+      + "<div style='font-size:.77rem;color:var(--text2);line-height:1.6;'>"
+      + "<strong style='color:var(--teal);'>Accept:</strong> Take the setback, advance story, earn <strong style='color:var(--teal);'>+1 Teamwork Point</strong>.<br>"
+      + "<strong style='color:#c9a227;'>Spend 3 Teamwork:</strong> Convert fail to success. You have <strong style='color:var(--teal);'>" + currentTeamwork + " Teamwork</strong>.<br>"
+      + "<strong style='color:#f0a050;'>Push Your Luck:</strong> Re-roll vs <strong style='color:#f0a050;'>Dread D" + pushDread + "</strong>. Win = success streak. Lose = accept fail (+1 Teamwork)."
+      + "</div>"
+      + "</div>"
+      + "<div style='display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;'>"
+      + "<button class='btn btn-sm' onclick='storyAcceptFail()'>Accept (+1 Teamwork)</button>"
+      + "<button class='btn btn-sm btn-teal' " + (canSpend ? "" : "disabled title='Need 3 Teamwork'") + " onclick='storySpendTeamwork()'>Spend 3 Teamwork → Succeed</button>"
+      + "<button class='btn btn-sm' style='background:rgba(240,160,80,.18);border-color:rgba(240,160,80,.5);color:#f0a050;' onclick='storyPushLuck()'>Push Luck (D" + pushDread + ")</button>"
+      + "</div>";
+    openModal("Story Roll: " + option.text.slice(0, 50), html);
   }
 
   function seedNumber(seedTag) {
@@ -2001,6 +2043,19 @@
     st.log = st.log.slice(0, 18);
   }
 
+  function recordSuccessRoll() {
+    if (typeof S === "undefined") return;
+    S.successRollCount = (typeof S.successRollCount === "number" ? S.successRollCount : 0) + 1;
+    if (S.successRollCount >= 3) {
+      S.successRollCount = 0;
+      if (typeof changeCounter === "function") changeCounter("pathTokens", 1);
+      else S.pathTokens = Math.max(0, (S.pathTokens || 0) + 1);
+      if (typeof showNotif === "function") showNotif("3 successful rolls — +1 Path Token earned!", "good");
+    } else {
+      if (typeof showNotif === "function") showNotif("Success streak: " + S.successRollCount + "/3 toward next Path Token.", "good");
+    }
+  }
+
   function applyOutcome(sceneId, option, outcome, checkResult) {
     const st = ensureStoryState();
     const scene = SCENES[sceneId];
@@ -2013,18 +2068,19 @@
       const nextDread = checkResult.success ? stepDown(currentDread) : stepUp(currentDread);
       setOptionDread(sceneId, option.id, nextDread);
 
-      // Dynamic rewards: Teamwork Points on success, Path Token on failure
       if (checkResult.success) {
-        if (typeof changeCounter === "function") changeCounter("tmw", 1);
-        // Renown for high-dread successes
+        // Success → advance streak toward Path Token
+        recordSuccessRoll();
+        // Renown bonus for overcoming high dread
         if (checkResult.dreadDie >= 12 && outcome && outcome.effects && !outcome.effects.renown) {
           if (typeof changeCounter === "function") changeCounter("renown", 1);
           if (typeof showNotif === "function") showNotif("+1 Renown for overcoming high dread.", "good");
         }
       } else {
-        if (typeof changeCounter === "function") changeCounter("pathTokens", 1);
-        else if (typeof S !== "undefined") S.pathTokens = Math.max(0, (S.pathTokens || 0) + 1);
-        if (typeof showNotif === "function") showNotif("+1 Path Token (consolation for setback).", "good");
+        // Failure → +1 Teamwork (to spend on retry or push luck)
+        if (typeof changeCounter === "function") changeCounter("tmw", 1);
+        else if (typeof S !== "undefined") S.tmw = Math.max(0, (S.tmw || 0) + 1);
+        if (typeof showNotif === "function") showNotif("+1 Teamwork Point (spend to succeed or push luck).", "good");
       }
     }
 
@@ -2353,11 +2409,15 @@
       + "</div>"
       + "<div class='story-label'>Decoded Lexicon</div><div class='story-value'>" + lexiconText + "</div>"
       + "<div class='story-label'>Remembered Voices</div><div class='story-value'>" + memoryText + "</div>"
-      + "<div class='story-label' style='margin-top:.4rem;color:var(--teal);'>Reward Info</div>"
-      + "<div class='story-value' style='font-size:.74rem;color:var(--muted2);line-height:1.5;'>"
-      + "✓ Success: +1 Teamwork Point · Dread D12+ gives +1 Renown<br>"
-      + "✗ Failure: +1 Path Token (consolation)<br>"
-      + "Story travel: place marker, navigate to hex, choose again"
+      + "<div class='story-label' style='margin-top:.35rem;color:var(--teal);'>Success Streak</div>"
+      + "<div class='story-value'><strong style='font-size:.95rem;'>" + (typeof S !== 'undefined' && S.successRollCount ? S.successRollCount : 0) + "/3</strong> <span style='font-size:.74rem;color:var(--muted2);'>→ next Path Token</span></div>"
+      + "<div class='story-label' style='margin-top:.35rem;'>Teamwork Points</div>"
+      + "<div class='story-value'><span style='font-size:.9rem;color:var(--teal);font-weight:700;'>" + (typeof S !== 'undefined' ? (S.tmw || 0) : 0) + "</span> <span style='font-size:.72rem;color:var(--muted2);'>available</span></div>"
+      + "<div class='story-label' style='margin-top:.35rem;color:var(--gold2);'>Roll Economy</div>"
+      + "<div class='story-value' style='font-size:.73rem;color:var(--muted2);line-height:1.55;'>"
+      + "✗ Fail → +1 Teamwork. Then: spend 3 to succeed, or push luck at higher Dread.<br>"
+      + "✓ Success → +1 streak. Every 3 successes = +1 Path Token.<br>"
+      + "D12+ success = +1 bonus Renown."
       + "</div>"
       + "</div>"
       + "<div class='story-card'>"
@@ -2437,6 +2497,56 @@
   window.renderStorylinePanel = renderStorylinePanel;
   window.runStoryOption = runStoryOption;
   window.storyJumpSystem = jumpSystemById;
+
+  window.storyAcceptFail = function () {
+    const p = window._pendingStoryRoll;
+    if (!p) { if (typeof closeModal === "function") closeModal(); return; }
+    window._pendingStoryRoll = null;
+    if (typeof closeModal === "function") closeModal();
+    const outcome = p.option.fail || p.option.success;
+    applyOutcome(p.sceneId, p.option, outcome, p.checkResult);
+    renderStorylinePanel();
+  };
+
+  window.storySpendTeamwork = function () {
+    const p = window._pendingStoryRoll;
+    if (!p) { if (typeof closeModal === "function") closeModal(); return; }
+    const tmw = (typeof S !== "undefined" && typeof S.tmw === "number") ? S.tmw : 0;
+    if (tmw < 3) {
+      if (typeof showNotif === "function") showNotif("Need 3 Teamwork Points to spend.", "warn");
+      return;
+    }
+    if (typeof changeCounter === "function") changeCounter("tmw", -3);
+    else if (typeof S !== "undefined") S.tmw = Math.max(0, tmw - 3);
+    const fakeCheck = Object.assign({}, p.checkResult, { success: true });
+    window._pendingStoryRoll = null;
+    if (typeof closeModal === "function") closeModal();
+    if (typeof showNotif === "function") showNotif("Spent 3 Teamwork to succeed. Story advances.", "good");
+    applyOutcome(p.sceneId, p.option, p.option.success, fakeCheck);
+    renderStorylinePanel();
+  };
+
+  window.storyPushLuck = function () {
+    const p = window._pendingStoryRoll;
+    if (!p) { if (typeof closeModal === "function") closeModal(); return; }
+    const pushDread = typeof stepUp === "function" ? stepUp(p.dreadDie) : Math.min(20, p.dreadDie + 2);
+    const newCheck = rollStoryCheck(p.option.stat, pushDread);
+    const statName = STAT_LABELS[p.option.stat] || p.option.stat;
+    window._pendingStoryRoll = null;
+    if (typeof closeModal === "function") closeModal();
+    if (newCheck.success) {
+      if (typeof showNotif === "function") {
+        showNotif("Push Luck succeeded! " + statName + " d" + newCheck.actionDie + " [" + newCheck.action.total + "] vs D" + pushDread + " [" + newCheck.dread.total + "].", "good");
+      }
+      applyOutcome(p.sceneId, p.option, p.option.success, newCheck);
+    } else {
+      if (typeof showNotif === "function") {
+        showNotif("Push Luck failed. " + statName + " d" + newCheck.actionDie + " [" + newCheck.action.total + "] vs D" + pushDread + " [" + newCheck.dread.total + "]. +1 Teamwork.", "warn");
+      }
+      applyOutcome(p.sceneId, p.option, p.option.fail || p.option.success, newCheck);
+    }
+    renderStorylinePanel();
+  };
   window.storyPuzzlePress = function (value) {
     const p = ensurePuzzleSession();
     if (p.mode === "code" || p.mode === "crossword" || p.mode === "crossword_grid") return;

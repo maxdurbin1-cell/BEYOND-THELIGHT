@@ -1714,6 +1714,19 @@
     renderWorldThatWas();
   }
 
+  function recordWtwSuccessRoll() {
+    if (typeof S === "undefined") return;
+    S.successRollCount = (typeof S.successRollCount === "number" ? S.successRollCount : 0) + 1;
+    if (S.successRollCount >= 3) {
+      S.successRollCount = 0;
+      if (typeof changeCounter === "function") changeCounter("pathTokens", 1);
+      else S.pathTokens = Math.max(0, (S.pathTokens || 0) + 1);
+      if (typeof showNotif === "function") showNotif("3 successful rolls — +1 Path Token earned!", "good");
+    } else {
+      if (typeof showNotif === "function") showNotif("Success streak: " + S.successRollCount + "/3 toward next Path Token.", "good");
+    }
+  }
+
   function completeHoldingTask(taskId) {
     const w = ensureWorldState();
     if (!w) return;
@@ -1738,20 +1751,18 @@
     const rollSummary = "Adventure d" + adventureDie + " [" + check.actionTotal + "] vs Dread " + dreadLabel(dreadDie) + " [" + check.dreadTotal + "]";
 
     if (!check.success) {
-      // FAILURE: task removed, skirmish triggered, consolation Path Token
-      selected.skirmish = true;
-      if (typeof changeCounter === "function") changeCounter("pathTokens", 1);
-      else if (typeof S !== "undefined") S.pathTokens = Math.max(0, (S.pathTokens || 0) + 1);
-      if (typeof showNotif === "function") {
-        showNotif("Task failed: " + rollSummary + ". Skirmish triggered. +1 Path Token (consolation).", "warn");
-      }
+      // Deferred: store state, show modal with player options — task stays active until resolved
+      window._pendingWtwTaskRoll = {
+        taskId: taskId,
+        task: t,
+        check: check,
+        adventureDie: adventureDie,
+        dreadDie: dreadDie,
+        rollSummary: rollSummary,
+        hexId: selected.id,
+        zone: selected.zone
+      };
       openTaskResultModal(t, check, rollSummary, false, adventureDie, dreadDie);
-      w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
-      if (t.hexId) delete w.markers[t.hexId];
-      syncWorldMarkers();
-      advanceWorldTime("task failure");
-      if (registerWorldAction("task fail")) return;
-      renderWorldThatWas();
       return;
     }
 
@@ -1765,9 +1776,8 @@
     const credits = t.rewardCredits || 150;
     setCredits(getCredits() + credits);
 
-    // Teamwork Points on success
-    if (typeof changeCounter === "function") changeCounter("tmw", 1);
-    else if (typeof S !== "undefined") S.tmw = Math.max(0, (S.tmw || 0) + 1);
+    // Success streak → Path Token at milestone
+    recordWtwSuccessRoll();
 
     // Renown bump on challenging tasks
     if (dreadDie >= 10) {
@@ -1775,7 +1785,7 @@
     }
 
     if (typeof showNotif === "function") {
-      showNotif("Task complete: " + rollSummary + ". +" + credits + "₵ · +1 Teamwork · +1 " + t.power + " renown.", "good");
+      showNotif("Task complete: " + rollSummary + ". +" + credits + "₵ · Streak +1 · +1 " + t.power + " renown.", "good");
     }
 
     openTaskResultModal(t, check, rollSummary, true, adventureDie, dreadDie);
@@ -1805,18 +1815,26 @@
       + (success
         ? ("<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'>"
           + "<strong style='color:var(--teal);'>Rewards:</strong><br>"
-          + "+" + (task.rewardCredits || 150) + " Credits &nbsp;·&nbsp; +1 Teamwork Point &nbsp;·&nbsp; Loot granted<br>"
+          + "+" + (task.rewardCredits || 150) + " Credits &nbsp;·&nbsp; +1 Success Streak · Loot granted<br>"
           + "+1 " + task.power + " Renown &nbsp;·&nbsp; +2 Zone Reputation"
           + (dreadDie >= 10 ? " &nbsp;·&nbsp; +1 Renown (High Danger)" : "")
+          + "</div>"
+          + "<div style='text-align:right;margin-top:.7rem;'>"
+          + "<button class='btn btn-sm btn-primary' onclick='closeModal()'>Continue</button>"
           + "</div>")
-        : ("<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'>"
-          + "<strong style='color:#ff6060;'>Consequences:</strong><br>"
-          + "Task lost &nbsp;·&nbsp; Skirmish triggered in this district<br>"
-          + "+1 Path Token (consolation award)"
+        : ("<div style='background:rgba(255,96,96,.07);border:1px solid rgba(255,96,96,.25);padding:.4rem .55rem;border-radius:4px;margin-bottom:.55rem;'>"
+          + "<div style='font-size:.76rem;font-family:Cinzel,serif;color:#ff6060;margin-bottom:.2rem;'>Task Failed — Choose Your Response</div>"
+          + "<div style='font-size:.77rem;color:var(--text2);line-height:1.6;'>"
+          + "<strong style='color:var(--teal);'>Accept Failure:</strong> Task removed, skirmish triggered, earn <strong style='color:var(--teal);'>+1 Teamwork Point</strong>.<br>"
+          + "<strong style='color:#c9a227;'>Spend 3 Teamwork:</strong> Convert to success, keep task rewards. You have <strong style='color:var(--teal);'>" + ((typeof S !== "undefined" && S.tmw) || 0) + " Teamwork</strong>.<br>"
+          + "<strong style='color:#f0a050;'>Push Your Luck:</strong> Re-roll vs <strong style='color:#f0a050;'>Dread D" + (typeof stepUp === "function" ? stepUp(dreadDie) : dreadDie) + "</strong>. Win = full success. Lose = accept fail +1 Teamwork."
+          + "</div>"
+          + "</div>"
+          + "<div style='display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;'>"
+          + "<button class='btn btn-sm' onclick='wtwAcceptTaskFail()'>Accept (+1 Teamwork)</button>"
+          + "<button class='btn btn-sm btn-teal' " + (((typeof S !== "undefined" && S.tmw) || 0) >= 3 ? "" : "disabled title='Need 3 Teamwork'") + " onclick='wtwSpendTeamworkOnTask()'>Spend 3 Teamwork → Succeed</button>"
+          + "<button class='btn btn-sm' style='background:rgba(240,160,80,.18);border-color:rgba(240,160,80,.5);color:#f0a050;' onclick='wtwPushTaskLuck()'>Push Luck (D" + (typeof stepUp === "function" ? stepUp(dreadDie) : dreadDie) + ")</button>"
           + "</div>"))
-      + "<div style='text-align:right;margin-top:.7rem;'>"
-      + "<button class='btn btn-sm btn-primary' onclick='closeModal()'>Continue</button>"
-      + "</div>";
     openModal("Task: " + task.title, html);
   }
 
@@ -2377,6 +2395,99 @@
     renderWorldThatWas();
   };
   window.wtwSetAccordion = setWorldAccordionOpen;
+
+  window.wtwAcceptTaskFail = function () {
+    const p = window._pendingWtwTaskRoll;
+    if (!p) { if (typeof closeModal === "function") closeModal(); return; }
+    const w = ensureWorldState();
+    const hex = w && hexById(p.hexId);
+    if (hex) hex.skirmish = true;
+    if (typeof changeCounter === "function") changeCounter("tmw", 1);
+    else if (typeof S !== "undefined") S.tmw = Math.max(0, (S.tmw || 0) + 1);
+    if (typeof showNotif === "function") showNotif("Task failed. +1 Teamwork Point. Skirmish triggered in this district.", "warn");
+    if (w) {
+      w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== p.taskId; });
+      if (p.task.hexId) delete w.markers[p.task.hexId];
+    }
+    window._pendingWtwTaskRoll = null;
+    if (typeof closeModal === "function") closeModal();
+    syncWorldMarkers();
+    advanceWorldTime("task failure");
+    renderWorldThatWas();
+  };
+
+  window.wtwPushTaskLuck = function () {
+    const p = window._pendingWtwTaskRoll;
+    if (!p) { if (typeof closeModal === "function") closeModal(); return; }
+    const pushDread = typeof stepUp === "function" ? stepUp(p.dreadDie) : Math.min(20, p.dreadDie + 2);
+    const adventureDie = getActionDie("adventure");
+    const newCheck = rollAgainstDread("adventure", pushDread);
+    const newSummary = "Adventure d" + adventureDie + " [" + newCheck.actionTotal + "] vs Dread " + dreadLabel(pushDread) + " [" + newCheck.dreadTotal + "]";
+    const w = ensureWorldState();
+    const hex = w && hexById(p.hexId);
+    window._pendingWtwTaskRoll = null;
+    if (typeof closeModal === "function") closeModal();
+    if (newCheck.success) {
+      const t = p.task;
+      if (hex) { addPowerRenown(t.power, 1); addZoneReputation(p.zone, 2); }
+      addWorldItem("dataDrives", 1);
+      addWorldItem("fuelCells", 1);
+      grantRandomLoot(t.rewardTier || "medium");
+      setCredits(getCredits() + (t.rewardCredits || 150));
+      recordWtwSuccessRoll();
+      if (p.dreadDie >= 10 && typeof changeCounter === "function") changeCounter("renown", 1);
+      if (typeof showNotif === "function") showNotif("Push Luck succeeded! " + newSummary + ". +" + (t.rewardCredits || 150) + "₵ + Loot.", "good");
+      if (w) {
+        w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== p.taskId; });
+        if (t.hexId) delete w.markers[t.hexId];
+      }
+      openTaskResultModal(t, newCheck, newSummary, true, adventureDie, pushDread);
+    } else {
+      if (hex) hex.skirmish = true;
+      if (typeof changeCounter === "function") changeCounter("tmw", 1);
+      else if (typeof S !== "undefined") S.tmw = Math.max(0, (S.tmw || 0) + 1);
+      if (typeof showNotif === "function") showNotif("Push Luck failed. " + newSummary + ". +1 Teamwork. Skirmish triggered.", "warn");
+      if (w) {
+        w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== p.taskId; });
+        if (p.task.hexId) delete w.markers[p.task.hexId];
+      }
+    }
+    syncWorldMarkers();
+    advanceWorldTime("task push luck");
+    renderWorldThatWas();
+  };
+
+  window.wtwSpendTeamworkOnTask = function () {
+    const p = window._pendingWtwTaskRoll;
+    if (!p) { if (typeof closeModal === "function") closeModal(); return; }
+    const tmw = (typeof S !== "undefined" && typeof S.tmw === "number") ? S.tmw : 0;
+    if (tmw < 3) {
+      if (typeof showNotif === "function") showNotif("Need 3 Teamwork Points to spend.", "warn");
+      return;
+    }
+    if (typeof changeCounter === "function") changeCounter("tmw", -3);
+    else if (typeof S !== "undefined") S.tmw = Math.max(0, tmw - 3);
+    const t = p.task;
+    const w = ensureWorldState();
+    const hex = w && hexById(p.hexId);
+    if (hex) { addPowerRenown(t.power, 1); addZoneReputation(p.zone, 2); }
+    addWorldItem("dataDrives", 1);
+    addWorldItem("fuelCells", 1);
+    grantRandomLoot(t.rewardTier || "medium");
+    setCredits(getCredits() + (t.rewardCredits || 150));
+    recordWtwSuccessRoll();
+    if (w) {
+      w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== p.taskId; });
+      if (t.hexId) delete w.markers[t.hexId];
+    }
+    window._pendingWtwTaskRoll = null;
+    if (typeof closeModal === "function") closeModal();
+    if (typeof showNotif === "function") showNotif("Spent 3 Teamwork to succeed the task. +" + (t.rewardCredits || 150) + "₵ + Loot.", "good");
+    openTaskResultModal(t, p.check, "Teamwork spent — success!", true, p.adventureDie, p.dreadDie);
+    syncWorldMarkers();
+    advanceWorldTime("task teamwork spend");
+    renderWorldThatWas();
+  };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initWorldThatWas);

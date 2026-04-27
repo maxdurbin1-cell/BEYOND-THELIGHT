@@ -1692,6 +1692,7 @@
     const taskHex = safePick(zoneHexes, zoneHexes[0]) || selected;
     const rewardCredits = 120 + safeRoll(8) * 20;
     const rollStat = "adventure";
+    const taskDread = taskDreadForZone(h.zone);
 
     const t = {
       id: taskId,
@@ -1701,9 +1702,9 @@
       hexId: taskHex ? taskHex.id : null,
       status: "active",
       rollStat: rollStat,
-      dread: 6,
+      dread: taskDread,
       rewardCredits: rewardCredits,
-      rewardTier: safePick(["easy", "medium", "medium", "challenging"], "medium")
+      rewardTier: taskDread >= 10 ? "challenging" : (taskDread >= 8 ? "medium" : "easy")
     };
 
     w.activeTasks.unshift(t);
@@ -1720,17 +1721,33 @@
     if (!t) return;
 
     const selected = getSelectedHex();
-    if (!selected || selected.id !== t.hexId) {
-      if (typeof showNotif === "function") showNotif("Travel to the task district before completing.", "warn");
+    // Allow completion from any hex if hexId is null; otherwise require matching hex
+    if (t.hexId && (!selected || selected.id !== t.hexId)) {
+      if (typeof showNotif === "function") showNotif("Travel to the task district to complete. Track the marker for guidance.", "warn");
+      return;
+    }
+    if (!selected) {
+      if (typeof showNotif === "function") showNotif("Select a district hex before completing a task.", "warn");
       return;
     }
 
-    const check = rollAgainstDread(t.rollStat || "adventure", t.dread || 6);
+    const dreadDie = t.dread || taskDreadForZone(selected.zone);
+    const adventureDie = getActionDie("adventure");
+    const check = rollAgainstDread("adventure", dreadDie);
+
+    const rollSummary = "Adventure d" + adventureDie + " [" + check.actionTotal + "] vs Dread " + dreadLabel(dreadDie) + " [" + check.dreadTotal + "]";
+
     if (!check.success) {
+      // FAILURE: task removed, skirmish triggered, consolation Path Token
       selected.skirmish = true;
-      if (typeof showNotif === "function") showNotif("Task failed: " + statLabel(t.rollStat || "adventure") + " check missed DD" + (t.dread || 6) + ".", "warn");
+      if (typeof changeCounter === "function") changeCounter("pathTokens", 1);
+      else if (typeof S !== "undefined") S.pathTokens = Math.max(0, (S.pathTokens || 0) + 1);
+      if (typeof showNotif === "function") {
+        showNotif("Task failed: " + rollSummary + ". Skirmish triggered. +1 Path Token (consolation).", "warn");
+      }
+      openTaskResultModal(t, check, rollSummary, false, adventureDie, dreadDie);
       w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
-      delete w.markers[t.hexId];
+      if (t.hexId) delete w.markers[t.hexId];
       syncWorldMarkers();
       advanceWorldTime("task failure");
       if (registerWorldAction("task fail")) return;
@@ -1738,24 +1755,69 @@
       return;
     }
 
+    // SUCCESS
     t.status = "done";
     addPowerRenown(t.power, 1);
     addZoneReputation(selected.zone, 2);
     addWorldItem("dataDrives", 1);
     addWorldItem("fuelCells", 1);
     grantRandomLoot(t.rewardTier || "medium");
-    setCredits(getCredits() + (t.rewardCredits || 150));
+    const credits = t.rewardCredits || 150;
+    setCredits(getCredits() + credits);
 
-    if (typeof showNotif === "function") {
-      showNotif("Task complete: +" + (t.rewardCredits || 150) + " Credits, +1 " + t.power + " renown.", "good");
+    // Teamwork Points on success
+    if (typeof changeCounter === "function") changeCounter("tmw", 1);
+    else if (typeof S !== "undefined") S.tmw = Math.max(0, (S.tmw || 0) + 1);
+
+    // Renown bump on challenging tasks
+    if (dreadDie >= 10) {
+      if (typeof changeCounter === "function") changeCounter("renown", 1);
     }
 
+    if (typeof showNotif === "function") {
+      showNotif("Task complete: " + rollSummary + ". +" + credits + "₵ · +1 Teamwork · +1 " + t.power + " renown.", "good");
+    }
+
+    openTaskResultModal(t, check, rollSummary, true, adventureDie, dreadDie);
+
     w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
-    delete w.markers[t.hexId];
+    if (t.hexId) delete w.markers[t.hexId];
     syncWorldMarkers();
     advanceWorldTime("holding task");
     if (registerWorldAction("task complete")) return;
     renderWorldThatWas();
+  }
+
+  function openTaskResultModal(task, check, rollSummary, success, adventureDie, dreadDie) {
+    if (typeof openModal !== "function") return;
+    const color = success ? "var(--teal)" : "#ff6060";
+    const icon = success ? "✓ SUCCESS" : "✗ FAILURE";
+    const html = ""
+      + "<div style='text-align:center;font-family:Cinzel,serif;font-size:1.1rem;color:" + color + ";margin-bottom:.6rem;letter-spacing:.08em;'>" + icon + "</div>"
+      + "<div style='display:flex;justify-content:center;gap:1.5rem;margin-bottom:.7rem;'>"
+      + "<div style='text-align:center;'><div style='font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;'>Adventure d" + adventureDie + "</div>"
+      + "<div style='font-size:2rem;font-weight:700;color:" + (success ? "var(--teal)" : "var(--text2)") + ";'>" + check.actionTotal + "</div></div>"
+      + "<div style='text-align:center;padding-top:.6rem;font-size:1.4rem;color:var(--muted2);'>vs</div>"
+      + "<div style='text-align:center;'><div style='font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;'>Dread " + dreadLabel(dreadDie) + "</div>"
+      + "<div style='font-size:2rem;font-weight:700;color:#e05050;'>" + check.dreadTotal + "</div></div>"
+      + "</div>"
+      + "<div style='font-size:.8rem;color:var(--text2);margin-bottom:.5rem;text-align:center;'>" + task.title + " · " + task.power + "</div>"
+      + (success
+        ? ("<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'>"
+          + "<strong style='color:var(--teal);'>Rewards:</strong><br>"
+          + "+" + (task.rewardCredits || 150) + " Credits &nbsp;·&nbsp; +1 Teamwork Point &nbsp;·&nbsp; Loot granted<br>"
+          + "+1 " + task.power + " Renown &nbsp;·&nbsp; +2 Zone Reputation"
+          + (dreadDie >= 10 ? " &nbsp;·&nbsp; +1 Renown (High Danger)" : "")
+          + "</div>")
+        : ("<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'>"
+          + "<strong style='color:#ff6060;'>Consequences:</strong><br>"
+          + "Task lost &nbsp;·&nbsp; Skirmish triggered in this district<br>"
+          + "+1 Path Token (consolation award)"
+          + "</div>"))
+      + "<div style='text-align:right;margin-top:.7rem;'>"
+      + "<button class='btn btn-sm btn-primary' onclick='closeModal()'>Continue</button>"
+      + "</div>";
+    openModal("Task: " + task.title, html);
   }
 
   function jumpToTaskHex(taskId) {
@@ -1871,6 +1933,20 @@
     }).join("");
   }
 
+  const DREAD_DIE_LABELS = { 4: "D4", 6: "D6", 8: "D8", 10: "D10", 12: "D12", 20: "D20" };
+
+  function dreadLabel(die) {
+    return DREAD_DIE_LABELS[die] || ("D" + die);
+  }
+
+  function taskDreadForZone(zoneName) {
+    const danger = dangerForZone(zoneName || "Cyber Hub");
+    if (danger.eventDreadBias >= 2) return 10;
+    if (danger.eventDreadBias >= 1) return 8;
+    if (danger.eventDreadBias <= -1) return 4;
+    return 6;
+  }
+
   function renderActiveTasksPanel() {
     const w = ensureWorldState();
     if (!w) return "";
@@ -1882,15 +1958,29 @@
     return w.activeTasks.slice(0, 5).map(function (t) {
       const taskHex = hexById(t.hexId);
       const selected = getSelectedHex();
-      const atLocation = !!selected && selected.id === t.hexId;
+      const atLocation = t.hexId
+        ? (!!selected && selected.id === t.hexId)
+        : !!selected;
+      const dieLabel = dreadLabel(t.dread || 6);
+      const zoneDanger = taskHex ? dangerForZone(taskHex.zone) : null;
+      const dangerTag = zoneDanger
+        ? (zoneDanger.eventDreadBias >= 2 ? "<span style='color:#ff6060;font-size:.7rem;'> ⚠ High Danger</span>"
+          : zoneDanger.eventDreadBias >= 1 ? "<span style='color:#f0a050;font-size:.7rem;'> ⚠ Moderate Danger</span>"
+          : "")
+        : "";
       return ""
         + "<div class='wtw-list-card'>"
-        + "<div class='title'>" + t.title + "</div>"
-        + "<div class='meta'>Power: " + t.power + " · Target: " + (taskHex ? (taskHex.zone + " / " + taskHex.district) : "Unknown") + "</div>"
-        + "<div class='meta'>Roll: " + statLabel(t.rollStat || "body") + " vs DD" + (t.dread || 8) + " · Reward: " + (t.rewardCredits || 150) + " Credits + Loot</div>"
+        + "<div class='title'>" + t.title + dangerTag + "</div>"
+        + "<div class='meta'>Power: " + t.power + " · Target: " + (taskHex ? (taskHex.zone + " / " + taskHex.district) : "Any district") + "</div>"
+        + "<div class='meta' style='color:var(--gold2);'>"
+        + "⚄ Adventure vs Dread " + dieLabel
+        + " · Reward: " + (t.rewardCredits || 150) + "₵ + Loot + +1 Teamwork"
+        + "</div>"
+        + "<div class='meta' style='color:var(--muted2);font-size:.72rem;'>Failure: gain Path Token · "+
+        statLabel(t.rollStat || "adventure") + " die used</div>"
         + "<div class='actions'>"
         + "<button class='btn btn-xs' onclick='wtwTrackTask(\"" + t.id + "\")'>Track</button>"
-        + "<button class='btn btn-xs btn-teal' onclick='wtwCompleteTask(\"" + t.id + "\")'" + (atLocation ? "" : " disabled") + ">Complete</button>"
+        + "<button class='btn btn-xs btn-teal' onclick='wtwCompleteTask(\"" + t.id + "\")'" + (atLocation ? "" : " title='Travel to task district first' disabled") + ">Complete Task</button>"
         + "</div>"
         + "</div>";
     }).join("");

@@ -137,6 +137,57 @@
             effects: { health: 1, tmw: 1 },
           },
         },
+        {
+          id: "o4",
+          text: "Draw on your Courage — stride forward as though you have already won",
+          stat: "spirit",
+          baseDread: 6,
+          req: { virtueAny: ["Courage", "Resolution", "Hope"] },
+          success: {
+            next: "intro_sigil",
+            text: "Your bearing commands the scene. Lyra and Iosef both step forward; the killers' trail opens like a wound.",
+            effects: { renown: 1, npc: { lyra: 1, iosef: 1 } },
+          },
+          fail: {
+            next: "intro_failtrail",
+            text: "Courage alone cannot fill gaps in knowledge. You overreach and the opening closes.",
+            effects: { mentalStress: 1 },
+          },
+        },
+        {
+          id: "o5",
+          text: "Use your dangerous reputation to intimidate a bystander into talking",
+          stat: "lead",
+          baseDread: 6,
+          req: { reputationAny: ["Dangerous", "Leader"] },
+          success: {
+            next: "intro_sigil",
+            text: "A cattle trader spills everything — the sigil, the route, the buyer. Fear is a fast translator.",
+            effects: { credits: 40, faction: { underworld: 1 } },
+          },
+          fail: {
+            next: "intro_failtrail",
+            text: "The bystander knows you by name and that makes them more terrified — they run.",
+            effects: { mentalStress: 1 },
+          },
+        },
+        {
+          id: "o6",
+          text: "Your mutation makes you sense lingering violence in this place",
+          stat: "mind",
+          baseDread: 8,
+          req: { mutationIncludes: ["superhuman", "sense", "reflex", "rippling", "bone", "thick", "ears"] },
+          success: {
+            next: "marshal_ambush",
+            text: "Your altered senses catch the heat-traces of recent killers. You follow the residue directly to the Marshals.",
+            effects: { tmw: 1, flags: { mutantSensed: true } },
+          },
+          fail: {
+            next: "intro_failtrail",
+            text: "Your mutation flares at the wrong signal. You chase noise instead of trail.",
+            effects: { mentalStress: 1 },
+          },
+        },
       ],
     },
 
@@ -361,6 +412,24 @@
           req: { factionAtLeast: { key: "military", min: 2 } },
           success: { next: "storm_archive", text: "A convoy captain signs your temporary immunity writ.", effects: { faction: { military: 1 }, flags: { gotConvoyWrit: true } } },
           fail: { next: "sea_chase", text: "The captain refuses to stake rank on you.", effects: { faction: { military: -1 }, mentalStress: 1 } },
+        },
+        {
+          id: "o5",
+          text: "Show mercy to the court bailiff and earn honest testimony",
+          stat: "spirit",
+          baseDread: 8,
+          req: { virtueAny: ["Mercy", "Justice", "Wisdom"] },
+          success: { next: "storm_archive", text: "The bailiff has never been shown mercy before. He breaks rank and personally escorts you to the archive.", effects: { npc: { lyra: 1 }, flags: { mercyBailiff: true } } },
+          fail: { next: "sea_chase", text: "Mercy is mistaken for weakness. The court presses harder.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o6",
+          text: "Your greedy reputation precedes you — the court assumes you can be bought, buy them first",
+          stat: "control",
+          baseDread: 8,
+          req: { viceAny: ["Greedy", "Envious"] },
+          success: { next: "storm_archive", text: "The court's greed mirrors yours. A quiet negotiation nets you archive access at extravagant mutual cost.", effects: { credits: -120, flags: { purchasedArchive: true }, faction: { corporations: 1 } } },
+          fail: { next: "sea_chase", text: "They take the credits and offer nothing.", effects: { credits: -80, mentalStress: 1 } },
         },
       ],
     },
@@ -738,6 +807,24 @@
           partial: { next: "age_shift", text: "You recite most of the canticle correctly, opening only one of the hidden exits.", effects: { merchantReward: { credits: 90, factionKey: "political", factionRenown: 1 }, lexicon: { tor: "oath" } } },
           fail: { next: "age_shift", text: "Your pronunciation fractures the ritual, but the path still opens in panic.", effects: { mentalStress: 1, tmw: 1 } },
         },
+        {
+          id: "o6",
+          text: "Your lazy reputation lets you blend in as a drone-collared citizen",
+          stat: "control",
+          baseDread: 8,
+          req: { viceAny: ["Lazy", "Coward"] },
+          success: { next: "age_shift", text: "You shuffle past every scanner checkpoint looking exactly like someone who gave up long ago. Invisibility through defeat.", effects: { flags: { blendedIn: true }, credits: 60 } },
+          fail: { next: "age_shift", text: "Your performance wasn't quite hopeless enough to pass.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o7",
+          text: "Draw on your wisest counsels and map the colony's hidden fault lines",
+          stat: "mind",
+          baseDread: 10,
+          req: { virtueAny: ["Wisdom", "Justice", "Helpful"] },
+          success: { next: "age_shift", text: "You identify the colony's three key breaking points and trigger a cascading structural failure in the loyalty algorithm.", effects: { renown: 1, faction: { rebels: 1 }, flags: { colonyFaultMapped: true } } },
+          fail: { next: "age_shift", text: "The map is partial. You disrupt one subsystem, buying others time.", effects: { tmw: 1 } },
+        },
       ],
     },
 
@@ -826,6 +913,33 @@
           req: { usedStatCountAtLeast: { count: 5 } },
           success: { next: "ally_reckoning", text: "Lyra, Mara, and city witnesses converge on the courthouse steps.", effects: { flags: { allySummit: true } } },
           fail: { next: "ally_reckoning", text: "Only some allies answer, but it is still enough to force a hearing.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o5",
+          text: "Your addicted or exiled misfortune makes you an unexpected folk hero",
+          stat: "spirit",
+          baseDread: 8,
+          req: { misfortuneIs: "Addicted" },
+          success: { next: "ally_reckoning", text: "City survivors recognize your scars and fall in behind you — the broken leading the held-down.", effects: { renown: 2, faction: { rebels: 2 }, flags: { misfortuneRallied: true } } },
+          fail: { next: "wtw_reckoning", text: "The crowd sees the cracks before they see the cause.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o6",
+          text: "Your honest reputation makes districts believe you without credentials",
+          stat: "lead",
+          baseDread: 6,
+          req: { reputationAny: ["Honest", "Wise", "Leader"] },
+          success: { next: "finale_gate", text: "A reputation earned in travel crosses factions. Three district leaders publicly endorse your position.", effects: { renown: 2, faction: { political: 1 }, flags: { repEndorsed: true } } },
+          fail: { next: "ally_reckoning", text: "Not every district has heard of you yet. Some doors stay shut.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o7",
+          text: "Your mutation grants physical presence — lead the march through the district",
+          stat: "body",
+          baseDread: 10,
+          req: { mutationIncludes: ["rippling", "superhuman", "thick", "crocodile", "tusks", "enormous"] },
+          success: { next: "ally_reckoning", text: "You march through the district. Nothing stops you. The crowd follows because something fearless is walking ahead.", effects: { renown: 1, faction: { military: 1 } } },
+          fail: { next: "ally_reckoning", text: "Size isn't everything. You draw attention but not yet allegiance.", effects: { health: 1 } },
         },
       ],
     },
@@ -1340,6 +1454,40 @@
     if (Array.isArray(req.quoteKnownAny) && req.quoteKnownAny.length) {
       const okAny = req.quoteKnownAny.some(function (q) { return hasRememberedQuote(q); });
       if (!okAny) return false;
+    }
+    // Trait-based requirements (virtue, vice, reputation, misfortune, physique, mutation)
+    if (req.virtueIs) {
+      const v = lc((S && S.traits && S.traits.virtue) || "");
+      if (v.indexOf(lc(req.virtueIs)) < 0) return false;
+    }
+    if (Array.isArray(req.virtueAny) && req.virtueAny.length) {
+      const v = lc((S && S.traits && S.traits.virtue) || "");
+      if (!req.virtueAny.some(function (x) { return v.indexOf(lc(x)) >= 0; })) return false;
+    }
+    if (req.viceIs) {
+      const v = lc((S && S.traits && S.traits.vice) || "");
+      if (v.indexOf(lc(req.viceIs)) < 0) return false;
+    }
+    if (Array.isArray(req.viceAny) && req.viceAny.length) {
+      const v = lc((S && S.traits && S.traits.vice) || "");
+      if (!req.viceAny.some(function (x) { return v.indexOf(lc(x)) >= 0; })) return false;
+    }
+    if (req.reputationIs) {
+      const v = lc((S && S.traits && S.traits.reputation) || "");
+      if (v.indexOf(lc(req.reputationIs)) < 0) return false;
+    }
+    if (Array.isArray(req.reputationAny) && req.reputationAny.length) {
+      const v = lc((S && S.traits && S.traits.reputation) || "");
+      if (!req.reputationAny.some(function (x) { return v.indexOf(lc(x)) >= 0; })) return false;
+    }
+    if (req.misfortuneIs) {
+      const v = lc((S && S.traits && S.traits.misfortune) || "");
+      if (v.indexOf(lc(req.misfortuneIs)) < 0) return false;
+    }
+    if (req.mutationIncludes) {
+      const m = lc((S && S.mutation) || "");
+      const terms = Array.isArray(req.mutationIncludes) ? req.mutationIncludes : [req.mutationIncludes];
+      if (!terms.some(function (t) { return m.indexOf(lc(t)) >= 0; })) return false;
     }
     return true;
   }
@@ -1864,6 +2012,20 @@
       const currentDread = getOptionDread(sceneId, option);
       const nextDread = checkResult.success ? stepDown(currentDread) : stepUp(currentDread);
       setOptionDread(sceneId, option.id, nextDread);
+
+      // Dynamic rewards: Teamwork Points on success, Path Token on failure
+      if (checkResult.success) {
+        if (typeof changeCounter === "function") changeCounter("tmw", 1);
+        // Renown for high-dread successes
+        if (checkResult.dreadDie >= 12 && outcome && outcome.effects && !outcome.effects.renown) {
+          if (typeof changeCounter === "function") changeCounter("renown", 1);
+          if (typeof showNotif === "function") showNotif("+1 Renown for overcoming high dread.", "good");
+        }
+      } else {
+        if (typeof changeCounter === "function") changeCounter("pathTokens", 1);
+        else if (typeof S !== "undefined") S.pathTokens = Math.max(0, (S.pathTokens || 0) + 1);
+        if (typeof showNotif === "function") showNotif("+1 Path Token (consolation for setback).", "good");
+      }
     }
 
     if (outcome && outcome.effects) applyEffects(outcome.effects);
@@ -1957,17 +2119,17 @@
             planetHexId: st.travelMarkers.planetHexId,
           };
           doJump(option.jump);
-          if (typeof showNotif === "function") {
-            showNotif("Story marker placed: " + objective.label + ". Travel there, then choose again.", "good");
-          }
+          openStoryTravelModal(option, objective);
           renderStorylinePanel();
           return;
         }
+        // Map not ready — resolve immediately with a clear narrative note
+        if (typeof showNotif === "function") {
+          showNotif("Story path opened. No travel map available yet — outcome resolved directly.", "good");
+        }
       } else if (!isStoryObjectiveReached(pending)) {
         doJump(option.jump);
-        if (typeof showNotif === "function") {
-          showNotif("Story marker not reached yet: " + (pending.targetLabel || "travel objective") + ".", "warn");
-        }
+        openStoryTravelReminderModal(pending);
         renderStorylinePanel();
         return;
       } else {
@@ -1982,6 +2144,54 @@
     }
 
     resolveStoryOption(sceneId, option, null);
+  }
+
+  function openStoryTravelModal(option, objective) {
+    if (typeof openModal !== "function") return;
+    const SYSTEM_NAMES = {
+      province: "Province Map",
+      lastsea: "Last Sea Map",
+      galaxy: "Galaxy Map",
+      wtw: "World That Was Map",
+      planet: "Planet Map"
+    };
+    const sysName = SYSTEM_NAMES[objective.system] || objective.system;
+    const html = ""
+      + "<div style='font-size:.9rem;color:var(--gold2);font-family:Cinzel,serif;margin-bottom:.5rem;'>Story Marker Placed</div>"
+      + "<div style='font-size:.83rem;color:var(--text2);line-height:1.65;margin-bottom:.55rem;'>"
+      + "A <strong style='color:var(--teal);'>➤ story marker</strong> has been placed on the <strong>" + sysName + "</strong>."
+      + "<br>Target: <strong style='color:var(--gold2);'>" + objective.label + "</strong>"
+      + "</div>"
+      + "<div style='font-size:.8rem;color:var(--muted2);border:1px solid rgba(240,208,112,.25);background:rgba(240,208,112,.06);padding:.35rem .5rem;margin-bottom:.55rem;'>"
+      + "Navigate to the map tab, travel to the marked hex, then return to <strong>Storyline</strong> and choose this option again to resolve it."
+      + "</div>"
+      + "<div style='font-size:.78rem;color:var(--text2);'>Story Option: <em>" + option.text + "</em></div>"
+      + "<div style='text-align:right;margin-top:.6rem;'>"
+      + "<button class='btn btn-sm btn-primary' onclick='closeModal()'>Understood — I'll travel there</button>"
+      + "</div>";
+    openModal("Storyline: Travel Required", html);
+  }
+
+  function openStoryTravelReminderModal(pending) {
+    if (typeof openModal !== "function") return;
+    const SYSTEM_NAMES = {
+      province: "Province Map",
+      lastsea: "Last Sea Map",
+      galaxy: "Galaxy Map",
+      wtw: "World That Was Map",
+      planet: "Planet Map"
+    };
+    const sysName = SYSTEM_NAMES[pending.system] || pending.system;
+    const html = ""
+      + "<div style='font-size:.9rem;color:#ff8a72;font-family:Cinzel,serif;margin-bottom:.5rem;'>Not Yet Arrived</div>"
+      + "<div style='font-size:.83rem;color:var(--text2);line-height:1.65;margin-bottom:.45rem;'>"
+      + "Your story marker is waiting at <strong style='color:var(--gold2);'>" + (pending.targetLabel || "Travel target") + "</strong> on the <strong>" + sysName + "</strong>."
+      + "</div>"
+      + "<div style='font-size:.78rem;color:var(--muted2);'>Select that hex/location, then return here and choose this option again.</div>"
+      + "<div style='text-align:right;margin-top:.6rem;'>"
+      + "<button class='btn btn-sm' onclick='closeModal()'>Back</button>"
+      + "</div>";
+    openModal("Storyline: Travel Objective Active", html);
   }
 
   function renderRequirement(req) {
@@ -2003,6 +2213,14 @@
     if (req.lexiconCountAtLeast && req.lexiconCountAtLeast.count) bits.push("Known glyphs ≥ " + req.lexiconCountAtLeast.count);
     if (req.quoteKnown) bits.push("Remembered quote: " + req.quoteKnown);
     if (Array.isArray(req.quoteKnownAny) && req.quoteKnownAny.length) bits.push("Any remembered: " + req.quoteKnownAny.join(" / "));
+    if (req.virtueIs) bits.push("Virtue: " + req.virtueIs);
+    if (Array.isArray(req.virtueAny)) bits.push("Virtue: " + req.virtueAny.join(" / "));
+    if (req.viceIs) bits.push("Vice: " + req.viceIs);
+    if (Array.isArray(req.viceAny)) bits.push("Vice: " + req.viceAny.join(" / "));
+    if (req.reputationIs) bits.push("Reputation: " + req.reputationIs);
+    if (Array.isArray(req.reputationAny)) bits.push("Reputation: " + req.reputationAny.join(" / "));
+    if (req.misfortuneIs) bits.push("Misfortune: " + req.misfortuneIs);
+    if (req.mutationIncludes) bits.push("Mutation: " + (Array.isArray(req.mutationIncludes) ? req.mutationIncludes.join(" / ") : req.mutationIncludes));
     return bits.join(" · ");
   }
 
@@ -2052,12 +2270,12 @@
         : null;
       const pendingReached = pending ? isStoryObjectiveReached(pending) : false;
       const btnLabel = pending
-        ? (pendingReached ? "Choose (Arrived)" : "Go To Marker")
+        ? (pendingReached ? "✓ Choose (Arrived)" : "▶ Go To Marker")
         : "Choose";
       return "<div class='story-opt " + (unlocked ? "" : "locked") + "'>"
         + "<div class='story-opt-text'>" + option.text + "</div>"
         + (option.stat ? ("<div class='story-opt-roll'>" + (STAT_LABELS[option.stat] || option.stat) + " vs DD" + dd + "</div>") : "")
-        + (pending ? ("<div class='story-opt-req'>Story marker: " + (pending.targetLabel || "Travel target") + (pendingReached ? " ✓" : "") + "</div>") : "")
+        + (pending ? ("<div class='story-opt-req' style='color:var(--gold2);'>➤ Marker: " + (pending.targetLabel || "Travel target") + (pendingReached ? " ✓ Arrived" : " — travel there") + "</div>") : "")
         + (reqText ? ("<div class='story-opt-req'>" + reqText + "</div>") : "")
         + "<button class='btn btn-sm " + (unlocked ? "btn-primary" : "") + "' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\")'") : "disabled") + ">" + btnLabel + "</button>"
       + "</div>";
@@ -2104,7 +2322,10 @@
       + "<div class='story-body'>" + scene.text + "</div>"
       + (variantText ? ("<div class='story-result'><strong>Variant:</strong> " + variantText + "</div>") : "")
       + (st.lastResult ? ("<div class='story-result'><strong>Last Outcome:</strong> " + st.lastResult + "</div>") : "")
-      + (st.pendingTravel ? ("<div class='story-result'><strong>Travel Objective:</strong> " + (st.pendingTravel.targetLabel || "Travel marker") + " · " + (isStoryObjectiveReached(st.pendingTravel) ? "Arrived" : "En route") + "</div>") : "")
+      + (st.pendingTravel ? ("<div class='story-result' style='border:1px solid rgba(240,208,112,.4);background:rgba(240,208,112,.08);'>"
+        + "<strong style='color:var(--gold2);'>➤ Travel Objective:</strong> Navigate to <strong>" + (st.pendingTravel.targetLabel || "story marker") + "</strong>"
+        + " · " + (isStoryObjectiveReached(st.pendingTravel) ? "<span style='color:var(--teal);'>✓ Arrived — choose the option again</span>" : "<span style='color:#f0a050;'>En route — find the ➤ marker on the map</span>")
+        + "</div>") : "")
       + "<div class='story-options'>" + options + "</div>"
       + "</div>"
       + "<div class='story-column story-right'>"
@@ -2113,6 +2334,17 @@
       + "<div class='story-label'>NPC Arc Affinity</div><div class='story-value'>" + affinity + "</div>"
       + "<div class='story-label'>Career</div><div class='story-value'>" + (S.career || "Unset") + "</div>"
       + "<div class='story-label'>Background</div><div class='story-value'>" + (S.background || "Unset") + "</div>"
+      + "<div class='story-label'>Personal Traits</div>"
+      + "<div class='story-value' style='font-size:.74rem;'>"
+      + (S.traits ? [
+          S.traits.virtue ? "Virtue: <strong>" + S.traits.virtue + "</strong>" : "",
+          S.traits.vice ? "Vice: <strong>" + S.traits.vice + "</strong>" : "",
+          S.traits.reputation ? "Reputation: <strong>" + S.traits.reputation + "</strong>" : "",
+          S.traits.misfortune ? "Misfortune: <strong>" + S.traits.misfortune + "</strong>" : "",
+        ].filter(Boolean).join(" · ") || "No traits set"
+       : "No traits set")
+      + (S.mutation ? "<br>Mutation: <em style='color:var(--teal);'>" + S.mutation + "</em>" : "")
+      + "</div>"
       + "<div class='story-label'>Faction Ranks</div>"
       + "<div class='story-factions'>"
       + Object.keys(FACTION_LABELS).map(function (k) {
@@ -2121,6 +2353,12 @@
       + "</div>"
       + "<div class='story-label'>Decoded Lexicon</div><div class='story-value'>" + lexiconText + "</div>"
       + "<div class='story-label'>Remembered Voices</div><div class='story-value'>" + memoryText + "</div>"
+      + "<div class='story-label' style='margin-top:.4rem;color:var(--teal);'>Reward Info</div>"
+      + "<div class='story-value' style='font-size:.74rem;color:var(--muted2);line-height:1.5;'>"
+      + "✓ Success: +1 Teamwork Point · Dread D12+ gives +1 Renown<br>"
+      + "✗ Failure: +1 Path Token (consolation)<br>"
+      + "Story travel: place marker, navigate to hex, choose again"
+      + "</div>"
       + "</div>"
       + "<div class='story-card'>"
       + "<div class='story-label'>Choice Log</div>"

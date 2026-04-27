@@ -132,6 +132,18 @@ select option{background:#0f1020;}
 .modal-header{font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.12em;color:var(--gold);margin-bottom:.85rem;padding-bottom:.55rem;border-bottom:1px solid var(--border);}
 .notif{position:fixed;bottom:1.2rem;left:1.2rem;background:var(--card2);border:1px solid var(--gold);color:var(--text);padding:.6rem .9rem;font-size:.85rem;max-width:320px;z-index:1200;transform:translateX(-120%);transition:transform .3s ease;line-height:1.4;}
 .notif.show{transform:translateX(0);}.notif.warn{border-color:var(--red);}.notif.good{border-color:var(--green);}
+.dice-roll-layer{position:fixed;right:1.2rem;top:4rem;z-index:1300;display:flex;flex-direction:column;gap:.35rem;pointer-events:none;max-width:240px;}
+.dice-roll-pop{background:rgba(11,12,26,.94);border:1px solid rgba(201,162,39,.45);padding:.35rem .5rem;border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:space-between;gap:.6rem;min-width:150px;transform:translateX(18px) scale(.92);opacity:0;animation:dice-pop-in .18s ease forwards,dice-pop-out .24s ease forwards 1.18s;}
+.dice-roll-pop.exploded{border-color:rgba(224,80,80,.6);}
+.dice-roll-pop .dr-left{display:flex;align-items:center;gap:.4rem;min-width:0;}
+.dice-roll-pop .dr-die{width:1.25rem;height:1.25rem;border:1px solid rgba(46,196,182,.55);background:rgba(46,196,182,.08);color:var(--teal2);font-family:'Rajdhani',sans-serif;font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;transform:rotate(45deg);border-radius:2px;flex-shrink:0;}
+.dice-roll-pop .dr-die span{transform:rotate(-45deg);}
+.dice-roll-pop .dr-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.11em;color:var(--muted2);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dice-roll-pop .dr-value{font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;color:var(--gold2);line-height:1;}
+.dice-roll-pop.exploded .dr-value{color:var(--red2);}
+@keyframes dice-pop-in{from{opacity:0;transform:translateX(18px) scale(.92);}to{opacity:1;transform:translateX(0) scale(1);}}
+@keyframes dice-pop-out{from{opacity:1;transform:translateX(0) scale(1);}to{opacity:0;transform:translateX(22px) scale(.96);}}
+@media(max-width:820px){.dice-roll-layer{right:.5rem;top:3.7rem;max-width:200px;}.dice-roll-pop{min-width:130px;}}
 .enemy-card{background:var(--surface);border:1px solid var(--border2);padding:.6rem;display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem;}
 .e-pip{width:.8rem;height:.8rem;border:1px solid var(--border2);cursor:pointer;transition:all .1s;}
 .e-pip.filled{background:var(--red);border-color:var(--red2);}
@@ -1019,15 +1031,39 @@ select option{background:#0f1020;}
   </div>
 </div>
 <div class="notif" id="notif"></div>
+<div id="diceRollLayer" class="dice-roll-layer" aria-live="polite"></div>
 
 <script>
 const DICE=[4,6,8,10,12,20];
-const roll=n=>Math.floor(Math.random()*n)+1;
+const DICE_VISUAL={enabled:true,maxVisible:6};
+function queueDiceRollVisual(sides,value,meta){
+  if(!DICE_VISUAL.enabled)return;
+  const layer=document.getElementById('diceRollLayer');
+  if(!layer)return;
+  const die=Math.max(1,parseInt(sides,10)||1);
+  const val=Math.max(1,parseInt(value,10)||1);
+  const tag=meta&&meta.label?String(meta.label):'Roll';
+  const exploding=!!(meta&&meta.exploded);
+  const card=document.createElement('div');
+  card.className='dice-roll-pop'+(exploding?' exploded':'');
+  card.innerHTML='<div class="dr-left"><div class="dr-die"><span>d'+die+'</span></div><div class="dr-label">'+tag+'</div></div><div class="dr-value">'+val+'</div>';
+  layer.appendChild(card);
+  while(layer.children.length>DICE_VISUAL.maxVisible){
+    layer.removeChild(layer.firstChild);
+  }
+  setTimeout(function(){ if(card&&card.parentNode) card.parentNode.removeChild(card); }, 1420);
+}
+function roll(n,meta){
+  const sides=Math.max(1,parseInt(n,10)||1);
+  const value=Math.floor(Math.random()*sides)+1;
+  queueDiceRollVisual(sides,value,meta||null);
+  return value;
+}
 const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
 const pickN=(arr,n)=>{const a=[...arr];const r=[];for(let i=0;i<n&&a.length;i++){const j=Math.floor(Math.random()*a.length);r.push(a.splice(j,1)[0]);}return r;};
 const stepUp=n=>{const i=DICE.indexOf(n);return i<DICE.length-1?DICE[i+1]:n;};
 const stepDown=n=>{const i=DICE.indexOf(n);return i>0?DICE[i-1]:n;};
-function explodingRoll(n){let t=0,r,c=0;do{r=roll(n);t+=r;c++;}while(r===n&&c<8);return{total:t,exploded:c>1};}
+function explodingRoll(n){let t=0,r,c=0;do{r=roll(n,{label:'Explode',exploded:c>0});t+=r;c++;}while(r===n&&c<8);return{total:t,exploded:c>1};}
 function rollMulti(n,count){let t=0;for(let i=0;i<count;i++)t+=roll(n);return t;}
 
 const SOUL_ARRAYS=[[8,8,6,6,6,4,4,4],[8,6,6,6,6,6,6,4],[8,8,8,6,4,4,4,4],[10,8,6,6,4,4,4,4],[8,8,8,8,6,4,4,4]];

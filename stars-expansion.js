@@ -4202,6 +4202,9 @@ function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, has
 
 function renderPlanetSurfaceSvg(state, selected) {
   if (!state || !Array.isArray(state.cells) || !state.cells.length) return '';
+  const mapFx = (typeof window.getMapVisualSettings === 'function')
+    ? window.getMapVisualSettings()
+    : { hex3d: false, overlay: 'none' };
   const size = 28;
   const rows = PLANET_SURFACE_ROWS;
   const cols = PLANET_SURFACE_COLS;
@@ -4266,13 +4269,35 @@ function renderPlanetSurfaceSvg(state, selected) {
     const pts = hexPointsSVG(x, y, size - 1);
     const visual = getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask, isStoryObjective);
     const strokeWidth = isSelected ? 2.4 : isWayfarerContract ? 2 : 1.2;
+    const topX1 = x + (size - 1) * Math.cos(Math.PI / 180 * -30);
+    const topY1 = y + (size - 1) * Math.sin(Math.PI / 180 * -30);
+    const topX2 = x + (size - 1) * Math.cos(Math.PI / 180 * 30);
+    const topY2 = y + (size - 1) * Math.sin(Math.PI / 180 * 30);
+    const sideX1 = x + (size - 1) * Math.cos(Math.PI / 180 * 30);
+    const sideY1 = y + (size - 1) * Math.sin(Math.PI / 180 * 30);
+    const sideX2 = x + (size - 1) * Math.cos(Math.PI / 180 * 90);
+    const sideY2 = y + (size - 1) * Math.sin(Math.PI / 180 * 90);
+    const terrainGlyph = cell.marker === 'peril' ? '⚑'
+      : cell.marker === 'barrier' ? '▤'
+      : cell.marker === 'gate' ? '◇'
+      : cell.tradeRoute ? '═'
+      : (cell.biome || '').toLowerCase().indexOf('forest') >= 0 ? '♣'
+      : (cell.biome || '').toLowerCase().indexOf('mount') >= 0 ? '▲'
+      : (cell.biome || '').toLowerCase().indexOf('water') >= 0 ? '≈'
+      : '·';
     const selectedOverlay = isSelected
       ? `<circle cx="${x}" cy="${y}" r="18" fill="rgba(232,192,80,.08)" stroke="#f0d070" stroke-width="1.8" pointer-events="none" />
          <text x="${x}" y="${y - 20}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="8" fill="#f0d070" pointer-events="none">YOU</text>`
       : '';
+    const depthOverlay = mapFx.hex3d
+      ? `<line x1="${topX1}" y1="${topY1}" x2="${topX2}" y2="${topY2}" stroke="rgba(255,255,255,.22)" stroke-width="1.1" pointer-events="none" />
+         <line x1="${sideX1}" y1="${sideY1}" x2="${sideX2}" y2="${sideY2}" stroke="rgba(0,0,0,.3)" stroke-width="1.1" pointer-events="none" />
+         <text x="${x - size * 0.34}" y="${y - size * 0.22}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="8" fill="rgba(255,255,255,.25)" pointer-events="none">${terrainGlyph}</text>`
+      : '';
 
     return `<g class="planet-hex" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;">
       <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
+      ${depthOverlay}
       <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="${visual.tag}">${tag || '·'}</text>
       ${selectedOverlay}
     </g>`;
@@ -5682,6 +5707,10 @@ function renderPlanetExplorationPanel() {
       </div>
     </div>
   </div>`;
+  const planetSvg = target.querySelector('.planet-svg');
+  if (planetSvg && typeof window.applyMapOverlayStyle === 'function') {
+    window.applyMapOverlayStyle(planetSvg, 'planet');
+  }
 }
 
 function renderDerelictPanel() {
@@ -6423,6 +6452,9 @@ function renderStarSystemMap() {
   const host = document.getElementById('starSystemMap');
   if (!host) return;
   ensureStarsState();
+  const mapFx = (typeof window.getMapVisualSettings === 'function')
+    ? window.getMapVisualSettings()
+    : { hex3d: false, overlay: 'none' };
 
   if (!S.starSystem.hexes.length) {
     host.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);padding:.55rem;border:1px solid var(--border);background:rgba(6,8,16,.45);">No galaxy generated yet. Click <strong style="color:var(--gold2);">Generate Galaxy Map</strong>.</div>';
@@ -6494,9 +6526,22 @@ function renderStarSystemMap() {
       : '';
     const onTradeRoute = (S.starSystem.tradeRoutes || []).some(([aId, bId]) => aId === hex.id || bId === hex.id);
     const routeBadge = onTradeRoute ? `<circle cx="${x - 13}" cy="${y - 10}" r="4" fill="rgba(214,176,70,.55)" stroke="#d6b046" stroke-width="1"/>` : '';
+    const topX1 = x + (size - 2) * Math.cos(Math.PI / 180 * -30);
+    const topY1 = y + (size - 2) * Math.sin(Math.PI / 180 * -30);
+    const topX2 = x + (size - 2) * Math.cos(Math.PI / 180 * 30);
+    const topY2 = y + (size - 2) * Math.sin(Math.PI / 180 * 30);
+    const sideX1 = x + (size - 2) * Math.cos(Math.PI / 180 * 30);
+    const sideY1 = y + (size - 2) * Math.sin(Math.PI / 180 * 30);
+    const sideX2 = x + (size - 2) * Math.cos(Math.PI / 180 * 90);
+    const sideY2 = y + (size - 2) * Math.sin(Math.PI / 180 * 90);
+    const depthOverlay = mapFx.hex3d
+      ? `<line x1="${topX1}" y1="${topY1}" x2="${topX2}" y2="${topY2}" stroke="rgba(255,255,255,.24)" stroke-width="1.2" pointer-events="none" />
+         <line x1="${sideX1}" y1="${sideY1}" x2="${sideX2}" y2="${sideY2}" stroke="rgba(0,0,0,.28)" stroke-width="1.2" pointer-events="none" />`
+      : '';
     return `
       <g onclick="selectStarSystemHex(${hex.id})" style="cursor:pointer;">
         <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hasTaskMarker ? 3 : hex.id === S.starSystem.currentHexId ? 2 : 1}" />
+        ${depthOverlay}
         ${storyRing}
         <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="#0f111a">${label}</text>
         ${routeBadge}
@@ -6521,6 +6566,10 @@ function renderStarSystemMap() {
       ${routeLines}
       ${svgHexes}
     </svg>`;
+  const galaxySvg = host.querySelector('svg');
+  if (galaxySvg && typeof window.applyMapOverlayStyle === 'function') {
+    window.applyMapOverlayStyle(galaxySvg, 'galaxy');
+  }
 
   const fuel = document.getElementById('starFuelReadout');
   if (fuel) {

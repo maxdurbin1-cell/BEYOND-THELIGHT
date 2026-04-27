@@ -876,10 +876,14 @@
     if (!svg) {
       return;
     }
+    const mapFx = (typeof window.getMapVisualSettings === "function")
+      ? window.getMapVisualSettings()
+      : { hex3d: false, overlay: "none" };
 
     if (!S.lastSea.map.length) {
       svg.setAttribute("width", "620");
       svg.setAttribute("height", "560");
+      if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "lastsea");
       svg.innerHTML = `
         <text x="310" y="270" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#254454">Generate the Last Sea to begin</text>
         <text x="310" y="294" text-anchor="middle" font-family="Cinzel,serif" font-size="10" fill="#1a2c38">Every hex carries a description and an exploration roll.</text>
@@ -892,9 +896,11 @@
     svg.setAttribute("width", width);
     svg.setAttribute("height", height);
     svg.innerHTML = "";
+    if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "lastsea");
 
     S.lastSea.map.forEach((hex) => {
       const { x, y } = seaHexToPixel(hex.col, hex.row);
+      const r = LAST_SEA_HEX - 1;
       const fill = hex.type === "sea" ? "#103247" : hex.terrainColor || "#486734";
       const stroke = S.lastSea.selectedKey === hex.key ? "#e8c050" : hex.type === "sea" ? "#2ec4b6" : "#c9a227";
 
@@ -905,8 +911,45 @@
       polygon.setAttribute("points", seaHexPoints(x, y));
       polygon.setAttribute("fill", fill);
       polygon.setAttribute("stroke", stroke);
-      polygon.setAttribute("stroke-width", S.lastSea.selectedKey === hex.key ? "2.6" : "1.3");
+      polygon.setAttribute("stroke-width", S.lastSea.selectedKey === hex.key ? "2.6" : (mapFx.hex3d ? "1.7" : "1.3"));
       group.appendChild(polygon);
+
+      if (mapFx.hex3d) {
+        const topA = Math.PI / 180 * -30;
+        const topB = Math.PI / 180 * 30;
+        const rightA = Math.PI / 180 * 30;
+        const rightB = Math.PI / 180 * 90;
+        const hi = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        hi.setAttribute("x1", String(x + r * Math.cos(topA)));
+        hi.setAttribute("y1", String(y + r * Math.sin(topA)));
+        hi.setAttribute("x2", String(x + r * Math.cos(topB)));
+        hi.setAttribute("y2", String(y + r * Math.sin(topB)));
+        hi.setAttribute("stroke", "rgba(255,255,255,.24)");
+        hi.setAttribute("stroke-width", "1.2");
+        hi.setAttribute("pointer-events", "none");
+        group.appendChild(hi);
+
+        const sh = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        sh.setAttribute("x1", String(x + r * Math.cos(rightA)));
+        sh.setAttribute("y1", String(y + r * Math.sin(rightA)));
+        sh.setAttribute("x2", String(x + r * Math.cos(rightB)));
+        sh.setAttribute("y2", String(y + r * Math.sin(rightB)));
+        sh.setAttribute("stroke", "rgba(0,0,0,.28)");
+        sh.setAttribute("stroke-width", "1.2");
+        sh.setAttribute("pointer-events", "none");
+        group.appendChild(sh);
+
+        const terrainGlyph = hex.type === "sea" ? "≈" : "♣";
+        const gt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        gt.setAttribute("x", String(x - r * 0.38));
+        gt.setAttribute("y", String(y - r * 0.26));
+        gt.setAttribute("text-anchor", "middle");
+        gt.setAttribute("font-size", "8.5");
+        gt.setAttribute("fill", "rgba(255,255,255,.24)");
+        gt.setAttribute("pointer-events", "none");
+        gt.textContent = terrainGlyph;
+        group.appendChild(gt);
+      }
 
       // Render mission tokens for sea missions
       const missionToken = S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key];
@@ -2588,6 +2631,7 @@
   window.setLastSeaSeason = setLastSeaSeason;
   window.toggleLastSeaClickMode = toggleLastSeaClickMode;
   window.generateLastSea = generateLastSea;
+  window.renderLastSeaMap = renderLastSeaMap;
   window.clearLastSea = clearLastSea;
   window.exploreLastSeaHex = exploreLastSeaHex;
   window.resolveSeaEncounter = resolveSeaEncounter;

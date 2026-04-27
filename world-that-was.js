@@ -1081,10 +1081,14 @@
     const svg = document.getElementById("wtwMapSvg");
     if (!svg || !w) return;
     const minimal = !!w.minimalMapMode;
+    const mapFx = (typeof window.getMapVisualSettings === "function")
+      ? window.getMapVisualSettings()
+      : { hex3d: false, overlay: "none" };
 
     if (!w.generated || !w.hexes.length) {
       svg.setAttribute("width", "900");
       svg.setAttribute("height", "740");
+      if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "wtw");
       svg.innerHTML = "<text x='400' y='240' text-anchor='middle' font-family='Cinzel,serif' font-size='14' fill='#2f4457'>Generate The World That Was to begin</text>";
       return;
     }
@@ -1094,6 +1098,7 @@
     svg.setAttribute("width", String(svgW));
     svg.setAttribute("height", String(svgH));
     svg.innerHTML = "";
+    if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "wtw");
 
     const stationHexes = w.hexes.filter(function (h) { return h.station; });
     for (let i = 0; i < stationHexes.length; i += 1) {
@@ -1124,6 +1129,7 @@
       const p = hexToPixel(hex.col, hex.row);
       const zone = w.zones.find(function (z) { return z.name === hex.zone; });
       const marker = w.markers[hex.id];
+      const r = WTW_HEX - 1;
 
       const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
       g.setAttribute("class", "svg-hex" + (w.selectedHexId === hex.id ? " sel" : ""));
@@ -1133,8 +1139,34 @@
       poly.setAttribute("fill", minimal ? "rgba(16,22,30,.92)" : "rgba(20,28,34,.85)");
       poly.setAttribute("stroke", zone ? zone.color : "#8e8e8e");
       poly.setAttribute("stroke-opacity", minimal ? (w.selectedHexId === hex.id ? "1" : ".58") : "1");
-      poly.setAttribute("stroke-width", w.selectedHexId === hex.id ? "2.6" : (minimal ? "1" : "1.2"));
+      poly.setAttribute("stroke-width", w.selectedHexId === hex.id ? "2.6" : (minimal ? "1" : (mapFx.hex3d ? "1.7" : "1.2")));
       g.appendChild(poly);
+
+      if (mapFx.hex3d) {
+        const topA = Math.PI / 180 * -30;
+        const topB = Math.PI / 180 * 30;
+        const rightA = Math.PI / 180 * 30;
+        const rightB = Math.PI / 180 * 90;
+        const hi = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        hi.setAttribute("x1", String(p.x + r * Math.cos(topA)));
+        hi.setAttribute("y1", String(p.y + r * Math.sin(topA)));
+        hi.setAttribute("x2", String(p.x + r * Math.cos(topB)));
+        hi.setAttribute("y2", String(p.y + r * Math.sin(topB)));
+        hi.setAttribute("stroke", "rgba(255,255,255,.2)");
+        hi.setAttribute("stroke-width", "1.1");
+        hi.setAttribute("pointer-events", "none");
+        g.appendChild(hi);
+
+        const sh = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        sh.setAttribute("x1", String(p.x + r * Math.cos(rightA)));
+        sh.setAttribute("y1", String(p.y + r * Math.sin(rightA)));
+        sh.setAttribute("x2", String(p.x + r * Math.cos(rightB)));
+        sh.setAttribute("y2", String(p.y + r * Math.sin(rightB)));
+        sh.setAttribute("stroke", "rgba(0,0,0,.28)");
+        sh.setAttribute("stroke-width", "1.1");
+        sh.setAttribute("pointer-events", "none");
+        g.appendChild(sh);
+      }
 
       const owner = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       owner.setAttribute("cx", String(p.x));

@@ -571,6 +571,14 @@ select option{background:#0f1020;}
     <button class="btn btn-primary" onclick="generateMap()">⚄ Generate Province</button>
     <button class="btn" onclick="clearMap()">✕ Clear</button>
     <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Click: Travel</button>
+    <button class="btn btn-sm btn-teal" id="mapHex3dBtn" onclick="toggleMapHex3d()">Hex 3D: On</button>
+    <select id="mapOverlaySel" onchange="setMapOverlay(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
+      <option value="none">Overlay: None</option>
+      <option value="contour">Overlay: Contour</option>
+      <option value="vegetation">Overlay: Vegetation</option>
+      <option value="survey">Overlay: Survey Grid</option>
+    </select>
+    <button class="btn btn-sm" onclick="randomizeMapOverlay()">Random Overlay</button>
     <span id="mapTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Month 1, Day 1, Year 1 — Morning</span>
     <span id="hexCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
   </div>
@@ -3329,6 +3337,87 @@ function toggleMapClickMode(){
   updateMapClickModeUI();
   showNotif('Map clicks now '+(S.mapClickMode==='travel'?'advance travel time.':'inspect only.'),'good');
 }
+function ensureMapVisualSettings(){
+  if(!S.mapVisuals||typeof S.mapVisuals!=='object')S.mapVisuals={hex3d:true,overlay:'none'};
+  if(typeof S.mapVisuals.hex3d!=='boolean')S.mapVisuals.hex3d=true;
+  if(['none','contour','vegetation','survey'].indexOf(S.mapVisuals.overlay)<0)S.mapVisuals.overlay='none';
+  return S.mapVisuals;
+}
+function getMapVisualSettings(){
+  const cfg=ensureMapVisualSettings();
+  return {hex3d:!!cfg.hex3d,overlay:cfg.overlay||'none'};
+}
+window.getMapVisualSettings=getMapVisualSettings;
+function overlayStyleForKind(kind){
+  const cfg=getMapVisualSettings();
+  const tone=(kind==='galaxy'||kind==='planet')?'rgba(157,231,255,.08)':'rgba(240,208,112,.08)';
+  if(cfg.overlay==='contour'){
+    return 'background-image: repeating-linear-gradient(28deg, transparent 0 13px, '+tone+' 13px 14px), repeating-linear-gradient(-24deg, transparent 0 16px, rgba(46,196,182,.06) 16px 17px);';
+  }
+  if(cfg.overlay==='vegetation'){
+    return 'background-image: radial-gradient(circle at 14% 22%, rgba(46,196,182,.11) 0 2px, transparent 2px), radial-gradient(circle at 72% 64%, rgba(169,210,88,.13) 0 2px, transparent 2px), radial-gradient(circle at 44% 84%, rgba(79,131,60,.12) 0 2px, transparent 2px);background-size:34px 34px,42px 42px,36px 36px;';
+  }
+  if(cfg.overlay==='survey'){
+    return 'background-image: linear-gradient(0deg, rgba(201,162,39,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(201,162,39,.08) 1px, transparent 1px);background-size:32px 32px;';
+  }
+  return '';
+}
+function applyMapOverlayStyle(svg,kind){
+  if(!svg)return;
+  const base='max-width:none;';
+  const overlay=overlayStyleForKind(kind||'province');
+  svg.setAttribute('style',base+overlay);
+}
+window.applyMapOverlayStyle=applyMapOverlayStyle;
+function terrainMiniGlyph(hex){
+  if(!hex||hex.type!=='wilderness'||!hex.terrain||!hex.terrain.name)return '';
+  const n=String(hex.terrain.name).toLowerCase();
+  if(n.indexOf('forest')>=0||n.indexOf('glade')>=0||n.indexOf('bog')>=0||n.indexOf('marsh')>=0)return '♣';
+  if(n.indexOf('mountain')>=0||n.indexOf('crag')>=0||n.indexOf('hill')>=0)return '▲';
+  if(n.indexOf('lake')>=0)return '≈';
+  if(n.indexOf('desert')>=0||n.indexOf('heath')>=0)return '⋰';
+  return '·';
+}
+function refreshAllHexMaps(){
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(typeof renderLastSeaMap==='function')renderLastSeaMap();
+  if(typeof wtwSyncMarkers==='function')wtwSyncMarkers();
+  if(typeof buildGalaxyPanel==='function')buildGalaxyPanel();
+  if(typeof renderPlanetExplorationPanel==='function')renderPlanetExplorationPanel();
+}
+window.refreshAllHexMaps=refreshAllHexMaps;
+function updateMapVisualUI(){
+  const cfg=getMapVisualSettings();
+  const btn=document.getElementById('mapHex3dBtn');
+  const sel=document.getElementById('mapOverlaySel');
+  if(btn){
+    btn.textContent='Hex 3D: '+(cfg.hex3d?'On':'Off');
+    btn.className='btn btn-sm '+(cfg.hex3d?'btn-teal':'btn-red');
+  }
+  if(sel)sel.value=cfg.overlay;
+}
+function toggleMapHex3d(){
+  const cfg=ensureMapVisualSettings();
+  cfg.hex3d=!cfg.hex3d;
+  updateMapVisualUI();
+  refreshAllHexMaps();
+  showNotif('Hex 3D '+(cfg.hex3d?'enabled.':'disabled.'),cfg.hex3d?'good':'warn');
+}
+window.toggleMapHex3d=toggleMapHex3d;
+function setMapOverlay(mode){
+  const cfg=ensureMapVisualSettings();
+  cfg.overlay=['none','contour','vegetation','survey'].indexOf(mode)>=0?mode:'none';
+  updateMapVisualUI();
+  refreshAllHexMaps();
+}
+window.setMapOverlay=setMapOverlay;
+function randomizeMapOverlay(){
+  const picks=['none','contour','vegetation','survey'];
+  const next=picks[Math.floor(Math.random()*picks.length)]||'none';
+  setMapOverlay(next);
+  showNotif('Map overlay set to '+next+'.','good');
+}
+window.randomizeMapOverlay=randomizeMapOverlay;
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
 function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
 
@@ -3393,20 +3482,48 @@ const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'
 let selectedHex=null;
 
 function renderHexMap(){
+  const mapFx=getMapVisualSettings();
   const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20;
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';
+  applyMapOverlayStyle(svg,'province');
   mapData.forEach(hex=>{
     const{x,y}=hexToPixel(hex.col,hex.row);
-    const pts=hexPoints(x,y,HEX_SIZE-1);
+    const r=HEX_SIZE-1;
+    const pts=hexPoints(x,y,r);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
     g.setAttribute('class','svg-hex'+(selectedHex&&selectedHex===hex?' sel':''));
     const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
     poly.setAttribute('points',pts);
     poly.setAttribute('fill',hex.type==='wilderness'?hex.terrain.color:HEX_COLORS[hex.type]||'#1a2010');
     poly.setAttribute('stroke',HEX_BORDERS[hex.type]||'#252848');
-    poly.setAttribute('stroke-width',hex.type==='wilderness'?0.5:1.5);
+    poly.setAttribute('stroke-width',hex.type==='wilderness'?(mapFx.hex3d?0.9:0.5):(mapFx.hex3d?1.8:1.5));
     g.appendChild(poly);
+    if(mapFx.hex3d){
+      const topA=(Math.PI/180)*(-30),topB=(Math.PI/180)*(30),rightA=(Math.PI/180)*(30),rightB=(Math.PI/180)*(90);
+      const hi=document.createElementNS('http://www.w3.org/2000/svg','line');
+      hi.setAttribute('x1',String(x+r*Math.cos(topA)));hi.setAttribute('y1',String(y+r*Math.sin(topA)));
+      hi.setAttribute('x2',String(x+r*Math.cos(topB)));hi.setAttribute('y2',String(y+r*Math.sin(topB)));
+      hi.setAttribute('stroke','rgba(255,255,255,.22)');hi.setAttribute('stroke-width','1.2');hi.setAttribute('pointer-events','none');
+      g.appendChild(hi);
+
+      const shadow=document.createElementNS('http://www.w3.org/2000/svg','line');
+      shadow.setAttribute('x1',String(x+r*Math.cos(rightA)));shadow.setAttribute('y1',String(y+r*Math.sin(rightA)));
+      shadow.setAttribute('x2',String(x+r*Math.cos(rightB)));shadow.setAttribute('y2',String(y+r*Math.sin(rightB)));
+      shadow.setAttribute('stroke','rgba(0,0,0,.28)');shadow.setAttribute('stroke-width','1.2');shadow.setAttribute('pointer-events','none');
+      g.appendChild(shadow);
+
+      if(hex.type==='wilderness'){
+        const gtxt=terrainMiniGlyph(hex);
+        if(gtxt&&gtxt!=='·'){
+          const terr=document.createElementNS('http://www.w3.org/2000/svg','text');
+          terr.setAttribute('x',String(x-r*.38));terr.setAttribute('y',String(y-r*.26));
+          terr.setAttribute('text-anchor','middle');terr.setAttribute('font-size','8.5');
+          terr.setAttribute('fill','rgba(255,255,255,.28)');terr.setAttribute('pointer-events','none');
+          terr.textContent=gtxt;g.appendChild(terr);
+        }
+      }
+    }
     if(HEX_ICONS[hex.type]){
       const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
       txt.setAttribute('x',x);txt.setAttribute('y',y+4);txt.setAttribute('text-anchor','middle');
@@ -4675,6 +4792,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(typeof renderAugmentationsPanel==='function')renderAugmentationsPanel();
   if(typeof initCharDreadDiceOpts==='function')initCharDreadDiceOpts();
   updateDiceVisualUI();
+  updateMapVisualUI();
   const travelCtxBtn=document.querySelector('.ctx-btn[onclick*="setContext(\'traveling\'"]');
   if(typeof setContext==='function')setContext('traveling',travelCtxBtn||null);
 });

@@ -603,6 +603,7 @@
 
     w.trainZones = Array.isArray(w.trainZones) ? w.trainZones : [];
     w.currentZone = w.currentZone || "Cyber Hub";
+    w.minimalMapMode = !!w.minimalMapMode;
 
     w.holdings = Array.isArray(w.holdings) ? w.holdings : [];
     w.activeTasks = Array.isArray(w.activeTasks) ? w.activeTasks : [];
@@ -1018,6 +1019,7 @@
     const w = ensureWorldState();
     const svg = document.getElementById("wtwMapSvg");
     if (!svg || !w) return;
+    const minimal = !!w.minimalMapMode;
 
     if (!w.generated || !w.hexes.length) {
       svg.setAttribute("width", "900");
@@ -1042,22 +1044,23 @@
 
       const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
       poly.setAttribute("points", hexPoints(p.x, p.y));
-      poly.setAttribute("fill", "rgba(20,28,34,.85)");
+      poly.setAttribute("fill", minimal ? "rgba(16,22,30,.92)" : "rgba(20,28,34,.85)");
       poly.setAttribute("stroke", zone ? zone.color : "#8e8e8e");
-      poly.setAttribute("stroke-width", w.selectedHexId === hex.id ? "2.8" : "1.2");
+      poly.setAttribute("stroke-opacity", minimal ? (w.selectedHexId === hex.id ? "1" : ".58") : "1");
+      poly.setAttribute("stroke-width", w.selectedHexId === hex.id ? "2.6" : (minimal ? "1" : "1.2"));
       g.appendChild(poly);
 
       const owner = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       owner.setAttribute("cx", String(p.x));
       owner.setAttribute("cy", String(p.y));
-      owner.setAttribute("r", "5.5");
+      owner.setAttribute("r", minimal ? "4.6" : "5.5");
       owner.setAttribute("fill", controllerColor(hex.controller));
       owner.setAttribute("stroke", "#111");
       owner.setAttribute("stroke-width", "1");
       owner.setAttribute("pointer-events", "none");
       g.appendChild(owner);
 
-      if (hex.skirmish) {
+      if (hex.skirmish && (!minimal || w.selectedHexId === hex.id)) {
         const sk = document.createElementNS("http://www.w3.org/2000/svg", "text");
         sk.setAttribute("x", String(p.x - 12));
         sk.setAttribute("y", String(p.y - 7));
@@ -1068,7 +1071,7 @@
         g.appendChild(sk);
       }
 
-      if (hex.station) {
+      if (hex.station && (!minimal || w.selectedHexId === hex.id)) {
         const st = document.createElementNS("http://www.w3.org/2000/svg", "text");
         st.setAttribute("x", String(p.x - 4));
         st.setAttribute("y", String(p.y + 15));
@@ -1079,7 +1082,8 @@
         g.appendChild(st);
       }
 
-      if (marker) {
+      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task");
+      if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
         mk.setAttribute("x", String(p.x + 8));
@@ -1098,6 +1102,16 @@
 
       svg.appendChild(g);
     });
+  }
+
+  function toggleWorldMapMode() {
+    const w = ensureWorldState();
+    if (!w) return;
+    w.minimalMapMode = !w.minimalMapMode;
+    renderWorldThatWas();
+    if (typeof showNotif === "function") {
+      showNotif("World map mode: " + (w.minimalMapMode ? "Minimal" : "Detailed") + ".", "good");
+    }
   }
 
   function getSelectedHex() {
@@ -1957,12 +1971,14 @@
     const railEl = document.getElementById("wtwRailControls");
     const padsEl = document.getElementById("wtwLandingControls");
     const activityEl = document.getElementById("wtwActivity");
+    const mapModeBtn = document.getElementById("wtwMapModeBtn");
     const invEl = document.getElementById("wtwInventoryReadout");
     if (tickEl) tickEl.textContent = "Cycle " + (w.tick || 0);
     if (zoneEl) zoneEl.textContent = w.currentZone || "Unknown";
     if (railEl) railEl.innerHTML = renderZoneRailControls();
     if (padsEl) padsEl.innerHTML = renderLandingPadControls();
     if (activityEl) activityEl.textContent = String(w.activityClicks || 0) + "/10";
+    if (mapModeBtn) mapModeBtn.textContent = w.minimalMapMode ? "Map: Minimal" : "Map: Detailed";
     if (invEl && S && S.worldInventory) {
       invEl.innerHTML = WORLD_ITEMS.map(function (k) {
         return "<span class='sea-chip'>" + inventoryLabel(k) + ": " + (S.worldInventory[k] || 0) + "</span>";
@@ -1986,6 +2002,7 @@
       + "<button class='btn btn-primary' onclick='generateWorldThatWasMap()'>Generate</button>"
       + "<button class='btn btn-sm' onclick='advanceWorldThatWas()'>Advance Cycle</button>"
       + "<button class='btn btn-sm btn-teal' onclick='wtwSyncMarkers()'>Refresh Markers</button>"
+      + "<button class='btn btn-sm' id='wtwMapModeBtn' onclick='toggleWorldMapMode()'>Map: Detailed</button>"
       + "<button class='btn btn-sm' onclick='wtwRollEncounter()'>Roll Encounter</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToGalaxy()'>Return to Galaxy</button>"
       + "</div>"
@@ -2080,6 +2097,7 @@
   window.openWorldSkirmishCombat = openWorldSkirmishCombat;
   window.chooseWorldLandingPad = chooseLandingPad;
   window.returnWorldToGalaxy = returnToGalaxy;
+  window.toggleWorldMapMode = toggleWorldMapMode;
 
   window.wtwBuyService = spendService;
   window.wtwResolveEvent = resolveZoneEvent;

@@ -8341,9 +8341,16 @@ function patchStarsCrossSystemHooks() {
   if (baseSetStress && !window._starsSetStressPatched) {
     window._starsSetStressPatched = true;
     setStress = function(value) {
+      const defendBefore = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : (S.stats && S.stats.defend ? S.stats.defend : 4);
+      const maxHealthBefore = defendBefore * 2;
+      const prevHealth = (typeof S.health === 'number') ? S.health : (S.stress || 0);
       const out = baseSetStress.apply(this, arguments);
       S.health = S.stress || 0;
       updateHealthUI();
+      if (prevHealth < maxHealthBefore && S.health >= maxHealthBefore) {
+        showNotif('Health at maximum — near death. Rolling Scar check.', 'warn');
+        handleScarEncounter({ source: 'health-cap' });
+      }
       return out;
     };
   }

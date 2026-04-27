@@ -175,6 +175,59 @@
           text: "Buy the map and press forward",
           success: { next: "mission_bridge", text: "Even bad leads point toward Voss Karr's machine.", effects: { credits: -25 } },
         },
+        {
+          id: "o2",
+          text: "Offer a courtroom puppet show in exchange for better intel",
+          stat: "spirit",
+          baseDread: 10,
+          success: { next: "mission_bridge", text: "The child laughs so hard they reveal an ambush route and a merchant pass-token.", effects: { merchantReward: { credits: 90, factionKey: "corporations", factionRenown: 1, item: "Trade Good" } } },
+          fail: { next: "mission_bridge", text: "The joke bombs, but pity earns you a torn route anyway.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o3",
+          text: "Play the scavenger's shell-whistle puzzle",
+          puzzle: {
+            mode: "tune",
+            title: "Puzzle: Shell-Whistle Tune",
+            prompt: "The child says: 'Play the road-song in this order: dawn, ash, tide, ash.' Translate it to notes and perform it.",
+            sequence: ["DO", "MI", "SO", "MI"],
+          },
+          success: { next: "cipher_market", text: "You nail the tune. A hidden map margin reveals Voss Karr's coded buyer list.", effects: { flags: { tuneSolved: true }, renown: 1 } },
+          fail: { next: "mission_bridge", text: "You miss the rhythm and the child vanishes into fog, but you keep the basic map.", effects: { tmw: 1 } },
+        },
+      ],
+    },
+
+    cipher_market: {
+      chapter: "c1",
+      title: "The Whisper Market",
+      location: "Province",
+      mood: "Noir puzzle bazaar",
+      text: "Lantern merchants trade in encoded phrases and fake names. One broker offers a single sentence that can open sealed routes, but only if you reconstruct it correctly.",
+      lessons: ["missions"],
+      options: [
+        {
+          id: "o1",
+          text: "Rearrange the broker phrase",
+          puzzle: {
+            mode: "rearrange",
+            title: "Puzzle: Reassemble the Phrase",
+            prompt: "Arrange the words into the passphrase that opens the Red Ledger route.",
+            bank: ["LEDGER", "THE", "BURNS", "BEFORE", "DAWN"],
+            answer: "the ledger burns before dawn",
+          },
+          success: { next: "mission_bridge", text: "The broker nods and hands you a stamped mission seal.", effects: { merchantReward: { credits: 120, item: "Retainer Contract", factionKey: "corporations", factionRenown: 1 } } },
+          fail: { next: "mission_bridge", text: "Your phrase is wrong; prices spike and the broker blacklists your face.", effects: { credits: -40, faction: { corporations: -1 } } },
+        },
+        {
+          id: "o2",
+          text: "Talk your way in as a licensed merchant",
+          stat: "lead",
+          baseDread: 8,
+          req: { careerIncludes: ["merchant", "noble", "investigator"] },
+          success: { next: "mission_bridge", text: "Your credentials pass and you walk out with route discounts and introductions.", effects: { merchantReward: { credits: 140, factionKey: "corporations", factionRenown: 1, openShop: true } } },
+          fail: { next: "mission_bridge", text: "Your cover slips under scrutiny, but a junior clerk still gives one useful waypoint.", effects: { mentalStress: 1 } },
+        },
       ],
     },
 
@@ -223,6 +276,18 @@
           text: "Skip to direct confrontation",
           jump: { tab: "combat" },
           success: { next: "marshal_ambush", text: "Steel answers before strategy does." },
+        },
+        {
+          id: "o3",
+          text: "Consult dock scholar and decode a legal cipher",
+          puzzle: {
+            mode: "code",
+            title: "Puzzle: Decode the Writ",
+            prompt: "The scholar gives a substitution clue: 'KARR = CROWN'. Decode the final keyword from the writ: 'MERCATOR'. Enter the plain-language keyword.",
+            answer: "merchant",
+          },
+          success: { next: "marshal_ambush", text: "Decoded correctly. The writ authorizes emergency market claims across two regions.", effects: { merchantReward: { credits: 160, factionKey: "political", factionRenown: 1, item: "Trade Good" } } },
+          fail: { next: "marshal_ambush", text: "You misread the writ and trigger an audit notice on your routes.", effects: { credits: -60 } },
         },
       ],
     },
@@ -416,6 +481,45 @@
           req: { factionAtLeastAny: [{ key: "corporations", min: 2 }, { key: "political", min: 2 }] },
           success: { next: "corp_synod", text: "You pass biometric scrutiny and enter the synod chamber.", effects: { flags: { synodAccess: true } } },
           fail: { next: "corp_synod", text: "You get in disguised, but security flags your gait profile.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o4",
+          text: "Interview the station oracle for out-of-box routes",
+          stat: "mind",
+          baseDread: 10,
+          req: { backgroundIncludes: ["scholar", "temple", "outlaw", "drifter"] },
+          success: { next: "oracle_parley", text: "The oracle speaks in contradictions that still map to real jump corridors.", effects: { flags: { oracleTrust: true }, npc: { iosef: 1 } } },
+          fail: { next: "oracle_parley", text: "The oracle mocks your certainty but still leaves cryptic coordinates.", effects: { tmw: 1 } },
+        },
+      ],
+    },
+
+    oracle_parley: {
+      chapter: "c3",
+      title: "Oracle of Broken Frequencies",
+      location: "Space Station",
+      mood: "Absurd cosmic mystery",
+      text: "The station oracle refuses plain speech. She offers three impossible bargains and claims one of them already happened in your future.",
+      options: [
+        {
+          id: "o1",
+          text: "Accept the bargain that costs your name for one day",
+          stat: "spirit",
+          baseDread: 10,
+          success: { next: "planet_descent", text: "For one day, systems cannot index you. You move unseen through checkpoint nets.", effects: { merchantReward: { credits: 130, factionKey: "underworld", factionRenown: 1 }, flags: { namelessDay: true } } },
+          fail: { next: "planet_descent", text: "The ritual backfires and half your records scramble.", effects: { mentalStress: 1, credits: -50 } },
+        },
+        {
+          id: "o2",
+          text: "Challenge the oracle to a logic-riddle",
+          puzzle: {
+            mode: "code",
+            title: "Puzzle: Oracle Riddle",
+            prompt: "'I am taken from a mine, and shut in a wooden case, from which I am never released, and yet I am used by almost every person.' Enter one word.",
+            answer: "graphite",
+          },
+          success: { next: "planet_descent", text: "She laughs and grants a star-market voucher with anti-tax signatures.", effects: { merchantReward: { credits: 180, factionKey: "corporations", factionRenown: 1, item: "Retainer Contract", openShop: true } } },
+          fail: { next: "planet_descent", text: "Wrong answer. She still gives a warning: 'Do not trust clean ledgers.'", effects: { flags: { oracleWarning: true } } },
         },
       ],
     },
@@ -756,6 +860,8 @@
     if (!st.seedTag) st.seedTag = "W-" + Math.floor(Math.random() * 9000 + 1000);
     if (!st.lastResult) st.lastResult = "";
     if (!st.history || typeof st.history !== "object") st.history = { sceneVisits: {}, optionsTaken: {} };
+    if (!st.history.sceneVisits || typeof st.history.sceneVisits !== "object") st.history.sceneVisits = {};
+    if (!st.history.optionsTaken || typeof st.history.optionsTaken !== "object") st.history.optionsTaken = {};
     return st;
   }
 
@@ -872,6 +978,180 @@
         st.flags[key] = effects.flags[key];
       });
     }
+
+    if (effects.merchantReward && typeof effects.merchantReward === "object") {
+      grantMerchantReward(effects.merchantReward);
+    }
+  }
+
+  function grantMerchantReward(reward) {
+    const credits = Number(reward.credits || 0);
+    const factionKey = reward.factionKey || "corporations";
+    const renown = Number(reward.factionRenown || 0);
+    const item = reward.item || "";
+
+    if (credits) {
+      S.credits = Math.max(0, Number(S.credits || 0) + credits);
+      if (typeof updateCreditsUI === "function") updateCreditsUI();
+    }
+
+    if (renown) {
+      if (typeof changeFactionRenown === "function") changeFactionRenown(factionKey, renown);
+      else if (S.factionRenown && typeof S.factionRenown === "object") {
+        S.factionRenown[factionKey] = Math.max(-10, Math.min(12, Number(S.factionRenown[factionKey] || 0) + renown));
+      }
+      if (typeof updateFactionRenownUI === "function") updateFactionRenownUI();
+    }
+
+    if (item && typeof addToBackpack === "function") {
+      try { addToBackpack(item); } catch (err) {}
+    }
+
+    if (reward.openShop && typeof switchTab === "function") {
+      const shopBtn = document.querySelector(".tab-btn[onclick*=\"switchTab('shop'\"]");
+      switchTab("shop", shopBtn || null);
+    }
+
+    if (typeof showNotif === "function") {
+      const bits = [];
+      if (credits) bits.push((credits > 0 ? "+" : "") + credits + " Credits");
+      if (renown) bits.push((renown > 0 ? "+" : "") + renown + " " + (FACTION_LABELS[factionKey] || factionKey));
+      if (item) bits.push("Loot: " + item);
+      if (bits.length) showNotif("Merchant reward: " + bits.join(" · "), "good");
+    }
+  }
+
+  function ensurePuzzleSession() {
+    window._storyPuzzle = window._storyPuzzle || {
+      sceneId: "",
+      optionId: "",
+      mode: "code",
+      title: "",
+      prompt: "",
+      answer: "",
+      sequence: [],
+      selected: [],
+      bank: [],
+      typed: "",
+    };
+    return window._storyPuzzle;
+  }
+
+  function resetPuzzleSession() {
+    const p = ensurePuzzleSession();
+    p.sceneId = "";
+    p.optionId = "";
+    p.mode = "code";
+    p.title = "";
+    p.prompt = "";
+    p.answer = "";
+    p.sequence = [];
+    p.selected = [];
+    p.bank = [];
+    p.typed = "";
+  }
+
+  function renderPuzzleModal() {
+    const p = ensurePuzzleSession();
+    let controls = "";
+
+    if (p.mode === "tune") {
+      const notes = ["DO", "RE", "MI", "FA", "SO", "LA", "TI"];
+      controls = ""
+        + "<div style='margin-bottom:.35rem;color:var(--muted2);font-size:.78rem;'>Current tune: <strong style='color:var(--teal);'>" + (p.selected.join("-") || "(empty)") + "</strong></div>"
+        + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'>"
+        + notes.map(function (n) {
+          return "<button class='btn btn-xs btn-teal' onclick='storyPuzzlePress(\"" + n + "\")'>" + n + "</button>";
+        }).join("")
+        + "</div>";
+    } else if (p.mode === "rearrange") {
+      controls = ""
+        + "<div style='margin-bottom:.35rem;color:var(--muted2);font-size:.78rem;'>Arrange phrase: <strong style='color:var(--gold2);'>" + (p.selected.join(" ") || "(empty)") + "</strong></div>"
+        + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'>"
+        + p.bank.map(function (word) {
+          return "<button class='btn btn-xs' onclick='storyPuzzlePress(\"" + word.replace(/"/g, "") + "\")'>" + word + "</button>";
+        }).join("")
+        + "</div>";
+    } else {
+      controls = ""
+        + "<input id='storyPuzzleInput' class='input' placeholder='Type your decoded answer' style='width:100%;margin-bottom:.45rem;'/>";
+    }
+
+    const html = ""
+      + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.4rem;'>" + p.prompt + "</div>"
+      + controls
+      + "<div style='display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;'>"
+      + "<button class='btn btn-sm' onclick='storyPuzzleClear()'>Reset</button>"
+      + "<button class='btn btn-sm btn-red' onclick='storyPuzzleResolve(false)'>Force Through (Fail)</button>"
+      + "<button class='btn btn-sm btn-primary' onclick='storyPuzzleResolve(true)'>Submit</button>"
+      + "</div>";
+
+    if (typeof openModal === "function") openModal(p.title || "Story Puzzle", html);
+  }
+
+  function startStoryPuzzle(sceneId, option) {
+    const p = ensurePuzzleSession();
+    const puzzle = option && option.puzzle ? option.puzzle : null;
+    if (!puzzle) return;
+
+    p.sceneId = sceneId;
+    p.optionId = option.id;
+    p.mode = puzzle.mode || "code";
+    p.title = puzzle.title || "Story Puzzle";
+    p.prompt = puzzle.prompt || "";
+    p.answer = String(puzzle.answer || "").trim().toLowerCase();
+    p.sequence = Array.isArray(puzzle.sequence) ? puzzle.sequence.slice() : [];
+    p.selected = [];
+    p.bank = Array.isArray(puzzle.bank) ? puzzle.bank.slice() : [];
+    p.typed = "";
+
+    renderPuzzleModal();
+  }
+
+  function puzzleSuccessByInput() {
+    const p = ensurePuzzleSession();
+    if (p.mode === "tune") {
+      return p.selected.join("-").trim().toLowerCase() === p.sequence.join("-").trim().toLowerCase();
+    }
+    if (p.mode === "rearrange") {
+      return p.selected.join(" ").trim().toLowerCase() === p.answer;
+    }
+    const el = document.getElementById("storyPuzzleInput");
+    const val = (el && typeof el.value === "string") ? el.value.trim().toLowerCase() : "";
+    return val === p.answer;
+  }
+
+  function resolveStoryOption(sceneId, option, forcedSuccess) {
+    const st = ensureStoryState();
+    if (!st || !option) return;
+
+    if (!st.history.sceneVisits || typeof st.history.sceneVisits !== "object") st.history.sceneVisits = {};
+    if (!st.history.optionsTaken || typeof st.history.optionsTaken !== "object") st.history.optionsTaken = {};
+    st.history.sceneVisits[sceneId] = Number(st.history.sceneVisits[sceneId] || 0) + 1;
+    st.history.optionsTaken[sceneId + ":" + option.id] = Number(st.history.optionsTaken[sceneId + ":" + option.id] || 0) + 1;
+
+    if (!hasReq(option.req)) {
+      if (typeof showNotif === "function") showNotif("This dialogue path is locked by your history, rank, or season.", "warn");
+      return;
+    }
+
+    doJump(option.jump);
+
+    let checkResult = null;
+    let outcome = option.success;
+
+    if (option.stat && (forcedSuccess !== true && forcedSuccess !== false)) {
+      const dd = getOptionDread(sceneId, option);
+      checkResult = rollStoryCheck(option.stat, dd);
+      outcome = checkResult.success ? option.success : (option.fail || option.success);
+    } else if (forcedSuccess === false) {
+      outcome = option.fail || option.success;
+    } else if (forcedSuccess === true) {
+      outcome = option.success;
+    }
+
+    applyOutcome(sceneId, option, outcome, checkResult);
+    renderStorylinePanel();
   }
 
   function seedNumber(seedTag) {
@@ -997,34 +1277,18 @@
   }
 
   function runStoryOption(sceneId, optionId) {
-    const st = ensureStoryState();
     const scene = SCENES[sceneId];
     if (!scene) return;
 
     const option = (scene.options || []).find(function (o) { return o.id === optionId; });
     if (!option) return;
 
-    st.history.sceneVisits[sceneId] = Number(st.history.sceneVisits[sceneId] || 0) + 1;
-    st.history.optionsTaken[sceneId + ":" + optionId] = Number(st.history.optionsTaken[sceneId + ":" + optionId] || 0) + 1;
-
-    if (!hasReq(option.req)) {
-      if (typeof showNotif === "function") showNotif("This dialogue path is locked by your history, rank, or season.", "warn");
+    if (option.puzzle) {
+      startStoryPuzzle(sceneId, option);
       return;
     }
 
-    doJump(option.jump);
-
-    let checkResult = null;
-    let outcome = option.success;
-
-    if (option.stat) {
-      const dd = getOptionDread(sceneId, option);
-      checkResult = rollStoryCheck(option.stat, dd);
-      outcome = checkResult.success ? option.success : (option.fail || option.success);
-    }
-
-    applyOutcome(sceneId, option, outcome, checkResult);
-    renderStorylinePanel();
+    resolveStoryOption(sceneId, option, null);
   }
 
   function renderRequirement(req) {
@@ -1217,4 +1481,35 @@
   window.renderStorylinePanel = renderStorylinePanel;
   window.runStoryOption = runStoryOption;
   window.storyJumpSystem = jumpSystemById;
+  window.storyPuzzlePress = function (value) {
+    const p = ensurePuzzleSession();
+    if (p.mode === "code") return;
+    p.selected.push(String(value || ""));
+    renderPuzzleModal();
+  };
+  window.storyPuzzleClear = function () {
+    const p = ensurePuzzleSession();
+    p.selected = [];
+    const el = document.getElementById("storyPuzzleInput");
+    if (el) el.value = "";
+    renderPuzzleModal();
+  };
+  window.storyPuzzleResolve = function (attemptSubmit) {
+    const p = ensurePuzzleSession();
+    const scene = SCENES[p.sceneId];
+    if (!scene) return;
+    const option = (scene.options || []).find(function (o) { return o.id === p.optionId; });
+    if (!option) return;
+
+    let solved = false;
+    if (attemptSubmit) solved = puzzleSuccessByInput();
+    if (attemptSubmit && !solved && typeof showNotif === "function") {
+      showNotif("Puzzle answer incorrect. You can try again or force through.", "warn");
+      return;
+    }
+
+    if (typeof closeModal === "function") closeModal();
+    resolveStoryOption(p.sceneId, option, !!solved);
+    resetPuzzleSession();
+  };
 })();

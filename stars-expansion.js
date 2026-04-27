@@ -7103,6 +7103,7 @@ function applyScarRecoveryReset(trigger) {
   if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
   if (typeof updateStarshipUI === 'function') updateStarshipUI();
   if (typeof renderNaval === 'function') renderNaval();
+  updateScarUI();
 
   placeCharacterAtStarMapCenter();
 }
@@ -7158,6 +7159,7 @@ function applyScarResult(resultId) {
     });
   }
 
+  updateScarUI();
   if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
 }
 
@@ -7613,6 +7615,46 @@ function updateInjuriesUI() {
       <button class="btn btn-xs btn-green" onclick="clearInjury(${i})" title="Treat/remove injury">Treat</button>
     </div>
   `).join('');
+}
+
+function updateScarUI() {
+  ensureStarsState();
+  const el = document.getElementById('scarDisplay');
+  if (!el) return;
+
+  const scarState = S.scarState || {};
+  const avoids = Math.max(0, Number(scarState.avoidedDeaths || 0));
+  const effects = [];
+
+  if (Number(scarState.rollPenalty || 0) < 0) effects.push(`All rolls ${scarState.rollPenalty}`);
+  if (Number(scarState.tmwCostPenalty || 0) > 0) effects.push(`TMW costs +${scarState.tmwCostPenalty}`);
+  if (scarState.cannotEscapeCombat) effects.push('Cannot flee combat');
+  if (scarState.loseHealthOnFailedRoll) effects.push('Take 1 damage on failed rolls');
+
+  const effectsHtml = effects.length
+    ? `<div style="font-size:.72rem;color:var(--red2);line-height:1.45;margin-bottom:.22rem;">Effects: ${effects.join(' · ')}</div>`
+    : '<div style="font-size:.72rem;color:var(--muted2);line-height:1.45;margin-bottom:.22rem;">Effects: none active.</div>';
+
+  const scars = Array.isArray(scarState.results) ? scarState.results : [];
+  const historyHtml = scars.length
+    ? scars.slice(-4).reverse().map((entry) => {
+      const name = entry && entry.title ? entry.title : 'Unknown Scar';
+      const text = entry && entry.text ? entry.text : '';
+      return `<div style="padding:.24rem .28rem;border:1px solid var(--border2);background:rgba(201,64,64,.05);margin-bottom:.18rem;">
+        <div style="font-size:.72rem;color:var(--text2);font-weight:700;">${name}</div>
+        <div style="font-size:.69rem;color:var(--muted2);line-height:1.45;">${text}</div>
+      </div>`;
+    }).join('')
+    : '<div style="font-size:.74rem;color:var(--muted2);">No scars marked yet.</div>';
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem;">
+      <span style="font-size:.72rem;color:var(--muted2);">Avoided Deaths:</span>
+      <strong style="font-family:'Rajdhani',sans-serif;font-size:1rem;color:var(--gold2);">${avoids}</strong>
+    </div>
+    ${effectsHtml}
+    ${historyHtml}
+  `;
 }
 
 // ── ORACLE FUNCTIONS ──────────────────────────────────────────────────────────
@@ -8219,7 +8261,17 @@ function buildStarsCharacterPanels() {
     <div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;line-height:1.5;">Injuries roll when a Critical hits the Wayfarer (Combat Dread Crit).</div>
     <div id="injuriesDisplay"><div style="font-size:.77rem;color:var(--muted2);">No injuries.</div></div>
   </div>
+
+  <div style="margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+      <span class="sub-label" style="margin-bottom:0;">Scars of Death</span>
+      <span style="font-size:.68rem;color:var(--muted2);">d6 + prior avoids</span>
+    </div>
+    <div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;line-height:1.5;">Each time death is avoided, the next Scar roll becomes more dangerous.</div>
+    <div id="scarDisplay"><div style="font-size:.77rem;color:var(--muted2);">No scars marked yet.</div></div>
+  </div>
 </div>`;
+    updateScarUI();
   }
 
   const psycheTarget = document.getElementById('starsPsycheProfileAnchor');
@@ -8961,6 +9013,7 @@ function injectStarsShopData() {
     updateMentalStressUI();
     updateRadsUI();
     updateInjuriesUI();
+    updateScarUI();
     updateFactionRenownUI();
     updateStarshipUI();
     updateDateUI();
@@ -8995,6 +9048,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateMentalStressUI();
   updateRadsUI();
   updateInjuriesUI();
+  updateScarUI();
   updateFactionRenownUI();
   updateStarshipUI();
   updateDateUI();

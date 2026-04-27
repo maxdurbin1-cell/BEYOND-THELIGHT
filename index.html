@@ -4771,9 +4771,22 @@ document.addEventListener('DOMContentLoaded',()=>{
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
     var health = (typeof S.health === 'number') ? S.health : (S.stress || 0);
     var mentalStress = (typeof S.mentalStress === 'number') ? S.mentalStress : 0;
+    var rads = (typeof S.rads === 'number') ? S.rads : 0;
     var defendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : ((S.stats && S.stats.defend) ? S.stats.defend : 4);
     var maxHealth = defendDie * 2;
     var trauma = S.trauma || 0;
+    var radTier = (typeof getRadTier === 'function') ? getRadTier(rads) : null;
+    var radTierLabel = radTier && radTier.label ? radTier.label : (rads >= 700 ? 'Lethal' : rads >= 600 ? 'Severe' : rads >= 400 ? 'High' : rads >= 200 ? 'Moderate' : rads >= 100 ? 'Low' : 'Clean');
+    var radColor = rads >= 700 ? 'var(--red)' : rads >= 400 ? 'var(--red2)' : rads >= 200 ? 'var(--gold)' : 'var(--green2)';
+    var scarState = S.scarState || {};
+    var scarAvoids = Math.max(0, Number(scarState.avoidedDeaths || 0));
+    var scarEffects = [];
+    if (Number(scarState.rollPenalty || 0) < 0) scarEffects.push('Rolls ' + scarState.rollPenalty);
+    if (Number(scarState.tmwCostPenalty || 0) > 0) scarEffects.push('TMW +' + scarState.tmwCostPenalty + ' cost');
+    if (scarState.cannotEscapeCombat) scarEffects.push('No flee');
+    if (scarState.loseHealthOnFailedRoll) scarEffects.push('Fail => +1 dmg');
+    var scarResults = Array.isArray(scarState.results) ? scarState.results : [];
+    var latestScars = scarResults.length ? scarResults.slice(-2).map(function(e){ return (e && e.title) ? e.title : 'Scar'; }).join(' · ') : 'None';
     var pct = Math.min(100, Math.round(health / maxHealth * 100));
     var barColor = pct >= 80 ? 'var(--red)' : pct >= 50 ? 'var(--gold)' : 'var(--green2)';
 
@@ -4810,6 +4823,21 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<span style="font-size:.68rem;color:var(--red);flex:1;">Trauma: <strong style="color:var(--red);">'+trauma+'</strong></span>'
         + '<button class="btn btn-xs btn-red" onclick="if(typeof changeTrauma===\'function\')changeTrauma(1);renderQP(\'char\')">+ Trauma</button>'
         + '<button class="btn btn-xs btn-green" onclick="if(typeof changeTrauma===\'function\')changeTrauma(-1);renderQP(\'char\')">− Trauma</button>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.35rem;padding:.3rem .35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">'
+        + '<span style="font-size:.68rem;color:var(--muted2);flex:1;">Radiation:</span>'
+        + '<strong style="font-family:Rajdhani,sans-serif;color:'+radColor+';">☢ '+rads+'</strong>'
+        + '<span style="font-size:.66rem;color:'+radColor+';">'+radTierLabel+'</span>'
+      + '</div>'
+      + '<div style="margin-bottom:.35rem;padding:.32rem .38rem;border:1px solid var(--border2);background:rgba(201,64,64,.05);">'
+        + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.12rem;">'
+          + '<span style="font-size:.62rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;">Scars</span>'
+          + '<strong style="font-family:Rajdhani,sans-serif;color:var(--gold2);">Avoids '+scarAvoids+'</strong>'
+        + '</div>'
+        + '<div style="font-size:.66rem;color:'+(scarEffects.length ? 'var(--red2)' : 'var(--muted2)')+';line-height:1.4;">'
+          + (scarEffects.length ? ('Effects: '+scarEffects.join(' · ')) : 'Effects: none active')
+        + '</div>'
+        + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.12rem;line-height:1.35;">Recent: '+latestScars+'</div>'
       + '</div>'
       + '</div>'
       + '<div><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Conditions</div>'

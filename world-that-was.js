@@ -1,6 +1,9 @@
 // world-that-was.js
 (function () {
-  const WTW_HEX = 26;
+  const WTW_HEX = 24;
+  const MAP_COLS = 12;
+  const MAP_ROWS = 12;
+
   const ZONE_NAMES = [
     "Cyber Hub",
     "Green House",
@@ -25,488 +28,210 @@
     "The Ports": "#4f58a6"
   };
 
-  const DISTRICT_NAMES = {
-    "Cyber Hub": ["The Clinic", "The Studio", "The Arcade", "The Shop", "The Hub"],
-    "Green House": ["The Garden", "The Forest", "The Zoo", "The Lab", "The Dome"],
-    "Industrial Sector": ["The Factory", "The Power Plant", "The Depot", "The Warehouse", "The Forge"],
-    "Neon City": ["Central Plaza", "The Strip", "The Grid", "The Slums", "The Zone"],
-    "Outskirts": ["The Camp", "The Junkyard", "The Farm", "The Quarry", "The Road"],
-    "Residential Blocks": ["The Tower", "The Block", "The Park", "The Market", "The School"],
-    "The Undercity": ["The District", "The Sewers", "The Subway", "The Vault", "The Bunker"],
-    "The Wastes": ["The Oasis", "The Mine", "The Camp", "The Monument", "The Crater"],
-    "The Ports": ["Dockside", "Breakwater", "Shipyard", "Marina", "Reef"]
-  };
-
-  const MAJOR_POWERS = ["Axiom Cartel", "Helix Union", "Titan Crown"]; 
+  const MAJOR_POWERS = ["Axiom Cartel", "Helix Union", "Titan Crown"];
   const FACTIONS = ["Veil Runners", "Dust Saints"];
+  const HOLDERS = MAJOR_POWERS.concat(FACTIONS);
 
-  const LANDING_ZONE_NAMES = ["Cyber Hub", "Neon City", "The Ports", "Outskirts"];
-
-  // Per-zone flavor tables — each key matches a ZONE_NAMES entry
   const ZONE_FLAVOR = {
     "Cyber Hub": {
-      locations: [
-        "beneath the data towers",
-        "along the digital art corridor",
-        "inside the virtual reality complex",
-        "across the computing center",
-        "through the gadget bazaar"
-      ],
-      sights: [
-        "The Nexus Point",
-        "The Pixel Promenade",
-        "The Simulation Sphere",
-        "The Quantum Viewpoint",
-        "The Circuit Maze"
-      ],
-      descriptions: [
-        "a central hub glowing with data streams visible as cascading lights",
-        "a gallery displaying ever-AI digital murals",
-        "a massive dome where visitors experience hyper-realistic alternate realities",
-        "a dynamic sculpture where water and light patterns are controlled by real-time coding",
-        "an observation deck that overlooks quantum processors at work"
-      ],
-      features: [
-        "convergence of digital pioneers",
-        "cultural hotspot for art lovers",
-        "ultimate escapism and adventure",
-        "interactive art and programming",
-        "popular educational and tour spot"
-      ],
-      flora: ["neon ivy", "bio-luminescent wire-fern", "synthetic orchid", "circuit moss", "data-bloom"],
-      fauna: ["holographic pigeons", "AI companion units", "circuit crows", "drone swarms", "memory eels"],
-      land: ["server stack corridors", "suspended data bridges", "glass observation platforms", "underground fiber channels", "rooftop antenna fields"],
-      weather: ["digital static haze", "cooling system mist", "neon-lit smog", "signal interference fog", "blue-tinted acid drizzle"],
+      locations: ["beneath data towers", "inside a quantum exchange", "in the neon relay quarter"],
+      sights: ["The Nexus Point", "The Pixel Promenade", "The Simulation Sphere"],
+      descriptions: ["code rain drips across every wall", "AI murals rewrite themselves every minute", "the district hums like a live processor"],
+      features: ["hackers and brokers", "aug-tech pilgrims", "corporate runners"],
+      flora: ["neon ivy", "circuit moss", "synthetic orchid"],
+      fauna: ["holographic pigeons", "drone swarms", "memory eels"],
+      land: ["glass catwalks", "server vault alleys", "fiber trenches"],
+      weather: ["signal haze", "coolant mist", "acid drizzle"],
       events: [
-        { title: "Corporate Data Heist", text: "A corporation hires you to infiltrate a rival's data vault and steal crucial information. Guards patrol every floor.", action: "Infiltrate the vault", fight: "Roll 2 Dread (d8). Control needs to roll above both dice. Success: Gain random Hack Data Drive.", reward: "+1 Corporation" },
-        { title: "Elite Hacker Ring", text: "A group of elite hackers is attempting a major data heist within the Cyber Hub, aiming to steal corporate secrets.", action: "Assist the heist or stop it", fight: "Fight Elite Hackers (DD8 | 16 HP). Success: Gain random Master Hack.", reward: "+2 Pirates" },
-        { title: "Rogue AI Takeover", text: "An AI has gone rogue, taking control of the Cyber Hub's systems and threatening to wreak havoc across all terminals.", action: "Fight the AI", fight: "Fight 3 AI Constructs (DD8 | 16 HP). Gain random Augmentation.", reward: "+1 Corporation" },
-        { title: "Cyber Duel Challenge", text: "A digital gladiator challenges you to a cyber showdown in the heart of Neon City, with valuable data as the prize.", action: "Accept or Sabotage the duel", fight: "Sabotage: Fight Gladiator's 2 Bodyguards (DD6 | 12 HP). Gain 300 Credits.", reward: "+1 Political Group" }
+        { title: "Corporate Data Heist", text: "A rival vault is exposed for six minutes.", action: "Breach the vault", reward: "+1 Axiom Cartel, random data loot" },
+        { title: "Rogue AI Lockdown", text: "Security grids close without warning.", action: "Stabilize the AI core", reward: "+1 Helix Union, random augment" }
       ]
     },
     "Green House": {
-      locations: [
-        "beneath the towering canopies",
-        "along the bio-luminescent stream",
-        "inside the ancient grove",
-        "across the misty expanse",
-        "over the engineered waterfall",
-        "through the spice corridors"
-      ],
-      sights: [
-        "The Orchid Pavilion",
-        "The Glow Trail",
-        "The Heritage Tree",
-        "The Mist Gardens",
-        "The Cascade Overlook",
-        "The Aroma Market"
-      ],
-      descriptions: [
-        "a floating platform surrounded by rare, vibrant orchids",
-        "a path that lights up underfoot with bio-luminescent algae",
-        "an ancient tree wired with interactive history displays",
-        "gardens that use fine mists to sustain delicate ferns",
-        "a suspended bridge offering views of artificial waterfalls",
-        "market stalls featuring spices and herbs from across galaxies"
-      ],
-      features: [
-        "retreat for artists and thinkers",
-        "favorite for nighttime strolls",
-        "educational landmark",
-        "relaxation and meditation zone",
-        "popular proposal and photography spot",
-        "culinary hotspot for chefs and foodies"
-      ],
-      flora: ["rare bioluminescent orchids", "heritage ferns", "mist-garden moss", "spice-bloom vine", "DNA-helix trees"],
-      fauna: ["engineered megafauna", "fluttering avians", "eco-drones", "gene-modded insects", "holographic deer"],
-      land: ["sculpted walkways", "engineered waterfall terraces", "dense bio-canopy", "glass-walled lab corridors", "dome apex platforms"],
-      weather: ["fine mist", "warm humid air", "engineered rainfall", "solar-filtered light", "climate-controlled dew"],
+      locations: ["beneath engineered canopies", "inside mist gardens", "along bio-lum streams"],
+      sights: ["The Orchid Pavilion", "The Glow Trail", "The Cascade Overlook"],
+      descriptions: ["the dome breathes with humid green light", "gene labs pulse behind glass", "pollinator drones patrol in quiet loops"],
+      features: ["botanists and medics", "eco-tour pilgrims", "gene-smith apprentices"],
+      flora: ["DNA-helix trees", "heritage fern", "spice-bloom vine"],
+      fauna: ["engineered avians", "eco-drones", "holo deer"],
+      land: ["glass terraces", "root-bridge lanes", "waterfall decks"],
+      weather: ["soft mist", "warm dew", "controlled rain"],
       events: [
-        { title: "Invasive Species Crisis", text: "Scientists are conducting botanical research here, but their work is threatened by invasive species rapidly spreading.", action: "Protect the research", fight: "Fight Invasive Species (DD6 | 12 HP). Gain random Trade Good.", reward: "+1 Religious Group" },
-        { title: "Stolen Rare Plant", text: "A rare and valuable plant has been stolen from the Greenhouse, and the botanists are desperate to get it back.", action: "Recover the plant or Investigate the theft", fight: "Fight 2 Thieves (DD6 | 12 HP). Success: Gain random Cosmic Essential.", reward: "+1 Religious Group" },
-        { title: "Eco-Terrorist Plot", text: "A group of eco-terrorists has infiltrated the Greenhouse, planning to sabotage its operations and burn the dome.", action: "Stop the terrorists", fight: "Fight 2 Eco-Terrorists (DD8 | 16 HP). Gain random Augmentation.", reward: "+1 Corporation" },
-        { title: "Strange Mutation", text: "A strange mutation has affected some of the plants in the Greenhouse, causing them to become hostile to all carbon life.", action: "Contain the mutation", fight: "Fight Mutated Plant (DD6 | 12 HP). Gain random Armor.", reward: "+1 Corporation" }
+        { title: "Invasive Bloom", text: "A predatory vine overruns a lab perimeter.", action: "Contain the spread", reward: "+1 Dust Saints, random med loot" },
+        { title: "Genome Theft", text: "A rare gene-seed shipment vanishes.", action: "Track the smugglers", reward: "+1 Helix Union, random biotech" }
       ]
     },
     "Industrial Sector": {
-      locations: [
-        "sprawling foundry complexes",
-        "a dense network of steam tunnels",
-        "top of the largest smokestack",
-        "edge of the recycling yards",
-        "inside the machine hall",
-        "outskirts of the Depot"
-      ],
-      sights: [
-        "The Iron Citadel",
-        "The Vent Core",
-        "The Skyline Perch",
-        "The Junk Throne",
-        "The Gear Loft",
-        "The Steel Gardens"
-      ],
-      descriptions: [
-        "a fortified structure lined with scrap metal serving as stronghold for the sector's overseers",
-        "a hub pulsating with geothermal energy acting as central power source for underground activities",
-        "an observation deck with panoramic industrial views favored for secretive exchanges",
-        "a palace built from discarded mechanical parts — territory ruled by the junk barons",
-        "a secluded lot surrounded by spinning cogs and wheels, refuge for thinkers and inventors",
-        "a lush garden cultivated from bio-engineered plants in an experimental eco-zone"
-      ],
-      features: [
-        "stronghold for the sector's overseers",
-        "central power source for underground activities",
-        "favored spot for secretive exchanges",
-        "territory ruled by the junk barons",
-        "refuge for thinkers and inventors",
-        "experimental eco-zone in an urban wasteland"
-      ],
-      flora: ["oil-bloom fern", "rust-vine creeper", "smog fern", "slag moss", "carbon-filter plant"],
-      fauna: ["scrap beetles", "iron rats", "factory sparrows", "gear hounds", "soot bats"],
-      land: ["smoking foundry floors", "rail freight yards", "slag heaps", "smog-choked catwalks", "deep mine shafts"],
-      weather: ["heavy smog", "acid drizzle", "heat haze from smelters", "steam clouds", "ashfall"],
+      locations: ["inside foundry lines", "along the rail yards", "under steam stacks"],
+      sights: ["The Iron Citadel", "The Vent Core", "The Junk Throne"],
+      descriptions: ["smelters paint the sky amber", "cargo cranes scrape through smog", "factory sirens echo in shifts"],
+      features: ["forge crews", "scrap barons", "militia contractors"],
+      flora: ["slag moss", "rust-vine", "filter fern"],
+      fauna: ["gear hounds", "iron rats", "soot bats"],
+      land: ["slag fields", "catwalk grids", "sealed tunnels"],
+      weather: ["smog", "ashfall", "heat haze"],
       events: [
-        { title: "Factory Fire", text: "A fire breaks out in one of the factories, threatening to spread and cause widespread damage across the district.", action: "Help extinguish the fire", fight: "Roll 2 Dread (d6). Your Body needs to roll above both dice. Gain random Trade Good.", reward: "+1 Corporation" },
-        { title: "Stolen Blueprints", text: "A set of highly classified blueprints has been stolen from a factory, and the thieves are trying to escape with them.", action: "Recover the blueprints or steal them yourself", fight: "Fight 3 Thieves (DD8 | 16 HP). Control: Gain 300 Credits.", reward: "+2 Pirates" },
-        { title: "Worker Uprising", text: "Factory workers have gone on strike, demanding better conditions and wages. The situation is tense and could turn violent.", action: "Mediate the dispute", fight: "Roll 2 Dread (d6). Spirit needs to roll above both dice. Gain 220 Credits.", reward: "+1 Corporation" },
-        { title: "Smuggler Hideout", text: "A smuggler's hideout is discovered within the sector, filled with contraband and illegal bio-mods.", action: "Negotiate with smugglers or raid them", fight: "Negotiate: Roll 2 Dread (d8). Your Mind needs to roll above both dice. Gain random Ranged Weapon.", reward: "+2 Pirates" }
+        { title: "Foundry Strike", text: "Workers block a central melt line.", action: "Broker or break the strike", reward: "+1 Titan Crown, 200 credits" },
+        { title: "Blueprint Leak", text: "Weapon blueprints hit black channels.", action: "Recover the files", reward: "+1 Veil Runners, random weapon mod" }
       ]
     },
     "Neon City": {
-      locations: [
-        "beneath the neon arches",
-        "over the old metro lines",
-        "atop the highest skyscraper",
-        "within the forgotten tunnels",
-        "along the virtual reality row",
-        "at the city's edge"
-      ],
-      sights: [
-        "The Circuit Café",
-        "The Echo Chamber",
-        "The Skyline Club",
-        "The Vault",
-        "The Mirage Market",
-        "The Frontier Outpost"
-      ],
-      descriptions: [
-        "a digital diner streaming live-coded visuals",
-        "an abandoned station turned into an echo hall",
-        "a luxury sky bar with panoramic city views",
-        "a hidden repository of forbidden archives",
-        "a market selling hyper-realistic VR experiences",
-        "a rough-and-tumble bar at the limits of city law"
-      ],
-      features: [
-        "a hub for tech enthusiasts and digital artists",
-        "secret concerts and underground events",
-        "elite networking and high-stakes deals",
-        "a treasure trove for historians and thieves",
-        "escapes into alternate realities",
-        "a haven for bounty hunters and outlaws"
-      ],
-      flora: ["neon-glow cactus", "chrome-leaf plant", "pixel-bloom", "LED-fiber vine", "synthetic bonsai"],
-      fauna: ["Velocity Vultures", "neon ferrets", "chrome tag cats", "circuit beetles", "holographic sparrows"],
-      land: ["neon-lit skyways", "underground transit lines", "vertical slum stacks", "rooftop race circuits", "forgotten tunnel networks"],
-      weather: ["perpetual neon twilight", "smog-filtered rain", "electric static wind", "light-pollution haze", "cold neon drizzle"],
+      locations: ["under neon arches", "through VR corridors", "above the skyline clubs"],
+      sights: ["The Circuit Cafe", "The Mirage Market", "The Skyline Club"],
+      descriptions: ["holo ads flood every street", "music leaks from underground venues", "street racers own midnight"],
+      features: ["performers and fixers", "club syndicates", "brand agents"],
+      flora: ["pixel-bloom", "chrome leaf", "led-fiber vine"],
+      fauna: ["tag cats", "neon ferrets", "holo sparrows"],
+      land: ["vertical skyways", "metro relics", "club rooftops"],
+      weather: ["neon drizzle", "static wind", "light haze"],
       events: [
-        { title: "Neon Sign Failure", text: "A series of neon signs are malfunctioning, causing chaos in the streets. The sign owners suspect foul play.", action: "Investigate or Sabotage further", fight: "Lead Save vs DD8. Success: Gain 200 Credits.", reward: "+1 Political Group" },
-        { title: "Trapped in VR", text: "A new virtual reality experience is sweeping through Neon City, but some users are getting trapped inside the simulation.", action: "Fix the glitch", fight: "Mind Save vs DD6. Success: Gain random Toolkit.", reward: "+1 Political Group" },
-        { title: "Celebrity Concert Chaos", text: "A major celebrity is hosting a concert in the heart of Neon City, attracting massive crowds and potential trouble.", action: "Provide security or Sell bootleg merchandise", fight: "Sell bootleg: Roll 2 Dread (d8). Control needs to roll above both. Gain random Trade Good.", reward: "+1 Corporation" },
-        { title: "Massive Holo-Ad Glitch", text: "A massive holo-advertisement is glitching, causing disruptions and attracting hackers looking to exploit the situation.", action: "Stop the heist", fight: "Fight 3 Thieves (DD8 | 16 HP). Gain random Exocraft.", reward: "+1 Corporation" }
+        { title: "Arena Broadcast Hijack", text: "A live event feed is seized mid-show.", action: "Retake the broadcast", reward: "+1 Axiom Cartel, random luxury loot" },
+        { title: "Race Route Ambush", text: "A gang rigs a race corridor with traps.", action: "Clear the route", reward: "+1 Veil Runners, 250 credits" }
       ]
     },
     "Outskirts": {
-      locations: [
-        "beyond the crumbling overpass",
-        "within the derelict vehicle yard",
-        "at the edge of the dried lakebed",
-        "among the abandoned silos",
-        "under the vast scrap canopy",
-        "beside the forgotten rail tracks"
-      ],
-      sights: [
-        "The Echo Tower",
-        "The Iron Garden",
-        "The Mirror Field",
-        "The Refuge",
-        "The Market of Memories",
-        "The Last Depot"
-      ],
-      descriptions: [
-        "a towering structure made from repurposed radio equipment that broadcasts old-world music and messages",
-        "a carefully cultivated garden growing amidst rusted hulks, a community hub for trading seeds and plants",
-        "a field of solar mirrors repurposed into a dazzling art installation that attracts artists and wanderers",
-        "a network of interconnected silos turned into a safe haven, shelter for refugees and outcasts",
-        "an open-air market selling items from before the fall, a trading center for historical artifacts",
-        "an old train depot now serving as a makeshift hostel, rest stop for travelers and nomads"
-      ],
-      features: [
-        "broadcasts old-world music and messages",
-        "community hub for trading seeds and plants",
-        "attracts artists and wanderers",
-        "shelter for refugees and outcasts",
-        "trading center for historical artifacts",
-        "rest stop for travelers and nomads"
-      ],
-      flora: ["dust-hardy scrub", "irradiated bloom", "salvage-vine", "solar-panel moss", "cracked-earth succulent"],
-      fauna: ["Outlaw Raptors", "dust jackals", "salvage dogs", "feral wind-hawks", "sand crawlers"],
-      land: ["crumbling overpasses", "dried riverbeds", "scrap junkyard fields", "quarry cliff edges", "open road flats"],
-      weather: ["dust storms", "blistering heat", "cold desert nights", "static wind", "occasional acid rain"],
+      locations: ["on broken overpasses", "across dry lake beds", "inside scrap mazes"],
+      sights: ["The Echo Tower", "The Iron Garden", "The Last Depot"],
+      descriptions: ["wind whips through rust skeletons", "nomad caravans trade under tarps", "old rail maps still guide survivors"],
+      features: ["scavenger camps", "water traders", "route scouts"],
+      flora: ["dust scrub", "irradiated bloom", "solar moss"],
+      fauna: ["outlaw raptors", "sand crawlers", "scrap dogs"],
+      land: ["dry flats", "junk hills", "open roads"],
+      weather: ["dust storms", "hard heat", "cold nights"],
       events: [
-        { title: "Runaway Teenagers", text: "A group of runaway teenagers have set up a makeshift camp in the Outskirts, but they're being hunted by bounty hunters.", action: "Protect the runaways", fight: "Fight 3 Bounty Hunters (DD8 | 16 HP). Gain random Cosmic Essential.", reward: "+1 Rebel Faction" },
-        { title: "Scrap Dealer Territory", text: "A scrap dealer offers valuable parts and components, but rival scavengers are trying to muscle in on their territory.", action: "Defend the dealer", fight: "Fight 3 Rival Scavengers (DD6 | 12 HP). Gain random Toolkit.", reward: "+1 Political Group" },
-        { title: "Nomad Oasis", text: "A hidden oasis within the Outskirts offers a rare reprieve, but it's guarded by a group of nomadic warriors.", action: "Gain their trust", fight: "Roll 2 Dread (d8). Spirit needs to roll above both dice. Gain random Exocraft.", reward: "+1 Political Group" },
-        { title: "Renegade Base", text: "A group of renegades is using the Outskirts as a base for their operations, planning a major attack on the city.", action: "Stop the attack", fight: "Fight 4 Renegades (DD8 | 18 HP). Gain random Weapon Mod.", reward: "+1 Corporation" }
+        { title: "Caravan Distress", text: "A convoy goes dark beyond checkpoint seven.", action: "Escort recovery", reward: "+1 Dust Saints, random trade loot" },
+        { title: "Silo Raiders", text: "Raiders breach a refugee silo node.", action: "Hold the line", reward: "+1 Titan Crown, 180 credits" }
       ]
     },
     "Residential Blocks": {
-      locations: [
-        "towering apartment complexes",
-        "a bustling lobby",
-        "a neon-lit junction",
-        "network of pedestrian skybridges",
-        "a recycled water facility",
-        "a quiet residential alley"
-      ],
-      sights: [
-        "The Skyline Garden",
-        "The Community Hall",
-        "The Panorama Point",
-        "The Hanging Markets",
-        "The Cascade",
-        "The Old Clock Tower"
-      ],
-      descriptions: [
-        "a lush rooftop park soaring above the city, escape for nature lovers and urban gardeners",
-        "a vibrant, mural-adorned space hosting local gatherings, hub for civic engagement and social events",
-        "an observation deck with sprawling views of the district, favored rendezvous spot for romantics and dreamers",
-        "a series of floating platforms with vendors selling handmade goods, marketplace for local artisans and collectors",
-        "a water purification plant turned public aquarium, educational center for sustainability practices",
-        "a restored relic that now serves as a community cinema, cultural venue for movie buffs and historians"
-      ],
-      features: [
-        "escape for nature lovers and urban gardeners",
-        "hub for civic engagement and social events",
-        "favored rendezvous spot for romantics and dreamers",
-        "marketplace for local artisans and collectors",
-        "educational center for sustainability practices",
-        "cultural venue for movie buffs and historians"
-      ],
-      flora: ["community garden herbs", "rooftop tomato vine", "skybridge fern", "potted bamboo groves", "hydroponic lettuce walls"],
-      fauna: ["rooftop sparrows", "community cats", "maintenance drones", "sky pigeons", "balcony lizards"],
-      land: ["stacked tower residences", "communal courtyard plazas", "pedestrian skybridges", "basement markets", "rooftop gardens"],
-      weather: ["urban heat sink warmth", "smog-filtered sunlight", "cool tower-shadow wind", "infrequent clean rain", "perpetual ambient hum"],
+      locations: ["inside tower stacks", "over hanging markets", "through waterworks halls"],
+      sights: ["The Skyline Garden", "The Community Hall", "The Cascade"],
+      descriptions: ["families crowd skybridges", "market lights glow through rain", "maintenance drones hum all night"],
+      features: ["tenant councils", "local traders", "block wardens"],
+      flora: ["rooftop herbs", "hydro lettuce", "skybridge fern"],
+      fauna: ["community cats", "tower sparrows", "balcony lizards"],
+      land: ["stacked blocks", "courtyard plazas", "service shafts"],
+      weather: ["urban warmth", "tower winds", "short rain"],
       events: [
-        { title: "Collapsed Tower", text: "One of the towering residential blocks has partially collapsed, trapping residents inside under twisted steel.", action: "Rescue the trapped", fight: "Roll 2 Dread (d6). Body needs to roll above both dice. Gain random Trade Good.", reward: "+1 Corporation" },
-        { title: "Power Surge Blackout", text: "A massive power surge has caused widespread blackouts in the Residential Blocks. Technicians are working to restore power.", action: "Assist the technicians", fight: "Solve a Riddle (Mind Save vs DD8). Gain random Hack Data Drive.", reward: "+1 Corporation" },
-        { title: "Festival Disruption", text: "A local street festival is in full swing, but tensions between rival gangs threaten to disrupt the celebrations.", action: "Mediate the tensions or Intercede", fight: "Roll 2 Dread (d6). Spirit needs to roll above both dice. Gain 200 Credits.", reward: "+1 Political Group" },
-        { title: "Missing Residents", text: "Several residents have gone missing under mysterious circumstances, and their families are desperate for answers.", action: "Investigate or Find the missing", fight: "Find the missing: Fight Kidnappers (DD6 | 12 HP). Gain 300 Credits.", reward: "+1 Corporation" }
+        { title: "Grid Blackout", text: "Three blocks lose power and panic rises.", action: "Restore the node", reward: "+1 Axiom Cartel, random utility loot" },
+        { title: "Festival Flashpoint", text: "Two crews clash during a district celebration.", action: "Defuse or dominate", reward: "+1 Helix Union, 150 credits" }
       ]
     },
     "The Undercity": {
-      locations: [
-        "twisting underground passages",
-        "an abandoned metro station",
-        "a dilapidated high-rise",
-        "a subterranean riverbank",
-        "old maintenance corridors",
-        "a forgotten war bunker"
-      ],
-      sights: [
-        "The Echo Chamber",
-        "The Phantom Platform",
-        "The Vertigo Towers",
-        "The Shimmering Falls",
-        "The Gearworks",
-        "The Iron Sanctuary"
-      ],
-      descriptions: [
-        "a cavernous space where whispers amplify secrets, gathering spot for conspirators and spies",
-        "a disused station where spectral trains are said to pass, haunt for urban explorers and ghost hunters",
-        "crumbling towers with precarious bridges between them, refuge for thrill seekers and squatters",
-        "a hidden waterfall glowing with bioluminescent algae, source of rare medicinal herbs",
-        "a maze of steam pipes and rusty machinery, hideout for mechanics and outlaw techs",
-        "an iron-clad bunker now home to a secretive cult, center for occult practices and rituals"
-      ],
-      features: [
-        "gathering spot for conspirators and spies",
-        "haunt for urban explorers and ghost hunters",
-        "refuge for thrill seekers and squatters",
-        "source of rare medicinal herbs",
-        "hideout for mechanics and outlaw techs",
-        "center for occult practices and rituals"
-      ],
-      flora: ["bioluminescent algae", "sewer mushroom colony", "underground fern", "rust-root creeper", "shadow-bloom"],
-      fauna: ["ghost rats", "tunnel eels", "undercity bats", "blind cave fish", "iron spiders"],
-      land: ["flooded sewer tunnels", "abandoned metro tracks", "crumbling underbridge walkways", "cavernous vault chambers", "sealed war bunker rooms"],
-      weather: ["dripping condensation", "stale underground air", "cold damp fog", "bioluminescent haze", "echoing silence"],
+      locations: ["inside metro ruins", "through flood tunnels", "beneath iron bunkers"],
+      sights: ["The Phantom Platform", "The Gearworks", "The Iron Sanctuary"],
+      descriptions: ["wet concrete reflects red light", "old tracks split into forbidden sectors", "voices carry too far in the dark"],
+      features: ["black market cells", "cult enclaves", "tunnel guides"],
+      flora: ["glow algae", "shadow bloom", "rust roots"],
+      fauna: ["ghost rats", "tunnel eels", "iron spiders"],
+      land: ["drain channels", "vault chambers", "collapsed rails"],
+      weather: ["cold damp", "condensation fog", "stale air"],
       events: [
-        { title: "Black Market Riot", text: "A brawl breaks out in the Undercity's black market, threatening to escalate into a full-blown riot. The rubble and danger lurk in the shadows.", action: "Break up the brawl", fight: "Fight 2 Brawlers (DD6 | 12 HP). Gain random Trade Good.", reward: "+1 Political Group" },
-        { title: "Hidden Stash Rumor", text: "A hidden stash of valuable items is rumored to be hidden in the Undercity, guarded by traps and deadly creatures.", action: "Retrieve the stash or Guard it", fight: "Guard: Fight Guardians (DD8 | 16 HP). Gain random Cosmic Essential.", reward: "+1 Pirates" },
-        { title: "Eavesdrop on Influencers", text: "A secret meeting between influential figures is taking place in the Undercity, away from prying eyes.", action: "Eavesdrop", fight: "Roll 2 Dread (d8). Spirit needs to roll above both dice — gain Hook and Mystery.", reward: "+1 Corporation" },
-        { title: "Ancient Tech Cache", text: "Ancient technology lies forgotten in the depths of the Undercity, waiting to be rediscovered by whoever finds it first.", action: "Retrieve the tech", fight: "Lead Save vs DD10. Gain random Hack Data Drive.", reward: "+1 Pirates" }
+        { title: "Market Riot", text: "A weapons deal goes violent.", action: "Seize control", reward: "+1 Veil Runners, random contraband" },
+        { title: "Cache Rumor", text: "An old war cache is pinged on outlaw channels.", action: "Recover first", reward: "+1 Titan Crown, random armor" }
       ]
     },
     "The Wastes": {
-      locations: [
-        "amidst the ruins of old towers",
-        "at the base of a giant dune",
-        "within a petrified forest",
-        "across the cracked earth",
-        "near a forgotten battlefield",
-        "adjacent to a radioactive crater"
-      ],
-      sights: [
-        "The Echo Plaza",
-        "The Sunken Ship",
-        "The Crystal Grove",
-        "The Iron Serpent",
-        "The Shield Dome",
-        "The Glow Mire"
-      ],
-      descriptions: [
-        "a crumbling plaza echoing the whispers of the past, gathering point for nomads and traders",
-        "a starship half-buried in sand, turned into a hideout for scavengers and exiles",
-        "trees turned to stone and crystal, shimmering under sun, source of rare minerals and mystical lore",
-        "an ancient, rusted pipeline snaking through the land, landmark for navigation and shelter",
-        "a semi-active defense dome housing lost technologies, relic site protected by old security drones",
-        "a bog that emits a haunting, luminescent glow, hotspot for rare bio-specimens"
-      ],
-      features: [
-        "gathering point for nomads and traders",
-        "hideout for scavengers and exiles",
-        "source of rare minerals and mystical lore",
-        "landmark for navigation and shelter",
-        "relic site protected by old security drones",
-        "hotspot for rare bio-specimens"
-      ],
-      flora: ["petrified crystal-tree", "radio-bloom cactus", "toxic spore plant", "fossilized vine", "dune-grass"],
-      fauna: ["Dust Devils", "sand crawlers", "scavenger birds", "irradiated lizards", "wasteland wolves"],
-      land: ["cracked salt flats", "buried city ruins", "dune fields", "radioactive craters", "fossilized forests"],
-      weather: ["sandstorms", "blistering midday heat", "cold irradiated nights", "eerie dead calm", "acid dust haze"],
+      locations: ["around ruined towers", "inside petrified groves", "near radioactive craters"],
+      sights: ["The Sunken Ship", "The Crystal Grove", "The Shield Dome"],
+      descriptions: ["sand swallows old roads", "wind reveals and buries ruins hourly", "nomad beacons pulse on distant ridges"],
+      features: ["desert clans", "relic hunters", "radiation medics"],
+      flora: ["dune grass", "radio bloom", "fossil vine"],
+      fauna: ["dust devils", "waste wolves", "irradiated lizards"],
+      land: ["salt flats", "dune corridors", "impact basins"],
+      weather: ["sandstorm", "dry heat", "ash dust"],
       events: [
-        { title: "Abandoned Research Facility", text: "An abandoned research facility in the Wastes holds valuable technology, but it's overrun by hostile creatures.", action: "Clear the facility", fight: "Fight 2 Hostile Creatures (DD8 | 16 HP). Gain random Augmentation.", reward: "+1 Corporation" },
-        { title: "Desert Nomad Protection", text: "A tribe of desert nomads sells rare goods and services in exchange for protection from raiders closing in.", action: "Protect the nomads", fight: "Fight 3 Raiders (DD8 | 18 HP). Gain random Trade Good.", reward: "+1 Political Group" },
-        { title: "Sandstorm Emergency", text: "A massive sandstorm engulfs the Wastes, creating both hazards and opportunities for those caught in it.", action: "Weather the storm", fight: "Roll 2 Dread (d8). Control needs to roll above both dice. Gain random Armor.", reward: "+1 Political Group" },
-        { title: "Old Ruins Scavengers", text: "The ruins of an old city hold secrets and dangers alike, with scavengers picking through the remains for valuables.", action: "Explore the ruins", fight: "Mind Save vs DD10. Gain random Scroll.", reward: "+1 Religious Group" }
+        { title: "Storm Wall", text: "A storm front cuts off three routes.", action: "Chart a safe path", reward: "+1 Dust Saints, random survival gear" },
+        { title: "Relic Surge", text: "Scanners detect a pre-fall cache opening.", action: "Secure the site", reward: "+1 Helix Union, random relic" }
       ]
     },
     "The Ports": {
-      locations: [
-        "shadow of cranes",
-        "edge of the docks",
-        "a bustling market",
-        "a misty pier",
-        "a dilapidated warehouse district",
-        "under the boardwalk"
-      ],
-      sights: [
-        "The Spire",
-        "The Silver Galleon",
-        "The Glasshouse Café",
-        "The Leviathan Monument",
-        "The Neon Bazaar",
-        "The Grotto"
-      ],
-      descriptions: [
-        "a neon-lit tower pulsing with illegal data streams, refuge for hackers and outlaws",
-        "an antiquated starship turned opulent nightclub, hotspot for black market dealings",
-        "a transparent dome filled with exotic, oxygen-producing plants, popular meeting spot for smugglers",
-        "a towering sculpture made from scrapped starship parts, cultural landmark and gang hideout",
-        "an endless maze of stalls under flickering lights, trading hub for rare goods",
-        "an underground club known for its raucous music and secretive clientele, a safe haven for information brokers"
-      ],
-      features: [
-        "refuge for hackers and outlaws",
-        "hotspot for black market dealings",
-        "popular meeting spot for smugglers",
-        "cultural landmark and gang hideout",
-        "trading hub for rare goods",
-        "a safe haven for information brokers"
-      ],
-      flora: ["salt-crusted sea-vine", "dock barnacle bloom", "harbor algae mat", "oil-slick fern", "deep-anchor plant"],
-      fauna: ["dock rats", "sea hawks", "manta-drakes", "bio-luminescent eels", "mechanical crabs"],
-      land: ["crowded docksides", "drydock bays", "floating restaurant platforms", "breakwater walls", "subaquatic reef markets"],
-      weather: ["salt fog", "coastal gale", "warm trade-wind breeze", "heavy rain squalls", "humid sea air"],
+      locations: ["under cargo cranes", "inside drydock lanes", "along contraband piers"],
+      sights: ["The Spire", "The Silver Galleon", "The Neon Bazaar"],
+      descriptions: ["ship horns blend with coded broadcasts", "dock crews move goods at all hours", "smuggler lights pulse beneath boardwalks"],
+      features: ["harbor syndicates", "shipwright crews", "broker cells"],
+      flora: ["dock algae", "salt vine", "anchor bloom"],
+      fauna: ["mechanical crabs", "sea hawks", "manta-drakes"],
+      land: ["dock walls", "floating decks", "warehouse lots"],
+      weather: ["salt fog", "coastal gale", "humid rain"],
       events: [
-        { title: "Contraband Warehouse", text: "A group of smugglers operates out of a dilapidated warehouse, dealing in contraband from distant lands. They seek protection muscle.", action: "Protect the shipment or Expose them", fight: "Protect: Fight 2 Goons (DD8 | 16 HP). Gain random Trade Good.", reward: "+1 Pirates" },
-        { title: "Underground Club Shakedown", text: "In the heart of the Ports, an underground club offers illicit substances and forbidden pleasures. A powerful mob boss threatens the owner.", action: "Question the protection or Fight the mob", fight: "Fight the Mob Enforcer (DD8 | 12 HP). Gain random Augmentation.", reward: "+1 Political Group" },
-        { title: "Black Market Auction", text: "A secret auction is being held somewhere in the Ports, offering rare and illegal goods to the highest bidder.", action: "Bid for goods or Infiltrate and steal", fight: "Infiltrate: Control vs Dread d8. Gain random Hack Data Drive.", reward: "+2 Pirates" },
-        { title: "Drug Deal Gone Wrong", text: "A major drug deal has gone awry, and the involved parties are now in a violent standoff spilling into the docks.", action: "Mediate the situation", fight: "Roll 2 Dread (d6). Mind needs to roll above both dice. Gain 200 Credits.", reward: "+1 Political Group" }
+        { title: "Auction Breach", text: "A black market auction is compromised.", action: "Raid or protect", reward: "+1 Veil Runners, random rare good" },
+        { title: "Harbor Lockdown", text: "Port authority seals all exits.", action: "Smuggle a route open", reward: "+1 Axiom Cartel, 220 credits" }
       ]
     }
   };
 
   const ZONE_SERVICES = {
     "Cyber Hub": [
-      { name: "Virtual Reality Arcade", cost: "20 Credits / hour", desc: "Immerse in alternate realities and simulation runs." },
-      { name: "AI Consultation", cost: "60 Credits / session", desc: "Get tactical, social, or business guidance from adaptive models." },
-      { name: "Data Recovery", cost: "25 Credits", desc: "Recover corrupted files and encrypted drives." }
+      { name: "Data Forge", cost: 40, desc: "Purchase tactical intel packets." },
+      { name: "Augment Tune-Up", cost: 60, desc: "Calibrate cyberware for your next scene." }
     ],
     "Green House": [
-      { name: "Eco-Tour Guided Walk", cost: "25 Credits", desc: "Learn rare flora and engineered wildlife patterns." },
-      { name: "Botanical Therapy", cost: "40 Credits", desc: "Restore stress with controlled greenhouse treatment." },
-      { name: "Sustainable Garden Workshop", cost: "30 Credits", desc: "Craft reusable planting systems and filters." }
+      { name: "Botanical Therapy", cost: 30, desc: "Recover from stress in a bio-dome clinic." },
+      { name: "Gene Med Pack", cost: 45, desc: "Acquire high-grade healing compounds." }
     ],
     "Industrial Sector": [
-      { name: "Machine Bay Rental", cost: "100 Credits / day", desc: "Lease industrial equipment for fabrication jobs." },
-      { name: "Recycling and Disposal", cost: "30 Credits", desc: "Process salvage and hazardous material safely." },
-      { name: "Logistics Routing", cost: "50 Credits", desc: "Plan heavy transport lines through unstable sectors." }
+      { name: "Forge Rental", cost: 50, desc: "Craft or repair heavy equipment." },
+      { name: "Convoy Routing", cost: 35, desc: "Secure safer freight pathways." }
     ],
     "Neon City": [
-      { name: "Virtual Experience Zone", cost: "30 Credits", desc: "Immersive simulations from noir dreamscapes to combat drills." },
-      { name: "Neon Art Installations", cost: "Free / donation", desc: "Interactive city-light galleries and coded performances." },
-      { name: "Holographic Concert Hall", cost: "50-500 Credits", desc: "Attend live-shift holo acts and celebrity projections." }
+      { name: "VR Drill Suite", cost: 35, desc: "Sim-run combat and infiltration practice." },
+      { name: "Holo Venue Access", cost: 25, desc: "Gain social leverage and rumors." }
     ],
     "Outskirts": [
-      { name: "Salvage and Repair", cost: "10-50 Credits", desc: "Patch armor, tune engines, and rebuild broken tools." },
-      { name: "Water Purification", cost: "2 Credits / refill", desc: "Secure clean water for long route travel." },
-      { name: "Drone Surveillance Rental", cost: "5 Credits / day", desc: "Lease scouts for route checks and perimeter watch." }
+      { name: "Water Purification", cost: 10, desc: "Refill and detox travel supplies." },
+      { name: "Salvage Repair", cost: 20, desc: "Patch armor and field devices." }
     ],
     "Residential Blocks": [
-      { name: "Maintenance Subscription", cost: "20 Credits / month", desc: "Routine support for housing systems and utilities." },
-      { name: "Community Access Pass", cost: "75 Credits", desc: "Unlock parks, recreation halls, and district pools." },
-      { name: "Tech Upgrades", cost: "20-300 Credits", desc: "Install comfort and security automation packages." }
+      { name: "Community Med Bay", cost: 25, desc: "Stabilize conditions and recover." },
+      { name: "Utility Override", cost: 30, desc: "Grant temporary district advantages." }
     ],
     "The Undercity": [
-      { name: "Black Market Cybernetics", cost: "100-800 Credits", desc: "Obtain unauthorized cybernetic enhancements and combat augmentations." },
-      { name: "Safehouse Rental", cost: "30 Credits / night", desc: "Secure hidden shelter with off-grid amenities." },
-      { name: "Contraband Trading Posts", cost: "Entry fee: 10 Credits", desc: "Broker illicit goods through deniable intermediaries." }
+      { name: "Safehouse Access", cost: 20, desc: "Acquire hidden shelter and contacts." },
+      { name: "Blackline Cybernetics", cost: 70, desc: "Install illicit combat mods." }
     ],
     "The Wastes": [
-      { name: "Salvage and Recovery", cost: "30 Credits", desc: "Hire crews to retrieve high-value debris from dead zones." },
-      { name: "Guided Expedition", cost: "75 Credits / day", desc: "Traverse dangerous sectors with local route experts." },
-      { name: "Makeshift Medical Clinic", cost: "10-200 Credits", desc: "Emergency treatment for trauma, radiation, and burns." }
+      { name: "Expedition Guide", cost: 35, desc: "Reduce travel risk in dead zones." },
+      { name: "Rad Clinic", cost: 20, desc: "Treat burns and radiation sickness." }
     ],
     "The Ports": [
-      { name: "Ship Dock and Maintenance", cost: "20 Credits / day", desc: "Dock and maintain vessels with harbor-grade tech." },
-      { name: "Cyber Augmentation Clinic", cost: "50-500 Credits", desc: "Install neural interfaces and biomech tuning." },
-      { name: "Smuggler Night Market", cost: "Entry fee: 5 Credits", desc: "Acquire hard-to-find goods and forbidden parts." }
+      { name: "Dock Maintenance", cost: 25, desc: "Service vessels and cargo rigs." },
+      { name: "Night Market Access", cost: 15, desc: "Enter smuggler-only trade channels." }
     ]
   };
 
   const POWER_SERVICES = {
     "Axiom Cartel": [
-      { name: "Corporate Blackline Contract", cost: "120 Credits", desc: "Gain temporary legal immunity and escort clearance." },
-      { name: "Executive Defense Package", cost: "200 Credits", desc: "Issue district defense drones for one operation." }
+      { name: "Corporate Blackline", cost: 90, desc: "Temporary clearance and legal cover." }
     ],
     "Helix Union": [
-      { name: "Genome Forge Suite", cost: "180 Credits", desc: "Biotech enhancements tuned for resilience and speed." },
-      { name: "Bio-Loop Recovery", cost: "90 Credits", desc: "Advanced med support that removes one trauma effect." }
+      { name: "Bio-Loop Recovery", cost: 80, desc: "Remove one harmful condition." }
     ],
     "Titan Crown": [
-      { name: "Iron Militia Draft", cost: "80 Credits", desc: "Hire combat squads to support a skirmish hex." },
-      { name: "Siege Logistics", cost: "140 Credits", desc: "Rapid heavy lift and armored transport deployment." }
+      { name: "Militia Contract", cost: 75, desc: "Call district security reinforcement." }
     ],
     "Veil Runners": [
-      { name: "Shadow Courier Net", cost: "60 Credits", desc: "Silent delivery across contested district lines." },
-      { name: "Ghost Signal Broker", cost: "40 Credits", desc: "Buy rumors, routes, and skirmish forecasts." }
+      { name: "Ghost Courier", cost: 45, desc: "Fast covert delivery and route intel." }
     ],
     "Dust Saints": [
-      { name: "Relic Oracle", cost: "45 Credits", desc: "Trade offerings for hidden event and weather insight." },
-      { name: "Ash Ward Rite", cost: "35 Credits", desc: "Gain resistance against one hazardous encounter." }
+      { name: "Ash Ward", cost: 35, desc: "Protect against one hazard this day." }
     ]
+  };
+
+  const HOLDING_NAMES = {
+    "Axiom Cartel": ["Axiom Data Spire", "Cipher Court"],
+    "Helix Union": ["Helix Gene Vault", "Verdant Coil Lab"],
+    "Titan Crown": ["Titan Bastion", "Iron Marshal Keep"],
+    "Veil Runners": ["Veil Relay", "Silent Circuit Den"],
+    "Dust Saints": ["Ash Reliquary", "Dustward Shrine"]
+  };
+
+  const POWER_TASKS = {
+    "Axiom Cartel": ["Extract encrypted executive ledger", "Deploy a spoof beacon in rival district", "Escort a data courier through hostile blocks"],
+    "Helix Union": ["Recover stolen biotech vials", "Stabilize a failing genome reactor", "Audit a corrupted med node"],
+    "Titan Crown": ["Hold perimeter during civic unrest", "Retake a seized logistics hub", "Lead militia convoy to safe quarter"],
+    "Veil Runners": ["Deliver contraband through scanners", "Intercept rival whisper channel", "Plant a false route packet"],
+    "Dust Saints": ["Recover relic from storm trench", "Protect pilgrims crossing dead zone", "Sanctify an irradiated water source"]
   };
 
   function safePick(list, fallback) {
@@ -520,22 +245,102 @@
     return Math.floor(Math.random() * max) + 1;
   }
 
+  function getCredits() {
+    if (typeof S === "undefined") return 0;
+    return typeof S.credits === "number" ? S.credits : 0;
+  }
+
+  function setCredits(v) {
+    if (typeof S === "undefined") return;
+    S.credits = Math.max(0, v);
+    if (typeof renderUI === "function") renderUI();
+  }
+
+  function canAfford(cost) {
+    return getCredits() >= cost;
+  }
+
+  function spendCredits(cost, reason) {
+    if (!canAfford(cost)) {
+      if (typeof showNotif === "function") showNotif("Not enough Credits for " + reason + ".", "warn");
+      return false;
+    }
+    setCredits(getCredits() - cost);
+    return true;
+  }
+
+  function ensurePowerRenown() {
+    if (typeof S === "undefined") return;
+    S.powerRenown = S.powerRenown || {};
+    HOLDERS.forEach(function (name) {
+      if (typeof S.powerRenown[name] !== "number") S.powerRenown[name] = 0;
+    });
+  }
+
+  function addPowerRenown(power, amount) {
+    ensurePowerRenown();
+    if (typeof S === "undefined") return;
+    S.powerRenown[power] = (S.powerRenown[power] || 0) + (amount || 1);
+    if (typeof showNotif === "function") showNotif("+" + (amount || 1) + " renown with " + power + ".", "good");
+  }
+
+  function grantRandomLoot(tier) {
+    if (typeof rollForLoot === "function") {
+      const loot = rollForLoot(tier || "medium");
+      if (loot && loot.length && typeof showNotif === "function") {
+        showNotif("Loot: " + loot.join(", "), "good");
+      }
+      return;
+    }
+    if (typeof showNotif === "function") showNotif("Loot granted.", "good");
+  }
+
+  function advanceWorldTime(reason) {
+    if (typeof S === "undefined") return;
+    S.day = (typeof S.day === "number" ? S.day : 1) + 1;
+    if (typeof S.phase === "number") {
+      S.phase = (S.phase + 1) % 4;
+    }
+    if (typeof showNotif === "function") showNotif("Time advanced: " + reason + ".", "good");
+    if (typeof renderUI === "function") renderUI();
+  }
+
   function ensureWorldState() {
     if (typeof S === "undefined") return null;
+    ensurePowerRenown();
+
     S.worldThatWas = S.worldThatWas || {};
     const w = S.worldThatWas;
+
+    w.controllers = w.controllers || HOLDERS.slice();
     w.majorPowers = w.majorPowers || MAJOR_POWERS.slice();
     w.factions = w.factions || FACTIONS.slice();
-    w.controllers = w.controllers || w.majorPowers.concat(w.factions);
-    w.playerAlignedPower = w.playerAlignedPower || safePick(w.majorPowers, MAJOR_POWERS[0]);
+    w.playerAlignedPower = w.playerAlignedPower || MAJOR_POWERS[0];
+
     w.hexes = Array.isArray(w.hexes) ? w.hexes : [];
+    w.zones = Array.isArray(w.zones) ? w.zones : [];
+    w.markers = w.markers || {};
     w.selectedHexId = w.selectedHexId || null;
     w.tick = typeof w.tick === "number" ? w.tick : 0;
-    w.markers = w.markers || {};
-    w.zones = w.zones || [];
     w.generated = !!w.generated;
-    w.landingPads = w.landingPads || [];
-    w.currentLandingHexId = w.currentLandingHexId || null;
+
+    w.trainZones = Array.isArray(w.trainZones) ? w.trainZones : [];
+    w.currentZone = w.currentZone || "Cyber Hub";
+
+    w.holdings = Array.isArray(w.holdings) ? w.holdings : [];
+    w.activeTasks = Array.isArray(w.activeTasks) ? w.activeTasks : [];
+
+    w.skirmishState = w.skirmishState || {
+      activeHexId: null,
+      round: 1,
+      armyAStress: null,
+      armyBStress: null,
+      armyAActions: 2,
+      armyBActions: 2,
+      armyADread: null,
+      armyBDread: null
+    };
+
     return w;
   }
 
@@ -554,170 +359,192 @@
     };
   }
 
-  function zoneAnchors() {
-    return [
-      { col: 2, row: 2 }, { col: 7, row: 2 }, { col: 12, row: 2 },
-      { col: 2, row: 7 }, { col: 7, row: 7 }, { col: 12, row: 7 },
-      { col: 2, row: 12 }, { col: 7, row: 12 }, { col: 12, row: 12 }
-    ];
+  function mapZoneFromCoord(col, row) {
+    const c = Math.floor(col / 4);
+    const r = Math.floor(row / 4);
+    const zoneIndex = r * 3 + c;
+    return ZONE_NAMES[Math.max(0, Math.min(zoneIndex, ZONE_NAMES.length - 1))];
   }
 
-  function districtOffsets() {
-    return [
-      { dc: 0, dr: 0 },
-      { dc: 1, dr: 0 },
-      { dc: -1, dr: 0 },
-      { dc: 0, dr: 1 },
-      { dc: 0, dr: -1 }
-    ];
+  function districtName(zoneName, idx) {
+    return zoneName + " District " + (idx + 1);
+  }
+
+  function generateHoldings(w) {
+    w.holdings = [];
+    HOLDERS.forEach(function (power) {
+      const names = HOLDING_NAMES[power] || [power + " Holding"];
+      const zoneName = safePick(ZONE_NAMES, ZONE_NAMES[0]);
+      const zoneHexes = w.hexes.filter(function (h) { return h.zone === zoneName; });
+      const homeHex = safePick(zoneHexes, zoneHexes[0]);
+      if (!homeHex) return;
+      w.holdings.push({
+        id: "holding-" + power.replace(/\s+/g, "-").toLowerCase(),
+        power: power,
+        name: safePick(names, names[0]),
+        zone: zoneName,
+        hexId: homeHex.id,
+        mood: safePick(["Under pressure", "Prosperous", "Mobilizing", "Covert", "Defensive"], "Stable"),
+        crisis: safePick(["Supply line interference", "Insider sabotage", "Skirmish spillover", "Power deficit", "Intel blackout"], "No crisis")
+      });
+    });
   }
 
   function generateWorldThatWasMap() {
     const w = ensureWorldState();
     if (!w) return;
 
-    const anchors = zoneAnchors();
-    const offsets = districtOffsets();
     w.hexes = [];
     w.zones = [];
 
-    ZONE_NAMES.forEach((zoneName, zoneIndex) => {
-      const districts = DISTRICT_NAMES[zoneName] || ["Core", "North", "South", "East", "West"];
-      const anchor = anchors[zoneIndex];
-      const zoneHexIds = [];
+    const zoneBucket = {};
+    ZONE_NAMES.forEach(function (z) {
+      zoneBucket[z] = [];
+      w.zones.push({
+        name: z,
+        color: ZONE_COLORS[z] || "#888",
+        hexIds: [],
+        controlBreakdown: {},
+        leader: HOLDERS[0],
+        stationHexId: null
+      });
+    });
 
-      offsets.forEach((off, idx) => {
-        const narrative = buildDistrictNarrative(zoneName);
-        const controller = safePick(w.controllers, w.controllers[0]);
-        const hexId = "wtw-" + zoneIndex + "-" + idx;
+    let idxByZone = {};
+    ZONE_NAMES.forEach(function (z) { idxByZone[z] = 0; });
+
+    for (let row = 0; row < MAP_ROWS; row += 1) {
+      for (let col = 0; col < MAP_COLS; col += 1) {
+        const zoneName = mapZoneFromCoord(col, row);
+        const n = buildDistrictNarrative(zoneName);
+        const hexId = "wtw-" + col + "-" + row;
         const hex = {
           id: hexId,
           zone: zoneName,
-          district: districts[idx] || ("District " + (idx + 1)),
-          col: anchor.col + off.dc,
-          row: anchor.row + off.dr,
-          controller: controller,
-          skirmish: safeRoll(100) <= 26,
-          landingPad: false,
-          narrative: narrative
+          district: districtName(zoneName, idxByZone[zoneName]),
+          districtIndex: idxByZone[zoneName],
+          col: col,
+          row: row,
+          controller: safePick(HOLDERS, HOLDERS[0]),
+          skirmish: safeRoll(100) <= 16,
+          narrative: n,
+          station: false,
+          markerType: null,
+          serviceRefresh: safeRoll(100) <= 55
         };
+        idxByZone[zoneName] += 1;
         w.hexes.push(hex);
-        zoneHexIds.push(hexId);
-      });
+        zoneBucket[zoneName].push(hexId);
+      }
+    }
 
-      w.zones.push({
-        name: zoneName,
-        color: ZONE_COLORS[zoneName] || "#8d8d8d",
-        hexIds: zoneHexIds,
-        baseServices: (ZONE_SERVICES[zoneName] || []).slice(),
-        leader: null,
-        controlBreakdown: {}
-      });
+    w.zones.forEach(function (z) {
+      z.hexIds = zoneBucket[z.name] || [];
     });
 
-    assignLandingPads();
-    updateZoneControl();
+    assignTrainStations();
+    generateHoldings(w);
     syncWorldMarkers();
-    w.generated = true;
+    updateZoneControl();
+
     w.tick = 1;
-    if (!w.selectedHexId && w.hexes.length) {
-      w.selectedHexId = w.hexes[0].id;
-    }
+    w.generated = true;
+    w.currentZone = "Cyber Hub";
+    const startHex = w.hexes.find(function (h) { return h.zone === w.currentZone; });
+    w.selectedHexId = startHex ? startHex.id : (w.hexes[0] && w.hexes[0].id);
+
     renderWorldThatWas();
   }
 
-  function assignLandingPads() {
+  function assignTrainStations() {
     const w = ensureWorldState();
-    if (!w || !w.hexes.length) return;
-    w.landingPads = [];
-    w.hexes.forEach((hex) => {
-      hex.landingPad = false;
-    });
+    if (!w) return;
+    w.trainZones = [];
 
-    LANDING_ZONE_NAMES.forEach((name, index) => {
-      const candidate = w.hexes.find((hex) => hex.zone === name && (hex.district === (DISTRICT_NAMES[name] || [])[0])) || w.hexes[index];
-      if (candidate) {
-        candidate.landingPad = true;
-        w.landingPads.push(candidate.id);
+    w.hexes.forEach(function (h) { h.station = false; });
+
+    w.zones.forEach(function (zone) {
+      const zoneHexes = w.hexes.filter(function (h) { return h.zone === zone.name; });
+      const stationHex = safePick(zoneHexes, zoneHexes[0]);
+      if (stationHex) {
+        stationHex.station = true;
+        zone.stationHexId = stationHex.id;
+        w.trainZones.push(zone.name);
       }
     });
-
-    if (w.landingPads.length) {
-      w.currentLandingHexId = safePick(w.landingPads, w.landingPads[0]);
-      w.selectedHexId = w.currentLandingHexId;
-    }
   }
 
   function updateZoneControl() {
     const w = ensureWorldState();
     if (!w) return;
 
-    w.zones.forEach((zone) => {
+    w.zones.forEach(function (zone) {
       const counts = {};
-      zone.hexIds.forEach((hexId) => {
-        const hex = w.hexes.find((h) => h.id === hexId);
+      zone.hexIds.forEach(function (hexId) {
+        const hex = w.hexes.find(function (h) { return h.id === hexId; });
         if (!hex) return;
         counts[hex.controller] = (counts[hex.controller] || 0) + 1;
       });
       zone.controlBreakdown = counts;
-      let leader = null;
-      let topCount = -1;
-      Object.keys(counts).forEach((name) => {
-        if (counts[name] > topCount) {
-          topCount = counts[name];
+
+      let leader = HOLDERS[0];
+      let top = -1;
+      Object.keys(counts).forEach(function (name) {
+        if (counts[name] > top) {
+          top = counts[name];
           leader = name;
         }
       });
-      zone.leader = leader || safePick(w.controllers, w.controllers[0]);
+      zone.leader = leader;
     });
   }
 
   function syncWorldMarkers() {
     const w = ensureWorldState();
     if (!w || !w.hexes.length) return;
+
     w.markers = {};
 
-    const pool = w.hexes.slice();
+    const missionPool = w.hexes.slice();
     function takeHex() {
-      if (!pool.length) return null;
-      const idx = safeRoll(pool.length) - 1;
-      return pool.splice(idx, 1)[0];
+      if (!missionPool.length) return null;
+      const ix = safeRoll(missionPool.length) - 1;
+      return missionPool.splice(ix, 1)[0];
     }
 
-    const missions = (S.activeMissions || []).slice(0, 6);
-    missions.forEach((mission) => {
+    (S.activeMissions || []).slice(0, 8).forEach(function (m) {
       const hex = takeHex();
       if (!hex) return;
-      w.markers[hex.id] = {
-        type: "mission",
-        title: mission.title || "Mission",
-        subtitle: "Mission marker"
-      };
+      w.markers[hex.id] = { type: "mission", title: m.title || "Mission", subtitle: "Live mission marker" };
+      hex.markerType = "mission";
     });
 
-    const holdingQuest = S.holdingQuest || {};
-    if (holdingQuest.active || holdingQuest.holdingHex) {
-      const stepHex = takeHex();
-      if (stepHex) {
-        w.markers[stepHex.id] = {
-          type: "task",
-          title: "Holdings Task",
-          subtitle: holdingQuest.active ? "Quest in progress" : "Holdings objective"
-        };
+    w.activeTasks.slice(0, 8).forEach(function (t) {
+      const hex = takeHex();
+      if (!hex) return;
+      w.markers[hex.id] = { type: "task", title: t.title, subtitle: "Holding task" };
+      hex.markerType = "task";
+    });
+
+    w.hexes.forEach(function (hex) {
+      if (!w.markers[hex.id]) {
+        hex.markerType = safeRoll(100) <= 12 ? "job" : null;
+        if (hex.markerType === "job") {
+          w.markers[hex.id] = { type: "job", title: "District Job", subtitle: "Quick contract available" };
+        }
       }
-    }
-
-    const holding = S.holding || {};
-    const crises = Array.isArray(holding.crises) ? holding.crises.slice(0, 3) : [];
-    crises.forEach((crisis) => {
-      const hex = takeHex();
-      if (!hex) return;
-      w.markers[hex.id] = {
-        type: "task",
-        title: "Crisis Task",
-        subtitle: (crisis && crisis.title) || "Resolve district crisis"
-      };
     });
+  }
+
+  function controllerColor(name) {
+    const majorIdx = MAJOR_POWERS.indexOf(name);
+    if (majorIdx === 0) return "#6dc7ff";
+    if (majorIdx === 1) return "#70d96f";
+    if (majorIdx === 2) return "#f8bb57";
+    const factionIdx = FACTIONS.indexOf(name);
+    if (factionIdx === 0) return "#d870c5";
+    if (factionIdx === 1) return "#d85a5a";
+    return "#999";
   }
 
   function hexToPixel(col, row) {
@@ -738,38 +565,27 @@
     return pts.join(" ");
   }
 
-  function controllerColor(name) {
-    const majorIdx = MAJOR_POWERS.indexOf(name);
-    if (majorIdx === 0) return "#6dc7ff";
-    if (majorIdx === 1) return "#70d96f";
-    if (majorIdx === 2) return "#f8bb57";
-    const factionIdx = FACTIONS.indexOf(name);
-    if (factionIdx === 0) return "#d870c5";
-    if (factionIdx === 1) return "#d85a5a";
-    return "#999";
-  }
-
   function renderWorldThatWasMap() {
     const w = ensureWorldState();
     const svg = document.getElementById("wtwMapSvg");
     if (!svg || !w) return;
 
     if (!w.generated || !w.hexes.length) {
-      svg.setAttribute("width", "760");
-      svg.setAttribute("height", "560");
-      svg.innerHTML = "<text x='380' y='260' text-anchor='middle' font-family='Cinzel,serif' font-size='14' fill='#2f4457'>Generate The World That Was to begin</text>";
+      svg.setAttribute("width", "900");
+      svg.setAttribute("height", "740");
+      svg.innerHTML = "<text x='400' y='240' text-anchor='middle' font-family='Cinzel,serif' font-size='14' fill='#2f4457'>Generate The World That Was to begin</text>";
       return;
     }
 
-    const svgW = 900;
+    const svgW = 980;
     const svgH = 760;
     svg.setAttribute("width", String(svgW));
     svg.setAttribute("height", String(svgH));
     svg.innerHTML = "";
 
-    w.hexes.forEach((hex) => {
+    w.hexes.forEach(function (hex) {
       const p = hexToPixel(hex.col, hex.row);
-      const zone = w.zones.find((z) => z.name === hex.zone);
+      const zone = w.zones.find(function (z) { return z.name === hex.zone; });
       const marker = w.markers[hex.id];
 
       const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -779,13 +595,13 @@
       poly.setAttribute("points", hexPoints(p.x, p.y));
       poly.setAttribute("fill", "rgba(20,28,34,.85)");
       poly.setAttribute("stroke", zone ? zone.color : "#8e8e8e");
-      poly.setAttribute("stroke-width", w.selectedHexId === hex.id ? "2.8" : "1.4");
+      poly.setAttribute("stroke-width", w.selectedHexId === hex.id ? "2.8" : "1.2");
       g.appendChild(poly);
 
       const owner = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       owner.setAttribute("cx", String(p.x));
       owner.setAttribute("cy", String(p.y));
-      owner.setAttribute("r", "7");
+      owner.setAttribute("r", "5.5");
       owner.setAttribute("fill", controllerColor(hex.controller));
       owner.setAttribute("stroke", "#111");
       owner.setAttribute("stroke-width", "1");
@@ -794,35 +610,35 @@
 
       if (hex.skirmish) {
         const sk = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        sk.setAttribute("x", String(p.x - 14));
-        sk.setAttribute("y", String(p.y - 10));
-        sk.setAttribute("font-size", "12");
+        sk.setAttribute("x", String(p.x - 12));
+        sk.setAttribute("y", String(p.y - 7));
+        sk.setAttribute("font-size", "11");
         sk.setAttribute("fill", "#e05050");
         sk.setAttribute("pointer-events", "none");
         sk.textContent = "X";
         g.appendChild(sk);
       }
 
-      if (marker) {
-        const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        mk.setAttribute("x", String(p.x + 10));
-        mk.setAttribute("y", String(p.y - 10));
-        mk.setAttribute("font-size", "12");
-        mk.setAttribute("fill", marker.type === "mission" ? "#e8c050" : "#46c4b6");
-        mk.setAttribute("pointer-events", "none");
-        mk.textContent = marker.type === "mission" ? "!" : "T";
-        g.appendChild(mk);
+      if (hex.station) {
+        const st = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        st.setAttribute("x", String(p.x - 4));
+        st.setAttribute("y", String(p.y + 15));
+        st.setAttribute("font-size", "9");
+        st.setAttribute("fill", "#7ed7ff");
+        st.setAttribute("pointer-events", "none");
+        st.textContent = "T";
+        g.appendChild(st);
       }
 
-      if (hex.landingPad) {
-        const lp = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        lp.setAttribute("x", String(p.x - 3));
-        lp.setAttribute("y", String(p.y + 20));
-        lp.setAttribute("font-size", "9");
-        lp.setAttribute("fill", "#7ed7ff");
-        lp.setAttribute("pointer-events", "none");
-        lp.textContent = "LP";
-        g.appendChild(lp);
+      if (marker) {
+        const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        mk.setAttribute("x", String(p.x + 8));
+        mk.setAttribute("y", String(p.y - 8));
+        mk.setAttribute("font-size", "10");
+        mk.setAttribute("fill", marker.type === "mission" ? "#e8c050" : marker.type === "task" ? "#46c4b6" : "#bbbbbb");
+        mk.setAttribute("pointer-events", "none");
+        mk.textContent = marker.type === "mission" ? "!" : marker.type === "task" ? "T" : "$";
+        g.appendChild(mk);
       }
 
       g.addEventListener("click", function () {
@@ -837,24 +653,415 @@
   function getSelectedHex() {
     const w = ensureWorldState();
     if (!w) return null;
-    return w.hexes.find((hex) => hex.id === w.selectedHexId) || null;
+    return w.hexes.find(function (hex) { return hex.id === w.selectedHexId; }) || null;
+  }
+
+  function zoneForHex(hex) {
+    const w = ensureWorldState();
+    return w.zones.find(function (z) { return z.name === hex.zone; });
   }
 
   function zoneServicesForHex(hex) {
-    const w = ensureWorldState();
-    const zone = w.zones.find((z) => z.name === hex.zone);
-    if (!zone) return [];
-    const total = zone.hexIds.length || 1;
-    const owned = zone.controlBreakdown[zone.leader] || 0;
+    const z = zoneForHex(hex);
+    if (!z) return [];
+    const total = z.hexIds.length || 1;
+    const owned = z.controlBreakdown[z.leader] || 0;
     const dominance = owned / total;
 
-    const baseServices = zone.baseServices.slice();
-    const powerServices = (POWER_SERVICES[zone.leader] || []).slice();
+    const base = (ZONE_SERVICES[z.name] || []).slice();
+    const power = (POWER_SERVICES[z.leader] || []).slice();
 
-    if (dominance >= 0.6) {
-      return powerServices.concat(baseServices.slice(0, 1));
+    return dominance >= 0.5 ? base.concat(power) : base.concat(power.slice(0, 1));
+  }
+
+  function spendService(hexId, serviceIdx) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const hex = w.hexes.find(function (h) { return h.id === hexId; });
+    if (!hex) return;
+    const services = zoneServicesForHex(hex);
+    const svc = services[serviceIdx];
+    if (!svc) return;
+    if (!spendCredits(svc.cost, svc.name)) return;
+
+    const resultRoll = safeRoll(100);
+    if (resultRoll <= 35) {
+      grantRandomLoot("easy");
+    } else if (resultRoll <= 70) {
+      if (typeof changeCounter === "function") changeCounter("renown", 1);
+      if (typeof showNotif === "function") showNotif("Service success: +1 Renown.", "good");
+    } else {
+      if (typeof showNotif === "function") showNotif("Service complete: utility benefit applied.", "good");
     }
-    return baseServices.concat(powerServices.slice(0, 1));
+
+    if (hex.serviceRefresh && safeRoll(100) <= 25) {
+      hex.narrative.event = Object.assign({}, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
+      if (typeof showNotif === "function") showNotif("District activity changed after service interaction.", "good");
+    }
+
+    advanceWorldTime("service action");
+    renderWorldThatWas();
+  }
+
+  function resolveZoneEvent(hexId) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const hex = w.hexes.find(function (h) { return h.id === hexId; });
+    if (!hex) return;
+
+    const advDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 6;
+    const dreadDie = 8;
+    const a = (typeof explodingRoll === "function") ? explodingRoll(advDie) : { total: safeRoll(advDie) };
+    const d = (typeof explodingRoll === "function") ? explodingRoll(dreadDie) : { total: safeRoll(dreadDie) };
+    const success = a.total >= d.total;
+
+    if (success) {
+      const zone = zoneForHex(hex);
+      addPowerRenown(zone ? zone.leader : MAJOR_POWERS[0], 1);
+      grantRandomLoot("medium");
+      if (typeof showNotif === "function") showNotif("Event resolved: " + hex.narrative.event.title + ".", "good");
+    } else if (typeof showNotif === "function") {
+      showNotif("Event failed: pressure in district rises.", "warn");
+      hex.skirmish = true;
+    }
+
+    advanceWorldTime("event resolution");
+    updateZoneControl();
+    syncWorldMarkers();
+    renderWorldThatWas();
+  }
+
+  function collectMarkerJob(hexId) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const marker = w.markers[hexId];
+    if (!marker) return;
+
+    const hex = w.hexes.find(function (h) { return h.id === hexId; });
+    if (!hex) return;
+
+    if (marker.type === "mission") {
+      if (typeof showNotif === "function") showNotif("Mission marker reviewed. See Missions tab for full objective.", "good");
+    } else if (marker.type === "task") {
+      const task = w.activeTasks.find(function (t) { return t.hexId === hexId; }) || w.activeTasks[0];
+      if (task) {
+        completeHoldingTask(task.id);
+        return;
+      }
+    } else {
+      if (typeof showNotif === "function") showNotif("District job completed. +80 Credits.", "good");
+      setCredits(getCredits() + 80);
+      delete w.markers[hexId];
+    }
+
+    advanceWorldTime("district marker");
+    renderWorldThatWas();
+  }
+
+  function setupSkirmishForHex(hexId) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const hex = w.hexes.find(function (h) { return h.id === hexId; });
+    if (!hex || !hex.skirmish) return;
+
+    const st = w.skirmishState;
+    st.activeHexId = hexId;
+    st.round = 1;
+    st.armyAActions = 2;
+    st.armyBActions = 2;
+    st.armyAStress = safeRoll(12) + safeRoll(12);
+    st.armyBStress = safeRoll(12) + safeRoll(12);
+    st.armyADread = st.armyAStress >= 13 ? 6 : 4;
+    st.armyBDread = st.armyBStress >= 13 ? 6 : 4;
+
+    renderWorldThatWas();
+  }
+
+  function skirmishActionInInfo(side, action) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const st = w.skirmishState;
+    if (!st.activeHexId) return;
+
+    const isA = side === "A";
+    const myActions = isA ? "armyAActions" : "armyBActions";
+    const oppStress = isA ? "armyBStress" : "armyAStress";
+    const myDread = isA ? "armyADread" : "armyBDread";
+
+    if (st[myActions] <= 0) {
+      if (typeof showNotif === "function") showNotif("No actions left for that side.", "warn");
+      return;
+    }
+
+    st[myActions] -= 1;
+    const rollVal = safeRoll(12);
+    const dread = st[myDread] || 6;
+
+    if (action === "strike" && rollVal >= dread) {
+      st[oppStress] = Math.max(0, st[oppStress] - Math.max(1, rollVal - dread));
+    } else if (action === "frighten" && safeRoll(12) >= dread) {
+      st[oppStress] = Math.max(0, st[oppStress] - 1);
+    }
+
+    if (st.armyAActions === 0 && st.armyBActions === 0) {
+      st.round += 1;
+      st.armyAActions = 2;
+      st.armyBActions = 2;
+    }
+
+    if (st.armyAStress <= 0 || st.armyBStress <= 0) {
+      finishSkirmishOutcome(st.armyBStress <= 0);
+      return;
+    }
+
+    renderWorldThatWas();
+  }
+
+  function finishSkirmishOutcome(playerWin) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const st = w.skirmishState;
+    const hex = w.hexes.find(function (h) { return h.id === st.activeHexId; });
+    if (!hex) return;
+
+    if (playerWin) {
+      hex.controller = w.playerAlignedPower;
+      hex.skirmish = false;
+      if (typeof changeCounter === "function") changeCounter("renown", 1);
+      addPowerRenown(w.playerAlignedPower, 1);
+      grantRandomLoot("medium");
+      if (typeof showNotif === "function") showNotif("Skirmish won in " + hex.zone + ".", "good");
+    } else if (typeof showNotif === "function") {
+      showNotif("Skirmish unresolved. Enemy holds.", "warn");
+    }
+
+    st.activeHexId = null;
+    updateZoneControl();
+    advanceWorldTime("skirmish");
+    renderWorldThatWas();
+  }
+
+  function quickResolveWorldSkirmish() {
+    const w = ensureWorldState();
+    const hex = getSelectedHex();
+    if (!w || !hex || !hex.skirmish) return;
+
+    const adv = (S.stats && S.stats.adventure) ? S.stats.adventure : 6;
+    const a = safeRoll(adv);
+    const d = safeRoll(8);
+    finishSkirmishOutcome(a >= d);
+  }
+
+  function openWorldSkirmishCombat() {
+    const hex = getSelectedHex();
+    if (!hex) return;
+    if (typeof setEnemyDread === "function") setEnemyDread(hex.skirmish ? 8 : 6);
+    if (typeof startCombat === "function") startCombat();
+    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+    if (typeof switchTab === "function") switchTab("combat", btn || null);
+  }
+
+  function createHoldingTask(holdingId) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const h = w.holdings.find(function (x) { return x.id === holdingId; });
+    if (!h) return;
+
+    const taskId = "task-" + Date.now() + "-" + safeRoll(9999);
+    const title = safePick(POWER_TASKS[h.power], "Run district operation");
+    const zoneHexes = w.hexes.filter(function (hex) { return hex.zone === h.zone; });
+    const taskHex = safePick(zoneHexes, zoneHexes[0]);
+
+    const t = {
+      id: taskId,
+      holdingId: holdingId,
+      power: h.power,
+      title: title,
+      hexId: taskHex ? taskHex.id : null,
+      status: "active"
+    };
+
+    w.activeTasks.unshift(t);
+    syncWorldMarkers();
+    if (typeof showNotif === "function") showNotif("Task accepted: " + title + ".", "good");
+    renderWorldThatWas();
+  }
+
+  function completeHoldingTask(taskId) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const t = w.activeTasks.find(function (x) { return x.id === taskId; });
+    if (!t) return;
+
+    t.status = "done";
+    addPowerRenown(t.power, 1);
+    grantRandomLoot("medium");
+
+    if (typeof showNotif === "function") {
+      showNotif("Holding task completed for " + t.power + ".", "good");
+    }
+
+    w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
+    syncWorldMarkers();
+    advanceWorldTime("holding task");
+    renderWorldThatWas();
+  }
+
+  function travelByTrainTo(zoneName) {
+    const w = ensureWorldState();
+    if (!w) return;
+    if (w.currentZone === zoneName) {
+      if (typeof showNotif === "function") showNotif("Already in " + zoneName + ".", "warn");
+      return;
+    }
+
+    if (!spendCredits(30, "train travel")) return;
+
+    w.currentZone = zoneName;
+    const zone = w.zones.find(function (z) { return z.name === zoneName; });
+    if (zone && zone.stationHexId) {
+      w.selectedHexId = zone.stationHexId;
+    }
+
+    advanceWorldTime("train travel");
+    if (typeof showNotif === "function") showNotif("Traveled by rail to " + zoneName + " for 30 Credits.", "good");
+    renderWorldThatWas();
+  }
+
+  function advanceWorldThatWas() {
+    const w = ensureWorldState();
+    if (!w || !w.hexes.length) return;
+
+    w.tick += 1;
+
+    const shifts = Math.max(2, safeRoll(5));
+    for (let i = 0; i < shifts; i += 1) {
+      const target = safePick(w.hexes, null);
+      if (!target) break;
+      target.controller = safePick(HOLDERS, target.controller);
+      if (safeRoll(100) <= 33) target.skirmish = true;
+    }
+
+    w.hexes.forEach(function (hex) {
+      if (!hex.skirmish && safeRoll(100) <= 9) hex.skirmish = true;
+      if (hex.skirmish && safeRoll(100) <= 18) hex.skirmish = false;
+      if (safeRoll(100) <= 10) {
+        hex.narrative.event = Object.assign({}, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
+      }
+    });
+
+    updateZoneControl();
+    syncWorldMarkers();
+    advanceWorldTime("control cycle");
+    renderWorldThatWas();
+  }
+
+  function renderPowerReadout() {
+    const w = ensureWorldState();
+    const wrap = document.getElementById("wtwPowerReadout");
+    if (!wrap || !w) return;
+
+    const chips = HOLDERS.map(function (name) {
+      let count = 0;
+      w.hexes.forEach(function (hex) { if (hex.controller === name) count += 1; });
+      return "<span class='sea-chip' style='border-color:" + controllerColor(name) + ";color:" + controllerColor(name) + ";'>" + name + ": " + count + "</span>";
+    }).join(" ");
+
+    wrap.innerHTML = chips;
+  }
+
+  function renderHoldingsPanel(hex) {
+    const w = ensureWorldState();
+    if (!w || !hex) return "";
+
+    const holdings = w.holdings.filter(function (h) { return h.zone === hex.zone; });
+    if (!holdings.length) return "<div style='font-size:.74rem;color:var(--muted2);'>No power holdings registered in this zone.</div>";
+
+    return holdings.map(function (h) {
+      return ""
+        + "<div class='npc-block' style='margin-bottom:.35rem;'>"
+        + "<div class='nb-label'>" + h.name + " · " + h.power + "</div>"
+        + "<div style='font-size:.77rem;color:var(--muted3);line-height:1.45;'>"
+        + "Mood: " + h.mood + "<br>Crisis: " + h.crisis + ""
+        + "</div>"
+        + "<div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'>"
+        + "<button class='btn btn-xs btn-primary' onclick='wtwTakeHoldingTask(\"" + h.id + "\")'>Take Task</button>"
+        + "</div>"
+        + "</div>";
+    }).join("");
+  }
+
+  function renderActiveTasksPanel() {
+    const w = ensureWorldState();
+    if (!w) return "";
+
+    if (!w.activeTasks.length) {
+      return "<div style='font-size:.74rem;color:var(--muted2);'>No active holding tasks.</div>";
+    }
+
+    return w.activeTasks.slice(0, 5).map(function (t) {
+      return ""
+        + "<div class='npc-block' style='margin-bottom:.3rem;'>"
+        + "<div class='nb-label'>" + t.title + "</div>"
+        + "<div style='font-size:.76rem;color:var(--muted3);'>Power: " + t.power + "</div>"
+        + "<div style='margin-top:.25rem;display:flex;gap:.25rem;flex-wrap:wrap;'>"
+        + "<button class='btn btn-xs btn-teal' onclick='wtwCompleteTask(\"" + t.id + "\")'>Complete</button>"
+        + "</div>"
+        + "</div>";
+    }).join("");
+  }
+
+  function renderSkirmishWidget(hex) {
+    const w = ensureWorldState();
+    if (!w || !hex || !hex.skirmish) {
+      return "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.4rem;'>No active skirmish in this district.</div>";
+    }
+
+    const st = w.skirmishState || {};
+    const ready = st.activeHexId === hex.id;
+
+    if (!ready) {
+      return ""
+        + "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(224,80,80,.45);background:rgba(224,80,80,.08);'>"
+        + "<div class='nb-label' style='color:#e05050;'>Active Skirmish</div>"
+        + "<div style='font-size:.78rem;color:var(--muted3);margin-bottom:.3rem;'>Initialize skirmish controls in this panel, or open full Combat tab.</div>"
+        + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;'>"
+        + "<button class='btn btn-xs btn-red' onclick='wtwInitSkirmish()'>Init Skirmish Controls</button>"
+        + "<button class='btn btn-xs btn-teal' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>"
+        + "<button class='btn btn-xs' onclick='resolveWorldSkirmish()'>Quick Resolve</button>"
+        + "</div>"
+        + "</div>";
+    }
+
+    return ""
+      + "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(224,80,80,.45);background:rgba(224,80,80,.08);'>"
+      + "<div class='nb-label' style='color:#e05050;'>Skirmish Controls (Info Panel)</div>"
+      + "<div style='font-size:.74rem;color:var(--muted3);margin-bottom:.28rem;'>Round " + st.round + " · Actions reset together at 0/0.</div>"
+      + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.4rem;'>"
+      + "<div>"
+      + "<div style='font-size:.74rem;color:var(--text2);'>Your Army Stress: <strong style='color:var(--teal);'>" + st.armyAStress + "</strong></div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;'>Actions: " + st.armyAActions + " · Dread: d" + st.armyADread + "</div>"
+      + "<div style='display:flex;gap:.2rem;flex-wrap:wrap;'>"
+      + "<button class='btn btn-xs btn-primary' onclick='wtwSkAction(\"A\",\"strike\")'>Strike</button>"
+      + "<button class='btn btn-xs btn-teal' onclick='wtwSkAction(\"A\",\"parry\")'>Parry</button>"
+      + "<button class='btn btn-xs' onclick='wtwSkAction(\"A\",\"frighten\")'>Frighten</button>"
+      + "</div>"
+      + "</div>"
+      + "<div>"
+      + "<div style='font-size:.74rem;color:var(--text2);'>Enemy Army Stress: <strong style='color:var(--red);'>" + st.armyBStress + "</strong></div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;'>Actions: " + st.armyBActions + " · Dread: d" + st.armyBDread + "</div>"
+      + "<div style='display:flex;gap:.2rem;flex-wrap:wrap;'>"
+      + "<button class='btn btn-xs btn-red' onclick='wtwSkAction(\"B\",\"strike\")'>Strike</button>"
+      + "<button class='btn btn-xs' onclick='wtwSkAction(\"B\",\"parry\")'>Parry</button>"
+      + "<button class='btn btn-xs' onclick='wtwSkAction(\"B\",\"frighten\")'>Frighten</button>"
+      + "</div>"
+      + "</div>"
+      + "</div>"
+      + "<div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'>"
+      + "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>"
+      + "<button class='btn btn-xs' onclick='resolveWorldSkirmish()'>Quick Resolve</button>"
+      + "</div>"
+      + "</div>";
   }
 
   function renderWorldThatWasInfo() {
@@ -869,15 +1076,20 @@
     }
 
     const marker = w.markers[hex.id];
-    const zone = w.zones.find((z) => z.name === hex.zone);
+    const zone = zoneForHex(hex);
     const services = zoneServicesForHex(hex);
     const n = hex.narrative;
 
-    const servicesHtml = services.map((svc) => {
-      return "<div class='npc-block' style='margin-bottom:.25rem;'><div class='nb-label'>" + svc.name + "</div><div style='font-size:.78rem;color:var(--muted3);'>Cost: " + svc.cost + "<br>" + svc.desc + "</div></div>";
+    const servicesHtml = services.map(function (svc, idx) {
+      return ""
+        + "<div class='npc-block' style='margin-bottom:.25rem;'>"
+        + "<div class='nb-label'>" + svc.name + "</div>"
+        + "<div style='font-size:.78rem;color:var(--muted3);line-height:1.4;'>Cost: " + svc.cost + " Credits<br>" + svc.desc + "</div>"
+        + "<div style='margin-top:.25rem;'><button class='btn btn-xs btn-teal' onclick='wtwBuyService(\"" + hex.id + "\"," + idx + ")'>Use Service</button></div>"
+        + "</div>";
     }).join("");
 
-    const controlRows = Object.keys(zone.controlBreakdown || {}).map((name) => {
+    const controlRows = Object.keys((zone && zone.controlBreakdown) || {}).map(function (name) {
       return "<span style='display:inline-block;margin-right:.4rem;color:" + controllerColor(name) + ";'>" + name + ": " + zone.controlBreakdown[name] + "</span>";
     }).join(" ");
 
@@ -886,113 +1098,44 @@
       + "<div class='hex-type-tag wilderness'>District Hex</div>"
       + "<div class='hex-name'>" + hex.zone + " - " + hex.district + "</div>"
       + "<div class='hex-desc' style='margin-bottom:.45rem;'>Amidst " + n.location + ", the " + n.sight + ", " + n.description + ", serves as a beacon for " + n.feature + ".</div>"
-      + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Controller</span>" + hex.controller + "</div><div class='info-cell'><span class='ic-label'>Zone Leader</span>" + (zone.leader || "Unknown") + "</div></div>"
+      + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Controller</span>" + hex.controller + "</div><div class='info-cell'><span class='ic-label'>Zone Leader</span>" + ((zone && zone.leader) || "Unknown") + "</div></div>"
       + "<div class='info-row'><div class='info-cell'><span class='ic-label'>Fauna / Flora</span>" + n.fauna + " / " + n.flora + "</div><div class='info-cell'><span class='ic-label'>Land / Weather</span>" + n.land + " / " + n.weather + "</div></div>"
-      + "<div class='mystery-card' style='margin:.45rem 0;'><strong>Random Event:</strong> " + n.event.title + "<br>" + n.event.text + "<br><br><strong>Action:</strong> " + n.event.action + "<br><strong>SERVICES Reward:</strong> " + n.event.fight + " -> " + n.event.reward + "</div>"
-      + (marker ? "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);'><div class='nb-label'>Marker - " + marker.title + "</div><div style='font-size:.78rem;color:var(--muted3);'>" + marker.subtitle + "</div></div>" : "")
-      + (hex.skirmish ? "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(224,80,80,.45);background:rgba(224,80,80,.08);'><div class='nb-label' style='color:#e05050;'>Active Skirmish</div><div style='font-size:.78rem;color:var(--muted3);'>Combat rules apply in this district.</div><div style='margin-top:.32rem;display:flex;gap:.3rem;flex-wrap:wrap;'><button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='resolveWorldSkirmish()'>Quick Resolve</button></div></div>" : "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.4rem;'>No active skirmish in this district.</div>")
+      + "<div class='mystery-card' style='margin:.45rem 0;'><strong>Random Event:</strong> " + n.event.title + "<br>" + n.event.text + "<br><br><strong>Action:</strong> " + n.event.action + "<br><strong>Reward:</strong> " + n.event.reward + "<div style='margin-top:.3rem;'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button></div></div>"
+      + (marker ? "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);'><div class='nb-label'>Marker - " + marker.title + "</div><div style='font-size:.78rem;color:var(--muted3);'>" + marker.subtitle + "</div><div style='margin-top:.28rem;'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Resolve Marker</button></div></div>" : "")
+      + renderSkirmishWidget(hex)
       + "<div class='sub-label'>District Services</div>"
       + servicesHtml
       + "<div style='margin-top:.5rem;border-top:1px solid var(--border);padding-top:.45rem;font-size:.74rem;color:var(--muted2);'>"
       + "<strong style='color:var(--gold2);'>Control Breakdown:</strong><br>" + controlRows
       + "</div>"
+      + "<div style='margin-top:.5rem;border-top:1px solid var(--border);padding-top:.45rem;'>"
+      + "<div class='section-title' style='margin-bottom:.4rem;'>Zone Holdings</div>"
+      + renderHoldingsPanel(hex)
+      + "</div>"
+      + "<div style='margin-top:.5rem;border-top:1px solid var(--border);padding-top:.45rem;'>"
+      + "<div class='section-title' style='margin-bottom:.4rem;'>Active Tasks</div>"
+      + renderActiveTasksPanel()
+      + "</div>"
       + "</div>";
   }
 
-  function advanceWorldThatWas() {
+  function chooseZone(zoneName) {
     const w = ensureWorldState();
-    if (!w || !w.hexes.length) return;
-
-    w.tick += 1;
-    const shifts = Math.max(1, safeRoll(3));
-    for (let i = 0; i < shifts; i += 1) {
-      const target = safePick(w.hexes, null);
-      if (!target) break;
-      const oldController = target.controller;
-      let newController = safePick(w.controllers, oldController);
-      let guard = 0;
-      while (newController === oldController && guard < 6) {
-        newController = safePick(w.controllers, oldController);
-        guard += 1;
-      }
-      target.controller = newController;
-      if (safeRoll(100) <= 45) {
-        target.skirmish = true;
-      }
-    }
-
-    w.hexes.forEach((hex) => {
-      if (!hex.skirmish && safeRoll(100) <= 8) hex.skirmish = true;
-      if (hex.skirmish && safeRoll(100) <= 22) hex.skirmish = false;
-    });
-
-    syncWorldMarkers();
-    updateZoneControl();
-    renderWorldThatWas();
-    if (typeof showNotif === "function") {
-      showNotif("World control shifted. New skirmishes have erupted.", "good");
-    }
-  }
-
-  function resolveWorldSkirmish() {
-    const w = ensureWorldState();
-    const hex = getSelectedHex();
-    if (!w || !hex || !hex.skirmish) return;
-
-    const advDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
-    const dreadDie = safePick([6, 8, 10], 8);
-    const a = (typeof explodingRoll === "function") ? explodingRoll(advDie) : { total: safeRoll(advDie) };
-    const d = (typeof explodingRoll === "function") ? explodingRoll(dreadDie) : { total: safeRoll(dreadDie) };
-    const success = a.total >= d.total;
-
-    if (success) {
-      hex.controller = w.playerAlignedPower;
-      hex.skirmish = false;
-      if (typeof changeCounter === "function") changeCounter("renown", 1);
-      if (typeof rollForLoot === "function") {
-        const loot = rollForLoot("medium");
-        if (loot && loot.length && typeof showNotif === "function") {
-          showNotif("Skirmish won. Loot: " + loot.join(", "), "good");
-        }
-      } else if (typeof showNotif === "function") {
-        showNotif("Skirmish won. Hex control captured.", "good");
-      }
-    } else if (typeof showNotif === "function") {
-      showNotif("Skirmish failed. Enemy control holds.", "warn");
-    }
-
-    updateZoneControl();
+    if (!w) return;
+    w.currentZone = zoneName;
+    const zone = w.zones.find(function (z) { return z.name === zoneName; });
+    if (zone && zone.stationHexId) w.selectedHexId = zone.stationHexId;
     renderWorldThatWas();
   }
 
-  function openWorldSkirmishCombat() {
-    const hex = getSelectedHex();
-    if (!hex) return;
-    if (typeof setEnemyDread === "function") {
-      setEnemyDread(hex.skirmish ? 8 : 6);
-    }
-    if (typeof startCombat === "function") {
-      startCombat();
-    }
-    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
-    if (typeof switchTab === "function") {
-      switchTab("combat", btn || null);
-    }
-  }
-
-  function chooseLandingPad() {
+  function renderZoneRailControls() {
     const w = ensureWorldState();
-    if (!w || !w.landingPads.length) return;
-    w.currentLandingHexId = safePick(w.landingPads, w.landingPads[0]);
-    w.selectedHexId = w.currentLandingHexId;
-    renderWorldThatWas();
-  }
+    if (!w) return "";
 
-  function returnToGalaxy() {
-    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
-    if (typeof switchTab === "function") {
-      switchTab("galaxy", btn || null);
-    }
+    return ZONE_NAMES.map(function (z) {
+      const on = w.currentZone === z;
+      return "<button class='btn btn-xs " + (on ? "btn-primary" : "") + "' onclick='wtwTravelRail(\"" + z + "\")'>" + z + (on ? " (Here)" : "") + "</button>";
+    }).join(" ");
   }
 
   function renderWorldThatWas() {
@@ -1000,33 +1143,15 @@
     if (!w) return;
 
     const tickEl = document.getElementById("wtwTick");
-    const landingEl = document.getElementById("wtwLandingPad");
+    const zoneEl = document.getElementById("wtwCurrentZone");
+    const railEl = document.getElementById("wtwRailControls");
     if (tickEl) tickEl.textContent = "Cycle " + (w.tick || 0);
-
-    const landingHex = w.hexes.find((hex) => hex.id === w.currentLandingHexId);
-    if (landingEl) {
-      landingEl.textContent = landingHex ? (landingHex.zone + " - " + landingHex.district) : "Unknown";
-    }
+    if (zoneEl) zoneEl.textContent = w.currentZone || "Unknown";
+    if (railEl) railEl.innerHTML = renderZoneRailControls();
 
     renderWorldThatWasMap();
     renderWorldThatWasInfo();
     renderPowerReadout();
-  }
-
-  function renderPowerReadout() {
-    const w = ensureWorldState();
-    const wrap = document.getElementById("wtwPowerReadout");
-    if (!wrap || !w) return;
-
-    const chips = w.controllers.map((name) => {
-      let count = 0;
-      w.hexes.forEach((hex) => {
-        if (hex.controller === name) count += 1;
-      });
-      return "<span class='sea-chip' style='border-color:" + controllerColor(name) + ";color:" + controllerColor(name) + ";'>" + name + ": " + count + "</span>";
-    }).join(" ");
-
-    wrap.innerHTML = chips;
   }
 
   function mountWorldThatWasPanel() {
@@ -1038,22 +1163,28 @@
       + "<div class='map-controls'>"
       + "<button class='btn btn-primary' onclick='generateWorldThatWasMap()'>Generate World That Was</button>"
       + "<button class='btn' onclick='advanceWorldThatWas()'>Advance Control Cycle</button>"
-      + "<button class='btn btn-sm btn-teal' onclick='chooseWorldLandingPad()'>Random Landing Pad</button>"
+      + "<button class='btn btn-sm btn-teal' onclick='wtwSyncMarkers()'>Refresh Markers</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToGalaxy()'>Return to Galaxy</button>"
-      + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.3rem;'>Current Landing: <strong id='wtwLandingPad' style='color:var(--gold2);'>-</strong></span>"
+      + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.3rem;'>Current Zone: <strong id='wtwCurrentZone' style='color:var(--gold2);'>-</strong></span>"
       + "<span style='color:var(--muted2);font-size:.75rem;margin-left:.5rem;' id='wtwTick'>Cycle 0</span>"
       + "</div>"
       + "<div class='sea-summary' style='margin-bottom:.5rem;'>"
-      + "<div class='info-cell'><span class='ic-label'>Major Powers</span>" + MAJOR_POWERS.join(" | ") + "</div>"
-      + "<div class='info-cell'><span class='ic-label'>Factions</span>" + FACTIONS.join(" | ") + "</div>"
-      + "<div class='info-cell'><span class='ic-label'>Map Rules</span>9 Zones, 5 District Hexes each, dynamic control and skirmishes.</div>"
-      + "<div class='info-cell'><span class='ic-label'>Markers</span>Missions and holdings tasks are projected onto district hexes.</div>"
+      + "<div class='info-cell'><span class='ic-label'>Map Rules</span>12x12 districts, 9 mega-zones, dynamic control shifts, train-linked travel.</div>"
+      + "<div class='info-cell'><span class='ic-label'>Dynamic Layer</span>Events, services, skirmishes, holdings tasks, mission and job markers.</div>"
+      + "<div class='info-cell'><span class='ic-label'>Train Network</span>Travel to any zone station for 30 Credits and +1 time step.</div>"
+      + "<div class='info-cell'><span class='ic-label'>Renown</span>Holding tasks and event wins grant +1 power renown and loot.</div>"
       + "</div>"
+      + "<div id='wtwRailControls' style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'></div>"
       + "<div id='wtwPowerReadout' class='sea-group-list' style='margin-bottom:.45rem;'></div>"
       + "<div class='map-layout'>"
-      + "<div class='map-scroll'><svg id='wtwMapSvg' width='760' height='560' xmlns='http://www.w3.org/2000/svg'></svg></div>"
+      + "<div class='map-scroll'><svg id='wtwMapSvg' width='900' height='740' xmlns='http://www.w3.org/2000/svg'></svg></div>"
       + "<div class='hex-info' id='wtwInfo'></div>"
       + "</div>";
+  }
+
+  function returnToGalaxy() {
+    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
+    if (typeof switchTab === "function") switchTab("galaxy", btn || null);
   }
 
   function openWorldThatWasFromGalaxy() {
@@ -1063,13 +1194,10 @@
     if (!w.generated || !w.hexes.length) {
       generateWorldThatWasMap();
     } else {
-      chooseLandingPad();
       renderWorldThatWas();
     }
     const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('worldthatwas'\"]");
-    if (typeof switchTab === "function") {
-      switchTab("worldthatwas", btn || null);
-    }
+    if (typeof switchTab === "function") switchTab("worldthatwas", btn || null);
   }
 
   function patchTabSwitch() {
@@ -1098,8 +1226,8 @@
     window.selectStarSystemHex = function (hexId) {
       const out = base.apply(this, arguments);
       if (S && S.starSystem && Array.isArray(S.starSystem.hexes)) {
-        const current = S.starSystem.hexes.find((h) => h.id === S.starSystem.currentHexId);
-        if (current && current.type === "world_that_was") {
+        const hex = S.starSystem.hexes.find(function (h) { return h.id === hexId; });
+        if (hex && hex.kind === "world_that_was") {
           openWorldThatWasFromGalaxy();
         }
       }
@@ -1107,15 +1235,39 @@
     };
   }
 
+  function initWorldThatWas() {
+    ensureWorldState();
+    mountWorldThatWasPanel();
+    patchTabSwitch();
+    patchStarSelection();
+  }
+
   window.generateWorldThatWasMap = generateWorldThatWasMap;
   window.advanceWorldThatWas = advanceWorldThatWas;
-  window.resolveWorldSkirmish = resolveWorldSkirmish;
+  window.resolveWorldSkirmish = quickResolveWorldSkirmish;
   window.openWorldSkirmishCombat = openWorldSkirmishCombat;
-  window.chooseWorldLandingPad = chooseLandingPad;
+  window.chooseWorldLandingPad = function () {};
   window.returnWorldToGalaxy = returnToGalaxy;
-  window.mountWorldThatWasPanel = mountWorldThatWasPanel;
-  window.openWorldThatWasFromGalaxy = openWorldThatWasFromGalaxy;
 
-  patchTabSwitch();
-  patchStarSelection();
+  window.wtwBuyService = spendService;
+  window.wtwResolveEvent = resolveZoneEvent;
+  window.wtwCollectMarker = collectMarkerJob;
+  window.wtwInitSkirmish = function () {
+    const hex = getSelectedHex();
+    if (hex) setupSkirmishForHex(hex.id);
+  };
+  window.wtwSkAction = skirmishActionInInfo;
+  window.wtwTakeHoldingTask = createHoldingTask;
+  window.wtwCompleteTask = completeHoldingTask;
+  window.wtwTravelRail = travelByTrainTo;
+  window.wtwSyncMarkers = function () {
+    syncWorldMarkers();
+    renderWorldThatWas();
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initWorldThatWas);
+  } else {
+    initWorldThatWas();
+  }
 })();

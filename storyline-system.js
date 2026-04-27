@@ -243,8 +243,8 @@
           text: "Promise mercy if possible",
           stat: "spirit",
           baseDread: 8,
-          success: { next: "mission_bridge", text: "Lyra softens. 'Then let me ride with you.'", effects: { npc: { lyra: 1 } } },
-          fail: { next: "mission_bridge", text: "Your promise sounds hollow. She keeps emotional distance.", effects: { npc: { lyra: -1 } } },
+          success: { next: "mission_bridge", text: "Lyra softens. 'Then let me ride with you.'", effects: { npc: { lyra: 1 }, dialogueQuote: { speaker: "Lyra", line: "Mercy is not weakness. It is discipline." } } },
+          fail: { next: "mission_bridge", text: "Your promise sounds hollow. She keeps emotional distance.", effects: { npc: { lyra: -1 }, dialogueQuote: { speaker: "Lyra", line: "A clean shot beats a clean speech." } } },
         },
         {
           id: "o2",
@@ -536,7 +536,7 @@
           stat: "mind",
           baseDread: 8,
           req: { backgroundIncludes: ["scholar", "historian"] },
-          success: { next: "planet_descent", text: "You extract the phrase anchor: 'Star binds oath' in archaic court tongue.", effects: { flags: { phraseKeyUnlocked: true }, lexicon: { va: "bind" }, npc: { iosef: 1 } } },
+          success: { next: "planet_descent", text: "You extract the phrase anchor: 'Star binds oath' in archaic court tongue.", effects: { flags: { phraseKeyUnlocked: true }, lexicon: { va: "bind" }, npc: { iosef: 1 }, dialogueQuote: { speaker: "Iosef", line: "No verdict outranks witness." } } },
           fail: { next: "planet_descent", text: "You grasp only fragments and must infer the rest later.", effects: { mentalStress: 1 } },
         },
         {
@@ -545,7 +545,7 @@
           stat: "control",
           baseDread: 8,
           req: { careerIncludes: ["merchant", "noble", "investigator"] },
-          success: { next: "planet_descent", text: "You catch the enforceable clause and turn it into legal leverage.", effects: { flags: { phraseKeyUnlocked: true }, merchantReward: { credits: 110, factionKey: "political", factionRenown: 1 }, lexicon: { va: "bind" } } },
+          success: { next: "planet_descent", text: "You catch the enforceable clause and turn it into legal leverage.", effects: { flags: { phraseKeyUnlocked: true }, merchantReward: { credits: 110, factionKey: "political", factionRenown: 1 }, lexicon: { va: "bind" }, dialogueQuote: { speaker: "Iosef", line: "Ledger first, sword second." } } },
           fail: { next: "planet_descent", text: "The clause slips past you, but Iosef still circles one glyph in red.", effects: { lexicon: { va: "bind" } } },
         },
       ],
@@ -582,25 +582,43 @@
           id: "o3",
           text: "Complete the oracle's crossword of dead languages",
           puzzle: {
-            mode: "crossword",
-            title: "Puzzle: Dead-Language Crossword",
-            prompt: "Fill all clues correctly. The initials form a tribunal command phrase.",
+            mode: "crossword_grid",
+            title: "Puzzle: Dead-Language Grid",
+            prompt: "Fill the intersecting letter grid from the clues.",
+            gridRows: 5,
+            gridCols: 5,
+            gridTemplate: [
+              "STAR#",
+              "#A#O#",
+              "VOW#T",
+              "#N#H#",
+              "LAWS#"
+            ],
             clues: [
-              { clue: "Ancient glyph for celestial witness", answer: "ser" },
-              { clue: "Verb meaning to bind by decree", answer: "va" },
-              { clue: "Oath sealed before a court", answer: "tor" }
+              { clue: "Across 1: Celestial witness in common tongue" },
+              { clue: "Across 2: Promise spoken under legal pressure" },
+              { clue: "Across 3: Systems that govern people" }
             ]
           },
           success: {
             next: "planet_descent",
-            text: "The crossword resolves into a legal canticle. You can now read tribunal inscriptions.",
+            text: "You complete the dead-language grid and recover a legal canticle. You can now read tribunal inscriptions.",
             effects: {
               lexicon: { ser: "star", va: "bind", tor: "oath" },
               flags: { oracleCanticleSolved: true, phraseKeyUnlocked: true },
               merchantReward: { credits: 150, factionKey: "religious", factionRenown: 1 }
             }
           },
-          fail: { next: "planet_descent", text: "You misplace two glyphs and the oracle cuts the session short.", effects: { mentalStress: 1 } },
+          partial: {
+            next: "planet_descent",
+            text: "You solve enough of the grid to infer partial meaning, but one clause remains uncertain.",
+            effects: {
+              lexicon: { ser: "star", va: "bind" },
+              flags: { oracleCanticleSolved: false, phraseKeyUnlocked: true },
+              credits: 60
+            }
+          },
+          fail: { next: "planet_descent", text: "You misplace too many glyphs and the oracle cuts the session short.", effects: { mentalStress: 1 } },
         },
       ],
     },
@@ -717,6 +735,7 @@
           },
           req: { lexiconCountAtLeast: { count: 2 } },
           success: { next: "age_shift", text: "The trees answer in legal chorus, exposing hidden exits and sponsor caches.", effects: { renown: 1, merchantReward: { credits: 170, factionKey: "political", factionRenown: 1, item: "Trade Good" } } },
+          partial: { next: "age_shift", text: "You recite most of the canticle correctly, opening only one of the hidden exits.", effects: { merchantReward: { credits: 90, factionKey: "political", factionRenown: 1 }, lexicon: { tor: "oath" } } },
           fail: { next: "age_shift", text: "Your pronunciation fractures the ritual, but the path still opens in panic.", effects: { mentalStress: 1, tmw: 1 } },
         },
       ],
@@ -872,12 +891,21 @@
           text: "Let Iosef and Lyra co-deliver the final testimony",
           stat: "lead",
           baseDread: 10,
-          req: { npcAffinity: { npc: "iosef", min: 2 } },
+          req: { npcAffinity: { npc: "iosef", min: 2 }, quoteKnownAny: ["No verdict outranks witness", "Mercy is not weakness"] },
           success: { next: "ending_openhand", text: "Their testimony lands like thunder. The city chooses distributed justice.", effects: { faction: { political: 1, rebels: 1 }, renown: 2 } },
           fail: { next: "finale_choice", text: "The testimony splinters under counterclaims; you must choose direct judgment.", effects: { mentalStress: 1 } },
         },
         {
           id: "o2",
+          text: "Recite remembered voices back at Voss",
+          stat: "spirit",
+          baseDread: 10,
+          req: { quoteKnownAny: ["Mercy is not weakness", "Ledger first, sword second", "No verdict outranks witness"] },
+          success: { next: "ending_openhand", text: "Your borrowed lines from allies turn the crowd. Voss is outnumbered by memory.", effects: { renown: 2, faction: { rebels: 1, political: 1 } } },
+          fail: { next: "finale_choice", text: "You falter on the final line and Voss regains the room for a moment.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o3",
           text: "Challenge Voss to a last legal paradox",
           puzzle: {
             mode: "code",
@@ -886,6 +914,7 @@
             answer: "challenged",
           },
           success: { next: "ending_openhand", text: "He fails to answer before the city. Authority disperses in real time.", effects: { renown: 3, merchantReward: { credits: 220, factionKey: "corporations", factionRenown: 1, openShop: true } } },
+          partial: { next: "ending_openhand", text: "Your argument lands unevenly, but enough delegates break rank to pass the charter.", effects: { renown: 1, credits: 80 } },
           fail: { next: "finale_choice", text: "He twists the argument and the room demands a harsher verdict.", effects: { tmw: 1 } },
         },
       ],
@@ -994,7 +1023,32 @@
     if (!st.history.sceneVisits || typeof st.history.sceneVisits !== "object") st.history.sceneVisits = {};
     if (!st.history.optionsTaken || typeof st.history.optionsTaken !== "object") st.history.optionsTaken = {};
     if (!st.lexicon || typeof st.lexicon !== "object") st.lexicon = {};
+    if (!Array.isArray(st.dialogueMemory)) st.dialogueMemory = [];
     return st;
+  }
+
+  function addDialogueMemory(speaker, line) {
+    const st = ensureStoryState();
+    if (!st) return;
+    const s = String(speaker || "Unknown").trim();
+    const l = String(line || "").trim();
+    if (!l) return;
+    const key = (s + "|" + l).toLowerCase();
+    const exists = st.dialogueMemory.some(function (entry) {
+      return ((entry.speaker || "") + "|" + (entry.line || "")).toLowerCase() === key;
+    });
+    if (exists) return;
+    st.dialogueMemory.unshift({ speaker: s, line: l });
+    st.dialogueMemory = st.dialogueMemory.slice(0, 10);
+  }
+
+  function hasRememberedQuote(fragment) {
+    const st = ensureStoryState();
+    if (!st) return false;
+    const needle = lc(fragment);
+    return (st.dialogueMemory || []).some(function (entry) {
+      return lc(entry.line).indexOf(needle) >= 0 || lc(entry.speaker).indexOf(needle) >= 0;
+    });
   }
 
   function getFactionValue(key) {
@@ -1065,6 +1119,13 @@
       if (!st) return false;
       if (Object.keys(st.lexicon || {}).length < Number(req.lexiconCountAtLeast.count || 0)) return false;
     }
+    if (req.quoteKnown) {
+      if (!hasRememberedQuote(req.quoteKnown)) return false;
+    }
+    if (Array.isArray(req.quoteKnownAny) && req.quoteKnownAny.length) {
+      const okAny = req.quoteKnownAny.some(function (q) { return hasRememberedQuote(q); });
+      if (!okAny) return false;
+    }
     return true;
   }
 
@@ -1131,6 +1192,14 @@
       });
     }
 
+    if (effects.dialogueQuote) {
+      const entries = Array.isArray(effects.dialogueQuote) ? effects.dialogueQuote : [effects.dialogueQuote];
+      entries.forEach(function (entry) {
+        if (!entry) return;
+        addDialogueMemory(entry.speaker || "Unknown", entry.line || "");
+      });
+    }
+
     if (effects.merchantReward && typeof effects.merchantReward === "object") {
       grantMerchantReward(effects.merchantReward);
     }
@@ -1185,6 +1254,9 @@
       selected: [],
       bank: [],
       clues: [],
+      gridTemplate: [],
+      gridRows: 0,
+      gridCols: 0,
       typed: "",
     };
     return window._storyPuzzle;
@@ -1202,7 +1274,82 @@
     p.selected = [];
     p.bank = [];
     p.clues = [];
+    p.gridTemplate = [];
+    p.gridRows = 0;
+    p.gridCols = 0;
     p.typed = "";
+  }
+
+  function puzzleTierForScene(sceneId) {
+    const scene = SCENES[sceneId] || {};
+    const chapter = scene.chapter || "c1";
+    if (chapter === "c1") return { label: "Easy", success: 0.7, partial: 0.45 };
+    if (chapter === "c2") return { label: "Standard", success: 0.78, partial: 0.52 };
+    if (chapter === "c3") return { label: "Hard", success: 0.86, partial: 0.6 };
+    return { label: "Brutal", success: 0.93, partial: 0.68 };
+  }
+
+  function scoreTokens(typed, expected) {
+    const a = lc(typed).split(/\s+/).filter(Boolean);
+    const b = lc(expected).split(/\s+/).filter(Boolean);
+    if (!a.length && !b.length) return 1;
+    if (!a.length || !b.length) return 0;
+    const maxLen = Math.max(a.length, b.length);
+    let correct = 0;
+    for (let i = 0; i < maxLen; i++) {
+      if ((a[i] || "") === (b[i] || "")) correct += 1;
+    }
+    return correct / maxLen;
+  }
+
+  function scoreCrosswordGrid(p) {
+    let total = 0;
+    let correct = 0;
+    for (let r = 0; r < p.gridRows; r++) {
+      const row = p.gridTemplate[r] || "";
+      for (let c = 0; c < p.gridCols; c++) {
+        const expected = (row[c] || "#").toUpperCase();
+        if (expected === "#") continue;
+        total += 1;
+        const el = document.getElementById("storyGrid_" + r + "_" + c);
+        const typed = (el && typeof el.value === "string") ? el.value.trim().toUpperCase() : "";
+        if (typed && typed === expected) correct += 1;
+      }
+    }
+    return total ? (correct / total) : 0;
+  }
+
+  function puzzleAttemptScore() {
+    const p = ensurePuzzleSession();
+    if (p.mode === "tune") {
+      const maxLen = Math.max(p.sequence.length, p.selected.length, 1);
+      let correct = 0;
+      for (let i = 0; i < maxLen; i++) {
+        if (lc(p.sequence[i]) === lc(p.selected[i])) correct += 1;
+      }
+      return correct / maxLen;
+    }
+    if (p.mode === "rearrange") {
+      return scoreTokens(p.selected.join(" "), p.answer);
+    }
+    if (p.mode === "crossword_grid") {
+      return scoreCrosswordGrid(p);
+    }
+    if (p.mode === "crossword") {
+      const maxLen = Math.max(p.clues.length, 1);
+      let correct = 0;
+      p.clues.forEach(function (c, i) {
+        const el = document.getElementById("storyCross_" + i);
+        const val = (el && typeof el.value === "string") ? el.value.trim().toLowerCase() : "";
+        if (val === String(c.answer || "").trim().toLowerCase()) correct += 1;
+      });
+      return correct / maxLen;
+    }
+
+    const el = document.getElementById("storyPuzzleInput");
+    const val = (el && typeof el.value === "string") ? el.value.trim().toLowerCase() : "";
+    if (val === p.answer) return 1;
+    return scoreTokens(val, p.answer);
   }
 
   function renderPuzzleModal() {
@@ -1235,13 +1382,35 @@
             + "<input id='storyCross_" + i + "' class='input' placeholder='Answer " + (i + 1) + "' style='width:100%;'/>"
             + "</div>";
         }).join("");
+    } else if (p.mode === "crossword_grid") {
+      const cells = [];
+      for (let r = 0; r < p.gridRows; r++) {
+        for (let c = 0; c < p.gridCols; c++) {
+          const ch = ((p.gridTemplate[r] || "")[c] || "#").toUpperCase();
+          if (ch === "#") {
+            cells.push("<div style='width:28px;height:28px;background:var(--surface2);border:1px solid var(--border2);'></div>");
+          } else {
+            cells.push("<input id='storyGrid_" + r + "_" + c + "' maxlength='1' class='input' style='width:28px;height:28px;text-align:center;padding:0;text-transform:uppercase;'/>"
+            );
+          }
+        }
+      }
+      controls = ""
+        + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Grid crossword: fill all open cells. # blocks are locked.</div>"
+        + "<div style='display:grid;grid-template-columns:repeat(" + p.gridCols + ",28px);gap:2px;justify-content:start;margin-bottom:.45rem;'>" + cells.join("") + "</div>"
+        + p.clues.map(function (c, i) {
+          return "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.12rem;'>" + (i + 1) + ". " + c.clue + "</div>";
+        }).join("");
     } else {
       controls = ""
         + "<input id='storyPuzzleInput' class='input' placeholder='Type your decoded answer' style='width:100%;margin-bottom:.45rem;'/>";
     }
 
+    const tier = puzzleTierForScene(p.sceneId);
+
     const html = ""
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.4rem;'>" + p.prompt + "</div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;'>Difficulty: " + tier.label + " · Full success ≥ " + Math.round(tier.success * 100) + "% · Partial ≥ " + Math.round(tier.partial * 100) + "%</div>"
       + controls
       + "<div style='display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;'>"
       + "<button class='btn btn-sm' onclick='storyPuzzleClear()'>Reset</button>"
@@ -1267,6 +1436,9 @@
     p.selected = [];
     p.bank = Array.isArray(puzzle.bank) ? puzzle.bank.slice() : [];
     p.clues = Array.isArray(puzzle.clues) ? puzzle.clues.slice() : [];
+    p.gridTemplate = Array.isArray(puzzle.gridTemplate) ? puzzle.gridTemplate.slice() : [];
+    p.gridRows = Number(puzzle.gridRows || p.gridTemplate.length || 0);
+    p.gridCols = Number(puzzle.gridCols || (p.gridTemplate[0] ? p.gridTemplate[0].length : 0));
     p.typed = "";
 
     renderPuzzleModal();
@@ -1292,7 +1464,7 @@
     return val === p.answer;
   }
 
-  function resolveStoryOption(sceneId, option, forcedSuccess) {
+  function resolveStoryOption(sceneId, option, forcedResult) {
     const st = ensureStoryState();
     if (!st || !option) return;
 
@@ -1311,13 +1483,15 @@
     let checkResult = null;
     let outcome = option.success;
 
-    if (option.stat && (forcedSuccess !== true && forcedSuccess !== false)) {
+    if (option.stat && forcedResult !== "success" && forcedResult !== "fail" && forcedResult !== "partial") {
       const dd = getOptionDread(sceneId, option);
       checkResult = rollStoryCheck(option.stat, dd);
       outcome = checkResult.success ? option.success : (option.fail || option.success);
-    } else if (forcedSuccess === false) {
+    } else if (forcedResult === "fail") {
       outcome = option.fail || option.success;
-    } else if (forcedSuccess === true) {
+    } else if (forcedResult === "partial") {
+      outcome = option.partial || option.fail || option.success;
+    } else if (forcedResult === "success") {
       outcome = option.success;
     }
 
@@ -1428,6 +1602,7 @@
       st.flags = {};
       st.history = { sceneVisits: {}, optionsTaken: {} };
       st.lexicon = {};
+      st.dialogueMemory = [];
       st.log = [];
       st.usedStats = [];
       st.completedSystems = [];
@@ -1480,6 +1655,8 @@
     if (req.usedStatCountAtLeast && req.usedStatCountAtLeast.count) bits.push("Used stats ≥ " + req.usedStatCountAtLeast.count);
     if (Array.isArray(req.lexiconKnown) && req.lexiconKnown.length) bits.push("Glyphs: " + req.lexiconKnown.join(", "));
     if (req.lexiconCountAtLeast && req.lexiconCountAtLeast.count) bits.push("Known glyphs ≥ " + req.lexiconCountAtLeast.count);
+    if (req.quoteKnown) bits.push("Remembered quote: " + req.quoteKnown);
+    if (Array.isArray(req.quoteKnownAny) && req.quoteKnownAny.length) bits.push("Any remembered: " + req.quoteKnownAny.join(" / "));
     return bits.join(" · ");
   }
 
@@ -1542,6 +1719,10 @@
       ? Object.keys(st.lexicon).map(function (k) { return k + "=" + st.lexicon[k]; }).join(" · ")
       : "None decoded yet";
 
+    const memoryText = (st.dialogueMemory && st.dialogueMemory.length)
+      ? st.dialogueMemory.slice(0, 4).map(function (m) { return m.speaker + ": \"" + m.line + "\""; }).join("<br>")
+      : "No remembered lines yet";
+
     const logHtml = st.log.length
       ? st.log.map(function (line) { return "<div class='story-log-item'>" + line + "</div>"; }).join("")
       : "<div class='story-log-item'>Your story choices will appear here.</div>";
@@ -1582,8 +1763,9 @@
         }).join("")
       + "</div>"
       + "<div class='story-label'>Decoded Lexicon</div><div class='story-value'>" + lexiconText + "</div>"
+      + "<div class='story-label'>Remembered Voices</div><div class='story-value'>" + memoryText + "</div>"
       + "</div>"
-      + "<div class='story-card'>"
+      + "<div class='story-card'>
       + "<div class='story-label'>Choice Log</div>"
       + "<div class='story-log'>" + logHtml + "</div>"
       + "</div>"
@@ -1662,7 +1844,7 @@
   window.storyJumpSystem = jumpSystemById;
   window.storyPuzzlePress = function (value) {
     const p = ensurePuzzleSession();
-    if (p.mode === "code" || p.mode === "crossword") return;
+    if (p.mode === "code" || p.mode === "crossword" || p.mode === "crossword_grid") return;
     p.selected.push(String(value || ""));
     renderPuzzleModal();
   };
@@ -1680,15 +1862,22 @@
     const option = (scene.options || []).find(function (o) { return o.id === p.optionId; });
     if (!option) return;
 
-    let solved = false;
-    if (attemptSubmit) solved = puzzleSuccessByInput();
-    if (attemptSubmit && !solved && typeof showNotif === "function") {
-      showNotif("Puzzle answer incorrect. You can try again or force through.", "warn");
-      return;
+    let result = "fail";
+    if (attemptSubmit) {
+      const score = puzzleAttemptScore();
+      const tier = puzzleTierForScene(p.sceneId);
+      if (score >= tier.success || puzzleSuccessByInput()) result = "success";
+      else if (score >= tier.partial) result = "partial";
+      else {
+        if (typeof showNotif === "function") {
+          showNotif("Puzzle attempt: " + Math.round(score * 100) + "% accuracy. Need " + Math.round(tier.partial * 100) + "% for partial progress.", "warn");
+        }
+        return;
+      }
     }
 
     if (typeof closeModal === "function") closeModal();
-    resolveStoryOption(p.sceneId, option, !!solved);
+    resolveStoryOption(p.sceneId, option, result);
     resetPuzzleSession();
   };
 })();

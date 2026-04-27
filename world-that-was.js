@@ -1,6 +1,6 @@
 // world-that-was.js
 (function () {
-  const WTW_SCHEMA_VERSION = 3;
+  const WTW_SCHEMA_VERSION = 4;
   const WTW_HEX = 34;
   const MAP_COLS = 12;
   const MAP_ROWS = 12;
@@ -46,6 +46,88 @@
     "The Ports": { eventCombatChance: 38, eventDreadBias: 0, encounterChance: 32, skirmishChance: 20, cycleShiftBonus: 0 }
   };
   const WORLD_ITEMS = ["water", "meds", "dataDrives", "scrap", "fuelCells"];
+  const WTW_CONDITION_KEYS = ["weakened", "distracted", "shaken", "vulnerable"];
+
+  const WTW_MARKER_STYLE = {
+    mission: { icon: "!", color: "#e8c050", priority: 100, title: "Mission Marker" },
+    task: { icon: "T", color: "#46c4b6", priority: 90, title: "Holding Task" },
+    landing: { icon: "L", color: "#7ed7ff", priority: 80, title: "Landing Pad" },
+    station: { icon: "R", color: "#7ed7ff", priority: 75, title: "Rail Station" },
+    service: { icon: "S", color: "#7ee0b2", priority: 70, title: "District Service" },
+    structure: { icon: "B", color: "#c9a227", priority: 68, title: "Explorable Structure" },
+    wayfarer: { icon: "W", color: "#d4b8ff", priority: 64, title: "Wayfarer" },
+    hazard: { icon: "H", color: "#ff8a72", priority: 60, title: "Hazard" },
+    peril: { icon: "P", color: "#ff8070", priority: 59, title: "Peril" },
+    barrier: { icon: "B", color: "#ff9066", priority: 58, title: "Barrier" },
+    job: { icon: "$", color: "#bbbbbb", priority: 40, title: "District Job" }
+  };
+
+  const WTW_STRUCTURE_TYPES = [
+    {
+      kind: "Watch Tower",
+      names: ["Signal Watch", "Glass Relay Tower", "Crow's Lantern Tower", "Spinewatch Bastion"],
+      rooms: [
+        "Observation Deck - rangefinders sweep every route.",
+        "Signal Room - blinking transmitters map district movement.",
+        "Gear Loft - spare lenses, coils, and tower tools.",
+        "Locked Command Nook - encoded logs and old duty rosters.",
+        "Storm Anchor Ring - cables hum in crosswinds."
+      ]
+    },
+    {
+      kind: "Archive Building",
+      names: ["Broken Civic Archive", "Ledger Vault", "Dustline Registry", "Old Union Hall"],
+      rooms: [
+        "Records Hall - cabinets toppled into maze-like rows.",
+        "Map Room - route plans marked with obsolete borders.",
+        "Clerk Station - stamped permits and sealed envelopes.",
+        "Microfilm Niche - projector still warm.",
+        "Basement Repository - flood marks and intact lockboxes."
+      ]
+    },
+    {
+      kind: "Industrial Building",
+      names: ["Rivetworks Annex", "Refinery Annex", "Cargo Press House", "Blackline Foundry Wing"],
+      rooms: [
+        "Assembly Floor - unfinished machinery frozen mid-cycle.",
+        "Boiler Gallery - pressure gauges jump without warning.",
+        "Crane Control Bay - overhead rails cut through haze.",
+        "Maintenance Shaft - narrow ladder into hot darkness.",
+        "Dispatch Desk - manifests tagged with priority seals."
+      ]
+    }
+  ];
+
+  const WTW_HAZARDS = [
+    { type: "hazard", name: "Toxic Vent Burst", stat: "body", dread: 8, condition: "weakened", desc: "A pressure vent floods the district with chemical steam." },
+    { type: "hazard", name: "Signal Overload", stat: "mind", dread: 8, condition: "distracted", desc: "Interference storms fragment concentration and guidance systems." },
+    { type: "peril", name: "Riot Swell", stat: "spirit", dread: 8, condition: "shaken", desc: "Panic cascades through alleys and escalates into violence." },
+    { type: "barrier", name: "Collapsed Transit Wall", stat: "body", dread: 10, condition: "vulnerable", desc: "Route collapse blocks movement and exposes travelers." },
+    { type: "barrier", name: "Checkpoint Blackout", stat: "control", dread: 9, condition: "distracted", desc: "Locked systems seal exits and scramble route data." },
+    { type: "peril", name: "Drone Hunt Zone", stat: "defend", dread: 9, condition: "vulnerable", desc: "Hunter drones sweep for movement across open lines." }
+  ];
+
+  const WTW_WAYFARER_NAMES = [
+    "Rhea Coil", "Jax Meridian", "Old Sable", "Mira Vale", "Korr Dune", "Len Blackwire", "Toma Relic", "Ena Drift"
+  ];
+
+  const WTW_WAYFARER_RUMORS = [
+    "A hidden service cache opens for one hour after dusk alarms.",
+    "Titan Crown patrol routes shifted toward the southern rail.",
+    "A relic broker is paying double for pre-fall station maps.",
+    "One landing pad is being watched by Veil Runner lookouts.",
+    "An old tower keeps broadcasting district control changes.",
+    "A sealed archive wing opens when the cycle siren fails."
+  ];
+
+  const WTW_WAYFARER_HISTORIES = [
+    "Before the fracture, this zone fed the entire coastal ring.",
+    "The first rail line here was built by refugee engineers.",
+    "The district towers once mirrored a single civic command grid.",
+    "The old ports funded half the city's reconstruction era.",
+    "This quarter hid resistance cells during the blackout years.",
+    "The undercity archives still track forgotten family claims."
+  ];
 
   const ZONE_FLAVOR = {
     "Cyber Hub": {
@@ -422,13 +504,22 @@
 
   function getCredits() {
     if (typeof S === "undefined") return 0;
-    return typeof S.credits === "number" ? S.credits : 0;
+    return typeof S.credits === "number" ? S.credits : Number(S.credits || 0) || 0;
+  }
+
+  function syncCreditsUI() {
+    if (typeof updateCreditsUI === "function") {
+      updateCreditsUI();
+      return;
+    }
+    if (typeof renderUI === "function") renderUI();
   }
 
   function setCredits(v) {
     if (typeof S === "undefined") return;
-    S.credits = Math.max(0, v);
-    if (typeof renderUI === "function") renderUI();
+    const next = Math.max(0, Math.floor(Number(v) || 0));
+    S.credits = next;
+    syncCreditsUI();
   }
 
   function canAfford(cost) {
@@ -591,6 +682,111 @@
     return zoneName + " District " + (idx + 1);
   }
 
+  function setMarker(w, hex, type, title, subtitle) {
+    if (!w || !hex || !type) return;
+    const style = WTW_MARKER_STYLE[type] || WTW_MARKER_STYLE.job;
+    const current = w.markers[hex.id];
+    if (current && (current.priority || 0) > style.priority) return;
+    w.markers[hex.id] = {
+      type: type,
+      title: title || style.title,
+      subtitle: subtitle || "",
+      priority: style.priority
+    };
+    hex.markerType = type;
+  }
+
+  function pickHexes(zoneHexes, count, blockedIds) {
+    const blocked = blockedIds || {};
+    const pool = (zoneHexes || []).filter(function (h) { return !blocked[h.id]; });
+    const out = [];
+    const max = Math.max(0, count || 0);
+    while (pool.length && out.length < max) {
+      const ix = safeRoll(pool.length) - 1;
+      const chosen = pool.splice(ix, 1)[0];
+      blocked[chosen.id] = true;
+      out.push(chosen);
+    }
+    return out;
+  }
+
+  function createStructureForHex() {
+    const kind = safePick(WTW_STRUCTURE_TYPES, WTW_STRUCTURE_TYPES[0]);
+    return {
+      kind: kind.kind,
+      name: safePick(kind.names, kind.kind),
+      roomPool: kind.rooms.slice(),
+      generatedRooms: []
+    };
+  }
+
+  function assignDistrictFeatures(w) {
+    if (!w) return;
+    w.hexes.forEach(function (hex) {
+      hex.serviceNode = false;
+      hex.landingPad = false;
+      hex.hazard = null;
+      hex.wayfarer = null;
+      hex.structure = null;
+    });
+
+    w.zones.forEach(function (zone) {
+      const zoneHexes = w.hexes.filter(function (h) { return h.zone === zone.name; });
+      const blocked = {};
+
+      const stationHex = zone.stationHexId ? w.hexes.find(function (h) { return h.id === zone.stationHexId; }) : null;
+      if (stationHex) blocked[stationHex.id] = true;
+
+      const pads = pickHexes(zoneHexes, 1, blocked);
+      if (pads[0]) pads[0].landingPad = true;
+
+      pickHexes(zoneHexes, 2, blocked).forEach(function (hex) { hex.serviceNode = true; });
+      pickHexes(zoneHexes, 2, blocked).forEach(function (hex) {
+        hex.wayfarer = {
+          name: safePick(WTW_WAYFARER_NAMES, "Unknown Wayfarer"),
+          rumor: safePick(WTW_WAYFARER_RUMORS, "Routes are shifting tonight."),
+          history: safePick(WTW_WAYFARER_HISTORIES, "This district remembers old wars.")
+        };
+      });
+      pickHexes(zoneHexes, 2, blocked).forEach(function (hex) {
+        hex.hazard = Object.assign({}, safePick(WTW_HAZARDS, WTW_HAZARDS[0]));
+      });
+      pickHexes(zoneHexes, 2, blocked).forEach(function (hex) {
+        hex.structure = createStructureForHex();
+      });
+    });
+  }
+
+  function generateStructureRooms(hex) {
+    if (!hex || !hex.structure) return [];
+    const site = hex.structure;
+    const roomPool = Array.isArray(site.roomPool) && site.roomPool.length ? site.roomPool : ["Abandoned chamber with mixed salvage and notes."];
+    const roomCount = 2 + safeRoll(3);
+    const rooms = [];
+    for (let i = 0; i < roomCount; i += 1) {
+      rooms.push(safePick(roomPool, roomPool[0]));
+    }
+    site.generatedRooms = rooms;
+    return rooms;
+  }
+
+  function ensureConditionsState() {
+    if (!S) return;
+    S.conditions = S.conditions || {};
+    WTW_CONDITION_KEYS.forEach(function (key) {
+      if (typeof S.conditions[key] !== "boolean") S.conditions[key] = false;
+    });
+  }
+
+  function applyNegativeCondition(condKey) {
+    ensureConditionsState();
+    if (!S || !S.conditions) return;
+    const key = WTW_CONDITION_KEYS.indexOf(condKey) >= 0 ? condKey : "weakened";
+    S.conditions[key] = true;
+    if (typeof updateConditionButtons === "function") updateConditionButtons();
+    if (typeof updateAllStatDisplays === "function") updateAllStatDisplays();
+  }
+
   function generateHoldings(w) {
     w.holdings = [];
     HOLDERS.forEach(function (power) {
@@ -651,6 +847,11 @@
           skirmish: safeRoll(100) <= danger.skirmishChance,
           narrative: n,
           station: false,
+          landingPad: false,
+          serviceNode: false,
+          hazard: null,
+          wayfarer: null,
+          structure: null,
           markerType: null,
           serviceRefresh: safeRoll(100) <= 55,
           encounter: null
@@ -666,6 +867,7 @@
     });
 
     assignTrainStations();
+  assignDistrictFeatures(w);
     generateHoldings(w);
     syncWorldMarkers();
     updateZoneControl();
@@ -735,6 +937,23 @@
     if (!w || !w.hexes.length) return;
 
     w.markers = {};
+    w.hexes.forEach(function (hex) {
+      hex.markerType = null;
+      if (hex.station) setMarker(w, hex, "station", "Rail Station", "Travel quickly between zones.");
+      if (hex.landingPad) setMarker(w, hex, "landing", "Landing Pad", "Launch back to space from this district.");
+      if (hex.serviceNode) setMarker(w, hex, "service", "Service Hub", "District services available here.");
+      if (hex.structure) setMarker(w, hex, "structure", hex.structure.name || "Explorable Structure", "Enter and generate interior rooms.");
+      if (hex.wayfarer) setMarker(w, hex, "wayfarer", "Wayfarer", "Carries rumors and local history.");
+      if (hex.hazard) {
+        setMarker(
+          w,
+          hex,
+          hex.hazard.type || "hazard",
+          hex.hazard.name || "District Hazard",
+          hex.hazard.desc || "Dangerous district condition"
+        );
+      }
+    });
 
     const missionPool = w.hexes.slice();
     function takeHex() {
@@ -746,15 +965,13 @@
     (S.activeMissions || []).slice(0, 8).forEach(function (m) {
       const hex = takeHex();
       if (!hex) return;
-      w.markers[hex.id] = { type: "mission", title: m.title || "Mission", subtitle: "Live mission marker" };
-      hex.markerType = "mission";
+      setMarker(w, hex, "mission", m.title || "Mission", "Live mission marker");
     });
 
     w.activeTasks.slice(0, 8).forEach(function (t) {
-      const hex = takeHex();
+      const hex = t.hexId ? hexById(t.hexId) : takeHex();
       if (!hex) return;
-      w.markers[hex.id] = { type: "task", title: t.title, subtitle: "Holding task" };
-      hex.markerType = "task";
+      setMarker(w, hex, "task", t.title, "Holding task");
     });
 
     w.hexes.forEach(function (hex) {
@@ -762,7 +979,7 @@
       if (!w.markers[hex.id]) {
         hex.markerType = safeRoll(100) <= Math.max(8, Math.floor(danger.encounterChance / 2)) ? "job" : null;
         if (hex.markerType === "job") {
-          w.markers[hex.id] = { type: "job", title: "District Job", subtitle: "Quick contract available" };
+          setMarker(w, hex, "job", "District Job", "Quick contract available");
         }
       }
     });
@@ -858,18 +1075,19 @@
         st.setAttribute("font-size", "9");
         st.setAttribute("fill", "#7ed7ff");
         st.setAttribute("pointer-events", "none");
-        st.textContent = "T";
+        st.textContent = "R";
         g.appendChild(st);
       }
 
       if (marker) {
+        const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
         mk.setAttribute("x", String(p.x + 8));
         mk.setAttribute("y", String(p.y - 8));
         mk.setAttribute("font-size", "10");
-        mk.setAttribute("fill", marker.type === "mission" ? "#e8c050" : marker.type === "task" ? "#46c4b6" : "#bbbbbb");
+        mk.setAttribute("fill", markerStyle.color || "#bbbbbb");
         mk.setAttribute("pointer-events", "none");
-        mk.textContent = marker.type === "mission" ? "!" : marker.type === "task" ? "T" : "$";
+        mk.textContent = markerStyle.icon || "$";
         g.appendChild(mk);
       }
 
@@ -936,7 +1154,7 @@
       }
       const target = safePick(w.hexes.filter(function (h) { return h.id !== hex.id; }), null);
       if (target) {
-        w.markers[target.id] = { type: "job", title: "Intel Lead", subtitle: "Service generated this lead" };
+        setMarker(w, target, "job", "Intel Lead", "Service generated this lead");
       }
       addWorldItem("scrap", 1);
       addZoneReputation(hex.zone, 1);
@@ -1001,6 +1219,86 @@
     advanceWorldTime("service action");
     updateZoneControl();
     if (registerWorldAction("service")) return;
+    renderWorldThatWas();
+  }
+
+  function resolveDistrictHazard(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.hazard) return;
+
+    const hz = hex.hazard;
+    const check = rollAgainstDread(hz.stat || "body", hz.dread || 8);
+    if (check.success) {
+      addZoneReputation(hex.zone, 1);
+      addWorldItem("scrap", 1);
+      hex.hazard = null;
+      if (typeof showNotif === "function") showNotif("Hazard cleared: " + (hz.name || "District hazard") + ".", "good");
+    } else {
+      applyNegativeCondition(hz.condition || "weakened");
+      if (typeof changeStress === "function") {
+        changeStress(Math.max(1, (check.dreadTotal || 1) - (check.actionTotal || 0)));
+      }
+      if (typeof showNotif === "function") showNotif("Hazard struck: gained " + (hz.condition || "weakened") + ".", "warn");
+    }
+    syncWorldMarkers();
+    advanceWorldTime("hazard response");
+    if (registerWorldAction("hazard")) return;
+    renderWorldThatWas();
+  }
+
+  function talkToWayfarer(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.wayfarer) return;
+    const info = hex.wayfarer;
+    const title = "Wayfarer: " + (info.name || "Unknown");
+    const body = "<div style='font-size:.84rem;color:var(--text2);line-height:1.65;'>"
+      + "<strong style='color:var(--gold2);'>Rumor:</strong> " + (info.rumor || "Routes are quiet tonight.")
+      + "<br><strong style='color:var(--teal);'>History:</strong> " + (info.history || "Old routes still shape this district.")
+      + "<br><br><span style='color:var(--muted2);'>You gain +1 Data Drive from shared route notes.</span>"
+      + "</div>";
+    if (typeof openModal === "function") openModal(title, body);
+    addWorldItem("dataDrives", 1);
+    addZoneReputation(hex.zone, 1);
+    if (registerWorldAction("wayfarer talk")) return;
+    renderWorldThatWas();
+  }
+
+  function exploreStructure(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.structure) return;
+    generateStructureRooms(hex);
+    if (typeof showNotif === "function") {
+      showNotif("Explored " + (hex.structure.name || hex.structure.kind) + ". Rooms generated.", "good");
+    }
+    grantRandomLoot("easy");
+    addZoneReputation(hex.zone, 1);
+    syncWorldMarkers();
+    if (registerWorldAction("structure explore")) return;
+    renderWorldThatWas();
+  }
+
+  function launchToSpace(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.landingPad) {
+      if (typeof showNotif === "function") showNotif("Launch requires a landing pad district.", "warn");
+      return;
+    }
+    if (!spendCredits(40, "orbital launch")) return;
+    advanceWorldTime("orbital launch");
+    if (typeof showNotif === "function") showNotif("Launch cleared. Returning to space lane.", "good");
+    returnToGalaxy();
+  }
+
+  function chooseLandingPad(zoneName) {
+    const w = ensureWorldState();
+    if (!w) return;
+    const target = w.hexes.find(function (h) { return h.zone === zoneName && h.landingPad; });
+    if (!target) {
+      if (typeof showNotif === "function") showNotif("No landing pad available in " + zoneName + ".", "warn");
+      return;
+    }
+    w.currentZone = zoneName;
+    w.selectedHexId = target.id;
     renderWorldThatWas();
   }
 
@@ -1123,6 +1421,8 @@
         completeHoldingTask(task.id);
         return;
       }
+    } else if (marker.type === "service" || marker.type === "wayfarer" || marker.type === "structure" || marker.type === "hazard" || marker.type === "peril" || marker.type === "barrier" || marker.type === "landing" || marker.type === "station") {
+      if (typeof showNotif === "function") showNotif("Visit this district and use the panel actions for this marker.", "good");
     } else {
       if (typeof showNotif === "function") showNotif("District job completed. +80 Credits.", "good");
       setCredits(getCredits() + 80);
@@ -1515,6 +1815,7 @@
     const services = zoneServicesForHex(hex);
     const n = hex.narrative;
     const evt = n.event || {};
+    const markerTypeLabel = marker && WTW_MARKER_STYLE[marker.type] ? WTW_MARKER_STYLE[marker.type].title : "District Marker";
     const eventCheck = evt.mode === "combat"
       ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " enemies (DD" + (evt.dread || 8) + " | " + (evt.enemyHealth || 16) + " HP each)")
       : ("<strong>Check:</strong> " + statLabel(evt.stat || "body") + " d" + getActionDie(evt.stat || "body") + " vs DD" + (evt.dread || 8));
@@ -1532,6 +1833,34 @@
         + "</div>";
     }).join("");
 
+    const hazardHtml = hex.hazard
+      ? ("<div class='npc-block' style='margin-bottom:.35rem;border-color:rgba(255,138,114,.45);background:rgba(255,138,114,.08);'><div class='nb-label' style='color:#ff8a72;'>" + (hex.hazard.type || "hazard").toUpperCase() + ": " + hex.hazard.name + "</div><div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'><strong>Risk:</strong> " + hex.hazard.desc + "<br><strong>Check:</strong> " + statLabel(hex.hazard.stat || "body") + " vs DD" + (hex.hazard.dread || 8) + "<br><strong>On fail:</strong> gain " + (hex.hazard.condition || "weakened") + "</div><div style='margin-top:.3rem;'><button class='btn btn-xs btn-red' onclick='wtwResolveHazard(\"" + hex.id + "\")'>Face Hazard</button></div></div>")
+      : "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>No active district hazard in this hex.</div>";
+
+    const wayfarerHtml = hex.wayfarer
+      ? ("<div class='npc-block' style='margin-bottom:.35rem;border-color:rgba(212,184,255,.45);background:rgba(212,184,255,.07);'><div class='nb-label' style='color:#d4b8ff;'>Wayfarer: " + hex.wayfarer.name + "</div><div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'><strong>Rumor:</strong> " + hex.wayfarer.rumor + "<br><strong>History:</strong> " + hex.wayfarer.history + "</div><div style='margin-top:.3rem;'><button class='btn btn-xs btn-teal' onclick='wtwTalkWayfarer(\"" + hex.id + "\")'>Talk</button></div></div>")
+      : "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>No wayfarer currently visible.</div>";
+
+    const structureRooms = (hex.structure && Array.isArray(hex.structure.generatedRooms)) ? hex.structure.generatedRooms : [];
+    const structureRoomHtml = structureRooms.length
+      ? ("<div style='margin-top:.25rem;'>" + structureRooms.map(function (room, idx) {
+          return "<div class='room-block'><div class='rb-title'>Room " + (idx + 1) + "</div><div class='rb-text'>" + room + "</div></div>";
+        }).join("") + "</div>")
+      : "<div style='font-size:.74rem;color:var(--muted2);margin-top:.2rem;'>No rooms generated yet.</div>";
+
+    const structureHtml = hex.structure
+      ? ("<div class='npc-block' style='margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);'><div class='nb-label' style='color:var(--gold2);'>" + (hex.structure.kind || "Structure") + ": " + (hex.structure.name || "Unknown Site") + "</div><div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'>Enter and generate interior rooms for exploration.</div><div style='margin-top:.3rem;'><button class='btn btn-xs btn-primary' onclick='wtwExploreStructure(\"" + hex.id + "\")'>Generate Rooms</button></div>" + structureRoomHtml + "</div>")
+      : "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>No explorable structure in this district.</div>";
+
+    const travelHtml = "<div class='npc-block' style='margin-bottom:.35rem;border-color:rgba(126,215,255,.4);background:rgba(126,215,255,.08);'>"
+      + "<div class='nb-label' style='color:#7ed7ff;'>Travel Infrastructure</div>"
+      + "<div style='font-size:.78rem;color:var(--muted3);line-height:1.45;'>"
+      + (hex.station ? "This district contains a rail station.<br>" : "No rail station in this district.<br>")
+      + (hex.landingPad ? "Landing pad available: launch to space for 40 Credits." : "No landing pad in this district.")
+      + "</div>"
+      + (hex.landingPad ? "<div style='margin-top:.3rem;'><button class='btn btn-xs btn-teal' onclick='wtwLaunchToSpace(\"" + hex.id + "\")'>Launch To Space</button></div>" : "")
+      + "</div>";
+
     const controlRows = Object.keys((zone && zone.controlBreakdown) || {}).map(function (name) {
       return "<span style='display:inline-block;margin-right:.4rem;color:" + controllerColor(name) + ";'>" + name + ": " + zone.controlBreakdown[name] + "</span>";
     }).join(" ");
@@ -1547,7 +1876,15 @@
       + "<div class='mystery-card' style='margin:.45rem 0;'><strong>Random Event:</strong> " + evt.title + "<br>" + evt.text + "<br><br><strong>Action:</strong> " + evt.action + "<br>" + eventCheck + "<br><strong>Reward:</strong> " + evt.reward + "<div style='margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>" + (evt.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button>" : "") + "</div></div>"
       + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;'><button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
       + encounterHtml
-      + (marker ? "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);'><div class='nb-label'>Marker - " + marker.title + "</div><div style='font-size:.78rem;color:var(--muted3);'>" + marker.subtitle + "</div><div style='margin-top:.28rem;'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Resolve Marker</button></div></div>" : "")
+      + (marker ? "<div class='npc-block' style='margin-bottom:.45rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);'><div class='nb-label'>" + markerTypeLabel + " - " + marker.title + "</div><div style='font-size:.78rem;color:var(--muted3);'>" + marker.subtitle + "</div><div style='margin-top:.28rem;'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Review Marker</button></div></div>" : "")
+      + "<div class='sub-label'>Hazards / Perils / Barriers</div>"
+      + hazardHtml
+      + "<div class='sub-label'>Wayfarers</div>"
+      + wayfarerHtml
+      + "<div class='sub-label'>Explorable Areas</div>"
+      + structureHtml
+      + "<div class='sub-label'>Travel Nodes</div>"
+      + travelHtml
       + renderSkirmishWidget(hex)
       + "<div class='sub-label'>District Services</div>"
       + servicesHtml
@@ -1584,6 +1921,17 @@
     }).join(" ");
   }
 
+  function renderLandingPadControls() {
+    const w = ensureWorldState();
+    if (!w) return "";
+    const pads = w.hexes.filter(function (h) { return h.landingPad; });
+    if (!pads.length) return "<span style='font-size:.74rem;color:var(--muted2);'>No landing pads online.</span>";
+    return pads.map(function (hex) {
+      const on = w.selectedHexId === hex.id;
+      return "<button class='btn btn-xs " + (on ? "btn-teal" : "") + "' onclick='chooseWorldLandingPad(\"" + hex.zone + "\")'>" + hex.zone + (on ? " (Pad)" : "") + "</button>";
+    }).join(" ");
+  }
+
   function renderWorldThatWas() {
     const w = ensureWorldState();
     if (!w) return;
@@ -1591,11 +1939,13 @@
     const tickEl = document.getElementById("wtwTick");
     const zoneEl = document.getElementById("wtwCurrentZone");
     const railEl = document.getElementById("wtwRailControls");
+    const padsEl = document.getElementById("wtwLandingControls");
     const activityEl = document.getElementById("wtwActivity");
     const invEl = document.getElementById("wtwInventoryReadout");
     if (tickEl) tickEl.textContent = "Cycle " + (w.tick || 0);
     if (zoneEl) zoneEl.textContent = w.currentZone || "Unknown";
     if (railEl) railEl.innerHTML = renderZoneRailControls();
+    if (padsEl) padsEl.innerHTML = renderLandingPadControls();
     if (activityEl) activityEl.textContent = String(w.activityClicks || 0) + "/10";
     if (invEl && S && S.worldInventory) {
       invEl.innerHTML = WORLD_ITEMS.map(function (k) {
@@ -1626,11 +1976,13 @@
       + "</div>"
       + "<div class='sea-summary' style='margin-bottom:.5rem;'>"
       + "<div class='info-cell'><span class='ic-label'>Map Rules</span>12x12 districts, 9 mega-zones, dynamic control shifts, train-linked travel.</div>"
-      + "<div class='info-cell'><span class='ic-label'>Dynamic Layer</span>Events, services, skirmishes, holdings tasks, mission and job markers.</div>"
+      + "<div class='info-cell'><span class='ic-label'>Dynamic Layer</span>Events, services, skirmishes, holdings tasks, mission markers, wayfarers, hazards, and structures.</div>"
       + "<div class='info-cell'><span class='ic-label'>Train Network</span>Travel to any zone station for 30 Credits and +1 time step.</div>"
+      + "<div class='info-cell'><span class='ic-label'>Landing Pads</span>Each zone has a launch pad. Launch to space from the selected pad for 40 Credits.</div>"
       + "<div class='info-cell'><span class='ic-label'>Renown</span>Holding tasks and event wins grant +1 power renown and loot.</div>"
       + "</div>"
       + "<div id='wtwRailControls' style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'></div>"
+      + "<div id='wtwLandingControls' style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'></div>"
       + "<div id='wtwInventoryReadout' class='sea-group-list' style='margin-bottom:.45rem;'></div>"
       + "<div id='wtwPowerReadout' class='sea-group-list' style='margin-bottom:.45rem;'></div>"
       + "<div class='map-layout'>"
@@ -1703,7 +2055,7 @@
   window.advanceWorldThatWas = advanceWorldThatWas;
   window.resolveWorldSkirmish = quickResolveWorldSkirmish;
   window.openWorldSkirmishCombat = openWorldSkirmishCombat;
-  window.chooseWorldLandingPad = function () {};
+  window.chooseWorldLandingPad = chooseLandingPad;
   window.returnWorldToGalaxy = returnToGalaxy;
 
   window.wtwBuyService = spendService;
@@ -1721,6 +2073,10 @@
   window.wtwRollEncounter = rollDistrictEncounter;
   window.wtwResolveEncounter = resolveDistrictEncounter;
   window.wtwWinCombatEvent = completeCombatEventVictory;
+  window.wtwResolveHazard = resolveDistrictHazard;
+  window.wtwTalkWayfarer = talkToWayfarer;
+  window.wtwExploreStructure = exploreStructure;
+  window.wtwLaunchToSpace = launchToSpace;
   window.wtwSyncMarkers = function () {
     syncWorldMarkers();
     renderWorldThatWas();

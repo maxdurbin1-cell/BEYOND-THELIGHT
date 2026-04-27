@@ -1765,7 +1765,7 @@
       + "<div class='story-label'>Decoded Lexicon</div><div class='story-value'>" + lexiconText + "</div>"
       + "<div class='story-label'>Remembered Voices</div><div class='story-value'>" + memoryText + "</div>"
       + "</div>"
-      + "<div class='story-card'>
+      + "<div class='story-card'>"
       + "<div class='story-label'>Choice Log</div>"
       + "<div class='story-log'>" + logHtml + "</div>"
       + "</div>"

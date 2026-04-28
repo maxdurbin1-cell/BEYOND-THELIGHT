@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
+const crypto = require("crypto");
 const express = require("express");
 const { Server } = require("socket.io");
 
@@ -39,6 +40,26 @@ function randomToken(length) {
   return randomFromChars(length, TOKEN_CHARS);
 }
 
+function hashPassword(password, salt) {
+  const s = String(salt || "");
+  return crypto.createHash("sha256").update(String(password || "") + ":" + s).digest("hex");
+}
+
+function createPasswordPack(password) {
+  const pass = String(password || "").trim();
+  if (!pass) return null;
+  const salt = randomToken(12);
+  const hash = hashPassword(pass, salt);
+  return { salt, hash };
+}
+
+function verifyPassword(campaign, passwordInput) {
+  if (!campaign.passwordHash || !campaign.passwordSalt) return true;
+  const input = String(passwordInput || "");
+  if (!input.trim()) return false;
+  return hashPassword(input, campaign.passwordSalt) === campaign.passwordHash;
+}
+
 function createCampaignCode() {
   let tries = 0;
   while (tries < 2000) {
@@ -72,6 +93,10 @@ function ensureCampaignShape(raw) {
     participants: new Map(),
     sessions: new Map(),
     gmToken: raw && raw.gmToken ? String(raw.gmToken) : "",
+    archived: !!(raw && raw.archived),
+    passwordHash: raw && raw.passwordHash ? String(raw.passwordHash) : "",
+    passwordSalt: raw && raw.passwordSalt ? String(raw.passwordSalt) : "",
+    privateNotes: new Map(),
     activeRollRequest: null,
     log: Array.isArray(raw && raw.log) ? raw.log.slice(-250) : [],
     updatedAt: Number(raw && raw.updatedAt) || Date.now()
@@ -92,6 +117,18 @@ function ensureCampaignShape(raw) {
 
   if (normalized.gmToken && !normalized.participants.has(normalized.gmToken)) {
     normalized.gmToken = "";
+  }
+
+  const notes = Array.isArray(raw && raw.privateNotes) ? raw.privateNotes : [];
+  for (let i = 0; i < notes.length; i += 1) {
+    const item = notes[i] || {};
+    const token = String(item.token || "").trim();
+    if (!token || !normalized.participants.has(token)) continue;
+    normalized.privateNotes.set(token, {
+      token,
+      text: String(item.text || "").slice(0, 5000),
+      updatedAt: Number(item.updatedAt) || Date.now()
+    });
   }
 
   const roll = raw && raw.activeRollRequest;
@@ -132,6 +169,14 @@ function serializeCampaign(campaign) {
       lastSeenAt: Number(p.lastSeenAt || Date.now())
     })),
     gmToken: campaign.gmToken || "",
+    archived: !!campaign.archived,
+    passwordHash: campaign.passwordHash || "",
+    passwordSalt: campaign.passwordSalt || "",
+    privateNotes: Array.from(campaign.privateNotes.values()).map((note) => ({
+      token: note.token,
+      text: String(note.text || "").slice(0, 5000),
+      updatedAt: Number(note.updatedAt || Date.now())
+    })),
     activeRollRequest: campaign.activeRollRequest
       ? {
           id: campaign.activeRollRequest.id,
@@ -219,8 +264,27 @@ function snapshotCampaign(campaign, requesterToken) {
       return a.name.localeCompare(b.name);
     });
 
+  const requesterRole = requesterToken && campaign.gmToken && requesterToken === campaign.gmToken ? "gm" : "player";
+  const requesterNote = requesterToken && campaign.privateNotes.has(requesterToken)
+    ? campaign.privateNotes.get(requesterToken)
+    : null;
+  const notesSummary = requesterRole === "gm"
+    ? Array.from(campaign.participants.values()).map((p) => {
+        const note = campaign.privateNotes.get(p.token);
+        return {
+          token: p.token,
+          name: p.name,
+          updatedAt: note ? Number(note.updatedAt || 0) : 0,
+          hasNote: !!(note && String(note.text || "").trim()),
+          preview: note ? String(note.text || "").slice(0, 120) : ""
+        };
+      })
+    : [];
+
   return {
     code: campaign.code,
+    archived: !!campaign.archived,
+    hasPassword: !!(campaign.passwordHash && campaign.passwordSalt),
     shared: {
       tmw: Number(campaign.shared.tmw || 0)
     },
@@ -233,9 +297,11 @@ function snapshotCampaign(campaign, requesterToken) {
     me: requesterToken
       ? {
           token: requesterToken,
-          role: campaign.gmToken && requesterToken === campaign.gmToken ? "gm" : "player"
+          role: requesterRole,
+          privateNote: requesterNote ? String(requesterNote.text || "") : ""
         }
       : null,
+    notesSummary,
     activeRollRequest: campaign.activeRollRequest
       ? {
           id: campaign.activeRollRequest.id,
@@ -365,6 +431,18 @@ function resolveOrCreateParticipant(campaign, name, requestedRole, tokenHint) {
   return { token, participant, restored: false };
 }
 
+function isGm(campaign, token) {
+  return !!(token && campaign.gmToken && token === campaign.gmToken);
+}
+
+function canJoinArchivedCampaign(campaign, tokenHint) {
+  if (!campaign.archived) return true;
+  const token = String(tokenHint || "").trim();
+  if (!token) return false;
+  if (!campaign.participants.has(token)) return false;
+  return true;
+}
+
 function attachSocketToCampaign(socket, campaign, token) {
   socket.join(campaign.code);
   socket.data.campaignCode = campaign.code;
@@ -414,10 +492,20 @@ io.on("connection", (socket) => {
         participants: new Map(),
         sessions: new Map(),
         gmToken: "",
+        archived: false,
+        passwordHash: "",
+        passwordSalt: "",
+        privateNotes: new Map(),
         activeRollRequest: null,
         log: [],
         updatedAt: Date.now()
       };
+
+      const passwordPack = createPasswordPack(payload && payload.password);
+      if (passwordPack) {
+        campaign.passwordSalt = passwordPack.salt;
+        campaign.passwordHash = passwordPack.hash;
+      }
 
       const token = createParticipantToken(campaign);
       campaign.participants.set(token, {
@@ -434,7 +522,14 @@ io.on("connection", (socket) => {
 
       emitCampaignState(code);
       if (typeof ack === "function") {
-        ack({ ok: true, code, role: "gm", token, name });
+        ack({
+          ok: true,
+          code,
+          role: "gm",
+          token,
+          name,
+          hasPassword: !!passwordPack
+        });
       }
     } catch (_err) {
       if (typeof ack === "function") ack({ ok: false, error: "Could not create campaign." });
@@ -446,10 +541,22 @@ io.on("connection", (socket) => {
     const role = (payload && payload.role) === "gm" ? "gm" : "player";
     const name = normalizeName(payload && payload.name, role === "gm" ? "GM" : "Player");
     const tokenHint = String((payload && payload.token) || "").trim();
+    const passwordInput = String((payload && payload.password) || "");
     const campaign = campaigns.get(code);
 
     if (!campaign) {
       if (typeof ack === "function") ack({ ok: false, error: "Campaign code not found." });
+      return;
+    }
+
+    if (!canJoinArchivedCampaign(campaign, tokenHint)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Campaign is archived. Ask GM to reopen it." });
+      return;
+    }
+
+    const hasValidToken = !!(tokenHint && campaign.participants.has(tokenHint));
+    if (!hasValidToken && !verifyPassword(campaign, passwordInput)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Incorrect campaign password." });
       return;
     }
 
@@ -550,6 +657,133 @@ io.on("connection", (socket) => {
     });
 
     emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("campaign:privateNote", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const token = socket.data.token;
+    if (!token || !campaign.participants.has(token)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Invalid participant session." });
+      return;
+    }
+
+    const text = String((payload && payload.text) || "").slice(0, 5000);
+    const trimmed = text.trim();
+    if (!trimmed) {
+      campaign.privateNotes.delete(token);
+    } else {
+      campaign.privateNotes.set(token, {
+        token,
+        text,
+        updatedAt: Date.now()
+      });
+    }
+
+    const participant = campaign.participants.get(token);
+    addLog(campaign, "note", `${participant ? participant.name : "Player"} updated private notes.`, {
+      token
+    });
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("campaign:archive", (_payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+    const token = socket.data.token;
+    if (!isGm(campaign, token)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Only GM can archive campaigns." });
+      return;
+    }
+    campaign.archived = true;
+    addLog(campaign, "system", "GM archived this campaign.");
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("campaign:unarchive", (_payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+    const token = socket.data.token;
+    if (!isGm(campaign, token)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Only GM can reopen campaigns." });
+      return;
+    }
+    campaign.archived = false;
+    addLog(campaign, "system", "GM reopened this campaign.");
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("campaign:setPassword", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+    const token = socket.data.token;
+    if (!isGm(campaign, token)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Only GM can set password." });
+      return;
+    }
+
+    const password = String((payload && payload.password) || "").trim();
+    if (!password) {
+      campaign.passwordHash = "";
+      campaign.passwordSalt = "";
+      addLog(campaign, "system", "GM removed the campaign password.");
+    } else {
+      const pack = createPasswordPack(password);
+      campaign.passwordHash = pack.hash;
+      campaign.passwordSalt = pack.salt;
+      addLog(campaign, "system", "GM updated the campaign password.");
+    }
+    campaign.updatedAt = Date.now();
+    schedulePersist();
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true, hasPassword: !!campaign.passwordHash });
+  });
+
+  socket.on("campaign:delete", (_payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+    const token = socket.data.token;
+    if (!isGm(campaign, token)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Only GM can delete campaigns." });
+      return;
+    }
+
+    campaign.sessions.forEach((_t, socketId) => {
+      io.to(socketId).emit("campaign:deleted", {
+        code: campaign.code,
+        message: "Campaign deleted by GM."
+      });
+      const client = io.sockets.sockets.get(socketId);
+      if (client) {
+        client.leave(campaign.code);
+        client.data.campaignCode = "";
+        client.data.role = "";
+        client.data.token = "";
+      }
+    });
+
+    campaigns.delete(campaign.code);
+    schedulePersist();
     if (typeof ack === "function") ack({ ok: true });
   });
 

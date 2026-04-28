@@ -17,7 +17,8 @@
     autoRestoreTried: false,
     restoringSession: false,
     dockOpen: true,
-    lastDockLogSize: 0
+    lastDockLogSize: 0,
+    timelineFilter: "all"
   };
 
   function safeNotif(msg, kind) {
@@ -203,6 +204,29 @@
     }).join("");
   }
 
+  function filterTimeline(log) {
+    var source = Array.isArray(log) ? log : [];
+    if (state.role !== "gm") return source;
+    var mode = String(state.timelineFilter || "all");
+    if (mode === "all") return source;
+    if (mode === "chat") {
+      return source.filter(function (entry) { return String(entry && entry.kind || "") === "chat"; });
+    }
+    if (mode === "roll") {
+      return source.filter(function (entry) {
+        var k = String(entry && entry.kind || "");
+        return k === "roll" || k === "roll-result";
+      });
+    }
+    if (mode === "system") {
+      return source.filter(function (entry) {
+        var k = String(entry && entry.kind || "");
+        return k === "system" || k === "tmw" || k === "note";
+      });
+    }
+    return source;
+  }
+
   function ensureSettingsSection() {
     var panel = document.getElementById("settingsPanel");
     if (!panel) return;
@@ -231,6 +255,14 @@
     var sharedTmw = campaign && campaign.shared ? Number(campaign.shared.tmw || 0) : getTmwValue();
     var isGm = state.role === "gm";
     var active = campaign && campaign.activeRollRequest;
+    var privateNote = campaign && campaign.me ? String(campaign.me.privateNote || "") : "";
+    var noteSummaries = campaign && Array.isArray(campaign.notesSummary) ? campaign.notesSummary : [];
+    var summaryHtml = isGm && noteSummaries.length
+      ? ('<div class="campaign-muted" style="margin-top:.35rem;">' + noteSummaries.map(function (n) {
+          var stamp = n.updatedAt ? (" @ " + formatTimestamp(n.updatedAt)) : "";
+          return escapeHtml(n.name + (n.hasNote ? stamp : " (no note)"));
+        }).join(" · ") + '</div>')
+      : '';
 
     section.innerHTML = ""
       + '<h4>Campaign (Multiplayer)</h4>'
@@ -246,6 +278,10 @@
       + '<label>Campaign Code</label>'
       + '<input id="campaignCodeInput" class="campaign-input" type="text" maxlength="12" placeholder="ABC123" value="' + escapeHtml(state.code || "") + '">' 
       + "</div>"
+      + '<div class="setting-row">'
+      + '<label>Join Password (Optional)</label>'
+      + '<input id="campaignPasswordInput" class="campaign-input" type="password" maxlength="120" placeholder="Campaign password if set">'
+      + "</div>"
       + '<div class="campaign-actions">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.createCampaign()">Create (GM)</button>'
       + '<button class="btn btn-xs" onclick="window.campaignSystem.joinCampaign(\'player\')">Join Player</button>'
@@ -255,7 +291,11 @@
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Shared Teamwork Points</div>'
       + '<div class="campaign-tmw">' + sharedTmw + "</div>"
-      + '<div class="campaign-muted">Persistent campaign state now restores after server restart.</div>'
+      + '<div class="campaign-muted">'
+      + 'Persistent state enabled'
+      + (campaign && campaign.archived ? ' · <strong style="color:var(--gold2);">Archived</strong>' : '')
+      + (campaign && campaign.hasPassword ? ' · Password Protected' : '')
+      + '</div>'
       + "</div>"
       + (isGm
         ? (""
@@ -273,9 +313,31 @@
           + (active ? ('<div class="campaign-muted" style="margin-top:.35rem;">Active: ' + escapeHtml(active.label) + ' · ' + escapeHtml(active.stat) + ' vs d' + Number(active.dread || 8) + '</div>') : '<div class="campaign-muted" style="margin-top:.35rem;">No active roll request.</div>')
           + "</div>")
         : "")
+      + (isGm
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">GM Campaign Controls</div>'
+          + '<div class="campaign-roll-grid">'
+          + '<input id="campaignSetPasswordInput" class="campaign-input" type="password" maxlength="120" placeholder="Set/replace password (blank to remove)">'
+          + "</div>"
+          + '<div class="campaign-actions" style="margin-top:.35rem;">'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.setCampaignPassword()">Apply Password</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.toggleArchive()">' + ((campaign && campaign.archived) ? 'Reopen' : 'Archive') + '</button>'
+          + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.deleteCampaign()">Delete Campaign</button>'
+          + "</div>"
+          + '</div>')
+        : "")
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Online Members</div>'
       + renderMembers(campaign ? campaign.members : [])
+      + "</div>"
+      + '<div class="campaign-card">'
+      + '<div class="campaign-card-title">Private Notes</div>'
+      + '<textarea id="campaignPrivateNoteInput" class="campaign-input" style="min-height:76px;resize:vertical;" maxlength="5000" placeholder="Your private campaign notes...">' + escapeHtml(privateNote) + '</textarea>'
+      + '<div class="campaign-actions" style="margin-top:.35rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.savePrivateNote()">Save Notes</button>'
+      + '</div>'
+      + summaryHtml
       + "</div>"
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Recent Log</div>'
@@ -299,6 +361,7 @@
       + "</div>"
       + '<div id="campaignDockMeta" class="campaign-dock-meta">No campaign connected.</div>'
       + '<div id="campaignDockRoll" class="campaign-dock-roll"></div>'
+      + '<div id="campaignDockFilters" class="campaign-dock-filters"></div>'
       + '<div id="campaignDockTimeline" class="campaign-dock-timeline"></div>'
       + '<div class="campaign-dock-chat">'
       + '<input id="campaignDockChatInput" class="campaign-dock-input" type="text" maxlength="500" placeholder="Type campaign chat...">'
@@ -330,6 +393,7 @@
     var meta = document.getElementById("campaignDockMeta");
     var timeline = document.getElementById("campaignDockTimeline");
     var roll = document.getElementById("campaignDockRoll");
+    var filters = document.getElementById("campaignDockFilters");
 
     if (badge) {
       badge.textContent = state.connected ? "Online" : "Offline";
@@ -364,9 +428,27 @@
       }
     }
 
+    if (filters) {
+      if (state.role === "gm") {
+        var modes = [
+          { id: "all", label: "All" },
+          { id: "chat", label: "Chat" },
+          { id: "roll", label: "Rolls" },
+          { id: "system", label: "System" }
+        ];
+        filters.innerHTML = modes.map(function (m) {
+          var on = state.timelineFilter === m.id;
+          return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setTimelineFilter(\'' + m.id + '\')">' + m.label + '</button>';
+        }).join("");
+      } else {
+        filters.innerHTML = "";
+      }
+    }
+
     if (timeline) {
       var oldScrollBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
-      timeline.innerHTML = renderDockTimeline(campaign && campaign.log ? campaign.log : []);
+      var filtered = filterTimeline(campaign && campaign.log ? campaign.log : []);
+      timeline.innerHTML = renderDockTimeline(filtered);
       var newLogSize = campaign && Array.isArray(campaign.log) ? campaign.log.length : 0;
       if (oldScrollBottom < 40 || newLogSize !== state.lastDockLogSize) {
         timeline.scrollTop = timeline.scrollHeight;

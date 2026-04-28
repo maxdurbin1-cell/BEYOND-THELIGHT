@@ -65,6 +65,7 @@
     structure: { icon: "B", color: "#c9a227", priority: 68, title: "Explorable Structure" },
     wayfarer: { icon: "W", color: "#d4b8ff", priority: 64, title: "Wayfarer" },
     faction_base: { icon: "🏰", color: "#46c4b6", priority: 66, title: "Faction Base" },
+    faction_task: { icon: "✦", color: "#e8c050", priority: 67, title: "Wayfarer Task" },
     hazard: { icon: "H", color: "#ff8a72", priority: 60, title: "Hazard" },
     peril: { icon: "P", color: "#ff8070", priority: 59, title: "Peril" },
     barrier: { icon: "B", color: "#ff9066", priority: 58, title: "Barrier" },
@@ -1069,6 +1070,17 @@
         }
       });
     }
+    if (window.factionSystem && typeof window.factionSystem.getWTWTask === "function") {
+      w.hexes.forEach(function (hex) {
+        const ft = window.factionSystem.getWTWTask(hex.id);
+        if (ft) {
+          const subtitle = ft.monsterTask
+            ? (ft.status === "combat_pending" ? "Monster encounter pending" : (ft.monsterSummary || "Monster encounter"))
+            : "Adventure check task";
+          setMarker(w, hex, "faction_task", ft.title || "Wayfarer Task", subtitle);
+        }
+      });
+    }
 
     w.hexes.forEach(function (hex) {
       const danger = dangerForZone(hex.zone);
@@ -1256,7 +1268,7 @@
         g.appendChild(you);
       }
 
-      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task" || marker.type === "story" || marker.type === "faction_base");
+      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task" || marker.type === "story" || marker.type === "faction_base" || marker.type === "faction_task");
       if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -1621,6 +1633,17 @@
     } else if (marker.type === "faction_base") {
       if (window.factionSystem && typeof window.factionSystem.openBaseFromMarker === "function") {
         window.factionSystem.openBaseFromMarker("wtw", hexId);
+      }
+    } else if (marker.type === "faction_task") {
+      if (!window.factionSystem || typeof window.factionSystem.getWTWTask !== "function") return;
+      const ft = window.factionSystem.getWTWTask(hexId);
+      if (!ft) return;
+      if (!ft.monsterTask && ft.status === "open" && typeof window.factionSystem.resolveMapTask === "function") {
+        window.factionSystem.resolveMapTask("wtw", hexId);
+      } else if (ft.monsterTask && ft.status === "open" && typeof window.factionSystem.startMonsterTask === "function") {
+        window.factionSystem.startMonsterTask("wtw", hexId);
+      } else if (ft.monsterTask && ft.status === "combat_pending" && typeof openModal === "function") {
+        openModal("Monster Encounter Pending", "<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'><strong>" + (ft.title || "Wayfarer Task") + "</strong><br>" + (ft.monsterSummary || "Monster encounter") + "<br><br>After combat, choose outcome:<div style='margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick=\"if(window.factionSystem)window.factionSystem.finalizeMonsterTask('wtw','" + hexId + "',null,true);if(typeof closeModal==='function')closeModal();if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">Slayed Monsters</button><button class='btn btn-xs btn-red' onclick=\"if(window.factionSystem)window.factionSystem.finalizeMonsterTask('wtw','" + hexId + "',null,false);if(typeof closeModal==='function')closeModal();if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">Failed Encounter</button></div></div>");
       }
     } else if (marker.type === "service" || marker.type === "wayfarer" || marker.type === "structure" || marker.type === "hazard" || marker.type === "peril" || marker.type === "barrier" || marker.type === "landing" || marker.type === "station" || marker.type === "story") {
       if (typeof showNotif === "function") showNotif("Visit this district and use the panel actions for this marker.", "good");

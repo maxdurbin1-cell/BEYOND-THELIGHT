@@ -4249,6 +4249,9 @@ function renderPlanetSurfaceSvg(state, selected) {
     const factionBase = window.factionSystem && typeof window.factionSystem.getPlanetMarker === 'function'
       ? window.factionSystem.getPlanetMarker(state.hexId, cell.id)
       : null;
+    const factionTask = window.factionSystem && typeof window.factionSystem.getPlanetTask === 'function'
+      ? window.factionSystem.getPlanetTask(state.hexId, cell.id)
+      : null;
     const tag = isLanding ? 'L'
       : isStoryObjective ? '➤'
       : isWayfarerContract ? '✦'
@@ -4297,6 +4300,10 @@ function renderPlanetSurfaceSvg(state, selected) {
       ? `<circle cx="${x + 13}" cy="${y - 12}" r="7" fill="rgba(70,196,182,.18)" stroke="#46c4b6" stroke-width="1.1" pointer-events="none" />
         <text x="${x + 13}" y="${y - 8}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="#46c4b6" pointer-events="none">🏰</text>`
       : '';
+     const factionTaskOverlay = factionTask
+      ? `<circle cx="${x - 13}" cy="${y + 12}" r="7" fill="${factionTask.status === 'combat_pending' ? 'rgba(224,80,80,.2)' : 'rgba(232,192,80,.18)'}" stroke="${factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050'}" stroke-width="1.1" pointer-events="none" />
+        <text x="${x - 13}" y="${y + 16}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="${factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050'}" pointer-events="none">${factionTask.monsterTask ? '⚔' : '✦'}</text>`
+      : '';
     const depthOverlay = mapFx.hex3d
       ? `<line x1="${topX1}" y1="${topY1}" x2="${topX2}" y2="${topY2}" stroke="rgba(255,255,255,.22)" stroke-width="1.1" pointer-events="none" />
          <line x1="${sideX1}" y1="${sideY1}" x2="${sideX2}" y2="${sideY2}" stroke="rgba(0,0,0,.3)" stroke-width="1.1" pointer-events="none" />
@@ -4307,6 +4314,7 @@ function renderPlanetSurfaceSvg(state, selected) {
       <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
       ${depthOverlay}
       ${factionOverlay}
+      ${factionTaskOverlay}
       <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="${visual.tag}">${tag || '·'}</text>
       ${selectedOverlay}
     </g>`;
@@ -5568,6 +5576,9 @@ function renderPlanetExplorationPanel() {
   const selectedFactionBase = selected && window.factionSystem && typeof window.factionSystem.getPlanetMarker === 'function'
     ? window.factionSystem.getPlanetMarker(planetHex.id, selected.id)
     : null;
+  const selectedFactionTask = selected && window.factionSystem && typeof window.factionSystem.getPlanetTask === 'function'
+    ? window.factionSystem.getPlanetTask(planetHex.id, selected.id)
+    : null;
 
   const observedCompact = `From orbit: ${state.observedSurface.observedFromSpace}`;
   const atmosphereCompact = buildPlanetAtmosphereLine(state, selected);
@@ -5645,6 +5656,8 @@ function renderPlanetExplorationPanel() {
           ${isStoryObjectiveSelected ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:rgba(240,208,112,.45);background:rgba(240,208,112,.08);"><div class="ss-title">Story Objective</div><div class="ss-text">This surface cell is your active storyline target.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div></div>` : ''}
 
           ${selectedFactionBase ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:rgba(70,196,182,.55);background:rgba(70,196,182,.08);"><div class="ss-title">🏰 Faction Base</div><div class="ss-text">${selectedFactionBase.baseName || 'Faction base'} is established in this surface cell.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('planet',${planetHex.id},${selected.id});">Enter Base</button></div></div>` : ''}
+
+          ${selectedFactionTask ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:${selectedFactionTask.status==='combat_pending'?'rgba(224,80,80,.55)':'rgba(232,192,80,.5)'};background:${selectedFactionTask.status==='combat_pending'?'rgba(224,80,80,.08)':'rgba(232,192,80,.08)'};"><div class="ss-title">${selectedFactionTask.monsterTask?'⚔ Monster Wayfarer Task':'✦ Wayfarer Task'}</div><div class="ss-text">${selectedFactionTask.title}${selectedFactionTask.monsterSummary?`<br><em>${selectedFactionTask.monsterSummary}</em>`:''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">${!selectedFactionTask.monsterTask&&selectedFactionTask.status==='open'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask('planet',${planetHex.id},${selected.id});renderPlanetExplorationPanel();">Roll AD vs Dread d6</button>`:''}${selectedFactionTask.monsterTask&&selectedFactionTask.status==='open'?`<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask('planet',${planetHex.id},${selected.id});renderPlanetExplorationPanel();">Generate Monsters / Combat</button>`:''}${selectedFactionTask.monsterTask&&selectedFactionTask.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('planet',${planetHex.id},${selected.id},true);renderPlanetExplorationPanel();">Slayed Monsters</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('planet',${planetHex.id},${selected.id},false);renderPlanetExplorationPanel();">Failed Encounter</button>`:''}</div></div>` : ''}
 
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Planet Intel</span>${isWildernessIntel ? `${narrative.land} ${narrative.floraFauna} ${narrative.wonder}` : 'Location dossier active. Land, Flora/Fauna, and Wonder intel populate in Wilderness hexes.'}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}<div style="margin-top:.22rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect</button></div></div>
@@ -6537,6 +6550,9 @@ function renderStarSystemMap() {
     const factionBase = window.factionSystem && typeof window.factionSystem.getGalaxyMarker === 'function'
       ? window.factionSystem.getGalaxyMarker(hex.id)
       : null;
+    const factionTask = window.factionSystem && typeof window.factionSystem.getGalaxyTask === 'function'
+      ? window.factionSystem.getGalaxyTask(hex.id)
+      : null;
     const isStoryObjective = storyObjectiveHexId === hex.id;
     const storyGlyph = isStoryObjective
       ? `<text x="${x - 14}" y="${y - 12}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="14" fill="#f0d070" pointer-events="none">➤</text>`
@@ -6567,6 +6583,7 @@ function renderStarSystemMap() {
         ${routeBadge}
         ${storyGlyph}
         ${factionBase ? `<text x="${x - 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="#46c4b6" pointer-events="none">🏰</text>` : ''}
+        ${factionTask ? `<text x="${x + 13}" y="${y + 17}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050'}" pointer-events="none">${factionTask.monsterTask ? '⚔' : '✦'}</text>` : ''}
         ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${hasTaskMarker ? '#f2d75a' : '#9de7ff'}" onclick="event.stopPropagation(); ${hasTaskMarker ? `openGalaxyTaskFromMap(${hex.id})` : ''}" style="cursor:${hasTaskMarker ? 'zoom-in' : 'pointer'};">${markerGlyph}</text>` : ''}
       </g>`;
   }).join('');
@@ -6825,7 +6842,13 @@ function updateStarSystemReadouts() {
       const factionBase = window.factionSystem && typeof window.factionSystem.getGalaxyMarker === 'function'
         ? window.factionSystem.getGalaxyMarker(current.id)
         : null;
+      const factionTask = window.factionSystem && typeof window.factionSystem.getGalaxyTask === 'function'
+        ? window.factionSystem.getGalaxyTask(current.id)
+        : null;
       if (factionBase) actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker===\'function\')window.factionSystem.openBaseFromMarker(\'galaxy\',' + current.id + ')">Enter Faction Base</button>');
+      if (factionTask && !factionTask.monsterTask && factionTask.status === 'open') actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask(\'galaxy\',' + current.id + ');renderStarSystemMap();updateStarSystemReadouts();">Resolve Wayfarer Task (AD vs d6)</button>');
+      if (factionTask && factionTask.monsterTask && factionTask.status === 'open') actionButtons.push('<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask(\'galaxy\',' + current.id + ');renderStarSystemMap();updateStarSystemReadouts();">Generate Monsters / Combat</button>');
+      if (factionTask && factionTask.monsterTask && factionTask.status === 'combat_pending') actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask(\'galaxy\',' + current.id + ',null,true);renderStarSystemMap();updateStarSystemReadouts();">Slayed Monsters</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask(\'galaxy\',' + current.id + ',null,false);renderStarSystemMap();updateStarSystemReadouts();">Failed Encounter</button>');
       panel.innerHTML = `
         <div style="display:grid;gap:.35rem;">
           ${S.starSystem.currentWeather ? `<div class="weather-block ${S.starSystem.currentWeather.rough ? 'rough' : 'clear'}" style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
@@ -6852,6 +6875,7 @@ function updateStarSystemReadouts() {
             <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
             <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>
             ${factionBase ? `<strong style="color:var(--text);">Faction Base:</strong> ${factionBase.baseName}<br>` : ''}
+            ${factionTask ? `<strong style="color:var(--text);">Wayfarer Task:</strong> ${factionTask.title} ${factionTask.monsterSummary ? '(' + factionTask.monsterSummary + ')' : ''}<br>` : ''}
             ${hubState ? `<strong style="color:var(--text);">Hub Control:</strong> ${hubState.controller}<br>` : ''}
             ${current.analysisDetail ? `<strong style="color:var(--text);">Further Analysis:</strong> ${current.analysisDetail}` : ''}
           </div>

@@ -430,6 +430,7 @@
     if (typeof S === "undefined" || !S) return;
     if (!S.factionRenown || typeof S.factionRenown !== "object") S.factionRenown = {};
     if (!S.factionBases || typeof S.factionBases !== "object") S.factionBases = {};
+    if (!Array.isArray(S.factionWayfarerTasks)) S.factionWayfarerTasks = [];
 
     Object.keys(FACTIONS).forEach((id) => {
       if (typeof S.factionRenown[id] !== "number") S.factionRenown[id] = 0;
@@ -448,10 +449,31 @@
           npcs: [],
           merchantStock: [],
           generatedRooms: [],
+          discoveredSecrets: [],
         };
       }
     });
   }
+
+  const WAYFARER_SECRET_POOL = [
+    "A hidden relay beneath this region can bypass customs scans.",
+    "A rival faction broker has been buying route maps under a false name.",
+    "An old hatch near the base connects to a forgotten smuggler lane.",
+    "A false mission marker is being used to lure crews into ambushes.",
+    "Someone in command is leaking deployment windows to raiders.",
+    "An archive room here contains sealed records on pre-collapse vaults.",
+  ];
+
+  const WAYFARER_TASK_TITLES = [
+    "Courier Trail",
+    "Broken Beacon",
+    "Silent Outpost",
+    "Missing Cache",
+    "Signal Intercept",
+    "Hazard Sweep",
+  ];
+
+  const MONSTER_NAMES = ["Irradiated Ones", "Rift Hounds", "Ash Stalkers", "Void Leeches", "Crypt Drifters"];
 
   function generateFactionBaseTask(factionId) {
     const theme = BASE_FLAVOR[factionId] || BASE_FLAVOR.scholars;
@@ -617,6 +639,243 @@
   function getFactionBaseMarkerAtPlanet(hexId, cellId) {
     const found = findBaseByMarker("planet", hexId, cellId);
     return found ? { factionId: found.factionId, baseName: found.base.baseName } : null;
+  }
+
+  function getBaseRegionCode(base) {
+    if (!base || !base.regionType) return "province";
+    if (base.regionType === "Province Map") return "province";
+    if (base.regionType === "Sea Region Hex Map") return "sea";
+    if (base.regionType === "Galaxy Map") return "galaxy";
+    if (base.regionType === "World That Was") return "wtw";
+    if (base.regionType === "Random Planet") return "planet";
+    return "province";
+  }
+
+  function getMissionRegionFromBase(base) {
+    const r = getBaseRegionCode(base);
+    if (r === "sea") return "sea";
+    if (r === "galaxy" || r === "planet" || r === "wtw") return "galaxy";
+    return "province";
+  }
+
+  function getRivalFaction(factionId) {
+    const enemies = (FACTION_DYNAMICS && Array.isArray(FACTION_DYNAMICS.enemies)) ? FACTION_DYNAMICS.enemies : [];
+    const direct = enemies.find((pair) => pair.f1 === factionId);
+    if (direct && direct.f2 && FACTIONS[direct.f2]) return direct.f2;
+    const ids = Object.keys(FACTIONS).filter((id) => id !== factionId);
+    return ids.length ? ids[Math.floor(Math.random() * ids.length)] : factionId;
+  }
+
+  function allocTaskMarker(regionCode) {
+    if (regionCode === "province") {
+      if (typeof mapData === "undefined" || !Array.isArray(mapData) || !mapData.length) return null;
+      const hex = mapData[Math.floor(Math.random() * mapData.length)];
+      return { system: "province", provinceKey: hex.col + "," + hex.row };
+    }
+    if (regionCode === "sea") {
+      if (!S || !S.lastSea || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return null;
+      const hex = S.lastSea.map[Math.floor(Math.random() * S.lastSea.map.length)];
+      return { system: "sea", seaKey: hex.key };
+    }
+    if (regionCode === "galaxy") {
+      if (!S || !S.starSystem || !Array.isArray(S.starSystem.hexes) || !S.starSystem.hexes.length) return null;
+      const candidates = S.starSystem.hexes.filter((h) => h && h.ring !== "core");
+      if (!candidates.length) return null;
+      const hex = candidates[Math.floor(Math.random() * candidates.length)];
+      return { system: "galaxy", galaxyHexId: Number(hex.id) };
+    }
+    if (regionCode === "wtw") {
+      if (!S || !S.worldThatWas || !Array.isArray(S.worldThatWas.hexes) || !S.worldThatWas.hexes.length) return null;
+      const hex = S.worldThatWas.hexes[Math.floor(Math.random() * S.worldThatWas.hexes.length)];
+      return { system: "wtw", wtwHexId: String(hex.id) };
+    }
+    if (regionCode === "planet") {
+      if (!S || !S.starSystem || !S.starSystem.planetExplorationByHex) return null;
+      const keys = Object.keys(S.starSystem.planetExplorationByHex);
+      if (!keys.length) return null;
+      const hk = keys[Math.floor(Math.random() * keys.length)];
+      const state = S.starSystem.planetExplorationByHex[hk];
+      if (!state || !Array.isArray(state.cells) || !state.cells.length) return null;
+      const cell = state.cells[Math.floor(Math.random() * state.cells.length)];
+      return { system: "planet", planetHexId: Number(hk), planetCellId: Number(cell.id) };
+    }
+    return null;
+  }
+
+  function createMonsterPack() {
+    const count = 1 + Math.floor(Math.random() * 4);
+    const dread = 4 + (Math.floor(Math.random() * 3) * 2);
+    return {
+      name: pick(MONSTER_NAMES),
+      count,
+      dread,
+      health: dread * 2,
+    };
+  }
+
+  function createWayfarerTask(factionId, npcName) {
+    ensureFactionState();
+    const base = ensureBaseActivity(factionId);
+    if (!base) return null;
+    const regionCode = getBaseRegionCode(base);
+    const marker = allocTaskMarker(regionCode);
+    if (!marker) return null;
+    const monsterTask = Math.random() < 0.35;
+    const task = {
+      id: "fwt-" + Date.now() + "-" + Math.floor(Math.random() * 9999),
+      factionId,
+      npcName: npcName || "Wayfarer",
+      title: pick(WAYFARER_TASK_TITLES),
+      text: "Wayfarer contact request for " + (FACTIONS[factionId] ? FACTIONS[factionId].name : "Faction") + ".",
+      status: "open",
+      monsterTask,
+      monsterPack: monsterTask ? createMonsterPack() : null,
+      marker,
+      createdAt: Date.now(),
+    };
+    S.factionWayfarerTasks.push(task);
+    return task;
+  }
+
+  function getOpenTasks() {
+    ensureFactionState();
+    return (S.factionWayfarerTasks || []).filter((t) => t && (t.status === "open" || t.status === "combat_pending"));
+  }
+
+  function findTaskAt(region, key, secondary) {
+    const tasks = getOpenTasks();
+    for (let i = 0; i < tasks.length; i++) {
+      const t = tasks[i];
+      const m = t.marker || {};
+      if (region === "province" && String(m.provinceKey || "") === String(key || "")) return t;
+      if (region === "sea" && String(m.seaKey || "") === String(key || "")) return t;
+      if (region === "galaxy" && Number(m.galaxyHexId) === Number(key)) return t;
+      if (region === "wtw" && String(m.wtwHexId || "") === String(key || "")) return t;
+      if (region === "planet" && Number(m.planetHexId) === Number(key) && Number(m.planetCellId) === Number(secondary)) return t;
+    }
+    return null;
+  }
+
+  function removeTask(taskId) {
+    ensureFactionState();
+    S.factionWayfarerTasks = (S.factionWayfarerTasks || []).filter((t) => String(t.id) !== String(taskId));
+  }
+
+  function grantTaskReward(task, success) {
+    if (!task) return;
+    if (success) {
+      safeFactionRenownDelta(task.factionId, 1);
+      let lootName = "Trade Good";
+      if (typeof rollForLoot === "function") {
+        try {
+          const loot = rollForLoot("medium");
+          if (Array.isArray(loot) && loot.length) lootName = String(loot[0]);
+          else if (typeof loot === "string") lootName = loot;
+        } catch (err) {}
+      }
+      let stored = false;
+      if (typeof addToBackpack === "function") {
+        try { stored = !!addToBackpack(lootName); } catch (err) {}
+      }
+      if (typeof showNotif === "function") showNotif("Wayfarer task complete: +1 faction Renown · Loot: " + lootName + (stored ? " (backpack)" : ""), "good");
+    } else {
+      if (typeof changeCounter === "function") changeCounter("tmw", 1);
+      safeFactionRenownDelta(task.factionId, -1);
+      if (typeof showNotif === "function") showNotif("Wayfarer task failed: +1 Teamwork · -1 faction Renown.", "warn");
+    }
+  }
+
+  function openCombatTabForTask(task) {
+    if (!task || !task.monsterPack) return;
+    const pack = task.monsterPack;
+    if (typeof showNotif === "function") {
+      showNotif("Encounter: " + pack.count + " " + pack.name + " (Dread d" + pack.dread + " | " + pack.health + " HP each). Resolve in Combat, then return to this hex.", "warn");
+    }
+    const btn = (typeof document !== "undefined") ? document.querySelector(".tab-btn[onclick*=\"combat\"]") : null;
+    if (typeof switchTab === "function") switchTab("combat", btn || null);
+  }
+
+  function resolveWayfarerTaskRoll(region, key, secondary) {
+    const task = findTaskAt(region, key, secondary);
+    if (!task || task.status !== "open") return;
+    if (task.monsterTask) {
+      task.status = "combat_pending";
+      openCombatTabForTask(task);
+      return;
+    }
+    const check = rollBaseCheck("adventure", 6);
+    grantTaskReward(task, check.success);
+    removeTask(task.id);
+  }
+
+  function startMonsterTaskEncounter(region, key, secondary) {
+    const task = findTaskAt(region, key, secondary);
+    if (!task || !task.monsterTask) return;
+    task.status = "combat_pending";
+    openCombatTabForTask(task);
+  }
+
+  function finalizeMonsterTaskEncounter(region, key, secondary, success) {
+    const task = findTaskAt(region, key, secondary);
+    if (!task || !task.monsterTask || task.status !== "combat_pending") return;
+    grantTaskReward(task, !!success);
+    removeTask(task.id);
+  }
+
+  function taskUiPayload(task) {
+    if (!task) return null;
+    const pack = task.monsterPack;
+    return {
+      id: task.id,
+      title: task.title,
+      factionId: task.factionId,
+      status: task.status,
+      monsterTask: !!task.monsterTask,
+      monsterSummary: pack ? (pack.count + " " + pack.name + " · d" + pack.dread + " · " + pack.health + " HP") : "",
+    };
+  }
+
+  function getTaskAtProvince(key) { return taskUiPayload(findTaskAt("province", key)); }
+  function getTaskAtSea(key) { return taskUiPayload(findTaskAt("sea", key)); }
+  function getTaskAtGalaxy(hexId) { return taskUiPayload(findTaskAt("galaxy", hexId)); }
+  function getTaskAtWTW(hexId) { return taskUiPayload(findTaskAt("wtw", hexId)); }
+  function getTaskAtPlanet(hexId, cellId) { return taskUiPayload(findTaskAt("planet", hexId, cellId)); }
+
+  function resolveNpcConversation(factionId, idx) {
+    const base = ensureBaseActivity(factionId);
+    const npc = base && Array.isArray(base.npcs) ? base.npcs[Number(idx)] : null;
+    if (!npc) return;
+    const check = rollBaseCheck("lead", 6);
+    if (check.success) {
+      const secret = pick(WAYFARER_SECRET_POOL);
+      base.discoveredSecrets = Array.isArray(base.discoveredSecrets) ? base.discoveredSecrets : [];
+      base.discoveredSecrets.unshift(secret);
+      base.discoveredSecrets = base.discoveredSecrets.slice(0, 6);
+      if (typeof showNotif === "function") showNotif(npc.name + " reveals a secret: " + secret, "good");
+    } else {
+      if (typeof showNotif === "function") showNotif(npc.name + " withholds details. Lead check failed.", "warn");
+    }
+    openFactionBaseHub(factionId);
+  }
+
+  function generateNpcTask(factionId, idx) {
+    const base = ensureBaseActivity(factionId);
+    const npc = base && Array.isArray(base.npcs) ? base.npcs[Number(idx)] : null;
+    if (!npc) return;
+    const existing = getOpenTasks().find((t) => t && t.factionId === factionId && t.npcName === npc.name);
+    if (existing) {
+      if (typeof showNotif === "function") showNotif("This wayfarer already has an active task marker.", "warn");
+      openFactionBaseHub(factionId);
+      return;
+    }
+    const task = createWayfarerTask(factionId, npc.name);
+    if (!task) {
+      if (typeof showNotif === "function") showNotif("Unable to place task marker yet. Explore this region first.", "warn");
+      openFactionBaseHub(factionId);
+      return;
+    }
+    if (typeof showNotif === "function") showNotif("Task posted to the map from " + npc.name + ".", "good");
+    openFactionBaseHub(factionId);
   }
 
   // ============================================================================
@@ -1125,6 +1384,14 @@
     if (!Array.isArray(base.generatedRooms) || !base.generatedRooms.length) {
       base.generatedRooms = generateBaseRooms(factionId);
     }
+    if (base.activeMission && base.activeMission.linkedMissionId) {
+      const linkedActive = S && Array.isArray(S.activeMissions)
+        ? S.activeMissions.some((m) => String(m.id) === String(base.activeMission.linkedMissionId))
+        : false;
+      if (!linkedActive) {
+        base.activeMission = null;
+      }
+    }
     return base;
   }
 
@@ -1135,6 +1402,9 @@
     const anchor = resolveFactionBaseAnchor(base);
     const task = base.activeTask;
     const mission = base.activeMission;
+    const linkedMissionText = mission && mission.linkedMissionId
+      ? `<div style="color:var(--teal);font-size:.78rem;">Linked Mission Contract #${mission.linkedMissionId} is active in the Missions tab.</div>`
+      : "";
 
     const html = `
       <div style="font-size:.83rem;color:var(--text2);line-height:1.65;">
@@ -1157,9 +1427,10 @@
           <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Faction Mission</div>
           <div><strong>${mission.title}</strong></div>
           <div style="color:var(--muted2);">Difficulty: ${mission.difficulty} · Payout: ${mission.payout}</div>
+          ${linkedMissionText}
           <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.35rem;">
             ${mission.accepted ? `<button class="btn btn-xs" disabled>Accepted</button>` : `<button class="btn btn-xs btn-teal" onclick="factionSystem.acceptMission('${factionId}')">Accept Mission</button>`}
-            ${mission.accepted && !mission.resolved ? `<button class="btn btn-xs btn-primary" onclick="factionSystem.resolveMission('${factionId}')">Resolve Mission</button>` : ""}
+            ${mission.accepted && !mission.resolved && !mission.linkedMissionId ? `<button class="btn btn-xs btn-primary" onclick="factionSystem.resolveMission('${factionId}')">Resolve Mission</button>` : ""}
             ${mission.resolved ? `<span style="color:var(--green2);font-size:.78rem;">Resolved</span>` : ""}
           </div>
         </div>
@@ -1171,7 +1442,9 @@
 
         <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">
           <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">People To Talk To</div>
-          ${base.npcs.map((npc, idx) => `<div style='margin-top:.25rem;'><strong>${npc.name}</strong> (${npc.mood}) - ${npc.rumor}<div><button class='btn btn-xs btn-teal' onclick="factionSystem.talkNpc('${factionId}',${idx})">Talk</button></div></div>`).join("")}
+          <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Talk uses <strong>Lead vs Dread d6</strong>. Success reveals a secret.</div>
+          ${base.npcs.map((npc, idx) => `<div style='margin-top:.25rem;'><strong>${npc.name}</strong> (${npc.mood}) - ${npc.rumor}<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.2rem;'><button class='btn btn-xs btn-teal' onclick="factionSystem.talkNpc('${factionId}',${idx})">Talk (Lead vs d6)</button><button class='btn btn-xs btn-primary' onclick="factionSystem.generateNpcTask('${factionId}',${idx})">Generate Task Marker</button></div></div>`).join("")}
+          ${Array.isArray(base.discoveredSecrets) && base.discoveredSecrets.length ? `<div style='margin-top:.4rem;border-top:1px solid var(--border2);padding-top:.35rem;'><div style='font-family:Cinzel,serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);text-transform:uppercase;'>Discovered Secrets</div>${base.discoveredSecrets.slice(0,3).map((s)=>`<div style='font-size:.78rem;color:var(--muted2);margin-top:.2rem;'>• ${s}</div>`).join('')}</div>` : ''}
         </div>
 
         <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem;">
@@ -1220,6 +1493,15 @@
   function resolveFactionMission(factionId) {
     const base = ensureBaseActivity(factionId);
     if (!base || !base.activeMission || !base.activeMission.accepted || base.activeMission.resolved) return;
+    if (base.activeMission.linkedMissionId) {
+      const active = S && Array.isArray(S.activeMissions)
+        ? S.activeMissions.find((m) => String(m.id) === String(base.activeMission.linkedMissionId))
+        : null;
+      if (active) {
+        if (typeof showNotif === "function") showNotif("Resolve this faction mission through the Missions tab contract.", "warn");
+        return;
+      }
+    }
     const stat = FACTION_ACTION_DIE_MAP[factionId] || "mind";
     const dd = missionDreadByDifficulty(base.activeMission.difficulty);
     const check = rollBaseCheck(stat, dd);
@@ -1243,6 +1525,27 @@
     const base = ensureBaseActivity(factionId);
     if (!base || !base.activeMission || base.activeMission.accepted) return;
     base.activeMission.accepted = true;
+    const missionRegion = getMissionRegionFromBase(base);
+    const rival = getRivalFaction(factionId);
+    if (typeof createMission === "function") {
+      const created = createMission(
+        "Faction Base",
+        base.activeMission.title,
+        base.activeMission.difficulty || "medium",
+        resolveFactionBaseAnchor(base),
+        missionRegion,
+        {
+          gain: factionId,
+          lose: rival,
+          gainName: (FACTIONS[factionId] && FACTIONS[factionId].name) || toTitle(factionId),
+          loseName: (FACTIONS[rival] && FACTIONS[rival].name) || toTitle(rival),
+        },
+        (base.marker && base.marker.system === "planet")
+          ? { planetHexId: base.marker.planetHexId, planetName: "Faction Planet Contract" }
+          : null
+      );
+      if (created && created.id) base.activeMission.linkedMissionId = created.id;
+    }
     if (typeof showNotif === "function") showNotif("Faction mission accepted.", "good");
     openFactionBaseHub(factionId);
   }
@@ -1264,13 +1567,7 @@
   }
 
   function talkFactionNpc(factionId, idx) {
-    const base = ensureBaseActivity(factionId);
-    const npc = base && Array.isArray(base.npcs) ? base.npcs[Number(idx)] : null;
-    if (!npc) return;
-    if (typeof showNotif === "function") showNotif(npc.name + " shares: " + npc.rumor, "good");
-    const check = rollBaseCheck("lead", 6);
-    if (check.success) safeFactionRenownDelta(factionId, 1);
-    openFactionBaseHub(factionId);
+    resolveNpcConversation(factionId, idx);
   }
 
   function openFactionMerchant(factionId) {
@@ -1415,10 +1712,19 @@
     resolveMission: resolveFactionMission,
     resolveEvent: resolveFactionEvent,
     talkNpc: talkFactionNpc,
+    generateNpcTask,
     openMerchant: openFactionMerchant,
     buyMerchantItem: buyFactionMerchantItem,
     generateRooms: regenerateFactionBaseRooms,
     rollEvents: rerollFactionBaseEvents,
+    getProvinceTask: getTaskAtProvince,
+    getSeaTask: getTaskAtSea,
+    getGalaxyTask: getTaskAtGalaxy,
+    getWTWTask: getTaskAtWTW,
+    getPlanetTask: getTaskAtPlanet,
+    resolveMapTask: resolveWayfarerTaskRoll,
+    startMonsterTask: startMonsterTaskEncounter,
+    finalizeMonsterTask: finalizeMonsterTaskEncounter,
     getFactionStoryRollBonus,
     generateAdaptiveChoices
   };

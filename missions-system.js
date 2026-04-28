@@ -884,9 +884,14 @@
   function abandonMission(missionId) { resolveMission(missionId,false); }
 
   /* ── LEGACY COMPAT ── */
-  function createMission(npcName,title,difficulty,location,region) {
+  function createMission(npcName,title,difficulty,location,region,factionData,options) {
     ensureState();
-    var mission=makeMission(title,difficulty,location,region);
+    var mission=makeMission(title,difficulty,location,region,factionData);
+    var cfg = options || {};
+    if (region === 'galaxy' && cfg && cfg.planetHexId) {
+      mission.planetHexId = Number(cfg.planetHexId);
+      mission.planetName = cfg.planetName || mission.planetName || '';
+    }
     S.activeMissions.push(mission); assignMissionToken(mission); renderMissionTracker();
     return mission;
   }

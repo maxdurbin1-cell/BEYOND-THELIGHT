@@ -3649,6 +3649,21 @@ function renderHexMap(){
       bLabel.setAttribute('pointer-events','none');
       bLabel.textContent='BASE';g.appendChild(bLabel);
     }
+    const fTask=window.factionSystem&&typeof window.factionSystem.getProvinceTask==='function'
+      ? window.factionSystem.getProvinceTask(`${hex.col},${hex.row}`)
+      : null;
+    if(fTask){
+      const tGlow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      tGlow.setAttribute('cx',x+HEX_SIZE*.54);tGlow.setAttribute('cy',y+HEX_SIZE*.48);
+      tGlow.setAttribute('r','9');tGlow.setAttribute('fill',fTask.status==='combat_pending'?'rgba(224,80,80,.2)':'rgba(232,192,80,.18)');
+      tGlow.setAttribute('stroke',fTask.status==='combat_pending'?'#e05050':'#e8c050');tGlow.setAttribute('stroke-width','1.4');tGlow.setAttribute('pointer-events','none');
+      g.appendChild(tGlow);
+      const tIcon=document.createElementNS('http://www.w3.org/2000/svg','text');
+      tIcon.setAttribute('x',x+HEX_SIZE*.54);tIcon.setAttribute('y',y+HEX_SIZE*.55);
+      tIcon.setAttribute('text-anchor','middle');tIcon.setAttribute('font-size','11');
+      tIcon.setAttribute('fill',fTask.status==='combat_pending'?'#e05050':'#e8c050');tIcon.setAttribute('pointer-events','none');
+      tIcon.textContent=fTask.monsterTask?'⚔':'✦';g.appendChild(tIcon);
+    }
     if(secretPadKey===`${hex.col},${hex.row}`){
       const pGlow=document.createElementNS('http://www.w3.org/2000/svg','circle');
       pGlow.setAttribute('cx',x+HEX_SIZE*.02);pGlow.setAttribute('cy',y-HEX_SIZE*.62);
@@ -3726,6 +3741,21 @@ function renderHexInfo(hex){
       <div class="nb-label" style="color:var(--teal);">🏰 Faction Base</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${fbase.baseName||'Faction base'} is anchored in this hex.</div>
       <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('province','${nk}');">Enter Base</button></div>
+    </div>`;
+  }
+
+  const ftask=window.factionSystem&&typeof window.factionSystem.getProvinceTask==='function'
+    ? window.factionSystem.getProvinceTask(nk)
+    : null;
+  if(ftask){
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:${ftask.status==='combat_pending'?'rgba(224,80,80,.55)':'rgba(232,192,80,.5)'};background:${ftask.status==='combat_pending'?'rgba(224,80,80,.08)':'rgba(232,192,80,.08)'};">
+      <div class="nb-label" style="color:${ftask.status==='combat_pending'?'var(--red2)':'var(--gold2)'};">${ftask.monsterTask?'⚔ Monster Wayfarer Task':'✦ Wayfarer Task'}</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${ftask.title}${ftask.monsterSummary?`<br><em>${ftask.monsterSummary}</em>`:''}</div>
+      <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+        ${!ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask('province','${nk}');renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Roll AD vs Dread d6</button>`:''}
+        ${ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask('province','${nk}');renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Generate Monsters / Combat</button>`:''}
+        ${ftask.monsterTask&&ftask.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('province','${nk}',null,true);renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Slayed Monsters (Reward)</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('province','${nk}',null,false);renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Failed Encounter</button>`:''}
+      </div>
     </div>`;
   }
 

@@ -1018,6 +1018,31 @@
         group.appendChild(bIcon);
       }
 
+      const factionTask = window.factionSystem && typeof window.factionSystem.getSeaTask === "function"
+        ? window.factionSystem.getSeaTask(hex.key)
+        : null;
+      if (factionTask) {
+        const tGlow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        tGlow.setAttribute('cx', x - LAST_SEA_HEX * 0.46);
+        tGlow.setAttribute('cy', y + LAST_SEA_HEX * 0.44);
+        tGlow.setAttribute('r', '8');
+        tGlow.setAttribute('fill', factionTask.status === 'combat_pending' ? 'rgba(224,80,80,.2)' : 'rgba(232,192,80,.18)');
+        tGlow.setAttribute('stroke', factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050');
+        tGlow.setAttribute('stroke-width', '1.1');
+        tGlow.setAttribute('pointer-events', 'none');
+        group.appendChild(tGlow);
+
+        const tIcon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        tIcon.setAttribute('x', x - LAST_SEA_HEX * 0.46);
+        tIcon.setAttribute('y', y + LAST_SEA_HEX * 0.52);
+        tIcon.setAttribute('text-anchor', 'middle');
+        tIcon.setAttribute('font-size', '10');
+        tIcon.setAttribute('fill', factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050');
+        tIcon.setAttribute('pointer-events', 'none');
+        tIcon.textContent = factionTask.monsterTask ? '⚔' : '✦';
+        group.appendChild(tIcon);
+      }
+
       if (secretPadKey && secretPadKey === hex.key) {
         const sGlow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         sGlow.setAttribute('cx', x - LAST_SEA_HEX * 0.45);
@@ -1181,6 +1206,21 @@
             <div class="nb-label" style="color:var(--teal);">🏰 Faction Base</div>
             <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${fb.baseName || 'Faction base'} is established in this sea hex.</div>
             <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('sea','${hex.key}');">Enter Base</button></div>
+          </div>`;
+        })()}
+        ${(() => {
+          const ft = window.factionSystem && typeof window.factionSystem.getSeaTask === 'function'
+            ? window.factionSystem.getSeaTask(hex.key)
+            : null;
+          if (!ft) return '';
+          return `<div class="npc-block" style="margin-bottom:.35rem;border-color:${ft.status==='combat_pending'?'rgba(224,80,80,.55)':'rgba(232,192,80,.5)'};background:${ft.status==='combat_pending'?'rgba(224,80,80,.08)':'rgba(232,192,80,.08)'};">
+            <div class="nb-label" style="color:${ft.status==='combat_pending'?'var(--red2)':'var(--gold2)'};">${ft.monsterTask?'⚔ Monster Wayfarer Task':'✦ Wayfarer Task'}</div>
+            <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${ft.title}${ft.monsterSummary?`<br><em>${ft.monsterSummary}</em>`:''}</div>
+            <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+              ${!ft.monsterTask&&ft.status==='open'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask('sea','${hex.key}');if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Roll AD vs Dread d6</button>`:''}
+              ${ft.monsterTask&&ft.status==='open'?`<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask('sea','${hex.key}');if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Generate Monsters / Combat</button>`:''}
+              ${ft.monsterTask&&ft.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('sea','${hex.key}',null,true);if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Slayed Monsters</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('sea','${hex.key}',null,false);if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Failed Encounter</button>`:''}
+            </div>
           </div>`;
         })()}
         ${secretPadKey && secretPadKey === hex.key ? `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.5);background:rgba(126,215,255,.08);">

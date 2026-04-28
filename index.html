@@ -3487,6 +3487,7 @@ const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'
 let selectedHex=null;
 
 function renderHexMap(){
+  if(window.factionSystem&&typeof window.factionSystem.syncBaseMarkers==='function')window.factionSystem.syncBaseMarkers();
   const mapFx=getMapVisualSettings();
   const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20;
   const svg=document.getElementById('hexMapSvg');
@@ -3590,6 +3591,27 @@ function renderHexMap(){
       mlabel.setAttribute('pointer-events','none');
       mlabel.textContent=label;g.appendChild(mlabel);
     }
+    const fb=window.factionSystem&&typeof window.factionSystem.getProvinceMarker==='function'
+      ? window.factionSystem.getProvinceMarker(`${hex.col},${hex.row}`)
+      : null;
+    if(fb){
+      const bGlow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      bGlow.setAttribute('cx',x-HEX_SIZE*.48);bGlow.setAttribute('cy',y-HEX_SIZE*.42);
+      bGlow.setAttribute('r','10');bGlow.setAttribute('fill','rgba(70,196,182,.2)');
+      bGlow.setAttribute('stroke','#46c4b6');bGlow.setAttribute('stroke-width','1.4');bGlow.setAttribute('pointer-events','none');
+      g.appendChild(bGlow);
+      const bIcon=document.createElementNS('http://www.w3.org/2000/svg','text');
+      bIcon.setAttribute('x',x-HEX_SIZE*.48);bIcon.setAttribute('y',y-HEX_SIZE*.35);
+      bIcon.setAttribute('text-anchor','middle');bIcon.setAttribute('font-size','12');
+      bIcon.setAttribute('fill','#46c4b6');bIcon.setAttribute('pointer-events','none');
+      bIcon.textContent='🏰';g.appendChild(bIcon);
+      const bLabel=document.createElementNS('http://www.w3.org/2000/svg','text');
+      bLabel.setAttribute('x',x-HEX_SIZE*.48);bLabel.setAttribute('y',y-HEX_SIZE*.67);
+      bLabel.setAttribute('text-anchor','middle');bLabel.setAttribute('font-size','6');
+      bLabel.setAttribute('font-family','Cinzel,serif');bLabel.setAttribute('fill','#46c4b6');
+      bLabel.setAttribute('pointer-events','none');
+      bLabel.textContent='BASE';g.appendChild(bLabel);
+    }
     if(selectedHex&&selectedHex===hex){
       const youRing=document.createElementNS('http://www.w3.org/2000/svg','circle');
       youRing.setAttribute('cx',x);youRing.setAttribute('cy',y);
@@ -3643,6 +3665,17 @@ function renderHexInfo(hex){
       <div class="nb-label" style="color:var(--gold2);">📍 ${markerTitle}</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}</div>
       ${mt.type==='story_choice' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div>` : ''}
+    </div>`;
+  }
+
+  const fbase=window.factionSystem&&typeof window.factionSystem.getProvinceMarker==='function'
+    ? window.factionSystem.getProvinceMarker(nk)
+    : null;
+  if(fbase){
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(70,196,182,.55);background:rgba(70,196,182,.08);">
+      <div class="nb-label" style="color:var(--teal);">🏰 Faction Base</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${fbase.baseName||'Faction base'} is anchored in this hex.</div>
+      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('province','${nk}');">Enter Base</button></div>
     </div>`;
   }
 

@@ -872,6 +872,7 @@
   }
 
   function renderLastSeaMap() {
+    if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === "function") window.factionSystem.syncBaseMarkers();
     const svg = document.getElementById("lastSeaSvg");
     if (!svg) {
       return;
@@ -976,6 +977,31 @@
         micon.setAttribute('pointer-events', 'none');
         micon.textContent = tokenIcon;
         group.appendChild(micon);
+      }
+
+      const factionBaseMarker = window.factionSystem && typeof window.factionSystem.getSeaMarker === "function"
+        ? window.factionSystem.getSeaMarker(hex.key)
+        : null;
+      if (factionBaseMarker) {
+        const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        glow.setAttribute('cx', x + LAST_SEA_HEX * 0.45);
+        glow.setAttribute('cy', y - LAST_SEA_HEX * 0.38);
+        glow.setAttribute('r', '8');
+        glow.setAttribute('fill', 'rgba(70,196,182,.18)');
+        glow.setAttribute('stroke', '#46c4b6');
+        glow.setAttribute('stroke-width', '1.1');
+        glow.setAttribute('pointer-events', 'none');
+        group.appendChild(glow);
+
+        const bIcon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        bIcon.setAttribute('x', x + LAST_SEA_HEX * 0.45);
+        bIcon.setAttribute('y', y - LAST_SEA_HEX * 0.30);
+        bIcon.setAttribute('text-anchor', 'middle');
+        bIcon.setAttribute('font-size', '10');
+        bIcon.setAttribute('fill', '#46c4b6');
+        bIcon.setAttribute('pointer-events', 'none');
+        bIcon.textContent = '🏰';
+        group.appendChild(bIcon);
       }
 
       if (hex.icon) {
@@ -1109,6 +1135,17 @@
               </div>`; })()
             : ""
         }
+        ${(() => {
+          const fb = window.factionSystem && typeof window.factionSystem.getSeaMarker === 'function'
+            ? window.factionSystem.getSeaMarker(hex.key)
+            : null;
+          if (!fb) return '';
+          return `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(70,196,182,.55);background:rgba(70,196,182,.08);">
+            <div class="nb-label" style="color:var(--teal);">🏰 Faction Base</div>
+            <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${fb.baseName || 'Faction base'} is established in this sea hex.</div>
+            <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('sea','${hex.key}');">Enter Base</button></div>
+          </div>`;
+        })()}
         <div style="margin-top:.55rem;">
           <button class="btn btn-primary" onclick="exploreLastSeaHex(${hex.col},${hex.row})">${hex.type === "sea" ? "Explore Waters" : "Explore Island"}</button>
         </div>

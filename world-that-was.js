@@ -57,6 +57,7 @@
     service: { icon: "S", color: "#7ee0b2", priority: 70, title: "District Service" },
     structure: { icon: "B", color: "#c9a227", priority: 68, title: "Explorable Structure" },
     wayfarer: { icon: "W", color: "#d4b8ff", priority: 64, title: "Wayfarer" },
+    faction_base: { icon: "🏰", color: "#46c4b6", priority: 66, title: "Faction Base" },
     hazard: { icon: "H", color: "#ff8a72", priority: 60, title: "Hazard" },
     peril: { icon: "P", color: "#ff8070", priority: 59, title: "Peril" },
     barrier: { icon: "B", color: "#ff9066", priority: 58, title: "Barrier" },
@@ -1036,6 +1037,18 @@
       }
     }
 
+    if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === "function") {
+      window.factionSystem.syncBaseMarkers();
+    }
+    if (window.factionSystem && typeof window.factionSystem.getWTWMarker === "function") {
+      w.hexes.forEach(function (hex) {
+        const fb = window.factionSystem.getWTWMarker(hex.id);
+        if (fb) {
+          setMarker(w, hex, "faction_base", fb.baseName || "Faction Base", "Active faction base marker");
+        }
+      });
+    }
+
     w.hexes.forEach(function (hex) {
       const danger = dangerForZone(hex.zone);
       if (!w.markers[hex.id]) {
@@ -1222,7 +1235,7 @@
         g.appendChild(you);
       }
 
-      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task" || marker.type === "story");
+      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task" || marker.type === "story" || marker.type === "faction_base");
       if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -1583,6 +1596,10 @@
       if (task) {
         completeHoldingTask(task.id);
         return;
+      }
+    } else if (marker.type === "faction_base") {
+      if (window.factionSystem && typeof window.factionSystem.openBaseFromMarker === "function") {
+        window.factionSystem.openBaseFromMarker("wtw", hexId);
       }
     } else if (marker.type === "service" || marker.type === "wayfarer" || marker.type === "structure" || marker.type === "hazard" || marker.type === "peril" || marker.type === "barrier" || marker.type === "landing" || marker.type === "station" || marker.type === "story") {
       if (typeof showNotif === "function") showNotif("Visit this district and use the panel actions for this marker.", "good");

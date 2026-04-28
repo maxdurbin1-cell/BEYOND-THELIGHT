@@ -4202,6 +4202,7 @@ function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, has
 
 function renderPlanetSurfaceSvg(state, selected) {
   if (!state || !Array.isArray(state.cells) || !state.cells.length) return '';
+  if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
   const mapFx = (typeof window.getMapVisualSettings === 'function')
     ? window.getMapVisualSettings()
     : { hex3d: false, overlay: 'none' };
@@ -4245,6 +4246,9 @@ function renderPlanetSurfaceSvg(state, selected) {
     const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
     const isWayfarerContract = !!(task && !task.resolved && task.source === 'wayfarer');
     const hasTask = !!(task && !task.resolved);
+    const factionBase = window.factionSystem && typeof window.factionSystem.getPlanetMarker === 'function'
+      ? window.factionSystem.getPlanetMarker(state.hexId, cell.id)
+      : null;
     const tag = isLanding ? 'L'
       : isStoryObjective ? '➤'
       : isWayfarerContract ? '✦'
@@ -4289,6 +4293,10 @@ function renderPlanetSurfaceSvg(state, selected) {
       ? `<circle cx="${x}" cy="${y}" r="18" fill="rgba(232,192,80,.08)" stroke="#f0d070" stroke-width="1.8" pointer-events="none" />
          <text x="${x}" y="${y - 20}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="8" fill="#f0d070" pointer-events="none">YOU</text>`
       : '';
+     const factionOverlay = factionBase
+      ? `<circle cx="${x + 13}" cy="${y - 12}" r="7" fill="rgba(70,196,182,.18)" stroke="#46c4b6" stroke-width="1.1" pointer-events="none" />
+        <text x="${x + 13}" y="${y - 8}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="#46c4b6" pointer-events="none">🏰</text>`
+      : '';
     const depthOverlay = mapFx.hex3d
       ? `<line x1="${topX1}" y1="${topY1}" x2="${topX2}" y2="${topY2}" stroke="rgba(255,255,255,.22)" stroke-width="1.1" pointer-events="none" />
          <line x1="${sideX1}" y1="${sideY1}" x2="${sideX2}" y2="${sideY2}" stroke="rgba(0,0,0,.3)" stroke-width="1.1" pointer-events="none" />
@@ -4298,6 +4306,7 @@ function renderPlanetSurfaceSvg(state, selected) {
     return `<g class="planet-hex" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;">
       <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
       ${depthOverlay}
+      ${factionOverlay}
       <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="${visual.tag}">${tag || '·'}</text>
       ${selectedOverlay}
     </g>`;
@@ -5516,6 +5525,7 @@ function renderPlanetExplorationPanel() {
   }
   const state = ensurePlanetSurfaceState(planetHex);
   if (!state) return;
+  if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
   if (!state.currentWeather) state.currentWeather = rollPlanetSurfaceWeather(state.profile);
   if (!state.traversalMode) state.traversalMode = 'foot';
   if (Array.isArray(state.cells)) {
@@ -5555,6 +5565,9 @@ function renderPlanetExplorationPanel() {
   const canStealAtHolding = !!(selected && selected.marker === 'merchant_colony');
   const canTraverseObstacle = !!(selected && (selected.marker === 'peril' || selected.marker === 'barrier'));
   const canUseLostCityTravel = !!(selected && (selected.marker === 'empty_colony' || ((selected.marker === 'peril' || selected.marker === 'barrier') && selected.data && selected.data.obstacleCleared)));
+  const selectedFactionBase = selected && window.factionSystem && typeof window.factionSystem.getPlanetMarker === 'function'
+    ? window.factionSystem.getPlanetMarker(planetHex.id, selected.id)
+    : null;
 
   const observedCompact = `From orbit: ${state.observedSurface.observedFromSpace}`;
   const atmosphereCompact = buildPlanetAtmosphereLine(state, selected);
@@ -5598,6 +5611,7 @@ function renderPlanetExplorationPanel() {
       <div class="sea-item"><div class="sea-dot" style="background:#1a5048;border-color:#2ec4b6;"></div>◆ Gate</div>
       <div class="sea-item"><div class="sea-dot" style="background:#282828;border-color:#555555;"></div>▤ Barrier</div>
       <div class="sea-item"><div class="sea-dot" style="background:#3a2800;border-color:#f0a840;"></div>═ Trade Route</div>
+      <div class="sea-item"><div class="sea-dot" style="background:#123c3a;border-color:#46c4b6;"></div>🏰 Faction Base</div>
       <div class="sea-item"><div class="sea-dot" style="background:#4b1e1e;border-color:#e05050;"></div>⚔ Missions</div>
     </div>
     <div class="planet-layout">
@@ -5629,6 +5643,8 @@ function renderPlanetExplorationPanel() {
           </div>` : ''}
 
           ${isStoryObjectiveSelected ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:rgba(240,208,112,.45);background:rgba(240,208,112,.08);"><div class="ss-title">Story Objective</div><div class="ss-text">This surface cell is your active storyline target.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div></div>` : ''}
+
+          ${selectedFactionBase ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:rgba(70,196,182,.55);background:rgba(70,196,182,.08);"><div class="ss-title">🏰 Faction Base</div><div class="ss-text">${selectedFactionBase.baseName || 'Faction base'} is established in this surface cell.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('planet',${planetHex.id},${selected.id});">Enter Base</button></div></div>` : ''}
 
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Planet Intel</span>${isWildernessIntel ? `${narrative.land} ${narrative.floraFauna} ${narrative.wonder}` : 'Location dossier active. Land, Flora/Fauna, and Wonder intel populate in Wilderness hexes.'}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}<div style="margin-top:.22rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect</button></div></div>
@@ -6452,6 +6468,7 @@ function renderStarSystemMap() {
   const host = document.getElementById('starSystemMap');
   if (!host) return;
   ensureStarsState();
+  if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
   const mapFx = (typeof window.getMapVisualSettings === 'function')
     ? window.getMapVisualSettings()
     : { hex3d: false, overlay: 'none' };
@@ -6517,6 +6534,9 @@ function renderStarSystemMap() {
     const opacity = hex.explored ? 0.9 : 0.55;
     const label = getStarHexGlyph(hex);
     const markerGlyph = hasTaskMarker ? '✦' : hex.type === 'radio_task' && !hex.radioTaskResolved ? '✉' : '';
+    const factionBase = window.factionSystem && typeof window.factionSystem.getGalaxyMarker === 'function'
+      ? window.factionSystem.getGalaxyMarker(hex.id)
+      : null;
     const isStoryObjective = storyObjectiveHexId === hex.id;
     const storyGlyph = isStoryObjective
       ? `<text x="${x - 14}" y="${y - 12}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="14" fill="#f0d070" pointer-events="none">➤</text>`
@@ -6546,6 +6566,7 @@ function renderStarSystemMap() {
         <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="#0f111a">${label}</text>
         ${routeBadge}
         ${storyGlyph}
+        ${factionBase ? `<text x="${x - 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="#46c4b6" pointer-events="none">🏰</text>` : ''}
         ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${hasTaskMarker ? '#f2d75a' : '#9de7ff'}" onclick="event.stopPropagation(); ${hasTaskMarker ? `openGalaxyTaskFromMap(${hex.id})` : ''}" style="cursor:${hasTaskMarker ? 'zoom-in' : 'pointer'};">${markerGlyph}</text>` : ''}
       </g>`;
   }).join('');
@@ -6801,6 +6822,10 @@ function updateStarSystemReadouts() {
       if (current.type === 'facility') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeFacility=getHexPersistentState(h,\'facility\',createFacilityState);renderFacilityPanel();">Dock At Facility</button>');
       if (current.type === 'radio_task') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="resolveGalaxyRadioTask()">Resolve Radio Task</button>');
       if (current.taskMarker && !current.taskMarker.resolved) actionButtons.push('<button class="btn btn-xs btn-teal" onclick="renderGalaxyTaskPanel(\'' + current.taskMarker.id + '\')">Open Galaxy Task</button>');
+      const factionBase = window.factionSystem && typeof window.factionSystem.getGalaxyMarker === 'function'
+        ? window.factionSystem.getGalaxyMarker(current.id)
+        : null;
+      if (factionBase) actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker===\'function\')window.factionSystem.openBaseFromMarker(\'galaxy\',' + current.id + ')">Enter Faction Base</button>');
       panel.innerHTML = `
         <div style="display:grid;gap:.35rem;">
           ${S.starSystem.currentWeather ? `<div class="weather-block ${S.starSystem.currentWeather.rough ? 'rough' : 'clear'}" style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
@@ -6826,6 +6851,7 @@ function updateStarSystemReadouts() {
           <div style="padding:.4rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--muted2);line-height:1.7;">
             <strong style="color:var(--text);">Signature:</strong> <span style="color:${sig.color};">${sig.label}</span><br>
             <strong style="color:var(--text);">Status:</strong> ${current.scanned ? 'System Analysis complete' : 'Unresolved'}<br>
+            ${factionBase ? `<strong style="color:var(--text);">Faction Base:</strong> ${factionBase.baseName}<br>` : ''}
             ${hubState ? `<strong style="color:var(--text);">Hub Control:</strong> ${hubState.controller}<br>` : ''}
             ${current.analysisDetail ? `<strong style="color:var(--text);">Further Analysis:</strong> ${current.analysisDetail}` : ''}
           </div>

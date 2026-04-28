@@ -1326,18 +1326,21 @@ const PERIL_NAMES_UNIQUE=['The Acid Pools','The Irradiated Zone','The Cursed Cro
 const PERIL_DESCS_UNIQUE=['Pools of bubbling acid scar the earth. Nothing grows here — not even rot.','The radiation here is visible: a sickly green shimmer in the air. Irradiated Ones circle the perimeter.','A crossing marked with skull-totems. Locals won\'t say who placed them or when.','A field of bleached bones stretches for a quarter-mile. No animal sound. Something waits.','A ravine where the blight has concentrated — the walls pulse with sickly luminescence.','A massive impact crater, still steaming faintly. The ground here is wrong.','A yellowish mist clings to the low ground. Travelers who pass through come out changed.','A bridge half-collapsed over a dark gorge. The other half is held up by nothing visible.','Enormous tracks. Enormous something that has claimed this territory as its own.','The road sinks into waterlogged ground. Wheels disappear. The road just ends.','Razor-edged glass shards blanket the plain. Every step risks a deep cut.','A maze of irradiated hedgerow that shifts and regrows behind you.','Grey ash covers everything. Each footstep sinks deep. The air is stale.','Knee-deep pale silt. Movement is half-speed and leaves you exhausted.','A canyon split by constant lightning. Thunder is deafening. No cover exists.'];
 const BARRIER_TYPES_UNIQUE=['Mountain Pass blocked by rockslide','Flooded river crossing','Fortified checkpoint — papers required','Collapsed ancient bridge','Dense radiation field','Hostile warband holding the road','Vast briar maze, magically overgrown','Subterranean passage, partially flooded','City gate controlled by a hostile faction','A gap in the earth, recently opened','A swarm of irradiated insects covers the path','A collapsed tunnel requiring excavation','A frozen lake — ice may or may not hold','A river in flash flood','A locked vault door with no visible mechanism'];
 const BARRIER_DESCS_UNIQUE=['The pass is blocked by a fresh rockslide. Boulders the size of houses. Route: over or under.','Spring floods have submerged the ford. The current is fast. A rope would help.','Guards check every traveler. They want a writ, a bribe, or a story they believe.','The bridge is down. The river below is fast and cold.','The air glows faintly here. Moving through quickly is possible. Slowly is not.','Armed riders have claimed this stretch of road. They charge tolls. They aren\'t open to negotiation.','Thorns as thick as fingers have sealed this path. Something in the center keeps them growing.','The tunnel floods at high tide. The window to pass is narrow. The ceiling is low.','The gates are closed. The faction inside is hostile. There may be another way in.','The earth split here, two days ago. The gap is ten feet wide with no visible bottom.','A dense swarm of biting, irradiated insects. Armor helps. Bare skin does not.','A tunnel has collapsed but not completely. Hours of clearing or a dangerous squeeze.','Ice covers the lake. A character might cross — or might fall through at any moment.','The river has burst its banks. The current is violent and carries debris.','A vault-style door of ancient manufacture. Three unknown mechanisms must align.'];
-const RUIN_BUILDERS=['Gnomes','Sages','Miners','Wizards','Cultists','Knights'];
-const RUIN_BUILT_FOR=['Mine for valuable gems (now depleted)','Arcane Forge (now inert)','Prison for a cosmic beast','Archive of forbidden records','Ritualistic Chapel','Prison for political enemies'];
-const RUIN_NOVELTIES=['Doors seal behind the last person who passes through','Perplexing Runes — no one can cast Scrolls inside','Rooms 5–6 are completely submerged in water','Recent massacre; gravity reverses in every room','Floating hallucinogenic spores — Trauma Check required in Rooms 4–6','Every room has been overturned and searched — someone was here before you'];
-const RUIN_CONSTRUCTIONS=['Hewn Basalt','Twisted Fungal Growth','Tunnels of Clay','Obsidian Megaliths','Old Stone','Cracked Concrete and Iron'];
-const RUIN_ENTRANCES=['Defended by a Guardian — Dread d8 (12 Stress)','Accessible only during the Evening Phase','Hidden inside a ruined temple','Concealed at the base of an abandoned mineshaft'];
-const RUIN_ROOM_TYPES=['Lair','Obstacle','Trap','Puzzle','Empty'];
-const RUIN_LAIR_DESC=['A submerged chamber, ankle-deep in dark water. Something has nested here.','A decaying hall with tattered banners. Bones arranged in a careful circle.','An ancient throne room. The throne is occupied.','A beautiful garden — somehow still alive — with something territorial inside.','An overgrown courtyard, roots cracking the stone. Eyes in the undergrowth.','A ruined library. Pages flutter with no wind. Something moves between the shelves.'];
-const RUIN_OBSTACLE_DESC=['A collapsed tunnel. Shifting rubble. Unstable ceiling. Body vs DD6 to squeeze through.','A flooded passage, chest-deep. Swim vs DD6. Failure = take difference in Stress.','An overgrown thicket. Razor thorns. Survival vs DD6 or take 3 Stress.','Quicksand pit covered by thin wooden boards — now rotted.','A ruined bridge over a twenty-foot drop. Agility vs DD6 to cross safely.','A sealing door, magically locked. Mind vs DD8 to decode the sigil.'];
-const RUIN_TRAP_DESC=['Hidden spikes erupt from the floor. Control vs DD6 or take 4 Stress.','Poison gas hisses from stone statues. Body vs DD6 or take Distracted Condition.','A pitfall trap. Notice vs DD4 to spot it. Failure = 3 Stress and trapped below.','Flames burst from the walls on a pressure plate. Agility vs DD6 or take 4 Stress.','Thick webbing coats the doorway — and the spider is still home.','A rolling boulder triggered by a tripwire. Lead vs DD6 to outrun it or take 6 Stress.'];
-const RUIN_PUZZLE_DESC=['A labyrinth model on a table. Navigate a tiny figure through it using Control.','A wall of clocks at different times. Many moveable but one. Adjust them all to match.','Runes cover the floor tiles. Step on them in the correct sequence or trigger a trap.','Pipes with adjustable sections. Reroute the flow to unlock the mechanism.','Colored floor tiles. Step on them in the sequence of the rainbow (ROYGBIV).','Scales with various objects. Balance them precisely to open the vault door.'];
-const RUIN_MONSTER_DESC={beast:['A hulking mutated bear, its fur matted with old wounds','A pack of 4 pale, hairless wolves with glass-like eyes','A giant serpent coiled around the chamber\'s central pillar','A chitinous crab-creature the size of a cart horse','A swarm of 6 feral irradiated dogs hunting as one mind','A lone predator — scaled, fast, and unnervingly quiet'],bandits:['4 desperate scavengers armed with scrap blades','6 well-organized raiders in mismatched armor','5 trigger-happy crossbow thieves','A trio of brutal enforcers sent to clear the ruin','4 armed settlers who have claimed this ruin','6 cult members who believe the ruin belongs to their god'],builder:['The original builder, preserved in crystallized amber and inexplicably still moving','A golem of fused stone and metal, still following instructions from an age ago','A towering construct of bones and iron wiring, endlessly patrolling','A preserved guardian in rusted armor — sealed inside and never told the war ended','An animated suit of plate armor that challenges all who enter to a formal duel','A mass of living clay shaped roughly like a person, slow but nearly indestructible'],horror:['Something vast and eyeless, its body filling the entire chamber, waiting','A creature that wears the shape of the last person it consumed','A pulsing knot of irradiated flesh that split from something much larger','A floating horror of light and geometry that should not be able to exist','Something very old, very patient, and deeply offended by your presence','A sealed entity that was imprisoned here for good reason — and you just opened the seal']};
-const RUIN_TREASURE=['Roll d6 on Weapons table','Roll d6 on Armor table','Roll d6 on Scrolls table','Roll d6 on Items table','Roll d6 on Remedies table','2d6×20 Credits in loose coin','A Strange Item (d100)','A Trade Good (d12)','1d4 Scrolls','A full starting Backpack roll'];
+const RUIN_BUILDERS=['Gnomes','Sages','Miners','Wizards','Cultists','Knights','Warlords','Alchemists','Astronomers','Demon-Binders'];
+const RUIN_BUILT_FOR=['Mine for valuable gems (now depleted)','Arcane Forge (now inert)','Prison for a cosmic beast','Archive of forbidden records','Ritualistic Chapel','Prison for political enemies','Observatory for a dying star','Weapon foundry for a lost war','Testing ground for forbidden experiments','Tomb for someone who refused to stay dead'];
+const RUIN_NOVELTIES=['Doors seal behind the last person who passes through','Perplexing Runes — no one can cast Scrolls inside','Rooms 5–6 are completely submerged in water','Recent massacre; gravity reverses in every room','Floating hallucinogenic spores — Trauma Check required in Rooms 4–6','Every room has been overturned and searched — someone was here before you','Time moves strangely here — it was daytime when you entered','The walls are warm to the touch and occasionally pulse','Whispers repeat your last spoken words back to you, slightly wrong','Every mirror shows a different version of your face'];
+const RUIN_CONSTRUCTIONS=['Hewn Basalt','Twisted Fungal Growth','Tunnels of Clay','Obsidian Megaliths','Old Stone','Cracked Concrete and Iron','Bone-reinforced archways','Fused metal and crystal','Underground river-carved passages','Crystallized amber sealing every joint'];
+const RUIN_ENTRANCES=['Defended by a Guardian — Dread d8 (12 Stress)','Accessible only during the Evening Phase','Hidden inside a ruined temple','Concealed at the base of an abandoned mineshaft','A door of solid iron with no handle — opens only from inside','Partially collapsed, requiring Body vs DD6 to clear the rubble','Submerged under three feet of black water','Marked with a fresh warning scratched into the stone: WRONG DIRECTION'];
+const RUIN_ROOM_TYPES=['Lair','Obstacle','Trap','Puzzle','Secret Cache','Boss Chamber','Shrine Room','Empty'];
+const RUIN_LAIR_DESC=['A submerged chamber, ankle-deep in dark water. Something has nested here.','A decaying hall with tattered banners. Bones arranged in a careful circle.','An ancient throne room. The throne is occupied.','A beautiful garden — somehow still alive — with something territorial inside.','An overgrown courtyard, roots cracking the stone. Eyes in the undergrowth.','A ruined library. Pages flutter with no wind. Something moves between the shelves.','A prison block. Most cells are empty. One is not — and it is locked from the outside.','A forge, still hot. The bellows work themselves. Something is being made.'];
+const RUIN_OBSTACLE_DESC=['A collapsed tunnel. Shifting rubble. Unstable ceiling. Body vs DD6 to squeeze through.','A flooded passage, chest-deep. Swim vs DD6. Failure = take difference in Stress.','An overgrown thicket. Razor thorns. Survival vs DD6 or take 3 Stress.','Quicksand pit covered by thin wooden boards — now rotted.','A ruined bridge over a twenty-foot drop. Agility vs DD6 to cross safely.','A sealing door, magically locked. Mind vs DD8 to decode the sigil.','A narrow ledge over a bottomless shaft. Control vs DD6 to cross without incident.','Three identical passages. Only one leads forward. The others loop back — or worse.'];
+const RUIN_TRAP_DESC=['Hidden spikes erupt from the floor. Control vs DD6 or take 4 Stress.','Poison gas hisses from stone statues. Body vs DD6 or take Distracted Condition.','A pitfall trap. Notice vs DD4 to spot it. Failure = 3 Stress and trapped below.','Flames burst from the walls on a pressure plate. Agility vs DD6 or take 4 Stress.','Thick webbing coats the doorway — and the spider is still home.','A rolling boulder triggered by a tripwire. Lead vs DD6 to outrun it or take 6 Stress.','A false floor. Below: sharpened stakes. Spirit vs DD6 to notice something is wrong before stepping.','A mirrored room that disorients instantly. Mind vs DD6 or gain Distracted.'];
+const RUIN_PUZZLE_DESC=['A labyrinth model on a table. Navigate a tiny figure through it using Control (DD8).','A wall of clocks at different times. Many moveable but one. Adjust them all to match (Mind DD6).','Runes cover the floor tiles. Step on them in the correct sequence or trigger a trap (Mind DD8).','Pipes with adjustable sections. Reroute the flow to unlock the mechanism (Control DD6).','Colored floor tiles. Step on them in the sequence of the rainbow (ROYGBIV). Fail = 2 Stress.','Scales with various objects. Balance them precisely to open the vault door (Mind DD6).','A locked chest with four symbols on rotating discs. The inscription above hints at the answer (Mind DD8 or find a clue to skip the roll).','An ancient door with seven pressure plates. Step on the wrong one and the ceiling lowers (Control DD10 to solve; fail = 3 Stress and restart).'];
+const RUIN_SECRET_DESC=['Behind a loose stone: a sealed iron box. It is locked but the key is warm from a nearby body.','A hidden alcove behind the tapestry. Inside: a single preserved scroll, unread for a century.','A collapsed section reveals a lower chamber not on any map. It was sealed deliberately.','A hidden passage behind the altar. Short, dark, and very recently used.','A false back to the wardrobe. Behind it: a staircase going down further than the ruin should allow.','Scratched into the underside of the table: a map, coordinates, and the word NEVER.'];
+const RUIN_BOSS_DESC=['The warden of this ruin — still here, still bound by oath, still deadly. DD8 | 20 Stress. On defeat: drops a Named Weapon.','The last of the builders, preserved through dark means and very bitter about it. DD10 | 24 Stress. Speaks before fighting.','A possessed construct the size of a room. It does not negotiate. DD10 | 30 Stress. Smashes the floor on initiative.','The thing that was imprisoned here, now free — because you opened the door. DD12 | 36 Stress. Reduce Dread by 1 on defeat.','A spectral general who has commanded this emptiness for decades. DD8 | 18 Stress. Knows everything about the ruin.','The original occupant. Not dead. Merely waiting for someone worthy to challenge them. DD12 | 28 Stress. High reward on defeat.'];
+const RUIN_SHRINE_DESC=['A shrine to something forgotten. Offerings still burn. Making an offering restores 1 Stress, no roll.','An idol of bone and wire. Touching it grants a vision of who built this ruin and why.','A carved basin filled with still black water. Gazing into it costs 1 Stress and shows one future event.','Candles arranged in a pattern. Lighting the correct one unlocks a sealed alcove nearby.','A prayer-wall covered in names. One of them is yours. It was carved long before you were born.','A statue of a figure you recognize — or think you do. Its expression changes each time you look away.'];
+const RUIN_MONSTER_DESC={beast:['A hulking mutated bear, its fur matted with old wounds','A pack of 4 pale, hairless wolves with glass-like eyes','A giant serpent coiled around the chamber\'s central pillar','A chitinous crab-creature the size of a cart horse','A swarm of 6 feral irradiated dogs hunting as one mind','A lone predator — scaled, fast, and unnervingly quiet','A creature that looks like a deer until it raises its head'],bandits:['4 desperate scavengers armed with scrap blades','6 well-organized raiders in mismatched armor','5 trigger-happy crossbow thieves','A trio of brutal enforcers sent to clear the ruin','4 armed settlers who have claimed this ruin','6 cult members who believe the ruin belongs to their god','3 assassins waiting in ambush — they know someone was coming'],builder:['The original builder, preserved in crystallized amber and inexplicably still moving','A golem of fused stone and metal, still following instructions from an age ago','A towering construct of bones and iron wiring, endlessly patrolling','A preserved guardian in rusted armor — sealed inside and never told the war ended','An animated suit of plate armor that challenges all who enter to a formal duel','A mass of living clay shaped roughly like a person, slow but nearly indestructible'],horror:['Something vast and eyeless, its body filling the entire chamber, waiting','A creature that wears the shape of the last person it consumed','A pulsing knot of irradiated flesh that split from something much larger','A floating horror of light and geometry that should not be able to exist','Something very old, very patient, and deeply offended by your presence','A sealed entity that was imprisoned here for good reason — and you just opened the seal']};
+const RUIN_TREASURE=['A named weapon sealed in a case (Roll Weapons table d6, add: +1 to all rolls for 1 session)','A full suit of armor from the builder\'s era (Roll Armor table d6, in pristine condition)','A scroll sealed with the builder\'s crest (Roll Scrolls table d6, double use)','A field medic\'s cache (Roll Items table d6 × 2 items)','A remedy pouch left by the last survivor (Roll Remedies table d6 × 2)','3d6×20 Credits in loose coin, ancient press','A Strange Item (d100), marked with arcane script','A Trade Good (d12), still sealed in original packing','1d4+1 Scrolls, one of which smells of smoke','A full starting Backpack roll, pre-packed for someone who never returned','A sealed letter addressed to no one. Reading it raises a moral question.','A relic of the builders: attune it to gain +A.D. on one stat permanently (player chooses, one use)'];
 const TEMPLE_CHAMBER_TYPES=['Sanctum','Reliquary','Ossuary','Oracle Chamber','Sealed Vault','Garden of Contemplation'];
 const TEMPLE_CHAMBER_DESC=['A vaulted sanctum lit by pale blue flame. The altar is intact. Something watches from the shadows behind it.','Glass cases hold fragments of bone and cloth — the relics of a saint, or a warning. One is broken from within.','Row upon row of niches, each sealed with carved stone. Not all the seals are secure.','A smooth bowl-shaped room. Voices echo differently here. Whoever enters hears something whispered back.','A heavy door, sealed with seven locks. Behind it: cold air and the faint sound of breathing.','A walled garden, impossibly alive. A figure kneels in the center and does not acknowledge you.'];
 const TEMPLE_GUARDIAN_DESC=['A penitent warrior, bound by oath to the temple\'s last order. She attacks anyone who cannot answer her question.','An ancient construct of devotion — still maintaining, still protecting, still believing.','A congregation of the dead, kneeling in the nave. They rise when the altar is disturbed.','A bound spirit, sealed inside a reliquary. It offers knowledge in exchange for release.','Something that crept in through the cracks and now believes itself sacred.','A priest who never left, long past death, still conducting the rite.'];
@@ -5178,6 +5181,16 @@ document.addEventListener('DOMContentLoaded',()=>{
   updateMapVisualUI();
   const travelCtxBtn=document.querySelector('.ctx-btn[onclick*="setContext(\'traveling\'"]');
   if(typeof setContext==='function')setContext('traveling',travelCtxBtn||null);
+  // Auto-generate Province map on first load if empty
+  if(typeof generateMap==='function'&&(!mapData||!mapData.length)){
+    generateMap();
+  }
+  // Auto-generate Last Sea map on first load if empty
+  setTimeout(function(){
+    if(typeof generateLastSea==='function'&&typeof S!=='undefined'&&S.lastSea&&(!S.lastSea.map||!S.lastSea.map.length)){
+      generateLastSea();
+    }
+  },300);
 });
 </script>
 <script src="./audio-manager.js"></script>
@@ -5812,20 +5825,46 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!hex)return;
     hex.data=hex.data||{};
     if(!Array.isArray(hex.data.provinceRuinRooms)){
-      const count=Math.max(2,parseInt(hex.data.rooms,10)||4);
-      hex.data.provinceRuinRooms=Array.from({length:count},function(_,i){
-        return { idx:i+1, type:i===0?'Entrance':pick(RUIN_ROOM_TYPES), cleared:false, result:'' };
-      });
+      const count=Math.max(3,parseInt(hex.data.rooms,10)||5);
+      // Always: Entrance → middle rooms → possible Boss at end
+      const midTypes=['Lair','Obstacle','Trap','Puzzle','Secret Cache','Shrine Room','Empty','Empty'];
+      const rooms=[{idx:1,type:'Entrance',cleared:false,result:''}];
+      for(let i=1;i<count-1;i++) rooms.push({idx:i+1,type:pick(midTypes),cleared:false,result:''});
+      // Boss Chamber on last room (50% chance)
+      rooms.push({idx:count,type:roll(2)===1?'Boss Chamber':'Secret Cache',cleared:false,result:''});
+      hex.data.provinceRuinRooms=rooms;
     }
     const rows=hex.data.provinceRuinRooms.map(function(room,i){
-      return '<div class="room-block" style="margin-bottom:.38rem;">'
-        + '<div class="rb-title">Room '+room.idx+' - '+room.type+'</div>'
-        + '<div class="rb-text">'+(room.type==='Entrance'?(hex.data.entrance||'Open entrance'):(room.type==='Lair'?pick(RUIN_LAIR_DESC):room.type==='Obstacle'?pick(RUIN_OBSTACLE_DESC):room.type==='Trap'?pick(RUIN_TRAP_DESC):room.type==='Puzzle'?pick(RUIN_PUZZLE_DESC):'A quiet chamber full of dust and debris.'))+'</div>'
-        + (room.result?('<div class="rb-text" style="margin-top:.28rem;color:var(--gold2);">'+room.result+'</div>'):'')
-        + (room.cleared?'':'<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+i+')">Resolve Room (Action vs DD8)</button></div>')
+      const typeColor = room.type==='Boss Chamber'?'var(--red2)':room.type==='Secret Cache'?'var(--gold)':room.type==='Shrine Room'?'var(--purple)':room.type==='Puzzle'?'var(--teal)':'var(--text2)';
+      const typeIcon = room.type==='Entrance'?'🚪':room.type==='Lair'?'👁':room.type==='Obstacle'?'⛰':room.type==='Trap'?'⚠':room.type==='Puzzle'?'🧩':room.type==='Secret Cache'?'🔍':room.type==='Boss Chamber'?'💀':room.type==='Shrine Room'?'✦':'◻';
+      let roomDesc = '';
+      if(room.type==='Entrance') roomDesc = hex.data.entrance||'A foreboding threshold. Stone worn smooth by centuries of passage.';
+      else if(room.type==='Lair') roomDesc = pick(RUIN_LAIR_DESC);
+      else if(room.type==='Obstacle') roomDesc = pick(RUIN_OBSTACLE_DESC);
+      else if(room.type==='Trap') roomDesc = pick(RUIN_TRAP_DESC);
+      else if(room.type==='Puzzle') roomDesc = pick(RUIN_PUZZLE_DESC);
+      else if(room.type==='Secret Cache') roomDesc = pick(RUIN_SECRET_DESC);
+      else if(room.type==='Boss Chamber') roomDesc = pick(RUIN_BOSS_DESC);
+      else if(room.type==='Shrine Room') roomDesc = pick(RUIN_SHRINE_DESC);
+      else roomDesc = 'Dust, silence, and the faint smell of something long dead. Take a breath. This room is clear.';
+      const dreadForRoom = room.type==='Boss Chamber'?12:room.type==='Horror'?10:room.type==='Trap'||room.type==='Obstacle'?6:8;
+      return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid '+typeColor+';padding-left:.5rem;">'
+        + '<div class="rb-title" style="color:'+typeColor+';">'+typeIcon+' Room '+room.idx+' — '+room.type+'</div>'
+        + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">'+roomDesc+'</div>'
+        + (room.result?('<div style="margin-top:.28rem;padding:.25rem .4rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);">'+room.result+'</div>'):'')
+        + (room.cleared?'<div style="font-size:.7rem;color:var(--green);margin-top:.2rem;">✓ Cleared</div>':'<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+i+')">⚄ Explore (Action vs DD'+dreadForRoom+')</button></div>')
       + '</div>';
     }).join('');
-    openModal('Province Ruins - '+(hex.name||'Unknown Ruin'),'<div style="font-size:.83rem;color:var(--muted2);margin-bottom:.35rem;">Action Die check against DD8. Success grants loot. Failure can trigger danger.</div>'+rows);
+    const cleared = hex.data.provinceRuinRooms.filter(function(r){return r.cleared;}).length;
+    const total = hex.data.provinceRuinRooms.length;
+    const progressBar = '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;height:6px;margin-bottom:.5rem;"><div style="background:var(--teal);height:100%;width:'+Math.round(cleared/total*100)+'%;border-radius:4px;transition:width .3s;"></div></div>';
+    const header = '<div style="margin-bottom:.45rem;">'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;">Built by <strong style="color:var(--gold);">'+(hex.data.builder||'Unknown')+'</strong> · <em>'+(hex.data.builtFor||'Unknown purpose')+'</em></div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.25rem;">Construction: '+(hex.data.construction||'Stone')+' · Novelty: '+(hex.data.novelty||'None')+'</div>'
+      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">'+cleared+'/'+total+' rooms explored</div>'
+      + progressBar
+      + '</div>';
+    openModal('◫ Province Ruins — '+(hex.name||'Unknown Ruin'), header+rows);
   };
 
   window.resolveProvinceRuinRoom = function(col,row,idx){
@@ -5833,25 +5872,41 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms)||!hex.data.provinceRuinRooms[idx])return;
     const room=hex.data.provinceRuinRooms[idx];
     if(room.cleared)return;
+    const dreadForRoom = room.type==='Boss Chamber'?12:room.type==='Trap'||room.type==='Obstacle'?6:8;
     const actionDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
-    const a=explodingRoll(actionDie,{type:'action',major:true,label:'Ruin Action'});
-    const d=explodingRoll(8,{type:'dread',major:true,label:'Ruin DD8'});
+    const a=explodingRoll(actionDie,{type:'action',major:true,label:'Ruin '+room.type});
+    const d=explodingRoll(dreadForRoom,{type:'dread',major:true,label:'Ruin DD'+dreadForRoom});
     if(a.total>=d.total){
-      const loot=rollProvinceRuinLoot();
+      let loot=rollProvinceRuinLoot();
+      // Boss Chamber and Secret Cache give better loot
+      if(room.type==='Boss Chamber'||room.type==='Secret Cache') loot=pick(RUIN_TREASURE);
       let stored=false;
-      if(typeof addToBackpack==='function')stored=!!addToBackpack(loot);
-      room.result='AD'+actionDie+' '+a.total+' vs DD8 '+d.total+'. Success. Loot: '+loot+(stored?' added to Backpack.':' recovered (Backpack full).');
+      if(typeof addToBackpack==='function')stored=!!addToBackpack(loot.split(' ')[0]);
+      // Shrine Room — also grants a condition
+      if(room.type==='Shrine Room'&&typeof toggleCond==='function'){
+        const shrineGifts=['empowered','bolstered','focused','protected'];
+        const gift=pick(shrineGifts);
+        if(!S.conditions[gift]){toggleCond(gift);}
+        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✦ Shrine answered: '+gift.charAt(0).toUpperCase()+gift.slice(1)+' granted. '+loot+' recovered.';
+      } else {
+        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✓ Success — '+loot+(stored?' → Backpack.':' (Backpack full — note it).');
+      }
       room.cleared=true;
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
       const diff=Math.max(1,d.total-a.total);
       if(typeof changeStress==='function')changeStress(diff);
       if(typeof addTMWOnFail==='function')addTMWOnFail();
-      if(room.type==='Lair'){
-        const count=Math.max(1,roll(3));
-        room.result='AD'+actionDie+' '+a.total+' vs DD8 '+d.total+'. Failure. A threat emerges. <button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'ruins\','+count+',\'Ruin Guardians\',6);closeModal();">Engage Combat</button>';
+      if(room.type==='Lair'||room.type==='Boss Chamber'){
+        const count=room.type==='Boss Chamber'?1:Math.max(1,roll(3));
+        const dreadEnemy=room.type==='Boss Chamber'?10:6;
+        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Failure — take '+diff+' Stress. <button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'ruins\','+count+',\'Ruin Guardians\','+dreadEnemy+');closeModal();">⚔ Engage Combat</button>';
+      }else if(room.type==='Trap'){
+        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Trap triggered — take '+diff+' Stress and Distracted condition.';
+        if(S.conditions)S.conditions.distracted=true;
+        if(typeof updateConditionButtons==='function')updateConditionButtons();
       }else{
-        room.result='AD'+actionDie+' '+a.total+' vs DD8 '+d.total+'. Failure. You take '+diff+' Stress.';
+        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Failure — take '+diff+' Stress.';
       }
       room.cleared=true;
     }

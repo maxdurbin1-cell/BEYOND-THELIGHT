@@ -131,6 +131,9 @@
 .story-options{display:grid;gap:.35rem;}
 .story-opt{border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.4rem .45rem;display:grid;gap:.2rem;}
 .story-opt.locked{opacity:.62;}
+.story-opt.story-opt-dark{border-color:rgba(200,60,60,.45);background:rgba(200,60,60,.06);}
+.story-opt.story-opt-dark .story-opt-text{color:#d88;}
+.story-opt.story-opt-dark .story-opt-roll{color:#e05;}
 .story-opt-text{font-size:.8rem;color:var(--text);line-height:1.42;}
 .story-opt-roll{font-size:.72rem;color:var(--gold2);font-family:'Rajdhani',sans-serif;}
 .story-opt-req{font-size:.69rem;color:var(--muted2);line-height:1.35;}

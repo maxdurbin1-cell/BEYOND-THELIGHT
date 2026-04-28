@@ -1248,6 +1248,154 @@
           success: { next: "ending_iron", text: "You invoke Lyra's name and the city backs a hard verdict with irreversible force.", effects: { renown: 3, faction: { military: 1, political: -1 } } },
           fail: { next: "ending_iron", text: "The chamber fractures, but vengeance still carries the day.", effects: { health: 1, mentalStress: 2 } },
         },
+        {
+          id: "o_dark",
+          text: "⚠ Take the throne. Become what the world fears.",
+          stat: "spirit",
+          baseDread: 14,
+          success: { next: "dark_coronation", text: "You speak Voss's doctrine back at him — and mean it. The room falls silent, then kneels.", effects: { renown: 4, faction: { military: 2, political: -2, rebels: -2 } } },
+          fail: { next: "dark_ascension_collapse", text: "The room rejects you loudly. You retreat into something colder than ambition.", effects: { mentalStress: 3, renown: 1 } },
+        },
+        {
+          id: "o_ally",
+          text: "⚠ Offer Voss Karr an alliance — against a greater threat",
+          stat: "lead",
+          baseDread: 14,
+          success: { next: "dark_pact_sealed", text: "He listens. He always respected pragmatism more than virtue. You become the worst thing — an equal.", effects: { renown: 2, faction: { corporations: 2, rebels: -3 } } },
+          fail: { next: "finale_choice", text: "He laughs. You're not yet ruthless enough. But you could be.", effects: { mentalStress: 2 } },
+        },
+      ],
+    },
+
+    // ── DARK PATH ──────────────────────────────────────────────────────────────
+    dark_coronation: {
+      chapter: "c4",
+      title: "The New Magistrate",
+      location: "The Pale Court",
+      mood: "Cold ascension",
+      text: "The seat is warm. You realize it has always been warm. The ledgers are already open and waiting for your handwriting. Across the city, something that was watching all this — something very old — approves.",
+      options: [
+        {
+          id: "o1",
+          text: "Rewrite the ledgers in your own name — erase Voss's legacy entirely",
+          stat: "mind",
+          baseDread: 10,
+          success: { next: "ending_dark_throne", text: "History is revised. The previous Magistrate is a footnote. You are the only name.", effects: { renown: 4, faction: { corporations: 2, military: 1, rebels: -3, political: -1 } } },
+          fail: { next: "ending_dark_throne", text: "Some names resist erasure. But yours sits above them now.", effects: { renown: 2, mentalStress: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Use the power to tear down the system — from the inside",
+          stat: "lead",
+          baseDread: 12,
+          success: { next: "ending_glass", text: "You took the crown to melt it. The city is free — and you are very tired.", effects: { renown: 3, faction: { rebels: 2, political: 1 } } },
+          fail: { next: "ending_dark_throne", text: "The system absorbs you before you can destroy it. This is how it has always worked.", effects: { mentalStress: 2, renown: 2 } },
+        },
+        {
+          id: "o3",
+          text: "Rule for sixty days, then disappear — let them wonder forever",
+          stat: "spirit",
+          baseDread: 8,
+          success: { next: "ending_ghost_king", text: "Sixty days of hard justice. Then — nothing. A legend where a person used to be.", effects: { renown: 5, faction: { underworld: 2, rebels: 1 } } },
+          fail: { next: "ending_dark_throne", text: "The sixty days became sixty years. No one left to tell you to stop.", effects: { renown: 3, mentalStress: 3 } },
+        },
+      ],
+    },
+
+    dark_pact_sealed: {
+      chapter: "c4",
+      title: "Voss and You",
+      location: "The Pale Court — private chamber",
+      mood: "Cold collaboration",
+      text: "Voss Karr pours two glasses from a decanter that has waited on the shelf for a long time. He slides one across. 'I always knew someone like you would eventually arrive,' he says. 'The question was whether they'd sit across from me or beside me.'",
+      options: [
+        {
+          id: "o1",
+          text: "Accept the glass. Define the terms of the partnership.",
+          stat: "lead",
+          baseDread: 10,
+          success: { next: "ending_pale_accord", text: "He accepts. The terms are written in water but sealed in iron.", effects: { renown: 3, faction: { corporations: 2, military: 1, rebels: -2 } } },
+          fail: { next: "dark_coronation", text: "The terms collapse. He offers the throne instead — alone.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Take the glass. Then tip it into his.",
+          stat: "control",
+          baseDread: 12,
+          puzzle: { mode: "code", title: "Sleight of Hand", prompt: "Complete the phrase a poisoner lives by: 'Trust is the __ between every act of treachery.'", answer: "bridge" },
+          success: { next: "ending_iron", text: "He realizes a half-second too late. A fitting end to someone who trusted no one.", effects: { renown: 4, faction: { military: 1, underworld: 1 } } },
+          fail: { next: "dark_pact_sealed", text: "He notices. But instead of fury — admiration. The partnership begins anyway.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o3",
+          text: "Leave the glass on the table. Walk out. Make him come to you.",
+          stat: "spirit",
+          baseDread: 10,
+          success: { next: "ending_pale_accord", text: "He comes. Three days later, hat in hand. The power was never the throne. It was nerve.", effects: { renown: 4, faction: { corporations: 1, rebels: -1 } } },
+          fail: { next: "finale_choice", text: "He shrugs and empties both glasses alone. You lost this game by playing it.", effects: { mentalStress: 2 } },
+        },
+      ],
+    },
+
+    dark_ascension_collapse: {
+      chapter: "c4",
+      title: "What You Almost Were",
+      location: "Below the Pale Court",
+      mood: "Bitter reckoning",
+      text: "They rejected you. Not because you were too dark — because you hesitated. Voss Karr reads the room, reads you, and smiles slowly. 'Not yet,' he says. 'But soon.' Under the court, in the archive no one is supposed to reach, you find the sealed ledger with your name in it. You were always in the plan.",
+      options: [
+        {
+          id: "o1",
+          text: "Burn the ledger — deny him the satisfaction of knowing he predicted you",
+          stat: "body",
+          baseDread: 8,
+          success: { next: "finale_choice", text: "The page burns. You return to the chamber free of that particular fate.", effects: { tmw: 2 } },
+          fail: { next: "ending_dark_throne", text: "The ink survives the fire. Something that cannot be owned stares back.", effects: { mentalStress: 2 } },
+        },
+        {
+          id: "o2",
+          text: "Read it. Every word. Become what was written.",
+          stat: "mind",
+          baseDread: 6,
+          success: { next: "dark_coronation", text: "Understanding is halfway to mastery. You ascend knowing every step was designed — and not caring.", effects: { renown: 2, mentalStress: 1 } },
+          fail: { next: "dark_coronation", text: "The words are ordinary. That is the most frightening thing. You ascend anyway.", effects: { mentalStress: 3 } },
+        },
+      ],
+    },
+
+    // ── DARK ENDINGS ──────────────────────────────────────────────────────────
+    ending_dark_throne: {
+      chapter: "c4",
+      title: "Ending: The Pale Throne",
+      location: "Epilogue",
+      mood: "Cold-blooded sovereignty",
+      text: "You took the seat and kept it. The city is quieter now. Efficient. People have stopped disappearing for speaking out — now they simply stop speaking. Voss Karr's portrait was replaced with yours. The ledgers do not lie. Neither do they forgive. Somewhere, the rebels are planning a second chapter.",
+      options: [
+        { id: "o_restart", text: "Restart as the heir of your own legacy", success: { restart: true, text: "The next Wayfarer is born into your shadow." } },
+        { id: "o_rebel", text: "Defect from your own throne — spark the rebellion you put down", success: { next: "ending_glass", text: "You wrote the manifesto in the language only a ruler would know. It lands like a second revolution." } },
+      ],
+    },
+
+    ending_pale_accord: {
+      chapter: "c4",
+      title: "Ending: The Pale Accord",
+      location: "Epilogue",
+      mood: "Dangerous coalition",
+      text: "Two names now govern what one once consumed. The city has clean streets and quiet prisons. The greater threat you cited was real — or perhaps you made it real together. Either way, it keeps everyone else in line. You are not the villain. You are the architect of a world in which villains thrive, because they are useful. The question is whether there is a difference.",
+      options: [
+        { id: "o_restart", text: "Restart — a new Wayfarer enters the Accord's territory", success: { restart: true, text: "The pact still holds. Someone new arrives to break it — or sign it." } },
+        { id: "o_shatter", text: "Shatter the Accord from within — expose Voss and take the consequences", success: { next: "ending_glass", text: "The Accord breaks in public, on your terms. It costs everything. It was worth it." } },
+      ],
+    },
+
+    ending_ghost_king: {
+      chapter: "c4",
+      title: "Ending: The Ghost King",
+      location: "Epilogue",
+      mood: "Mythic vanishing act",
+      text: "Sixty days. You ruled fairly, harshly, and with complete honesty about what you were doing. Then you left: no trail, no successor, no manifesto. They searched for three years. A statue was commissioned. Twice. Both were vandalized — once by rebels, once by former loyalists who couldn't bear the idol's expression. Somewhere out there, in a Province nobody maps, a figure who looks like you is helping people with small problems and never giving a name.",
+      options: [
+        { id: "o_restart", text: "Restart as the legend you left behind", success: { restart: true, text: "The Ghost King walks again, different face, same nerve." } },
       ],
     },
 
@@ -2870,7 +3018,9 @@
         : pendingCombat
           ? (pendingCombatResult === "success" ? "✓ Resolve Victory" : pendingCombatResult === "fail" ? "Resolve Setback" : "▶ Enter Combat")
           : "Choose";
-      return "<div class='story-opt " + (unlocked ? "" : "locked") + "'>"
+      const isDarkOption = option.id === "o_dark" || option.id === "o_ally" || option.id === "o_shatter" || option.id === "o_rebel";
+      const isGoodOption = option.id === "o2" || (option.success && option.success.next && option.success.next.startsWith("ending_glass"));
+      return "<div class='story-opt " + (unlocked ? "" : "locked") + (isDarkOption ? " story-opt-dark" : "") + "'>"
         + "<div class='story-opt-text'>" + option.text + "</div>"
         + (option.stat ? ("<div class='story-opt-roll'>" + (STAT_LABELS[option.stat] || option.stat) + " vs DD" + dd + "</div>") : "")
         + (optionBonus > 0 ? ("<div class='story-opt-req' style='color:var(--gold2);'>Faction bonus: +" + optionBonus + " from " + (FACTION_LABELS[optionFaction] || optionFaction) + "</div>") : "")
@@ -2878,7 +3028,7 @@
         + (option.combat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat: " + ((option.combat.enemies || []).length || 1) + " foe" + ((((option.combat.enemies || []).length || 1) === 1) ? "" : "s") + " · DD" + Number(option.combat.dread || 8) + "</div>") : "")
         + (pendingCombat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat target: " + (pendingCombat.enemyNames || []).join(", ") + (pendingCombatResult === "success" ? " ✓ Victory ready" : pendingCombatResult === "fail" ? " — setback ready" : " — fight unresolved") + "</div>") : "")
         + (reqText ? ("<div class='story-opt-req'>" + reqText + "</div>") : "")
-        + "<button class='btn btn-sm " + (unlocked ? "btn-primary" : "") + "' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\")'") : "disabled") + ">" + btnLabel + "</button>"
+        + "<button class='btn btn-sm " + (unlocked ? (isDarkOption ? "btn-red" : "btn-primary") : "") + "' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\")'") : "disabled") + ">" + btnLabel + "</button>"
       + "</div>";
     }).join("");
 

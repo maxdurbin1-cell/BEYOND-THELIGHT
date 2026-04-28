@@ -1574,7 +1574,7 @@
     renderWorldThatWas();
   }
 
-  function resolveDistrictEncounter() {
+  function resolveDistrictEncounter(forcedOutcome) {
     const hex = getSelectedHex();
     if (!hex || !hex.encounter) return;
     if (hex.encounter.mode === "wayfarer") {
@@ -1596,21 +1596,38 @@
       openWorldSkirmishCombat();
       return;
     }
-    const check = rollAgainstDread(hex.encounter.stat || "body", hex.encounter.dread || 8);
+    const forced = forcedOutcome === "success" || forcedOutcome === "failure" ? forcedOutcome : null;
+    const check = forced
+      ? { success: forced === "success" }
+      : rollAgainstDread(hex.encounter.stat || "body", hex.encounter.dread || 8);
     if (check.success) {
       addZoneReputation(hex.zone, 1);
       addWorldItem("water", 1);
       grantRandomLoot("easy");
       setCredits(getCredits() + 30);
-      if (typeof showNotif === "function") showNotif("Encounter resolved successfully.", "good");
+      if (typeof showNotif === "function") {
+        showNotif(forced ? "GM override: encounter marked success." : "Encounter resolved successfully.", "good");
+      }
     } else {
       hex.skirmish = true;
-      if (typeof showNotif === "function") showNotif("Encounter failed. Skirmish triggered.", "warn");
+      if (typeof showNotif === "function") {
+        showNotif(forced ? "GM override: encounter marked failure. Skirmish triggered." : "Encounter failed. Skirmish triggered.", "warn");
+      }
     }
     hex.encounter = null;
     advanceWorldTime("district encounter");
     if (registerWorldAction("encounter resolve")) return;
     renderWorldThatWas();
+  }
+
+  function resolveDistrictEncounterAs(outcome) {
+    const gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === "function" && window.settingsSystem.isGMMode());
+    if (!gmMode) {
+      if (typeof showNotif === "function") showNotif("GM controls are only available in GM mode.", "warn");
+      return;
+    }
+    if (outcome !== "success" && outcome !== "failure") return;
+    resolveDistrictEncounter(outcome);
   }
 
   function collectMarkerJob(hexId) {
@@ -2204,8 +2221,12 @@
       ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " enemies (DD" + (evt.dread || 8) + " | " + (evt.enemyHealth || 16) + " HP each)")
       : ("<strong>Check:</strong> Adventure d" + getActionDie("adventure") + " vs DD" + (evt.dread || 8));
 
+    const gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === "function" && window.settingsSystem.isGMMode());
+    const gmEncounterControls = (gmMode && hex.encounter && hex.encounter.mode !== "combat" && hex.encounter.mode !== "wayfarer")
+      ? "<button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='wtwResolveEncounterAs(\"success\")'>GM: Force Success</button><button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='wtwResolveEncounterAs(\"failure\")'>GM: Force Failure</button>"
+      : "";
     const encounterHtml = hex.encounter
-      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>" : "") + "</div></div>")
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>" : "") + gmEncounterControls + "</div></div>")
       : "<div class='wtw-muted'>No rolled encounter in this district.</div>";
 
     const servicesHtml = services.map(function (svc, idx) {
@@ -2492,6 +2513,7 @@
   window.wtwTravelRail = travelByTrainTo;
   window.wtwRollEncounter = rollDistrictEncounter;
   window.wtwResolveEncounter = resolveDistrictEncounter;
+  window.wtwResolveEncounterAs = resolveDistrictEncounterAs;
   window.wtwWinCombatEvent = completeCombatEventVictory;
   window.wtwResolveHazard = resolveDistrictHazard;
   window.wtwTalkWayfarer = talkToWayfarer;

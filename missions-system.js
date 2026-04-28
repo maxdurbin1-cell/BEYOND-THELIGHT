@@ -824,6 +824,7 @@
     var mission=getMission(missionId); if (!mission) return;
     if (!mission.steps[2].completed) { showNotif('Complete Step 2 first.','warn'); return; }
     var advDie=getStat('adventure'), dreadDie=mission.dread, bonus=mission.bonus||0;
+    var gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === 'function' && window.settingsSystem.isGMMode());
 
     var compBanner='';
     if (mission.additionalDanger&&mission.additionalDanger.type==='complication') {
@@ -852,8 +853,19 @@
 
     var targetRow='<div style="font-size:.78rem;margin-bottom:.45rem;padding:.25rem .35rem;border:1px solid var(--border2);"><strong style="color:var(--gold2);">Target:</strong> <span style="color:var(--text);">'+mission.target+'</span></div>';
     var rollInstr='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+advDie+(bonus?' + '+bonus:'')+' vs Dread d'+dreadDie+' \u2014 then click your outcome:</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice. Add the +'+(bonus||0)+' bonus to your roll before comparing.</div></div>';
+    var gmControls='';
+    if (gmMode) {
+      gmControls='<div style="background:rgba(128,96,192,.08);border:1px solid rgba(128,96,192,.35);padding:.35rem .45rem;margin-bottom:.45rem;">'
+        +'<div style="font-family:\'Cinzel\',serif;font-size:.55rem;letter-spacing:.1em;color:var(--purple);text-transform:uppercase;margin-bottom:.2rem;">GM Controls</div>'
+        +'<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
+          +'<button class="btn btn-xs" style="border-color:var(--purple);color:var(--purple);" onclick="if(window.settingsSystem&&window.settingsSystem.showGMPrompt){window.settingsSystem.showGMPrompt(\'Mission Confrontation\',\'Frame the fiction, then choose the outcome based on the scene.\',[{label:\'Mark Success\',action:\'resolveMissionOutcome('+missionId+',true);closeModal();\'},{label:\'Mark Failure\',action:\'resolveMissionOutcome('+missionId+',false);closeModal();\'}]);}">Open GM Prompt</button>'
+          +'<button class="btn btn-xs btn-primary" onclick="resolveMissionOutcome('+missionId+',true)">GM: Force Success</button>'
+          +'<button class="btn btn-xs btn-red" onclick="resolveMissionOutcome('+missionId+',false)">GM: Force Failure</button>'
+        +'</div>'
+      +'</div>';
+    }
 
-    var html=compBanner+featureBadge+guardsSection+mercSection+targetRow+rollInstr
+    var html=compBanner+featureBadge+guardsSection+mercSection+targetRow+rollInstr+gmControls
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
         +'<button class="btn btn-sm btn-red" onclick="resolveMissionOutcome('+missionId+',false)">\u2717 Failure \u2014 Roll Failed</button>'
         +'<button class="btn btn-sm btn-primary" onclick="resolveMissionOutcome('+missionId+',true)">\u2713 Success \u2014 Roll Succeeded</button>'

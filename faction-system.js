@@ -844,6 +844,7 @@
   function resolveNpcConversation(factionId, idx) {
     const base = ensureBaseActivity(factionId);
     const npc = base && Array.isArray(base.npcs) ? base.npcs[Number(idx)] : null;
+    const regionCode = getBaseRegionCode(base);
     if (!npc) return;
     const check = rollBaseCheck("lead", 6);
     if (check.success) {
@@ -851,6 +852,10 @@
       base.discoveredSecrets = Array.isArray(base.discoveredSecrets) ? base.discoveredSecrets : [];
       base.discoveredSecrets.unshift(secret);
       base.discoveredSecrets = base.discoveredSecrets.slice(0, 6);
+      if (typeof window !== "undefined" && typeof window.registerSecretPadClue === "function") {
+        if (regionCode === "province") window.registerSecretPadClue("province", "talk");
+        if (regionCode === "sea") window.registerSecretPadClue("sea", "talk");
+      }
       if (typeof showNotif === "function") showNotif(npc.name + " reveals a secret: " + secret, "good");
     } else {
       if (typeof showNotif === "function") showNotif(npc.name + " withholds details. Lead check failed.", "warn");

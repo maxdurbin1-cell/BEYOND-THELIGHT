@@ -873,6 +873,7 @@
 
   function getSeaSecretPadKey() {
     if (!S || !S.lastSea || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return "";
+    if (typeof window.isSecretPadUnlocked === 'function' && !window.isSecretPadUnlocked('sea')) return "";
     S.mapLinks = S.mapLinks || {};
     const exists = S.lastSea.map.some((h) => h && h.key === S.mapLinks.seaSecretPadKey);
     if (!exists) {
@@ -1132,6 +1133,12 @@
 
     const hex = cell || S.lastSea.map.find((item) => item.key === S.lastSea.selectedKey);
     const secretPadKey = getSeaSecretPadKey();
+    const seaProgress = (typeof window.getSecretPadClueProgress === 'function')
+      ? window.getSecretPadClueProgress('sea')
+      : { talk: false, event: false, intel: false };
+    const seaUnlocked = (typeof window.isSecretPadUnlocked === 'function')
+      ? window.isSecretPadUnlocked('sea')
+      : !!secretPadKey;
     if (!hex) {
       panel.innerHTML = `
         <div class="sea-info-inner">
@@ -1208,6 +1215,7 @@
             <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('sea','${hex.key}');">Enter Base</button></div>
           </div>`;
         })()}
+        ${!seaUnlocked ? `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.05);"><div class="nb-label" style="color:#7ed7ff;">🧩 Sea Secret Pad Clue Chain</div><div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Unlock by completing all clue stages:<br>${seaProgress.talk?'✅':'⬜'} Talk Check (Lead vs d6 at sea base)<br>${seaProgress.event?'✅':'⬜'} Event Lead (hazard/encounter intel)<br>${seaProgress.intel?'✅':'⬜'} Map Intel (sea hex exploration)</div></div>` : ''}
         ${(() => {
           const ft = window.factionSystem && typeof window.factionSystem.getSeaTask === 'function'
             ? window.factionSystem.getSeaTask(hex.key)
@@ -1635,6 +1643,12 @@
     }
     S.lastSea.selectedKey = hex.key;
     hex.resultHtml = hex.type === "sea" ? buildSeaExploration(hex) : buildIslandExploration(hex);
+    if (typeof window.registerSecretPadClue === 'function') {
+      window.registerSecretPadClue('sea', 'intel');
+      if (String(hex.resultHtml || '').match(/Encounter|Peril|Hostile|Raiders|Pirates/i)) {
+        window.registerSecretPadClue('sea', 'event');
+      }
+    }
     if (hex.type === "sea") {
       S.lastSea.activeEncounterKey = hex.key;
     } else {

@@ -3489,10 +3489,57 @@ let selectedHex=null;
 function ensureMapLinkState(){
   if(!S||typeof S!=='object')return;
   if(!S.mapLinks||typeof S.mapLinks!=='object')S.mapLinks={};
+  if(!S.mapLinks.discovery||typeof S.mapLinks.discovery!=='object')S.mapLinks.discovery={};
+}
+
+function ensureSecretPadProgress(region){
+  ensureMapLinkState();
+  const key=String(region||'province');
+  if(!S.mapLinks.discovery[key]||typeof S.mapLinks.discovery[key]!=='object'){
+    S.mapLinks.discovery[key]={talk:false,event:false,intel:false,unlocked:false,revealedAt:0};
+  }
+  const p=S.mapLinks.discovery[key];
+  if(typeof p.talk!=='boolean')p.talk=!!p.talk;
+  if(typeof p.event!=='boolean')p.event=!!p.event;
+  if(typeof p.intel!=='boolean')p.intel=!!p.intel;
+  if(typeof p.unlocked!=='boolean')p.unlocked=!!p.unlocked;
+  if(typeof p.revealedAt!=='number')p.revealedAt=0;
+  return p;
+}
+
+function getSecretPadClueProgress(region){
+  return ensureSecretPadProgress(region||'province');
+}
+
+function isSecretPadUnlocked(region){
+  const p=ensureSecretPadProgress(region||'province');
+  if(!p.unlocked&&p.talk&&p.event&&p.intel){
+    p.unlocked=true;
+    p.revealedAt=Date.now();
+  }
+  return !!p.unlocked;
+}
+
+function registerSecretPadClue(region,type){
+  const r=String(region||'province');
+  const t=String(type||'');
+  if(['talk','event','intel'].indexOf(t)<0)return false;
+  const p=ensureSecretPadProgress(r);
+  const wasUnlocked=isSecretPadUnlocked(r);
+  const changed=!p[t];
+  p[t]=true;
+  const nowUnlocked=isSecretPadUnlocked(r);
+  if(nowUnlocked&&!wasUnlocked){
+    if(typeof showNotif==='function')showNotif((r==='sea'?'Last Sea':'Province')+' secret pad location decoded. Marker revealed.','good');
+    if(r==='province'&&typeof renderHexMap==='function')renderHexMap();
+    if(r==='sea'&&typeof renderLastSeaMap==='function')renderLastSeaMap();
+  }
+  return changed;
 }
 
 function getProvinceSecretPadKey(){
   ensureMapLinkState();
+  if(!isSecretPadUnlocked('province'))return '';
   if(!Array.isArray(mapData)||!mapData.length)return '';
   const hasKey=(key)=>mapData.some(h=>`${h.col},${h.row}`===String(key||''));
   if(!hasKey(S.mapLinks.provinceSecretPadKey)){
@@ -3502,6 +3549,10 @@ function getProvinceSecretPadKey(){
   }
   return S.mapLinks.provinceSecretPadKey;
 }
+
+window.registerSecretPadClue=registerSecretPadClue;
+window.getSecretPadClueProgress=getSecretPadClueProgress;
+window.isSecretPadUnlocked=isSecretPadUnlocked;
 
 function travelToGalaxyFromMap(){
   const btn=document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
@@ -3709,6 +3760,8 @@ function renderHexInfo(hex){
   const d=hex.data||{};
   const nk=`${hex.col},${hex.row}`;
   const secretPadKey=getProvinceSecretPadKey();
+  const provincePadProgress=getSecretPadClueProgress('province');
+  const provincePadUnlocked=isSecretPadUnlocked('province');
   const season=S.currentSeason||'spring';
   const wr=roll(6),weatherResult=WEATHER[season][wr-1];
   const td=TERRAIN_DESC[hex.terrain.name]||{};
@@ -3756,6 +3809,13 @@ function renderHexInfo(hex){
         ${ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask('province','${nk}');renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Generate Monsters / Combat</button>`:''}
         ${ftask.monsterTask&&ftask.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('province','${nk}',null,true);renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Slayed Monsters (Reward)</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('province','${nk}',null,false);renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Failed Encounter</button>`:''}
       </div>
+    </div>`;
+  }
+
+  if(!provincePadUnlocked&&(fbase||hex.type==='lostcity')){
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.05);">
+      <div class="nb-label" style="color:#7ed7ff;">🧩 Secret Pad Clue Chain</div>
+      <div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Unlock by completing all clue stages:<br>${provincePadProgress.talk?'✅':'⬜'} Talk Check (Lead vs d6 at faction base)<br>${provincePadProgress.event?'✅':'⬜'} Event Lead Progress (Province mystery lead)<br>${provincePadProgress.intel?'✅':'⬜'} Map Intel (Observe Adjacent success)</div>
     </div>`;
   }
 
@@ -4651,6 +4711,7 @@ function resolveEventLeadAction(col,row){
 
   if(success){
     const result=advanceEventMystery(eventHex,`Lead Hex [${col+1},${row+1}]`);
+    if(typeof registerSecretPadClue==='function')registerSecretPadClue('province','event');
     clearEventLeadFromHex(col,row);
     if(eventHex.data&&eventHex.data.activeLead&&eventHex.data.activeLead.targetCol===col&&eventHex.data.activeLead.targetRow===row){
       delete eventHex.data.activeLead;

@@ -57,6 +57,7 @@ function performWildernessObservation(col,row,directionKey){
     +'</div>';
     
   if(success){
+    if(typeof window.registerSecretPadClue==='function')window.registerSecretPadClue('province','intel');
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     if(!target){
       html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No Adjacent Hex</div>There is no mapped hex in that direction.</div>`;

@@ -763,6 +763,76 @@ io.on("connection", (socket) => {
     if (typeof ack === "function") ack({ ok: true, mentalStress: next, stateVersion: campaign.shared.stateVersion });
   });
 
+  socket.on("campaign:deltaCredits", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const delta = Number((payload && payload.delta) || 0);
+    if (!Number.isFinite(delta) || delta === 0) {
+      if (typeof ack === "function") ack({ ok: false, error: "Invalid credits delta." });
+      return;
+    }
+
+    const sharedState = campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+      ? campaign.shared.state
+      : {};
+    const next = Math.max(0, Number(sharedState.credits || 0) + delta);
+    sharedState.credits = next;
+    campaign.shared.state = sharedState;
+    campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
+    campaign.updatedAt = Date.now();
+
+    const token = socket.data.token;
+    const member = token ? campaign.participants.get(token) : null;
+    addLog(
+      campaign,
+      "system",
+      `${member ? member.name : "Someone"} changed shared Credits by ${delta > 0 ? "+" : ""}${delta} (now ${next}).`,
+      { token: token || "", delta, credits: next }
+    );
+
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true, credits: next, stateVersion: campaign.shared.stateVersion });
+  });
+
+  socket.on("campaign:deltaRenown", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const delta = Number((payload && payload.delta) || 0);
+    if (!Number.isFinite(delta) || delta === 0) {
+      if (typeof ack === "function") ack({ ok: false, error: "Invalid renown delta." });
+      return;
+    }
+
+    const sharedState = campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+      ? campaign.shared.state
+      : {};
+    const next = Math.max(0, Number(sharedState.renown || 0) + delta);
+    sharedState.renown = next;
+    campaign.shared.state = sharedState;
+    campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
+    campaign.updatedAt = Date.now();
+
+    const token = socket.data.token;
+    const member = token ? campaign.participants.get(token) : null;
+    addLog(
+      campaign,
+      "system",
+      `${member ? member.name : "Someone"} changed shared Renown by ${delta > 0 ? "+" : ""}${delta} (now ${next}).`,
+      { token: token || "", delta, renown: next }
+    );
+
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true, renown: next, stateVersion: campaign.shared.stateVersion });
+  });
+
   socket.on("campaign:stashShare", (payload, ack) => {
     const campaign = getCampaignBySocket(socket);
     if (!campaign) {
@@ -858,6 +928,12 @@ io.on("connection", (socket) => {
     }
     if (typeof existingState.mentalStress === "number") {
       merged.mentalStress = Math.max(0, Number(existingState.mentalStress || 0));
+    }
+    if (typeof existingState.credits === "number") {
+      merged.credits = Math.max(0, Number(existingState.credits || 0));
+    }
+    if (typeof existingState.renown === "number") {
+      merged.renown = Math.max(0, Number(existingState.renown || 0));
     }
 
     campaign.shared.state = merged;

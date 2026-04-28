@@ -1723,6 +1723,44 @@
     return !!(member && member.online);
   }
 
+  function getCampaignMemberLabelByToken(ctx, token) {
+    if (!ctx || !Array.isArray(ctx.roster) || !token) return 'Player';
+    var member = ctx.roster.find(function (p) { return String(p && p.token || '') === String(token || ''); });
+    if (!member) return 'Player';
+    var rolePrefix = member.role === 'gm' ? 'GM' : 'Player';
+    var name = String(member.name || '').trim();
+    return name ? (rolePrefix + ' ' + name) : rolePrefix;
+  }
+
+  function getSeaSkirmishLockState(st, ctx) {
+    var actor = ctx || getCampaignActorContext();
+    if (!st || !st.joined) {
+      return { text: 'No active skirmish command lock.', tone: 'var(--muted2)', mine: false };
+    }
+    if (!actor.token) {
+      return { text: 'Solo control active.', tone: 'var(--teal)', mine: true };
+    }
+    if (!st.commanderToken) {
+      return { text: 'No commander assigned. First action claims command.', tone: 'var(--gold2)', mine: true };
+    }
+
+    var isMine = st.commanderToken === actor.token;
+    var online = isCampaignTokenOnline(actor, st.commanderToken);
+    var label = st.commanderName || getCampaignMemberLabelByToken(actor, st.commanderToken);
+    if (!online && !isMine) {
+      return {
+        text: 'Command lock is stale (' + sanitizeInlineText(label) + ' offline). Next action can take over.',
+        tone: 'var(--gold2)',
+        mine: false
+      };
+    }
+    return {
+      text: isMine ? 'Command lock: You control skirmish actions.' : ('Command lock: ' + sanitizeInlineText(label) + ' controls actions.'),
+      tone: isMine ? 'var(--teal)' : 'var(--muted2)',
+      mine: isMine
+    };
+  }
+
   function canControlSeaSkirmish(st) {
     if (!st || !st.joined) return false;
     var ctx = getCampaignActorContext();
@@ -1730,13 +1768,13 @@
     if (ctx.role === 'gm') return true;
     if (!st.commanderToken) {
       st.commanderToken = ctx.token;
-      st.commanderName = 'Player';
+      st.commanderName = getCampaignMemberLabelByToken(ctx, ctx.token);
       return true;
     }
     if (st.commanderToken === ctx.token) return true;
     if (!isCampaignTokenOnline(ctx, st.commanderToken)) {
       st.commanderToken = ctx.token;
-      st.commanderName = 'Player';
+      st.commanderName = getCampaignMemberLabelByToken(ctx, ctx.token);
       showNotif('Previous skirmish commander is offline. Command transferred to you.', 'warn');
       return true;
     }
@@ -1753,9 +1791,11 @@
     var opp = mineSide === 'A' ? st.armyB : st.armyA;
     var mineName = mineSide === 'A' ? st.sideA : st.sideB;
     var oppName = oppSide === 'A' ? st.sideA : st.sideB;
+    var lockInfo = getSeaSkirmishLockState(st);
     return ''
       + '<div class="wtw-card" style="padding:.35rem;margin-top:.32rem;">'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Round ' + (st.round || 1) + ' · Actions reset together at 0/0.</div>'
+      + '<div style="font-size:.72rem;color:' + lockInfo.tone + ';margin-bottom:.28rem;font-weight:600;">' + lockInfo.text + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">'
       + '<div>'
       + '<div style="font-size:.74rem;color:var(--text2);">Your Side: <strong style="color:var(--teal);">' + sanitizeInlineText(mineName) + '</strong></div>'
@@ -1797,7 +1837,7 @@
     state.joined = side === 'B' ? 'B' : 'A';
     if (ctx.token) {
       state.commanderToken = ctx.token;
-      state.commanderName = (ctx.role === 'gm') ? 'GM' : 'Player';
+      state.commanderName = getCampaignMemberLabelByToken(ctx, ctx.token);
     }
     var itemFlags = getSeaNarrativeItemFlags();
     var bonusNotes = [];

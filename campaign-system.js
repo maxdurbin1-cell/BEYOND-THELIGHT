@@ -15,6 +15,10 @@
     lastKnownTmw: null,
     suppressMentalStressEmit: false,
     lastKnownMentalStress: null,
+    suppressCreditsEmit: false,
+    lastKnownCredits: null,
+    suppressRenownEmit: false,
+    lastKnownRenown: null,
     activePromptId: "",
     autoRestoreTried: false,
     restoringSession: false,
@@ -152,10 +156,16 @@
     state.applyingSharedState = true;
     try {
       if (typeof sharedState.credits === "number") {
+        state.suppressCreditsEmit = true;
         window.S.credits = Math.max(0, Number(sharedState.credits || 0));
+        state.lastKnownCredits = window.S.credits;
+        setTimeout(function () { state.suppressCreditsEmit = false; }, 0);
       }
       if (typeof sharedState.renown === "number") {
+        state.suppressRenownEmit = true;
         window.S.renown = Math.max(0, Number(sharedState.renown || 0));
+        state.lastKnownRenown = window.S.renown;
+        setTimeout(function () { state.suppressRenownEmit = false; }, 0);
       }
       if (typeof sharedState.mentalStress === "number") {
         state.suppressMentalStressEmit = true;
@@ -277,6 +287,16 @@
     return Math.max(0, Number(window.S.tmw || 0));
   }
 
+  function getCreditsValue() {
+    if (typeof window.S === "undefined" || !window.S) return 0;
+    return Math.max(0, Number(window.S.credits || 0));
+  }
+
+  function getRenownValue() {
+    if (typeof window.S === "undefined" || !window.S) return 0;
+    return Math.max(0, Number(window.S.renown || 0));
+  }
+
   function setLocalTmw(value) {
     if (typeof window.S === "undefined" || !window.S) return;
     state.suppressTmwEmit = true;
@@ -302,6 +322,22 @@
     var val = Number(delta || 0);
     if (!Number.isFinite(val) || val === 0) return;
     await emitWithAck("campaign:deltaMentalStress", { delta: val, reason: reason || "sync" });
+  }
+
+  async function syncCreditsDelta(delta, reason) {
+    if (!state.connected || !state.code) return;
+    if (state.applyingSharedState || state.suppressCreditsEmit) return;
+    var val = Number(delta || 0);
+    if (!Number.isFinite(val) || val === 0) return;
+    await emitWithAck("campaign:deltaCredits", { delta: val, reason: reason || "sync" });
+  }
+
+  async function syncRenownDelta(delta, reason) {
+    if (!state.connected || !state.code) return;
+    if (state.applyingSharedState || state.suppressRenownEmit) return;
+    var val = Number(delta || 0);
+    if (!Number.isFinite(val) || val === 0) return;
+    await emitWithAck("campaign:deltaRenown", { delta: val, reason: reason || "sync" });
   }
 
   function patchTmwHooks() {
@@ -351,6 +387,59 @@
     };
 
     window._campaignPatchedMentalStressHooks = true;
+  }
+
+  function patchSharedEconomyHooks() {
+    if (window._campaignPatchedSharedEconomyHooks) return;
+
+    if (typeof window.updateCreditsUI === "function") {
+      var originalCredits = window.updateCreditsUI;
+      window.updateCreditsUI = function () {
+        var before = getCreditsValue();
+        var result = originalCredits.apply(this, arguments);
+        var after = getCreditsValue();
+        var appliedDelta = after - before;
+        if (!state.suppressCreditsEmit && appliedDelta !== 0) {
+          state.lastKnownCredits = after;
+          syncCreditsDelta(appliedDelta, "updateCreditsUI");
+        }
+        if (state.lastKnownCredits === null) state.lastKnownCredits = after;
+        return result;
+      };
+    }
+
+    if (typeof window.updateRenown === "function") {
+      var originalRenown = window.updateRenown;
+      window.updateRenown = function () {
+        var before = getRenownValue();
+        var result = originalRenown.apply(this, arguments);
+        var after = getRenownValue();
+        var appliedDelta = after - before;
+        if (!state.suppressRenownEmit && appliedDelta !== 0) {
+          state.lastKnownRenown = after;
+          syncRenownDelta(appliedDelta, "updateRenown");
+        }
+        if (state.lastKnownRenown === null) state.lastKnownRenown = after;
+        return result;
+      };
+    }
+
+    if (typeof window.changeCounter === "function") {
+      var originalCounter = window.changeCounter;
+      window.changeCounter = function (key, delta) {
+        var beforeCredits = getCreditsValue();
+        var beforeRenown = getRenownValue();
+        var result = originalCounter.apply(this, arguments);
+        var afterCredits = getCreditsValue();
+        var afterRenown = getRenownValue();
+        if (key === "credits") {
+          syncCreditsDelta(afterCredits - beforeCredits, "changeCounter");
+        }
+        return result;
+      };
+    }
+
+    window._campaignPatchedSharedEconomyHooks = true;
   }
 
   function renderMembers(list) {
@@ -1386,6 +1475,7 @@
   function init() {
     patchTmwHooks();
     patchMentalStressHooks();
+    patchSharedEconomyHooks();
     ensureSettingsSection();
     ensureDockPanel();
     ensureSocket();
@@ -1417,6 +1507,7 @@
   setInterval(function () {
     patchTmwHooks();
     patchMentalStressHooks();
+    patchSharedEconomyHooks();
     if (!document.getElementById("campaignSettingsSection")) {
       ensureSettingsSection();
     }

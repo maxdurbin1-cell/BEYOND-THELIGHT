@@ -408,13 +408,17 @@
     var hp = (typeof window.S !== "undefined" && window.S)
       ? ((typeof window.S.health === "number") ? window.S.health : 0)
       : 0;
+    var mentalStress = (typeof window.S !== "undefined" && window.S)
+      ? ((typeof window.S.mentalStress === "number") ? window.S.mentalStress : 0)
+      : 0;
     var look = (typeof window.S !== "undefined" && window.S)
       ? (window.S.look || window.S.flavor || window.S.reason || "")
       : "";
     return {
       name: ensureName(),
       health: Math.max(0, Number(hp || 0)),
-      stress: Math.max(0, Number((window.S && window.S.stress) || 0)),
+      mentalStress: Math.max(0, Number(mentalStress || 0)),
+      stress: Math.max(0, Number(mentalStress || 0)),
       look: String(look || "").slice(0, 180),
       stats: {
         body: Number(stats.body || 4),

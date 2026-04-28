@@ -120,7 +120,8 @@ function ensureCampaignShape(raw) {
         ? {
             name: String(p.character.name || p.name || "Wayfarer").slice(0, 48),
             health: Math.max(0, Number(p.character.health || 0)),
-            stress: Math.max(0, Number(p.character.stress || 0)),
+            mentalStress: Math.max(0, Number((typeof p.character.mentalStress === "number" ? p.character.mentalStress : p.character.stress) || 0)),
+            stress: Math.max(0, Number((typeof p.character.mentalStress === "number" ? p.character.mentalStress : p.character.stress) || 0)),
             look: String(p.character.look || "").slice(0, 180),
             stats: p.character.stats && typeof p.character.stats === "object" ? p.character.stats : {},
             backpack: Array.isArray(p.character.backpack)
@@ -192,7 +193,8 @@ function serializeCampaign(campaign) {
         ? {
             name: String(p.character.name || p.name || "Wayfarer").slice(0, 48),
             health: Math.max(0, Number(p.character.health || 0)),
-            stress: Math.max(0, Number(p.character.stress || 0)),
+            mentalStress: Math.max(0, Number((typeof p.character.mentalStress === "number" ? p.character.mentalStress : p.character.stress) || 0)),
+            stress: Math.max(0, Number((typeof p.character.mentalStress === "number" ? p.character.mentalStress : p.character.stress) || 0)),
             look: String(p.character.look || "").slice(0, 180),
             stats: p.character.stats && typeof p.character.stats === "object" ? p.character.stats : {},
             backpack: Array.isArray(p.character.backpack)
@@ -295,7 +297,8 @@ function snapshotCampaign(campaign, requesterToken) {
         ? {
             name: String(member.character.name || member.name || "Wayfarer").slice(0, 48),
             health: Math.max(0, Number(member.character.health || 0)),
-            stress: Math.max(0, Number(member.character.stress || 0)),
+            mentalStress: Math.max(0, Number((typeof member.character.mentalStress === "number" ? member.character.mentalStress : member.character.stress) || 0)),
+            stress: Math.max(0, Number((typeof member.character.mentalStress === "number" ? member.character.mentalStress : member.character.stress) || 0)),
             look: String(member.character.look || "").slice(0, 180),
             stats: member.character.stats && typeof member.character.stats === "object" ? member.character.stats : {},
             backpack: Array.isArray(member.character.backpack)
@@ -449,10 +452,12 @@ function normalizeName(input, fallback) {
 function normalizeCharacter(input, fallbackName) {
   const c = input && typeof input === "object" ? input : {};
   const stats = c.stats && typeof c.stats === "object" ? c.stats : {};
+  const mentalStress = Math.max(0, Number((typeof c.mentalStress === "number" ? c.mentalStress : c.stress) || 0));
   return {
     name: String(c.name || fallbackName || "Wayfarer").slice(0, 48),
     health: Math.max(0, Number(c.health || 0)),
-    stress: Math.max(0, Number(c.stress || 0)),
+    mentalStress,
+    stress: mentalStress,
     look: String(c.look || "").slice(0, 180),
     stats,
     backpack: Array.isArray(c.backpack)

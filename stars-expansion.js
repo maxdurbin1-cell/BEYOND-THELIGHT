@@ -8043,12 +8043,24 @@ function registerProvinceHexTravel(hexClicks) {
 
 function registerLastSeaHexTravel(hexClicks) {
   ensureStarsState();
+  const weather = S.lastSea && S.lastSea.weather;
+  if (weather && weather.check && !weather.checkResolved) {
+    showNotif(`Weather check required: ${(weather.check.stats || ['lead']).map(s => String(s).charAt(0).toUpperCase() + String(s).slice(1)).join(' or ')} vs Dread D${weather.check.dd || 8}.`, 'warn');
+    if (typeof renderLastSeaInfo === 'function') renderLastSeaInfo();
+    return;
+  }
   const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
   advanceDay(clicks * DAYS_PER_WEEK);
 }
 
 function registerLastSeaIslandTravel(hexClicks) {
   ensureStarsState();
+  const weather = S.lastSea && S.lastSea.weather;
+  if (weather && weather.check && !weather.checkResolved) {
+    showNotif(`Weather check required: ${(weather.check.stats || ['lead']).map(s => String(s).charAt(0).toUpperCase() + String(s).slice(1)).join(' or ')} vs Dread D${weather.check.dd || 8}.`, 'warn');
+    if (typeof renderLastSeaInfo === 'function') renderLastSeaInfo();
+    return;
+  }
   const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
   advanceDay(clicks);
 }

@@ -89,7 +89,7 @@
     spring: [
       { label: "Salt Mist", rough: false, desc: "A cool marine haze softens the horizon but leaves the water workable." },
       { label: "Silver Rain", rough: false, desc: "Fine rain moves in sheets across open water. Visibility dips, but the sea stays even." },
-      { label: "Crosswind Squall", rough: true, desc: "Short violent gusts kick the waves sideways and fight the helm." },
+      { label: "Crosswind Squall", rough: true, desc: "Short violent gusts kick the waves sideways and fight the helm.", check: { dd: 8, stats: ["lead", "control"], failure: "+1 Mental Stress" } },
       { label: "Clear Current", rough: false, desc: "Cold bright light and a steady current make for excellent sailing." },
       { label: "Bloom Tide", rough: false, desc: "Pollen and sea-glow drift over the surface in strange pastel bands." },
       { label: "Stormfront", rough: true, desc: "Dark clouds stack low over the sea and every sail strains under the pressure." },
@@ -1116,14 +1116,76 @@
       S.lastSea.weather = rollLastSeaWeather();
     }
     const weather = S.lastSea.weather;
+    const weatherCheckPending = !!(weather.check && !weather.checkResolved);
+    const weatherCheckNote = weather.check
+      ? `<div style="font-size:.78rem;color:var(--red2);margin-top:.2rem;">Rough sea. ${weather.check.stats.map(capitalize).join(" or ")} vs Dread D${weather.check.dd} required before pressing on.</div>`
+      : (weather.rough ? '<div style="font-size:.78rem;color:var(--red2);margin-top:.2rem;">Rough sea. Pilots will likely test Lead or Control before pressing on.</div>' : "");
+    const weatherCheckButtons = weatherCheckPending
+      ? `<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+          <button class="btn btn-xs btn-warn" onclick="resolveLastSeaWeatherCheck('lead')">⚄ Lead vs Dread D${weather.check.dd}</button>
+          <button class="btn btn-xs btn-teal" onclick="resolveLastSeaWeatherCheck('control')">⚄ Control vs Dread D${weather.check.dd}</button>
+        </div>`
+      : "";
+    const weatherCheckResult = weather.checkResolved && weather.checkLast
+      ? `<div style="font-size:.76rem;color:${weather.checkLast.success ? "var(--green2)" : "var(--red2)"};margin-top:.2rem;">Weather check complete: ${capitalize(weather.checkLast.stat)} d${weather.checkLast.statDie}=${weather.checkLast.statRoll} vs Dread d${weather.checkLast.dd}=${weather.checkLast.dreadRoll} (${weather.checkLast.success ? "success" : "failure"}).</div>`
+      : "";
     return `
       <div class="weather-block ${weather.rough ? "rough" : "clear"}">
         <div class="weather-label" style="color:${weather.rough ? "var(--red2)" : "var(--teal)"};">${capitalize(S.currentSeason || "spring")} Weather: ${weather.label}</div>
         <div style="font-size:.81rem;color:var(--text2);">${weather.desc}</div>
-        ${weather.rough ? '<div style="font-size:.78rem;color:var(--red2);margin-top:.2rem;">Rough sea. Pilots will likely test Lead or Control before pressing on.</div>' : ""}
+        ${weatherCheckNote}
+        ${weatherCheckButtons}
+        ${weatherCheckResult}
       </div>
     `;
   }
+
+  function resolveLastSeaWeatherCheck(stat) {
+    if (!S.lastSea || !S.lastSea.weather || !S.lastSea.weather.check) {
+      showNotif('No weather check required right now.', 'warn');
+      return;
+    }
+    const weather = S.lastSea.weather;
+    if (weather.checkResolved) {
+      showNotif('Weather check already resolved for current conditions.', 'good');
+      return;
+    }
+    const chosen = String(stat || '').toLowerCase();
+    const allowed = Array.isArray(weather.check.stats) ? weather.check.stats : ['lead'];
+    const checkStat = allowed.indexOf(chosen) >= 0 ? chosen : allowed[0];
+    const statDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie(checkStat) : ((S.stats && S.stats[checkStat]) || 4);
+    const dd = Number(weather.check.dd) || 8;
+    const statRoll = explodingRoll(statDie).total;
+    const dreadRoll = explodingRoll(dd).total;
+    const success = statRoll >= dreadRoll;
+
+    weather.checkResolved = true;
+    weather.checkLast = {
+      stat: checkStat,
+      statDie,
+      statRoll,
+      dd,
+      dreadRoll,
+      success
+    };
+
+    if (!success) {
+      if (typeof changeMentalStress === 'function') {
+        changeMentalStress(1);
+      } else {
+        S.mentalStress = (S.mentalStress || 0) + 1;
+        if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+      }
+    }
+
+    showNotif(
+      `${capitalize(checkStat)} d${statDie}=${statRoll} vs Dread d${dd}=${dreadRoll}. ${success ? 'Sea lane stabilized.' : 'You push through under strain (+1 Mental Stress).'}`,
+      success ? 'good' : 'warn'
+    );
+    renderLastSeaMap();
+    renderLastSeaInfo();
+  }
+  window.resolveLastSeaWeatherCheck = resolveLastSeaWeatherCheck;
 
   function renderLastSeaInfo(cell) {
     const panel = document.getElementById("lastSeaInfo");

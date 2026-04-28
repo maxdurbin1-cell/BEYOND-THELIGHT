@@ -276,6 +276,8 @@ function updateDieDisplay(key) {
   if (gearBonus.advDice && gearBonus.advDice.length) displayText += '/Ad' + Math.max.apply(null, gearBonus.advDice);
   if (gearBonus.addDice && gearBonus.addDice.length) displayText += '+d' + gearBonus.addDice.join('+d');
   if (gearBonus.flat > 0) displayText += '+' + gearBonus.flat;
+  const relicBonusCount = typeof getPermanentAdventureBonusCount === 'function' ? getPermanentAdventureBonusCount(key) : 0;
+  if (relicBonusCount > 0) displayText += '+A.D.' + (relicBonusCount > 1 ? 'x' + relicBonusCount : '');
 
   el.textContent = displayText;
   el.className = dieClass(value);

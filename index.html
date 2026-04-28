@@ -1428,7 +1428,16 @@ function ensureAdvancedGearState() {
 }
 
 function normalizeItemName(text) {
-  return String(text || '').split('(')[0].trim();
+  return normalizeLegacyLootAlias(String(text || '').split('(')[0].trim());
+}
+
+function normalizeLegacyLootAlias(text) {
+  var clean = String(text || '').trim();
+  var lower = clean.toLowerCase();
+  if (lower === 'reveal') return 'Reveal Traps';
+  if (lower === 'relic') return 'Relic of the Builders';
+  if (lower.indexOf('relic of the builders') >= 0) return 'Relic of the Builders';
+  return clean;
 }
 
 function isSpaceArmorLayerName(name) {
@@ -2374,6 +2383,8 @@ function rollAttack(type) {
   // +A.D. additive adventure die
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4,{type:'action',major:true,label:'Adventure Bonus'}) : null;
   if(adBonus) baseTotal += adBonus.total;
+  var relicRolls = getPermanentAdventureBonusRolls(type, type === 'strike' ? 'Strike Relic' : 'Shoot Relic');
+  baseTotal += sumAdventureBonusRolls(relicRolls);
   // Augmentation bonus always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie,{type:'action',major:true,label:'Augment'}) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
@@ -2390,6 +2401,7 @@ function rollAttack(type) {
   var breakdown = ra.breakdown;
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
+  breakdown += formatAdventureBonusRolls(relicRolls);
   if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
   if(enemyBonus > 0) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(+Sonic Shock '+enemyBonus+')</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
@@ -2463,6 +2475,8 @@ function rollDefend(skipEnemyTurnTick) {
   // +A.D. from Shield: roll adventure die and ADD to result
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4,{type:'action',major:true,label:'Adventure Bonus'}) : null;
   if(adBonus) baseTotal += adBonus.total;
+  var relicRolls = getPermanentAdventureBonusRolls('defend', 'Defend Relic');
+  baseTotal += sumAdventureBonusRolls(relicRolls);
   var gearAddRolls = (gearBonus.addDice || []).map(function(dieSize){ return explodingRoll(dieSize,{type:'action',major:true,label:'Gear Bonus'}); });
   gearAddRolls.forEach(function(rollObj){ baseTotal += rollObj.total; });
   // Augmentation bonus (SUBDERMAL ARMOR +d4) always additive
@@ -2480,6 +2494,7 @@ function rollDefend(skipEnemyTurnTick) {
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
   if(holyShieldRoll) breakdown += ' <span style="font-size:.7rem;color:var(--gold);">(Holy Shield +Spirit d'+(S.stats.spirit||4)+'='+holyShieldRoll.total+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
+  breakdown += formatAdventureBonusRolls(relicRolls);
   if(gearAddRolls.length) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(' + gearAddRolls.map(function(rollObj, idx){ return '+d'+gearBonus.addDice[idx]+'='+rollObj.total; }).join(' ') + ')</span>';
   if(S.combat&&S.combat.sceneDefendBonus) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(+AEGIES '+S.combat.sceneDefendBonus+')</span>';
   if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
@@ -2756,6 +2771,7 @@ function consumeBackpackItemByName(name) {
 // Add a text string to the first empty backpack slot. Returns true on success.
 function addToBackpack(text) {
   var incoming = parseBackpackStack(text);
+  incoming.name = normalizeLegacyLootAlias(incoming.name);
   if (!incoming.name) return false;
 
   // Stack identical items first.
@@ -2787,7 +2803,7 @@ function addToBackpack(text) {
 function findShopItem(nameText) {
   if (!nameText) return null;
   var stackParts = parseBackpackStack(nameText);
-  var cleanName = stackParts.name.split('(')[0].trim().replace(/\s+[-–]\s+.*/, '').trim();
+  var cleanName = normalizeLegacyLootAlias(stackParts.name.split('(')[0].trim().replace(/\s+[-–]\s+.*/, '').trim());
   var allCats = Object.keys(SHOP_DATA);
   for (var ci = 0; ci < allCats.length; ci++) {
     var items = SHOP_DATA[allCats[ci]];
@@ -3092,11 +3108,16 @@ function showBackpackItem(index) {
   if (!text) return;
   var found = findShopItem(text);
   if (!found) {
+    var customAction = getCustomBackpackAction(text);
     // Check for "Scroll: X" prefix — treat as a castable scroll
     var isScrollPrefix = /^Scroll:/i.test(text.trim());
     var hasAD = /A\.D\.|Ad\d|d\d/i.test(text);
     var btnHtml = '';
-    if (isScrollPrefix) {
+    if (customAction === 'attuneRelicOfBuilders') {
+      btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="attuneRelicOfBuilders('+index+');">✦ Attune Relic</button> ';
+    } else if (customAction === 'readBuildersLetter') {
+      btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="readBuildersLetter('+index+');">📜 Read Letter</button> ';
+    } else if (isScrollPrefix) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="castScrollFromBackpack('+index+');">⚄ Cast Scroll</button> ';
     } else if (hasAD) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useCustomItem(\''+text.replace(/'/g,"\\'")+'\',' + index + ');">⚄ Roll A.D.</button> ';
@@ -3568,7 +3589,15 @@ function useBackpackItem(index) {
   if (!text) return;
   ensureAdvancedGearState();
   var found = findShopItem(text);
-  if (!found) return;
+  if (!found) {
+    var customAction = getCustomBackpackAction(text);
+    if (customAction === 'attuneRelicOfBuilders') {
+      attuneRelicOfBuilders(index);
+    } else if (customAction === 'readBuildersLetter') {
+      readBuildersLetter(index);
+    }
+    return;
+  }
   var item = found.item;
   var name = item.name;
   var cat = found.cat;
@@ -3754,6 +3783,82 @@ function useCustomItem(text, index){
   // Custom items are infinite use — no removal
 }
 
+function ensureExplorationEffectState() {
+  S.explorationEffects = S.explorationEffects || { revealTraps: 0 };
+}
+
+function ensureRelicBonusState() {
+  S.relicAdventureBonuses = S.relicAdventureBonuses || {};
+}
+
+function getPermanentAdventureBonusCount(statKey) {
+  ensureRelicBonusState();
+  var key = String(statKey || '').toLowerCase();
+  return Math.max(0, Number(S.relicAdventureBonuses[key] || 0));
+}
+
+function getPermanentAdventureBonusRolls(statKey, label) {
+  var count = getPermanentAdventureBonusCount(statKey);
+  if (!count) return [];
+  var advDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+  var rolls = [];
+  for (var i = 0; i < count; i++) {
+    rolls.push(explodingRoll(advDie, { type:'action', major:true, label:(label || 'Relic Bonus') + ' +' + (i + 1) }));
+  }
+  return rolls;
+}
+
+function sumAdventureBonusRolls(rolls) {
+  return (rolls || []).reduce(function(total, rollObj) {
+    return total + Number((rollObj && rollObj.total) || 0);
+  }, 0);
+}
+
+function formatAdventureBonusRolls(rolls) {
+  if (!rolls || !rolls.length) return '';
+  return ' <span style="font-size:.7rem;color:var(--gold2);">(' + rolls.map(function(rollObj, idx) {
+    return '+A.D.' + (rolls.length > 1 ? '#' + (idx + 1) : '') + '=' + rollObj.total;
+  }).join(' ') + ')</span>';
+}
+
+function getCustomBackpackAction(text) {
+  var clean = normalizeLegacyLootAlias(normalizeItemName(parseBackpackStack(text).name || text)).toLowerCase();
+  if (clean === 'relic of the builders') return 'attuneRelicOfBuilders';
+  if (clean === 'builder\'s letter') return 'readBuildersLetter';
+  return '';
+}
+
+function attuneRelicOfBuilders(index) {
+  var text = (S.backpack && S.backpack[index]) || '';
+  if (!text) return;
+  openModal('Relic of the Builders', '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+    + 'Attune the relic to one stat. That stat permanently gains <strong style="color:var(--gold2);">+A.D.</strong> on its rolls.'
+    + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.55rem;">'
+    + ['body','mind','spirit','control','lead','strike','shoot','defend'].map(function(statKey) {
+      var label = statKey.charAt(0).toUpperCase() + statKey.slice(1);
+      return '<button class="btn btn-xs btn-teal" onclick="applyRelicAttunement(' + index + ',\'' + statKey + '\')">' + label + '</button>';
+    }).join('')
+    + '</div></div>');
+}
+
+function applyRelicAttunement(index, statKey) {
+  ensureRelicBonusState();
+  var key = String(statKey || '').toLowerCase();
+  S.relicAdventureBonuses[key] = Math.max(0, Number(S.relicAdventureBonuses[key] || 0)) + 1;
+  removeBackpackItem(index);
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof closeModal === 'function') closeModal();
+  showNotif('Relic attuned: ' + key.charAt(0).toUpperCase() + key.slice(1) + ' now gains +A.D. permanently.', 'good');
+}
+
+function readBuildersLetter(index) {
+  openModal('Builder\'s Letter', '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+    + 'The paper is brittle but intact. In cramped script it reads:<br><br>'
+    + '<em style="color:var(--muted2);">If you inherit these halls, trust the blue tiles, distrust the silent door, and do not wake what learns your name.</em>'
+    + '<br><br><span style="font-size:.76rem;color:var(--gold2);">This letter can be kept as a clue item.</span>'
+    + '</div>');
+}
+
 // Cast a scroll from a backpack slot — indefinite use, Mind die vs Adventure die
 function castScrollFromBackpack(index) {
   var text = S.backpack[index];
@@ -3795,6 +3900,12 @@ function castScrollFromBackpack(index) {
     ? '<br><span style="color:var(--teal);font-size:.82rem;">⟡ ' + scrollItem.condition.charAt(0).toUpperCase() + scrollItem.condition.slice(1) + ' applied!</span>'
     : '';
 
+  if (castSuccess && scrollName.toLowerCase() === 'reveal traps') {
+    ensureExplorationEffectState();
+    S.explorationEffects.revealTraps = Math.max(0, Number(S.explorationEffects.revealTraps || 0)) + 1;
+    condNote += '<br><span style="color:var(--gold2);font-size:.82rem;">⟡ The next trap you encounter in exploration is revealed and disarmed.</span>';
+  }
+
   var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
     + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d' + mindDie + ' vs Adventure d' + advDie + '</div>'
     + '<strong style="color:' + (castSuccess ? 'var(--green2)' : 'var(--red)') + ';">'
@@ -3821,7 +3932,8 @@ function useToolkit(statKey, backpackIndex) {
   var advDie = S.stats.adventure || 4;
   var statRoll = explodingRoll(statDie);
   var advRoll = explodingRoll(advDie);
-  var kept = statRoll.total >= advRoll.total ? statRoll.total : advRoll.total;
+  var relicRolls = getPermanentAdventureBonusRolls(statKey, 'Relic Bonus');
+  var kept = (statRoll.total >= advRoll.total ? statRoll.total : advRoll.total) + sumAdventureBonusRolls(relicRolls);
   var label = statKey.charAt(0).toUpperCase() + statKey.slice(1);
   var keptNote = statRoll.total >= advRoll.total
     ? '(' + label + ' d' + statDie + '=' + statRoll.total + ' kept, A.D. d' + advDie + '=' + advRoll.total + ')'
@@ -3830,7 +3942,7 @@ function useToolkit(statKey, backpackIndex) {
     '<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">'
     + label + ' vs A.D. Advantage<br>'
     + '<strong style="color:var(--teal);">Result: ' + kept + '</strong> '
-    + '<span style="font-size:.78rem;color:var(--muted2);">' + keptNote + '</span>'
+    + '<span style="font-size:.78rem;color:var(--muted2);">' + keptNote + '</span>' + formatAdventureBonusRolls(relicRolls)
     + '</div>');
   removeBackpackItem(backpackIndex);
   clearConditionOnUse(statKey);
@@ -5777,13 +5889,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.qpRollStat = function(statKey, label) {
     var die = (typeof getEffectiveDie==='function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) ? S.stats[statKey] : 4);
     var rr = qpRollWithAdvMode(die);
+    var relicRolls = getPermanentAdventureBonusRolls(statKey, label + ' Relic');
+    var relicTotal = sumAdventureBonusRolls(relicRolls);
     var radPenalty = (typeof getRadPenaltyForStat==='function') ? getRadPenaltyForStat(statKey) : 0;
-    var finalTotal = Math.max(0, rr.total - radPenalty);
+    var finalTotal = Math.max(0, rr.total + relicTotal - radPenalty);
     var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' vs d'+rr.advDie+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
     var detail2 = rr.flat ? (' <span style="color:var(--gold2);">'+(rr.flat>0?'+':'')+rr.flat+'</span>') : '';
     var detail3 = radPenalty ? (' <span style="color:var(--red2);">- '+radPenalty+' rad</span>') : '';
     document.getElementById('qpRollResult').innerHTML =
-      '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + detail3 + '</span> = <strong style="color:var(--teal);font-size:1.2rem;">' + finalTotal + '</strong>';
+      '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + detail3 + '</span>' + formatAdventureBonusRolls(relicRolls) + ' = <strong style="color:var(--teal);font-size:1.2rem;">' + finalTotal + '</strong>';
     qpPushDiceResult(label+' d'+die,finalTotal,'var(--teal)');
     if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
     var condEl=document.getElementById('qpCondState');
@@ -6306,12 +6420,135 @@ document.addEventListener('DOMContentLoaded',()=>{
     renderHexInfo(hex);
   };
 
-  function rollProvinceRuinLoot(){
-    const pools=['items','essentials','toolkits','scrolls','remedies'];
-    const p=pick(pools);
-    const arr=(SHOP_DATA&&Array.isArray(SHOP_DATA[p]))?SHOP_DATA[p]:[];
-    if(arr.length)return pick(arr).name;
-    return pick(['Scrap Cache','Ancient Relic','Stimulant','Trade Good']);
+  const PROVINCE_RUIN_PUZZLES=[
+    {mode:'code',title:'Puzzle: Builder Cipher',prompt:'A slab reads: SILENCE -> ? The builders reversed key words to open maintenance locks. Enter the reversed word.',answer:'ecnelis'},
+    {mode:'rearrange',title:'Puzzle: Prayer Ring',prompt:'Arrange the words into the correct sealing phrase.',bank:['THE','GATE','OPENS','AT','DAWN'],answer:'the gate opens at dawn'},
+    {mode:'memory',title:'Puzzle: Sigil Sequence',prompt:'The sigils flash once, then go dark. Rebuild the sequence before the lock hardens.',sequence:['ASH','SUN','KEY','ASH'],bank:['ASH','SUN','KEY','WAVE']},
+    {mode:'mosaic',title:'Puzzle: Mosaic Relay',prompt:'Restore the mural order that routes power through the chamber.',bank:['SUN','ARCH','KEY'],answer:'sun arch key'},
+    {mode:'crossword',title:'Puzzle: Archive Lattice',prompt:'Complete the builders\' crossword lattice to unlock the compartment.',clues:[{clue:'Old-world route marker',answer:'gate'},{clue:'A written clue or record',answer:'note'}]}
+  ];
+
+  function pickProvinceRuinItem(cat){
+    const arr=(SHOP_DATA&&Array.isArray(SHOP_DATA[cat]))?SHOP_DATA[cat]:[];
+    if(!arr.length)return '';
+    const entry=pick(arr);
+    return entry&&entry.name?entry.name:'';
+  }
+
+  function rollProvinceRuinLoot(kind){
+    const reward={items:[],credits:0,summary:''};
+    if(kind==='major'){
+      const major=roll(10);
+      if(major===1){reward.items=[pickProvinceRuinItem(pick(['weapons','melee_exp','ranged_exp']))];reward.summary='A named weapon sealed in a case';}
+      else if(major===2){reward.items=[pickProvinceRuinItem(pick(['armor','armor_exp']))];reward.summary='A full suit of armor from the builder\'s era';}
+      else if(major===3){reward.items=[pickProvinceRuinItem('scrolls')];reward.summary='A scroll sealed with the builder\'s crest';}
+      else if(major===4){reward.items=[pickProvinceRuinItem('items'),pickProvinceRuinItem('items')].filter(Boolean);reward.summary='A field medic\'s cache';}
+      else if(major===5){reward.items=[pickProvinceRuinItem('remedies'),pickProvinceRuinItem('remedies')].filter(Boolean);reward.summary='A remedy pouch left by the last survivor';}
+      else if(major===6){reward.credits=roll(6)*roll(6)*20;reward.summary='Ancient pressed coin';}
+      else if(major===7){reward.items=[pickProvinceRuinItem('strange')];reward.summary='A Strange Item marked with arcane script';}
+      else if(major===8){reward.items=[pickProvinceRuinItem('tradegoods')];reward.summary='A sealed Trade Good';}
+      else if(major===9){reward.items=[pickProvinceRuinItem('scrolls'),pickProvinceRuinItem('essentials'),pickProvinceRuinItem('items')].filter(Boolean);reward.summary='A pre-packed explorer cache';}
+      else {reward.items=['Relic of the Builders'];reward.summary='A relic of the builders';}
+    }else{
+      const pools=['items','essentials','toolkits','scrolls','remedies'];
+      const p=pick(pools);
+      const itemName=pickProvinceRuinItem(p);
+      if(itemName)reward.items=[itemName];
+      reward.summary=itemName||pick(['Scrap Cache','Ancient Relic','Stimulant','Trade Good']);
+    }
+    return reward;
+  }
+
+  function applyProvinceRuinReward(reward){
+    const applied=[];
+    if(!reward||typeof reward!=='object')return 'No reward recovered.';
+    if(reward.credits){
+      S.credits=(S.credits||0)+Number(reward.credits||0);
+      if(typeof updateCreditsUI==='function')updateCreditsUI();
+      applied.push('+'+reward.credits+'₵');
+    }
+    (reward.items||[]).filter(Boolean).forEach(function(itemName){
+      const stored=(typeof addToBackpack==='function')?addToBackpack(itemName):false;
+      applied.push(itemName+(stored?' → Backpack':' (Backpack full — note it)'));
+    });
+    return applied.length?applied.join(' · '):(reward.summary||'No reward recovered.');
+  }
+
+  function buildProvinceRuinRoomDescription(hex,room){
+    if(room.type==='Entrance') return hex.data.entrance||'A foreboding threshold. Stone worn smooth by centuries of passage.';
+    if(room.type==='Lair') return pick(RUIN_LAIR_DESC);
+    if(room.type==='Obstacle') return pick(RUIN_OBSTACLE_DESC);
+    if(room.type==='Trap') return pick(RUIN_TRAP_DESC);
+    if(room.type==='Puzzle') return pick(RUIN_PUZZLE_DESC);
+    if(room.type==='Secret Cache') return pick(RUIN_SECRET_DESC);
+    if(room.type==='Boss Chamber') return pick(RUIN_BOSS_DESC);
+    if(room.type==='Shrine Room') return pick(RUIN_SHRINE_DESC);
+    return 'Dust, silence, and the faint smell of something long dead. Take a breath. This room is clear.';
+  }
+
+  function createProvinceRuinPuzzleSpec(){
+    const puzzle=pick(PROVINCE_RUIN_PUZZLES);
+    return JSON.parse(JSON.stringify(puzzle));
+  }
+
+  function ensureProvinceRuinRoomState(hex){
+    if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms))return;
+    hex.data.provinceRuinRooms.forEach(function(room){
+      if(!room.description)room.description=buildProvinceRuinRoomDescription(hex,room);
+      if(room.type==='Puzzle'&&!room.puzzle)room.puzzle=createProvinceRuinPuzzleSpec();
+    });
+  }
+
+  function getProvinceRuinTrapCharge(){
+    ensureExplorationEffectState();
+    return Math.max(0,Number(S.explorationEffects.revealTraps||0));
+  }
+
+  function consumeProvinceRuinTrapCharge(){
+    ensureExplorationEffectState();
+    S.explorationEffects.revealTraps=Math.max(0,Number(S.explorationEffects.revealTraps||0)-1);
+  }
+
+  window.startProvinceRuinPuzzle = function(col,row,idx){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
+    if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms)||!hex.data.provinceRuinRooms[idx])return;
+    ensureProvinceRuinRoomState(hex);
+    const room=hex.data.provinceRuinRooms[idx];
+    if(room.cleared||room.type!=='Puzzle')return;
+    if(typeof openStandaloneStoryPuzzle!=='function'){
+      showNotif('Puzzle system unavailable. Falling back to a standard roll.', 'warn');
+      return;
+    }
+    openStandaloneStoryPuzzle({
+      mode:room.puzzle.mode,
+      title:room.puzzle.title,
+      prompt:room.puzzle.prompt,
+      answer:room.puzzle.answer,
+      sequence:room.puzzle.sequence,
+      bank:room.puzzle.bank,
+      clues:room.puzzle.clues,
+      thresholdLabel:'Ruin Puzzle',
+      successThreshold:0.7,
+      partialThreshold:0.45,
+      onResolve:function(result){
+        if(result==='success'||result==='partial'){
+          const reward=rollProvinceRuinLoot();
+          const rewardText=applyProvinceRuinReward(reward);
+          if(result==='partial'&&typeof changeStress==='function')changeStress(1);
+          room.result=(result==='success'?'🧩 Solved':'🧩 Partial success')+' — '+rewardText+(result==='partial'?' · Take 1 Stress from backlash.':'');
+          room.cleared=true;
+          if(typeof addSuccessRoll==='function')addSuccessRoll();
+        }else{
+          if(typeof changeStress==='function')changeStress(2);
+          if(S.conditions)S.conditions.distracted=true;
+          if(typeof updateConditionButtons==='function')updateConditionButtons();
+          if(typeof addTMWOnFail==='function')addTMWOnFail();
+          room.result='🧩 Failed — runes flare, take 2 Stress, and become Distracted.';
+          room.cleared=true;
+        }
+        openProvinceRuinPopup(col,row);
+      }
+    });
   }
 
   window.openProvinceRuinPopup = function(col,row){
@@ -6328,25 +6565,24 @@ document.addEventListener('DOMContentLoaded',()=>{
       rooms.push({idx:count,type:roll(2)===1?'Boss Chamber':'Secret Cache',cleared:false,result:''});
       hex.data.provinceRuinRooms=rooms;
     }
+    ensureProvinceRuinRoomState(hex);
     const rows=hex.data.provinceRuinRooms.map(function(room,i){
       const typeColor = room.type==='Boss Chamber'?'var(--red2)':room.type==='Secret Cache'?'var(--gold)':room.type==='Shrine Room'?'var(--purple)':room.type==='Puzzle'?'var(--teal)':'var(--text2)';
       const typeIcon = room.type==='Entrance'?'🚪':room.type==='Lair'?'👁':room.type==='Obstacle'?'⛰':room.type==='Trap'?'⚠':room.type==='Puzzle'?'🧩':room.type==='Secret Cache'?'🔍':room.type==='Boss Chamber'?'💀':room.type==='Shrine Room'?'✦':'◻';
-      let roomDesc = '';
-      if(room.type==='Entrance') roomDesc = hex.data.entrance||'A foreboding threshold. Stone worn smooth by centuries of passage.';
-      else if(room.type==='Lair') roomDesc = pick(RUIN_LAIR_DESC);
-      else if(room.type==='Obstacle') roomDesc = pick(RUIN_OBSTACLE_DESC);
-      else if(room.type==='Trap') roomDesc = pick(RUIN_TRAP_DESC);
-      else if(room.type==='Puzzle') roomDesc = pick(RUIN_PUZZLE_DESC);
-      else if(room.type==='Secret Cache') roomDesc = pick(RUIN_SECRET_DESC);
-      else if(room.type==='Boss Chamber') roomDesc = pick(RUIN_BOSS_DESC);
-      else if(room.type==='Shrine Room') roomDesc = pick(RUIN_SHRINE_DESC);
-      else roomDesc = 'Dust, silence, and the faint smell of something long dead. Take a breath. This room is clear.';
+      let roomDesc = room.description || buildProvinceRuinRoomDescription(hex,room);
       const dreadForRoom = room.type==='Boss Chamber'?12:room.type==='Horror'?10:room.type==='Trap'||room.type==='Obstacle'?6:8;
+      const trapNote = room.type==='Trap'&&getProvinceRuinTrapCharge()>0?'<div style="font-size:.72rem;color:var(--gold2);margin-top:.2rem;">Reveal Traps is active: this trap will be exposed and disarmed.</div>':'';
+      const actionHtml = room.cleared
+        ? '<div style="font-size:.7rem;color:var(--green);margin-top:.2rem;">✓ Cleared</div>'
+        : room.type==='Puzzle'
+          ? '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="startProvinceRuinPuzzle('+col+','+row+','+i+')">🧩 Solve Puzzle</button></div>'
+          : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+i+')">⚄ Explore (Action vs DD'+dreadForRoom+')</button></div>';
       return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid '+typeColor+';padding-left:.5rem;">'
         + '<div class="rb-title" style="color:'+typeColor+';">'+typeIcon+' Room '+room.idx+' — '+room.type+'</div>'
         + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">'+roomDesc+'</div>'
+        + trapNote
         + (room.result?('<div style="margin-top:.28rem;padding:.25rem .4rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);">'+room.result+'</div>'):'')
-        + (room.cleared?'<div style="font-size:.7rem;color:var(--green);margin-top:.2rem;">✓ Cleared</div>':'<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+i+')">⚄ Explore (Action vs DD'+dreadForRoom+')</button></div>')
+        + actionHtml
       + '</div>';
     }).join('');
     const cleared = hex.data.provinceRuinRooms.filter(function(r){return r.cleared;}).length;
@@ -6364,26 +6600,38 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.resolveProvinceRuinRoom = function(col,row,idx){
     const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
     if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms)||!hex.data.provinceRuinRooms[idx])return;
+    ensureProvinceRuinRoomState(hex);
     const room=hex.data.provinceRuinRooms[idx];
     if(room.cleared)return;
+    if(room.type==='Puzzle'){
+      startProvinceRuinPuzzle(col,row,idx);
+      return;
+    }
+    if(room.type==='Trap'&&getProvinceRuinTrapCharge()>0){
+      consumeProvinceRuinTrapCharge();
+      room.result='Reveal Traps exposes the mechanism before it fires. The trap is safely disarmed.';
+      room.cleared=true;
+      if(typeof addSuccessRoll==='function')addSuccessRoll();
+      openProvinceRuinPopup(col,row);
+      return;
+    }
     const dreadForRoom = room.type==='Boss Chamber'?12:room.type==='Trap'||room.type==='Obstacle'?6:8;
     const actionDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
     const a=explodingRoll(actionDie,{type:'action',major:true,label:'Ruin '+room.type});
     const d=explodingRoll(dreadForRoom,{type:'dread',major:true,label:'Ruin DD'+dreadForRoom});
     if(a.total>=d.total){
-      let loot=rollProvinceRuinLoot();
+      let reward=rollProvinceRuinLoot();
       // Boss Chamber and Secret Cache give better loot
-      if(room.type==='Boss Chamber'||room.type==='Secret Cache') loot=pick(RUIN_TREASURE);
-      let stored=false;
-      if(typeof addToBackpack==='function')stored=!!addToBackpack(loot.split(' ')[0]);
+      if(room.type==='Boss Chamber'||room.type==='Secret Cache') reward=rollProvinceRuinLoot('major');
+      const rewardText=applyProvinceRuinReward(reward);
       // Shrine Room — also grants a condition
       if(room.type==='Shrine Room'&&typeof toggleCond==='function'){
         const shrineGifts=['empowered','bolstered','focused','protected'];
         const gift=pick(shrineGifts);
         if(!S.conditions[gift]){toggleCond(gift);}
-        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✦ Shrine answered: '+gift.charAt(0).toUpperCase()+gift.slice(1)+' granted. '+loot+' recovered.';
+        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✦ Shrine answered: '+gift.charAt(0).toUpperCase()+gift.slice(1)+' granted. '+rewardText;
       } else {
-        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✓ Success — '+loot+(stored?' → Backpack.':' (Backpack full — note it).');
+        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✓ Success — '+rewardText;
       }
       room.cleared=true;
       if(typeof addSuccessRoll==='function')addSuccessRoll();

@@ -2137,6 +2137,8 @@
       typed: "",
       lastClue: "",
       revealed: false,
+      externalResolve: null,
+      externalThresholds: null,
     };
     return window._storyPuzzle;
   }
@@ -2159,6 +2161,8 @@
     p.typed = "";
     p.lastClue = "";
     p.revealed = false;
+    p.externalResolve = null;
+    p.externalThresholds = null;
   }
 
   function puzzleTierForScene(sceneId) {
@@ -2385,7 +2389,7 @@
         + "<input id='storyPuzzleInput' class='input' placeholder='Type your decoded answer' style='width:100%;margin-bottom:.45rem;'/>";
     }
 
-    const tier = puzzleTierForScene(p.sceneId);
+    const tier = p.externalThresholds || puzzleTierForScene(p.sceneId);
 
     const html = ""
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.4rem;'>" + p.prompt + "</div>"
@@ -2428,6 +2432,36 @@
       p.bank = Array.from(new Set(p.sequence));
     }
 
+    renderPuzzleModal();
+  }
+
+  function openStandaloneStoryPuzzle(config) {
+    const p = ensurePuzzleSession();
+    p.sceneId = "__external__";
+    p.optionId = "__external__";
+    p.mode = config.mode || "code";
+    p.title = config.title || "Story Puzzle";
+    p.prompt = config.prompt || "";
+    p.answer = String(config.answer || "").trim().toLowerCase();
+    p.sequence = Array.isArray(config.sequence) ? config.sequence.slice() : [];
+    p.selected = [];
+    p.bank = Array.isArray(config.bank) ? config.bank.slice() : [];
+    p.clues = Array.isArray(config.clues) ? config.clues.slice() : [];
+    p.gridTemplate = Array.isArray(config.gridTemplate) ? config.gridTemplate.slice() : [];
+    p.gridRows = Number(config.gridRows || p.gridTemplate.length || 0);
+    p.gridCols = Number(config.gridCols || (p.gridTemplate[0] ? p.gridTemplate[0].length : 0));
+    p.typed = "";
+    p.lastClue = "";
+    p.revealed = false;
+    p.externalResolve = typeof config.onResolve === "function" ? config.onResolve : null;
+    p.externalThresholds = {
+      label: config.thresholdLabel || "Standalone",
+      success: Number(config.successThreshold || 0.7),
+      partial: Number(config.partialThreshold || 0.45)
+    };
+    if (p.mode === "memory" && !p.bank.length) {
+      p.bank = Array.from(new Set(p.sequence));
+    }
     renderPuzzleModal();
   }
 
@@ -2641,10 +2675,12 @@
     const actionDie = (typeof getEffectiveDie === "function") ? getEffectiveDie(statKey) : Number((S.stats && S.stats[statKey]) || 4);
     const a = (typeof explodingRoll === "function") ? explodingRoll(actionDie) : { total: Math.floor(Math.random() * actionDie) + 1, exploded: false };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dreadDie) : { total: Math.floor(Math.random() * dreadDie) + 1, exploded: false };
+    const relicRolls = (typeof window.getPermanentAdventureBonusRolls === "function") ? window.getPermanentAdventureBonusRolls(statKey, "Story Relic") : [];
+    const relicTotal = (typeof window.sumAdventureBonusRolls === "function") ? window.sumAdventureBonusRolls(relicRolls) : 0;
     const bonus = (typeof window.getFactionStoryRollBonus === "function" && factionKey)
       ? Number(window.getFactionStoryRollBonus(factionKey, statKey) || 0)
       : 0;
-    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus);
+    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus) + relicTotal;
     return {
       success: effectiveTotal >= d.total,
       actionDie: actionDie,
@@ -3282,6 +3318,27 @@
   window.storyPuzzleRollForClue = rollStoryPuzzleClue;
   window.storyPuzzleResolve = function (attemptSubmit) {
     const p = ensurePuzzleSession();
+    if (p.externalResolve) {
+      let result = "fail";
+      const tier = p.externalThresholds || { success: 0.7, partial: 0.45 };
+      if (attemptSubmit) {
+        const score = puzzleAttemptScore();
+        if (score >= tier.success || puzzleSuccessByInput()) result = "success";
+        else if (score >= tier.partial) result = "partial";
+        else {
+          if (typeof showNotif === "function") {
+            showNotif("Puzzle attempt: " + Math.round(score * 100) + "% accuracy. Need " + Math.round(tier.partial * 100) + "% for partial progress.", "warn");
+          }
+          return;
+        }
+      }
+
+      const resolver = p.externalResolve;
+      if (typeof closeModal === "function") closeModal();
+      resetPuzzleSession();
+      try { resolver(result); } catch (_err) {}
+      return;
+    }
     const scene = SCENES[p.sceneId];
     if (!scene) return;
     const option = (scene.options || []).find(function (o) { return o.id === p.optionId; });
@@ -3305,4 +3362,5 @@
     resolveStoryOption(p.sceneId, option, result);
     resetPuzzleSession();
   };
+  window.openStandaloneStoryPuzzle = openStandaloneStoryPuzzle;
 })();

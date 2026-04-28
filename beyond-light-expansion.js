@@ -1351,6 +1351,31 @@
     if (typeof updateTrauma === 'function') updateTrauma();
   }
 
+  function getSeaNarrativeItemFlags() {
+    var carried = [];
+    if (Array.isArray(S.backpack)) {
+      carried = carried.concat(S.backpack.filter(Boolean));
+    }
+    if (S.equipped && typeof S.equipped === 'object') {
+      carried = carried.concat(Object.keys(S.equipped).map(function (k) { return S.equipped[k]; }).filter(Boolean));
+    }
+    if (S.naval && S.naval.ship && Array.isArray(S.naval.ship.cargo)) {
+      carried = carried.concat(S.naval.ship.cargo.filter(Boolean));
+    }
+    var text = carried.join(' | ').toLowerCase();
+    var factionRegex = /(faction|corporation|underworld|religious|political|military|royal|rebel|guild|charter|insignia|sigil|seal|token|badge|writ|contract|banner)/;
+    return {
+      torch: /torch|lantern/.test(text),
+      compass: /compass|spyglass|sextant/.test(text),
+      factionItem: factionRegex.test(text)
+    };
+  }
+
+  function seaNarrativeBonusLine(parts) {
+    if (!parts || !parts.length) return '';
+    return '<div style="font-size:.75rem;color:var(--teal);margin-top:.12rem;">Narrative item bonus: ' + parts.join(' · ') + '</div>';
+  }
+
   function buildSeaSettlementDowntimePanel(hex) {
     if (!hex || hex.siteType !== 'settlement') return '';
     var pending = hex.pendingDowntimeEvent;
@@ -1411,6 +1436,7 @@
     if (!hex || hex.siteType !== 'settlement') return;
     var pool = seaSettlementDowntimeEvents(activity);
     var evt = pool[Math.max(0, roll(pool.length) - 1)];
+    evt.activity = String(activity || 'talk').toLowerCase();
     hex.pendingDowntimeEvent = evt;
     hex.downtimeLastResult = null;
     renderLastSeaInfo(hex);
@@ -1423,11 +1449,33 @@
     if (!hex || !evt) return;
     var key = String(statKey || 'lead').toLowerCase();
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
+    var itemFlags = getSeaNarrativeItemFlags();
+    var checkBonus = 0;
+    var checkBonusNotes = [];
+    if (itemFlags.compass && (key === 'lead' || key === 'control')) {
+      checkBonus += 2;
+      checkBonusNotes.push('Compass +2 to navigation checks');
+    }
+    if (itemFlags.torch && evt.activity === 'explore') {
+      checkBonus += 1;
+      checkBonusNotes.push('Torchlight +1 while exploring');
+    }
     var a = explodingRoll(die);
     var d = explodingRoll(evt.dd || 6);
+    if (checkBonus) a.total += checkBonus;
     var success = a.total >= d.total;
+    var outcomeBonusNotes = [];
     if (success) {
       applySeaDowntimeEffect(evt.successEffect);
+      if (itemFlags.compass && evt.activity === 'explore') {
+        S.credits = (S.credits || 0) + 20;
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        outcomeBonusNotes.push('Compass route intel +20 credits');
+      }
+      if (itemFlags.factionItem && evt.activity === 'talk') {
+        if (typeof changeCounter === 'function') changeCounter('renown', 1);
+        outcomeBonusNotes.push('Faction token leverage +1 Renown');
+      }
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
     } else {
       applySeaDowntimeEffect(evt.failEffect);
@@ -1436,7 +1484,7 @@
     hex.downtimeLastResult = {
       success: success,
       check: key.toUpperCase() + ' d' + die + '=' + a.total + ' vs DD' + (evt.dd || 6) + '=' + d.total,
-      text: success ? evt.success : evt.failure
+      text: (success ? evt.success : evt.failure) + seaNarrativeBonusLine(checkBonusNotes.concat(outcomeBonusNotes))
     };
     hex.pendingDowntimeEvent = null;
     renderLastSeaInfo(hex);
@@ -1446,13 +1494,23 @@
   function resolveSeaIslandPerilCheck(col, row) {
     var hex = seaHexByCoord(col, row);
     if (!hex) return;
+    var itemFlags = getSeaNarrativeItemFlags();
+    var bonusNotes = [];
     var leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
     var leadRoll = explodingRoll(leadDie).total;
+    if (itemFlags.compass) {
+      leadRoll += 2;
+      bonusNotes.push('Compass +2 Lead');
+    }
     var dreadRoll = explodingRoll(6).total;
     var success = leadRoll >= dreadRoll;
     var stress = success ? 0 : Math.max(1, dreadRoll - leadRoll);
+    if (!success && itemFlags.torch) {
+      stress = Math.max(0, stress - 1);
+      bonusNotes.push('Torch reduces fog stress by 1');
+    }
     if (stress) ensureMentalStress(stress);
-    hex.resultHtml = `<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead d${leadDie}=${leadRoll} vs DD6=${dreadRoll}. ${success ? 'You guide everyone through the fog.' : '+' + stress + ' Mental Stress from disorientation and panic.'}</div>`;
+    hex.resultHtml = `<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead d${leadDie}=${leadRoll} vs DD6=${dreadRoll}. ${success ? 'You guide everyone through the fog.' : '+' + stress + ' Mental Stress from disorientation and panic.'}</div>${seaNarrativeBonusLine(bonusNotes)}`;
     renderLastSeaInfo(hex);
     showNotif(success ? 'Fog route secured.' : 'Fog peril hit the crew.', success ? 'good' : 'warn');
   }
@@ -1460,12 +1518,18 @@
   function resolveSeaExhaustionCheck(col, row) {
     var hex = seaHexByCoord(col, row);
     if (!hex) return;
+    var itemFlags = getSeaNarrativeItemFlags();
+    var bonusNotes = [];
     var spiritDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('spirit') : ((S.stats && S.stats.spirit) || 4);
     var spiritRoll = explodingRoll(spiritDie).total;
+    if (itemFlags.torch) {
+      spiritRoll += 1;
+      bonusNotes.push('Torch steadies the march (+1)');
+    }
     var dreadRoll = explodingRoll(6).total;
     var success = spiritRoll >= dreadRoll;
     if (!success) ensureTrauma(1);
-    hex.resultHtml = `<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Trauma Check: Spirit d${spiritDie}=${spiritRoll} vs DD6=${dreadRoll}. ${success ? 'You keep pressing inland without long-term harm.' : '+1 Trauma before pressing farther inland.'}</div>`;
+    hex.resultHtml = `<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Trauma Check: Spirit d${spiritDie}=${spiritRoll} vs DD6=${dreadRoll}. ${success ? 'You keep pressing inland without long-term harm.' : '+1 Trauma before pressing farther inland.'}</div>${seaNarrativeBonusLine(bonusNotes)}`;
     renderLastSeaInfo(hex);
     showNotif(success ? 'Exhaustion check passed.' : 'Exhaustion causes trauma.', success ? 'good' : 'warn');
   }
@@ -1481,11 +1545,17 @@
   function resolveSeaPirateLandOutcome(col, row, success) {
     var hex = seaHexByCoord(col, row);
     if (!hex) return;
+    var itemFlags = getSeaNarrativeItemFlags();
+    var bonusNotes = [];
     if (success) {
       if (typeof changeCounter === 'function') changeCounter('renown', 1);
+      if (itemFlags.factionItem && typeof changeCounter === 'function') {
+        changeCounter('renown', 1);
+        bonusNotes.push('Faction item intimidation +1 Renown');
+      }
       S.credits = (S.credits || 0) + 30;
       if (typeof updateCreditsUI === 'function') updateCreditsUI();
-      hex.resultHtml = '<div class="sea-result-title">Pirates Defeated</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You clear the inland path. +1 Renown and +30 credits.</div>';
+      hex.resultHtml = '<div class="sea-result-title">Pirates Defeated</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You clear the inland path. +1 Renown and +30 credits.</div>' + seaNarrativeBonusLine(bonusNotes);
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
       showNotif('Inland pirates defeated.', 'good');
     } else {
@@ -1514,9 +1584,20 @@
       ? S.lastSea.map.find(function (h) { return h.key === S.lastSea.selectedKey; })
       : null;
     if (!hex) return;
+    var itemFlags = getSeaNarrativeItemFlags();
+    var bonusNotes = [];
     if (success) {
       if (typeof changeCounter === 'function') changeCounter('renown', 1);
-      hex.resultHtml = '<div class="sea-result-title">Ship Combat Won</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You control the lane. +1 Renown.</div>';
+      if (itemFlags.compass) {
+        S.credits = (S.credits || 0) + 30;
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        bonusNotes.push('Compass salvage route +30 credits');
+      }
+      if (itemFlags.factionItem && typeof changeCounter === 'function') {
+        changeCounter('renown', 1);
+        bonusNotes.push('Faction colors rally allies +1 Renown');
+      }
+      hex.resultHtml = '<div class="sea-result-title">Ship Combat Won</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You control the lane. +1 Renown.</div>' + seaNarrativeBonusLine(bonusNotes);
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
       showNotif('Sea lane secured.', 'good');
     } else {
@@ -1545,8 +1626,14 @@
     if (!hex || !hex.pendingSeaSkirmish) return;
     var state = hex.pendingSeaSkirmish;
     state.joined = side === 'B' ? 'B' : 'A';
+    var itemFlags = getSeaNarrativeItemFlags();
+    var bonusNotes = [];
     if (!state.rewarded && typeof changeCounter === 'function') {
       changeCounter('renown', 1);
+      if (itemFlags.factionItem) {
+        changeCounter('renown', 1);
+        bonusNotes.push('Faction token influence +1 Renown');
+      }
       state.rewarded = true;
     }
     if (typeof switchTab === 'function') {
@@ -1554,7 +1641,7 @@
       if (combatBtn) switchTab('combat', combatBtn);
     }
     var ally = state.joined === 'A' ? state.sideA : state.sideB;
-    hex.resultHtml = `<div class="sea-result-title">Sea Skirmish - Joined ${ally}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You gain +1 Renown for choosing a side. Resolve skirmish using Combat tab controls, then lock the result below.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-success" onclick="resolveSeaSkirmishOutcome(${col},${row},true)">✓ Your Side Won</button><button class="btn btn-xs btn-red" onclick="resolveSeaSkirmishOutcome(${col},${row},false)">✗ Your Side Lost</button></div>`;
+    hex.resultHtml = `<div class="sea-result-title">Sea Skirmish - Joined ${ally}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You gain +1 Renown for choosing a side. Resolve skirmish using Combat tab controls, then lock the result below.</div>${seaNarrativeBonusLine(bonusNotes)}<div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-success" onclick="resolveSeaSkirmishOutcome(${col},${row},true)">✓ Your Side Won</button><button class="btn btn-xs btn-red" onclick="resolveSeaSkirmishOutcome(${col},${row},false)">✗ Your Side Lost</button></div>`;
     renderLastSeaInfo(hex);
     showNotif('Skirmish side chosen: ' + ally + '.', 'good');
   }
@@ -1661,6 +1748,8 @@
   function resolveSeaEncounter(action, target, effects) {
     effects = effects || {};
     let msg = '';
+    const itemFlags = getSeaNarrativeItemFlags();
+    const bonusNotes = [];
     const addMentalStress = function(amount) {
       const val = Math.max(0, Number(amount) || 0);
       if (!val) return;
@@ -1709,6 +1798,10 @@
         const controlDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
         const dreadDie = effects.dread || 8;
         const actionRoll = explodingRoll(controlDie);
+        if (itemFlags.compass) {
+          actionRoll.total += 2;
+          bonusNotes.push('Compass +2 Control');
+        }
         const dreadRoll = explodingRoll(dreadDie);
         const success = actionRoll.total >= dreadRoll.total;
         if (!success && effects.requireFightOnFail) {
@@ -1743,18 +1836,33 @@
         msg = `Paid tribute to ${target}.`;
       }
     } else if (action === 'negotiate') {
-      if (effects.cost && (S.credits||0) >= effects.cost) {
-        S.credits = (S.credits||0) - effects.cost;
+      var negotiationCost = effects.cost || 0;
+      if (itemFlags.factionItem && negotiationCost > 0) {
+        negotiationCost = Math.max(0, negotiationCost - 20);
+        bonusNotes.push('Faction credentials reduce fee by 20₵');
+      }
+      if (negotiationCost && (S.credits||0) >= negotiationCost) {
+        S.credits = (S.credits||0) - negotiationCost;
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
-        msg = `Negotiated with ${target} (−${effects.cost}₵). You walk away without Mental Stress.`;
-      } else if (effects.cost) {
-        showNotif(`Not enough credits (need ${effects.cost}₵)`, 'warn'); return;
+        msg = `Negotiated with ${target} (−${negotiationCost}₵). You walk away without Mental Stress.`;
+      } else if (negotiationCost) {
+        showNotif(`Not enough credits (need ${negotiationCost}₵)`, 'warn'); return;
       } else { msg = `Negotiated with ${target}. You walk away without Mental Stress.`; }
     } else if (action === 'rescue') {
       if (effects.renown) { S.renown = (S.renown||0) + effects.renown; if (typeof updateRenownUI === 'function') updateRenownUI(); }
+      if (itemFlags.factionItem) {
+        S.renown = (S.renown || 0) + 1;
+        if (typeof updateRenownUI === 'function') updateRenownUI();
+        bonusNotes.push('Faction aid symbol inspires trust (+1 Renown)');
+      }
       msg = `Rescued ${target}! +${effects.renown||0} Renown.`;
     } else if (action === 'salvage') {
       if (effects.credits) { S.credits = (S.credits||0) + effects.credits; if (typeof updateCreditsUI === 'function') updateCreditsUI(); }
+      if (itemFlags.compass) {
+        S.credits = (S.credits || 0) + 20;
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        bonusNotes.push('Compass marks extra salvage (+20₵)');
+      }
       msg = `Salvaged ${target}! +${effects.credits||0}₵.`;
     } else if (action === 'avoid' || action === 'ignore') {
       msg = `Sailed past ${target}.`;
@@ -1775,6 +1883,9 @@
       msg = `Resisted ${target}! +${stressApplied||0} Mental Stress.`;
     }
 
+    if (bonusNotes.length) {
+      msg += ' [' + bonusNotes.join(' | ') + ']';
+    }
     concludeSeaEncounter(msg || 'Action resolved.', 'good');
   }
 

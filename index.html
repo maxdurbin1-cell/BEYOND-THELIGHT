@@ -1669,10 +1669,27 @@ function pushLuck(pool) {
 function spendTMW(n) { if (S.tmw < n) { showNotif('Not enough TMW!', 'warn'); return; } S.tmw -= n; updateTMWPool(); showNotif('Spent ' + n + ' TMW. Pool: ' + S.tmw); closeModal(); }
 
 // ── COMBAT ───────────────────────────────────────────────────────────────────
+function prepareCombatTurnStart(){
+  if(!S.combat)S.combat={};
+  S.combat.autoReloaderShots=0;
+  S.combat.autoReloaderActionSpent=false;
+  if((S.combat.weaponLockRounds||0)>0){
+    S.combat.weaponLockRounds=Math.max(0,(S.combat.weaponLockRounds||0)-1);
+  }
+  if((S.combat.playerSkipTurns||0)>0){
+    S.combat.playerSkipTurns=Math.max(0,(S.combat.playerSkipTurns||0)-1);
+    S.combat.actionsLeft=0;
+    showNotif('Short Circuit: you lose this turn.','warn');
+    return;
+  }
+  S.combat.actionsLeft=getMaxActions();
+}
+
 function startCombat(){
   S.combat.active=true;
   S.combat.round=1;
-  S.combat.actionsLeft=getMaxActions();
+  prepareCombatTurnStart();
+  S.combat.sceneDefendBonus=0;
   S.combat.enemyDefendsThisTurn=0;
   updateCombatUI();
   // AUDIO: Combat started
@@ -1681,10 +1698,15 @@ function startCombat(){
     window.AudioManager.playMusic('music-combat', true);
   }
 }
-function nextRound(){S.combat.round++;S.combat.actionsLeft=getMaxActions();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
+function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
 function endCombat(){
   S.combat.active=false;
   S.combat.round=0;
+  S.combat.sceneDefendBonus=0;
+  S.combat.playerSkipTurns=0;
+  S.combat.weaponLockRounds=0;
+  S.combat.autoReloaderShots=0;
+  S.combat.autoReloaderActionSpent=false;
   halfStress();
   clearAllConditions();
   updateCombatUI();
@@ -1697,6 +1719,297 @@ function endCombat(){
 }
 function updateCombatUI(){const el=document.getElementById('combatStatus');if(el)el.textContent=S.combat.active?`Round ${S.combat.round} — Active Scene`:'No active scene.';const al=document.getElementById('actionsLeft');if(al)al.textContent=S.combat.actionsLeft;const ml=document.getElementById('maxActionsHint');if(ml)ml.textContent='(max '+getMaxActions()+')';}
 function setEnemyDread(n){S.combat.enemyDread=n;document.getElementById('enemyDreadDisplay').textContent='d'+n;}
+
+function getPrimaryCombatEnemy(){
+  if(!Array.isArray(S.enemies))return null;
+  for(var i=0;i<S.enemies.length;i++){
+    if(S.enemies[i]&&!S.enemies[i].ally)return S.enemies[i];
+  }
+  return null;
+}
+
+function ensureEnemyEffectState(enemy){
+  if(!enemy)return null;
+  enemy.effectState=enemy.effectState||{};
+  var st=enemy.effectState;
+  if(typeof st.dreadStepDown!=='number')st.dreadStepDown=0;
+  if(typeof st.skipTurns!=='number')st.skipTurns=0;
+  if(typeof st.rebootOpticsRounds!=='number')st.rebootOpticsRounds=0;
+  if(typeof st.weaponGlitchRounds!=='number')st.weaponGlitchRounds=0;
+  if(typeof st.parasyteRounds!=='number')st.parasyteRounds=0;
+  if(typeof st.parasyteStress!=='number')st.parasyteStress=0;
+  if(typeof st.vulnerableRounds!=='number')st.vulnerableRounds=0;
+  if(typeof st.sonicShockBonus!=='number')st.sonicShockBonus=0;
+  if(!Array.isArray(st.customConditions))st.customConditions=[];
+  if(!Array.isArray(enemy.conditions))enemy.conditions=[];
+  return st;
+}
+
+function formatEnemyConditionLabel(label, rounds){
+  return rounds>0?label+' '+rounds+'r':label;
+}
+
+function syncEnemyConditionList(enemy){
+  if(!enemy)return;
+  var st=ensureEnemyEffectState(enemy);
+  var labels=[];
+  if(st.vulnerableRounds>0)labels.push(formatEnemyConditionLabel('Vulnerable',st.vulnerableRounds));
+  if(st.dreadStepDown>0)labels.push('Ping');
+  if(st.skipTurns>0)labels.push(formatEnemyConditionLabel('Short Circuit',st.skipTurns));
+  if(st.rebootOpticsRounds>0)labels.push(formatEnemyConditionLabel('Reboot Optics',st.rebootOpticsRounds));
+  if(st.weaponGlitchRounds>0)labels.push(formatEnemyConditionLabel('Weapon Glitch',st.weaponGlitchRounds));
+  if(st.parasyteRounds>0)labels.push(formatEnemyConditionLabel('Parasyte',st.parasyteRounds));
+  if(st.sonicShockBonus>0)labels.push('Sonic Shock +'+st.sonicShockBonus);
+  enemy.conditions=labels.concat(st.customConditions);
+}
+
+function getEnemyEffectiveDread(enemy){
+  if(!enemy)return (S.combat&&S.combat.enemyDread)||8;
+  var st=ensureEnemyEffectState(enemy);
+  var dread=enemy.dread||((S.combat&&S.combat.enemyDread)||8);
+  while(st.dreadStepDown>0&&dread>4){
+    dread=stepDown(dread);
+    st.dreadStepDown--;
+    st.dreadStepDown++;
+    break;
+  }
+  for(var i=1;i<st.dreadStepDown;i++)dread=stepDown(dread);
+  return dread;
+}
+
+function getEnemyDisplayDread(enemy){
+  var effective=getEnemyEffectiveDread(enemy);
+  var base=(enemy&&enemy.dread)||((S.combat&&S.combat.enemyDread)||8);
+  return effective===base?'d'+effective:'d'+effective+' (from d'+base+')';
+}
+
+function rollEnemyDreadWithEffects(enemy,label){
+  var st=ensureEnemyEffectState(enemy);
+  var effectiveDie=getEnemyEffectiveDread(enemy);
+  if(st.rebootOpticsRounds>0){
+    var higherDie=stepUp(effectiveDie);
+    var baseRoll=explodingRoll(effectiveDie,{type:'dread',major:true,label:label||'Enemy DD'});
+    var highRoll=explodingRoll(higherDie,{type:'dread',major:true,label:(label||'Enemy DD')+' Disadv'});
+    var kept=Math.min(baseRoll.total,highRoll.total);
+    return {total:kept,effectiveDie:effectiveDie,disadvantage:true,baseRoll:baseRoll,highRoll:highRoll};
+  }
+  var rollObj=explodingRoll(effectiveDie,{type:'dread',major:true,label:label||'Enemy DD'});
+  return {total:rollObj.total,effectiveDie:effectiveDie,roll:rollObj};
+}
+
+function applyStressToEnemy(enemy, stress, source){
+  if(!enemy)return;
+  var dmg=Math.max(1,parseInt(stress,10)||1);
+  enemy.stress=Math.min(enemy.maxStress||dmg,(enemy.stress||0)+dmg);
+  if(enemy.stress>=(enemy.maxStress||enemy.stress)){
+    var defeated=enemy.name;
+    S.enemies=(S.enemies||[]).filter(function(entry){return entry!==enemy;});
+    var next=getPrimaryCombatEnemy();
+    var nextText=next?(' Next target: '+next.name+'.'):'';
+    showNotif(defeated+' eliminated!'+nextText,'good');
+  }else if(source){
+    showNotif(source+' dealt '+dmg+' Stress to '+enemy.name+'.','good');
+  }
+  if(typeof renderEnemies==='function')renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+}
+
+function finalizeEnemyTurn(enemy){
+  if(!enemy)return;
+  var st=ensureEnemyEffectState(enemy);
+  if(st.parasyteRounds>0&&st.parasyteStress>0){
+    applyStressToEnemy(enemy,st.parasyteStress,'Parasyte');
+    st.parasyteRounds=Math.max(0,st.parasyteRounds-1);
+  }
+  if(st.vulnerableRounds>0)st.vulnerableRounds=Math.max(0,st.vulnerableRounds-1);
+  if(st.rebootOpticsRounds>0)st.rebootOpticsRounds=Math.max(0,st.rebootOpticsRounds-1);
+  if(st.weaponGlitchRounds>0)st.weaponGlitchRounds=Math.max(0,st.weaponGlitchRounds-1);
+  if(st.dreadStepDown>0)st.dreadStepDown=0;
+  syncEnemyConditionList(enemy);
+  if(typeof renderEnemies==='function')renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+}
+
+function consumeEnemyTurnBlock(enemy){
+  if(!enemy)return false;
+  var st=ensureEnemyEffectState(enemy);
+  if(st.skipTurns<=0)return false;
+  st.skipTurns=Math.max(0,st.skipTurns-1);
+  showNotif(enemy.name+' loses this turn.','good');
+  finalizeEnemyTurn(enemy);
+  syncEnemyConditionList(enemy);
+  return true;
+}
+
+function applyEnemyCombatCondition(enemy, condition, rounds){
+  if(!enemy)return '';
+  var st=ensureEnemyEffectState(enemy);
+  var key=String(condition||'').toLowerCase();
+  var span=Math.max(1,parseInt(rounds,10)||1);
+  if(key==='vulnerable')st.vulnerableRounds=Math.max(st.vulnerableRounds,span);
+  else if(key==='ping')st.dreadStepDown=Math.max(st.dreadStepDown,1);
+  else if(key==='short circuit')st.skipTurns=Math.max(st.skipTurns,span);
+  else if(key==='reboot optics')st.rebootOpticsRounds=Math.max(st.rebootOpticsRounds,span);
+  else if(key==='weapon glitch')st.weaponGlitchRounds=Math.max(st.weaponGlitchRounds,span);
+  else if(key==='parasyte')st.parasyteRounds=Math.max(st.parasyteRounds,span);
+  else if(key==='sonic shock')st.sonicShockBonus=Math.max(st.sonicShockBonus,1);
+  else if(st.customConditions.indexOf(condition)<0)st.customConditions.push(condition);
+  syncEnemyConditionList(enemy);
+  if(typeof renderEnemies==='function')renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+  return enemy.name+' is now '+condition+'.';
+}
+
+function applyCombatHackEffect(hackName){
+  var enemy=getPrimaryCombatEnemy();
+  if(!enemy)return '';
+  var st=ensureEnemyEffectState(enemy);
+  switch(hackName){
+    case 'Javelin':
+      var javelinStress=roll(10);
+      applyStressToEnemy(enemy,javelinStress,'Javelin');
+      return 'Deals <strong>'+javelinStress+' Stress</strong> to '+enemy.name+'. (1d10)';
+    case 'Ember':
+      applyEnemyCombatCondition(enemy,'vulnerable',1);
+      return enemy.name+' is <strong>Vulnerable</strong> for 1 round.';
+    case 'Short Circuit':
+      st.skipTurns=Math.max(st.skipTurns,2);
+      syncEnemyConditionList(enemy);
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return enemy.name+' <strong>loses 2 turns</strong>.';
+    case 'Reboot Optics':
+      st.rebootOpticsRounds=Math.max(st.rebootOpticsRounds,3);
+      syncEnemyConditionList(enemy);
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return enemy.name+' rolls with <strong>Step Up Disadvantage</strong> for 3 rounds.';
+    case 'Weapon Glitch':
+      st.weaponGlitchRounds=Math.max(st.weaponGlitchRounds,2);
+      syncEnemyConditionList(enemy);
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return enemy.name+' suffers <strong>Weapon Glitch</strong> for 2 rounds.';
+    case 'Ping':
+      st.dreadStepDown=Math.max(st.dreadStepDown,1);
+      syncEnemyConditionList(enemy);
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return enemy.name+' has their <strong>Dread reduced one step</strong> until their next turn.';
+    case 'Sonic Shock':
+      st.sonicShockBonus=Math.max(st.sonicShockBonus,roll(4));
+      syncEnemyConditionList(enemy);
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return 'Gain <strong>+'+st.sonicShockBonus+'</strong> to attacks against '+enemy.name+'.';
+    case 'PARASYTE (Master)':
+      st.parasyteStress=Math.max(1,S.stats&&S.stats.adventure?roll(S.stats.adventure):1);
+      st.parasyteRounds=Math.max(st.parasyteRounds,12);
+      syncEnemyConditionList(enemy);
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return enemy.name+' takes <strong>'+st.parasyteStress+' Stress per round</strong> for 12 rounds.';
+    case 'AEGIES (Master)':
+      if(!S.combat.sceneDefendBonus)S.combat.sceneDefendBonus=0;
+      S.combat.sceneDefendBonus=Math.max(S.combat.sceneDefendBonus,10);
+      return 'You gain <strong>+10 to Defend Rolls</strong> for this Combat Scene.';
+    case 'COLLAPSE (Master)':
+      st.skipTurns=Math.max(st.skipTurns,99);
+      syncEnemyConditionList(enemy);
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return enemy.name+' is <strong>collapsed</strong> and cannot act.';
+    case 'SUICIDE (Master)':
+      applyStressToEnemy(enemy,enemy.maxStress||20,'SUICIDE');
+      return enemy.name+' is forced to <strong>destroy themselves</strong>.';
+    case 'LASHOUT (Master)':
+      return enemy.name+' is forced to <strong>lash out at the nearest target</strong>.';
+    default:
+      return '';
+  }
+}
+
+function activateAutoReloader(){
+  if(!Array.isArray(S.weaponMods)||S.weaponMods.indexOf('Auto Reloader')<0){showNotif('Auto Reloader is not installed.','warn');return;}
+  if((S.tmw||0)<2){showNotif('Need 2 TMW for Auto Reloader.','warn');return;}
+  S.tmw=Math.max(0,(S.tmw||0)-2);
+  if(typeof updateTMWPool==='function')updateTMWPool();
+  S.combat.autoReloaderShots=2;
+  S.combat.autoReloaderActionSpent=false;
+  showNotif('Auto Reloader primed: your next 2 Shoot actions share 1 action this turn.','good');
+  if(typeof renderQP==='function')renderQP('combat');
+}
+
+function applyEnemyHackToPlayer(hackName, enemy){
+  var note='';
+  if(hackName==='Javelin'){
+    var dmg=roll(10);
+    if(typeof changeHealth==='function')changeHealth(dmg);else changeStress(dmg);
+    note='Javelin hits for '+dmg+' Health.';
+  }else if(hackName==='Ember'){
+    S.conditions.vulnerable=true;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+    note='Ember makes you Vulnerable.';
+  }else if(hackName==='Short Circuit'){
+    S.combat.playerSkipTurns=Math.max(S.combat.playerSkipTurns||0,2);
+    note='Short Circuit blanks your next 2 turns.';
+  }else if(hackName==='Weapon Glitch'){
+    S.combat.weaponLockRounds=Math.max(S.combat.weaponLockRounds||0,2);
+    note='Weapon Glitch locks your attacks for 2 rounds.';
+  }else{
+    S.conditions.distracted=true;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+    note=hackName+' scrambles your systems.';
+  }
+  showNotif((enemy?enemy.name:'Enemy')+' hack: '+note, 'warn');
+}
+
+function resolveEnemyHackEvent(enemy){
+  if(!enemy)return;
+  var pendingHack=pick(['Javelin','Ember','Short Circuit','Reboot Optics','Weapon Glitch']);
+  var adventureDie=(typeof getEffectiveDie==='function')?getEffectiveDie('adventure'):(S.stats.adventure||4);
+  var r1=roll(adventureDie),r2=roll(adventureDie);
+  var low=Math.min(r1,r2),high=Math.max(r1,r2);
+  var dreadRoll=rollEnemyDreadWithEffects(enemy,'Enemy Hack DD');
+  var success=dreadRoll.total>=low&&dreadRoll.total<=high;
+  S.combat.pendingEnemyHack={enemyId:enemy.id,hackName:pendingHack,low:low,high:high,total:dreadRoll.total,die:dreadRoll.effectiveDie,success:success};
+  var hasCounterspell=Array.isArray(S.ownedHacks)&&S.ownedHacks.indexOf('Counterspell')>=0;
+  var canCounter=hasCounterspell&&(S.tmw||0)>=2;
+  if(canCounter&&typeof openModal==='function'){
+    openModal('Enemy Hack Incoming','<div style="font-size:.9rem;color:var(--text2);line-height:1.65;">'
+      +'<strong style="color:var(--red2);">'+enemy.name+'</strong> attempts <strong>'+pendingHack+'</strong>.<br>'
+      +'Adventure range: <strong style="color:var(--teal);">'+low+'-'+high+'</strong> · Enemy DD'+dreadRoll.effectiveDie+' = <strong style="color:var(--red2);">'+dreadRoll.total+'</strong><br><br>'
+      +'<button class="btn btn-xs btn-teal" onclick="finishEnemyHackEvent(true)">Counterspell (−2 TMW)</button> '
+      +'<button class="btn btn-xs btn-red" onclick="finishEnemyHackEvent(false)">Resolve Hack</button>'
+      +'</div>');
+    return;
+  }
+  finishEnemyHackEvent(false);
+}
+
+function finishEnemyHackEvent(countered){
+  if(!S.combat||!S.combat.pendingEnemyHack)return;
+  var pending=S.combat.pendingEnemyHack;
+  var enemy=Array.isArray(S.enemies)?S.enemies.find(function(entry){return entry.id===pending.enemyId;}) : null;
+  if(countered){
+    if((S.tmw||0)>=2){
+      S.tmw=Math.max(0,(S.tmw||0)-2);
+      if(typeof updateTMWPool==='function')updateTMWPool();
+      showNotif('Counterspell negates '+pending.hackName+'.','good');
+    }else{
+      showNotif('Not enough TMW to Counterspell.','warn');
+    }
+  }else if(pending.success){
+    applyEnemyHackToPlayer(pending.hackName,enemy);
+  }else{
+    showNotif((enemy?enemy.name:'Enemy')+' fails to land '+pending.hackName+'.','good');
+  }
+  S.combat.pendingEnemyHack=null;
+  if(typeof closeModal==='function')closeModal();
+  finalizeEnemyTurn(enemy||getPrimaryCombatEnemy());
+}
 
 // Return maximum actions per round from armor + bonuses.
 function parseArmorActions(){var a=(S&&S.equipment)?S.equipment.armor||'':'';var m=a.match(/(\d+)\s+Action/i);return m?parseInt(m[1],10):3;}
@@ -1773,15 +2086,18 @@ const ENEMY_ACTION_EVENTS=[
   {name:'Toxic Shrapnel',desc:'Debris bursts through the zone.',kind:'directStress',scale:1},
   {name:'Rad Leak',desc:'Irradiated coolant vents into your lane.',kind:'radiation',scale:8},
   {name:'Hull Impact',desc:'A heavy strike slams through cover.',kind:'healthStrike',scale:4},
-  {name:'Terror Broadcast',desc:'A panic-wave forces a trauma response.',kind:'forceTrauma'}
+  {name:'Terror Broadcast',desc:'A panic-wave forces a trauma response.',kind:'forceTrauma'},
+  {name:'Hostile Hack',desc:'The enemy tries to force your systems open.',kind:'hack'}
 ];
 
 function triggerEnemyActionEvent(){
-  if(!Array.isArray(S.enemies)||!S.enemies.length){showNotif('Add an enemy first.','warn');return;}
+  var actingEnemy=getPrimaryCombatEnemy();
+  if(!actingEnemy){showNotif('Add an enemy first.','warn');return;}
   maybeResetActionsAfterDefend();
+  if(consumeEnemyTurnBlock(actingEnemy))return;
   var ev=pick(ENEMY_ACTION_EVENTS);
-  var dd=S.combat&&S.combat.enemyDread?S.combat.enemyDread:8;
-  var dr=explodingRoll(dd,{type:'dread',major:true,label:'Enemy Event DD'});
+  var dr=rollEnemyDreadWithEffects(actingEnemy,'Enemy Event DD');
+  var dd=dr.effectiveDie;
   var summary='';
 
   if(ev.kind==='defendCheck'){
@@ -1819,16 +2135,24 @@ function triggerEnemyActionEvent(){
   }else if(ev.kind==='forceTrauma'){
     if(typeof rollTraumaCheck==='function')rollTraumaCheck();
     summary='Forced Trauma check triggered.';
+  }else if(ev.kind==='hack'){
+    resolveEnemyHackEvent(actingEnemy);
+    return;
   }
 
-  if(dr.exploded && typeof registerIncomingCritical==='function'){
+  if(((dr.roll&&dr.roll.exploded)||(dr.baseRoll&&dr.baseRoll.exploded)||(dr.highRoll&&dr.highRoll.exploded)) && typeof registerIncomingCritical==='function'){
     registerIncomingCritical('Enemy Action Dread Critical');
     summary += ' Dread exploded: Injury rolled.';
   }
 
+  if(dr.disadvantage){
+    summary += ' <span style="font-size:.72rem;color:var(--gold2);">(Reboot Optics active: low of d'+dd+' and d'+stepUp(dd)+')</span>';
+  }
+
   var res=document.getElementById('enemyActionResult');
-  if(res)res.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+summary+' <span style="font-size:.74rem;color:var(--muted2);">(DD'+dd+'='+dr.total+(dr.exploded?' ✦':'')+')</span>';
+  if(res)res.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+summary+' <span style="font-size:.74rem;color:var(--muted2);">(DD'+dd+'='+dr.total+')</span>';
   showNotif('Enemy Action: '+ev.name,'warn');
+  finalizeEnemyTurn(actingEnemy);
   updateCombatUI();
   if(typeof renderQP==='function')renderQP('combat');
 }
@@ -2009,12 +2333,22 @@ function clearConditionOnUse(key) {
 }
 
 function rollAttack(type) {
+  if(type==='shoot'&&S.combat&&S.combat.weaponLockRounds>0){showNotif('Weapon Glitch: your weapons are locked this round.','warn');return;}
   if(!canUseAttackAtCurrentRange(type)){
     if(type==='strike')showNotif('Strike requires Engaged range. Move first.','warn');
     else showNotif('Shoot requires a valid range for your weapon (default: Nearby).','warn');
     return;
   }
-  if(!consumeCombatAction(type==='strike'?'Strike action':'Shoot action'))return;
+  if(type==='shoot'&&S.combat&&S.combat.autoReloaderShots>0){
+    if(!S.combat.autoReloaderActionSpent){
+      if(!consumeCombatAction('Shoot action'))return;
+      S.combat.autoReloaderActionSpent=true;
+    }else{
+      showNotif('Auto Reloader: second Shoot shares the same action.','good');
+    }
+    S.combat.autoReloaderShots=Math.max(0,(S.combat.autoReloaderShots||0)-1);
+    if(S.combat.autoReloaderShots<=0)S.combat.autoReloaderActionSpent=false;
+  }else if(!consumeCombatAction(type==='strike'?'Strike action':'Shoot action'))return;
 
   var die = type === 'strike' ? S.stats.strike : S.stats.shoot;
   var augDie = getAugBonus(type);
@@ -2046,7 +2380,10 @@ function rollAttack(type) {
   var radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(type) : 0;
   var effectiveTotal = Math.max(0, total - radPenalty);
 
-  var d = explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Enemy DD'});
+  var targetEnemy=getPrimaryCombatEnemy();
+  var d = targetEnemy ? rollEnemyDreadWithEffects(targetEnemy,'Enemy DD') : {total:explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Enemy DD'}).total,effectiveDie:S.combat.enemyDread};
+  var enemyBonus=targetEnemy&&targetEnemy.effectState?Number(targetEnemy.effectState.sonicShockBonus||0):0;
+  if(enemyBonus>0)effectiveTotal+=enemyBonus;
   var success = effectiveTotal >= d.total;
   var diff = Math.max(1, effectiveTotal - d.total);
 
@@ -2054,6 +2391,7 @@ function rollAttack(type) {
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
   if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
+  if(enemyBonus > 0) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(+Sonic Shock '+enemyBonus+')</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var modNotes = [];
@@ -2084,6 +2422,11 @@ function rollAttack(type) {
   // Auto-apply stress to the first tracked enemy on successful Strike/Shoot.
   if(success && Array.isArray(S.enemies) && S.enemies.length){
     applyStressToCurrentEnemy(diff, type);
+  }
+
+  if(success&&targetEnemy&&targetEnemy.effectState&&targetEnemy.effectState.sonicShockBonus>0){
+    targetEnemy.effectState.sonicShockBonus=0;
+    syncEnemyConditionList(targetEnemy);
   }
 
   if(!success){
@@ -2125,6 +2468,7 @@ function rollDefend(skipEnemyTurnTick) {
   // Augmentation bonus (SUBDERMAL ARMOR +d4) always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie,{type:'action',major:true,label:'Augment'}) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
+  if(S.combat&&S.combat.sceneDefendBonus)total += Number(S.combat.sceneDefendBonus||0);
   var radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat('defend') : 0;
   var effectiveTotal = Math.max(0, total - radPenalty);
 
@@ -2137,6 +2481,7 @@ function rollDefend(skipEnemyTurnTick) {
   if(holyShieldRoll) breakdown += ' <span style="font-size:.7rem;color:var(--gold);">(Holy Shield +Spirit d'+(S.stats.spirit||4)+'='+holyShieldRoll.total+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
   if(gearAddRolls.length) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(' + gearAddRolls.map(function(rollObj, idx){ return '+d'+gearBonus.addDice[idx]+'='+rollObj.total; }).join(' ') + ')</span>';
+  if(S.combat&&S.combat.sceneDefendBonus) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(+AEGIES '+S.combat.sceneDefendBonus+')</span>';
   if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
@@ -2195,32 +2540,17 @@ function damageEnemyHealth(idx,amount){
   showNotif(S.enemies[idx].name+' took '+amount+' Health damage',amount>0?'warn':'good');
 }
 
-function applyEnemyCondition(idx,condition){
+function applyEnemyCondition(idx,condition,rounds){
   if(!Array.isArray(S.enemies)||!S.enemies[idx])return;
-  if(!Array.isArray(S.enemies[idx].conditions))S.enemies[idx].conditions=[];
-  if(S.enemies[idx].conditions.indexOf(condition)<0){
-    S.enemies[idx].conditions.push(condition);
-    renderQP('combat');
-    showNotif(S.enemies[idx].name+' is now '+condition, 'warn');
-  }
+  applyEnemyCombatCondition(S.enemies[idx],condition,rounds||1);
+  showNotif(S.enemies[idx].name+' is now '+condition, 'warn');
 }
 function applyStressToCurrentEnemy(stress,source){
-  if(!Array.isArray(S.enemies)||!S.enemies.length)return;
-  const dmg=Math.max(1,parseInt(stress,10)||1);
-  const e=S.enemies[0];
-  e.stress=Math.min(e.maxStress,(e.stress||0)+dmg);
-  if(e.stress>=e.maxStress){
-    const defeated=e.name;
-    S.enemies.shift();
-    const next=S.enemies.length?(' Next target: '+S.enemies[0].name+'.'):'';
-    showNotif(defeated+' eliminated!'+next,'good');
-  }else{
-    showNotif((source==='shoot'?'Shoot':'Strike')+' dealt '+dmg+' Stress to '+e.name+'.','good');
-  }
-  renderEnemies();
-  if(typeof renderQP==='function')renderQP('combat');
+  var enemy=getPrimaryCombatEnemy();
+  if(!enemy)return;
+  applyStressToEnemy(enemy,stress,source==='shoot'?'Shoot':'Strike');
 }
-function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';return;}c.innerHTML=S.enemies.map(e=>`<div class="enemy-card"><div style="flex:1;"><div style="font-family:\'Cinzel\',serif;font-size:.7rem;color:var(--gold2);">${e.name}</div><div style="font-size:.72rem;color:var(--muted2);">DD${e.dread} | ${e.stress}/${e.maxStress} Stress</div><div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button></div></div>`).join('');}
+function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';return;}c.innerHTML=S.enemies.map(e=>{ensureEnemyEffectState(e);syncEnemyConditionList(e);var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};">${e.name}${e.ally?' <span style="color:var(--muted2);font-size:.62rem;">ALLY</span>':''}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button></div></div>`;}).join('');}
 function enemyPip(id,i){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;
@@ -2240,7 +2570,21 @@ function removeEnemy(id){S.enemies=S.enemies.filter(e=>e.id===id?false:true);ren
 function enemyAttack(id){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;
-  const atk=explodingRoll(e.dread);
+  ensureEnemyEffectState(e);
+  if(e.ally){
+    const target=getPrimaryCombatEnemy();
+    if(!target||target===e){showNotif('No hostile enemy available for ally attack.','warn');return;}
+    const atk=rollEnemyDreadWithEffects(e,e.name+' DD');
+    const def=rollEnemyDreadWithEffects(target,target.name+' DD');
+    const hit=atk.total>def.total;
+    const dmg=Math.max(1,atk.total-def.total);
+    showNotif(`${e.name}: ${atk.total} vs ${target.name} ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'good':'warn');
+    if(hit)applyStressToEnemy(target,dmg,e.name);
+    finalizeEnemyTurn(e);
+    return;
+  }
+  if(consumeEnemyTurnBlock(e))return;
+  const atk=rollEnemyDreadWithEffects(e,e.name+' DD');
   const def=explodingRoll(S.stats.defend);
   const hit=atk.total>def.total;
   const dmg=Math.max(1,atk.total-def.total);
@@ -2256,6 +2600,7 @@ function enemyAttack(id){
   
   showNotif(`${e.name}: ${atk.total} vs your ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'warn':'good');
   if(hit)changeStress(dmg);
+  finalizeEnemyTurn(e);
 }
 function updateSkirmishActionUI(side){
   const army=side==='A'?S.combat.armyA:S.combat.armyB;
@@ -2456,6 +2801,92 @@ function findShopItem(nameText) {
   return null;
 }
 
+function ensureMessengerState(){
+  S.pendingMessages=Array.isArray(S.pendingMessages)?S.pendingMessages:[];
+}
+
+function buildMessengerReply(recipient, note){
+  var opens=['Received.', 'Got your note.', 'Message arrived.', 'Your courier made it.'];
+  var mids=['I will act at dusk.', 'I heard worse rumors this week.', 'Your timing is inconvenient, which means it matters.', 'I can meet after one more day on the road.'];
+  var tails=['Keep this channel quiet.', 'Do not send a second courier.', 'Burn this after reading.', 'I owe you an answer, not trust.'];
+  return pick(opens)+' '+pick(mids)+' '+pick(tails)+' '+(note?('Regarding "'+String(note).slice(0,40)+'".'):'');
+}
+
+function openMessengerComposer(){
+  if(typeof openModal!=='function')return;
+  openModal('Messenger','<div style="font-size:.9rem;color:var(--text2);line-height:1.6;">'
+    +'<div style="margin-bottom:.35rem;">Recipient</div>'
+    +'<input id="messengerRecipient" type="text" placeholder="Known landmark or contact" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;margin-bottom:.45rem;">'
+    +'<div style="margin-bottom:.35rem;">Note</div>'
+    +'<textarea id="messengerNote" rows="4" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.35rem .45rem;"></textarea>'
+    +'<div style="margin-top:.5rem;"><button class="btn btn-xs btn-teal" onclick="sendMessengerNote()">Send Note</button></div>'
+    +'</div>');
+}
+
+function sendMessengerNote(){
+  ensureMessengerState();
+  var recipient=(document.getElementById('messengerRecipient')||{}).value||'Unknown Contact';
+  var note=(document.getElementById('messengerNote')||{}).value||'';
+  S.pendingMessages.push({recipient:recipient,note:note,daysRemaining:1,response:buildMessengerReply(recipient,note)});
+  showNotif('Messenger dispatched. Reply expected in 1 day.','good');
+  if(typeof closeModal==='function')closeModal();
+}
+
+function processPendingMessengerDeliveries(days){
+  ensureMessengerState();
+  var step=Math.max(1,parseInt(days,10)||1);
+  var ready=[];
+  S.pendingMessages=S.pendingMessages.filter(function(entry){
+    entry.daysRemaining=Math.max(0,(entry.daysRemaining||1)-step);
+    if(entry.daysRemaining<=0){ready.push(entry);return false;}
+    return true;
+  });
+  ready.forEach(function(entry){
+    var text='Messenger reply from '+entry.recipient+': '+entry.response;
+    if(typeof appendQuickPanelNote==='function')appendQuickPanelNote(text);
+    if(typeof openModal==='function')openModal('Messenger Reply','<div style="font-size:.9rem;color:var(--text2);line-height:1.65;"><strong style="color:var(--gold2);">'+entry.recipient+'</strong><br>'+entry.response+'</div>');
+    showNotif(entry.recipient+' received your note and replied.','good');
+  });
+}
+
+function updateShopDataEntry(cat,name,patch){
+  if(!SHOP_DATA||!Array.isArray(SHOP_DATA[cat]))return;
+  for(var i=0;i<SHOP_DATA[cat].length;i++){
+    if(SHOP_DATA[cat][i]&&SHOP_DATA[cat][i].name===name){
+      SHOP_DATA[cat][i]=Object.assign({},SHOP_DATA[cat][i],patch);
+      return;
+    }
+  }
+}
+
+function removeShopDataEntry(cat,name){
+  if(!SHOP_DATA||!Array.isArray(SHOP_DATA[cat]))return;
+  SHOP_DATA[cat]=SHOP_DATA[cat].filter(function(item){return item&&item.name!==name;});
+}
+
+function applyShopDataOverrides(){
+  if(typeof SHOP_DATA==='undefined'||!SHOP_DATA)return;
+  removeShopDataEntry('remedies','Trauma Serum');
+  updateShopDataEntry('items','Compass',{desc:'Adventure Die bonus to Survival and Lead checks.'});
+  updateShopDataEntry('items','Spyglass',{desc:'Adventure Die bonus to Lead checks and scouting across maps.'});
+  updateShopDataEntry('items','Lockpicks',{desc:'Adventure Die bonus to Control checks for locks and sealed doors.'});
+  updateShopDataEntry('augmentations','DECENTRALIZED HEART',{desc:'If damage would drop you in combat, you get back up with full Health restored once per scene.'});
+  if(Array.isArray(SHOP_DATA.strange)){
+    SHOP_DATA.strange=SHOP_DATA.strange.map(function(item,idx){
+      return Object.assign({},item,{name:'Oddity '+String(idx+1).padStart(2,'0')});
+    });
+  }
+  if(Array.isArray(SHOP_DATA.augmentations)&&!SHOP_DATA.augmentations.some(function(item){return item.name==='RADIATION SINK';})){
+    SHOP_DATA.augmentations.push({name:'RADIATION SINK',stat:'Augmentation | Talent Slot',desc:'Incoming Radiation is reduced by half.',cost:3500});
+  }
+  if(Array.isArray(SHOP_DATA.augmentations)&&!SHOP_DATA.augmentations.some(function(item){return item.name==='CALM CIRCUIT';})){
+    SHOP_DATA.augmentations.push({name:'Augmentation | Talent Slot'});
+    SHOP_DATA.augmentations[SHOP_DATA.augmentations.length-1]={name:'CALM CIRCUIT',stat:'Augmentation | Talent Slot',desc:'Incoming Mental Stress is reduced by 1.',cost:3000};
+  }
+}
+
+applyShopDataOverrides();
+
 // Toolkit → which stats it benefits (for A.D. advantage roll)
 var TOOLKIT_STATS = {
   "Navigator's Suitcase": ['lead'],
@@ -2577,6 +3008,9 @@ function buyItem(cost, name, cat) {
         S.enemies.push({id: Date.now(), name: 'Mercenary (Ally)', dread: 6, stress: 0, maxStress: 12, ally: true});
         if (typeof renderEnemies === 'function') renderEnemies();
         showNotif('Mercenary added to Combat tracker', 'good');
+      } else if (name === 'Messenger') {
+        setTimeout(openMessengerComposer, 0);
+        showNotif('Compose a note for delivery. Reply arrives in 1 day.', 'good');
       } else if (name === 'Retainer Contract') {
         S.holding = S.holding || {};
         S.holding.retainerContracts = (S.holding.retainerContracts || 0) + 1;
@@ -3156,15 +3590,15 @@ function useBackpackItem(index) {
   }
 
   // Healing / Stress restore
-  if(['Healing Salve','Wound Salve','Stimulant'].indexOf(name) >= 0){
+  if(['Healing Salve','Wound Salve'].indexOf(name) >= 0){
     if(!spendUse()) return;
     var heal = explodingRoll(4).total;
-    changeStress(-heal);
-    showNotif(name+': restored '+heal+' Stress','good');
+    if(typeof changeHealth==='function')changeHealth(-heal);else changeStress(-heal);
+    showNotif(name+': restored '+heal+' Health','good');
     return;
   }
   // Trauma
-  if(['Depressant','Sage (Temple)','Trauma Serum'].indexOf(name) >= 0){
+  if(['Depressant','Sage (Temple)'].indexOf(name) >= 0){
     if(!spendUse()) return;
     if(S.trauma > 0){ S.trauma--; if(typeof updateTrauma==='function')updateTrauma(); }
     showNotif(name+': −1 Trauma','good');
@@ -3196,8 +3630,8 @@ function useBackpackItem(index) {
     }
     if (name === 'Depressant') {
       if(!spendUse()) return;
-      changeStress(-1);
-      showNotif('Depressant: −1 Stress', 'good');
+      if(typeof changeMentalStress==='function')changeMentalStress(-1);
+      showNotif('Depressant: −1 Mental Stress', 'good');
       return;
     }
     if (name === 'Battery Pack') {
@@ -3214,9 +3648,9 @@ function useBackpackItem(index) {
     }
     if (name === 'Voyager Supplies') {
       if(!spendUse()) return;
-      changeStress(-2);
+      if(typeof changeMentalStress==='function')changeMentalStress(-2);else changeStress(-2);
       if (S.conditions && S.conditions.weakened) { S.conditions.weakened = false; if (typeof updateConditionButtons === 'function') updateConditionButtons(); }
-      showNotif('Voyager Supplies: −2 Stress and recover from Weakened', 'good');
+      showNotif('Voyager Supplies: −2 Mental Stress and recover from Weakened', 'good');
       return;
     }
     if (name === 'Oxygen Pellet') {
@@ -3247,8 +3681,8 @@ function useBackpackItem(index) {
   // Rations — restore 1 Stress
   if(name === 'Rations' || name === 'Premium Basic'){
     if(!spendUse()) return;
-    changeStress(-1);
-    showNotif(name+': −1 Stress','good');
+    if(typeof changeMentalStress==='function')changeMentalStress(-1);else changeStress(-1);
+    showNotif(name+': −1 Mental Stress','good');
     return;
   }
   // Antitoxin — remove Weakened and/or Shaken condition
@@ -5414,6 +5848,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   window.qpMoveRange=function(newSpacing){setCombatSpacing(newSpacing,true);renderQP('combat');};
   window.qpEnemyAction=function(){triggerEnemyActionEvent();renderQP('combat');};
+  window.qpSetHackGuess=function(guess){if(!S.hackRoller)S.hackRoller={dreadDie:6,guess:null,selectedHack:null};S.hackRoller.guess=guess;renderQP('combat');};
+  window.qpCombatHack=function(){
+    var sel=document.getElementById('qpHackSelect');
+    if(sel&&sel.value&&S.hackRoller)S.hackRoller.selectedHack=sel.value;
+    if(typeof castHack==='function')castHack();
+    var hackResult=(document.getElementById('hackRollResult')||{}).innerHTML||'Hack cast.';
+    S.quickPanel.lastCombatRoll=hackResult;
+    renderQP('combat');
+  };
   window.qpSaveNotes=function(){ensureQPState();S.quickPanel.notes=(document.getElementById('qpNotesArea')||{}).value||'';showNotif('Quick notes saved.','good');};
 
   window.qpMissionAction = function(action, missionId) {
@@ -5573,16 +6016,32 @@ document.addEventListener('DOMContentLoaded',()=>{
           var condText = (e.conditions && e.conditions.length) ? ' [' + e.conditions.join(', ') + ']' : '';
           return '<div style="display:flex;flex-direction:column;padding:.3rem 0;margin-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.04);">'
             + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
-              + '<span style="font-size:.78rem;color:var(--text);flex:1;">'+e.name+'</span>'
-              + '<span style="font-family:Rajdhani,sans-serif;font-size:.78rem;color:var(--red);">'+e.stress+'/'+e.maxStress+' Stress · d'+e.dread+healthBar+'</span>'
+              + '<span style="font-size:.78rem;color:'+(e.ally?'var(--teal)':'var(--text)')+';flex:1;">'+e.name+(e.ally?' (Ally)':'')+'</span>'
+              + '<span style="font-family:Rajdhani,sans-serif;font-size:.78rem;color:'+(e.ally?'var(--teal)':'var(--red)')+';">'+e.stress+'/'+e.maxStress+' Stress · '+getEnemyDisplayDread(e)+healthBar+'</span>'
             + '</div>'
             + (condText ? '<div style="font-size:.7rem;color:var(--orange);margin-top:.1rem;">'+condText+'</div>' : '')
-            + '<div style="margin-top:.15rem;display:flex;gap:.15rem;flex-wrap:wrap;font-size:.68rem;">'
-              + '<button class="btn btn-xs btn-green" onclick="damageEnemyHealth('+idx+',1)" title="Restore Health">💚 +1 Health</button>'
-            + '</div>'
           + '</div>';
         }).join('')
       : '<div style="font-size:.78rem;color:var(--muted2);">No enemies set.</div>';
+    var hackHtml='';
+    if(Array.isArray(S.ownedHacks)&&S.ownedHacks.length){
+      if(!S.hackRoller)S.hackRoller={dreadDie:6,guess:null,selectedHack:null};
+      hackHtml='<div style="margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--border);">'
+        + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.28rem;">Combat Hacks</div>'
+        + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;margin-bottom:.28rem;">'
+        + '<select id="qpHackSelect" style="flex:1;min-width:8rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;">'
+        + S.ownedHacks.map(function(h){return '<option value="'+h+'"'+(h===S.hackRoller.selectedHack?' selected':'')+'>'+h+'</option>';}).join('')
+        + '</select>'
+        + '<button class="btn btn-xs btn-primary" onclick="qpCombatHack()">💻 Cast</button>'
+        + '</div>'
+        + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-xs'+(S.hackRoller.guess==='below'?' btn-teal':'')+'" onclick="qpSetHackGuess(\'below\')">Below</button>'
+        + '<button class="btn btn-xs'+(S.hackRoller.guess==='between'?' btn-teal':'')+'" onclick="qpSetHackGuess(\'between\')">Between</button>'
+        + '<button class="btn btn-xs'+(S.hackRoller.guess==='above'?' btn-teal':'')+'" onclick="qpSetHackGuess(\'above\')">Above</button>'
+        + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.22rem;">Uses current enemy Dread die in combat.</div>'
+        + '</div>';
+    }
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerActions+'/'+playerMaxActions+'</strong></div>'
@@ -5607,7 +6066,10 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<button class="btn btn-xs btn-teal" onclick="qpCombatAction(\'defend\')">🛡 Defend</button>'
         + '<button class="btn btn-xs" onclick="qpCombatAction(\'trauma\')">💀 Trauma</button>'
         + '<button class="btn btn-xs btn-red" onclick="qpEnemyAction()">☠ Enemy Action</button>'
+        + (Array.isArray(S.weaponMods)&&S.weaponMods.indexOf('Auto Reloader')>=0?'<button class="btn btn-xs btn-teal" onclick="activateAutoReloader()">🔩 Auto Reloader</button>':'')
       + '</div>'
+      + ((S.combat&&S.combat.autoReloaderShots>0)?'<div style="font-size:.68rem;color:var(--teal);margin-top:.22rem;">Auto Reloader active: '+S.combat.autoReloaderShots+' Shoot action'+(S.combat.autoReloaderShots===1?'':'s')+' left in burst.</div>':'')
+      + hackHtml
       + '<div style="margin-top:.35rem;background:var(--surface);border:1px solid var(--border);padding:.35rem .45rem;font-size:.78rem;line-height:1.4;min-height:2rem;" id="qpCombatRollResult">'
         + (S.quickPanel.lastCombatRoll||'No combat roll yet.')
       + '</div>';
@@ -5961,7 +6423,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     showNotif('Monument boon: '+applied.join(', ')+'.','good');
   };
 
-  function collectLeadInventoryBonuses(){
+  function collectInventoryBonusesForStat(statKey){
     const list=[];
     if(Array.isArray(S.backpack)){
       S.backpack.forEach(function(item){if(item&&String(item).trim())list.push(String(item));});
@@ -5969,29 +6431,42 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(S&&S.equipment&&S.equipment.readied)list.push(String(S.equipment.readied));
 
     const bonus={advDice:[],flat:0,addAdventure:0,notes:[]};
+    const key=String(statKey||'lead').toLowerCase();
     list.forEach(function(txt){
       const t=String(txt||'');
       let m;
       const low=t.toLowerCase();
-      m=t.match(/\+(\d+)\s*lead/i);
+      m=t.match(new RegExp('\\+(\\d+)\\s*'+key,'i'));
       if(m){
         bonus.flat+=parseInt(m[1],10)||0;
-        bonus.notes.push('+'+m[1]+' Lead ('+t.split('(')[0].trim()+')');
+        bonus.notes.push('+'+m[1]+' '+key+' ('+t.split('(')[0].trim()+')');
       }
-      m=t.match(/ad(\d+)\s*(?:to\s*)?lead/i);
+      m=t.match(new RegExp('ad(\\d+)\\s*(?:to\\s*)?'+key,'i'));
       if(m){
         const d=parseInt(m[1],10)||0;
         if(d>0){
           bonus.advDice.push(d);
-          bonus.notes.push('Ad'+d+' Lead ('+t.split('(')[0].trim()+')');
+          bonus.notes.push('Ad'+d+' '+key+' ('+t.split('(')[0].trim()+')');
         }
       }
-      if((/a\.d\./i.test(t)&&/lead/i.test(t))||low.indexOf('adventure die advantage to lead')>=0){
+      if((/a\.d\./i.test(t)&&new RegExp(key,'i').test(t))||low.indexOf('adventure die advantage to '+key)>=0){
+        bonus.addAdventure+=1;
+        bonus.notes.push('+A.D. ('+t.split('(')[0].trim()+')');
+      }
+      if(key==='lead'&&(low.indexOf('compass')>=0||low.indexOf('spyglass')>=0||low.indexOf('survival')>=0)){
+        bonus.addAdventure+=1;
+        bonus.notes.push('+A.D. ('+t.split('(')[0].trim()+')');
+      }
+      if(key==='control'&&(low.indexOf('lockpick')>=0||low.indexOf('e-picks')>=0||low.indexOf('scavenger\'s pouch')>=0)){
         bonus.addAdventure+=1;
         bonus.notes.push('+A.D. ('+t.split('(')[0].trim()+')');
       }
     });
     return bonus;
+  }
+
+  function collectLeadInventoryBonuses(){
+    return collectInventoryBonusesForStat('lead');
   }
 
   function rollProvinceLeadCheck(){

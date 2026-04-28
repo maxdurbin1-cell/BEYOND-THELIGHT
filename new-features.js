@@ -2888,7 +2888,11 @@
       updateTMWPool();
     }
 
-    var dreadDie = S.hackRoller.dreadDie || 6;
+    var combatEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
+    var dreadDie = (S.combat && S.combat.active && combatEnemy && typeof getEnemyEffectiveDread === 'function')
+      ? getEnemyEffectiveDread(combatEnemy)
+      : (S.hackRoller.dreadDie || 6);
+    S.hackRoller.dreadDie = dreadDie;
     var d1 = roll(dreadDie);
     var d2 = roll(dreadDie);
     var low  = Math.min(d1, d2);
@@ -2912,7 +2916,10 @@
 
     var effectHtml = '';
     if (success && hackData && hackData.effect) {
-      effectHtml = '<br><span style="color:var(--teal);">' + hackData.effect() + '</span>';
+      var effectText = (S.combat && S.combat.active && combatEnemy && typeof applyCombatHackEffect === 'function')
+        ? (applyCombatHackEffect(hackName) || hackData.effect())
+        : hackData.effect();
+      effectHtml = '<br><span style="color:var(--teal);">' + effectText + '</span>';
     }
 
     // Malware on failure: lose 1 TMW + take d6 Stress + Distracted
@@ -2950,6 +2957,10 @@
         + '</div>';
     }
     if (success && typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+    if (typeof renderQP === 'function' && S.quickPanel) {
+      S.quickPanel.lastCombatRoll = (resultEl && resultEl.innerHTML) ? resultEl.innerHTML : S.quickPanel.lastCombatRoll;
+      renderQP('combat');
+    }
   }
 
   window.renderWeaponModsPanel  = renderWeaponModsPanel;

@@ -1498,13 +1498,21 @@ function resolveGalaxySkillCheck(primaryKey, secondaryKey, dd, label) {
   const p = (typeof getEffectiveDie === 'function') ? getEffectiveDie(primaryKey) : ((S.stats && S.stats[primaryKey]) || 4);
   const s = secondaryKey ? ((typeof getEffectiveDie === 'function') ? getEffectiveDie(secondaryKey) : ((S.stats && S.stats[secondaryKey]) || 4)) : 0;
   const die = Math.max(p || 4, s || 0, 4);
-  const action = explodingRoll(die);
+  const invBonus = (typeof collectInventoryBonusesForStat === 'function') ? collectInventoryBonusesForStat(primaryKey) : { advDice: [], flat: 0, addAdventure: 0 };
+  const action = (typeof rollWithAdvantage === 'function' && invBonus.advDice && invBonus.advDice.length)
+    ? rollWithAdvantage(die, invBonus.advDice)
+    : { total: explodingRoll(die).total };
+  let actionTotal = action.total + Number(invBonus.flat || 0);
+  const advDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  for (let i = 0; i < Number(invBonus.addAdventure || 0); i++) {
+    actionTotal += explodingRoll(advDie).total;
+  }
   const dread = explodingRoll(dd);
-  const success = action.total >= dread.total;
+  const success = actionTotal >= dread.total;
   return {
     success,
-    delta: Math.max(1, Math.abs(action.total - dread.total)),
-    text: `${label}: d${die}=${action.total} vs DD${dd}=${dread.total}`,
+    delta: Math.max(1, Math.abs(actionTotal - dread.total)),
+    text: `${label}: d${die}=${actionTotal} vs DD${dd}=${dread.total}`,
   };
 }
 
@@ -7446,7 +7454,16 @@ function changeHealth(delta) {
   ensureStarsState();
   const defendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : (S.stats && S.stats.defend ? S.stats.defend : 4);
   const maxHealth = defendDie * 2;
+  S.combatAugState = S.combatAugState || { decentralizedHeartUsed: false };
   S.health = Math.max(0, Math.min(maxHealth, (S.health || 0) + delta));
+  if (delta > 0 && S.health >= maxHealth && Array.isArray(S.augmentations) && S.augmentations.indexOf('DECENTRALIZED HEART') >= 0 && !S.combatAugState.decentralizedHeartUsed) {
+    S.combatAugState.decentralizedHeartUsed = true;
+    S.health = 0;
+    S.stress = 0;
+    updateHealthUI();
+    showNotif('DECENTRALIZED HEART triggers: you get back up with full Health restored.', 'good');
+    return;
+  }
   S.stress = S.health;
   updateHealthUI();
   if (S.health >= maxHealth) {
@@ -7465,6 +7482,8 @@ function halfHealth() {
 
 function clearHealth() {
   ensureStarsState();
+  S.combatAugState = S.combatAugState || { decentralizedHeartUsed: false };
+  S.combatAugState.decentralizedHeartUsed = false;
   S.health = 0;
   S.stress = S.health;
   updateHealthUI();
@@ -7507,6 +7526,9 @@ function updateHealthUI() {
 function changeMentalStress(delta) {
   ensureStarsState();
   const before = S.mentalStress || 0;
+  if (delta > 0 && Array.isArray(S.augmentations) && S.augmentations.indexOf('CALM CIRCUIT') >= 0) {
+    delta = Math.max(0, delta - 1);
+  }
   S.mentalStress = Math.max(0, Math.min(20, before + delta));
   updateMentalStressUI();
   checkStressThreshold();
@@ -7598,6 +7620,9 @@ function updateMentalStressUI() {
 function changeRads(delta) {
   ensureStarsState();
   const before = S.rads || 0;
+  if (delta > 0 && Array.isArray(S.augmentations) && S.augmentations.indexOf('RADIATION SINK') >= 0) {
+    delta = Math.ceil(delta / 2);
+  }
   S.rads = Math.max(0, before + delta);
   const gain = Math.max(0, S.rads - before);
   applyRadiationProgression(before, S.rads, gain);
@@ -7996,6 +8021,9 @@ function refreshPhaseFromProvinceClicks() {
 function advanceDay(days, preserveTravelState) {
   ensureStarsState();
   const startYear = S.gameDate.year || 1;
+  if (days !== 0 && typeof processPendingMessengerDeliveries === 'function') {
+    processPendingMessengerDeliveries(days);
+  }
   S.gameDate.day += days;
 
   while (S.gameDate.day > DAYS_PER_MONTH) {

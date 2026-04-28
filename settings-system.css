@@ -234,6 +234,128 @@ nav {
   margin-top: auto;
 }
 
+.campaign-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.campaign-badge {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border2);
+}
+
+.campaign-badge.online {
+  color: var(--teal);
+  border-color: var(--teal);
+}
+
+.campaign-badge.offline {
+  color: var(--red2);
+  border-color: rgba(224, 96, 96, 0.6);
+}
+
+.campaign-input {
+  width: 100%;
+  background: var(--surface);
+  color: var(--text2);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 0.35rem 0.42rem;
+  font-size: 0.78rem;
+}
+
+.campaign-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.campaign-card {
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 0.4rem 0.45rem;
+  margin-bottom: 0.45rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.campaign-card-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.55rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--gold2);
+  margin-bottom: 0.3rem;
+}
+
+.campaign-muted {
+  font-size: 0.7rem;
+  color: var(--muted2);
+}
+
+.campaign-tmw {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.3rem;
+  color: var(--teal);
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 0.2rem;
+}
+
+.campaign-member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  color: var(--text2);
+  margin-bottom: 0.22rem;
+}
+
+.campaign-pill {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.08rem 0.32rem;
+  border-radius: 999px;
+  border: 1px solid var(--border2);
+  color: var(--muted2);
+}
+
+.campaign-pill.gm {
+  color: var(--gold2);
+  border-color: var(--gold2);
+}
+
+.campaign-log-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem;
+  margin-bottom: 0.22rem;
+  font-size: 0.7rem;
+  color: var(--text2);
+}
+
+.campaign-log-kind {
+  color: var(--muted2);
+  text-transform: uppercase;
+}
+
+.campaign-roll-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.25rem;
+}
+
 /* GM Mode Styles */
 body.gm-mode {
   --gm-accent: #b060d0;

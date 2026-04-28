@@ -21,6 +21,7 @@
     timelineFilter: "all",
     lastCharacterHash: "",
     gmIdea: "",
+    gmWayfarerSort: "online",
     uiDraft: {
       name: "",
       code: "",
@@ -184,13 +185,70 @@
     if (!Array.isArray(list) || !list.length) {
       return '<div class="campaign-muted">No campaign wayfarers yet.</div>';
     }
-    return list.map(function (p) {
+    var items = list.slice();
+    if (state.gmWayfarerSort === "updated") {
+      items.sort(function (a, b) {
+        var au = a && a.character && a.character.updatedAt ? Number(a.character.updatedAt) : Number(a && a.lastSeenAt || 0);
+        var bu = b && b.character && b.character.updatedAt ? Number(b.character.updatedAt) : Number(b && b.lastSeenAt || 0);
+        return bu - au;
+      });
+    } else {
+      items.sort(function (a, b) {
+        var ao = a && a.online ? 1 : 0;
+        var bo = b && b.online ? 1 : 0;
+        if (ao !== bo) return bo - ao;
+        var au = a && a.character && a.character.updatedAt ? Number(a.character.updatedAt) : Number(a && a.lastSeenAt || 0);
+        var bu = b && b.character && b.character.updatedAt ? Number(b.character.updatedAt) : Number(b && b.lastSeenAt || 0);
+        return bu - au;
+      });
+    }
+
+    return items.map(function (p) {
       var c = p && p.character ? p.character : null;
       var nm = c && c.name ? c.name : (p && p.name ? p.name : "Wayfarer");
       var hp = c && typeof c.health === "number" ? c.health : 0;
-      var look = c && c.look ? String(c.look).slice(0, 80) : "No look set";
-      return '<div class="campaign-member-row"><span><strong>' + escapeHtml(nm) + '</strong> · HP ' + Number(hp) + '<br><span class="campaign-muted">' + escapeHtml(look) + '</span></span><span class="campaign-pill ' + ((p && p.role === "gm") ? 'gm' : '') + '">' + escapeHtml((p && p.role === "gm") ? "GM" : "Player") + '</span></div>';
+      var look = c && c.look ? String(c.look).slice(0, 120) : "No look set";
+      var updatedAt = c && c.updatedAt ? Number(c.updatedAt) : Number(p && p.lastSeenAt || 0);
+      var initials = String(nm || "W").trim().split(/\s+/).slice(0, 2).map(function (part) {
+        return part ? part.charAt(0).toUpperCase() : "";
+      }).join("") || "W";
+      var lookTags = [];
+      if (look && look !== "No look set") {
+        String(look).split(/\s+/).forEach(function (word) {
+          var cleaned = String(word || "").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
+          if (!cleaned || cleaned.length < 4) return;
+          if (lookTags.indexOf(cleaned) === -1) lookTags.push(cleaned);
+        });
+      }
+      var tagsHtml = lookTags.slice(0, 3).map(function (tag) {
+        return '<span class="campaign-look-tag">' + escapeHtml(tag) + '</span>';
+      }).join("");
+      var roleText = (p && p.role === "gm") ? "GM" : "Player";
+      var onlineText = p && p.online ? "Online" : "Offline";
+      return ''
+        + '<div class="campaign-wayfarer-row">'
+        + '<div class="campaign-wayfarer-main">'
+        + '<div class="campaign-portrait">' + escapeHtml(initials) + '</div>'
+        + '<div class="campaign-wayfarer-info">'
+        + '<div><strong>' + escapeHtml(nm) + '</strong> <span class="campaign-muted">HP ' + Number(hp) + '</span></div>'
+        + '<div class="campaign-look-tags">' + (tagsHtml || '<span class="campaign-look-tag">untyped</span>') + '</div>'
+        + '<div class="campaign-muted">' + escapeHtml(look) + '</div>'
+        + '<div class="campaign-muted">Updated ' + escapeHtml(formatTimestamp(updatedAt) || "-") + '</div>'
+        + '</div>'
+        + '</div>'
+        + '<div class="campaign-wayfarer-pills">'
+        + '<span class="campaign-pill ' + ((p && p.role === "gm") ? 'gm' : '') + '">' + escapeHtml(roleText) + '</span>'
+        + '<span class="campaign-pill ' + ((p && p.online) ? 'online' : '') + '">' + escapeHtml(onlineText) + '</span>'
+        + '</div>'
+        + '</div>';
     }).join("");
+  }
+
+  function setWayfarerSort(mode) {
+    var next = String(mode || "online");
+    if (["online", "updated"].indexOf(next) === -1) next = "online";
+    state.gmWayfarerSort = next;
+    renderSettingsSection();
   }
 
   function collectCharacterSummary() {
@@ -440,6 +498,10 @@
         ? (""
           + '<div class="campaign-card">'
           + '<div class="campaign-card-title">Campaign Wayfarers</div>'
+          + '<div class="campaign-actions campaign-sort-actions">'
+          + '<button class="btn btn-xs ' + (state.gmWayfarerSort === 'online' ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setWayfarerSort(\'online\')">Online First</button>'
+          + '<button class="btn btn-xs ' + (state.gmWayfarerSort === 'updated' ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setWayfarerSort(\'updated\')">Last Updated</button>'
+          + '</div>'
           + renderCharacterRoster(roster)
           + '</div>'
           + '<div class="campaign-card">'
@@ -1075,6 +1137,7 @@
     deleteCampaign: deleteCampaign,
     setTimelineFilter: setTimelineFilter,
     generateWayfarerIdea: generateWayfarerIdea,
+    setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,
     toggleDock: toggleDock,
     refreshUI: function () {

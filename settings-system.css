@@ -344,6 +344,79 @@ nav {
   border-color: var(--gold2);
 }
 
+.campaign-pill.online {
+  color: var(--teal);
+  border-color: var(--teal);
+}
+
+.campaign-sort-actions {
+  margin-bottom: 0.35rem;
+}
+
+.campaign-wayfarer-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.campaign-wayfarer-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.36rem;
+  min-width: 0;
+}
+
+.campaign-portrait {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(67, 202, 196, 0.12);
+  border: 1px solid rgba(67, 202, 196, 0.6);
+  color: var(--teal);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.campaign-wayfarer-info {
+  min-width: 0;
+  font-size: 0.73rem;
+  color: var(--text2);
+}
+
+.campaign-look-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin: 0.15rem 0;
+}
+
+.campaign-look-tag {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  padding: 0.05rem 0.3rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.campaign-wayfarer-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
 .campaign-log-row {
   display: grid;
   grid-template-columns: auto 1fr;

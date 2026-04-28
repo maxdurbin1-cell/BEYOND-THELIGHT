@@ -424,8 +424,13 @@
         '</div>',
         '<div class="card">',
           '<div class="section-title">Holding Downtime</div>',
-          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Roll celebratory events and resolve them with any Action Die.</div>',
-          '<button class="btn btn-primary" onclick="rollHoldingDowntimeEvent()">⚄ Roll Celebration Event</button>',
+          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Roll celebration events or pick focused activities to talk, accomplish local tasks, and explore your realm.</div>',
+          '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">',
+            '<button class="btn btn-primary" onclick="rollHoldingDowntimeEvent()">⚄ Roll Celebration Event</button>',
+            '<button class="btn btn-teal" onclick="rollHoldingDowntimeActivity(\'talk\')">💬 Talk To People</button>',
+            '<button class="btn btn-sm" onclick="rollHoldingDowntimeActivity(\'task\')">🧾 Accomplish Task</button>',
+            '<button class="btn btn-warn" onclick="rollHoldingDowntimeActivity(\'explore\')">🧭 Explore Holdings</button>',
+          '</div>',
           '<div id="holdingDowntimeResult" style="margin-top:.45rem;font-size:.82rem;"></div>',
         '</div>',
         // Perils of Leadership — full width
@@ -1338,11 +1343,42 @@
 
   function holdingDowntimeEvents() {
     return [
-      { name: 'Wayfarer Rumor Circle', dd: 6, success: 'You secure a fresh rumor marker. +1 Teamwork.', failure: 'Rumors conflict and morale dips. +1 Mental Stress.' },
-      { name: 'Hex Festival Games', dd: 8, success: 'You win local games. +40 credits.', failure: 'You are outmatched in the pits. +1 Health damage.' },
-      { name: 'Lorehall Research Night', dd: 6, success: 'Research succeeds. Gain Focused.', failure: 'Records are incoherent. +1 Mental Stress.' },
-      { name: 'Masked Court Joust', dd: 10, success: 'The court applauds your prowess. +1 Renown.', failure: 'A heavy fall leaves bruises. +1 Health damage.' }
+      { name: 'Wayfarer Rumor Circle', dd: 6, success: 'You secure a fresh rumor marker. +1 Teamwork.', failure: 'Rumors conflict and morale dips. +1 Mental Stress.', successEffect: { tmw: 1 }, failEffect: { mentalStress: 1 } },
+      { name: 'Hex Festival Games', dd: 8, success: 'You win local games. +40 credits.', failure: 'You are outmatched in the pits. +1 Health damage.', successEffect: { credits: 40 }, failEffect: { health: 1 } },
+      { name: 'Lorehall Research Night', dd: 6, success: 'Research succeeds. Gain Focused.', failure: 'Records are incoherent. +1 Mental Stress.', successEffect: { focused: 1 }, failEffect: { mentalStress: 1 } },
+      { name: 'Masked Court Joust', dd: 10, success: 'The court applauds your prowess. +1 Renown.', failure: 'A heavy fall leaves bruises. +1 Health damage.', successEffect: { renown: 1 }, failEffect: { health: 1 } }
     ];
+  }
+
+  function holdingDowntimeActivityPool(activity) {
+    var pools = {
+      talk: [
+        { name: 'Village Listening Walk', dd: 6, success: 'You resolve three disputes before sunset. +1 Teamwork.', failure: 'Conflicting accounts wear you down. +1 Mental Stress.', successEffect: { tmw: 1 }, failEffect: { mentalStress: 1 } },
+        { name: 'Guildhall Negotiation', dd: 8, success: 'You broker a fair charter. +1 Renown.', failure: 'Talks stall into accusations. +1 Mental Stress.', successEffect: { renown: 1 }, failEffect: { mentalStress: 1 } }
+      ],
+      task: [
+        { name: 'Supply Caravan Oversight', dd: 8, success: 'The route clears and taxes flow. +60 credits.', failure: 'Bandits cut into deliveries. +1 Health damage.', successEffect: { credits: 60 }, failEffect: { health: 1 } },
+        { name: 'Militia Drill Cycle', dd: 6, success: 'Defenses tighten around the holding. +1 Renown.', failure: 'Training accidents spread tension. +1 Mental Stress.', successEffect: { renown: 1 }, failEffect: { mentalStress: 1 } }
+      ],
+      explore: [
+        { name: 'Border Survey Expedition', dd: 8, success: 'You map hidden paths and caches. +40 credits.', failure: 'Hostile terrain takes its toll. +1 Health damage.', successEffect: { credits: 40 }, failEffect: { health: 1 } },
+        { name: 'Ancient Waystone Recon', dd: 6, success: 'You recover useful wayfinding lore. Gain Focused.', failure: 'The site is disorienting. +1 Mental Stress.', successEffect: { focused: 1 }, failEffect: { mentalStress: 1 } }
+      ]
+    };
+    return pools[String(activity || 'talk').toLowerCase()] || pools.talk;
+  }
+
+  function applyHoldingDowntimeEffect(effect) {
+    if (!effect) { return; }
+    if (effect.tmw && typeof changeCounter === 'function') { changeCounter('tmw', effect.tmw); }
+    if (effect.renown && typeof changeCounter === 'function') { changeCounter('renown', effect.renown); }
+    if (effect.credits) {
+      S.credits = (S.credits || 0) + effect.credits;
+      if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
+    }
+    if (effect.health && typeof changeHealth === 'function') { changeHealth(effect.health); }
+    if (effect.mentalStress && typeof changeMentalStress === 'function') { changeMentalStress(effect.mentalStress); }
+    if (effect.focused && typeof toggleCond === 'function' && S.conditions && !S.conditions.focused) { toggleCond('focused'); }
   }
 
   function resolveHoldingDowntimeEvent(statKey) {
@@ -1354,17 +1390,10 @@
     var d = explodingRoll(evt.dd || 6);
     var success = a.total >= d.total;
     if (success) {
-      if (evt.name === 'Wayfarer Rumor Circle' && typeof changeCounter === 'function') { changeCounter('tmw', 1); }
-      if (evt.name === 'Hex Festival Games' && typeof changeCredits === 'function') { changeCredits(40); }
-      if (evt.name === 'Lorehall Research Night' && typeof toggleCond === 'function' && S.conditions && !S.conditions.focused) { toggleCond('focused'); }
-      if (evt.name === 'Masked Court Joust' && typeof changeCounter === 'function') { changeCounter('renown', 1); }
+      applyHoldingDowntimeEffect(evt.successEffect);
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
-      if (evt.name === 'Hex Festival Games' || evt.name === 'Masked Court Joust') {
-        if (typeof changeHealth === 'function') { changeHealth(1); }
-      } else if (typeof changeMentalStress === 'function') {
-        changeMentalStress(1);
-      }
+      applyHoldingDowntimeEffect(evt.failEffect);
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
     var out = document.getElementById('holdingDowntimeResult');
@@ -1376,6 +1405,23 @@
         + '</div>';
     }
     S.holding.pendingDowntimeEvent = null;
+  }
+
+  function rollHoldingDowntimeActivity(activity) {
+    ensureNewFeatureState();
+    var pool = holdingDowntimeActivityPool(activity);
+    var evt = pool[roll(pool.length) - 1];
+    S.holding.pendingDowntimeEvent = evt;
+    var out = document.getElementById('holdingDowntimeResult');
+    if (!out) { return; }
+    var stats = ['lead', 'mind', 'body', 'spirit', 'control', 'strike', 'shoot', 'defend'];
+    out.innerHTML = '<div style="padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:var(--teal);">' + evt.name + '</div>'
+      + '<div style="font-size:.76rem;color:var(--muted2);margin-top:.15rem;">Activity roll: choose Action Die vs DD' + evt.dd + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">'
+      + stats.map(function(key){ return '<button class="btn btn-xs btn-teal" onclick="resolveHoldingDowntimeEvent(\'' + key + '\')">' + key.charAt(0).toUpperCase() + key.slice(1) + '</button>'; }).join('')
+      + '</div>'
+      + '</div>';
   }
 
   function rollHoldingDowntimeEvent() {
@@ -2558,6 +2604,7 @@
   window.moveVaultItemToBackpack = moveVaultItemToBackpack;
   window.moveBackpackToVault  = moveBackpackToVault;
   window.rollHoldingDowntimeEvent = rollHoldingDowntimeEvent;
+  window.rollHoldingDowntimeActivity = rollHoldingDowntimeActivity;
   window.resolveHoldingDowntimeEvent = resolveHoldingDowntimeEvent;
   window.buyCaravan           = buyCaravan;
   window.rollCaravanName      = rollCaravanName;

@@ -1252,7 +1252,7 @@
             ? `<div class="sea-site">
                  <div class="ss-title">${capitalize(hex.siteType)}</div>
                  <div class="ss-text">${describeSeaSite(hex.siteType, hex.siteData)}</div>
-                 ${hex.siteType === 'settlement' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="generateTaskForSeaHex(${hex.col},${hex.row})">⚄ Generate Task</button></div>` : ''}
+                 ${hex.siteType === 'settlement' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="generateTaskForSeaHex(${hex.col},${hex.row})">⚄ Generate Task</button></div>${buildSeaSettlementDowntimePanel(hex)}` : ''}
                </div>`
             : ""
         }
@@ -1324,6 +1324,260 @@
     return `${pick(ARMADA_ACTIONS)} ${pick(ARMADA_TARGETS)}`;
   }
 
+  function seaHexByCoord(col, row) {
+    if (!S.lastSea || !Array.isArray(S.lastSea.map)) return null;
+    return S.lastSea.map.find((h) => h && h.col === col && h.row === row) || null;
+  }
+
+  function ensureMentalStress(amount) {
+    var val = Math.max(0, Number(amount) || 0);
+    if (!val) return;
+    if (typeof changeMentalStress === 'function') {
+      changeMentalStress(val);
+      return;
+    }
+    S.mentalStress = (S.mentalStress || 0) + val;
+    if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+  }
+
+  function ensureTrauma(amount) {
+    var val = Number(amount) || 0;
+    if (!val) return;
+    if (typeof changeTrauma === 'function') {
+      changeTrauma(val);
+      return;
+    }
+    S.trauma = Math.max(0, (S.trauma || 0) + val);
+    if (typeof updateTrauma === 'function') updateTrauma();
+  }
+
+  function buildSeaSettlementDowntimePanel(hex) {
+    if (!hex || hex.siteType !== 'settlement') return '';
+    var pending = hex.pendingDowntimeEvent;
+    var result = hex.downtimeLastResult;
+    var stats = ['lead', 'mind', 'body', 'spirit', 'control', 'strike', 'shoot', 'defend'];
+    return `<div class="npc-block" style="margin-top:.4rem;border-color:rgba(46,196,182,.35);background:rgba(46,196,182,.06);">
+      <div class="nb-label" style="color:var(--teal);">🏘 Sea Holding Downtime</div>
+      <div style="font-size:.78rem;color:var(--text2);line-height:1.5;">Pick an activity lane: talk to people, run a local task, or explore nearby routes.</div>
+      <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-teal" onclick="rollSeaSettlementDowntime(${hex.col},${hex.row},'talk')">💬 Talk To Locals</button>
+        <button class="btn btn-xs btn-primary" onclick="rollSeaSettlementDowntime(${hex.col},${hex.row},'task')">🧾 Run A Task</button>
+        <button class="btn btn-xs btn-warn" onclick="rollSeaSettlementDowntime(${hex.col},${hex.row},'explore')">🧭 Explore Nearby</button>
+      </div>
+      ${pending ? `<div style="margin-top:.35rem;padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);">
+        <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);">${pending.name}</div>
+        <div style="font-size:.76rem;color:var(--muted2);margin-top:.15rem;">Choose Action Die vs DD${pending.dd}</div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.28rem;">${stats.map(function (key) { return '<button class="btn btn-xs btn-teal" onclick="resolveSeaSettlementDowntime(' + hex.col + ',' + hex.row + ',\'' + key + '\')">' + key.charAt(0).toUpperCase() + key.slice(1) + '</button>'; }).join('')}</div>
+      </div>` : ''}
+      ${result ? `<div style="margin-top:.35rem;padding:.35rem .45rem;border:1px solid ${result.success ? 'rgba(76,175,116,.35)' : 'rgba(201,64,64,.35)'};background:${result.success ? 'rgba(76,175,116,.08)' : 'rgba(201,64,64,.08)'};">
+        <div style="font-size:.76rem;color:var(--text2);">${result.check}</div>
+        <div style="font-size:.76rem;color:var(--gold2);margin-top:.14rem;">${result.text}</div>
+      </div>` : ''}
+    </div>`;
+  }
+
+  function seaSettlementDowntimeEvents(activity) {
+    var pools = {
+      talk: [
+        { name: 'Harbor Gossip Exchange', dd: 6, success: 'You map a rumor web. +1 Teamwork.', failure: 'Rumors turn paranoid. +1 Mental Stress.', successEffect: { tmw: 1 }, failEffect: { mentalStress: 1 } },
+        { name: 'Council Fireside Mediation', dd: 8, success: 'Two crews settle a feud. +1 Renown.', failure: 'Talks collapse into threats. +1 Mental Stress.', successEffect: { renown: 1 }, failEffect: { mentalStress: 1 } }
+      ],
+      task: [
+        { name: 'Dockside Contract Run', dd: 8, success: 'Cargo reaches safe harbor. +60 credits.', failure: 'Cargo breaks loose. +1 Health damage.', successEffect: { credits: 60 }, failEffect: { health: 1 } },
+        { name: 'Tideway Escort Duty', dd: 6, success: 'You escort fishers through raider waters. +1 Renown.', failure: 'The route turns chaotic. +1 Mental Stress.', successEffect: { renown: 1 }, failEffect: { mentalStress: 1 } }
+      ],
+      explore: [
+        { name: 'Reef Survey Expedition', dd: 8, success: 'You chart hidden channels and caches. +40 credits.', failure: 'Jagged reefs punish the team. +1 Health damage.', successEffect: { credits: 40 }, failEffect: { health: 1 } },
+        { name: 'Fogline Recon Sweep', dd: 6, success: 'You return with actionable route intel. +1 Teamwork.', failure: 'The fog disorients everyone. +1 Mental Stress.', successEffect: { tmw: 1 }, failEffect: { mentalStress: 1 } }
+      ]
+    };
+    return pools[String(activity || 'talk').toLowerCase()] || pools.talk;
+  }
+
+  function applySeaDowntimeEffect(effect) {
+    if (!effect) return;
+    if (effect.tmw && typeof changeCounter === 'function') changeCounter('tmw', effect.tmw);
+    if (effect.renown && typeof changeCounter === 'function') changeCounter('renown', effect.renown);
+    if (effect.credits) {
+      S.credits = (S.credits || 0) + effect.credits;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    }
+    if (effect.health && typeof changeHealth === 'function') changeHealth(effect.health);
+    if (effect.mentalStress) ensureMentalStress(effect.mentalStress);
+  }
+
+  function rollSeaSettlementDowntime(col, row, activity) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex || hex.siteType !== 'settlement') return;
+    var pool = seaSettlementDowntimeEvents(activity);
+    var evt = pool[Math.max(0, roll(pool.length) - 1)];
+    hex.pendingDowntimeEvent = evt;
+    hex.downtimeLastResult = null;
+    renderLastSeaInfo(hex);
+    showNotif('Sea downtime: ' + evt.name, 'good');
+  }
+
+  function resolveSeaSettlementDowntime(col, row, statKey) {
+    var hex = seaHexByCoord(col, row);
+    var evt = hex && hex.pendingDowntimeEvent;
+    if (!hex || !evt) return;
+    var key = String(statKey || 'lead').toLowerCase();
+    var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
+    var a = explodingRoll(die);
+    var d = explodingRoll(evt.dd || 6);
+    var success = a.total >= d.total;
+    if (success) {
+      applySeaDowntimeEffect(evt.successEffect);
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    } else {
+      applySeaDowntimeEffect(evt.failEffect);
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    }
+    hex.downtimeLastResult = {
+      success: success,
+      check: key.toUpperCase() + ' d' + die + '=' + a.total + ' vs DD' + (evt.dd || 6) + '=' + d.total,
+      text: success ? evt.success : evt.failure
+    };
+    hex.pendingDowntimeEvent = null;
+    renderLastSeaInfo(hex);
+    showNotif(hex.downtimeLastResult.text, success ? 'good' : 'warn');
+  }
+
+  function resolveSeaIslandPerilCheck(col, row) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex) return;
+    var leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+    var leadRoll = explodingRoll(leadDie).total;
+    var dreadRoll = explodingRoll(6).total;
+    var success = leadRoll >= dreadRoll;
+    var stress = success ? 0 : Math.max(1, dreadRoll - leadRoll);
+    if (stress) ensureMentalStress(stress);
+    hex.resultHtml = `<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead d${leadDie}=${leadRoll} vs DD6=${dreadRoll}. ${success ? 'You guide everyone through the fog.' : '+' + stress + ' Mental Stress from disorientation and panic.'}</div>`;
+    renderLastSeaInfo(hex);
+    showNotif(success ? 'Fog route secured.' : 'Fog peril hit the crew.', success ? 'good' : 'warn');
+  }
+
+  function resolveSeaExhaustionCheck(col, row) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex) return;
+    var spiritDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('spirit') : ((S.stats && S.stats.spirit) || 4);
+    var spiritRoll = explodingRoll(spiritDie).total;
+    var dreadRoll = explodingRoll(6).total;
+    var success = spiritRoll >= dreadRoll;
+    if (!success) ensureTrauma(1);
+    hex.resultHtml = `<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Trauma Check: Spirit d${spiritDie}=${spiritRoll} vs DD6=${dreadRoll}. ${success ? 'You keep pressing inland without long-term harm.' : '+1 Trauma before pressing farther inland.'}</div>`;
+    renderLastSeaInfo(hex);
+    showNotif(success ? 'Exhaustion check passed.' : 'Exhaustion causes trauma.', success ? 'good' : 'warn');
+  }
+
+  function startSeaPirateLandEncounter(col, row) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex) return;
+    hex.resultHtml = `<div class="sea-result-title">Land Encounter - Pirates</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">2 pirates haunt the path inland. DD4 | 8 Health each. Open combat, then choose the result.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="resolveSeaPirateLandOutcome(${col},${row},true)">✓ Success</button><button class="btn btn-xs btn-red" onclick="resolveSeaPirateLandOutcome(${col},${row},false)">✗ Failure</button></div>`;
+    renderLastSeaInfo(hex);
+    showNotif('Pirate encounter staged: 2 pirates DD4 | 8 Health.', 'warn');
+  }
+
+  function resolveSeaPirateLandOutcome(col, row, success) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex) return;
+    if (success) {
+      if (typeof changeCounter === 'function') changeCounter('renown', 1);
+      S.credits = (S.credits || 0) + 30;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      hex.resultHtml = '<div class="sea-result-title">Pirates Defeated</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You clear the inland path. +1 Renown and +30 credits.</div>';
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      showNotif('Inland pirates defeated.', 'good');
+    } else {
+      ensureMentalStress(2);
+      hex.resultHtml = '<div class="sea-result-title">Pirate Ambush Failed</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Your push inland collapses under pressure. +2 Mental Stress.</div>';
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      showNotif('Inland pirate encounter failed.', 'warn');
+    }
+    renderLastSeaInfo(hex);
+  }
+
+  function startSeaShipCombatEncounter() {
+    var hex = S.lastSea && S.lastSea.selectedKey && S.lastSea.map
+      ? S.lastSea.map.find(function (h) { return h.key === S.lastSea.selectedKey; })
+      : null;
+    if (!hex) return;
+    if (typeof spawnEnemyShip === 'function') spawnEnemyShip();
+    if (typeof startNavalCombat === 'function') startNavalCombat();
+    hex.resultHtml = '<div class="sea-result-title">Open Sea Ship Combat</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Ship battle initiated on the Sea Region tab. Resolve with naval controls, then confirm result.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-success" onclick="resolveSeaShipCombatOutcome(true)">✓ Victory</button><button class="btn btn-xs btn-red" onclick="resolveSeaShipCombatOutcome(false)">✗ Defeat</button></div>';
+    renderLastSeaInfo(hex);
+    showNotif('Ship combat started. Use Naval controls then confirm outcome.', 'warn');
+  }
+
+  function resolveSeaShipCombatOutcome(success) {
+    var hex = S.lastSea && S.lastSea.selectedKey && S.lastSea.map
+      ? S.lastSea.map.find(function (h) { return h.key === S.lastSea.selectedKey; })
+      : null;
+    if (!hex) return;
+    if (success) {
+      if (typeof changeCounter === 'function') changeCounter('renown', 1);
+      hex.resultHtml = '<div class="sea-result-title">Ship Combat Won</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You control the lane. +1 Renown.</div>';
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      showNotif('Sea lane secured.', 'good');
+    } else {
+      ensureMentalStress(2);
+      hex.resultHtml = '<div class="sea-result-title">Ship Combat Lost</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Your ship retreats under pressure. +2 Mental Stress.</div>';
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      showNotif('Ship combat lost in open sea.', 'warn');
+    }
+    renderLastSeaInfo(hex);
+  }
+
+  function buildSeaSkirmishEncounter(hex) {
+    if (!hex) return '';
+    var sides = [
+      ['Royal Armada Marines', 'Pirate Brotherhood'],
+      ['Reef Wardens', 'Salt Reavers'],
+      ['Merchant Convoy Guard', 'Open Sea Raiders']
+    ];
+    var pickSides = sides[Math.max(0, roll(sides.length) - 1)];
+    hex.pendingSeaSkirmish = { sideA: pickSides[0], sideB: pickSides[1], joined: null, rewarded: false };
+    return `<div class="sea-result-title">Sea Skirmish</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${pickSides[0]} clash with ${pickSides[1]} in the shipping lane. Choose a side and run skirmish controls.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'A')">Join ${pickSides[0]}</button><button class="btn btn-xs btn-red" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'B')">Join ${pickSides[1]}</button></div>`;
+  }
+
+  function joinSeaSkirmishSide(col, row, side) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex || !hex.pendingSeaSkirmish) return;
+    var state = hex.pendingSeaSkirmish;
+    state.joined = side === 'B' ? 'B' : 'A';
+    if (!state.rewarded && typeof changeCounter === 'function') {
+      changeCounter('renown', 1);
+      state.rewarded = true;
+    }
+    if (typeof switchTab === 'function') {
+      var combatBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+      if (combatBtn) switchTab('combat', combatBtn);
+    }
+    var ally = state.joined === 'A' ? state.sideA : state.sideB;
+    hex.resultHtml = `<div class="sea-result-title">Sea Skirmish - Joined ${ally}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You gain +1 Renown for choosing a side. Resolve skirmish using Combat tab controls, then lock the result below.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-success" onclick="resolveSeaSkirmishOutcome(${col},${row},true)">✓ Your Side Won</button><button class="btn btn-xs btn-red" onclick="resolveSeaSkirmishOutcome(${col},${row},false)">✗ Your Side Lost</button></div>`;
+    renderLastSeaInfo(hex);
+    showNotif('Skirmish side chosen: ' + ally + '.', 'good');
+  }
+
+  function resolveSeaSkirmishOutcome(col, row, success) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex || !hex.pendingSeaSkirmish) return;
+    if (success) {
+      S.credits = (S.credits || 0) + 60;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      hex.resultHtml = '<div class="sea-result-title">Sea Skirmish Won</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Your side secures the lane. +60 credits.</div>';
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      showNotif('Sea skirmish victory.', 'good');
+    } else {
+      ensureMentalStress(1);
+      hex.resultHtml = '<div class="sea-result-title">Sea Skirmish Lost</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Your side breaks formation. +1 Mental Stress.</div>';
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      showNotif('Sea skirmish defeat.', 'warn');
+    }
+    hex.pendingSeaSkirmish = null;
+    renderLastSeaInfo(hex);
+  }
+
   function concludeSeaEncounter(message, tone) {
     const msg = message || 'Action resolved.';
     if (msg) showNotif(msg, tone || 'good');
@@ -1347,6 +1601,7 @@
       const fleeStress = roll(6);
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${ships} pirates',{mentalStress:${ships*2},requireOutcome:true,dread:8})">⚔ Fight (+${ships*2} Mental Stress)</button>
+        <button class="btn btn-xs btn-warn" onclick="startSeaShipCombatEncounter()">🚢 Start Ship Combat</button>
         <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('flee','Pirates',{mentalStress:${fleeStress},controlRoll:true,dread:8,requireFightOnFail:true})">🏃 Flee (Control vs DD8)</button>
         <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('tribute','Pirates',{cost:50})">🪙 Pay Tribute (−50₵)</button>
         <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate','Pirates',{cost:50})">💬 Negotiate (−50₵)</button>
@@ -1606,7 +1861,7 @@
   window.completeSeaTask = completeSeaTask;
 
   function buildSeaExploration(hex) {
-    const option = pick(["weather", "encounter", "peril", "uneventful"]);
+    const option = pick(["weather", "encounter", "peril", "skirmish", "uneventful"]);
     if (option === "weather") {
       S.lastSea.weather = rollLastSeaWeather();
       return `<div class="sea-result-title">Shift in Weather</div>The sea turns under you. New weather: <strong style="color:var(--gold2);">${S.lastSea.weather.label}</strong> - ${S.lastSea.weather.desc}`;
@@ -1617,6 +1872,9 @@
     if (option === "peril") {
       const peril = pick(OPEN_SEA_PERILS);
       return `<div class="sea-result-title">Peril - ${peril}</div>Control vs DD6 or take the difference in Stress.`;
+    }
+    if (option === 'skirmish') {
+      return buildSeaSkirmishEncounter(hex);
     }
     return `<div class="sea-result-title">Uneventful Sailing</div>The ship cuts across open water without trouble.`;
   }
@@ -1675,8 +1933,7 @@
       const treasure = pick([`${roll(6) * 10} Credits`, "1 Scroll", "1 Armor", "1 Weapon"]);
       return `<div class="sea-result-title">Land Encounter - Buried Treasure</div>You uncover ${treasure}.`;
     }
-    const pirates = roll(6);
-    return `<div class="sea-result-title">Land Encounter - Pirates</div>${pirates} pirate${pirates > 1 ? "s" : ""} haunt the path inland. DD4 | 8 Stress.`;
+    return `<div class="sea-result-title">Land Encounter - Pirates</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">2 pirates haunt the path inland. DD4 | 8 Health each.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="startSeaPirateLandEncounter(${hex.col},${hex.row})">⚔ Start Pirate Combat</button><button class="btn btn-xs btn-success" onclick="resolveSeaPirateLandOutcome(${hex.col},${hex.row},true)">✓ Success</button><button class="btn btn-xs btn-red" onclick="resolveSeaPirateLandOutcome(${hex.col},${hex.row},false)">✗ Failure</button></div>`;
   }
 
   function buildIslandExploration(hex) {
@@ -1685,10 +1942,10 @@
       return buildLandEncounter(hex);
     }
     if (option === "peril") {
-      return `<div class="sea-result-title">Island Peril - ${pick(ISLAND_PERILS)}</div>Lead vs DD6 or take the difference in Stress.`;
+      return `<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead vs DD6 or take the difference in Mental Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveSeaIslandPerilCheck(${hex.col},${hex.row})">⚄ Lead vs DD6</button></div>`;
     }
     if (option === "exhaustion") {
-      return `<div class="sea-result-title">Exhaustion</div>Make a Trauma Check before pressing farther inland.`;
+      return `<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Make a Trauma Check before pressing farther inland.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveSeaExhaustionCheck(${hex.col},${hex.row})">⚄ Trauma Check</button></div>`;
     }
     if (option === "weather") {
       S.lastSea.weather = rollLastSeaWeather();
@@ -2830,6 +3087,16 @@
   window.clearLastSea = clearLastSea;
   window.exploreLastSeaHex = exploreLastSeaHex;
   window.resolveSeaEncounter = resolveSeaEncounter;
+  window.resolveSeaIslandPerilCheck = resolveSeaIslandPerilCheck;
+  window.resolveSeaExhaustionCheck = resolveSeaExhaustionCheck;
+  window.startSeaPirateLandEncounter = startSeaPirateLandEncounter;
+  window.resolveSeaPirateLandOutcome = resolveSeaPirateLandOutcome;
+  window.startSeaShipCombatEncounter = startSeaShipCombatEncounter;
+  window.resolveSeaShipCombatOutcome = resolveSeaShipCombatOutcome;
+  window.joinSeaSkirmishSide = joinSeaSkirmishSide;
+  window.resolveSeaSkirmishOutcome = resolveSeaSkirmishOutcome;
+  window.rollSeaSettlementDowntime = rollSeaSettlementDowntime;
+  window.resolveSeaSettlementDowntime = resolveSeaSettlementDowntime;
   window.generateTaskForSeaHex = generateTaskForSeaHex;
   window.acceptSeaTask = acceptSeaTask;
   window.completeSeaTask = completeSeaTask;

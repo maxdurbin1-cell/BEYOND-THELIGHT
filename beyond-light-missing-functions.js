@@ -32,6 +32,8 @@ function ensureSpaceShopCategories() {
 }
 
 const QUICK_ACCESS_MAX = 8;
+let _quickAccessObserver = null;
+let _quickAccessSyncing = false;
 
 function getTabLabelFromButton(btn, tabId) {
   if (!btn) return String(tabId || 'Tab');
@@ -146,6 +148,7 @@ function getPanelQuickAccessMount(panel) {
 function renderPanelQuickAccess(activeTabId) {
   const panels = document.querySelectorAll('.tab-panel[id^="tab-"]');
   if (!panels || !panels.length) return;
+  _quickAccessSyncing = true;
   panels.forEach(function(panel) {
     const tabId = panel.id.replace(/^tab-/, '');
     const mount = getPanelQuickAccessMount(panel);
@@ -155,6 +158,28 @@ function renderPanelQuickAccess(activeTabId) {
       mount.style.display = 'flex';
     }
   });
+  _quickAccessSyncing = false;
+}
+
+function schedulePanelQuickAccessRefresh(tabId) {
+  renderPanelQuickAccess(tabId);
+  setTimeout(function() { renderPanelQuickAccess(tabId); }, 0);
+  setTimeout(function() { renderPanelQuickAccess(tabId); }, 120);
+  setTimeout(function() { renderPanelQuickAccess(tabId); }, 300);
+}
+
+function ensureQuickAccessObserver() {
+  if (_quickAccessObserver) return;
+  const root = document.body;
+  if (!root || typeof MutationObserver === 'undefined') return;
+  _quickAccessObserver = new MutationObserver(function() {
+    if (_quickAccessSyncing) return;
+    const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
+    if (!activePanel) return;
+    const activeId = activePanel.id.replace(/^tab-/, '');
+    schedulePanelQuickAccessRefresh(activeId);
+  });
+  _quickAccessObserver.observe(root, { childList: true, subtree: true });
 }
 
 window.quickAccessGo = quickAccessGo;
@@ -174,7 +199,6 @@ function switchTab(tabId, btn) {
   }
   trackQuickAccessTab(tabId);
   renderGlobalQuickAccess();
-  renderPanelQuickAccess(tabId);
   // AUDIO: Switch music based on tab
   if (typeof window.AudioManager !== "undefined") {
     window.AudioManager.switchTabMusic(tabId);
@@ -234,6 +258,8 @@ function switchTab(tabId, btn) {
   if (tabId === "shop") {
     ensureSpaceShopCategories();
   }
+
+  schedulePanelQuickAccessRefresh(tabId);
 }
 
 if (document.readyState === 'loading') {
@@ -241,13 +267,15 @@ if (document.readyState === 'loading') {
     renderGlobalQuickAccess();
     const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
     const activeId = activePanel ? activePanel.id.replace(/^tab-/, '') : null;
-    renderPanelQuickAccess(activeId);
+    schedulePanelQuickAccessRefresh(activeId);
+    ensureQuickAccessObserver();
   });
 } else {
   renderGlobalQuickAccess();
   const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
   const activeId = activePanel ? activePanel.id.replace(/^tab-/, '') : null;
-  renderPanelQuickAccess(activeId);
+  schedulePanelQuickAccessRefresh(activeId);
+  ensureQuickAccessObserver();
 }
 
 function setInputValue(id, value) {

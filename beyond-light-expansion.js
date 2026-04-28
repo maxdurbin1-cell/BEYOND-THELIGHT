@@ -1673,6 +1673,8 @@
       sideA: pickSides[0],
       sideB: pickSides[1],
       joined: null,
+      commanderToken: '',
+      commanderName: '',
       rewarded: false,
       round: 1,
       armyA: { stress: roll(12) + roll(12), dread: 6, actions: 2 },
@@ -1701,6 +1703,44 @@
     }
     if (!total) total = getSoloWayfarerHealth();
     return total;
+  }
+
+  function getCampaignActorContext() {
+    var cs = window.campaignSystem && typeof window.campaignSystem.getState === 'function'
+      ? window.campaignSystem.getState()
+      : null;
+    var campaign = cs && cs.campaign ? cs.campaign : null;
+    return {
+      token: cs && cs.token ? String(cs.token) : '',
+      role: cs && cs.role ? String(cs.role) : '',
+      roster: campaign && Array.isArray(campaign.roster) ? campaign.roster : []
+    };
+  }
+
+  function isCampaignTokenOnline(ctx, token) {
+    if (!ctx || !Array.isArray(ctx.roster) || !token) return false;
+    var member = ctx.roster.find(function (p) { return String(p && p.token || '') === String(token || ''); });
+    return !!(member && member.online);
+  }
+
+  function canControlSeaSkirmish(st) {
+    if (!st || !st.joined) return false;
+    var ctx = getCampaignActorContext();
+    if (!ctx.token) return true;
+    if (ctx.role === 'gm') return true;
+    if (!st.commanderToken) {
+      st.commanderToken = ctx.token;
+      st.commanderName = 'Player';
+      return true;
+    }
+    if (st.commanderToken === ctx.token) return true;
+    if (!isCampaignTokenOnline(ctx, st.commanderToken)) {
+      st.commanderToken = ctx.token;
+      st.commanderName = 'Player';
+      showNotif('Previous skirmish commander is offline. Command transferred to you.', 'warn');
+      return true;
+    }
+    return false;
   }
 
   function renderSeaSkirmishControls(col, row) {
@@ -1749,7 +1789,16 @@
     var hex = seaHexByCoord(col, row);
     if (!hex || !hex.pendingSeaSkirmish) return;
     var state = hex.pendingSeaSkirmish;
+    var ctx = getCampaignActorContext();
+    if (ctx.token && state.commanderToken && state.commanderToken !== ctx.token && ctx.role !== 'gm' && isCampaignTokenOnline(ctx, state.commanderToken)) {
+      showNotif('Only the current commander (or GM) can change skirmish side.', 'warn');
+      return;
+    }
     state.joined = side === 'B' ? 'B' : 'A';
+    if (ctx.token) {
+      state.commanderToken = ctx.token;
+      state.commanderName = (ctx.role === 'gm') ? 'GM' : 'Player';
+    }
     var itemFlags = getSeaNarrativeItemFlags();
     var bonusNotes = [];
     if (!state.rewarded && typeof changeCounter === 'function') {
@@ -1773,6 +1822,10 @@
     var hex = seaHexByCoord(col, row);
     if (!hex || !hex.pendingSeaSkirmish || !hex.pendingSeaSkirmish.joined) return;
     var st = hex.pendingSeaSkirmish;
+    if (!canControlSeaSkirmish(st)) {
+      showNotif('Skirmish controls are locked to the active commander (or GM).', 'warn');
+      return;
+    }
     var mine = side === 'A' ? st.armyA : st.armyB;
     var opp = side === 'A' ? st.armyB : st.armyA;
     if (!mine || !opp) return;
@@ -1814,6 +1867,10 @@
   function resolveSeaSkirmishOutcome(col, row, success) {
     var hex = seaHexByCoord(col, row);
     if (!hex || !hex.pendingSeaSkirmish) return;
+    if (!canControlSeaSkirmish(hex.pendingSeaSkirmish)) {
+      showNotif('Only the active commander (or GM) can lock skirmish outcome.', 'warn');
+      return;
+    }
     if (success) {
       S.credits = (S.credits || 0) + 60;
       if (typeof updateCreditsUI === 'function') updateCreditsUI();

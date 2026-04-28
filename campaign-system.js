@@ -13,6 +13,8 @@
     campaign: null,
     suppressTmwEmit: false,
     lastKnownTmw: null,
+    suppressMentalStressEmit: false,
+    lastKnownMentalStress: null,
     activePromptId: "",
     autoRestoreTried: false,
     restoringSession: false,
@@ -127,7 +129,7 @@
     var shared = {
       credits: Math.max(0, Number(window.S.credits || 0)),
       renown: Math.max(0, Number(window.S.renown || 0)),
-      mentalStress: Math.max(0, Number(window.S.mentalStress || 0)),
+      mentalStress: Math.max(0, Number((typeof current.mentalStress === "number" ? current.mentalStress : window.S.mentalStress) || 0)),
       missionTokens: deepCloneJson(window.S.missionTokens || {}),
       storyline: deepCloneJson(window.S.storyline || {}),
       holding: deepCloneJson(window.S.holding || {}),
@@ -156,7 +158,10 @@
         window.S.renown = Math.max(0, Number(sharedState.renown || 0));
       }
       if (typeof sharedState.mentalStress === "number") {
+        state.suppressMentalStressEmit = true;
         window.S.mentalStress = Math.max(0, Number(sharedState.mentalStress || 0));
+        state.lastKnownMentalStress = window.S.mentalStress;
+        setTimeout(function () { state.suppressMentalStressEmit = false; }, 0);
       }
       if (sharedState.storyline && typeof sharedState.storyline === "object") {
         window.S.storyline = deepCloneJson(sharedState.storyline) || {};
@@ -292,6 +297,13 @@
     await emitWithAck("campaign:setTmw", { value: tmw, reason: reason || "sync" });
   }
 
+  async function syncMentalStressDelta(delta, reason) {
+    if (!state.connected || !state.code) return;
+    var val = Number(delta || 0);
+    if (!Number.isFinite(val) || val === 0) return;
+    await emitWithAck("campaign:deltaMentalStress", { delta: val, reason: reason || "sync" });
+  }
+
   function patchTmwHooks() {
     if (window._campaignPatchedTmwHooks) return;
     if (typeof window.updateTMWPool !== "function") return;
@@ -319,6 +331,26 @@
     }
 
     window._campaignPatchedTmwHooks = true;
+  }
+
+  function patchMentalStressHooks() {
+    if (window._campaignPatchedMentalStressHooks) return;
+    if (typeof window.changeMentalStress !== "function") return;
+
+    var originalMental = window.changeMentalStress;
+    window.changeMentalStress = function (delta) {
+      var before = (typeof window.S !== "undefined" && window.S) ? Number(window.S.mentalStress || 0) : 0;
+      var result = originalMental.apply(this, arguments);
+      var after = (typeof window.S !== "undefined" && window.S) ? Number(window.S.mentalStress || 0) : before;
+      var appliedDelta = after - before;
+      if (!state.suppressMentalStressEmit && appliedDelta !== 0) {
+        state.lastKnownMentalStress = after;
+        syncMentalStressDelta(appliedDelta, "changeMentalStress");
+      }
+      return result;
+    };
+
+    window._campaignPatchedMentalStressHooks = true;
   }
 
   function renderMembers(list) {
@@ -449,22 +481,22 @@
       safeNotif("That backpack slot is empty.", "warn");
       return;
     }
-    var next = collectSharedState();
-    if (!Array.isArray(next.partyStash)) next.partyStash = [];
-    next.partyStash.push(item);
-    window.S.backpack[idx] = "";
-    if (typeof window.renderBackpackUI === "function") window.renderBackpackUI();
-    var res = await pushSharedState(next, "share-item");
+    var res = await emitWithAck("campaign:stashShare", { item: item });
     if (!res.ok) {
-      window.S.backpack[idx] = item;
-      if (typeof window.renderBackpackUI === "function") window.renderBackpackUI();
       safeNotif(res.error || "Could not share item.", "warn");
       return;
     }
+    window.S.backpack[idx] = "";
+    if (typeof window.renderBackpackUI === "function") window.renderBackpackUI();
     safeNotif("Shared item to party stash: " + item, "good");
   }
 
   async function claimSharedItem(stashIndex) {
+    var hasSlot = Array.isArray(window.S && window.S.backpack) && window.S.backpack.indexOf("") >= 0;
+    if (!hasSlot) {
+      safeNotif("Backpack full.", "warn");
+      return;
+    }
     var shared = getCampaignSharedState();
     var list = Array.isArray(shared.partyStash) ? shared.partyStash.slice() : [];
     var idx = Math.max(0, Number(stashIndex || 0));
@@ -473,19 +505,17 @@
       safeNotif("That party stash item is no longer available.", "warn");
       return;
     }
-    if (!addItemToBackpack(item)) {
-      safeNotif("Backpack full.", "warn");
-      return;
-    }
-    list.splice(idx, 1);
-    var next = collectSharedState();
-    next.partyStash = list;
-    var res = await pushSharedState(next, "claim-item");
+    var res = await emitWithAck("campaign:stashClaim", { index: idx });
     if (!res.ok) {
       safeNotif(res.error || "Could not claim party item.", "warn");
       return;
     }
-    safeNotif("Claimed from party stash: " + item, "good");
+    var claimedItem = String((res && res.item) || item || "").trim();
+    if (!claimedItem || !addItemToBackpack(claimedItem)) {
+      safeNotif("Claimed item, but backpack storage failed.", "warn");
+      return;
+    }
+    safeNotif("Claimed from party stash: " + claimedItem, "good");
   }
 
   function copyRosterItem(token, itemIndex) {
@@ -1355,6 +1385,7 @@
 
   function init() {
     patchTmwHooks();
+    patchMentalStressHooks();
     ensureSettingsSection();
     ensureDockPanel();
     ensureSocket();
@@ -1385,6 +1416,7 @@
 
   setInterval(function () {
     patchTmwHooks();
+    patchMentalStressHooks();
     if (!document.getElementById("campaignSettingsSection")) {
       ensureSettingsSection();
     }

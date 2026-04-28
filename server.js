@@ -728,6 +728,112 @@ io.on("connection", (socket) => {
     if (typeof ack === "function") ack({ ok: true, value: next });
   });
 
+  socket.on("campaign:deltaMentalStress", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const delta = Number((payload && payload.delta) || 0);
+    if (!Number.isFinite(delta) || delta === 0) {
+      if (typeof ack === "function") ack({ ok: false, error: "Invalid mental stress delta." });
+      return;
+    }
+
+    const sharedState = campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+      ? campaign.shared.state
+      : {};
+    const next = Math.max(0, Number(sharedState.mentalStress || 0) + delta);
+    sharedState.mentalStress = next;
+    campaign.shared.state = sharedState;
+    campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
+    campaign.updatedAt = Date.now();
+
+    const token = socket.data.token;
+    const member = token ? campaign.participants.get(token) : null;
+    addLog(
+      campaign,
+      "system",
+      `${member ? member.name : "Someone"} changed shared Mental Stress by ${delta > 0 ? "+" : ""}${delta} (now ${next}).`,
+      { token: token || "", delta, mentalStress: next }
+    );
+
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true, mentalStress: next, stateVersion: campaign.shared.stateVersion });
+  });
+
+  socket.on("campaign:stashShare", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const item = String((payload && payload.item) || "").trim();
+    if (!item) {
+      if (typeof ack === "function") ack({ ok: false, error: "No item provided." });
+      return;
+    }
+
+    const sharedState = campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+      ? campaign.shared.state
+      : {};
+    const stash = Array.isArray(sharedState.partyStash) ? sharedState.partyStash.slice() : [];
+    stash.push(item);
+    sharedState.partyStash = stash;
+    campaign.shared.state = sharedState;
+    campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
+    campaign.updatedAt = Date.now();
+
+    const token = socket.data.token;
+    const member = token ? campaign.participants.get(token) : null;
+    addLog(campaign, "system", `${member ? member.name : "Someone"} shared ${item} to the party stash.`, {
+      token: token || "",
+      item,
+      action: "stash-share"
+    });
+
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true, stateVersion: campaign.shared.stateVersion });
+  });
+
+  socket.on("campaign:stashClaim", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const idx = Math.max(0, Number((payload && payload.index) || 0));
+    const sharedState = campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+      ? campaign.shared.state
+      : {};
+    const stash = Array.isArray(sharedState.partyStash) ? sharedState.partyStash.slice() : [];
+    const item = String(stash[idx] || "").trim();
+    if (!item) {
+      if (typeof ack === "function") ack({ ok: false, error: "That stash item is no longer available." });
+      return;
+    }
+
+    stash.splice(idx, 1);
+    sharedState.partyStash = stash;
+    campaign.shared.state = sharedState;
+    campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
+    campaign.updatedAt = Date.now();
+
+    const token = socket.data.token;
+    const member = token ? campaign.participants.get(token) : null;
+    addLog(campaign, "system", `${member ? member.name : "Someone"} claimed ${item} from the party stash.`, {
+      token: token || "",
+      item,
+      action: "stash-claim"
+    });
+
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true, item, stateVersion: campaign.shared.stateVersion });
+  });
+
   socket.on("campaign:syncState", (payload, ack) => {
     const campaign = getCampaignBySocket(socket);
     if (!campaign) {
@@ -743,7 +849,18 @@ io.on("connection", (socket) => {
       return;
     }
 
-    campaign.shared.state = incoming;
+    const existingState = campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+      ? campaign.shared.state
+      : {};
+    const merged = Object.assign({}, existingState, incoming);
+    if (Array.isArray(existingState.partyStash)) {
+      merged.partyStash = existingState.partyStash.slice();
+    }
+    if (typeof existingState.mentalStress === "number") {
+      merged.mentalStress = Math.max(0, Number(existingState.mentalStress || 0));
+    }
+
+    campaign.shared.state = merged;
     campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
     campaign.updatedAt = Date.now();
 

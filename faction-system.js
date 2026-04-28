@@ -2,6 +2,8 @@
 // Features: Faction Lore, Relations, Missions, Trust/Betrayal, Multiple Endings
 (function () {
   const FACTION_TAB_ID = "factions";
+  const ENDINGS_TAB_ID = "endings";
+  const FINAL_ENDING_THRESHOLD = 5;
 
   // ============================================================================
   // FACTION DEFINITIONS — Each faction has lore, beliefs, missions, and dynamics
@@ -445,6 +447,9 @@
     }
     if (!S.factionNarrative.endingResult || typeof S.factionNarrative.endingResult !== "object") {
       S.factionNarrative.endingResult = { key: "", title: "", vibe: "" };
+    }
+    if (!S.factionNarrative.finale || typeof S.factionNarrative.finale !== "object") {
+      S.factionNarrative.finale = { unlocked: false, key: "", revealed: false, unlockedAt: 0 };
     }
 
     Object.keys(FACTIONS).forEach((id) => {
@@ -891,6 +896,29 @@
   // ============================================================================
   // STORY PATHWAYS — The Five Philosophical Ends
   // ============================================================================
+
+  const ENDING_CINEMATICS = {
+    heroic: {
+      opener: "Stormlight breaks through smoke over shattered watchtowers.",
+      scene: "You are remembered by names you never learned. Survivors tell stories of the day you chose others over certainty, and your choices become a doctrine of mercy under pressure.",
+      epilogue: "A generation later, your sigil is painted on relief caravans and peace convoys."
+    },
+    evil: {
+      opener: "Gold banners flap above a silent city that does not cheer.",
+      scene: "You secure absolute control. Every rival kneels or vanishes. Your commands are obeyed instantly, but every room goes quiet when you enter it.",
+      epilogue: "Your empire endures, but nobody can tell whether it is order or grief wearing armor."
+    },
+    sacrificial: {
+      opener: "Dawn arrives at a memorial carved into scorched stone.",
+      scene: "You give away what no one else would surrender. Your final act turns defeat into a rallying cry strong enough to outlive your body.",
+      epilogue: "People speak of you in the present tense, as if sacrifice made you impossible to bury."
+    },
+    happy: {
+      opener: "At sunrise, faction emissaries stand together for the first time without guards between them.",
+      scene: "No single ideology wins. Instead, your contracts forced shared dependency and hard compromise until peace became practical, then desirable.",
+      epilogue: "Children grow up treating old frontlines as roads, not borders."
+    }
+  };
 
   const STORY_PATHWAYS = {
     heroic: {
@@ -1660,9 +1688,130 @@
 
     return {
       key: "contested",
-      title: STORY_PATHWAYS.unity.ending.title,
+      title: STORY_PATHWAYS.happy.ending.title,
       vibe: "Your pathway is contested; one more defining contract can tip the ending.",
     };
+  }
+
+  function evaluateFinaleUnlock(points) {
+    const p = points || { heroic: 0, evil: 0, sacrificial: 0 };
+    const ordered = [
+      { key: "heroic", value: Number(p.heroic || 0) },
+      { key: "evil", value: Number(p.evil || 0) },
+      { key: "sacrificial", value: Number(p.sacrificial || 0) }
+    ].sort((a, b) => b.value - a.value);
+
+    const top = ordered[0];
+    if (!top || top.value < FINAL_ENDING_THRESHOLD) {
+      return { unlocked: false, key: "", score: top ? top.value : 0 };
+    }
+
+    const ties = ordered.filter((row) => row.value === top.value);
+    if (ties.length > 1) {
+      return { unlocked: true, key: "happy", score: top.value };
+    }
+    return { unlocked: true, key: top.key, score: top.value };
+  }
+
+  function syncFinaleProgress() {
+    ensureFactionState();
+    const points = S.factionNarrative.pathPoints || { heroic: 0, evil: 0, sacrificial: 0 };
+    const evalResult = evaluateFinaleUnlock(points);
+    const finale = S.factionNarrative.finale;
+    const wasUnlocked = !!finale.unlocked;
+    const oldKey = finale.key || "";
+    finale.unlocked = !!evalResult.unlocked;
+    finale.key = evalResult.key || "";
+    if (finale.unlocked && !wasUnlocked) {
+      finale.unlockedAt = Date.now();
+      finale.revealed = false;
+    }
+    if (finale.unlocked && oldKey && oldKey !== finale.key) {
+      finale.revealed = false;
+    }
+    if (!finale.unlocked) {
+      finale.revealed = false;
+    }
+    return finale;
+  }
+
+  function progressPct(points) {
+    return Math.max(0, Math.min(100, Math.floor((Number(points || 0) / FINAL_ENDING_THRESHOLD) * 100)));
+  }
+
+  function revealFinalEnding() {
+    ensureFactionState();
+    const finale = syncFinaleProgress();
+    if (!finale.unlocked || !finale.key) {
+      if (typeof showNotif === "function") showNotif("Ending still locked. Complete more pathway contracts.", "warn");
+      renderEndingsPanel();
+      return;
+    }
+    finale.revealed = true;
+    renderEndingsPanel();
+  }
+
+  function renderEndingsPanel() {
+    ensureFactionState();
+    const host = document.getElementById("endingsPanel") || document.getElementById("tab-" + ENDINGS_TAB_ID);
+    if (!host) return;
+
+    const points = S.factionNarrative.pathPoints || { heroic: 0, evil: 0, sacrificial: 0 };
+    const finale = syncFinaleProgress();
+    const key = finale.key || "";
+    const pathway = key && STORY_PATHWAYS[key] ? STORY_PATHWAYS[key] : null;
+    const cinematic = key && ENDING_CINEMATICS[key] ? ENDING_CINEMATICS[key] : null;
+    const trajectory = computeFactionEndingFromPoints();
+
+    const lockText = finale.unlocked
+      ? "Final outcome unlocked. Reveal the scene when ready."
+      : "Locked: reach " + FINAL_ENDING_THRESHOLD + " points in Heroic, Ruthless, or Sacrificial pathway.";
+
+    host.innerHTML = ""
+      + "<div class='faction-container'>"
+      + "<div class='faction-intro'><h2>ENDING TRAJECTORY</h2><p>Your pathway points decide your final cinematic outcome.</p></div>"
+      + "<div class='card' style='margin-bottom:.6rem;'>"
+      + "<div style='font-family:Cinzel,serif;font-size:.72rem;color:var(--gold2);margin-bottom:.35rem;'>Current Trajectory</div>"
+      + "<div style='font-size:.85rem;color:var(--text2);line-height:1.55;'><strong>" + (trajectory.title || "Unwritten Fate") + "</strong><br>" + (trajectory.vibe || "Keep making faction-defining choices.") + "</div>"
+      + "</div>"
+      + "<div class='card' style='margin-bottom:.6rem;'>"
+      + "<div style='font-family:Cinzel,serif;font-size:.72rem;color:var(--teal);margin-bottom:.4rem;'>Pathway Progress (Threshold " + FINAL_ENDING_THRESHOLD + ")</div>"
+      + [
+        { label: "Heroic", key: "heroic", color: "var(--teal)" },
+        { label: "Ruthless", key: "evil", color: "var(--red2)" },
+        { label: "Sacrificial", key: "sacrificial", color: "var(--gold2)" }
+      ].map(function (row) {
+        const value = Number(points[row.key] || 0);
+        const pct = progressPct(value);
+        return "<div style='margin-bottom:.35rem;'>"
+          + "<div style='display:flex;justify-content:space-between;font-size:.76rem;color:var(--muted2);'><span>" + row.label + "</span><span>" + value + " / " + FINAL_ENDING_THRESHOLD + "</span></div>"
+          + "<div style='height:8px;border:1px solid var(--border2);background:var(--surface);margin-top:.14rem;'><div style='height:100%;width:" + pct + "%;background:" + row.color + ";'></div></div>"
+          + "</div>";
+      }).join("")
+      + "<div style='font-size:.78rem;color:" + (finale.unlocked ? "var(--green2)" : "var(--muted2)") + ";margin-top:.25rem;'>" + lockText + "</div>"
+      + "</div>"
+      + "<div class='card'>"
+      + "<div style='font-family:Cinzel,serif;font-size:.72rem;color:var(--gold2);margin-bottom:.35rem;'>Final Outcome Scene</div>"
+      + (finale.unlocked
+        ? (finale.revealed
+            ? ("<div style='font-size:.9rem;color:var(--text2);line-height:1.65;'>"
+                + "<div style='font-family:Cinzel,serif;font-size:.9rem;color:var(--gold2);margin-bottom:.2rem;'>" + ((pathway && pathway.ending && pathway.ending.title) || "Final Outcome") + "</div>"
+                + "<div style='color:var(--muted2);font-style:italic;margin-bottom:.35rem;'>" + ((cinematic && cinematic.opener) || "") + "</div>"
+                + "<div style='margin-bottom:.35rem;'>" + ((pathway && pathway.ending && pathway.ending.text) || "") + "</div>"
+                + "<div style='margin-bottom:.35rem;'>" + ((cinematic && cinematic.scene) || "") + "</div>"
+                + "<div style='color:var(--muted2);'>" + ((cinematic && cinematic.epilogue) || "") + "</div>"
+              + "</div>")
+            : ("<div style='font-size:.84rem;color:var(--muted2);margin-bottom:.4rem;'>Your finale is ready to reveal.</div>"
+              + "<button class='btn btn-primary' onclick='factionSystem.revealFinalEnding()'>Reveal Final Outcome</button>"))
+        : "<div style='font-size:.84rem;color:var(--muted2);'>No final scene yet. Complete pathway contracts to unlock it.</div>")
+      + "</div>"
+      + "</div>";
+  }
+
+  function openEndingsTab() {
+    const btn = document.querySelector(".tab-btn[onclick*=\"switchTab('" + ENDINGS_TAB_ID + "'\"]");
+    if (typeof switchTab === "function") switchTab(ENDINGS_TAB_ID, btn || null);
+    renderEndingsPanel();
   }
 
   function chooseFactionContractRegion() {
@@ -1921,6 +2070,7 @@
       });
       if (typeof showNotif === "function") showNotif("Faction contract failed. You can accept it again to recover the arc.", "warn");
       setupFactionTab();
+      renderEndingsPanel();
       return;
     }
 
@@ -1949,6 +2099,8 @@
     }
 
     const ending = computeFactionEndingFromPoints();
+    const finaleBefore = Object.assign({}, S.factionNarrative.finale || {});
+    const finaleAfter = syncFinaleProgress();
     S.factionNarrative.endingResult = ending;
     if (typeof showNotif === "function") {
       showNotif(
@@ -1960,8 +2112,12 @@
       if (ending && ending.key && ending.key !== "contested") {
         showNotif("Ending trajectory: " + ending.title, "good");
       }
+      if (!finaleBefore.unlocked && finaleAfter.unlocked) {
+        showNotif("Final outcome unlocked in Endings.", "good");
+      }
     }
     setupFactionTab();
+    renderEndingsPanel();
   }
 
   function visitFactionBase(factionId) {
@@ -1980,6 +2136,7 @@
     window.switchTab = function (tabId, btn) {
       const out = baseSwitch.apply(this, arguments);
       if (tabId === FACTION_TAB_ID) setupFactionTab();
+      if (tabId === ENDINGS_TAB_ID) renderEndingsPanel();
       return out;
     };
   }
@@ -1992,6 +2149,7 @@
       const out = base.apply(this, arguments);
       const panel = document.getElementById(FACTION_TAB_ID);
       if (panel) setupFactionTab();
+      renderEndingsPanel();
       return out;
     };
   }
@@ -2008,6 +2166,9 @@
     TRUST_LEVELS,
     BETRAYAL_SCENARIOS,
     setupFactionTab,
+    renderEndingsPanel,
+    revealFinalEnding,
+    openEndingsTab,
     expandFaction,
     acceptFactionMission: acceptFactionMissionFromTab,
     visitBase: visitFactionBase,
@@ -2046,11 +2207,13 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       setupFactionTab();
+      renderEndingsPanel();
       patchFactionTabSwitchRefresh();
       patchRenownRefresh();
     });
   } else {
     setupFactionTab();
+    renderEndingsPanel();
     patchFactionTabSwitchRefresh();
     patchRenownRefresh();
   }

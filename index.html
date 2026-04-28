@@ -277,6 +277,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('oracle',this)">Oracle</button>
     <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('storyline',this)">Storyline</button>
     <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('factions',this)">Factions</button>
+    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('endings',this)">Endings</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" style="display:none;" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
@@ -5541,6 +5542,11 @@ document.addEventListener('DOMContentLoaded',()=>{
 <!-- STORYLINE TAB PANEL -->
 <div class="tab-panel" id="tab-storyline">
   <div id="storyline"></div>
+</div>
+
+<!-- ENDINGS TAB PANEL -->
+<div class="tab-panel" id="tab-endings">
+  <div id="endingsPanel"></div>
 </div>
 
 <!-- SCRIPT INCLUDES FOR NEW SYSTEMS -->

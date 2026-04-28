@@ -219,7 +219,7 @@ Enter the game.
           </div>
           <div class="intro-footer">
             <div class="intro-nav">
-              ${index > 0 ? `<button class="btn btn-sm intro-prev" onclick="introSystem.prevScreen()">← BACK</button>` : ''}
+              ${index > 0 ? `<button class="btn btn-sm intro-prev" onclick="introSystem.prevScreen()">← BACK</button>` : `<button class="btn btn-sm btn-red" onclick="introSystem.skipIntro()">SKIP INTRO</button>`}
               ${index < INTRO_CONTENT.screens.length - 1 ? `
                 <button class="btn btn-primary intro-next" onclick="introSystem.nextScreen()">NEXT →</button>
               ` : `
@@ -276,11 +276,19 @@ Enter the game.
     if (charTab) charTab.click();
   }
 
+  function skipIntro() {
+    if (typeof showNotif === 'function') {
+      showNotif('Skipping intro...', 'good');
+    }
+    startGame();
+  }
+
   window.introSystem = {
     createIntroPage,
     nextScreen,
     prevScreen,
-    startGame
+    startGame,
+    skipIntro
   };
 
   // Auto-setup

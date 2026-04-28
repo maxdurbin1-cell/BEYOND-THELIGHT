@@ -32,8 +32,8 @@
           alignment: "corporate",
           pathways: {
             heroic: "You could warn the rebels instead.",
-            evil: "Burn everything so there's nothing left to steal.",
-            sacrificial: "Stay behind to cover their escape.",
+            tyrant: "Burn everything so there's nothing left to steal.",
+            martyr: "Stay behind to cover their escape.",
           }
         },
         {
@@ -44,9 +44,9 @@
           difficulty: "medium",
           alignment: "political",
           pathways: {
-            evil: "Deliberately extend the conflict for interest payments.",
+            tyrant: "Deliberately extend the conflict for interest payments.",
             heroic: "Broker genuine peace at no cost.",
-            sacrificial: "Take a fatal wound to seal the agreement.",
+            martyr: "Take a fatal wound to seal the agreement.",
           }
         },
         {
@@ -58,8 +58,8 @@
           alignment: "corporate",
           pathways: {
             heroic: "Leave enough for locals to survive.",
-            evil: "Buy it all. Let them starve.",
-            sacrificial: "Give your share to the poor.",
+            tyrant: "Buy it all. Let them starve.",
+            martyr: "Give your share to the poor.",
           }
         }
       ]
@@ -86,9 +86,9 @@
           difficulty: "very_hard",
           alignment: "zealous",
           pathways: {
-            evil: "Kill them all. No mercy.",
+            tyrant: "Kill them all. No mercy.",
             heroic: "Warn them and let them flee.",
-            sacrificial: "Take their curses upon yourself to save them.",
+            martyr: "Take their curses upon yourself to save them.",
           }
         },
         {
@@ -100,8 +100,8 @@
           alignment: "blessed",
           pathways: {
             heroic: "Truly heal them. Use your own resources.",
-            evil: "Rob them and leave them at the shrine's steps.",
-            sacrificial: "Absorb their illnesses into yourself.",
+            tyrant: "Rob them and leave them at the shrine's steps.",
+            martyr: "Absorb their illnesses into yourself.",
           }
         },
         {
@@ -113,8 +113,8 @@
           alignment: "religious",
           pathways: {
             heroic: "Learn why they hold it. Negotiate its return.",
-            evil: "Massacre the village. Take the relic.",
-            sacrificial: "Destroy it to prevent its misuse.",
+            tyrant: "Massacre the village. Take the relic.",
+            martyr: "Destroy it to prevent its misuse.",
           }
         }
       ]
@@ -141,9 +141,9 @@
           difficulty: "hard",
           alignment: "martial",
           pathways: {
-            evil: "Make an example. Display the bodies.",
+            tyrant: "Make an example. Display the bodies.",
             heroic: "Let them escape. Report them dead.",
-            sacrificial: "Take their place. Flee yourself.",
+            martyr: "Take their place. Flee yourself.",
           }
         },
         {
@@ -155,8 +155,8 @@
           alignment: "martial",
           pathways: {
             heroic: "Use minimal violence. Negotiate where possible.",
-            evil: "Kill everything that moves.",
-            sacrificial: "Fall in battle so allies can escape.",
+            tyrant: "Kill everything that moves.",
+            martyr: "Fall in battle so allies can escape.",
           }
         },
         {
@@ -167,9 +167,9 @@
           difficulty: "impossible",
           alignment: "martial",
           pathways: {
-            evil: "Burn it all. Kill the wounded.",
+            tyrant: "Burn it all. Kill the wounded.",
             heroic: "Minimize casualties on both sides.",
-            sacrificial: "Die taking the objective.",
+            martyr: "Die taking the objective.",
           }
         }
       ]
@@ -196,9 +196,9 @@
           difficulty: "challenging",
           alignment: "criminal",
           pathways: {
-            evil: "Burn the temple. Kill the monks.",
+            tyrant: "Burn the temple. Kill the monks.",
             heroic: "Return the money to the poor.",
-            sacrificial: "Get caught. Let your crew escape.",
+            martyr: "Get caught. Let your crew escape.",
           }
         },
         {
@@ -209,9 +209,9 @@
           difficulty: "hard",
           alignment: "shadowed",
           pathways: {
-            evil: "Make it slow. Make it terrible.",
+            tyrant: "Make it slow. Make it terrible.",
             heroic: "Just make it quick.",
-            sacrificial: "Sacrifice yourself in their place.",
+            martyr: "Sacrifice yourself in their place.",
           }
         },
         {
@@ -223,8 +223,8 @@
           alignment: "survival",
           pathways: {
             heroic: "Protect the cargo at all costs.",
-            evil: "Sell half to the highest bidder.",
-            sacrificial: "Go down with the ship so others escape.",
+            tyrant: "Sell half to the highest bidder.",
+            martyr: "Go down with the ship so others escape.",
           }
         }
       ]
@@ -251,9 +251,9 @@
           difficulty: "challenging",
           alignment: "revolutionary",
           pathways: {
-            evil: "Leave it destroyed. Let the hospitals go dark.",
+            tyrant: "Leave it destroyed. Let the hospitals go dark.",
             heroic: "Restore power after making your point.",
-            sacrificial: "Detonate yourself in the central hub.",
+            martyr: "Detonate yourself in the central hub.",
           }
         },
         {
@@ -265,8 +265,8 @@
           alignment: "revolutionary",
           pathways: {
             heroic: "Give them real choice. Real hope.",
-            evil: "Lie. Promise what you can't deliver.",
-            sacrificial: "Take their place if too many will die.",
+            tyrant: "Lie. Promise what you can't deliver.",
+            martyr: "Take their place if too many will die.",
           }
         },
         {
@@ -277,9 +277,9 @@
           difficulty: "very_hard",
           alignment: "revolutionary",
           pathways: {
-            evil: "Kill their entire family too.",
+            tyrant: "Kill their entire family too.",
             heroic: "Kill only the Speaker. Let the family live.",
-            sacrificial: "Take the blame. Go to your execution.",
+            martyr: "Take the blame. Go to your execution.",
           }
         }
       ]
@@ -307,8 +307,8 @@
           alignment: "scholarly",
           pathways: {
             heroic: "Preserve and share the knowledge.",
-            evil: "Sell to the highest bidder.",
-            sacrificial: "Die protecting the archives from fire.",
+            tyrant: "Sell to the highest bidder.",
+            martyr: "Die protecting the archives from fire.",
           }
         },
         {
@@ -320,8 +320,8 @@
           alignment: "noble",
           pathways: {
             heroic: "Build it strong. Mentor them truly.",
-            evil: "Teach false doctrine. Control their minds.",
-            sacrificial: "Stay behind when the military comes.",
+            tyrant: "Teach false doctrine. Control their minds.",
+            martyr: "Stay behind when the military comes.",
           }
         },
         {
@@ -333,8 +333,8 @@
           alignment: "truth",
           pathways: {
             heroic: "Release it. Accept the consequences.",
-            evil: "Use it to extort the government.",
-            sacrificial: "Die taking the evidence to press.",
+            tyrant: "Use it to extort the government.",
+            martyr: "Die taking the evidence to press.",
           }
         }
       ]
@@ -437,7 +437,7 @@
       S.factionNarrative = {};
     }
     if (!S.factionNarrative.pathPoints || typeof S.factionNarrative.pathPoints !== "object") {
-      S.factionNarrative.pathPoints = { heroic: 0, evil: 0, sacrificial: 0 };
+      S.factionNarrative.pathPoints = { heroic: 0, tyrant: 0, martyr: 0 };
     }
     if (!S.factionNarrative.contracts || typeof S.factionNarrative.contracts !== "object") {
       S.factionNarrative.contracts = {};
@@ -903,17 +903,22 @@
       scene: "You are remembered by names you never learned. Survivors tell stories of the day you chose others over certainty, and your choices become a doctrine of mercy under pressure.",
       epilogue: "A generation later, your sigil is painted on relief caravans and peace convoys."
     },
-    evil: {
+    tyrant: {
       opener: "Gold banners flap above a silent city that does not cheer.",
       scene: "You secure absolute control. Every rival kneels or vanishes. Your commands are obeyed instantly, but every room goes quiet when you enter it.",
       epilogue: "Your empire endures, but nobody can tell whether it is order or grief wearing armor."
     },
-    sacrificial: {
+    martyr: {
       opener: "Dawn arrives at a memorial carved into scorched stone.",
       scene: "You give away what no one else would surrender. Your final act turns defeat into a rallying cry strong enough to outlive your body.",
       epilogue: "People speak of you in the present tense, as if sacrifice made you impossible to bury."
     },
-    happy: {
+    broken: {
+      opener: "Fog rolls across fields where nothing grows.",
+      scene: "You made the hard choices. The world stabilizes, but not better—just different. You survived when better people didn't. You live long enough to see what you fought for become twisted in new ways.",
+      epilogue: "In the end, you pour yourself into whiskey and regret, knowing some choices can never be unmade."
+    },
+    fortune: {
       opener: "At sunrise, faction emissaries stand together for the first time without guards between them.",
       scene: "No single ideology wins. Instead, your contracts forced shared dependency and hard compromise until peace became practical, then desirable.",
       epilogue: "Children grow up treating old frontlines as roads, not borders."
@@ -940,8 +945,8 @@
       }
     },
 
-    evil: {
-      id: "evil",
+    tyrant: {
+      id: "tyrant",
       name: "The Tyrant's Path",
       emoji: "👿",
       description: "Accumulate power. Dominate those weaker than you.",
@@ -959,8 +964,8 @@
       }
     },
 
-    sacrificial: {
-      id: "sacrificial",
+    martyr: {
+      id: "martyr",
       name: "The Martyr's Path",
       emoji: "❤️",
       description: "Give everything, including your life, to a cause greater than yourself.",
@@ -978,13 +983,13 @@
       }
     },
 
-    sad: {
-      id: "sad",
+    broken: {
+      id: "broken",
       name: "The Broken Path",
       emoji: "💔",
       description: "Make the hard choices. Accept that you can't save everyone.",
       keyChoices: [
-        "Choose between two evils",
+        "Choose between irreconcilable options",
         "Let people die to save others",
         "Sacrifice your hopes for others' survival",
         "Live with unbearable guilt"
@@ -997,9 +1002,9 @@
       }
     },
 
-    happy: {
-      id: "happy",
-      name: "The Fortunate Path",
+    fortune: {
+      id: "fortune",
+      name: "The Fortune's Path",
       emoji: "🌟",
       description: "Build connections. Create win-wins. Find the overlapping interests.",
       keyChoices: [
@@ -1235,7 +1240,7 @@
           <h2>YOUR STORY PATHWAY</h2>
           <p>The choices you make determine not just which faction wins, but what kind of ending you receive.</p>
           <div style="border:1px solid var(--border2);padding:.5rem .6rem;margin:.45rem 0 .65rem 0;font-size:.8rem;color:var(--text2);line-height:1.6;">
-            <div><strong style="color:var(--gold2);">Path Points:</strong> Heroic ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.heroic) || 0)} · Ruthless ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.evil) || 0)} · Sacrificial ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.sacrificial) || 0)}</div>
+            <div><strong style="color:var(--gold2);">Path Points:</strong> Heroic ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.heroic) || 0)} · Tyrant ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.tyrant) || 0)} · Martyr ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.martyr) || 0)}</div>
             <div style="margin-top:.22rem;"><strong style="color:var(--teal);">Ending Trajectory:</strong> ${(computeFactionEndingFromPoints().title || 'Unwritten Fate')}</div>
             <div style="margin-top:.12rem;color:var(--muted2);">${computeFactionEndingFromPoints().vibe || 'Complete faction contracts to shape your ending.'}</div>
           </div>
@@ -1655,50 +1660,50 @@
 
   function computeFactionEndingFromPoints() {
     ensureFactionState();
-    const points = S.factionNarrative.pathPoints || { heroic: 0, evil: 0, sacrificial: 0 };
+    const points = S.factionNarrative.pathPoints || { heroic: 0, tyrant: 0, martyr: 0 };
     const heroic = Number(points.heroic || 0);
-    const evil = Number(points.evil || 0);
-    const sacrificial = Number(points.sacrificial || 0);
-    const total = heroic + evil + sacrificial;
+    const tyrant = Number(points.tyrant || 0);
+    const martyr = Number(points.martyr || 0);
+    const total = heroic + tyrant + martyr;
     if (total <= 0) {
       return { key: "", title: "Unwritten Fate", vibe: "No contract pathway dominates yet." };
     }
 
-    if (heroic >= 3 && heroic >= evil && heroic >= sacrificial) {
+    if (heroic >= 3 && heroic >= tyrant && heroic >= martyr) {
       return {
         key: "heroic",
         title: STORY_PATHWAYS.heroic.ending.title,
         vibe: STORY_PATHWAYS.heroic.ending.vibe,
       };
     }
-    if (evil >= 3 && evil >= heroic && evil >= sacrificial) {
+    if (tyrant >= 3 && tyrant >= heroic && tyrant >= martyr) {
       return {
-        key: "evil",
-        title: STORY_PATHWAYS.evil.ending.title,
-        vibe: STORY_PATHWAYS.evil.ending.vibe,
+        key: "tyrant",
+        title: STORY_PATHWAYS.tyrant.ending.title,
+        vibe: STORY_PATHWAYS.tyrant.ending.vibe,
       };
     }
-    if (sacrificial >= 3 && sacrificial >= heroic && sacrificial >= evil) {
+    if (martyr >= 3 && martyr >= heroic && martyr >= tyrant) {
       return {
-        key: "sacrificial",
-        title: STORY_PATHWAYS.sacrificial.ending.title,
-        vibe: STORY_PATHWAYS.sacrificial.ending.vibe,
+        key: "martyr",
+        title: STORY_PATHWAYS.martyr.ending.title,
+        vibe: STORY_PATHWAYS.martyr.ending.vibe,
       };
     }
 
     return {
       key: "contested",
-      title: STORY_PATHWAYS.happy.ending.title,
+      title: STORY_PATHWAYS.fortune.ending.title,
       vibe: "Your pathway is contested; one more defining contract can tip the ending.",
     };
   }
 
   function evaluateFinaleUnlock(points) {
-    const p = points || { heroic: 0, evil: 0, sacrificial: 0 };
+    const p = points || { heroic: 0, tyrant: 0, martyr: 0 };
     const ordered = [
       { key: "heroic", value: Number(p.heroic || 0) },
-      { key: "evil", value: Number(p.evil || 0) },
-      { key: "sacrificial", value: Number(p.sacrificial || 0) }
+      { key: "tyrant", value: Number(p.tyrant || 0) },
+      { key: "martyr", value: Number(p.martyr || 0) }
     ].sort((a, b) => b.value - a.value);
 
     const top = ordered[0];
@@ -1708,14 +1713,14 @@
 
     const ties = ordered.filter((row) => row.value === top.value);
     if (ties.length > 1) {
-      return { unlocked: true, key: "happy", score: top.value };
+      return { unlocked: true, key: "fortune", score: top.value };
     }
     return { unlocked: true, key: top.key, score: top.value };
   }
 
   function syncFinaleProgress() {
     ensureFactionState();
-    const points = S.factionNarrative.pathPoints || { heroic: 0, evil: 0, sacrificial: 0 };
+    const points = S.factionNarrative.pathPoints || { heroic: 0, tyrant: 0, martyr: 0 };
     const evalResult = evaluateFinaleUnlock(points);
     const finale = S.factionNarrative.finale;
     const wasUnlocked = !!finale.unlocked;
@@ -1756,7 +1761,7 @@
     const host = document.getElementById("endingsPanel") || document.getElementById("tab-" + ENDINGS_TAB_ID);
     if (!host) return;
 
-    const points = S.factionNarrative.pathPoints || { heroic: 0, evil: 0, sacrificial: 0 };
+    const points = S.factionNarrative.pathPoints || { heroic: 0, tyrant: 0, martyr: 0 };
     const finale = syncFinaleProgress();
     const key = finale.key || "";
     const pathway = key && STORY_PATHWAYS[key] ? STORY_PATHWAYS[key] : null;
@@ -1778,7 +1783,7 @@
       + "<div style='font-family:Cinzel,serif;font-size:.72rem;color:var(--teal);margin-bottom:.4rem;'>Pathway Progress (Threshold " + FINAL_ENDING_THRESHOLD + ")</div>"
       + [
         { label: "Heroic", key: "heroic", color: "var(--teal)" },
-        { label: "Ruthless", key: "evil", color: "var(--red2)" },
+        { label: "Tyrant", key: "tyrant", color: "var(--red2)" },
         { label: "Sacrificial", key: "sacrificial", color: "var(--gold2)" }
       ].map(function (row) {
         const value = Number(points[row.key] || 0);
@@ -1828,7 +1833,7 @@
 
   function buildFactionContractTemplate(factionId, mission, pathway, region) {
     const faction = FACTIONS[factionId] || { name: "Faction" };
-    const pathLabel = pathway === "heroic" ? "Heroic" : pathway === "evil" ? "Ruthless" : "Sacrificial";
+    const pathLabel = pathway === "heroic" ? "Heroic" : pathway === "tyrant" ? "Tyrant" : "Martyr";
     const missionCore = mission && mission.title ? mission.title : "Faction Operation";
     const hooks = {
       delivery_chain: {
@@ -1946,7 +1951,7 @@
       return;
     }
     const route = chooseFactionContractRegion();
-    const pathLabel = (pathway === "heroic" || pathway === "evil" || pathway === "sacrificial") ? pathway : "standard";
+    const pathLabel = (pathway === "heroic" || pathway === "tyrant" || pathway === "martyr") ? pathway : "standard";
     const gm = buildFactionContractTemplate(factionId, mission, pathLabel, route);
     const contractTitle = "[" + toTitle(pathLabel) + "] " + gm.title;
     const contractLocation = gm.location;
@@ -2036,11 +2041,11 @@
             <strong>Your decisions:</strong>
             <ul>
               <li><strong>Heroic:</strong> ${mission.pathways.heroic}</li>
-              <li><strong>Evil:</strong> ${mission.pathways.evil}</li>
+              <li><strong>Tyrant:</strong> ${mission.pathways.tyrant}</li>
               <li><strong>Sacrificial:</strong> ${mission.pathways.sacrificial}</li>
             </ul>
           </div>
-          ${unlocked && status === 'available' ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','heroic')">Accept Heroic Contract</button><button class="btn btn-xs" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','evil')">Accept Ruthless Contract</button><button class="btn btn-xs btn-primary" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','sacrificial')">Accept Sacrificial Contract</button></div>` : ""}
+          ${unlocked && status === 'available' ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','heroic')">Accept Heroic Contract</button><button class="btn btn-xs" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','tyrant')">Accept Tyrant Contract</button><button class="btn btn-xs btn-primary" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','martyr')">Accept Martyr Contract</button></div>` : ""}
         </div>
       `;
     });
@@ -2075,7 +2080,7 @@
     }
 
     const points = S.factionNarrative.pathPoints;
-    if (pathway === "heroic" || pathway === "evil" || pathway === "sacrificial") {
+    if (pathway === "heroic" || pathway === "tyrant" || pathway === "martyr") {
       points[pathway] = Number(points[pathway] || 0) + 1;
     }
 
@@ -2105,7 +2110,7 @@
     if (typeof showNotif === "function") {
       showNotif(
         "Faction narrative advanced: " + toTitle(pathway) + " +1 (Heroic "
-        + Number(points.heroic || 0) + " / Ruthless " + Number(points.evil || 0)
+        + Number(points.heroic || 0) + " / Tyrant " + Number(points.tyrant || 0)
         + " / Sacrificial " + Number(points.sacrificial || 0) + ")",
         "good"
       );

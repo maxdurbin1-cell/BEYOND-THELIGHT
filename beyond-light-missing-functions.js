@@ -823,7 +823,7 @@ function resetRunProgressState() {
   S.storyline = {};
   S.worldThatWas = {};
   S.factionNarrative = {
-    pathPoints: { heroic: 0, evil: 0, sacrificial: 0 },
+    pathPoints: { heroic: 0, tyrant: 0, martyr: 0 },
     contracts: {},
     completedContracts: [],
     endingResult: { key: "", title: "", vibe: "" }

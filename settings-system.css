@@ -166,6 +166,19 @@ nav {
   flex-direction: column;
 }
 
+.mode-current {
+  font-family: 'Cinzel', serif;
+  font-size: 0.56rem;
+  letter-spacing: 0.1em;
+  color: var(--muted2);
+  text-transform: uppercase;
+  margin-bottom: 0.45rem;
+}
+
+#currentModeLabel {
+  color: var(--gold2);
+}
+
 .mode-btn {
   display: flex;
   flex-direction: column;
@@ -225,6 +238,10 @@ nav {
 body.gm-mode {
   --gm-accent: #b060d0;
   --gm-light: #d080e0;
+}
+
+body.gm-mode header {
+  box-shadow: inset 0 -2px 0 rgba(176, 96, 208, 0.35);
 }
 
 .gm-prompt {

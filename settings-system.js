@@ -55,6 +55,7 @@
         this.gameMode = mode;
         this.save();
         this.applyGameMode();
+        syncGameModeUI();
         if (typeof showNotif === 'function') {
           const label = mode === 'gm' ? 'GM Mode' : 'Solo Mode';
           showNotif(`Switched to ${label}`, 'good');
@@ -121,6 +122,9 @@
         
         <div class="settings-section">
           <h4>Game Mode</h4>
+          <div class="mode-current">
+            Current Mode: <span id="currentModeLabel">${Settings.gameMode === 'gm' ? 'GM' : 'Solo'}</span>
+          </div>
           <div class="setting-row mode-selector">
             <button class="mode-btn ${Settings.gameMode === 'solo' ? 'active' : ''}" 
               onclick="window.settingsSystem.setGameMode('solo')">
@@ -143,10 +147,31 @@
       </div>
     `;
   }
+
+  function syncGameModeUI() {
+    const isGM = Settings.gameMode === 'gm';
+    const modeButtons = document.querySelectorAll('#settingsPanel .mode-btn');
+    if (modeButtons.length >= 2) {
+      modeButtons[0].classList.toggle('active', !isGM);
+      modeButtons[1].classList.toggle('active', isGM);
+    }
+
+    const modeLabel = document.getElementById('currentModeLabel');
+    if (modeLabel) {
+      modeLabel.textContent = isGM ? 'GM' : 'Solo';
+    }
+
+    const settingsBtn = document.querySelector('nav .settings-tab-btn');
+    if (settingsBtn) {
+      settingsBtn.title = isGM ? 'Settings (GM Mode Active)' : 'Settings (Solo Mode Active)';
+      settingsBtn.textContent = isGM ? '⚙ GM' : '⚙';
+    }
+  }
   
   function openSettings() {
     const container = document.getElementById(SETTINGS_ID);
     if (container) {
+      syncGameModeUI();
       container.classList.add('open');
     }
   }
@@ -217,9 +242,10 @@
   
   // Initialize immediately and on page load
   function initSettings() {
-    createSettingsPanel();
     Settings.load();
+    createSettingsPanel();
     Settings.applyGameMode();
+    syncGameModeUI();
   }
   
   if (document.readyState === 'loading') {

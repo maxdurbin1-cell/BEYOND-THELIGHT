@@ -3199,6 +3199,35 @@ function useBackpackItem(index) {
       return;
     }
   }
+  // Blight Repellent — adds advantage die vs Peril checks
+  if(name === 'Blight Repellent'){
+    if(!spendUse()) return;
+    var advDieSize = S.stats && S.stats.adventure ? S.stats.adventure : 4;
+    if(!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
+    S.rollMod.advDice.push(advDieSize);
+    if(typeof renderRollMods === 'function') renderRollMods();
+    showNotif('Blight Repellent: +A.D. advantage die active vs Peril','good');
+    return;
+  }
+  // Rations — restore 1 Stress
+  if(name === 'Rations' || name === 'Premium Basic'){
+    if(!spendUse()) return;
+    changeStress(-1);
+    showNotif(name+': −1 Stress','good');
+    return;
+  }
+  // Antitoxin — remove Weakened and/or Shaken condition
+  if(name === 'Antitoxin'){
+    if(!spendUse()) return;
+    var cleared = [];
+    ['weakened','shaken','vulnerable'].forEach(function(c){
+      if(S.conditions && S.conditions[c]){ S.conditions[c]=false; cleared.push(c); }
+    });
+    if(typeof updateConditionButtons==='function') updateConditionButtons();
+    if(typeof updateAllStatDisplays==='function') updateAllStatDisplays();
+    showNotif('Antitoxin: '+(cleared.length?cleared.join(', ')+' removed':'no active conditions to clear'),'good');
+    return;
+  }
   // Snake Oil
   if(name === 'Snake Oil'){
     if(!spendUse()) return;
@@ -5504,10 +5533,7 @@ document.addEventListener('DOMContentLoaded',()=>{
             + '</div>'
             + (condText ? '<div style="font-size:.7rem;color:var(--orange);margin-top:.1rem;">'+condText+'</div>' : '')
             + '<div style="margin-top:.15rem;display:flex;gap:.15rem;flex-wrap:wrap;font-size:.68rem;">'
-              + '<button class="btn btn-xs btn-red" onclick="damageEnemyHealth('+idx+',1)" title="Attack">❌ Health−1</button>'
-              + '<button class="btn btn-xs btn-warn" onclick="applyEnemyCondition('+idx+',\'Weakened\')" title="Weaken">📉 Weak</button>'
-              + '<button class="btn btn-xs btn-purple" onclick="applyEnemyCondition('+idx+',\'Confused\')" title="Confuse">❓ Confused</button>'
-              + '<button class="btn btn-xs btn-orange" onclick="applyEnemyCondition('+idx+',\'Panicked\')" title="Panic">😨 Panic</button>'
+              + '<button class="btn btn-xs btn-green" onclick="damageEnemyHealth('+idx+',1)" title="Restore Health">💚 +1 Health</button>'
             + '</div>'
           + '</div>';
         }).join('')
@@ -6292,6 +6318,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   window.renderQP = renderQP;
+  window.rollProvinceLeadCheck = rollProvinceLeadCheck;
 })();
 </script>
 

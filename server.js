@@ -111,7 +111,17 @@ function ensureCampaignShape(raw) {
       token,
       name: String(p.name || "Player").trim().slice(0, 32) || "Player",
       role: p.role === "gm" ? "gm" : "player",
-      lastSeenAt: Number(p.lastSeenAt) || Date.now()
+      lastSeenAt: Number(p.lastSeenAt) || Date.now(),
+      character: p && p.character && typeof p.character === "object"
+        ? {
+            name: String(p.character.name || p.name || "Wayfarer").slice(0, 48),
+            health: Math.max(0, Number(p.character.health || 0)),
+            stress: Math.max(0, Number(p.character.stress || 0)),
+            look: String(p.character.look || "").slice(0, 180),
+            stats: p.character.stats && typeof p.character.stats === "object" ? p.character.stats : {},
+            updatedAt: Number(p.character.updatedAt) || Date.now()
+          }
+        : null
     });
   }
 
@@ -166,7 +176,17 @@ function serializeCampaign(campaign) {
       token: p.token,
       name: p.name,
       role: p.role,
-      lastSeenAt: Number(p.lastSeenAt || Date.now())
+      lastSeenAt: Number(p.lastSeenAt || Date.now()),
+      character: p.character
+        ? {
+            name: String(p.character.name || p.name || "Wayfarer").slice(0, 48),
+            health: Math.max(0, Number(p.character.health || 0)),
+            stress: Math.max(0, Number(p.character.stress || 0)),
+            look: String(p.character.look || "").slice(0, 180),
+            stats: p.character.stats && typeof p.character.stats === "object" ? p.character.stats : {},
+            updatedAt: Number(p.character.updatedAt || Date.now())
+          }
+        : null
     })),
     gmToken: campaign.gmToken || "",
     archived: !!campaign.archived,
@@ -256,7 +276,17 @@ function snapshotCampaign(campaign, requesterToken) {
       name: member.name,
       role: member.role,
       online: onlineTokens.has(member.token),
-      lastSeenAt: Number(member.lastSeenAt || Date.now())
+      lastSeenAt: Number(member.lastSeenAt || Date.now()),
+      character: member.character
+        ? {
+            name: String(member.character.name || member.name || "Wayfarer").slice(0, 48),
+            health: Math.max(0, Number(member.character.health || 0)),
+            stress: Math.max(0, Number(member.character.stress || 0)),
+            look: String(member.character.look || "").slice(0, 180),
+            stats: member.character.stats && typeof member.character.stats === "object" ? member.character.stats : {},
+            updatedAt: Number(member.character.updatedAt || 0)
+          }
+        : null
     }))
     .sort((a, b) => {
       if (a.role === "gm" && b.role !== "gm") return -1;
@@ -380,6 +410,19 @@ function normalizeName(input, fallback) {
   return String(input || fallback || "Player").trim().slice(0, 32) || String(fallback || "Player");
 }
 
+function normalizeCharacter(input, fallbackName) {
+  const c = input && typeof input === "object" ? input : {};
+  const stats = c.stats && typeof c.stats === "object" ? c.stats : {};
+  return {
+    name: String(c.name || fallbackName || "Wayfarer").slice(0, 48),
+    health: Math.max(0, Number(c.health || 0)),
+    stress: Math.max(0, Number(c.stress || 0)),
+    look: String(c.look || "").slice(0, 180),
+    stats,
+    updatedAt: Date.now()
+  };
+}
+
 function resolveOrCreateParticipant(campaign, name, requestedRole, tokenHint) {
   const normalizedName = normalizeName(name, requestedRole === "gm" ? "GM" : "Player");
   const desiredRole = requestedRole === "gm" ? "gm" : "player";
@@ -394,6 +437,9 @@ function resolveOrCreateParticipant(campaign, name, requestedRole, tokenHint) {
         }
         setParticipantRole(campaign, tokenHint, "gm");
       }
+      if (!byToken.character) {
+        byToken.character = normalizeCharacter(null, byToken.name);
+      }
       byToken.lastSeenAt = Date.now();
       return { token: tokenHint, participant: byToken, restored: true };
     }
@@ -407,6 +453,9 @@ function resolveOrCreateParticipant(campaign, name, requestedRole, tokenHint) {
     }
     only.lastSeenAt = Date.now();
     if (desiredRole === "gm") setParticipantRole(campaign, only.token, "gm");
+    if (!only.character) {
+      only.character = normalizeCharacter(null, only.name);
+    }
     return { token: only.token, participant: only, restored: true };
   }
 
@@ -419,7 +468,8 @@ function resolveOrCreateParticipant(campaign, name, requestedRole, tokenHint) {
     token,
     name: normalizedName,
     role: desiredRole,
-    lastSeenAt: Date.now()
+    lastSeenAt: Date.now(),
+    character: normalizeCharacter(null, normalizedName)
   };
 
   campaign.participants.set(token, participant);
@@ -512,7 +562,8 @@ io.on("connection", (socket) => {
         token,
         name,
         role: "gm",
-        lastSeenAt: Date.now()
+        lastSeenAt: Date.now(),
+        character: normalizeCharacter(payload && payload.character, name)
       });
       campaign.gmToken = token;
       campaigns.set(code, campaign);
@@ -689,6 +740,29 @@ io.on("connection", (socket) => {
     addLog(campaign, "note", `${participant ? participant.name : "Player"} updated private notes.`, {
       token
     });
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("campaign:updateCharacter", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const token = socket.data.token;
+    if (!token || !campaign.participants.has(token)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Invalid participant session." });
+      return;
+    }
+
+    const participant = campaign.participants.get(token);
+    participant.character = normalizeCharacter(payload && payload.character, participant.name);
+    participant.lastSeenAt = Date.now();
+    campaign.updatedAt = Date.now();
+    schedulePersist();
+
     emitCampaignState(campaign.code);
     if (typeof ack === "function") ack({ ok: true });
   });

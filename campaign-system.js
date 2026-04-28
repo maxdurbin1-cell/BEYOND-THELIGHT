@@ -19,6 +19,8 @@
     dockOpen: true,
     lastDockLogSize: 0,
     timelineFilter: "all",
+    lastCharacterHash: "",
+    gmIdea: "",
     uiDraft: {
       name: "",
       code: "",
@@ -178,6 +180,76 @@
     }).join("");
   }
 
+  function renderCharacterRoster(list) {
+    if (!Array.isArray(list) || !list.length) {
+      return '<div class="campaign-muted">No campaign wayfarers yet.</div>';
+    }
+    return list.map(function (p) {
+      var c = p && p.character ? p.character : null;
+      var nm = c && c.name ? c.name : (p && p.name ? p.name : "Wayfarer");
+      var hp = c && typeof c.health === "number" ? c.health : 0;
+      var look = c && c.look ? String(c.look).slice(0, 80) : "No look set";
+      return '<div class="campaign-member-row"><span><strong>' + escapeHtml(nm) + '</strong> · HP ' + Number(hp) + '<br><span class="campaign-muted">' + escapeHtml(look) + '</span></span><span class="campaign-pill ' + ((p && p.role === "gm") ? 'gm' : '') + '">' + escapeHtml((p && p.role === "gm") ? "GM" : "Player") + '</span></div>';
+    }).join("");
+  }
+
+  function collectCharacterSummary() {
+    var stats = (typeof window.S !== "undefined" && window.S && window.S.stats) ? window.S.stats : {};
+    var hp = (typeof window.S !== "undefined" && window.S)
+      ? ((typeof window.S.health === "number") ? window.S.health : Number(window.S.stress || 0))
+      : 0;
+    var look = (typeof window.S !== "undefined" && window.S)
+      ? (window.S.look || window.S.flavor || window.S.reason || "")
+      : "";
+    return {
+      name: ensureName(),
+      health: Math.max(0, Number(hp || 0)),
+      stress: Math.max(0, Number((window.S && window.S.stress) || 0)),
+      look: String(look || "").slice(0, 180),
+      stats: {
+        body: Number(stats.body || 4),
+        mind: Number(stats.mind || 4),
+        spirit: Number(stats.spirit || 4),
+        control: Number(stats.control || 4),
+        lead: Number(stats.lead || 4),
+        adventure: Number(stats.adventure || 4)
+      }
+    };
+  }
+
+  async function syncCharacterToCampaign(force) {
+    if (!state.socket || !state.connected || !state.code) return;
+    var summary = collectCharacterSummary();
+    var hash = JSON.stringify(summary);
+    if (!force && hash === state.lastCharacterHash) return;
+    var res = await emitWithAck("campaign:updateCharacter", { character: summary });
+    if (res && res.ok) {
+      state.lastCharacterHash = hash;
+    }
+  }
+
+  function generateWayfarerIdea() {
+    var first = ["Rhea", "Kade", "Nira", "Sable", "Tarin", "Mira", "Voss", "Ena", "Jax", "Pell"];
+    var last = ["Drift", "Blackwire", "Vale", "Meridian", "Ash", "Quill", "Rune", "Dune"];
+    var looks = [
+      "scarred pilot coat and bright lens visor",
+      "salt-cured cloak with brass breathing mask",
+      "patched synth-leathers and copper braids",
+      "ceramic half-mask with weathered naval tattoos"
+    ];
+    var drives = [
+      "recover a vanished convoy logbook",
+      "pay off a family debt to dock syndicates",
+      "map safe lanes through cyclone season",
+      "hunt raiders who burned their first ship"
+    ];
+    var name = first[Math.floor(Math.random() * first.length)] + " " + last[Math.floor(Math.random() * last.length)];
+    var look = looks[Math.floor(Math.random() * looks.length)];
+    var drive = drives[Math.floor(Math.random() * drives.length)];
+    state.gmIdea = name + " - " + look + ". Drive: " + drive + ".";
+    renderSettingsSection();
+  }
+
   function renderLog(log, limit) {
     if (!Array.isArray(log) || !log.length) {
       return '<div class="campaign-muted">No events yet.</div>';
@@ -289,6 +361,7 @@
     var codeValue = state.uiDraft.code || state.code || "";
     var joinPasswordValue = state.uiDraft.joinPassword || "";
     var noteSummaries = campaign && Array.isArray(campaign.notesSummary) ? campaign.notesSummary : [];
+    var roster = campaign && Array.isArray(campaign.roster) ? campaign.roster : [];
     var summaryHtml = isGm && noteSummaries.length
       ? ('<div class="campaign-muted" style="margin-top:.35rem;">' + noteSummaries.map(function (n) {
           var stamp = n.updatedAt ? (" @ " + formatTimestamp(n.updatedAt)) : "";
@@ -363,6 +436,21 @@
       + '<div class="campaign-card-title">Online Members</div>'
       + renderMembers(campaign ? campaign.members : [])
       + "</div>"
+      + (isGm
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Campaign Wayfarers</div>'
+          + renderCharacterRoster(roster)
+          + '</div>'
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">GM Wayfarer Generator</div>'
+          + '<div class="campaign-muted">Generate quick NPC/PC ideas for campaign prep.</div>'
+          + '<div class="campaign-actions" style="margin-top:.35rem;">'
+          + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.generateWayfarerIdea()">Generate Idea</button>'
+          + '</div>'
+          + (state.gmIdea ? ('<div class="campaign-muted" style="margin-top:.35rem;color:var(--text2);">' + escapeHtml(state.gmIdea) + '</div>') : '')
+          + '</div>')
+        : "")
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Private Notes</div>'
       + '<textarea id="campaignPrivateNoteInput" class="campaign-input" maxlength="5000" placeholder="Your private campaign notes...">' + escapeHtml(privateNote) + '</textarea>'
@@ -558,6 +646,7 @@
       renderSettingsSection();
       renderDockPanel();
       attemptAutoRestore();
+      syncCharacterToCampaign(true);
     });
 
     state.socket.on("disconnect", function () {
@@ -586,6 +675,7 @@
       maybePromptActiveRoll(snapshot && snapshot.activeRollRequest ? snapshot.activeRollRequest : null);
       renderSettingsSection();
       renderDockPanel();
+      syncCharacterToCampaign(false);
     });
 
     state.socket.on("campaign:deleted", function (payload) {
@@ -670,6 +760,7 @@
     }
 
     safeNotif("Campaign created. Share code " + res.code + ".", "good");
+    syncCharacterToCampaign(true);
     renderSettingsSection();
     renderDockPanel();
   }
@@ -731,6 +822,7 @@
       );
     }
 
+    syncCharacterToCampaign(true);
     renderSettingsSection();
     renderDockPanel();
   }
@@ -930,6 +1022,27 @@
     ensureDockPanel();
     ensureSocket();
     window.addEventListener("resize", function () { syncDockOffset(); });
+
+    if (typeof window.saveCharacter === "function" && !window._campaignWrappedSaveCharacter) {
+      var baseSaveCharacter = window.saveCharacter;
+      window.saveCharacter = function () {
+        var out = baseSaveCharacter.apply(this, arguments);
+        syncCharacterToCampaign(true);
+        return out;
+      };
+      window._campaignWrappedSaveCharacter = true;
+    }
+
+    if (typeof window.loadCharacter === "function" && !window._campaignWrappedLoadCharacter) {
+      var baseLoadCharacter = window.loadCharacter;
+      window.loadCharacter = function () {
+        var out = baseLoadCharacter.apply(this, arguments);
+        syncCharacterToCampaign(true);
+        return out;
+      };
+      window._campaignWrappedLoadCharacter = true;
+    }
+
     state.ready = true;
   }
 
@@ -940,6 +1053,7 @@
     }
     ensureDockPanel();
     syncDockOffset();
+    syncCharacterToCampaign(false);
   }, 1200);
 
   if (document.readyState === "loading") {
@@ -960,6 +1074,7 @@
     toggleArchive: toggleArchive,
     deleteCampaign: deleteCampaign,
     setTimelineFilter: setTimelineFilter,
+    generateWayfarerIdea: generateWayfarerIdea,
     sendChatMessage: sendChatMessage,
     toggleDock: toggleDock,
     refreshUI: function () {

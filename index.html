@@ -244,7 +244,7 @@ select option{background:#0f1020;}
 .job-card{background:var(--card);border:1px solid var(--border);padding:.7rem;display:flex;flex-direction:column;gap:.3rem;transition:border-color .15s;}
 .job-card:hover{border-color:rgba(201,162,39,.25);}
 /* ── QUICK PANEL ── */
-#quickPanelToggle{position:fixed;bottom:1.2rem;right:1.2rem;z-index:1000;background:rgba(11,12,26,.95);border:1px solid var(--border2);color:var(--gold);font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;padding:.45rem .8rem;cursor:pointer;text-transform:uppercase;backdrop-filter:blur(10px);transition:border-color .2s,color .2s;}
+#quickPanelToggle{position:fixed;bottom:1.2rem;right:8rem;z-index:1000;background:rgba(11,12,26,.95);border:1px solid var(--border2);color:var(--gold);font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;padding:.45rem .8rem;cursor:pointer;text-transform:uppercase;backdrop-filter:blur(10px);transition:border-color .2s,color .2s;}
 #quickPanelToggle:hover,#quickPanelToggle.open{border-color:var(--gold);background:rgba(201,162,39,.08);}
 #quickPanel{position:fixed;bottom:3.8rem;right:1.2rem;width:360px;max-height:calc(100vh - 6rem);background:rgba(11,12,26,.97);border:1px solid var(--border2);z-index:999;display:none;flex-direction:column;backdrop-filter:blur(12px);box-shadow:0 4px 32px rgba(0,0,0,.6);}
 #quickPanel.open{display:flex;}
@@ -4440,13 +4440,21 @@ function renderHexMap(){
       g.appendChild(youTag);
     }
     g.addEventListener('click',()=>{
-      if(ensureMapClickMode()==='travel'){
-        if(isTraversalPhaseLocked(hex))return;
-        if(typeof registerProvinceHexTravel==='function')registerProvinceHexTravel(1);
+      try{
+        if(ensureMapClickMode()==='travel'){
+          if(isTraversalPhaseLocked(hex))return;
+          if(typeof registerProvinceHexTravel==='function')registerProvinceHexTravel(1);
+        }
+        selectedHex=hex;
+        renderHexMap();
+        renderHexInfo(hex);
+      }catch(err){
+        selectedHex=hex;
+        renderHexMap();
+        const c=document.getElementById('hexInfo');
+        if(c)c.innerHTML='<div class="hex-info-inner"><div class="hex-name">'+(hex.name||hex.terrain.name)+'</div><div class="hex-desc">Hex opened, but an error interrupted extra details.</div></div>';
+        if(typeof showNotif==='function')showNotif('Hex clicked, but an info render error occurred. Reload after this save.', 'warn');
       }
-      selectedHex=hex;
-      renderHexMap();
-      renderHexInfo(hex);
     });
     g.addEventListener('mousemove',()=>{const c=document.getElementById('hexCoords');if(c)c.textContent=`[${hex.col+1},${hex.row+1}] ${hex.terrain.name} — ${hex.name||hex.type}`;});
     svg.appendChild(g);
@@ -4457,7 +4465,7 @@ function renderHexInfo(hex){
   const c=document.getElementById('hexInfo');if(!c)return;
   const d=hex.data||{};
   const nk=`${hex.col},${hex.row}`;
-  const provinceItemFlags=getProvinceNarrativeItemFlags();
+  const provinceItemFlags=(typeof getProvinceNarrativeItemFlags==='function')?getProvinceNarrativeItemFlags():{};
   const weatherBtnHint=provinceItemFlags.compass?' (+Compass +2)':(provinceItemFlags.torch?' (Torch eases fail stress)':'');
   const weatherBtnTitle=provinceItemFlags.compass?'Compass grants +2 to Lead/Control weather checks.':(provinceItemFlags.torch?'Torch reduces weather-failure stress by 1.':'');
   const traversalHint=(provinceItemFlags.compass?'Compass +2 on Lead/Control. ':'')+(provinceItemFlags.torch?'Torch +1 on Body/Spirit in Peril/Barrier.':'');

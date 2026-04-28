@@ -93,7 +93,7 @@
       { label: "Clear Current", rough: false, desc: "Cold bright light and a steady current make for excellent sailing." },
       { label: "Bloom Tide", rough: false, desc: "Pollen and sea-glow drift over the surface in strange pastel bands." },
       { label: "Stormfront", rough: true, desc: "Dark clouds stack low over the sea and every sail strains under the pressure." },
-      { label: "Acid Fog", rough: true, desc: "A chemical haze drifts from the industrial coasts. Metal corrodes faster in this. Filter your breathing." },
+      { label: "Acid Fog", rough: true, desc: "A chemical haze drifts from the industrial coasts. Metal corrodes faster in this. Filter your breathing.", check: { dd: 8, stats: ["lead", "control"], failure: "+1 Mental Stress" } },
       { label: "Neon Haze", rough: false, desc: "Refraction from surface pollutants creates low-lying light columns. Navigation is possible. Strange, but possible." },
       { label: "EMP Weather", rough: true, desc: "Ionized air interferes with electronic navigation. Run manual. Get where you are going before sundown." }
     ],
@@ -1620,8 +1620,80 @@
       ['Merchant Convoy Guard', 'Open Sea Raiders']
     ];
     var pickSides = sides[Math.max(0, roll(sides.length) - 1)];
-    hex.pendingSeaSkirmish = { sideA: pickSides[0], sideB: pickSides[1], joined: null, rewarded: false };
+    hex.pendingSeaSkirmish = {
+      sideA: pickSides[0],
+      sideB: pickSides[1],
+      joined: null,
+      rewarded: false,
+      round: 1,
+      armyA: { stress: roll(12) + roll(12), dread: 6, actions: 2 },
+      armyB: { stress: roll(12) + roll(12), dread: 6, actions: 2 }
+    };
     return `<div class="sea-result-title">Sea Skirmish</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${pickSides[0]} clash with ${pickSides[1]} in the shipping lane. Choose a side and run skirmish controls.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" title="${skirmishTitle}" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'A')">Join ${pickSides[0]}${skirmishHint}</button><button class="btn btn-xs btn-red" title="${skirmishTitle}" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'B')">Join ${pickSides[1]}${skirmishHint}</button></div>`;
+  }
+
+  function getSoloWayfarerHealth() {
+    var hp = (typeof S.health === 'number') ? S.health : S.stress;
+    return Math.max(0, Number(hp || 0));
+  }
+
+  function getCampaignWayfarerHealthTotal() {
+    var total = 0;
+    var cs = window.campaignSystem && typeof window.campaignSystem.getState === 'function'
+      ? window.campaignSystem.getState()
+      : null;
+    var roster = cs && cs.campaign && Array.isArray(cs.campaign.roster) ? cs.campaign.roster : [];
+    if (roster.length) {
+      roster.forEach(function (p) {
+        var c = p && p.character ? p.character : null;
+        var hp = c && typeof c.health === 'number' ? c.health : (c && typeof c.stress === 'number' ? c.stress : 0);
+        total += Math.max(0, Number(hp || 0));
+      });
+    }
+    if (!total) total = getSoloWayfarerHealth();
+    return total;
+  }
+
+  function renderSeaSkirmishControls(col, row) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex || !hex.pendingSeaSkirmish || !hex.pendingSeaSkirmish.joined) return '';
+    var st = hex.pendingSeaSkirmish;
+    var mineSide = st.joined === 'B' ? 'B' : 'A';
+    var oppSide = mineSide === 'A' ? 'B' : 'A';
+    var mine = mineSide === 'A' ? st.armyA : st.armyB;
+    var opp = mineSide === 'A' ? st.armyB : st.armyA;
+    var mineName = mineSide === 'A' ? st.sideA : st.sideB;
+    var oppName = oppSide === 'A' ? st.sideA : st.sideB;
+    return ''
+      + '<div class="wtw-card" style="padding:.35rem;margin-top:.32rem;">'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Round ' + (st.round || 1) + ' · Actions reset together at 0/0.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">'
+      + '<div>'
+      + '<div style="font-size:.74rem;color:var(--text2);">Your Side: <strong style="color:var(--teal);">' + escapeHtml(mineName) + '</strong></div>'
+      + '<div style="font-size:.74rem;color:var(--text2);">Stress: <strong style="color:var(--teal);">' + Number(mine.stress || 0) + '</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);">Actions: ' + Number(mine.actions || 0) + ' · Dread: d' + Number(mine.dread || 6) + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
+      + '<button class="btn btn-xs btn-primary" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + mineSide + '\',\'strike\')">Strike</button>'
+      + '<button class="btn btn-xs btn-teal" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + mineSide + '\',\'parry\')">Parry</button>'
+      + '<button class="btn btn-xs" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + mineSide + '\',\'frighten\')">Frighten</button>'
+      + '</div>'
+      + '</div>'
+      + '<div>'
+      + '<div style="font-size:.74rem;color:var(--text2);">Enemy: <strong style="color:var(--red2);">' + escapeHtml(oppName) + '</strong></div>'
+      + '<div style="font-size:.74rem;color:var(--text2);">Stress: <strong style="color:var(--red2);">' + Number(opp.stress || 0) + '</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);">Actions: ' + Number(opp.actions || 0) + ' · Dread: d' + Number(opp.dread || 6) + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
+      + '<button class="btn btn-xs btn-red" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + oppSide + '\',\'strike\')">Strike</button>'
+      + '<button class="btn btn-xs" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + oppSide + '\',\'parry\')">Parry</button>'
+      + '<button class="btn btn-xs" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + oppSide + '\',\'frighten\')">Frighten</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>'
+      + '<div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-success" onclick="resolveSeaSkirmishOutcome(' + col + ',' + row + ',true)">✓ Lock Win</button>'
+      + '<button class="btn btn-xs btn-red" onclick="resolveSeaSkirmishOutcome(' + col + ',' + row + ',false)">✗ Lock Loss</button>'
+      + '</div>'
+      + '</div>';
   }
 
   function joinSeaSkirmishSide(col, row, side) {
@@ -1639,14 +1711,55 @@
       }
       state.rewarded = true;
     }
-    if (typeof switchTab === 'function') {
-      var combatBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
-      if (combatBtn) switchTab('combat', combatBtn);
-    }
     var ally = state.joined === 'A' ? state.sideA : state.sideB;
-    hex.resultHtml = `<div class="sea-result-title">Sea Skirmish - Joined ${ally}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You gain +1 Renown for choosing a side. Resolve skirmish using Combat tab controls, then lock the result below.</div>${seaNarrativeBonusLine(bonusNotes)}<div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-success" onclick="resolveSeaSkirmishOutcome(${col},${row},true)">✓ Your Side Won</button><button class="btn btn-xs btn-red" onclick="resolveSeaSkirmishOutcome(${col},${row},false)">✗ Your Side Lost</button></div>`;
+    var totalHp = getCampaignWayfarerHealthTotal();
+    var joinedArmy = state.joined === 'A' ? state.armyA : state.armyB;
+    joinedArmy.stress = Math.max(0, Number(joinedArmy.stress || 0) + totalHp);
+    hex.resultHtml = `<div class="sea-result-title">Sea Skirmish - Joined ${ally}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You gain +1 Renown for choosing a side. Added total Wayfarer Health (${totalHp}) to ${ally} Stress. Run the skirmish controls here and lock the result below.</div>${seaNarrativeBonusLine(bonusNotes)}${renderSeaSkirmishControls(col,row)}`;
     renderLastSeaInfo(hex);
     showNotif('Skirmish side chosen: ' + ally + '.', 'good');
+  }
+
+  function seaSkirmishAction(col, row, side, action) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex || !hex.pendingSeaSkirmish || !hex.pendingSeaSkirmish.joined) return;
+    var st = hex.pendingSeaSkirmish;
+    var mine = side === 'A' ? st.armyA : st.armyB;
+    var opp = side === 'A' ? st.armyB : st.armyA;
+    if (!mine || !opp) return;
+    if (typeof mine.actions !== 'number') mine.actions = 2;
+    if (typeof opp.actions !== 'number') opp.actions = 2;
+    if (mine.actions <= 0) {
+      showNotif('No actions left for that side.', 'warn');
+      return;
+    }
+
+    mine.actions -= 1;
+    var rollVal = roll(12);
+    var dread = Number(mine.dread || 6);
+    if (action === 'strike' && rollVal >= dread) {
+      opp.stress = Math.max(0, Number(opp.stress || 0) - Math.max(1, rollVal - dread));
+    } else if (action === 'frighten' && roll(12) >= dread) {
+      opp.stress = Math.max(0, Number(opp.stress || 0) - 1);
+    }
+
+    if ((st.armyA.actions || 0) <= 0 && (st.armyB.actions || 0) <= 0) {
+      st.round = Number(st.round || 1) + 1;
+      st.armyA.actions = 2;
+      st.armyB.actions = 2;
+    }
+
+    if ((st.armyA.stress || 0) <= 0 || (st.armyB.stress || 0) <= 0) {
+      var mineSide = st.joined === 'B' ? 'B' : 'A';
+      var myArmy = mineSide === 'A' ? st.armyA : st.armyB;
+      var oppArmy = mineSide === 'A' ? st.armyB : st.armyA;
+      resolveSeaSkirmishOutcome(col, row, Number(myArmy.stress || 0) > Number(oppArmy.stress || 0));
+      return;
+    }
+
+    var ally = st.joined === 'A' ? st.sideA : st.sideB;
+    hex.resultHtml = `<div class="sea-result-title">Sea Skirmish - Joined ${ally}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Run the skirmish controls here and lock result when ready.</div>${renderSeaSkirmishControls(col,row)}`;
+    renderLastSeaInfo(hex);
   }
 
   function resolveSeaSkirmishOutcome(col, row, success) {
@@ -1666,6 +1779,21 @@
     }
     hex.pendingSeaSkirmish = null;
     renderLastSeaInfo(hex);
+  }
+
+  function resolveOpenSeaPerilCheck(col, row, perilName, dd) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex) return;
+    var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
+    var dreadDie = Math.max(1, Number(dd || 6));
+    var controlRoll = explodingRoll(die).total;
+    var dreadRoll = explodingRoll(dreadDie).total;
+    var success = controlRoll >= dreadRoll;
+    var diff = success ? 0 : Math.max(1, dreadRoll - controlRoll);
+    if (diff) ensureMentalStress(diff);
+    hex.resultHtml = `<div class="sea-result-title">Peril - ${escapeHtml(perilName || 'Open Sea Hazard')}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control d${die}=${controlRoll} vs DD${dreadDie}=${dreadRoll}. ${success ? 'You hold course through the hazard.' : '+' + diff + ' Mental Stress from the stormfront impact.'}</div>`;
+    renderLastSeaInfo(hex);
+    showNotif(success ? 'Peril check passed.' : 'Peril hit the crew.', success ? 'good' : 'warn');
   }
 
   function concludeSeaEncounter(message, tone) {
@@ -1993,7 +2121,7 @@
     }
     if (option === "peril") {
       const peril = pick(OPEN_SEA_PERILS);
-      return `<div class="sea-result-title">Peril - ${peril}</div>Control vs DD6 or take the difference in Stress.`;
+      return `<div class="sea-result-title">Peril - ${peril}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control vs DD6 or take the difference in Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveOpenSeaPerilCheck(${hex.col},${hex.row},'${peril}',6)">⚄ Control vs DD6</button></div>`;
     }
     if (option === 'skirmish') {
       return buildSeaSkirmishEncounter(hex);
@@ -3225,6 +3353,8 @@
   window.resolveSeaShipCombatOutcome = resolveSeaShipCombatOutcome;
   window.joinSeaSkirmishSide = joinSeaSkirmishSide;
   window.resolveSeaSkirmishOutcome = resolveSeaSkirmishOutcome;
+  window.seaSkirmishAction = seaSkirmishAction;
+  window.resolveOpenSeaPerilCheck = resolveOpenSeaPerilCheck;
   window.rollSeaSettlementDowntime = rollSeaSettlementDowntime;
   window.resolveSeaSettlementDowntime = resolveSeaSettlementDowntime;
   window.generateTaskForSeaHex = generateTaskForSeaHex;

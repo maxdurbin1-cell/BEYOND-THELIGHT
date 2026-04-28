@@ -90,6 +90,12 @@
     'PUZZLE \u2014 Biometric Lock: Requires an item from another room or Agility vs DD8.'
   ];
 
+  var SITE_PUZZLE_SPECS = [
+    { mode:'code', title:'Site Puzzle: Security Cipher', prompt:'The panel flashes ROUTE-KEY. Enter the reverse key phrase.', answer:'yek-etuor' },
+    { mode:'rearrange', title:'Site Puzzle: Access Phrase', prompt:'Rebuild the phrase that unlocks the blast door.', bank:['OPEN','THE','INNER','GATE'], answer:'open the inner gate' },
+    { mode:'memory', title:'Site Puzzle: Light Sequence', prompt:'Memorize then repeat the light sequence.', sequence:['RED','BLUE','GREEN','RED'], bank:['RED','BLUE','GREEN','WHITE'] }
+  ];
+
   var ROOM_CACHE_FINDS = [
     'Discarded medkit \u2014 restores d4 Stress.',
     'Scavenged tools \u2014 +1 to next Mind or Control roll in this Site.',
@@ -760,6 +766,12 @@
       var actionBtn='';
       if (!explored) {
         actionBtn='<button class="btn btn-xs btn-teal" onclick="exploreRoom('+missionId+','+idx+')" style="margin-top:.2rem;">Investigate</button>';
+      } else if (room.find&&room.find.type==='enemy'&&!room.find.resolved) {
+        actionBtn='<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u2694 '+room.find.count+' enemies \u00b7 DD'+room.find.dd+' \u00b7 '+room.find.hp+' HP each</div><button class="btn btn-xs" onclick="switchTab(\'combat\',document.querySelector(\".tab-btn[onclick*=\\\"combat\\\"]\"))">Open Combat</button><button class="btn btn-xs btn-red" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',false)">Failure</button><button class="btn btn-xs btn-primary" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',true)">Success</button></div>';
+      } else if (room.find&&room.find.type==='trap'&&!room.find.resolved) {
+        actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="resolveMissionRoomTrap('+missionId+','+idx+')">Resolve Trap (Action vs DD'+(room.find.dd||6)+')</button></div>';
+      } else if (room.find&&room.find.type==='puzzle'&&!room.find.resolved) {
+        actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="startMissionRoomPuzzle('+missionId+','+idx+')">Solve Puzzle</button></div>';
       } else if (confrontActive) {
         actionBtn='<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u26a1 Confrontation triggered!</div><button class="btn btn-xs btn-red" onclick="resolveRoomConfrontation('+missionId+','+idx+',false)">Fail</button><button class="btn btn-xs btn-primary" onclick="resolveRoomConfrontation('+missionId+','+idx+',true)">Succeed</button></div>';
       }
@@ -794,12 +806,14 @@
     room.explored=true;
     var r=roll(6);
     if (r===1) {
-      room.confrontTriggered=true;
-      room.find={type:'confront',text:'\u26a1 Guards spotted you in this room! Resolve the confrontation below.'};
+      var ddPool=[4,6,8,10,12,20];
+      var dd=ddPool[roll(ddPool.length)-1];
+      var enemyCount=Math.max(1,roll(4));
+      room.find={type:'enemy',count:enemyCount,dd:dd,hp:dd*2,resolved:false,text:'ENEMY PRESENCE \u2014 '+enemyCount+' hostiles are entrenched in this room.'};
     } else if (r<=3) {
-      room.find={type:'trap',text:pick(ROOM_TRAPS)};
+      room.find={type:'trap',dd:6,resolved:false,text:pick(ROOM_TRAPS)};
     } else if (r===4) {
-      room.find={type:'puzzle',text:pick(ROOM_PUZZLES)};
+      room.find={type:'puzzle',resolved:false,puzzle:JSON.parse(JSON.stringify(pick(SITE_PUZZLE_SPECS))),text:pick(ROOM_PUZZLES)};
     } else if (r===5) {
       room.find={type:'cache',text:'CACHE \u2014 '+pick(ROOM_CACHE_FINDS)};
     } else {
@@ -818,6 +832,74 @@
       showNotif('Room confrontation failed. \u22121 Renown.','warn');
     } else {
       showNotif('Room confrontation succeeded!','good');
+    }
+    renderSiteModal(missionId);
+  }
+
+  function resolveMissionRoomTrap(missionId,roomIdx) {
+    var mission=getMission(missionId); if (!mission) return;
+    var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='trap'||room.find.resolved) return;
+    var statDie=getStat('adventure');
+    var a=explodingRoll(statDie), d=explodingRoll(room.find.dd||6);
+    room.find.resolved=true;
+    if (a.total>=d.total) {
+      room.find.text='TRAP DISARMED \u2014 AD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'.';
+      if (typeof addSuccessRoll==='function') addSuccessRoll();
+    } else {
+      if (typeof changeStress==='function') changeStress(1);
+      if (typeof addTMWOnFail==='function') addTMWOnFail();
+      room.find.text='TRAP TRIGGERED \u2014 AD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'. +1 Stress.';
+    }
+    renderSiteModal(missionId);
+  }
+
+  function startMissionRoomPuzzle(missionId,roomIdx) {
+    var mission=getMission(missionId); if (!mission) return;
+    var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='puzzle'||room.find.resolved) return;
+    var puzzle=room.find.puzzle||pick(SITE_PUZZLE_SPECS);
+    if (typeof openStandaloneStoryPuzzle!=='function') {
+      room.find.resolved=true;
+      room.find.text='Puzzle tools unavailable. Marked as unresolved obstacle.';
+      renderSiteModal(missionId);
+      return;
+    }
+    openStandaloneStoryPuzzle({
+      mode:puzzle.mode,
+      title:puzzle.title,
+      prompt:puzzle.prompt,
+      answer:puzzle.answer,
+      sequence:puzzle.sequence,
+      bank:puzzle.bank,
+      thresholdLabel:'Mission Puzzle',
+      successThreshold:0.7,
+      partialThreshold:0.45,
+      onResolve:function(result){
+        room.find.resolved=true;
+        if (result==='success'||result==='partial') {
+          if (result==='partial'&&typeof changeMentalStress==='function') changeMentalStress(1);
+          if (typeof addSuccessRoll==='function') addSuccessRoll();
+          room.find.text=result==='success'?'PUZZLE SOLVED \u2014 route opened.':'PUZZLE PARTIAL \u2014 route opened with strain (+1 Mental Stress).';
+        } else {
+          if (typeof changeMentalStress==='function') changeMentalStress(1);
+          if (typeof addTMWOnFail==='function') addTMWOnFail();
+          room.find.text='PUZZLE FAILED \u2014 alarm cascade triggered (+1 Mental Stress).';
+        }
+        renderSiteModal(missionId);
+      }
+    });
+  }
+
+  function resolveMissionRoomEnemy(missionId,roomIdx,success) {
+    var mission=getMission(missionId); if (!mission) return;
+    var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='enemy'||room.find.resolved) return;
+    room.find.resolved=true;
+    if (success) {
+      if (typeof addSuccessRoll==='function') addSuccessRoll();
+      room.find.text='ENEMY ENCOUNTER WON \u2014 room secured and route pressure reduced.';
+    } else {
+      if (typeof changeStress==='function') changeStress(1);
+      if (typeof addTMWOnFail==='function') addTMWOnFail();
+      room.find.text='ENEMY ENCOUNTER LOST \u2014 forced retreat (+1 Stress).';
     }
     renderSiteModal(missionId);
   }
@@ -1329,6 +1411,7 @@
   window.startMissionStep1=startMissionStep1; window.skipMissionStep1=skipMissionStep1; window.completeMissionInfoStep=completeMissionInfoStep;
   window.startMissionStep2=startMissionStep2; window.renderSiteModal=renderSiteModal; window.exploreRoom=exploreRoom;
   window.resolveRoomConfrontation=resolveRoomConfrontation; window.completeMissionSiteStep=completeMissionSiteStep;
+  window.resolveMissionRoomTrap=resolveMissionRoomTrap; window.startMissionRoomPuzzle=startMissionRoomPuzzle; window.resolveMissionRoomEnemy=resolveMissionRoomEnemy;
   window.startMissionStep3=startMissionStep3; window.resolveMission=resolveMission;
   window.resolveMissionOutcome=resolveMissionOutcome;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;

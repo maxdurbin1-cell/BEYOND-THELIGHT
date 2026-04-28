@@ -4374,7 +4374,63 @@ function buildPlanetHoldingInfoHtml(state, selected) {
     <div class="wild-panel"><div class="wp-label">Cultural Focus</div><div class="wp-text">${h.culturalFocus}</div></div>
     <div class="info-row"><div class="info-cell"><span class="ic-label">Food</span>${h.food}</div><div class="info-cell"><span class="ic-label">Goods</span>${h.goods || '—'}</div></div>
     <div class="wild-panel"><div class="wp-label">📰 News & Hooks</div><div class="wp-text">${h.news}</div></div>
-    <div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">${h.knowledge}</div></div>`;
+    <div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">${h.knowledge}</div></div>
+    <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-xs btn-teal" onclick="rollPlanetCelebrationEvent()">⚄ Roll Celebration Event</button>
+    </div>
+    <div id="planetCelebrationResult" style="margin-top:.35rem;font-size:.78rem;"></div>`;
+}
+
+function planetCelebrationEventPool() {
+  return [
+    { name: 'Merchant Feast', dd: 6, success: '+1 Teamwork and favorable contract gossip.', failure: '+1 Mental Stress from political friction.' },
+    { name: 'Convoy Joust', dd: 8, success: '+60 credits from spectacle wagers.', failure: '+1 Health damage in the crash lane.' },
+    { name: 'Archive Salon', dd: 6, success: 'Gain Focused for your next challenge.', failure: 'Conflicting reports strain your mind (+1 Mental Stress).' }
+  ];
+}
+
+function resolvePlanetCelebrationEvent(statKey) {
+  const state = getCurrentPlanetSurfaceState();
+  const selected = getSelectedPlanetCell();
+  if (!state || !selected || selected.marker !== 'merchant_colony') return;
+  const evt = selected.data && selected.data.pendingCelebrationEvent;
+  if (!evt) return;
+  const key = String(statKey || 'lead').toLowerCase();
+  const die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
+  const a = explodingRoll(die);
+  const d = explodingRoll(evt.dd || 6);
+  const success = a.total >= d.total;
+  if (success) {
+    if (evt.name === 'Merchant Feast' && typeof changeCounter === 'function') changeCounter('tmw', 1);
+    if (evt.name === 'Convoy Joust' && typeof changeCredits === 'function') changeCredits(60);
+    if (evt.name === 'Archive Salon' && typeof setPositiveGalaxyCondition === 'function') setPositiveGalaxyCondition('focused');
+    if (typeof addSuccessRoll === 'function') addSuccessRoll();
+  } else {
+    if (evt.name === 'Convoy Joust' && typeof changeHealth === 'function') changeHealth(1);
+    else if (typeof changeMentalStress === 'function') changeMentalStress(1);
+    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+  }
+  const out = document.getElementById('planetCelebrationResult');
+  if (out) out.innerHTML = key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+evt.dd+'='+d.total+' — '+(success?evt.success:evt.failure);
+  selected.data.pendingCelebrationEvent = null;
+}
+
+function rollPlanetCelebrationEvent() {
+  const state = getCurrentPlanetSurfaceState();
+  const selected = getSelectedPlanetCell();
+  if (!state || !selected || selected.marker !== 'merchant_colony') return;
+  selected.data = selected.data || {};
+  const evt = pick(planetCelebrationEventPool());
+  selected.data.pendingCelebrationEvent = evt;
+  const stats = ['lead','mind','body','spirit','control','strike','shoot','defend'];
+  const out = document.getElementById('planetCelebrationResult');
+  if (!out) return;
+  out.innerHTML = '<div style="padding:.3rem .4rem;border:1px solid var(--border2);background:var(--surface);">'
+    + '<div style="font-family:Cinzel,serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);">'+evt.name+'</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);margin-top:.15rem;">Choose Action Die vs DD'+evt.dd+'</div>'
+    + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">'
+    + stats.map(function(key){ return '<button class="btn btn-xs btn-teal" onclick="resolvePlanetCelebrationEvent(\''+key+'\')">'+key.charAt(0).toUpperCase()+key.slice(1)+'</button>'; }).join('')
+    + '</div></div>';
 }
 
 function buildPlanetDwellingInfoHtml(state, selected) {
@@ -9353,6 +9409,8 @@ window.attemptPlanetCaravanSteal = attemptPlanetCaravanSteal;
 window.rollPlanetObstacleTraversal = rollPlanetObstacleTraversal;
 window.observeAdjacentPlanetHexes = observeAdjacentPlanetHexes;
 window.runPlanetLocationInteraction = runPlanetLocationInteraction;
+window.rollPlanetCelebrationEvent = rollPlanetCelebrationEvent;
+window.resolvePlanetCelebrationEvent = resolvePlanetCelebrationEvent;
 window.rollPlanetHexEncounter = rollPlanetHexEncounter;
 window.rollPlanetCaravanHaggle = rollPlanetCaravanHaggle;
 window.interactPlanetExocraftConvoy = interactPlanetExocraftConvoy;

@@ -6437,7 +6437,12 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   function rollProvinceRuinLoot(kind){
     const reward={items:[],credits:0,summary:''};
-    if(kind==='major'){
+    if(kind==='boss'){
+      const namedWeapon=pickProvinceRuinItem(pick(['weapons','melee_exp','ranged_exp']));
+      if(namedWeapon)reward.items.push(namedWeapon);
+      reward.credits=roll(6)*20;
+      reward.summary='Named weapon trophy from the ruin warden';
+    }else if(kind==='major'){
       const major=roll(10);
       if(major===1){reward.items=[pickProvinceRuinItem(pick(['weapons','melee_exp','ranged_exp']))];reward.summary='A named weapon sealed in a case';}
       else if(major===2){reward.items=[pickProvinceRuinItem(pick(['armor','armor_exp']))];reward.summary='A full suit of armor from the builder\'s era';}
@@ -6603,6 +6608,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     ensureProvinceRuinRoomState(hex);
     const room=hex.data.provinceRuinRooms[idx];
     if(room.cleared)return;
+    if(room.type==='Boss Chamber'){
+      room.result='The ruin warden rises to challenge you. Win the battle, then mark the outcome below. '
+        +'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+        +'<button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'ruin_boss\',1,\'Ruin Warden\',8);">⚔ Start Boss Combat</button>'
+        +'<button class="btn btn-xs btn-primary" onclick="resolveProvinceRuinBossOutcome('+col+','+row+','+idx+',true)">Success</button>'
+        +'<button class="btn btn-xs btn-red" onclick="resolveProvinceRuinBossOutcome('+col+','+row+','+idx+',false)">Failure</button>'
+        +'</div>';
+      openProvinceRuinPopup(col,row);
+      return;
+    }
     if(room.type==='Puzzle'){
       startProvinceRuinPuzzle(col,row,idx);
       return;
@@ -6639,9 +6654,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       const diff=Math.max(1,d.total-a.total);
       if(typeof changeStress==='function')changeStress(diff);
       if(typeof addTMWOnFail==='function')addTMWOnFail();
-      if(room.type==='Lair'||room.type==='Boss Chamber'){
-        const count=room.type==='Boss Chamber'?1:Math.max(1,roll(3));
-        const dreadEnemy=room.type==='Boss Chamber'?10:6;
+      if(room.type==='Lair'){
+        const count=Math.max(1,roll(3));
+        const dreadEnemy=6;
         room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Failure — take '+diff+' Stress. <button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'ruins\','+count+',\'Ruin Guardians\','+dreadEnemy+');closeModal();">⚔ Engage Combat</button>';
       }else if(room.type==='Trap'){
         room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Trap triggered — take '+diff+' Stress and Distracted condition.';
@@ -6652,6 +6667,29 @@ document.addEventListener('DOMContentLoaded',()=>{
       }
       room.cleared=true;
     }
+    openProvinceRuinPopup(col,row);
+  };
+
+  window.resolveProvinceRuinBossOutcome = function(col,row,idx,success){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
+    if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms)||!hex.data.provinceRuinRooms[idx])return;
+    const room=hex.data.provinceRuinRooms[idx];
+    if(room.cleared)return;
+    if(success){
+      const reward=rollProvinceRuinLoot('boss');
+      const rewardText=applyProvinceRuinReward(reward);
+      room.result='✓ Boss defeated — '+rewardText;
+      if(typeof addSuccessRoll==='function')addSuccessRoll();
+      S.renown=(S.renown||0)+1;
+      if(typeof updateRenown==='function')updateRenown();
+      showNotif('Boss defeated: named weapon drop secured.','good');
+    }else{
+      if(typeof changeStress==='function')changeStress(2);
+      if(typeof addTMWOnFail==='function')addTMWOnFail();
+      room.result='✕ Boss encounter failed — take 2 Stress and regroup.';
+      showNotif('Boss outcome marked as failure.','warn');
+    }
+    room.cleared=true;
     openProvinceRuinPopup(col,row);
   };
 
@@ -7050,15 +7088,16 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   window.resolveProvinceMonsterCombatOutcome = function(col,row,success){
     const hex=mapData.find(function(h){ return h.col===col&&h.row===row; });
+    const source=(S.combat&&S.combat.provinceMonsterSource)?S.combat.provinceMonsterSource:null;
     if(success){
       S.renown=(S.renown||0)+1;
-      const loot=rollProvinceRuinLoot();
+      const loot=source&&source.type==='ruin_boss'?rollProvinceRuinLoot('boss'):rollProvinceRuinLoot(source&&source.type==='ruins'?'major':null);
+      const lootText=applyProvinceRuinReward(loot);
       const credits=roll(8)*20;
       S.credits=(S.credits||0)+credits;
-      if(typeof addToBackpack==='function')addToBackpack(loot);
       if(typeof updateRenown==='function')updateRenown();
       if(typeof updateCreditsUI==='function')updateCreditsUI();
-      showNotif('Encounter won: +1 Renown, +'+credits+'₵, '+loot+'.','good');
+      showNotif('Encounter won: +1 Renown, +'+credits+'₵, '+lootText+'.','good');
     }else{
       S.renown=Math.max(0,(S.renown||0)-1);
       if(typeof updateRenown==='function')updateRenown();

@@ -299,7 +299,7 @@
           text: "Use lockpicks to crack the broker's chained dispatch box",
           stat: "mind",
           baseDread: 8,
-          req: { backpackAny: ["lockpick", "dungeoneer's kit", "scavenger's pouch"] },
+          req: { backpackAny: ["lockpick", "dungeoneer's kit", "scavenger's pouch"], consumeRequiredItem: true },
           success: { next: "mission_bridge", text: "Tumblers whisper open. Inside is a pre-stamped Red Ledger route permit.", effects: { credits: 60, renown: 1 } },
           fail: { next: "mission_bridge", text: "The picks snap and alarms hiss, but you still salvage a half-burned route stub.", effects: { mentalStress: 1, tmw: 1 } },
         },
@@ -317,7 +317,7 @@
           text: "Cast a scroll ward to force the broker's oath",
           stat: "spirit",
           baseDread: 9,
-          req: { backpackAny: ["scroll", "warding sigil", "none can lie", "bind oath", "speak with the dead"] },
+          req: { backpackAny: ["scroll", "warding sigil", "none can lie", "bind oath", "speak with the dead"], consumeRequiredItem: true },
           success: { next: "mission_bridge", text: "The ward seals the contract in light. The broker cannot deny your claim to the Red Ledger route.", effects: { renown: 1, faction: { religious: 1 } } },
           fail: { next: "mission_bridge", text: "The rite wavers, but fear of retaliation still gets you a legal copy of the route.", effects: { mentalStress: 1 } },
         },
@@ -1191,7 +1191,7 @@
           text: "Pick the reliquary lock and cast the binding scroll aloud",
           stat: "mind",
           baseDread: 11,
-          req: { backpackAny: ["lockpick", "dungeoneer's kit", "scavenger's pouch", "scroll", "warding sigil", "bind oath", "none can lie"] },
+          req: { backpackAny: ["lockpick", "dungeoneer's kit", "scavenger's pouch", "scroll", "warding sigil", "bind oath", "none can lie"], consumeRequiredItem: true },
           success: { next: "ending_openhand", text: "Steel clicks, parchment ignites, and the court is forced under the same oath Voss imposed on others.", effects: { renown: 2, faction: { religious: 1, political: 1 } } },
           fail: { next: "finale_choice", text: "The lock opens late and the rite fractures, but your evidence still reaches the floor before sentencing.", effects: { mentalStress: 1 } },
         },
@@ -1806,6 +1806,24 @@
     });
   }
 
+  function consumeBackpackAny(terms) {
+    if (!Array.isArray(terms) || !terms.length || !Array.isArray(S.backpack)) return "";
+    var idx = -1;
+    var picked = "";
+    S.backpack.some(function (entry, i) {
+      var text = lc(entry || "");
+      var ok = terms.some(function (term) { return text.indexOf(lc(term)) >= 0; });
+      if (!ok) return false;
+      idx = i;
+      picked = String(entry || "");
+      return true;
+    });
+    if (idx < 0) return "";
+    if (typeof removeBackpackItem === "function") removeBackpackItem(idx);
+    else S.backpack.splice(idx, 1);
+    return picked;
+  }
+
   function chapterFallbackScene(sceneId) {
     const scene = SCENES[sceneId] || {};
     const fallbackByChapter = {
@@ -2079,6 +2097,11 @@
 
     if (effects.merchantReward && typeof effects.merchantReward === "object") {
       grantMerchantReward(effects.merchantReward);
+    }
+
+    if (Array.isArray(effects.consumeBackpackAny) && effects.consumeBackpackAny.length) {
+      var consumed = consumeBackpackAny(effects.consumeBackpackAny);
+      if (consumed && typeof showNotif === "function") showNotif("Story item used: " + consumed, "good");
     }
   }
 
@@ -2748,6 +2771,11 @@
       }
     }
 
+    if (option && option.req && Array.isArray(option.req.backpackAny) && (option.consumeRequiredItem || option.req.consumeRequiredItem)) {
+      var spent = consumeBackpackAny(option.req.backpackAny);
+      if (spent && typeof showNotif === "function") showNotif("Consumed for story choice: " + spent, "good");
+    }
+
     if (safeOutcome && safeOutcome.effects) {
       try {
         applyEffects(safeOutcome.effects);
@@ -2994,6 +3022,7 @@
     if (Array.isArray(req.augmentationsAny) && req.augmentationsAny.length) bits.push("Augmentations: " + req.augmentationsAny.join(" / "));
     if (Array.isArray(req.ownedHacksAny) && req.ownedHacksAny.length) bits.push("OS Hack: " + req.ownedHacksAny.join(" / "));
     if (Array.isArray(req.backpackAny) && req.backpackAny.length) bits.push("Loadout item: " + req.backpackAny.join(" / "));
+    if (req.consumeRequiredItem) bits.push("Consumes one matching item");
     return bits.join(" · ");
   }
 

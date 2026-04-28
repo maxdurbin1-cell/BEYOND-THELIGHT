@@ -422,6 +422,12 @@
           '</div>',
           '<div id="holdingCourtResult"></div>',
         '</div>',
+        '<div class="card">',
+          '<div class="section-title">Holding Downtime</div>',
+          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Roll celebratory events and resolve them with any Action Die.</div>',
+          '<button class="btn btn-primary" onclick="rollHoldingDowntimeEvent()">⚄ Roll Celebration Event</button>',
+          '<div id="holdingDowntimeResult" style="margin-top:.45rem;font-size:.82rem;"></div>',
+        '</div>',
         // Perils of Leadership — full width
         '<div class="card">',
           '<div class="section-title">Perils of Leadership</div>',
@@ -1328,6 +1334,65 @@
     }).join("");
     var cc = document.getElementById("holdingCrisisCount");
     if (cc) { cc.textContent = S.holding.crises.length; }
+  }
+
+  function holdingDowntimeEvents() {
+    return [
+      { name: 'Wayfarer Rumor Circle', dd: 6, success: 'You secure a fresh rumor marker. +1 Teamwork.', failure: 'Rumors conflict and morale dips. +1 Mental Stress.' },
+      { name: 'Hex Festival Games', dd: 8, success: 'You win local games. +40 credits.', failure: 'You are outmatched in the pits. +1 Health damage.' },
+      { name: 'Lorehall Research Night', dd: 6, success: 'Research succeeds. Gain Focused.', failure: 'Records are incoherent. +1 Mental Stress.' },
+      { name: 'Masked Court Joust', dd: 10, success: 'The court applauds your prowess. +1 Renown.', failure: 'A heavy fall leaves bruises. +1 Health damage.' }
+    ];
+  }
+
+  function resolveHoldingDowntimeEvent(statKey) {
+    var evt = S.holding && S.holding.pendingDowntimeEvent;
+    if (!evt) { return; }
+    var key = String(statKey || 'lead').toLowerCase();
+    var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
+    var a = explodingRoll(die);
+    var d = explodingRoll(evt.dd || 6);
+    var success = a.total >= d.total;
+    if (success) {
+      if (evt.name === 'Wayfarer Rumor Circle' && typeof changeCounter === 'function') { changeCounter('tmw', 1); }
+      if (evt.name === 'Hex Festival Games' && typeof changeCredits === 'function') { changeCredits(40); }
+      if (evt.name === 'Lorehall Research Night' && typeof toggleCond === 'function' && S.conditions && !S.conditions.focused) { toggleCond('focused'); }
+      if (evt.name === 'Masked Court Joust' && typeof changeCounter === 'function') { changeCounter('renown', 1); }
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+    } else {
+      if (evt.name === 'Hex Festival Games' || evt.name === 'Masked Court Joust') {
+        if (typeof changeHealth === 'function') { changeHealth(1); }
+      } else if (typeof changeMentalStress === 'function') {
+        changeMentalStress(1);
+      }
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
+    }
+    var out = document.getElementById('holdingDowntimeResult');
+    if (out) {
+      out.innerHTML = '<div style="padding:.35rem .45rem;border:1px solid '+(success?'rgba(76,175,116,.35)':'rgba(201,64,64,.35)')+';background:'+(success?'rgba(76,175,116,.08)':'rgba(201,64,64,.08)')+';">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:'+(success?'var(--green2)':'var(--red2)')+';">'+evt.name+'</div>'
+        + '<div style="font-size:.76rem;color:var(--text2);margin-top:.15rem;">'+key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+evt.dd+'='+d.total+'</div>'
+        + '<div style="font-size:.76rem;color:var(--gold2);margin-top:.15rem;">'+(success?evt.success:evt.failure)+'</div>'
+        + '</div>';
+    }
+    S.holding.pendingDowntimeEvent = null;
+  }
+
+  function rollHoldingDowntimeEvent() {
+    ensureNewFeatureState();
+    var pool = holdingDowntimeEvents();
+    var evt = pool[roll(pool.length)-1];
+    S.holding.pendingDowntimeEvent = evt;
+    var out = document.getElementById('holdingDowntimeResult');
+    if (!out) { return; }
+    var stats = ['lead','mind','body','spirit','control','strike','shoot','defend'];
+    out.innerHTML = '<div style="padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);">'+evt.name+'</div>'
+      + '<div style="font-size:.76rem;color:var(--muted2);margin-top:.15rem;">Choose Action Die vs DD'+evt.dd+'</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">'
+      + stats.map(function(key){ return '<button class="btn btn-xs btn-teal" onclick="resolveHoldingDowntimeEvent(\''+key+'\')">'+key.charAt(0).toUpperCase()+key.slice(1)+'</button>'; }).join('')
+      + '</div>'
+      + '</div>';
   }
 
   // ── HOLDING FUNCTIONS ─────────────────────────────────────────────────────────
@@ -2492,6 +2557,8 @@
   window.getWayfarerHomeBonuses = getWayfarerHomeBonuses;
   window.moveVaultItemToBackpack = moveVaultItemToBackpack;
   window.moveBackpackToVault  = moveBackpackToVault;
+  window.rollHoldingDowntimeEvent = rollHoldingDowntimeEvent;
+  window.resolveHoldingDowntimeEvent = resolveHoldingDowntimeEvent;
   window.buyCaravan           = buyCaravan;
   window.rollCaravanName      = rollCaravanName;
   window.clearCaravanName     = clearCaravanName;

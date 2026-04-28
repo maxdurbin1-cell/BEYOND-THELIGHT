@@ -1425,6 +1425,44 @@
     renderWorldThatWas();
   }
 
+  function worldCelebrationEvents() {
+    return [
+      { name: 'District Parade', dd: 6, success: '+1 Teamwork and stronger local ties.', failure: '+1 Mental Stress from unrest.' },
+      { name: 'Street Tournament', dd: 8, success: '+50 Credits from wagers.', failure: '+1 Health damage in the ring.' },
+      { name: 'Archive Salon', dd: 6, success: 'Gain Focused for your next challenge.', failure: '+1 Mental Stress from data overload.' },
+    ];
+  }
+
+  function rollWorldCelebrationEvent(hexId) {
+    var hex = hexById(hexId);
+    if (!hex) return;
+    hex.pendingServiceCelebration = safePick(worldCelebrationEvents(), worldCelebrationEvents()[0]);
+    if (typeof showNotif === 'function') showNotif('Celebration event rolled: ' + hex.pendingServiceCelebration.name, 'good');
+    renderWorldThatWas();
+  }
+
+  function resolveWorldCelebrationEvent(hexId, statKey) {
+    var hex = hexById(hexId);
+    if (!hex || !hex.pendingServiceCelebration) return;
+    var evt = hex.pendingServiceCelebration;
+    var key = String(statKey || 'lead').toLowerCase();
+    var check = rollAgainstDread(key, evt.dd || 6);
+    if (check.success) {
+      if (evt.name === 'District Parade' && typeof changeCounter === 'function') changeCounter('tmw', 1);
+      if (evt.name === 'Street Tournament') setCredits(getCredits() + 50);
+      if (evt.name === 'Archive Salon' && typeof toggleCond === 'function' && S.conditions && !S.conditions.focused) toggleCond('focused');
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      if (typeof showNotif === 'function') showNotif(evt.name + ' success: ' + evt.success, 'good');
+    } else {
+      if (evt.name === 'Street Tournament' && typeof changeHealth === 'function') changeHealth(1);
+      else if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      if (typeof showNotif === 'function') showNotif(evt.name + ' failed: ' + evt.failure, 'warn');
+    }
+    hex.pendingServiceCelebration = null;
+    renderWorldThatWas();
+  }
+
   function resolveDistrictHazard(hexId) {
     const hex = hexById(hexId);
     if (!hex || !hex.hazard) return;
@@ -2244,6 +2282,13 @@
         + "</div>";
     }).join("");
 
+    const celebration = hex.pendingServiceCelebration || null;
+    const celebrationControls = celebration
+      ? "<div class='wtw-card' style='margin-bottom:.35rem;'><div class='wtw-card-title'>Downtime Event: " + celebration.name + "</div><div class='wtw-card-text'>Choose a stat to resolve vs DD" + celebration.dd + ".</div><div class='wtw-card-actions'>"
+        + ["lead","mind","body","spirit","control","strike","shoot","defend"].map(function(key){ return "<button class='btn btn-xs btn-teal' onclick='wtwResolveCelebration(\"" + hex.id + "\",\"" + key + "\")'>" + key.charAt(0).toUpperCase() + key.slice(1) + "</button>"; }).join("")
+        + "</div></div>"
+      : "<div class='wtw-card' style='margin-bottom:.35rem;'><div class='wtw-card-title'>District Downtime</div><div class='wtw-card-text'>Roll a celebratory district event and resolve with an Action Die.</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwRollCelebration(\"" + hex.id + "\")'>⚄ Roll Celebration Event</button></div></div>";
+
     const hazardHtml = hex.hazard
       ? ("<div class='wtw-card'><div class='wtw-card-title' style='color:#ff8a72;'>" + (hex.hazard.type || "hazard").toUpperCase() + ": " + hex.hazard.name + "</div><div class='wtw-card-text'><strong>Risk:</strong> " + hex.hazard.desc + "<br><strong>Check:</strong> " + statLabel(hex.hazard.stat || "body") + " vs DD" + (hex.hazard.dread || 8) + "<br><strong>On fail:</strong> gain " + (hex.hazard.condition || "weakened") + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-red' onclick='wtwResolveHazard(\"" + hex.id + "\")'>Face Hazard</button></div></div>")
       : "<div class='wtw-muted'>No active district hazard in this hex.</div>";
@@ -2316,7 +2361,7 @@
       + eventCard
         + buildWtwAccordionStateful("Encounter & Markers", encounterHtml + markerHtml, true, "encounter")
         + buildWtwAccordionStateful("Hazards, Wayfarers, Exploration & Travel", worldSystems, false, "worldsystems")
-        + buildWtwAccordionStateful("District Services", servicesHtml || "<div class='wtw-muted'>No services available here.</div>", false, "services")
+        + buildWtwAccordionStateful("District Services", celebrationControls + (servicesHtml || "<div class='wtw-muted'>No services available here.</div>"), false, "services")
         + buildWtwAccordionStateful("Zone Power & Tasks", powerSection, false, "powertasks")
       + "</div>";
   }
@@ -2518,6 +2563,8 @@
   window.wtwTrackTask = jumpToTaskHex;
   window.wtwTravelRail = travelByTrainTo;
   window.wtwRollEncounter = rollDistrictEncounter;
+  window.wtwRollCelebration = rollWorldCelebrationEvent;
+  window.wtwResolveCelebration = resolveWorldCelebrationEvent;
   window.wtwResolveEncounter = resolveDistrictEncounter;
   window.wtwResolveEncounterAs = resolveDistrictEncounterAs;
   window.wtwWinCombatEvent = completeCombatEventVictory;

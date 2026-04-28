@@ -1,16 +1,23 @@
-// campaign-system.js — Multiplayer campaign rooms (Phase 1)
+// campaign-system.js — Multiplayer campaign rooms with session restore and dock UI
 (function () {
+  var SESSION_KEY = "beyond-light-campaign-session";
+
   var state = {
     socket: null,
     connected: false,
     ready: false,
     code: "",
     role: "",
+    token: "",
     playerName: "",
     campaign: null,
     suppressTmwEmit: false,
     lastKnownTmw: null,
-    activePromptId: ""
+    activePromptId: "",
+    autoRestoreTried: false,
+    restoringSession: false,
+    dockOpen: true,
+    lastDockLogSize: 0
   };
 
   function safeNotif(msg, kind) {
@@ -46,25 +53,14 @@
     return String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
   }
 
-  function renderMembers(list) {
-    if (!Array.isArray(list) || !list.length) {
-      return '<div class="campaign-muted">No connected members.</div>';
+  function formatTimestamp(value) {
+    var t = Number(value || 0);
+    if (!t) return "";
+    try {
+      return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch (_err) {
+      return "";
     }
-    return list.map(function (m) {
-      var roleTag = m.role === "gm" ? "<span class=\"campaign-pill gm\">GM</span>" : "<span class=\"campaign-pill\">Player</span>";
-      return '<div class="campaign-member-row"><span>' + escapeHtml(m.name || "Player") + '</span>' + roleTag + "</div>";
-    }).join("");
-  }
-
-  function renderLog(log) {
-    if (!Array.isArray(log) || !log.length) {
-      return '<div class="campaign-muted">No events yet.</div>';
-    }
-    return log.slice(-8).reverse().map(function (entry) {
-      var kind = escapeHtml(entry.kind || "system");
-      var text = escapeHtml(entry.text || "");
-      return '<div class="campaign-log-row"><span class="campaign-log-kind">' + kind + '</span><span>' + text + "</span></div>";
-    }).join("");
   }
 
   function escapeHtml(value) {
@@ -74,6 +70,42 @@
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function loadSession() {
+    try {
+      var raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      return {
+        code: formatCode(parsed.code || ""),
+        token: String(parsed.token || "").trim(),
+        name: String(parsed.name || "").trim().slice(0, 32),
+        role: parsed.role === "gm" ? "gm" : "player"
+      };
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistSession() {
+    if (!state.code || !state.token) return;
+    var payload = {
+      code: state.code,
+      token: state.token,
+      name: state.playerName || ensureName(),
+      role: state.role === "gm" ? "gm" : "player"
+    };
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+    } catch (_err) {}
+  }
+
+  function clearSession() {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch (_err) {}
   }
 
   function getTmwValue() {
@@ -130,6 +162,47 @@
     window._campaignPatchedTmwHooks = true;
   }
 
+  function renderMembers(list) {
+    if (!Array.isArray(list) || !list.length) {
+      return '<div class="campaign-muted">No connected members.</div>';
+    }
+    return list.map(function (m) {
+      var roleTag = m.role === "gm" ? "<span class=\"campaign-pill gm\">GM</span>" : "<span class=\"campaign-pill\">Player</span>";
+      return '<div class="campaign-member-row"><span>' + escapeHtml(m.name || "Player") + '</span>' + roleTag + "</div>";
+    }).join("");
+  }
+
+  function renderLog(log, limit) {
+    if (!Array.isArray(log) || !log.length) {
+      return '<div class="campaign-muted">No events yet.</div>';
+    }
+    return log.slice(-(limit || 8)).reverse().map(function (entry) {
+      var kind = escapeHtml(entry.kind || "system");
+      var text = escapeHtml(entry.text || "");
+      return '<div class="campaign-log-row"><span class="campaign-log-kind">' + kind + '</span><span>' + text + "</span></div>";
+    }).join("");
+  }
+
+  function renderDockTimeline(log) {
+    if (!Array.isArray(log) || !log.length) {
+      return '<div class="campaign-dock-empty">No timeline yet.</div>';
+    }
+    return log.slice(-40).map(function (entry) {
+      var kind = String(entry.kind || "system");
+      var text = escapeHtml(entry.text || "");
+      var ts = formatTimestamp(entry.at);
+      var rowClass = "campaign-dock-line";
+      if (kind === "chat") rowClass += " chat";
+      if (kind === "roll" || kind === "roll-result") rowClass += " roll";
+      return ''
+        + '<div class="' + rowClass + '">'
+        + '<span class="campaign-dock-kind">' + escapeHtml(kind) + '</span>'
+        + '<span class="campaign-dock-text">' + text + '</span>'
+        + '<span class="campaign-dock-time">' + escapeHtml(ts) + '</span>'
+        + "</div>";
+    }).join("");
+  }
+
   function ensureSettingsSection() {
     var panel = document.getElementById("settingsPanel");
     if (!panel) return;
@@ -160,7 +233,7 @@
     var active = campaign && campaign.activeRollRequest;
 
     section.innerHTML = ""
-      + '<h4>Campaign (Multiplayer Beta)</h4>'
+      + '<h4>Campaign (Multiplayer)</h4>'
       + '<div class="campaign-status-row">'
       + '<span class="campaign-badge ' + (state.connected ? "online" : "offline") + '">' + (state.connected ? "Online" : (ioReady ? "Offline" : "Server Script Missing")) + "</span>"
       + '<span class="campaign-muted">Code: <strong style="color:var(--teal);">' + escapeHtml(state.code || "-") + "</strong></span>"
@@ -171,7 +244,7 @@
       + "</div>"
       + '<div class="setting-row">'
       + '<label>Campaign Code</label>'
-      + '<input id="campaignCodeInput" class="campaign-input" type="text" maxlength="12" placeholder="ABC123">'
+      + '<input id="campaignCodeInput" class="campaign-input" type="text" maxlength="12" placeholder="ABC123" value="' + escapeHtml(state.code || "") + '">' 
       + "</div>"
       + '<div class="campaign-actions">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.createCampaign()">Create (GM)</button>'
@@ -182,7 +255,7 @@
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Shared Teamwork Points</div>'
       + '<div class="campaign-tmw">' + sharedTmw + "</div>"
-      + '<div class="campaign-muted">This pool syncs for all members in the campaign room.</div>'
+      + '<div class="campaign-muted">Persistent campaign state now restores after server restart.</div>'
       + "</div>"
       + (isGm
         ? (""
@@ -201,18 +274,150 @@
           + "</div>")
         : "")
       + '<div class="campaign-card">'
-      + '<div class="campaign-card-title">Members</div>'
+      + '<div class="campaign-card-title">Online Members</div>'
       + renderMembers(campaign ? campaign.members : [])
       + "</div>"
       + '<div class="campaign-card">'
-      + '<div class="campaign-card-title">Campaign Log</div>'
+      + '<div class="campaign-card-title">Recent Log</div>'
       + renderLog(campaign ? campaign.log : [])
       + "</div>";
+  }
+
+  function ensureDockPanel() {
+    if (document.getElementById("campaignDock")) return;
+
+    var dock = document.createElement("div");
+    dock.id = "campaignDock";
+    dock.className = "campaign-dock";
+
+    dock.innerHTML = ""
+      + '<button id="campaignDockToggle" class="campaign-dock-toggle" onclick="window.campaignSystem.toggleDock()">Campaign</button>'
+      + '<div id="campaignDockPanel" class="campaign-dock-panel">'
+      + '<div class="campaign-dock-head">'
+      + '<div class="campaign-dock-title">Campaign Live</div>'
+      + '<div id="campaignDockBadge" class="campaign-dock-badge offline">Offline</div>'
+      + "</div>"
+      + '<div id="campaignDockMeta" class="campaign-dock-meta">No campaign connected.</div>'
+      + '<div id="campaignDockRoll" class="campaign-dock-roll"></div>'
+      + '<div id="campaignDockTimeline" class="campaign-dock-timeline"></div>'
+      + '<div class="campaign-dock-chat">'
+      + '<input id="campaignDockChatInput" class="campaign-dock-input" type="text" maxlength="500" placeholder="Type campaign chat...">'
+      + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.sendChatMessage()">Send</button>'
+      + "</div>"
+      + "</div>";
+
+    document.body.appendChild(dock);
+
+    var input = document.getElementById("campaignDockChatInput");
+    if (input) {
+      input.addEventListener("keydown", function (evt) {
+        if (evt.key === "Enter") {
+          evt.preventDefault();
+          sendChatMessage();
+        }
+      });
+    }
+
+    renderDockPanel();
+  }
+
+  function renderDockPanel() {
+    var root = document.getElementById("campaignDock");
+    if (!root) return;
+    root.classList.toggle("open", !!state.dockOpen);
+
+    var badge = document.getElementById("campaignDockBadge");
+    var meta = document.getElementById("campaignDockMeta");
+    var timeline = document.getElementById("campaignDockTimeline");
+    var roll = document.getElementById("campaignDockRoll");
+
+    if (badge) {
+      badge.textContent = state.connected ? "Online" : "Offline";
+      badge.className = "campaign-dock-badge " + (state.connected ? "online" : "offline");
+    }
+
+    var campaign = state.campaign;
+    var active = campaign && campaign.activeRollRequest;
+
+    if (meta) {
+      var roleLabel = state.role === "gm" ? "GM" : (state.role ? "Player" : "-");
+      meta.innerHTML = ""
+        + '<span>Code <strong>' + escapeHtml(state.code || "-") + "</strong></span>"
+        + '<span>Role <strong>' + escapeHtml(roleLabel) + "</strong></span>"
+        + '<span>TMW <strong>' + String(campaign && campaign.shared ? Number(campaign.shared.tmw || 0) : getTmwValue()) + "</strong></span>";
+    }
+
+    if (roll) {
+      if (!active) {
+        roll.innerHTML = '<div class="campaign-dock-empty">No active GM roll request.</div>';
+      } else {
+        var canRoll = state.role !== "gm";
+        var responseCount = Array.isArray(active.responses) ? active.responses.length : 0;
+        roll.innerHTML = ""
+          + '<div class="campaign-dock-roll-line">'
+          + '<span><strong>' + escapeHtml(active.label || "Dread Check") + '</strong> · ' + escapeHtml(String(active.stat || "adventure").toUpperCase()) + ' vs d' + Number(active.dread || 8) + '</span>'
+          + '<span>' + responseCount + ' response' + (responseCount === 1 ? "" : "s") + '</span>'
+          + "</div>"
+          + (canRoll
+            ? '<div class="campaign-dock-roll-actions"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.submitActiveRoll()">Roll Now</button></div>'
+            : '<div class="campaign-dock-roll-actions"><button class="btn btn-xs" onclick="window.campaignSystem.closeActiveRoll()">Close Active</button></div>');
+      }
+    }
+
+    if (timeline) {
+      var oldScrollBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
+      timeline.innerHTML = renderDockTimeline(campaign && campaign.log ? campaign.log : []);
+      var newLogSize = campaign && Array.isArray(campaign.log) ? campaign.log.length : 0;
+      if (oldScrollBottom < 40 || newLogSize !== state.lastDockLogSize) {
+        timeline.scrollTop = timeline.scrollHeight;
+      }
+      state.lastDockLogSize = newLogSize;
+    }
   }
 
   function readUiValue(id) {
     var el = document.getElementById(id);
     return el ? String(el.value || "") : "";
+  }
+
+  async function attemptAutoRestore() {
+    if (!state.socket || !state.connected || state.autoRestoreTried || state.restoringSession) return;
+    state.autoRestoreTried = true;
+
+    var session = loadSession();
+    if (!session || !session.code) return;
+
+    state.restoringSession = true;
+    var res = await emitWithAck("campaign:join", {
+      code: session.code,
+      token: session.token,
+      name: session.name || ensureName(),
+      role: session.role === "gm" ? "gm" : "player"
+    });
+    state.restoringSession = false;
+
+    if (!res.ok) {
+      clearSession();
+      safeNotif("Saved campaign session could not be restored.", "warn");
+      renderSettingsSection();
+      renderDockPanel();
+      return;
+    }
+
+    state.code = res.code;
+    state.role = res.role;
+    state.token = String(res.token || "");
+    state.playerName = String(res.name || session.name || ensureName());
+    state.activePromptId = "";
+    persistSession();
+
+    if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
+      window.settingsSystem.setGameMode(res.role === "gm" ? "gm" : "solo");
+    }
+
+    safeNotif("Restored campaign " + res.code + " as " + (res.role === "gm" ? "GM" : "Player") + ".", "good");
+    renderSettingsSection();
+    renderDockPanel();
   }
 
   function ensureSocket() {
@@ -225,24 +430,37 @@
 
     state.socket.on("connect", function () {
       state.connected = true;
-      safeNotif("Campaign server connected.", "good");
       renderSettingsSection();
+      renderDockPanel();
+      attemptAutoRestore();
     });
 
     state.socket.on("disconnect", function () {
       state.connected = false;
       renderSettingsSection();
+      renderDockPanel();
     });
 
     state.socket.on("campaign:state", function (snapshot) {
       state.campaign = snapshot || null;
       state.code = snapshot && snapshot.code ? String(snapshot.code) : "";
+
+      if (snapshot && snapshot.me) {
+        state.role = snapshot.me.role === "gm" ? "gm" : "player";
+        if (snapshot.me.token) {
+          state.token = String(snapshot.me.token);
+          persistSession();
+        }
+      }
+
       var nextTmw = snapshot && snapshot.shared ? Number(snapshot.shared.tmw || 0) : null;
       if (nextTmw !== null && nextTmw !== getTmwValue()) {
         setLocalTmw(nextTmw);
       }
+
       maybePromptActiveRoll(snapshot && snapshot.activeRollRequest ? snapshot.activeRollRequest : null);
       renderSettingsSection();
+      renderDockPanel();
     });
 
     return true;
@@ -286,6 +504,7 @@
       safeNotif("Multiplayer requires running the local campaign server.", "warn");
       return;
     }
+
     var name = readUiValue("campaignNameInput").trim() || ensureName();
     state.playerName = name;
 
@@ -297,59 +516,89 @@
 
     state.code = res.code;
     state.role = "gm";
+    state.token = String(res.token || "");
+    state.playerName = String(res.name || name || "GM");
     state.activePromptId = "";
+    persistSession();
+
     if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
       window.settingsSystem.setGameMode("gm");
     }
+
     safeNotif("Campaign created. Share code " + res.code + ".", "good");
     renderSettingsSection();
+    renderDockPanel();
   }
 
-  async function joinCampaign(role) {
+  async function joinCampaign(role, options) {
     if (!ensureSocket()) {
       safeNotif("Multiplayer requires running the local campaign server.", "warn");
       return;
     }
 
-    var name = readUiValue("campaignNameInput").trim() || ensureName();
-    var code = formatCode(readUiValue("campaignCodeInput"));
+    var opts = options || {};
+    var session = loadSession();
+
+    var name = (opts.name || readUiValue("campaignNameInput") || "").trim() || ensureName();
+    var codeRaw = opts.code || readUiValue("campaignCodeInput") || (session ? session.code : "");
+    var code = formatCode(codeRaw);
+
     if (!code) {
-      safeNotif("Enter a campaign code to join.", "warn");
+      if (!opts.silent) safeNotif("Enter a campaign code to join.", "warn");
       return;
     }
 
     state.playerName = name;
-    var res = await emitWithAck("campaign:join", { code: code, name: name, role: role === "gm" ? "gm" : "player" });
+
+    var res = await emitWithAck("campaign:join", {
+      code: code,
+      name: name,
+      role: role === "gm" ? "gm" : "player",
+      token: opts.token || state.token || (session ? session.token : "")
+    });
+
     if (!res.ok) {
-      safeNotif(res.error || "Could not join campaign.", "warn");
+      if (!opts.silent) safeNotif(res.error || "Could not join campaign.", "warn");
       return;
     }
 
     state.code = res.code;
     state.role = res.role;
+    state.token = String(res.token || "");
+    state.playerName = String(res.name || name || ensureName());
     state.activePromptId = "";
+    persistSession();
+
     if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
       window.settingsSystem.setGameMode(res.role === "gm" ? "gm" : "solo");
     }
-    safeNotif("Joined campaign " + res.code + " as " + (res.role === "gm" ? "GM" : "Player") + ".", "good");
+
+    if (!opts.silent) {
+      safeNotif(
+        (res.restored ? "Reconnected to " : "Joined ") + "campaign " + res.code + " as " + (res.role === "gm" ? "GM" : "Player") + ".",
+        "good"
+      );
+    }
+
     renderSettingsSection();
+    renderDockPanel();
   }
 
   async function leaveCampaign() {
-    if (!state.socket) {
-      state.code = "";
-      state.role = "";
-      state.campaign = null;
-      renderSettingsSection();
-      return;
+    if (state.socket) {
+      await emitWithAck("campaign:leave", {});
     }
-    await emitWithAck("campaign:leave", {});
+
     state.code = "";
     state.role = "";
+    state.token = "";
     state.campaign = null;
     state.activePromptId = "";
+    clearSession();
+
     safeNotif("Left campaign.", "warn");
     renderSettingsSection();
+    renderDockPanel();
   }
 
   async function callRollRequest() {
@@ -357,6 +606,7 @@
       safeNotif("Only connected GM can call campaign rolls.", "warn");
       return;
     }
+
     var label = readUiValue("campaignRollLabel").trim() || "Dread Check";
     var stat = readUiValue("campaignRollStat").trim().toLowerCase() || "adventure";
     var dread = Math.max(1, Number(readUiValue("campaignRollDread") || 8));
@@ -414,19 +664,48 @@
       window.closeModal();
     }
 
-    safeNotif("Submitted: " + stat.toUpperCase() + " d" + actionDie + " " + action.total + " vs " + dreadRoll.total + ".", action.total >= dreadRoll.total ? "good" : "warn");
+    safeNotif(
+      "Submitted: " + stat.toUpperCase() + " d" + actionDie + " " + action.total + " vs " + dreadRoll.total + ".",
+      action.total >= dreadRoll.total ? "good" : "warn"
+    );
+  }
+
+  async function sendChatMessage() {
+    if (!state.socket || !state.code) {
+      safeNotif("Join a campaign first.", "warn");
+      return;
+    }
+
+    var input = document.getElementById("campaignDockChatInput");
+    var msg = input ? String(input.value || "").trim() : "";
+    if (!msg) return;
+
+    var res = await emitWithAck("campaign:chat", { message: msg });
+    if (!res.ok) {
+      safeNotif(res.error || "Could not send chat message.", "warn");
+      return;
+    }
+
+    if (input) input.value = "";
+  }
+
+  function toggleDock() {
+    state.dockOpen = !state.dockOpen;
+    renderDockPanel();
   }
 
   function init() {
     patchTmwHooks();
     ensureSettingsSection();
+    ensureDockPanel();
+    ensureSocket();
     state.ready = true;
   }
 
-  // settings panel can be rebuilt; keep campaign section mounted.
   setInterval(function () {
     patchTmwHooks();
     ensureSettingsSection();
+    ensureDockPanel();
   }, 1200);
 
   if (document.readyState === "loading") {
@@ -442,12 +721,18 @@
     callRollRequest: callRollRequest,
     closeActiveRoll: closeActiveRoll,
     submitActiveRoll: submitActiveRoll,
-    refreshUI: renderSettingsSection,
+    sendChatMessage: sendChatMessage,
+    toggleDock: toggleDock,
+    refreshUI: function () {
+      renderSettingsSection();
+      renderDockPanel();
+    },
     getState: function () {
       return {
         connected: state.connected,
         code: state.code,
         role: state.role,
+        token: state.token,
         campaign: state.campaign
       };
     }

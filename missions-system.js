@@ -1209,6 +1209,10 @@
   }
 
   document.addEventListener('DOMContentLoaded',function(){
+    // Ensure origin mission exists for characters with a reason (covers new and existing characters)
+    if (typeof S !== 'undefined' && S && S.reason && !S.originMissionInitialized) {
+      createOriginMissionFromReason(true);
+    }
     syncMissionUIs();
   });
 

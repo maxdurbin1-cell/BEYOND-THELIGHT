@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="./beyond-light-expansion.css">
 <link rel="stylesheet" href="./faction-intro-system.css">
 <link rel="stylesheet" href="./settings-system.css">
+<link rel="stylesheet" href="./gm-dashboard.css">
 <style>
 :root{--bg:#06070e;--surface:#0b0c1a;--card:#0f1020;--card2:#131428;--border:#1a1c35;--border2:#252848;--gold:#c9a227;--gold2:#e8c050;--gold3:#f0d070;--teal:#2ec4b6;--teal2:#50ddd0;--red:#c94040;--red2:#e05050;--green:#4caf74;--green2:#6ed090;--purple:#8060c0;--text:#d8d0c0;--text2:#b0a890;--muted:#4a4870;--muted2:#7a7898;--muted3:#9a98b8;}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
@@ -291,6 +292,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
+    <button class="tab-btn gm-dashboard-btn" onclick="window.gmDashboard.toggle()" title="GM Dashboard">👥 GM</button>
     <button class="tab-btn settings-tab-btn" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
@@ -1073,6 +1075,7 @@ select option{background:#0f1020;}
   </div>
 </div>
 <div id="settingsPanel" class="settings-panel"></div>
+<div id="gmDashboard"></div>
 <div class="notif" id="notif"></div>
 <div id="diceRollLayer" class="dice-roll-layer" aria-live="polite"></div>
 <div id="diceRollCinematicLayer" class="dice-roll-cinematic-layer" aria-live="polite"></div>
@@ -5558,6 +5561,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="./faction-system.js"></script>
 <script src="./intro-system.js"></script>
 <script src="./storyline-choices-system.js"></script>
+<script src="./gm-dashboard.js"></script>
 
 </body>
 </html>

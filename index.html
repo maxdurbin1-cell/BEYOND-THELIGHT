@@ -5544,19 +5544,26 @@ function rollTradeRouteEncounter(){
 window.resolveProvinceShiftWeatherEncounter = function(col,row){
   const leadRoll = rollProvinceLeadCheck();
   const dreadRoll = explodingRoll(8,{type:'dread',major:true,label:'Shift Weather DD8'});
+  const itemFlags=getProvinceNarrativeItemFlags();
   const success = leadRoll.total >= dreadRoll.total;
   const out = document.getElementById(`weather-shift-roll-${col}-${row}`);
+  const failStress=itemFlags.torch?0:1;
   if(out){
-    out.innerHTML = '<div style="font-size:.75rem;color:'+(success?'var(--green2)':'var(--red2)')+';">Lead '+leadRoll.total+' vs DD8 '+dreadRoll.total+' — '+(success?'Success: weather shift overcome.':'Failure: +1 Mental Stress, lose 1 Phase.')+'</div>';
+    out.innerHTML = '<div style="font-size:.75rem;color:'+(success?'var(--green2)':'var(--red2)')+';">Lead '+leadRoll.total+' vs DD8 '+dreadRoll.total+' — '+(success?'Success: weather shift overcome.':'Failure: +'+failStress+' Mental Stress, lose 1 Phase.')+'</div>'
+      + provinceNarrativeBonusLine([
+        (itemFlags.torch&&!success)?'Torch reduces weather strain':'',
+        (itemFlags.factionItem&&success)?'Faction item grants +1 Renown':''
+      ].filter(Boolean));
   }
   if(success){
+    if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     showNotif('You navigate the weather shift safely.', 'good');
   }else{
-    if(typeof changeMentalStress==='function')changeMentalStress(1);
+    if(failStress&&typeof changeMentalStress==='function')changeMentalStress(failStress);
     if(typeof addTMWOnFail==='function')addTMWOnFail();
     advanceProvincePhasePenalty(1);
-    showNotif('Weather shift failed: +1 Mental Stress, lose 1 Phase.', 'warn');
+    showNotif('Weather shift failed: +'+failStress+' Mental Stress, lose 1 Phase.', 'warn');
   }
 };
 
@@ -6755,6 +6762,31 @@ document.addEventListener('DOMContentLoaded',()=>{
     return collectInventoryBonusesForStat('lead');
   }
 
+  function collectProvinceNarrativeInventoryText(){
+    var carried=[];
+    if(Array.isArray(S.backpack))carried=carried.concat(S.backpack.filter(Boolean));
+    if(S.equipped&&typeof S.equipped==='object'){
+      carried=carried.concat(Object.keys(S.equipped).map(function(k){return S.equipped[k];}).filter(Boolean));
+    }
+    if(S.caravan&&Array.isArray(S.caravan.cargo))carried=carried.concat(S.caravan.cargo.filter(Boolean));
+    return carried.join(' | ').toLowerCase();
+  }
+
+  function getProvinceNarrativeItemFlags(){
+    var text=collectProvinceNarrativeInventoryText();
+    var factionRegex=/(faction|corporation|underworld|religious|political|military|royal|rebel|guild|charter|insignia|sigil|seal|token|badge|writ|contract|banner)/;
+    return {
+      torch:/torch|lantern/.test(text),
+      compass:/compass|spyglass|sextant/.test(text),
+      factionItem:factionRegex.test(text)
+    };
+  }
+
+  function provinceNarrativeBonusLine(parts){
+    if(!parts||!parts.length)return '';
+    return '<div style="font-size:.72rem;color:var(--teal);margin-top:.15rem;">Narrative item bonus: '+parts.join(' · ')+'</div>';
+  }
+
   function rollProvinceLeadCheck(){
     const leadDie=(typeof getEffectiveDie==='function')?getEffectiveDie('lead'):((S.stats&&S.stats.lead)||6);
     const flBonus=(typeof getFlavorBonus==='function')?getFlavorBonus('lead'):{flat:0,advDice:[]};
@@ -6807,7 +6839,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     const statSel=document.getElementById(`trvStat-${col}-${row}`);
     const statKey=statSel?statSel.value:'lead';
     const die=(typeof getEffectiveDie==='function')?getEffectiveDie(statKey):((S.stats&&S.stats[statKey])||4);
+    const itemFlags=getProvinceNarrativeItemFlags();
+    const bonusNotes=[];
     const player=explodingRoll(die,{type:'action',major:true,label:'Traversal'});
+    if(itemFlags.compass&&(statKey==='lead'||statKey==='control')){
+      player.total+=2;
+      bonusNotes.push('Compass +2');
+    }
+    if(itemFlags.torch&&(sourceType==='peril'||sourceType==='barrier')&&(statKey==='spirit'||statKey==='body')){
+      player.total+=1;
+      bonusNotes.push('Torch +1');
+    }
     const dread=explodingRoll(6,{type:'dread',major:true,label:'DD6'});
     const success=player.total>=dread.total;
     const outEl=document.getElementById(`trvRes-${col}-${row}`);
@@ -6815,13 +6857,15 @@ document.addEventListener('DOMContentLoaded',()=>{
       outEl.innerHTML='<div style="background:'+(success?'rgba(46,196,182,.08)':'rgba(200,50,50,.08)')+';border:1px solid '+(success?'rgba(46,196,182,.35)':'rgba(200,50,50,.35)')+';padding:.38rem .45rem;">'
         +'<div style="font-size:.75rem;"><strong>'+statKey.toUpperCase()+'</strong> <span style="color:var(--teal);">'+player.total+'</span> vs <span style="color:var(--red);">'+dread.total+'</span> — '+(success?'<span style="color:var(--green2);font-weight:700;">Passage gained</span>':'<span style="color:var(--red2);font-weight:700;">Cannot pass this phase</span>')+'</div>'
         +'<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">'+(success?'You cross safely.':'You are Weakened and must wait until the next phase to pass.')+'</div>'
+        +provinceNarrativeBonusLine(bonusNotes)
       +'</div>';
     }
 
     if(success){
       if(S&&S.provinceTraversalLock)S.provinceTraversalLock.active=false;
+      if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
       if(typeof addSuccessRoll==='function')addSuccessRoll();
-      showNotif('Traversal successful. Passage gained.', 'good');
+      showNotif(itemFlags.factionItem?'Traversal successful. Faction credentials: +1 Renown.':'Traversal successful. Passage gained.', 'good');
     }else{
       if(typeof toggleCond==='function')toggleCond('weakened');
       if(typeof addTMWOnFail==='function')addTMWOnFail();
@@ -6846,6 +6890,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     const leadRoll = rollProvinceLeadCheck();
     const dreadRoll = explodingRoll(8,{type:'dread',major:true,label:'Weather DD8'});
+    const itemFlags=getProvinceNarrativeItemFlags();
     const success = leadRoll.total >= dreadRoll.total;
     const bgColor = success ? 'rgba(46,196,182,.08)' : 'rgba(200,50,50,.08)';
     const borderColor = success ? 'rgba(46,196,182,.35)' : 'rgba(200,50,50,.35)';
@@ -6861,6 +6906,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(Array.isArray(leadRoll.notes)&&leadRoll.notes.length){
       leadRoll.notes.forEach(function(n){ bonusNotes.push(n); });
     }
+    if(itemFlags.factionItem&&success)bonusNotes.push('Faction insignia impressed local wardens (+1 Renown)');
+    if(itemFlags.torch&&!success)bonusNotes.push('Torch reduced weather stress by 1');
     let resultHTML = '<div style="background:' + bgColor + '; border:1px solid ' + borderColor + '; padding:.4rem .5rem; border-radius:4px;">'
       + '<div style="font-family:Cinzel,serif; font-size:.65rem; letter-spacing:.08em; color:' + textColor + '; text-transform:uppercase; margin-bottom:.2rem;">' + passageText + '</div>'
       + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:.3rem; font-size:.75rem; margin-bottom:.2rem;">'
@@ -6874,9 +6921,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     if (success) {
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
       if (typeof toggleCond === 'function') toggleCond('empowered');
+      if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
       showNotif('Successfully navigated dangerous weather!', 'good');
     } else {
-      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      const weatherStress=itemFlags.torch?0:1;
+      if (weatherStress && typeof changeMentalStress === 'function') changeMentalStress(weatherStress);
       if (typeof addTMWOnFail === 'function') addTMWOnFail();
       advanceProvincePhasePenalty(1);
       showNotif('Lost a Phase to weather. Remain in hex.', 'warn');
@@ -7008,6 +7057,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       mySide.stress=(mySide.stress||0)+hp;
       S.combat.skirmishJoinedSide=side;
     }
+    const itemFlags=getProvinceNarrativeItemFlags();
+    if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
     const powerSel=document.getElementById(`skirmishPower-${col}-${row}`);
     S.combat.skirmishFaction=powerSel?powerSel.value:'political';
     if(typeof switchTab==='function'){
@@ -7017,7 +7068,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const aStress=document.getElementById('armyAStress');if(aStress)aStress.textContent=S.combat.armyA.stress;
     const bStress=document.getElementById('armyBStress');if(bStress)bStress.textContent=S.combat.armyB.stress;
     if(typeof renderQP==='function')renderQP('combat');
-    showNotif('Skirmish joined. Resolve in Combat Tab.', 'good');
+    showNotif(itemFlags.factionItem?'Skirmish joined. Faction token influence: +1 Renown.':'Skirmish joined. Resolve in Combat Tab.', 'good');
   };
 
   window.quickResolveSkirmish = function(source, col, row) {
@@ -7090,14 +7141,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     const hex=mapData.find(function(h){ return h.col===col&&h.row===row; });
     const source=(S.combat&&S.combat.provinceMonsterSource)?S.combat.provinceMonsterSource:null;
     if(success){
+      const itemFlags=getProvinceNarrativeItemFlags();
       S.renown=(S.renown||0)+1;
       const loot=source&&source.type==='ruin_boss'?rollProvinceRuinLoot('boss'):rollProvinceRuinLoot(source&&source.type==='ruins'?'major':null);
       const lootText=applyProvinceRuinReward(loot);
-      const credits=roll(8)*20;
+      let credits=roll(8)*20;
+      if(itemFlags.compass)credits+=20;
       S.credits=(S.credits||0)+credits;
+      if(itemFlags.factionItem)S.renown=(S.renown||0)+1;
       if(typeof updateRenown==='function')updateRenown();
       if(typeof updateCreditsUI==='function')updateCreditsUI();
-      showNotif('Encounter won: +1 Renown, +'+credits+'₵, '+lootText+'.','good');
+      showNotif('Encounter won: +'+(itemFlags.factionItem?2:1)+' Renown, +'+credits+'₵, '+lootText+(itemFlags.compass?' (Compass salvage route)':'')+'.','good');
     }else{
       S.renown=Math.max(0,(S.renown||0)-1);
       if(typeof updateRenown==='function')updateRenown();

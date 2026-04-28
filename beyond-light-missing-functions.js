@@ -822,6 +822,13 @@ function resetRunProgressState() {
 
   S.storyline = {};
   S.worldThatWas = {};
+  S.factionNarrative = {
+    pathPoints: { heroic: 0, evil: 0, sacrificial: 0 },
+    contracts: {},
+    completedContracts: [],
+    endingResult: { key: "", title: "", vibe: "" }
+  };
+  S.originMissionInitialized = false;
 }
 
 function generateCharacter() {

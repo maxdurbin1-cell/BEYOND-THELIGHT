@@ -119,6 +119,9 @@
       if (!m.steps[1]) { m.steps[1] = { name:'Gather Information', required:false, completed:false, skipped:false }; }
       if (!m.steps[2]) { m.steps[2] = { name:'Go to Site', required:true, completed:false }; }
       if (!m.steps[3]) { m.steps[3] = { name:'Confrontation', required:true, completed:false }; }
+      if (!m.steps[1].name) { m.steps[1].name = 'Gather Information'; }
+      if (!m.steps[2].name) { m.steps[2].name = 'Go to Site'; }
+      if (!m.steps[3].name) { m.steps[3].name = 'Confrontation'; }
       if (!Array.isArray(m.loot)) { m.loot = []; }
       if (!Array.isArray(m.rooms)) { m.rooms = []; }
       if (!Array.isArray(m.guards)) { m.guards = []; }
@@ -132,6 +135,91 @@
       }
       if (typeof m.bonus !== 'number') { m.bonus = 0; }
     });
+  }
+
+  function chooseOriginRegion() {
+    var regions = ['province'];
+    if (S && S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length) { regions.push('galaxy'); }
+    if (S && S.worldThatWas && Array.isArray(S.worldThatWas.hexes) && S.worldThatWas.hexes.length) { regions.push('wtw'); }
+    return pick(regions);
+  }
+
+  function originLocationForRegion(region) {
+    if (region === 'galaxy') {
+      var gTarget = getGalaxyPlanetMissionTarget();
+      return gTarget ? gTarget.location : pick(GALAXY_MISSION_LOCS);
+    }
+    if (region === 'wtw') {
+      return 'World That Was district: ' + pick(['Ashline Ward', 'Glass Market', 'Drowned Courtyard', 'Split Basilica']);
+    }
+    return pick(MISSION_LOCS);
+  }
+
+  function focusOriginRegion(region) {
+    if (typeof setContext === 'function') {
+      if (region === 'galaxy' || region === 'wtw') { setContext('space'); }
+      else { setContext('holding'); }
+    }
+    if (typeof switchTab !== 'function') return;
+    if (region === 'galaxy') {
+      var gBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
+      switchTab('galaxy', gBtn || null);
+    } else if (region === 'wtw') {
+      var wBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('worldthatwas'\"]");
+      switchTab('worldthatwas', wBtn || null);
+    } else {
+      var pBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('map'\"]");
+      switchTab('map', pBtn || null);
+    }
+  }
+
+  function createOriginMissionFromReason(forceCreate) {
+    ensureState();
+    if (!S || !forceCreate && S.originMissionInitialized) return null;
+
+    var existingActive = (S.activeMissions || []).some(function(m){ return m && m.missionType === 'origin_story'; });
+    var existingDone = (S.completedMissions || []).some(function(m){ return m && m.missionType === 'origin_story'; });
+    if (existingActive || existingDone) {
+      S.originMissionInitialized = true;
+      return null;
+    }
+
+    var reason = String((S && S.reason) || '').trim();
+    var reasonLine = reason || 'find a reason worth bleeding for';
+    var region = chooseOriginRegion();
+    var location = originLocationForRegion(region);
+    var title = 'First Road: ' + reasonLine;
+    var opts = {
+      missionType: 'origin_story',
+      stepNames: {
+        1: 'Follow the Whisper',
+        2: 'Reach the First Lead',
+        3: 'Meet the Stranger'
+      },
+      storyTheme: 'origin',
+      checkpoints: [
+        'Question locals tied to your reason',
+        'Travel to the marked lead in ' + (region === 'wtw' ? 'World That Was' : (region === 'galaxy' ? 'the Galaxy' : 'the Province')),
+        'Accept the stranger\'s offer to enter the main arc'
+      ],
+      step1Intro: 'This is your origin contract. Your reason for traveling is now a live lead. Success means a cleaner handoff into the main arc.',
+      noFactionDelta: true
+    };
+    var mission = createMission('Origin', title, 'medium', location, region, {
+      gain: null,
+      lose: null,
+      gainName: 'Storyline',
+      loseName: 'Storyline'
+    }, opts);
+
+    if (!mission) return null;
+    mission.originReason = reasonLine;
+    S.originMissionInitialized = true;
+    focusOriginRegion(region);
+    if (typeof showNotif === 'function') {
+      showNotif('Your first mission has begun: ' + title, 'good');
+    }
+    return mission;
   }
 
   function getAvailableMissionRegions() {
@@ -381,9 +469,11 @@
     }
   }
 
-  function makeMission(title, difficulty, location, region, factionData) {
+  function makeMission(title, difficulty, location, region, factionData, missionOptions) {
     var diff = DIFFICULTIES[difficulty] || DIFFICULTIES.easy;
     var f = factionData || pickFactionConflict();
+    var opts = missionOptions || {};
+    var stepNames = opts.stepNames || {};
     return {
       id: Date.now() + Math.floor(Math.random() * 10000), title:title, difficulty:difficulty, dread:diff.dread,
       location:location||'Unknown', region:region||'province', reward:diff.credits, bonus:0,
@@ -394,10 +484,18 @@
       infoFeature:null, additionalDanger:null, bypassSecurity:false, hackSystem:false,
       siteRoll:null, rooms:generateRoomObjects(difficulty), guards:generateGuards(diff.dread),
       target:pick(TARGET_NAMES), loot:[],  mapHex:null,
+      missionType: opts.missionType || 'standard',
+      contractPathway: opts.contractPathway || null,
+      storyTheme: opts.storyTheme || '',
+      templateId: opts.templateId || '',
+      factionContract: opts.factionContract || null,
+      checkpoints: Array.isArray(opts.checkpoints) ? opts.checkpoints.slice() : [],
+      step1Intro: opts.step1Intro || '',
+      noFactionDelta: !!opts.noFactionDelta,
       steps:{
-        1:{name:'Gather Information',required:false,completed:false,skipped:false},
-        2:{name:'Go to Site',        required:true, completed:false},
-        3:{name:'Confrontation',     required:true, completed:false}
+        1:{name:stepNames[1] || 'Gather Information',required:false,completed:false,skipped:false},
+        2:{name:stepNames[2] || 'Go to Site',        required:true, completed:false},
+        3:{name:stepNames[3] || 'Confrontation',     required:true, completed:false}
       },
       createdAt: new Date().toISOString()
     };
@@ -450,7 +548,7 @@
       lose:job.factionLose,
       gainName:job.factionGainName,
       loseName:job.factionLoseName
-    });
+    }, null);
     if (job.region === 'galaxy') {
       mission.planetHexId = job.planetHexId || null;
       mission.planetName = job.planetName || '';
@@ -525,13 +623,14 @@
     }
 
     var encoded=encodeURIComponent(JSON.stringify(fod));
-    var html='<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.5rem;line-height:1.5;"><strong style="color:var(--gold2);">Gather Information</strong> \u2014 optional. Success grants <strong style="color:var(--teal);">+5 bonus</strong> and reveals a hidden feature. Failure introduces <strong style="color:var(--red2);">Additional Danger</strong>. You may also skip.</div>'
+    var introLine = mission.step1Intro || ('<strong style="color:var(--gold2);">' + (mission.steps[1].name || 'Gather Information') + '</strong> - optional. Success grants <strong style="color:var(--teal);">+5 bonus</strong> and reveals a hidden feature. Failure introduces <strong style="color:var(--red2);">Additional Danger</strong>. You may also skip.');
+    var html='<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.5rem;line-height:1.5;">'+introLine+'</div>'
       +rollBlock+resultBlock
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
         +'<button class="btn btn-sm" onclick="skipMissionStep1('+missionId+');closeModal();">Skip This Step</button>'
         +'<button class="btn btn-sm btn-teal" onclick="completeMissionInfoStep('+missionId+','+success+',decodeURIComponent(\''+encoded+'\'));closeModal();">Confirm</button>'
       +'</div>';
-    openModal('Step 1 \u2014 Gather Information',html);
+    openModal('Step 1 - ' + (mission.steps[1].name || 'Gather Information'),html);
   }
 
   function completeMissionInfoStep(missionId, success, encodedResult) {
@@ -658,7 +757,7 @@
 
     var titleEl=document.getElementById('modalTitle');
     var contentEl=document.getElementById('modalContent');
-    if (titleEl) titleEl.textContent='Step 2 \u2014 Go to Site';
+    if (titleEl) titleEl.textContent='Step 2 - '+((mission.steps[2] && mission.steps[2].name) || 'Go to Site');
     if (contentEl) contentEl.innerHTML=compBanner+featureBadge+rollBlock+roomsHTML+proceedBtn;
     var modal=document.getElementById('rollModal');
     if (modal&&!modal.classList.contains('open')) modal.classList.add('open');
@@ -759,7 +858,38 @@
         +'<button class="btn btn-sm btn-red" onclick="resolveMissionOutcome('+missionId+',false)">\u2717 Failure \u2014 Roll Failed</button>'
         +'<button class="btn btn-sm btn-primary" onclick="resolveMissionOutcome('+missionId+',true)">\u2713 Success \u2014 Roll Succeeded</button>'
       +'</div>';
-    openModal('Step 3 \u2014 Confrontation',html);
+    openModal('Step 3 - '+((mission.steps[3] && mission.steps[3].name) || 'Confrontation'),html);
+  }
+
+  function triggerOriginStorylineHandoff(mission) {
+    if (!mission || mission.missionType !== 'origin_story') return;
+    var reason = mission.originReason || (S && S.reason) || 'your purpose';
+    S.storyline = S.storyline || {};
+    var st = S.storyline;
+    st.flags = st.flags || {};
+    st.flags.originMissionComplete = true;
+    st.flags.originReason = reason;
+    if (!st.sceneId || st.sceneId === 'intro') {
+      st.sceneId = 'intro';
+      st.lastResult = 'A weather-beaten stranger finds you after your first road contract and says: "If that reason still burns, come hear the Gallows Orchard story."';
+    }
+
+    if (typeof openModal === 'function') {
+      openModal('A Stranger Approaches',
+        '<div style="font-size:.9rem;color:var(--text2);line-height:1.6;">'
+          + 'You complete your first road mission tied to <strong style="color:var(--gold2);">' + reason + '</strong>. '
+          + 'A stranger steps out of the crowd and presses a branded note into your hand.'
+          + '<div style="margin-top:.45rem;color:var(--muted2);font-style:italic;">"If you want the truth behind the roads, meet me at the Gallows Orchard."</div>'
+          + '<div style="margin-top:.55rem;display:flex;justify-content:flex-end;">'
+            + '<button class="btn btn-sm btn-primary" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof openStorylineTab===\'function\')openStorylineTab();">Begin Main Storyline</button>'
+          + '</div>'
+        + '</div>'
+      );
+    }
+    if (typeof showNotif === 'function') showNotif('Main storyline unlocked: Someone seeks you out.', 'good');
+    if (typeof renderStorylinePanel === 'function') {
+      try { renderStorylinePanel(); } catch (err) {}
+    }
   }
 
   /* ── RESOLVE MISSION ── */
@@ -803,7 +933,7 @@
         }
       }
 
-      applyFactionStandingDelta(mission.factionGain, mission.factionLose);
+      if (!mission.noFactionDelta) applyFactionStandingDelta(mission.factionGain, mission.factionLose);
       try { if (typeof updateCreditsUI==='function') updateCreditsUI(); } catch (err) {}
       try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
       // Add mission loot directly to backpack slots when possible.
@@ -821,7 +951,7 @@
       }
     } else {
       S.renown=Math.max(0,(S.renown||0)-1);
-      applyFactionStandingFailureDelta(mission.factionGain, mission.factionLose);
+      if (!mission.noFactionDelta) applyFactionStandingFailureDelta(mission.factionGain, mission.factionLose);
       try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
     }
     try { removeMissionToken(mission); } catch (err) {}
@@ -842,8 +972,11 @@
       factionLose: mission.factionLose || null,
       factionGainName: mission.factionGainName || null,
       factionLoseName: mission.factionLoseName || null,
+      contractPathway: mission.contractPathway || null,
+      templateId: mission.templateId || null,
+      checkpoints: Array.isArray(mission.checkpoints) ? mission.checkpoints.slice() : [],
       completedAt: mission.completedAt,
-      missionType: 'standard'
+      missionType: mission.missionType || 'standard'
     };
     if (S.completedMissions.length>=MAX_COMPLETED_MISSIONS) S.completedMissions.shift();
     S.completedMissions.push(completedEntry);
@@ -871,8 +1004,12 @@
       if (dropped.length) {
         try { showNotif('Backpack full. Unstored loot: ' + dropped.join(', '), 'warn'); } catch (err) {}
       }
+      triggerOriginStorylineHandoff(mission);
     } else {
       try { showNotif('Mission failed. \u22121 Renown \u00B7 ' + (mission.factionGainName||'Faction') + ' -1 / ' + (mission.factionLoseName||'Faction') + ' +1','warn'); } catch (err) {}
+    }
+    if (typeof window !== 'undefined' && window.factionSystem && typeof window.factionSystem.onMissionResolved === 'function') {
+      try { window.factionSystem.onMissionResolved(mission, success); } catch (err) {}
     }
   }
 
@@ -886,8 +1023,8 @@
   /* ── LEGACY COMPAT ── */
   function createMission(npcName,title,difficulty,location,region,factionData,options) {
     ensureState();
-    var mission=makeMission(title,difficulty,location,region,factionData);
     var cfg = options || {};
+    var mission=makeMission(title,difficulty,location,region,factionData,cfg);
     if (region === 'galaxy' && cfg && cfg.planetHexId) {
       mission.planetHexId = Number(cfg.planetHexId);
       mission.planetName = cfg.planetName || mission.planetName || '';
@@ -967,7 +1104,11 @@
     container.innerHTML=holdingTrackerHtml + S.activeMissions.map(function(mission){
       var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);
       var s1=mission.steps[1],s2=mission.steps[2],s3=mission.steps[3];
-      var stepLabels={1:'Gather Info',2:'Go to Site',3:'Confrontation'};
+      var stepLabels={
+        1:(mission.steps[1]&&mission.steps[1].name)||'Gather Information',
+        2:(mission.steps[2]&&mission.steps[2].name)||'Go to Site',
+        3:(mission.steps[3]&&mission.steps[3].name)||'Confrontation'
+      };
       var stepsHTML=[1,2,3].map(function(n){
         var step=mission.steps[n];
         var isActive=(n===1&&!s1.completed)||(n===2&&s1.completed&&!s2.completed)||(n===3&&s2.completed&&!s3.completed);
@@ -998,6 +1139,7 @@
             +(mission.region==='galaxy'&&mission.planetName?'<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">🌍 Planet Route: '+mission.planetName+'</div>':'')
             +'<div style="font-size:.66rem;color:var(--teal);margin-top:.12rem;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
             +(badges?'<div style="margin-top:.2rem;">'+badges+'</div>':'')
+            +(Array.isArray(mission.checkpoints)&&mission.checkpoints.length?('<div style="margin-top:.18rem;font-size:.66rem;color:var(--muted2);">Checkpoints: '+mission.checkpoints.join(' \u00B7 ')+'</div>'):'')
           +'</div>'
           +'<button class="btn btn-xs btn-red" onclick="abandonMission('+mission.id+')">Abandon</button>'
         +'</div>'
@@ -1087,6 +1229,16 @@
     };
   }
 
+  var _missionBaseGenerate = typeof generateCharacter === 'function' ? generateCharacter : null;
+  if (_missionBaseGenerate && !window._originMissionGeneratePatched) {
+    window._originMissionGeneratePatched = true;
+    generateCharacter = function() {
+      _missionBaseGenerate.apply(this, arguments);
+      createOriginMissionFromReason(true);
+      syncMissionUIs();
+    };
+  }
+
   window.generateMissions=generateMissions; window.acceptJob=acceptJob; window.abandonMission=abandonMission;
   window.startMissionStep1=startMissionStep1; window.skipMissionStep1=skipMissionStep1; window.completeMissionInfoStep=completeMissionInfoStep;
   window.startMissionStep2=startMissionStep2; window.renderSiteModal=renderSiteModal; window.exploreRoom=exploreRoom;
@@ -1095,6 +1247,7 @@
   window.resolveMissionOutcome=resolveMissionOutcome;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;
   window.createMission=createMission;
+  window.createOriginMissionFromReason=createOriginMissionFromReason;
   window.completeMissionStep=function(missionId,stepId){
     if(stepId===1) completeMissionInfoStep(missionId,true,JSON.stringify(rollInfoFeature()));
     else if(stepId===2) completeMissionSiteStep(missionId);

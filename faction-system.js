@@ -431,6 +431,21 @@
     if (!S.factionRenown || typeof S.factionRenown !== "object") S.factionRenown = {};
     if (!S.factionBases || typeof S.factionBases !== "object") S.factionBases = {};
     if (!Array.isArray(S.factionWayfarerTasks)) S.factionWayfarerTasks = [];
+    if (!S.factionNarrative || typeof S.factionNarrative !== "object") {
+      S.factionNarrative = {};
+    }
+    if (!S.factionNarrative.pathPoints || typeof S.factionNarrative.pathPoints !== "object") {
+      S.factionNarrative.pathPoints = { heroic: 0, evil: 0, sacrificial: 0 };
+    }
+    if (!S.factionNarrative.contracts || typeof S.factionNarrative.contracts !== "object") {
+      S.factionNarrative.contracts = {};
+    }
+    if (!S.factionNarrative.completedContracts || !Array.isArray(S.factionNarrative.completedContracts)) {
+      S.factionNarrative.completedContracts = [];
+    }
+    if (!S.factionNarrative.endingResult || typeof S.factionNarrative.endingResult !== "object") {
+      S.factionNarrative.endingResult = { key: "", title: "", vibe: "" };
+    }
 
     Object.keys(FACTIONS).forEach((id) => {
       if (typeof S.factionRenown[id] !== "number") S.factionRenown[id] = 0;
@@ -1191,6 +1206,11 @@
         <div class="faction-pathways">
           <h2>YOUR STORY PATHWAY</h2>
           <p>The choices you make determine not just which faction wins, but what kind of ending you receive.</p>
+          <div style="border:1px solid var(--border2);padding:.5rem .6rem;margin:.45rem 0 .65rem 0;font-size:.8rem;color:var(--text2);line-height:1.6;">
+            <div><strong style="color:var(--gold2);">Path Points:</strong> Heroic ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.heroic) || 0)} · Ruthless ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.evil) || 0)} · Sacrificial ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.sacrificial) || 0)}</div>
+            <div style="margin-top:.22rem;"><strong style="color:var(--teal);">Ending Trajectory:</strong> ${(computeFactionEndingFromPoints().title || 'Unwritten Fate')}</div>
+            <div style="margin-top:.12rem;color:var(--muted2);">${computeFactionEndingFromPoints().vibe || 'Complete faction contracts to shape your ending.'}</div>
+          </div>
           <div class="pathway-grid">
     `;
 
@@ -1588,6 +1608,63 @@
     return 6;
   }
 
+  function contractStateKey(factionId, missionId) {
+    return String(factionId) + ":" + String(missionId);
+  }
+
+  function getContractState(factionId, missionId) {
+    ensureFactionState();
+    const key = contractStateKey(factionId, missionId);
+    return (S.factionNarrative && S.factionNarrative.contracts && S.factionNarrative.contracts[key]) || null;
+  }
+
+  function setContractState(factionId, missionId, nextState) {
+    ensureFactionState();
+    const key = contractStateKey(factionId, missionId);
+    S.factionNarrative.contracts[key] = Object.assign({}, nextState || {});
+    return S.factionNarrative.contracts[key];
+  }
+
+  function computeFactionEndingFromPoints() {
+    ensureFactionState();
+    const points = S.factionNarrative.pathPoints || { heroic: 0, evil: 0, sacrificial: 0 };
+    const heroic = Number(points.heroic || 0);
+    const evil = Number(points.evil || 0);
+    const sacrificial = Number(points.sacrificial || 0);
+    const total = heroic + evil + sacrificial;
+    if (total <= 0) {
+      return { key: "", title: "Unwritten Fate", vibe: "No contract pathway dominates yet." };
+    }
+
+    if (heroic >= 3 && heroic >= evil && heroic >= sacrificial) {
+      return {
+        key: "heroic",
+        title: STORY_PATHWAYS.heroic.ending.title,
+        vibe: STORY_PATHWAYS.heroic.ending.vibe,
+      };
+    }
+    if (evil >= 3 && evil >= heroic && evil >= sacrificial) {
+      return {
+        key: "evil",
+        title: STORY_PATHWAYS.evil.ending.title,
+        vibe: STORY_PATHWAYS.evil.ending.vibe,
+      };
+    }
+    if (sacrificial >= 3 && sacrificial >= heroic && sacrificial >= evil) {
+      return {
+        key: "sacrificial",
+        title: STORY_PATHWAYS.sacrificial.ending.title,
+        vibe: STORY_PATHWAYS.sacrificial.ending.vibe,
+      };
+    }
+
+    return {
+      key: "contested",
+      title: STORY_PATHWAYS.unity.ending.title,
+      vibe: "Your pathway is contested; one more defining contract can tip the ending.",
+    };
+  }
+
   function chooseFactionContractRegion() {
     const regions = ["province"];
     if (S && S.lastSea && Array.isArray(S.lastSea.map) && S.lastSea.map.length) regions.push("sea");
@@ -1595,11 +1672,107 @@
     return regions[Math.floor(Math.random() * regions.length)];
   }
 
-  function buildFactionContractLocation(factionId, mission, pathway, region) {
-    const hook = mission && mission.desc ? mission.desc : "High-priority contract";
-    if (region === "sea") return "Last Sea route: " + hook;
-    if (region === "galaxy") return "Outer-system relay: " + hook;
-    return "Province front: " + hook;
+  function randomOf(list) {
+    if (!Array.isArray(list) || !list.length) return "";
+    return list[Math.floor(Math.random() * list.length)] || "";
+  }
+
+  function buildFactionContractTemplate(factionId, mission, pathway, region) {
+    const faction = FACTIONS[factionId] || { name: "Faction" };
+    const pathLabel = pathway === "heroic" ? "Heroic" : pathway === "evil" ? "Ruthless" : "Sacrificial";
+    const missionCore = mission && mission.title ? mission.title : "Faction Operation";
+    const hooks = {
+      delivery_chain: {
+        title: pathLabel + " Delivery Chain - " + missionCore,
+        stepNames: {
+          1: "Secure Cargo Intel",
+          2: "Run the Checkpoint Chain",
+          3: "Deliver Under Pressure"
+        },
+        checkpoints: [
+          "Meet a fixer contact in " + (region === "galaxy" ? "an orbital bazaar" : region === "sea" ? "a storm harbor" : "a frontier market"),
+          "Cross two hostile checkpoints without losing the payload",
+          "Deliver to the final handoff and decide who truly receives the goods"
+        ],
+        intro: "This delivery contract unfolds in chained handoffs. Every checkpoint can escalate into diplomacy, force, or betrayal."
+      },
+      social_contact: {
+        title: pathLabel + " Social Contact Web - " + missionCore,
+        stepNames: {
+          1: "Read the Room",
+          2: "Leverage the Network",
+          3: "Close the Political Deal"
+        },
+        checkpoints: [
+          "Find the right informant through coded social rituals",
+          "Trade favors with rival contacts for access",
+          "Choose who you elevate and who gets politically erased"
+        ],
+        intro: "This mission is contact-heavy and volatile. Your words can shift entire alliances before the final confrontation."
+      },
+      sabotage_branch: {
+        title: pathLabel + " Sabotage Branch - " + missionCore,
+        stepNames: {
+          1: "Scout Vulnerabilities",
+          2: "Plant the Breach",
+          3: "Trigger and Escape"
+        },
+        checkpoints: [
+          "Identify the weakest link in the target system",
+          "Decide between silent sabotage or public spectacle",
+          "Escape the retaliation wave after detonation"
+        ],
+        intro: "Sabotage contracts branch hard: clean strike, messy chaos, or martyr play. The world remembers which path you chose."
+      },
+      pursuit_arc: {
+        title: pathLabel + " Pursuit Arc - " + missionCore,
+        stepNames: {
+          1: "Track the Quarry",
+          2: "Corner Across Regions",
+          3: "Final Intercept"
+        },
+        checkpoints: [
+          "Extract a route signature from witnesses",
+          "Pursue the target through shifting terrain",
+          "Choose capture, execution, or self-sacrifice at intercept"
+        ],
+        intro: "This pursuit contract is a chase narrative. Momentum matters more than brute force, and your final choice defines reputation."
+      },
+      multi_map_checkpoint: {
+        title: pathLabel + " Multi-Map Relay - " + missionCore,
+        stepNames: {
+          1: "Decode Cross-Map Intel",
+          2: "Traverse Relay Checkpoints",
+          3: "Resolve the Nexus Crisis"
+        },
+        checkpoints: [
+          "Unpack a clue that points to at least two map systems",
+          "Travel between relay points while under enemy pressure",
+          "Resolve the nexus event that links faction futures"
+        ],
+        intro: "This is a true campaign-style relay contract: clues, transit pressure, and a nexus finale."
+      }
+    };
+
+    const templateIds = Object.keys(hooks);
+    const templateId = randomOf(templateIds);
+    const selected = hooks[templateId];
+    const locationBase = mission && mission.desc ? mission.desc : "High-priority faction operation";
+    const location = region === "sea"
+      ? ("Last Sea chain: " + locationBase)
+      : region === "galaxy"
+        ? ("Outer-system chain: " + locationBase)
+        : ("Province chain: " + locationBase);
+
+    return {
+      templateId: templateId,
+      title: selected.title,
+      location: location,
+      stepNames: selected.stepNames,
+      checkpoints: selected.checkpoints,
+      intro: selected.intro,
+      factionName: faction.name
+    };
   }
 
   function acceptFactionMissionFromTab(factionId, missionId, pathway) {
@@ -1608,6 +1781,15 @@
     if (!faction) return;
     const mission = (faction.factionMissions || []).find((m) => String(m.id) === String(missionId));
     if (!mission) return;
+    const state = getContractState(factionId, missionId);
+    if (state && state.status === "active") {
+      if (typeof showNotif === "function") showNotif("This contract is already active in your Missions tab.", "warn");
+      return;
+    }
+    if (state && state.status === "completed") {
+      if (typeof showNotif === "function") showNotif("This faction contract is already completed and has advanced the narrative.", "warn");
+      return;
+    }
     const idx = (faction.factionMissions || []).findIndex((m) => String(m.id) === String(missionId));
     const renown = getFactionRenown(factionId);
     if (renown < getFactionMissionUnlockRenown(idx)) {
@@ -1616,8 +1798,9 @@
     }
     const route = chooseFactionContractRegion();
     const pathLabel = (pathway === "heroic" || pathway === "evil" || pathway === "sacrificial") ? pathway : "standard";
-    const contractTitle = "[" + toTitle(pathLabel) + "] " + mission.title;
-    const contractLocation = buildFactionContractLocation(factionId, mission, pathLabel, route);
+    const gm = buildFactionContractTemplate(factionId, mission, pathLabel, route);
+    const contractTitle = "[" + toTitle(pathLabel) + "] " + gm.title;
+    const contractLocation = gm.location;
     const rival = getRivalFaction(factionId);
     if (typeof createMission === "function") {
       const created = createMission(
@@ -1632,13 +1815,36 @@
           gainName: faction.name,
           loseName: (FACTIONS[rival] && FACTIONS[rival].name) ? FACTIONS[rival].name : toTitle(rival),
         },
-        null
+        {
+          missionType: "faction_contract",
+          contractPathway: pathLabel,
+          templateId: gm.templateId,
+          checkpoints: gm.checkpoints,
+          stepNames: gm.stepNames,
+          step1Intro: gm.intro,
+          factionContract: {
+            factionId: factionId,
+            missionId: missionId,
+            pathway: pathLabel,
+            factionName: gm.factionName
+          }
+        }
       );
-      if (created && typeof showNotif === "function") {
-        showNotif("Faction contract posted to Missions: " + contractTitle, "good");
+      if (created && created.id) {
+        setContractState(factionId, missionId, {
+          status: "active",
+          pathway: pathLabel,
+          activeMissionId: created.id,
+          templateId: gm.templateId,
+          acceptedAt: Date.now()
+        });
+        if (typeof showNotif === "function") {
+          showNotif("Faction contract posted to Missions: " + contractTitle, "good");
+        }
       }
       if (typeof renderMissionBoard === "function") renderMissionBoard();
       if (typeof renderMissionTracker === "function") renderMissionTracker();
+      setupFactionTab();
     }
   }
 
@@ -1662,12 +1868,21 @@
     faction.factionMissions.forEach((mission, idx) => {
       const requiredRenown = getFactionMissionUnlockRenown(idx);
       const unlocked = renown >= requiredRenown;
+      const state = getContractState(factionId, mission.id);
+      const status = state && state.status ? state.status : "available";
+      const statusText = status === "completed"
+        ? "Completed — narrative advanced"
+        : status === "active"
+          ? "Active contract in Missions tab"
+          : "Ready to accept";
+      const statusColor = status === "completed" ? "var(--green2)" : status === "active" ? "var(--gold2)" : "var(--teal)";
       html += `
         <div class="mission-detail" style="border:1px solid ${unlocked ? 'var(--border2)' : 'rgba(224,80,80,.45)'};padding:.55rem;margin-bottom:.45rem;opacity:${unlocked ? '1' : '.82'};">
           <h5>${mission.title}</h5>
           <p>${mission.desc}</p>
           <div class="mission-stats">Difficulty: ${mission.difficulty} — Reward: ${mission.reward}⚜</div>
           <div class="mission-stats" style="color:${unlocked ? 'var(--teal)' : 'var(--red2)'};">${unlocked ? 'Unlocked' : ('Locked — Requires Renown ' + requiredRenown)}</div>
+          ${unlocked ? `<div class="mission-stats" style="color:${statusColor};">${statusText}</div>` : ""}
           <div class="mission-pathways">
             <strong>Your decisions:</strong>
             <ul>
@@ -1676,13 +1891,77 @@
               <li><strong>Sacrificial:</strong> ${mission.pathways.sacrificial}</li>
             </ul>
           </div>
-          ${unlocked ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','heroic')">Accept Heroic Contract</button><button class="btn btn-xs" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','evil')">Accept Ruthless Contract</button><button class="btn btn-xs btn-primary" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','sacrificial')">Accept Sacrificial Contract</button></div>` : ""}
+          ${unlocked && status === 'available' ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','heroic')">Accept Heroic Contract</button><button class="btn btn-xs" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','evil')">Accept Ruthless Contract</button><button class="btn btn-xs btn-primary" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','sacrificial')">Accept Sacrificial Contract</button></div>` : ""}
         </div>
       `;
     });
 
     html += `<div style="margin-top:.6rem;"><button class="btn btn-sm btn-primary" onclick="factionSystem.visitBase('${factionId}')">Visit ${faction.name} Base</button></div></div>`;
     openFactionModal(faction.name, html);
+  }
+
+  function onMissionResolved(mission, success) {
+    ensureFactionState();
+    if (!mission || mission.missionType !== "faction_contract" || !mission.factionContract) return;
+    const info = mission.factionContract;
+    const factionId = info.factionId;
+    const missionId = info.missionId;
+    if (!factionId || !missionId) return;
+
+    const current = getContractState(factionId, missionId) || {};
+    const pathway = String(info.pathway || current.pathway || "heroic");
+
+    if (!success) {
+      setContractState(factionId, missionId, {
+        status: "available",
+        pathway: pathway,
+        activeMissionId: null,
+        templateId: current.templateId || mission.templateId || "",
+        failedAt: Date.now()
+      });
+      if (typeof showNotif === "function") showNotif("Faction contract failed. You can accept it again to recover the arc.", "warn");
+      setupFactionTab();
+      return;
+    }
+
+    const points = S.factionNarrative.pathPoints;
+    if (pathway === "heroic" || pathway === "evil" || pathway === "sacrificial") {
+      points[pathway] = Number(points[pathway] || 0) + 1;
+    }
+
+    setContractState(factionId, missionId, {
+      status: "completed",
+      pathway: pathway,
+      activeMissionId: null,
+      templateId: current.templateId || mission.templateId || "",
+      completedAt: Date.now()
+    });
+
+    S.factionNarrative.completedContracts.push({
+      factionId: factionId,
+      missionId: missionId,
+      pathway: pathway,
+      title: mission.title || "Faction Contract",
+      completedAt: Date.now()
+    });
+    if (S.factionNarrative.completedContracts.length > 40) {
+      S.factionNarrative.completedContracts = S.factionNarrative.completedContracts.slice(-40);
+    }
+
+    const ending = computeFactionEndingFromPoints();
+    S.factionNarrative.endingResult = ending;
+    if (typeof showNotif === "function") {
+      showNotif(
+        "Faction narrative advanced: " + toTitle(pathway) + " +1 (Heroic "
+        + Number(points.heroic || 0) + " / Ruthless " + Number(points.evil || 0)
+        + " / Sacrificial " + Number(points.sacrificial || 0) + ")",
+        "good"
+      );
+      if (ending && ending.key && ending.key !== "contested") {
+        showNotif("Ending trajectory: " + ending.title, "good");
+      }
+    }
+    setupFactionTab();
   }
 
   function visitFactionBase(factionId) {
@@ -1757,7 +2036,8 @@
     startMonsterTask: startMonsterTaskEncounter,
     finalizeMonsterTask: finalizeMonsterTaskEncounter,
     getFactionStoryRollBonus,
-    generateAdaptiveChoices
+    generateAdaptiveChoices,
+    onMissionResolved
   };
 
   window.getFactionStoryRollBonus = getFactionStoryRollBonus;

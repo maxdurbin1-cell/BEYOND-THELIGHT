@@ -3995,7 +3995,7 @@ function renderHexInfo(hex){
       <div style="font-size:.82rem;color:var(--text2);">Passing through grants <strong style="color:var(--gold);">Protected</strong> (Defend ↑).<br>No Wilderness Roll required in this hex.</div>
     </div>`;
     html+=`<div class="wild-panel"><div class="wp-label">Monument</div><div class="wp-text">${hex.name}</div></div>`;
-    html+=`<div class="wild-panel"><div class="wp-label">✦ Additional Effect</div><div class="wp-text"><strong style="color:var(--gold);">${d.effect||'Protected (Defend ↑)'}</strong></div></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">✦ Additional Effect</div><div class="wp-text"><strong style="color:var(--gold);">${d.effect||'Protected (Defend ↑)'}</strong></div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="applyProvinceMonumentEffect(${hex.col},${hex.row})">Claim Monument Boon</button></div></div>`;
 
   // ── PERIL ──
   }else if(hex.type==='peril'){
@@ -4010,9 +4010,8 @@ function renderHexInfo(hex){
     </div>`;
     html+=`<div class="ruin-room"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);"><strong>Built by:</strong> ${d.builder||'Unknown'}<br><strong>Purpose:</strong> ${d.builtFor||'Unknown'}<br><strong>Construction:</strong> ${d.construction||'Stone'}<br><strong>Entrance:</strong> ${d.entrance||'Open'}<br><strong>Rooms:</strong> ${d.rooms||4} total<br><strong>Novelty:</strong> ${d.novelty||'None'}</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
-      <button class="btn btn-sm btn-primary" onclick="generateRuinRooms(${hex.col},${hex.row})">⚄ Generate Rooms</button>
+      <button class="btn btn-sm btn-primary" onclick="openProvinceRuinPopup(${hex.col},${hex.row})">⚄ Enter Ruins (Popup)</button>
     </div>`;
-    html+=`<div id="ruinRooms-${hex.col}-${hex.row}"></div>`;
 
   // ── EVENT ──
   }else if(hex.type==='event'){
@@ -5645,6 +5644,100 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(typeof updateDateUI==='function')updateDateUI();
   }
 
+  function getProvinceAdjacentHexes(col,row){
+    const dirs=[
+      {c:col-1,r:row-1},{c:col,r:row-1},{c:col+1,r:row-1},
+      {c:col-1,r:row},{c:col+1,r:row},
+      {c:col-1,r:row+1},{c:col,r:row+1},{c:col+1,r:row+1}
+    ];
+    return dirs.map(function(p){ return mapData.find(function(h){ return h.col===p.c&&h.row===p.r; }); }).filter(Boolean);
+  }
+
+  function moveToRandomAdjacentHex(col,row,reason){
+    const neighbors=getProvinceAdjacentHexes(col,row);
+    if(!neighbors.length)return;
+    const next=neighbors[Math.floor(Math.random()*neighbors.length)];
+    selectedHex=next;
+    renderHexMap();
+    renderHexInfo(next);
+    if(reason)showNotif(reason+' Rerouted to ['+(next.col+1)+','+(next.row+1)+'].','warn');
+  }
+
+  function rollProvinceRuinLoot(){
+    const pools=['items','essentials','toolkits','scrolls','remedies'];
+    const p=pick(pools);
+    const arr=(SHOP_DATA&&Array.isArray(SHOP_DATA[p]))?SHOP_DATA[p]:[];
+    if(arr.length)return pick(arr).name;
+    return pick(['Scrap Cache','Ancient Relic','Stimulant','Trade Good']);
+  }
+
+  window.openProvinceRuinPopup = function(col,row){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
+    if(!hex)return;
+    hex.data=hex.data||{};
+    if(!Array.isArray(hex.data.provinceRuinRooms)){
+      const count=Math.max(2,parseInt(hex.data.rooms,10)||4);
+      hex.data.provinceRuinRooms=Array.from({length:count},function(_,i){
+        return { idx:i+1, type:i===0?'Entrance':pick(RUIN_ROOM_TYPES), cleared:false, result:'' };
+      });
+    }
+    const rows=hex.data.provinceRuinRooms.map(function(room,i){
+      return '<div class="room-block" style="margin-bottom:.38rem;">'
+        + '<div class="rb-title">Room '+room.idx+' - '+room.type+'</div>'
+        + '<div class="rb-text">'+(room.type==='Entrance'?(hex.data.entrance||'Open entrance'):(room.type==='Lair'?pick(RUIN_LAIR_DESC):room.type==='Obstacle'?pick(RUIN_OBSTACLE_DESC):room.type==='Trap'?pick(RUIN_TRAP_DESC):room.type==='Puzzle'?pick(RUIN_PUZZLE_DESC):'A quiet chamber full of dust and debris.'))+'</div>'
+        + (room.result?('<div class="rb-text" style="margin-top:.28rem;color:var(--gold2);">'+room.result+'</div>'):'')
+        + (room.cleared?'':'<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+i+')">Resolve Room (Action vs DD8)</button></div>')
+      + '</div>';
+    }).join('');
+    openModal('Province Ruins - '+(hex.name||'Unknown Ruin'),'<div style="font-size:.83rem;color:var(--muted2);margin-bottom:.35rem;">Action Die check against DD8. Success grants loot. Failure can trigger danger.</div>'+rows);
+  };
+
+  window.resolveProvinceRuinRoom = function(col,row,idx){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
+    if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms)||!hex.data.provinceRuinRooms[idx])return;
+    const room=hex.data.provinceRuinRooms[idx];
+    if(room.cleared)return;
+    const actionDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
+    const a=explodingRoll(actionDie,{type:'action',major:true,label:'Ruin Action'});
+    const d=explodingRoll(8,{type:'dread',major:true,label:'Ruin DD8'});
+    if(a.total>=d.total){
+      const loot=rollProvinceRuinLoot();
+      let stored=false;
+      if(typeof addToBackpack==='function')stored=!!addToBackpack(loot);
+      room.result='AD'+actionDie+' '+a.total+' vs DD8 '+d.total+'. Success. Loot: '+loot+(stored?' added to Backpack.':' recovered (Backpack full).');
+      room.cleared=true;
+      if(typeof addSuccessRoll==='function')addSuccessRoll();
+    }else{
+      const diff=Math.max(1,d.total-a.total);
+      if(typeof changeStress==='function')changeStress(diff);
+      if(typeof addTMWOnFail==='function')addTMWOnFail();
+      if(room.type==='Lair'){
+        const count=Math.max(1,roll(3));
+        room.result='AD'+actionDie+' '+a.total+' vs DD8 '+d.total+'. Failure. A threat emerges. <button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'ruins\','+count+',\'Ruin Guardians\',6);closeModal();">Engage Combat</button>';
+      }else{
+        room.result='AD'+actionDie+' '+a.total+' vs DD8 '+d.total+'. Failure. You take '+diff+' Stress.';
+      }
+      room.cleared=true;
+    }
+    openProvinceRuinPopup(col,row);
+  };
+
+  window.applyProvinceMonumentEffect = function(col,row){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='monument'; });
+    if(!hex)return;
+    const effect=String((hex.data&&hex.data.effect)||'Protected (Defend ↑)');
+    const applied=[];
+    if(typeof toggleCond==='function'){
+      if(effect.toLowerCase().indexOf('protected')>=0&&!S.conditions.protected){toggleCond('protected');applied.push('Protected');}
+      if(effect.toLowerCase().indexOf('bolstered')>=0&&!S.conditions.bolstered){toggleCond('bolstered');applied.push('Bolstered');}
+      if(effect.toLowerCase().indexOf('focused')>=0&&!S.conditions.focused){toggleCond('focused');applied.push('Focused');}
+      if(effect.toLowerCase().indexOf('empowered')>=0&&!S.conditions.empowered){toggleCond('empowered');applied.push('Empowered');}
+    }
+    if(effect.toLowerCase().indexOf('all stress')>=0&&typeof changeStress==='function'){changeStress(-999);applied.push('Stress Cleared');}
+    if(!applied.length&&typeof toggleCond==='function'&&!S.conditions.protected){toggleCond('protected');applied.push('Protected');}
+    showNotif('Monument boon: '+applied.join(', ')+'.','good');
+  };
+
   function collectLeadInventoryBonuses(){
     const list=[];
     if(Array.isArray(S.backpack)){
@@ -5826,7 +5919,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const optHTML=options.map(function(o){return '<option value="'+o.key+'">'+o.label+'</option>';}).join('');
     const hp=Math.max(0,parseInt((S&&((typeof S.health==='number')?S.health:S.stress))||0,10)||0);
     const rEl = document.getElementById(`hexEnc-${col}-${row}`);
-    if (rEl) rEl.innerHTML = `<div style="background:rgba(230,80,80,.08); border:1px solid rgba(230,80,80,.35); padding:.5rem .6rem;"><div style="font-family:Cinzel,serif; font-size:.7rem; color:var(--red2); text-transform:uppercase;">⚔ Skirmish: ${numA} ${armyA} vs ${numB} ${armyB}</div><div style="font-size:.75rem;color:var(--text2);margin-top:.25rem;">Choose your side. Your Health (${hp}) is added to that army's Stress.</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;"><select id="skirmishPower-${col}-${row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;">${optHTML}</select><button class="btn btn-xs btn-teal" onclick="joinProvinceSkirmish('A',${col},${row})">Join ${armyA}</button><button class="btn btn-xs btn-red" onclick="joinProvinceSkirmish('B',${col},${row})">Join ${armyB}</button></div></div>`;
+    if (rEl) rEl.innerHTML = `<div style="background:rgba(230,80,80,.08); border:1px solid rgba(230,80,80,.35); padding:.5rem .6rem;"><div style="font-family:Cinzel,serif; font-size:.7rem; color:var(--red2); text-transform:uppercase;">⚔ Skirmish: ${numA} ${armyA} vs ${numB} ${armyB}</div><div style="font-size:.75rem;color:var(--text2);margin-top:.25rem;">Choose your side. Your Health (${hp}) is added to that army's Stress.</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;"><select id="skirmishPower-${col}-${row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;">${optHTML}</select><button class="btn btn-xs btn-teal" onclick="joinProvinceSkirmish('A',${col},${row})">Join ${armyA}</button><button class="btn btn-xs btn-red" onclick="joinProvinceSkirmish('B',${col},${row})">Join ${armyB}</button><button class="btn btn-xs" onclick="openProvinceSkirmishControls(${col},${row})">Init Skirmish Controls</button><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector('.tab-btn[onclick*=\"combat\"]');switchTab('combat',b||null);}">Open Combat Tab</button><button class="btn btn-xs" onclick="quickResolveSkirmish('province',${col},${row})">Quick Resolve</button></div><div id="provinceSkirmish-${col}-${row}" style="margin-top:.3rem;"></div></div>`;
     if(typeof updateSkirmishRoundUI==='function')updateSkirmishRoundUI();
     if(typeof updateSkirmishActionUI==='function'){updateSkirmishActionUI('A');updateSkirmishActionUI('B');}
     const aStress=document.getElementById('armyAStress');if(aStress)aStress.textContent=S.combat.armyA.stress;
@@ -5834,6 +5927,59 @@ document.addEventListener('DOMContentLoaded',()=>{
     const aDread=document.getElementById('armyADread');if(aDread)aDread.textContent='d'+S.combat.armyA.dread;
     const bDread=document.getElementById('armyBDread');if(bDread)bDread.textContent='d'+S.combat.armyB.dread;
     showNotif('Skirmish initiated! Direct your forces.', 'warn');
+  };
+
+  window.openProvinceSkirmishControls = function(col,row){
+    if(!S.combat||!S.combat.skirmishActive)return;
+    const box=document.getElementById(`provinceSkirmish-${col}-${row}`);
+    if(!box)return;
+    const a=S.combat.armyA||{};
+    const b=S.combat.armyB||{};
+    box.innerHTML=`<div class="wtw-card" style="padding:.35rem;">
+      <div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Round ${S.combat.skirmishRound||1} · Actions reset at 0/0</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">
+        <div>
+          <div style="font-size:.74rem;color:var(--text2);">Your Army: <strong style="color:var(--teal);">${a.stress||0}</strong></div>
+          <div style="font-size:.72rem;color:var(--muted2);">Actions: ${typeof a.actions==='number'?a.actions:2} · Dread: d${a.dread||6}</div>
+          <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">
+            <button class="btn btn-xs btn-primary" onclick="provinceSkirmishAction('A','strike',${col},${row})">Strike</button>
+            <button class="btn btn-xs btn-teal" onclick="provinceSkirmishAction('A','parry',${col},${row})">Parry</button>
+            <button class="btn btn-xs" onclick="provinceSkirmishAction('A','frighten',${col},${row})">Frighten</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.74rem;color:var(--text2);">Enemy Army: <strong style="color:var(--red);">${b.stress||0}</strong></div>
+          <div style="font-size:.72rem;color:var(--muted2);">Actions: ${typeof b.actions==='number'?b.actions:2} · Dread: d${b.dread||6}</div>
+          <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">
+            <button class="btn btn-xs btn-red" onclick="provinceSkirmishAction('B','strike',${col},${row})">Strike</button>
+            <button class="btn btn-xs" onclick="provinceSkirmishAction('B','parry',${col},${row})">Parry</button>
+            <button class="btn btn-xs" onclick="provinceSkirmishAction('B','frighten',${col},${row})">Frighten</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  window.provinceSkirmishAction = function(side,action,col,row){
+    if(!S.combat||!S.combat.skirmishActive)return;
+    const mine=side==='A'?S.combat.armyA:S.combat.armyB;
+    const opp=side==='A'?S.combat.armyB:S.combat.armyA;
+    if(!mine||!opp)return;
+    if(typeof mine.actions!=='number')mine.actions=2;
+    if(typeof opp.actions!=='number')opp.actions=2;
+    if(mine.actions<=0){showNotif('No actions left for that side.','warn');return;}
+    mine.actions-=1;
+    const rollVal=roll(12);
+    const dread=mine.dread||6;
+    if(action==='strike'&&rollVal>=dread){opp.stress=Math.max(0,(opp.stress||0)-Math.max(1,rollVal-dread));}
+    else if(action==='frighten'&&roll(12)>=dread){opp.stress=Math.max(0,(opp.stress||0)-1);}
+    if((S.combat.armyA.actions||0)<=0&&(S.combat.armyB.actions||0)<=0){
+      S.combat.skirmishRound=(S.combat.skirmishRound||1)+1;
+      S.combat.armyA.actions=2;
+      S.combat.armyB.actions=2;
+    }
+    if((S.combat.armyA.stress||0)<=0||(S.combat.armyB.stress||0)<=0){quickResolveSkirmish('province',col,row);return;}
+    openProvinceSkirmishControls(col,row);
   };
 
   window.joinProvinceSkirmish = function(side,col,row){
@@ -5881,9 +6027,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   window.resolveSkirmishAvoid = function(col, row) {
+    advanceProvincePhasePenalty(1);
     showNotif('You avoid the skirmish and lose 1 Phase routing around.', 'info');
     const el = document.getElementById(`hexEnc-${col}-${row}`);
     if (el) el.innerHTML = '<div style="font-size:.78rem;color:var(--muted2);">Encounter avoided.</div>';
+    moveToRandomAdjacentHex(col,row,'Encounter avoided.');
   };
 
   // ── MONSTER/BEAST COMBAT LINKING ──
@@ -5907,16 +6055,41 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(typeof renderEnemies==='function')renderEnemies();
     if(typeof renderQP==='function')renderQP('combat');
     const resultEl = document.getElementById(`hexEnc-${col}-${row}`);
-    if (resultEl) resultEl.innerHTML = `<div style="background:rgba(200,50,50,.08); padding:.5rem;"><div style="font-family:Cinzel,serif; color:var(--red2);">⚔ Combat Ready: ${enemyCount} ${typeStr}</div><div style="font-size:.75rem; margin-top:.2rem;">DD${dd} · ${hpEach} Health each. Open Combat Tab to resolve.</div></div>`;
+    if (resultEl) resultEl.innerHTML = `<div style="background:rgba(200,50,50,.08); padding:.5rem;"><div style="font-family:Cinzel,serif; color:var(--red2);">⚔ Combat Ready: ${enemyCount} ${typeStr}</div><div style="font-size:.75rem; margin-top:.2rem;">DD${dd} · ${hpEach} Health each. Open Combat Tab to resolve.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceMonsterCombatOutcome(${col},${row},true)">Success</button><button class="btn btn-xs btn-red" onclick="resolveProvinceMonsterCombatOutcome(${col},${row},false)">Failed</button></div></div>`;
     if (typeof switchTab === 'function') {
       setTimeout(() => showNotif('Engage in Combat Tab', 'warn'), 200);
     }
   };
 
   window.resolveMonsterAvoid = function(col, row) {
+    advanceProvincePhasePenalty(1);
     showNotif('You evade and lose 1 Phase routing around.', 'info');
     const el = document.getElementById(`hexEnc-${col}-${row}`);
     if (el) el.innerHTML = '<div style="font-size:.78rem;color:var(--muted2);">Encounter avoided</div>';
+    moveToRandomAdjacentHex(col,row,'Encounter avoided.');
+  };
+
+  window.resolveProvinceMonsterCombatOutcome = function(col,row,success){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row; });
+    if(success){
+      S.renown=(S.renown||0)+1;
+      const loot=rollProvinceRuinLoot();
+      const credits=roll(8)*20;
+      S.credits=(S.credits||0)+credits;
+      if(typeof addToBackpack==='function')addToBackpack(loot);
+      if(typeof updateRenown==='function')updateRenown();
+      if(typeof updateCreditsUI==='function')updateCreditsUI();
+      showNotif('Encounter won: +1 Renown, +'+credits+'₵, '+loot+'.','good');
+    }else{
+      S.renown=Math.max(0,(S.renown||0)-1);
+      if(typeof updateRenown==='function')updateRenown();
+      showNotif('Encounter failed: -1 Renown.','warn');
+    }
+    S.combat.monsterCombatActive=false;
+    S.enemies=[];
+    if(typeof renderEnemies==='function')renderEnemies();
+    if(typeof renderQP==='function')renderQP('combat');
+    if(hex)renderHexInfo(hex);
   };
 
   // ── WAYFARER MISSIONS ──
@@ -5965,8 +6138,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     S.credits -= cost;
     if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    if (typeof changeTrauma === 'function') {
+      changeTrauma(-1);
+    } else if (typeof S.trauma === 'number') {
+      S.trauma = Math.max(0, S.trauma - 1);
+      if (typeof updateTrauma === 'function') updateTrauma();
+    }
     const wisdoms = ['Your path is clear.', 'Prepare your spirit.', 'Trust the old roads.', 'Seek where few tread.'];
-    showNotif('Sage: "' + wisdoms[roll(wisdoms.length) - 1] + '"', 'good');
+    showNotif('Sage: "' + wisdoms[roll(wisdoms.length) - 1] + '" (Trauma cleared by 1)', 'good');
   };
 
   window.renderQP = renderQP;

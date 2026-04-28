@@ -4457,6 +4457,10 @@ function renderHexInfo(hex){
   const c=document.getElementById('hexInfo');if(!c)return;
   const d=hex.data||{};
   const nk=`${hex.col},${hex.row}`;
+  const provinceItemFlags=getProvinceNarrativeItemFlags();
+  const weatherBtnHint=provinceItemFlags.compass?' (+Compass +2)':(provinceItemFlags.torch?' (Torch eases fail stress)':'');
+  const weatherBtnTitle=provinceItemFlags.compass?'Compass grants +2 to Lead/Control weather checks.':(provinceItemFlags.torch?'Torch reduces weather-failure stress by 1.':'');
+  const traversalHint=(provinceItemFlags.compass?'Compass +2 on Lead/Control. ':'')+(provinceItemFlags.torch?'Torch +1 on Body/Spirit in Peril/Barrier.':'');
   const secretPadKey=getProvinceSecretPadKey();
   const provincePadProgress=getSecretPadClueProgress('province');
   const provincePadUnlocked=isSecretPadUnlocked('province');
@@ -4542,7 +4546,7 @@ function renderHexInfo(hex){
   if(weatherResult.rough) {
     weatherButtonsHTML = `
       <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-primary" onclick="resolveProvinceWeatherCheck(${hex.col},${hex.row})">⚄ Lead vs DD8</button>
+        <button class="btn btn-xs btn-primary" title="${weatherBtnTitle}" onclick="resolveProvinceWeatherCheck(${hex.col},${hex.row})">⚄ Lead vs DD8${weatherBtnHint}</button>
       </div>
     `;
   }
@@ -4637,7 +4641,7 @@ function renderHexInfo(hex){
   // ── PERIL ──
   }else if(hex.type==='peril'){
     html+=`<div class="peril-block"><strong style="color:var(--red2);">⚠ ${hex.name}</strong><br><div style="font-size:.83rem;margin-top:.2rem;">${d.desc||'A dangerous location.'}</div></div>`;
-    html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong>, cannot pass this Phase.<br>Success = passage gained.</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'peril')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong>, cannot pass this Phase.<br>Success = passage gained.${traversalHint?('<br><span style="color:var(--teal);">Item bonus: '+traversalHint+'</span>'):''}</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" title="${traversalHint}" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'peril')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
 
   // ── RUINS ──
   }else if(hex.type==='ruins'){
@@ -4702,7 +4706,7 @@ function renderHexInfo(hex){
   // ── BARRIER ──
   }else if(hex.type==='barrier'){
     html+=`<div class="barrier-block"><strong>${hex.name}</strong><br><div style="font-size:.83rem;margin-top:.2rem;">${d.desc||'An obstacle.'}</div></div>`;
-    html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong>, cannot pass this Phase. Success = passage gained.</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'barrier')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong>, cannot pass this Phase. Success = passage gained.${traversalHint?('<br><span style="color:var(--teal);">Item bonus: '+traversalHint+'</span>'):''}</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" title="${traversalHint}" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'barrier')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
   }
 
   // Notes
@@ -5455,6 +5459,12 @@ function revealSageHint(col,row){
 
 function rollHexEncounter(col,row){
   const vr=roll(6);
+  const itemFlags=getProvinceNarrativeItemFlags();
+  const shiftHint=itemFlags.compass?' (+Compass +2)':(itemFlags.torch?' (Torch eases fail stress)':'');
+  const shiftTitle=itemFlags.compass?'Compass grants +2 to shift-weather Lead checks.':(itemFlags.torch?'Torch reduces weather-failure stress by 1.':'');
+  const skirmishHint=itemFlags.factionItem?' (+Faction +1 Renown)':'';
+  const skirmishTitle=itemFlags.factionItem?'Faction token grants +1 Renown when joining a skirmish side.':'';
+  const combatHint=(itemFlags.compass?' (+Compass salvage)':'')+(itemFlags.factionItem?' (+Faction Renown)':'');
   let html='';
   if(vr===1){
     html=`<div class="venture-result"><div class="vr-type">d6=${vr} — Shift in Weather</div>`;
@@ -5463,7 +5473,7 @@ function rollHexEncounter(col,row){
     html+=`<strong style="${w.rough?'color:var(--red2)':'color:var(--teal)'};">${w.result}</strong> — ${w.desc}`;
     if(w.rough){
       html+=`<div class="rough-weather-alert">Lead vs DD8 required. Failure: remain in Hex, lose 1 Phase, gain +1 Mental Stress.</div>`;
-      html+=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="resolveProvinceShiftWeatherEncounter(${col},${row})">⚄ Roll Lead vs DD8</button></div><div id="weather-shift-roll-${col}-${row}" style="margin-top:.28rem;"></div>`;
+      html+=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" title="${shiftTitle}" onclick="resolveProvinceShiftWeatherEncounter(${col},${row})">⚄ Roll Lead vs DD8${shiftHint}</button></div><div id="weather-shift-roll-${col}-${row}" style="margin-top:.28rem;"></div>`;
     }
     html+='</div>';
   }else if(vr===2){
@@ -5474,7 +5484,7 @@ function rollHexEncounter(col,row){
       title=`${n} Bandits`;
       desc=`${banditType} — DD4 | ${n*2} Stress per enemy.`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat(${col},${row},'bandits',${n},'${banditType}',4)">⚔ Fight</button>
+        <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'bandits',${n},'${banditType}',4)">⚔ Fight${combatHint}</button>
         <button class="btn btn-xs" onclick="attemptEncounterThievery('bandits',${col},${row})">🧿 Thievery</button>
         <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>
       </div>`;
@@ -5487,7 +5497,7 @@ function rollHexEncounter(col,row){
       title='Skirmish';
       desc=`${na} ${armyA} vs ${nb} ${armyB}. Intervening gains +1 Renown or 2d10×20₵.`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-warn" onclick="startProvinceSkirmish(${col},${row},${na},${nb},'${armyA}','${armyB}','province')">⚔ Lead Intervention</button>
+        <button class="btn btn-xs btn-warn" title="${skirmishTitle}" onclick="startProvinceSkirmish(${col},${row},${na},${nb},'${armyA}','${armyB}','province')">⚔ Lead Intervention${skirmishHint}</button>
         <button class="btn btn-xs" onclick="resolveSkirmishAvoid(${col},${row})">🚫 Avoid</button>
       </div>`;
     }
@@ -5497,7 +5507,7 @@ function rollHexEncounter(col,row){
       title=`${n} Hostile Beasts`;
       desc=`${beastType} — DD4 | ${n*2} Stress.`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat(${col},${row},'beasts',${n},'${beastType}',4)">⚔ Engage Combat</button>
+        <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'beasts',${n},'${beastType}',4)">⚔ Engage Combat${combatHint}</button>
         <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>
       </div>`;
     }

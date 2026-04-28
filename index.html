@@ -4609,8 +4609,8 @@ function renderHexInfo(hex){
 
   if(hex.type!=='wilderness'){
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Province Encounter</button></div>`;
+    html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
   }
-  html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
 
   // ── WILDERNESS ──
   if(hex.type==='wilderness'){
@@ -4618,6 +4618,7 @@ function renderHexInfo(hex){
     if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTd(td.flora)} ${pickTd(td.fauna)||''}</div></div>`;
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Province Encounter</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
+    html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
     if(d.eventLead){
       const leadCid=`${hex.col}-${hex.row}`;
       html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Roll an Approach check to reveal the next mystery.</div><label style="font-size:.72rem;color:var(--muted2);display:block;margin-top:.35rem;">Approach: <select id="leadStat-${leadCid}" style="width:100%;">${typeof buildApproachSelectHTML==='function'?buildApproachSelectHTML('lead'):'<option value="lead" selected>LEAD</option>'}</select></label><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="resolveEventLeadAction(${hex.col},${hex.row})">⚄ Roll Lead Mystery Check</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
@@ -5689,8 +5690,16 @@ function rollHexEncounter(col,row){
     const hexObj=mapData.find(h=>h.col===col&&h.row===row);
     html=`<div style="font-size:.82rem;color:var(--green2);padding:.3rem 0;">d6=${vr} — All Clear. Uneventful travel through the ${hexObj?.terrain?.name||'wilderness'}.</div>`;
   }
-  const el=document.getElementById(`hexEnc-${col}-${row}`);
-  if(el)el.innerHTML=html;
+  let el=document.getElementById(`hexEnc-${col}-${row}`);
+  if(!el&&selectedHex&&selectedHex.col===col&&selectedHex.row===row){
+    renderHexInfo(selectedHex);
+    el=document.getElementById(`hexEnc-${col}-${row}`);
+  }
+  if(el){
+    el.innerHTML=html;
+  }else{
+    showNotif('Encounter rolled, but output panel was not found. Reopen the hex and try again.','warn');
+  }
 }
 
 function rollTradeRouteEncounter(){

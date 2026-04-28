@@ -28,6 +28,9 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .header-credits .amt{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;color:var(--gold);}
 .tab-panel{display:none;padding:1rem 1.2rem;max-width:1600px;margin:0 auto;min-height:calc(100vh - 56px);}
 .tab-panel.active{display:block;}
+.quick-nav{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.85rem;padding:.5rem .6rem;background:rgba(255,255,255,.02);border:1px solid var(--border2);border-radius:3px;}
+.quick-nav-label{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);align-self:center;margin-right:.2rem;font-family:'Cinzel',serif;}
+.quick-nav .btn{font-size:.68rem;padding:.22rem .55rem;}
 .section-title{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.6rem;padding-bottom:.3rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.4rem;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
 .sub-label{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.2rem;}
@@ -304,6 +307,17 @@ select option{background:#0f1020;}
   
 <!-- CHARACTER TAB -->
 <div class="tab-panel active" id="tab-character">
+  <div class="quick-nav">
+    <span class="quick-nav-label">Quick Access</span>
+    <button class="btn btn-sm" onclick="switchTab('dice',document.querySelector('.tab-btn[onclick*=dice]'))">🎲 Dice</button>
+    <button class="btn btn-sm" onclick="switchTab('combat',document.querySelector('.tab-btn[onclick*=combat]'))">⚔ Combat</button>
+    <button class="btn btn-sm" onclick="switchTab('map',document.querySelector('.tab-btn[onclick*=map]'))">🗺 Province</button>
+    <button class="btn btn-sm" onclick="switchTab('storyline',document.querySelector('.tab-btn[onclick*=storyline]'))">📖 Storyline</button>
+    <button class="btn btn-sm" onclick="switchTab('shop',document.querySelector('.tab-btn[onclick*=shop]'))">🛒 Merchants</button>
+    <button class="btn btn-sm" onclick="switchTab('missions',document.querySelector('.tab-btn[onclick*=missions]'))">📋 Missions</button>
+    <button class="btn btn-sm" onclick="switchTab('factions',document.querySelector('.tab-btn[onclick*=factions]'))">⚑ Factions</button>
+    <button class="btn btn-sm" onclick="switchTab('oracle',document.querySelector('.tab-btn[onclick*=oracle]'))">🔮 Oracle</button>
+  </div>
   <div class="char-top">
     <div class="char-top-title">Wayfarer Sheet</div>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
@@ -571,6 +585,13 @@ select option{background:#0f1020;}
 
 <!-- PROVINCE TAB -->
 <div class="tab-panel" id="tab-map">
+  <div class="quick-nav">
+    <span class="quick-nav-label">Jump To</span>
+    <button class="btn btn-sm" onclick="switchTab('combat',document.querySelector('.tab-btn[onclick*=combat]'))">⚔ Combat</button>
+    <button class="btn btn-sm" onclick="switchTab('storyline',document.querySelector('.tab-btn[onclick*=storyline]'))">📖 Storyline</button>
+    <button class="btn btn-sm" onclick="switchTab('shop',document.querySelector('.tab-btn[onclick*=shop]'))">🛒 Merchants</button>
+    <button class="btn btn-sm" onclick="switchTab('character',document.querySelector('.tab-btn[onclick*=character]'))">👤 Character</button>
+  </div>
   <div class="map-controls">
     <div class="age-btn on" id="age-green" onclick="setAge('green',this)">Green Age</div>
     <div class="age-btn" id="age-golden" onclick="setAge('golden',this)">Golden Age</div>
@@ -6384,6 +6405,13 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <!-- STORYLINE TAB PANEL -->
 <div class="tab-panel" id="tab-storyline">
+  <div class="quick-nav">
+    <span class="quick-nav-label">Jump To</span>
+    <button class="btn btn-sm" onclick="switchTab('endings',document.querySelector('.tab-btn[onclick*=endings]'))">🏁 Endings</button>
+    <button class="btn btn-sm" onclick="switchTab('factions',document.querySelector('.tab-btn[onclick*=factions]'))">⚑ Factions</button>
+    <button class="btn btn-sm" onclick="switchTab('character',document.querySelector('.tab-btn[onclick*=character]'))">👤 Character</button>
+    <button class="btn btn-sm" onclick="switchTab('combat',document.querySelector('.tab-btn[onclick*=combat]'))">⚔ Combat</button>
+  </div>
   <div id="storyline"></div>
 </div>
 

@@ -443,7 +443,6 @@
           ambientDetail: pick(theme.details),
           rumorClock: 0,
           marker: {},
-          activeTask: null,
           activeMission: null,
           activeEvents: [],
           npcs: [],
@@ -474,15 +473,6 @@
   ];
 
   const MONSTER_NAMES = ["Irradiated Ones", "Rift Hounds", "Ash Stalkers", "Void Leeches", "Crypt Drifters"];
-
-  function generateFactionBaseTask(factionId) {
-    const theme = BASE_FLAVOR[factionId] || BASE_FLAVOR.scholars;
-    return {
-      title: toTitle(pick(theme.taskVerbs)) + " " + pick(theme.taskTargets),
-      check: toTitle(FACTION_ACTION_DIE_MAP[factionId] || "mind") + " check recommended",
-      reward: "+1 " + toTitle(factionId) + " Renown on success",
-    };
-  }
 
   function generateFactionBaseMission(factionId) {
     const theme = BASE_FLAVOR[factionId] || BASE_FLAVOR.scholars;
@@ -1120,6 +1110,8 @@
   // ============================================================================
 
   function setupFactionTab() {
+    patchFactionTabSwitchRefresh();
+    patchRenownRefresh();
     ensureFactionState();
     syncFactionBaseMarkers();
     const factionPanel = document.getElementById(FACTION_TAB_ID);
@@ -1369,10 +1361,6 @@
   function ensureBaseActivity(factionId) {
     const base = ensureFactionBaseMarker(factionId);
     if (!base) return null;
-    if (!base.activeTask) {
-      const t = generateFactionBaseTask(factionId);
-      base.activeTask = { title: t.title, check: t.check, reward: t.reward, accepted: false, resolved: false };
-    }
     if (!base.activeMission) {
       const m = generateFactionBaseMission(factionId);
       base.activeMission = { title: m.title, difficulty: m.difficulty, payout: m.payout, accepted: false, resolved: false };
@@ -1405,7 +1393,6 @@
     const base = ensureBaseActivity(factionId);
     if (!faction || !base) return;
     const anchor = resolveFactionBaseAnchor(base);
-    const task = base.activeTask;
     const mission = base.activeMission;
     const linkedMissionText = mission && mission.linkedMissionId
       ? `<div style="color:var(--teal);font-size:.78rem;">Linked Mission Contract #${mission.linkedMissionId} is active in the Missions tab.</div>`
@@ -1416,17 +1403,6 @@
         <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.92rem;letter-spacing:.08em;margin-bottom:.35rem;">${faction.emoji} ${base.baseName}</div>
         <div style="margin-bottom:.45rem;"><strong>Region:</strong> ${base.regionType} · <strong>Anchor:</strong> ${anchor}</div>
         <div style="margin-bottom:.5rem;">Base status feels alive: ${base.ambientDetail}. Rumor pulse: <strong>${base.rumorClock}</strong>.</div>
-
-        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">
-          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Faction Task</div>
-          <div><strong>${task.title}</strong></div>
-          <div style="color:var(--muted2);">${task.check}</div>
-          <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.35rem;">
-            ${task.accepted ? `<button class="btn btn-xs" disabled>Accepted</button>` : `<button class="btn btn-xs btn-teal" onclick="factionSystem.acceptTask('${factionId}')">Accept Task</button>`}
-            ${task.accepted && !task.resolved ? `<button class="btn btn-xs btn-primary" onclick="factionSystem.resolveTask('${factionId}')">Resolve Task</button>` : ""}
-            ${task.resolved ? `<span style="color:var(--green2);font-size:.78rem;">Resolved</span>` : ""}
-          </div>
-        </div>
 
         <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">
           <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Faction Mission</div>
@@ -1466,33 +1442,6 @@
     `;
 
     openFactionModal("Faction Base: " + faction.name, html);
-  }
-
-  function acceptFactionTask(factionId) {
-    const base = ensureBaseActivity(factionId);
-    if (!base || !base.activeTask || base.activeTask.accepted) return;
-    base.activeTask.accepted = true;
-    if (typeof showNotif === "function") showNotif("Faction task accepted.", "good");
-    openFactionBaseHub(factionId);
-  }
-
-  function resolveFactionTask(factionId) {
-    const base = ensureBaseActivity(factionId);
-    if (!base || !base.activeTask || !base.activeTask.accepted || base.activeTask.resolved) return;
-    const stat = FACTION_ACTION_DIE_MAP[factionId] || "mind";
-    const check = rollBaseCheck(stat, 8);
-    if (check.success) {
-      base.activeTask.resolved = true;
-      safeFactionRenownDelta(factionId, 1);
-      if (typeof changeCredits === "function") changeCredits(80);
-      else if (S) S.credits = Math.max(0, Number(S.credits || 0) + 80);
-      if (typeof showNotif === "function") showNotif("Task success: +1 faction Renown, +80 credits.", "good");
-      base.activeTask = null;
-    } else {
-      if (typeof changeStress === "function") changeStress(1);
-      if (typeof showNotif === "function") showNotif("Task failed: " + stat.toUpperCase() + " d" + check.die + "=" + check.action + " vs DD8=" + check.dread + ".", "warn");
-    }
-    openFactionBaseHub(factionId);
   }
 
   function resolveFactionMission(factionId) {
@@ -1639,6 +1588,60 @@
     return 6;
   }
 
+  function chooseFactionContractRegion() {
+    const regions = ["province"];
+    if (S && S.lastSea && Array.isArray(S.lastSea.map) && S.lastSea.map.length) regions.push("sea");
+    if (S && S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length) regions.push("galaxy");
+    return regions[Math.floor(Math.random() * regions.length)];
+  }
+
+  function buildFactionContractLocation(factionId, mission, pathway, region) {
+    const hook = mission && mission.desc ? mission.desc : "High-priority contract";
+    if (region === "sea") return "Last Sea route: " + hook;
+    if (region === "galaxy") return "Outer-system relay: " + hook;
+    return "Province front: " + hook;
+  }
+
+  function acceptFactionMissionFromTab(factionId, missionId, pathway) {
+    ensureFactionState();
+    const faction = FACTIONS[factionId];
+    if (!faction) return;
+    const mission = (faction.factionMissions || []).find((m) => String(m.id) === String(missionId));
+    if (!mission) return;
+    const idx = (faction.factionMissions || []).findIndex((m) => String(m.id) === String(missionId));
+    const renown = getFactionRenown(factionId);
+    if (renown < getFactionMissionUnlockRenown(idx)) {
+      if (typeof showNotif === "function") showNotif("This mission is still locked by Renown.", "warn");
+      return;
+    }
+    const route = chooseFactionContractRegion();
+    const pathLabel = (pathway === "heroic" || pathway === "evil" || pathway === "sacrificial") ? pathway : "standard";
+    const contractTitle = "[" + toTitle(pathLabel) + "] " + mission.title;
+    const contractLocation = buildFactionContractLocation(factionId, mission, pathLabel, route);
+    const rival = getRivalFaction(factionId);
+    if (typeof createMission === "function") {
+      const created = createMission(
+        "Faction Command",
+        contractTitle,
+        mission.difficulty || "medium",
+        contractLocation,
+        route,
+        {
+          gain: factionId,
+          lose: rival,
+          gainName: faction.name,
+          loseName: (FACTIONS[rival] && FACTIONS[rival].name) ? FACTIONS[rival].name : toTitle(rival),
+        },
+        null
+      );
+      if (created && typeof showNotif === "function") {
+        showNotif("Faction contract posted to Missions: " + contractTitle, "good");
+      }
+      if (typeof renderMissionBoard === "function") renderMissionBoard();
+      if (typeof renderMissionTracker === "function") renderMissionTracker();
+    }
+  }
+
   function expandFaction(factionId) {
     ensureFactionState();
     const faction = FACTIONS[factionId];
@@ -1673,6 +1676,7 @@
               <li><strong>Sacrificial:</strong> ${mission.pathways.sacrificial}</li>
             </ul>
           </div>
+          ${unlocked ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','heroic')">Accept Heroic Contract</button><button class="btn btn-xs" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','evil')">Accept Ruthless Contract</button><button class="btn btn-xs btn-primary" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','sacrificial')">Accept Sacrificial Contract</button></div>` : ""}
         </div>
       `;
     });
@@ -1690,6 +1694,29 @@
     openFactionBaseHub(factionId);
   }
 
+  function patchFactionTabSwitchRefresh() {
+    if (typeof window === "undefined" || typeof window.switchTab !== "function" || window._factionTabRefreshPatched) return;
+    window._factionTabRefreshPatched = true;
+    const baseSwitch = window.switchTab;
+    window.switchTab = function (tabId, btn) {
+      const out = baseSwitch.apply(this, arguments);
+      if (tabId === FACTION_TAB_ID) setupFactionTab();
+      return out;
+    };
+  }
+
+  function patchRenownRefresh() {
+    if (typeof window === "undefined" || typeof window.changeFactionRenown !== "function" || window._factionRenownRefreshPatched) return;
+    window._factionRenownRefreshPatched = true;
+    const base = window.changeFactionRenown;
+    window.changeFactionRenown = function () {
+      const out = base.apply(this, arguments);
+      const panel = document.getElementById(FACTION_TAB_ID);
+      if (panel) setupFactionTab();
+      return out;
+    };
+  }
+
   // ============================================================================
   // PUBLIC API
   // ============================================================================
@@ -1703,6 +1730,7 @@
     BETRAYAL_SCENARIOS,
     setupFactionTab,
     expandFaction,
+    acceptFactionMission: acceptFactionMissionFromTab,
     visitBase: visitFactionBase,
     syncBaseMarkers: syncFactionBaseMarkers,
     getProvinceMarker: getFactionBaseMarkerAtProvince,
@@ -1711,8 +1739,6 @@
     getWTWMarker: getFactionBaseMarkerAtWTW,
     getPlanetMarker: getFactionBaseMarkerAtPlanet,
     openBaseFromMarker: openFactionBaseFromMarker,
-    acceptTask: acceptFactionTask,
-    resolveTask: resolveFactionTask,
     acceptMission: acceptFactionMission,
     resolveMission: resolveFactionMission,
     resolveEvent: resolveFactionEvent,
@@ -1738,8 +1764,14 @@
 
   // Auto-setup when page loads
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", setupFactionTab);
+    document.addEventListener("DOMContentLoaded", function () {
+      setupFactionTab();
+      patchFactionTabSwitchRefresh();
+      patchRenownRefresh();
+    });
   } else {
     setupFactionTab();
+    patchFactionTabSwitchRefresh();
+    patchRenownRefresh();
   }
 })();

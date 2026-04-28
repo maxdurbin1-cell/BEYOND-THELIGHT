@@ -3507,6 +3507,14 @@ function ensureSecretPadProgress(region){
   return p;
 }
 
+function getSecretPadNextStage(region){
+  const p=ensureSecretPadProgress(region||'province');
+  if(!p.talk)return 'talk';
+  if(!p.event)return 'event';
+  if(!p.intel)return 'intel';
+  return 'complete';
+}
+
 function getSecretPadClueProgress(region){
   return ensureSecretPadProgress(region||'province');
 }
@@ -3527,6 +3535,9 @@ function registerSecretPadClue(region,type){
   const p=ensureSecretPadProgress(r);
   const wasUnlocked=isSecretPadUnlocked(r);
   const changed=!p[t];
+  const stageOrder={talk:1,event:2,intel:3};
+  const next=getSecretPadNextStage(r);
+  if(next!=='complete'&&t!==next)return false;
   p[t]=true;
   const nowUnlocked=isSecretPadUnlocked(r);
   if(nowUnlocked&&!wasUnlocked){
@@ -3553,6 +3564,7 @@ function getProvinceSecretPadKey(){
 window.registerSecretPadClue=registerSecretPadClue;
 window.getSecretPadClueProgress=getSecretPadClueProgress;
 window.isSecretPadUnlocked=isSecretPadUnlocked;
+window.getSecretPadNextStage=getSecretPadNextStage;
 
 function travelToGalaxyFromMap(){
   const btn=document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
@@ -3813,9 +3825,10 @@ function renderHexInfo(hex){
   }
 
   if(!provincePadUnlocked&&(fbase||hex.type==='lostcity')){
+    const nextStage=(typeof getSecretPadNextStage==='function')?getSecretPadNextStage('province'):'talk';
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.05);">
       <div class="nb-label" style="color:#7ed7ff;">🧩 Secret Pad Clue Chain</div>
-      <div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Unlock by completing all clue stages:<br>${provincePadProgress.talk?'✅':'⬜'} Talk Check (Lead vs d6 at faction base)<br>${provincePadProgress.event?'✅':'⬜'} Event Lead Progress (Province mystery lead)<br>${provincePadProgress.intel?'✅':'⬜'} Map Intel (Observe Adjacent success)</div>
+      <div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Unlock by completing all clue stages in order:<br>${provincePadProgress.talk?'✅':'⬜'} Stage 1: Talk Check (Lead vs d6 at faction base)<br>${provincePadProgress.event?'✅':'⬜'} Stage 2: Event Lead Progress (Province mystery lead)<br>${provincePadProgress.intel?'✅':'⬜'} Stage 3: Map Intel (Observe Adjacent success)<br><em style="color:var(--muted2);">Next required stage: ${nextStage==='complete'?'Decoded':nextStage.toUpperCase()}</em></div>
     </div>`;
   }
 

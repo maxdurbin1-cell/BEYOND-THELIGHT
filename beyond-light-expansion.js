@@ -1611,6 +1611,9 @@
 
   function buildSeaSkirmishEncounter(hex) {
     if (!hex) return '';
+    var itemFlags = getSeaNarrativeItemFlags();
+    var skirmishHint = itemFlags.factionItem ? ' (+Faction +1 Renown)' : '';
+    var skirmishTitle = itemFlags.factionItem ? 'Faction token grants +1 Renown when you join a side.' : '';
     var sides = [
       ['Royal Armada Marines', 'Pirate Brotherhood'],
       ['Reef Wardens', 'Salt Reavers'],
@@ -1618,7 +1621,7 @@
     ];
     var pickSides = sides[Math.max(0, roll(sides.length) - 1)];
     hex.pendingSeaSkirmish = { sideA: pickSides[0], sideB: pickSides[1], joined: null, rewarded: false };
-    return `<div class="sea-result-title">Sea Skirmish</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${pickSides[0]} clash with ${pickSides[1]} in the shipping lane. Choose a side and run skirmish controls.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'A')">Join ${pickSides[0]}</button><button class="btn btn-xs btn-red" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'B')">Join ${pickSides[1]}</button></div>`;
+    return `<div class="sea-result-title">Sea Skirmish</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${pickSides[0]} clash with ${pickSides[1]} in the shipping lane. Choose a side and run skirmish controls.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" title="${skirmishTitle}" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'A')">Join ${pickSides[0]}${skirmishHint}</button><button class="btn btn-xs btn-red" title="${skirmishTitle}" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'B')">Join ${pickSides[1]}${skirmishHint}</button></div>`;
   }
 
   function joinSeaSkirmishSide(col, row, side) {
@@ -1680,6 +1683,14 @@
   }
 
   function buildSeaEncounter() {
+    var itemFlags = getSeaNarrativeItemFlags();
+    var compassHint = itemFlags.compass ? ' (+Compass)' : '';
+    var factionHint = itemFlags.factionItem ? ' (+Faction bonus)' : '';
+    var fleeTitle = itemFlags.compass ? 'Compass grants +2 to Control flee checks.' : '';
+    var negotiateTitle = itemFlags.factionItem ? 'Faction credentials can reduce negotiation cost.' : '';
+    var salvageTitle = itemFlags.compass ? 'Compass can reveal extra salvage value.' : '';
+    var rescueTitle = itemFlags.factionItem ? 'Faction token can grant bonus renown on rescue.' : '';
+    var shipCombatTitle = (itemFlags.compass || itemFlags.factionItem) ? 'Victory can gain extra credits/renown from carried narrative items.' : '';
     const rolled = roll(6);
     let desc = '', actions = '';
     if (rolled === 1) {
@@ -1688,10 +1699,10 @@
       const fleeStress = roll(6);
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${ships} pirates',{mentalStress:${ships*2},requireOutcome:true,dread:8})">⚔ Fight (+${ships*2} Mental Stress)</button>
-        <button class="btn btn-xs btn-warn" onclick="startSeaShipCombatEncounter()">🚢 Start Ship Combat</button>
-        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('flee','Pirates',{mentalStress:${fleeStress},controlRoll:true,dread:8,requireFightOnFail:true})">🏃 Flee (Control vs DD8)</button>
+        <button class="btn btn-xs btn-warn" title="${shipCombatTitle}" onclick="startSeaShipCombatEncounter()">🚢 Start Ship Combat${compassHint}${factionHint}</button>
+        <button class="btn btn-xs btn-teal" title="${fleeTitle}" onclick="resolveSeaEncounter('flee','Pirates',{mentalStress:${fleeStress},controlRoll:true,dread:8,requireFightOnFail:true})">🏃 Flee (Control vs DD8${compassHint})</button>
         <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('tribute','Pirates',{cost:50})">🪙 Pay Tribute (−50₵)</button>
-        <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate','Pirates',{cost:50})">💬 Negotiate (−50₵)</button>
+        <button class="btn btn-xs btn-gold" title="${negotiateTitle}" onclick="resolveSeaEncounter('negotiate','Pirates',{cost:50})">💬 Negotiate (−50₵${factionHint})</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Pirate Ships</div>${desc}${actions}`;
     }
@@ -1707,8 +1718,8 @@
       desc = `The Great Serpent rises with ruined ships lashed across its spiny back. DD12 | 24 Stress.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','Great Serpent',{mentalStress:12,requireOutcome:true,dread:12})">⚔ Engage (+12 Mental Stress)</button>
-        <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('flee','Great Serpent',{mentalStress:6,controlRoll:true,dread:12,requireFightOnFail:true})">🏃 Flee (Control vs DD12)</button>
-        <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate','Great Serpent',{})">💬 Negotiate Retreat</button>
+        <button class="btn btn-xs btn-red" title="${fleeTitle}" onclick="resolveSeaEncounter('flee','Great Serpent',{mentalStress:6,controlRoll:true,dread:12,requireFightOnFail:true})">🏃 Flee (Control vs DD12${compassHint})</button>
+        <button class="btn btn-xs btn-gold" title="${negotiateTitle}" onclick="resolveSeaEncounter('negotiate','Great Serpent',{})">💬 Negotiate Retreat${factionHint}</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - The Great Serpent</div>${desc}${actions}`;
     }
@@ -1716,7 +1727,7 @@
       const crew = roll(6);
       desc = `${crew} crew cling to a sinking skiff and beg for passage to the next Province.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('rescue','${crew} Castaways',{renown:1})">🆘 Rescue (+1 Renown)</button>
+        <button class="btn btn-xs btn-teal" title="${rescueTitle}" onclick="resolveSeaEncounter('rescue','${crew} Castaways',{renown:1})">🆘 Rescue (+1 Renown${factionHint})</button>
         <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('ignore','Sinking Skiff',{})">⛵ Leave Them</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Sinking Skiff</div>${desc}${actions}`;
@@ -1729,7 +1740,7 @@
       const vampStress = vampires * 4;
       desc = `An empty transport floats half-derelict. Salvage: ${lootText}. Hidden aboard: ${vampires} vampire${vampires > 1 ? "s" : ""}.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-secondary" onclick="resolveSeaEncounter('salvage','${lootText}',{credits:${salvageCredits}})">🪙 Salvage (+${salvageCredits}₵)</button>
+        <button class="btn btn-xs btn-secondary" title="${salvageTitle}" onclick="resolveSeaEncounter('salvage','${lootText}',{credits:${salvageCredits}})">🪙 Salvage (+${salvageCredits}₵${compassHint})</button>
         <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${vampires} Vampires',{stress:${vampStress}})">⚔ Fight Vampires (+${vampStress} Stress)</button>
         <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('avoid','Empty Transport',{})">⛵ Avoid</button>
       </div>`;
@@ -1739,7 +1750,7 @@
     desc = `A Royal Armada patrol demands answers. Mission: <strong style="color:var(--gold2);">${armadaTask}</strong>.`;
     actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
       <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('accept','Royal Armada',{task:'${armadaTask.replace(/'/g, "&#39;")}',reward:{renown:1}})">📜 Accept Mission</button>
-      <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('negotiate','Royal Patrol',{cost:30})">💬 Negotiate (−30₵)</button>
+      <button class="btn btn-xs btn-teal" title="${negotiateTitle}" onclick="resolveSeaEncounter('negotiate','Royal Patrol',{cost:30})">💬 Negotiate (−30₵${factionHint})</button>
       <button class="btn btn-xs btn-warn" onclick="resolveSeaEncounter('resist','Royal Armada',{stress:8})">⚔ Resist (+8 Stress)</button>
     </div>`;
     return `<div class="sea-result-title">Open Sea Encounter - Royal Armada</div>${desc}${actions}`;
@@ -2022,6 +2033,9 @@
   }
 
   function buildLandEncounter(hex) {
+    var itemFlags = getSeaNarrativeItemFlags();
+    var pirateHint = itemFlags.factionItem ? ' (+Faction Renown)' : '';
+    var pirateTitle = itemFlags.factionItem ? 'Faction item can grant bonus Renown on pirate success.' : '';
     if (hex.siteType && hex.siteData && Math.random() < 0.65) {
       return createLandEncounterResult(hex, hex.siteType, hex.siteData);
     }
@@ -2044,19 +2058,24 @@
       const treasure = pick([`${roll(6) * 10} Credits`, "1 Scroll", "1 Armor", "1 Weapon"]);
       return `<div class="sea-result-title">Land Encounter - Buried Treasure</div>You uncover ${treasure}.`;
     }
-    return `<div class="sea-result-title">Land Encounter - Pirates</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">2 pirates haunt the path inland. DD4 | 8 Health each.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="startSeaPirateLandEncounter(${hex.col},${hex.row})">⚔ Start Pirate Combat</button><button class="btn btn-xs btn-success" onclick="resolveSeaPirateLandOutcome(${hex.col},${hex.row},true)">✓ Success</button><button class="btn btn-xs btn-red" onclick="resolveSeaPirateLandOutcome(${hex.col},${hex.row},false)">✗ Failure</button></div>`;
+    return `<div class="sea-result-title">Land Encounter - Pirates</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">2 pirates haunt the path inland. DD4 | 8 Health each.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="startSeaPirateLandEncounter(${hex.col},${hex.row})">⚔ Start Pirate Combat</button><button class="btn btn-xs btn-success" title="${pirateTitle}" onclick="resolveSeaPirateLandOutcome(${hex.col},${hex.row},true)">✓ Success${pirateHint}</button><button class="btn btn-xs btn-red" onclick="resolveSeaPirateLandOutcome(${hex.col},${hex.row},false)">✗ Failure</button></div>`;
   }
 
   function buildIslandExploration(hex) {
+    var itemFlags = getSeaNarrativeItemFlags();
+    var perilHint = itemFlags.compass ? ' (+Compass +2)' : (itemFlags.torch ? ' (+Torch stress shield)' : '');
+    var perilTitle = itemFlags.compass ? 'Compass grants +2 Lead on fog peril checks.' : (itemFlags.torch ? 'Torch can reduce fog failure stress by 1.' : '');
+    var traumaHint = itemFlags.torch ? ' (+Torch +1)' : '';
+    var traumaTitle = itemFlags.torch ? 'Torch grants +1 Spirit on exhaustion trauma checks.' : '';
     const option = pick(["land", "peril", "exhaustion", "weather", "uneventful"]);
     if (option === "land") {
       return buildLandEncounter(hex);
     }
     if (option === "peril") {
-      return `<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead vs DD6 or take the difference in Mental Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveSeaIslandPerilCheck(${hex.col},${hex.row})">⚄ Lead vs DD6</button></div>`;
+      return `<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead vs DD6 or take the difference in Mental Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" title="${perilTitle}" onclick="resolveSeaIslandPerilCheck(${hex.col},${hex.row})">⚄ Lead vs DD6${perilHint}</button></div>`;
     }
     if (option === "exhaustion") {
-      return `<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Make a Trauma Check before pressing farther inland.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveSeaExhaustionCheck(${hex.col},${hex.row})">⚄ Trauma Check</button></div>`;
+      return `<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Make a Trauma Check before pressing farther inland.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" title="${traumaTitle}" onclick="resolveSeaExhaustionCheck(${hex.col},${hex.row})">⚄ Trauma Check${traumaHint}</button></div>`;
     }
     if (option === "weather") {
       S.lastSea.weather = rollLastSeaWeather();

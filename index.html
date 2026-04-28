@@ -5616,7 +5616,144 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     const dreadRoll = explodingRoll(dreadDie);
     const success = playerRoll.total >= dreadRoll.total;
-    let resultHTML = `<div style="background:${success ? 'rgba(46,196,182,.08)' : 'rgba(200,50,50,.08)'}; border:1px solid ${success ? 'rgba(46,196,182,.35)' : 'rgba(200,50,50,.35)'}; padding:.4rem .5rem; border-radius:4px;"><div style="font-family:Cinzel,serif; font-size:.65rem; letter-spacing:.08em; color:${success ? 'var(--green2)' : 'var(--red2)'}; text-transform:uppercase; margin-bottom:.2rem;">${success ? '✓ Safe Passage' : '✗ Dangerous Conditions'}</div><div style="display:grid; grid-template-columns:1fr 1fr; gap:.3rem; font-size:.75rem; margin-bottom:.2rem;"><div style="text-align:center;"><div style="color:var(--muted2); font-size:.65rem;">Your ${checkName}</div><div style="font-family:Rajdhani,sans-serif; font-size:1.4rem; font-weight:700; color:var(--teal);">${playerRoll.total}</div></div><div style="text-align:center;"><div style="color:var(--muted2); font-size:.65rem;">Dread Roll</div><div style="font-family:Rajdhani,sans-serif; font-size:1.4rem; font-weight:700; color:var(--red);">${dreadRoll.total}</div></div></div><div style="font-size:.75rem; color:var(--text2);">${success ? 'You navigate the hazardous weather safely and gain +Empowered (Movement ↑).' : 'You lose 1 Phase navigating the weather and remain in this hex with +1 Stress.'}</div></div>`;\n    if (success) {\n      if (typeof addSuccessRoll === 'function') addSuccessRoll();\n      if (typeof toggleCond === 'function') toggleCond('empowered');\n      showNotif('Successfully navigated dangerous weather!', 'good');\n    } else {\n      if (typeof changeStress === 'function') changeStress(1);\n      if (typeof addTMWOnFail === 'function') addTMWOnFail();\n      showNotif('Lost a Phase to weather. Remain in hex.', 'warn');\n    }\n    const resultEl = document.getElementById(`weather-result-${col}-${row}`);\n    if (resultEl) resultEl.innerHTML = resultHTML;\n  };\n\n  // ── SKIRMISH INTERVENTION ──\n  window.startProvinceSkirmish = function(col, row, numA, numB, armyA, armyB, source) {\n    const hex = mapData.find(h => h.col === col && h.row === row);\n    if (!hex) return;\n    if (!S.combat) S.combat = {};\n    S.combat.skirmishCol = col;\n    S.combat.skirmishRow = row;\n    S.combat.skirmishActive = true;\n    S.combat.skirmishRound = 1;\n    S.combat.armyA = { stress: roll(12) + roll(12), dread: 6, actions: 2, count: numA, type: armyA };\n    S.combat.armyB = { stress: roll(12) + roll(12), dread: 6, actions: 2, count: numB, type: armyB };\n    const resultEl = document.getElementById(`hexEnc-${col}-${row}`);\n    if (resultEl) {\n      resultEl.innerHTML = `<div style=\"background:rgba(230,80,80,.08); border:1px solid rgba(230,80,80,.35); padding:.5rem .6rem; border-radius:4px;\"><div style=\"font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; color:var(--red2); text-transform:uppercase; margin-bottom:.3rem;\">⚔ Active Skirmish</div><div style=\"display:grid; grid-template-columns:1fr 1fr; gap:.3rem; margin-bottom:.3rem; font-size:.75rem;\"><div><strong style=\"color:var(--teal);\">Your Forces:</strong> ${numA} ${armyA}</div><div><strong style=\"color:var(--red);\">Enemy Forces:</strong> ${numB} ${armyB}</div></div></div>`;\n    }\n    showNotif('Skirmish initiated! Direct your forces.', 'warn');\n  };\n\n  window.resolveSkirmishAction = function(side, action) {\n    if (!S.combat || !S.combat.skirmishActive) return;\n    const mySide = S.combat['army' + side];\n    const oppSide = S.combat['army' + (side === 'A' ? 'B' : 'A')];\n    if (!mySide || !oppSide) return;\n    if (mySide.actions <= 0) return showNotif('No actions left this round', 'warn');\n    mySide.actions--;\n    const myRoll = explodingRoll(mySide.dread || 6);\n    const oppRoll = explodingRoll(oppSide.dread || 6);\n    let result = '';\n    if (action === 'strike' && myRoll.total >= oppRoll.total) {\n      const damage = Math.max(1, myRoll.total - oppRoll.total);\n      oppSide.stress = Math.max(0, oppSide.stress - damage);\n      result = `Strike connects! ${damage} Stress dealt.`;\n    } else if (action === 'parry') {\n      result = 'Defensive stance held!';\n    } else if (action === 'frighten' && myRoll.total >= oppRoll.total) {\n      oppSide.stress = Math.max(0, oppSide.stress - 1);\n      result = 'Enemy morale shaken!';\n    } else {\n      result = 'Attack fails to connect.';\n    }\n    if (mySide.actions <= 0 && oppSide.actions <= 0) {\n      S.combat.skirmishRound = (S.combat.skirmishRound || 0) + 1;\n      mySide.actions = 2;\n      oppSide.actions = 2;\n      result += ` Round ${S.combat.skirmishRound} begins.`;\n    }\n    if (mySide.stress <= 0 || oppSide.stress <= 0) {\n      quickResolveSkirmish('province', S.combat.skirmishCol, S.combat.skirmishRow);\n    }\n    showNotif(result, 'info');\n    renderHexInfo(mapData.find(h => h.col === S.combat.skirmishCol && h.row === S.combat.skirmishRow));\n  };\n\n  window.quickResolveSkirmish = function(source, col, row) {\n    if (!S.combat || !S.combat.skirmishActive) return;\n    const playerWins = S.combat.armyA.stress > S.combat.armyB.stress;\n    const reward = playerWins ? 1 : 0;\n    const credits = playerWins ? roll(10) * 20 : 0;\n    if (playerWins) {\n      S.renown = (S.renown || 0) + reward;\n      S.credits = (S.credits || 0) + credits;\n      if (typeof updateRenown === 'function') updateRenown();\n      if (typeof updateCreditsUI === 'function') updateCreditsUI();\n      showNotif(`Skirmish won! +1 Renown · +${credits}₵`, 'good');\n    } else {\n      showNotif('Your forces were routed. Fall back!', 'warn');\n    }\n    S.combat.skirmishActive = false;\n    renderHexInfo(mapData.find(h => h.col === col && h.row === row));\n  };\n\n  window.resolveSkirmishAvoid = function(col, row) {\n    showNotif('You avoid the skirmish and lose 1 Phase routing around.', 'info');\n    const el = document.getElementById(`hexEnc-${col}-${row}`);\n    if (el) el.innerHTML = '<div style=\"font-size:.78rem;color:var(--muted2);\">Encounter avoided.</div>';\n  };\n\n  // ── MONSTER/BEAST COMBAT LINKING ──\n  window.startProvinceMonsterCombat = function(col, row, type, count, typeStr, dread) {\n    const hex = mapData.find(h => h.col === col && h.row === row);\n    if (!hex) return;\n    if (!S.combat) S.combat = {};\n    S.combat.provinceMonsterSource = { col, row, type, count, typeStr, dread };\n    S.combat.monsterCombatActive = true;\n    S.combat.enemyCount = count;\n    S.combat.enemyHealth = count * 2;\n    S.combat.enemyDread = dread;\n    S.combat.enemyType = typeStr;\n    const resultEl = document.getElementById(`hexEnc-${col}-${row}`);\n    if (resultEl) {\n      resultEl.innerHTML = `<div style=\"background:rgba(200,50,50,.08); border:1px solid rgba(200,50,50,.35); padding:.5rem .6rem; border-radius:4px;\"><div style=\"font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; color:var(--red2); text-transform:uppercase; margin-bottom:.2rem;\">⚔ Monster Combat Ready</div><div style=\"font-size:.78rem; color:var(--text2); margin-bottom:.3rem;\">${count} enemies (${typeStr}) · DD${dread} · ${S.combat.enemyHealth} HP total</div><button class=\"btn btn-xs btn-warn\" onclick=\"if(typeof switchTab==='function')switchTab('combat', document.querySelector('.tab-btn[onclick*=\\\"combat\\\"]'));\">Open Combat Tab</button></div>`;\n    }\n    showNotif(`${type === 'bandits' ? 'Bandits' : 'Beasts'} locked in combat! Head to Combat tab to resolve.`, 'warn');\n  };\n\n  window.resolveMonsterAvoid = function(col, row) {\n    showNotif('You evade the encounter and lose 1 Phase routing around.', 'info');\n    const el = document.getElementById(`hexEnc-${col}-${row}`);\n    if (el) el.innerHTML = '<div style=\"font-size:.78rem;color:var(--muted2);\">Encounter avoided.</div>';\n  };\n\n  // ── TRAVELING WAYFARER MISSIONS ──\n  window.engageWayfarerMission = function(col, row) {\n    const missions = ['Deliver a Message', 'Guard a Caravan', 'Investigate a Lead', 'Retrieve a Lost Item', 'Scout Ahead', 'Gather Information'];\n    const missionTitle = missions[roll(missions.length) - 1] + ' — Wayfarer\\'s Request';\n    const reward = roll(4) * 50 + 100;\n    if (typeof createMission === 'function') {\n      createMission('Traveling Wayfarer', missionTitle, 'medium', 'Adjacent Province', 'province', { gain: 'merchants', lose: 'bandits', gainName: 'Merchants', loseName: 'Bandits' });\n      showNotif(`Accepted: ${missionTitle} · Reward: ${reward}₵`, 'good');\n    } else {\n      showNotif('Mission system not available', 'warn');\n    }\n  };\n\n  window.talkToWayfarer = function(col, row) {\n    const messages = ['The road ahead is dangerous, friend. I\\'ve heard rumors of bandit camps new to the region.', 'I\\'m seeking a sacred site marked on an old map. Have you seen such a place?', 'There\\'s word of lost artifacts in a nearly forgotten ruin. Worth investigating?', 'I trade in information. What have you learned of the provincial holdings?'];\n    showNotif('Wayfarer: \"' + messages[roll(messages.length) - 1] + '\"', 'info');\n  };\n\n  // ── KNOWLEDGE RETRIEVAL ──\n  window.getAdjacentHexKnowledge = function(col, row) {\n    const adjacent = [ { col: col - 1, row: row - 1 }, { col: col, row: row - 1 }, { col: col + 1, row: row - 1 }, { col: col - 1, row: row }, { col: col + 1, row: row }, { col: col - 1, row: row + 1 }, { col: col, row: row + 1 }, { col: col + 1, row: row + 1 } ];\n    const knowledge = [];\n    adjacent.forEach(pos => {\n      const hex = mapData.find(h => h.col === pos.col && h.row === pos.row);\n      if (hex) {\n        if (hex.type === 'event' && hex.data && hex.data.whisper) {\n          knowledge.push(`📍 [${pos.col + 1},${pos.row + 1}] — <em>\"${hex.data.whisper}\"</em>`);\n        } else if (hex.type === 'monument' || hex.type === 'ruins' || hex.type === 'temple') {\n          knowledge.push(`📍 [${pos.col + 1},${pos.row + 1}] — ${hex.name || hex.type.toUpperCase()}`);\n        }\n      }\n    });\n    return knowledge.length ? knowledge.join('<br>') : 'No significant landmarks or events nearby.';\n  };\n\n  window.getSageKnowledge = function(col, row) {\n    const events = mapData.filter(h => h.type === 'event');\n    if (!events.length) return 'A certain Landmark lies beyond the known paths. Its location shifts with the seasons.';\n    const randomEvent = events[roll(events.length) - 1];\n    const directionHints = [ 'A structure stands to the ' + ['north', 'south', 'east', 'west'][roll(4) - 1], 'An ancient edifice hides in this Province. Seek where few tread.', 'The oldest paths lead to the oldest places. They call them Landmarks.' ];\n    return `<strong>Event Whisper:</strong> <em>\"${randomEvent.data && randomEvent.data.whisper ? randomEvent.data.whisper : 'A mystery awaits'}\"</em><br><strong>Landmark Hint:</strong> ${directionHints[roll(directionHints.length) - 1]}`;\n  };\n\n  window.learnFromSage = function(col, row, cost) {\n    cost = parseInt(cost, 10) || 50;\n    if ((S.credits || 0) < cost) {\n      showNotif(`Insufficient credits (need ${cost}₵, have ${S.credits || 0}₵)`, 'warn');\n      return;\n    }\n    S.credits = (S.credits || 0) - cost;\n    if (typeof updateCreditsUI === 'function') updateCreditsUI();\n    const wisdomOptions = [ 'The next mystery lies close. Your senses will guide you.', 'A trial awaits those who seek power. Prepare your spirit.', 'The answer you seek is written in the earth. Look downward.', 'Trust in those who travel the old roads. They know secrets.' ];\n    showNotif(`Sage's Wisdom: \"${wisdomOptions[roll(wisdomOptions.length) - 1]}\"`, 'good');\n  };\n\n  window.renderQP = renderQP;
+    const bgColor = success ? 'rgba(46,196,182,.08)' : 'rgba(200,50,50,.08)';
+    const borderColor = success ? 'rgba(46,196,182,.35)' : 'rgba(200,50,50,.35)';
+    const textColor = success ? 'var(--green2)' : 'var(--red2)';
+    const passageText = success ? '✓ Safe Passage' : '✗ Dangerous Conditions';
+    const outcomeText = success ? 'You navigate the hazardous weather safely and gain +Empowered (Movement ↑).' : 'You lose 1 Phase navigating the weather and remain in this hex with +1 Stress.';
+    let resultHTML = '<div style="background:' + bgColor + '; border:1px solid ' + borderColor + '; padding:.4rem .5rem; border-radius:4px;">'
+      + '<div style="font-family:Cinzel,serif; font-size:.65rem; letter-spacing:.08em; color:' + textColor + '; text-transform:uppercase; margin-bottom:.2rem;">' + passageText + '</div>'
+      + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:.3rem; font-size:.75rem; margin-bottom:.2rem;">'
+      + '<div style="text-align:center;"><div style="color:var(--muted2); font-size:.65rem;">Your ' + checkName + '</div><div style="font-family:Rajdhani,sans-serif; font-size:1.4rem; font-weight:700; color:var(--teal);">' + playerRoll.total + '</div></div>'
+      + '<div style="text-align:center;"><div style="color:var(--muted2); font-size:.65rem;">Dread Roll</div><div style="font-family:Rajdhani,sans-serif; font-size:1.4rem; font-weight:700; color:var(--red);">' + dreadRoll.total + '</div></div>'
+      + '</div>'
+      + '<div style="font-size:.75rem; color:var(--text2);">' + outcomeText + '</div>'
+      + '</div>';
+    if (success) {
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      if (typeof toggleCond === 'function') toggleCond('empowered');
+      showNotif('Successfully navigated dangerous weather!', 'good');
+    } else {
+      if (typeof changeStress === 'function') changeStress(1);
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      showNotif('Lost a Phase to weather. Remain in hex.', 'warn');
+    }
+    const resultEl = document.getElementById(`weather-result-${col}-${row}`);
+    if (resultEl) resultEl.innerHTML = resultHTML;
+  };
+
+  // ── SKIRMISH INTERVENTION ──
+  window.startProvinceSkirmish = function(col, row, numA, numB, armyA, armyB, source) {
+    const hex = mapData.find(h => h.col === col && h.row === row);
+    if (!hex) return;
+    if (!S.combat) S.combat = {};
+    S.combat.skirmishCol = col;
+    S.combat.skirmishRow = row;
+    S.combat.skirmishActive = true;
+    S.combat.skirmishRound = 1;
+    S.combat.armyA = { stress: roll(12) + roll(12), dread: 6, actions: 2, count: numA, type: armyA };
+    S.combat.armyB = { stress: roll(12) + roll(12), dread: 6, actions: 2, count: numB, type: armyB };
+    const rEl = document.getElementById(`hexEnc-${col}-${row}`);
+    if (rEl) rEl.innerHTML = `<div style="background:rgba(230,80,80,.08); border:1px solid rgba(230,80,80,.35); padding:.5rem .6rem;"><div style="font-family:Cinzel,serif; font-size:.7rem; color:var(--red2); text-transform:uppercase;">⚔ Skirmish: ${numA} ${armyA} vs ${numB} ${armyB}</div></div>`;
+    showNotif('Skirmish initiated! Direct your forces.', 'warn');
+  };
+
+  window.quickResolveSkirmish = function(source, col, row) {
+    if (!S.combat || !S.combat.skirmishActive) return;
+    const playerWins = (S.combat.armyA.stress || 0) > (S.combat.armyB.stress || 0);
+    if (playerWins) {
+      S.renown = (S.renown || 0) + 1;
+      S.credits = (S.credits || 0) + (roll(10) * 20);
+      if (typeof updateRenown === 'function') updateRenown();
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      showNotif('Skirmish won! +1 Renown · +Rewards', 'good');
+    } else {
+      showNotif('Skirmish lost. Fall back!', 'warn');
+    }
+    S.combat.skirmishActive = false;
+    const hexObj = mapData.find(h => h.col === col && h.row === row);
+    if (hexObj) renderHexInfo(hexObj);
+  };
+
+  window.resolveSkirmishAvoid = function(col, row) {
+    showNotif('You avoid the skirmish and lose 1 Phase routing around.', 'info');
+    const el = document.getElementById(`hexEnc-${col}-${row}`);
+    if (el) el.innerHTML = '<div style="font-size:.78rem;color:var(--muted2);">Encounter avoided.</div>';
+  };
+
+  // ── MONSTER/BEAST COMBAT LINKING ──
+  window.startProvinceMonsterCombat = function(col, row, type, count, typeStr, dread) {
+    if (!S.combat) S.combat = {};
+    S.combat.provinceMonsterSource = { col, row, type, count, typeStr, dread };
+    S.combat.monsterCombatActive = true;
+    S.combat.enemyCount = count;
+    S.combat.enemyHealth = count * 2;
+    S.combat.enemyDread = dread;
+    S.combat.enemyType = typeStr;
+    const resultEl = document.getElementById(`hexEnc-${col}-${row}`);
+    if (resultEl) resultEl.innerHTML = `<div style="background:rgba(200,50,50,.08); padding:.5rem;"><div style="font-family:Cinzel,serif; color:var(--red2);">⚔ Combat Ready: ${count} ${typeStr}</div><div style="font-size:.75rem; margin-top:.2rem;">Open Combat Tab to resolve</div></div>`;
+    if (typeof switchTab === 'function') {
+      setTimeout(() => showNotif('Engage in Combat Tab', 'warn'), 200);
+    }
+  };
+
+  window.resolveMonsterAvoid = function(col, row) {
+    showNotif('You evade and lose 1 Phase routing around.', 'info');
+    const el = document.getElementById(`hexEnc-${col}-${row}`);
+    if (el) el.innerHTML = '<div style="font-size:.78rem;color:var(--muted2);">Encounter avoided</div>';
+  };
+
+  // ── WAYFARER MISSIONS ──
+  window.engageWayfarerMission = function(col, row) {
+    const missions = ['Deliver a Message', 'Guard a Caravan', 'Investigate a Lead', 'Retrieve an Item', 'Scout Ahead', 'Gather Information'];
+    const idx = roll(missions.length) - 1;
+    const missionTitle = missions[Math.max(0, Math.min(idx, missions.length - 1))] + ' — Wayfarer';
+    if (typeof createMission === 'function') {
+      createMission('Traveling Wayfarer', missionTitle, 'medium', 'Adjacent Province', 'province', { gain: 'merchants', lose: 'bandits', gainName: 'Merchants', loseName: 'Bandits' });
+      showNotif('Wayfarer mission accepted: ' + missionTitle, 'good');
+    }
+  };
+
+  window.talkToWayfarer = function(col, row) {
+    const messages = ['The road ahead is dangerous.', 'I seek a sacred site.', 'Lost artifacts await discovery.', 'What news from the holdings?'];
+    showNotif('Wayfarer: "' + messages[roll(messages.length) - 1] + '"', 'info');
+  };
+
+  // ── KNOWLEDGE RETRIEVAL ──
+  window.getAdjacentHexKnowledge = function(col, row) {
+    const adjacent = [ { c: col - 1, r: row - 1 }, { c: col, r: row - 1 }, { c: col + 1, r: row - 1 }, { c: col - 1, r: row }, { c: col + 1, r: row }, { c: col - 1, r: row + 1 }, { c: col, r: row + 1 }, { c: col + 1, r: row + 1 } ];
+    const knowledge = [];
+    adjacent.forEach(pos => {
+      const hex = mapData.find(h => h.col === pos.c && h.row === pos.r);
+      if (hex && hex.data) {
+        if (hex.type === 'event' && hex.data.whisper) knowledge.push(`📍 [${pos.c+1},${pos.r+1}] — "${hex.data.whisper}"`);
+        else if (['monument', 'ruins', 'temple'].indexOf(hex.type) >= 0) knowledge.push(`📍 [${pos.c+1},${pos.r+1}] — ${hex.name || hex.type}`);
+      }
+    });
+    return knowledge.length ? knowledge.join(' · ') : 'No nearby landmarks.';
+  };
+
+  window.getSageKnowledge = function(col, row) {
+    const events = mapData.filter(h => h.type === 'event');
+    if (!events.length) return 'A Landmark lies beyond known paths.';
+    const evt = events[roll(events.length) - 1];
+    const hints = ['A structure stands to the north', 'An edifice hides in this Province', 'The oldest paths lead here'];
+    return '<strong>Event:</strong> "' + (evt.data && evt.data.whisper ? evt.data.whisper : 'Mystery') + '"<br><strong>Hint:</strong> ' + hints[roll(hints.length) - 1];
+  };
+
+  window.learnFromSage = function(col, row, cost) {
+    cost = parseInt(cost, 10) || 50;
+    if ((S.credits || 0) < cost) {
+      showNotif('Insufficient credits', 'warn');
+      return;
+    }
+    S.credits -= cost;
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    const wisdoms = ['Your path is clear.', 'Prepare your spirit.', 'Trust the old roads.', 'Seek where few tread.'];
+    showNotif('Sage: "' + wisdoms[roll(wisdoms.length) - 1] + '"', 'good');
+  };
+
+  window.renderQP = renderQP;
 })();
 </script>
 

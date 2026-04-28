@@ -103,8 +103,63 @@ function renderGlobalQuickAccess() {
   root.innerHTML = html;
 }
 
+function buildPanelQuickAccessHtml(currentTabId) {
+  if (!Array.isArray(window._quickAccessTabs) || !window._quickAccessTabs.length) {
+    const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
+    if (activePanel) {
+      const id = activePanel.id.replace(/^tab-/, '');
+      if (id) trackQuickAccessTab(id);
+    }
+  }
+  const history = Array.isArray(window._quickAccessTabs) ? window._quickAccessTabs : [];
+  let html = '<span class="quick-nav-label">Quick Access</span>';
+  let count = 0;
+  history.forEach(function(tabId) {
+    if (tabId === currentTabId) return;
+    const btn = getNavTabButton(tabId);
+    if (!btn) return;
+    const label = getTabLabelFromButton(btn, tabId);
+    html += '<button class="btn btn-sm" onclick="quickAccessGo(\'' + String(tabId).replace(/'/g, "&#39;") + '\')">' + label + '</button>';
+    count += 1;
+  });
+  if (!count) {
+    html += '<span class="qa-empty">Recently visited tabs appear here.</span>';
+  }
+  return html;
+}
+
+function getPanelQuickAccessMount(panel) {
+  if (!panel) return null;
+  let mount = panel.querySelector('.panel-quick-access');
+  if (mount) return mount;
+  const existingQuick = panel.querySelector('.quick-nav');
+  if (existingQuick) {
+    existingQuick.classList.add('panel-quick-access');
+    return existingQuick;
+  }
+  mount = document.createElement('div');
+  mount.className = 'quick-nav panel-quick-access';
+  panel.insertBefore(mount, panel.firstChild || null);
+  return mount;
+}
+
+function renderPanelQuickAccess(activeTabId) {
+  const panels = document.querySelectorAll('.tab-panel[id^="tab-"]');
+  if (!panels || !panels.length) return;
+  panels.forEach(function(panel) {
+    const tabId = panel.id.replace(/^tab-/, '');
+    const mount = getPanelQuickAccessMount(panel);
+    if (!mount) return;
+    mount.innerHTML = buildPanelQuickAccessHtml(tabId);
+    if (tabId === activeTabId || panel.classList.contains('active')) {
+      mount.style.display = 'flex';
+    }
+  });
+}
+
 window.quickAccessGo = quickAccessGo;
 window.renderGlobalQuickAccess = renderGlobalQuickAccess;
+window.renderPanelQuickAccess = renderPanelQuickAccess;
 
 function switchTab(tabId, btn) {
   document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
@@ -119,6 +174,7 @@ function switchTab(tabId, btn) {
   }
   trackQuickAccessTab(tabId);
   renderGlobalQuickAccess();
+  renderPanelQuickAccess(tabId);
   // AUDIO: Switch music based on tab
   if (typeof window.AudioManager !== "undefined") {
     window.AudioManager.switchTabMusic(tabId);
@@ -183,9 +239,15 @@ function switchTab(tabId, btn) {
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     renderGlobalQuickAccess();
+    const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
+    const activeId = activePanel ? activePanel.id.replace(/^tab-/, '') : null;
+    renderPanelQuickAccess(activeId);
   });
 } else {
   renderGlobalQuickAccess();
+  const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
+  const activeId = activePanel ? activePanel.id.replace(/^tab-/, '') : null;
+  renderPanelQuickAccess(activeId);
 }
 
 function setInputValue(id, value) {

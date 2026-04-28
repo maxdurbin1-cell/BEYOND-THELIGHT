@@ -1331,6 +1331,12 @@
     alert(title + "\n\n" + String(html || "").replace(/<[^>]+>/g, " "));
   }
 
+  function getFactionMissionUnlockRenown(index) {
+    if (index <= 0) return 0;
+    if (index === 1) return 3;
+    return 6;
+  }
+
   function expandFaction(factionId) {
     ensureFactionState();
     const faction = FACTIONS[factionId];
@@ -1348,12 +1354,15 @@
         <h4>Faction Missions</h4>
     `;
 
-    faction.factionMissions.forEach((mission) => {
+    faction.factionMissions.forEach((mission, idx) => {
+      const requiredRenown = getFactionMissionUnlockRenown(idx);
+      const unlocked = renown >= requiredRenown;
       html += `
-        <div class="mission-detail" style="border:1px solid var(--border2);padding:.55rem;margin-bottom:.45rem;">
+        <div class="mission-detail" style="border:1px solid ${unlocked ? 'var(--border2)' : 'rgba(224,80,80,.45)'};padding:.55rem;margin-bottom:.45rem;opacity:${unlocked ? '1' : '.82'};">
           <h5>${mission.title}</h5>
           <p>${mission.desc}</p>
           <div class="mission-stats">Difficulty: ${mission.difficulty} — Reward: ${mission.reward}⚜</div>
+          <div class="mission-stats" style="color:${unlocked ? 'var(--teal)' : 'var(--red2)'};">${unlocked ? 'Unlocked' : ('Locked — Requires Renown ' + requiredRenown)}</div>
           <div class="mission-pathways">
             <strong>Your decisions:</strong>
             <ul>

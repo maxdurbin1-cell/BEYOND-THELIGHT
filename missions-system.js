@@ -361,6 +361,24 @@
     S.factionRenown = S.factionRenown || { corporations:0, religious:0, political:0, military:0, underworld:0 };
     S.factionRenown[gainKey] = Math.max(-10, Math.min(12, (S.factionRenown[gainKey] || 0) + 1));
     S.factionRenown[loseKey] = Math.max(-10, Math.min(12, (S.factionRenown[loseKey] || 0) - 1));
+    if (typeof updateFactionRenownUI === 'function') {
+      try { updateFactionRenownUI(); } catch (err) {}
+    }
+  }
+
+  function applyFactionStandingFailureDelta(gainKey, loseKey) {
+    if (!gainKey || !loseKey) { return; }
+    if (typeof changeFactionRenown === 'function') {
+      changeFactionRenown(gainKey, -1);
+      changeFactionRenown(loseKey, 1);
+      return;
+    }
+    S.factionRenown = S.factionRenown || { corporations:0, religious:0, political:0, military:0, underworld:0 };
+    S.factionRenown[gainKey] = Math.max(-10, Math.min(12, (S.factionRenown[gainKey] || 0) - 1));
+    S.factionRenown[loseKey] = Math.max(-10, Math.min(12, (S.factionRenown[loseKey] || 0) + 1));
+    if (typeof updateFactionRenownUI === 'function') {
+      try { updateFactionRenownUI(); } catch (err) {}
+    }
   }
 
   function makeMission(title, difficulty, location, region, factionData) {
@@ -803,6 +821,7 @@
       }
     } else {
       S.renown=Math.max(0,(S.renown||0)-1);
+      applyFactionStandingFailureDelta(mission.factionGain, mission.factionLose);
       try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
     }
     try { removeMissionToken(mission); } catch (err) {}
@@ -853,7 +872,7 @@
         try { showNotif('Backpack full. Unstored loot: ' + dropped.join(', '), 'warn'); } catch (err) {}
       }
     } else {
-      try { showNotif('Mission failed. \u22121 Renown.','warn'); } catch (err) {}
+      try { showNotif('Mission failed. \u22121 Renown \u00B7 ' + (mission.factionGainName||'Faction') + ' -1 / ' + (mission.factionLoseName||'Faction') + ' +1','warn'); } catch (err) {}
     }
   }
 

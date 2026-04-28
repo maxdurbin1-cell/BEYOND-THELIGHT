@@ -871,6 +871,19 @@
     }).join(" ");
   }
 
+  function getSeaSecretPadKey() {
+    if (!S || !S.lastSea || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return "";
+    S.mapLinks = S.mapLinks || {};
+    const exists = S.lastSea.map.some((h) => h && h.key === S.mapLinks.seaSecretPadKey);
+    if (!exists) {
+      const candidates = S.lastSea.map.filter((h) => h && (h.type === "sea" || h.type === "island"));
+      const source = candidates.length ? candidates : S.lastSea.map;
+      const picked = source[Math.floor(Math.random() * source.length)];
+      S.mapLinks.seaSecretPadKey = picked ? picked.key : "";
+    }
+    return S.mapLinks.seaSecretPadKey || "";
+  }
+
   function renderLastSeaMap() {
     if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === "function") window.factionSystem.syncBaseMarkers();
     const svg = document.getElementById("lastSeaSvg");
@@ -899,6 +912,7 @@
     svg.innerHTML = "";
     if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "lastsea");
 
+    const secretPadKey = getSeaSecretPadKey();
     S.lastSea.map.forEach((hex) => {
       const { x, y } = seaHexToPixel(hex.col, hex.row);
       const r = LAST_SEA_HEX - 1;
@@ -1004,6 +1018,28 @@
         group.appendChild(bIcon);
       }
 
+      if (secretPadKey && secretPadKey === hex.key) {
+        const sGlow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        sGlow.setAttribute('cx', x - LAST_SEA_HEX * 0.45);
+        sGlow.setAttribute('cy', y - LAST_SEA_HEX * 0.36);
+        sGlow.setAttribute('r', '8');
+        sGlow.setAttribute('fill', 'rgba(126,215,255,.18)');
+        sGlow.setAttribute('stroke', '#7ed7ff');
+        sGlow.setAttribute('stroke-width', '1.1');
+        sGlow.setAttribute('pointer-events', 'none');
+        group.appendChild(sGlow);
+
+        const sIcon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        sIcon.setAttribute('x', x - LAST_SEA_HEX * 0.45);
+        sIcon.setAttribute('y', y - LAST_SEA_HEX * 0.28);
+        sIcon.setAttribute('text-anchor', 'middle');
+        sIcon.setAttribute('font-size', '10');
+        sIcon.setAttribute('fill', '#7ed7ff');
+        sIcon.setAttribute('pointer-events', 'none');
+        sIcon.textContent = '🚀';
+        group.appendChild(sIcon);
+      }
+
       if (hex.icon) {
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
@@ -1070,6 +1106,7 @@
     }
 
     const hex = cell || S.lastSea.map.find((item) => item.key === S.lastSea.selectedKey);
+    const secretPadKey = getSeaSecretPadKey();
     if (!hex) {
       panel.innerHTML = `
         <div class="sea-info-inner">
@@ -1146,6 +1183,11 @@
             <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('sea','${hex.key}');">Enter Base</button></div>
           </div>`;
         })()}
+        ${secretPadKey && secretPadKey === hex.key ? `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.5);background:rgba(126,215,255,.08);">
+          <div class="nb-label" style="color:#7ed7ff;">🚀 Hidden Landing Pad</div>
+          <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">A submerged launch platform can sling your ship straight to the Galaxy routes.</div>
+          <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof travelToGalaxyFromMap==='function')travelToGalaxyFromMap();">Launch To Galaxy</button></div>
+        </div>` : ''}
         <div style="margin-top:.55rem;">
           <button class="btn btn-primary" onclick="exploreLastSeaHex(${hex.col},${hex.row})">${hex.type === "sea" ? "Explore Waters" : "Explore Island"}</button>
         </div>

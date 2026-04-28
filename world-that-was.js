@@ -32,6 +32,13 @@
   const MAJOR_POWERS = ["Axiom Cartel", "Helix Union", "Titan Crown"];
   const FACTIONS = ["Veil Runners", "Dust Saints"];
   const HOLDERS = MAJOR_POWERS.concat(FACTIONS);
+  const POWER_TO_FACTION_RENOWN = {
+    "Axiom Cartel": "corporations",
+    "Helix Union": "political",
+    "Titan Crown": "military",
+    "Veil Runners": "underworld",
+    "Dust Saints": "religious"
+  };
   const ACTION_STATS = ["body", "mind", "spirit", "control", "lead", "strike", "shoot", "defend"];
   const FALLBACK_LOOT = ["Trade Good", "Toolkit", "Remedy", "Scroll", "Weapon Mod", "Armor Plate", "Data Cache", "Relic Shard"];
   const ZONE_DANGER = {
@@ -589,8 +596,22 @@
   function addPowerRenown(power, amount) {
     ensurePowerRenown();
     if (typeof S === "undefined") return;
-    S.powerRenown[power] = (S.powerRenown[power] || 0) + (amount || 1);
-    if (typeof showNotif === "function") showNotif("+" + (amount || 1) + " renown with " + power + ".", "good");
+    const delta = Number(amount || 1);
+    S.powerRenown[power] = (S.powerRenown[power] || 0) + delta;
+    const factionKey = POWER_TO_FACTION_RENOWN[power];
+    if (factionKey && typeof changeFactionRenown === "function") {
+      changeFactionRenown(factionKey, delta);
+    } else if (factionKey) {
+      S.factionRenown = S.factionRenown || {};
+      S.factionRenown[factionKey] = Math.max(-10, Math.min(12, Number(S.factionRenown[factionKey] || 0) + delta));
+      if (typeof updateFactionRenownUI === "function") {
+        try { updateFactionRenownUI(); } catch (err) {}
+      }
+    }
+    if (typeof showNotif === "function") {
+      const prefix = delta >= 0 ? "+" : "";
+      showNotif(prefix + delta + " renown with " + power + ".", delta >= 0 ? "good" : "warn");
+    }
   }
 
   function grantRandomLoot(tier) {
@@ -2324,6 +2345,8 @@
       + "<button class='btn btn-sm btn-teal' onclick='wtwSyncMarkers()'>Refresh Markers</button>"
       + "<button class='btn btn-sm' id='wtwMapModeBtn' onclick='toggleWorldMapMode()'>Map: Detailed</button>"
       + "<button class='btn btn-sm' onclick='wtwRollEncounter()'>Roll Encounter</button>"
+      + "<button class='btn btn-sm' onclick='returnWorldToProvince()'>Return to Province</button>"
+      + "<button class='btn btn-sm' onclick='returnWorldToLastSea()'>Return to Last Sea</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToGalaxy()'>Return to Galaxy</button>"
       + "</div>"
       + "<div class='wtw-toolbar-meta'>"
@@ -2355,6 +2378,16 @@
   function returnToGalaxy() {
     const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
     if (typeof switchTab === "function") switchTab("galaxy", btn || null);
+  }
+
+  function returnToProvince() {
+    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('map'\"]");
+    if (typeof switchTab === "function") switchTab("map", btn || null);
+  }
+
+  function returnToLastSea() {
+    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('lastsea'\"]");
+    if (typeof switchTab === "function") switchTab("lastsea", btn || null);
   }
 
   function openWorldThatWasFromGalaxy() {
@@ -2418,6 +2451,8 @@
   window.openWorldSkirmishCombat = openWorldSkirmishCombat;
   window.chooseWorldLandingPad = chooseLandingPad;
   window.returnWorldToGalaxy = returnToGalaxy;
+  window.returnWorldToProvince = returnToProvince;
+  window.returnWorldToLastSea = returnToLastSea;
   window.toggleWorldMapMode = toggleWorldMapMode;
 
   window.wtwBuyService = spendService;

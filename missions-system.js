@@ -1208,15 +1208,26 @@
     renderCompletedMissions();
   }
 
-  document.addEventListener('DOMContentLoaded',function(){
+  // Initialize on page ready
+  function initMissions() {
     // Ensure origin mission exists for characters with a reason (covers loaded characters)
     if (typeof S !== 'undefined' && S && S.reason && !S.originMissionInitialized) {
       if (typeof createOriginMissionFromReason === 'function') {
-        createOriginMissionFromReason(true);
+        try {
+          createOriginMissionFromReason(true);
+        } catch (err) {
+          console.warn('Error creating origin mission on page load:', err);
+        }
       }
     }
     syncMissionUIs();
-  });
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMissions);
+  } else {
+    initMissions();
+  }
 
   var _missionBaseLoad = typeof loadCharacter === 'function' ? loadCharacter : null;
   if (_missionBaseLoad) {
@@ -1224,7 +1235,11 @@
       _missionBaseLoad();
       // Ensure origin mission exists for loaded characters with a reason
       if (typeof S !== 'undefined' && S && S.reason && !S.originMissionInitialized && typeof createOriginMissionFromReason === 'function') {
-        createOriginMissionFromReason(true);
+        try {
+          createOriginMissionFromReason(true);
+        } catch (err) {
+          console.warn('Error creating origin mission on load:', err);
+        }
       }
       syncMissionUIs();
     };

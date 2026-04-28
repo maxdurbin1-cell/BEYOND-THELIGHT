@@ -215,12 +215,21 @@
     modal.style.display = 'flex';
   }
   
-  // Initialize on load
-  document.addEventListener('DOMContentLoaded', function() {
+  // Initialize immediately and on page load
+  function initSettings() {
     createSettingsPanel();
     Settings.load();
     Settings.applyGameMode();
-  });
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSettings);
+  } else {
+    initSettings();
+  }
+  
+  // Also run on page load with slight delay to ensure all elements exist
+  window.addEventListener('load', initSettings);
   
   // Expose API
   window.settingsSystem = {
@@ -238,6 +247,12 @@
       musicVolume: Settings.musicVolume,
       sfxVolume: Settings.sfxVolume,
       gameMode: Settings.gameMode
-    })
+    }),
+    initSettings // Expose for manual initialization if needed
   };
+  
+  // Ensure it's initialized immediately
+  if (document.readyState !== 'loading') {
+    initSettings();
+  }
 })();

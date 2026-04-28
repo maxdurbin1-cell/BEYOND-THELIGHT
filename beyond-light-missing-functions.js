@@ -867,7 +867,13 @@ function generateCharacter() {
   showNotif("Wayfarer generated", "good");
   // Trigger origin mission after all character state is initialized
   if (typeof createOriginMissionFromReason === 'function') {
-    createOriginMissionFromReason(true);
+    try {
+      createOriginMissionFromReason(true);
+    } catch (err) {
+      console.warn('Error creating origin mission:', err);
+    }
+  } else {
+    console.warn('createOriginMissionFromReason not yet available - will be created on page load');
   }
 }
 

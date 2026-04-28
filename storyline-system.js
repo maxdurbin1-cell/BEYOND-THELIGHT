@@ -2356,6 +2356,9 @@
     const pushDread = typeof stepUp === "function" ? stepUp(dreadDie) : Math.min(20, dreadDie + 2);
     const currentTeamwork = (typeof S !== "undefined" && typeof S.tmw === "number") ? S.tmw : 0;
     const canSpend = currentTeamwork >= 3;
+    const gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === "function" && window.settingsSystem.isGMMode());
+    const revealDC = !window.settingsSystem || typeof window.settingsSystem.shouldRevealDC !== "function" ? true : !!window.settingsSystem.shouldRevealDC();
+    const revealHidden = !window.settingsSystem || typeof window.settingsSystem.shouldRevealHiddenInfo !== "function" ? true : !!window.settingsSystem.shouldRevealHiddenInfo();
     const statName = STAT_LABELS[option.stat] || option.stat;
     const bonus = Number(checkResult.factionBonus || 0);
     const actionTotalLabel = bonus > 0
@@ -2366,16 +2369,16 @@
       + "<div style='display:flex;justify-content:center;gap:1.5rem;margin-bottom:.65rem;'>"
       + "<div style='text-align:center;'>"
       + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>" + statName + " d" + checkResult.actionDie + "</div>"
-      + "<div style='font-size:2.1rem;font-weight:700;color:var(--text2);'>" + actionTotalLabel + "</div>"
+      + "<div style='font-size:2.1rem;font-weight:700;color:var(--text2);'>" + (revealHidden ? actionTotalLabel : "?") + "</div>"
       + "</div>"
       + "<div style='text-align:center;padding-top:.65rem;font-size:1.3rem;color:var(--muted2);'>vs</div>"
       + "<div style='text-align:center;'>"
-      + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>Dread D" + dreadDie + "</div>"
-      + "<div style='font-size:2.1rem;font-weight:700;color:#e05050;'>" + checkResult.dread.total + "</div>"
+      + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>" + (revealDC ? ("Dread D" + dreadDie) : "Dread Hidden") + "</div>"
+      + "<div style='font-size:2.1rem;font-weight:700;color:#e05050;'>" + (revealHidden ? checkResult.dread.total : "?") + "</div>"
       + "</div>"
       + "</div>"
       + "<div style='font-size:.79rem;color:var(--text2);margin-bottom:.55rem;text-align:center;font-style:italic;'>\"" + option.text + "\"</div>"
-      + (bonus > 0
+      + (bonus > 0 && revealHidden
         ? ("<div style='font-size:.74rem;color:var(--gold2);text-align:center;margin-bottom:.45rem;'>Faction bonus: +" + bonus + " from " + (FACTION_LABELS[checkResult.factionKey] || checkResult.factionKey) + " renown.</div>")
         : "")
       + "<div style='background:rgba(255,96,96,.06);border:1px solid rgba(255,96,96,.25);padding:.45rem .55rem;border-radius:4px;margin-bottom:.55rem;'>"
@@ -2391,6 +2394,18 @@
       + "<button class='btn btn-sm btn-teal' " + (canSpend ? "" : "disabled title='Need 3 Teamwork'") + " onclick='storySpendTeamwork()'>Spend 3 Teamwork → Succeed</button>"
       + "<button class='btn btn-sm' style='background:rgba(240,160,80,.18);border-color:rgba(240,160,80,.5);color:#f0a050;' onclick='storyPushLuck()'>Push Luck (D" + pushDread + ")</button>"
       + "</div>";
+    if (gmMode) {
+      html += "<div style='margin-top:.55rem;background:rgba(128,96,192,.08);border:1px solid rgba(128,96,192,.35);padding:.4rem .5rem;'>"
+        + "<div style='font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--purple);text-transform:uppercase;margin-bottom:.25rem;'>GM Controls</div>"
+        + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;'>"
+        + "<button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='window.storyAdjustOptionDread(\"" + sceneId + "\",\"" + option.id + "\",-1)'>Dread -</button>"
+        + "<button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='window.storyAdjustOptionDread(\"" + sceneId + "\",\"" + option.id + "\",1)'>Dread +</button>"
+        + "<button class='btn btn-xs btn-primary' onclick='closeModal();runStoryOption(\"" + sceneId + "\",\"" + option.id + "\",\"success\")'>GM: Force Success</button>"
+        + "<button class='btn btn-xs btn-red' onclick='closeModal();runStoryOption(\"" + sceneId + "\",\"" + option.id + "\",\"fail\")'>GM: Force Fail</button>"
+        + "</div>"
+        + "<div style='font-size:.66rem;color:var(--muted2);margin-top:.22rem;'>Scene Dread: " + (revealDC ? ("d" + dreadDie) : "hidden") + "</div>"
+        + "</div>";
+    }
     openModal("Story Roll: " + option.text.slice(0, 50), html);
   }
 
@@ -2449,6 +2464,26 @@
   function setOptionDread(sceneId, optionId, die) {
     const st = ensureStoryState();
     st.optionDread[sceneId + ":" + optionId] = die;
+  }
+
+  function adjustStoryOptionDread(sceneId, optionId, dir) {
+    const gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === "function" && window.settingsSystem.isGMMode());
+    if (!gmMode) {
+      if (typeof showNotif === "function") showNotif("GM controls are only available in GM mode.", "warn");
+      return;
+    }
+    const scene = SCENES[sceneId];
+    if (!scene || !Array.isArray(scene.options)) return;
+    const option = scene.options.find(function (opt) { return opt && opt.id === optionId; });
+    if (!option) return;
+    const current = Number(getOptionDread(sceneId, option) || 8);
+    const next = dir > 0 ? stepUp(current) : stepDown(current);
+    setOptionDread(sceneId, optionId, next);
+    if (typeof showNotif === "function") showNotif("GM Dread set to d" + next + " for this story check.", "good");
+    if (window._pendingStoryRoll && window._pendingStoryRoll.sceneId === sceneId && window._pendingStoryRoll.option && window._pendingStoryRoll.option.id === optionId) {
+      window._pendingStoryRoll.dreadDie = next;
+    }
+    renderStorylinePanel();
   }
 
   function rollStoryCheck(statKey, dreadDie, factionKey) {
@@ -3016,6 +3051,7 @@
   window.openStorylineTab = openStorylineTab;
   window.runStoryOption = runStoryOption;
   window.storyJumpSystem = jumpSystemById;
+  window.storyAdjustOptionDread = adjustStoryOptionDread;
 
   window.storyAcceptFail = function () {
     const p = window._pendingStoryRoll;

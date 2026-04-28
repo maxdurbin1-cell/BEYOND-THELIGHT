@@ -11,6 +11,8 @@
     
     // Game mode
     gameMode: 'solo', // 'solo' or 'gm'
+    gmRevealDC: true,
+    gmRevealHiddenInfo: true,
     
     // Load from localStorage
     load() {
@@ -20,6 +22,8 @@
         this.musicVolume = saved.musicVolume !== undefined ? saved.musicVolume : 0.5;
         this.sfxVolume = saved.sfxVolume !== undefined ? saved.sfxVolume : 0.6;
         this.gameMode = saved.gameMode || 'solo';
+        this.gmRevealDC = saved.gmRevealDC !== undefined ? !!saved.gmRevealDC : true;
+        this.gmRevealHiddenInfo = saved.gmRevealHiddenInfo !== undefined ? !!saved.gmRevealHiddenInfo : true;
         this.applyAudioSettings();
       } catch (e) {
         console.warn('Could not load settings:', e);
@@ -33,7 +37,9 @@
           masterVolume: this.masterVolume,
           musicVolume: this.musicVolume,
           sfxVolume: this.sfxVolume,
-          gameMode: this.gameMode
+          gameMode: this.gameMode,
+          gmRevealDC: this.gmRevealDC,
+          gmRevealHiddenInfo: this.gmRevealHiddenInfo
         }));
       } catch (e) {
         console.warn('Could not save settings:', e);
@@ -78,6 +84,14 @@
     // Check if we're in GM mode
     isGMMode() {
       return this.gameMode === 'gm';
+    },
+
+    shouldRevealDC() {
+      return !this.isGMMode() || !!this.gmRevealDC;
+    },
+
+    shouldRevealHiddenInfo() {
+      return !this.isGMMode() || !!this.gmRevealHiddenInfo;
     }
   };
   
@@ -139,6 +153,14 @@
               <span class="mode-desc">Orchestrate the story</span>
             </button>
           </div>
+
+          <div id="gmToolsRow" style="margin-top:.55rem;display:${Settings.gameMode === 'gm' ? 'block' : 'none'};">
+            <div style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;margin-bottom:.28rem;">GM Visibility</div>
+            <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+              <button id="gmRevealDCBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('dc')">Reveal DC: ${Settings.gmRevealDC ? 'On' : 'Off'}</button>
+              <button id="gmRevealHiddenBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('hidden')">Reveal Hidden Info: ${Settings.gmRevealHiddenInfo ? 'On' : 'Off'}</button>
+            </div>
+          </div>
         </div>
         
         <div class="settings-footer">
@@ -161,11 +183,40 @@
       modeLabel.textContent = isGM ? 'GM' : 'Solo';
     }
 
+    const gmToolsRow = document.getElementById('gmToolsRow');
+    if (gmToolsRow) {
+      gmToolsRow.style.display = isGM ? 'block' : 'none';
+    }
+
+    const gmRevealDCBtn = document.getElementById('gmRevealDCBtn');
+    if (gmRevealDCBtn) {
+      gmRevealDCBtn.textContent = 'Reveal DC: ' + (Settings.gmRevealDC ? 'On' : 'Off');
+      gmRevealDCBtn.style.borderColor = Settings.gmRevealDC ? 'var(--teal)' : 'var(--border2)';
+      gmRevealDCBtn.style.color = Settings.gmRevealDC ? 'var(--teal)' : 'var(--muted2)';
+    }
+
+    const gmRevealHiddenBtn = document.getElementById('gmRevealHiddenBtn');
+    if (gmRevealHiddenBtn) {
+      gmRevealHiddenBtn.textContent = 'Reveal Hidden Info: ' + (Settings.gmRevealHiddenInfo ? 'On' : 'Off');
+      gmRevealHiddenBtn.style.borderColor = Settings.gmRevealHiddenInfo ? 'var(--teal)' : 'var(--border2)';
+      gmRevealHiddenBtn.style.color = Settings.gmRevealHiddenInfo ? 'var(--teal)' : 'var(--muted2)';
+    }
+
     const settingsBtn = document.querySelector('nav .settings-tab-btn');
     if (settingsBtn) {
       settingsBtn.title = isGM ? 'Settings (GM Mode Active)' : 'Settings (Solo Mode Active)';
       settingsBtn.textContent = isGM ? '⚙ GM' : '⚙';
     }
+  }
+
+  function toggleGMReveal(kind) {
+    if (kind === 'dc') {
+      Settings.gmRevealDC = !Settings.gmRevealDC;
+    } else if (kind === 'hidden') {
+      Settings.gmRevealHiddenInfo = !Settings.gmRevealHiddenInfo;
+    }
+    Settings.save();
+    syncGameModeUI();
   }
   
   function openSettings() {
@@ -266,13 +317,18 @@
     setMusicVolume,
     setSFXVolume,
     setGameMode: (mode) => Settings.setGameMode(mode),
+    toggleGMReveal,
     showGMPrompt,
     isGMMode: () => Settings.isGMMode(),
+    shouldRevealDC: () => Settings.shouldRevealDC(),
+    shouldRevealHiddenInfo: () => Settings.shouldRevealHiddenInfo(),
     getSettings: () => ({
       masterVolume: Settings.masterVolume,
       musicVolume: Settings.musicVolume,
       sfxVolume: Settings.sfxVolume,
-      gameMode: Settings.gameMode
+      gameMode: Settings.gameMode,
+      gmRevealDC: Settings.gmRevealDC,
+      gmRevealHiddenInfo: Settings.gmRevealHiddenInfo
     }),
     initSettings // Expose for manual initialization if needed
   };

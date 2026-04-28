@@ -11,6 +11,31 @@
     impossible:  { name: 'Impossible',  dread: 20, lootCat: 'ranged_exp', credits: 700 }
   };
   var DIFF_KEYS = Object.keys(DIFFICULTIES);
+  var DREAD_DICE = [4, 6, 8, 10, 12, 20];
+
+  function isGMModeActive() {
+    return !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === 'function' && window.settingsSystem.isGMMode());
+  }
+
+  function shouldRevealDC() {
+    if (!window.settingsSystem || typeof window.settingsSystem.shouldRevealDC !== 'function') return true;
+    return !!window.settingsSystem.shouldRevealDC();
+  }
+
+  function shouldRevealHiddenInfo() {
+    if (!window.settingsSystem || typeof window.settingsSystem.shouldRevealHiddenInfo !== 'function') return true;
+    return !!window.settingsSystem.shouldRevealHiddenInfo();
+  }
+
+  function stepMissionDreadDie(current, dir) {
+    var die = Number(current || 8);
+    var idx = DREAD_DICE.indexOf(die);
+    if (idx < 0) idx = 2;
+    var next = idx + (dir > 0 ? 1 : -1);
+    if (next < 0) next = 0;
+    if (next >= DREAD_DICE.length) next = DREAD_DICE.length - 1;
+    return DREAD_DICE[next];
+  }
 
   var LOOT_COUNT_DIVISOR      = 6;
   var MAX_COMPLETED_MISSIONS  = 10;
@@ -818,13 +843,30 @@
     renderMissionTracker();
   }
 
+  function adjustMissionDread(missionId, dir) {
+    if (!isGMModeActive()) {
+      showNotif('GM controls are only available in GM mode.','warn');
+      return;
+    }
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var base = Number(mission.gmDreadOverride || mission.dread || 8);
+    mission.gmDreadOverride = stepMissionDreadDie(base, dir > 0 ? 1 : -1);
+    if (typeof showNotif === 'function') {
+      showNotif('GM Dread set to d' + mission.gmDreadOverride + ' for this mission scene.','good');
+    }
+    startMissionStep3(missionId);
+  }
+
   /* ── STEP 3: CONFRONTATION ── */
   function startMissionStep3(missionId) {
     ensureState();
     var mission=getMission(missionId); if (!mission) return;
     if (!mission.steps[2].completed) { showNotif('Complete Step 2 first.','warn'); return; }
-    var advDie=getStat('adventure'), dreadDie=mission.dread, bonus=mission.bonus||0;
-    var gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === 'function' && window.settingsSystem.isGMMode());
+    var advDie=getStat('adventure'), dreadDie=Number(mission.gmDreadOverride || mission.dread || 8), bonus=mission.bonus||0;
+    var gmMode = isGMModeActive();
+    var revealDC = shouldRevealDC();
+    var revealHidden = shouldRevealHiddenInfo();
 
     var compBanner='';
     if (mission.additionalDanger&&mission.additionalDanger.type==='complication') {
@@ -833,7 +875,7 @@
     }
 
     var featureBadge='';
-    if (mission.infoFeature) {
+    if (mission.infoFeature && revealHidden) {
       featureBadge='<div style="font-size:.7rem;color:var(--teal);margin-bottom:.35rem;padding:.2rem .4rem;border:1px solid rgba(46,196,182,.3);">'+mission.infoFeature.icon+' '+mission.infoFeature.name+(mission.bypassSecurity?' \u2014 Security bypassed!':(mission.hackSystem?' \u2014 Dread reduced to d'+dreadDie+'.':''))+'</div>';
     }
 
@@ -846,22 +888,25 @@
     }
 
     var mercSection='';
-    if (mission.additionalDanger&&mission.additionalDanger.type==='mercenary') {
+    if (mission.additionalDanger&&mission.additionalDanger.type==='mercenary' && revealHidden) {
       var aRows=MERCENARY_ACTIONS.map(function(a){return '<div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted3);padding:.1rem 0;border-bottom:1px solid var(--border);"><span style="color:var(--muted2);width:1.4rem;">'+a.range[0]+(a.range[1]!==a.range[0]?'\u2013'+a.range[1]:'')+'</span><span style="color:var(--text2);flex:1;padding:0 .3rem;">'+a.name+'</span><span style="color:var(--muted);font-size:.65rem;">'+a.desc+'</span></div>';}).join('');
       mercSection='<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.3);padding:.35rem .5rem;margin-bottom:.4rem;"><div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.15rem;">\u26a0 Additional Danger</div><div style="font-size:.78rem;color:var(--text);font-weight:700;margin-bottom:.15rem;">Mercenary <span style="font-family:\'Rajdhani\',sans-serif;color:var(--red2);">DD10 | 20 HP | 2 Actions</span></div>'+aRows+'</div>';
     }
 
     var targetRow='<div style="font-size:.78rem;margin-bottom:.45rem;padding:.25rem .35rem;border:1px solid var(--border2);"><strong style="color:var(--gold2);">Target:</strong> <span style="color:var(--text);">'+mission.target+'</span></div>';
-    var rollInstr='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+advDie+(bonus?' + '+bonus:'')+' vs Dread d'+dreadDie+' \u2014 then click your outcome:</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice. Add the +'+(bonus||0)+' bonus to your roll before comparing.</div></div>';
+    var rollInstr='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+advDie+(bonus?' + '+bonus:'')+' vs '+(revealDC?('Dread d'+dreadDie):'scene Dread')+' \u2014 then click your outcome:</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice. Add the +'+(bonus||0)+' bonus to your roll before comparing.</div></div>';
     var gmControls='';
     if (gmMode) {
       gmControls='<div style="background:rgba(128,96,192,.08);border:1px solid rgba(128,96,192,.35);padding:.35rem .45rem;margin-bottom:.45rem;">'
         +'<div style="font-family:\'Cinzel\',serif;font-size:.55rem;letter-spacing:.1em;color:var(--purple);text-transform:uppercase;margin-bottom:.2rem;">GM Controls</div>'
         +'<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
+          +'<button class="btn btn-xs" style="border-color:var(--purple);color:var(--purple);" onclick="window.adjustMissionDread('+missionId+',-1)">Dread -</button>'
+          +'<button class="btn btn-xs" style="border-color:var(--purple);color:var(--purple);" onclick="window.adjustMissionDread('+missionId+',1)">Dread +</button>'
           +'<button class="btn btn-xs" style="border-color:var(--purple);color:var(--purple);" onclick="if(window.settingsSystem&&window.settingsSystem.showGMPrompt){window.settingsSystem.showGMPrompt(\'Mission Confrontation\',\'Frame the fiction, then choose the outcome based on the scene.\',[{label:\'Mark Success\',action:\'resolveMissionOutcome('+missionId+',true);closeModal();\'},{label:\'Mark Failure\',action:\'resolveMissionOutcome('+missionId+',false);closeModal();\'}]);}">Open GM Prompt</button>'
           +'<button class="btn btn-xs btn-primary" onclick="resolveMissionOutcome('+missionId+',true)">GM: Force Success</button>'
           +'<button class="btn btn-xs btn-red" onclick="resolveMissionOutcome('+missionId+',false)">GM: Force Failure</button>'
         +'</div>'
+        +'<div style="font-size:.66rem;color:var(--muted2);margin-top:.22rem;">Scene Dread: d'+dreadDie+'</div>'
       +'</div>';
     }
 
@@ -1082,12 +1127,15 @@
     }
     container.innerHTML = holdingQuestHtml + S.availableJobs.map(function(job){
       var diff=DIFFICULTIES[job.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);
+      var dcLabel = shouldRevealDC()
+        ? ('<span style="font-family:\'Cinzel\',serif;font-size:.55rem;color:'+dc+';">DD d'+diff.dread+'</span>')
+        : '<span style="font-family:\'Cinzel\',serif;font-size:.55rem;color:var(--muted2);">DD hidden</span>';
       return '<div class="shop-card" style="display:flex;flex-direction:column;">'
         +'<div class="s-name" style="color:var(--gold2);">'+job.title+'</div>'
         +'<div style="display:flex;gap:.35rem;align-items:center;font-family:\'Rajdhani\',sans-serif;font-size:.72rem;font-weight:700;margin:.15rem 0;">'
           +'<span style="color:'+dc+';text-transform:uppercase;">'+diff.name+'</span>'
           +'<span style="color:var(--muted2);">\u00B7</span>'
-          +'<span style="font-family:\'Cinzel\',serif;font-size:.55rem;color:'+dc+';">DD d'+diff.dread+'</span>'
+          +dcLabel
         +'</div>'
         +'<div style="font-size:.68rem;color:var(--teal);margin:.08rem 0;">'+(job.factionGainName||'Faction')+' +1 \u00B7 '+(job.factionLoseName||'Faction')+' -1</div>'
         +'<div style="font-size:.78rem;color:var(--muted3);flex:1;margin:.2rem 0;line-height:1.45;">'+job.location+'</div>'
@@ -1135,9 +1183,10 @@
       }).join('');
 
       var badges='';
-      if (mission.infoFeature) badges+='<span style="font-size:.62rem;color:var(--teal);background:rgba(46,196,182,.1);padding:.05rem .3rem;border:1px solid rgba(46,196,182,.25);margin-right:.25rem;">'+mission.infoFeature.icon+' '+mission.infoFeature.name+'</span>';
-      if (mission.additionalDanger) { var dl=mission.additionalDanger.type==='mercenary'?'\u26a0 Mercenary':'\u26a0 '+mission.additionalDanger.data.name; badges+='<span style="font-size:.62rem;color:var(--red2);background:rgba(200,50,50,.1);padding:.05rem .3rem;border:1px solid rgba(200,50,50,.25);">'+dl+'</span>'; }
+      if (mission.infoFeature && shouldRevealHiddenInfo()) badges+='<span style="font-size:.62rem;color:var(--teal);background:rgba(46,196,182,.1);padding:.05rem .3rem;border:1px solid rgba(46,196,182,.25);margin-right:.25rem;">'+mission.infoFeature.icon+' '+mission.infoFeature.name+'</span>';
+      if (mission.additionalDanger && shouldRevealHiddenInfo()) { var dl=mission.additionalDanger.type==='mercenary'?'\u26a0 Mercenary':'\u26a0 '+mission.additionalDanger.data.name; badges+='<span style="font-size:.62rem;color:var(--red2);background:rgba(200,50,50,.1);padding:.05rem .3rem;border:1px solid rgba(200,50,50,.25);">'+dl+'</span>'; }
       if (mission.bonus) badges+='<span style="font-size:.62rem;color:var(--teal);margin-left:.15rem;">+5 bonus</span>';
+      var ddSummary = shouldRevealDC() ? ('DD d'+diff.dread) : 'DD hidden';
 
       var btn1=s1.completed?'<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Info</button>':'<button class="btn btn-xs btn-teal" onclick="startMissionStep1('+mission.id+')">\u25B6 Info</button><button class="btn btn-xs" onclick="skipMissionStep1('+mission.id+')" style="font-size:.62rem;">Skip</button>';
       var btn2=s2.completed?'<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Site</button>':'<button class="btn btn-xs btn-teal" onclick="startMissionStep2('+mission.id+')"'+(!s1.completed?' disabled style="opacity:.45;"':'')+'>\u25B6 Site</button>';
@@ -1147,11 +1196,11 @@
         +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.3rem;">'
           +'<div>'
             +'<div style="font-family:\'Cinzel\',serif;font-size:.8rem;color:var(--gold2);margin-bottom:.1rem;">'+mission.title+'</div>'
-            +'<div style="font-size:.7rem;color:'+dc+';">'+diff.name+' \u00B7 DD d'+diff.dread+' \u00B7 '+mission.location+'</div>'
+            +'<div style="font-size:.7rem;color:'+dc+';">'+diff.name+' \u00B7 '+ddSummary+' \u00B7 '+mission.location+'</div>'
             +(mission.region==='galaxy'&&mission.planetName?'<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">🌍 Planet Route: '+mission.planetName+'</div>':'')
             +'<div style="font-size:.66rem;color:var(--teal);margin-top:.12rem;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
             +(badges?'<div style="margin-top:.2rem;">'+badges+'</div>':'')
-            +(Array.isArray(mission.checkpoints)&&mission.checkpoints.length?('<div style="margin-top:.18rem;font-size:.66rem;color:var(--muted2);">Checkpoints: '+mission.checkpoints.join(' \u00B7 ')+'</div>'):'')
+            +(Array.isArray(mission.checkpoints)&&mission.checkpoints.length&&shouldRevealHiddenInfo()?('<div style="margin-top:.18rem;font-size:.66rem;color:var(--muted2);">Checkpoints: '+mission.checkpoints.join(' \u00B7 ')+'</div>'):'')
           +'</div>'
           +'<button class="btn btn-xs btn-red" onclick="abandonMission('+mission.id+')">Abandon</button>'
         +'</div>'
@@ -1284,6 +1333,7 @@
   window.resolveMissionOutcome=resolveMissionOutcome;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;
   window.createMission=createMission;
+  window.adjustMissionDread=adjustMissionDread;
   window.createOriginMissionFromReason=createOriginMissionFromReason;
   window.completeMissionStep=function(missionId,stepId){
     if(stepId===1) completeMissionInfoStep(missionId,true,JSON.stringify(rollInfoFeature()));

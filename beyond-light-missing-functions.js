@@ -34,6 +34,7 @@ function ensureSpaceShopCategories() {
 const QUICK_ACCESS_MAX = 8;
 let _quickAccessObserver = null;
 let _quickAccessSyncing = false;
+let _quickAccessTicker = null;
 
 function getTabLabelFromButton(btn, tabId) {
   if (!btn) return String(tabId || 'Tab');
@@ -81,6 +82,10 @@ function quickAccessGo(tabId) {
 function renderGlobalQuickAccess() {
   const root = document.getElementById('globalQuickAccess');
   if (!root) return;
+  const header = document.querySelector('header');
+  if (header) {
+    root.style.top = header.offsetHeight + 'px';
+  }
   if (!Array.isArray(window._quickAccessTabs) || !window._quickAccessTabs.length) {
     const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
     if (activePanel) {
@@ -161,11 +166,23 @@ function renderPanelQuickAccess(activeTabId) {
   _quickAccessSyncing = false;
 }
 
+function ensureActivePanelQuickAccess(activeTabId) {
+  const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
+  if (!activePanel) return;
+  const tabId = activeTabId || activePanel.id.replace(/^tab-/, '');
+  const mount = getPanelQuickAccessMount(activePanel);
+  if (!mount) return;
+  mount.innerHTML = buildPanelQuickAccessHtml(tabId);
+  mount.style.display = 'flex';
+}
+
 function schedulePanelQuickAccessRefresh(tabId) {
   renderPanelQuickAccess(tabId);
+  ensureActivePanelQuickAccess(tabId);
   setTimeout(function() { renderPanelQuickAccess(tabId); }, 0);
   setTimeout(function() { renderPanelQuickAccess(tabId); }, 120);
   setTimeout(function() { renderPanelQuickAccess(tabId); }, 300);
+  setTimeout(function() { ensureActivePanelQuickAccess(tabId); }, 420);
 }
 
 function ensureQuickAccessObserver() {
@@ -182,9 +199,20 @@ function ensureQuickAccessObserver() {
   _quickAccessObserver.observe(root, { childList: true, subtree: true });
 }
 
+function ensureQuickAccessTicker() {
+  if (_quickAccessTicker) return;
+  _quickAccessTicker = setInterval(function() {
+    const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
+    const activeId = activePanel ? activePanel.id.replace(/^tab-/, '') : null;
+    renderGlobalQuickAccess();
+    ensureActivePanelQuickAccess(activeId);
+  }, 1200);
+}
+
 window.quickAccessGo = quickAccessGo;
 window.renderGlobalQuickAccess = renderGlobalQuickAccess;
 window.renderPanelQuickAccess = renderPanelQuickAccess;
+window.ensureActivePanelQuickAccess = ensureActivePanelQuickAccess;
 
 function switchTab(tabId, btn) {
   document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
@@ -269,6 +297,8 @@ if (document.readyState === 'loading') {
     const activeId = activePanel ? activePanel.id.replace(/^tab-/, '') : null;
     schedulePanelQuickAccessRefresh(activeId);
     ensureQuickAccessObserver();
+    ensureQuickAccessTicker();
+    window.addEventListener('resize', renderGlobalQuickAccess);
   });
 } else {
   renderGlobalQuickAccess();
@@ -276,6 +306,8 @@ if (document.readyState === 'loading') {
   const activeId = activePanel ? activePanel.id.replace(/^tab-/, '') : null;
   schedulePanelQuickAccessRefresh(activeId);
   ensureQuickAccessObserver();
+  ensureQuickAccessTicker();
+  window.addEventListener('resize', renderGlobalQuickAccess);
 }
 
 function setInputValue(id, value) {

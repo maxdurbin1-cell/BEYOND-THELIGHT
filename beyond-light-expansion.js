@@ -1218,6 +1218,7 @@
     }
 
     const island = S.lastSea.islands.find((item) => item.id === hex.islandId);
+    const normalizedResultHtml = ensureSeaPerilResultHtml(hex);
     const note = S.lastSea.notes[hex.key] || "";
     panel.innerHTML = `
       <div class="sea-info-inner">
@@ -1301,13 +1302,27 @@
         <div style="margin-top:.55rem;">
           <button class="btn btn-primary" onclick="exploreLastSeaHex(${hex.col},${hex.row})">${hex.type === "sea" ? "Explore Waters" : "Explore Island"}</button>
         </div>
-        ${hex.resultHtml ? `<div class="sea-result">${hex.resultHtml}</div>` : ""}
+        ${normalizedResultHtml ? `<div class="sea-result">${normalizedResultHtml}</div>` : ""}
         <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.55rem;">
           <div class="sub-label">Hex Notes</div>
           <textarea class="notes-area" placeholder="Add notes for this sea hex..." onchange="setLastSeaNote(${hex.col},${hex.row},this.value)">${note}</textarea>
         </div>
       </div>
     `;
+  }
+
+  function ensureSeaPerilResultHtml(hex) {
+    if (!hex || !hex.resultHtml) return "";
+    var html = String(hex.resultHtml);
+    if (html.indexOf("Peril -") === -1) return html;
+    if (html.indexOf("resolveOpenSeaPerilCheck(") !== -1) return html;
+
+    var match = html.match(/Peril\s*-\s*([^<]+)/i);
+    var perilName = match && match[1] ? String(match[1]).trim() : "Open Sea Hazard";
+    var perilNameJs = perilName.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+    return html
+      + '<div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveOpenSeaPerilCheck(' + Number(hex.col) + ',' + Number(hex.row) + ',\'' + perilNameJs + '\',6)">⚄ Control vs DD6</button></div>';
   }
 
   function describeSeaSite(type, data) {

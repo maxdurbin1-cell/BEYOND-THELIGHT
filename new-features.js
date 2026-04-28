@@ -503,7 +503,6 @@
             }).join('')
           + '</div></div>';
         if (body) { body.style.display = "none"; }
-          + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.2rem;">Task Capacity: <span style="color:var(--gold2);">' + activeTasks + '/' + retainers + '</span></div>'
         return;
       } else {
         gate.innerHTML = '';

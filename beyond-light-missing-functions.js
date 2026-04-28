@@ -31,6 +31,81 @@ function ensureSpaceShopCategories() {
   });
 }
 
+const QUICK_ACCESS_MAX = 8;
+
+function getTabLabelFromButton(btn, tabId) {
+  if (!btn) return String(tabId || 'Tab');
+  const txt = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+  return txt || String(tabId || 'Tab');
+}
+
+function getNavTabButton(tabId) {
+  if (!tabId) return null;
+  return document.querySelector("nav .tab-btn[onclick*=\"switchTab('" + tabId + "'\"]");
+}
+
+function getPreferredContextForTabButton(btn) {
+  if (!btn) return null;
+  if (btn.classList.contains('ctx-traveling')) return 'traveling';
+  if (btn.classList.contains('ctx-holding')) return 'holding';
+  if (btn.classList.contains('ctx-sea')) return 'sea';
+  if (btn.classList.contains('ctx-space')) return 'space';
+  return null;
+}
+
+function trackQuickAccessTab(tabId) {
+  if (!tabId) return;
+  window._quickAccessTabs = Array.isArray(window._quickAccessTabs) ? window._quickAccessTabs : [];
+  const next = [tabId].concat(window._quickAccessTabs.filter(function(id) { return id !== tabId; }));
+  window._quickAccessTabs = next.slice(0, QUICK_ACCESS_MAX);
+}
+
+function quickAccessGo(tabId) {
+  if (!tabId) return;
+  let btn = getNavTabButton(tabId);
+  if (!btn) return;
+  const hidden = (btn.style && btn.style.display === 'none');
+  if (hidden && typeof setContext === 'function') {
+    const ctx = getPreferredContextForTabButton(btn);
+    if (ctx) {
+      const ctxBtn = document.querySelector('.ctx-btn[data-ctx="' + ctx + '"]');
+      setContext(ctx, ctxBtn || null);
+      btn = getNavTabButton(tabId) || btn;
+    }
+  }
+  switchTab(tabId, btn || null);
+}
+
+function renderGlobalQuickAccess() {
+  const root = document.getElementById('globalQuickAccess');
+  if (!root) return;
+  if (!Array.isArray(window._quickAccessTabs) || !window._quickAccessTabs.length) {
+    const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
+    if (activePanel) {
+      const id = activePanel.id.replace(/^tab-/, '');
+      if (id) trackQuickAccessTab(id);
+    }
+  }
+  const history = Array.isArray(window._quickAccessTabs) ? window._quickAccessTabs : [];
+  let html = '<span class="qa-label">Quick Access</span>';
+  if (!history.length) {
+    html += '<span class="qa-empty">Visit tabs to pin your recent route.</span>';
+    root.innerHTML = html;
+    return;
+  }
+
+  history.forEach(function(tabId) {
+    const btn = getNavTabButton(tabId);
+    if (!btn) return;
+    const label = getTabLabelFromButton(btn, tabId);
+    html += '<button class="btn btn-sm" onclick="quickAccessGo(\'' + String(tabId).replace(/'/g, "&#39;") + '\')">' + label + '</button>';
+  });
+  root.innerHTML = html;
+}
+
+window.quickAccessGo = quickAccessGo;
+window.renderGlobalQuickAccess = renderGlobalQuickAccess;
+
 function switchTab(tabId, btn) {
   document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
   document.querySelectorAll(".tab-btn").forEach((tab) => tab.classList.remove("active"));
@@ -42,6 +117,8 @@ function switchTab(tabId, btn) {
   if (btn) {
     btn.classList.add("active");
   }
+  trackQuickAccessTab(tabId);
+  renderGlobalQuickAccess();
   // AUDIO: Switch music based on tab
   if (typeof window.AudioManager !== "undefined") {
     window.AudioManager.switchTabMusic(tabId);
@@ -101,6 +178,14 @@ function switchTab(tabId, btn) {
   if (tabId === "shop") {
     ensureSpaceShopCategories();
   }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    renderGlobalQuickAccess();
+  });
+} else {
+  renderGlobalQuickAccess();
 }
 
 function setInputValue(id, value) {

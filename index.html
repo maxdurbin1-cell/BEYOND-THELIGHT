@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="./faction-intro-system.css">
 <link rel="stylesheet" href="./settings-system.css">
 <link rel="stylesheet" href="./gm-dashboard.css">
+<link rel="stylesheet" href="./solo-reference.css">
 <style>
 :root{--bg:#06070e;--surface:#0b0c1a;--card:#0f1020;--card2:#131428;--border:#1a1c35;--border2:#252848;--gold:#c9a227;--gold2:#e8c050;--gold3:#f0d070;--teal:#2ec4b6;--teal2:#50ddd0;--red:#c94040;--red2:#e05050;--green:#4caf74;--green2:#6ed090;--purple:#8060c0;--text:#d8d0c0;--text2:#b0a890;--muted:#4a4870;--muted2:#7a7898;--muted3:#9a98b8;}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
@@ -31,6 +32,11 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .quick-nav{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.85rem;padding:.5rem .6rem;background:rgba(255,255,255,.02);border:1px solid var(--border2);border-radius:3px;}
 .quick-nav-label{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);align-self:center;margin-right:.2rem;font-family:'Cinzel',serif;}
 .quick-nav .btn{font-size:.68rem;padding:.22rem .55rem;}
+.global-quick-access{position:sticky;top:58px;z-index:180;padding:.45rem 1.2rem;background:linear-gradient(180deg,rgba(8,10,18,.96) 0%,rgba(8,10,18,.88) 100%);border-bottom:1px solid var(--border);backdrop-filter:blur(10px);display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;}
+.global-quick-access .qa-label{font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);font-family:'Cinzel',serif;margin-right:.2rem;}
+.global-quick-access .qa-empty{font-size:.73rem;color:var(--muted2);}
+.global-quick-access .btn{font-size:.67rem;padding:.2rem .48rem;}
+@media (max-width:900px){.global-quick-access{top:84px;padding:.35rem .6rem;}}
 .section-title{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.6rem;padding-bottom:.3rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.4rem;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
 .sub-label{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.2rem;}
@@ -295,6 +301,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
+    <button class="tab-btn solo-reference-btn" onclick="window.soloReference.toggle()" title="Solo Reference">🧭 Solo</button>
     <button class="tab-btn gm-dashboard-btn" onclick="window.gmDashboard.toggle()" title="GM Dashboard">👥 GM</button>
     <button class="tab-btn settings-tab-btn" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
   </nav>
@@ -303,6 +310,8 @@ select option{background:#0f1020;}
     <span class="amt" id="headerCredits">0 ₵</span>
   </div>
 </header>
+
+<div id="globalQuickAccess" class="global-quick-access"></div>
 
   
 <!-- CHARACTER TAB -->
@@ -1096,6 +1105,7 @@ select option{background:#0f1020;}
   </div>
 </div>
 <div id="settingsPanel" class="settings-panel"></div>
+<div id="soloReference"></div>
 <div id="gmDashboard"></div>
 <div class="notif" id="notif"></div>
 <div id="diceRollLayer" class="dice-roll-layer" aria-live="polite"></div>
@@ -6424,6 +6434,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="./faction-system.js"></script>
 <script src="./intro-system.js"></script>
 <script src="./storyline-choices-system.js"></script>
+<script src="./solo-reference.js"></script>
 <script src="./gm-dashboard.js"></script>
 
 </body>

@@ -4851,7 +4851,10 @@ function rollHexEncounter(col,row){
     const season=S.currentSeason||'spring';
     const wr=roll(6),w=WEATHER[season][wr-1];
     html+=`<strong style="${w.rough?'color:var(--red2)':'color:var(--teal)'};">${w.result}</strong> — ${w.desc}`;
-    if(w.rough)html+=`<div class="rough-weather-alert">Lead vs DD8 required. Failure: remain in Hex, lose 1 Phase.</div>`;
+    if(w.rough){
+      html+=`<div class="rough-weather-alert">Lead vs DD8 required. Failure: remain in Hex, lose 1 Phase, gain +1 Mental Stress.</div>`;
+      html+=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="resolveProvinceShiftWeatherEncounter(${col},${row})">⚄ Roll Lead vs DD8</button></div><div id="weather-shift-roll-${col}-${row}" style="margin-top:.28rem;"></div>`;
+    }
     html+='</div>';
   }else if(vr===2){
     const enc=roll(6);let title,desc,actionHTML='';
@@ -4927,6 +4930,25 @@ function rollTradeRouteEncounter(){
   const el=document.getElementById(`hexEnc-${hex.col}-${hex.row}`);
   if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">Trade Route d10=${r}: ${title}</div>${result}${actionHTML}</div>`;
 }
+
+window.resolveProvinceShiftWeatherEncounter = function(col,row){
+  const leadRoll = rollProvinceLeadCheck();
+  const dreadRoll = explodingRoll(8,{type:'dread',major:true,label:'Shift Weather DD8'});
+  const success = leadRoll.total >= dreadRoll.total;
+  const out = document.getElementById(`weather-shift-roll-${col}-${row}`);
+  if(out){
+    out.innerHTML = '<div style="font-size:.75rem;color:'+(success?'var(--green2)':'var(--red2)')+';">Lead '+leadRoll.total+' vs DD8 '+dreadRoll.total+' — '+(success?'Success: weather shift overcome.':'Failure: +1 Mental Stress, lose 1 Phase.')+'</div>';
+  }
+  if(success){
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+    showNotif('You navigate the weather shift safely.', 'good');
+  }else{
+    if(typeof changeMentalStress==='function')changeMentalStress(1);
+    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    advanceProvincePhasePenalty(1);
+    showNotif('Weather shift failed: +1 Mental Stress, lose 1 Phase.', 'warn');
+  }
+};
 
 // Resolve trade payment and close the encounter
 function resolveTradePayment(cost,reason){

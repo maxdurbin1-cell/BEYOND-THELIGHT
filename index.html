@@ -291,7 +291,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
-    <button class="tab-btn" style="margin-left:auto;" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
+    <button class="tab-btn settings-tab-btn" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
     <span class="cl">Credits</span>
@@ -3322,8 +3322,9 @@ function setContext(ctx,btn){
   if(ctxBtn)ctxBtn.classList.add('on');
 
   // Show only tabs assigned to the selected location context.
-  document.querySelectorAll('nav .tab-btn').forEach(t=>{t.style.display='none';});
-  document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';});
+  // Exclude the settings button (which has no ctx- class) from being hidden.
+  document.querySelectorAll('nav .tab-btn[class*="ctx-"]').forEach(t=>{t.style.display='none';});
+  document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';}); 
 
   // Store active context for expansion scripts
   window._activeContext = ctx;

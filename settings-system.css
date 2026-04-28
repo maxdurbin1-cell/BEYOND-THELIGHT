@@ -1,17 +1,21 @@
 /* settings-system.css — Settings Panel & Game Mode Styles */
 
 /* Settings Button in Header */
-nav .tab-btn[title="Settings"] {
+nav .tab-btn[title="Settings"],
+nav .settings-tab-btn {
   margin-left: auto;
   color: var(--gold);
   border: 1px solid rgba(201, 162, 39, 0.3);
+  display: inline-flex !important;
+  align-items: center;
   opacity: 1;
   transition: all 0.15s ease;
   cursor: pointer;
   font-size: 1rem;
 }
 
-nav .tab-btn[title="Settings"]:hover {
+nav .tab-btn[title="Settings"]:hover,
+nav .settings-tab-btn:hover {
   color: var(--gold2);
   border-color: var(--gold);
   background: rgba(201, 162, 39, 0.1);

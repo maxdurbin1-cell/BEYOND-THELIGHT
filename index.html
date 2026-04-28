@@ -4607,10 +4607,7 @@ function renderHexInfo(hex){
     </div>
   `;
 
-  if(hex.type!=='wilderness'){
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Province Encounter</button></div>`;
-    html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
-  }
+  // Wilderness encounters are intentionally scoped to wilderness hexes only.
 
   // ── WILDERNESS ──
   if(hex.type==='wilderness'){
@@ -5620,25 +5617,34 @@ window.rollProvinceHoldingDowntime=rollProvinceHoldingDowntime;
 window.resolveProvinceHoldingDowntime=resolveProvinceHoldingDowntime;
 
 function rollHexEncounter(col,row){
-  const vr=roll(6);
-  const itemFlags=getProvinceNarrativeItemFlags();
-  const shiftHint=itemFlags.compass?' (+Compass +2)':(itemFlags.torch?' (Torch eases fail stress)':'');
-  const shiftTitle=itemFlags.compass?'Compass grants +2 to shift-weather Lead checks.':(itemFlags.torch?'Torch reduces weather-failure stress by 1.':'');
-  const skirmishHint=itemFlags.factionItem?' (+Faction +1 Renown)':'';
-  const skirmishTitle=itemFlags.factionItem?'Faction token grants +1 Renown when joining a skirmish side.':'';
-  const combatHint=(itemFlags.compass?' (+Compass salvage)':'')+(itemFlags.factionItem?' (+Faction Renown)':'');
-  let html='';
-  if(vr===1){
-    html=`<div class="venture-result"><div class="vr-type">d6=${vr} — Shift in Weather</div>`;
-    const season=S.currentSeason||'spring';
-    const wr=roll(6),w=WEATHER[season][wr-1];
-    html+=`<strong style="${w.rough?'color:var(--red2)':'color:var(--teal)'};">${w.result}</strong> — ${w.desc}`;
-    if(w.rough){
-      html+=`<div class="rough-weather-alert">Lead vs DD8 required. Failure: remain in Hex, lose 1 Phase, gain +1 Mental Stress.</div>`;
-      html+=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" title="${shiftTitle}" onclick="resolveProvinceShiftWeatherEncounter(${col},${row})">⚄ Roll Lead vs DD8${shiftHint}</button></div><div id="weather-shift-roll-${col}-${row}" style="margin-top:.28rem;"></div>`;
-    }
-    html+='</div>';
-  }else if(vr===2){
+  let el=document.getElementById(`hexEnc-${col}-${row}`);
+  if(!el&&selectedHex&&selectedHex.col===col&&selectedHex.row===row){
+    renderHexInfo(selectedHex);
+    el=document.getElementById(`hexEnc-${col}-${row}`);
+  }
+  if(el){
+    el.innerHTML='<div style="font-size:.78rem;color:var(--muted2);padding:.2rem 0;">Rolling encounter...</div>';
+  }
+  try{
+    const vr=roll(6);
+    const itemFlags=getProvinceNarrativeItemFlags();
+    const shiftHint=itemFlags.compass?' (+Compass +2)':(itemFlags.torch?' (Torch eases fail stress)':'');
+    const shiftTitle=itemFlags.compass?'Compass grants +2 to shift-weather Lead checks.':(itemFlags.torch?'Torch reduces weather-failure stress by 1.':'');
+    const skirmishHint=itemFlags.factionItem?' (+Faction +1 Renown)':'';
+    const skirmishTitle=itemFlags.factionItem?'Faction token grants +1 Renown when joining a skirmish side.':'';
+    const combatHint=(itemFlags.compass?' (+Compass salvage)':'')+(itemFlags.factionItem?' (+Faction Renown)':'');
+    let html='';
+    if(vr===1){
+      html=`<div class="venture-result"><div class="vr-type">d6=${vr} — Shift in Weather</div>`;
+      const season=S.currentSeason||'spring';
+      const wr=roll(6),w=WEATHER[season][wr-1];
+      html+=`<strong style="${w.rough?'color:var(--red2)':'color:var(--teal)'};">${w.result}</strong> — ${w.desc}`;
+      if(w.rough){
+        html+=`<div class="rough-weather-alert">Lead vs DD8 required. Failure: remain in Hex, lose 1 Phase, gain +1 Mental Stress.</div>`;
+        html+=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" title="${shiftTitle}" onclick="resolveProvinceShiftWeatherEncounter(${col},${row})">⚄ Roll Lead vs DD8${shiftHint}</button></div><div id="weather-shift-roll-${col}-${row}" style="margin-top:.28rem;"></div>`;
+      }
+      html+='</div>';
+    }else if(vr===2){
     const enc=roll(6);let title,desc,actionHTML='';
     if(enc===1){
       const n=roll(4)+3;
@@ -5685,20 +5691,22 @@ function rollHexEncounter(col,row){
       </div>`;
     }
     else{title='Black Market';desc=`A coded rendezvous point for contraband brokers and Master Hack traders.`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess(${col},${row})">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('blackmarket',${col},${row})">Thievery</button></div>`;}
-    html=`<div class="encounter-block"><strong style="color:var(--teal);">Overland Encounter — d6=${vr}</strong><br><strong>${title}</strong><br>${desc}${actionHTML}</div>`;
-  }else{
-    const hexObj=mapData.find(h=>h.col===col&&h.row===row);
-    html=`<div style="font-size:.82rem;color:var(--green2);padding:.3rem 0;">d6=${vr} — All Clear. Uneventful travel through the ${hexObj?.terrain?.name||'wilderness'}.</div>`;
-  }
-  let el=document.getElementById(`hexEnc-${col}-${row}`);
-  if(!el&&selectedHex&&selectedHex.col===col&&selectedHex.row===row){
-    renderHexInfo(selectedHex);
-    el=document.getElementById(`hexEnc-${col}-${row}`);
-  }
-  if(el){
-    el.innerHTML=html;
-  }else{
-    showNotif('Encounter rolled, but output panel was not found. Reopen the hex and try again.','warn');
+      html=`<div class="encounter-block"><strong style="color:var(--teal);">Overland Encounter — d6=${vr}</strong><br><strong>${title}</strong><br>${desc}${actionHTML}</div>`;
+    }else{
+      const hexObj=mapData.find(h=>h.col===col&&h.row===row);
+      html=`<div style="font-size:.82rem;color:var(--green2);padding:.3rem 0;">d6=${vr} — All Clear. Uneventful travel through the ${hexObj?.terrain?.name||'wilderness'}.</div>`;
+    }
+    if(el){
+      el.innerHTML=html;
+    }else{
+      showNotif('Encounter rolled, but output panel was not found. Reopen the hex and try again.','warn');
+    }
+  }catch(err){
+    if(el){
+      el.innerHTML='<div style="font-size:.78rem;color:var(--red2);padding:.2rem 0;">Encounter roll failed. Please try again.</div>';
+    }
+    console.error('rollHexEncounter error',err);
+    showNotif('Encounter roll failed due to an internal error.','warn');
   }
 }
 

@@ -1910,14 +1910,21 @@
       return `<div class="sea-result-title">Open Sea Encounter - Sinking Skiff</div>${desc}${actions}`;
     }
     if (rolled === 5) {
+      const salvagePools = ['items', 'essentials', 'toolkits', 'scrolls', 'remedies'];
+      const salvagePool = pick(salvagePools);
+      const salvageList = (SHOP_DATA && SHOP_DATA[salvagePool]) || [];
+      const salvageItem = salvageList.length
+        ? String((pick(salvageList) || {}).name || 'Strange Relic')
+        : 'Strange Relic';
+      const salvageItemJs = salvageItem.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const loot = roll(6);
       const vampires = roll(3);
-      const lootText = loot === 6 ? "1 Strange Item" : `${loot} random item${loot > 1 ? "s" : ""}`;
+      const lootText = loot === 6 ? `1 Strange Item (${salvageItem})` : `${loot} random item${loot > 1 ? "s" : ""}`;
       const salvageCredits = loot * 25;
       const vampStress = vampires * 4;
       desc = `An empty transport floats half-derelict. Salvage: ${lootText}. Hidden aboard: ${vampires} vampire${vampires > 1 ? "s" : ""}.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-secondary" title="${salvageTitle}" onclick="resolveSeaEncounter('salvage','${lootText}',{credits:${salvageCredits}})">🪙 Salvage (+${salvageCredits}₵${compassHint})</button>
+        <button class="btn btn-xs btn-secondary" title="${salvageTitle}" onclick="resolveSeaEncounter('salvage','${lootText}',{credits:${salvageCredits},item:'${salvageItemJs}'})">🪙 Salvage (+${salvageCredits}₵${compassHint})</button>
         <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${vampires} Vampires',{stress:${vampStress}})">⚔ Fight Vampires (+${vampStress} Stress)</button>
         <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('avoid','Empty Transport',{})">⛵ Avoid</button>
       </div>`;
@@ -2046,12 +2053,22 @@
       msg = `Rescued ${target}! +${effects.renown||0} Renown.`;
     } else if (action === 'salvage') {
       if (effects.credits) { S.credits = (S.credits||0) + effects.credits; if (typeof updateCreditsUI === 'function') updateCreditsUI(); }
+      var salvageItemText = '';
+      if (effects.item && typeof addToBackpack === 'function') {
+        var salvageItemName = String(effects.item || '').trim();
+        if (salvageItemName) {
+          var stored = addToBackpack(salvageItemName);
+          salvageItemText = stored
+            ? ` + ${salvageItemName} (backpack).`
+            : ` + ${salvageItemName} (no backpack slot).`;
+        }
+      }
       if (itemFlags.compass) {
         S.credits = (S.credits || 0) + 20;
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
         bonusNotes.push('Compass marks extra salvage (+20₵)');
       }
-      msg = `Salvaged ${target}! +${effects.credits||0}₵.`;
+      msg = `Salvaged ${target}! +${effects.credits||0}₵.${salvageItemText}`;
     } else if (action === 'avoid' || action === 'ignore') {
       msg = `Sailed past ${target}.`;
     } else if (action === 'accept') {

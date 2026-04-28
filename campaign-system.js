@@ -127,6 +127,7 @@
     var shared = {
       credits: Math.max(0, Number(window.S.credits || 0)),
       renown: Math.max(0, Number(window.S.renown || 0)),
+      mentalStress: Math.max(0, Number(window.S.mentalStress || 0)),
       missionTokens: deepCloneJson(window.S.missionTokens || {}),
       storyline: deepCloneJson(window.S.storyline || {}),
       holding: deepCloneJson(window.S.holding || {}),
@@ -154,6 +155,9 @@
       if (typeof sharedState.renown === "number") {
         window.S.renown = Math.max(0, Number(sharedState.renown || 0));
       }
+      if (typeof sharedState.mentalStress === "number") {
+        window.S.mentalStress = Math.max(0, Number(sharedState.mentalStress || 0));
+      }
       if (sharedState.storyline && typeof sharedState.storyline === "object") {
         window.S.storyline = deepCloneJson(sharedState.storyline) || {};
       }
@@ -178,6 +182,7 @@
 
     if (typeof window.updateCreditsUI === "function") window.updateCreditsUI();
     if (typeof window.updateRenown === "function") window.updateRenown();
+    if (typeof window.updateMentalStressUI === "function") window.updateMentalStressUI();
     if (typeof window.renderLastSeaMap === "function") window.renderLastSeaMap();
     if (typeof window.renderLastSeaInfo === "function") window.renderLastSeaInfo();
     if (typeof window.renderHexMap === "function") window.renderHexMap();

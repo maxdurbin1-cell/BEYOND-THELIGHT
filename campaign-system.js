@@ -989,6 +989,23 @@
       syncSharedState("snapshot");
     });
 
+    state.socket.on("campaign:notice", function (payload) {
+      if (!payload || typeof payload !== "object") return;
+      var text = String(payload.text || "").trim();
+      if (!text) return;
+      var sourceToken = String(payload.sourceToken || "");
+      if (sourceToken && state.token && sourceToken === state.token) return;
+
+      var kind = String(payload.kind || "system");
+      var tone = "info";
+      if (kind === "roll" || kind === "roll-result") tone = "good";
+      else if (kind === "tmw") tone = "good";
+      else if (kind === "chat") tone = "info";
+      else if (kind === "system") tone = "info";
+
+      safeNotif("Campaign: " + text, tone);
+    });
+
     state.socket.on("campaign:deleted", function (payload) {
       var code = payload && payload.code ? String(payload.code) : state.code;
       state.code = "";

@@ -88,7 +88,11 @@ function ensureCampaignShape(raw) {
   const normalized = {
     code: String((raw && raw.code) || ""),
     shared: {
-      tmw: Math.max(0, Number(raw && raw.shared ? raw.shared.tmw : 0) || 0)
+      tmw: Math.max(0, Number(raw && raw.shared ? raw.shared.tmw : 0) || 0),
+      state: raw && raw.shared && raw.shared.state && typeof raw.shared.state === "object"
+        ? raw.shared.state
+        : {},
+      stateVersion: Math.max(0, Number(raw && raw.shared ? raw.shared.stateVersion : 0) || 0)
     },
     participants: new Map(),
     sessions: new Map(),
@@ -119,6 +123,9 @@ function ensureCampaignShape(raw) {
             stress: Math.max(0, Number(p.character.stress || 0)),
             look: String(p.character.look || "").slice(0, 180),
             stats: p.character.stats && typeof p.character.stats === "object" ? p.character.stats : {},
+            backpack: Array.isArray(p.character.backpack)
+              ? p.character.backpack.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
+              : [],
             updatedAt: Number(p.character.updatedAt) || Date.now()
           }
         : null
@@ -170,7 +177,11 @@ function serializeCampaign(campaign) {
   return {
     code: campaign.code,
     shared: {
-      tmw: Math.max(0, Number(campaign.shared.tmw || 0))
+      tmw: Math.max(0, Number(campaign.shared.tmw || 0)),
+      state: campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+        ? campaign.shared.state
+        : {},
+      stateVersion: Math.max(0, Number(campaign.shared && campaign.shared.stateVersion || 0) || 0)
     },
     participants: Array.from(campaign.participants.values()).map((p) => ({
       token: p.token,
@@ -184,6 +195,9 @@ function serializeCampaign(campaign) {
             stress: Math.max(0, Number(p.character.stress || 0)),
             look: String(p.character.look || "").slice(0, 180),
             stats: p.character.stats && typeof p.character.stats === "object" ? p.character.stats : {},
+            backpack: Array.isArray(p.character.backpack)
+              ? p.character.backpack.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
+              : [],
             updatedAt: Number(p.character.updatedAt || Date.now())
           }
         : null
@@ -284,6 +298,9 @@ function snapshotCampaign(campaign, requesterToken) {
             stress: Math.max(0, Number(member.character.stress || 0)),
             look: String(member.character.look || "").slice(0, 180),
             stats: member.character.stats && typeof member.character.stats === "object" ? member.character.stats : {},
+            backpack: Array.isArray(member.character.backpack)
+              ? member.character.backpack.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
+              : [],
             updatedAt: Number(member.character.updatedAt || 0)
           }
         : null
@@ -316,7 +333,11 @@ function snapshotCampaign(campaign, requesterToken) {
     archived: !!campaign.archived,
     hasPassword: !!(campaign.passwordHash && campaign.passwordSalt),
     shared: {
-      tmw: Number(campaign.shared.tmw || 0)
+      tmw: Number(campaign.shared.tmw || 0),
+      state: campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+        ? campaign.shared.state
+        : {},
+      stateVersion: Math.max(0, Number(campaign.shared && campaign.shared.stateVersion || 0) || 0)
     },
     members: roster.filter((m) => m.online).map((m) => ({
       name: m.name,
@@ -419,6 +440,9 @@ function normalizeCharacter(input, fallbackName) {
     stress: Math.max(0, Number(c.stress || 0)),
     look: String(c.look || "").slice(0, 180),
     stats,
+    backpack: Array.isArray(c.backpack)
+      ? c.backpack.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
+      : [],
     updatedAt: Date.now()
   };
 }
@@ -538,7 +562,7 @@ io.on("connection", (socket) => {
       const code = createCampaignCode();
       const campaign = {
         code,
-        shared: { tmw: 0 },
+        shared: { tmw: 0, state: {}, stateVersion: 0 },
         participants: new Map(),
         sessions: new Map(),
         gmToken: "",
@@ -682,6 +706,34 @@ io.on("connection", (socket) => {
 
     emitCampaignState(campaign.code);
     if (typeof ack === "function") ack({ ok: true, value: next });
+  });
+
+  socket.on("campaign:syncState", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const incoming = payload && payload.state && typeof payload.state === "object"
+      ? payload.state
+      : null;
+    if (!incoming) {
+      if (typeof ack === "function") ack({ ok: false, error: "Invalid shared state payload." });
+      return;
+    }
+
+    campaign.shared.state = incoming;
+    campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
+    campaign.updatedAt = Date.now();
+
+    campaign.updatedAt = Date.now();
+    schedulePersist();
+
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") {
+      ack({ ok: true, stateVersion: campaign.shared.stateVersion });
+    }
   });
 
   socket.on("campaign:chat", (payload, ack) => {

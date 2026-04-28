@@ -4164,6 +4164,45 @@ function markTradeRoutes(nodes){
 
 function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','600');svg.setAttribute('height','540');svg.innerHTML='<text x="300" y="260" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
 
+function cloneProvinceState(value){
+  try{return JSON.parse(JSON.stringify(value));}catch(_err){return null;}
+}
+
+function getProvinceMapState(){
+  const selectedKey=selectedHex?`${selectedHex.col},${selectedHex.row}`:'';
+  return cloneProvinceState({
+    mapData:mapData,
+    hexNotes:hexNotes,
+    usedPerils:usedPerils,
+    usedBarriers:usedBarriers,
+    selectedKey:selectedKey,
+    provinceSecretPadKey:(S&&S.mapLinks)?(S.mapLinks.provinceSecretPadKey||''):''
+  })||{};
+}
+
+function applyProvinceMapState(payload,opts){
+  const incoming=payload&&typeof payload==='object'?payload:null;
+  if(!incoming||!Array.isArray(incoming.mapData)||!incoming.mapData.length)return;
+  mapData=cloneProvinceState(incoming.mapData)||[];
+  hexNotes=cloneProvinceState(incoming.hexNotes||{})||{};
+  usedPerils=Array.isArray(incoming.usedPerils)?incoming.usedPerils.slice():[];
+  usedBarriers=Array.isArray(incoming.usedBarriers)?incoming.usedBarriers.slice():[];
+  selectedHex=null;
+  const selectedKey=String(incoming.selectedKey||'');
+  if(selectedKey){
+    const parts=selectedKey.split(',');
+    const sc=Number(parts[0]),sr=Number(parts[1]);
+    selectedHex=mapData.find(h=>h&&h.col===sc&&h.row===sr)||null;
+  }
+  if(S&&S.mapLinks&&typeof incoming.provinceSecretPadKey==='string'){S.mapLinks.provinceSecretPadKey=incoming.provinceSecretPadKey;}
+  renderHexMap();
+  if(selectedHex)renderHexInfo(selectedHex);
+  else{const c=document.getElementById('hexInfo');if(c)c.innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Select a hex to inspect it.</div></div>';}
+}
+
+window.getProvinceMapState=getProvinceMapState;
+window.applyProvinceMapState=applyProvinceMapState;
+
 const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling:'#3a6820',temple:'#502878',monument:'#484848',peril:'#783820',ruins:'#403830',event:'#6a5800',gate:'#1a5048',lostcity:'#5a1040',barrier:'#282828',trade:'#3a2800'};
 const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
 const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'◈',peril:'⚠',ruins:'◫',event:'✧',gate:'◆',lostcity:'⬡',trade:'═'};
@@ -4568,13 +4607,15 @@ function renderHexInfo(hex){
     </div>
   `;
 
+  html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Province Encounter</button></div>`;
+  html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
+
   // ── WILDERNESS ──
   if(hex.type==='wilderness'){
     if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTd(td.land)}</div></div>`;
     if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTd(td.flora)} ${pickTd(td.fauna)||''}</div></div>`;
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
-    html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
     if(d.eventLead){
       const leadCid=`${hex.col}-${hex.row}`;
       html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Roll an Approach check to reveal the next mystery.</div><label style="font-size:.72rem;color:var(--muted2);display:block;margin-top:.35rem;">Approach: <select id="leadStat-${leadCid}" style="width:100%;">${typeof buildApproachSelectHTML==='function'?buildApproachSelectHTML('lead'):'<option value="lead" selected>LEAD</option>'}</select></label><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="resolveEventLeadAction(${hex.col},${hex.row})">⚄ Roll Lead Mystery Check</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
@@ -4584,7 +4625,6 @@ function renderHexInfo(hex){
   }else if(hex.type==='trade'){
     html+=`<div class="trade-line">🏛 <strong>Trade Route</strong> — connects ${d.from||'Holdings'}.<br><em style="font-size:.78rem;">Regional trade goods and caravans pass through here regularly.</em></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-primary" onclick="rollTradeRouteEncounter()">⚄ Roll Trade Encounter (d10)</button><button class="btn btn-sm btn-teal" onclick="showTradeGoods(${hex.col},${hex.row})">📦 Trade Goods</button><button class="btn btn-sm btn-gold" onclick="buyProvinceCaravanToHolding(${hex.col},${hex.row},100)">🛻 Buy Caravan to Nearest Holding (100₵)</button></div>`;
-    html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
 
   // ── SEAT / HOLDING ──
   }else if(hex.type==='seat'||hex.type==='holding'){
@@ -4602,6 +4642,7 @@ function renderHexInfo(hex){
     if(d.news)html+=`<div class="wild-panel"><div class="wp-label">📰 News & Hooks</div><div class="wp-text">${d.news}</div></div>`;
     html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
     html+=`<div style="margin:.35rem 0;"><button class="btn btn-sm btn-primary" onclick="if(typeof generateTaskForHex==='function')generateTaskForHex(${hex.col},${hex.row});else generateTask();">⚄ Generate Task</button></div>`;
+    html+=buildProvinceHoldingDowntimePanel(hex);
 
   // ── DWELLING ──
   }else if(hex.type==='dwelling'){
@@ -5464,6 +5505,88 @@ function revealSageHint(col,row){
   const el=document.getElementById(`mr-${col}-${row}`);
   if(el)el.innerHTML=`<div class="npc-block"><div class="nb-label">🙏 Sage Hint (partial Mystery)</div><div style="font-size:.83rem;color:var(--muted3);font-style:italic;">${m}</div><div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">A Sage knows a portion of the Mystery — enough to hint, not enough to spoil.</div></div>`;
 }
+
+function provinceHoldingDowntimePool(activity){
+  const pools={
+    talk:[
+      {name:'Ward Circle Mediation',dd:6,success:'The crews reconcile and share leads. +1 Teamwork.',failure:'Arguments drain morale. +1 Mental Stress.',successEffect:{tmw:1},failEffect:{mentalStress:1}},
+      {name:'Council Petition Hearing',dd:8,success:'Your leadership earns broad support. +1 Renown.',failure:'Demands spiral into unrest. +1 Mental Stress.',successEffect:{renown:1},failEffect:{mentalStress:1}}
+    ],
+    task:[
+      {name:'Tax Road Audit',dd:8,success:'Revenue recovers from losses. +60 credits.',failure:'Sabotage spreads through stores. +1 Health damage.',successEffect:{credits:60},failEffect:{health:1}},
+      {name:'Watchtower Drill',dd:6,success:'Defenders tighten the perimeter. +1 Renown.',failure:'Training injuries spark fear. +1 Mental Stress.',successEffect:{renown:1},failEffect:{mentalStress:1}}
+    ],
+    explore:[
+      {name:'Border Scout Sweep',dd:8,success:'You discover hidden caches. +40 credits.',failure:'The route turns hostile. +1 Health damage.',successEffect:{credits:40},failEffect:{health:1}},
+      {name:'Old Waystone Survey',dd:6,success:'You recover route intelligence. +1 Teamwork.',failure:'The march disorients your crew. +1 Mental Stress.',successEffect:{tmw:1},failEffect:{mentalStress:1}}
+    ]
+  };
+  return pools[String(activity||'talk').toLowerCase()]||pools.talk;
+}
+
+function applyProvinceHoldingDowntimeEffect(effect){
+  if(!effect)return;
+  if(effect.tmw&&typeof changeCounter==='function')changeCounter('tmw',effect.tmw);
+  if(effect.renown&&typeof changeCounter==='function')changeCounter('renown',effect.renown);
+  if(effect.credits){S.credits=(S.credits||0)+effect.credits;if(typeof updateCreditsUI==='function')updateCreditsUI();}
+  if(effect.health&&typeof changeHealth==='function')changeHealth(effect.health);
+  if(effect.mentalStress&&typeof changeMentalStress==='function')changeMentalStress(effect.mentalStress);
+}
+
+function rollProvinceHoldingDowntime(col,row,activity){
+  const hex=mapData.find(h=>h.col===col&&h.row===row&&(h.type==='seat'||h.type==='holding'));
+  if(!hex)return;
+  if(!hex.data)hex.data={};
+  const pool=provinceHoldingDowntimePool(activity);
+  const evt=pool[Math.max(0,roll(pool.length)-1)];
+  evt.activity=String(activity||'talk').toLowerCase();
+  hex.data.pendingDowntimeEvent=evt;
+  hex.data.downtimeLastResult=null;
+  renderHexInfo(hex);
+  showNotif('Province downtime: '+evt.name,'good');
+}
+
+function resolveProvinceHoldingDowntime(col,row,statKey){
+  const hex=mapData.find(h=>h.col===col&&h.row===row&&(h.type==='seat'||h.type==='holding'));
+  const evt=hex&&hex.data?hex.data.pendingDowntimeEvent:null;
+  if(!hex||!evt)return;
+  const key=String(statKey||'lead').toLowerCase();
+  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(key):((S.stats&&S.stats[key])||4);
+  const a=explodingRoll(die),d=explodingRoll(evt.dd||6);
+  const success=a.total>=d.total;
+  if(success){applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof addSuccessRoll==='function')addSuccessRoll();}
+  else{applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail();}
+  hex.data.downtimeLastResult={
+    success:success,
+    check:key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+(evt.dd||6)+'='+d.total,
+    text:success?evt.success:evt.failure
+  };
+  hex.data.pendingDowntimeEvent=null;
+  renderHexInfo(hex);
+  showNotif(hex.data.downtimeLastResult.text,success?'good':'warn');
+}
+
+function buildProvinceHoldingDowntimePanel(hex){
+  if(!hex||!(hex.type==='seat'||hex.type==='holding'))return '';
+  const d=hex.data||{};
+  const pending=d.pendingDowntimeEvent;
+  const result=d.downtimeLastResult;
+  const stats=['lead','mind','body','spirit','control','strike','shoot','defend'];
+  return `<div class="npc-block" style="margin-top:.4rem;border-color:rgba(46,196,182,.35);background:rgba(46,196,182,.06);">
+    <div class="nb-label" style="color:var(--teal);">🏘 Province Holding Downtime</div>
+    <div style="font-size:.78rem;color:var(--text2);line-height:1.5;">Run campaign downtime at this holding: talk, task, or explore, then resolve with a chosen Action Die.</div>
+    <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+      <button class="btn btn-xs btn-teal" onclick="rollProvinceHoldingDowntime(${hex.col},${hex.row},'talk')">💬 Talk To People</button>
+      <button class="btn btn-xs btn-primary" onclick="rollProvinceHoldingDowntime(${hex.col},${hex.row},'task')">🧾 Run A Task</button>
+      <button class="btn btn-xs btn-warn" onclick="rollProvinceHoldingDowntime(${hex.col},${hex.row},'explore')">🧭 Explore Province</button>
+    </div>
+    ${pending?`<div style="margin-top:.35rem;padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);"><div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);">${pending.name}</div><div style="font-size:.76rem;color:var(--muted2);margin-top:.15rem;">Choose Action Die vs DD${pending.dd}</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.28rem;">${stats.map(function(key){return '<button class="btn btn-xs btn-teal" onclick="resolveProvinceHoldingDowntime('+hex.col+','+hex.row+',\''+key+'\')">'+key.charAt(0).toUpperCase()+key.slice(1)+'</button>';}).join('')}</div></div>`:''}
+    ${result?`<div style="margin-top:.35rem;padding:.35rem .45rem;border:1px solid ${result.success?'rgba(76,175,116,.35)':'rgba(201,64,64,.35)'};background:${result.success?'rgba(76,175,116,.08)':'rgba(201,64,64,.08)'};"><div style="font-size:.76rem;color:var(--text2);">${result.check}</div><div style="font-size:.76rem;color:var(--gold2);margin-top:.14rem;">${result.text}</div></div>`:''}
+  </div>`;
+}
+
+window.rollProvinceHoldingDowntime=rollProvinceHoldingDowntime;
+window.resolveProvinceHoldingDowntime=resolveProvinceHoldingDowntime;
 
 function rollHexEncounter(col,row){
   const vr=roll(6);

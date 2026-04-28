@@ -22,6 +22,9 @@
     lastCharacterHash: "",
     gmIdea: "",
     gmWayfarerSort: "online",
+    lastSharedHash: "",
+    lastSharedVersion: 0,
+    applyingSharedState: false,
     uiDraft: {
       name: "",
       code: "",
@@ -79,6 +82,134 @@
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function deepCloneJson(value) {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function getCampaignSharedState() {
+    return state.campaign && state.campaign.shared && state.campaign.shared.state && typeof state.campaign.shared.state === "object"
+      ? state.campaign.shared.state
+      : {};
+  }
+
+  function normalizeBackpackItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map(function (entry) { return String(entry || "").trim(); }).filter(Boolean).slice(0, 20);
+  }
+
+  function addItemToBackpack(itemName) {
+    if (typeof window.S === "undefined" || !window.S) return false;
+    var item = String(itemName || "").trim();
+    if (!item) return false;
+    if (!Array.isArray(window.S.backpack)) {
+      window.S.backpack = Array(10).fill("");
+    }
+    var slot = window.S.backpack.indexOf("");
+    if (slot < 0) {
+      return false;
+    }
+    window.S.backpack[slot] = item;
+    if (typeof window.renderBackpackUI === "function") {
+      window.renderBackpackUI();
+    }
+    return true;
+  }
+
+  function collectSharedState() {
+    if (typeof window.S === "undefined" || !window.S) return {};
+    var current = getCampaignSharedState();
+    var shared = {
+      credits: Math.max(0, Number(window.S.credits || 0)),
+      renown: Math.max(0, Number(window.S.renown || 0)),
+      missionTokens: deepCloneJson(window.S.missionTokens || {}),
+      storyline: deepCloneJson(window.S.storyline || {}),
+      holding: deepCloneJson(window.S.holding || {}),
+      lastSea: deepCloneJson(window.S.lastSea || {}),
+      gameDate: deepCloneJson(window.S.gameDate || {}),
+      partyStash: Array.isArray(current.partyStash) ? current.partyStash.slice() : []
+    };
+    if (typeof window.getProvinceMapState === "function") {
+      shared.provinceMap = deepCloneJson(window.getProvinceMapState() || null);
+    }
+    return shared;
+  }
+
+  function applySharedState(sharedState, sharedVersion) {
+    if (!sharedState || typeof sharedState !== "object") return;
+    var nextVersion = Math.max(0, Number(sharedVersion || 0) || 0);
+    if (nextVersion && nextVersion < state.lastSharedVersion) return;
+    if (typeof window.S === "undefined" || !window.S) return;
+
+    state.applyingSharedState = true;
+    try {
+      if (typeof sharedState.credits === "number") {
+        window.S.credits = Math.max(0, Number(sharedState.credits || 0));
+      }
+      if (typeof sharedState.renown === "number") {
+        window.S.renown = Math.max(0, Number(sharedState.renown || 0));
+      }
+      if (sharedState.storyline && typeof sharedState.storyline === "object") {
+        window.S.storyline = deepCloneJson(sharedState.storyline) || {};
+      }
+      if (sharedState.missionTokens && typeof sharedState.missionTokens === "object") {
+        window.S.missionTokens = deepCloneJson(sharedState.missionTokens) || {};
+      }
+      if (sharedState.holding && typeof sharedState.holding === "object") {
+        window.S.holding = deepCloneJson(sharedState.holding) || {};
+      }
+      if (sharedState.lastSea && typeof sharedState.lastSea === "object") {
+        window.S.lastSea = deepCloneJson(sharedState.lastSea) || {};
+      }
+      if (sharedState.gameDate && typeof sharedState.gameDate === "object") {
+        window.S.gameDate = deepCloneJson(sharedState.gameDate) || {};
+      }
+      if (sharedState.provinceMap && typeof window.applyProvinceMapState === "function") {
+        window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
+      }
+    } finally {
+      state.applyingSharedState = false;
+    }
+
+    if (typeof window.updateCreditsUI === "function") window.updateCreditsUI();
+    if (typeof window.updateRenown === "function") window.updateRenown();
+    if (typeof window.renderLastSeaMap === "function") window.renderLastSeaMap();
+    if (typeof window.renderLastSeaInfo === "function") window.renderLastSeaInfo();
+    if (typeof window.renderHexMap === "function") window.renderHexMap();
+
+    state.lastSharedVersion = nextVersion || state.lastSharedVersion;
+    state.lastSharedHash = JSON.stringify(sharedState);
+  }
+
+  async function syncSharedState(reason) {
+    if (!state.socket || !state.connected || !state.code) return;
+    if (state.applyingSharedState) return;
+    var shared = collectSharedState();
+    var hash = JSON.stringify(shared);
+    if (!hash || hash === state.lastSharedHash) return;
+    var res = await emitWithAck("campaign:syncState", { state: shared, reason: reason || "auto" });
+    if (res && res.ok) {
+      state.lastSharedHash = hash;
+      state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
+    }
+  }
+
+  async function pushSharedState(nextState, reason) {
+    if (!state.socket || !state.connected || !state.code) {
+      safeNotif("Join a campaign first.", "warn");
+      return { ok: false };
+    }
+    var res = await emitWithAck("campaign:syncState", { state: nextState || {}, reason: reason || "manual" });
+    if (res && res.ok) {
+      state.lastSharedHash = JSON.stringify(nextState || {});
+      state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
+    }
+    return res || { ok: false, error: "No response." };
   }
 
   function loadSession() {
@@ -207,6 +338,7 @@
       var c = p && p.character ? p.character : null;
       var nm = c && c.name ? c.name : (p && p.name ? p.name : "Wayfarer");
       var hp = c && typeof c.health === "number" ? c.health : 0;
+      var backpackItems = c && Array.isArray(c.backpack) ? normalizeBackpackItems(c.backpack) : [];
       var look = c && c.look ? String(c.look).slice(0, 120) : "No look set";
       var updatedAt = c && c.updatedAt ? Number(c.updatedAt) : Number(p && p.lastSeenAt || 0);
       var initials = String(nm || "W").trim().split(/\s+/).slice(0, 2).map(function (part) {
@@ -231,6 +363,12 @@
         + '<div class="campaign-portrait">' + escapeHtml(initials) + '</div>'
         + '<div class="campaign-wayfarer-info">'
         + '<div><strong>' + escapeHtml(nm) + '</strong> <span class="campaign-muted">HP ' + Number(hp) + '</span></div>'
+        + '<div class="campaign-look-tags">' + (backpackItems.length
+          ? backpackItems.slice(0, 3).map(function (item, idx) {
+              var tokenValue = String(p && p.token || "").replace(/'/g, "\\'");
+              return '<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.copyRosterItem(\'' + tokenValue + '\',' + idx + ')">Share ' + escapeHtml(item) + '</button>';
+            }).join("")
+          : '<span class="campaign-look-tag">no shared items</span>') + '</div>'
         + '<div class="campaign-look-tags">' + (tagsHtml || '<span class="campaign-look-tag">untyped</span>') + '</div>'
         + '<div class="campaign-muted">' + escapeHtml(look) + '</div>'
         + '<div class="campaign-muted">Updated ' + escapeHtml(formatTimestamp(updatedAt) || "-") + '</div>'
@@ -271,8 +409,77 @@
         control: Number(stats.control || 4),
         lead: Number(stats.lead || 4),
         adventure: Number(stats.adventure || 4)
-      }
+      },
+      backpack: normalizeBackpackItems(window.S && window.S.backpack)
     };
+  }
+
+  async function shareBackpackItem(slotIndex) {
+    if (typeof window.S === "undefined" || !window.S) return;
+    if (!Array.isArray(window.S.backpack)) {
+      safeNotif("No backpack items to share.", "warn");
+      return;
+    }
+    var idx = Math.max(0, Number(slotIndex || 0));
+    var item = String(window.S.backpack[idx] || "").trim();
+    if (!item) {
+      safeNotif("That backpack slot is empty.", "warn");
+      return;
+    }
+    var next = collectSharedState();
+    if (!Array.isArray(next.partyStash)) next.partyStash = [];
+    next.partyStash.push(item);
+    window.S.backpack[idx] = "";
+    if (typeof window.renderBackpackUI === "function") window.renderBackpackUI();
+    var res = await pushSharedState(next, "share-item");
+    if (!res.ok) {
+      window.S.backpack[idx] = item;
+      if (typeof window.renderBackpackUI === "function") window.renderBackpackUI();
+      safeNotif(res.error || "Could not share item.", "warn");
+      return;
+    }
+    safeNotif("Shared item to party stash: " + item, "good");
+  }
+
+  async function claimSharedItem(stashIndex) {
+    var shared = getCampaignSharedState();
+    var list = Array.isArray(shared.partyStash) ? shared.partyStash.slice() : [];
+    var idx = Math.max(0, Number(stashIndex || 0));
+    var item = String(list[idx] || "").trim();
+    if (!item) {
+      safeNotif("That party stash item is no longer available.", "warn");
+      return;
+    }
+    if (!addItemToBackpack(item)) {
+      safeNotif("Backpack full.", "warn");
+      return;
+    }
+    list.splice(idx, 1);
+    var next = collectSharedState();
+    next.partyStash = list;
+    var res = await pushSharedState(next, "claim-item");
+    if (!res.ok) {
+      safeNotif(res.error || "Could not claim party item.", "warn");
+      return;
+    }
+    safeNotif("Claimed from party stash: " + item, "good");
+  }
+
+  function copyRosterItem(token, itemIndex) {
+    var roster = state.campaign && Array.isArray(state.campaign.roster) ? state.campaign.roster : [];
+    var target = roster.find(function (member) { return String(member.token || "") === String(token || ""); });
+    var item = target && target.character && Array.isArray(target.character.backpack)
+      ? String(target.character.backpack[Math.max(0, Number(itemIndex || 0))] || "").trim()
+      : "";
+    if (!item) {
+      safeNotif("Item is no longer available on that wayfarer.", "warn");
+      return;
+    }
+    if (!addItemToBackpack(item)) {
+      safeNotif("Backpack full.", "warn");
+      return;
+    }
+    safeNotif("Shared from wayfarer sheet: " + item, "good");
   }
 
   async function syncCharacterToCampaign(force) {
@@ -411,7 +618,16 @@
 
     var ioReady = canUseSockets();
     var campaign = state.campaign;
+    var sharedState = getCampaignSharedState();
     var sharedTmw = campaign && campaign.shared ? Number(campaign.shared.tmw || 0) : getTmwValue();
+    var sharedCredits = Math.max(0, Number(sharedState.credits != null ? sharedState.credits : ((window.S && window.S.credits) || 0)));
+    var sharedRenown = Math.max(0, Number(sharedState.renown != null ? sharedState.renown : ((window.S && window.S.renown) || 0)));
+    var partyStash = Array.isArray(sharedState.partyStash) ? sharedState.partyStash : [];
+    var localBackpackSlots = Array.isArray(window.S && window.S.backpack)
+      ? window.S.backpack.map(function (item, idx) {
+          return { item: String(item || "").trim(), idx: idx };
+        }).filter(function (entry) { return !!entry.item; })
+      : [];
     var isGm = state.role === "gm";
     var active = campaign && campaign.activeRollRequest;
     var privateNote = campaign && campaign.me ? String(campaign.me.privateNote || "") : "";
@@ -454,6 +670,10 @@
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Shared Teamwork Points</div>'
       + '<div class="campaign-tmw">' + sharedTmw + "</div>"
+      + '<div class="campaign-muted" style="margin-top:.2rem;">Coin <strong style="color:var(--gold2);">' + sharedCredits + '₵</strong> · Renown <strong style="color:var(--teal);">' + sharedRenown + '</strong></div>'
+      + '<div class="campaign-actions" style="margin-top:.35rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Shared World</button>'
+      + '</div>'
       + '<div class="campaign-muted">'
       + 'Persistent state enabled'
       + (campaign && campaign.archived ? ' · <strong style="color:var(--gold2);">Archived</strong>' : '')
@@ -494,16 +714,16 @@
       + '<div class="campaign-card-title">Online Members</div>'
       + renderMembers(campaign ? campaign.members : [])
       + "</div>"
+      + '<div class="campaign-card">'
+      + '<div class="campaign-card-title">Campaign Wayfarers</div>'
+      + '<div class="campaign-actions campaign-sort-actions">'
+      + '<button class="btn btn-xs ' + (state.gmWayfarerSort === 'online' ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setWayfarerSort(\'online\')">Online First</button>'
+      + '<button class="btn btn-xs ' + (state.gmWayfarerSort === 'updated' ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setWayfarerSort(\'updated\')">Last Updated</button>'
+      + '</div>'
+      + renderCharacterRoster(roster)
+      + '</div>'
       + (isGm
         ? (""
-          + '<div class="campaign-card">'
-          + '<div class="campaign-card-title">Campaign Wayfarers</div>'
-          + '<div class="campaign-actions campaign-sort-actions">'
-          + '<button class="btn btn-xs ' + (state.gmWayfarerSort === 'online' ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setWayfarerSort(\'online\')">Online First</button>'
-          + '<button class="btn btn-xs ' + (state.gmWayfarerSort === 'updated' ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setWayfarerSort(\'updated\')">Last Updated</button>'
-          + '</div>'
-          + renderCharacterRoster(roster)
-          + '</div>'
           + '<div class="campaign-card">'
           + '<div class="campaign-card-title">GM Wayfarer Generator</div>'
           + '<div class="campaign-muted">Generate quick NPC/PC ideas for campaign prep.</div>'
@@ -513,6 +733,16 @@
           + (state.gmIdea ? ('<div class="campaign-muted" style="margin-top:.35rem;color:var(--text2);">' + escapeHtml(state.gmIdea) + '</div>') : '')
           + '</div>')
         : "")
+      + '<div class="campaign-card">'
+      + '<div class="campaign-card-title">Party Stash</div>'
+      + '<div class="campaign-muted">Share items from your backpack to a shared pool, then claim them on any wayfarer.</div>'
+        + '<div class="campaign-muted" style="margin-top:.28rem;">Your backpack: ' + (localBackpackSlots.length ? localBackpackSlots.map(function (entry) {
+          return '<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.shareBackpackItem(' + entry.idx + ')">Share ' + escapeHtml(entry.item) + '</button>';
+        }).join('') : 'No items') + '</div>'
+      + '<div class="campaign-muted" style="margin-top:.28rem;">Party pool: ' + (partyStash.length ? partyStash.map(function (item, i) {
+          return '<button class="btn btn-xs btn-teal" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.claimSharedItem(' + i + ')">Take ' + escapeHtml(item) + '</button>';
+        }).join('') : 'No shared items yet') + '</div>'
+      + '</div>'
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Private Notes</div>'
       + '<textarea id="campaignPrivateNoteInput" class="campaign-input" maxlength="5000" placeholder="Your private campaign notes...">' + escapeHtml(privateNote) + '</textarea>'
@@ -733,11 +963,16 @@
       if (nextTmw !== null && nextTmw !== getTmwValue()) {
         setLocalTmw(nextTmw);
       }
+      applySharedState(
+        snapshot && snapshot.shared ? snapshot.shared.state : null,
+        snapshot && snapshot.shared ? snapshot.shared.stateVersion : 0
+      );
 
       maybePromptActiveRoll(snapshot && snapshot.activeRollRequest ? snapshot.activeRollRequest : null);
       renderSettingsSection();
       renderDockPanel();
       syncCharacterToCampaign(false);
+      syncSharedState("snapshot");
     });
 
     state.socket.on("campaign:deleted", function (payload) {
@@ -1116,6 +1351,7 @@
     ensureDockPanel();
     syncDockOffset();
     syncCharacterToCampaign(false);
+    syncSharedState("tick");
   }, 1200);
 
   if (document.readyState === "loading") {
@@ -1140,6 +1376,12 @@
     setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,
     toggleDock: toggleDock,
+    syncSharedNow: function () {
+      syncSharedState("manual");
+    },
+    shareBackpackItem: shareBackpackItem,
+    claimSharedItem: claimSharedItem,
+    copyRosterItem: copyRosterItem,
     refreshUI: function () {
       renderSettingsSection();
       renderDockPanel();

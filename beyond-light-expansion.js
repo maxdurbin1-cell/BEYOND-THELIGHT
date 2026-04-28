@@ -2129,7 +2129,11 @@
     const option = pick(["weather", "encounter", "peril", "skirmish", "uneventful"]);
     if (option === "weather") {
       S.lastSea.weather = rollLastSeaWeather();
-      return `<div class="sea-result-title">Shift in Weather</div>The sea turns under you. New weather: <strong style="color:var(--gold2);">${S.lastSea.weather.label}</strong> - ${S.lastSea.weather.desc}`;
+      var w = S.lastSea.weather;
+      var buttons = (w && w.check)
+        ? `<div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="resolveLastSeaWeatherCheck('lead')">⚄ Lead vs Dread D${w.check.dd}</button><button class="btn btn-xs btn-teal" onclick="resolveLastSeaWeatherCheck('control')">⚄ Control vs Dread D${w.check.dd}</button></div>`
+        : "";
+      return `<div class="sea-result-title">Shift in Weather</div>The sea turns under you. New weather: <strong style="color:var(--gold2);">${w.label}</strong> - ${w.desc}${buttons}`;
     }
     if (option === "encounter") {
       return buildSeaEncounter();
@@ -2222,7 +2226,11 @@
     }
     if (option === "weather") {
       S.lastSea.weather = rollLastSeaWeather();
-      return `<div class="sea-result-title">Shift in Weather</div>The air changes fast. New weather: <strong style="color:var(--gold2);">${S.lastSea.weather.label}</strong> - ${S.lastSea.weather.desc}`;
+      var iw = S.lastSea.weather;
+      var ib = (iw && iw.check)
+        ? `<div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="resolveLastSeaWeatherCheck('lead')">⚄ Lead vs Dread D${iw.check.dd}</button><button class="btn btn-xs btn-teal" onclick="resolveLastSeaWeatherCheck('control')">⚄ Control vs Dread D${iw.check.dd}</button></div>`
+        : "";
+      return `<div class="sea-result-title">Shift in Weather</div>The air changes fast. New weather: <strong style="color:var(--gold2);">${iw.label}</strong> - ${iw.desc}${ib}`;
     }
     return `<div class="sea-result-title">Uneventful Travel</div>You cross the island without incident.`;
   }

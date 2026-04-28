@@ -24,6 +24,17 @@
     scholars: "Archive Keepers",
   };
 
+  const DECISION_ROLES = [
+    "Lead",
+    "Support",
+    "Scout",
+    "Negotiator",
+    "Muscle",
+    "Tech",
+    "Arcane",
+    "Tactician",
+  ];
+
   const STORY_SYSTEMS = [
     { id: "province", name: "Province", context: "traveling", tab: "map" },
     { id: "lastsea", name: "Sea Region", context: "lastsea", tab: "lastsea" },
@@ -1464,6 +1475,8 @@
     if (!Array.isArray(st.dialogueMemory)) st.dialogueMemory = [];
     if (!st.pendingTravel || typeof st.pendingTravel !== "object") st.pendingTravel = null;
     if (!st.pendingCombat || typeof st.pendingCombat !== "object") st.pendingCombat = null;
+    if (!st.optionAssignments || typeof st.optionAssignments !== "object") st.optionAssignments = {};
+    if (!Array.isArray(st.decisionAssignments)) st.decisionAssignments = [];
     if (!st.travelMarkers || typeof st.travelMarkers !== "object") {
       st.travelMarkers = {
         provinceKey: "",
@@ -1475,6 +1488,98 @@
       };
     }
     return st;
+  }
+
+  function escHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function assignmentKey(sceneId, optionId) {
+    return String(sceneId || "") + ":" + String(optionId || "");
+  }
+
+  function getPartyAssignmentPool() {
+    var pool = [];
+    var localName = String((typeof S !== "undefined" && S && (S.name || S.characterName)) || "Wayfarer").trim() || "Wayfarer";
+    pool.push({ id: "local:self", name: localName, role: "player", online: true });
+
+    if (window.campaignSystem && typeof window.campaignSystem.getState === "function") {
+      var cState = window.campaignSystem.getState();
+      var roster = cState && cState.campaign && Array.isArray(cState.campaign.roster) ? cState.campaign.roster : [];
+      roster.forEach(function (member) {
+        if (!member) return;
+        var token = String(member.token || "").trim();
+        if (!token) return;
+        pool.push({
+          id: "campaign:" + token,
+          name: String((member.character && member.character.name) || member.name || "Wayfarer"),
+          role: member.role || "player",
+          online: !!member.online,
+        });
+      });
+    }
+
+    var seen = {};
+    return pool.filter(function (entry) {
+      if (!entry || !entry.id) return false;
+      if (seen[entry.id]) return false;
+      seen[entry.id] = true;
+      return true;
+    });
+  }
+
+  function getDecisionAssignment(sceneId, optionId) {
+    var st = ensureStoryState();
+    if (!st) return { assigneeId: "local:self", assigneeName: "Wayfarer", role: "Lead" };
+    var key = assignmentKey(sceneId, optionId);
+    var existing = st.optionAssignments[key] && typeof st.optionAssignments[key] === "object"
+      ? st.optionAssignments[key]
+      : null;
+    var pool = getPartyAssignmentPool();
+    var fallback = pool[0] || { id: "local:self", name: "Wayfarer", role: "player", online: true };
+    if (!existing) {
+      return { assigneeId: fallback.id, assigneeName: fallback.name, role: "Lead" };
+    }
+    var picked = pool.find(function (entry) { return entry.id === existing.assigneeId; }) || fallback;
+    return {
+      assigneeId: picked.id,
+      assigneeName: picked.name,
+      role: DECISION_ROLES.indexOf(String(existing.role || "")) >= 0 ? String(existing.role) : "Lead",
+    };
+  }
+
+  function setDecisionAssignment(sceneId, optionId, patch) {
+    var st = ensureStoryState();
+    if (!st) return;
+    var key = assignmentKey(sceneId, optionId);
+    var current = getDecisionAssignment(sceneId, optionId);
+    st.optionAssignments[key] = {
+      assigneeId: patch && patch.assigneeId ? String(patch.assigneeId) : current.assigneeId,
+      assigneeName: patch && patch.assigneeName ? String(patch.assigneeName) : current.assigneeName,
+      role: patch && patch.role ? String(patch.role) : current.role,
+    };
+  }
+
+  function storySetAssignee(sceneId, optionId, assigneeId) {
+    var pool = getPartyAssignmentPool();
+    var picked = pool.find(function (entry) { return entry.id === String(assigneeId || ""); }) || pool[0];
+    if (!picked) return;
+    setDecisionAssignment(sceneId, optionId, {
+      assigneeId: picked.id,
+      assigneeName: picked.name,
+    });
+    renderStorylinePanel();
+  }
+
+  function storySetDecisionRole(sceneId, optionId, roleName) {
+    var role = DECISION_ROLES.indexOf(String(roleName || "")) >= 0 ? String(roleName) : "Lead";
+    setDecisionAssignment(sceneId, optionId, { role: role });
+    renderStorylinePanel();
   }
 
   function randomPick(list) {
@@ -2514,7 +2619,7 @@
     return val === p.answer;
   }
 
-  function resolveStoryOption(sceneId, option, forcedResult) {
+  function resolveStoryOption(sceneId, option, forcedResult, decisionMeta) {
     const st = ensureStoryState();
     if (!st || !option) return;
 
@@ -2555,7 +2660,7 @@
 
     outcome = normalizeOutcome(sceneId, option, outcome, forcedResult || "normal");
 
-    applyOutcome(sceneId, option, outcome, checkResult);
+    applyOutcome(sceneId, option, outcome, checkResult, decisionMeta || getDecisionAssignment(sceneId, option.id));
     renderStorylinePanel();
   }
 
@@ -2742,7 +2847,7 @@
     }
   }
 
-  function applyOutcome(sceneId, option, outcome, checkResult) {
+  function applyOutcome(sceneId, option, outcome, checkResult, decisionMeta) {
     const st = ensureStoryState();
     const scene = SCENES[sceneId];
     const safeOutcome = normalizeOutcome(sceneId, option, outcome, "resolved");
@@ -2812,8 +2917,24 @@
       st.lastResult = "Cycle reset. A new Wayfarer enters the same legend from a different angle.";
     }
 
+    if (decisionMeta && decisionMeta.assigneeName) {
+      st.decisionAssignments.unshift({
+        at: Date.now(),
+        sceneId: sceneId,
+        optionId: option.id,
+        optionText: option.text,
+        assigneeId: decisionMeta.assigneeId,
+        assigneeName: decisionMeta.assigneeName,
+        role: decisionMeta.role || "Lead",
+      });
+      st.decisionAssignments = st.decisionAssignments.slice(0, 24);
+    }
+
     const msg = [
       option.text,
+      (decisionMeta && decisionMeta.assigneeName)
+        ? ("[Assigned: " + decisionMeta.assigneeName + " as " + (decisionMeta.role || "Lead") + "]")
+        : "",
       safeOutcome && safeOutcome.text ? safeOutcome.text : "",
       checkResult
         ? ("[" + STAT_LABELS[option.stat] + " d" + checkResult.actionDie + "=" + checkResult.action.total
@@ -2861,6 +2982,7 @@
 
     const option = (scene.options || []).find(function (o) { return o.id === optionId; });
     if (!option) return;
+    const decisionMeta = getDecisionAssignment(sceneId, optionId);
 
     const st = ensureStoryState();
     const pending = st && st.pendingTravel
@@ -2926,7 +3048,7 @@
       if (combatResult === "success" && S && S.combat && S.combat.active && typeof endCombat === "function") {
         endCombat();
       }
-      resolveStoryOption(sceneId, option, combatResult);
+      resolveStoryOption(sceneId, option, combatResult, decisionMeta);
       return;
     }
 
@@ -2935,7 +3057,7 @@
       return;
     }
 
-    resolveStoryOption(sceneId, option, null);
+    resolveStoryOption(sceneId, option, null, decisionMeta);
   }
 
   function openStoryTravelModal(option, objective) {
@@ -3064,6 +3186,8 @@
     const options = (scene.options || []).map(function (option) {
       const unlocked = hasReq(option.req);
       const reqText = renderRequirement(option.req);
+      const assign = getDecisionAssignment(st.sceneId, option.id);
+      const assignees = getPartyAssignmentPool();
       const dd = option.stat ? getOptionDread(st.sceneId, option) : 0;
       const optionFaction = inferOptionFactionKey(option);
       const optionBonus = (option.stat && optionFaction && typeof window.getFactionStoryRollBonus === "function")
@@ -3088,14 +3212,32 @@
           : "Choose";
       const isDarkOption = option.id === "o_dark" || option.id === "o_ally" || option.id === "o_shatter" || option.id === "o_rebel";
       const isGoodOption = option.id === "o2" || (option.success && option.success.next && option.success.next.startsWith("ending_glass"));
+      const assigneeSelect = "<label class='story-opt-req' style='display:block;margin-top:.2rem;'>Assigned Wayfarer"
+        + "<select style='width:100%;margin-top:.2rem;' onchange='storySetAssignee(\"" + st.sceneId + "\",\"" + option.id + "\",this.value)'>"
+        + assignees.map(function (entry) {
+            var selected = entry.id === assign.assigneeId ? " selected" : "";
+            var suffix = entry.online ? " (online)" : "";
+            return "<option value='" + escHtml(entry.id) + "'" + selected + ">" + escHtml(entry.name + suffix) + "</option>";
+          }).join("")
+        + "</select></label>";
+      const roleSelect = "<label class='story-opt-req' style='display:block;margin-top:.2rem;'>Decision Role"
+        + "<select style='width:100%;margin-top:.2rem;' onchange='storySetDecisionRole(\"" + st.sceneId + "\",\"" + option.id + "\",this.value)'>"
+        + DECISION_ROLES.map(function (roleName) {
+            var selected = roleName === assign.role ? " selected" : "";
+            return "<option value='" + escHtml(roleName) + "'" + selected + ">" + escHtml(roleName) + "</option>";
+          }).join("")
+        + "</select></label>";
       return "<div class='story-opt " + (unlocked ? "" : "locked") + (isDarkOption ? " story-opt-dark" : "") + "'>"
         + "<div class='story-opt-text'>" + option.text + "</div>"
         + (option.stat ? ("<div class='story-opt-roll'>" + (STAT_LABELS[option.stat] || option.stat) + " vs DD" + dd + "</div>") : "")
+        + "<div class='story-opt-req' style='color:var(--teal);'>Assigned: <strong>" + escHtml(assign.assigneeName) + "</strong> as <strong>" + escHtml(assign.role) + "</strong></div>"
         + (optionBonus > 0 ? ("<div class='story-opt-req' style='color:var(--gold2);'>Faction bonus: +" + optionBonus + " from " + (FACTION_LABELS[optionFaction] || optionFaction) + "</div>") : "")
         + (pending ? ("<div class='story-opt-req' style='color:var(--gold2);'>➤ Marker: " + (pending.targetLabel || "Travel target") + (pendingReached ? " ✓ Arrived" : " — travel there") + "</div>") : "")
         + (option.combat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat: " + ((option.combat.enemies || []).length || 1) + " foe" + ((((option.combat.enemies || []).length || 1) === 1) ? "" : "s") + " · DD" + Number(option.combat.dread || 8) + "</div>") : "")
         + (pendingCombat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat target: " + (pendingCombat.enemyNames || []).join(", ") + (pendingCombatResult === "success" ? " ✓ Victory ready" : pendingCombatResult === "fail" ? " — setback ready" : " — fight unresolved") + "</div>") : "")
         + (reqText ? ("<div class='story-opt-req'>" + reqText + "</div>") : "")
+        + assigneeSelect
+        + roleSelect
         + "<button class='btn btn-sm " + (unlocked ? (isDarkOption ? "btn-red" : "btn-primary") : "") + "' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\")'") : "disabled") + ">" + btnLabel + "</button>"
       + "</div>";
     }).join("");
@@ -3119,6 +3261,12 @@
     const logHtml = st.log.length
       ? st.log.map(function (line) { return "<div class='story-log-item'>" + line + "</div>"; }).join("")
       : "<div class='story-log-item'>Your story choices will appear here.</div>";
+
+    const assignmentLogHtml = st.decisionAssignments.length
+      ? st.decisionAssignments.slice(0, 6).map(function (entry) {
+          return "<div class='story-log-item'>" + escHtml(entry.assigneeName || "Wayfarer") + " as " + escHtml(entry.role || "Lead") + " → " + escHtml(entry.optionText || "Decision") + "</div>";
+        }).join("")
+      : "<div class='story-log-item'>No assignments recorded yet.</div>";
 
     host.innerHTML = ""
       + "<div class='story-shell'>"
@@ -3190,6 +3338,10 @@
       + "✓ Success → +1 streak. Every 3 successes = +1 Path Token.<br>"
       + "D12+ success = +1 bonus Renown."
       + "</div>"
+      + "</div>"
+      + "<div class='story-card'>"
+      + "<div class='story-label'>Party Role Assignments</div>"
+      + "<div class='story-log'>" + assignmentLogHtml + "</div>"
       + "</div>"
       + "<div class='story-card'>"
       + "<div class='story-label'>Choice Log</div>"
@@ -3270,6 +3422,8 @@
   window.runStoryOption = runStoryOption;
   window.storyJumpSystem = jumpSystemById;
   window.storyAdjustOptionDread = adjustStoryOptionDread;
+  window.storySetAssignee = storySetAssignee;
+  window.storySetDecisionRole = storySetDecisionRole;
 
   window.storyAcceptFail = function () {
     const p = window._pendingStoryRoll;

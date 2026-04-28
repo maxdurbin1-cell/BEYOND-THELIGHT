@@ -4607,7 +4607,9 @@ function renderHexInfo(hex){
     </div>
   `;
 
-  html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Province Encounter</button></div>`;
+  if(hex.type!=='wilderness'){
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Province Encounter</button></div>`;
+  }
   html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
 
   // ── WILDERNESS ──
@@ -4615,7 +4617,7 @@ function renderHexInfo(hex){
     if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTd(td.land)}</div></div>`;
     if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTd(td.flora)} ${pickTd(td.fauna)||''}</div></div>`;
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Province Encounter</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
     if(d.eventLead){
       const leadCid=`${hex.col}-${hex.row}`;
       html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Roll an Approach check to reveal the next mystery.</div><label style="font-size:.72rem;color:var(--muted2);display:block;margin-top:.35rem;">Approach: <select id="leadStat-${leadCid}" style="width:100%;">${typeof buildApproachSelectHTML==='function'?buildApproachSelectHTML('lead'):'<option value="lead" selected>LEAD</option>'}</select></label><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="resolveEventLeadAction(${hex.col},${hex.row})">⚄ Roll Lead Mystery Check</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
@@ -5517,20 +5519,47 @@ function provinceHoldingDowntimePool(activity){
       {name:'Watchtower Drill',dd:6,success:'Defenders tighten the perimeter. +1 Renown.',failure:'Training injuries spark fear. +1 Mental Stress.',successEffect:{renown:1},failEffect:{mentalStress:1}}
     ],
     explore:[
-      {name:'Border Scout Sweep',dd:8,success:'You discover hidden caches. +40 credits.',failure:'The route turns hostile. +1 Health damage.',successEffect:{credits:40},failEffect:{health:1}},
+      {name:'Border Scout Sweep',dd:8,success:'You discover a merchant cache and recover an item.',failure:'The route turns hostile. +1 Health damage.',successEffect:{merchantItem:1},failEffect:{health:1}},
       {name:'Old Waystone Survey',dd:6,success:'You recover route intelligence. +1 Teamwork.',failure:'The march disorients your crew. +1 Mental Stress.',successEffect:{tmw:1},failEffect:{mentalStress:1}}
     ]
   };
   return pools[String(activity||'talk').toLowerCase()]||pools.talk;
 }
 
+function drawProvinceMerchantTableItem(){
+  if(typeof generateMerchantCaravan==='function'){
+    const list=generateMerchantCaravan();
+    if(Array.isArray(list)&&list.length){
+      const entry=pick(list);
+      return entry&&entry.name?String(entry.name):'';
+    }
+  }
+  const pools=['items','essentials','toolkits','scrolls','services','remedies'];
+  const pool=pick(pools);
+  const list=(SHOP_DATA&&SHOP_DATA[pool])||[];
+  if(list.length){
+    const entry=pick(list);
+    return entry&&entry.name?String(entry.name):'';
+  }
+  return 'Salvage Kit';
+}
+
 function applyProvinceHoldingDowntimeEffect(effect){
-  if(!effect)return;
+  if(!effect)return '';
+  let extraText='';
   if(effect.tmw&&typeof changeCounter==='function')changeCounter('tmw',effect.tmw);
   if(effect.renown&&typeof changeCounter==='function')changeCounter('renown',effect.renown);
   if(effect.credits){S.credits=(S.credits||0)+effect.credits;if(typeof updateCreditsUI==='function')updateCreditsUI();}
   if(effect.health&&typeof changeHealth==='function')changeHealth(effect.health);
   if(effect.mentalStress&&typeof changeMentalStress==='function')changeMentalStress(effect.mentalStress);
+  if(effect.merchantItem){
+    const itemName=drawProvinceMerchantTableItem();
+    if(itemName&&typeof addToBackpack==='function'){
+      const stored=addToBackpack(itemName);
+      extraText=stored?(' Item found: '+itemName+' (backpack).'):(' Item found: '+itemName+' (no backpack slot).');
+    }
+  }
+  return extraText;
 }
 
 function rollProvinceHoldingDowntime(col,row,activity){
@@ -5554,12 +5583,13 @@ function resolveProvinceHoldingDowntime(col,row,statKey){
   const die=(typeof getEffectiveDie==='function')?getEffectiveDie(key):((S.stats&&S.stats[key])||4);
   const a=explodingRoll(die),d=explodingRoll(evt.dd||6);
   const success=a.total>=d.total;
-  if(success){applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof addSuccessRoll==='function')addSuccessRoll();}
-  else{applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail();}
+  let effectExtra='';
+  if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof addSuccessRoll==='function')addSuccessRoll();}
+  else{effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail();}
   hex.data.downtimeLastResult={
     success:success,
     check:key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+(evt.dd||6)+'='+d.total,
-    text:success?evt.success:evt.failure
+    text:(success?evt.success:evt.failure)+(effectExtra||'')
   };
   hex.data.pendingDowntimeEvent=null;
   renderHexInfo(hex);

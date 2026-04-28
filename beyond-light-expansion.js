@@ -365,8 +365,8 @@
         <div class="sea-summary">
           <div class="info-cell"><span class="ic-label">Open Sea</span>Shift in Weather, Open Sea Encounter, Peril, or Uneventful Sailing.</div>
           <div class="info-cell"><span class="ic-label">Island Travel</span>Land Encounter, Peril, Exhaustion, Shift in Weather, or Uneventful travel.</div>
-          <div class="info-cell"><span class="ic-label">Sea Peril</span>Control vs DD6 or take the difference in Stress.</div>
-          <div class="info-cell"><span class="ic-label">Island Peril</span>Lead vs DD6 or take the difference in Stress.</div>
+          <div class="info-cell"><span class="ic-label">Sea Peril</span>Control vs DD6 or take the difference in Mental Stress.</div>
+          <div class="info-cell"><span class="ic-label">Island Peril</span>Lead vs DD6 or take the difference in Mental Stress.</div>
         </div>
         <div class="sea-legend">
           <div class="sea-item"><div class="sea-dot" style="background:#103247;border-color:#2ec4b6;"></div>Open Sea</div>
@@ -566,9 +566,9 @@
           <div class="section-title">Last Sea</div>
           <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
             <strong style="color:var(--text);">Open Sea:</strong> Shift in Weather, Open Sea Encounter, Peril, or Uneventful Sailing.<br>
-            <strong style="color:var(--text);">Sea Peril:</strong> Control vs DD6 or take the difference in Stress.<br>
+            <strong style="color:var(--text);">Sea Peril:</strong> Control vs DD6 or take the difference in Mental Stress.<br>
             <strong style="color:var(--text);">Island Travel:</strong> Land Encounter, Peril, Exhaustion, Shift in Weather, or Uneventful travel.<br>
-            <strong style="color:var(--text);">Island Peril:</strong> Lead vs DD6 or take the difference in Stress.
+            <strong style="color:var(--text);">Island Peril:</strong> Lead vs DD6 or take the difference in Mental Stress.
           </div>
         </div>
         <div class="card">
@@ -1335,6 +1335,15 @@
     return `${data.name}. Built by ${data.builder}. Entrance: ${data.entrance}. ${data.novelty}.`;
   }
 
+  function sanitizeInlineText(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function buildRoyalArmadaText() {
     return `${pick(ARMADA_ACTIONS)} ${pick(ARMADA_TARGETS)}`;
   }
@@ -1648,7 +1657,7 @@
   }
 
   function getSoloWayfarerHealth() {
-    var hp = (typeof S.health === 'number') ? S.health : S.stress;
+    var hp = (typeof S.health === 'number') ? S.health : 0;
     return Math.max(0, Number(hp || 0));
   }
 
@@ -1661,7 +1670,7 @@
     if (roster.length) {
       roster.forEach(function (p) {
         var c = p && p.character ? p.character : null;
-        var hp = c && typeof c.health === 'number' ? c.health : (c && typeof c.stress === 'number' ? c.stress : 0);
+        var hp = c && typeof c.health === 'number' ? c.health : 0;
         total += Math.max(0, Number(hp || 0));
       });
     }
@@ -1684,7 +1693,7 @@
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Round ' + (st.round || 1) + ' · Actions reset together at 0/0.</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">'
       + '<div>'
-      + '<div style="font-size:.74rem;color:var(--text2);">Your Side: <strong style="color:var(--teal);">' + escapeHtml(mineName) + '</strong></div>'
+      + '<div style="font-size:.74rem;color:var(--text2);">Your Side: <strong style="color:var(--teal);">' + sanitizeInlineText(mineName) + '</strong></div>'
       + '<div style="font-size:.74rem;color:var(--text2);">Stress: <strong style="color:var(--teal);">' + Number(mine.stress || 0) + '</strong></div>'
       + '<div style="font-size:.72rem;color:var(--muted2);">Actions: ' + Number(mine.actions || 0) + ' · Dread: d' + Number(mine.dread || 6) + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
@@ -1694,7 +1703,7 @@
       + '</div>'
       + '</div>'
       + '<div>'
-      + '<div style="font-size:.74rem;color:var(--text2);">Enemy: <strong style="color:var(--red2);">' + escapeHtml(oppName) + '</strong></div>'
+      + '<div style="font-size:.74rem;color:var(--text2);">Enemy: <strong style="color:var(--red2);">' + sanitizeInlineText(oppName) + '</strong></div>'
       + '<div style="font-size:.74rem;color:var(--text2);">Stress: <strong style="color:var(--red2);">' + Number(opp.stress || 0) + '</strong></div>'
       + '<div style="font-size:.72rem;color:var(--muted2);">Actions: ' + Number(opp.actions || 0) + ' · Dread: d' + Number(opp.dread || 6) + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
@@ -1806,7 +1815,7 @@
     var success = controlRoll >= dreadRoll;
     var diff = success ? 0 : Math.max(1, dreadRoll - controlRoll);
     if (diff) ensureMentalStress(diff);
-    hex.resultHtml = `<div class="sea-result-title">Peril - ${escapeHtml(perilName || 'Open Sea Hazard')}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control d${die}=${controlRoll} vs DD${dreadDie}=${dreadRoll}. ${success ? 'You hold course through the hazard.' : '+' + diff + ' Mental Stress from the stormfront impact.'}</div>`;
+    hex.resultHtml = `<div class="sea-result-title">Peril - ${sanitizeInlineText(perilName || 'Open Sea Hazard')}</div><div style="font-size:.82rem;color:${success?'var(--green2)':'var(--red2)'};line-height:1.55;font-weight:700;">${success?'PASS':'FAIL'}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control d${die}=${controlRoll} vs DD${dreadDie}=${dreadRoll}. ${success ? 'You hold course through the hazard.' : '+' + diff + ' Mental Stress from the stormfront impact.'}</div>`;
     renderLastSeaInfo(hex);
     showNotif(success ? 'Peril check passed.' : 'Peril hit the crew.', success ? 'good' : 'warn');
   }
@@ -2140,7 +2149,7 @@
     }
     if (option === "peril") {
       const peril = pick(OPEN_SEA_PERILS);
-      return `<div class="sea-result-title">Peril - ${peril}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control vs DD6 or take the difference in Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveOpenSeaPerilCheck(${hex.col},${hex.row},'${peril}',6)">⚄ Control vs DD6</button></div>`;
+      return `<div class="sea-result-title">Peril - ${peril}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control vs DD6 or take the difference in Mental Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveOpenSeaPerilCheck(${hex.col},${hex.row},'${peril}',6)">⚄ Control vs DD6</button></div>`;
     }
     if (option === 'skirmish') {
       return buildSeaSkirmishEncounter(hex);

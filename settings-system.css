@@ -482,7 +482,7 @@ nav {
 .campaign-dock {
   position: fixed;
   right: 0.85rem;
-  bottom: 0.85rem;
+  bottom: 1.2rem;
   z-index: 380;
   display: flex;
   flex-direction: column;

@@ -199,6 +199,20 @@
     }
   }
 
+  async function syncSharedNow() {
+    if (!state.socket || !state.connected || !state.code) {
+      safeNotif("Join a campaign first.", "warn");
+      return;
+    }
+    var shared = collectSharedState();
+    var res = await pushSharedState(shared, "manual");
+    if (!res || !res.ok) {
+      safeNotif((res && res.error) || "Shared world sync failed.", "warn");
+      return;
+    }
+    safeNotif("Shared world synced (v" + Number(res.stateVersion || 0) + ").", "good");
+  }
+
   async function pushSharedState(nextState, reason) {
     if (!state.socket || !state.connected || !state.code) {
       safeNotif("Join a campaign first.", "warn");
@@ -366,7 +380,7 @@
         + '<div class="campaign-look-tags">' + (backpackItems.length
           ? backpackItems.slice(0, 3).map(function (item, idx) {
               var tokenValue = String(p && p.token || "").replace(/'/g, "\\'");
-              return '<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.copyRosterItem(\'' + tokenValue + '\',' + idx + ')">Share ' + escapeHtml(item) + '</button>';
+              return '<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.copyRosterItem(\'' + tokenValue + '\',' + idx + ')">Copy ' + escapeHtml(item) + '</button>';
             }).join("")
           : '<span class="campaign-look-tag">no shared items</span>') + '</div>'
         + '<div class="campaign-look-tags">' + (tagsHtml || '<span class="campaign-look-tag">untyped</span>') + '</div>'
@@ -392,7 +406,7 @@
   function collectCharacterSummary() {
     var stats = (typeof window.S !== "undefined" && window.S && window.S.stats) ? window.S.stats : {};
     var hp = (typeof window.S !== "undefined" && window.S)
-      ? ((typeof window.S.health === "number") ? window.S.health : Number(window.S.stress || 0))
+      ? ((typeof window.S.health === "number") ? window.S.health : 0)
       : 0;
     var look = (typeof window.S !== "undefined" && window.S)
       ? (window.S.look || window.S.flavor || window.S.reason || "")
@@ -734,8 +748,8 @@
           + '</div>')
         : "")
       + '<div class="campaign-card">'
-      + '<div class="campaign-card-title">Party Stash</div>'
-      + '<div class="campaign-muted">Share items from your backpack to a shared pool, then claim them on any wayfarer.</div>'
+      + '<div class="campaign-card-title">Party Backpack Sharing (Party Stash)</div>'
+      + '<div class="campaign-muted">Share items from your backpack to a shared pool, then claim them on any wayfarer. Roster buttons copy visible items into your backpack first.</div>'
         + '<div class="campaign-muted" style="margin-top:.28rem;">Your backpack: ' + (localBackpackSlots.length ? localBackpackSlots.map(function (entry) {
           return '<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.shareBackpackItem(' + entry.idx + ')">Share ' + escapeHtml(entry.item) + '</button>';
         }).join('') : 'No items') + '</div>'
@@ -1376,9 +1390,7 @@
     setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,
     toggleDock: toggleDock,
-    syncSharedNow: function () {
-      syncSharedState("manual");
-    },
+    syncSharedNow: syncSharedNow,
     shareBackpackItem: shareBackpackItem,
     claimSharedItem: claimSharedItem,
     copyRosterItem: copyRosterItem,

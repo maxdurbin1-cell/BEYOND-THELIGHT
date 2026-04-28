@@ -18,7 +18,12 @@
     restoringSession: false,
     dockOpen: true,
     lastDockLogSize: 0,
-    timelineFilter: "all"
+    timelineFilter: "all",
+    uiDraft: {
+      name: "",
+      code: "",
+      joinPassword: ""
+    }
   };
 
   function safeNotif(msg, kind) {
@@ -241,14 +246,38 @@
       var footer = popup.querySelector(".settings-footer");
       if (footer) popup.insertBefore(section, footer);
       else popup.appendChild(section);
+      renderSettingsSection();
+      return;
     }
+  }
 
-    renderSettingsSection();
+  function captureDraftInputs() {
+    var nameEl = document.getElementById("campaignNameInput");
+    var codeEl = document.getElementById("campaignCodeInput");
+    var passEl = document.getElementById("campaignPasswordInput");
+    if (nameEl) state.uiDraft.name = String(nameEl.value || "");
+    if (codeEl) state.uiDraft.code = String(codeEl.value || "");
+    if (passEl) state.uiDraft.joinPassword = String(passEl.value || "");
+  }
+
+  function bindDraftInputs() {
+    ["campaignNameInput", "campaignCodeInput", "campaignPasswordInput"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el || el.dataset.campaignDraftBound === "1") return;
+      el.dataset.campaignDraftBound = "1";
+      el.addEventListener("input", function () {
+        if (id === "campaignNameInput") state.uiDraft.name = String(el.value || "");
+        if (id === "campaignCodeInput") state.uiDraft.code = String(el.value || "");
+        if (id === "campaignPasswordInput") state.uiDraft.joinPassword = String(el.value || "");
+      });
+    });
   }
 
   function renderSettingsSection() {
     var section = document.getElementById("campaignSettingsSection");
     if (!section) return;
+
+    captureDraftInputs();
 
     var ioReady = canUseSockets();
     var campaign = state.campaign;
@@ -256,6 +285,9 @@
     var isGm = state.role === "gm";
     var active = campaign && campaign.activeRollRequest;
     var privateNote = campaign && campaign.me ? String(campaign.me.privateNote || "") : "";
+    var nameValue = state.uiDraft.name || state.playerName || ensureName();
+    var codeValue = state.uiDraft.code || state.code || "";
+    var joinPasswordValue = state.uiDraft.joinPassword || "";
     var noteSummaries = campaign && Array.isArray(campaign.notesSummary) ? campaign.notesSummary : [];
     var summaryHtml = isGm && noteSummaries.length
       ? ('<div class="campaign-muted" style="margin-top:.35rem;">' + noteSummaries.map(function (n) {
@@ -272,15 +304,15 @@
       + "</div>"
       + '<div class="setting-row">'
       + '<label>Display Name</label>'
-      + '<input id="campaignNameInput" class="campaign-input" type="text" maxlength="32" value="' + escapeHtml(ensureName()) + '" placeholder="Wayfarer Name">'
+      + '<input id="campaignNameInput" class="campaign-input" type="text" maxlength="32" value="' + escapeHtml(nameValue) + '" placeholder="Wayfarer Name">'
       + "</div>"
       + '<div class="setting-row">'
       + '<label>Campaign Code</label>'
-      + '<input id="campaignCodeInput" class="campaign-input" type="text" maxlength="12" placeholder="ABC123" value="' + escapeHtml(state.code || "") + '">' 
+      + '<input id="campaignCodeInput" class="campaign-input" type="text" maxlength="12" placeholder="ABC123" value="' + escapeHtml(codeValue) + '">' 
       + "</div>"
       + '<div class="setting-row">'
       + '<label>Join Password (Optional)</label>'
-      + '<input id="campaignPasswordInput" class="campaign-input" type="password" maxlength="120" placeholder="Campaign password if set">'
+      + '<input id="campaignPasswordInput" class="campaign-input" type="password" maxlength="120" placeholder="Campaign password if set" value="' + escapeHtml(joinPasswordValue) + '">'
       + "</div>"
       + '<div class="campaign-actions">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.createCampaign()">Create (GM)</button>'
@@ -333,7 +365,7 @@
       + "</div>"
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Private Notes</div>'
-      + '<textarea id="campaignPrivateNoteInput" class="campaign-input" style="min-height:76px;resize:vertical;" maxlength="5000" placeholder="Your private campaign notes...">' + escapeHtml(privateNote) + '</textarea>'
+      + '<textarea id="campaignPrivateNoteInput" class="campaign-input" maxlength="5000" placeholder="Your private campaign notes...">' + escapeHtml(privateNote) + '</textarea>'
       + '<div class="campaign-actions" style="margin-top:.35rem;">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.savePrivateNote()">Save Notes</button>'
       + '</div>'
@@ -343,6 +375,8 @@
       + '<div class="campaign-card-title">Recent Log</div>'
       + renderLog(campaign ? campaign.log : [])
       + "</div>";
+
+    bindDraftInputs();
   }
 
   function ensureDockPanel() {
@@ -388,6 +422,7 @@
     var root = document.getElementById("campaignDock");
     if (!root) return;
     root.classList.toggle("open", !!state.dockOpen);
+    syncDockOffset(root);
 
     var badge = document.getElementById("campaignDockBadge");
     var meta = document.getElementById("campaignDockMeta");
@@ -455,6 +490,14 @@
       }
       state.lastDockLogSize = newLogSize;
     }
+  }
+
+  function syncDockOffset(root) {
+    var target = root || document.getElementById("campaignDock");
+    if (!target) return;
+    var panel = document.getElementById("settingsPanel");
+    var settingsOpen = !!(panel && panel.classList.contains("open"));
+    target.classList.toggle("settings-open", settingsOpen && window.innerWidth > 700);
   }
 
   function readUiValue(id) {
@@ -545,6 +588,21 @@
       renderDockPanel();
     });
 
+    state.socket.on("campaign:deleted", function (payload) {
+      var code = payload && payload.code ? String(payload.code) : state.code;
+      state.code = "";
+      state.role = "";
+      state.token = "";
+      state.campaign = null;
+      state.activePromptId = "";
+      state.uiDraft.code = "";
+      state.uiDraft.joinPassword = "";
+      clearSession();
+      safeNotif((code ? ("Campaign " + code + " was deleted by GM.") : "Campaign deleted by GM."), "warn");
+      renderSettingsSection();
+      renderDockPanel();
+    });
+
     return true;
   }
 
@@ -588,9 +646,11 @@
     }
 
     var name = readUiValue("campaignNameInput").trim() || ensureName();
+    var joinPass = readUiValue("campaignPasswordInput");
     state.playerName = name;
+    state.uiDraft.name = name;
 
-    var res = await emitWithAck("campaign:create", { name: name });
+    var res = await emitWithAck("campaign:create", { name: name, password: joinPass });
     if (!res.ok) {
       safeNotif(res.error || "Could not create campaign.", "warn");
       return;
@@ -601,6 +661,8 @@
     state.token = String(res.token || "");
     state.playerName = String(res.name || name || "GM");
     state.activePromptId = "";
+    state.uiDraft.code = res.code;
+    state.uiDraft.joinPassword = "";
     persistSession();
 
     if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
@@ -624,6 +686,7 @@
     var name = (opts.name || readUiValue("campaignNameInput") || "").trim() || ensureName();
     var codeRaw = opts.code || readUiValue("campaignCodeInput") || (session ? session.code : "");
     var code = formatCode(codeRaw);
+    var joinPass = opts.password || readUiValue("campaignPasswordInput") || "";
 
     if (!code) {
       if (!opts.silent) safeNotif("Enter a campaign code to join.", "warn");
@@ -631,12 +694,16 @@
     }
 
     state.playerName = name;
+    state.uiDraft.name = name;
+    state.uiDraft.code = code;
+    state.uiDraft.joinPassword = joinPass;
 
     var res = await emitWithAck("campaign:join", {
       code: code,
       name: name,
       role: role === "gm" ? "gm" : "player",
-      token: opts.token || state.token || (session ? session.token : "")
+      token: opts.token || state.token || (session ? session.token : ""),
+      password: joinPass
     });
 
     if (!res.ok) {
@@ -649,6 +716,8 @@
     state.token = String(res.token || "");
     state.playerName = String(res.name || name || ensureName());
     state.activePromptId = "";
+    state.uiDraft.code = res.code;
+    state.uiDraft.joinPassword = "";
     persistSession();
 
     if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
@@ -676,6 +745,7 @@
     state.token = "";
     state.campaign = null;
     state.activePromptId = "";
+    state.uiDraft.joinPassword = "";
     clearSession();
 
     safeNotif("Left campaign.", "warn");
@@ -712,6 +782,84 @@
       return;
     }
     safeNotif("Active roll request closed.", "good");
+  }
+
+  async function savePrivateNote() {
+    if (!state.socket || !state.code) {
+      safeNotif("Join a campaign first.", "warn");
+      return;
+    }
+    var note = readUiValue("campaignPrivateNoteInput");
+    var res = await emitWithAck("campaign:privateNote", { text: note });
+    if (!res.ok) {
+      safeNotif(res.error || "Could not save notes.", "warn");
+      return;
+    }
+    safeNotif("Private notes saved.", "good");
+  }
+
+  async function setCampaignPassword() {
+    if (!state.socket || state.role !== "gm") {
+      safeNotif("Only connected GM can update campaign password.", "warn");
+      return;
+    }
+    var password = readUiValue("campaignSetPasswordInput");
+    var res = await emitWithAck("campaign:setPassword", { password: password });
+    if (!res.ok) {
+      safeNotif(res.error || "Could not update campaign password.", "warn");
+      return;
+    }
+    safeNotif(password.trim() ? "Campaign password updated." : "Campaign password removed.", "good");
+  }
+
+  async function toggleArchive() {
+    if (!state.socket || state.role !== "gm") {
+      safeNotif("Only connected GM can change archive state.", "warn");
+      return;
+    }
+    var archived = !!(state.campaign && state.campaign.archived);
+    var evt = archived ? "campaign:unarchive" : "campaign:archive";
+    var res = await emitWithAck(evt, {});
+    if (!res.ok) {
+      safeNotif(res.error || "Could not update campaign archive state.", "warn");
+      return;
+    }
+    safeNotif(archived ? "Campaign reopened." : "Campaign archived.", "good");
+  }
+
+  async function deleteCampaign() {
+    if (!state.socket || state.role !== "gm") {
+      safeNotif("Only connected GM can delete campaigns.", "warn");
+      return;
+    }
+    var ok = window.confirm("Delete this campaign for everyone? This cannot be undone.");
+    if (!ok) return;
+
+    var res = await emitWithAck("campaign:delete", {});
+    if (!res.ok) {
+      safeNotif(res.error || "Could not delete campaign.", "warn");
+      return;
+    }
+
+    var oldCode = state.code;
+    state.code = "";
+    state.role = "";
+    state.token = "";
+    state.campaign = null;
+    state.activePromptId = "";
+    state.uiDraft.code = "";
+    state.uiDraft.joinPassword = "";
+    clearSession();
+    safeNotif("Deleted campaign " + oldCode + ".", "warn");
+    renderSettingsSection();
+    renderDockPanel();
+  }
+
+  function setTimelineFilter(mode) {
+    var next = String(mode || "all");
+    if (["all", "chat", "roll", "system"].indexOf(next) === -1) next = "all";
+    state.timelineFilter = next;
+    renderDockPanel();
   }
 
   async function submitActiveRoll() {
@@ -781,13 +929,17 @@
     ensureSettingsSection();
     ensureDockPanel();
     ensureSocket();
+    window.addEventListener("resize", function () { syncDockOffset(); });
     state.ready = true;
   }
 
   setInterval(function () {
     patchTmwHooks();
-    ensureSettingsSection();
+    if (!document.getElementById("campaignSettingsSection")) {
+      ensureSettingsSection();
+    }
     ensureDockPanel();
+    syncDockOffset();
   }, 1200);
 
   if (document.readyState === "loading") {
@@ -803,6 +955,11 @@
     callRollRequest: callRollRequest,
     closeActiveRoll: closeActiveRoll,
     submitActiveRoll: submitActiveRoll,
+    savePrivateNote: savePrivateNote,
+    setCampaignPassword: setCampaignPassword,
+    toggleArchive: toggleArchive,
+    deleteCampaign: deleteCampaign,
+    setTimelineFilter: setTimelineFilter,
     sendChatMessage: sendChatMessage,
     toggleDock: toggleDock,
     refreshUI: function () {

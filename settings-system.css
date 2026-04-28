@@ -56,6 +56,7 @@ nav {
   flex-direction: column;
   height: 100%;
   padding: 0;
+  overflow-y: auto;
 }
 
 .settings-header {
@@ -416,6 +417,10 @@ nav {
   gap: 0.3rem;
 }
 
+.campaign-dock.settings-open {
+  right: calc(320px + 1.1rem);
+}
+
 .campaign-dock-toggle {
   font-family: 'Cinzel', serif;
   font-size: 0.63rem;
@@ -610,6 +615,10 @@ body.gm-mode header {
     left: 0.45rem;
     bottom: 0.5rem;
     align-items: stretch;
+  }
+
+  .campaign-dock.settings-open {
+    right: 0.45rem;
   }
 
   .campaign-dock-panel {

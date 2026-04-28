@@ -865,6 +865,10 @@ function generateCharacter() {
   changeCounter("pathTokens", 0);
   changeCounter("successRolls", 0);
   showNotif("Wayfarer generated", "good");
+  // Trigger origin mission after all character state is initialized
+  if (typeof createOriginMissionFromReason === 'function') {
+    createOriginMissionFromReason(true);
+  }
 }
 
 function clearCharacter() {

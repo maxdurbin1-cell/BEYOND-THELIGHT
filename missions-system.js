@@ -1209,9 +1209,11 @@
   }
 
   document.addEventListener('DOMContentLoaded',function(){
-    // Ensure origin mission exists for characters with a reason (covers new and existing characters)
+    // Ensure origin mission exists for characters with a reason (covers loaded characters)
     if (typeof S !== 'undefined' && S && S.reason && !S.originMissionInitialized) {
-      createOriginMissionFromReason(true);
+      if (typeof createOriginMissionFromReason === 'function') {
+        createOriginMissionFromReason(true);
+      }
     }
     syncMissionUIs();
   });
@@ -1220,6 +1222,10 @@
   if (_missionBaseLoad) {
     loadCharacter = function() {
       _missionBaseLoad();
+      // Ensure origin mission exists for loaded characters with a reason
+      if (typeof S !== 'undefined' && S && S.reason && !S.originMissionInitialized && typeof createOriginMissionFromReason === 'function') {
+        createOriginMissionFromReason(true);
+      }
       syncMissionUIs();
     };
   }

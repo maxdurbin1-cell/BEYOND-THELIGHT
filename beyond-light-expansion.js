@@ -663,9 +663,28 @@
     return `${pick(terrain.coast)} Ecology: ${ecology}. ${siteNote}`;
   }
 
+  function ensureSeaWeatherCheck(weather) {
+    if (!weather || typeof weather !== "object") return weather;
+    if (!weather.rough) return weather;
+    if (weather.check && typeof weather.check === "object") {
+      weather.check.dd = Number(weather.check.dd) || 8;
+      weather.check.stats = Array.isArray(weather.check.stats) && weather.check.stats.length
+        ? weather.check.stats
+        : ["lead", "control"];
+      if (!weather.check.failure) weather.check.failure = "+1 Mental Stress";
+      return weather;
+    }
+    weather.check = {
+      dd: 8,
+      stats: ["lead", "control"],
+      failure: "+1 Mental Stress"
+    };
+    return weather;
+  }
+
   function rollLastSeaWeather() {
     const season = S.currentSeason || "spring";
-    return { ...pick(LAST_SEA_WEATHER[season]) };
+    return ensureSeaWeatherCheck({ ...pick(LAST_SEA_WEATHER[season]) });
   }
 
   function makeSettlementData() {
@@ -1115,7 +1134,8 @@
     if (!S.lastSea.weather) {
       S.lastSea.weather = rollLastSeaWeather();
     }
-    const weather = S.lastSea.weather;
+    const weather = ensureSeaWeatherCheck(S.lastSea.weather);
+    S.lastSea.weather = weather;
     const weatherCheckPending = !!(weather.check && !weather.checkResolved);
     const weatherCheckNote = weather.check
       ? `<div style="font-size:.78rem;color:var(--red2);margin-top:.2rem;">Rough sea. ${weather.check.stats.map(capitalize).join(" or ")} vs Dread D${weather.check.dd} required before pressing on.</div>`
@@ -1141,11 +1161,16 @@
   }
 
   function resolveLastSeaWeatherCheck(stat) {
-    if (!S.lastSea || !S.lastSea.weather || !S.lastSea.weather.check) {
+    if (!S.lastSea || !S.lastSea.weather) {
       showNotif('No weather check required right now.', 'warn');
       return;
     }
-    const weather = S.lastSea.weather;
+    const weather = ensureSeaWeatherCheck(S.lastSea.weather);
+    S.lastSea.weather = weather;
+    if (!weather.check) {
+      showNotif('No weather check required right now.', 'warn');
+      return;
+    }
     if (weather.checkResolved) {
       showNotif('Weather check already resolved for current conditions.', 'good');
       return;

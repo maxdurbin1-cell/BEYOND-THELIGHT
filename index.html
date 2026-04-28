@@ -1487,6 +1487,14 @@ function rollWildernessFull(){
   const wr=roll(6),weatherResult=WEATHER[season][wr-1];
   const vr=roll(6);
   let ventureText=VENTURE_RESULTS[vr-1],encounterHTML='';
+  if(vr===1){
+    const shiftRoll=roll(6);
+    const shiftedWeather=WEATHER[season][shiftRoll-1];
+    ventureText=`Shift in Weather — rerolled weather for this Phase (d6=${shiftRoll}): ${shiftedWeather.result}.`;
+    if(shiftedWeather.rough){
+      encounterHTML=`<div class="encounter-block" style="margin-top:.4rem;"><strong style="color:var(--red2);">Dangerous Weather Shift</strong><br>${shiftedWeather.desc}<div style="margin-top:.25rem;font-size:.78rem;color:var(--red);">Lead vs DD8 required.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="resolveProvinceShiftWeatherDanger()">⚄ Lead vs DD8</button></div><div id="wildShiftWeatherResult" style="margin-top:.3rem;"></div></div>`;
+    }
+  }
   if(vr===2){
     const enc=roll(6);let title,desc;
     if(enc===1){const n=roll(4)+3;title=`${n} Bandits`;desc=`${pick(['A ragged band of scavengers','Desperate ex-soldiers in mismatched kit','Hard-eyed outlaws','A well-organized caravan raider unit'])} blocks the road. DD4 | ${n*2} Stress per enemy.`;}
@@ -1514,6 +1522,25 @@ function rollWildernessFull(){
     <div class="wild-section" style="border-bottom:none;"><div class="wild-section-label">Venture (d6=${vr})</div><div class="wild-section-text">${ventureText}</div>${encounterHTML}</div>
   </div>`;
 }
+
+window.resolveProvinceShiftWeatherDanger = function(){
+  const leadRoll = rollProvinceLeadCheck();
+  const dreadRoll = explodingRoll(8,{type:'dread',major:true,label:'Shift Weather DD8'});
+  const success = leadRoll.total >= dreadRoll.total;
+  const el = document.getElementById('wildShiftWeatherResult');
+  if(el){
+    el.innerHTML = '<div style="font-size:.78rem;color:'+(success?'var(--green2)':'var(--red2)')+';">Lead '+leadRoll.total+' vs DD8 '+dreadRoll.total+' — '+(success?'Safe passage secured.':'Dangerous shift: lose 1 Phase.')+'</div>';
+  }
+  if(success){
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+    showNotif('You weathered the sudden storm shift.', 'good');
+  }else{
+    if(typeof changeMentalStress==='function')changeMentalStress(1);
+    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    advanceProvincePhasePenalty(1);
+    showNotif('Dangerous weather shift cost you 1 Phase.', 'warn');
+  }
+};
 
 function openTMWActions() {
   var pool = S.tmw || 0;
@@ -3934,7 +3961,7 @@ function renderHexInfo(hex){
   // ── TRADE ROUTE ── (FIX: no td reference)
   }else if(hex.type==='trade'){
     html+=`<div class="trade-line">🏛 <strong>Trade Route</strong> — connects ${d.from||'Holdings'}.<br><em style="font-size:.78rem;">Regional trade goods and caravans pass through here regularly.</em></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-primary" onclick="rollTradeRouteEncounter()">⚄ Roll Trade Encounter (d10)</button><button class="btn btn-sm btn-teal" onclick="showTradeGoods(${hex.col},${hex.row})">📦 Trade Goods</button></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-primary" onclick="rollTradeRouteEncounter()">⚄ Roll Trade Encounter (d10)</button><button class="btn btn-sm btn-teal" onclick="showTradeGoods(${hex.col},${hex.row})">📦 Trade Goods</button><button class="btn btn-sm btn-gold" onclick="buyProvinceCaravanToHolding(${hex.col},${hex.row},100)">🛻 Buy Caravan to Nearest Holding (100₵)</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
 
   // ── SEAT / HOLDING ──
@@ -3942,7 +3969,7 @@ function renderHexInfo(hex){
     // Rest boon banner
     html+=`<div class="rest-boon" style="background:rgba(201,162,39,.06);border-color:rgba(201,162,39,.4);">
       <div class="rb-label" style="color:var(--gold);">🛡 Rest Boon</div>
-      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--gold);">Protected</strong> (Defend ↑ one Step).</div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--gold);">Protected</strong> (Defend ↑ one Step).</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-gold" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'protected','Holding Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     const m=d.mood||{};
     html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div></div>`;
@@ -3958,7 +3985,7 @@ function renderHexInfo(hex){
   }else if(hex.type==='dwelling'){
     html+=`<div class="rest-boon" style="background:rgba(160,192,64,.06);border-color:rgba(110,208,144,.4);">
       <div class="rb-label" style="color:var(--green2);">✨ Rest Boon</div>
-      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Bolstered</strong> (Spirit/Lead ↑).</div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Bolstered</strong> (Spirit/Lead ↑).</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'bolstered','Dwelling Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     html+=`<div class="wild-panel"><div class="wp-label">Dwelling — ${d.mood||'Humble'}</div><div class="wp-text">A waypoint in the wilds. Welcoming to travelers.</div></div>`;
     if(d.nomad)html+=`<div class="wild-panel"><div class="wp-label">👤 Nomad Present</div><div class="wp-text">${d.nomad}</div></div>`;
@@ -3975,7 +4002,7 @@ function renderHexInfo(hex){
   }else if(hex.type==='temple'){
     html+=`<div class="rest-boon" style="background:rgba(80,40,120,.08);border-color:rgba(176,96,208,.4);">
       <div class="rb-label" style="color:#b060d0;">🎯 Rest Boon</div>
-      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>A <strong>Sage</strong> can reduce Trauma by −1 for <strong>50₵</strong>.</div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>A <strong>Sage</strong> can reduce Trauma by −1 for <strong>50₵</strong>.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'focused','Temple Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     html+=`<div class="wild-panel"><div class="wp-label">Temple — ${d.mood||'Ancient'}</div><div class="wp-text">A place of sanctuary and learning.</div></div>`;
     if(d.sage)html+=`<div class="wild-panel"><div class="wp-label">🙏 Sage Present</div><div class="wp-text">${d.sage}</div></div>`;
@@ -4006,7 +4033,7 @@ function renderHexInfo(hex){
   }else if(hex.type==='ruins'){
     html+=`<div class="rest-boon" style="background:rgba(160,152,112,.06);border-color:rgba(160,152,112,.4);">
       <div class="rb-label" style="color:#a09870;">◫ Rest Boon</div>
-      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Empowered</strong> (Body/Strike/Shoot ↑).</div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Empowered</strong> (Body/Strike/Shoot ↑).</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'empowered','Ruin Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     html+=`<div class="ruin-room"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);"><strong>Built by:</strong> ${d.builder||'Unknown'}<br><strong>Purpose:</strong> ${d.builtFor||'Unknown'}<br><strong>Construction:</strong> ${d.construction||'Stone'}<br><strong>Entrance:</strong> ${d.entrance||'Open'}<br><strong>Rooms:</strong> ${d.rooms||4} total<br><strong>Novelty:</strong> ${d.novelty||'None'}</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
@@ -5663,6 +5690,67 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(reason)showNotif(reason+' Rerouted to ['+(next.col+1)+','+(next.row+1)+'].','warn');
   }
 
+  function getNearestHoldingHex(fromCol,fromRow){
+    const hubs=mapData.filter(function(h){ return h.type==='holding'||h.type==='seat'; });
+    if(!hubs.length)return null;
+    let best=hubs[0];
+    let bestDist=Math.abs(best.col-fromCol)+Math.abs(best.row-fromRow);
+    for(let i=1;i<hubs.length;i++){
+      const h=hubs[i];
+      const dist=Math.abs(h.col-fromCol)+Math.abs(h.row-fromRow);
+      if(dist<bestDist){
+        best=h;
+        bestDist=dist;
+      }
+    }
+    return best;
+  }
+
+  window.buyProvinceCaravanToHolding = function(col,row,cost){
+    const fare=Math.max(0,parseInt(cost,10)||100);
+    if((S.credits||0)<fare){
+      showNotif('Insufficient credits for caravan (need '+fare+'₵).','warn');
+      return;
+    }
+    const target=getNearestHoldingHex(col,row);
+    if(!target){
+      showNotif('No Holding route found.','warn');
+      return;
+    }
+    S.credits=(S.credits||0)-fare;
+    if(typeof updateCreditsUI==='function')updateCreditsUI();
+    selectedHex=target;
+    renderHexMap();
+    renderHexInfo(target);
+    showNotif('Caravan hired. Arrived at ['+(target.col+1)+','+(target.row+1)+'].','good');
+  };
+
+  window.acceptProvinceRestBoon = function(col,row,boonKey,label){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row; });
+    if(!hex)return;
+
+    if(typeof clearStress==='function')clearStress();
+    else if(typeof changeStress==='function')changeStress(-999);
+
+    if(typeof clearAllConditions==='function'){
+      clearAllConditions();
+    }else if(S&&S.conditions&&typeof S.conditions==='object'){
+      Object.keys(S.conditions).forEach(function(k){ S.conditions[k]=false; });
+      if(typeof updateConditionButtons==='function')updateConditionButtons();
+      if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+    }
+
+    if(boonKey&&S&&S.conditions&&boonKey in S.conditions&&typeof toggleCond==='function'&&!S.conditions[boonKey]){
+      toggleCond(boonKey);
+    }
+
+    if(typeof advanceDay==='function')advanceDay(1);
+    else advanceProvincePhasePenalty(3);
+
+    showNotif((label||'Rest')+': Long Rest complete, boon gained, +1 day.','good');
+    renderHexInfo(hex);
+  };
+
   function rollProvinceRuinLoot(){
     const pools=['items','essentials','toolkits','scrolls','remedies'];
     const p=pick(pools);
@@ -5933,31 +6021,64 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!S.combat||!S.combat.skirmishActive)return;
     const box=document.getElementById(`provinceSkirmish-${col}-${row}`);
     if(!box)return;
+    if(!S.combat.skirmishJoinedSide){
+      const hp=Math.max(0,parseInt((S&&((typeof S.health==='number')?S.health:S.stress))||0,10)||0);
+      box.innerHTML='<div class="wtw-card" style="padding:.4rem;">'
+        +'<div style="font-size:.74rem;color:var(--text2);margin-bottom:.3rem;">Choose your side for skirmish controls. Your Health ('+hp+') is added to that army\'s Stress.</div>'
+        +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+          +'<button class="btn btn-xs btn-teal" onclick="setProvinceSkirmishControlSide(\'A\','+col+','+row+')">Command '+(S.combat.armyA&&S.combat.armyA.type||'Army A')+'</button>'
+          +'<button class="btn btn-xs btn-red" onclick="setProvinceSkirmishControlSide(\'B\','+col+','+row+')">Command '+(S.combat.armyB&&S.combat.armyB.type||'Army B')+'</button>'
+        +'</div>'
+      +'</div>';
+      return;
+    }
     const a=S.combat.armyA||{};
     const b=S.combat.armyB||{};
+    const mineSide=S.combat.skirmishJoinedSide==='B'?'B':'A';
+    const oppSide=mineSide==='A'?'B':'A';
+    const mine=mineSide==='A'?a:b;
+    const opp=mineSide==='A'?b:a;
     box.innerHTML=`<div class="wtw-card" style="padding:.35rem;">
       <div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Round ${S.combat.skirmishRound||1} · Actions reset at 0/0</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">
         <div>
-          <div style="font-size:.74rem;color:var(--text2);">Your Army: <strong style="color:var(--teal);">${a.stress||0}</strong></div>
-          <div style="font-size:.72rem;color:var(--muted2);">Actions: ${typeof a.actions==='number'?a.actions:2} · Dread: d${a.dread||6}</div>
+          <div style="font-size:.74rem;color:var(--text2);">Your Army (${mineSide}): <strong style="color:var(--teal);">${mine.stress||0}</strong></div>
+          <div style="font-size:.72rem;color:var(--muted2);">Actions: ${typeof mine.actions==='number'?mine.actions:2} · Dread: d${mine.dread||6}</div>
           <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">
-            <button class="btn btn-xs btn-primary" onclick="provinceSkirmishAction('A','strike',${col},${row})">Strike</button>
-            <button class="btn btn-xs btn-teal" onclick="provinceSkirmishAction('A','parry',${col},${row})">Parry</button>
-            <button class="btn btn-xs" onclick="provinceSkirmishAction('A','frighten',${col},${row})">Frighten</button>
+            <button class="btn btn-xs btn-primary" onclick="provinceSkirmishAction('${mineSide}','strike',${col},${row})">Strike</button>
+            <button class="btn btn-xs btn-teal" onclick="provinceSkirmishAction('${mineSide}','parry',${col},${row})">Parry</button>
+            <button class="btn btn-xs" onclick="provinceSkirmishAction('${mineSide}','frighten',${col},${row})">Frighten</button>
           </div>
         </div>
         <div>
-          <div style="font-size:.74rem;color:var(--text2);">Enemy Army: <strong style="color:var(--red);">${b.stress||0}</strong></div>
-          <div style="font-size:.72rem;color:var(--muted2);">Actions: ${typeof b.actions==='number'?b.actions:2} · Dread: d${b.dread||6}</div>
+          <div style="font-size:.74rem;color:var(--text2);">Enemy Army (${oppSide}): <strong style="color:var(--red);">${opp.stress||0}</strong></div>
+          <div style="font-size:.72rem;color:var(--muted2);">Actions: ${typeof opp.actions==='number'?opp.actions:2} · Dread: d${opp.dread||6}</div>
           <div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">
-            <button class="btn btn-xs btn-red" onclick="provinceSkirmishAction('B','strike',${col},${row})">Strike</button>
-            <button class="btn btn-xs" onclick="provinceSkirmishAction('B','parry',${col},${row})">Parry</button>
-            <button class="btn btn-xs" onclick="provinceSkirmishAction('B','frighten',${col},${row})">Frighten</button>
+            <button class="btn btn-xs btn-red" onclick="provinceSkirmishAction('${oppSide}','strike',${col},${row})">Strike</button>
+            <button class="btn btn-xs" onclick="provinceSkirmishAction('${oppSide}','parry',${col},${row})">Parry</button>
+            <button class="btn btn-xs" onclick="provinceSkirmishAction('${oppSide}','frighten',${col},${row})">Frighten</button>
           </div>
         </div>
       </div>
     </div>`;
+  };
+
+  window.setProvinceSkirmishControlSide = function(side,col,row){
+    if(!S.combat||!S.combat.skirmishActive)return;
+    const hp=Math.max(0,parseInt((S&&((typeof S.health==='number')?S.health:S.stress))||0,10)||0);
+    const mySide=side==='A'?S.combat.armyA:S.combat.armyB;
+    if(!mySide)return;
+    if(!S.combat.skirmishJoinedSide){
+      mySide.stress=(mySide.stress||0)+hp;
+      S.combat.skirmishJoinedSide=side;
+    }
+    const powerSel=document.getElementById(`skirmishPower-${col}-${row}`);
+    S.combat.skirmishFaction=powerSel?powerSel.value:'political';
+    const aStress=document.getElementById('armyAStress');if(aStress)aStress.textContent=S.combat.armyA.stress;
+    const bStress=document.getElementById('armyBStress');if(bStress)bStress.textContent=S.combat.armyB.stress;
+    if(typeof renderQP==='function')renderQP('combat');
+    openProvinceSkirmishControls(col,row);
+    showNotif('Command established. Your Health was added to your chosen army.', 'good');
   };
 
   window.provinceSkirmishAction = function(side,action,col,row){

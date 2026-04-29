@@ -34,7 +34,7 @@ nav {
   position: fixed;
   right: 0;
   top: 56px;
-  width: 320px;
+  width: min(520px, 92vw);
   max-height: calc(100vh - 56px);
   background: var(--card);
   border-left: 1px solid var(--border);

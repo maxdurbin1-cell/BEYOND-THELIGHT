@@ -1091,7 +1091,7 @@ function generateCharacter() {
   rollAllTraits();
   S.stats.adventure = pick([4, 6, 8]);
   S.credits = rollMulti(6, 2) * 10;
-  S.health = (S.stats.defend || 4) * 2;
+  S.health = 0;
   S.renown = 0;
   S.stress = 0;
   S.trauma = 0;
@@ -1139,8 +1139,11 @@ function clearCharacter(options) {
   S.reason = "";
   S.renown = 0;
   S.credits = 0;
+  S.health = 0;
   S.stress = 0;
   S.trauma = 0;
+  S.mentalStress = 0;
+  S.rads = 0;
   S.pathTokens = 0;
   S.tmw = 0;
   S.successRolls = 0;
@@ -1164,6 +1167,9 @@ function clearCharacter(options) {
   updateCreditsUI();
   updateStressUI();
   updateTrauma();
+  if (typeof updateHealthUI === 'function') updateHealthUI();
+  if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+  if (typeof updateRadsUI === 'function') updateRadsUI();
   renderTraits();
   updateTMWPool();
   if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
@@ -1775,6 +1781,15 @@ function runGMStoryByTrigger(triggerType, triggerValue, options) {
     if (!opts.silentNoMatch) showNotif('No GM story node matched trigger ' + type + ':' + value, 'warn');
     return false;
   }
+  const node = nodes[idx] || null;
+  window._gmStoryLastMatch = {
+    type: type,
+    value: value,
+    index: idx,
+    nodeId: node ? node.id : null,
+    title: node ? String(node.title || '') : '',
+    at: Date.now()
+  };
   runGMStoryNode(idx);
   return true;
 }
@@ -1787,9 +1802,84 @@ function tryRunGMStoryTriggerValues(triggerType, values) {
     const key = String(raw == null ? '' : raw).trim();
     if (!key || seen[key]) continue;
     seen[key] = true;
-    if (runGMStoryByTrigger(triggerType, key, { silentNoMatch: true })) return true;
+    if (runGMStoryByTrigger(triggerType, key, { silentNoMatch: true })) {
+      return { matched: true, triggerType: triggerType, triggerValue: key };
+    }
   }
+  return { matched: false, triggerType: triggerType, triggerValue: '' };
+}
+
+function isGMModeForDebugPanel() {
+  if (window.Settings && String(window.Settings.gameMode || '') === 'gm') return true;
+  if (document && document.body && document.body.classList && document.body.classList.contains('gm-mode')) return true;
   return false;
+}
+
+function ensureGMStoryDebugState() {
+  if (!window._gmStoryDebugState || typeof window._gmStoryDebugState !== 'object') {
+    window._gmStoryDebugState = {
+      event: 'none',
+      triggerType: '',
+      triggerValue: '',
+      matched: false,
+      matchedNodeId: null,
+      matchedTitle: '',
+      at: 0
+    };
+  }
+}
+
+function renderGMStoryTriggerDebugPanel() {
+  ensureGMStoryDebugState();
+  let panel = document.getElementById('gmStoryTriggerDebug');
+  if (!isGMModeForDebugPanel()) {
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'gmStoryTriggerDebug';
+    panel.setAttribute('aria-live', 'polite');
+    panel.style.position = 'fixed';
+    panel.style.right = '12px';
+    panel.style.bottom = '12px';
+    panel.style.zIndex = '1300';
+    panel.style.maxWidth = '280px';
+    panel.style.padding = '.45rem .55rem';
+    panel.style.border = '1px solid rgba(176,96,208,.42)';
+    panel.style.background = 'rgba(12,12,22,.92)';
+    panel.style.boxShadow = '0 10px 26px rgba(0,0,0,.45)';
+    panel.style.borderRadius = '.35rem';
+    panel.style.fontSize = '.68rem';
+    panel.style.lineHeight = '1.35';
+    panel.style.color = 'var(--muted2)';
+    document.body.appendChild(panel);
+  }
+  const dbg = window._gmStoryDebugState;
+  const stamp = dbg.at ? new Date(dbg.at).toLocaleTimeString() : '-';
+  panel.style.display = 'block';
+  panel.innerHTML = ''
+    + '<div style="font-family:Rajdhani,sans-serif;font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:var(--purple);margin-bottom:.18rem;">GM Trigger Debug</div>'
+    + '<div>Event: <strong style="color:var(--text2);">' + String(dbg.event || 'none') + '</strong></div>'
+    + '<div>Trigger: <span style="color:var(--gold2);">' + String(dbg.triggerType || '-') + '</span> · <span style="color:var(--teal);">' + String(dbg.triggerValue || '-') + '</span></div>'
+    + '<div>Matched Node: <strong style="color:' + (dbg.matched ? 'var(--green2)' : 'var(--red2)') + ';">' + (dbg.matched ? String(dbg.matchedNodeId || 'index-only') : 'none') + '</strong></div>'
+    + (dbg.matchedTitle ? ('<div style="color:var(--muted2);">' + String(dbg.matchedTitle) + '</div>') : '')
+    + '<div style="margin-top:.15rem;color:var(--muted);">' + stamp + '</div>';
+}
+
+function recordGMStoryTriggerDebug(eventName, triggerType, triggerValue, matched) {
+  ensureGMStoryDebugState();
+  const last = window._gmStoryLastMatch || null;
+  window._gmStoryDebugState = {
+    event: String(eventName || 'manual'),
+    triggerType: String(triggerType || ''),
+    triggerValue: String(triggerValue || ''),
+    matched: !!matched,
+    matchedNodeId: matched && last ? (last.nodeId || null) : null,
+    matchedTitle: matched && last ? String(last.title || '') : '',
+    at: Date.now()
+  };
+  renderGMStoryTriggerDebugPanel();
 }
 
 function installGMStoryRuntimeHooks() {
@@ -1802,6 +1892,8 @@ function installGMStoryRuntimeHooks() {
     acceptedById: {},
     completedById: {}
   };
+  ensureGMStoryDebugState();
+  renderGMStoryTriggerDebugPanel();
 
   const baseRenderHexInfo = window.renderHexInfo;
   window.renderHexInfo = function (hex) {
@@ -1812,12 +1904,13 @@ function installGMStoryRuntimeHooks() {
       const zeroKey = String(hex.col) + ',' + String(hex.row);
       if (state.lastHexKey === zeroKey) return out;
       state.lastHexKey = zeroKey;
-      tryRunGMStoryTriggerValues('hex', [
+      const result = tryRunGMStoryTriggerValues('hex', [
         '[' + String(hex.col + 1) + ',' + String(hex.row + 1) + ']',
         String(hex.col + 1) + ',' + String(hex.row + 1),
         '[' + zeroKey + ']',
         zeroKey
       ]);
+      recordGMStoryTriggerDebug('hex-enter', 'hex', result.matched ? result.triggerValue : '[' + String(hex.col + 1) + ',' + String(hex.row + 1) + ']', result.matched);
     } catch (err) {}
     return out;
   };
@@ -1837,7 +1930,8 @@ function installGMStoryRuntimeHooks() {
         const state = window._gmStoryTriggerState;
         if (idKey && state.acceptedById[idKey]) return out;
         if (idKey) state.acceptedById[idKey] = true;
-        tryRunGMStoryTriggerValues('mission', [accepted.id, accepted.title, 'accepted:' + accepted.id, 'accepted:' + accepted.title]);
+        const result = tryRunGMStoryTriggerValues('mission', [accepted.id, accepted.title, 'accepted:' + accepted.id, 'accepted:' + accepted.title]);
+        recordGMStoryTriggerDebug('mission-accept', 'mission', result.matched ? result.triggerValue : String(accepted.id || accepted.title || ''), result.matched);
       } catch (err) {}
       return out;
     };
@@ -1854,7 +1948,8 @@ function installGMStoryRuntimeHooks() {
         const state = window._gmStoryTriggerState;
         if (idKey && state.acceptedById[idKey]) return out;
         if (idKey) state.acceptedById[idKey] = true;
-        tryRunGMStoryTriggerValues('mission', [mission.id, mission.title, 'accepted:' + mission.id, 'accepted:' + mission.title]);
+        const result = tryRunGMStoryTriggerValues('mission', [mission.id, mission.title, 'accepted:' + mission.id, 'accepted:' + mission.title]);
+        recordGMStoryTriggerDebug('mission-create', 'mission', result.matched ? result.triggerValue : String(mission.id || mission.title || ''), result.matched);
       } catch (err) {}
       return out;
     };
@@ -1876,7 +1971,7 @@ function installGMStoryRuntimeHooks() {
       const state = window._gmStoryTriggerState;
       if (state.completedById[completeKey]) return out;
       state.completedById[completeKey] = true;
-      tryRunGMStoryTriggerValues('mission', [
+      const result = tryRunGMStoryTriggerValues('mission', [
         snapshot.id,
         snapshot.title,
         'completed:' + snapshot.id,
@@ -1884,6 +1979,7 @@ function installGMStoryRuntimeHooks() {
         snapshot.id + ':' + outcome,
         snapshot.title + ':' + outcome
       ]);
+      recordGMStoryTriggerDebug('mission-complete-' + outcome, 'mission', result.matched ? result.triggerValue : String(snapshot.id || snapshot.title || ''), result.matched);
     } catch (err) {}
     return out;
   };

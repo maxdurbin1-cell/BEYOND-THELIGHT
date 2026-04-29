@@ -646,6 +646,7 @@
   function openSettings() {
     const container = document.getElementById(SETTINGS_ID);
     if (container) {
+      Settings.activeTab = 'general';
       syncGameModeUI();
       applySettingsTabVisibility();
       refreshRecoveryPanel();
@@ -663,7 +664,11 @@
   function toggleSettings() {
     const container = document.getElementById(SETTINGS_ID);
     if (container) {
-      container.classList.toggle('open');
+      if (container.classList.contains('open')) {
+        closeSettings();
+      } else {
+        openSettings();
+      }
     }
   }
   

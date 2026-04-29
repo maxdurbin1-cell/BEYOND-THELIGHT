@@ -273,6 +273,19 @@ select option{background:#0f1020;}
 .qp-roll-grid{display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin:.4rem 0;}
 .qp-roll-grid button{font-size:.62rem;padding:.22rem .4rem;}
 .qp-result{background:var(--surface);border:1px solid var(--border);padding:.4rem .6rem;margin-top:.4rem;min-height:1.8rem;font-size:.82rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-size:.9rem;}
+@media (max-width: 700px){
+  #quickPanelToggle{right:.55rem;bottom:.75rem;padding:.5rem .72rem;font-size:.64rem;}
+  #quickPanel{right:.5rem;left:.5rem;bottom:3.45rem;width:auto;max-height:calc(100vh - 5.35rem);}
+  .qp-tab{font-size:.6rem;letter-spacing:.07em;padding:.38rem .16rem;}
+  #qpContent{padding:.6rem;}
+}
+@media (max-width: 480px){
+  #quickPanelToggle{right:.45rem;bottom:.6rem;padding:.46rem .64rem;font-size:.6rem;}
+  #quickPanel{right:.4rem;left:.4rem;bottom:3.2rem;max-height:calc(100vh - 4.95rem);}
+  .qp-tab{font-size:.55rem;letter-spacing:.05em;padding:.34rem .1rem;}
+  .qp-close{padding:.24rem .42rem;}
+  #qpContent{padding:.52rem;}
+}
 .job-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
 .job-difficulty{font-size:.7rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}
 .job-reward{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);margin-top:.2rem;}

@@ -181,13 +181,6 @@ async function runScenario(browser) {
     if (typeof window.generateStarSystemMap === "function") window.generateStarSystemMap("cluster");
     if (typeof window.generateWorldThatWasMap === "function") window.generateWorldThatWasMap();
 
-    if (window.S) {
-      window.S.factionRenown = { ember_fleet: 3 };
-      window.S.factionBases = { ember_fleet: { trusted: true } };
-      window.S.factionWayfarerTasks = [{ id: "task-1", title: "Survey route" }];
-      window.S.factionNarrative = { pathPoints: { heroic: 1, tyrant: 0, martyr: 0 }, contracts: { ember_fleet: 1 } };
-    }
-
     const sync = await window.campaignSystem.syncSharedSilent("scenario-sync");
     return { ok: !!(sync && sync.ok), sync };
   });
@@ -196,47 +189,165 @@ async function runScenario(browser) {
     throw new Error(`GM shared sync failed: ${JSON.stringify(genRes)}`);
   }
 
-  const factionSyncAck = await gmPage.evaluate(async () => {
-    const st = window.campaignSystem && window.campaignSystem.getState ? window.campaignSystem.getState() : null;
-    if (!st || !st.code || !st.token || typeof window.io !== "function") {
-      return { ok: false, error: "Missing GM state/socket." };
+  const factionMissionFlow = await gmPage.evaluate(async () => {
+    const out = {
+      ok: false,
+      error: "",
+      acceptedMissionId: null,
+      completedMissionId: null,
+      activeBefore: 0,
+      activeAfterAccept: 0,
+      activeAfterComplete: 0,
+      completedBefore: 0,
+      completedAfter: 0,
+      pointsBefore: { heroic: 0, tyrant: 0, martyr: 0 },
+      pointsAfter: { heroic: 0, tyrant: 0, martyr: 0 },
+      chosenFaction: "",
+      chosenMission: ""
+    };
+
+    if (!window.factionSystem || !window.factionSystem.FACTIONS) {
+      out.error = "Faction system is unavailable.";
+      return out;
     }
-    return await new Promise((resolve) => {
-      const s = window.io({ transports: ["websocket", "polling"] });
-      const done = (payload) => {
-        try { s.disconnect(); } catch (_err) {}
-        resolve(payload || { ok: false, error: "No response" });
-      };
-      s.on("connect_error", (err) => done({ ok: false, error: String(err && err.message ? err.message : err) }));
-      s.on("connect", () => {
-        s.emit("campaign:join", {
-          code: st.code,
-          token: st.token,
-          role: "gm",
-          name: "Scenario GM"
-        }, (joinAck) => {
-          if (!joinAck || !joinAck.ok) {
-            done({ ok: false, error: (joinAck && joinAck.error) || "join failed" });
-            return;
-          }
-          s.emit("campaign:syncState", {
-            reason: "scenario-faction-contract",
-            state: {
-              factionRenown: { ember_fleet: 3 },
-              factionBases: { ember_fleet: { trusted: true } },
-              factionWayfarerTasks: [{ id: "task-1", title: "Survey route" }],
-              factionNarrative: { pathPoints: { heroic: 1, tyrant: 0, martyr: 0 }, contracts: { ember_fleet: 1 } }
-            }
-          }, (syncAck) => {
-            done(syncAck);
-          });
-        });
-      });
-      setTimeout(() => done({ ok: false, error: "faction sync timed out" }), 12000);
-    });
+    function resolveState() {
+      try {
+        return Function("return (typeof S !== 'undefined' && S) ? S : (window.S || null);")();
+      } catch (_err) {
+        return window.S || null;
+      }
+    }
+
+    var stateRef = resolveState();
+    if (!stateRef && typeof window.generateCharacter === "function") {
+      try { window.generateCharacter(); } catch (_err) {}
+      stateRef = resolveState();
+    }
+    if (!stateRef) {
+      out.error = "Global state S is unavailable.";
+      return out;
+    }
+
+    const factionIds = Object.keys(window.factionSystem.FACTIONS || {});
+    if (!factionIds.length) {
+      out.error = "No factions defined.";
+      return out;
+    }
+
+    const factionId = factionIds[0];
+    const faction = window.factionSystem.FACTIONS[factionId] || {};
+    const mission = Array.isArray(faction.factionMissions) && faction.factionMissions.length
+      ? faction.factionMissions[0]
+      : null;
+    if (!mission || !mission.id) {
+      out.error = "No faction mission available for UI flow.";
+      return out;
+    }
+
+    out.chosenFaction = factionId;
+    out.chosenMission = String(mission.id);
+    out.activeBefore = Array.isArray(stateRef.activeMissions) ? stateRef.activeMissions.length : 0;
+    out.completedBefore = Array.isArray(stateRef.completedMissions) ? stateRef.completedMissions.length : 0;
+
+    if (!stateRef.factionNarrative || typeof stateRef.factionNarrative !== "object") {
+      stateRef.factionNarrative = {};
+    }
+    if (!stateRef.factionNarrative.pathPoints || typeof stateRef.factionNarrative.pathPoints !== "object") {
+      stateRef.factionNarrative.pathPoints = { heroic: 0, tyrant: 0, martyr: 0 };
+    }
+    const beforePoints = stateRef.factionNarrative.pathPoints;
+    out.pointsBefore = {
+      heroic: Number(beforePoints.heroic || 0),
+      tyrant: Number(beforePoints.tyrant || 0),
+      martyr: Number(beforePoints.martyr || 0)
+    };
+
+    if (typeof window.factionSystem.expandFaction === "function") {
+      try { window.factionSystem.expandFaction(factionId); } catch (_err) {}
+      if (typeof window.closeModal === "function") {
+        try { window.closeModal(); } catch (_err) {}
+      }
+    }
+
+    if (typeof window.factionSystem.acceptFactionMission !== "function") {
+      out.error = "acceptFactionMission UI action is unavailable.";
+      return out;
+    }
+
+    window.factionSystem.acceptFactionMission(factionId, mission.id, "heroic");
+    out.activeAfterAccept = Array.isArray(stateRef.activeMissions) ? stateRef.activeMissions.length : 0;
+
+    const activeContract = Array.isArray(stateRef.activeMissions)
+      ? stateRef.activeMissions.find((m) => m && m.missionType === "faction_contract" && m.factionContract && m.factionContract.factionId === factionId && String(m.factionContract.missionId) === String(mission.id))
+      : null;
+    if (!activeContract || !activeContract.id) {
+      out.error = "Faction mission was not assigned through UI flow.";
+      return out;
+    }
+
+    out.acceptedMissionId = Number(activeContract.id);
+
+    if (typeof window.completeMissionStep !== "function" && typeof window.resolveMissionOutcome !== "function") {
+      out.error = "Mission UI handlers are unavailable.";
+      return out;
+    }
+
+    if (typeof window.completeMissionStep === "function") {
+      window.completeMissionStep(activeContract.id, 1);
+      window.completeMissionStep(activeContract.id, 2);
+    }
+    if (typeof window.resolveMissionOutcome === "function") {
+      window.resolveMissionOutcome(activeContract.id, true);
+    } else if (typeof window.completeMissionStep === "function") {
+      window.completeMissionStep(activeContract.id, 3);
+    }
+
+    out.activeAfterComplete = Array.isArray(stateRef.activeMissions) ? stateRef.activeMissions.length : 0;
+    out.completedAfter = Array.isArray(stateRef.completedMissions) ? stateRef.completedMissions.length : 0;
+    const completedContract = Array.isArray(stateRef.completedMissions)
+      ? stateRef.completedMissions.find((m) => m && m.missionType === "faction_contract" && String(m.id) === String(activeContract.id))
+      : null;
+    out.completedMissionId = completedContract && completedContract.id ? Number(completedContract.id) : null;
+
+    const afterPoints = (stateRef.factionNarrative && stateRef.factionNarrative.pathPoints) || { heroic: 0, tyrant: 0, martyr: 0 };
+    out.pointsAfter = {
+      heroic: Number(afterPoints.heroic || 0),
+      tyrant: Number(afterPoints.tyrant || 0),
+      martyr: Number(afterPoints.martyr || 0)
+    };
+
+    if (!window.S || typeof window.S !== "object") {
+      window.S = {};
+    }
+    window.S.activeMissions = Array.isArray(stateRef.activeMissions) ? stateRef.activeMissions : [];
+    window.S.completedMissions = Array.isArray(stateRef.completedMissions) ? stateRef.completedMissions : [];
+    window.S.factionRenown = stateRef.factionRenown && typeof stateRef.factionRenown === "object" ? stateRef.factionRenown : {};
+    window.S.factionBases = stateRef.factionBases && typeof stateRef.factionBases === "object" ? stateRef.factionBases : {};
+    window.S.factionWayfarerTasks = Array.isArray(stateRef.factionWayfarerTasks) ? stateRef.factionWayfarerTasks : [];
+    window.S.factionNarrative = stateRef.factionNarrative && typeof stateRef.factionNarrative === "object" ? stateRef.factionNarrative : {};
+
+    const syncRes = await window.campaignSystem.syncSharedSilent("scenario-ui-faction-mission");
+    out.ok = !!(syncRes && syncRes.ok);
+    if (!out.ok) out.error = (syncRes && syncRes.error) || "UI flow sync failed.";
+    return out;
   });
-  if (!factionSyncAck || !factionSyncAck.ok) {
-    throw new Error(`Faction sync payload failed: ${JSON.stringify(factionSyncAck)}`);
+  if (!factionMissionFlow || !factionMissionFlow.ok) {
+    throw new Error(`Faction mission UI flow failed: ${JSON.stringify(factionMissionFlow)}`);
+  }
+  if (
+    Number(factionMissionFlow.activeAfterAccept || 0) <= Number(factionMissionFlow.activeBefore || 0) ||
+    !factionMissionFlow.acceptedMissionId
+  ) {
+    throw new Error(`Mission assignment assertion failed: ${JSON.stringify(factionMissionFlow)}`);
+  }
+  if (
+    Number(factionMissionFlow.completedAfter || 0) <= Number(factionMissionFlow.completedBefore || 0) ||
+    !factionMissionFlow.completedMissionId
+  ) {
+    throw new Error(`Mission completion assertion failed: ${JSON.stringify(factionMissionFlow)}`);
+  }
+  if (Number(factionMissionFlow.pointsAfter.heroic || 0) <= Number(factionMissionFlow.pointsBefore.heroic || 0)) {
+    throw new Error(`Faction progression assertion failed: ${JSON.stringify(factionMissionFlow)}`);
   }
 
   const gmSummary = await collectMapSummary(gmPage);
@@ -437,18 +548,31 @@ async function runScenario(browser) {
   const p1Faction = await p1Page.evaluate(() => {
     var st = window.campaignSystem && window.campaignSystem.getState ? window.campaignSystem.getState() : null;
     var shared = st && st.campaign && st.campaign.shared && st.campaign.shared.state ? st.campaign.shared.state : {};
-    var renownMap = shared && shared.factionRenown && typeof shared.factionRenown === "object" ? shared.factionRenown : {};
-    var tasks = Array.isArray(shared && shared.factionWayfarerTasks) ? shared.factionWayfarerTasks : [];
+    var completed = Array.isArray(shared && shared.completedMissions) ? shared.completedMissions : [];
+    var heroicPoints = shared && shared.factionNarrative && shared.factionNarrative.pathPoints
+      ? Number(shared.factionNarrative.pathPoints.heroic || 0)
+      : 0;
+    var completedContracts = shared && shared.factionNarrative && Array.isArray(shared.factionNarrative.completedContracts)
+      ? shared.factionNarrative.completedContracts.length
+      : 0;
+    var hasCompletedFactionContract = completed.some(function (m) {
+      return !!(m && m.missionType === "faction_contract");
+    });
     return {
-      renownKeys: Object.keys(renownMap).length,
-      taskCount: tasks.length
+      completedFactionContract: hasCompletedFactionContract,
+      heroicPoints: heroicPoints,
+      completedContracts: completedContracts
     };
   });
-  if (Number(p1Faction.renownKeys || 0) < 1 || Number(p1Faction.taskCount || 0) < 1) {
+  if (
+    !p1Faction.completedFactionContract ||
+    Number(p1Faction.heroicPoints || 0) < 1 ||
+    Number(p1Faction.completedContracts || 0) < 1
+  ) {
     throw new Error(`Faction contract sync assertion failed: ${JSON.stringify(p1Faction)}`);
   }
 
-  process.stdout.write(`Campaign scenario passed: code=${code}, requestResyncMs=${resyncAck.tookMs}\n`);
+  process.stdout.write(`Campaign scenario passed: code=${code}, requestResyncMs=${resyncAck.tookMs}, factionMissionId=${factionMissionFlow.completedMissionId}\n`);
 
   await gmPage.close();
   await p1Page.close();

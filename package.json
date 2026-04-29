@@ -9,6 +9,7 @@
     "dev": "node server.js",
     "smoke:clicks": "node smoke-tests/click-paths.smoke.mjs",
     "smoke:scenario": "node smoke-tests/campaign-scenario.e2e.mjs",
+    "smoke:reconnect": "node smoke-tests/reconnect-churn.smoke.mjs",
     "smoke:test": "npm run smoke:clicks && npm run smoke:scenario"
   },
   "dependencies": {

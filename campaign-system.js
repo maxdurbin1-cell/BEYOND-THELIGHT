@@ -39,6 +39,9 @@
     lastSyncConflicts: [],
     lastCampaignStateAt: 0,
     lastServerStateVersion: 0,
+    lastDisconnectAt: 0,
+    reconnectGraceUntil: 0,
+    waitingReconnectSnapshot: false,
     lastAuthoritativeAt: 0,
     syncInFlight: false,
     lastResyncRequester: "",
@@ -163,8 +166,12 @@
   }
 
   function setSyncHealth(mode, text) {
-    state.syncHealth = String(mode || "idle");
-    state.syncText = String(text || "");
+    var nextMode = String(mode || "idle");
+    var nextText = String(text || "");
+    var changed = state.syncHealth !== nextMode || state.syncText !== nextText;
+    state.syncHealth = nextMode;
+    state.syncText = nextText;
+    return changed;
   }
 
   function getLastSnapshotAgeSeconds() {
@@ -173,32 +180,41 @@
   }
 
   function refreshSyncHealth() {
+    var now = Date.now();
+    var remaining = state.reconnectGraceUntil
+      ? Math.max(0, Math.ceil((Number(state.reconnectGraceUntil || 0) - now) / 1000))
+      : 0;
+
     if (!state.connected) {
       if (state.code) {
-        setSyncHealth("stale", "Reconnecting...");
+        if (!state.lastDisconnectAt) state.lastDisconnectAt = now;
+        if (!state.reconnectGraceUntil) state.reconnectGraceUntil = now + STALE_SYNC_MS;
+        state.waitingReconnectSnapshot = true;
+        return setSyncHealth("stale", remaining > 0 ? ("Reconnecting (" + remaining + "s)") : "Reconciling...");
       } else {
-        setSyncHealth("offline", "Offline");
+        state.waitingReconnectSnapshot = false;
+        return setSyncHealth("offline", "Offline");
       }
-      return;
     }
     if (!state.code) {
-      setSyncHealth("online", "Connected");
-      return;
+      state.waitingReconnectSnapshot = false;
+      state.reconnectGraceUntil = 0;
+      return setSyncHealth("online", "Connected");
+    }
+    if (state.waitingReconnectSnapshot) {
+      return setSyncHealth("syncing", remaining > 0 ? ("Reconciling (" + remaining + "s)") : "Reconciling...");
     }
     if (state.syncInFlight || Number(state.pendingSyncCount || 0) > 0) {
-      setSyncHealth("syncing", "Syncing...");
-      return;
+      return setSyncHealth("syncing", "Syncing...");
     }
     if (Number(state.syncConflictCount || 0) > 0) {
-      setSyncHealth("stale", "Conflicts " + Number(state.syncConflictCount || 0));
-      return;
+      return setSyncHealth("stale", "Conflicts " + Number(state.syncConflictCount || 0));
     }
     var ageSec = getLastSnapshotAgeSeconds();
     if (state.lastCampaignStateAt && ageSec >= Math.floor(STALE_SYNC_MS / 1000)) {
-      setSyncHealth("stale", "Stale " + ageSec + "s");
-      return;
+      return setSyncHealth("stale", "Stale " + ageSec + "s");
     }
-    setSyncHealth("online", "Synced");
+    return setSyncHealth("online", "Synced");
   }
 
   function maybeDeterministicReconcile(trigger) {
@@ -1174,9 +1190,9 @@
     var sharedCredits = Math.max(0, Number(sharedState.credits != null ? sharedState.credits : ((window.S && window.S.credits) || 0)));
     var sharedRenown = Math.max(0, Number(sharedState.renown != null ? sharedState.renown : ((window.S && window.S.renown) || 0)));
     var economyLedger = Array.isArray(sharedState.economyLedger) ? sharedState.economyLedger : [];
-    var syncLabel = state.syncHealth === "syncing"
+    var syncLabel = state.syncText || (state.syncHealth === "syncing"
       ? "Syncing"
-      : (state.syncHealth === "stale" ? "Pending" : (state.syncHealth === "online" ? "Synced" : "Offline"));
+      : (state.syncHealth === "stale" ? "Pending" : (state.syncHealth === "online" ? "Synced" : "Offline")));
     var syncConflictText = state.syncConflictCount > 0 ? ("Conflicts " + state.syncConflictCount) : "";
     var authoritativeStamp = formatTimestamp(state.lastAuthoritativeAt) || formatTimestamp(state.lastSyncAt) || "-";
     var snapshotAgeText = state.lastCampaignStateAt ? (getLastSnapshotAgeSeconds() + "s ago") : "-";
@@ -1589,6 +1605,10 @@
       state.connected = true;
       syncWindowStateAlias();
       state.lastCampaignStateAt = Date.now();
+      if (state.code) {
+        state.waitingReconnectSnapshot = true;
+        if (!state.reconnectGraceUntil) state.reconnectGraceUntil = Date.now() + STALE_SYNC_MS;
+      }
       setSyncHealth("online", "Connected");
       renderSettingsSection();
       renderDockPanel();
@@ -1598,7 +1618,10 @@
 
     state.socket.on("disconnect", function () {
       state.connected = false;
-      setSyncHealth(state.code ? "stale" : "offline", state.code ? "Reconnecting..." : "Offline");
+      state.lastDisconnectAt = Date.now();
+      state.reconnectGraceUntil = state.lastDisconnectAt + STALE_SYNC_MS;
+      if (state.code) state.waitingReconnectSnapshot = true;
+      setSyncHealth(state.code ? "stale" : "offline", state.code ? "Reconnecting (" + Math.max(0, Math.ceil(STALE_SYNC_MS / 1000)) + "s)" : "Offline");
       renderSettingsSection();
       renderDockPanel();
     });
@@ -1608,6 +1631,8 @@
       state.campaign = snapshot || null;
       state.code = snapshot && snapshot.code ? String(snapshot.code) : "";
       state.lastCampaignStateAt = Date.now();
+      state.waitingReconnectSnapshot = false;
+      state.reconnectGraceUntil = 0;
 
       if (snapshot && snapshot.me) {
         state.role = snapshot.me.role === "gm" ? "gm" : "player";
@@ -2222,9 +2247,9 @@
 
   function formatSyncStatusLine() {
     var roleLabel = state.role === "gm" ? "GM" : (state.role === "player" ? "Player" : "Offline");
-    var syncLabel = state.syncHealth === "syncing"
+    var syncLabel = String(state.syncText || "").trim().toLowerCase() || (state.syncHealth === "syncing"
       ? "syncing"
-      : (state.syncHealth === "stale" ? "pending" : (state.syncHealth === "online" ? "synced" : "offline"));
+      : (state.syncHealth === "stale" ? "pending" : (state.syncHealth === "online" ? "synced" : "offline")));
     var stamp = formatTimestamp(state.lastAuthoritativeAt) || formatTimestamp(state.lastSyncAt) || "-";
     var age = state.lastCampaignStateAt ? (" · snapshot " + getLastSnapshotAgeSeconds() + "s") : "";
     var conflict = state.syncConflictCount > 0 ? (" · conflicts " + state.syncConflictCount) : "";
@@ -2442,7 +2467,12 @@
     ensureDockPanel();
     ensureMapSyncStatusBars();
     syncDockOffset();
-    refreshSyncHealth();
+    var syncStateChanged = refreshSyncHealth();
+    if (syncStateChanged) {
+      renderSettingsSection();
+      renderDockPanel();
+      ensureMapSyncStatusBars();
+    }
     syncCharacterToCampaign(false);
     if (state.role !== "player") {
       syncSharedState("tick");

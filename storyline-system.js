@@ -87,6 +87,55 @@
     },
   ];
 
+  const BRANCH_REWARD_TABLES = {
+    false_flag: {
+      id: "false_flag",
+      label: "Doctrine: Manufactured Unity",
+      once: true,
+      rewards: {
+        credits: 260,
+        faction: { military: 1, political: 1, rebels: -1 },
+      },
+      modifiers: {
+        storyRollBonus: 1,
+        merchantCreditsMultiplier: 1.35,
+        warfrontScaleBonus: 2,
+      },
+      note: "Propaganda networks boost logistics and campaign funding.",
+    },
+    civil_war: {
+      id: "civil_war",
+      label: "Doctrine: Fracture Command",
+      once: true,
+      rewards: {
+        renown: 1,
+        faction: { military: 1, rebels: 1 },
+      },
+      modifiers: {
+        storyRollBonus: 1,
+        dreadDifficultyDelta: -1,
+        warfrontScaleMultiplier: 1.15,
+      },
+      note: "Battlefield adaptation lowers pressure in future checks.",
+    },
+    purge: {
+      id: "purge",
+      label: "Doctrine: Crown of Ash",
+      once: true,
+      rewards: {
+        renown: 2,
+        credits: 120,
+        faction: { military: 2, political: -1 },
+      },
+      modifiers: {
+        storyRollBonus: 2,
+        warfrontScaleBonus: 1,
+        merchantFactionRenownBonus: 1,
+      },
+      note: "Rule through fear hardens your campaigns and war economy.",
+    },
+  };
+
   const SCENES = {
     intro: {
       chapter: "c1",
@@ -1573,6 +1622,7 @@
             next: "warfront_campaign",
             text: "The lie holds. Faction commanders unify under your emergency doctrine.",
             effects: {
+              branchRewardTable: "false_flag",
               faction: { corporations: 1, military: 2, political: 1, rebels: -2 },
               activateWarfront: 14,
               flags: { falseFlagDoctrine: true },
@@ -1590,7 +1640,7 @@
           text: "Turn the forged war into a real constitutional federation",
           stat: "lead",
           baseDread: 12,
-          success: { next: "ending_openhand", text: "You confess the fabrication publicly and convert panic into a binding federation charter.", effects: { renown: 3, faction: { political: 2, rebels: 1 } } },
+          success: { next: "ending_openhand", text: "You confess the fabrication publicly and convert panic into a binding federation charter.", effects: { branchRewardTable: "false_flag", renown: 3, faction: { political: 2, rebels: 1 } } },
           fail: { next: "paranoia_purge", text: "The confession fails. Nobody trusts anybody. Your rule survives only through fear.", effects: { mentalStress: 2 } },
         },
       ],
@@ -1613,7 +1663,7 @@
             enemies: ["Reform Marshal", "District Captain", "Rail Sapper", "Citizen Militia"],
             briefing: "Lead the purist offensive through contested stations to end the split by force."
           },
-          success: { next: "ending_time_tyrant", text: "Order wins. History remains yours to dictate.", effects: { renown: 3, faction: { military: 2, rebels: -3 } } },
+          success: { next: "ending_time_tyrant", text: "Order wins. History remains yours to dictate.", effects: { branchRewardTable: "civil_war", renown: 3, faction: { military: 2, rebels: -3 } } },
           fail: { next: "paranoia_purge", text: "Victory is messy and uncertain. You now trust no surviving commander.", effects: { health: 1, mentalStress: 2 } },
         },
         {
@@ -1625,7 +1675,7 @@
             enemies: ["Purist Warden", "Doctrine Captain", "Heavy Gunner"],
             briefing: "Break the old command spine so districts can elect their own officers."
           },
-          success: { next: "ending_glass", text: "You win against your own doctrine and decentralize force across districts.", effects: { renown: 3, faction: { rebels: 2, political: 1 } } },
+          success: { next: "ending_glass", text: "You win against your own doctrine and decentralize force across districts.", effects: { branchRewardTable: "civil_war", renown: 3, faction: { rebels: 2, political: 1 } } },
           fail: { next: "ending_iron", text: "Reform stalls in blood and the war ends under hard emergency law.", effects: { health: 2, mentalStress: 1 } },
         },
         {
@@ -1633,7 +1683,7 @@
           text: "Cut off both high commands and force local ceasefires",
           stat: "control",
           baseDread: 13,
-          success: { next: "ending_openhand", text: "With both command towers dark, district councils negotiate their own armistice lines.", effects: { renown: 2, faction: { political: 2 } } },
+          success: { next: "ending_openhand", text: "With both command towers dark, district councils negotiate their own armistice lines.", effects: { branchRewardTable: "civil_war", renown: 2, faction: { political: 2 } } },
           fail: { next: "paranoia_purge", text: "Command survives your sabotage. Every side assumes betrayal.", effects: { mentalStress: 2, tmw: 1 } },
         },
       ],
@@ -1659,6 +1709,7 @@
             next: "ending_purge_crown",
             text: "You survive the purge. The throne is yours, but no trusted voice remains.",
             effects: {
+              branchRewardTable: "purge",
               renown: 4,
               faction: { military: 2, rebels: -3, political: -2 }
             },
@@ -1668,6 +1719,7 @@
             next: "ending_dark_throne",
             text: "You win at ruinous cost. The purge succeeds, but your court is a graveyard.",
             effects: {
+              branchRewardTable: "purge",
               health: 2,
               mentalStress: 3
             },
@@ -1784,6 +1836,8 @@
     if (!st.pendingCombat || typeof st.pendingCombat !== "object") st.pendingCombat = null;
     if (!st.optionAssignments || typeof st.optionAssignments !== "object") st.optionAssignments = {};
     if (!Array.isArray(st.decisionAssignments)) st.decisionAssignments = [];
+    if (!Array.isArray(st.unlockedCampaignModifiers)) st.unlockedCampaignModifiers = [];
+    if (!st.permanentModifiers || typeof st.permanentModifiers !== "object") st.permanentModifiers = {};
     if (!st.travelMarkers || typeof st.travelMarkers !== "object") {
       st.travelMarkers = {
         provinceKey: "",
@@ -1795,6 +1849,63 @@
       };
     }
     return st;
+  }
+
+  function getStoryPermanentModifiers() {
+    const st = ensureStoryState();
+    if (!st) return {};
+    if (st.permanentModifiers && Object.keys(st.permanentModifiers).length) return st.permanentModifiers;
+
+    const totals = {};
+    const unlocked = Array.isArray(st.unlockedCampaignModifiers) ? st.unlockedCampaignModifiers : [];
+    unlocked.forEach(function (id) {
+      const table = BRANCH_REWARD_TABLES[id];
+      if (!table || !table.modifiers || typeof table.modifiers !== "object") return;
+      Object.keys(table.modifiers).forEach(function (key) {
+        const value = Number(table.modifiers[key] || 0);
+        if (!Number.isFinite(value) || value === 0) return;
+        totals[key] = Number(totals[key] || 0) + value;
+      });
+    });
+
+    st.permanentModifiers = totals;
+    return totals;
+  }
+
+  function getStoryModifierValue(key) {
+    if (!key) return 0;
+    const mods = getStoryPermanentModifiers();
+    return Number((mods && mods[key]) || 0);
+  }
+
+  function grantBranchRewardTable(tableId) {
+    const id = String(tableId || "").trim().toLowerCase();
+    if (!id) return;
+
+    const table = BRANCH_REWARD_TABLES[id];
+    if (!table) return;
+
+    const st = ensureStoryState();
+    if (!st) return;
+    if (!Array.isArray(st.unlockedCampaignModifiers)) st.unlockedCampaignModifiers = [];
+
+    if (table.once !== false && st.unlockedCampaignModifiers.indexOf(id) >= 0) {
+      return;
+    }
+
+    st.unlockedCampaignModifiers.push(id);
+    st.permanentModifiers = {};
+
+    const rewards = table.rewards || {};
+    applyEffects(rewards);
+
+    getStoryPermanentModifiers();
+
+    if (typeof showNotif === "function") {
+      showNotif("Campaign doctrine unlocked: " + (table.label || id) + ".", "good");
+    }
+
+    pushLog("Modifier unlocked: " + (table.label || id) + (table.note ? " - " + table.note : ""));
   }
 
   function escHtml(value) {
@@ -1969,9 +2080,10 @@
     const enemyNames = Array.isArray(spec.enemies) && spec.enemies.length
       ? spec.enemies.slice()
       : [String(spec.enemyName || option.text || "Story Enemy")];
+    const dreadDelta = Math.floor(getStoryModifierValue("dreadDifficultyDelta"));
     return {
       title: String(spec.title || option.text || "Story Combat"),
-      dread: Math.max(4, Number(spec.dread || 8)),
+      dread: Math.max(4, Number(spec.dread || 8) + dreadDelta),
       enemyNames: enemyNames,
       briefing: String(spec.briefing || "Fight through the encounter, then return to Storyline to resolve the branch."),
     };
@@ -2497,7 +2609,9 @@
 
   function activateStoryWarfront(scale) {
     const st = ensureStoryState();
-    const target = Math.max(3, Number(scale || 6));
+    const scaleBonus = Math.floor(getStoryModifierValue("warfrontScaleBonus"));
+    const scaleMultiplier = Math.max(0.5, Number(getStoryModifierValue("warfrontScaleMultiplier") || 1));
+    const target = Math.max(3, Math.round((Number(scale || 6) + scaleBonus) * scaleMultiplier));
     let marked = 0;
 
     if (S && S.worldThatWas && Array.isArray(S.worldThatWas.hexes) && S.worldThatWas.hexes.length) {
@@ -2580,6 +2694,10 @@
       if (consumed && typeof showNotif === "function") showNotif("Story item used: " + consumed, "good");
     }
 
+    if (effects.branchRewardTable) {
+      grantBranchRewardTable(effects.branchRewardTable);
+    }
+
     if (effects.storyAlias) {
       const alias = String(effects.storyAlias || "").trim();
       if (alias) {
@@ -2613,9 +2731,11 @@
   }
 
   function grantMerchantReward(reward) {
-    const credits = Number(reward.credits || 0);
+    const creditMultiplier = Math.max(0, Number(getStoryModifierValue("merchantCreditsMultiplier") || 1));
+    const renownBonus = Math.floor(getStoryModifierValue("merchantFactionRenownBonus"));
+    const credits = Math.round(Number(reward.credits || 0) * creditMultiplier);
     const factionKey = reward.factionKey || "corporations";
-    const renown = Number(reward.factionRenown || 0);
+    const renown = Number(reward.factionRenown || 0) + renownBonus;
     const item = reward.item || "";
 
     if (credits) {
@@ -3208,10 +3328,11 @@
     const d = (typeof explodingRoll === "function") ? explodingRoll(dreadDie) : { total: Math.floor(Math.random() * dreadDie) + 1, exploded: false };
     const relicRolls = (typeof window.getPermanentAdventureBonusRolls === "function") ? window.getPermanentAdventureBonusRolls(statKey, "Story Relic") : [];
     const relicTotal = (typeof window.sumAdventureBonusRolls === "function") ? window.sumAdventureBonusRolls(relicRolls) : 0;
+    const campaignBonus = Math.max(0, Math.floor(getStoryModifierValue("storyRollBonus")));
     const bonus = (typeof window.getFactionStoryRollBonus === "function" && factionKey)
       ? Number(window.getFactionStoryRollBonus(factionKey, statKey) || 0)
       : 0;
-    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus) + relicTotal;
+    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus) + relicTotal + campaignBonus;
     return {
       success: effectiveTotal >= d.total,
       actionDie: actionDie,
@@ -3220,6 +3341,7 @@
       dread: d,
       factionKey: factionKey || "",
       factionBonus: Math.max(0, bonus),
+      campaignBonus: campaignBonus,
       effectiveTotal: effectiveTotal,
       assigneeName: decisionMeta && decisionMeta.assigneeName ? String(decisionMeta.assigneeName) : 'Wayfarer',
       rollSource: decisionMeta && decisionMeta.assigneeId ? String(decisionMeta.assigneeId) : 'local:self',

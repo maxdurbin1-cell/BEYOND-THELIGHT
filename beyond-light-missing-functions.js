@@ -190,7 +190,9 @@ function switchTab(tabId, btn) {
   }
 
   if (tabId === "map") {
-    if (typeof window.generateMap === "function" && (!window.mapData || !window.mapData.length)) {
+    var provinceState = (typeof window.getProvinceMapState === "function") ? window.getProvinceMapState() : null;
+    var hasProvinceMap = !!(provinceState && Array.isArray(provinceState.mapData) && provinceState.mapData.length);
+    if (typeof window.generateMap === "function" && !hasProvinceMap) {
       window.generateMap();
     } else if (typeof window.renderHexMap === "function") {
       window.renderHexMap();
@@ -1860,7 +1862,7 @@ function renderGMStoryTriggerDebugPanel() {
     panel.id = 'gmStoryTriggerDebug';
     panel.setAttribute('aria-live', 'polite');
     panel.style.position = 'fixed';
-    panel.style.right = '12px';
+    panel.style.left = '12px';
     panel.style.bottom = '12px';
     panel.style.zIndex = '1300';
     panel.style.maxWidth = '280px';

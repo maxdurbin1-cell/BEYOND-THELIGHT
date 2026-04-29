@@ -390,9 +390,6 @@
     var shouldPushAuthoritativeMaps = (state.role === "gm") || !state.code;
     if (shouldPushAuthoritativeMaps && typeof window.getProvinceMapState === "function") {
       shared.provinceMap = deepCloneJson(window.getProvinceMapState() || null);
-      if (shared.provinceMap && typeof shared.provinceMap === "object") {
-        shared.provinceMap.selectedKey = "";
-      }
     }
     if (shouldPushAuthoritativeMaps) {
       shared.lastSea = deepCloneJson(window.S.lastSea || {});

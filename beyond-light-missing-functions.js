@@ -111,15 +111,24 @@ window.quickAccessGo = quickAccessGo;
 window.renderGlobalQuickAccess = renderGlobalQuickAccess;
 
 function switchTab(tabId, btn) {
-  document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
-  document.querySelectorAll(".tab-btn").forEach((tab) => tab.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach((panel) => {
+    panel.classList.remove("active");
+    panel.setAttribute("aria-hidden", "true");
+  });
+  document.querySelectorAll(".tab-btn[role='tab']").forEach((tab) => {
+    tab.classList.remove("active");
+    tab.setAttribute("aria-selected", "false");
+  });
 
   const target = document.getElementById("tab-" + tabId);
   if (target) {
     target.classList.add("active");
+    target.setAttribute("aria-hidden", "false");
+    target.removeAttribute("aria-hidden");
   }
   if (btn) {
     btn.classList.add("active");
+    if (btn.hasAttribute("aria-selected")) btn.setAttribute("aria-selected", "true");
   }
   trackQuickAccessTab(tabId);
   renderGlobalQuickAccess();

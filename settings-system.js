@@ -210,7 +210,7 @@
               </div>
             </div>
             <div class="setting-row">
-              <label>Master Volume</label>
+              <label for="masterVol">Master Volume</label>
               <div class="volume-control">
                 <input type="range" id="masterVol" min="0" max="100" value="${Settings.masterVolume * 100}" 
                   onchange="window.settingsSystem.setMasterVolume(this.value)" class="volume-slider">
@@ -218,7 +218,7 @@
               </div>
             </div>
             <div class="setting-row">
-              <label>Music Volume</label>
+              <label for="musicVol">Music Volume</label>
               <div class="volume-control">
                 <input type="range" id="musicVol" min="0" max="100" value="${Settings.musicVolume * 100}" 
                   onchange="window.settingsSystem.setMusicVolume(this.value)" class="volume-slider">
@@ -226,7 +226,7 @@
               </div>
             </div>
             <div class="setting-row">
-              <label>SFX Volume</label>
+              <label for="sfxVol">SFX Volume</label>
               <div class="volume-control">
                 <input type="range" id="sfxVol" min="0" max="100" value="${Settings.sfxVolume * 100}" 
                   onchange="window.settingsSystem.setSFXVolume(this.value)" class="volume-slider">

@@ -12,6 +12,9 @@
 <link rel="stylesheet" href="./gm-dashboard.css">
 <link rel="stylesheet" href="./solo-reference.css">
 <style>
+/* ── ACCESSIBILITY ── */
+.skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;background:var(--surface);color:var(--gold);font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:.1em;padding:.6rem 1rem;border:1px solid var(--gold);text-transform:uppercase;text-decoration:none;}
+.skip-link:focus{position:fixed;left:.8rem;top:.8rem;width:auto;height:auto;overflow:visible;}
 :root{--bg:#06070e;--surface:#0b0c1a;--card:#0f1020;--card2:#131428;--border:#1a1c35;--border2:#252848;--gold:#c9a227;--gold2:#e8c050;--gold3:#f0d070;--teal:#2ec4b6;--teal2:#50ddd0;--red:#c94040;--red2:#e05050;--green:#4caf74;--green2:#6ed090;--purple:#8060c0;--text:#d8d0c0;--text2:#b0a890;--muted:#4a4870;--muted2:#7a7898;--muted3:#9a98b8;}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
 body{background:var(--bg);color:var(--text);font-family:'Crimson Pro',Georgia,serif;font-size:1rem;min-height:100vh;overflow-x:hidden;background-image:radial-gradient(ellipse 80% 60% at 15% 5%,rgba(201,162,39,.05) 0%,transparent 55%),radial-gradient(ellipse 60% 80% at 85% 95%,rgba(46,196,182,.04) 0%,transparent 55%);}
@@ -268,43 +271,44 @@ select option{background:#0f1020;}
 </style>
 </head>
 <body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
 <!-- INTRO PAGE -->
 <div id="intro" class="intro-overlay"></div>
 
-<header>
-  <div class="logo">BEYOND<span>:</span> THE LIGHT</div>
-  <div class="ctx-bar">
-    <span class="ctx-lbl">Location:</span>
-    <button class="ctx-btn on" data-ctx="traveling" onclick="setContext('traveling',this)">🌍 Traveling</button>
-    <button class="ctx-btn" data-ctx="holding" onclick="setContext('holding',this)">🏰 Holding</button>
-    <button class="ctx-btn" data-ctx="sea" onclick="setContext('sea',this)">⚓ At Sea</button>
-    <button class="ctx-btn" data-ctx="space" onclick="setContext('space',this)">🚀 Space</button>
+<header role="banner">
+  <div class="logo" aria-label="Beyond: The Light">BEYOND<span aria-hidden="true">:</span> THE LIGHT</div>
+  <div class="ctx-bar" role="group" aria-label="Location context">
+    <span class="ctx-lbl" id="ctx-lbl">Location:</span>
+    <button class="ctx-btn on" data-ctx="traveling" aria-pressed="true" onclick="setContext('traveling',this)">🌍 Traveling</button>
+    <button class="ctx-btn" data-ctx="holding" aria-pressed="false" onclick="setContext('holding',this)">🏰 Holding</button>
+    <button class="ctx-btn" data-ctx="sea" aria-pressed="false" onclick="setContext('sea',this)">⚓ At Sea</button>
+    <button class="ctx-btn" data-ctx="space" aria-pressed="false" onclick="setContext('space',this)">🚀 Space</button>
   </div>
-  <nav>
-    <button class="tab-btn active ctx-traveling" style="display:none;" onclick="switchTab('character',this)">Character</button>
-    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('dice',this)">Dice</button>
-    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('codex',this)">Codex</button>
-    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('rules',this)">Rules</button>
-    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('combat',this)">Combat</button>
-    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('oracle',this)">Oracle</button>
-    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('storyline',this)">Storyline</button>
-    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('factions',this)">Factions</button>
-    <button class="tab-btn ctx-traveling" style="display:none;" onclick="switchTab('endings',this)">Endings</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" style="display:none;" onclick="switchTab('missions',this)">Missions</button>
-    <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('map',this)">Province</button>
-    <button class="tab-btn ctx-sea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
-    <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
-    <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('worldthatwas',this)">World That Was</button>
-    <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
-    <button class="tab-btn ctx-space" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
-    <button class="tab-btn ctx-sea ctx-space" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
-    <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
-    <button class="tab-btn ctx-traveling ctx-holding" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
-    <button class="tab-btn ctx-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
-    <button class="tab-btn solo-reference-btn" onclick="window.soloReference.toggle()" title="Solo Reference">🧭 Solo</button>
-    <button class="tab-btn gm-dashboard-btn" onclick="window.gmDashboard.toggle()" title="GM Dashboard">👥 GM</button>
-    <button class="tab-btn settings-tab-btn" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
+  <nav aria-label="Main navigation" role="tablist" id="mainNavTablist">
+    <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" style="display:none;" onclick="switchTab('character',this)">Character</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" style="display:none;" onclick="switchTab('dice',this)">Dice</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" style="display:none;" onclick="switchTab('codex',this)">Codex</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" style="display:none;" onclick="switchTab('rules',this)">Rules</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" style="display:none;" onclick="switchTab('combat',this)">Combat</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" style="display:none;" onclick="switchTab('oracle',this)">Oracle</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" style="display:none;" onclick="switchTab('storyline',this)">Storyline</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" style="display:none;" onclick="switchTab('factions',this)">Factions</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-endings" id="tabnav-endings" style="display:none;" onclick="switchTab('endings',this)">Endings</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" style="display:none;" onclick="switchTab('missions',this)">Missions</button>
+    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" style="display:none;" onclick="switchTab('map',this)">Province</button>
+    <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
+    <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-galaxy" id="tabnav-galaxy" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
+    <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-worldthatwas" id="tabnav-worldthatwas" style="display:none;" onclick="switchTab('worldthatwas',this)">World That Was</button>
+    <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-planet" id="tabnav-planet" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
+    <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-exocrafts" id="tabnav-exocrafts" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
+    <button class="tab-btn ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-naval" id="tabnav-naval" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-shop" id="tabnav-shop" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
+    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
+    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
+    <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
+    <button class="tab-btn solo-reference-btn" aria-label="Solo Reference" onclick="window.soloReference.toggle()" title="Solo Reference">🧭 Solo</button>
+    <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="window.gmDashboard.toggle()" title="GM Dashboard">👥 GM</button>
+    <button class="tab-btn settings-tab-btn" aria-label="Settings" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
     <span class="cl">Credits</span>
@@ -315,8 +319,9 @@ select option{background:#0f1020;}
 <div id="globalQuickAccess" class="global-quick-access"></div>
 
   
+<main id="main-content">
 <!-- CHARACTER TAB -->
-<div class="tab-panel active" id="tab-character">
+<div class="tab-panel active" id="tab-character" role="tabpanel" aria-labelledby="tabnav-character" tabindex="0">
   <div class="quick-nav">
     <span class="quick-nav-label">Quick Access</span>
     <button class="btn btn-sm" onclick="switchTab('dice',document.querySelector('.tab-btn[onclick*=dice]'))">🎲 Dice</button>
@@ -1095,21 +1100,22 @@ select option{background:#0f1020;}
     </div>
   </div>
 </div>
+</main>
 
 <!-- MODAL -->
-<div class="overlay" id="rollModal">
-  <div class="modal">
+<div class="overlay" id="rollModal" role="presentation">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-header" id="modalTitle">Roll</div>
     <div id="modalContent"></div>
     <div style="display:flex;gap:.4rem;margin-top:.9rem;justify-content:flex-end;">
-      <button class="btn btn-sm" onclick="closeModal()">Close</button>
+      <button class="btn btn-sm" onclick="closeModal()" aria-label="Close dialog">Close</button>
     </div>
   </div>
 </div>
 <div id="settingsPanel" class="settings-panel"></div>
 <div id="soloReference"></div>
 <div id="gmDashboard"></div>
-<div class="notif" id="notif"></div>
+<div class="notif" id="notif" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="diceRollLayer" class="dice-roll-layer" aria-live="polite"></div>
 <div id="diceRollCinematicLayer" class="dice-roll-cinematic-layer" aria-live="polite"></div>
 
@@ -3987,8 +3993,8 @@ function setAge(age,btn){S.currentAge=age;document.querySelectorAll('.age-btn').
 function setSeason(season,btn){S.currentSeason=season;document.querySelectorAll('.season-btn').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');else{var autoBtn=document.getElementById('season-'+season);if(autoBtn)autoBtn.classList.add('on');}}
 function setContext(ctx,btn){
   const ctxBtn=btn||document.querySelector('.ctx-btn[data-ctx="'+ctx+'"]');
-  document.querySelectorAll('.ctx-btn').forEach(b=>b.classList.remove('on'));
-  if(ctxBtn)ctxBtn.classList.add('on');
+  document.querySelectorAll('.ctx-btn').forEach(b=>{b.classList.remove('on');b.setAttribute('aria-pressed','false');});
+  if(ctxBtn){ctxBtn.classList.add('on');ctxBtn.setAttribute('aria-pressed','true');}
 
   // Show only tabs assigned to the selected location context.
   // Exclude the settings button (which has no ctx- class) from being hidden.
@@ -6155,14 +6161,57 @@ function rollLostCityCodex(){const el=document.getElementById('lostCityResult');
 function rollLostCityExplore(){const el=document.getElementById('lostCityResult');if(!el)return;el.innerHTML=`<div class="lc-block"><div class="lb-label">Exploring the Building Reveals (d6)</div><div class="lb-text">${pick(LC_EXPLORE_REVEALS)}</div></div>`;}
 
 // ── MODAL & NOTIF ─────────────────────────────────────────────────────────────
-function openModal(title,content){document.getElementById('modalTitle').textContent=title;document.getElementById('modalContent').innerHTML=content;document.getElementById('rollModal').classList.add('open');}
-function closeModal(){document.getElementById('rollModal').classList.remove('open');}
-document.getElementById('rollModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+var _modalPrevFocus = null;
+function openModal(title, content) {
+  _modalPrevFocus = document.activeElement;
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalContent').innerHTML = content;
+  var overlay = document.getElementById('rollModal');
+  overlay.classList.add('open');
+  // Focus first focusable element inside dialog
+  var modal = overlay.querySelector('[role="dialog"]');
+  requestAnimationFrame(function() {
+    var focusable = modal.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])');
+    if (focusable.length) focusable[0].focus();
+  });
+}
+function closeModal() {
+  document.getElementById('rollModal').classList.remove('open');
+  if (_modalPrevFocus) { _modalPrevFocus.focus(); _modalPrevFocus = null; }
+}
+document.getElementById('rollModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+// Escape key closes modal
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var overlay = document.getElementById('rollModal');
+    if (overlay && overlay.classList.contains('open')) closeModal();
+  }
+});
+// Focus trap inside modal
+document.getElementById('rollModal').addEventListener('keydown', function(e) {
+  if (e.key !== 'Tab') return;
+  var modal = this.querySelector('[role="dialog"]');
+  var focusable = Array.from(modal.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'));
+  if (!focusable.length) return;
+  var first = focusable[0], last = focusable[focusable.length - 1];
+  if (e.shiftKey ? document.activeElement === first : document.activeElement === last) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  }
+});
 let notifTimer=null;
 function showNotif(msg,type=''){const n=document.getElementById('notif');n.textContent=msg;n.className='notif'+(type?' '+type:'');n.classList.add('show');clearTimeout(notifTimer);notifTimer=setTimeout(()=>n.classList.remove('show'),3200);}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
+  // ARIA: wire up tabpanel roles for all non-character tab panels
+  document.querySelectorAll('.tab-panel[id]').forEach(function(panel) {
+    var tabId = panel.id.replace('tab-', '');
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('tabindex', '0');
+    var navBtn = document.getElementById('tabnav-' + tabId);
+    if (navBtn) panel.setAttribute('aria-labelledby', 'tabnav-' + tabId);
+  });
   buildStatRows();updateRenown();updateCreditsUI();updateStressUI();updateTrauma();renderTraits();updateTMWPool();
   showShopCat('weapons',document.querySelector('.shop-cats .scat'));
   showCodexCat('histories',document.querySelector('.codex-cats .scat'));
@@ -6201,15 +6250,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="./shared-puzzles.js"></script>
 
 <!-- ── QUICK PANEL ── -->
-<button id="quickPanelToggle" onclick="toggleQuickPanel()">⚙ Quick&nbsp;Panel</button>
-<div id="quickPanel">
-  <div class="qp-header">
-    <button class="qp-tab on" onclick="switchQP('dice',this)">🎲 Dice</button>
-    <button class="qp-tab" onclick="switchQP('char',this)">👤 Char</button>
-    <button class="qp-tab" onclick="switchQP('combat',this)">⚔ Combat</button>
-    <button class="qp-tab" onclick="switchQP('missions',this)">🗺 Missions</button>
-    <button class="qp-tab" onclick="switchQP('notes',this)">📝 Notes</button>
-    <button class="qp-close" onclick="toggleQuickPanel()">✕</button>
+<button id="quickPanelToggle" onclick="toggleQuickPanel()" aria-expanded="false" aria-controls="quickPanel" aria-label="Toggle Quick Panel">⚙ Quick&nbsp;Panel</button>
+<div id="quickPanel" role="complementary" aria-label="Quick Panel">
+  <div class="qp-header" role="tablist" aria-label="Quick panel sections">
+    <button class="qp-tab on" role="tab" aria-selected="true" onclick="switchQP('dice',this)">🎲 Dice</button>
+    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('char',this)">👤 Char</button>
+    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('combat',this)">⚔ Combat</button>
+    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('missions',this)">🗺 Missions</button>
+    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('notes',this)">📝 Notes</button>
+    <button class="qp-close" aria-label="Close Quick Panel" onclick="toggleQuickPanel()">✕</button>
   </div>
   <div id="qpContent"></div>
 </div>
@@ -6233,13 +6282,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     var btn   = document.getElementById('quickPanelToggle');
     var open  = panel.classList.toggle('open');
     btn.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) renderQP(_qpTab);
   };
 
   window.switchQP = function(tab, el) {
     _qpTab = tab;
-    document.querySelectorAll('.qp-tab').forEach(function(b){ b.classList.remove('on'); });
-    if (el) el.classList.add('on');
+    document.querySelectorAll('.qp-tab[role="tab"]').forEach(function(b) {
+      b.classList.remove('on');
+      b.setAttribute('aria-selected', 'false');
+    });
+    if (el) { el.classList.add('on'); el.setAttribute('aria-selected', 'true'); }
     renderQP(tab);
   };
 

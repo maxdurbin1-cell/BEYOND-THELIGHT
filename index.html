@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="BEYOND: The Light digital companion for character management, map exploration, combat tracking, GM tooling, and campaign play.">
+<meta name="theme-color" content="#06070e">
 <title>BEYOND: The Light — Digital Companion</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,11 +40,11 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .quick-nav-label{font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted2);align-self:center;margin-right:.2rem;font-family:'Cinzel',serif;}
 .quick-nav .btn{font-size:.78rem;padding:.32rem .7rem;}
 .panel-quick-access{margin-bottom:.55rem;}
-.global-quick-access{position:sticky;top:58px;z-index:180;padding:.45rem 1.2rem;background:linear-gradient(180deg,rgba(8,10,18,.96) 0%,rgba(8,10,18,.88) 100%);border-bottom:1px solid var(--border);backdrop-filter:blur(10px);display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;}
+.global-quick-access{position:relative;top:0;z-index:60;padding:.45rem 1.2rem;background:linear-gradient(180deg,rgba(8,10,18,.96) 0%,rgba(8,10,18,.88) 100%);border-bottom:1px solid var(--border);display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;}
 .global-quick-access .qa-label{font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);font-family:'Cinzel',serif;margin-right:.2rem;}
 .global-quick-access .qa-empty{font-size:.83rem;color:var(--muted2);}
 .global-quick-access .btn{font-size:.77rem;padding:.3rem .62rem;}
-@media (max-width:900px){.global-quick-access{top:84px;padding:.35rem .6rem;}}
+@media (max-width:900px){.global-quick-access{top:0;padding:.35rem .6rem;}}
 .section-title{font-family:'Cinzel',serif;font-size:.74rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:.7rem;padding-bottom:.34rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.4rem;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
 .sub-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.24rem;}
@@ -332,6 +334,7 @@ select option{background:#0f1020;}
       <button class="btn btn-primary" onclick="generateCharacter()">⚄ Generate Wayfarer</button>
       <button class="btn" onclick="saveCharacter()">💾 Save</button>
       <button class="btn" onclick="loadCharacter()">📂 Load</button>
+      <button class="btn" onclick="openWayfarerExportModal()">🧾 Export Sheet</button>
       <button class="btn btn-red btn-sm" onclick="clearCharacter()">✕ Clear</button>
     </div>
   </div>
@@ -1721,7 +1724,14 @@ function endCombat(){
   }
 }
 function updateCombatUI(){const el=document.getElementById('combatStatus');if(el)el.textContent=S.combat.active?`Round ${S.combat.round} — Active Scene`:'No active scene.';const al=document.getElementById('actionsLeft');if(al)al.textContent=S.combat.actionsLeft;const ml=document.getElementById('maxActionsHint');if(ml)ml.textContent='(max '+getMaxActions()+')';}
-function setEnemyDread(n){S.combat.enemyDread=n;document.getElementById('enemyDreadDisplay').textContent='d'+n;}
+function setEnemyDread(n){
+  S.combat.enemyDread=n;
+  const el=document.getElementById('enemyDreadDisplay');
+  if(el)el.textContent='d'+n;
+  if(typeof renderQP==='function'){
+    try{renderQP('combat');}catch(_err){}
+  }
+}
 
 function getPrimaryCombatEnemy(){
   if(!Array.isArray(S.enemies))return null;
@@ -4282,6 +4292,13 @@ const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling
 const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
 const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'◈',peril:'⚠',ruins:'◫',event:'✧',gate:'◆',lostcity:'⬡',trade:'═'};
 let selectedHex=null;
+if (!Object.getOwnPropertyDescriptor(window, 'selectedHex')) {
+  Object.defineProperty(window, 'selectedHex', {
+    configurable: true,
+    get: function(){ return selectedHex; },
+    set: function(v){ selectedHex = v || null; }
+  });
+}
 
 function ensureMapLinkState(){
   if(!S||typeof S!=='object')return;
@@ -4725,6 +4742,13 @@ function renderHexInfo(hex){
   html+=`<div class="hex-type-tag ${hex.type}">${hex.type.toUpperCase()}</div>`;
   html+=`<div class="hex-name">${hex.name||hex.terrain.name}</div>`;
   html+=`<div class="hex-desc" style="margin-bottom:.4rem;">${hex.terrain.name} terrain</div>`;
+
+  if (d.gmMarker && ((window.Settings && window.Settings.gameMode === 'gm') || (document.body && document.body.classList.contains('gm-mode')))) {
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(176,96,208,.55);background:rgba(176,96,208,.08);">
+      <div class="nb-label" style="color:var(--purple);">🧷 GM Marker</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${d.gmMarker}</div>
+    </div>`;
+  }
 
   if(S.missionTokens&&S.missionTokens[nk]){
     const mt=S.missionTokens[nk];
@@ -6498,6 +6522,23 @@ document.addEventListener('DOMContentLoaded',()=>{
     renderQP('dice');
   };
 
+  window.qpShortRest = function() {
+    if (typeof halfHealth === 'function') halfHealth();
+    else if (typeof halfStress === 'function') halfStress();
+    if (typeof changeMentalStress === 'function') changeMentalStress(-1);
+    if (typeof showNotif === 'function') showNotif('Short Rest: partial recovery applied.', 'good');
+    renderQP('char');
+  };
+
+  window.qpLongRest = function() {
+    if (typeof clearHealth === 'function') clearHealth();
+    else if (typeof clearStress === 'function') clearStress();
+    if (typeof clearMentalStress === 'function') clearMentalStress();
+    if (typeof clearAllConditions === 'function') clearAllConditions();
+    if (typeof showNotif === 'function') showNotif('Long Rest: full recovery applied.', 'good');
+    renderQP('char');
+  };
+
   window.qpCombatAction = function(kind) {
     if (kind === 'strike' || kind === 'shoot') {
       if (typeof rollAttack === 'function') { rollAttack(kind); }
@@ -6614,6 +6655,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     if (scarState.loseHealthOnFailedRoll) scarEffects.push('Fail => +1 dmg');
     var scarResults = Array.isArray(scarState.results) ? scarState.results : [];
     var latestScars = scarResults.length ? scarResults.slice(-2).map(function(e){ return (e && e.title) ? e.title : 'Scar'; }).join(' · ') : 'None';
+    var injuryList = Array.isArray(S.injuries) ? S.injuries : [];
+    var injuryText = injuryList.length ? injuryList.slice(0, 3).map(function(injury){
+      if (!injury) return '';
+      if (typeof injury === 'string') return injury;
+      return injury.name || injury.title || injury.effect || 'Injury';
+    }).filter(Boolean).join(' · ') : 'None';
+    var equip = S.equipment || {};
+    var equipText = [equip.weapon1, equip.weapon2, equip.armor].filter(Boolean).join(' · ') || 'None';
+    var pack = Array.isArray(S.backpack) ? S.backpack.filter(Boolean) : [];
+    var packPreview = pack.length ? pack.slice(0, 4).join(' · ') + (pack.length > 4 ? (' +' + (pack.length - 4)) : '') : 'Empty';
     var pct = Math.min(100, Math.round(health / maxHealth * 100));
     var barColor = pct >= 80 ? 'var(--red)' : pct >= 50 ? 'var(--gold)' : 'var(--green2)';
 
@@ -6640,6 +6691,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.4rem;">'
         + '<button class="btn btn-xs btn-red" onclick="if(typeof changeHealth===\'function\')changeHealth(1);else if(typeof changeStress===\'function\')changeStress(1);renderQP(\'char\')">+1 Damage</button>'
         + '<button class="btn btn-xs btn-green" onclick="if(typeof changeHealth===\'function\')changeHealth(-1);else if(typeof changeStress===\'function\')changeStress(-1);renderQP(\'char\')">−1 Damage</button>'
+        + '<button class="btn btn-xs" onclick="qpShortRest()">Short Rest</button>'
+        + '<button class="btn btn-xs btn-teal" onclick="qpLongRest()">Long Rest</button>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem;">'
         + '<span style="font-size:.68rem;color:var(--muted2);flex:1;">Mental Stress: <span style="color:var(--purple);">'+mentalStress+'/20</span></span>'
@@ -6666,10 +6719,22 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '</div>'
         + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.12rem;line-height:1.35;">Recent: '+latestScars+'</div>'
       + '</div>'
+      + '<div style="margin-bottom:.35rem;padding:.32rem .38rem;border:1px solid var(--border2);background:rgba(46,196,182,.05);">'
+        + '<div style="font-size:.62rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.12rem;">Injuries</div>'
+        + '<div style="font-size:.66rem;color:var(--text2);line-height:1.4;">'+injuryText+'</div>'
+      + '</div>'
+      + '<div style="margin-bottom:.35rem;padding:.32rem .38rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">'
+        + '<div style="font-size:.62rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.12rem;">Equipment</div>'
+        + '<div style="font-size:.66rem;color:var(--text2);line-height:1.4;">'+equipText+'</div>'
+        + '<div style="font-size:.62rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;margin:.18rem 0 .12rem;">Inventory</div>'
+        + '<div style="font-size:.66rem;color:var(--text2);line-height:1.4;">'+packPreview+'</div>'
+      + '</div>'
       + '</div>'
       + '<div><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Conditions</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:.2rem;">' + condsHtml + '</div></div>'
       + '<div style="margin-top:.5rem;display:flex;gap:.3rem;align-items:center;">'
+        + '<span style="font-family:Cinzel,serif;font-size:.56rem;color:var(--muted2);text-transform:uppercase;">Renown:</span>'
+        + '<strong style="color:var(--gold2);">'+(S.renown||0)+'</strong>'
         + '<span style="font-family:Cinzel,serif;font-size:.56rem;color:var(--muted2);text-transform:uppercase;">Path Tokens:</span>'
         + '<strong style="color:var(--teal);">'+(S.pathTokens||0)+'</strong>'
         + '<span style="font-family:Cinzel,serif;font-size:.56rem;color:var(--muted2);text-transform:uppercase;margin-left:.5rem;">TMW:</span>'

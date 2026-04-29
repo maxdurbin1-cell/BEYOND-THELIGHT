@@ -79,10 +79,7 @@ function quickAccessGo(tabId) {
 function renderGlobalQuickAccess() {
   const root = document.getElementById('globalQuickAccess');
   if (!root) return;
-  const header = document.querySelector('header');
-  if (header) {
-    root.style.top = header.offsetHeight + 'px';
-  }
+  root.style.top = '0px';
   if (!Array.isArray(window._quickAccessTabs) || !window._quickAccessTabs.length) {
     const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
     if (activePanel) {
@@ -1518,6 +1515,7 @@ function exportWayfarerSheetPDF(options) {
   try {
     const opts = options || {};
     const compact = !!opts.compact;
+    const gameSheet = !!opts.gameSheet;
     const node = document.getElementById('tab-character');
     if (!node) {
       showNotif('Wayfarer tab not found', 'warn');
@@ -1534,9 +1532,11 @@ function exportWayfarerSheetPDF(options) {
     w.document.open();
     w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Wayfarer Sheet</title>'
       + cssLinks
-      + '<style>body{background:#fff;color:#111;padding:' + (compact ? '6px' : '12px') + ';font-size:' + (compact ? '13px' : '15px') + ';} header,#globalQuickAccess,.ctx-bar,.quick-nav{display:none!important;} .tab-panel{display:block!important;min-height:auto!important;} button{display:none!important;} @media print{body{padding:0;} .card{break-inside:avoid; margin-bottom:' + (compact ? '4px' : '8px') + ';} .char-grid{gap:' + (compact ? '.35rem' : '.75rem') + ';}}</style>'
+      + '<style>body{background:' + (gameSheet ? '#f6f1e7' : '#fff') + ';color:#111;padding:' + (compact ? '6px' : '12px') + ';font-size:' + (compact ? '13px' : '15px') + ';font-family:' + (gameSheet ? '"Crimson Pro",Georgia,serif' : 'inherit') + ';} header,#globalQuickAccess,.ctx-bar,.quick-nav{display:none!important;} .tab-panel{display:block!important;min-height:auto!important;} button{display:none!important;} '
+      + (gameSheet ? '.card{border:1px solid #5b4a2b;background:#fffaf1;box-shadow:none;} .section-title{color:#5b4a2b;border-bottom:1px solid #c9b58a;} .char-grid{grid-template-columns:1fr 1fr!important;gap:.6rem;}' : '')
+      + '@media print{body{padding:0;} .card{break-inside:avoid; margin-bottom:' + (compact ? '4px' : '8px') + ';} .char-grid{gap:' + (compact ? '.35rem' : '.75rem') + ';}}</style>'
       + '</head><body>'
-      + '<h1 style="font:700 ' + (compact ? '16px' : '20px') + ' Cinzel,serif;margin:0 0 8px;">Wayfarer Sheet' + (compact ? ' (Compact)' : '') + '</h1>'
+      + '<h1 style="font:700 ' + (compact ? '16px' : '20px') + ' Cinzel,serif;margin:0 0 8px;">Wayfarer Sheet' + (gameSheet ? ' (Game Sheet)' : (compact ? ' (Compact)' : '')) + '</h1>'
       + node.outerHTML
       + '<script>setTimeout(function(){window.print();},220);</script>'
       + '</body></html>');
@@ -1553,6 +1553,7 @@ function openWayfarerExportModal() {
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
     + '<div style="margin-bottom:.45rem;">Choose an export format for the Character (Wayfarer) page only.</div>'
     + '<div style="display:grid;gap:.3rem;">'
+    + '<button class="btn btn-sm btn-teal" onclick="closeModal(); exportWayfarerSheetPDF({gameSheet:true,compact:false});">PDF (Game Sheet Layout)</button>'
     + '<button class="btn btn-sm btn-teal" onclick="closeModal(); exportWayfarerSheetPDF({compact:false});">PDF (Standard Print Layout)</button>'
     + '<button class="btn btn-sm" onclick="closeModal(); exportWayfarerSheetPDF({compact:true});">PDF (Compact Print Layout)</button>'
     + '<button class="btn btn-sm" onclick="closeModal(); exportWayfarerSheetImage();">PNG Image</button>'
@@ -2091,7 +2092,7 @@ function openGMDreadDirector() {
     + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
     + [4,6,8,10,12].map(function (d) {
       const active = d === current;
-      return '<button class="btn btn-xs ' + (active ? 'btn-teal' : '') + '" onclick="if(typeof setEnemyDread===\'function\'){setEnemyDread(' + d + ');} showNotif(\'Enemy Dread set to d' + d + '\',\'good\');">d' + d + '</button>';
+      return '<button class="btn btn-xs ' + (active ? 'btn-teal' : '') + '" onclick="if(typeof setEnemyDread===\'function\'){setEnemyDread(' + d + ');} showNotif(\'Enemy Dread set to d' + d + '\',\'good\'); if(typeof openGMDreadDirector===\'function\'){openGMDreadDirector();}">d' + d + '</button>';
     }).join('')
     + '</div>'
     + '</div>');

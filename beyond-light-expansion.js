@@ -3557,7 +3557,7 @@
 
   const baseClearCharacter = clearCharacter;
   clearCharacter = function () {
-    baseClearCharacter();
+    baseClearCharacter.apply(this, arguments);
     ensureExpansionState();
     syncExpansionUIs();
   };

@@ -2535,7 +2535,7 @@
   var _baseClear = typeof clearCharacter === "function" ? clearCharacter : null;
   if (_baseClear) {
     clearCharacter = function() {
-      _baseClear();
+      _baseClear.apply(this, arguments);
       ensureNewFeatureState();
       syncNewFeatureUIs();
     };

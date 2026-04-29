@@ -5067,34 +5067,96 @@ function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB)
     showNotif('You avoid the firefight and lose 1 Phase rerouting.', 'info');
     return;
   }
-  const check = resolveGalaxySkillCheck('adventure', 'lead', 8, 'Skirmish Intervention');
-  if (check.success) {
+  const totalForces = Math.max(2, Number(groupA || 0) + Number(groupB || 0));
+  const enemyCount = Math.max(2, Math.min(6, Math.round(totalForces / 4)));
+  const encounterDread = 8;
+  const enemyHealth = encounterDread * 2;
+
+  S.combat = S.combat || {};
+  if (typeof setEnemyDread === 'function') setEnemyDread(encounterDread);
+  else S.combat.enemyDread = encounterDread;
+
+  const now = Date.now();
+  S.enemies = [];
+  for (let i = 0; i < enemyCount; i++) {
+    S.enemies.push({
+      id: now + i,
+      name: 'Planet Skirmisher ' + (i + 1),
+      dread: encounterDread,
+      stress: 0,
+      maxStress: enemyHealth,
+      health: enemyHealth,
+      conditions: []
+    });
+  }
+
+  state.pendingSkirmishCombat = {
+    at: Date.now(),
+    groupA: Number(groupA || 0),
+    groupB: Number(groupB || 0),
+    factionA: String(factionA || 'Faction A'),
+    factionB: String(factionB || 'Faction B'),
+    enemyCount: enemyCount,
+    dread: encounterDread,
+    enemyHealth: enemyHealth,
+    cellId: selected.id
+  };
+
+  if (typeof startCombat === 'function') startCombat();
+  if (typeof renderEnemies === 'function') renderEnemies();
+  const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+  if (typeof switchTab === 'function') switchTab('combat', btn || null);
+  showNotif('Planet skirmish seeded in Combat tab. Resolve and mark outcome.', 'warn');
+  openPlanetSkirmishOutcomeModal();
+  renderPlanetExplorationPanel();
+}
+
+function openPlanetSkirmishOutcomeModal() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  const pending = state && state.pendingSkirmishCombat ? state.pendingSkirmishCombat : null;
+  if (!pending || typeof openModal !== 'function') return;
+  openModal('Planet Skirmish Outcome', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Combat Outcome</strong><br>${pending.factionA} vs ${pending.factionB}.<br><em>After finishing the fight in Combat tab, record the result:</em><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-teal' onclick='resolvePlanetSkirmishCombatOutcome("success")'>Mark Victory</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishCombatOutcome("failure")'>Mark Failure</button></div></div>`);
+}
+
+function resolvePlanetSkirmishCombatOutcome(outcome) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state || !state.pendingSkirmishCombat) {
+    showNotif('No active planet skirmish combat to resolve.', 'warn');
+    return;
+  }
+  const pending = state.pendingSkirmishCombat;
+  const isSuccess = String(outcome || '') === 'success';
+  if (isSuccess) {
     const loot = rollGalaxyMerchantLootFromCategories(['items', 'toolkits', 'weapon_mods', 'armor']);
     takeGalaxyLoot(loot, 'pack');
-    showNotif(`Skirmish won between ${factionA} and ${factionB}. Loot secured: ${loot}.`, 'good');
     state.lastEvent = {
       timestamp: Date.now(),
       d10: 8,
-      outcome: 'Skirmish Intervention Success',
-      detail: `${check.text}. ${groupA} ${factionA} vs ${groupB} ${factionB}. Loot: ${loot}.`,
+      outcome: 'Skirmish Combat Victory',
+      detail: `${pending.groupA} ${pending.factionA} vs ${pending.groupB} ${pending.factionB}. Combat victory. Loot: ${loot}.`,
       rewardItem: loot,
-      cellId: selected.id,
-      eventType: 'encounter',
+      cellId: pending.cellId,
+      eventType: 'encounter'
     };
+    showNotif(`Skirmish won between ${pending.factionA} and ${pending.factionB}.`, 'good');
   } else {
     if (typeof changeStress === 'function') changeStress(1);
     if (typeof changeHealth === 'function') changeHealth(1);
-    showNotif(`Skirmish intervention failed. ${groupA} ${factionA} vs ${groupB} ${factionB}.`, 'warn');
     state.lastEvent = {
       timestamp: Date.now(),
       d10: 8,
-      outcome: 'Skirmish Intervention Failed',
-      detail: `${check.text}. You are pushed back under crossfire. +1 Stress, +1 Health damage.`,
+      outcome: 'Skirmish Combat Failed',
+      detail: `${pending.groupA} ${pending.factionA} vs ${pending.groupB} ${pending.factionB}. Combat setback. +1 Stress, +1 Health damage.`,
       rewardItem: '',
-      cellId: selected.id,
-      eventType: 'encounter',
+      cellId: pending.cellId,
+      eventType: 'encounter'
     };
+    showNotif(`Skirmish intervention failed against ${pending.factionA}/${pending.factionB}.`, 'warn');
   }
+  state.pendingSkirmishCombat = null;
+  if (typeof closeModal === 'function') closeModal();
   renderPlanetExplorationPanel();
 }
 

@@ -1412,7 +1412,7 @@
   var _missionBaseClear = typeof clearCharacter === 'function' ? clearCharacter : null;
   if (_missionBaseClear) {
     clearCharacter = function() {
-      _missionBaseClear();
+      _missionBaseClear.apply(this, arguments);
       ensureState();
       syncMissionUIs();
     };

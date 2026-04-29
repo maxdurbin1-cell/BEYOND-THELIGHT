@@ -3503,7 +3503,7 @@
     });
   }
 
-  function runStoryOption(sceneId, optionId) {
+  function runStoryOption(sceneId, optionId, approach) {
     const scene = SCENES[sceneId];
     if (!scene) return;
 
@@ -3556,6 +3556,22 @@
     }
 
     if (option.combat) {
+      if (String(approach || "") === "talk") {
+        if (!pendingCombat) {
+          const combatDD = Number((option.combat && option.combat.dread) || 8);
+          const parley = rollStoryCheck("lead", combatDD, inferOptionFactionKey(option), decisionMeta || getDecisionAssignment(sceneId, option.id));
+          if (parley && parley.success) {
+            if (typeof showNotif === "function") showNotif("Parley success: combat avoided.", "good");
+            resolveStoryOption(sceneId, option, "success", decisionMeta);
+            return;
+          }
+          if (typeof showNotif === "function") showNotif("Parley failed. Combat begins.", "warn");
+          startStoryCombat(sceneId, option);
+          renderStorylinePanel();
+          return;
+        }
+      }
+
       if (!pendingCombat) {
         startStoryCombat(sceneId, option);
         renderStorylinePanel();
@@ -4083,7 +4099,10 @@
         + (reqText ? ("<div class='story-opt-req'>" + reqText + "</div>") : "")
         + assigneeSelect
         + roleSelect
+        + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;'>"
         + "<button class='btn btn-sm " + (unlocked ? (isDarkOption ? "btn-red" : "btn-primary") : "") + "' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\")'") : "disabled") + ">" + btnLabel + "</button>"
+        + (option.combat ? ("<button class='btn btn-sm btn-teal' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\",\"talk\")'") : "disabled") + ">Talk It Out (Lead)</button>") : "")
+        + "</div>"
       + "</div>";
     }).join("");
 

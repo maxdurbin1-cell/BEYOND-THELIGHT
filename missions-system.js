@@ -309,6 +309,24 @@
 
   function assignMissionToken(mission) {
     ensureState();
+    if (mission.region === 'wtw' && S.worldThatWas && Array.isArray(S.worldThatWas.hexes) && S.worldThatWas.hexes.length) {
+      var targetHex = null;
+      if (mission.wtwHexId) {
+        targetHex = S.worldThatWas.hexes.find(function(hex) { return hex && String(hex.id) === String(mission.wtwHexId); }) || null;
+      }
+      if (!targetHex) {
+        targetHex = S.worldThatWas.hexes[Math.floor(Math.random() * S.worldThatWas.hexes.length)] || null;
+      }
+      if (targetHex) {
+        mission.wtwHexId = targetHex.id;
+        mission.wtwZone = targetHex.zone || mission.wtwZone || '';
+        mission.wtwDistrict = targetHex.district || mission.wtwDistrict || '';
+      }
+      if (typeof renderWorldThatWas === 'function') {
+        try { renderWorldThatWas(); } catch (err) {}
+      }
+      return;
+    }
     if (mission.region === 'galaxy' && typeof createGalaxyTask === 'function') {
       // Mirror province flow with two markers: informer lead + site objective.
       var planetLabel = mission.planetName || mission.location;
@@ -515,6 +533,9 @@
       infoFeature:null, additionalDanger:null, bypassSecurity:false, hackSystem:false,
       siteRoll:null, rooms:generateRoomObjects(difficulty), guards:generateGuards(diff.dread),
       target:pick(TARGET_NAMES), loot:[],  mapHex:null,
+      wtwHexId: opts.wtwHexId || null,
+      wtwZone: opts.wtwZone || '',
+      wtwDistrict: opts.wtwDistrict || '',
       missionType: opts.missionType || 'standard',
       contractPathway: opts.contractPathway || null,
       storyTheme: opts.storyTheme || '',

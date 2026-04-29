@@ -1116,7 +1116,11 @@
     }
 
     (S.activeMissions || []).slice(0, 8).forEach(function (m) {
-      const hex = takeHex();
+      let hex = null;
+      if (m && m.region === "wtw" && m.wtwHexId) {
+        hex = hexById(m.wtwHexId) || null;
+      }
+      if (!hex) hex = takeHex();
       if (!hex) return;
       setMarker(w, hex, "mission", m.title || "Mission", "Live mission marker");
     });
@@ -1976,6 +1980,9 @@
           },
           {
             missionType: "wtw_contract",
+            wtwHexId: hex.id,
+            wtwZone: hex.zone,
+            wtwDistrict: hex.district,
           }
         );
         if (typeof showNotif === "function") showNotif("Contract accepted from " + power + ": posted to Missions tab.", "good");

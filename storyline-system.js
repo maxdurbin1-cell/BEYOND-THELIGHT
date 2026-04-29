@@ -3591,12 +3591,12 @@
     var count = Math.max(1, Number(total || 1));
     var step = (Math.PI * 2) / count;
     var angle = (-Math.PI / 2) + (index * step);
-    var radius = count <= 3 ? 34 : count <= 5 ? 38 : 41;
+    var radius = count <= 3 ? 30 : count <= 5 ? 34 : count <= 7 ? 37 : 39;
     var x = 50 + Math.cos(angle) * radius;
     var y = 50 + Math.sin(angle) * radius;
     return {
-      left: Math.max(8, Math.min(92, x)),
-      top: Math.max(8, Math.min(92, y))
+      left: Math.max(16, Math.min(84, x)),
+      top: Math.max(16, Math.min(84, y))
     };
   }
 

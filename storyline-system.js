@@ -1276,6 +1276,156 @@
           success: { next: "dark_pact_sealed", text: "He listens. He always respected pragmatism more than virtue. You become the worst thing — an equal.", effects: { renown: 2, faction: { corporations: 2, rebels: -3 } } },
           fail: { next: "finale_choice", text: "He laughs. You're not yet ruthless enough. But you could be.", effects: { mentalStress: 2 } },
         },
+        {
+          id: "o_time",
+          text: "⚠ Open the Chrono Ledger and rewrite who the villain was",
+          stat: "control",
+          baseDread: 14,
+          req: { lexiconKnownAny: ["ser", "va", "tor"] },
+          success: { next: "time_fracture", text: "The court buckles. Years invert. You wake before the first magistrate existed.", effects: { flags: { timeFractureOpened: true }, renown: 2 } },
+          fail: { next: "dark_coronation", text: "The time-lock resists you, but the throne does not.", effects: { mentalStress: 2 } },
+        },
+      ],
+    },
+
+    time_fracture: {
+      chapter: "c4",
+      title: "The First Verdict Never Happened",
+      location: "Green Age / Temporal Court",
+      mood: "Paradox noir",
+      text: "You fall backward into the city's founding era. The court has no ruler yet, only hunger and frightened districts. A blank seal awaits a name. If you stamp it, history will remember you as the origin of all this terror.",
+      options: [
+        {
+          id: "o1",
+          text: "Take the name Voss Karr and found the Pale Legion",
+          stat: "lead",
+          baseDread: 10,
+          success: {
+            next: "warfront_genesis",
+            text: "You sign as Voss Karr. Nine district captains kneel. The Pale Legion is born in your image.",
+            effects: {
+              storyAlias: "Voss Karr",
+              startArmy: { name: "Pale Legion", strength: 9, doctrine: "Judgment Through Force" },
+              activateWarfront: 9,
+              faction: { military: 2, corporations: 1, rebels: -2 },
+              flags: { timeVillainOrigin: true }
+            }
+          },
+          fail: {
+            next: "warfront_genesis",
+            text: "The title lands unevenly, but enough captains follow your first war order.",
+            effects: {
+              storyAlias: "Voss Karr",
+              startArmy: { name: "Pale Legion", strength: 6, doctrine: "Fear and Logistics" },
+              activateWarfront: 7,
+              mentalStress: 1
+            }
+          },
+        },
+        {
+          id: "o2",
+          text: "Forge a different mask and build an army anyway",
+          stat: "mind",
+          baseDread: 10,
+          success: {
+            next: "warfront_genesis",
+            text: "You erase your old name and choose a colder one. The districts call your host the Iron Choir.",
+            effects: {
+              storyAlias: "The Iron Regent",
+              startArmy: { name: "Iron Choir", strength: 8, doctrine: "Order by Siege" },
+              activateWarfront: 8,
+              faction: { political: 1, military: 2, rebels: -2 }
+            }
+          },
+          fail: {
+            next: "warfront_genesis",
+            text: "Your alias leaks early, but the army still forms around your command aura.",
+            effects: {
+              storyAlias: "The Iron Regent",
+              startArmy: { name: "Iron Choir", strength: 5, doctrine: "Emergency Rule" },
+              activateWarfront: 6,
+              tmw: 1
+            }
+          },
+        },
+        {
+          id: "o3",
+          text: "Reject the loop and return to your own era",
+          stat: "spirit",
+          baseDread: 12,
+          success: { next: "finale_choice", text: "You leave the blank seal untouched and force history back onto uncertain rails.", effects: { renown: 1, flags: { timeFractureOpened: true } } },
+          fail: { next: "dark_coronation", text: "The loop clings to you. You return with villain instincts sharpened.", effects: { mentalStress: 1 } },
+        },
+      ],
+    },
+
+    warfront_genesis: {
+      chapter: "c4",
+      title: "War of Nine Districts",
+      location: "World That Was / Great Warfront",
+      mood: "Total war strategy",
+      text: "Your banners ignite all nine districts at once. Rail lines become fronts. Landing pads become siege points. Every marker now means territory, supply, and blood. This is no duel. This is a war engine.",
+      lessons: ["wtw", "skirmish", "combat"],
+      options: [
+        {
+          id: "o1",
+          text: "Launch synchronized district offensives (Skirmish Campaign)",
+          jump: { tab: "worldthatwas" },
+          combat: {
+            title: "Story Combat: Warfront Breakthrough",
+            dread: 12,
+            enemies: ["Frontline Marshal", "Siege Captain", "Signal Warden", "Drone Cohort"],
+            briefing: "Command the first breakthrough while district skirmishes erupt across the map."
+          },
+          success: { next: "warfront_campaign", text: "Your coordinated pushes take three districts in one cycle.", effects: { activateWarfront: 12, renown: 2 } },
+          fail: { next: "warfront_campaign", text: "You hold the line but pay dearly in the first assault.", effects: { activateWarfront: 10, health: 2, mentalStress: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Win the war by decapitating enemy command",
+          combat: {
+            title: "Story Combat: Command Bunker Raid",
+            dread: 14,
+            enemies: ["Bunker General", "Honor Guard", "Honor Guard", "Counter-Hack Cleric"],
+            briefing: "If command falls, every ongoing skirmish shifts in your favor."
+          },
+          success: { next: "warfront_campaign", text: "Enemy command collapses; your field armies surge.", effects: { activateWarfront: 11, faction: { military: 2 } } },
+          fail: { next: "warfront_campaign", text: "The bunker holds long enough to bleed your offensive momentum.", effects: { activateWarfront: 9, tmw: 1 } },
+        },
+        {
+          id: "o3",
+          text: "Flip the war into a public coalition before it consumes everyone",
+          stat: "lead",
+          baseDread: 12,
+          success: { next: "ending_openhand", text: "You halt total war and replace it with a hard, imperfect coalition charter.", effects: { renown: 3, faction: { political: 2, rebels: 1 } } },
+          fail: { next: "warfront_campaign", text: "The coalition speech fails. The only language left is force.", effects: { mentalStress: 2 } },
+        },
+      ],
+    },
+
+    warfront_campaign: {
+      chapter: "c4",
+      title: "Hammer and Rail",
+      location: "World That Was / Siege Cycle",
+      mood: "strategic apocalypse",
+      text: "The warfront now defines the era. District by district, you either become the tyrant history warns about or the commander who ended war by mastering it first.",
+      options: [
+        {
+          id: "o1",
+          text: "Claim absolute victory and rule the scarred world",
+          stat: "control",
+          baseDread: 12,
+          success: { next: "ending_time_tyrant", text: "You win the war and write peace as a weapon.", effects: { renown: 4, faction: { military: 2, corporations: 1, rebels: -3 } } },
+          fail: { next: "ending_dark_throne", text: "Victory comes, but less clean than planned. The throne still takes you.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o2",
+          text: "Break your own army and let districts choose their rulers",
+          stat: "spirit",
+          baseDread: 12,
+          success: { next: "ending_glass", text: "You dismantle your command structure in public. The war ends because your power does.", effects: { renown: 3, faction: { rebels: 2, political: 1 } } },
+          fail: { next: "ending_iron", text: "The army fractures violently. Peace arrives only after a final hard verdict.", effects: { health: 1, mentalStress: 2 } },
+        },
       ],
     },
 
@@ -1388,6 +1538,18 @@
       options: [
         { id: "o_restart", text: "Restart as the heir of your own legacy", success: { restart: true, text: "The next Wayfarer is born into your shadow." } },
         { id: "o_rebel", text: "Defect from your own throne — spark the rebellion you put down", success: { next: "ending_glass", text: "You wrote the manifesto in the language only a ruler would know. It lands like a second revolution." } },
+      ],
+    },
+
+    ending_time_tyrant: {
+      chapter: "c4",
+      title: "Ending: Time Tyrant",
+      location: "Epilogue",
+      mood: "looped empire",
+      text: "You conquered the present, then authored the past. In every official ledger, your chosen name was always the first villain and the final ruler. The war you started became the law you enforce. People whisper that history itself now serves your court.",
+      options: [
+        { id: "o_restart", text: "Restart in the timeline you corrupted", success: { restart: true, text: "A new Wayfarer awakens in a world where your name is carved into origin myths." } },
+        { id: "o_rebel", text: "Become the rebel against your own timeline", success: { next: "ending_glass", text: "You leak the truth: the villain was always you. The first uprising begins in the archives." } },
       ],
     },
 
@@ -2189,6 +2351,37 @@
     }
   }
 
+  function activateStoryWarfront(scale) {
+    const st = ensureStoryState();
+    const target = Math.max(3, Number(scale || 6));
+    let marked = 0;
+
+    if (S && S.worldThatWas && Array.isArray(S.worldThatWas.hexes) && S.worldThatWas.hexes.length) {
+      const candidates = S.worldThatWas.hexes.filter(function (hex) {
+        return !!hex && !hex.station && !hex.landingPad;
+      });
+      for (let i = 0; i < candidates.length && marked < target; i += 1) {
+        const hex = candidates[i];
+        if (!hex.skirmish) {
+          hex.skirmish = true;
+          marked += 1;
+        }
+      }
+      if (typeof window.wtwSyncMarkers === "function") {
+        try { window.wtwSyncMarkers(); } catch (_err) {}
+      }
+    }
+
+    if (st) {
+      st.flags.warfrontActive = true;
+      st.flags.warfrontScale = Math.max(marked, target);
+    }
+
+    if (typeof showNotif === "function") {
+      showNotif("Warfront escalates: " + Math.max(marked, target) + " districts marked for active skirmish.", "warn");
+    }
+  }
+
   function applyEffects(effects) {
     if (!effects) return;
     ["renown", "tmw", "pathTokens", "health", "mentalStress", "credits"].forEach(function (k) {
@@ -2241,6 +2434,37 @@
     if (Array.isArray(effects.consumeBackpackAny) && effects.consumeBackpackAny.length) {
       var consumed = consumeBackpackAny(effects.consumeBackpackAny);
       if (consumed && typeof showNotif === "function") showNotif("Story item used: " + consumed, "good");
+    }
+
+    if (effects.storyAlias) {
+      const alias = String(effects.storyAlias || "").trim();
+      if (alias) {
+        S.name = alias;
+        const nameEl = document.getElementById("charName");
+        if (nameEl) nameEl.value = alias;
+        if (typeof showNotif === "function") showNotif("Timeline shift: your name is now " + alias + ".", "warn");
+      }
+    }
+
+    if (effects.startArmy && typeof effects.startArmy === "object") {
+      const cfg = effects.startArmy;
+      S.storyArmy = S.storyArmy || {};
+      S.storyArmy.name = String(cfg.name || "Pale Legion");
+      S.storyArmy.strength = Math.max(1, Number(cfg.strength || 5));
+      S.storyArmy.doctrine = String(cfg.doctrine || "Order by Force");
+      S.storyArmy.eraTag = String((S.currentAge || "green") + "/" + (S.currentSeason || "spring"));
+      const st = ensureStoryState();
+      if (st) {
+        st.flags.armyFounded = true;
+        st.flags.armyName = S.storyArmy.name;
+      }
+      if (typeof showNotif === "function") {
+        showNotif("Army founded: " + S.storyArmy.name + " (Strength " + S.storyArmy.strength + ").", "warn");
+      }
+    }
+
+    if (effects.activateWarfront) {
+      activateStoryWarfront(effects.activateWarfront);
     }
   }
 
@@ -3565,7 +3789,7 @@
         : pendingCombat
           ? (pendingCombatResult === "success" ? "✓ Resolve Victory" : pendingCombatResult === "fail" ? "Resolve Setback" : "▶ Enter Combat")
           : "Choose";
-      const isDarkOption = option.id === "o_dark" || option.id === "o_ally" || option.id === "o_shatter" || option.id === "o_rebel";
+      const isDarkOption = option.id === "o_dark" || option.id === "o_ally" || option.id === "o_time" || option.id === "o_shatter" || option.id === "o_rebel";
       const isGoodOption = option.id === "o2" || (option.success && option.success.next && option.success.next.startsWith("ending_glass"));
       const assigneeSelect = "<label class='story-opt-req' style='display:block;margin-top:.2rem;'>Assigned Wayfarer"
         + "<select style='width:100%;margin-top:.2rem;' onchange='storySetAssignee(\"" + st.sceneId + "\",\"" + option.id + "\",this.value)'>"

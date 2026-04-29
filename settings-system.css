@@ -481,7 +481,7 @@ nav {
 
 .campaign-dock {
   position: fixed;
-  right: 0.85rem;
+  right: 8rem;
   bottom: 1.2rem;
   z-index: 380;
   display: flex;
@@ -491,7 +491,7 @@ nav {
 }
 
 .campaign-dock.settings-open {
-  right: calc(320px + 1.1rem);
+  right: calc(320px + 8.2rem);
 }
 
 .campaign-dock-toggle {

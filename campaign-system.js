@@ -22,7 +22,7 @@
     activePromptId: "",
     autoRestoreTried: false,
     restoringSession: false,
-    dockOpen: true,
+    dockOpen: false,
     lastDockLogSize: 0,
     timelineFilter: "all",
     lastCharacterHash: "",
@@ -135,13 +135,20 @@
       renown: Math.max(0, Number(window.S.renown || 0)),
       mentalStress: Math.max(0, Number((typeof current.mentalStress === "number" ? current.mentalStress : window.S.mentalStress) || 0)),
       missionTokens: deepCloneJson(window.S.missionTokens || {}),
+      activeMissions: deepCloneJson(window.S.activeMissions || []),
+      completedMissions: deepCloneJson(window.S.completedMissions || []),
+      availableJobs: deepCloneJson(window.S.availableJobs || []),
       storyline: deepCloneJson(window.S.storyline || {}),
       holding: deepCloneJson(window.S.holding || {}),
       lastSea: deepCloneJson(window.S.lastSea || {}),
       gameDate: deepCloneJson(window.S.gameDate || {}),
       partyStash: Array.isArray(current.partyStash) ? current.partyStash.slice() : []
     };
-    if (typeof window.getProvinceMapState === "function") {
+    if (typeof window.getProvinceSelectedKey === "function") {
+      shared.provinceSelection = String(window.getProvinceSelectedKey() || "");
+    }
+    var shouldPushProvinceMap = (state.role === "gm") || !state.code;
+    if (shouldPushProvinceMap && typeof window.getProvinceMapState === "function") {
       shared.provinceMap = deepCloneJson(window.getProvinceMapState() || null);
     }
     return shared;
@@ -179,6 +186,15 @@
       if (sharedState.missionTokens && typeof sharedState.missionTokens === "object") {
         window.S.missionTokens = deepCloneJson(sharedState.missionTokens) || {};
       }
+      if (Array.isArray(sharedState.activeMissions)) {
+        window.S.activeMissions = deepCloneJson(sharedState.activeMissions) || [];
+      }
+      if (Array.isArray(sharedState.completedMissions)) {
+        window.S.completedMissions = deepCloneJson(sharedState.completedMissions) || [];
+      }
+      if (Array.isArray(sharedState.availableJobs)) {
+        window.S.availableJobs = deepCloneJson(sharedState.availableJobs) || [];
+      }
       if (sharedState.holding && typeof sharedState.holding === "object") {
         window.S.holding = deepCloneJson(sharedState.holding) || {};
       }
@@ -191,6 +207,9 @@
       if (sharedState.provinceMap && typeof window.applyProvinceMapState === "function") {
         window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
       }
+      if (typeof sharedState.provinceSelection === "string" && typeof window.setProvinceSelectedKey === "function") {
+        window.setProvinceSelectedKey(sharedState.provinceSelection);
+      }
     } finally {
       state.applyingSharedState = false;
     }
@@ -201,6 +220,9 @@
     if (typeof window.renderLastSeaMap === "function") window.renderLastSeaMap();
     if (typeof window.renderLastSeaInfo === "function") window.renderLastSeaInfo();
     if (typeof window.renderHexMap === "function") window.renderHexMap();
+    if (typeof window.renderMissionBoard === "function") window.renderMissionBoard();
+    if (typeof window.renderMissionTracker === "function") window.renderMissionTracker();
+    if (typeof window.renderCompletedMissions === "function") window.renderCompletedMissions();
 
     state.lastSharedVersion = nextVersion || state.lastSharedVersion;
     state.lastSharedHash = JSON.stringify(sharedState);
@@ -231,6 +253,12 @@
       return;
     }
     safeNotif("Shared world synced (v" + Number(res.stateVersion || 0) + ").", "good");
+  }
+
+  async function syncSharedSilent(reason) {
+    if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
+    var shared = collectSharedState();
+    return pushSharedState(shared, reason || "silent");
   }
 
   async function pushSharedState(nextState, reason) {
@@ -577,6 +605,7 @@
     }
     window.S.backpack[idx] = "";
     if (typeof window.renderBackpackUI === "function") window.renderBackpackUI();
+    syncCharacterToCampaign(true);
     safeNotif("Shared item to party stash: " + item, "good");
   }
 
@@ -604,6 +633,7 @@
       safeNotif("Claimed item, but backpack storage failed.", "warn");
       return;
     }
+    syncCharacterToCampaign(true);
     safeNotif("Claimed from party stash: " + claimedItem, "good");
   }
 
@@ -621,6 +651,7 @@
       safeNotif("Backpack full.", "warn");
       return;
     }
+    syncCharacterToCampaign(true);
     safeNotif("Shared from wayfarer sheet: " + item, "good");
   }
 
@@ -1540,6 +1571,7 @@
     sendChatMessage: sendChatMessage,
     toggleDock: toggleDock,
     syncSharedNow: syncSharedNow,
+    syncSharedSilent: syncSharedSilent,
     shareBackpackItem: shareBackpackItem,
     claimSharedItem: claimSharedItem,
     copyRosterItem: copyRosterItem,

@@ -244,9 +244,9 @@ select option{background:#0f1020;}
 .job-card{background:var(--card);border:1px solid var(--border);padding:.7rem;display:flex;flex-direction:column;gap:.3rem;transition:border-color .15s;}
 .job-card:hover{border-color:rgba(201,162,39,.25);}
 /* ── QUICK PANEL ── */
-#quickPanelToggle{position:fixed;bottom:1.2rem;right:8rem;z-index:1000;background:rgba(11,12,26,.95);border:1px solid var(--border2);color:var(--gold);font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;padding:.45rem .8rem;cursor:pointer;text-transform:uppercase;backdrop-filter:blur(10px);transition:border-color .2s,color .2s;}
+#quickPanelToggle{position:fixed;bottom:1.2rem;right:.85rem;z-index:1000;background:rgba(11,12,26,.95);border:1px solid var(--border2);color:var(--gold);font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;padding:.45rem .8rem;cursor:pointer;text-transform:uppercase;backdrop-filter:blur(10px);transition:border-color .2s,color .2s;}
 #quickPanelToggle:hover,#quickPanelToggle.open{border-color:var(--gold);background:rgba(201,162,39,.08);}
-#quickPanel{position:fixed;bottom:3.8rem;right:1.2rem;width:360px;max-height:calc(100vh - 6rem);background:rgba(11,12,26,.97);border:1px solid var(--border2);z-index:999;display:none;flex-direction:column;backdrop-filter:blur(12px);box-shadow:0 4px 32px rgba(0,0,0,.6);}
+#quickPanel{position:fixed;bottom:3.8rem;right:.85rem;width:360px;max-height:calc(100vh - 6rem);background:rgba(11,12,26,.97);border:1px solid var(--border2);z-index:999;display:none;flex-direction:column;backdrop-filter:blur(12px);box-shadow:0 4px 32px rgba(0,0,0,.6);}
 #quickPanel.open{display:flex;}
 .qp-header{display:flex;gap:0;border-bottom:1px solid var(--border);}
 .qp-tab{flex:1;background:transparent;border:none;border-right:1px solid var(--border);color:var(--muted2);font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;padding:.35rem .2rem;cursor:pointer;text-transform:uppercase;transition:all .12s;}
@@ -4180,6 +4180,25 @@ function getProvinceMapState(){
   })||{};
 }
 
+function getProvinceSelectedKey(){
+  return selectedHex?`${selectedHex.col},${selectedHex.row}`:'';
+}
+
+function setProvinceSelectedKey(key){
+  const val=String(key||'');
+  if(!val||!Array.isArray(mapData)||!mapData.length)return false;
+  const parts=val.split(',');
+  const sc=Number(parts[0]),sr=Number(parts[1]);
+  if(!Number.isFinite(sc)||!Number.isFinite(sr))return false;
+  const next=mapData.find(h=>h&&h.col===sc&&h.row===sr)||null;
+  if(!next)return false;
+  if(selectedHex&&selectedHex.col===next.col&&selectedHex.row===next.row)return true;
+  selectedHex=next;
+  renderHexMap();
+  renderHexInfo(next);
+  return true;
+}
+
 function applyProvinceMapState(payload,opts){
   const incoming=payload&&typeof payload==='object'?payload:null;
   if(!incoming||!Array.isArray(incoming.mapData)||!incoming.mapData.length)return;
@@ -4202,6 +4221,8 @@ function applyProvinceMapState(payload,opts){
 
 window.getProvinceMapState=getProvinceMapState;
 window.applyProvinceMapState=applyProvinceMapState;
+window.getProvinceSelectedKey=getProvinceSelectedKey;
+window.setProvinceSelectedKey=setProvinceSelectedKey;
 
 const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling:'#3a6820',temple:'#502878',monument:'#484848',peril:'#783820',ruins:'#403830',event:'#6a5800',gate:'#1a5048',lostcity:'#5a1040',barrier:'#282828',trade:'#3a2800'};
 const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
@@ -4487,6 +4508,9 @@ function renderHexMap(){
         selectedHex=hex;
         renderHexMap();
         renderHexInfo(hex);
+        if(window.campaignSystem&&typeof window.campaignSystem.syncSharedSilent==='function'){
+          window.campaignSystem.syncSharedSilent('province-click');
+        }
       }catch(err){
         selectedHex=hex;
         renderHexMap();
@@ -4614,7 +4638,7 @@ function renderHexInfo(hex){
     if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTd(td.land)}</div></div>`;
     if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTd(td.flora)} ${pickTd(td.fauna)||''}</div></div>`;
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Province Encounter</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
     if(d.eventLead){
       const leadCid=`${hex.col}-${hex.row}`;
@@ -4624,7 +4648,7 @@ function renderHexInfo(hex){
   // ── TRADE ROUTE ── (FIX: no td reference)
   }else if(hex.type==='trade'){
     html+=`<div class="trade-line">🏛 <strong>Trade Route</strong> — connects ${d.from||'Holdings'}.<br><em style="font-size:.78rem;">Regional trade goods and caravans pass through here regularly.</em></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-primary" onclick="rollTradeRouteEncounter()">⚄ Roll Trade Encounter (d10)</button><button class="btn btn-sm btn-teal" onclick="showTradeGoods(${hex.col},${hex.row})">📦 Trade Goods</button><button class="btn btn-sm btn-gold" onclick="buyProvinceCaravanToHolding(${hex.col},${hex.row},100)">🛻 Buy Caravan to Nearest Holding (100₵)</button></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-primary" onclick="rollTradeRouteEncounter(${hex.col},${hex.row})">⚄ Roll Trade Encounter (d10)</button><button class="btn btn-sm btn-teal" onclick="showTradeGoods(${hex.col},${hex.row})">📦 Trade Goods</button><button class="btn btn-sm btn-gold" onclick="buyProvinceCaravanToHolding(${hex.col},${hex.row},100)">🛻 Buy Caravan to Nearest Holding (100₵)</button></div>`;
 
   // ── SEAT / HOLDING ──
   }else if(hex.type==='seat'||hex.type==='holding'){
@@ -5636,8 +5660,9 @@ function rollHexEncounter(col,row){
     let html='';
     if(vr===1){
       html=`<div class="venture-result"><div class="vr-type">d6=${vr} — Shift in Weather</div>`;
-      const season=S.currentSeason||'spring';
-      const wr=roll(6),w=WEATHER[season][wr-1];
+      const season=(S&&S.currentSeason&&WEATHER[S.currentSeason])?S.currentSeason:'spring';
+      const weatherTable=WEATHER[season]||WEATHER.spring||[];
+      const wr=roll(6),w=weatherTable[wr-1]||{result:'Overcast',rough:false,desc:'Steady weather. Travel is manageable.'};
       html+=`<strong style="${w.rough?'color:var(--red2)':'color:var(--teal)'};">${w.result}</strong> — ${w.desc}`;
       if(w.rough){
         html+=`<div class="rough-weather-alert">Lead vs DD8 required. Failure: remain in Hex, lose 1 Phase, gain +1 Mental Stress.</div>`;
@@ -5645,7 +5670,7 @@ function rollHexEncounter(col,row){
       }
       html+='</div>';
     }else if(vr===2){
-    const enc=roll(6);let title,desc,actionHTML='';
+    const enc=roll(8);let title,desc,actionHTML='';
     if(enc===1){
       const n=roll(4)+3;
       const banditType=pick(['Ragged scavengers in patchwork armor','Desperate deserters looking for easy marks','Professional road agents — this is their stretch','Cult enforcer unit collecting "donations"']);
@@ -5690,6 +5715,15 @@ function rollHexEncounter(col,row){
         <button class="btn btn-xs" onclick="talkToWayfarer(${col},${row})">💬 Talk</button>
       </div>`;
     }
+    else if(enc===7){
+      const n=roll(4)+2;
+      title='Pirate Raiders';
+      desc=`${n} river pirates and raiders are shadowing trade wagons looking for plunder.`;
+      actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'pirates',${n},'Pirate Raiders',6)">⚔ Engage${combatHint}</button>
+        <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>
+      </div>`;
+    }
     else{title='Black Market';desc=`A coded rendezvous point for contraband brokers and Master Hack traders.`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess(${col},${row})">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('blackmarket',${col},${row})">Thievery</button></div>`;}
       html=`<div class="encounter-block"><strong style="color:var(--teal);">Overland Encounter — d6=${vr}</strong><br><strong>${title}</strong><br>${desc}${actionHTML}</div>`;
     }else{
@@ -5710,23 +5744,46 @@ function rollHexEncounter(col,row){
   }
 }
 
-function rollTradeRouteEncounter(){
-  const r=roll(10);let result='',title='',actionHTML='';
-  if(r<=2){title='Safe Route';result=pick(TRADE_SAFE_EVENTS);}
-  else if(r<=4){title='Profitable Route';result=pick(TRADE_PROFITABLE_EVENTS);}
-  else if(r<=6){title='Aggressive/Illegal Route';result=pick(TRADE_AGGRESSIVE_EVENTS);}
-  else if(r<=8){
-    title='Trade Obstacle';
-    const obs=pick(TRADE_OBSTACLES);
-    result=obs;
-    if(obs.includes('100')||obs.includes('Credits')){
-      actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="resolveTradePayment(100,'Paid trade toll')">Pay ${/(\d+)/.exec(obs)?'₵'+(/(\d+)/.exec(obs)[1]):'₵100'} & Resolve</button></div>`;
+function rollTradeRouteEncounter(col,row){
+  try{
+    const targetHex=(typeof col==='number'&&typeof row==='number')
+      ? mapData.find(h=>h&&h.col===col&&h.row===row)
+      : selectedHex;
+    if(!targetHex){
+      showNotif('Select a Trade Route hex first.','warn');
+      return;
     }
+    const safe=Array.isArray(TRADE_SAFE_EVENTS)?TRADE_SAFE_EVENTS:['Quiet route. No issues reported.'];
+    const profitable=Array.isArray(TRADE_PROFITABLE_EVENTS)?TRADE_PROFITABLE_EVENTS:['Unexpectedly profitable run.'];
+    const aggressive=Array.isArray(TRADE_AGGRESSIVE_EVENTS)?TRADE_AGGRESSIVE_EVENTS:['Raiders pressure the route.'];
+    const obstacles=Array.isArray(TRADE_OBSTACLES)?TRADE_OBSTACLES:['Road officials demand a toll.'];
+    const r=roll(10);let result='',title='',actionHTML='';
+    if(r<=2){title='Safe Route';result=pick(safe);}
+    else if(r<=4){title='Profitable Route';result=pick(profitable);}
+    else if(r<=6){title='Aggressive/Illegal Route';result=pick(aggressive);}
+    else if(r<=8){
+      title='Trade Obstacle';
+      const obs=pick(obstacles);
+      result=obs;
+      if(obs.includes('100')||obs.includes('Credits')){
+        actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="resolveTradePayment(100,'Paid trade toll')">Pay ${/(\d+)/.exec(obs)?'₵'+(/(\d+)/.exec(obs)[1]):'₵100'} & Resolve</button></div>`;
+      }
+    }
+    else{title='Traveling Wayfarer';const w=pick(TRAVELING_WAYFARERS);result=`<strong>${w[1]} ${w[2]}</strong> (${w[0]}) — ${w[3]}`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer',${targetHex.col},${targetHex.row})">Thievery</button></div>`;}
+    let el=document.getElementById(`hexEnc-${targetHex.col}-${targetHex.row}`);
+    if(!el&&selectedHex&&selectedHex.col===targetHex.col&&selectedHex.row===targetHex.row){
+      renderHexInfo(selectedHex);
+      el=document.getElementById(`hexEnc-${targetHex.col}-${targetHex.row}`);
+    }
+    if(el){
+      el.innerHTML=`<div class="venture-result"><div class="vr-type">Trade Route d10=${r}: ${title}</div>${result}${actionHTML}</div>`;
+    }else{
+      showNotif('Trade encounter rolled, but output panel was not found. Reopen this hex and try again.','warn');
+    }
+  }catch(err){
+    console.error('rollTradeRouteEncounter error',err);
+    showNotif('Trade encounter roll failed due to an internal error.','warn');
   }
-  else{title='Traveling Wayfarer';const w=pick(TRAVELING_WAYFARERS);result=`<strong>${w[1]} ${w[2]}</strong> (${w[0]}) — ${w[3]}`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer')">Thievery</button></div>`;}
-  const hex=selectedHex;if(!hex)return;
-  const el=document.getElementById(`hexEnc-${hex.col}-${hex.row}`);
-  if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">Trade Route d10=${r}: ${title}</div>${result}${actionHTML}</div>`;
 }
 
 window.resolveProvinceShiftWeatherEncounter = function(col,row){

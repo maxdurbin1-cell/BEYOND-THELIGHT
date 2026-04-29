@@ -604,10 +604,27 @@ function addSuccessRoll() {
 }
 
 // Every failed roll grants +1 TMW (or +2 if the "Failed rolls grant +2" flavor is active).
-function addTMWOnFail() {
+var _tmwFailGuard = { key: '', at: 0 };
+
+function awardTeamworkOnFailure(reason, opts) {
+  var key = String(reason || 'failed-roll');
+  var cfg = opts && typeof opts === 'object' ? opts : {};
+  var dedupeMs = Number(cfg.dedupeMs || 180);
+  var now = Date.now();
+  if (_tmwFailGuard.key === key && (now - Number(_tmwFailGuard.at || 0)) < dedupeMs) {
+    return 0;
+  }
+  _tmwFailGuard = { key: key, at: now };
   var amt = (S.flavor || '').toLowerCase().indexOf('failed rolls grant +2') >= 0 ? 2 : 1;
   changeCounter('tmw', amt);
+  return amt;
 }
+
+function addTMWOnFail() {
+  return awardTeamworkOnFailure('failed-roll');
+}
+
+window.awardTeamworkOnFailure = awardTeamworkOnFailure;
 
 function updateConditionButtons() {
   Object.entries(S.conditions || {}).forEach(([key, on]) => {

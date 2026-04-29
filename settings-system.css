@@ -263,6 +263,13 @@ nav {
   border-color: rgba(224, 96, 96, 0.6);
 }
 
+.campaign-badge.syncing,
+.campaign-badge.stale,
+.campaign-badge.idle {
+  color: var(--gold2);
+  border-color: rgba(232, 192, 80, 0.7);
+}
+
 .campaign-input {
   width: 100%;
   background: rgba(12, 15, 20, 0.9);
@@ -557,6 +564,13 @@ nav {
 .campaign-dock-badge.offline {
   color: var(--red2);
   border-color: rgba(224, 96, 96, 0.6);
+}
+
+.campaign-dock-badge.syncing,
+.campaign-dock-badge.stale,
+.campaign-dock-badge.idle {
+  color: var(--gold2);
+  border-color: rgba(232, 192, 80, 0.7);
 }
 
 .campaign-dock-meta {

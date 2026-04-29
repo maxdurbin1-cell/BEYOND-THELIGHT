@@ -30,6 +30,11 @@
     gmWayfarerSort: "online",
     lastSharedHash: "",
     lastSharedVersion: 0,
+    syncHealth: "idle",
+    lastSyncAt: 0,
+    syncText: "Idle",
+    pendingSyncCount: 0,
+    localEconomyLedger: [],
     applyingSharedState: false,
     uiDraft: {
       name: "",
@@ -98,6 +103,53 @@
     }
   }
 
+  function setSyncHealth(mode, text) {
+    state.syncHealth = String(mode || "idle");
+    state.syncText = String(text || "");
+  }
+
+  function makeEconomyLedgerEvent(resource, delta, reason) {
+    var token = String(state.token || "");
+    var name = String(state.playerName || ensureName() || "Wayfarer");
+    return {
+      id: "eco-" + Date.now() + "-" + Math.floor(Math.random() * 100000),
+      resource: String(resource || "unknown"),
+      delta: Number(delta || 0),
+      reason: String(reason || "change"),
+      token: token,
+      name: name,
+      at: Date.now()
+    };
+  }
+
+  function recordEconomyDelta(resource, delta, reason) {
+    var val = Number(delta || 0);
+    if (!Number.isFinite(val) || val === 0) return;
+    if (!state.code) return;
+    var eventRow = makeEconomyLedgerEvent(resource, val, reason);
+    state.localEconomyLedger.push(eventRow);
+    if (state.localEconomyLedger.length > 120) {
+      state.localEconomyLedger = state.localEconomyLedger.slice(-120);
+    }
+  }
+
+  function mergeEconomyLedger(currentLedger) {
+    var merged = [];
+    var map = {};
+    var base = Array.isArray(currentLedger) ? currentLedger : [];
+    var local = Array.isArray(state.localEconomyLedger) ? state.localEconomyLedger : [];
+    base.concat(local).forEach(function (entry) {
+      if (!entry || typeof entry !== "object") return;
+      var id = String(entry.id || "");
+      if (!id || map[id]) return;
+      map[id] = true;
+      merged.push(entry);
+    });
+    merged.sort(function (a, b) { return Number(a.at || 0) - Number(b.at || 0); });
+    if (merged.length > 180) merged = merged.slice(-180);
+    return merged;
+  }
+
   function getCampaignSharedState() {
     return state.campaign && state.campaign.shared && state.campaign.shared.state && typeof state.campaign.shared.state === "object"
       ? state.campaign.shared.state
@@ -158,6 +210,7 @@
       lastSea: deepCloneJson(window.S.lastSea || {}),
       gameDate: deepCloneJson(window.S.gameDate || {}),
       partyStash: Array.isArray(current.partyStash) ? current.partyStash.slice() : [],
+      economyLedger: mergeEconomyLedger(current.economyLedger),
       provinceSelections: existingSelections
     };
     var shouldPushProvinceMap = (state.role === "gm") || !state.code;
@@ -247,7 +300,7 @@
     var shared = collectSharedState();
     var hash = JSON.stringify(shared);
     if (!hash || hash === state.lastSharedHash) return;
-    var res = await emitWithAck("campaign:syncState", { state: shared, reason: reason || "auto" });
+    var res = await pushSharedState(shared, reason || "auto");
     if (res && res.ok) {
       state.lastSharedHash = hash;
       state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
@@ -277,12 +330,31 @@
   async function pushSharedState(nextState, reason) {
     if (!state.socket || !state.connected || !state.code) {
       safeNotif("Join a campaign first.", "warn");
+      setSyncHealth("offline", "Offline");
       return { ok: false };
     }
+    state.pendingSyncCount = Math.max(0, Number(state.pendingSyncCount || 0)) + 1;
+    setSyncHealth("syncing", "Syncing...");
+    var sentLedgerIds = Array.isArray(nextState && nextState.economyLedger)
+      ? nextState.economyLedger.map(function (entry) { return String(entry && entry.id || ""); })
+      : [];
     var res = await emitWithAck("campaign:syncState", { state: nextState || {}, reason: reason || "manual" });
+    state.pendingSyncCount = Math.max(0, Number(state.pendingSyncCount || 0) - 1);
     if (res && res.ok) {
       state.lastSharedHash = JSON.stringify(nextState || {});
       state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
+      state.lastSyncAt = Date.now();
+      setSyncHealth("online", "Synced");
+      if (sentLedgerIds.length && Array.isArray(state.localEconomyLedger)) {
+        var sentMap = {};
+        sentLedgerIds.forEach(function (id) { if (id) sentMap[id] = true; });
+        state.localEconomyLedger = state.localEconomyLedger.filter(function (entry) {
+          var id = String(entry && entry.id || "");
+          return !sentMap[id];
+        });
+      }
+    } else {
+      setSyncHealth("stale", "Pending sync");
     }
     return res || { ok: false, error: "No response." };
   }
@@ -391,6 +463,9 @@
       var result = originalUpdate.apply(this, arguments);
       var after = getTmwValue();
       if (before !== after || state.lastKnownTmw !== after) {
+        if (!state.suppressTmwEmit) {
+          recordEconomyDelta("tmw", after - before, "updateTMWPool");
+        }
         syncCurrentTmw("updateTMWPool");
       }
       return result;
@@ -442,6 +517,7 @@
         var appliedDelta = after - before;
         if (!state.suppressCreditsEmit && appliedDelta !== 0) {
           state.lastKnownCredits = after;
+          recordEconomyDelta("credits", appliedDelta, "updateCreditsUI");
           syncCreditsDelta(appliedDelta, "updateCreditsUI");
         }
         if (state.lastKnownCredits === null) state.lastKnownCredits = after;
@@ -458,6 +534,7 @@
         var appliedDelta = after - before;
         if (!state.suppressRenownEmit && appliedDelta !== 0) {
           state.lastKnownRenown = after;
+          recordEconomyDelta("renown", appliedDelta, "updateRenown");
           syncRenownDelta(appliedDelta, "updateRenown");
         }
         if (state.lastKnownRenown === null) state.lastKnownRenown = after;
@@ -712,6 +789,23 @@
     }).join("");
   }
 
+  function renderEconomyLedger(log, limit) {
+    if (!Array.isArray(log) || !log.length) {
+      return '<div class="campaign-muted">No economy changes yet.</div>';
+    }
+    return log.slice(-(limit || 12)).reverse().map(function (entry) {
+      var resource = String(entry && entry.resource || "value");
+      var delta = Number(entry && entry.delta || 0);
+      var deltaText = (delta > 0 ? "+" : "") + delta;
+      var who = String(entry && entry.name || "Wayfarer");
+      var why = String(entry && entry.reason || "sync");
+      return '<div class="campaign-log-row">'
+        + '<span class="campaign-log-kind">' + escapeHtml(resource) + " " + escapeHtml(deltaText) + '</span>'
+        + '<span>' + escapeHtml(who + " · " + why) + '</span>'
+        + "</div>";
+    }).join("");
+  }
+
   function renderDockTimeline(log) {
     if (!Array.isArray(log) || !log.length) {
       return '<div class="campaign-dock-empty">No timeline yet.</div>';
@@ -808,6 +902,10 @@
     var sharedTmw = campaign && campaign.shared ? Number(campaign.shared.tmw || 0) : getTmwValue();
     var sharedCredits = Math.max(0, Number(sharedState.credits != null ? sharedState.credits : ((window.S && window.S.credits) || 0)));
     var sharedRenown = Math.max(0, Number(sharedState.renown != null ? sharedState.renown : ((window.S && window.S.renown) || 0)));
+    var economyLedger = Array.isArray(sharedState.economyLedger) ? sharedState.economyLedger : [];
+    var syncLabel = state.syncHealth === "syncing"
+      ? "Syncing"
+      : (state.syncHealth === "stale" ? "Pending" : (state.syncHealth === "online" ? "Synced" : "Offline"));
     var partyStash = Array.isArray(sharedState.partyStash) ? sharedState.partyStash : [];
     var localBackpackSlots = Array.isArray(window.S && window.S.backpack)
       ? window.S.backpack.map(function (item, idx) {
@@ -833,6 +931,7 @@
       + '<h4>Campaign (Multiplayer)</h4>'
       + '<div class="campaign-status-row">'
       + '<span class="campaign-badge ' + (state.connected ? "online" : "offline") + '">' + (state.connected ? "Online" : (ioReady ? "Offline" : "Server Script Missing")) + "</span>"
+      + '<span class="campaign-badge ' + escapeHtml(state.syncHealth || "idle") + '">' + escapeHtml(syncLabel) + '</span>'
       + '<span class="campaign-muted">Code: <strong style="color:var(--teal);">' + escapeHtml(state.code || "-") + "</strong></span>"
       + "</div>"
       + '<div class="setting-row">'
@@ -940,6 +1039,10 @@
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Recent Log</div>'
       + renderLog(campaign ? campaign.log : [])
+      + "</div>"
+      + '<div class="campaign-card">'
+      + '<div class="campaign-card-title">Shared Economy Ledger</div>'
+      + renderEconomyLedger(economyLedger, 14)
       + "</div>";
 
     bindDraftInputs();
@@ -997,8 +1100,9 @@
     var filters = document.getElementById("campaignDockFilters");
 
     if (badge) {
-      badge.textContent = state.connected ? "Online" : "Offline";
-      badge.className = "campaign-dock-badge " + (state.connected ? "online" : "offline");
+      var dockMode = state.connected ? (state.syncHealth === "syncing" ? "syncing" : (state.syncHealth === "stale" ? "stale" : "online")) : "offline";
+      badge.textContent = dockMode === "online" ? "Online" : (dockMode === "syncing" ? "Syncing" : (dockMode === "stale" ? "Pending" : "Offline"));
+      badge.className = "campaign-dock-badge " + dockMode;
     }
 
     var campaign = state.campaign;
@@ -1121,6 +1225,7 @@
 
     state.socket.on("connect", function () {
       state.connected = true;
+      setSyncHealth("online", "Connected");
       renderSettingsSection();
       renderDockPanel();
       attemptAutoRestore();
@@ -1129,6 +1234,7 @@
 
     state.socket.on("disconnect", function () {
       state.connected = false;
+      setSyncHealth("offline", "Offline");
       renderSettingsSection();
       renderDockPanel();
     });
@@ -1153,6 +1259,10 @@
         snapshot && snapshot.shared ? snapshot.shared.state : null,
         snapshot && snapshot.shared ? snapshot.shared.stateVersion : 0
       );
+      if (state.connected) {
+        setSyncHealth("online", "Synced");
+        state.lastSyncAt = Date.now();
+      }
 
       maybePromptActiveRoll(snapshot && snapshot.activeRollRequest ? snapshot.activeRollRequest : null);
       renderSettingsSection();
@@ -1614,6 +1724,7 @@
     setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,
     toggleDock: toggleDock,
+    recordEconomyDelta: recordEconomyDelta,
     getProvinceSelectionMarkers: getProvinceSelectionMarkers,
     syncSharedNow: syncSharedNow,
     syncSharedSilent: syncSharedSilent,

@@ -932,6 +932,22 @@ io.on("connection", (socket) => {
         : {};
       merged.provinceSelections = Object.assign({}, currentSelections, incoming.provinceSelections);
     }
+    if (Array.isArray(incoming.economyLedger)) {
+      const existingLedger = Array.isArray(existingState.economyLedger) ? existingState.economyLedger : [];
+      const combined = existingLedger.concat(incoming.economyLedger);
+      const seen = new Set();
+      const deduped = [];
+      for (let i = 0; i < combined.length; i += 1) {
+        const row = combined[i];
+        if (!row || typeof row !== "object") continue;
+        const id = String(row.id || "");
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        deduped.push(row);
+      }
+      deduped.sort((a, b) => Number(a && a.at || 0) - Number(b && b.at || 0));
+      merged.economyLedger = deduped.slice(-220);
+    }
     if (Array.isArray(existingState.partyStash)) {
       merged.partyStash = existingState.partyStash.slice();
     }

@@ -14,7 +14,7 @@
 <style>
 :root{--bg:#06070e;--surface:#0b0c1a;--card:#0f1020;--card2:#131428;--border:#1a1c35;--border2:#252848;--gold:#c9a227;--gold2:#e8c050;--gold3:#f0d070;--teal:#2ec4b6;--teal2:#50ddd0;--red:#c94040;--red2:#e05050;--green:#4caf74;--green2:#6ed090;--purple:#8060c0;--text:#d8d0c0;--text2:#b0a890;--muted:#4a4870;--muted2:#7a7898;--muted3:#9a98b8;}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
-body{background:var(--bg);color:var(--text);font-family:'Crimson Pro',Georgia,serif;font-size:17px;min-height:100vh;overflow-x:hidden;background-image:radial-gradient(ellipse 80% 60% at 15% 5%,rgba(201,162,39,.05) 0%,transparent 55%),radial-gradient(ellipse 60% 80% at 85% 95%,rgba(46,196,182,.04) 0%,transparent 55%);}
+body{background:var(--bg);color:var(--text);font-family:'Crimson Pro',Georgia,serif;font-size:1rem;min-height:100vh;overflow-x:hidden;background-image:radial-gradient(ellipse 80% 60% at 15% 5%,rgba(201,162,39,.05) 0%,transparent 55%),radial-gradient(ellipse 60% 80% at 85% 95%,rgba(46,196,182,.04) 0%,transparent 55%);}
 ::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:var(--surface);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
 header{background:linear-gradient(180deg,#040508 0%,rgba(11,12,26,.98) 100%);border-bottom:1px solid var(--border);padding:.5rem 1.2rem;display:flex;align-items:center;gap:1rem;position:sticky;top:0;z-index:200;backdrop-filter:blur(12px);flex-wrap:wrap;}
 .logo{font-family:'Cinzel Decorative',serif;font-size:1.08rem;font-weight:700;color:var(--gold);letter-spacing:.12em;white-space:nowrap;text-shadow:0 0 30px rgba(201,162,39,.4);flex-shrink:0;}
@@ -76,7 +76,7 @@ select option{background:#0f1020;}
 .cond-btn.pos.on{border-color:var(--green);color:var(--green);background:rgba(76,175,116,.08);}
 .cond-btn.neg.on{border-color:var(--red);color:var(--red);background:rgba(201,64,64,.08);}
 .cond-btn.trauma-on{border-color:#c03080;color:#e060a0;background:rgba(192,48,128,.12);cursor:not-allowed;}
-.cond-btn.trauma-on::after{content:" 🔒";font-size:.55rem;}
+.cond-btn.trauma-on::after{content:" 🔒";font-size:.66rem;}
 .counter-row{display:flex;align-items:center;gap:.4rem;padding:.2rem 0;}
 .counter-val{font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;min-width:2.2rem;text-align:center;line-height:1;}
 .gold-val{color:var(--gold);}.teal-val{color:var(--teal);}.red-val{color:var(--red);}.grey-val{color:var(--muted3);}
@@ -100,7 +100,7 @@ select option{background:#0f1020;}
 .map-scroll{overflow:auto;background:var(--card);border:1px solid var(--border);position:relative;}
 .hex-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;}
 .hex-info-inner{padding:.7rem;}
-.hex-type-tag{display:inline-block;font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.14em;text-transform:uppercase;padding:.12rem .45rem;border:1px solid;margin-bottom:.3rem;}
+.hex-type-tag{display:inline-block;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;padding:.12rem .45rem;border:1px solid;margin-bottom:.3rem;}
 .hex-type-tag.wilderness{color:var(--teal);border-color:var(--teal);}.hex-type-tag.holding{color:var(--red2);border-color:var(--red2);}.hex-type-tag.seat{color:var(--gold);border-color:var(--gold);}.hex-type-tag.dwelling{color:#a0c040;border-color:#a0c040;}.hex-type-tag.temple{color:#b060d0;border-color:#b060d0;}.hex-type-tag.monument{color:var(--muted3);border-color:var(--muted3);}.hex-type-tag.peril{color:var(--red2);border-color:var(--red2);}.hex-type-tag.ruins{color:#a09870;border-color:#a09870;}.hex-type-tag.event{color:var(--gold2);border-color:var(--gold2);}.hex-type-tag.gate{color:var(--teal);border-color:var(--teal);}.hex-type-tag.lostcity{color:#e080c0;border-color:#e080c0;}.hex-type-tag.barrier{color:var(--muted2);border-color:var(--muted2);}.hex-type-tag.trade{color:#f0a840;border-color:#f0a840;}
 .hex-name{font-family:'Cinzel',serif;font-size:.8rem;color:var(--gold2);margin-bottom:.25rem;}
 .hex-desc{font-size:.85rem;color:var(--muted3);line-height:1.6;}
@@ -136,7 +136,7 @@ select option{background:#0f1020;}
 .res-dice{display:flex;align-items:center;justify-content:center;gap:2rem;margin:.8rem 0;}
 .res-die{display:flex;flex-direction:column;align-items:center;gap:.2rem;}
 .res-val{font-family:'Rajdhani',sans-serif;font-size:3rem;font-weight:700;line-height:1;}
-.res-lbl{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;}
+.res-lbl{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;}
 .res-outcome{font-family:'Cinzel',serif;font-size:1.1rem;font-weight:600;letter-spacing:.14em;margin-top:.5rem;}
 .res-outcome.success{color:var(--green2);}.res-outcome.fail{color:var(--red2);}.res-outcome.crit{color:var(--gold3);}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s;}
@@ -158,7 +158,7 @@ select option{background:#0f1020;}
 .dice-roll-pop .dr-left{display:flex;align-items:center;gap:.4rem;min-width:0;}
 .dice-roll-pop .dr-die{width:1.25rem;height:1.25rem;border:1px solid rgba(46,196,182,.55);background:rgba(46,196,182,.08);color:var(--teal2);font-family:'Rajdhani',sans-serif;font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;transform:rotate(45deg);border-radius:2px;flex-shrink:0;}
 .dice-roll-pop .dr-die span{transform:rotate(-45deg);}
-.dice-roll-pop .dr-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.11em;color:var(--muted2);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dice-roll-pop .dr-label{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.11em;color:var(--muted2);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .dice-roll-pop .dr-value{font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;color:var(--gold2);line-height:1;}
 .dice-roll-pop.exploded .dr-value{color:var(--red2);}
 .dice-roll-cine{min-width:220px;max-width:420px;padding:.85rem 1rem;border-radius:8px;border:1px solid rgba(201,162,39,.7);background:rgba(6,7,14,.95);box-shadow:0 26px 60px rgba(0,0,0,.55),0 0 0 1px rgba(201,162,39,.22) inset;display:flex;align-items:center;justify-content:space-between;gap:1rem;opacity:0;transform:translateY(20px) scale(.94);animation:dice-cine-in .2s ease forwards,dice-cine-out .24s ease forwards 1.26s;}
@@ -181,7 +181,7 @@ select option{background:#0f1020;}
 @media(max-width:900px){.codex-grid{grid-template-columns:1fr;}}
 .codex-cats{display:flex;gap:.2rem;margin-bottom:.85rem;flex-wrap:wrap;}
 .wild-panel{background:var(--surface);border:1px solid var(--border2);padding:.55rem;margin-bottom:.3rem;}
-.wild-panel .wp-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.2rem;}
+.wild-panel .wp-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.2rem;}
 .wild-panel .wp-text{font-size:.85rem;color:var(--text2);line-height:1.6;}
 .venture-result{background:var(--card);border-left:3px solid var(--gold2);padding:.5rem .7rem;margin-top:.3rem;}
 .venture-result .vr-type{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;margin-bottom:.2rem;}
@@ -197,25 +197,25 @@ select option{background:#0f1020;}
 .ruin-room{background:var(--surface);border:1px solid var(--border2);padding:.5rem;margin-bottom:.3rem;}
 .ruin-room-title{font-family:'Cinzel',serif;font-size:.65rem;color:var(--gold2);letter-spacing:.08em;margin-bottom:.2rem;}
 .gate-block{background:var(--surface);border:1px solid rgba(46,196,182,.3);padding:.5rem .65rem;margin-bottom:.3rem;}
-.gate-block .gb-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.15rem;}
+.gate-block .gb-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.15rem;}
 .gate-block .gb-text{font-size:.83rem;color:var(--text2);line-height:1.5;}
 .lc-block{background:var(--surface);border:1px solid rgba(224,128,192,.3);padding:.5rem .65rem;margin-bottom:.3rem;}
-.lc-block .lb-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:#e080c0;text-transform:uppercase;margin-bottom:.15rem;}
+.lc-block .lb-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:#e080c0;text-transform:uppercase;margin-bottom:.15rem;}
 .lc-block .lb-text{font-size:.83rem;color:var(--text2);line-height:1.5;}
 .peril-block{background:rgba(201,64,64,.04);border:1px solid rgba(201,64,64,.2);padding:.5rem .65rem;margin-bottom:.3rem;}
 .barrier-block{background:rgba(122,120,152,.04);border:1px solid rgba(122,120,152,.25);padding:.5rem .65rem;margin-bottom:.3rem;}
 .mood-block{background:rgba(201,162,39,.04);border:1px solid rgba(201,162,39,.2);padding:.5rem .65rem;margin-bottom:.3rem;}
-.mood-block .mb-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.15rem;}
+.mood-block .mb-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.15rem;}
 .weather-block{padding:.5rem .65rem;margin-bottom:.4rem;border:1px solid;}
 .weather-block.clear{background:rgba(46,196,182,.04);border-color:rgba(46,196,182,.3);}
 .weather-block.rough{background:rgba(201,64,64,.08);border-color:var(--red);}
-.weather-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.15rem;}
+.weather-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.15rem;}
 .char-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem;}
 .char-top-title{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.14em;color:var(--muted2);text-transform:uppercase;}
 .wild-roll-output{background:var(--card);border:1px solid var(--border2);padding:.7rem;margin-top:.35rem;}
 .wild-section{margin-bottom:.5rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);}
 .wild-section:last-child{border-bottom:none;margin-bottom:0;}
-.wild-section-label{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.14em;color:var(--gold);text-transform:uppercase;margin-bottom:.2rem;}
+.wild-section-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.14em;color:var(--gold);text-transform:uppercase;margin-bottom:.2rem;}
 .wild-section-text{font-size:.85rem;color:var(--text2);line-height:1.6;}
 .rough-weather-alert{background:rgba(201,64,64,.08);border:1px solid var(--red);padding:.4rem .6rem;margin:.3rem 0;font-size:.83rem;color:var(--red2);}
 .encounter-block{background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.3);padding:.4rem .6rem;font-size:.83rem;color:var(--text2);line-height:1.5;}
@@ -223,7 +223,7 @@ select option{background:#0f1020;}
 .notes-area:focus{border-color:var(--teal);}
 .info-row{display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-bottom:.3rem;}
 .info-cell{background:var(--surface);border:1px solid var(--border2);padding:.35rem .5rem;font-size:.8rem;color:var(--text2);line-height:1.4;}
-.info-cell .ic-label{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.1rem;}
+.info-cell .ic-label{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.1rem;}
 .trade-line{background:rgba(240,168,64,.07);border:1px solid rgba(240,168,64,.35);padding:.35rem .6rem;margin-bottom:.3rem;font-size:.82rem;color:var(--text2);line-height:1.5;}
 .room-block{background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.3rem;}
 .room-block .rb-title{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.2rem;}
@@ -231,9 +231,9 @@ select option{background:#0f1020;}
 @keyframes result-pop{0%{transform:scale(0.7);opacity:0;}70%{transform:scale(1.05);}100%{transform:scale(1);opacity:1;}}
 .result-pop{animation:result-pop .3s ease forwards;}
 .npc-block{background:rgba(128,96,192,.05);border:1px solid rgba(128,96,192,.3);padding:.5rem .65rem;margin-bottom:.3rem;}
-.npc-block .nb-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--purple);text-transform:uppercase;margin-bottom:.15rem;}
+.npc-block .nb-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--purple);text-transform:uppercase;margin-bottom:.15rem;}
 .rest-boon{padding:.45rem .65rem;margin-bottom:.4rem;border:1px solid;}
-.rest-boon .rb-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.2rem;}
+.rest-boon .rb-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.2rem;}
 .mission-card{background:var(--surface);border:1px solid var(--border2);padding:.6rem;margin-bottom:.4rem;}
 .mission-card .mc-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
 .mission-card .mc-status{font-size:.7rem;color:var(--teal);margin-top:.2rem;}
@@ -447,7 +447,7 @@ select option{background:#0f1020;}
           <div class="counter-row"><button class="step-btn" onclick="changeCounter('tmw',-1)">−</button><span class="counter-val grey-val" id="tmwVal">0</span><button class="step-btn" onclick="changeCounter('tmw',1)">+</button><button class="btn btn-xs btn-teal" onclick="openTMWActions()" style="margin-left:.2rem;">Use</button></div>
         </div>
       </div>
-      <div style="margin-top:.4rem;"><span class="sub-label">Success Rolls <span style="color:var(--muted);font-size:.55rem;">(3 = +1 Path Token)</span></span>
+      <div style="margin-top:.4rem;"><span class="sub-label">Success Rolls <span style="color:var(--muted);font-size:.68rem;">(3 = +1 Path Token)</span></span>
         <div class="counter-row"><button class="step-btn" onclick="addSuccessRoll()">+</button><span class="counter-val grey-val" id="successRollsVal">0</span><button class="step-btn" onclick="changeCounter('successRolls',-1)">−</button></div>
       </div>
     </div>
@@ -470,19 +470,19 @@ select option{background:#0f1020;}
     </div>
     <div class="card">
       <div class="section-title">Conditions</div>
-      <div style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--green);margin-bottom:.25rem;text-transform:uppercase;">Positive — from Passion d8</div>
+      <div style="font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--green);margin-bottom:.25rem;text-transform:uppercase;">Positive — from Passion d8</div>
       <div class="cond-grid" style="margin-bottom:.5rem;">
-        <button class="cond-btn pos" id="cond-empowered" onclick="toggleCond('empowered')">⚡ Empowered<br><span style="font-size:.54rem;opacity:.65;">Body/Strike/Shoot ↑</span></button>
-        <button class="cond-btn pos" id="cond-protected" onclick="toggleCond('protected')">🛡 Protected<br><span style="font-size:.54rem;opacity:.65;">Defend ↑ one Step</span></button>
-        <button class="cond-btn pos" id="cond-focused" onclick="toggleCond('focused')">🎯 Focused<br><span style="font-size:.54rem;opacity:.65;">Mind/Control ↑</span></button>
-        <button class="cond-btn pos" id="cond-bolstered" onclick="toggleCond('bolstered')">✨ Bolstered<br><span style="font-size:.54rem;opacity:.65;">Spirit/Lead ↑</span></button>
+        <button class="cond-btn pos" id="cond-empowered" onclick="toggleCond('empowered')">⚡ Empowered<br><span class="cond-sub">Body/Strike/Shoot ↑</span></button>
+        <button class="cond-btn pos" id="cond-protected" onclick="toggleCond('protected')">🛡 Protected<br><span class="cond-sub">Defend ↑ one Step</span></button>
+        <button class="cond-btn pos" id="cond-focused" onclick="toggleCond('focused')">🎯 Focused<br><span class="cond-sub">Mind/Control ↑</span></button>
+        <button class="cond-btn pos" id="cond-bolstered" onclick="toggleCond('bolstered')">✨ Bolstered<br><span class="cond-sub">Spirit/Lead ↑</span></button>
       </div>
-      <div style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--red);margin-bottom:.25rem;text-transform:uppercase;">Negative — from Trauma / Failed Push</div>
+      <div style="font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--red);margin-bottom:.25rem;text-transform:uppercase;">Negative — from Trauma / Failed Push</div>
       <div class="cond-grid" style="margin-bottom:.5rem;">
-        <button class="cond-btn neg" id="cond-weakened" onclick="toggleCond('weakened')">💔 Weakened<br><span style="font-size:.54rem;opacity:.65;">Body/Strike/Shoot ↓</span></button>
-        <button class="cond-btn neg" id="cond-vulnerable" onclick="toggleCond('vulnerable')">🩸 Vulnerable<br><span style="font-size:.54rem;opacity:.65;">Defend ↓ one Step</span></button>
-        <button class="cond-btn neg" id="cond-distracted" onclick="toggleCond('distracted')">🌀 Distracted<br><span style="font-size:.54rem;opacity:.65;">Mind/Control ↓</span></button>
-        <button class="cond-btn neg" id="cond-shaken" onclick="toggleCond('shaken')">😱 Shaken<br><span style="font-size:.54rem;opacity:.65;">Spirit/Lead ↓</span></button>
+        <button class="cond-btn neg" id="cond-weakened" onclick="toggleCond('weakened')">💔 Weakened<br><span class="cond-sub">Body/Strike/Shoot ↓</span></button>
+        <button class="cond-btn neg" id="cond-vulnerable" onclick="toggleCond('vulnerable')">🩸 Vulnerable<br><span class="cond-sub">Defend ↓ one Step</span></button>
+        <button class="cond-btn neg" id="cond-distracted" onclick="toggleCond('distracted')">🌀 Distracted<br><span class="cond-sub">Mind/Control ↓</span></button>
+        <button class="cond-btn neg" id="cond-shaken" onclick="toggleCond('shaken')">😱 Shaken<br><span class="cond-sub">Spirit/Lead ↓</span></button>
       </div>
       <div style="padding-top:.45rem;border-top:1px solid var(--border);">
         <div class="sub-label">Passion Roll (d8) — once per Scene</div>
@@ -508,15 +508,15 @@ select option{background:#0f1020;}
       <div style="border-top:1px solid var(--border);padding-top:.5rem;margin-top:.4rem;">
         <div class="sub-label">Cast a Hack</div>
         <div style="margin-bottom:.35rem;">
-          <span class="sub-label" style="font-size:.58rem;">Select Hack:</span>
+          <span class="sub-label">Select Hack:</span>
           <select id="hackSelect" onchange="if(S.hackRoller)S.hackRoller.selectedHack=this.value" style="background:var(--card2);border:1px solid var(--border2);color:var(--text2);padding:.25rem .4rem;font-size:.78rem;width:100%;margin-top:.15rem;"></select>
         </div>
         <div style="margin-bottom:.35rem;">
-          <span class="sub-label" style="font-size:.58rem;">Dread Die:</span>
+          <span class="sub-label">Dread Die:</span>
           <div id="hackDreadOpts" style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.2rem;"></div>
         </div>
         <div style="margin-bottom:.5rem;">
-          <span class="sub-label" style="font-size:.58rem;">Your Guess:</span>
+          <span class="sub-label">Your Guess:</span>
           <div class="guess-grid" style="margin:.25rem 0 0;">
             <button class="guess-btn" id="hack-guess-below" onclick="setHackGuess('below')">Below</button>
             <button class="guess-btn" id="hack-guess-between" onclick="setHackGuess('between')">Between</button>
@@ -584,7 +584,7 @@ select option{background:#0f1020;}
         <div id="traitsDisplay"></div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:.45rem;margin-top:.45rem;">
-        <div style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;">Path Token Traits (−20 each)</div>
+        <div style="font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;">Path Token Traits (−20 each)</div>
         <div id="extraTraitsDisplay"></div>
       </div>
     </div>
@@ -723,7 +723,7 @@ select option{background:#0f1020;}
       <div class="section-title">Roll Checks</div>
       <!-- Roll Modifier Tracker -->
       <div style="background:rgba(46,196,182,.06);border:1px solid var(--border2);border-radius:5px;padding:.4rem .5rem;margin-bottom:.55rem;">
-        <div style="font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.3rem;">⚙ Roll Modifiers</div>
+        <div style="font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.3rem;">⚙ Roll Modifiers</div>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">
           <select id="rollModDieSel-combat" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.15rem .3rem;font-size:.78rem;border-radius:3px;">
             <option value="0">— Adv Die —</option>

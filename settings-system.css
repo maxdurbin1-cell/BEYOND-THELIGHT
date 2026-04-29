@@ -857,3 +857,11 @@ body.gm-mode header {
     max-width: 100px;
   }
 }
+
+/* Campaign dock: only visible in Campaign mode */
+.campaign-dock {
+  display: none !important;
+}
+body.campaign-mode .campaign-dock {
+  display: flex !important;
+}

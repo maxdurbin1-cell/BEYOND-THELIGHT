@@ -20,6 +20,7 @@
     gmRevealHiddenInfo: true,
     colorBlindMode: false,
     monochromeMode: false,
+    textSize: 'medium',
     activeTab: 'general',
     
     // Load from localStorage
@@ -30,11 +31,12 @@
         this.musicVolume = saved.musicVolume !== undefined ? saved.musicVolume : 0.5;
         this.sfxVolume = saved.sfxVolume !== undefined ? saved.sfxVolume : 0.6;
         this.musicConsent = saved.musicConsent !== undefined ? !!saved.musicConsent : false;
-        this.gameMode = saved.gameMode || 'solo';
+        this.gameMode = 'solo'; // always default to Solo on load — not persisted
         this.gmRevealDC = saved.gmRevealDC !== undefined ? !!saved.gmRevealDC : true;
         this.gmRevealHiddenInfo = saved.gmRevealHiddenInfo !== undefined ? !!saved.gmRevealHiddenInfo : true;
         this.colorBlindMode = saved.colorBlindMode !== undefined ? !!saved.colorBlindMode : false;
         this.monochromeMode = saved.monochromeMode !== undefined ? !!saved.monochromeMode : false;
+        this.textSize = saved.textSize || 'medium';
         this.applyAudioSettings();
         this.applyAccessibilitySettings();
       } catch (e) {
@@ -50,11 +52,11 @@
           musicVolume: this.musicVolume,
           sfxVolume: this.sfxVolume,
           musicConsent: this.musicConsent,
-          gameMode: this.gameMode,
           gmRevealDC: this.gmRevealDC,
           gmRevealHiddenInfo: this.gmRevealHiddenInfo,
           colorBlindMode: this.colorBlindMode,
-          monochromeMode: this.monochromeMode
+          monochromeMode: this.monochromeMode,
+          textSize: this.textSize
         }));
       } catch (e) {
         console.warn('Could not save settings:', e);
@@ -129,6 +131,14 @@
       if (!body) return;
       body.classList.toggle('colorblind-mode', !!this.colorBlindMode);
       body.classList.toggle('lowcolor-mode', !!this.monochromeMode);
+      this.applyTextSize();
+    },
+
+    applyTextSize() {
+      const sizes = { small: '14px', medium: '17px', large: '20px' };
+      document.documentElement.style.fontSize = sizes[this.textSize] || '17px';
+      ['text-size-small', 'text-size-medium', 'text-size-large'].forEach(cls => document.body.classList.remove(cls));
+      document.body.classList.add('text-size-' + (this.textSize || 'medium'));
     }
   };
   
@@ -249,6 +259,15 @@
                   ${Settings.monochromeMode ? 'On' : 'Off'}
                 </button>
                 <span class="campaign-muted">Adds stronger contrast and symbol/line-pattern cues beyond color.</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label>Text Size</label>
+              <div class="campaign-actions" style="margin:0;">
+                <button id="textSizeSmBtn" class="btn btn-xs ${Settings.textSize === 'small' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('small')">Small</button>
+                <button id="textSizeMdBtn" class="btn btn-xs ${Settings.textSize === 'medium' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('medium')">Medium</button>
+                <button id="textSizeLgBtn" class="btn btn-xs ${Settings.textSize === 'large' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('large')">Large</button>
+                <span class="campaign-muted">Scales all text across the app.</span>
               </div>
             </div>
           </div>
@@ -437,6 +456,15 @@
       monochromeBtn.style.color = Settings.monochromeMode ? 'var(--teal)' : 'var(--muted2)';
     }
 
+    ['small','medium','large'].forEach(function(sz) {
+      const btn = document.getElementById('textSize' + sz.charAt(0).toUpperCase() + sz.slice(1) + 'Btn');
+      if (!btn) return;
+      const active = Settings.textSize === sz;
+      btn.classList.toggle('active', active);
+      btn.style.borderColor = active ? 'var(--teal)' : 'var(--border2)';
+      btn.style.color = active ? 'var(--teal)' : 'var(--muted2)';
+    });
+
     const musicConsentBtn = document.getElementById('musicConsentBtn');
     if (musicConsentBtn) {
       musicConsentBtn.textContent = Settings.musicConsent ? 'On' : 'Off';
@@ -470,6 +498,14 @@
   function toggleMonochromeMode() {
     Settings.monochromeMode = !Settings.monochromeMode;
     Settings.applyAccessibilitySettings();
+    Settings.save();
+    syncGameModeUI();
+  }
+
+  function setTextSize(size) {
+    if (size !== 'small' && size !== 'medium' && size !== 'large') return;
+    Settings.textSize = size;
+    Settings.applyTextSize();
     Settings.save();
     syncGameModeUI();
   }
@@ -608,6 +644,7 @@
     setMusicVolume,
     setSFXVolume,
     toggleMusicConsent,
+    setTextSize,
     setGameMode: (mode, opts) => Settings.setGameMode(mode, opts),
     toggleGMReveal,
     showGMPrompt,
@@ -624,6 +661,7 @@
       gmRevealHiddenInfo: Settings.gmRevealHiddenInfo,
       colorBlindMode: Settings.colorBlindMode,
       monochromeMode: Settings.monochromeMode,
+      textSize: Settings.textSize,
       activeTab: Settings.activeTab
     }),
     initSettings // Expose for manual initialization if needed

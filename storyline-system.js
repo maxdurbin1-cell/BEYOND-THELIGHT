@@ -1550,6 +1550,150 @@
       options: [
         { id: "o_restart", text: "Restart in the timeline you corrupted", success: { restart: true, text: "A new Wayfarer awakens in a world where your name is carved into origin myths." } },
         { id: "o_rebel", text: "Become the rebel against your own timeline", success: { next: "ending_glass", text: "You leak the truth: the villain was always you. The first uprising begins in the archives." } },
+        { id: "o_falseflag", text: "Stage false-flag attacks to unify every faction under your command", success: { next: "false_flag_unification", text: "You write the enemy first, then lead everyone against it." } },
+        { id: "o_civil", text: "Your army fractures into civil war — choose a side", success: { next: "civil_war_split", text: "Your own banners turn on each other in nine districts." } },
+        { id: "o_paranoia", text: "Purge your inner circle before they betray you", success: { next: "paranoia_purge", text: "Victory curdles into suspicion. Trusted names become targets." } },
+      ],
+    },
+
+    false_flag_unification: {
+      chapter: "c4",
+      title: "The Manufactured Enemy",
+      location: "World That Was / War Cabinet",
+      mood: "statecraft thriller",
+      text: "You orchestrate precise strikes against rail depots, temples, and trade halls, then leak forged evidence that a phantom coalition is responsible. Fear does what diplomacy could not: old enemies ask to stand beneath your banner.",
+      lessons: ["wtw", "skirmish", "combat"],
+      options: [
+        {
+          id: "o1",
+          text: "Execute Operation Hollow Banner",
+          stat: "control",
+          baseDread: 12,
+          success: {
+            next: "warfront_campaign",
+            text: "The lie holds. Faction commanders unify under your emergency doctrine.",
+            effects: {
+              faction: { corporations: 1, military: 2, political: 1, rebels: -2 },
+              activateWarfront: 14,
+              flags: { falseFlagDoctrine: true },
+              renown: 2
+            }
+          },
+          fail: {
+            next: "civil_war_split",
+            text: "The operation leaks. Half your coalition calls it treason. Civil war ignites instantly.",
+            effects: { mentalStress: 2, tmw: 1, flags: { falseFlagExposed: true } }
+          },
+        },
+        {
+          id: "o2",
+          text: "Turn the forged war into a real constitutional federation",
+          stat: "lead",
+          baseDread: 12,
+          success: { next: "ending_openhand", text: "You confess the fabrication publicly and convert panic into a binding federation charter.", effects: { renown: 3, faction: { political: 2, rebels: 1 } } },
+          fail: { next: "paranoia_purge", text: "The confession fails. Nobody trusts anybody. Your rule survives only through fear.", effects: { mentalStress: 2 } },
+        },
+      ],
+    },
+
+    civil_war_split: {
+      chapter: "c4",
+      title: "The Army Breaks In Two",
+      location: "World That Was / Nine Fronts",
+      mood: "fratricide epic",
+      text: "Your founding army divides between Iron Purists and District Reformists. Every rail station becomes a frontline parliament with guns. You can back order, back reform, or try to kill both command chains before the world burns.",
+      lessons: ["wtw", "skirmish", "combat"],
+      options: [
+        {
+          id: "o1",
+          text: "Back the Iron Purists and crush the reform wing",
+          combat: {
+            title: "Story Combat: Purist Spearhead",
+            dread: 14,
+            enemies: ["Reform Marshal", "District Captain", "Rail Sapper", "Citizen Militia"],
+            briefing: "Lead the purist offensive through contested stations to end the split by force."
+          },
+          success: { next: "ending_time_tyrant", text: "Order wins. History remains yours to dictate.", effects: { renown: 3, faction: { military: 2, rebels: -3 } } },
+          fail: { next: "paranoia_purge", text: "Victory is messy and uncertain. You now trust no surviving commander.", effects: { health: 1, mentalStress: 2 } },
+        },
+        {
+          id: "o2",
+          text: "Back the Reformists and dismantle your own war machine",
+          combat: {
+            title: "Story Combat: Reform Counteroffensive",
+            dread: 13,
+            enemies: ["Purist Warden", "Doctrine Captain", "Heavy Gunner"],
+            briefing: "Break the old command spine so districts can elect their own officers."
+          },
+          success: { next: "ending_glass", text: "You win against your own doctrine and decentralize force across districts.", effects: { renown: 3, faction: { rebels: 2, political: 1 } } },
+          fail: { next: "ending_iron", text: "Reform stalls in blood and the war ends under hard emergency law.", effects: { health: 2, mentalStress: 1 } },
+        },
+        {
+          id: "o3",
+          text: "Cut off both high commands and force local ceasefires",
+          stat: "control",
+          baseDread: 13,
+          success: { next: "ending_openhand", text: "With both command towers dark, district councils negotiate their own armistice lines.", effects: { renown: 2, faction: { political: 2 } } },
+          fail: { next: "paranoia_purge", text: "Command survives your sabotage. Every side assumes betrayal.", effects: { mentalStress: 2, tmw: 1 } },
+        },
+      ],
+    },
+
+    paranoia_purge: {
+      chapter: "c4",
+      title: "Purge Arc: Trusted No More",
+      location: "Pale Citadel",
+      mood: "court horror",
+      text: "You start seeing plots everywhere. Lyra's silence feels tactical. Mara's pauses sound like code. Iosef's prayers look like encrypted warrants. You schedule a final tribunal where your most trusted allies stand accused.",
+      options: [
+        {
+          id: "o1",
+          text: "Run the tribunal and strike first",
+          combat: {
+            title: "Story Combat: Purge Tribunal",
+            dread: 15,
+            enemies: ["Sheriff Lyra Keene", "Mara Quill", "Brother Iosef"],
+            briefing: "Your former allies become final bosses in a single chamber war."
+          },
+          success: {
+            next: "ending_purge_crown",
+            text: "You survive the purge. The throne is yours, but no trusted voice remains.",
+            effects: {
+              renown: 4,
+              faction: { military: 2, rebels: -3, political: -2 }
+            },
+            irreversible: { killNpc: ["lyra", "mara", "iosef"], lockFlags: ["allySummit", "lyraArcLocked", "maraArcLocked"] }
+          },
+          fail: {
+            next: "ending_dark_throne",
+            text: "You win at ruinous cost. The purge succeeds, but your court is a graveyard.",
+            effects: {
+              health: 2,
+              mentalStress: 3
+            },
+            irreversible: { killNpc: ["lyra", "mara"], lockFlags: ["allySummit", "lyraArcLocked", "maraArcLocked"] }
+          },
+        },
+        {
+          id: "o2",
+          text: "Abort the purge and confess your paranoia",
+          stat: "spirit",
+          baseDread: 13,
+          success: { next: "ending_openhand", text: "Confession breaks the spiral. Your allies drag you back from becoming the monster you feared.", effects: { renown: 2, faction: { political: 1, rebels: 1 } } },
+          fail: { next: "ending_iron", text: "You hesitate too late. The chamber still explodes into violence.", effects: { mentalStress: 2, health: 1 } },
+        },
+      ],
+    },
+
+    ending_purge_crown: {
+      chapter: "c4",
+      title: "Ending: Crown of Ash",
+      location: "Epilogue",
+      mood: "lonely tyranny",
+      text: "You defeated every betrayal by eliminating the possibility of trust. No allies, no rivals, no witnesses. The city is obedient, efficient, and spiritually dead. In the mirrored halls, only your footsteps remain to confirm that victory happened.",
+      options: [
+        { id: "o_restart", text: "Restart in the empire of fear", success: { restart: true, text: "Another Wayfarer wakes in a city where trust is illegal." } },
+        { id: "o_rebel", text: "Leave one door unlocked and dare a rebellion", success: { next: "ending_glass", text: "A single unlocked archive begins the first honest uprising in years." } },
       ],
     },
 
@@ -3789,7 +3933,7 @@
         : pendingCombat
           ? (pendingCombatResult === "success" ? "✓ Resolve Victory" : pendingCombatResult === "fail" ? "Resolve Setback" : "▶ Enter Combat")
           : "Choose";
-      const isDarkOption = option.id === "o_dark" || option.id === "o_ally" || option.id === "o_time" || option.id === "o_shatter" || option.id === "o_rebel";
+      const isDarkOption = option.id === "o_dark" || option.id === "o_ally" || option.id === "o_time" || option.id === "o_falseflag" || option.id === "o_civil" || option.id === "o_paranoia" || option.id === "o_shatter" || option.id === "o_rebel";
       const isGoodOption = option.id === "o2" || (option.success && option.success.next && option.success.next.startsWith("ending_glass"));
       const assigneeSelect = "<label class='story-opt-req' style='display:block;margin-top:.2rem;'>Assigned Wayfarer"
         + "<select style='width:100%;margin-top:.2rem;' onchange='storySetAssignee(\"" + st.sceneId + "\",\"" + option.id + "\",this.value)'>"

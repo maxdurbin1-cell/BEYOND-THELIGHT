@@ -291,7 +291,9 @@
       completedMissions: deepCloneJson(window.S.completedMissions || []),
       availableJobs: deepCloneJson(window.S.availableJobs || []),
       storyline: deepCloneJson(window.S.storyline || {}),
+      caravan: deepCloneJson(window.S.caravan || {}),
       holding: deepCloneJson(window.S.holding || {}),
+      starship: deepCloneJson(window.S.starship || {}),
       factionRenown: deepCloneJson(window.S.factionRenown || {}),
       factionBases: deepCloneJson(window.S.factionBases || {}),
       factionWayfarerTasks: deepCloneJson(window.S.factionWayfarerTasks || []),
@@ -345,6 +347,9 @@
       if (sharedState.storyline && typeof sharedState.storyline === "object") {
         window.S.storyline = deepCloneJson(sharedState.storyline) || {};
       }
+      if (sharedState.caravan && typeof sharedState.caravan === "object") {
+        window.S.caravan = deepCloneJson(sharedState.caravan) || {};
+      }
       if (sharedState.missionTokens && typeof sharedState.missionTokens === "object") {
         window.S.missionTokens = deepCloneJson(sharedState.missionTokens) || {};
       }
@@ -359,6 +364,9 @@
       }
       if (sharedState.holding && typeof sharedState.holding === "object") {
         window.S.holding = deepCloneJson(sharedState.holding) || {};
+      }
+      if (sharedState.starship && typeof sharedState.starship === "object") {
+        window.S.starship = deepCloneJson(sharedState.starship) || {};
       }
       if (sharedState.factionRenown && typeof sharedState.factionRenown === "object") {
         window.S.factionRenown = deepCloneJson(sharedState.factionRenown) || {};
@@ -403,6 +411,15 @@
     if (typeof window.updateStarSystemReadouts === "function") window.updateStarSystemReadouts();
     if (typeof window.renderWorldThatWas === "function") window.renderWorldThatWas();
     if (typeof window.renderHexMap === "function") window.renderHexMap();
+    if (typeof window.renderCaravanUI === "function") {
+      try { window.renderCaravanUI(); } catch (_err) {}
+    }
+    if (typeof window.renderHoldingUI === "function") {
+      try { window.renderHoldingUI(); } catch (_err) {}
+    }
+    if (typeof window.updateStarshipUI === "function") {
+      try { window.updateStarshipUI(); } catch (_err) {}
+    }
     if (typeof window.renderMissionBoard === "function") window.renderMissionBoard();
     if (typeof window.renderMissionTracker === "function") window.renderMissionTracker();
     if (typeof window.renderCompletedMissions === "function") window.renderCompletedMissions();

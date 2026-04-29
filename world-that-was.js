@@ -1556,7 +1556,12 @@
       if (typeof showNotif === "function") {
         showNotif("Combat event: " + evt.enemies + " enemies (DD" + evt.dread + " | " + evt.enemyHealth + " HP each).", "warn");
       }
-      openWorldSkirmishCombat();
+      openWorldSkirmishCombat({
+        enemies: evt.enemies || 2,
+        dread: evt.dread || 8,
+        enemyHealth: evt.enemyHealth || ((evt.dread || 8) * 2),
+        sourceHexId: hex.id,
+      });
       return;
     }
 
@@ -1604,6 +1609,34 @@
     renderWorldThatWas();
   }
 
+  function completeCombatEventFailure(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.narrative || !hex.narrative.event || hex.narrative.event.mode !== "combat") return;
+    hex.skirmish = true;
+    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    if (typeof showNotif === 'function') showNotif('Combat event failed: district skirmish escalates and +1 Teamwork.', 'warn');
+    hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
+    advanceWorldTime('combat event failure');
+    updateZoneControl();
+    syncWorldMarkers();
+    if (registerWorldAction('combat event failure')) return;
+    renderWorldThatWas();
+  }
+
+  function completeCombatEncounterFailure(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.encounter || hex.encounter.mode !== 'combat') return;
+    hex.skirmish = true;
+    hex.encounter = null;
+    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    if (typeof showNotif === 'function') showNotif('Encounter combat failed: skirmish triggered and +1 Teamwork.', 'warn');
+    advanceWorldTime('combat encounter failure');
+    updateZoneControl();
+    syncWorldMarkers();
+    if (registerWorldAction('encounter failure')) return;
+    renderWorldThatWas();
+  }
+
   function rollDistrictEncounter() {
     const hex = getSelectedHex();
     if (!hex) return;
@@ -1637,7 +1670,12 @@
       if (typeof showNotif === "function") {
         showNotif("Encounter combat: " + hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each).", "warn");
       }
-      openWorldSkirmishCombat();
+      openWorldSkirmishCombat({
+        enemies: hex.encounter.enemies || 2,
+        dread: hex.encounter.dread || 8,
+        enemyHealth: hex.encounter.enemyHealth || ((hex.encounter.dread || 8) * 2),
+        sourceHexId: hex.id,
+      });
       return;
     }
     const forced = forcedOutcome === "success" || forcedOutcome === "failure" ? forcedOutcome : null;
@@ -1824,13 +1862,63 @@
     finishSkirmishOutcome(a >= d);
   }
 
-  function openWorldSkirmishCombat() {
+  function buildWorldCombatEnemies(config) {
+    const cfg = config || {};
+    const count = Math.max(1, Number(cfg.enemies || 2));
+    const dd = Math.max(4, Number(cfg.dread || 8));
+    const hp = Math.max(4, Number(cfg.enemyHealth || (dd * 2)));
+    const names = ['Warden Unit', 'Cipher Raider', 'Dust Stalker', 'Veil Operative', 'Cartel Enforcer', 'Titan Guard'];
+    const list = [];
+    for (let i = 0; i < count; i++) {
+      const base = names[i % names.length];
+      list.push(base + (count > 1 ? (' ' + (i + 1)) : ''));
+    }
+    return { count: count, dd: dd, hp: hp, names: list };
+  }
+
+  function seedCombatFromWorldEncounter(config, sourceHexId) {
+    if (typeof S === 'undefined' || !S) return null;
+    const seeded = buildWorldCombatEnemies(config || {});
+    const now = Date.now();
+    S.combat = S.combat || {};
+    S.combat.enemyDread = seeded.dd;
+    S.enemies = seeded.names.map(function (name, idx) {
+      return {
+        id: now + idx,
+        name: name,
+        dread: seeded.dd,
+        stress: 0,
+        maxStress: seeded.hp,
+        health: seeded.hp,
+        conditions: []
+      };
+    });
+    const w = ensureWorldState();
+    if (w) {
+      w.pendingCombatOutcome = {
+        sourceHexId: String(sourceHexId || (getSelectedHex() && getSelectedHex().id) || ''),
+        enemies: seeded.count,
+        dread: seeded.dd,
+        enemyHealth: seeded.hp,
+      };
+    }
+    return seeded;
+  }
+
+  function openWorldSkirmishCombat(config) {
     const hex = getSelectedHex();
-    if (!hex) return;
-    if (typeof setEnemyDread === "function") setEnemyDread(hex.skirmish ? 8 : 6);
+    const selectedHex = hex || (config && config.sourceHexId ? hexById(config.sourceHexId) : null);
+    if (!selectedHex && !config) return;
+    const seeded = config ? seedCombatFromWorldEncounter(config, (selectedHex && selectedHex.id) || config.sourceHexId) : null;
+    const fallbackDread = selectedHex && selectedHex.skirmish ? 8 : 6;
+    const combatDread = seeded ? seeded.dd : fallbackDread;
+    if (typeof setEnemyDread === "function") setEnemyDread(combatDread);
     if (typeof startCombat === "function") startCombat();
     const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
     if (typeof switchTab === "function") switchTab("combat", btn || null);
+    if (config && typeof showNotif === 'function') {
+      showNotif('World combat seeded: ' + (seeded ? seeded.count : Math.max(1, Number(config.enemies || 2))) + ' enemies in Combat tab.', 'warn');
+    }
   }
 
   function createHoldingTask(holdingId) {
@@ -2270,7 +2358,7 @@
       ? "<button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='wtwResolveEncounterAs(\"success\")'>GM: Force Success</button><button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='wtwResolveEncounterAs(\"failure\")'>GM: Force Failure</button>"
       : "";
     const encounterHtml = hex.encounter
-      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>" : "") + gmEncounterControls + "</div></div>")
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='wtwResolveEncounter()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEncounter(\"" + hex.id + "\")'>Failure</button>" : "") + gmEncounterControls + "</div></div>")
       : "<div class='wtw-muted'>No rolled encounter in this district.</div>";
 
     const servicesHtml = services.map(function (svc, idx) {
@@ -2335,7 +2423,7 @@
       + "<div class='wtw-card'>"
       + "<div class='wtw-card-title'>Random Event</div>"
       + "<div class='wtw-card-text'><strong>" + evt.title + "</strong><br>" + evt.text + "<br><br><strong>Action:</strong> " + evt.action + "<br>" + eventCheck + "<br><strong>Reward:</strong> " + evt.reward + "</div>"
-      + "<div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>" + (evt.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button>" : "") + "<button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
+      + "<div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>" + (evt.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEvent(\"" + hex.id + "\")'>Mark Combat Failure</button>" : "") + "<button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
       + "</div>";
 
     const markerHtml = marker
@@ -2355,7 +2443,7 @@
       + "<div class='wtw-header'>"
       + "<div class='hex-type-tag wilderness'>District Hex</div>"
       + "<div class='wtw-headline'>" + hex.zone + " - " + hex.district + "</div>"
-      + "<div class='wtw-summary'>Amidst " + n.location + ", the " + n.sight + ", " + n.description + ", serves as a beacon for " + n.feature + ".</div>"
+      + "<div class='wtw-summary'>" + n.location + " • " + n.sight + " • " + n.weather + " • " + n.feature + "</div>"
       + "</div>"
       + summaryGrid
       + eventCard
@@ -2451,12 +2539,12 @@
       + "<span class='wtw-stat-pill' id='wtwTimeDisplay'>Month 1, Day 1, Year 1 — Morning</span>"
       + "</div>"
       + "</div>"
-      + "<div class='wtw-quickstats'>"
+      + "<details class='wtw-quickstats'><summary style='cursor:pointer;font-family:Cinzel,serif;font-size:.72rem;color:var(--gold2);'>World Rules (expand)</summary>"
       + "<div class='wtw-kv'><span class='k'>Map Rules</span><div class='v'>12x12 districts, 9 mega-zones, dynamic control shifts.</div></div>"
       + "<div class='wtw-kv'><span class='k'>Travel</span><div class='v'>Rail to any zone station for 30 Credits and +1 time step.</div></div>"
       + "<div class='wtw-kv'><span class='k'>Landing Pads</span><div class='v'>Each zone has a launch pad. Launch from selected pad for 40 Credits.</div></div>"
       + "<div class='wtw-kv'><span class='k'>Progress</span><div class='v'>Events, services, skirmishes, tasks, wayfarers, hazards, and structures.</div></div>"
-      + "</div>"
+      + "</details>"
       + "<div id='wtwRailControls' class='wtw-chip-wrap'></div>"
       + "<div id='wtwLandingControls' class='wtw-chip-wrap'></div>"
       + "<div class='wtw-strip'>"
@@ -2568,6 +2656,8 @@
   window.wtwResolveEncounter = resolveDistrictEncounter;
   window.wtwResolveEncounterAs = resolveDistrictEncounterAs;
   window.wtwWinCombatEvent = completeCombatEventVictory;
+  window.wtwFailCombatEvent = completeCombatEventFailure;
+  window.wtwFailCombatEncounter = completeCombatEncounterFailure;
   window.wtwResolveHazard = resolveDistrictHazard;
   window.wtwTalkWayfarer = talkToWayfarer;
   window.wtwExploreStructure = exploreStructure;

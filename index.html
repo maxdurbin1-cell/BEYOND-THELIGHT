@@ -1744,6 +1744,18 @@ function getPrimaryCombatEnemy(){
   return null;
 }
 
+function getHostileEnemyCount(){
+  if(!Array.isArray(S.enemies))return 0;
+  return S.enemies.reduce(function(total,e){
+    if(!e||e.ally)return total;
+    return total+1;
+  },0);
+}
+
+function getEnemyActionsPerCycle(){
+  return Math.max(0,getHostileEnemyCount()*2);
+}
+
 function ensureEnemyEffectState(enemy){
   if(!enemy)return null;
   enemy.effectState=enemy.effectState||{};
@@ -2087,11 +2099,12 @@ function consumeCombatAction(label){
 function maybeResetActionsAfterDefend(){
   if(!S.combat)return;
   S.combat.enemyDefendsThisTurn=(S.combat.enemyDefendsThisTurn||0)+1;
-  if(S.combat.enemyDefendsThisTurn>=2){
+  var needed=Math.max(1,getEnemyActionsPerCycle());
+  if(S.combat.enemyDefendsThisTurn>=needed){
     S.combat.enemyDefendsThisTurn=0;
     S.combat.actionsLeft=getMaxActions();
     updateCombatUI();
-    showNotif('Enemy turn complete. Your Actions are reset.','good');
+    showNotif('Enemy turn complete ('+needed+' actions). Your Actions are reset.','good');
     if(typeof renderQP==='function')renderQP('combat');
   }
 }
@@ -4844,6 +4857,7 @@ function renderHexInfo(hex){
     html+=`<div class="npc-block"><div class="nb-label">🧭 Nomad's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Adjacent Landmarks & Events:</strong><br>${nomadKnowledge || 'No significant landmarks or events in nearby zones.'}</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="generateDwellingRooms(${hex.col},${hex.row})">⚄ Generate Rooms</button>
+      <button class="btn btn-sm btn-teal" onclick="learnFromNomad(${hex.col},${hex.row},35)">🩹 Nomad Field Treatment (35₵)</button>
     </div>`;
     html+=`<div id="ruinRooms-${hex.col}-${hex.row}"></div>`;
 
@@ -5939,7 +5953,17 @@ function rollTradeRouteEncounter(col,row){
         actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="resolveTradePayment(100,'Paid trade toll')">Pay ${/(\d+)/.exec(obs)?'₵'+(/(\d+)/.exec(obs)[1]):'₵100'} & Resolve</button></div>`;
       }
     }
-    else{title='Traveling Wayfarer';const w=pick(TRAVELING_WAYFARERS);result=`<strong>${w[1]} ${w[2]}</strong> (${w[0]}) — ${w[3]}`;actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer',${targetHex.col},${targetHex.row})">Thievery</button></div>`;}
+    else{
+      title='Traveling Wayfarer';
+      const wf=Array.isArray(TRAVELING_WAYFARERS)&&TRAVELING_WAYFARERS.length?pick(TRAVELING_WAYFARERS):['Wanderer','Drifter','Courier','Shares coded route rumors.'];
+      const wn=Array.isArray(wf)?wf:['Wanderer','Drifter','Courier','Shares coded route rumors.'];
+      const wRole=String(wn[0]||'Wanderer');
+      const wAdj=String(wn[1]||'Drifter');
+      const wType=String(wn[2]||'Courier');
+      const wDesc=String(wn[3]||'Shares coded route rumors.');
+      result=`<strong>${wAdj} ${wType}</strong> (${wRole}) — ${wDesc}`;
+      actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer',${targetHex.col},${targetHex.row})">Thievery</button></div>`;
+    }
     let el=document.getElementById(`hexEnc-${targetHex.col}-${targetHex.row}`);
     if(!el&&selectedHex&&selectedHex.col===targetHex.col&&selectedHex.row===targetHex.row){
       renderHexInfo(selectedHex);
@@ -6591,7 +6615,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var dread = S.combat && S.combat.enemyDread ? S.combat.enemyDread : 6;
     var playerMaxActions = (typeof getMaxActions === 'function') ? getMaxActions() : 3;
     var playerActions = (S.combat && typeof S.combat.actionsLeft === 'number') ? S.combat.actionsLeft : playerMaxActions;
-    var enemyActions = 2;
+    var enemyActions = (typeof getEnemyActionsPerCycle === 'function') ? getEnemyActionsPerCycle() : 0;
     var enemies = S.enemies || [];
     var eneHtml = enemies.length
       ? enemies.map(function(e,idx){ 
@@ -7680,6 +7704,24 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     const wisdoms = ['Your path is clear.', 'Prepare your spirit.', 'Trust the old roads.', 'Seek where few tread.'];
     showNotif('Sage: "' + wisdoms[roll(wisdoms.length) - 1] + '" (Trauma cleared by 1)', 'good');
+  };
+
+  window.learnFromNomad = function(col, row, cost) {
+    var fee = parseInt(cost, 10) || 35;
+    if ((S.credits || 0) < fee) {
+      showNotif('Insufficient credits', 'warn');
+      return;
+    }
+    var injuries = Array.isArray(S.injuries) ? S.injuries : [];
+    if (!injuries.length) {
+      showNotif('No injuries to treat right now.', 'good');
+      return;
+    }
+    S.credits -= fee;
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    var treated = injuries.pop();
+    if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
+    showNotif('Nomad treatment removed injury: ' + treated, 'good');
   };
 
   window.renderQP = renderQP;

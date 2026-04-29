@@ -614,6 +614,7 @@ function addSuccessRoll() {
 
 // Every failed roll grants +1 TMW (or +2 if the "Failed rolls grant +2" flavor is active).
 var _tmwFailGuard = { key: '', at: 0 };
+var _tmwFailPromptGuard = { at: 0 };
 
 function awardTeamworkOnFailure(reason, opts) {
   var key = String(reason || 'failed-roll');
@@ -629,11 +630,67 @@ function awardTeamworkOnFailure(reason, opts) {
   return amt;
 }
 
-function addTMWOnFail() {
-  return awardTeamworkOnFailure('failed-roll');
+function openFailedRollFollowup(reason) {
+  if (typeof openModal !== 'function' || typeof S === 'undefined' || !S) return;
+  if (window._pendingStoryRoll || window._pendingWtwTaskRoll) return;
+  var now = Date.now();
+  if ((now - Number(_tmwFailPromptGuard.at || 0)) < 500) return;
+  _tmwFailPromptGuard.at = now;
+
+  var tmw = Math.max(0, Number(S.tmw || 0));
+  var canBoost = tmw >= 1;
+  var canPush = tmw >= 2;
+  var why = String(reason || 'failed roll').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  var html = ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+    + 'Failed roll detected (' + why + '). Use Teamwork to recover momentum:'
+    + '<br><strong style="color:var(--teal);">Spend 1 Teamwork:</strong> +1 flat modifier on your next roll.'
+    + '<br><strong style="color:var(--gold2);">Push Your Luck (2 Teamwork):</strong> gain one bonus Ad6 on your next roll.'
+    + '</div>'
+    + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.6rem;">'
+    + '<button class="btn btn-sm" onclick="closeModal()">Keep Failure</button>'
+    + '<button class="btn btn-sm btn-teal" ' + (canBoost ? '' : 'disabled title="Need 1 Teamwork"') + ' onclick="applyFailedRollRecovery(\'boost\')">Spend 1 Teamwork (+1 next roll)</button>'
+    + '<button class="btn btn-sm btn-primary" ' + (canPush ? '' : 'disabled title="Need 2 Teamwork"') + ' onclick="applyFailedRollRecovery(\'push\')">Push Your Luck (2 Teamwork)</button>'
+    + '</div>';
+  openModal('Failed Roll Options', html);
+}
+
+function addTMWOnFail(reason, opts) {
+  var gained = awardTeamworkOnFailure(reason || 'failed-roll', opts);
+  var cfg = opts && typeof opts === 'object' ? opts : {};
+  if (!cfg || !cfg.skipPrompt) openFailedRollFollowup(reason || 'failed-roll');
+  return gained;
 }
 
 window.awardTeamworkOnFailure = awardTeamworkOnFailure;
+
+window.applyFailedRollRecovery = function(mode) {
+  if (typeof S === 'undefined' || !S) return;
+  if (!S.rollMod || typeof S.rollMod !== 'object') S.rollMod = { advDice: [], flat: 0 };
+  if (!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
+  if (typeof S.rollMod.flat !== 'number') S.rollMod.flat = Number(S.rollMod.flat || 0) || 0;
+
+  if (mode === 'boost') {
+    if ((S.tmw || 0) < 1) {
+      if (typeof showNotif === 'function') showNotif('Need 1 Teamwork Point.', 'warn');
+      return;
+    }
+    changeCounter('tmw', -1);
+    S.rollMod.flat += 1;
+    if (typeof updateRollModDisplay === 'function') updateRollModDisplay();
+    if (typeof showNotif === 'function') showNotif('Spent 1 Teamwork: +1 flat applied to next roll.', 'good');
+  } else if (mode === 'push') {
+    if ((S.tmw || 0) < 2) {
+      if (typeof showNotif === 'function') showNotif('Need 2 Teamwork Points.', 'warn');
+      return;
+    }
+    changeCounter('tmw', -2);
+    S.rollMod.advDice.push(6);
+    if (typeof updateRollModDisplay === 'function') updateRollModDisplay();
+    if (typeof showNotif === 'function') showNotif('Push Your Luck: bonus Ad6 applied to next roll.', 'good');
+  }
+  if (typeof closeModal === 'function') closeModal();
+};
 
 function updateConditionButtons() {
   Object.entries(S.conditions || {}).forEach(([key, on]) => {

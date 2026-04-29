@@ -1965,7 +1965,7 @@
     var salvageTitle = itemFlags.compass ? 'Compass can reveal extra salvage value.' : '';
     var rescueTitle = itemFlags.factionItem ? 'Faction token can grant bonus renown on rescue.' : '';
     var shipCombatTitle = (itemFlags.compass || itemFlags.factionItem) ? 'Victory can gain extra credits/renown from carried narrative items.' : '';
-    const rolled = roll(6);
+    const rolled = roll(8);
     let desc = '', actions = '';
     if (rolled === 1) {
       const ships = roll(4);
@@ -2027,14 +2027,34 @@
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Empty Transport</div>${desc}${actions}`;
     }
-    const armadaTask = buildRoyalArmadaText();
-    desc = `A Royal Armada patrol demands answers. Mission: <strong style="color:var(--gold2);">${armadaTask}</strong>.`;
+    if (rolled === 6) {
+      const armadaTask = buildRoyalArmadaText();
+      desc = `A Royal Armada patrol demands answers. Mission: <strong style="color:var(--gold2);">${armadaTask}</strong>.`;
+      actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('accept','Royal Armada',{task:'${armadaTask.replace(/'/g, "&#39;")}',reward:{renown:1}})">📜 Accept Mission</button>
+        <button class="btn btn-xs btn-teal" title="${negotiateTitle}" onclick="resolveSeaEncounter('negotiate','Royal Patrol',{cost:30})">💬 Negotiate (−30₵${factionHint})</button>
+        <button class="btn btn-xs btn-warn" onclick="resolveSeaEncounter('resist','Royal Armada',{stress:8})">⚔ Resist (+8 Stress)</button>
+      </div>`;
+      return `<div class="sea-result-title">Open Sea Encounter - Royal Armada</div>${desc}${actions}`;
+    }
+
+    if (rolled === 7) {
+      desc = `A shipboard crisis erupts: a crew feud over a sealed locker turns violent in the lower deck.`;
+      actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('crewCalm','Crew Feud',{stat:'lead',dd:8})">🗣 Calm Crew (Lead vs DD8)</button>
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('crewInvestigate','Sealed Locker',{stat:'mind',dd:8})">🔍 Investigate Locker (Mind vs DD8)</button>
+        <button class="btn btn-xs btn-warn" onclick="resolveSeaEncounter('crewQuarantine','Lower Deck',{mentalStress:1})">🔒 Quarantine Deck (+1 Mental Stress)</button>
+      </div>`;
+      return `<div class="sea-result-title">Shipboard Event - Crew Crisis</div>${desc}${actions}`;
+    }
+
+    desc = `At midnight, the cargo hold log writes itself. A crew voice is heard from a room that has been empty for weeks.`;
     actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
-      <button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('accept','Royal Armada',{task:'${armadaTask.replace(/'/g, "&#39;")}',reward:{renown:1}})">📜 Accept Mission</button>
-      <button class="btn btn-xs btn-teal" title="${negotiateTitle}" onclick="resolveSeaEncounter('negotiate','Royal Patrol',{cost:30})">💬 Negotiate (−30₵${factionHint})</button>
-      <button class="btn btn-xs btn-warn" onclick="resolveSeaEncounter('resist','Royal Armada',{stress:8})">⚔ Resist (+8 Stress)</button>
+      <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('crewInvestigate','Ghost Hold',{stat:'spirit',dd:10})">🕯 Investigate Presence (Spirit vs DD10)</button>
+      <button class="btn btn-xs btn-teal" onclick="resolveSeaEncounter('crewCalm','Anxious Crew',{stat:'lead',dd:8})">🧭 Brief The Crew (Lead vs DD8)</button>
+      <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('avoid','Whispering Hold',{mentalStress:2})">🚪 Seal Hold (+2 Mental Stress)</button>
     </div>`;
-    return `<div class="sea-result-title">Open Sea Encounter - Royal Armada</div>${desc}${actions}`;
+    return `<div class="sea-result-title">Shipboard Event - Whispering Hold</div>${desc}${actions}`;
   }
 
   function resolveSeaEncounter(action, target, effects) {
@@ -2140,6 +2160,46 @@
       } else if (negotiationCost) {
         showNotif(`Not enough credits (need ${negotiationCost}₵)`, 'warn'); return;
       } else { msg = `Negotiated with ${target}. You walk away without Mental Stress.`; }
+    } else if (action === 'crewCalm') {
+      var leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+      var calmDD = Math.max(4, Number(effects.dd || 8));
+      var calmRoll = explodingRoll(leadDie);
+      var calmDread = explodingRoll(calmDD);
+      var calmSuccess = calmRoll.total >= calmDread.total;
+      if (calmSuccess) {
+        if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+        msg = `Crew stabilized. Lead d${leadDie}=${calmRoll.total} vs DD${calmDD}=${calmDread.total}. +1 Teamwork.`;
+      } else {
+        addMentalStress(1);
+        if (typeof addTMWOnFail === 'function') addTMWOnFail('sea-crew-calm-fail');
+        msg = `Crew panic escalated. Lead d${leadDie}=${calmRoll.total} vs DD${calmDD}=${calmDread.total}. +1 Mental Stress.`;
+      }
+    } else if (action === 'crewInvestigate') {
+      var statKey = String(effects.stat || 'mind').toLowerCase();
+      var dieSize = (typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) || 4);
+      var invDD = Math.max(4, Number(effects.dd || 8));
+      var invRoll = explodingRoll(dieSize);
+      var invDread = explodingRoll(invDD);
+      var invSuccess = invRoll.total >= invDread.total;
+      if (invSuccess) {
+        if (typeof addToBackpack === 'function') addToBackpack('Crew Log Cache');
+        else if (Array.isArray(S.backpack)) {
+          var idx = S.backpack.indexOf('');
+          if (idx >= 0) S.backpack[idx] = 'Crew Log Cache';
+        }
+        if (typeof renderBackpackUI === 'function') renderBackpackUI();
+        if (typeof addSuccessRoll === 'function') addSuccessRoll();
+        msg = `Investigation succeeded: ${statKey} d${dieSize}=${invRoll.total} vs DD${invDD}=${invDread.total}. Found Crew Log Cache.`;
+      } else {
+        addMentalStress(1);
+        if (typeof addTMWOnFail === 'function') addTMWOnFail('sea-crew-investigate-fail');
+        msg = `Investigation failed: ${statKey} d${dieSize}=${invRoll.total} vs DD${invDD}=${invDread.total}. +1 Mental Stress.`;
+      }
+    } else if (action === 'crewQuarantine') {
+      var qStress = Math.max(0, Number(effects.mentalStress || 1));
+      if (qStress) addMentalStress(qStress);
+      if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+      msg = `Deck quarantined. +${qStress} Mental Stress, +1 Teamwork from disciplined response.`;
     } else if (action === 'rescue') {
       if (effects.renown) { S.renown = (S.renown||0) + effects.renown; if (typeof updateRenownUI === 'function') updateRenownUI(); }
       if (itemFlags.factionItem) {

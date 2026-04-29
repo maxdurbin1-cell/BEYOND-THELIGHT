@@ -1565,6 +1565,31 @@
     };
   }
 
+  function getAssignedWayfarerActionDie(statKey, decisionMeta) {
+    var key = String(statKey || 'adventure').toLowerCase();
+    var localDie = (typeof getEffectiveDie === 'function')
+      ? Number(getEffectiveDie(key) || 4)
+      : Number((S && S.stats && S.stats[key]) || 4);
+    if (!decisionMeta || !decisionMeta.assigneeId || String(decisionMeta.assigneeId).indexOf('campaign:') !== 0) {
+      return Math.max(4, localDie || 4);
+    }
+
+    var token = String(decisionMeta.assigneeId).split(':')[1] || '';
+    var roster = [];
+    if (window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
+      var cState = window.campaignSystem.getState();
+      roster = cState && cState.campaign && Array.isArray(cState.campaign.roster) ? cState.campaign.roster : [];
+    }
+    var member = roster.find(function (entry) {
+      return String((entry && entry.token) || '') === token;
+    });
+    var remoteStats = member && member.character && member.character.stats ? member.character.stats : null;
+    if (!remoteStats || typeof remoteStats !== 'object') return Math.max(4, localDie || 4);
+    var remoteDie = Number(remoteStats[key]);
+    if (!(remoteDie > 0)) return Math.max(4, localDie || 4);
+    return Math.max(4, remoteDie);
+  }
+
   function storySetAssignee(sceneId, optionId, assigneeId) {
     var pool = getPartyAssignmentPool();
     var picked = pool.find(function (entry) { return entry.id === String(assigneeId || ""); }) || pool[0];
@@ -2126,6 +2151,14 @@
       const ok = req.backpackAny.some(function (term) { return loadout.indexOf(lc(term)) >= 0; });
       if (!ok) return false;
     }
+    if (req.actionDieAtLeast && req.actionDieAtLeast.stat) {
+      const statKey = String(req.actionDieAtLeast.stat || '').toLowerCase();
+      const minDie = Number(req.actionDieAtLeast.min || 4);
+      const myDie = (typeof getEffectiveDie === 'function')
+        ? Number(getEffectiveDie(statKey) || 4)
+        : Number((S && S.stats && S.stats[statKey]) || 4);
+      if (myDie < minDie) return false;
+    }
     return true;
   }
 
@@ -2642,7 +2675,7 @@
 
     if (option.stat && forcedResult !== "success" && forcedResult !== "fail" && forcedResult !== "partial") {
       const dd = getOptionDread(sceneId, option);
-      checkResult = rollStoryCheck(option.stat, dd, factionContext);
+      checkResult = rollStoryCheck(option.stat, dd, factionContext, decisionMeta || getDecisionAssignment(sceneId, option.id));
       if (!checkResult.success) {
         // Intercept fail: show modal for Teamwork spend, Push Luck, or Accept
         window._pendingStoryRoll = { sceneId: sceneId, option: option, checkResult: checkResult, dreadDie: dd, factionContext: factionContext };
@@ -2673,6 +2706,7 @@
     const revealDC = !window.settingsSystem || typeof window.settingsSystem.shouldRevealDC !== "function" ? true : !!window.settingsSystem.shouldRevealDC();
     const revealHidden = !window.settingsSystem || typeof window.settingsSystem.shouldRevealHiddenInfo !== "function" ? true : !!window.settingsSystem.shouldRevealHiddenInfo();
     const statName = STAT_LABELS[option.stat] || option.stat;
+    const assignee = String(checkResult.assigneeName || 'Wayfarer');
     const bonus = Number(checkResult.factionBonus || 0);
     const actionTotalLabel = bonus > 0
       ? (checkResult.action.total + " + " + bonus + " = " + checkResult.effectiveTotal)
@@ -2681,7 +2715,7 @@
       + "<div style='text-align:center;font-family:Cinzel,serif;font-size:1.05rem;color:#ff6060;margin-bottom:.6rem;letter-spacing:.08em;'>✗ FAILED ROLL</div>"
       + "<div style='display:flex;justify-content:center;gap:1.5rem;margin-bottom:.65rem;'>"
       + "<div style='text-align:center;'>"
-      + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>" + statName + " d" + checkResult.actionDie + "</div>"
+      + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>" + assignee + " · " + statName + " d" + checkResult.actionDie + "</div>"
       + "<div style='font-size:2.1rem;font-weight:700;color:var(--text2);'>" + (revealHidden ? actionTotalLabel : "?") + "</div>"
       + "</div>"
       + "<div style='text-align:center;padding-top:.65rem;font-size:1.3rem;color:var(--muted2);'>vs</div>"
@@ -2799,8 +2833,8 @@
     renderStorylinePanel();
   }
 
-  function rollStoryCheck(statKey, dreadDie, factionKey) {
-    const actionDie = (typeof getEffectiveDie === "function") ? getEffectiveDie(statKey) : Number((S.stats && S.stats[statKey]) || 4);
+  function rollStoryCheck(statKey, dreadDie, factionKey, decisionMeta) {
+    const actionDie = getAssignedWayfarerActionDie(statKey, decisionMeta);
     const a = (typeof explodingRoll === "function") ? explodingRoll(actionDie) : { total: Math.floor(Math.random() * actionDie) + 1, exploded: false };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dreadDie) : { total: Math.floor(Math.random() * dreadDie) + 1, exploded: false };
     const relicRolls = (typeof window.getPermanentAdventureBonusRolls === "function") ? window.getPermanentAdventureBonusRolls(statKey, "Story Relic") : [];
@@ -2818,6 +2852,8 @@
       factionKey: factionKey || "",
       factionBonus: Math.max(0, bonus),
       effectiveTotal: effectiveTotal,
+      assigneeName: decisionMeta && decisionMeta.assigneeName ? String(decisionMeta.assigneeName) : 'Wayfarer',
+      rollSource: decisionMeta && decisionMeta.assigneeId ? String(decisionMeta.assigneeId) : 'local:self',
     };
   }
 
@@ -3193,6 +3229,7 @@
       const optionBonus = (option.stat && optionFaction && typeof window.getFactionStoryRollBonus === "function")
         ? Number(window.getFactionStoryRollBonus(optionFaction, option.stat) || 0)
         : 0;
+      const assignedDie = option.stat ? getAssignedWayfarerActionDie(option.stat, assign) : 0;
       const pending = st.pendingTravel
         && st.pendingTravel.sceneId === st.sceneId
         && st.pendingTravel.optionId === option.id
@@ -3229,7 +3266,7 @@
         + "</select></label>";
       return "<div class='story-opt " + (unlocked ? "" : "locked") + (isDarkOption ? " story-opt-dark" : "") + "'>"
         + "<div class='story-opt-text'>" + option.text + "</div>"
-        + (option.stat ? ("<div class='story-opt-roll'>" + (STAT_LABELS[option.stat] || option.stat) + " vs DD" + dd + "</div>") : "")
+        + (option.stat ? ("<div class='story-opt-roll'>" + escHtml(assign.assigneeName) + " rolls " + (STAT_LABELS[option.stat] || option.stat) + " d" + assignedDie + " vs DD" + dd + "</div>") : "")
         + "<div class='story-opt-req' style='color:var(--teal);'>Assigned: <strong>" + escHtml(assign.assigneeName) + "</strong> as <strong>" + escHtml(assign.role) + "</strong></div>"
         + (optionBonus > 0 ? ("<div class='story-opt-req' style='color:var(--gold2);'>Faction bonus: +" + optionBonus + " from " + (FACTION_LABELS[optionFaction] || optionFaction) + "</div>") : "")
         + (pending ? ("<div class='story-opt-req' style='color:var(--gold2);'>➤ Marker: " + (pending.targetLabel || "Travel target") + (pendingReached ? " ✓ Arrived" : " — travel there") + "</div>") : "")

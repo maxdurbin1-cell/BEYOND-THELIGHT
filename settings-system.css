@@ -88,6 +88,11 @@ nav {
   color: var(--gold2);
 }
 
+#settingsPanel .settings-tab-btn:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
+}
+
 #settingsPanel .settings-tab-btn.active {
   border-color: var(--teal);
   color: var(--teal);

@@ -2,6 +2,10 @@
 // Manages audio volume, game mode selection, and mode-specific UI features
 (function () {
   const SETTINGS_ID = "settingsPanel";
+  const COLORBLIND_PREVIEW_MS = 10000;
+  let colorBlindPreviewTimer = null;
+  let colorBlindPreviewActive = false;
+  let colorBlindPreviewEndsAt = 0;
   
   const Settings = {
     // Audio settings
@@ -212,8 +216,12 @@
                 <button id="colorBlindModeBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleColorBlindMode()">
                   ${Settings.colorBlindMode ? 'On' : 'Off'}
                 </button>
+                <button id="colorBlindPreviewBtn" class="btn btn-xs" onclick="window.settingsSystem.previewColorBlindMode()">
+                  Preview 10s
+                </button>
                 <span class="campaign-muted">Uses higher-contrast, color-blind-safe accents.</span>
               </div>
+              <div id="colorBlindPreviewStatus" class="campaign-muted" style="margin-top:.25rem;"></div>
             </div>
           </div>
         </div>
@@ -232,6 +240,7 @@
     `;
 
     applySettingsTabVisibility();
+    bindSettingsTabKeyboardNav();
   }
 
   function setActiveTab(tab) {
@@ -247,18 +256,82 @@
     tabs.forEach((btn) => {
       const id = String(btn.id || '');
       const tabName = id.replace('settingsTab-', '');
+      const isActive = tabName === active;
       btn.classList.toggle('active', tabName === active);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      btn.setAttribute('tabindex', isActive ? '0' : '-1');
     });
     const panels = document.querySelectorAll('#settingsPanel .settings-tab-panel');
     panels.forEach((panel) => {
       const tabName = String(panel.getAttribute('data-settings-tab') || '');
-      panel.classList.toggle('active', tabName === active);
+      const isActive = tabName === active;
+      panel.classList.toggle('active', isActive);
+      panel.setAttribute('aria-hidden', isActive ? 'false' : 'true');
     });
 
     const campaignSection = document.getElementById('campaignSettingsSection');
     if (campaignSection) {
       campaignSection.setAttribute('data-settings-tab', 'campaign');
       campaignSection.style.display = active === 'campaign' ? '' : 'none';
+    }
+  }
+
+  function bindSettingsTabKeyboardNav() {
+    const tabList = document.querySelector('#settingsPanel .settings-tabs');
+    if (!tabList) return;
+    tabList.setAttribute('role', 'tablist');
+    const tabs = Array.from(document.querySelectorAll('#settingsPanel .settings-tab-btn'));
+    tabs.forEach((btn, idx) => {
+      btn.setAttribute('role', 'tab');
+      btn.dataset.tabIndex = String(idx);
+      if (btn.dataset.tabKeyBound === '1') return;
+      btn.dataset.tabKeyBound = '1';
+      btn.addEventListener('keydown', function (evt) {
+        const key = evt.key;
+        const currentIndex = Number(btn.dataset.tabIndex || idx);
+        if (key === 'ArrowRight' || key === 'ArrowDown') {
+          evt.preventDefault();
+          const next = (currentIndex + 1) % tabs.length;
+          tabs[next].focus();
+          return;
+        }
+        if (key === 'ArrowLeft' || key === 'ArrowUp') {
+          evt.preventDefault();
+          const prev = (currentIndex - 1 + tabs.length) % tabs.length;
+          tabs[prev].focus();
+          return;
+        }
+        if (key === 'Home') {
+          evt.preventDefault();
+          tabs[0].focus();
+          return;
+        }
+        if (key === 'End') {
+          evt.preventDefault();
+          tabs[tabs.length - 1].focus();
+          return;
+        }
+        if (key === 'Enter' || key === ' ') {
+          evt.preventDefault();
+          const id = String(btn.id || '');
+          const tabName = id.replace('settingsTab-', '');
+          setActiveTab(tabName);
+        }
+      });
+    });
+  }
+
+  function stopColorBlindPreview(options) {
+    const opts = options || {};
+    if (colorBlindPreviewTimer) {
+      clearTimeout(colorBlindPreviewTimer);
+      colorBlindPreviewTimer = null;
+    }
+    const wasActive = colorBlindPreviewActive;
+    colorBlindPreviewActive = false;
+    colorBlindPreviewEndsAt = 0;
+    if (wasActive && opts.revert !== false && !Settings.colorBlindMode) {
+      Settings.applyAccessibilitySettings();
     }
   }
 
@@ -311,6 +384,24 @@
       colorBlindBtn.style.color = Settings.colorBlindMode ? 'var(--teal)' : 'var(--muted2)';
     }
 
+    const previewBtn = document.getElementById('colorBlindPreviewBtn');
+    const previewStatus = document.getElementById('colorBlindPreviewStatus');
+    if (previewBtn) {
+      previewBtn.disabled = !!Settings.colorBlindMode || colorBlindPreviewActive;
+      previewBtn.style.opacity = previewBtn.disabled ? '0.6' : '1';
+      previewBtn.textContent = colorBlindPreviewActive ? 'Previewing…' : 'Preview 10s';
+    }
+    if (previewStatus) {
+      if (Settings.colorBlindMode) {
+        previewStatus.textContent = 'Color-blind mode is enabled and saved.';
+      } else if (colorBlindPreviewActive) {
+        const secondsLeft = Math.max(1, Math.ceil((colorBlindPreviewEndsAt - Date.now()) / 1000));
+        previewStatus.textContent = 'Preview active (' + secondsLeft + 's remaining).';
+      } else {
+        previewStatus.textContent = 'Preview applies temporarily for 10 seconds.';
+      }
+    }
+
     applySettingsTabVisibility();
   }
 
@@ -325,10 +416,31 @@
   }
 
   function toggleColorBlindMode() {
+    if (colorBlindPreviewActive) {
+      stopColorBlindPreview({ revert: false });
+    }
     Settings.colorBlindMode = !Settings.colorBlindMode;
     Settings.applyAccessibilitySettings();
     Settings.save();
     syncGameModeUI();
+  }
+
+  function previewColorBlindMode() {
+    if (Settings.colorBlindMode) {
+      if (typeof showNotif === 'function') showNotif('Color-blind mode is already enabled.', 'info');
+      return;
+    }
+    stopColorBlindPreview();
+    colorBlindPreviewActive = true;
+    colorBlindPreviewEndsAt = Date.now() + COLORBLIND_PREVIEW_MS;
+    document.body.classList.add('colorblind-mode');
+    syncGameModeUI();
+    colorBlindPreviewTimer = setTimeout(function () {
+      colorBlindPreviewActive = false;
+      colorBlindPreviewEndsAt = 0;
+      Settings.applyAccessibilitySettings();
+      syncGameModeUI();
+    }, COLORBLIND_PREVIEW_MS);
   }
   
   function openSettings() {
@@ -428,6 +540,7 @@
     toggleSettings,
     setActiveTab,
     toggleColorBlindMode,
+    previewColorBlindMode,
     setMasterVolume,
     setMusicVolume,
     setSFXVolume,

@@ -2645,7 +2645,7 @@ function resolveGalaxyPerilTraversal() {
   const consequence = pick(STAR_PERIL_FAILURES);
   const consequenceText = consequence.apply(check.delta);
   loseGamePhases(1);
-  if (typeof addTMWOnFail === 'function') addTMWOnFail();
+  if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
   if (out) {
     out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">⚠ ${peril.title}</div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.55;">${peril.text}<br>${check.text}<br><span style="color:var(--red2);">Failure:</span> ${consequenceText} You cannot pass this phase.</div>
@@ -4408,7 +4408,7 @@ function resolvePlanetCelebrationEvent(statKey) {
   } else {
     if (evt.name === 'Convoy Joust' && typeof changeHealth === 'function') changeHealth(1);
     else if (typeof changeMentalStress === 'function') changeMentalStress(1);
-    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
   }
   const out = document.getElementById('planetCelebrationResult');
   if (out) out.innerHTML = key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+evt.dd+'='+d.total+' — '+(success?evt.success:evt.failure);
@@ -6200,7 +6200,7 @@ function resolveDeadMoonSiteOption(optionId) {
     cell.note = `${check.text}. ${option.successText}`;
   } else {
     cell.note = `${check.text}. ${option.failText}`;
-    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
   }
   renderDeadMoonMapPanel();
 }
@@ -6493,7 +6493,7 @@ function resolveGalaxyDowntimeAction(actionId) {
     success = actionRoll.total >= dreadRoll.total;
     actionResult = success ? action.success() : action.failure();
     if (success && typeof addSuccessRoll === 'function') addSuccessRoll();
-    if (!success && typeof addTMWOnFail === 'function') addTMWOnFail();
+    if (!success && typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
     actionResult = `${action.check}: d${die}=${actionRoll.total} vs DD${actionId === 'salvage' ? 8 : 6}=${dreadRoll.total}. ${actionResult}`;
   }
 
@@ -7183,7 +7183,7 @@ function runSystemAnalysisCheck() {
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
   } else {
     if (el) el.innerHTML = `<span style="color:var(--red2);">Failure</span>: d${die}=${action.total} vs DD8=${dread.total}. Data remains noisy.`;
-    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
   }
   updateStarSystemReadouts();
   renderStarSystemMap();
@@ -7327,7 +7327,7 @@ function resolveGalaxyRadioTaskWithRoll() {
     (S.starSystem.radioTaskMarkers || []).forEach((m) => {
       if (m.hexId === current.id) m.resolved = true;
     });
-    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
     showNotif('Radio task failed. Contacts disappointed.', 'warn');
     resultHtml += `<div style="background:rgba(201,64,64,.08);border:1px solid rgba(201,64,64,.4);padding:.4rem;color:var(--red2);"><strong>✗ Failed</strong> — Contract cancelled. Local reputation suffers.</div>`;
   }
@@ -7742,18 +7742,29 @@ function clearHealth() {
 function updateHealthUI() {
   ensureStarsState();
   const defendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : (S.stats && S.stats.defend ? S.stats.defend : 4);
-  const maxHealth = defendDie * 2;
+  const tempBonus = Math.max(0, Number(S.tempStressCapacityBonus || 0));
+  const maxHealth = defendDie * 2 + tempBonus;
   const val = document.getElementById('healthVal');
   const maxVal = document.getElementById('maxHealthVal');
   const pips = document.getElementById('healthPips');
   const coreVal = document.getElementById('stressVal');
   const coreMaxVal = document.getElementById('maxStressVal');
   const corePips = document.getElementById('stressPips');
+  const bonusEl = document.getElementById('tempStressBonusVal');
   S.stress = S.health || 0;
   if (val)    val.textContent    = S.health || 0;
   if (maxVal) maxVal.textContent = maxHealth;
   if (coreVal) coreVal.textContent = S.health || 0;
   if (coreMaxVal) coreMaxVal.textContent = maxHealth;
+  if (bonusEl) {
+    if (tempBonus > 0) {
+      bonusEl.style.display = 'block';
+      bonusEl.textContent = 'Void Capacity Bonus: +' + tempBonus;
+    } else {
+      bonusEl.style.display = 'none';
+      bonusEl.textContent = 'Void Capacity Bonus: +0';
+    }
+  }
   if (pips) {
     let html = '';
     for (let i = 0; i < maxHealth; i++) {

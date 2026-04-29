@@ -482,12 +482,23 @@ function setStress(value) {
 
 function updateStressUI() {
   const maxStress = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
+  const bonus = Math.max(0, Number(S.tempStressCapacityBonus || 0));
   if (S.stress > maxStress) {
     S.stress = maxStress;
   }
   const stressVal = document.getElementById("stressVal");
+  const bonusEl = document.getElementById("tempStressBonusVal");
   if (stressVal) {
     stressVal.textContent = S.stress || 0;
+  }
+  if (bonusEl) {
+    if (bonus > 0) {
+      bonusEl.style.display = "block";
+      bonusEl.textContent = "Void Capacity Bonus: +" + bonus;
+    } else {
+      bonusEl.style.display = "none";
+      bonusEl.textContent = "Void Capacity Bonus: +0";
+    }
   }
 
   const track = document.getElementById("stressPips");

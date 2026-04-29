@@ -418,6 +418,7 @@ select option{background:#0f1020;}
           <button class="btn btn-sm" onclick="halfStress()">Recovery</button>
           <button class="btn btn-sm btn-teal" onclick="clearStress()">Long Rest</button>
         </div>
+        <div id="tempStressBonusVal" style="font-size:.72rem;color:var(--teal);margin-bottom:.25rem;display:none;">Void Capacity Bonus: +0</div>
         <div class="stress-track" id="stressPips"></div>
       </div>
       <div style="margin-bottom:.5rem;padding:.4rem;background:var(--surface);border:1px solid var(--border);">
@@ -1569,7 +1570,7 @@ window.resolveProvinceShiftWeatherDanger = function(){
     showNotif('You weathered the sudden storm shift.', 'good');
   }else{
     if(typeof changeMentalStress==='function')changeMentalStress(1);
-    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
     advanceProvincePhasePenalty(1);
     showNotif('Dangerous weather shift cost you 1 Phase.', 'warn');
   }
@@ -1661,7 +1662,7 @@ function pushLuck(pool) {
        : '⚠ <strong style="color:var(--red);">' + condLabel + '</strong> applied — ' + pool + ' ↓. Clears when you next roll in this pool.')
     + '</div></div>';
   openModal('Push Your Luck — ' + pool, html);
-  if (success) { addSuccessRoll(); } else { addTMWOnFail(); }
+  if (success) { addSuccessRoll(); } else { addTMWOnFail('general-failure'); }
 }
 
 function spendTMW(n) { if (S.tmw < n) { showNotif('Not enough TMW!', 'warn'); return; } S.tmw -= n; updateTMWPool(); showNotif('Spent ' + n + ' TMW. Pool: ' + S.tmw); closeModal(); }
@@ -2444,7 +2445,7 @@ function rollAttack(type) {
   }
 
   if(!success){
-    addTMWOnFail();
+    addTMWOnFail('general-failure');
   } else { addSuccessRoll(); }
   clearConditionOnUse(type);
 }
@@ -2517,7 +2518,7 @@ function rollDefend(skipEnemyTurnTick) {
 
   if(!success){
     changeStress(diff);
-    addTMWOnFail();
+    addTMWOnFail('general-failure');
   } else { addSuccessRoll(); }
   clearConditionOnUse('defend');
 }
@@ -2531,7 +2532,7 @@ function rollTraumaCheck(){
     addSuccessRoll();
   }else{
     changeTrauma(1);
-    addTMWOnFail();
+    addTMWOnFail('general-failure');
     // AUDIO: Trauma received
     if (typeof window.AudioManager !== 'undefined') {
       window.AudioManager.traumaReceived();
@@ -3956,7 +3957,7 @@ function castScrollFromBackpack(index) {
   if (castSuccess) {
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
   } else {
-    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
   }
   // Scroll is never removed — indefinite use
 }
@@ -3982,7 +3983,7 @@ function useToolkit(statKey, backpackIndex) {
   removeBackpackItem(backpackIndex);
   clearConditionOnUse(statKey);
 }
-function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){addSuccessRoll();}else{addTMWOnFail();}}
+function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){addSuccessRoll();}else{addTMWOnFail('general-failure');}}
 
 // ── MAP GENERATION ────────────────────────────────────────────────────────────
 // FIX: 12×12 grid
@@ -5098,7 +5099,7 @@ function resolveEventAction(col,row){
   appendHexNote(col,row,`[${hex.name}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
   appendQuickPanelNote(`[${hex.name}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
   if(success&&typeof addSuccessRoll==='function')addSuccessRoll();
-  if(!success&&typeof addTMWOnFail==='function')addTMWOnFail();
+  if(!success&&typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
   if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
   if(prog.completed>=6){completeEventChallenge(hex,'direct action');}
 }
@@ -5408,7 +5409,7 @@ function attemptBlackMarketAccess(col,row){
   }else{
     html+=`<div style="margin-top:.35rem;font-size:.8rem;color:var(--muted2);">Lookouts clock you immediately and throw you out before any deal starts.</div>`;
     showNotif('Black Market access failed. You were thrown out.','warn');
-    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
   }
 
   openModal('Black Market Access ['+(col+1)+','+(row+1)+']',html);
@@ -5470,7 +5471,7 @@ function attemptEncounterThievery(source,col,row){
     }
   }else{
     showNotif('Thievery failed! Caught! ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')','warn');
-    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
     appendQuickPanelNote('[Thievery] Caught while stealing from '+source+'. +1 TMW');
   }
 }
@@ -5543,7 +5544,7 @@ function attemptThievery(targetName){
     appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`);
   }else{
     showNotif(`Thievery failed! Caught! (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`, 'warn');
-    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
     appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
   }
 }
@@ -5684,7 +5685,7 @@ function resolveEventLeadAction(col,row){
   appendHexNote(col,row,`[Lead ${lead.eventName}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
   appendQuickPanelNote(`[Lead ${lead.eventName}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
   if(success&&typeof addSuccessRoll==='function')addSuccessRoll();
-  if(!success&&typeof addTMWOnFail==='function')addTMWOnFail();
+  if(!success&&typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
   if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
   if(getEventMysteryProgress(eventHex).completed>=6){completeEventChallenge(eventHex,'lead action');}
   renderHexMap();
@@ -5774,7 +5775,7 @@ function resolveProvinceHoldingDowntime(col,row,statKey){
   const success=a.total>=d.total;
   let effectExtra='';
   if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof addSuccessRoll==='function')addSuccessRoll();}
-  else{effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail();}
+  else{effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');}
   hex.data.downtimeLastResult={
     success:success,
     check:key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+(evt.dd||6)+'='+d.total,
@@ -6006,7 +6007,7 @@ window.resolveProvinceShiftWeatherEncounter = function(col,row){
     showNotif('You navigate the weather shift safely.', 'good');
   }else{
     if(failStress&&typeof changeMentalStress==='function')changeMentalStress(failStress);
-    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
     advanceProvincePhasePenalty(1);
     showNotif('Weather shift failed: +'+failStress+' Mental Stress, lose 1 Phase.', 'warn');
   }
@@ -7088,7 +7089,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           if(typeof changeStress==='function')changeStress(2);
           if(S.conditions)S.conditions.distracted=true;
           if(typeof updateConditionButtons==='function')updateConditionButtons();
-          if(typeof addTMWOnFail==='function')addTMWOnFail();
+          if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
           room.result='🧩 Failed — runes flare, take 2 Stress, and become Distracted.';
           room.cleared=true;
         }
@@ -7194,7 +7195,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }else{
       const diff=Math.max(1,d.total-a.total);
       if(typeof changeStress==='function')changeStress(diff);
-      if(typeof addTMWOnFail==='function')addTMWOnFail();
+      if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       if(room.type==='Lair'){
         const count=Math.max(1,roll(3));
         const dreadEnemy=6;
@@ -7226,7 +7227,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       showNotif('Boss defeated: named weapon drop secured.','good');
     }else{
       if(typeof changeStress==='function')changeStress(2);
-      if(typeof addTMWOnFail==='function')addTMWOnFail();
+      if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       room.result='✕ Boss encounter failed — take 2 Stress and regroup.';
       showNotif('Boss outcome marked as failure.','warn');
     }
@@ -7402,7 +7403,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       showNotif(itemFlags.factionItem?'Traversal successful. Faction credentials: +1 Renown.':'Traversal successful. Passage gained.', 'good');
     }else{
       if(typeof toggleCond==='function')toggleCond('weakened');
-      if(typeof addTMWOnFail==='function')addTMWOnFail();
+      if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       if(!S.provinceTraversalLock||typeof S.provinceTraversalLock!=='object')S.provinceTraversalLock={};
       S.provinceTraversalLock.active=true;
       S.provinceTraversalLock.phaseToken=getCurrentTravelPhaseToken();
@@ -7460,7 +7461,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     } else {
       const weatherStress=itemFlags.torch?0:1;
       if (weatherStress && typeof changeMentalStress === 'function') changeMentalStress(weatherStress);
-      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
       advanceProvincePhasePenalty(1);
       showNotif('Lost a Phase to weather. Remain in hex.', 'warn');
     }

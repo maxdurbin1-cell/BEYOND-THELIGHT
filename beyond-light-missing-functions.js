@@ -189,6 +189,24 @@ function switchTab(tabId, btn) {
     ensureSpaceShopCategories();
   }
 
+  if (tabId === "map") {
+    if (typeof window.generateMap === "function" && (!window.mapData || !window.mapData.length)) {
+      window.generateMap();
+    } else if (typeof window.renderHexMap === "function") {
+      window.renderHexMap();
+    }
+  }
+
+  if (tabId === "lastsea") {
+    if (typeof window.S !== "undefined" && window.S && window.S.lastSea && (!window.S.lastSea.map || !window.S.lastSea.map.length)) {
+      if (typeof window.generateLastSea === "function") {
+        window.generateLastSea();
+      }
+    } else if (typeof window.renderLastSeaMap === "function") {
+      window.renderLastSeaMap();
+    }
+  }
+
 }
 
 if (document.readyState === 'loading') {

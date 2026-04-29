@@ -6319,6 +6319,15 @@ let notifTimer=null;
 function showNotif(msg,type=''){const n=document.getElementById('notif');n.textContent=msg;n.className='notif'+(type?' '+type:'');n.classList.add('show');clearTimeout(notifTimer);notifTimer=setTimeout(()=>n.classList.remove('show'),3200);}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+function runWhenIdle(fn, timeoutMs){
+  if(typeof fn!=='function')return;
+  if(typeof window.requestIdleCallback==='function'){
+    window.requestIdleCallback(fn,{timeout:timeoutMs||1200});
+    return;
+  }
+  setTimeout(fn,Math.min(260,Math.max(0,timeoutMs||120)));
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
   // ARIA: wire up tabpanel roles for all non-character tab panels
   document.querySelectorAll('.tab-panel[id]').forEach(function(panel) {
@@ -6328,28 +6337,25 @@ document.addEventListener('DOMContentLoaded',()=>{
     var navBtn = document.getElementById('tabnav-' + tabId);
     if (navBtn) panel.setAttribute('aria-labelledby', 'tabnav-' + tabId);
   });
+
+  // Critical character-surface paint first.
   buildStatRows();updateRenown();updateCreditsUI();updateStressUI();updateTrauma();renderTraits();updateTMWPool();
-  showShopCat('weapons',document.querySelector('.shop-cats .scat'));
-  showCodexCat('histories',document.querySelector('.codex-cats .scat'));
-  updateCombatUI();renderEnemies();updateMapClickModeUI();updateSkirmishRoundUI();resetSkirmishActions();
-  if(typeof renderOSHacksPanel==='function')renderOSHacksPanel();
-  if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
-  if(typeof renderAugmentationsPanel==='function')renderAugmentationsPanel();
-  if(typeof initCharDreadDiceOpts==='function')initCharDreadDiceOpts();
-  updateDiceVisualUI();
-  updateMapVisualUI();
+
+  // Defer non-critical panel and tab setup work.
+  runWhenIdle(function(){
+    showShopCat('weapons',document.querySelector('.shop-cats .scat'));
+    showCodexCat('histories',document.querySelector('.codex-cats .scat'));
+    updateCombatUI();renderEnemies();updateMapClickModeUI();updateSkirmishRoundUI();resetSkirmishActions();
+    if(typeof renderOSHacksPanel==='function')renderOSHacksPanel();
+    if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
+    if(typeof renderAugmentationsPanel==='function')renderAugmentationsPanel();
+    if(typeof initCharDreadDiceOpts==='function')initCharDreadDiceOpts();
+    updateDiceVisualUI();
+    updateMapVisualUI();
+  },1400);
+
   const travelCtxBtn=document.querySelector('.ctx-btn[onclick*="setContext(\'traveling\'"]');
   if(typeof setContext==='function')setContext('traveling',travelCtxBtn||null);
-  // Auto-generate Province map on first load if empty
-  if(typeof generateMap==='function'&&(!mapData||!mapData.length)){
-    generateMap();
-  }
-  // Auto-generate Last Sea map on first load if empty
-  setTimeout(function(){
-    if(typeof generateLastSea==='function'&&typeof S!=='undefined'&&S.lastSea&&(!S.lastSea.map||!S.lastSea.map.length)){
-      generateLastSea();
-    }
-  },300);
 });
 </script>
 <script defer src="./audio-manager.js"></script>

@@ -2490,9 +2490,6 @@
     patchMentalStressHooks();
     patchSharedEconomyHooks();
     patchMapGenerationHooks();
-    ensureSettingsSection();
-    ensureDockPanel();
-    ensureMapSyncStatusBars();
     ensureSocket();
     window.addEventListener("resize", function () { syncDockOffset(); });
 
@@ -2519,18 +2516,39 @@
     state.ready = true;
   }
 
-  setInterval(function () {
-    syncWindowStateAlias();
-    patchTmwHooks();
-    patchMentalStressHooks();
-    patchSharedEconomyHooks();
-    patchMapGenerationHooks();
+  function shouldHydrateCampaignUI() {
+    if (state.code || state.connected || state.dockOpen) return true;
+    var settingsPanel = document.getElementById("settingsPanel");
+    return !!(settingsPanel && settingsPanel.classList.contains("open"));
+  }
+
+  function hydrateCampaignUIIfNeeded() {
+    if (!shouldHydrateCampaignUI()) return;
     if (!document.getElementById("campaignSettingsSection")) {
       ensureSettingsSection();
     }
     ensureDockPanel();
     ensureMapSyncStatusBars();
     syncDockOffset();
+  }
+
+  function scheduleInit() {
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(function () {
+        init();
+      }, { timeout: 1800 });
+      return;
+    }
+    setTimeout(init, 500);
+  }
+
+  setInterval(function () {
+    syncWindowStateAlias();
+    patchTmwHooks();
+    patchMentalStressHooks();
+    patchSharedEconomyHooks();
+    patchMapGenerationHooks();
+    hydrateCampaignUIIfNeeded();
     var syncStateChanged = refreshSyncHealth();
     if (syncStateChanged) {
       renderSettingsSection();
@@ -2544,9 +2562,9 @@
   }, 2200);
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", scheduleInit);
   } else {
-    init();
+    scheduleInit();
   }
 
   window.campaignSystem = {

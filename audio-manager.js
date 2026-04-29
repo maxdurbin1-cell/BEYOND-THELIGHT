@@ -19,9 +19,11 @@
     audioContext: null,
     audioCache: {},
     musicPlayers: {},
+    initialized: false,
 
     // Initialize Web Audio API
     init() {
+      if (this.initialized) return;
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         this.audioContext = new AudioContext();
@@ -42,12 +44,18 @@
         document.addEventListener('touchstart', resumeAudio, { once: true });
         
         this.createSoundLibrary();
+        this.initialized = true;
         console.log('🔊 Audio Manager initialized');
         console.log('🔊 Audio Context State:', this.audioContext.state);
       } catch (e) {
         console.warn('⚠️ Web Audio API not available:', e);
         this.enabled = false;
       }
+    },
+
+    ensureInitialized() {
+      if (this.initialized || !this.enabled) return;
+      this.init();
     },
 
     // ── CORE PLAYBACK FUNCTIONS ──────────────────────────────────────────────
@@ -57,6 +65,7 @@
      * @param {number} volume - Volume multiplier (0-1)
      */
     playSFX(soundId, volume = 1) {
+      this.ensureInitialized();
       if (!this.enabled || !this.audioContext) return;
 
       // Resume audio context if needed
@@ -97,6 +106,7 @@
      * @param {string} musicId - ID of the music to play
      */
     playMusic(musicId, fadeIn = true) {
+      this.ensureInitialized();
       if (!this.enabled || !this.audioContext) {
         console.warn('🔊 Audio system disabled or no audio context');
         return;
@@ -377,6 +387,7 @@
         this.stopMusic(false);
         return;
       }
+      this.ensureInitialized();
       this.switchTabMusic(this.currentTab || 'character');
     },
 
@@ -410,16 +421,8 @@
     caravanDamaged() { this.playSFX('sfx-caravan-damage', 0.7); },
   };
 
-  // Initialize on page load
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      AudioManager.init();
-      console.log('🔊 Audio system ready. Background music is off until enabled in Settings.');
-    });
-  } else {
-    AudioManager.init();
-    console.log('🔊 Audio system ready. Background music is off until enabled in Settings.');
-  }
+  // Keep startup lightweight; initialize lazily on first audio use/consent.
+  console.log('🔊 Audio system available. Background music is off until enabled in Settings.');
 
   // Expose globally
   window.AudioManager = AudioManager;

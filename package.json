@@ -8,7 +8,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "smoke:clicks": "node smoke-tests/click-paths.smoke.mjs",
-    "smoke:test": "npm run smoke:clicks"
+    "smoke:scenario": "node smoke-tests/campaign-scenario.e2e.mjs",
+    "smoke:test": "npm run smoke:clicks && npm run smoke:scenario"
   },
   "dependencies": {
     "express": "^4.21.2",

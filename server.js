@@ -18,6 +18,27 @@ const PORT = Number(process.env.PORT || 3000);
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
 const STORE_PATH = path.join(__dirname, "campaign-data.json");
+const GM_ONLY_EVENTS = {
+  "campaign:archive": true,
+  "campaign:unarchive": true,
+  "campaign:setPassword": true,
+  "campaign:delete": true,
+  "campaign:rollRequest": true,
+  "campaign:closeRoll": true,
+  "campaign:exportSnapshot": true,
+  "campaign:importSnapshot": true
+};
+const AUTHORITATIVE_STATE_KEYS = [
+  "provinceMap",
+  "lastSea",
+  "starSystem",
+  "worldThatWas",
+  "gameDate",
+  "factionRenown",
+  "factionBases",
+  "factionWayfarerTasks",
+  "factionNarrative"
+];
 
 const campaigns = new Map();
 let persistTimer = null;
@@ -340,7 +361,8 @@ function snapshotCampaign(campaign, requesterToken) {
       state: campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
         ? campaign.shared.state
         : {},
-      stateVersion: Math.max(0, Number(campaign.shared && campaign.shared.stateVersion || 0) || 0)
+      stateVersion: Math.max(0, Number(campaign.shared && campaign.shared.stateVersion || 0) || 0),
+      updatedAt: Number(campaign.updatedAt || Date.now())
     },
     members: roster.filter((m) => m.online).map((m) => ({
       name: m.name,
@@ -529,6 +551,120 @@ function isGm(campaign, token) {
   return !!(token && campaign.gmToken && token === campaign.gmToken);
 }
 
+function requireGmAction(campaign, token, eventName, ack) {
+  if (!GM_ONLY_EVENTS[eventName]) return true;
+  if (isGm(campaign, token)) return true;
+  if (typeof ack === "function") ack({ ok: false, error: "Only GM can perform this action." });
+  return false;
+}
+
+function makeCampaignExportSnapshot(campaign) {
+  return {
+    version: 1,
+    code: campaign.code,
+    exportedAt: Date.now(),
+    archived: !!campaign.archived,
+    shared: {
+      tmw: Math.max(0, Number(campaign.shared && campaign.shared.tmw || 0)),
+      stateVersion: Math.max(0, Number(campaign.shared && campaign.shared.stateVersion || 0)),
+      state: campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+        ? campaign.shared.state
+        : {}
+    },
+    participants: Array.from(campaign.participants.values()).map((p) => ({
+      token: p.token,
+      name: p.name,
+      role: p.role,
+      lastSeenAt: Number(p.lastSeenAt || Date.now()),
+      character: p.character && typeof p.character === "object" ? p.character : null
+    })),
+    privateNotes: Array.from(campaign.privateNotes.values()).map((n) => ({
+      token: n.token,
+      text: String(n.text || "").slice(0, 5000),
+      updatedAt: Number(n.updatedAt || Date.now())
+    })),
+    activeRollRequest: campaign.activeRollRequest && typeof campaign.activeRollRequest === "object"
+      ? campaign.activeRollRequest
+      : null,
+    log: Array.isArray(campaign.log) ? campaign.log.slice(-250) : []
+  };
+}
+
+function applyCampaignImportSnapshot(campaign, rawSnapshot) {
+  const snap = rawSnapshot && typeof rawSnapshot === "object" ? rawSnapshot : null;
+  if (!snap) return { ok: false, error: "Invalid snapshot payload." };
+  const shared = snap.shared && typeof snap.shared === "object" ? snap.shared : null;
+  if (!shared || !shared.state || typeof shared.state !== "object") {
+    return { ok: false, error: "Snapshot missing shared.state object." };
+  }
+
+  campaign.shared.tmw = Math.max(0, Number(shared.tmw || 0));
+  campaign.shared.state = shared.state;
+  campaign.shared.stateVersion = Math.max(0, Number(shared.stateVersion || campaign.shared.stateVersion || 0)) + 1;
+
+  const nextParticipants = new Map();
+  const participantList = Array.isArray(snap.participants) ? snap.participants : [];
+  for (let i = 0; i < participantList.length; i += 1) {
+    const p = participantList[i] || {};
+    const token = String(p.token || "").trim();
+    if (!token) continue;
+    nextParticipants.set(token, {
+      token,
+      name: normalizeName(p.name, "Player"),
+      role: p.role === "gm" ? "gm" : "player",
+      lastSeenAt: Number(p.lastSeenAt || Date.now()),
+      character: normalizeCharacter(p.character, p.name || "Wayfarer")
+    });
+  }
+  if (!nextParticipants.size) {
+    return { ok: false, error: "Snapshot contains no participants." };
+  }
+
+  campaign.participants = nextParticipants;
+  campaign.gmToken = "";
+  nextParticipants.forEach((p) => {
+    if (p.role === "gm" && !campaign.gmToken) {
+      campaign.gmToken = p.token;
+    }
+  });
+  chooseFallbackGm(campaign);
+
+  const nextNotes = new Map();
+  const notes = Array.isArray(snap.privateNotes) ? snap.privateNotes : [];
+  for (let i = 0; i < notes.length; i += 1) {
+    const n = notes[i] || {};
+    const token = String(n.token || "").trim();
+    if (!token || !campaign.participants.has(token)) continue;
+    nextNotes.set(token, {
+      token,
+      text: String(n.text || "").slice(0, 5000),
+      updatedAt: Number(n.updatedAt || Date.now())
+    });
+  }
+  campaign.privateNotes = nextNotes;
+
+  const roll = snap.activeRollRequest && typeof snap.activeRollRequest === "object"
+    ? snap.activeRollRequest
+    : null;
+  campaign.activeRollRequest = roll
+    ? {
+        id: String(roll.id || `${Date.now()}-import`),
+        stat: String(roll.stat || "adventure"),
+        dread: Math.max(1, Number(roll.dread || 8)),
+        label: String(roll.label || "GM Check").slice(0, 80),
+        createdAt: Number(roll.createdAt || Date.now()),
+        responses: Array.isArray(roll.responses) ? roll.responses : []
+      }
+    : null;
+
+  campaign.log = Array.isArray(snap.log) ? snap.log.slice(-250) : [];
+  campaign.archived = !!snap.archived;
+  campaign.updatedAt = Date.now();
+  schedulePersist();
+
+  return { ok: true };
+}
+
 function canJoinArchivedCampaign(campaign, tokenHint) {
   if (!campaign.archived) return true;
   const token = String(tokenHint || "").trim();
@@ -706,7 +842,7 @@ io.on("connection", (socket) => {
     addLog(campaign, "tmw", `${member ? member.name : "Someone"} set Teamwork to ${value}.`, { value });
 
     emitCampaignState(campaign.code);
-    if (typeof ack === "function") ack({ ok: true, value });
+    if (typeof ack === "function") ack({ ok: true, value, authoritativeAt: campaign.updatedAt });
   });
 
   socket.on("campaign:deltaTmw", (payload, ack) => {
@@ -725,7 +861,7 @@ io.on("connection", (socket) => {
     addLog(campaign, "tmw", `${member ? member.name : "Someone"} changed Teamwork by ${delta > 0 ? "+" : ""}${delta} (now ${next}).`, { delta, value: next });
 
     emitCampaignState(campaign.code);
-    if (typeof ack === "function") ack({ ok: true, value: next });
+    if (typeof ack === "function") ack({ ok: true, value: next, authoritativeAt: campaign.updatedAt });
   });
 
   socket.on("campaign:deltaMentalStress", (payload, ack) => {
@@ -760,7 +896,7 @@ io.on("connection", (socket) => {
     );
 
     emitCampaignState(campaign.code);
-    if (typeof ack === "function") ack({ ok: true, mentalStress: next, stateVersion: campaign.shared.stateVersion });
+    if (typeof ack === "function") ack({ ok: true, mentalStress: next, stateVersion: campaign.shared.stateVersion, authoritativeAt: campaign.updatedAt });
   });
 
   socket.on("campaign:deltaCredits", (payload, ack) => {
@@ -795,7 +931,7 @@ io.on("connection", (socket) => {
     );
 
     emitCampaignState(campaign.code);
-    if (typeof ack === "function") ack({ ok: true, credits: next, stateVersion: campaign.shared.stateVersion });
+    if (typeof ack === "function") ack({ ok: true, credits: next, stateVersion: campaign.shared.stateVersion, authoritativeAt: campaign.updatedAt });
   });
 
   socket.on("campaign:deltaRenown", (payload, ack) => {
@@ -830,7 +966,7 @@ io.on("connection", (socket) => {
     );
 
     emitCampaignState(campaign.code);
-    if (typeof ack === "function") ack({ ok: true, renown: next, stateVersion: campaign.shared.stateVersion });
+    if (typeof ack === "function") ack({ ok: true, renown: next, stateVersion: campaign.shared.stateVersion, authoritativeAt: campaign.updatedAt });
   });
 
   socket.on("campaign:stashShare", (payload, ack) => {
@@ -865,7 +1001,7 @@ io.on("connection", (socket) => {
     });
 
     emitCampaignState(campaign.code);
-    if (typeof ack === "function") ack({ ok: true, stateVersion: campaign.shared.stateVersion });
+    if (typeof ack === "function") ack({ ok: true, stateVersion: campaign.shared.stateVersion, authoritativeAt: campaign.updatedAt });
   });
 
   socket.on("campaign:stashClaim", (payload, ack) => {
@@ -901,7 +1037,7 @@ io.on("connection", (socket) => {
     });
 
     emitCampaignState(campaign.code);
-    if (typeof ack === "function") ack({ ok: true, item, stateVersion: campaign.shared.stateVersion });
+    if (typeof ack === "function") ack({ ok: true, item, stateVersion: campaign.shared.stateVersion, authoritativeAt: campaign.updatedAt });
   });
 
   socket.on("campaign:syncState", (payload, ack) => {
@@ -925,7 +1061,7 @@ io.on("connection", (socket) => {
     const token = socket.data.token || "";
     const member = token ? campaign.participants.get(token) : null;
     const gmAuthority = isGm(campaign, token);
-    const authoritativeKeys = ["provinceMap", "lastSea", "starSystem", "worldThatWas", "gameDate"];
+    const authoritativeKeys = AUTHORITATIVE_STATE_KEYS;
     const conflicts = [];
     const merged = Object.assign({}, existingState, incoming);
 
@@ -996,7 +1132,27 @@ io.on("connection", (socket) => {
 
     emitCampaignState(campaign.code);
     if (typeof ack === "function") {
-      ack({ ok: true, stateVersion: campaign.shared.stateVersion, conflicts });
+      ack({ ok: true, stateVersion: campaign.shared.stateVersion, conflicts, authoritativeAt: campaign.updatedAt });
+    }
+  });
+
+  socket.on("campaign:requestResync", (_payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+    const token = String(socket.data.token || "");
+    const member = token ? campaign.participants.get(token) : null;
+    addLog(
+      campaign,
+      "system",
+      `${member ? member.name : "Player"} requested an authoritative resync.`,
+      { token }
+    );
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") {
+      ack({ ok: true, stateVersion: Math.max(0, Number(campaign.shared.stateVersion || 0)), authoritativeAt: campaign.updatedAt });
     }
   });
 
@@ -1090,10 +1246,7 @@ io.on("connection", (socket) => {
       return;
     }
     const token = socket.data.token;
-    if (!isGm(campaign, token)) {
-      if (typeof ack === "function") ack({ ok: false, error: "Only GM can archive campaigns." });
-      return;
-    }
+    if (!requireGmAction(campaign, token, "campaign:archive", ack)) return;
     campaign.archived = true;
     addLog(campaign, "system", "GM archived this campaign.");
     emitCampaignState(campaign.code);
@@ -1107,10 +1260,7 @@ io.on("connection", (socket) => {
       return;
     }
     const token = socket.data.token;
-    if (!isGm(campaign, token)) {
-      if (typeof ack === "function") ack({ ok: false, error: "Only GM can reopen campaigns." });
-      return;
-    }
+    if (!requireGmAction(campaign, token, "campaign:unarchive", ack)) return;
     campaign.archived = false;
     addLog(campaign, "system", "GM reopened this campaign.");
     emitCampaignState(campaign.code);
@@ -1124,10 +1274,7 @@ io.on("connection", (socket) => {
       return;
     }
     const token = socket.data.token;
-    if (!isGm(campaign, token)) {
-      if (typeof ack === "function") ack({ ok: false, error: "Only GM can set password." });
-      return;
-    }
+    if (!requireGmAction(campaign, token, "campaign:setPassword", ack)) return;
 
     const password = String((payload && payload.password) || "").trim();
     if (!password) {
@@ -1153,10 +1300,7 @@ io.on("connection", (socket) => {
       return;
     }
     const token = socket.data.token;
-    if (!isGm(campaign, token)) {
-      if (typeof ack === "function") ack({ ok: false, error: "Only GM can delete campaigns." });
-      return;
-    }
+    if (!requireGmAction(campaign, token, "campaign:delete", ack)) return;
 
     campaign.sessions.forEach((_t, socketId) => {
       io.to(socketId).emit("campaign:deleted", {
@@ -1185,10 +1329,7 @@ io.on("connection", (socket) => {
     }
 
     const token = socket.data.token;
-    if (!token || !campaign.gmToken || campaign.gmToken !== token) {
-      if (typeof ack === "function") ack({ ok: false, error: "Only the GM can call campaign rolls." });
-      return;
-    }
+    if (!requireGmAction(campaign, token, "campaign:rollRequest", ack)) return;
 
     const dread = Math.max(1, Number((payload && payload.dread) || 8));
     const stat = String((payload && payload.stat) || "adventure").trim().slice(0, 32) || "adventure";
@@ -1270,16 +1411,45 @@ io.on("connection", (socket) => {
     }
 
     const token = socket.data.token;
-    if (!token || token !== campaign.gmToken) {
-      if (typeof ack === "function") ack({ ok: false, error: "Only the GM can close roll requests." });
-      return;
-    }
+    if (!requireGmAction(campaign, token, "campaign:closeRoll", ack)) return;
 
     campaign.activeRollRequest = null;
     addLog(campaign, "roll", "GM closed the active roll request.");
     emitCampaignState(campaign.code);
 
     if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("campaign:exportSnapshot", (_payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+    const token = socket.data.token;
+    if (!requireGmAction(campaign, token, "campaign:exportSnapshot", ack)) return;
+    const snapshot = makeCampaignExportSnapshot(campaign);
+    if (typeof ack === "function") ack({ ok: true, snapshot });
+  });
+
+  socket.on("campaign:importSnapshot", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+    const token = socket.data.token;
+    if (!requireGmAction(campaign, token, "campaign:importSnapshot", ack)) return;
+    const result = applyCampaignImportSnapshot(campaign, payload && payload.snapshot);
+    if (!result.ok) {
+      if (typeof ack === "function") ack(result);
+      return;
+    }
+    addLog(campaign, "system", "GM imported a campaign snapshot.", { token: token || "" });
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") {
+      ack({ ok: true, stateVersion: Math.max(0, Number(campaign.shared.stateVersion || 0)), authoritativeAt: campaign.updatedAt });
+    }
   });
 
   socket.on("disconnect", () => {

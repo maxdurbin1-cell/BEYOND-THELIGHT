@@ -36,6 +36,7 @@
     pendingSyncCount: 0,
     syncConflictCount: 0,
     lastSyncConflicts: [],
+    lastAuthoritativeAt: 0,
     localEconomyLedger: [],
     suppressEconomyLedgerAuto: false,
     applyingSharedState: false,
@@ -43,6 +44,30 @@
       name: "",
       code: "",
       joinPassword: ""
+    }
+  };
+
+  var ROLE_ACTIONS = {
+    gm: {
+      callRoll: true,
+      closeRoll: true,
+      setPassword: true,
+      archiveCampaign: true,
+      deleteCampaign: true,
+      forceAuthoritativeResync: true,
+      clearProvinceSelections: true,
+      adjustEconomy: true,
+      exportSnapshot: true,
+      importSnapshot: true
+    },
+    player: {
+      requestResync: true,
+      submitRoll: true,
+      stashShare: true,
+      stashClaim: true,
+      savePrivateNote: true,
+      sendChat: true,
+      syncSharedWorld: true
     }
   };
 
@@ -109,6 +134,20 @@
   function setSyncHealth(mode, text) {
     state.syncHealth = String(mode || "idle");
     state.syncText = String(text || "");
+  }
+
+  function hasActionPermission(actionName) {
+    var role = state.role === "gm" ? "gm" : (state.role ? "player" : "");
+    if (!role || !actionName) return false;
+    var table = ROLE_ACTIONS[role] || {};
+    if (table[actionName]) return true;
+    return !!((ROLE_ACTIONS.gm && role === "gm" && ROLE_ACTIONS.gm[actionName]) || false);
+  }
+
+  function guardAction(actionName, errorText) {
+    if (hasActionPermission(actionName)) return true;
+    safeNotif(errorText || "You do not have permission for that action.", "warn");
+    return false;
   }
 
   function refreshSettingsModeFromCampaign() {
@@ -225,6 +264,10 @@
       availableJobs: deepCloneJson(window.S.availableJobs || []),
       storyline: deepCloneJson(window.S.storyline || {}),
       holding: deepCloneJson(window.S.holding || {}),
+      factionRenown: deepCloneJson(window.S.factionRenown || {}),
+      factionBases: deepCloneJson(window.S.factionBases || {}),
+      factionWayfarerTasks: deepCloneJson(window.S.factionWayfarerTasks || []),
+      factionNarrative: deepCloneJson(window.S.factionNarrative || {}),
       partyStash: Array.isArray(current.partyStash) ? current.partyStash.slice() : [],
       economyLedger: mergeEconomyLedger(current.economyLedger),
       provinceSelections: existingSelections
@@ -289,6 +332,18 @@
       if (sharedState.holding && typeof sharedState.holding === "object") {
         window.S.holding = deepCloneJson(sharedState.holding) || {};
       }
+      if (sharedState.factionRenown && typeof sharedState.factionRenown === "object") {
+        window.S.factionRenown = deepCloneJson(sharedState.factionRenown) || {};
+      }
+      if (sharedState.factionBases && typeof sharedState.factionBases === "object") {
+        window.S.factionBases = deepCloneJson(sharedState.factionBases) || {};
+      }
+      if (Array.isArray(sharedState.factionWayfarerTasks)) {
+        window.S.factionWayfarerTasks = deepCloneJson(sharedState.factionWayfarerTasks) || [];
+      }
+      if (sharedState.factionNarrative && typeof sharedState.factionNarrative === "object") {
+        window.S.factionNarrative = deepCloneJson(sharedState.factionNarrative) || {};
+      }
       if (sharedState.lastSea && typeof sharedState.lastSea === "object") {
         window.S.lastSea = deepCloneJson(sharedState.lastSea) || {};
       }
@@ -323,6 +378,9 @@
     if (typeof window.renderMissionBoard === "function") window.renderMissionBoard();
     if (typeof window.renderMissionTracker === "function") window.renderMissionTracker();
     if (typeof window.renderCompletedMissions === "function") window.renderCompletedMissions();
+    if (window.factionSystem && typeof window.factionSystem.setupFactionTab === "function") {
+      try { window.factionSystem.setupFactionTab(); } catch (_err) {}
+    }
 
     state.lastSharedVersion = nextVersion || state.lastSharedVersion;
     state.lastSharedHash = JSON.stringify(sharedState);
@@ -402,6 +460,9 @@
       state.lastSharedHash = JSON.stringify(nextState || {});
       state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
       state.lastSyncAt = Date.now();
+      if (res.authoritativeAt) {
+        state.lastAuthoritativeAt = Number(res.authoritativeAt || 0) || state.lastAuthoritativeAt;
+      }
       setSyncHealth("online", "Synced");
       state.lastSyncConflicts = Array.isArray(res.conflicts) ? res.conflicts : [];
       state.syncConflictCount = state.lastSyncConflicts.length;
@@ -976,6 +1037,7 @@
       ? "Syncing"
       : (state.syncHealth === "stale" ? "Pending" : (state.syncHealth === "online" ? "Synced" : "Offline"));
     var syncConflictText = state.syncConflictCount > 0 ? ("Guardrails " + state.syncConflictCount) : "";
+    var authoritativeStamp = formatTimestamp(state.lastAuthoritativeAt) || formatTimestamp(state.lastSyncAt) || "-";
     var partyStash = Array.isArray(sharedState.partyStash) ? sharedState.partyStash : [];
     var localBackpackSlots = Array.isArray(window.S && window.S.backpack)
       ? window.S.backpack.map(function (item, idx) {
@@ -1027,8 +1089,10 @@
       + '<div class="campaign-card-title">Shared Teamwork Points</div>'
       + '<div class="campaign-tmw">' + sharedTmw + "</div>"
       + '<div class="campaign-muted" style="margin-top:.2rem;">Coin <strong style="color:var(--gold2);">' + sharedCredits + '₵</strong> · Renown <strong style="color:var(--teal);">' + sharedRenown + '</strong></div>'
+      + '<div class="campaign-muted" style="margin-top:.2rem;">Last authoritative sync: <strong style="color:var(--text2);">' + escapeHtml(authoritativeStamp) + '</strong></div>'
       + '<div class="campaign-actions" style="margin-top:.35rem;">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Shared World</button>'
+      + (isGm ? '' : '<button class="btn btn-xs" onclick="window.campaignSystem.requestResync()">Request Resync</button>')
       + '<button class="btn btn-xs" onclick="window.campaignSystem.showOnboarding(true)">Show Onboarding</button>'
       + '</div>'
       + '<div class="campaign-muted">'
@@ -1064,6 +1128,8 @@
           + '<button class="btn btn-xs" onclick="window.campaignSystem.setCampaignPassword()">Apply Password</button>'
           + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.forceAuthoritativeResync()">Broadcast Authoritative State</button>'
           + '<button class="btn btn-xs" onclick="window.campaignSystem.clearProvinceSelections()">Clear Player Map Cursors</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.exportSnapshot()">Export Snapshot</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.importSnapshotPrompt()">Import Snapshot</button>'
           + '<button class="btn btn-xs" onclick="window.campaignSystem.toggleArchive()">' + ((campaign && campaign.archived) ? 'Reopen' : 'Archive') + '</button>'
           + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.deleteCampaign()">Delete Campaign</button>'
           + "</div>"
@@ -1341,6 +1407,9 @@
           persistSession();
         }
       }
+      if (snapshot && snapshot.shared && snapshot.shared.updatedAt) {
+        state.lastAuthoritativeAt = Number(snapshot.shared.updatedAt || 0) || state.lastAuthoritativeAt;
+      }
 
       var nextTmw = snapshot && snapshot.shared ? Number(snapshot.shared.tmw || 0) : null;
       if (nextTmw !== null && nextTmw !== getTmwValue()) {
@@ -1459,6 +1528,7 @@
       + '<div>' + (steps.inCampaign ? '✅' : '⬜') + ' Join/Create campaign and confirm your role.</div>'
       + '<div>' + (steps.mapsReady ? '✅' : '⬜') + ' GM generates map(s). Shared state auto-syncs every ~1.2s.</div>'
       + '<div>' + ((state.syncHealth === "online") ? '✅' : '⬜') + ' Use Sync Shared World or Broadcast Authoritative State if players look out-of-sync.</div>'
+      + '<div>' + ((state.role === "gm") ? '✅' : '⬜') + ' Players can use Request Resync to force a fresh authoritative snapshot.</div>'
       + '<div>' + ((state.syncConflictCount === 0) ? '✅' : '⬜') + ' Resolve guardrail conflicts if shown.</div>'
       + '</div>'
       + '<div style="margin-top:.6rem;display:flex;gap:.35rem;flex-wrap:wrap;">'
@@ -1605,10 +1675,11 @@
   }
 
   async function callRollRequest() {
-    if (!state.socket || state.role !== "gm") {
+    if (!state.socket) {
       safeNotif("Only connected GM can call campaign rolls.", "warn");
       return;
     }
+    if (!guardAction("callRoll", "Only connected GM can call campaign rolls.")) return;
 
     var label = readUiValue("campaignRollLabel").trim() || "Dread Check";
     var stat = readUiValue("campaignRollStat").trim().toLowerCase() || "adventure";
@@ -1623,10 +1694,11 @@
   }
 
   async function closeActiveRoll() {
-    if (!state.socket || state.role !== "gm") {
+    if (!state.socket) {
       safeNotif("Only connected GM can close roll requests.", "warn");
       return;
     }
+    if (!guardAction("closeRoll", "Only connected GM can close roll requests.")) return;
     var res = await emitWithAck("campaign:closeRoll", {});
     if (!res.ok) {
       safeNotif(res.error || "Could not close roll request.", "warn");
@@ -1650,10 +1722,11 @@
   }
 
   async function setCampaignPassword() {
-    if (!state.socket || state.role !== "gm") {
+    if (!state.socket) {
       safeNotif("Only connected GM can update campaign password.", "warn");
       return;
     }
+    if (!guardAction("setPassword", "Only connected GM can update campaign password.")) return;
     var password = readUiValue("campaignSetPasswordInput");
     var res = await emitWithAck("campaign:setPassword", { password: password });
     if (!res.ok) {
@@ -1664,10 +1737,11 @@
   }
 
   async function forceAuthoritativeResync() {
-    if (!state.socket || state.role !== "gm") {
+    if (!state.socket) {
       safeNotif("Only connected GM can broadcast authoritative state.", "warn");
       return;
     }
+    if (!guardAction("forceAuthoritativeResync", "Only connected GM can broadcast authoritative state.")) return;
     var res = await syncSharedSilent("gm-authoritative-broadcast");
     if (!res || !res.ok) {
       safeNotif((res && res.error) || "Broadcast sync failed.", "warn");
@@ -1677,10 +1751,11 @@
   }
 
   async function clearProvinceSelections() {
-    if (!state.socket || state.role !== "gm") {
+    if (!state.socket) {
       safeNotif("Only connected GM can clear player cursors.", "warn");
       return;
     }
+    if (!guardAction("clearProvinceSelections", "Only connected GM can clear player cursors.")) return;
     var shared = getCampaignSharedState();
     var selected = shared && shared.provinceSelections && typeof shared.provinceSelections === "object"
       ? deepCloneJson(shared.provinceSelections) || {}
@@ -1698,10 +1773,11 @@
   }
 
   async function toggleArchive() {
-    if (!state.socket || state.role !== "gm") {
+    if (!state.socket) {
       safeNotif("Only connected GM can change archive state.", "warn");
       return;
     }
+    if (!guardAction("archiveCampaign", "Only connected GM can change archive state.")) return;
     var archived = !!(state.campaign && state.campaign.archived);
     var evt = archived ? "campaign:unarchive" : "campaign:archive";
     var res = await emitWithAck(evt, {});
@@ -1713,10 +1789,11 @@
   }
 
   async function deleteCampaign() {
-    if (!state.socket || state.role !== "gm") {
+    if (!state.socket) {
       safeNotif("Only connected GM can delete campaigns.", "warn");
       return;
     }
+    if (!guardAction("deleteCampaign", "Only connected GM can delete campaigns.")) return;
     var ok = window.confirm("Delete this campaign for everyone? This cannot be undone.");
     if (!ok) return;
 
@@ -1805,10 +1882,11 @@
   }
 
   async function applyGmEconomyAdjustment() {
-    if (!state.socket || !state.code || state.role !== "gm") {
+    if (!state.socket || !state.code) {
       safeNotif("Only connected GM can run economy adjustments.", "warn");
       return;
     }
+    if (!guardAction("adjustEconomy", "Only connected GM can run economy adjustments.")) return;
 
     var resource = readUiValue("campaignEconomyResource").trim().toLowerCase() || "tmw";
     var rawDelta = Number(readUiValue("campaignEconomyDelta") || 0);
@@ -1882,6 +1960,141 @@
     renderDockPanel();
   }
 
+  function formatSyncStatusLine() {
+    var roleLabel = state.role === "gm" ? "GM" : (state.role === "player" ? "Player" : "Offline");
+    var syncLabel = state.syncHealth === "syncing"
+      ? "syncing"
+      : (state.syncHealth === "stale" ? "pending" : (state.syncHealth === "online" ? "synced" : "offline"));
+    var stamp = formatTimestamp(state.lastAuthoritativeAt) || formatTimestamp(state.lastSyncAt) || "-";
+    return "Campaign " + roleLabel + " · " + syncLabel + " · authoritative " + stamp;
+  }
+
+  function ensureMapSyncStatusBars() {
+    var targets = [
+      document.querySelector("#tab-map .map-controls"),
+      document.getElementById("tab-lastsea"),
+      document.getElementById("tab-galaxy"),
+      document.getElementById("tab-worldthatwas")
+    ];
+    var lineText = formatSyncStatusLine();
+    for (var i = 0; i < targets.length; i += 1) {
+      var host = targets[i];
+      if (!host) continue;
+      var bar = host.querySelector(".campaign-sync-status");
+      if (!bar) {
+        bar = document.createElement("div");
+        bar.className = "campaign-sync-status";
+        bar.style.margin = "0 0 .35rem 0";
+        bar.style.padding = ".35rem .5rem";
+        bar.style.border = "1px solid rgba(60,150,150,.35)";
+        bar.style.borderRadius = ".45rem";
+        bar.style.background = "rgba(10,22,24,.45)";
+        bar.style.fontSize = ".72rem";
+        bar.style.color = "var(--muted2)";
+        bar.style.display = "flex";
+        bar.style.gap = ".45rem";
+        bar.style.alignItems = "center";
+        bar.style.justifyContent = "space-between";
+        if (host.firstChild) host.insertBefore(bar, host.firstChild);
+        else host.appendChild(bar);
+      }
+      bar.innerHTML = '<span>' + escapeHtml(lineText) + '</span>'
+        + ((state.role === "player" && state.code)
+          ? '<button class="btn btn-xs" onclick="window.campaignSystem.requestResync()">Request Resync</button>'
+          : '');
+    }
+  }
+
+  async function requestResync() {
+    if (!state.socket || !state.code) {
+      safeNotif("Join a campaign first.", "warn");
+      return;
+    }
+    if (!guardAction("requestResync", "Only campaign players can request a resync.")) return;
+    var res = await emitWithAck("campaign:requestResync", {});
+    if (!res || !res.ok) {
+      safeNotif((res && res.error) || "Could not request resync.", "warn");
+      return;
+    }
+    if (res.stateVersion) {
+      state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
+    }
+    if (res.authoritativeAt) {
+      state.lastAuthoritativeAt = Number(res.authoritativeAt || 0) || state.lastAuthoritativeAt;
+    }
+    safeNotif("Requested authoritative resync.", "good");
+  }
+
+  async function exportSnapshot() {
+    if (!state.socket || !state.code) {
+      safeNotif("Only connected GM can export snapshots.", "warn");
+      return;
+    }
+    if (!guardAction("exportSnapshot", "Only connected GM can export snapshots.")) return;
+    var res = await emitWithAck("campaign:exportSnapshot", {});
+    if (!res || !res.ok || !res.snapshot) {
+      safeNotif((res && res.error) || "Could not export snapshot.", "warn");
+      return;
+    }
+    var text = JSON.stringify(res.snapshot, null, 2);
+    var fileName = "campaign-" + String(state.code || "snapshot") + "-" + Date.now() + ".json";
+    try {
+      var blob = new Blob([text], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(function () {
+        try { URL.revokeObjectURL(url); } catch (_err) {}
+        try { link.remove(); } catch (_err) {}
+      }, 0);
+    } catch (_err) {
+      // Fallback path for strict environments.
+    }
+    safeNotif("Campaign snapshot exported.", "good");
+  }
+
+  function importSnapshotPrompt() {
+    if (!guardAction("importSnapshot", "Only connected GM can import snapshots.")) return;
+    if (typeof window.openModal !== "function") {
+      safeNotif("Modal UI unavailable.", "warn");
+      return;
+    }
+    var html = ''
+      + '<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.45rem;">Paste a previously exported campaign snapshot JSON.</div>'
+      + '<textarea id="campaignImportSnapshotInput" style="width:100%;min-height:190px;background:#111723;border:1px solid #2a354a;color:var(--text);border-radius:.45rem;padding:.55rem;font-family:monospace;font-size:.75rem;"></textarea>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.35rem;margin-top:.55rem;">'
+      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="window.campaignSystem.importSnapshotFromModal()">Import Snapshot</button>'
+      + '</div>';
+    window.openModal("Import Campaign Snapshot", html);
+  }
+
+  async function importSnapshotFromModal() {
+    if (!guardAction("importSnapshot", "Only connected GM can import snapshots.")) return;
+    var raw = readUiValue("campaignImportSnapshotInput");
+    if (!raw.trim()) {
+      safeNotif("Paste snapshot JSON first.", "warn");
+      return;
+    }
+    var parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (_err) {
+      safeNotif("Snapshot JSON is invalid.", "warn");
+      return;
+    }
+    var res = await emitWithAck("campaign:importSnapshot", { snapshot: parsed });
+    if (!res || !res.ok) {
+      safeNotif((res && res.error) || "Could not import snapshot.", "warn");
+      return;
+    }
+    if (typeof window.closeModal === "function") window.closeModal();
+    safeNotif("Campaign snapshot imported and broadcast.", "good");
+  }
+
   function getProvinceSelectionMarkers() {
     var shared = getCampaignSharedState();
     var selections = shared && shared.provinceSelections && typeof shared.provinceSelections === "object"
@@ -1920,6 +2133,7 @@
     patchMapGenerationHooks();
     ensureSettingsSection();
     ensureDockPanel();
+    ensureMapSyncStatusBars();
     ensureSocket();
     window.addEventListener("resize", function () { syncDockOffset(); });
 
@@ -1955,6 +2169,7 @@
       ensureSettingsSection();
     }
     ensureDockPanel();
+    ensureMapSyncStatusBars();
     syncDockOffset();
     syncCharacterToCampaign(false);
     syncSharedState("tick");
@@ -1985,6 +2200,10 @@
     forceAuthoritativeResync: forceAuthoritativeResync,
     clearProvinceSelections: clearProvinceSelections,
     showOnboarding: showOnboarding,
+    requestResync: requestResync,
+    exportSnapshot: exportSnapshot,
+    importSnapshotPrompt: importSnapshotPrompt,
+    importSnapshotFromModal: importSnapshotFromModal,
     toggleDock: toggleDock,
     recordEconomyDelta: recordEconomyDelta,
     getProvinceSelectionMarkers: getProvinceSelectionMarkers,

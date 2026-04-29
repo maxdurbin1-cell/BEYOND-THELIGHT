@@ -1762,8 +1762,9 @@ function openGMStoryGraph() {
     + '</div>');
 }
 
-function runGMStoryByTrigger(triggerType, triggerValue) {
+function runGMStoryByTrigger(triggerType, triggerValue, options) {
   ensureGMStoryState();
+  const opts = options && typeof options === 'object' ? options : {};
   const type = String(triggerType || '').trim();
   const value = String(triggerValue || '').trim();
   const nodes = S.gmStoryState.nodes || [];
@@ -1771,10 +1772,148 @@ function runGMStoryByTrigger(triggerType, triggerValue) {
     return String(node.triggerType || 'manual') === type && String(node.triggerValue || '').trim() === value;
   });
   if (idx < 0) {
-    showNotif('No GM story node matched trigger ' + type + ':' + value, 'warn');
-    return;
+    if (!opts.silentNoMatch) showNotif('No GM story node matched trigger ' + type + ':' + value, 'warn');
+    return false;
   }
   runGMStoryNode(idx);
+  return true;
+}
+
+function tryRunGMStoryTriggerValues(triggerType, values) {
+  const list = Array.isArray(values) ? values : [values];
+  const seen = {};
+  for (let i = 0; i < list.length; i++) {
+    const raw = list[i];
+    const key = String(raw == null ? '' : raw).trim();
+    if (!key || seen[key]) continue;
+    seen[key] = true;
+    if (runGMStoryByTrigger(triggerType, key, { silentNoMatch: true })) return true;
+  }
+  return false;
+}
+
+function installGMStoryRuntimeHooks() {
+  if (window._gmStoryRuntimeHooksInstalled) return true;
+  if (typeof window.renderHexInfo !== 'function' || typeof window.resolveMission !== 'function') return false;
+
+  window._gmStoryRuntimeHooksInstalled = true;
+  window._gmStoryTriggerState = window._gmStoryTriggerState || {
+    lastHexKey: '',
+    acceptedById: {},
+    completedById: {}
+  };
+
+  const baseRenderHexInfo = window.renderHexInfo;
+  window.renderHexInfo = function (hex) {
+    const out = baseRenderHexInfo.apply(this, arguments);
+    try {
+      if (!hex || typeof hex.col !== 'number' || typeof hex.row !== 'number') return out;
+      const state = window._gmStoryTriggerState;
+      const zeroKey = String(hex.col) + ',' + String(hex.row);
+      if (state.lastHexKey === zeroKey) return out;
+      state.lastHexKey = zeroKey;
+      tryRunGMStoryTriggerValues('hex', [
+        '[' + String(hex.col + 1) + ',' + String(hex.row + 1) + ']',
+        String(hex.col + 1) + ',' + String(hex.row + 1),
+        '[' + zeroKey + ']',
+        zeroKey
+      ]);
+    } catch (err) {}
+    return out;
+  };
+
+  if (typeof window.acceptJob === 'function') {
+    const baseAcceptJob = window.acceptJob;
+    window.acceptJob = function (jobId) {
+      const beforeIds = Array.isArray(S && S.activeMissions)
+        ? S.activeMissions.map(function (m) { return String(m && m.id); })
+        : [];
+      const out = baseAcceptJob.apply(this, arguments);
+      try {
+        const missions = Array.isArray(S && S.activeMissions) ? S.activeMissions : [];
+        const accepted = missions.find(function (m) { return beforeIds.indexOf(String(m && m.id)) < 0; }) || null;
+        if (!accepted) return out;
+        const idKey = String(accepted.id || '');
+        const state = window._gmStoryTriggerState;
+        if (idKey && state.acceptedById[idKey]) return out;
+        if (idKey) state.acceptedById[idKey] = true;
+        tryRunGMStoryTriggerValues('mission', [accepted.id, accepted.title, 'accepted:' + accepted.id, 'accepted:' + accepted.title]);
+      } catch (err) {}
+      return out;
+    };
+  }
+
+  if (typeof window.createMission === 'function') {
+    const baseCreateMission = window.createMission;
+    window.createMission = function () {
+      const out = baseCreateMission.apply(this, arguments);
+      try {
+        const mission = out && typeof out === 'object' ? out : null;
+        if (!mission) return out;
+        const idKey = String(mission.id || '');
+        const state = window._gmStoryTriggerState;
+        if (idKey && state.acceptedById[idKey]) return out;
+        if (idKey) state.acceptedById[idKey] = true;
+        tryRunGMStoryTriggerValues('mission', [mission.id, mission.title, 'accepted:' + mission.id, 'accepted:' + mission.title]);
+      } catch (err) {}
+      return out;
+    };
+  }
+
+  const baseResolveMission = window.resolveMission;
+  window.resolveMission = function (missionId, success) {
+    let snapshot = null;
+    try {
+      const list = Array.isArray(S && S.activeMissions) ? S.activeMissions : [];
+      snapshot = list.find(function (m) { return String(m && m.id) === String(missionId); }) || null;
+    } catch (err) {}
+    const out = baseResolveMission.apply(this, arguments);
+    try {
+      if (!snapshot) return out;
+      const idKey = String(snapshot.id || missionId || '');
+      const outcome = success ? 'success' : 'failure';
+      const completeKey = idKey + ':' + outcome;
+      const state = window._gmStoryTriggerState;
+      if (state.completedById[completeKey]) return out;
+      state.completedById[completeKey] = true;
+      tryRunGMStoryTriggerValues('mission', [
+        snapshot.id,
+        snapshot.title,
+        'completed:' + snapshot.id,
+        'completed:' + snapshot.title,
+        snapshot.id + ':' + outcome,
+        snapshot.title + ':' + outcome
+      ]);
+    } catch (err) {}
+    return out;
+  };
+
+  return true;
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function () {
+    if (installGMStoryRuntimeHooks()) return;
+    let tries = 0;
+    const maxTries = 80;
+    const timer = window.setInterval(function () {
+      tries += 1;
+      if (installGMStoryRuntimeHooks() || tries >= maxTries) {
+        window.clearInterval(timer);
+      }
+    }, 150);
+  }, { once: true });
+} else {
+  if (!installGMStoryRuntimeHooks()) {
+    let tries = 0;
+    const maxTries = 80;
+    const timer = window.setInterval(function () {
+      tries += 1;
+      if (installGMStoryRuntimeHooks() || tries >= maxTries) {
+        window.clearInterval(timer);
+      }
+    }, 150);
+  }
 }
 
 function runGMStoryNode(index) {

@@ -11,6 +11,31 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function syncSharedWithRetry(page, reason, options) {
+  const opts = options || {};
+  const retries = Number.isFinite(opts.retries) ? Number(opts.retries) : 4;
+  const backoffMs = Array.isArray(opts.backoffMs) && opts.backoffMs.length
+    ? opts.backoffMs.map((n) => Math.max(0, Number(n) || 0))
+    : [150, 300, 600, 1200];
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const result = await page.evaluate(async (payload) => {
+      const sync = await window.campaignSystem.syncSharedSilent(payload.reason);
+      return { ok: !!(sync && sync.ok), sync };
+    }, { reason });
+    if (result && result.ok) return result;
+
+    const errText = String(result && result.sync && result.sync.error || "").toLowerCase();
+    const retriable = errText.indexOf("sync already in flight") >= 0;
+    if (!retriable || attempt >= retries) {
+      return result;
+    }
+    const delay = backoffMs[Math.min(attempt, backoffMs.length - 1)];
+    await wait(delay);
+  }
+  return { ok: false, sync: { ok: false, error: "sync retry exhausted" } };
+}
+
 function startServer() {
   const child = spawn("node", ["server.js"], {
     cwd: process.cwd(),
@@ -175,14 +200,16 @@ async function runScenario(browser) {
     );
   }
 
-  const genRes = await gmPage.evaluate(async () => {
+  await gmPage.evaluate(async () => {
     if (typeof window.generateMap === "function") window.generateMap();
     if (typeof window.generateLastSea === "function") window.generateLastSea();
     if (typeof window.generateStarSystemMap === "function") window.generateStarSystemMap("cluster");
     if (typeof window.generateWorldThatWasMap === "function") window.generateWorldThatWasMap();
+  });
 
-    const sync = await window.campaignSystem.syncSharedSilent("scenario-sync");
-    return { ok: !!(sync && sync.ok), sync };
+  const genRes = await syncSharedWithRetry(gmPage, "scenario-sync", {
+    retries: 5,
+    backoffMs: [200, 400, 800, 1200, 1600]
   });
 
   if (!genRes.ok) {
@@ -391,6 +418,16 @@ async function runScenario(browser) {
     if (!out.ok) out.error = (syncRes && syncRes.error) || "UI flow sync failed.";
     return out;
   });
+  if (factionMissionFlow && !factionMissionFlow.ok && String(factionMissionFlow.error || "").toLowerCase().indexOf("sync already in flight") >= 0) {
+    const postFlowRetry = await syncSharedWithRetry(gmPage, "scenario-ui-faction-mission", {
+      retries: 5,
+      backoffMs: [200, 400, 800, 1200, 1600]
+    });
+    if (postFlowRetry && postFlowRetry.ok) {
+      factionMissionFlow.ok = true;
+      factionMissionFlow.error = "";
+    }
+  }
   if (!factionMissionFlow || !factionMissionFlow.ok) {
     throw new Error(`Faction mission UI flow failed: ${JSON.stringify(factionMissionFlow)}`);
   }

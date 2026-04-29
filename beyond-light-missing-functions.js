@@ -1508,8 +1508,10 @@ function exportCharacterSave() {
   }
 }
 
-function exportWayfarerSheetPDF() {
+function exportWayfarerSheetPDF(options) {
   try {
+    const opts = options || {};
+    const compact = !!opts.compact;
     const node = document.getElementById('tab-character');
     if (!node) {
       showNotif('Wayfarer tab not found', 'warn');
@@ -1526,9 +1528,9 @@ function exportWayfarerSheetPDF() {
     w.document.open();
     w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Wayfarer Sheet</title>'
       + cssLinks
-      + '<style>body{background:#fff;color:#111;padding:12px;} header,#globalQuickAccess,.ctx-bar,.quick-nav{display:none!important;} .tab-panel{display:block!important;min-height:auto!important;} button{display:none!important;} @media print{body{padding:0;} .card{break-inside:avoid;}}</style>'
+      + '<style>body{background:#fff;color:#111;padding:' + (compact ? '6px' : '12px') + ';font-size:' + (compact ? '13px' : '15px') + ';} header,#globalQuickAccess,.ctx-bar,.quick-nav{display:none!important;} .tab-panel{display:block!important;min-height:auto!important;} button{display:none!important;} @media print{body{padding:0;} .card{break-inside:avoid; margin-bottom:' + (compact ? '4px' : '8px') + ';} .char-grid{gap:' + (compact ? '.35rem' : '.75rem') + ';}}</style>'
       + '</head><body>'
-      + '<h1 style="font:700 20px Cinzel,serif;margin:0 0 8px;">Wayfarer Sheet</h1>'
+      + '<h1 style="font:700 ' + (compact ? '16px' : '20px') + ' Cinzel,serif;margin:0 0 8px;">Wayfarer Sheet' + (compact ? ' (Compact)' : '') + '</h1>'
       + node.outerHTML
       + '<script>setTimeout(function(){window.print();},220);</script>'
       + '</body></html>');
@@ -1537,6 +1539,19 @@ function exportWayfarerSheetPDF() {
   } catch (_err) {
     showNotif('Could not prepare Wayfarer PDF export', 'warn');
   }
+}
+
+function openWayfarerExportModal() {
+  if (typeof openModal !== 'function') return;
+  openModal('Export Wayfarer Sheet', ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+    + '<div style="margin-bottom:.45rem;">Choose an export format for the Character (Wayfarer) page only.</div>'
+    + '<div style="display:grid;gap:.3rem;">'
+    + '<button class="btn btn-sm btn-teal" onclick="closeModal(); exportWayfarerSheetPDF({compact:false});">PDF (Standard Print Layout)</button>'
+    + '<button class="btn btn-sm" onclick="closeModal(); exportWayfarerSheetPDF({compact:true});">PDF (Compact Print Layout)</button>'
+    + '<button class="btn btn-sm" onclick="closeModal(); exportWayfarerSheetImage();">PNG Image</button>'
+    + '</div>'
+    + '</div>');
 }
 
 function loadScriptOnce(url, globalName, cb) {
@@ -1597,6 +1612,14 @@ function ensureGMStoryState() {
   if (!Array.isArray(S.gmStoryState.nodes)) S.gmStoryState.nodes = [];
 }
 
+function getGMStoryTriggerLabel(triggerType, triggerValue) {
+  const type = String(triggerType || 'manual');
+  const value = String(triggerValue || '').trim();
+  if (type === 'hex') return value ? ('Hex: ' + value) : 'Hex trigger';
+  if (type === 'mission') return value ? ('Mission: ' + value) : 'Mission trigger';
+  return 'Manual trigger';
+}
+
 function openGMStoryComposer() {
   ensureGMStoryState();
   if (typeof openModal !== 'function') return;
@@ -1611,11 +1634,17 @@ function openGMStoryComposer() {
     + '<input id="gmOutcome2" placeholder="Choice 2 outcome" style="margin-bottom:.2rem;" />'
     + '<input id="gmChoice3" placeholder="Choice 3 text" style="margin-bottom:.2rem;" />'
     + '<input id="gmOutcome3" placeholder="Choice 3 outcome" style="margin-bottom:.2rem;" />'
+    + '<div style="display:flex;gap:.35rem;align-items:center;margin:.3rem 0;flex-wrap:wrap;">'
+    + '<label style="font-size:.74rem;color:var(--muted2);">Trigger</label>'
+    + '<select id="gmStoryTriggerType"><option value="manual">Manual</option><option value="hex">Hex</option><option value="mission">Mission</option></select>'
+    + '<input id="gmStoryTriggerValue" placeholder="Hex [x,y] or mission id" style="flex:1;min-width:180px;" />'
+    + '</div>'
     + '<div style="display:flex;gap:.35rem;align-items:center;margin:.3rem 0;">'
     + '<label style="font-size:.74rem;color:var(--muted2);">Dread Override</label>'
     + '<select id="gmStoryDread"><option value="">None</option><option>4</option><option>6</option><option>8</option><option>10</option><option>12</option></select>'
     + '</div>'
     + '<div style="display:flex;gap:.35rem;justify-content:flex-end;">'
+    + '<button class="btn btn-sm" onclick="openGMStoryGraph()">Graph</button>'
     + '<button class="btn btn-sm" onclick="openGMStoryLibrary()">Library</button>'
     + '<button class="btn btn-sm btn-teal" onclick="saveGMStoryNode()">Save Scene</button>'
     + '</div>'
@@ -1636,6 +1665,8 @@ function saveGMStoryNode() {
     return text ? { text: text, outcome: outcome || 'No immediate outcome.' } : null;
   };
   const choices = [mkChoice(1), mkChoice(2), mkChoice(3)].filter(Boolean);
+  const triggerType = String((document.getElementById('gmStoryTriggerType') || {}).value || 'manual');
+  const triggerValue = String((document.getElementById('gmStoryTriggerValue') || {}).value || '').trim();
   const dreadRaw = String((document.getElementById('gmStoryDread') || {}).value || '').trim();
   const dreadOverride = dreadRaw ? parseInt(dreadRaw, 10) : null;
   S.gmStoryState.nodes.push({
@@ -1643,6 +1674,8 @@ function saveGMStoryNode() {
     title: title,
     prompt: prompt,
     choices: choices,
+    triggerType: triggerType,
+    triggerValue: triggerValue,
     dreadOverride: Number.isFinite(dreadOverride) ? dreadOverride : null,
     createdAt: Date.now()
   });
@@ -1657,7 +1690,7 @@ function openGMStoryLibrary() {
   const rows = nodes.length
     ? nodes.map(function (node, idx) {
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;padding:.25rem 0;border-bottom:1px solid var(--border);">'
-        + '<div style="font-size:.78rem;color:var(--text2);">' + node.title + '</div>'
+        + '<div style="font-size:.78rem;color:var(--text2);">' + node.title + '<div style="font-size:.68rem;color:var(--muted2);">' + getGMStoryTriggerLabel(node.triggerType, node.triggerValue) + '</div></div>'
         + '<button class="btn btn-xs btn-teal" onclick="runGMStoryNode(' + idx + ')">Run</button>'
         + '</div>';
     }).join('')
@@ -1666,8 +1699,82 @@ function openGMStoryLibrary() {
     + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
     + rows
     + '<div style="margin-top:.45rem;display:flex;justify-content:flex-end;">'
+    + '<button class="btn btn-sm" onclick="openGMStoryGraph()">Open Graph</button>'
     + '<button class="btn btn-sm" onclick="openGMStoryComposer()">Back To Composer</button>'
     + '</div></div>');
+}
+
+function openGMStoryGraph() {
+  ensureGMStoryState();
+  const nodes = S.gmStoryState.nodes || [];
+  if (!nodes.length) {
+    openModal('GM Story Graph', '<div style="font-size:.82rem;color:var(--muted2);">No story nodes yet. Save at least one scene first.</div>');
+    return;
+  }
+  const width = 860;
+  const lane = 120;
+  const nodeW = 180;
+  const nodeH = 64;
+  const padX = 34;
+  const padY = 34;
+  const positions = nodes.map(function (node, idx) {
+    const x = padX + idx * (nodeW + 38);
+    const y = padY + (idx % 3) * lane;
+    return { x: x, y: y, idx: idx, node: node };
+  });
+  const maxX = Math.max.apply(null, positions.map(function (p) { return p.x; })) + nodeW + padX;
+  const maxY = Math.max.apply(null, positions.map(function (p) { return p.y; })) + nodeH + padY;
+  const viewW = Math.max(width, maxX);
+  const viewH = Math.max(320, maxY);
+
+  const edges = positions.slice(1).map(function (p) {
+    const prev = positions[p.idx - 1];
+    return '<line x1="' + (prev.x + nodeW) + '" y1="' + (prev.y + (nodeH / 2)) + '" x2="' + p.x + '" y2="' + (p.y + (nodeH / 2)) + '" stroke="var(--border2)" stroke-width="2" marker-end="url(#gmArrow)" />';
+  }).join('');
+
+  const boxes = positions.map(function (p) {
+    const trigger = getGMStoryTriggerLabel(p.node.triggerType, p.node.triggerValue);
+    const safeTitle = String(p.node.title || 'Untitled').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safeTrigger = String(trigger || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return ''
+      + '<g>'
+      + '<rect x="' + p.x + '" y="' + p.y + '" width="' + nodeW + '" height="' + nodeH + '" rx="8" fill="rgba(15,16,32,.95)" stroke="var(--gold)" stroke-width="1.2" />'
+      + '<text x="' + (p.x + 8) + '" y="' + (p.y + 22) + '" fill="var(--gold2)" font-size="12" font-family="Cinzel, serif">' + safeTitle + '</text>'
+      + '<text x="' + (p.x + 8) + '" y="' + (p.y + 40) + '" fill="var(--muted2)" font-size="10" font-family="Rajdhani, sans-serif">' + safeTrigger + '</text>'
+      + '<foreignObject x="' + (p.x + nodeW - 64) + '" y="' + (p.y + nodeH - 24) + '" width="58" height="20">'
+      + '<button xmlns="http://www.w3.org/1999/xhtml" class="btn btn-xs btn-teal" style="padding:.1rem .3rem;font-size:.62rem;min-height:1.2rem;" onclick="runGMStoryNode(' + p.idx + ')">Run</button>'
+      + '</foreignObject>'
+      + '</g>';
+  }).join('');
+
+  openModal('GM Story Graph', ''
+    + '<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.35rem;">Visual flow of authored scenes. Triggers are shown on each node.</div>'
+    + '<div style="overflow:auto;border:1px solid var(--border2);background:#0b0f1a;">'
+    + '<svg width="' + viewW + '" height="' + viewH + '" viewBox="0 0 ' + viewW + ' ' + viewH + '">'
+    + '<defs><marker id="gmArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,4 L0,8 z" fill="var(--border2)" /></marker></defs>'
+    + edges
+    + boxes
+    + '</svg>'
+    + '</div>'
+    + '<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.45rem;">'
+    + '<button class="btn btn-sm" onclick="openGMStoryLibrary()">Open Library</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="openGMStoryComposer()">Add Node</button>'
+    + '</div>');
+}
+
+function runGMStoryByTrigger(triggerType, triggerValue) {
+  ensureGMStoryState();
+  const type = String(triggerType || '').trim();
+  const value = String(triggerValue || '').trim();
+  const nodes = S.gmStoryState.nodes || [];
+  const idx = nodes.findIndex(function (node) {
+    return String(node.triggerType || 'manual') === type && String(node.triggerValue || '').trim() === value;
+  });
+  if (idx < 0) {
+    showNotif('No GM story node matched trigger ' + type + ':' + value, 'warn');
+    return;
+  }
+  runGMStoryNode(idx);
 }
 
 function runGMStoryNode(index) {

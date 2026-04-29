@@ -223,6 +223,9 @@
               <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
                 <button id="gmRevealDCBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('dc')">Reveal DC: ${Settings.gmRevealDC ? 'On' : 'Off'}</button>
                 <button id="gmRevealHiddenBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('hidden')">Reveal Hidden Info: ${Settings.gmRevealHiddenInfo ? 'On' : 'Off'}</button>
+                <button class="btn btn-xs" onclick="if(typeof openGMStoryComposer==='function'){openGMStoryComposer();}">Story Composer</button>
+                <button class="btn btn-xs" onclick="if(typeof openGMHexMarkerEditor==='function'){openGMHexMarkerEditor();}">Hex Marker</button>
+                <button class="btn btn-xs" onclick="if(typeof openGMDreadDirector==='function'){openGMDreadDirector();}">Dread Director</button>
               </div>
             </div>
           </div>

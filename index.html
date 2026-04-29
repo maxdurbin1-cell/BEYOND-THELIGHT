@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BEYOND: The Light — Digital Companion</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="./beyond-light-expansion.css">
 <link rel="stylesheet" href="./faction-intro-system.css">
 <link rel="stylesheet" href="./settings-system.css">
@@ -23,7 +25,7 @@ header{background:linear-gradient(180deg,#040508 0%,rgba(11,12,26,.98) 100%);bor
 .logo{font-family:'Cinzel Decorative',serif;font-size:1.08rem;font-weight:700;color:var(--gold);letter-spacing:.12em;white-space:nowrap;text-shadow:0 0 30px rgba(201,162,39,.4);flex-shrink:0;}
 .logo span{color:var(--teal);}
 nav{display:flex;gap:.15rem;flex-wrap:wrap;}
-.tab-btn{background:transparent;border:1px solid transparent;color:var(--muted2);font-family:'Cinzel',serif;font-size:.74rem;letter-spacing:.13em;padding:.4rem .92rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;}
+.tab-btn{background:transparent;border:1px solid transparent;color:var(--muted2);font-family:'Cinzel',serif;font-size:.74rem;letter-spacing:.13em;padding:.4rem .92rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.3rem;}
 .tab-btn:hover{color:var(--gold);border-color:var(--border2);}
 .tab-btn.active{color:var(--gold);border-color:rgba(201,162,39,.5);background:rgba(201,162,39,.07);}
 .header-credits{margin-left:auto;display:flex;align-items:center;gap:.5rem;cursor:pointer;padding:.25rem .6rem;border:1px solid var(--border);transition:border-color .15s;}
@@ -45,7 +47,7 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
 .sub-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.24rem;}
 .card{background:var(--card);border:1px solid var(--border);padding:.7rem;}
-.btn{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;letter-spacing:.08em;padding:.42rem .95rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;}
+.btn{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;letter-spacing:.08em;padding:.42rem .95rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.25rem;}
 .btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.05);}
 .btn-primary{border-color:rgba(201,162,39,.6);color:var(--gold);background:rgba(201,162,39,.07);}
 .btn-primary:hover{background:rgba(201,162,39,.14);border-color:var(--gold);}
@@ -58,7 +60,7 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .btn-sm{padding:.28rem .62rem;font-size:.8rem;}
 .btn-xs{padding:.2rem .48rem;font-size:.74rem;}
 .btn-icon{padding:.25rem .45rem;font-size:.9rem;line-height:1;}
-.step-btn{width:1.45rem;height:1.45rem;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.step-btn{width:1.65rem;height:1.65rem;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
 .step-btn:hover{border-color:var(--teal);color:var(--teal);}
 input[type="text"],input[type="number"],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'Crimson Pro',serif;font-size:.9rem;padding:.3rem .5rem;width:100%;outline:none;transition:border-color .15s;}
 input:focus,select:focus,textarea:focus{border-color:var(--teal);}
@@ -95,7 +97,7 @@ select option{background:#0f1020;}
 .bp-info-btn:hover{color:var(--gold);border-color:var(--gold);}
 .ctx-bar{display:flex;gap:.3rem;align-items:center;margin-bottom:.35rem;flex-wrap:wrap;}
 .ctx-lbl{font-family:'Cinzel',sans-serif;font-size:.66rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-right:.3rem;}
-.ctx-btn{background:transparent;border:1px solid var(--border2);color:var(--muted2);font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;padding:.25rem .62rem;cursor:pointer;border-radius:2px;text-transform:uppercase;transition:all .15s;}
+.ctx-btn{background:transparent;border:1px solid var(--border2);color:var(--muted2);font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;padding:.25rem .62rem;cursor:pointer;border-radius:2px;text-transform:uppercase;transition:all .15s;min-height:2rem;}
 .ctx-btn:hover{color:var(--gold);}
 .ctx-btn.on{color:var(--gold);border-color:var(--gold);background:rgba(201,162,39,.08);}
 .map-layout{display:grid;grid-template-columns:1fr 380px;gap:.65rem;height:calc(100vh - 160px);}
@@ -285,7 +287,7 @@ select option{background:#0f1020;}
     <button class="ctx-btn" data-ctx="sea" aria-pressed="false" onclick="setContext('sea',this)">⚓ At Sea</button>
     <button class="ctx-btn" data-ctx="space" aria-pressed="false" onclick="setContext('space',this)">🚀 Space</button>
   </div>
-  <nav aria-label="Main navigation" role="tablist" id="mainNavTablist">
+  <nav aria-label="Main navigation" id="mainNavTablist">
     <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" style="display:none;" onclick="switchTab('character',this)">Character</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" style="display:none;" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" style="display:none;" onclick="switchTab('codex',this)">Codex</button>
@@ -331,6 +333,8 @@ select option{background:#0f1020;}
       <button class="btn" onclick="saveCharacter()">💾 Save</button>
       <button class="btn" onclick="loadCharacter()">📂 Load</button>
       <button class="btn" onclick="exportCharacterSave()">Export</button>
+      <button class="btn" onclick="exportWayfarerSheetPDF()">Wayfarer PDF</button>
+      <button class="btn" onclick="exportWayfarerSheetImage()">Wayfarer PNG</button>
       <button class="btn" onclick="importCharacterSavePrompt()">Import</button>
       <button class="btn btn-sm" onclick="verifySoloSaveHealth()">Save Health</button>
       <button class="btn btn-sm" onclick="openSoloRecoveryCenter()">Recovery</button>
@@ -2117,22 +2121,28 @@ function triggerEnemyActionEvent(){
   var dr=rollEnemyDreadWithEffects(actingEnemy,'Enemy Event DD');
   var dd=dr.effectiveDie;
   var summary='';
+  var actionFailed=false;
+  var supportsSave=false;
 
   if(ev.kind==='defendCheck'){
+    supportsSave=true;
     var defDie=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):(S.stats.defend||4);
     var pr=explodingRoll(defDie,{type:'action',major:true,label:'Defend'});
     if(pr.total<dr.total){
       var dmg=Math.max(1,(dr.total-pr.total)+(ev.bonus||0));
       changeStress(dmg);
+      actionFailed=true;
       summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+dr.total+' — failed, '+dmg+' Stress.';
     }else{
       summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+dr.total+' — blocked.';
     }
   }else if(ev.kind==='saveCondition'){
+    supportsSave=true;
     var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats[ev.stat]||4);
     var sr=explodingRoll(statDie,{type:'action',major:true,label:String(ev.stat||'Check').toUpperCase()});
     var ok=sr.total>=dr.total;
     if(!ok){
+      actionFailed=true;
       S.conditions[ev.condition]=true;
       if(typeof updateConditionButtons==='function')updateConditionButtons();
       if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
@@ -2143,9 +2153,17 @@ function triggerEnemyActionEvent(){
     changeStress(sDmg);
     summary='Direct hit — '+sDmg+' Stress.';
   }else if(ev.kind==='radiation'){
-    var rGain=Math.max(5,dr.total*(ev.scale||6));
-    if(typeof changeRads==='function')changeRads(rGain);
-    summary='Radiation surge — +'+rGain+' Rads.';
+    supportsSave=true;
+    var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
+    var spiritRoll=explodingRoll(spiritDie,{type:'action',major:true,label:'SPIRIT'});
+    if(spiritRoll.total>=dr.total){
+      summary='Spirit d'+spiritDie+'='+spiritRoll.total+' vs DD'+dd+'='+dr.total+' — resisted radiation leak.';
+    }else{
+      actionFailed=true;
+      var rGain=Math.max(5,dr.total*(ev.scale||6));
+      if(typeof changeRads==='function')changeRads(rGain);
+      summary='Spirit d'+spiritDie+'='+spiritRoll.total+' vs DD'+dd+'='+dr.total+' — failed, +'+rGain+' Rads.';
+    }
   }else if(ev.kind==='healthStrike'){
     var hDmg=Math.max(1,Math.ceil(dr.total/(ev.scale||4)));
     if(typeof changeHealth==='function')changeHealth(hDmg);else changeStress(hDmg);
@@ -2158,9 +2176,9 @@ function triggerEnemyActionEvent(){
     return;
   }
 
-  if(((dr.roll&&dr.roll.exploded)||(dr.baseRoll&&dr.baseRoll.exploded)||(dr.highRoll&&dr.highRoll.exploded)) && typeof registerIncomingCritical==='function'){
+  if(supportsSave&&actionFailed&&((dr.roll&&dr.roll.exploded)||(dr.baseRoll&&dr.baseRoll.exploded)||(dr.highRoll&&dr.highRoll.exploded)) && typeof registerIncomingCritical==='function'){
     registerIncomingCritical('Enemy Action Dread Critical');
-    summary += ' Dread exploded: Injury rolled.';
+    summary += ' Dread exploded on failed save: Injury rolled.';
   }
 
   if(dr.disadvantage){
@@ -6312,21 +6330,21 @@ document.addEventListener('DOMContentLoaded',()=>{
   },300);
 });
 </script>
-<script src="./audio-manager.js"></script>
-<script src="./settings-system.js"></script>
-<script src="./beyond-light-missing-functions.js"></script>
-<script src="./beyond-light-expansion.js"></script>
-<script src="./missions-system.js"></script>
-<script src="./jobs-integration.js"></script>
-<script src="./new-features.js"></script>
-<script src="./task-and-exploration-system.js"></script>
-<script src="./stars-expansion.js"></script>
-<script src="./storyline-system.js"></script>
-<script src="./world-that-was.js"></script>
-<script src="./shared-puzzles.js"></script>
-<script src="./economy-ledger-system.js"></script>
-<script src="./teamwork-rules-system.js"></script>
-<script src="./audit-panel-ui.js"></script>
+<script defer src="./audio-manager.js"></script>
+<script defer src="./settings-system.js"></script>
+<script defer src="./beyond-light-missing-functions.js"></script>
+<script defer src="./beyond-light-expansion.js"></script>
+<script defer src="./missions-system.js"></script>
+<script defer src="./jobs-integration.js"></script>
+<script defer src="./new-features.js"></script>
+<script defer src="./task-and-exploration-system.js"></script>
+<script defer src="./stars-expansion.js"></script>
+<script defer src="./storyline-system.js"></script>
+<script defer src="./world-that-was.js"></script>
+<script defer src="./shared-puzzles.js"></script>
+<script defer src="./economy-ledger-system.js"></script>
+<script defer src="./teamwork-rules-system.js"></script>
+<script defer src="./audit-panel-ui.js"></script>
 
 <!-- ── QUICK PANEL ── -->
 <button id="quickPanelToggle" onclick="toggleQuickPanel()" aria-expanded="false" aria-controls="quickPanel" aria-label="Toggle Quick Panel">⚙ Quick&nbsp;Panel</button>
@@ -7800,13 +7818,13 @@ document.addEventListener('DOMContentLoaded',()=>{
 </div>
 
 <!-- SCRIPT INCLUDES FOR NEW SYSTEMS -->
-<script src="./faction-system.js"></script>
-<script src="./intro-system.js"></script>
-<script src="./storyline-choices-system.js"></script>
-<script src="./solo-reference.js"></script>
-<script src="./gm-dashboard.js"></script>
-<script src="/socket.io/socket.io.js"></script>
-<script src="./campaign-system.js"></script>
+<script defer src="./faction-system.js"></script>
+<script defer src="./intro-system.js"></script>
+<script defer src="./storyline-choices-system.js"></script>
+<script defer src="./solo-reference.js"></script>
+<script defer src="./gm-dashboard.js"></script>
+<script defer src="/socket.io/socket.io.js"></script>
+<script defer src="./campaign-system.js"></script>
 
 </body>
 </html>

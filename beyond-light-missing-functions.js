@@ -844,6 +844,30 @@ function syncCharacterFields() {
   S.backpack.forEach((item, index) => setInputValue("bp" + index, item));
 }
 
+function applyFallbackAriaLabels() {
+  const controls = document.querySelectorAll('input,select,textarea');
+  controls.forEach(function (el) {
+    if (!el || el.getAttribute('aria-label') || el.getAttribute('aria-labelledby')) return;
+    const explicit = el.getAttribute('placeholder') || el.getAttribute('name') || '';
+    const id = el.id || '';
+    let inferred = explicit;
+    if (!inferred && id) {
+      inferred = id
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\d+/g, ' $& ')
+        .trim();
+    }
+    if (inferred) {
+      el.setAttribute('aria-label', inferred);
+    }
+  });
+}
+
+setTimeout(function () {
+  try { applyFallbackAriaLabels(); } catch (_err) {}
+}, 400);
+
 function rollName() {
   S.name = pick(Math.random() < 0.5 ? NAMES.f : NAMES.m) + " " + pick(NAMES.l);
   setInputValue("charName", S.name);
@@ -1067,6 +1091,7 @@ function generateCharacter() {
   rollAllTraits();
   S.stats.adventure = pick([4, 6, 8]);
   S.credits = rollMulti(6, 2) * 10;
+  S.health = (S.stats.defend || 4) * 2;
   S.renown = 0;
   S.stress = 0;
   S.trauma = 0;
@@ -1080,6 +1105,9 @@ function generateCharacter() {
   updateCreditsUI();
   updateRenown();
   updateTrauma();
+  if (typeof updateHealthUI === 'function') updateHealthUI();
+  if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
+  if (typeof updateScarUI === 'function') updateScarUI();
   updateTMWPool();
   changeCounter("pathTokens", 0);
   changeCounter("successRolls", 0);
@@ -1140,6 +1168,8 @@ function clearCharacter(options) {
   updateTMWPool();
   if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
   if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
+  if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
+  if (typeof updateScarUI === 'function') updateScarUI();
   _lastSoloLoadedChecksum = computeSaveChecksum(JSON.stringify(S || {}));
 }
 
@@ -1306,7 +1336,7 @@ function openClearCharacterConfirmModal() {
       + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;margin-top:.6rem;">'
       + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
       + '<button class="btn btn-sm" onclick="saveCharacter(); closeModal();">Save Instead</button>'
-      + '<button class="btn btn-sm btn-red" onclick="closeModal(); confirmClearCharacter()">Clear Anyway</button>'
+      + '<button class="btn btn-sm btn-red" onclick="closeModal(); clearCharacter({force:true})">Clear Anyway</button>'
       + '</div>'
       + '</div>');
     return;
@@ -1319,6 +1349,8 @@ function openClearCharacterConfirmModal() {
 function confirmClearCharacter() {
   clearCharacter({ force: true });
 }
+
+window.confirmClearCharacter = confirmClearCharacter;
 
 function applyLoadedCharacterState(saved) {
   S = {
@@ -1474,6 +1506,253 @@ function exportCharacterSave() {
   } catch (_err) {
     showNotif("Could not export save", "warn");
   }
+}
+
+function exportWayfarerSheetPDF() {
+  try {
+    const node = document.getElementById('tab-character');
+    if (!node) {
+      showNotif('Wayfarer tab not found', 'warn');
+      return;
+    }
+    const w = window.open('', '_blank', 'width=1080,height=900');
+    if (!w) {
+      showNotif('Popup blocked. Allow popups to export PDF.', 'warn');
+      return;
+    }
+    const cssLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(function(link) {
+      return '<link rel="stylesheet" href="' + link.href + '">';
+    }).join('');
+    w.document.open();
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Wayfarer Sheet</title>'
+      + cssLinks
+      + '<style>body{background:#fff;color:#111;padding:12px;} header,#globalQuickAccess,.ctx-bar,.quick-nav{display:none!important;} .tab-panel{display:block!important;min-height:auto!important;} button{display:none!important;} @media print{body{padding:0;} .card{break-inside:avoid;}}</style>'
+      + '</head><body>'
+      + '<h1 style="font:700 20px Cinzel,serif;margin:0 0 8px;">Wayfarer Sheet</h1>'
+      + node.outerHTML
+      + '<script>setTimeout(function(){window.print();},220);</script>'
+      + '</body></html>');
+    w.document.close();
+    showNotif('Wayfarer PDF print view opened', 'good');
+  } catch (_err) {
+    showNotif('Could not prepare Wayfarer PDF export', 'warn');
+  }
+}
+
+function loadScriptOnce(url, globalName, cb) {
+  if (globalName && window[globalName]) {
+    cb(true);
+    return;
+  }
+  const existing = document.querySelector('script[data-lib="' + url + '"]');
+  if (existing) {
+    existing.addEventListener('load', function () { cb(!!(globalName ? window[globalName] : true)); }, { once: true });
+    existing.addEventListener('error', function () { cb(false); }, { once: true });
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = url;
+  script.async = true;
+  script.dataset.lib = url;
+  script.onload = function () { cb(!!(globalName ? window[globalName] : true)); };
+  script.onerror = function () { cb(false); };
+  document.head.appendChild(script);
+}
+
+function exportWayfarerSheetImage() {
+  const node = document.getElementById('tab-character');
+  if (!node) {
+    showNotif('Wayfarer tab not found', 'warn');
+    return;
+  }
+  loadScriptOnce('https://unpkg.com/dom-to-image-more@3.3.0/dist/dom-to-image-more.min.js', 'domtoimage', function (ok) {
+    if (!ok || !window.domtoimage) {
+      showNotif('Image export library failed to load', 'warn');
+      return;
+    }
+    window.domtoimage.toPng(node, {
+      bgcolor: '#0b0c1a',
+      quality: 1,
+      width: node.scrollWidth,
+      height: node.scrollHeight,
+      style: { transform: 'scale(1)', transformOrigin: 'top left' }
+    }).then(function (dataUrl) {
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'wayfarer-sheet-' + Date.now() + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showNotif('Wayfarer image downloaded', 'good');
+    }).catch(function () {
+      showNotif('Could not export Wayfarer image', 'warn');
+    });
+  });
+}
+
+function ensureGMStoryState() {
+  if (!S.gmStoryState || typeof S.gmStoryState !== 'object') {
+    S.gmStoryState = { nodes: [] };
+  }
+  if (!Array.isArray(S.gmStoryState.nodes)) S.gmStoryState.nodes = [];
+}
+
+function openGMStoryComposer() {
+  ensureGMStoryState();
+  if (typeof openModal !== 'function') return;
+  openModal('GM Story Composer', ''
+    + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+    + '<div style="margin-bottom:.35rem;">Create a scene node with up to 3 dialogue choices.</div>'
+    + '<input id="gmStoryTitle" placeholder="Scene title" style="margin-bottom:.25rem;" />'
+    + '<textarea id="gmStoryPrompt" placeholder="Scene prompt / narration" style="min-height:90px;margin-bottom:.25rem;"></textarea>'
+    + '<input id="gmChoice1" placeholder="Choice 1 text" style="margin-bottom:.2rem;" />'
+    + '<input id="gmOutcome1" placeholder="Choice 1 outcome" style="margin-bottom:.2rem;" />'
+    + '<input id="gmChoice2" placeholder="Choice 2 text" style="margin-bottom:.2rem;" />'
+    + '<input id="gmOutcome2" placeholder="Choice 2 outcome" style="margin-bottom:.2rem;" />'
+    + '<input id="gmChoice3" placeholder="Choice 3 text" style="margin-bottom:.2rem;" />'
+    + '<input id="gmOutcome3" placeholder="Choice 3 outcome" style="margin-bottom:.2rem;" />'
+    + '<div style="display:flex;gap:.35rem;align-items:center;margin:.3rem 0;">'
+    + '<label style="font-size:.74rem;color:var(--muted2);">Dread Override</label>'
+    + '<select id="gmStoryDread"><option value="">None</option><option>4</option><option>6</option><option>8</option><option>10</option><option>12</option></select>'
+    + '</div>'
+    + '<div style="display:flex;gap:.35rem;justify-content:flex-end;">'
+    + '<button class="btn btn-sm" onclick="openGMStoryLibrary()">Library</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="saveGMStoryNode()">Save Scene</button>'
+    + '</div>'
+    + '</div>');
+}
+
+function saveGMStoryNode() {
+  ensureGMStoryState();
+  const title = String((document.getElementById('gmStoryTitle') || {}).value || '').trim();
+  const prompt = String((document.getElementById('gmStoryPrompt') || {}).value || '').trim();
+  if (!title || !prompt) {
+    showNotif('Scene title and prompt are required', 'warn');
+    return;
+  }
+  const mkChoice = function (idx) {
+    const text = String((document.getElementById('gmChoice' + idx) || {}).value || '').trim();
+    const outcome = String((document.getElementById('gmOutcome' + idx) || {}).value || '').trim();
+    return text ? { text: text, outcome: outcome || 'No immediate outcome.' } : null;
+  };
+  const choices = [mkChoice(1), mkChoice(2), mkChoice(3)].filter(Boolean);
+  const dreadRaw = String((document.getElementById('gmStoryDread') || {}).value || '').trim();
+  const dreadOverride = dreadRaw ? parseInt(dreadRaw, 10) : null;
+  S.gmStoryState.nodes.push({
+    id: Date.now(),
+    title: title,
+    prompt: prompt,
+    choices: choices,
+    dreadOverride: Number.isFinite(dreadOverride) ? dreadOverride : null,
+    createdAt: Date.now()
+  });
+  showNotif('GM scene saved', 'good');
+  openGMStoryLibrary();
+}
+
+function openGMStoryLibrary() {
+  ensureGMStoryState();
+  if (typeof openModal !== 'function') return;
+  const nodes = S.gmStoryState.nodes || [];
+  const rows = nodes.length
+    ? nodes.map(function (node, idx) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;padding:.25rem 0;border-bottom:1px solid var(--border);">'
+        + '<div style="font-size:.78rem;color:var(--text2);">' + node.title + '</div>'
+        + '<button class="btn btn-xs btn-teal" onclick="runGMStoryNode(' + idx + ')">Run</button>'
+        + '</div>';
+    }).join('')
+    : '<div style="font-size:.78rem;color:var(--muted2);">No saved GM scenes yet.</div>';
+  openModal('GM Story Library', ''
+    + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+    + rows
+    + '<div style="margin-top:.45rem;display:flex;justify-content:flex-end;">'
+    + '<button class="btn btn-sm" onclick="openGMStoryComposer()">Back To Composer</button>'
+    + '</div></div>');
+}
+
+function runGMStoryNode(index) {
+  ensureGMStoryState();
+  const node = (S.gmStoryState.nodes || [])[Number(index) || 0];
+  if (!node) {
+    showNotif('Story scene not found', 'warn');
+    return;
+  }
+  const choices = (node.choices || []).slice(0, 3);
+  const choiceBtns = choices.length
+    ? choices.map(function (choice, idx) {
+      return '<button class="btn btn-xs btn-teal" style="width:100%;text-align:left;" onclick="resolveGMStoryChoice(' + Number(index) + ',' + idx + ')">' + choice.text + '</button>';
+    }).join('')
+    : '<div style="font-size:.76rem;color:var(--muted2);">No choices configured for this scene.</div>';
+  openModal('GM Scene: ' + node.title, ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+    + '<div style="margin-bottom:.45rem;">' + node.prompt + '</div>'
+    + '<div style="display:grid;gap:.25rem;">' + choiceBtns + '</div>'
+    + '</div>');
+}
+
+function resolveGMStoryChoice(nodeIndex, choiceIndex) {
+  ensureGMStoryState();
+  const node = (S.gmStoryState.nodes || [])[Number(nodeIndex) || 0];
+  if (!node) return;
+  const choice = (node.choices || [])[Number(choiceIndex) || 0];
+  if (!choice) return;
+  if (node.dreadOverride && typeof setEnemyDread === 'function') {
+    setEnemyDread(node.dreadOverride);
+  }
+  showNotif('GM choice resolved: ' + choice.text, 'good');
+  if (typeof openModal === 'function') {
+    openModal('Scene Outcome', '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="margin-bottom:.35rem;"><strong>' + choice.text + '</strong></div>'
+      + '<div>' + choice.outcome + '</div>'
+      + (node.dreadOverride ? '<div style="margin-top:.35rem;color:var(--gold2);">Enemy Dread set to d' + node.dreadOverride + '.</div>' : '')
+      + '</div>');
+  }
+}
+
+function openGMHexMarkerEditor() {
+  if (!window.selectedHex) {
+    showNotif('Select a hex first on the map', 'warn');
+    return;
+  }
+  if (typeof openModal !== 'function') return;
+  const existing = (window.selectedHex.data && window.selectedHex.data.gmMarker) ? String(window.selectedHex.data.gmMarker) : '';
+  openModal('GM Hex Marker', ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+    + '<div style="margin-bottom:.35rem;">Add a GM-only marker note for Hex [' + (window.selectedHex.col + 1) + ',' + (window.selectedHex.row + 1) + '].</div>'
+    + '<input id="gmHexMarkerInput" placeholder="Hidden cache, ambush trigger, clue..." value="' + existing.replace(/"/g, '&quot;') + '" />'
+    + '<div style="display:flex;justify-content:flex-end;gap:.35rem;margin-top:.5rem;">'
+    + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="saveGMHexMarker()">Save Marker</button>'
+    + '</div></div>');
+}
+
+function saveGMHexMarker() {
+  if (!window.selectedHex) return;
+  window.selectedHex.data = window.selectedHex.data || {};
+  const marker = String((document.getElementById('gmHexMarkerInput') || {}).value || '').trim();
+  if (marker) {
+    window.selectedHex.data.gmMarker = marker;
+  } else {
+    delete window.selectedHex.data.gmMarker;
+  }
+  if (typeof renderHexInfo === 'function') renderHexInfo(window.selectedHex);
+  if (typeof closeModal === 'function') closeModal();
+  showNotif(marker ? 'GM marker saved on selected hex' : 'GM marker cleared', 'good');
+}
+
+function openGMDreadDirector() {
+  if (typeof openModal !== 'function') return;
+  const current = S && S.combat && S.combat.enemyDread ? S.combat.enemyDread : 8;
+  openModal('GM Dread Director', ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+    + '<div style="margin-bottom:.35rem;">Set global enemy dread pressure for the current scene.</div>'
+    + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+    + [4,6,8,10,12].map(function (d) {
+      const active = d === current;
+      return '<button class="btn btn-xs ' + (active ? 'btn-teal' : '') + '" onclick="if(typeof setEnemyDread===\'function\'){setEnemyDread(' + d + ');} showNotif(\'Enemy Dread set to d' + d + '\',\'good\');">d' + d + '</button>';
+    }).join('')
+    + '</div>'
+    + '</div>');
 }
 
 function importCharacterSavePrompt() {

@@ -8056,6 +8056,9 @@ function rollInjury() {
   if (S.injuries.length < 3) {
     S.injuries.push(finalResult);
     updateInjuriesUI();
+    if (checkCriticalInjuryDeath()) {
+      return finalResult;
+    }
   } else {
     showNotif('3 Injuries reached — rolling Scar check.', 'warn');
     handleScarEncounter({ source: 'injury-limit' });
@@ -8070,11 +8073,41 @@ function rollCriticalInjury() {
   if (S.injuries.length < 3) {
     S.injuries.push('CRITICAL: ' + result);
     updateInjuriesUI();
+    if (checkCriticalInjuryDeath()) {
+      return result;
+    }
   } else {
     showNotif('3 Injuries reached — rolling Scar check.', 'warn');
     handleScarEncounter({ source: 'injury-limit' });
   }
   return result;
+}
+
+function getCriticalInjuryCount() {
+  ensureStarsState();
+  return (S.injuries || []).filter((inj) => String(inj || '').indexOf('CRITICAL:') === 0).length;
+}
+
+function processCriticalInjuryDeath() {
+  ensureStarsState();
+  S.characterDead = true;
+  if (typeof endCombat === 'function') {
+    try { endCombat(); } catch (_err) {}
+  }
+  if (typeof openModal === 'function') {
+    openModal('Critical Injury Overload', '<div style="font-size:.86rem;color:var(--text2);line-height:1.65;">'
+      + 'You suffered <strong style="color:var(--red2);">3 Critical Injuries</strong>.\n'
+      + 'Your Wayfarer is lost. Begin a new journey or load a recovery save/checkpoint.'
+      + '</div>');
+  }
+  showNotif('3 Critical Injuries reached: character death.', 'warn');
+}
+
+function checkCriticalInjuryDeath() {
+  const count = getCriticalInjuryCount();
+  if (count < 3) return false;
+  processCriticalInjuryDeath();
+  return true;
 }
 
 function registerIncomingCritical(sourceLabel) {
@@ -8098,7 +8131,12 @@ function updateInjuriesUI() {
     el.innerHTML = '<div style="font-size:.77rem;color:var(--muted2);">No injuries.</div>';
     return;
   }
-  el.innerHTML = injuries.map((inj, i) => `
+  const criticalCount = injuries.filter((inj) => String(inj || '').indexOf('CRITICAL:') === 0).length;
+  const deathLine = criticalCount
+    ? `<div style="font-size:.72rem;color:${criticalCount >= 3 ? 'var(--red2)' : 'var(--gold2)'};margin-bottom:.2rem;">Critical Injuries: ${criticalCount}/3${criticalCount >= 3 ? ' (DEAD)' : ''}</div>`
+    : '';
+
+  el.innerHTML = deathLine + injuries.map((inj, i) => `
     <div class="injury-slot ${inj.startsWith('CRITICAL') ? 'injury-critical' : ''}">
       <span>${inj.startsWith('CRITICAL') ? '💀 ' : '🩸 '}</span>
       <span style="flex:1;font-size:.77rem;line-height:1.4;">${inj}</span>

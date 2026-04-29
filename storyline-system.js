@@ -4280,7 +4280,6 @@
     patchSwitchTabForStory();
     patchLoadForStory();
     patchStoryWheelHotkeys();
-    renderStorylinePanel();
   });
 
   window.renderStorylinePanel = renderStorylinePanel;

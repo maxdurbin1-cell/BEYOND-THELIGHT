@@ -2497,6 +2497,32 @@
   }
 
   // ── SYNC HOOKS ────────────────────────────────────────────────────────────────
+  function runWhenIdle(fn, timeoutMs) {
+    if (typeof fn !== "function") { return; }
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(fn, { timeout: timeoutMs || 900 });
+      return;
+    }
+    setTimeout(fn, Math.min(250, Math.max(0, timeoutMs || 120)));
+  }
+
+  function patchTabSwitchForNewFeatures() {
+    if (typeof window.switchTab !== "function" || window._newFeaturesSwitchPatched) { return; }
+    window._newFeaturesSwitchPatched = true;
+    var baseSwitch = window.switchTab;
+    window.switchTab = function(tabId, btn) {
+      var out = baseSwitch.apply(this, arguments);
+      if (tabId === "caravan") {
+        mountCaravanPanel();
+        renderCaravanUI();
+      } else if (tabId === "holding") {
+        mountHoldingPanel();
+        renderHoldingUI();
+      }
+      return out;
+    };
+  }
+
   function syncNewFeatureUIs() {
     ensureNewFeatureState();
     mountNewFeaturePanels();
@@ -2508,9 +2534,11 @@
 
   document.addEventListener("DOMContentLoaded", function() {
     ensureNewFeatureState();
-    mountNewFeaturePanels();
-    renderExtraTraits();
-    renderCombatMap();
+    patchTabSwitchForNewFeatures();
+    runWhenIdle(function() {
+      renderExtraTraits();
+      renderCombatMap();
+    }, 1200);
   });
 
   // Chain onto updateCreditsUI so caravan/holding credits readouts stay current

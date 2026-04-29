@@ -8365,20 +8365,55 @@ const MONTHS_PER_YEAR = 12;
 const DAY_PHASES = ['Morning', 'Afternoon', 'Night'];
 const SEASON_ORDER = ['spring', 'harvest', 'winter'];
 const WORLD_AGE_ORDER = ['green', 'golden', 'grey'];
+const CHARACTER_AGE_BANDS = [
+  { label: 'Youth (0-29)', min: 0, max: 29 },
+  { label: 'Endeavor (30-59)', min: 30, max: 59 },
+  { label: 'Twilight (60-100)', min: 60, max: 100 },
+];
+
+function getAgeBandRange(label) {
+  const text = String(label || '').toLowerCase();
+  if (text.indexOf('twilight') >= 0) return CHARACTER_AGE_BANDS[2];
+  if (text.indexOf('endeavor') >= 0) return CHARACTER_AGE_BANDS[1];
+  if (text.indexOf('youth') >= 0) return CHARACTER_AGE_BANDS[0];
+  return CHARACTER_AGE_BANDS[0];
+}
 
 function getCharacterYearsFromBand(label) {
-  const text = String(label || '').toLowerCase();
-  if (text.indexOf('twilight') >= 0) return 60;
-  if (text.indexOf('endeavor') >= 0) return 30;
-  if (text.indexOf('youth') >= 0) return 18;
-  return 25;
+  const range = getAgeBandRange(label);
+  const span = Math.max(0, Number(range.max) - Number(range.min));
+  return Number(range.min) + Math.floor(Math.random() * (span + 1));
 }
 
 function getCharacterAgeBandFromYears(years) {
   const y = Math.max(0, Number(years) || 0);
+  if (y >= 100) return 'Twilight (60-100)';
   if (y >= 60) return 'Twilight (60-100)';
   if (y >= 30) return 'Endeavor (30-59)';
   return 'Youth (0-29)';
+}
+
+function enforceCharacterCenturyLimit() {
+  ensureStarsState();
+  const years = Math.max(0, Number(S.characterYears) || 0);
+  if (years < 100) {
+    S.characterDeadOfAge = false;
+    return false;
+  }
+
+  S.characterYears = 100;
+  S.age = 'Twilight (60-100)';
+  const ageSelect = document.getElementById('charAge');
+  if (ageSelect) ageSelect.value = S.age;
+
+  if (!S.characterDeadOfAge) {
+    S.characterDeadOfAge = true;
+    showNotif('Your wayfarer reached age 100 and died of old age.', 'warn');
+    if (typeof openModal === 'function') {
+      openModal('A Life Completed', "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;'><strong style='color:var(--gold2);'>Your wayfarer reached age 100.</strong><br>Chronological age can no longer advance for this character.<br><br>Create a new wayfarer or load an earlier save to continue adventuring.</div>");
+    }
+  }
+  return true;
 }
 
 function updateCharacterAgeProgressUI() {
@@ -8390,6 +8425,8 @@ function updateCharacterAgeProgressUI() {
 function syncCharacterAgeFromSelection() {
   ensureStarsState();
   S.characterYears = getCharacterYearsFromBand(S.age);
+  S.characterDeadOfAge = false;
+  enforceCharacterCenturyLimit();
   updateCharacterAgeProgressUI();
 }
 
@@ -8416,6 +8453,7 @@ function applyYearProgression(yearsPassed) {
   if (typeof S.characterYears !== 'number') S.characterYears = getCharacterYearsFromBand(S.age);
   const beforeBand = getCharacterAgeBandFromYears(S.characterYears);
   S.characterYears += years;
+  enforceCharacterCenturyLimit();
   const afterBand = getCharacterAgeBandFromYears(S.characterYears);
   S.age = afterBand;
   const ageSelect = document.getElementById('charAge');
@@ -8457,6 +8495,10 @@ function refreshPhaseFromProvinceClicks() {
 
 function advanceDay(days, preserveTravelState) {
   ensureStarsState();
+  if (S.characterDeadOfAge && days > 0) {
+    showNotif('Your wayfarer has died of old age. Generate or load a character to continue time progression.', 'warn');
+    return;
+  }
   const startYear = S.gameDate.year || 1;
   if (days !== 0 && typeof processPendingMessengerDeliveries === 'function') {
     processPendingMessengerDeliveries(days);

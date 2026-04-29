@@ -56,7 +56,8 @@
       name: "",
       code: "",
       joinPassword: ""
-    }
+    },
+    activeRosterSheetToken: ""
   };
 
   var ROLE_ACTIONS = {
@@ -845,7 +846,7 @@
     }).join("");
   }
 
-  function renderCharacterRoster(list) {
+  function renderCharacterRoster(list, canViewSheets) {
     if (!Array.isArray(list) || !list.length) {
       return '<div class="campaign-muted">No campaign wayfarers yet.</div>';
     }
@@ -890,6 +891,7 @@
       }).join("");
       var roleText = (p && p.role === "gm") ? "GM" : "Player";
       var onlineText = p && p.online ? "Online" : "Offline";
+      var tokenValue = String(p && p.token || "").replace(/'/g, "\\'");
       return ''
         + '<div class="campaign-wayfarer-row">'
         + '<div class="campaign-wayfarer-main">'
@@ -898,13 +900,15 @@
         + '<div><strong>' + escapeHtml(nm) + '</strong> <span class="campaign-muted">HP ' + Number(hp) + '</span></div>'
         + '<div class="campaign-look-tags">' + (backpackItems.length
           ? backpackItems.slice(0, 3).map(function (item, idx) {
-              var tokenValue = String(p && p.token || "").replace(/'/g, "\\'");
               return '<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.copyRosterItem(\'' + tokenValue + '\',' + idx + ')">Copy ' + escapeHtml(item) + '</button>';
             }).join("")
           : '<span class="campaign-look-tag">no shared items</span>') + '</div>'
         + '<div class="campaign-look-tags">' + (tagsHtml || '<span class="campaign-look-tag">untyped</span>') + '</div>'
         + '<div class="campaign-muted">' + escapeHtml(look) + '</div>'
         + '<div class="campaign-muted">Updated ' + escapeHtml(formatTimestamp(updatedAt) || "-") + '</div>'
+        + (canViewSheets
+          ? ('<div style="margin-top:.25rem;"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.viewRosterSheet(\'' + tokenValue + '\')">View Sheet</button></div>')
+          : '')
         + '</div>'
         + '</div>'
         + '<div class="campaign-wayfarer-pills">'
@@ -913,6 +917,66 @@
         + '</div>'
         + '</div>';
     }).join("");
+  }
+
+  function buildRosterSheetHtml(member) {
+    var c = member && member.character ? member.character : null;
+    if (!c) {
+      return '<div class="campaign-muted">No synced character sheet is available for this wayfarer yet.</div>';
+    }
+    var stats = c && c.stats && typeof c.stats === "object" ? c.stats : {};
+    var backpack = Array.isArray(c.backpack) ? c.backpack.filter(Boolean) : [];
+    var updatedAt = c && c.updatedAt ? Number(c.updatedAt) : Number(member && member.lastSeenAt || 0);
+    var stress = Math.max(0, Number(c.stress != null ? c.stress : c.mentalStress || 0));
+    var health = Math.max(0, Number(c.health || 0));
+    var statRows = [
+      ["Body", stats.body],
+      ["Mind", stats.mind],
+      ["Spirit", stats.spirit],
+      ["Control", stats.control],
+      ["Lead", stats.lead],
+      ["Adventure", stats.adventure]
+    ];
+    return ''
+      + '<div style="display:grid;gap:.55rem;">'
+      + '<div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">'
+      + '<strong style="color:var(--gold2);">' + escapeHtml(c.name || member.name || "Wayfarer") + '</strong>'
+      + ' · ' + escapeHtml(member && member.online ? 'Online' : 'Offline')
+      + ' · Updated ' + escapeHtml(formatTimestamp(updatedAt) || "-")
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));gap:.35rem;">'
+      + statRows.map(function (row) {
+          return '<div class="info-cell"><span class="ic-label">' + escapeHtml(row[0]) + '</span>d' + Math.max(4, Number(row[1] || 4)) + '</div>';
+        }).join('')
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;">'
+      + '<div class="info-cell"><span class="ic-label">Health</span>' + health + '</div>'
+      + '<div class="info-cell"><span class="ic-label">Mental Stress</span>' + stress + '</div>'
+      + '</div>'
+      + '<div class="info-cell"><span class="ic-label">Look / Flavor</span>' + escapeHtml(c.look || 'No look shared') + '</div>'
+      + '<div class="info-cell"><span class="ic-label">Backpack</span>'
+      + (backpack.length ? backpack.map(function (item) { return '<span class="campaign-look-tag" style="margin:0 .2rem .2rem 0;display:inline-block;">' + escapeHtml(String(item)) + '</span>'; }).join('') : '<span class="campaign-muted">No backpack items synced.</span>')
+      + '</div>'
+      + '</div>';
+  }
+
+  function viewRosterSheet(token) {
+    if (state.role !== "gm") {
+      safeNotif("Only the GM can inspect roster character sheets.", "warn");
+      return;
+    }
+    var roster = state.campaign && Array.isArray(state.campaign.roster) ? state.campaign.roster : [];
+    var target = roster.find(function (member) { return String(member.token || "") === String(token || ""); });
+    if (!target) {
+      safeNotif("That wayfarer is no longer in the campaign roster.", "warn");
+      return;
+    }
+    state.activeRosterSheetToken = String(target.token || "");
+    if (typeof openModal === "function") {
+      openModal("Campaign Character Sheet", buildRosterSheetHtml(target));
+      return;
+    }
+    safeNotif("Character sheet ready, but modal UI is unavailable.", "warn");
   }
 
   function setWayfarerSort(mode) {
@@ -1380,7 +1444,7 @@
       + '<button class="btn btn-xs ' + (state.gmWayfarerSort === 'online' ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setWayfarerSort(\'online\')">Online First</button>'
       + '<button class="btn btn-xs ' + (state.gmWayfarerSort === 'updated' ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setWayfarerSort(\'updated\')">Last Updated</button>'
       + '</div>'
-      + renderCharacterRoster(roster)
+      + renderCharacterRoster(roster, isGm)
       + '</div>'
       + (isGm
         ? (""
@@ -2531,6 +2595,7 @@
     shareBackpackItem: shareBackpackItem,
     claimSharedItem: claimSharedItem,
     copyRosterItem: copyRosterItem,
+    viewRosterSheet: viewRosterSheet,
     refreshUI: function () {
       renderSettingsSection();
       renderDockPanel();

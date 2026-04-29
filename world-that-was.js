@@ -2894,7 +2894,6 @@
 
   function initWorldThatWas() {
     ensureWorldState();
-    mountWorldThatWasPanel();
     patchTabSwitch();
     patchStarSelection();
   }

@@ -2211,14 +2211,14 @@
   // Auto-setup when page loads
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
-      setupFactionTab();
-      renderEndingsPanel();
+      ensureFactionState();
+      syncFactionBaseMarkers();
       patchFactionTabSwitchRefresh();
       patchRenownRefresh();
     });
   } else {
-    setupFactionTab();
-    renderEndingsPanel();
+    ensureFactionState();
+    syncFactionBaseMarkers();
     patchFactionTabSwitchRefresh();
     patchRenownRefresh();
   }

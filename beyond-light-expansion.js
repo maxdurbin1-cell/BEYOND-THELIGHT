@@ -3496,6 +3496,36 @@
     updateLastSeaClickModeUI();
   }
 
+  function runWhenIdle(fn, timeoutMs) {
+    if (typeof fn !== "function") return;
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(fn, { timeout: timeoutMs || 900 });
+      return;
+    }
+    setTimeout(fn, Math.min(250, Math.max(0, timeoutMs || 120)));
+  }
+
+  function patchExpansionTabSwitch() {
+    if (typeof window.switchTab !== "function" || window._expansionSwitchPatched) return;
+    window._expansionSwitchPatched = true;
+    const baseSwitch = window.switchTab;
+    window.switchTab = function (tabId, btn) {
+      const out = baseSwitch.apply(this, arguments);
+      if (tabId === "lastsea" || tabId === "naval" || tabId === "gambling") {
+        mountExpansionPanels();
+        if (tabId === "lastsea") {
+          renderLastSeaInfo();
+          updateLastSeaClickModeUI();
+        } else if (tabId === "naval") {
+          renderNaval();
+        } else if (tabId === "gambling") {
+          renderGambling();
+        }
+      }
+      return out;
+    };
+  }
+
   function ensureLastSeaClickMode() {
     ensureExpansionState();
     if (S.lastSea.clickMode !== "inspect" && S.lastSea.clickMode !== "travel") {
@@ -3534,12 +3564,11 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     ensureExpansionState();
-    mountExpansionPanels();
-    appendRuleCards();
-    renderLastSeaInfo();
-    renderNaval();
-    renderGambling();
-    updateLastSeaClickModeUI();
+    patchExpansionTabSwitch();
+    runWhenIdle(() => {
+      appendRuleCards();
+      mountExpansionPanels();
+    }, 1600);
   });
 
   const baseUpdateCreditsUI = updateCreditsUI;

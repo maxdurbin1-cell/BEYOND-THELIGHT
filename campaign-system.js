@@ -37,6 +37,7 @@
     syncConflictCount: 0,
     lastSyncConflicts: [],
     lastAuthoritativeAt: 0,
+    syncInFlight: false,
     lastResyncRequester: "",
     lastResyncRequestAt: 0,
     lastAutoRebroadcastAt: 0,
@@ -416,6 +417,8 @@
   async function syncSharedState(reason) {
     if (!state.socket || !state.connected || !state.code) return;
     if (state.applyingSharedState) return;
+    if (state.role !== "gm") return;
+    if (state.syncInFlight) return;
     var shared = collectSharedState();
     var hash = JSON.stringify(shared);
     if (!hash || hash === state.lastSharedHash) return;
@@ -455,6 +458,10 @@
       safeNotif("Join a campaign first.", "warn");
       return;
     }
+    if (state.role !== "gm") {
+      await requestResync();
+      return;
+    }
     var shared = collectSharedState();
     var res = await pushSharedState(shared, "manual");
     if (!res || !res.ok) {
@@ -466,6 +473,7 @@
 
   async function syncSharedSilent(reason) {
     if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
+    if (state.role !== "gm") return { ok: false, error: "Only GM can broadcast shared world state." };
     var shared = collectSharedState();
     return pushSharedState(shared, reason || "silent");
   }
@@ -476,38 +484,47 @@
       setSyncHealth("offline", "Offline");
       return { ok: false };
     }
+    if (state.syncInFlight) {
+      return { ok: false, error: "Sync already in flight." };
+    }
+    state.syncInFlight = true;
     state.pendingSyncCount = Math.max(0, Number(state.pendingSyncCount || 0)) + 1;
     setSyncHealth("syncing", "Syncing...");
     var sentLedgerIds = Array.isArray(nextState && nextState.economyLedger)
       ? nextState.economyLedger.map(function (entry) { return String(entry && entry.id || ""); })
       : [];
-    var res = await emitWithAck("campaign:syncState", { state: nextState || {}, reason: reason || "manual" });
-    state.pendingSyncCount = Math.max(0, Number(state.pendingSyncCount || 0) - 1);
-    if (res && res.ok) {
-      state.lastSharedHash = JSON.stringify(nextState || {});
-      state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
-      state.lastSyncAt = Date.now();
-      if (res.authoritativeAt) {
-        state.lastAuthoritativeAt = Number(res.authoritativeAt || 0) || state.lastAuthoritativeAt;
+    var res;
+    try {
+      res = await emitWithAck("campaign:syncState", { state: nextState || {}, reason: reason || "manual" });
+      if (res && res.ok) {
+        state.lastSharedHash = JSON.stringify(nextState || {});
+        state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
+        state.lastSyncAt = Date.now();
+        if (res.authoritativeAt) {
+          state.lastAuthoritativeAt = Number(res.authoritativeAt || 0) || state.lastAuthoritativeAt;
+        }
+        setSyncHealth("online", "Synced");
+        state.lastSyncConflicts = Array.isArray(res.conflicts) ? res.conflicts : [];
+        state.syncConflictCount = state.lastSyncConflicts.length;
+        if (state.syncConflictCount) {
+          safeNotif("Sync guardrails preserved GM authority: " + state.lastSyncConflicts.join(", ") + ".", "warn");
+        }
+        if (sentLedgerIds.length && Array.isArray(state.localEconomyLedger)) {
+          var sentMap = {};
+          sentLedgerIds.forEach(function (id) { if (id) sentMap[id] = true; });
+          state.localEconomyLedger = state.localEconomyLedger.filter(function (entry) {
+            var id = String(entry && entry.id || "");
+            return !sentMap[id];
+          });
+        }
+      } else {
+        setSyncHealth("stale", "Pending sync");
       }
-      setSyncHealth("online", "Synced");
-      state.lastSyncConflicts = Array.isArray(res.conflicts) ? res.conflicts : [];
-      state.syncConflictCount = state.lastSyncConflicts.length;
-      if (state.syncConflictCount) {
-        safeNotif("Sync guardrails preserved GM authority: " + state.lastSyncConflicts.join(", ") + ".", "warn");
-      }
-      if (sentLedgerIds.length && Array.isArray(state.localEconomyLedger)) {
-        var sentMap = {};
-        sentLedgerIds.forEach(function (id) { if (id) sentMap[id] = true; });
-        state.localEconomyLedger = state.localEconomyLedger.filter(function (entry) {
-          var id = String(entry && entry.id || "");
-          return !sentMap[id];
-        });
-      }
-    } else {
-      setSyncHealth("stale", "Pending sync");
+      return res || { ok: false, error: "No response." };
+    } finally {
+      state.pendingSyncCount = Math.max(0, Number(state.pendingSyncCount || 0) - 1);
+      state.syncInFlight = false;
     }
-    return res || { ok: false, error: "No response." };
   }
 
   function loadSession() {
@@ -1473,7 +1490,6 @@
       renderSettingsSection();
       renderDockPanel();
       syncCharacterToCampaign(false);
-      syncSharedState("snapshot");
       showOnboarding(false);
     });
 
@@ -2250,8 +2266,10 @@
     ensureMapSyncStatusBars();
     syncDockOffset();
     syncCharacterToCampaign(false);
-    syncSharedState("tick");
-  }, 1200);
+    if (state.role === "gm") {
+      syncSharedState("tick");
+    }
+  }, 2200);
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

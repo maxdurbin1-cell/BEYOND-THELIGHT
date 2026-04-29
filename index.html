@@ -215,6 +215,7 @@ select option{background:#0f1020;}
 .weather-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.15rem;}
 .char-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem;}
 .char-top-title{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.14em;color:var(--muted2);text-transform:uppercase;}
+.solo-unsaved .char-top-title::after{content:' • UNSAVED';color:var(--warn);letter-spacing:.08em;margin-left:.35rem;}
 .wild-roll-output{background:var(--card);border:1px solid var(--border2);padding:.7rem;margin-top:.35rem;}
 .wild-section{margin-bottom:.5rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);}
 .wild-section:last-child{border-bottom:none;margin-bottom:0;}
@@ -332,6 +333,7 @@ select option{background:#0f1020;}
       <button class="btn" onclick="exportCharacterSave()">Export</button>
       <button class="btn" onclick="importCharacterSavePrompt()">Import</button>
       <button class="btn btn-sm" onclick="verifySoloSaveHealth()">Save Health</button>
+      <button class="btn btn-sm" onclick="openSoloRecoveryCenter()">Recovery</button>
       <button class="btn btn-red btn-sm" onclick="clearCharacter()">✕ Clear</button>
     </div>
   </div>

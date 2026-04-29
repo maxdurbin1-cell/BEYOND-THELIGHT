@@ -25,7 +25,7 @@
     },
     {
       title: 'Save/Load Safety',
-      body: '<ul><li>Save before risky scene choices or boss rooms.</li><li>Export after major milestones to keep an external backup file.</li><li>Run Save Health checks periodically; backup is used automatically if primary save is invalid.</li></ul>'
+      body: '<ul><li>Save before risky scene choices or boss rooms.</li><li>Export after major milestones to keep an external backup file.</li><li>Run Save Health checks periodically; backup is used automatically if primary save is invalid.</li><li>Use Recovery Center to promote backup or restore your latest checkpoint.</li></ul>'
     },
     {
       title: 'Quick Tips',

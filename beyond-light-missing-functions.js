@@ -1139,9 +1139,12 @@ function clearCharacter() {
 
 const SOLO_SAVE_KEY = "beyond-light-character";
 const SOLO_SAVE_BACKUP_KEY = "beyond-light-character-backup";
+const SOLO_SAVE_CHECKPOINT_KEY = "beyond-light-character-checkpoint";
 const SOLO_SAVE_META_KEY = "beyond-light-character-meta";
+const SOLO_SAVE_CORRUPT_PREFIX = "beyond-light-character-corrupt-";
 const SOLO_SAVE_SCHEMA_VERSION = 2;
 let _lastSoloAutoSaveAt = 0;
+let _lastSoloLoadedChecksum = null;
 
 function computeSaveChecksum(text) {
   const src = String(text || "");
@@ -1209,6 +1212,29 @@ function writeSoloEnvelope(envelope) {
   }));
 }
 
+function writeSoloCheckpoint(envelope) {
+  localStorage.setItem(SOLO_SAVE_CHECKPOINT_KEY, JSON.stringify(envelope));
+}
+
+function quarantineCorruptSave(raw, sourceKey) {
+  if (!raw) return;
+  const stamp = Date.now();
+  localStorage.setItem(SOLO_SAVE_CORRUPT_PREFIX + stamp, JSON.stringify({
+    source: String(sourceKey || "unknown"),
+    quarantinedAt: stamp,
+    raw: String(raw)
+  }));
+}
+
+function getSoloEnvelopeStampText(envelope) {
+  if (!envelope || !envelope.savedAt) return "-";
+  try {
+    return new Date(envelope.savedAt).toLocaleString();
+  } catch (_err) {
+    return "-";
+  }
+}
+
 function applyLoadedCharacterState(saved) {
   S = {
     ...S,
@@ -1261,8 +1287,10 @@ function saveCharacter() {
   try {
     const envelope = makeSoloSaveEnvelope(S);
     writeSoloEnvelope(envelope);
+    writeSoloCheckpoint(envelope);
+    _lastSoloLoadedChecksum = envelope.checksum;
     _lastSoloAutoSaveAt = Date.now();
-    showNotif("Character saved", "good");
+    showNotif("Character saved + checkpointed", "good");
   } catch (error) {
     showNotif("Could not save character", "warn");
   }
@@ -1273,6 +1301,10 @@ function loadCharacter() {
     let source = "primary";
     let envelope = readSoloEnvelopeByKey(SOLO_SAVE_KEY);
     if (!envelope || !isValidSoloEnvelope(envelope)) {
+      const badPrimaryRaw = localStorage.getItem(SOLO_SAVE_KEY);
+      if (badPrimaryRaw) {
+        quarantineCorruptSave(badPrimaryRaw, SOLO_SAVE_KEY);
+      }
       source = "backup";
       envelope = readSoloEnvelopeByKey(SOLO_SAVE_BACKUP_KEY);
     }
@@ -1281,9 +1313,46 @@ function loadCharacter() {
       return;
     }
     applyLoadedCharacterState(envelope.data || {});
+    _lastSoloLoadedChecksum = envelope.checksum || computeSaveChecksum(JSON.stringify(envelope.data || {}));
     showNotif(source === "backup" ? "Primary save was invalid. Loaded backup." : "Character loaded", source === "backup" ? "warn" : "good");
   } catch (error) {
     showNotif("Saved character is invalid", "warn");
+  }
+}
+
+function loadCharacterCheckpoint() {
+  try {
+    const checkpoint = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_KEY);
+    if (!checkpoint || !isValidSoloEnvelope(checkpoint)) {
+      showNotif("No valid checkpoint found", "warn");
+      return;
+    }
+    applyLoadedCharacterState(checkpoint.data || {});
+    _lastSoloLoadedChecksum = checkpoint.checksum || computeSaveChecksum(JSON.stringify(checkpoint.data || {}));
+    showNotif("Checkpoint restored", "good");
+  } catch (_err) {
+    showNotif("Could not restore checkpoint", "warn");
+  }
+}
+
+function restoreBackupAsPrimary() {
+  try {
+    const backup = readSoloEnvelopeByKey(SOLO_SAVE_BACKUP_KEY);
+    if (!backup || !isValidSoloEnvelope(backup)) {
+      showNotif("No valid backup to restore", "warn");
+      return;
+    }
+    localStorage.setItem(SOLO_SAVE_KEY, JSON.stringify(backup));
+    localStorage.setItem(SOLO_SAVE_META_KEY, JSON.stringify({
+      lastSavedAt: backup.savedAt,
+      schema: backup.schema,
+      checksum: backup.checksum,
+      restoredFrom: "backup",
+      restoredAt: Date.now()
+    }));
+    showNotif("Backup promoted to primary", "good");
+  } catch (_err) {
+    showNotif("Backup restore failed", "warn");
   }
 }
 
@@ -1341,7 +1410,9 @@ function confirmImportCharacterSave(rawInput) {
       return;
     }
     writeSoloEnvelope(envelope);
+    writeSoloCheckpoint(envelope);
     applyLoadedCharacterState(envelope.data || {});
+    _lastSoloLoadedChecksum = envelope.checksum || computeSaveChecksum(JSON.stringify(envelope.data || {}));
     if (typeof closeModal === "function") closeModal();
     showNotif("Save imported and loaded", "good");
   } catch (_err) {
@@ -1352,21 +1423,59 @@ function confirmImportCharacterSave(rawInput) {
 function verifySoloSaveHealth() {
   let primary = null;
   let backup = null;
+  let checkpoint = null;
   try { primary = readSoloEnvelopeByKey(SOLO_SAVE_KEY); } catch (_err) {}
   try { backup = readSoloEnvelopeByKey(SOLO_SAVE_BACKUP_KEY); } catch (_err) {}
+  try { checkpoint = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_KEY); } catch (_err) {}
   const primaryOk = !!(primary && isValidSoloEnvelope(primary));
   const backupOk = !!(backup && isValidSoloEnvelope(backup));
-  const primaryStamp = primary && primary.savedAt ? new Date(primary.savedAt).toLocaleString() : "-";
-  const backupStamp = backup && backup.savedAt ? new Date(backup.savedAt).toLocaleString() : "-";
+  const checkpointOk = !!(checkpoint && isValidSoloEnvelope(checkpoint));
+  const primaryStamp = getSoloEnvelopeStampText(primary);
+  const backupStamp = getSoloEnvelopeStampText(backup);
+  const checkpointStamp = getSoloEnvelopeStampText(checkpoint);
   if (typeof openModal === "function") {
     openModal("Solo Save Health", ''
       + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
       + '<div><strong>Primary:</strong> ' + (primaryOk ? '<span style="color:var(--green2);">OK</span>' : '<span style="color:var(--red2);">Invalid/Missing</span>') + ' · ' + primaryStamp + '</div>'
       + '<div style="margin-top:.25rem;"><strong>Backup:</strong> ' + (backupOk ? '<span style="color:var(--green2);">OK</span>' : '<span style="color:var(--red2);">Invalid/Missing</span>') + ' · ' + backupStamp + '</div>'
-      + '<div style="margin-top:.45rem;color:var(--muted2);">If primary is corrupted, load uses backup automatically.</div>'
+      + '<div style="margin-top:.25rem;"><strong>Checkpoint:</strong> ' + (checkpointOk ? '<span style="color:var(--green2);">OK</span>' : '<span style="color:var(--red2);">Invalid/Missing</span>') + ' · ' + checkpointStamp + '</div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.5rem;">'
+      + '<button class="btn btn-xs" onclick="restoreBackupAsPrimary()">Promote Backup</button>'
+      + '<button class="btn btn-xs" onclick="loadCharacterCheckpoint()">Load Checkpoint</button>'
+      + '<button class="btn btn-xs" onclick="openSoloRecoveryCenter()">Open Recovery Center</button>'
+      + '</div>'
+      + '<div style="margin-top:.45rem;color:var(--muted2);">If primary is corrupted, load uses backup automatically and quarantines the bad payload.</div>'
       + '</div>');
   }
   showNotif(primaryOk ? "Save health verified" : "Primary save issue detected", primaryOk ? "good" : "warn");
+}
+
+function openSoloRecoveryCenter() {
+  const primary = readSoloEnvelopeByKey(SOLO_SAVE_KEY);
+  const backup = readSoloEnvelopeByKey(SOLO_SAVE_BACKUP_KEY);
+  const checkpoint = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_KEY);
+  const primaryOk = !!(primary && isValidSoloEnvelope(primary));
+  const backupOk = !!(backup && isValidSoloEnvelope(backup));
+  const checkpointOk = !!(checkpoint && isValidSoloEnvelope(checkpoint));
+
+  const html = ''
+    + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+    + '<div class="section-title" style="margin-bottom:.4rem;">Recovery Sources</div>'
+    + '<div>Primary: ' + (primaryOk ? '<span style="color:var(--green2);">Ready</span>' : '<span style="color:var(--red2);">Unavailable</span>') + ' · ' + getSoloEnvelopeStampText(primary) + '</div>'
+    + '<div>Backup: ' + (backupOk ? '<span style="color:var(--green2);">Ready</span>' : '<span style="color:var(--red2);">Unavailable</span>') + ' · ' + getSoloEnvelopeStampText(backup) + '</div>'
+    + '<div>Checkpoint: ' + (checkpointOk ? '<span style="color:var(--green2);">Ready</span>' : '<span style="color:var(--red2);">Unavailable</span>') + ' · ' + getSoloEnvelopeStampText(checkpoint) + '</div>'
+    + '<div style="display:grid;gap:.35rem;margin-top:.55rem;">'
+    + '<button class="btn btn-sm btn-teal" onclick="loadCharacter()">Load Best Available</button>'
+    + '<button class="btn btn-sm" onclick="restoreBackupAsPrimary()">Promote Backup To Primary</button>'
+    + '<button class="btn btn-sm" onclick="loadCharacterCheckpoint()">Restore Checkpoint</button>'
+    + '<button class="btn btn-sm" onclick="saveCharacter()">Create Fresh Save + Checkpoint</button>'
+    + '<button class="btn btn-sm" onclick="exportCharacterSave()">Export Current State</button>'
+    + '</div>'
+    + '<div style="margin-top:.45rem;color:var(--muted2);">Tip: use checkpoint before major branch choices to preserve a fallback branch.</div>'
+    + '</div>';
+  if (typeof openModal === "function") {
+    openModal("Solo Recovery Center", html);
+  }
 }
 
 function showSoloGuidance() {
@@ -1379,16 +1488,61 @@ function showSoloGuidance() {
     + '<li>Use Save before risky branches and Export for an external backup file.</li>'
     + '<li>Run Save Health occasionally to confirm primary + backup integrity.</li>'
     + '</ol>'
+    + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.35rem;">Suggested loop: Character → Province → Missions → Storyline → Save/Checkpoint.</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.55rem;">'
     + '<button class="btn btn-xs" onclick="window.soloReference && window.soloReference.open ? window.soloReference.open() : null;">Open Solo Reference</button>'
     + '<button class="btn btn-xs btn-teal" onclick="verifySoloSaveHealth()">Check Save Health</button>'
     + '<button class="btn btn-xs" onclick="exportCharacterSave()">Export Save</button>'
+      + '<button class="btn btn-xs" onclick="openSoloRecoveryCenter()">Recovery Center</button>'
+      + '<button class="btn btn-xs" onclick="if(typeof switchTab===\'function\'){switchTab(\'province\');}">Go Province</button>'
+      + '<button class="btn btn-xs" onclick="if(typeof switchTab===\'function\'){switchTab(\'missions\');}">Go Missions</button>'
+      + '<button class="btn btn-xs" onclick="if(typeof switchTab===\'function\'){switchTab(\'storyline\');}">Go Storyline</button>'
     + '</div>'
     + '</div>';
   if (typeof openModal === "function") {
     openModal("Solo Guidance", html);
   }
 }
+
+function maybePromptSoloGuidance() {
+  try {
+    const metaRaw = localStorage.getItem(SOLO_SAVE_META_KEY);
+    const dismissed = localStorage.getItem("beyond-light-solo-guide-dismissed") === "1";
+    const hasAnySave = !!(localStorage.getItem(SOLO_SAVE_KEY) || localStorage.getItem(SOLO_SAVE_BACKUP_KEY));
+    if (dismissed || hasAnySave || metaRaw) return;
+    if (typeof openModal === "function") {
+      openModal("Welcome, Solo Wayfarer", ''
+        + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+        + '<div style="margin-bottom:.4rem;">Need a quick launch path? Start with Character, then Province, Missions, and Storyline.</div>'
+        + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
+        + '<button class="btn btn-sm" onclick="localStorage.setItem(\'beyond-light-solo-guide-dismissed\',\'1\'); closeModal();">Dismiss</button>'
+        + '<button class="btn btn-sm btn-teal" onclick="localStorage.setItem(\'beyond-light-solo-guide-dismissed\',\'1\'); closeModal(); showSoloGuidance();">Open Solo Guide</button>'
+        + '</div>'
+        + '</div>');
+    }
+  } catch (_err) {
+    // Ignore first-run guidance failures.
+  }
+}
+
+setTimeout(function () {
+  maybePromptSoloGuidance();
+}, 1500);
+
+setInterval(function () {
+  if (!S) return;
+  try {
+    const nowChecksum = computeSaveChecksum(JSON.stringify(S));
+    const hasBaseline = !!_lastSoloLoadedChecksum;
+    if (hasBaseline && nowChecksum !== _lastSoloLoadedChecksum) {
+      document.body.classList.add("solo-unsaved");
+    } else {
+      document.body.classList.remove("solo-unsaved");
+    }
+  } catch (_err) {
+    document.body.classList.remove("solo-unsaved");
+  }
+}, 4000);
 
 setInterval(function () {
   const now = Date.now();
@@ -1402,6 +1556,7 @@ setInterval(function () {
   try {
     const envelope = makeSoloSaveEnvelope(S);
     writeSoloEnvelope(envelope);
+    _lastSoloLoadedChecksum = envelope.checksum;
     _lastSoloAutoSaveAt = now;
   } catch (_err) {
     // Silent autosave failures should not interrupt gameplay.

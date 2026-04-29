@@ -245,6 +245,94 @@ async function runMultiClientSyncAssertions(browser, pageErrors) {
     throw new Error(`GM province map generation assertion failed: summary=${JSON.stringify(gmSummary)} diagnostics=${JSON.stringify(generatedInfo)}`);
   }
 
+  const guardrailAttempt = await playerPage.evaluate(async () => {
+    const before = (typeof window.getProvinceMapState === "function") ? (window.getProvinceMapState() || {}) : {};
+    const fakeProvince = {
+      mapData: [{ col: 0, row: 0, terrain: "void", type: "wilderness", name: "Injected", data: {} }],
+      hexNotes: {},
+      usedPerils: [],
+      usedBarriers: [],
+      selectedKey: "",
+      provinceSecretPadKey: ""
+    };
+    const fakeState = {
+      provinceMap: fakeProvince,
+      lastSea: { map: [{ key: "s-0-0", col: 0, row: 0, type: "sea" }], islands: [] },
+      starSystem: { hexes: [{ id: 999, q: 0, r: 0, type: "nothing" }] },
+      worldThatWas: { hexes: [{ id: "wtw-x", col: 0, row: 0 }] },
+      gameDate: { day: 99, month: 99, year: 9999 }
+    };
+
+    const st = window.campaignSystem && window.campaignSystem.getState ? window.campaignSystem.getState() : null;
+    if (!st || !st.code || !st.token || typeof window.io !== "function") {
+      return {
+        ok: false,
+        conflicts: [],
+        error: "Missing campaign state or io socket client.",
+        beforeProvinceCells: Array.isArray(before.mapData) ? before.mapData.length : 0,
+        afterProvinceCells: Array.isArray(before.mapData) ? before.mapData.length : 0
+      };
+    }
+
+    const res = await new Promise((resolve) => {
+      const s = window.io({ transports: ["websocket", "polling"] });
+      const done = (payload) => {
+        try { s.disconnect(); } catch (_err) {}
+        resolve(payload || { ok: false, error: "No response" });
+      };
+      s.on("connect_error", (err) => {
+        done({ ok: false, error: String(err && err.message ? err.message : err) });
+      });
+      s.on("connect", () => {
+        s.emit("campaign:join", {
+          code: st.code,
+          token: st.token,
+          role: "player",
+          name: "Smoke Guardrail Player"
+        }, (joinAck) => {
+          if (!joinAck || !joinAck.ok) {
+            done({ ok: false, error: (joinAck && joinAck.error) || "Join failed" });
+            return;
+          }
+          s.emit("campaign:syncState", {
+            reason: "smoke-non-gm-overwrite-attempt",
+            state: fakeState
+          }, (syncAck) => {
+            done(syncAck);
+          });
+        });
+      });
+      setTimeout(() => {
+        done({ ok: false, error: "Guardrail socket attempt timed out" });
+      }, 12000);
+    });
+
+    const after = (typeof window.getProvinceMapState === "function") ? (window.getProvinceMapState() || {}) : {};
+    return {
+      ok: !!(res && res.ok),
+      conflicts: Array.isArray(res && res.conflicts) ? res.conflicts : [],
+      error: res && res.error ? String(res.error) : "",
+      beforeProvinceCells: Array.isArray(before.mapData) ? before.mapData.length : 0,
+      afterProvinceCells: Array.isArray(after.mapData) ? after.mapData.length : 0
+    };
+  });
+
+  if (!guardrailAttempt.ok) {
+    throw new Error(`Non-GM guardrail sync call failed: ${JSON.stringify(guardrailAttempt)}`);
+  }
+
+  const expectedConflictKeys = ["provinceMap", "lastSea", "starSystem", "worldThatWas", "gameDate"];
+  const missingConflictKeys = expectedConflictKeys.filter((key) => !guardrailAttempt.conflicts.includes(key));
+  if (missingConflictKeys.length) {
+    throw new Error(`Guardrail conflict assertion failed. Missing conflicts for keys: ${missingConflictKeys.join(", ")}. Full result=${JSON.stringify(guardrailAttempt)}`);
+  }
+
+  await gmPage.waitForTimeout(300);
+  const gmAfterGuardrailSummary = await collectMapSummary(gmPage);
+  if (gmAfterGuardrailSummary.provinceCells !== gmSummary.provinceCells) {
+    throw new Error(`Guardrail state preservation failed for GM province map: before=${JSON.stringify(gmSummary)} after=${JSON.stringify(gmAfterGuardrailSummary)}`);
+  }
+
   await waitForHydratedMaps(playerPage, "Player", gmSummary);
 
   await lateJoinPage.evaluate(async (campaignCode) => {
@@ -265,7 +353,7 @@ async function runMultiClientSyncAssertions(browser, pageErrors) {
   const playerSummary = await collectMapSummary(playerPage);
   const lateSummary = await collectMapSummary(lateJoinPage);
   process.stdout.write(
-    `Multi-client sync assertions passed: code=${code}, gm=${JSON.stringify(gmSummary)}, player=${JSON.stringify(playerSummary)}, lateJoin=${JSON.stringify(lateSummary)}\n`
+    `Multi-client sync assertions passed: code=${code}, gm=${JSON.stringify(gmSummary)}, guardrailConflicts=${JSON.stringify(guardrailAttempt.conflicts)}, player=${JSON.stringify(playerSummary)}, lateJoin=${JSON.stringify(lateSummary)}\n`
   );
 
   await gmPage.close();

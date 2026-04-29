@@ -8,6 +8,7 @@
   const AudioManager = {
     // Master state
     enabled: true,
+    musicConsent: false,
     masterVolume: 0.7,
     currentMusic: null,
     musicVolume: 0.5,
@@ -30,15 +31,9 @@
           if (this.audioContext.state === 'suspended') {
             this.audioContext.resume().then(() => {
               console.log('🔊 Audio context resumed');
-              // Start tab music as soon as audio is unlocked.
-              if (!this.currentMusic) {
-                this.switchTabMusic(this.currentTab || 'character');
-              }
             }).catch((err) => {
               console.warn('🔊 Failed to resume audio context:', err);
             });
-          } else if (!this.currentMusic) {
-            this.switchTabMusic(this.currentTab || 'character');
           }
         };
         
@@ -104,6 +99,10 @@
     playMusic(musicId, fadeIn = true) {
       if (!this.enabled || !this.audioContext) {
         console.warn('🔊 Audio system disabled or no audio context');
+        return;
+      }
+
+      if (!this.musicConsent) {
         return;
       }
 
@@ -325,6 +324,10 @@
     // ── TAB-SPECIFIC MUSIC ───────────────────────────────────────────────────
     switchTabMusic(tabId) {
       this.currentTab = tabId;
+
+      if (!this.musicConsent) {
+        return;
+      }
       
       const musicMap = {
         'character': 'music-character',
@@ -366,6 +369,17 @@
       }
     },
 
+    setMusicConsent(enabled) {
+      const next = !!enabled;
+      if (this.musicConsent === next) return;
+      this.musicConsent = next;
+      if (!this.musicConsent) {
+        this.stopMusic(false);
+        return;
+      }
+      this.switchTabMusic(this.currentTab || 'character');
+    },
+
     // ── EVENT SHORTCUTS ─────────────────────────────────────────────────────
     // Combat
     combatStarted() { this.playSFX('sfx-combat-start', 0.7); },
@@ -400,25 +414,11 @@
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       AudioManager.init();
-      console.log('🔊 Audio system ready. Click anywhere to enable music.');
-      // Start with character music after first user interaction
-      setTimeout(() => {
-        if (AudioManager.audioContext && AudioManager.audioContext.state === 'running') {
-          AudioManager.playMusic('music-character', false);
-          console.log('🔊 Starting character music...');
-        }
-      }, 100);
+      console.log('🔊 Audio system ready. Background music is off until enabled in Settings.');
     });
   } else {
     AudioManager.init();
-    console.log('🔊 Audio system ready. Click anywhere to enable music.');
-    // Start with character music after first user interaction
-    setTimeout(() => {
-      if (AudioManager.audioContext && AudioManager.audioContext.state === 'running') {
-        AudioManager.playMusic('music-character', false);
-        console.log('🔊 Starting character music...');
-      }
-    }, 100);
+    console.log('🔊 Audio system ready. Background music is off until enabled in Settings.');
   }
 
   // Expose globally

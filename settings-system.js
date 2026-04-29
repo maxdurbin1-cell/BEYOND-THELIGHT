@@ -12,6 +12,7 @@
     masterVolume: 0.7,
     musicVolume: 0.5,
     sfxVolume: 0.6,
+    musicConsent: false,
     
     // Game mode
     gameMode: 'solo', // 'solo' | 'gm' | 'campaign'
@@ -27,6 +28,7 @@
         this.masterVolume = saved.masterVolume !== undefined ? saved.masterVolume : 0.7;
         this.musicVolume = saved.musicVolume !== undefined ? saved.musicVolume : 0.5;
         this.sfxVolume = saved.sfxVolume !== undefined ? saved.sfxVolume : 0.6;
+        this.musicConsent = saved.musicConsent !== undefined ? !!saved.musicConsent : false;
         this.gameMode = saved.gameMode || 'solo';
         this.gmRevealDC = saved.gmRevealDC !== undefined ? !!saved.gmRevealDC : true;
         this.gmRevealHiddenInfo = saved.gmRevealHiddenInfo !== undefined ? !!saved.gmRevealHiddenInfo : true;
@@ -45,6 +47,7 @@
           masterVolume: this.masterVolume,
           musicVolume: this.musicVolume,
           sfxVolume: this.sfxVolume,
+          musicConsent: this.musicConsent,
           gameMode: this.gameMode,
           gmRevealDC: this.gmRevealDC,
           gmRevealHiddenInfo: this.gmRevealHiddenInfo,
@@ -61,6 +64,9 @@
         AudioManager.masterVolume = this.masterVolume;
         AudioManager.musicVolume = this.musicVolume;
         AudioManager.sfxVolume = this.sfxVolume;
+        if (typeof AudioManager.setMusicConsent === 'function') {
+          AudioManager.setMusicConsent(this.musicConsent);
+        }
       }
     },
     
@@ -180,6 +186,15 @@
         <div id="settingsTabPanel-audio" class="settings-tab-panel" data-settings-tab="audio">
           <div class="settings-section">
             <h4>Audio</h4>
+            <div class="setting-row">
+              <label>Background Music</label>
+              <div class="campaign-actions" style="margin:0;">
+                <button id="musicConsentBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleMusicConsent()">
+                  ${Settings.musicConsent ? 'On' : 'Off'}
+                </button>
+                <span class="campaign-muted">Music stays off by default until you enable it.</span>
+              </div>
+            </div>
             <div class="setting-row">
               <label>Master Volume</label>
               <div class="volume-control">
@@ -416,6 +431,26 @@
   }
 
   function toggleColorBlindMode() {
+
+      function toggleMusicConsent() {
+        Settings.musicConsent = !Settings.musicConsent;
+        Settings.applyAudioSettings();
+        Settings.save();
+        syncGameModeUI();
+        if (typeof showNotif === 'function') {
+          showNotif(
+            Settings.musicConsent ? 'Background music enabled.' : 'Background music disabled.',
+            Settings.musicConsent ? 'good' : 'info'
+          );
+        }
+      }
+
+        const musicConsentBtn = document.getElementById('musicConsentBtn');
+        if (musicConsentBtn) {
+          musicConsentBtn.textContent = Settings.musicConsent ? 'On' : 'Off';
+          musicConsentBtn.style.borderColor = Settings.musicConsent ? 'var(--teal)' : 'var(--border2)';
+          musicConsentBtn.style.color = Settings.musicConsent ? 'var(--teal)' : 'var(--muted2)';
+        }
     if (colorBlindPreviewActive) {
       stopColorBlindPreview({ revert: false });
     }
@@ -544,6 +579,7 @@
     setMasterVolume,
     setMusicVolume,
     setSFXVolume,
+    toggleMusicConsent,
     setGameMode: (mode, opts) => Settings.setGameMode(mode, opts),
     toggleGMReveal,
     showGMPrompt,
@@ -554,6 +590,7 @@
       masterVolume: Settings.masterVolume,
       musicVolume: Settings.musicVolume,
       sfxVolume: Settings.sfxVolume,
+      musicConsent: Settings.musicConsent,
       gameMode: Settings.gameMode,
       gmRevealDC: Settings.gmRevealDC,
       gmRevealHiddenInfo: Settings.gmRevealHiddenInfo,

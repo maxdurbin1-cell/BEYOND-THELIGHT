@@ -13,7 +13,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .intro-wrapper {
@@ -32,7 +32,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 1.25rem 1.25rem 0;
+  padding: 2rem 1.5rem 0;
   background-size: cover;
   background-position: center;
   animation: fadeIn 0.5s ease-in;
@@ -49,48 +49,55 @@
 }
 
 .intro-content {
-  max-width: 700px;
-  width: min(700px, 100%);
-  text-align: center;
+  max-width: 980px;
+  width: min(980px, 100%);
+  text-align: left;
   color: var(--text);
   z-index: 2;
   margin-top: max(1rem, env(safe-area-inset-top));
+  background: linear-gradient(180deg, rgba(7, 14, 26, 0.74) 0%, rgba(7, 14, 26, 0.86) 100%);
+  border: 1px solid rgba(201, 162, 39, 0.25);
+  border-radius: 12px;
+  padding: 1.35rem 1.45rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
 .intro-title {
   font-family: 'Cinzel Decorative', serif;
-  font-size: 3rem;
+  font-size: clamp(2.2rem, 4vw, 3.5rem);
   color: var(--gold);
   margin-bottom: 0.5rem;
   text-shadow: 0 0 30px rgba(201, 162, 39, 0.4);
   letter-spacing: 0.1em;
+  text-align: center;
 }
 
 .intro-subtitle {
   font-family: 'Cinzel', serif;
-  font-size: 1.2rem;
+  font-size: clamp(1rem, 2vw, 1.4rem);
   color: var(--teal);
   margin-bottom: 1.5rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  text-align: center;
 }
 
 .intro-text {
   font-family: 'Crimson Pro', Georgia, serif;
-  font-size: 1rem;
-  line-height: 1.8;
+  font-size: clamp(1.08rem, 1.3vw, 1.32rem);
+  line-height: 1.82;
   color: var(--text);
   margin-bottom: 1rem;
 }
 
 .intro-text p {
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.95rem;
 }
 
 .intro-footer {
   position: sticky;
   bottom: 0;
-  width: min(760px, 100%);
+  width: min(980px, 100%);
   margin-top: auto;
   padding: 0.9rem 0 1rem;
   z-index: 4;
@@ -121,7 +128,7 @@
 
 @media (max-width: 760px) {
   .intro-title {
-    font-size: 2.2rem;
+    font-size: 2rem;
   }
 
   .intro-subtitle {
@@ -129,8 +136,12 @@
   }
 
   .intro-text {
-    font-size: 0.94rem;
-    line-height: 1.6;
+    font-size: 1rem;
+    line-height: 1.68;
+  }
+
+  .intro-content {
+    padding: 1rem;
   }
 }
 

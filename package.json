@@ -6,10 +6,15 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "smoke:clicks": "node smoke-tests/click-paths.smoke.mjs",
+    "smoke:test": "npm run smoke:clicks"
   },
   "dependencies": {
     "express": "^4.21.2",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.54.2"
   }
 }

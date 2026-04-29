@@ -34,6 +34,8 @@
     lastSyncAt: 0,
     syncText: "Idle",
     pendingSyncCount: 0,
+    syncConflictCount: 0,
+    lastSyncConflicts: [],
     localEconomyLedger: [],
     suppressEconomyLedgerAuto: false,
     applyingSharedState: false,
@@ -208,18 +210,22 @@
       availableJobs: deepCloneJson(window.S.availableJobs || []),
       storyline: deepCloneJson(window.S.storyline || {}),
       holding: deepCloneJson(window.S.holding || {}),
-      lastSea: deepCloneJson(window.S.lastSea || {}),
-      gameDate: deepCloneJson(window.S.gameDate || {}),
       partyStash: Array.isArray(current.partyStash) ? current.partyStash.slice() : [],
       economyLedger: mergeEconomyLedger(current.economyLedger),
       provinceSelections: existingSelections
     };
-    var shouldPushProvinceMap = (state.role === "gm") || !state.code;
-    if (shouldPushProvinceMap && typeof window.getProvinceMapState === "function") {
+    var shouldPushAuthoritativeMaps = (state.role === "gm") || !state.code;
+    if (shouldPushAuthoritativeMaps && typeof window.getProvinceMapState === "function") {
       shared.provinceMap = deepCloneJson(window.getProvinceMapState() || null);
       if (shared.provinceMap && typeof shared.provinceMap === "object") {
         shared.provinceMap.selectedKey = "";
       }
+    }
+    if (shouldPushAuthoritativeMaps) {
+      shared.lastSea = deepCloneJson(window.S.lastSea || {});
+      shared.starSystem = deepCloneJson(window.S.starSystem || {});
+      shared.worldThatWas = deepCloneJson(window.S.worldThatWas || {});
+      shared.gameDate = deepCloneJson(window.S.gameDate || {});
     }
     return shared;
   }
@@ -271,6 +277,15 @@
       if (sharedState.lastSea && typeof sharedState.lastSea === "object") {
         window.S.lastSea = deepCloneJson(sharedState.lastSea) || {};
       }
+      if (sharedState.starSystem && typeof sharedState.starSystem === "object") {
+        window.S.starSystem = deepCloneJson(sharedState.starSystem) || {};
+        if (window.S.starSystem && Array.isArray(window.S.starSystem.hexes) && window.S.starSystem.hexes.length) {
+          window._lastGeneratedGalaxy = deepCloneJson(window.S.starSystem);
+        }
+      }
+      if (sharedState.worldThatWas && typeof sharedState.worldThatWas === "object") {
+        window.S.worldThatWas = deepCloneJson(sharedState.worldThatWas) || {};
+      }
       if (sharedState.gameDate && typeof sharedState.gameDate === "object") {
         window.S.gameDate = deepCloneJson(sharedState.gameDate) || {};
       }
@@ -286,6 +301,9 @@
     if (typeof window.updateMentalStressUI === "function") window.updateMentalStressUI();
     if (typeof window.renderLastSeaMap === "function") window.renderLastSeaMap();
     if (typeof window.renderLastSeaInfo === "function") window.renderLastSeaInfo();
+    if (typeof window.renderStarSystemMap === "function") window.renderStarSystemMap();
+    if (typeof window.updateStarSystemReadouts === "function") window.updateStarSystemReadouts();
+    if (typeof window.renderWorldThatWas === "function") window.renderWorldThatWas();
     if (typeof window.renderHexMap === "function") window.renderHexMap();
     if (typeof window.renderMissionBoard === "function") window.renderMissionBoard();
     if (typeof window.renderMissionTracker === "function") window.renderMissionTracker();
@@ -346,6 +364,11 @@
       state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
       state.lastSyncAt = Date.now();
       setSyncHealth("online", "Synced");
+      state.lastSyncConflicts = Array.isArray(res.conflicts) ? res.conflicts : [];
+      state.syncConflictCount = state.lastSyncConflicts.length;
+      if (state.syncConflictCount) {
+        safeNotif("Sync guardrails preserved GM authority: " + state.lastSyncConflicts.join(", ") + ".", "warn");
+      }
       if (sentLedgerIds.length && Array.isArray(state.localEconomyLedger)) {
         var sentMap = {};
         sentLedgerIds.forEach(function (id) { if (id) sentMap[id] = true; });
@@ -913,6 +936,7 @@
     var syncLabel = state.syncHealth === "syncing"
       ? "Syncing"
       : (state.syncHealth === "stale" ? "Pending" : (state.syncHealth === "online" ? "Synced" : "Offline"));
+    var syncConflictText = state.syncConflictCount > 0 ? ("Guardrails " + state.syncConflictCount) : "";
     var partyStash = Array.isArray(sharedState.partyStash) ? sharedState.partyStash : [];
     var localBackpackSlots = Array.isArray(window.S && window.S.backpack)
       ? window.S.backpack.map(function (item, idx) {
@@ -939,6 +963,7 @@
       + '<div class="campaign-status-row">'
       + '<span class="campaign-badge ' + (state.connected ? "online" : "offline") + '">' + (state.connected ? "Online" : (ioReady ? "Offline" : "Server Script Missing")) + "</span>"
       + '<span class="campaign-badge ' + escapeHtml(state.syncHealth || "idle") + '">' + escapeHtml(syncLabel) + '</span>'
+      + (syncConflictText ? ('<span class="campaign-muted">' + escapeHtml(syncConflictText) + '</span>') : '')
       + '<span class="campaign-muted">Code: <strong style="color:var(--teal);">' + escapeHtml(state.code || "-") + "</strong></span>"
       + "</div>"
       + '<div class="setting-row">'
@@ -965,6 +990,7 @@
       + '<div class="campaign-muted" style="margin-top:.2rem;">Coin <strong style="color:var(--gold2);">' + sharedCredits + '₵</strong> · Renown <strong style="color:var(--teal);">' + sharedRenown + '</strong></div>'
       + '<div class="campaign-actions" style="margin-top:.35rem;">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Shared World</button>'
+      + '<button class="btn btn-xs" onclick="window.campaignSystem.showOnboarding(true)">Show Onboarding</button>'
       + '</div>'
       + '<div class="campaign-muted">'
       + 'Persistent state enabled'
@@ -997,6 +1023,8 @@
           + "</div>"
           + '<div class="campaign-actions" style="margin-top:.35rem;">'
           + '<button class="btn btn-xs" onclick="window.campaignSystem.setCampaignPassword()">Apply Password</button>'
+          + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.forceAuthoritativeResync()">Broadcast Authoritative State</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.clearProvinceSelections()">Clear Player Map Cursors</button>'
           + '<button class="btn btn-xs" onclick="window.campaignSystem.toggleArchive()">' + ((campaign && campaign.archived) ? 'Reopen' : 'Archive') + '</button>'
           + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.deleteCampaign()">Delete Campaign</button>'
           + "</div>"
@@ -1295,6 +1323,7 @@
       renderDockPanel();
       syncCharacterToCampaign(false);
       syncSharedState("snapshot");
+      showOnboarding(false);
     });
 
     state.socket.on("campaign:notice", function (payload) {
@@ -1353,6 +1382,64 @@
       window.openModal("Campaign Roll Request", html);
     }
     safeNotif("GM called a campaign roll.", "info");
+  }
+
+  function getOnboardingSteps() {
+    var shared = getCampaignSharedState();
+    var provinceMap = shared && shared.provinceMap ? shared.provinceMap : (typeof window.getProvinceMapState === "function" ? window.getProvinceMapState() : null);
+    var provinceReady = !!(provinceMap && Array.isArray(provinceMap.cells) && provinceMap.cells.length);
+    var seaReady = !!(window.S && window.S.lastSea && Array.isArray(window.S.lastSea.map) && window.S.lastSea.map.length);
+    var galaxyReady = !!(window.S && window.S.starSystem && Array.isArray(window.S.starSystem.hexes) && window.S.starSystem.hexes.length);
+    var worldReady = !!(window.S && window.S.worldThatWas && Array.isArray(window.S.worldThatWas.hexes) && window.S.worldThatWas.hexes.length);
+    return {
+      inCampaign: !!(state.code && state.connected),
+      provinceReady: provinceReady,
+      seaReady: seaReady,
+      galaxyReady: galaxyReady,
+      worldReady: worldReady,
+      mapsReady: provinceReady || seaReady || galaxyReady || worldReady
+    };
+  }
+
+  function renderOnboardingHtml() {
+    var steps = getOnboardingSteps();
+    var roleText = state.role === "gm" ? "GM" : (state.role === "player" ? "Player" : "Not joined");
+    var mapSummary = [
+      steps.provinceReady ? "Province" : "-",
+      steps.seaReady ? "Last Sea" : "-",
+      steps.galaxyReady ? "Galaxy" : "-",
+      steps.worldReady ? "World" : "-"
+    ].join(" / ");
+    return ""
+      + '<div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">'
+      + '<strong style="color:var(--text);">Campaign Quickstart</strong><br>'
+      + 'Role: <strong style="color:var(--gold2);">' + escapeHtml(roleText) + '</strong><br>'
+      + 'Shared map state: <strong style="color:var(--teal);">' + escapeHtml(mapSummary) + '</strong>'
+      + '</div>'
+      + '<div style="margin-top:.55rem;display:grid;gap:.4rem;">'
+      + '<div>' + (steps.inCampaign ? '✅' : '⬜') + ' Join/Create campaign and confirm your role.</div>'
+      + '<div>' + (steps.mapsReady ? '✅' : '⬜') + ' GM generates map(s) so everyone inherits shared state.</div>'
+      + '<div>' + ((state.syncHealth === "online") ? '✅' : '⬜') + ' Press Sync Shared World after major changes.</div>'
+      + '<div>' + ((state.syncConflictCount === 0) ? '✅' : '⬜') + ' Resolve guardrail conflicts if shown.</div>'
+      + '</div>'
+      + '<div style="margin-top:.6rem;display:flex;gap:.35rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Now</button>'
+      + (state.role === "gm"
+        ? '<button class="btn btn-xs" onclick="if(typeof generateMap===\'function\')generateMap();">Generate Province</button>'
+          + '<button class="btn btn-xs" onclick="if(typeof generateLastSea===\'function\')generateLastSea();">Generate Sea</button>'
+          + '<button class="btn btn-xs" onclick="if(typeof generateStarSystemMap===\'function\')generateStarSystemMap();">Generate Galaxy</button>'
+        : '')
+      + '</div>';
+  }
+
+  function showOnboarding(force) {
+    if (!state.code || !state.connected || typeof window.openModal !== "function") return;
+    var key = "beyond-light-campaign-onboarding-v2:" + String(state.code || "") + ":" + String(state.token || "");
+    var seen = "";
+    try { seen = localStorage.getItem(key) || ""; } catch (_err) {}
+    if (!force && seen === "1") return;
+    window.openModal("Campaign Onboarding", renderOnboardingHtml());
+    try { localStorage.setItem(key, "1"); } catch (_err) {}
   }
 
   function resolveActionDie(stat) {
@@ -1538,6 +1625,40 @@
       return;
     }
     safeNotif(password.trim() ? "Campaign password updated." : "Campaign password removed.", "good");
+  }
+
+  async function forceAuthoritativeResync() {
+    if (!state.socket || state.role !== "gm") {
+      safeNotif("Only connected GM can broadcast authoritative state.", "warn");
+      return;
+    }
+    var res = await syncSharedSilent("gm-authoritative-broadcast");
+    if (!res || !res.ok) {
+      safeNotif((res && res.error) || "Broadcast sync failed.", "warn");
+      return;
+    }
+    safeNotif("Authoritative world state broadcasted to campaign.", "good");
+  }
+
+  async function clearProvinceSelections() {
+    if (!state.socket || state.role !== "gm") {
+      safeNotif("Only connected GM can clear player cursors.", "warn");
+      return;
+    }
+    var shared = getCampaignSharedState();
+    var selected = shared && shared.provinceSelections && typeof shared.provinceSelections === "object"
+      ? deepCloneJson(shared.provinceSelections) || {}
+      : {};
+    Object.keys(selected).forEach(function (token) {
+      if (state.token && String(token) === String(state.token)) return;
+      delete selected[token];
+    });
+    var res = await pushSharedState({ provinceSelections: selected }, "gm-clear-province-selections");
+    if (!res || !res.ok) {
+      safeNotif((res && res.error) || "Could not clear player cursors.", "warn");
+      return;
+    }
+    safeNotif("Cleared player map cursors.", "good");
   }
 
   async function toggleArchive() {
@@ -1823,6 +1944,9 @@
     setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,
     applyGmEconomyAdjustment: applyGmEconomyAdjustment,
+    forceAuthoritativeResync: forceAuthoritativeResync,
+    clearProvinceSelections: clearProvinceSelections,
+    showOnboarding: showOnboarding,
     toggleDock: toggleDock,
     recordEconomyDelta: recordEconomyDelta,
     getProvinceSelectionMarkers: getProvinceSelectionMarkers,

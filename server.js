@@ -922,7 +922,24 @@ io.on("connection", (socket) => {
     const existingState = campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
       ? campaign.shared.state
       : {};
+    const token = socket.data.token || "";
+    const member = token ? campaign.participants.get(token) : null;
+    const gmAuthority = isGm(campaign, token);
+    const authoritativeKeys = ["provinceMap", "lastSea", "starSystem", "worldThatWas", "gameDate"];
+    const conflicts = [];
     const merged = Object.assign({}, existingState, incoming);
+
+    if (!gmAuthority) {
+      for (let i = 0; i < authoritativeKeys.length; i += 1) {
+        const key = authoritativeKeys[i];
+        if (Object.prototype.hasOwnProperty.call(incoming, key)) {
+          if (Object.prototype.hasOwnProperty.call(existingState, key)) merged[key] = existingState[key];
+          else delete merged[key];
+          conflicts.push(key);
+        }
+      }
+    }
+
     if (
       incoming.provinceSelections && typeof incoming.provinceSelections === "object" &&
       !Array.isArray(incoming.provinceSelections)
@@ -965,12 +982,21 @@ io.on("connection", (socket) => {
     campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
     campaign.updatedAt = Date.now();
 
+    if (conflicts.length) {
+      addLog(
+        campaign,
+        "system",
+        `${member ? member.name : "Player"} sync had protected keys ignored: ${conflicts.join(", ")}.`,
+        { token: token || "", conflicts }
+      );
+    }
+
     campaign.updatedAt = Date.now();
     schedulePersist();
 
     emitCampaignState(campaign.code);
     if (typeof ack === "function") {
-      ack({ ok: true, stateVersion: campaign.shared.stateVersion });
+      ack({ ok: true, stateVersion: campaign.shared.stateVersion, conflicts });
     }
   });
 

@@ -195,6 +195,8 @@ async function runScenario(browser) {
       error: "",
       acceptedMissionId: null,
       completedMissionId: null,
+      completedMissionIds: [],
+      completedRuns: 0,
       activeBefore: 0,
       activeAfterAccept: 0,
       activeAfterComplete: 0,
@@ -202,6 +204,8 @@ async function runScenario(browser) {
       completedAfter: 0,
       pointsBefore: { heroic: 0, tyrant: 0, martyr: 0 },
       pointsAfter: { heroic: 0, tyrant: 0, martyr: 0 },
+      finaleBeforeUnlocked: false,
+      finaleAfterUnlocked: false,
       chosenFaction: "",
       chosenMission: ""
     };
@@ -246,6 +250,14 @@ async function runScenario(browser) {
 
     out.chosenFaction = factionId;
     out.chosenMission = String(mission.id);
+
+    if (!stateRef.factionRenown || typeof stateRef.factionRenown !== "object") {
+      stateRef.factionRenown = {};
+    }
+    for (var ri = 0; ri < factionIds.length; ri += 1) {
+      var renownFactionId = factionIds[ri];
+      stateRef.factionRenown[renownFactionId] = Math.max(10, Number(stateRef.factionRenown[renownFactionId] || 0));
+    }
     out.activeBefore = Array.isArray(stateRef.activeMissions) ? stateRef.activeMissions.length : 0;
     out.completedBefore = Array.isArray(stateRef.completedMissions) ? stateRef.completedMissions.length : 0;
 
@@ -255,12 +267,16 @@ async function runScenario(browser) {
     if (!stateRef.factionNarrative.pathPoints || typeof stateRef.factionNarrative.pathPoints !== "object") {
       stateRef.factionNarrative.pathPoints = { heroic: 0, tyrant: 0, martyr: 0 };
     }
+    if (!stateRef.factionNarrative.finale || typeof stateRef.factionNarrative.finale !== "object") {
+      stateRef.factionNarrative.finale = { unlocked: false, key: "", revealed: false, unlockedAt: 0 };
+    }
     const beforePoints = stateRef.factionNarrative.pathPoints;
     out.pointsBefore = {
       heroic: Number(beforePoints.heroic || 0),
       tyrant: Number(beforePoints.tyrant || 0),
       martyr: Number(beforePoints.martyr || 0)
     };
+    out.finaleBeforeUnlocked = !!(stateRef.factionNarrative.finale && stateRef.factionNarrative.finale.unlocked);
 
     if (typeof window.factionSystem.expandFaction === "function") {
       try { window.factionSystem.expandFaction(factionId); } catch (_err) {}
@@ -274,40 +290,79 @@ async function runScenario(browser) {
       return out;
     }
 
-    window.factionSystem.acceptFactionMission(factionId, mission.id, "heroic");
-    out.activeAfterAccept = Array.isArray(stateRef.activeMissions) ? stateRef.activeMissions.length : 0;
-
-    const activeContract = Array.isArray(stateRef.activeMissions)
-      ? stateRef.activeMissions.find((m) => m && m.missionType === "faction_contract" && m.factionContract && m.factionContract.factionId === factionId && String(m.factionContract.missionId) === String(mission.id))
-      : null;
-    if (!activeContract || !activeContract.id) {
-      out.error = "Faction mission was not assigned through UI flow.";
-      return out;
-    }
-
-    out.acceptedMissionId = Number(activeContract.id);
-
     if (typeof window.completeMissionStep !== "function" && typeof window.resolveMissionOutcome !== "function") {
       out.error = "Mission UI handlers are unavailable.";
       return out;
     }
 
-    if (typeof window.completeMissionStep === "function") {
-      window.completeMissionStep(activeContract.id, 1);
-      window.completeMissionStep(activeContract.id, 2);
+    function runHeroicContract(nextFactionId, nextMissionId) {
+      if (typeof window.factionSystem.acceptFactionMission !== "function") return { ok: false, error: "acceptFactionMission unavailable." };
+      window.factionSystem.acceptFactionMission(nextFactionId, nextMissionId, "heroic");
+      var activeContract = Array.isArray(stateRef.activeMissions)
+        ? stateRef.activeMissions.find((m) => m && m.missionType === "faction_contract" && m.factionContract && m.factionContract.factionId === nextFactionId && String(m.factionContract.missionId) === String(nextMissionId))
+        : null;
+      if (!activeContract || !activeContract.id) {
+        return { ok: false, error: "Faction mission was not assigned through UI flow." };
+      }
+
+      if (typeof window.completeMissionStep === "function") {
+        window.completeMissionStep(activeContract.id, 1);
+        window.completeMissionStep(activeContract.id, 2);
+      }
+      if (typeof window.resolveMissionOutcome === "function") {
+        window.resolveMissionOutcome(activeContract.id, true);
+      } else if (typeof window.completeMissionStep === "function") {
+        window.completeMissionStep(activeContract.id, 3);
+      }
+
+      var completedContract = Array.isArray(stateRef.completedMissions)
+        ? stateRef.completedMissions.find((m) => m && m.missionType === "faction_contract" && String(m.id) === String(activeContract.id))
+        : null;
+      if (!completedContract || !completedContract.id) {
+        return { ok: false, error: "Faction mission did not complete through UI flow." };
+      }
+
+      return { ok: true, id: Number(completedContract.id) };
     }
-    if (typeof window.resolveMissionOutcome === "function") {
-      window.resolveMissionOutcome(activeContract.id, true);
-    } else if (typeof window.completeMissionStep === "function") {
-      window.completeMissionStep(activeContract.id, 3);
+
+    var firstRun = runHeroicContract(factionId, mission.id);
+    if (!firstRun.ok) {
+      out.error = firstRun.error || "First heroic contract failed.";
+      return out;
+    }
+    out.acceptedMissionId = firstRun.id;
+    out.completedMissionId = firstRun.id;
+    out.completedMissionIds.push(firstRun.id);
+    out.completedRuns = 1;
+    out.activeAfterAccept = Array.isArray(stateRef.activeMissions) ? stateRef.activeMissions.length : 0;
+
+    const heroicThreshold = 5;
+    const used = {};
+    used[String(factionId) + "::" + String(mission.id)] = true;
+
+    for (var fi = 0; fi < factionIds.length; fi += 1) {
+      var currentHeroic = Number((stateRef.factionNarrative && stateRef.factionNarrative.pathPoints && stateRef.factionNarrative.pathPoints.heroic) || 0);
+      if (currentHeroic >= heroicThreshold) break;
+      var fId = factionIds[fi];
+      var fx = window.factionSystem.FACTIONS && window.factionSystem.FACTIONS[fId] ? window.factionSystem.FACTIONS[fId] : null;
+      var mList = fx && Array.isArray(fx.factionMissions) ? fx.factionMissions : [];
+      for (var mi = 0; mi < mList.length; mi += 1) {
+        currentHeroic = Number((stateRef.factionNarrative && stateRef.factionNarrative.pathPoints && stateRef.factionNarrative.pathPoints.heroic) || 0);
+        if (currentHeroic >= heroicThreshold) break;
+        var mId = mList[mi] && mList[mi].id;
+        var key = String(fId) + "::" + String(mId);
+        if (!mId || used[key]) continue;
+        used[key] = true;
+        var run = runHeroicContract(fId, mId);
+        if (run.ok) {
+          out.completedMissionIds.push(run.id);
+          out.completedRuns += 1;
+        }
+      }
     }
 
     out.activeAfterComplete = Array.isArray(stateRef.activeMissions) ? stateRef.activeMissions.length : 0;
     out.completedAfter = Array.isArray(stateRef.completedMissions) ? stateRef.completedMissions.length : 0;
-    const completedContract = Array.isArray(stateRef.completedMissions)
-      ? stateRef.completedMissions.find((m) => m && m.missionType === "faction_contract" && String(m.id) === String(activeContract.id))
-      : null;
-    out.completedMissionId = completedContract && completedContract.id ? Number(completedContract.id) : null;
 
     const afterPoints = (stateRef.factionNarrative && stateRef.factionNarrative.pathPoints) || { heroic: 0, tyrant: 0, martyr: 0 };
     out.pointsAfter = {
@@ -315,6 +370,11 @@ async function runScenario(browser) {
       tyrant: Number(afterPoints.tyrant || 0),
       martyr: Number(afterPoints.martyr || 0)
     };
+    out.finaleAfterUnlocked = !!(stateRef.factionNarrative && stateRef.factionNarrative.finale && stateRef.factionNarrative.finale.unlocked);
+
+    if (window.factionSystem && typeof window.factionSystem.openEndingsTab === "function") {
+      try { window.factionSystem.openEndingsTab(); } catch (_err) {}
+    }
 
     if (!window.S || typeof window.S !== "object") {
       window.S = {};
@@ -335,7 +395,6 @@ async function runScenario(browser) {
     throw new Error(`Faction mission UI flow failed: ${JSON.stringify(factionMissionFlow)}`);
   }
   if (
-    Number(factionMissionFlow.activeAfterAccept || 0) <= Number(factionMissionFlow.activeBefore || 0) ||
     !factionMissionFlow.acceptedMissionId
   ) {
     throw new Error(`Mission assignment assertion failed: ${JSON.stringify(factionMissionFlow)}`);
@@ -348,6 +407,13 @@ async function runScenario(browser) {
   }
   if (Number(factionMissionFlow.pointsAfter.heroic || 0) <= Number(factionMissionFlow.pointsBefore.heroic || 0)) {
     throw new Error(`Faction progression assertion failed: ${JSON.stringify(factionMissionFlow)}`);
+  }
+  if (
+    !!factionMissionFlow.finaleBeforeUnlocked ||
+    !factionMissionFlow.finaleAfterUnlocked ||
+    Number(factionMissionFlow.pointsAfter.heroic || 0) < 5
+  ) {
+    throw new Error(`Endings unlock assertion failed: ${JSON.stringify(factionMissionFlow)}`);
   }
 
   const gmSummary = await collectMapSummary(gmPage);
@@ -555,24 +621,27 @@ async function runScenario(browser) {
     var completedContracts = shared && shared.factionNarrative && Array.isArray(shared.factionNarrative.completedContracts)
       ? shared.factionNarrative.completedContracts.length
       : 0;
+    var finaleUnlocked = !!(shared && shared.factionNarrative && shared.factionNarrative.finale && shared.factionNarrative.finale.unlocked);
     var hasCompletedFactionContract = completed.some(function (m) {
       return !!(m && m.missionType === "faction_contract");
     });
     return {
       completedFactionContract: hasCompletedFactionContract,
       heroicPoints: heroicPoints,
-      completedContracts: completedContracts
+      completedContracts: completedContracts,
+      finaleUnlocked: finaleUnlocked
     };
   });
   if (
     !p1Faction.completedFactionContract ||
-    Number(p1Faction.heroicPoints || 0) < 1 ||
-    Number(p1Faction.completedContracts || 0) < 1
+    Number(p1Faction.heroicPoints || 0) < 5 ||
+    Number(p1Faction.completedContracts || 0) < 5 ||
+    !p1Faction.finaleUnlocked
   ) {
     throw new Error(`Faction contract sync assertion failed: ${JSON.stringify(p1Faction)}`);
   }
 
-  process.stdout.write(`Campaign scenario passed: code=${code}, requestResyncMs=${resyncAck.tookMs}, factionMissionId=${factionMissionFlow.completedMissionId}\n`);
+  process.stdout.write(`Campaign scenario passed: code=${code}, requestResyncMs=${resyncAck.tookMs}, factionMissions=${factionMissionFlow.completedRuns}, heroic=${factionMissionFlow.pointsAfter.heroic}, endingsUnlocked=${String(factionMissionFlow.finaleAfterUnlocked)}\n`);
 
   await gmPage.close();
   await p1Page.close();

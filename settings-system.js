@@ -1,5 +1,5 @@
-// settings-system.js — Game Settings & Game Modes (Solo/GM)
-// Manages audio volume, game mode selection, and GM mode features
+// settings-system.js — Game Settings & Game Modes (Solo/GM/Campaign)
+// Manages audio volume, game mode selection, and mode-specific UI features
 (function () {
   const SETTINGS_ID = "settingsPanel";
   
@@ -10,7 +10,7 @@
     sfxVolume: 0.6,
     
     // Game mode
-    gameMode: 'solo', // 'solo' or 'gm'
+    gameMode: 'solo', // 'solo' | 'gm' | 'campaign'
     gmRevealDC: true,
     gmRevealHiddenInfo: true,
     
@@ -56,14 +56,20 @@
     },
     
     // Set game mode
-    setGameMode(mode) {
-      if (mode === 'solo' || mode === 'gm') {
+    setGameMode(mode, opts) {
+      const options = opts || {};
+      if (mode === 'solo' || mode === 'gm' || mode === 'campaign') {
+        if (this.gameMode === mode) {
+          this.applyGameMode();
+          syncGameModeUI();
+          return;
+        }
         this.gameMode = mode;
         this.save();
         this.applyGameMode();
         syncGameModeUI();
-        if (typeof showNotif === 'function') {
-          const label = mode === 'gm' ? 'GM Mode' : 'Solo Mode';
+        if (!options.silent && typeof showNotif === 'function') {
+          const label = mode === 'gm' ? 'GM Mode' : (mode === 'campaign' ? 'Campaign Mode' : 'Solo Mode');
           showNotif(`Switched to ${label}`, 'good');
         }
       }
@@ -75,9 +81,15 @@
       if (this.gameMode === 'gm') {
         body.classList.add('gm-mode');
         body.classList.remove('solo-mode');
+        body.classList.remove('campaign-mode');
+      } else if (this.gameMode === 'campaign') {
+        body.classList.add('campaign-mode');
+        body.classList.remove('solo-mode');
+        body.classList.remove('gm-mode');
       } else {
         body.classList.add('solo-mode');
         body.classList.remove('gm-mode');
+        body.classList.remove('campaign-mode');
       }
     },
     
@@ -137,7 +149,7 @@
         <div class="settings-section">
           <h4>Game Mode</h4>
           <div class="mode-current">
-            Current Mode: <span id="currentModeLabel">${Settings.gameMode === 'gm' ? 'GM' : 'Solo'}</span>
+            Current Mode: <span id="currentModeLabel">${Settings.gameMode === 'gm' ? 'GM' : (Settings.gameMode === 'campaign' ? 'Campaign' : 'Solo')}</span>
           </div>
           <div class="setting-row mode-selector">
             <button class="mode-btn ${Settings.gameMode === 'solo' ? 'active' : ''}" 
@@ -151,6 +163,12 @@
               <span class="mode-icon">👥</span>
               <span class="mode-name">GM</span>
               <span class="mode-desc">Orchestrate the story</span>
+            </button>
+            <button class="mode-btn ${Settings.gameMode === 'campaign' ? 'active' : ''}" 
+              onclick="window.settingsSystem.setGameMode('campaign')">
+              <span class="mode-icon">🛰</span>
+              <span class="mode-name">Campaign</span>
+              <span class="mode-desc">Shared multiplayer world</span>
             </button>
           </div>
 
@@ -172,15 +190,17 @@
 
   function syncGameModeUI() {
     const isGM = Settings.gameMode === 'gm';
+    const isCampaign = Settings.gameMode === 'campaign';
     const modeButtons = document.querySelectorAll('#settingsPanel .mode-btn');
-    if (modeButtons.length >= 2) {
-      modeButtons[0].classList.toggle('active', !isGM);
+    if (modeButtons.length >= 3) {
+      modeButtons[0].classList.toggle('active', !isGM && !isCampaign);
       modeButtons[1].classList.toggle('active', isGM);
+      modeButtons[2].classList.toggle('active', isCampaign);
     }
 
     const modeLabel = document.getElementById('currentModeLabel');
     if (modeLabel) {
-      modeLabel.textContent = isGM ? 'GM' : 'Solo';
+      modeLabel.textContent = isGM ? 'GM' : (isCampaign ? 'Campaign' : 'Solo');
     }
 
     const gmToolsRow = document.getElementById('gmToolsRow');
@@ -204,8 +224,10 @@
 
     const settingsBtn = document.querySelector('nav .settings-tab-btn');
     if (settingsBtn) {
-      settingsBtn.title = isGM ? 'Settings (GM Mode Active)' : 'Settings (Solo Mode Active)';
-      settingsBtn.textContent = isGM ? '⚙ GM' : '⚙';
+      settingsBtn.title = isGM
+        ? 'Settings (GM Mode Active)'
+        : (isCampaign ? 'Settings (Campaign Mode Active)' : 'Settings (Solo Mode Active)');
+      settingsBtn.textContent = isGM ? '⚙ GM' : (isCampaign ? '⚙ C' : '⚙');
     }
   }
 
@@ -316,7 +338,7 @@
     setMasterVolume,
     setMusicVolume,
     setSFXVolume,
-    setGameMode: (mode) => Settings.setGameMode(mode),
+    setGameMode: (mode, opts) => Settings.setGameMode(mode, opts),
     toggleGMReveal,
     showGMPrompt,
     isGMMode: () => Settings.isGMMode(),

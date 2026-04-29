@@ -3132,6 +3132,12 @@ function showBackpackItem(index) {
     if (S.caravan && (S.caravan.owned || S.caravan.name)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
     if (S.naval && S.naval.ship) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'ship'" + ');closeModal();">⛵ Ship</button>'; }
     if (S.holding && (S.holding.name || S.holding.established)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
+    if (window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
+      var csStateA = window.campaignSystem.getState();
+      if (csStateA && csStateA.code && csStateA.connected) {
+        storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'party'" + ');closeModal();">🤝 Party Stash</button>';
+      }
+    }
     storOpts += '</div></div>';
     btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
     openModal('Backpack Item','<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>');
@@ -3157,6 +3163,12 @@ function showBackpackItem(index) {
   if (S.caravan && (S.caravan.owned || S.caravan.name)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
   if (S.naval && S.naval.ship) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'ship'" + ');closeModal();">⛵ Ship</button>'; }
   if (S.holding && (S.holding.name || S.holding.established)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
+  if (window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
+    var csStateB = window.campaignSystem.getState();
+    if (csStateB && csStateB.code && csStateB.connected) {
+      storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'party'" + ');closeModal();">🤝 Party Stash</button>';
+    }
+  }
   storOpts += '</div></div>';
   btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
   var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
@@ -3187,7 +3199,7 @@ function removeBackpackItem(index) {
 // No longer used — all sellBackpackItem calls now go to the advanced version.
 
 // Move backpack item to caravan, ship, or holding storage
-function moveBackpackToStorage(index, storageType) {
+async function moveBackpackToStorage(index, storageType) {
   if (!S || !S.backpack) return;
   var item = S.backpack[index] || '';
   if (!item) { showNotif('No item to move!', 'neutral'); return; }
@@ -3223,6 +3235,21 @@ function moveBackpackToStorage(index, storageType) {
     var bpEl = document.getElementById('bp' + index);
     if (bpEl) bpEl.value = '';
     showNotif('Moved to Holding Vault: ' + item, 'good');
+  } else if (storageType === 'party') {
+    if (!window.campaignSystem || typeof window.campaignSystem.getState !== 'function') {
+      showNotif('Party Stash is only available in Campaign mode.', 'warn');
+      return;
+    }
+    var campaignState = window.campaignSystem.getState();
+    if (!campaignState || !campaignState.code || !campaignState.connected) {
+      showNotif('Join an active Campaign to use Party Stash.', 'warn');
+      return;
+    }
+    if (window.campaignSystem && typeof window.campaignSystem.shareBackpackItem === 'function') {
+      await window.campaignSystem.shareBackpackItem(index);
+      var bpEl = document.getElementById('bp' + index);
+      if (bpEl) bpEl.value = S.backpack[index] || '';
+    }
   }
 }
 

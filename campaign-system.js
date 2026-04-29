@@ -111,6 +111,21 @@
     state.syncText = String(text || "");
   }
 
+  function refreshSettingsModeFromCampaign() {
+    if (!window.settingsSystem || typeof window.settingsSystem.setGameMode !== "function") return;
+    if (!state.code) {
+      window.settingsSystem.setGameMode("solo", { silent: true });
+      return;
+    }
+    if (state.role === "gm") {
+      window.settingsSystem.setGameMode("gm", { silent: true });
+      return;
+    }
+    if (state.role) {
+      window.settingsSystem.setGameMode("campaign", { silent: true });
+    }
+  }
+
   function makeEconomyLedgerEvent(resource, delta, reason) {
     var token = String(state.token || "");
     var name = String(state.playerName || ensureName() || "Wayfarer");
@@ -324,6 +339,30 @@
       state.lastSharedHash = hash;
       state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
     }
+  }
+
+  function patchMapGenerationHooks() {
+    if (window._campaignPatchedMapGenerationHooks) return;
+
+    function wrap(fnName, reason) {
+      if (typeof window[fnName] !== "function") return;
+      var original = window[fnName];
+      window[fnName] = function () {
+        var out = original.apply(this, arguments);
+        if (state.code && state.connected && state.role === "gm") {
+          setTimeout(function () { syncSharedState(reason || fnName); }, 0);
+        }
+        return out;
+      };
+    }
+
+    wrap("generateMap", "generate-province");
+    wrap("generateLastSea", "generate-last-sea");
+    wrap("generateStarSystemMap", "generate-galaxy");
+    wrap("generateWorldThatWasMap", "generate-world-that-was");
+    wrap("clearMap", "clear-province");
+
+    window._campaignPatchedMapGenerationHooks = true;
   }
 
   async function syncSharedNow() {
@@ -1260,9 +1299,7 @@
     state.activePromptId = "";
     persistSession();
 
-    if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
-      window.settingsSystem.setGameMode(res.role === "gm" ? "gm" : "solo");
-    }
+    refreshSettingsModeFromCampaign();
 
     safeNotif("Restored campaign " + res.code + " as " + (res.role === "gm" ? "GM" : "Player") + ".", "good");
     renderSettingsSection();
@@ -1313,6 +1350,7 @@
         snapshot && snapshot.shared ? snapshot.shared.state : null,
         snapshot && snapshot.shared ? snapshot.shared.stateVersion : 0
       );
+      refreshSettingsModeFromCampaign();
       if (state.connected) {
         setSyncHealth("online", "Synced");
         state.lastSyncAt = Date.now();
@@ -1353,6 +1391,7 @@
       state.uiDraft.code = "";
       state.uiDraft.joinPassword = "";
       clearSession();
+      refreshSettingsModeFromCampaign();
       safeNotif((code ? ("Campaign " + code + " was deleted by GM.") : "Campaign deleted by GM."), "warn");
       renderSettingsSection();
       renderDockPanel();
@@ -1387,7 +1426,7 @@
   function getOnboardingSteps() {
     var shared = getCampaignSharedState();
     var provinceMap = shared && shared.provinceMap ? shared.provinceMap : (typeof window.getProvinceMapState === "function" ? window.getProvinceMapState() : null);
-    var provinceReady = !!(provinceMap && Array.isArray(provinceMap.cells) && provinceMap.cells.length);
+    var provinceReady = !!(provinceMap && Array.isArray(provinceMap.mapData) && provinceMap.mapData.length);
     var seaReady = !!(window.S && window.S.lastSea && Array.isArray(window.S.lastSea.map) && window.S.lastSea.map.length);
     var galaxyReady = !!(window.S && window.S.starSystem && Array.isArray(window.S.starSystem.hexes) && window.S.starSystem.hexes.length);
     var worldReady = !!(window.S && window.S.worldThatWas && Array.isArray(window.S.worldThatWas.hexes) && window.S.worldThatWas.hexes.length);
@@ -1478,9 +1517,7 @@
     state.uiDraft.joinPassword = "";
     persistSession();
 
-    if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
-      window.settingsSystem.setGameMode("gm");
-    }
+    refreshSettingsModeFromCampaign();
 
     safeNotif("Campaign created. Share code " + res.code + ".", "good");
     syncCharacterToCampaign(true);
@@ -1534,9 +1571,7 @@
     state.uiDraft.joinPassword = "";
     persistSession();
 
-    if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
-      window.settingsSystem.setGameMode(res.role === "gm" ? "gm" : "solo");
-    }
+    refreshSettingsModeFromCampaign();
 
     if (!opts.silent) {
       safeNotif(
@@ -1562,6 +1597,7 @@
     state.activePromptId = "";
     state.uiDraft.joinPassword = "";
     clearSession();
+    refreshSettingsModeFromCampaign();
 
     safeNotif("Left campaign.", "warn");
     renderSettingsSection();
@@ -1881,6 +1917,7 @@
     patchTmwHooks();
     patchMentalStressHooks();
     patchSharedEconomyHooks();
+    patchMapGenerationHooks();
     ensureSettingsSection();
     ensureDockPanel();
     ensureSocket();
@@ -1913,6 +1950,7 @@
     patchTmwHooks();
     patchMentalStressHooks();
     patchSharedEconomyHooks();
+    patchMapGenerationHooks();
     if (!document.getElementById("campaignSettingsSection")) {
       ensureSettingsSection();
     }

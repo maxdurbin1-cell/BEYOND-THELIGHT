@@ -639,6 +639,7 @@ select option{background:#0f1020;}
     <div class="leg-item"><div class="leg-dot" style="background:#282828;border:1px dashed #555;"></div>Barrier</div>
     <div class="leg-item"><div class="leg-dot" style="background:#3a2800;border:1px solid #f0a840;"></div>Trade Route</div>
     <div class="leg-item"><div class="leg-dot" style="background:rgba(200,50,50,.12);border:1px solid rgba(200,50,50,.55);color:#e05050;font-size:.72rem;text-align:center;line-height:1.35;">&#9876;</div>Mission</div>
+    <div id="provinceMarkerLegend" class="leg-item" style="display:none;"></div>
   </div>
   <div class="map-layout">
     <div class="map-scroll" id="mapScroll">
@@ -4351,6 +4352,52 @@ function markerColorByToken(token){
   return palette[Math.abs(hash)%palette.length];
 }
 
+function escapeHtmlLite(val){
+  return String(val||'')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function renderProvinceMarkerLegend(markers){
+  const host=document.getElementById('provinceMarkerLegend');
+  if(!host)return;
+  const list=(Array.isArray(markers)?markers:[]).filter(function(m){
+    return m&&m.online&&m.name;
+  });
+  if(!list.length){
+    host.style.display='none';
+    host.innerHTML='';
+    return;
+  }
+  const byToken={};
+  list.forEach(function(m){
+    const tk=String(m.token||'');
+    if(!tk||byToken[tk])return;
+    byToken[tk]=m;
+  });
+  const uniq=Object.keys(byToken).map(function(k){return byToken[k];});
+  uniq.sort(function(a,b){
+    if(!!a.isMe!==!!b.isMe)return a.isMe?-1:1;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+  host.style.display='flex';
+  host.style.alignItems='center';
+  host.style.gap='.28rem';
+  host.style.flexWrap='wrap';
+  host.innerHTML='<span style="font-size:.68rem;color:var(--muted2);margin-right:.1rem;">Players:</span>'+
+    uniq.map(function(m){
+      const color=m.isMe?'#f0d070':markerColorByToken(m.token);
+      const name=escapeHtmlLite(m.name)+(m.isMe?' (You)':'');
+      return '<span class="leg-item" style="gap:.22rem;">'
+        + '<span class="leg-dot" style="width:8px;height:8px;background:rgba(10,12,22,.88);border:1px solid '+color+';"></span>'
+        + '<span style="color:var(--muted2);font-size:.68rem;">'+name+'</span>'
+        + '</span>';
+    }).join('');
+}
+
 function renderHexMap(){
   if(window.factionSystem&&typeof window.factionSystem.syncBaseMarkers==='function')window.factionSystem.syncBaseMarkers();
   const secretPadKey=getProvinceSecretPadKey();
@@ -4363,6 +4410,7 @@ function renderHexMap(){
     if(!markersByHex[k])markersByHex[k]=[];
     markersByHex[k].push(m);
   });
+  renderProvinceMarkerLegend(liveMarkers);
   const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20;
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';

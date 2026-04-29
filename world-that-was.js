@@ -40,6 +40,7 @@
     "Dust Saints": "religious"
   };
   const ACTION_STATS = ["body", "mind", "spirit", "control", "lead", "strike", "shoot", "defend"];
+  const ALLOWED_DREAD_DICE = [4, 6, 8, 10, 12, 20];
   const FALLBACK_LOOT = ["Trade Good", "Toolkit", "Remedy", "Scroll", "Weapon Mod", "Armor Plate", "Data Cache", "Relic Shard"];
   const ZONE_DANGER = {
     "Cyber Hub": { eventCombatChance: 30, eventDreadBias: 0, encounterChance: 26, skirmishChance: 14, cycleShiftBonus: 0 },
@@ -63,7 +64,7 @@
     station: { icon: "R", color: "#7ed7ff", priority: 75, title: "Rail Station" },
     service: { icon: "S", color: "#7ee0b2", priority: 70, title: "District Service" },
     structure: { icon: "B", color: "#c9a227", priority: 68, title: "Explorable Structure" },
-    wayfarer: { icon: "W", color: "#d4b8ff", priority: 64, title: "Wayfarer" },
+    wayfarer: { icon: "✧", color: "#d4b8ff", priority: 64, title: "Wayfarer" },
     faction_base: { icon: "🏰", color: "#46c4b6", priority: 66, title: "Faction Base" },
     faction_task: { icon: "✦", color: "#e8c050", priority: 67, title: "Wayfarer Task" },
     hazard: { icon: "H", color: "#ff8a72", priority: 60, title: "Hazard" },
@@ -113,9 +114,36 @@
     { type: "hazard", name: "Signal Overload", stat: "mind", dread: 8, condition: "distracted", desc: "Interference storms fragment concentration and guidance systems." },
     { type: "peril", name: "Riot Swell", stat: "spirit", dread: 8, condition: "shaken", desc: "Panic cascades through alleys and escalates into violence." },
     { type: "barrier", name: "Collapsed Transit Wall", stat: "body", dread: 10, condition: "vulnerable", desc: "Route collapse blocks movement and exposes travelers." },
-    { type: "barrier", name: "Checkpoint Blackout", stat: "control", dread: 9, condition: "distracted", desc: "Locked systems seal exits and scramble route data." },
-    { type: "peril", name: "Drone Hunt Zone", stat: "defend", dread: 9, condition: "vulnerable", desc: "Hunter drones sweep for movement across open lines." }
+    { type: "barrier", name: "Checkpoint Blackout", stat: "control", dread: 10, condition: "distracted", desc: "Locked systems seal exits and scramble route data." },
+    { type: "peril", name: "Drone Hunt Zone", stat: "defend", dread: 10, condition: "vulnerable", desc: "Hunter drones sweep for movement across open lines." }
   ];
+
+  function normalizeDreadDie(value, fallback) {
+    const raw = Number(value || 0);
+    if (ALLOWED_DREAD_DICE.indexOf(raw) >= 0) return raw;
+    const base = Number(raw || fallback || 8);
+    let best = ALLOWED_DREAD_DICE[0];
+    let bestDiff = Math.abs(best - base);
+    for (let i = 1; i < ALLOWED_DREAD_DICE.length; i += 1) {
+      const die = ALLOWED_DREAD_DICE[i];
+      const diff = Math.abs(die - base);
+      if (diff < bestDiff || (diff === bestDiff && die > best)) {
+        best = die;
+        bestDiff = diff;
+      }
+    }
+    return best;
+  }
+
+  function stepDreadDie(current, dir) {
+    const die = normalizeDreadDie(current, 8);
+    let idx = ALLOWED_DREAD_DICE.indexOf(die);
+    if (idx < 0) idx = 2;
+    let next = idx + (dir > 0 ? 1 : -1);
+    if (next < 0) next = 0;
+    if (next >= ALLOWED_DREAD_DICE.length) next = ALLOWED_DREAD_DICE.length - 1;
+    return ALLOWED_DREAD_DICE[next];
+  }
 
   const WTW_WAYFARER_NAMES = [
     "Rhea Coil", "Jax Meridian", "Old Sable", "Mira Vale", "Korr Dune", "Len Blackwire", "Toma Relic", "Ena Drift"
@@ -443,7 +471,7 @@
 
   function rollAgainstDread(statKey, dreadDie) {
     const ad = getActionDie(statKey);
-    const dd = dreadDie || 8;
+    const dd = normalizeDreadDie(dreadDie || 8, 8);
     const a = (typeof explodingRoll === "function") ? explodingRoll(ad) : { total: safeRoll(ad) };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dd) : { total: safeRoll(dd) };
     const invBonus = (typeof collectInventoryBonusesForStat === "function") ? collectInventoryBonusesForStat(statKey) : { addAdventure: 0, flat: 0 };
@@ -534,7 +562,7 @@
     const base = Object.assign({}, template || {});
     const danger = dangerForZone(zoneName);
     if (safeRoll(100) <= danger.eventCombatChance) {
-      const dread = Math.max(4, safePick([6, 8, 8, 10], 8) + danger.eventDreadBias);
+      const dread = normalizeDreadDie(safePick([6, 8, 8, 10], 8) + danger.eventDreadBias, 8);
       const enemies = safePick([1, 2, 2, 3, 4], 2);
       return {
         title: base.title || "District Conflict",
@@ -554,7 +582,7 @@
       reward: base.reward || "Loot and influence",
       mode: "skill",
       stat: "adventure",
-      dread: Math.max(4, safePick([6, 8, 8, 10], 8) + danger.eventDreadBias)
+      dread: normalizeDreadDie(safePick([6, 8, 8, 10], 8) + danger.eventDreadBias, 8)
     };
   }
 
@@ -569,7 +597,9 @@
         text: "A roaming Wayfarer calls out with rumors, trade offers, and route warnings.",
         action: "Parley with the Wayfarer",
         reward: "Intel and backpack loot",
-        mode: "wayfarer"
+        mode: "wayfarer",
+        stat: "lead",
+        dread: 6
       };
     }
     return buildWorldEvent(zoneName, {
@@ -1357,6 +1387,7 @@
   }
 
   function zoneServicesForHex(hex) {
+    if (!hex || !hex.serviceNode) return [];
     const z = zoneForHex(hex);
     if (!z) return [];
     const total = z.hexIds.length || 1;
@@ -1677,13 +1708,14 @@
     const evt = hex.narrative.event;
 
     if (evt.mode === "combat") {
+      const encounterDread = normalizeDreadDie(evt.dread || 8, 8);
       if (typeof showNotif === "function") {
-        showNotif("Combat event: " + evt.enemies + " enemies (DD" + evt.dread + " | " + evt.enemyHealth + " HP each).", "warn");
+        showNotif("Combat event: " + evt.enemies + " enemies (DD" + encounterDread + " | " + (evt.enemyHealth || (encounterDread * 2)) + " HP each).", "warn");
       }
       openWorldSkirmishCombat({
         enemies: evt.enemies || 2,
-        dread: evt.dread || 8,
-        enemyHealth: evt.enemyHealth || ((evt.dread || 8) * 2),
+        dread: encounterDread,
+        enemyHealth: evt.enemyHealth || (encounterDread * 2),
         sourceHexId: hex.id,
       });
       return;
@@ -1699,9 +1731,9 @@
       addWorldItem("dataDrives", 1);
       setCredits(getCredits() + 50);
       grantRandomLoot("medium");
-      putLootInBackpack("Event Cache");
+      putLootInBackpack(drawServiceMerchantItem(["items", "toolkits", "tradegoods"]));
       if (typeof showNotif === "function") {
-        showNotif("Event success: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ". Rewards: +50 Credits, loot, Event Cache.", "good");
+        showNotif("Event success: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ". Rewards: +50 Credits, loot, and backpack supplies.", "good");
       }
     } else if (typeof showNotif === "function") {
       showNotif("Event failed: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ".", "warn");
@@ -1802,7 +1834,7 @@
       addZoneReputation(hex.zone, 1);
       addWorldItem("dataDrives", 1);
       addWorldItem("water", 1);
-      putLootInBackpack("Wayfarer Clue Cache");
+      putLootInBackpack(drawServiceMerchantItem(["services", "items", "tradegoods"]));
       if (typeof showNotif === "function") showNotif("Wayfarer encounter resolved: gained resources and clue cache.", "good");
       hex.encounter = null;
       advanceWorldTime("wayfarer encounter");
@@ -1811,13 +1843,14 @@
       return;
     }
     if (hex.encounter.mode === "combat") {
+      const encounterDread = normalizeDreadDie(hex.encounter.dread || 8, 8);
       if (typeof showNotif === "function") {
-        showNotif("Encounter combat: " + hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each).", "warn");
+        showNotif("Encounter combat: " + hex.encounter.enemies + " enemies (DD" + encounterDread + " | " + (hex.encounter.enemyHealth || (encounterDread * 2)) + " HP each).", "warn");
       }
       openWorldSkirmishCombat({
         enemies: hex.encounter.enemies || 2,
-        dread: hex.encounter.dread || 8,
-        enemyHealth: hex.encounter.enemyHealth || ((hex.encounter.dread || 8) * 2),
+        dread: encounterDread,
+        enemyHealth: hex.encounter.enemyHealth || (encounterDread * 2),
         sourceHexId: hex.id,
       });
       return;
@@ -1916,17 +1949,38 @@
       if (typeof openStorylineTab === "function") openStorylineTab();
       if (typeof showNotif === "function") showNotif("Story marker reviewed: opening Storyline.", "good");
       delete w.markers[hexId];
-    } else {
-      const check = rollAgainstDread("adventure", 6);
-      if (check.success) {
-        setCredits(getCredits() + 80);
-        addWorldItem("scrap", 1);
-        addZoneReputation(hex.zone, 1);
-        putLootInBackpack("District Contract Token");
-        if (typeof showNotif === "function") showNotif("District job success: Adventure " + check.actionTotal + " vs " + check.dreadTotal + ".", "good");
-      } else {
-        hex.skirmish = true;
-        if (typeof showNotif === "function") showNotif("District job failed: Adventure " + check.actionTotal + " vs " + check.dreadTotal + ". Skirmish triggered.", "warn");
+    } else if (marker.type === "job") {
+      const zone = zoneForHex(hex);
+      const power = hex.controller || (zone && zone.leader) || MAJOR_POWERS[0];
+      const factionKey = POWER_TO_FACTION_RENOWN[power] || "political";
+      const rivals = ["corporations", "religious", "political", "military", "underworld", "rebels"].filter(function (k) { return k !== factionKey; });
+      const rivalKey = rivals.length ? safePick(rivals, rivals[0]) : "rebels";
+      const zoneDanger = dangerForZone(hex.zone);
+      const difficulty = zoneDanger.eventDreadBias >= 2
+        ? "very_hard"
+        : (zoneDanger.eventDreadBias >= 1 ? "hard" : (zoneDanger.eventDreadBias <= -1 ? "easy" : "medium"));
+      const missionTitle = "District Contract: " + hex.zone + " - " + hex.district;
+
+      if (typeof createMission === "function") {
+        createMission(
+          power,
+          missionTitle,
+          difficulty,
+          hex.zone + " / " + hex.district,
+          "wtw",
+          {
+            gain: factionKey,
+            lose: rivalKey,
+            gainName: power,
+            loseName: rivalKey.charAt(0).toUpperCase() + rivalKey.slice(1),
+          },
+          {
+            missionType: "wtw_contract",
+          }
+        );
+        if (typeof showNotif === "function") showNotif("Contract accepted from " + power + ": posted to Missions tab.", "good");
+      } else if (typeof showNotif === "function") {
+        showNotif("Missions system unavailable: cannot post district contract.", "warn");
       }
       delete w.markers[hexId];
     }
@@ -2035,7 +2089,7 @@
   function buildWorldCombatEnemies(config) {
     const cfg = config || {};
     const count = Math.max(1, Number(cfg.enemies || 2));
-    const dd = Math.max(4, Number(cfg.dread || 8));
+    const dd = normalizeDreadDie(cfg.dread || 8, 8);
     const hp = Math.max(4, Number(cfg.enemyHealth || (dd * 2)));
     const names = ['Warden Unit', 'Cipher Raider', 'Dust Stalker', 'Veil Operative', 'Cartel Enforcer', 'Titan Guard'];
     const list = [];
@@ -2242,13 +2296,13 @@
           + "<div style='font-size:.77rem;color:var(--text2);line-height:1.6;'>"
           + "<strong style='color:var(--teal);'>Accept Failure:</strong> Task removed, skirmish triggered, earn <strong style='color:var(--teal);'>+1 Teamwork Point</strong>.<br>"
           + "<strong style='color:#c9a227;'>Spend 3 Teamwork:</strong> Convert to success, keep task rewards. You have <strong style='color:var(--teal);'>" + ((typeof S !== "undefined" && S.tmw) || 0) + " Teamwork</strong>.<br>"
-          + "<strong style='color:#f0a050;'>Push Your Luck:</strong> Re-roll vs <strong style='color:#f0a050;'>Dread D" + (typeof stepUp === "function" ? stepUp(dreadDie) : dreadDie) + "</strong>. Win = full success. Lose = accept fail +1 Teamwork."
+          + "<strong style='color:#f0a050;'>Push Your Luck:</strong> Re-roll vs <strong style='color:#f0a050;'>Dread " + dreadLabel(stepDreadDie(dreadDie, 1)) + "</strong>. Win = full success. Lose = accept fail +1 Teamwork."
           + "</div>"
           + "</div>"
           + "<div style='display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;'>"
           + "<button class='btn btn-sm' onclick='wtwAcceptTaskFail()'>Accept (+1 Teamwork)</button>"
           + "<button class='btn btn-sm btn-teal' " + (((typeof S !== "undefined" && S.tmw) || 0) >= 3 ? "" : "disabled title='Need 3 Teamwork'") + " onclick='wtwSpendTeamworkOnTask()'>Spend 3 Teamwork → Succeed</button>"
-          + "<button class='btn btn-sm' style='background:rgba(240,160,80,.18);border-color:rgba(240,160,80,.5);color:#f0a050;' onclick='wtwPushTaskLuck()'>Push Luck (D" + (typeof stepUp === "function" ? stepUp(dreadDie) : dreadDie) + ")</button>"
+          + "<button class='btn btn-sm' style='background:rgba(240,160,80,.18);border-color:rgba(240,160,80,.5);color:#f0a050;' onclick='wtwPushTaskLuck()'>Push Luck (" + dreadLabel(stepDreadDie(dreadDie, 1)) + ")</button>"
           + "</div>"))
     openModal("Task: " + task.title, html);
   }
@@ -2522,16 +2576,29 @@
     const n = hex.narrative;
     const evt = n.event || {};
     const markerTypeLabel = marker && WTW_MARKER_STYLE[marker.type] ? WTW_MARKER_STYLE[marker.type].title : "District Marker";
+    const eventDread = normalizeDreadDie(evt.dread || 8, 8);
     const eventCheck = evt.mode === "combat"
-      ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " enemies (DD" + (evt.dread || 8) + " | " + (evt.enemyHealth || 16) + " HP each)")
-      : ("<strong>Check:</strong> Adventure d" + getActionDie("adventure") + " vs DD" + (evt.dread || 8));
+      ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " enemies (DD" + eventDread + " | " + (evt.enemyHealth || (eventDread * 2)) + " HP each)")
+      : ("<strong>Check:</strong> Adventure d" + getActionDie("adventure") + " vs DD" + eventDread);
 
     const gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === "function" && window.settingsSystem.isGMMode());
     const gmEncounterControls = (gmMode && hex.encounter && hex.encounter.mode !== "combat" && hex.encounter.mode !== "wayfarer")
       ? "<button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='wtwResolveEncounterAs(\"success\")'>GM: Force Success</button><button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='wtwResolveEncounterAs(\"failure\")'>GM: Force Failure</button>"
       : "";
+    const encounterSummary = hex.encounter
+      ? (hex.encounter.mode === "combat"
+        ? ((hex.encounter.enemies || 2) + " enemies (DD" + normalizeDreadDie(hex.encounter.dread || 8, 8) + " | " + (hex.encounter.enemyHealth || 16) + " HP each)")
+        : (hex.encounter.mode === "wayfarer"
+          ? "Social encounter (no action check required)."
+          : (statLabel(hex.encounter.stat || "adventure") + " vs DD" + normalizeDreadDie(hex.encounter.dread || 8, 8))))
+      : "";
+    const encounterActions = hex.encounter
+      ? (hex.encounter.mode === "combat"
+        ? ("<button class='btn btn-xs btn-red' onclick='wtwResolveEncounter()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEncounter(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEncounter(\"" + hex.id + "\")'>Failure</button>")
+        : ("<button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + gmEncounterControls))
+      : "";
     const encounterHtml = hex.encounter
-      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='wtwResolveEncounter()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEncounter(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEncounter(\"" + hex.id + "\")'>Failure</button>" : "") + gmEncounterControls + "</div></div>")
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + encounterSummary + "</div><div class='wtw-card-actions'>" + encounterActions + "</div></div>")
       : "<div class='wtw-muted'>No rolled encounter in this district.</div>";
 
     const servicesHtml = services.map(function (svc, idx) {
@@ -2569,13 +2636,20 @@
       ? ("<div class='wtw-card'><div class='wtw-card-title'>" + (hex.structure.kind || "Structure") + ": " + (hex.structure.name || "Unknown Site") + "</div><div class='wtw-card-text'>Enter and generate interior rooms for exploration.</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwExploreStructure(\"" + hex.id + "\")'>Generate Rooms</button></div>" + structureRoomHtml + "</div>")
       : "<div class='wtw-muted'>No explorable structure in this district.</div>";
 
+    const nextRailZone = (function () {
+      const idx = ZONE_NAMES.indexOf(hex.zone);
+      if (idx < 0) return ZONE_NAMES[0];
+      return ZONE_NAMES[(idx + 1) % ZONE_NAMES.length];
+    })();
     const travelHtml = "<div class='wtw-card'>"
       + "<div class='wtw-card-title' style='color:#7ed7ff;'>Travel Infrastructure</div>"
       + "<div class='wtw-card-text'>"
       + (hex.station ? "This district contains a rail station. Rail travel costs 30 Credits to another station.<br>" : "No rail station in this district. Move to a station to use rail travel.<br>")
       + (hex.landingPad ? "Landing pad available: launch to space for 40 Credits." : "No landing pad in this district.")
       + "</div>"
-      + (hex.landingPad ? "<div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwLaunchToSpace(\"" + hex.id + "\")'>Launch To Space</button></div>" : "")
+      + (hex.station
+        ? "<div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwTravelRail(\"" + nextRailZone + "\")'>Rail To " + nextRailZone + "</button>" + (hex.landingPad ? "<button class='btn btn-xs btn-teal' onclick='wtwLaunchToSpace(\"" + hex.id + "\")'>Launch To Space</button>" : "") + "</div>"
+        : (hex.landingPad ? "<div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwLaunchToSpace(\"" + hex.id + "\")'>Launch To Space</button></div>" : ""))
       + "</div>";
 
     const controlRows = Object.keys((zone && zone.controlBreakdown) || {}).map(function (name) {
@@ -2596,7 +2670,11 @@
       + "<div class='wtw-card'>"
       + "<div class='wtw-card-title'>Random Event</div>"
       + "<div class='wtw-card-text'><strong>" + evt.title + "</strong><br>" + evt.text + "<br><br><strong>Action:</strong> " + evt.action + "<br>" + eventCheck + "<br><strong>Reward:</strong> " + evt.reward + "</div>"
-      + "<div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>" + (evt.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEvent(\"" + hex.id + "\")'>Mark Combat Failure</button>" : "") + "<button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
+      + "<div class='wtw-card-actions'>"
+      + (evt.mode === "combat"
+        ? ("<button class='btn btn-xs btn-red' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEvent(\"" + hex.id + "\")'>Mark Combat Failure</button>")
+        : ("<button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>"))
+      + "<button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
       + "</div>";
 
     const markerHtml = marker
@@ -2714,7 +2792,6 @@
       + "<button class='btn btn-sm' onclick='advanceWorldThatWas()'>Advance Cycle</button>"
       + "<button class='btn btn-sm btn-teal' onclick='wtwSyncMarkers()'>Refresh Markers</button>"
       + "<button class='btn btn-sm' id='wtwMapModeBtn' onclick='toggleWorldMapMode()'>Map: Detailed</button>"
-      + "<button class='btn btn-sm' onclick='wtwRollEncounter()'>Roll Encounter</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToProvince()'>Return to Province</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToLastSea()'>Return to Last Sea</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToGalaxy()'>Return to Galaxy</button>"
@@ -2879,7 +2956,7 @@
   window.wtwPushTaskLuck = function () {
     const p = window._pendingWtwTaskRoll;
     if (!p) { if (typeof closeModal === "function") closeModal(); return; }
-    const pushDread = typeof stepUp === "function" ? stepUp(p.dreadDie) : Math.min(20, p.dreadDie + 2);
+    const pushDread = stepDreadDie(p.dreadDie, 1);
     const adventureDie = getActionDie("adventure");
     const newCheck = rollAgainstDread("adventure", pushDread);
     const newSummary = "Adventure d" + adventureDie + " [" + newCheck.actionTotal + "] vs Dread " + dreadLabel(pushDread) + " [" + newCheck.dreadTotal + "]";

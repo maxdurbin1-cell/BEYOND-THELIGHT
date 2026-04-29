@@ -1264,7 +1264,7 @@
       + (isGm
         ? (""
           + '<div class="campaign-card">'
-          + '<div class="campaign-card-title">GM Economy Controls</div>'
+          + '<div class="campaign-card-title">GM Economy Controls & Audit</div>'
           + '<div class="campaign-muted" style="margin-bottom:.35rem;">Manual corrections with required reason. All changes are written to the shared ledger.</div>'
           + '<div class="campaign-roll-grid">'
           + '<select id="campaignEconomyResource" class="campaign-input">'
@@ -1277,6 +1277,15 @@
           + '<textarea id="campaignEconomyReason" class="campaign-input" maxlength="220" placeholder="Required reason for adjustment..."></textarea>'
           + '<div class="campaign-actions" style="margin-top:.35rem;">'
           + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.applyGmEconomyAdjustment()">Apply & Log</button>'
+          + '<button class="btn btn-xs" onclick="if(window.auditPanelUI) window.auditPanelUI.showAuditPanelModal()">View Audit</button>'
+          + '</div>'
+          + '<div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border2);">'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Teamwork Enforcement</div>'
+          + '<div class="campaign-actions" style="gap:.2rem;">'
+          + '<button class="btn btn-xs" id="campaignStrictModeBtn" onclick="window.campaignSystem.toggleStrictTeamworkMode()">Strict Mode OFF</button>'
+          + '<button class="btn btn-xs" onclick="if(window.auditPanelUI) window.auditPanelUI.exportLedgerCSV()">Export Ledger</button>'
+          + '<button class="btn btn-xs" onclick="if(window.auditPanelUI) window.auditPanelUI.exportFailureReport()">Export Report</button>'
+          + '</div>'
           + '</div>'
           + '</div>')
         : "")
@@ -2379,6 +2388,20 @@
     importSnapshotFromModal: importSnapshotFromModal,
     toggleDock: toggleDock,
     recordEconomyDelta: recordEconomyDelta,
+    toggleStrictTeamworkMode: function() {
+      var enabled = false;
+      if (typeof window.teamworkRulesSystem !== "undefined" && window.teamworkRulesSystem) {
+        enabled = !window.teamworkRulesSystem.isStrictMode();
+        window.teamworkRulesSystem.setStrictMode(enabled);
+      }
+      var btn = document.getElementById("campaignStrictModeBtn");
+      if (btn) {
+        btn.textContent = "Strict Mode " + (enabled ? "ON" : "OFF");
+        btn.classList.toggle("btn-red", enabled);
+        btn.classList.toggle("btn-green", !enabled);
+      }
+      renderSettingsSection();
+    },
     getProvinceSelectionMarkers: getProvinceSelectionMarkers,
     syncSharedNow: syncSharedNow,
     syncSharedSilent: syncSharedSilent,

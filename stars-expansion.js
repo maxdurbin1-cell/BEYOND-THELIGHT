@@ -4064,27 +4064,67 @@ function openPlanetLostCityBuildingExploration() {
 }
 
 function generatePlanetRuinRooms(cellId) {
+  openPlanetRuinPopup(cellId);
+}
+
+function buildPlanetRuinRoomDescription(type) {
+  const roomType = String(type || 'Empty');
+  if (roomType === 'Entrance') return pick(['A fractured gate arch breathes cold air from below.', 'An exposed transit shaft descends into carved foundations.', 'The ruin mouth is open, but dust suggests recent passage.']);
+  if (roomType === 'Lair') return pick(['Wet scraping sounds echo behind collapsed bulkheads.', 'Nests of wire and bone fill the corners.', 'A feeding pit is ringed with old warning glyphs.']);
+  if (roomType === 'Obstacle') return pick(['A collapsed span blocks passage with unstable debris.', 'A pressure door hums but only half-opens.', 'A flooded trench forces careful crossing.']);
+  if (roomType === 'Trap') return pick(['Trip filaments shimmer in dim light.', 'A rune lattice primes when weight shifts.', 'Hidden vents line the walls at knee-height.']);
+  if (roomType === 'Puzzle') return pick(['A lock-dialect matrix waits for the right sequence.', 'Three mirrored totems must be aligned by inference.', 'A dead console asks for a forgotten site-name.']);
+  if (roomType === 'Secret Cache') return pick(['A sealed vault is tucked behind false masonry.', 'A concealed locker responds to old insignia tags.', 'A cache alcove contains untouched expedition crates.']);
+  if (roomType === 'Shrine Room') return pick(['A halo of dust-free stone surrounds a silent shrine.', 'Prayer flags hang from cracked obsidian beams.', 'An altar still hums with residual field harmonics.']);
+  return pick(['A chance to regroup in relative calm.', 'An empty chamber with old survey marks.', 'A stripped room, but useful cover remains.']);
+}
+
+function openPlanetRuinPopup(cellId) {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
   const cell = state.cells.find((entry) => entry.id === Number(cellId));
   if (!cell) return;
   cell.data = cell.data || {};
-  const total = ((cell.data.ruin && cell.data.ruin.rooms) || (roll(4) + 2));
   if (!Array.isArray(cell.data.ruinRooms) || !cell.data.ruinRooms.length) {
-    cell.data.ruinRooms = Array.from({ length: total }).map((_, i) => ({
-      id: i + 1,
-      cleared: false,
-      dread: 6 + Math.min(4, Math.floor((i + 1) / 2)),
-      detail: pick(['Wet scraping sounds behind collapsed bulkheads', 'A ritual circle etched into rusted plating', 'Broken stasis pods with claw marks on the inside', 'A pressure door that pulses like a heartbeat']),
-      loot: rollGalaxyMerchantLoot(),
-    }));
+    const total = Math.max(3, Number((cell.data.ruin && cell.data.ruin.rooms) || (roll(4) + 2)) || 4);
+    const midTypes = ['Lair', 'Obstacle', 'Trap', 'Puzzle', 'Secret Cache', 'Shrine Room', 'Empty', 'Empty'];
+    const rooms = [{ id: 1, type: 'Entrance', cleared: false, result: '' }];
+    for (let i = 1; i < total - 1; i += 1) {
+      rooms.push({ id: i + 1, type: pick(midTypes), cleared: false, result: '' });
+    }
+    rooms.push({ id: total, type: roll(2) === 1 ? 'Boss Chamber' : 'Secret Cache', cleared: false, result: '' });
+    cell.data.ruinRooms = rooms;
   }
-  const roomsHtml = cell.data.ruinRooms.map((room) => {
-    return `<div style="padding:.28rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;">Room ${room.id} · DD${room.dread}${room.cleared ? ' · Cleared ✓' : ''}<br>${room.detail}<br>${room.cleared ? `Loot: ${room.loot}` : `<button class='btn btn-xs btn-teal' onclick='resolvePlanetRuinRoom(${cell.id},${room.id})'>Roll Room</button>`}</div>`;
+  const ruin = cell.data.ruin || {};
+  const rooms = cell.data.ruinRooms;
+  const cleared = rooms.filter((room) => !!room.cleared).length;
+  const totalRooms = rooms.length || 1;
+  const progressPct = Math.round((cleared / totalRooms) * 100);
+  const roomsHtml = rooms.map((room) => {
+    const roomType = String(room.type || 'Empty');
+    const dread = roomType === 'Boss Chamber' ? 12 : ((roomType === 'Obstacle' || roomType === 'Trap') ? 6 : 8);
+    const typeColor = roomType === 'Boss Chamber' ? 'var(--red2)' : (roomType === 'Secret Cache' ? 'var(--gold)' : (roomType === 'Shrine Room' ? 'var(--purple)' : (roomType === 'Puzzle' ? 'var(--teal)' : 'var(--text2)')));
+    const icon = roomType === 'Entrance' ? '🚪' : (roomType === 'Lair' ? '👁' : (roomType === 'Obstacle' ? '⛰' : (roomType === 'Trap' ? '⚠' : (roomType === 'Puzzle' ? '🧩' : (roomType === 'Secret Cache' ? '🔍' : (roomType === 'Boss Chamber' ? '💀' : (roomType === 'Shrine Room' ? '✦' : '◻')))))));
+    const desc = room.description || buildPlanetRuinRoomDescription(roomType);
+    const actionHtml = room.cleared
+      ? '<div style="font-size:.7rem;color:var(--green);margin-top:.2rem;">✓ Cleared</div>'
+      : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolvePlanetRuinRoom(' + Number(cell.id) + ',' + Number(room.id) + ')">⚄ Explore (Action vs DD' + dread + ')</button></div>';
+    return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid ' + typeColor + ';padding-left:.5rem;">'
+      + '<div class="rb-title" style="color:' + typeColor + ';">' + icon + ' Room ' + Number(room.id) + ' - ' + roomType + '</div>'
+      + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">' + desc + '</div>'
+      + (room.result ? ('<div style="margin-top:.28rem;padding:.25rem .4rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);">' + room.result + '</div>') : '')
+      + actionHtml
+      + '</div>';
   }).join('');
+  const header = '<div style="margin-bottom:.45rem;">'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;">Built by <strong style="color:var(--gold);">' + String(ruin.builder || 'Unknown') + '</strong> · <em>' + String(ruin.builtFor || 'Unknown purpose') + '</em></div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.25rem;">Construction: ' + String(ruin.construction || 'Unknown') + ' · Novelty: ' + String(ruin.novelty || 'None') + '</div>'
+    + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">' + cleared + '/' + totalRooms + ' rooms explored</div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;height:6px;margin-bottom:.5rem;"><div style="background:var(--teal);height:100%;width:' + progressPct + '%;border-radius:4px;transition:width .3s;"></div></div>'
+    + '</div>';
   if (typeof openModal === 'function') {
-    openModal('Ruin Rooms', `<div style="font-size:.82rem;color:var(--text2);line-height:1.5;">${roomsHtml}</div>`);
+    openModal('◫ Planet Ruins - Hex #' + cell.id, '<div style="font-size:.82rem;color:var(--text2);line-height:1.5;">' + header + roomsHtml + '</div>');
   }
 }
 
@@ -4096,19 +4136,45 @@ function resolvePlanetRuinRoom(cellId, roomId) {
   if (!cell || !cell.data || !Array.isArray(cell.data.ruinRooms)) return;
   const room = cell.data.ruinRooms.find((entry) => entry.id === Number(roomId));
   if (!room || room.cleared) return;
+  const roomType = String(room.type || 'Empty');
+  if (roomType === 'Entrance') {
+    room.result = 'Entrance secured. The route deeper is now clear.';
+    room.cleared = true;
+    if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    openPlanetRuinPopup(cellId);
+    return;
+  }
   const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
   const a = explodingRoll(adDie);
-  const d = explodingRoll(room.dread || 6);
+  const dread = roomType === 'Boss Chamber' ? 12 : ((roomType === 'Obstacle' || roomType === 'Trap') ? 6 : 8);
+  const d = explodingRoll(dread);
   const success = a.total >= d.total;
   if (success) {
+    const loot = rollGalaxyMerchantLoot();
     room.cleared = true;
+    room.loot = room.loot || loot;
     takeGalaxyLoot(room.loot, 'pack');
-    showNotif(`Room ${room.id} cleared. Loot secured: ${room.loot}`, 'good');
+    if (roomType === 'Shrine Room' && typeof setPositiveGalaxyCondition === 'function') {
+      setPositiveGalaxyCondition(pick(['focused', 'empowered', 'protected', 'bolstered']));
+    }
+    room.result = 'AD d' + adDie + ' ' + a.total + ' vs DD' + dread + ' ' + d.total + ' - Success. Loot secured: ' + room.loot;
+    if (roomType === 'Boss Chamber' && typeof changeFactionRenown === 'function') {
+      changeFactionRenown('political', 1);
+    }
+    showNotif('Room ' + room.id + ' cleared. Loot secured: ' + room.loot, 'good');
   } else {
-    if (typeof changeStress === 'function') changeStress(Math.max(1, d.total - a.total));
-    showNotif(`Room ${room.id} failed.`, 'warn');
+    const loss = Math.max(1, d.total - a.total);
+    if (typeof changeStress === 'function') changeStress(loss);
+    if (roomType === 'Trap' && S && S.conditions) {
+      S.conditions.distracted = true;
+      if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    }
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    room.result = 'AD d' + adDie + ' ' + a.total + ' vs DD' + dread + ' ' + d.total + ' - Failure. Take ' + loss + ' Stress.';
+    room.cleared = true;
+    showNotif('Room ' + room.id + ' failed.', 'warn');
   }
-  generatePlanetRuinRooms(cellId);
+  openPlanetRuinPopup(cellId);
 }
 
 function getPlanetCell(state, col, row) {
@@ -4366,6 +4432,7 @@ function buildPlanetHoldingInfoHtml(state, selected) {
   return `<div class="rest-boon" style="background:rgba(201,162,39,.06);border-color:rgba(201,162,39,.4);">
       <div class="rb-label" style="color:var(--gold);">🛡 Rest Boon</div>
       <div style="font-size:.82rem;color:var(--text2);">${h.restBoon}</div>
+      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-gold" onclick="acceptPlanetRestBoon(${selected.id},'protected','Merchant Colony Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>
     <div class="mood-block"><div class="mb-label">Mood: ${h.mood}</div><div style="font-size:.82rem;color:var(--text2);">${h.crisis}<br><em style="font-size:.78rem;">${h.crisisText}</em></div></div>
     <div class="wild-panel"><div class="wp-label">${h.title}</div><div class="wp-text">${h.structure} · ${h.terrain} terrain</div></div>
@@ -4610,6 +4677,18 @@ function travelThroughPlanetGate() {
   };
   showNotif('Gate transit complete to Planet Hex #' + destination.id + '.', success ? 'good' : 'warn');
   renderPlanetExplorationPanel();
+}
+
+function getCurrentPlanetSurfaceState() {
+  const hex = getActivePlanetHex();
+  return ensurePlanetSurfaceState(hex);
+}
+
+function getSelectedPlanetCell() {
+  const state = getCurrentPlanetSurfaceState();
+  if (!state || !Array.isArray(state.cells) || !state.cells.length) return null;
+  const selected = state.cells.find((entry) => Number(entry.id) === Number(state.selectedCellId));
+  return selected || state.cells[0] || null;
 }
 
 function buildPlanetRuinInfoHtml(state, selected) {
@@ -5947,8 +6026,6 @@ function renderPlanetExplorationPanel() {
           </div>
 
           ${(selected && selected.marker === 'empty_colony' && selected.data && selected.data.lostCity) ? `<div class="sea-site" style="margin-top:.45rem;"><div class="ss-title">Lost City Details</div><div class="ss-text"><strong>Condition:</strong> ${selected.data.lostCity.buildingCondition}<br><strong>Building:</strong> ${selected.data.lostCity.buildingThis}<br><strong>Made Of:</strong> ${selected.data.lostCity.buildingMade}<br><strong>Built For:</strong> ${selected.data.lostCity.buildingFor}<br><strong>Inside:</strong> ${selected.data.lostCity.buildingInside}<br><strong>Now:</strong> ${selected.data.lostCity.buildingNow}<br><strong>Discovery:</strong> ${selected.data.lostCity.discovery ? selected.data.lostCity.discovery.shape : 'Unknown'} — ${selected.data.lostCity.discovery ? selected.data.lostCity.discovery.current : ''}</div></div>` : ''}
-
-          ${(selected && selected.marker === 'ruins' && selected.data && selected.data.ruin) ? `<div class="sea-site" style="margin-top:.45rem;"><div class="ss-title">Ruin Details</div><div class="ss-text"><strong>Built by:</strong> ${selected.data.ruin.builder}<br><strong>Purpose:</strong> ${selected.data.ruin.builtFor}<br><strong>Construction:</strong> ${selected.data.ruin.construction}<br><strong>Entrance:</strong> ${selected.data.ruin.entrance}<br><strong>Rooms:</strong> ${selected.data.ruin.rooms} total<br><strong>Novelty:</strong> ${selected.data.ruin.novelty}</div></div>` : ''}
 
           <div class="sea-site" style="margin-top:.35rem;">
             <div class="ss-title">Requirements</div>
@@ -9622,6 +9699,7 @@ window.observeAdjacentPlanetHexes = observeAdjacentPlanetHexes;
 window.runPlanetLocationInteraction = runPlanetLocationInteraction;
 window.rollPlanetCelebrationEvent = rollPlanetCelebrationEvent;
 window.resolvePlanetCelebrationEvent = resolvePlanetCelebrationEvent;
+window.openPlanetRuinPopup = openPlanetRuinPopup;
 window.rollPlanetHexEncounter = rollPlanetHexEncounter;
 window.rollPlanetCaravanHaggle = rollPlanetCaravanHaggle;
 window.interactPlanetExocraftConvoy = interactPlanetExocraftConvoy;

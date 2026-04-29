@@ -1,6 +1,7 @@
 // campaign-system.js — Multiplayer campaign rooms with session restore and dock UI
 (function () {
   var SESSION_KEY = "beyond-light-campaign-session";
+  var STALE_SYNC_MS = 12000;
 
   var state = {
     socket: null,
@@ -36,6 +37,8 @@
     pendingSyncCount: 0,
     syncConflictCount: 0,
     lastSyncConflicts: [],
+    lastCampaignStateAt: 0,
+    lastServerStateVersion: 0,
     lastAuthoritativeAt: 0,
     syncInFlight: false,
     lastResyncRequester: "",
@@ -162,6 +165,66 @@
   function setSyncHealth(mode, text) {
     state.syncHealth = String(mode || "idle");
     state.syncText = String(text || "");
+  }
+
+  function getLastSnapshotAgeSeconds() {
+    if (!state.lastCampaignStateAt) return 0;
+    return Math.max(0, Math.floor((Date.now() - Number(state.lastCampaignStateAt || 0)) / 1000));
+  }
+
+  function refreshSyncHealth() {
+    if (!state.connected) {
+      if (state.code) {
+        setSyncHealth("stale", "Reconnecting...");
+      } else {
+        setSyncHealth("offline", "Offline");
+      }
+      return;
+    }
+    if (!state.code) {
+      setSyncHealth("online", "Connected");
+      return;
+    }
+    if (state.syncInFlight || Number(state.pendingSyncCount || 0) > 0) {
+      setSyncHealth("syncing", "Syncing...");
+      return;
+    }
+    if (Number(state.syncConflictCount || 0) > 0) {
+      setSyncHealth("stale", "Conflicts " + Number(state.syncConflictCount || 0));
+      return;
+    }
+    var ageSec = getLastSnapshotAgeSeconds();
+    if (state.lastCampaignStateAt && ageSec >= Math.floor(STALE_SYNC_MS / 1000)) {
+      setSyncHealth("stale", "Stale " + ageSec + "s");
+      return;
+    }
+    setSyncHealth("online", "Synced");
+  }
+
+  function maybeDeterministicReconcile(trigger) {
+    if (!state.code) return;
+    if (!state.connected) return;
+    var now = Date.now();
+    if (now - Number(state.lastResyncRequestAt || 0) < 4000) return;
+    state.lastResyncRequestAt = now;
+
+    if (state.role === "gm") {
+      syncSharedSilent("gm-reconcile-" + String(trigger || "drift")).then(function (res) {
+        if (!res || !res.ok) {
+          setSyncHealth("stale", "Reconcile failed");
+          return;
+        }
+        state.lastSyncAt = Date.now();
+        refreshSyncHealth();
+      }).catch(function () {
+        setSyncHealth("stale", "Reconcile failed");
+      });
+      return;
+    }
+
+    if (state.role === "player") {
+      requestResync();
+    }
   }
 
   function hasActionPermission(actionName) {
@@ -1114,8 +1177,9 @@
     var syncLabel = state.syncHealth === "syncing"
       ? "Syncing"
       : (state.syncHealth === "stale" ? "Pending" : (state.syncHealth === "online" ? "Synced" : "Offline"));
-    var syncConflictText = state.syncConflictCount > 0 ? ("Guardrails " + state.syncConflictCount) : "";
+    var syncConflictText = state.syncConflictCount > 0 ? ("Conflicts " + state.syncConflictCount) : "";
     var authoritativeStamp = formatTimestamp(state.lastAuthoritativeAt) || formatTimestamp(state.lastSyncAt) || "-";
+    var snapshotAgeText = state.lastCampaignStateAt ? (getLastSnapshotAgeSeconds() + "s ago") : "-";
     var gmResyncRequester = state.lastResyncRequester ? String(state.lastResyncRequester) : "-";
     var gmResyncRequestAt = formatTimestamp(state.lastResyncRequestAt) || "-";
     var gmAutoRebroadcastAt = formatTimestamp(state.lastAutoRebroadcastAt) || "-";
@@ -1210,6 +1274,7 @@
       + '<div class="campaign-tmw">' + sharedTmw + "</div>"
       + '<div class="campaign-muted" style="margin-top:.2rem;">Coin <strong style="color:var(--gold2);">' + sharedCredits + '₵</strong> · Renown <strong style="color:var(--teal);">' + sharedRenown + '</strong></div>'
       + '<div class="campaign-muted" style="margin-top:.2rem;">Last authoritative sync: <strong style="color:var(--text2);">' + escapeHtml(authoritativeStamp) + '</strong></div>'
+      + '<div class="campaign-muted" style="margin-top:.2rem;">Last snapshot: <strong style="color:var(--text2);">' + escapeHtml(snapshotAgeText) + '</strong></div>'
       + '<div class="campaign-actions" style="margin-top:.35rem;">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Shared World</button>'
       + (isGm ? '' : '<button class="btn btn-xs" onclick="window.campaignSystem.requestResync()">Request Resync</button>')
@@ -1394,8 +1459,13 @@
     var filters = document.getElementById("campaignDockFilters");
 
     if (badge) {
-      var dockMode = state.connected ? (state.syncHealth === "syncing" ? "syncing" : (state.syncHealth === "stale" ? "stale" : "online")) : "offline";
-      badge.textContent = dockMode === "online" ? "Online" : (dockMode === "syncing" ? "Syncing" : (dockMode === "stale" ? "Pending" : "Offline"));
+      var hasConflicts = Number(state.syncConflictCount || 0) > 0;
+      var dockMode = state.connected
+        ? (state.syncHealth === "syncing" ? "syncing" : (state.syncHealth === "stale" || hasConflicts ? "stale" : "online"))
+        : "offline";
+      badge.textContent = hasConflicts
+        ? "Conflict"
+        : (dockMode === "online" ? "Online" : (dockMode === "syncing" ? "Syncing" : (dockMode === "stale" ? "Pending" : "Offline")));
       badge.className = "campaign-dock-badge " + dockMode;
     }
 
@@ -1518,6 +1588,7 @@
     state.socket.on("connect", function () {
       state.connected = true;
       syncWindowStateAlias();
+      state.lastCampaignStateAt = Date.now();
       setSyncHealth("online", "Connected");
       renderSettingsSection();
       renderDockPanel();
@@ -1527,7 +1598,7 @@
 
     state.socket.on("disconnect", function () {
       state.connected = false;
-      setSyncHealth("offline", "Offline");
+      setSyncHealth(state.code ? "stale" : "offline", state.code ? "Reconnecting..." : "Offline");
       renderSettingsSection();
       renderDockPanel();
     });
@@ -1536,6 +1607,7 @@
       syncWindowStateAlias();
       state.campaign = snapshot || null;
       state.code = snapshot && snapshot.code ? String(snapshot.code) : "";
+      state.lastCampaignStateAt = Date.now();
 
       if (snapshot && snapshot.me) {
         state.role = snapshot.me.role === "gm" ? "gm" : "player";
@@ -1548,18 +1620,33 @@
         state.lastAuthoritativeAt = Number(snapshot.shared.updatedAt || 0) || state.lastAuthoritativeAt;
       }
 
+      var incomingVersion = snapshot && snapshot.shared ? Number(snapshot.shared.stateVersion || 0) : 0;
+      state.lastServerStateVersion = Math.max(state.lastServerStateVersion, incomingVersion);
+
       var nextTmw = snapshot && snapshot.shared ? Number(snapshot.shared.tmw || 0) : null;
       if (nextTmw !== null && nextTmw !== getTmwValue()) {
         setLocalTmw(nextTmw);
       }
+
+      if (incomingVersion && state.lastSharedVersion && incomingVersion < state.lastSharedVersion) {
+        setSyncHealth("stale", "Reconciling...");
+        maybeDeterministicReconcile("version-drift");
+      }
+
       applySharedState(
         snapshot && snapshot.shared ? snapshot.shared.state : null,
         snapshot && snapshot.shared ? snapshot.shared.stateVersion : 0
       );
+
+      if (incomingVersion >= state.lastSharedVersion) {
+        state.syncConflictCount = 0;
+        state.lastSyncConflicts = [];
+      }
+
       refreshSettingsModeFromCampaign();
       if (state.connected) {
-        setSyncHealth("online", "Synced");
         state.lastSyncAt = Date.now();
+        refreshSyncHealth();
       }
 
       maybePromptActiveRoll(snapshot && snapshot.activeRollRequest ? snapshot.activeRollRequest : null);
@@ -2139,7 +2226,9 @@
       ? "syncing"
       : (state.syncHealth === "stale" ? "pending" : (state.syncHealth === "online" ? "synced" : "offline"));
     var stamp = formatTimestamp(state.lastAuthoritativeAt) || formatTimestamp(state.lastSyncAt) || "-";
-    return "Campaign " + roleLabel + " · " + syncLabel + " · authoritative " + stamp;
+    var age = state.lastCampaignStateAt ? (" · snapshot " + getLastSnapshotAgeSeconds() + "s") : "";
+    var conflict = state.syncConflictCount > 0 ? (" · conflicts " + state.syncConflictCount) : "";
+    return "Campaign " + roleLabel + " · " + syncLabel + conflict + " · authoritative " + stamp + age;
   }
 
   function ensureMapSyncStatusBars() {
@@ -2184,6 +2273,8 @@
       return;
     }
     if (!guardAction("requestResync", "Only campaign players can request a resync.")) return;
+    state.lastResyncRequestAt = Date.now();
+    setSyncHealth("syncing", "Reconciling...");
     var res = await emitWithAck("campaign:requestResync", {});
     if (!res || !res.ok) {
       safeNotif((res && res.error) || "Could not request resync.", "warn");
@@ -2200,6 +2291,7 @@
     } else {
       safeNotif("Requested authoritative resync.", "good");
     }
+    refreshSyncHealth();
   }
 
   async function exportSnapshot() {
@@ -2350,6 +2442,7 @@
     ensureDockPanel();
     ensureMapSyncStatusBars();
     syncDockOffset();
+    refreshSyncHealth();
     syncCharacterToCampaign(false);
     if (state.role !== "player") {
       syncSharedState("tick");

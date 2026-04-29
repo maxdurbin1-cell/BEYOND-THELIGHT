@@ -5780,7 +5780,14 @@ function rollHexEncounter(col,row){
   }
   try{
     const vr=roll(6);
-    const itemFlags=getProvinceNarrativeItemFlags();
+    const itemFlags=(function(){
+      try{
+        const out=(typeof getProvinceNarrativeItemFlags==='function')?getProvinceNarrativeItemFlags():null;
+        return out&&typeof out==='object'?out:{};
+      }catch(_err){
+        return {};
+      }
+    })();
     const shiftHint=itemFlags.compass?' (+Compass +2)':(itemFlags.torch?' (Torch eases fail stress)':'');
     const shiftTitle=itemFlags.compass?'Compass grants +2 to shift-weather Lead checks.':(itemFlags.torch?'Torch reduces weather-failure stress by 1.':'');
     const skirmishHint=itemFlags.factionItem?' (+Faction +1 Renown)':'';
@@ -5789,8 +5796,9 @@ function rollHexEncounter(col,row){
     let html='';
     if(vr===1){
       html=`<div class="venture-result"><div class="vr-type">d6=${vr} — Shift in Weather</div>`;
-      const season=(S&&S.currentSeason&&WEATHER[S.currentSeason])?S.currentSeason:'spring';
-      const weatherTable=WEATHER[season]||WEATHER.spring||[];
+      const safeWeather=(typeof WEATHER==='object'&&WEATHER)?WEATHER:{spring:[{result:'Overcast',rough:false,desc:'Steady weather. Travel is manageable.'}]};
+      const season=(S&&S.currentSeason&&safeWeather[S.currentSeason])?S.currentSeason:'spring';
+      const weatherTable=safeWeather[season]||safeWeather.spring||[];
       const wr=roll(6),w=weatherTable[wr-1]||{result:'Overcast',rough:false,desc:'Steady weather. Travel is manageable.'};
       html+=`<strong style="${w.rough?'color:var(--red2)':'color:var(--teal)'};">${w.result}</strong> — ${w.desc}`;
       if(w.rough){
@@ -5869,7 +5877,7 @@ function rollHexEncounter(col,row){
       el.innerHTML='<div style="font-size:.78rem;color:var(--red2);padding:.2rem 0;">Encounter roll failed. Please try again.</div>';
     }
     console.error('rollHexEncounter error',err);
-    showNotif('Encounter roll failed due to an internal error.','warn');
+    showNotif('Encounter roll failed due to an internal error. Using safe fallback next roll.','warn');
   }
 }
 

@@ -35,6 +35,7 @@
     syncText: "Idle",
     pendingSyncCount: 0,
     localEconomyLedger: [],
+    suppressEconomyLedgerAuto: false,
     applyingSharedState: false,
     uiDraft: {
       name: "",
@@ -464,7 +465,9 @@
       var after = getTmwValue();
       if (before !== after || state.lastKnownTmw !== after) {
         if (!state.suppressTmwEmit) {
-          recordEconomyDelta("tmw", after - before, "updateTMWPool");
+          if (!state.suppressEconomyLedgerAuto) {
+            recordEconomyDelta("tmw", after - before, "updateTMWPool");
+          }
         }
         syncCurrentTmw("updateTMWPool");
       }
@@ -517,7 +520,9 @@
         var appliedDelta = after - before;
         if (!state.suppressCreditsEmit && appliedDelta !== 0) {
           state.lastKnownCredits = after;
-          recordEconomyDelta("credits", appliedDelta, "updateCreditsUI");
+          if (!state.suppressEconomyLedgerAuto) {
+            recordEconomyDelta("credits", appliedDelta, "updateCreditsUI");
+          }
           syncCreditsDelta(appliedDelta, "updateCreditsUI");
         }
         if (state.lastKnownCredits === null) state.lastKnownCredits = after;
@@ -534,7 +539,9 @@
         var appliedDelta = after - before;
         if (!state.suppressRenownEmit && appliedDelta !== 0) {
           state.lastKnownRenown = after;
-          recordEconomyDelta("renown", appliedDelta, "updateRenown");
+          if (!state.suppressEconomyLedgerAuto) {
+            recordEconomyDelta("renown", appliedDelta, "updateRenown");
+          }
           syncRenownDelta(appliedDelta, "updateRenown");
         }
         if (state.lastKnownRenown === null) state.lastKnownRenown = after;
@@ -993,6 +1000,25 @@
           + '<button class="btn btn-xs" onclick="window.campaignSystem.toggleArchive()">' + ((campaign && campaign.archived) ? 'Reopen' : 'Archive') + '</button>'
           + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.deleteCampaign()">Delete Campaign</button>'
           + "</div>"
+          + '</div>')
+        : "")
+      + (isGm
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">GM Economy Controls</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Manual corrections with required reason. All changes are written to the shared ledger.</div>'
+          + '<div class="campaign-roll-grid">'
+          + '<select id="campaignEconomyResource" class="campaign-input">'
+          + '<option value="tmw">Teamwork (TMW)</option>'
+          + '<option value="credits">Credits</option>'
+          + '<option value="renown">Renown</option>'
+          + '</select>'
+          + '<input id="campaignEconomyDelta" class="campaign-input" type="number" step="1" value="1" placeholder="Delta (+/-)">'
+          + '</div>'
+          + '<textarea id="campaignEconomyReason" class="campaign-input" maxlength="220" placeholder="Required reason for adjustment..."></textarea>'
+          + '<div class="campaign-actions" style="margin-top:.35rem;">'
+          + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.applyGmEconomyAdjustment()">Apply & Log</button>'
+          + '</div>'
           + '</div>')
         : "")
       + '<div class="campaign-card">'
@@ -1621,6 +1647,79 @@
     if (input) input.value = "";
   }
 
+  async function applyGmEconomyAdjustment() {
+    if (!state.socket || !state.code || state.role !== "gm") {
+      safeNotif("Only connected GM can run economy adjustments.", "warn");
+      return;
+    }
+
+    var resource = readUiValue("campaignEconomyResource").trim().toLowerCase() || "tmw";
+    var rawDelta = Number(readUiValue("campaignEconomyDelta") || 0);
+    var reason = readUiValue("campaignEconomyReason").trim();
+
+    if (!reason || reason.length < 3) {
+      safeNotif("Reason is required for ledger transparency.", "warn");
+      return;
+    }
+    if (!Number.isFinite(rawDelta) || rawDelta === 0) {
+      safeNotif("Delta must be a non-zero number.", "warn");
+      return;
+    }
+
+    var appliedDelta = 0;
+    state.suppressEconomyLedgerAuto = true;
+    try {
+      if (resource === "tmw") {
+        var beforeTmw = Math.max(0, Number(window.S && window.S.tmw || 0));
+        if (typeof window.changeCounter === "function") {
+          window.changeCounter("tmw", rawDelta);
+        } else if (window.S) {
+          window.S.tmw = Math.max(0, beforeTmw + rawDelta);
+          if (typeof window.updateTMWPool === "function") window.updateTMWPool();
+        }
+        var afterTmw = Math.max(0, Number(window.S && window.S.tmw || 0));
+        appliedDelta = afterTmw - beforeTmw;
+      } else if (resource === "credits") {
+        var beforeCredits = Math.max(0, Number(window.S && window.S.credits || 0));
+        if (window.S) {
+          window.S.credits = Math.max(0, beforeCredits + rawDelta);
+          if (typeof window.updateCreditsUI === "function") window.updateCreditsUI();
+        }
+        var afterCredits = Math.max(0, Number(window.S && window.S.credits || 0));
+        appliedDelta = afterCredits - beforeCredits;
+      } else if (resource === "renown") {
+        var beforeRenown = Math.max(0, Number(window.S && window.S.renown || 0));
+        if (window.S) {
+          window.S.renown = Math.max(0, beforeRenown + rawDelta);
+          if (typeof window.updateRenown === "function") window.updateRenown();
+        }
+        var afterRenown = Math.max(0, Number(window.S && window.S.renown || 0));
+        appliedDelta = afterRenown - beforeRenown;
+      } else {
+        safeNotif("Unsupported resource. Use tmw, credits, or renown.", "warn");
+        return;
+      }
+    } finally {
+      state.suppressEconomyLedgerAuto = false;
+    }
+
+    if (!appliedDelta) {
+      safeNotif("No change applied (already at floor or unchanged).", "warn");
+      return;
+    }
+
+    recordEconomyDelta(resource, appliedDelta, "GM Adjustment: " + reason);
+    var res = await syncSharedSilent("gm-economy-adjust");
+    if (!res || !res.ok) {
+      safeNotif((res && res.error) || "Adjustment applied locally, but sync failed.", "warn");
+      return;
+    }
+
+    safeNotif("GM adjusted " + resource.toUpperCase() + " by " + (appliedDelta > 0 ? "+" : "") + appliedDelta + ".", "good");
+    renderSettingsSection();
+    renderDockPanel();
+  }
+
   function toggleDock() {
     state.dockOpen = !state.dockOpen;
     renderDockPanel();
@@ -1723,6 +1822,7 @@
     generateWayfarerIdea: generateWayfarerIdea,
     setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,
+    applyGmEconomyAdjustment: applyGmEconomyAdjustment,
     toggleDock: toggleDock,
     recordEconomyDelta: recordEconomyDelta,
     getProvinceSelectionMarkers: getProvinceSelectionMarkers,

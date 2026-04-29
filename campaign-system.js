@@ -469,6 +469,8 @@
       shared.starSystem = deepCloneJson(window.S.starSystem || {});
       shared.worldThatWas = deepCloneJson(window.S.worldThatWas || {});
       shared.gameDate = deepCloneJson(window.S.gameDate || {});
+      shared.gmSettings = deepCloneJson(current.gmSettings || ensureGmSettings());
+      shared.campaignCombat = deepCloneJson(current.campaignCombat || ensureCampaignCombatState());
     }
     return shared;
   }
@@ -556,6 +558,16 @@
       }
       if (sharedState.gameDate && typeof sharedState.gameDate === "object") {
         window.S.gameDate = deepCloneJson(sharedState.gameDate) || {};
+      }
+      if (sharedState.gmSettings && typeof sharedState.gmSettings === "object") {
+        var current = getCampaignSharedState() || {};
+        if (!current.gmSettings) current.gmSettings = {};
+        Object.assign(current.gmSettings, sharedState.gmSettings);
+      }
+      if (sharedState.campaignCombat && typeof sharedState.campaignCombat === "object") {
+        var current = getCampaignSharedState() || {};
+        if (!current.campaignCombat) current.campaignCombat = {};
+        Object.assign(current.campaignCombat, sharedState.campaignCombat);
       }
       if (sharedState.provinceMap && typeof window.applyProvinceMapState === "function") {
         window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
@@ -743,6 +755,265 @@
     try {
       localStorage.removeItem(SESSION_KEY);
     } catch (_err) {}
+  }
+
+  // ========== PHASE 1: GM MODES & CAMPAIGN COMBAT ==========
+
+  // Initialize or get default campaign combat state
+  function ensureCampaignCombatState(sharedState) {
+    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState.campaignCombat) {
+      sharedState.campaignCombat = {
+        active: false,
+        round: 0,
+        turnOrder: [],
+        currentActorIndex: 0,
+        participants: []
+      };
+    }
+    return sharedState.campaignCombat;
+  }
+
+  // Get or initialize GM settings (gmMode, visibility, etc)
+  function ensureGmSettings(sharedState) {
+    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState.gmSettings) {
+      sharedState.gmSettings = {
+        mode: "passive", // "passive" | "active" | "facilitative"
+        travelMode: "gm-led", // who can initiate travel
+        combatMode: "turn-based" // combat style
+      };
+    }
+    return sharedState.gmSettings;
+  }
+
+  // Get party roster from campaign (all participants with character data)
+  function buildPartyRoster() {
+    if (!state.campaign || !state.campaign.participants) return [];
+    var roster = [];
+    state.campaign.participants.forEach(function(participant) {
+      if (!participant.character) return;
+      roster.push({
+        token: participant.token,
+        name: participant.name || "Player",
+        role: participant.role || "player",
+        character: {
+          name: participant.character.name || "Wayfarer",
+          health: Math.max(0, Number(participant.character.health || 0)),
+          maxHealth: 10, // TODO: track from campaign
+          mentalStress: Math.max(0, Number(participant.character.mentalStress || 0)),
+          maxMentalStress: 10, // TODO: track from campaign
+          look: String(participant.character.look || ""),
+          stats: participant.character.stats || {},
+          backpack: Array.isArray(participant.character.backpack) ? participant.character.backpack : []
+        },
+        lastSeenAt: Number(participant.lastSeenAt || Date.now())
+      });
+    });
+    return roster;
+  }
+
+  // Start campaign combat: establish turn order based on initiative (adventure roll)
+  function startCampaignCombat(participants, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can start combat" });
+      return;
+    }
+    try {
+      var combatState = ensureCampaignCombatState();
+      combatState.active = true;
+      combatState.round = 1;
+      combatState.currentActorIndex = 0;
+      
+      // Build turn order: sort by adventure stat (higher = goes first)
+      var turnOrder = (Array.isArray(participants) ? participants : buildPartyRoster()).slice();
+      turnOrder.sort(function(a, b) {
+        var advA = Number((a.character && a.character.stats && a.character.stats.adventure) || 0);
+        var advB = Number((b.character && b.character.stats && b.character.stats.adventure) || 0);
+        return advB - advA; // Descending: higher adventure first
+      });
+      
+      combatState.turnOrder = turnOrder.map(function(p) { return p.token; });
+      combatState.participants = turnOrder.map(function(p) {
+        return {
+          token: p.token,
+          name: p.character ? p.character.name : p.name,
+          role: p.role || "player",
+          isDead: false,
+          hasActed: false
+        };
+      });
+
+      if (state.code && state.connected) {
+        syncSharedState("start-campaign-combat");
+      }
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Get current actor in turn order
+  function getCurrentCombatActor() {
+    var combatState = ensureCampaignCombatState();
+    if (!combatState.active || !Array.isArray(combatState.turnOrder) || combatState.turnOrder.length === 0) {
+      return null;
+    }
+    var idx = Math.max(0, Math.min(combatState.currentActorIndex, combatState.turnOrder.length - 1));
+    return combatState.turnOrder[idx] || null;
+  }
+
+  // Advance to next actor in turn order
+  function nextCombatActor(callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can advance turns" });
+      return;
+    }
+    try {
+      var combatState = ensureCampaignCombatState();
+      if (!combatState.active || !Array.isArray(combatState.turnOrder) || combatState.turnOrder.length === 0) {
+        if (callback) callback({ ok: false, error: "No active combat" });
+        return;
+      }
+
+      // Mark current actor as acted
+      if (combatState.participants && combatState.participants[combatState.currentActorIndex]) {
+        combatState.participants[combatState.currentActorIndex].hasActed = true;
+      }
+
+      combatState.currentActorIndex += 1;
+      if (combatState.currentActorIndex >= combatState.turnOrder.length) {
+        combatState.currentActorIndex = 0;
+        combatState.round += 1;
+        // Reset hasActed for new round
+        if (Array.isArray(combatState.participants)) {
+          for (var i = 0; i < combatState.participants.length; i++) {
+            combatState.participants[i].hasActed = false;
+          }
+        }
+      }
+
+      if (state.code && state.connected) {
+        syncSharedState("next-combat-turn");
+      }
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // End campaign combat
+  function endCampaignCombat(callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can end combat" });
+      return;
+    }
+    try {
+      var combatState = ensureCampaignCombatState();
+      combatState.active = false;
+      combatState.round = 0;
+      combatState.turnOrder = [];
+      combatState.currentActorIndex = 0;
+      combatState.participants = [];
+
+      if (state.code && state.connected) {
+        syncSharedState("end-campaign-combat");
+      }
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // GM-controlled travel: move entire party to new region
+  function gmInitiateTravel(destination, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can initiate travel" });
+      return;
+    }
+    try {
+      // Validate destination is valid (Province/Sea key format)
+      if (!destination || typeof destination !== "string" || destination.trim().length === 0) {
+        if (callback) callback({ ok: false, error: "Invalid destination" });
+        return;
+      }
+
+      // TODO: Execute travel logic once Season/Province system updated
+      // For now, broadcast intent
+      safeNotif("GM initiated travel to: " + destination);
+
+      if (state.code && state.connected) {
+        syncSharedState("gm-travel");
+      }
+      if (callback) callback({ ok: true, destination: destination });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // GM-controlled rest: advance time for party
+  function gmAdvanceTime(intervals, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can advance time" });
+      return;
+    }
+    try {
+      intervals = Math.max(1, Math.min(4, Number(intervals || 1)));
+      
+      if (typeof window.S !== "undefined" && window.S && window.S.gameDate) {
+        var d = window.S.gameDate;
+        for (var i = 0; i < intervals; i++) {
+          if (typeof window.advanceProvincePhasePenalty === "function") {
+            window.advanceProvincePhasePenalty(1);
+          } else {
+            // Fallback phase advancement
+            d.phase = (Number(d.phase || 0) + 1) % 4;
+            if (d.phase === 0) {
+              d.day = (Number(d.day || 1) + 1) % 29;
+              if (d.day === 1) {
+                d.month = (Number(d.month || 1) + 1) % 13;
+                if (d.month === 1) {
+                  d.year = (Number(d.year || 1) + 1);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (state.code && state.connected) {
+        syncSharedState("gm-advance-time");
+      }
+      if (callback) callback({ ok: true, intervals: intervals });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Set GM mode (passive/active/facilitative)
+  function setGmMode(mode, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can set GM mode" });
+      return;
+    }
+    try {
+      var validModes = ["passive", "active", "facilitative"];
+      if (validModes.indexOf(mode) === -1) {
+        if (callback) callback({ ok: false, error: "Invalid GM mode" });
+        return;
+      }
+
+      var settings = ensureGmSettings();
+      settings.mode = mode;
+
+      if (state.code && state.connected) {
+        syncSharedState("set-gm-mode");
+      }
+      safeNotif("GM Mode: " + mode.charAt(0).toUpperCase() + mode.slice(1));
+      if (callback) callback({ ok: true, mode: mode });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
   }
 
   function getTmwValue() {
@@ -1484,6 +1755,64 @@
           + '<button class="btn btn-xs" onclick="window.campaignSystem.toggleArchive()">' + ((campaign && campaign.archived) ? 'Reopen' : 'Archive') + '</button>'
           + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.deleteCampaign()">Delete Campaign</button>'
           + "</div>"
+          + '</div>')
+        : "")
+      + (isGm
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 1: GM Mode Control</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Select GM playstyle (affects actions, travel, and time advancement)</div>'
+          + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.setGmMode(\'passive\')">Passive Mode</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.setGmMode(\'active\')">Active mode</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.setGmMode(\'facilitative\')">Facilitative Mode</button>'
+          + '</div>'
+          + '<div class="campaign-muted" style="margin-top:.35rem;font-size:.8rem;">'
+          + '<strong>Passive:</strong> GM spectates, players act independently (like solo x3)<br>'
+          + '<strong>Active:</strong> GM approves actions before they take effect<br>'
+          + '<strong>Facilitative:</strong> GM controls travel/time, players handle character actions'
+          + '</div>'
+          + '</div>')
+        : "")
+      + (isGm
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 1: Campaign Combat & Travel</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Multi-player combat coordination and party travel control</div>'
+          + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
+          + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.startCampaignCombat(window.campaignSystem.buildPartyRoster())">Start Combat</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.nextCombatActor()">Next Actor</button>'
+          + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.endCampaignCombat()">End Combat</button>'
+          + '</div>'
+          + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.gmAdvanceTime(1)">Advance Rest (1 Phase)</button>'
+          + '<button class="btn btn-xs" onclick="">Travel To...</button>'
+          + '</div>'
+          + '<div class="campaign-muted" style="margin-top:.35rem;"><strong>Current Combat:</strong> <span id="combatStatusText">Inactive</span></div>'
+          + '</div>')
+        : "")
+      + (state.code
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Party Roster (All Players)</div>'
+          + '<div id="partyRosterContainer" style="display:flex;flex-direction:column;gap:.5rem;">'
+          + (function() {
+            var roster = buildPartyRoster();
+            if (roster.length === 0) return '<div class="campaign-muted">No connected characters yet.</div>';
+            return roster.map(function(p) {
+              return '<div style="padding:.5rem;background:var(--bg3);border-radius:.3rem;border-left:3px solid var(--teal);">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+                + '<strong>' + escapeHtml(p.character.name) + '</strong>'
+                + '<span class="campaign-muted" style="font-size:.85rem;">' + escapeHtml(p.role) + '</span>'
+                + '</div>'
+                + '<div class="campaign-muted" style="margin-top:.2rem;font-size:.85rem;">'
+                + 'HP ' + p.character.health + ' · MS ' + p.character.mentalStress
+                + (p.character.stats && p.character.stats.adventure ? ' · Adv ' + Number(p.character.stats.adventure) : '')
+                + '</div>'
+                + '</div>';
+            }).join('');
+          })()
+          + '</div>'
           + '</div>')
         : "")
       + (isGm
@@ -2694,6 +3023,17 @@
     claimSharedItem: claimSharedItem,
     copyRosterItem: copyRosterItem,
     viewRosterSheet: viewRosterSheet,
+    // Phase 1: GM modes and campaign combat
+    setGmMode: setGmMode,
+    startCampaignCombat: startCampaignCombat,
+    nextCombatActor: nextCombatActor,
+    endCampaignCombat: endCampaignCombat,
+    getCurrentCombatActor: getCurrentCombatActor,
+    gmInitiateTravel: gmInitiateTravel,
+    gmAdvanceTime: gmAdvanceTime,
+    buildPartyRoster: buildPartyRoster,
+    ensureGmSettings: ensureGmSettings,
+    ensureCampaignCombatState: ensureCampaignCombatState,
     refreshUI: function () {
       renderSettingsSection();
       renderDockPanel();

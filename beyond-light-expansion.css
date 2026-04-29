@@ -152,6 +152,8 @@
 .story-wheel-text{font-size:.72rem;color:var(--text2);line-height:1.3;max-height:2.7rem;overflow:hidden;}
 .story-wheel-roll{font-size:.64rem;color:var(--gold2);line-height:1.25;}
 .story-wheel-list{display:grid;gap:.42rem;max-height:24rem;overflow:auto;padding-right:.2rem;}
+.story-wheel-hints{display:flex;flex-wrap:wrap;gap:.28rem;margin-bottom:.42rem;}
+.story-wheel-hint{font-size:.63rem;color:var(--muted2);border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.16rem .35rem;border-radius:999px;letter-spacing:.04em;}
 .story-wheel-row{border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.38rem .45rem;border-radius:6px;}
 .story-wheel-row.active{border-color:rgba(201,162,39,.55);background:rgba(201,162,39,.08);}
 .story-wheel-row.locked{opacity:.62;}

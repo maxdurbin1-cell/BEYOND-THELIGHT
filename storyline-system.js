@@ -3114,6 +3114,7 @@
     sceneId: "",
     optionIds: [],
     unlocked: [],
+    positions: [],
     selected: 0,
   };
 
@@ -3140,7 +3141,11 @@
     var rows = document.querySelectorAll(".story-wheel-row[data-wheel-row-index]");
     rows.forEach(function (row) {
       var idx = Number(row.getAttribute("data-wheel-row-index") || -1);
-      row.classList.toggle("active", idx === _storyWheelState.selected);
+      var isActive = idx === _storyWheelState.selected;
+      row.classList.toggle("active", isActive);
+      if (isActive && typeof row.scrollIntoView === "function") {
+        row.scrollIntoView({ block: "nearest" });
+      }
     });
   }
 
@@ -3159,6 +3164,52 @@
     if (!_storyWheelState.active) return;
     var next = getNextWheelIndex(delta >= 0 ? 1 : -1);
     if (next < 0) return;
+    _storyWheelState.selected = next;
+    renderStoryWheelActiveSelection();
+  }
+
+  function directionalWheelFrom(originX, originY, dirX, dirY, strict) {
+    var bestIdx = -1;
+    var bestScore = -1e9;
+    for (var i = 0; i < _storyWheelState.positions.length; i++) {
+      if (!_storyWheelState.unlocked[i] || i === _storyWheelState.selected) continue;
+      var p = _storyWheelState.positions[i];
+      if (!p) continue;
+      var vx = Number(p.left) - originX;
+      var vy = Number(p.top) - originY;
+      var len = Math.sqrt((vx * vx) + (vy * vy));
+      if (!len) continue;
+      var dot = ((vx * dirX) + (vy * dirY)) / len;
+      if (dot <= 0) continue;
+      if (strict && dot < 0.28) continue;
+      var side = Math.abs((vx * dirY) - (vy * dirX)) / len;
+      var score = (dot * 120) - (side * 34) - (len * 0.3);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  function storyWheelMoveDirectional(direction) {
+    if (!_storyWheelState.active) return;
+    var dirs = {
+      up: { x: 0, y: -1 },
+      down: { x: 0, y: 1 },
+      left: { x: -1, y: 0 },
+      right: { x: 1, y: 0 },
+    };
+    var d = dirs[String(direction || "").toLowerCase()];
+    if (!d) return;
+
+    var current = _storyWheelState.positions[_storyWheelState.selected] || { left: 50, top: 50 };
+    var next = directionalWheelFrom(Number(current.left), Number(current.top), d.x, d.y, true);
+    if (next < 0) next = directionalWheelFrom(Number(current.left), Number(current.top), d.x, d.y, false);
+    if (next < 0) next = directionalWheelFrom(50, 50, d.x, d.y, true);
+    if (next < 0) next = directionalWheelFrom(50, 50, d.x, d.y, false);
+    if (next < 0) return;
+
     _storyWheelState.selected = next;
     renderStoryWheelActiveSelection();
   }
@@ -3190,10 +3241,16 @@
     runStoryOption(sceneId, optionId);
   }
 
+  function storyWheelCancel() {
+    _storyWheelState.active = false;
+    if (typeof closeModal === "function") closeModal();
+  }
+
   function activateStoryWheelState(sceneId, wheelOptions) {
     _storyWheelState.sceneId = String(sceneId || "");
     _storyWheelState.optionIds = wheelOptions.map(function (w) { return w && w.option ? String(w.option.id || "") : ""; });
     _storyWheelState.unlocked = wheelOptions.map(function (w) { return !!(w && w.unlocked); });
+    _storyWheelState.positions = wheelOptions.map(function (w) { return w && w.pos ? { left: Number(w.pos.left || 50), top: Number(w.pos.top || 50) } : { left: 50, top: 50 }; });
     _storyWheelState.selected = Math.max(0, getFirstUnlockedWheelIndex());
     _storyWheelState.active = true;
     renderStoryWheelActiveSelection();
@@ -3211,12 +3268,32 @@
       var tag = String((ev.target && ev.target.tagName) || "").toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
       var key = String(ev.key || "").toLowerCase();
-      if (key === "arrowleft" || key === "arrowup" || key === "a" || key === "w" || key === "q") {
+      if (key === "arrowleft" || key === "a") {
+        ev.preventDefault();
+        storyWheelMoveDirectional("left");
+        return;
+      }
+      if (key === "arrowup" || key === "w") {
+        ev.preventDefault();
+        storyWheelMoveDirectional("up");
+        return;
+      }
+      if (key === "arrowright" || key === "d") {
+        ev.preventDefault();
+        storyWheelMoveDirectional("right");
+        return;
+      }
+      if (key === "arrowdown" || key === "s") {
+        ev.preventDefault();
+        storyWheelMoveDirectional("down");
+        return;
+      }
+      if (key === "q") {
         ev.preventDefault();
         storyWheelMove(-1);
         return;
       }
-      if (key === "arrowright" || key === "arrowdown" || key === "d" || key === "s" || key === "e") {
+      if (key === "e") {
         ev.preventDefault();
         storyWheelMove(1);
         return;
@@ -3227,12 +3304,14 @@
         return;
       }
       if (key === "escape") {
-        _storyWheelState.active = false;
+        ev.preventDefault();
+        storyWheelCancel();
         return;
       }
       if (/^[1-9]$/.test(key)) {
         ev.preventDefault();
         storyWheelSelectIndex(Number(key) - 1);
+        storyWheelConfirm();
       }
     });
   }
@@ -3315,10 +3394,19 @@
     var html = ""
       + "<div class='story-wheel-wrap'>"
       + "<div class='story-wheel-stage'>"
-      + "<div class='story-wheel-center'><div class='story-wheel-center-title'>Dialogue Wheel</div><div class='story-wheel-center-sub'>" + escHtml(scene.title) + "<br>Arrows/WASD: cycle | Enter: choose | 1-9: direct</div></div>"
+      + "<div class='story-wheel-center'><div class='story-wheel-center-title'>Dialogue Wheel</div><div class='story-wheel-center-sub'>" + escHtml(scene.title) + "</div></div>"
       + nodes
       + "</div>"
+      + "<div>"
+      + "<div class='story-wheel-hints'>"
+      + "<span class='story-wheel-hint'>D-Pad / WASD: snap by direction</span>"
+      + "<span class='story-wheel-hint'>Q / E: cycle</span>"
+      + "<span class='story-wheel-hint'>Enter / Space: choose</span>"
+      + "<span class='story-wheel-hint'>Esc: cancel</span>"
+      + "<span class='story-wheel-hint'>1-9: direct choose</span>"
+      + "</div>"
       + "<div class='story-wheel-list'>" + summary + "</div>"
+      + "</div>"
       + "</div>";
 
     openModal("Dialogue Wheel", html);
@@ -3694,7 +3782,9 @@
   window.storySetDecisionRole = storySetDecisionRole;
   window.storyOpenDialogueWheel = openStoryDialogueWheel;
   window.storyWheelMove = storyWheelMove;
+  window.storyWheelMoveDirectional = storyWheelMoveDirectional;
   window.storyWheelConfirm = storyWheelConfirm;
+  window.storyWheelCancel = storyWheelCancel;
   window.storyWheelSelectIndex = storyWheelSelectIndex;
 
   window.storyAcceptFail = function () {

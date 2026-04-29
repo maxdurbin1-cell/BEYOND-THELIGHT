@@ -258,6 +258,66 @@
     return false;
   }
 
+  function isCampaignPlayerReadOnlyForSharedWorld() {
+    return !!(state.code && state.role === "player");
+  }
+
+  function guardSharedWorldMutation(errorText) {
+    if (!isCampaignPlayerReadOnlyForSharedWorld()) return true;
+    safeNotif(errorText || "Only the GM can change the shared world state in Campaign mode.", "warn");
+    return false;
+  }
+
+  function cloneClientLocalStarState() {
+    if (typeof window.S === "undefined" || !window.S || !window.S.starSystem || typeof window.S.starSystem !== "object") return null;
+    return {
+      currentHexId: (typeof window.S.starSystem.currentHexId === "number") ? window.S.starSystem.currentHexId : null,
+      selectedRing: window.S.starSystem.selectedRing || "",
+      activeFacility: deepCloneJson(window.S.starSystem.activeFacility || null),
+      activeHub: deepCloneJson(window.S.starSystem.activeHub || null),
+      activeMystery: deepCloneJson(window.S.starSystem.activeMystery || null),
+      activeDeadMoon: deepCloneJson(window.S.starSystem.activeDeadMoon || null),
+      activeDeadMoonMap: deepCloneJson(window.S.starSystem.activeDeadMoonMap || null),
+      activeDerelict: deepCloneJson(window.S.starSystem.activeDerelict || null),
+      activeTask: deepCloneJson(window.S.starSystem.activeTask || null),
+      activePlanetHexId: (typeof window.S.starSystem.activePlanetHexId === "number") ? window.S.starSystem.activePlanetHexId : null
+    };
+  }
+
+  function applyClientLocalStarState(snapshot) {
+    if (!snapshot || typeof window.S === "undefined" || !window.S || !window.S.starSystem || typeof window.S.starSystem !== "object") return;
+    if (snapshot.currentHexId !== null) window.S.starSystem.currentHexId = snapshot.currentHexId;
+    if (snapshot.selectedRing) window.S.starSystem.selectedRing = snapshot.selectedRing;
+    if (snapshot.activeFacility) window.S.starSystem.activeFacility = snapshot.activeFacility;
+    if (snapshot.activeHub) window.S.starSystem.activeHub = snapshot.activeHub;
+    if (snapshot.activeMystery) window.S.starSystem.activeMystery = snapshot.activeMystery;
+    if (snapshot.activeDeadMoon) window.S.starSystem.activeDeadMoon = snapshot.activeDeadMoon;
+    if (snapshot.activeDeadMoonMap) window.S.starSystem.activeDeadMoonMap = snapshot.activeDeadMoonMap;
+    if (snapshot.activeDerelict) window.S.starSystem.activeDerelict = snapshot.activeDerelict;
+    if (snapshot.activeTask) window.S.starSystem.activeTask = snapshot.activeTask;
+    if (snapshot.activePlanetHexId !== null) window.S.starSystem.activePlanetHexId = snapshot.activePlanetHexId;
+  }
+
+  function cloneClientLocalWorldState() {
+    if (typeof window.S === "undefined" || !window.S || !window.S.worldThatWas || typeof window.S.worldThatWas !== "object") return null;
+    return {
+      currentZone: window.S.worldThatWas.currentZone || "",
+      selectedHexId: window.S.worldThatWas.selectedHexId || "",
+      minimalMapMode: !!window.S.worldThatWas.minimalMapMode,
+      ui: deepCloneJson(window.S.worldThatWas.ui || {}) || {}
+    };
+  }
+
+  function applyClientLocalWorldState(snapshot) {
+    if (!snapshot || typeof window.S === "undefined" || !window.S || !window.S.worldThatWas || typeof window.S.worldThatWas !== "object") return;
+    if (snapshot.currentZone) window.S.worldThatWas.currentZone = snapshot.currentZone;
+    if (snapshot.selectedHexId) window.S.worldThatWas.selectedHexId = snapshot.selectedHexId;
+    window.S.worldThatWas.minimalMapMode = !!snapshot.minimalMapMode;
+    if (snapshot.ui && typeof snapshot.ui === "object") {
+      window.S.worldThatWas.ui = snapshot.ui;
+    }
+  }
+
   function refreshSettingsModeFromCampaign() {
     if (!window.settingsSystem || typeof window.settingsSystem.setGameMode !== "function") return;
     if (!state.code) {
@@ -266,11 +326,6 @@
     }
     if (state.role === "gm") {
       window.settingsSystem.setGameMode("gm", { silent: true });
-      // GMs need province access regardless of context — force Traveling context so all tabs show.
-      if (typeof window.setContext === "function") {
-        var travelBtn = document.querySelector('.ctx-btn[data-ctx="traveling"]');
-        window.setContext("traveling", travelBtn || null);
-      }
       return;
     }
     if (state.role) {
@@ -406,6 +461,9 @@
     if (nextVersion && nextVersion < state.lastSharedVersion) return;
     if (typeof window.S === "undefined" || !window.S) return;
 
+    var localStarState = cloneClientLocalStarState();
+    var localWorldState = cloneClientLocalWorldState();
+
     state.applyingSharedState = true;
     try {
       if (typeof sharedState.credits === "number") {
@@ -470,9 +528,11 @@
         if (window.S.starSystem && Array.isArray(window.S.starSystem.hexes) && window.S.starSystem.hexes.length) {
           window._lastGeneratedGalaxy = deepCloneJson(window.S.starSystem);
         }
+        applyClientLocalStarState(localStarState);
       }
       if (sharedState.worldThatWas && typeof sharedState.worldThatWas === "object") {
         window.S.worldThatWas = deepCloneJson(sharedState.worldThatWas) || {};
+        applyClientLocalWorldState(localWorldState);
       }
       if (sharedState.gameDate && typeof sharedState.gameDate === "object") {
         window.S.gameDate = deepCloneJson(sharedState.gameDate) || {};
@@ -491,6 +551,9 @@
     if (typeof window.renderLastSeaInfo === "function") window.renderLastSeaInfo();
     if (typeof window.renderStarSystemMap === "function") window.renderStarSystemMap();
     if (typeof window.updateStarSystemReadouts === "function") window.updateStarSystemReadouts();
+    if (window.S && window.S.starSystem && window.S.starSystem.activeSpaceEncounter && typeof window.renderSpaceEncounterPanel === "function") {
+      try { window.renderSpaceEncounterPanel(); } catch (_err) {}
+    }
     if (typeof window.renderWorldThatWas === "function") window.renderWorldThatWas();
     if (typeof window.renderHexMap === "function") window.renderHexMap();
     if (typeof window.renderCaravanUI === "function") {
@@ -2623,6 +2686,8 @@
         token: state.token,
         campaign: state.campaign
       };
-    }
+    },
+    isCampaignPlayerReadOnlyForSharedWorld: isCampaignPlayerReadOnlyForSharedWorld,
+    guardSharedWorldMutation: guardSharedWorldMutation
   };
 })();

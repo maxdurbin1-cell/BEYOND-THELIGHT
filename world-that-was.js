@@ -1590,14 +1590,24 @@
   }
 
   function rollWorldCelebrationEvent(hexId) {
+    if (window.campaignSystem && typeof window.campaignSystem.guardSharedWorldMutation === 'function' && !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared district downtime in Campaign mode.')) return;
     var hex = hexById(hexId);
     if (!hex) return;
     hex.pendingServiceCelebration = safePick(worldCelebrationEvents(), worldCelebrationEvents()[0]);
     if (typeof showNotif === 'function') showNotif('Celebration event rolled: ' + hex.pendingServiceCelebration.name, 'good');
     renderWorldThatWas();
+    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+      setTimeout(function () {
+        try {
+          var out = window.campaignSystem.syncSharedSilent('wtw-celebration-roll');
+          if (out && typeof out.catch === 'function') out.catch(function () {});
+        } catch (_err) {}
+      }, 0);
+    }
   }
 
   function resolveWorldCelebrationEvent(hexId, statKey) {
+    if (window.campaignSystem && typeof window.campaignSystem.guardSharedWorldMutation === 'function' && !window.campaignSystem.guardSharedWorldMutation('Only the GM can resolve shared district downtime in Campaign mode.')) return;
     var hex = hexById(hexId);
     if (!hex || !hex.pendingServiceCelebration) return;
     var evt = hex.pendingServiceCelebration;
@@ -1617,6 +1627,14 @@
     }
     hex.pendingServiceCelebration = null;
     renderWorldThatWas();
+    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+      setTimeout(function () {
+        try {
+          var out = window.campaignSystem.syncSharedSilent('wtw-celebration-resolve');
+          if (out && typeof out.catch === 'function') out.catch(function () {});
+        } catch (_err) {}
+      }, 0);
+    }
   }
 
   function resolveDistrictHazard(hexId) {
@@ -1818,20 +1836,38 @@
   }
 
   function rollDistrictEncounter() {
+    if (window.campaignSystem && typeof window.campaignSystem.guardSharedWorldMutation === 'function' && !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared district encounters in Campaign mode.')) return;
     const hex = getSelectedHex();
     if (!hex) return;
     hex.encounter = buildDistrictEncounter(hex.zone);
     if (!hex.encounter) {
       if (typeof showNotif === "function") showNotif("No active encounter in this district right now.", "good");
       renderWorldThatWas();
+      if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+        setTimeout(function () {
+          try {
+            var out = window.campaignSystem.syncSharedSilent('wtw-encounter-roll-none');
+            if (out && typeof out.catch === 'function') out.catch(function () {});
+          } catch (_err) {}
+        }, 0);
+      }
       return;
     }
     if (typeof showNotif === "function") showNotif("Encounter rolled in " + hex.zone + ".", "good");
     if (registerWorldAction("encounter roll")) return;
     renderWorldThatWas();
+    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+      setTimeout(function () {
+        try {
+          var out = window.campaignSystem.syncSharedSilent('wtw-encounter-roll');
+          if (out && typeof out.catch === 'function') out.catch(function () {});
+        } catch (_err) {}
+      }, 0);
+    }
   }
 
   function resolveDistrictEncounter(forcedOutcome) {
+    if (window.campaignSystem && typeof window.campaignSystem.guardSharedWorldMutation === 'function' && !window.campaignSystem.guardSharedWorldMutation('Only the GM can resolve shared district encounters in Campaign mode.')) return;
     const hex = getSelectedHex();
     if (!hex || !hex.encounter) return;
     if (hex.encounter.mode === "wayfarer") {
@@ -1844,6 +1880,14 @@
       advanceWorldTime("wayfarer encounter");
       if (registerWorldAction("encounter resolve")) return;
       renderWorldThatWas();
+      if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+        setTimeout(function () {
+          try {
+            var out = window.campaignSystem.syncSharedSilent('wtw-encounter-resolve');
+            if (out && typeof out.catch === 'function') out.catch(function () {});
+          } catch (_err) {}
+        }, 0);
+      }
       return;
     }
     if (hex.encounter.mode === "combat") {
@@ -1881,6 +1925,14 @@
     advanceWorldTime("district encounter");
     if (registerWorldAction("encounter resolve")) return;
     renderWorldThatWas();
+    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+      setTimeout(function () {
+        try {
+          var out = window.campaignSystem.syncSharedSilent('wtw-encounter-resolve');
+          if (out && typeof out.catch === 'function') out.catch(function () {});
+        } catch (_err) {}
+      }, 0);
+    }
   }
 
   function resolveDistrictEncounterAs(outcome) {
@@ -2884,7 +2936,7 @@
       const out = base.apply(this, arguments);
       if (S && S.starSystem && Array.isArray(S.starSystem.hexes)) {
         const hex = S.starSystem.hexes.find(function (h) { return h.id === hexId; });
-        if (hex && hex.kind === "world_that_was") {
+        if (hex && hex.type === "world_that_was") {
           openWorldThatWasFromGalaxy();
         }
       }

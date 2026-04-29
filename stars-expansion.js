@@ -2906,6 +2906,7 @@ function resolveMysteryContactOption(optionId) {
 
 function resolveSpaceEncounterOption(optionId) {
   ensureStarsState();
+  if (!guardCampaignSharedWorldMutation('Only the GM can resolve shared space encounters in Campaign mode.')) return;
   const encounter = S.starSystem.activeSpaceEncounter;
   if (!encounter || !Array.isArray(encounter.options)) return;
   const option = encounter.options.find(o => o.id === optionId);
@@ -2974,6 +2975,7 @@ function resolveSpaceEncounterOption(optionId) {
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Option: ${option.label}. ${cost ? `Cost paid: ${cost} credits.` : ''} ${rewardText}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    syncCampaignSharedWorldSoon('resolve-space-encounter');
     showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }
@@ -2993,6 +2995,7 @@ function resolveSpaceEncounterOption(optionId) {
     if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}${bonusText ? ` ${bonusText}.` : ''}</div>`;
     renderStarSystemMap();
     updateStarSystemReadouts();
+    syncCampaignSharedWorldSoon('resolve-space-encounter');
     showNotif(`Encounter resolved: ${encounter.title}`, 'good');
     return;
   }
@@ -3010,6 +3013,7 @@ function resolveSpaceEncounterOption(optionId) {
     renderStarSystemMap();
     updateStarSystemReadouts();
   }
+  syncCampaignSharedWorldSoon('resolve-space-encounter');
   showNotif(`Encounter failed: ${encounter.title}`, 'warn');
 }
 
@@ -4918,6 +4922,7 @@ function setPlanetHexNote(cellId, value) {
 }
 
 function rollPlanetHexEncounter() {
+  if (!guardCampaignSharedWorldMutation('Only the GM can roll shared planet encounters in Campaign mode.')) return;
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
@@ -4994,6 +4999,7 @@ function rollPlanetHexEncounter() {
   state.eventLog = state.eventLog.slice(0, 8);
   showNotif(`Planet encounter: ${title}.`, 'good');
   renderPlanetExplorationPanel();
+  syncCampaignSharedWorldSoon('roll-planet-encounter');
 }
 
 function rollPlanetCaravanHaggle() {
@@ -7148,6 +7154,7 @@ function travelToSelectedGalaxyHex() {
 
 function runGalaxyEncounterRoll() {
   ensureStarsState();
+  if (!guardCampaignSharedWorldMutation('Only the GM can roll shared space encounters in Campaign mode.')) return;
   const hex = getCurrentStarHex();
   if (!hex) return;
   const ring = (hex.ring && hex.ring !== 'core') ? hex.ring : (S.starSystem.selectedRing || 'middle');
@@ -7166,6 +7173,7 @@ function runGalaxyEncounterRoll() {
     const detailText = buildStarExplorationDetail(ring, outcome);
     detailEl.innerHTML = `<div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${detailText}</div>`;
   }
+  syncCampaignSharedWorldSoon('roll-galaxy-encounter');
 }
 
 function runFurtherSystemAnalysis() {
@@ -9111,6 +9119,23 @@ function patchStarsCrossSystemHooks() {
       return out;
     };
   }
+}
+
+function guardCampaignSharedWorldMutation(errorText) {
+  if (!window.campaignSystem || typeof window.campaignSystem.guardSharedWorldMutation !== 'function') return true;
+  return window.campaignSystem.guardSharedWorldMutation(errorText || 'Only the GM can change the shared world state in Campaign mode.');
+}
+
+function syncCampaignSharedWorldSoon(reason) {
+  if (!window.campaignSystem || typeof window.campaignSystem.syncSharedSilent !== 'function') return;
+  const campaignState = (typeof window.campaignSystem.getState === 'function') ? window.campaignSystem.getState() : null;
+  if (!campaignState || !campaignState.code || campaignState.role !== 'gm') return;
+  setTimeout(function() {
+    try {
+      const out = window.campaignSystem.syncSharedSilent(reason || 'shared-world');
+      if (out && typeof out.catch === 'function') out.catch(function() {});
+    } catch (_err) {}
+  }, 0);
 }
 
 function rollStressReaction() {

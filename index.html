@@ -4328,10 +4328,41 @@ function travelToLastSeaFromMap(){
   if(typeof switchTab==='function')switchTab('lastsea',btn||null);
 }
 
+function getProvinceSelectionMarkers(){
+  if(window.campaignSystem&&typeof window.campaignSystem.getProvinceSelectionMarkers==='function'){
+    const list=window.campaignSystem.getProvinceSelectionMarkers();
+    return Array.isArray(list)?list:[];
+  }
+  return [];
+}
+
+function initialsForMarkerName(name){
+  const parts=String(name||'').trim().split(/\s+/).filter(Boolean);
+  if(!parts.length)return '?';
+  if(parts.length===1)return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0)+parts[1].charAt(0)).toUpperCase();
+}
+
+function markerColorByToken(token){
+  const palette=['#46c4b6','#f0d070','#ff8450','#7ed7ff','#d491ff','#ff8f8f','#a2e06f','#8fb6ff'];
+  const raw=String(token||'');
+  let hash=0;
+  for(let i=0;i<raw.length;i++)hash=((hash<<5)-hash)+raw.charCodeAt(i);
+  return palette[Math.abs(hash)%palette.length];
+}
+
 function renderHexMap(){
   if(window.factionSystem&&typeof window.factionSystem.syncBaseMarkers==='function')window.factionSystem.syncBaseMarkers();
   const secretPadKey=getProvinceSecretPadKey();
   const mapFx=getMapVisualSettings();
+  const liveMarkers=getProvinceSelectionMarkers();
+  const markersByHex={};
+  liveMarkers.forEach(function(m){
+    const k=String(m&&m.key||'');
+    if(!k)return;
+    if(!markersByHex[k])markersByHex[k]=[];
+    markersByHex[k].push(m);
+  });
   const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20;
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';
@@ -4481,6 +4512,56 @@ function renderHexMap(){
       pIcon.setAttribute('text-anchor','middle');pIcon.setAttribute('font-size','11');
       pIcon.setAttribute('fill','#7ed7ff');pIcon.setAttribute('pointer-events','none');
       pIcon.textContent='🚀';g.appendChild(pIcon);
+    }
+    const markerKey=`${hex.col},${hex.row}`;
+    const markerList=(markersByHex[markerKey]||[]).slice().sort(function(a,b){
+      return Number(b&&b.at||0)-Number(a&&a.at||0);
+    });
+    if(markerList.length){
+      const maxBadges=Math.min(4,markerList.length);
+      for(let i=0;i<maxBadges;i++){
+        const mk=markerList[i]||{};
+        const badge=document.createElementNS('http://www.w3.org/2000/svg','circle');
+        const bx=x-HEX_SIZE*.56+(i%2)*8;
+        const by=y+HEX_SIZE*.36+Math.floor(i/2)*8;
+        const color=mk.isMe?'#f0d070':markerColorByToken(mk.token);
+        badge.setAttribute('cx',String(bx));
+        badge.setAttribute('cy',String(by));
+        badge.setAttribute('r','4.2');
+        badge.setAttribute('fill','rgba(10,12,22,.88)');
+        badge.setAttribute('stroke',color);
+        badge.setAttribute('stroke-width','1.2');
+        badge.setAttribute('pointer-events','none');
+        const tip=document.createElementNS('http://www.w3.org/2000/svg','title');
+        tip.textContent=(mk.name||'Wayfarer')+(mk.isMe?' (You)':'');
+        badge.appendChild(tip);
+        g.appendChild(badge);
+
+        const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+        lbl.setAttribute('x',String(bx));
+        lbl.setAttribute('y',String(by+1.5));
+        lbl.setAttribute('text-anchor','middle');
+        lbl.setAttribute('font-size','4.1');
+        lbl.setAttribute('font-family','Rajdhani,sans-serif');
+        lbl.setAttribute('font-weight','700');
+        lbl.setAttribute('fill',color);
+        lbl.setAttribute('pointer-events','none');
+        lbl.textContent=initialsForMarkerName(mk.name);
+        g.appendChild(lbl);
+      }
+      if(markerList.length>4){
+        const more=document.createElementNS('http://www.w3.org/2000/svg','text');
+        more.setAttribute('x',String(x-HEX_SIZE*.34));
+        more.setAttribute('y',String(y+HEX_SIZE*.54));
+        more.setAttribute('text-anchor','start');
+        more.setAttribute('font-size','5');
+        more.setAttribute('font-family','Rajdhani,sans-serif');
+        more.setAttribute('font-weight','700');
+        more.setAttribute('fill','#f0d070');
+        more.setAttribute('pointer-events','none');
+        more.textContent='+'+(markerList.length-4);
+        g.appendChild(more);
+      }
     }
     if(selectedHex&&selectedHex===hex){
       const youRing=document.createElementNS('http://www.w3.org/2000/svg','circle');

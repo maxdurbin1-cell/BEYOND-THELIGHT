@@ -130,6 +130,21 @@
   function collectSharedState() {
     if (typeof window.S === "undefined" || !window.S) return {};
     var current = getCampaignSharedState();
+    var existingSelections = current && current.provinceSelections && typeof current.provinceSelections === "object"
+      ? deepCloneJson(current.provinceSelections) || {}
+      : {};
+    var mySelection = (typeof window.getProvinceSelectedKey === "function") ? String(window.getProvinceSelectedKey() || "") : "";
+    if (state.token) {
+      if (mySelection) {
+        existingSelections[state.token] = {
+          key: mySelection,
+          name: state.playerName || ensureName(),
+          at: Date.now()
+        };
+      } else if (existingSelections[state.token]) {
+        delete existingSelections[state.token];
+      }
+    }
     var shared = {
       credits: Math.max(0, Number(window.S.credits || 0)),
       renown: Math.max(0, Number(window.S.renown || 0)),
@@ -142,14 +157,15 @@
       holding: deepCloneJson(window.S.holding || {}),
       lastSea: deepCloneJson(window.S.lastSea || {}),
       gameDate: deepCloneJson(window.S.gameDate || {}),
-      partyStash: Array.isArray(current.partyStash) ? current.partyStash.slice() : []
+      partyStash: Array.isArray(current.partyStash) ? current.partyStash.slice() : [],
+      provinceSelections: existingSelections
     };
-    if (typeof window.getProvinceSelectedKey === "function") {
-      shared.provinceSelection = String(window.getProvinceSelectedKey() || "");
-    }
     var shouldPushProvinceMap = (state.role === "gm") || !state.code;
     if (shouldPushProvinceMap && typeof window.getProvinceMapState === "function") {
       shared.provinceMap = deepCloneJson(window.getProvinceMapState() || null);
+      if (shared.provinceMap && typeof shared.provinceMap === "object") {
+        shared.provinceMap.selectedKey = "";
+      }
     }
     return shared;
   }
@@ -206,9 +222,6 @@
       }
       if (sharedState.provinceMap && typeof window.applyProvinceMapState === "function") {
         window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
-      }
-      if (typeof sharedState.provinceSelection === "string" && typeof window.setProvinceSelectedKey === "function") {
-        window.setProvinceSelectedKey(sharedState.provinceSelection);
       }
     } finally {
       state.applyingSharedState = false;
@@ -1503,6 +1516,37 @@
     renderDockPanel();
   }
 
+  function getProvinceSelectionMarkers() {
+    var shared = getCampaignSharedState();
+    var selections = shared && shared.provinceSelections && typeof shared.provinceSelections === "object"
+      ? shared.provinceSelections
+      : {};
+    var roster = state.campaign && Array.isArray(state.campaign.roster) ? state.campaign.roster : [];
+    var byToken = {};
+    roster.forEach(function (member) {
+      if (!member || !member.token) return;
+      byToken[String(member.token)] = member;
+    });
+    var out = [];
+    Object.keys(selections).forEach(function (token) {
+      var entry = selections[token];
+      var key = entry && typeof entry.key === "string" ? entry.key : "";
+      if (!key) return;
+      var name = entry && entry.name ? String(entry.name) : "";
+      var member = byToken[token] || null;
+      if (!name && member && member.name) name = String(member.name);
+      out.push({
+        token: String(token),
+        key: key,
+        name: name || "Wayfarer",
+        at: Number(entry && entry.at || 0),
+        isMe: !!(state.token && String(state.token) === String(token)),
+        online: !!(member && member.online)
+      });
+    });
+    return out;
+  }
+
   function init() {
     patchTmwHooks();
     patchMentalStressHooks();
@@ -1570,6 +1614,7 @@
     setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,
     toggleDock: toggleDock,
+    getProvinceSelectionMarkers: getProvinceSelectionMarkers,
     syncSharedNow: syncSharedNow,
     syncSharedSilent: syncSharedSilent,
     shareBackpackItem: shareBackpackItem,

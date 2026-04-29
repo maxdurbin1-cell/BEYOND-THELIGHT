@@ -923,6 +923,15 @@ io.on("connection", (socket) => {
       ? campaign.shared.state
       : {};
     const merged = Object.assign({}, existingState, incoming);
+    if (
+      incoming.provinceSelections && typeof incoming.provinceSelections === "object" &&
+      !Array.isArray(incoming.provinceSelections)
+    ) {
+      const currentSelections = existingState.provinceSelections && typeof existingState.provinceSelections === "object" && !Array.isArray(existingState.provinceSelections)
+        ? existingState.provinceSelections
+        : {};
+      merged.provinceSelections = Object.assign({}, currentSelections, incoming.provinceSelections);
+    }
     if (Array.isArray(existingState.partyStash)) {
       merged.partyStash = existingState.partyStash.slice();
     }

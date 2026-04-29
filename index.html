@@ -11,19 +11,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="./beyond-light-expansion.css">
-<link rel="stylesheet" href="./faction-intro-system.css">
-<link rel="stylesheet" href="./settings-system.css">
-<link rel="stylesheet" href="./gm-dashboard.css">
-<link rel="stylesheet" href="./solo-reference.css">
+<link rel="stylesheet" href="./faction-intro-system.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="./settings-system.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="./gm-dashboard.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="./solo-reference.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="./faction-intro-system.css"></noscript>
+<noscript><link rel="stylesheet" href="./settings-system.css"></noscript>
+<noscript><link rel="stylesheet" href="./gm-dashboard.css"></noscript>
+<noscript><link rel="stylesheet" href="./solo-reference.css"></noscript>
 <style>
 /* ── ACCESSIBILITY ── */
 .skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;background:var(--surface);color:var(--gold);font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:.1em;padding:.6rem 1rem;border:1px solid var(--gold);text-transform:uppercase;text-decoration:none;}
 .skip-link:focus{position:fixed;left:.8rem;top:.8rem;width:auto;height:auto;overflow:visible;}
-:root{--bg:#06070e;--surface:#0b0c1a;--card:#0f1020;--card2:#131428;--border:#1a1c35;--border2:#252848;--gold:#c9a227;--gold2:#e8c050;--gold3:#f0d070;--teal:#2ec4b6;--teal2:#50ddd0;--red:#c94040;--red2:#e05050;--green:#4caf74;--green2:#6ed090;--purple:#8060c0;--text:#d8d0c0;--text2:#b0a890;--muted:#4a4870;--muted2:#7a7898;--muted3:#9a98b8;}
+:root{--bg:#06070e;--surface:#0b0c1a;--card:#0f1020;--card2:#131428;--border:#1a1c35;--border2:#252848;--gold:#c9a227;--gold2:#e8c050;--gold3:#f0d070;--teal:#2ec4b6;--teal2:#50ddd0;--red:#c94040;--red2:#e05050;--green:#4caf74;--green2:#6ed090;--purple:#8060c0;--text:#d8d0c0;--text2:#b0a890;--muted:#8186a5;--muted2:#a9afc8;--muted3:#c4c8dc;}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
 body{background:var(--bg);color:var(--text);font-family:'Crimson Pro',Georgia,serif;font-size:1rem;min-height:100vh;overflow-x:hidden;background-image:radial-gradient(ellipse 80% 60% at 15% 5%,rgba(201,162,39,.05) 0%,transparent 55%),radial-gradient(ellipse 60% 80% at 85% 95%,rgba(46,196,182,.04) 0%,transparent 55%);}
 ::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:var(--surface);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
-header{background:linear-gradient(180deg,#040508 0%,rgba(11,12,26,.98) 100%);border-bottom:1px solid var(--border);padding:.5rem 1.2rem;display:flex;align-items:center;gap:1rem;position:sticky;top:0;z-index:200;backdrop-filter:blur(12px);flex-wrap:wrap;}
+header{background:linear-gradient(180deg,#040508 0%,rgba(11,12,26,.98) 100%);border-bottom:1px solid var(--border);padding:.5rem 1.2rem;display:flex;align-items:flex-start;gap:1rem;position:sticky;top:0;z-index:200;backdrop-filter:blur(12px);flex-wrap:wrap;min-height:8.2rem;}
 .logo{font-family:'Cinzel Decorative',serif;font-size:1.08rem;font-weight:700;color:var(--gold);letter-spacing:.12em;white-space:nowrap;text-shadow:0 0 30px rgba(201,162,39,.4);flex-shrink:0;}
 .logo span{color:var(--teal);}
 nav{display:flex;gap:.15rem;flex-wrap:wrap;}
@@ -36,7 +40,6 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .header-credits .amt{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;color:var(--gold);}
 .tab-panel{display:none;padding:1rem 1.2rem;max-width:1600px;margin:0 auto;min-height:calc(100vh - 56px);}
 .tab-panel.active{display:block;}
-.tab-panel.active{content-visibility:auto;contain-intrinsic-size:1200px;}
 .quick-nav{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.85rem;padding:.5rem .6rem;background:rgba(255,255,255,.02);border:1px solid var(--border2);border-radius:3px;}
 .quick-nav-label{font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted2);align-self:center;margin-right:.2rem;font-family:'Cinzel',serif;}
 .quick-nav .btn{font-size:.78rem;padding:.32rem .7rem;}
@@ -50,7 +53,6 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
 .sub-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.24rem;}
 .card{background:var(--card);border:1px solid var(--border);padding:.7rem;}
-.card{content-visibility:auto;contain-intrinsic-size:320px;}
 .btn{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;letter-spacing:.08em;padding:.42rem .95rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.25rem;}
 .btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.05);}
 .btn:focus-visible,.tab-btn:focus-visible,.ctx-btn:focus-visible,.step-btn:focus-visible,.scat:focus-visible,.age-btn:focus-visible,.season-btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--teal2);outline-offset:2px;}
@@ -99,7 +101,7 @@ select option{background:#0f1020;}
 .bp-cell .bp-input{flex:1;min-width:0;}
 .bp-input{background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'Crimson Pro',serif;font-size:.82rem;padding:.28rem .4rem;width:100%;outline:none;transition:border-color .15s;min-height:1.8rem;}
 .bp-input:focus{border-color:var(--teal);}
-.bp-info-btn{background:var(--card2);border:1px solid var(--border2);color:var(--muted2);font-size:.6rem;padding:0 .25rem;cursor:pointer;border-radius:2px;flex-shrink:0;line-height:1.8rem;}
+.bp-info-btn{background:var(--card2);border:1px solid var(--border2);color:var(--muted2);font-size:.76rem;padding:0 .38rem;cursor:pointer;border-radius:2px;flex-shrink:0;line-height:2rem;min-width:2rem;min-height:2rem;}
 .bp-info-btn:hover{color:var(--gold);border-color:var(--gold);}
 .ctx-bar{display:flex;gap:.3rem;align-items:center;margin-bottom:.35rem;flex-wrap:wrap;}
 .ctx-lbl{font-family:'Cinzel',sans-serif;font-size:.66rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-right:.3rem;}
@@ -286,6 +288,8 @@ select option{background:#0f1020;}
   .qp-close{padding:.24rem .42rem;}
   #qpContent{padding:.52rem;}
 }
+@media(max-width:900px){header{min-height:9.2rem;}}
+@media(max-width:680px){header{min-height:10.4rem;}}
 .job-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
 .job-difficulty{font-size:.7rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}
 .job-reward{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);margin-top:.2rem;}
@@ -306,27 +310,27 @@ select option{background:#0f1020;}
     <button class="ctx-btn" data-ctx="sea" aria-pressed="false" onclick="setContext('sea',this)">⚓ At Sea</button>
     <button class="ctx-btn" data-ctx="space" aria-pressed="false" onclick="setContext('space',this)">🚀 Space</button>
   </div>
-  <nav aria-label="Main navigation" id="mainNavTablist">
-    <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" style="display:none;" onclick="switchTab('character',this)">Character</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" style="display:none;" onclick="switchTab('dice',this)">Dice</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" style="display:none;" onclick="switchTab('codex',this)">Codex</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" style="display:none;" onclick="switchTab('rules',this)">Rules</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" style="display:none;" onclick="switchTab('combat',this)">Combat</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" style="display:none;" onclick="switchTab('oracle',this)">Oracle</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" style="display:none;" onclick="switchTab('storyline',this)">Storyline</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" style="display:none;" onclick="switchTab('factions',this)">Factions</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-endings" id="tabnav-endings" style="display:none;" onclick="switchTab('endings',this)">Endings</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" style="display:none;" onclick="switchTab('missions',this)">Missions</button>
-    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" style="display:none;" onclick="switchTab('map',this)">Province</button>
+  <nav aria-label="Main navigation" id="mainNavTablist" role="tablist" aria-orientation="horizontal">
+    <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" onclick="switchTab('character',this)">Character</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" onclick="switchTab('dice',this)">Dice</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" onclick="switchTab('codex',this)">Codex</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" onclick="switchTab('rules',this)">Rules</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" onclick="switchTab('combat',this)">Combat</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" onclick="switchTab('oracle',this)">Oracle</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" onclick="switchTab('storyline',this)">Storyline</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" onclick="switchTab('factions',this)">Factions</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-endings" id="tabnav-endings" onclick="switchTab('endings',this)">Endings</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" onclick="switchTab('missions',this)">Missions</button>
+    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-galaxy" id="tabnav-galaxy" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-worldthatwas" id="tabnav-worldthatwas" style="display:none;" onclick="switchTab('worldthatwas',this)">World That Was</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-planet" id="tabnav-planet" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-exocrafts" id="tabnav-exocrafts" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-naval" id="tabnav-naval" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-shop" id="tabnav-shop" style="display:none;" onclick="switchTab('shop',this)">Merchants</button>
-    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" style="display:none;" onclick="switchTab('gambling',this)">Gambling</button>
-    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" style="display:none;" onclick="switchTab('caravan',this)">Caravan</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-shop" id="tabnav-shop" onclick="switchTab('shop',this)">Merchants</button>
+    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" onclick="switchTab('gambling',this)">Gambling</button>
+    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
     <button class="tab-btn solo-reference-btn" aria-label="Solo Reference" onclick="window.soloReference.toggle()" title="Solo Reference">🧭 Solo</button>
     <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="window.gmDashboard.toggle()" title="GM Dashboard">👥 GM</button>

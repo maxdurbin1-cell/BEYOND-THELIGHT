@@ -107,10 +107,30 @@ function renderGlobalQuickAccess() {
 window.quickAccessGo = quickAccessGo;
 window.renderGlobalQuickAccess = renderGlobalQuickAccess;
 
+function syncTabAccessibility() {
+  var tablist = document.getElementById('mainNavTablist');
+  if (tablist) {
+    tablist.setAttribute('role', 'tablist');
+    tablist.setAttribute('aria-orientation', 'horizontal');
+  }
+
+  document.querySelectorAll("#mainNavTablist .tab-btn[role='tab'][aria-controls]").forEach(function (tab) {
+    var panelId = tab.getAttribute('aria-controls');
+    var panel = panelId ? document.getElementById(panelId) : null;
+    if (!panel) return;
+    panel.setAttribute('role', 'tabpanel');
+    if (tab.id) panel.setAttribute('aria-labelledby', tab.id);
+    var active = panel.classList.contains('active');
+    panel.setAttribute('aria-hidden', active ? 'false' : 'true');
+    panel.setAttribute('tabindex', active ? '0' : '-1');
+  });
+}
+
 function switchTab(tabId, btn) {
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.remove("active");
     panel.setAttribute("aria-hidden", "true");
+    panel.setAttribute('tabindex', '-1');
   });
   document.querySelectorAll(".tab-btn[role='tab']").forEach((tab) => {
     tab.classList.remove("active");
@@ -121,7 +141,7 @@ function switchTab(tabId, btn) {
   if (target) {
     target.classList.add("active");
     target.setAttribute("aria-hidden", "false");
-    target.removeAttribute("aria-hidden");
+    target.setAttribute('tabindex', '0');
   }
   if (btn) {
     btn.classList.add("active");
@@ -209,14 +229,18 @@ function switchTab(tabId, btn) {
     }
   }
 
+  syncTabAccessibility();
+
 }
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
+    syncTabAccessibility();
     renderGlobalQuickAccess();
     window.addEventListener('resize', renderGlobalQuickAccess);
   });
 } else {
+  syncTabAccessibility();
   renderGlobalQuickAccess();
   window.addEventListener('resize', renderGlobalQuickAccess);
 }

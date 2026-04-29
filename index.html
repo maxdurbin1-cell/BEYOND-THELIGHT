@@ -8,8 +8,8 @@
 <title>BEYOND: The Light — Digital Companion</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="./beyond-light-expansion.css">
 <link rel="stylesheet" href="./faction-intro-system.css">
 <link rel="stylesheet" href="./settings-system.css">
@@ -36,6 +36,7 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .header-credits .amt{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;color:var(--gold);}
 .tab-panel{display:none;padding:1rem 1.2rem;max-width:1600px;margin:0 auto;min-height:calc(100vh - 56px);}
 .tab-panel.active{display:block;}
+.tab-panel.active{content-visibility:auto;contain-intrinsic-size:1200px;}
 .quick-nav{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.85rem;padding:.5rem .6rem;background:rgba(255,255,255,.02);border:1px solid var(--border2);border-radius:3px;}
 .quick-nav-label{font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted2);align-self:center;margin-right:.2rem;font-family:'Cinzel',serif;}
 .quick-nav .btn{font-size:.78rem;padding:.32rem .7rem;}
@@ -49,8 +50,10 @@ nav{display:flex;gap:.15rem;flex-wrap:wrap;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
 .sub-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.24rem;}
 .card{background:var(--card);border:1px solid var(--border);padding:.7rem;}
+.card{content-visibility:auto;contain-intrinsic-size:320px;}
 .btn{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;letter-spacing:.08em;padding:.42rem .95rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.25rem;}
 .btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.05);}
+.btn:focus-visible,.tab-btn:focus-visible,.ctx-btn:focus-visible,.step-btn:focus-visible,.scat:focus-visible,.age-btn:focus-visible,.season-btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--teal2);outline-offset:2px;}
 .btn-primary{border-color:rgba(201,162,39,.6);color:var(--gold);background:rgba(201,162,39,.07);}
 .btn-primary:hover{background:rgba(201,162,39,.14);border-color:var(--gold);}
 .btn-teal{border-color:rgba(46,196,182,.5);color:var(--teal);background:rgba(46,196,182,.05);}
@@ -90,6 +93,7 @@ select option{background:#0f1020;}
 .renown-badge{display:inline-block;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--gold);border:1px solid rgba(201,162,39,.4);padding:.16rem .52rem;text-transform:uppercase;background:rgba(201,162,39,.04);}
 .char-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;}
 @media(max-width:1100px){.char-grid{grid-template-columns:1fr 1fr;}}@media(max-width:680px){.char-grid{grid-template-columns:1fr;}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important;}}
 .backpack-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.25rem;}
 .bp-cell{display:flex;gap:.1rem;align-items:stretch;}
 .bp-cell .bp-input{flex:1;min-width:0;}
@@ -7855,6 +7859,55 @@ document.addEventListener('DOMContentLoaded',()=>{
     if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
     showNotif('Nomad treatment removed injury: ' + treated, 'good');
   };
+
+  function deriveFieldAriaLabel(el) {
+    if (!el) return '';
+    const explicit = (el.getAttribute('aria-label') || '').trim();
+    if (explicit) return explicit;
+    const title = (el.getAttribute('title') || '').trim();
+    if (title) return title;
+    const placeholder = (el.getAttribute('placeholder') || '').trim();
+    if (placeholder) return placeholder;
+    const id = el.getAttribute('id');
+    if (id) {
+      const label = document.querySelector('label[for="' + id + '"]');
+      if (label && label.textContent) return label.textContent.trim();
+    }
+    let parent = el.parentElement;
+    while (parent) {
+      const sub = parent.querySelector('.sub-label,.stat-label,.section-title');
+      if (sub && sub.textContent) return sub.textContent.trim();
+      parent = parent.parentElement;
+    }
+    return '';
+  }
+
+  function runAccessibilityLabelAudit() {
+    document.querySelectorAll('input,select,textarea').forEach(function(el){
+      if (el.getAttribute('type') === 'hidden') return;
+      const label = deriveFieldAriaLabel(el);
+      if (label && !el.getAttribute('aria-label')) {
+        el.setAttribute('aria-label', label);
+      }
+    });
+    document.querySelectorAll('button,a[role="button"]').forEach(function(el){
+      if (el.getAttribute('aria-label')) return;
+      const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      const fallback = (el.getAttribute('title') || '').trim();
+      const label = txt || fallback;
+      if (label) el.setAttribute('aria-label', label);
+    });
+    document.querySelectorAll('img').forEach(function(img){
+      if (!img.getAttribute('loading')) img.setAttribute('loading', 'lazy');
+      if (!img.getAttribute('decoding')) img.setAttribute('decoding', 'async');
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runAccessibilityLabelAudit, { once: true });
+  } else {
+    runAccessibilityLabelAudit();
+  }
 
   window.renderQP = renderQP;
   window.rollProvinceLeadCheck = rollProvinceLeadCheck;

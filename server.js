@@ -1150,9 +1150,33 @@ io.on("connection", (socket) => {
       `${member ? member.name : "Player"} requested an authoritative resync.`,
       { token }
     );
+
+    const gmSocketIds = [];
+    campaign.sessions.forEach((sessionToken, socketId) => {
+      if (campaign.gmToken && sessionToken === campaign.gmToken) {
+        gmSocketIds.push(socketId);
+      }
+    });
+
+    if (gmSocketIds.length) {
+      for (let i = 0; i < gmSocketIds.length; i += 1) {
+        io.to(gmSocketIds[i]).emit("campaign:resyncRequested", {
+          code: campaign.code,
+          requesterToken: token,
+          requesterName: member ? member.name : "Player",
+          requestedAt: Date.now()
+        });
+      }
+    }
+
     emitCampaignState(campaign.code);
     if (typeof ack === "function") {
-      ack({ ok: true, stateVersion: Math.max(0, Number(campaign.shared.stateVersion || 0)), authoritativeAt: campaign.updatedAt });
+      ack({
+        ok: true,
+        gmOnline: gmSocketIds.length > 0,
+        stateVersion: Math.max(0, Number(campaign.shared.stateVersion || 0)),
+        authoritativeAt: campaign.updatedAt
+      });
     }
   });
 

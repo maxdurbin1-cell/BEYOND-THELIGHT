@@ -81,9 +81,31 @@
     return typeof window.io === "function";
   }
 
+  function resolveGameState() {
+    try {
+      if (typeof S !== "undefined" && S) {
+        return S;
+      }
+    } catch (_err) {}
+    try {
+      return Function("return (typeof S !== 'undefined' && S) ? S : (window.S || null);")();
+    } catch (_err) {
+      return (typeof window.S !== "undefined" && window.S) ? window.S : null;
+    }
+  }
+
+  function syncWindowStateAlias() {
+    var gameState = resolveGameState();
+    if (gameState && window.S !== gameState) {
+      window.S = gameState;
+    }
+    return gameState;
+  }
+
   function ensureName() {
     if (state.playerName) return state.playerName;
-    var fromS = (typeof window.S !== "undefined" && window.S && window.S.name) ? String(window.S.name).trim() : "";
+    var gameState = syncWindowStateAlias();
+    var fromS = (gameState && gameState.name) ? String(gameState.name).trim() : "";
     state.playerName = fromS || "Wayfarer";
     return state.playerName;
   }
@@ -1382,6 +1404,7 @@
 
     state.socket.on("connect", function () {
       state.connected = true;
+      syncWindowStateAlias();
       setSyncHealth("online", "Connected");
       renderSettingsSection();
       renderDockPanel();
@@ -1397,6 +1420,7 @@
     });
 
     state.socket.on("campaign:state", function (snapshot) {
+      syncWindowStateAlias();
       state.campaign = snapshot || null;
       state.code = snapshot && snapshot.code ? String(snapshot.code) : "";
 
@@ -1431,6 +1455,16 @@
       syncCharacterToCampaign(false);
       syncSharedState("snapshot");
       showOnboarding(false);
+    });
+
+    state.socket.on("campaign:resyncRequested", function (payload) {
+      if (state.role !== "gm" || !state.code || !state.connected) return;
+      syncWindowStateAlias();
+      syncSharedSilent("gm-authoritative-resync-request").then(function (res) {
+        if (!res || !res.ok) return;
+        var requester = payload && payload.requesterName ? String(payload.requesterName) : "Player";
+        safeNotif("Authoritative resync sent for " + requester + ".", "good");
+      }).catch(function () {});
     });
 
     state.socket.on("campaign:notice", function (payload) {
@@ -2022,7 +2056,11 @@
     if (res.authoritativeAt) {
       state.lastAuthoritativeAt = Number(res.authoritativeAt || 0) || state.lastAuthoritativeAt;
     }
-    safeNotif("Requested authoritative resync.", "good");
+    if (res.gmOnline === false) {
+      safeNotif("Requested resync, but GM is offline. Last snapshot replayed.", "warn");
+    } else {
+      safeNotif("Requested authoritative resync.", "good");
+    }
   }
 
   async function exportSnapshot() {
@@ -2127,6 +2165,7 @@
   }
 
   function init() {
+    syncWindowStateAlias();
     patchTmwHooks();
     patchMentalStressHooks();
     patchSharedEconomyHooks();
@@ -2161,6 +2200,7 @@
   }
 
   setInterval(function () {
+    syncWindowStateAlias();
     patchTmwHooks();
     patchMentalStressHooks();
     patchSharedEconomyHooks();

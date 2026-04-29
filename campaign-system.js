@@ -471,6 +471,8 @@
       shared.gameDate = deepCloneJson(window.S.gameDate || {});
       shared.gmSettings = deepCloneJson(current.gmSettings || ensureGmSettings());
       shared.campaignCombat = deepCloneJson(current.campaignCombat || ensureCampaignCombatState());
+      shared.actionQueue = deepCloneJson(current.actionQueue || ensureActionQueue());
+      shared.characterInventories = deepCloneJson(current.characterInventories || ensureCharacterInventories());
     }
     return shared;
   }
@@ -568,6 +570,14 @@
         var current = getCampaignSharedState() || {};
         if (!current.campaignCombat) current.campaignCombat = {};
         Object.assign(current.campaignCombat, sharedState.campaignCombat);
+      }
+      if (Array.isArray(sharedState.actionQueue)) {
+        var current = getCampaignSharedState() || {};
+        current.actionQueue = deepCloneJson(sharedState.actionQueue);
+      }
+      if (sharedState.characterInventories && typeof sharedState.characterInventories === "object") {
+        var current = getCampaignSharedState() || {};
+        current.characterInventories = deepCloneJson(sharedState.characterInventories);
       }
       if (sharedState.provinceMap && typeof window.applyProvinceMapState === "function") {
         window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
@@ -1014,6 +1024,266 @@
     } catch (err) {
       if (callback) callback({ ok: false, error: String(err) });
     }
+  }
+
+  // ========== PHASE 2: SEAMLESS EXPERIENCE ==========
+
+  // Initialize or get action queue
+  function ensureActionQueue(sharedState) {
+    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState.actionQueue || !Array.isArray(sharedState.actionQueue)) {
+      sharedState.actionQueue = [];
+    }
+    return sharedState.actionQueue;
+  }
+
+  // Player submits action (add to queue for GM approval if in active mode)
+  function submitPlayerAction(actionType, actionData, callback) {
+    if (!state.token) {
+      if (callback) callback({ ok: false, error: "Not connected to campaign" });
+      return;
+    }
+    try {
+      var settings = ensureGmSettings();
+      var queue = ensureActionQueue();
+      
+      var action = {
+        id: String(Math.random()).slice(2, 10),
+        token: state.token,
+        playerName: state.playerName || "Player",
+        type: String(actionType || "generic"),
+        data: actionData || {},
+        submittedAt: Date.now(),
+        status: "pending" // pending | approved | rejected | executed
+      };
+
+      if (settings.mode === "passive") {
+        // In passive mode, execute immediately
+        action.status = "executed";
+        executePlayerAction(action);
+      } else if (settings.mode === "active" || settings.mode === "facilitative") {
+        // In active/facilitative modes, queue for GM approval
+        queue.push(action);
+      }
+
+      if (state.code && state.connected) {
+        syncSharedState("player-action-submit");
+      }
+      if (callback) callback({ ok: true, actionId: action.id });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Internal: execute action (modify state based on action type)
+  function executePlayerAction(action) {
+    if (!action || !action.type) return;
+    
+    // Action execution hooks - extend based on game systems
+    switch (String(action.type)) {
+      case "use-item":
+        // Example: action.data = { itemIndex: number }
+        break;
+      case "take-damage":
+        // Example: action.data = { amount: number }
+        break;
+      case "cast-spell":
+        // Example: action.data = { spellName: string }
+        break;
+    }
+  }
+
+  // GM approves pending action (executes it)
+  function gmApproveAction(actionId, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can approve actions" });
+      return;
+    }
+    try {
+      var queue = ensureActionQueue();
+      var actionIndex = -1;
+      for (var i = 0; i < queue.length; i++) {
+        if (queue[i] && String(queue[i].id) === String(actionId)) {
+          actionIndex = i;
+          break;
+        }
+      }
+      
+      if (actionIndex === -1) {
+        if (callback) callback({ ok: false, error: "Action not found" });
+        return;
+      }
+
+      var action = queue[actionIndex];
+      action.status = "approved";
+      action.approvedAt = Date.now();
+      
+      executePlayerAction(action);
+      action.status = "executed";
+
+      if (state.code && state.connected) {
+        syncSharedState("gm-approve-action");
+      }
+      safeNotif("Approved action from " + escapeHtml(action.playerName));
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // GM rejects pending action (removes from queue)
+  function gmRejectAction(actionId, reason, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can reject actions" });
+      return;
+    }
+    try {
+      var queue = ensureActionQueue();
+      var actionIndex = -1;
+      for (var i = 0; i < queue.length; i++) {
+        if (queue[i] && String(queue[i].id) === String(actionId)) {
+          actionIndex = i;
+          break;
+        }
+      }
+      
+      if (actionIndex === -1) {
+        if (callback) callback({ ok: false, error: "Action not found" });
+        return;
+      }
+
+      var action = queue[actionIndex];
+      action.status = "rejected";
+      action.rejectedAt = Date.now();
+      action.rejectionReason = String(reason || "Rejected by GM");
+      
+      queue.splice(actionIndex, 1);
+
+      if (state.code && state.connected) {
+        syncSharedState("gm-reject-action");
+      }
+      safeNotif("Rejected action from " + escapeHtml(action.playerName));
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Get pending actions in queue
+  function getPendingActions() {
+    var queue = ensureActionQueue();
+    return queue.filter(function(a) { return a && a.status === "pending"; });
+  }
+
+  // Get character's current status (health, stress, conditions)
+  function getCharacterStatus(token) {
+    if (!state.campaign || !state.campaign.participants) return null;
+    var participant = state.campaign.participants.get(token);
+    if (!participant || !participant.character) return null;
+    
+    return {
+      token: token,
+      name: participant.character.name || participant.name || "Wayfarer",
+      health: Math.max(0, Number(participant.character.health || 0)),
+      maxHealth: 10, // TODO: get from character sheet
+      mentalStress: Math.max(0, Number(participant.character.mentalStress || 0)),
+      maxMentalStress: 10, // TODO: get from character sheet
+      conditions: participant.character.conditions || [],
+      isDead: !!(participant.character.isDead),
+      role: participant.role || "player",
+      lastSeenAt: Number(participant.lastSeenAt || Date.now())
+    };
+  }
+
+  // Get all party members' status (for party status panel)
+  function getPartyStatus() {
+    if (!state.campaign || !state.campaign.participants) return [];
+    var statuses = [];
+    state.campaign.participants.forEach(function(participant, token) {
+      if (participant.character) {
+        statuses.push(getCharacterStatus(token));
+      }
+    });
+    return statuses;
+  }
+
+  // Initialize per-character inventories
+  function ensureCharacterInventories(sharedState) {
+    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState.characterInventories || typeof sharedState.characterInventories !== "object") {
+      sharedState.characterInventories = {};
+    }
+    return sharedState.characterInventories;
+  }
+
+  // Add item to specific character's inventory
+  function addItemToCharacterInventory(token, item, callback) {
+    if (!state.token) {
+      if (callback) callback({ ok: false, error: "Not connected" });
+      return;
+    }
+    try {
+      var inventories = ensureCharacterInventories();
+      if (!Array.isArray(inventories[token])) {
+        inventories[token] = [];
+      }
+      
+      inventories[token].push(String(item || "").trim());
+      
+      if (state.code && state.connected) {
+        syncSharedState("char-inventory-add");
+      }
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Remove item from character's inventory by index
+  function removeItemFromCharacterInventory(token, itemIndex, callback) {
+    if (!state.token) {
+      if (callback) callback({ ok: false, error: "Not connected" });
+      return;
+    }
+    try {
+      var inventories = ensureCharacterInventories();
+      if (!Array.isArray(inventories[token])) {
+        if (callback) callback({ ok: false, error: "No inventory for character" });
+        return;
+      }
+      
+      if (itemIndex < 0 || itemIndex >= inventories[token].length) {
+        if (callback) callback({ ok: false, error: "Invalid item index" });
+        return;
+      }
+      
+      inventories[token].splice(itemIndex, 1);
+      
+      if (state.code && state.connected) {
+        syncSharedState("char-inventory-remove");
+      }
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Get character's inventory
+  function getCharacterInventory(token) {
+    var inventories = ensureCharacterInventories();
+    return Array.isArray(inventories[token]) ? inventories[token].slice() : [];
+  }
+
+  // Get all character inventories
+  function getAllCharacterInventories() {
+    var inventories = ensureCharacterInventories();
+    var result = {};
+    for (var token in inventories) {
+      if (inventories.hasOwnProperty(token)) {
+        result[token] = Array.isArray(inventories[token]) ? inventories[token].slice() : [];
+      }
+    }
+    return result;
   }
 
   function getTmwValue() {
@@ -1808,6 +2078,83 @@
                 + '<div class="campaign-muted" style="margin-top:.2rem;font-size:.85rem;">'
                 + 'HP ' + p.character.health + ' · MS ' + p.character.mentalStress
                 + (p.character.stats && p.character.stats.adventure ? ' · Adv ' + Number(p.character.stats.adventure) : '')
+                + '</div>'
+                + '</div>';
+            }).join('');
+          })()
+          + '</div>'
+          + '</div>')
+        : "")
+      + (state.code
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 2: Party Status Dashboard</div>'
+          + '<div style="display:flex;flex-direction:column;gap:.5rem;">'
+          + (function() {
+            var statuses = getPartyStatus();
+            if (statuses.length === 0) return '<div class="campaign-muted">No party members with character data.</div>';
+            return statuses.map(function(s) {
+              var healthPercent = Math.round((s.health / s.maxHealth) * 100);
+              var stressPercent = Math.round((s.mentalStress / s.maxMentalStress) * 100);
+              var statusLine = s.isDead ? '<span style="color:var(--red2);"><strong>DEAD</strong></span>' 
+                : ('HP <strong>' + s.health + '/' + s.maxHealth + '</strong> (' + healthPercent + '%) · MS <strong>' + s.mentalStress + '/' + s.maxMentalStress + '</strong> (' + stressPercent + '%)');
+              return '<div style="padding:.5rem;background:var(--bg3);border-radius:.3rem;border-left:4px solid ' + (s.isDead ? 'var(--red2)' : (stressPercent > 80 ? 'var(--red2)' : (healthPercent < 30 ? 'var(--gold2)' : 'var(--teal)'))) + ';">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+                + '<strong>' + escapeHtml(s.name) + '</strong>'
+                + '<span class="campaign-muted" style="font-size:.85rem;">' + escapeHtml(s.role) + '</span>'
+                + '</div>'
+                + '<div class="campaign-muted" style="margin-top:.2rem;font-size:.85rem;">' + statusLine + '</div>'
+                + (Array.isArray(s.conditions) && s.conditions.length > 0 ? '<div class="campaign-muted" style="margin-top:.1rem;font-size:.75rem;color:var(--gold2);">Conditions: ' + escapeHtml(s.conditions.join(', ')) + '</div>' : '')
+                + '</div>';
+            }).join('');
+          })()
+          + '</div>'
+          + '</div>')
+        : "")
+      + (isGm && state.code
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 2: Action Queue (Active Mode)</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Players submit actions; you approve or reject them</div>'
+          + '<div id="actionQueueContainer" style="display:flex;flex-direction:column;gap:.5rem;">'
+          + (function() {
+            var queue = getPendingActions();
+            if (queue.length === 0) return '<div class="campaign-muted">No pending actions.</div>';
+            return queue.map(function(action) {
+              return '<div style="padding:.5rem;background:var(--bg3);border-radius:.3rem;border-left:3px solid var(--gold2);">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+                + '<strong>' + escapeHtml(action.playerName) + '</strong>'
+                + '<span class="campaign-muted" style="font-size:.85rem;">' + escapeHtml(action.type) + '</span>'
+                + '</div>'
+                + '<div class="campaign-muted" style="margin-top:.2rem;font-size:.85rem;">' + escapeHtml(JSON.stringify(action.data)) + '</div>'
+                + '<div class="campaign-actions" style="margin-top:.2rem;gap:.1rem;">'
+                + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.gmApproveAction(\'' + escapeHtml(action.id) + '\')">Approve</button>'
+                + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.gmRejectAction(\'' + escapeHtml(action.id) + '\', \'denied\')">Reject</button>'
+                + '</div>'
+                + '</div>';
+            }).join('');
+          })()
+          + '</div>'
+          + '</div>')
+        : "")
+      + (state.code
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 2: Character Inventories</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Per-character backpack management</div>'
+          + '<div id="charInventoriesContainer" style="display:flex;flex-direction:column;gap:.5rem;">'
+          + (function() {
+            var roster = buildPartyRoster();
+            if (roster.length === 0) return '<div class="campaign-muted">No characters yet.</div>';
+            var allInventories = getAllCharacterInventories();
+            return roster.map(function(p) {
+              var inv = allInventories[p.token] || [];
+              return '<div style="padding:.5rem;background:var(--bg3);border-radius:.3rem;">'
+                + '<strong>' + escapeHtml(p.character.name) + '</strong>'
+                + '<div class="campaign-muted" style="margin-top:.2rem;font-size:.85rem;">'
+                + (inv.length > 0 ? inv.map(function(item, idx) {
+                  return '<button class="btn btn-xs" style="margin:0 .1rem .2rem 0;" onclick="window.campaignSystem.removeItemFromCharacterInventory(\'' + p.token + '\', ' + idx + ')">✕ ' + escapeHtml(item) + '</button>';
+                }).join('') : '<span class="campaign-muted">No items</span>')
                 + '</div>'
                 + '</div>';
             }).join('');
@@ -3034,6 +3381,17 @@
     buildPartyRoster: buildPartyRoster,
     ensureGmSettings: ensureGmSettings,
     ensureCampaignCombatState: ensureCampaignCombatState,
+    // Phase 2: Seamless Experience
+    submitPlayerAction: submitPlayerAction,
+    gmApproveAction: gmApproveAction,
+    gmRejectAction: gmRejectAction,
+    getPendingActions: getPendingActions,
+    getCharacterStatus: getCharacterStatus,
+    getPartyStatus: getPartyStatus,
+    addItemToCharacterInventory: addItemToCharacterInventory,
+    removeItemFromCharacterInventory: removeItemFromCharacterInventory,
+    getCharacterInventory: getCharacterInventory,
+    getAllCharacterInventories: getAllCharacterInventories,
     refreshUI: function () {
       renderSettingsSection();
       renderDockPanel();

@@ -3109,6 +3109,134 @@
     };
   }
 
+  var _storyWheelState = {
+    active: false,
+    sceneId: "",
+    optionIds: [],
+    unlocked: [],
+    selected: 0,
+  };
+
+  function getFirstUnlockedWheelIndex() {
+    if (!_storyWheelState.unlocked.length) return -1;
+    for (var i = 0; i < _storyWheelState.unlocked.length; i++) {
+      if (_storyWheelState.unlocked[i]) return i;
+    }
+    return -1;
+  }
+
+  function isStoryWheelModalOpen() {
+    var modal = document.getElementById("rollModal");
+    if (!modal || !modal.classList) return false;
+    return modal.classList.contains("open");
+  }
+
+  function renderStoryWheelActiveSelection() {
+    var nodes = document.querySelectorAll(".story-wheel-option[data-wheel-index]");
+    nodes.forEach(function (node) {
+      var idx = Number(node.getAttribute("data-wheel-index") || -1);
+      node.classList.toggle("active", idx === _storyWheelState.selected);
+    });
+    var rows = document.querySelectorAll(".story-wheel-row[data-wheel-row-index]");
+    rows.forEach(function (row) {
+      var idx = Number(row.getAttribute("data-wheel-row-index") || -1);
+      row.classList.toggle("active", idx === _storyWheelState.selected);
+    });
+  }
+
+  function getNextWheelIndex(delta) {
+    var count = _storyWheelState.optionIds.length;
+    if (!count) return -1;
+    var start = Number(_storyWheelState.selected || 0);
+    for (var step = 1; step <= count; step++) {
+      var idx = (start + (delta * step) + count) % count;
+      if (_storyWheelState.unlocked[idx]) return idx;
+    }
+    return start;
+  }
+
+  function storyWheelMove(delta) {
+    if (!_storyWheelState.active) return;
+    var next = getNextWheelIndex(delta >= 0 ? 1 : -1);
+    if (next < 0) return;
+    _storyWheelState.selected = next;
+    renderStoryWheelActiveSelection();
+  }
+
+  function storyWheelSelectIndex(index) {
+    var idx = Number(index);
+    if (!_storyWheelState.active) return;
+    if (!(idx >= 0 && idx < _storyWheelState.optionIds.length)) return;
+    if (!_storyWheelState.unlocked[idx]) {
+      if (typeof showNotif === "function") showNotif("That dialogue branch is locked.", "warn");
+      return;
+    }
+    _storyWheelState.selected = idx;
+    renderStoryWheelActiveSelection();
+  }
+
+  function storyWheelConfirm() {
+    if (!_storyWheelState.active) return;
+    var idx = Number(_storyWheelState.selected || 0);
+    if (!(idx >= 0 && idx < _storyWheelState.optionIds.length)) return;
+    if (!_storyWheelState.unlocked[idx]) {
+      if (typeof showNotif === "function") showNotif("That dialogue branch is locked.", "warn");
+      return;
+    }
+    var sceneId = _storyWheelState.sceneId;
+    var optionId = _storyWheelState.optionIds[idx];
+    _storyWheelState.active = false;
+    if (typeof closeModal === "function") closeModal();
+    runStoryOption(sceneId, optionId);
+  }
+
+  function activateStoryWheelState(sceneId, wheelOptions) {
+    _storyWheelState.sceneId = String(sceneId || "");
+    _storyWheelState.optionIds = wheelOptions.map(function (w) { return w && w.option ? String(w.option.id || "") : ""; });
+    _storyWheelState.unlocked = wheelOptions.map(function (w) { return !!(w && w.unlocked); });
+    _storyWheelState.selected = Math.max(0, getFirstUnlockedWheelIndex());
+    _storyWheelState.active = true;
+    renderStoryWheelActiveSelection();
+  }
+
+  function patchStoryWheelHotkeys() {
+    if (window._storyWheelHotkeysPatched) return;
+    window._storyWheelHotkeysPatched = true;
+    document.addEventListener("keydown", function (ev) {
+      if (!_storyWheelState.active) return;
+      if (!isStoryWheelModalOpen()) {
+        _storyWheelState.active = false;
+        return;
+      }
+      var tag = String((ev.target && ev.target.tagName) || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      var key = String(ev.key || "").toLowerCase();
+      if (key === "arrowleft" || key === "arrowup" || key === "a" || key === "w" || key === "q") {
+        ev.preventDefault();
+        storyWheelMove(-1);
+        return;
+      }
+      if (key === "arrowright" || key === "arrowdown" || key === "d" || key === "s" || key === "e") {
+        ev.preventDefault();
+        storyWheelMove(1);
+        return;
+      }
+      if (key === "enter" || key === " ") {
+        ev.preventDefault();
+        storyWheelConfirm();
+        return;
+      }
+      if (key === "escape") {
+        _storyWheelState.active = false;
+        return;
+      }
+      if (/^[1-9]$/.test(key)) {
+        ev.preventDefault();
+        storyWheelSelectIndex(Number(key) - 1);
+      }
+    });
+  }
+
   function openStoryDialogueWheel() {
     if (typeof openModal !== "function") return;
     var st = ensureStoryState();
@@ -3144,7 +3272,7 @@
       };
     });
 
-    var summary = wheelOptions.map(function (w) {
+    var summary = wheelOptions.map(function (w, idx) {
       var o = w.option;
       var reqText = renderRequirement(o.req);
       var status = w.unlocked ? "READY" : "LOCKED";
@@ -3156,9 +3284,9 @@
         : "<button class='btn btn-xs' disabled>Locked</button>";
 
       return ""
-        + "<div class='story-wheel-row " + (w.unlocked ? "" : "locked") + "'>"
+        + "<div class='story-wheel-row " + (w.unlocked ? "" : "locked") + "' data-wheel-row-index='" + idx + "'>"
         + "<div style='display:flex;justify-content:space-between;gap:.45rem;align-items:center;'>"
-        + "<div style='font-size:.75rem;color:var(--gold2);letter-spacing:.08em;'>" + w.intent + " | " + status + "</div>"
+        + "<div style='font-size:.75rem;color:var(--gold2);letter-spacing:.08em;'>" + (idx + 1) + ". " + w.intent + " | " + status + "</div>"
         + actionBtn
         + "</div>"
         + "<div style='font-size:.8rem;color:var(--text2);margin-top:.15rem;'>" + escHtml(o.text) + "</div>"
@@ -3167,19 +3295,17 @@
         + "</div>";
     }).join("");
 
-    var nodes = wheelOptions.map(function (w) {
+    var nodes = wheelOptions.map(function (w, idx) {
       var o = w.option;
       var classes = "story-wheel-option" + (w.unlocked ? "" : " locked");
       var roleChip = escHtml(w.assign.role || "Lead");
       var line2 = o.stat
         ? escHtml((STAT_LABELS[o.stat] || o.stat) + " d" + getAssignedWayfarerActionDie(o.stat, w.assign) + " vs DD" + w.dd)
         : escHtml(w.intent);
-      var onclick = w.unlocked
-        ? ("onclick='closeModal();runStoryOption(\"" + st.sceneId + "\",\"" + o.id + "\")'")
-        : "";
+      var onclick = "onclick='storyWheelSelectIndex(" + idx + ");storyWheelConfirm();'";
 
       return ""
-        + "<button class='" + classes + "' style='left:" + w.pos.left + "%;top:" + w.pos.top + "%;' " + onclick + " " + (w.unlocked ? "" : "disabled") + ">"
+        + "<button class='" + classes + "' data-wheel-index='" + idx + "' style='left:" + w.pos.left + "%;top:" + w.pos.top + "%;' " + onclick + " " + (w.unlocked ? "" : "disabled") + ">"
         + "<div class='story-wheel-role'>" + roleChip + "</div>"
         + "<div class='story-wheel-text'>" + escHtml(o.text) + "</div>"
         + "<div class='story-wheel-roll'>" + line2 + "</div>"
@@ -3189,13 +3315,14 @@
     var html = ""
       + "<div class='story-wheel-wrap'>"
       + "<div class='story-wheel-stage'>"
-      + "<div class='story-wheel-center'><div class='story-wheel-center-title'>Dialogue Wheel</div><div class='story-wheel-center-sub'>" + escHtml(scene.title) + "</div></div>"
+      + "<div class='story-wheel-center'><div class='story-wheel-center-title'>Dialogue Wheel</div><div class='story-wheel-center-sub'>" + escHtml(scene.title) + "<br>Arrows/WASD: cycle | Enter: choose | 1-9: direct</div></div>"
       + nodes
       + "</div>"
       + "<div class='story-wheel-list'>" + summary + "</div>"
       + "</div>";
 
     openModal("Dialogue Wheel", html);
+    activateStoryWheelState(st.sceneId, wheelOptions);
   }
 
   function openStoryTravelModal(option, objective) {
@@ -3554,6 +3681,7 @@
     ensureStoryTab();
     patchSwitchTabForStory();
     patchLoadForStory();
+    patchStoryWheelHotkeys();
     renderStorylinePanel();
   });
 
@@ -3565,6 +3693,9 @@
   window.storySetAssignee = storySetAssignee;
   window.storySetDecisionRole = storySetDecisionRole;
   window.storyOpenDialogueWheel = openStoryDialogueWheel;
+  window.storyWheelMove = storyWheelMove;
+  window.storyWheelConfirm = storyWheelConfirm;
+  window.storyWheelSelectIndex = storyWheelSelectIndex;
 
   window.storyAcceptFail = function () {
     const p = window._pendingStoryRoll;

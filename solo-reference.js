@@ -20,6 +20,14 @@
       body: '<ul><li>Gather information for bonuses.</li><li>Explore site rooms (hazards, puzzles, loot).</li><li>Finish with confrontation vs scene Dread.</li></ul>'
     },
     {
+      title: 'Solo Guidance Flow',
+      body: '<ul><li>Start with Character, then route to Province, Missions, and Storyline.</li><li>Use Jobs when you need credits between major arcs.</li><li>Use the Guide button on Character tab whenever you want a quick reset.</li></ul>'
+    },
+    {
+      title: 'Save/Load Safety',
+      body: '<ul><li>Save before risky scene choices or boss rooms.</li><li>Export after major milestones to keep an external backup file.</li><li>Run Save Health checks periodically; backup is used automatically if primary save is invalid.</li></ul>'
+    },
+    {
       title: 'Quick Tips',
       body: '<ul><li>Use Quick Access to revisit recently used tabs fast.</li><li>Use Storyline for major branching outcomes.</li><li>Check Factions/Endings when narrative choices escalate.</li></ul>'
     }

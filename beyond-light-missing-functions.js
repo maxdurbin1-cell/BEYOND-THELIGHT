@@ -1137,9 +1137,131 @@ function clearCharacter() {
   if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
 }
 
+const SOLO_SAVE_KEY = "beyond-light-character";
+const SOLO_SAVE_BACKUP_KEY = "beyond-light-character-backup";
+const SOLO_SAVE_META_KEY = "beyond-light-character-meta";
+const SOLO_SAVE_SCHEMA_VERSION = 2;
+let _lastSoloAutoSaveAt = 0;
+
+function computeSaveChecksum(text) {
+  const src = String(text || "");
+  let hash = 5381;
+  for (let i = 0; i < src.length; i += 1) {
+    hash = ((hash << 5) + hash) + src.charCodeAt(i);
+    hash = hash >>> 0;
+  }
+  return hash.toString(16);
+}
+
+function makeSoloSaveEnvelope(stateObj) {
+  const data = JSON.parse(JSON.stringify(stateObj || S || {}));
+  const payload = JSON.stringify(data);
+  return {
+    schema: SOLO_SAVE_SCHEMA_VERSION,
+    savedAt: Date.now(),
+    checksum: computeSaveChecksum(payload),
+    data: data
+  };
+}
+
+function isValidSoloEnvelope(envelope) {
+  if (!envelope || typeof envelope !== "object") return false;
+  if (!envelope.data || typeof envelope.data !== "object") return false;
+  const payload = JSON.stringify(envelope.data);
+  return computeSaveChecksum(payload) === String(envelope.checksum || "");
+}
+
+function readSoloEnvelopeByKey(key) {
+  const raw = localStorage.getItem(String(key || ""));
+  if (!raw) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_err) {
+    return null;
+  }
+  if (parsed && parsed.data && typeof parsed.data === "object") {
+    return parsed;
+  }
+  // Legacy save format fallback: raw state object.
+  if (parsed && typeof parsed === "object") {
+    const payload = JSON.stringify(parsed);
+    return {
+      schema: 1,
+      savedAt: Date.now(),
+      checksum: computeSaveChecksum(payload),
+      data: parsed
+    };
+  }
+  return null;
+}
+
+function writeSoloEnvelope(envelope) {
+  const current = localStorage.getItem(SOLO_SAVE_KEY);
+  if (current) {
+    localStorage.setItem(SOLO_SAVE_BACKUP_KEY, current);
+  }
+  localStorage.setItem(SOLO_SAVE_KEY, JSON.stringify(envelope));
+  localStorage.setItem(SOLO_SAVE_META_KEY, JSON.stringify({
+    lastSavedAt: envelope.savedAt,
+    schema: envelope.schema,
+    checksum: envelope.checksum
+  }));
+}
+
+function applyLoadedCharacterState(saved) {
+  S = {
+    ...S,
+    ...saved,
+    equipment: { ...S.equipment, ...(saved.equipment || {}) },
+    backpack: Array.isArray(saved.backpack) ? saved.backpack.slice(0, 6) : S.backpack,
+    conditions: { ...S.conditions, ...(saved.conditions || {}) },
+    stats: { ...S.stats, ...(saved.stats || {}) },
+    traits: { ...(saved.traits || {}) },
+    combat: {
+      ...S.combat,
+      ...(saved.combat || {}),
+      armyA: { ...S.combat.armyA, ...((saved.combat && saved.combat.armyA) || {}) },
+      armyB: { ...S.combat.armyB, ...((saved.combat && saved.combat.armyB) || {}) }
+    }
+  };
+
+  syncCharacterFields();
+  buildStatRows();
+  updateRenown();
+  updateCreditsUI();
+  updateStressUI();
+  updateTrauma();
+  renderTraits();
+  updateTMWPool();
+  updateConditionButtons();
+  renderEnemies();
+  updateCombatUI();
+  if (typeof renderOSHacksPanel === 'function') { renderOSHacksPanel(); }
+  if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
+  if (typeof ensureStarsState === 'function') {
+    ensureStarsState();
+  }
+  if (S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length) {
+    window._lastGeneratedGalaxy = (typeof cloneStarsData === 'function')
+      ? cloneStarsData(S.starSystem)
+      : JSON.parse(JSON.stringify(S.starSystem));
+  }
+  const galaxyTab = document.getElementById('tab-galaxy');
+  const inSpaceCtx = window._activeContext === 'space';
+  if ((inSpaceCtx || (galaxyTab && galaxyTab.classList.contains('active'))) && typeof buildGalaxyPanel === 'function') {
+    buildGalaxyPanel();
+    if (typeof renderStarSystemMap === 'function') {
+      setTimeout(function(){ renderStarSystemMap(); }, 0);
+    }
+  }
+}
+
 function saveCharacter() {
   try {
-    localStorage.setItem("beyond-light-character", JSON.stringify(S));
+    const envelope = makeSoloSaveEnvelope(S);
+    writeSoloEnvelope(envelope);
+    _lastSoloAutoSaveAt = Date.now();
     showNotif("Character saved", "good");
   } catch (error) {
     showNotif("Could not save character", "warn");
@@ -1148,64 +1270,143 @@ function saveCharacter() {
 
 function loadCharacter() {
   try {
-    const raw = localStorage.getItem("beyond-light-character");
-    if (!raw) {
+    let source = "primary";
+    let envelope = readSoloEnvelopeByKey(SOLO_SAVE_KEY);
+    if (!envelope || !isValidSoloEnvelope(envelope)) {
+      source = "backup";
+      envelope = readSoloEnvelopeByKey(SOLO_SAVE_BACKUP_KEY);
+    }
+    if (!envelope || !isValidSoloEnvelope(envelope)) {
       showNotif("No saved character found", "warn");
       return;
     }
-    const saved = JSON.parse(raw);
-    S = {
-      ...S,
-      ...saved,
-      equipment: { ...S.equipment, ...(saved.equipment || {}) },
-      backpack: Array.isArray(saved.backpack) ? saved.backpack.slice(0, 6) : S.backpack,
-      conditions: { ...S.conditions, ...(saved.conditions || {}) },
-      stats: { ...S.stats, ...(saved.stats || {}) },
-      traits: { ...(saved.traits || {}) },
-      combat: {
-        ...S.combat,
-        ...(saved.combat || {}),
-        armyA: { ...S.combat.armyA, ...((saved.combat && saved.combat.armyA) || {}) },
-        armyB: { ...S.combat.armyB, ...((saved.combat && saved.combat.armyB) || {}) }
-      }
-    };
-    syncCharacterFields();
-    buildStatRows();
-    updateRenown();
-    updateCreditsUI();
-    updateStressUI();
-    updateTrauma();
-    renderTraits();
-    updateTMWPool();
-    updateConditionButtons();
-    renderEnemies();
-    updateCombatUI();
-    if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
-    if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
-    // Normalize galaxy/star state fields that may be missing in older saves
-    if (typeof ensureStarsState === 'function') {
-      ensureStarsState();
-    }
-    // Sync snapshot cache so tab-switch continues to work without regenerating
-    if (S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length) {
-      window._lastGeneratedGalaxy = (typeof cloneStarsData === 'function')
-        ? cloneStarsData(S.starSystem)
-        : JSON.parse(JSON.stringify(S.starSystem));
-    }
-    // Rebuild galaxy panel if currently visible or if user is in space context.
-    const galaxyTab = document.getElementById('tab-galaxy');
-    const inSpaceCtx = window._activeContext === 'space';
-    if ((inSpaceCtx || (galaxyTab && galaxyTab.classList.contains('active'))) && typeof buildGalaxyPanel === 'function') {
-      buildGalaxyPanel();
-      if (typeof renderStarSystemMap === 'function') {
-        setTimeout(function(){ renderStarSystemMap(); }, 0);
-      }
-    }
-    showNotif("Character loaded", "good");
+    applyLoadedCharacterState(envelope.data || {});
+    showNotif(source === "backup" ? "Primary save was invalid. Loaded backup." : "Character loaded", source === "backup" ? "warn" : "good");
   } catch (error) {
     showNotif("Saved character is invalid", "warn");
   }
 }
+
+function exportCharacterSave() {
+  try {
+    const envelope = makeSoloSaveEnvelope(S);
+    const payload = JSON.stringify(envelope, null, 2);
+    const fileName = "beyond-light-solo-save-" + Date.now() + ".json";
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(function () {
+      try { URL.revokeObjectURL(url); } catch (_err) {}
+      try { link.remove(); } catch (_err) {}
+    }, 0);
+    showNotif("Save exported", "good");
+  } catch (_err) {
+    showNotif("Could not export save", "warn");
+  }
+}
+
+function importCharacterSavePrompt() {
+  if (typeof openModal === "function") {
+    openModal("Import Solo Save", ''
+      + '<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.45rem;">Paste a previously exported solo save JSON.</div>'
+      + '<textarea id="soloImportSaveInput" style="width:100%;min-height:180px;background:#111723;border:1px solid #2a354a;color:var(--text);border-radius:.45rem;padding:.55rem;font-family:monospace;font-size:.75rem;"></textarea>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.35rem;margin-top:.55rem;">'
+      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="confirmImportCharacterSave()">Import Save</button>'
+      + '</div>');
+    return;
+  }
+  const raw = prompt("Paste exported save JSON:");
+  if (!raw) return;
+  confirmImportCharacterSave(raw);
+}
+
+function confirmImportCharacterSave(rawInput) {
+  try {
+    const raw = String(rawInput || (document.getElementById("soloImportSaveInput") || {}).value || "").trim();
+    if (!raw) {
+      showNotif("Paste save JSON first", "warn");
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    const envelope = (parsed && parsed.data && typeof parsed.data === "object")
+      ? parsed
+      : makeSoloSaveEnvelope(parsed);
+    if (!isValidSoloEnvelope(envelope)) {
+      showNotif("Imported save failed integrity check", "warn");
+      return;
+    }
+    writeSoloEnvelope(envelope);
+    applyLoadedCharacterState(envelope.data || {});
+    if (typeof closeModal === "function") closeModal();
+    showNotif("Save imported and loaded", "good");
+  } catch (_err) {
+    showNotif("Save JSON is invalid", "warn");
+  }
+}
+
+function verifySoloSaveHealth() {
+  let primary = null;
+  let backup = null;
+  try { primary = readSoloEnvelopeByKey(SOLO_SAVE_KEY); } catch (_err) {}
+  try { backup = readSoloEnvelopeByKey(SOLO_SAVE_BACKUP_KEY); } catch (_err) {}
+  const primaryOk = !!(primary && isValidSoloEnvelope(primary));
+  const backupOk = !!(backup && isValidSoloEnvelope(backup));
+  const primaryStamp = primary && primary.savedAt ? new Date(primary.savedAt).toLocaleString() : "-";
+  const backupStamp = backup && backup.savedAt ? new Date(backup.savedAt).toLocaleString() : "-";
+  if (typeof openModal === "function") {
+    openModal("Solo Save Health", ''
+      + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      + '<div><strong>Primary:</strong> ' + (primaryOk ? '<span style="color:var(--green2);">OK</span>' : '<span style="color:var(--red2);">Invalid/Missing</span>') + ' · ' + primaryStamp + '</div>'
+      + '<div style="margin-top:.25rem;"><strong>Backup:</strong> ' + (backupOk ? '<span style="color:var(--green2);">OK</span>' : '<span style="color:var(--red2);">Invalid/Missing</span>') + ' · ' + backupStamp + '</div>'
+      + '<div style="margin-top:.45rem;color:var(--muted2);">If primary is corrupted, load uses backup automatically.</div>'
+      + '</div>');
+  }
+  showNotif(primaryOk ? "Save health verified" : "Primary save issue detected", primaryOk ? "good" : "warn");
+}
+
+function showSoloGuidance() {
+  const html = ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+    + '<div class="section-title" style="margin-bottom:.45rem;">Solo Quickstart</div>'
+    + '<ol style="padding-left:1.1rem;display:grid;gap:.25rem;">'
+    + '<li>Generate or load your Wayfarer, then confirm stress/conditions.</li>'
+    + '<li>Use Province for traversal, Missions for objectives, and Storyline for major forks.</li>'
+    + '<li>Use Save before risky branches and Export for an external backup file.</li>'
+    + '<li>Run Save Health occasionally to confirm primary + backup integrity.</li>'
+    + '</ol>'
+    + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.55rem;">'
+    + '<button class="btn btn-xs" onclick="window.soloReference && window.soloReference.open ? window.soloReference.open() : null;">Open Solo Reference</button>'
+    + '<button class="btn btn-xs btn-teal" onclick="verifySoloSaveHealth()">Check Save Health</button>'
+    + '<button class="btn btn-xs" onclick="exportCharacterSave()">Export Save</button>'
+    + '</div>'
+    + '</div>';
+  if (typeof openModal === "function") {
+    openModal("Solo Guidance", html);
+  }
+}
+
+setInterval(function () {
+  const now = Date.now();
+  if (document.hidden) return;
+  if (window.campaignSystem && window.campaignSystem.getState) {
+    const cs = window.campaignSystem.getState();
+    if (cs && cs.code) return;
+  }
+  if (!S || (!S.name && !S.reason && !S.career)) return;
+  if (now - _lastSoloAutoSaveAt < 60000) return;
+  try {
+    const envelope = makeSoloSaveEnvelope(S);
+    writeSoloEnvelope(envelope);
+    _lastSoloAutoSaveAt = now;
+  } catch (_err) {
+    // Silent autosave failures should not interrupt gameplay.
+  }
+}, 15000);
 
 function promptCredits() {
   const response = prompt("Set credits:", String(S.credits || 0));

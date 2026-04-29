@@ -473,6 +473,9 @@
       shared.campaignCombat = deepCloneJson(current.campaignCombat || ensureCampaignCombatState());
       shared.actionQueue = deepCloneJson(current.actionQueue || ensureActionQueue());
       shared.characterInventories = deepCloneJson(current.characterInventories || ensureCharacterInventories());
+      shared.characterDeathStates = deepCloneJson(current.characterDeathStates || ensureCharacterDeathStates());
+      shared.contestedRolls = deepCloneJson(current.contestedRolls || ensureContestedRolls());
+      shared.characterDice = deepCloneJson(current.characterDice || ensureCharacterDice());
     }
     return shared;
   }
@@ -578,6 +581,18 @@
       if (sharedState.characterInventories && typeof sharedState.characterInventories === "object") {
         var current = getCampaignSharedState() || {};
         current.characterInventories = deepCloneJson(sharedState.characterInventories);
+      }
+      if (sharedState.characterDeathStates && typeof sharedState.characterDeathStates === "object") {
+        var current = getCampaignSharedState() || {};
+        current.characterDeathStates = deepCloneJson(sharedState.characterDeathStates);
+      }
+      if (Array.isArray(sharedState.contestedRolls)) {
+        var current = getCampaignSharedState() || {};
+        current.contestedRolls = deepCloneJson(sharedState.contestedRolls);
+      }
+      if (sharedState.characterDice && typeof sharedState.characterDice === "object") {
+        var current = getCampaignSharedState() || {};
+        current.characterDice = deepCloneJson(sharedState.characterDice);
       }
       if (sharedState.provinceMap && typeof window.applyProvinceMapState === "function") {
         window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
@@ -1284,6 +1299,250 @@
       }
     }
     return result;
+  }
+
+  // ========== PHASE 3: EDGE CASES & ROBUSTNESS ==========
+
+  // Initialize death/incapacitation state
+  function ensureCharacterDeathStates(sharedState) {
+    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState.characterDeathStates || typeof sharedState.characterDeathStates !== "object") {
+      sharedState.characterDeathStates = {};
+    }
+    return sharedState.characterDeathStates;
+  }
+
+  // Mark character as dead/incapacitated when health reaches 0
+  function setCharacterDead(token, isDead, reason, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can change death status" });
+      return;
+    }
+    try {
+      var deathStates = ensureCharacterDeathStates();
+      if (isDead) {
+        deathStates[token] = {
+          dead: true,
+          at: Date.now(),
+          reason: String(reason || "Health reached 0")
+        };
+      } else {
+        if (deathStates[token]) {
+          deathStates[token].dead = false;
+          deathStates[token].revivedAt = Date.now();
+        }
+      }
+
+      if (state.code && state.connected) {
+        syncSharedState("set-character-dead");
+      }
+      var p = state.campaign && state.campaign.participants ? state.campaign.participants.get(token) : null;
+      var pname = p ? (p.name || "Character") : "Character";
+      safeNotif((isDead ? "DEATH: " : "Revived: ") + escapeHtml(pname));
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Check if character is dead
+  function isCharacterDead(token) {
+    var deathStates = ensureCharacterDeathStates();
+    var state = deathStates[token];
+    return !!(state && state.dead);
+  }
+
+  // Get all dead characters
+  function getDeadCharacters() {
+    var deathStates = ensureCharacterDeathStates();
+    var dead = [];
+    for (var token in deathStates) {
+      if (deathStates.hasOwnProperty(token) && deathStates[token] && deathStates[token].dead) {
+        dead.push({
+          token: token,
+          deadAt: deathStates[token].at,
+          reason: deathStates[token].reason
+        });
+      }
+    }
+    return dead;
+  }
+
+  // Prevent dead characters from acting in combat
+  function canCharacterAct(token) {
+    return !isCharacterDead(token);
+  }
+
+  // Initialize contested rolls
+  function ensureContestedRolls(sharedState) {
+    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!Array.isArray(sharedState.contestedRolls)) {
+      sharedState.contestedRolls = [];
+    }
+    return sharedState.contestedRolls;
+  }
+
+  // Start a contested roll (player vs player or player vs environment)
+  function startContestedRoll(challenger, defender, challengeType, dread, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can start contested rolls" });
+      return;
+    }
+    try {
+      var rolls = ensureContestedRolls();
+      var contested = {
+        id: String(Math.random()).slice(2, 10),
+        challenger: String(challenger || ""),
+        defender: String(defender || ""),
+        type: String(challengeType || "opposed"),
+        dread: Math.max(1, Number(dread || 8)),
+        createdAt: Date.now(),
+        challengerRoll: null,
+        defenderRoll: null,
+        winner: null,
+        status: "pending" // pending | resolved
+      };
+
+      rolls.push(contested);
+
+      if (state.code && state.connected) {
+        syncSharedState("contested-roll-start");
+      }
+      safeNotif("Contested roll started: " + challengeType);
+      if (callback) callback({ ok: true, contestedId: contested.id });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Submit roll for contested roll
+  function submitContestedRoll(contestedId, playerToken, rollResult, dieSize, callback) {
+    if (!state.token) {
+      if (callback) callback({ ok: false, error: "Not connected" });
+      return;
+    }
+    try {
+      var rolls = ensureContestedRolls();
+      var contested = null;
+      for (var i = 0; i < rolls.length; i++) {
+        if (rolls[i] && String(rolls[i].id) === String(contestedId)) {
+          contested = rolls[i];
+          break;
+        }
+      }
+
+      if (!contested) {
+        if (callback) callback({ ok: false, error: "Contested roll not found" });
+        return;
+      }
+
+      if (String(contested.challenger) === String(playerToken) && !contested.challengerRoll) {
+        contested.challengerRoll = { value: Number(rollResult || 0), die: Number(dieSize || 4), submittedAt: Date.now() };
+      } else if (String(contested.defender) === String(playerToken) && !contested.defenderRoll) {
+        contested.defenderRoll = { value: Number(rollResult || 0), die: Number(dieSize || 4), submittedAt: Date.now() };
+      } else {
+        if (callback) callback({ ok: false, error: "Player already submitted or roll not applicable" });
+        return;
+      }
+
+      // Auto-resolve if both submitted
+      if (contested.challengerRoll && contested.defenderRoll) {
+        var cTotal = contested.challengerRoll.value;
+        var dTotal = contested.defenderRoll.value;
+        if (cTotal > dTotal) {
+          contested.winner = "challenger";
+        } else if (dTotal > cTotal) {
+          contested.winner = "defender";
+        } else {
+          contested.winner = "tie";
+        }
+        contested.status = "resolved";
+      }
+
+      if (state.code && state.connected) {
+        syncSharedState("contested-roll-submit");
+      }
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Get a specific contested roll
+  function getContestedRoll(contestedId) {
+    var rolls = ensureContestedRolls();
+    for (var i = 0; i < rolls.length; i++) {
+      if (rolls[i] && String(rolls[i].id) === String(contestedId)) {
+        return rolls[i];
+      }
+    }
+    return null;
+  }
+
+  // Initialize character dice (for dice visibility & turn order)
+  function ensureCharacterDice(sharedState) {
+    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState.characterDice || typeof sharedState.characterDice !== "object") {
+      sharedState.characterDice = {};
+    }
+    return sharedState.characterDice;
+  }
+
+  // Track character's die sizes (for Wayfarer's Lead and visibility)
+  function setCharacterDice(token, diceConfig, callback) {
+    if (!state.token) {
+      if (callback) callback({ ok: false, error: "Not connected" });
+      return;
+    }
+    try {
+      var dice = ensureCharacterDice();
+      dice[token] = {
+        adventure: Math.max(4, Number((diceConfig && diceConfig.adventure) || 4)),
+        body: Math.max(4, Number((diceConfig && diceConfig.body) || 4)),
+        mind: Math.max(4, Number((diceConfig && diceConfig.mind) || 4)),
+        spirit: Math.max(4, Number((diceConfig && diceConfig.spirit) || 4)),
+        control: Math.max(4, Number((diceConfig && diceConfig.control) || 4)),
+        strike: Math.max(4, Number((diceConfig && diceConfig.strike) || 4)),
+        shoot: Math.max(4, Number((diceConfig && diceConfig.shoot) || 4)),
+        defend: Math.max(4, Number((diceConfig && diceConfig.defend) || 4)),
+        wayfarersLead: Math.max(1, Number((diceConfig && diceConfig.wayfarersLead) || 1)),
+        updatedAt: Date.now()
+      };
+
+      if (state.code && state.connected) {
+        syncSharedState("set-character-dice");
+      }
+      if (callback) callback({ ok: true });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  // Get character's dice configuration
+  function getCharacterDice(token) {
+    var dice = ensureCharacterDice();
+    return dice[token] || {
+      adventure: 4, body: 4, mind: 4, spirit: 4, control: 4,
+      strike: 4, shoot: 4, defend: 4, wayfarersLead: 1
+    };
+  }
+
+  // Get the largest die size across all players (actual Wayfarer's Lead die)
+  function getLargestWayfarersLeadDie() {
+    var allDice = ensureCharacterDice();
+    var largest = 1;
+    for (var token in allDice) {
+      if (allDice.hasOwnProperty(token)) {
+        var die = Number(allDice[token].wayfarersLead || 1);
+        if (die > largest) largest = die;
+      }
+    }
+    return largest;
+  }
+
+  // Get all character dice (for display/reference)
+  function getAllCharacterDice() {
+    return ensureCharacterDice();
   }
 
   function getTmwValue() {
@@ -2158,6 +2417,71 @@
                 + '</div>'
                 + '</div>';
             }).join('');
+          })()
+          + '</div>'
+          + '</div>')
+        : "")
+      + (isGm && state.code
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 3: Death & Incapacitation</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Track character death states and prevent dead characters from acting</div>'
+          + '<div id="deathStatesContainer" style="display:flex;flex-direction:column;gap:.5rem;">'
+          + (function() {
+            var allDead = getDeadCharacters();
+            var roster = buildPartyRoster();
+            var aliveCount = roster.length - allDead.length;
+            return '<div style="margin-bottom:.2rem;"><strong>' + aliveCount + '/' + roster.length + ' alive</strong></div>'
+              + (allDead.length > 0 ? allDead.map(function(d) {
+                return '<div style="padding:.3rem;background:var(--red2);color:var(--bg1);border-radius:.2rem;font-size:.85rem;">'
+                  + '<strong>DEAD</strong> - ' + (new Date(d.deadAt).toLocaleTimeString()) + ' (' + escapeHtml(d.reason) + ')'
+                  + '</div>';
+              }).join('') : '<div class="campaign-muted">All characters alive</div>')
+              + '<div class="campaign-actions" style="margin-top:.2rem;gap:.1rem;">'
+              + roster.map(function(p) {
+                var isDead = window.campaignSystem.isCharacterDead(p.token);
+                return '<button class="btn btn-xs ' + (isDead ? 'btn-red' : 'btn-green') + '" onclick="window.campaignSystem.setCharacterDead(\'' + p.token + '\', ' + (!isDead) + ', \'GM set\')">'
+                  + (isDead ? '✓' : '✕') + ' ' + escapeHtml(p.character.name) + '</button>';
+              }).join('')
+              + '</div>';
+          })()
+          + '</div>'
+          + '</div>')
+        : "")
+      + (isGm && state.code
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 3: Contested Rolls</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Player vs Player or opposed rolls with roll resolution</div>'
+          + '<div id="contestedRollsContainer" style="display:flex;flex-direction:column;gap:.5rem;">'
+          + (function() {
+            // TODO: Implement contested rolls GUI when needed
+            return '<div class="campaign-muted">No active contested rolls. Start one with API call.</div>';
+          })()
+          + '</div>'
+          + '</div>')
+        : "")
+      + (state.code
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 3: Character Dice Visibility</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">See each character\'s die sizes and Wayfarer\'s Lead</div>'
+          + '<div id="diceVisibilityContainer" style="display:flex;flex-direction:column;gap:.5rem;">'
+          + (function() {
+            var roster = buildPartyRoster();
+            var allDice = getAllCharacterDice();
+            var leadDie = getLargestWayfarersLeadDie();
+            if (roster.length === 0) return '<div class="campaign-muted">No characters yet.</div>';
+            return '<div style="margin-bottom:.2rem;"><strong>Largest Wayfarer\'s Lead: d' + leadDie + '</strong></div>'
+              + roster.map(function(p) {
+                var dice = allDice[p.token] || getCharacterDice(p.token);
+                var shorthand = 'Ad:d' + dice.adventure + ' | Bd:d' + dice.body + ' | Md:d' + dice.mind;
+                return '<div style="padding:.3rem;background:var(--bg3);border-radius:.2rem;font-size:.85rem;border-left:2px solid var(--teal);">'
+                  + '<strong>' + escapeHtml(p.character.name) + '</strong>'
+                  + ' Lead: <strong style="color:var(--gold2);">d' + Math.max(dice.adventure, dice.body, dice.mind, dice.spirit, dice.control, dice.strike, dice.shoot, dice.defend) + '</strong>'
+                  + '<div style="margin-top:.1rem;">' + shorthand + '</div>'
+                  + '</div>';
+              }).join('');
           })()
           + '</div>'
           + '</div>')
@@ -3392,6 +3716,18 @@
     removeItemFromCharacterInventory: removeItemFromCharacterInventory,
     getCharacterInventory: getCharacterInventory,
     getAllCharacterInventories: getAllCharacterInventories,
+    // Phase 3: Edge Cases & Robustness
+    setCharacterDead: setCharacterDead,
+    isCharacterDead: isCharacterDead,
+    getDeadCharacters: getDeadCharacters,
+    canCharacterAct: canCharacterAct,
+    startContestedRoll: startContestedRoll,
+    submitContestedRoll: submitContestedRoll,
+    getContestedRoll: getContestedRoll,
+    setCharacterDice: setCharacterDice,
+    getCharacterDice: getCharacterDice,
+    getLargestWayfarersLeadDie: getLargestWayfarersLeadDie,
+    getAllCharacterDice: getAllCharacterDice,
     refreshUI: function () {
       renderSettingsSection();
       renderDockPanel();

@@ -254,7 +254,7 @@ select option{background:#0f1020;}
 .job-card{background:var(--card);border:1px solid var(--border);padding:.7rem;display:flex;flex-direction:column;gap:.3rem;transition:border-color .15s;}
 .job-card:hover{border-color:rgba(201,162,39,.25);}
 /* ── QUICK PANEL ── */
-#quickPanelToggle{position:fixed;bottom:1.2rem;right:.85rem;z-index:1000;background:rgba(11,12,26,.95);border:1px solid var(--border2);color:var(--gold);font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.12em;padding:.52rem .9rem;cursor:pointer;text-transform:uppercase;backdrop-filter:blur(10px);transition:border-color .2s,color .2s;}
+#quickPanelToggle{position:fixed;bottom:1.2rem;right:.85rem;z-index:1000;background:rgba(11,12,26,.95);border:1px solid var(--border2);color:var(--gold);font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.12em;padding:.52rem .9rem;cursor:pointer;text-transform:uppercase;backdrop-filter:blur(10px);transition:border-color .2s,color .2s;width:8.9rem;min-height:2.3rem;display:inline-flex;align-items:center;justify-content:center;text-align:center;}
 #quickPanelToggle:hover,#quickPanelToggle.open{border-color:var(--gold);background:rgba(201,162,39,.08);}
 #quickPanel{position:fixed;bottom:3.8rem;right:.85rem;width:420px;max-height:calc(100vh - 6rem);background:rgba(11,12,26,.97);border:1px solid var(--border2);z-index:999;display:none;flex-direction:column;backdrop-filter:blur(12px);box-shadow:0 4px 32px rgba(0,0,0,.6);}
 #quickPanel.open{display:flex;}
@@ -272,13 +272,13 @@ select option{background:#0f1020;}
 .qp-roll-grid button{font-size:.62rem;padding:.22rem .4rem;}
 .qp-result{background:var(--surface);border:1px solid var(--border);padding:.4rem .6rem;margin-top:.4rem;min-height:1.8rem;font-size:.82rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-size:.9rem;}
 @media (max-width: 700px){
-  #quickPanelToggle{right:.55rem;bottom:.75rem;padding:.5rem .72rem;font-size:.64rem;}
+  #quickPanelToggle{right:.55rem;bottom:.75rem;padding:.5rem .72rem;font-size:.64rem;width:7.8rem;}
   #quickPanel{right:.5rem;left:.5rem;bottom:3.45rem;width:auto;max-height:calc(100vh - 5.35rem);}
   .qp-tab{font-size:.6rem;letter-spacing:.07em;padding:.38rem .16rem;}
   #qpContent{padding:.6rem;}
 }
 @media (max-width: 480px){
-  #quickPanelToggle{right:.45rem;bottom:.6rem;padding:.46rem .64rem;font-size:.6rem;}
+  #quickPanelToggle{right:.45rem;bottom:.6rem;padding:.46rem .64rem;font-size:.6rem;width:7.1rem;}
   #quickPanel{right:.4rem;left:.4rem;bottom:3.2rem;max-height:calc(100vh - 4.95rem);}
   .qp-tab{font-size:.55rem;letter-spacing:.05em;padding:.34rem .1rem;}
   .qp-close{padding:.24rem .42rem;}

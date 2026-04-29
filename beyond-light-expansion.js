@@ -1,7 +1,7 @@
 (function () {
   const LAST_SEA_COLS = 12;
   const LAST_SEA_ROWS = 12;
-  const LAST_SEA_HEX = 28;
+  const LAST_SEA_HEX = 30;
   const NAVAL_ZONES = ["Engaged", "Close", "Nearby", "Far"];
 
   const LAST_SEA_TERRAINS = [

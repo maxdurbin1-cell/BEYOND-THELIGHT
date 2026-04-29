@@ -4443,6 +4443,7 @@ function buildPlanetDwellingInfoHtml(state, selected) {
   return `<div class="rest-boon" style="background:rgba(160,192,64,.06);border-color:rgba(110,208,144,.4);">
       <div class="rb-label" style="color:var(--green2);">✨ Rest Boon</div>
       <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Bolstered</strong> (Spirit/Lead ↑).<br>${d.blessing}</div>
+      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptPlanetRestBoon(${selected.id},'bolstered','Dwelling Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>
     <div class="wild-panel"><div class="wp-label">Dwelling — ${d.mood}</div><div class="wp-text">${d.settlement} in ${d.terrain} terrain.<br>Current Need: ${d.currentNeed}</div></div>
     <div class="wild-panel"><div class="wp-label">📰 Nomad's News</div><div class="wp-text">${d.rumor}</div></div>
@@ -4459,11 +4460,53 @@ function buildPlanetTempleInfoHtml(state, selected) {
   return `<div class="rest-boon" style="background:rgba(80,40,120,.08);border-color:rgba(176,96,208,.4);">
       <div class="rb-label" style="color:#b060d0;">🎯 Rest Boon</div>
       <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>${t.blessing}</div>
+      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptPlanetRestBoon(${selected.id},'focused','Temple Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>
     <div class="wild-panel"><div class="wp-label">Temple — ${t.mood}</div><div class="wp-text">${t.templeName} in ${t.terrain} terrain.<br>Primary Rite: ${t.rite}</div></div>
     <div class="wild-panel"><div class="wp-label">📜 Doctrine</div><div class="wp-text">${t.doctrine}</div></div>
     <div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Sages know 1 random Event in the Province and its approximate direction. They know the nearest Landmark. They know a partial Mystery — enough to hint, not enough to spoil.</div></div>`;
 }
+
+function buildPlanetRuinInfoHtml(state, selected) {
+  if (!selected || selected.marker !== 'ruins') return '';
+  selected.data = selected.data || {};
+  const r = selected.data.ruin || {};
+  return `<div class="rest-boon" style="background:rgba(160,152,112,.06);border-color:rgba(160,152,112,.4);">
+      <div class="rb-label" style="color:#a09870;">◫ Rest Boon</div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Empowered</strong> (Body/Strike/Shoot ↑).</div>
+      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptPlanetRestBoon(${selected.id},'empowered','Ruin Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
+    </div>
+    ${r.builder ? `<div class="ruin-room"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);"><strong>Built by:</strong> ${r.builder}<br><strong>Purpose:</strong> ${r.builtFor || '—'}<br><strong>Construction:</strong> ${r.construction || 'Unknown'}<br><strong>Entrance:</strong> ${r.entrance || 'Open'}<br><strong>Rooms:</strong> ${r.rooms || 4} total<br><strong>Novelty:</strong> ${r.novelty || '—'}</div></div>` : ''}`;
+}
+
+function acceptPlanetRestBoon(cellId, boonKey, label) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const cell = state.cells.find((entry) => entry.id === Number(cellId));
+  if (!cell) return;
+
+  if (typeof clearStress === 'function') clearStress();
+  else if (typeof changeStress === 'function') changeStress(-999);
+
+  if (typeof clearAllConditions === 'function') {
+    clearAllConditions();
+  } else if (window.S && window.S.conditions && typeof window.S.conditions === 'object') {
+    Object.keys(window.S.conditions).forEach(function(k) { window.S.conditions[k] = false; });
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  }
+
+  if (boonKey && window.S && window.S.conditions && boonKey in window.S.conditions && typeof toggleCond === 'function' && !window.S.conditions[boonKey]) {
+    toggleCond(boonKey);
+  }
+
+  if (typeof advanceDay === 'function') advanceDay(1);
+  cell.boonUsed = boonKey;
+  showNotif((label || 'Rest') + ': Long Rest complete, boon gained, +1 day.', 'good');
+  renderPlanetExplorationPanel();
+}
+window.acceptPlanetRestBoon = acceptPlanetRestBoon;
 
 function buildPlanetNarrativeLines(state, selected) {
   const profile = (state && state.profile) || {};
@@ -5630,6 +5673,7 @@ function renderPlanetExplorationPanel() {
   const holdingInfoHtml = buildPlanetHoldingInfoHtml(state, selected);
   const dwellingInfoHtml = buildPlanetDwellingInfoHtml(state, selected);
   const templeInfoHtml = buildPlanetTempleInfoHtml(state, selected);
+  const ruinInfoHtml = buildPlanetRuinInfoHtml(state, selected);
   const interactionProfile = getPlanetInteractionProfile(selected);
   const canRollWildernessActions = canUsePlanetWildernessActions(selected);
   const canGenerateTask = !!(selected && selected.marker === 'merchant_colony');
@@ -5736,12 +5780,12 @@ function renderPlanetExplorationPanel() {
           ${holdingInfoHtml}
           ${dwellingInfoHtml}
           ${templeInfoHtml}
+          ${ruinInfoHtml}
 
           ${lastEvent && lastEvent.eventType === 'encounter' ? `<div class="sea-result" style="margin-top:.45rem;"><div class="sea-result-title">Encounter Card</div><div class="planet-micro"><strong style="color:var(--gold2);">${lastEvent.outcome}</strong><br>${lastEvent.detail}</div></div>` : ''}
 
-          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.45rem;">
-            ${canRollWildernessActions ? '<button class="btn btn-teal btn-sm" onclick="observeAdjacentPlanetHexes()">🔍 Observe Adjacent (' + interactionProfile.label + ' vs DD' + interactionProfile.dd + ')</button>' : ''}
-            ${canRollWildernessActions ? '<button class="btn btn-primary" onclick="rollPlanetHexEncounter()">⚄ Roll Encounter</button>' : ''}
+          ${canRollWildernessActions ? `<div class="hex-primary-actions" style="margin-top:.45rem;"><button class="btn btn-sm btn-gold" onclick="observeAdjacentPlanetHexes()">🔍 Observe Adjacent (${interactionProfile.label} vs DD${interactionProfile.dd})</button><button class="btn btn-sm btn-teal" onclick="rollPlanetHexEncounter()">⚄ Roll Encounter</button></div>` : ''}
+          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
             ${canGenerateTask ? '<button class="btn btn-sm" onclick="createPlanetTask()">⚄ Generate Task</button>' : ''}
             ${canUseMerchantMarket ? '<button class="btn btn-sm btn-teal" onclick="openPlanetMerchantMarket()">🛒 Buy Goods</button>' : ''}
             ${canStealAtHolding ? '<button class="btn btn-sm btn-warn" onclick="attemptPlanetHoldingSteal()">🗡 Steal (Control vs DD8)</button>' : ''}
@@ -5750,7 +5794,7 @@ function renderPlanetExplorationPanel() {
             ${canTraverseObstacle ? '<button class="btn btn-sm btn-primary" onclick="rollPlanetObstacleTraversal()">⚄ Traverse Obstacle (AD vs DD6)</button>' : ''}
             ${canUseLostCityTravel ? '<button class="btn btn-sm" onclick="rollPlanetLostCityTravel()">⚄ Lost City Travel (d6)</button>' : ''}
             ${(selected && selected.marker === 'empty_colony') ? '<button class="btn btn-sm" onclick="openPlanetLostCityBuildingExploration()">🏙 Building Exploration</button>' : ''}
-            ${(selected && selected.marker === 'ruins') ? '<button class="btn btn-sm" onclick="generatePlanetRuinRooms(' + selected.id + ')">⚄ Generate Rooms</button>' : ''}
+            ${(selected && selected.marker === 'ruins') ? '<button class="btn btn-sm btn-primary" onclick="generatePlanetRuinRooms(' + selected.id + ')">⚄ Enter Ruins</button>' : ''}
           </div>
 
           ${(selected && selected.marker === 'empty_colony' && selected.data && selected.data.lostCity) ? `<div class="sea-site" style="margin-top:.45rem;"><div class="ss-title">Lost City Details</div><div class="ss-text"><strong>Condition:</strong> ${selected.data.lostCity.buildingCondition}<br><strong>Building:</strong> ${selected.data.lostCity.buildingThis}<br><strong>Made Of:</strong> ${selected.data.lostCity.buildingMade}<br><strong>Built For:</strong> ${selected.data.lostCity.buildingFor}<br><strong>Inside:</strong> ${selected.data.lostCity.buildingInside}<br><strong>Now:</strong> ${selected.data.lostCity.buildingNow}<br><strong>Discovery:</strong> ${selected.data.lostCity.discovery ? selected.data.lostCity.discovery.shape : 'Unknown'} — ${selected.data.lostCity.discovery ? selected.data.lostCity.discovery.current : ''}</div></div>` : ''}

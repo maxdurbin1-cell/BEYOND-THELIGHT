@@ -468,7 +468,6 @@ body.lowcolor-mode {
   --red2: #b5b5b5;
   --purple: #9e9e9e;
   --muted2: #c9d0da;
-  filter: saturate(0.2) contrast(1.14);
 }
 
 body.lowcolor-mode .btn-teal,

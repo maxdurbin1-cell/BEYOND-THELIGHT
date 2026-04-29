@@ -186,6 +186,11 @@
     }
     if (state.role === "gm") {
       window.settingsSystem.setGameMode("gm", { silent: true });
+      // GMs need province access regardless of context — force Traveling context so all tabs show.
+      if (typeof window.setContext === "function") {
+        var travelBtn = document.querySelector('.ctx-btn[data-ctx="traveling"]');
+        window.setContext("traveling", travelBtn || null);
+      }
       return;
     }
     if (state.role) {
@@ -899,8 +904,9 @@
     var shared = getCampaignSharedState();
     var list = Array.isArray(shared.partyStash) ? shared.partyStash.slice() : [];
     var idx = Math.max(0, Number(stashIndex || 0));
-    var item = String(list[idx] || "").trim();
-    if (!item) {
+    // Capture item name locally before the server removes it from the stash.
+    var localItem = String(list[idx] || "").trim();
+    if (!localItem) {
       safeNotif("That party stash item is no longer available.", "warn");
       return;
     }
@@ -909,10 +915,20 @@
       safeNotif(res.error || "Could not claim party item.", "warn");
       return;
     }
-    var claimedItem = String((res && res.item) || item || "").trim();
-    if (!claimedItem || !addItemToBackpack(claimedItem)) {
+    // Prefer server-confirmed item name; fall back to the locally-read value so the
+    // slot text is never blank even if the server ack arrives before the state snapshot.
+    var claimedItem = String((res && res.item && String(res.item).trim()) || localItem).trim();
+    if (!claimedItem) {
+      safeNotif("Claimed item, but item name was empty. Check your backpack.", "warn");
+      return;
+    }
+    if (!addItemToBackpack(claimedItem)) {
       safeNotif("Claimed item, but backpack storage failed.", "warn");
       return;
+    }
+    // Re-render manually in case the incoming state snapshot clears the slot before renderBackpackUI.
+    if (typeof window.renderBackpackUI === "function") {
+      setTimeout(function () { window.renderBackpackUI(); }, 80);
     }
     syncCharacterToCampaign(true);
     safeNotif("Claimed from party stash: " + claimedItem, "good");
@@ -2001,6 +2017,15 @@
     );
   }
 
+  // Broadcast a roll/encounter result to all campaign players so everyone sees
+  // the same shared-world outcomes (encounter type, die values, location).
+  async function broadcastRollResult(label, summary) {
+    if (!state.socket || !state.connected || !state.code) return;
+    var name = String(state.playerName || ensureName() || "Wayfarer");
+    var msg = "[" + escapeHtml(name) + "] " + escapeHtml(String(label || "Roll")) + ": " + escapeHtml(String(summary || "—"));
+    await emitWithAck("campaign:chat", { message: msg });
+  }
+
   async function sendChatMessage() {
     if (!state.socket || !state.code) {
       safeNotif("Join a campaign first.", "warn");
@@ -2343,6 +2368,7 @@
     generateWayfarerIdea: generateWayfarerIdea,
     setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,
+    broadcastRollResult: broadcastRollResult,
     applyGmEconomyAdjustment: applyGmEconomyAdjustment,
     forceAuthoritativeResync: forceAuthoritativeResync,
     clearProvinceSelections: clearProvinceSelections,

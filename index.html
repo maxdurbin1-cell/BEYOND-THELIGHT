@@ -5908,6 +5908,16 @@ function rollHexEncounter(col,row){
     }else{
       showNotif('Encounter rolled, but output panel was not found. Reopen the hex and try again.','warn');
     }
+    // Broadcast result summary to all campaign players so the whole party sees it.
+    if(window.campaignSystem&&typeof window.campaignSystem.broadcastRollResult==='function'){
+      const hexObj2=mapData.find(h=>h.col===col&&h.row===row);
+      const locLabel=hexObj2&&hexObj2.terrain&&hexObj2.terrain.name?hexObj2.terrain.name:'Wilderness';
+      let encounterSummary;
+      if(vr===1){encounterSummary='d6=1 — Shift in Weather at '+locLabel;}
+      else if(vr===2){encounterSummary='d6=2 — Overland Encounter ('+locLabel+'): '+(typeof title!=='undefined'?title:'Unknown');}
+      else{encounterSummary='d6='+vr+' — All Clear in '+locLabel+'.';}
+      window.campaignSystem.broadcastRollResult('Province Encounter',encounterSummary);
+    }
   }catch(err){
     if(el){
       el.innerHTML='<div style="font-size:.78rem;color:var(--red2);padding:.2rem 0;">Encounter roll failed. Please try again.</div>';
@@ -5962,6 +5972,11 @@ function rollTradeRouteEncounter(col,row){
       el.innerHTML=`<div class="venture-result"><div class="vr-type">Trade Route d10=${r}: ${title}</div>${result}${actionHTML}</div>`;
     }else{
       showNotif('Trade encounter rolled, but output panel was not found. Reopen this hex and try again.','warn');
+    }
+    // Broadcast trade result to all campaign players.
+    if(window.campaignSystem&&typeof window.campaignSystem.broadcastRollResult==='function'){
+      const plainTitle=typeof title==='string'?title:'Trade Encounter';
+      window.campaignSystem.broadcastRollResult('Trade Route Encounter','d10='+r+' — '+plainTitle+'.');
     }
   }catch(err){
     console.error('rollTradeRouteEncounter error',err);

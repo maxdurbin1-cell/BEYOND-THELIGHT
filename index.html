@@ -4752,7 +4752,9 @@ function renderHexInfo(hex){
   const provincePadProgress=getSecretPadClueProgress('province');
   const provincePadUnlocked=isSecretPadUnlocked('province');
   const season=S.currentSeason||'spring';
-  const wr=roll(6),weatherResult=WEATHER[season][wr-1];
+  // Store weather roll in hex data so it persists across renders (fixes Province tab rerolling in campaign mode)
+  const wr=d.weatherRoll || roll(6);if(!d.weatherRoll)d.weatherRoll=wr;
+  const weatherResult=WEATHER[season][wr-1];
   const td=TERRAIN_DESC[hex.terrain.name]||{};
 
   let html='<div class="hex-info-inner">';

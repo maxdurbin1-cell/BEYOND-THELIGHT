@@ -318,6 +318,24 @@
     }
   }
 
+  function cloneClientLocalSeaState() {
+    if (typeof window.S === "undefined" || !window.S || !window.S.lastSea || typeof window.S.lastSea !== "object") return null;
+    return {
+      selectedKey: window.S.lastSea.selectedKey || "",
+      activeDungeon: deepCloneJson(window.S.lastSea.activeDungeon || null),
+      activeEncounterKey: window.S.lastSea.activeEncounterKey || "",
+      weather: deepCloneJson(window.S.lastSea.weather || null)
+    };
+  }
+
+  function applyClientLocalSeaState(snapshot) {
+    if (!snapshot || typeof window.S === "undefined" || !window.S || !window.S.lastSea || typeof window.S.lastSea !== "object") return;
+    if (snapshot.selectedKey) window.S.lastSea.selectedKey = snapshot.selectedKey;
+    if (snapshot.activeDungeon) window.S.lastSea.activeDungeon = snapshot.activeDungeon;
+    if (snapshot.activeEncounterKey) window.S.lastSea.activeEncounterKey = snapshot.activeEncounterKey;
+    if (snapshot.weather) window.S.lastSea.weather = snapshot.weather;
+  }
+
   function refreshSettingsModeFromCampaign() {
     if (!window.settingsSystem || typeof window.settingsSystem.setGameMode !== "function") return;
     if (!state.code) {
@@ -463,6 +481,7 @@
 
     var localStarState = cloneClientLocalStarState();
     var localWorldState = cloneClientLocalWorldState();
+    var localSeaState = cloneClientLocalSeaState();
 
     state.applyingSharedState = true;
     try {
@@ -522,6 +541,7 @@
       }
       if (sharedState.lastSea && typeof sharedState.lastSea === "object") {
         window.S.lastSea = deepCloneJson(sharedState.lastSea) || {};
+        applyClientLocalSeaState(localSeaState);
       }
       if (sharedState.starSystem && typeof sharedState.starSystem === "object") {
         window.S.starSystem = deepCloneJson(sharedState.starSystem) || {};

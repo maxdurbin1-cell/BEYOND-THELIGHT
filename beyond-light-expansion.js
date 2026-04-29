@@ -2522,6 +2522,14 @@
       return;
     }
     S.lastSea.activeDungeon = { col, row };
+    // Sync Sea Region dungeon opening to campaign if available
+    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+      setTimeout(function() {
+        try { 
+          window.campaignSystem.syncSharedSilent('sea-dungeon-opened'); 
+        } catch (_err) {}
+      }, 0);
+    }
     openModal(data.name, buildDungeonModal(data));
   }
 
@@ -2588,6 +2596,14 @@
       room.result = `${result}Failure. Suffer Stress equal to the difference.`;
     }
     room.cleared = true;
+    // Sync Sea Region dungeon exploration to campaign if available
+    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+      setTimeout(function() {
+        try { 
+          window.campaignSystem.syncSharedSilent('sea-dungeon-room-explored'); 
+        } catch (_err) {}
+      }, 0);
+    }
     openModal(data.name, buildDungeonModal(data));
   }
   window.exploreSeaDungeonRoom = exploreSeaDungeonRoom;

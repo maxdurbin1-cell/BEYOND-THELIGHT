@@ -61,7 +61,7 @@ nav {
 
 .settings-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 0.2rem;
   padding: 0.45rem 0.55rem;
   border-bottom: 1px solid var(--border);
@@ -142,6 +142,30 @@ nav {
   color: var(--gold2);
   text-transform: uppercase;
   margin: 0 0 0.5rem 0;
+}
+
+.settings-recovery-summary {
+  display: grid;
+  gap: 0.2rem;
+  margin-bottom: 0.5rem;
+  padding: 0.45rem;
+  border: 1px solid var(--border2);
+  background: rgba(12, 15, 20, 0.45);
+}
+
+.settings-recovery-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text2);
+}
+
+.settings-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
 }
 
 .setting-row {

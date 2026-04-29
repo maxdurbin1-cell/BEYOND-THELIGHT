@@ -1096,7 +1096,12 @@ function generateCharacter() {
   }
 }
 
-function clearCharacter() {
+function clearCharacter(options) {
+  const opts = options || {};
+  if (!opts.force && hasUnsavedSoloChanges()) {
+    openClearCharacterConfirmModal();
+    return;
+  }
   resetRunProgressState();
   S.name = "";
   S.career = "";
@@ -1135,14 +1140,17 @@ function clearCharacter() {
   updateTMWPool();
   if (typeof renderOSHacksPanel   === 'function') { renderOSHacksPanel(); }
   if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
+  _lastSoloLoadedChecksum = computeSaveChecksum(JSON.stringify(S || {}));
 }
 
 const SOLO_SAVE_KEY = "beyond-light-character";
 const SOLO_SAVE_BACKUP_KEY = "beyond-light-character-backup";
 const SOLO_SAVE_CHECKPOINT_KEY = "beyond-light-character-checkpoint";
+const SOLO_SAVE_CHECKPOINT_PREFIX = "beyond-light-character-checkpoint-";
 const SOLO_SAVE_META_KEY = "beyond-light-character-meta";
 const SOLO_SAVE_CORRUPT_PREFIX = "beyond-light-character-corrupt-";
 const SOLO_SAVE_SCHEMA_VERSION = 2;
+const SOLO_CHECKPOINT_HISTORY_LIMIT = 3;
 let _lastSoloAutoSaveAt = 0;
 let _lastSoloLoadedChecksum = null;
 
@@ -1213,7 +1221,36 @@ function writeSoloEnvelope(envelope) {
 }
 
 function writeSoloCheckpoint(envelope) {
-  localStorage.setItem(SOLO_SAVE_CHECKPOINT_KEY, JSON.stringify(envelope));
+  for (let i = SOLO_CHECKPOINT_HISTORY_LIMIT; i >= 2; i -= 1) {
+    const prevRaw = localStorage.getItem(SOLO_SAVE_CHECKPOINT_PREFIX + (i - 1));
+    if (prevRaw) {
+      localStorage.setItem(SOLO_SAVE_CHECKPOINT_PREFIX + i, prevRaw);
+    } else {
+      localStorage.removeItem(SOLO_SAVE_CHECKPOINT_PREFIX + i);
+    }
+  }
+  const serialized = JSON.stringify(envelope);
+  localStorage.setItem(SOLO_SAVE_CHECKPOINT_PREFIX + "1", serialized);
+  // Legacy alias retained for compatibility with older checkpoint readers.
+  localStorage.setItem(SOLO_SAVE_CHECKPOINT_KEY, serialized);
+}
+
+function readSoloCheckpointHistory() {
+  const history = [];
+  for (let i = 1; i <= SOLO_CHECKPOINT_HISTORY_LIMIT; i += 1) {
+    const key = SOLO_SAVE_CHECKPOINT_PREFIX + i;
+    const envelope = readSoloEnvelopeByKey(key);
+    if (envelope && isValidSoloEnvelope(envelope)) {
+      history.push({ slot: i, key: key, envelope: envelope });
+    }
+  }
+  if (!history.length) {
+    const legacy = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_KEY);
+    if (legacy && isValidSoloEnvelope(legacy)) {
+      history.push({ slot: 1, key: SOLO_SAVE_CHECKPOINT_KEY, envelope: legacy });
+    }
+  }
+  return history;
 }
 
 function quarantineCorruptSave(raw, sourceKey) {
@@ -1233,6 +1270,54 @@ function getSoloEnvelopeStampText(envelope) {
   } catch (_err) {
     return "-";
   }
+}
+
+function hasMeaningfulCharacterState() {
+  if (!S || typeof S !== "object") return false;
+  if (S.name || S.career || S.background || S.reason) return true;
+  if (Array.isArray(S.backpack) && S.backpack.some(Boolean)) return true;
+  if (S.equipment && (S.equipment.weapon1 || S.equipment.weapon2 || S.equipment.armor || S.equipment.readied)) return true;
+  return !!(S.renown || S.credits || S.stress || S.trauma || S.pathTokens || S.tmw || S.successRolls);
+}
+
+function hasUnsavedSoloChanges() {
+  if (!hasMeaningfulCharacterState()) return false;
+  let nowChecksum = "";
+  try {
+    nowChecksum = computeSaveChecksum(JSON.stringify(S || {}));
+  } catch (_err) {
+    return true;
+  }
+  if (_lastSoloLoadedChecksum) {
+    return nowChecksum !== _lastSoloLoadedChecksum;
+  }
+  const primary = readSoloEnvelopeByKey(SOLO_SAVE_KEY);
+  if (primary && isValidSoloEnvelope(primary) && primary.checksum) {
+    return nowChecksum !== String(primary.checksum);
+  }
+  return true;
+}
+
+function openClearCharacterConfirmModal() {
+  if (typeof openModal === "function") {
+    openModal("Unsaved Changes", ''
+      + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+      + '<div>Your current Wayfarer has unsaved changes. Clearing now will discard them.</div>'
+      + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;margin-top:.6rem;">'
+      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn btn-sm" onclick="saveCharacter(); closeModal();">Save Instead</button>'
+      + '<button class="btn btn-sm btn-red" onclick="closeModal(); confirmClearCharacter()">Clear Anyway</button>'
+      + '</div>'
+      + '</div>');
+    return;
+  }
+  if (confirm("Unsaved changes detected. Clear anyway?")) {
+    confirmClearCharacter();
+  }
+}
+
+function confirmClearCharacter() {
+  clearCharacter({ force: true });
 }
 
 function applyLoadedCharacterState(saved) {
@@ -1322,7 +1407,8 @@ function loadCharacter() {
 
 function loadCharacterCheckpoint() {
   try {
-    const checkpoint = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_KEY);
+    const history = readSoloCheckpointHistory();
+    const checkpoint = history.length ? history[0].envelope : null;
     if (!checkpoint || !isValidSoloEnvelope(checkpoint)) {
       showNotif("No valid checkpoint found", "warn");
       return;
@@ -1333,6 +1419,18 @@ function loadCharacterCheckpoint() {
   } catch (_err) {
     showNotif("Could not restore checkpoint", "warn");
   }
+}
+
+function loadCharacterCheckpointSlot(slot) {
+  const idx = Math.max(1, Math.min(SOLO_CHECKPOINT_HISTORY_LIMIT, Number(slot) || 1));
+  const checkpoint = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_PREFIX + idx);
+  if (!checkpoint || !isValidSoloEnvelope(checkpoint)) {
+    showNotif("Checkpoint slot " + idx + " is unavailable", "warn");
+    return;
+  }
+  applyLoadedCharacterState(checkpoint.data || {});
+  _lastSoloLoadedChecksum = checkpoint.checksum || computeSaveChecksum(JSON.stringify(checkpoint.data || {}));
+  showNotif("Checkpoint " + idx + " restored", "good");
 }
 
 function restoreBackupAsPrimary() {
@@ -1423,10 +1521,10 @@ function confirmImportCharacterSave(rawInput) {
 function verifySoloSaveHealth() {
   let primary = null;
   let backup = null;
-  let checkpoint = null;
+  const history = readSoloCheckpointHistory();
+  const checkpoint = history.length ? history[0].envelope : null;
   try { primary = readSoloEnvelopeByKey(SOLO_SAVE_KEY); } catch (_err) {}
   try { backup = readSoloEnvelopeByKey(SOLO_SAVE_BACKUP_KEY); } catch (_err) {}
-  try { checkpoint = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_KEY); } catch (_err) {}
   const primaryOk = !!(primary && isValidSoloEnvelope(primary));
   const backupOk = !!(backup && isValidSoloEnvelope(backup));
   const checkpointOk = !!(checkpoint && isValidSoloEnvelope(checkpoint));
@@ -1439,6 +1537,7 @@ function verifySoloSaveHealth() {
       + '<div><strong>Primary:</strong> ' + (primaryOk ? '<span style="color:var(--green2);">OK</span>' : '<span style="color:var(--red2);">Invalid/Missing</span>') + ' · ' + primaryStamp + '</div>'
       + '<div style="margin-top:.25rem;"><strong>Backup:</strong> ' + (backupOk ? '<span style="color:var(--green2);">OK</span>' : '<span style="color:var(--red2);">Invalid/Missing</span>') + ' · ' + backupStamp + '</div>'
       + '<div style="margin-top:.25rem;"><strong>Checkpoint:</strong> ' + (checkpointOk ? '<span style="color:var(--green2);">OK</span>' : '<span style="color:var(--red2);">Invalid/Missing</span>') + ' · ' + checkpointStamp + '</div>'
+      + '<div style="margin-top:.2rem;"><strong>Checkpoint History:</strong> ' + history.length + ' / ' + SOLO_CHECKPOINT_HISTORY_LIMIT + '</div>'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.5rem;">'
       + '<button class="btn btn-xs" onclick="restoreBackupAsPrimary()">Promote Backup</button>'
       + '<button class="btn btn-xs" onclick="loadCharacterCheckpoint()">Load Checkpoint</button>'
@@ -1453,10 +1552,20 @@ function verifySoloSaveHealth() {
 function openSoloRecoveryCenter() {
   const primary = readSoloEnvelopeByKey(SOLO_SAVE_KEY);
   const backup = readSoloEnvelopeByKey(SOLO_SAVE_BACKUP_KEY);
-  const checkpoint = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_KEY);
+  const checkpointHistory = readSoloCheckpointHistory();
+  const checkpoint = checkpointHistory.length ? checkpointHistory[0].envelope : null;
   const primaryOk = !!(primary && isValidSoloEnvelope(primary));
   const backupOk = !!(backup && isValidSoloEnvelope(backup));
   const checkpointOk = !!(checkpoint && isValidSoloEnvelope(checkpoint));
+  let checkpointRows = '';
+  for (let i = 1; i <= SOLO_CHECKPOINT_HISTORY_LIMIT; i += 1) {
+    const slotEnvelope = readSoloEnvelopeByKey(SOLO_SAVE_CHECKPOINT_PREFIX + i);
+    const slotOk = !!(slotEnvelope && isValidSoloEnvelope(slotEnvelope));
+    checkpointRows += '<div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;">'
+      + '<span>Checkpoint ' + i + ': ' + (slotOk ? '<span style="color:var(--green2);">Ready</span>' : '<span style="color:var(--red2);">Empty</span>') + ' · ' + getSoloEnvelopeStampText(slotEnvelope) + '</span>'
+      + '<button class="btn btn-xs" ' + (slotOk ? '' : 'disabled style="opacity:.45;"') + ' onclick="loadCharacterCheckpointSlot(' + i + ')">Restore</button>'
+      + '</div>';
+  }
 
   const html = ''
     + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
@@ -1464,6 +1573,7 @@ function openSoloRecoveryCenter() {
     + '<div>Primary: ' + (primaryOk ? '<span style="color:var(--green2);">Ready</span>' : '<span style="color:var(--red2);">Unavailable</span>') + ' · ' + getSoloEnvelopeStampText(primary) + '</div>'
     + '<div>Backup: ' + (backupOk ? '<span style="color:var(--green2);">Ready</span>' : '<span style="color:var(--red2);">Unavailable</span>') + ' · ' + getSoloEnvelopeStampText(backup) + '</div>'
     + '<div>Checkpoint: ' + (checkpointOk ? '<span style="color:var(--green2);">Ready</span>' : '<span style="color:var(--red2);">Unavailable</span>') + ' · ' + getSoloEnvelopeStampText(checkpoint) + '</div>'
+    + '<div style="margin-top:.35rem;border-top:1px solid var(--border);padding-top:.35rem;display:grid;gap:.25rem;">' + checkpointRows + '</div>'
     + '<div style="display:grid;gap:.35rem;margin-top:.55rem;">'
     + '<button class="btn btn-sm btn-teal" onclick="loadCharacter()">Load Best Available</button>'
     + '<button class="btn btn-sm" onclick="restoreBackupAsPrimary()">Promote Backup To Primary</button>'

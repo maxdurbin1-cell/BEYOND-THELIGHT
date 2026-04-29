@@ -185,6 +185,7 @@
           <button id="settingsTab-general" class="settings-tab-btn active" onclick="window.settingsSystem.setActiveTab('general')">General</button>
           <button id="settingsTab-audio" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('audio')">Audio</button>
           <button id="settingsTab-accessibility" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('accessibility')">Accessibility</button>
+          <button id="settingsTab-recovery" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('recovery')">Recovery</button>
           <button id="settingsTab-campaign" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('campaign')">Campaign</button>
         </div>
 
@@ -303,6 +304,24 @@
           </div>
         </div>
 
+        <div id="settingsTabPanel-recovery" class="settings-tab-panel" data-settings-tab="recovery">
+          <div class="settings-section">
+            <h4>Solo Recovery</h4>
+            <div class="campaign-muted" style="margin-bottom:.45rem;">Discoverability shortcut for save/load safety tools.</div>
+            <div id="settingsRecoverySummary" class="settings-recovery-summary">Loading recovery status…</div>
+            <div class="settings-recovery-actions">
+              <button class="btn btn-xs btn-teal" onclick="if(typeof loadCharacter==='function'){loadCharacter();} window.settingsSystem.refreshRecoveryPanel();">Load Best</button>
+              <button class="btn btn-xs" onclick="if(typeof saveCharacter==='function'){saveCharacter();} window.settingsSystem.refreshRecoveryPanel();">Save + Checkpoint</button>
+              <button class="btn btn-xs" onclick="if(typeof loadCharacterCheckpoint==='function'){loadCharacterCheckpoint();} window.settingsSystem.refreshRecoveryPanel();">Restore Latest Checkpoint</button>
+              <button class="btn btn-xs" onclick="if(typeof restoreBackupAsPrimary==='function'){restoreBackupAsPrimary();} window.settingsSystem.refreshRecoveryPanel();">Promote Backup</button>
+              <button class="btn btn-xs" onclick="if(typeof exportCharacterSave==='function'){exportCharacterSave();}">Export Save</button>
+              <button class="btn btn-xs" onclick="if(typeof importCharacterSavePrompt==='function'){importCharacterSavePrompt();}">Import Save</button>
+              <button class="btn btn-xs" onclick="if(typeof openSoloRecoveryCenter==='function'){openSoloRecoveryCenter();}">Open Recovery Center</button>
+              <button class="btn btn-xs" onclick="if(typeof verifySoloSaveHealth==='function'){verifySoloSaveHealth();}">Run Save Health</button>
+            </div>
+          </div>
+        </div>
+
         <div id="settingsTabPanel-campaign" class="settings-tab-panel" data-settings-tab="campaign">
           <div class="settings-section">
             <h4>Campaign</h4>
@@ -320,8 +339,52 @@
     bindSettingsTabKeyboardNav();
   }
 
+  function readRecoveryEnvelope(key) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.data && typeof parsed.data === 'object') {
+        return parsed;
+      }
+      if (parsed && typeof parsed === 'object') {
+        return { data: parsed, savedAt: null, checksum: null, schema: 1 };
+      }
+      return null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function formatRecoveryStamp(envelope) {
+    if (!envelope || !envelope.savedAt) return '-';
+    try {
+      return new Date(envelope.savedAt).toLocaleString();
+    } catch (_err) {
+      return '-';
+    }
+  }
+
+  function refreshRecoveryPanel() {
+    const node = document.getElementById('settingsRecoverySummary');
+    if (!node) return;
+
+    const primary = readRecoveryEnvelope('beyond-light-character');
+    const backup = readRecoveryEnvelope('beyond-light-character-backup');
+    const cp1 = readRecoveryEnvelope('beyond-light-character-checkpoint-1') || readRecoveryEnvelope('beyond-light-character-checkpoint');
+    const cp2 = readRecoveryEnvelope('beyond-light-character-checkpoint-2');
+    const cp3 = readRecoveryEnvelope('beyond-light-character-checkpoint-3');
+
+    node.innerHTML = ''
+      + '<div class="settings-recovery-row"><strong>Primary</strong><span>' + (primary ? 'Ready' : 'Missing') + ' · ' + formatRecoveryStamp(primary) + '</span></div>'
+      + '<div class="settings-recovery-row"><strong>Backup</strong><span>' + (backup ? 'Ready' : 'Missing') + ' · ' + formatRecoveryStamp(backup) + '</span></div>'
+      + '<div class="settings-recovery-row"><strong>Checkpoint 1</strong><span>' + (cp1 ? 'Ready' : 'Empty') + ' · ' + formatRecoveryStamp(cp1) + '</span></div>'
+      + '<div class="settings-recovery-row"><strong>Checkpoint 2</strong><span>' + (cp2 ? 'Ready' : 'Empty') + ' · ' + formatRecoveryStamp(cp2) + '</span></div>'
+      + '<div class="settings-recovery-row"><strong>Checkpoint 3</strong><span>' + (cp3 ? 'Ready' : 'Empty') + ' · ' + formatRecoveryStamp(cp3) + '</span></div>';
+  }
+
   function setActiveTab(tab) {
-    const allowed = ['general', 'audio', 'accessibility', 'campaign'];
+    const allowed = ['general', 'audio', 'accessibility', 'recovery', 'campaign'];
     if (allowed.indexOf(tab) === -1) return;
     Settings.activeTab = tab;
     applySettingsTabVisibility();
@@ -508,6 +571,7 @@
     }
 
     applySettingsTabVisibility();
+    refreshRecoveryPanel();
   }
 
   function toggleGMReveal(kind) {
@@ -581,6 +645,7 @@
     if (container) {
       syncGameModeUI();
       applySettingsTabVisibility();
+      refreshRecoveryPanel();
       container.classList.add('open');
     }
   }
@@ -699,6 +764,7 @@
       textSize: Settings.textSize,
       activeTab: Settings.activeTab
     }),
+    refreshRecoveryPanel,
     initSettings // Expose for manual initialization if needed
   };
   

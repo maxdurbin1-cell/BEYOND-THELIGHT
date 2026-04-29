@@ -4926,6 +4926,8 @@ function renderHexInfo(hex){
       if(v)html+=`<div class="gate-block"><div class="gb-label">${l}</div><div class="gb-text">${v}</div></div>`;
     });
     html+=`<div style="font-size:.8rem;color:var(--muted3);padding:.4rem;border:1px solid rgba(46,196,182,.2);margin-top:.3rem;">Roll <strong>Spirit Save</strong> when traveling through.<br><strong style="color:var(--red2);">On failure:</strong> ${d.symptom||'Unknown symptom'}</div>`;
+    html+=`<div style="margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="travelThroughProvinceGate(${hex.col},${hex.row})">◆ Travel Through Gate (Spirit vs Dread d12)</button></div>`;
+    html+=`<div id="gateTravel-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div>`;
 
   // ── LOST CITY ──
   }else if(hex.type==='lostcity'){
@@ -6187,6 +6189,45 @@ function rollTradeObstacle(){const r=roll(12),obs=TRADE_OBSTACLES[r-1]||TRADE_OB
 function rollGate(){const el=document.getElementById('gateResult');if(!el)return;el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;">${[['Gate Name',pick(GATE_NAME_FIRST)+' '+pick(GATE_NAME_LAST)],['Where',pick(GATE_WHERE)],['Made Of',pick(GATE_MATERIAL)],['Made By',pick(GATE_MAKER)],['What Happened',pick(GATE_HAPPENED)],['Leads To',pick(GATE_LEADS)],['Condition',pick(GATE_CONDITIONS)],['Function',pick(GATE_FUNCTIONS)],['Symptom on Entry',pick(GATE_SYMPTOMS)]].map(([l,v])=>`<div class="gate-block"><div class="gb-label">${l}</div><div class="gb-text">${v}</div></div>`).join('')}</div>`;}
 function rollLostCityCodex(){const el=document.getElementById('lostCityResult');if(!el)return;const disc=pick(LC_DISCOVERIES);el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;">${[['Condition',pick(LC_BUILDING_CONDITION)],['Building',pick(LC_BUILDING_THIS)],['Made Of',pick(LC_BUILDING_MADE)],['Built For',pick(LC_BUILDING_FOR)],['Inside',pick(LC_BUILDING_INSIDE)],['Now',pick(LC_BUILDING_NOW)]].map(([l,v])=>`<div class="lc-block"><div class="lb-label">${l}</div><div class="lb-text">${v}</div></div>`).join('')}<div class="lc-block" style="grid-column:1/-1;"><div class="lb-label">Discovery: ${disc.shape} (${disc.appearance})</div><div class="lb-text">Function: ${disc.fn} · Creator: ${disc.creator} · Now: ${disc.current}</div></div></div>`;}
 function rollLostCityExplore(){const el=document.getElementById('lostCityResult');if(!el)return;el.innerHTML=`<div class="lc-block"><div class="lb-label">Exploring the Building Reveals (d6)</div><div class="lb-text">${pick(LC_EXPLORE_REVEALS)}</div></div>`;}
+
+function travelThroughProvinceGate(col,row){
+  const gateHex=mapData.find(h=>h&&h.col===col&&h.row===row&&h.type==='gate');
+  if(!gateHex)return;
+  const out=document.getElementById(`gateTravel-${col}-${row}`);
+  const spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):((S&&S.stats&&S.stats.spirit)||4);
+  const spiritRoll=typeof explodingRoll==='function'?explodingRoll(spiritDie):{total:roll(spiritDie)};
+  const dreadRoll=typeof explodingRoll==='function'?explodingRoll(12):{total:roll(12)};
+  const success=spiritRoll.total>=dreadRoll.total;
+
+  if(!Array.isArray(mapData)||!mapData.length){
+    showNotif('No province map available for gate travel.','warn');
+    return;
+  }
+  const destinationPool=mapData.filter(h=>h&&!(h.col===col&&h.row===row));
+  const destination=destinationPool.length?pick(destinationPool):gateHex;
+  selectedHex=destination;
+
+  let failureText='';
+  if(!success){
+    const bonus=roll(6);
+    if(typeof applyTemporaryStressCapacityBonus==='function')applyTemporaryStressCapacityBonus(bonus,'Gate Travel');
+    else {
+      S.tempStressCapacityBonus=Math.max(0,Number(S.tempStressCapacityBonus||0))+bonus;
+      if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+    }
+    failureText=' Failure effect: Reinvigorated by void energy, +' + bonus + ' temporary Stress capacity until rest.';
+  }
+
+  renderHexMap();
+  if(typeof renderHexInfo==='function')renderHexInfo(destination);
+  if(typeof syncProvinceState==='function')syncProvinceState('gate-travel');
+
+  const msg='Spirit d'+spiritDie+'='+spiritRoll.total+' vs Dread d12='+dreadRoll.total+' — '+(success?'success':'failure')+'. Arrived at Hex ['+(destination.col+1)+','+(destination.row+1)+'].'+failureText;
+  if(out){
+    out.innerHTML='<div style="font-size:.76rem;color:'+(success?'var(--green2)':'var(--gold2)')+';line-height:1.5;">'+msg+'</div>';
+  }
+  showNotif('Gate travel complete: Hex ['+(destination.col+1)+','+(destination.row+1)+'].',success?'good':'warn');
+}
 
 // ── MODAL & NOTIF ─────────────────────────────────────────────────────────────
 var _modalPrevFocus = null;

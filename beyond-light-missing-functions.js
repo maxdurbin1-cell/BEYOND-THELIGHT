@@ -294,14 +294,15 @@ function updateDieDisplay(key) {
 }
 
 function updateMaxStressDisplay() {
-  const maxStress = getEffectiveDie("defend") * 2;
+  const bonus = Math.max(0, Number(S.tempStressCapacityBonus || 0));
+  const maxStress = getEffectiveDie("defend") * 2 + bonus;
   const maxVal = document.getElementById("maxStressVal");
   const calc = document.getElementById("maxStressCalc");
   if (maxVal) {
     maxVal.textContent = maxStress;
   }
   if (calc) {
-    calc.textContent = "Defend d" + getEffectiveDie("defend") + " -> " + maxStress + " max Stress";
+    calc.textContent = "Defend d" + getEffectiveDie("defend") + " -> " + maxStress + " max Stress" + (bonus ? " (" + bonus + " temporary)" : "");
   }
   if (S.stress > maxStress) {
     S.stress = maxStress;
@@ -467,7 +468,7 @@ function updateCreditsUI() {
 }
 
 function setStress(value) {
-  const maxStress = getEffectiveDie("defend") * 2;
+  const maxStress = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
   const oldStress = S.stress || 0;
   S.stress = Math.max(0, Math.min(value, maxStress));
   
@@ -480,7 +481,7 @@ function setStress(value) {
 }
 
 function updateStressUI() {
-  const maxStress = getEffectiveDie("defend") * 2;
+  const maxStress = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
   if (S.stress > maxStress) {
     S.stress = maxStress;
   }
@@ -509,7 +510,22 @@ function halfStress() {
 }
 
 function clearStress() {
+  if (S.tempStressCapacityBonus) {
+    S.tempStressCapacityBonus = 0;
+  }
   setStress(0);
+}
+
+function applyTemporaryStressCapacityBonus(amount, source) {
+  var bonus = Math.max(0, Number(amount || 0));
+  if (!bonus) return 0;
+  S.tempStressCapacityBonus = Math.max(0, Number(S.tempStressCapacityBonus || 0)) + bonus;
+  updateMaxStressDisplay();
+  updateStressUI();
+  if (typeof showNotif === "function") {
+    showNotif("Void surge: +" + bonus + " temporary Stress capacity" + (source ? " (" + source + ")" : "") + ".", "good");
+  }
+  return bonus;
 }
 
 function updateTrauma() {
@@ -656,13 +672,28 @@ function openFailedRollFollowup(reason) {
 }
 
 function addTMWOnFail(reason, opts) {
-  var gained = awardTeamworkOnFailure(reason || 'failed-roll', opts);
+  var gained = 0;
+  var failureReason = String(reason || 'failed-roll');
+  if (window.teamworkRulesSystem && typeof window.teamworkRulesSystem.onRollFailure === 'function') {
+    var result = window.teamworkRulesSystem.onRollFailure('core-fail', {
+      stat: 'adventure',
+      roll: 0,
+      difficulty: 0,
+      description: failureReason,
+      sessionContext: (window.campaignSystem && window.campaignSystem.getState && window.campaignSystem.getState().code) ? 'campaign' : 'solo'
+    });
+    gained = Number(result && result.awarded || 0);
+  }
+  if (!gained) {
+    gained = awardTeamworkOnFailure(failureReason, opts);
+  }
   var cfg = opts && typeof opts === 'object' ? opts : {};
-  if (!cfg || !cfg.skipPrompt) openFailedRollFollowup(reason || 'failed-roll');
+  if (!cfg || !cfg.skipPrompt) openFailedRollFollowup(failureReason);
   return gained;
 }
 
 window.awardTeamworkOnFailure = awardTeamworkOnFailure;
+window.applyTemporaryStressCapacityBonus = applyTemporaryStressCapacityBonus;
 
 window.applyFailedRollRecovery = function(mode) {
   if (typeof S === 'undefined' || !S) return;

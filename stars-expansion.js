@@ -4447,7 +4447,7 @@ function buildPlanetDwellingInfoHtml(state, selected) {
     </div>
     <div class="wild-panel"><div class="wp-label">Dwelling — ${d.mood}</div><div class="wp-text">${d.settlement} in ${d.terrain} terrain.<br>Current Need: ${d.currentNeed}</div></div>
     <div class="wild-panel"><div class="wp-label">📰 Nomad's News</div><div class="wp-text">${d.rumor}</div></div>
-    <div class="npc-block"><div class="nb-label">🧭 Nomad's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Nomads know about Landmarks and Events in adjacent Hex Zones. They know only a partial Mystery — enough to hint, not enough to spoil.</div></div>`;
+    <div class="npc-block"><div class="nb-label">🧭 Nomad's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Nomads know about Landmarks and Events in adjacent Hex Zones. They know only a partial Mystery — enough to hint, not enough to spoil.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="planetNomadFieldTreatment(35)">🩹 Nomad Field Treatment (35₵)</button></div></div>`;
 }
 
 function buildPlanetTempleInfoHtml(state, selected) {
@@ -4464,7 +4464,152 @@ function buildPlanetTempleInfoHtml(state, selected) {
     </div>
     <div class="wild-panel"><div class="wp-label">Temple — ${t.mood}</div><div class="wp-text">${t.templeName} in ${t.terrain} terrain.<br>Primary Rite: ${t.rite}</div></div>
     <div class="wild-panel"><div class="wp-label">📜 Doctrine</div><div class="wp-text">${t.doctrine}</div></div>
-    <div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Sages know 1 random Event in the Province and its approximate direction. They know the nearest Landmark. They know a partial Mystery — enough to hint, not enough to spoil.</div></div>`;
+    <div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Sages know 1 random Event in the Province and its approximate direction. They know the nearest Landmark. They know a partial Mystery — enough to hint, not enough to spoil.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="consultPlanetSage(50)">🙏 Consult Sage (50₵)</button></div></div>`;
+}
+
+function consultPlanetSage(cost) {
+  var fee = Math.max(0, Number(cost || 50));
+  if ((S.credits || 0) < fee) {
+    showNotif('Insufficient credits for Sage consultation.', 'warn');
+    return;
+  }
+  if (typeof changeCredits === 'function') changeCredits(-fee);
+  else S.credits = Math.max(0, Number(S.credits || 0) - fee);
+  if (typeof changeTrauma === 'function') {
+    changeTrauma(-1);
+  } else if (typeof S.trauma === 'number') {
+    S.trauma = Math.max(0, S.trauma - 1);
+    if (typeof updateTrauma === 'function') updateTrauma();
+  }
+  showNotif('Sage guidance received. Trauma reduced by 1.', 'good');
+}
+
+function planetNomadFieldTreatment(cost) {
+  var fee = Math.max(0, Number(cost || 35));
+  if ((S.credits || 0) < fee) {
+    showNotif('Insufficient credits for Nomad treatment.', 'warn');
+    return;
+  }
+  var injuries = Array.isArray(S.injuries) ? S.injuries : [];
+  if (!injuries.length) {
+    showNotif('No injuries to treat right now.', 'good');
+    return;
+  }
+  if (typeof changeCredits === 'function') changeCredits(-fee);
+  else S.credits = Math.max(0, Number(S.credits || 0) - fee);
+  var treated = injuries.pop();
+  if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
+  showNotif('Nomad treatment removed injury: ' + treated + '.', 'good');
+}
+
+function openMerchantColonyDoctorServices() {
+  var selected = getSelectedPlanetCell();
+  if (!selected || selected.marker !== 'merchant_colony') {
+    showNotif('Doctor services are available at Merchant Colonies only.', 'warn');
+    return;
+  }
+  var injuries = Array.isArray(S.injuries) ? S.injuries.length : 0;
+  var rads = Number(S.rads || 0);
+  var mental = Number(S.mentalStress || 0);
+  if (typeof openModal === 'function') {
+    openModal('Merchant Colony Doctor', '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      + '<strong style="color:var(--gold2);">Doctor Services</strong><br>'
+      + 'Radiation: <strong>' + rads + '</strong> · Mental Stress: <strong>' + mental + '</strong> · Injuries: <strong>' + injuries + '</strong>'
+      + '<div style="display:grid;gap:.3rem;margin-top:.45rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="doctorHealRadiation(120)">☢ Treat Radiation (120₵, set to 0)</button>'
+      + '<button class="btn btn-xs btn-teal" onclick="doctorHealMentalStress(60)">🧠 Treat Mental Stress (60₵, -2)</button>'
+      + '<button class="btn btn-xs btn-teal" onclick="doctorTreatInjury(80)">🩺 Treat Injury (80₵, remove 1)</button>'
+      + '</div></div>');
+  }
+}
+
+function doctorHealRadiation(cost) {
+  var fee = Math.max(0, Number(cost || 120));
+  if ((S.credits || 0) < fee) {
+    showNotif('Insufficient credits for radiation treatment.', 'warn');
+    return;
+  }
+  if (typeof changeCredits === 'function') changeCredits(-fee);
+  else S.credits = Math.max(0, Number(S.credits || 0) - fee);
+  S.rads = 0;
+  if (S.radiationState) S.radiationState.gainTicks = 0;
+  if (typeof updateRadsUI === 'function') updateRadsUI();
+  showNotif('Radiation fully treated.', 'good');
+}
+
+function doctorHealMentalStress(cost) {
+  var fee = Math.max(0, Number(cost || 60));
+  if ((S.credits || 0) < fee) {
+    showNotif('Insufficient credits for stress treatment.', 'warn');
+    return;
+  }
+  if (typeof changeCredits === 'function') changeCredits(-fee);
+  else S.credits = Math.max(0, Number(S.credits || 0) - fee);
+  if (typeof changeMentalStress === 'function') changeMentalStress(-2);
+  else {
+    S.mentalStress = Math.max(0, Number(S.mentalStress || 0) - 2);
+    if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+  }
+  showNotif('Mental stress reduced by 2.', 'good');
+}
+
+function doctorTreatInjury(cost) {
+  var fee = Math.max(0, Number(cost || 80));
+  var injuries = Array.isArray(S.injuries) ? S.injuries : [];
+  if (!injuries.length) {
+    showNotif('No injuries to treat.', 'good');
+    return;
+  }
+  if ((S.credits || 0) < fee) {
+    showNotif('Insufficient credits for injury treatment.', 'warn');
+    return;
+  }
+  if (typeof changeCredits === 'function') changeCredits(-fee);
+  else S.credits = Math.max(0, Number(S.credits || 0) - fee);
+  var treated = injuries.pop();
+  if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
+  showNotif('Doctor treated injury: ' + treated + '.', 'good');
+}
+
+function travelThroughPlanetGate() {
+  var hex = getActivePlanetHex();
+  var state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  var selected = getSelectedPlanetCell();
+  if (!selected || selected.marker !== 'gate') {
+    showNotif('Select a Gate hex first.', 'warn');
+    return;
+  }
+  var spiritDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('spirit') : ((S.stats && S.stats.spirit) || 4);
+  var spiritRoll = explodingRoll(spiritDie);
+  var dreadRoll = explodingRoll(12);
+  var success = spiritRoll.total >= dreadRoll.total;
+  var candidates = state.cells.filter(function(cell) { return cell && cell.id !== selected.id; });
+  if (!candidates.length) {
+    showNotif('No destination cells available.', 'warn');
+    return;
+  }
+  var destination = pick(candidates);
+  state.selectedCellId = destination.id;
+  destination.explored = true;
+  var failureText = '';
+  if (!success) {
+    var bonus = roll(6);
+    if (typeof applyTemporaryStressCapacityBonus === 'function') applyTemporaryStressCapacityBonus(bonus, 'Planet Gate');
+    else S.tempStressCapacityBonus = Math.max(0, Number(S.tempStressCapacityBonus || 0)) + bonus;
+    failureText = ' Failure effect: Reinvigorated by void energy, +' + bonus + ' temporary Stress capacity until rest.';
+  }
+  state.lastEvent = {
+    timestamp: Date.now(),
+    d10: 12,
+    outcome: 'Gate Transit',
+    detail: 'Spirit d' + spiritDie + '=' + spiritRoll.total + ' vs Dread d12=' + dreadRoll.total + ' — ' + (success ? 'success' : 'failure') + '. Arrived at Planet Hex #' + destination.id + '.' + failureText,
+    rewardItem: '',
+    cellId: destination.id,
+    eventType: 'encounter',
+  };
+  showNotif('Gate transit complete to Planet Hex #' + destination.id + '.', success ? 'good' : 'warn');
+  renderPlanetExplorationPanel();
 }
 
 function buildPlanetRuinInfoHtml(state, selected) {
@@ -5679,6 +5824,8 @@ function renderPlanetExplorationPanel() {
   const canGenerateTask = !!(selected && selected.marker === 'merchant_colony');
   const canUseMerchantMarket = !!(selected && (selected.marker === 'merchant_colony' || selected.tradeRoute));
   const canStealAtHolding = !!(selected && selected.marker === 'merchant_colony');
+  const canUseMerchantDoctor = !!(selected && selected.marker === 'merchant_colony');
+  const canTravelThroughGate = !!(selected && selected.marker === 'gate');
   const canTraverseObstacle = !!(selected && (selected.marker === 'peril' || selected.marker === 'barrier'));
   const canUseLostCityTravel = !!(selected && (selected.marker === 'empty_colony' || ((selected.marker === 'peril' || selected.marker === 'barrier') && selected.data && selected.data.obstacleCleared)));
   const selectedFactionBase = selected && window.factionSystem && typeof window.factionSystem.getPlanetMarker === 'function'
@@ -5788,7 +5935,9 @@ function renderPlanetExplorationPanel() {
           <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
             ${canGenerateTask ? '<button class="btn btn-sm" onclick="createPlanetTask()">⚄ Generate Task</button>' : ''}
             ${canUseMerchantMarket ? '<button class="btn btn-sm btn-teal" onclick="openPlanetMerchantMarket()">🛒 Buy Goods</button>' : ''}
+            ${canUseMerchantDoctor ? '<button class="btn btn-sm btn-primary" onclick="openMerchantColonyDoctorServices()">🩺 Doctor Services</button>' : ''}
             ${canStealAtHolding ? '<button class="btn btn-sm btn-warn" onclick="attemptPlanetHoldingSteal()">🗡 Steal (Control vs DD8)</button>' : ''}
+            ${canTravelThroughGate ? '<button class="btn btn-sm btn-teal" onclick="travelThroughPlanetGate()">◆ Travel Through Gate (Spirit vs Dread d12)</button>' : ''}
             ${(selected && selected.marker === 'wayfarer') ? '<button class="btn btn-sm" onclick="createPlanetTask({ source: \'wayfarer\', preferredCellId: ' + selected.id + ' })">⚄ Generate Task (Wayfarer)</button>' : ''}
             ${(selected && selected.tradeRoute) ? '<button class="btn btn-sm" onclick="rollPlanetTradeRouteEncounter()">⚄ Trade Route Encounter</button><button class="btn btn-sm" onclick="showPlanetTradeGoods()">📦 Trade Goods</button>' : ''}
             ${canTraverseObstacle ? '<button class="btn btn-sm btn-primary" onclick="rollPlanetObstacleTraversal()">⚄ Traverse Obstacle (AD vs DD6)</button>' : ''}
@@ -9450,6 +9599,13 @@ window.buyPlanetMerchantOffer = buyPlanetMerchantOffer;
 window.buyPlanetBlackMarketItem = buyPlanetBlackMarketItem;
 window.attemptPlanetHoldingSteal = attemptPlanetHoldingSteal;
 window.attemptPlanetCaravanSteal = attemptPlanetCaravanSteal;
+window.openMerchantColonyDoctorServices = openMerchantColonyDoctorServices;
+window.doctorHealRadiation = doctorHealRadiation;
+window.doctorHealMentalStress = doctorHealMentalStress;
+window.doctorTreatInjury = doctorTreatInjury;
+window.consultPlanetSage = consultPlanetSage;
+window.planetNomadFieldTreatment = planetNomadFieldTreatment;
+window.travelThroughPlanetGate = travelThroughPlanetGate;
 window.rollPlanetObstacleTraversal = rollPlanetObstacleTraversal;
 window.observeAdjacentPlanetHexes = observeAdjacentPlanetHexes;
 window.runPlanetLocationInteraction = runPlanetLocationInteraction;

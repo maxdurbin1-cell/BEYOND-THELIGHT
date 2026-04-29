@@ -2276,7 +2276,7 @@
       if (credits) bits.push((credits > 0 ? "+" : "") + credits + " Credits");
       if (renown) bits.push((renown > 0 ? "+" : "") + renown + " " + (FACTION_LABELS[factionKey] || factionKey));
       if (item) bits.push("Loot: " + item);
-      if (bits.length) showNotif("Merchant reward: " + bits.join(" · "), "good");
+      if (bits.length) showNotif("Merchant reward: " + bits.join("  |  "), "good");
     }
   }
 
@@ -2554,7 +2554,7 @@
 
     const html = ""
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.4rem;'>" + p.prompt + "</div>"
-      + "<div style='font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;'>Difficulty: " + tier.label + " · Full success ≥ " + Math.round(tier.success * 100) + "% · Partial ≥ " + Math.round(tier.partial * 100) + "%</div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;'>Difficulty: " + tier.label + "  |  Full success ≥ " + Math.round(tier.success * 100) + "%  |  Partial ≥ " + Math.round(tier.partial * 100) + "%</div>"
       + (p.lastClue ? ("<div style='font-size:.74rem;color:var(--gold2);margin-bottom:.35rem;border:1px solid rgba(201,162,39,.4);background:rgba(201,162,39,.08);padding:.3rem .42rem;'><strong>Clue:</strong> " + p.lastClue + "</div>") : "")
       + controls
       + "<div style='display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;'>"
@@ -2715,7 +2715,7 @@
       + "<div style='text-align:center;font-family:Cinzel,serif;font-size:1.05rem;color:#ff6060;margin-bottom:.6rem;letter-spacing:.08em;'>✗ FAILED ROLL</div>"
       + "<div style='display:flex;justify-content:center;gap:1.5rem;margin-bottom:.65rem;'>"
       + "<div style='text-align:center;'>"
-      + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>" + assignee + " · " + statName + " d" + checkResult.actionDie + "</div>"
+      + "<div style='font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;'>" + assignee + "  |  " + statName + " d" + checkResult.actionDie + "</div>"
       + "<div style='font-size:2.1rem;font-weight:700;color:var(--text2);'>" + (revealHidden ? actionTotalLabel : "?") + "</div>"
       + "</div>"
       + "<div style='text-align:center;padding-top:.65rem;font-size:1.3rem;color:var(--muted2);'>vs</div>"
@@ -3096,6 +3096,108 @@
     resolveStoryOption(sceneId, option, null, decisionMeta);
   }
 
+  function wheelOptionPosition(index, total) {
+    var count = Math.max(1, Number(total || 1));
+    var step = (Math.PI * 2) / count;
+    var angle = (-Math.PI / 2) + (index * step);
+    var radius = count <= 3 ? 34 : count <= 5 ? 38 : 41;
+    var x = 50 + Math.cos(angle) * radius;
+    var y = 50 + Math.sin(angle) * radius;
+    return {
+      left: Math.max(8, Math.min(92, x)),
+      top: Math.max(8, Math.min(92, y))
+    };
+  }
+
+  function openStoryDialogueWheel() {
+    if (typeof openModal !== "function") return;
+    var st = ensureStoryState();
+    if (!st) return;
+    var scene = SCENES[st.sceneId] || SCENES.intro;
+    var opts = Array.isArray(scene.options) ? scene.options : [];
+    if (!opts.length) {
+      if (typeof showNotif === "function") showNotif("No dialogue options available in this scene.", "warn");
+      return;
+    }
+
+    var wheelOptions = opts.map(function (option, idx) {
+      var unlocked = hasReq(option.req);
+      var assign = getDecisionAssignment(st.sceneId, option.id);
+      var dd = option.stat ? getOptionDread(st.sceneId, option) : 0;
+      var pending = st.pendingTravel
+        && st.pendingTravel.sceneId === st.sceneId
+        && st.pendingTravel.optionId === option.id;
+      var pendingCombat = st.pendingCombat
+        && st.pendingCombat.sceneId === st.sceneId
+        && st.pendingCombat.optionId === option.id;
+      var pos = wheelOptionPosition(idx, opts.length);
+      var intent = pending ? "TRAVEL" : (pendingCombat ? "COMBAT" : (option.stat ? "ROLL" : "TALK"));
+      return {
+        option: option,
+        unlocked: unlocked,
+        assign: assign,
+        dd: dd,
+        pending: !!pending,
+        pendingCombat: !!pendingCombat,
+        pos: pos,
+        intent: intent,
+      };
+    });
+
+    var summary = wheelOptions.map(function (w) {
+      var o = w.option;
+      var reqText = renderRequirement(o.req);
+      var status = w.unlocked ? "READY" : "LOCKED";
+      var dieText = o.stat
+        ? ((STAT_LABELS[o.stat] || o.stat) + " d" + getAssignedWayfarerActionDie(o.stat, w.assign) + " vs DD" + w.dd)
+        : "No roll";
+      var actionBtn = w.unlocked
+        ? ("<button class='btn btn-xs btn-primary' onclick='closeModal();runStoryOption(\"" + st.sceneId + "\",\"" + o.id + "\")'>Choose</button>")
+        : "<button class='btn btn-xs' disabled>Locked</button>";
+
+      return ""
+        + "<div class='story-wheel-row " + (w.unlocked ? "" : "locked") + "'>"
+        + "<div style='display:flex;justify-content:space-between;gap:.45rem;align-items:center;'>"
+        + "<div style='font-size:.75rem;color:var(--gold2);letter-spacing:.08em;'>" + w.intent + " | " + status + "</div>"
+        + actionBtn
+        + "</div>"
+        + "<div style='font-size:.8rem;color:var(--text2);margin-top:.15rem;'>" + escHtml(o.text) + "</div>"
+        + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.12rem;'>" + escHtml(w.assign.assigneeName) + " as " + escHtml(w.assign.role) + " | " + escHtml(dieText) + "</div>"
+        + (reqText ? ("<div style='font-size:.69rem;color:var(--muted2);margin-top:.12rem;'>Req: " + escHtml(reqText) + "</div>") : "")
+        + "</div>";
+    }).join("");
+
+    var nodes = wheelOptions.map(function (w) {
+      var o = w.option;
+      var classes = "story-wheel-option" + (w.unlocked ? "" : " locked");
+      var roleChip = escHtml(w.assign.role || "Lead");
+      var line2 = o.stat
+        ? escHtml((STAT_LABELS[o.stat] || o.stat) + " d" + getAssignedWayfarerActionDie(o.stat, w.assign) + " vs DD" + w.dd)
+        : escHtml(w.intent);
+      var onclick = w.unlocked
+        ? ("onclick='closeModal();runStoryOption(\"" + st.sceneId + "\",\"" + o.id + "\")'")
+        : "";
+
+      return ""
+        + "<button class='" + classes + "' style='left:" + w.pos.left + "%;top:" + w.pos.top + "%;' " + onclick + " " + (w.unlocked ? "" : "disabled") + ">"
+        + "<div class='story-wheel-role'>" + roleChip + "</div>"
+        + "<div class='story-wheel-text'>" + escHtml(o.text) + "</div>"
+        + "<div class='story-wheel-roll'>" + line2 + "</div>"
+        + "</button>";
+    }).join("");
+
+    var html = ""
+      + "<div class='story-wheel-wrap'>"
+      + "<div class='story-wheel-stage'>"
+      + "<div class='story-wheel-center'><div class='story-wheel-center-title'>Dialogue Wheel</div><div class='story-wheel-center-sub'>" + escHtml(scene.title) + "</div></div>"
+      + nodes
+      + "</div>"
+      + "<div class='story-wheel-list'>" + summary + "</div>"
+      + "</div>";
+
+    openModal("Dialogue Wheel", html);
+  }
+
   function openStoryTravelModal(option, objective) {
     if (typeof openModal !== "function") return;
     const SYSTEM_NAMES = {
@@ -3181,7 +3283,7 @@
     if (Array.isArray(req.ownedHacksAny) && req.ownedHacksAny.length) bits.push("OS Hack: " + req.ownedHacksAny.join(" / "));
     if (Array.isArray(req.backpackAny) && req.backpackAny.length) bits.push("Loadout item: " + req.backpackAny.join(" / "));
     if (req.consumeRequiredItem) bits.push("Consumes one matching item");
-    return bits.join(" · ");
+    return bits.join("  |  ");
   }
 
   function getChapterMeta(chapterId) {
@@ -3205,7 +3307,7 @@
       const on = st.chapter === c.id;
       return "<div class='story-chapter " + (on ? "on" : "") + "'>"
         + "<div class='story-ch-title'>" + c.title + "</div>"
-        + "<div class='story-ch-meta'>" + c.subtitle + " · " + c.age + " / " + c.season + "</div>"
+        + "<div class='story-ch-meta'>" + c.subtitle + "  |  " + c.age + " / " + c.season + "</div>"
       + "</div>";
     }).join("");
   }
@@ -3270,7 +3372,7 @@
         + "<div class='story-opt-req' style='color:var(--teal);'>Assigned: <strong>" + escHtml(assign.assigneeName) + "</strong> as <strong>" + escHtml(assign.role) + "</strong></div>"
         + (optionBonus > 0 ? ("<div class='story-opt-req' style='color:var(--gold2);'>Faction bonus: +" + optionBonus + " from " + (FACTION_LABELS[optionFaction] || optionFaction) + "</div>") : "")
         + (pending ? ("<div class='story-opt-req' style='color:var(--gold2);'>➤ Marker: " + (pending.targetLabel || "Travel target") + (pendingReached ? " ✓ Arrived" : " — travel there") + "</div>") : "")
-        + (option.combat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat: " + ((option.combat.enemies || []).length || 1) + " foe" + ((((option.combat.enemies || []).length || 1) === 1) ? "" : "s") + " · DD" + Number(option.combat.dread || 8) + "</div>") : "")
+        + (option.combat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat: " + ((option.combat.enemies || []).length || 1) + " foe" + ((((option.combat.enemies || []).length || 1) === 1) ? "" : "s") + "  |  DD" + Number(option.combat.dread || 8) + "</div>") : "")
         + (pendingCombat ? ("<div class='story-opt-req' style='color:#ff8a72;'>⚔ Combat target: " + (pendingCombat.enemyNames || []).join(", ") + (pendingCombatResult === "success" ? " ✓ Victory ready" : pendingCombatResult === "fail" ? " — setback ready" : " — fight unresolved") + "</div>") : "")
         + (reqText ? ("<div class='story-opt-req'>" + reqText + "</div>") : "")
         + assigneeSelect
@@ -3281,14 +3383,14 @@
 
     const usedStats = Object.keys(STAT_LABELS).filter(function (k) {
       return st.usedStats.indexOf(k) >= 0;
-    }).map(function (k) { return STAT_LABELS[k]; }).join(" · ") || "None yet";
+    }).map(function (k) { return STAT_LABELS[k]; }).join("  |  ") || "None yet";
 
     const affinity = Object.keys(st.npc).map(function (k) {
       return k.charAt(0).toUpperCase() + k.slice(1) + ": " + st.npc[k];
-    }).join(" · ");
+    }).join("  |  ");
 
     const lexiconText = Object.keys(st.lexicon || {}).length
-      ? Object.keys(st.lexicon).map(function (k) { return k + "=" + st.lexicon[k]; }).join(" · ")
+      ? Object.keys(st.lexicon).map(function (k) { return k + "=" + st.lexicon[k]; }).join("  |  ")
       : "None decoded yet";
 
     const memoryText = (st.dialogueMemory && st.dialogueMemory.length)
@@ -3320,7 +3422,7 @@
       + "<div class='story-column story-main'>"
       + "<div class='story-header'>"
       + "<div class='story-title'>" + scene.title + "</div>"
-      + "<div class='story-sub'>" + scene.location + " · " + scene.mood + "</div>"
+      + "<div class='story-sub'>" + scene.location + "  |  " + scene.mood + "</div>"
       + "<div class='story-villain'>Villain Arc: " + chapter.villainBeat + "</div>"
       + "</div>"
       + "<div class='story-body'>" + scene.text + "</div>"
@@ -3328,16 +3430,17 @@
       + (st.lastResult ? ("<div class='story-result'><strong>Last Outcome:</strong> " + st.lastResult + "</div>") : "")
       + (st.pendingTravel ? ("<div class='story-result' style='border:1px solid rgba(240,208,112,.4);background:rgba(240,208,112,.08);'>"
         + "<strong style='color:var(--gold2);'>➤ Travel Objective:</strong> Navigate to <strong>" + (st.pendingTravel.targetLabel || "story marker") + "</strong>"
-        + " · " + (isStoryObjectiveReached(st.pendingTravel) ? "<span style='color:var(--teal);'>✓ Arrived — choose the option again</span>" : "<span style='color:#f0a050;'>En route — find the ➤ marker on the map</span>")
+        + "  |  " + (isStoryObjectiveReached(st.pendingTravel) ? "<span style='color:var(--teal);'>✓ Arrived — choose the option again</span>" : "<span style='color:#f0a050;'>En route — find the ➤ marker on the map</span>")
         + "</div>") : "")
       + (st.pendingCombat ? ("<div class='story-result' style='border:1px solid rgba(224,80,80,.4);background:rgba(224,80,80,.08);'>"
         + "<strong style='color:#ff8a72;'>⚔ Combat Objective:</strong> " + (st.pendingCombat.title || "Story combat")
-        + " · " + (getStoryCombatResult(st.pendingCombat) === "success"
+        + "  |  " + (getStoryCombatResult(st.pendingCombat) === "success"
           ? "<span style='color:var(--teal);'>✓ Victory ready — choose the option again</span>"
           : getStoryCombatResult(st.pendingCombat) === "fail"
             ? "<span style='color:#f0a050;'>Setback ready — choose the option again</span>"
             : "<span style='color:#ff8a72;'>Fight is active — clear the enemy list or end the scene to resolve</span>")
         + "</div>") : "")
+      + "<div style='display:flex;justify-content:flex-end;gap:.35rem;margin-bottom:.35rem;'><button class='btn btn-sm btn-teal' onclick='storyOpenDialogueWheel()'>Dialogue Wheel</button></div>"
       + "<div class='story-options'>" + options + "</div>"
       + "</div>"
       + "<div class='story-column story-right'>"
@@ -3353,7 +3456,7 @@
           S.traits.vice ? "Vice: <strong>" + S.traits.vice + "</strong>" : "",
           S.traits.reputation ? "Reputation: <strong>" + S.traits.reputation + "</strong>" : "",
           S.traits.misfortune ? "Misfortune: <strong>" + S.traits.misfortune + "</strong>" : "",
-        ].filter(Boolean).join(" · ") || "No traits set"
+        ].filter(Boolean).join("  |  ") || "No traits set"
        : "No traits set")
       + (S.mutation ? "<br>Mutation: <em style='color:var(--teal);'>" + S.mutation + "</em>" : "")
       + "</div>"
@@ -3461,6 +3564,7 @@
   window.storyAdjustOptionDread = adjustStoryOptionDread;
   window.storySetAssignee = storySetAssignee;
   window.storySetDecisionRole = storySetDecisionRole;
+  window.storyOpenDialogueWheel = openStoryDialogueWheel;
 
   window.storyAcceptFail = function () {
     const p = window._pendingStoryRoll;

@@ -19,6 +19,7 @@
     gmRevealDC: true,
     gmRevealHiddenInfo: true,
     colorBlindMode: false,
+    monochromeMode: false,
     activeTab: 'general',
     
     // Load from localStorage
@@ -33,6 +34,7 @@
         this.gmRevealDC = saved.gmRevealDC !== undefined ? !!saved.gmRevealDC : true;
         this.gmRevealHiddenInfo = saved.gmRevealHiddenInfo !== undefined ? !!saved.gmRevealHiddenInfo : true;
         this.colorBlindMode = saved.colorBlindMode !== undefined ? !!saved.colorBlindMode : false;
+        this.monochromeMode = saved.monochromeMode !== undefined ? !!saved.monochromeMode : false;
         this.applyAudioSettings();
         this.applyAccessibilitySettings();
       } catch (e) {
@@ -51,7 +53,8 @@
           gameMode: this.gameMode,
           gmRevealDC: this.gmRevealDC,
           gmRevealHiddenInfo: this.gmRevealHiddenInfo,
-          colorBlindMode: this.colorBlindMode
+          colorBlindMode: this.colorBlindMode,
+          monochromeMode: this.monochromeMode
         }));
       } catch (e) {
         console.warn('Could not save settings:', e);
@@ -125,6 +128,7 @@
       const body = document.body;
       if (!body) return;
       body.classList.toggle('colorblind-mode', !!this.colorBlindMode);
+      body.classList.toggle('lowcolor-mode', !!this.monochromeMode);
     }
   };
   
@@ -237,6 +241,15 @@
                 <span class="campaign-muted">Uses higher-contrast, color-blind-safe accents.</span>
               </div>
               <div id="colorBlindPreviewStatus" class="campaign-muted" style="margin-top:.25rem;"></div>
+            </div>
+            <div class="setting-row">
+              <label>All-Color Difficulty Mode</label>
+              <div class="campaign-actions" style="margin:0;">
+                <button id="monochromeModeBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleMonochromeMode()">
+                  ${Settings.monochromeMode ? 'On' : 'Off'}
+                </button>
+                <span class="campaign-muted">Adds stronger contrast and symbol/line-pattern cues beyond color.</span>
+              </div>
             </div>
           </div>
         </div>
@@ -417,6 +430,20 @@
       }
     }
 
+    const monochromeBtn = document.getElementById('monochromeModeBtn');
+    if (monochromeBtn) {
+      monochromeBtn.textContent = Settings.monochromeMode ? 'On' : 'Off';
+      monochromeBtn.style.borderColor = Settings.monochromeMode ? 'var(--teal)' : 'var(--border2)';
+      monochromeBtn.style.color = Settings.monochromeMode ? 'var(--teal)' : 'var(--muted2)';
+    }
+
+    const musicConsentBtn = document.getElementById('musicConsentBtn');
+    if (musicConsentBtn) {
+      musicConsentBtn.textContent = Settings.musicConsent ? 'On' : 'Off';
+      musicConsentBtn.style.borderColor = Settings.musicConsent ? 'var(--teal)' : 'var(--border2)';
+      musicConsentBtn.style.color = Settings.musicConsent ? 'var(--teal)' : 'var(--muted2)';
+    }
+
     applySettingsTabVisibility();
   }
 
@@ -431,26 +458,6 @@
   }
 
   function toggleColorBlindMode() {
-
-      function toggleMusicConsent() {
-        Settings.musicConsent = !Settings.musicConsent;
-        Settings.applyAudioSettings();
-        Settings.save();
-        syncGameModeUI();
-        if (typeof showNotif === 'function') {
-          showNotif(
-            Settings.musicConsent ? 'Background music enabled.' : 'Background music disabled.',
-            Settings.musicConsent ? 'good' : 'info'
-          );
-        }
-      }
-
-        const musicConsentBtn = document.getElementById('musicConsentBtn');
-        if (musicConsentBtn) {
-          musicConsentBtn.textContent = Settings.musicConsent ? 'On' : 'Off';
-          musicConsentBtn.style.borderColor = Settings.musicConsent ? 'var(--teal)' : 'var(--border2)';
-          musicConsentBtn.style.color = Settings.musicConsent ? 'var(--teal)' : 'var(--muted2)';
-        }
     if (colorBlindPreviewActive) {
       stopColorBlindPreview({ revert: false });
     }
@@ -458,6 +465,26 @@
     Settings.applyAccessibilitySettings();
     Settings.save();
     syncGameModeUI();
+  }
+
+  function toggleMonochromeMode() {
+    Settings.monochromeMode = !Settings.monochromeMode;
+    Settings.applyAccessibilitySettings();
+    Settings.save();
+    syncGameModeUI();
+  }
+
+  function toggleMusicConsent() {
+    Settings.musicConsent = !Settings.musicConsent;
+    Settings.applyAudioSettings();
+    Settings.save();
+    syncGameModeUI();
+    if (typeof showNotif === 'function') {
+      showNotif(
+        Settings.musicConsent ? 'Background music enabled.' : 'Background music disabled.',
+        Settings.musicConsent ? 'good' : 'info'
+      );
+    }
   }
 
   function previewColorBlindMode() {
@@ -575,6 +602,7 @@
     toggleSettings,
     setActiveTab,
     toggleColorBlindMode,
+    toggleMonochromeMode,
     previewColorBlindMode,
     setMasterVolume,
     setMusicVolume,
@@ -595,6 +623,7 @@
       gmRevealDC: Settings.gmRevealDC,
       gmRevealHiddenInfo: Settings.gmRevealHiddenInfo,
       colorBlindMode: Settings.colorBlindMode,
+      monochromeMode: Settings.monochromeMode,
       activeTab: Settings.activeTab
     }),
     initSettings // Expose for manual initialization if needed

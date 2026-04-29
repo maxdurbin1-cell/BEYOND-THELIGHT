@@ -13,6 +13,8 @@
     gameMode: 'solo', // 'solo' | 'gm' | 'campaign'
     gmRevealDC: true,
     gmRevealHiddenInfo: true,
+    colorBlindMode: false,
+    activeTab: 'general',
     
     // Load from localStorage
     load() {
@@ -24,7 +26,9 @@
         this.gameMode = saved.gameMode || 'solo';
         this.gmRevealDC = saved.gmRevealDC !== undefined ? !!saved.gmRevealDC : true;
         this.gmRevealHiddenInfo = saved.gmRevealHiddenInfo !== undefined ? !!saved.gmRevealHiddenInfo : true;
+        this.colorBlindMode = saved.colorBlindMode !== undefined ? !!saved.colorBlindMode : false;
         this.applyAudioSettings();
+        this.applyAccessibilitySettings();
       } catch (e) {
         console.warn('Could not load settings:', e);
       }
@@ -39,7 +43,8 @@
           sfxVolume: this.sfxVolume,
           gameMode: this.gameMode,
           gmRevealDC: this.gmRevealDC,
-          gmRevealHiddenInfo: this.gmRevealHiddenInfo
+          gmRevealHiddenInfo: this.gmRevealHiddenInfo,
+          colorBlindMode: this.colorBlindMode
         }));
       } catch (e) {
         console.warn('Could not save settings:', e);
@@ -104,6 +109,12 @@
 
     shouldRevealHiddenInfo() {
       return !this.isGMMode() || !!this.gmRevealHiddenInfo;
+    },
+
+    applyAccessibilitySettings() {
+      const body = document.body;
+      if (!body) return;
+      body.classList.toggle('colorblind-mode', !!this.colorBlindMode);
     }
   };
   
@@ -117,67 +128,100 @@
           <h3>Settings</h3>
           <button class="btn btn-icon btn-sm" onclick="window.settingsSystem.closeSettings()">✕</button>
         </div>
-        
-        <div class="settings-section">
-          <h4>Audio</h4>
-          <div class="setting-row">
-            <label>Master Volume</label>
-            <div class="volume-control">
-              <input type="range" id="masterVol" min="0" max="100" value="${Settings.masterVolume * 100}" 
-                onchange="window.settingsSystem.setMasterVolume(this.value)" class="volume-slider">
-              <span id="masterVolLabel">${Math.round(Settings.masterVolume * 100)}%</span>
+
+        <div class="settings-tabs">
+          <button id="settingsTab-general" class="settings-tab-btn active" onclick="window.settingsSystem.setActiveTab('general')">General</button>
+          <button id="settingsTab-audio" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('audio')">Audio</button>
+          <button id="settingsTab-accessibility" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('accessibility')">Accessibility</button>
+          <button id="settingsTab-campaign" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('campaign')">Campaign</button>
+        </div>
+
+        <div id="settingsTabPanel-general" class="settings-tab-panel active" data-settings-tab="general">
+          <div class="settings-section">
+            <h4>Game Mode</h4>
+            <div class="mode-current">
+              Current Mode: <span id="currentModeLabel">${Settings.gameMode === 'gm' ? 'GM' : (Settings.gameMode === 'campaign' ? 'Campaign' : 'Solo')}</span>
             </div>
-          </div>
-          <div class="setting-row">
-            <label>Music Volume</label>
-            <div class="volume-control">
-              <input type="range" id="musicVol" min="0" max="100" value="${Settings.musicVolume * 100}" 
-                onchange="window.settingsSystem.setMusicVolume(this.value)" class="volume-slider">
-              <span id="musicVolLabel">${Math.round(Settings.musicVolume * 100)}%</span>
+            <div class="setting-row mode-selector">
+              <button class="mode-btn ${Settings.gameMode === 'solo' ? 'active' : ''}"
+                onclick="window.settingsSystem.setGameMode('solo')">
+                <span class="mode-icon">🎮</span>
+                <span class="mode-name">Solo</span>
+                <span class="mode-desc">Play as a character</span>
+              </button>
+              <button class="mode-btn ${Settings.gameMode === 'gm' ? 'active' : ''}"
+                onclick="window.settingsSystem.setGameMode('gm')">
+                <span class="mode-icon">👥</span>
+                <span class="mode-name">GM</span>
+                <span class="mode-desc">Orchestrate the story</span>
+              </button>
+              <button class="mode-btn ${Settings.gameMode === 'campaign' ? 'active' : ''}"
+                onclick="window.settingsSystem.setGameMode('campaign')">
+                <span class="mode-icon">🛰</span>
+                <span class="mode-name">Campaign</span>
+                <span class="mode-desc">Shared multiplayer world</span>
+              </button>
             </div>
-          </div>
-          <div class="setting-row">
-            <label>SFX Volume</label>
-            <div class="volume-control">
-              <input type="range" id="sfxVol" min="0" max="100" value="${Settings.sfxVolume * 100}" 
-                onchange="window.settingsSystem.setSFXVolume(this.value)" class="volume-slider">
-              <span id="sfxVolLabel">${Math.round(Settings.sfxVolume * 100)}%</span>
+
+            <div id="gmToolsRow" style="margin-top:.55rem;display:${Settings.gameMode === 'gm' ? 'block' : 'none'};">
+              <div style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;margin-bottom:.28rem;">GM Visibility</div>
+              <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+                <button id="gmRevealDCBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('dc')">Reveal DC: ${Settings.gmRevealDC ? 'On' : 'Off'}</button>
+                <button id="gmRevealHiddenBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('hidden')">Reveal Hidden Info: ${Settings.gmRevealHiddenInfo ? 'On' : 'Off'}</button>
+              </div>
             </div>
           </div>
         </div>
         
-        <div class="settings-section">
-          <h4>Game Mode</h4>
-          <div class="mode-current">
-            Current Mode: <span id="currentModeLabel">${Settings.gameMode === 'gm' ? 'GM' : (Settings.gameMode === 'campaign' ? 'Campaign' : 'Solo')}</span>
-          </div>
-          <div class="setting-row mode-selector">
-            <button class="mode-btn ${Settings.gameMode === 'solo' ? 'active' : ''}" 
-              onclick="window.settingsSystem.setGameMode('solo')">
-              <span class="mode-icon">🎮</span>
-              <span class="mode-name">Solo</span>
-              <span class="mode-desc">Play as a character</span>
-            </button>
-            <button class="mode-btn ${Settings.gameMode === 'gm' ? 'active' : ''}" 
-              onclick="window.settingsSystem.setGameMode('gm')">
-              <span class="mode-icon">👥</span>
-              <span class="mode-name">GM</span>
-              <span class="mode-desc">Orchestrate the story</span>
-            </button>
-            <button class="mode-btn ${Settings.gameMode === 'campaign' ? 'active' : ''}" 
-              onclick="window.settingsSystem.setGameMode('campaign')">
-              <span class="mode-icon">🛰</span>
-              <span class="mode-name">Campaign</span>
-              <span class="mode-desc">Shared multiplayer world</span>
-            </button>
-          </div>
-
-          <div id="gmToolsRow" style="margin-top:.55rem;display:${Settings.gameMode === 'gm' ? 'block' : 'none'};">
-            <div style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;margin-bottom:.28rem;">GM Visibility</div>
-            <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-              <button id="gmRevealDCBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('dc')">Reveal DC: ${Settings.gmRevealDC ? 'On' : 'Off'}</button>
-              <button id="gmRevealHiddenBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('hidden')">Reveal Hidden Info: ${Settings.gmRevealHiddenInfo ? 'On' : 'Off'}</button>
+        <div id="settingsTabPanel-audio" class="settings-tab-panel" data-settings-tab="audio">
+          <div class="settings-section">
+            <h4>Audio</h4>
+            <div class="setting-row">
+              <label>Master Volume</label>
+              <div class="volume-control">
+                <input type="range" id="masterVol" min="0" max="100" value="${Settings.masterVolume * 100}" 
+                  onchange="window.settingsSystem.setMasterVolume(this.value)" class="volume-slider">
+                <span id="masterVolLabel">${Math.round(Settings.masterVolume * 100)}%</span>
+              </div>
             </div>
+            <div class="setting-row">
+              <label>Music Volume</label>
+              <div class="volume-control">
+                <input type="range" id="musicVol" min="0" max="100" value="${Settings.musicVolume * 100}" 
+                  onchange="window.settingsSystem.setMusicVolume(this.value)" class="volume-slider">
+                <span id="musicVolLabel">${Math.round(Settings.musicVolume * 100)}%</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label>SFX Volume</label>
+              <div class="volume-control">
+                <input type="range" id="sfxVol" min="0" max="100" value="${Settings.sfxVolume * 100}" 
+                  onchange="window.settingsSystem.setSFXVolume(this.value)" class="volume-slider">
+                <span id="sfxVolLabel">${Math.round(Settings.sfxVolume * 100)}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="settingsTabPanel-accessibility" class="settings-tab-panel" data-settings-tab="accessibility">
+          <div class="settings-section">
+            <h4>Accessibility</h4>
+            <div class="setting-row">
+              <label>Color Blind Friendly Palette</label>
+              <div class="campaign-actions" style="margin:0;">
+                <button id="colorBlindModeBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleColorBlindMode()">
+                  ${Settings.colorBlindMode ? 'On' : 'Off'}
+                </button>
+                <span class="campaign-muted">Uses higher-contrast, color-blind-safe accents.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="settingsTabPanel-campaign" class="settings-tab-panel" data-settings-tab="campaign">
+          <div class="settings-section">
+            <h4>Campaign</h4>
+            <div class="campaign-muted">Campaign controls and multiplayer diagnostics live here.</div>
           </div>
         </div>
         
@@ -186,6 +230,36 @@
         </div>
       </div>
     `;
+
+    applySettingsTabVisibility();
+  }
+
+  function setActiveTab(tab) {
+    const allowed = ['general', 'audio', 'accessibility', 'campaign'];
+    if (allowed.indexOf(tab) === -1) return;
+    Settings.activeTab = tab;
+    applySettingsTabVisibility();
+  }
+
+  function applySettingsTabVisibility() {
+    const active = Settings.activeTab || 'general';
+    const tabs = document.querySelectorAll('#settingsPanel .settings-tab-btn');
+    tabs.forEach((btn) => {
+      const id = String(btn.id || '');
+      const tabName = id.replace('settingsTab-', '');
+      btn.classList.toggle('active', tabName === active);
+    });
+    const panels = document.querySelectorAll('#settingsPanel .settings-tab-panel');
+    panels.forEach((panel) => {
+      const tabName = String(panel.getAttribute('data-settings-tab') || '');
+      panel.classList.toggle('active', tabName === active);
+    });
+
+    const campaignSection = document.getElementById('campaignSettingsSection');
+    if (campaignSection) {
+      campaignSection.setAttribute('data-settings-tab', 'campaign');
+      campaignSection.style.display = active === 'campaign' ? '' : 'none';
+    }
   }
 
   function syncGameModeUI() {
@@ -229,6 +303,15 @@
         : (isCampaign ? 'Settings (Campaign Mode Active)' : 'Settings (Solo Mode Active)');
       settingsBtn.textContent = isGM ? '⚙ GM' : (isCampaign ? '⚙ C' : '⚙');
     }
+
+    const colorBlindBtn = document.getElementById('colorBlindModeBtn');
+    if (colorBlindBtn) {
+      colorBlindBtn.textContent = Settings.colorBlindMode ? 'On' : 'Off';
+      colorBlindBtn.style.borderColor = Settings.colorBlindMode ? 'var(--teal)' : 'var(--border2)';
+      colorBlindBtn.style.color = Settings.colorBlindMode ? 'var(--teal)' : 'var(--muted2)';
+    }
+
+    applySettingsTabVisibility();
   }
 
   function toggleGMReveal(kind) {
@@ -240,11 +323,19 @@
     Settings.save();
     syncGameModeUI();
   }
+
+  function toggleColorBlindMode() {
+    Settings.colorBlindMode = !Settings.colorBlindMode;
+    Settings.applyAccessibilitySettings();
+    Settings.save();
+    syncGameModeUI();
+  }
   
   function openSettings() {
     const container = document.getElementById(SETTINGS_ID);
     if (container) {
       syncGameModeUI();
+      applySettingsTabVisibility();
       container.classList.add('open');
     }
   }
@@ -335,6 +426,8 @@
     openSettings,
     closeSettings,
     toggleSettings,
+    setActiveTab,
+    toggleColorBlindMode,
     setMasterVolume,
     setMusicVolume,
     setSFXVolume,
@@ -350,7 +443,9 @@
       sfxVolume: Settings.sfxVolume,
       gameMode: Settings.gameMode,
       gmRevealDC: Settings.gmRevealDC,
-      gmRevealHiddenInfo: Settings.gmRevealHiddenInfo
+      gmRevealHiddenInfo: Settings.gmRevealHiddenInfo,
+      colorBlindMode: Settings.colorBlindMode,
+      activeTab: Settings.activeTab
     }),
     initSettings // Expose for manual initialization if needed
   };

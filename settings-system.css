@@ -59,6 +59,49 @@ nav {
   overflow-y: auto;
 }
 
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.2rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(12, 15, 20, 0.75);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+#settingsPanel .settings-tab-btn {
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--muted2);
+  font-family: 'Cinzel', serif;
+  font-size: 0.48rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.2rem;
+  cursor: pointer;
+}
+
+#settingsPanel .settings-tab-btn:hover {
+  border-color: var(--gold2);
+  color: var(--gold2);
+}
+
+#settingsPanel .settings-tab-btn.active {
+  border-color: var(--teal);
+  color: var(--teal);
+  background: rgba(67, 202, 196, 0.08);
+}
+
+.settings-tab-panel {
+  display: none;
+}
+
+.settings-tab-panel.active {
+  display: block;
+}
+
 .settings-header {
   display: flex;
   justify-content: space-between;
@@ -358,6 +401,27 @@ nav {
 
 .campaign-sort-actions {
   margin-bottom: 0.35rem;
+}
+
+body.colorblind-mode {
+  --teal: #2f9fd3;
+  --teal2: #5ab8e4;
+  --gold: #ff9f1c;
+  --gold2: #ffd166;
+  --green2: #3fa34d;
+  --red: #d1495b;
+  --red2: #e76f51;
+  --purple: #5e548e;
+  --muted2: #b8c2d1;
+}
+
+body.colorblind-mode .campaign-badge.online,
+body.colorblind-mode .campaign-pill.online {
+  box-shadow: inset 0 0 0 1px rgba(47, 159, 211, 0.35);
+}
+
+body.colorblind-mode .campaign-badge.offline {
+  box-shadow: inset 0 0 0 1px rgba(209, 73, 91, 0.35);
 }
 
 .campaign-wayfarer-row {

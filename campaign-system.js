@@ -417,7 +417,7 @@
   async function syncSharedState(reason) {
     if (!state.socket || !state.connected || !state.code) return;
     if (state.applyingSharedState) return;
-    if (state.role !== "gm") return;
+    if (state.role === "player") return;
     if (state.syncInFlight) return;
     var shared = collectSharedState();
     var hash = JSON.stringify(shared);
@@ -458,7 +458,7 @@
       safeNotif("Join a campaign first.", "warn");
       return;
     }
-    if (state.role !== "gm") {
+    if (state.role === "player") {
       await requestResync();
       return;
     }
@@ -473,7 +473,7 @@
 
   async function syncSharedSilent(reason) {
     if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
-    if (state.role !== "gm") return { ok: false, error: "Only GM can broadcast shared world state." };
+    if (state.role === "player") return { ok: false, error: "Only GM can broadcast shared world state." };
     var shared = collectSharedState();
     return pushSharedState(shared, reason || "silent");
   }
@@ -1034,6 +1034,7 @@
       var section = document.createElement("div");
       section.id = "campaignSettingsSection";
       section.className = "settings-section";
+      section.setAttribute("data-settings-tab", "campaign");
       var footer = popup.querySelector(".settings-footer");
       if (footer) popup.insertBefore(section, footer);
       else popup.appendChild(section);
@@ -2266,7 +2267,7 @@
     ensureMapSyncStatusBars();
     syncDockOffset();
     syncCharacterToCampaign(false);
-    if (state.role === "gm") {
+    if (state.role !== "player") {
       syncSharedState("tick");
     }
   }, 2200);

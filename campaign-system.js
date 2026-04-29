@@ -1123,6 +1123,38 @@
     var joinPasswordValue = state.uiDraft.joinPassword || "";
     var noteSummaries = campaign && Array.isArray(campaign.notesSummary) ? campaign.notesSummary : [];
     var roster = campaign && Array.isArray(campaign.roster) ? campaign.roster : [];
+    var quickStartRole = isGm ? "GM" : (state.role === "player" ? "Player" : "Unassigned");
+    var quickStartItems = [];
+    if (!state.code) {
+      quickStartItems = [
+        "Enter your display name so reconnect and notes are easy to track.",
+        "Create (GM) to host a new room, or use Join Player/Join GM with a shared code.",
+        "After joining, use Show Onboarding for map generation and sync workflow."
+      ];
+    } else if (isGm) {
+      quickStartItems = [
+        "Confirm everyone appears in Online Members before starting scene play.",
+        "Generate at least one map layer, then Broadcast Authoritative State if players drift.",
+        "Use GM Roll Call and Campaign dock to keep pacing and response visibility tight."
+      ];
+    } else {
+      quickStartItems = [
+        "Watch Campaign dock for active roll calls, timeline updates, and chat.",
+        "Use Sync Shared World or Request Resync if your state looks stale.",
+        "Keep Private Notes updated so your goals stay visible between sessions."
+      ];
+    }
+    var quickStartHtml = '<div class="campaign-card">'
+      + '<div class="campaign-card-title">Session Quickstart</div>'
+      + '<div class="campaign-muted">Role: <strong style="color:var(--gold2);">' + escapeHtml(quickStartRole) + '</strong></div>'
+      + '<ol class="campaign-quickstart-list">' + quickStartItems.map(function (item) {
+          return '<li>' + escapeHtml(item) + '</li>';
+        }).join('') + '</ol>'
+      + '<div class="campaign-actions" style="margin-top:.35rem;">'
+      + '<button class="btn btn-xs" onclick="window.campaignSystem.showOnboarding(true)">Open Onboarding</button>'
+      + (state.code ? '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Check</button>' : '')
+      + '</div>'
+      + '</div>';
     var summaryHtml = isGm && noteSummaries.length
       ? ('<div class="campaign-muted" style="margin-top:.35rem;">' + noteSummaries.map(function (n) {
           var stamp = n.updatedAt ? (" @ " + formatTimestamp(n.updatedAt)) : "";
@@ -1156,6 +1188,7 @@
       + '<button class="btn btn-xs" onclick="window.campaignSystem.joinCampaign(\'gm\')">Join GM</button>'
       + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.leaveCampaign()">Leave</button>'
       + "</div>"
+      + quickStartHtml
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Shared Teamwork Points</div>'
       + '<div class="campaign-tmw">' + sharedTmw + "</div>"

@@ -141,6 +141,34 @@
       document.body.classList.add('text-size-' + (this.textSize || 'medium'));
     }
   };
+
+  function getModeQuickStartHtml() {
+    if (Settings.gameMode === 'gm') {
+      return ''
+        + '<div class="mode-guidance-title">GM Flow</div>'
+        + '<ol class="mode-guidance-list">'
+        + '<li>Generate map layers and mission seeds, then open GM Dashboard for pacing tools.</li>'
+        + '<li>Keep tension readable with Dread controls and Force Outcome only when pacing stalls.</li>'
+        + '<li>Use Campaign tab to synchronize state and keep players on one shared timeline.</li>'
+        + '</ol>';
+    }
+    if (Settings.gameMode === 'campaign') {
+      return ''
+        + '<div class="mode-guidance-title">Campaign Flow</div>'
+        + '<ol class="mode-guidance-list">'
+        + '<li>Open the Campaign tab to create or join a room before long sessions.</li>'
+        + '<li>Confirm role, code, and sync status, then use Show Onboarding for team quickstart.</li>'
+        + '<li>Use the Campaign dock for live rolls, chat, and timeline awareness during play.</li>'
+        + '</ol>';
+    }
+    return ''
+      + '<div class="mode-guidance-title">Solo Flow</div>'
+      + '<ol class="mode-guidance-list">'
+      + '<li>Pick a travel layer, then alternate Observe Adjacent, missions, and downtime choices.</li>'
+      + '<li>Track progression through Missions, Factions, and Endings as your core loop.</li>'
+      + '<li>Use Solo Reference anytime for quick reminders without breaking narrative momentum.</li>'
+      + '</ol>';
+  }
   
   function createSettingsPanel() {
     const container = document.getElementById(SETTINGS_ID);
@@ -186,6 +214,8 @@
                 <span class="mode-desc">Shared multiplayer world</span>
               </button>
             </div>
+
+            <div id="modeQuickStart" class="mode-guidance">${getModeQuickStartHtml()}</div>
 
             <div id="gmToolsRow" style="margin-top:.55rem;display:${Settings.gameMode === 'gm' ? 'block' : 'none'};">
               <div style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;margin-bottom:.28rem;">GM Visibility</div>
@@ -400,6 +430,11 @@
     const gmToolsRow = document.getElementById('gmToolsRow');
     if (gmToolsRow) {
       gmToolsRow.style.display = isGM ? 'block' : 'none';
+    }
+
+    const modeQuickStart = document.getElementById('modeQuickStart');
+    if (modeQuickStart) {
+      modeQuickStart.innerHTML = getModeQuickStartHtml();
     }
 
     const gmRevealDCBtn = document.getElementById('gmRevealDCBtn');

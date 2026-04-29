@@ -276,6 +276,33 @@ nav {
   text-transform: uppercase;
 }
 
+.mode-guidance {
+  margin-top: 0.45rem;
+  border: 1px solid rgba(46, 196, 182, 0.28);
+  background: linear-gradient(180deg, rgba(46, 196, 182, 0.08), rgba(46, 196, 182, 0.04));
+  border-radius: 4px;
+  padding: 0.45rem 0.5rem;
+}
+
+.mode-guidance-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.11em;
+  color: var(--teal);
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+
+.mode-guidance-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.2rem;
+  color: var(--text2);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
 .settings-footer {
   padding: 0.6rem 0.85rem;
   border-top: 1px solid var(--border);
@@ -599,6 +626,16 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-card .campaign-actions {
   margin-top: 0.35rem;
+}
+
+.campaign-quickstart-list {
+  margin: 0.3rem 0 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.2rem;
+  color: var(--text2);
+  font-size: 0.74rem;
+  line-height: 1.45;
 }
 
 .campaign-card .campaign-actions .btn.btn-red {

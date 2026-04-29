@@ -595,6 +595,32 @@
   font-weight: 600;
 }
 
+.contract-choice-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.contract-choice-actions .btn {
+  width: 100%;
+  white-space: normal;
+  line-height: 1.25;
+  min-height: 2rem;
+}
+
+.hex-primary-actions {
+  margin: 0.35rem 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.hex-primary-actions .btn {
+  width: 100%;
+  white-space: normal;
+}
+
 /* FACTION DETAIL VIEW */
 
 .faction-detail {
@@ -681,5 +707,13 @@
   .faction-dynamics h2,
   .faction-trust h2 {
     font-size: 0.65rem;
+  }
+
+  .contract-choice-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .hex-primary-actions {
+    grid-template-columns: 1fr;
   }
 }

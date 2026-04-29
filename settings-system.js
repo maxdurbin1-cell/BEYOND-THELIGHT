@@ -288,7 +288,7 @@
                 <button id="monochromeModeBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleMonochromeMode()">
                   ${Settings.monochromeMode ? 'On' : 'Off'}
                 </button>
-                <span class="campaign-muted">Adds stronger contrast and symbol/line-pattern cues beyond color.</span>
+                <span class="campaign-muted">Forces a strict black-and-white palette with shape/text cues (no color reliance).</span>
               </div>
             </div>
             <div class="setting-row">

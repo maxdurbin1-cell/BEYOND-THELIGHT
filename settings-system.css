@@ -457,17 +457,26 @@ body.colorblind-mode .campaign-badge.offline {
 }
 
 body.lowcolor-mode {
-  --teal: #89a7c7;
-  --teal2: #b3c4d9;
-  --gold: #e6e6e6;
-  --gold2: #f2f2f2;
+  --teal: #f0f0f0;
+  --teal2: #ffffff;
+  --gold: #f0f0f0;
+  --gold2: #ffffff;
   --gold3: #ffffff;
-  --green: #d6d6d6;
-  --green2: #ececec;
-  --red: #8f8f8f;
-  --red2: #b5b5b5;
-  --purple: #9e9e9e;
-  --muted2: #c9d0da;
+  --green: #d0d0d0;
+  --green2: #e0e0e0;
+  --red: #909090;
+  --red2: #b0b0b0;
+  --purple: #a0a0a0;
+  --muted2: #d0d0d0;
+  --text: #ffffff;
+  --text2: #f0f0f0;
+  --muted: #c8c8c8;
+  --card: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface2: #222222;
+  --border: #707070;
+  --border2: #8a8a8a;
+  filter: grayscale(1) contrast(1.12);
 }
 
 body.lowcolor-mode .btn-teal,

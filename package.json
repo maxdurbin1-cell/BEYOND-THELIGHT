@@ -10,7 +10,8 @@
     "smoke:clicks": "node smoke-tests/click-paths.smoke.mjs",
     "smoke:scenario": "node smoke-tests/campaign-scenario.e2e.mjs",
     "smoke:reconnect": "node smoke-tests/reconnect-churn.smoke.mjs",
-    "smoke:test": "npm run smoke:clicks && npm run smoke:scenario"
+    "smoke:maybe-reconnect": "node -e \"const run=['1','true','yes','on'].includes(String(process.env.SMOKE_RECONNECT||'').toLowerCase()); if(!run){console.log('Skipping reconnect soak (set SMOKE_RECONNECT=1 to enable).'); process.exit(0);} const {spawnSync}=require('node:child_process'); const cmd=process.platform==='win32'?'npm.cmd':'npm'; const r=spawnSync(cmd,['run','smoke:reconnect'],{stdio:'inherit'}); process.exit(r.status||0);\"",
+    "smoke:test": "npm run smoke:clicks && npm run smoke:scenario && npm run smoke:maybe-reconnect"
   },
   "dependencies": {
     "express": "^4.21.2",

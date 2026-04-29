@@ -217,15 +217,28 @@ async function runScenario(browser) {
 
   await ensurePlayerJoined(playerPage, code, "Reconnect Player");
 
-  const syncOk = await gmPage.evaluate(async () => {
+  const syncResult = await gmPage.evaluate(async () => {
     if (typeof window.generateMap === "function") window.generateMap();
     if (typeof window.generateLastSea === "function") window.generateLastSea();
     if (typeof window.generateStarSystemMap === "function") window.generateStarSystemMap("cluster");
     if (typeof window.generateWorldThatWasMap === "function") window.generateWorldThatWasMap();
-    const res = await window.campaignSystem.syncSharedSilent("reconnect-soak-init");
-    return !!(res && res.ok);
+    let attempt = 0;
+    let last = null;
+    while (attempt < 3) {
+      last = await window.campaignSystem.syncSharedSilent("reconnect-soak-init-" + attempt);
+      if (last && last.ok) return { ok: true, attempt: attempt + 1, lastError: "" };
+      attempt += 1;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return {
+      ok: false,
+      attempt,
+      lastError: last && last.error ? String(last.error) : "unknown"
+    };
   });
-  if (!syncOk) throw new Error("Initial authoritative sync failed.");
+  if (!syncResult || !syncResult.ok) {
+    throw new Error(`Initial authoritative sync failed: ${JSON.stringify(syncResult)}`);
+  }
 
   const expected = await collectMapSummary(gmPage);
   if (!expected.provinceCells || !expected.seaCells || !expected.galaxyCells || !expected.worldCells) {

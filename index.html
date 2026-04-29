@@ -13,12 +13,8 @@
 <link rel="stylesheet" href="./beyond-light-expansion.css">
 <link rel="stylesheet" href="./faction-intro-system.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="./settings-system.css" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="./gm-dashboard.css" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="./solo-reference.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="./faction-intro-system.css"></noscript>
 <noscript><link rel="stylesheet" href="./settings-system.css"></noscript>
-<noscript><link rel="stylesheet" href="./gm-dashboard.css"></noscript>
-<noscript><link rel="stylesheet" href="./solo-reference.css"></noscript>
 <style>
 /* ── ACCESSIBILITY ── */
 .skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;background:var(--surface);color:var(--gold);font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:.1em;padding:.6rem 1rem;border:1px solid var(--gold);text-transform:uppercase;text-decoration:none;}
@@ -332,8 +328,8 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
-    <button class="tab-btn solo-reference-btn" aria-label="Solo Reference" onclick="window.soloReference.toggle()" title="Solo Reference">🧭 Solo</button>
-    <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="window.gmDashboard.toggle()" title="GM Dashboard">👥 GM</button>
+    <button class="tab-btn solo-reference-btn" aria-label="Solo Reference" onclick="openSoloReference()" title="Solo Reference">🧭 Solo</button>
+    <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="openGmDashboard()" title="GM Dashboard">👥 GM</button>
     <button class="tab-btn settings-tab-btn" aria-label="Settings" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
   </nav>
   <div class="header-credits" onclick="promptCredits()">
@@ -7952,12 +7948,93 @@ document.addEventListener('DOMContentLoaded',()=>{
   <div id="endingsPanel"></div>
 </div>
 
+<script>
+(function(){
+  var optionalState={scripts:{},styles:{}};
+
+  function ensureOptionalStyle(href){
+    if(!href)return Promise.resolve();
+    if(document.querySelector('link[data-optional-style="'+href+'"]')||document.querySelector('link[href="'+href+'"]')){
+      return Promise.resolve();
+    }
+    if(optionalState.styles[href])return optionalState.styles[href];
+    optionalState.styles[href]=new Promise(function(resolve,reject){
+      var link=document.createElement('link');
+      link.rel='stylesheet';
+      link.href=href;
+      link.dataset.optionalStyle=href;
+      link.onload=function(){resolve();};
+      link.onerror=function(){reject(new Error('Failed loading style '+href));};
+      document.head.appendChild(link);
+    });
+    return optionalState.styles[href];
+  }
+
+  function ensureOptionalScript(src,globalName){
+    if(!src)return Promise.resolve();
+    if(globalName&&window[globalName])return Promise.resolve(window[globalName]);
+    if(optionalState.scripts[src])return optionalState.scripts[src];
+
+    var existing=document.querySelector('script[data-optional-script="'+src+'"]')||document.querySelector('script[src="'+src+'"]');
+    if(existing){
+      optionalState.scripts[src]=new Promise(function(resolve,reject){
+        if(globalName&&window[globalName]){resolve(window[globalName]);return;}
+        existing.addEventListener('load',function(){resolve(globalName?window[globalName]:true);},{once:true});
+        existing.addEventListener('error',function(){reject(new Error('Failed loading script '+src));},{once:true});
+      });
+      return optionalState.scripts[src];
+    }
+
+    optionalState.scripts[src]=new Promise(function(resolve,reject){
+      var script=document.createElement('script');
+      script.src=src;
+      script.defer=true;
+      script.dataset.optionalScript=src;
+      script.onload=function(){resolve(globalName?window[globalName]:true);};
+      script.onerror=function(){reject(new Error('Failed loading script '+src));};
+      document.body.appendChild(script);
+    });
+    return optionalState.scripts[src];
+  }
+
+  window.loadSoloReferenceModule=function(){
+    return Promise.all([
+      ensureOptionalStyle('./solo-reference.css'),
+      ensureOptionalScript('./solo-reference.js','soloReference')
+    ]);
+  };
+
+  window.loadGmDashboardModule=function(){
+    return Promise.all([
+      ensureOptionalStyle('./gm-dashboard.css'),
+      ensureOptionalScript('./gm-dashboard.js','gmDashboard')
+    ]);
+  };
+
+  window.openSoloReference=function(){
+    window.loadSoloReferenceModule().then(function(){
+      if(window.soloReference&&typeof window.soloReference.toggle==='function')window.soloReference.toggle();
+      else if(window.soloReference&&typeof window.soloReference.open==='function')window.soloReference.open();
+    }).catch(function(){
+      if(typeof showNotif==='function')showNotif('Solo Reference failed to load','warn');
+    });
+  };
+
+  window.openGmDashboard=function(){
+    window.loadGmDashboardModule().then(function(){
+      if(window.gmDashboard&&typeof window.gmDashboard.toggle==='function')window.gmDashboard.toggle();
+      else if(window.gmDashboard&&typeof window.gmDashboard.open==='function')window.gmDashboard.open();
+    }).catch(function(){
+      if(typeof showNotif==='function')showNotif('GM Dashboard failed to load','warn');
+    });
+  };
+})();
+</script>
+
 <!-- SCRIPT INCLUDES FOR NEW SYSTEMS -->
 <script defer src="./faction-system.js"></script>
 <script defer src="./intro-system.js"></script>
 <script defer src="./storyline-choices-system.js"></script>
-<script defer src="./solo-reference.js"></script>
-<script defer src="./gm-dashboard.js"></script>
 <script defer src="/socket.io/socket.io.js"></script>
 <script defer src="./campaign-system.js"></script>
 

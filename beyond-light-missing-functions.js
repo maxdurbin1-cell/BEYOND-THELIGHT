@@ -2266,7 +2266,7 @@ function showSoloGuidance() {
     + '</ol>'
     + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.35rem;">Suggested loop: Character → Province → Missions → Storyline → Save/Checkpoint.</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.55rem;">'
-    + '<button class="btn btn-xs" onclick="window.soloReference && window.soloReference.open ? window.soloReference.open() : null;">Open Solo Reference</button>'
+    + '<button class="btn btn-xs" onclick="window.openSoloReference ? window.openSoloReference() : null;">Open Solo Reference</button>'
     + '<button class="btn btn-xs btn-teal" onclick="verifySoloSaveHealth()">Check Save Health</button>'
     + '<button class="btn btn-xs" onclick="exportCharacterSave()">Export Save</button>'
       + '<button class="btn btn-xs" onclick="openSoloRecoveryCenter()">Recovery Center</button>'

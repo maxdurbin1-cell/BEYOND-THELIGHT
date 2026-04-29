@@ -322,17 +322,6 @@ select option{background:#0f1020;}
 <main id="main-content">
 <!-- CHARACTER TAB -->
 <div class="tab-panel active" id="tab-character" role="tabpanel" aria-labelledby="tabnav-character" tabindex="0">
-  <div class="quick-nav">
-    <span class="quick-nav-label">Quick Access</span>
-    <button class="btn btn-sm" onclick="switchTab('dice',document.querySelector('.tab-btn[onclick*=dice]'))">🎲 Dice</button>
-    <button class="btn btn-sm" onclick="switchTab('combat',document.querySelector('.tab-btn[onclick*=combat]'))">⚔ Combat</button>
-    <button class="btn btn-sm" onclick="switchTab('map',document.querySelector('.tab-btn[onclick*=map]'))">🗺 Province</button>
-    <button class="btn btn-sm" onclick="switchTab('storyline',document.querySelector('.tab-btn[onclick*=storyline]'))">📖 Storyline</button>
-    <button class="btn btn-sm" onclick="switchTab('shop',document.querySelector('.tab-btn[onclick*=shop]'))">🛒 Merchants</button>
-    <button class="btn btn-sm" onclick="switchTab('missions',document.querySelector('.tab-btn[onclick*=missions]'))">📋 Missions</button>
-    <button class="btn btn-sm" onclick="switchTab('factions',document.querySelector('.tab-btn[onclick*=factions]'))">⚑ Factions</button>
-    <button class="btn btn-sm" onclick="switchTab('oracle',document.querySelector('.tab-btn[onclick*=oracle]'))">🔮 Oracle</button>
-  </div>
   <div class="char-top">
     <div class="char-top-title">Wayfarer Sheet</div>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
@@ -600,13 +589,6 @@ select option{background:#0f1020;}
 
 <!-- PROVINCE TAB -->
 <div class="tab-panel" id="tab-map">
-  <div class="quick-nav">
-    <span class="quick-nav-label">Jump To</span>
-    <button class="btn btn-sm" onclick="switchTab('combat',document.querySelector('.tab-btn[onclick*=combat]'))">⚔ Combat</button>
-    <button class="btn btn-sm" onclick="switchTab('storyline',document.querySelector('.tab-btn[onclick*=storyline]'))">📖 Storyline</button>
-    <button class="btn btn-sm" onclick="switchTab('shop',document.querySelector('.tab-btn[onclick*=shop]'))">🛒 Merchants</button>
-    <button class="btn btn-sm" onclick="switchTab('character',document.querySelector('.tab-btn[onclick*=character]'))">👤 Character</button>
-  </div>
   <div class="map-controls">
     <div class="age-btn on" id="age-green" onclick="setAge('green',this)">Green Age</div>
     <div class="age-btn" id="age-golden" onclick="setAge('golden',this)">Golden Age</div>
@@ -3028,6 +3010,9 @@ function buyItem(cost, name, cat) {
       svc = { name: 'Retainer Contract', stat: '+1 Hire Token', desc: 'Grants one Retainer hire for any Councilor in your Holding.' };
     }
     if (svc) {
+      if (name === 'Sage (Temple)') {
+        purchaseApplied = storePurchasedItem(name);
+      }
       var svcHtml = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
         + '<strong style="color:var(--gold);">' + svc.name + '</strong> — ' + svc.stat
         + '<br><em style="color:var(--muted2);">' + svc.desc + '</em></div>';
@@ -3039,7 +3024,9 @@ function buyItem(cost, name, cat) {
         updateStressUI();
         showNotif('Long Rest: all Stress cleared, all Conditions removed', 'good');
       } else if (name === 'Sage (Temple)') {
-        if (S.trauma > 0) { S.trauma--; if (typeof updateTrauma === 'function') updateTrauma(); showNotif('Trauma reduced by 1', 'good'); }
+        if (purchaseApplied) {
+          showNotif('Sage (Temple) added to Backpack. Use it to remove 1 Trauma.', 'good');
+        }
       } else if (name === 'Mercenary') {
         S.enemies.push({id: Date.now(), name: 'Mercenary (Ally)', dread: 6, stress: 0, maxStress: 12, ally: true});
         if (typeof renderEnemies === 'function') renderEnemies();
@@ -3053,7 +3040,7 @@ function buyItem(cost, name, cat) {
         if (typeof renderHoldingUI === 'function') renderHoldingUI();
         showNotif('Retainer Contract added to Holding resources', 'good');
       }
-      purchaseApplied = true;
+      purchaseApplied = purchaseApplied || (name !== 'Sage (Temple)');
     }
   } else {
     // Essentials, toolkits, items, scrolls, remedies, tradegoods, strange → backpack
@@ -3164,13 +3151,14 @@ function showBackpackItem(index) {
   }
   var item = found.item;
   var cat = found.cat;
+  var hasUseCfg = !!ITEM_USE_CFG[item.name];
   var isConsumable = ['essentials','items','remedies','toolkits','cosmic'].indexOf(cat) >= 0;
   var usesRemaining = getItemUsesRemaining(index);
   var usesHtml = usesRemaining !== null ? '<div style="font-size:.72rem;color:var(--gold);margin-top:.2rem;">Uses remaining: '+usesRemaining+'</div>' : '';
   var btnHtml = '';
   if (cat === 'scrolls') {
     btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="castScrollFromBackpack('+index+');">⚄ Cast Scroll</button> ';
-  } else if (isConsumable) {
+  } else if (isConsumable || hasUseCfg) {
     btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useBackpackItem('+index+');closeModal();">⚑ Use</button> ';
   }
   btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon1\');">⚔ W1</button> ';
@@ -4824,6 +4812,7 @@ function renderHexInfo(hex){
   }else if(hex.type==='trade'){
     html+=`<div class="trade-line">🏛 <strong>Trade Route</strong> — connects ${d.from||'Holdings'}.<br><em style="font-size:.78rem;">Regional trade goods and caravans pass through here regularly.</em></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-primary" onclick="rollTradeRouteEncounter(${hex.col},${hex.row})">⚄ Roll Trade Encounter (d10)</button><button class="btn btn-sm btn-teal" onclick="showTradeGoods(${hex.col},${hex.row})">📦 Trade Goods</button><button class="btn btn-sm btn-gold" onclick="buyProvinceCaravanToHolding(${hex.col},${hex.row},100)">🛻 Buy Caravan to Nearest Holding (100₵)</button></div>`;
+    html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
 
   // ── SEAT / HOLDING ──
   }else if(hex.type==='seat'||hex.type==='holding'){
@@ -7736,13 +7725,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <!-- STORYLINE TAB PANEL -->
 <div class="tab-panel" id="tab-storyline">
-  <div class="quick-nav">
-    <span class="quick-nav-label">Jump To</span>
-    <button class="btn btn-sm" onclick="switchTab('endings',document.querySelector('.tab-btn[onclick*=endings]'))">🏁 Endings</button>
-    <button class="btn btn-sm" onclick="switchTab('factions',document.querySelector('.tab-btn[onclick*=factions]'))">⚑ Factions</button>
-    <button class="btn btn-sm" onclick="switchTab('character',document.querySelector('.tab-btn[onclick*=character]'))">👤 Character</button>
-    <button class="btn btn-sm" onclick="switchTab('combat',document.querySelector('.tab-btn[onclick*=combat]'))">⚔ Combat</button>
-  </div>
   <div id="storyline"></div>
 </div>
 

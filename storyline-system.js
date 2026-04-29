@@ -25,14 +25,15 @@
   };
 
   const DECISION_ROLES = [
-    "Lead",
-    "Support",
-    "Scout",
-    "Negotiator",
-    "Muscle",
-    "Tech",
-    "Arcane",
-    "Tactician",
+    "Lead Check",
+    "Adventure Check",
+    "Body Check",
+    "Mind Check",
+    "Spirit Check",
+    "Control Check",
+    "Defend Check",
+    "Strike Check",
+    "Shoot Check",
   ];
 
   const STORY_SYSTEMS = [
@@ -1535,7 +1536,7 @@
 
   function getDecisionAssignment(sceneId, optionId) {
     var st = ensureStoryState();
-    if (!st) return { assigneeId: "local:self", assigneeName: "Wayfarer", role: "Lead" };
+    if (!st) return { assigneeId: "local:self", assigneeName: "Wayfarer", role: "Lead Check" };
     var key = assignmentKey(sceneId, optionId);
     var existing = st.optionAssignments[key] && typeof st.optionAssignments[key] === "object"
       ? st.optionAssignments[key]
@@ -1543,13 +1544,13 @@
     var pool = getPartyAssignmentPool();
     var fallback = pool[0] || { id: "local:self", name: "Wayfarer", role: "player", online: true };
     if (!existing) {
-      return { assigneeId: fallback.id, assigneeName: fallback.name, role: "Lead" };
+      return { assigneeId: fallback.id, assigneeName: fallback.name, role: "Lead Check" };
     }
     var picked = pool.find(function (entry) { return entry.id === existing.assigneeId; }) || fallback;
     return {
       assigneeId: picked.id,
       assigneeName: picked.name,
-      role: DECISION_ROLES.indexOf(String(existing.role || "")) >= 0 ? String(existing.role) : "Lead",
+      role: DECISION_ROLES.indexOf(String(existing.role || "")) >= 0 ? String(existing.role) : "Lead Check",
     };
   }
 
@@ -1602,7 +1603,7 @@
   }
 
   function storySetDecisionRole(sceneId, optionId, roleName) {
-    var role = DECISION_ROLES.indexOf(String(roleName || "")) >= 0 ? String(roleName) : "Lead";
+    var role = DECISION_ROLES.indexOf(String(roleName || "")) >= 0 ? String(roleName) : "Lead Check";
     setDecisionAssignment(sceneId, optionId, { role: role });
     renderStorylinePanel();
   }
@@ -2961,7 +2962,7 @@
         optionText: option.text,
         assigneeId: decisionMeta.assigneeId,
         assigneeName: decisionMeta.assigneeName,
-        role: decisionMeta.role || "Lead",
+        role: decisionMeta.role || "Lead Check",
       });
       st.decisionAssignments = st.decisionAssignments.slice(0, 24);
     }
@@ -2969,7 +2970,7 @@
     const msg = [
       option.text,
       (decisionMeta && decisionMeta.assigneeName)
-        ? ("[Assigned: " + decisionMeta.assigneeName + " as " + (decisionMeta.role || "Lead") + "]")
+        ? ("[Assigned: " + decisionMeta.assigneeName + " as " + (decisionMeta.role || "Lead Check") + "]")
         : "",
       safeOutcome && safeOutcome.text ? safeOutcome.text : "",
       checkResult
@@ -3377,7 +3378,7 @@
     var nodes = wheelOptions.map(function (w, idx) {
       var o = w.option;
       var classes = "story-wheel-option" + (w.unlocked ? "" : " locked");
-      var roleChip = escHtml(w.assign.role || "Lead");
+      var roleChip = escHtml(w.assign.role || "Lead Check");
       var line2 = o.stat
         ? escHtml((STAT_LABELS[o.stat] || o.stat) + " d" + getAssignedWayfarerActionDie(o.stat, w.assign) + " vs DD" + w.dd)
         : escHtml(w.intent);
@@ -3618,7 +3619,7 @@
 
     const assignmentLogHtml = st.decisionAssignments.length
       ? st.decisionAssignments.slice(0, 6).map(function (entry) {
-          return "<div class='story-log-item'>" + escHtml(entry.assigneeName || "Wayfarer") + " as " + escHtml(entry.role || "Lead") + " → " + escHtml(entry.optionText || "Decision") + "</div>";
+          return "<div class='story-log-item'>" + escHtml(entry.assigneeName || "Wayfarer") + " as " + escHtml(entry.role || "Lead Check") + " → " + escHtml(entry.optionText || "Decision") + "</div>";
         }).join("")
       : "<div class='story-log-item'>No assignments recorded yet.</div>";
 

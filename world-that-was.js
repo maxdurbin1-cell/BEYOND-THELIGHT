@@ -491,6 +491,45 @@
     return false;
   }
 
+  function applyPositiveCondition(condKey) {
+    ensureConditionsState();
+    if (!S || !S.conditions) return;
+    const key = WTW_CONDITION_KEYS.indexOf(condKey) >= 0 ? condKey : "focused";
+    S.conditions[key] = true;
+    if (typeof updateConditionButtons === "function") updateConditionButtons();
+    if (typeof updateAllStatDisplays === "function") updateAllStatDisplays();
+  }
+
+  function clearOneNegativeCondition() {
+    ensureConditionsState();
+    if (!S || !S.conditions) return "";
+    const negatives = ["weakened", "vulnerable", "distracted", "shaken"];
+    const active = negatives.find(function (key) { return !!S.conditions[key]; });
+    if (!active) return "";
+    S.conditions[active] = false;
+    if (typeof updateConditionButtons === "function") updateConditionButtons();
+    if (typeof updateAllStatDisplays === "function") updateAllStatDisplays();
+    return active;
+  }
+
+  function drawServiceMerchantItem(preferredCategories) {
+    const pool = Array.isArray(preferredCategories) && preferredCategories.length
+      ? preferredCategories
+      : ["items", "remedies", "services", "toolkits", "tradegoods"];
+    let list = [];
+    if (typeof SHOP_DATA === "object" && SHOP_DATA) {
+      for (let i = 0; i < pool.length; i += 1) {
+        const key = pool[i];
+        if (Array.isArray(SHOP_DATA[key]) && SHOP_DATA[key].length) {
+          list = SHOP_DATA[key];
+          break;
+        }
+      }
+    }
+    const picked = list.length ? safePick(list, list[0]) : { name: "District Supply Cache" };
+    return String((picked && picked.name) || "District Supply Cache");
+  }
+
   function buildWorldEvent(zoneName, template) {
     const base = Object.assign({}, template || {});
     const danger = dangerForZone(zoneName);
@@ -1341,6 +1380,47 @@
     if (!w || !hex || !svc) return false;
     const name = String(svc.name || "").toLowerCase();
 
+    if (name.indexOf("data forge") >= 0) {
+      addWorldItem("dataDrives", 2);
+      addZoneReputation(hex.zone, 2);
+      grantWorldServiceBonus("nextAdventureBonus", 2, 6);
+      applyPositiveCondition("focused");
+      putLootInBackpack(drawServiceMerchantItem(["items", "toolkits", "tradegoods"]));
+      if (typeof showNotif === "function") showNotif("Data Forge: Focused, +2 Data Drives, next Adventure +2, and intel gear added to backpack.", "good");
+      return true;
+    }
+
+    if (name.indexOf("augment tune-up") >= 0 || name.indexOf("cyber") >= 0) {
+      setCredits(getCredits() + 35);
+      grantWorldServiceBonus("nextAdventureBonus", 1, 6);
+      applyPositiveCondition("empowered");
+      putLootInBackpack("Cyber Calibration Kit");
+      if (typeof showNotif === "function") showNotif("Augment service: Empowered, +35 Credits, next Adventure +1, and Cyber Calibration Kit added.", "good");
+      return true;
+    }
+
+    if (name.indexOf("botanical therapy") >= 0) {
+      if (typeof changeStress === "function") changeStress(-Math.max(3, safeRoll(6)));
+      const removed = clearOneNegativeCondition();
+      applyPositiveCondition("bolstered");
+      addZoneReputation(hex.zone, 1);
+      putLootInBackpack("Verdant Tonic");
+      if (typeof showNotif === "function") showNotif("Botanical Therapy: recovered stress, Bolstered applied" + (removed ? (", removed " + removed + ".") : "."), "good");
+      return true;
+    }
+
+    if (name.indexOf("gene med") >= 0 || name.indexOf("rad clinic") >= 0) {
+      if (typeof changeStress === "function") changeStress(-Math.max(2, safeRoll(4)));
+      if (typeof S !== "undefined" && typeof S.trauma === "number" && S.trauma > 0) {
+        S.trauma = Math.max(0, S.trauma - 1);
+        if (typeof updateTrauma === "function") updateTrauma();
+      }
+      addWorldItem("meds", 2);
+      putLootInBackpack(drawServiceMerchantItem(["remedies", "items"]));
+      if (typeof showNotif === "function") showNotif("Clinic treatment: stress restored, -1 Trauma, and medical supplies added.", "good");
+      return true;
+    }
+
     if (name.indexOf("med") >= 0 || name.indexOf("therapy") >= 0 || name.indexOf("recovery") >= 0) {
       const hadWater = spendWorldItem("water", 1);
       if (typeof changeStress === "function") changeStress(-Math.max(2, safeRoll(4)));
@@ -1379,13 +1459,54 @@
       return true;
     }
 
+    if (name.indexOf("convoy routing") >= 0) {
+      grantWorldServiceBonus("nextTradeBonus", 2, 6);
+      addZoneReputation(hex.zone, 1);
+      const target = safePick(w.hexes.filter(function (h) { return h.id !== hex.id; }), null);
+      if (target) setMarker(w, target, "job", "Convoy Lane", "Service-generated route contract");
+      putLootInBackpack("Route Warrant");
+      if (typeof showNotif === "function") showNotif("Convoy Routing: next Trade +2, route contract marker spawned, Route Warrant added.", "good");
+      return true;
+    }
+
+    if (name.indexOf("vr drill") >= 0) {
+      applyPositiveCondition("empowered");
+      grantWorldServiceBonus("nextAdventureBonus", 1, 6);
+      setCredits(getCredits() + 20);
+      if (typeof showNotif === "function") showNotif("VR Drill: Empowered, next Adventure +1, and +20 Credits.", "good");
+      return true;
+    }
+
+    if (name.indexOf("holo venue") >= 0 || name.indexOf("night market") >= 0) {
+      addZoneReputation(hex.zone, 1);
+      putLootInBackpack(drawServiceMerchantItem(["tradegoods", "services", "items"]));
+      setCredits(getCredits() + 25);
+      if (typeof showNotif === "function") showNotif("Market access: gained social leverage, +25 Credits, and a market item.", "good");
+      return true;
+    }
+
+    if (name.indexOf("water purification") >= 0) {
+      addWorldItem("water", 2);
+      const removed = clearOneNegativeCondition();
+      if (typeof showNotif === "function") showNotif("Water Purification: +2 Water" + (removed ? (" and removed " + removed + ".") : "."), "good");
+      return true;
+    }
+
+    if (name.indexOf("safehouse") >= 0) {
+      hex.skirmish = false;
+      addZoneReputation(hex.zone, 1);
+      putLootInBackpack("Safehouse Access Key");
+      if (typeof showNotif === "function") showNotif("Safehouse Access: district calmed and Safehouse Key added.", "good");
+      return true;
+    }
+
     if (name.indexOf("repair") >= 0 || name.indexOf("maintenance") >= 0 || name.indexOf("forge") >= 0 || name.indexOf("dock") >= 0) {
       spendWorldItem("scrap", 1);
-      setCredits(getCredits() + 20);
+      setCredits(getCredits() + 40);
       addWorldItem("fuelCells", 1);
       addZoneReputation(hex.zone, 1);
       putLootInBackpack("Refit Kit");
-      if (typeof showNotif === "function") showNotif("Service effect: +20 Credits and Refit Kit added to backpack.", "good");
+      if (typeof showNotif === "function") showNotif("Service effect: +40 Credits, +1 Fuel Cell, and Refit Kit added.", "good");
       return true;
     }
 
@@ -1549,8 +1670,11 @@
     const hex = w.hexes.find(function (h) { return h.id === hexId; });
     if (!hex) return;
 
-    const evt = hex.narrative && hex.narrative.event ? hex.narrative.event : null;
-    if (!evt) return;
+    if (!hex.narrative) hex.narrative = randomNarrativeForHex(hex.zone);
+    if (!hex.narrative.event) {
+      hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, null));
+    }
+    const evt = hex.narrative.event;
 
     if (evt.mode === "combat") {
       if (typeof showNotif === "function") {
@@ -1573,9 +1697,11 @@
       addPowerRenown(zone ? zone.leader : MAJOR_POWERS[0], 1);
       addZoneReputation(hex.zone, 1);
       addWorldItem("dataDrives", 1);
+      setCredits(getCredits() + 50);
       grantRandomLoot("medium");
+      putLootInBackpack("Event Cache");
       if (typeof showNotif === "function") {
-        showNotif("Event success: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ".", "good");
+        showNotif("Event success: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ". Rewards: +50 Credits, loot, Event Cache.", "good");
       }
     } else if (typeof showNotif === "function") {
       showNotif("Event failed: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ".", "warn");
@@ -1634,6 +1760,24 @@
     updateZoneControl();
     syncWorldMarkers();
     if (registerWorldAction('encounter failure')) return;
+    renderWorldThatWas();
+  }
+
+  function completeCombatEncounterVictory(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.encounter || hex.encounter.mode !== "combat") return;
+    addZoneReputation(hex.zone, 2);
+    addWorldItem("scrap", 2);
+    setCredits(getCredits() + 80);
+    grantRandomLoot("medium");
+    putLootInBackpack("Skirmish Trophy");
+    hex.skirmish = false;
+    hex.encounter = null;
+    if (typeof showNotif === "function") showNotif("Encounter combat victory: +80 Credits, +2 Scrap, loot, and Skirmish Trophy.", "good");
+    advanceWorldTime("combat encounter victory");
+    updateZoneControl();
+    syncWorldMarkers();
+    if (registerWorldAction("encounter victory")) return;
     renderWorldThatWas();
   }
 
@@ -1744,8 +1888,34 @@
       } else if (ft.monsterTask && ft.status === "combat_pending" && typeof openModal === "function") {
         openModal("Monster Encounter Pending", "<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'><strong>" + (ft.title || "Wayfarer Task") + "</strong><br>" + (ft.monsterSummary || "Monster encounter") + "<br><br>After combat, choose outcome:<div style='margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick=\"if(window.factionSystem)window.factionSystem.finalizeMonsterTask('wtw','" + hexId + "',null,true);if(typeof closeModal==='function')closeModal();if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">Slayed Monsters</button><button class='btn btn-xs btn-red' onclick=\"if(window.factionSystem)window.factionSystem.finalizeMonsterTask('wtw','" + hexId + "',null,false);if(typeof closeModal==='function')closeModal();if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">Failed Encounter</button></div></div>");
       }
-    } else if (marker.type === "service" || marker.type === "wayfarer" || marker.type === "structure" || marker.type === "hazard" || marker.type === "peril" || marker.type === "barrier" || marker.type === "landing" || marker.type === "station" || marker.type === "story") {
-      if (typeof showNotif === "function") showNotif("Visit this district and use the panel actions for this marker.", "good");
+    } else if (marker.type === "service") {
+      const services = zoneServicesForHex(hex);
+      if (services.length) {
+        spendService(hex.id, 0);
+        if (typeof showNotif === "function") showNotif("Service marker resolved: used " + services[0].name + ".", "good");
+      }
+      delete w.markers[hexId];
+    } else if (marker.type === "wayfarer") {
+      talkToWayfarer(hexId);
+      delete w.markers[hexId];
+    } else if (marker.type === "structure") {
+      exploreStructure(hexId);
+      delete w.markers[hexId];
+    } else if (marker.type === "hazard" || marker.type === "peril" || marker.type === "barrier") {
+      resolveDistrictHazard(hexId);
+      delete w.markers[hexId];
+    } else if (marker.type === "landing") {
+      chooseLandingPad(hex.zone);
+      if (typeof showNotif === "function") showNotif("Landing marker reviewed: selected landing pad for " + hex.zone + ".", "good");
+      delete w.markers[hexId];
+    } else if (marker.type === "station") {
+      travelByTrainTo(hex.zone);
+      if (typeof showNotif === "function") showNotif("Station marker reviewed: railway route set to " + hex.zone + ".", "good");
+      delete w.markers[hexId];
+    } else if (marker.type === "story") {
+      if (typeof openStorylineTab === "function") openStorylineTab();
+      if (typeof showNotif === "function") showNotif("Story marker reviewed: opening Storyline.", "good");
+      delete w.markers[hexId];
     } else {
       const check = rollAgainstDread("adventure", 6);
       if (check.success) {
@@ -1914,6 +2084,9 @@
     const combatDread = seeded ? seeded.dd : fallbackDread;
     if (typeof setEnemyDread === "function") setEnemyDread(combatDread);
     if (typeof startCombat === "function") startCombat();
+    if (typeof renderEnemies === "function") renderEnemies();
+    const dreadDisplay = document.getElementById("enemyDreadDisplay");
+    if (dreadDisplay) dreadDisplay.textContent = "d" + combatDread;
     const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
     if (typeof switchTab === "function") switchTab("combat", btn || null);
     if (config && typeof showNotif === 'function') {
@@ -2358,7 +2531,7 @@
       ? "<button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='wtwResolveEncounterAs(\"success\")'>GM: Force Success</button><button class='btn btn-xs' style='border-color:var(--purple);color:var(--purple);' onclick='wtwResolveEncounterAs(\"failure\")'>GM: Force Failure</button>"
       : "";
     const encounterHtml = hex.encounter
-      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='wtwResolveEncounter()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEncounter(\"" + hex.id + "\")'>Failure</button>" : "") + gmEncounterControls + "</div></div>")
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + (hex.encounter.mode === "combat" ? (hex.encounter.enemies + " enemies (DD" + hex.encounter.dread + " | " + hex.encounter.enemyHealth + " HP each)") : (statLabel(hex.encounter.stat) + " vs DD" + hex.encounter.dread)) + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + (hex.encounter.mode === "combat" ? "<button class='btn btn-xs btn-red' onclick='wtwResolveEncounter()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEncounter(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEncounter(\"" + hex.id + "\")'>Failure</button>" : "") + gmEncounterControls + "</div></div>")
       : "<div class='wtw-muted'>No rolled encounter in this district.</div>";
 
     const servicesHtml = services.map(function (svc, idx) {
@@ -2476,11 +2649,32 @@
   function renderLandingPadControls() {
     const w = ensureWorldState();
     if (!w) return "";
-    const pads = w.hexes.filter(function (h) { return h.landingPad; });
-    if (!pads.length) return "<span style='font-size:.74rem;color:var(--muted2);'>No landing pads online.</span>";
-    return pads.map(function (hex) {
-      const on = w.selectedHexId === hex.id;
-      return "<button class='btn btn-xs " + (on ? "btn-teal" : "") + "' onclick='chooseWorldLandingPad(\"" + hex.zone + "\")'>" + hex.zone + (on ? " (Pad)" : "") + "</button>";
+    const selected = getSelectedHex();
+    const zoneName = (selected && selected.zone) || w.currentZone;
+    if (!zoneName) return "<span style='font-size:.74rem;color:var(--muted2);'>Select a zone to view landing controls.</span>";
+    const padHex = w.hexes.find(function (h) { return h.zone === zoneName && h.landingPad; });
+    if (!padHex) return "<span style='font-size:.74rem;color:var(--muted2);'>No landing pad in " + zoneName + ".</span>";
+    const on = w.selectedHexId === padHex.id;
+    return "<span style='font-size:.72rem;color:var(--muted2);margin-right:.35rem;'>Landing Hub:</span>"
+      + "<button class='btn btn-xs " + (on ? "btn-teal" : "") + "' onclick='chooseWorldLandingPad(\"" + zoneName + "\")'>" + zoneName + " (Show Here)</button>"
+      + "<button class='btn btn-xs btn-teal' onclick='wtwLaunchToSpace(\"" + padHex.id + "\")'>Launch</button>";
+  }
+
+  function renderWtwMarkerLegend() {
+    const entries = [
+      { key: "mission", label: "Mission" },
+      { key: "task", label: "Task" },
+      { key: "story", label: "Story" },
+      { key: "station", label: "Rail" },
+      { key: "landing", label: "Landing" },
+      { key: "service", label: "Service" },
+      { key: "wayfarer", label: "Wayfarer" },
+      { key: "hazard", label: "Hazard" },
+      { key: "job", label: "Contract" }
+    ];
+    return entries.map(function (entry) {
+      const style = WTW_MARKER_STYLE[entry.key] || { icon: "?", color: "#bbb" };
+      return "<span class='sea-chip' style='border-color:" + style.color + ";color:" + style.color + ";'>" + style.icon + " " + entry.label + "</span>";
     }).join(" ");
   }
 
@@ -2495,7 +2689,6 @@
     const activityEl = document.getElementById("wtwActivity");
     const mapModeBtn = document.getElementById("wtwMapModeBtn");
     const timeEl = document.getElementById("wtwTimeDisplay");
-    const invEl = document.getElementById("wtwInventoryReadout");
     if (tickEl) tickEl.textContent = "Cycle " + (w.tick || 0);
     if (zoneEl) zoneEl.textContent = w.currentZone || "Unknown";
     if (railEl) railEl.innerHTML = renderZoneRailControls();
@@ -2503,12 +2696,6 @@
     if (activityEl) activityEl.textContent = String(w.activityClicks || 0) + "/10";
     if (mapModeBtn) mapModeBtn.textContent = w.minimalMapMode ? "Map: Minimal" : "Map: Detailed";
     if (timeEl) timeEl.textContent = getWorldDateTimeText();
-    if (invEl && S && S.worldInventory) {
-      invEl.innerHTML = WORLD_ITEMS.map(function (k) {
-        return "<span class='sea-chip'>" + inventoryLabel(k) + ": " + (S.worldInventory[k] || 0) + "</span>";
-      }).join(" ");
-    }
-
     renderWorldThatWasMap();
     renderWorldThatWasInfo();
     renderPowerReadout();
@@ -2548,7 +2735,7 @@
       + "<div id='wtwRailControls' class='wtw-chip-wrap'></div>"
       + "<div id='wtwLandingControls' class='wtw-chip-wrap'></div>"
       + "<div class='wtw-strip'>"
-      + "<div class='wtw-strip-card'><div class='wtw-strip-title'>World Inventory</div><div id='wtwInventoryReadout' class='wtw-chip-wrap'></div></div>"
+      + "<div class='wtw-strip-card'><div class='wtw-strip-title'>World Marker Legend</div><div id='wtwLegendReadout' class='wtw-chip-wrap'>" + renderWtwMarkerLegend() + "</div></div>"
       + "<div class='wtw-strip-card'><div class='wtw-strip-title'>Power Balance</div><div id='wtwPowerReadout' class='wtw-chip-wrap'></div></div>"
       + "</div>"
       + "<div class='map-layout'>"
@@ -2657,6 +2844,7 @@
   window.wtwResolveEncounterAs = resolveDistrictEncounterAs;
   window.wtwWinCombatEvent = completeCombatEventVictory;
   window.wtwFailCombatEvent = completeCombatEventFailure;
+  window.wtwWinCombatEncounter = completeCombatEncounterVictory;
   window.wtwFailCombatEncounter = completeCombatEncounterFailure;
   window.wtwResolveHazard = resolveDistrictHazard;
   window.wtwTalkWayfarer = talkToWayfarer;

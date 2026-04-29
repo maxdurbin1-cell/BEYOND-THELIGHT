@@ -37,6 +37,11 @@
     syncConflictCount: 0,
     lastSyncConflicts: [],
     lastAuthoritativeAt: 0,
+    lastResyncRequester: "",
+    lastResyncRequestAt: 0,
+    lastAutoRebroadcastAt: 0,
+    lastAutoRebroadcastOk: null,
+    lastAutoRebroadcastError: "",
     localEconomyLedger: [],
     suppressEconomyLedgerAuto: false,
     applyingSharedState: false,
@@ -1060,6 +1065,15 @@
       : (state.syncHealth === "stale" ? "Pending" : (state.syncHealth === "online" ? "Synced" : "Offline"));
     var syncConflictText = state.syncConflictCount > 0 ? ("Guardrails " + state.syncConflictCount) : "";
     var authoritativeStamp = formatTimestamp(state.lastAuthoritativeAt) || formatTimestamp(state.lastSyncAt) || "-";
+    var gmResyncRequester = state.lastResyncRequester ? String(state.lastResyncRequester) : "-";
+    var gmResyncRequestAt = formatTimestamp(state.lastResyncRequestAt) || "-";
+    var gmAutoRebroadcastAt = formatTimestamp(state.lastAutoRebroadcastAt) || "-";
+    var gmAutoRebroadcastStatus = state.lastAutoRebroadcastOk === null
+      ? "No auto-rebroadcast yet"
+      : (state.lastAutoRebroadcastOk ? "Success" : "Failed");
+    var gmAutoRebroadcastDetail = state.lastAutoRebroadcastOk === false && state.lastAutoRebroadcastError
+      ? (" · " + String(state.lastAutoRebroadcastError))
+      : "";
     var partyStash = Array.isArray(sharedState.partyStash) ? sharedState.partyStash : [];
     var localBackpackSlots = Array.isArray(window.S && window.S.backpack)
       ? window.S.backpack.map(function (item, idx) {
@@ -1141,6 +1155,12 @@
         : "")
       + (isGm
         ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">GM Campaign Debug</div>'
+          + '<div class="campaign-muted">Last authoritative push: <strong style="color:var(--text2);">' + escapeHtml(authoritativeStamp) + '</strong></div>'
+          + '<div class="campaign-muted" style="margin-top:.2rem;">Last player resync request: <strong style="color:var(--text2);">' + escapeHtml(gmResyncRequester) + '</strong> @ <strong style="color:var(--text2);">' + escapeHtml(gmResyncRequestAt) + '</strong></div>'
+          + '<div class="campaign-muted" style="margin-top:.2rem;">Auto-rebroadcast: <strong style="color:' + (state.lastAutoRebroadcastOk === false ? 'var(--red2)' : 'var(--teal)') + ';">' + escapeHtml(gmAutoRebroadcastStatus) + '</strong> @ <strong style="color:var(--text2);">' + escapeHtml(gmAutoRebroadcastAt) + '</strong>' + escapeHtml(gmAutoRebroadcastDetail) + '</div>'
+          + '</div>'
           + '<div class="campaign-card">'
           + '<div class="campaign-card-title">GM Campaign Controls</div>'
           + '<div class="campaign-roll-grid">'
@@ -1460,11 +1480,23 @@
     state.socket.on("campaign:resyncRequested", function (payload) {
       if (state.role !== "gm" || !state.code || !state.connected) return;
       syncWindowStateAlias();
+      state.lastResyncRequester = payload && payload.requesterName ? String(payload.requesterName) : "Player";
+      state.lastResyncRequestAt = Number(payload && payload.requestedAt || Date.now()) || Date.now();
       syncSharedSilent("gm-authoritative-resync-request").then(function (res) {
-        if (!res || !res.ok) return;
+        state.lastAutoRebroadcastAt = Date.now();
+        state.lastAutoRebroadcastOk = !!(res && res.ok);
+        state.lastAutoRebroadcastError = (res && res.ok)
+          ? ""
+          : String((res && res.error) || "rebroadcast failed");
+        renderSettingsSection();
+        if (!res || !res.ok) {
+          safeNotif("Auto-rebroadcast failed: " + state.lastAutoRebroadcastError + ".", "warn");
+          return;
+        }
         var requester = payload && payload.requesterName ? String(payload.requesterName) : "Player";
         safeNotif("Authoritative resync sent for " + requester + ".", "good");
       }).catch(function () {});
+      renderSettingsSection();
     });
 
     state.socket.on("campaign:notice", function (payload) {
@@ -1777,6 +1809,12 @@
     }
     if (!guardAction("forceAuthoritativeResync", "Only connected GM can broadcast authoritative state.")) return;
     var res = await syncSharedSilent("gm-authoritative-broadcast");
+    state.lastAutoRebroadcastAt = Date.now();
+    state.lastAutoRebroadcastOk = !!(res && res.ok);
+    state.lastAutoRebroadcastError = (res && res.ok)
+      ? ""
+      : String((res && res.error) || "broadcast failed");
+    renderSettingsSection();
     if (!res || !res.ok) {
       safeNotif((res && res.error) || "Broadcast sync failed.", "warn");
       return;

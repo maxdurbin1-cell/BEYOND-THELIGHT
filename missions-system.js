@@ -310,19 +310,38 @@
   function assignMissionToken(mission) {
     ensureState();
     if (mission.region === 'wtw' && S.worldThatWas && Array.isArray(S.worldThatWas.hexes) && S.worldThatWas.hexes.length) {
-      var targetHex = null;
-      if (mission.wtwHexId) {
-        targetHex = S.worldThatWas.hexes.find(function(hex) { return hex && String(hex.id) === String(mission.wtwHexId); }) || null;
+      var pool = S.worldThatWas.hexes.slice();
+      var byId = function(id) {
+        return S.worldThatWas.hexes.find(function(hex) { return hex && String(hex.id) === String(id); }) || null;
+      };
+      var takeRandom = function(excludeId) {
+        var candidates = pool.filter(function(hex) {
+          return hex && String(hex.id) !== String(excludeId || '');
+        });
+        if (!candidates.length) return null;
+        return candidates[Math.floor(Math.random() * candidates.length)] || null;
+      };
+
+      var informerHex = byId(mission.wtwInformerHexId);
+      var siteHex = byId(mission.wtwSiteHexId || mission.wtwHexId);
+
+      if (!siteHex) siteHex = takeRandom('');
+      if (!informerHex) informerHex = takeRandom(siteHex ? siteHex.id : '');
+      if (!informerHex) informerHex = siteHex;
+
+      if (siteHex) {
+        mission.wtwSiteHexId = siteHex.id;
+        mission.wtwHexId = siteHex.id;
+        mission.wtwZone = siteHex.zone || mission.wtwZone || '';
+        mission.wtwDistrict = siteHex.district || mission.wtwDistrict || '';
       }
-      if (!targetHex) {
-        targetHex = S.worldThatWas.hexes[Math.floor(Math.random() * S.worldThatWas.hexes.length)] || null;
+      if (informerHex) {
+        mission.wtwInformerHexId = informerHex.id;
       }
-      if (targetHex) {
-        mission.wtwHexId = targetHex.id;
-        mission.wtwZone = targetHex.zone || mission.wtwZone || '';
-        mission.wtwDistrict = targetHex.district || mission.wtwDistrict || '';
-      }
-      if (typeof renderWorldThatWas === 'function') {
+
+      if (typeof window.wtwSyncMarkers === 'function') {
+        try { window.wtwSyncMarkers(); } catch (err) {}
+      } else if (typeof renderWorldThatWas === 'function') {
         try { renderWorldThatWas(); } catch (err) {}
       }
       return;
@@ -401,6 +420,17 @@
 
   function removeMissionToken(mission) {
     if (!mission) return;
+    if (mission.region === 'wtw') {
+      mission.wtwInformerHexId = null;
+      mission.wtwSiteHexId = null;
+      mission.wtwHexId = null;
+      if (typeof window.wtwSyncMarkers === 'function') {
+        try { window.wtwSyncMarkers(); } catch (err) {}
+      } else if (typeof renderWorldThatWas === 'function') {
+        try { renderWorldThatWas(); } catch (err) {}
+      }
+      return;
+    }
     if (mission.region === 'sea' && S.lastSea && S.lastSea.missionTokens) {
       if (mission.seaInformerKey) { delete S.lastSea.missionTokens[mission.seaInformerKey]; }
       if (mission.seaSiteKey) { delete S.lastSea.missionTokens[mission.seaSiteKey]; }
@@ -438,6 +468,15 @@
   }
 
   function removeInformerToken(mission) {
+    if (mission && mission.region === 'wtw') {
+      mission.wtwInformerHexId = null;
+      if (typeof window.wtwSyncMarkers === 'function') {
+        try { window.wtwSyncMarkers(); } catch (err) {}
+      } else if (typeof renderWorldThatWas === 'function') {
+        try { renderWorldThatWas(); } catch (err) {}
+      }
+      return;
+    }
     if (mission && mission.region === 'galaxy' && mission.galaxyInformerTaskId && S.starSystem && Array.isArray(S.starSystem.taskMarkers)) {
       S.starSystem.taskMarkers.forEach(function(task) {
         if (task.id === mission.galaxyInformerTaskId) {
@@ -534,6 +573,8 @@
       siteRoll:null, rooms:generateRoomObjects(difficulty), guards:generateGuards(diff.dread),
       target:pick(TARGET_NAMES), loot:[],  mapHex:null,
       wtwHexId: opts.wtwHexId || null,
+      wtwInformerHexId: opts.wtwInformerHexId || null,
+      wtwSiteHexId: opts.wtwSiteHexId || null,
       wtwZone: opts.wtwZone || '',
       wtwDistrict: opts.wtwDistrict || '',
       missionType: opts.missionType || 'standard',

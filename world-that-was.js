@@ -1118,17 +1118,33 @@
     }
 
     (S.activeMissions || []).slice(0, 8).forEach(function (m) {
-      let hex = null;
-      if (m && m.region === "wtw" && m.wtwHexId) {
-        hex = hexById(m.wtwHexId) || null;
-      }
-      if (!hex) hex = takeHex();
-      if (!hex) return;
-      var steps = m && Array.isArray(m.steps) ? m.steps : [];
+      if (!m || m.region !== "wtw") return;
+
+      var steps = Array.isArray(m.steps) ? m.steps : [];
       var informerDone = !!(steps[1] && steps[1].completed);
-      var markerType = informerDone ? "mission_site" : "mission_informer";
-      var subtitle = informerDone ? "Mission site objective active" : "Find informer and gather intel";
-      setMarker(w, hex, markerType, m.title || "Mission", subtitle);
+
+      var siteHex = m.wtwSiteHexId ? (hexById(m.wtwSiteHexId) || null) : null;
+      if (!siteHex && m.wtwHexId) siteHex = hexById(m.wtwHexId) || null;
+      if (!siteHex) {
+        siteHex = takeHex();
+        if (siteHex) {
+          m.wtwSiteHexId = siteHex.id;
+          m.wtwHexId = siteHex.id;
+        }
+      }
+
+      var informerHex = m.wtwInformerHexId ? (hexById(m.wtwInformerHexId) || null) : null;
+      if (!informerHex && !informerDone) {
+        informerHex = takeHex() || siteHex;
+        if (informerHex) m.wtwInformerHexId = informerHex.id;
+      }
+
+      if (siteHex) {
+        setMarker(w, siteHex, "mission_site", m.title || "Mission", "Mission site objective active");
+      }
+      if (!informerDone && informerHex) {
+        setMarker(w, informerHex, "mission_informer", m.title || "Mission", "Find informer and gather intel");
+      }
     });
 
     w.activeTasks.slice(0, 8).forEach(function (t) {

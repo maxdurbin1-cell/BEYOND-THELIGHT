@@ -6994,45 +6994,56 @@ document.addEventListener('DOMContentLoaded',()=>{
     var renown = Number(shared.renown != null ? shared.renown : (S.renown || 0));
     var credits = Number(shared.credits != null ? shared.credits : (S.credits || 0));
     var tmw = (snap.campaign && snap.campaign.shared) ? Number(snap.campaign.shared.tmw || 0) : Number(S.tmw || 0);
+    var compactCard = 'background:var(--surface);border:1px solid var(--border2);padding:.34rem .42rem;margin-bottom:.32rem;';
+    var compactHead = 'font-family:Cinzel,serif;font-size:.52rem;letter-spacing:.09em;text-transform:uppercase;line-height:1.15;';
+    var compactMeta = 'font-size:.68rem;color:var(--muted2);line-height:1.28;margin-top:.12rem;';
 
     if (!isConnected) {
       return ''
-        + '<div style="font-family:Cinzel,serif;font-size:.62rem;letter-spacing:.11em;color:var(--gold);text-transform:uppercase;margin-bottom:.35rem;">Campaign</div>'
-        + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.5;">Join a campaign in Settings to unlock shared controls and synced mission/renown visibility.</div>';
+        + '<div style="font-family:Cinzel,serif;font-size:.58rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.25rem;">Campaign</div>'
+        + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.35;">Join a campaign in Settings to unlock shared controls and synced mission/renown visibility.</div>';
     }
 
     var sharedSummary = ''
-      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .55rem;margin-bottom:.5rem;">'
-      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;">Shared Snapshot</div>'
-      + '<div style="font-size:.74rem;color:var(--text2);margin-top:.15rem;">Code <strong>' + String(snap.code || '-') + '</strong> · Role <strong>' + (isGm ? 'GM' : 'Player') + '</strong> · GM Mode <strong>' + mode + '</strong></div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">Renown <strong style="color:var(--gold2);">' + renown + '</strong> · Credits <strong style="color:var(--gold2);">' + credits + '₵</strong> · TMW <strong style="color:var(--teal);">' + tmw + '</strong></div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Jobs <strong>' + availableJobs + '</strong> · Active <strong>' + activeMissions + '</strong> · Completed <strong>' + completedMissions + '</strong></div>'
+      + '<div style="' + compactCard + '">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
+      + '<div style="' + compactHead + 'color:var(--gold);">Shared Snapshot</div>'
+      + '<div style="font-size:.62rem;color:var(--muted2);">' + (isGm ? 'GM' : 'Player') + '</div>'
+      + '</div>'
+      + '<div style="font-size:.7rem;color:var(--text2);margin-top:.12rem;line-height:1.25;">Code <strong>' + String(snap.code || '-') + '</strong> · Mode <strong>' + mode + '</strong></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.2rem;margin-top:.14rem;">'
+      + '<div style="font-size:.64rem;color:var(--muted2);">Renown<br><strong style="font-size:.8rem;color:var(--gold2);">' + renown + '</strong></div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);">Credits<br><strong style="font-size:.8rem;color:var(--gold2);">' + credits + '₵</strong></div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);">TMW<br><strong style="font-size:.8rem;color:var(--teal);">' + tmw + '</strong></div>'
+      + '</div>'
+      + '<div style="' + compactMeta + '">Jobs <strong>' + availableJobs + '</strong> · Active <strong>' + activeMissions + '</strong> · Completed <strong>' + completedMissions + '</strong></div>'
       + '</div>';
 
     var playerTools = ''
-      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .55rem;margin-bottom:.45rem;">'
-      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;">Player Utility</div>'
-      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.22rem;">'
-      + '<button class="btn btn-xs" onclick="qpCampaignAction(\'resync\')">Request Resync</button>'
-      + '<button class="btn btn-xs" onclick="switchQP(\'missions\',document.querySelector(\'.qp-tab[onclick*=\\\"missions\\\"]\'))">Open Missions</button>'
-      + '<button class="btn btn-xs" onclick="switchQP(\'notes\',document.querySelector(\'.qp-tab[onclick*=\\\"notes\\\"]\'))">Open Notes</button>'
+      + '<div style="' + compactCard + '">'
+      + '<div style="' + compactHead + 'color:var(--teal);">Player Utility</div>'
+      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;margin-top:.18rem;align-items:center;">'
+      + '<button class="btn btn-xs" style="padding:.16rem .34rem;font-size:.6rem;" onclick="qpCampaignAction(\'resync\')">Resync</button>'
+      + '<button class="btn btn-xs" style="padding:.16rem .28rem;min-width:1.7rem;" title="Open Missions" aria-label="Open Missions" onclick="switchQP(\'missions\',document.querySelector(\'.qp-tab[onclick*=\\\"missions\\\"]\'))">🗺</button>'
+      + '<button class="btn btn-xs" style="padding:.16rem .28rem;min-width:1.7rem;" title="Open Notes" aria-label="Open Notes" onclick="switchQP(\'notes\',document.querySelector(\'.qp-tab[onclick*=\\\"notes\\\"]\'))">📝</button>'
       + '</div>'
       + '</div>';
 
     var gmTools = isGm
       ? ''
-        + '<div style="background:var(--surface);border:1px solid rgba(201,162,39,.45);padding:.45rem .55rem;">'
-        + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;">GM Controls</div>'
-        + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.22rem;">'
-        + '<button class="btn btn-xs btn-teal" onclick="qpCampaignAction(\'sync\')">Sync Shared</button>'
-        + '<button class="btn btn-xs" onclick="qpCampaignAction(\'force\')">Force Rebroadcast</button>'
-        + '<button class="btn btn-xs" onclick="qpCampaignAction(\'nextTurn\')">Next Turn</button>'
-        + '<button class="btn btn-xs" onclick="qpCampaignAction(\'advanceTime\')">+1 Phase</button>'
+        + '<div style="' + compactCard + 'border-color:rgba(201,162,39,.45);">'
+        + '<div style="' + compactHead + 'color:var(--gold2);">GM Controls</div>'
+        + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;margin-top:.18rem;align-items:center;">'
+        + '<button class="btn btn-xs btn-teal" style="padding:.16rem .34rem;font-size:.6rem;" onclick="qpCampaignAction(\'sync\')">Sync</button>'
+        + '<button class="btn btn-xs" style="padding:.16rem .28rem;min-width:1.7rem;" title="Force Rebroadcast" aria-label="Force Rebroadcast" onclick="qpCampaignAction(\'force\')">📡</button>'
+        + '<button class="btn btn-xs" style="padding:.16rem .28rem;min-width:1.7rem;" title="Next Combat Turn" aria-label="Next Combat Turn" onclick="qpCampaignAction(\'nextTurn\')">⏭</button>'
+        + '<button class="btn btn-xs" style="padding:.16rem .28rem;min-width:1.7rem;" title="Advance +1 Phase" aria-label="Advance +1 Phase" onclick="qpCampaignAction(\'advanceTime\')">⏱</button>'
         + '</div>'
-        + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.22rem;">'
-        + '<button class="btn btn-xs' + (mode==='passive' ? ' btn-teal' : '') + '" onclick="qpCampaignAction(\'mode\',\'passive\')">Passive</button>'
-        + '<button class="btn btn-xs' + (mode==='active' ? ' btn-teal' : '') + '" onclick="qpCampaignAction(\'mode\',\'active\')">Active</button>'
-        + '<button class="btn btn-xs' + (mode==='facilitative' ? ' btn-teal' : '') + '" onclick="qpCampaignAction(\'mode\',\'facilitative\')">Facilitative</button>'
+        + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.16rem;">'
+        + '<button class="btn btn-xs' + (mode==='passive' ? ' btn-teal' : '') + '" style="padding:.14rem .28rem;font-size:.58rem;" onclick="qpCampaignAction(\'mode\',\'passive\')">P</button>'
+        + '<button class="btn btn-xs' + (mode==='active' ? ' btn-teal' : '') + '" style="padding:.14rem .28rem;font-size:.58rem;" onclick="qpCampaignAction(\'mode\',\'active\')">A</button>'
+        + '<button class="btn btn-xs' + (mode==='facilitative' ? ' btn-teal' : '') + '" style="padding:.14rem .28rem;font-size:.58rem;" onclick="qpCampaignAction(\'mode\',\'facilitative\')">F</button>'
+        + '<span style="font-size:.62rem;color:var(--muted2);align-self:center;padding-left:.1rem;">Mode</span>'
         + '</div>'
         + '</div>'
       : '';

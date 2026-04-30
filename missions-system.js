@@ -137,6 +137,39 @@
   var TARGET_NAMES = ['Lord Kastian','The Grey Merchant','Warden Cress','Elder Vorn','Captain Halved','The Iron Buyer','Countess Daela','Agent Zero','Baron Fell','Treasurer Olin','The Pale Architect','Commander Dusk'];
   var ROOM_TYPES = ['Empty corridor','Guard post (2 sentries)','Storage room','Locked vault','Watch room','Hidden passage','Armory','Workshop','Meeting hall','Supply depot','Infirmary','Command room','Trophy room','Server alcove','Sewage passage','Old chapel'];
 
+  var DEITY_PACT_PATHWAYS = {
+    mercy: {
+      id: 'mercy',
+      label: 'Mercy Tithe',
+      opening: 'Spare what can be spared and pay your debt in service, not blood.',
+      stages: [
+        { title: 'Tithe of Ash Bread', location: 'Pilgrim Road Shrine', difficulty: 'medium', rewardFavor: 2, failDebt: 2, debtEase: 1 },
+        { title: 'Candle Court Arbitration', location: 'Shuttered Temple Court', difficulty: 'hard', rewardFavor: 2, failDebt: 2, debtEase: 1 },
+        { title: 'Release the Bound Procession', location: 'Flooded Reliquary Steps', difficulty: 'challenging', rewardFavor: 3, failDebt: 3, debtEase: 1 }
+      ]
+    },
+    dominion: {
+      id: 'dominion',
+      label: 'Dominion Oath',
+      opening: 'Rule through fear, collect what is owed, and make the city kneel.',
+      stages: [
+        { title: 'Collect the Brass Tithe', location: 'Debt-keeper Barricade', difficulty: 'hard', rewardFavor: 2, failDebt: 3, debtEase: 0 },
+        { title: 'Silence the Heretic Choir', location: 'Split Bell Chapel', difficulty: 'challenging', rewardFavor: 3, failDebt: 3, debtEase: 0 },
+        { title: 'Seat the Patron in Iron', location: 'Burned Registry Hall', difficulty: 'very_hard', rewardFavor: 3, failDebt: 4, debtEase: 0 }
+      ]
+    },
+    veil: {
+      id: 'veil',
+      label: 'Veil Covenant',
+      opening: 'Keep the pact hidden. Truth is leverage, not confession.',
+      stages: [
+        { title: 'Whisper Ledger Recovery', location: 'Midnight Archive Cellar', difficulty: 'medium', rewardFavor: 2, failDebt: 2, debtEase: 0 },
+        { title: 'Break the Witness Chain', location: 'Glass Market Catacombs', difficulty: 'hard', rewardFavor: 2, failDebt: 3, debtEase: 0 },
+        { title: 'Erase the Patron Record', location: 'Submerged Court Vault', difficulty: 'very_hard', rewardFavor: 4, failDebt: 4, debtEase: 0 }
+      ]
+    }
+  };
+
   function ensureState() {
     if (typeof S === 'undefined') return;
     S.activeMissions    = S.activeMissions    || [];
@@ -144,6 +177,18 @@
     S.missionTokens     = S.missionTokens     || {};
     S.availableJobs     = S.availableJobs     || [];
     if (S.lastSea && !S.lastSea.missionTokens) { S.lastSea.missionTokens = {}; }
+    S.deityPact = S.deityPact || {
+      activePathway: '',
+      stageCompleted: 0,
+      favor: 0,
+      debt: 0,
+      failedStages: 0,
+      endingKey: '',
+      endingApplied: false,
+      endingText: '',
+      history: []
+    };
+    if (!Array.isArray(S.deityPact.history)) { S.deityPact.history = []; }
 
     // Backfill older mission objects so resolve buttons work for legacy saves.
     S.activeMissions.forEach(function(m) {
@@ -168,6 +213,183 @@
       }
       if (typeof m.bonus !== 'number') { m.bonus = 0; }
     });
+  }
+
+  function hasDeityPactFlavor() {
+    var flavor = String((S && S.flavor) || '').toLowerCase();
+    return flavor.indexOf('deity pact') >= 0 || flavor.indexOf('holy') >= 0 || flavor.indexOf('infernal') >= 0;
+  }
+
+  function ensureDeityPactState() {
+    ensureState();
+    S.deityPact = S.deityPact || {};
+    if (typeof S.deityPact.activePathway !== 'string') { S.deityPact.activePathway = ''; }
+    if (typeof S.deityPact.stageCompleted !== 'number') { S.deityPact.stageCompleted = 0; }
+    if (typeof S.deityPact.favor !== 'number') { S.deityPact.favor = 0; }
+    if (typeof S.deityPact.debt !== 'number') { S.deityPact.debt = 0; }
+    if (typeof S.deityPact.failedStages !== 'number') { S.deityPact.failedStages = 0; }
+    if (typeof S.deityPact.endingKey !== 'string') { S.deityPact.endingKey = ''; }
+    if (typeof S.deityPact.endingText !== 'string') { S.deityPact.endingText = ''; }
+    if (typeof S.deityPact.endingApplied !== 'boolean') { S.deityPact.endingApplied = false; }
+    if (!Array.isArray(S.deityPact.history)) { S.deityPact.history = []; }
+    return S.deityPact;
+  }
+
+  function getDeityPathway(id) {
+    var key = String(id || '').toLowerCase();
+    return DEITY_PACT_PATHWAYS[key] || DEITY_PACT_PATHWAYS.mercy;
+  }
+
+  function hasActiveDeityMission() {
+    return (S.activeMissions || []).some(function(m) { return m && m.missionType === 'deity_pact'; });
+  }
+
+  function pickDeityPathwayByState(pact) {
+    if (pact.activePathway && DEITY_PACT_PATHWAYS[pact.activePathway]) return pact.activePathway;
+    if ((pact.debt || 0) >= 5 && (pact.favor || 0) <= 4) return 'veil';
+    if ((pact.favor || 0) >= 5 && (pact.debt || 0) <= 3) return 'mercy';
+    return 'dominion';
+  }
+
+  function createDeityPactMission(pathwayId) {
+    if (!hasDeityPactFlavor()) {
+      if (typeof showNotif === 'function') showNotif('You need the Deity Pact flavor to begin pact contracts.', 'warn');
+      return null;
+    }
+    ensureState();
+    var pact = ensureDeityPactState();
+    if (pact.endingKey) {
+      if (typeof showNotif === 'function') showNotif('Your deity pact arc already reached an ending: ' + pact.endingKey + '.', 'info');
+      return null;
+    }
+    if (hasActiveDeityMission()) {
+      if (typeof showNotif === 'function') showNotif('A deity pact contract is already active.', 'warn');
+      return null;
+    }
+
+    var chosenPath = String(pathwayId || pickDeityPathwayByState(pact)).toLowerCase();
+    var pathway = getDeityPathway(chosenPath);
+    pact.activePathway = pathway.id;
+
+    var stageIndex = Math.max(0, Math.min(pathway.stages.length - 1, Number(pact.stageCompleted || 0)));
+    var stage = pathway.stages[stageIndex];
+    var missionTitle = pathway.label + ': ' + stage.title;
+    var opts = {
+      missionType: 'deity_pact',
+      storyTheme: 'deity_pact',
+      noFactionDelta: true,
+      stepNames: {
+        1: 'Read the Omen',
+        2: 'Perform the Rite',
+        3: 'Deliver the Oath'
+      },
+      checkpoints: [
+        'Interpret the patron sign in hostile territory',
+        'Carry out the rite at ' + stage.location,
+        'Return with proof before dawn witnesses'
+      ],
+      step1Intro: pathway.opening,
+      deityPact: {
+        pathway: pathway.id,
+        stageNumber: stageIndex + 1,
+        rewardFavor: Number(stage.rewardFavor || 0),
+        failDebt: Number(stage.failDebt || 0),
+        debtEase: Number(stage.debtEase || 0)
+      }
+    };
+
+    var mission = createMission('Patron Voice', missionTitle, stage.difficulty, stage.location, 'province', {
+      gain: 'religious',
+      lose: 'underworld',
+      gainName: 'Sacred Choir',
+      loseName: 'Underworld'
+    }, opts);
+    if (!mission) return null;
+    if (typeof showNotif === 'function') showNotif('Deity pact contract accepted: ' + missionTitle, 'good');
+    return mission;
+  }
+
+  function applyDeityPactEnding(pact) {
+    if (!pact || pact.endingApplied || !pact.endingKey) return;
+    var key = pact.endingKey;
+    var txt = '';
+    if (key === 'lantern_herald') {
+      S.renown = (S.renown || 0) + 2;
+      S.credits = (S.credits || 0) + 220;
+      if (typeof changeFactionRenown === 'function') {
+        changeFactionRenown('religious', 2);
+      }
+      txt = 'Ending: Lantern Herald. Your pact matures into public authority. +2 Renown, +220₵, Sacred Choir +2.';
+    } else if (key === 'chain_bound') {
+      S.renown = Math.max(0, (S.renown || 0) - 2);
+      if (typeof changeCounter === 'function') { changeCounter('tmw', 2); }
+      if (typeof changeFactionRenown === 'function') { changeFactionRenown('underworld', 1); }
+      txt = 'Ending: Chain-Bound Collector. Debt eclipses favor. -2 Renown, +2 Teamwork, Underworld +1.';
+    } else if (key === 'oathbreaker') {
+      S.renown = Math.max(0, (S.renown || 0) - 1);
+      S.credits = Math.max(0, (S.credits || 0) - 120);
+      if (typeof changeFactionRenown === 'function') { changeFactionRenown('religious', -2); }
+      txt = 'Ending: Oathbreaker Exile. Your patron marks you faithless. -1 Renown, -120₵, Sacred Choir -2.';
+    }
+    if (typeof updateRenown === 'function') { try { updateRenown(); } catch (err) {} }
+    if (typeof updateCreditsUI === 'function') { try { updateCreditsUI(); } catch (err) {} }
+    pact.endingText = txt;
+    pact.endingApplied = true;
+
+    if (S.storyline && typeof S.storyline === 'object') {
+      S.storyline.flags = S.storyline.flags || {};
+      S.storyline.flags.deityPactEnding = key;
+      S.storyline.flags.deityPactFavor = pact.favor;
+      S.storyline.flags.deityPactDebt = pact.debt;
+      if (S.storyline.storyMemory && S.storyline.storyMemory.tags) {
+        S.storyline.storyMemory.tags['tag:deity_pact_' + key] = (S.storyline.storyMemory.tags['tag:deity_pact_' + key] || 0) + 1;
+      }
+    }
+
+    if (typeof showNotif === 'function') showNotif(txt, key === 'lantern_herald' ? 'good' : 'warn');
+    if (typeof openModal === 'function') {
+      openModal('Deity Pact Consequence', '<div style="font-size:.9rem;color:var(--text2);line-height:1.6;">'+txt+'</div>');
+    }
+  }
+
+  function evaluateDeityPactEnding(pact) {
+    if (!pact || pact.endingKey) return;
+    var complete = Number(pact.stageCompleted || 0);
+    if (complete < 3) return;
+    if ((pact.favor || 0) >= 8 && (pact.debt || 0) <= 3) pact.endingKey = 'lantern_herald';
+    else if ((pact.debt || 0) >= 8) pact.endingKey = 'chain_bound';
+    else pact.endingKey = 'oathbreaker';
+    applyDeityPactEnding(pact);
+  }
+
+  function onDeityPactMissionResolved(mission, success) {
+    if (!mission || mission.missionType !== 'deity_pact' || !mission.deityPact) return;
+    var pact = ensureDeityPactState();
+    var data = mission.deityPact;
+    var wasComplete = Number(pact.stageCompleted || 0);
+    if (success) {
+      pact.stageCompleted = Math.max(wasComplete, Number(data.stageNumber || 1));
+      pact.favor = Number(pact.favor || 0) + Number(data.rewardFavor || 1);
+      if (data.debtEase) pact.debt = Math.max(0, Number(pact.debt || 0) - Number(data.debtEase || 0));
+      if (typeof changeFactionRenown === 'function') { changeFactionRenown('religious', 1); }
+    } else {
+      pact.failedStages = Number(pact.failedStages || 0) + 1;
+      pact.debt = Number(pact.debt || 0) + Number(data.failDebt || 2);
+      pact.favor = Math.max(0, Number(pact.favor || 0) - 1);
+      if (typeof changeFactionRenown === 'function') { changeFactionRenown('religious', -1); }
+    }
+    pact.history.push({
+      missionId: mission.id,
+      title: mission.title,
+      stage: Number(data.stageNumber || 1),
+      pathway: data.pathway || '',
+      success: !!success,
+      favor: pact.favor,
+      debt: pact.debt,
+      at: new Date().toISOString()
+    });
+    if (pact.history.length > 20) pact.history.shift();
+    evaluateDeityPactEnding(pact);
   }
 
   function chooseOriginRegion() {
@@ -588,6 +810,7 @@
       checkpoints: Array.isArray(opts.checkpoints) ? opts.checkpoints.slice() : [],
       step1Intro: opts.step1Intro || '',
       noFactionDelta: !!opts.noFactionDelta,
+      deityPact: opts.deityPact || null,
       steps:{
         1:{name:stepNames[1] || 'Gather Information',required:false,completed:false,skipped:false},
         2:{name:stepNames[2] || 'Go to Site',        required:true, completed:false},
@@ -1268,6 +1491,7 @@
     if (typeof window !== 'undefined' && window.factionSystem && typeof window.factionSystem.onMissionResolved === 'function') {
       try { window.factionSystem.onMissionResolved(mission, success); } catch (err) {}
     }
+    onDeityPactMissionResolved(mission, success);
   }
 
   function resolveMissionOutcome(missionId, success) {
@@ -1362,11 +1586,27 @@
     if (typeof window.getHoldingQuestTrackerCardHtml === 'function') {
       holdingTrackerHtml = window.getHoldingQuestTrackerCardHtml() || '';
     }
-    if (!S.activeMissions.length && !holdingTrackerHtml) {
+    var pact = ensureDeityPactState();
+    var showPactCard = hasDeityPactFlavor() || pact.stageCompleted > 0 || pact.debt > 0 || pact.favor > 0 || !!pact.endingKey;
+    var pactCardHtml = '';
+    if (showPactCard) {
+      var pathway = getDeityPathway(pact.activePathway || 'mercy');
+      var tone = pact.endingKey === 'lantern_herald' ? 'var(--green2)' : (pact.endingKey ? 'var(--red2)' : 'var(--gold2)');
+      var status = pact.endingKey
+        ? ('Ending sealed: ' + pact.endingKey.replace(/_/g, ' '))
+        : ('Path: ' + pathway.label + ' · Stage ' + (Math.min(3, Number(pact.stageCompleted || 0) + 1)) + '/3');
+      pactCardHtml = '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid '+tone+';padding:.55rem .6rem;margin-bottom:.5rem;">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:'+tone+';margin-bottom:.15rem;">Deity Pact Arc</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.15rem;">'+status+'</div>'
+        + '<div style="font-size:.72rem;color:var(--text2);">Favor: <strong style="color:var(--teal);">'+(pact.favor||0)+'</strong> · Debt: <strong style="color:var(--red2);">'+(pact.debt||0)+'</strong> · Failures: '+(pact.failedStages||0)+'</div>'
+        + (pact.endingText ? '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;line-height:1.45;">'+pact.endingText+'</div>' : '')
+      + '</div>';
+    }
+    if (!S.activeMissions.length && !holdingTrackerHtml && !pactCardHtml) {
       container.innerHTML='<div style="font-size:.83rem;color:var(--muted2);padding:.3rem 0;">No active missions. Accept a mission from the board above.</div>';
       return;
     }
-    container.innerHTML=holdingTrackerHtml + S.activeMissions.map(function(mission){
+    container.innerHTML=holdingTrackerHtml + pactCardHtml + S.activeMissions.map(function(mission){
       ensureMissionDeadline(mission);
       var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);
       var daysLeft = getMissionDaysRemaining(mission);
@@ -1546,6 +1786,7 @@
   window.autoFailExpiredMissions=autoFailExpiredMissions;
   window.adjustMissionDread=adjustMissionDread;
   window.createOriginMissionFromReason=createOriginMissionFromReason;
+  window.createDeityPactMission=createDeityPactMission;
   window.completeMissionStep=function(missionId,stepId){
     if(stepId===1) completeMissionInfoStep(missionId,true,JSON.stringify(rollInfoFeature()));
     else if(stepId===2) completeMissionSiteStep(missionId);

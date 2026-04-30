@@ -8386,6 +8386,19 @@ document.addEventListener('DOMContentLoaded',()=>{
     const flavor=String(S.flavor||'').toLowerCase();
     const missions = ['Deliver a Message', 'Guard a Caravan', 'Investigate a Lead', 'Retrieve an Item', 'Scout Ahead', 'Gather Information'];
     if(flavor.indexOf('deity pact')>=0||flavor.indexOf('holy')>=0||flavor.indexOf('infernal')>=0){
+      if(typeof createDeityPactMission==='function' && typeof openModal==='function'){
+        openModal('Wayfarer Oath Broker',
+          '<div style="font-size:.86rem;color:var(--text2);line-height:1.55;">'
+            +'A hooded broker offers three covenant routes. Each route advances your deity pact arc and can permanently alter your ending trajectory.'
+            +'<div style="margin-top:.5rem;display:grid;gap:.3rem;">'
+              +'<button class="btn btn-sm btn-teal" onclick="createDeityPactMission(\'mercy\');closeModal();">Mercy Tithe — protect pilgrims and settle blood debt</button>'
+              +'<button class="btn btn-sm btn-primary" onclick="createDeityPactMission(\'dominion\');closeModal();">Dominion Oath — enforce fear and collect vows</button>'
+              +'<button class="btn btn-sm" onclick="createDeityPactMission(\'veil\');closeModal();">Veil Covenant — silence witnesses and erase records</button>'
+            +'</div>'
+          +'</div>'
+        );
+        return;
+      }
       missions.push('Patron Debt — Recover the Oath Relic');
     }
     if(flavor.indexOf('mule')>=0){

@@ -599,6 +599,63 @@
     return false;
   }
 
+  function isWtwNightModeActive() {
+    if (typeof window.isEncounterNightModeActive === 'function') return !!window.isEncounterNightModeActive();
+    return !!(typeof S !== 'undefined' && S && S.nightMode);
+  }
+
+  function buildWtwNightModeBonus() {
+    const mode = safePick(['intel', 'cache', 'renown'], 'intel');
+    if (mode === 'cache') {
+      const item = drawServiceMerchantItem(['items', 'toolkits', 'tradegoods', 'remedies']);
+      return {
+        title: 'Night Cache',
+        text: 'A hidden rooftop cache activates under blackout sirens.',
+        rewards: { item: item, credits: 20 }
+      };
+    }
+    if (mode === 'renown') {
+      return {
+        title: 'Shadow Contact',
+        text: 'A district contact leaks patrol routes in exchange for future favor.',
+        rewards: { renown: 1, tmw: 1 }
+      };
+    }
+    return {
+      title: 'Midnight Signal',
+      text: 'Encrypted tower lights reveal a short-lived infiltration lane.',
+      rewards: { tmw: 1, credits: 30 }
+    };
+  }
+
+  function applyWtwNightModeBonusRewards(encounter, contextLabel) {
+    const bonus = encounter && encounter.nightModeBonus ? encounter.nightModeBonus : null;
+    if (!bonus || !bonus.rewards) return '';
+    const rewards = bonus.rewards;
+    const notes = [];
+    if (rewards.credits) {
+      setCredits(getCredits() + Number(rewards.credits || 0));
+      notes.push('+' + Number(rewards.credits || 0) + ' Credits');
+    }
+    if (rewards.renown) {
+      addZoneReputation((encounter && encounter.zoneName) || (getSelectedHex() && getSelectedHex().zone) || 'Cyber Hub', Number(rewards.renown || 0));
+      notes.push('+' + Number(rewards.renown || 0) + ' Zone Reputation');
+    }
+    if (rewards.tmw && typeof changeCounter === 'function') {
+      changeCounter('tmw', Number(rewards.tmw || 0));
+      notes.push('+' + Number(rewards.tmw || 0) + ' Teamwork');
+    }
+    if (rewards.item) {
+      const ok = putLootInBackpack(rewards.item);
+      notes.push(rewards.item + (ok ? ' (Backpack)' : ' (Backpack Full)'));
+      if (ok && typeof window.tryAwardLoreBookDrop === 'function') window.tryAwardLoreBookDrop('world that was cache', 14);
+    }
+    if (notes.length && typeof showNotif === 'function') {
+      showNotif('Night Mode bonus resolved (' + (contextLabel || 'district') + '): ' + notes.join(', ') + '.', 'good');
+    }
+    return notes.length ? (' Night Mode Bonus: ' + notes.join(', ') + '.') : '';
+  }
+
   function applyPositiveCondition(condKey) {
     ensureConditionsState();
     if (!S || !S.conditions) return;
@@ -786,6 +843,7 @@
       return ok ? name + " (Backpack)" : name + " (Backpack Full)";
     });
     if (typeof showNotif === "function") showNotif("Loot: " + stored.join(", "), "good");
+    if (typeof window.tryAwardLoreBookDrop === 'function') window.tryAwardLoreBookDrop('world that was loot', 10);
     if (typeof renderUI === "function") renderUI();
     return granted;
   }
@@ -1983,6 +2041,7 @@
     setCredits(getCredits() + 80);
     grantRandomLoot("medium");
     putLootInBackpack("Skirmish Trophy");
+    applyWtwNightModeBonusRewards(hex.encounter, 'combat victory');
     hex.skirmish = false;
     hex.encounter = null;
     if (typeof showNotif === "function") showNotif("Encounter combat victory: +80 Credits, +2 Scrap, loot, and Skirmish Trophy.", "good");
@@ -1995,13 +2054,29 @@
 
   function rollDistrictEncounter() {
     if (window.campaignSystem && typeof window.campaignSystem.guardSharedWorldMutation === 'function' && !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared district encounters in Campaign mode.')) return;
-    if (typeof window.isNightPhase === 'function' && !window.isNightPhase()) {
-      if (typeof showNotif === 'function') showNotif('Night-only rule: district encounter rolls unlock during Night phase.', 'good');
-      return;
-    }
     const hex = getSelectedHex();
     if (!hex) return;
     hex.encounter = buildDistrictEncounter(hex.zone);
+    if (hex.encounter) hex.encounter.zoneName = hex.zone;
+    if (isWtwNightModeActive() && safeRoll(100) <= 55) {
+      const bonus = buildWtwNightModeBonus();
+      if (hex.encounter) {
+        hex.encounter.nightModeBonus = bonus;
+        hex.encounter.text = String(hex.encounter.text || '') + ' Night Mode Bonus: ' + bonus.title + ' - ' + bonus.text;
+      } else {
+        hex.encounter = {
+          title: 'Night Mode Bonus: ' + bonus.title,
+          text: bonus.text,
+          action: 'Exploit the shadow window',
+          reward: 'Immediate tactical reward',
+          mode: 'skill',
+          stat: 'adventure',
+          dread: 8,
+          zoneName: hex.zone,
+          nightModeBonus: bonus
+        };
+      }
+    }
     if (!hex.encounter) {
       if (typeof showNotif === "function") showNotif("No active encounter in this district right now.", "good");
       renderWorldThatWas();
@@ -2037,6 +2112,7 @@
       addWorldItem("dataDrives", 1);
       addWorldItem("water", 1);
       putLootInBackpack(drawServiceMerchantItem(["services", "items", "tradegoods"]));
+      applyWtwNightModeBonusRewards(hex.encounter, 'wayfarer');
       if (typeof showNotif === "function") showNotif("Wayfarer encounter resolved: gained resources and clue cache.", "good");
       hex.encounter = null;
       advanceWorldTime("wayfarer encounter");
@@ -2074,6 +2150,7 @@
       addWorldItem("water", 1);
       grantRandomLoot("easy");
       setCredits(getCredits() + 30);
+      applyWtwNightModeBonusRewards(hex.encounter, 'skill success');
       if (typeof showNotif === "function") {
         showNotif(forced ? "GM override: encounter marked success." : "Encounter resolved successfully.", "good");
       }

@@ -2435,27 +2435,43 @@
   window.completeSeaTask = completeSeaTask;
 
   function buildSeaExploration(hex) {
-    const night = (typeof window.isNightPhase === 'function') ? window.isNightPhase() : true;
-    const option = pick(night ? ["weather", "encounter", "peril", "skirmish", "uneventful"] : ["weather", "peril", "uneventful"]);
+    const option = pick(["weather", "encounter", "peril", "skirmish", "uneventful"]);
     if (option === "weather") {
       S.lastSea.weather = rollLastSeaWeather();
       var w = S.lastSea.weather;
       var buttons = (w && w.check)
         ? `<div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="resolveLastSeaWeatherCheck('lead')">⚄ Lead vs Dread D${w.check.dd}</button><button class="btn btn-xs btn-teal" onclick="resolveLastSeaWeatherCheck('control')">⚄ Control vs Dread D${w.check.dd}</button></div>`
         : "";
-      return `<div class="sea-result-title">Shift in Weather</div>The sea turns under you. New weather: <strong style="color:var(--gold2);">${w.label}</strong> - ${w.desc}${buttons}`;
+      return appendSeaNightModeBonus(`<div class="sea-result-title">Shift in Weather</div>The sea turns under you. New weather: <strong style="color:var(--gold2);">${w.label}</strong> - ${w.desc}${buttons}`, hex, 'sea');
     }
     if (option === "encounter") {
-      return buildSeaEncounter();
+      return appendSeaNightModeBonus(buildSeaEncounter(), hex, 'sea');
     }
     if (option === "peril") {
       const peril = pick(OPEN_SEA_PERILS);
-      return `<div class="sea-result-title">Peril - ${peril}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control vs DD6 or take the difference in Mental Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveOpenSeaPerilCheck(${hex.col},${hex.row},'${peril}',6)">⚄ Control vs DD6</button></div>`;
+      return appendSeaNightModeBonus(`<div class="sea-result-title">Peril - ${peril}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control vs DD6 or take the difference in Mental Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" onclick="resolveOpenSeaPerilCheck(${hex.col},${hex.row},'${peril}',6)">⚄ Control vs DD6</button></div>`, hex, 'sea');
     }
     if (option === 'skirmish') {
-      return buildSeaSkirmishEncounter(hex);
+      return appendSeaNightModeBonus(buildSeaSkirmishEncounter(hex), hex, 'sea');
     }
-    return `<div class="sea-result-title">Uneventful Sailing</div>The ship cuts across open water without trouble.`;
+    return appendSeaNightModeBonus(`<div class="sea-result-title">Uneventful Sailing</div>The ship cuts across open water without trouble.`, hex, 'sea');
+  }
+
+  function isSeaNightModeActive() {
+    if (typeof window.isEncounterNightModeActive === 'function') return !!window.isEncounterNightModeActive();
+    return !!(S && S.nightMode);
+  }
+
+  function buildSeaNightModeBonusHtml(hex, contextType) {
+    if (!isSeaNightModeActive() || roll(100) > 55) return '';
+    if (contextType === 'island') {
+      return `<div class="sea-result" style="margin-top:.35rem;border-color:rgba(126,215,255,.45);background:rgba(126,215,255,.08);"><div class="sea-result-title" style="color:#7ed7ff;">Night Mode Bonus - Moonlit Trail</div><div style="font-size:.82rem;color:var(--text2);line-height:1.55;">A silent guide marks safe stone crossings and hidden crates.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('rescue','Moonlit Survivors',{renown:1})">Escort Survivors</button><button class="btn btn-xs btn-teal" onclick="if(typeof claimSeaBuriedTreasure==='function')claimSeaBuriedTreasure(${hex.col},${hex.row},'Book: Tidecaller Log')">Recover Lore Book</button></div></div>`;
+    }
+    return `<div class="sea-result" style="margin-top:.35rem;border-color:rgba(126,215,255,.45);background:rgba(126,215,255,.08);"><div class="sea-result-title" style="color:#7ed7ff;">Night Mode Bonus - Shadow Convoy</div><div style="font-size:.82rem;color:var(--text2);line-height:1.55;">A covert convoy appears in dead water lanes.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="startSeaShipCombatEncounter()">Intercept Convoy</button><button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('salvage','Shadow Convoy',{credits:80,item:'Book: Neon Testament'})">Shadow Salvage</button></div></div>`;
+  }
+
+  function appendSeaNightModeBonus(baseHtml, hex, contextType) {
+    return String(baseHtml || '') + buildSeaNightModeBonusHtml(hex, contextType);
   }
 
   function createLandEncounterResult(hex, type, data) {
@@ -2518,6 +2534,7 @@
       }
     }
     if (stored && typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (stored && typeof window.tryAwardLoreBookDrop === 'function') window.tryAwardLoreBookDrop('last sea treasure', 18);
     hex.encounter.data.claimed = true;
     hex.resultHtml = '<div class="sea-result-title">Land Encounter - Buried Treasure</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You uncover 1 ' + sanitizeInlineText(item) + '. ' + (stored ? 'Added to Backpack.' : 'Backpack full - store it manually.') + '</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-teal" onclick="if(typeof switchTab===\'function\'){const b=document.querySelector(\"nav .tab-btn[onclick*=\\\"switchTab(\\\'shop\\\'\\\"]\");switchTab(\'shop\',b||null);}">Open Merchants Tab</button></div>';
     renderLastSeaInfo(hex);
@@ -2563,16 +2580,15 @@
     var perilTitle = itemFlags.compass ? 'Compass grants +2 Lead on fog peril checks.' : (itemFlags.torch ? 'Torch can reduce fog failure stress by 1.' : '');
     var traumaHint = itemFlags.torch ? ' (+Torch +1)' : '';
     var traumaTitle = itemFlags.torch ? 'Torch grants +1 Spirit on exhaustion trauma checks.' : '';
-    const night = (typeof window.isNightPhase === 'function') ? window.isNightPhase() : true;
-    const option = pick(night ? ["land", "peril", "exhaustion", "weather", "uneventful"] : ["peril", "exhaustion", "weather", "uneventful"]);
+    const option = pick(["land", "peril", "exhaustion", "weather", "uneventful"]);
     if (option === "land") {
-      return buildLandEncounter(hex);
+      return appendSeaNightModeBonus(buildLandEncounter(hex), hex, 'island');
     }
     if (option === "peril") {
-      return `<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead vs DD6 or take the difference in Mental Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" title="${perilTitle}" onclick="resolveSeaIslandPerilCheck(${hex.col},${hex.row})">⚄ Lead vs DD6${perilHint}</button></div>`;
+      return appendSeaNightModeBonus(`<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead vs DD6 or take the difference in Mental Stress.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" title="${perilTitle}" onclick="resolveSeaIslandPerilCheck(${hex.col},${hex.row})">⚄ Lead vs DD6${perilHint}</button></div>`, hex, 'island');
     }
     if (option === "exhaustion") {
-      return `<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Make a Trauma Check before pressing farther inland.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" title="${traumaTitle}" onclick="resolveSeaExhaustionCheck(${hex.col},${hex.row})">⚄ Trauma Check${traumaHint}</button></div>`;
+      return appendSeaNightModeBonus(`<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Make a Trauma Check before pressing farther inland.</div><div style="margin-top:.32rem;"><button class="btn btn-xs btn-warn" title="${traumaTitle}" onclick="resolveSeaExhaustionCheck(${hex.col},${hex.row})">⚄ Trauma Check${traumaHint}</button></div>`, hex, 'island');
     }
     if (option === "weather") {
       S.lastSea.weather = rollLastSeaWeather();
@@ -2580,9 +2596,9 @@
       var ib = (iw && iw.check)
         ? `<div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="resolveLastSeaWeatherCheck('lead')">⚄ Lead vs Dread D${iw.check.dd}</button><button class="btn btn-xs btn-teal" onclick="resolveLastSeaWeatherCheck('control')">⚄ Control vs Dread D${iw.check.dd}</button></div>`
         : "";
-      return `<div class="sea-result-title">Shift in Weather</div>The air changes fast. New weather: <strong style="color:var(--gold2);">${iw.label}</strong> - ${iw.desc}${ib}`;
+      return appendSeaNightModeBonus(`<div class="sea-result-title">Shift in Weather</div>The air changes fast. New weather: <strong style="color:var(--gold2);">${iw.label}</strong> - ${iw.desc}${ib}`, hex, 'island');
     }
-    return `<div class="sea-result-title">Uneventful Travel</div>You cross the island without incident.`;
+    return appendSeaNightModeBonus(`<div class="sea-result-title">Uneventful Travel</div>You cross the island without incident.`, hex, 'island');
   }
 
   function exploreLastSeaHex(col, row) {

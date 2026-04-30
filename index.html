@@ -1252,7 +1252,21 @@ const PERSONAL_FLAVORS=(function(){
   return out.slice(0,100);
 })();
 const MUTATIONS=['Change your skin and hair color at will','Superhuman reflexes — Step up Advantage to Body Saves','Thick fur — you can never feel cold','Crocodile face — Bite attack (Ad4 Strike)','Secret Pocket — hide 1 apple-sized thing inside your body','Rippling Muscles — +3 to Body and Power Checks','Your voice rises three octaves unexpectedly','Tusks, like a boar','Churning Guts — can eat rotten food as full rations','Plastic bone structure — adjust shape and size of bones','Large Ears, doubled in size — features become animalistic','You grow 1d6 new limbs from your body','You smell terrible — most creatures won\'t consider you edible','Dead nerves — completely immune to physical pain','Lizard tail','Chameleon Skin — shifts to vibrant colors','Your eyes bulge forth on stalks — (Ad4) to Lead and Notice checks','Sensitive skin — rash if you touch iron','Thick scales — +2 to Defend vs physical attacks','Your bones glow faintly through your skin in darkness'];
-const RANDOM_ITEMS=['Staff made of fused pistols','Lavender plant that cannot die','Mug that turns any liquid to water','Boots that leave no footprints','A cloak that repels all dust','A clockwork songbird','Teacup that chills its contents','Multicolored shifting Cloak','A book that writes down your dreams','A size-changing Scarf','Goggles that reveal undead','A completely weightless rock',"Ram's horn","Rat brain preserved in a crystal case",'Book proclaiming a coming revolution','Pink bottle that smells wonderful','Thermos perpetually full of soup','A mechanical hand','A kite and a copper key','A bone flute'];
+const RANDOM_ITEMS=['Staff made of fused pistols','Lavender plant that cannot die','Mug that turns any liquid to water','Boots that leave no footprints','A cloak that repels all dust','A clockwork songbird','Teacup that chills its contents','Multicolored shifting Cloak','A book that writes down your dreams','A size-changing Scarf','Goggles that reveal undead','A completely weightless rock',"Ram's horn","Rat brain preserved in a crystal case",'Book proclaiming a coming revolution','Pink bottle that smells wonderful','Thermos perpetually full of soup','A mechanical hand','A kite and a copper key','A bone flute','Book: Tidecaller Log','Book: Neon Testament','Book: Hollow Crown Record'];
+const LORE_BOOK_POOL=[
+  {item:'Book: Tidecaller Log',genre:'Sea Chronicle',lore:'Captain Ilessa mapped an invisible current that only appears under moonlight. Her crew survived by following constellations reflected in black water.',reward:'pathTokens'},
+  {item:'Book: Neon Testament',genre:'Cyber Noir',lore:'A courier in the World That Was smuggled a city memory shard inside a hymnbook. The shard claims one district still remembers sunlight.',reward:'flatBonus'},
+  {item:'Book: Hollow Crown Record',genre:'Political History',lore:'The Hollow Crown changed hands seven times in one winter. Every claimant vanished after reading the sealed annex in this ledger.',reward:'stepUp'},
+  {item:'Book: Atlas of Last Doors',genre:'Mystic Cartography',lore:'Every gate in this atlas opens only once. Marginal notes warn that one doorway always opens behind the reader.',reward:'positiveCondition'},
+  {item:'Book: Ash Orchard Hymns',genre:'Religious Verse',lore:'Pilgrims sang these pages while crossing burnt fields. The final verse is unfinished, waiting for the next voice to complete it.',reward:'pathTokens'},
+  {item:'Book: Glass Warden Manual',genre:'Military Memoir',lore:'A Warden commander describes how to hold a breach when ammunition is gone: lock shields, listen for breathing, and strike on silence.',reward:'flatBonus'},
+  {item:'Book: Greenhouse Last Entry',genre:'Science Log',lore:'The final botanist notes a vine that grows toward radio static. On the final line, she writes that the plant has started answering back.',reward:'stepUp'},
+  {item:'Book: Lantern Court Trials',genre:'Court Drama',lore:'Witnesses swore under lantern light that does not tolerate lies. Three verdicts were reversed after the lantern cracked.',reward:'positiveCondition'},
+  {item:'Book: Ruin Diver Field Notes',genre:'Expedition Journal',lore:'A ruin diver sketches hidden pressure marks and trap seams. The margins contain three routes through structures that no longer exist.',reward:'flatBonus'},
+  {item:'Book: Children of the Drowned Mile',genre:'Folklore',lore:'Children in flooded settlements trade a story of a bell that rings underwater. Those who hear it always find the way home.',reward:'pathTokens'},
+  {item:'Book: Bonewire Bestiary',genre:'Monster Catalog',lore:'Each entry tracks creature habits by season and moon phase. The final page is blank except for claw marks and a single fresh warning.',reward:'stepUp'},
+  {item:'Book: The Quiet Engine',genre:'Builder Relic Study',lore:'Engineers of the old world built a machine to archive grief. It still runs in a buried chamber, cataloging names nobody remembers.',reward:'positiveCondition'}
+];
 const BACKPACK_TABLE=[['Sword (+1 Strike) | Light Armor (Ad4, 3 Actions) | Jewelry (A.D. to Spirit/Convince)','Mace (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Pet (A.D., 1 Action, 1 Stress)','Halberd (+3 Strike) | Light Armor (Ad4, 3 Actions) | Scroll: Speak with Animals','Two-Handed Axe (+3 Strike) | Balanced Armor (Ad6, 2 Actions) | Tinker Tools'],['Axe (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Compass (A.D. to Lead/Survival)','Staff (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Shield (A.D. to Defend)','Flail (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: See object vision','Quarterstaff (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: You can fly'],['Two-Handed Sword (+3 Strike) | Heavy Armor (Ad10, 1 Action) | Horse (A.D., 1 Action, 1 Stress)','Two-Handed Mace (+3 Strike) | Light Armor (Ad4, 3 Actions) | Lockpicks','Scythe (+2 Strike) | Light Armor (Ad4, 3 Actions) | Quill & Paper (A.D. to Forgery)','Two-Handed Scythe (+3 Strike) | Balanced Armor (Ad6, 2 Actions) | Net (A.D. to Grapple)'],['Crossbow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Spyglass (A.D. to Notice)','Whip (+1 Strike) | Light Armor (Ad4, 3 Actions) | Hood (A.D. to Stealth)','Gladius (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Mount (A.D., 1 Action, 1 Stress)','Crossbow (+3 Shoot) | Heavy Armor (Ad10, 1 Action) | Whiskey/Fiddle'],['Longbow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Levitate Objects','Sling (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Herbal Tea (A.D. to Diplomacy)','Carbine Rifle (+3 Shoot) | Balanced Armor (Ad6, 2 Actions) | Scroll: Invisibility','Reinforced Bow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Night Vision'],['Rapier (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Create Light','Katana (+3 Strike) | Heavy Armor (Ad10, 1 Action) | Scroll: Repair broken object','Sabre (+2 Strike) | Light Armor (Ad4, 3 Actions) | Scroll: Accelerate plant growth','Musket (+3 Shoot) | Balanced Armor (Ad6, 2 Actions) | Scroll: None can lie to you'],['Dagger (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Book (A.D. to Mind/Lore)','Spear (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Levitate Object','Recurve Bow (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Scroll: Reveal traps','Bow (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Herb Kit (A.D. to Heal)'],['Whip (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Talisman (A.D. to Intuition)','Pistol (+1 Shoot) | Light Armor (Ad4, 3 Actions) | Gauntlet (A.D. to Body/Power)','Blunderbuss (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Create portal','2 Daggers (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Silent steps']];
 const RENOWN_TITLES=[{min:0,max:2,title:'Unknown Wayfarer',desc:'Seeks Tasks from Nomads & Sages'},{min:3,max:5,title:'Whispered Wayfarer',desc:'Worthy of a seat in Council. Sought by Lords.'},{min:6,max:8,title:'Celebrated Wayfarer',desc:'Sought by the Sovereign. May join Skirmishes.'},{min:9,max:11,title:'Lord Wayfarer',desc:'Worthy of governing a Realm.'},{min:12,max:999,title:'Sovereign Wayfarer',desc:'Worthy of ruling a Seat of Power.'}];
 const HOLDING_LORDS=['Lady Vara of the Crimson Keep','Lord Hadrak the Stonefaced','Merchant Prince Sellus','Warden-Commander Mira','Elder Tamath of the Council','Count Draven the Pale','High Merchant Orin','The Exiled Duchess Sera','Regent Boros','Captain-General Halveth','The Blind Magistrate','Warlord Cassa of the Sands'];
@@ -2020,6 +2034,8 @@ window.saveSunlightConfigFromInputs=saveSunlightConfigFromInputs;
 window.resolveDarkAfflictionConsume=resolveDarkAfflictionConsume;
 window.promptConsumeAfterEnemyDefeat=promptConsumeAfterEnemyDefeat;
 window.applySunlightTraversalPunishment=applySunlightTraversalPunishment;
+window.readLoreBookFromBackpack=readLoreBookFromBackpack;
+window.tryAwardLoreBookDrop=tryAwardLoreBookDrop;
 window.setFlavor=setFlavor;
 window.toggleNightMode=toggleNightMode;
 window.updateNightModeToggleUI=updateNightModeToggleUI;
@@ -3457,6 +3473,82 @@ function consumeBackpackItemByName(name) {
   return false;
 }
 
+function getLoreBookEntryByItem(nameText){
+  var target=String(nameText||'').trim().toLowerCase();
+  if(!target)return null;
+  for(var i=0;i<LORE_BOOK_POOL.length;i++){
+    var entry=LORE_BOOK_POOL[i];
+    if(String(entry.item||'').toLowerCase()===target)return entry;
+  }
+  return null;
+}
+
+function isLoreBookItemName(nameText){
+  return !!getLoreBookEntryByItem(parseBackpackStack(nameText).name);
+}
+
+function applyLoreBookReward(entry){
+  var reward=String((entry&&entry.reward)||'pathTokens');
+  if(reward==='pathTokens'){
+    if(typeof changeCounter==='function')changeCounter('pathTokens',5);
+    else S.pathTokens=(S.pathTokens||0)+5;
+    return '+5 Path Tokens';
+  }
+  if(reward==='flatBonus'){
+    var bonus=roll(4);
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    S.rollMod.flat=(S.rollMod.flat||0)+bonus;
+    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+    return '+d4 flat bonus (+'+bonus+') on your next roll setup';
+  }
+  if(reward==='stepUp'){
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    var ad=Math.max(4,Math.min(20,Number((S.stats&&S.stats.adventure)||4)));
+    var next=Math.min(20,ad===4?6:ad===6?8:ad===8?10:ad===10?12:ad===12?20:20);
+    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    S.rollMod.advDice.push(next);
+    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+    return 'Step-up advantage die queued (Ad'+next+')';
+  }
+  var positive=['empowered','focused','protected','bolstered'];
+  var cond=pick(positive);
+  if(typeof setConditionState==='function')setConditionState(cond,true);
+  else if(S.conditions)S.conditions[cond]=true;
+  if(typeof updateConditionButtons==='function')updateConditionButtons();
+  if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+  return 'Gain positive condition: '+cond.charAt(0).toUpperCase()+cond.slice(1);
+}
+
+function readLoreBookFromBackpack(index){
+  if(!Array.isArray(S.backpack))return;
+  var slot=parseBackpackStack(S.backpack[index]);
+  if(!slot.name)return;
+  var entry=getLoreBookEntryByItem(slot.name);
+  if(!entry){showNotif('This item is not a readable lore book.','info');return;}
+  var rewardText=applyLoreBookReward(entry);
+  removeBackpackItem(index);
+  var title=String(entry.item||'Lore Book');
+  var body=String(entry.lore||'The pages are worn, but still useful.');
+  if(typeof openModal==='function'){
+    openModal(title,'<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+      +'<div style="font-family:\'Cinzel\',serif;letter-spacing:.08em;font-size:.72rem;color:var(--gold2);text-transform:uppercase;">'+String(entry.genre||'Lore')+'</div>'
+      +'<div style="margin-top:.35rem;">'+body+'</div>'
+      +'<div style="margin-top:.55rem;color:var(--teal);"><strong>Reading Reward:</strong> '+rewardText+'</div>'
+      +'</div>');
+  }
+  showNotif('Lore book read: '+rewardText+'.','good');
+}
+
+function tryAwardLoreBookDrop(sourceTag,chancePercent){
+  var pct=Math.max(1,Math.min(100,parseInt(chancePercent,10)||12));
+  if(roll(100)>pct)return false;
+  var entry=pick(LORE_BOOK_POOL);
+  if(!entry||!entry.item)return false;
+  var stored=(typeof addToBackpack==='function')?addToBackpack(entry.item):false;
+  if(stored)showNotif('Recovered lore book from '+String(sourceTag||'the field')+': '+entry.item+'.','good');
+  return !!stored;
+}
+
 // Add a text string to the first empty backpack slot. Returns true on success.
 function addToBackpack(text) {
   ensureBackpackCapacity();
@@ -3804,6 +3896,7 @@ function showBackpackItem(index) {
   var found = findShopItem(text);
   if (!found) {
     var customAction = getCustomBackpackAction(text);
+    var isLoreBook = isLoreBookItemName(text);
     // Check for "Scroll: X" prefix — treat as a castable scroll
     var isScrollPrefix = /^Scroll:/i.test(text.trim());
     var hasAD = /A\.D\.|Ad\d|d\d/i.test(text);
@@ -3816,6 +3909,8 @@ function showBackpackItem(index) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="castScrollFromBackpack('+index+');">⚄ Cast Scroll</button> ';
     } else if (hasAD) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useCustomItem(\''+text.replace(/'/g,"\\'")+'\',' + index + ');">⚄ Roll A.D.</button> ';
+    } else if (isLoreBook) {
+      btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="readLoreBookFromBackpack('+index+');">📖 Read</button> ';
     }
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon1\');">⚔ W1</button> ';
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="equipBackpackItem('+index+',\'weapon2\');">⚔ W2</button> ';
@@ -3839,6 +3934,7 @@ function showBackpackItem(index) {
   }
   var item = found.item;
   var cat = found.cat;
+  var isLoreBook = isLoreBookItemName(text);
   var hasUseCfg = !!ITEM_USE_CFG[item.name];
   var isConsumable = ['essentials','items','remedies','toolkits','cosmic'].indexOf(cat) >= 0;
   var usesRemaining = getItemUsesRemaining(index);
@@ -3846,6 +3942,8 @@ function showBackpackItem(index) {
   var btnHtml = '';
   if (cat === 'scrolls') {
     btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="castScrollFromBackpack('+index+');">⚄ Cast Scroll</button> ';
+  } else if (isLoreBook) {
+    btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="readLoreBookFromBackpack('+index+');">📖 Read</button> ';
   } else if (isConsumable || hasUseCfg) {
     btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useBackpackItem('+index+');closeModal();">⚑ Use</button> ';
   }
@@ -4313,6 +4411,10 @@ function useBackpackItem(index) {
   ensureAdvancedGearState();
   var found = findShopItem(text);
   if (!found) {
+    if(isLoreBookItemName(text)){
+      readLoreBookFromBackpack(index);
+      return;
+    }
     var customAction = getCustomBackpackAction(text);
     if (customAction === 'attuneRelicOfBuilders') {
       attuneRelicOfBuilders(index);

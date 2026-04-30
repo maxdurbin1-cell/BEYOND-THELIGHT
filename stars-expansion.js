@@ -765,7 +765,12 @@ function takeGalaxyLoot(item, destination) {
     }
   }
   const ok = destination === 'ship' ? addItemToSpaceShipCargo(itemName) : addItemToBackpack(itemName);
-  if (ok) showNotif(`Loot secured: ${itemName}`, 'good');
+  if (ok) {
+    showNotif(`Loot secured: ${itemName}`, 'good');
+    if (destination !== 'ship' && typeof window.tryAwardLoreBookDrop === 'function') {
+      window.tryAwardLoreBookDrop('planetary salvage', 10);
+    }
+  }
 }
 
 function buildLootActions(item) {
@@ -3789,11 +3794,53 @@ function rollPlanetTerrainEffectCheck() {
   renderPlanetExplorationPanel();
 }
 
-function rollPlanetTradeRouteEncounter() {
-  if (typeof window.isNightPhase === 'function' && !window.isNightPhase()) {
-    showNotif('Night-only rule: planet trade route encounters unlock during Night phase.', 'info');
-    return;
+function isPlanetNightModeActive() {
+  if (typeof window.isEncounterNightModeActive === 'function') return !!window.isEncounterNightModeActive();
+  return !!(S && S.nightMode);
+}
+
+function buildNightModePlanetTradeBonus(state, selected) {
+  const rollBonus = roll(3);
+  if (rollBonus === 1) {
+    createPlanetTask({
+      source: 'night-courier',
+      preferredCellId: selected && selected.id,
+      title: 'Night Courier Relay',
+      text: 'A moonlit relay runner requests urgent escort through hostile route fragments.',
+      reward: { credits: 80 },
+    });
+    return 'Night Courier Relay task added.';
   }
+  if (rollBonus === 2) {
+    const cache = rollGalaxyMerchantLootFromCategories(['items', 'toolkits', 'tradegoods', 'remedies']);
+    if (cache) takeGalaxyLoot(cache, 'pack');
+    return `Starlit cache found: ${cache || 'salvage packed'}.`;
+  }
+  if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+  return 'Shadow broker intel recovered (+1 Teamwork).';
+}
+
+function buildNightModePlanetHexBonus(state, selected) {
+  const rollBonus = roll(4);
+  if (rollBonus === 1) {
+    const wf = createPlanetWayfarer(state, selected, 'night-bonus');
+    return `${wf ? wf.name : 'A wayfarer'} appears under moonlight with off-ledger routes.`;
+  }
+  if (rollBonus === 2) {
+    const loot = rollGalaxyMerchantLootFromCategories(['items', 'scrolls', 'remedies', 'weapon_mods']);
+    if (loot) takeGalaxyLoot(loot, 'pack');
+    return `Nocturne salvage secured: ${loot || 'supplies'}.`;
+  }
+  if (rollBonus === 3) {
+    if (typeof changeCounter === 'function') changeCounter('pathTokens', 2);
+    else if (S) S.pathTokens = (S.pathTokens || 0) + 2;
+    return 'Astral waypoint decoded (+2 Path Tokens).';
+  }
+  if (typeof setPositiveGalaxyCondition === 'function') setPositiveGalaxyCondition('focused');
+  return 'Moon pulse grants Focused condition.';
+}
+
+function rollPlanetTradeRouteEncounter() {
   const hostility = getPactHostilityDelta();
   const r = Math.max(1, Math.min(10, roll(10) + hostility));
   let title = '';
@@ -3818,6 +3865,9 @@ function rollPlanetTradeRouteEncounter() {
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (isPlanetNightModeActive() && roll(100) <= 55) {
+    text += ' Night Mode Bonus: ' + buildNightModePlanetTradeBonus(state, selected);
+  }
   state.lastEvent = {
     timestamp: Date.now(),
     d10: r,
@@ -5067,6 +5117,10 @@ function rollPlanetHexEncounter() {
     state.currentWeather = Object.assign({}, selected.localWeather);
     title = 'Shift in Weather';
     text = `${selected.localWeather.label} — ${selected.localWeather.desc}. Pressure rises.`;
+  }
+
+  if (isPlanetNightModeActive() && roll(100) <= 50) {
+    text += ' Night Mode Bonus: ' + buildNightModePlanetHexBonus(state, selected);
   }
 
   state.lastEvent = {

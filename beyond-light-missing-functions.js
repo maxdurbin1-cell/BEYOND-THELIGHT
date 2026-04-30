@@ -79,7 +79,12 @@ function quickAccessGo(tabId) {
 function renderGlobalQuickAccess() {
   const root = document.getElementById('globalQuickAccess');
   if (!root) return;
-  root.style.top = '0px';
+  const header = document.querySelector('header');
+  const headerHeight = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
+  root.style.top = headerHeight ? (headerHeight + 'px') : '';
+  if (document.documentElement) {
+    document.documentElement.style.setProperty('--quick-access-top', (headerHeight || 0) + 'px');
+  }
   if (!Array.isArray(window._quickAccessTabs) || !window._quickAccessTabs.length) {
     const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
     if (activePanel) {

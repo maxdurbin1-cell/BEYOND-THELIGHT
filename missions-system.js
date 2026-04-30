@@ -39,6 +39,8 @@
 
   var LOOT_COUNT_DIVISOR      = 6;
   var MAX_COMPLETED_MISSIONS  = 10;
+  var MISSION_DEADLINE_DAYS   = 30;
+  var _missionExpiryGuard      = false;
   var LOOT_FALLBACK = {
     easy:        ['Healing Salve'],
     medium:      ['Rope', 'Torch'],
@@ -562,6 +564,7 @@
     var f = factionData || pickFactionConflict();
     var opts = missionOptions || {};
     var stepNames = opts.stepNames || {};
+    var currentDayStamp = getCurrentGameDayStamp();
     return {
       id: Date.now() + Math.floor(Math.random() * 10000), title:title, difficulty:difficulty, dread:diff.dread,
       location:location||'Unknown', region:region||'province', reward:diff.credits, bonus:0,
@@ -590,8 +593,50 @@
         2:{name:stepNames[2] || 'Go to Site',        required:true, completed:false},
         3:{name:stepNames[3] || 'Confrontation',     required:true, completed:false}
       },
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      acceptedAt: null,
+      acceptedDayStamp: currentDayStamp,
+      deadlineDayStamp: currentDayStamp + MISSION_DEADLINE_DAYS
     };
+  }
+
+  function getCurrentGameDayStamp() {
+    var gd = (typeof S !== 'undefined' && S && S.gameDate && typeof S.gameDate === 'object') ? S.gameDate : null;
+    if (!gd) return 0;
+    var year = Math.max(1, Number(gd.year || 1));
+    var month = Math.max(1, Number(gd.month || 1));
+    var day = Math.max(1, Number(gd.day || 1));
+    return ((year - 1) * 360) + ((month - 1) * 30) + day;
+  }
+
+  function ensureMissionDeadline(mission) {
+    if (!mission || typeof mission !== 'object') return;
+    var acceptedStamp = Number(mission.acceptedDayStamp || mission.createdDayStamp || 0);
+    if (!acceptedStamp) acceptedStamp = getCurrentGameDayStamp();
+    mission.acceptedDayStamp = acceptedStamp;
+    if (!mission.acceptedAt) mission.acceptedAt = mission.createdAt || new Date().toISOString();
+    if (!Number(mission.deadlineDayStamp || 0)) mission.deadlineDayStamp = acceptedStamp + MISSION_DEADLINE_DAYS;
+  }
+
+  function getMissionDaysRemaining(mission) {
+    ensureMissionDeadline(mission);
+    return Number(mission.deadlineDayStamp || 0) - getCurrentGameDayStamp();
+  }
+
+  function autoFailExpiredMissions(reason) {
+    ensureState();
+    if (_missionExpiryGuard) return 0;
+    var expired = (S.activeMissions || []).filter(function(mission) {
+      ensureMissionDeadline(mission);
+      return getMissionDaysRemaining(mission) < 0;
+    });
+    if (!expired.length) return 0;
+    _missionExpiryGuard = true;
+    expired.forEach(function(mission) {
+      resolveMission(mission.id, false, { expired: true, reason: reason || 'deadline-expired' });
+    });
+    _missionExpiryGuard = false;
+    return expired.length;
   }
 
   function generateMissions() {
@@ -646,6 +691,9 @@
       mission.planetHexId = job.planetHexId || null;
       mission.planetName = job.planetName || '';
     }
+    mission.acceptedAt = new Date().toISOString();
+    mission.acceptedDayStamp = getCurrentGameDayStamp();
+    mission.deadlineDayStamp = mission.acceptedDayStamp + MISSION_DEADLINE_DAYS;
     S.activeMissions.push(mission);
     S.availableJobs = S.availableJobs.filter(function(j){return String(j.id)!==String(jobId);});
     assignMissionToken(mission);
@@ -1094,8 +1142,9 @@
   }
 
   /* ── RESOLVE MISSION ── */
-  function resolveMission(missionId,success) {
+  function resolveMission(missionId,success,opts) {
     ensureState();
+    var options = opts || {};
     var idx=-1;
     for (var i=0;i<S.activeMissions.length;i++) { if (String(S.activeMissions[i].id)===String(missionId)){idx=i;break;} }
     if (idx===-1) return;
@@ -1207,7 +1256,11 @@
       }
       triggerOriginStorylineHandoff(mission);
     } else {
-      try { showNotif('Mission failed. \u22121 Renown \u00B7 ' + (mission.factionGainName||'Faction') + ' -1 / ' + (mission.factionLoseName||'Faction') + ' +1','warn'); } catch (err) {}
+      if (options.expired) {
+        try { showNotif('Mission expired (1 month elapsed): ' + mission.title + '.', 'warn'); } catch (err) {}
+      } else {
+        try { showNotif('Mission failed. \u22121 Renown \u00B7 ' + (mission.factionGainName||'Faction') + ' -1 / ' + (mission.factionLoseName||'Faction') + ' +1','warn'); } catch (err) {}
+      }
     }
     if (typeof window !== 'undefined' && window.factionSystem && typeof window.factionSystem.onMissionResolved === 'function') {
       try { window.factionSystem.onMissionResolved(mission, success); } catch (err) {}
@@ -1230,6 +1283,9 @@
       mission.planetHexId = Number(cfg.planetHexId);
       mission.planetName = cfg.planetName || mission.planetName || '';
     }
+    mission.acceptedAt = new Date().toISOString();
+    mission.acceptedDayStamp = getCurrentGameDayStamp();
+    mission.deadlineDayStamp = mission.acceptedDayStamp + MISSION_DEADLINE_DAYS;
     S.activeMissions.push(mission); assignMissionToken(mission); renderMissionTracker();
     return mission;
   }
@@ -1258,6 +1314,7 @@
   function renderMissionBoard() {
     var container=document.getElementById('jobsGrid'); if (!container) return;
     ensureState();
+    autoFailExpiredMissions('mission-board-render');
 
     // Special: Holding Establishment quest card.
     var holdingQuestHtml = '';
@@ -1297,6 +1354,7 @@
   function renderMissionTracker() {
     var container=document.getElementById('missionTrackerContainer'); if (!container) return;
     ensureState();
+    autoFailExpiredMissions('mission-tracker-render');
     var holdingTrackerHtml = '';
     if (typeof window.getHoldingQuestTrackerCardHtml === 'function') {
       holdingTrackerHtml = window.getHoldingQuestTrackerCardHtml() || '';

@@ -7130,7 +7130,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var holdingQuest = S.holdingQuest || {};
     var questDone = !!(holdingQuest.step3Completed && !holdingQuest.failed);
     var holdingEstablished = !!(S.holding && (S.holding.established || questDone));
-    var renown = Number(S.renown || 0);
+    var renown = (typeof getHoldingGateRenown === 'function') ? Number(getHoldingGateRenown() || 0) : Number(S.renown || 0);
     var dateText = (typeof getGameDatePhaseText === 'function') ? getGameDatePhaseText() : 'Month 1, Day 1, Year 1 — Morning';
     var clicksPerDay = (typeof getProvinceTravelClicksPerDay === 'function') ? getProvinceTravelClicksPerDay() : 3;
     var travelMode = clicksPerDay >= 9 ? 'Boat / Large Caravan' : (clicksPerDay >= 6 ? 'Horse / Small-Medium Caravan' : 'On Foot');

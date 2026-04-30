@@ -8365,7 +8365,18 @@ function rollOracleOpenEnded() {
 function changeFactionRenown(faction, delta) {
   ensureStarsState();
   if (!S.factionRenown[faction] && S.factionRenown[faction] !== 0) return;
-  S.factionRenown[faction] = Math.max(-10, Math.min(12, S.factionRenown[faction] + delta));
+  var amt = Number(delta || 0);
+  if (!amt) return;
+  S.factionRenown[faction] = Math.max(-10, Math.min(12, S.factionRenown[faction] + amt));
+  var syncState = window.__renownFactionSyncState || { active: false, source: "" };
+  if (!syncState.active) {
+    window.__renownFactionSyncState = { active: true, source: "faction" };
+    try {
+      S.renown = Math.max(0, Number(S.renown || 0) + amt);
+      if (typeof updateRenown === 'function') updateRenown();
+    } catch (_err) {}
+    window.__renownFactionSyncState = { active: false, source: "" };
+  }
   updateFactionRenownUI();
 }
 

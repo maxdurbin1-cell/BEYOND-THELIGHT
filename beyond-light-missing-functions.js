@@ -487,6 +487,25 @@ function quickRollStat(key) {
 
 function updateRenown() {
   const current = S.renown || 0;
+  var syncState = window.__renownFactionSyncState || { active: false, source: "" };
+  var previous = Number(window.__lastRenownSeen || 0);
+  var delta = current - previous;
+  if (!syncState.active && delta !== 0 && typeof window.changeFactionRenown === "function") {
+    var fr = (S && S.factionRenown && typeof S.factionRenown === "object") ? S.factionRenown : null;
+    var key = "political";
+    if (fr) {
+      Object.keys(fr).forEach(function (id) {
+        if (typeof fr[id] !== "number") return;
+        if (typeof fr[key] !== "number" || fr[id] > fr[key]) key = id;
+      });
+    }
+    window.__renownFactionSyncState = { active: true, source: "renown" };
+    try {
+      window.changeFactionRenown(key, delta);
+    } catch (_err) {}
+    window.__renownFactionSyncState = { active: false, source: "" };
+  }
+  window.__lastRenownSeen = current;
   const band = RENOWN_TITLES.find((item) => current >= item.min && current <= item.max) || RENOWN_TITLES[0];
   const val = document.getElementById("renownVal");
   const badge = document.getElementById("renownBadge");

@@ -36,6 +36,13 @@
     "Shoot Check",
   ];
 
+  const STORY_SCENE_TYPES = {
+    combat: "Combat",
+    exploration: "Exploration",
+    investigation: "Investigation",
+    social: "Social",
+  };
+
   const STORY_SYSTEMS = [
     { id: "province", name: "Province", context: "traveling", tab: "map" },
     { id: "lastsea", name: "Sea Region", context: "lastsea", tab: "lastsea" },
@@ -1836,6 +1843,16 @@
     if (!st.pendingCombat || typeof st.pendingCombat !== "object") st.pendingCombat = null;
     if (!st.optionAssignments || typeof st.optionAssignments !== "object") st.optionAssignments = {};
     if (!Array.isArray(st.decisionAssignments)) st.decisionAssignments = [];
+    if (!st.storyMemory || typeof st.storyMemory !== "object") {
+      st.storyMemory = {
+        recent: [],
+        tags: {},
+        sceneTypeCounts: {},
+      };
+    }
+    if (!Array.isArray(st.storyMemory.recent)) st.storyMemory.recent = [];
+    if (!st.storyMemory.tags || typeof st.storyMemory.tags !== "object") st.storyMemory.tags = {};
+    if (!st.storyMemory.sceneTypeCounts || typeof st.storyMemory.sceneTypeCounts !== "object") st.storyMemory.sceneTypeCounts = {};
     if (!Array.isArray(st.unlockedCampaignModifiers)) st.unlockedCampaignModifiers = [];
     if (!st.permanentModifiers || typeof st.permanentModifiers !== "object") st.permanentModifiers = {};
     if (!st.travelMarkers || typeof st.travelMarkers !== "object") {
@@ -2355,6 +2372,131 @@
     });
   }
 
+  function normalizeSceneType(typeName) {
+    const t = lc(typeName);
+    if (t === "combat" || t === "exploration" || t === "investigation" || t === "social") return t;
+    return "";
+  }
+
+  function inferOptionSceneType(option) {
+    if (!option || typeof option !== "object") return "social";
+    const explicit = normalizeSceneType(option.sceneType);
+    if (explicit) return explicit;
+    if (option.combat) return "combat";
+    if (option.puzzle) return "investigation";
+    if (option.jump) return "exploration";
+    const stat = lc(option.stat);
+    if (stat === "lead" || stat === "spirit") return "social";
+    if (stat === "mind" || stat === "control") return "investigation";
+    if (stat === "adventure" || stat === "defend" || stat === "strike" || stat === "shoot" || stat === "body") return "combat";
+    return "social";
+  }
+
+  function inferSceneTypes(scene) {
+    if (!scene || typeof scene !== "object") return ["social"];
+    const explicit = Array.isArray(scene.sceneTypes)
+      ? scene.sceneTypes.map(normalizeSceneType).filter(Boolean)
+      : [];
+    if (explicit.length) return Array.from(new Set(explicit));
+    const options = Array.isArray(scene.options) ? scene.options : [];
+    const inferred = options.map(inferOptionSceneType).filter(Boolean);
+    return Array.from(new Set(inferred.length ? inferred : ["social"]));
+  }
+
+  function primarySceneType(scene) {
+    const explicit = normalizeSceneType(scene && scene.primarySceneType);
+    if (explicit) return explicit;
+    const types = inferSceneTypes(scene);
+    if (types.indexOf("combat") >= 0) return "combat";
+    if (types.indexOf("investigation") >= 0) return "investigation";
+    if (types.indexOf("exploration") >= 0) return "exploration";
+    return types[0] || "social";
+  }
+
+  function incrementSceneTypeMemory(typeName) {
+    const st = ensureStoryState();
+    if (!st) return;
+    const t = normalizeSceneType(typeName) || "social";
+    st.storyMemory.sceneTypeCounts[t] = Number(st.storyMemory.sceneTypeCounts[t] || 0) + 1;
+  }
+
+  function collectOutcomeTags(option, safeOutcome) {
+    const tags = [];
+    const baseType = inferOptionSceneType(option);
+    if (baseType) tags.push("scene:" + baseType);
+    if (option && option.combat) tags.push("stakes:violent");
+    if (option && option.puzzle) tags.push("stakes:mystery");
+
+    const eff = safeOutcome && safeOutcome.effects && typeof safeOutcome.effects === "object"
+      ? safeOutcome.effects
+      : null;
+    if (eff) {
+      if (eff.renown > 0) tags.push("impact:renown_up");
+      if (eff.mentalStress > 0) tags.push("impact:stress_up");
+      if (eff.health > 0) tags.push("impact:injury");
+      if (eff.faction && typeof eff.faction === "object") {
+        Object.keys(eff.faction).forEach(function (k) {
+          const delta = Number(eff.faction[k] || 0);
+          if (delta > 0) tags.push("faction+" + String(k));
+          if (delta < 0) tags.push("faction-" + String(k));
+        });
+      }
+      if (eff.flags && typeof eff.flags === "object") {
+        Object.keys(eff.flags).forEach(function (k) {
+          if (eff.flags[k]) tags.push("flag:" + String(k));
+        });
+      }
+      if (Array.isArray(eff.consequenceTags)) {
+        eff.consequenceTags.forEach(function (tag) {
+          const t = lc(tag);
+          if (t) tags.push("tag:" + t);
+        });
+      }
+    }
+
+    if (safeOutcome && safeOutcome.irreversible && Array.isArray(safeOutcome.irreversible.killNpc) && safeOutcome.irreversible.killNpc.length) {
+      tags.push("stakes:irreversible");
+      safeOutcome.irreversible.killNpc.forEach(function (npc) {
+        tags.push("npc-lost:" + lc(npc));
+      });
+    }
+
+    return Array.from(new Set(tags.filter(Boolean)));
+  }
+
+  function rememberStoryConsequence(sceneId, scene, option, safeOutcome, checkResult) {
+    const st = ensureStoryState();
+    if (!st) return;
+
+    const sceneType = inferOptionSceneType(option);
+    incrementSceneTypeMemory(sceneType);
+
+    const tags = collectOutcomeTags(option, safeOutcome);
+    tags.forEach(function (tag) {
+      st.storyMemory.tags[tag] = Number(st.storyMemory.tags[tag] || 0) + 1;
+    });
+
+    const note = {
+      at: Date.now(),
+      sceneId: String(sceneId || ""),
+      sceneTitle: String((scene && scene.title) || sceneId || "Scene"),
+      optionText: String((option && option.text) || "Decision"),
+      sceneType: sceneType,
+      outcomeText: String((safeOutcome && safeOutcome.text) || "Outcome recorded."),
+      tags: tags.slice(0, 6),
+      roll: checkResult
+        ? {
+            success: !!checkResult.success,
+            effectiveTotal: Number(checkResult.effectiveTotal || checkResult.action && checkResult.action.total || 0),
+            dreadTotal: Number(checkResult.dread && checkResult.dread.total || 0),
+          }
+        : null,
+    };
+
+    st.storyMemory.recent.unshift(note);
+    st.storyMemory.recent = st.storyMemory.recent.slice(0, 20);
+  }
+
   function consumeBackpackAny(terms) {
     if (!Array.isArray(terms) || !terms.length || !Array.isArray(S.backpack)) return "";
     var idx = -1;
@@ -2502,6 +2644,22 @@
       const st = ensureStoryState();
       if (!st) return false;
       if ((st.usedStats || []).length < Number(req.usedStatCountAtLeast.count || 0)) return false;
+    }
+    if (req.sceneTypeSeenAtLeast && req.sceneTypeSeenAtLeast.type) {
+      const st = ensureStoryState();
+      if (!st) return false;
+      const t = normalizeSceneType(req.sceneTypeSeenAtLeast.type);
+      const seen = Number(st.storyMemory && st.storyMemory.sceneTypeCounts ? st.storyMemory.sceneTypeCounts[t] : 0);
+      if (seen < Number(req.sceneTypeSeenAtLeast.min || 1)) return false;
+    }
+    if (Array.isArray(req.consequenceTagAny) && req.consequenceTagAny.length) {
+      const st = ensureStoryState();
+      if (!st) return false;
+      const hasAny = req.consequenceTagAny.some(function (tag) {
+        const key = String(tag || "").trim();
+        return key && Number(st.storyMemory.tags[key] || 0) > 0;
+      });
+      if (!hasAny) return false;
     }
     if (Array.isArray(req.lexiconKnown) && req.lexiconKnown.length) {
       const st = ensureStoryState();
@@ -2667,6 +2825,15 @@
       const st = ensureStoryState();
       Object.keys(effects.flags).forEach(function (key) {
         st.flags[key] = effects.flags[key];
+      });
+    }
+
+    if (Array.isArray(effects.consequenceTags) && effects.consequenceTags.length) {
+      const st = ensureStoryState();
+      effects.consequenceTags.forEach(function (tag) {
+        const key = "tag:" + lc(tag);
+        if (!key) return;
+        st.storyMemory.tags[key] = Number(st.storyMemory.tags[key] || 0) + 1;
       });
     }
 
@@ -3423,6 +3590,7 @@
       }
     }
     if (safeOutcome && safeOutcome.text) st.lastResult = safeOutcome.text;
+    rememberStoryConsequence(sceneId, scene, option, safeOutcome, checkResult);
     if (safeOutcome && safeOutcome.next) {
       st.sceneId = safeOutcome.next;
       const next = SCENES[st.sceneId];
@@ -3439,6 +3607,7 @@
       st.log = [];
       st.usedStats = [];
       st.completedSystems = [];
+      st.storyMemory = { recent: [], tags: {}, sceneTypeCounts: {} };
       st.seedTag = "W-" + Math.floor(Math.random() * 9000 + 1000);
       st.pendingTravel = null;
       st.lastResult = "Cycle reset. A new Wayfarer enters the same legend from a different angle.";
@@ -3989,6 +4158,8 @@
     if (req.flagEq && req.flagEq.key) bits.push("Flag " + req.flagEq.key + " = " + req.flagEq.value);
     if (req.sceneSeenAtLeast && req.sceneSeenAtLeast.sceneId) bits.push("Seen " + req.sceneSeenAtLeast.sceneId + " x" + req.sceneSeenAtLeast.min);
     if (req.usedStatCountAtLeast && req.usedStatCountAtLeast.count) bits.push("Used stats ≥ " + req.usedStatCountAtLeast.count);
+    if (req.sceneTypeSeenAtLeast && req.sceneTypeSeenAtLeast.type) bits.push("Scene type " + req.sceneTypeSeenAtLeast.type + " seen x" + req.sceneTypeSeenAtLeast.min);
+    if (Array.isArray(req.consequenceTagAny) && req.consequenceTagAny.length) bits.push("Any consequence tag: " + req.consequenceTagAny.join(" / "));
     if (Array.isArray(req.lexiconKnown) && req.lexiconKnown.length) bits.push("Glyphs: " + req.lexiconKnown.join(", "));
     if (req.lexiconCountAtLeast && req.lexiconCountAtLeast.count) bits.push("Known glyphs ≥ " + req.lexiconCountAtLeast.count);
     if (req.quoteKnown) bits.push("Remembered quote: " + req.quoteKnown);
@@ -4042,6 +4213,12 @@
     const scene = SCENES[st.sceneId] || SCENES.intro;
     const chapter = getChapterMeta(scene.chapter);
     const variantText = sceneVariantText(scene, st);
+    const sceneTypes = inferSceneTypes(scene);
+    const sceneTypeLine = sceneTypes.map(function (typeId) {
+      return STORY_SCENE_TYPES[typeId] || typeId;
+    }).join("  |  ");
+    const gmFrame = "Frame this as " + (STORY_SCENE_TYPES[primarySceneType(scene)] || "Social")
+      + ": escalate stakes, let the party choose approach, then lock in a visible consequence.";
 
     const options = (scene.options || []).map(function (option) {
       const unlocked = hasReq(option.req);
@@ -4132,6 +4309,21 @@
         }).join("")
       : "<div class='story-log-item'>No assignments recorded yet.</div>";
 
+    const consequenceMemoryHtml = st.storyMemory && Array.isArray(st.storyMemory.recent) && st.storyMemory.recent.length
+      ? st.storyMemory.recent.slice(0, 5).map(function (entry) {
+          const typeName = STORY_SCENE_TYPES[entry.sceneType] || entry.sceneType || "Scene";
+          const tags = Array.isArray(entry.tags) && entry.tags.length ? (" [" + entry.tags.slice(0, 3).join(", ") + "]") : "";
+          return "<div class='story-log-item'><strong>" + escHtml(typeName) + "</strong> - "
+            + escHtml(entry.optionText || "Decision") + "<br><span style='color:var(--muted2);'>"
+            + escHtml(entry.outcomeText || "Outcome") + escHtml(tags) + "</span></div>";
+        }).join("")
+      : "<div class='story-log-item'>No lasting consequences recorded yet.</div>";
+
+    const sceneTypeStats = Object.keys(STORY_SCENE_TYPES).map(function (typeId) {
+      const count = Number((st.storyMemory && st.storyMemory.sceneTypeCounts && st.storyMemory.sceneTypeCounts[typeId]) || 0);
+      return (STORY_SCENE_TYPES[typeId] + ": " + count);
+    }).join("  |  ");
+
     host.innerHTML = ""
       + "<div class='story-shell'>"
       + "<div class='story-column story-left'>"
@@ -4148,9 +4340,11 @@
       + "<div class='story-header'>"
       + "<div class='story-title'>" + scene.title + "</div>"
       + "<div class='story-sub'>" + scene.location + "  |  " + scene.mood + "</div>"
+      + "<div class='story-villain'>Scene Types: " + sceneTypeLine + "</div>"
       + "<div class='story-villain'>Villain Arc: " + chapter.villainBeat + "</div>"
       + "</div>"
       + "<div class='story-body'>" + scene.text + "</div>"
+      + "<div class='story-result' style='border-color:rgba(94,197,187,.4);background:rgba(94,197,187,.08);'><strong>GM Frame:</strong> " + gmFrame + "</div>"
       + (variantText ? ("<div class='story-result'><strong>Variant:</strong> " + variantText + "</div>") : "")
       + (st.lastResult ? ("<div class='story-result'><strong>Last Outcome:</strong> " + st.lastResult + "</div>") : "")
       + (st.pendingTravel ? ("<div class='story-result' style='border:1px solid rgba(240,208,112,.4);background:rgba(240,208,112,.08);'>"
@@ -4193,6 +4387,7 @@
       + "</div>"
       + "<div class='story-label'>Decoded Lexicon</div><div class='story-value'>" + lexiconText + "</div>"
       + "<div class='story-label'>Remembered Voices</div><div class='story-value'>" + memoryText + "</div>"
+      + "<div class='story-label'>Scene Type History</div><div class='story-value'>" + sceneTypeStats + "</div>"
       + "<div class='story-label' style='margin-top:.35rem;color:var(--teal);'>Success Streak</div>"
       + "<div class='story-value'><strong style='font-size:.95rem;'>" + (typeof S !== 'undefined' && S.successRollCount ? S.successRollCount : 0) + "/3</strong> <span style='font-size:.74rem;color:var(--muted2);'>→ next Path Token</span></div>"
       + "<div class='story-label' style='margin-top:.35rem;'>Teamwork Points</div>"
@@ -4207,6 +4402,10 @@
       + "<div class='story-card'>"
       + "<div class='story-label'>Party Role Assignments</div>"
       + "<div class='story-log'>" + assignmentLogHtml + "</div>"
+      + "</div>"
+      + "<div class='story-card'>"
+      + "<div class='story-label'>Consequence Memory</div>"
+      + "<div class='story-log'>" + consequenceMemoryHtml + "</div>"
       + "</div>"
       + "<div class='story-card'>"
       + "<div class='story-label'>Choice Log</div>"

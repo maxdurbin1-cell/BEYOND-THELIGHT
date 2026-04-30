@@ -34,15 +34,112 @@ const AUTHORITATIVE_STATE_KEYS = [
   "starSystem",
   "worldThatWas",
   "gameDate",
+  "gmSettings",
+  "campaignTravel",
   "factionRenown",
   "factionBases",
   "factionWayfarerTasks",
-  "factionNarrative"
+  "factionNarrative",
+  "campaignCombat",
+  "characterDeathStates",
+  "contestedRolls",
+  "characterDice"
 ];
+const PLAYER_PATCH_ALLOWED_KEYS = {
+  renown: true,
+  credits: true,
+  mentalStress: true,
+  missionTokens: true,
+  activeMissions: true,
+  completedMissions: true,
+  availableJobs: true,
+  storyline: true,
+  holding: true,
+  caravan: true,
+  factionWayfarerTasks: true,
+  factionNarrative: true,
+  factionRenown: true,
+  factionBases: true,
+  provinceMap: true,
+  provinceSelections: true,
+  campaignCombat: true,
+  partyStash: true,
+  characterInventories: true,
+  economyLedger: true
+};
 
 const campaigns = new Map();
 let persistTimer = null;
 let persistQueued = false;
+
+function safeClone(value) {
+  if (value === null || value === undefined) return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_err) {
+    return value;
+  }
+}
+
+function mergePlayerActionQueue(existingState, incomingQueue, requesterToken) {
+  const existingQueue = Array.isArray(existingState && existingState.actionQueue) ? existingState.actionQueue : [];
+  const merged = existingQueue.slice();
+  const knownIds = new Set(merged.map((entry) => String(entry && entry.id || "")).filter(Boolean));
+  if (!Array.isArray(incomingQueue) || !requesterToken) return merged;
+
+  incomingQueue.forEach((entry) => {
+    if (!entry || typeof entry !== "object") return;
+    if (String(entry.token || "") !== String(requesterToken || "")) return;
+    if (String(entry.status || "pending") !== "pending") return;
+    const id = String(entry.id || "");
+    if (!id || knownIds.has(id)) return;
+    knownIds.add(id);
+    merged.push(safeClone(entry));
+  });
+
+  return merged;
+}
+
+function mergeAllowedPlayerState(existingState, incoming, requesterToken, conflicts) {
+  const merged = Object.assign({}, existingState || {});
+  const incomingState = incoming && typeof incoming === "object" ? incoming : {};
+  const conflictList = Array.isArray(conflicts) ? conflicts : [];
+
+  Object.keys(incomingState).forEach((key) => {
+    if (key === "provinceSelections" || key === "economyLedger" || key === "characterInventories" || key === "actionQueue") return;
+    if (!PLAYER_PATCH_ALLOWED_KEYS[key]) {
+      conflictList.push(key);
+      return;
+    }
+    merged[key] = safeClone(incomingState[key]);
+  });
+
+  if (
+    incomingState.provinceSelections && typeof incomingState.provinceSelections === "object" &&
+    !Array.isArray(incomingState.provinceSelections)
+  ) {
+    const currentSelections = existingState && existingState.provinceSelections && typeof existingState.provinceSelections === "object" && !Array.isArray(existingState.provinceSelections)
+      ? existingState.provinceSelections
+      : {};
+    merged.provinceSelections = Object.assign({}, currentSelections, safeClone(incomingState.provinceSelections) || {});
+  }
+
+  if (incomingState.characterInventories && typeof incomingState.characterInventories === "object" && !Array.isArray(incomingState.characterInventories)) {
+    if (requesterToken && Object.prototype.hasOwnProperty.call(incomingState.characterInventories, requesterToken)) {
+      const currentInventories = existingState && existingState.characterInventories && typeof existingState.characterInventories === "object"
+        ? safeClone(existingState.characterInventories) || {}
+        : {};
+      currentInventories[requesterToken] = safeClone(incomingState.characterInventories[requesterToken]) || [];
+      merged.characterInventories = currentInventories;
+    }
+  }
+
+  if (Array.isArray(incomingState.actionQueue)) {
+    merged.actionQueue = mergePlayerActionQueue(existingState, incomingState.actionQueue, requesterToken);
+  }
+
+  return merged;
+}
 
 function randomFromChars(length, chars) {
   let value = "";
@@ -1068,22 +1165,12 @@ io.on("connection", (socket) => {
     const token = socket.data.token || "";
     const member = token ? campaign.participants.get(token) : null;
     const gmAuthority = isGm(campaign, token);
-    const authoritativeKeys = AUTHORITATIVE_STATE_KEYS;
     const conflicts = [];
-    const merged = Object.assign({}, existingState, incoming);
+    let merged = Object.assign({}, existingState, incoming);
 
     if (!gmAuthority) {
-      for (let i = 0; i < authoritativeKeys.length; i += 1) {
-        const key = authoritativeKeys[i];
-        if (Object.prototype.hasOwnProperty.call(incoming, key)) {
-          if (Object.prototype.hasOwnProperty.call(existingState, key)) merged[key] = existingState[key];
-          else delete merged[key];
-          conflicts.push(key);
-        }
-      }
-    }
-
-    if (
+      merged = mergeAllowedPlayerState(existingState, incoming, token, conflicts);
+    } else if (
       incoming.provinceSelections && typeof incoming.provinceSelections === "object" &&
       !Array.isArray(incoming.provinceSelections)
     ) {
@@ -1108,16 +1195,24 @@ io.on("connection", (socket) => {
       deduped.sort((a, b) => Number(a && a.at || 0) - Number(b && b.at || 0));
       merged.economyLedger = deduped.slice(-220);
     }
-    if (Array.isArray(existingState.partyStash)) {
+    if (Array.isArray(merged.partyStash)) {
+      merged.partyStash = merged.partyStash.slice();
+    } else if (Array.isArray(existingState.partyStash)) {
       merged.partyStash = existingState.partyStash.slice();
     }
-    if (typeof existingState.mentalStress === "number") {
+    if (typeof merged.mentalStress === "number") {
+      merged.mentalStress = Math.max(0, Number(merged.mentalStress || 0));
+    } else if (typeof existingState.mentalStress === "number") {
       merged.mentalStress = Math.max(0, Number(existingState.mentalStress || 0));
     }
-    if (typeof existingState.credits === "number") {
+    if (typeof merged.credits === "number") {
+      merged.credits = Math.max(0, Number(merged.credits || 0));
+    } else if (typeof existingState.credits === "number") {
       merged.credits = Math.max(0, Number(existingState.credits || 0));
     }
-    if (typeof existingState.renown === "number") {
+    if (typeof merged.renown === "number") {
+      merged.renown = Math.max(0, Number(merged.renown || 0));
+    } else if (typeof existingState.renown === "number") {
       merged.renown = Math.max(0, Number(existingState.renown || 0));
     }
 

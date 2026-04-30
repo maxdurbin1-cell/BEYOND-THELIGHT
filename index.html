@@ -7412,14 +7412,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     S.explorationEffects.revealTraps=Math.max(0,Number(S.explorationEffects.revealTraps||0)-1);
   }
 
-  function syncProvinceRuinStateSoon(reason){
+  var syncProvinceRuinStateSoon = window.syncProvinceRuinStateSoon = function(reason){
     if(!window.campaignSystem||typeof window.campaignSystem.getState!=='function'||typeof window.campaignSystem.syncSharedPatch!=='function'||typeof window.getProvinceMapState!=='function')return;
     const cs=window.campaignSystem.getState();
     if(!cs||!cs.code)return;
     setTimeout(function(){
       try{window.campaignSystem.syncSharedPatch({provinceMap:window.getProvinceMapState()},reason||'province-ruin');}catch(_err){}
     },0);
-  }
+  };
 
   window.startProvinceRuinPuzzle = function(col,row,idx){
     const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });

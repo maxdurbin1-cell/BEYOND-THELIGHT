@@ -59,7 +59,8 @@
       joinPassword: ""
     },
     activeRosterSheetToken: "",
-    lastCampaignCombatPromptAt: 0
+    lastCampaignCombatPromptAt: 0,
+    lastCampaignTravelAppliedAt: 0
   };
 
   var ROLE_ACTIONS = {
@@ -84,6 +85,29 @@
       sendChat: true,
       syncSharedWorld: true
     }
+  };
+
+  var PLAYER_SHARED_PATCH_KEYS = {
+    renown: true,
+    credits: true,
+    mentalStress: true,
+    missionTokens: true,
+    activeMissions: true,
+    completedMissions: true,
+    availableJobs: true,
+    storyline: true,
+    holding: true,
+    caravan: true,
+    factionWayfarerTasks: true,
+    factionNarrative: true,
+    factionRenown: true,
+    factionBases: true,
+    provinceMap: true,
+    provinceSelections: true,
+    campaignCombat: true,
+    partyStash: true,
+    characterInventories: true,
+    economyLedger: true
   };
 
   function safeNotif(msg, kind) {
@@ -338,6 +362,115 @@
     if (snapshot.weather) window.S.lastSea.weather = snapshot.weather;
   }
 
+  function applyCampaignTravelState(travelState, opts) {
+    var travel = travelState && typeof travelState === "object" ? travelState : null;
+    if (!travel) return;
+    var options = opts || {};
+    var travelAt = Number(travel.updatedAt || 0) || 0;
+    if (!options.force && travelAt && travelAt === state.lastCampaignTravelAppliedAt) return;
+
+    var context = String(travel.context || "");
+    var tab = String(travel.tab || "");
+    var provinceKey = String(travel.provinceKey || "");
+    var handledWorldThatWas = false;
+
+    if (context && typeof window.setContext === "function") {
+      try {
+        var ctxBtn = document.querySelector('.ctx-btn[data-ctx="' + context + '"]');
+        window.setContext(context, ctxBtn || null);
+      } catch (_err) {}
+    }
+
+    if (tab) {
+      try {
+        if (tab === "worldthatwas" && typeof window.openWorldThatWasFromGalaxy === "function") {
+          window.openWorldThatWasFromGalaxy();
+          handledWorldThatWas = true;
+        } else if (typeof window.switchTab === "function") {
+          var btn = document.querySelector('nav .tab-btn[onclick*="switchTab(\'' + tab + '\'"]');
+          window.switchTab(tab, btn || null);
+        }
+      } catch (_err) {}
+    }
+
+    if (!handledWorldThatWas && tab === "worldthatwas" && typeof window.mountWorldThatWasPanel === "function") {
+      try {
+        window.mountWorldThatWasPanel();
+        if (typeof window.renderWorldThatWas === "function") window.renderWorldThatWas();
+      } catch (_err) {}
+    }
+
+    if (provinceKey && typeof window.setProvinceSelectedKey === "function") {
+      try { window.setProvinceSelectedKey(provinceKey); } catch (_err) {}
+    }
+
+    if (travelAt) {
+      state.lastCampaignTravelAppliedAt = travelAt;
+    }
+  }
+
+  function sanitizePlayerSharedPatch(patch) {
+    if (!patch || typeof patch !== "object") return {};
+    var sanitized = {};
+    Object.keys(patch).forEach(function (key) {
+      if (!PLAYER_SHARED_PATCH_KEYS[key]) return;
+      if ((key === "provinceMap" || key === "campaignCombat") && (!patch[key] || typeof patch[key] !== "object")) return;
+      if (key === "characterInventories") {
+        if (!state.token || !patch.characterInventories || typeof patch.characterInventories !== "object") return;
+        if (!Object.prototype.hasOwnProperty.call(patch.characterInventories, state.token)) return;
+        sanitized.characterInventories = {};
+        sanitized.characterInventories[state.token] = deepCloneJson(patch.characterInventories[state.token]) || [];
+        return;
+      }
+      sanitized[key] = deepCloneJson(patch[key]);
+    });
+    return sanitized;
+  }
+
+  function ensureCampaignTravelState(sharedState) {
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
+    if (!sharedState.campaignTravel || typeof sharedState.campaignTravel !== "object") {
+      sharedState.campaignTravel = {
+        region: "province",
+        context: "traveling",
+        tab: "map",
+        label: "Province Map",
+        provinceKey: "",
+        movedBy: "",
+        reason: "",
+        phaseCost: 0,
+        updatedAt: 0
+      };
+    }
+    return sharedState.campaignTravel;
+  }
+
+  function advanceSharedGameDate(intervals) {
+    var count = Math.max(1, Math.min(8, Number(intervals || 1) || 1));
+    if (typeof window.S === "undefined" || !window.S) return count;
+    if (!window.S.gameDate || typeof window.S.gameDate !== "object") {
+      window.S.gameDate = { day: 1, month: 1, year: 1, phase: 0 };
+    }
+    var d = window.S.gameDate;
+    for (var i = 0; i < count; i++) {
+      if (typeof window.advanceProvincePhasePenalty === "function") {
+        window.advanceProvincePhasePenalty(1);
+      } else {
+        d.phase = (Number(d.phase || 0) + 1) % 4;
+        if (d.phase === 0) {
+          d.day = (Number(d.day || 1) + 1) % 29;
+          if (d.day === 1) {
+            d.month = (Number(d.month || 1) + 1) % 13;
+            if (d.month === 1) {
+              d.year = (Number(d.year || 1) + 1);
+            }
+          }
+        }
+      }
+    }
+    return count;
+  }
+
   function refreshSettingsModeFromCampaign() {
     if (!window.settingsSystem || typeof window.settingsSystem.setGameMode !== "function") return;
     if (!state.code) {
@@ -503,6 +636,7 @@
       shared.gameDate = deepCloneJson(window.S.gameDate || {});
       shared.gmSettings = deepCloneJson(current.gmSettings || ensureGmSettings());
       shared.campaignCombat = deepCloneJson(current.campaignCombat || ensureCampaignCombatState());
+      shared.campaignTravel = deepCloneJson(current.campaignTravel || ensureCampaignTravelState());
       shared.actionQueue = deepCloneJson(current.actionQueue || ensureActionQueue());
       shared.characterInventories = deepCloneJson(current.characterInventories || ensureCharacterInventories());
       shared.characterDeathStates = deepCloneJson(current.characterDeathStates || ensureCharacterDeathStates());
@@ -645,6 +779,12 @@
         if (!current.campaignCombat.active) {
           state.lastCampaignCombatPromptAt = 0;
         }
+      }
+      if (sharedState.campaignTravel && typeof sharedState.campaignTravel === "object") {
+        var current = getCampaignSharedState() || {};
+        if (!current.campaignTravel) current.campaignTravel = {};
+        Object.assign(current.campaignTravel, deepCloneJson(sharedState.campaignTravel) || {});
+        applyCampaignTravelState(current.campaignTravel);
       }
       if (Array.isArray(sharedState.actionQueue)) {
         var current = getCampaignSharedState() || {};
@@ -1145,20 +1285,34 @@
       return;
     }
     try {
-      // Validate destination is valid (Province/Sea key format)
-      if (!destination || typeof destination !== "string" || destination.trim().length === 0) {
+      var next = (destination && typeof destination === "object") ? destination : { label: String(destination || "").trim() };
+      if (!next.label) {
         if (callback) callback({ ok: false, error: "Invalid destination" });
         return;
       }
 
-      // TODO: Execute travel logic once Season/Province system updated
-      // For now, broadcast intent
-      safeNotif("GM initiated travel to: " + destination);
+      var travelState = ensureCampaignTravelState();
+      travelState.region = String(next.region || (next.tab === "lastsea" ? "sea" : (next.tab === "galaxy" || next.tab === "worldthatwas" ? "space" : "province")));
+      travelState.context = String(next.context || (next.tab === "lastsea" ? "sea" : (next.tab === "galaxy" || next.tab === "worldthatwas" ? "space" : "traveling")));
+      travelState.tab = String(next.tab || "map");
+      travelState.label = String(next.label || "Province Map");
+      travelState.provinceKey = String(next.provinceKey || "");
+      travelState.reason = String(next.reason || "campaign-travel");
+      travelState.phaseCost = Math.max(0, Math.min(4, Number(next.phaseCost || 1) || 1));
+      travelState.movedBy = String(state.playerName || ensureName() || "GM");
+      travelState.updatedAt = Date.now();
+
+      if (travelState.phaseCost > 0) {
+        advanceSharedGameDate(travelState.phaseCost);
+      }
+      applyCampaignTravelState(travelState, { force: true });
+
+      safeNotif("Party travel: " + travelState.label + (travelState.phaseCost ? (" (" + travelState.phaseCost + " phase)") : ""), "info");
 
       if (state.code && state.connected) {
         syncSharedState("gm-travel");
       }
-      if (callback) callback({ ok: true, destination: destination });
+      if (callback) callback({ ok: true, destination: deepCloneJson(travelState) || travelState });
     } catch (err) {
       if (callback) callback({ ok: false, error: String(err) });
     }
@@ -1172,27 +1326,7 @@
     }
     try {
       intervals = Math.max(1, Math.min(4, Number(intervals || 1)));
-      
-      if (typeof window.S !== "undefined" && window.S && window.S.gameDate) {
-        var d = window.S.gameDate;
-        for (var i = 0; i < intervals; i++) {
-          if (typeof window.advanceProvincePhasePenalty === "function") {
-            window.advanceProvincePhasePenalty(1);
-          } else {
-            // Fallback phase advancement
-            d.phase = (Number(d.phase || 0) + 1) % 4;
-            if (d.phase === 0) {
-              d.day = (Number(d.day || 1) + 1) % 29;
-              if (d.day === 1) {
-                d.month = (Number(d.month || 1) + 1) % 13;
-                if (d.month === 1) {
-                  d.year = (Number(d.year || 1) + 1);
-                }
-              }
-            }
-          }
-        }
-      }
+      advanceSharedGameDate(intervals);
 
       if (state.code && state.connected) {
         syncSharedState("gm-advance-time");
@@ -1201,6 +1335,28 @@
     } catch (err) {
       if (callback) callback({ ok: false, error: String(err) });
     }
+  }
+
+  function promptCampaignTravel() {
+    if (!state.role || state.role !== "gm") {
+      safeNotif("Only GM can move the party.", "warn");
+      return;
+    }
+    if (typeof window.openModal !== "function") {
+      safeNotif("Travel prompt unavailable.", "warn");
+      return;
+    }
+    var provinceKey = (typeof window.getProvinceSelectedKey === "function") ? String(window.getProvinceSelectedKey() || "") : "";
+    var html = ''
+      + '<div style="font-size:.82rem;color:var(--muted2);line-height:1.6;margin-bottom:.55rem;">Move the shared party destination and spend an explicit travel phase.</div>'
+      + '<div style="display:grid;gap:.35rem;">'
+      + '<button class="btn btn-sm btn-teal" onclick="window.campaignSystem.gmInitiateTravel({ label: \'Province Map\', region: \'province\', context: \'traveling\', tab: \'map\', provinceKey: \'" + escapeHtml(provinceKey) + "\', phaseCost: 1, reason: \'travel-province\' }); closeModal();">Province Map (1 Phase)</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="window.campaignSystem.gmInitiateTravel({ label: \'Last Sea\', region: \'sea\', context: \'sea\', tab: \'lastsea\', phaseCost: 1, reason: \'travel-last-sea\' }); closeModal();">Last Sea (1 Phase)</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="window.campaignSystem.gmInitiateTravel({ label: \'Galaxy\', region: \'space\', context: \'space\', tab: \'galaxy\', phaseCost: 1, reason: \'travel-galaxy\' }); closeModal();">Galaxy (1 Phase)</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="window.campaignSystem.gmInitiateTravel({ label: \'World That Was\', region: \'space\', context: \'space\', tab: \'worldthatwas\', phaseCost: 1, reason: \'travel-world-that-was\' }); closeModal();">World That Was (1 Phase)</button>'
+      + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted);margin-top:.5rem;">Province travel will keep the currently selected shared hex when one is selected.</div>';
+    window.openModal("Campaign Travel", html);
   }
 
   // Set GM mode (passive/active/facilitative)
@@ -1243,6 +1399,11 @@
   async function syncPlayerSharedPatch(patch, reason) {
     if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
     if (!patch || typeof patch !== "object") return { ok: false, error: "Invalid patch." };
+    var safePatch = sanitizePlayerSharedPatch(patch);
+    if (!Object.keys(safePatch).length) {
+      safeNotif("Player patch rejected by client guardrails.", "warn");
+      return { ok: false, error: "No permitted player patch keys." };
+    }
     var gmSettings = ensureGmSettings();
     if (String(gmSettings.mode || "passive") === "active") {
       var queue = ensureActionQueue();
@@ -1252,7 +1413,7 @@
         playerName: state.playerName || ensureName(),
         type: "player-patch",
         data: {
-          patch: deepCloneJson(patch) || {},
+          patch: deepCloneJson(safePatch) || {},
           reason: String(reason || "player-patch")
         },
         submittedAt: Date.now(),
@@ -1270,7 +1431,7 @@
       return queued;
     }
     var out = await emitWithAck("campaign:syncState", {
-      state: patch,
+      state: safePatch,
       reason: reason || "player-patch"
     });
     if (!out || !out.ok) {
@@ -1343,8 +1504,9 @@
       case "player-patch":
         if (action.data && action.data.patch && typeof action.data.patch === "object") {
           var current = getMutableCampaignSharedState();
-          Object.keys(action.data.patch).forEach(function (k) {
-            current[k] = deepCloneJson(action.data.patch[k]);
+          var safePatch = sanitizePlayerSharedPatch(action.data.patch);
+          Object.keys(safePatch).forEach(function (k) {
+            current[k] = deepCloneJson(safePatch[k]);
           });
         }
         break;
@@ -2423,6 +2585,12 @@
       ? (" · " + String(state.lastAutoRebroadcastError))
       : "";
     var partyStash = Array.isArray(sharedState.partyStash) ? sharedState.partyStash : [];
+    var campaignTravel = sharedState && sharedState.campaignTravel && typeof sharedState.campaignTravel === "object"
+      ? sharedState.campaignTravel
+      : ensureCampaignTravelState(sharedState);
+    var travelStatusText = escapeHtml(String(campaignTravel.label || "Province Map"))
+      + ' · ' + escapeHtml(String(campaignTravel.movedBy || "-"))
+      + ' · ' + escapeHtml(formatTimestamp(campaignTravel.updatedAt) || "-");
     var localBackpackSlots = Array.isArray(window.S && window.S.backpack)
       ? window.S.backpack.map(function (item, idx) {
           return { item: String(item || "").trim(), idx: idx };
@@ -2588,9 +2756,10 @@
           + '</div>'
           + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
           + '<button class="btn btn-xs" onclick="window.campaignSystem.gmAdvanceTime(1)">Advance Rest (1 Phase)</button>'
-          + '<button class="btn btn-xs" onclick="">Travel To...</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.promptCampaignTravel()">Travel To...</button>'
           + '</div>'
           + '<div class="campaign-muted" style="margin-top:.35rem;"><strong>Current Combat:</strong> <span id="combatStatusText">Inactive</span></div>'
+          + '<div class="campaign-muted" style="margin-top:.18rem;"><strong>Party Travel:</strong> ' + travelStatusText + '</div>'
           + '</div>')
         : "")
       + (state.code
@@ -4115,6 +4284,7 @@
     endCampaignCombat: endCampaignCombat,
     getCurrentCombatActor: getCurrentCombatActor,
     gmInitiateTravel: gmInitiateTravel,
+    promptCampaignTravel: promptCampaignTravel,
     gmAdvanceTime: gmAdvanceTime,
     buildPartyRoster: buildPartyRoster,
     ensureGmSettings: ensureGmSettings,

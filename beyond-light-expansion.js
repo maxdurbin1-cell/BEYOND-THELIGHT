@@ -1339,8 +1339,11 @@
   function ensureSeaPerilResultHtml(hex) {
     if (!hex || !hex.resultHtml) return "";
     var html = String(hex.resultHtml);
-    if (html.indexOf("Peril -") === -1) return html;
-    if (html.indexOf("resolveOpenSeaPerilCheck(") !== -1) return html;
+    if (html.indexOf("Peril") === -1) return html;
+    if (html.indexOf("resolveOpenSeaPerilCheck(") !== -1 || html.indexOf("resolveSeaIslandPerilCheck(") !== -1) return html;
+
+    // Don't add Control button to Island Perils - they use Lead
+    if (html.indexOf("Island Peril") !== -1) return html;
 
     var match = html.match(/Peril\s*-\s*([^<]+)/i);
     var perilName = match && match[1] ? String(match[1]).trim() : "Open Sea Hazard";
@@ -1371,6 +1374,59 @@
 
   function buildRoyalArmadaText() {
     return `${pick(ARMADA_ACTIONS)} ${pick(ARMADA_TARGETS)}`;
+  }
+
+  function startSeaLandBeastCombat(col, row, count) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex) return;
+    if (typeof startSeaMonsterCombat === 'function') {
+      startSeaMonsterCombat('beasts', count, 'Hostile Beasts', 4);
+    } else {
+      showNotif('Starting beast combat: ' + count + ' beasts DD4.', 'warn');
+    }
+  }
+
+  function resolveSeaLandBeastOutcome(col, row, success) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex) return;
+    var bonusNotes = [];
+    if (success) {
+      if (typeof changeCounter === 'function') changeCounter('renown', 1);
+      S.credits = (S.credits || 0) + 25;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      hex.resultHtml = '<div class="sea-result-title">Beasts Defeated</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You clear the path. +1 Renown and +25 credits.</div>';
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      showNotif('Hostile beasts defeated.', 'good');
+    } else {
+      ensureMentalStress(1);
+      hex.resultHtml = '<div class="sea-result-title">Beast Encounter Failed</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You retreat with injuries. +1 Mental Stress.</div>';
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      showNotif('Beast encounter failed.', 'warn');
+    }
+    renderLastSeaInfo(hex);
+  }
+
+  function acceptSeaLandmarkProtected(col, row) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex) return;
+    // Apply Long Rest effects
+    if (typeof qpLongRest === 'function') {
+      qpLongRest();
+    } else {
+      // Fallback if qpLongRest not available
+      S.stress = 0;
+      S.mentalStress = 0;
+      if (typeof changeCondition === 'function') {
+        document.querySelectorAll('[class*="condition-pill"]').forEach(el => {
+          if (el.textContent) changeCondition(el.textContent.trim(), false);
+        });
+      }
+      if (typeof updateStressUI === 'function') updateStressUI();
+      if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+    }
+    hex.resultHtml = '<div class="sea-result-title">Landmark - Protected Resting Place</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You find respite at this sacred place. Long Rest complete: all Stress cleared, all Conditions removed.</div>';
+    renderLastSeaInfo(hex);
+    showNotif('Protected Landmark: Long Rest complete.', 'good');
   }
 
   function seaHexByCoord(col, row) {
@@ -1680,7 +1736,7 @@
       armyA: { stress: roll(12) + roll(12), dread: 6, actions: 2 },
       armyB: { stress: roll(12) + roll(12), dread: 6, actions: 2 }
     };
-    return `<div class="sea-result-title">Sea Skirmish</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${pickSides[0]} clash with ${pickSides[1]} in the shipping lane. Choose a side and run skirmish controls.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" title="${skirmishTitle}" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'A')">Join ${pickSides[0]}${skirmishHint}</button><button class="btn btn-xs btn-red" title="${skirmishTitle}" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'B')">Join ${pickSides[1]}${skirmishHint}</button></div>`;
+    return `<div class="sea-result-title">Sea Skirmish</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${pickSides[0]} clash with ${pickSides[1]} in the shipping lane. Choose a side and run skirmish controls.</div><div style="margin-top:.32rem;display:grid;grid-template-columns:1fr 1fr;gap:.25rem;"><button class="btn btn-xs btn-primary" title="${skirmishTitle}" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'A')">${pickSides[0]}${skirmishHint}</button><button class="btn btn-xs btn-red" title="${skirmishTitle}" onclick="joinSeaSkirmishSide(${hex.col},${hex.row},'B')">${pickSides[1]}${skirmishHint}</button></div>`;
   }
 
   function getSoloWayfarerHealth() {
@@ -2364,6 +2420,7 @@
         <div class="sea-site">
           <div class="ss-title">${data.name}</div>
           <div class="ss-text">Effect: ${data.effect}. ${data.detail}</div>
+          <div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-gold" onclick="acceptSeaLandmarkProtected(${hex.col},${hex.row})">Protected (Long Rest)</button></div>
         </div>
       `;
     }
@@ -2407,7 +2464,7 @@
     }
     if (rolled === 4) {
       const beasts = roll(4);
-      return `<div class="sea-result-title">Land Encounter - Hostile Beasts</div>${beasts} hostile beast${beasts > 1 ? "s" : ""} stalk the interior. DD4 | 8 Stress.`;
+      return `<div class="sea-result-title">Land Encounter - Hostile Beasts</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${beasts} hostile beast${beasts > 1 ? "s" : ""} stalk the interior. DD4 | 8 Stress each.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="startSeaLandBeastCombat(${hex.col},${hex.row},${beasts})">⚔ Start Beast Combat</button><button class="btn btn-xs btn-success" onclick="resolveSeaLandBeastOutcome(${hex.col},${hex.row},true)">✓ Success</button><button class="btn btn-xs btn-red" onclick="resolveSeaLandBeastOutcome(${hex.col},${hex.row},false)">✗ Failure</button></div>`;
     }
     if (rolled === 5) {
       const treasure = pick([`${roll(6) * 10} Credits`, "1 Scroll", "1 Armor", "1 Weapon"]);

@@ -500,6 +500,14 @@ body.lowcolor-mode {
   --surface2: #222222;
   --border: #707070;
   --border2: #8a8a8a;
+}
+
+body.lowcolor-mode > header,
+body.lowcolor-mode > nav,
+body.lowcolor-mode .tab-panel,
+body.lowcolor-mode .card,
+body.lowcolor-mode .section-title,
+body.lowcolor-mode .modal {
   filter: grayscale(1) contrast(1.12);
 }
 

@@ -625,6 +625,7 @@ select option{background:#0f1020;}
     <span style="color:var(--muted);font-size:.6rem;margin:0 .3rem;">|</span>
     <button class="btn btn-primary" onclick="generateMap()">⚄ Generate Province</button>
     <button class="btn" onclick="clearMap()">✕ Clear</button>
+    <button class="btn btn-sm" id="nightModeToggleBtn" onclick="toggleNightMode()">Night Mode: Off</button>
     <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Click: Travel</button>
     <button class="btn btn-sm btn-teal" id="mapHex3dBtn" onclick="toggleMapHex3d()">Hex 3D: On</button>
     <select id="mapOverlaySel" onchange="setMapOverlay(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
@@ -1555,7 +1556,7 @@ const SHOP_DATA={weapons:[{name:'Sword',stat:'+1 Strike | Engaged',desc:'A relia
 const STAT_KEYS=['body','strike','shoot','mind','spirit','defend','control','lead'];
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}}};
+let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}}};
 let hexNotes={};
 
 function getBackpackCapacity(){
@@ -1574,6 +1575,30 @@ function ensureBackpackCapacity(){
 function getDateStampKey(){
   if(S&&S.gameDate)return[(S.gameDate.year||1),(S.gameDate.month||1),(S.gameDate.day||1)].join('-');
   return '1-1-1';
+}
+function ensureNightModeState(){
+  if(!S||typeof S!=='object')return;
+  if(typeof S.nightMode!=='boolean')S.nightMode=false;
+}
+function isEncounterNightModeActive(){
+  ensureNightModeState();
+  return !!S.nightMode;
+}
+function updateNightModeToggleUI(){
+  ensureNightModeState();
+  var btn=document.getElementById('nightModeToggleBtn');
+  if(!btn)return;
+  var on=isEncounterNightModeActive();
+  btn.textContent='Night Mode: '+(on?'On':'Off');
+  btn.className='btn btn-sm '+(on?'btn-teal':'');
+}
+function toggleNightMode(forceValue){
+  ensureNightModeState();
+  if(typeof forceValue==='boolean')S.nightMode=forceValue;
+  else S.nightMode=!S.nightMode;
+  updateNightModeToggleUI();
+  showNotif('Night Mode '+(S.nightMode?'enabled: extra night encounters can trigger.':'disabled: baseline encounters only.'),S.nightMode?'good':'info');
+  if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
 }
 function isNightPhase(){
   if(typeof getCurrentPhaseLabel==='function')return String(getCurrentPhaseLabel()||'').toLowerCase()==='night';
@@ -1618,6 +1643,72 @@ function rollProvinceEncounterTypeByPact(){
     if(r<=run)return i+1;
   }
   return roll(8);
+}
+function buildNightModeProvinceAddonEncounter(col,row){
+  if(!isEncounterNightModeActive())return null;
+  if(roll(6)>2)return null;
+  var modeRoll=roll(4);
+  var title='';
+  var desc='';
+  var action='';
+  if(modeRoll===1){
+    var n=roll(4)+2;
+    var beastType=pick(['Moonfang pack in silver haze','Night terrors with mirrored eyes','Cinder wolves hunting in formation']);
+    title='Moon Hunt';
+    desc='Night Mode stirs a secondary threat: '+beastType+' — DD6 | '+(n*2)+' Stress.';
+    action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+      +'<button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'beasts\','+n+',\''+beastType+'\',6)">⚔ Engage Bonus Combat</button>'
+      +'<button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Evade</button>'
+      +'</div>';
+  }else if(modeRoll===2){
+    title='Nocturne Smugglers';
+    desc='A hidden lane opens under moonlight. Contraband handlers are willing to deal if you can keep quiet.';
+    action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+      +'<button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess('+col+','+row+')">Access (Control vs DD12)</button>'
+      +'<button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery</button>'
+      +'</div>';
+  }else if(modeRoll===3){
+    title='Moonlit Caravan';
+    desc='A guarded caravan travels only under cover of darkness, moving rare stock and silent escorts.';
+    action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+      +'<button class="btn btn-xs btn-info" onclick="showMerchantCaravan('+col+','+row+')">Shop</button>'
+      +'<button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan===\'function\')haggleMerchantCaravan('+col+','+row+')">Haggle</button>'
+      +'<button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'merchant\','+col+','+row+')">Thievery</button>'
+      +'</div>';
+  }else{
+    title='Shadow Wayfarer';
+    desc='A night-traveling guide offers dangerous routes through wild zones and hidden mission rumors.';
+    action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+      +'<button class="btn btn-xs btn-primary" onclick="engageWayfarerMission('+col+','+row+')">📜 Offer a Mission</button>'
+      +'<button class="btn btn-xs" onclick="talkToWayfarer('+col+','+row+')">💬 Talk</button>'
+      +'</div>';
+  }
+  return {
+    title:title,
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(126,215,255,.45);background:rgba(126,215,255,.07);"><strong style="color:#7ed7ff;">Night Mode Bonus</strong><br><strong>'+title+'</strong><br>'+desc+action+'</div>'
+  };
+}
+function buildNightModeTradeAddonEncounter(col,row){
+  if(!isEncounterNightModeActive())return null;
+  if(roll(6)>2)return null;
+  var modeRoll=roll(3);
+  if(modeRoll===1){
+    var n=roll(4)+2;
+    return {
+      title:'Midnight Ambush',
+      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(224,80,80,.45);background:rgba(224,80,80,.08);"><div class="vr-type" style="color:var(--red2);">Night Mode Bonus: Midnight Ambush</div>Raiders strike from the dark route edges. DD6 | '+(n*2)+' Stress.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'pirates\','+n+',\'Night Raiders\',6)">⚔ Engage Combat</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Evade</button></div></div>'
+    };
+  }
+  if(modeRoll===2){
+    return {
+      title:'Moonlit Smuggler Cell',
+      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><div class="vr-type" style="color:#d7b0ff;">Night Mode Bonus: Moonlit Smuggler Cell</div>A coded broker exchange appears beside the trade route.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess('+col+','+row+')">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery</button></div></div>'
+    };
+  }
+  return {
+    title:'Nocturne Courier',
+    html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(70,196,182,.45);background:rgba(70,196,182,.08);"><div class="vr-type" style="color:var(--teal);">Night Mode Bonus: Nocturne Courier</div>A night courier offers fast mission routing and rumors.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="engageWayfarerMission('+col+','+row+')">📜 Offer a Mission</button><button class="btn btn-xs" onclick="talkToWayfarer('+col+','+row+')">💬 Talk</button></div></div>'
+  };
 }
 function ensureDarkAfflictionState(){
   if(!S.darkAfflictions||typeof S.darkAfflictions!=='object')S.darkAfflictions={};
@@ -1700,12 +1791,15 @@ window.applyDarkAfflictionDailyProgress=applyDarkAfflictionDailyProgress;
 window.feedDarkAffliction=feedDarkAffliction;
 window.cureDarkAfflictionAtTemple=cureDarkAfflictionAtTemple;
 window.setFlavor=setFlavor;
+window.toggleNightMode=toggleNightMode;
+window.updateNightModeToggleUI=updateNightModeToggleUI;
 
 function ensureAdvancedGearState() {
   if (!S.equipment) S.equipment = { weapon1:'', weapon2:'', armor:'', readied:'' };
   if (!S.equipmentLayers || typeof S.equipmentLayers !== 'object') S.equipmentLayers = { under:'', over:'', suit:'' };
   if (!S.gearState || typeof S.gearState !== 'object') S.gearState = { oxygenHours:0, radAbsorbUsed:0, radAbsorbCap:0 };
   if (!S.environmentContext || typeof S.environmentContext !== 'object') S.environmentContext = { temperature:'', vacuum:false, irradiated:false };
+  ensureNightModeState();
   ensureDarkAfflictionState();
   ensureBackpackCapacity();
 }
@@ -6231,6 +6325,7 @@ function rollHexEncounter(col,row){
   }
   try{
     const vr=roll(6);
+    let nightAddonSummary='';
     const itemFlags=(function(){
       try{
         const out=(typeof getProvinceNarrativeItemFlags==='function')?getProvinceNarrativeItemFlags():null;
@@ -6322,6 +6417,12 @@ function rollHexEncounter(col,row){
       const hexObj=mapData.find(h=>h.col===col&&h.row===row);
       html=`<div style="font-size:.82rem;color:var(--green2);padding:.3rem 0;">d6=${vr} — All Clear. Uneventful travel through the ${hexObj?.terrain?.name||'wilderness'}.</div>`;
     }
+    const nightAddon=buildNightModeProvinceAddonEncounter(col,row);
+    if(nightAddon){
+      html+=nightAddon.html;
+      nightAddonSummary=' + Night Mode: '+nightAddon.title;
+      showNotif('Night Mode bonus encounter triggered: '+nightAddon.title+'.','info');
+    }
     const hexObjPersist=mapData.find(h=>h&&h.col===col&&h.row===row);
     if(hexObjPersist){
       hexObjPersist.data=hexObjPersist.data||{};
@@ -6341,6 +6442,7 @@ function rollHexEncounter(col,row){
       if(vr===1){encounterSummary='d6=1 — Shift in Weather at '+locLabel;}
       else if(vr===2){encounterSummary='d6=2 — Overland Encounter ('+locLabel+'): '+(typeof title!=='undefined'?title:'Unknown');}
       else{encounterSummary='d6='+vr+' — All Clear in '+locLabel+'.';}
+      encounterSummary+=nightAddonSummary;
       window.campaignSystem.broadcastRollResult('Province Encounter',encounterSummary);
     }
   }catch(err){
@@ -6390,20 +6492,24 @@ function rollTradeRouteEncounter(col,row){
       result=`<strong>${wAdj} ${wType}</strong> (${wRole}) — ${wDesc}`;
       actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer',${targetHex.col},${targetHex.row})">Thievery</button></div>`;
     }
+    const nightAddon=buildNightModeTradeAddonEncounter(targetHex.col,targetHex.row);
+    const finalHtml='<div class="venture-result"><div class="vr-type">Trade Route d10='+r+': '+title+'</div>'+result+actionHTML+'</div>'+(nightAddon?nightAddon.html:'');
     let el=document.getElementById(`hexEnc-${targetHex.col}-${targetHex.row}`);
     if(!el&&selectedHex&&selectedHex.col===targetHex.col&&selectedHex.row===targetHex.row){
       renderHexInfo(selectedHex);
       el=document.getElementById(`hexEnc-${targetHex.col}-${targetHex.row}`);
     }
     if(el){
-      el.innerHTML=`<div class="venture-result"><div class="vr-type">Trade Route d10=${r}: ${title}</div>${result}${actionHTML}</div>`;
+      el.innerHTML=finalHtml;
     }else{
       showNotif('Trade encounter rolled, but output panel was not found. Reopen this hex and try again.','warn');
     }
+    if(nightAddon)showNotif('Night Mode bonus encounter triggered: '+nightAddon.title+'.','info');
     // Broadcast trade result to all campaign players.
     if(window.campaignSystem&&typeof window.campaignSystem.broadcastRollResult==='function'){
       const plainTitle=typeof title==='string'?title:'Trade Encounter';
-      window.campaignSystem.broadcastRollResult('Trade Route Encounter','d10='+r+' — '+plainTitle+'.');
+      const nightLine=nightAddon?(' + Night Mode: '+nightAddon.title):'';
+      window.campaignSystem.broadcastRollResult('Trade Route Encounter','d10='+r+' — '+plainTitle+'.'+nightLine);
     }
   }catch(err){
     console.error('rollTradeRouteEncounter error',err);

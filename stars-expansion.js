@@ -8707,6 +8707,9 @@ function updateDateUI() {
   if (worldEl) {
     worldEl.textContent = getGameDatePhaseText();
   }
+  if (typeof window.updateNightModeToggleUI === 'function') {
+    window.updateNightModeToggleUI();
+  }
 }
 
 function removeLegacyHealthLabel() {

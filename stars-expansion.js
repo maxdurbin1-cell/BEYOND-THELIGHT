@@ -8599,6 +8599,7 @@ function isFullPhaseClockEnabled() {
 }
 
 function getActiveDayPhases() {
+  if (S && S.nightMode) return ['Evening', 'Night'];
   if (isFullPhaseClockEnabled()) return FULL_PHASE_CLOCK_WINDOWS.map((entry) => entry.label);
   return DAY_PHASES;
 }
@@ -8761,6 +8762,11 @@ function registerProvinceHexTravel(hexClicks) {
   ensureStarsState();
   const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
   const clicksPerDay = Math.max(3, getProvinceTravelClicksPerDay());
+  const wasNight = (typeof window.isNightPhase === 'function') ? !!window.isNightPhase() : false;
+
+  if (!wasNight && typeof window.applySunlightTraversalPunishment === 'function') {
+    window.applySunlightTraversalPunishment(clicks);
+  }
 
   S.gameDate.provinceHexClicks = (S.gameDate.provinceHexClicks || 0) + clicks;
 

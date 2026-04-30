@@ -1242,7 +1242,15 @@ const CAREERS=['Anthropologist','Hunter','Soldier','Merchant','Investigator','Pr
 const OMENS=['Spring — Nurturing','Spring — Joyful','Spring — Quick-to-Act','Harvest — Hot-headed','Harvest — Bold','Harvest — Adventurous','Winter — Cold','Winter — Harsh','Winter — Resilient'];
 const REASONS=['Sent by a corporation to steal a sacred object','Sheer greed drives you toward comfort and luxury','Tracking a missing ledger — the only clue points to the Last Sea','Seeking new converts for your belief','Found a clue to the secret of immortality','Seeking a cure for a plague that claimed your child','Seeking vengeance for an ancient wrong','A loved one was stolen away by a horror in the night','Stories of a healing fruit draw you onward','Delivering a letter of inheritance to a distant Lord','A disembodied voice told you of a child destined to restore the world','Repaying an old debt — to a Lover, a Criminal, a Noble, or a Bank',"Searching for your Grandmother's lost Transporter",'Keeping a close eye on a dangerous rival','Seeking allies for a coming revolution','Looking for new lands for a displaced and lost tribe','Visions of glory and rebirth haunt your every sleep','You found a map to a Lost City in the wastes','A burning need to become famous drives every step','Pursued by the law for a crime — rightful or not'];
 const TRAITS={physique:['Athletic','Brawny','Flabby','Lanky','Chiseled','Scraggly','Short','Dashing','Stout','Enormous'],skin:['Birthmarked','Scarred','Dark','Rosy','Pockmarked','Soft','Tanned','Weathered','Hairy','Tattooed'],hair:['Bald','Long','Braided','Mohawked','Frizzy','Curled','Wavy','Oily','Luxurious','Dreadlocked'],face:['Elongated','Bony','Broken','Pale','Rugged','Chiseled','Squatty','Sunken','Square','Round'],clothing:['Antique','Bloody','Elegant','Soiled','Exotic','Royal','Eclectic','Topless','Plain','Tattered'],virtue:['Respect','Justice','Wisdom','Resolution','Mercy','Reliable','Hope','Courage','Moderation','Helpful'],vice:['Angry','Arrogant','Envious','Glutton','Greedy','Lustful','Lazy','Drunk','Coward','Vain'],reputation:['Leader','Loafer','Dangerous','Honest','Wise','Hardworking','Entertaining','Brash','Goofy','Repulsive'],misfortune:['Addicted','Defrauded','Exiled','Cursed','In Debt','Abandoned','Blackmailed','Betrayed','Condemned','Scarred']};
-const PERSONAL_FLAVORS=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: all Engaged Targets are Shaken','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Regenerate Adventure Die in Stress per Round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana / Mutants & Abilities','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity becomes 20 slots','Deity Pact: Wayfarer missions can include patron demands for favor or debt'];
+const PERSONAL_FLAVORS_BASE=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: all Engaged Targets are Shaken','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Regenerate Adventure Die in Stress per Round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana / Mutants & Abilities','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity becomes 20 slots','Deity Pact: Wayfarer missions can include patron demands for favor or debt','Vampire: Blood hunger grants nocturnal power and daylight vulnerability','Werewolf: Bestial strength surges at night with lunar instincts'];
+const PERSONAL_FLAVORS_EXTRAS=['Echo Step: Reposition 1 range band after a successful Defend','Battle Cantor: Ally gains +1 on next Action Die','Glasswalker: Ignore first peril terrain penalty each phase','Iron Lungs: Ignore smoke and ash penalties','Runesmith: Mark one weapon for +1 Stress this scene','Scavenger Memory: First loot roll each day gets reroll','Hex Cartographer: Reveal one adjacent hex detail for free','Solar Needle: One ranged attack per scene gains +2','Grave Whisper: Ask one question to recent dead each day','Storm Veins: First lightning or shock damage each scene is ignored','Ruin Scholar: +1 on checks involving ruins and old tech','Blessed Appetite: Food use heals +1 extra Stress','Duelist Footwork: On hit, step to Nearby without cost','Pathfinder: First traversal check each phase gets +1','Dust Prophet: Predict next weather shift once per day','Mirror Nerves: Immune to first Distracted per scene','Moon Listener: +1 Spirit during Night phase','Chain Breaker: Ignore one restraint effect per scene','Warding Palm: Adjacent ally gains Protected for one roll','Quick Draw: First Strike/Shoot each combat gains +1','Bone Oracle: Read omen from remains once per day','Black Salt Ward: First Horror effect each day is negated','Field Surgeon: Stabilize ally for +1 Health recovery','Signal Caller: +1 Lead on caravan/trade checks','Scrap Alchemist: Convert one junk drop into remedy per day','Silent Knife: +1 Strike when no ally is Engaged','Ash Runner: Ignore first difficult terrain move cost','Beacon Heart: Allies in Close range get +1 vs fear','Clockmind: +1 Control on trap or lock interactions','Wild Empathy: Beasts hesitate before first attack','Grim Resolve: When Health is high stress, gain +1 Defend','Bloodhound: Track a target across two hexes automatically','Cold Reader: +1 Spirit in social deception scenes','Iron Stomach: Ignore first poison each day','Stormglass Eye: See hidden movement in rain/fog','Banner Oath: Gain +1 Lead while carrying mission objective','Trophy Keeper: First enemy defeat each scene gives +1 TMW','Quick Stitch: Once per scene reduce bleed-style penalty','Lantern Scholar: +1 Mind in darkness or ruins','Faultline Sense: Detect unstable ground before crossing','Arc Shot: Ranged attacks can ignore one cover source','Mercy Hand: Spare action grants +1 Renown chance','Rune Tongue: Read unknown glyphs with Mind check','Night Courier: +1 speed-equivalent on night travel actions','Chain Tactician: First ally action after yours gains +1','Cinder Skin: Resist heat and ember hazards','Vault Memory: Never forget map route already visited','Hunt Rhythm: +1 Strike after a successful evade','Vowkeeper: +1 on checks tied to your current task','Steel Prayer: Once per day, negate one Trauma gain','Ghoststride: Movement does not trigger simple traps','Iridescent Blood: Recover +1 Stress when using remedy','Field Quartermaster: Backpack stack cap effectively doubles','Cave Ears: +1 Notice in enclosed spaces','Apex Calm: Cannot be Shaken by minor foes','Shard Focus: +1 Control when using hacks or relics','Ashen Halo: Hostile morale drops on first reveal','Dawnbreaker: First morning action gains +1','Duskcaller: First evening action gains +1','Gale Step: Gain free reposition on crit success','Sable Ward: Reduce first incoming Stress each scene by 1','Fracture Sight: Spot weak points for +1 Shoot','Torchbearer: Allies ignore first darkness penalty','Oathbound Medic: Long Rest heals +1 Trauma every 3 days','Circuit Saint: +1 Mind with old-world devices','Feral Grace: +1 Defend against beasts','Pact Witness: +1 Spirit on deity pact outcomes'];
+const PERSONAL_FLAVORS=(function(){
+  var out=PERSONAL_FLAVORS_BASE.concat(PERSONAL_FLAVORS_EXTRAS);
+  while(out.length<100){
+    out.push('Legacy Quirk #'+String(out.length+1).padStart(2,'0')+': Unique edge in narrow circumstances');
+  }
+  return out.slice(0,100);
+})();
 const MUTATIONS=['Change your skin and hair color at will','Superhuman reflexes — Step up Advantage to Body Saves','Thick fur — you can never feel cold','Crocodile face — Bite attack (Ad4 Strike)','Secret Pocket — hide 1 apple-sized thing inside your body','Rippling Muscles — +3 to Body and Power Checks','Your voice rises three octaves unexpectedly','Tusks, like a boar','Churning Guts — can eat rotten food as full rations','Plastic bone structure — adjust shape and size of bones','Large Ears, doubled in size — features become animalistic','You grow 1d6 new limbs from your body','You smell terrible — most creatures won\'t consider you edible','Dead nerves — completely immune to physical pain','Lizard tail','Chameleon Skin — shifts to vibrant colors','Your eyes bulge forth on stalks — (Ad4) to Lead and Notice checks','Sensitive skin — rash if you touch iron','Thick scales — +2 to Defend vs physical attacks','Your bones glow faintly through your skin in darkness'];
 const RANDOM_ITEMS=['Staff made of fused pistols','Lavender plant that cannot die','Mug that turns any liquid to water','Boots that leave no footprints','A cloak that repels all dust','A clockwork songbird','Teacup that chills its contents','Multicolored shifting Cloak','A book that writes down your dreams','A size-changing Scarf','Goggles that reveal undead','A completely weightless rock',"Ram's horn","Rat brain preserved in a crystal case",'Book proclaiming a coming revolution','Pink bottle that smells wonderful','Thermos perpetually full of soup','A mechanical hand','A kite and a copper key','A bone flute'];
 const BACKPACK_TABLE=[['Sword (+1 Strike) | Light Armor (Ad4, 3 Actions) | Jewelry (A.D. to Spirit/Convince)','Mace (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Pet (A.D., 1 Action, 1 Stress)','Halberd (+3 Strike) | Light Armor (Ad4, 3 Actions) | Scroll: Speak with Animals','Two-Handed Axe (+3 Strike) | Balanced Armor (Ad6, 2 Actions) | Tinker Tools'],['Axe (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Compass (A.D. to Lead/Survival)','Staff (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Shield (A.D. to Defend)','Flail (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: See object vision','Quarterstaff (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: You can fly'],['Two-Handed Sword (+3 Strike) | Heavy Armor (Ad10, 1 Action) | Horse (A.D., 1 Action, 1 Stress)','Two-Handed Mace (+3 Strike) | Light Armor (Ad4, 3 Actions) | Lockpicks','Scythe (+2 Strike) | Light Armor (Ad4, 3 Actions) | Quill & Paper (A.D. to Forgery)','Two-Handed Scythe (+3 Strike) | Balanced Armor (Ad6, 2 Actions) | Net (A.D. to Grapple)'],['Crossbow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Spyglass (A.D. to Notice)','Whip (+1 Strike) | Light Armor (Ad4, 3 Actions) | Hood (A.D. to Stealth)','Gladius (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Mount (A.D., 1 Action, 1 Stress)','Crossbow (+3 Shoot) | Heavy Armor (Ad10, 1 Action) | Whiskey/Fiddle'],['Longbow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Levitate Objects','Sling (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Herbal Tea (A.D. to Diplomacy)','Carbine Rifle (+3 Shoot) | Balanced Armor (Ad6, 2 Actions) | Scroll: Invisibility','Reinforced Bow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Night Vision'],['Rapier (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Create Light','Katana (+3 Strike) | Heavy Armor (Ad10, 1 Action) | Scroll: Repair broken object','Sabre (+2 Strike) | Light Armor (Ad4, 3 Actions) | Scroll: Accelerate plant growth','Musket (+3 Shoot) | Balanced Armor (Ad6, 2 Actions) | Scroll: None can lie to you'],['Dagger (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Book (A.D. to Mind/Lore)','Spear (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Levitate Object','Recurve Bow (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Scroll: Reveal traps','Bow (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Herb Kit (A.D. to Heal)'],['Whip (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Talisman (A.D. to Intuition)','Pistol (+1 Shoot) | Light Armor (Ad4, 3 Actions) | Gauntlet (A.D. to Body/Power)','Blunderbuss (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Create portal','2 Daggers (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Silent steps']];
@@ -1555,6 +1563,17 @@ const STRANGE_ITEMS_FULL=['Glass orbs filled with swirling mists, freezing to to
 const SHOP_DATA={weapons:[{name:'Sword',stat:'+1 Strike | Engaged',desc:'A reliable blade for close combat.',cost:60},{name:'Axe',stat:'+2 Strike | Engaged',desc:'A heavy chopping weapon.',cost:80},{name:'Mace',stat:'+2 Strike | Engaged',desc:'A blunt weapon for crushing armor.',cost:70},{name:'Rapier',stat:'+1 Strike | Engaged',desc:'A light, precise thrusting blade.',cost:50},{name:'Dagger',stat:'+1 Strike | Engaged',desc:'Fast and concealable. One-Handed.',cost:30},{name:'Spear',stat:'+2 Strike | Engaged',desc:'A long reach weapon. Two-Handed.',cost:40},{name:'Halberd',stat:'+3 Strike | Engaged',desc:'A pole weapon combining axe and spear. Two-Handed.',cost:90},{name:'Crossbow',stat:'+2 Shoot | Nearby',desc:'A mechanical bow, slow to reload. Two-Handed.',cost:80},{name:'Longbow',stat:'+2 Shoot | Far',desc:'A recurved bow with long range. Two-Handed.',cost:70},{name:'Pistol',stat:'+1 Shoot | Nearby',desc:'A compact sidearm. One-Handed.',cost:100},{name:'Shield',stat:'+A.D. Defend',desc:'Adds Adventure Die to Defend rolls. One-Handed.',cost:45}],melee_exp:[{name:'Scrap Sword',stat:'+2 Strike | Engaged',desc:'A sword fashioned from scrap metal.',cost:60},{name:'Tactical Machete',stat:'Ad6 Strike | Engaged',desc:'Military-grade machete.',cost:80},{name:'Chain Whip',stat:'Ad4 Strike | Engaged',desc:'A length of chain ending in a weighted spike.',cost:45},{name:'Combat Knife',stat:'+1 Strike | Engaged',desc:'A sturdy knife for close-quarters combat.',cost:30},{name:'Sledgehammer',stat:'+3 Strike | Engaged',desc:'A heavy tool turned weapon. Two-Handed.',cost:70},{name:'Shock Baton',stat:'Ad8 Strike | Engaged',desc:'A baton that delivers a high-voltage shock.',cost:110},{name:'Buzzsaw Axe',stat:'Ad10 Strike | Engaged',desc:'A brutal axe with a powered buzzsaw. Two-Handed.',cost:150},{name:'Plasma Blade',stat:'Ad12 Strike | Engaged',desc:'A cutting-edge weapon emitting plasma.',cost:200},{name:'Spiked Gauntlet',stat:'+2 Strike | Engaged',desc:'Armored gauntlet with spikes.',cost:50},{name:'Razor Whip',stat:'Ad6 Strike | Engaged',desc:'A whip with razor-sharp edges.',cost:90},{name:'Shockwave Hammer',stat:'Ad20 Strike | Engaged',desc:'Utilizes gravity manipulation. Two-Handed.',cost:250},{name:'Energy Sword',stat:'Ad12 Strike | Engaged',desc:'A sword projecting a blade of concentrated energy.',cost:180},{name:'Tesla Lance',stat:'Ad10 Strike | Engaged',desc:'A long spear discharging electrical energy. Two-Handed.',cost:140},{name:'Bone Shiv',stat:'+1 Strike | Engaged',desc:'A sharpened bone.',cost:10},{name:'Riot Shield',stat:'+3 Defend/Strike | Engaged',desc:'Defense and offense combined.',cost:75},{name:'Gravity Mace',stat:'Ad20 Strike | Engaged',desc:'Utilizes gravity manipulation. Two-Handed.',cost:230}],ranged_exp:[{name:'Scrap Rifle',stat:'+2 Shoot | Nearby',desc:'A makeshift rifle. Two-Handed.',cost:100},{name:'Compound Bow',stat:'Ad8 Shoot | Far',desc:'A high-tension compound bow. Two-Handed.',cost:110},{name:'Sling',stat:'+1 Shoot | Nearby',desc:'A simple sling using scavenged stones.',cost:15},{name:'Hand Cannon',stat:'Ad10 Shoot | Close',desc:'A powerful crude handheld firearm.',cost:150},{name:'Throwing Knives',stat:'+1 Shoot | Close',desc:'A set of balanced throwing knives.',cost:40},{name:'Energy Pistol',stat:'Ad12 Shoot | Nearby',desc:'A rare energy-based weapon.',cost:200},{name:'Harpoon Gun',stat:'+3 Shoot | Nearby',desc:'A modified harpoon gun with reel-in mechanism. Two-Handed.',cost:130},{name:'Pneumatic Dart Rifle',stat:'+2 Shoot | Far',desc:'A silent rifle using compressed air. Two-Handed.',cost:140},{name:'Tactical Laser Rifle',stat:'Ad20 Shoot | Far',desc:'Advanced pre-collapse technology. Two-Handed.',cost:300},{name:'Shockwave Blaster',stat:'Ad6 Shoot | Close',desc:'On hit, Target saves vs Control or loses next Turn.',cost:180},{name:'Recoilless Sniper',stat:'+3 Shoot | Far',desc:'A sniper rifle with advanced recoil suppression. Two-Handed.',cost:250},{name:'Plasma Thrower',stat:'Ad12 Shoot | Close',desc:'Projects a stream of superheated plasma. Two-Handed.',cost:280},{name:'Flare Gun',stat:'+2 Shoot | Nearby',desc:'Can also be used as a distress signal.',cost:50},{name:'Bolt-Action Rifle',stat:'+2 Shoot | Nearby',desc:'A reliable bolt-action rifle. Two-Handed.',cost:80},{name:'Acid Spray Gun',stat:'Ad6 Shoot | Close',desc:'Sprays corrosive acid, effective against armored targets.',cost:160},{name:'Magnetic Railgun',stat:'Ad20 Shoot | Far',desc:'Utilizes magnetic fields to launch projectiles. Two-Handed.',cost:350}],armor:[{name:'Light Armor',stat:'Ad4 | 3 Actions',desc:'Fast and flexible. Allows full movement.',cost:60},{name:'Balanced Armor',stat:'Ad6 | 2 Actions',desc:'The standard choice for most Wayfarers.',cost:100},{name:'Heavy Armor',stat:'Ad10 | 1 Action',desc:'Maximum protection at the cost of mobility.',cost:160}],armor_exp:[{name:'Scrap Metal Armor',stat:'Ad6 Medium | 2 Actions',desc:'Crafted from the remnants of old-world machinery.',cost:80},{name:'Radiation Cloak',stat:'Ad4 Light | 3 Actions',desc:'Lightweight. Lined with radiation-reflective material.',cost:70},{name:'Rebar Reinforced Vest',stat:'Ad8 Heavy | 1 Action',desc:'Reinforced with rebar and concrete chunks.',cost:120},{name:'Vault-Tech Shield',stat:'Ad6 Shield',desc:'A shield made from a repurposed vault door.',cost:90},{name:'Pneumatic Plate Armor',stat:'Ad10 Heavy | 1 Action',desc:'Heavy armor powered by pneumatic systems.',cost:200},{name:'Kevlar Mesh Bodysuit',stat:'Ad4 Light | 4 Actions',desc:'A bodysuit made from salvaged kevlar.',cost:100},{name:'Desert Nomad\'s Garb',stat:'Ad4 Light | 4 Actions',desc:'Crafted from the fibers of desert plants.',cost:60},{name:'Carapace Armor',stat:'Ad6 Medium | 3 Actions',desc:'Armor made from the carapaces of giant insects.',cost:110},{name:'Hydro Suit',stat:'Ad6 Medium | 2 Actions',desc:'A suit designed for traversing toxic waters.',cost:150},{name:'Salvage Shield',stat:'Ad4 Shield',desc:'Makeshift shield constructed from scrap.',cost:50}],essentials:[{name:'Premium Basic',stat:'Size 3',desc:'Bread, water, hempen cloth, wrapping rags.',cost:2},{name:'Voyager Supplies',stat:'Size 3',desc:'Tinned meat, travel ale, disinfectant, novelty items.',cost:10},{name:'Snake Oil',stat:'Size 1',desc:'Generic remedies against bugs, parasites, diseases, rashes, and blisters.',cost:10},{name:'Lamp, Iron',stat:'Size 2',desc:'Basic lamp, hooded against wind.',cost:5},{name:'Lamp, Solar',stat:'Size 1',desc:'Magic lamp of the Long Ago that eats sunlight.',cost:100},{name:'Lamp, Spectrum',stat:'Size 2',desc:'Crystal lamp. Projects a ray of light far away.',cost:100},{name:'Depressant',stat:'Size 1',desc:'Reduces 1 Trauma immediately.',cost:40},{name:'Stimulant',stat:'Size 1',desc:'Restores 1d4 Stress when consumed.',cost:30}],toolkits:[{name:'Navigator\'s Suitcase',stat:'Ad Advantage | 3 slots',desc:'High-grade compass, star maps, GPS, binoculars, signal flares.',cost:150},{name:'Ambassador\'s Trunk',stat:'Ad Advantage | 4 slots',desc:'Diplomatic credentials, translation devices, cultural reference guides.',cost:200},{name:'Excavator\'s Kit',stat:'Ad Advantage | 3 slots',desc:'Geiger counter, metal detector, shovels, pickaxe.',cost:175},{name:'Dungeoneer\'s Kit',stat:'Ad Advantage | 2 slots',desc:'Telescoping pole, net, rope, hook, crowbar, hammer, lockpicks.',cost:100},{name:'Scavenger\'s Pouch',stat:'Ad Advantage | 1 slot',desc:'Compact lockpicking set, gloves, mini flashlight, wire cutters.',cost:50},{name:'Biologist\'s Backpack',stat:'Ad Advantage | 3 slots',desc:'Portable microscope, sample kits, biological guide.',cost:120},{name:'Mechanic\'s Roll',stat:'Ad Advantage | 2 slots',desc:'Multi-purpose tools, soldering iron, circuit tester, duct tape.',cost:80},{name:'Survivalist\'s Satchel',stat:'Ad Advantage | 4 slots',desc:'Water filtration, firestarter, emergency blanket, compact tent.',cost:130},{name:'Hacker\'s Holster',stat:'Ad Advantage | 2 slots',desc:'Rugged laptop with hacking software, signal jammer, RFID cloner.',cost:150},{name:'Alchemist\'s Vials',stat:'Ad Advantage | 3 slots',desc:'Portable chemistry set with reagents for explosive, corrosive, or medicinal compounds.',cost:140}],items:[{name:'Rations',stat:'1 slot',desc:"A day's worth of food and water.",cost:1},{name:'Rope (50ft)',stat:'1 slot',desc:'Hemp rope, good for climbing or binding.',cost:2},{name:'Mapping Materials',stat:'1 slot',desc:'Paper, ink, quills for charting the Province.',cost:3},{name:'Torch',stat:'1 slot',desc:'Burns for 1 hour, lights a close area.',cost:1},{name:'Lantern',stat:'1 slot',desc:'Burns oil, lights a wide area for 6 hours.',cost:5},{name:'Grappling Hook',stat:'1 slot',desc:'For scaling walls and cliffs.',cost:8},{name:'Lockpicks',stat:'1 slot',desc:"A set of thieves' tools.",cost:15},{name:'Compass',stat:'1 slot',desc:'Adventure Die advantage to Lead/Survival.',cost:20},{name:'Spyglass',stat:'1 slot',desc:'Adventure Die advantage to Notice.',cost:25},{name:'Healing Salve',stat:'1 slot',desc:'Restores d4 Stress.',cost:15},{name:'Antitoxin',stat:'1 slot',desc:'Neutralizes most poisons.',cost:20},{name:'Caltrops',stat:'1 slot',desc:'Scatter to slow pursuers.',cost:5}],scrolls:[{name:'Speak with Animals',stat:'Indefinite | Close',desc:'Communicate with any beast for one scene.',cost:50},{name:'Invisibility',stat:'Indefinite | Self',desc:'Become unseen until you attack or one hour passes.',cost:80},{name:'Levitate Object',stat:'Indefinite | Nearby',desc:'Float an object up to wagon-sized for one scene.',cost:60},{name:'Reveal Traps',stat:'Indefinite | Close',desc:'All traps in Close range glow softly.',cost:40},{name:'Night Vision',stat:'Indefinite | Self',desc:'See clearly in darkness for one scene.',cost:45},{name:'Create Light',stat:'Indefinite | Close',desc:'A hovering orb lights an area brightly.',cost:30},{name:'Silent Steps',stat:'Indefinite | Self',desc:'Make no sound for one scene.',cost:35},{name:'Create Portal',stat:'Indefinite | Close',desc:'Open a door to a location seen before.',cost:120},{name:'Fly',stat:'Indefinite | Self',desc:'Fly at walking speed for one scene.',cost:100},{name:'Repair Object',stat:'Indefinite | Touch',desc:'Restore a broken object to working condition.',cost:55},{name:'Plant Growth',stat:'Indefinite | Nearby',desc:'Accelerate plant growth to create cover.',cost:40},{name:'None Can Lie',stat:'Indefinite | Close',desc:'No one in range can speak falsehood for one scene.',cost:90},{name:'Empower',stat:'Indefinite | Self',desc:'Flood your body with arcane strength. You gain the Empowered condition.',cost:70,condition:'empowered'},{name:'Ward of Steel',stat:'Indefinite | Self',desc:'A shimmering barrier of will closes around you. You gain the Protected condition.',cost:70,condition:'protected'},{name:'Sight Beyond',stat:'Indefinite | Self',desc:'Your mind sharpens past the edge of thought. You gain the Focused condition.',cost:70,condition:'focused'},{name:'Battle Hymn',stat:'Indefinite | Close',desc:'A soundless melody steels the soul. You gain the Bolstered condition.',cost:70,condition:'bolstered'},{name:'Speak with the Dead',stat:'Indefinite | Touch',desc:'Hold a brief conversation with a recently deceased spirit. They may be reluctant or confused.',cost:90},{name:'Mark of Passage',stat:'Indefinite | Touch',desc:'Leave an invisible brand on any surface. Only the caster can see it, indefinitely.',cost:35},{name:'Memory of Stone',stat:'Indefinite | Touch',desc:'An object or wall reveals a vivid scene from its distant past. Vision lasts one minute.',cost:55},{name:'Warding Sigil',stat:'Indefinite | Touch',desc:'Inscribe an invisible alarm on a door, chest, or threshold. It triggers silently when crossed.',cost:45},{name:'Bind Oath',stat:'Indefinite | Close',desc:'Two or more willing parties speak an agreement. Breaking it causes a creeping spiritual dread.',cost:80},{name:'Shroud of Forgetting',stat:'Indefinite | Self',desc:"Those who witnessed you in this scene forget your face. They recall events, not a person.",cost:75},{name:'Summon Familiar',stat:'Indefinite | Self',desc:'A translucent spirit-beast appears at your side for the scene. It cannot fight but can scout ahead.',cost:85},{name:'True Name Revealed',stat:'Indefinite | Nearby',desc:"One creature's true name briefly glows above its head. Some find this deeply unsettling.",cost:100}],services:[{name:'Sage (Temple)',stat:'−1 Trauma',desc:'A learned healer at a Temple can reduce Trauma by 1.',cost:50},{name:'Bed & Board',stat:'Long Rest',desc:'A full long rest at an inn. Clear all Conditions and recover all Stress.',cost:5},{name:'Horse Hire',stat:'Gallop ×2',desc:"A riding horse for one day's journey.",cost:10},{name:'Boat Hire',stat:'Ferry ×3',desc:'A river ferryman for one day.',cost:15},{name:'Guide',stat:'No Wilderness Roll',desc:'A local guide for one Province zone.',cost:20},{name:'Mercenary',stat:'DD6 | 10 Stress',desc:'A hired blade fights alongside you for one scene.',cost:30},{name:'Messenger',stat:'Instant delivery',desc:'Deliver a letter to any known Landmark in the Province.',cost:8}],remedies:[{name:'Wound Salve',stat:'Restore d4 Stress',desc:'A herbal paste applied to wounds.',cost:12},{name:'Fever Tincture',stat:'Remove Weakened',desc:'A bitter medicine that breaks fevers.',cost:18},{name:'Mind Draught',stat:'Remove Distracted',desc:'A calming brew that clears mental fog.',cost:25},{name:'Spirit Tonic',stat:'Remove Shaken',desc:'A warming drink that steadies the soul.',cost:22},{name:'Fortifying Broth',stat:'Remove Vulnerable',desc:'A hearty broth that hardens the body.',cost:20},{name:'Trauma Serum',stat:'−1 Trauma (temp)',desc:'Masks Trauma effects for one scene. Does not truly heal.',cost:35},{name:'Blight Repellent',stat:'Adv vs Peril',desc:'A pungent paste that reduces Peril stress on entry.',cost:30},{name:'Depressant',stat:'−1 Trauma',desc:'Reduces 1 Trauma immediately.',cost:40}],strange:STRANGE_ITEMS_FULL.slice(0,40).map((s,i)=>({name:`Strange Item #${(i+1).toString().padStart(2,'0')}`,stat:'d100',desc:s,cost:parseInt(s.match(/\((\d+)₵\)/)?.[1])||75})),tradegoods:TRADE_GOODS.map(g=>({name:g.good,stat:g.source,desc:`${g.desc}. Use: ${g.use}`,cost:g.cost})),augmentations:[{name:'NAUTRAM 6T',stat:'Augmentation | Talent Slot',desc:'+d4 to Body Checks. When rolling Body, roll a d4 and add it to the result.',cost:2000},{name:'AI_EYE',stat:'Augmentation | Talent Slot',desc:'+d4 to Strike Rolls. When rolling Strike, roll a d4 and add it to the result. Ignores darkness.',cost:1500},{name:'3H7-ARCANE',stat:'Augmentation | Talent Slot',desc:'+d4 to Mind Checks. When rolling Mind, roll a d4 and add it to the result. Allows total recall.',cost:1000},{name:'VOICE SYNTHESIZER',stat:'Augmentation | Talent Slot',desc:'+d4 to Spirit Checks. When rolling Spirit, roll a d4 and add it to the result. Mimic any recorded voice.',cost:2500},{name:'DECENTRALIZED HEART',stat:'Augmentation | Talent Slot',desc:'If your Stress is reduced to 0, you get back up with full Stress restored.',cost:6000},{name:'NIGHTGUARD',stat:'Augmentation | Talent Slot',desc:'+d4 to Control Checks. When rolling Control (including Hack Checks), roll a d4 and add it to the result.',cost:1500},{name:'ANALYZER',stat:'Augmentation | Talent Slot',desc:'+d6 to Lead Checks. When rolling Lead, roll a d6 and add it to the result.',cost:4000},{name:'RADAR SENSOR',stat:'Augmentation | Talent Slot',desc:'+d6 to Shoot Rolls. When rolling Shoot, roll a d6 and add it to the result. View heat signatures up to 100m.',cost:4000},{name:'SUBDERMAL ARMOR',stat:'Augmentation | Talent Slot',desc:'+d4 to Defend Rolls. When rolling Defend, roll a d4 and add it to the result.',cost:4000},{name:'ADRENALIN BOOSTER',stat:'Augmentation | Talent Slot',desc:'Grants +2 Actions per turn. Activate on your turn as a free action.',cost:4000},{name:'OPERATING SYSTEM',stat:'Augmentation | Talent Slot',desc:'A Virtual Interface linking to the Planet\'s Satellite. Required to cast OS Hacks. Requires Renown +3 to install.',cost:2000}],os_hacks:[{name:'Javelin',stat:'1 TMW | Control Check',desc:'Deals 1d10 Stress to the target.',cost:500},{name:'Ember',stat:'2 TMW | Control Check',desc:'The target is Vulnerable.',cost:500},{name:'Short Circuit',stat:'4 TMW | Control Check',desc:'Target loses 2 Rounds.',cost:500},{name:'Reboot Optics',stat:'3 TMW | Control Check',desc:'Enemy rolls with Step Up Disadvantage for 3 Rounds (rolls higher die, takes lowest result).',cost:500},{name:'Weapon Glitch',stat:'2 TMW | Control Check',desc:"Target's weapons don't work for 2 Rounds.",cost:500},{name:'Ping',stat:'1 TMW | Control Check',desc:'Reduce enemy Dread by one Step.',cost:500},{name:'Sonic Shock',stat:'2 TMW | Control Check',desc:'Gain +d4 to Attack rolls against that enemy for the scene.',cost:500},{name:'Take Control',stat:'1 TMW | Control Check',desc:'Remotely operate a small electronic device.',cost:500},{name:'Counterspell',stat:'2 TMW | Reaction',desc:'Counter an enemy Hack when you sense it being cast.',cost:500},{name:'Brake',stat:'5 TMW | Control Check',desc:'Force a vehicle to stop by triggering its handbrake.',cost:500},{name:'LASHOUT (Master)',stat:'10 TMW | Master Hack',desc:'Force an enemy to attack the nearest ally or hostile. If no one is nearby, the enemy commits suicide. Found at Black Market Dealers.',cost:1000},{name:'SUICIDE (Master)',stat:'15 TMW | Master Hack',desc:'Forces the enemy to kill themselves. Found at Black Market Dealers.',cost:1000},{name:'COLLAPSE (Master)',stat:'12 TMW | Master Hack',desc:'Cripple an enemy for the day — they cannot act. Found at Black Market Dealers.',cost:1000},{name:'DETONATE GRENADE (Master)',stat:'10 TMW | Master Hack',desc:'Detonate explosives on an enemy or mech, dealing 2d10 Stress. Found at Black Market Dealers.',cost:1000},{name:'AEGIES (Master)',stat:'10 TMW | Master Hack',desc:'Gain +10 to Defend Rolls for the duration of this Combat Scene. Found at Black Market Dealers.',cost:1000},{name:'PARASYTE (Master)',stat:'12 TMW | Master Hack',desc:'Enemy takes your Adventure Die in Stress per Round for 12 Rounds. Found at Black Market Dealers.',cost:1000}],weapon_mods:[{name:'Silencer',stat:'Ranged Mod | 1 Mod Slot',desc:'With surprise, this weapon deals ×3 Stress (Shoot roll ×3).',cost:250},{name:'Reflex Sight',stat:'Ranged Mod | 1 Mod Slot',desc:'If your Shoot Die roll beats enemy Dread, deal +2 Stress per attack.',cost:275},{name:'Laser Accelerator',stat:'Ranged Mod | 1 Mod Slot',desc:'No Dread Die is rolled. Your Shoot Die result equals Stress dealt directly.',cost:300},{name:'Auto Reloader',stat:'Ranged Mod | 1 Mod Slot',desc:'Spend +2 TMW to take 2 Shoot Actions this turn instead of 1.',cost:250},{name:'Shock Taser',stat:'Ranged Mod | 1 Mod Slot',desc:'If your Shoot Die Explodes when attacking, the enemy loses their next Turn.',cost:275},{name:'Smart Aim',stat:'Ranged Mod | 1 Mod Slot',desc:'Roll your Shoot Die twice (step-up advantage: roll current die and the next die up), keep the highest result.',cost:300},{name:'Stealth Grip',stat:'Melee Mod | 1 Mod Slot',desc:'For 1 Action, you may Attack twice.',cost:250},{name:'Vibrating Motor',stat:'Melee Mod | 1 Mod Slot',desc:'If your Strike roll beats enemy Dread, deal +2 Stress.',cost:275},{name:'Kinetic Engine',stat:'Melee Mod | 1 Mod Slot',desc:'If you roll 1 or 2 on your Strike Die, you may attack again at no Action cost.',cost:300},{name:'Counter Guard',stat:'Melee Mod | 1 Mod Slot',desc:'Spend +2 TMW to immediately attack back after being hit by an Engaged enemy.',cost:250},{name:'Heat Chamber',stat:'Melee Mod | 1 Mod Slot',desc:'If your Strike Die Explodes, the enemy is Vulnerable.',cost:275},{name:'Charge Attack',stat:'Melee Mod | 1 Mod Slot',desc:'Lose 1 Turn to charge. Gain a Bonus Step Up Die per Turn spent charging (up to d20). Roll the bonus die and add it to your Strike result.',cost:300}]};
 // ── STATE ─────────────────────────────────────────────────────────────────────
 const STAT_KEYS=['body','strike','shoot','mind','spirit','defend','control','lead'];
+const DARK_AFFLICTION_CURE_ITEMS=[
+  {name:'Blood Purge Phial',stat:'Cure Item',desc:'Cures Vampirism when consumed. Rare drop and sold by skilled alchemists.',cost:220},
+  {name:'Moon Tonic',stat:'Cure Item',desc:'Cures Wolfism when consumed. Rare drop and sold by temple herbalists.',cost:220},
+  {name:'Purity Elixir',stat:'Cure Item',desc:'Cures both Vampirism and Wolfism when consumed.',cost:480}
+];
+if(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.remedies)){
+  DARK_AFFLICTION_CURE_ITEMS.forEach(function(item){
+    var exists=SHOP_DATA.remedies.some(function(existing){return existing&&existing.name===item.name;});
+    if(!exists)SHOP_DATA.remedies.push(item);
+  });
+}
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
 let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}}};
@@ -1747,6 +1766,177 @@ function ensureDarkAfflictionState(){
     if(typeof S.darkAfflictions[key].corruption!=='number')S.darkAfflictions[key].corruption=0;
     if(typeof S.darkAfflictions[key].lastFedStamp!=='string')S.darkAfflictions[key].lastFedStamp='';
   });
+  if(typeof S.darkAfflictions.sunlightHexCounter!=='number')S.darkAfflictions.sunlightHexCounter=0;
+  if(!S.darkAfflictionConfig||typeof S.darkAfflictionConfig!=='object'){
+    S.darkAfflictionConfig={enabled:true,sunlightDamagePerHex:1,sunlightTraumaEveryHex:4,sunlightCondition:'weakened'};
+  }
+  if(typeof S.darkAfflictionConfig.enabled!=='boolean')S.darkAfflictionConfig.enabled=true;
+  if(typeof S.darkAfflictionConfig.sunlightDamagePerHex!=='number')S.darkAfflictionConfig.sunlightDamagePerHex=1;
+  if(typeof S.darkAfflictionConfig.sunlightTraumaEveryHex!=='number')S.darkAfflictionConfig.sunlightTraumaEveryHex=4;
+  if(typeof S.darkAfflictionConfig.sunlightCondition!=='string')S.darkAfflictionConfig.sunlightCondition='weakened';
+}
+function getDarkAfflictionSunlightConfig(){
+  ensureDarkAfflictionState();
+  return {
+    enabled:!!S.darkAfflictionConfig.enabled,
+    sunlightDamagePerHex:Math.max(0,parseInt(S.darkAfflictionConfig.sunlightDamagePerHex,10)||0),
+    sunlightTraumaEveryHex:Math.max(0,parseInt(S.darkAfflictionConfig.sunlightTraumaEveryHex,10)||0),
+    sunlightCondition:String(S.darkAfflictionConfig.sunlightCondition||'weakened')
+  };
+}
+function setDarkAfflictionSunlightConfig(enabled,damagePerHex,traumaEveryHex,conditionKey){
+  ensureDarkAfflictionState();
+  S.darkAfflictionConfig.enabled=!!enabled;
+  S.darkAfflictionConfig.sunlightDamagePerHex=Math.max(0,parseInt(damagePerHex,10)||0);
+  S.darkAfflictionConfig.sunlightTraumaEveryHex=Math.max(0,parseInt(traumaEveryHex,10)||0);
+  var key=String(conditionKey||'weakened').toLowerCase();
+  if(['weakened','vulnerable','distracted','shaken'].indexOf(key)<0)key='weakened';
+  S.darkAfflictionConfig.sunlightCondition=key;
+  showNotif('Sunlight punishment settings updated.','good');
+}
+function saveSunlightConfigFromInputs(col,row){
+  var key=String(col)+'-'+String(row);
+  var en=document.getElementById('affSunEn-'+key);
+  var dmg=document.getElementById('affSunDmg-'+key);
+  var tra=document.getElementById('affSunTra-'+key);
+  var cond=document.getElementById('affSunCond-'+key);
+  setDarkAfflictionSunlightConfig(en?!!en.checked:true,dmg?dmg.value:1,tra?tra.value:4,cond?cond.value:'weakened');
+  if(selectedHex&&selectedHex.col===col&&selectedHex.row===row)renderHexInfo(selectedHex);
+}
+function getAfflictionFlavorKey(){
+  var f=String(S.flavor||'').toLowerCase();
+  if(f.indexOf('vampire')>=0)return 'vampirism';
+  if(f.indexOf('werewolf')>=0||f.indexOf('wolf')>=0)return 'wolfism';
+  return '';
+}
+function getAfflictionTier(corruption){
+  var c=Math.max(0,parseInt(corruption,10)||0);
+  if(c>=8)return 3;
+  if(c>=5)return 2;
+  if(c>=2)return 1;
+  return 0;
+}
+function getDarkAfflictionPowerBonus(stat){
+  ensureDarkAfflictionState();
+  var bonus=0;
+  var vamp=S.darkAfflictions.vampirism;
+  var wolf=S.darkAfflictions.wolfism;
+  if(vamp&&vamp.active){
+    var vt=getAfflictionTier(vamp.corruption);
+    if(vt>=1&&['spirit','control'].indexOf(stat)>=0)bonus+=1;
+    if(vt>=2&&['defend','shoot'].indexOf(stat)>=0)bonus+=1;
+    if(vt>=3&&['mind','adventure'].indexOf(stat)>=0)bonus+=1;
+  }
+  if(wolf&&wolf.active){
+    var wt=getAfflictionTier(wolf.corruption);
+    if(wt>=1&&['body','strike'].indexOf(stat)>=0)bonus+=1;
+    if(wt>=2&&['defend','lead'].indexOf(stat)>=0)bonus+=1;
+    if(wt>=3&&['adventure','spirit'].indexOf(stat)>=0)bonus+=1;
+  }
+  return bonus;
+}
+function cureDarkAfflictionByItem(kind){
+  ensureDarkAfflictionState();
+  var key=String(kind||'').toLowerCase();
+  if(key!=='vampirism'&&key!=='wolfism')return;
+  var aff=S.darkAfflictions[key];
+  if(!aff.active)return;
+  aff.active=false;aff.corruption=0;aff.lastFedStamp='';
+  showNotif((key==='vampirism'?'Vampirism':'Wolfism')+' cured by remedy item.','good');
+}
+function useAfflictionCureItem(itemName){
+  var name=String(itemName||'').trim();
+  if(!name)return;
+  if(typeof consumeBackpackItemByName!=='function'||!consumeBackpackItemByName(name)){
+    showNotif('You do not have '+name+' in your Backpack.','warn');
+    return;
+  }
+  if(name==='Blood Purge Phial')cureDarkAfflictionByItem('vampirism');
+  else if(name==='Moon Tonic')cureDarkAfflictionByItem('wolfism');
+  else if(name==='Purity Elixir'){cureDarkAfflictionByItem('vampirism');cureDarkAfflictionByItem('wolfism');}
+  else showNotif(name+' consumed.','good');
+  if(selectedHex&&selectedHex.type==='temple')renderHexInfo(selectedHex);
+}
+function maybeDropAfflictionCureItem(enemyName){
+  ensureDarkAfflictionState();
+  var active=(S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active)||(S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active)||!!getAfflictionFlavorKey();
+  if(!active||Math.random()>0.14)return;
+  var drops=['Blood Purge Phial','Moon Tonic','Purity Elixir'];
+  var drop=pick(drops);
+  if(typeof addToBackpack==='function'&&addToBackpack(drop))showNotif('Rare drop: '+drop+' found on '+(enemyName||'the remains')+'.','good');
+}
+function resolveDarkAfflictionConsume(consume){
+  ensureDarkAfflictionState();
+  var corpse=(S.darkAfflictions.pendingCorpse&&S.darkAfflictions.pendingCorpse.name)?S.darkAfflictions.pendingCorpse.name:'the fallen';
+  S.darkAfflictions.pendingCorpse=null;
+  if(!consume){
+    showNotif('You spare '+corpse+'.','info');
+    return;
+  }
+  var keys=[];
+  var flavorKey=getAfflictionFlavorKey();
+  if(flavorKey){
+    S.darkAfflictions[flavorKey].active=true;
+    keys.push(flavorKey);
+  }
+  ['vampirism','wolfism'].forEach(function(key){if(S.darkAfflictions[key].active&&keys.indexOf(key)<0)keys.push(key);});
+  if(!keys.length){
+    var recovered=1+roll(4);
+    if(typeof changeStress==='function')changeStress(-recovered);
+    showNotif('You consume '+corpse+' and recover '+recovered+' Stress.','good');
+    return;
+  }
+  var unlockLines=[];
+  keys.forEach(function(key){
+    var aff=S.darkAfflictions[key];
+    var beforeTier=getAfflictionTier(aff.corruption);
+    aff.corruption=Math.min(12,Number(aff.corruption||0)+1);
+    aff.lastFedStamp=getDateStampKey();
+    var afterTier=getAfflictionTier(aff.corruption);
+    if(afterTier>beforeTier)unlockLines.push((key==='vampirism'?'Vampirism':'Wolfism')+' reached Tier '+afterTier+'.');
+  });
+  var recover=roll(4);
+  if(typeof changeStress==='function')changeStress(-recover);
+  showNotif('Consumed '+corpse+': Corruption +'+keys.length+', recovered '+recover+' Stress.'+(unlockLines.length?(' '+unlockLines.join(' ')):''),'warn');
+}
+function promptConsumeAfterEnemyDefeat(enemyName){
+  ensureDarkAfflictionState();
+  S.darkAfflictions.pendingCorpse={name:String(enemyName||'fallen foe')};
+  if(typeof openModal==='function'){
+    openModal('Fallen Enemy',
+      '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+      +'Defeated: <strong style="color:var(--gold2);">'+String(enemyName||'Unknown')+'</strong><br>'
+      +'Choose your response.<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">'
+      +'<button class="btn btn-xs btn-warn" onclick="resolveDarkAfflictionConsume(true)">Consume</button>'
+      +'<button class="btn btn-xs" onclick="resolveDarkAfflictionConsume(false)">Spare</button>'
+      +'</div></div>'
+    );
+  }else{
+    resolveDarkAfflictionConsume(false);
+  }
+}
+function applySunlightTraversalPunishment(hexClicks){
+  ensureDarkAfflictionState();
+  var cfg=getDarkAfflictionSunlightConfig();
+  if(!cfg.enabled||isNightPhase()||!!S.nightMode)return;
+  var activeCount=0;
+  if(S.darkAfflictions.vampirism.active)activeCount++;
+  if(S.darkAfflictions.wolfism.active)activeCount++;
+  if(!activeCount)return;
+  var clicks=Math.max(1,parseInt(hexClicks,10)||1);
+  var damage=Math.max(0,cfg.sunlightDamagePerHex)*clicks;
+  if(damage&&typeof changeStress==='function')changeStress(damage);
+  var before=S.darkAfflictions.sunlightHexCounter||0;
+  var after=before+clicks;
+  S.darkAfflictions.sunlightHexCounter=after;
+  var traumaInc=0;
+  if(cfg.sunlightTraumaEveryHex>0){
+    traumaInc=Math.floor(after/cfg.sunlightTraumaEveryHex)-Math.floor(before/cfg.sunlightTraumaEveryHex);
+  }
+  if(traumaInc>0&&typeof changeTrauma==='function')changeTrauma(traumaInc);
+  if(cfg.sunlightCondition&&S.conditions&&Object.prototype.hasOwnProperty.call(S.conditions,cfg.sunlightCondition))S.conditions[cfg.sunlightCondition]=true;
+  if(typeof updateConditionButtons==='function')updateConditionButtons();
+  showNotif('Daylight punishment: '+(damage?('+'+damage+' Health damage, '):'')+(traumaInc?('+'+traumaInc+' Trauma, '):'')+'condition '+cfg.sunlightCondition+'.','warn');
 }
 function getDarkAfflictionPenalty(stat){
   ensureDarkAfflictionState();
@@ -1808,6 +1998,12 @@ function cureDarkAfflictionAtTemple(kind,cost){
 }
 function applyPersonalFlavorEffects(){
   ensureBackpackCapacity();
+  var key=getAfflictionFlavorKey();
+  if(key){
+    ensureDarkAfflictionState();
+    S.darkAfflictions[key].active=true;
+    if(Number(S.darkAfflictions[key].corruption||0)<1)S.darkAfflictions[key].corruption=1;
+  }
 }
 function setFlavor(value){
   S.flavor=String(value||'').trim();
@@ -1819,6 +2015,11 @@ window.isNightPhase=isNightPhase;
 window.applyDarkAfflictionDailyProgress=applyDarkAfflictionDailyProgress;
 window.feedDarkAffliction=feedDarkAffliction;
 window.cureDarkAfflictionAtTemple=cureDarkAfflictionAtTemple;
+window.useAfflictionCureItem=useAfflictionCureItem;
+window.saveSunlightConfigFromInputs=saveSunlightConfigFromInputs;
+window.resolveDarkAfflictionConsume=resolveDarkAfflictionConsume;
+window.promptConsumeAfterEnemyDefeat=promptConsumeAfterEnemyDefeat;
+window.applySunlightTraversalPunishment=applySunlightTraversalPunishment;
 window.setFlavor=setFlavor;
 window.toggleNightMode=toggleNightMode;
 window.updateNightModeToggleUI=updateNightModeToggleUI;
@@ -2280,6 +2481,8 @@ function applyStressToEnemy(enemy, stress, source){
     var next=getPrimaryCombatEnemy();
     var nextText=next?(' Next target: '+next.name+'.'):'';
     showNotif(defeated+' eliminated!'+nextText,'good');
+    maybeDropAfflictionCureItem(defeated);
+    promptConsumeAfterEnemyDefeat(defeated);
   }else if(source){
     showNotif(source+' dealt '+dmg+' Stress to '+enemy.name+'.','good');
   }
@@ -2662,6 +2865,7 @@ function getFlavorBonus(stat){
   if(stat==='body'&&f.indexOf('feats of strength')>=0)advDice.push(10);
   if(stat==='adventure'&&f.indexOf('mindshield')>=0)advDice.push(8);
   flat+=getDarkAfflictionPenalty(stat);
+  flat+=getDarkAfflictionPowerBonus(stat);
   var advDie=advDice.length?Math.max.apply(null,advDice):0;
   return{flat:flat,advDie:advDie,advDice:advDice,holyShield:holyShield};
 }
@@ -3056,6 +3260,8 @@ function enemyPip(id,i){
       window.AudioManager.enemyDefeated();
     }
     showNotif(`${e.name} defeated!`,'good');
+    maybeDropAfflictionCureItem(e.name);
+    promptConsumeAfterEnemyDefeat(e.name);
     S.enemies=S.enemies.filter(x=>x.id!==id);
   }
   renderEnemies();
@@ -5397,7 +5603,16 @@ function renderHexInfo(hex){
     const sageKnowledge=getSageKnowledge(hex.col,hex.row);
     html+=`<div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Revealed Wisdom:</strong><br>${sageKnowledge}</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="learnFromSage(${hex.col},${hex.row},'${sageFee}')">🙏 Consult Sage (${sageFee}₵)</button></div></div>`;
     if(S.darkAfflictions&&((S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active)||(S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active))){
+      const sunCfg=getDarkAfflictionSunlightConfig();
+      const skey=`${hex.col}-${hex.row}`;
+      const cureNames=['Blood Purge Phial','Moon Tonic','Purity Elixir'];
+      const cureButtons=cureNames.map(function(name){
+        const has=(Array.isArray(S.backpack)?S.backpack:[]).some(function(slot){return String(slot||'').toLowerCase().indexOf(name.toLowerCase())===0;});
+        return '<button class="btn btn-xs '+(has?'btn-primary':'')+'" '+(has?('onclick="useAfflictionCureItem(\''+name+'\')"'):'disabled style="opacity:.5;cursor:default;"')+'>'+name+(has?' (Use)':' (Missing)')+'</button>';
+      }).join('');
       html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.55);background:rgba(176,96,208,.08);"><div class="nb-label" style="color:#d7b0ff;">☾ Affliction Rites</div><div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Temple rites can cure dark afflictions. Feed to lower corruption now, or cure fully for ${cureFee}₵.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">${S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active?'<button class="btn btn-xs btn-warn" onclick="feedDarkAffliction(\'vampirism\')">Feed Vampirism (-2 Corruption)</button><button class="btn btn-xs btn-teal" onclick="cureDarkAfflictionAtTemple(\'vampirism\','+cureFee+')">Cure Vampirism ('+cureFee+'₵)</button>':''}${S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active?'<button class="btn btn-xs btn-warn" onclick="feedDarkAffliction(\'wolfism\')">Feed Wolfism (-2 Corruption)</button><button class="btn btn-xs btn-teal" onclick="cureDarkAfflictionAtTemple(\'wolfism\','+cureFee+')">Cure Wolfism ('+cureFee+'₵)</button>':''}</div></div>`;
+      html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(224,80,80,.45);background:rgba(224,80,80,.07);"><div class="nb-label" style="color:var(--red2);">☀ Sunlight Punishment</div><div style="font-size:.76rem;color:var(--text2);line-height:1.5;">Configure daylight penalties per hex when dark afflictions are active.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem;margin-top:.3rem;"><label style="font-size:.7rem;color:var(--muted2);">Enable<input id="affSunEn-${skey}" type="checkbox" ${sunCfg.enabled?'checked':''} style="margin-left:.35rem;"></label><label style="font-size:.7rem;color:var(--muted2);">Damage/Hex<input id="affSunDmg-${skey}" type="number" min="0" max="8" value="${sunCfg.sunlightDamagePerHex}" style="width:100%;"></label><label style="font-size:.7rem;color:var(--muted2);">Trauma Every X Hex<input id="affSunTra-${skey}" type="number" min="0" max="20" value="${sunCfg.sunlightTraumaEveryHex}" style="width:100%;"></label><label style="font-size:.7rem;color:var(--muted2);">Condition<select id="affSunCond-${skey}" style="width:100%;"><option value="weakened" ${sunCfg.sunlightCondition==='weakened'?'selected':''}>Weakened</option><option value="vulnerable" ${sunCfg.sunlightCondition==='vulnerable'?'selected':''}>Vulnerable</option><option value="distracted" ${sunCfg.sunlightCondition==='distracted'?'selected':''}>Distracted</option><option value="shaken" ${sunCfg.sunlightCondition==='shaken'?'selected':''}>Shaken</option></select></label></div><div style="margin-top:.28rem;"><button class="btn btn-xs btn-primary" onclick="saveSunlightConfigFromInputs(${hex.col},${hex.row})">Apply Sunlight Settings</button></div></div>`;
+      html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.07);"><div class="nb-label" style="color:var(--teal);">🧪 Cure Items</div><div style="font-size:.76rem;color:var(--text2);line-height:1.5;">Rare drops and merchants can provide cure items. Use one directly from Backpack.</div><div style="margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;">${cureButtons}</div></div>`;
     }
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('temple',${hex.col},${hex.row})">Join Area: Temple Chambers</button>

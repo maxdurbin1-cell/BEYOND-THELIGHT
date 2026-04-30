@@ -598,6 +598,14 @@ select option{background:#0f1020;}
           <span id="flavorActionMeta" style="font-size:.7rem;color:var(--muted2);"></span>
         </div>
       </div>
+      <div id="darkAfflictionPanel" style="display:none;margin:-.12rem 0 .45rem 0;padding:.45rem .55rem;border:1px solid rgba(176,96,208,.35);background:rgba(176,96,208,.08);font-size:.78rem;color:var(--text2);line-height:1.5;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.35rem;">
+          <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:#d7b0ff;text-transform:uppercase;">Dark Affliction</div>
+          <button class="btn btn-xs" onclick="toggleDarkAfflictionSheetPanel()" id="darkAfflictionPanelToggleBtn">Show Details</button>
+        </div>
+        <div id="darkAfflictionPanelSummary" style="margin-top:.18rem;font-size:.74rem;color:var(--muted2);"></div>
+        <div id="darkAfflictionPanelBody" style="display:none;margin-top:.32rem;"></div>
+      </div>
       <div class="form-row"><span class="sub-label">Mutation (d20)</span>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charMutation" placeholder="Irradiated mutation…" style="flex:1;" onchange="S.mutation=this.value"><button class="btn btn-icon btn-sm" onclick="rollMutation()">⚄</button></div>
       </div>
@@ -1840,6 +1848,75 @@ function getAfflictionTier(corruption){
   if(c>=2)return 1;
   return 0;
 }
+function isAfflictionSafePhase(){
+  var label=(typeof getCurrentPhaseLabel==='function')?String(getCurrentPhaseLabel()||'').toLowerCase():'';
+  if(label==='night'||label==='evening')return true;
+  if(isNightPhase())return true;
+  if(S&&S.gameDate&&typeof S.gameDate.phase==='number'){
+    var phaseNum=Number(S.gameDate.phase||0);
+    if(isFullPhaseClockEnabledLocal())return phaseNum>=2;
+    return phaseNum>=2;
+  }
+  return false;
+}
+function getAfflictionTierProfile(kind,tier){
+  var key=String(kind||'').toLowerCase();
+  var t=Math.max(0,parseInt(tier,10)||0);
+  if(key==='vampirism'){
+    if(t>=3)return {ability:'Blood Sovereignty: +1 Mind/Adventure and consume grants Focused for the scene.',penalty:'Sunlit Torpor: Day phases apply stronger stat penalties.'};
+    if(t===2)return {ability:'Hemal Trance: +1 Defend/Shoot and consume grants +1 TMW.',penalty:'Holy Aversion: Day checks suffer affliction penalty.'};
+    if(t===1)return {ability:'Night Senses: +1 Spirit/Control and consume grants +1 Path Token.',penalty:'Light Hunger: Day checks suffer affliction penalty.'};
+    return {ability:'Dormant',penalty:'None'};
+  }
+  if(t>=3)return {ability:'Moon Tyrant: +1 Adventure/Spirit and consume grants Empowered this phase.',penalty:'Feral Backlash: Day phases apply stronger stat penalties.'};
+  if(t===2)return {ability:'Pack Rush: +1 Defend/Lead and consume grants +1 TMW.',penalty:'Silver Unease: Day checks suffer affliction penalty.'};
+  if(t===1)return {ability:'Predator Frame: +1 Body/Strike and consume grants +1 Path Token.',penalty:'Dayrest Strain: Day checks suffer affliction penalty.'};
+  return {ability:'Dormant',penalty:'None'};
+}
+function renderDarkAfflictionSheetPanel(){
+  ensureDarkAfflictionState();
+  var root=document.getElementById('darkAfflictionPanel');
+  if(!root)return;
+  var vamp=S.darkAfflictions.vampirism;
+  var wolf=S.darkAfflictions.wolfism;
+  var any=!!(vamp&&vamp.active)||!!(wolf&&wolf.active)||!!getAfflictionFlavorKey();
+  root.style.display=any?'':'none';
+  if(!any)return;
+  if(!S.ui||typeof S.ui!=='object')S.ui={};
+  var open=!!S.ui.darkAfflictionPanelOpen;
+  var toggleBtn=document.getElementById('darkAfflictionPanelToggleBtn');
+  var body=document.getElementById('darkAfflictionPanelBody');
+  var summary=document.getElementById('darkAfflictionPanelSummary');
+  if(toggleBtn)toggleBtn.textContent=open?'Hide Details':'Show Details';
+  if(body)body.style.display=open?'':'none';
+  var lines=[];
+  [['vampirism','Vampirism'],['wolfism','Werewolf Curse']].forEach(function(tuple){
+    var key=tuple[0],label=tuple[1],aff=S.darkAfflictions[key];
+    if(!aff||!aff.active)return;
+    var tier=getAfflictionTier(aff.corruption);
+    var profile=getAfflictionTierProfile(key,tier);
+    lines.push('<div style="padding:.3rem .38rem;border:1px solid rgba(176,96,208,.35);background:rgba(255,255,255,.03);">'
+      +'<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:center;">'
+      +'<strong style="color:#d7b0ff;font-size:.74rem;">'+label+'</strong>'
+      +'<span style="font-size:.7rem;color:var(--gold2);">Corruption '+Math.max(0,parseInt(aff.corruption,10)||0)+' · Tier '+tier+'</span>'
+      +'</div>'
+      +'<div style="margin-top:.18rem;font-size:.74rem;color:var(--text2);"><strong style="color:var(--teal);">Ability:</strong> '+profile.ability+'</div>'
+      +'<div style="margin-top:.12rem;font-size:.74rem;color:var(--text2);"><strong style="color:var(--red2);">Penalty:</strong> '+profile.penalty+'</div>'
+      +'</div>');
+  });
+  if(summary){
+    var dayPenalty=getDarkAfflictionPenalty('adventure');
+    summary.textContent='Phase: '+((typeof getCurrentPhaseLabel==='function')?String(getCurrentPhaseLabel()||'Unknown'):'Unknown')+' · Day penalty '+(dayPenalty<0?String(dayPenalty):'0')+' · Consume grants +1 corruption and tier abilities.';
+  }
+  if(body){
+    body.innerHTML=lines.length?lines.join(''):'<div style="font-size:.74rem;color:var(--muted2);">No active dark afflictions.</div>';
+  }
+}
+function toggleDarkAfflictionSheetPanel(){
+  if(!S.ui||typeof S.ui!=='object')S.ui={};
+  S.ui.darkAfflictionPanelOpen=!S.ui.darkAfflictionPanelOpen;
+  renderDarkAfflictionSheetPanel();
+}
 function getDarkAfflictionPowerBonus(stat){
   ensureDarkAfflictionState();
   var bonus=0;
@@ -1862,11 +1939,16 @@ function getDarkAfflictionPowerBonus(stat){
 function cureDarkAfflictionByItem(kind){
   ensureDarkAfflictionState();
   var key=String(kind||'').toLowerCase();
-  if(key!=='vampirism'&&key!=='wolfism')return;
+  if(key!=='vampirism'&&key!=='wolfism')return false;
   var aff=S.darkAfflictions[key];
-  if(!aff.active)return;
+  if(!aff.active){
+    showNotif((key==='vampirism'?'Vampirism':'Wolfism')+' is not active.','info');
+    return false;
+  }
   aff.active=false;aff.corruption=0;aff.lastFedStamp='';
   showNotif((key==='vampirism'?'Vampirism':'Wolfism')+' cured by remedy item.','good');
+  renderDarkAfflictionSheetPanel();
+  return true;
 }
 function useAfflictionCureItem(itemName){
   var name=String(itemName||'').trim();
@@ -1875,11 +1957,13 @@ function useAfflictionCureItem(itemName){
     showNotif('You do not have '+name+' in your Backpack.','warn');
     return;
   }
-  if(name==='Blood Purge Phial')cureDarkAfflictionByItem('vampirism');
-  else if(name==='Moon Tonic')cureDarkAfflictionByItem('wolfism');
-  else if(name==='Purity Elixir'){cureDarkAfflictionByItem('vampirism');cureDarkAfflictionByItem('wolfism');}
-  else showNotif(name+' consumed.','good');
+  var cured=false;
+  if(name==='Blood Purge Phial')cured=cureDarkAfflictionByItem('vampirism');
+  else if(name==='Moon Tonic')cured=cureDarkAfflictionByItem('wolfism');
+  else if(name==='Purity Elixir'){cureDarkAfflictionByItem('vampirism');cured=!!cureDarkAfflictionByItem('wolfism')||cured;}
+  if(!cured&&name!=='Purity Elixir')showNotif(name+' used, but no matching affliction was active.','info');
   if(selectedHex&&selectedHex.type==='temple')renderHexInfo(selectedHex);
+  renderDarkAfflictionSheetPanel();
 }
 function maybeDropAfflictionCureItem(enemyName){
   ensureDarkAfflictionState();
@@ -1918,10 +2002,18 @@ function resolveDarkAfflictionConsume(consume){
     aff.lastFedStamp=getDateStampKey();
     var afterTier=getAfflictionTier(aff.corruption);
     if(afterTier>beforeTier)unlockLines.push((key==='vampirism'?'Vampirism':'Wolfism')+' reached Tier '+afterTier+'.');
+    if(S.conditions){
+      if(key==='vampirism')S.conditions.focused=true;
+      if(key==='wolfism')S.conditions.empowered=true;
+    }
+    if(typeof changeCounter==='function')changeCounter('pathTokens',1);
   });
   var recover=roll(4);
   if(typeof changeStress==='function')changeStress(-recover);
   showNotif('Consumed '+corpse+': Corruption +'+keys.length+', recovered '+recover+' Stress.'+(unlockLines.length?(' '+unlockLines.join(' ')):''),'warn');
+  if(typeof updateConditionButtons==='function')updateConditionButtons();
+  if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+  renderDarkAfflictionSheetPanel();
 }
 function promptConsumeAfterEnemyDefeat(enemyName){
   ensureDarkAfflictionState();
@@ -1942,7 +2034,7 @@ function promptConsumeAfterEnemyDefeat(enemyName){
 function applySunlightTraversalPunishment(hexClicks){
   ensureDarkAfflictionState();
   var cfg=getDarkAfflictionSunlightConfig();
-  if(!cfg.enabled||isNightPhase()||!!S.nightMode)return;
+  if(!cfg.enabled||isAfflictionSafePhase()||!!S.nightMode)return;
   var activeCount=0;
   if(S.darkAfflictions.vampirism.active)activeCount++;
   if(S.darkAfflictions.wolfism.active)activeCount++;
@@ -1964,12 +2056,13 @@ function applySunlightTraversalPunishment(hexClicks){
 }
 function getDarkAfflictionPenalty(stat){
   ensureDarkAfflictionState();
-  if(isNightPhase())return 0;
+  if(isAfflictionSafePhase())return 0;
   var total=0;
   if(S.darkAfflictions.vampirism.active)total+=Number(S.darkAfflictions.vampirism.corruption||0);
   if(S.darkAfflictions.wolfism.active)total+=Number(S.darkAfflictions.wolfism.corruption||0);
   if(!total)return 0;
-  return ['defend','body','mind','spirit','control','lead','strike','shoot','adventure'].indexOf(stat)>=0?-Math.max(1,Math.ceil(total/3)):0;
+  var basePenalty=Math.max(1,Math.ceil(total/3));
+  return ['defend','body','mind','spirit','control','lead','strike','shoot','adventure'].indexOf(stat)>=0?-basePenalty:0;
 }
 function applyDarkAfflictionDailyProgress(daysPassed){
   ensureDarkAfflictionState();
@@ -2005,6 +2098,7 @@ function feedDarkAffliction(kind){
   var recovered=explodingRoll(4).total;
   if(typeof changeStress==='function')changeStress(-recovered);
   showNotif((key==='vampirism'?'Vampiric':'Bestial')+' hunger sated: Corruption -2, recovered '+recovered+' Stress.','good');
+  renderDarkAfflictionSheetPanel();
 }
 function cureDarkAfflictionAtTemple(kind,cost){
   ensureDarkAfflictionState();
@@ -2019,6 +2113,7 @@ function cureDarkAfflictionAtTemple(kind,cost){
   aff.active=false;aff.corruption=0;aff.lastFedStamp='';
   showNotif((key==='vampirism'?'Vampirism':'Wolfism')+' cured at temple.','good');
   if(selectedHex&&selectedHex.type==='temple')renderHexInfo(selectedHex);
+  renderDarkAfflictionSheetPanel();
 }
 function applyPersonalFlavorEffects(){
   ensureBackpackCapacity();
@@ -2028,6 +2123,7 @@ function applyPersonalFlavorEffects(){
     S.darkAfflictions[key].active=true;
     if(Number(S.darkAfflictions[key].corruption||0)<1)S.darkAfflictions[key].corruption=1;
   }
+  renderDarkAfflictionSheetPanel();
 }
 
 const FLAVOR_COOLDOWN_BY_ARCHETYPE={
@@ -2084,6 +2180,7 @@ function consumeJunkBackpackItem(){
 
 function getFlavorInteractionArchetype(flavorText){
   var base=normalizeFlavorBase(flavorText);
+  var full=String(flavorText||'').toLowerCase();
   if(!base)return 'none';
   if(base.indexOf('scrap alchemist')>=0)return 'scrap_alchemist';
   if(base.indexOf('healer')>=0||base.indexOf('field surgeon')>=0||base.indexOf('medic')>=0||base.indexOf('broth')>=0||base.indexOf('iridescent blood')>=0)return 'medic';
@@ -2094,6 +2191,11 @@ function getFlavorInteractionArchetype(flavorText){
   if(base.indexOf('quick draw')>=0||base.indexOf('duelist')>=0||base.indexOf('trickshot')>=0||base.indexOf('arc shot')>=0||base.indexOf('hunt rhythm')>=0||base.indexOf('beast form')>=0||base.indexOf('silent knife')>=0)return 'combat';
   if(base.indexOf('ward')>=0||base.indexOf('shield')>=0||base.indexOf('skin')>=0||base.indexOf('resolve')>=0||base.indexOf('calm')>=0||base.indexOf('sable')>=0||base.indexOf('steel prayer')>=0)return 'guard';
   if(base.indexOf('telepath')>=0||base.indexOf('phase walker')>=0||base.indexOf('teleportation')>=0||base.indexOf('mindshield')>=0)return 'mystic';
+  if(full.indexOf('shoot')>=0||full.indexOf('strike')>=0||full.indexOf('attack')>=0)return 'combat';
+  if(full.indexOf('defend')>=0||full.indexOf('protected')>=0)return 'guard';
+  if(full.indexOf('lead')>=0||full.indexOf('ally')>=0)return 'leader';
+  if(full.indexOf('control')>=0||full.indexOf('mind')>=0)return 'scholar';
+  if(full.indexOf('path')>=0||full.indexOf('travel')>=0||full.indexOf('route')>=0)return 'scout';
   var fallback=['combat','guard','scout','scholar','leader','medic','night','mystic'];
   return fallback[flavorHashCode(base)%fallback.length];
 }
@@ -2136,22 +2238,26 @@ function getBespokeFlavorEntry(flavorText){
   var archetype=getFlavorInteractionArchetype(full);
   var cooldown=FLAVOR_COOLDOWN_BY_ARCHETYPE[archetype]||'phase';
   var potency=(idx%3)+1;
-  var labelPrefix=full.split(':')[0].trim();
+  var split=full.split(':');
+  var labelPrefix=split[0].trim();
+  var rawDesc=split.length>1?split.slice(1).join(':').trim():'';
   var labels={
     combat:'Commit Edge',guard:'Raise Aegis',scout:'Plot Route',scholar:'Extract Insight',leader:'Issue Signal',
     medic:'Stabilize',night:'Invoke Nocturne',scrap_alchemist:'Distill Remedy',mystic:'Channel Echo'
   };
   var actionLabel=(labels[archetype]||'Use Effect')+' · '+labelPrefix;
-  var desc='';
-  if(archetype==='scrap_alchemist')desc='Consume one junk/salvage item and distill a remedy attuned to '+labelPrefix+'.';
-  else if(archetype==='medic')desc='Apply '+labelPrefix+' as triage: recover stress/health and cleanse a condition.';
-  else if(archetype==='night')desc='Trigger '+labelPrefix+' for a phase-locked night/day adaptation bonus.';
-  else if(archetype==='scout')desc='Use '+labelPrefix+' to map safe vectors, gaining Path Tokens and route dice.';
-  else if(archetype==='scholar')desc='Decode '+labelPrefix+' into tactical data: flat bonus and teamwork momentum.';
-  else if(archetype==='leader')desc='Broadcast '+labelPrefix+' to rally allies, bolstering sheet conditions and TMW.';
-  else if(archetype==='combat')desc='Prime '+labelPrefix+' as an attack edge: queued step-up die and momentum.';
-  else if(archetype==='guard')desc='Anchor '+labelPrefix+' into a defensive stance and clear pressure states.';
-  else desc='Channel '+labelPrefix+' into a focused supernatural utility burst.';
+  var desc=rawDesc;
+  if(!desc){
+    if(archetype==='scrap_alchemist')desc='Consume one junk/salvage item and distill a remedy attuned to '+labelPrefix+'.';
+    else if(archetype==='medic')desc='Apply '+labelPrefix+' as triage: recover stress/health and cleanse a condition.';
+    else if(archetype==='night')desc='Trigger '+labelPrefix+' for a phase-locked night/day adaptation bonus.';
+    else if(archetype==='scout')desc='Use '+labelPrefix+' to map safe vectors, gaining Path Tokens and route dice.';
+    else if(archetype==='scholar')desc='Decode '+labelPrefix+' into tactical data: flat bonus and teamwork momentum.';
+    else if(archetype==='leader')desc='Broadcast '+labelPrefix+' to rally allies, bolstering sheet conditions and TMW.';
+    else if(archetype==='combat')desc='Prime '+labelPrefix+' as an attack edge: queued step-up die and momentum.';
+    else if(archetype==='guard')desc='Anchor '+labelPrefix+' into a defensive stance and clear pressure states.';
+    else desc='Channel '+labelPrefix+' into a focused supernatural utility burst.';
+  }
   return {
     key:base,
     full:full,
@@ -2316,6 +2422,7 @@ function setFlavor(value){
   if(input&&input.value!==S.flavor)input.value=S.flavor;
   applyPersonalFlavorEffects();
   refreshPersonalFlavorInteractionUI();
+  renderDarkAfflictionSheetPanel();
 }
 window.isNightPhase=isNightPhase;
 window.applyDarkAfflictionDailyProgress=applyDarkAfflictionDailyProgress;
@@ -2330,6 +2437,7 @@ window.readLoreBookFromBackpack=readLoreBookFromBackpack;
 window.tryAwardLoreBookDrop=tryAwardLoreBookDrop;
 window.usePersonalFlavorAction=usePersonalFlavorAction;
 window.refreshPersonalFlavorInteractionUI=refreshPersonalFlavorInteractionUI;
+window.toggleDarkAfflictionSheetPanel=toggleDarkAfflictionSheetPanel;
 window.setFlavor=setFlavor;
 window.toggleNightMode=toggleNightMode;
 window.updateNightModeToggleUI=updateNightModeToggleUI;
@@ -2346,6 +2454,7 @@ function ensureAdvancedGearState() {
   ensureDarkAfflictionState();
   ensureBackpackCapacity();
   refreshPersonalFlavorInteractionUI();
+  renderDarkAfflictionSheetPanel();
 }
 
 function normalizeItemName(text) {
@@ -3758,7 +3867,8 @@ function consumeBackpackItemByName(name) {
   for (var i = 0; i < S.backpack.length; i++) {
     var slot = parseBackpackStack(S.backpack[i]);
     if (!slot.name) continue;
-    if (slot.name.toLowerCase() !== target) continue;
+    var lowerName = slot.name.toLowerCase();
+    if (!(lowerName === target || lowerName.indexOf(target) === 0 || target.indexOf(lowerName) === 0)) continue;
     if (slot.count > 1) S.backpack[i] = buildBackpackStack(slot.name, slot.count - 1);
     else S.backpack[i] = '';
     var el = document.getElementById('bp' + i);

@@ -707,6 +707,21 @@ function addSuccessRoll() {
 // Every failed roll grants +1 TMW (or +2 if the "Failed rolls grant +2" flavor is active).
 var _tmwFailGuard = { key: '', at: 0 };
 var _tmwFailPromptGuard = { at: 0 };
+var _failedRollContext = null;
+
+function normalizeFailedRollContext(reason, opts) {
+  var cfg = opts && typeof opts === 'object' ? opts : {};
+  var failedBy = Math.max(0, Number(cfg.failedBy || cfg.margin || 0));
+  var dreadDie = Math.max(4, Number(cfg.dreadDie || cfg.dread || 6));
+  var actionDie = Math.max(4, Number(cfg.actionDie || cfg.statDie || cfg.die || 6));
+  return {
+    reason: String(reason || 'failed-roll'),
+    failedBy: failedBy,
+    dreadDie: dreadDie,
+    actionDie: actionDie,
+    at: Date.now()
+  };
+}
 
 function awardTeamworkOnFailure(reason, opts) {
   var key = String(reason || 'failed-roll');
@@ -730,19 +745,29 @@ function openFailedRollFollowup(reason) {
   _tmwFailPromptGuard.at = now;
 
   var tmw = Math.max(0, Number(S.tmw || 0));
-  var canBoost = tmw >= 1;
+  var ctx = _failedRollContext || normalizeFailedRollContext(reason, {});
+  var needed = Math.max(1, Number(ctx.failedBy || 1));
+  var canBoost = tmw >= needed;
   var canPush = tmw >= 2;
   var why = String(reason || 'failed roll').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  var baseDread = Math.max(4, Number(ctx.dreadDie || 6));
+  var actionDie = Math.max(4, Number(ctx.actionDie || 6));
   var html = ''
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
-    + 'Failed roll detected (' + why + '). Use Teamwork to recover momentum:'
-    + '<br><strong style="color:var(--teal);">Spend 1 Teamwork:</strong> +1 flat modifier on your next roll.'
-    + '<br><strong style="color:var(--gold2);">Push Your Luck (2 Teamwork):</strong> gain one bonus Ad6 on your next roll.'
+    + 'Failed roll detected (' + why + '). You can spend Teamwork directly on this failed roll:'
+    + '<br><strong style="color:var(--teal);">Spend to Succeed:</strong> spend Teamwork equal to failure gap.'
+    + '<br><strong style="color:var(--gold2);">Push Your Luck (2 Teamwork):</strong> reroll now at stepped-up Dread.'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-top:.45rem;">'
+    + '<label style="font-size:.74rem;color:var(--muted2);">Failed By<input id="failRecoveryGap" type="number" min="1" max="20" value="' + needed + '" style="width:100%;"></label>'
+    + '<label style="font-size:.74rem;color:var(--muted2);">Spend Teamwork<input id="failRecoverySpend" type="number" min="1" max="' + tmw + '" value="' + Math.min(tmw, needed) + '" style="width:100%;"></label>'
+    + '<label style="font-size:.74rem;color:var(--muted2);">Action Die<input id="failRecoveryActionDie" type="number" min="4" max="20" step="2" value="' + actionDie + '" style="width:100%;"></label>'
+    + '<label style="font-size:.74rem;color:var(--muted2);">Current Dread Die<input id="failRecoveryDreadDie" type="number" min="4" max="20" step="2" value="' + baseDread + '" style="width:100%;"></label>'
     + '</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.6rem;">'
     + '<button class="btn btn-sm" onclick="closeModal()">Keep Failure</button>'
-    + '<button class="btn btn-sm btn-teal" ' + (canBoost ? '' : 'disabled title="Need 1 Teamwork"') + ' onclick="applyFailedRollRecovery(\'boost\')">Spend 1 Teamwork (+1 next roll)</button>'
-    + '<button class="btn btn-sm btn-primary" ' + (canPush ? '' : 'disabled title="Need 2 Teamwork"') + ' onclick="applyFailedRollRecovery(\'push\')">Push Your Luck (2 Teamwork)</button>'
+    + '<button class="btn btn-sm btn-teal" ' + (canBoost ? '' : 'disabled title="Need enough Teamwork to cover the gap"') + ' onclick="applyFailedRollRecovery(\'convert\')">Spend Teamwork to Succeed</button>'
+    + '<button class="btn btn-sm btn-primary" ' + (canPush ? '' : 'disabled title="Need 2 Teamwork"') + ' onclick="applyFailedRollRecovery(\'reroll\')">Push Your Luck Reroll</button>'
     + '</div>';
   openModal('Failed Roll Options', html);
 }
@@ -764,6 +789,7 @@ function addTMWOnFail(reason, opts) {
     gained = awardTeamworkOnFailure(failureReason, opts);
   }
   var cfg = opts && typeof opts === 'object' ? opts : {};
+  _failedRollContext = normalizeFailedRollContext(failureReason, cfg);
   if (!cfg || !cfg.skipPrompt) openFailedRollFollowup(failureReason);
   return gained;
 }
@@ -776,6 +802,57 @@ window.applyFailedRollRecovery = function(mode) {
   if (!S.rollMod || typeof S.rollMod !== 'object') S.rollMod = { advDice: [], flat: 0 };
   if (!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
   if (typeof S.rollMod.flat !== 'number') S.rollMod.flat = Number(S.rollMod.flat || 0) || 0;
+
+  var gapEl = document.getElementById('failRecoveryGap');
+  var spendEl = document.getElementById('failRecoverySpend');
+  var actionEl = document.getElementById('failRecoveryActionDie');
+  var dreadEl = document.getElementById('failRecoveryDreadDie');
+  var failedBy = Math.max(1, parseInt(gapEl && gapEl.value, 10) || Math.max(1, Number((_failedRollContext && _failedRollContext.failedBy) || 1)));
+  var spend = Math.max(1, parseInt(spendEl && spendEl.value, 10) || failedBy);
+  var actionDie = Math.max(4, parseInt(actionEl && actionEl.value, 10) || Number((_failedRollContext && _failedRollContext.actionDie) || 6));
+  var dreadDie = Math.max(4, parseInt(dreadEl && dreadEl.value, 10) || Number((_failedRollContext && _failedRollContext.dreadDie) || 6));
+
+  if (mode === 'convert') {
+    if ((S.tmw || 0) < spend) {
+      if (typeof showNotif === 'function') showNotif('Not enough Teamwork Points.', 'warn');
+      return;
+    }
+    changeCounter('tmw', -spend);
+    if (spend >= failedBy) {
+      if (typeof showNotif === 'function') showNotif('Spent ' + spend + ' Teamwork: failure converted to success.', 'good');
+    } else {
+      if (typeof showNotif === 'function') showNotif('Spent ' + spend + ' Teamwork, but you still need +' + (failedBy - spend) + ' to convert this fail.', 'warn');
+    }
+    _failedRollContext = null;
+    if (typeof closeModal === 'function') closeModal();
+    return;
+  }
+
+  if (mode === 'reroll') {
+    if ((S.tmw || 0) < 2) {
+      if (typeof showNotif === 'function') showNotif('Need 2 Teamwork Points.', 'warn');
+      return;
+    }
+    changeCounter('tmw', -2);
+    var nextDread = (typeof stepUp === 'function') ? stepUp(dreadDie) : Math.min(20, dreadDie === 4 ? 6 : dreadDie === 6 ? 8 : dreadDie === 8 ? 10 : dreadDie === 10 ? 12 : 20);
+    var actionRoll = explodingRoll(actionDie, { type: 'action', major: true, label: 'Push Luck Action' });
+    var dreadRoll = explodingRoll(nextDread, { type: 'dread', major: true, label: 'Push Luck Dread' });
+    var success = actionRoll.total >= dreadRoll.total;
+    var html = ''
+      + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+      + 'Push Your Luck reroll resolved.<br>Dread stepped up: <strong style="color:var(--red2);">d' + dreadDie + ' → d' + nextDread + '</strong>'
+      + '</div>'
+      + '<div style="display:flex;gap:.8rem;align-items:center;margin-top:.45rem;">'
+      + '<div><div style="font-size:.68rem;color:var(--muted2);">Action</div><div style="font-size:1.35rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + actionRoll.total + '</div></div>'
+      + '<div style="font-size:.9rem;color:var(--muted2);">vs</div>'
+      + '<div><div style="font-size:.68rem;color:var(--muted2);">Dread</div><div style="font-size:1.35rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dreadRoll.total + '</div></div>'
+      + '</div>'
+      + '<div style="margin-top:.4rem;font-size:.9rem;font-weight:700;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? 'Success' : 'Failure') + '</div>';
+    if (typeof openModal === 'function') openModal('Push Your Luck Result', html);
+    if (!success && typeof addTMWOnFail === 'function') addTMWOnFail('push-luck-failure', { skipPrompt: true });
+    _failedRollContext = null;
+    return;
+  }
 
   if (mode === 'boost') {
     if ((S.tmw || 0) < 1) {

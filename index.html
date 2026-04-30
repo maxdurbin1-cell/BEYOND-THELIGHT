@@ -1627,7 +1627,6 @@ function toggleFullPhaseClock(forceValue){
     S.fullPhaseClock=!!next;
   }
   updateFullPhaseClockToggleUI();
-  showNotif('Full phase clock '+(next?'enabled.':'disabled.'),next?'good':'info');
   if(typeof updateDateUI==='function')updateDateUI();
 }
 function isNightPhase(){

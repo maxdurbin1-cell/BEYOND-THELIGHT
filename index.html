@@ -589,6 +589,14 @@ select option{background:#0f1020;}
       <div class="form-row"><span class="sub-label">Personal Flavor (d100)</span>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charFlavor" placeholder="Your unique ability…" style="flex:1;" onchange="setFlavor(this.value)"><button class="btn btn-icon btn-sm" onclick="rollFlavor()">⚄</button></div>
       </div>
+      <div id="flavorInteractionPanel" style="margin:-.1rem 0 .45rem 0;padding:.45rem .55rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.06);font-size:.78rem;color:var(--text2);line-height:1.5;">
+        <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.18rem;">Flavor Interaction</div>
+        <div id="flavorInteractionDesc">Set a Personal Flavor to unlock a usable Wayfarer interaction.</div>
+        <div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-xs btn-teal" id="flavorActionBtn" onclick="usePersonalFlavorAction()">Use Flavor Action</button>
+          <span id="flavorActionMeta" style="font-size:.7rem;color:var(--muted2);"></span>
+        </div>
+      </div>
       <div class="form-row"><span class="sub-label">Mutation (d20)</span>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charMutation" placeholder="Irradiated mutation…" style="flex:1;" onchange="S.mutation=this.value"><button class="btn btn-icon btn-sm" onclick="rollMutation()">⚄</button></div>
       </div>
@@ -2019,11 +2027,193 @@ function applyPersonalFlavorEffects(){
     if(Number(S.darkAfflictions[key].corruption||0)<1)S.darkAfflictions[key].corruption=1;
   }
 }
+
+function getFlavorActionStamp(){
+  var d=(typeof S.day==='number')?S.day:0;
+  var p=(typeof S.phase==='number')?S.phase:0;
+  return String(d)+'|'+String(p);
+}
+
+function normalizeFlavorBase(flavorText){
+  var full=String(flavorText||'').trim();
+  if(!full)return '';
+  var cut=full.indexOf(':');
+  if(cut>=0)return full.slice(0,cut).trim().toLowerCase();
+  return full.toLowerCase();
+}
+
+function flavorHashCode(txt){
+  var s=String(txt||'');
+  var h=0;
+  for(var i=0;i<s.length;i++)h=((h<<5)-h)+s.charCodeAt(i);
+  return Math.abs(h|0);
+}
+
+function isLikelyJunkItemName(name){
+  var n=String(name||'').toLowerCase();
+  if(!n)return false;
+  return n.indexOf('strange item')>=0
+    ||n.indexOf('oddity')>=0
+    ||n.indexOf('salvage')>=0
+    ||n.indexOf('scrap')>=0
+    ||n.indexOf('cache')>=0
+    ||n.indexOf('rat brain')>=0
+    ||n.indexOf('weightless rock')>=0
+    ||n.indexOf('broken')>=0
+    ||n.indexOf('junk')>=0;
+}
+
+function consumeJunkBackpackItem(){
+  if(!Array.isArray(S.backpack))return null;
+  for(var i=0;i<S.backpack.length;i++){
+    var slot=parseBackpackStack(S.backpack[i]);
+    if(!slot.name||!isLikelyJunkItemName(slot.name))continue;
+    removeBackpackItem(i);
+    return slot.name;
+  }
+  return null;
+}
+
+function getFlavorInteractionArchetype(flavorText){
+  var base=normalizeFlavorBase(flavorText);
+  if(!base)return 'none';
+  if(base.indexOf('scrap alchemist')>=0)return 'scrap_alchemist';
+  if(base.indexOf('healer')>=0||base.indexOf('field surgeon')>=0||base.indexOf('medic')>=0||base.indexOf('blessed appetite')>=0||base.indexOf('iridescent blood')>=0)return 'medic';
+  if(base.indexOf('vampire')>=0||base.indexOf('werewolf')>=0||base.indexOf('moon')>=0||base.indexOf('night')>=0||base.indexOf('dusk')>=0)return 'night';
+  if(base.indexOf('cartographer')>=0||base.indexOf('pathfinder')>=0||base.indexOf('bloodhound')>=0||base.indexOf('vault memory')>=0||base.indexOf('ghoststride')>=0)return 'scout';
+  if(base.indexOf('rune')>=0||base.indexOf('arc')>=0||base.indexOf('scholar')>=0||base.indexOf('circuit')>=0||base.indexOf('mind')>=0||base.indexOf('clockmind')>=0)return 'scholar';
+  if(base.indexOf('leader')>=0||base.indexOf('cantor')>=0||base.indexOf('banner')>=0||base.indexOf('oath')>=0||base.indexOf('pact')>=0||base.indexOf('mercy')>=0)return 'leader';
+  if(base.indexOf('quick draw')>=0||base.indexOf('duelist')>=0||base.indexOf('trickshot')>=0||base.indexOf('arc shot')>=0||base.indexOf('hunt rhythm')>=0||base.indexOf('beast form')>=0)return 'combat';
+  if(base.indexOf('ward')>=0||base.indexOf('shield')>=0||base.indexOf('skin')>=0||base.indexOf('resolve')>=0||base.indexOf('calm')>=0||base.indexOf('sable')>=0)return 'guard';
+  var fallback=['combat','guard','scout','scholar','leader','medic','night'];
+  return fallback[flavorHashCode(base)%fallback.length];
+}
+
+function getFlavorInteractionDescriptor(flavorText){
+  var base=normalizeFlavorBase(flavorText);
+  if(!base)return{title:'No Flavor Selected',desc:'Roll or set a Personal Flavor to unlock a usable action.',label:'Use Flavor Action'};
+  var arch=getFlavorInteractionArchetype(base);
+  var map={
+    scrap_alchemist:{title:'Scrap Alchemy',desc:'Convert one junk/salvage backpack item into a random remedy (healing, condition recovery, or peril/radiation protection).',label:'Brew Remedy'},
+    medic:{title:'Field Medicine',desc:'Restore d4 Health/Stress and clear one active negative condition if present.',label:'Treat Wounds'},
+    night:{title:'Nocturne Instinct',desc:'At Night: gain Focused and +1 Teamwork. In daylight: gain +1 Path Token and an Ad6 advantage die.',label:'Invoke Instinct'},
+    scout:{title:'Route Insight',desc:'Gain +2 Path Tokens and queue an Ad8 advantage die for traversal, scouting, or lead checks.',label:'Chart Route'},
+    scholar:{title:'Tactical Analysis',desc:'Gain +2 flat bonus on your next prepared roll and +1 Teamwork from encoded insight.',label:'Analyze'},
+    leader:{title:'Command Pulse',desc:'Gain Bolstered and +1 Teamwork while signaling allies and mission contacts.',label:'Issue Orders'},
+    combat:{title:'Combat Edge',desc:'Queue a step-up style advantage die for your next offensive action and gain +1 Teamwork momentum.',label:'Prime Attack'},
+    guard:{title:'Defensive Guard',desc:'Gain Protected and clear Vulnerable or Shaken if one is active.',label:'Raise Guard'}
+  };
+  var desc=map[arch]||map.scout;
+  return{title:desc.title,desc:desc.desc,label:desc.label,archetype:arch};
+}
+
+function refreshPersonalFlavorInteractionUI(){
+  var panel=document.getElementById('flavorInteractionPanel');
+  if(!panel)return;
+  var d=getFlavorInteractionDescriptor(S.flavor);
+  var descEl=document.getElementById('flavorInteractionDesc');
+  if(descEl)descEl.innerHTML='<strong style="color:var(--gold2);">'+d.title+'</strong><br>'+d.desc;
+  var btn=document.getElementById('flavorActionBtn');
+  if(btn)btn.textContent=d.label||'Use Flavor Action';
+  var meta=document.getElementById('flavorActionMeta');
+  if(meta){
+    var st=S.flavorActionState||{};
+    var key=normalizeFlavorBase(S.flavor);
+    var used=(st[key]&&st[key].stamp===getFlavorActionStamp());
+    meta.textContent=used?'Used this phase. Advance phase/day to use again.':'Ready';
+  }
+}
+
+function usePersonalFlavorAction(){
+  var flavor=String(S.flavor||'').trim();
+  if(!flavor){showNotif('Set a Personal Flavor first.','info');return;}
+  if(!S.flavorActionState||typeof S.flavorActionState!=='object')S.flavorActionState={};
+  var key=normalizeFlavorBase(flavor);
+  var stamp=getFlavorActionStamp();
+  if(S.flavorActionState[key]&&S.flavorActionState[key].stamp===stamp){
+    showNotif('Flavor action already used this phase.','info');
+    refreshPersonalFlavorInteractionUI();
+    return;
+  }
+  var arch=getFlavorInteractionArchetype(flavor);
+  var msg='Flavor action resolved.';
+  if(arch==='scrap_alchemist'){
+    var spent=consumeJunkBackpackItem();
+    if(!spent){
+      showNotif('Scrap Alchemy needs one junk/salvage item in Backpack.','warn');
+      return;
+    }
+    var remedies=['Wound Salve','Fever Tincture','Mind Draught','Spirit Tonic','Fortifying Broth','Blight Repellent','Anti-Rad'];
+    var remedy=pick(remedies);
+    if(typeof addToBackpack==='function')addToBackpack(remedy);
+    msg='Scrap Alchemy: '+spent+' converted into '+remedy+'.';
+  }else if(arch==='medic'){
+    var heal=roll(4);
+    if(typeof changeHealth==='function')changeHealth(-heal);else changeStress(-heal);
+    var cleared='';
+    var neg=['weakened','vulnerable','distracted','shaken'];
+    for(var ni=0;ni<neg.length;ni++){
+      if(S.conditions&&S.conditions[neg[ni]]){S.conditions[neg[ni]]=false;cleared=neg[ni];break;}
+    }
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+    msg='Field Medicine: restored '+heal+' and '+(cleared?('cleared '+cleared):'stabilized without condition clear')+'.';
+  }else if(arch==='night'){
+    var isNight=(typeof isNightPhase==='function')?isNightPhase():false;
+    if(isNight){
+      if(S.conditions){S.conditions.focused=true;}
+      if(typeof changeCounter==='function')changeCounter('tmw',1);
+      msg='Nocturne Instinct: Focused +1 Teamwork at night.';
+    }else{
+      if(typeof changeCounter==='function')changeCounter('pathTokens',1);else S.pathTokens=(S.pathTokens||0)+1;
+      if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+      if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+      S.rollMod.advDice.push(6);
+      msg='Nocturne Instinct: daylight adaptation grants +1 Path Token and Ad6 bonus die.';
+    }
+  }else if(arch==='scout'){
+    if(typeof changeCounter==='function')changeCounter('pathTokens',2);else S.pathTokens=(S.pathTokens||0)+2;
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    S.rollMod.advDice.push(8);
+    msg='Route Insight: +2 Path Tokens and Ad8 queued for next key roll.';
+  }else if(arch==='scholar'){
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    S.rollMod.flat=(S.rollMod.flat||0)+2;
+    if(typeof changeCounter==='function')changeCounter('tmw',1);
+    msg='Tactical Analysis: +2 flat bonus and +1 Teamwork.';
+  }else if(arch==='leader'){
+    if(S.conditions)S.conditions.bolstered=true;
+    if(typeof changeCounter==='function')changeCounter('tmw',1);
+    msg='Command Pulse: Bolstered condition and +1 Teamwork.';
+  }else if(arch==='combat'){
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    var ad=Math.max(4,Math.min(20,Number((S.stats&&S.stats.adventure)||4)));
+    var step=Math.min(20,ad===4?6:ad===6?8:ad===8?10:ad===10?12:ad===12?20:20);
+    S.rollMod.advDice.push(step);
+    if(typeof changeCounter==='function')changeCounter('tmw',1);
+    msg='Combat Edge: queued Ad'+step+' and gained +1 Teamwork.';
+  }else{
+    if(S.conditions)S.conditions.protected=true;
+    if(S.conditions&&S.conditions.vulnerable)S.conditions.vulnerable=false;
+    if(S.conditions&&S.conditions.shaken)S.conditions.shaken=false;
+    msg='Defensive Guard: Protected and cleared vulnerable pressure.';
+  }
+  if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+  if(typeof updateConditionButtons==='function')updateConditionButtons();
+  if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+  S.flavorActionState[key]={stamp:stamp,lastUsedAt:Date.now(),archetype:arch};
+  showNotif(msg,'good');
+  refreshPersonalFlavorInteractionUI();
+}
+
 function setFlavor(value){
   S.flavor=String(value||'').trim();
   var input=document.getElementById('charFlavor');
   if(input&&input.value!==S.flavor)input.value=S.flavor;
   applyPersonalFlavorEffects();
+  refreshPersonalFlavorInteractionUI();
 }
 window.isNightPhase=isNightPhase;
 window.applyDarkAfflictionDailyProgress=applyDarkAfflictionDailyProgress;
@@ -2036,6 +2226,8 @@ window.promptConsumeAfterEnemyDefeat=promptConsumeAfterEnemyDefeat;
 window.applySunlightTraversalPunishment=applySunlightTraversalPunishment;
 window.readLoreBookFromBackpack=readLoreBookFromBackpack;
 window.tryAwardLoreBookDrop=tryAwardLoreBookDrop;
+window.usePersonalFlavorAction=usePersonalFlavorAction;
+window.refreshPersonalFlavorInteractionUI=refreshPersonalFlavorInteractionUI;
 window.setFlavor=setFlavor;
 window.toggleNightMode=toggleNightMode;
 window.updateNightModeToggleUI=updateNightModeToggleUI;
@@ -2051,6 +2243,7 @@ function ensureAdvancedGearState() {
   ensureFullPhaseClockState();
   ensureDarkAfflictionState();
   ensureBackpackCapacity();
+  refreshPersonalFlavorInteractionUI();
 }
 
 function normalizeItemName(text) {

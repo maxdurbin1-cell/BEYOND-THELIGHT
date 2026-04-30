@@ -3799,6 +3799,14 @@ function isPlanetNightModeActive() {
   return !!(S && S.nightMode);
 }
 
+function getPlanetNightModeTradeBonusChance() {
+  return 34;
+}
+
+function getPlanetNightModeHexBonusChance() {
+  return 28;
+}
+
 function buildNightModePlanetTradeBonus(state, selected) {
   const rollBonus = roll(3);
   if (rollBonus === 1) {
@@ -3865,7 +3873,7 @@ function rollPlanetTradeRouteEncounter() {
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
-  if (isPlanetNightModeActive() && roll(100) <= 55) {
+  if (isPlanetNightModeActive() && roll(100) <= getPlanetNightModeTradeBonusChance()) {
     text += ' Night Mode Bonus: ' + buildNightModePlanetTradeBonus(state, selected);
   }
   state.lastEvent = {
@@ -5119,7 +5127,7 @@ function rollPlanetHexEncounter() {
     text = `${selected.localWeather.label} — ${selected.localWeather.desc}. Pressure rises.`;
   }
 
-  if (isPlanetNightModeActive() && roll(100) <= 50) {
+  if (isPlanetNightModeActive() && roll(100) <= getPlanetNightModeHexBonusChance()) {
     text += ' Night Mode Bonus: ' + buildNightModePlanetHexBonus(state, selected);
   }
 

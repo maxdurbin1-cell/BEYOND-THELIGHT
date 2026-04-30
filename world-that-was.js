@@ -604,6 +604,10 @@
     return !!(typeof S !== 'undefined' && S && S.nightMode);
   }
 
+  function getWtwNightModeBonusChance() {
+    return 38;
+  }
+
   function buildWtwNightModeBonus() {
     const mode = safePick(['intel', 'cache', 'renown'], 'intel');
     if (mode === 'cache') {
@@ -2058,7 +2062,7 @@
     if (!hex) return;
     hex.encounter = buildDistrictEncounter(hex.zone);
     if (hex.encounter) hex.encounter.zoneName = hex.zone;
-    if (isWtwNightModeActive() && safeRoll(100) <= 55) {
+    if (isWtwNightModeActive() && safeRoll(100) <= getWtwNightModeBonusChance()) {
       const bonus = buildWtwNightModeBonus();
       if (hex.encounter) {
         hex.encounter.nightModeBonus = bonus;

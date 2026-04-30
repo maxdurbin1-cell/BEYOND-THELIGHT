@@ -2462,8 +2462,13 @@
     return !!(S && S.nightMode);
   }
 
+  function getSeaNightModeBonusChance(contextType) {
+    if (contextType === 'island') return 32;
+    return 42;
+  }
+
   function buildSeaNightModeBonusHtml(hex, contextType) {
-    if (!isSeaNightModeActive() || roll(100) > 55) return '';
+    if (!isSeaNightModeActive() || roll(100) > getSeaNightModeBonusChance(contextType)) return '';
     if (contextType === 'island') {
       return `<div class="sea-result" style="margin-top:.35rem;border-color:rgba(126,215,255,.45);background:rgba(126,215,255,.08);"><div class="sea-result-title" style="color:#7ed7ff;">Night Mode Bonus - Moonlit Trail</div><div style="font-size:.82rem;color:var(--text2);line-height:1.55;">A silent guide marks safe stone crossings and hidden crates.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('rescue','Moonlit Survivors',{renown:1})">Escort Survivors</button><button class="btn btn-xs btn-teal" onclick="if(typeof claimSeaBuriedTreasure==='function')claimSeaBuriedTreasure(${hex.col},${hex.row},'Book: Tidecaller Log')">Recover Lore Book</button></div></div>`;
     }

@@ -496,6 +496,10 @@ function resolveOrCreateParticipant(campaign, name, requestedRole, tokenHint) {
   if (tokenHint) {
     const byToken = campaign.participants.get(tokenHint);
     if (byToken) {
+      // Prevent accidental role takeover when a stale GM token is reused while joining as Player.
+      if (desiredRole === "player" && byToken.role === "gm") {
+        // Fall through and resolve by name/new participant instead of restoring GM token.
+      } else {
       byToken.name = normalizedName;
       if (desiredRole === "gm") {
         if (campaign.gmToken && campaign.gmToken !== tokenHint) {
@@ -508,21 +512,24 @@ function resolveOrCreateParticipant(campaign, name, requestedRole, tokenHint) {
       }
       byToken.lastSeenAt = Date.now();
       return { token: tokenHint, participant: byToken, restored: true };
+      }
     }
   }
 
   const sameName = Array.from(campaign.participants.values()).filter((p) => p.name.toLowerCase() === normalizedName.toLowerCase());
   if (!tokenHint && sameName.length === 1) {
     const only = sameName[0];
-    if (desiredRole === "gm" && campaign.gmToken && campaign.gmToken !== only.token) {
-      return { error: "This campaign already has a GM." };
+    if (only.role === desiredRole) {
+      if (desiredRole === "gm" && campaign.gmToken && campaign.gmToken !== only.token) {
+        return { error: "This campaign already has a GM." };
+      }
+      only.lastSeenAt = Date.now();
+      if (desiredRole === "gm") setParticipantRole(campaign, only.token, "gm");
+      if (!only.character) {
+        only.character = normalizeCharacter(null, only.name);
+      }
+      return { token: only.token, participant: only, restored: true };
     }
-    only.lastSeenAt = Date.now();
-    if (desiredRole === "gm") setParticipantRole(campaign, only.token, "gm");
-    if (!only.character) {
-      only.character = normalizeCharacter(null, only.name);
-    }
-    return { token: only.token, participant: only, restored: true };
   }
 
   if (desiredRole === "gm" && campaign.gmToken) {

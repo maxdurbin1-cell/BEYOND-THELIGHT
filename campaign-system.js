@@ -3080,6 +3080,10 @@
       if (!payload || typeof payload !== "object") return;
       var text = String(payload.text || "").trim();
       if (!text) return;
+      var isTriggerDebug = text.indexOf("GM Trigger Debug") >= 0
+        || text.indexOf("Trigger:") >= 0
+        || text.indexOf("hex-enter") >= 0;
+      if (isTriggerDebug) return;
       var sourceToken = String(payload.sourceToken || "");
       if (sourceToken && state.token && sourceToken === state.token) return;
 
@@ -3251,6 +3255,7 @@
     var codeRaw = opts.code || readUiValue("campaignCodeInput") || (session ? session.code : "");
     var code = formatCode(codeRaw);
     var joinPass = opts.password || readUiValue("campaignPasswordInput") || "";
+    var requestedRole = role === "gm" ? "gm" : "player";
 
     if (!code) {
       if (!opts.silent) safeNotif("Enter a campaign code to join.", "warn");
@@ -3262,11 +3267,16 @@
     state.uiDraft.code = code;
     state.uiDraft.joinPassword = joinPass;
 
+    // Reuse token only when role and campaign code match the active/saved session.
+    var activeToken = (state.code === code && state.role === requestedRole) ? String(state.token || "") : "";
+    var sessionToken = (session && session.code === code && session.role === requestedRole) ? String(session.token || "") : "";
+    var tokenHint = String(opts.token || activeToken || sessionToken || "").trim();
+
     var res = await emitWithAck("campaign:join", {
       code: code,
       name: name,
-      role: role === "gm" ? "gm" : "player",
-      token: opts.token || state.token || (session ? session.token : ""),
+      role: requestedRole,
+      token: tokenHint,
       password: joinPass
     });
 

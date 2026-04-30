@@ -1881,6 +1881,13 @@ function renderGMStoryTriggerDebugPanel() {
     if (panel) panel.style.display = 'none';
     return;
   }
+  const cs = (window.campaignSystem && typeof window.campaignSystem.getState === 'function')
+    ? window.campaignSystem.getState()
+    : null;
+  if (cs && cs.code) {
+    if (panel) panel.style.display = 'none';
+    return;
+  }
   if (!panel) {
     panel = document.createElement('div');
     panel.id = 'gmStoryTriggerDebug';
@@ -1890,6 +1897,7 @@ function renderGMStoryTriggerDebugPanel() {
     panel.style.bottom = '12px';
     panel.style.zIndex = '1300';
     panel.style.maxWidth = '280px';
+    panel.style.pointerEvents = 'none';
     panel.style.padding = '.45rem .55rem';
     panel.style.border = '1px solid rgba(176,96,208,.42)';
     panel.style.background = 'rgba(12,12,22,.92)';

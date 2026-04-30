@@ -1263,6 +1263,21 @@ const MONUMENT_EFFECTS=['Protected (Defend ↑ one Step)','Bolstered (Spirit/Lea
 // Pick from an array if array, else return the value directly (used by terrain descriptions)
 function pickTd(v){return Array.isArray(v)?pick(v):v;}
 
+// Stable per-hex terrain text selector to avoid rerolling on every render/sync tick.
+function pickTdStable(v, hex, channel){
+  if(!Array.isArray(v))return v;
+  if(!hex||typeof hex.col!=='number'||typeof hex.row!=='number')return pick(v);
+  const terrain=(hex.terrain&&hex.terrain.name)?String(hex.terrain.name):'';
+  const seed=String(hex.col)+','+String(hex.row)+'|'+terrain+'|'+String(channel||'td');
+  let h=0;
+  for(let i=0;i<seed.length;i++){
+    h=((h<<5)-h)+seed.charCodeAt(i);
+    h|=0;
+  }
+  const idx=Math.abs(h)%v.length;
+  return v[idx];
+}
+
 const TERRAIN_TYPES=[{name:'Marsh',color:'#1e3a22'},{name:'Forest',color:'#163320'},{name:'Valley',color:'#3a4418'},{name:'Lake',color:'#142840'},{name:'Mountain',color:'#3d3328'},{name:'Desert',color:'#584e26'},{name:'Hills',color:'#354027'},{name:'Meadow',color:'#2c4420'},{name:'Heath',color:'#332b40'},{name:'Crags',color:'#382e24'},{name:'Bog',color:'#1e2e1e'},{name:'Glades',color:'#123020'}];
 
 const TERRAIN_DESC={
@@ -4860,9 +4875,9 @@ function renderHexInfo(hex){
 
   // ── WILDERNESS ──
   if(hex.type==='wilderness'){
-    if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTd(td.land)}</div></div>`;
-    if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTd(td.flora)} ${pickTd(td.fauna)||''}</div></div>`;
-    if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTd(td.wonder)}</div></div>`;
+    if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTdStable(td.land,hex,'land')}</div></div>`;
+    if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTdStable(td.flora,hex,'flora')} ${pickTdStable(td.fauna,hex,'fauna')||''}</div></div>`;
+    if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTdStable(td.wonder,hex,'wonder')}</div></div>`;
     html+=`<div class="hex-primary-actions"><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
     if(d.eventLead){
@@ -7260,6 +7275,15 @@ document.addEventListener('DOMContentLoaded',()=>{
     S.explorationEffects.revealTraps=Math.max(0,Number(S.explorationEffects.revealTraps||0)-1);
   }
 
+  function syncProvinceRuinStateSoon(reason){
+    if(!window.campaignSystem||typeof window.campaignSystem.getState!=='function'||typeof window.campaignSystem.syncSharedSilent!=='function')return;
+    const cs=window.campaignSystem.getState();
+    if(!cs||!cs.code||cs.role!=='gm')return;
+    setTimeout(function(){
+      try{window.campaignSystem.syncSharedSilent(reason||'province-ruin');}catch(_err){}
+    },0);
+  }
+
   window.startProvinceRuinPuzzle = function(col,row,idx){
     const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
     if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms)||!hex.data.provinceRuinRooms[idx])return;
@@ -7297,6 +7321,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           room.result='🧩 Failed — runes flare, take 2 Stress, and become Distracted.';
           room.cleared=true;
         }
+        syncProvinceRuinStateSoon('province-ruin-puzzle');
         openProvinceRuinPopup(col,row);
       }
     });
@@ -7306,6 +7331,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
     if(!hex)return;
     hex.data=hex.data||{};
+    const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+    if(cs&&cs.code&&cs.role==='player'&&!Array.isArray(hex.data.provinceRuinRooms)){
+      showNotif('Ruin layout is waiting for GM sync. Ask GM to enter first or request resync.', 'info');
+      return;
+    }
+    let generatedRuinRooms=false;
     if(!Array.isArray(hex.data.provinceRuinRooms)){
       const count=Math.max(3,parseInt(hex.data.rooms,10)||5);
       // Always: Entrance → middle rooms → possible Boss at end
@@ -7315,8 +7346,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       // Boss Chamber on last room (50% chance)
       rooms.push({idx:count,type:roll(2)===1?'Boss Chamber':'Secret Cache',cleared:false,result:''});
       hex.data.provinceRuinRooms=rooms;
+      generatedRuinRooms=true;
     }
     ensureProvinceRuinRoomState(hex);
+    if(generatedRuinRooms)syncProvinceRuinStateSoon('province-ruin-generated');
     const rows=hex.data.provinceRuinRooms.map(function(room,i){
       const typeColor = room.type==='Boss Chamber'?'var(--red2)':room.type==='Secret Cache'?'var(--gold)':room.type==='Shrine Room'?'var(--purple)':room.type==='Puzzle'?'var(--teal)':'var(--text2)';
       const typeIcon = room.type==='Entrance'?'🚪':room.type==='Lair'?'👁':room.type==='Obstacle'?'⛰':room.type==='Trap'?'⚠':room.type==='Puzzle'?'🧩':room.type==='Secret Cache'?'🔍':room.type==='Boss Chamber'?'💀':room.type==='Shrine Room'?'✦':'◻';
@@ -7373,6 +7406,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       room.result='Reveal Traps exposes the mechanism before it fires. The trap is safely disarmed.';
       room.cleared=true;
       if(typeof addSuccessRoll==='function')addSuccessRoll();
+      syncProvinceRuinStateSoon('province-ruin-room');
       openProvinceRuinPopup(col,row);
       return;
     }
@@ -7413,6 +7447,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       }
       room.cleared=true;
     }
+    syncProvinceRuinStateSoon('province-ruin-room');
     openProvinceRuinPopup(col,row);
   };
 
@@ -7436,6 +7471,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       showNotif('Boss outcome marked as failure.','warn');
     }
     room.cleared=true;
+    syncProvinceRuinStateSoon('province-ruin-boss');
     openProvinceRuinPopup(col,row);
   };
 

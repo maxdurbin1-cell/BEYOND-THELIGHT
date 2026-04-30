@@ -6230,17 +6230,6 @@ function rollHexEncounter(col,row){
     el.innerHTML='<div style="font-size:.78rem;color:var(--muted2);padding:.2rem 0;">Rolling encounter...</div>';
   }
   try{
-    if(!isNightPhase()){
-      const dayHtml='<div style="font-size:.82rem;color:var(--muted2);padding:.3rem 0;">Day phase: major wilderness encounters are muted. Roll again at Night for full encounter tables.</div>';
-      const dayHex=mapData.find(h=>h&&h.col===col&&h.row===row);
-      if(dayHex){
-        dayHex.data=dayHex.data||{};
-        dayHex.data.lastEncounterHtml=dayHtml;
-      }
-      if(el)el.innerHTML=dayHtml;
-      showNotif('Night-only rule: Province encounters unlock during Night phase.', 'info');
-      return;
-    }
     const vr=roll(6);
     const itemFlags=(function(){
       try{
@@ -6367,10 +6356,6 @@ function rollTradeRouteEncounter(col,row){
   if(window.campaignSystem&&typeof window.campaignSystem.guardSharedWorldMutation==='function'&&
      !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared Trade Route encounters in Campaign mode.'))return;
   try{
-    if(!isNightPhase()){
-      showNotif('Night-only rule: Trade route encounter rolls unlock during Night phase.', 'info');
-      return;
-    }
     const targetHex=(typeof col==='number'&&typeof row==='number')
       ? mapData.find(h=>h&&h.col===col&&h.row===row)
       : selectedHex;

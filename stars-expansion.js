@@ -3112,11 +3112,6 @@ function rollPlanetExploration() {
   } else if (pactDelta <= -1 && Math.random() < 0.45) {
     outcome = pick(['Find', 'Close Encounter', 'Merchant Colony', 'Empty Colony']);
   }
-  const nightOnly = ['Beast', 'Close Encounter', 'Pirate', 'Skirmish', 'Galactic Facility'];
-  if (typeof window.isNightPhase === 'function' && !window.isNightPhase() && nightOnly.indexOf(outcome) >= 0) {
-    outcome = pick(['Find', 'Hazard', 'Empty Colony', 'Merchant Colony']);
-    showNotif('Day phase: planet hostiles and direct contact events are suppressed until Night.', 'info');
-  }
   let detail = '';
   let rewardItem = '';
   let affectedCell = null;

@@ -626,6 +626,7 @@ select option{background:#0f1020;}
     <button class="btn btn-primary" onclick="generateMap()">⚄ Generate Province</button>
     <button class="btn" onclick="clearMap()">✕ Clear</button>
     <button class="btn btn-sm" id="nightModeToggleBtn" onclick="toggleNightMode()">Night Mode: Off</button>
+    <button class="btn btn-sm" id="fullPhaseClockToggleBtn" onclick="toggleFullPhaseClock()">Full Clock: Off</button>
     <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Click: Travel</button>
     <button class="btn btn-sm btn-teal" id="mapHex3dBtn" onclick="toggleMapHex3d()">Hex 3D: On</button>
     <select id="mapOverlaySel" onchange="setMapOverlay(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
@@ -1556,7 +1557,7 @@ const SHOP_DATA={weapons:[{name:'Sword',stat:'+1 Strike | Engaged',desc:'A relia
 const STAT_KEYS=['body','strike','shoot','mind','spirit','defend','control','lead'];
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}}};
+let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}}};
 let hexNotes={};
 
 function getBackpackCapacity(){
@@ -1580,6 +1581,14 @@ function ensureNightModeState(){
   if(!S||typeof S!=='object')return;
   if(typeof S.nightMode!=='boolean')S.nightMode=false;
 }
+function ensureFullPhaseClockState(){
+  if(!S||typeof S!=='object')return;
+  if(typeof S.fullPhaseClock!=='boolean')S.fullPhaseClock=false;
+}
+function isFullPhaseClockEnabledLocal(){
+  ensureFullPhaseClockState();
+  return !!S.fullPhaseClock;
+}
 function isEncounterNightModeActive(){
   ensureNightModeState();
   return !!S.nightMode;
@@ -1600,9 +1609,30 @@ function toggleNightMode(forceValue){
   showNotif('Night Mode '+(S.nightMode?'enabled: extra night encounters can trigger.':'disabled: baseline encounters only.'),S.nightMode?'good':'info');
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
 }
+function updateFullPhaseClockToggleUI(){
+  ensureFullPhaseClockState();
+  var btn=document.getElementById('fullPhaseClockToggleBtn');
+  if(!btn)return;
+  var on=(typeof window.isFullPhaseClockEnabled==='function')?!!window.isFullPhaseClockEnabled():isFullPhaseClockEnabledLocal();
+  btn.textContent='Full Clock: '+(on?'On':'Off');
+  btn.className='btn btn-sm '+(on?'btn-teal':'');
+  btn.title='Off: legacy phase pacing. On: 0000-1159, 1200-1659, 1700-2059, 2100-2359.';
+}
+function toggleFullPhaseClock(forceValue){
+  ensureFullPhaseClockState();
+  var next=(typeof forceValue==='boolean')?forceValue:!isFullPhaseClockEnabledLocal();
+  if(typeof window.setFullPhaseClockEnabled==='function'){
+    window.setFullPhaseClockEnabled(next,'toggle');
+  }else{
+    S.fullPhaseClock=!!next;
+  }
+  updateFullPhaseClockToggleUI();
+  showNotif('Full phase clock '+(next?'enabled.':'disabled.'),next?'good':'info');
+  if(typeof updateDateUI==='function')updateDateUI();
+}
 function isNightPhase(){
   if(typeof getCurrentPhaseLabel==='function')return String(getCurrentPhaseLabel()||'').toLowerCase()==='night';
-  if(S&&S.gameDate&&typeof S.gameDate.phase==='number')return Number(S.gameDate.phase)>=2;
+  if(S&&S.gameDate&&typeof S.gameDate.phase==='number')return Number(S.gameDate.phase)>=(isFullPhaseClockEnabledLocal()?3:2);
   return false;
 }
 function getDeityPactPressure(){
@@ -1793,6 +1823,8 @@ window.cureDarkAfflictionAtTemple=cureDarkAfflictionAtTemple;
 window.setFlavor=setFlavor;
 window.toggleNightMode=toggleNightMode;
 window.updateNightModeToggleUI=updateNightModeToggleUI;
+window.toggleFullPhaseClock=toggleFullPhaseClock;
+window.updateFullPhaseClockToggleUI=updateFullPhaseClockToggleUI;
 
 function ensureAdvancedGearState() {
   if (!S.equipment) S.equipment = { weapon1:'', weapon2:'', armor:'', readied:'' };
@@ -1800,6 +1832,7 @@ function ensureAdvancedGearState() {
   if (!S.gearState || typeof S.gearState !== 'object') S.gearState = { oxygenHours:0, radAbsorbUsed:0, radAbsorbCap:0 };
   if (!S.environmentContext || typeof S.environmentContext !== 'object') S.environmentContext = { temperature:'', vacuum:false, irradiated:false };
   ensureNightModeState();
+  ensureFullPhaseClockState();
   ensureDarkAfflictionState();
   ensureBackpackCapacity();
 }

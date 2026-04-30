@@ -499,11 +499,12 @@ function ensureStarsState() {
   if (!Array.isArray(S.exocraftBay.cargo)) S.exocraftBay.cargo = ['', '', '', '', '', ''];
   if (typeof S.exocraftBay.active !== 'string') S.exocraftBay.active = '';
   S.gameDate = S.gameDate || { day: 1, month: 1, year: 1, phase: 0, provinceHexClicks: 0, lastSeaIslandClicks: 0, seededRandom: false, ageEpochYear: null, ageEpochIndex: null };
+  ensurePhaseClockModeState();
   if (!S.gameDate.seededRandom) {
     S.gameDate.day = roll(DAYS_PER_MONTH - 1) + 1;
     S.gameDate.month = roll(MONTHS_PER_YEAR - 1) + 1;
     S.gameDate.year = roll(998) + 1;
-    S.gameDate.phase = roll(DAY_PHASES.length) - 1;
+    S.gameDate.phase = roll(getActiveDayPhases().length) - 1;
     S.gameDate.seededRandom = true;
   }
   if (typeof S.gameDate.phase !== 'number') S.gameDate.phase = 0;
@@ -1502,7 +1503,7 @@ function loseGamePhases(count) {
   ensureStarsState();
   let n = Math.max(1, parseInt(count, 10) || 1);
   while (n > 0) {
-    if ((S.gameDate.phase || 0) < DAY_PHASES.length - 1) {
+    if ((S.gameDate.phase || 0) < getActiveDayPhases().length - 1) {
       S.gameDate.phase = (S.gameDate.phase || 0) + 1;
     } else {
       S.gameDate.phase = 0;
@@ -7957,6 +7958,7 @@ function halfHealth() {
   S.stress = S.health;
   updateHealthUI();
   showNotif('Recovery: Health halved.', 'good');
+  applyFullClockRestTiming(4, 'Short Rest');
 }
 
 function clearHealth() {
@@ -7967,6 +7969,7 @@ function clearHealth() {
   S.stress = S.health;
   updateHealthUI();
   showNotif('Long Rest: Health fully recovered.', 'good');
+  applyFullClockRestTiming(8, 'Long Rest');
 }
 
 function updateHealthUI() {
@@ -8465,6 +8468,13 @@ const DAYS_PER_WEEK  = 5;
 const DAYS_PER_MONTH = 30;
 const MONTHS_PER_YEAR = 12;
 const DAY_PHASES = ['Morning', 'Afternoon', 'Night'];
+const FULL_PHASE_CLOCK_WINDOWS = [
+  { label: 'Morning', start: '0000', end: '1159' },
+  { label: 'Afternoon', start: '1200', end: '1659' },
+  { label: 'Evening', start: '1700', end: '2059' },
+  { label: 'Night', start: '2100', end: '2359' },
+];
+const FULL_PHASE_IDLE_INTERVAL_MS = 180000;
 const SEASON_ORDER = ['spring', 'harvest', 'winter'];
 const WORLD_AGE_ORDER = ['green', 'golden', 'grey'];
 const CHARACTER_AGE_BANDS = [
@@ -8574,23 +8584,133 @@ function applyYearProgression(yearsPassed) {
 }
 
 function clampPhase(value) {
-  const max = DAY_PHASES.length - 1;
+  const max = getActiveDayPhases().length - 1;
   return Math.max(0, Math.min(max, value));
+}
+
+function ensurePhaseClockModeState() {
+  if (typeof S.fullPhaseClock !== 'boolean') S.fullPhaseClock = false;
+}
+
+function isFullPhaseClockEnabled() {
+  if (!S || typeof S !== 'object') return false;
+  ensurePhaseClockModeState();
+  return !!S.fullPhaseClock;
+}
+
+function getActiveDayPhases() {
+  if (isFullPhaseClockEnabled()) return FULL_PHASE_CLOCK_WINDOWS.map((entry) => entry.label);
+  return DAY_PHASES;
+}
+
+function getCurrentPhaseWindowLabel() {
+  if (!isFullPhaseClockEnabled()) return '';
+  const idx = clampPhase(S.gameDate.phase || 0);
+  const win = FULL_PHASE_CLOCK_WINDOWS[idx];
+  return win ? (win.start + '–' + win.end) : '';
+}
+
+function setFullPhaseClockEnabled(enabled, sourceTag) {
+  ensureStarsState();
+  ensurePhaseClockModeState();
+  const next = !!enabled;
+  const prev = !!S.fullPhaseClock;
+  if (next === prev) {
+    updateDateUI();
+    return;
+  }
+  S.fullPhaseClock = next;
+  if (next) {
+    const p = Number(S.gameDate.phase || 0);
+    if (p >= 2) S.gameDate.phase = 3;
+    S.gameDate.provinceHexClicks = clampPhase(S.gameDate.phase || 0);
+  } else {
+    const p = Number(S.gameDate.phase || 0);
+    if (p >= 3) S.gameDate.phase = 2;
+    else if (p === 2) S.gameDate.phase = 1;
+    S.gameDate.provinceHexClicks = Math.max(0, Math.min(2, Number(S.gameDate.provinceHexClicks || 0)));
+  }
+  updateDateUI();
+  if (typeof showNotif === 'function') {
+    const src = sourceTag === 'toggle' ? '' : ' from save';
+    showNotif('Full phase clock ' + (S.fullPhaseClock ? 'enabled' : 'disabled') + src + '.', 'info');
+  }
+}
+
+function applyFullClockRestTiming(hours, label) {
+  if (!isFullPhaseClockEnabled()) return;
+  const h = Math.max(1, parseInt(hours, 10) || 1);
+  const phases = Math.max(1, Math.ceil(h / 4));
+  loseGamePhases(phases);
+  if (typeof showNotif === 'function') {
+    showNotif((label || 'Rest') + ' consumes ' + h + 'h (' + phases + ' phase' + (phases === 1 ? '' : 's') + ').', 'info');
+  }
+}
+
+let _fullClockRestHooksInstalled = false;
+function installFullClockRestHooks() {
+  if (_fullClockRestHooksInstalled) return;
+  _fullClockRestHooksInstalled = true;
+  if (typeof window.clearStress === 'function' && !window.clearStress.__fullClockWrapped) {
+    const baseClearStress = window.clearStress;
+    const wrappedClearStress = function() {
+      const result = baseClearStress.apply(this, arguments);
+      applyFullClockRestTiming(8, 'Long Rest');
+      return result;
+    };
+    wrappedClearStress.__fullClockWrapped = true;
+    window.clearStress = wrappedClearStress;
+  }
+  if (typeof window.halfStress === 'function' && !window.halfStress.__fullClockWrapped) {
+    const baseHalfStress = window.halfStress;
+    const wrappedHalfStress = function() {
+      const result = baseHalfStress.apply(this, arguments);
+      applyFullClockRestTiming(4, 'Short Rest');
+      return result;
+    };
+    wrappedHalfStress.__fullClockWrapped = true;
+    window.halfStress = wrappedHalfStress;
+  }
+}
+
+let _provinceIdleClockIntervalId = null;
+function isProvinceTabActiveForIdleClock() {
+  const btn = document.getElementById('tabnav-map');
+  return !!(btn && btn.classList && btn.classList.contains('active'));
+}
+
+function shouldTickProvinceIdleClock() {
+  if (!isFullPhaseClockEnabled()) return false;
+  if (!isProvinceTabActiveForIdleClock()) return false;
+  if (typeof selectedHex === 'undefined' || !selectedHex) return false;
+  return true;
+}
+
+function ensureProvinceIdleClockInterval() {
+  if (_provinceIdleClockIntervalId) return;
+  _provinceIdleClockIntervalId = window.setInterval(function() {
+    if (!shouldTickProvinceIdleClock()) return;
+    loseGamePhases(1);
+    if (typeof renderHexInfo === 'function' && typeof selectedHex !== 'undefined' && selectedHex) {
+      renderHexInfo(selectedHex);
+    }
+  }, FULL_PHASE_IDLE_INTERVAL_MS);
 }
 
 function getCurrentPhaseLabel() {
   ensureStarsState();
-  return DAY_PHASES[clampPhase(S.gameDate.phase || 0)];
+  const phases = getActiveDayPhases();
+  return phases[clampPhase(S.gameDate.phase || 0)] || phases[0] || 'Morning';
 }
 
 function getProvinceTravelClicksPerDay() {
   ensureStarsState();
-  return 3;
+  return isFullPhaseClockEnabled() ? 4 : 3;
 }
 
 function refreshPhaseFromProvinceClicks() {
   const clicksPerDay = Math.max(3, getProvinceTravelClicksPerDay());
-  const clicksPerPhase = Math.max(1, Math.floor(clicksPerDay / DAY_PHASES.length));
+  const clicksPerPhase = Math.max(1, Math.floor(clicksPerDay / getActiveDayPhases().length));
   const phase = Math.floor((S.gameDate.provinceHexClicks || 0) / clicksPerPhase);
   S.gameDate.phase = clampPhase(phase);
 }
@@ -8680,7 +8800,8 @@ function registerLastSeaIslandTravel(hexClicks) {
 function getGameDatePhaseText() {
   ensureStarsState();
   const d = S.gameDate;
-  return `Month ${d.month}, Day ${d.day}, Year ${d.year} — ${getCurrentPhaseLabel()}`;
+  const range = getCurrentPhaseWindowLabel();
+  return `Month ${d.month}, Day ${d.day}, Year ${d.year} — ${getCurrentPhaseLabel()}${range ? ' (' + range + ')' : ''}`;
 }
 
 function updateDateUI() {
@@ -8709,6 +8830,9 @@ function updateDateUI() {
   }
   if (typeof window.updateNightModeToggleUI === 'function') {
     window.updateNightModeToggleUI();
+  }
+  if (typeof window.updateFullPhaseClockToggleUI === 'function') {
+    window.updateFullPhaseClockToggleUI();
   }
 }
 
@@ -9796,6 +9920,8 @@ function injectStarsShopData() {
   loadCharacter = function() {
     if (baseLoad) baseLoad();
     ensureStarsState();
+    installFullClockRestHooks();
+    ensureProvinceIdleClockInterval();
     updateHealthUI();
     updateMentalStressUI();
     updateRadsUI();
@@ -9816,6 +9942,8 @@ function injectStarsShopData() {
 
 document.addEventListener('DOMContentLoaded', function() {
   ensureStarsState();
+  installFullClockRestHooks();
+  ensureProvinceIdleClockInterval();
   injectStarsShopData();
   patchStarsCrossSystemHooks();
   syncNavalStateForContext(window._activeContext || 'traveling');
@@ -9924,6 +10052,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 window.getHighestFactionRenown = getHighestFactionRenown;
 window.hasHoldingFactionThreshold = hasHoldingFactionThreshold;
+window.isFullPhaseClockEnabled = isFullPhaseClockEnabled;
+window.setFullPhaseClockEnabled = setFullPhaseClockEnabled;
 window.getProvinceTravelClicksPerDay = getProvinceTravelClicksPerDay;
 window.registerProvinceHexTravel = registerProvinceHexTravel;
 window.registerLastSeaHexTravel = registerLastSeaHexTravel;

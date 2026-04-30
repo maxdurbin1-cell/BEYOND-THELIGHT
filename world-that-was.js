@@ -57,20 +57,22 @@
   const WTW_CONDITION_KEYS = ["weakened", "distracted", "shaken", "vulnerable"];
 
   const WTW_MARKER_STYLE = {
-    mission: { icon: "!", color: "#e8c050", priority: 100, title: "Mission Marker" },
-    task: { icon: "T", color: "#46c4b6", priority: 90, title: "Holding Task" },
+    mission: { icon: "🎯", color: "#e8c050", priority: 100, title: "Mission Marker" },
+    mission_informer: { icon: "👁", color: "#e8c050", priority: 101, title: "Mission Informer" },
+    mission_site: { icon: "✖", color: "#ff8450", priority: 101, title: "Mission Site" },
+    task: { icon: "🧾", color: "#46c4b6", priority: 90, title: "Holding Task" },
     story: { icon: "➤", color: "#f0d070", priority: 88, title: "Story Objective" },
-    landing: { icon: "L", color: "#7ed7ff", priority: 80, title: "Landing Pad" },
-    station: { icon: "R", color: "#7ed7ff", priority: 75, title: "Rail Station" },
-    service: { icon: "S", color: "#7ee0b2", priority: 70, title: "District Service" },
-    structure: { icon: "B", color: "#c9a227", priority: 68, title: "Explorable Structure" },
+    landing: { icon: "🚀", color: "#7ed7ff", priority: 80, title: "Landing Pad" },
+    station: { icon: "🚆", color: "#7ed7ff", priority: 75, title: "Rail Station" },
+    service: { icon: "🛠", color: "#7ee0b2", priority: 70, title: "District Service" },
+    structure: { icon: "🏛", color: "#c9a227", priority: 68, title: "Explorable Structure" },
     wayfarer: { icon: "✧", color: "#d4b8ff", priority: 64, title: "Wayfarer" },
     faction_base: { icon: "🏰", color: "#46c4b6", priority: 66, title: "Faction Base" },
     faction_task: { icon: "✦", color: "#e8c050", priority: 67, title: "Wayfarer Task" },
-    hazard: { icon: "H", color: "#ff8a72", priority: 60, title: "Hazard" },
-    peril: { icon: "P", color: "#ff8070", priority: 59, title: "Peril" },
-    barrier: { icon: "B", color: "#ff9066", priority: 58, title: "Barrier" },
-    job: { icon: "$", color: "#bbbbbb", priority: 40, title: "District Job" }
+    hazard: { icon: "☣", color: "#ff8a72", priority: 60, title: "Hazard" },
+    peril: { icon: "⚠", color: "#ff8070", priority: 59, title: "Peril" },
+    barrier: { icon: "⛔", color: "#ff9066", priority: 58, title: "Barrier" },
+    job: { icon: "💼", color: "#bbbbbb", priority: 40, title: "District Job" }
   };
 
   const WTW_STRUCTURE_TYPES = [
@@ -1122,7 +1124,11 @@
       }
       if (!hex) hex = takeHex();
       if (!hex) return;
-      setMarker(w, hex, "mission", m.title || "Mission", "Live mission marker");
+      var steps = m && Array.isArray(m.steps) ? m.steps : [];
+      var informerDone = !!(steps[1] && steps[1].completed);
+      var markerType = informerDone ? "mission_site" : "mission_informer";
+      var subtitle = informerDone ? "Mission site objective active" : "Find informer and gather intel";
+      setMarker(w, hex, markerType, m.title || "Mission", subtitle);
     });
 
     w.activeTasks.slice(0, 8).forEach(function (t) {
@@ -1347,7 +1353,7 @@
         g.appendChild(you);
       }
 
-      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "task" || marker.type === "story" || marker.type === "faction_base" || marker.type === "faction_task");
+      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "task" || marker.type === "story" || marker.type === "faction_base" || marker.type === "faction_task");
       if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -1812,6 +1818,7 @@
     grantRandomLoot("medium");
     setCredits(getCredits() + 90);
     hex.skirmish = false;
+    if (typeof showNotif === "function") showNotif("Combat event victory: +90 Credits, +2 Scrap, and loot awarded.", "good");
     hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
     advanceWorldTime("combat event victory");
     updateZoneControl();
@@ -2009,12 +2016,12 @@
         openModal("Monster Encounter Pending", "<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'><strong>" + (ft.title || "Wayfarer Task") + "</strong><br>" + (ft.monsterSummary || "Monster encounter") + "<br><br>After combat, choose outcome:<div style='margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick=\"if(window.factionSystem)window.factionSystem.finalizeMonsterTask('wtw','" + hexId + "',null,true);if(typeof closeModal==='function')closeModal();if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">Slayed Monsters</button><button class='btn btn-xs btn-red' onclick=\"if(window.factionSystem)window.factionSystem.finalizeMonsterTask('wtw','" + hexId + "',null,false);if(typeof closeModal==='function')closeModal();if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">Failed Encounter</button></div></div>");
       }
     } else if (marker.type === "service") {
-      const services = zoneServicesForHex(hex);
-      if (services.length) {
-        spendService(hex.id, 0);
-        if (typeof showNotif === "function") showNotif("Service marker resolved: used " + services[0].name + ".", "good");
-      }
-      delete w.markers[hexId];
+      w.selectedHexId = hexId;
+      setWorldAccordionOpen("services", true);
+      if (typeof showNotif === "function") showNotif("District Service reviewed. Opened service card for this district.", "good");
+      if (registerWorldAction("service marker review")) return;
+      renderWorldThatWas();
+      return;
     } else if (marker.type === "wayfarer") {
       talkToWayfarer(hexId);
       delete w.markers[hexId];
@@ -2830,7 +2837,8 @@
 
   function renderWtwMarkerLegend() {
     const entries = [
-      { key: "mission", label: "Mission" },
+      { key: "mission_informer", label: "Mission Informer" },
+      { key: "mission_site", label: "Mission Site" },
       { key: "task", label: "Task" },
       { key: "story", label: "Story" },
       { key: "station", label: "Rail" },

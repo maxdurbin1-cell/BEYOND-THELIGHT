@@ -7874,6 +7874,23 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   // ── SKIRMISH INTERVENTION ──
+  function getProvinceSkirmishWayfarerHealthTotal(){
+    let total=0;
+    const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+    const roster=cs&&cs.campaign&&Array.isArray(cs.campaign.roster)?cs.campaign.roster:[];
+    if(roster.length){
+      roster.forEach(function(member){
+        const ch=member&&member.character?member.character:null;
+        const hp=ch&&typeof ch.health==='number'?ch.health:0;
+        total+=Math.max(0,Number(hp||0));
+      });
+    }
+    if(!total){
+      total=Math.max(0,parseInt((S&&((typeof S.health==='number')?S.health:S.stress))||0,10)||0);
+    }
+    return total;
+  }
+
   window.startProvinceSkirmish = function(col, row, numA, numB, armyA, armyB, source) {
     const hex = mapData.find(h => h.col === col && h.row === row);
     if (!hex) return;
@@ -7884,14 +7901,15 @@ document.addEventListener('DOMContentLoaded',()=>{
     S.combat.skirmishRound = 1;
     S.combat.skirmishJoinedSide = null;
     S.combat.skirmishFaction = null;
+    S.combat.skirmishHealthAdded = 0;
     S.combat.armyA = { stress: roll(12) + roll(12), dread: 6, actions: 2, count: numA, type: armyA };
     S.combat.armyB = { stress: roll(12) + roll(12), dread: 6, actions: 2, count: numB, type: armyB };
 
     const options=getProvinceMajorPowerOptions();
     const optHTML=options.map(function(o){return '<option value="'+o.key+'">'+o.label+'</option>';}).join('');
-    const hp=Math.max(0,parseInt((S&&((typeof S.health==='number')?S.health:S.stress))||0,10)||0);
+    const hp=getProvinceSkirmishWayfarerHealthTotal();
     const rEl = document.getElementById(`hexEnc-${col}-${row}`);
-    if (rEl) rEl.innerHTML = `<div style="background:rgba(230,80,80,.08); border:1px solid rgba(230,80,80,.35); padding:.5rem .6rem;"><div style="font-family:Cinzel,serif; font-size:.7rem; color:var(--red2); text-transform:uppercase;">⚔ Skirmish: ${numA} ${armyA} vs ${numB} ${armyB}</div><div style="font-size:.75rem;color:var(--text2);margin-top:.25rem;">Choose your side. Your Health (${hp}) is added to that army's Stress.</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;"><select id="skirmishPower-${col}-${row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;">${optHTML}</select><button class="btn btn-xs btn-teal" onclick="joinProvinceSkirmish('A',${col},${row})">Join ${armyA}</button><button class="btn btn-xs btn-red" onclick="joinProvinceSkirmish('B',${col},${row})">Join ${armyB}</button><button class="btn btn-xs" onclick="openProvinceSkirmishControls(${col},${row})">Init Skirmish Controls</button><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector('.tab-btn[onclick*=\"combat\"]');switchTab('combat',b||null);}">Open Combat Tab</button><button class="btn btn-xs" onclick="quickResolveSkirmish('province',${col},${row})">Quick Resolve</button></div><div id="provinceSkirmish-${col}-${row}" style="margin-top:.3rem;"></div></div>`;
+    if (rEl) rEl.innerHTML = `<div style="background:rgba(230,80,80,.08); border:1px solid rgba(230,80,80,.35); padding:.5rem .6rem;"><div style="font-family:Cinzel,serif; font-size:.7rem; color:var(--red2); text-transform:uppercase;">⚔ Skirmish: ${numA} ${armyA} vs ${numB} ${armyB}</div><div style="font-size:.75rem;color:var(--text2);margin-top:.25rem;">Choose your side from Init Skirmish Controls. Total Wayfarer Health (${hp}) is added to that army's Stress.</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;"><select id="skirmishPower-${col}-${row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;">${optHTML}</select><button class="btn btn-xs" onclick="openProvinceSkirmishControls(${col},${row})">Init Skirmish Controls</button><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector('.tab-btn[onclick*=\"combat\"]');switchTab('combat',b||null);}">Open Combat Tab</button><button class="btn btn-xs" onclick="quickResolveSkirmish('province',${col},${row})">Quick Resolve</button></div><div id="provinceSkirmish-${col}-${row}" style="margin-top:.3rem;"></div></div>`;
     if(typeof updateSkirmishRoundUI==='function')updateSkirmishRoundUI();
     if(typeof updateSkirmishActionUI==='function'){updateSkirmishActionUI('A');updateSkirmishActionUI('B');}
     const aStress=document.getElementById('armyAStress');if(aStress)aStress.textContent=S.combat.armyA.stress;
@@ -7906,9 +7924,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     const box=document.getElementById(`provinceSkirmish-${col}-${row}`);
     if(!box)return;
     if(!S.combat.skirmishJoinedSide){
-      const hp=Math.max(0,parseInt((S&&((typeof S.health==='number')?S.health:S.stress))||0,10)||0);
+      const hp=getProvinceSkirmishWayfarerHealthTotal();
       box.innerHTML='<div class="wtw-card" style="padding:.4rem;">'
-        +'<div style="font-size:.74rem;color:var(--text2);margin-bottom:.3rem;">Choose your side for skirmish controls. Your Health ('+hp+') is added to that army\'s Stress.</div>'
+        +'<div style="font-size:.74rem;color:var(--text2);margin-bottom:.3rem;">Choose your side. Total Wayfarer Health ('+hp+') is added to that army\'s Stress.</div>'
         +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
           +'<button class="btn btn-xs btn-teal" onclick="setProvinceSkirmishControlSide(\'A\','+col+','+row+')">Command '+(S.combat.armyA&&S.combat.armyA.type||'Army A')+'</button>'
           +'<button class="btn btn-xs btn-red" onclick="setProvinceSkirmishControlSide(\'B\','+col+','+row+')">Command '+(S.combat.armyB&&S.combat.armyB.type||'Army B')+'</button>'
@@ -7922,7 +7940,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     const oppSide=mineSide==='A'?'B':'A';
     const mine=mineSide==='A'?a:b;
     const opp=mineSide==='A'?b:a;
+    const joinedName=mineSide==='A'?(a.type||'Army A'):(b.type||'Army B');
+    const added=S.combat.skirmishHealthAdded||0;
     box.innerHTML=`<div class="wtw-card" style="padding:.35rem;">
+      <div style="font-size:.74rem;color:var(--text2);margin-bottom:.24rem;">Province Skirmish - Joined <strong style="color:var(--teal);">${joinedName}</strong></div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Added total Wayfarer Health (${added}) to ${joinedName} Stress.</div>
       <div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Round ${S.combat.skirmishRound||1} · Actions reset at 0/0</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">
         <div>
@@ -7949,12 +7971,13 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   window.setProvinceSkirmishControlSide = function(side,col,row){
     if(!S.combat||!S.combat.skirmishActive)return;
-    const hp=Math.max(0,parseInt((S&&((typeof S.health==='number')?S.health:S.stress))||0,10)||0);
+    const hp=getProvinceSkirmishWayfarerHealthTotal();
     const mySide=side==='A'?S.combat.armyA:S.combat.armyB;
     if(!mySide)return;
     if(!S.combat.skirmishJoinedSide){
       mySide.stress=(mySide.stress||0)+hp;
       S.combat.skirmishJoinedSide=side;
+      S.combat.skirmishHealthAdded=hp;
     }
     const powerSel=document.getElementById(`skirmishPower-${col}-${row}`);
     S.combat.skirmishFaction=powerSel?powerSel.value:'political';
@@ -7962,7 +7985,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const bStress=document.getElementById('armyBStress');if(bStress)bStress.textContent=S.combat.armyB.stress;
     if(typeof renderQP==='function')renderQP('combat');
     openProvinceSkirmishControls(col,row);
-    showNotif('Command established. Your Health was added to your chosen army.', 'good');
+    showNotif('Command established. Total Wayfarer Health added to your chosen army.', 'good');
   };
 
   window.provinceSkirmishAction = function(side,action,col,row){

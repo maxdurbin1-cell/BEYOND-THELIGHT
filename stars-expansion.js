@@ -4445,7 +4445,7 @@ function getPlanetHexTypeLabel(cell) {
   if (cell.marker === 'dwelling') return 'Dwelling';
   if (cell.marker === 'temple') return 'Temple';
   if (cell.marker === 'ruins') return 'Ruins';
-  if (cell.marker === 'monument') return 'Weird Landmark';
+  if (cell.marker === 'monument') return 'Wonder';
   if (cell.marker === 'peril') return 'Peril';
   if (cell.marker === 'gate') return 'Gate';
   if (cell.marker === 'barrier') return 'Barrier';
@@ -4812,8 +4812,8 @@ function buildPlanetNarrativeLines(state, selected) {
     detailCardTitle = 'Temple';
     detailCardText = 'A sanctuary node for focused rites, trauma recovery, and mystery hints.';
   } else if (selected && selected.marker === 'monument') {
-    detailCardTitle = 'Temple/Wonder Site';
-    detailCardText = 'A ritual-alignment landmark with focused readings and unusual atmospheric behavior.';
+    detailCardTitle = 'Wonder';
+    detailCardText = 'A ritual-alignment landmark with focused readings and unusual atmospheric behavior. Local conditions remain volatile and highly planet-specific.';
   } else if (selected && selected.marker === 'peril') {
     detailCardTitle = 'Peril';
     detailCardText = 'A high-risk corridor requiring traversal checks before safe passage.';
@@ -5931,8 +5931,8 @@ function explorePlanetCell(cellId) {
         setPositiveGalaxyCondition('focused');
         cell.note = `Temple signals aligned in ${cell.province}. Focused gained.`;
       } else if (cell.marker === 'monument') {
-        setPositiveGalaxyCondition('focused');
-        cell.note = `Weird landmark resonance observed. Focused gained from alignment data.`;
+        setPositiveGalaxyCondition('protected');
+        cell.note = `Wonder alignment stabilized. Protected gained from atmospheric readings.`;
       } else if (cell.marker === 'peril') {
         cell.note = `Peril route active: roll traversal check before crossing.`;
       } else if (cell.marker === 'gate') {

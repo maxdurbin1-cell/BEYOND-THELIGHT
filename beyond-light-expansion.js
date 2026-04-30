@@ -2435,7 +2435,8 @@
   window.completeSeaTask = completeSeaTask;
 
   function buildSeaExploration(hex) {
-    const option = pick(["weather", "encounter", "peril", "skirmish", "uneventful"]);
+    const night = (typeof window.isNightPhase === 'function') ? window.isNightPhase() : true;
+    const option = pick(night ? ["weather", "encounter", "peril", "skirmish", "uneventful"] : ["weather", "peril", "uneventful"]);
     if (option === "weather") {
       S.lastSea.weather = rollLastSeaWeather();
       var w = S.lastSea.weather;
@@ -2562,7 +2563,8 @@
     var perilTitle = itemFlags.compass ? 'Compass grants +2 Lead on fog peril checks.' : (itemFlags.torch ? 'Torch can reduce fog failure stress by 1.' : '');
     var traumaHint = itemFlags.torch ? ' (+Torch +1)' : '';
     var traumaTitle = itemFlags.torch ? 'Torch grants +1 Spirit on exhaustion trauma checks.' : '';
-    const option = pick(["land", "peril", "exhaustion", "weather", "uneventful"]);
+    const night = (typeof window.isNightPhase === 'function') ? window.isNightPhase() : true;
+    const option = pick(night ? ["land", "peril", "exhaustion", "weather", "uneventful"] : ["peril", "exhaustion", "weather", "uneventful"]);
     if (option === "land") {
       return buildLandEncounter(hex);
     }

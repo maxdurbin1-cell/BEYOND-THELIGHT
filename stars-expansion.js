@@ -3085,7 +3085,12 @@ function rollPlanetExploration() {
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
   const d10 = roll(10);
-  const outcome = PLANETSIDE_EXPLORATION_TABLE[Math.min(PLANETSIDE_EXPLORATION_TABLE.length - 1, d10 - 1)] || 'Find';
+  let outcome = PLANETSIDE_EXPLORATION_TABLE[Math.min(PLANETSIDE_EXPLORATION_TABLE.length - 1, d10 - 1)] || 'Find';
+  const nightOnly = ['Beast', 'Close Encounter', 'Pirate', 'Skirmish', 'Galactic Facility'];
+  if (typeof window.isNightPhase === 'function' && !window.isNightPhase() && nightOnly.indexOf(outcome) >= 0) {
+    outcome = pick(['Find', 'Hazard', 'Empty Colony', 'Merchant Colony']);
+    showNotif('Day phase: planet hostiles and direct contact events are suppressed until Night.', 'info');
+  }
   let detail = '';
   let rewardItem = '';
   let affectedCell = null;
@@ -3760,6 +3765,10 @@ function rollPlanetTerrainEffectCheck() {
 }
 
 function rollPlanetTradeRouteEncounter() {
+  if (typeof window.isNightPhase === 'function' && !window.isNightPhase()) {
+    showNotif('Night-only rule: planet trade route encounters unlock during Night phase.', 'info');
+    return;
+  }
   const r = roll(10);
   let title = '';
   let text = '';
@@ -8558,6 +8567,9 @@ function advanceDay(days, preserveTravelState) {
     processPendingMessengerDeliveries(days);
   }
   S.gameDate.day += days;
+  if (days > 0 && typeof window.applyDarkAfflictionDailyProgress === 'function') {
+    window.applyDarkAfflictionDailyProgress(days);
+  }
 
   while (S.gameDate.day > DAYS_PER_MONTH) {
     S.gameDate.day -= DAYS_PER_MONTH;

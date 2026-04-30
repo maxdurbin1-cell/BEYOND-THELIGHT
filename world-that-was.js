@@ -1916,6 +1916,10 @@
 
   function rollDistrictEncounter() {
     if (window.campaignSystem && typeof window.campaignSystem.guardSharedWorldMutation === 'function' && !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared district encounters in Campaign mode.')) return;
+    if (typeof window.isNightPhase === 'function' && !window.isNightPhase()) {
+      if (typeof showNotif === 'function') showNotif('Night-only rule: district encounter rolls unlock during Night phase.', 'good');
+      return;
+    }
     const hex = getSelectedHex();
     if (!hex) return;
     hex.encounter = buildDistrictEncounter(hex.zone);

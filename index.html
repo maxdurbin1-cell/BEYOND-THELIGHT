@@ -556,7 +556,7 @@ select option{background:#0f1020;}
       <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Adventure Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('readied')" title="Unequip">✕</button></div></div>
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
-          <span class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
+          <span id="backpackSlotsLabel" class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
           <button class="btn btn-sm" onclick="rollBackpack()">⚄ Roll Backpack</button>
         </div>
         <div class="backpack-grid">
@@ -587,7 +587,7 @@ select option{background:#0f1020;}
     <div class="card">
       <div class="section-title">Personal Flavor & Traits</div>
       <div class="form-row"><span class="sub-label">Personal Flavor (d100)</span>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="charFlavor" placeholder="Your unique ability…" style="flex:1;" onchange="S.flavor=this.value"><button class="btn btn-icon btn-sm" onclick="rollFlavor()">⚄</button></div>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="charFlavor" placeholder="Your unique ability…" style="flex:1;" onchange="setFlavor(this.value)"><button class="btn btn-icon btn-sm" onclick="rollFlavor()">⚄</button></div>
       </div>
       <div class="form-row"><span class="sub-label">Mutation (d20)</span>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charMutation" placeholder="Irradiated mutation…" style="flex:1;" onchange="S.mutation=this.value"><button class="btn btn-icon btn-sm" onclick="rollMutation()">⚄</button></div>
@@ -1240,7 +1240,7 @@ const CAREERS=['Anthropologist','Hunter','Soldier','Merchant','Investigator','Pr
 const OMENS=['Spring — Nurturing','Spring — Joyful','Spring — Quick-to-Act','Harvest — Hot-headed','Harvest — Bold','Harvest — Adventurous','Winter — Cold','Winter — Harsh','Winter — Resilient'];
 const REASONS=['Sent by a corporation to steal a sacred object','Sheer greed drives you toward comfort and luxury','Tracking a missing ledger — the only clue points to the Last Sea','Seeking new converts for your belief','Found a clue to the secret of immortality','Seeking a cure for a plague that claimed your child','Seeking vengeance for an ancient wrong','A loved one was stolen away by a horror in the night','Stories of a healing fruit draw you onward','Delivering a letter of inheritance to a distant Lord','A disembodied voice told you of a child destined to restore the world','Repaying an old debt — to a Lover, a Criminal, a Noble, or a Bank',"Searching for your Grandmother's lost Transporter",'Keeping a close eye on a dangerous rival','Seeking allies for a coming revolution','Looking for new lands for a displaced and lost tribe','Visions of glory and rebirth haunt your every sleep','You found a map to a Lost City in the wastes','A burning need to become famous drives every step','Pursued by the law for a crime — rightful or not'];
 const TRAITS={physique:['Athletic','Brawny','Flabby','Lanky','Chiseled','Scraggly','Short','Dashing','Stout','Enormous'],skin:['Birthmarked','Scarred','Dark','Rosy','Pockmarked','Soft','Tanned','Weathered','Hairy','Tattooed'],hair:['Bald','Long','Braided','Mohawked','Frizzy','Curled','Wavy','Oily','Luxurious','Dreadlocked'],face:['Elongated','Bony','Broken','Pale','Rugged','Chiseled','Squatty','Sunken','Square','Round'],clothing:['Antique','Bloody','Elegant','Soiled','Exotic','Royal','Eclectic','Topless','Plain','Tattered'],virtue:['Respect','Justice','Wisdom','Resolution','Mercy','Reliable','Hope','Courage','Moderation','Helpful'],vice:['Angry','Arrogant','Envious','Glutton','Greedy','Lustful','Lazy','Drunk','Coward','Vain'],reputation:['Leader','Loafer','Dangerous','Honest','Wise','Hardworking','Entertaining','Brash','Goofy','Repulsive'],misfortune:['Addicted','Defrauded','Exiled','Cursed','In Debt','Abandoned','Blackmailed','Betrayed','Condemned','Scarred']};
-const PERSONAL_FLAVORS=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: all Engaged Targets are Shaken','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Regenerate Adventure Die in Stress per Round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana / Mutants & Abilities','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch'];
+const PERSONAL_FLAVORS=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: all Engaged Targets are Shaken','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Regenerate Adventure Die in Stress per Round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana / Mutants & Abilities','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity becomes 20 slots','Deity Pact: Wayfarer missions can include patron demands for favor or debt'];
 const MUTATIONS=['Change your skin and hair color at will','Superhuman reflexes — Step up Advantage to Body Saves','Thick fur — you can never feel cold','Crocodile face — Bite attack (Ad4 Strike)','Secret Pocket — hide 1 apple-sized thing inside your body','Rippling Muscles — +3 to Body and Power Checks','Your voice rises three octaves unexpectedly','Tusks, like a boar','Churning Guts — can eat rotten food as full rations','Plastic bone structure — adjust shape and size of bones','Large Ears, doubled in size — features become animalistic','You grow 1d6 new limbs from your body','You smell terrible — most creatures won\'t consider you edible','Dead nerves — completely immune to physical pain','Lizard tail','Chameleon Skin — shifts to vibrant colors','Your eyes bulge forth on stalks — (Ad4) to Lead and Notice checks','Sensitive skin — rash if you touch iron','Thick scales — +2 to Defend vs physical attacks','Your bones glow faintly through your skin in darkness'];
 const RANDOM_ITEMS=['Staff made of fused pistols','Lavender plant that cannot die','Mug that turns any liquid to water','Boots that leave no footprints','A cloak that repels all dust','A clockwork songbird','Teacup that chills its contents','Multicolored shifting Cloak','A book that writes down your dreams','A size-changing Scarf','Goggles that reveal undead','A completely weightless rock',"Ram's horn","Rat brain preserved in a crystal case",'Book proclaiming a coming revolution','Pink bottle that smells wonderful','Thermos perpetually full of soup','A mechanical hand','A kite and a copper key','A bone flute'];
 const BACKPACK_TABLE=[['Sword (+1 Strike) | Light Armor (Ad4, 3 Actions) | Jewelry (A.D. to Spirit/Convince)','Mace (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Pet (A.D., 1 Action, 1 Stress)','Halberd (+3 Strike) | Light Armor (Ad4, 3 Actions) | Scroll: Speak with Animals','Two-Handed Axe (+3 Strike) | Balanced Armor (Ad6, 2 Actions) | Tinker Tools'],['Axe (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Compass (A.D. to Lead/Survival)','Staff (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Shield (A.D. to Defend)','Flail (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: See object vision','Quarterstaff (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: You can fly'],['Two-Handed Sword (+3 Strike) | Heavy Armor (Ad10, 1 Action) | Horse (A.D., 1 Action, 1 Stress)','Two-Handed Mace (+3 Strike) | Light Armor (Ad4, 3 Actions) | Lockpicks','Scythe (+2 Strike) | Light Armor (Ad4, 3 Actions) | Quill & Paper (A.D. to Forgery)','Two-Handed Scythe (+3 Strike) | Balanced Armor (Ad6, 2 Actions) | Net (A.D. to Grapple)'],['Crossbow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Spyglass (A.D. to Notice)','Whip (+1 Strike) | Light Armor (Ad4, 3 Actions) | Hood (A.D. to Stealth)','Gladius (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Mount (A.D., 1 Action, 1 Stress)','Crossbow (+3 Shoot) | Heavy Armor (Ad10, 1 Action) | Whiskey/Fiddle'],['Longbow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Levitate Objects','Sling (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Herbal Tea (A.D. to Diplomacy)','Carbine Rifle (+3 Shoot) | Balanced Armor (Ad6, 2 Actions) | Scroll: Invisibility','Reinforced Bow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Night Vision'],['Rapier (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Create Light','Katana (+3 Strike) | Heavy Armor (Ad10, 1 Action) | Scroll: Repair broken object','Sabre (+2 Strike) | Light Armor (Ad4, 3 Actions) | Scroll: Accelerate plant growth','Musket (+3 Shoot) | Balanced Armor (Ad6, 2 Actions) | Scroll: None can lie to you'],['Dagger (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Book (A.D. to Mind/Lore)','Spear (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Levitate Object','Recurve Bow (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Scroll: Reveal traps','Bow (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Herb Kit (A.D. to Heal)'],['Whip (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Talisman (A.D. to Intuition)','Pistol (+1 Shoot) | Light Armor (Ad4, 3 Actions) | Gauntlet (A.D. to Body/Power)','Blunderbuss (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Create portal','2 Daggers (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Silent steps']];
@@ -1555,14 +1555,120 @@ const SHOP_DATA={weapons:[{name:'Sword',stat:'+1 Strike | Engaged',desc:'A relia
 const STAT_KEYS=['body','strike','shoot','mind','spirit','defend','control','lead'];
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0}};
+let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}}};
 let hexNotes={};
+
+function getBackpackCapacity(){
+  return String(S.flavor||'').toLowerCase().indexOf('mule')>=0?20:6;
+}
+function updateBackpackCapacityLabel(){
+  var label=document.getElementById('backpackSlotsLabel');
+  if(label)label.textContent='Backpack ('+getBackpackCapacity()+' Slots)';
+}
+function ensureBackpackCapacity(){
+  var cap=getBackpackCapacity();
+  if(!Array.isArray(S.backpack))S.backpack=[];
+  while(S.backpack.length<cap)S.backpack.push('');
+  updateBackpackCapacityLabel();
+}
+function getDateStampKey(){
+  if(S&&S.gameDate)return[(S.gameDate.year||1),(S.gameDate.month||1),(S.gameDate.day||1)].join('-');
+  return '1-1-1';
+}
+function isNightPhase(){
+  if(typeof getCurrentPhaseLabel==='function')return String(getCurrentPhaseLabel()||'').toLowerCase()==='night';
+  if(S&&S.gameDate&&typeof S.gameDate.phase==='number')return Number(S.gameDate.phase)>=2;
+  return false;
+}
+function ensureDarkAfflictionState(){
+  if(!S.darkAfflictions||typeof S.darkAfflictions!=='object')S.darkAfflictions={};
+  ['vampirism','wolfism'].forEach(function(key){
+    if(!S.darkAfflictions[key]||typeof S.darkAfflictions[key]!=='object')S.darkAfflictions[key]={active:false,corruption:0,lastFedStamp:''};
+    if(typeof S.darkAfflictions[key].active!=='boolean')S.darkAfflictions[key].active=false;
+    if(typeof S.darkAfflictions[key].corruption!=='number')S.darkAfflictions[key].corruption=0;
+    if(typeof S.darkAfflictions[key].lastFedStamp!=='string')S.darkAfflictions[key].lastFedStamp='';
+  });
+}
+function getDarkAfflictionPenalty(stat){
+  ensureDarkAfflictionState();
+  if(isNightPhase())return 0;
+  var total=0;
+  if(S.darkAfflictions.vampirism.active)total+=Number(S.darkAfflictions.vampirism.corruption||0);
+  if(S.darkAfflictions.wolfism.active)total+=Number(S.darkAfflictions.wolfism.corruption||0);
+  if(!total)return 0;
+  return ['defend','body','mind','spirit','control','lead','strike','shoot','adventure'].indexOf(stat)>=0?-Math.max(1,Math.ceil(total/3)):0;
+}
+function applyDarkAfflictionDailyProgress(daysPassed){
+  ensureDarkAfflictionState();
+  var days=Math.max(1,parseInt(daysPassed,10)||1);
+  var stamp=getDateStampKey();
+  ['vampirism','wolfism'].forEach(function(key){
+    var aff=S.darkAfflictions[key];
+    if(!aff.active||aff.lastFedStamp===stamp)return;
+    aff.corruption=Math.min(12,Number(aff.corruption||0)+days);
+  });
+}
+function attemptDarkAfflictionInfection(sourceLabel,dreadDie){
+  ensureDarkAfflictionState();
+  if(Math.random()>0.35)return false;
+  var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):((S.stats&&S.stats.spirit)||4);
+  var action=explodingRoll(spiritDie),dd=Math.max(6,parseInt(dreadDie,10)||6),dread=explodingRoll(dd);
+  if(action.total>=dread.total)return false;
+  var key=Math.random()<0.5?'vampirism':'wolfism';
+  var aff=S.darkAfflictions[key];
+  aff.active=true;
+  aff.corruption=Math.min(12,Number(aff.corruption||0)+1);
+  showNotif('Dark affliction risk from '+(sourceLabel||'enemy action')+': Spirit d'+spiritDie+'='+action.total+' vs Dread d'+dd+'='+dread.total+'. You gain '+(key==='vampirism'?'Vampirism':'Wolfism')+'.','warn');
+  return true;
+}
+function feedDarkAffliction(kind){
+  ensureDarkAfflictionState();
+  var key=String(kind||'').toLowerCase();
+  if(key!=='vampirism'&&key!=='wolfism')return;
+  var aff=S.darkAfflictions[key];
+  if(!aff.active){showNotif('No active '+key+' to feed.','warn');return;}
+  aff.lastFedStamp=getDateStampKey();
+  aff.corruption=Math.max(0,Number(aff.corruption||0)-2);
+  var recovered=explodingRoll(4).total;
+  if(typeof changeStress==='function')changeStress(-recovered);
+  showNotif((key==='vampirism'?'Vampiric':'Bestial')+' hunger sated: Corruption -2, recovered '+recovered+' Stress.','good');
+}
+function cureDarkAfflictionAtTemple(kind,cost){
+  ensureDarkAfflictionState();
+  var key=String(kind||'').toLowerCase();
+  if(key!=='vampirism'&&key!=='wolfism')return;
+  var aff=S.darkAfflictions[key];
+  if(!aff.active){showNotif('No active '+key+' to cure.','warn');return;}
+  var fee=Math.max(0,parseInt(cost,10)||75);
+  if((S.credits||0)<fee){showNotif('Temple cure requires '+fee+'₵.','warn');return;}
+  S.credits=(S.credits||0)-fee;
+  if(typeof updateCreditsUI==='function')updateCreditsUI();
+  aff.active=false;aff.corruption=0;aff.lastFedStamp='';
+  showNotif((key==='vampirism'?'Vampirism':'Wolfism')+' cured at temple.','good');
+  if(selectedHex&&selectedHex.type==='temple')renderHexInfo(selectedHex);
+}
+function applyPersonalFlavorEffects(){
+  ensureBackpackCapacity();
+}
+function setFlavor(value){
+  S.flavor=String(value||'').trim();
+  var input=document.getElementById('charFlavor');
+  if(input&&input.value!==S.flavor)input.value=S.flavor;
+  applyPersonalFlavorEffects();
+}
+window.isNightPhase=isNightPhase;
+window.applyDarkAfflictionDailyProgress=applyDarkAfflictionDailyProgress;
+window.feedDarkAffliction=feedDarkAffliction;
+window.cureDarkAfflictionAtTemple=cureDarkAfflictionAtTemple;
+window.setFlavor=setFlavor;
 
 function ensureAdvancedGearState() {
   if (!S.equipment) S.equipment = { weapon1:'', weapon2:'', armor:'', readied:'' };
   if (!S.equipmentLayers || typeof S.equipmentLayers !== 'object') S.equipmentLayers = { under:'', over:'', suit:'' };
   if (!S.gearState || typeof S.gearState !== 'object') S.gearState = { oxygenHours:0, radAbsorbUsed:0, radAbsorbCap:0 };
   if (!S.environmentContext || typeof S.environmentContext !== 'object') S.environmentContext = { temperature:'', vacuum:false, irradiated:false };
+  ensureDarkAfflictionState();
+  ensureBackpackCapacity();
 }
 
 function normalizeItemName(text) {
@@ -2390,6 +2496,7 @@ function getFlavorBonus(stat){
   }
   if(stat==='body'&&f.indexOf('feats of strength')>=0)advDice.push(10);
   if(stat==='adventure'&&f.indexOf('mindshield')>=0)advDice.push(8);
+  flat+=getDarkAfflictionPenalty(stat);
   var advDie=advDice.length?Math.max.apply(null,advDice):0;
   return{flat:flat,advDie:advDie,advDice:advDice,holyShield:holyShield};
 }
@@ -2822,7 +2929,10 @@ function enemyAttack(id){
   }
   
   showNotif(`${e.name}: ${atk.total} vs your ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'warn':'good');
-  if(hit)changeStress(dmg);
+  if(hit){
+    changeStress(dmg);
+    attemptDarkAfflictionInfection(e.name, e.dread || S.combat.enemyDread || 6);
+  }
   finalizeEnemyTurn(e);
 }
 function updateSkirmishActionUI(side){
@@ -2978,12 +3088,13 @@ function consumeBackpackItemByName(name) {
 
 // Add a text string to the first empty backpack slot. Returns true on success.
 function addToBackpack(text) {
+  ensureBackpackCapacity();
   var incoming = parseBackpackStack(text);
   incoming.name = normalizeLegacyLootAlias(incoming.name);
   if (!incoming.name) return false;
 
   // Stack identical items first.
-  for (var si = 0; si < 6; si++) {
+  for (var si = 0; si < S.backpack.length; si++) {
     if (!S.backpack[si]) continue;
     var existing = parseBackpackStack(S.backpack[si]);
     if (!existing.name) continue;
@@ -2995,7 +3106,7 @@ function addToBackpack(text) {
     return true;
   }
 
-  for (var i = 0; i < 6; i++) {
+  for (var i = 0; i < S.backpack.length; i++) {
     if (!S.backpack[i]) {
       S.backpack[i] = buildBackpackStack(incoming.name, incoming.count);
       var el = document.getElementById('bp' + i);
@@ -5116,6 +5227,9 @@ function renderHexInfo(hex){
     if(d.news)html+=`<div class="wild-panel"><div class="wp-label">📰 Sage's Words</div><div class="wp-text">${d.news}</div></div>`;
     const sageKnowledge=getSageKnowledge(hex.col,hex.row);
     html+=`<div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Revealed Wisdom:</strong><br>${sageKnowledge}</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="learnFromSage(${hex.col},${hex.row},'50')">🙏 Consult Sage (50₵)</button></div></div>`;
+    if(S.darkAfflictions&&((S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active)||(S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active))){
+      html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.55);background:rgba(176,96,208,.08);"><div class="nb-label" style="color:#d7b0ff;">☾ Affliction Rites</div><div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Temple rites can cure dark afflictions. Feed to lower corruption now, or cure fully for 75₵.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">${S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active?'<button class="btn btn-xs btn-warn" onclick="feedDarkAffliction(\'vampirism\')">Feed Vampirism (-2 Corruption)</button><button class="btn btn-xs btn-teal" onclick="cureDarkAfflictionAtTemple(\'vampirism\',75)">Cure Vampirism (75₵)</button>':''}${S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active?'<button class="btn btn-xs btn-warn" onclick="feedDarkAffliction(\'wolfism\')">Feed Wolfism (-2 Corruption)</button><button class="btn btn-xs btn-teal" onclick="cureDarkAfflictionAtTemple(\'wolfism\',75)">Cure Wolfism (75₵)</button>':''}</div></div>`;
+    }
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('temple',${hex.col},${hex.row})">Join Area: Temple Chambers</button>
     </div>`;
@@ -6073,6 +6187,17 @@ function rollHexEncounter(col,row){
     el.innerHTML='<div style="font-size:.78rem;color:var(--muted2);padding:.2rem 0;">Rolling encounter...</div>';
   }
   try{
+    if(!isNightPhase()){
+      const dayHtml='<div style="font-size:.82rem;color:var(--muted2);padding:.3rem 0;">Day phase: major wilderness encounters are muted. Roll again at Night for full encounter tables.</div>';
+      const dayHex=mapData.find(h=>h&&h.col===col&&h.row===row);
+      if(dayHex){
+        dayHex.data=dayHex.data||{};
+        dayHex.data.lastEncounterHtml=dayHtml;
+      }
+      if(el)el.innerHTML=dayHtml;
+      showNotif('Night-only rule: Province encounters unlock during Night phase.', 'info');
+      return;
+    }
     const vr=roll(6);
     const itemFlags=(function(){
       try{
@@ -6195,6 +6320,10 @@ function rollTradeRouteEncounter(col,row){
   if(window.campaignSystem&&typeof window.campaignSystem.guardSharedWorldMutation==='function'&&
      !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared Trade Route encounters in Campaign mode.'))return;
   try{
+    if(!isNightPhase()){
+      showNotif('Night-only rule: Trade route encounter rolls unlock during Night phase.', 'info');
+      return;
+    }
     const targetHex=(typeof col==='number'&&typeof row==='number')
       ? mapData.find(h=>h&&h.col===col&&h.row===row)
       : selectedHex;
@@ -6439,8 +6568,16 @@ function generateTask(){
     generateTaskForHex(selectedHex.col,selectedHex.row);
     return;
   }
+  const flavor=String(S.flavor||'').toLowerCase();
+  let title=pick(TASK_VERBS)+' '+pick(TASK_TARGETS);
+  if(flavor.indexOf('deity pact')>=0||flavor.indexOf('holy')>=0||flavor.indexOf('infernal')>=0){
+    title='Honor the Pact — Deliver Offerings to the Patron Shrine';
+  }
+  if(flavor.indexOf('mule')>=0){
+    title='Mule Route — Expand Storage Network Across the Province';
+  }
   openModal('Task Generated',`<div style="font-size:.9rem;line-height:1.7;color:var(--text2);">
-    <strong style="color:var(--gold2);font-family:'Cinzel',serif;">${pick(TASK_VERBS)} ${pick(TASK_TARGETS)}</strong><br><br>
+    <strong style="color:var(--gold2);font-family:'Cinzel',serif;">${title}</strong><br><br>
     Direction: <strong style="color:var(--teal);">${pick(TASK_DIRS)}</strong> — Distance: <strong style="color:var(--teal);">${roll(4)+1} Hexes</strong><br><br>
     <em style="color:var(--muted3);">Report back to a Lord to collect your reward. +1 Renown on completion.</em>
   </div>`);
@@ -8246,7 +8383,14 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   // ── WAYFARER MISSIONS ──
   window.engageWayfarerMission = function(col, row) {
+    const flavor=String(S.flavor||'').toLowerCase();
     const missions = ['Deliver a Message', 'Guard a Caravan', 'Investigate a Lead', 'Retrieve an Item', 'Scout Ahead', 'Gather Information'];
+    if(flavor.indexOf('deity pact')>=0||flavor.indexOf('holy')>=0||flavor.indexOf('infernal')>=0){
+      missions.push('Patron Debt — Recover the Oath Relic');
+    }
+    if(flavor.indexOf('mule')>=0){
+      missions.push('Mule Contract — Build a 20-Slot Supply Train');
+    }
     const idx = roll(missions.length) - 1;
     const missionTitle = missions[Math.max(0, Math.min(idx, missions.length - 1))] + ' — Wayfarer';
     if (typeof createMission === 'function') {

@@ -1019,8 +1019,13 @@ function rollReason() {
 }
 
 function rollFlavor() {
-  S.flavor = pick(PERSONAL_FLAVORS);
-  setInputValue("charFlavor", S.flavor);
+  var nextFlavor = pick(PERSONAL_FLAVORS);
+  if (typeof setFlavor === 'function') {
+    setFlavor(nextFlavor);
+  } else {
+    S.flavor = nextFlavor;
+    setInputValue("charFlavor", S.flavor);
+  }
 }
 
 function rollMutation() {
@@ -1062,7 +1067,8 @@ function rollBackpack() {
   var arStat = (armor.stat || '').replace(/\s*\|\s*/, ', ');
   S.equipment.armor = arStat ? armor.name + ' (' + arStat + ')' : armor.name;
 
-  S.backpack = ['', '', '', '', '', ''];
+  var cap = (typeof getBackpackCapacity === 'function') ? getBackpackCapacity() : 6;
+  S.backpack = Array(Math.max(6, cap)).fill('');
   // Store bonus item by name only (findShopItem will locate its full data when used).
   S.backpack[0] = bonus.name;
 

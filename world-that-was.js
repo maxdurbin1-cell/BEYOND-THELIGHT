@@ -1741,6 +1741,31 @@
     returnToGalaxy();
   }
 
+  function withCampaignJoin(kind, label, run) {
+    if (typeof run !== "function") return;
+    if (typeof window.openCampaignJoinPrompt === "function") {
+      window.openCampaignJoinPrompt(kind || "area", label || "Shared Activity", run);
+      return;
+    }
+    if (typeof window.openCampaignAreaJoinPrompt === "function") {
+      window.openCampaignAreaJoinPrompt(label || "Shared Activity", run);
+      return;
+    }
+    run();
+  }
+
+  function resolveZoneEventWithJoin(hexId) {
+    withCampaignJoin("encounter", "World Random Event", function () {
+      resolveZoneEvent(hexId);
+    });
+  }
+
+  function resolveDistrictEncounterWithJoin(forcedOutcome) {
+    withCampaignJoin("encounter", "District Encounter", function () {
+      resolveDistrictEncounter(forcedOutcome);
+    });
+  }
+
   function chooseLandingPad(zoneName) {
     const w = ensureWorldState();
     if (!w) return;
@@ -2001,17 +2026,23 @@
         return;
       }
     } else if (marker.type === "faction_base") {
-      if (window.factionSystem && typeof window.factionSystem.openBaseFromMarker === "function") {
-        window.factionSystem.openBaseFromMarker("wtw", hexId);
-      }
+      withCampaignJoin("faction", "Faction Base", function () {
+        if (window.factionSystem && typeof window.factionSystem.openBaseFromMarker === "function") {
+          window.factionSystem.openBaseFromMarker("wtw", hexId);
+        }
+      });
     } else if (marker.type === "faction_task") {
       if (!window.factionSystem || typeof window.factionSystem.getWTWTask !== "function") return;
       const ft = window.factionSystem.getWTWTask(hexId);
       if (!ft) return;
       if (!ft.monsterTask && ft.status === "open" && typeof window.factionSystem.resolveMapTask === "function") {
-        window.factionSystem.resolveMapTask("wtw", hexId);
+        withCampaignJoin("task", ft.title || "Wayfarer Task", function () {
+          window.factionSystem.resolveMapTask("wtw", hexId);
+        });
       } else if (ft.monsterTask && ft.status === "open" && typeof window.factionSystem.startMonsterTask === "function") {
-        window.factionSystem.startMonsterTask("wtw", hexId);
+        withCampaignJoin("task", ft.title || "Monster Wayfarer Task", function () {
+          window.factionSystem.startMonsterTask("wtw", hexId);
+        });
       } else if (ft.monsterTask && ft.status === "combat_pending" && typeof openModal === "function") {
         openModal("Monster Encounter Pending", "<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'><strong>" + (ft.title || "Wayfarer Task") + "</strong><br>" + (ft.monsterSummary || "Monster encounter") + "<br><br>After combat, choose outcome:<div style='margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick=\"if(window.factionSystem)window.factionSystem.finalizeMonsterTask('wtw','" + hexId + "',null,true);if(typeof closeModal==='function')closeModal();if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">Slayed Monsters</button><button class='btn btn-xs btn-red' onclick=\"if(window.factionSystem)window.factionSystem.finalizeMonsterTask('wtw','" + hexId + "',null,false);if(typeof closeModal==='function')closeModal();if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">Failed Encounter</button></div></div>");
       }
@@ -2040,7 +2071,9 @@
       if (typeof showNotif === "function") showNotif("Station marker reviewed: railway route set to " + hex.zone + ".", "good");
       delete w.markers[hexId];
     } else if (marker.type === "story") {
-      if (typeof openStorylineTab === "function") openStorylineTab();
+      withCampaignJoin("story", "Storyline", function () {
+        if (typeof openStorylineTab === "function") openStorylineTab();
+      });
       if (typeof showNotif === "function") showNotif("Story marker reviewed: opening Storyline.", "good");
       delete w.markers[hexId];
     } else if (marker.type === "job") {
@@ -3000,7 +3033,7 @@
   window.toggleWorldMapMode = toggleWorldMapMode;
 
   window.wtwBuyService = spendService;
-  window.wtwResolveEvent = resolveZoneEvent;
+  window.wtwResolveEvent = resolveZoneEventWithJoin;
   window.wtwCollectMarker = collectMarkerJob;
   window.wtwInitSkirmish = function () {
     const hex = getSelectedHex();
@@ -3014,7 +3047,7 @@
   window.wtwRollEncounter = rollDistrictEncounter;
   window.wtwRollCelebration = rollWorldCelebrationEvent;
   window.wtwResolveCelebration = resolveWorldCelebrationEvent;
-  window.wtwResolveEncounter = resolveDistrictEncounter;
+  window.wtwResolveEncounter = resolveDistrictEncounterWithJoin;
   window.wtwResolveEncounterAs = resolveDistrictEncounterAs;
   window.wtwWinCombatEvent = completeCombatEventVictory;
   window.wtwFailCombatEvent = completeCombatEventFailure;

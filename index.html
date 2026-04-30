@@ -1264,8 +1264,9 @@ const MONUMENT_EFFECTS=['Protected (Defend ↑ one Step)','Bolstered (Spirit/Lea
 // Pick from an array if array, else return the value directly (used by terrain descriptions)
 function pickTd(v){return Array.isArray(v)?pick(v):v;}
 
-function openCampaignAreaJoinPrompt(areaLabel, onJoin){
-  const label=String(areaLabel||'Area');
+function openCampaignJoinPrompt(kind, actionLabel, onJoin){
+  const joinKind=String(kind||'area').toLowerCase();
+  const label=String(actionLabel||'Area');
   if(typeof onJoin!=='function')return;
   if(!window._campaignJoinAreaCallbacks)window._campaignJoinAreaCallbacks={};
   const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
@@ -1273,6 +1274,14 @@ function openCampaignAreaJoinPrompt(areaLabel, onJoin){
     onJoin();
     return;
   }
+  const kindMeta={
+    encounter:{title:'Join Encounter',icon:'⚔',hint:'Join this encounter context with the party and participate together.'},
+    task:{title:'Join Task',icon:'🧾',hint:'Join this task context with the party and participate together.'},
+    story:{title:'Join Story',icon:'📖',hint:'Join this story context with the party and participate together.'},
+    faction:{title:'Join Faction Base',icon:'🏰',hint:'Join this faction base context with the party and participate together.'},
+    area:{title:'Join Area',icon:'🧭',hint:'Join this area context with the party and participate together.'}
+  };
+  const meta=kindMeta[joinKind]||kindMeta.area;
   const cbId='cb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   window._campaignJoinAreaCallbacks[cbId]=function(){
     try{onJoin();}finally{delete window._campaignJoinAreaCallbacks[cbId];}
@@ -1280,14 +1289,19 @@ function openCampaignAreaJoinPrompt(areaLabel, onJoin){
   const role=(cs.role==='gm')?'GM':'Player';
   const html=''
     +'<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
-    +'You are about to enter <strong style="color:var(--gold2);">'+label+'</strong> in Campaign mode.<br>'
-    +'<span style="color:var(--muted2);">Role: '+role+'. Use Join Area to keep everyone on the same shared experience.</span>'
+    +meta.icon+' You are about to join <strong style="color:var(--gold2);">'+label+'</strong> in Campaign mode.<br>'
+    +'<span style="color:var(--muted2);">Role: '+role+'. Use Join to keep everyone on the same shared experience.</span>'
+    +'<br><span style="color:var(--muted2);">'+meta.hint+'</span>'
     +'</div>'
     +'<div style="margin-top:.65rem;display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
-    +'<button class="btn btn-sm btn-teal" onclick="closeModal();runCampaignJoinAreaConsent(\''+cbId+'\',\''+label.replace(/'/g,"\\'")+'\');">Join Area</button>'
+    +'<button class="btn btn-sm btn-teal" onclick="closeModal();runCampaignJoinAreaConsent(\''+cbId+'\',\''+label.replace(/'/g,"\\'")+'\');">Join</button>'
     +'<button class="btn btn-sm" onclick="closeModal();">Cancel</button>'
     +'</div>';
-  openModal('Join Area',html);
+  openModal(meta.title,html);
+}
+
+function openCampaignAreaJoinPrompt(areaLabel, onJoin){
+  openCampaignJoinPrompt('area', areaLabel, onJoin);
 }
 
 function runCampaignJoinAreaConsent(cbId, areaLabel){
@@ -1304,6 +1318,59 @@ function runCampaignJoinAreaConsent(cbId, areaLabel){
   }
   cb();
 }
+
+function joinAndRollHexEncounter(col,row){
+  openCampaignJoinPrompt('encounter','Province Encounter',function(){
+    rollHexEncounter(col,row);
+  });
+}
+
+function joinAndRollTradeEncounter(col,row){
+  openCampaignJoinPrompt('encounter','Trade Route Encounter',function(){
+    rollTradeRouteEncounter(col,row);
+  });
+}
+
+function joinAndOpenStoryline(){
+  openCampaignJoinPrompt('story','Storyline',function(){
+    if(typeof openStorylineTab==='function')openStorylineTab();
+  });
+}
+
+function joinAndOpenFactionBaseFromMarker(region,key){
+  openCampaignJoinPrompt('faction','Faction Base',function(){
+    if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker(region,key);
+  });
+}
+
+function joinAndResolveFactionTask(region,key){
+  openCampaignJoinPrompt('task','Wayfarer Task',function(){
+    if(window.factionSystem&&typeof window.factionSystem.resolveMapTask==='function')window.factionSystem.resolveMapTask(region,key);
+    const target=selectedHex||mapData.find(function(h){return h&&String(h.col)+','+String(h.row)===String(key||'');});
+    if(target)renderHexInfo(target);
+    renderHexMap();
+  });
+}
+
+function joinAndStartFactionMonsterTask(region,key){
+  openCampaignJoinPrompt('task','Monster Wayfarer Task',function(){
+    if(window.factionSystem&&typeof window.factionSystem.startMonsterTask==='function')window.factionSystem.startMonsterTask(region,key);
+    const target=selectedHex||mapData.find(function(h){return h&&String(h.col)+','+String(h.row)===String(key||'');});
+    if(target)renderHexInfo(target);
+    renderHexMap();
+  });
+}
+
+function joinAndFinalizeFactionMonsterTask(region,key,success){
+  openCampaignJoinPrompt('task','Monster Task Outcome',function(){
+    if(window.factionSystem&&typeof window.factionSystem.finalizeMonsterTask==='function')window.factionSystem.finalizeMonsterTask(region,key,null,!!success);
+    const target=selectedHex||mapData.find(function(h){return h&&String(h.col)+','+String(h.row)===String(key||'');});
+    if(target)renderHexInfo(target);
+    renderHexMap();
+  });
+}
+
+window.openCampaignJoinPrompt=openCampaignJoinPrompt;
 
 // Stable per-hex terrain text selector to avoid rerolling on every render/sync tick.
 function pickTdStable(v, hex, channel){
@@ -4873,7 +4940,7 @@ function renderHexInfo(hex){
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
       <div class="nb-label" style="color:var(--gold2);">📍 ${markerTitle}</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}</div>
-      ${mt.type==='story_choice' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div>` : ''}
+      ${mt.type==='story_choice' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="joinAndOpenStoryline()">Continue Storyline</button></div>` : ''}
     </div>`;
   }
 
@@ -4884,7 +4951,7 @@ function renderHexInfo(hex){
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(70,196,182,.55);background:rgba(70,196,182,.08);">
       <div class="nb-label" style="color:var(--teal);">🏰 Faction Base</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${fbase.baseName||'Faction base'} is anchored in this hex.</div>
-      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('province','${nk}');">Enter Base</button></div>
+      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="joinAndOpenFactionBaseFromMarker('province','${nk}')">Enter Base</button></div>
     </div>`;
   }
 
@@ -4896,9 +4963,9 @@ function renderHexInfo(hex){
       <div class="nb-label" style="color:${ftask.status==='combat_pending'?'var(--red2)':'var(--gold2)'};">${ftask.monsterTask?'⚔ Monster Wayfarer Task':'✦ Wayfarer Task'}</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${ftask.title}${ftask.monsterSummary?`<br><em>${ftask.monsterSummary}</em>`:''}</div>
       <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        ${!ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask('province','${nk}');renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Roll AD vs Dread d6</button>`:''}
-        ${ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask('province','${nk}');renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Generate Monsters / Combat</button>`:''}
-        ${ftask.monsterTask&&ftask.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('province','${nk}',null,true);renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Slayed Monsters (Reward)</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('province','${nk}',null,false);renderHexInfo(selectedHex||mapData.find(h=>h.col===${hex.col}&&h.row===${hex.row}));renderHexMap();">Failed Encounter</button>`:''}
+        ${!ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-primary" onclick="joinAndResolveFactionTask('province','${nk}')">Roll AD vs Dread d6</button>`:''}
+        ${ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-warn" onclick="joinAndStartFactionMonsterTask('province','${nk}')">Generate Monsters / Combat</button>`:''}
+        ${ftask.monsterTask&&ftask.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="joinAndFinalizeFactionMonsterTask('province','${nk}',true)">Slayed Monsters (Reward)</button><button class="btn btn-xs btn-red" onclick="joinAndFinalizeFactionMonsterTask('province','${nk}',false)">Failed Encounter</button>`:''}
       </div>
     </div>`;
   }
@@ -4956,7 +5023,7 @@ function renderHexInfo(hex){
     if(td.land)html+=`<div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${pickTdStable(td.land,hex,'land')}</div></div>`;
     if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTdStable(td.flora,hex,'flora')} ${pickTdStable(td.fauna,hex,'fauna')||''}</div></div>`;
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTdStable(td.wonder,hex,'wonder')}</div></div>`;
-    html+=`<div class="hex-primary-actions"><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button></div>`;
+    html+=`<div class="hex-primary-actions"><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button><button class="btn btn-sm btn-teal" onclick="joinAndRollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}">${d.lastEncounterHtml||''}</div>`;
     if(d.eventLead){
       const leadCid=`${hex.col}-${hex.row}`;
@@ -4966,7 +5033,7 @@ function renderHexInfo(hex){
   // ── TRADE ROUTE ── (FIX: no td reference)
   }else if(hex.type==='trade'){
     html+=`<div class="trade-line">🏛 <strong>Trade Route</strong> — connects ${d.from||'Holdings'}.<br><em style="font-size:.78rem;">Regional trade goods and caravans pass through here regularly.</em></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-primary" onclick="rollTradeRouteEncounter(${hex.col},${hex.row})">⚄ Roll Trade Encounter (d10)</button><button class="btn btn-sm btn-teal" onclick="showTradeGoods(${hex.col},${hex.row})">📦 Trade Goods</button><button class="btn btn-sm btn-gold" onclick="buyProvinceCaravanToHolding(${hex.col},${hex.row},100)">🛻 Buy Caravan to Nearest Holding (100₵)</button></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-primary" onclick="joinAndRollTradeEncounter(${hex.col},${hex.row})">⚄ Roll Trade Encounter (d10)</button><button class="btn btn-sm btn-teal" onclick="showTradeGoods(${hex.col},${hex.row})">📦 Trade Goods</button><button class="btn btn-sm btn-gold" onclick="buyProvinceCaravanToHolding(${hex.col},${hex.row},100)">🛻 Buy Caravan to Nearest Holding (100₵)</button></div>`;
     html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
 
   // ── SEAT / HOLDING ──
@@ -7896,7 +7963,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     return total;
   }
 
-  window.startProvinceSkirmish = function(col, row, numA, numB, armyA, armyB, source) {
+  window.startProvinceSkirmish = function(col, row, numA, numB, armyA, armyB, source, skipJoinPrompt) {
+    const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+    if(!skipJoinPrompt&&cs&&cs.code&&typeof openCampaignJoinPrompt==='function'){
+      openCampaignJoinPrompt('encounter','Province Skirmish',function(){
+        window.startProvinceSkirmish(col,row,numA,numB,armyA,armyB,source,true);
+      });
+      return;
+    }
     const hex = mapData.find(h => h.col === col && h.row === row);
     if (!hex) return;
     if (!S.combat) S.combat = {};
@@ -8070,7 +8144,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   // ── MONSTER/BEAST COMBAT LINKING ──
-  window.startProvinceMonsterCombat = function(col, row, type, count, typeStr, dread) {
+  window.startProvinceMonsterCombat = function(col, row, type, count, typeStr, dread, skipJoinPrompt) {
+    const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+    if(!skipJoinPrompt&&cs&&cs.code&&typeof openCampaignJoinPrompt==='function'){
+      openCampaignJoinPrompt('encounter','Province Combat',function(){
+        window.startProvinceMonsterCombat(col,row,type,count,typeStr,dread,true);
+      });
+      return;
+    }
     if (!S.combat) S.combat = {};
     const enemyCount=Math.max(1,parseInt(count,10)||1);
     const dd=Math.max(4,parseInt(dread,10)||4);

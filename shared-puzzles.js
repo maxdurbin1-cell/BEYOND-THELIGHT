@@ -25,35 +25,54 @@
   const PUZZLES = {
     province: [
       { title: "Road Cipher", prompt: "Decode and enter: BRIDGE -> ? (Hint: reverse it)", answer: "egdirb" },
-      { title: "Caravan Knot", prompt: "How many corners does a hex have?", answer: "6" }
+      { title: "Caravan Knot", prompt: "How many corners does a hex have?", answer: "6" },
+      { title: "Maze Step Count", prompt: "Simple Maze: Start S and reach E. S(1,1) E(4,4). Walls: (2,1) (2,2) (3,3). Minimum steps?", answer: "6" },
+      { title: "Jigsaw Relay", prompt: "Jigsaw order puzzle: Arrange tiles in correct sentence order: [KEY] [THE] [TURN] [NOW]. Enter full sentence.", answer: "turn the key now" },
+      { title: "Word Search Marker", prompt: "Word Search: Find the hidden word in row 'B R I D G E'. Enter the found word.", answer: "bridge" },
+      { title: "Word Scramble", prompt: "Unscramble: GNAIATVE", answer: "navigate" },
+      { title: "Mini Sudoku", prompt: "4x4 Sudoku (digits 1-4): Row1 1 _ 3 4. Row2 3 4 1 2. Row3 2 1 4 3. Row4 4 3 2 1. What is Row1 Col2?", answer: "2" },
+      { title: "Magic Square", prompt: "3x3 Magic Square sum is 15. Grid: 8 1 6 / 3 5 7 / 4 _ 2. Missing value?", answer: "9" }
     ],
     sea: [
       { title: "Tide Sequence", prompt: "Enter the next term: 2, 4, 8, 16, ?", answer: "32" },
-      { title: "Chart Mark", prompt: "Type the nautical shorthand for North-East.", answer: "ne" }
+      { title: "Chart Mark", prompt: "Type the nautical shorthand for North-East.", answer: "ne" },
+      { title: "Sea Cryptogram", prompt: "Cryptogram (Caesar +1): TFB -> ?", answer: "sea" },
+      { title: "Word Search Buoy", prompt: "Word Search row: A N C H O R. Enter the hidden word.", answer: "anchor" }
     ],
     galaxy: [
       { title: "Signal Relay", prompt: "Type the binary value of decimal 5.", answer: "101" },
-      { title: "Star Vector", prompt: "How many primary axes does a hex grid use?", answer: "3" }
+      { title: "Star Vector", prompt: "How many primary axes does a hex grid use?", answer: "3" },
+      { title: "Crossword Clue", prompt: "Crossword clue: 4 letters, " + '"Star path"' + " = ?", answer: "lane" },
+      { title: "Word Scramble", prompt: "Unscramble: RTOIB", answer: "orbit" }
     ],
     planet: [
       { title: "Surface Lock", prompt: "Enter: BIO + ME = ?", answer: "biome" },
-      { title: "Drill Code", prompt: "Solve: 9 + 7", answer: "16" }
+      { title: "Drill Code", prompt: "Solve: 9 + 7", answer: "16" },
+      { title: "Mini Maze Route", prompt: "Maze route directions from S to E: Right, Right, Down, Down, Left, Down. Enter as initials with dashes.", answer: "r-r-d-d-l-d" },
+      { title: "Magic Square Delta", prompt: "Magic square line total is 15. Row: 2 7 _. Missing number?", answer: "6" }
     ],
     wtw: [
       { title: "District Relay", prompt: "Unscramble: RAILSTOANIT", answer: "railstation" },
-      { title: "Control Pulse", prompt: "Solve: 12 - 5", answer: "7" }
+      { title: "Control Pulse", prompt: "Solve: 12 - 5", answer: "7" },
+      { title: "District Crossword", prompt: "Crossword clue: 5 letters, " + '"Urban train stop"' + " = ?", answer: "depot" },
+      { title: "Cryptogram Grid", prompt: "Cryptogram (+1 shift): [XPSME]. Decode.", answer: "world" }
     ],
     task: [
       { title: "Field Brief", prompt: "Type the stat used most for exploration checks in this game section.", answer: "adventure" },
-      { title: "Route Marker", prompt: "How many directions are shown in the 8-way observation controls?", answer: "8" }
+      { title: "Route Marker", prompt: "How many directions are shown in the 8-way observation controls?", answer: "8" },
+      { title: "Jigsaw Brief", prompt: "Arrange phrase parts: [ROUTE] [THE] [HOLD] [LINE]. Enter full phrase.", answer: "hold the route line" }
     ],
     event: [
       { title: "Event Seal", prompt: "Type YES to stabilize the event flow.", answer: "yes" },
-      { title: "Risk Matrix", prompt: "What die size is used for Dread checks in many quick tasks here?", answer: "6" }
+      { title: "Risk Matrix", prompt: "What die size is used for Dread checks in many quick tasks here?", answer: "6" },
+      { title: "Word Search Event", prompt: "Word Search row: H A Z A R D. Enter the hidden word.", answer: "hazard" },
+      { title: "Word Scramble", prompt: "Unscramble: VETNE", answer: "event" }
     ],
     holding: [
       { title: "Council Ledger", prompt: "Type the role that handles diplomacy in your council.", answer: "diplomat" },
-      { title: "Home Registry", prompt: "Type HOME in uppercase.", answer: "HOME" }
+      { title: "Home Registry", prompt: "Type HOME in uppercase.", answer: "HOME" },
+      { title: "Mini Sudoku", prompt: "4x4 Sudoku clue: Row1 1 2 3 _. Missing value?", answer: "4" },
+      { title: "Magic Square", prompt: "3x3 Magic Square row: 4 9 _. Target row sum 15. Missing number?", answer: "2" }
     ]
   };
 

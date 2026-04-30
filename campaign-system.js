@@ -360,6 +360,7 @@
     if (!travel || typeof travel !== "object") return false;
     var activeContext = getActiveContextId();
     var activeTab = getActiveTabId();
+    if (activeTab === "character") return false;
     var expectedContext = String(travel.context || "");
     var expectedTab = String(travel.tab || "");
     if (expectedContext && activeContext && expectedContext !== activeContext) return true;
@@ -3340,6 +3341,13 @@
           return escapeHtml(n.name + (n.hasNote ? stamp : " (no note)"));
         }).join(" · ") + '</div>')
       : '';
+    var playerCameraLockBannerHtml = (!isGm && strictCameraLock)
+      ? ('<div class="campaign-card" style="border-color:rgba(232,192,80,.45);background:rgba(232,192,80,.08);">'
+        + '<div class="campaign-card-title">GM Camera Lock Active</div>'
+        + '<div class="campaign-muted">Your map tabs auto-follow the GM for a unified table view.</div>'
+        + '<div class="campaign-muted" style="margin-top:.22rem;">You can still open <strong style="color:var(--gold2);">Character</strong> any time to review stats, weapons, and inventory.</div>'
+        + '</div>')
+      : '';
 
     section.innerHTML = ""
       + '<h4>Campaign (Multiplayer)</h4>'
@@ -3367,6 +3375,7 @@
       + '<button class="btn btn-xs" onclick="window.campaignSystem.joinCampaign(\'gm\')">Join GM</button>'
       + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.leaveCampaign()">Leave</button>'
       + "</div>"
+      + playerCameraLockBannerHtml
       + quickStartHtml
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Shared Teamwork Points</div>'
@@ -3838,6 +3847,7 @@
     var roll = document.getElementById("campaignDockRoll");
     var filters = document.getElementById("campaignDockFilters");
     var trigger = document.getElementById("campaignDockTrigger");
+    var lock = document.getElementById("campaignDockLock");
 
     if (badge) {
       var hasConflicts = Number(state.syncConflictCount || 0) > 0;
@@ -3861,6 +3871,19 @@
         + '<span>TMW <strong>' + String(campaign && campaign.shared ? Number(campaign.shared.tmw || 0) : getTmwValue()) + "</strong></span>";
     }
 
+    if (lock) {
+      var shared = getCampaignSharedState();
+      var cameraOn = isStrictGmCameraLockEnabled(shared);
+      if (state.role === "player" && cameraOn) {
+        lock.innerHTML = '<div class="campaign-dock-empty" style="text-align:left;border:1px solid rgba(232,192,80,.42);background:rgba(232,192,80,.1);color:var(--text2);">'
+          + '<strong style="color:var(--gold2);">GM Camera Lock:</strong> Map tabs follow GM. '
+          + 'Character tab remains available for your decisions.'
+          + '</div>';
+      } else {
+        lock.innerHTML = "";
+      }
+    }
+
     if (roll) {
       if (!active) {
         roll.innerHTML = '<div class="campaign-dock-empty">No active GM roll request.</div>';
@@ -3875,6 +3898,7 @@
           + (canRoll
             ? '<div class="campaign-dock-roll-actions"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.submitActiveRoll()">Roll Now</button></div>'
             : '<div class="campaign-dock-roll-actions"><button class="btn btn-xs" onclick="window.campaignSystem.closeActiveRoll()">Close Active</button></div>');
+          + '<div id="campaignDockLock"></div>'
       }
     }
 

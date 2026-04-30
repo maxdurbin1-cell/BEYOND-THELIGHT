@@ -4029,6 +4029,7 @@ function resolvePlanetLostCityRoom(cellId, roomId) {
     if (typeof changeStress === 'function') changeStress(1);
     showNotif(`Lost City room ${room.id} failed. +1 Stress.`, 'warn');
   }
+  syncCampaignSharedWorldSoon('planet-lostcity-room');
   openPlanetLostCityBuildingExploration();
 }
 
@@ -4039,6 +4040,12 @@ function openPlanetLostCityBuildingExploration() {
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected || selected.marker !== 'empty_colony') return;
   selected.data = selected.data || {};
+  const campaignState = (window.campaignSystem && typeof window.campaignSystem.getState === 'function') ? window.campaignSystem.getState() : null;
+  if (campaignState && campaignState.code && campaignState.role === 'player' && (!Array.isArray(selected.data.lostCityRooms) || !selected.data.lostCityRooms.length)) {
+    showNotif('Lost City building layout is waiting for GM sync. Ask GM to join this area first or request resync.', 'info');
+    return;
+  }
+  let generatedRooms = false;
   const lc = selected.data.lostCity || {};
   if (!Array.isArray(selected.data.lostCityRooms) || !selected.data.lostCityRooms.length) {
     selected.data.lostCityRooms = Array.from({ length: 2 + Math.floor(Math.random() * 3) }).map((_, idx) => ({
@@ -4049,7 +4056,9 @@ function openPlanetLostCityBuildingExploration() {
       dread: 4,
       loot: rollGalaxyMerchantLoot(),
     }));
+    generatedRooms = true;
   }
+  if (generatedRooms) syncCampaignSharedWorldSoon('planet-lostcity-generated');
   const roomsHtml = selected.data.lostCityRooms.map((room) => {
     return `<div style='padding:.24rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;'><strong>${room.id}. ${room.area}</strong><br>${room.detail}<br>${room.cleared ? `Loot: ${room.loot} ✓` : `<button class='btn btn-xs btn-teal' onclick='resolvePlanetLostCityRoom(${selected.id},${room.id})'>Explore Room (AD vs d4)</button>`}</div>`;
   }).join('');
@@ -4065,6 +4074,16 @@ function openPlanetLostCityBuildingExploration() {
       ${roomsHtml}
     </div>`);
   }
+}
+
+function requestJoinPlanetLostCityArea() {
+  if (typeof window.openCampaignAreaJoinPrompt === 'function') {
+    window.openCampaignAreaJoinPrompt('Planet Lost City Building', function () {
+      openPlanetLostCityBuildingExploration();
+    });
+    return;
+  }
+  openPlanetLostCityBuildingExploration();
 }
 
 function generatePlanetRuinRooms(cellId) {
@@ -6105,7 +6124,7 @@ function renderPlanetExplorationPanel() {
             ${(selected && selected.tradeRoute) ? '<button class="btn btn-sm" onclick="rollPlanetTradeRouteEncounter()">⚄ Trade Route Encounter</button><button class="btn btn-sm" onclick="showPlanetTradeGoods()">📦 Trade Goods</button>' : ''}
             ${canTraverseObstacle ? '<button class="btn btn-sm btn-primary" onclick="rollPlanetObstacleTraversal()">⚄ Traverse Obstacle (AD vs DD6)</button>' : ''}
             ${canUseLostCityTravel ? '<button class="btn btn-sm" onclick="rollPlanetLostCityTravel()">⚄ Lost City Travel (d6)</button>' : ''}
-            ${(selected && selected.marker === 'empty_colony') ? '<button class="btn btn-sm" onclick="openPlanetLostCityBuildingExploration()">🏙 Building Exploration</button>' : ''}
+            ${(selected && selected.marker === 'empty_colony') ? '<button class="btn btn-sm" onclick="requestJoinPlanetLostCityArea()">Join Area: Building Exploration</button>' : ''}
             ${(selected && selected.marker === 'ruins') ? '<button class="btn btn-sm btn-primary" onclick="generatePlanetRuinRooms(' + selected.id + ')">⚄ Enter Ruins</button>' : ''}
           </div>
 

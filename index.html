@@ -6224,25 +6224,53 @@ function generateTempleRooms(col,row){
 
 function requestJoinProvinceArea(areaType,col,row){
   const area=String(areaType||'').toLowerCase();
-  const labels={ruins:'Province Ruins',dwelling:'Dwelling Rooms',temple:'Temple Chambers'};
+  const labels={ruins:'Province Ruins',dwelling:'Dwelling Rooms',temple:'Temple Chambers',lostcity:'Lost City Building'};
   openCampaignAreaJoinPrompt(labels[area]||'Province Area',function(){
     if(area==='ruins'){openProvinceRuinPopup(col,row);return;}
     if(area==='dwelling'){generateDwellingRooms(col,row);return;}
     if(area==='temple'){generateTempleRooms(col,row);return;}
+    if(area==='lostcity'){revealLostCityBuilding(col,row);return;}
   });
 }
 
 function rollLostCityTravel(col,row){
+  const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='lostcity'; });
+  if(!hex)return;
+  hex.data=hex.data||{};
+  const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+  if(cs&&cs.code&&cs.role==='player'&&!hex.data.lostCityTravel){
+    showNotif('Lost City district data is waiting for GM sync. Ask GM to join this area first or request resync.', 'info');
+    return;
+  }
+  if(!hex.data.lostCityTravel){
+    const r=roll(6);
+    let title,desc;
+    if(r<=2){title='Urban Feature';desc=pick(LC_URBAN_FEATURES);}
+    else if(r<=4){title='Building';desc=pick(LC_BUILDINGS);}
+    else{title='Discovery';const disc=pick(LC_DISCOVERIES);desc=`${disc.shape} (${disc.appearance}) — ${disc.fn}. Currently used for: ${disc.current}.`;}
+    const reveal=pick(LC_EXPLORE_REVEALS);
+    hex.data.lostCityTravel={r,title,desc,reveal};
+    if(cs&&cs.code&&cs.role==='gm')syncProvinceRuinStateSoon('province-lostcity-travel');
+  }
+  const travel=hex.data.lostCityTravel;
   const r=roll(6);
   let title,desc;
-  if(r<=2){title='Urban Feature';desc=pick(LC_URBAN_FEATURES);}
-  else if(r<=4){title='Building';desc=pick(LC_BUILDINGS);}
-  else{title='Discovery';const disc=pick(LC_DISCOVERIES);desc=`${disc.shape} (${disc.appearance}) — ${disc.fn}. Currently used for: ${disc.current}.`;}
-  const reveal=pick(LC_EXPLORE_REVEALS);
+  title=travel.title;desc=travel.desc;
   const el=document.getElementById(`lcTravel-${col}-${row}`);
-  if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">d6=${r} — ${title}</div><strong>${desc}</strong></div>
-    <div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="document.getElementById('lcReveal-${col}-${row}').style.display='block'">⚄ Explore Building</button></div>
-    <div id="lcReveal-${col}-${row}" style="display:none;margin-top:.3rem;"><div class="lc-block"><div class="lb-label">Exploring the Building Reveals</div><div class="lb-text">${reveal}</div></div></div>`;
+  if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">d6=${travel.r} — ${title}</div><strong>${desc}</strong></div>
+    <div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="requestJoinProvinceArea('lostcity',${col},${row})">Join Area: Building Exploration</button></div>
+    <div id="lcReveal-${col}-${row}" style="display:none;margin-top:.3rem;"><div class="lc-block"><div class="lb-label">Exploring the Building Reveals</div><div class="lb-text">${travel.reveal}</div></div></div>`;
+}
+
+function revealLostCityBuilding(col,row){
+  const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='lostcity'; });
+  if(!hex||!hex.data)return;
+  if(!hex.data.lostCityTravel||!hex.data.lostCityTravel.reveal){
+    showNotif('Roll Lost City Travel first to reveal a building.', 'warn');
+    return;
+  }
+  const el=document.getElementById(`lcReveal-${col}-${row}`);
+  if(el)el.style.display='block';
 }
 
 function generateTask(){

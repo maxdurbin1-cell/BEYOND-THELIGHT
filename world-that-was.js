@@ -1681,15 +1681,46 @@
   function exploreStructure(hexId) {
     const hex = hexById(hexId);
     if (!hex || !hex.structure) return;
-    generateStructureRooms(hex);
-    if (typeof showNotif === "function") {
-      showNotif("Explored " + (hex.structure.name || hex.structure.kind) + ". Rooms generated.", "good");
+    const cs = (window.campaignSystem && typeof window.campaignSystem.getState === "function")
+      ? window.campaignSystem.getState()
+      : null;
+    const roomsExist = !!(hex.structure && Array.isArray(hex.structure.generatedRooms) && hex.structure.generatedRooms.length);
+    if (cs && cs.code && cs.role === "player") {
+      if (!roomsExist) {
+        if (typeof showNotif === "function") showNotif("Structure interior is waiting for GM sync. Ask GM to join this area first or request resync.", "info");
+        return;
+      }
+      if (typeof showNotif === "function") showNotif("Joined structure interior.", "good");
+      renderWorldThatWas();
+      return;
     }
-    grantRandomLoot("easy");
-    addZoneReputation(hex.zone, 1);
-    syncWorldMarkers();
-    if (registerWorldAction("structure explore")) return;
+    if (!roomsExist) {
+      generateStructureRooms(hex);
+      grantRandomLoot("easy");
+      addZoneReputation(hex.zone, 1);
+      syncWorldMarkers();
+      if (registerWorldAction("structure explore")) return;
+      if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {
+        setTimeout(function () {
+          try { window.campaignSystem.syncSharedSilent("wtw-structure-generated"); } catch (_err) {}
+        }, 0);
+      }
+      if (typeof showNotif === "function") {
+        showNotif("Explored " + (hex.structure.name || hex.structure.kind) + ". Rooms generated.", "good");
+      }
+    } else if (typeof showNotif === "function") {
+      showNotif("Joined " + (hex.structure.name || hex.structure.kind) + " interior.", "good");
+    }
     renderWorldThatWas();
+  }
+
+  function joinStructureArea(hexId) {
+    const run = function () { exploreStructure(hexId); };
+    if (typeof window.openCampaignAreaJoinPrompt === "function") {
+      window.openCampaignAreaJoinPrompt("World Structure Interior", run);
+      return;
+    }
+    run();
   }
 
   function launchToSpace(hexId) {
@@ -2692,7 +2723,7 @@
       : "<div class='wtw-muted' style='margin-top:.2rem;'>No rooms generated yet.</div>";
 
     const structureHtml = hex.structure
-      ? ("<div class='wtw-card'><div class='wtw-card-title'>" + (hex.structure.kind || "Structure") + ": " + (hex.structure.name || "Unknown Site") + "</div><div class='wtw-card-text'>Enter and generate interior rooms for exploration.</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwExploreStructure(\"" + hex.id + "\")'>Generate Rooms</button></div>" + structureRoomHtml + "</div>")
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>" + (hex.structure.kind || "Structure") + ": " + (hex.structure.name || "Unknown Site") + "</div><div class='wtw-card-text'>Enter and generate interior rooms for exploration.</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwJoinStructureArea(\"" + hex.id + "\")'>Join Area: Structure Interior</button></div>" + structureRoomHtml + "</div>")
       : "<div class='wtw-muted'>No explorable structure in this district.</div>";
 
     const nextRailZone = (function () {
@@ -2984,6 +3015,7 @@
   window.wtwResolveHazard = resolveDistrictHazard;
   window.wtwTalkWayfarer = talkToWayfarer;
   window.wtwExploreStructure = exploreStructure;
+  window.wtwJoinStructureArea = joinStructureArea;
   window.wtwLaunchToSpace = launchToSpace;
   window.wtwSyncMarkers = function () {
     syncWorldMarkers();

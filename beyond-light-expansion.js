@@ -2463,6 +2463,10 @@
   }
 
   function getSeaNightModeBonusChance(contextType) {
+    if (window.settingsSystem && typeof window.settingsSystem.getNightModeRate === 'function') {
+      if (contextType === 'island') return Number(window.settingsSystem.getNightModeRate('seaIsland') || 32);
+      return Number(window.settingsSystem.getNightModeRate('seaOpen') || 42);
+    }
     if (contextType === 'island') return 32;
     return 42;
   }

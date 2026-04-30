@@ -605,6 +605,9 @@
   }
 
   function getWtwNightModeBonusChance() {
+    if (window.settingsSystem && typeof window.settingsSystem.getNightModeRate === 'function') {
+      return Number(window.settingsSystem.getNightModeRate('wtw') || 38);
+    }
     return 38;
   }
 

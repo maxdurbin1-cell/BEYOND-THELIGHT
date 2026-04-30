@@ -3800,10 +3800,16 @@ function isPlanetNightModeActive() {
 }
 
 function getPlanetNightModeTradeBonusChance() {
+  if (window.settingsSystem && typeof window.settingsSystem.getNightModeRate === 'function') {
+    return Number(window.settingsSystem.getNightModeRate('planetTrade') || 34);
+  }
   return 34;
 }
 
 function getPlanetNightModeHexBonusChance() {
+  if (window.settingsSystem && typeof window.settingsSystem.getNightModeRate === 'function') {
+    return Number(window.settingsSystem.getNightModeRate('planetHex') || 28);
+  }
   return 28;
 }
 

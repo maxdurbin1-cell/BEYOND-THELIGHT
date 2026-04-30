@@ -22,6 +22,13 @@
     monochromeMode: false,
     textSize: 'medium',
     activeTab: 'general',
+    nightModeRates: {
+      seaOpen: 42,
+      seaIsland: 32,
+      planetTrade: 34,
+      planetHex: 28,
+      wtw: 38
+    },
     
     // Load from localStorage
     load() {
@@ -37,6 +44,19 @@
         this.colorBlindMode = saved.colorBlindMode !== undefined ? !!saved.colorBlindMode : false;
         this.monochromeMode = saved.monochromeMode !== undefined ? !!saved.monochromeMode : false;
         this.textSize = saved.textSize || 'medium';
+        const defaults = { seaOpen: 42, seaIsland: 32, planetTrade: 34, planetHex: 28, wtw: 38 };
+        const loadedRates = saved.nightModeRates && typeof saved.nightModeRates === 'object' ? saved.nightModeRates : {};
+        this.nightModeRates = {
+          seaOpen: Number(loadedRates.seaOpen),
+          seaIsland: Number(loadedRates.seaIsland),
+          planetTrade: Number(loadedRates.planetTrade),
+          planetHex: Number(loadedRates.planetHex),
+          wtw: Number(loadedRates.wtw)
+        };
+        Object.keys(defaults).forEach((k) => {
+          const v = this.nightModeRates[k];
+          this.nightModeRates[k] = Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : defaults[k];
+        });
         this.applyAudioSettings();
         this.applyAccessibilitySettings();
       } catch (e) {
@@ -56,7 +76,8 @@
           gmRevealHiddenInfo: this.gmRevealHiddenInfo,
           colorBlindMode: this.colorBlindMode,
           monochromeMode: this.monochromeMode,
-          textSize: this.textSize
+          textSize: this.textSize,
+          nightModeRates: this.nightModeRates
         }));
       } catch (e) {
         console.warn('Could not save settings:', e);
@@ -226,6 +247,51 @@
                 <button class="btn btn-xs" onclick="if(typeof openGMStoryComposer==='function'){openGMStoryComposer();}">Story Composer</button>
                 <button class="btn btn-xs" onclick="if(typeof openGMHexMarkerEditor==='function'){openGMHexMarkerEditor();}">Hex Marker</button>
                 <button class="btn btn-xs" onclick="if(typeof openGMDreadDirector==='function'){openGMDreadDirector();}">Dread Director</button>
+              </div>
+            </div>
+
+            <div style="margin-top:.65rem;border-top:1px solid var(--border2);padding-top:.55rem;">
+              <div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.3rem;">Night Mode Encounter Rates</div>
+              <div class="campaign-muted" style="margin-bottom:.35rem;">Tune bonus trigger chance per map without editing code.</div>
+              <div style="display:grid;grid-template-columns:1fr;gap:.35rem;">
+                <div class="setting-row" style="margin-bottom:0;">
+                  <label for="nightRateSeaOpen">Sea Region · Open Water</label>
+                  <div class="volume-control">
+                    <input type="range" id="nightRateSeaOpen" min="0" max="100" value="${Settings.nightModeRates.seaOpen}" onchange="window.settingsSystem.setNightModeRate('seaOpen', this.value)" class="volume-slider">
+                    <span id="nightRateSeaOpenLabel">${Settings.nightModeRates.seaOpen}%</span>
+                  </div>
+                </div>
+                <div class="setting-row" style="margin-bottom:0;">
+                  <label for="nightRateSeaIsland">Sea Region · Islands</label>
+                  <div class="volume-control">
+                    <input type="range" id="nightRateSeaIsland" min="0" max="100" value="${Settings.nightModeRates.seaIsland}" onchange="window.settingsSystem.setNightModeRate('seaIsland', this.value)" class="volume-slider">
+                    <span id="nightRateSeaIslandLabel">${Settings.nightModeRates.seaIsland}%</span>
+                  </div>
+                </div>
+                <div class="setting-row" style="margin-bottom:0;">
+                  <label for="nightRatePlanetTrade">Planet · Trade Route</label>
+                  <div class="volume-control">
+                    <input type="range" id="nightRatePlanetTrade" min="0" max="100" value="${Settings.nightModeRates.planetTrade}" onchange="window.settingsSystem.setNightModeRate('planetTrade', this.value)" class="volume-slider">
+                    <span id="nightRatePlanetTradeLabel">${Settings.nightModeRates.planetTrade}%</span>
+                  </div>
+                </div>
+                <div class="setting-row" style="margin-bottom:0;">
+                  <label for="nightRatePlanetHex">Planet · Hex Encounter</label>
+                  <div class="volume-control">
+                    <input type="range" id="nightRatePlanetHex" min="0" max="100" value="${Settings.nightModeRates.planetHex}" onchange="window.settingsSystem.setNightModeRate('planetHex', this.value)" class="volume-slider">
+                    <span id="nightRatePlanetHexLabel">${Settings.nightModeRates.planetHex}%</span>
+                  </div>
+                </div>
+                <div class="setting-row" style="margin-bottom:0;">
+                  <label for="nightRateWtw">World That Was · District</label>
+                  <div class="volume-control">
+                    <input type="range" id="nightRateWtw" min="0" max="100" value="${Settings.nightModeRates.wtw}" onchange="window.settingsSystem.setNightModeRate('wtw', this.value)" class="volume-slider">
+                    <span id="nightRateWtwLabel">${Settings.nightModeRates.wtw}%</span>
+                  </div>
+                </div>
+              </div>
+              <div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap;">
+                <button class="btn btn-xs" onclick="window.settingsSystem.resetNightModeRates()">Reset Defaults</button>
               </div>
             </div>
           </div>
@@ -575,6 +641,7 @@
 
     applySettingsTabVisibility();
     refreshRecoveryPanel();
+    syncNightModeRateUI();
   }
 
   function toggleGMReveal(kind) {
@@ -695,6 +762,58 @@
     Settings.save();
     document.getElementById('sfxVolLabel').textContent = value + '%';
   }
+
+  function normalizeNightModeRateValue(value, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(0, Math.min(100, Math.round(n)));
+  }
+
+  function getDefaultNightModeRates() {
+    return { seaOpen: 42, seaIsland: 32, planetTrade: 34, planetHex: 28, wtw: 38 };
+  }
+
+  function syncNightModeRateUI() {
+    const keys = ['seaOpen', 'seaIsland', 'planetTrade', 'planetHex', 'wtw'];
+    keys.forEach((key) => {
+      const idCore = 'nightRate' + key.charAt(0).toUpperCase() + key.slice(1);
+      const input = document.getElementById(idCore);
+      const label = document.getElementById(idCore + 'Label');
+      const val = Number(Settings.nightModeRates[key] || 0);
+      if (input) input.value = String(val);
+      if (label) label.textContent = String(val) + '%';
+    });
+  }
+
+  function setNightModeRate(key, value) {
+    const defaults = getDefaultNightModeRates();
+    if (!Object.prototype.hasOwnProperty.call(defaults, key)) return;
+    Settings.nightModeRates[key] = normalizeNightModeRateValue(value, defaults[key]);
+    Settings.save();
+    syncNightModeRateUI();
+  }
+
+  function resetNightModeRates() {
+    Settings.nightModeRates = getDefaultNightModeRates();
+    Settings.save();
+    syncNightModeRateUI();
+  }
+
+  function getNightModeRate(key) {
+    const defaults = getDefaultNightModeRates();
+    if (!Object.prototype.hasOwnProperty.call(defaults, key)) return 0;
+    return normalizeNightModeRateValue(Settings.nightModeRates[key], defaults[key]);
+  }
+
+  function getNightModeRates() {
+    return {
+      seaOpen: getNightModeRate('seaOpen'),
+      seaIsland: getNightModeRate('seaIsland'),
+      planetTrade: getNightModeRate('planetTrade'),
+      planetHex: getNightModeRate('planetHex'),
+      wtw: getNightModeRate('wtw')
+    };
+  }
   
   // GM Mode prompts for specific story beats
   function showGMPrompt(title, content, options = []) {
@@ -770,8 +889,13 @@
       colorBlindMode: Settings.colorBlindMode,
       monochromeMode: Settings.monochromeMode,
       textSize: Settings.textSize,
-      activeTab: Settings.activeTab
+      activeTab: Settings.activeTab,
+      nightModeRates: getNightModeRates()
     }),
+    getNightModeRate,
+    getNightModeRates,
+    setNightModeRate,
+    resetNightModeRates,
     refreshRecoveryPanel,
     initSettings // Expose for manual initialization if needed
   };

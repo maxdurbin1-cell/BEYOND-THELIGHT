@@ -6397,6 +6397,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('char',this)">👤 Char</button>
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('combat',this)">⚔ Combat</button>
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('missions',this)">🗺 Missions</button>
+    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('campaign',this)">🛰 Campaign</button>
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('notes',this)">📝 Notes</button>
     <button class="qp-close" aria-label="Close Quick Panel" onclick="toggleQuickPanel()">✕</button>
   </div>
@@ -6444,6 +6445,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     else if (tab === 'char')   c.innerHTML = buildQPChar();
     else if (tab === 'combat') c.innerHTML = buildQPCombat();
     else if (tab === 'missions') c.innerHTML = buildQPMissions();
+    else if (tab === 'campaign') c.innerHTML = buildQPCampaign();
     else if (tab === 'notes') c.innerHTML = buildQPNotes();
   }
 
@@ -6618,6 +6620,27 @@ document.addEventListener('DOMContentLoaded',()=>{
       startMissionStep3(missionId);
     }
     renderQP('missions');
+  };
+
+  window.qpCampaignAction = function(action, value) {
+    if (!window.campaignSystem) {
+      if (typeof showNotif === 'function') showNotif('Campaign system not available.', 'warn');
+      return;
+    }
+    if (action === 'sync' && typeof window.campaignSystem.syncSharedNow === 'function') {
+      window.campaignSystem.syncSharedNow();
+    } else if (action === 'resync' && typeof window.campaignSystem.requestResync === 'function') {
+      window.campaignSystem.requestResync();
+    } else if (action === 'force' && typeof window.campaignSystem.forceAuthoritativeResync === 'function') {
+      window.campaignSystem.forceAuthoritativeResync();
+    } else if (action === 'mode' && typeof window.campaignSystem.setGmMode === 'function') {
+      window.campaignSystem.setGmMode(String(value || 'passive'));
+    } else if (action === 'nextTurn' && typeof window.campaignSystem.nextCombatActor === 'function') {
+      window.campaignSystem.nextCombatActor();
+    } else if (action === 'advanceTime' && typeof window.campaignSystem.gmAdvanceTime === 'function') {
+      window.campaignSystem.gmAdvanceTime(1);
+    }
+    setTimeout(function(){ renderQP('campaign'); }, 120);
   };
 
   function buildQPDice() {
@@ -6953,6 +6976,68 @@ document.addEventListener('DOMContentLoaded',()=>{
       + holdingHtml
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Active Missions</div>'
       + activeHtml;
+  }
+
+  function buildQPCampaign() {
+    if (!window.campaignSystem || typeof window.campaignSystem.getState !== 'function') {
+      return '<div style="font-size:.78rem;color:var(--muted2);">Campaign system unavailable.</div>';
+    }
+    var snap = window.campaignSystem.getState() || {};
+    var shared = (typeof window.campaignSystem.getSharedState === 'function') ? (window.campaignSystem.getSharedState() || {}) : (((snap.campaign||{}).shared||{}).state||{});
+    var isConnected = !!(snap.connected && snap.code);
+    var isGm = snap.role === 'gm';
+    var gmSettings = (shared && shared.gmSettings) ? shared.gmSettings : {};
+    var mode = String(gmSettings.mode || 'passive');
+    var activeMissions = Array.isArray(shared.activeMissions) ? shared.activeMissions.length : ((S.activeMissions||[]).length||0);
+    var availableJobs = Array.isArray(shared.availableJobs) ? shared.availableJobs.length : ((S.availableJobs||[]).length||0);
+    var completedMissions = Array.isArray(shared.completedMissions) ? shared.completedMissions.length : ((S.completedMissions||[]).length||0);
+    var renown = Number(shared.renown != null ? shared.renown : (S.renown || 0));
+    var credits = Number(shared.credits != null ? shared.credits : (S.credits || 0));
+    var tmw = (snap.campaign && snap.campaign.shared) ? Number(snap.campaign.shared.tmw || 0) : Number(S.tmw || 0);
+
+    if (!isConnected) {
+      return ''
+        + '<div style="font-family:Cinzel,serif;font-size:.62rem;letter-spacing:.11em;color:var(--gold);text-transform:uppercase;margin-bottom:.35rem;">Campaign</div>'
+        + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.5;">Join a campaign in Settings to unlock shared controls and synced mission/renown visibility.</div>';
+    }
+
+    var sharedSummary = ''
+      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .55rem;margin-bottom:.5rem;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;">Shared Snapshot</div>'
+      + '<div style="font-size:.74rem;color:var(--text2);margin-top:.15rem;">Code <strong>' + String(snap.code || '-') + '</strong> · Role <strong>' + (isGm ? 'GM' : 'Player') + '</strong> · GM Mode <strong>' + mode + '</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">Renown <strong style="color:var(--gold2);">' + renown + '</strong> · Credits <strong style="color:var(--gold2);">' + credits + '₵</strong> · TMW <strong style="color:var(--teal);">' + tmw + '</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Jobs <strong>' + availableJobs + '</strong> · Active <strong>' + activeMissions + '</strong> · Completed <strong>' + completedMissions + '</strong></div>'
+      + '</div>';
+
+    var playerTools = ''
+      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .55rem;margin-bottom:.45rem;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;">Player Utility</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.22rem;">'
+      + '<button class="btn btn-xs" onclick="qpCampaignAction(\'resync\')">Request Resync</button>'
+      + '<button class="btn btn-xs" onclick="switchQP(\'missions\',document.querySelector(\'.qp-tab[onclick*=\\\"missions\\\"]\'))">Open Missions</button>'
+      + '<button class="btn btn-xs" onclick="switchQP(\'notes\',document.querySelector(\'.qp-tab[onclick*=\\\"notes\\\"]\'))">Open Notes</button>'
+      + '</div>'
+      + '</div>';
+
+    var gmTools = isGm
+      ? ''
+        + '<div style="background:var(--surface);border:1px solid rgba(201,162,39,.45);padding:.45rem .55rem;">'
+        + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;">GM Controls</div>'
+        + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.22rem;">'
+        + '<button class="btn btn-xs btn-teal" onclick="qpCampaignAction(\'sync\')">Sync Shared</button>'
+        + '<button class="btn btn-xs" onclick="qpCampaignAction(\'force\')">Force Rebroadcast</button>'
+        + '<button class="btn btn-xs" onclick="qpCampaignAction(\'nextTurn\')">Next Turn</button>'
+        + '<button class="btn btn-xs" onclick="qpCampaignAction(\'advanceTime\')">+1 Phase</button>'
+        + '</div>'
+        + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.22rem;">'
+        + '<button class="btn btn-xs' + (mode==='passive' ? ' btn-teal' : '') + '" onclick="qpCampaignAction(\'mode\',\'passive\')">Passive</button>'
+        + '<button class="btn btn-xs' + (mode==='active' ? ' btn-teal' : '') + '" onclick="qpCampaignAction(\'mode\',\'active\')">Active</button>'
+        + '<button class="btn btn-xs' + (mode==='facilitative' ? ' btn-teal' : '') + '" onclick="qpCampaignAction(\'mode\',\'facilitative\')">Facilitative</button>'
+        + '</div>'
+        + '</div>'
+      : '';
+
+    return sharedSummary + playerTools + gmTools;
   }
 
   function buildQPNotes(){

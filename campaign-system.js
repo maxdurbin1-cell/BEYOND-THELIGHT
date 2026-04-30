@@ -31,6 +31,7 @@
     gmWayfarerSort: "online",
     lastSharedHash: "",
     lastSharedVersion: 0,
+    lastProgressHash: "",
     syncHealth: "idle",
     lastSyncAt: 0,
     syncText: "Idle",
@@ -510,6 +511,36 @@
     return shared;
   }
 
+  function collectProgressSharedPatch() {
+    if (typeof window.S === "undefined" || !window.S) return {};
+    return {
+      renown: Math.max(0, Number(window.S.renown || 0)),
+      credits: Math.max(0, Number(window.S.credits || 0)),
+      mentalStress: Math.max(0, Number(window.S.mentalStress || 0)),
+      missionTokens: deepCloneJson(window.S.missionTokens || {}),
+      activeMissions: deepCloneJson(window.S.activeMissions || []),
+      completedMissions: deepCloneJson(window.S.completedMissions || []),
+      availableJobs: deepCloneJson(window.S.availableJobs || []),
+      storyline: deepCloneJson(window.S.storyline || {}),
+      factionWayfarerTasks: deepCloneJson(window.S.factionWayfarerTasks || []),
+      factionNarrative: deepCloneJson(window.S.factionNarrative || {}),
+      factionRenown: deepCloneJson(window.S.factionRenown || {}),
+      factionBases: deepCloneJson(window.S.factionBases || {})
+    };
+  }
+
+  function getProgressHash() {
+    try {
+      return JSON.stringify(collectProgressSharedPatch());
+    } catch (_err) {
+      return "";
+    }
+  }
+
+  function refreshProgressHash() {
+    state.lastProgressHash = getProgressHash();
+  }
+
   function applySharedState(sharedState, sharedVersion) {
     if (!sharedState || typeof sharedState !== "object") return;
     var nextVersion = Math.max(0, Number(sharedVersion || 0) || 0);
@@ -661,6 +692,7 @@
 
     state.lastSharedVersion = nextVersion || state.lastSharedVersion;
     state.lastSharedHash = JSON.stringify(sharedState);
+    refreshProgressHash();
   }
 
   async function syncSharedState(reason) {
@@ -3767,6 +3799,7 @@
     patchMentalStressHooks();
     patchSharedEconomyHooks();
     patchMapGenerationHooks();
+    refreshProgressHash();
     ensureSocket();
     window.addEventListener("resize", function () { syncDockOffset(); });
 
@@ -3833,6 +3866,15 @@
       ensureMapSyncStatusBars();
     }
     syncCharacterToCampaign(false);
+    if (state.connected && state.code && !state.applyingSharedState) {
+      var nextProgressHash = getProgressHash();
+      if (nextProgressHash && nextProgressHash !== state.lastProgressHash) {
+        state.lastProgressHash = nextProgressHash;
+        if (state.role === "player") {
+          syncPlayerSharedPatch(collectProgressSharedPatch(), "progress-tick");
+        }
+      }
+    }
     if (state.role !== "player") {
       syncSharedState("tick");
     }
@@ -3937,6 +3979,9 @@
         token: state.token,
         campaign: state.campaign
       };
+    },
+    getSharedState: function () {
+      return getCampaignSharedState();
     },
     isCampaignPlayerReadOnlyForSharedWorld: isCampaignPlayerReadOnlyForSharedWorld,
     guardSharedWorldMutation: guardSharedWorldMutation

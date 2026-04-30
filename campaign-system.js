@@ -697,6 +697,9 @@
     if (typeof window.renderMissionBoard === "function") window.renderMissionBoard();
     if (typeof window.renderMissionTracker === "function") window.renderMissionTracker();
     if (typeof window.renderCompletedMissions === "function") window.renderCompletedMissions();
+    if (typeof window.renderCampaignInitiativePanel === "function") {
+      try { window.renderCampaignInitiativePanel(); } catch (_err) {}
+    }
     if (window.factionSystem && typeof window.factionSystem.setupFactionTab === "function") {
       try { window.factionSystem.setupFactionTab(); } catch (_err) {}
     }
@@ -1275,6 +1278,15 @@
       return out || { ok: false };
     }
     return out;
+  }
+
+  async function syncSharedPatch(patch, reason) {
+    if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
+    if (!patch || typeof patch !== "object") return { ok: false, error: "Invalid patch." };
+    if (state.role === "player") {
+      return syncPlayerSharedPatch(patch, reason || "player-shared-patch");
+    }
+    return pushSharedState(patch, reason || "gm-shared-patch");
   }
 
   // Player submits action (add to queue for GM approval if in active mode)
@@ -4091,6 +4103,7 @@
     getProvinceSelectionMarkers: getProvinceSelectionMarkers,
     syncSharedNow: syncSharedNow,
     syncSharedSilent: syncSharedSilent,
+    syncSharedPatch: syncSharedPatch,
     shareBackpackItem: shareBackpackItem,
     claimSharedItem: claimSharedItem,
     copyRosterItem: copyRosterItem,

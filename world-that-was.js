@@ -386,6 +386,84 @@
     return ZONE_DANGER[zoneName] || { eventCombatChance: 35, eventDreadBias: 0, encounterChance: 25, skirmishChance: 16, cycleShiftBonus: 0 };
   }
 
+  function getDeityPactPressure() {
+    const pact = (S && S.deityPact && typeof S.deityPact === "object") ? S.deityPact : null;
+    return {
+      favor: Math.max(0, Number((pact && pact.favor) || 0)),
+      debt: Math.max(0, Number((pact && pact.debt) || 0)),
+      ending: String((pact && pact.endingKey) || "").toLowerCase()
+    };
+  }
+
+  function getPactSkirmishDelta() {
+    const p = getDeityPactPressure();
+    let delta = 0;
+    if (p.debt >= 4) delta += 1;
+    if (p.debt >= 7) delta += 1;
+    if (p.favor >= 4) delta -= 1;
+    if (p.favor >= 7) delta -= 1;
+    return delta;
+  }
+
+  function getPactAdjustedSkirmishChance(zoneName) {
+    const base = dangerForZone(zoneName).skirmishChance;
+    const delta = getPactSkirmishDelta();
+    const adjusted = Number(base || 0) + (delta * 6);
+    return Math.max(3, Math.min(90, adjusted));
+  }
+
+  function applyPactSkirmishDensityPressure(worldState, forceFull) {
+    const w = worldState || ensureWorldState();
+    if (!w || !Array.isArray(w.hexes) || !w.hexes.length) return 0;
+
+    let expected = 0;
+    w.hexes.forEach(function (hex) {
+      expected += getPactAdjustedSkirmishChance(hex.zone) / 100;
+    });
+
+    let target = Math.max(0, Math.min(w.hexes.length, Math.round(expected)));
+    const st = (S && S.storyline && S.storyline.flags) ? S.storyline.flags : null;
+    if (st && st.warfrontActive) {
+      const warfrontFloor = Math.max(0, Number(st.warfrontScale || 0));
+      target = Math.max(target, warfrontFloor);
+    }
+
+    const current = w.hexes.filter(function (hex) { return !!hex && !!hex.skirmish; }).length;
+    const diff = target - current;
+    if (!diff) return 0;
+
+    const maxStep = forceFull ? Math.abs(diff) : Math.max(2, Math.min(8, Math.ceil(w.hexes.length * 0.04)));
+    let changed = 0;
+
+    if (diff > 0) {
+      const pool = w.hexes.filter(function (hex) {
+        return hex && !hex.skirmish && !hex.station && !hex.landingPad;
+      });
+      for (let i = 0; i < pool.length && changed < Math.min(diff, maxStep); i += 1) {
+        const pickIx = safeRoll(pool.length) - 1;
+        const chosen = pool.splice(pickIx, 1)[0];
+        if (!chosen) continue;
+        chosen.skirmish = true;
+        changed += 1;
+      }
+      return changed;
+    }
+
+    const calmPool = w.hexes.filter(function (hex) {
+      if (!hex || !hex.skirmish) return false;
+      if (hex.id === w.storyObjectiveHexId) return false;
+      return !hex.station && !hex.landingPad;
+    });
+    for (let i = 0; i < calmPool.length && changed < Math.min(Math.abs(diff), maxStep); i += 1) {
+      const pickIx = safeRoll(calmPool.length) - 1;
+      const chosen = calmPool.splice(pickIx, 1)[0];
+      if (!chosen) continue;
+      chosen.skirmish = false;
+      changed += 1;
+    }
+    return changed;
+  }
+
   function ensureWorldInventory() {
     if (typeof S === "undefined") return;
     S.worldInventory = S.worldInventory || {};
@@ -1000,7 +1078,7 @@
           col: col,
           row: row,
           controller: safePick(HOLDERS, HOLDERS[0]),
-          skirmish: safeRoll(100) <= danger.skirmishChance,
+          skirmish: safeRoll(100) <= getPactAdjustedSkirmishChance(zoneName),
           narrative: n,
           station: false,
           landingPad: false,
@@ -1024,6 +1102,7 @@
 
     assignTrainStations();
   assignDistrictFeatures(w);
+    applyPactSkirmishDensityPressure(w, true);
     generateHoldings(w);
     syncWorldMarkers();
     updateZoneControl();
@@ -2516,17 +2595,22 @@
       const target = safePick(weighted, null);
       if (!target) break;
       target.controller = safePick(HOLDERS, target.controller);
-      if (safeRoll(100) <= Math.min(55, 24 + dangerForZone(target.zone).skirmishChance)) target.skirmish = true;
+      if (safeRoll(100) <= Math.min(70, 24 + getPactAdjustedSkirmishChance(target.zone))) target.skirmish = true;
     }
 
     w.hexes.forEach(function (hex) {
       const danger = dangerForZone(hex.zone);
-      if (!hex.skirmish && safeRoll(100) <= Math.max(5, Math.floor(danger.skirmishChance / 2))) hex.skirmish = true;
-      if (hex.skirmish && safeRoll(100) <= Math.max(10, 24 - danger.cycleShiftBonus * 3)) hex.skirmish = false;
+      const pactDelta = getPactSkirmishDelta();
+      const spawnChance = Math.max(4, Math.floor(getPactAdjustedSkirmishChance(hex.zone) / 2));
+      const calmChance = Math.max(6, 24 - danger.cycleShiftBonus * 3 - pactDelta * 4);
+      if (!hex.skirmish && safeRoll(100) <= spawnChance) hex.skirmish = true;
+      if (hex.skirmish && safeRoll(100) <= calmChance) hex.skirmish = false;
       if (safeRoll(100) <= Math.max(8, Math.floor(danger.encounterChance / 3))) {
         hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
       }
     });
+
+    applyPactSkirmishDensityPressure(w, false);
 
     updateZoneControl();
     syncWorldMarkers();
@@ -3079,6 +3163,13 @@
   window.wtwJoinStructureArea = joinStructureArea;
   window.wtwLaunchToSpace = launchToSpace;
   window.wtwSyncMarkers = function () {
+    syncWorldMarkers();
+    renderWorldThatWas();
+  };
+  window.wtwRefreshPactSkirmishDensity = function () {
+    const w = ensureWorldState();
+    if (!w || !Array.isArray(w.hexes) || !w.hexes.length) return;
+    applyPactSkirmishDensityPressure(w, true);
     syncWorldMarkers();
     renderWorldThatWas();
   };

@@ -389,6 +389,9 @@
       at: new Date().toISOString()
     });
     if (pact.history.length > 20) pact.history.shift();
+    if (typeof window.wtwRefreshPactSkirmishDensity === 'function') {
+      try { window.wtwRefreshPactSkirmishDensity(); } catch (_err) {}
+    }
     evaluateDeityPactEnding(pact);
   }
 

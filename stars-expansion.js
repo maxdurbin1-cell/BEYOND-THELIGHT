@@ -568,6 +568,25 @@ function ensureStarsState() {
   });
 }
 
+function getDeityPactPressure() {
+  var pact = (S && S.deityPact && typeof S.deityPact === 'object') ? S.deityPact : null;
+  return {
+    favor: Math.max(0, Number(pact && pact.favor || 0)),
+    debt: Math.max(0, Number(pact && pact.debt || 0)),
+    ending: String(pact && pact.endingKey || '').toLowerCase()
+  };
+}
+
+function getPactHostilityDelta() {
+  var p = getDeityPactPressure();
+  var delta = 0;
+  if (p.debt >= 4) delta += 1;
+  if (p.debt >= 7) delta += 1;
+  if (p.favor >= 4) delta -= 1;
+  if (p.favor >= 7) delta -= 1;
+  return delta;
+}
+
 function cloneStarsData(value) {
   return JSON.parse(JSON.stringify(value || null));
 }
@@ -3086,6 +3105,13 @@ function rollPlanetExploration() {
   if (!state) return;
   const d10 = roll(10);
   let outcome = PLANETSIDE_EXPLORATION_TABLE[Math.min(PLANETSIDE_EXPLORATION_TABLE.length - 1, d10 - 1)] || 'Find';
+  const pactPressure = getDeityPactPressure();
+  const pactDelta = getPactHostilityDelta();
+  if (pactDelta >= 1 && Math.random() < 0.45) {
+    outcome = pick(['Beast', 'Pirate', 'Skirmish', 'Galactic Facility']);
+  } else if (pactDelta <= -1 && Math.random() < 0.45) {
+    outcome = pick(['Find', 'Close Encounter', 'Merchant Colony', 'Empty Colony']);
+  }
   const nightOnly = ['Beast', 'Close Encounter', 'Pirate', 'Skirmish', 'Galactic Facility'];
   if (typeof window.isNightPhase === 'function' && !window.isNightPhase() && nightOnly.indexOf(outcome) >= 0) {
     outcome = pick(['Find', 'Hazard', 'Empty Colony', 'Merchant Colony']);
@@ -3145,11 +3171,14 @@ function rollPlanetExploration() {
   } else {
     detail = `A galactic facility sits somewhere beyond the ${profile.terrain}. Secure access before entry.`;
   }
+  const hostilityTag = pactPressure.debt >= 7
+    ? ' Pact debt intensifies local aggression.'
+    : (pactPressure.favor >= 7 ? ' Pact favor calms local routes.' : '');
   state.lastEvent = {
     timestamp: Date.now(),
     d10,
     outcome,
-    detail,
+    detail: detail + hostilityTag,
     rewardItem,
     cellId: affectedCell ? affectedCell.id : null,
   };
@@ -3769,7 +3798,8 @@ function rollPlanetTradeRouteEncounter() {
     showNotif('Night-only rule: planet trade route encounters unlock during Night phase.', 'info');
     return;
   }
-  const r = roll(10);
+  const hostility = getPactHostilityDelta();
+  const r = Math.max(1, Math.min(10, roll(10) + hostility));
   let title = '';
   let text = '';
   if (r <= 2) {
@@ -3801,7 +3831,7 @@ function rollPlanetTradeRouteEncounter() {
     cellId: selected ? selected.id : null,
     eventType: 'encounter',
   };
-  showNotif(`Trade Route: ${title}.`, 'good');
+  showNotif(`Trade Route: ${title}.`, hostility > 0 ? 'warn' : 'good');
   renderPlanetExplorationPanel();
 }
 
@@ -3879,18 +3909,19 @@ function attemptPlanetHoldingSteal() {
   } else {
     const authority = state.rulingPower || 'Unknown Authority';
     const renownKey = getPlanetAuthorityFactionKey(authority);
-    changeFactionRenown(renownKey, -1);
+    const hostilityLoss = 1 + Math.max(0, getPactHostilityDelta());
+    changeFactionRenown(renownKey, -hostilityLoss);
     if (typeof changeStress === 'function') changeStress(1);
     state.lastEvent = {
       timestamp: Date.now(),
       d10: 8,
       outcome: 'Holding Theft Failed',
-      detail: `${check.text}. You were caught stealing. -1 ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown with ${authority}.`,
+      detail: `${check.text}. You were caught stealing. -${hostilityLoss} ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown with ${authority}.`,
       rewardItem: '',
       cellId: selected.id,
       eventType: 'encounter',
     };
-    showNotif(`Caught stealing. -1 ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown.`, 'warn');
+    showNotif(`Caught stealing. -${hostilityLoss} ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown.`, 'warn');
   }
   renderPlanetExplorationPanel();
 }
@@ -4572,14 +4603,19 @@ function buildPlanetTempleInfoHtml(state, selected) {
     selected.data.temple = createPlanetTempleDetail((state && state.profile) || {}, selected.province);
   }
   const t = selected.data.temple;
+  const p = getDeityPactPressure();
+  const sageFee = Math.max(20, Math.min(120, Math.round(50 + (p.debt * 5) - (p.favor * 3))));
+  const templeTone = p.debt >= 7
+    ? 'Debt-shadowed rites: priests demand strict proof and steeper offerings.'
+    : (p.favor >= 7 ? 'Lantern-favored rites: your name is welcomed in this temple.' : 'Neutral rite standing.');
   return `<div class="rest-boon" style="background:rgba(80,40,120,.08);border-color:rgba(176,96,208,.4);">
       <div class="rb-label" style="color:#b060d0;">🎯 Rest Boon</div>
-      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>${t.blessing}</div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>${t.blessing}<br><span style="color:var(--muted2);">${templeTone}</span></div>
       <div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptPlanetRestBoon(${selected.id},'focused','Temple Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>
     <div class="wild-panel"><div class="wp-label">Temple — ${t.mood}</div><div class="wp-text">${t.templeName} in ${t.terrain} terrain.<br>Primary Rite: ${t.rite}</div></div>
     <div class="wild-panel"><div class="wp-label">📜 Doctrine</div><div class="wp-text">${t.doctrine}</div></div>
-    <div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Sages know 1 random Event in the Province and its approximate direction. They know the nearest Landmark. They know a partial Mystery — enough to hint, not enough to spoil.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="consultPlanetSage(50)">🙏 Consult Sage (50₵)</button></div></div>`;
+    <div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">Sages know 1 random Event in the Province and its approximate direction. They know the nearest Landmark. They know a partial Mystery — enough to hint, not enough to spoil.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="consultPlanetSage(${sageFee})">🙏 Consult Sage (${sageFee}₵)</button></div></div>`;
 }
 
 function consultPlanetSage(cost) {
@@ -4590,13 +4626,21 @@ function consultPlanetSage(cost) {
   }
   if (typeof changeCredits === 'function') changeCredits(-fee);
   else S.credits = Math.max(0, Number(S.credits || 0) - fee);
+  var p = getDeityPactPressure();
   if (typeof changeTrauma === 'function') {
     changeTrauma(-1);
+    if (p.favor >= 7) changeTrauma(-1);
   } else if (typeof S.trauma === 'number') {
     S.trauma = Math.max(0, S.trauma - 1);
+    if (p.favor >= 7) S.trauma = Math.max(0, S.trauma - 1);
     if (typeof updateTrauma === 'function') updateTrauma();
   }
-  showNotif('Sage guidance received. Trauma reduced by 1.', 'good');
+  if (p.debt >= 7 && typeof changeMentalStress === 'function') {
+    changeMentalStress(1);
+    showNotif('Sage guidance is contested by debt-omens. Trauma reduced, but +1 Mental Stress.', 'warn');
+    return;
+  }
+  showNotif('Sage guidance received. Trauma reduced by ' + (p.favor >= 7 ? '2' : '1') + '.', 'good');
 }
 
 function planetNomadFieldTreatment(cost) {

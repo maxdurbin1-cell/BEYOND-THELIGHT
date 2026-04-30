@@ -1580,6 +1580,45 @@ function isNightPhase(){
   if(S&&S.gameDate&&typeof S.gameDate.phase==='number')return Number(S.gameDate.phase)>=2;
   return false;
 }
+function getDeityPactPressure(){
+  var pact=(S&&S.deityPact&&typeof S.deityPact==='object')?S.deityPact:null;
+  return {
+    favor:Math.max(0,Number(pact&&pact.favor||0)),
+    debt:Math.max(0,Number(pact&&pact.debt||0)),
+    ending:String(pact&&pact.endingKey||'').toLowerCase()
+  };
+}
+function getMostHostileFactionLabel(){
+  if(!S||!S.factionRenown||typeof S.factionRenown!=='object')return '';
+  var keys=Object.keys(S.factionRenown);
+  if(!keys.length)return '';
+  var minKey=keys[0],minVal=Number(S.factionRenown[minKey]||0);
+  keys.forEach(function(k){
+    var v=Number(S.factionRenown[k]||0);
+    if(v<minVal){minVal=v;minKey=k;}
+  });
+  if(minVal>-3)return '';
+  return (typeof FACTION_NAMES==='object'&&FACTION_NAMES&&FACTION_NAMES[minKey])?FACTION_NAMES[minKey]:minKey;
+}
+function getTemplePactFee(base){
+  var p=getDeityPactPressure();
+  var fee=Math.max(10,Number(base||50)+(p.debt*5)-(p.favor*3));
+  return Math.max(15,Math.min(120,Math.round(fee)));
+}
+function rollProvinceEncounterTypeByPact(){
+  var p=getDeityPactPressure();
+  var w=[1,1,1,1,1,1,1,1];
+  if(p.debt>=4){w[0]+=1;w[3]+=1;w[6]+=1;}
+  if(p.debt>=7){w[0]+=2;w[3]+=2;w[6]+=2;w[7]+=1;w[1]=Math.max(1,w[1]-1);w[5]=Math.max(1,w[5]-1);}
+  if(p.favor>=4){w[1]+=1;w[2]+=1;w[5]+=1;w[0]=Math.max(1,w[0]-1);}
+  if(p.favor>=7){w[1]+=2;w[2]+=1;w[5]+=2;w[0]=Math.max(1,w[0]-1);w[3]=Math.max(1,w[3]-1);w[6]=Math.max(1,w[6]-1);}
+  var total=w.reduce(function(a,b){return a+b;},0),r=roll(total),run=0;
+  for(var i=0;i<w.length;i++){
+    run+=w[i];
+    if(r<=run)return i+1;
+  }
+  return roll(8);
+}
 function ensureDarkAfflictionState(){
   if(!S.darkAfflictions||typeof S.darkAfflictions!=='object')S.darkAfflictions={};
   ['vampirism','wolfism'].forEach(function(key){
@@ -5217,18 +5256,22 @@ function renderHexInfo(hex){
 
   // ── TEMPLE ──
   }else if(hex.type==='temple'){
+    var pactPressure=getDeityPactPressure();
+    var sageFee=getTemplePactFee(50);
+    var cureFee=getTemplePactFee(75);
+    var templeTrust=(pactPressure.favor>=7&&pactPressure.debt<=3)?'Lantern favor — rites are welcomed and discounted.':(pactPressure.debt>=7?'Debt-shadowed — priests demand stricter offerings.':'Balanced covenant standing.');
     html+=`<div class="rest-boon" style="background:rgba(80,40,120,.08);border-color:rgba(176,96,208,.4);">
       <div class="rb-label" style="color:#b060d0;">🎯 Rest Boon</div>
-      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>A <strong>Sage</strong> can reduce Trauma by −1 for <strong>50₵</strong>.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'focused','Temple Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
+      <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:#b060d0;">Focused</strong> (Mind/Control ↑).<br>A <strong>Sage</strong> can reduce Trauma by −1 for <strong>${sageFee}₵</strong>. <span style="color:var(--muted2);">${templeTrust}</span></div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'focused','Temple Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     html+=`<div class="wild-panel"><div class="wp-label">Temple — ${d.mood||'Ancient'}</div><div class="wp-text">A place of sanctuary and learning.</div></div>`;
     if(d.sage)html+=`<div class="wild-panel"><div class="wp-label">🙏 Sage Present</div><div class="wp-text">${d.sage}</div></div>`;
     if(d.food)html+=`<div class="info-row"><div class="info-cell"><span class="ic-label">Food</span>${d.food}</div><div class="info-cell"><span class="ic-label">Goods</span>${d.goods||'—'}</div></div>`;
     if(d.news)html+=`<div class="wild-panel"><div class="wp-label">📰 Sage's Words</div><div class="wp-text">${d.news}</div></div>`;
     const sageKnowledge=getSageKnowledge(hex.col,hex.row);
-    html+=`<div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Revealed Wisdom:</strong><br>${sageKnowledge}</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="learnFromSage(${hex.col},${hex.row},'50')">🙏 Consult Sage (50₵)</button></div></div>`;
+    html+=`<div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Revealed Wisdom:</strong><br>${sageKnowledge}</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="learnFromSage(${hex.col},${hex.row},'${sageFee}')">🙏 Consult Sage (${sageFee}₵)</button></div></div>`;
     if(S.darkAfflictions&&((S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active)||(S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active))){
-      html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.55);background:rgba(176,96,208,.08);"><div class="nb-label" style="color:#d7b0ff;">☾ Affliction Rites</div><div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Temple rites can cure dark afflictions. Feed to lower corruption now, or cure fully for 75₵.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">${S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active?'<button class="btn btn-xs btn-warn" onclick="feedDarkAffliction(\'vampirism\')">Feed Vampirism (-2 Corruption)</button><button class="btn btn-xs btn-teal" onclick="cureDarkAfflictionAtTemple(\'vampirism\',75)">Cure Vampirism (75₵)</button>':''}${S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active?'<button class="btn btn-xs btn-warn" onclick="feedDarkAffliction(\'wolfism\')">Feed Wolfism (-2 Corruption)</button><button class="btn btn-xs btn-teal" onclick="cureDarkAfflictionAtTemple(\'wolfism\',75)">Cure Wolfism (75₵)</button>':''}</div></div>`;
+      html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.55);background:rgba(176,96,208,.08);"><div class="nb-label" style="color:#d7b0ff;">☾ Affliction Rites</div><div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Temple rites can cure dark afflictions. Feed to lower corruption now, or cure fully for ${cureFee}₵.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">${S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active?'<button class="btn btn-xs btn-warn" onclick="feedDarkAffliction(\'vampirism\')">Feed Vampirism (-2 Corruption)</button><button class="btn btn-xs btn-teal" onclick="cureDarkAfflictionAtTemple(\'vampirism\','+cureFee+')">Cure Vampirism ('+cureFee+'₵)</button>':''}${S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active?'<button class="btn btn-xs btn-warn" onclick="feedDarkAffliction(\'wolfism\')">Feed Wolfism (-2 Corruption)</button><button class="btn btn-xs btn-teal" onclick="cureDarkAfflictionAtTemple(\'wolfism\','+cureFee+')">Cure Wolfism ('+cureFee+'₵)</button>':''}</div></div>`;
     }
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('temple',${hex.col},${hex.row})">Join Area: Temple Chambers</button>
@@ -6226,25 +6269,29 @@ function rollHexEncounter(col,row){
       }
       html+='</div>';
     }else if(vr===2){
-    const enc=roll(8);let title,desc,actionHTML='';
+    const enc=rollProvinceEncounterTypeByPact();let title,desc,actionHTML='';
+    const pressure=getDeityPactPressure();
+    const hostileFaction=getMostHostileFactionLabel();
+    const hostilityLine=hostileFaction?(' <span style="color:var(--red2);">Hostility watch: '+hostileFaction+' patrols are active.</span>'):'';
+    const pactLine=(pressure.debt>=7)?' Pact debt has made the roads predatory.':(pressure.favor>=7?' Pact favor has softened some road contacts.':'');
     if(enc===1){
       const n=roll(4)+3;
       const banditType=pick(['Ragged scavengers in patchwork armor','Desperate deserters looking for easy marks','Professional road agents — this is their stretch','Cult enforcer unit collecting "donations"']);
       title=`${n} Bandits`;
-      desc=`${banditType} — DD4 | ${n*2} Stress per enemy.`;
+      desc=`${banditType} — DD4 | ${n*2} Stress per enemy.${pactLine}${hostilityLine}`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'bandits',${n},'${banditType}',4)">⚔ Fight${combatHint}</button>
         <button class="btn btn-xs" onclick="attemptEncounterThievery('bandits',${col},${row})">🧿 Thievery</button>
         <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>
       </div>`;
     }
-    else if(enc===2){title='Merchant Caravan';desc=`Goods wagons loaded with trade stock and coin lockboxes.`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-info" onclick="showMerchantCaravan(${col},${row})">Shop</button><button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan==='function')haggleMerchantCaravan(${col},${row})">Haggle</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('merchant',${col},${row})">Thievery</button></div>`;}
+    else if(enc===2){title='Merchant Caravan';desc=`Goods wagons loaded with trade stock and coin lockboxes.${pactLine}`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-info" onclick="showMerchantCaravan(${col},${row})">Shop</button><button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan==='function')haggleMerchantCaravan(${col},${row})">Haggle</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('merchant',${col},${row})">Thievery</button></div>`;}
     else if(enc===3){
       const na=roll(4)+4,nb=roll(4)+4;
       const armyA=pick(['cavalry in worn plate','spearmen in dyed leather','crossbow skirmishers','banner-bearers in painted steel']);
       const armyB=pick(['mounted raiders in black iron','hooded irregulars','desert fighters in layered cloth','shield-wall soldiers']);
       title='Skirmish';
-      desc=`${na} ${armyA} vs ${nb} ${armyB}. Intervening gains +1 Renown or 2d10×20₵.`;
+      desc=`${na} ${armyA} vs ${nb} ${armyB}. Intervening gains +1 Renown or 2d10×20₵.${hostilityLine}`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-warn" title="${skirmishTitle}" onclick="startProvinceSkirmish(${col},${row},${na},${nb},'${armyA}','${armyB}','province')">⚔ Lead Intervention${skirmishHint}</button>
         <button class="btn btn-xs" onclick="resolveSkirmishAvoid(${col},${row})">🚫 Avoid</button>
@@ -6254,7 +6301,7 @@ function rollHexEncounter(col,row){
       const n=roll(4)+2;
       const beastType=pick(['Mutated wolves, pale-eyed and coordinated','Irradiated boars, tusks glowing faintly','Blade-winged birds hunting as one','Something vast and hard to name']);
       title=`${n} Hostile Beasts`;
-      desc=`${beastType} — DD4 | ${n*2} Stress.`;
+      desc=`${beastType} — DD4 | ${n*2} Stress.${pactLine}`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'beasts',${n},'${beastType}',4)">⚔ Engage Combat${combatHint}</button>
         <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>
@@ -6265,7 +6312,7 @@ function rollHexEncounter(col,row){
       const wayName=pick(['Wanderer','Traveler','Roamer','Nomad']);
       const wayInfo=pick(['seeking lost knowledge','trading secrets','searching for a refuge','following an old map']);
       title='Traveling Wayfarer';
-      desc=`A ${wayName} encountered on the road, ${wayInfo}.`;
+      desc=`A ${wayName} encountered on the road, ${wayInfo}.${pressure.favor>=6?' They mention your patron with respect.':''}`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-primary" onclick="engageWayfarerMission(${col},${row})">📜 Offer a Mission</button>
         <button class="btn btn-xs" onclick="talkToWayfarer(${col},${row})">💬 Talk</button>
@@ -6274,7 +6321,7 @@ function rollHexEncounter(col,row){
     else if(enc===7){
       const n=roll(4)+2;
       title='Pirate Raiders';
-      desc=`${n} river pirates and raiders are shadowing trade wagons looking for plunder.`;
+      desc=`${n} river pirates and raiders are shadowing trade wagons looking for plunder.${pressure.debt>=6?' Debt collectors may be among them.':''}`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'pirates',${n},'Pirate Raiders',6)">⚔ Engage${combatHint}</button>
         <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>

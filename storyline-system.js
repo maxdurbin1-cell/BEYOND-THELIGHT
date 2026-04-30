@@ -1590,6 +1590,93 @@
       ],
     },
 
+    pact_mid_lantern: {
+      chapter: "c4",
+      title: "Pact Interlude: Lantern Procession",
+      location: "Epilogue Threshold",
+      mood: "sacred public theater",
+      text: "As judgment nears, temple courtyards flood with citizens carrying ash-lanterns in your name. The pact is no longer private debt. It has become a civic expectation. Every final ruling now passes through this procession first.",
+      options: [
+        {
+          id: "o1",
+          text: "Turn the procession into a public covenant charter",
+          stat: "lead",
+          baseDread: 10,
+          success: { next: "ending_pact_lantern", text: "You bind law and mercy in one ceremony. The city follows the lantern route, not the throne route.", effects: { renown: 2, faction: { religious: 1, political: 1 }, consequenceTags: ["deity_lantern_charter"] } },
+          fail: { next: "ending_openhand", text: "The procession fractures, but enough delegates still pass a distributed charter.", effects: { consequenceTags: ["deity_lantern_unstable"] } },
+        },
+      ],
+    },
+
+    pact_mid_chain: {
+      chapter: "c4",
+      title: "Pact Interlude: Chain Audit",
+      location: "Debt Courts",
+      mood: "predatory bureaucracy",
+      text: "Before your final sentence can stand, debt-ledgers from shrines, guilds, and warfront contractors are hauled into one chamber. Your pact debt is now state debt. Every creditor wants blood, collateral, or both.",
+      options: [
+        {
+          id: "o1",
+          text: "Accept debt supremacy and enforce the chain as law",
+          stat: "control",
+          baseDread: 11,
+          success: { next: "ending_pact_chain", text: "You declare debt the highest court. Order survives, humanity does not.", effects: { renown: 1, faction: { corporations: 1, underworld: 1, rebels: -2 }, consequenceTags: ["deity_chain_enforced"] } },
+          fail: { next: "ending_dark_throne", text: "You keep power, but creditors now own your horizon.", effects: { mentalStress: 1, consequenceTags: ["deity_chain_fragile"] } },
+        },
+      ],
+    },
+
+    pact_mid_oathbreaker: {
+      chapter: "c4",
+      title: "Pact Interlude: Broken Sigil",
+      location: "Ruined Reliquary",
+      mood: "exile liturgy",
+      text: "Temple sigils reject your name at the threshold. The pact calls you in breach. Witnesses whisper that your final ruling can still stand, but only if it is paid for in exile and forfeiture.",
+      options: [
+        {
+          id: "o1",
+          text: "Burn your claim and deliver final judgment as an exile",
+          stat: "spirit",
+          baseDread: 10,
+          success: { next: "ending_pact_oathbreaker", text: "You refuse both throne and absolution. The city remembers the verdict and forgets the judge.", effects: { renown: 1, faction: { religious: -1, rebels: 1 }, consequenceTags: ["deity_oathbreaker_exile"] } },
+          fail: { next: "ending_iron", text: "The chamber chooses steel over witness. Your exile begins in blood.", effects: { health: 1, mentalStress: 1, consequenceTags: ["deity_oathbreaker_bloodprice"] } },
+        },
+      ],
+    },
+
+    ending_pact_lantern: {
+      chapter: "c4",
+      title: "Ending: Lantern Concord",
+      location: "Epilogue",
+      mood: "ritual democracy",
+      text: "You turn pact favor into civic process. Every district keeps a lantern tribunal open at dusk. Justice is slower, louder, and harder to monopolize. Priests become clerks. Clerks become witnesses.",
+      options: [
+        { id: "o1", text: "Restart from Chapter 1 with lantern memory", success: { restart: true, text: "A new Wayfarer arrives where courts now open at dusk." } },
+      ],
+    },
+
+    ending_pact_chain: {
+      chapter: "c4",
+      title: "Ending: Chain Ledger Regime",
+      location: "Epilogue",
+      mood: "cold extraction",
+      text: "Debt becomes doctrine. Every favor is quantified, every pardon collateralized, every prayer invoiced. The city stays functional, profitable, and spiritually gutted. You remain in command as long as payments clear.",
+      options: [
+        { id: "o1", text: "Restart under the chain", success: { restart: true, text: "Another Wayfarer wakes into a city where mercy has an interest rate." } },
+      ],
+    },
+
+    ending_pact_oathbreaker: {
+      chapter: "c4",
+      title: "Ending: Oathbreaker Frontier",
+      location: "Epilogue",
+      mood: "hard-won anonymity",
+      text: "You keep the verdict and lose the institution. No temple names you. No ledger shelters you. Yet roads once owned by creditors begin operating on trust circles and witness pacts, outside formal rule.",
+      options: [
+        { id: "o1", text: "Restart as a nameless witness", success: { restart: true, text: "The next cycle begins without seals, only stories." } },
+      ],
+    },
+
     // ── DARK ENDINGS ──────────────────────────────────────────────────────────
     ending_dark_throne: {
       chapter: "c4",
@@ -3600,8 +3687,23 @@
     }
     if (safeOutcome && safeOutcome.text) st.lastResult = safeOutcome.text;
     rememberStoryConsequence(sceneId, scene, option, safeOutcome, checkResult);
+
+    function routeDeityPactEpilogue(nextSceneId) {
+      var nextId = String(nextSceneId || "");
+      if (!nextId || nextId.indexOf("ending_") !== 0) return nextId;
+      var sourceScene = SCENES[sceneId] || {};
+      if ((sourceScene.chapter || "") !== "c4") return nextId;
+      var pactEnding = String((st.flags && st.flags.deityPactEnding) || "").toLowerCase();
+      if (!pactEnding) return nextId;
+      st.flags.deityPactRerouteSource = nextId;
+      if (pactEnding === "lantern_herald") return "pact_mid_lantern";
+      if (pactEnding === "chain_bound") return "pact_mid_chain";
+      if (pactEnding === "oathbreaker") return "pact_mid_oathbreaker";
+      return nextId;
+    }
+
     if (safeOutcome && safeOutcome.next) {
-      st.sceneId = safeOutcome.next;
+      st.sceneId = routeDeityPactEpilogue(safeOutcome.next);
       const next = SCENES[st.sceneId];
       if (next) st.chapter = next.chapter;
     }

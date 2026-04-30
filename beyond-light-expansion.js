@@ -2439,7 +2439,7 @@
       <div class="sea-site">
         <div class="ss-title">${data.name}</div>
         <div class="ss-text">Built by ${data.builder}. Purpose: ${data.builtFor}. Entrance: ${data.entrance}. Rooms: ${data.rooms}.</div>
-        <div style="margin-top:.35rem;"><button class="btn btn-xs btn-primary" onclick="openSeaDungeon(${hex.col},${hex.row})">Generate Rooms</button></div>
+        <div style="margin-top:.35rem;"><button class="btn btn-xs btn-primary" onclick="requestJoinSeaArea('dungeon',${hex.col},${hex.row})">Join Area: Dungeon</button></div>
       </div>
     `;
   }
@@ -2572,18 +2572,45 @@
     return html;
   }
 
+  function openSeaAreaJoinPrompt(areaLabel, onJoin) {
+    if (typeof onJoin !== 'function') return;
+    if (typeof window.openCampaignAreaJoinPrompt === 'function') {
+      window.openCampaignAreaJoinPrompt(areaLabel, onJoin);
+      return;
+    }
+    onJoin();
+  }
+
+  function requestJoinSeaArea(areaType, col, row) {
+    var label = (String(areaType || '').toLowerCase() === 'dungeon') ? 'Sea Dungeon' : 'Sea Area';
+    openSeaAreaJoinPrompt(label, function () {
+      if (String(areaType || '').toLowerCase() === 'dungeon') openSeaDungeon(col, row);
+    });
+  }
+  window.requestJoinSeaArea = requestJoinSeaArea;
+
   function openSeaDungeon(col, row) {
     const hex = getSeaCell(col, row);
     const data = hex && hex.encounter && hex.encounter.type === "dungeon" ? hex.encounter.data : hex && hex.siteType === "dungeon" ? hex.siteData : null;
     if (!data) {
       return;
     }
+    const cs = (window.campaignSystem && typeof window.campaignSystem.getState === 'function') ? window.campaignSystem.getState() : null;
+    if (cs && cs.code && cs.role === 'player' && !Array.isArray(data.generatedRooms)) {
+      showNotif('Dungeon layout is waiting for GM sync. Ask GM to join this area first or request resync.', 'info');
+      return;
+    }
+    let generatedRooms = false;
+    if (!Array.isArray(data.generatedRooms)) {
+      data.generatedRooms = [];
+      generatedRooms = true;
+    }
     S.lastSea.activeDungeon = { col, row };
     // Sync Sea Region dungeon opening to campaign if available
     if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
       setTimeout(function() {
         try { 
-          window.campaignSystem.syncSharedSilent('sea-dungeon-opened'); 
+          window.campaignSystem.syncSharedSilent(generatedRooms ? 'sea-dungeon-generated' : 'sea-dungeon-opened'); 
         } catch (_err) {}
       }, 0);
     }

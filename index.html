@@ -1263,6 +1263,32 @@ const MONUMENT_EFFECTS=['Protected (Defend ↑ one Step)','Bolstered (Spirit/Lea
 // Pick from an array if array, else return the value directly (used by terrain descriptions)
 function pickTd(v){return Array.isArray(v)?pick(v):v;}
 
+function openCampaignAreaJoinPrompt(areaLabel, onJoin){
+  const label=String(areaLabel||'Area');
+  if(typeof onJoin!=='function')return;
+  if(!window._campaignJoinAreaCallbacks)window._campaignJoinAreaCallbacks={};
+  const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+  if(!cs||!cs.code||typeof openModal!=='function'){
+    onJoin();
+    return;
+  }
+  const cbId='cb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  window._campaignJoinAreaCallbacks[cbId]=function(){
+    try{onJoin();}finally{delete window._campaignJoinAreaCallbacks[cbId];}
+  };
+  const role=(cs.role==='gm')?'GM':'Player';
+  const html=''
+    +'<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+    +'You are about to enter <strong style="color:var(--gold2);">'+label+'</strong> in Campaign mode.<br>'
+    +'<span style="color:var(--muted2);">Role: '+role+'. Use Join Area to keep everyone on the same shared experience.</span>'
+    +'</div>'
+    +'<div style="margin-top:.65rem;display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
+    +'<button class="btn btn-sm btn-teal" onclick="closeModal();if(window._campaignJoinAreaCallbacks&&window._campaignJoinAreaCallbacks[\''+cbId+'\'])window._campaignJoinAreaCallbacks[\''+cbId+'\']();">Join Area</button>'
+    +'<button class="btn btn-sm" onclick="closeModal();">Cancel</button>'
+    +'</div>';
+  openModal('Join Area',html);
+}
+
 // Stable per-hex terrain text selector to avoid rerolling on every render/sync tick.
 function pickTdStable(v, hex, channel){
   if(!Array.isArray(v))return v;
@@ -4922,7 +4948,7 @@ function renderHexInfo(hex){
     const nomadKnowledge=getAdjacentHexKnowledge(hex.col,hex.row);
     html+=`<div class="npc-block"><div class="nb-label">🧭 Nomad's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Adjacent Landmarks & Events:</strong><br>${nomadKnowledge || 'No significant landmarks or events in nearby zones.'}</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
-      <button class="btn btn-sm btn-primary" onclick="generateDwellingRooms(${hex.col},${hex.row})">⚄ Generate Rooms</button>
+      <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('dwelling',${hex.col},${hex.row})">Join Area: Dwelling Rooms</button>
       <button class="btn btn-sm btn-teal" onclick="learnFromNomad(${hex.col},${hex.row},35)">🩹 Nomad Field Treatment (35₵)</button>
     </div>`;
     html+=`<div id="ruinRooms-${hex.col}-${hex.row}"></div>`;
@@ -4940,7 +4966,7 @@ function renderHexInfo(hex){
     const sageKnowledge=getSageKnowledge(hex.col,hex.row);
     html+=`<div class="npc-block"><div class="nb-label">📚 Sage's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Revealed Wisdom:</strong><br>${sageKnowledge}</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="learnFromSage(${hex.col},${hex.row},'50')">🙏 Consult Sage (50₵)</button></div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
-      <button class="btn btn-sm btn-primary" onclick="generateTempleRooms(${hex.col},${hex.row})">⚄ Generate Chambers</button>
+      <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('temple',${hex.col},${hex.row})">Join Area: Temple Chambers</button>
     </div>`;
     html+=`<div id="ruinRooms-${hex.col}-${hex.row}"></div>`;
 
@@ -4966,7 +4992,7 @@ function renderHexInfo(hex){
     </div>`;
     html+=`<div class="ruin-room"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);"><strong>Built by:</strong> ${d.builder||'Unknown'}<br><strong>Purpose:</strong> ${d.builtFor||'Unknown'}<br><strong>Construction:</strong> ${d.construction||'Stone'}<br><strong>Entrance:</strong> ${d.entrance||'Open'}<br><strong>Rooms:</strong> ${d.rooms||4} total<br><strong>Novelty:</strong> ${d.novelty||'None'}</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
-      <button class="btn btn-sm btn-primary" onclick="openProvinceRuinPopup(${hex.col},${hex.row})">⚄ Enter Ruins (Popup)</button>
+      <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('ruins',${hex.col},${hex.row})">Join Area: Ruins</button>
     </div>`;
 
   // ── EVENT ──
@@ -6141,38 +6167,69 @@ function generateRuinRooms(col,row){
 }
 
 function generateDwellingRooms(col,row){
-  // Dwellings use simple shelter-style rooms
-  const n=roll(3)+1;
-  let html='<div style="margin-top:.3rem;">';
-  const dwellRooms=['Common Room — low fire, smell of smoke and root stew. A handful of people look up without suspicion.','Storage Room — preserved goods, hanging tools, a corner that clearly serves as someone\'s bed.','Private Chamber — locked from the inside. Someone murmurs within.','Cellar — cool, dark, well-stocked. Someone dug deeper than necessary.','Shrine Corner — a small collection of icons, bones, and candles. Offerings left recently.','Workshop — half-finished work on every surface. The maker stepped away moments ago.'];
-  for(let i=0;i<n;i++){
-    html+=`<div class="room-block">
-      <div class="rb-title">Room ${i+1}</div>
-      <div class="rb-text">${pick(dwellRooms)}</div>
-    </div>`;
+  const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='dwelling'; });
+  if(!hex)return;
+  hex.data=hex.data||{};
+  const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+  if(cs&&cs.code&&cs.role==='player'&&!Array.isArray(hex.data.dwellingRooms)){
+    showNotif('Dwelling rooms are waiting for GM sync. Ask GM to join this area first or request resync.', 'info');
+    return;
   }
+  if(!Array.isArray(hex.data.dwellingRooms)){
+    const n=roll(3)+1;
+    const dwellRooms=['Common Room — low fire, smell of smoke and root stew. A handful of people look up without suspicion.','Storage Room — preserved goods, hanging tools, a corner that clearly serves as someone\'s bed.','Private Chamber — locked from the inside. Someone murmurs within.','Cellar — cool, dark, well-stocked. Someone dug deeper than necessary.','Shrine Corner — a small collection of icons, bones, and candles. Offerings left recently.','Workshop — half-finished work on every surface. The maker stepped away moments ago.'];
+    hex.data.dwellingRooms=[];
+    for(let i=0;i<n;i++)hex.data.dwellingRooms.push(String(pick(dwellRooms)||''));
+    syncProvinceRuinStateSoon('province-dwelling-generated');
+  }
+  let html='<div style="margin-top:.3rem;">';
+  hex.data.dwellingRooms.forEach(function(txt,i){
+    html+=`<div class="room-block"><div class="rb-title">Room ${i+1}</div><div class="rb-text">${txt}</div></div>`;
+  });
   html+='</div>';
   const el=document.getElementById(`ruinRooms-${col}-${row}`);
   if(el)el.innerHTML=html;
 }
 
 function generateTempleRooms(col,row){
-  const n=roll(3)+2;
-  let html='<div style="margin-top:.3rem;">';
-  html+=`<div class="room-block"><div class="rb-title">🚪 Entrance</div><div class="rb-text">${pick(['Great carved doors, sealed with prayer-marks. They open outward.','A low archway. Visitors must bow to enter.','An open colonnade. Nothing bars entry — that itself is a kind of warning.','A threshold of ash. You are expected to step over it, not on it.'])}</div></div>`;
-  for(let i=1;i<n;i++){
-    const ct=pick(TEMPLE_CHAMBER_TYPES);
-    const cd=TEMPLE_CHAMBER_DESC[TEMPLE_CHAMBER_TYPES.indexOf(ct)]||pick(TEMPLE_CHAMBER_DESC);
-    const hasGuardian=roll(6)>=5;
-    html+=`<div class="room-block">
-      <div class="rb-title">Chamber ${i} — ${ct}</div>
-      <div class="rb-text">${cd}</div>
-      ${hasGuardian?`<div style="color:var(--purple);font-size:.78rem;margin-top:.2rem;">⚠ Guardian: ${pick(TEMPLE_GUARDIAN_DESC)}</div>`:''}
-    </div>`;
+  const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='temple'; });
+  if(!hex)return;
+  hex.data=hex.data||{};
+  const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+  if(cs&&cs.code&&cs.role==='player'&&!Array.isArray(hex.data.templeChambers)){
+    showNotif('Temple chambers are waiting for GM sync. Ask GM to join this area first or request resync.', 'info');
+    return;
   }
+  if(!Array.isArray(hex.data.templeChambers)){
+    const n=roll(3)+2;
+    hex.data.templeChambers=[];
+    hex.data.templeEntrance=String(pick(['Great carved doors, sealed with prayer-marks. They open outward.','A low archway. Visitors must bow to enter.','An open colonnade. Nothing bars entry — that itself is a kind of warning.','A threshold of ash. You are expected to step over it, not on it.'])||'');
+    for(let i=1;i<n;i++){
+      const ct=pick(TEMPLE_CHAMBER_TYPES);
+      const cd=TEMPLE_CHAMBER_DESC[TEMPLE_CHAMBER_TYPES.indexOf(ct)]||pick(TEMPLE_CHAMBER_DESC);
+      const hasGuardian=roll(6)>=5;
+      hex.data.templeChambers.push({type:String(ct||'Chamber'),desc:String(cd||''),guardian:hasGuardian?String(pick(TEMPLE_GUARDIAN_DESC)||''):''});
+    }
+    syncProvinceRuinStateSoon('province-temple-generated');
+  }
+  let html='<div style="margin-top:.3rem;">';
+  html+=`<div class="room-block"><div class="rb-title">🚪 Entrance</div><div class="rb-text">${hex.data.templeEntrance||''}</div></div>`;
+  hex.data.templeChambers.forEach(function(chamber,i){
+    html+=`<div class="room-block"><div class="rb-title">Chamber ${i+1} — ${chamber.type||'Chamber'}</div><div class="rb-text">${chamber.desc||''}</div>${chamber.guardian?`<div style="color:var(--purple);font-size:.78rem;margin-top:.2rem;">⚠ Guardian: ${chamber.guardian}</div>`:''}</div>`;
+  });
   html+='</div>';
   const el=document.getElementById(`ruinRooms-${col}-${row}`);
   if(el)el.innerHTML=html;
+}
+
+function requestJoinProvinceArea(areaType,col,row){
+  const area=String(areaType||'').toLowerCase();
+  const labels={ruins:'Province Ruins',dwelling:'Dwelling Rooms',temple:'Temple Chambers'};
+  openCampaignAreaJoinPrompt(labels[area]||'Province Area',function(){
+    if(area==='ruins'){openProvinceRuinPopup(col,row);return;}
+    if(area==='dwelling'){generateDwellingRooms(col,row);return;}
+    if(area==='temple'){generateTempleRooms(col,row);return;}
+  });
 }
 
 function rollLostCityTravel(col,row){

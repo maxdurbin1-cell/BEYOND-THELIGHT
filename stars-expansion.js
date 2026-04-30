@@ -4068,6 +4068,12 @@ function openPlanetLostCityBuildingExploration() {
 }
 
 function generatePlanetRuinRooms(cellId) {
+  if (typeof window.openCampaignAreaJoinPrompt === 'function') {
+    window.openCampaignAreaJoinPrompt('Planet Ruins', function () {
+      openPlanetRuinPopup(cellId);
+    });
+    return;
+  }
   openPlanetRuinPopup(cellId);
 }
 
@@ -4090,6 +4096,12 @@ function openPlanetRuinPopup(cellId) {
   const cell = state.cells.find((entry) => entry.id === Number(cellId));
   if (!cell) return;
   cell.data = cell.data || {};
+  const campaignState = (window.campaignSystem && typeof window.campaignSystem.getState === 'function') ? window.campaignSystem.getState() : null;
+  if (campaignState && campaignState.code && campaignState.role === 'player' && (!Array.isArray(cell.data.ruinRooms) || !cell.data.ruinRooms.length)) {
+    showNotif('Planet ruin layout is waiting for GM sync. Ask GM to join this area first or request resync.', 'info');
+    return;
+  }
+  let generatedRooms = false;
   if (!Array.isArray(cell.data.ruinRooms) || !cell.data.ruinRooms.length) {
     const total = Math.max(3, Number((cell.data.ruin && cell.data.ruin.rooms) || (roll(4) + 2)) || 4);
     const midTypes = ['Lair', 'Obstacle', 'Trap', 'Puzzle', 'Secret Cache', 'Shrine Room', 'Empty', 'Empty'];
@@ -4099,7 +4111,9 @@ function openPlanetRuinPopup(cellId) {
     }
     rooms.push({ id: total, type: roll(2) === 1 ? 'Boss Chamber' : 'Secret Cache', cleared: false, result: '' });
     cell.data.ruinRooms = rooms;
+    generatedRooms = true;
   }
+  if (generatedRooms) syncCampaignSharedWorldSoon('planet-ruin-generated');
   const ruin = cell.data.ruin || {};
   const rooms = cell.data.ruinRooms;
   const cleared = rooms.filter((room) => !!room.cleared).length;
@@ -4145,6 +4159,7 @@ function resolvePlanetRuinRoom(cellId, roomId) {
     room.result = 'Entrance secured. The route deeper is now clear.';
     room.cleared = true;
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    syncCampaignSharedWorldSoon('planet-ruin-room');
     openPlanetRuinPopup(cellId);
     return;
   }
@@ -4178,6 +4193,7 @@ function resolvePlanetRuinRoom(cellId, roomId) {
     room.cleared = true;
     showNotif('Room ' + room.id + ' failed.', 'warn');
   }
+  syncCampaignSharedWorldSoon('planet-ruin-room');
   openPlanetRuinPopup(cellId);
 }
 

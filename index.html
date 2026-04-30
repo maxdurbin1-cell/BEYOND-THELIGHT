@@ -4403,10 +4403,34 @@ function markTradeRoutes(nodes){
   }
 }
 
-function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','600');svg.setAttribute('height','540');svg.innerHTML='<text x="300" y="260" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
+function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];provinceMapCoreSignature='';provinceMapSelectedKeyCache='';if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','600');svg.setAttribute('height','540');svg.innerHTML='<text x="300" y="260" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
 
 function cloneProvinceState(value){
   try{return JSON.parse(JSON.stringify(value));}catch(_err){return null;}
+}
+
+function getProvinceMapCoreSignature(payload){
+  const src=payload&&typeof payload==='object'?payload:{};
+  try{
+    return JSON.stringify({
+      mapData:src.mapData||[],
+      hexNotes:src.hexNotes||{},
+      usedPerils:Array.isArray(src.usedPerils)?src.usedPerils:[],
+      usedBarriers:Array.isArray(src.usedBarriers)?src.usedBarriers:[],
+      provinceSecretPadKey:typeof src.provinceSecretPadKey==='string'?src.provinceSecretPadKey:''
+    });
+  }catch(_err){
+    return '';
+  }
+}
+
+function resolveProvinceHexFromKey(key){
+  const val=String(key||'');
+  if(!val||!Array.isArray(mapData)||!mapData.length)return null;
+  const parts=val.split(',');
+  const sc=Number(parts[0]),sr=Number(parts[1]);
+  if(!Number.isFinite(sc)||!Number.isFinite(sr))return null;
+  return mapData.find(h=>h&&h.col===sc&&h.row===sr)||null;
 }
 
 function getProvinceMapState(){
@@ -4428,13 +4452,11 @@ function getProvinceSelectedKey(){
 function setProvinceSelectedKey(key){
   const val=String(key||'');
   if(!val||!Array.isArray(mapData)||!mapData.length)return false;
-  const parts=val.split(',');
-  const sc=Number(parts[0]),sr=Number(parts[1]);
-  if(!Number.isFinite(sc)||!Number.isFinite(sr))return false;
-  const next=mapData.find(h=>h&&h.col===sc&&h.row===sr)||null;
+  const next=resolveProvinceHexFromKey(val);
   if(!next)return false;
   if(selectedHex&&selectedHex.col===next.col&&selectedHex.row===next.row)return true;
   selectedHex=next;
+  provinceMapSelectedKeyCache=val;
   renderHexMap();
   renderHexInfo(next);
   return true;
@@ -4443,18 +4465,26 @@ function setProvinceSelectedKey(key){
 function applyProvinceMapState(payload,opts){
   const incoming=payload&&typeof payload==='object'?payload:null;
   if(!incoming||!Array.isArray(incoming.mapData)||!incoming.mapData.length)return;
+  const incomingCoreSignature=getProvinceMapCoreSignature(incoming);
+  const selectedKey=String(incoming.selectedKey||'');
+  const sameCore=incomingCoreSignature&&incomingCoreSignature===provinceMapCoreSignature;
+  if(sameCore){
+    if(selectedKey===provinceMapSelectedKeyCache)return;
+    selectedHex=resolveProvinceHexFromKey(selectedKey);
+    provinceMapSelectedKeyCache=selectedKey;
+    renderHexMap();
+    if(selectedHex)renderHexInfo(selectedHex);
+    else{const c=document.getElementById('hexInfo');if(c)c.innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Select a hex to inspect it.</div></div>';} 
+    return;
+  }
   mapData=cloneProvinceState(incoming.mapData)||[];
   hexNotes=cloneProvinceState(incoming.hexNotes||{})||{};
   usedPerils=Array.isArray(incoming.usedPerils)?incoming.usedPerils.slice():[];
   usedBarriers=Array.isArray(incoming.usedBarriers)?incoming.usedBarriers.slice():[];
-  selectedHex=null;
-  const selectedKey=String(incoming.selectedKey||'');
-  if(selectedKey){
-    const parts=selectedKey.split(',');
-    const sc=Number(parts[0]),sr=Number(parts[1]);
-    selectedHex=mapData.find(h=>h&&h.col===sc&&h.row===sr)||null;
-  }
+  selectedHex=resolveProvinceHexFromKey(selectedKey);
   if(S&&S.mapLinks&&typeof incoming.provinceSecretPadKey==='string'){S.mapLinks.provinceSecretPadKey=incoming.provinceSecretPadKey;}
+  provinceMapCoreSignature=incomingCoreSignature;
+  provinceMapSelectedKeyCache=selectedKey;
   renderHexMap();
   if(selectedHex)renderHexInfo(selectedHex);
   else{const c=document.getElementById('hexInfo');if(c)c.innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Select a hex to inspect it.</div></div>';}
@@ -4469,6 +4499,8 @@ const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling
 const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
 const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'◈',peril:'⚠',ruins:'◫',event:'✧',gate:'◆',lostcity:'⬡',trade:'═'};
 let selectedHex=null;
+let provinceMapCoreSignature='';
+let provinceMapSelectedKeyCache='';
 if (!Object.getOwnPropertyDescriptor(window, 'selectedHex')) {
   Object.defineProperty(window, 'selectedHex', {
     configurable: true,
@@ -4884,8 +4916,8 @@ function renderHexMap(){
         selectedHex=hex;
         renderHexMap();
         renderHexInfo(hex);
-        if(window.campaignSystem&&typeof window.campaignSystem.syncSharedSilent==='function'){
-          window.campaignSystem.syncSharedSilent('province-click');
+        if(window.campaignSystem&&typeof window.campaignSystem.syncProvinceFocus==='function'){
+          window.campaignSystem.syncProvinceFocus('province-click');
         }
       }catch(err){
         selectedHex=hex;

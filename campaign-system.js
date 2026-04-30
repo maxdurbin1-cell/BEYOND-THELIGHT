@@ -61,7 +61,10 @@
     activeRosterSheetToken: "",
     lastCampaignCombatPromptAt: 0,
     lastCampaignTravelAppliedAt: 0,
-    lastReadyCheckPromptId: ""
+    lastReadyCheckPromptId: "",
+    lastProvinceMapHash: "",
+    lastProvinceSelectionsHash: "",
+    lastProvinceFocusSyncAt: 0
   };
 
   var readyCheckCallbacks = {};
@@ -829,6 +832,14 @@
       : {};
   }
 
+  function safeJsonHash(value) {
+    try {
+      return JSON.stringify(value);
+    } catch (_err) {
+      return "";
+    }
+  }
+
   function getMutableCampaignSharedState() {
     if (!state.campaign || typeof state.campaign !== "object") return {};
     if (!state.campaign.shared || typeof state.campaign.shared !== "object") {
@@ -985,6 +996,8 @@
     var localWorldState = cloneClientLocalWorldState();
     var localSeaState = cloneClientLocalSeaState();
     var localProvinceState = cloneClientLocalProvinceState();
+    var nextProvinceSelectionsHash = safeJsonHash(sharedState.provinceSelections || {});
+    var provinceSelectionsChanged = nextProvinceSelectionsHash !== state.lastProvinceSelectionsHash;
 
     state.applyingSharedState = true;
     try {
@@ -1116,8 +1129,12 @@
         current.characterDice = deepCloneJson(sharedState.characterDice);
       }
       if (sharedState.provinceMap && typeof window.applyProvinceMapState === "function") {
-        window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
-        applyClientLocalProvinceState(localProvinceState);
+        var nextProvinceMapHash = safeJsonHash(sharedState.provinceMap);
+        if (nextProvinceMapHash !== state.lastProvinceMapHash) {
+          window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
+          state.lastProvinceMapHash = nextProvinceMapHash;
+          applyClientLocalProvinceState(localProvinceState);
+        }
       }
     } finally {
       state.applyingSharedState = false;
@@ -1134,7 +1151,7 @@
       try { window.renderSpaceEncounterPanel(); } catch (_err) {}
     }
     if (typeof window.renderWorldThatWas === "function") window.renderWorldThatWas();
-    if (typeof window.renderHexMap === "function") window.renderHexMap();
+    if (provinceSelectionsChanged && typeof window.renderHexMap === "function") window.renderHexMap();
     if (typeof window.renderCaravanUI === "function") {
       try { window.renderCaravanUI(); } catch (_err) {}
     }
@@ -1156,6 +1173,7 @@
 
     try {
       var shared = getCampaignSharedState();
+      state.lastProvinceSelectionsHash = safeJsonHash(shared && shared.provinceSelections ? shared.provinceSelections : {});
       if (shared && shared.readyCheck) {
         promptReadyCheckIfNeeded(shared.readyCheck);
         maybeResolveReadyCheck();
@@ -4176,6 +4194,49 @@
     safeNotif("Cleared player map cursors.", "good");
   }
 
+  async function syncProvinceFocus(reason) {
+    if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
+    var now = Date.now();
+    if (now - Number(state.lastProvinceFocusSyncAt || 0) < 220) {
+      return { ok: true, skipped: true };
+    }
+    var key = (typeof window.getProvinceSelectedKey === "function")
+      ? String(window.getProvinceSelectedKey() || "")
+      : "";
+    if (!key) return { ok: false, error: "No province selected." };
+
+    state.lastProvinceFocusSyncAt = now;
+    var patch = {};
+    if (state.token) {
+      patch.provinceSelections = {};
+      patch.provinceSelections[state.token] = {
+        key: key,
+        name: String(state.playerName || ensureName() || "Wayfarer"),
+        at: now
+      };
+    }
+
+    if (state.role === "gm") {
+      var shared = getCampaignSharedState();
+      var travel = shared && shared.campaignTravel && typeof shared.campaignTravel === "object"
+        ? deepCloneJson(shared.campaignTravel) || {}
+        : {};
+      travel.region = String(travel.region || "province");
+      travel.context = String(travel.context || "traveling");
+      travel.tab = "map";
+      travel.label = String(travel.label || "Province Map");
+      travel.provinceKey = key;
+      travel.movedBy = String(state.playerName || ensureName() || "GM");
+      travel.reason = String(reason || "province-focus");
+      travel.phaseCost = 0;
+      travel.updatedAt = now;
+      patch.campaignTravel = travel;
+    }
+
+    if (!Object.keys(patch).length) return { ok: false, error: "No focus patch available." };
+    return syncSharedPatch(patch, reason || "province-focus");
+  }
+
   async function toggleArchive() {
     if (!state.socket) {
       safeNotif("Only connected GM can change archive state.", "warn");
@@ -4693,6 +4754,7 @@
     applyGmEconomyAdjustment: applyGmEconomyAdjustment,
     forceAuthoritativeResync: forceAuthoritativeResync,
     clearProvinceSelections: clearProvinceSelections,
+    syncProvinceFocus: syncProvinceFocus,
     showOnboarding: showOnboarding,
     requestResync: requestResync,
     exportSnapshot: exportSnapshot,

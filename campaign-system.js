@@ -58,7 +58,8 @@
       code: "",
       joinPassword: ""
     },
-    activeRosterSheetToken: ""
+    activeRosterSheetToken: "",
+    lastCampaignCombatPromptAt: 0
   };
 
   var ROLE_ACTIONS = {
@@ -522,6 +523,8 @@
       completedMissions: deepCloneJson(window.S.completedMissions || []),
       availableJobs: deepCloneJson(window.S.availableJobs || []),
       storyline: deepCloneJson(window.S.storyline || {}),
+      holding: deepCloneJson(window.S.holding || {}),
+      caravan: deepCloneJson(window.S.caravan || {}),
       factionWayfarerTasks: deepCloneJson(window.S.factionWayfarerTasks || []),
       factionNarrative: deepCloneJson(window.S.factionNarrative || {}),
       factionRenown: deepCloneJson(window.S.factionRenown || {}),
@@ -634,6 +637,14 @@
         var current = getCampaignSharedState() || {};
         if (!current.campaignCombat) current.campaignCombat = {};
         Object.assign(current.campaignCombat, sharedState.campaignCombat);
+        var combatStartedAt = Number(current.campaignCombat.startedAt || 0);
+        if (current.campaignCombat.active && combatStartedAt && combatStartedAt !== state.lastCampaignCombatPromptAt) {
+          state.lastCampaignCombatPromptAt = combatStartedAt;
+          safeNotif("Campaign combat started. Enter the Combat tab to join initiative.", "warn");
+        }
+        if (!current.campaignCombat.active) {
+          state.lastCampaignCombatPromptAt = 0;
+        }
       }
       if (Array.isArray(sharedState.actionQueue)) {
         var current = getCampaignSharedState() || {};
@@ -732,6 +743,79 @@
     wrap("clearMap", "clear-province");
 
     window._campaignPatchedMapGenerationHooks = true;
+  }
+
+  function queueProgressSync(reason) {
+    if (!state.socket || !state.connected || !state.code) return;
+    var why = String(reason || "progress-update");
+    setTimeout(function () {
+      if (!state.socket || !state.connected || !state.code) return;
+      if (state.role === "player") {
+        syncPlayerSharedPatch(collectProgressSharedPatch(), why);
+      } else {
+        syncSharedState(why);
+      }
+    }, 0);
+  }
+
+  function patchSharedProgressHooks() {
+    function wrapFunction(fnName, reason) {
+      if (typeof window[fnName] !== "function") return;
+      var key = "_campaignWrappedProgress_" + fnName;
+      if (window[key]) return;
+      var original = window[fnName];
+      window[fnName] = function () {
+        var out = original.apply(this, arguments);
+        queueProgressSync(reason || fnName);
+        return out;
+      };
+      window[key] = true;
+    }
+
+    function wrapObjectMethod(obj, methodName, reason) {
+      if (!obj || typeof obj[methodName] !== "function") return;
+      var key = "_campaignWrappedProgressObj_" + methodName;
+      if (obj[key]) return;
+      var base = obj[methodName];
+      obj[methodName] = function () {
+        var out = base.apply(this, arguments);
+        queueProgressSync(reason || methodName);
+        return out;
+      };
+      obj[key] = true;
+    }
+
+    [
+      ["createMission", "mission-create"],
+      ["generateTaskForHex", "task-generate"],
+      ["completeTaskAtHex", "task-complete"],
+      ["completeRoyalTask", "royal-task-complete"],
+      ["resolveMission", "mission-resolve"],
+      ["resolveMissionOutcome", "mission-outcome"],
+      ["abandonMission", "mission-abandon"],
+      ["rollProvinceHoldingDowntime", "holding-downtime-roll"],
+      ["resolveProvinceHoldingDowntime", "holding-downtime-resolve"],
+      ["runStoryOption", "story-option"],
+      ["storyAcceptFail", "story-accept-fail"],
+      ["storySpendTeamwork", "story-spend-teamwork"],
+      ["storyPushLuck", "story-push-luck"],
+      ["resolveEventAction", "event-action"],
+      ["resolveEventLeadAction", "event-lead-action"],
+      ["completeEventChallenge", "event-complete"],
+      ["resolveProvinceMonsterCombatOutcome", "province-monster-outcome"]
+    ].forEach(function (entry) {
+      wrapFunction(entry[0], entry[1]);
+    });
+
+    if (window.factionSystem) {
+      wrapObjectMethod(window.factionSystem, "acceptMission", "faction-mission-accept");
+      wrapObjectMethod(window.factionSystem, "resolveMission", "faction-mission-resolve");
+      wrapObjectMethod(window.factionSystem, "resolveEvent", "faction-event-resolve");
+      wrapObjectMethod(window.factionSystem, "resolveMapTask", "faction-map-task");
+      wrapObjectMethod(window.factionSystem, "startMonsterTask", "faction-monster-start");
+      wrapObjectMethod(window.factionSystem, "finalizeMonsterTask", "faction-monster-finalize");
+    }
+
   }
 
   async function syncSharedNow() {
@@ -902,8 +986,8 @@
 
   // Start campaign combat: establish turn order based on initiative (adventure roll)
   function startCampaignCombat(participants, callback) {
-    if (!state.role || state.role !== "gm") {
-      if (callback) callback({ ok: false, error: "Only GM can start combat" });
+    if (!state.role) {
+      if (callback) callback({ ok: false, error: "Join a campaign first" });
       return;
     }
     try {
@@ -911,28 +995,67 @@
       combatState.active = true;
       combatState.round = 1;
       combatState.currentActorIndex = 0;
-      
-      // Build turn order: sort by adventure stat (higher = goes first)
-      var turnOrder = (Array.isArray(participants) ? participants : buildPartyRoster()).slice();
-      turnOrder.sort(function(a, b) {
+
+      // Build turn order: Wayfarers first (highest Adventure first), then enemies.
+      var roster = (Array.isArray(participants) ? participants : buildPartyRoster()).slice();
+      roster.sort(function(a, b) {
         var advA = Number((a.character && a.character.stats && a.character.stats.adventure) || 0);
         var advB = Number((b.character && b.character.stats && b.character.stats.adventure) || 0);
-        return advB - advA; // Descending: higher adventure first
+        return advB - advA;
       });
-      
-      combatState.turnOrder = turnOrder.map(function(p) { return p.token; });
-      combatState.participants = turnOrder.map(function(p) {
+
+      var enemyList = [];
+      if (typeof window.S !== "undefined" && window.S && Array.isArray(window.S.enemies)) {
+        window.S.enemies.forEach(function (enemy, idx) {
+          if (!enemy || enemy.ally) return;
+          var enemyName = String(enemy.name || ("Enemy " + (idx + 1)));
+          var baseToken = String(enemy.id != null ? enemy.id : ("enemy-" + idx));
+          enemyList.push({ token: "enemy:" + baseToken + ":turn1", name: enemyName + " (Turn 1)" });
+          enemyList.push({ token: "enemy:" + baseToken + ":turn2", name: enemyName + " (Turn 2)" });
+        });
+      }
+
+      combatState.turnOrder = roster.map(function (p) { return String(p.token || ""); }).filter(Boolean);
+      enemyList.forEach(function (enemy) {
+        combatState.turnOrder.push(enemy.token);
+      });
+
+      var wayfarers = roster.map(function(p) {
         return {
           token: p.token,
           name: p.character ? p.character.name : p.name,
           role: p.role || "player",
+          isEnemy: false,
           isDead: false,
           hasActed: false
         };
       });
 
+      var enemies = enemyList.map(function (enemy) {
+        return {
+          token: enemy.token,
+          name: enemy.name,
+          role: "enemy",
+          isEnemy: true,
+          isDead: false,
+          hasActed: false
+        };
+      });
+
+      combatState.participants = wayfarers.concat(enemies);
+      combatState.startedAt = Date.now();
+      combatState.startedBy = String(state.playerName || ensureName() || "Wayfarer");
+
       if (state.code && state.connected) {
-        syncSharedState("start-campaign-combat");
+        if (state.role === "player") {
+          syncPlayerSharedPatch({ campaignCombat: deepCloneJson(combatState) || {} }, "start-campaign-combat-player");
+        } else {
+          syncSharedState("start-campaign-combat");
+        }
+        broadcastRollResult(
+          "Campaign Combat",
+          "Initiative opened by " + combatState.startedBy + ". Wayfarers act first; each enemy acts twice per round."
+        );
       }
       if (callback) callback({ ok: true });
     } catch (err) {
@@ -3809,6 +3932,7 @@
     patchMentalStressHooks();
     patchSharedEconomyHooks();
     patchMapGenerationHooks();
+    patchSharedProgressHooks();
     refreshProgressHash();
     ensureSocket();
     window.addEventListener("resize", function () { syncDockOffset(); });
@@ -3831,6 +3955,33 @@
         return out;
       };
       window._campaignWrappedLoadCharacter = true;
+    }
+
+    if (typeof window.startCombat === "function" && !window._campaignWrappedStartCombat) {
+      var baseStartCombat = window.startCombat;
+      window.startCombat = function () {
+        var wasActive = !!(window.S && window.S.combat && window.S.combat.active);
+        var out = baseStartCombat.apply(this, arguments);
+        var isNowActive = !!(window.S && window.S.combat && window.S.combat.active);
+        if (!wasActive && isNowActive && state.code && state.connected) {
+          startCampaignCombat(null);
+        }
+        return out;
+      };
+      window._campaignWrappedStartCombat = true;
+    }
+
+    if (typeof window.endCombat === "function" && !window._campaignWrappedEndCombat) {
+      var baseEndCombat = window.endCombat;
+      window.endCombat = function () {
+        var out = baseEndCombat.apply(this, arguments);
+        var combatState = ensureCampaignCombatState();
+        if (combatState && combatState.active && state.code && state.connected) {
+          endCampaignCombat();
+        }
+        return out;
+      };
+      window._campaignWrappedEndCombat = true;
     }
 
     state.ready = true;
@@ -3868,6 +4019,7 @@
     patchMentalStressHooks();
     patchSharedEconomyHooks();
     patchMapGenerationHooks();
+    patchSharedProgressHooks();
     hydrateCampaignUIIfNeeded();
     var syncStateChanged = refreshSyncHealth();
     if (syncStateChanged) {

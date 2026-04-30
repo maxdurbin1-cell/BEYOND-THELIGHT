@@ -4905,7 +4905,7 @@ function renderHexInfo(hex){
     if(td.flora)html+=`<div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${pickTdStable(td.flora,hex,'flora')} ${pickTdStable(td.fauna,hex,'fauna')||''}</div></div>`;
     if(td.wonder)html+=`<div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${pickTdStable(td.wonder,hex,'wonder')}</div></div>`;
     html+=`<div class="hex-primary-actions"><button class="btn btn-sm btn-gold" onclick="if(typeof promiseWildernessExploration==='function')promiseWildernessExploration(${hex.col},${hex.row});">🔍 Observe Adjacent (Lead vs DD6)</button><button class="btn btn-sm btn-teal" onclick="rollHexEncounter(${hex.col},${hex.row})">⚄ Roll Encounter</button></div>`;
-    html+=`<div id="hexEnc-${hex.col}-${hex.row}"></div>`;
+    html+=`<div id="hexEnc-${hex.col}-${hex.row}">${d.lastEncounterHtml||''}</div>`;
     if(d.eventLead){
       const leadCid=`${hex.col}-${hex.row}`;
       html+=`<div class="npc-block" style="margin-top:.35rem;"><div class="nb-label">🕸 Event Lead — ${d.eventLead.eventName}</div><div style="font-size:.8rem;color:var(--muted3);">This hex contains clues tied to <strong style="color:var(--gold2);">${d.eventLead.eventName}</strong>. Roll an Approach check to reveal the next mystery.</div><label style="font-size:.72rem;color:var(--muted2);display:block;margin-top:.35rem;">Approach: <select id="leadStat-${leadCid}" style="width:100%;">${typeof buildApproachSelectHTML==='function'?buildApproachSelectHTML('lead'):'<option value="lead" selected>LEAD</option>'}</select></label><div style="margin-top:.35rem;"><button class="btn btn-sm btn-primary" onclick="resolveEventLeadAction(${hex.col},${hex.row})">⚄ Roll Lead Mystery Check</button></div><div id="lead-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
@@ -6007,6 +6007,12 @@ function rollHexEncounter(col,row){
     }else{
       const hexObj=mapData.find(h=>h.col===col&&h.row===row);
       html=`<div style="font-size:.82rem;color:var(--green2);padding:.3rem 0;">d6=${vr} — All Clear. Uneventful travel through the ${hexObj?.terrain?.name||'wilderness'}.</div>`;
+    }
+    const hexObjPersist=mapData.find(h=>h&&h.col===col&&h.row===row);
+    if(hexObjPersist){
+      hexObjPersist.data=hexObjPersist.data||{};
+      hexObjPersist.data.lastEncounterHtml=html;
+      syncProvinceRuinStateSoon('province-encounter-roll');
     }
     if(el){
       el.innerHTML=html;
@@ -7350,6 +7356,15 @@ document.addEventListener('DOMContentLoaded',()=>{
     });
   }
 
+  function getProvinceRuinBlockingPuzzleIndex(rooms){
+    if(!Array.isArray(rooms))return -1;
+    for(let i=0;i<rooms.length;i++){
+      const room=rooms[i];
+      if(room&&room.type==='Puzzle'&&!room.cleared)return i;
+    }
+    return -1;
+  }
+
   function getProvinceRuinTrapCharge(){
     ensureExplorationEffectState();
     return Math.max(0,Number(S.explorationEffects.revealTraps||0));
@@ -7397,14 +7412,16 @@ document.addEventListener('DOMContentLoaded',()=>{
           if(result==='partial'&&typeof changeStress==='function')changeStress(1);
           room.result=(result==='success'?'🧩 Solved':'🧩 Partial success')+' — '+rewardText+(result==='partial'?' · Take 1 Stress from backlash.':'');
           room.cleared=true;
+          room.failed=false;
           if(typeof addSuccessRoll==='function')addSuccessRoll();
         }else{
           if(typeof changeStress==='function')changeStress(2);
           if(S.conditions)S.conditions.distracted=true;
           if(typeof updateConditionButtons==='function')updateConditionButtons();
           if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-          room.result='🧩 Failed — runes flare, take 2 Stress, and become Distracted.';
-          room.cleared=true;
+          room.result='🧩 Failed — runes flare, take 2 Stress, and become Distracted. This room blocks progress until solved.';
+          room.cleared=false;
+          room.failed=true;
         }
         syncProvinceRuinStateSoon('province-ruin-puzzle');
         openProvinceRuinPopup(col,row);
@@ -7435,14 +7452,18 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     ensureProvinceRuinRoomState(hex);
     if(generatedRuinRooms)syncProvinceRuinStateSoon('province-ruin-generated');
+    const blockingPuzzleIdx=getProvinceRuinBlockingPuzzleIndex(hex.data.provinceRuinRooms);
     const rows=hex.data.provinceRuinRooms.map(function(room,i){
       const typeColor = room.type==='Boss Chamber'?'var(--red2)':room.type==='Secret Cache'?'var(--gold)':room.type==='Shrine Room'?'var(--purple)':room.type==='Puzzle'?'var(--teal)':'var(--text2)';
       const typeIcon = room.type==='Entrance'?'🚪':room.type==='Lair'?'👁':room.type==='Obstacle'?'⛰':room.type==='Trap'?'⚠':room.type==='Puzzle'?'🧩':room.type==='Secret Cache'?'🔍':room.type==='Boss Chamber'?'💀':room.type==='Shrine Room'?'✦':'◻';
       let roomDesc = room.description || buildProvinceRuinRoomDescription(hex,room);
       const dreadForRoom = room.type==='Boss Chamber'?12:room.type==='Horror'?10:room.type==='Trap'||room.type==='Obstacle'?6:8;
       const trapNote = room.type==='Trap'&&getProvinceRuinTrapCharge()>0?'<div style="font-size:.72rem;color:var(--gold2);margin-top:.2rem;">Reveal Traps is active: this trap will be exposed and disarmed.</div>':'';
+      const puzzleLocked = !room.cleared && blockingPuzzleIdx>=0 && i>blockingPuzzleIdx;
       const actionHtml = room.cleared
         ? '<div style="font-size:.7rem;color:var(--green);margin-top:.2rem;">✓ Cleared</div>'
+        : puzzleLocked
+          ? '<div style="font-size:.72rem;color:var(--red2);margin-top:.2rem;">🔒 Progress blocked by an unsolved puzzle in an earlier room.</div>'
         : room.type==='Puzzle'
           ? '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="startProvinceRuinPuzzle('+col+','+row+','+i+')">🧩 Solve Puzzle</button></div>'
           : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+i+')">⚄ Explore (Action vs DD'+dreadForRoom+')</button></div>';
@@ -7470,6 +7491,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
     if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms)||!hex.data.provinceRuinRooms[idx])return;
     ensureProvinceRuinRoomState(hex);
+    const blockingPuzzleIdx=getProvinceRuinBlockingPuzzleIndex(hex.data.provinceRuinRooms);
+    if(blockingPuzzleIdx>=0&&idx>blockingPuzzleIdx){
+      showNotif('Progress blocked: solve the earlier puzzle room first.', 'warn');
+      openProvinceRuinPopup(col,row);
+      return;
+    }
     const room=hex.data.provinceRuinRooms[idx];
     if(room.cleared)return;
     if(room.type==='Boss Chamber'){

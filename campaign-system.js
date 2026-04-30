@@ -399,14 +399,44 @@
       : {};
   }
 
+  function getMutableCampaignSharedState() {
+    if (!state.campaign || typeof state.campaign !== "object") return {};
+    if (!state.campaign.shared || typeof state.campaign.shared !== "object") {
+      state.campaign.shared = { state: {}, tmw: 0, stateVersion: 0 };
+    }
+    if (!state.campaign.shared.state || typeof state.campaign.shared.state !== "object") {
+      state.campaign.shared.state = {};
+    }
+    return state.campaign.shared.state;
+  }
+
+  function normalizeItemLabel(value) {
+    if (typeof value === "string") {
+      var txt = value.trim();
+      return txt || "Item";
+    }
+    if (value && typeof value === "object") {
+      var named = String(value.name || value.label || "").trim();
+      if (named) return named;
+      try {
+        var raw = JSON.stringify(value);
+        return raw && raw !== "{}" ? raw.slice(0, 80) : "Item";
+      } catch (_err) {
+        return "Item";
+      }
+    }
+    var fallback = String(value || "").trim();
+    return fallback || "Item";
+  }
+
   function normalizeBackpackItems(items) {
     if (!Array.isArray(items)) return [];
-    return items.map(function (entry) { return String(entry || "").trim(); }).filter(Boolean).slice(0, 20);
+    return items.map(function (entry) { return normalizeItemLabel(entry); }).filter(Boolean).slice(0, 20);
   }
 
   function addItemToBackpack(itemName) {
     if (typeof window.S === "undefined" || !window.S) return false;
-    var item = String(itemName || "").trim();
+    var item = normalizeItemLabel(itemName);
     if (!item) return false;
     if (!Array.isArray(window.S.backpack)) {
       window.S.backpack = Array(10).fill("");
@@ -786,7 +816,7 @@
 
   // Initialize or get default campaign combat state
   function ensureCampaignCombatState(sharedState) {
-    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
     if (!sharedState.campaignCombat) {
       sharedState.campaignCombat = {
         active: false,
@@ -801,7 +831,7 @@
 
   // Get or initialize GM settings (gmMode, visibility, etc)
   function ensureGmSettings(sharedState) {
-    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
     if (!sharedState.gmSettings) {
       sharedState.gmSettings = {
         mode: "passive", // "passive" | "active" | "facilitative"
@@ -1045,11 +1075,51 @@
 
   // Initialize or get action queue
   function ensureActionQueue(sharedState) {
-    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
     if (!sharedState.actionQueue || !Array.isArray(sharedState.actionQueue)) {
       sharedState.actionQueue = [];
     }
     return sharedState.actionQueue;
+  }
+
+  async function syncPlayerSharedPatch(patch, reason) {
+    if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
+    if (!patch || typeof patch !== "object") return { ok: false, error: "Invalid patch." };
+    var gmSettings = ensureGmSettings();
+    if (String(gmSettings.mode || "passive") === "active") {
+      var queue = ensureActionQueue();
+      queue.push({
+        id: String(Math.random()).slice(2, 10),
+        token: state.token,
+        playerName: state.playerName || ensureName(),
+        type: "player-patch",
+        data: {
+          patch: deepCloneJson(patch) || {},
+          reason: String(reason || "player-patch")
+        },
+        submittedAt: Date.now(),
+        status: "pending"
+      });
+      var queued = await emitWithAck("campaign:syncState", {
+        state: { actionQueue: queue },
+        reason: "queue-player-patch"
+      });
+      if (!queued || !queued.ok) {
+        safeNotif((queued && queued.error) || "Could not queue update for GM approval.", "warn");
+        return queued || { ok: false };
+      }
+      safeNotif("Action queued for GM approval.", "info");
+      return queued;
+    }
+    var out = await emitWithAck("campaign:syncState", {
+      state: patch,
+      reason: reason || "player-patch"
+    });
+    if (!out || !out.ok) {
+      safeNotif((out && out.error) || "Could not sync player update.", "warn");
+      return out || { ok: false };
+    }
+    return out;
   }
 
   // Player submits action (add to queue for GM approval if in active mode)
@@ -1082,7 +1152,14 @@
       }
 
       if (state.code && state.connected) {
-        syncSharedState("player-action-submit");
+        if (state.role === "player") {
+          emitWithAck("campaign:syncState", {
+            state: { actionQueue: queue },
+            reason: "player-action-submit"
+          });
+        } else {
+          syncSharedState("player-action-submit");
+        }
       }
       if (callback) callback({ ok: true, actionId: action.id });
     } catch (err) {
@@ -1096,6 +1173,14 @@
     
     // Action execution hooks - extend based on game systems
     switch (String(action.type)) {
+      case "player-patch":
+        if (action.data && action.data.patch && typeof action.data.patch === "object") {
+          var current = getMutableCampaignSharedState();
+          Object.keys(action.data.patch).forEach(function (k) {
+            current[k] = deepCloneJson(action.data.patch[k]);
+          });
+        }
+        break;
       case "use-item":
         // Example: action.data = { itemIndex: number }
         break;
@@ -1135,6 +1220,7 @@
       
       executePlayerAction(action);
       action.status = "executed";
+      queue.splice(actionIndex, 1);
 
       if (state.code && state.connected) {
         syncSharedState("gm-approve-action");
@@ -1224,7 +1310,7 @@
 
   // Initialize per-character inventories
   function ensureCharacterInventories(sharedState) {
-    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
     if (!sharedState.characterInventories || typeof sharedState.characterInventories !== "object") {
       sharedState.characterInventories = {};
     }
@@ -1243,10 +1329,14 @@
         inventories[token] = [];
       }
       
-      inventories[token].push(String(item || "").trim());
+      inventories[token].push(normalizeItemLabel(item));
       
       if (state.code && state.connected) {
-        syncSharedState("char-inventory-add");
+        if (state.role === "player") {
+          syncPlayerSharedPatch({ characterInventories: getMutableCampaignSharedState().characterInventories }, "char-inventory-add");
+        } else {
+          syncSharedState("char-inventory-add");
+        }
       }
       if (callback) callback({ ok: true });
     } catch (err) {
@@ -1275,7 +1365,11 @@
       inventories[token].splice(itemIndex, 1);
       
       if (state.code && state.connected) {
-        syncSharedState("char-inventory-remove");
+        if (state.role === "player") {
+          syncPlayerSharedPatch({ characterInventories: getMutableCampaignSharedState().characterInventories }, "char-inventory-remove");
+        } else {
+          syncSharedState("char-inventory-remove");
+        }
       }
       if (callback) callback({ ok: true });
     } catch (err) {
@@ -1305,7 +1399,7 @@
 
   // Initialize death/incapacitation state
   function ensureCharacterDeathStates(sharedState) {
-    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
     if (!sharedState.characterDeathStates || typeof sharedState.characterDeathStates !== "object") {
       sharedState.characterDeathStates = {};
     }
@@ -1375,7 +1469,7 @@
 
   // Initialize contested rolls
   function ensureContestedRolls(sharedState) {
-    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
     if (!Array.isArray(sharedState.contestedRolls)) {
       sharedState.contestedRolls = [];
     }
@@ -1460,7 +1554,11 @@
       }
 
       if (state.code && state.connected) {
-        syncSharedState("contested-roll-submit");
+        if (state.role === "player") {
+          syncPlayerSharedPatch({ contestedRolls: rolls }, "contested-roll-submit");
+        } else {
+          syncSharedState("contested-roll-submit");
+        }
       }
       if (callback) callback({ ok: true });
     } catch (err) {
@@ -1481,7 +1579,7 @@
 
   // Initialize character dice (for dice visibility & turn order)
   function ensureCharacterDice(sharedState) {
-    if (!sharedState) sharedState = getCampaignSharedState() || {};
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
     if (!sharedState.characterDice || typeof sharedState.characterDice !== "object") {
       sharedState.characterDice = {};
     }
@@ -1510,7 +1608,11 @@
       };
 
       if (state.code && state.connected) {
-        syncSharedState("set-character-dice");
+        if (state.role === "player") {
+          syncPlayerSharedPatch({ characterDice: dice }, "set-character-dice");
+        } else {
+          syncSharedState("set-character-dice");
+        }
       }
       if (callback) callback({ ok: true });
     } catch (err) {
@@ -1902,7 +2004,7 @@
       return;
     }
     var idx = Math.max(0, Number(slotIndex || 0));
-    var item = String(window.S.backpack[idx] || "").trim();
+    var item = normalizeItemLabel(window.S.backpack[idx]);
     if (!item) {
       safeNotif("That backpack slot is empty.", "warn");
       return;
@@ -1928,7 +2030,7 @@
     var list = Array.isArray(shared.partyStash) ? shared.partyStash.slice() : [];
     var idx = Math.max(0, Number(stashIndex || 0));
     // Capture item name locally before the server removes it from the stash.
-    var localItem = String(list[idx] || "").trim();
+    var localItem = normalizeItemLabel(list[idx]);
     if (!localItem) {
       safeNotif("That party stash item is no longer available.", "warn");
       return;
@@ -1940,7 +2042,7 @@
     }
     // Prefer server-confirmed item name; fall back to the locally-read value so the
     // slot text is never blank even if the server ack arrives before the state snapshot.
-    var claimedItem = String((res && res.item && String(res.item).trim()) || localItem).trim();
+    var claimedItem = normalizeItemLabel((res && res.item) || localItem);
     if (!claimedItem) {
       safeNotif("Claimed item, but item name was empty. Check your backpack.", "warn");
       return;
@@ -2058,9 +2160,13 @@
 
   function filterTimeline(log) {
     var source = Array.isArray(log) ? log : [];
+    function isTriggerDebug(entry) {
+      var text = String(entry && entry.text || "");
+      return text.indexOf("GM Trigger Debug") >= 0 || text.indexOf("Trigger:") >= 0 || text.indexOf("hex-enter") >= 0;
+    }
     if (state.role !== "gm") return source;
     var mode = String(state.timelineFilter || "all");
-    if (mode === "all") return source;
+    if (mode === "all") return source.filter(function (entry) { return !isTriggerDebug(entry); });
     if (mode === "chat") {
       return source.filter(function (entry) { return String(entry && entry.kind || "") === "chat"; });
     }
@@ -2073,10 +2179,10 @@
     if (mode === "system") {
       return source.filter(function (entry) {
         var k = String(entry && entry.kind || "");
-        return k === "system" || k === "tmw" || k === "note";
+        return (k === "system" || k === "tmw" || k === "note") && !isTriggerDebug(entry);
       });
     }
-    return source;
+    return source.filter(function (entry) { return !isTriggerDebug(entry); });
   }
 
   function ensureSettingsSection() {
@@ -2541,10 +2647,10 @@
       + '<div class="campaign-card-title">Party Backpack Sharing (Party Stash)</div>'
       + '<div class="campaign-muted">Share items from your backpack to a shared pool, then claim them on any wayfarer. Roster buttons copy visible items into your backpack first.</div>'
         + '<div class="campaign-muted" style="margin-top:.28rem;">Your backpack: ' + (localBackpackSlots.length ? localBackpackSlots.map(function (entry) {
-          return '<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.shareBackpackItem(' + entry.idx + ')">Share ' + escapeHtml(entry.item) + '</button>';
+          return '<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.shareBackpackItem(' + entry.idx + ')">Share ' + escapeHtml(normalizeItemLabel(entry.item)) + '</button>';
         }).join('') : 'No items') + '</div>'
       + '<div class="campaign-muted" style="margin-top:.28rem;">Party pool: ' + (partyStash.length ? partyStash.map(function (item, i) {
-          return '<button class="btn btn-xs btn-teal" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.claimSharedItem(' + i + ')">Take ' + escapeHtml(item) + '</button>';
+          return '<button class="btn btn-xs btn-teal" style="margin:0 .2rem .2rem 0;" onclick="window.campaignSystem.claimSharedItem(' + i + ')">Take ' + escapeHtml(normalizeItemLabel(item)) + '</button>';
         }).join('') : 'No shared items yet') + '</div>'
       + '</div>'
       + '<div class="campaign-card">'
@@ -2565,6 +2671,76 @@
       + "</div>";
 
     bindDraftInputs();
+    applyGmCompactLayout();
+  }
+
+  function applyGmCompactLayout() {
+    if (state.role !== "gm") return;
+    var section = document.getElementById("campaignSettingsSection");
+    if (!section) return;
+    if (section.querySelector("#campaignCompactGroups")) return;
+
+    var cards = Array.prototype.slice.call(section.querySelectorAll(".campaign-card"));
+    if (!cards.length) return;
+
+    var advancedTitles = {
+      "GM Campaign Debug": true,
+      "GM Campaign Controls": true,
+      "GM Economy Controls & Audit": true,
+      "Recent Log": true,
+      "Shared Economy Ledger": true,
+      "Phase 3: Contested Rolls": true,
+      "Phase 3: Death & Incapacitation": true,
+      "Phase 3: Character Dice Visibility": true,
+      "Phase 2: Character Inventories": true
+    };
+    var systemsTitles = {
+      "Phase 1: Campaign Combat & Travel": true,
+      "Phase 2: Party Status Dashboard": true,
+      "Phase 2: Action Queue (Active Mode)": true,
+      "Party Roster (All Players)": true,
+      "Campaign Wayfarers": true,
+      "Online Members": true
+    };
+
+    var advanced = [];
+    var systems = [];
+    cards.forEach(function (card) {
+      var titleEl = card.querySelector(".campaign-card-title");
+      var title = titleEl ? String(titleEl.textContent || "").trim() : "";
+      if (advancedTitles[title]) advanced.push(card);
+      else if (systemsTitles[title]) systems.push(card);
+    });
+
+    function buildGroup(id, summaryText, items, openByDefault) {
+      if (!items.length) return null;
+      var wrapper = document.createElement("details");
+      wrapper.id = id;
+      wrapper.className = "campaign-card";
+      if (openByDefault) wrapper.open = true;
+      var summary = document.createElement("summary");
+      summary.className = "campaign-card-title";
+      summary.style.cursor = "pointer";
+      summary.textContent = summaryText;
+      wrapper.appendChild(summary);
+      items.forEach(function (item) { wrapper.appendChild(item); });
+      return wrapper;
+    }
+
+    var host = document.createElement("div");
+    host.id = "campaignCompactGroups";
+    var systemsGroup = buildGroup("campaignSystemsGroup", "Campaign Systems (Play)", systems, true);
+    var advancedGroup = buildGroup("campaignAdvancedGroup", "Advanced GM Tools (Debug/Admin)", advanced, false);
+    if (systemsGroup) host.appendChild(systemsGroup);
+    if (advancedGroup) host.appendChild(advancedGroup);
+    if (!host.childNodes.length) return;
+
+    var insertionAnchor = section.querySelector(".campaign-card");
+    if (insertionAnchor) {
+      insertionAnchor.parentNode.insertBefore(host, insertionAnchor.nextSibling);
+    } else {
+      section.appendChild(host);
+    }
   }
 
   function ensureDockPanel() {
@@ -2584,6 +2760,7 @@
       + '<div id="campaignDockMeta" class="campaign-dock-meta">No campaign connected.</div>'
       + '<div id="campaignDockRoll" class="campaign-dock-roll"></div>'
       + '<div id="campaignDockFilters" class="campaign-dock-filters"></div>'
+      + '<div id="campaignDockTrigger" class="campaign-dock-roll"></div>'
       + '<div id="campaignDockTimeline" class="campaign-dock-timeline"></div>'
       + '<div class="campaign-dock-chat">'
       + '<input id="campaignDockChatInput" class="campaign-dock-input" type="text" maxlength="500" placeholder="Type campaign chat...">'
@@ -2617,6 +2794,7 @@
     var timeline = document.getElementById("campaignDockTimeline");
     var roll = document.getElementById("campaignDockRoll");
     var filters = document.getElementById("campaignDockFilters");
+    var trigger = document.getElementById("campaignDockTrigger");
 
     if (badge) {
       var hasConflicts = Number(state.syncConflictCount || 0) > 0;
@@ -2671,6 +2849,25 @@
         }).join("");
       } else {
         filters.innerHTML = "";
+      }
+    }
+
+    if (trigger) {
+      var allLog = campaign && Array.isArray(campaign.log) ? campaign.log : [];
+      var triggerRows = allLog.filter(function (entry) {
+        var text = String(entry && entry.text || "");
+        return text.indexOf("GM Trigger Debug") >= 0 || text.indexOf("Trigger:") >= 0 || text.indexOf("hex-enter") >= 0;
+      });
+      if (state.role === "gm" && triggerRows.length) {
+        var latest = triggerRows[triggerRows.length - 1] || {};
+        trigger.innerHTML = ''
+          + '<div class="campaign-dock-roll-line">'
+          + '<span><strong>GM Trigger Debug</strong></span>'
+          + '<span>' + escapeHtml(formatTimestamp(latest.at)) + '</span>'
+          + '</div>'
+          + '<div class="campaign-dock-empty" style="text-align:left;">' + escapeHtml(String(latest.text || "No trigger details.")) + '</div>';
+      } else {
+        trigger.innerHTML = "";
       }
     }
 

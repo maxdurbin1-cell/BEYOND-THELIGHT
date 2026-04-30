@@ -2635,6 +2635,11 @@
       S.naval.pendingLook = look;
     }
     renderNaval();
+    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {
+      setTimeout(function () {
+        try { window.campaignSystem.syncSharedSilent("naval-ship-identity"); } catch (_err) {}
+      }, 0);
+    }
   }
 
   function createShipFromClass(className) {

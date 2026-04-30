@@ -60,7 +60,6 @@ const PLAYER_PATCH_ALLOWED_KEYS = {
   factionNarrative: true,
   factionRenown: true,
   factionBases: true,
-  provinceMap: true,
   provinceSelections: true,
   partyStash: true,
   characterInventories: true,

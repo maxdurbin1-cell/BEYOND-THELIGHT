@@ -5963,6 +5963,8 @@ window.rollProvinceHoldingDowntime=rollProvinceHoldingDowntime;
 window.resolveProvinceHoldingDowntime=resolveProvinceHoldingDowntime;
 
 function rollHexEncounter(col,row){
+  if(window.campaignSystem&&typeof window.campaignSystem.guardSharedWorldMutation==='function'&&
+     !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared Province encounters in Campaign mode.'))return;
   let el=document.getElementById(`hexEnc-${col}-${row}`);
   if(!el&&selectedHex&&selectedHex.col===col&&selectedHex.row===row){
     renderHexInfo(selectedHex);
@@ -6091,6 +6093,8 @@ function rollHexEncounter(col,row){
 }
 
 function rollTradeRouteEncounter(col,row){
+  if(window.campaignSystem&&typeof window.campaignSystem.guardSharedWorldMutation==='function'&&
+     !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared Trade Route encounters in Campaign mode.'))return;
   try{
     const targetHex=(typeof col==='number'&&typeof row==='number')
       ? mapData.find(h=>h&&h.col===col&&h.row===row)
@@ -7431,6 +7435,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!window.campaignSystem||typeof window.campaignSystem.getState!=='function'||typeof window.campaignSystem.syncSharedPatch!=='function'||typeof window.getProvinceMapState!=='function')return;
     const cs=window.campaignSystem.getState();
     if(!cs||!cs.code)return;
+    if(cs.role!=='gm')return;
     setTimeout(function(){
       try{window.campaignSystem.syncSharedPatch({provinceMap:window.getProvinceMapState()},reason||'province-ruin');}catch(_err){}
     },0);

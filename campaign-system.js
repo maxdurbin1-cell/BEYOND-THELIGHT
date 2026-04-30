@@ -105,7 +105,6 @@
     factionNarrative: true,
     factionRenown: true,
     factionBases: true,
-    provinceMap: true,
     provinceSelections: true,
     partyStash: true,
     characterInventories: true,
@@ -357,6 +356,22 @@
     };
   }
 
+  function cloneClientLocalProvinceState() {
+    var key = "";
+    if (typeof window.getProvinceSelectedKey === "function") {
+      try { key = String(window.getProvinceSelectedKey() || ""); } catch (_err) { key = ""; }
+    }
+    return {
+      selectedKey: key
+    };
+  }
+
+  function applyClientLocalProvinceState(snapshot) {
+    if (!snapshot || !snapshot.selectedKey) return;
+    if (typeof window.setProvinceSelectedKey !== "function") return;
+    try { window.setProvinceSelectedKey(String(snapshot.selectedKey || "")); } catch (_err) {}
+  }
+
   function applyClientLocalSeaState(snapshot) {
     if (!snapshot || typeof window.S === "undefined" || !window.S || !window.S.lastSea || typeof window.S.lastSea !== "object") return;
     if (snapshot.selectedKey) window.S.lastSea.selectedKey = snapshot.selectedKey;
@@ -370,7 +385,8 @@
     if (!travel) return;
     var options = opts || {};
     var travelAt = Number(travel.updatedAt || 0) || 0;
-    if (!options.force && travelAt && travelAt === state.lastCampaignTravelAppliedAt) return;
+    if (!options.force && !travelAt) return;
+    if (!options.force && travelAt && travelAt <= Number(state.lastCampaignTravelAppliedAt || 0)) return;
 
     var context = String(travel.context || "");
     var tab = String(travel.tab || "");
@@ -968,6 +984,7 @@
     var localStarState = cloneClientLocalStarState();
     var localWorldState = cloneClientLocalWorldState();
     var localSeaState = cloneClientLocalSeaState();
+    var localProvinceState = cloneClientLocalProvinceState();
 
     state.applyingSharedState = true;
     try {
@@ -1100,6 +1117,7 @@
       }
       if (sharedState.provinceMap && typeof window.applyProvinceMapState === "function") {
         window.applyProvinceMapState(sharedState.provinceMap, { skipSync: true });
+        applyClientLocalProvinceState(localProvinceState);
       }
     } finally {
       state.applyingSharedState = false;

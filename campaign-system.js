@@ -1311,7 +1311,14 @@
       return { ok: false };
     }
     if (state.syncInFlight) {
-      return { ok: false, error: "Sync already in flight." };
+      var waited = 0;
+      while (state.syncInFlight && waited < 2000) {
+        await new Promise(function (resolve) { setTimeout(resolve, 40); });
+        waited += 40;
+      }
+      if (state.syncInFlight) {
+        return { ok: false, error: "Sync already in flight." };
+      }
     }
     state.syncInFlight = true;
     state.pendingSyncCount = Math.max(0, Number(state.pendingSyncCount || 0)) + 1;

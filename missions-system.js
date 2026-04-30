@@ -632,10 +632,13 @@
     });
     if (!expired.length) return 0;
     _missionExpiryGuard = true;
-    expired.forEach(function(mission) {
-      resolveMission(mission.id, false, { expired: true, reason: reason || 'deadline-expired' });
-    });
-    _missionExpiryGuard = false;
+    try {
+      expired.forEach(function(mission) {
+        resolveMission(mission.id, false, { expired: true, reason: reason || 'deadline-expired' });
+      });
+    } finally {
+      _missionExpiryGuard = false;
+    }
     return expired.length;
   }
 
@@ -1364,7 +1367,10 @@
       return;
     }
     container.innerHTML=holdingTrackerHtml + S.activeMissions.map(function(mission){
+      ensureMissionDeadline(mission);
       var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);
+      var daysLeft = getMissionDaysRemaining(mission);
+      var deadlineTone = daysLeft <= 3 ? 'var(--red2)' : (daysLeft <= 7 ? 'var(--gold2)' : 'var(--muted2)');
       var s1=mission.steps[1],s2=mission.steps[2],s3=mission.steps[3];
       var stepLabels={
         1:(mission.steps[1]&&mission.steps[1].name)||'Gather Information',
@@ -1401,6 +1407,7 @@
             +'<div style="font-size:.7rem;color:'+dc+';">'+diff.name+' \u00B7 '+ddSummary+' \u00B7 '+mission.location+'</div>'
             +(mission.region==='galaxy'&&mission.planetName?'<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">🌍 Planet Route: '+mission.planetName+'</div>':'')
             +'<div style="font-size:.66rem;color:var(--teal);margin-top:.12rem;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
+            +'<div style="font-size:.66rem;color:'+deadlineTone+';margin-top:.08rem;">Deadline: '+(daysLeft >= 0 ? (daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left') : 'Expired')+'</div>'
             +(badges?'<div style="margin-top:.2rem;">'+badges+'</div>':'')
             +(Array.isArray(mission.checkpoints)&&mission.checkpoints.length&&shouldRevealHiddenInfo()?('<div style="margin-top:.18rem;font-size:.66rem;color:var(--muted2);">Checkpoints: '+mission.checkpoints.join(' \u00B7 ')+'</div>'):'')
           +'</div>'
@@ -1536,6 +1543,7 @@
   window.resolveMissionOutcome=resolveMissionOutcome;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;
   window.createMission=createMission;
+  window.autoFailExpiredMissions=autoFailExpiredMissions;
   window.adjustMissionDread=adjustMissionDread;
   window.createOriginMissionFromReason=createOriginMissionFromReason;
   window.completeMissionStep=function(missionId,stepId){

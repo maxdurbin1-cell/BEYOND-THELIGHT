@@ -3781,6 +3781,28 @@
     resolveStoryOption(sceneId, option, null, decisionMeta);
   }
 
+  function forceStoryFallbackRoute() {
+    const st = ensureStoryState();
+    if (!st) return;
+    const currentSceneId = st.sceneId;
+    const fallback = chapterFallbackScene(currentSceneId);
+    const nextSceneId = (fallback && fallback !== currentSceneId && SCENES[fallback])
+      ? fallback
+      : (SCENES.intro ? "intro" : currentSceneId);
+
+    st.sceneId = nextSceneId;
+    if (SCENES[nextSceneId] && SCENES[nextSceneId].chapter) {
+      st.chapter = SCENES[nextSceneId].chapter;
+    }
+    st.lastResult = "Every obvious route was blocked, so you carve a new lead and keep moving.";
+    pushLog("Deadlock fallback route engaged: " + currentSceneId + " -> " + nextSceneId);
+
+    if (typeof showNotif === "function") {
+      showNotif("Storyline deadlock resolved. A fallback route opened.", "warn");
+    }
+    renderStorylinePanel();
+  }
+
   function wheelOptionPosition(index, total) {
     var count = Math.max(1, Number(total || 1));
     var step = (Math.PI * 2) / count;
@@ -4229,7 +4251,9 @@
     const gmFrame = "Frame this as " + (STORY_SCENE_TYPES[primarySceneType(scene)] || "Social")
       + ": escalate stakes, let the party choose approach, then lock in a visible consequence.";
 
-    const options = (scene.options || []).map(function (option) {
+    const sceneOptions = scene.options || [];
+    const unlockedCount = sceneOptions.filter(function (option) { return hasReq(option.req); }).length;
+    const options = sceneOptions.map(function (option) {
       const unlocked = hasReq(option.req);
       const reqText = renderRequirement(option.req);
       const assign = getDecisionAssignment(st.sceneId, option.id);
@@ -4290,7 +4314,16 @@
         + (option.combat ? ("<button class='btn btn-sm btn-teal' " + (unlocked ? ("onclick='runStoryOption(\"" + st.sceneId + "\",\"" + option.id + "\",\"talk\")'") : "disabled") + ">Talk It Out (Lead)</button>") : "")
         + "</div>"
       + "</div>";
-    }).join("");
+      }).join("")
+        + (unlockedCount ? "" : (
+          "<div class='story-opt' style='border-color:rgba(240,160,80,.45);background:rgba(240,160,80,.07);'>"
+            + "<div class='story-opt-text'>No available options in this scene.</div>"
+            + "<div class='story-opt-req'>All listed choices are currently locked by requirements. Use fallback to avoid a story dead-end.</div>"
+            + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;'>"
+              + "<button class='btn btn-sm btn-teal' onclick='storyForceFallbackRoute()'>Force Fallback Route</button>"
+            + "</div>"
+          + "</div>"
+        ));
 
     const usedStats = Object.keys(STAT_LABELS).filter(function (k) {
       return st.usedStats.indexOf(k) >= 0;
@@ -4498,6 +4531,7 @@
   window.storySetAssignee = storySetAssignee;
   window.storySetDecisionRole = storySetDecisionRole;
   window.storyOpenDialogueWheel = openStoryDialogueWheel;
+  window.storyForceFallbackRoute = forceStoryFallbackRoute;
   window.storyWheelMove = storyWheelMove;
   window.storyWheelMoveDirectional = storyWheelMoveDirectional;
   window.storyWheelConfirm = storyWheelConfirm;

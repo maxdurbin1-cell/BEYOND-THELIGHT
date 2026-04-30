@@ -64,7 +64,12 @@
     lastReadyCheckPromptId: "",
     lastProvinceMapHash: "",
     lastProvinceSelectionsHash: "",
-    lastProvinceFocusSyncAt: 0
+    lastProvinceFocusSyncAt: 0,
+    lastCameraViewHash: "",
+    lastCameraWorldSyncAt: 0,
+    cameraSyncTimer: null,
+    cameraSyncReason: "",
+    cameraSyncWantsWorld: false
   };
 
   var readyCheckCallbacks = {};
@@ -283,6 +288,146 @@
     return !!((ROLE_ACTIONS.gm && role === "gm" && ROLE_ACTIONS.gm[actionName]) || false);
   }
 
+  function getActiveContextId() {
+    var btn = document.querySelector('.ctx-btn.on') || document.querySelector('.ctx-btn[aria-pressed="true"]');
+    if (!btn) return "";
+    return String(btn.getAttribute("data-ctx") || "");
+  }
+
+  function getActiveTabId() {
+    var panel = document.querySelector(".tab-panel.active");
+    if (!panel || !panel.id) return "";
+    return String(panel.id).replace(/^tab-/, "");
+  }
+
+  function getCameraTravelLabel(tab, context) {
+    var tabId = String(tab || "");
+    var contextId = String(context || "");
+    if (tabId === "map") return "Province Map";
+    if (tabId === "lastsea") return "Last Sea";
+    if (tabId === "galaxy") return "Galaxy";
+    if (tabId === "worldthatwas") return "World That Was";
+    if (tabId === "planet") return "Planet";
+    if (tabId === "naval") return "Naval";
+    if (contextId === "space") return "Space";
+    if (contextId === "sea") return "Sea";
+    if (contextId === "holding") return "Holding";
+    return "Province Map";
+  }
+
+  function getCameraRegion(tab, context) {
+    var tabId = String(tab || "");
+    var contextId = String(context || "");
+    if (tabId === "lastsea" || contextId === "sea") return "sea";
+    if (tabId === "galaxy" || tabId === "worldthatwas" || tabId === "planet" || contextId === "space") return "space";
+    return "province";
+  }
+
+  function isStrictGmCameraLockEnabled(sharedState) {
+    var shared = sharedState || getCampaignSharedState();
+    var settings = shared && shared.gmSettings && typeof shared.gmSettings === "object"
+      ? shared.gmSettings
+      : null;
+    return !!(settings && settings.cameraLock === true);
+  }
+
+  function buildCameraViewSnapshot() {
+    var context = getActiveContextId();
+    var tab = getActiveTabId();
+    var provinceKey = (typeof window.getProvinceSelectedKey === "function")
+      ? String(window.getProvinceSelectedKey() || "")
+      : "";
+    return {
+      context: context,
+      tab: tab,
+      provinceKey: provinceKey,
+      region: getCameraRegion(tab, context),
+      label: getCameraTravelLabel(tab, context)
+    };
+  }
+
+  function cameraViewHash(view) {
+    var snap = view || buildCameraViewSnapshot();
+    return [
+      String(snap.context || ""),
+      String(snap.tab || ""),
+      String(snap.provinceKey || ""),
+      String(snap.region || "")
+    ].join("|");
+  }
+
+  function isPlayerViewOutOfLock(travel) {
+    if (!travel || typeof travel !== "object") return false;
+    var activeContext = getActiveContextId();
+    var activeTab = getActiveTabId();
+    var expectedContext = String(travel.context || "");
+    var expectedTab = String(travel.tab || "");
+    if (expectedContext && activeContext && expectedContext !== activeContext) return true;
+    if (expectedTab && activeTab && expectedTab !== activeTab) return true;
+    if (expectedTab === "map") {
+      var expectedProvince = String(travel.provinceKey || "");
+      var currentProvince = (typeof window.getProvinceSelectedKey === "function")
+        ? String(window.getProvinceSelectedKey() || "")
+        : "";
+      if (expectedProvince && currentProvince !== expectedProvince) return true;
+    }
+    return false;
+  }
+
+  function scheduleGmCameraSync(reason, includeWorldSync) {
+    if (!state.code || !state.connected || state.role !== "gm") return;
+    if (!isStrictGmCameraLockEnabled()) return;
+    state.cameraSyncReason = String(reason || state.cameraSyncReason || "camera-lock");
+    state.cameraSyncWantsWorld = !!state.cameraSyncWantsWorld || !!includeWorldSync;
+    if (state.cameraSyncTimer) return;
+    state.cameraSyncTimer = setTimeout(function () {
+      var why = String(state.cameraSyncReason || "camera-lock");
+      var wantsWorld = !!state.cameraSyncWantsWorld;
+      state.cameraSyncTimer = null;
+      state.cameraSyncReason = "";
+      state.cameraSyncWantsWorld = false;
+      syncGmCameraView(why, { includeWorldSync: wantsWorld });
+    }, 140);
+  }
+
+  async function syncGmCameraView(reason, options) {
+    if (!state.code || !state.connected || state.role !== "gm") return { ok: false, error: "Not connected as GM." };
+    if (!isStrictGmCameraLockEnabled()) return { ok: false, error: "GM camera lock disabled." };
+    var opts = options || {};
+    var view = buildCameraViewSnapshot();
+    if (!view.tab) return { ok: false, error: "No active tab for camera view." };
+    var nextHash = cameraViewHash(view);
+    if (!opts.force && nextHash === state.lastCameraViewHash) {
+      return { ok: true, skipped: true };
+    }
+
+    var now = Date.now();
+    var travel = {
+      region: view.region,
+      context: view.context || "traveling",
+      tab: view.tab,
+      label: view.label,
+      provinceKey: view.provinceKey,
+      movedBy: String(state.playerName || ensureName() || "GM"),
+      reason: String(reason || "gm-camera-lock"),
+      phaseCost: 0,
+      updatedAt: now
+    };
+    var patch = { campaignTravel: travel };
+    var res = await syncSharedPatch(patch, "gm-camera-lock-" + String(reason || "view"));
+    if (!res || !res.ok) return res || { ok: false, error: "Camera sync failed." };
+
+    state.lastCameraViewHash = nextHash;
+    if (view.tab === "map") {
+      syncProvinceFocus("gm-camera-lock").catch(function () {});
+    }
+    if (opts.includeWorldSync && now - Number(state.lastCameraWorldSyncAt || 0) > 1200) {
+      state.lastCameraWorldSyncAt = now;
+      syncSharedSilent("gm-camera-visibility").catch(function () {});
+    }
+    return res;
+  }
+
   function guardAction(actionName, errorText) {
     if (hasActionPermission(actionName)) return true;
     safeNotif(errorText || "You do not have permission for that action.", "warn");
@@ -429,6 +574,39 @@
     if (travelAt) {
       state.lastCampaignTravelAppliedAt = travelAt;
     }
+  }
+
+  function patchCameraLockHooks() {
+    if (window._campaignPatchedCameraLockHooks) return;
+
+    if (typeof window.switchTab === "function") {
+      var baseSwitchTab = window.switchTab;
+      window.switchTab = function () {
+        var out = baseSwitchTab.apply(this, arguments);
+        scheduleGmCameraSync("switch-tab", true);
+        return out;
+      };
+    }
+
+    if (typeof window.setContext === "function") {
+      var baseSetContext = window.setContext;
+      window.setContext = function () {
+        var out = baseSetContext.apply(this, arguments);
+        scheduleGmCameraSync("set-context", true);
+        return out;
+      };
+    }
+
+    if (typeof window.setProvinceSelectedKey === "function") {
+      var baseSetProvinceSelectedKey = window.setProvinceSelectedKey;
+      window.setProvinceSelectedKey = function () {
+        var out = baseSetProvinceSelectedKey.apply(this, arguments);
+        if (out) scheduleGmCameraSync("province-focus", false);
+        return out;
+      };
+    }
+
+    window._campaignPatchedCameraLockHooks = true;
   }
 
   function sanitizePlayerSharedPatch(patch) {
@@ -1297,6 +1475,48 @@
 
   }
 
+  function patchEncounterVisibilityHooks() {
+    if (window._campaignPatchedEncounterVisibilityHooks) return;
+
+    function wrap(fnName, reason) {
+      if (typeof window[fnName] !== "function") return;
+      var key = "_campaignWrappedEncounter_" + fnName;
+      if (window[key]) return;
+      var base = window[fnName];
+      window[fnName] = function () {
+        var out = base.apply(this, arguments);
+        if (state.code && state.connected && state.role === "gm") {
+          setTimeout(function () {
+            syncSharedSilent(reason || fnName).catch(function () {});
+          }, 0);
+        }
+        return out;
+      };
+      window[key] = true;
+    }
+
+    [
+      ["rollHexEncounter", "province-encounter"],
+      ["rollTradeRouteEncounter", "province-trade-encounter"],
+      ["resolveProvinceShiftWeatherEncounter", "province-weather-encounter"],
+      ["runGalaxyEncounterRoll", "galaxy-encounter-roll"],
+      ["resolveSpaceEncounterOption", "galaxy-encounter-resolve"],
+      ["rollPlanetHexEncounter", "planet-encounter-roll"],
+      ["rollPlanetTradeRouteEncounter", "planet-trade-encounter"],
+      ["rollPlanetObstacleTraversal", "planet-obstacle-encounter"],
+      ["rollPlanetLostCityTravel", "planet-lostcity-travel"],
+      ["rollPlanetLostCityIrradiatedPatrol", "planet-lostcity-patrol"],
+      ["rollDistrictEncounter", "wtw-encounter-roll"],
+      ["resolveDistrictEncounter", "wtw-encounter-resolve"],
+      ["rollWorldCelebrationEvent", "wtw-downtime-roll"],
+      ["resolveWorldCelebrationEvent", "wtw-downtime-resolve"]
+    ].forEach(function (entry) {
+      wrap(entry[0], entry[1]);
+    });
+
+    window._campaignPatchedEncounterVisibilityHooks = true;
+  }
+
   async function syncSharedNow() {
     if (!state.socket || !state.connected || !state.code) {
       safeNotif("Join a campaign first.", "warn");
@@ -1766,6 +1986,34 @@
       }
       safeNotif("GM Mode: " + mode.charAt(0).toUpperCase() + mode.slice(1));
       if (callback) callback({ ok: true, mode: mode });
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  function setGmCameraLock(enabled, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can set camera lock" });
+      return;
+    }
+    try {
+      var shared = getMutableCampaignSharedState();
+      var settings = ensureGmSettings(shared);
+      settings.cameraLock = !!enabled;
+      if (state.code && state.connected) {
+        syncSharedPatch({ gmSettings: { cameraLock: !!enabled } }, "set-gm-camera-lock").then(function (res) {
+          if (res && res.ok && enabled) {
+            syncGmCameraView("enable-camera-lock", { force: true, includeWorldSync: true }).catch(function () {});
+          }
+          if (callback) callback(res || { ok: false });
+        }).catch(function (err) {
+          if (callback) callback({ ok: false, error: String(err) });
+        });
+      } else if (callback) {
+        callback({ ok: true, cameraLock: !!enabled, local: true });
+      }
+      safeNotif("GM Camera Lock " + (enabled ? "enabled" : "disabled") + ".", enabled ? "good" : "info");
+      renderSettingsSection();
     } catch (err) {
       if (callback) callback({ ok: false, error: String(err) });
     }
@@ -3011,6 +3259,8 @@
     var campaignTravel = sharedState && sharedState.campaignTravel && typeof sharedState.campaignTravel === "object"
       ? sharedState.campaignTravel
       : ensureCampaignTravelState(sharedState);
+    var gmSettings = ensureGmSettings(sharedState);
+    var strictCameraLock = !!(gmSettings && gmSettings.cameraLock);
     var sessionTimeline = Array.isArray(sharedState.sessionTimeline)
       ? sharedState.sessionTimeline
       : ensureSessionTimelineState(sharedState);
@@ -3190,6 +3440,10 @@
           + '<strong>Active:</strong> GM approves actions before they take effect<br>'
           + '<strong>Facilitative:</strong> GM controls travel/time, players handle character actions'
           + '</div>'
+          + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
+          + '<button class="btn btn-xs ' + (strictCameraLock ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setGmCameraLock(' + (strictCameraLock ? 'false' : 'true') + ')">Strict GM Camera Lock ' + (strictCameraLock ? 'ON' : 'OFF') + '</button>'
+          + '</div>'
+          + '<div class="campaign-muted" style="margin-top:.22rem;font-size:.78rem;">When ON, players auto-follow GM context/tab/province focus for a unified table view.</div>'
           + '</div>')
         : "")
       + (isGm
@@ -4616,6 +4870,8 @@
     patchSharedEconomyHooks();
     patchMapGenerationHooks();
     patchSharedProgressHooks();
+    patchEncounterVisibilityHooks();
+    patchCameraLockHooks();
     refreshProgressHash();
     ensureSocket();
     window.addEventListener("resize", function () { syncDockOffset(); });
@@ -4703,6 +4959,8 @@
     patchSharedEconomyHooks();
     patchMapGenerationHooks();
     patchSharedProgressHooks();
+    patchEncounterVisibilityHooks();
+    patchCameraLockHooks();
     hydrateCampaignUIIfNeeded();
     var syncStateChanged = refreshSyncHealth();
     if (syncStateChanged) {
@@ -4722,6 +4980,18 @@
     }
     if (state.role !== "player") {
       syncSharedState("tick");
+    }
+    if (state.role === "gm" && isStrictGmCameraLockEnabled()) {
+      scheduleGmCameraSync("camera-heartbeat", true);
+    }
+    if (state.role === "player" && isStrictGmCameraLockEnabled()) {
+      var shared = getCampaignSharedState();
+      var travel = shared && shared.campaignTravel && typeof shared.campaignTravel === "object"
+        ? shared.campaignTravel
+        : null;
+      if (travel && isPlayerViewOutOfLock(travel)) {
+        applyCampaignTravelState(travel, { force: true });
+      }
     }
   }, 2200);
 
@@ -4786,6 +5056,7 @@
     viewRosterSheet: viewRosterSheet,
     // Phase 1: GM modes and campaign combat
     setGmMode: setGmMode,
+    setGmCameraLock: setGmCameraLock,
     startCampaignCombat: startCampaignCombat,
     nextCombatActor: nextCombatActor,
     endCampaignCombat: endCampaignCombat,

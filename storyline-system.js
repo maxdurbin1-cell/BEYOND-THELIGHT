@@ -1122,11 +1122,11 @@
           stat: "spirit",
           baseDread: 8,
           req: { npcAffinity: { npc: "lyra", min: 1 } },
-          success: { next: "finale_gate", text: "Lyra's testimony shifts neutral observers to your side.", effects: { faction: { political: 1 }, npc: { lyra: 1 } } },
+          success: { next: "finale_gate", text: "Lyra's testimony shifts neutral observers to your side.", effects: { faction: { political: 1 }, npc: { lyra: 1 }, consequenceTags: ["witness_tribunal_won", "lyra_testimony_held"] } },
           fail: {
             next: "lyra_martyr",
             text: "An assassin round strikes Lyra mid-testimony. The chamber erupts.",
-            effects: { mentalStress: 2, faction: { military: -1 } },
+            effects: { mentalStress: 2, faction: { military: -1 }, consequenceTags: ["lyra_martyred", "tribunal_broken"] },
             irreversible: { killNpc: ["lyra"], lockFlags: ["lyraArcLocked"], unlockFlags: ["martyrUprising"] }
           },
         },
@@ -1136,11 +1136,11 @@
           stat: "mind",
           baseDread: 8,
           req: { npcAffinity: { npc: "mara", min: 1 } },
-          success: { next: "finale_gate", text: "Data storms break across every district screen.", effects: { faction: { corporations: -1, rebels: 1 }, npc: { mara: 1 } } },
+          success: { next: "finale_gate", text: "Data storms break across every district screen.", effects: { faction: { corporations: -1, rebels: 1 }, npc: { mara: 1 }, consequenceTags: ["ledger_broadcast", "mara_network_live"] } },
           fail: {
             next: "mara_blackout",
             text: "Mara's uplink is traced and burned. Her network collapses in minutes.",
-            effects: { tmw: 1, mentalStress: 1 },
+            effects: { tmw: 1, mentalStress: 1, consequenceTags: ["mara_blackout", "truth_channel_lost"] },
             irreversible: { killNpc: ["mara"], lockFlags: ["maraArcLocked"], unlockFlags: ["blackoutDoctrine"] }
           },
         },
@@ -1187,13 +1187,13 @@
         {
           id: "o1",
           text: "Proceed to final judgment",
-          success: { next: "finale_choice", text: "The city holds its breath." },
+          success: { next: "finale_choice", text: "The city holds its breath.", effects: { consequenceTags: ["final_judgment_opened"] } },
         },
         {
           id: "o2",
           text: "Invoke the decoded canticle before witnesses",
           req: { flagEq: { key: "phraseKeyUnlocked", value: true }, lexiconKnown: ["ser", "va", "tor"] },
-          success: { next: "finale_canticle", text: "The courtroom wards unlock and Voss loses control of his legal machinery.", effects: { renown: 2, faction: { religious: 1, political: 1 } } },
+          success: { next: "finale_canticle", text: "The courtroom wards unlock and Voss loses control of his legal machinery.", effects: { renown: 2, faction: { religious: 1, political: 1 }, consequenceTags: ["canticle_invoked"] } },
         },
       ],
     },
@@ -1211,7 +1211,7 @@
           stat: "lead",
           baseDread: 10,
           req: { npcAffinity: { npc: "iosef", min: 2 }, quoteKnownAny: ["No verdict outranks witness", "Mercy is not weakness"] },
-          success: { next: "ending_openhand", text: "Their testimony lands like thunder. The city chooses distributed justice.", effects: { faction: { political: 1, rebels: 1 }, renown: 2 } },
+          success: { next: "ending_openhand", text: "Their testimony lands like thunder. The city chooses distributed justice.", effects: { faction: { political: 1, rebels: 1 }, renown: 2, consequenceTags: ["canticle_allied_testimony"] } },
           fail: { next: "finale_choice", text: "The testimony splinters under counterclaims; you must choose direct judgment.", effects: { mentalStress: 1 } },
         },
         {
@@ -1220,7 +1220,7 @@
           stat: "spirit",
           baseDread: 10,
           req: { quoteKnownAny: ["Mercy is not weakness", "Ledger first, sword second", "No verdict outranks witness"] },
-          success: { next: "ending_openhand", text: "Your borrowed lines from allies turn the crowd. Voss is outnumbered by memory.", effects: { renown: 2, faction: { rebels: 1, political: 1 } } },
+          success: { next: "ending_openhand", text: "Your borrowed lines from allies turn the crowd. Voss is outnumbered by memory.", effects: { renown: 2, faction: { rebels: 1, political: 1 }, consequenceTags: ["canticle_memory_weaponized"] } },
           fail: { next: "finale_choice", text: "You falter on the final line and Voss regains the room for a moment.", effects: { mentalStress: 1 } },
         },
         {
@@ -1232,9 +1232,9 @@
             prompt: "Complete the paradox phrase with one word: 'No law is lawful unless it can be ____ by the powerless.'",
             answer: "challenged",
           },
-          success: { next: "ending_openhand", text: "He fails to answer before the city. Authority disperses in real time.", effects: { renown: 3, merchantReward: { credits: 220, factionKey: "corporations", factionRenown: 1, openShop: true } } },
-          partial: { next: "ending_openhand", text: "Your argument lands unevenly, but enough delegates break rank to pass the charter.", effects: { renown: 1, credits: 80 } },
-          fail: { next: "finale_choice", text: "He twists the argument and the room demands a harsher verdict.", effects: { tmw: 1 } },
+          success: { next: "ending_openhand", text: "He fails to answer before the city. Authority disperses in real time.", effects: { renown: 3, merchantReward: { credits: 220, factionKey: "corporations", factionRenown: 1, openShop: true }, consequenceTags: ["canticle_paradox_resolved"] } },
+          partial: { next: "ending_openhand", text: "Your argument lands unevenly, but enough delegates break rank to pass the charter.", effects: { renown: 1, credits: 80, consequenceTags: ["canticle_charter_partial"] } },
+          fail: { next: "finale_choice", text: "He twists the argument and the room demands a harsher verdict.", effects: { tmw: 1, consequenceTags: ["canticle_backfire"] } },
         },
         {
           id: "o4",
@@ -1242,7 +1242,7 @@
           stat: "control",
           baseDread: 12,
           req: { augmentationsAny: ["operating system", "nightguard", "analyzer", "3h7-arcane"] },
-          success: { next: "ending_openhand", text: "Your implants chain the witness relays into one undeniable feed. Voss loses narrative control in seconds.", effects: { renown: 2, faction: { political: 1, rebels: 1 } } },
+          success: { next: "ending_openhand", text: "Your implants chain the witness relays into one undeniable feed. Voss loses narrative control in seconds.", effects: { renown: 2, faction: { political: 1, rebels: 1 }, consequenceTags: ["relay_sync_control"] } },
           fail: { next: "finale_choice", text: "The relay sync stutters, but enough footage leaks to force the final judgment phase.", effects: { mentalStress: 1, tmw: 1 } },
         },
         {
@@ -1251,7 +1251,7 @@
           stat: "control",
           baseDread: 12,
           req: { augmentationsAny: ["operating system"], ownedHacksAny: ["lashout", "collapse", "aegies", "parasyte", "short circuit", "weapon glitch"] },
-          success: { next: "ending_openhand", text: "Judgment drones freeze mid-sentence and project the unedited ledgers to the whole city.", effects: { renown: 2, faction: { corporations: -1, rebels: 1, political: 1 } } },
+          success: { next: "ending_openhand", text: "Judgment drones freeze mid-sentence and project the unedited ledgers to the whole city.", effects: { renown: 2, faction: { corporations: -1, rebels: 1, political: 1 }, consequenceTags: ["verdict_engine_hacked"] } },
           fail: { next: "finale_choice", text: "Counter-intrusion burns your exploit. The room survives long enough to demand a direct ruling.", effects: { health: 1, tmw: 1 } },
         },
         {
@@ -1260,7 +1260,7 @@
           stat: "mind",
           baseDread: 11,
           req: { backpackAny: ["lockpick", "dungeoneer's kit", "scavenger's pouch", "scroll", "warding sigil", "bind oath", "none can lie"], consumeRequiredItem: true },
-          success: { next: "ending_openhand", text: "Steel clicks, parchment ignites, and the court is forced under the same oath Voss imposed on others.", effects: { renown: 2, faction: { religious: 1, political: 1 } } },
+          success: { next: "ending_openhand", text: "Steel clicks, parchment ignites, and the court is forced under the same oath Voss imposed on others.", effects: { renown: 2, faction: { religious: 1, political: 1 }, consequenceTags: ["binding_rite_enforced"] } },
           fail: { next: "finale_choice", text: "The lock opens late and the rite fractures, but your evidence still reaches the floor before sentencing.", effects: { mentalStress: 1 } },
         },
       ],
@@ -1278,16 +1278,16 @@
           text: "Execute Voss Karr and end his reign",
           stat: "strike",
           baseDread: 12,
-          success: { next: "ending_iron", text: "You end him. Order shatters into contested freedom.", effects: { renown: 2, faction: { military: 1, religious: -1 } } },
-          fail: { next: "ending_iron", text: "You still kill him, but at ruinous cost.", effects: { health: 2, mentalStress: 2 } },
+          success: { next: "ending_iron", text: "You end him. Order shatters into contested freedom.", effects: { renown: 2, faction: { military: 1, religious: -1 }, consequenceTags: ["voss_executed"] } },
+          fail: { next: "ending_iron", text: "You still kill him, but at ruinous cost.", effects: { health: 2, mentalStress: 2, consequenceTags: ["voss_executed_pyrrhic"] } },
         },
         {
           id: "o2",
           text: "Spare him and expose the system publicly",
           stat: "lead",
           baseDread: 12,
-          success: { next: "ending_glass", text: "The city rejects him alive, which wounds him deeper than death.", effects: { renown: 2, faction: { political: 1, underworld: -1 } } },
-          fail: { next: "ending_glass", text: "The speech fractures, but enough truth leaks out to unseat him.", effects: { mentalStress: 1 } },
+          success: { next: "ending_glass", text: "The city rejects him alive, which wounds him deeper than death.", effects: { renown: 2, faction: { political: 1, underworld: -1 }, consequenceTags: ["voss_spared_publicly"] } },
+          fail: { next: "ending_glass", text: "The speech fractures, but enough truth leaks out to unseat him.", effects: { mentalStress: 1, consequenceTags: ["voss_spared_fragile"] } },
         },
         {
           id: "o3",
@@ -1295,8 +1295,8 @@
           stat: "mind",
           baseDread: 12,
           req: { careerIncludes: ["priest", "investigator", "noble", "historian"] },
-          success: { next: "ending_blacksun", text: "He becomes prisoner of his own doctrine.", effects: { faction: { corporations: -1, rebels: 1 }, renown: 3 } },
-          fail: { next: "ending_blacksun", text: "The ritual is imperfect, but his authority breaks anyway.", effects: { tmw: 1 } },
+          success: { next: "ending_blacksun", text: "He becomes prisoner of his own doctrine.", effects: { faction: { corporations: -1, rebels: 1 }, renown: 3, consequenceTags: ["voss_bound_by_law"] } },
+          fail: { next: "ending_blacksun", text: "The ritual is imperfect, but his authority breaks anyway.", effects: { tmw: 1, consequenceTags: ["voss_binding_unstable"] } },
         },
         {
           id: "o4",
@@ -1304,8 +1304,8 @@
           stat: "control",
           baseDread: 10,
           req: { flagEq: { key: "allySummit", value: true } },
-          success: { next: "ending_openhand", text: "District delegates sign in real time as Voss loses narrative control.", effects: { renown: 3, faction: { political: 2, rebels: 1 } } },
-          fail: { next: "ending_openhand", text: "The charter launches amid chaos, but it still decentralizes power.", effects: { mentalStress: 2, renown: 1 } },
+          success: { next: "ending_openhand", text: "District delegates sign in real time as Voss loses narrative control.", effects: { renown: 3, faction: { political: 2, rebels: 1 }, consequenceTags: ["distributed_charter"] } },
+          fail: { next: "ending_openhand", text: "The charter launches amid chaos, but it still decentralizes power.", effects: { mentalStress: 2, renown: 1, consequenceTags: ["distributed_charter_fragile"] } },
         },
         {
           id: "o5",
@@ -1313,15 +1313,16 @@
           stat: "lead",
           baseDread: 14,
           req: { flagEq: { key: "lyraDead", value: true } },
-          success: { next: "ending_iron", text: "You invoke Lyra's name and the city backs a hard verdict with irreversible force.", effects: { renown: 3, faction: { military: 1, political: -1 } } },
-          fail: { next: "ending_iron", text: "The chamber fractures, but vengeance still carries the day.", effects: { health: 1, mentalStress: 2 } },
+          success: { next: "ending_iron", text: "You invoke Lyra's name and the city backs a hard verdict with irreversible force.", effects: { renown: 3, faction: { military: 1, political: -1 }, consequenceTags: ["martyr_verdict"] } },
+          fail: { next: "ending_iron", text: "The chamber fractures, but vengeance still carries the day.", effects: { health: 1, mentalStress: 2, consequenceTags: ["martyr_verdict_unstable"] } },
         },
         {
           id: "o_dark",
           text: "⚠ Take the throne. Become what the world fears.",
           stat: "spirit",
           baseDread: 14,
-          success: { next: "dark_coronation", text: "You speak Voss's doctrine back at him — and mean it. The room falls silent, then kneels.", effects: { renown: 4, faction: { military: 2, political: -2, rebels: -2 } } },
+          req: { consequenceTagAny: ["tag:lyra_martyred", "tag:mara_blackout", "tag:canticle_backfire", "tag:tribunal_broken"] },
+          success: { next: "dark_coronation", text: "You speak Voss's doctrine back at him — and mean it. The room falls silent, then kneels.", effects: { renown: 4, faction: { military: 2, political: -2, rebels: -2 }, consequenceTags: ["dark_claim_throne"] } },
           fail: { next: "dark_ascension_collapse", text: "The room rejects you loudly. You retreat into something colder than ambition.", effects: { mentalStress: 3, renown: 1 } },
         },
         {
@@ -1329,7 +1330,8 @@
           text: "⚠ Offer Voss Karr an alliance — against a greater threat",
           stat: "lead",
           baseDread: 14,
-          success: { next: "dark_pact_sealed", text: "He listens. He always respected pragmatism more than virtue. You become the worst thing — an equal.", effects: { renown: 2, faction: { corporations: 2, rebels: -3 } } },
+          req: { consequenceTagAny: ["tag:ledger_broadcast", "tag:relay_sync_control", "tag:verdict_engine_hacked", "tag:canticle_paradox_resolved"] },
+          success: { next: "dark_pact_sealed", text: "He listens. He always respected pragmatism more than virtue. You become the worst thing — an equal.", effects: { renown: 2, faction: { corporations: 2, rebels: -3 }, consequenceTags: ["voss_alliance_bid"] } },
           fail: { next: "finale_choice", text: "He laughs. You're not yet ruthless enough. But you could be.", effects: { mentalStress: 2 } },
         },
         {
@@ -1337,8 +1339,8 @@
           text: "⚠ Open the Chrono Ledger and rewrite who the villain was",
           stat: "control",
           baseDread: 14,
-          req: { lexiconKnownAny: ["ser", "va", "tor"] },
-          success: { next: "time_fracture", text: "The court buckles. Years invert. You wake before the first magistrate existed.", effects: { flags: { timeFractureOpened: true }, renown: 2 } },
+          req: { lexiconKnownAny: ["ser", "va", "tor"], consequenceTagAny: ["tag:canticle_invoked", "tag:canticle_memory_weaponized", "tag:canticle_paradox_resolved"] },
+          success: { next: "time_fracture", text: "The court buckles. Years invert. You wake before the first magistrate existed.", effects: { flags: { timeFractureOpened: true }, renown: 2, consequenceTags: ["timeline_rewrite_attempt"] } },
           fail: { next: "dark_coronation", text: "The time-lock resists you, but the throne does not.", effects: { mentalStress: 2 } },
         },
       ],
@@ -1364,7 +1366,8 @@
               startArmy: { name: "Pale Legion", strength: 9, doctrine: "Judgment Through Force" },
               activateWarfront: 9,
               faction: { military: 2, corporations: 1, rebels: -2 },
-              flags: { timeVillainOrigin: true }
+              flags: { timeVillainOrigin: true },
+              consequenceTags: ["timeline_legion_founded", "timeline_self_coronation"]
             }
           },
           fail: {
@@ -1374,7 +1377,8 @@
               storyAlias: "Voss Karr",
               startArmy: { name: "Pale Legion", strength: 6, doctrine: "Fear and Logistics" },
               activateWarfront: 7,
-              mentalStress: 1
+              mentalStress: 1,
+              consequenceTags: ["timeline_legion_fragile"]
             }
           },
         },
@@ -1390,7 +1394,8 @@
               storyAlias: "The Iron Regent",
               startArmy: { name: "Iron Choir", strength: 8, doctrine: "Order by Siege" },
               activateWarfront: 8,
-              faction: { political: 1, military: 2, rebels: -2 }
+              faction: { political: 1, military: 2, rebels: -2 },
+              consequenceTags: ["timeline_iron_choir", "timeline_mask_forged"]
             }
           },
           fail: {
@@ -1400,7 +1405,8 @@
               storyAlias: "The Iron Regent",
               startArmy: { name: "Iron Choir", strength: 5, doctrine: "Emergency Rule" },
               activateWarfront: 6,
-              tmw: 1
+              tmw: 1,
+              consequenceTags: ["timeline_alias_leaked"]
             }
           },
         },
@@ -1409,8 +1415,8 @@
           text: "Reject the loop and return to your own era",
           stat: "spirit",
           baseDread: 12,
-          success: { next: "finale_choice", text: "You leave the blank seal untouched and force history back onto uncertain rails.", effects: { renown: 1, flags: { timeFractureOpened: true } } },
-          fail: { next: "dark_coronation", text: "The loop clings to you. You return with villain instincts sharpened.", effects: { mentalStress: 1 } },
+          success: { next: "finale_choice", text: "You leave the blank seal untouched and force history back onto uncertain rails.", effects: { renown: 1, flags: { timeFractureOpened: true }, consequenceTags: ["timeline_rejected_loop"] } },
+          fail: { next: "dark_coronation", text: "The loop clings to you. You return with villain instincts sharpened.", effects: { mentalStress: 1, consequenceTags: ["timeline_corruption_seeded"] } },
         },
       ],
     },
@@ -1433,8 +1439,8 @@
             enemies: ["Frontline Marshal", "Siege Captain", "Signal Warden", "Drone Cohort"],
             briefing: "Command the first breakthrough while district skirmishes erupt across the map."
           },
-          success: { next: "warfront_campaign", text: "Your coordinated pushes take three districts in one cycle.", effects: { activateWarfront: 12, renown: 2 } },
-          fail: { next: "warfront_campaign", text: "You hold the line but pay dearly in the first assault.", effects: { activateWarfront: 10, health: 2, mentalStress: 1 } },
+          success: { next: "warfront_campaign", text: "Your coordinated pushes take three districts in one cycle.", effects: { activateWarfront: 12, renown: 2, consequenceTags: ["warfront_breakthrough", "authoritarian_warfront"] } },
+          fail: { next: "warfront_campaign", text: "You hold the line but pay dearly in the first assault.", effects: { activateWarfront: 10, health: 2, mentalStress: 1, consequenceTags: ["warfront_pyrrhic_assault"] } },
         },
         {
           id: "o2",
@@ -1445,16 +1451,16 @@
             enemies: ["Bunker General", "Honor Guard", "Honor Guard", "Counter-Hack Cleric"],
             briefing: "If command falls, every ongoing skirmish shifts in your favor."
           },
-          success: { next: "warfront_campaign", text: "Enemy command collapses; your field armies surge.", effects: { activateWarfront: 11, faction: { military: 2 } } },
-          fail: { next: "warfront_campaign", text: "The bunker holds long enough to bleed your offensive momentum.", effects: { activateWarfront: 9, tmw: 1 } },
+          success: { next: "warfront_campaign", text: "Enemy command collapses; your field armies surge.", effects: { activateWarfront: 11, faction: { military: 2 }, consequenceTags: ["warfront_command_decapitated"] } },
+          fail: { next: "warfront_campaign", text: "The bunker holds long enough to bleed your offensive momentum.", effects: { activateWarfront: 9, tmw: 1, consequenceTags: ["warfront_momentum_lost"] } },
         },
         {
           id: "o3",
           text: "Flip the war into a public coalition before it consumes everyone",
           stat: "lead",
           baseDread: 12,
-          success: { next: "ending_openhand", text: "You halt total war and replace it with a hard, imperfect coalition charter.", effects: { renown: 3, faction: { political: 2, rebels: 1 } } },
-          fail: { next: "warfront_campaign", text: "The coalition speech fails. The only language left is force.", effects: { mentalStress: 2 } },
+          success: { next: "ending_openhand", text: "You halt total war and replace it with a hard, imperfect coalition charter.", effects: { renown: 3, faction: { political: 2, rebels: 1 }, consequenceTags: ["warfront_coalition_turn"] } },
+          fail: { next: "warfront_campaign", text: "The coalition speech fails. The only language left is force.", effects: { mentalStress: 2, consequenceTags: ["warfront_diplomacy_failed"] } },
         },
       ],
     },
@@ -1471,16 +1477,16 @@
           text: "Claim absolute victory and rule the scarred world",
           stat: "control",
           baseDread: 12,
-          success: { next: "ending_time_tyrant", text: "You win the war and write peace as a weapon.", effects: { renown: 4, faction: { military: 2, corporations: 1, rebels: -3 } } },
-          fail: { next: "ending_dark_throne", text: "Victory comes, but less clean than planned. The throne still takes you.", effects: { mentalStress: 1 } },
+          success: { next: "ending_time_tyrant", text: "You win the war and write peace as a weapon.", effects: { renown: 4, faction: { military: 2, corporations: 1, rebels: -3 }, consequenceTags: ["warfront_absolute_victory"] } },
+          fail: { next: "ending_dark_throne", text: "Victory comes, but less clean than planned. The throne still takes you.", effects: { mentalStress: 1, consequenceTags: ["warfront_throne_drift"] } },
         },
         {
           id: "o2",
           text: "Break your own army and let districts choose their rulers",
           stat: "spirit",
           baseDread: 12,
-          success: { next: "ending_glass", text: "You dismantle your command structure in public. The war ends because your power does.", effects: { renown: 3, faction: { rebels: 2, political: 1 } } },
-          fail: { next: "ending_iron", text: "The army fractures violently. Peace arrives only after a final hard verdict.", effects: { health: 1, mentalStress: 2 } },
+          success: { next: "ending_glass", text: "You dismantle your command structure in public. The war ends because your power does.", effects: { renown: 3, faction: { rebels: 2, political: 1 }, consequenceTags: ["warfront_self_disarm"] } },
+          fail: { next: "ending_iron", text: "The army fractures violently. Peace arrives only after a final hard verdict.", effects: { health: 1, mentalStress: 2, consequenceTags: ["warfront_fragmented_peace"] } },
         },
       ],
     },
@@ -1606,9 +1612,9 @@
       options: [
         { id: "o_restart", text: "Restart in the timeline you corrupted", success: { restart: true, text: "A new Wayfarer awakens in a world where your name is carved into origin myths." } },
         { id: "o_rebel", text: "Become the rebel against your own timeline", success: { next: "ending_glass", text: "You leak the truth: the villain was always you. The first uprising begins in the archives." } },
-        { id: "o_falseflag", text: "Stage false-flag attacks to unify every faction under your command", success: { next: "false_flag_unification", text: "You write the enemy first, then lead everyone against it." } },
-        { id: "o_civil", text: "Your army fractures into civil war — choose a side", success: { next: "civil_war_split", text: "Your own banners turn on each other in nine districts." } },
-        { id: "o_paranoia", text: "Purge your inner circle before they betray you", success: { next: "paranoia_purge", text: "Victory curdles into suspicion. Trusted names become targets." } },
+        { id: "o_falseflag", text: "Stage false-flag attacks to unify every faction under your command", req: { consequenceTagAny: ["tag:warfront_absolute_victory", "tag:timeline_legion_founded", "tag:authoritarian_warfront"] }, success: { next: "false_flag_unification", text: "You write the enemy first, then lead everyone against it." } },
+        { id: "o_civil", text: "Your army fractures into civil war — choose a side", req: { consequenceTagAny: ["tag:warfront_momentum_lost", "tag:warfront_pyrrhic_assault", "tag:timeline_alias_leaked"] }, success: { next: "civil_war_split", text: "Your own banners turn on each other in nine districts." } },
+        { id: "o_paranoia", text: "Purge your inner circle before they betray you", req: { consequenceTagAny: ["tag:warfront_throne_drift", "tag:timeline_corruption_seeded", "tag:lyra_martyred", "tag:mara_blackout"] }, success: { next: "paranoia_purge", text: "Victory curdles into suspicion. Trusted names become targets." } },
       ],
     },
 
@@ -1633,13 +1639,14 @@
               faction: { corporations: 1, military: 2, political: 1, rebels: -2 },
               activateWarfront: 14,
               flags: { falseFlagDoctrine: true },
-              renown: 2
+              renown: 2,
+              consequenceTags: ["falseflag_doctrine_enforced"]
             }
           },
           fail: {
             next: "civil_war_split",
             text: "The operation leaks. Half your coalition calls it treason. Civil war ignites instantly.",
-            effects: { mentalStress: 2, tmw: 1, flags: { falseFlagExposed: true } }
+            effects: { mentalStress: 2, tmw: 1, flags: { falseFlagExposed: true }, consequenceTags: ["falseflag_exposed", "coalition_fractured"] }
           },
         },
         {
@@ -1647,8 +1654,8 @@
           text: "Turn the forged war into a real constitutional federation",
           stat: "lead",
           baseDread: 12,
-          success: { next: "ending_openhand", text: "You confess the fabrication publicly and convert panic into a binding federation charter.", effects: { branchRewardTable: "false_flag", renown: 3, faction: { political: 2, rebels: 1 } } },
-          fail: { next: "paranoia_purge", text: "The confession fails. Nobody trusts anybody. Your rule survives only through fear.", effects: { mentalStress: 2 } },
+          success: { next: "ending_openhand", text: "You confess the fabrication publicly and convert panic into a binding federation charter.", effects: { branchRewardTable: "false_flag", renown: 3, faction: { political: 2, rebels: 1 }, consequenceTags: ["falseflag_confessed_republic"] } },
+          fail: { next: "paranoia_purge", text: "The confession fails. Nobody trusts anybody. Your rule survives only through fear.", effects: { mentalStress: 2, consequenceTags: ["falseflag_confession_failed", "paranoia_spiral_seeded"] } },
         },
       ],
     },
@@ -1670,8 +1677,8 @@
             enemies: ["Reform Marshal", "District Captain", "Rail Sapper", "Citizen Militia"],
             briefing: "Lead the purist offensive through contested stations to end the split by force."
           },
-          success: { next: "ending_time_tyrant", text: "Order wins. History remains yours to dictate.", effects: { branchRewardTable: "civil_war", renown: 3, faction: { military: 2, rebels: -3 } } },
-          fail: { next: "paranoia_purge", text: "Victory is messy and uncertain. You now trust no surviving commander.", effects: { health: 1, mentalStress: 2 } },
+          success: { next: "ending_time_tyrant", text: "Order wins. History remains yours to dictate.", effects: { branchRewardTable: "civil_war", renown: 3, faction: { military: 2, rebels: -3 }, consequenceTags: ["civilwar_purist_victory"] } },
+          fail: { next: "paranoia_purge", text: "Victory is messy and uncertain. You now trust no surviving commander.", effects: { health: 1, mentalStress: 2, consequenceTags: ["civilwar_purist_pyrrhic"] } },
         },
         {
           id: "o2",
@@ -1682,16 +1689,16 @@
             enemies: ["Purist Warden", "Doctrine Captain", "Heavy Gunner"],
             briefing: "Break the old command spine so districts can elect their own officers."
           },
-          success: { next: "ending_glass", text: "You win against your own doctrine and decentralize force across districts.", effects: { branchRewardTable: "civil_war", renown: 3, faction: { rebels: 2, political: 1 } } },
-          fail: { next: "ending_iron", text: "Reform stalls in blood and the war ends under hard emergency law.", effects: { health: 2, mentalStress: 1 } },
+          success: { next: "ending_glass", text: "You win against your own doctrine and decentralize force across districts.", effects: { branchRewardTable: "civil_war", renown: 3, faction: { rebels: 2, political: 1 }, consequenceTags: ["civilwar_reform_victory"] } },
+          fail: { next: "ending_iron", text: "Reform stalls in blood and the war ends under hard emergency law.", effects: { health: 2, mentalStress: 1, consequenceTags: ["civilwar_reform_stalled"] } },
         },
         {
           id: "o3",
           text: "Cut off both high commands and force local ceasefires",
           stat: "control",
           baseDread: 13,
-          success: { next: "ending_openhand", text: "With both command towers dark, district councils negotiate their own armistice lines.", effects: { branchRewardTable: "civil_war", renown: 2, faction: { political: 2 } } },
-          fail: { next: "paranoia_purge", text: "Command survives your sabotage. Every side assumes betrayal.", effects: { mentalStress: 2, tmw: 1 } },
+          success: { next: "ending_openhand", text: "With both command towers dark, district councils negotiate their own armistice lines.", effects: { branchRewardTable: "civil_war", renown: 2, faction: { political: 2 }, consequenceTags: ["civilwar_local_armistice"] } },
+          fail: { next: "paranoia_purge", text: "Command survives your sabotage. Every side assumes betrayal.", effects: { mentalStress: 2, tmw: 1, consequenceTags: ["civilwar_command_survives"] } },
         },
       ],
     },
@@ -1718,7 +1725,8 @@
             effects: {
               branchRewardTable: "purge",
               renown: 4,
-              faction: { military: 2, rebels: -3, political: -2 }
+              faction: { military: 2, rebels: -3, political: -2 },
+              consequenceTags: ["purge_completed"]
             },
             irreversible: { killNpc: ["lyra", "mara", "iosef"], lockFlags: ["allySummit", "lyraArcLocked", "maraArcLocked"] }
           },
@@ -1728,7 +1736,8 @@
             effects: {
               branchRewardTable: "purge",
               health: 2,
-              mentalStress: 3
+              mentalStress: 3,
+              consequenceTags: ["purge_ruinous_victory"]
             },
             irreversible: { killNpc: ["lyra", "mara"], lockFlags: ["allySummit", "lyraArcLocked", "maraArcLocked"] }
           },
@@ -1738,8 +1747,8 @@
           text: "Abort the purge and confess your paranoia",
           stat: "spirit",
           baseDread: 13,
-          success: { next: "ending_openhand", text: "Confession breaks the spiral. Your allies drag you back from becoming the monster you feared.", effects: { renown: 2, faction: { political: 1, rebels: 1 } } },
-          fail: { next: "ending_iron", text: "You hesitate too late. The chamber still explodes into violence.", effects: { mentalStress: 2, health: 1 } },
+          success: { next: "ending_openhand", text: "Confession breaks the spiral. Your allies drag you back from becoming the monster you feared.", effects: { renown: 2, faction: { political: 1, rebels: 1 }, consequenceTags: ["purge_aborted_confession"] } },
+          fail: { next: "ending_iron", text: "You hesitate too late. The chamber still explodes into violence.", effects: { mentalStress: 2, health: 1, consequenceTags: ["purge_hesitation_blood"] } },
         },
       ],
     },

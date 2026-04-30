@@ -176,7 +176,19 @@ async function main() {
       });
     });
 
-    await wait(1600);
+    await wait(500);
+
+    await playerPage.evaluate(async () => {
+      const shared = window.campaignSystem.getSharedState();
+      const ready = shared && shared.readyCheck;
+      if (ready && ready.id && ready.status === "pending") {
+        await new Promise((resolve) => {
+          window.campaignSystem.respondReadyCheck(true, () => resolve());
+        });
+      }
+    });
+
+    await wait(1800);
 
     const afterPhase = await gmPage.evaluate(() => {
       return window.S && window.S.gameDate ? Number(window.S.gameDate.phase || 0) : -1;

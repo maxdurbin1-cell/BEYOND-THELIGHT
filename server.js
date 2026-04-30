@@ -62,10 +62,10 @@ const PLAYER_PATCH_ALLOWED_KEYS = {
   factionBases: true,
   provinceMap: true,
   provinceSelections: true,
-  campaignCombat: true,
   partyStash: true,
   characterInventories: true,
-  economyLedger: true
+  economyLedger: true,
+  readyCheck: true
 };
 
 const campaigns = new Map();
@@ -106,7 +106,7 @@ function mergeAllowedPlayerState(existingState, incoming, requesterToken, confli
   const conflictList = Array.isArray(conflicts) ? conflicts : [];
 
   Object.keys(incomingState).forEach((key) => {
-    if (key === "provinceSelections" || key === "economyLedger" || key === "characterInventories" || key === "actionQueue") return;
+    if (key === "provinceSelections" || key === "economyLedger" || key === "characterInventories" || key === "actionQueue" || key === "readyCheck") return;
     if (!PLAYER_PATCH_ALLOWED_KEYS[key]) {
       conflictList.push(key);
       return;
@@ -136,6 +136,30 @@ function mergeAllowedPlayerState(existingState, incoming, requesterToken, confli
 
   if (Array.isArray(incomingState.actionQueue)) {
     merged.actionQueue = mergePlayerActionQueue(existingState, incomingState.actionQueue, requesterToken);
+  }
+
+  if (incomingState.readyCheck && typeof incomingState.readyCheck === "object") {
+    const incomingReady = incomingState.readyCheck;
+    const currentReady = existingState && existingState.readyCheck && typeof existingState.readyCheck === "object"
+      ? safeClone(existingState.readyCheck) || {}
+      : {};
+    const response = incomingReady.response && typeof incomingReady.response === "object" ? incomingReady.response : null;
+    const incomingId = String(incomingReady.id || "");
+    const currentId = String(currentReady.id || "");
+    const responseToken = response ? String(response.token || "") : "";
+    const pending = String(currentReady.status || "") === "pending";
+
+    if (response && requesterToken && responseToken === String(requesterToken) && currentId && incomingId === currentId && pending) {
+      if (!currentReady.responses || typeof currentReady.responses !== "object") currentReady.responses = {};
+      currentReady.responses[responseToken] = {
+        ready: !!response.ready,
+        name: String(response.name || "Wayfarer"),
+        at: Number(response.at || Date.now()) || Date.now()
+      };
+      merged.readyCheck = currentReady;
+    } else {
+      conflictList.push("readyCheck");
+    }
   }
 
   return merged;

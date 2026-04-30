@@ -60,8 +60,11 @@
     },
     activeRosterSheetToken: "",
     lastCampaignCombatPromptAt: 0,
-    lastCampaignTravelAppliedAt: 0
+    lastCampaignTravelAppliedAt: 0,
+    lastReadyCheckPromptId: ""
   };
+
+  var readyCheckCallbacks = {};
 
   var ROLE_ACTIONS = {
     gm: {
@@ -104,10 +107,10 @@
     factionBases: true,
     provinceMap: true,
     provinceSelections: true,
-    campaignCombat: true,
     partyStash: true,
     characterInventories: true,
-    economyLedger: true
+    economyLedger: true,
+    readyCheck: true
   };
 
   function safeNotif(msg, kind) {
@@ -415,6 +418,22 @@
     Object.keys(patch).forEach(function (key) {
       if (!PLAYER_SHARED_PATCH_KEYS[key]) return;
       if ((key === "provinceMap" || key === "campaignCombat") && (!patch[key] || typeof patch[key] !== "object")) return;
+      if (key === "readyCheck") {
+        var readyPatch = patch.readyCheck && typeof patch.readyCheck === "object" ? patch.readyCheck : null;
+        var response = readyPatch && readyPatch.response && typeof readyPatch.response === "object" ? readyPatch.response : null;
+        if (!readyPatch || !response) return;
+        if (!state.token || String(response.token || "") !== String(state.token)) return;
+        sanitized.readyCheck = {
+          id: String(readyPatch.id || ""),
+          response: {
+            token: String(state.token),
+            ready: !!response.ready,
+            name: String(response.name || state.playerName || ensureName() || "Wayfarer"),
+            at: Number(response.at || Date.now()) || Date.now()
+          }
+        };
+        return;
+      }
       if (key === "characterInventories") {
         if (!state.token || !patch.characterInventories || typeof patch.characterInventories !== "object") return;
         if (!Object.prototype.hasOwnProperty.call(patch.characterInventories, state.token)) return;
@@ -443,6 +462,266 @@
       };
     }
     return sharedState.campaignTravel;
+  }
+
+  function ensureSessionTimelineState(sharedState) {
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
+    if (!Array.isArray(sharedState.sessionTimeline)) {
+      sharedState.sessionTimeline = [];
+    }
+    return sharedState.sessionTimeline;
+  }
+
+  function ensureReadyCheckState(sharedState) {
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
+    if (!sharedState.readyCheck || typeof sharedState.readyCheck !== "object") {
+      sharedState.readyCheck = {
+        id: "",
+        status: "idle",
+        type: "",
+        label: "",
+        requestedBy: "",
+        requestedAt: 0,
+        requiredTokens: [],
+        responses: {},
+        actionPayload: null,
+        resolvedAt: 0
+      };
+    }
+    return sharedState.readyCheck;
+  }
+
+  function appendSessionTimeline(kind, text, meta) {
+    if (!state.code) return;
+    var shared = getMutableCampaignSharedState();
+    var list = ensureSessionTimelineState(shared);
+    list.push({
+      id: "timeline-" + Date.now() + "-" + Math.floor(Math.random() * 100000),
+      kind: String(kind || "system"),
+      text: String(text || ""),
+      meta: meta && typeof meta === "object" ? deepCloneJson(meta) || {} : {},
+      at: Date.now(),
+      by: String(state.playerName || ensureName() || "Wayfarer")
+    });
+    if (list.length > 250) {
+      shared.sessionTimeline = list.slice(-250);
+    }
+  }
+
+  function getReadyCheckResponseCount(readyCheck) {
+    if (!readyCheck || !readyCheck.responses || typeof readyCheck.responses !== "object") return 0;
+    return Object.keys(readyCheck.responses).filter(function (token) {
+      var row = readyCheck.responses[token];
+      return !!(row && typeof row.ready === "boolean");
+    }).length;
+  }
+
+  function isReadyCheckApproved(readyCheck) {
+    if (!readyCheck || String(readyCheck.status || "") !== "pending") return false;
+    var required = Array.isArray(readyCheck.requiredTokens) ? readyCheck.requiredTokens : [];
+    if (!required.length) return false;
+    var responses = readyCheck.responses && typeof readyCheck.responses === "object" ? readyCheck.responses : {};
+    for (var i = 0; i < required.length; i++) {
+      var token = String(required[i] || "");
+      if (!token) continue;
+      var row = responses[token];
+      if (!row || row.ready !== true) return false;
+    }
+    return true;
+  }
+
+  function findOnlineParticipantTokens() {
+    var out = [];
+    var roster = state.campaign && Array.isArray(state.campaign.roster) ? state.campaign.roster : [];
+    roster.forEach(function (member) {
+      if (!member || !member.online) return;
+      var token = String(member.token || "").trim();
+      if (!token) return;
+      out.push(token);
+    });
+    if (state.token && out.indexOf(state.token) < 0) out.push(String(state.token));
+    return out;
+  }
+
+  function maybeResolveReadyCheck() {
+    if (!state.code || state.role !== "gm") return;
+    var shared = getMutableCampaignSharedState();
+    var ready = ensureReadyCheckState(shared);
+    if (!ready.id || String(ready.status || "") !== "pending") return;
+    if (!isReadyCheckApproved(ready)) return;
+    var cb = readyCheckCallbacks[ready.id];
+    ready.status = "approved";
+    ready.resolvedAt = Date.now();
+    appendSessionTimeline("ready", "Ready check passed: " + String(ready.label || "Shared action") + ".", {
+      checkId: ready.id,
+      type: ready.type,
+      required: Array.isArray(ready.requiredTokens) ? ready.requiredTokens.length : 0,
+      responses: getReadyCheckResponseCount(ready)
+    });
+    if (typeof cb === "function") {
+      try { cb(); } catch (_err) {}
+    }
+    delete readyCheckCallbacks[ready.id];
+    syncSharedState("ready-check-approved");
+  }
+
+  function cancelReadyCheck(reason) {
+    if (!state.code || state.role !== "gm") return;
+    var shared = getMutableCampaignSharedState();
+    var ready = ensureReadyCheckState(shared);
+    if (!ready.id || String(ready.status || "") !== "pending") return;
+    ready.status = "cancelled";
+    ready.resolvedAt = Date.now();
+    appendSessionTimeline("ready", "Ready check cancelled: " + String(ready.label || "Shared action") + ".", {
+      checkId: ready.id,
+      reason: String(reason || "cancelled")
+    });
+    delete readyCheckCallbacks[ready.id];
+    syncSharedState("ready-check-cancelled");
+  }
+
+  function forceApproveReadyCheck() {
+    if (!state.code || state.role !== "gm") return;
+    var shared = getMutableCampaignSharedState();
+    var ready = ensureReadyCheckState(shared);
+    if (!ready.id || String(ready.status || "") !== "pending") return;
+    var required = Array.isArray(ready.requiredTokens) ? ready.requiredTokens : [];
+    if (!ready.responses || typeof ready.responses !== "object") ready.responses = {};
+    required.forEach(function (token) {
+      var t = String(token || "");
+      if (!t || (ready.responses[t] && typeof ready.responses[t].ready === "boolean")) return;
+      ready.responses[t] = {
+        ready: true,
+        name: "GM override",
+        at: Date.now()
+      };
+    });
+    appendSessionTimeline("ready", "Ready check force-approved by GM.", {
+      checkId: ready.id,
+      label: ready.label
+    });
+    maybeResolveReadyCheck();
+  }
+
+  function respondReadyCheck(readyValue, callback) {
+    if (!state.code || !state.connected) {
+      if (callback) callback({ ok: false, error: "Join a campaign first." });
+      return;
+    }
+    var shared = getCampaignSharedState();
+    var current = shared && shared.readyCheck && typeof shared.readyCheck === "object" ? shared.readyCheck : null;
+    if (!current || !current.id || String(current.status || "") !== "pending") {
+      if (callback) callback({ ok: false, error: "No active ready check." });
+      return;
+    }
+    var token = String(state.token || "");
+    if (!token) {
+      if (callback) callback({ ok: false, error: "Missing participant token." });
+      return;
+    }
+
+    var patch = {
+      readyCheck: {
+        id: String(current.id || ""),
+        response: {
+          token: token,
+          ready: !!readyValue,
+          name: String(state.playerName || ensureName() || "Wayfarer"),
+          at: Date.now()
+        }
+      }
+    };
+    syncSharedPatch(patch, "ready-check-response").then(function (res) {
+      if (callback) callback(res || { ok: false });
+    });
+  }
+
+  function promptReadyCheckIfNeeded(readyCheck) {
+    if (!readyCheck || typeof readyCheck !== "object") return;
+    if (!readyCheck.id || String(readyCheck.status || "") !== "pending") return;
+    if (state.lastReadyCheckPromptId === readyCheck.id) return;
+    if (typeof window.openModal !== "function") return;
+    if (!state.token) return;
+    var responses = readyCheck.responses && typeof readyCheck.responses === "object" ? readyCheck.responses : {};
+    if (responses[state.token] && typeof responses[state.token].ready === "boolean") return;
+
+    state.lastReadyCheckPromptId = readyCheck.id;
+    var label = String(readyCheck.label || "Shared action");
+    var html = ''
+      + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.5rem;">Party consent required before: <strong style="color:var(--gold2);">' + escapeHtml(label) + '</strong>.</div>'
+      + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.55rem;">Choose ready or not ready. GM can proceed after all are ready.</div>'
+      + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm btn-teal" onclick="window.campaignSystem.respondReadyCheck(true);closeModal();">Ready</button>'
+      + '<button class="btn btn-sm btn-warn" onclick="window.campaignSystem.respondReadyCheck(false);closeModal();">Not Ready</button>'
+      + '</div>';
+    window.openModal('Ready Check', html);
+  }
+
+  function startReadyCheck(spec, onApproved, callback) {
+    if (!state.code || !state.connected || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only connected GM can start ready checks." });
+      return;
+    }
+    var details = spec && typeof spec === "object" ? spec : {};
+    var label = String(details.label || "Shared action");
+    var required = Array.isArray(details.requiredTokens) && details.requiredTokens.length
+      ? details.requiredTokens.map(function (token) { return String(token || ""); }).filter(Boolean)
+      : findOnlineParticipantTokens();
+    var shared = getMutableCampaignSharedState();
+    var ready = ensureReadyCheckState(shared);
+    ready.id = "ready-" + Date.now() + "-" + Math.floor(Math.random() * 100000);
+    ready.status = "pending";
+    ready.type = String(details.type || "shared-action");
+    ready.label = label;
+    ready.requestedBy = String(state.playerName || ensureName() || "GM");
+    ready.requestedAt = Date.now();
+    ready.requiredTokens = required;
+    ready.responses = {};
+    ready.actionPayload = details.actionPayload && typeof details.actionPayload === "object"
+      ? deepCloneJson(details.actionPayload) || null
+      : null;
+    ready.resolvedAt = 0;
+    if (state.token) {
+      ready.responses[state.token] = { ready: true, name: ready.requestedBy, at: Date.now() };
+    }
+    if (typeof onApproved === "function") {
+      readyCheckCallbacks[ready.id] = onApproved;
+    }
+    appendSessionTimeline("ready", "Ready check started: " + label + ".", {
+      checkId: ready.id,
+      type: ready.type,
+      required: required.length
+    });
+    syncSharedState("ready-check-start");
+    if (callback) callback({ ok: true, id: ready.id });
+  }
+
+  function requestSharedConsent(label, onApproved, callback) {
+    if (typeof onApproved !== "function") {
+      if (callback) callback({ ok: false, error: "Missing approval callback." });
+      return;
+    }
+    if (!state.code || !state.connected) {
+      onApproved();
+      if (callback) callback({ ok: true, local: true });
+      return;
+    }
+    if (state.role !== "gm") {
+      onApproved();
+      if (callback) callback({ ok: true, local: true });
+      return;
+    }
+    var runApproved = function () {
+      appendSessionTimeline("area", "Area joined: " + String(label || "Area") + ".", {
+        label: String(label || "Area")
+      });
+      onApproved();
+    };
+    startReadyCheck({
+      type: "area-entry",
+      label: String(label || "Enter area"),
+      actionPayload: { kind: "area-entry", label: String(label || "Enter area") }
+    }, runApproved, callback);
   }
 
   function advanceSharedGameDate(intervals) {
@@ -623,7 +902,9 @@
       factionNarrative: deepCloneJson(window.S.factionNarrative || {}),
       partyStash: Array.isArray(current.partyStash) ? current.partyStash.slice() : [],
       economyLedger: mergeEconomyLedger(current.economyLedger),
-      provinceSelections: existingSelections
+      provinceSelections: existingSelections,
+      readyCheck: deepCloneJson(current.readyCheck || ensureReadyCheckState(current)),
+      sessionTimeline: deepCloneJson(current.sessionTimeline || ensureSessionTimelineState(current))
     };
     var shouldPushAuthoritativeMaps = (state.role === "gm") || !state.code;
     if (shouldPushAuthoritativeMaps && typeof window.getProvinceMapState === "function") {
@@ -786,6 +1067,17 @@
         Object.assign(current.campaignTravel, deepCloneJson(sharedState.campaignTravel) || {});
         applyCampaignTravelState(current.campaignTravel);
       }
+      if (sharedState.readyCheck && typeof sharedState.readyCheck === "object") {
+        var current = getCampaignSharedState() || {};
+        current.readyCheck = deepCloneJson(sharedState.readyCheck) || ensureReadyCheckState(current);
+        if (String(current.readyCheck.status || "") !== "pending") {
+          state.lastReadyCheckPromptId = "";
+        }
+      }
+      if (Array.isArray(sharedState.sessionTimeline)) {
+        var current = getCampaignSharedState() || {};
+        current.sessionTimeline = deepCloneJson(sharedState.sessionTimeline) || [];
+      }
       if (Array.isArray(sharedState.actionQueue)) {
         var current = getCampaignSharedState() || {};
         current.actionQueue = deepCloneJson(sharedState.actionQueue);
@@ -843,6 +1135,14 @@
     if (window.factionSystem && typeof window.factionSystem.setupFactionTab === "function") {
       try { window.factionSystem.setupFactionTab(); } catch (_err) {}
     }
+
+    try {
+      var shared = getCampaignSharedState();
+      if (shared && shared.readyCheck) {
+        promptReadyCheckIfNeeded(shared.readyCheck);
+        maybeResolveReadyCheck();
+      }
+    } catch (_err) {}
 
     state.lastSharedVersion = nextVersion || state.lastSharedVersion;
     state.lastSharedHash = JSON.stringify(sharedState);
@@ -1128,9 +1428,27 @@
   }
 
   // Start campaign combat: establish turn order based on initiative (adventure roll)
-  function startCampaignCombat(participants, callback) {
+  function startCampaignCombat(participants, callback, options) {
     if (!state.role) {
       if (callback) callback({ ok: false, error: "Join a campaign first" });
+      return;
+    }
+    if (state.code && state.role !== "gm") {
+      safeNotif("Only GM can start shared campaign combat.", "warn");
+      if (callback) callback({ ok: false, error: "Only GM can start shared campaign combat." });
+      return;
+    }
+    var opts = options && typeof options === "object" ? options : {};
+    if (state.role === "gm" && state.code && state.connected && !opts.skipReadyCheck) {
+      startReadyCheck({
+        type: "combat-start",
+        label: "Start Campaign Combat",
+        actionPayload: { kind: "combat-start" }
+      }, function () {
+        startCampaignCombat(participants, callback, { skipReadyCheck: true });
+      }, function (res) {
+        if (callback && (!res || !res.ok)) callback(res || { ok: false, error: "Could not start ready check." });
+      });
       return;
     }
     try {
@@ -1188,6 +1506,10 @@
       combatState.participants = wayfarers.concat(enemies);
       combatState.startedAt = Date.now();
       combatState.startedBy = String(state.playerName || ensureName() || "Wayfarer");
+      appendSessionTimeline("combat", "Campaign combat started.", {
+        startedBy: combatState.startedBy,
+        participants: Array.isArray(combatState.turnOrder) ? combatState.turnOrder.length : 0
+      });
 
       if (state.code && state.connected) {
         if (state.role === "player") {
@@ -1268,6 +1590,7 @@
       combatState.turnOrder = [];
       combatState.currentActorIndex = 0;
       combatState.participants = [];
+      appendSessionTimeline("combat", "Campaign combat ended.", {});
 
       if (state.code && state.connected) {
         syncSharedState("end-campaign-combat");
@@ -1290,6 +1613,21 @@
         if (callback) callback({ ok: false, error: "Invalid destination" });
         return;
       }
+      if (!next.skipReadyCheck) {
+        var readyPayload = deepCloneJson(next) || {};
+        delete readyPayload.skipReadyCheck;
+        startReadyCheck({
+          type: "travel",
+          label: "Travel to " + String(next.label || "Destination"),
+          actionPayload: { kind: "travel", destination: readyPayload }
+        }, function () {
+          readyPayload.skipReadyCheck = true;
+          gmInitiateTravel(readyPayload, callback);
+        }, function (res) {
+          if (callback && (!res || !res.ok)) callback(res || { ok: false, error: "Could not start ready check." });
+        });
+        return;
+      }
 
       var travelState = ensureCampaignTravelState();
       travelState.region = String(next.region || (next.tab === "lastsea" ? "sea" : (next.tab === "galaxy" || next.tab === "worldthatwas" ? "space" : "province")));
@@ -1301,6 +1639,11 @@
       travelState.phaseCost = Math.max(0, Math.min(4, Number(next.phaseCost || 1) || 1));
       travelState.movedBy = String(state.playerName || ensureName() || "GM");
       travelState.updatedAt = Date.now();
+      appendSessionTimeline("travel", "Party traveled to " + travelState.label + ".", {
+        region: travelState.region,
+        tab: travelState.tab,
+        phaseCost: travelState.phaseCost
+      });
 
       if (travelState.phaseCost > 0) {
         advanceSharedGameDate(travelState.phaseCost);
@@ -2467,6 +2810,38 @@
     }).join("");
   }
 
+  function renderSessionTimeline(log, limit) {
+    if (!Array.isArray(log) || !log.length) {
+      return '<div class="campaign-muted">No recap entries yet.</div>';
+    }
+    return log.slice(-(limit || 16)).reverse().map(function (entry) {
+      var kind = String(entry && entry.kind || "system");
+      var ts = formatTimestamp(entry && entry.at);
+      var by = String(entry && entry.by || "GM");
+      var text = String(entry && entry.text || "");
+      return '<div class="campaign-log-row">'
+        + '<span class="campaign-log-kind">' + escapeHtml(kind) + '</span>'
+        + '<span>' + escapeHtml(text + ' · ' + by + ' · ' + ts) + '</span>'
+        + '</div>';
+    }).join("");
+  }
+
+  function buildDockTimelineSource(campaignLog, sessionTimeline) {
+    var left = Array.isArray(campaignLog) ? campaignLog.slice() : [];
+    var right = Array.isArray(sessionTimeline) ? sessionTimeline.map(function (entry) {
+      return {
+        id: String(entry && entry.id || ""),
+        kind: "recap",
+        text: String(entry && entry.text || ""),
+        at: Number(entry && entry.at || 0),
+        sourceToken: ""
+      };
+    }) : [];
+    return left.concat(right).sort(function (a, b) {
+      return Number(a && a.at || 0) - Number(b && b.at || 0);
+    });
+  }
+
   function renderDockTimeline(log) {
     if (!Array.isArray(log) || !log.length) {
       return '<div class="campaign-dock-empty">No timeline yet.</div>';
@@ -2509,6 +2884,11 @@
       return source.filter(function (entry) {
         var k = String(entry && entry.kind || "");
         return (k === "system" || k === "tmw" || k === "note") && !isTriggerDebug(entry);
+      });
+    }
+    if (mode === "recap") {
+      return source.filter(function (entry) {
+        return String(entry && entry.kind || "") === "recap";
       });
     }
     return source.filter(function (entry) { return !isTriggerDebug(entry); });
@@ -2588,9 +2968,34 @@
     var campaignTravel = sharedState && sharedState.campaignTravel && typeof sharedState.campaignTravel === "object"
       ? sharedState.campaignTravel
       : ensureCampaignTravelState(sharedState);
+    var sessionTimeline = Array.isArray(sharedState.sessionTimeline)
+      ? sharedState.sessionTimeline
+      : ensureSessionTimelineState(sharedState);
+    var readyCheck = sharedState && sharedState.readyCheck && typeof sharedState.readyCheck === "object"
+      ? sharedState.readyCheck
+      : ensureReadyCheckState(sharedState);
     var travelStatusText = escapeHtml(String(campaignTravel.label || "Province Map"))
       + ' · ' + escapeHtml(String(campaignTravel.movedBy || "-"))
       + ' · ' + escapeHtml(formatTimestamp(campaignTravel.updatedAt) || "-");
+    var readyRequiredCount = Array.isArray(readyCheck.requiredTokens) ? readyCheck.requiredTokens.length : 0;
+    var readyResponseCount = getReadyCheckResponseCount(readyCheck);
+    var readyStatusText = String(readyCheck.status || "idle");
+    var canRespondReady = !!(state.token && readyCheck && readyCheck.responses && !readyCheck.responses[state.token]);
+    var readyCheckCardHtml = '';
+    if (readyCheck && readyCheck.id && readyStatusText !== "idle") {
+      readyCheckCardHtml = ''
+        + '<div class="campaign-card">'
+        + '<div class="campaign-card-title">Ready Check</div>'
+        + '<div class="campaign-muted"><strong>' + escapeHtml(String(readyCheck.label || "Shared action")) + '</strong></div>'
+        + '<div class="campaign-muted" style="margin-top:.25rem;">Status: ' + escapeHtml(readyStatusText) + ' · Responses ' + readyResponseCount + '/' + readyRequiredCount + '</div>'
+        + (readyStatusText === "pending" && canRespondReady
+          ? '<div class="campaign-actions" style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.respondReadyCheck(true)">Ready</button><button class="btn btn-xs btn-warn" onclick="window.campaignSystem.respondReadyCheck(false)">Not Ready</button></div>'
+          : '')
+        + (readyStatusText === "pending" && isGm
+          ? '<div class="campaign-actions" style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.forceApproveReadyCheck()">Force Approve</button><button class="btn btn-xs" onclick="window.campaignSystem.cancelReadyCheck()">Cancel</button></div>'
+          : '')
+        + '</div>';
+    }
     var localBackpackSlots = Array.isArray(window.S && window.S.backpack)
       ? window.S.backpack.map(function (item, idx) {
           return { item: String(item || "").trim(), idx: idx };
@@ -2960,6 +3365,7 @@
       + '<div class="campaign-card-title">Online Members</div>'
       + renderMembers(campaign ? campaign.members : [])
       + "</div>"
+      + readyCheckCardHtml
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Campaign Wayfarers</div>'
       + '<div class="campaign-actions campaign-sort-actions">'
@@ -3000,6 +3406,10 @@
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Recent Log</div>'
       + renderLog(campaign ? campaign.log : [])
+      + "</div>"
+      + '<div class="campaign-card">'
+      + '<div class="campaign-card-title">Session Recap Timeline</div>'
+      + renderSessionTimeline(sessionTimeline, 18)
       + "</div>"
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Shared Economy Ledger</div>'
@@ -3177,7 +3587,8 @@
           { id: "all", label: "All" },
           { id: "chat", label: "Chat" },
           { id: "roll", label: "Rolls" },
-          { id: "system", label: "System" }
+          { id: "system", label: "System" },
+          { id: "recap", label: "Recap" }
         ];
         filters.innerHTML = modes.map(function (m) {
           var on = state.timelineFilter === m.id;
@@ -3209,7 +3620,12 @@
 
     if (timeline) {
       var oldScrollBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
-      var filtered = filterTimeline(campaign && campaign.log ? campaign.log : []);
+      var shared = getCampaignSharedState();
+      var combinedSource = buildDockTimelineSource(
+        campaign && campaign.log ? campaign.log : [],
+        shared && Array.isArray(shared.sessionTimeline) ? shared.sessionTimeline : []
+      );
+      var filtered = filterTimeline(combinedSource);
       timeline.innerHTML = renderDockTimeline(filtered);
       var newLogSize = campaign && Array.isArray(campaign.log) ? campaign.log.length : 0;
       if (oldScrollBottom < 40 || newLogSize !== state.lastDockLogSize) {
@@ -4241,6 +4657,10 @@
     toggleArchive: toggleArchive,
     deleteCampaign: deleteCampaign,
     setTimelineFilter: setTimelineFilter,
+    requestSharedConsent: requestSharedConsent,
+    respondReadyCheck: respondReadyCheck,
+    forceApproveReadyCheck: forceApproveReadyCheck,
+    cancelReadyCheck: cancelReadyCheck,
     generateWayfarerIdea: generateWayfarerIdea,
     setWayfarerSort: setWayfarerSort,
     sendChatMessage: sendChatMessage,

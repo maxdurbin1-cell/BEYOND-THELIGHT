@@ -1284,10 +1284,25 @@ function openCampaignAreaJoinPrompt(areaLabel, onJoin){
     +'<span style="color:var(--muted2);">Role: '+role+'. Use Join Area to keep everyone on the same shared experience.</span>'
     +'</div>'
     +'<div style="margin-top:.65rem;display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
-    +'<button class="btn btn-sm btn-teal" onclick="closeModal();if(window._campaignJoinAreaCallbacks&&window._campaignJoinAreaCallbacks[\''+cbId+'\'])window._campaignJoinAreaCallbacks[\''+cbId+'\']();">Join Area</button>'
+    +'<button class="btn btn-sm btn-teal" onclick="closeModal();runCampaignJoinAreaConsent(\''+cbId+'\',\''+label.replace(/'/g,"\\'")+'\');">Join Area</button>'
     +'<button class="btn btn-sm" onclick="closeModal();">Cancel</button>'
     +'</div>';
   openModal('Join Area',html);
+}
+
+function runCampaignJoinAreaConsent(cbId, areaLabel){
+  const cb=(window._campaignJoinAreaCallbacks&&window._campaignJoinAreaCallbacks[cbId])?window._campaignJoinAreaCallbacks[cbId]:null;
+  if(typeof cb!=='function')return;
+  const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+  if(cs&&cs.code&&cs.role==='gm'&&window.campaignSystem&&typeof window.campaignSystem.requestSharedConsent==='function'){
+    window.campaignSystem.requestSharedConsent('Enter '+String(areaLabel||'Area'),cb,function(res){
+      if(!res||!res.ok){
+        if(typeof showNotif==='function')showNotif((res&&res.error)||'Could not start ready check.','warn');
+      }
+    });
+    return;
+  }
+  cb();
 }
 
 // Stable per-hex terrain text selector to avoid rerolling on every render/sync tick.

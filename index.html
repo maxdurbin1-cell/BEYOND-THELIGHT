@@ -2314,16 +2314,166 @@ function getBespokeFlavorEntry(flavorText){
   };
 }
 
+function getFlavorSceneContext(){
+  var hasHostiles=Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&!e.ally;});
+  var inCombat=!!(S&&S.combat&&(S.combat.active||hasHostiles));
+  var isNight=(typeof isNightPhase==='function')?!!isNightPhase():false;
+  var selectedType=(typeof selectedHex!=='undefined'&&selectedHex&&selectedHex.type)?String(selectedHex.type):'';
+  var inProvince=!!selectedType;
+  var inSea=!!(S&&S.lastSea&&S.lastSea.selectedKey);
+  var inSpace=!!(S&&S.starSystem&&(S.starSystem.activeSpaceEncounter||S.starSystem.activePlanetHexId!==null&&S.starSystem.activePlanetHexId!==undefined));
+  var isCampaign=!!(window.campaignSystem&&window.campaignSystem.getState&&window.campaignSystem.getState().code);
+  var roughWeather=false;
+  try{
+    if(selectedHex&&selectedHex.data&&selectedHex.data.weatherRoll&&WEATHER&&WEATHER[S.currentSeason||'spring']){
+      var wr=Number(selectedHex.data.weatherRoll||0);
+      var w=(WEATHER[S.currentSeason||'spring']||[])[wr-1];
+      roughWeather=!!(w&&w.rough);
+    }
+  }catch(_err){}
+  return {
+    hasHostiles:hasHostiles,
+    inCombat:inCombat,
+    isNight:isNight,
+    inProvince:inProvince,
+    inSea:inSea,
+    inSpace:inSpace,
+    isCampaign:isCampaign,
+    selectedType:selectedType,
+    roughWeather:roughWeather,
+    phaseToken:(typeof getCurrentTravelPhaseToken==='function')?String(getCurrentTravelPhaseToken()||'phase-unknown'):'phase-unknown'
+  };
+}
+
+function getFlavorRuleForEntry(entry){
+  if(!entry)return null;
+  var base=String(entry.key||'');
+  var title=String(entry.title||'Flavor Action');
+  var arch=String(entry.archetype||'mystic');
+
+  var rule={
+    trigger:'Use when your scene matches this flavor archetype.',
+    effect:entry.desc||('Activate '+title+' for a temporary edge.'),
+    cue:'The cue lights up when the trigger is active.',
+    matchers:[]
+  };
+
+  if(arch==='combat'){
+    rule.trigger='Combat scene with at least one hostile enemy present.';
+    rule.effect='Gain immediate combat leverage tied to '+title+' (queued edge, pressure, or control effect).';
+    rule.cue='Lights in combat when hostiles are active.';
+    rule.matchers=['inCombat'];
+  }else if(arch==='guard'){
+    rule.trigger='Any danger scene where defense, endurance, or condition stability matters.';
+    rule.effect='Convert pressure into protection and defensive stability using '+title+'.';
+    rule.cue='Lights when danger is present (combat, peril, or rough traversal).';
+    rule.matchers=['danger'];
+  }else if(arch==='scout'){
+    rule.trigger='Travel, map movement, wilderness routing, or adjacent-hex recon moments.';
+    rule.effect='Convert '+title+' into route intel, traversal efficiency, and path momentum.';
+    rule.cue='Lights while exploring map spaces outside direct combat.';
+    rule.matchers=['travel'];
+  }else if(arch==='scholar'){
+    rule.trigger='Puzzle, investigation, codex, relic, trap, hack, or lore-analysis situations.';
+    rule.effect='Turn '+title+' into tactical insight and decision-quality bonuses.';
+    rule.cue='Lights in investigation/analysis contexts and during hostile control scenes.';
+    rule.matchers=['analysis'];
+  }else if(arch==='leader'){
+    rule.trigger='Team-facing moments: faction play, command checks, ally coordination, or campaign scenes.';
+    rule.effect='Project '+title+' to rally allies, grant momentum, and amplify team condition output.';
+    rule.cue='Lights in campaign/faction contexts or when multiple allies are in play.';
+    rule.matchers=['leadership'];
+  }else if(arch==='medic'){
+    rule.trigger='After damage, stress spikes, or negative-condition pressure.';
+    rule.effect='Apply '+title+' for recovery and condition stabilization.';
+    rule.cue='Lights when health/stress pressure or negative conditions are active.';
+    rule.matchers=['recovery'];
+  }else if(arch==='night'){
+    rule.trigger='Night phases, affliction windows, or low-visibility scenes.';
+    rule.effect='Use '+title+' for nocturnal adaptation and phase-sensitive bonuses.';
+    rule.cue='Lights strongly at night; can still provide fallback utility by day.';
+    rule.matchers=['night'];
+  }else if(arch==='scrap_alchemist'){
+    rule.trigger='When you carry salvage/junk and need an on-demand remedy conversion.';
+    rule.effect='Consume salvage via '+title+' to distill tactical remedies.';
+    rule.cue='Lights when salvage-like backpack items are available.';
+    rule.matchers=['salvage'];
+  }else{
+    rule.trigger='Mystic or utility pivot moments where flexible power conversion is needed.';
+    rule.effect='Channel '+title+' into utility, control, or momentum effects.';
+    rule.cue='Lights in unusual scenes where no direct archetype dominates.';
+    rule.matchers=['flex'];
+  }
+
+  // Explicit normalization for known high-impact legacy flavors.
+  if(base.indexOf('animal companion')>=0){
+    rule.trigger='Combat scene with hostile enemies present.';
+    rule.effect='Summon your Animal Companion as an allied combatant (DD6, 12 Stress).';
+    rule.cue='Lights when hostiles are active and you can reinforce the line.';
+    rule.matchers=['inCombat'];
+  }else if(base.indexOf('emit blinding light')>=0){
+    rule.trigger='Combat while enemies are Engaged/Close and line-of-sight is open.';
+    rule.effect='Reduce enemy threat: step down enemy Dread by 1; enemies already at d4 roll with disadvantage.';
+    rule.cue='Lights during active combat against hostile groups.';
+    rule.matchers=['inCombat'];
+  }else if(base.indexOf('infernal eyes')>=0){
+    rule.trigger='Fear/intimidation windows in combat, especially at night or against unsettled targets.';
+    rule.effect='Apply dread pressure: step down enemy Dread and impose shaken-style disruption.';
+    rule.cue='Lights in combat, with strongest cue during night phases.';
+    rule.matchers=['inCombatNightBoost'];
+  }else if(base.indexOf('leader')>=0){
+    rule.trigger='Campaign/faction command scenes or ally-coordination checks.';
+    rule.effect='Grant Empowered-style momentum to your faction/team context.';
+    rule.cue='Lights in campaign mode and in coordinated party scenes.';
+    rule.matchers=['leadershipCampaign'];
+  }
+
+  return rule;
+}
+
+function isFlavorRuleActive(rule, ctx){
+  if(!rule||!ctx)return false;
+  var m=Array.isArray(rule.matchers)?rule.matchers:[];
+  if(!m.length)return true;
+  return m.some(function(key){
+    if(key==='inCombat')return !!ctx.inCombat;
+    if(key==='danger')return !!ctx.inCombat||!!ctx.roughWeather||String(ctx.selectedType)==='peril'||String(ctx.selectedType)==='barrier';
+    if(key==='travel')return (!!ctx.inProvince||!!ctx.inSea||!!ctx.inSpace)&&!ctx.inCombat;
+    if(key==='analysis')return String(ctx.selectedType)==='ruins'||String(ctx.selectedType)==='event'||String(ctx.selectedType)==='gate'||ctx.inCombat;
+    if(key==='leadership')return !!ctx.isCampaign||!!ctx.inCombat;
+    if(key==='recovery')return Number(S.stress||0)>Math.max(4,Number((S.stats&&S.stats.defend)||4))||!!(S.conditions&&(S.conditions.weakened||S.conditions.vulnerable||S.conditions.distracted||S.conditions.shaken));
+    if(key==='night')return !!ctx.isNight;
+    if(key==='salvage')return !!consumeJunkBackpackItemPreview();
+    if(key==='flex')return true;
+    if(key==='inCombatNightBoost')return !!ctx.inCombat||!!ctx.isNight;
+    if(key==='leadershipCampaign')return !!ctx.isCampaign||!!ctx.inCombat;
+    return false;
+  });
+}
+
+function consumeJunkBackpackItemPreview(){
+  if(!Array.isArray(S.backpack))return false;
+  for(var i=0;i<S.backpack.length;i++){
+    var slot=parseBackpackStack(S.backpack[i]);
+    if(slot&&slot.name&&isLikelyJunkItemName(slot.name))return true;
+  }
+  return false;
+}
+
 function getFlavorInteractionDescriptor(flavorText){
   var entry=getBespokeFlavorEntry(flavorText);
   if(!entry)return{title:'No Flavor Selected',desc:'Roll or set a Personal Flavor to unlock a usable action.',label:'Use Flavor Action',cooldown:'phase'};
+  var rule=getFlavorRuleForEntry(entry);
   return {
     title:entry.title,
-    desc:entry.desc,
+    desc:(rule&&rule.effect)?rule.effect:entry.desc,
     label:entry.actionLabel,
     archetype:entry.archetype,
     cooldown:entry.cooldownType,
-    code:entry.code
+    code:entry.code,
+    trigger:rule?rule.trigger:'',
+    effect:rule?rule.effect:entry.desc,
+    cue:rule?rule.cue:''
   };
 }
 
@@ -2335,13 +2485,16 @@ function openPersonalFlavorCodexModal(){
   var entries=getAllBespokeFlavorEntries();
   var rows=entries.map(function(e){
     var current=(normalizeFlavorBase(S.flavor)===e.key);
+    var rule=getFlavorRuleForEntry(e);
     return '<div style="padding:.35rem .45rem;border:1px solid '+(current?'rgba(232,192,80,.55)':'var(--border2)')+';background:'+(current?'rgba(232,192,80,.08)':'rgba(255,255,255,.02)')+';">'
       +'<div style="font-size:.68rem;color:var(--gold2);font-family:\'Rajdhani\',sans-serif;">'+e.code+' · '+e.title+'</div>'
       +'<div style="font-size:.72rem;color:var(--muted2);margin-top:.1rem;">'+e.archetype+' · cooldown '+e.cooldownType+'</div>'
-      +'<div style="font-size:.76rem;color:var(--text2);margin-top:.18rem;line-height:1.45;">'+e.desc+'</div>'
+      +'<div style="font-size:.72rem;color:var(--teal);margin-top:.18rem;line-height:1.45;"><strong>Trigger:</strong> '+(rule?rule.trigger:'—')+'</div>'
+      +'<div style="font-size:.76rem;color:var(--text2);margin-top:.1rem;line-height:1.45;"><strong>Effect:</strong> '+(rule?rule.effect:e.desc)+'</div>'
+      +'<div style="font-size:.72rem;color:var(--gold2);margin-top:.1rem;line-height:1.45;"><strong>Cue:</strong> '+(rule?rule.cue:'—')+'</div>'
       +'</div>';
   }).join('');
-  if(typeof openModal==='function')openModal('Personal Flavor Mini Codex','<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.4rem;">100 bespoke flavor actions with cooldown type and effect summary.</div><div style="display:grid;gap:.25rem;max-height:68vh;overflow:auto;">'+rows+'</div>');
+  if(typeof openModal==='function')openModal('Personal Flavor Mini Codex','<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.4rem;">100 normalized flavor rules with explicit trigger, effect, and cue guidance.</div><div style="display:grid;gap:.25rem;max-height:68vh;overflow:auto;">'+rows+'</div>');
 }
 
 function refreshPersonalFlavorInteractionUI(){
@@ -7866,16 +8019,80 @@ document.addEventListener('DOMContentLoaded',()=>{
     renderQP(tab);
   };
 
+  function buildQPFlavorCueFeed(){
+    if(typeof getAllBespokeFlavorEntries!=='function'||typeof getFlavorSceneContext!=='function'||typeof getFlavorRuleForEntry!=='function'||typeof isFlavorRuleActive!=='function')return '';
+    var entries=getAllBespokeFlavorEntries();
+    if(!Array.isArray(entries)||!entries.length)return '';
+    var ctx=getFlavorSceneContext();
+    var active=[];
+    var ready=[];
+    var cooldown=[];
+    var state=(S&&S.flavorActionState&&typeof S.flavorActionState==='object')?S.flavorActionState:{};
+    var currentBase=(typeof normalizeFlavorBase==='function')?normalizeFlavorBase(S.flavor):'';
+
+    entries.forEach(function(entry){
+      if(!entry)return;
+      var rule=getFlavorRuleForEntry(entry);
+      if(!rule)return;
+      if(!isFlavorRuleActive(rule,ctx))return;
+      var key=entry.key;
+      var needed=(typeof getFlavorCooldownStamp==='function')?getFlavorCooldownStamp(entry.cooldownType):'';
+      var used=!!(state[key]&&state[key].stamp===needed);
+      var row={entry:entry,rule:rule,used:used,current:key===currentBase};
+      active.push(row);
+      if(used)cooldown.push(row);else ready.push(row);
+    });
+
+    var topReady=ready.slice(0,3);
+    var topCooldown=cooldown.slice(0,2);
+    var shown=topReady.concat(topCooldown);
+    if(!shown.length){
+      return '<div style="margin-bottom:.5rem;padding:.38rem .42rem;border:1px solid rgba(46,196,182,.3);background:rgba(46,196,182,.05);">'
+        + '<div style="display:flex;justify-content:space-between;gap:.25rem;align-items:center;">'
+          + '<span style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;">Flavor Cues</span>'
+          + '<span style="font-size:.62rem;color:var(--muted2);">No active scene triggers</span>'
+        + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;line-height:1.4;">Adjust scene context (combat, travel, weather, campaign, night, salvage) to light matching flavor triggers.</div>'
+      + '</div>';
+    }
+
+    var rows=shown.map(function(row){
+      var e=row.entry;
+      var r=row.rule;
+      var status=row.used?'Cooldown':'Ready';
+      var statusColor=row.used?'var(--red2)':'var(--green2)';
+      var glow=row.used?'rgba(201,64,64,.08)':'rgba(76,175,116,.09)';
+      return '<div style="padding:.24rem .3rem;border:1px solid '+(row.current?'rgba(232,192,80,.45)':'var(--border2)')+';background:'+glow+';">'
+        + '<div style="display:flex;justify-content:space-between;gap:.25rem;align-items:center;">'
+          + '<span style="font-size:.68rem;color:var(--gold2);font-family:Rajdhani,sans-serif;">'+e.code+' · '+e.title+(row.current?' ★':'')+'</span>'
+          + '<span style="font-size:.62rem;color:'+statusColor+';">'+status+'</span>'
+        + '</div>'
+        + '<div style="font-size:.64rem;color:var(--teal);margin-top:.08rem;line-height:1.35;"><strong>Trigger:</strong> '+r.trigger+'</div>'
+        + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;line-height:1.35;"><strong>Cue:</strong> '+r.cue+'</div>'
+      + '</div>';
+    }).join('');
+
+    return '<div style="margin-bottom:.5rem;padding:.38rem .42rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.06);box-shadow:0 0 0 1px rgba(46,196,182,.12) inset;">'
+      + '<div style="display:flex;justify-content:space-between;gap:.25rem;align-items:center;">'
+        + '<span style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;">Flavor Cues</span>'
+        + '<span style="font-size:.62rem;color:var(--muted2);">'+active.length+' active trigger'+(active.length===1?'':'s')+'</span>'
+      + '</div>'
+      + '<div style="display:grid;gap:.2rem;margin-top:.22rem;">'+rows+'</div>'
+    + '</div>';
+  }
+
   function renderQP(tab) {
     ensureQPState();
     var c = document.getElementById('qpContent');
     if (!c) return;
-    if (tab === 'dice')    c.innerHTML = buildQPDice();
-    else if (tab === 'char')   c.innerHTML = buildQPChar();
-    else if (tab === 'combat') c.innerHTML = buildQPCombat();
-    else if (tab === 'missions') c.innerHTML = buildQPMissions();
-    else if (tab === 'campaign') c.innerHTML = buildQPCampaign();
-    else if (tab === 'notes') c.innerHTML = buildQPNotes();
+    var body='';
+    if (tab === 'dice')    body = buildQPDice();
+    else if (tab === 'char')   body = buildQPChar();
+    else if (tab === 'combat') body = buildQPCombat();
+    else if (tab === 'missions') body = buildQPMissions();
+    else if (tab === 'campaign') body = buildQPCampaign();
+    else if (tab === 'notes') body = buildQPNotes();
+    c.innerHTML = buildQPFlavorCueFeed() + body;
   }
 
   window.refreshQuickPanelSection = function(tab) {
@@ -8216,7 +8433,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="margin-bottom:.35rem;padding:.34rem .4rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.06);">'
         + '<div style="font-size:.62rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.12rem;">Flavor Interaction</div>'
         + '<div style="font-size:.66rem;color:var(--gold2);line-height:1.4;">'+(flavorDescriptor.title||'No Flavor Selected')+'</div>'
-        + '<div style="font-size:.66rem;color:var(--text2);line-height:1.45;margin-top:.12rem;">'+(flavorDescriptor.desc||'')+'</div>'
+        + '<div style="font-size:.64rem;color:var(--teal);line-height:1.45;margin-top:.12rem;"><strong>Trigger:</strong> '+(flavorDescriptor.trigger||'')+'</div>'
+        + '<div style="font-size:.66rem;color:var(--text2);line-height:1.45;margin-top:.1rem;"><strong>Effect:</strong> '+(flavorDescriptor.effect||flavorDescriptor.desc||'')+'</div>'
+        + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.45;margin-top:.1rem;"><strong>Cue:</strong> '+(flavorDescriptor.cue||'')+'</div>'
         + '<div style="margin-top:.24rem;display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;">'
           + '<button class="btn btn-xs btn-teal" onclick="if(typeof usePersonalFlavorAction===\'function\')usePersonalFlavorAction();if(typeof refreshQuickPanelSection===\'function\')refreshQuickPanelSection(\'char\');">'+(flavorDescriptor.label||'Use Flavor Action')+'</button>'
           + '<button class="btn btn-xs" onclick="if(typeof openPersonalFlavorCodexModal===\'function\')openPersonalFlavorCodexModal();">Mini Codex</button>'

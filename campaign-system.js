@@ -730,13 +730,30 @@
 
   function findOnlineParticipantTokens() {
     var out = [];
+    var seen = {};
+    var participants = state.campaign && Array.isArray(state.campaign.participants) ? state.campaign.participants : [];
     var roster = state.campaign && Array.isArray(state.campaign.roster) ? state.campaign.roster : [];
+    var now = Date.now();
+
+    participants.forEach(function (member) {
+      if (!member) return;
+      var token = String(member.token || "").trim();
+      if (!token || seen[token]) return;
+      var online = member.online !== false;
+      var lastSeenAt = Number(member.lastSeenAt || 0);
+      if (!online && (!lastSeenAt || (now - lastSeenAt) > 120000)) return;
+      seen[token] = true;
+      out.push(token);
+    });
+
     roster.forEach(function (member) {
       if (!member || !member.online) return;
       var token = String(member.token || "").trim();
-      if (!token) return;
+      if (!token || seen[token]) return;
+      seen[token] = true;
       out.push(token);
     });
+
     if (state.token && out.indexOf(state.token) < 0) out.push(String(state.token));
     return out;
   }
@@ -891,6 +908,8 @@
       required: required.length
     });
     syncSharedState("ready-check-start");
+    // Resolve immediately when all required responses are already present (e.g., GM-only).
+    maybeResolveReadyCheck();
     if (callback) callback({ ok: true, id: ready.id });
   }
 
@@ -1704,6 +1723,13 @@
     }
     var opts = options && typeof options === "object" ? options : {};
     if (state.role === "gm" && state.code && state.connected && !opts.skipReadyCheck) {
+      var shared = getCampaignSharedState();
+      var currentReady = shared && shared.readyCheck && typeof shared.readyCheck === "object" ? shared.readyCheck : null;
+      if (currentReady && currentReady.id && String(currentReady.status || "") === "pending" && String(currentReady.type || "") === "combat-start") {
+        safeNotif("Combat start is already awaiting ready-check responses.", "info");
+        if (callback) callback({ ok: false, error: "Combat ready check already pending." });
+        return;
+      }
       startReadyCheck({
         type: "combat-start",
         label: "Start Campaign Combat",

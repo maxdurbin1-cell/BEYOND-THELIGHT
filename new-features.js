@@ -2468,6 +2468,19 @@
     Object.keys(desired).forEach(function(key) {
       var found = S.combatMap.units.some(function(u){ return !!u && u.fromTracker && u.trackerKey === key; });
       if (found) { return; }
+      var existingMatch = S.combatMap.units.find(function(u) {
+        if (!u) { return false; }
+        if (u.isPlayer) { return false; }
+        return u.side === desired[key].side && String(u.name || '') === String(desired[key].name || '');
+      });
+      if (existingMatch) {
+        existingMatch.fromTracker = true;
+        existingMatch.trackerKey = key;
+        existingMatch.side = desired[key].side;
+        existingMatch.name = desired[key].name;
+        if (existingMatch.side === 'enemy') { existingMatch.zone = relativeEnemyZone; }
+        return;
+      }
       S.combatMap.units.push({
         id: combatMapUnitId++,
         name: desired[key].name,
@@ -2481,6 +2494,14 @@
     S.combatMap.units = S.combatMap.units.filter(function(unit) {
       if (!unit || !unit.fromTracker || !unit.trackerKey) { return true; }
       return !!desired[unit.trackerKey];
+    });
+
+    var seenTracker = {};
+    S.combatMap.units = S.combatMap.units.filter(function(unit) {
+      if (!unit || !unit.fromTracker || !unit.trackerKey) { return true; }
+      if (seenTracker[unit.trackerKey]) { return false; }
+      seenTracker[unit.trackerKey] = true;
+      return true;
     });
   }
 

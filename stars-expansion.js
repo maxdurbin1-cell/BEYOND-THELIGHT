@@ -9252,12 +9252,50 @@ function stepShipDefend(dir) {
 let starsZoneUnits = [];
 let starsZoneLayout = null;
 let starsZoneAutoPopulate = true;
+let starsZoneOpenerOverride = null;
 
-function ensureStarsZoneUnitsSeeded(layout) {
-  if (!starsZoneAutoPopulate || !layout || !Array.isArray(layout.hexes) || starsZoneUnits.length) return;
+function mapSceneTerrainToStarsLayoutId(terrainText) {
+  const terrain = String(terrainText || '').toLowerCase();
+  if (terrain.indexOf('urban alley') >= 0) return 4;
+  if (terrain.indexOf('ruined structure') >= 0 || terrain.indexOf('shipwreck') >= 0 || terrain.indexOf('debris') >= 0) return 5;
+  if (terrain.indexOf('dense jungle') >= 0 || terrain.indexOf('forest') >= 0) return 3;
+  if (terrain.indexOf('open field') >= 0) return 1;
+  if (terrain.indexOf('cavern') >= 0 || terrain.indexOf('tunnel') >= 0) return 4;
+  if (terrain.indexOf('zero-g') >= 0) return 6;
+  if (terrain.indexOf('storm') >= 0) return 7;
+  return 2;
+}
+
+function buildStarsCoverOverrides(layout, coverTier) {
+  const overrides = {};
+  if (!layout || !Array.isArray(layout.hexes)) return overrides;
+  if (!coverTier || coverTier === 'none') return overrides;
+  const centerRow = 1.5;
+  const centerCol = 2;
+  const ordered = layout.hexes.slice().sort((a, b) => {
+    const da = Math.abs(a.row - centerRow) + Math.abs(a.col - centerCol);
+    const db = Math.abs(b.row - centerRow) + Math.abs(b.col - centerCol);
+    return da - db;
+  });
+  const keyFor = (h) => `${h.row}:${h.col}`;
+
+  if (coverTier === 'full') {
+    ordered.slice(0, Math.min(8, ordered.length)).forEach((h) => { overrides[keyFor(h)] = 'full'; });
+    return overrides;
+  }
+  if (coverTier === 'heavy') {
+    ordered.slice(0, Math.min(3, ordered.length)).forEach((h) => { overrides[keyFor(h)] = 'full'; });
+    ordered.slice(3, Math.min(10, ordered.length)).forEach((h) => { overrides[keyFor(h)] = 'partial'; });
+    return overrides;
+  }
+  ordered.slice(0, Math.min(8, ordered.length)).forEach((h) => { overrides[keyFor(h)] = 'partial'; });
+  return overrides;
+}
+
+function syncStarsZoneUnitsFromCombatTracker(layout) {
+  if (!starsZoneAutoPopulate || !layout || !Array.isArray(layout.hexes)) return;
   const hexes = layout.hexes.slice();
   if (!hexes.length) return;
-
   const centerRow = 1.5;
   const centerCol = 2;
   const sorted = hexes.slice().sort((a, b) => {
@@ -9269,27 +9307,50 @@ function ensureStarsZoneUnitsSeeded(layout) {
   const nearbySlots = sorted.filter(h => !(h.row === centerHex.row && h.col === centerHex.col));
 
   const playerName = (typeof S !== 'undefined' && S && S.name && S.name.trim()) ? S.name.trim() : 'You';
-  starsZoneUnits.push({ row: centerHex.row, col: centerHex.col, type: 'ally', name: playerName, icon: '◉' });
+  const trackerUnits = [];
+  trackerUnits.push({ row: centerHex.row, col: centerHex.col, type: 'ally', name: playerName, icon: '◉', fromTracker: true, trackerKey: 'player:self' });
 
   const allies = (Array.isArray(S.enemies) ? S.enemies.filter(e => e && e.ally) : []);
   allies.forEach((ally, idx) => {
     const slot = nearbySlots[idx % nearbySlots.length] || centerHex;
-    starsZoneUnits.push({ row: slot.row, col: slot.col, type: 'ally', name: String(ally.name || `Ally ${idx + 1}`), icon: '◍' });
+    const key = 'ally:' + String(ally.id != null ? ally.id : (ally.name || ('ally-' + idx)));
+    trackerUnits.push({ row: slot.row, col: slot.col, type: 'ally', name: String(ally.name || `Ally ${idx + 1}`), icon: '◍', fromTracker: true, trackerKey: key });
   });
 
   const enemies = (Array.isArray(S.enemies) ? S.enemies.filter(e => e && !e.ally) : []);
   enemies.forEach((enemy, idx) => {
     const slot = nearbySlots[(idx + allies.length) % nearbySlots.length] || centerHex;
-    starsZoneUnits.push({ row: slot.row, col: slot.col, type: 'enemy', name: String(enemy.name || `Enemy ${idx + 1}`), icon: '✕' });
+    const key = 'enemy:' + String(enemy.id != null ? enemy.id : (enemy.name || ('enemy-' + idx)));
+    trackerUnits.push({ row: slot.row, col: slot.col, type: 'enemy', name: String(enemy.name || `Enemy ${idx + 1}`), icon: '✕', fromTracker: true, trackerKey: key });
   });
+
+  const manualUnits = starsZoneUnits.filter(u => !u || !u.fromTracker);
+  starsZoneUnits = manualUnits.concat(trackerUnits);
 }
+
+function applySceneOpenerToStarsCombatZone(sceneOpener) {
+  if (!sceneOpener) return;
+  const layoutId = mapSceneTerrainToStarsLayoutId(sceneOpener.zoneTerrain);
+  starsZoneOpenerOverride = {
+    terrainText: String(sceneOpener.zoneTerrain || ''),
+    coverTier: String(sceneOpener.coverTier || 'none'),
+    coverDesc: String(sceneOpener.coverDesc || ''),
+    layoutId: layoutId
+  };
+  const sel = document.getElementById('zonePresetSelect');
+  if (sel) sel.value = String(layoutId);
+  renderStarsCombatZone(layoutId);
+}
+window.applySceneOpenerToStarsCombatZone = applySceneOpenerToStarsCombatZone;
 
 function renderStarsCombatZone(layoutId) {
   const container = document.getElementById('starsCombatZoneContainer');
   if (!container) return;
   const layout = COMBAT_ZONES_PRESETS.find(z => z.id === layoutId) || COMBAT_ZONES_PRESETS[0];
   starsZoneLayout = layout;
-  ensureStarsZoneUnitsSeeded(layout);
+  syncStarsZoneUnitsFromCombatTracker(layout);
+  const openerOverrideActive = !!(starsZoneOpenerOverride && Number(starsZoneOpenerOverride.layoutId) === Number(layout.id));
+  const coverOverrides = openerOverrideActive ? buildStarsCoverOverrides(layout, starsZoneOpenerOverride.coverTier) : {};
 
   const HSIZE = 34;
   const rows  = 4;
@@ -9307,9 +9368,12 @@ function renderStarsCombatZone(layoutId) {
     let stroke = '#2a2c4e';
     let sLabel = '';
 
-    if (h.cover === 'full') {
+    const coverKey = `${h.row}:${h.col}`;
+    const activeCover = coverOverrides[coverKey] || h.cover;
+
+    if (activeCover === 'full') {
       fill = '#111111'; stroke = '#444'; sLabel = '⬛';
-    } else if (h.cover === 'partial') {
+    } else if (activeCover === 'partial') {
       fill = '#1a2040'; stroke = '#3a5080'; sLabel = '—';
     } else if (h.special === 'rad') {
       fill = '#1a2a10'; stroke = '#4a8020'; sLabel = '☢';
@@ -9330,7 +9394,8 @@ function renderStarsCombatZone(layoutId) {
 
   container.innerHTML = `
     <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">
-      <strong style="color:var(--text);">${layout.name}</strong> — ${layout.desc}
+      <strong style="color:var(--text);">${openerOverrideActive ? starsZoneOpenerOverride.terrainText : layout.name}</strong> — ${layout.desc}
+      ${openerOverrideActive ? `<span style="color:var(--gold2);"> · Cover: ${starsZoneOpenerOverride.coverDesc || starsZoneOpenerOverride.coverTier}</span>` : ''}
       ${layout.special === 'zerog' ? '<span style="color:var(--teal);"> ⚠ Zero-G: Moving costs +1 Action</span>' : ''}
       ${layout.special === 'radiation' ? '<span style="color:var(--green2);"> ⚠ Rad Zone: +d100 Rads per Turn spent here</span>' : ''}
     </div>
@@ -9350,7 +9415,7 @@ function starsZoneHexClick(row, col, evt) {
   } else {
     const unitType = document.getElementById('starsUnitType') ? document.getElementById('starsUnitType').value : 'ally';
     const unitName = document.getElementById('starsUnitName') ? document.getElementById('starsUnitName').value : '';
-    starsZoneUnits.push({ row, col, type: unitType, name: unitName, icon: unitType === 'ally' ? '◉' : '✕' });
+    starsZoneUnits.push({ row, col, type: unitType, name: unitName, icon: unitType === 'ally' ? '◉' : '✕', fromTracker: false });
   }
   if (starsZoneLayout) renderStarsCombatZone(starsZoneLayout.id);
 }

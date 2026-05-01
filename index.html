@@ -4437,6 +4437,9 @@ function rollCombatOpener(){
   // Auto-adjust spacing based on reaction
   if(reaction<=2&&typeof setCombatSpacing==='function')setCombatSpacing('Engaged (Strike)',false);
   else if(reaction>=7&&typeof setCombatSpacing==='function')setCombatSpacing('Nearby (Shoot)',false);
+  if(typeof applySceneOpenerToStarsCombatZone==='function'){
+    try{applySceneOpenerToStarsCombatZone(S.combat.sceneOpener);}catch(_err){}
+  }
   if(typeof renderCombatMap==='function')renderCombatMap();
   if(typeof renderCombatOptions==='function')renderCombatOptions();
 }

@@ -41,7 +41,29 @@
   };
   const ACTION_STATS = ["body", "mind", "spirit", "control", "lead", "strike", "shoot", "defend"];
   const ALLOWED_DREAD_DICE = [4, 6, 8, 10, 12, 20];
-  const FALLBACK_LOOT = ["Trade Good", "Toolkit", "Remedy", "Scroll", "Weapon Mod", "Armor Plate", "Data Cache", "Relic Shard"];
+  // Returns a concrete item name drawn from SHOP_DATA rather than a generic label.
+  function getWtwFallbackLoot() {
+    if (typeof SHOP_DATA !== "undefined" && SHOP_DATA) {
+      var categoryMap = [
+        { key: "tradegoods", fallback: "Salvage Cache" },
+        { key: "toolkits",   fallback: "Scavenger's Pouch" },
+        { key: "remedies",   fallback: "Medical Patch" },
+        { key: "scrolls",    fallback: "Reveal Traps" },
+        { key: "weapon_mods",fallback: "Weapon Brace" },
+        { key: "armor",      fallback: "Balanced Armor" },
+        { key: "items",      fallback: "Intel Packet" },
+        { key: "strange",    fallback: "Strange Item #01" }
+      ];
+      var entry = categoryMap[Math.floor(Math.random() * categoryMap.length)];
+      var pool = Array.isArray(SHOP_DATA[entry.key]) ? SHOP_DATA[entry.key] : [];
+      if (pool.length) {
+        var item = pool[Math.floor(Math.random() * pool.length)];
+        return String((item && item.name) || item || entry.fallback);
+      }
+      return entry.fallback;
+    }
+    return "Salvage Cache";
+  }
   const ZONE_DANGER = {
     "Cyber Hub": { eventCombatChance: 30, eventDreadBias: 0, encounterChance: 26, skirmishChance: 14, cycleShiftBonus: 0 },
     "Green House": { eventCombatChance: 20, eventDreadBias: -1, encounterChance: 18, skirmishChance: 10, cycleShiftBonus: -1 },
@@ -843,7 +865,7 @@
       } catch (err) {}
     }
     if (!granted.length) {
-      granted = [safePick(FALLBACK_LOOT, "Trade Good")];
+      granted = [getWtwFallbackLoot()];
     }
     const stored = granted.map(function (name) {
       const ok = putLootInBackpack(name);

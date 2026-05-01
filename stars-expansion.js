@@ -8137,7 +8137,15 @@ function handleScarEncounter(trigger) {
 
 function getRadPenaltyForStat(statKey) {
   ensureStarsState();
-  return Math.max(0, (S.radiationState && S.radiationState.statPenalty && S.radiationState.statPenalty[statKey]) || 0);
+  const basePenalty = Math.max(0, (S.radiationState && S.radiationState.statPenalty && S.radiationState.statPenalty[statKey]) || 0);
+  let flavorMitigation = 0;
+  try {
+    if (typeof window.getPersonalFlavorMechanicProfile === 'function') {
+      const profile = window.getPersonalFlavorMechanicProfile(S.flavor || '');
+      if (profile && profile.antiRad) flavorMitigation = 1;
+    }
+  } catch (_err) {}
+  return Math.max(0, basePenalty - flavorMitigation);
 }
 
 function clearRadiationStatPenalties() {
@@ -8483,6 +8491,23 @@ function updateRadsUI() {
 
 function rollInjury() {
   ensureStarsState();
+  try {
+    if (typeof window.getPersonalFlavorMechanicProfile === 'function') {
+      const profile = window.getPersonalFlavorMechanicProfile(S.flavor || '');
+      if (profile && profile.injuryWard) {
+        if (!S.flavorDefenseState || typeof S.flavorDefenseState !== 'object') S.flavorDefenseState = {};
+        const dayStamp = (S && S.gameDate)
+          ? [S.gameDate.year || 1, S.gameDate.month || 1, S.gameDate.day || 1].join('-')
+          : '1-1-1';
+        if (S.flavorDefenseState.injuryWardStamp !== dayStamp) {
+          S.flavorDefenseState.injuryWardStamp = dayStamp;
+          showNotif('Personal Flavor ward prevented one injury today.', 'good');
+          return 'Injury prevented by Personal Flavor ward';
+        }
+      }
+    }
+  } catch (_err) {}
+
   const result = INJURIES_D20[roll(20) - 1];
   let finalResult = result;
   if (result.indexOf('Critical') === 0) {

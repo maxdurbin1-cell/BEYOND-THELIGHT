@@ -2620,8 +2620,11 @@ function renderBackstoryTab(){
       const p=placement[item.id]&&typeof placement[item.id]==='object'?placement[item.id]:{scope:'',key:''};
       const scope=String(p.scope||'unassigned');
       const key=String(p.key||'none');
+      const lockChip=(item.id==='home'&&scope!=='unassigned'&&key!=='none')
+        ? '<span style="display:inline-block;padding:0 .32rem;border:1px solid rgba(232,192,80,.45);background:rgba(232,192,80,.08);color:var(--gold2);font-size:.62rem;border-radius:999px;margin-left:.3rem;">🔒 Fixed</span>'
+        : '';
       return '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.2rem;">'
-        +'<span><strong>'+escapeHtmlLite(item.name)+':</strong> scope='+escapeHtmlLite(scope)+' | key=['+escapeHtmlLite(key)+']</span>'
+        +'<span><strong>'+escapeHtmlLite(item.name)+':</strong> scope='+escapeHtmlLite(scope)+' | key=['+escapeHtmlLite(key)+']'+lockChip+'</span>'
         +'<button class="btn btn-xs" onclick="rerollBackstoryAnchorLocation(\''+item.id+'\')">Reroll</button>'
         +'</div>';
     });
@@ -3193,6 +3196,33 @@ function normalizeFlavorBase(flavorText){
   return full.toLowerCase();
 }
 
+function getCurrentActiveTabId(){
+  try{
+    var active=document.querySelector('.tab-btn.active');
+    if(!active||!active.id)return '';
+    return String(active.id).replace('tabnav-','');
+  }catch(_err){
+    return '';
+  }
+}
+
+function getPersonalFlavorMechanicProfile(flavorText){
+  var full=String(flavorText||'').toLowerCase();
+  var base=normalizeFlavorBase(flavorText);
+  return {
+    animalCompanion:base.indexOf('animal companion')>=0,
+    holyShield:base.indexOf('holy shield')>=0,
+    infernalEyes:base.indexOf('infernal eyes')>=0,
+    beastForm:base.indexOf('beast form')>=0,
+    telepathic:base.indexOf('communicate telepathically')>=0,
+    antiRad:full.indexOf('anti-rad')>=0||full.indexOf('radiation')>=0||full.indexOf('irradiat')>=0||base.indexOf('cinder skin')>=0,
+    heatWard:full.indexOf('heat')>=0||full.indexOf('ember')>=0||base.indexOf('cinder skin')>=0,
+    coldWard:full.indexOf('cold')>=0||full.indexOf('frigid')>=0||base.indexOf('iron lungs')>=0,
+    vacuumReady:base.indexOf('in water: breathe')>=0||base.indexOf('iron lungs')>=0||base.indexOf('void gazer')>=0,
+    injuryWard:base.indexOf('holy shield')>=0||base.indexOf('stone skin')>=0||base.indexOf('scaled skin')>=0||base.indexOf('steel prayer')>=0
+  };
+}
+
 function flavorHashCode(txt){
   var s=String(txt||'');
   var h=0;
@@ -3323,6 +3353,7 @@ function getFlavorSceneContext(){
   var hasHostiles=Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&!e.ally;});
   var inCombat=!!(S&&S.combat&&(S.combat.active||hasHostiles));
   var isNight=(typeof isNightPhase==='function')?!!isNightPhase():false;
+  var activeTab=getCurrentActiveTabId();
   var selectedType=(typeof selectedHex!=='undefined'&&selectedHex&&selectedHex.type)?String(selectedHex.type):'';
   var inProvince=!!selectedType;
   var inSea=!!(S&&S.lastSea&&S.lastSea.selectedKey);
@@ -3343,6 +3374,7 @@ function getFlavorSceneContext(){
     inProvince:inProvince,
     inSea:inSea,
     inSpace:inSpace,
+    activeTab:activeTab,
     isCampaign:isCampaign,
     selectedType:selectedType,
     roughWeather:roughWeather,
@@ -3413,19 +3445,34 @@ function getFlavorRuleForEntry(entry){
   // Explicit normalization for known high-impact legacy flavors.
   if(base.indexOf('animal companion')>=0){
     rule.trigger='Combat scene with hostile enemies present.';
-    rule.effect='Summon your Animal Companion as an allied combatant (DD6, 12 Stress).';
+    rule.effect='Your Animal Companion auto-enters active combat as an allied combatant (DD6, 12 Stress), acting in your support lane.';
     rule.cue='Lights when hostiles are active and you can reinforce the line.';
     rule.matchers=['inCombat'];
+  }else if(base.indexOf('holy shield')>=0){
+    rule.trigger='Any danger scene where defense, endurance, or condition stability matters.';
+    rule.effect='Holy Shield adds +Ad8 to Defend rolls and can be invoked to stabilize pressure with Protected.';
+    rule.cue='Lights in combat/peril and rough traversal where incoming pressure spikes.';
+    rule.matchers=['danger'];
   }else if(base.indexOf('emit blinding light')>=0){
     rule.trigger='Combat while enemies are Engaged/Close and line-of-sight is open.';
     rule.effect='Reduce enemy threat: step down enemy Dread by 1; enemies already at d4 roll with disadvantage.';
     rule.cue='Lights during active combat against hostile groups.';
     rule.matchers=['inCombat'];
   }else if(base.indexOf('infernal eyes')>=0){
-    rule.trigger='Fear/intimidation windows in combat, especially at night or against unsettled targets.';
-    rule.effect='Apply dread pressure: step down enemy Dread and impose shaken-style disruption.';
-    rule.cue='Lights in combat, with strongest cue during night phases.';
-    rule.matchers=['inCombatNightBoost'];
+    rule.trigger='Storyline/social intimidation windows, interrogations, and hard negotiation scenes.';
+    rule.effect='Step up Lead/intimidation pressure in social scenes; can punctuate threat posture in combat at night.';
+    rule.cue='Lights in Storyline tab and social-pressure moments.';
+    rule.matchers=['storylineSocial','inCombatNightBoost'];
+  }else if(base.indexOf('beast form')>=0){
+    rule.trigger='Combat or traversal scenes where adaptive physiology gives an edge.';
+    rule.effect='Shift into chosen beast profile at will and route Action Dice focus into the selected stat lane.';
+    rule.cue='Lights when hostiles or traversal pressure is active.';
+    rule.matchers=['inCombat','travel'];
+  }else if(base.indexOf('communicate telepathically')>=0){
+    rule.trigger='Storyline coordination, negotiation pivots, and remote-command moments.';
+    rule.effect='Open a silent channel for team coordination: gain tactical momentum without direct confrontation.';
+    rule.cue='Lights strongest in Storyline and campaign scenes.';
+    rule.matchers=['storylineSocial','leadershipCampaign'];
   }else if(base.indexOf('leader')>=0){
     rule.trigger='Campaign/faction command scenes or ally-coordination checks.';
     rule.effect='Grant Empowered-style momentum to your faction/team context.';
@@ -3452,6 +3499,7 @@ function isFlavorRuleActive(rule, ctx){
     if(key==='flex')return true;
     if(key==='inCombatNightBoost')return !!ctx.inCombat||!!ctx.isNight;
     if(key==='leadershipCampaign')return !!ctx.isCampaign||!!ctx.inCombat;
+    if(key==='storylineSocial')return String(ctx.activeTab||'')==='storyline'||String(ctx.activeTab||'')==='factions'||String(ctx.activeTab||'')==='missions';
     return false;
   });
 }
@@ -3522,21 +3570,83 @@ function refreshPersonalFlavorInteractionUI(){
   }
 }
 
+function hasAnimalCompanionAlly(){
+  return Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&e.ally&&String(e.name||'').toLowerCase().indexOf('animal companion')>=0;});
+}
+
+function ensureAnimalCompanionInCombat(autoJoin){
+  if(!S||!S.combat||!S.combat.active)return false;
+  if(hasAnimalCompanionAlly())return false;
+  S.enemies.push({id:enemyIdCounter++,name:'Animal Companion',dread:6,stress:0,maxStress:12,health:0,conditions:[],ally:true,effectState:{}});
+  if(typeof renderEnemies==='function')renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+  if(typeof showNotif==='function')showNotif(autoJoin?'Animal Companion auto-joins the scene.':'Animal Companion joins combat as an ally.','good');
+  return true;
+}
+
+function openBeastFormShiftPicker(){
+  if(typeof openModal!=='function')return;
+  var html=''
+    +'<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">Choose an active beast profile. You can re-shift freely; this does not consume flavor cooldown.</div>'
+    +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.4rem;">'
+    +'<button class="btn btn-sm btn-teal" onclick="setBeastFormShift(\'predator\')">Predator (Strike)</button>'
+    +'<button class="btn btn-sm btn-primary" onclick="setBeastFormShift(\'raptor\')">Raptor (Shoot)</button>'
+    +'<button class="btn btn-sm" onclick="setBeastFormShift(\'guardian\')">Guardian (Defend)</button>'
+    +'<button class="btn btn-sm" onclick="setBeastFormShift(\'stalker\')">Stalker (Control)</button>'
+    +'</div>';
+  openModal('Beast Form Shift',html);
+}
+
+function setBeastFormShift(mode){
+  if(!S.flavorState||typeof S.flavorState!=='object')S.flavorState={};
+  var m=String(mode||'predator');
+  var map={
+    predator:{stat:'strike',die:10,label:'Predator'},
+    raptor:{stat:'shoot',die:10,label:'Raptor'},
+    guardian:{stat:'defend',die:10,label:'Guardian'},
+    stalker:{stat:'control',die:10,label:'Stalker'}
+  };
+  var chosen=map[m]||map.predator;
+  S.flavorState.beastForm={
+    mode:m,
+    stat:chosen.stat,
+    die:chosen.die,
+    stamp:getFlavorEncounterStamp(),
+    label:chosen.label
+  };
+  if(typeof closeModal==='function')closeModal();
+  if(typeof showNotif==='function')showNotif('Beast Form shifted to '+chosen.label+' profile (Ad'+chosen.die+' on '+chosen.stat+' lane).','good');
+  refreshPersonalFlavorInteractionUI();
+}
+
 function applySpecificFlavorActionOverride(entry){
   if(!entry)return null;
   var base=normalizeFlavorBase(S.flavor||'');
   if(!base)return null;
   var isNight=(typeof isNightPhase==='function')?isNightPhase():false;
   var hasHostiles=Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&!e.ally;});
+  var profile=getPersonalFlavorMechanicProfile(S.flavor||'');
 
-  if(base.indexOf('animal companion')>=0){
-    if(hasHostiles){
-      S.enemies.push({id:enemyIdCounter++,name:'Animal Companion',dread:6,stress:0,maxStress:12,health:0,conditions:[],ally:true,effectState:{}});
-      if(typeof renderEnemies==='function')renderEnemies();
-      if(typeof renderQP==='function')renderQP('combat');
+  if(profile.animalCompanion){
+    if(hasHostiles&&S.combat&&S.combat.active){
+      if(hasAnimalCompanionAlly())return 'Animal Companion is already in the encounter line.';
+      ensureAnimalCompanionInCombat(false);
       return 'Animal Companion joins combat as an ally (DD6, 12 Stress).';
     }
     return 'Animal Companion is ready. Cue: use during combat to summon your ally.';
+  }
+
+  if(profile.holyShield){
+    if(S.conditions){
+      S.conditions.protected=true;
+      S.conditions.vulnerable=false;
+      S.conditions.shaken=false;
+    }
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    S.rollMod.advDice.push(8);
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    return 'Holy Shield invoked: Protected applied and +Ad8 queued for your next defense-facing roll.';
   }
 
   if(base.indexOf('emit blinding light')>=0){
@@ -3554,19 +3664,29 @@ function applySpecificFlavorActionOverride(entry){
     return 'Blinding Light: '+affected+' enemies disrupted (Dread step-down, or disadvantage at d4).';
   }
 
-  if(base.indexOf('infernal eyes')>=0){
-    if(!hasHostiles)return 'Infernal Eyes primed. Cue: use during combat or at night for intimidation.';
-    var rounds=isNight?2:1;
-    var count=0;
-    S.enemies.forEach(function(e){
-      if(!e||e.ally)return;
-      applyEnemyCombatCondition(e,'ping',1);
-      applyEnemyCombatCondition(e,'Shaken',rounds);
-      count++;
-    });
-    if(typeof renderEnemies==='function')renderEnemies();
-    if(typeof renderQP==='function')renderQP('combat');
-    return 'Infernal Eyes: '+count+' enemies Shaken ('+rounds+'r) and Dread reduced one step.';
+  if(profile.infernalEyes){
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    var leadDie=stepUp(Number((S.stats&&S.stats.lead)||4));
+    S.rollMod.advDice.push(leadDie);
+    if(isNight&&hasHostiles){
+      S.enemies.forEach(function(e){if(!e||e.ally)return;applyEnemyCombatCondition(e,'Shaken',1);});
+      if(typeof renderEnemies==='function')renderEnemies();
+    }
+    return 'Infernal Eyes: intimidation pressure primed (+Ad'+leadDie+' for your next Lead/social check).';
+  }
+
+  if(profile.beastForm){
+    openBeastFormShiftPicker();
+    return 'Beast Form shift menu opened. Choose a profile to reroute your Action Dice lane.';
+  }
+
+  if(profile.telepathic){
+    if(S.conditions)S.conditions.focused=true;
+    if(typeof changeCounter==='function')changeCounter('tmw',1);
+    if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    return 'Telepathic channel established: Focused +1 TMW +1 Path Token for silent coordination.';
   }
 
   if(base.indexOf('leader')>=0){
@@ -3587,9 +3707,11 @@ function usePersonalFlavorAction(){
   if(!S.flavorActionState||typeof S.flavorActionState!=='object')S.flavorActionState={};
   var entry=getBespokeFlavorEntry(flavor);
   if(!entry){showNotif('Flavor entry unavailable.','warn');return;}
+  var profile=getPersonalFlavorMechanicProfile(flavor);
   var key=entry.key;
   var stamp=getFlavorCooldownStamp(entry.cooldownType);
-  if(S.flavorActionState[key]&&S.flavorActionState[key].stamp===stamp){
+  var bypassCooldown=!!(profile&&profile.beastForm);
+  if(!bypassCooldown&&S.flavorActionState[key]&&S.flavorActionState[key].stamp===stamp){
     showNotif('Flavor action on '+entry.cooldownType+' cooldown.','info');
     refreshPersonalFlavorInteractionUI();
     return;
@@ -3673,7 +3795,7 @@ function usePersonalFlavorAction(){
   if(typeof updateRollModDisplay==='function')updateRollModDisplay();
   if(typeof updateConditionButtons==='function')updateConditionButtons();
   if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
-  S.flavorActionState[key]={stamp:stamp,lastUsedAt:Date.now(),archetype:arch,cooldownType:entry.cooldownType};
+  if(!bypassCooldown)S.flavorActionState[key]={stamp:stamp,lastUsedAt:Date.now(),archetype:arch,cooldownType:entry.cooldownType};
   showNotif(msg,'good');
   refreshPersonalFlavorInteractionUI();
 }
@@ -3699,6 +3821,7 @@ window.readLoreBookFromBackpack=readLoreBookFromBackpack;
 window.tryAwardLoreBookDrop=tryAwardLoreBookDrop;
 window.usePersonalFlavorAction=usePersonalFlavorAction;
 window.refreshPersonalFlavorInteractionUI=refreshPersonalFlavorInteractionUI;
+window.getPersonalFlavorMechanicProfile=getPersonalFlavorMechanicProfile;
 window.toggleDarkAfflictionSheetPanel=toggleDarkAfflictionSheetPanel;
 window.setFlavor=setFlavor;
 window.toggleNightMode=toggleNightMode;
@@ -3999,6 +4122,10 @@ function startCombat(){
   prepareCombatTurnStart();
   S.combat.sceneDefendBonus=0;
   S.combat.enemyDefendsThisTurn=0;
+  try{
+    var profile=getPersonalFlavorMechanicProfile(S.flavor||'');
+    if(profile&&profile.animalCompanion)ensureAnimalCompanionInCombat(true);
+  }catch(_err){}
   updateCombatUI();
   // AUDIO: Combat started
   if (typeof window.AudioManager !== 'undefined') {
@@ -4541,17 +4668,24 @@ function triggerEnemyActionEvent(){
 // Returns { flat, advDie (max), advDice (array), holyShield }
 function getFlavorBonus(stat){
   var f=(S.flavor||'').toLowerCase();
+  var profile=getPersonalFlavorMechanicProfile(f);
   var flat=0,advDice=[],holyShield=false;
   if(stat==='defend'){
     if(f.indexOf('stone skin')>=0)advDice.push(4);
     if(f.indexOf('scaled skin')>=0)flat+=3;
-    if(f.indexOf('holy shield')>=0)holyShield=true;
+    if(profile.holyShield)advDice.push(8);
+    if(S&&S.flavorState&&S.flavorState.beastForm&&S.flavorState.beastForm.stat==='defend'&&S.flavorState.beastForm.stamp===getFlavorEncounterStamp())advDice.push(Number(S.flavorState.beastForm.die||10));
   }
   if(stat==='shoot'){
     if(f.indexOf('trickshot')>=0)advDice.push(10);
     if(f.indexOf('emit burst of electricity')>=0)advDice.push(8);
+    if(S&&S.flavorState&&S.flavorState.beastForm&&S.flavorState.beastForm.stat==='shoot'&&S.flavorState.beastForm.stamp===getFlavorEncounterStamp())advDice.push(Number(S.flavorState.beastForm.die||10));
   }
+  if(stat==='strike'&&S&&S.flavorState&&S.flavorState.beastForm&&S.flavorState.beastForm.stat==='strike'&&S.flavorState.beastForm.stamp===getFlavorEncounterStamp())advDice.push(Number(S.flavorState.beastForm.die||10));
+  if(stat==='control'&&S&&S.flavorState&&S.flavorState.beastForm&&S.flavorState.beastForm.stat==='control'&&S.flavorState.beastForm.stamp===getFlavorEncounterStamp())advDice.push(Number(S.flavorState.beastForm.die||10));
   if(stat==='body'&&f.indexOf('feats of strength')>=0)advDice.push(10);
+  if(stat==='lead'&&profile.infernalEyes&&(getCurrentActiveTabId()==='storyline'||getCurrentActiveTabId()==='factions'))advDice.push(stepUp(Number((S.stats&&S.stats.lead)||4)));
+  if(stat==='lead'&&profile.telepathic&&(getCurrentActiveTabId()==='storyline'||getCurrentActiveTabId()==='missions'))flat+=1;
   if(stat==='adventure'&&f.indexOf('mindshield')>=0)advDice.push(8);
   flat+=getDarkAfflictionPenalty(stat);
   flat+=getDarkAfflictionPowerBonus(stat);

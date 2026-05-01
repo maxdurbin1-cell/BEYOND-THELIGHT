@@ -9253,6 +9253,7 @@ let starsZoneUnits = [];
 let starsZoneLayout = null;
 let starsZoneAutoPopulate = true;
 let starsZoneOpenerOverride = null;
+let starsZoneRenderPresetId = 1;
 
 function getStarsZoneOrder() {
   return ['Engaged', 'Close', 'Nearby', 'Far'];
@@ -9345,7 +9346,7 @@ function syncStarsUnitsFromCombatMap() {
   if (!starsZoneLayout || !starsZoneAutoPopulate) return;
   syncStarsZoneUnitsFromCombatTracker(starsZoneLayout);
   if (typeof renderStarsCombatZone === 'function') {
-    const id = starsZoneLayout.id || (starsZoneOpenerOverride ? starsZoneOpenerOverride.layoutId : 1);
+    const id = starsZoneRenderPresetId || (starsZoneOpenerOverride ? starsZoneOpenerOverride.layoutId : 1);
     renderStarsCombatZone(id);
   }
 }
@@ -9658,6 +9659,7 @@ function renderStarsCombatZone(layoutId) {
   const container = document.getElementById('starsCombatZoneContainer');
   if (!container) return;
   const baseLayout = COMBAT_ZONES_PRESETS.find(z => z.id === layoutId) || COMBAT_ZONES_PRESETS[0];
+  starsZoneRenderPresetId = baseLayout.id;
   const openerOverrideActive = !!(starsZoneOpenerOverride && Number(starsZoneOpenerOverride.layoutId) === Number(baseLayout.id));
   const layout = (openerOverrideActive && starsZoneOpenerOverride.customLayout) ? starsZoneOpenerOverride.customLayout : baseLayout;
   starsZoneLayout = layout;
@@ -9742,7 +9744,7 @@ function starsZoneHexClick(row, col, evt) {
     const unitName = document.getElementById('starsUnitName') ? document.getElementById('starsUnitName').value : '';
     starsZoneUnits.push({ row, col, type: unitType, name: unitName, icon: unitType === 'ally' ? '◉' : '✕', fromTracker: false });
   }
-  if (starsZoneLayout) renderStarsCombatZone(starsZoneLayout.id);
+  if (starsZoneLayout) renderStarsCombatZone(starsZoneRenderPresetId || 1);
   if (starsZoneAutoPopulate && typeof syncCombatMapFromStarsUnits === 'function') syncCombatMapFromStarsUnits();
 }
 
@@ -10551,7 +10553,7 @@ function buildStarsCombatPanel() {
     </select>
     <button class="btn btn-sm btn-teal" onclick="rollCombatZone()">⚄ Roll Zone (d10)</button>
     <button class="btn btn-sm" onclick="rollCoverPlacement()">⚄ Roll Cover (d4+d20)</button>
-    <button class="btn btn-sm btn-red" onclick="starsZoneAutoPopulate=false;starsZoneUnits=[];if(starsZoneLayout)renderStarsCombatZone(starsZoneLayout.id)">Clear Units</button>
+    <button class="btn btn-sm btn-red" onclick="starsZoneAutoPopulate=false;starsZoneUnits=[];if(starsZoneLayout)renderStarsCombatZone(starsZoneRenderPresetId||1)">Clear Units</button>
     <span id="zoneRollResult" style="font-size:.75rem;color:var(--muted2);"></span>
   </div>
   <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;margin-bottom:.4rem;">

@@ -4887,12 +4887,9 @@ function executeWayfarerAction(){
     return;
   }
   if(v==='move_out'||v==='move_in'){
-    var curRange=getCombatRange();
-    var rangeOrder=['engaged','close','nearby','far'];
-    var curIdx=rangeOrder.indexOf(curRange);
-    if(curIdx<0)curIdx=0;
-    var nextIdx=v==='move_out'?Math.min(rangeOrder.length-1,curIdx+1):Math.max(0,curIdx-1);
-    if(nextIdx===curIdx){
+    var relRange=getPrimaryEnemyZoneRelative();
+    var atBoundary=(v==='move_out'&&relRange==='far')||(v==='move_in'&&relRange==='engaged');
+    if(atBoundary){
       showNotif('Already at the requested movement boundary.','warn');
       return;
     }
@@ -4900,9 +4897,11 @@ function executeWayfarerAction(){
     for(var mc=0;mc<moveCost;mc++){
       if(!consumeCombatAction('Move Zone'))return;
     }
-    var nextLabel=getCombatSpacingLabelFromRange(rangeOrder[nextIdx]);
-    setCombatSpacing(nextLabel,false);
-    setRes('<span style="color:var(--teal);">Moved to '+nextLabel+' ('+moveCost+' Action'+(moveCost===1?'':'s')+').</span>');
+    var movedZone=moveRelativeToFocusedEnemy(v==='move_out'?'out':'in');
+    if(!movedZone)return;
+    var nextLabel=getCombatSpacingLabelFromRange(String(movedZone).toLowerCase());
+    var focusedEnemy=getPrimaryCombatEnemy();
+    setRes('<span style="color:var(--teal);">Moved to '+nextLabel+' relative to '+String((focusedEnemy&&focusedEnemy.name)||'the enemy')+' ('+moveCost+' Action'+(moveCost===1?'':'s')+').</span>');
     return;
   }
   if(v==='surprise'){
@@ -5056,6 +5055,31 @@ function getCombatMapUnitForEnemy(enemy){
       return n===String(enemy.name||'')||n.indexOf(String(enemy.name||'')+' [')===0;
     })
     || null;
+}
+
+function moveRelativeToFocusedEnemy(direction){
+  if(!S||!S.combatMap||!Array.isArray(S.combatMap.units))return null;
+  var enemy=getPrimaryCombatEnemy();
+  if(!enemy){showNotif('No hostile enemy selected.','warn');return null;}
+  var enemyUnit=getCombatMapUnitForEnemy(enemy);
+  if(!enemyUnit&&typeof renderCombatMap==='function'){
+    renderCombatMap();
+    enemyUnit=getCombatMapUnitForEnemy(enemy);
+  }
+  if(!enemyUnit){showNotif('Focused enemy is not on the combat map.','warn');return null;}
+  var order=['Engaged','Close','Nearby','Far'];
+  var currentIdx=order.indexOf(enemyUnit.zone);
+  if(currentIdx<0)currentIdx=0;
+  var nextIdx=Math.max(0,Math.min(order.length-1,currentIdx+(direction==='out'?1:-1)));
+  if(nextIdx===currentIdx)return enemyUnit.zone;
+  enemyUnit.zone=order[nextIdx];
+  var nextLabel=getCombatSpacingLabelFromRange(String(order[nextIdx]).toLowerCase());
+  if(nextLabel)S.combat.spacing=nextLabel;
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
+  if(typeof updateCombatUI==='function')updateCombatUI();
+  return enemyUnit.zone;
 }
 
 function getHostileEnemyCount(){

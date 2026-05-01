@@ -1339,6 +1339,7 @@
               </div>`; })()
             : ""
         }
+        ${(typeof window.buildBackstoryAnchorActionPanelHtml === 'function') ? window.buildBackstoryAnchorActionPanelHtml('sea', String(hex.key || '')) : ''}
         ${(() => {
           const fb = window.factionSystem && typeof window.factionSystem.getSeaMarker === 'function'
             ? window.factionSystem.getSeaMarker(hex.key)

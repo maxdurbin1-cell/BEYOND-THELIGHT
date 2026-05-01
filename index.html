@@ -1746,6 +1746,12 @@ function ensureBackstoryState(){
   ['province','sea','galaxy','wtw','planet'].forEach(function(scope){
     if(!b.mapMarkers[scope]||typeof b.mapMarkers[scope]!=='object')b.mapMarkers[scope]={};
   });
+  if(!b.anchorPlacement||typeof b.anchorPlacement!=='object')b.anchorPlacement={};
+  ['home','connection','rival'].forEach(function(id){
+    if(!b.anchorPlacement[id]||typeof b.anchorPlacement[id]!=='object')b.anchorPlacement[id]={scope:'',key:''};
+    if(typeof b.anchorPlacement[id].scope!=='string')b.anchorPlacement[id].scope='';
+    if(typeof b.anchorPlacement[id].key!=='string')b.anchorPlacement[id].key='';
+  });
   if(!b.anchorState||typeof b.anchorState!=='object')b.anchorState={};
   if(!b.anchorState.home||typeof b.anchorState.home!=='object')b.anchorState.home={bond:0,visits:0,lastEvent:'',activeTask:null};
   if(!b.anchorState.connection||typeof b.anchorState.connection!=='object')b.anchorState.connection={trust:0,interactions:0,lastDialogue:'',lastGift:'',activeTask:null};
@@ -1789,6 +1795,10 @@ function setBackstoryMapMarker(scope,id,entry){
     icon:String(entry.icon||'✶'),
     detail:String(entry.detail||'')
   };
+  if(S&&S.backstory){
+    if(!S.backstory.anchorPlacement||typeof S.backstory.anchorPlacement!=='object')S.backstory.anchorPlacement={};
+    S.backstory.anchorPlacement[key]={scope:String(scope||'province').toLowerCase(),key:String(entry.key||'')};
+  }
   if(String(scope||'province').toLowerCase()==='province')S.backstory.provinceMarkers=Object.assign({},bucket);
 }
 
@@ -1875,6 +1885,7 @@ function ensureBackstoryScopeMarkers(scope,candidates,opts){
     if(!e||!valid[String(e.key||'')])delete bucket[id];
   });
   if(Object.keys(bucket).length)return;
+  if(!options.allowPopulate)return;
 
   const b=S.backstory||{};
   const used={};
@@ -1941,6 +1952,9 @@ function generateBackstory(){
   rollBackstoryField('background');
   rollBackstoryField('event');
   if(!S.backstory.notes)S.backstory.notes='A personal history shaped by debt, survival, and unfinished promises.';
+  const scopeCandidates=getBackstoryScopeCandidates();
+  const hasAnyScope=Object.keys(scopeCandidates).some(function(scope){return Array.isArray(scopeCandidates[scope])&&scopeCandidates[scope].length;});
+  if(hasAnyScope)assignBackstoryAnchorsRandomSingleMap();
   renderBackstoryTab();
   showNotif('Backstory generated. Apply it to Character and map anchors when ready.','good');
 }
@@ -1973,15 +1987,117 @@ function chooseProvinceHexByType(preferredTypes,used){
   return pick(pool);
 }
 
+function getBackstoryScopeCandidates(){
+  const scopes={};
+  if(Array.isArray(mapData)&&mapData.length){
+    scopes.province=mapData.map(function(h){
+      return {key:h.col+','+h.row,type:h.type,label:h.name||h.type};
+    });
+  }
+  if(S&&S.lastSea&&Array.isArray(S.lastSea.map)&&S.lastSea.map.length){
+    scopes.sea=S.lastSea.map.map(function(h){
+      return {key:String(h.key||''),type:String(h.type||'sea'),label:String(h.title||h.islandName||'Open Sea')};
+    });
+  }
+  if(S&&S.starSystem&&Array.isArray(S.starSystem.hexes)&&S.starSystem.hexes.length){
+    scopes.galaxy=S.starSystem.hexes.map(function(h){
+      return {key:String(h.id),type:String(h.type||''),label:'Hex '+String(h.id)};
+    });
+  }
+  if(S&&S.worldThatWas&&Array.isArray(S.worldThatWas.hexes)&&S.worldThatWas.hexes.length){
+    scopes.wtw=S.worldThatWas.hexes.map(function(h){
+      return {key:String(h.id),type:String(h.zone||''),label:String(h.zone||'District')};
+    });
+  }
+  try{
+    if(typeof getCurrentPlanetSurfaceState==='function'){
+      const ps=getCurrentPlanetSurfaceState();
+      if(ps&&Array.isArray(ps.cells)&&ps.cells.length){
+        scopes.planet=ps.cells.map(function(cell){
+          return {key:String(ps.hexId)+':'+String(cell.id),type:String(cell.marker||cell.terrain||'surface'),label:'Cell '+String(cell.id)};
+        });
+      }
+    }
+  }catch(_err){}
+  return scopes;
+}
+
+function clearBackstoryMarkersAllScopes(){
+  const b=S.backstory||{};
+  const scopes=['province','sea','galaxy','wtw','planet'];
+  scopes.forEach(function(scope){
+    const bucket=getBackstoryMarkerBucket(scope,true);
+    Object.keys(bucket).forEach(function(k){delete bucket[k];});
+  });
+  if(b.provinceMarkers&&typeof b.provinceMarkers==='object'){
+    Object.keys(b.provinceMarkers).forEach(function(k){delete b.provinceMarkers[k];});
+  }
+  if(b.anchorPlacement&&typeof b.anchorPlacement==='object'){
+    ['home','connection','rival'].forEach(function(id){
+      if(!b.anchorPlacement[id]||typeof b.anchorPlacement[id]!=='object')b.anchorPlacement[id]={scope:'',key:''};
+      b.anchorPlacement[id].scope='';
+      b.anchorPlacement[id].key='';
+    });
+  }
+}
+
+function assignBackstoryAnchorSingleMapRandom(anchorId,scopeCandidates,pref){
+  const b=S.backstory||{};
+  const preferences=pref&&typeof pref==='object'?pref:{};
+  const scopeNames=Object.keys(scopeCandidates).filter(function(scope){
+    const list=scopeCandidates[scope];
+    return Array.isArray(list)&&list.length;
+  });
+  if(!scopeNames.length)return false;
+  const weighted=[];
+  scopeNames.forEach(function(scope){
+    const list=scopeCandidates[scope];
+    const scopePref=Array.isArray(preferences[scope])?preferences[scope]:[];
+    let score=1;
+    if(scopePref.length){
+      const matching=list.filter(function(c){return scopePref.indexOf(String(c.type||''))>=0;});
+      if(matching.length)score=2;
+    }
+    for(let i=0;i<score;i++)weighted.push(scope);
+  });
+  const chosenScope=pick(weighted.length?weighted:scopeNames);
+  const source=scopeCandidates[chosenScope]||[];
+  const typePref=Array.isArray(preferences[chosenScope])?preferences[chosenScope]:[];
+  let pool=source.filter(function(c){return typePref.indexOf(String(c.type||''))>=0;});
+  if(!pool.length)pool=source.slice();
+  if(!pool.length)return false;
+  const chosen=pick(pool);
+
+  const labels={home:'Hometown Anchor',connection:'Trusted Contact',rival:'Rival Trail'};
+  const icons={home:'⌂',connection:'✶',rival:'⚔'};
+  const details={home:b.hometown||'A place tied to your beginnings.',connection:b.connection||'A trusted ally in shifting routes.',rival:b.rival||'An unresolved trail that follows you.'};
+  setBackstoryMapMarker(chosenScope,anchorId,{key:String(chosen.key),label:labels[anchorId]||'Anchor',icon:icons[anchorId]||'✶',detail:details[anchorId]||''});
+  if(!b.anchorPlacement||typeof b.anchorPlacement!=='object')b.anchorPlacement={};
+  b.anchorPlacement[anchorId]={scope:String(chosenScope),key:String(chosen.key)};
+  return true;
+}
+
+function assignBackstoryAnchorsRandomSingleMap(){
+  ensureBackstoryState();
+  const candidates=getBackstoryScopeCandidates();
+  clearBackstoryMarkersAllScopes();
+  assignBackstoryAnchorSingleMapRandom('home',candidates,{province:['dwelling','holding','seat'],sea:['island','harbor'],galaxy:['planet','hub'],wtw:[],planet:['merchant_colony','dwelling','seat']});
+  assignBackstoryAnchorSingleMapRandom('connection',candidates,{province:['holding','temple','trade','dwelling'],sea:['island','market','harbor'],galaxy:['hub','planet','relay'],wtw:[],planet:['dwelling','temple','merchant_colony','wayfarer']});
+  assignBackstoryAnchorSingleMapRandom('rival',candidates,{province:['peril','ruins','barrier','wilderness'],sea:['sea','storm','peril'],galaxy:['hazard','star','void'],wtw:[],planet:['peril','barrier','ruins']});
+  S.backstory.provinceMarkers=Object.assign({},getBackstoryMarkerBucket('province',false));
+}
+
 function assignBackstoryProvinceMarkers(){
   ensureBackstoryState();
   if(!Array.isArray(mapData)||!mapData.length){
     showNotif('Generate Province first, then populate backstory anchors.','warn');
     return;
   }
+  clearBackstoryMarkersAllScopes();
   ensureBackstoryScopeMarkers('province',mapData.map(function(h){
     return {key:h.col+','+h.row,type:h.type,label:h.name||''};
   }),{
+    allowPopulate:true,
     homeTypes:['dwelling','holding','seat'],
     rivalTypes:['peril','ruins','barrier'],
     connectionTypes:['holding','temple','trade','dwelling'],
@@ -1998,27 +2114,15 @@ function assignBackstoryProvinceMarkers(){
 
 function assignBackstoryMarkersAcrossMaps(){
   ensureBackstoryState();
-  assignBackstoryProvinceMarkers();
-  if(S.lastSea&&Array.isArray(S.lastSea.hexes)&&S.lastSea.hexes.length){
-    ensureBackstoryScopeMarkers('sea',S.lastSea.hexes.map(function(h){
-      return {key:String(h.key||''),type:String(h.type||'sea'),label:String(h.title||h.islandName||'Open Sea')};
-    }),{homeTypes:['island','harbor'],rivalTypes:['storm','monster','peril','sea'],connectionTypes:['island','harbor','market']});
-  }
-  if(S.starSystem&&Array.isArray(S.starSystem.hexes)&&S.starSystem.hexes.length){
-    ensureBackstoryScopeMarkers('galaxy',S.starSystem.hexes.map(function(h){
-      return {key:String(h.id),type:String(h.type||''),label:'Hex '+String(h.id)};
-    }),{homeTypes:['planet','hub'],rivalTypes:['hazard','star','void'],connectionTypes:['hub','planet','relay']});
-  }
-  if(S.worldThatWas&&Array.isArray(S.worldThatWas.hexes)&&S.worldThatWas.hexes.length){
-    ensureBackstoryScopeMarkers('wtw',S.worldThatWas.hexes.map(function(h){
-      return {key:String(h.id),type:String(h.zone||''),label:String(h.zone||'District')};
-    }),{});
-  }
+  assignBackstoryAnchorsRandomSingleMap();
   renderBackstoryTab();
   if(typeof renderLastSeaMap==='function')renderLastSeaMap();
   if(typeof renderStarSystemMap==='function')renderStarSystemMap();
   if(typeof renderWorldThatWas==='function')renderWorldThatWas();
   if(typeof renderPlanetExplorationPanel==='function')renderPlanetExplorationPanel();
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+  if(typeof showNotif==='function')showNotif('Backstory anchors assigned to random maps (one map per anchor).','good');
 }
 
 function applyBackstoryDowntimeLongRest(label){
@@ -2176,7 +2280,7 @@ function rollHometownRandomEvent(key){
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
 }
 
-function requestTrustedContractTask(key){
+function requestTrustedContractTask(key,scope){
   const st=ensureBackstoryAnchorState();
   st.connection.interactions=(st.connection.interactions||0)+1;
   const titles=['Silent Courier Run','Discreet Retrieval','Counterintel Sweep','Witness Protection Route'];
@@ -2190,7 +2294,7 @@ function requestTrustedContractTask(key){
   if(typeof closeModal==='function')closeModal();
 }
 
-function talkToTrustedContact(key){
+function talkToTrustedContact(key,scope){
   const st=ensureBackstoryAnchorState();
   st.connection.interactions=(st.connection.interactions||0)+1;
   const adDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats&&S.stats.spirit)||4;
@@ -2213,16 +2317,18 @@ function talkToTrustedContact(key){
     if(typeof changeMentalStress==='function')changeMentalStress(1);
     if(typeof showNotif==='function')showNotif('Trusted Contact conversation went poorly.','warn');
   }
-  maybeMoveBackstoryMapMarker('province','connection',15,['holding','dwelling','temple','trade']);
+  const sk=String(scope||'province').toLowerCase();
+  if(sk==='province')maybeMoveBackstoryMapMarker('province','connection',15,['holding','dwelling','temple','trade']);
   if(typeof closeModal==='function')closeModal();
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
 }
 
-function openBackstoryAnchorInteraction(anchorId,key){
+function openBackstoryAnchorInteraction(anchorId,key,scope){
   ensureBackstoryState();
   const st=ensureBackstoryAnchorState();
   const id=String(anchorId||'');
   const k=String(key||'');
+  const sk=String(scope||'province').toLowerCase();
   if(id==='home'){
     const home=st.home||{};
     const html=''
@@ -2246,8 +2352,8 @@ function openBackstoryAnchorInteraction(anchorId,key){
       +(c.lastDialogue?escapeHtmlLite(c.lastDialogue):'An ally in the shadows watches routes and opportunities for you.')
       +'<div style="margin-top:.25rem;color:var(--muted2);">Trust: '+(c.trust||0)+' | Interactions: '+(c.interactions||0)+(c.lastGift?(' | Last Gift: '+escapeHtmlLite(c.lastGift)):'')+'</div>'
       +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.38rem;">'
-      +'<button class="btn btn-sm btn-primary" onclick="requestTrustedContractTask(\''+k+'\')">Request Contract Mission</button>'
-      +'<button class="btn btn-sm btn-teal" onclick="talkToTrustedContact(\''+k+'\')">Talk / Build Trust</button>'
+      +'<button class="btn btn-sm btn-primary" onclick="requestTrustedContractTask(\''+k+'\',\''+sk+'\')">Request Contract Mission</button>'
+      +'<button class="btn btn-sm btn-teal" onclick="talkToTrustedContact(\''+k+'\',\''+sk+'\')">Talk / Build Trust</button>'
       +'</div></div>';
     if(typeof openModal==='function')openModal('Trusted Contact',html);
     return;
@@ -2262,18 +2368,48 @@ function openBackstoryAnchorInteraction(anchorId,key){
       +'Their network shifts constantly. Every sighting changes the next confrontation.'
       +'<div style="margin-top:.25rem;color:var(--muted2);">Sightings: '+(r.sightings||0)+'</div>'
       +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.38rem;">'
-      +'<button class="btn btn-sm btn-warn" onclick="resolveRivalInteraction(\'intimidate\',\'control\',\'negative\',\'province\',\''+k+'\')">Pressure (Control)</button>'
-      +'<button class="btn btn-sm btn-teal" onclick="resolveRivalInteraction(\'parley\',\'lead\',\'positive\',\'province\',\''+k+'\')">Parley (Lead)</button>'
-      +'<button class="btn btn-sm btn-red" onclick="startRivalCombat(\'province\',\''+k+'\')">Confront In Combat</button>'
+      +'<button class="btn btn-sm btn-warn" onclick="resolveRivalInteraction(\'intimidate\',\'control\',\'negative\',\''+sk+'\',\''+k+'\')">Pressure (Control)</button>'
+      +'<button class="btn btn-sm btn-teal" onclick="resolveRivalInteraction(\'parley\',\'lead\',\'positive\',\''+sk+'\',\''+k+'\')">Parley (Lead)</button>'
+      +'<button class="btn btn-sm btn-red" onclick="startRivalCombat(\''+sk+'\',\''+k+'\')">Confront In Combat</button>'
       +'</div></div>';
     if(typeof openModal==='function')openModal('Rival Marker',html);
     return;
   }
 }
 
+function buildBackstoryAnchorActionPanelHtml(scope,key){
+  const sk=String(scope||'province').toLowerCase();
+  const k=String(key||'');
+  const meta=getBackstoryMapMarkerMeta(sk,k);
+  if(!meta||!meta.entry)return '';
+  const marker=meta.entry;
+  const st=ensureBackstoryAnchorState();
+  let summary='';
+  let action='';
+  if(meta.id==='home'){
+    summary='Bond '+((st.home&&st.home.bond)||0)+' | Visits '+((st.home&&st.home.visits)||0)+'.';
+    action='<button class="btn btn-xs btn-teal" onclick="openBackstoryAnchorInteraction(\'home\',\''+k+'\',\''+sk+'\')">Hometown Actions</button>';
+  }else if(meta.id==='connection'){
+    summary='Trust '+((st.connection&&st.connection.trust)||0)+' | Interactions '+((st.connection&&st.connection.interactions)||0)+'.';
+    action='<button class="btn btn-xs btn-primary" onclick="openBackstoryAnchorInteraction(\'connection\',\''+k+'\',\''+sk+'\')">Trusted Contact Actions</button>';
+  }else if(meta.id==='rival'){
+    const rr=(S&&S.rival&&typeof S.rival==='object')?S.rival:{};
+    summary='Rival Dread d'+String(rr.dread||8)+' | Threat '+String(rr.threatTier||1)+' | Defeats '+String(rr.defeatCount||0)+'/3.';
+    action='<button class="btn btn-xs btn-warn" onclick="openBackstoryAnchorInteraction(\'rival\',\''+k+'\',\''+sk+'\')">Rival Actions</button>';
+  }
+  return '<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(123,154,255,.55);background:rgba(123,154,255,.08);">'
+    +'<div class="nb-label" style="color:#9db3ff;">'+escapeHtmlLite((marker.icon||'✶')+' Backstory Anchor: '+(marker.label||'Personal Marker'))+'</div>'
+    +'<div style="font-size:.8rem;color:var(--text2);line-height:1.5;">'+escapeHtmlLite(marker.detail||'A location tied to your history.')+'<br><span style="color:var(--muted2);">'+escapeHtmlLite(summary)+'</span></div>'
+    +'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+action+'</div></div>';
+}
+
 function maybeShiftBackstoryDynamicProvinceMarkers(){
-  const movedRival=maybeMoveBackstoryMapMarker('province','rival',20,['peril','ruins','barrier','wilderness','event']);
-  const movedContact=maybeMoveBackstoryMapMarker('province','connection',12,['holding','dwelling','temple','trade']);
+  const b=(S&&S.backstory&&typeof S.backstory==='object')?S.backstory:{};
+  const placement=(b.anchorPlacement&&typeof b.anchorPlacement==='object')?b.anchorPlacement:{};
+  const rivalInProvince=placement.rival&&String(placement.rival.scope||'')==='province';
+  const contactInProvince=placement.connection&&String(placement.connection.scope||'')==='province';
+  const movedRival=rivalInProvince?maybeMoveBackstoryMapMarker('province','rival',20,['peril','ruins','barrier','wilderness','event']):false;
+  const movedContact=contactInProvince?maybeMoveBackstoryMapMarker('province','connection',12,['holding','dwelling','temple','trade']):false;
   if(movedRival&&typeof showNotif==='function')showNotif('Rival trail shifted across the Province.', 'warn');
   if(movedContact&&typeof showNotif==='function')showNotif('Trusted Contact changed routes.', 'info');
 }
@@ -2356,6 +2492,7 @@ window.talkToTrustedContact=talkToTrustedContact;
 window.completeHometownAnchorTask=completeHometownAnchorTask;
 window.completeTrustedContractTask=completeTrustedContractTask;
 window.maybeShiftBackstoryDynamicProvinceMarkers=maybeShiftBackstoryDynamicProvinceMarkers;
+window.buildBackstoryAnchorActionPanelHtml=buildBackstoryAnchorActionPanelHtml;
 window.renderBackstoryTab=renderBackstoryTab;
 
 function getBackpackCapacity(){

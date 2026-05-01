@@ -3057,6 +3057,9 @@
     const markerHtml = marker
       ? ("<div class='wtw-card'><div class='wtw-card-title'>" + markerTypeLabel + "</div><div class='wtw-card-text'><strong>" + marker.title + "</strong><br>" + marker.subtitle + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Review Marker</button>" + (marker.type === "story" ? "<button class='btn btn-xs btn-teal' onclick='if(typeof openStorylineTab===\"function\")openStorylineTab()'>Continue Storyline</button>" : "") + "</div></div>")
       : "<div class='wtw-muted'>No marker in this district.</div>";
+    const backstoryAnchorHtml = (typeof window.buildBackstoryAnchorActionPanelHtml === "function")
+      ? window.buildBackstoryAnchorActionPanelHtml("wtw", String(hex.id))
+      : "";
 
     const worldSystems = hazardHtml + wayfarerHtml + structureHtml + travelHtml + renderSkirmishWidget(hex);
     const powerSection = ""
@@ -3075,7 +3078,7 @@
       + "</div>"
       + summaryGrid
       + eventCard
-        + buildWtwAccordionStateful("Encounter & Markers", encounterHtml + markerHtml, true, "encounter")
+        + buildWtwAccordionStateful("Encounter & Markers", encounterHtml + markerHtml + backstoryAnchorHtml, true, "encounter")
         + buildWtwAccordionStateful("Hazards, Wayfarers, Exploration & Travel", worldSystems, false, "worldsystems")
         + buildWtwAccordionStateful("District Services", celebrationControls + (servicesHtml || "<div class='wtw-muted'>No services available here.</div>"), false, "services")
         + buildWtwAccordionStateful("Zone Power & Tasks", powerSection, false, "powertasks")

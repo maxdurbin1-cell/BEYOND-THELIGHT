@@ -709,11 +709,34 @@ var _tmwFailGuard = { key: '', at: 0 };
 var _tmwFailPromptGuard = { at: 0 };
 var _failedRollContext = null;
 
+function inferFailedRollContextFromCore(reason, cfg) {
+  try {
+    if (typeof window.getRecentExplodingRollPair !== 'function') return null;
+    var pair = window.getRecentExplodingRollPair(2200);
+    if (!pair) return null;
+    var failedBy = Number(pair.failedBy || 0);
+    if (failedBy <= 0) return null;
+    return {
+      reason: String(reason || 'failed-roll'),
+      failedBy: failedBy,
+      dreadDie: Math.max(4, Number(pair.dreadDie || cfg.dreadDie || 6)),
+      actionDie: Math.max(4, Number(pair.actionDie || cfg.actionDie || 6)),
+      at: Date.now()
+    };
+  } catch (_err) {
+    return null;
+  }
+}
+
 function normalizeFailedRollContext(reason, opts) {
   var cfg = opts && typeof opts === 'object' ? opts : {};
+  var inferred = inferFailedRollContextFromCore(reason, cfg);
   var failedBy = Math.max(0, Number(cfg.failedBy || cfg.margin || 0));
+  if (!failedBy && inferred) failedBy = Math.max(0, Number(inferred.failedBy || 0));
   var dreadDie = Math.max(4, Number(cfg.dreadDie || cfg.dread || 6));
+  if ((!cfg.dreadDie && !cfg.dread) && inferred) dreadDie = Math.max(4, Number(inferred.dreadDie || dreadDie));
   var actionDie = Math.max(4, Number(cfg.actionDie || cfg.statDie || cfg.die || 6));
+  if ((!cfg.actionDie && !cfg.statDie && !cfg.die) && inferred) actionDie = Math.max(4, Number(inferred.actionDie || actionDie));
   return {
     reason: String(reason || 'failed-roll'),
     failedBy: failedBy,

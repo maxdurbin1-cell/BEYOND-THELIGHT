@@ -1109,16 +1109,22 @@
       }
 
       group.addEventListener("click", () => {
+        var moved = false;
         if (S.lastSea.clickMode === "travel") {
           if (hex.type === "island" && typeof registerLastSeaIslandTravel === "function") {
             registerLastSeaIslandTravel(1);
+            moved = true;
           } else if (typeof registerLastSeaHexTravel === "function") {
             registerLastSeaHexTravel(1);
+            moved = true;
           }
         }
         S.lastSea.selectedKey = hex.key;
         renderLastSeaMap();
         renderLastSeaInfo(hex);
+        if (moved && typeof window.autoAdvanceMissionFromSeaHex === "function") {
+          window.autoAdvanceMissionFromSeaHex(hex.key);
+        }
       });
       group.addEventListener("mousemove", () => {
         const coords = document.getElementById("lastSeaCoords");

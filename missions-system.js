@@ -931,6 +931,61 @@
     showNotif('Mission accepted: '+mission.title,'good');
   }
 
+  function refreshMissionSurfaces() {
+    try { renderMissionTracker(); } catch (_err) {}
+    try {
+      if (typeof window.refreshQuickPanelSection === 'function') {
+        window.refreshQuickPanelSection('missions');
+      }
+    } catch (_err2) {}
+  }
+
+  var _missionAutoAdvanceGuard = { key: '', at: 0 };
+  function canAutoAdvanceMission(missionId, tokenType, regionTag) {
+    var now = Date.now();
+    var key = String(regionTag || 'region') + '|' + String(missionId || '') + '|' + String(tokenType || '');
+    if (_missionAutoAdvanceGuard.key === key && (now - Number(_missionAutoAdvanceGuard.at || 0)) < 500) {
+      return false;
+    }
+    _missionAutoAdvanceGuard = { key: key, at: now };
+    return true;
+  }
+
+  function autoAdvanceMissionByToken(missionId, tokenType, regionTag) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var type = String(tokenType || '').toLowerCase();
+    if (!canAutoAdvanceMission(mission.id, type, regionTag || mission.region || 'region')) return false;
+    if ((type === 'informer' || type === 'holding_info') && mission.steps[1] && !mission.steps[1].completed) {
+      startMissionStep1(mission.id);
+      return true;
+    }
+    if ((type === 'site' || type === 'holding_site') && mission.steps[2] && !mission.steps[2].completed) {
+      startMissionStep2(mission.id);
+      return true;
+    }
+    if ((type === 'site' || type === 'holding_site') && mission.steps[2] && mission.steps[2].completed && mission.steps[3] && !mission.steps[3].completed) {
+      startMissionStep3(mission.id);
+      return true;
+    }
+    return false;
+  }
+
+  function autoAdvanceMissionFromProvinceHex(hex) {
+    if (!hex || typeof hex.col !== 'number' || typeof hex.row !== 'number' || !S || !S.missionTokens) return false;
+    var key = String(hex.col) + ',' + String(hex.row);
+    var token = S.missionTokens[key];
+    if (!token || !token.missionId) return false;
+    return autoAdvanceMissionByToken(token.missionId, token.type, 'province');
+  }
+
+  function autoAdvanceMissionFromSeaHex(hexKey) {
+    if (!S || !S.lastSea || !S.lastSea.missionTokens) return false;
+    var token = S.lastSea.missionTokens[String(hexKey || '')];
+    if (!token || !token.missionId) return false;
+    return autoAdvanceMissionByToken(token.missionId, token.type, 'sea');
+  }
+
   /* ── STEP 1 ── */
   function rollInfoFeature() { return INFO_FEATURES[roll(6)-1]; }
   function rollInfoDanger() {
@@ -1037,14 +1092,14 @@
       mission.additionalDanger=dan;
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
-    renderMissionTracker();
+    refreshMissionSurfaces();
   }
 
   function skipMissionStep1(missionId) {
     var mission=getMission(missionId); if (!mission) return;
     mission.steps[1].completed=true; mission.steps[1].skipped=true;
     removeInformerToken(mission);
-    renderMissionTracker();
+    refreshMissionSurfaces();
   }
 
   /* ── STEP 2: INTERACTIVE SITE EXPLORATION ── */
@@ -1261,7 +1316,7 @@
       if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
       if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
     }
-    renderMissionTracker();
+    refreshMissionSurfaces();
   }
 
   function adjustMissionDread(missionId, dir) {
@@ -1464,7 +1519,7 @@
     try { renderMissionTracker(); } catch (err) {}
     try { renderCompletedMissions(); } catch (err) {}
     try { if (typeof renderBackpackUI === 'function') renderBackpackUI(); } catch (err) {}
-    try { if (typeof renderQP === 'function') renderQP('missions'); } catch (err) {}
+    try { if (typeof window.refreshQuickPanelSection === 'function') window.refreshQuickPanelSection('missions'); } catch (err) {}
     if (success) {
       // AUDIO: Mission complete
       if (typeof window.AudioManager !== 'undefined') {
@@ -1790,6 +1845,8 @@
   window.adjustMissionDread=adjustMissionDread;
   window.createOriginMissionFromReason=createOriginMissionFromReason;
   window.createDeityPactMission=createDeityPactMission;
+  window.autoAdvanceMissionFromProvinceHex=autoAdvanceMissionFromProvinceHex;
+  window.autoAdvanceMissionFromSeaHex=autoAdvanceMissionFromSeaHex;
   window.completeMissionStep=function(missionId,stepId){
     if(stepId===1) completeMissionInfoStep(missionId,true,JSON.stringify(rollInfoFeature()));
     else if(stepId===2) completeMissionSiteStep(missionId);

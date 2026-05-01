@@ -1250,9 +1250,48 @@ function explodingRoll(n,meta){
     t+=r;
     c++;
   }while(r===n&&c<8);
-  return{total:t,exploded:c>1};
+  const out={total:t,exploded:c>1};
+  try{
+    if(!window.__btlExplodingRollLog||!Array.isArray(window.__btlExplodingRollLog))window.__btlExplodingRollLog=[];
+    window.__btlExplodingRollLog.push({
+      at:Date.now(),
+      die:Math.max(1,parseInt(n,10)||1),
+      total:out.total,
+      exploded:out.exploded,
+      meta:baseMeta
+    });
+    if(window.__btlExplodingRollLog.length>48)window.__btlExplodingRollLog.splice(0,window.__btlExplodingRollLog.length-48);
+  }catch(_err){}
+  return out;
 }
 function rollMulti(n,count){let t=0;for(let i=0;i<count;i++)t+=roll(n);return t;}
+
+window.getRecentExplodingRollPair=function(maxAgeMs){
+  try{
+    const log=Array.isArray(window.__btlExplodingRollLog)?window.__btlExplodingRollLog:[];
+    if(log.length<2)return null;
+    const now=Date.now();
+    const age=Number(maxAgeMs||1800);
+    const recent=log.filter(function(entry){return entry&&((now-Number(entry.at||0))<=age);});
+    if(recent.length<2)return null;
+    for(let i=recent.length-1;i>=1;i--){
+      const dread=recent[i];
+      const action=recent[i-1];
+      if(!dread||!action)continue;
+      if(Number(dread.at||0)<Number(action.at||0))continue;
+      return {
+        actionDie:Number(action.die||6),
+        actionTotal:Number(action.total||0),
+        dreadDie:Number(dread.die||6),
+        dreadTotal:Number(dread.total||0),
+        failedBy:Math.max(0,Number(dread.total||0)-Number(action.total||0)),
+        actionMeta:action.meta||{},
+        dreadMeta:dread.meta||{}
+      };
+    }
+  }catch(_err){}
+  return null;
+};
 
 const SOUL_ARRAYS=[[8,8,6,6,6,4,4,4],[8,6,6,6,6,6,6,4],[8,8,8,6,4,4,4,4],[10,8,6,6,4,4,4,4],[8,8,8,8,6,4,4,4]];
 const NAMES={f:['Aisha','Beatriz','Calinda','Dalia','Elena','Fatima','Grace','Hana','Irina','Jasmine','Kai','Luna','Mina','Nadia','Olivia','Priya','Rosa','Sofia','Tara','Vesna'],m:['Aarav','Bruno','Carlos','Dmitri','Eduardo','Felix','Giovanni','Hiro','Ibrahim','Jakub','Khaled','Liam','Mateo','Nikhil','Oscar','Pavel','Qasim','Rafael','Samuel','Tyrone'],l:['Anderson','Bose','Chen','Dubois','Fernandez','Gupta','Hernandez','Ivanov','Johansson','Kim','Lopez','Müller','Nguyen','Patel','Quintero','Rajput','Smith','Takahashi','Volkov','Zhao']};
@@ -5898,13 +5937,16 @@ function renderHexMap(){
     }
     g.addEventListener('click',()=>{
       try{
+        let moved=false;
         if(ensureMapClickMode()==='travel'){
           if(isTraversalPhaseLocked(hex))return;
           if(typeof registerProvinceHexTravel==='function')registerProvinceHexTravel(1);
+          moved=true;
         }
         selectedHex=hex;
         renderHexMap();
         renderHexInfo(hex);
+        if(moved&&typeof window.autoAdvanceMissionFromProvinceHex==='function')window.autoAdvanceMissionFromProvinceHex(hex);
         if(window.campaignSystem&&typeof window.campaignSystem.syncProvinceFocus==='function'){
           window.campaignSystem.syncProvinceFocus('province-click');
         }
@@ -7754,6 +7796,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     else if (tab === 'notes') c.innerHTML = buildQPNotes();
   }
 
+  window.refreshQuickPanelSection = function(tab) {
+    renderQP(tab || _qpTab);
+  };
+
   function qpRoll(sides) {
     var max = sides, min = 1;
     var val = Math.floor(Math.random() * max) + min;
@@ -8034,6 +8080,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       var textC = on ? (cd.pos?'var(--green2)':'var(--red2)') : 'var(--muted2)';
       return '<button onclick="qpToggleCond(\''+cd.k+'\')" style="background:'+bg+';border:1px solid '+borderC+';color:'+textC+';font-size:.6rem;padding:.2rem .35rem;cursor:pointer;font-family:Cinzel,serif;letter-spacing:.04em;transition:all .15s;">'+cd.l+'</button>';
     }).join('');
+    var flavorDescriptor=(typeof getFlavorInteractionDescriptor==='function')
+      ? getFlavorInteractionDescriptor(S.flavor)
+      : {title:'No Flavor Selected',desc:'Roll or set a Personal Flavor to unlock a usable action.',label:'Use Flavor Action',cooldown:'phase'};
 
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;justify-content:space-between;font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">'
@@ -8081,6 +8130,16 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div style="font-size:.66rem;color:var(--text2);line-height:1.4;">'+equipText+'</div>'
         + '<div style="font-size:.62rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;margin:.18rem 0 .12rem;">Inventory</div>'
         + '<div style="font-size:.66rem;color:var(--text2);line-height:1.4;">'+packPreview+'</div>'
+      + '</div>'
+      + '<div style="margin-bottom:.35rem;padding:.34rem .4rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.06);">'
+        + '<div style="font-size:.62rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.12rem;">Flavor Interaction</div>'
+        + '<div style="font-size:.66rem;color:var(--gold2);line-height:1.4;">'+(flavorDescriptor.title||'No Flavor Selected')+'</div>'
+        + '<div style="font-size:.66rem;color:var(--text2);line-height:1.45;margin-top:.12rem;">'+(flavorDescriptor.desc||'')+'</div>'
+        + '<div style="margin-top:.24rem;display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;">'
+          + '<button class="btn btn-xs btn-teal" onclick="if(typeof usePersonalFlavorAction===\'function\')usePersonalFlavorAction();if(typeof refreshQuickPanelSection===\'function\')refreshQuickPanelSection(\'char\');">'+(flavorDescriptor.label||'Use Flavor Action')+'</button>'
+          + '<button class="btn btn-xs" onclick="if(typeof openPersonalFlavorCodexModal===\'function\')openPersonalFlavorCodexModal();">Mini Codex</button>'
+          + '<span style="font-size:.64rem;color:var(--muted2);">Cooldown: '+(flavorDescriptor.cooldown||'phase')+'</span>'
+        + '</div>'
       + '</div>'
       + '</div>'
       + '<div><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Conditions</div>'

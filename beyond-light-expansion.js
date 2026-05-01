@@ -2742,10 +2742,19 @@
         }
       } catch (err) {}
     }
-    const table = ['Credits', 'Scroll', 'Armor', 'Weapon', 'Toolkit', 'Strange Item'];
-    const picked = pick(table);
-    if (picked === 'Credits') return `${roll(6) * 10} Credits`;
-    return `1 ${picked}`;
+    const fallbackPick = function(category, fallbackName) {
+      const pool = (typeof SHOP_DATA === 'object' && SHOP_DATA && Array.isArray(SHOP_DATA[category])) ? SHOP_DATA[category] : [];
+      return pool.length ? String((pick(pool) || {}).name || fallbackName) : fallbackName;
+    };
+    const table = [
+      function(){ return String(roll(6) * 10) + ' Credits'; },
+      function(){ return fallbackPick('scrolls', 'Reveal Traps'); },
+      function(){ return fallbackPick('armor', 'Balanced Armor'); },
+      function(){ return fallbackPick('weapons', 'Sword'); },
+      function(){ return fallbackPick('toolkits', 'Scavenger\'s Pouch'); },
+      function(){ return fallbackPick('strange', 'Strange Item #01'); }
+    ];
+    return pick(table)();
   }
 
   function exploreSeaDungeonRoom(roomIndex) {

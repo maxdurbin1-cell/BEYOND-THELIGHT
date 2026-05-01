@@ -8141,90 +8141,25 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   function buildQPFlavorCueFeed(){
-    if(typeof getAllBespokeFlavorEntries!=='function'||typeof getFlavorSceneContext!=='function'||typeof getFlavorRuleForEntry!=='function'||typeof isFlavorRuleActive!=='function')return '';
-    var entries=getAllBespokeFlavorEntries();
-    if(!Array.isArray(entries)||!entries.length)return '';
+    if(typeof getBespokeFlavorEntry!=='function'||typeof getFlavorSceneContext!=='function'||typeof getFlavorRuleForEntry!=='function'||typeof isFlavorRuleActive!=='function')return '';
+    var entry=getBespokeFlavorEntry(S.flavor);
+    if(!entry)return '';
     var ctx=getFlavorSceneContext();
-    var active=[];
-    var ready=[];
-    var cooldown=[];
     var state=(S&&S.flavorActionState&&typeof S.flavorActionState==='object')?S.flavorActionState:{};
-    var currentBase=(typeof normalizeFlavorBase==='function')?normalizeFlavorBase(S.flavor):'';
-
-    entries.forEach(function(entry){
-      if(!entry)return;
-      var rule=getFlavorRuleForEntry(entry);
-      if(!rule)return;
-      if(!isFlavorRuleActive(rule,ctx))return;
-      var key=entry.key;
-      var needed=(typeof getFlavorCooldownStamp==='function')?getFlavorCooldownStamp(entry.cooldownType):'';
-      var used=!!(state[key]&&state[key].stamp===needed);
-      var row={entry:entry,rule:rule,used:used,current:key===currentBase};
-      active.push(row);
-      if(used)cooldown.push(row);else ready.push(row);
-    });
-
-    function getCuePriority(row){
-      var matchers=Array.isArray(row&&row.rule&&row.rule.matchers)?row.rule.matchers:[];
-      var combatCritical=matchers.some(function(m){
-        return m==='inCombat'||m==='danger'||m==='inCombatNightBoost';
-      });
-      var utility=matchers.some(function(m){
-        return m==='travel'||m==='analysis'||m==='leadership'||m==='recovery'||m==='night'||m==='salvage'||m==='flex'||m==='leadershipCampaign';
-      });
-      return {
-        current:row&&row.current?1:0,
-        combatCritical:combatCritical?1:0,
-        utility:utility?1:0,
-        ready:row&&!row.used?1:0
-      };
-    }
-
-    function sortCueRows(a,b){
-      var pa=getCuePriority(a);
-      var pb=getCuePriority(b);
-      if(pa.current!==pb.current)return pb.current-pa.current;
-      if(pa.combatCritical!==pb.combatCritical)return pb.combatCritical-pa.combatCritical;
-      if(pa.utility!==pb.utility)return pb.utility-pa.utility;
-      if(pa.ready!==pb.ready)return pb.ready-pa.ready;
-      return String(a.entry.code||'').localeCompare(String(b.entry.code||''));
-    }
-
-    var shown=active.slice().sort(sortCueRows).slice(0,5);
-    if(!shown.length){
-      return '<div style="margin-bottom:.5rem;padding:.38rem .42rem;border:1px solid rgba(46,196,182,.3);background:rgba(46,196,182,.05);">'
-        + '<div style="display:flex;justify-content:space-between;gap:.25rem;align-items:center;">'
-          + '<span style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;">Flavor Cues</span>'
-          + '<span style="font-size:.62rem;color:var(--muted2);">No active scene triggers</span>'
-        + '</div>'
-        + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;line-height:1.4;">Adjust scene context (combat, travel, weather, campaign, night, salvage) to light matching flavor triggers.</div>'
-      + '</div>';
-    }
-
-    var rows=shown.map(function(row){
-      var e=row.entry;
-      var r=row.rule;
-      var status=row.used?'Cooldown':'Ready';
-      var statusColor=row.used?'var(--red2)':'var(--green2)';
-      var glow=row.used?'rgba(201,64,64,.08)':'rgba(76,175,116,.09)';
-      var p=getCuePriority(row);
-      var lane=row.current?'Current':(p.combatCritical?'Combat-critical':'Utility');
-      return '<div style="padding:.24rem .3rem;border:1px solid '+(row.current?'rgba(232,192,80,.45)':'var(--border2)')+';background:'+glow+';">'
-        + '<div style="display:flex;justify-content:space-between;gap:.25rem;align-items:center;">'
-          + '<span style="font-size:.68rem;color:var(--gold2);font-family:Rajdhani,sans-serif;">'+e.code+' · '+e.title+(row.current?' ★':'')+'</span>'
-          + '<span style="font-size:.62rem;color:'+statusColor+';">'+lane+' · '+status+'</span>'
-        + '</div>'
-        + '<div style="font-size:.64rem;color:var(--teal);margin-top:.08rem;line-height:1.35;"><strong>Trigger:</strong> '+r.trigger+'</div>'
-        + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;line-height:1.35;"><strong>Cue:</strong> '+r.cue+'</div>'
-      + '</div>';
-    }).join('');
-
-    return '<div style="margin-bottom:.5rem;padding:.38rem .42rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.06);box-shadow:0 0 0 1px rgba(46,196,182,.12) inset;">'
+    var rule=getFlavorRuleForEntry(entry);
+    if(!rule||!isFlavorRuleActive(rule,ctx))return '';
+    var needed=(typeof getFlavorCooldownStamp==='function')?getFlavorCooldownStamp(entry.cooldownType):'';
+    var used=!!(state[entry.key]&&state[entry.key].stamp===needed);
+    var status=used?'Cooling Down':'Ready Now';
+    var statusColor=used?'var(--red2)':'var(--green2)';
+    var bg=used?'rgba(201,64,64,.08)':'rgba(232,192,80,.08)';
+    return '<div style="margin-top:.28rem;padding:.34rem .38rem;border:1px solid rgba(232,192,80,.32);background:'+bg+';box-shadow:0 0 0 1px rgba(232,192,80,.08) inset;">'
       + '<div style="display:flex;justify-content:space-between;gap:.25rem;align-items:center;">'
-        + '<span style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;">Flavor Cues</span>'
-        + '<span style="font-size:.62rem;color:var(--muted2);">'+active.length+' active trigger'+(active.length===1?'':'s')+'</span>'
+        + '<span style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;">Flavor Cue</span>'
+        + '<span style="font-size:.62rem;color:'+statusColor+';">'+status+'</span>'
       + '</div>'
-      + '<div style="display:grid;gap:.2rem;margin-top:.22rem;">'+rows+'</div>'
+      + '<div style="font-size:.68rem;color:var(--gold2);margin-top:.12rem;line-height:1.4;">'+entry.title+'</div>'
+      + '<div style="font-size:.65rem;color:var(--muted2);margin-top:.08rem;line-height:1.35;">'+rule.cue+'</div>'
     + '</div>';
   }
 
@@ -8239,7 +8174,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     else if (tab === 'missions') body = buildQPMissions();
     else if (tab === 'campaign') body = buildQPCampaign();
     else if (tab === 'notes') body = buildQPNotes();
-    c.innerHTML = buildQPFlavorCueFeed() + body;
+    c.innerHTML = body;
   }
 
   window.refreshQuickPanelSection = function(tab) {
@@ -8529,6 +8464,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var flavorDescriptor=(typeof getFlavorInteractionDescriptor==='function')
       ? getFlavorInteractionDescriptor(S.flavor)
       : {title:'No Flavor Selected',desc:'Roll or set a Personal Flavor to unlock a usable action.',label:'Use Flavor Action',cooldown:'phase'};
+    var flavorCueHtml=(typeof buildQPFlavorCueFeed==='function')?buildQPFlavorCueFeed():'';
 
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;justify-content:space-between;font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">'
@@ -8583,6 +8519,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div style="font-size:.64rem;color:var(--teal);line-height:1.45;margin-top:.12rem;"><strong>Trigger:</strong> '+(flavorDescriptor.trigger||'')+'</div>'
         + '<div style="font-size:.66rem;color:var(--text2);line-height:1.45;margin-top:.1rem;"><strong>Effect:</strong> '+(flavorDescriptor.effect||flavorDescriptor.desc||'')+'</div>'
         + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.45;margin-top:.1rem;"><strong>Cue:</strong> '+(flavorDescriptor.cue||'')+'</div>'
+        + flavorCueHtml
         + '<div style="margin-top:.24rem;display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;">'
           + '<button class="btn btn-xs btn-teal" onclick="if(typeof usePersonalFlavorAction===\'function\')usePersonalFlavorAction();if(typeof refreshQuickPanelSection===\'function\')refreshQuickPanelSection(\'char\');">'+(flavorDescriptor.label||'Use Flavor Action')+'</button>'
           + '<button class="btn btn-xs" onclick="if(typeof openPersonalFlavorCodexModal===\'function\')openPersonalFlavorCodexModal();">Mini Codex</button>'
@@ -10057,6 +9994,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   window.openGmDashboard=function(){
+    if(window.settingsSystem&&typeof window.settingsSystem.isGMMode==='function'&&!window.settingsSystem.isGMMode()){
+      if(typeof showNotif==='function')showNotif('Switch to GM mode to use the GM Dashboard.','info');
+      if(window.settingsSystem&&typeof window.settingsSystem.openSettings==='function')window.settingsSystem.openSettings();
+      return;
+    }
     window.loadGmDashboardModule().then(function(){
       if(window.gmDashboard&&typeof window.gmDashboard.toggle==='function')window.gmDashboard.toggle();
       else if(window.gmDashboard&&typeof window.gmDashboard.open==='function')window.gmDashboard.open();

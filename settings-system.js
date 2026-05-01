@@ -547,6 +547,7 @@
   function syncGameModeUI() {
     const isGM = Settings.gameMode === 'gm';
     const isCampaign = Settings.gameMode === 'campaign';
+    const isSolo = !isGM && !isCampaign;
     const modeButtons = document.querySelectorAll('#settingsPanel .mode-btn');
     if (modeButtons.length >= 3) {
       modeButtons[0].classList.toggle('active', !isGM && !isCampaign);
@@ -589,6 +590,22 @@
         ? 'Settings (GM Mode Active)'
         : (isCampaign ? 'Settings (Campaign Mode Active)' : 'Settings (Solo Mode Active)');
       settingsBtn.textContent = isGM ? '⚙ GM' : (isCampaign ? '⚙ C' : '⚙');
+    }
+
+    const soloBtn = document.querySelector('nav .solo-reference-btn');
+    if (soloBtn) {
+      soloBtn.classList.toggle('on', isSolo);
+      soloBtn.style.borderColor = isSolo ? 'var(--teal)' : '';
+      soloBtn.style.color = isSolo ? 'var(--teal)' : '';
+      soloBtn.title = isSolo ? 'Solo Reference (Solo Mode Active)' : 'Solo Reference';
+    }
+
+    const gmBtn = document.querySelector('nav .gm-dashboard-btn');
+    if (gmBtn) {
+      gmBtn.classList.toggle('on', isGM);
+      gmBtn.style.borderColor = isGM ? 'var(--purple)' : '';
+      gmBtn.style.color = isGM ? 'var(--purple)' : '';
+      gmBtn.title = isGM ? 'GM Dashboard (GM Mode Active)' : 'GM Dashboard';
     }
 
     const colorBlindBtn = document.getElementById('colorBlindModeBtn');
@@ -876,6 +893,8 @@
     toggleGMReveal,
     showGMPrompt,
     isGMMode: () => Settings.isGMMode(),
+    isCampaignMode: () => Settings.gameMode === 'campaign',
+    isSoloMode: () => Settings.gameMode !== 'gm' && Settings.gameMode !== 'campaign',
     shouldRevealDC: () => Settings.shouldRevealDC(),
     shouldRevealHiddenInfo: () => Settings.shouldRevealHiddenInfo(),
     getSettings: () => ({

@@ -4549,6 +4549,9 @@ function startCombat(){
     var profile=getPersonalFlavorMechanicProfile(S.flavor||'');
     if(profile&&profile.animalCompanion)ensureAnimalCompanionInCombat(true);
   }catch(_err){}
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
   updateCombatUI();
   rollCombatOpener();
   // AUDIO: Combat started
@@ -4750,7 +4753,9 @@ function updateWayfarerActionBtn(){
   var v=sel.value;
   var actions=S&&S.combat?Math.max(0,S.combat.actionsLeft||0):0;
   var tmw=S?Math.max(0,S.tmw||0):0;
-  var range=typeof getCombatRange==='function'?getCombatRange():'nearby';
+  var range=typeof getPrimaryEnemyZoneRelative==='function'
+    ?getPrimaryEnemyZoneRelative()
+    :(typeof getCombatRange==='function'?getCombatRange():'nearby');
   var canShoot=typeof canUseAttackAtCurrentRange==='function'?canUseAttackAtCurrentRange('shoot'):true;
   var canCover=(range==='nearby'||range==='far');
   var canHelp=(range!=='far');
@@ -6085,7 +6090,10 @@ function addEnemy(nameArg,dreadArg){
       if(typeof renderCombatMap==='function')renderCombatMap();
     }
   }
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
   renderEnemies();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
+  updateCombatUI();
   if(typeof renderQP==='function')renderQP('combat');
 }
 function clearEnemies(){
@@ -6094,6 +6102,8 @@ function clearEnemies(){
   if(typeof renderQP==='function')renderQP('combat');
   if(typeof renderCombatMap==='function')renderCombatMap();
   if(typeof renderCombatOptions==='function')renderCombatOptions();
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
+  updateCombatUI();
 }
 
 function damageEnemyHealth(idx,amount){
@@ -6132,6 +6142,8 @@ function enemyPip(id,i){
   if(typeof renderQP==='function')renderQP('combat');
   if(typeof renderCombatMap==='function')renderCombatMap();
   if(typeof renderCombatOptions==='function')renderCombatOptions();
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
+  updateCombatUI();
 }
 function removeEnemy(id){
   S.enemies=S.enemies.filter(e=>e.id===id?false:true);
@@ -6139,6 +6151,8 @@ function removeEnemy(id){
   if(typeof renderQP==='function')renderQP('combat');
   if(typeof renderCombatMap==='function')renderCombatMap();
   if(typeof renderCombatOptions==='function')renderCombatOptions();
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
+  updateCombatUI();
 }
 function toggleEnemySide(id){
   const e=S.enemies.find(x=>x.id===id);
@@ -6148,6 +6162,8 @@ function toggleEnemySide(id){
   if(typeof renderQP==='function')renderQP('combat');
   if(typeof renderCombatMap==='function')renderCombatMap();
   if(typeof renderCombatOptions==='function')renderCombatOptions();
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
+  updateCombatUI();
   showNotif(e.name+' is now '+(e.ally?'an Ally':'Hostile'),'info');
 }
 function enemyAttack(id){

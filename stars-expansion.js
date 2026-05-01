@@ -9336,6 +9336,8 @@ function syncCombatMapFromStarsUnits() {
 
   if (typeof renderCombatMap === 'function') renderCombatMap();
   if (typeof renderCombatOptions === 'function') renderCombatOptions();
+  if (typeof updateCombatUI === 'function') updateCombatUI();
+  if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
 }
 window.syncCombatMapFromStarsUnits = syncCombatMapFromStarsUnits;
 
@@ -9375,6 +9377,8 @@ function moveSelectedTrackerUnitToStarsHex(row, col) {
   if (typeof syncStarsUnitsFromCombatMap === 'function') syncStarsUnitsFromCombatMap();
   if (typeof renderCombatMap === 'function') renderCombatMap();
   if (typeof renderCombatOptions === 'function') renderCombatOptions();
+  if (typeof updateCombatUI === 'function') updateCombatUI();
+  if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
   return true;
 }
 

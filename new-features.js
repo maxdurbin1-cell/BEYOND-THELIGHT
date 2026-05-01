@@ -2421,10 +2421,64 @@
   // ── COMBAT MAP ────────────────────────────────────────────────────────────────
   var combatMapUnitId = 100;
 
+  function syncMapFromTrackers() {
+    ensureNewFeatureState();
+    // Auto-add player as ally if not on the map yet
+    var playerName = (typeof S !== 'undefined' && S.name && S.name.trim()) ? S.name : 'You';
+    var hasPlayer = S.combatMap.units.some(function(u){ return u.side === 'ally' && u.name === playerName; });
+    if (!hasPlayer && typeof S !== 'undefined' && S.combat && S.combat.active) {
+      // Determine starting zone from spacing select
+      var spacingEl = document.getElementById('spacingSelect');
+      var spacingVal = spacingEl ? spacingEl.value : '';
+      var startZone = spacingVal.indexOf('Engaged') >= 0 ? 'Engaged'
+        : spacingVal.indexOf('Close') >= 0 ? 'Close'
+        : spacingVal.indexOf('Far') >= 0 ? 'Far' : 'Nearby';
+      S.combatMap.units.push({ id: combatMapUnitId++, name: playerName, side: 'ally', zone: startZone, isPlayer: true });
+    } else if (hasPlayer && typeof S !== 'undefined' && S.combat && S.combat.active) {
+      // Mirror spacing select → player zone
+      var spacingEl2 = document.getElementById('spacingSelect');
+      var spacingVal2 = spacingEl2 ? spacingEl2.value : '';
+      var mirrorZone = spacingVal2.indexOf('Engaged') >= 0 ? 'Engaged'
+        : spacingVal2.indexOf('Close') >= 0 ? 'Close'
+        : spacingVal2.indexOf('Far') >= 0 ? 'Far' : 'Nearby';
+      S.combatMap.units.forEach(function(u) {
+        if (u.side === 'ally' && u.name === playerName) { u.zone = mirrorZone; }
+      });
+    }
+  }
+
+  function getFlavorOverlays() {
+    // Returns an object keyed by zone with overlay HTML for any active Personal Flavor effects
+    var overlays = {};
+    if (typeof S === 'undefined' || !S.flavor) { return overlays; }
+    var flavor = String(S.flavor).toLowerCase();
+    if (flavor.indexOf('psychic dome') >= 0 || flavor.indexOf('dome') >= 0) {
+      // Find zone where the player is
+      var playerName = S.name && S.name.trim() ? S.name : 'You';
+      var playerUnit = S.combatMap.units.filter(function(u){ return u.side === 'ally' && u.name === playerName; })[0];
+      var domeZone = playerUnit ? playerUnit.zone : 'Nearby';
+      overlays[domeZone] = (overlays[domeZone] || '')
+        + '<div style="margin-top:.2rem;padding:.18rem .35rem;background:rgba(147,112,219,.18);border:1px solid rgba(147,112,219,.6);border-radius:4px;font-size:.63rem;color:#b39ddb;display:flex;align-items:center;gap:.25rem;">'
+        + '<span style="font-size:.8rem;">🔮</span><span><strong>Psychic Dome</strong> — up to 4 people, cannot be attacked within. Full Cover active in this zone.</span></div>';
+    }
+    // Torchbearer / Cinder Skin — light hazard in zone
+    if (flavor.indexOf('torchbearer') >= 0 || flavor.indexOf('cinder') >= 0) {
+      overlays['Engaged'] = (overlays['Engaged'] || '')
+        + '<div style="margin-top:.2rem;padding:.15rem .3rem;background:rgba(201,100,39,.15);border:1px solid rgba(201,100,39,.5);border-radius:4px;font-size:.63rem;color:var(--orange);">🔥 Heat Aura — enemies in Engaged zone take −1 to all rolls.</div>';
+    }
+    // Frost / Cold Ward
+    if (flavor.indexOf('frost') >= 0 || flavor.indexOf('cold ward') >= 0) {
+      overlays['Engaged'] = (overlays['Engaged'] || '')
+        + '<div style="margin-top:.2rem;padding:.15rem .3rem;background:rgba(100,180,220,.12);border:1px solid rgba(100,180,220,.45);border-radius:4px;font-size:.63rem;color:#90caf9;">❄ Frost Ward — Cold immunity active · Nearby zone count as Close.</div>';
+    }
+    return overlays;
+  }
+
   function renderCombatMap() {
     var el = document.getElementById("combatMapZones");
     if (!el) { return; }
     ensureNewFeatureState();
+    syncMapFromTrackers();
     var zones = ["Engaged", "Close", "Nearby", "Far"];
     var zoneInfo = {
       Engaged: { color: "rgba(201,64,64,.07)",    border: "rgba(201,64,64,.35)",    range: "Melee / Strike" },
@@ -2432,12 +2486,27 @@
       Nearby:  { color: "rgba(46,196,182,.06)",   border: "rgba(46,196,182,.3)",    range: "Ranged / Shoot" },
       Far:     { color: "rgba(122,120,152,.06)",  border: "rgba(122,120,152,.25)",  range: "Out of Range" }
     };
+    var flavOverlays = getFlavorOverlays();
+    // Determine player zone for distance indicator
+    var playerName2 = (typeof S !== 'undefined' && S.name && S.name.trim()) ? S.name : 'You';
+    var playerUnit2 = S.combatMap.units.filter(function(u){ return u.side === 'ally' && u.name === playerName2; })[0];
+    var playerZoneIdx = playerUnit2 ? zones.indexOf(playerUnit2.zone) : -1;
+    var ZONE_DIST_NAMES = ['Adjacent Hex','Two Hexes away','Three Hexes away','Four Hexes away'];
     el.innerHTML = zones.map(function(zone) {
       var info = zoneInfo[zone];
       var units = S.combatMap.units.filter(function(u){ return u.zone === zone; });
       var allies  = units.filter(function(u){ return u.side === "ally"; });
       var enemies = units.filter(function(u){ return u.side === "enemy"; });
       var zoneOptions = zones.map(function(z){ return '<option value="' + z + '"' + (z === zone ? ' selected' : '') + '>' + z + '</option>'; }).join("");
+      var zoneIdx = zones.indexOf(zone);
+      var distBadge = '';
+      if (playerZoneIdx >= 0 && playerUnit2) {
+        var dist = Math.abs(zoneIdx - playerZoneIdx);
+        var distLabel = ['You are here',''+ZONE_DIST_NAMES[dist-1]||'','',''][Math.min(dist,3)];
+        if (dist === 0) distLabel = '📍 You';
+        else distLabel = ZONE_DIST_NAMES[dist - 1] || '';
+        distBadge = '<span style="font-size:.58rem;color:var(--muted);margin-left:.35rem;">'+distLabel+'</span>';
+      }
       var allyTags = allies.map(function(u) {
         return '<div style="background:rgba(46,196,182,.13);border:1px solid var(--teal);padding:.14rem .32rem;font-size:.7rem;color:var(--teal);display:inline-flex;align-items:center;gap:.2rem;margin:.1rem;">'
           + '<span>\uD83D\uDFE6 ' + u.name + '</span>'
@@ -2452,15 +2521,17 @@
           + '<button style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:.68rem;line-height:1;" onclick="removeCombatUnit(' + u.id + ')">✕</button>'
           + '</div>';
       }).join("");
-      return '<div style="border:1px solid ' + info.border + ';background:' + info.color + ';padding:.45rem .55rem;margin-bottom:.3rem;">'
+      var overlay = flavOverlays[zone] || '';
+      return '<div style="border:2px solid ' + info.border + ';background:' + info.color + ';padding:.45rem .55rem;margin-bottom:.3rem;' + (overlay ? 'box-shadow:0 0 6px '+info.border+';' : '') + '">'
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">'
-        + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:' + info.border + ';">' + zone + '</div>'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:' + info.border + ';">' + zone + distBadge + '</div>'
         + '<div style="font-size:.62rem;color:var(--muted2);">' + info.range + '</div>'
         + '</div>'
         + '<div style="display:flex;flex-wrap:wrap;min-height:1.4rem;">'
         + allyTags + enemyTags
         + (!units.length ? '<div style="font-size:.66rem;color:var(--muted);font-style:italic;">empty</div>' : '')
         + '</div>'
+        + overlay
         + '</div>';
     }).join("");
   }

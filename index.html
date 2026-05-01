@@ -794,6 +794,15 @@ select option{background:#0f1020;}
       </div>
       <div id="combatStatus" style="font-family:'Rajdhani',sans-serif;font-size:.85rem;color:var(--muted2);margin-bottom:.6rem;"></div>
       <div id="campaignInitiativePanel" style="margin-bottom:.6rem;"></div>
+            <!-- Auto-rolls fired when combat starts -->
+            <div id="combatOpenerPanel" style="display:none;background:rgba(201,64,64,.06);border:1px solid rgba(201,64,64,.3);border-radius:5px;padding:.4rem .55rem;margin-bottom:.55rem;">
+              <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.3rem;">⚡ Scene Opener</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem .6rem;" id="combatOpenerRows"></div>
+              <div style="margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;">
+                <button class="btn btn-xs" onclick="rollCombatOpener()">↺ Re-roll All</button>
+                <button class="btn btn-xs btn-red" onclick="document.getElementById('combatOpenerPanel').style.display='none'">✕ Dismiss</button>
+              </div>
+            </div>
       <div style="margin-bottom:.55rem;"><span class="sub-label">Enemy Dread Die</span>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.2rem;">
           <button class="btn btn-sm" onclick="setEnemyDread(4)">d4</button>
@@ -847,7 +856,35 @@ select option{background:#0f1020;}
         </div>
         <div id="rollModDisplay-combat" style="font-size:.72rem;color:var(--muted2);margin-top:.25rem;">None active</div>
       </div>
-      <div style="margin-bottom:.6rem;"><span class="sub-label">Attack (Strike / Shoot)</span>
+      <div style="margin-bottom:.6rem;">
+        <span class="sub-label">⚔ Wayfarer Action</span>
+        <div style="font-size:.65rem;color:var(--muted2);margin:.15rem 0 .35rem;">Choose an action — grayed options need more Actions or wrong zone.</div>
+        <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem;">
+          <select id="wayfarerActionSel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.22rem .4rem;font-size:.8rem;border-radius:3px;flex:1;min-width:9rem;" onchange="updateWayfarerActionBtn()">
+            <option value="">— Choose Action —</option>
+            <option value="standard_strike">Standard Attack (Strike) — 1 Action</option>
+            <option value="standard_shoot">Standard Attack (Shoot) — 1 Action</option>
+            <option value="heavy_strike">Heavy Attack (Strike) — 2 Actions · +Adv Die</option>
+            <option value="heavy_shoot">Heavy Attack (Shoot) — 2 Actions · +Adv Die</option>
+            <option value="fast_strike">Fast Attack (Strike) — Free · Penalty Adv Die</option>
+            <option value="fast_shoot">Fast Attack (Shoot) — Free · Penalty Adv Die</option>
+            <option value="stance_agg">Stance: Aggressive — 1 Action (+1 Strike/Shoot, −1 Defend)</option>
+            <option value="stance_def">Stance: Defensive — 1 Action (+1 Defend, −1 Strike/Shoot)</option>
+            <option value="switch">Switch Weapon — 1 Action</option>
+            <option value="use_item">Use Item / Hack / Spell / Flavor — 1 Action</option>
+            <option value="stand_help">Help Ally — 1 Action (they gain Step Up Adv Die)</option>
+            <option value="move">Move Zone — 1 Action</option>
+            <option value="surprise">Surprise (Control vs Dread) — +2 first round attacks</option>
+            <option value="cover_partial">Take Partial Cover — 1 Action (+1 Defend)</option>
+            <option value="cover_full">Take Full Cover — 1 Action (immune to ranged)</option>
+            <option value="teamwork_event">⚑ Teamwork Event — Spend TMW for combat bonus</option>
+          </select>
+          <button id="wayfarerActionBtn" class="btn btn-primary" onclick="executeWayfarerAction()" style="white-space:nowrap;">⚄ Execute</button>
+        </div>
+        <div id="wayfarerActionInfo" style="font-size:.68rem;color:var(--muted2);margin-bottom:.25rem;"></div>
+        <div id="wayfarerActionResult" style="margin-top:.3rem;font-size:.85rem;"></div>
+      </div>
+      <div style="margin-bottom:.6rem;"><span class="sub-label">Direct Roll (Strike / Shoot)</span>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.25rem;">
           <button class="btn btn-primary" onclick="rollAttack('strike')">⚄ Roll Strike</button>
           <button class="btn btn-primary" onclick="rollAttack('shoot')">⚄ Roll Shoot</button>
@@ -4262,11 +4299,15 @@ function startCombat(){
   prepareCombatTurnStart();
   S.combat.sceneDefendBonus=0;
   S.combat.enemyDefendsThisTurn=0;
+  // Reset stances
+  S.combat.stanceBonus=0;
+  S.combat.stance=null;
   try{
     var profile=getPersonalFlavorMechanicProfile(S.flavor||'');
     if(profile&&profile.animalCompanion)ensureAnimalCompanionInCombat(true);
   }catch(_err){}
   updateCombatUI();
+  rollCombatOpener();
   // AUDIO: Combat started
   if (typeof window.AudioManager !== 'undefined') {
     window.AudioManager.combatStarted();
@@ -4285,46 +4326,196 @@ function endCombat(){
   halfStress();
   clearAllConditions();
   updateCombatUI();
-  showNotif('Scene ended — Recovery applied','good');
+  showNotif('Scene ended - Recovery applied','good');
   // AUDIO: Combat ended
   if (typeof window.AudioManager !== 'undefined') {
     window.AudioManager.combatEnded();
     window.AudioManager.switchTabMusic(window.AudioManager.currentTab);
   }
 }
-function renderCampaignInitiativePanel(){
-  const panel=document.getElementById('campaignInitiativePanel');
-  if(!panel)return;
-  const cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
-  if(!cs||!cs.code){
-    panel.innerHTML='';
+
+// ── COMBAT OPENER AUTO-ROLLS ──────────────────────────────────────────────────
+var ENCOUNTER_REACTIONS=['Hostile - attacks immediately','Wary - watching, ready to strike','Tense - stand-off, neither moves','Curious - approaches but won\'t act first','Distracted - unaware of you for now','Startled - retreats one zone this round','Negotiable - will parley if approached','Fearful - hesitates, morale -1','Berserk - targets nearest combatant','Territorial - attacks if you advance'];
+var ENEMY_ACTIVITIES=['On patrol','Guarding an objective','Fleeing something else','Ambush set - surprise if you advance','Looting or scavenging','Resting - -1 to first dread roll'];
+var ZONE_TERRAIN=['Open Field - no cover, all zones accessible','Ruined Structure - partial cover in Close/Nearby','Dense Jungle/Forest - Full Cover in Far zone','Urban Alley - Engaged only; ranged attacks penalized','Crater Field - difficult terrain; Move +1 Action','Cavern/Tunnel - no Far zone; melee emphasis','Elevated Platform - ranged in Far gain +1','Shipwreck/Debris - random obstructions per zone','Zero-G Sector - all movement +1 Action','Storm Zone - visibility halved; ranged -1'];
+
+function rollCombatOpener(){
+  var panel=document.getElementById('combatOpenerPanel');
+  var rows=document.getElementById('combatOpenerRows');
+  if(!panel||!rows)return;
+  var zone=Math.ceil(Math.random()*10);
+  var coverD4=Math.ceil(Math.random()*4);
+  var coverD20=Math.ceil(Math.random()*20);
+  var coverTotal=coverD4+coverD20;
+  var coverDesc=coverTotal<=8?'No Cover':coverTotal<=14?'Partial Cover (+1 Defend)':coverTotal<=19?'Heavy Cover (+2 Defend)':'Full Cover (immune to ranged)';
+  var reaction=Math.ceil(Math.random()*10);
+  var activity=Math.ceil(Math.random()*6);
+  rows.innerHTML=
+    '<div style="font-size:.68rem;color:var(--muted2);">Zone (d10)</div>'
+    +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+zone+' — '+ZONE_TERRAIN[zone-1]+'</div>'
+    +'<div style="font-size:.68rem;color:var(--muted2);">Cover (d4+d20)</div>'
+    +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+coverD4+'+'+coverD20+'='+coverTotal+' — '+coverDesc+'</div>'
+    +'<div style="font-size:.68rem;color:var(--muted2);">Encounter Reaction (d10)</div>'
+    +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+reaction+' — '+ENCOUNTER_REACTIONS[reaction-1]+'</div>'
+    +'<div style="font-size:.68rem;color:var(--muted2);">Enemy Activity (d6)</div>'
+    +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+activity+' — '+ENEMY_ACTIVITIES[activity-1]+'</div>';
+  panel.style.display='';
+  // Auto-adjust spacing based on reaction
+  if(reaction<=2&&typeof setCombatSpacing==='function')setCombatSpacing('Engaged (Strike)',false);
+  else if(reaction>=7&&typeof setCombatSpacing==='function')setCombatSpacing('Nearby (Shoot)',false);
+}
+
+// ── WAYFARER ACTION DROPDOWN ──────────────────────────────────────────────────
+var _combatStanceBonus={strike:0,shoot:0,defend:0};
+
+function updateWayfarerActionBtn(){
+  var sel=document.getElementById('wayfarerActionSel');
+  var btn=document.getElementById('wayfarerActionBtn');
+  var info=document.getElementById('wayfarerActionInfo');
+  if(!sel||!btn)return;
+  var v=sel.value;
+  var actions=S&&S.combat?Math.max(0,S.combat.actionsLeft||0):0;
+  var tmw=S?Math.max(0,S.tmw||0):0;
+  var range=typeof getCombatRange==='function'?getCombatRange():'nearby';
+  var blocked=false;var hint='';
+  if(!v){btn.disabled=true;if(info)info.textContent='';return;}
+  if(v==='standard_strike'){if(actions<1){blocked=true;hint='Need 1 Action. ('+actions+' left)';}else if(range!=='engaged'){blocked=true;hint='Strike requires Engaged range. Current: '+range+'.';}}
+  else if(v==='standard_shoot'){if(actions<1){blocked=true;hint='Need 1 Action.';}else if(range==='engaged'&&!weaponTextAllowsShootRange('engaged')){blocked=true;hint='Shoot not available at Engaged range with current weapon.';}}
+  else if(v==='heavy_strike'){if(actions<2){blocked=true;hint='Need 2 Actions. ('+actions+' left)';}else if(range!=='engaged'){blocked=true;hint='Strike requires Engaged range.';}}
+  else if(v==='heavy_shoot'){if(actions<2){blocked=true;hint='Need 2 Actions. ('+actions+' left)';}}
+  else if(v==='teamwork_event'){if(tmw<1){blocked=true;hint='Need at least 1 TMW. ('+tmw+' available)';}}
+  else if(['stance_agg','stance_def','switch','use_item','stand_help','move','cover_partial','cover_full'].indexOf(v)>=0){if(actions<1){blocked=true;hint='Need 1 Action. ('+actions+' left)';}}
+  // fast attack is always available (free)
+  btn.disabled=blocked;
+  btn.style.opacity=blocked?'0.45':'1';
+  if(info)info.textContent=blocked?'⚠ '+hint:'';
+}
+
+function executeWayfarerAction(){
+  var sel=document.getElementById('wayfarerActionSel');
+  var resEl=document.getElementById('wayfarerActionResult');
+  if(!sel)return;
+  var v=sel.value;
+  if(!v)return;
+  if(resEl)resEl.innerHTML='';
+  function setRes(html){if(resEl)resEl.innerHTML=html;}
+  if(v==='standard_strike'){rollAttack('strike');setRes('<span style="color:var(--muted2);font-size:.78rem;">\u2192 see Strike result below</span>');return;}
+  if(v==='standard_shoot'){rollAttack('shoot');setRes('<span style="color:var(--muted2);font-size:.78rem;">\u2192 see Shoot result below</span>');return;}
+  if(v==='heavy_strike'||v==='heavy_shoot'){
+    var type2=v==='heavy_strike'?'strike':'shoot';
+    if(!consumeCombatAction('Heavy Attack (first action)'))return;
+    if(!consumeCombatAction('Heavy Attack (second action)'))return;
+    var advDie=S&&S.stats&&S.stats.adventure?S.stats.adventure:4;
+    var aRoll=explodingRoll(S.stats[type2]||6,{type:'action',major:true,label:'Heavy '+type2});
+    var advRoll=explodingRoll(advDie,{type:'action',label:'Heavy Adv Bonus'});
+    var total=aRoll.total+advRoll.total;
+    var enem=getPrimaryCombatEnemy();
+    var dreadRoll=enem?rollEnemyDreadWithEffects(enem,'Enemy DD'):{total:explodingRoll(S.combat.enemyDread||8,{type:'dread',label:'Enemy DD'}).total};
+    var hit=total>dreadRoll.total;
+    var dmg=hit?Math.max(1,total-dreadRoll.total)+2:0;
+    setRes('<span style="color:'+(hit?'var(--teal)':'var(--red2)')+';">Heavy Attack: '+total+'(+'+advRoll.total+' Adv) vs Dread '+dreadRoll.total+' \u2014 '+(hit?'HIT! '+dmg+' Health damage (+2 Heavy bonus)':'MISS')+'</span>');
+    if(hit&&enem)applyStressToEnemy(enem,dmg,'Heavy Attack');
     return;
   }
-  const shared=(window.campaignSystem&&typeof window.campaignSystem.getSharedState==='function')?window.campaignSystem.getSharedState():null;
-  const combat=shared&&shared.campaignCombat&&typeof shared.campaignCombat==='object'?shared.campaignCombat:null;
+  if(v==='fast_strike'||v==='fast_shoot'){
+    var type3=v==='fast_strike'?'strike':'shoot';
+    var advDie3=S&&S.stats&&S.stats.adventure?S.stats.adventure:4;
+    var aRoll3=explodingRoll(S.stats[type3]||6,{type:'action',major:true,label:'Fast '+type3});
+    var penRoll=explodingRoll(advDie3,{type:'dread',label:'Fast Penalty Die'});
+    var total3=Math.max(0,aRoll3.total-penRoll.total);
+    var enem3=getPrimaryCombatEnemy();
+    var dread3=enem3?rollEnemyDreadWithEffects(enem3,'Enemy DD'):{total:explodingRoll(S.combat.enemyDread||8,{type:'dread',label:'Enemy DD'}).total};
+    var hit3=total3>dread3.total;
+    var dmg3=hit3?Math.max(1,total3-dread3.total):0;
+    setRes('<span style="color:'+(hit3?'var(--teal)':'var(--red2)')+';">Fast Attack (Free): '+aRoll3.total+'-'+penRoll.total+'='+total3+' vs Dread '+dread3.total+' \u2014 '+(hit3?'HIT! '+dmg3+' Health damage':'MISS')+' - You are Vulnerable next enemy action.</span>');
+    if(hit3&&enem3)applyStressToEnemy(enem3,dmg3,'Fast Attack');
+    if(S&&S.combat)S.combat.fastAttackVulnerable=1;
+    return;
+  }
+  if(v==='stance_agg'||v==='stance_def'){
+    if(!consumeCombatAction('Stance'))return;
+    S.combat.stance=v==='stance_agg'?'aggressive':'defensive';
+    S.combat.stanceBonus=v==='stance_agg'?1:-1;
+    var label=v==='stance_agg'?'Aggressive Stance: +1 Strike/Shoot, -1 Defend':'Defensive Stance: +1 Defend, -1 Strike/Shoot';
+    setRes('<span style="color:var(--gold2);">'+label+'</span>');
+    showNotif(label,'good');
+    return;
+  }
+  if(v==='switch'){
+    if(!consumeCombatAction('Switch Weapon'))return;
+    setRes('<span style="color:var(--muted2);">Switched weapon / spacing. Update your equipped weapon above.</span>');
+    return;
+  }
+  if(v==='use_item'){
+    if(!consumeCombatAction('Use Item/Hack/Spell/Flavor'))return;
+    setRes('<span style="color:var(--muted2);">Action spent. Trigger your item, Personal Flavor, Hack, or Spell effect now.</span>');
+    return;
+  }
+  if(v==='stand_help'){
+    if(!consumeCombatAction('Help Ally'))return;
+    var advDieH=S&&S.stats&&S.stats.adventure?stepUp(S.stats.adventure):6;
+    setRes('<span style="color:var(--teal);">Help Ally: your ally gains a Step Up Advantage Die (Ad'+advDieH+') on their next roll.</span>');
+    showNotif('Ally gains Step Up Adv Die (Ad'+advDieH+')','good');
+    return;
+  }
+  if(v==='move'){
+    if(!consumeCombatAction('Move Zone'))return;
+    setRes('<span style="color:var(--muted2);">Action spent. Change your Spacing / Zone above. Zero-G = +1 extra action.</span>');
+    return;
+  }
+  if(v==='surprise'){
+    var ctrlDie=S&&S.stats&&S.stats.control?S.stats.control:6;
+    var ctrlRoll=explodingRoll(ctrlDie,{type:'action',major:true,label:'Surprise (Control)'});
+    var dreadSurp=explodingRoll(S.combat&&S.combat.enemyDread?S.combat.enemyDread:8,{type:'dread',label:'Enemy DD'});
+    var surprised=ctrlRoll.total>dreadSurp.total;
+    setRes('<span style="color:'+(surprised?'var(--teal)':'var(--red2)')+';">Surprise Check: Control '+ctrlRoll.total+' vs Dread '+dreadSurp.total+' \u2014 '+(surprised?'SUCCESS! +2 to all attacks this round.':'FAILED - enemy is not surprised.')+'</span>');
+    if(surprised){S.combat.surpriseBonus=(S.combat.surpriseBonus||0)+2;showNotif('+2 Surprise bonus active for this round!','good');}
+    return;
+  }
+  if(v==='cover_partial'||v==='cover_full'){
+    if(!consumeCombatAction('Take Cover'))return;
+    S.combat.coverActive=v;
+    var coverMsg=v==='cover_partial'?'Partial Cover: +1 Defend until next round.':'Full Cover: cannot be targeted by ranged attacks until you move.';
+    setRes('<span style="color:var(--teal);">'+coverMsg+'</span>');
+    showNotif(coverMsg,'good');
+    return;
+  }
+  if(v==='teamwork_event'){
+    if((S.tmw||0)<1){showNotif('No TMW available.','warn');return;}
+    openTMWActions();
+    return;
+  }
+}
+function renderCampaignInitiativePanel(){
+  var panel=document.getElementById('campaignInitiativePanel');
+  if(!panel)return;
+  var shared=(window.campaignSystem&&typeof window.campaignSystem.getSharedState==='function')?window.campaignSystem.getSharedState():null;
+  var cs=(window.campaignSystem&&typeof window.campaignSystem.getState==='function')?window.campaignSystem.getState():null;
+  if(!cs||!cs.code){panel.innerHTML='';return;}
+  var combat=shared&&shared.campaignCombat&&typeof shared.campaignCombat==='object'?shared.campaignCombat:null;
   if(!combat||!combat.active||!Array.isArray(combat.turnOrder)||!combat.turnOrder.length){
     panel.innerHTML='<div style="padding:.4rem .5rem;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:5px;font-size:.74rem;color:var(--muted2);">Campaign Initiative: inactive</div>';
     return;
   }
-  const esc=function(v){return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
-  const byToken={};
+  var esc=function(v){return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var byToken={};
   if(Array.isArray(combat.participants)){
     combat.participants.forEach(function(p){if(p&&p.token)byToken[String(p.token)]=p;});
   }
-  const currentIdx=Math.max(0,Math.min(Number(combat.currentActorIndex||0),combat.turnOrder.length-1));
-  const rows=combat.turnOrder.map(function(token,idx){
-    const p=byToken[String(token)]||null;
-    const name=p&&p.name?String(p.name):String(token);
-    const role=(p&&p.isEnemy)||String(token).indexOf('enemy:')===0?'Enemy':'Wayfarer';
-    const active=idx===currentIdx;
+  var currentIdx=Math.max(0,Math.min(Number(combat.currentActorIndex||0),combat.turnOrder.length-1));
+  var rows=combat.turnOrder.map(function(token,idx){
+    var p=byToken[String(token)]||null;
+    var name=p&&p.name?String(p.name):String(token);
+    var role=(p&&p.isEnemy)||String(token).indexOf('enemy:')===0?'Enemy':'Wayfarer';
+    var active=idx===currentIdx;
     return '<div style="display:flex;justify-content:space-between;gap:.35rem;padding:.16rem .24rem;border-radius:3px;'+(active?'background:rgba(46,196,182,.12);border:1px solid rgba(46,196,182,.35);':'')+'">'
       +'<span style="color:'+(active?'var(--teal)':'var(--text2)')+';font-size:.74rem;">'+(idx+1)+'. '+esc(name)+'</span>'
-      +'<span style="font-size:.68rem;color:'+(role==='Enemy'?'var(--red2)':'var(--gold2)')+';">'+role+(active?' · ACTIVE':'')+'</span>'
+      +'<span style="font-size:.68rem;color:'+(role==='Enemy'?'var(--red2)':'var(--gold2)')+';">'+role+(active?' \u00b7 ACTIVE':'')+'</span>'
       +'</div>';
   }).join('');
   panel.innerHTML='<div style="padding:.4rem .5rem;background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.3);border-radius:6px;">'
     +'<div style="font-family:Cinzel,serif;font-size:.65rem;letter-spacing:.08em;color:var(--teal);text-transform:uppercase;margin-bottom:.2rem;">Campaign Initiative</div>'
-    +'<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.3rem;">Round '+Math.max(1,Number(combat.round||1))+' · Wayfarers first, then Enemies (2 turns each enemy)</div>'
+    +'<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.3rem;">Round '+Math.max(1,Number(combat.round||1))+' \u00b7 Wayfarers first, then Enemies (2 turns each enemy)</div>'
     +'<div style="display:grid;gap:.14rem;max-height:160px;overflow:auto;">'+rows+'</div>'
     +'</div>';
 }
@@ -4346,6 +4537,7 @@ function updateCombatUI(){
   const ml=document.getElementById('maxActionsHint');
   if(ml)ml.textContent='(max '+getMaxActions()+')';
   if(typeof renderCampaignInitiativePanel==='function')renderCampaignInitiativePanel();
+  if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
 }
 function setEnemyDread(n){
   S.combat.enemyDread=n;
@@ -4695,6 +4887,8 @@ function setCombatSpacing(newSpacing,consume){
   var sel2=document.getElementById('spacingSelect');if(sel2)sel2.value=newSpacing;
   updateCombatUI();
   if(typeof renderQP==='function')renderQP('combat');
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
 }
 
 function weaponTextAllowsShootRange(range){

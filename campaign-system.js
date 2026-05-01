@@ -4614,6 +4614,22 @@
     await emitWithAck("campaign:chat", { message: msg });
   }
 
+  async function syncProvinceEncounterResult(provinceKey, encounterHtml) {
+    if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
+    var key = String(provinceKey || "").trim();
+    var html = String(encounterHtml || "").trim();
+    if (!key || !html) return { ok: false, error: "Invalid province encounter payload." };
+    var out = await emitWithAck("campaign:provinceEncounterResult", {
+      provinceKey: key,
+      encounterHtml: html.slice(0, 18000)
+    });
+    if (!out || !out.ok) {
+      safeNotif((out && out.error) || "Could not sync province encounter to campaign.", "warn");
+      return out || { ok: false };
+    }
+    return out;
+  }
+
   async function sendChatMessage() {
     if (!state.socket || !state.code) {
       safeNotif("Join a campaign first.", "warn");
@@ -5038,6 +5054,7 @@
     deleteCampaign: deleteCampaign,
     setTimelineFilter: setTimelineFilter,
     requestSharedConsent: requestSharedConsent,
+    syncProvinceEncounterResult: syncProvinceEncounterResult,
     respondReadyCheck: respondReadyCheck,
     forceApproveReadyCheck: forceApproveReadyCheck,
     cancelReadyCheck: cancelReadyCheck,

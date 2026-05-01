@@ -1261,6 +1261,73 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("campaign:provinceEncounterResult", (payload, ack) => {
+    const campaign = getCampaignBySocket(socket);
+    if (!campaign) {
+      if (typeof ack === "function") ack({ ok: false, error: "Not connected to a campaign." });
+      return;
+    }
+
+    const provinceKey = String((payload && payload.provinceKey) || "").trim();
+    const encounterHtml = String((payload && payload.encounterHtml) || "").trim();
+    if (!provinceKey || !encounterHtml) {
+      if (typeof ack === "function") ack({ ok: false, error: "Invalid province encounter payload." });
+      return;
+    }
+
+    const parts = provinceKey.split(",");
+    const col = Number(parts[0]);
+    const row = Number(parts[1]);
+    if (!Number.isFinite(col) || !Number.isFinite(row)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Invalid province key." });
+      return;
+    }
+
+    const sharedState = campaign.shared && campaign.shared.state && typeof campaign.shared.state === "object"
+      ? campaign.shared.state
+      : {};
+    const provinceMap = sharedState.provinceMap && typeof sharedState.provinceMap === "object"
+      ? safeClone(sharedState.provinceMap) || {}
+      : {};
+    const mapData = Array.isArray(provinceMap.mapData) ? provinceMap.mapData.slice() : [];
+    let found = false;
+
+    for (let i = 0; i < mapData.length; i += 1) {
+      const hex = mapData[i];
+      if (!hex || Number(hex.col) !== col || Number(hex.row) !== row) continue;
+      const data = hex.data && typeof hex.data === "object" ? Object.assign({}, hex.data) : {};
+      data.lastEncounterHtml = encounterHtml.slice(0, 18000);
+      mapData[i] = Object.assign({}, hex, { data });
+      found = true;
+      break;
+    }
+
+    if (!found) {
+      if (typeof ack === "function") ack({ ok: false, error: "Province hex not found in shared map." });
+      return;
+    }
+
+    provinceMap.mapData = mapData;
+    sharedState.provinceMap = provinceMap;
+    campaign.shared.state = sharedState;
+    campaign.shared.stateVersion = Math.max(0, Number(campaign.shared.stateVersion || 0)) + 1;
+    campaign.updatedAt = Date.now();
+    schedulePersist();
+
+    const token = socket.data.token || "";
+    const member = token ? campaign.participants.get(token) : null;
+    addLog(campaign, "system", `${member ? member.name : "Player"} synced province encounter @ ${provinceKey}.`, {
+      token,
+      provinceKey,
+      action: "province-encounter-sync"
+    });
+
+    emitCampaignState(campaign.code);
+    if (typeof ack === "function") {
+      ack({ ok: true, stateVersion: campaign.shared.stateVersion, authoritativeAt: campaign.updatedAt });
+    }
+  });
+
   socket.on("campaign:requestResync", (_payload, ack) => {
     const campaign = getCampaignBySocket(socket);
     if (!campaign) {

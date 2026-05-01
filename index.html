@@ -2724,6 +2724,13 @@ function normalizeLegacyLootAlias(text) {
   if (lower === 'reveal') return 'Reveal Traps';
   if (lower === 'relic') return 'Relic of the Builders';
   if (lower.indexOf('relic of the builders') >= 0) return 'Relic of the Builders';
+  // Normalize generic loot placeholders into concrete, usable inventory items.
+  if (lower === 'trade good') return 'Odd fruits';
+  if (lower === 'toolkit') return 'Scavenger\'s Pouch';
+  if (lower === 'remedy') return 'Wound Salve';
+  if (lower === 'scroll') return 'Reveal Traps';
+  if (lower === 'weapon mod') return 'Silencer';
+  if (lower === 'armor plate') return 'Balanced Armor';
   return clean;
 }
 
@@ -4567,6 +4574,10 @@ function showBackpackItem(index) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="attuneRelicOfBuilders('+index+');">✦ Attune Relic</button> ';
     } else if (customAction === 'readBuildersLetter') {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="readBuildersLetter('+index+');">📜 Read Letter</button> ';
+    } else if (customAction === 'decryptDataCache') {
+      btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="decryptDataCache('+index+');">💾 Decrypt Cache</button> ';
+    } else if (customAction === 'stabilizeRelicShard') {
+      btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="stabilizeRelicShard('+index+');">✶ Stabilize Shard</button> ';
     } else if (isScrollPrefix) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="castScrollFromBackpack('+index+');">⚄ Cast Scroll</button> ';
     } else if (hasAD) {
@@ -5082,6 +5093,10 @@ function useBackpackItem(index) {
       attuneRelicOfBuilders(index);
     } else if (customAction === 'readBuildersLetter') {
       readBuildersLetter(index);
+    } else if (customAction === 'decryptDataCache') {
+      decryptDataCache(index);
+    } else if (customAction === 'stabilizeRelicShard') {
+      stabilizeRelicShard(index);
     }
     return;
   }
@@ -5312,7 +5327,108 @@ function getCustomBackpackAction(text) {
   var clean = normalizeLegacyLootAlias(normalizeItemName(parseBackpackStack(text).name || text)).toLowerCase();
   if (clean === 'relic of the builders') return 'attuneRelicOfBuilders';
   if (clean === 'builder\'s letter') return 'readBuildersLetter';
+  if (clean === 'data cache') return 'decryptDataCache';
+  if (clean === 'relic shard') return 'stabilizeRelicShard';
   return '';
+}
+
+function resolveDataCacheReward(){
+  var rollOut=roll(6);
+  var title='Data Cache Decrypted';
+  var desc='';
+  var summary='';
+  var line='';
+
+  function storeItemOrCredits(name,fallbackCredits){
+    var stored=(typeof addToBackpack==='function')?addToBackpack(name):false;
+    if(stored){
+      summary='Recovered item: '+name+'.';
+      return true;
+    }
+    var credits=Math.max(10,Number(fallbackCredits||60));
+    if(typeof changeCredits==='function')changeCredits(credits);else S.credits=(Number(S.credits)||0)+credits;
+    summary='Backpack full. Sold recovered item manifests for +'+credits+'₵.';
+    return false;
+  }
+
+  if(rollOut===1){
+    var credits=(roll(2)*10+roll(10))*10;
+    if(typeof changeCredits==='function')changeCredits(credits);else S.credits=(Number(S.credits)||0)+credits;
+    desc='Bank fragments and transit receipts reconstruct into liquid credits.';
+    summary='Recovered +'+credits+'₵.';
+    line='<strong style="color:var(--gold2);">Credits:</strong> +'+credits+'₵';
+  }else if(rollOut===2){
+    var scrollPool=(SHOP_DATA&&Array.isArray(SHOP_DATA.scrolls))?SHOP_DATA.scrolls:[];
+    storeItemOrCredits((scrollPool.length?pick(scrollPool).name:'Reveal Traps'),80);
+    desc='A compressed ritual package unfolds into an executable scroll schema.';
+    line='<strong style="color:var(--teal);">Recovered:</strong> Scroll-grade field protocol';
+  }else if(rollOut===3){
+    var remedyPool=(SHOP_DATA&&Array.isArray(SHOP_DATA.remedies))?SHOP_DATA.remedies:[];
+    storeItemOrCredits((remedyPool.length?pick(remedyPool).name:'Wound Salve'),70);
+    desc='Medical telemetry archives reconstruct into a viable treatment formula.';
+    line='<strong style="color:var(--teal);">Recovered:</strong> Remedy pattern';
+  }else if(rollOut===4){
+    var modPool=(SHOP_DATA&&Array.isArray(SHOP_DATA.weapon_mods))?SHOP_DATA.weapon_mods:[];
+    storeItemOrCredits((modPool.length?pick(modPool).name:'Silencer'),120);
+    desc='Combat firmware notes reveal a weapon customization blueprint.';
+    line='<strong style="color:var(--teal);">Recovered:</strong> Weapon mod schema';
+  }else if(rollOut===5){
+    var strangePool=(SHOP_DATA&&Array.isArray(SHOP_DATA.strange))?SHOP_DATA.strange:[];
+    var strangeName=(strangePool.length?pick(strangePool).name:'Strange Item #01');
+    storeItemOrCredits(strangeName,90);
+    desc='Oblique telemetry packets reference a salvage object from the Last Age.';
+    line='<strong style="color:var(--teal);">Recovered:</strong> Strange salvage index';
+  }else{
+    S.pathTokens=Math.max(0,Number(S.pathTokens||0))+1;
+    if(typeof changeTMW==='function')changeTMW(1);else S.tmw=Math.max(0,Number(S.tmw||0))+1;
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+    desc='Navigation crumbs and encrypted chatter reveal a tactical route window.';
+    summary='+1 Path Token and +1 TMW.';
+    line='<strong style="color:var(--gold2);">Intel:</strong> Route advantage secured';
+  }
+
+  if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+  openModal(title,
+    '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+    +'<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.35rem;">Decryption cycle d6='+rollOut+'</div>'
+    +desc
+    +(line?('<div style="margin-top:.35rem;">'+line+'</div>'):'')
+    +(summary?('<div style="margin-top:.3rem;color:var(--green2);">'+summary+'</div>'):'')
+    +'</div>');
+  showNotif(summary||'Data Cache decrypted.','good');
+}
+
+function decryptDataCache(index){
+  var text=(S.backpack&&S.backpack[index])||'';
+  if(!text)return;
+  removeBackpackItem(index);
+  resolveDataCacheReward();
+}
+
+function stabilizeRelicShard(index){
+  var text=(S.backpack&&S.backpack[index])||'';
+  if(!text)return;
+  var mindDie=(typeof getEffectiveDie==='function')?getEffectiveDie('mind'):(S.stats&&S.stats.mind||4);
+  var act=explodingRoll(mindDie);
+  var dread=explodingRoll(8);
+  var success=act.total>=dread.total;
+  removeBackpackItem(index);
+  if(success){
+    S.pathTokens=Math.max(0,Number(S.pathTokens||0))+1;
+    if(typeof changeTMW==='function')changeTMW(1);else S.tmw=Math.max(0,Number(S.tmw||0))+1;
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+  }else{
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+  }
+  if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+  openModal('Relic Shard Stabilization',
+    '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+    +'Mind d'+mindDie+' <strong style="color:var(--teal);">'+act.total+'</strong> vs DD8 <strong style="color:var(--red2);">'+dread.total+'</strong><br><br>'
+    +(success
+      ? '<strong style="color:var(--green2);">Shard stabilized.</strong> You gain +1 Path Token and +1 TMW.'
+      : '<strong style="color:var(--red2);">Stabilization failed.</strong> The shard burns out under pressure.')
+    +'</div>');
+  showNotif(success?'Relic shard stabilized: +1 Path Token, +1 TMW.':'Relic shard destabilized.','good');
 }
 
 function attuneRelicOfBuilders(index) {
@@ -5337,6 +5453,9 @@ function applyRelicAttunement(index, statKey) {
   if (typeof closeModal === 'function') closeModal();
   showNotif('Relic attuned: ' + key.charAt(0).toUpperCase() + key.slice(1) + ' now gains +A.D. permanently.', 'good');
 }
+
+window.decryptDataCache=decryptDataCache;
+window.stabilizeRelicShard=stabilizeRelicShard;
 
 function readBuildersLetter(index) {
   openModal('Builder\'s Letter', '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
@@ -7344,8 +7463,6 @@ window.rollProvinceHoldingDowntime=rollProvinceHoldingDowntime;
 window.resolveProvinceHoldingDowntime=resolveProvinceHoldingDowntime;
 
 function rollHexEncounter(col,row){
-  if(window.campaignSystem&&typeof window.campaignSystem.guardSharedWorldMutation==='function'&&
-     !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared Province encounters in Campaign mode.'))return;
   let el=document.getElementById(`hexEnc-${col}-${row}`);
   if(!el&&selectedHex&&selectedHex.col===col&&selectedHex.row===row){
     renderHexInfo(selectedHex);
@@ -7458,6 +7575,12 @@ function rollHexEncounter(col,row){
     if(hexObjPersist){
       hexObjPersist.data=hexObjPersist.data||{};
       hexObjPersist.data.lastEncounterHtml=html;
+      if(window.campaignSystem&&typeof window.campaignSystem.getState==='function'&&typeof window.campaignSystem.syncProvinceEncounterResult==='function'){
+        const cs=window.campaignSystem.getState();
+        if(cs&&cs.code&&cs.role==='player'){
+          try{window.campaignSystem.syncProvinceEncounterResult(String(col)+','+String(row),html);}catch(_err){}
+        }
+      }
       syncProvinceRuinStateSoon('province-encounter-roll');
     }
     if(el){
@@ -7486,8 +7609,6 @@ function rollHexEncounter(col,row){
 }
 
 function rollTradeRouteEncounter(col,row){
-  if(window.campaignSystem&&typeof window.campaignSystem.guardSharedWorldMutation==='function'&&
-     !window.campaignSystem.guardSharedWorldMutation('Only the GM can roll shared Trade Route encounters in Campaign mode.'))return;
   try{
     const targetHex=(typeof col==='number'&&typeof row==='number')
       ? mapData.find(h=>h&&h.col===col&&h.row===row)

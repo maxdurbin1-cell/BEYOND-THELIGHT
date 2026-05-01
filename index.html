@@ -905,6 +905,11 @@ select option{background:#0f1020;}
           <button class="btn btn-sm btn-red" onclick="triggerEnemyActionEvent()">☠ Enemy Action</button>
           <div id="enemyActionResult" style="margin-top:.3rem;font-size:.85rem;"></div>
         </div>
+        <div><span class="sub-label">Escape / Morale</span><br>
+          <button class="btn btn-sm" onclick="attemptFlee()">🏃 Flee</button>
+          <button class="btn btn-sm" onclick="checkEnemyMorale()">⚔ Morale</button>
+          <div id="fleeResult" style="margin-top:.3rem;font-size:.85rem;"></div>
+        </div>
       </div>
     </div>
     <div class="card" style="grid-column:1/-1;">
@@ -4553,6 +4558,101 @@ function startCombat(){
   }
 }
 function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
+
+// ── FLEE, MORALE & REWARDS ────────────────────────────────────────────────────
+function promptCombatRewards(){
+  if(!S||!S.combat||Array.isArray(S.enemies)&&S.enemies.length>0)return;
+  var html='<div style="font-size:.9rem;color:var(--gold2);font-family:Cinzel,serif;margin-bottom:.5rem;">Combat Victory</div>'
+    +'<div style="font-size:.83rem;color:var(--text2);line-height:1.65;margin-bottom:.55rem;">All enemies defeated!</div>'
+    +'<div style="text-align:right;margin-top:.6rem;">'
+    +'<button class="btn btn-sm btn-primary" onclick="grantCombatRewards();closeModal()">+ 40 Credits</button>'
+    +'<button class="btn btn-sm" onclick="closeModal()">Dismiss</button>'
+    +'</div>';
+  openModal('Combat Victory',html);
+}
+function grantCombatRewards(){
+  if(!S)return;
+  var creditsReward=Math.floor(30+Math.random()*20);
+  setCredits((S.credits||0)+creditsReward);
+  showNotif('+'+creditsReward+' Credits','good');
+}
+function attemptFlee(){
+  if(!S||!S.combat||!S.combat.active){showNotif('Not in combat','warn');return;}
+  if((S.combat.actionsLeft||0)<1){showNotif('No actions remaining','warn');return;}
+  S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);
+  var controlDie=Math.ceil(Math.random()*12);
+  var enemyDie=Math.ceil(Math.random()*(S.combat.enemyDread||8));
+  var success=controlDie>=enemyDie;
+  var result=success?'<span style="color:var(--teal);">✓ Escape!</span> +1 TMW':'<span style="color:var(--red2);">✗ Caught!</span> Enemy gains free action';
+  document.getElementById('fleeResult').innerHTML=result;
+  if(success){
+    if(typeof changeCounter==='function')changeCounter('tmw',1);
+    endCombat();
+  }else{
+    S.combat.enemyDefendsThisTurn=Math.max(0,(S.combat.enemyDefendsThisTurn||0)-1);
+  }
+  updateCombatUI();
+}
+function checkEnemyMorale(){
+  if(!S||!S.combat||!S.combat.active){showNotif('Not in combat','warn');return;}
+  if((S.combat.actionsLeft||0)<1){showNotif('No actions remaining','warn');return;}
+  S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);
+  var totalMaxStress=0,totalCurrentStress=0;
+  if(Array.isArray(S.enemies)){S.enemies.forEach(function(e){if(!e||e.ally)return;totalMaxStress+=(e.maxStress||0);totalCurrentStress+=(e.stress||0);});}
+  if(totalCurrentStress<totalMaxStress/2){
+    var mDie=Math.ceil(Math.random()*8);
+    var success=mDie>=5;
+    var result=success?'<span style="color:var(--teal);">Enemies Surrender</span> +1 TMW':'<span style="color:var(--gold2);">Enemies Rally</span> Dread +1';
+    document.getElementById('fleeResult').innerHTML=result;
+    if(success){if(typeof changeCounter==='function')changeCounter('tmw',1);showNotif('Enemies ready to parley','good');}
+    else{S.combat.enemyDread=Math.max(4,Math.min(20,(S.combat.enemyDread||8)+1));showNotif('Dread increased','warn');if(typeof setEnemyDread==='function')setEnemyDread(S.combat.enemyDread);}
+    updateCombatUI();
+  }else{document.getElementById('fleeResult').innerHTML='<span style="color:var(--red2);">Too strong</span> — try later';}
+}
+
+// ── COMPANION BUFFS ───────────────────────────────────────────────────────────
+function getCompanionBuff(action){
+  if(!S||!S.companions||!Array.isArray(S.companions))return {};
+  var active=S.companions.find(function(c){return c&&c.active;});
+  if(!active)return {};
+  var buffs={};
+  if(action==='strike'&&active.name==='Noor'){buffs.strikeBonus=2;}
+  if(action==='strike'&&active.name==='Vex'){buffs.stressBonus=2;}
+  if(action==='defend'&&active.name==='Kael'){buffs.defendBonus=3;}
+  return buffs;
+}
+
+function hasActiveCompanion(){
+  if(!S||!S.companions||!Array.isArray(S.companions))return 0;
+  return S.companions.filter(function(c){return c&&c.active;}).length;
+}
+
+function upgradeCompanion(){
+  if(!S||!S.companions)return;
+  var active=S.companions.find(function(c){return c&&c.active;});
+  if(!active){showNotif('No active companion','warn');return;}
+  if((S.credits||0)<50){showNotif('Needs 50+ Credits','warn');return;}
+  active.level=(active.level||1)+1;
+  setCredits((S.credits||0)-50);
+  showNotif(active.name+' → Level '+active.level,'good');
+}
+
+// ── QUEST COMPLETION ──────────────────────────────────────────────────────────
+function completeQuestObjective(objKey){
+  if(!S||!S.quest)return;
+  if(!S.quest.objectives)S.quest.objectives={};
+  S.quest.objectives[objKey]={complete:true,timestamp:Date.now()};
+  updateQuestUI();
+}
+
+function finishCurrentQuest(){
+  if(!S||!S.quest||!S.quest.key){showNotif('No active quest','warn');return;}
+  if(typeof promptCombatRewards==='function')promptCombatRewards();
+  S.quest={};
+  updateQuestUI();
+}
+
+function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
 function endCombat(){
   S.combat.active=false;
   S.combat.round=0;
@@ -4565,8 +4665,13 @@ function endCombat(){
   halfStress();
   clearAllConditions();
   updateCombatUI();
-  showNotif('Scene ended - Recovery applied','good');
-  // AUDIO: Combat ended
+  var allClear=(!Array.isArray(S.enemies)||S.enemies.length===0);
+  if(allClear){
+    showNotif('Victory! Scene ended - Recovery applied','good');
+    promptCombatRewards();
+  }else{
+    showNotif('Scene ended - Recovery applied','warn');
+  }
   if (typeof window.AudioManager !== 'undefined') {
     window.AudioManager.combatEnded();
     window.AudioManager.switchTabMusic(window.AudioManager.currentTab);
@@ -5223,15 +5328,6 @@ function parseArmorActions(){var a=(S&&S.equipment)?S.equipment.armor||'':'';var
 function getMaxActions(){var base=parseArmorActions();if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0)base+=2;var fl=(S.flavor||'').toLowerCase();if(fl.indexOf('moves like the wind')>=0)base+=1;return base;}
 
 function getCombatRange(){
-  // Prefer zone-map data (closest enemy distance from player anchor) when enemies exist on the map.
-  if(typeof getPrimaryEnemyZoneRelative==='function'){
-    var mapRange=getPrimaryEnemyZoneRelative();
-    // getPrimaryEnemyZoneRelative returns the spacing fallback (getCombatRange itself) when no map
-    // enemies exist, so only trust it when the zone map actually has enemy units.
-    if(S&&S.combatMap&&Array.isArray(S.combatMap.units)&&S.combatMap.units.some(function(u){return u&&u.side==='enemy';})){
-      if(mapRange==='engaged'||mapRange==='close'||mapRange==='nearby'||mapRange==='far')return mapRange;
-    }
-  }
   var spacing=(S.combat&&S.combat.spacing)?S.combat.spacing:'Engaged (Strike)';
   spacing=String(spacing||'').toLowerCase();
   if(spacing.indexOf('engaged')>=0)return 'engaged';

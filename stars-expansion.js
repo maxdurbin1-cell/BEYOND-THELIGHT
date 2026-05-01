@@ -9336,15 +9336,6 @@ function syncCombatMapFromStarsUnits() {
 
   if (typeof renderCombatMap === 'function') renderCombatMap();
   if (typeof renderCombatOptions === 'function') renderCombatOptions();
-  // Sync the spacing dropdown to reflect the new closest-enemy zone from the hex map.
-  if (typeof getCombatRange === 'function' && typeof getCombatSpacingLabelFromRange === 'function') {
-    const range = getCombatRange();
-    const label = getCombatSpacingLabelFromRange(range);
-    if (S && S.combat) S.combat.spacing = label;
-    const sel = document.getElementById('spacingSelect');
-    if (sel && sel.value !== label) sel.value = label;
-    if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
-  }
 }
 window.syncCombatMapFromStarsUnits = syncCombatMapFromStarsUnits;
 

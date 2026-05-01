@@ -2457,6 +2457,26 @@
       var key = side + ':' + String(enemy.id != null ? enemy.id : baseName);
       desired[key] = { key: key, name: baseName + faction, side: side };
     });
+    // Auto-add campaign allies from shared state (multiplayer)
+    try {
+      if (typeof window.campaignSystem !== 'undefined' && typeof window.campaignSystem.getSharedState === 'function') {
+        var shared = window.campaignSystem.getSharedState();
+        if (shared && Array.isArray(shared.participants)) {
+          var myToken = null;
+          if (typeof window.campaignSystem.getState === 'function') {
+            var myState = window.campaignSystem.getState();
+            if (myState) myToken = myState.token;
+          }
+          shared.participants.forEach(function(p) {
+            if (!p || !p.token || !p.name || p.isEnemy || p.token === myToken) return;
+            var allyKey = 'ally:' + String(p.token);
+            if (!desired[allyKey]) {
+              desired[allyKey] = { key: allyKey, name: String(p.name || 'Ally'), side: 'ally' };
+            }
+          });
+        }
+      }
+    } catch(_err) {}
 
     S.combatMap.units.forEach(function(unit) {
       if (!unit || !unit.fromTracker || !unit.trackerKey) { return; }
@@ -2672,26 +2692,12 @@
     if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
   }
 
-  function syncSpacingSelectFromMap() {
-    // Silently update the spacingSelect dropdown and S.combat.spacing to reflect
-    // the closest enemy on the zone map, so the displayed spacing label matches
-    // what the zone map and action buttons actually use.
-    if (typeof getCombatRange !== 'function' || typeof getCombatSpacingLabelFromRange !== 'function') { return; }
-    var range = getCombatRange();
-    var label = getCombatSpacingLabelFromRange(range);
-    if (typeof S !== 'undefined' && S && S.combat) { S.combat.spacing = label; }
-    var sel = document.getElementById('spacingSelect');
-    if (sel && sel.value !== label) { sel.value = label; }
-    if (typeof updateWayfarerActionBtn === 'function') { updateWayfarerActionBtn(); }
-  }
-
   function moveCombatUnit(id, zone) {
     var unit = S.combatMap.units.filter(function(u){ return u.id === id; })[0];
     if (unit) {
       unit.zone = zone;
       renderCombatMap();
       renderCombatOptions();
-      syncSpacingSelectFromMap();
       if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
     }
   }
@@ -2700,7 +2706,6 @@
     S.combatMap.units = S.combatMap.units.filter(function(u){ return u.id !== id; });
     renderCombatMap();
     renderCombatOptions();
-    syncSpacingSelectFromMap();
     if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
   }
 

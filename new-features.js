@@ -2716,6 +2716,10 @@
   }
 
   function removeCombatUnit(id) {
+    var unit = S.combatMap.units.filter(function(u){ return u.id === id; })[0];
+    if (unit && typeof removeTrackedCombatantByMapUnit === 'function' && removeTrackedCombatantByMapUnit(unit)) {
+      return;
+    }
     S.combatMap.units = S.combatMap.units.filter(function(u){ return u.id !== id; });
     renderCombatMap();
     renderCombatOptions();

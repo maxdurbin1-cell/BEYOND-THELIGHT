@@ -5140,6 +5140,48 @@ function addTrackedCombatantFromMap(side,nameArg,zoneArg){
   return entry;
 }
 
+function getTrackedCombatantForMapUnit(unit){
+  if(!unit||!Array.isArray(S&&S.enemies))return null;
+  if(unit.trackerKey){
+    var parts=String(unit.trackerKey).split(':');
+    if(parts.length>=2){
+      var side=parts[0];
+      var rawId=parts.slice(1).join(':');
+      var numericId=Number(rawId);
+      var found=S.enemies.find(function(entry){
+        if(!entry)return false;
+        var sideMatch=side==='ally'?!!entry.ally:!entry.ally;
+        if(!sideMatch)return false;
+        return Number(entry.id)===numericId || String(entry.id)===rawId || String(entry.name||'')===rawId;
+      });
+      if(found)return found;
+    }
+  }
+  var name=String(unit.name||'').replace(/\s*\[[^\]]+\]\s*$/,'').trim();
+  return S.enemies.find(function(entry){
+    if(!entry)return false;
+    return (!!entry.ally)===(unit.side==='ally') && String(entry.name||'').trim()===name;
+  }) || null;
+}
+
+function removeTrackedCombatantByMapUnit(unit){
+  if(!unit)return false;
+  var tracked=getTrackedCombatantForMapUnit(unit);
+  if(tracked){
+    removeEnemy(tracked.id);
+    return true;
+  }
+  if(unit.trackerKey==='player:self'){
+    showNotif('You cannot remove your own combat marker from the map.','warn');
+    return true;
+  }
+  if(unit.fromTracker){
+    showNotif('This synced unit must be removed from its source tracker.','warn');
+    return true;
+  }
+  return false;
+}
+
 function openCombatUtilityChooser(){
   var sections=[];
   var readied=String((S&&S.equipment&&S.equipment.readied)||'').trim();

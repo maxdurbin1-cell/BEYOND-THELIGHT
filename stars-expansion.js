@@ -9404,6 +9404,29 @@ function addTrackedCombatantFromStarsHex(row, col) {
   return true;
 }
 
+function removeTrackedCombatantFromStarsHex(row, col) {
+  if (typeof removeTrackedCombatantByMapUnit !== 'function' || !Array.isArray(starsZoneUnits)) return false;
+  const unitType = document.getElementById('starsUnitType') ? document.getElementById('starsUnitType').value : '';
+  const unitNameRaw = document.getElementById('starsUnitName') ? document.getElementById('starsUnitName').value : '';
+  const wantedName = String(unitNameRaw || '').trim().toLowerCase();
+  const tracked = starsZoneUnits.filter((u) => u && u.fromTracker && u.row === row && u.col === col);
+  if (!tracked.length) return false;
+  let target = tracked[0];
+  if (unitType) {
+    const typed = tracked.filter((u) => String(u.type || '') === String(unitType));
+    if (typed.length) target = typed[0];
+  }
+  if (wantedName) {
+    const named = tracked.filter((u) => String(u.name || '').toLowerCase().indexOf(wantedName) >= 0);
+    if (named.length) target = named[0];
+  }
+  const mapUnit = S.combatMap && Array.isArray(S.combatMap.units)
+    ? S.combatMap.units.find((u) => u && u.fromTracker && u.trackerKey === target.trackerKey)
+    : null;
+  if (!mapUnit) return false;
+  return !!removeTrackedCombatantByMapUnit(mapUnit);
+}
+
 function mapSceneTerrainToStarsLayoutId(terrainText) {
   const terrain = String(terrainText || '').toLowerCase();
   if (terrain.indexOf('urban alley') >= 0) return 4;
@@ -9748,6 +9771,7 @@ function renderStarsCombatZone(layoutId) {
 function starsZoneHexClick(row, col, evt) {
   if (starsZoneAutoPopulate) {
     if (moveSelectedTrackerUnitToStarsHex(row, col)) return;
+    if (removeTrackedCombatantFromStarsHex(row, col)) return;
     if (addTrackedCombatantFromStarsHex(row, col)) return;
   }
   // Show a mini menu to place/move a unit

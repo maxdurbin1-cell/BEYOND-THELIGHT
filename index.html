@@ -688,6 +688,10 @@ select option{background:#0f1020;}
         <div class="sub-label" style="margin-bottom:.25rem;">Province Anchors</div>
         <div id="backstoryMarkerList" style="font-size:.76rem;color:var(--muted2);line-height:1.55;">No anchors assigned yet.</div>
       </div>
+      <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.45rem;">
+        <div class="sub-label" style="margin-bottom:.25rem;">Anchor Debug</div>
+        <div id="backstoryDebugReadout" style="font-size:.74rem;color:var(--muted2);line-height:1.55;">No anchor placement debug data yet.</div>
+      </div>
       <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.45rem;font-size:.74rem;color:var(--muted2);line-height:1.55;">
         Storyline paths can now key off your backstory and personal flavor. Locked branches still require prerequisites, but your history can open unique routes.
       </div>
@@ -1753,12 +1757,13 @@ function ensureBackstoryState(){
     if(typeof b.anchorPlacement[id].key!=='string')b.anchorPlacement[id].key='';
   });
   if(!b.anchorState||typeof b.anchorState!=='object')b.anchorState={};
-  if(!b.anchorState.home||typeof b.anchorState.home!=='object')b.anchorState.home={bond:0,visits:0,lastEvent:'',activeTask:null};
+  if(!b.anchorState.home||typeof b.anchorState.home!=='object')b.anchorState.home={bond:0,visits:0,lastEvent:'',pendingEvent:null,activeTask:null};
   if(!b.anchorState.connection||typeof b.anchorState.connection!=='object')b.anchorState.connection={trust:0,interactions:0,lastDialogue:'',lastGift:'',activeTask:null};
   if(!b.anchorState.rival||typeof b.anchorState.rival!=='object')b.anchorState.rival={sightings:0,lastSeenKey:'',lastMoveAt:0};
   if(typeof b.anchorState.home.bond!=='number')b.anchorState.home.bond=0;
   if(typeof b.anchorState.home.visits!=='number')b.anchorState.home.visits=0;
   if(typeof b.anchorState.home.lastEvent!=='string')b.anchorState.home.lastEvent='';
+  if(!b.anchorState.home.pendingEvent||typeof b.anchorState.home.pendingEvent!=='object')b.anchorState.home.pendingEvent=null;
   if(typeof b.anchorState.connection.trust!=='number')b.anchorState.connection.trust=0;
   if(typeof b.anchorState.connection.interactions!=='number')b.anchorState.connection.interactions=0;
   if(typeof b.anchorState.connection.lastDialogue!=='string')b.anchorState.connection.lastDialogue='';
@@ -1858,6 +1863,10 @@ function maybeMoveBackstoryMapMarker(scope,id,chancePct,preferredTypes){
     const target=pickBackstoryTaskDestination(origin,preferredTypes);
     if(!target)return false;
     marker.key=String(target.col)+','+String(target.row);
+    if(S&&S.backstory&&S.backstory.anchorPlacement&&S.backstory.anchorPlacement[id]){
+      S.backstory.anchorPlacement[id].scope='province';
+      S.backstory.anchorPlacement[id].key=marker.key;
+    }
     const st=ensureBackstoryAnchorState();
     if(id==='rival'&&st.rival){
       st.rival.lastSeenKey=marker.key;
@@ -1878,14 +1887,16 @@ function ensureBackstoryScopeMarkers(scope,candidates,opts){
   if(!list.length)return;
   const options=opts&&typeof opts==='object'?opts:{};
   const bucket=getBackstoryMarkerBucket(scope,true);
-  const valid={};
-  list.forEach(function(c){valid[String(c.key)]=true;});
-  Object.keys(bucket).forEach(function(id){
-    const e=bucket[id];
-    if(!e||!valid[String(e.key||'')])delete bucket[id];
-  });
+  if(options.allowPrune){
+    const valid={};
+    list.forEach(function(c){valid[String(c.key)]=true;});
+    Object.keys(bucket).forEach(function(id){
+      const e=bucket[id];
+      if(!e||!valid[String(e.key||'')])delete bucket[id];
+    });
+  }
   if(Object.keys(bucket).length)return;
-  if(!options.allowPopulate)return;
+  if(options.allowPopulate!==true)return;
 
   const b=S.backstory||{};
   const used={};
@@ -2041,6 +2052,44 @@ function clearBackstoryMarkersAllScopes(){
   }
 }
 
+function getBackstoryAnchorPreferences(anchorId){
+  const id=String(anchorId||'');
+  if(id==='home')return{province:['dwelling','holding','seat'],sea:['island','harbor'],galaxy:['planet','hub'],wtw:[],planet:['merchant_colony','dwelling','seat']};
+  if(id==='connection')return{province:['holding','temple','trade','dwelling'],sea:['island','market','harbor'],galaxy:['hub','planet','relay'],wtw:[],planet:['dwelling','temple','merchant_colony','wayfarer']};
+  return{province:['peril','ruins','barrier','wilderness'],sea:['sea','storm','peril'],galaxy:['hazard','star','void'],wtw:[],planet:['peril','barrier','ruins']};
+}
+
+function removeBackstoryAnchorById(anchorId){
+  const id=String(anchorId||'');
+  ['province','sea','galaxy','wtw','planet'].forEach(function(scope){
+    const bucket=getBackstoryMarkerBucket(scope,true);
+    if(bucket&&bucket[id])delete bucket[id];
+  });
+  if(S&&S.backstory&&S.backstory.anchorPlacement&&S.backstory.anchorPlacement[id]){
+    S.backstory.anchorPlacement[id].scope='';
+    S.backstory.anchorPlacement[id].key='';
+  }
+  S.backstory.provinceMarkers=Object.assign({},getBackstoryMarkerBucket('province',false));
+}
+
+function rerollBackstoryAnchorLocation(anchorId){
+  ensureBackstoryState();
+  const id=String(anchorId||'');
+  if(['home','connection','rival'].indexOf(id)<0)return;
+  const candidates=getBackstoryScopeCandidates();
+  removeBackstoryAnchorById(id);
+  const ok=assignBackstoryAnchorSingleMapRandom(id,candidates,getBackstoryAnchorPreferences(id));
+  S.backstory.provinceMarkers=Object.assign({},getBackstoryMarkerBucket('province',false));
+  renderBackstoryTab();
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(typeof renderLastSeaMap==='function')renderLastSeaMap();
+  if(typeof renderStarSystemMap==='function')renderStarSystemMap();
+  if(typeof renderWorldThatWas==='function')renderWorldThatWas();
+  if(typeof renderPlanetExplorationPanel==='function')renderPlanetExplorationPanel();
+  const placement=S.backstory.anchorPlacement&&S.backstory.anchorPlacement[id]?S.backstory.anchorPlacement[id]:{scope:'',key:''};
+  if(typeof showNotif==='function')showNotif(ok?('Anchor rerolled: '+id+' -> '+String(placement.scope||'none')+' ['+String(placement.key||'')+']'):'No valid map found to reroll anchor.','good');
+}
+
 function assignBackstoryAnchorSingleMapRandom(anchorId,scopeCandidates,pref){
   const b=S.backstory||{};
   const preferences=pref&&typeof pref==='object'?pref:{};
@@ -2097,6 +2146,7 @@ function assignBackstoryProvinceMarkers(){
   ensureBackstoryScopeMarkers('province',mapData.map(function(h){
     return {key:h.col+','+h.row,type:h.type,label:h.name||''};
   }),{
+    allowPrune:true,
     allowPopulate:true,
     homeTypes:['dwelling','holding','seat'],
     rivalTypes:['peril','ruins','barrier'],
@@ -2232,49 +2282,136 @@ function completeBackstoryAnchorTask(anchorId,currentKey){
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
 }
 
-function doHometownDowntimeRest(key){
+function resolveBackstoryMissionRegion(scope,key){
+  const sk=String(scope||'province').toLowerCase();
+  const k=String(key||'');
+  if(sk==='sea')return{region:'sea',location:'Last Sea route '+k,options:{}};
+  if(sk==='wtw')return{region:'wtw',location:'World That Was district '+k,options:{}};
+  if(sk==='galaxy')return{region:'galaxy',location:'Galaxy hex '+k,options:{}};
+  if(sk==='planet'){
+    const parts=k.split(':');
+    const hx=Number(parts[0]);
+    const hex=(S&&S.starSystem&&Array.isArray(S.starSystem.hexes))?S.starSystem.hexes.find(function(h){return h&&h.id===hx;}) : null;
+    const pname=hex&&hex.name?hex.name:('Planet Hex '+String(parts[0]||'?'));
+    return{region:'galaxy',location:pname+' surface corridor',options:{planetHexId:hx,planetName:pname}};
+  }
+  return{region:'province',location:'Province route ['+k+']',options:{}};
+}
+
+function createBackstoryMissionTabMission(anchorId,scope,key,title){
+  if(typeof createMission!=='function')return null;
+  const type=anchorId==='home'?'backstory_hometown':'backstory_contract';
+  if(Array.isArray(S.activeMissions)&&S.activeMissions.some(function(m){return m&&m.missionType===type;})){
+    if(typeof showNotif==='function')showNotif('A '+(anchorId==='home'?'hometown':'trusted contact')+' mission is already active.','warn');
+    return null;
+  }
+  const reg=resolveBackstoryMissionRegion(scope,key);
+  const opts={
+    missionType:type,
+    noFactionDelta:true,
+    stepNames:anchorId==='home'?{1:'Reconnect',2:'Travel Homefront',3:'Settle Account'}:{1:'Receive Brief',2:'Run Contract',3:'Deliver Quietly'},
+    storyTheme:'backstory',
+    checkpoints:anchorId==='home'
+      ? ['Speak with hometown contacts','Reach the target site','Resolve hometown pressure']
+      : ['Confirm secure channel','Reach contract site','Return proof to contact']
+  };
+  if(reg.options&&typeof reg.options==='object')Object.keys(reg.options).forEach(function(k){opts[k]=reg.options[k];});
+  const mission=createMission(anchorId==='home'?'Hometown':'Trusted Contact',String(title||'Backstory Mission'),anchorId==='home'?'medium':'hard',reg.location,reg.region,{gain:null,lose:null,gainName:'Backstory',loseName:'Backstory'},opts);
+  if(mission&&typeof renderMissionTracker==='function')renderMissionTracker();
+  return mission;
+}
+
+function doHometownDowntimeRest(key,scope){
+  const k=String(key||'');
+  const sk=String(scope||'province').toLowerCase();
+  const html=''
+    +'<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">Choose your downtime approach (Action Die vs Dread d6):</div>'
+    +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">'
+    +'<button class="btn btn-sm btn-teal" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\'spirit\')">Spirit</button>'
+    +'<button class="btn btn-sm btn-primary" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\'lead\')">Lead</button>'
+    +'<button class="btn btn-sm" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\'mind\')">Mind</button>'
+    +'<button class="btn btn-sm" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\'control\')">Control</button>'
+    +'</div>';
+  if(typeof openModal==='function')openModal('Hometown Downtime Approach',html);
+}
+
+function resolveHometownDowntimeCheck(key,scope,stat){
   const st=ensureBackstoryAnchorState();
+  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'spirit'):(S.stats&&S.stats[stat])||4;
+  const a=explodingRoll(die);
+  const d=explodingRoll(6);
+  const success=a.total>=d.total;
   st.home.visits=(st.home.visits||0)+1;
-  st.home.bond=(st.home.bond||0)+1;
-  applyBackstoryDowntimeLongRest('Hometown Downtime');
+  if(success){
+    st.home.bond=(st.home.bond||0)+1;
+    applyBackstoryDowntimeLongRest('Hometown Downtime');
+    if(typeof showNotif==='function')showNotif('Downtime success: '+String(stat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+'.','good');
+  }else{
+    st.home.bond=Math.max(-5,(st.home.bond||0)-1);
+    if(typeof halfStress==='function')halfStress();
+    else if(typeof changeStress==='function')changeStress(-2);
+    if(typeof changeMentalStress==='function')changeMentalStress(1);
+    if(typeof showNotif==='function')showNotif('Downtime failed: '+String(stat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+'. Partial rest only.','warn');
+  }
   if(typeof closeModal==='function')closeModal();
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
 }
 
-function generateHometownMission(key){
+function generateHometownMission(key,scope){
   const eventTitles=['Supply Relay from Home','Old Friend Request','District Aid Convoy','Homefront Distress Signal'];
   const title='Hometown Mission: '+pick(eventTitles);
-  const item=pick(['Family Keepsake','Hometown Ration Crate','Signed Civic Permit']);
-  const task=createBackstoryAnchorTask('home',key,title,'backstory_hometown',{credits:60+roll(40),item:item,dd:6});
-  if(task&&typeof showNotif==='function')showNotif('Hometown mission placed at ['+task.targetKey+'].','good');
+  const mission=createBackstoryMissionTabMission('home',scope,key,title);
+  if(mission&&typeof showNotif==='function')showNotif('Hometown mission added to Mission Tracker.','good');
   if(typeof closeModal==='function')closeModal();
 }
 
-function rollHometownRandomEvent(key){
+function rollHometownRandomEvent(key,scope){
   const st=ensureBackstoryAnchorState();
   const events=[
-    {name:'Community Festival',stat:'spirit',dd:6,success:'You inspire the town. +1 Renown.',fail:'Tension rises. +1 Mental Stress.'},
-    {name:'Old Debt Calls',stat:'lead',dd:8,success:'You resolve old pressure. +45 Credits.',fail:'Collection pressure returns. -25 Credits.'},
-    {name:'Neighborhood Watch',stat:'control',dd:6,success:'Routes become safer. Gain Protected.',fail:'Rumors spread. Gain Distracted.'}
+    {name:'Community Festival',success:'You inspire the town. +1 Renown.',fail:'Tension rises. +1 Mental Stress.'},
+    {name:'Old Debt Calls',success:'You resolve old pressure. +45 Credits.',fail:'Collection pressure returns. -25 Credits.'},
+    {name:'Neighborhood Watch',success:'Routes become safer. Gain Protected.',fail:'Rumors spread. Gain Distracted.'}
   ];
   const ev=pick(events);
-  const adDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats&&S.stats[ev.stat])||4;
-  const a=explodingRoll(adDie);
-  const d=explodingRoll(ev.dd);
+  st.home.pendingEvent=ev;
+  const k=String(key||'');
+  const sk=String(scope||'province').toLowerCase();
+  const html=''
+    +'<div style="font-size:.82rem;color:var(--text2);line-height:1.6;"><strong>'+escapeHtmlLite(ev.name)+'</strong><br>Choose your approach (Action Die vs Dread d6):</div>'
+    +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">'
+    +'<button class="btn btn-sm btn-teal" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\'spirit\')">Spirit</button>'
+    +'<button class="btn btn-sm btn-primary" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\'lead\')">Lead</button>'
+    +'<button class="btn btn-sm" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\'mind\')">Mind</button>'
+    +'<button class="btn btn-sm" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\'control\')">Control</button>'
+    +'</div>';
+  if(typeof openModal==='function')openModal('Hometown Event',html);
+}
+
+function resolveHometownEventCheck(key,scope,stat){
+  const st=ensureBackstoryAnchorState();
+  const ev=st.home&&st.home.pendingEvent?st.home.pendingEvent:null;
+  if(!ev){
+    if(typeof showNotif==='function')showNotif('No hometown event is pending.','warn');
+    return;
+  }
+  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'lead'):(S.stats&&S.stats[stat])||4;
+  const a=explodingRoll(die);
+  const d=explodingRoll(6);
   const success=a.total>=d.total;
   st.home.lastEvent=ev.name+' ('+(success?'success':'failure')+')';
+  st.home.pendingEvent=null;
   if(success){
     st.home.bond=(st.home.bond||0)+1;
     if(ev.name==='Community Festival'&&typeof changeCounter==='function')changeCounter('renown',1);
     if(ev.name==='Old Debt Calls'){S.credits=(S.credits||0)+45;if(typeof updateCreditsUI==='function')updateCreditsUI();}
     if(ev.name==='Neighborhood Watch'&&typeof toggleCond==='function'&&S.conditions&&!S.conditions.protected)toggleCond('protected');
-    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.success,'good');
+    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.success+' ('+String(stat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+')','good');
   }else{
     st.home.bond=Math.max(-5,(st.home.bond||0)-1);
     if(ev.name==='Community Festival'&&typeof changeMentalStress==='function')changeMentalStress(1);
     if(ev.name==='Old Debt Calls'){S.credits=Math.max(0,(S.credits||0)-25);if(typeof updateCreditsUI==='function')updateCreditsUI();}
     if(ev.name==='Neighborhood Watch'&&typeof toggleCond==='function'&&S.conditions&&!S.conditions.distracted)toggleCond('distracted');
-    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.fail,'warn');
+    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.fail+' ('+String(stat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+')','warn');
   }
   if(typeof closeModal==='function')closeModal();
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
@@ -2337,9 +2474,9 @@ function openBackstoryAnchorInteraction(anchorId,key,scope){
       +'Familiar streets, old obligations, and people who still remember your name.'
       +'<div style="margin-top:.25rem;color:var(--muted2);">Bond: '+(home.bond||0)+' | Visits: '+(home.visits||0)+(home.lastEvent?(' | Last Event: '+escapeHtmlLite(home.lastEvent)):'')+'</div>'
       +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.38rem;">'
-      +'<button class="btn btn-sm btn-teal" onclick="doHometownDowntimeRest(\''+k+'\')">Downtime Long Rest</button>'
-      +'<button class="btn btn-sm btn-primary" onclick="generateHometownMission(\''+k+'\')">Generate Hometown Mission</button>'
-      +'<button class="btn btn-sm" onclick="rollHometownRandomEvent(\''+k+'\')">Roll Hometown Event</button>'
+      +'<button class="btn btn-sm btn-teal" onclick="doHometownDowntimeRest(\''+k+'\',\''+sk+'\')">Downtime Long Rest</button>'
+      +'<button class="btn btn-sm btn-primary" onclick="generateHometownMission(\''+k+'\',\''+sk+'\')">Generate Hometown Mission</button>'
+      +'<button class="btn btn-sm" onclick="rollHometownRandomEvent(\''+k+'\',\''+sk+'\')">Roll Hometown Event</button>'
       +'</div></div>';
     if(typeof openModal==='function')openModal('Hometown Anchor',html);
     return;
@@ -2470,6 +2607,26 @@ function renderBackstoryTab(){
       markerHost.innerHTML=rows.join('');
     }
   }
+
+  const debugHost=document.getElementById('backstoryDebugReadout');
+  if(debugHost){
+    const placement=(b.anchorPlacement&&typeof b.anchorPlacement==='object')?b.anchorPlacement:{};
+    const meta=[
+      {id:'home',name:'Hometown'},
+      {id:'connection',name:'Trusted Contact'},
+      {id:'rival',name:'Rival'}
+    ];
+    const rows=meta.map(function(item){
+      const p=placement[item.id]&&typeof placement[item.id]==='object'?placement[item.id]:{scope:'',key:''};
+      const scope=String(p.scope||'unassigned');
+      const key=String(p.key||'none');
+      return '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.2rem;">'
+        +'<span><strong>'+escapeHtmlLite(item.name)+':</strong> scope='+escapeHtmlLite(scope)+' | key=['+escapeHtmlLite(key)+']</span>'
+        +'<button class="btn btn-xs" onclick="rerollBackstoryAnchorLocation(\''+item.id+'\')">Reroll</button>'
+        +'</div>';
+    });
+    debugHost.innerHTML=rows.join('');
+  }
 }
 
 window.ensureBackstoryState=ensureBackstoryState;
@@ -2485,14 +2642,17 @@ window.getBackstoryMapMarkerMeta=getBackstoryMapMarkerMeta;
 window.ensureBackstoryScopeMarkers=ensureBackstoryScopeMarkers;
 window.openBackstoryAnchorInteraction=openBackstoryAnchorInteraction;
 window.doHometownDowntimeRest=doHometownDowntimeRest;
+window.resolveHometownDowntimeCheck=resolveHometownDowntimeCheck;
 window.generateHometownMission=generateHometownMission;
 window.rollHometownRandomEvent=rollHometownRandomEvent;
+window.resolveHometownEventCheck=resolveHometownEventCheck;
 window.requestTrustedContractTask=requestTrustedContractTask;
 window.talkToTrustedContact=talkToTrustedContact;
 window.completeHometownAnchorTask=completeHometownAnchorTask;
 window.completeTrustedContractTask=completeTrustedContractTask;
 window.maybeShiftBackstoryDynamicProvinceMarkers=maybeShiftBackstoryDynamicProvinceMarkers;
 window.buildBackstoryAnchorActionPanelHtml=buildBackstoryAnchorActionPanelHtml;
+window.rerollBackstoryAnchorLocation=rerollBackstoryAnchorLocation;
 window.renderBackstoryTab=renderBackstoryTab;
 
 function getBackpackCapacity(){

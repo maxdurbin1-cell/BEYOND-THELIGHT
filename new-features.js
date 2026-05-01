@@ -2672,12 +2672,26 @@
     if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
   }
 
+  function syncSpacingSelectFromMap() {
+    // Silently update the spacingSelect dropdown and S.combat.spacing to reflect
+    // the closest enemy on the zone map, so the displayed spacing label matches
+    // what the zone map and action buttons actually use.
+    if (typeof getCombatRange !== 'function' || typeof getCombatSpacingLabelFromRange !== 'function') { return; }
+    var range = getCombatRange();
+    var label = getCombatSpacingLabelFromRange(range);
+    if (typeof S !== 'undefined' && S && S.combat) { S.combat.spacing = label; }
+    var sel = document.getElementById('spacingSelect');
+    if (sel && sel.value !== label) { sel.value = label; }
+    if (typeof updateWayfarerActionBtn === 'function') { updateWayfarerActionBtn(); }
+  }
+
   function moveCombatUnit(id, zone) {
     var unit = S.combatMap.units.filter(function(u){ return u.id === id; })[0];
     if (unit) {
       unit.zone = zone;
       renderCombatMap();
       renderCombatOptions();
+      syncSpacingSelectFromMap();
       if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
     }
   }
@@ -2686,6 +2700,7 @@
     S.combatMap.units = S.combatMap.units.filter(function(u){ return u.id !== id; });
     renderCombatMap();
     renderCombatOptions();
+    syncSpacingSelectFromMap();
     if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
   }
 

@@ -5223,6 +5223,15 @@ function parseArmorActions(){var a=(S&&S.equipment)?S.equipment.armor||'':'';var
 function getMaxActions(){var base=parseArmorActions();if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0)base+=2;var fl=(S.flavor||'').toLowerCase();if(fl.indexOf('moves like the wind')>=0)base+=1;return base;}
 
 function getCombatRange(){
+  // Prefer zone-map data (closest enemy distance from player anchor) when enemies exist on the map.
+  if(typeof getPrimaryEnemyZoneRelative==='function'){
+    var mapRange=getPrimaryEnemyZoneRelative();
+    // getPrimaryEnemyZoneRelative returns the spacing fallback (getCombatRange itself) when no map
+    // enemies exist, so only trust it when the zone map actually has enemy units.
+    if(S&&S.combatMap&&Array.isArray(S.combatMap.units)&&S.combatMap.units.some(function(u){return u&&u.side==='enemy';})){
+      if(mapRange==='engaged'||mapRange==='close'||mapRange==='nearby'||mapRange==='far')return mapRange;
+    }
+  }
   var spacing=(S.combat&&S.combat.spacing)?S.combat.spacing:'Engaged (Strike)';
   spacing=String(spacing||'').toLowerCase();
   if(spacing.indexOf('engaged')>=0)return 'engaged';

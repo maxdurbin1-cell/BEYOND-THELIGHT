@@ -615,7 +615,7 @@ function applySpaceNavalPresentation() {
   if (!navalTab) return;
   const inSpace = (window._activeContext || S._navalContext) === 'space';
   const tabBtn = document.querySelector('.tab-btn.ctx-space[onclick*="naval"]');
-  if (tabBtn) tabBtn.textContent = inSpace ? 'Starship' : 'Ship';
+  if (tabBtn) tabBtn.textContent = inSpace ? 'Starship' : 'Naval Ship';
   if (!inSpace) {
     const existing = document.getElementById('starsSpaceNavalCard');
     if (existing) existing.remove();

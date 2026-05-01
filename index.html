@@ -3883,6 +3883,7 @@ function usePersonalFlavorAction(){
     return;
   }
   if(S&&S.combat&&S.combat.active){
+    if(!requireCampaignTurn('wayfarer'))return;
     if(typeof consumeCombatAction==='function'){
       if(!consumeCombatAction('Personal Flavor'))return;
     }else if(S.combat.actionsLeft<=0){
@@ -4277,6 +4278,35 @@ function pushLuck(pool) {
 function spendTMW(n) { if (S.tmw < n) { showNotif('Not enough TMW!', 'warn'); return; } S.tmw -= n; updateTMWPool(); showNotif('Spent ' + n + ' TMW. Pool: ' + S.tmw); closeModal(); }
 
 // ── COMBAT ───────────────────────────────────────────────────────────────────
+function getCampaignTurnGate(actorKind){
+  if(!window.campaignSystem||typeof window.campaignSystem.getState!=='function'||typeof window.campaignSystem.getSharedState!=='function')return{ok:true};
+  var st=window.campaignSystem.getState();
+  if(!st||!st.code)return{ok:true};
+  var shared=window.campaignSystem.getSharedState();
+  var cc=shared&&shared.campaignCombat&&typeof shared.campaignCombat==='object'?shared.campaignCombat:null;
+  if(!cc||!cc.active||!Array.isArray(cc.turnOrder)||!cc.turnOrder.length)return{ok:true};
+  var idx=Math.max(0,Math.min(Number(cc.currentActorIndex||0),cc.turnOrder.length-1));
+  var token=String(cc.turnOrder[idx]||'');
+  var enemyTurn=token.indexOf('enemy:')===0;
+  if(actorKind==='enemy'){
+    if(!enemyTurn)return{ok:false,msg:'Campaign initiative: this is a Wayfarer turn.'};
+    if(st.role!=='gm')return{ok:false,msg:'Campaign initiative: only GM can resolve enemy turns.'};
+    return{ok:true};
+  }
+  if(enemyTurn)return{ok:false,msg:'Campaign initiative: this is an Enemy turn.'};
+  if(st.role==='player'&&st.token&&token&&String(st.token)!==token){
+    var active=(Array.isArray(cc.participants)?cc.participants:[]).filter(function(p){return p&&String(p.token||'')===token;})[0];
+    return{ok:false,msg:'Campaign initiative: it is '+String(active&&active.name?active.name:'another Wayfarer')+'\'s turn.'};
+  }
+  return{ok:true};
+}
+
+function requireCampaignTurn(actorKind){
+  var gate=getCampaignTurnGate(actorKind||'wayfarer');
+  if(gate&&gate.ok===false){showNotif(gate.msg||'Not your turn in Campaign initiative.','warn');return false;}
+  return true;
+}
+
 function prepareCombatTurnStart(){
   if(!S.combat)S.combat={};
   S.combat.autoReloaderShots=0;
@@ -4392,6 +4422,7 @@ function updateWayfarerActionBtn(){
 }
 
 function executeWayfarerAction(){
+  if(!requireCampaignTurn('wayfarer'))return;
   var sel=document.getElementById('wayfarerActionSel');
   var resEl=document.getElementById('wayfarerActionResult');
   if(!sel)return;
@@ -4910,6 +4941,7 @@ function canUseAttackAtCurrentRange(type){
 }
 
 function consumeCombatAction(label){
+  if(!requireCampaignTurn('wayfarer'))return false;
   if(!S.combat)return true;
   if((S.combat.actionsLeft||0)<=0){showNotif('No Actions remaining for this turn.','warn');return false;}
   S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);
@@ -4943,6 +4975,7 @@ const ENEMY_ACTION_EVENTS=[
 ];
 
 function triggerEnemyActionEvent(){
+  if(!requireCampaignTurn('enemy'))return;
   var actingEnemy=getPrimaryCombatEnemy();
   if(!actingEnemy){showNotif('Add an enemy first.','warn');return;}
   maybeResetActionsAfterDefend();
@@ -5219,6 +5252,7 @@ function clearConditionOnUse(key) {
 }
 
 function rollAttack(type) {
+  if(!requireCampaignTurn('wayfarer'))return;
   if(type==='shoot'&&S.combat&&S.combat.weaponLockRounds>0){showNotif('Weapon Glitch: your weapons are locked this round.','warn');return;}
   if(!canUseAttackAtCurrentRange(type)){
     if(type==='strike')showNotif('Strike requires Engaged range. Move first.','warn');

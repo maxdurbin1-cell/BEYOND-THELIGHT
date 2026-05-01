@@ -8043,9 +8043,33 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(used)cooldown.push(row);else ready.push(row);
     });
 
-    var topReady=ready.slice(0,3);
-    var topCooldown=cooldown.slice(0,2);
-    var shown=topReady.concat(topCooldown);
+    function getCuePriority(row){
+      var matchers=Array.isArray(row&&row.rule&&row.rule.matchers)?row.rule.matchers:[];
+      var combatCritical=matchers.some(function(m){
+        return m==='inCombat'||m==='danger'||m==='inCombatNightBoost';
+      });
+      var utility=matchers.some(function(m){
+        return m==='travel'||m==='analysis'||m==='leadership'||m==='recovery'||m==='night'||m==='salvage'||m==='flex'||m==='leadershipCampaign';
+      });
+      return {
+        current:row&&row.current?1:0,
+        combatCritical:combatCritical?1:0,
+        utility:utility?1:0,
+        ready:row&&!row.used?1:0
+      };
+    }
+
+    function sortCueRows(a,b){
+      var pa=getCuePriority(a);
+      var pb=getCuePriority(b);
+      if(pa.current!==pb.current)return pb.current-pa.current;
+      if(pa.combatCritical!==pb.combatCritical)return pb.combatCritical-pa.combatCritical;
+      if(pa.utility!==pb.utility)return pb.utility-pa.utility;
+      if(pa.ready!==pb.ready)return pb.ready-pa.ready;
+      return String(a.entry.code||'').localeCompare(String(b.entry.code||''));
+    }
+
+    var shown=active.slice().sort(sortCueRows).slice(0,5);
     if(!shown.length){
       return '<div style="margin-bottom:.5rem;padding:.38rem .42rem;border:1px solid rgba(46,196,182,.3);background:rgba(46,196,182,.05);">'
         + '<div style="display:flex;justify-content:space-between;gap:.25rem;align-items:center;">'
@@ -8062,10 +8086,12 @@ document.addEventListener('DOMContentLoaded',()=>{
       var status=row.used?'Cooldown':'Ready';
       var statusColor=row.used?'var(--red2)':'var(--green2)';
       var glow=row.used?'rgba(201,64,64,.08)':'rgba(76,175,116,.09)';
+      var p=getCuePriority(row);
+      var lane=row.current?'Current':(p.combatCritical?'Combat-critical':'Utility');
       return '<div style="padding:.24rem .3rem;border:1px solid '+(row.current?'rgba(232,192,80,.45)':'var(--border2)')+';background:'+glow+';">'
         + '<div style="display:flex;justify-content:space-between;gap:.25rem;align-items:center;">'
           + '<span style="font-size:.68rem;color:var(--gold2);font-family:Rajdhani,sans-serif;">'+e.code+' · '+e.title+(row.current?' ★':'')+'</span>'
-          + '<span style="font-size:.62rem;color:'+statusColor+';">'+status+'</span>'
+          + '<span style="font-size:.62rem;color:'+statusColor+';">'+lane+' · '+status+'</span>'
         + '</div>'
         + '<div style="font-size:.64rem;color:var(--teal);margin-top:.08rem;line-height:1.35;"><strong>Trigger:</strong> '+r.trigger+'</div>'
         + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;line-height:1.35;"><strong>Cue:</strong> '+r.cue+'</div>'

@@ -2999,7 +2999,14 @@
     const credits = Math.round(Number(reward.credits || 0) * creditMultiplier);
     const factionKey = reward.factionKey || "corporations";
     const renown = Number(reward.factionRenown || 0) + renownBonus;
-    const item = reward.item || "";
+    const rawItem = reward.item || "";
+    let item = rawItem;
+
+    if (rawItem && String(rawItem).toLowerCase() === 'trade good' && typeof SHOP_DATA === 'object' && SHOP_DATA && Array.isArray(SHOP_DATA.tradegoods) && SHOP_DATA.tradegoods.length) {
+      item = String((pick(SHOP_DATA.tradegoods) || {}).name || rawItem);
+    } else if (rawItem && typeof normalizeLegacyLootAlias === 'function') {
+      item = normalizeLegacyLootAlias(rawItem);
+    }
 
     if (credits) {
       S.credits = Math.max(0, Number(S.credits || 0) + credits);

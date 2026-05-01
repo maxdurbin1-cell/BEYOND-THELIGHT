@@ -724,10 +724,134 @@ function ensureSpaceCargoTarget() {
   return S.starship.cargo;
 }
 
+function pickGalaxyRewardNameFromPool(categories, fallbackName, filterFn) {
+  const list = getMerchantShopEntries(categories || []).filter(function(entry) {
+    if (!entry || !entry.name) return false;
+    return typeof filterFn === 'function' ? !!filterFn(entry) : true;
+  });
+  return list.length ? String((pick(list) || {}).name || fallbackName || '') : String(fallbackName || '');
+}
+
+function resolveGalaxyLootSpec(item) {
+  let itemName = item;
+  if (typeof item === 'object' && item) {
+    itemName = item.name || item.label || String(item);
+  } else if (typeof item === 'string') {
+    try {
+      const parsed = JSON.parse(item);
+      itemName = (parsed && (parsed.name || parsed.label)) || item;
+    } catch (_err) {
+      itemName = item;
+    }
+  }
+
+  const raw = String(itemName || '').trim();
+  const lower = raw.toLowerCase();
+  const fuelRoll = lower.match(/^d(\d+)\s+(standard fuel|hub jumps?|hyperdrives?)/i);
+  if (fuelRoll) {
+    const faces = Math.max(1, Number(fuelRoll[1] || 1));
+    const amount = roll(faces);
+    const fuelType = fuelRoll[2].indexOf('hub') >= 0 ? 'hubJump' : (fuelRoll[2].indexOf('hyper') >= 0 ? 'hyperdrive' : 'standard');
+    const fuelLabel = fuelType === 'hubJump' ? 'Hub Jump Fuel' : (fuelType === 'hyperdrive' ? 'Hyperdrive Core' : 'Standard Fuel');
+    return { kind: 'fuel', fuelType: fuelType, amount: amount, label: amount + ' ' + fuelLabel };
+  }
+  if (lower === 'standard fuel' || lower === 'hub jump fuel' || lower === 'hyperdrive core') {
+    return {
+      kind: 'fuel',
+      fuelType: lower.indexOf('hub') >= 0 ? 'hubJump' : (lower.indexOf('hyper') >= 0 ? 'hyperdrive' : 'standard'),
+      amount: 1,
+      label: raw
+    };
+  }
+  if (lower === 'hack data drive') {
+    const hackName = pickGalaxyRewardNameFromPool(['os_hacks'], 'Javelin', function(entry) {
+      return String(entry.name || '').indexOf('(Master)') < 0;
+    });
+    return { kind: 'hack', label: hackName };
+  }
+  if (lower === 'cosmic essential') return { kind: 'item', label: pickGalaxyRewardNameFromPool(['cosmic'], 'Voyager Supplies') };
+  if (lower === 'spell scrolls') return { kind: 'item', label: pickGalaxyRewardNameFromPool(['scrolls'], 'Reveal Traps') };
+  if (lower === 'toolkit') return { kind: 'item', label: pickGalaxyRewardNameFromPool(['toolkits'], 'Scavenger\'s Pouch') };
+  if (lower === 'vehicle mod' || lower === 'weapon mod') return { kind: 'weaponMod', label: pickGalaxyRewardNameFromPool(['weapon_mods'], 'Silencer') };
+  if (lower === 'ranged weapon') {
+    return { kind: 'item', label: pickGalaxyRewardNameFromPool(['ranged_exp', 'weapons'], 'Scrap Rifle', function(entry) {
+      return String(entry.stat || '').toLowerCase().indexOf('shoot') >= 0;
+    }) };
+  }
+  if (lower === 'melee weapon') {
+    return { kind: 'item', label: pickGalaxyRewardNameFromPool(['melee_exp', 'weapons'], 'Scrap Sword', function(entry) {
+      return String(entry.stat || '').toLowerCase().indexOf('strike') >= 0;
+    }) };
+  }
+  if (lower === 'armor') return { kind: 'item', label: pickGalaxyRewardNameFromPool(['space_armor', 'armor', 'armor_exp'], 'Balanced Armor') };
+  if (lower === 'first-aid kit') return { kind: 'item', label: 'Wound Salve' };
+  if (lower === 'trade good') return { kind: 'item', label: pickGalaxyRewardNameFromPool(['tradegoods'], 'Odd fruits') };
+  if (lower === 'exocraft') return { kind: 'exocraft', label: pickGalaxyRewardNameFromPool(['exocrafts'], '🏕 Nomad') };
+  if (lower === 'operating system') return { kind: 'augmentation', label: 'OPERATING SYSTEM' };
+
+  return { kind: 'item', label: raw };
+}
+
 function addItemToBackpack(item) {
   if (!item) return false;
+  const reward = resolveGalaxyLootSpec(item);
+  const itemName = String((reward && reward.label) || item || '').trim();
+  if (!itemName) return false;
+
+  if (reward.kind === 'fuel') {
+    ensureStarsState();
+    S.starship.fuel[reward.fuelType] = (S.starship.fuel[reward.fuelType] || 0) + Math.max(1, Number(reward.amount || 1));
+    if (typeof updateStarshipUI === 'function') updateStarshipUI();
+    return true;
+  }
+  if (reward.kind === 'exocraft') {
+    if (typeof addOwnedExocraftByName === 'function') return !!addOwnedExocraftByName(itemName);
+    return false;
+  }
+  if (reward.kind === 'hack') {
+    if (!Array.isArray(S.ownedHacks)) S.ownedHacks = [];
+    if (S.ownedHacks.indexOf(itemName) < 0) S.ownedHacks.push(itemName);
+    if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+    return true;
+  }
+  if (reward.kind === 'augmentation') {
+    if (!Array.isArray(S.augmentations)) S.augmentations = [];
+    if (S.augmentations.indexOf(itemName) < 0) S.augmentations.push(itemName);
+    if (typeof renderAugmentationsPanel === 'function') renderAugmentationsPanel();
+    if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    return true;
+  }
+  if (reward.kind === 'weaponMod') {
+    if (!Array.isArray(S.weaponMods)) S.weaponMods = [];
+    if (S.weaponMods.indexOf(itemName) < 0) S.weaponMods.push(itemName);
+    if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+    return true;
+  }
+
+  const found = (typeof findShopItem === 'function') ? findShopItem(itemName) : null;
+  if (found && found.cat === 'os_hacks') {
+    if (!Array.isArray(S.ownedHacks)) S.ownedHacks = [];
+    if (S.ownedHacks.indexOf(itemName) < 0) S.ownedHacks.push(itemName);
+    if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+    return true;
+  }
+  if (found && found.cat === 'augmentations') {
+    if (!Array.isArray(S.augmentations)) S.augmentations = [];
+    if (S.augmentations.indexOf(itemName) < 0) S.augmentations.push(itemName);
+    if (typeof renderAugmentationsPanel === 'function') renderAugmentationsPanel();
+    if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    return true;
+  }
+  if (found && found.cat === 'weapon_mods') {
+    if (!Array.isArray(S.weaponMods)) S.weaponMods = [];
+    if (S.weaponMods.indexOf(itemName) < 0) S.weaponMods.push(itemName);
+    if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+    return true;
+  }
   if (typeof addToBackpack === 'function') {
-    const stored = addToBackpack(item);
+    const stored = addToBackpack(itemName);
     if (stored && typeof renderBackpackUI === 'function') renderBackpackUI();
     return !!stored;
   }
@@ -737,40 +861,35 @@ function addItemToBackpack(item) {
     showNotif('Backpack full!', 'warn');
     return false;
   }
-  S.backpack[slotIdx] = item;
+  S.backpack[slotIdx] = itemName;
   if (typeof renderBackpackUI === 'function') renderBackpackUI();
   return true;
 }
 
 function addItemToSpaceShipCargo(item) {
   if (!item) return false;
+  const reward = resolveGalaxyLootSpec(item);
+  const itemName = String((reward && reward.label) || item || '').trim();
+  if (!itemName) return false;
   const cargo = ensureSpaceCargoTarget();
-  cargo.push(item);
+  cargo.push(itemName);
   if (typeof renderNaval === 'function' && window._activeContext === 'space') renderNaval();
   return true;
 }
 
 function takeGalaxyLoot(item, destination) {
-  if (!item) return;
-  // Handle object payloads, stringified JSON, and plain text labels.
-  let itemName = item;
-  if (typeof item === 'object' && item) {
-    itemName = item.name || item.label || String(item);
-  } else if (typeof item === 'string') {
-    try {
-      const parsed = JSON.parse(item);
-      itemName = (parsed && (parsed.name || parsed.label)) || item;
-    } catch (e) {
-      itemName = item;
-    }
-  }
-  const ok = destination === 'ship' ? addItemToSpaceShipCargo(itemName) : addItemToBackpack(itemName);
+  if (!item) return '';
+  const reward = resolveGalaxyLootSpec(item);
+  const label = String((reward && reward.label) || item || '').trim();
+  const ok = destination === 'ship' ? addItemToSpaceShipCargo(item) : addItemToBackpack(item);
   if (ok) {
-    showNotif(`Loot secured: ${itemName}`, 'good');
+    showNotif(`Loot secured: ${label}`, 'good');
     if (destination !== 'ship' && typeof window.tryAwardLoreBookDrop === 'function') {
       window.tryAwardLoreBookDrop('planetary salvage', 10);
     }
+    return label;
   }
+  return '';
 }
 
 function buildLootActions(item) {
@@ -966,8 +1085,8 @@ function applyGalaxyRewardPackage(reward) {
   if (reward.lootCategory) lootDrops.push(rollGalaxyMerchantLootFromCategories([reward.lootCategory], reward.loot));
   if (Array.isArray(reward.lootCategories) && reward.lootCategories.length) lootDrops.push(rollGalaxyMerchantLootFromCategories(reward.lootCategories, reward.loot));
   if (reward.lootFromMerchant) lootDrops.push(rollGalaxyMerchantLoot());
-  lootDrops.filter(Boolean).forEach((item) => takeGalaxyLoot(item, 'pack'));
-  if (lootDrops.length) notes.push(`Loot: ${lootDrops.join(', ')}`);
+  const awardedLoot = lootDrops.filter(Boolean).map((item) => takeGalaxyLoot(item, 'pack')).filter(Boolean);
+  if (awardedLoot.length) notes.push(`Loot: ${awardedLoot.join(', ')}`);
   return notes.join(' · ');
 }
 
@@ -1658,10 +1777,11 @@ function applyEncounterRewards(reward) {
   const lootDrops = [];
   if (Array.isArray(reward.loot)) lootDrops.push(...reward.loot);
   if (reward.lootFromMerchant) lootDrops.push(rollGalaxyMerchantLoot());
-  lootDrops.forEach((item) => {
-    if (item) takeGalaxyLoot(item, 'pack');
-  });
-  if (lootDrops.length) notes.push(`Loot: ${lootDrops.join(', ')}`);
+  const awardedLoot = lootDrops.map((item) => {
+    if (!item) return '';
+    return takeGalaxyLoot(item, 'pack');
+  }).filter(Boolean);
+  if (awardedLoot.length) notes.push(`Loot: ${awardedLoot.join(', ')}`);
   if (reward.text) applyGalaxyConditionText(reward.text);
   return notes.join(' · ');
 }

@@ -783,6 +783,11 @@
           else if (typeof loot === "string") lootName = loot;
         } catch (err) {}
       }
+      if (String(lootName).toLowerCase() === 'trade good' && typeof SHOP_DATA === 'object' && SHOP_DATA && Array.isArray(SHOP_DATA.tradegoods) && SHOP_DATA.tradegoods.length) {
+        lootName = String((pick(SHOP_DATA.tradegoods) || {}).name || lootName);
+      } else if (typeof normalizeLegacyLootAlias === 'function') {
+        lootName = normalizeLegacyLootAlias(lootName);
+      }
       let stored = false;
       if (typeof addToBackpack === "function") {
         try { stored = !!addToBackpack(lootName); } catch (err) {}

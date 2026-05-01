@@ -2686,7 +2686,11 @@
       : "Enemy " + (enemyCount + 1);
     var name = prompt((side === "ally" ? "Add ally name:" : "Add enemy name:"), defaultName);
     if (!name) { return; }
-    S.combatMap.units.push({ id: combatMapUnitId++, name: name.trim(), side: side, zone: side === "ally" ? "Nearby" : "Nearby" });
+    if (typeof addTrackedCombatantFromMap === 'function') {
+      addTrackedCombatantFromMap(side, name.trim(), 'Nearby');
+      return;
+    }
+    S.combatMap.units.push({ id: combatMapUnitId++, name: name.trim(), side: side, zone: 'Nearby' });
     renderCombatMap();
     renderCombatOptions();
     if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }

@@ -4765,7 +4765,7 @@ function updateWayfarerActionBtn(){
     :(typeof getCombatRange==='function'?getCombatRange():'nearby');
   var canShoot=typeof canUseAttackAtCurrentRange==='function'?canUseAttackAtCurrentRange('shoot'):true;
   var canCover=(range==='nearby'||range==='far');
-  var canHelp=(range!=='far');
+  var canHelp=(typeof getAdjacentCombatAllies==='function'?getAdjacentCombatAllies().length>0:(range!=='far'));
   var canStrike=(range==='engaged');
   var moveCost=(typeof getCombatMoveActionCost==='function')?getCombatMoveActionCost():1;
   var allow={
@@ -4871,19 +4871,24 @@ function executeWayfarerAction(){
   }
   if(v==='switch'){
     if(!consumeCombatAction('Switch Weapon'))return;
-    setRes('<span style="color:var(--muted2);">Switched weapon / spacing. Update your equipped weapon above.</span>');
+    if(!swapEquippedWeapons())return;
+    setRes('<span style="color:var(--teal);">Switched active weapon to '+String(S.equipment.weapon1||'Weapon 1')+'.</span>');
+    showNotif('Active weapon is now '+String(S.equipment.weapon1||'Weapon 1')+'.','good');
     return;
   }
   if(v==='use_item'){
-    if(!consumeCombatAction('Use Item/Hack/Spell/Flavor'))return;
-    setRes('<span style="color:var(--muted2);">Action spent. Trigger your item, Personal Flavor, Hack, or Spell effect now.</span>');
+    openCombatUtilityChooser();
+    setRes('<span style="color:var(--muted2);">Choose a readied item, backpack item, owned hack, or Personal Flavor.</span>');
     return;
   }
   if(v==='stand_help'){
+    var adjacentAllies=getAdjacentCombatAllies();
+    if(!adjacentAllies.length){showNotif('Help Ally requires an adjacent ally.','warn');return;}
     if(!consumeCombatAction('Help Ally'))return;
     var advDieH=S&&S.stats&&S.stats.adventure?stepUp(S.stats.adventure):6;
-    setRes('<span style="color:var(--teal);">Help Ally: your ally gains a Step Up Advantage Die (Ad'+advDieH+') on their next roll.</span>');
-    showNotif('Ally gains Step Up Adv Die (Ad'+advDieH+')','good');
+    var allyNames=adjacentAllies.map(function(u){return String(u.name||'Ally');}).join(', ');
+    setRes('<span style="color:var(--teal);">Help Ally: '+allyNames+' gain a Step Up Advantage Die (Ad'+advDieH+') on the next roll.</span>');
+    showNotif('Helped adjacent ally: '+allyNames+' (Ad'+advDieH+').','good');
     return;
   }
   if(v==='move_out'||v==='move_in'){
@@ -5035,6 +5040,15 @@ function renderEnemyFocusSelect(){
   if(focusedId>0&&hostiles.some(function(e){return Number(e.id)===focusedId;}))sel.value=String(focusedId);
 }
 
+function getAdjacentCombatAllies(){
+  if(!S||!S.combatMap||!Array.isArray(S.combatMap.units))return [];
+  var player=getPlayerCombatMapUnit();
+  if(!player)return [];
+  return S.combatMap.units.filter(function(u){
+    return u&&u.side==='ally'&&!u.isPlayer&&u.name!==player.name&&u.zone===player.zone;
+  });
+}
+
 function getPlayerCombatMapUnit(){
   if(!S||!S.combatMap||!Array.isArray(S.combatMap.units))return null;
   var playerName=(S.name&&String(S.name).trim())?String(S.name).trim():'You';
@@ -5080,6 +5094,94 @@ function moveRelativeToFocusedEnemy(direction){
   if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
   if(typeof updateCombatUI==='function')updateCombatUI();
   return enemyUnit.zone;
+}
+
+function swapEquippedWeapons(){
+  if(!S||!S.equipment)return false;
+  if(!S.equipment.weapon2){showNotif('Weapon 2 is empty.','warn');return false;}
+  var tmp=S.equipment.weapon1||'';
+  S.equipment.weapon1=S.equipment.weapon2||'';
+  S.equipment.weapon2=tmp;
+  var w1=document.getElementById('eqWeapon1');
+  var w2=document.getElementById('eqWeapon2');
+  if(w1)w1.value=S.equipment.weapon1||'';
+  if(w2)w2.value=S.equipment.weapon2||'';
+  if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
+  if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+  return true;
+}
+
+function addTrackedCombatantFromMap(side,nameArg,zoneArg){
+  if(!S)return null;
+  if(!Array.isArray(S.enemies))S.enemies=[];
+  if(!S.combatMap||!Array.isArray(S.combatMap.units))S.combatMap={units:[]};
+  var sideName=side==='ally'?'Ally':'Enemy';
+  var resolvedName=String(nameArg||'').trim();
+  if(!resolvedName){
+    var count=S.enemies.filter(function(e){return !!e&&!!e.ally===(side==='ally');}).length;
+    resolvedName=sideName+' '+(count+1);
+  }
+  var zone=String(zoneArg||'Nearby');
+  var id=Date.now()+Math.floor(Math.random()*100000);
+  var dread=side==='enemy'?(parseInt((S.combat&&S.combat.enemyDread)||8,10)||8):6;
+  var faction=side==='enemy'&&typeof pickRandomFactionStanding==='function'?pickRandomFactionStanding():'';
+  var entry={id:id,name:resolvedName,dread:dread,stress:0,maxStress:dread*2,health:0,conditions:[],ally:side==='ally'};
+  if(faction)entry.faction=faction;
+  S.enemies.push(entry);
+  var trackerKey=(side==='ally'?'ally:':'enemy:')+String(id);
+  var mapName=faction?resolvedName+' ['+faction+']':resolvedName;
+  S.combatMap.units.push({id:id,name:mapName,side:side,zone:zone,fromTracker:true,trackerKey:trackerKey});
+  if(typeof renderEnemies==='function')renderEnemies();
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
+  if(typeof updateCombatUI==='function')updateCombatUI();
+  if(typeof renderQP==='function')renderQP('combat');
+  return entry;
+}
+
+function openCombatUtilityChooser(){
+  var sections=[];
+  var readied=String((S&&S.equipment&&S.equipment.readied)||'').trim();
+  if(readied){
+    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Readied Item</div><button class="btn btn-sm btn-primary" onclick="executeCombatUtilityAction(\'readied\');closeModal()">Use '+readied.replace(/'/g,'&#39;')+'</button></div>');
+  }
+  var backpackItems=Array.isArray(S&&S.backpack)?S.backpack.map(function(item,idx){return {item:String(item||'').trim(),idx:idx};}).filter(function(entry){return !!entry.item;}):[];
+  if(backpackItems.length){
+    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Backpack</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+backpackItems.map(function(entry){return '<button class="btn btn-xs" onclick="executeCombatUtilityAction(\'backpack\','+entry.idx+');closeModal()">'+entry.item.replace(/'/g,'&#39;')+'</button>';}).join('')+'</div></div>');
+  }
+  var hacks=Array.isArray(S&&S.ownedHacks)?S.ownedHacks.filter(Boolean):[];
+  if(hacks.length){
+    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Owned Hacks</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+hacks.map(function(hack){var safe=String(hack).replace(/'/g,'&#39;');return '<button class="btn btn-xs btn-teal" onclick="executeCombatUtilityAction(\'hack\',\''+safe+'\');closeModal()">'+safe+'</button>';}).join('')+'</div></div>');
+  }
+  if(String(S&&S.flavor||'').trim()){
+    sections.push('<div><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Personal Flavor</div><button class="btn btn-sm" onclick="executeCombatUtilityAction(\'flavor\');closeModal()">Use Personal Flavor</button></div>');
+  }
+  if(!sections.length){showNotif('No readied item, backpack item, hack, or Personal Flavor is ready to use.','warn');return;}
+  openModal('Use Item / Hack / Personal Flavor','<div style="font-size:.8rem;color:var(--muted2);line-height:1.55;margin-bottom:.45rem;">Choose from your actual readied gear, backpack, owned hacks, or Personal Flavor.</div>'+sections.join(''));
+}
+
+function executeCombatUtilityAction(kind,payload){
+  if(kind==='flavor'){
+    if(typeof usePersonalFlavorAction==='function')usePersonalFlavorAction();
+    return;
+  }
+  if(kind==='hack'){
+    if(!S.hackRoller)S.hackRoller={dreadDie:6,guess:null,selectedHack:null};
+    S.hackRoller.selectedHack=String(payload||'');
+    var hackSel=document.getElementById('hackSelect');
+    if(hackSel)hackSel.value=S.hackRoller.selectedHack;
+    if(!S.hackRoller.guess){showNotif('Pick Below / Between / Above in the Hack panel first.','warn');return;}
+    if(!consumeCombatAction('Cast Hack'))return;
+    if(typeof castHack==='function')castHack();
+    return;
+  }
+  if(!consumeCombatAction(kind==='readied'?'Use Readied Item':'Use Backpack Item'))return;
+  if(kind==='readied'){
+    if(typeof useEquippedReadiedItem==='function')useEquippedReadiedItem();
+    return;
+  }
+  if(kind==='backpack'&&typeof useBackpackItem==='function')useBackpackItem(Number(payload||0));
 }
 
 function getHostileEnemyCount(){
@@ -5571,9 +5673,7 @@ function collectCombatRangeOverrideText(){
   }
   if(S&&S.equipment){
     chunks.push(String(S.equipment.weapon1||''));
-    chunks.push(String(S.equipment.weapon2||''));
     appendWeaponLookup(S.equipment.weapon1||'');
-    appendWeaponLookup(S.equipment.weapon2||'');
   }
   if(Array.isArray(S.weaponMods))chunks=chunks.concat(S.weaponMods.map(function(name){return String(name||'');}));
   if(Array.isArray(S.augmentations))chunks=chunks.concat(S.augmentations.map(function(name){return String(name||'');}));
@@ -5606,7 +5706,7 @@ function hasShootRangeOverride(range){
 }
 
 function weaponTextAllowsShootRange(range){
-  var ws=[(S.equipment&&S.equipment.weapon1)||'',(S.equipment&&S.equipment.weapon2)||''];
+  var ws=[(S.equipment&&S.equipment.weapon1)||''];
   var joined=ws.join(' | ').toLowerCase();
   var hasShoot=joined.indexOf('shoot')>=0;
   if(!hasShoot)return range==='nearby';
@@ -5918,7 +6018,7 @@ function updateRollModDisplay(){
 //   addAdvDie — +A.D. bonus: roll the Adventure Die and ADD to total
 function parseWeaponBonuses(stat) {
   if (!S || !S.equipment) return {flat:0, advDie:0, addAdvDie:false};
-  var weapons = [S.equipment.weapon1 || '', S.equipment.weapon2 || ''];
+  var weapons = [S.equipment.weapon1 || ''];
   var flat = 0, advDie = 0, addAdvDie = false;
   var label = stat.charAt(0).toUpperCase() + stat.slice(1);
   weapons.forEach(function(w) {

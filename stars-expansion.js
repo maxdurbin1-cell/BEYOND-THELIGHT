@@ -9390,6 +9390,20 @@ function moveSelectedTrackerUnitToStarsHex(row, col) {
   return true;
 }
 
+function addTrackedCombatantFromStarsHex(row, col) {
+  if (typeof addTrackedCombatantFromMap !== 'function' || !starsZoneLayout) return false;
+  const unitType = document.getElementById('starsUnitType') ? document.getElementById('starsUnitType').value : 'enemy';
+  const unitNameRaw = document.getElementById('starsUnitName') ? document.getElementById('starsUnitName').value : '';
+  const unitName = String(unitNameRaw || '').trim();
+  const anchor = getStarsPlayerAnchor(starsZoneLayout);
+  const dmap = buildStarsHexDistanceMap(starsZoneLayout, anchor.row, anchor.col);
+  const steps = Number(dmap[`${row}:${col}`] || 0);
+  const zone = getStarsZoneFromStepDistance(steps);
+  addTrackedCombatantFromMap(unitType, unitName, zone);
+  if (typeof syncStarsUnitsFromCombatMap === 'function') syncStarsUnitsFromCombatMap();
+  return true;
+}
+
 function mapSceneTerrainToStarsLayoutId(terrainText) {
   const terrain = String(terrainText || '').toLowerCase();
   if (terrain.indexOf('urban alley') >= 0) return 4;
@@ -9734,6 +9748,7 @@ function renderStarsCombatZone(layoutId) {
 function starsZoneHexClick(row, col, evt) {
   if (starsZoneAutoPopulate) {
     if (moveSelectedTrackerUnitToStarsHex(row, col)) return;
+    if (addTrackedCombatantFromStarsHex(row, col)) return;
   }
   // Show a mini menu to place/move a unit
   const existing = starsZoneUnits.findIndex(u => u.row === row && u.col === col);

@@ -2695,9 +2695,18 @@
   function moveCombatUnit(id, zone) {
     var unit = S.combatMap.units.filter(function(u){ return u.id === id; })[0];
     if (unit) {
+      var prevZone = unit.zone;
       unit.zone = zone;
+      if (unit.side === 'enemy' && prevZone !== zone && typeof maybeResetActionsAfterDefend === 'function') {
+        maybeResetActionsAfterDefend();
+        if (typeof showNotif === 'function') {
+          showNotif('Enemy repositioned (counts as 1 enemy action).', 'warn');
+        }
+      }
       renderCombatMap();
       renderCombatOptions();
+      if (typeof updateCombatUI === 'function') { updateCombatUI(); }
+      if (typeof syncCombatSpacingToPrimaryEnemy === 'function') { syncCombatSpacingToPrimaryEnemy(); }
       if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
     }
   }

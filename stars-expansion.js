@@ -9373,7 +9373,14 @@ function moveSelectedTrackerUnitToStarsHex(row, col) {
   const nextZone = getStarsZoneFromStepDistance(steps);
   const cmUnit = S.combatMap.units.find((u) => u && u.fromTracker && u.trackerKey === target.trackerKey);
   if (!cmUnit) return false;
+  const prevZone = cmUnit.zone;
   cmUnit.zone = nextZone;
+  if (cmUnit.side === 'enemy' && prevZone !== nextZone && typeof maybeResetActionsAfterDefend === 'function') {
+    maybeResetActionsAfterDefend();
+    if (typeof showNotif === 'function') {
+      showNotif('Enemy repositioned (counts as 1 enemy action).', 'warn');
+    }
+  }
   if (typeof syncStarsUnitsFromCombatMap === 'function') syncStarsUnitsFromCombatMap();
   if (typeof renderCombatMap === 'function') renderCombatMap();
   if (typeof renderCombatOptions === 'function') renderCombatOptions();
@@ -10557,8 +10564,11 @@ function buildStarsCombatPanel() {
   </div>
   <div id="starsCombatZoneContainer"></div>
 </div>`;
-  // Render default zone
-  renderStarsCombatZone(1);
+  // Respect scene-opener override if it already exists.
+  const layoutId = (starsZoneOpenerOverride && Number(starsZoneOpenerOverride.layoutId)) || 1;
+  const sel = document.getElementById('zonePresetSelect');
+  if (sel) sel.value = String(layoutId);
+  renderStarsCombatZone(layoutId);
 }
 
 function buildDateTimePanel() {

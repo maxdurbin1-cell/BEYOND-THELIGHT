@@ -860,6 +860,12 @@ select option{background:#0f1020;}
         <span class="sub-label">⚔ Wayfarer Action</span>
         <div style="font-size:.65rem;color:var(--muted2);margin:.15rem 0 .35rem;">Choose an action — only actions valid for your current zone and resources are shown.</div>
         <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem;">
+          <label for="combatFocusEnemySel" style="font-size:.68rem;color:var(--muted2);">Focus Enemy:</label>
+          <select id="combatFocusEnemySel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .35rem;font-size:.78rem;border-radius:3px;min-width:11rem;" onchange="setCombatFocusEnemy(this.value)">
+            <option value="">Closest Hostile</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem;">
           <select id="wayfarerActionSel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.22rem .4rem;font-size:.8rem;border-radius:3px;flex:1;min-width:9rem;" onchange="updateWayfarerActionBtn()">
             <option value="">— Choose Action —</option>
             <option value="standard_strike">Standard Attack (Strike) — 1 Action</option>
@@ -4964,6 +4970,7 @@ function renderCampaignInitiativePanel(){
     +'</div>';
 }
 function updateCombatUI(){
+  if(typeof syncCombatSpacingToPrimaryEnemy==='function')syncCombatSpacingToPrimaryEnemy();
   const el=document.getElementById('combatStatus');
   if(el){
     const enemyTotal=Math.max(1,(typeof getEnemyActionsPerCycle==='function'?getEnemyActionsPerCycle():0));
@@ -4980,6 +4987,7 @@ function updateCombatUI(){
   if(enemyMaxMain)enemyMaxMain.textContent=(typeof getEnemyActionsPerCycle==='function')?Math.max(1,getEnemyActionsPerCycle()):0;
   const ml=document.getElementById('maxActionsHint');
   if(ml)ml.textContent='(max '+getMaxActions()+')';
+  if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();
   if(typeof renderCampaignInitiativePanel==='function')renderCampaignInitiativePanel();
   if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
 }
@@ -4994,10 +5002,59 @@ function setEnemyDread(n){
 
 function getPrimaryCombatEnemy(){
   if(!Array.isArray(S.enemies))return null;
+  var focusedId=S&&S.combat?Number(S.combat.focusEnemyId||0):0;
+  if(focusedId>0){
+    var focused=S.enemies.find(function(e){return e&&!e.ally&&Number(e.id)===focusedId;});
+    if(focused)return focused;
+  }
   for(var i=0;i<S.enemies.length;i++){
     if(S.enemies[i]&&!S.enemies[i].ally)return S.enemies[i];
   }
   return null;
+}
+
+function setCombatFocusEnemy(rawId){
+  if(!S)return;
+  if(!S.combat||typeof S.combat!=='object')S.combat={};
+  var id=Number(rawId||0);
+  if(id>0&&Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&!e.ally&&Number(e.id)===id;}))S.combat.focusEnemyId=id;
+  else delete S.combat.focusEnemyId;
+  if(typeof updateCombatUI==='function')updateCombatUI();
+}
+
+function renderEnemyFocusSelect(){
+  var sel=document.getElementById('combatFocusEnemySel');
+  if(!sel)return;
+  var hostiles=Array.isArray(S.enemies)?S.enemies.filter(function(e){return e&&!e.ally;}):[];
+  var focusedId=S&&S.combat?Number(S.combat.focusEnemyId||0):0;
+  var html='<option value="">Closest Hostile</option>';
+  hostiles.forEach(function(e){
+    html+='<option value="'+Number(e.id)+'">'+String(e.name||('Enemy '+e.id))+'</option>';
+  });
+  sel.innerHTML=html;
+  if(focusedId>0&&hostiles.some(function(e){return Number(e.id)===focusedId;}))sel.value=String(focusedId);
+}
+
+function getPlayerCombatMapUnit(){
+  if(!S||!S.combatMap||!Array.isArray(S.combatMap.units))return null;
+  var playerName=(S.name&&String(S.name).trim())?String(S.name).trim():'You';
+  var units=S.combatMap.units;
+  return units.find(function(u){return u&&u.side==='ally'&&(u.isPlayer||u.name===playerName);})
+    || units.find(function(u){return u&&u.side==='ally';})
+    || null;
+}
+
+function getCombatMapUnitForEnemy(enemy){
+  if(!enemy||!S||!S.combatMap||!Array.isArray(S.combatMap.units))return null;
+  var trackerKey='enemy:'+String(enemy.id);
+  var units=S.combatMap.units;
+  return units.find(function(u){return u&&u.side==='enemy'&&u.fromTracker&&u.trackerKey===trackerKey;})
+    || units.find(function(u){
+      if(!u||u.side!=='enemy'||!u.name)return false;
+      var n=String(u.name);
+      return n===String(enemy.name||'')||n.indexOf(String(enemy.name||'')+' [')===0;
+    })
+    || null;
 }
 
 function getHostileEnemyCount(){
@@ -5022,16 +5079,21 @@ function getEnemyActionsRemaining(){
 function getPrimaryEnemyZoneRelative(){
   var defaultRange=getCombatRange();
   if(!S||!S.combatMap||!Array.isArray(S.combatMap.units))return defaultRange;
-  var playerName=(S.name&&String(S.name).trim())?String(S.name).trim():'You';
   var units=S.combatMap.units;
-  var player=units.find(function(u){
-    return u&&u.side==='ally'&&(u.isPlayer||u.name===playerName);
-  });
+  var player=getPlayerCombatMapUnit();
   var enemies=units.filter(function(u){return u&&u.side==='enemy';});
   if(!player||!enemies.length)return defaultRange;
   var distMap={Engaged:0,Close:1,Nearby:2,Far:3};
   var labelByDist=['engaged','close','nearby','far'];
   var playerDist=(typeof distMap[player.zone]==='number')?distMap[player.zone]:0;
+  var focusedEnemy=getPrimaryCombatEnemy();
+  if(focusedEnemy){
+    var focusedUnit=getCombatMapUnitForEnemy(focusedEnemy);
+    if(focusedUnit&&typeof distMap[focusedUnit.zone]==='number'){
+      var fd=Math.abs(distMap[focusedUnit.zone]-playerDist);
+      return labelByDist[Math.max(0,Math.min(3,fd))]||defaultRange;
+    }
+  }
   var minDelta=99;
   enemies.forEach(function(enemy){
     var d=(typeof distMap[enemy.zone]==='number')?Math.abs(distMap[enemy.zone]-playerDist):0;
@@ -5039,6 +5101,16 @@ function getPrimaryEnemyZoneRelative(){
   });
   if(minDelta===99)return defaultRange;
   return labelByDist[Math.max(0,Math.min(3,minDelta))]||defaultRange;
+}
+
+function syncCombatSpacingToPrimaryEnemy(){
+  if(!S||!S.combat||!S.combat.active)return;
+  var rel=getPrimaryEnemyZoneRelative();
+  var label=getCombatSpacingLabelFromRange(rel);
+  if(!label)return;
+  if(S.combat.spacing!==label)S.combat.spacing=label;
+  var sel=document.getElementById('spacingSelect');
+  if(sel&&sel.value!==label)sel.value=label;
 }
 
 function ensureEnemyEffectState(enemy){
@@ -5451,9 +5523,32 @@ function setCombatSpacing(newSpacing,consume){
 
 function collectCombatRangeOverrideText(){
   var chunks=[];
+  function normalizeName(v){
+    return String(v||'').toLowerCase().replace(/\s*\([^)]*\)\s*$/,'').trim();
+  }
+  function appendWeaponLookup(name){
+    if(typeof SHOP_DATA==='undefined'||!name)return;
+    var needle=normalizeName(name);
+    ['weapons','ranged_exp','melee_exp'].forEach(function(cat){
+      var arr=Array.isArray(SHOP_DATA[cat])?SHOP_DATA[cat]:[];
+      for(var i=0;i<arr.length;i++){
+        var entry=arr[i];
+        if(!entry||!entry.name)continue;
+        var en=normalizeName(entry.name);
+        if(en===needle||needle.indexOf(en)===0||en.indexOf(needle)===0){
+          chunks.push(String(entry.name||''));
+          chunks.push(String(entry.stat||''));
+          chunks.push(String(entry.desc||''));
+          break;
+        }
+      }
+    });
+  }
   if(S&&S.equipment){
     chunks.push(String(S.equipment.weapon1||''));
     chunks.push(String(S.equipment.weapon2||''));
+    appendWeaponLookup(S.equipment.weapon1||'');
+    appendWeaponLookup(S.equipment.weapon2||'');
   }
   if(Array.isArray(S.weaponMods))chunks=chunks.concat(S.weaponMods.map(function(name){return String(name||'');}));
   if(Array.isArray(S.augmentations))chunks=chunks.concat(S.augmentations.map(function(name){return String(name||'');}));
@@ -5497,7 +5592,9 @@ function weaponTextAllowsShootRange(range){
 }
 
 function canUseAttackAtCurrentRange(type){
-  var range=getCombatRange();
+  var range=typeof getPrimaryEnemyZoneRelative==='function'
+    ?getPrimaryEnemyZoneRelative()
+    :getCombatRange();
   if(type==='strike')return range==='engaged';
   if(type==='shoot')return weaponTextAllowsShootRange(range);
   return true;
@@ -6124,6 +6221,7 @@ function applyStressToCurrentEnemy(stress,source){
   applyStressToEnemy(enemy,stress,source==='shoot'?'Shoot':'Strike');
 }
 function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';return;}c.innerHTML=S.enemies.map(e=>{ensureEnemyEffectState(e);syncEnemyConditionList(e);var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';var factionBadge=e.faction?`<span style="font-size:.6rem;background:rgba(122,120,152,.18);border:1px solid var(--border2);border-radius:3px;padding:.05rem .22rem;color:var(--muted2);margin-left:.3rem;">${e.faction}</span>`:'';var sideBadge=e.ally?'<span style="font-size:.6rem;color:var(--teal);background:rgba(46,196,182,.12);border:1px solid var(--teal);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">ALLY</span>':'<span style="font-size:.6rem;color:var(--red2);background:rgba(201,64,64,.1);border:1px solid var(--red);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">HOSTILE</span>';return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};display:flex;align-items:center;flex-wrap:wrap;gap:.1rem;">${e.name}${sideBadge}${factionBadge}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button><button class="btn btn-xs" title="Toggle ally/hostile side" onclick="toggleEnemySide(${e.id})">${e.ally?'→ Hostile':'→ Ally'}</button></div></div>`;}).join('');}
+function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();return;}c.innerHTML=S.enemies.map(e=>{ensureEnemyEffectState(e);syncEnemyConditionList(e);var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';var factionBadge=e.faction?`<span style="font-size:.6rem;background:rgba(122,120,152,.18);border:1px solid var(--border2);border-radius:3px;padding:.05rem .22rem;color:var(--muted2);margin-left:.3rem;">${e.faction}</span>`:'';var sideBadge=e.ally?'<span style="font-size:.6rem;color:var(--teal);background:rgba(46,196,182,.12);border:1px solid var(--teal);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">ALLY</span>':'<span style="font-size:.6rem;color:var(--red2);background:rgba(201,64,64,.1);border:1px solid var(--red);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">HOSTILE</span>';return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};display:flex;align-items:center;flex-wrap:wrap;gap:.1rem;">${e.name}${sideBadge}${factionBadge}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button><button class="btn btn-xs" title="Toggle ally/hostile side" onclick="toggleEnemySide(${e.id})">${e.ally?'→ Hostile':'→ Ally'}</button></div></div>`;}).join('');if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();}
 function enemyPip(id,i){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;

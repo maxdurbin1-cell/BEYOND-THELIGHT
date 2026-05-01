@@ -624,7 +624,9 @@
         if (!scenePatch) return;
         sanitized.combatScene = {
           combat: deepCloneJson(scenePatch.combat || {}) || {},
-          enemies: Array.isArray(scenePatch.enemies) ? (deepCloneJson(scenePatch.enemies) || []) : []
+          enemies: Array.isArray(scenePatch.enemies) ? (deepCloneJson(scenePatch.enemies) || []) : [],
+          naval: (scenePatch.naval && typeof scenePatch.naval === "object") ? (deepCloneJson(scenePatch.naval) || null) : null,
+          caravan: (scenePatch.caravan && typeof scenePatch.caravan === "object") ? (deepCloneJson(scenePatch.caravan) || null) : null
         };
         return;
       }
@@ -675,10 +677,12 @@
   }
 
   function collectCombatSceneState() {
-    if (typeof window.S === "undefined" || !window.S) return { combat: {}, enemies: [] };
+    if (typeof window.S === "undefined" || !window.S) return { combat: {}, enemies: [], naval: null, caravan: null };
     return {
       combat: deepCloneJson(window.S.combat || {}) || {},
-      enemies: Array.isArray(window.S.enemies) ? (deepCloneJson(window.S.enemies) || []) : []
+      enemies: Array.isArray(window.S.enemies) ? (deepCloneJson(window.S.enemies) || []) : [],
+      naval: window.S.naval ? (deepCloneJson(window.S.naval) || null) : null,
+      caravan: window.S.caravan ? (deepCloneJson(window.S.caravan) || null) : null
     };
   }
 
@@ -706,6 +710,12 @@
     }
     if (typeof window.updateSkirmishRoundUI === "function") {
       try { window.updateSkirmishRoundUI(); } catch (_err) {}
+    }
+    if (typeof window.renderNaval === "function") {
+      try { window.renderNaval(); } catch (_err) {}
+    }
+    if (typeof window.renderCaravanUI === "function") {
+      try { window.renderCaravanUI(); } catch (_err) {}
     }
   }
 
@@ -753,6 +763,30 @@
     wrap("removeEnemy", "combat-remove-enemy");
     wrap("enemyAttack", "combat-enemy-attack");
     wrap("applyStressToEnemy", "combat-apply-stress");
+    // Naval Ship / Starship combat
+    wrap("startNavalCombat", "naval-combat-start");
+    wrap("nextNavalRound", "naval-next-round");
+    wrap("navalAttack", "naval-attack");
+    wrap("enemyNavalAttack", "naval-enemy-attack");
+    wrap("navalRepair", "naval-repair");
+    wrap("navalTactics", "naval-tactics");
+    wrap("navalMorale", "naval-morale");
+    wrap("navalSurvey", "naval-survey");
+    wrap("adjustNavalZone", "naval-zone");
+    wrap("applyPowerShift", "naval-power-shift");
+    wrap("clearPowerShift", "naval-power-shift-clear");
+    wrap("spawnEnemyShip", "naval-spawn-enemy");
+    wrap("wreckEnemyShip", "naval-wreck-enemy");
+    // Caravan chase combat
+    wrap("startChase", "chase-start");
+    wrap("nextChaseRound", "chase-next-round");
+    wrap("endChase", "chase-end");
+    wrap("rollChaseControl", "chase-control");
+    wrap("rollChaseEnemyAttack", "chase-enemy-attack");
+    wrap("adjustChaseZone", "chase-zone");
+    wrap("setChaseEnemyDread", "chase-dread");
+    wrap("changeCaravanStress", "caravan-stress");
+    wrap("repairCaravan", "caravan-repair");
 
     window._campaignPatchedCombatSyncHooks = true;
   }
@@ -1370,9 +1404,15 @@
       if (sharedState.combatScene && typeof sharedState.combatScene === "object") {
         window.S.combat = deepCloneJson(sharedState.combatScene.combat || {}) || {};
         window.S.enemies = Array.isArray(sharedState.combatScene.enemies) ? (deepCloneJson(sharedState.combatScene.enemies) || []) : [];
+        if (sharedState.combatScene.naval && typeof sharedState.combatScene.naval === "object") {
+          window.S.naval = deepCloneJson(sharedState.combatScene.naval) || window.S.naval || null;
+        }
+        if (sharedState.combatScene.caravan && typeof sharedState.combatScene.caravan === "object") {
+          window.S.caravan = deepCloneJson(sharedState.combatScene.caravan) || window.S.caravan || null;
+        }
         state.lastCombatSceneHash = hashCombatSceneState(sharedState.combatScene);
         var current = getCampaignSharedState() || {};
-        current.combatScene = deepCloneJson(sharedState.combatScene) || { combat: {}, enemies: [] };
+        current.combatScene = deepCloneJson(sharedState.combatScene) || { combat: {}, enemies: [], naval: null, caravan: null };
       }
       if (sharedState.gmSettings && typeof sharedState.gmSettings === "object") {
         var current = getCampaignSharedState() || {};

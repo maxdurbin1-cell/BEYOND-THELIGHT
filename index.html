@@ -2056,6 +2056,9 @@ function resolveDarkAfflictionConsume(consume){
 }
 function promptConsumeAfterEnemyDefeat(enemyName){
   ensureDarkAfflictionState();
+  var hasFlavorAffliction=!!getAfflictionFlavorKey();
+  var hasActiveAffliction=!!(S.darkAfflictions&&(S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active||S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active));
+  if(!hasFlavorAffliction&&!hasActiveAffliction)return;
   S.darkAfflictions.pendingCorpse={name:String(enemyName||'fallen foe')};
   if(typeof openModal==='function'){
     openModal('Fallen Enemy',
@@ -2361,6 +2364,65 @@ function refreshPersonalFlavorInteractionUI(){
   }
 }
 
+function applySpecificFlavorActionOverride(entry){
+  if(!entry)return null;
+  var base=normalizeFlavorBase(S.flavor||'');
+  if(!base)return null;
+  var isNight=(typeof isNightPhase==='function')?isNightPhase():false;
+  var hasHostiles=Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&!e.ally;});
+
+  if(base.indexOf('animal companion')>=0){
+    if(hasHostiles){
+      S.enemies.push({id:enemyIdCounter++,name:'Animal Companion',dread:6,stress:0,maxStress:12,health:0,conditions:[],ally:true,effectState:{}});
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return 'Animal Companion joins combat as an ally (DD6, 12 Stress).';
+    }
+    return 'Animal Companion is ready. Cue: use during combat to summon your ally.';
+  }
+
+  if(base.indexOf('emit blinding light')>=0){
+    if(!hasHostiles)return 'No hostile targets engaged. Cue: use Blinding Light during combat.';
+    var affected=0;
+    S.enemies.forEach(function(e){
+      if(!e||e.ally)return;
+      var eff=getEnemyEffectiveDread(e);
+      if(eff<=4)applyEnemyCombatCondition(e,'reboot optics',1);
+      else applyEnemyCombatCondition(e,'ping',1);
+      affected++;
+    });
+    if(typeof renderEnemies==='function')renderEnemies();
+    if(typeof renderQP==='function')renderQP('combat');
+    return 'Blinding Light: '+affected+' enemies disrupted (Dread step-down, or disadvantage at d4).';
+  }
+
+  if(base.indexOf('infernal eyes')>=0){
+    if(!hasHostiles)return 'Infernal Eyes primed. Cue: use during combat or at night for intimidation.';
+    var rounds=isNight?2:1;
+    var count=0;
+    S.enemies.forEach(function(e){
+      if(!e||e.ally)return;
+      applyEnemyCombatCondition(e,'ping',1);
+      applyEnemyCombatCondition(e,'Shaken',rounds);
+      count++;
+    });
+    if(typeof renderEnemies==='function')renderEnemies();
+    if(typeof renderQP==='function')renderQP('combat');
+    return 'Infernal Eyes: '+count+' enemies Shaken ('+rounds+'r) and Dread reduced one step.';
+  }
+
+  if(base.indexOf('leader')>=0){
+    if(S.conditions)S.conditions.empowered=true;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    var inCampaign=!!(window.campaignSystem&&window.campaignSystem.getState&&window.campaignSystem.getState().code);
+    return inCampaign
+      ? 'Leader: faction-wide Empowered cue broadcast in campaign context. You are Empowered now.'
+      : 'Leader: Empowered applied. Cue: this scales best in campaign faction scenes.';
+  }
+
+  return null;
+}
+
 function usePersonalFlavorAction(){
   var flavor=String(S.flavor||'').trim();
   if(!flavor){showNotif('Set a Personal Flavor first.','info');return;}
@@ -2377,7 +2439,10 @@ function usePersonalFlavorAction(){
   var arch=entry.archetype;
   var potency=entry.potency;
   var msg='Flavor action resolved.';
-  if(arch==='scrap_alchemist'){
+  var specificMsg=applySpecificFlavorActionOverride(entry);
+  if(specificMsg){
+    msg=specificMsg;
+  }else if(arch==='scrap_alchemist'){
     var spent=consumeJunkBackpackItem();
     if(!spent){
       showNotif('Scrap Alchemy needs one junk/salvage item in Backpack.','warn');
@@ -5267,6 +5332,23 @@ function getCurrentTravelPhaseToken(){
   if(typeof getGameDatePhaseText==='function')return getGameDatePhaseText();
   return 'phase-unknown';
 }
+window.getCurrentTravelPhaseToken=getCurrentTravelPhaseToken;
+function ensureMissionMapAutoAdvanceMode(){
+  if(!S||typeof S!=='object')return 'click';
+  if(S.missionMapAutoAdvanceMode!=='phase'&&S.missionMapAutoAdvanceMode!=='click')S.missionMapAutoAdvanceMode='click';
+  return S.missionMapAutoAdvanceMode;
+}
+function getMissionMapAutoAdvanceMode(){
+  return ensureMissionMapAutoAdvanceMode();
+}
+function toggleMissionMapAutoAdvanceMode(){
+  const cur=ensureMissionMapAutoAdvanceMode();
+  S.missionMapAutoAdvanceMode=cur==='click'?'phase':'click';
+  if(typeof showNotif==='function')showNotif('Map mission auto-advance: '+(S.missionMapAutoAdvanceMode==='phase'?'Once per phase':'Every travel click')+'.','good');
+  if(typeof window.refreshQuickPanelSection==='function')window.refreshQuickPanelSection('missions');
+}
+window.getMissionMapAutoAdvanceMode=getMissionMapAutoAdvanceMode;
+window.toggleMissionMapAutoAdvanceMode=toggleMissionMapAutoAdvanceMode;
 function isTraversalPhaseLocked(targetHex){
   if(!S||!S.provinceTraversalLock||!S.provinceTraversalLock.active)return false;
   const lock=S.provinceTraversalLock;
@@ -8243,6 +8325,14 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;">Province pace: ' + clicksPerDay + ' hex clicks / day (' + travelMode + ')</div>'
       + '<div style="font-size:.68rem;color:var(--muted2);">Last Sea ship pace: 1 hex click = 1 week</div>'
       + '</div>';
+    var missionAutoMode=(typeof getMissionMapAutoAdvanceMode==='function')?getMissionMapAutoAdvanceMode():'click';
+    var missionAutoSummary='<div style="background:var(--surface);border:1px solid var(--border2);padding:.38rem .5rem;margin-bottom:.55rem;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
+      + '<div style="font-size:.7rem;color:var(--gold2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;">Map Mission Auto-Advance</div>'
+      + '<button class="btn btn-xs '+(missionAutoMode==='phase'?'btn-teal':'')+'" onclick="toggleMissionMapAutoAdvanceMode()">'+(missionAutoMode==='phase'?'Once / Phase':'Every Click')+'</button>'
+      + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.16rem;">Choose whether stepping on mission markers triggers once per phase or on every travel click.</div>'
+      + '</div>';
     var jobsHtml = '<div style="margin-bottom:.55rem;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.3rem;">'
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;">Mission Board</div>'
@@ -8336,6 +8426,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }).join('') : '<div style="font-size:.78rem;color:var(--muted2);">No active missions yet.</div>';
 
     return travelSummary
+      + missionAutoSummary
       + jobsHtml
       + holdingHtml
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Active Missions</div>'
@@ -9028,7 +9119,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const hex = mapData.find(h => h.col === col && h.row === row);
     if (!hex) return;
     const season = S.currentSeason || 'spring';
-    const wr = roll(6);
+    const wr = (hex.data && hex.data.weatherRoll) ? Number(hex.data.weatherRoll) : roll(6);
     const weatherResult = WEATHER[season][wr - 1];
     if (!weatherResult.rough) {
       showNotif('This weather is not dangerous.', 'info');
@@ -9068,13 +9159,30 @@ document.addEventListener('DOMContentLoaded',()=>{
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
       if (typeof toggleCond === 'function') toggleCond('empowered');
       if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
-      showNotif('Successfully navigated dangerous weather!', 'good');
+      showNotif('Weather check passed: Lead '+leadRoll.total+' vs DD8 '+dreadRoll.total+'. Safe passage secured.', 'good');
     } else {
       const weatherStress=itemFlags.torch?0:1;
+      const beforeDate=S&&S.gameDate?JSON.parse(JSON.stringify(S.gameDate)):null;
       if (weatherStress && typeof changeMentalStress === 'function') changeMentalStress(weatherStress);
-      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('province-weather-failure', {
+        failedBy: Math.max(1, dreadRoll.total - leadRoll.total),
+        actionDie: Math.max(4, Number((leadRoll && leadRoll.baseDie) || (S.stats&&S.stats.lead) || 6)),
+        dreadDie: 8,
+        onConvert: function(){
+          if(beforeDate&&S&&S.gameDate){
+            S.gameDate=beforeDate;
+            if(typeof updateDateUI==='function')updateDateUI();
+          }
+          if(weatherStress&&typeof changeMentalStress==='function')changeMentalStress(-weatherStress);
+          var target=document.getElementById('weather-result-'+col+'-'+row);
+          if(target){
+            target.innerHTML='<div style="background:rgba(46,196,182,.08);border:1px solid rgba(46,196,182,.35);padding:.4rem .5rem;border-radius:4px;"><div style="font-family:Cinzel,serif;font-size:.65rem;letter-spacing:.08em;color:var(--green2);text-transform:uppercase;margin-bottom:.2rem;">✓ Converted To Success</div><div style="font-size:.75rem;color:var(--text2);">Teamwork converted this weather failure into success. Consequences reverted.</div></div>';
+          }
+          return true;
+        }
+      });
       advanceProvincePhasePenalty(1);
-      showNotif('Lost a Phase to weather. Remain in hex.', 'warn');
+      showNotif('Weather check failed: Lead '+leadRoll.total+' vs DD8 '+dreadRoll.total+'. '+(weatherStress?'+1 Mental Stress, ':'')+'lose 1 Phase and remain in hex.', 'warn');
     }
     const resultEl = document.getElementById(`weather-result-${col}-${row}`);
     if (resultEl) resultEl.innerHTML = resultHTML;

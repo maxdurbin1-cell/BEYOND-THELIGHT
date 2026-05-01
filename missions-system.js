@@ -943,8 +943,13 @@
   var _missionAutoAdvanceGuard = { key: '', at: 0 };
   function canAutoAdvanceMission(missionId, tokenType, regionTag) {
     var now = Date.now();
-    var key = String(regionTag || 'region') + '|' + String(missionId || '') + '|' + String(tokenType || '');
-    if (_missionAutoAdvanceGuard.key === key && (now - Number(_missionAutoAdvanceGuard.at || 0)) < 500) {
+    var mode = (typeof window.getMissionMapAutoAdvanceMode === 'function') ? window.getMissionMapAutoAdvanceMode() : 'click';
+    var phaseToken = (mode === 'phase' && typeof window.getCurrentTravelPhaseToken === 'function')
+      ? String(window.getCurrentTravelPhaseToken() || 'phase-unknown')
+      : 'click';
+    var key = String(regionTag || 'region') + '|' + String(missionId || '') + '|' + String(tokenType || '') + '|' + phaseToken;
+    var dedupeWindow = mode === 'phase' ? 60000 : 500;
+    if (_missionAutoAdvanceGuard.key === key && (now - Number(_missionAutoAdvanceGuard.at || 0)) < dedupeWindow) {
       return false;
     }
     _missionAutoAdvanceGuard = { key: key, at: now };

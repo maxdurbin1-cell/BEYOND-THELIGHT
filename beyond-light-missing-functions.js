@@ -778,6 +778,7 @@ function openFailedRollFollowup(reason) {
   var html = ''
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
     + 'Failed roll detected (' + why + '). You can spend Teamwork directly on this failed roll:'
+    + '<br><strong style="color:var(--red2);">Failed by: ' + needed + '</strong>'
     + '<br><strong style="color:var(--teal);">Spend to Succeed:</strong> spend Teamwork equal to failure gap.'
     + '<br><strong style="color:var(--gold2);">Push Your Luck (2 Teamwork):</strong> reroll now at stepped-up Dread.'
     + '</div>'
@@ -813,6 +814,9 @@ function addTMWOnFail(reason, opts) {
   }
   var cfg = opts && typeof opts === 'object' ? opts : {};
   _failedRollContext = normalizeFailedRollContext(failureReason, cfg);
+  if (typeof cfg.onConvert === 'function') {
+    _failedRollContext.onConvert = cfg.onConvert;
+  }
   if (!cfg || !cfg.skipPrompt) openFailedRollFollowup(failureReason);
   return gained;
 }
@@ -842,7 +846,18 @@ window.applyFailedRollRecovery = function(mode) {
     }
     changeCounter('tmw', -spend);
     if (spend >= failedBy) {
+      var convertApplied = false;
+      if (_failedRollContext && typeof _failedRollContext.onConvert === 'function') {
+        try {
+          convertApplied = _failedRollContext.onConvert() !== false;
+        } catch (_err) {
+          convertApplied = false;
+        }
+      }
       if (typeof showNotif === 'function') showNotif('Spent ' + spend + ' Teamwork: failure converted to success.', 'good');
+      if (!convertApplied && typeof showNotif === 'function') {
+        showNotif('Converted for this check, but some screens may still need manual refresh.', 'info');
+      }
     } else {
       if (typeof showNotif === 'function') showNotif('Spent ' + spend + ' Teamwork, but you still need +' + (failedBy - spend) + ' to convert this fail.', 'warn');
     }

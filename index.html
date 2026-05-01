@@ -1746,6 +1746,20 @@ function ensureBackstoryState(){
   ['province','sea','galaxy','wtw','planet'].forEach(function(scope){
     if(!b.mapMarkers[scope]||typeof b.mapMarkers[scope]!=='object')b.mapMarkers[scope]={};
   });
+  if(!b.anchorState||typeof b.anchorState!=='object')b.anchorState={};
+  if(!b.anchorState.home||typeof b.anchorState.home!=='object')b.anchorState.home={bond:0,visits:0,lastEvent:'',activeTask:null};
+  if(!b.anchorState.connection||typeof b.anchorState.connection!=='object')b.anchorState.connection={trust:0,interactions:0,lastDialogue:'',lastGift:'',activeTask:null};
+  if(!b.anchorState.rival||typeof b.anchorState.rival!=='object')b.anchorState.rival={sightings:0,lastSeenKey:'',lastMoveAt:0};
+  if(typeof b.anchorState.home.bond!=='number')b.anchorState.home.bond=0;
+  if(typeof b.anchorState.home.visits!=='number')b.anchorState.home.visits=0;
+  if(typeof b.anchorState.home.lastEvent!=='string')b.anchorState.home.lastEvent='';
+  if(typeof b.anchorState.connection.trust!=='number')b.anchorState.connection.trust=0;
+  if(typeof b.anchorState.connection.interactions!=='number')b.anchorState.connection.interactions=0;
+  if(typeof b.anchorState.connection.lastDialogue!=='string')b.anchorState.connection.lastDialogue='';
+  if(typeof b.anchorState.connection.lastGift!=='string')b.anchorState.connection.lastGift='';
+  if(typeof b.anchorState.rival.sightings!=='number')b.anchorState.rival.sightings=0;
+  if(typeof b.anchorState.rival.lastSeenKey!=='string')b.anchorState.rival.lastSeenKey='';
+  if(typeof b.anchorState.rival.lastMoveAt!=='number')b.anchorState.rival.lastMoveAt=0;
   if(Object.keys(b.mapMarkers.province).length===0&&Object.keys(b.provinceMarkers).length){
     b.mapMarkers.province=Object.assign({},b.provinceMarkers);
   }
@@ -1787,6 +1801,66 @@ function getBackstoryMapMarker(scope,key){
     if(entry&&String(entry.key||'')===val)return entry;
   }
   return null;
+}
+
+function getBackstoryMapMarkerMeta(scope,key){
+  const bucket=getBackstoryMarkerBucket(scope,false);
+  const val=String(key||'');
+  const ids=Object.keys(bucket);
+  for(let i=0;i<ids.length;i++){
+    const id=ids[i];
+    const entry=bucket[id];
+    if(entry&&String(entry.key||'')===val)return{id:id,entry:entry};
+  }
+  return null;
+}
+
+function ensureBackstoryAnchorState(){
+  ensureBackstoryState();
+  return (S&&S.backstory&&S.backstory.anchorState&&typeof S.backstory.anchorState==='object')?S.backstory.anchorState:{};
+}
+
+function pickBackstoryTaskDestination(excludeKey,types){
+  if(!Array.isArray(mapData)||!mapData.length)return null;
+  const blocked=String(excludeKey||'');
+  const t=Array.isArray(types)?types:[];
+  let pool=mapData.filter(function(h){
+    const k=String(h.col)+','+String(h.row);
+    return k!==blocked&&(!t.length||t.indexOf(String(h.type||''))>=0);
+  });
+  if(!pool.length)pool=mapData.filter(function(h){return String(h.col)+','+String(h.row)!==blocked;});
+  if(!pool.length)return null;
+  return pick(pool);
+}
+
+function maybeMoveBackstoryMapMarker(scope,id,chancePct,preferredTypes){
+  ensureBackstoryState();
+  const sk=String(scope||'province').toLowerCase();
+  const bucket=getBackstoryMarkerBucket(sk,false);
+  const marker=bucket[String(id||'')];
+  if(!marker||!marker.key)return false;
+  const pct=Math.max(0,Math.min(100,parseInt(chancePct,10)||0));
+  if(pct<=0)return false;
+  if(roll(100)>pct)return false;
+
+  if(sk==='province'){
+    const origin=String(marker.key||'');
+    const target=pickBackstoryTaskDestination(origin,preferredTypes);
+    if(!target)return false;
+    marker.key=String(target.col)+','+String(target.row);
+    const st=ensureBackstoryAnchorState();
+    if(id==='rival'&&st.rival){
+      st.rival.lastSeenKey=marker.key;
+      st.rival.lastMoveAt=Date.now();
+    }
+    if(id==='connection'&&st.connection){
+      st.connection.lastDialogue='Contact changed routes and moved to another zone.';
+    }
+    if(typeof renderHexMap==='function')renderHexMap();
+    if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+    return true;
+  }
+  return false;
 }
 
 function ensureBackstoryScopeMarkers(scope,candidates,opts){
@@ -1947,6 +2021,271 @@ function assignBackstoryMarkersAcrossMaps(){
   if(typeof renderPlanetExplorationPanel==='function')renderPlanetExplorationPanel();
 }
 
+function applyBackstoryDowntimeLongRest(label){
+  if(typeof clearStress==='function')clearStress();
+  else if(typeof changeStress==='function')changeStress(-999);
+  if(typeof clearMentalStress==='function')clearMentalStress();
+  else if(typeof changeMentalStress==='function')changeMentalStress(-999);
+  if(typeof clearAllConditions==='function')clearAllConditions();
+  else if(S&&S.conditions&&typeof S.conditions==='object'){
+    Object.keys(S.conditions).forEach(function(k){S.conditions[k]=false;});
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+  }
+  if(typeof advanceDay==='function')advanceDay(1);
+  else if(typeof advanceProvincePhasePenalty==='function')advanceProvincePhasePenalty(3);
+  if(typeof showNotif==='function')showNotif((label||'Downtime')+': Long Rest complete, +1 day.','good');
+}
+
+function grantBackstoryUniqueItem(){
+  const picks=['Signed Safe-Passage Ledger','Encoded Contact Sigil','Ancestral Compass','Moonsteel Keepsake','Bound Favor Token'];
+  const item=pick(picks);
+  if(typeof addToBackpack==='function')addToBackpack(item);
+  else if(Array.isArray(S.backpack)){
+    const idx=S.backpack.indexOf('');
+    if(idx>=0)S.backpack[idx]=item;
+  }
+  if(typeof renderBackpackUI==='function')renderBackpackUI();
+  return item;
+}
+
+function createBackstoryAnchorTask(anchorId,originKey,titlePrefix,tokenType,rewardProfile){
+  ensureBackstoryState();
+  const st=ensureBackstoryAnchorState();
+  const slot=anchorId==='home'?st.home:st.connection;
+  if(slot&&slot.activeTask&&slot.activeTask.status==='open'){
+    if(typeof showNotif==='function')showNotif('An anchor task is already active.','warn');
+    return null;
+  }
+  const target=pickBackstoryTaskDestination(originKey,['wilderness','trade','ruins','event','dwelling','holding']);
+  if(!target){
+    if(typeof showNotif==='function')showNotif('No valid destination found for this anchor task.','warn');
+    return null;
+  }
+  if(!S.missionTokens||typeof S.missionTokens!=='object')S.missionTokens={};
+  const key=String(target.col)+','+String(target.row);
+  const task={
+    id:'bs-'+String(anchorId)+'-'+String(Date.now())+'-'+String(roll(999)),
+    anchorId:String(anchorId),
+    originKey:String(originKey||''),
+    targetKey:key,
+    title:String(titlePrefix||'Backstory Task'),
+    rewardCredits:Math.max(20,Number(rewardProfile&&rewardProfile.credits||35)),
+    rewardItem:String(rewardProfile&&rewardProfile.item||''),
+    dd:Math.max(6,Number(rewardProfile&&rewardProfile.dd||6)),
+    status:'open'
+  };
+  slot.activeTask=task;
+  S.missionTokens[key]={missionId:task.id,type:String(tokenType||'backstory_contract'),title:task.title};
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+  return task;
+}
+
+function completeBackstoryAnchorTask(anchorId,currentKey){
+  ensureBackstoryState();
+  const st=ensureBackstoryAnchorState();
+  const slot=anchorId==='home'?st.home:st.connection;
+  const task=slot&&slot.activeTask?slot.activeTask:null;
+  const key=String(currentKey||'');
+  if(!task||task.status!=='open'||String(task.targetKey||'')!==key){
+    if(typeof showNotif==='function')showNotif('No active anchor task is ready here.','warn');
+    return;
+  }
+  const adDie=(typeof getEffectiveDie==='function')?getEffectiveDie('adventure'):(S.stats&&S.stats.adventure)||4;
+  const a=explodingRoll(adDie);
+  const d=explodingRoll(task.dd||6);
+  const success=a.total>=d.total;
+
+  if(success){
+    S.credits=(S.credits||0)+(task.rewardCredits||0);
+    if(typeof updateCreditsUI==='function')updateCreditsUI();
+    if(task.rewardItem){
+      if(typeof addToBackpack==='function')addToBackpack(task.rewardItem);
+      if(typeof renderBackpackUI==='function')renderBackpackUI();
+    }
+    if(anchorId==='home'){
+      st.home.bond=(st.home.bond||0)+1;
+      if(typeof changeCounter==='function')changeCounter('renown',1);
+    }else{
+      st.connection.trust=(st.connection.trust||0)+1;
+      st.connection.interactions=(st.connection.interactions||0)+1;
+      if(roll(100)<=30)grantBackstoryUniqueItem();
+    }
+    if(typeof showNotif==='function')showNotif('Anchor task complete: AD'+adDie+' '+a.total+' vs DD'+(task.dd||6)+' '+d.total+'.','good');
+  }else{
+    if(anchorId==='home')st.home.bond=Math.max(-5,(st.home.bond||0)-1);
+    else st.connection.trust=Math.max(-5,(st.connection.trust||0)-1);
+    if(typeof changeStress==='function')changeStress(1);
+    if(typeof showNotif==='function')showNotif('Anchor task failed: AD'+adDie+' '+a.total+' vs DD'+(task.dd||6)+' '+d.total+'.','warn');
+  }
+
+  if(S.missionTokens&&S.missionTokens[key]&&S.missionTokens[key].missionId===task.id)delete S.missionTokens[key];
+  task.status='resolved';
+  slot.activeTask=null;
+  if(typeof closeModal==='function')closeModal();
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+}
+
+function doHometownDowntimeRest(key){
+  const st=ensureBackstoryAnchorState();
+  st.home.visits=(st.home.visits||0)+1;
+  st.home.bond=(st.home.bond||0)+1;
+  applyBackstoryDowntimeLongRest('Hometown Downtime');
+  if(typeof closeModal==='function')closeModal();
+  if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+}
+
+function generateHometownMission(key){
+  const eventTitles=['Supply Relay from Home','Old Friend Request','District Aid Convoy','Homefront Distress Signal'];
+  const title='Hometown Mission: '+pick(eventTitles);
+  const item=pick(['Family Keepsake','Hometown Ration Crate','Signed Civic Permit']);
+  const task=createBackstoryAnchorTask('home',key,title,'backstory_hometown',{credits:60+roll(40),item:item,dd:6});
+  if(task&&typeof showNotif==='function')showNotif('Hometown mission placed at ['+task.targetKey+'].','good');
+  if(typeof closeModal==='function')closeModal();
+}
+
+function rollHometownRandomEvent(key){
+  const st=ensureBackstoryAnchorState();
+  const events=[
+    {name:'Community Festival',stat:'spirit',dd:6,success:'You inspire the town. +1 Renown.',fail:'Tension rises. +1 Mental Stress.'},
+    {name:'Old Debt Calls',stat:'lead',dd:8,success:'You resolve old pressure. +45 Credits.',fail:'Collection pressure returns. -25 Credits.'},
+    {name:'Neighborhood Watch',stat:'control',dd:6,success:'Routes become safer. Gain Protected.',fail:'Rumors spread. Gain Distracted.'}
+  ];
+  const ev=pick(events);
+  const adDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats&&S.stats[ev.stat])||4;
+  const a=explodingRoll(adDie);
+  const d=explodingRoll(ev.dd);
+  const success=a.total>=d.total;
+  st.home.lastEvent=ev.name+' ('+(success?'success':'failure')+')';
+  if(success){
+    st.home.bond=(st.home.bond||0)+1;
+    if(ev.name==='Community Festival'&&typeof changeCounter==='function')changeCounter('renown',1);
+    if(ev.name==='Old Debt Calls'){S.credits=(S.credits||0)+45;if(typeof updateCreditsUI==='function')updateCreditsUI();}
+    if(ev.name==='Neighborhood Watch'&&typeof toggleCond==='function'&&S.conditions&&!S.conditions.protected)toggleCond('protected');
+    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.success,'good');
+  }else{
+    st.home.bond=Math.max(-5,(st.home.bond||0)-1);
+    if(ev.name==='Community Festival'&&typeof changeMentalStress==='function')changeMentalStress(1);
+    if(ev.name==='Old Debt Calls'){S.credits=Math.max(0,(S.credits||0)-25);if(typeof updateCreditsUI==='function')updateCreditsUI();}
+    if(ev.name==='Neighborhood Watch'&&typeof toggleCond==='function'&&S.conditions&&!S.conditions.distracted)toggleCond('distracted');
+    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.fail,'warn');
+  }
+  if(typeof closeModal==='function')closeModal();
+  if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+}
+
+function requestTrustedContractTask(key){
+  const st=ensureBackstoryAnchorState();
+  st.connection.interactions=(st.connection.interactions||0)+1;
+  const titles=['Silent Courier Run','Discreet Retrieval','Counterintel Sweep','Witness Protection Route'];
+  const contractTitle='Trusted Contract: '+pick(titles);
+  const rewardItem=pick(['Encrypted Trade Ledger','Contact Cipher Seal','Phaseglass Trinket']);
+  const task=createBackstoryAnchorTask('connection',key,contractTitle,'backstory_contract',{credits:70+roll(50),item:rewardItem,dd:8});
+  if(task){
+    st.connection.lastDialogue='I marked a route. Keep it quiet and move fast.';
+    if(typeof showNotif==='function')showNotif('Trusted contract issued at ['+task.targetKey+'].','good');
+  }
+  if(typeof closeModal==='function')closeModal();
+}
+
+function talkToTrustedContact(key){
+  const st=ensureBackstoryAnchorState();
+  st.connection.interactions=(st.connection.interactions||0)+1;
+  const adDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats&&S.stats.spirit)||4;
+  const a=explodingRoll(adDie);
+  const d=explodingRoll(6);
+  const success=a.total>=d.total;
+  if(success){
+    st.connection.trust=(st.connection.trust||0)+1;
+    st.connection.lastDialogue='You still have my trust. Take this and keep moving.';
+    if(roll(100)<=45){
+      const item=grantBackstoryUniqueItem();
+      st.connection.lastGift=item;
+      if(typeof showNotif==='function')showNotif('Trusted Contact gave you '+item+'.','good');
+    }else if(typeof showNotif==='function'){
+      showNotif('Trusted Contact: trust improved.', 'good');
+    }
+  }else{
+    st.connection.trust=Math.max(-6,(st.connection.trust||0)-1);
+    st.connection.lastDialogue='Heat is rising. I cannot cover you like before.';
+    if(typeof changeMentalStress==='function')changeMentalStress(1);
+    if(typeof showNotif==='function')showNotif('Trusted Contact conversation went poorly.','warn');
+  }
+  maybeMoveBackstoryMapMarker('province','connection',15,['holding','dwelling','temple','trade']);
+  if(typeof closeModal==='function')closeModal();
+  if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+}
+
+function openBackstoryAnchorInteraction(anchorId,key){
+  ensureBackstoryState();
+  const st=ensureBackstoryAnchorState();
+  const id=String(anchorId||'');
+  const k=String(key||'');
+  if(id==='home'){
+    const home=st.home||{};
+    const html=''
+      +'<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      +'<strong style="color:var(--gold2);">Hometown Node</strong><br>'
+      +'Familiar streets, old obligations, and people who still remember your name.'
+      +'<div style="margin-top:.25rem;color:var(--muted2);">Bond: '+(home.bond||0)+' | Visits: '+(home.visits||0)+(home.lastEvent?(' | Last Event: '+escapeHtmlLite(home.lastEvent)):'')+'</div>'
+      +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.38rem;">'
+      +'<button class="btn btn-sm btn-teal" onclick="doHometownDowntimeRest(\''+k+'\')">Downtime Long Rest</button>'
+      +'<button class="btn btn-sm btn-primary" onclick="generateHometownMission(\''+k+'\')">Generate Hometown Mission</button>'
+      +'<button class="btn btn-sm" onclick="rollHometownRandomEvent(\''+k+'\')">Roll Hometown Event</button>'
+      +'</div></div>';
+    if(typeof openModal==='function')openModal('Hometown Anchor',html);
+    return;
+  }
+  if(id==='connection'){
+    const c=st.connection||{};
+    const html=''
+      +'<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      +'<strong style="color:var(--teal);">Trusted Contact</strong><br>'
+      +(c.lastDialogue?escapeHtmlLite(c.lastDialogue):'An ally in the shadows watches routes and opportunities for you.')
+      +'<div style="margin-top:.25rem;color:var(--muted2);">Trust: '+(c.trust||0)+' | Interactions: '+(c.interactions||0)+(c.lastGift?(' | Last Gift: '+escapeHtmlLite(c.lastGift)):'')+'</div>'
+      +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.38rem;">'
+      +'<button class="btn btn-sm btn-primary" onclick="requestTrustedContractTask(\''+k+'\')">Request Contract Mission</button>'
+      +'<button class="btn btn-sm btn-teal" onclick="talkToTrustedContact(\''+k+'\')">Talk / Build Trust</button>'
+      +'</div></div>';
+    if(typeof openModal==='function')openModal('Trusted Contact',html);
+    return;
+  }
+  if(id==='rival'){
+    const r=st.rival||{};
+    r.sightings=(r.sightings||0)+1;
+    r.lastSeenKey=k;
+    const html=''
+      +'<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      +'<strong style="color:var(--red2);">Rival Trail</strong><br>'
+      +'Their network shifts constantly. Every sighting changes the next confrontation.'
+      +'<div style="margin-top:.25rem;color:var(--muted2);">Sightings: '+(r.sightings||0)+'</div>'
+      +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.38rem;">'
+      +'<button class="btn btn-sm btn-warn" onclick="resolveRivalInteraction(\'intimidate\',\'control\',\'negative\',\'province\',\''+k+'\')">Pressure (Control)</button>'
+      +'<button class="btn btn-sm btn-teal" onclick="resolveRivalInteraction(\'parley\',\'lead\',\'positive\',\'province\',\''+k+'\')">Parley (Lead)</button>'
+      +'<button class="btn btn-sm btn-red" onclick="startRivalCombat(\'province\',\''+k+'\')">Confront In Combat</button>'
+      +'</div></div>';
+    if(typeof openModal==='function')openModal('Rival Marker',html);
+    return;
+  }
+}
+
+function maybeShiftBackstoryDynamicProvinceMarkers(){
+  const movedRival=maybeMoveBackstoryMapMarker('province','rival',20,['peril','ruins','barrier','wilderness','event']);
+  const movedContact=maybeMoveBackstoryMapMarker('province','connection',12,['holding','dwelling','temple','trade']);
+  if(movedRival&&typeof showNotif==='function')showNotif('Rival trail shifted across the Province.', 'warn');
+  if(movedContact&&typeof showNotif==='function')showNotif('Trusted Contact changed routes.', 'info');
+}
+
+function completeHometownAnchorTask(key){
+  completeBackstoryAnchorTask('home',key);
+}
+
+function completeTrustedContractTask(key){
+  completeBackstoryAnchorTask('connection',key);
+}
+
 function getBackstoryProvinceMarker(key){
   return getBackstoryMapMarker('province',key);
 }
@@ -2006,7 +2345,17 @@ window.assignBackstoryProvinceMarkers=assignBackstoryProvinceMarkers;
 window.assignBackstoryMarkersAcrossMaps=assignBackstoryMarkersAcrossMaps;
 window.getBackstoryProvinceMarker=getBackstoryProvinceMarker;
 window.getBackstoryMapMarker=getBackstoryMapMarker;
+window.getBackstoryMapMarkerMeta=getBackstoryMapMarkerMeta;
 window.ensureBackstoryScopeMarkers=ensureBackstoryScopeMarkers;
+window.openBackstoryAnchorInteraction=openBackstoryAnchorInteraction;
+window.doHometownDowntimeRest=doHometownDowntimeRest;
+window.generateHometownMission=generateHometownMission;
+window.rollHometownRandomEvent=rollHometownRandomEvent;
+window.requestTrustedContractTask=requestTrustedContractTask;
+window.talkToTrustedContact=talkToTrustedContact;
+window.completeHometownAnchorTask=completeHometownAnchorTask;
+window.completeTrustedContractTask=completeTrustedContractTask;
+window.maybeShiftBackstoryDynamicProvinceMarkers=maybeShiftBackstoryDynamicProvinceMarkers;
 window.renderBackstoryTab=renderBackstoryTab;
 
 function getBackpackCapacity(){
@@ -6551,6 +6900,8 @@ function renderHexMap(){
       if(mt.type==='holding_site'){icon='🧭';color='#ff8450';label='HOLDING SITE';fill='rgba(255,132,80,.18)';}
       if(mt.type==='holding_home'){icon='🏛';color='#46c4b6';label='HOLDING';fill='rgba(70,196,182,.2)';}
       if(mt.type==='story_choice'){icon='➤';color='#f0d070';label='STORY';fill='rgba(240,208,112,.2)';}
+      if(mt.type==='backstory_hometown'){icon='🏠';color='#9ad37b';label='HOMETOWN';fill='rgba(154,211,123,.18)';}
+      if(mt.type==='backstory_contract'){icon='✉';color='#7ed7ff';label='CONTRACT';fill='rgba(126,215,255,.18)';}
       // Outer glow circle
       const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');
       glow.setAttribute('cx',x+HEX_SIZE*.5);glow.setAttribute('cy',y-HEX_SIZE*.35);
@@ -6707,6 +7058,7 @@ function renderHexMap(){
         selectedHex=hex;
         renderHexMap();
         renderHexInfo(hex);
+        if(moved&&typeof maybeShiftBackstoryDynamicProvinceMarkers==='function')maybeShiftBackstoryDynamicProvinceMarkers();
         if(moved&&typeof window.rollRivalEncounterForMap==='function'){
           window.rollRivalEncounterForMap('province',{
             key:markerKey,
@@ -6765,22 +7117,48 @@ function renderHexInfo(hex){
     const markerTitle=(mt.missionId==='holding_quest'&&mt.type==='informer')?'Holding Quest: Gather Information'
       :(mt.missionId==='holding_quest'&&mt.type==='site')?'Holding Quest: Go To Site'
       :mt.type==='story_choice'?'Story Objective'
+      :mt.type==='backstory_hometown'?'Hometown Mission'
+      :mt.type==='backstory_contract'?'Trusted Contract Mission'
       :mt.type==='holding_home'?'Holding Site: Establish Here'
       :mt.type==='informer'?'Mission Informer'
       :'Mission Site';
+    const markerActions=mt.type==='story_choice'
+      ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="joinAndOpenStoryline()">Continue Storyline</button></div>`
+      :mt.type==='backstory_hometown'
+      ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="completeHometownAnchorTask('${nk}')">Resolve Hometown Mission</button></div>`
+      :mt.type==='backstory_contract'
+      ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="completeTrustedContractTask('${nk}')">Resolve Trusted Contract</button></div>`
+      :'';
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
       <div class="nb-label" style="color:var(--gold2);">📍 ${markerTitle}</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}</div>
-      ${mt.type==='story_choice' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="joinAndOpenStoryline()">Continue Storyline</button></div>` : ''}
+      ${markerActions}
     </div>`;
   }
 
-  const bsMarker=getBackstoryProvinceMarker(nk);
+  const bsMeta=getBackstoryMapMarkerMeta('province',nk);
+  const bsMarker=bsMeta?bsMeta.entry:null;
   if(bsMarker){
+    const anchorState=ensureBackstoryAnchorState();
+    let anchorSummary='A location tied to your history.';
+    let anchorAction='';
+    if(bsMeta.id==='home'){
+      anchorSummary='Bond '+((anchorState.home&&anchorState.home.bond)||0)+' | Visits '+((anchorState.home&&anchorState.home.visits)||0)+'. Hometown downtime, events, and missions are available.';
+      anchorAction=`<button class="btn btn-xs btn-teal" onclick="openBackstoryAnchorInteraction('home','${nk}')">Hometown Actions</button>`;
+    }else if(bsMeta.id==='connection'){
+      anchorSummary='Trust '+((anchorState.connection&&anchorState.connection.trust)||0)+' | Interactions '+((anchorState.connection&&anchorState.connection.interactions)||0)+'. Request unique contract missions and contact rewards.';
+      anchorAction=`<button class="btn btn-xs btn-primary" onclick="openBackstoryAnchorInteraction('connection','${nk}')">Trusted Contact Actions</button>`;
+    }else if(bsMeta.id==='rival'){
+      const rr=(S&&S.rival&&typeof S.rival==='object')?S.rival:{};
+      anchorSummary='Rival pressure: Dread d'+String(rr.dread||8)+' | Threat '+String(rr.threatTier||1)+' | Defeats '+String(rr.defeatCount||0)+'/3.';
+      anchorAction=`<button class="btn btn-xs btn-warn" onclick="openBackstoryAnchorInteraction('rival','${nk}')">Rival Actions</button>`;
+    }else{
+      anchorAction=`<button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Open Storyline</button>`;
+    }
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(123,154,255,.55);background:rgba(123,154,255,.08);">
       <div class="nb-label" style="color:#9db3ff;">${bsMarker.icon||'✶'} Backstory Anchor: ${escapeHtmlLite(bsMarker.label||'Personal Marker')}</div>
-      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${escapeHtmlLite(bsMarker.detail||'A location tied to your history.')}</div>
-      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Open Storyline</button></div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${escapeHtmlLite(bsMarker.detail||'A location tied to your history.')}<br><span style="color:var(--muted2);">${escapeHtmlLite(anchorSummary)}</span></div>
+      <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">${anchorAction}</div>
     </div>`;
   }
 

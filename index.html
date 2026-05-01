@@ -6337,6 +6337,7 @@ function renderHexMap(){
   applyMapOverlayStyle(svg,'province');
   mapData.forEach(hex=>{
     const{x,y}=hexToPixel(hex.col,hex.row);
+    const markerKey=`${hex.col},${hex.row}`;
     const r=HEX_SIZE-1;
     const pts=hexPoints(x,y,r);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
@@ -6408,8 +6409,8 @@ function renderHexMap(){
       taskIcon.textContent='📜';
       g.appendChild(taskIcon);
     }
-    if(S.missionTokens&&S.missionTokens[`${hex.col},${hex.row}`]){
-      const mt=S.missionTokens[`${hex.col},${hex.row}`];
+    if(S.missionTokens&&S.missionTokens[markerKey]){
+      const mt=S.missionTokens[markerKey];
       let icon='⚔',color='#e05050',label='SITE',fill='rgba(224,80,80,.18)';
       if(mt.type==='informer'||mt.type==='holding_info'){icon='👁';color='#e8c050';label='INFORMER';fill='rgba(232,192,80,.18)';}
       if(mt.type==='holding_site'){icon='🧭';color='#ff8450';label='HOLDING SITE';fill='rgba(255,132,80,.18)';}
@@ -6494,7 +6495,6 @@ function renderHexMap(){
       pIcon.setAttribute('fill','#7ed7ff');pIcon.setAttribute('pointer-events','none');
       pIcon.textContent='🚀';g.appendChild(pIcon);
     }
-    const markerKey=`${hex.col},${hex.row}`;
     const markerList=(markersByHex[markerKey]||[]).slice().sort(function(a,b){
       return Number(b&&b.at||0)-Number(a&&a.at||0);
     });

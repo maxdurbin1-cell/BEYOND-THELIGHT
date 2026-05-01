@@ -9266,6 +9266,33 @@ function mapSceneTerrainToStarsLayoutId(terrainText) {
   return 2;
 }
 
+function getSceneTerrainCustomLayout(terrainText) {
+  const terrain = String(terrainText || '').toLowerCase();
+  if (terrain.indexOf('urban alley') >= 0) {
+    return {
+      id: 104,
+      name: 'Urban Alley — Choke Lane',
+      desc: 'Tight lane geometry. Most lines are blocked by walls and wreckage.',
+      // Narrow passable lane with heavy blockers to force close/engaged play.
+      hexes: [
+        { row: 0, col: 1, cover: 'full' },
+        { row: 0, col: 2 },
+        { row: 0, col: 3, cover: 'full' },
+        { row: 1, col: 0, cover: 'full' },
+        { row: 1, col: 1, cover: 'partial' },
+        { row: 1, col: 2 },
+        { row: 1, col: 3, cover: 'partial' },
+        { row: 1, col: 4, cover: 'full' },
+        { row: 2, col: 1, cover: 'partial' },
+        { row: 2, col: 2 },
+        { row: 2, col: 3, cover: 'partial' },
+        { row: 3, col: 2, cover: 'full' }
+      ]
+    };
+  }
+  return null;
+}
+
 function buildStarsCoverOverrides(layout, coverTier) {
   const overrides = {};
   if (!layout || !Array.isArray(layout.hexes)) return overrides;
@@ -9331,11 +9358,13 @@ function syncStarsZoneUnitsFromCombatTracker(layout) {
 function applySceneOpenerToStarsCombatZone(sceneOpener) {
   if (!sceneOpener) return;
   const layoutId = mapSceneTerrainToStarsLayoutId(sceneOpener.zoneTerrain);
+  const customLayout = getSceneTerrainCustomLayout(sceneOpener.zoneTerrain);
   starsZoneOpenerOverride = {
     terrainText: String(sceneOpener.zoneTerrain || ''),
     coverTier: String(sceneOpener.coverTier || 'none'),
     coverDesc: String(sceneOpener.coverDesc || ''),
-    layoutId: layoutId
+    layoutId: layoutId,
+    customLayout: customLayout
   };
   const sel = document.getElementById('zonePresetSelect');
   if (sel) sel.value = String(layoutId);
@@ -9343,13 +9372,20 @@ function applySceneOpenerToStarsCombatZone(sceneOpener) {
 }
 window.applySceneOpenerToStarsCombatZone = applySceneOpenerToStarsCombatZone;
 
+function selectStarsCombatPreset(layoutId) {
+  starsZoneOpenerOverride = null;
+  renderStarsCombatZone(layoutId);
+}
+window.selectStarsCombatPreset = selectStarsCombatPreset;
+
 function renderStarsCombatZone(layoutId) {
   const container = document.getElementById('starsCombatZoneContainer');
   if (!container) return;
-  const layout = COMBAT_ZONES_PRESETS.find(z => z.id === layoutId) || COMBAT_ZONES_PRESETS[0];
+  const baseLayout = COMBAT_ZONES_PRESETS.find(z => z.id === layoutId) || COMBAT_ZONES_PRESETS[0];
+  const openerOverrideActive = !!(starsZoneOpenerOverride && Number(starsZoneOpenerOverride.layoutId) === Number(baseLayout.id));
+  const layout = (openerOverrideActive && starsZoneOpenerOverride.customLayout) ? starsZoneOpenerOverride.customLayout : baseLayout;
   starsZoneLayout = layout;
   syncStarsZoneUnitsFromCombatTracker(layout);
-  const openerOverrideActive = !!(starsZoneOpenerOverride && Number(starsZoneOpenerOverride.layoutId) === Number(layout.id));
   const coverOverrides = openerOverrideActive ? buildStarsCoverOverrides(layout, starsZoneOpenerOverride.coverTier) : {};
 
   const HSIZE = 34;
@@ -9432,6 +9468,7 @@ function hexPointsSVG(cx, cy, size) {
 function rollCombatZone() {
   const d10 = roll(10);
   const layoutId = Math.min(d10, 8);
+  starsZoneOpenerOverride = null;
   document.getElementById('zoneRollResult') && (document.getElementById('zoneRollResult').textContent = `d10 = ${d10} → Zone: ${COMBAT_ZONES_PRESETS[layoutId - 1].name}`);
   renderStarsCombatZone(layoutId);
   const sel = document.getElementById('zonePresetSelect');
@@ -10219,7 +10256,7 @@ function buildStarsCombatPanel() {
 <div class="card" style="grid-column:1/-1;">
   <div class="section-title">🌌 Stars Combat — Hex Zone Map</div>
   <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.55rem;align-items:center;">
-    <select id="zonePresetSelect" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .35rem;font-size:.82rem;" onchange="renderStarsCombatZone(parseInt(this.value))">
+    <select id="zonePresetSelect" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .35rem;font-size:.82rem;" onchange="selectStarsCombatPreset(parseInt(this.value))">
       ${COMBAT_ZONES_PRESETS.map(z => `<option value="${z.id}">${z.id}. ${z.name}</option>`).join('')}
     </select>
     <button class="btn btn-sm btn-teal" onclick="rollCombatZone()">⚄ Roll Zone (d10)</button>

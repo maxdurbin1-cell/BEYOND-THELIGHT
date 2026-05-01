@@ -617,6 +617,54 @@ function applySpaceNavalPresentation() {
   const tabBtn = document.querySelector('.tab-btn.ctx-space[onclick*="naval"]');
   if (tabBtn) tabBtn.textContent = inSpace ? 'Starship' : 'Naval Ship';
   if (!inSpace) {
+    const bannerTitle = navalTab.querySelector('.ship-banner h3');
+    const bannerBody = navalTab.querySelector('.ship-banner p');
+    if (bannerTitle) bannerTitle.textContent = 'Naval System';
+    if (bannerBody) {
+      bannerBody.textContent = 'Buy a ship, hire and train crew, then run ship combat with captain, gunner, navigator, and engineer actions. Hull Stress is always twice the ship\'s current Defend die.';
+    }
+
+    const sectionTitles = navalTab.querySelectorAll('.section-title');
+    if (sectionTitles[0]) sectionTitles[0].textContent = 'Shipyard';
+    if (sectionTitles[1]) sectionTitles[1].textContent = 'Hire Crew';
+    if (sectionTitles[2]) sectionTitles[2].textContent = 'Ship Combat';
+    if (sectionTitles[3]) sectionTitles[3].textContent = 'Ship Name';
+    if (sectionTitles[4]) sectionTitles[4].textContent = 'Ship Cargo';
+
+    navalTab.querySelectorAll('.info-cell .ic-label').forEach(label => {
+      if (label.textContent === 'Range Band') label.textContent = 'Zone';
+    });
+    navalTab.querySelectorAll('.sub-label').forEach(label => {
+      if (label.textContent === 'Hostile Vessel') label.textContent = 'Enemy Ship';
+    });
+    navalTab.querySelectorAll('button').forEach(button => {
+      const text = button.textContent.trim();
+      if (text === 'Roll Starship Identity') button.textContent = 'Roll Ship Identity';
+      if (text === 'Full Dock Refit') button.textContent = 'Full Drydock Repair';
+      if (text === 'Spawn Hostile Vessel') button.textContent = 'Spawn Enemy';
+      if (text === 'Start / Reset Engagement') button.textContent = 'Start / Reset Combat';
+      if (text === 'Fire Batteries') button.textContent = 'Fire Cannons';
+      if (text === 'Launch Volley') button.textContent = 'Loose Crossbows';
+      if (text === 'Patch Shields') button.textContent = 'Engineer Repair';
+      if (text === 'Hostile Attack') button.textContent = 'Enemy Attack';
+      if (text === 'Disable Hostile') button.textContent = 'Wreck Enemy';
+      if (text === 'Load from Backpack') button.textContent = 'Stow from Backpack';
+    });
+
+    const shipNameInput = document.getElementById('shipNameInput');
+    if (shipNameInput) shipNameInput.placeholder = 'Ship name…';
+    const shipNameDisplay = document.getElementById('shipNameDisplay');
+    if (shipNameDisplay) {
+      shipNameDisplay.textContent = shipNameDisplay.textContent
+        .replace('Current callsign', 'Current name')
+        .replace('No starship callsign set.', 'No ship name set.');
+    }
+
+    const cargoInfo = document.querySelector('#navalCargoList')?.previousElementSibling;
+    if (cargoInfo && cargoInfo.textContent.indexOf('Stow items in the starship hold.') >= 0) {
+      cargoInfo.textContent = 'Stow items in the ship\'s hold. Click an item to move it to your Backpack.';
+    }
+
     const existing = document.getElementById('starsSpaceNavalCard');
     if (existing) existing.remove();
     return;

@@ -641,10 +641,9 @@ select option{background:#0f1020;}
         Build a deeper history, or roll everything. These choices can seed storyline options and place personal anchors across Province, Sea, Galaxy, World That Was, and Planet maps.
       </div>
       <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.6rem;">
-        <button class="btn btn-sm btn-primary" onclick="generateBackstory()">⚄ Roll Full Backstory</button>
+        <button class="btn btn-sm btn-primary" onclick="generateBackstory()">⚄ Roll &amp; Apply Backstory</button>
         <button class="btn btn-sm btn-teal" onclick="applyBackstoryToCharacter()">Apply to Character</button>
-        <button class="btn btn-sm" onclick="assignBackstoryProvinceMarkers()">Populate Province Anchors</button>
-        <button class="btn btn-sm" onclick="assignBackstoryMarkersAcrossMaps()">Populate All Map Anchors</button>
+        <button class="btn btn-sm" onclick="assignBackstoryMarkersAcrossMaps()">Populate Map Anchors</button>
       </div>
 
       <div class="form-row"><span class="sub-label">Origin Realm</span>
@@ -820,13 +819,13 @@ select option{background:#0f1020;}
           </div>
           <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;" id="maxActionsHint"></div>
         </div>
-        <div><span class="sub-label">Enemy Actions Left</span>
+        <div><span class="sub-label" title="Decrements when: ☠ Enemy Action button is clicked (enemy spends 1 action), or ⚄ Roll Defend is clicked (defending triggers an enemy response). Resets at start of each new combat cycle once all enemy actions are spent." style="cursor:help;border-bottom:1px dotted var(--muted2);">Enemy Actions Left ⓘ</span>
           <div class="counter-row" style="padding-top:.3rem;">
             <span class="counter-val red-val" id="enemyActionsLeftMain" style="font-size:1.6rem;">0</span>
             <span style="font-size:.86rem;color:var(--muted2);">/</span>
             <span class="counter-val" id="enemyActionsMaxMain" style="font-size:1.1rem;color:var(--muted2);min-width:1.6rem;">0</span>
           </div>
-          <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;">Ticks down as Defend/Enemy Action resolves.</div>
+          <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;">☠ Enemy Action or ⚄ Defend → ticks down.</div>
         </div>
       </div>
     </div>
@@ -879,9 +878,27 @@ select option{background:#0f1020;}
     <div class="card" style="grid-column:1/-1;">
       <div class="section-title">Skirmish — Army Battle</div>
       <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.45rem;">Shared Round: <span id="skirmishRound" style="color:var(--gold2);font-weight:700;">1</span> · Each side has 2 actions, then both reset together.</div>
+      <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin-bottom:.5rem;">
+        <div style="display:flex;align-items:center;gap:.3rem;">
+          <span style="font-size:.68rem;color:var(--muted2);">Your Army faction:</span>
+          <input type="text" id="skirmishFactionA" placeholder="e.g. Iron Vaunt" style="width:9rem;background:var(--surface);border:1px solid var(--border2);color:var(--teal);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;" oninput="document.getElementById('skirmishArmyALabel').textContent=this.value||'Your Army'">
+        </div>
+        <div style="display:flex;align-items:center;gap:.3rem;">
+          <span style="font-size:.68rem;color:var(--muted2);">Enemy Army faction:</span>
+          <input type="text" id="skirmishFactionB" placeholder="e.g. Void Lords" style="width:9rem;background:var(--surface);border:1px solid var(--border2);color:var(--red2);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;" oninput="document.getElementById('skirmishArmyBLabel').textContent=this.value||'Enemy Army'">
+        </div>
+        <div style="display:flex;align-items:center;gap:.3rem;">
+          <span style="font-size:.68rem;color:var(--muted2);">Fight for:</span>
+          <select id="skirmishPlayerSide" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;">
+            <option value="A">Your Army</option>
+            <option value="B">Enemy Army</option>
+          </select>
+          <span style="font-size:.62rem;color:var(--muted2);">(your Health adds to that side)</span>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
         <div>
-          <div class="sub-label">Your Army (2d12 Stress)</div>
+          <div class="sub-label"><span id="skirmishArmyALabel">Your Army</span> (2d12 Stress)</div>
           <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">
             <span class="counter-val teal-val" id="armyAStress" style="font-size:1.2rem;">—</span>
             <button class="btn btn-sm btn-teal" onclick="rollArmyStress('A')">⚄ Roll</button>
@@ -896,7 +913,7 @@ select option{background:#0f1020;}
           <div id="skirmishResultA" style="margin-top:.4rem;font-size:.83rem;"></div>
         </div>
         <div>
-          <div class="sub-label">Enemy Army (2d12 Stress)</div>
+          <div class="sub-label"><span id="skirmishArmyBLabel">Enemy Army</span> (2d12 Stress)</div>
           <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">
             <span class="counter-val red-val" id="armyBStress" style="font-size:1.2rem;">—</span>
             <button class="btn btn-sm btn-red" onclick="rollArmyStress('B')">⚄ Roll</button>
@@ -921,6 +938,8 @@ select option{background:#0f1020;}
         <button class="btn btn-sm" onclick="clearCombatMap()">Clear Map</button>
       </div>
       <div id="combatMapZones"></div>
+      <!-- Distance-based combat options -->
+      <div id="combatOptionsPanel" style="margin-top:.65rem;"></div>
     </div>
     <!-- Stars expansion: hex zone map, encounter rollers -->
     <div id="starsZonePanel" style="display:contents;"></div>
@@ -1986,11 +2005,12 @@ function generateBackstory(){
   rollBackstoryField('background');
   rollBackstoryField('event');
   if(!S.backstory.notes)S.backstory.notes='A personal history shaped by debt, survival, and unfinished promises.';
-  const scopeCandidates=getBackstoryScopeCandidates();
-  const hasAnyScope=Object.keys(scopeCandidates).some(function(scope){return Array.isArray(scopeCandidates[scope])&&scopeCandidates[scope].length;});
-  if(hasAnyScope)assignBackstoryAnchorsRandomSingleMap();
+  // Auto-apply to character fields
+  applyBackstoryToCharacter();
+  // Populate anchors across all available maps (Galaxy, Sea, Province, Planet, World That Was)
+  assignBackstoryMarkersAcrossMaps();
   renderBackstoryTab();
-  showNotif('Backstory generated. Apply it to Character and map anchors when ready.','good');
+  showNotif('Backstory rolled, applied to Character, and map anchors populated.','good');
 }
 
 function applyBackstoryToCharacter(){
@@ -5205,7 +5225,17 @@ function addEnemy(nameArg,dreadArg){
   const resolvedName=(typeof nameArg==='string'&&nameArg.trim())?nameArg.trim():(prompt('Enemy name:','Enemy '+(S.enemies.length+1))||'Enemy');
   const dd=parseInt(dreadArg,10)||S.combat.enemyDread;
   const maxStress=dd*2;
-  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress,health:0,conditions:[]});
+  const factionInput=prompt('Faction / Power (optional — e.g. Syndicate, Void Lords, Raider Clan):', '') || '';
+  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress,health:0,conditions:[],faction:factionInput.trim()});
+  // Auto-place in zone map as Engaged by default
+  if(typeof S.combatMap==='object'&&Array.isArray(S.combatMap.units)){
+    const label=factionInput.trim()?resolvedName+' ['+factionInput.trim()+']':resolvedName;
+    if(!S.combatMap.units.some(function(u){return u.side==='enemy'&&u.name===label;})){
+      if(typeof window.combatMapUnitId!=='undefined'){window.combatMapUnitId=window.combatMapUnitId||200;}
+      S.combatMap.units.push({id:(Date.now()+Math.random())|0,name:label,side:'enemy',zone:'Engaged'});
+      if(typeof renderCombatMap==='function')renderCombatMap();
+    }
+  }
   renderEnemies();
   if(typeof renderQP==='function')renderQP('combat');
 }
@@ -5228,7 +5258,7 @@ function applyStressToCurrentEnemy(stress,source){
   if(!enemy)return;
   applyStressToEnemy(enemy,stress,source==='shoot'?'Shoot':'Strike');
 }
-function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';return;}c.innerHTML=S.enemies.map(e=>{ensureEnemyEffectState(e);syncEnemyConditionList(e);var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};">${e.name}${e.ally?' <span style="color:var(--muted2);font-size:.62rem;">ALLY</span>':''}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button></div></div>`;}).join('');}
+function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';return;}c.innerHTML=S.enemies.map(e=>{ensureEnemyEffectState(e);syncEnemyConditionList(e);var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';var factionBadge=e.faction?`<span style="font-size:.6rem;background:rgba(122,120,152,.18);border:1px solid var(--border2);border-radius:3px;padding:.05rem .22rem;color:var(--muted2);margin-left:.3rem;">${e.faction}</span>`:'';var sideBadge=e.ally?'<span style="font-size:.6rem;color:var(--teal);background:rgba(46,196,182,.12);border:1px solid var(--teal);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">ALLY</span>':'<span style="font-size:.6rem;color:var(--red2);background:rgba(201,64,64,.1);border:1px solid var(--red);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">HOSTILE</span>';return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};display:flex;align-items:center;flex-wrap:wrap;gap:.1rem;">${e.name}${sideBadge}${factionBadge}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button><button class="btn btn-xs" title="Toggle ally/hostile side" onclick="toggleEnemySide(${e.id})">${e.ally?'→ Hostile':'→ Ally'}</button></div></div>`;}).join('');}
 function enemyPip(id,i){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;
@@ -5247,6 +5277,7 @@ function enemyPip(id,i){
   if(typeof renderQP==='function')renderQP('combat');
 }
 function removeEnemy(id){S.enemies=S.enemies.filter(e=>e.id===id?false:true);renderEnemies();if(typeof renderQP==='function')renderQP('combat');}
+function toggleEnemySide(id){const e=S.enemies.find(x=>x.id===id);if(!e)return;e.ally=!e.ally;renderEnemies();if(typeof renderQP==='function')renderQP('combat');showNotif(e.name+' is now '+(e.ally?'an Ally':'Hostile'),'info');}
 function enemyAttack(id){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;

@@ -2478,22 +2478,101 @@
     if (!name) { return; }
     S.combatMap.units.push({ id: combatMapUnitId++, name: name.trim(), side: side, zone: side === "ally" ? "Nearby" : "Nearby" });
     renderCombatMap();
+    renderCombatOptions();
   }
 
   function moveCombatUnit(id, zone) {
     var unit = S.combatMap.units.filter(function(u){ return u.id === id; })[0];
-    if (unit) { unit.zone = zone; renderCombatMap(); }
+    if (unit) { unit.zone = zone; renderCombatMap(); renderCombatOptions(); }
   }
 
   function removeCombatUnit(id) {
     S.combatMap.units = S.combatMap.units.filter(function(u){ return u.id !== id; });
     renderCombatMap();
+    renderCombatOptions();
   }
 
   function clearCombatMap() {
     ensureNewFeatureState();
     S.combatMap.units = [];
     renderCombatMap();
+    renderCombatOptions();
+  }
+
+  // ── COMBAT OPTIONS (distance-aware) ──────────────────────────────────────────
+  var ZONE_ORDER = ["Engaged", "Close", "Nearby", "Far"];
+  var ZONE_DIST = { Engaged: 0, Close: 1, Nearby: 2, Far: 3 };
+
+  var ALL_COMBAT_OPTIONS = [
+    { id: "standard",  label: "Standard Attack",  cost: "1 Action",  zones: ["Engaged","Close","Nearby"],  desc: "Roll Strike or Shoot vs Dread. Hit = difference in Health (min 1).", tags: ["Engaged","Close","Nearby"] },
+    { id: "heavy",     label: "Heavy Attack",      cost: "2 Actions", zones: ["Engaged","Close","Nearby"],  desc: "Deal +2 Health on hit.", tags: ["Engaged","Close","Nearby"] },
+    { id: "fast",      label: "Fast Attack",       cost: "1 Action",  zones: ["Engaged","Close","Nearby"],  desc: "Die steps down by one. Quick but weaker.", tags: ["Engaged","Close","Nearby"] },
+    { id: "stance",    label: "Stance",            cost: "1 Action",  zones: ["Engaged","Close","Nearby","Far"], desc: "Aggressive (+1 Strike, −1 Defend) or Defensive (vice versa).", tags: [] },
+    { id: "switch",    label: "Switch",            cost: "1 Action",  zones: ["Engaged","Close","Nearby","Far"], desc: "Change weapons or adjust spacing.", tags: [] },
+    { id: "item",      label: "Use Item",          cost: "1 Action",  zones: ["Engaged","Close","Nearby","Far"], desc: "Use a readied item from your gear.", tags: [] },
+    { id: "help",      label: "Help / Stand",      cost: "1 Action",  zones: ["Engaged","Close","Nearby"],  desc: "Spend 1 Action to help an ally — they gain an Advantage Die.", tags: ["Close","Nearby"] },
+    { id: "move",      label: "Move Zone",         cost: "1 Action",  zones: ["Engaged","Close","Nearby","Far"], desc: "Change zone for 1 Action. Zero-G or Underwater costs +1.", tags: [] },
+    { id: "cover",     label: "Take Cover",        cost: "1 Action",  zones: ["Nearby","Far"],              desc: "Partial: +1 Defend. Full: cannot be targeted by ranged attacks.", tags: ["Nearby","Far"] },
+    { id: "surprise",  label: "Surprise Round",    cost: "Setup",     zones: ["Engaged","Close","Nearby","Far"], desc: "+2 to first round attacks for the acting party.", tags: [] }
+  ];
+
+  function renderCombatOptions() {
+    var el = document.getElementById("combatOptionsPanel");
+    if (!el) { return; }
+    ensureNewFeatureState();
+    // Determine player (first ally unit) zone
+    var allies  = S.combatMap.units.filter(function(u){ return u.side === "ally"; });
+    var enemies = S.combatMap.units.filter(function(u){ return u.side === "enemy"; });
+    if (!allies.length && !enemies.length) { el.innerHTML = ""; return; }
+
+    var playerZone = allies.length ? allies[0].zone : null;
+
+    // Closest enemy zone
+    var closestEnemyDist = 99;
+    enemies.forEach(function(u) {
+      var d = ZONE_DIST[u.zone];
+      if (d !== undefined && d < closestEnemyDist) { closestEnemyDist = d; }
+    });
+    var playerDist = playerZone !== null ? ZONE_DIST[playerZone] : 99;
+
+    var rows = ALL_COMBAT_OPTIONS.map(function(opt) {
+      var available = playerZone === null || opt.zones.indexOf(playerZone) >= 0;
+      // Ranged/melee logic: if no enemies within range, grey out attack options
+      var inRange = true;
+      if (["standard","heavy","fast","help"].indexOf(opt.id) >= 0) {
+        inRange = playerZone === null || (enemies.length === 0) || (closestEnemyDist <= playerDist + 1);
+        if (opt.id === "help") { inRange = true; } // help is always possible near ally
+      }
+      var avail = available && inRange;
+      return '<tr style="opacity:' + (avail ? "1" : ".38") + ';' + (avail ? "background:rgba(46,196,182,.04);" : "") + '">'
+        + '<td style="padding:.22rem .4rem;font-size:.72rem;font-weight:600;color:' + (avail ? "var(--text)" : "var(--muted2)") + ';white-space:nowrap;">' + opt.label + '</td>'
+        + '<td style="padding:.22rem .4rem;font-size:.7rem;color:var(--gold2);white-space:nowrap;">' + opt.cost + '</td>'
+        + '<td style="padding:.22rem .4rem;font-size:.68rem;color:var(--muted2);">' + opt.desc + '</td>'
+        + '<td style="padding:.22rem .4rem;font-size:.64rem;color:var(--muted);white-space:nowrap;">' + opt.zones.join(", ") + '</td>'
+        + '</tr>';
+    }).join("");
+
+    var zoneInfo = playerZone
+      ? '<span style="color:var(--teal);">' + playerZone + '</span>'
+      : '<span style="color:var(--muted2);">unknown (add yourself to map)</span>';
+    var enemyZoneInfo = enemies.length
+      ? enemies.map(function(u){ return '<span style="color:var(--red2);">' + u.name + '</span> @ ' + u.zone; }).join(", ")
+      : '<span style="color:var(--muted2);">none</span>';
+
+    el.innerHTML = '<div style="margin-top:.5rem;border-top:1px solid var(--border2);padding-top:.5rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin-bottom:.3rem;">⚔ Combat Options Available</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.3rem;">Your zone: ' + zoneInfo + ' · Enemies: ' + enemyZoneInfo + '</div>'
+      + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:.72rem;">'
+      + '<thead><tr style="border-bottom:1px solid var(--border2);">'
+      + '<th style="padding:.18rem .4rem;text-align:left;font-size:.62rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.07em;">Action</th>'
+      + '<th style="padding:.18rem .4rem;text-align:left;font-size:.62rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.07em;">Cost</th>'
+      + '<th style="padding:.18rem .4rem;text-align:left;font-size:.62rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.07em;">Effect</th>'
+      + '<th style="padding:.18rem .4rem;text-align:left;font-size:.62rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.07em;">Valid Zones</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table></div>'
+      + '<div style="font-size:.62rem;color:var(--muted);margin-top:.3rem;font-style:italic;">Greyed options are unavailable from your current zone. Move to unlock them.</div>'
+      + '</div>';
   }
 
   // ── SYNC HOOKS ────────────────────────────────────────────────────────────────
@@ -2530,6 +2609,7 @@
     renderHoldingUI();
     renderExtraTraits();
     renderCombatMap();
+    renderCombatOptions();
   }
 
   document.addEventListener("DOMContentLoaded", function() {
@@ -2651,6 +2731,7 @@
   window.removeCombatUnit         = removeCombatUnit;
   window.clearCombatMap           = clearCombatMap;
   window.renderCombatMap          = renderCombatMap;
+  window.renderCombatOptions      = renderCombatOptions;
 
   // ── SHOP: SMART BUY ───────────────────────────────────────────────────────────
   function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }

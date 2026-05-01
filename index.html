@@ -3296,6 +3296,114 @@ const FLAVOR_COOLDOWN_BY_ARCHETYPE={
   mystic:'day'
 };
 
+const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
+  var rows=[
+    {key:'animal companion',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Deploy Animal Companion',trigger:'Combat scene with hostiles; summon lane support immediately.',effect:'Animal Companion enters as allied support (DD6, 12 Stress).',cue:'Highlights in combat with live hostiles.',matchers:['inCombat']},
+    {key:'holy shield',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Raise Holy Shield',trigger:'Incoming danger, pressure, or hazardous movement scene.',effect:'Add Spirit die to Defend rolls and stabilize with Protected.',cue:'Highlights when danger or penalties are active.',matchers:['danger']},
+    {key:'emit blinding light — all engaged targets are distracted',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Flash Blinding Light',trigger:'Combat while enemies are Engaged or Close.',effect:'Blinding burst disrupts hostiles and applies distracted pressure.',cue:'Highlights in combat with live hostiles.',matchers:['inCombat']},
+    {key:'infernal eyes',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Invoke Infernal Eyes',trigger:'Storyline pressure, intimidation, or combat fear moments.',effect:'Project threat posture; escalate social pressure and combat fear.',cue:'Highlights in social tabs and active combat.',matchers:['storylineSocial','inCombatNightBoost']},
+    {key:'leader',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Signal Leader',trigger:'Ally coordination, faction, or team-tempo scene.',effect:'Faction gains Empowered momentum for the scene.',cue:'Highlights when allies can receive momentum.',matchers:['leadershipCampaign']},
+    {key:'beast form',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Shift Beast Form',trigger:'Combat or traversal when adaptive physiology matters.',effect:'Shift profile and route action pressure through beast lanes.',cue:'Highlights in combat and traversal pressure.',matchers:['inCombat','travel']},
+    {key:'communicate telepathically with anyone you have met',archetype:'mystic',cooldownType:'phase',mechanicMode:'active',actionLabel:'Open Telepathic Link',trigger:'Coordination, negotiation, or remote command pivots.',effect:'Silent communication grants tactical planning tempo.',cue:'Highlights in campaign and social contexts.',matchers:['storylineSocial','leadershipCampaign']},
+    {key:'weaken an object or enemy armor by a step for a round',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Breach Armor Step',trigger:'Combat turn where enemy soak is limiting progress.',effect:'Step down target armor/object resistance for one round.',cue:'Highlights in combat with armored threats.',matchers:['inCombat']},
+    {key:'plastic bones — readjust the shape and size of your bones',archetype:'mystic',cooldownType:'phase',mechanicMode:'active',actionLabel:'Reshape Plastic Bones',trigger:'Traversal, escape, or confinement pressure.',effect:'Reconfigure body profile to bypass or endure tight constraints.',cue:'Highlights in traversal or trap navigation.',matchers:['travel','analysis']},
+    {key:'illusionist',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Cast Minor Illusions',trigger:'Combat feint, infiltration, or perception disruption moment.',effect:'Create visual feints to distract and misdirect hostiles.',cue:'Highlights in puzzle, stealth, and combat control beats.',matchers:['analysis','inCombat']},
+    {key:'regenerator',archetype:'medic',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Pulse Regeneration',trigger:'Round-by-round stress attrition in combat.',effect:'Regenerate Adventure Die value in Stress each round.',cue:'Highlights when stress pressure is rising.',matchers:['recovery']},
+    {key:'emit burst of electricity — ad8 to shoot in close range',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Arc Burst Shot',trigger:'Combat at Close range where ranged pressure is needed.',effect:'Gain Ad8 Shoot lane burst at Close range.',cue:'Highlights when hostiles are in Close band.',matchers:['inCombat']},
+    {key:'stone skin',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Harden Stone Skin',trigger:'Incoming physical pressure or sustained fire.',effect:'Gain defend reinforcement and damage stability.',cue:'Highlights when danger or penalties are active.',matchers:['danger']},
+    {key:'mimic',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Mirror Successful Action',trigger:'After witnessing a successful ally technique.',effect:'Copy a proven action pattern without re-rolling setup.',cue:'Highlights when allies complete high-value actions.',matchers:['analysis','leadership']},
+    {key:'in water',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Activate Aquatic Mobility',trigger:'Zero-G or underwater movement and action pressure.',effect:'Breathe freely, gain +1 Action, and step up action dice in water.',cue:'Highlights in underwater or zero-g terrain.',matchers:['danger','travel']},
+    {key:'void gazer',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Use Void Gaze',trigger:'Hidden, cloaked, or obscured threat windows.',effect:'Detect invisibility and concealed vectors.',cue:'Highlights in fog, stealth, and reveal checks.',matchers:['analysis']},
+    {key:'after a successful defend, gain a free strike',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Convert Defend to Strike',trigger:'Immediately after a successful Defend result.',effect:'Chain into a Free Strike counteraction.',cue:'Highlights after successful defense rolls.',matchers:['inCombat']},
+    {key:'trickshot',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Commit Trickshot',trigger:'Combat lane with a difficult ranged angle.',effect:'Ad10 support to Shoot resolution.',cue:'Highlights in ranged engagements.',matchers:['inCombat']},
+    {key:'create a psychic dome — up to 4 people, cannot be attacked within',archetype:'guard',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Raise Psychic Dome',trigger:'Combat round when squad protection is critical.',effect:'Create a dome protecting up to 4 allies from direct attacks this round.',cue:'Highlights in heavy incoming-fire rounds.',matchers:['inCombat']},
+    {key:'new senses',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Tune New Senses',trigger:'Recon, tracking, or hidden signal interpretation.',effect:'Use vibration, echolocation, or magnetic sense for intel.',cue:'Highlights in investigation and navigation scenes.',matchers:['analysis','travel']},
+    {key:'tinkerer',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Apply Tinkerer Repairs',trigger:'Broken gear/objective or route-critical machinery.',effect:'Repair damaged systems and restore utility.',cue:'Highlights in relic/device contexts.',matchers:['analysis']},
+    {key:'scaled skin',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Brace Scaled Skin',trigger:'Sustained incoming damage windows.',effect:'+3 defend pressure against incoming harm.',cue:'Highlights when danger or penalties are active.',matchers:['danger']},
+    {key:'source attuned',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Sense Arcana Source',trigger:'Arcana-mutant signal detection moments.',effect:'Detect nearby arcana signatures and active abilities.',cue:'Highlights around relic, mutant, and arcana scenes.',matchers:['analysis']},
+    {key:'failed rolls grant +2 teamwork points instead of +1',archetype:'leader',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive Teamwork Conversion',trigger:'Any failed party roll during active scenes.',effect:'Failures generate +2 Teamwork instead of +1.',cue:'Always relevant while teamwork economy is active.',matchers:['leadership']},
+    {key:'moves like the wind',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Surge Wind Tempo',trigger:'Combat round where action economy decides momentum.',effect:'Gain +1 Action during combat scenes.',cue:'Highlights in active combat rounds.',matchers:['inCombat']},
+    {key:'feats of strength',archetype:'guard',cooldownType:'phase',mechanicMode:'active',actionLabel:'Commit Feats of Strength',trigger:'Force checks, obstacles, or overpower moments.',effect:'Ad10 support to Body and Power checks.',cue:'Highlights in obstacle and shove scenarios.',matchers:['danger','travel']},
+    {key:'phase walker',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Phase Through Barrier',trigger:'Route blocked by walls or hard geometry.',effect:'Pass through walls and bypass direct path blockers.',cue:'Highlights in traversal and infiltration.',matchers:['travel']},
+    {key:'teleportation',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Blink Teleport',trigger:'Reposition emergency or tactical line swap.',effect:'Teleport to any visible location.',cue:'Highlights when repositioning solves pressure.',matchers:['travel','inCombat']},
+    {key:'mindshield',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Raise Mindshield',trigger:'Trauma or mind-pressure threats.',effect:'Ad8 reinforcement for Trauma checks.',cue:'Highlights during horror or psychic pressure.',matchers:['danger','recovery']},
+    {key:'healer',archetype:'medic',cooldownType:'day',mechanicMode:'active',actionLabel:'Deliver Healing Touch',trigger:'Ally stress spike or recovery breakpoint.',effect:'Restore Adventure Die amount of Stress by touch.',cue:'Highlights when recovery is relevant.',matchers:['recovery']},
+    {key:'mule',archetype:'scout',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Carry Capacity',trigger:'Loadout and logistics pressure.',effect:'Backpack capacity becomes 20 slots.',cue:'Always active through inventory play.',matchers:['travel']},
+    {key:'deity pact',archetype:'leader',cooldownType:'day',mechanicMode:'active',actionLabel:'Invoke Deity Pact',trigger:'Mission framing, vows, and patron leverage.',effect:'Enable patron demand/favor hooks on Wayfarer missions.',cue:'Highlights in mission and campaign contexts.',matchers:['leadershipCampaign']},
+    {key:'vampire',archetype:'night',cooldownType:'phase',mechanicMode:'hybrid',actionLabel:'Invoke Vampiric Surge',trigger:'Night combat or affliction tradeoff choices.',effect:'Gain nocturnal power with daylight vulnerability tradeoff.',cue:'Highlights at night and affliction windows.',matchers:['night']},
+    {key:'werewolf',archetype:'night',cooldownType:'phase',mechanicMode:'hybrid',actionLabel:'Invoke Lunar Fury',trigger:'Night combat and feral pressure moments.',effect:'Gain bestial night strength tied to lunar instinct.',cue:'Highlights at night and melee pressure lanes.',matchers:['night','inCombat']},
+    {key:'echo step',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Trigger Echo Step',trigger:'After successful Defend in active combat.',effect:'Reposition 1 range band for free after Defend success.',cue:'Highlights after defense resolution.',matchers:['inCombat']},
+    {key:'battle cantor',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Sing Battle Cantor',trigger:'Ally setup before a key roll.',effect:'Grant ally +1 on next Action Die.',cue:'Highlights when allies can receive momentum.',matchers:['leadership']},
+    {key:'glasswalker',archetype:'guard',cooldownType:'phase',mechanicMode:'hybrid',actionLabel:'Stride as Glasswalker',trigger:'Peril terrain penalties become active.',effect:'Ignore first peril terrain penalty each phase.',cue:'Highlights in hazard-heavy movement scenes.',matchers:['danger','travel']},
+    {key:'iron lungs',archetype:'guard',cooldownType:'phase',mechanicMode:'hybrid',actionLabel:'Steady Iron Lungs',trigger:'Smoke, ash, or breathing hazard pressure.',effect:'Ignore smoke and ash penalties.',cue:'Highlights in environmental hazard scenes.',matchers:['danger']},
+    {key:'runesmith',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Etch Runesmith Mark',trigger:'Before committing a decisive weapon strike.',effect:'Mark one weapon for +1 Stress this scene.',cue:'Highlights at combat setup and burst turns.',matchers:['inCombat']},
+    {key:'scavenger memory',archetype:'scout',cooldownType:'day',mechanicMode:'active',actionLabel:'Replay Scavenger Memory',trigger:'First loot roll where outcome quality matters.',effect:'Reroll first loot roll each day.',cue:'Highlights on first daily salvage roll.',matchers:['travel']},
+    {key:'hex cartographer',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Map Adjacent Hex',trigger:'Map exploration with unknown adjacent nodes.',effect:'Reveal one adjacent hex detail for free.',cue:'Highlights while navigating the map.',matchers:['travel']},
+    {key:'solar needle',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Prime Solar Needle',trigger:'One decisive ranged attack this scene.',effect:'One ranged attack per scene gains +2.',cue:'Highlights when a ranged spike is available.',matchers:['inCombat']},
+    {key:'grave whisper',archetype:'scholar',cooldownType:'day',mechanicMode:'active',actionLabel:'Whisper to the Dead',trigger:'You need one critical clue from remains.',effect:'Ask one question to recent dead each day.',cue:'Highlights in investigation and lore pivots.',matchers:['analysis']},
+    {key:'storm veins',archetype:'guard',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive Storm Veins',trigger:'Lightning or shock damage would hit you.',effect:'Ignore the first lightning/shock damage each scene.',cue:'Highlights when shock-tagged enemy actions are rolled.',matchers:['danger']},
+    {key:'ruin scholar',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Apply Ruin Scholar',trigger:'Checks involving ruins or old-world tech.',effect:'+1 on ruin and old-tech checks.',cue:'Highlights in ruins, relic, and device scenes.',matchers:['analysis']},
+    {key:'blessed appetite',archetype:'medic',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Blessed Appetite',trigger:'When consuming food-based recovery.',effect:'Food healing restores +1 extra Stress.',cue:'Highlights on ration or food recovery.',matchers:['recovery']},
+    {key:'duelist footwork',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Flow Duelist Footwork',trigger:'After landing a hit in combat.',effect:'Step to Nearby without movement cost on hit.',cue:'Highlights after successful attacks.',matchers:['inCombat']},
+    {key:'pathfinder',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Lead Pathfinder Route',trigger:'First traversal check in current phase.',effect:'Gain +1 on first traversal check each phase.',cue:'Highlights at phase-start traversal.',matchers:['travel']},
+    {key:'dust prophet',archetype:'scout',cooldownType:'day',mechanicMode:'active',actionLabel:'Read Dust Omen',trigger:'Weather planning before route commitment.',effect:'Predict next weather shift once per day.',cue:'Highlights before risky travel segments.',matchers:['travel']},
+    {key:'mirror nerves',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Steady Mirror Nerves',trigger:'First Distracted pressure of the scene.',effect:'Ignore first Distracted each scene.',cue:'Highlights when distraction effects appear.',matchers:['danger']},
+    {key:'moon listener',archetype:'night',cooldownType:'phase',mechanicMode:'active',actionLabel:'Listen to the Moon',trigger:'Night phase checks and social-spirit pivots.',effect:'+1 Spirit checks during Night phase.',cue:'Highlights strongly at night.',matchers:['night']},
+    {key:'chain breaker',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Break Restraints',trigger:'Restraint, bind, or lockout effect applied.',effect:'Ignore one restraint effect per scene.',cue:'Highlights when movement control appears.',matchers:['danger']},
+    {key:'warding palm',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Cast Warding Palm',trigger:'Adjacent ally faces high-value incoming roll.',effect:'Adjacent ally gains Protected for one roll.',cue:'Highlights when allies are under pressure.',matchers:['leadership']},
+    {key:'quick draw',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Execute Quick Draw',trigger:'First Strike/Shoot action of combat.',effect:'First Strike or Shoot in combat gains +1.',cue:'Highlights on opening combat exchange.',matchers:['inCombat']},
+    {key:'bone oracle',archetype:'scholar',cooldownType:'day',mechanicMode:'active',actionLabel:'Read Bone Oracle',trigger:'Need omen insight from remains.',effect:'Read one omen from remains each day.',cue:'Highlights in omen and mystery scenes.',matchers:['analysis']},
+    {key:'black salt ward',archetype:'guard',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Black Salt Ward',trigger:'First Horror effect would apply today.',effect:'Negate first Horror effect each day.',cue:'Highlights in horror-tagged encounters.',matchers:['danger']},
+    {key:'field surgeon',archetype:'medic',cooldownType:'day',mechanicMode:'active',actionLabel:'Deploy Field Surgeon',trigger:'Ally needs immediate stabilization.',effect:'Stabilize ally with +1 health recovery.',cue:'Highlights when ally recovery is urgent.',matchers:['recovery']},
+    {key:'signal caller',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Broadcast Signal',trigger:'Caravan/trade command check is rolled.',effect:'+1 Lead checks on caravan and trade checks.',cue:'Highlights during trade and convoy scenes.',matchers:['leadershipCampaign']},
+    {key:'scrap alchemist',archetype:'scrap_alchemist',cooldownType:'day',mechanicMode:'active',actionLabel:'Distill Scrap Remedy',trigger:'You have salvage and need tactical recovery.',effect:'Convert one junk drop into remedy per day.',cue:'Highlights when salvage inventory is available.',matchers:['salvage']},
+    {key:'silent knife',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Commit Silent Knife',trigger:'No ally is Engaged and you strike alone.',effect:'+1 Strike checks while no ally is Engaged.',cue:'Highlights in isolated melee opportunities.',matchers:['inCombat']},
+    {key:'ash runner',archetype:'scout',cooldownType:'phase',mechanicMode:'hybrid',actionLabel:'Rush Through Ash',trigger:'Difficult terrain movement surcharge appears.',effect:'Ignore first difficult terrain move cost.',cue:'Highlights when terrain penalties are active.',matchers:['travel','danger']},
+    {key:'beacon heart',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Pulse Beacon Heart',trigger:'Allies are in Close range under fear pressure.',effect:'Allies in Close gain +1 vs fear.',cue:'Highlights in team fear checks.',matchers:['leadership']},
+    {key:'clockmind',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Engage Clockmind',trigger:'Trap, lock, or precision control challenge.',effect:'+1 Control checks on traps/locks.',cue:'Highlights in trap and lock scenes.',matchers:['analysis']},
+    {key:'wild empathy',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Calm Wild Empathy',trigger:'First hostile beast contact in a scene.',effect:'Beasts hesitate before first attack.',cue:'Highlights in beast encounters.',matchers:['travel','danger']},
+    {key:'grim resolve',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Anchor Grim Resolve',trigger:'Health strain reaches high-stress threshold.',effect:'Gain +1 Defend checks when health is stressed.',cue:'Highlights when health pressure rises.',matchers:['danger','recovery']},
+    {key:'bloodhound',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Track as Bloodhound',trigger:'Target trail needs immediate pursuit.',effect:'Track target across two hexes automatically.',cue:'Highlights in pursuit and tracking scenes.',matchers:['travel']},
+    {key:'cold reader',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Probe as Cold Reader',trigger:'Social deception or read-the-room moments.',effect:'+1 Spirit checks in social deception scenes.',cue:'Highlights in social pressure scenes.',matchers:['storylineSocial']},
+    {key:'iron stomach',archetype:'guard',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Iron Stomach',trigger:'First poison effect would apply today.',effect:'Ignore first poison each day.',cue:'Highlights during toxin or ingestion threats.',matchers:['danger']},
+    {key:'stormglass eye',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Scan with Stormglass Eye',trigger:'Rain/fog obscures target movement.',effect:'See hidden movement in rain or fog.',cue:'Highlights during weather-obscured scenes.',matchers:['analysis','travel']},
+    {key:'banner oath',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Carry Banner Oath',trigger:'While carrying mission objective.',effect:'+1 Lead checks while objective is carried.',cue:'Highlights in objective escort moments.',matchers:['leadershipCampaign']},
+    {key:'trophy keeper',archetype:'leader',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Claim Trophy Momentum',trigger:'First hostile defeat this scene.',effect:'First enemy defeat each scene grants +1 TMW.',cue:'Highlights on first kill/neutralize event.',matchers:['inCombat','leadership']},
+    {key:'quick stitch',archetype:'medic',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Apply Quick Stitch',trigger:'Bleed-style or ongoing wound penalties are active.',effect:'Reduce one bleed-style penalty once per scene.',cue:'Highlights when wound penalties appear.',matchers:['recovery']},
+    {key:'lantern scholar',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Consult Lantern Scholar',trigger:'Darkness or ruins challenge Mind lane.',effect:'+1 Mind checks in darkness or ruins.',cue:'Highlights in low-light analysis scenes.',matchers:['analysis']},
+    {key:'faultline sense',archetype:'scout',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive Faultline Sense',trigger:'Crossing unstable or collapsing terrain.',effect:'Detect unstable ground before crossing.',cue:'Highlights in hazardous traversal.',matchers:['travel','danger']},
+    {key:'arc shot',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Fire Arc Shot',trigger:'Ranged shot blocked by one cover source.',effect:'Ignore one cover source on ranged attack.',cue:'Highlights against covered targets.',matchers:['inCombat']},
+    {key:'mercy hand',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Offer Mercy Hand',trigger:'You choose sparing over finishing in scene.',effect:'Spare action grants +1 Renown chance.',cue:'Highlights in moral choice outcomes.',matchers:['storylineSocial','leadershipCampaign']},
+    {key:'rune tongue',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Rune Tongue',trigger:'Unknown glyph or script blocks progress.',effect:'Decode unknown glyphs via Mind check.',cue:'Highlights in ancient text and relic scenes.',matchers:['analysis']},
+    {key:'night courier',archetype:'night',cooldownType:'phase',mechanicMode:'active',actionLabel:'Sprint Night Courier',trigger:'Night travel demands rapid movement.',effect:'+1 speed-equivalent on night travel actions.',cue:'Highlights at night during movement.',matchers:['night','travel']},
+    {key:'chain tactician',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Set Chain Tactic',trigger:'You act before an ally in same exchange.',effect:'First ally action after yours gains +1.',cue:'Highlights in ally turn sequencing.',matchers:['leadership','inCombat']},
+    {key:'cinder skin',archetype:'guard',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Cinder Skin',trigger:'Heat or ember hazard is encountered.',effect:'Resist heat and ember hazards.',cue:'Highlights in heat-tagged terrain/events.',matchers:['danger']},
+    {key:'vault memory',archetype:'scout',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Vault Memory',trigger:'Revisiting prior map routes.',effect:'Never forget previously visited route paths.',cue:'Always active during map traversal.',matchers:['travel']},
+    {key:'hunt rhythm',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Enter Hunt Rhythm',trigger:'After a successful evade in combat.',effect:'+1 Strike checks after successful evade.',cue:'Highlights after evasive success.',matchers:['inCombat']},
+    {key:'vowkeeper',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Invoke Vowkeeper',trigger:'Check directly supports active task/vow.',effect:'+1 on checks tied to current task.',cue:'Highlights when task objective is explicit.',matchers:['leadershipCampaign']},
+    {key:'steel prayer',archetype:'guard',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Steel Prayer',trigger:'First Trauma gain would apply today.',effect:'Negate one Trauma gain once per day.',cue:'Highlights in high-trauma scenes.',matchers:['recovery','danger']},
+    {key:'ghoststride',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Move as Ghoststride',trigger:'Movement path crosses simple trap triggers.',effect:'Movement does not trigger simple traps.',cue:'Highlights while crossing trapped routes.',matchers:['travel']},
+    {key:'iridescent blood',archetype:'medic',cooldownType:'phase',mechanicMode:'active',actionLabel:'Catalyze Iridescent Blood',trigger:'You consume a remedy during pressure.',effect:'Recover +1 Stress when using remedy.',cue:'Highlights on remedy use.',matchers:['recovery']},
+    {key:'field quartermaster',archetype:'leader',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Quartermaster Logistics',trigger:'Inventory stack pressure or haul operations.',effect:'Backpack stack cap effectively doubles.',cue:'Always active in inventory logistics.',matchers:['leadership']},
+    {key:'cave ears',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Focus Cave Ears',trigger:'Enclosed-space notice/lead opportunities.',effect:'+1 Notice and Lead checks in enclosed spaces.',cue:'Highlights in tunnels, caverns, and interiors.',matchers:['analysis','storylineSocial']},
+    {key:'apex calm',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Hold Apex Calm',trigger:'Minor foes attempt to apply Shaken pressure.',effect:'Cannot be Shaken by minor foes.',cue:'Highlights against weaker hostile packs.',matchers:['danger']},
+    {key:'shard focus',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Align Shard Focus',trigger:'Hack, relic-control, or precision-control checks.',effect:'+1 Control checks using hacks or relics.',cue:'Highlights in relic and device control scenes.',matchers:['analysis']},
+    {key:'ashen halo',archetype:'leader',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Reveal Ashen Halo',trigger:'First reveal/introduction to hostiles this scene.',effect:'Hostile morale drops on first reveal.',cue:'Highlights at encounter opening.',matchers:['inCombat']},
+    {key:'dawnbreaker',archetype:'night',cooldownType:'phase',mechanicMode:'active',actionLabel:'Trigger Dawnbreaker',trigger:'First morning action of the day.',effect:'First morning action gains +1.',cue:'Highlights at dawn transitions.',matchers:['night']},
+    {key:'duskcaller',archetype:'night',cooldownType:'phase',mechanicMode:'active',actionLabel:'Trigger Duskcaller',trigger:'First evening action of the day.',effect:'First evening action gains +1.',cue:'Highlights at dusk transitions.',matchers:['night']},
+    {key:'gale step',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Ride Gale Step',trigger:'After critical success in movement/combat.',effect:'Gain free reposition on critical success.',cue:'Highlights immediately after crit outcomes.',matchers:['inCombat']},
+    {key:'sable ward',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Set Sable Ward',trigger:'First incoming Stress instance in scene.',effect:'Reduce first incoming Stress each scene by 1.',cue:'Highlights on first stress-taking event.',matchers:['danger','recovery']},
+    {key:'fracture sight',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Aim Fracture Sight',trigger:'Ranged attack where weak point can be exploited.',effect:'Spot weak points for +1 Shoot checks.',cue:'Highlights in ranged precision lanes.',matchers:['inCombat']},
+    {key:'torchbearer',archetype:'guard',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive Torchbearer',trigger:'First darkness penalty would hit allied checks.',effect:'Allies ignore first darkness penalty.',cue:'Highlights in low-light traversal/combat.',matchers:['danger']},
+    {key:'oathbound medic',archetype:'medic',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive Oathbound Recovery',trigger:'Long Rest resolution every three days.',effect:'Long Rest heals +1 Trauma every 3 days.',cue:'Highlights at long-rest recovery checkpoints.',matchers:['recovery']},
+    {key:'circuit saint',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Interface Circuit Saint',trigger:'Old-world device operations or repair checks.',effect:'+1 Mind checks with old-world devices.',cue:'Highlights in device and relic interactions.',matchers:['analysis']},
+    {key:'feral grace',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Adopt Feral Grace',trigger:'Beast-origin attacks or ambushes.',effect:'+1 Defend checks against beasts.',cue:'Highlights in beast-tagged encounters.',matchers:['danger']}
+  ];
+  var map={};
+  for(var i=0;i<rows.length;i++)map[rows[i].key]=rows[i];
+  return map;
+})();
+
 function normalizeFlavorBase(flavorText){
   var full=String(flavorText||'').trim();
   if(!full)return '';
@@ -3359,6 +3467,7 @@ function isPassiveOnlyFlavorEntry(entry){
 
 function getFlavorMechanicMode(entry){
   if(!entry)return 'active';
+  if(entry.mechanicMode)return String(entry.mechanicMode);
   if(isPassiveOnlyFlavorEntry(entry))return 'passive';
   var profile=getPersonalFlavorMechanicProfile(entry.full||entry.title||entry.key||'');
   var hazards=getFlavorHazardTags(profile);
@@ -3498,8 +3607,9 @@ function getBespokeFlavorEntry(flavorText){
   for(var i=0;i<PERSONAL_FLAVORS.length;i++){
     if(normalizeFlavorBase(PERSONAL_FLAVORS[i])===base){idx=i;break;}
   }
-  var archetype=getFlavorInteractionArchetype(full);
-  var cooldown=FLAVOR_COOLDOWN_BY_ARCHETYPE[archetype]||'phase';
+  var authored=PERSONAL_FLAVOR_AUTHORED_TABLE[base]||null;
+  var archetype=authored&&authored.archetype?String(authored.archetype):getFlavorInteractionArchetype(full);
+  var cooldown=authored&&authored.cooldownType?String(authored.cooldownType):(FLAVOR_COOLDOWN_BY_ARCHETYPE[archetype]||'phase');
   var potency=(idx%3)+1;
   var split=full.split(':');
   var labelPrefix=split[0].trim();
@@ -3508,8 +3618,8 @@ function getBespokeFlavorEntry(flavorText){
     combat:'Commit Edge',guard:'Raise Aegis',scout:'Plot Route',scholar:'Extract Insight',leader:'Issue Signal',
     medic:'Stabilize',night:'Invoke Nocturne',scrap_alchemist:'Distill Remedy',mystic:'Channel Echo'
   };
-  var actionLabel=(labels[archetype]||'Use Effect')+' · '+labelPrefix;
-  var desc=rawDesc;
+  var actionLabel=authored&&authored.actionLabel?String(authored.actionLabel):((labels[archetype]||'Use Effect')+' · '+labelPrefix);
+  var desc=authored&&authored.effect?String(authored.effect):rawDesc;
   if(!desc){
     if(archetype==='scrap_alchemist')desc='Consume one junk/salvage item and distill a remedy attuned to '+labelPrefix+'.';
     else if(archetype==='medic')desc='Apply '+labelPrefix+' as triage: recover stress/health and cleanse a condition.';
@@ -3531,7 +3641,14 @@ function getBespokeFlavorEntry(flavorText){
     actionLabel:actionLabel,
     title:labelPrefix,
     desc:desc,
-    code:'F'+String(idx+1).padStart(3,'0')
+    code:'F'+String(idx+1).padStart(3,'0'),
+    mechanicMode:authored&&authored.mechanicMode?String(authored.mechanicMode):'',
+    rule:authored?{
+      trigger:String(authored.trigger||''),
+      effect:String(authored.effect||desc||''),
+      cue:String(authored.cue||''),
+      matchers:Array.isArray(authored.matchers)?authored.matchers.slice():[]
+    }:null
   };
   if(getFlavorMechanicMode(entry)==='passive')entry.actionLabel='Passive Effect · '+labelPrefix;
   return entry;
@@ -3572,6 +3689,14 @@ function getFlavorSceneContext(){
 
 function getFlavorRuleForEntry(entry){
   if(!entry)return null;
+  if(entry.rule&&entry.rule.trigger){
+    return {
+      trigger:entry.rule.trigger,
+      effect:entry.rule.effect||entry.desc||('Activate '+String(entry.title||'Flavor Action')+' for a temporary edge.'),
+      cue:entry.rule.cue||'The cue lights up when the trigger is active.',
+      matchers:Array.isArray(entry.rule.matchers)?entry.rule.matchers.slice():[]
+    };
+  }
   var base=String(entry.key||'');
   var title=String(entry.title||'Flavor Action');
   var arch=String(entry.archetype||'mystic');

@@ -4411,6 +4411,7 @@ function startCombat(){
   prepareCombatTurnStart();
   S.combat.sceneDefendBonus=0;
   S.combat.enemyDefendsThisTurn=0;
+  S.combat.flavorResistUsed={};
   // Reset stances
   S.combat.stanceBonus=0;
   S.combat.stance=null;
@@ -4435,6 +4436,7 @@ function endCombat(){
   S.combat.weaponLockRounds=0;
   S.combat.autoReloaderShots=0;
   S.combat.autoReloaderActionSpent=false;
+  S.combat.flavorResistUsed={};
   halfStress();
   clearAllConditions();
   updateCombatUI();
@@ -5113,6 +5115,87 @@ function getCombatSpacingLabelFromRange(range){
   return 'Engaged (Strike)';
 }
 
+function getCurrentCombatTerrainText(){
+  if(!S||!S.combat||!S.combat.sceneOpener)return '';
+  return String(S.combat.sceneOpener.zoneTerrain||'');
+}
+
+function getSceneCoverTierForZone(zoneLabel){
+  if(!S||!S.combat||!S.combat.sceneOpener)return 'none';
+  var opener=S.combat.sceneOpener;
+  var tier=String(opener.coverTier||'none').toLowerCase();
+  if(!tier||tier==='none')return 'none';
+  var zone=String(zoneLabel||'').toLowerCase();
+  var terrain=String(opener.zoneTerrain||'').toLowerCase();
+  var targets=[];
+  if(/far zone/.test(terrain))targets=['far'];
+  else if(/close\/nearby/.test(terrain))targets=['close','nearby'];
+  else if(/engaged only/.test(terrain))targets=['engaged'];
+  else if(/no far zone/.test(terrain))targets=['engaged','close','nearby'];
+  else targets=['engaged','close','nearby','far'];
+  if(targets.indexOf(zone)<0)return 'none';
+  if(tier==='partial'||tier==='heavy'||tier==='full')return tier;
+  return 'none';
+}
+
+function getCoverDefenseBonusForTier(tier){
+  if(tier==='partial')return 1;
+  if(tier==='heavy')return 2;
+  return 0;
+}
+
+function getPrimaryEnemyMapUnit(){
+  if(!S||!S.combatMap||!Array.isArray(S.combatMap.units))return null;
+  var enemies=S.combatMap.units.filter(function(u){return u&&u.side==='enemy';});
+  if(!enemies.length)return null;
+  var order={Engaged:0,Close:1,Nearby:2,Far:3};
+  enemies.sort(function(a,b){
+    var da=(typeof order[a.zone]==='number')?order[a.zone]:9;
+    var db=(typeof order[b.zone]==='number')?order[b.zone]:9;
+    return da-db;
+  });
+  return enemies[0]||null;
+}
+
+function getCurrentPlayerZoneLabel(){
+  var r=getCombatRange();
+  if(r==='engaged')return 'Engaged';
+  if(r==='close')return 'Close';
+  if(r==='nearby')return 'Nearby';
+  if(r==='far')return 'Far';
+  return 'Engaged';
+}
+
+function getFlavorElementResistances(){
+  var full=String((S&&S.flavor)||'').toLowerCase();
+  return {
+    shock:/storm veins|lightning|shock/.test(full),
+    heat:/cinder|torch|heat|ember|fire/.test(full),
+    cold:/frost|cold ward|frigid|ice/.test(full),
+    radiation:/anti-rad|radiation|rad/.test(full),
+    psychic:/mindshield|telepath|psychic/.test(full),
+    toxic:/iron stomach|blight|toxic|poison/.test(full),
+    kinetic:/stone skin|scaled skin|steel prayer|holy shield/.test(full)
+  };
+}
+
+function getFlavorShortName(){
+  var f=String((S&&S.flavor)||'').trim();
+  if(!f)return 'Personal Flavor';
+  var idx=f.indexOf(':');
+  return idx>=0?f.slice(0,idx).trim():f;
+}
+
+function shouldNegateEnemyEventByFlavor(element){
+  if(!element||!S||!S.combat)return false;
+  if(!S.combat.flavorResistUsed||typeof S.combat.flavorResistUsed!=='object')S.combat.flavorResistUsed={};
+  var resist=getFlavorElementResistances();
+  if(!resist[element])return false;
+  if(S.combat.flavorResistUsed[element])return false;
+  S.combat.flavorResistUsed[element]=true;
+  return true;
+}
+
 function setCombatSpacing(newSpacing,consume){
   if(!S.combat)S.combat={};
   var oldSpacing=S.combat.spacing||'Engaged (Strike)';
@@ -5128,6 +5211,7 @@ function setCombatSpacing(newSpacing,consume){
   if(typeof renderQP==='function')renderQP('combat');
   if(typeof renderCombatMap==='function')renderCombatMap();
   if(typeof renderCombatOptions==='function')renderCombatOptions();
+  if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
 }
 
 function collectCombatRangeOverrideText(){
@@ -5211,13 +5295,15 @@ function maybeResetActionsAfterDefend(){
 }
 
 const ENEMY_ACTION_EVENTS=[
-  {name:'Suppressive Burst',desc:'Incoming fire hammers your position.',kind:'defendCheck',bonus:1},
-  {name:'Neuro Spike',desc:'Hostile signal attacks your focus.',kind:'saveCondition',stat:'mind',condition:'distracted'},
-  {name:'Toxic Shrapnel',desc:'Debris bursts through the zone.',kind:'directStress',scale:1},
-  {name:'Rad Leak',desc:'Irradiated coolant vents into your lane.',kind:'radiation',scale:8},
-  {name:'Hull Impact',desc:'A heavy strike slams through cover.',kind:'healthStrike',scale:4},
-  {name:'Terror Broadcast',desc:'A panic-wave forces a trauma response.',kind:'forceTrauma'},
-  {name:'Hostile Hack',desc:'The enemy tries to force your systems open.',kind:'hack'}
+  {name:'Suppressive Burst',desc:'Incoming fire hammers your position.',kind:'defendCheck',bonus:1,element:'kinetic',ranges:['engaged','close','nearby','far']},
+  {name:'Arc Lash',desc:'Crackling current lashes the close lane.',kind:'directStress',scale:2,element:'shock',ranges:['close']},
+  {name:'Shock Snare',desc:'A charged net overloads your senses.',kind:'saveCondition',stat:'mind',condition:'distracted',element:'shock',ranges:['close']},
+  {name:'Neuro Spike',desc:'Hostile signal attacks your focus.',kind:'saveCondition',stat:'mind',condition:'distracted',element:'psychic',ranges:['close','nearby']},
+  {name:'Toxic Shrapnel',desc:'Debris bursts through the zone.',kind:'directStress',scale:1,element:'toxic',ranges:['nearby','far']},
+  {name:'Rad Leak',desc:'Irradiated coolant vents into your lane.',kind:'radiation',scale:8,element:'radiation',ranges:['nearby','far']},
+  {name:'Hull Impact',desc:'A heavy strike slams through cover.',kind:'healthStrike',scale:4,element:'kinetic',ranges:['engaged','close']},
+  {name:'Terror Broadcast',desc:'A panic-wave forces a trauma response.',kind:'forceTrauma',element:'psychic',ranges:['engaged','close']},
+  {name:'Hostile Hack',desc:'The enemy tries to force your systems open.',kind:'hack',element:'psychic',ranges:['close','nearby']}
 ];
 
 function triggerEnemyActionEvent(){
@@ -5230,9 +5316,13 @@ function triggerEnemyActionEvent(){
   var rangeKinds=enemyRange==='engaged'
     ? ['defendCheck','healthStrike','forceTrauma']
     : enemyRange==='close'
-      ? ['saveCondition','hack','defendCheck']
+      ? ['saveCondition','hack','defendCheck','directStress']
       : ['directStress','radiation','healthStrike'];
-  var evPool=ENEMY_ACTION_EVENTS.filter(function(entry){return rangeKinds.indexOf(entry.kind)>=0;});
+  var evPool=ENEMY_ACTION_EVENTS.filter(function(entry){
+    var kindOk=rangeKinds.indexOf(entry.kind)>=0;
+    var rangeOk=!Array.isArray(entry.ranges)||entry.ranges.indexOf(enemyRange)>=0;
+    return kindOk&&rangeOk;
+  });
   if(!evPool.length)evPool=ENEMY_ACTION_EVENTS;
   var ev=pick(evPool);
   var dr=rollEnemyDreadWithEffects(actingEnemy,'Enemy Event DD');
@@ -5243,51 +5333,81 @@ function triggerEnemyActionEvent(){
 
   if(ev.kind==='defendCheck'){
     supportsSave=true;
-    var defDie=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):(S.stats.defend||4);
-    var pr=explodingRoll(defDie,{type:'action',major:true,label:'Defend'});
-    if(pr.total<dr.total){
-      var dmg=Math.max(1,(dr.total-pr.total)+(ev.bonus||0));
-      changeStress(dmg);
-      actionFailed=true;
-      summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+dr.total+' — failed, '+dmg+' Stress.';
+    if(shouldNegateEnemyEventByFlavor(ev.element)){
+      summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
-      summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+dr.total+' — blocked.';
+      var defDie=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):(S.stats.defend||4);
+      var pr=explodingRoll(defDie,{type:'action',major:true,label:'Defend'});
+      var playerCoverTier=getSceneCoverTierForZone(getCurrentPlayerZoneLabel());
+      var coverBonus=getCoverDefenseBonusForTier(playerCoverTier);
+      var targetDD=dr.total+coverBonus;
+      if(pr.total<targetDD){
+        var dmg=Math.max(1,(targetDD-pr.total)+(ev.bonus||0));
+        changeStress(dmg);
+        actionFailed=true;
+        summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+targetDD+' — failed, '+dmg+' Stress.';
+      }else{
+        summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+targetDD+' — blocked.';
+      }
     }
   }else if(ev.kind==='saveCondition'){
     supportsSave=true;
-    var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats[ev.stat]||4);
-    var sr=explodingRoll(statDie,{type:'action',major:true,label:String(ev.stat||'Check').toUpperCase()});
-    var ok=sr.total>=dr.total;
-    if(!ok){
-      actionFailed=true;
-      S.conditions[ev.condition]=true;
-      if(typeof updateConditionButtons==='function')updateConditionButtons();
-      if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+    if(shouldNegateEnemyEventByFlavor(ev.element)){
+      summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
+    }else{
+      var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats[ev.stat]||4);
+      var sr=explodingRoll(statDie,{type:'action',major:true,label:String(ev.stat||'Check').toUpperCase()});
+      var ok=sr.total>=dr.total;
+      if(!ok){
+        actionFailed=true;
+        S.conditions[ev.condition]=true;
+        if(typeof updateConditionButtons==='function')updateConditionButtons();
+        if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+      }
+      summary=ev.stat.toUpperCase()+' d'+statDie+'='+sr.total+' vs DD'+dd+'='+dr.total+' — '+(ok?'saved.':'failed, '+ev.condition+' applied.');
     }
-    summary=ev.stat.toUpperCase()+' d'+statDie+'='+sr.total+' vs DD'+dd+'='+dr.total+' — '+(ok?'saved.':'failed, '+ev.condition+' applied.');
   }else if(ev.kind==='directStress'){
-    var sDmg=Math.max(1,Math.ceil(dr.total/3)+(ev.scale||0));
-    changeStress(sDmg);
-    summary='Direct hit — '+sDmg+' Stress.';
+    var playerCoverTier2=getSceneCoverTierForZone(getCurrentPlayerZoneLabel());
+    if(playerCoverTier2==='full'){
+      summary='Full Cover blocks the ranged threat.';
+    }else if(shouldNegateEnemyEventByFlavor(ev.element)){
+      summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
+    }else{
+      var sDmg=Math.max(1,Math.ceil(dr.total/3)+(ev.scale||0)-getCoverDefenseBonusForTier(playerCoverTier2));
+      changeStress(sDmg);
+      summary='Direct hit — '+sDmg+' Stress.';
+    }
   }else if(ev.kind==='radiation'){
     supportsSave=true;
-    var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
-    var spiritRoll=explodingRoll(spiritDie,{type:'action',major:true,label:'SPIRIT'});
-    if(spiritRoll.total>=dr.total){
-      summary='Spirit d'+spiritDie+'='+spiritRoll.total+' vs DD'+dd+'='+dr.total+' — resisted radiation leak.';
+    if(shouldNegateEnemyEventByFlavor(ev.element)){
+      summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
-      actionFailed=true;
-      var rGain=Math.max(5,dr.total*(ev.scale||6));
-      if(typeof changeRads==='function')changeRads(rGain);
-      summary='Spirit d'+spiritDie+'='+spiritRoll.total+' vs DD'+dd+'='+dr.total+' — failed, +'+rGain+' Rads.';
+      var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
+      var spiritRoll=explodingRoll(spiritDie,{type:'action',major:true,label:'SPIRIT'});
+      if(spiritRoll.total>=dr.total){
+        summary='Spirit d'+spiritDie+'='+spiritRoll.total+' vs DD'+dd+'='+dr.total+' — resisted radiation leak.';
+      }else{
+        actionFailed=true;
+        var rGain=Math.max(5,dr.total*(ev.scale||6));
+        if(typeof changeRads==='function')changeRads(rGain);
+        summary='Spirit d'+spiritDie+'='+spiritRoll.total+' vs DD'+dd+'='+dr.total+' — failed, +'+rGain+' Rads.';
+      }
     }
   }else if(ev.kind==='healthStrike'){
-    var hDmg=Math.max(1,Math.ceil(dr.total/(ev.scale||4)));
-    if(typeof changeHealth==='function')changeHealth(hDmg);else changeStress(hDmg);
-    summary='Critical impact — '+hDmg+' Health damage.';
+    if(shouldNegateEnemyEventByFlavor(ev.element)){
+      summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
+    }else{
+      var hDmg=Math.max(1,Math.ceil(dr.total/(ev.scale||4)));
+      if(typeof changeHealth==='function')changeHealth(hDmg);else changeStress(hDmg);
+      summary='Critical impact — '+hDmg+' Health damage.';
+    }
   }else if(ev.kind==='forceTrauma'){
-    if(typeof rollTraumaCheck==='function')rollTraumaCheck();
-    summary='Forced Trauma check triggered.';
+    if(shouldNegateEnemyEventByFlavor(ev.element)){
+      summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
+    }else{
+      if(typeof rollTraumaCheck==='function')rollTraumaCheck();
+      summary='Forced Trauma check triggered.';
+    }
   }else if(ev.kind==='hack'){
     resolveEnemyHackEvent(actingEnemy);
     return;
@@ -5558,10 +5678,19 @@ function rollAttack(type) {
 
   var targetEnemy=getPrimaryCombatEnemy();
   var d = targetEnemy ? rollEnemyDreadWithEffects(targetEnemy,'Enemy DD') : {total:explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Enemy DD'}).total,effectiveDie:S.combat.enemyDread};
+  var terrainTxt=getCurrentCombatTerrainText().toLowerCase();
+  var terrainPenalty=(type==='shoot'&&/urban alley|storm zone/.test(terrainTxt))?1:0;
+  var targetMapUnit=getPrimaryEnemyMapUnit();
+  var enemyZone=targetMapUnit?String(targetMapUnit.zone||'Nearby'):getCurrentPlayerZoneLabel();
+  var enemyCoverTier=getSceneCoverTierForZone(enemyZone);
+  var coverBonus=(type==='shoot')?getCoverDefenseBonusForTier(enemyCoverTier):0;
+  var coverBlocked=(type==='shoot'&&enemyCoverTier==='full');
   var enemyBonus=targetEnemy&&targetEnemy.effectState?Number(targetEnemy.effectState.sonicShockBonus||0):0;
   if(enemyBonus>0)effectiveTotal+=enemyBonus;
-  var success = effectiveTotal >= d.total;
-  var diff = Math.max(1, effectiveTotal - d.total);
+  effectiveTotal=Math.max(0,effectiveTotal-terrainPenalty);
+  var targetDreadTotal=d.total+coverBonus;
+  var success = !coverBlocked && effectiveTotal >= targetDreadTotal;
+  var diff = Math.max(1, effectiveTotal - targetDreadTotal);
 
   var breakdown = ra.breakdown;
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
@@ -5569,6 +5698,9 @@ function rollAttack(type) {
   breakdown += formatAdventureBonusRolls(relicRolls);
   if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
   if(enemyBonus > 0) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(+Sonic Shock '+enemyBonus+')</span>';
+  if(terrainPenalty>0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+terrainPenalty+' Terrain)</span>';
+  if(coverBonus>0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(Target Cover +'+coverBonus+')</span>';
+  if(coverBlocked) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(Target Full Cover)</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var modNotes = [];
@@ -5592,8 +5724,8 @@ function rollAttack(type) {
 
   var el = document.getElementById('attackResult');
   if(el) el.innerHTML = '<span style="color:var(--teal);">'+effectiveTotal+'</span>'+breakdown+augNote
-    +' vs <span style="color:var(--red);">'+d.total+'</span> — '
-    +(success ? '<strong style="color:var(--green2);">HIT! '+diff+' Stress</strong>' : '<strong style="color:var(--red);">Miss</strong>')
+    +' vs <span style="color:var(--red);">'+targetDreadTotal+'</span> — '
+    +(coverBlocked ? '<strong style="color:var(--red);">Blocked by Full Cover</strong>' : (success ? '<strong style="color:var(--green2);">HIT! '+diff+' Stress</strong>' : '<strong style="color:var(--red);">Miss</strong>'))
     +(ra.exploded ? ' ✦ Crit!' : '')+modHtml;
 
   // Auto-apply stress to the first tracked enemy on successful Strike/Shoot.

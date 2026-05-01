@@ -2436,6 +2436,8 @@
     var hasPlayer = S.combatMap.units.some(function(u){ return u.side === 'ally' && u.name === playerName; });
     var spacingEl = document.getElementById('spacingSelect');
     var relativeEnemyZone = spacingToZone(spacingEl ? spacingEl.value : 'Nearby (Shoot)');
+    var spacingChanged = S.combatMap.lastRelativeZone !== relativeEnemyZone;
+    S.combatMap.lastRelativeZone = relativeEnemyZone;
     if (!hasPlayer) {
       S.combatMap.units.push({ id: combatMapUnitId++, name: playerName, side: 'ally', zone: 'Engaged', isPlayer: true });
     } else if (hasPlayer) {
@@ -2462,7 +2464,7 @@
       if (!data) { return; }
       unit.name = data.name;
       unit.side = data.side;
-      if (unit.side === 'enemy') { unit.zone = relativeEnemyZone; }
+      if (unit.side === 'enemy' && spacingChanged) { unit.zone = relativeEnemyZone; }
     });
 
     Object.keys(desired).forEach(function(key) {
@@ -2478,7 +2480,7 @@
         existingMatch.trackerKey = key;
         existingMatch.side = desired[key].side;
         existingMatch.name = desired[key].name;
-        if (existingMatch.side === 'enemy') { existingMatch.zone = relativeEnemyZone; }
+        if (existingMatch.side === 'enemy' && spacingChanged) { existingMatch.zone = relativeEnemyZone; }
         return;
       }
       S.combatMap.units.push({
@@ -2667,17 +2669,24 @@
     S.combatMap.units.push({ id: combatMapUnitId++, name: name.trim(), side: side, zone: side === "ally" ? "Nearby" : "Nearby" });
     renderCombatMap();
     renderCombatOptions();
+    if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
   }
 
   function moveCombatUnit(id, zone) {
     var unit = S.combatMap.units.filter(function(u){ return u.id === id; })[0];
-    if (unit) { unit.zone = zone; renderCombatMap(); renderCombatOptions(); }
+    if (unit) {
+      unit.zone = zone;
+      renderCombatMap();
+      renderCombatOptions();
+      if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
+    }
   }
 
   function removeCombatUnit(id) {
     S.combatMap.units = S.combatMap.units.filter(function(u){ return u.id !== id; });
     renderCombatMap();
     renderCombatOptions();
+    if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
   }
 
   function clearCombatMap() {
@@ -2685,6 +2694,7 @@
     S.combatMap.units = [];
     renderCombatMap();
     renderCombatOptions();
+    if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
   }
 
   // ── COMBAT OPTIONS (distance-aware) ──────────────────────────────────────────

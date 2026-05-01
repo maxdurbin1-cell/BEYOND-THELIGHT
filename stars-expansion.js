@@ -9254,6 +9254,130 @@ let starsZoneLayout = null;
 let starsZoneAutoPopulate = true;
 let starsZoneOpenerOverride = null;
 
+function getStarsZoneOrder() {
+  return ['Engaged', 'Close', 'Nearby', 'Far'];
+}
+
+function getStarsZoneFromStepDistance(stepDist) {
+  const steps = Math.max(0, Number(stepDist || 0));
+  if (steps <= 1) return 'Engaged';
+  if (steps === 2) return 'Close';
+  if (steps <= 4) return 'Nearby';
+  return 'Far';
+}
+
+function getStarsStepBandForZone(zone) {
+  const z = String(zone || 'Nearby');
+  if (z === 'Engaged') return [1, 1];
+  if (z === 'Close') return [2, 2];
+  if (z === 'Nearby') return [3, 4];
+  return [5, 99];
+}
+
+function buildStarsHexDistanceMap(layout, originRow, originCol) {
+  if (!layout || !Array.isArray(layout.hexes)) return {};
+  const keyOf = (r, c) => `${r}:${c}`;
+  const existing = {};
+  layout.hexes.forEach((h) => { existing[keyOf(h.row, h.col)] = true; });
+  const startKey = keyOf(originRow, originCol);
+  if (!existing[startKey]) return {};
+
+  const neighborsOddR = function(row, col) {
+    const even = (row % 2) === 0;
+    const deltas = even
+      ? [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]]
+      : [[-1, 0], [-1, 1], [0, -1], [0, 1], [1, 0], [1, 1]];
+    return deltas.map((d) => ({ row: row + d[0], col: col + d[1] }));
+  };
+
+  const dist = {};
+  dist[startKey] = 0;
+  const queue = [{ row: originRow, col: originCol }];
+  while (queue.length) {
+    const cur = queue.shift();
+    const curKey = keyOf(cur.row, cur.col);
+    const curDist = Number(dist[curKey] || 0);
+    neighborsOddR(cur.row, cur.col).forEach((n) => {
+      const nk = keyOf(n.row, n.col);
+      if (!existing[nk]) return;
+      if (typeof dist[nk] === 'number') return;
+      dist[nk] = curDist + 1;
+      queue.push({ row: n.row, col: n.col });
+    });
+  }
+  return dist;
+}
+
+function getStarsPlayerAnchor(layout) {
+  const unit = starsZoneUnits.find((u) => u && u.trackerKey === 'player:self') || starsZoneUnits.find((u) => u && u.type === 'ally');
+  if (unit) return { row: unit.row, col: unit.col };
+  const fallback = layout && Array.isArray(layout.hexes) ? layout.hexes[0] : null;
+  return fallback ? { row: fallback.row, col: fallback.col } : { row: 1, col: 2 };
+}
+
+function syncCombatMapFromStarsUnits() {
+  if (typeof S === 'undefined' || !S || !S.combatMap || !Array.isArray(S.combatMap.units) || !starsZoneLayout) return;
+  const anchor = getStarsPlayerAnchor(starsZoneLayout);
+  const dmap = buildStarsHexDistanceMap(starsZoneLayout, anchor.row, anchor.col);
+  const byTracker = {};
+  starsZoneUnits.forEach((u) => {
+    if (!u || !u.trackerKey) return;
+    byTracker[u.trackerKey] = u;
+  });
+
+  S.combatMap.units.forEach((u) => {
+    if (!u || !u.fromTracker || !u.trackerKey || u.side !== 'enemy') return;
+    const su = byTracker[u.trackerKey];
+    if (!su) return;
+    const key = `${su.row}:${su.col}`;
+    const steps = (typeof dmap[key] === 'number') ? dmap[key] : 0;
+    u.zone = getStarsZoneFromStepDistance(steps);
+  });
+
+  if (typeof renderCombatMap === 'function') renderCombatMap();
+  if (typeof renderCombatOptions === 'function') renderCombatOptions();
+}
+window.syncCombatMapFromStarsUnits = syncCombatMapFromStarsUnits;
+
+function syncStarsUnitsFromCombatMap() {
+  if (!starsZoneLayout || !starsZoneAutoPopulate) return;
+  syncStarsZoneUnitsFromCombatTracker(starsZoneLayout);
+  if (typeof renderStarsCombatZone === 'function') {
+    const id = starsZoneLayout.id || (starsZoneOpenerOverride ? starsZoneOpenerOverride.layoutId : 1);
+    renderStarsCombatZone(id);
+  }
+}
+window.syncStarsUnitsFromCombatMap = syncStarsUnitsFromCombatMap;
+
+function moveSelectedTrackerUnitToStarsHex(row, col) {
+  if (typeof S === 'undefined' || !S || !S.combatMap || !Array.isArray(S.combatMap.units) || !starsZoneLayout) return false;
+  const unitType = document.getElementById('starsUnitType') ? document.getElementById('starsUnitType').value : 'enemy';
+  const unitNameRaw = document.getElementById('starsUnitName') ? document.getElementById('starsUnitName').value : '';
+  const wantedName = String(unitNameRaw || '').trim().toLowerCase();
+
+  const trackerUnits = starsZoneUnits.filter((u) => u && u.fromTracker && u.type === unitType);
+  if (!trackerUnits.length) return false;
+  let candidates = trackerUnits;
+  if (wantedName) {
+    candidates = trackerUnits.filter((u) => String(u.name || '').toLowerCase().indexOf(wantedName) >= 0);
+    if (!candidates.length) return false;
+  }
+  const target = candidates[0];
+  if (!target || !target.trackerKey) return false;
+
+  const anchor = getStarsPlayerAnchor(starsZoneLayout);
+  const dmap = buildStarsHexDistanceMap(starsZoneLayout, anchor.row, anchor.col);
+  const steps = Number(dmap[`${row}:${col}`] || 0);
+  const nextZone = getStarsZoneFromStepDistance(steps);
+  const cmUnit = S.combatMap.units.find((u) => u && u.fromTracker && u.trackerKey === target.trackerKey);
+  if (!cmUnit) return false;
+  cmUnit.zone = nextZone;
+  if (typeof syncStarsUnitsFromCombatMap === 'function') syncStarsUnitsFromCombatMap();
+  if (typeof renderCombatMap === 'function') renderCombatMap();
+  if (typeof renderCombatOptions === 'function') renderCombatOptions();
+  return true;
+}
+
 function mapSceneTerrainToStarsLayoutId(terrainText) {
   const terrain = String(terrainText || '').toLowerCase();
   if (terrain.indexOf('urban alley') >= 0) return 4;
@@ -9431,6 +9555,46 @@ function syncStarsZoneUnitsFromCombatTracker(layout) {
   });
   const centerHex = sorted[0];
   const nearbySlots = sorted.filter(h => !(h.row === centerHex.row && h.col === centerHex.col));
+  const dmap = buildStarsHexDistanceMap(layout, centerHex.row, centerHex.col);
+  const zoneSlots = {
+    Engaged: nearbySlots.filter((h) => {
+      const d = dmap[`${h.row}:${h.col}`];
+      return typeof d === 'number' && d <= 1;
+    }),
+    Close: nearbySlots.filter((h) => {
+      const d = dmap[`${h.row}:${h.col}`];
+      return d === 2;
+    }),
+    Nearby: nearbySlots.filter((h) => {
+      const d = dmap[`${h.row}:${h.col}`];
+      return typeof d === 'number' && d >= 3 && d <= 4;
+    }),
+    Far: nearbySlots.filter((h) => {
+      const d = dmap[`${h.row}:${h.col}`];
+      return typeof d === 'number' && d >= 5;
+    })
+  };
+  if (!zoneSlots.Engaged.length) zoneSlots.Engaged = nearbySlots.slice(0, 2);
+  if (!zoneSlots.Close.length) zoneSlots.Close = nearbySlots.slice(0, 3);
+  if (!zoneSlots.Nearby.length) zoneSlots.Nearby = nearbySlots.slice(0, 5);
+  if (!zoneSlots.Far.length) zoneSlots.Far = nearbySlots.slice().reverse();
+
+  const combatMapZones = {};
+  if (S.combatMap && Array.isArray(S.combatMap.units)) {
+    S.combatMap.units.forEach((u) => {
+      if (!u || !u.fromTracker || !u.trackerKey) return;
+      combatMapZones[u.trackerKey] = u.zone;
+    });
+  }
+
+  const zoneCursor = { Engaged: 0, Close: 0, Nearby: 0, Far: 0 };
+  const pickSlotForZone = (zoneName) => {
+    const zone = zoneSlots[zoneName] && zoneSlots[zoneName].length ? zoneName : 'Nearby';
+    const slots = zoneSlots[zone] && zoneSlots[zone].length ? zoneSlots[zone] : nearbySlots;
+    const idx = zoneCursor[zone] % Math.max(1, slots.length);
+    zoneCursor[zone] += 1;
+    return slots[idx] || centerHex;
+  };
 
   const playerName = (typeof S !== 'undefined' && S && S.name && S.name.trim()) ? S.name.trim() : 'You';
   const trackerUnits = [];
@@ -9438,15 +9602,17 @@ function syncStarsZoneUnitsFromCombatTracker(layout) {
 
   const allies = (Array.isArray(S.enemies) ? S.enemies.filter(e => e && e.ally) : []);
   allies.forEach((ally, idx) => {
-    const slot = nearbySlots[idx % nearbySlots.length] || centerHex;
     const key = 'ally:' + String(ally.id != null ? ally.id : (ally.name || ('ally-' + idx)));
+    const zone = combatMapZones[key] || 'Close';
+    const slot = pickSlotForZone(zone);
     trackerUnits.push({ row: slot.row, col: slot.col, type: 'ally', name: String(ally.name || `Ally ${idx + 1}`), icon: '◍', fromTracker: true, trackerKey: key });
   });
 
   const enemies = (Array.isArray(S.enemies) ? S.enemies.filter(e => e && !e.ally) : []);
   enemies.forEach((enemy, idx) => {
-    const slot = nearbySlots[(idx + allies.length) % nearbySlots.length] || centerHex;
     const key = 'enemy:' + String(enemy.id != null ? enemy.id : (enemy.name || ('enemy-' + idx)));
+    const zone = combatMapZones[key] || 'Nearby';
+    const slot = pickSlotForZone(zone);
     trackerUnits.push({ row: slot.row, col: slot.col, type: 'enemy', name: String(enemy.name || `Enemy ${idx + 1}`), icon: '✕', fromTracker: true, trackerKey: key });
   });
 
@@ -9553,6 +9719,9 @@ function renderStarsCombatZone(layoutId) {
 }
 
 function starsZoneHexClick(row, col, evt) {
+  if (starsZoneAutoPopulate) {
+    if (moveSelectedTrackerUnitToStarsHex(row, col)) return;
+  }
   // Show a mini menu to place/move a unit
   const existing = starsZoneUnits.findIndex(u => u.row === row && u.col === col);
   if (existing >= 0) {
@@ -9563,6 +9732,7 @@ function starsZoneHexClick(row, col, evt) {
     starsZoneUnits.push({ row, col, type: unitType, name: unitName, icon: unitType === 'ally' ? '◉' : '✕', fromTracker: false });
   }
   if (starsZoneLayout) renderStarsCombatZone(starsZoneLayout.id);
+  if (starsZoneAutoPopulate && typeof syncCombatMapFromStarsUnits === 'function') syncCombatMapFromStarsUnits();
 }
 
 function hexPointsSVG(cx, cy, size) {

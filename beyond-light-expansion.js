@@ -933,6 +933,15 @@
     if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "lastsea");
 
     const secretPadKey = getSeaSecretPadKey();
+    if (typeof window.ensureBackstoryScopeMarkers === "function") {
+      window.ensureBackstoryScopeMarkers("sea", S.lastSea.map.map(function (h) {
+        return {
+          key: String(h && h.key || ""),
+          type: String(h && h.type || "sea"),
+          label: String((h && (h.title || h.islandName)) || "Open Sea")
+        };
+      }), { homeTypes: ["island", "harbor"], rivalTypes: ["sea", "storm", "peril"], connectionTypes: ["island", "market", "harbor"] });
+    }
     S.lastSea.map.forEach((hex) => {
       const { x, y } = seaHexToPixel(hex.col, hex.row);
       const r = LAST_SEA_HEX - 1;
@@ -1108,6 +1117,31 @@
         group.appendChild(dot);
       }
 
+      const bsMarker = (typeof window.getBackstoryMapMarker === "function")
+        ? window.getBackstoryMapMarker("sea", String(hex.key || ""))
+        : null;
+      if (bsMarker) {
+        const bsGlow = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        bsGlow.setAttribute("cx", x + LAST_SEA_HEX * 0.08);
+        bsGlow.setAttribute("cy", y - LAST_SEA_HEX * 0.58);
+        bsGlow.setAttribute("r", "8.4");
+        bsGlow.setAttribute("fill", "rgba(123,154,255,.16)");
+        bsGlow.setAttribute("stroke", "#7b9aff");
+        bsGlow.setAttribute("stroke-width", "1.2");
+        bsGlow.setAttribute("pointer-events", "none");
+        group.appendChild(bsGlow);
+
+        const bsIcon = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        bsIcon.setAttribute("x", x + LAST_SEA_HEX * 0.08);
+        bsIcon.setAttribute("y", y - LAST_SEA_HEX * 0.5);
+        bsIcon.setAttribute("text-anchor", "middle");
+        bsIcon.setAttribute("font-size", "9.6");
+        bsIcon.setAttribute("fill", "#9db3ff");
+        bsIcon.setAttribute("pointer-events", "none");
+        bsIcon.textContent = bsMarker.icon || "✶";
+        group.appendChild(bsIcon);
+      }
+
       group.addEventListener("click", () => {
         var moved = false;
         if (S.lastSea.clickMode === "travel") {
@@ -1122,6 +1156,13 @@
         S.lastSea.selectedKey = hex.key;
         renderLastSeaMap();
         renderLastSeaInfo(hex);
+        if (moved && typeof window.rollRivalEncounterForMap === "function") {
+          window.rollRivalEncounterForMap("sea", {
+            key: String(hex.key || ""),
+            label: String(hex.title || hex.islandName || "Open Sea"),
+            terrain: String(hex.type || "sea")
+          });
+        }
         if (moved && typeof window.autoAdvanceMissionFromSeaHex === "function") {
           window.autoAdvanceMissionFromSeaHex(hex.key);
         }

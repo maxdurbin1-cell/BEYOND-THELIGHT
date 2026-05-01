@@ -4633,6 +4633,9 @@ function renderPlanetSurfaceSvg(state, selected) {
     const factionTask = window.factionSystem && typeof window.factionSystem.getPlanetTask === 'function'
       ? window.factionSystem.getPlanetTask(state.hexId, cell.id)
       : null;
+    const bsMarker = (typeof window.getBackstoryMapMarker === 'function')
+      ? window.getBackstoryMapMarker('planet', String(state.hexId) + ':' + String(cell.id))
+      : null;
     const tag = isLanding ? 'L'
       : isStoryObjective ? '➤'
       : isWayfarerContract ? '✦'
@@ -4685,6 +4688,10 @@ function renderPlanetSurfaceSvg(state, selected) {
       ? `<circle cx="${x - 13}" cy="${y + 12}" r="7" fill="${factionTask.status === 'combat_pending' ? 'rgba(224,80,80,.2)' : 'rgba(232,192,80,.18)'}" stroke="${factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050'}" stroke-width="1.1" pointer-events="none" />
         <text x="${x - 13}" y="${y + 16}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="${factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050'}" pointer-events="none">${factionTask.monsterTask ? '⚔' : '✦'}</text>`
       : '';
+       const backstoryOverlay = bsMarker
+        ? `<circle cx="${x + 12}" cy="${y + 12}" r="6.8" fill="rgba(123,154,255,.16)" stroke="#7b9aff" stroke-width="1.1" pointer-events="none" />
+          <text x="${x + 12}" y="${y + 15.5}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="#9db3ff" pointer-events="none">${bsMarker.icon || '✶'}</text>`
+        : '';
     const depthOverlay = mapFx.hex3d
       ? `<line x1="${topX1}" y1="${topY1}" x2="${topX2}" y2="${topY2}" stroke="rgba(255,255,255,.22)" stroke-width="1.1" pointer-events="none" />
          <line x1="${sideX1}" y1="${sideY1}" x2="${sideX2}" y2="${sideY2}" stroke="rgba(0,0,0,.3)" stroke-width="1.1" pointer-events="none" />
@@ -4696,6 +4703,7 @@ function renderPlanetSurfaceSvg(state, selected) {
       ${depthOverlay}
       ${factionOverlay}
       ${factionTaskOverlay}
+      ${backstoryOverlay}
       <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="${visual.tag}">${tag || '·'}</text>
       ${selectedOverlay}
     </g>`;
@@ -6238,6 +6246,13 @@ function explorePlanetCell(cellId) {
     applyPlanetHazardFailure(state, check.text);
     showNotif(`${check.text} Failure.`, 'warn');
   }
+  if (typeof window.rollRivalEncounterForMap === 'function') {
+    window.rollRivalEncounterForMap('planet', {
+      key: String(state.hexId) + ':' + String(cell.id),
+      label: 'Planet Cell ' + String(cell.id),
+      terrain: String(cell.marker || cell.terrain || 'surface')
+    });
+  }
   renderPlanetExplorationPanel();
 }
 
@@ -6255,6 +6270,15 @@ function renderPlanetExplorationPanel() {
   if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
   if (!state.currentWeather) state.currentWeather = rollPlanetSurfaceWeather(state.profile);
   if (!state.traversalMode) state.traversalMode = 'foot';
+  if (typeof window.ensureBackstoryScopeMarkers === 'function' && Array.isArray(state.cells) && state.cells.length) {
+    window.ensureBackstoryScopeMarkers('planet', state.cells.map(function (cell) {
+      return {
+        key: String(state.hexId) + ':' + String(cell.id),
+        type: String(cell.marker || cell.terrain || 'surface'),
+        label: 'Cell ' + String(cell.id)
+      };
+    }), { homeTypes: ['merchant_colony', 'dwelling', 'seat'], rivalTypes: ['peril', 'barrier', 'ruins'], connectionTypes: ['dwelling', 'temple', 'merchant_colony', 'wayfarer'] });
+  }
   if (Array.isArray(state.cells)) {
     state.cells.forEach((cell) => {
       if (typeof cell.tradeRoute !== 'boolean') cell.tradeRoute = false;
@@ -7253,6 +7277,11 @@ function renderStarSystemMap() {
   const storyObjectiveHexId = (S.storyline && S.storyline.travelMarkers && typeof S.storyline.travelMarkers.galaxyHexId === 'number')
     ? S.storyline.travelMarkers.galaxyHexId
     : null;
+  if (typeof window.ensureBackstoryScopeMarkers === 'function') {
+    window.ensureBackstoryScopeMarkers('galaxy', S.starSystem.hexes.map(function (h) {
+      return { key: String(h.id), type: String(h.type || ''), label: 'Hex ' + String(h.id) };
+    }), { homeTypes: ['planet', 'hub'], rivalTypes: ['star', 'hazard', 'void'], connectionTypes: ['hub', 'planet', 'relay'] });
+  }
   S.starSystem.hexes.forEach((hex) => {
     hexPositions[hex.id] = positionForHex(hex);
   });
@@ -7274,6 +7303,9 @@ function renderStarSystemMap() {
       : null;
     const factionTask = window.factionSystem && typeof window.factionSystem.getGalaxyTask === 'function'
       ? window.factionSystem.getGalaxyTask(hex.id)
+      : null;
+    const bsMarker = (typeof window.getBackstoryMapMarker === 'function')
+      ? window.getBackstoryMapMarker('galaxy', String(hex.id))
       : null;
     const isStoryObjective = storyObjectiveHexId === hex.id;
     const storyGlyph = isStoryObjective
@@ -7306,6 +7338,7 @@ function renderStarSystemMap() {
         ${storyGlyph}
         ${factionBase ? `<text x="${x - 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="#46c4b6" pointer-events="none">🏰</text>` : ''}
         ${factionTask ? `<text x="${x + 13}" y="${y + 17}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050'}" pointer-events="none">${factionTask.monsterTask ? '⚔' : '✦'}</text>` : ''}
+        ${bsMarker ? `<circle cx="${x - 12}" cy="${y + 16}" r="7" fill="rgba(123,154,255,.16)" stroke="#7b9aff" stroke-width="1.2" pointer-events="none"></circle><text x="${x - 12}" y="${y + 20}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="10" fill="#9db3ff" pointer-events="none">${bsMarker.icon || '✶'}</text>` : ''}
         ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${hasTaskMarker ? '#f2d75a' : '#9de7ff'}" onclick="event.stopPropagation(); ${hasTaskMarker ? `openGalaxyTaskFromMap(${hex.id})` : ''}" style="cursor:${hasTaskMarker ? 'zoom-in' : 'pointer'};">${markerGlyph}</text>` : ''}
       </g>`;
   }).join('');
@@ -7345,6 +7378,7 @@ function renderStarSystemMap() {
 function selectStarSystemHex(hexId) {
   ensureStarsState();
   const prevId = S.starSystem.currentHexId;
+  var traveled = false;
   const next = (S.starSystem.hexes || []).find(hx => hx.id === hexId);
   const prev = (S.starSystem.hexes || []).find(hx => hx.id === prevId);
   if (!next) return;
@@ -7357,6 +7391,7 @@ function selectStarSystemHex(hexId) {
         return;
       }
       S.starship.fuel.standard -= 1;
+      traveled = true;
       if (isHexOnTradeRoute(hexId)) applyTradeRouteTravelBonus(hexId);
       registerStarshipTravelDays(DAYS_PER_WEEK);
       showNotif('Travel complete: adjacent hex, Standard Fuel -1.', 'good');
@@ -7370,6 +7405,7 @@ function selectStarSystemHex(hexId) {
         return;
       }
       S.starship.fuel.hyperdrive -= 1;
+      traveled = true;
       registerStarshipTravelDays(Math.max(1, Math.round(distance)) * DAYS_PER_WEEK);
       showNotif(`Hyperdrive engaged for ${Math.max(1, Math.round(distance))}-hex jump.`, 'good');
     }
@@ -7385,6 +7421,13 @@ function selectStarSystemHex(hexId) {
   if (ringSel && h && h.ring && h.ring !== 'core') ringSel.value = h.ring;
   clearActiveGalaxyPanels();
   renderStarSystemMap();
+  if ((traveled || (prevId !== null && prevId !== hexId)) && typeof window.rollRivalEncounterForMap === 'function') {
+    window.rollRivalEncounterForMap('galaxy', {
+      key: String(hexId),
+      label: (h ? (h.type + ' hex ' + String(h.id)) : ('Hex ' + String(hexId))),
+      terrain: String((h && h.type) || 'space')
+    });
+  }
   rollStarSystemWeather();
   updateStarSystemReadouts();
 }

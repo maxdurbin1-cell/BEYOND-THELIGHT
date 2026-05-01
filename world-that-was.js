@@ -1412,6 +1412,11 @@
     svg.setAttribute("height", String(svgH));
     svg.innerHTML = "";
     if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "wtw");
+    if (typeof window.ensureBackstoryScopeMarkers === "function") {
+      window.ensureBackstoryScopeMarkers("wtw", w.hexes.map(function (h) {
+        return { key: String(h.id), type: String(h.zone || "district"), label: String(h.zone || "District") };
+      }), {});
+    }
 
     const stationHexes = w.hexes.filter(function (h) { return h.station; });
     for (let i = 0; i < stationHexes.length; i += 1) {
@@ -1548,8 +1553,40 @@
         g.appendChild(mk);
       }
 
+      const bsMarker = (typeof window.getBackstoryMapMarker === "function")
+        ? window.getBackstoryMapMarker("wtw", String(hex.id))
+        : null;
+      if (bsMarker) {
+        const bsGlow = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        bsGlow.setAttribute("cx", String(p.x + 12));
+        bsGlow.setAttribute("cy", String(p.y + 12));
+        bsGlow.setAttribute("r", "7");
+        bsGlow.setAttribute("fill", "rgba(123,154,255,.16)");
+        bsGlow.setAttribute("stroke", "#7b9aff");
+        bsGlow.setAttribute("stroke-width", "1.1");
+        bsGlow.setAttribute("pointer-events", "none");
+        g.appendChild(bsGlow);
+
+        const bsIcon = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        bsIcon.setAttribute("x", String(p.x + 12));
+        bsIcon.setAttribute("y", String(p.y + 16));
+        bsIcon.setAttribute("text-anchor", "middle");
+        bsIcon.setAttribute("font-size", "9");
+        bsIcon.setAttribute("fill", "#9db3ff");
+        bsIcon.setAttribute("pointer-events", "none");
+        bsIcon.textContent = bsMarker.icon || "✶";
+        g.appendChild(bsIcon);
+      }
+
       g.addEventListener("click", function () {
         w.selectedHexId = hex.id;
+        if (typeof window.rollRivalEncounterForMap === "function") {
+          window.rollRivalEncounterForMap("wtw", {
+            key: String(hex.id),
+            label: String(hex.zone || "District"),
+            terrain: String(hex.zone || "district")
+          });
+        }
         renderWorldThatWas();
       });
 

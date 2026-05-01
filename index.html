@@ -638,12 +638,13 @@ select option{background:#0f1020;}
     <div class="card">
       <div class="section-title">Backstory Builder</div>
       <div style="font-size:.8rem;color:var(--muted2);line-height:1.55;margin-bottom:.5rem;">
-        Build a deeper history, or roll everything. These choices can seed storyline options and place personal anchors in the Province.
+        Build a deeper history, or roll everything. These choices can seed storyline options and place personal anchors across Province, Sea, Galaxy, World That Was, and Planet maps.
       </div>
       <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.6rem;">
         <button class="btn btn-sm btn-primary" onclick="generateBackstory()">⚄ Roll Full Backstory</button>
         <button class="btn btn-sm btn-teal" onclick="applyBackstoryToCharacter()">Apply to Character</button>
         <button class="btn btn-sm" onclick="assignBackstoryProvinceMarkers()">Populate Province Anchors</button>
+        <button class="btn btn-sm" onclick="assignBackstoryMarkersAcrossMaps()">Populate All Map Anchors</button>
       </div>
 
       <div class="form-row"><span class="sub-label">Origin Realm</span>
@@ -1741,6 +1742,93 @@ function ensureBackstoryState(){
   if(typeof b.lifeEvent!=='string')b.lifeEvent='';
   if(typeof b.notes!=='string')b.notes='';
   if(!b.provinceMarkers||typeof b.provinceMarkers!=='object')b.provinceMarkers={};
+  if(!b.mapMarkers||typeof b.mapMarkers!=='object')b.mapMarkers={};
+  ['province','sea','galaxy','wtw','planet'].forEach(function(scope){
+    if(!b.mapMarkers[scope]||typeof b.mapMarkers[scope]!=='object')b.mapMarkers[scope]={};
+  });
+  if(Object.keys(b.mapMarkers.province).length===0&&Object.keys(b.provinceMarkers).length){
+    b.mapMarkers.province=Object.assign({},b.provinceMarkers);
+  }
+  if(Object.keys(b.provinceMarkers).length===0&&Object.keys(b.mapMarkers.province).length){
+    b.provinceMarkers=Object.assign({},b.mapMarkers.province);
+  }
+}
+
+function getBackstoryMarkerBucket(scope,create){
+  ensureBackstoryState();
+  const b=S.backstory||{};
+  const sk=String(scope||'province').toLowerCase();
+  if(!b.mapMarkers||typeof b.mapMarkers!=='object')b.mapMarkers={};
+  if(!b.mapMarkers[sk]&&create)b.mapMarkers[sk]={};
+  if(sk==='province'&&create&&(!b.provinceMarkers||typeof b.provinceMarkers!=='object'))b.provinceMarkers={};
+  return b.mapMarkers[sk]&&typeof b.mapMarkers[sk]==='object'?b.mapMarkers[sk]:{};
+}
+
+function setBackstoryMapMarker(scope,id,entry){
+  const bucket=getBackstoryMarkerBucket(scope,true);
+  const key=String(id||'').trim();
+  if(!key)return;
+  if(!entry||typeof entry!=='object')return;
+  bucket[key]={
+    key:String(entry.key||''),
+    label:String(entry.label||'Anchor'),
+    icon:String(entry.icon||'✶'),
+    detail:String(entry.detail||'')
+  };
+  if(String(scope||'province').toLowerCase()==='province')S.backstory.provinceMarkers=Object.assign({},bucket);
+}
+
+function getBackstoryMapMarker(scope,key){
+  const bucket=getBackstoryMarkerBucket(scope,false);
+  const val=String(key||'');
+  const ids=Object.keys(bucket);
+  for(let i=0;i<ids.length;i++){
+    const entry=bucket[ids[i]];
+    if(entry&&String(entry.key||'')===val)return entry;
+  }
+  return null;
+}
+
+function ensureBackstoryScopeMarkers(scope,candidates,opts){
+  const list=Array.isArray(candidates)?candidates.filter(function(c){return c&&c.key!==undefined&&c.key!==null;}):[];
+  if(!list.length)return;
+  const options=opts&&typeof opts==='object'?opts:{};
+  const bucket=getBackstoryMarkerBucket(scope,true);
+  const valid={};
+  list.forEach(function(c){valid[String(c.key)]=true;});
+  Object.keys(bucket).forEach(function(id){
+    const e=bucket[id];
+    if(!e||!valid[String(e.key||'')])delete bucket[id];
+  });
+  if(Object.keys(bucket).length)return;
+
+  const b=S.backstory||{};
+  const used={};
+  const pickByType=function(types){
+    const t=Array.isArray(types)?types:[];
+    let pool=list.filter(function(c){
+      const ck=String(c.key||'');
+      return !used[ck]&&(!t.length||t.indexOf(String(c.type||''))>=0);
+    });
+    if(!pool.length)pool=list.filter(function(c){return !used[String(c.key||'')];});
+    if(!pool.length)return null;
+    const selected=pick(pool);
+    used[String(selected.key||'')]=true;
+    return selected;
+  };
+
+  const home=pickByType(options.homeTypes||[]);
+  if(home){
+    setBackstoryMapMarker(scope,'home',{key:String(home.key),label:options.homeLabel||'Origin Echo',icon:options.homeIcon||'⌂',detail:b.hometown||'A place tied to your beginnings.'});
+  }
+  const rival=pickByType(options.rivalTypes||[]);
+  if(rival&&b.rival){
+    setBackstoryMapMarker(scope,'rival',{key:String(rival.key),label:options.rivalLabel||'Rival Trail',icon:options.rivalIcon||'⚔',detail:b.rival});
+  }
+  const ally=pickByType(options.connectionTypes||[]);
+  if(ally&&b.connection){
+    setBackstoryMapMarker(scope,'connection',{key:String(ally.key),label:options.connectionLabel||'Trusted Contact',icon:options.connectionIcon||'✶',detail:b.connection});
+  }
 }
 
 function setBackstoryField(key,value){
@@ -1817,44 +1905,50 @@ function assignBackstoryProvinceMarkers(){
     showNotif('Generate Province first, then populate backstory anchors.','warn');
     return;
   }
-  const b=S.backstory||{};
-  const used={};
-  const markers={};
-  const homeHex=chooseProvinceHexByType(['dwelling','holding','seat'],used);
-  if(homeHex){
-    const key=homeHex.col+','+homeHex.row;
-    used[key]=true;
-    markers.home={key:key,label:'Hometown Anchor',icon:'⌂',detail:b.hometown||'A place tied to your beginnings.'};
-  }
-  const rivalHex=chooseProvinceHexByType(['peril','ruins','barrier'],used);
-  if(rivalHex&&b.rival){
-    const key=rivalHex.col+','+rivalHex.row;
-    used[key]=true;
-    markers.rival={key:key,label:'Rival Trail',icon:'⚔',detail:b.rival};
-  }
-  const allyHex=chooseProvinceHexByType(['holding','temple','trade','dwelling'],used);
-  if(allyHex&&b.connection){
-    const key=allyHex.col+','+allyHex.row;
-    used[key]=true;
-    markers.connection={key:key,label:'Trusted Contact',icon:'✶',detail:b.connection};
-  }
-  S.backstory.provinceMarkers=markers;
+  ensureBackstoryScopeMarkers('province',mapData.map(function(h){
+    return {key:h.col+','+h.row,type:h.type,label:h.name||''};
+  }),{
+    homeTypes:['dwelling','holding','seat'],
+    rivalTypes:['peril','ruins','barrier'],
+    connectionTypes:['holding','temple','trade','dwelling'],
+    homeLabel:'Hometown Anchor',
+    rivalLabel:'Rival Trail',
+    connectionLabel:'Trusted Contact'
+  });
+  S.backstory.provinceMarkers=Object.assign({},getBackstoryMarkerBucket('province',false));
   renderBackstoryTab();
   renderHexMap();
   if(selectedHex)renderHexInfo(selectedHex);
   showNotif('Backstory anchors placed on the Province map.','good');
 }
 
-function getBackstoryProvinceMarker(key){
+function assignBackstoryMarkersAcrossMaps(){
   ensureBackstoryState();
-  const markers=(S.backstory&&S.backstory.provinceMarkers&&typeof S.backstory.provinceMarkers==='object')?S.backstory.provinceMarkers:{};
-  const val=String(key||'');
-  const ids=Object.keys(markers);
-  for(let i=0;i<ids.length;i++){
-    const entry=markers[ids[i]];
-    if(entry&&String(entry.key||'')===val)return entry;
+  assignBackstoryProvinceMarkers();
+  if(S.lastSea&&Array.isArray(S.lastSea.hexes)&&S.lastSea.hexes.length){
+    ensureBackstoryScopeMarkers('sea',S.lastSea.hexes.map(function(h){
+      return {key:String(h.key||''),type:String(h.type||'sea'),label:String(h.title||h.islandName||'Open Sea')};
+    }),{homeTypes:['island','harbor'],rivalTypes:['storm','monster','peril','sea'],connectionTypes:['island','harbor','market']});
   }
-  return null;
+  if(S.starSystem&&Array.isArray(S.starSystem.hexes)&&S.starSystem.hexes.length){
+    ensureBackstoryScopeMarkers('galaxy',S.starSystem.hexes.map(function(h){
+      return {key:String(h.id),type:String(h.type||''),label:'Hex '+String(h.id)};
+    }),{homeTypes:['planet','hub'],rivalTypes:['hazard','star','void'],connectionTypes:['hub','planet','relay']});
+  }
+  if(S.worldThatWas&&Array.isArray(S.worldThatWas.hexes)&&S.worldThatWas.hexes.length){
+    ensureBackstoryScopeMarkers('wtw',S.worldThatWas.hexes.map(function(h){
+      return {key:String(h.id),type:String(h.zone||''),label:String(h.zone||'District')};
+    }),{});
+  }
+  renderBackstoryTab();
+  if(typeof renderLastSeaMap==='function')renderLastSeaMap();
+  if(typeof renderStarSystemMap==='function')renderStarSystemMap();
+  if(typeof renderWorldThatWas==='function')renderWorldThatWas();
+  if(typeof renderPlanetExplorationPanel==='function')renderPlanetExplorationPanel();
+}
+
+function getBackstoryProvinceMarker(key){
+  return getBackstoryMapMarker('province',key);
 }
 
 function renderBackstoryTab(){
@@ -1885,15 +1979,20 @@ function renderBackstoryTab(){
 
   const markerHost=document.getElementById('backstoryMarkerList');
   if(markerHost){
-    const markers=(b.provinceMarkers&&typeof b.provinceMarkers==='object')?b.provinceMarkers:{};
-    const ids=Object.keys(markers).filter(function(k){return markers[k]&&markers[k].key;});
-    if(!ids.length){
+    const scopes=['province','sea','galaxy','wtw','planet'];
+    const rows=[];
+    scopes.forEach(function(scope){
+      const markers=getBackstoryMarkerBucket(scope,false);
+      Object.keys(markers).forEach(function(k){
+        const m=markers[k];
+        if(!m||!m.key)return;
+        rows.push('<div>'+escapeHtmlLite((m.icon||'✶')+' '+(m.label||'Anchor'))+' ['+escapeHtmlLite(scope.toUpperCase())+'] → ['+escapeHtmlLite(m.key)+'] '+escapeHtmlLite(m.detail||'')+'</div>');
+      });
+    });
+    if(!rows.length){
       markerHost.textContent='No anchors assigned yet.';
     }else{
-      markerHost.innerHTML=ids.map(function(k){
-        const m=markers[k];
-        return '<div>'+escapeHtmlLite((m.icon||'✶')+' '+(m.label||'Anchor'))+' → ['+escapeHtmlLite(m.key)+'] '+escapeHtmlLite(m.detail||'')+'</div>';
-      }).join('');
+      markerHost.innerHTML=rows.join('');
     }
   }
 }
@@ -1904,7 +2003,10 @@ window.rollBackstoryField=rollBackstoryField;
 window.generateBackstory=generateBackstory;
 window.applyBackstoryToCharacter=applyBackstoryToCharacter;
 window.assignBackstoryProvinceMarkers=assignBackstoryProvinceMarkers;
+window.assignBackstoryMarkersAcrossMaps=assignBackstoryMarkersAcrossMaps;
 window.getBackstoryProvinceMarker=getBackstoryProvinceMarker;
+window.getBackstoryMapMarker=getBackstoryMapMarker;
+window.ensureBackstoryScopeMarkers=ensureBackstoryScopeMarkers;
 window.renderBackstoryTab=renderBackstoryTab;
 
 function getBackpackCapacity(){
@@ -6103,6 +6205,38 @@ function setProvinceSelectedKey(key){
   return true;
 }
 
+function sanitizeProvinceHexEntry(hex){
+  if(!hex||typeof hex!=='object')return null;
+  const col=Number(hex.col),row=Number(hex.row);
+  if(!Number.isFinite(col)||!Number.isFinite(row))return null;
+  const safeTerrain=(hex.terrain&&typeof hex.terrain==='object')?hex.terrain:{name:'Unknown',color:'#1a2010'};
+  if(typeof safeTerrain.name!=='string')safeTerrain.name='Unknown';
+  if(typeof safeTerrain.color!=='string')safeTerrain.color='#1a2010';
+  return {
+    col:col,
+    row:row,
+    terrain:safeTerrain,
+    type:typeof hex.type==='string'?hex.type:'wilderness',
+    name:typeof hex.name==='string'?hex.name:'',
+    data:(hex.data&&typeof hex.data==='object')?hex.data:{}
+  };
+}
+
+function sanitizeProvinceMapData(raw){
+  if(!Array.isArray(raw))return [];
+  const cleaned=[];
+  const seen={};
+  for(let i=0;i<raw.length;i++){
+    const safe=sanitizeProvinceHexEntry(raw[i]);
+    if(!safe)continue;
+    const key=safe.col+','+safe.row;
+    if(seen[key])continue;
+    seen[key]=true;
+    cleaned.push(safe);
+  }
+  return cleaned;
+}
+
 function applyProvinceMapState(payload,opts){
   const incoming=payload&&typeof payload==='object'?payload:null;
   if(!incoming||!Array.isArray(incoming.mapData)||!incoming.mapData.length)return;
@@ -6118,7 +6252,8 @@ function applyProvinceMapState(payload,opts){
     else{const c=document.getElementById('hexInfo');if(c)c.innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Select a hex to inspect it.</div></div>';} 
     return;
   }
-  mapData=cloneProvinceState(incoming.mapData)||[];
+  mapData=sanitizeProvinceMapData(cloneProvinceState(incoming.mapData)||[]);
+  if(!mapData.length)return;
   hexNotes=cloneProvinceState(incoming.hexNotes||{})||{};
   usedPerils=Array.isArray(incoming.usedPerils)?incoming.usedPerils.slice():[];
   usedBarriers=Array.isArray(incoming.usedBarriers)?incoming.usedBarriers.slice():[];
@@ -6572,6 +6707,13 @@ function renderHexMap(){
         selectedHex=hex;
         renderHexMap();
         renderHexInfo(hex);
+        if(moved&&typeof window.rollRivalEncounterForMap==='function'){
+          window.rollRivalEncounterForMap('province',{
+            key:markerKey,
+            label:hex.name||hex.type,
+            terrain:(hex.terrain&&hex.terrain.name)?hex.terrain.name:hex.type
+          });
+        }
         if(moved&&typeof window.autoAdvanceMissionFromProvinceHex==='function')window.autoAdvanceMissionFromProvinceHex(hex);
         if(window.campaignSystem&&typeof window.campaignSystem.syncProvinceFocus==='function'){
           window.campaignSystem.syncProvinceFocus('province-click');
@@ -8368,6 +8510,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script defer src="./stars-expansion.js"></script>
 <script defer src="./storyline-system.js"></script>
 <script defer src="./world-that-was.js"></script>
+<script defer src="./rival-system.js"></script>
 <script defer src="./shared-puzzles.js"></script>
 <script defer src="./economy-ledger-system.js"></script>
 <script defer src="./teamwork-rules-system.js"></script>

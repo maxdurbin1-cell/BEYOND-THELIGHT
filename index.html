@@ -4372,14 +4372,30 @@ var ZONE_TERRAIN=['Open Field - no cover, all zones accessible','Ruined Structur
 function rollCombatOpener(){
   var panel=document.getElementById('combatOpenerPanel');
   var rows=document.getElementById('combatOpenerRows');
+  if(!S.combat)S.combat={};
   if(!panel||!rows)return;
   var zone=Math.ceil(Math.random()*10);
   var coverD4=Math.ceil(Math.random()*4);
   var coverD20=Math.ceil(Math.random()*20);
   var coverTotal=coverD4+coverD20;
+  var coverTier=coverTotal<=8?'none':coverTotal<=14?'partial':coverTotal<=19?'heavy':'full';
   var coverDesc=coverTotal<=8?'No Cover':coverTotal<=14?'Partial Cover (+1 Defend)':coverTotal<=19?'Heavy Cover (+2 Defend)':'Full Cover (immune to ranged)';
   var reaction=Math.ceil(Math.random()*10);
   var activity=Math.ceil(Math.random()*6);
+  S.combat.sceneOpener={
+    zoneRoll:zone,
+    zoneTerrain:ZONE_TERRAIN[zone-1],
+    coverD4:coverD4,
+    coverD20:coverD20,
+    coverTotal:coverTotal,
+    coverTier:coverTier,
+    coverDesc:coverDesc,
+    reactionRoll:reaction,
+    reactionText:ENCOUNTER_REACTIONS[reaction-1],
+    activityRoll:activity,
+    activityText:ENEMY_ACTIVITIES[activity-1],
+    updatedAt:Date.now()
+  };
   rows.innerHTML=
     '<div style="font-size:.68rem;color:var(--muted2);">Zone (d10)</div>'
     +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+zone+' — '+ZONE_TERRAIN[zone-1]+'</div>'
@@ -4389,10 +4405,12 @@ function rollCombatOpener(){
     +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+reaction+' — '+ENCOUNTER_REACTIONS[reaction-1]+'</div>'
     +'<div style="font-size:.68rem;color:var(--muted2);">Enemy Activity (d6)</div>'
     +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+activity+' — '+ENEMY_ACTIVITIES[activity-1]+'</div>';
-  panel.style.display='';
+  panel.style.display='none';
   // Auto-adjust spacing based on reaction
   if(reaction<=2&&typeof setCombatSpacing==='function')setCombatSpacing('Engaged (Strike)',false);
   else if(reaction>=7&&typeof setCombatSpacing==='function')setCombatSpacing('Nearby (Shoot)',false);
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
 }
 
 // ── WAYFARER ACTION DROPDOWN ──────────────────────────────────────────────────
@@ -4692,6 +4710,8 @@ function applyStressToEnemy(enemy, stress, source){
   }
   if(typeof renderEnemies==='function')renderEnemies();
   if(typeof renderQP==='function')renderQP('combat');
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
 }
 
 function finalizeEnemyTurn(enemy){
@@ -5467,7 +5487,13 @@ function addEnemy(nameArg,dreadArg){
   renderEnemies();
   if(typeof renderQP==='function')renderQP('combat');
 }
-function clearEnemies(){S.enemies=[];renderEnemies();if(typeof renderQP==='function')renderQP('combat');}
+function clearEnemies(){
+  S.enemies=[];
+  renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
+}
 
 function damageEnemyHealth(idx,amount){
   if(!Array.isArray(S.enemies)||!S.enemies[idx])return;
@@ -5503,9 +5529,26 @@ function enemyPip(id,i){
   }
   renderEnemies();
   if(typeof renderQP==='function')renderQP('combat');
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
 }
-function removeEnemy(id){S.enemies=S.enemies.filter(e=>e.id===id?false:true);renderEnemies();if(typeof renderQP==='function')renderQP('combat');}
-function toggleEnemySide(id){const e=S.enemies.find(x=>x.id===id);if(!e)return;e.ally=!e.ally;renderEnemies();if(typeof renderQP==='function')renderQP('combat');showNotif(e.name+' is now '+(e.ally?'an Ally':'Hostile'),'info');}
+function removeEnemy(id){
+  S.enemies=S.enemies.filter(e=>e.id===id?false:true);
+  renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
+}
+function toggleEnemySide(id){
+  const e=S.enemies.find(x=>x.id===id);
+  if(!e)return;
+  e.ally=!e.ally;
+  renderEnemies();
+  if(typeof renderQP==='function')renderQP('combat');
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
+  showNotif(e.name+' is now '+(e.ally?'an Ally':'Hostile'),'info');
+}
 function enemyAttack(id){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;

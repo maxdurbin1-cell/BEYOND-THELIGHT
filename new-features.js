@@ -2423,28 +2423,107 @@
 
   function syncMapFromTrackers() {
     ensureNewFeatureState();
+    if (typeof S === 'undefined' || !S || !S.combat || !S.combat.active) { return; }
+    function spacingToZone(spacingVal) {
+      var txt = String(spacingVal || '');
+      if (txt.indexOf('Engaged') >= 0) { return 'Engaged'; }
+      if (txt.indexOf('Close') >= 0) { return 'Close'; }
+      if (txt.indexOf('Far') >= 0) { return 'Far'; }
+      return 'Nearby';
+    }
     // Auto-add player as ally if not on the map yet
     var playerName = (typeof S !== 'undefined' && S.name && S.name.trim()) ? S.name : 'You';
     var hasPlayer = S.combatMap.units.some(function(u){ return u.side === 'ally' && u.name === playerName; });
-    if (!hasPlayer && typeof S !== 'undefined' && S.combat && S.combat.active) {
+    if (!hasPlayer) {
       // Determine starting zone from spacing select
       var spacingEl = document.getElementById('spacingSelect');
-      var spacingVal = spacingEl ? spacingEl.value : '';
-      var startZone = spacingVal.indexOf('Engaged') >= 0 ? 'Engaged'
-        : spacingVal.indexOf('Close') >= 0 ? 'Close'
-        : spacingVal.indexOf('Far') >= 0 ? 'Far' : 'Nearby';
+      var startZone = spacingToZone(spacingEl ? spacingEl.value : '');
       S.combatMap.units.push({ id: combatMapUnitId++, name: playerName, side: 'ally', zone: startZone, isPlayer: true });
-    } else if (hasPlayer && typeof S !== 'undefined' && S.combat && S.combat.active) {
+    } else if (hasPlayer) {
       // Mirror spacing select → player zone
       var spacingEl2 = document.getElementById('spacingSelect');
-      var spacingVal2 = spacingEl2 ? spacingEl2.value : '';
-      var mirrorZone = spacingVal2.indexOf('Engaged') >= 0 ? 'Engaged'
-        : spacingVal2.indexOf('Close') >= 0 ? 'Close'
-        : spacingVal2.indexOf('Far') >= 0 ? 'Far' : 'Nearby';
+      var mirrorZone = spacingToZone(spacingEl2 ? spacingEl2.value : '');
       S.combatMap.units.forEach(function(u) {
         if (u.side === 'ally' && u.name === playerName) { u.zone = mirrorZone; }
       });
     }
+
+    // Auto-sync enemies/companions from the combat tracker into map markers.
+    if (!Array.isArray(S.enemies)) { return; }
+    var desired = {};
+    S.enemies.forEach(function(enemy, idx) {
+      if (!enemy) { return; }
+      var baseName = String(enemy.name || ((enemy.ally ? 'Ally' : 'Enemy') + ' ' + (idx + 1)));
+      var faction = enemy.faction ? (' [' + String(enemy.faction) + ']') : '';
+      var side = enemy.ally ? 'ally' : 'enemy';
+      var key = side + ':' + String(enemy.id != null ? enemy.id : baseName);
+      desired[key] = { key: key, name: baseName + faction, side: side };
+    });
+
+    S.combatMap.units.forEach(function(unit) {
+      if (!unit || !unit.fromTracker || !unit.trackerKey) { return; }
+      var data = desired[unit.trackerKey];
+      if (!data) { return; }
+      unit.name = data.name;
+      unit.side = data.side;
+    });
+
+    Object.keys(desired).forEach(function(key) {
+      var found = S.combatMap.units.some(function(u){ return !!u && u.fromTracker && u.trackerKey === key; });
+      if (found) { return; }
+      var enemyZone = 'Engaged';
+      var opener = (S && S.combat && S.combat.sceneOpener) ? S.combat.sceneOpener : null;
+      var activityText = opener && opener.activityText ? String(opener.activityText) : '';
+      if (/fleeing/i.test(activityText)) { enemyZone = 'Far'; }
+      else if (/ambush/i.test(activityText)) { enemyZone = 'Nearby'; }
+      else if (opener && Number(opener.reactionRoll || 0) >= 7) { enemyZone = 'Nearby'; }
+      else if (opener && Number(opener.reactionRoll || 0) >= 3) { enemyZone = 'Close'; }
+      S.combatMap.units.push({
+        id: combatMapUnitId++,
+        name: desired[key].name,
+        side: desired[key].side,
+        zone: desired[key].side === 'enemy' ? enemyZone : 'Close',
+        fromTracker: true,
+        trackerKey: key
+      });
+    });
+
+    S.combatMap.units = S.combatMap.units.filter(function(unit) {
+      if (!unit || !unit.fromTracker || !unit.trackerKey) { return true; }
+      return !!desired[unit.trackerKey];
+    });
+  }
+
+  function getSceneCoverOverlays(zones) {
+    var overlays = {};
+    if (typeof S === 'undefined' || !S || !S.combat || !S.combat.sceneOpener) { return overlays; }
+    var opener = S.combat.sceneOpener;
+    var tier = String(opener.coverTier || '');
+    if (!tier || tier === 'none') { return overlays; }
+    var terrain = String(opener.zoneTerrain || '');
+    var targets = [];
+    if (/far zone/i.test(terrain)) { targets = ['Far']; }
+    else if (/close\/nearby/i.test(terrain)) { targets = ['Close', 'Nearby']; }
+    else if (/engaged only/i.test(terrain)) { targets = ['Engaged']; }
+    else if (/no far zone/i.test(terrain)) { targets = ['Engaged', 'Close', 'Nearby']; }
+    else { targets = zones.slice(); }
+
+    var coverLabel = tier === 'partial' ? 'Partial Cover (+1 Defend)'
+      : tier === 'heavy' ? 'Heavy Cover (+2 Defend)'
+      : 'Full Cover (immune to ranged)';
+    var badgeBg = tier === 'partial' ? 'rgba(201,162,39,.14)'
+      : tier === 'heavy' ? 'rgba(201,100,39,.16)'
+      : 'rgba(201,64,64,.14)';
+    var badgeBorder = tier === 'partial' ? 'rgba(201,162,39,.55)'
+      : tier === 'heavy' ? 'rgba(201,100,39,.55)'
+      : 'rgba(201,64,64,.55)';
+
+    targets.forEach(function(zone) {
+      overlays[zone] = (overlays[zone] || '')
+        + '<div style="margin-top:.2rem;padding:.15rem .3rem;background:'+badgeBg+';border:1px solid '+badgeBorder+';border-radius:4px;font-size:.63rem;color:var(--text2);">'
+        + '🛡 ' + coverLabel + '</div>';
+    });
+    return overlays;
   }
 
   function getFlavorOverlays() {
@@ -2487,6 +2566,7 @@
       Far:     { color: "rgba(122,120,152,.06)",  border: "rgba(122,120,152,.25)",  range: "Out of Range" }
     };
     var flavOverlays = getFlavorOverlays();
+    var coverOverlays = getSceneCoverOverlays(zones);
     // Determine player zone for distance indicator
     var playerName2 = (typeof S !== 'undefined' && S.name && S.name.trim()) ? S.name : 'You';
     var playerUnit2 = S.combatMap.units.filter(function(u){ return u.side === 'ally' && u.name === playerName2; })[0];
@@ -2521,7 +2601,7 @@
           + '<button style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:.68rem;line-height:1;" onclick="removeCombatUnit(' + u.id + ')">✕</button>'
           + '</div>';
       }).join("");
-      var overlay = flavOverlays[zone] || '';
+      var overlay = (coverOverlays[zone] || '') + (flavOverlays[zone] || '');
       return '<div style="border:2px solid ' + info.border + ';background:' + info.color + ';padding:.45rem .55rem;margin-bottom:.3rem;' + (overlay ? 'box-shadow:0 0 6px '+info.border+';' : '') + '">'
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">'
         + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:' + info.border + ';">' + zone + distBadge + '</div>'

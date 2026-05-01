@@ -3288,6 +3288,7 @@
       : ensureCampaignTravelState(sharedState);
     var gmSettings = ensureGmSettings(sharedState);
     var strictCameraLock = !!(gmSettings && gmSettings.cameraLock);
+    var isGm = state.role === "gm";
     var sessionTimeline = Array.isArray(sharedState.sessionTimeline)
       ? sharedState.sessionTimeline
       : ensureSessionTimelineState(sharedState);
@@ -3300,6 +3301,12 @@
     var readyRequiredCount = Array.isArray(readyCheck.requiredTokens) ? readyCheck.requiredTokens.length : 0;
     var readyResponseCount = getReadyCheckResponseCount(readyCheck);
     var readyStatusText = String(readyCheck.status || "idle");
+    var combatReadyPending = !!(readyCheck && readyCheck.id
+      && readyStatusText === "pending"
+      && String(readyCheck.type || "") === "combat-start");
+    var combatReadyHintHtml = combatReadyPending
+      ? ('<span class="campaign-muted" style="font-size:.74rem;align-self:center;">Ready check pending... ' + readyResponseCount + '/' + readyRequiredCount + '</span>')
+      : '';
     var canRespondReady = !!(state.token && readyCheck && readyCheck.responses && !readyCheck.responses[state.token]);
     var readyCheckCardHtml = '';
     if (readyCheck && readyCheck.id && readyStatusText !== "idle") {
@@ -3321,7 +3328,6 @@
           return { item: String(item || "").trim(), idx: idx };
         }).filter(function (entry) { return !!entry.item; })
       : [];
-    var isGm = state.role === "gm";
     var active = campaign && campaign.activeRollRequest;
     var privateNote = campaign && campaign.me ? String(campaign.me.privateNote || "") : "";
     var nameValue = state.uiDraft.name || state.playerName || ensureName();
@@ -3488,6 +3494,7 @@
           + '<div class="campaign-muted" style="margin-bottom:.35rem;">Multi-player combat coordination and party travel control</div>'
           + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
           + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.startCampaignCombat(window.campaignSystem.buildPartyRoster())">Start Combat</button>'
+          + combatReadyHintHtml
           + '<button class="btn btn-xs" onclick="window.campaignSystem.nextCombatActor()">Next Actor</button>'
           + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.endCampaignCombat()">End Combat</button>'
           + '</div>'

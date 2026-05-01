@@ -31,7 +31,7 @@ nav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center
 .tab-btn{background:rgba(255,255,255,.01);border:1px solid transparent;color:var(--muted2);font-family:'Cinzel',serif;font-size:.71rem;letter-spacing:.12em;padding:.42rem .82rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.2rem;border-radius:999px;}
 .tab-btn:hover{color:var(--gold);border-color:rgba(201,162,39,.26);background:rgba(201,162,39,.05);transform:translateY(-1px);}
 .tab-btn.active{color:var(--gold3);border-color:rgba(201,162,39,.45);background:linear-gradient(180deg,rgba(201,162,39,.14) 0%,rgba(201,162,39,.06) 100%);box-shadow:0 0 0 1px rgba(201,162,39,.08) inset;}
-.header-credits{display:flex;align-items:center;gap:.55rem;cursor:pointer;padding:.42rem .78rem;border:1px solid rgba(201,162,39,.18);transition:border-color .15s,transform .15s;background:linear-gradient(180deg,rgba(201,162,39,.08) 0%,rgba(255,255,255,.02) 100%);border-radius:14px;justify-self:end;min-width:8.5rem;justify-content:space-between;}
+.header-credits{display:flex;align-items:center;gap:.55rem;cursor:pointer;padding:.42rem .78rem;border:1px solid rgba(201,162,39,.18);transition:border-color .15s,transform .15s;background:linear-gradient(180deg,rgba(201,162,39,.08) 0%,rgba(255,255,255,.02) 100%);border-radius:14px;justify-self:end;min-width:8.5rem;justify-content:space-between;margin-left:-.95rem;}
 .header-credits:hover{border-color:var(--gold);transform:translateY(-1px);}
 .header-credits .cl{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;}
 .header-credits .amt{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.02rem;color:var(--gold);}
@@ -287,7 +287,7 @@ select option{background:#0f1020;}
   #qpContent{padding:.52rem;}
 }
 @media(max-width:980px){header{grid-template-columns:1fr auto;align-items:start;}.logo{grid-column:1 / 2;}.ctx-bar{grid-column:1 / -1;}.header-credits{grid-column:2 / 3;align-self:start;}.tab-btn{font-size:.68rem;padding:.4rem .72rem;}}
-@media(max-width:680px){header{grid-template-columns:1fr;}.header-credits{grid-column:1 / -1;justify-self:stretch;}.ctx-bar{padding:.3rem .34rem;}nav{padding:.4rem;gap:.24rem;}#main-content{padding:1rem .7rem 2rem;}}
+@media(max-width:680px){header{grid-template-columns:1fr;}.header-credits{grid-column:1 / -1;justify-self:stretch;margin-left:-.55rem;}.ctx-bar{padding:.3rem .34rem;}nav{padding:.4rem;gap:.24rem;}#main-content{padding:1rem .7rem 2rem;}}
 .job-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
 .job-difficulty{font-size:.7rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}
 .job-reward{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);margin-top:.2rem;}
@@ -806,7 +806,7 @@ select option{background:#0f1020;}
         </div>
         <div style="font-family:'Rajdhani',sans-serif;font-size:.9rem;color:var(--red);margin-top:.3rem;">Enemy Dread: <span id="enemyDreadDisplay" style="font-weight:700;">d8</span></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.4rem;">
         <div><span class="sub-label">Spacing / Zone</span>
           <select id="spacingSelect" onchange="setCombatSpacing(this.value,true)">
             <option>Engaged (Strike)</option><option>Close (Scrolls)</option><option>Nearby (Shoot)</option>
@@ -819,6 +819,14 @@ select option{background:#0f1020;}
             <button class="step-btn" onclick="S.combat.actionsLeft++;updateCombatUI()">+</button>
           </div>
           <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;" id="maxActionsHint"></div>
+        </div>
+        <div><span class="sub-label">Enemy Actions Left</span>
+          <div class="counter-row" style="padding-top:.3rem;">
+            <span class="counter-val red-val" id="enemyActionsLeftMain" style="font-size:1.6rem;">0</span>
+            <span style="font-size:.86rem;color:var(--muted2);">/</span>
+            <span class="counter-val" id="enemyActionsMaxMain" style="font-size:1.1rem;color:var(--muted2);min-width:1.6rem;">0</span>
+          </div>
+          <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;">Ticks down as Defend/Enemy Action resolves.</div>
         </div>
       </div>
     </div>
@@ -1372,8 +1380,23 @@ const REASONS=['Sent by a corporation to steal a sacred object','Sheer greed dri
 const TRAITS={physique:['Athletic','Brawny','Flabby','Lanky','Chiseled','Scraggly','Short','Dashing','Stout','Enormous'],skin:['Birthmarked','Scarred','Dark','Rosy','Pockmarked','Soft','Tanned','Weathered','Hairy','Tattooed'],hair:['Bald','Long','Braided','Mohawked','Frizzy','Curled','Wavy','Oily','Luxurious','Dreadlocked'],face:['Elongated','Bony','Broken','Pale','Rugged','Chiseled','Squatty','Sunken','Square','Round'],clothing:['Antique','Bloody','Elegant','Soiled','Exotic','Royal','Eclectic','Topless','Plain','Tattered'],virtue:['Respect','Justice','Wisdom','Resolution','Mercy','Reliable','Hope','Courage','Moderation','Helpful'],vice:['Angry','Arrogant','Envious','Glutton','Greedy','Lustful','Lazy','Drunk','Coward','Vain'],reputation:['Leader','Loafer','Dangerous','Honest','Wise','Hardworking','Entertaining','Brash','Goofy','Repulsive'],misfortune:['Addicted','Defrauded','Exiled','Cursed','In Debt','Abandoned','Blackmailed','Betrayed','Condemned','Scarred']};
 const PERSONAL_FLAVORS_BASE=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: all Engaged Targets are Shaken','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Regenerate Adventure Die in Stress per Round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana / Mutants & Abilities','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity becomes 20 slots','Deity Pact: Wayfarer missions can include patron demands for favor or debt','Vampire: Blood hunger grants nocturnal power and daylight vulnerability','Werewolf: Bestial strength surges at night with lunar instincts'];
 const PERSONAL_FLAVORS_EXTRAS=['Echo Step: Reposition 1 range band after a successful Defend','Battle Cantor: Ally gains +1 on next Action Die','Glasswalker: Ignore first peril terrain penalty each phase','Iron Lungs: Ignore smoke and ash penalties','Runesmith: Mark one weapon for +1 Stress this scene','Scavenger Memory: First loot roll each day gets reroll','Hex Cartographer: Reveal one adjacent hex detail for free','Solar Needle: One ranged attack per scene gains +2','Grave Whisper: Ask one question to recent dead each day','Storm Veins: First lightning or shock damage each scene is ignored','Ruin Scholar: +1 on checks involving ruins and old tech','Blessed Appetite: Food use heals +1 extra Stress','Duelist Footwork: On hit, step to Nearby without cost','Pathfinder: First traversal check each phase gets +1','Dust Prophet: Predict next weather shift once per day','Mirror Nerves: Immune to first Distracted per scene','Moon Listener: +1 Spirit during Night phase','Chain Breaker: Ignore one restraint effect per scene','Warding Palm: Adjacent ally gains Protected for one roll','Quick Draw: First Strike/Shoot each combat gains +1','Bone Oracle: Read omen from remains once per day','Black Salt Ward: First Horror effect each day is negated','Field Surgeon: Stabilize ally for +1 Health recovery','Signal Caller: +1 Lead on caravan/trade checks','Scrap Alchemist: Convert one junk drop into remedy per day','Silent Knife: +1 Strike when no ally is Engaged','Ash Runner: Ignore first difficult terrain move cost','Beacon Heart: Allies in Close range get +1 vs fear','Clockmind: +1 Control on trap or lock interactions','Wild Empathy: Beasts hesitate before first attack','Grim Resolve: When Health is high stress, gain +1 Defend','Bloodhound: Track a target across two hexes automatically','Cold Reader: +1 Spirit in social deception scenes','Iron Stomach: Ignore first poison each day','Stormglass Eye: See hidden movement in rain/fog','Banner Oath: Gain +1 Lead while carrying mission objective','Trophy Keeper: First enemy defeat each scene gives +1 TMW','Quick Stitch: Once per scene reduce bleed-style penalty','Lantern Scholar: +1 Mind in darkness or ruins','Faultline Sense: Detect unstable ground before crossing','Arc Shot: Ranged attacks can ignore one cover source','Mercy Hand: Spare action grants +1 Renown chance','Rune Tongue: Read unknown glyphs with Mind check','Night Courier: +1 speed-equivalent on night travel actions','Chain Tactician: First ally action after yours gains +1','Cinder Skin: Resist heat and ember hazards','Vault Memory: Never forget map route already visited','Hunt Rhythm: +1 Strike after a successful evade','Vowkeeper: +1 on checks tied to your current task','Steel Prayer: Once per day, negate one Trauma gain','Ghoststride: Movement does not trigger simple traps','Iridescent Blood: Recover +1 Stress when using remedy','Field Quartermaster: Backpack stack cap effectively doubles','Cave Ears: +1 Notice in enclosed spaces','Apex Calm: Cannot be Shaken by minor foes','Shard Focus: +1 Control when using hacks or relics','Ashen Halo: Hostile morale drops on first reveal','Dawnbreaker: First morning action gains +1','Duskcaller: First evening action gains +1','Gale Step: Gain free reposition on crit success','Sable Ward: Reduce first incoming Stress each scene by 1','Fracture Sight: Spot weak points for +1 Shoot','Torchbearer: Allies ignore first darkness penalty','Oathbound Medic: Long Rest heals +1 Trauma every 3 days','Circuit Saint: +1 Mind with old-world devices','Feral Grace: +1 Defend against beasts','Pact Witness: +1 Spirit on deity pact outcomes'];
+function normalizePersonalFlavorWording(text){
+  var t=String(text||'');
+  if(!t)return t;
+  if(t.indexOf('Cave Ears: +1 Notice in enclosed spaces')===0)return 'Cave Ears: +1 Notice and Lead checks in enclosed spaces';
+  t=t.replace(/\+1\s+Shoot(?!\s+checks?)/g,'+1 Shoot checks');
+  t=t.replace(/\+1\s+Strike(?!\s+checks?)/g,'+1 Strike checks');
+  t=t.replace(/\+1\s+Defend(?!\s+checks?)/g,'+1 Defend checks');
+  t=t.replace(/\+1\s+Mind(?!\s+checks?)/g,'+1 Mind checks');
+  t=t.replace(/\+1\s+Spirit(?!\s+checks?)/g,'+1 Spirit checks');
+  t=t.replace(/\+1\s+Control(?!\s+checks?)/g,'+1 Control checks');
+  t=t.replace(/\+1\s+Lead(?!\s+checks?)/g,'+1 Lead checks');
+  t=t.replace(/\+1\s+Body(?!\s+checks?)/g,'+1 Body checks');
+  t=t.replace(/\+1\s+Notice(?!\s+checks?)/g,'+1 Notice checks');
+  return t;
+}
 const PERSONAL_FLAVORS=(function(){
-  var out=PERSONAL_FLAVORS_BASE.concat(PERSONAL_FLAVORS_EXTRAS);
+  var out=PERSONAL_FLAVORS_BASE.concat(PERSONAL_FLAVORS_EXTRAS).map(normalizePersonalFlavorWording);
   while(out.length<100){
     out.push('Legacy Quirk #'+String(out.length+1).padStart(2,'0')+': Unique edge in narrow circumstances');
   }
@@ -3509,6 +3532,11 @@ function getFlavorRuleForEntry(entry){
     rule.effect='Open a silent channel for team coordination: gain tactical momentum without direct confrontation.';
     rule.cue='Lights strongest in Storyline and campaign scenes.';
     rule.matchers=['storylineSocial','leadershipCampaign'];
+  }else if(base.indexOf('cave ears')>=0){
+    rule.trigger='Enclosed spaces, tunnels, ruins, and echo-heavy negotiation scenes.';
+    rule.effect='Heightened acoustics grant +1 Notice and Lead checks in enclosed spaces.';
+    rule.cue='Lights in ruins, underground routes, and indoor social scenes.';
+    rule.matchers=['analysis','storylineSocial'];
   }else if(base.indexOf('leader')>=0){
     rule.trigger='Campaign/faction command scenes or ally-coordination checks.';
     rule.effect='Grant Empowered-style momentum to your faction/team context.';
@@ -4291,6 +4319,10 @@ function updateCombatUI(){
   }
   const al=document.getElementById('actionsLeft');
   if(al)al.textContent=S.combat.actionsLeft;
+  const enemyLeftMain=document.getElementById('enemyActionsLeftMain');
+  if(enemyLeftMain)enemyLeftMain.textContent=(typeof getEnemyActionsRemaining==='function')?getEnemyActionsRemaining():0;
+  const enemyMaxMain=document.getElementById('enemyActionsMaxMain');
+  if(enemyMaxMain)enemyMaxMain.textContent=(typeof getEnemyActionsPerCycle==='function')?Math.max(1,getEnemyActionsPerCycle()):0;
   const ml=document.getElementById('maxActionsHint');
   if(ml)ml.textContent='(max '+getMaxActions()+')';
   if(typeof renderCampaignInitiativePanel==='function')renderCampaignInitiativePanel();

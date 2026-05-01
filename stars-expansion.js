@@ -10138,42 +10138,6 @@ function buildStarsCombatPanel() {
     <span style="font-size:.72rem;color:var(--muted2);">Click a hex to place/remove unit.</span>
   </div>
   <div id="starsCombatZoneContainer"></div>
-</div>
-
-<div class="card">
-  <div class="section-title">Encounter Reaction &amp; Activity</div>
-  <div style="margin-bottom:.5rem;">
-    <span class="sub-label">Encounter Reaction (d10)</span>
-    <button class="btn btn-sm btn-teal" onclick="rollEncounterReaction()">⚄ Roll Reaction</button>
-    <div id="encounterReactionResult" style="font-size:.82rem;color:var(--muted3);margin-top:.3rem;min-height:1rem;line-height:1.4;"></div>
-  </div>
-  <div style="margin-bottom:.5rem;padding-top:.4rem;border-top:1px solid var(--border);">
-    <span class="sub-label">Enemy Activity (d6)</span>
-    <button class="btn btn-sm" onclick="rollEnemyActivity()">⚄ Roll Activity</button>
-    <div id="enemyActivityResult" style="font-size:.82rem;color:var(--muted3);margin-top:.3rem;min-height:1rem;line-height:1.4;"></div>
-  </div>
-  <div style="padding-top:.4rem;border-top:1px solid var(--border);">
-    <span class="sub-label">Teamwork Event (d10)</span>
-    <button class="btn btn-sm btn-teal" onclick="rollTeamworkEvent()">⚄ Roll TMW Event</button>
-    <div id="teamworkEventResult" style="font-size:.82rem;color:var(--muted3);margin-top:.3rem;min-height:1rem;line-height:1.4;"></div>
-  </div>
-</div>
-
-<div class="card">
-  <div class="section-title">Combat Options Reference</div>
-  <div style="font-size:.8rem;color:var(--muted3);line-height:1.7;">
-    <strong style="color:var(--text);">Standard Attack:</strong> Roll Strike or Shoot vs Dread. Hit = difference in Health (min 1).<br>
-    <strong style="color:var(--text);">Heavy Attack:</strong> Costs 2 Actions. Deal +2 Health on hit.<br>
-    <strong style="color:var(--text);">Fast Attack:</strong> Costs 1 Action but die steps down.<br>
-    <strong style="color:var(--text);">Stance:</strong> Spend 1 Action. Choose Aggressive (+1 Strike, −1 Defend) or Defensive (vice versa).<br>
-    <strong style="color:var(--text);">Switch:</strong> Change weapons or spacing for 1 Action.<br>
-    <strong style="color:var(--text);">Use Item:</strong> Spend 1 Action to use a readied item.<br>
-    <strong style="color:var(--text);">Stand/Help:</strong> Spend 1 Action to help ally (they gain Advantage Die).<br>
-    <strong style="color:var(--text);">Moving:</strong> Change zone for 1 Action (Zero-G costs +1 Action).<br>
-    <strong style="color:var(--text);">Surprise:</strong> +2 to first round attacks for acting party.<br>
-    <strong style="color:var(--text);">Cover:</strong> Partial = +1 Defend. Full = cannot be targeted by ranged.<br>
-    <strong style="color:var(--text);">Underwater/Zero-G:</strong> −1 Action per Turn.
-  </div>
 </div>`;
   // Render default zone
   renderStarsCombatZone(1);

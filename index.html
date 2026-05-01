@@ -877,7 +877,7 @@ select option{background:#0f1020;}
             <option value="surprise">Surprise (Control vs Dread) — +2 first round attacks</option>
             <option value="cover_partial">Take Partial Cover — 1 Action (+1 Defend)</option>
             <option value="cover_full">Take Full Cover — 1 Action (immune to ranged)</option>
-            <option value="teamwork_event">⚑ Teamwork Event — Spend TMW for combat bonus</option>
+            <option value="teamwork_event">⚑ Teamwork Event — Spend 5 TMW for unique effect</option>
           </select>
           <button id="wayfarerActionBtn" class="btn btn-primary" onclick="executeWayfarerAction()" style="white-space:nowrap;">⚄ Execute</button>
         </div>
@@ -891,17 +891,19 @@ select option{background:#0f1020;}
         </div>
         <div id="attackResult" style="margin-top:.35rem;font-size:.85rem;"></div>
       </div>
-      <div style="margin-bottom:.6rem;"><span class="sub-label">Defend</span>
-        <button class="btn btn-teal" onclick="rollDefend()">⚄ Roll Defend</button>
-        <div id="defendResult" style="margin-top:.35rem;font-size:.85rem;"></div>
-      </div>
-      <div><span class="sub-label">Trauma Check</span>
-        <button class="btn btn-sm" onclick="rollTraumaCheck()">⚄ Trauma Check</button>
-        <div id="traumaResult" style="margin-top:.3rem;font-size:.85rem;"></div>
-      </div>
-      <div style="margin-top:.6rem;"><span class="sub-label">Enemy Action</span>
-        <button class="btn btn-sm btn-red" onclick="triggerEnemyActionEvent()">☠ Enemy Action</button>
-        <div id="enemyActionResult" style="margin-top:.3rem;font-size:.85rem;"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem;margin-bottom:.6rem;">
+        <div><span class="sub-label">Defend</span><br>
+          <button class="btn btn-teal" onclick="rollDefend()">⚄ Roll Defend</button>
+          <div id="defendResult" style="margin-top:.35rem;font-size:.85rem;"></div>
+        </div>
+        <div><span class="sub-label">Trauma Check</span><br>
+          <button class="btn btn-sm" onclick="rollTraumaCheck()">⚄ Trauma Check</button>
+          <div id="traumaResult" style="margin-top:.3rem;font-size:.85rem;"></div>
+        </div>
+        <div><span class="sub-label">Enemy Action</span><br>
+          <button class="btn btn-sm btn-red" onclick="triggerEnemyActionEvent()">☠ Enemy Action</button>
+          <div id="enemyActionResult" style="margin-top:.3rem;font-size:.85rem;"></div>
+        </div>
       </div>
     </div>
     <div class="card" style="grid-column:1/-1;">
@@ -909,6 +911,15 @@ select option{background:#0f1020;}
       <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.6rem;">
         <button class="btn btn-sm btn-primary" onclick="addEnemy()">+ Add Enemy</button>
         <button class="btn btn-sm btn-red" onclick="clearEnemies()">Clear All</button>
+        <select id="enemyFactionStandingSel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;">
+          <option value="">Random Faction Standing</option>
+          <option value="Military Orders">Military Orders</option>
+          <option value="Religious Entities">Religious Entities</option>
+          <option value="Political Groups">Political Groups</option>
+          <option value="Corporations">Corporations</option>
+          <option value="Rebel Faction">Rebel Faction</option>
+          <option value="The Underworld">The Underworld</option>
+        </select>
       </div>
       <div id="enemyList"></div>
     </div>
@@ -918,11 +929,27 @@ select option{background:#0f1020;}
       <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin-bottom:.5rem;">
         <div style="display:flex;align-items:center;gap:.3rem;">
           <span style="font-size:.68rem;color:var(--muted2);">Your Army faction:</span>
-          <input type="text" id="skirmishFactionA" placeholder="e.g. Iron Vaunt" style="width:9rem;background:var(--surface);border:1px solid var(--border2);color:var(--teal);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;" oninput="document.getElementById('skirmishArmyALabel').textContent=this.value||'Your Army'">
+          <select id="skirmishFactionA" style="width:11rem;background:var(--surface);border:1px solid var(--border2);color:var(--teal);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;" onchange="document.getElementById('skirmishArmyALabel').textContent=this.value||'Your Army'">
+            <option value="Your Army">Choose Faction Standing…</option>
+            <option value="Military Orders">Military Orders</option>
+            <option value="Religious Entities">Religious Entities</option>
+            <option value="Political Groups">Political Groups</option>
+            <option value="Corporations">Corporations</option>
+            <option value="Rebel Faction">Rebel Faction</option>
+            <option value="The Underworld">The Underworld</option>
+          </select>
         </div>
         <div style="display:flex;align-items:center;gap:.3rem;">
           <span style="font-size:.68rem;color:var(--muted2);">Enemy Army faction:</span>
-          <input type="text" id="skirmishFactionB" placeholder="e.g. Void Lords" style="width:9rem;background:var(--surface);border:1px solid var(--border2);color:var(--red2);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;" oninput="document.getElementById('skirmishArmyBLabel').textContent=this.value||'Enemy Army'">
+          <select id="skirmishFactionB" style="width:11rem;background:var(--surface);border:1px solid var(--border2);color:var(--red2);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;" onchange="document.getElementById('skirmishArmyBLabel').textContent=this.value||'Enemy Army'">
+            <option value="Enemy Army">Choose Faction Standing…</option>
+            <option value="Military Orders">Military Orders</option>
+            <option value="Religious Entities">Religious Entities</option>
+            <option value="Political Groups">Political Groups</option>
+            <option value="Corporations">Corporations</option>
+            <option value="Rebel Faction">Rebel Faction</option>
+            <option value="The Underworld">The Underworld</option>
+          </select>
         </div>
         <div style="display:flex;align-items:center;gap:.3rem;">
           <span style="font-size:.68rem;color:var(--muted2);">Fight for:</span>
@@ -4425,15 +4452,43 @@ function updateWayfarerActionBtn(){
   var actions=S&&S.combat?Math.max(0,S.combat.actionsLeft||0):0;
   var tmw=S?Math.max(0,S.tmw||0):0;
   var range=typeof getCombatRange==='function'?getCombatRange():'nearby';
+  var canShoot=typeof canUseAttackAtCurrentRange==='function'?canUseAttackAtCurrentRange('shoot'):true;
+  var canCover=(range==='nearby'||range==='far');
+  var canHelp=(range!=='far');
+  var canStrike=(range==='engaged');
+  var allow={
+    standard_strike:(actions>=1&&canStrike),
+    standard_shoot:(actions>=1&&canShoot),
+    heavy_strike:(actions>=2&&canStrike),
+    heavy_shoot:(actions>=2&&canShoot),
+    fast_strike:canStrike,
+    fast_shoot:canShoot,
+    stance_agg:(actions>=1),
+    stance_def:(actions>=1),
+    switch:(actions>=1),
+    use_item:(actions>=1),
+    stand_help:(actions>=1&&canHelp),
+    move:(actions>=1),
+    surprise:true,
+    cover_partial:(actions>=1&&canCover),
+    cover_full:(actions>=1&&canCover),
+    teamwork_event:(actions>=1&&tmw>=5)
+  };
+  Array.prototype.forEach.call(sel.options,function(opt){
+    if(!opt||!opt.value)return;
+    if(Object.prototype.hasOwnProperty.call(allow,opt.value))opt.disabled=!allow[opt.value];
+  });
   var blocked=false;var hint='';
   if(!v){btn.disabled=true;if(info)info.textContent='';return;}
-  if(v==='standard_strike'){if(actions<1){blocked=true;hint='Need 1 Action. ('+actions+' left)';}else if(range!=='engaged'){blocked=true;hint='Strike requires Engaged range. Current: '+range+'.';}}
-  else if(v==='standard_shoot'){if(actions<1){blocked=true;hint='Need 1 Action.';}else if(range==='engaged'&&!weaponTextAllowsShootRange('engaged')){blocked=true;hint='Shoot not available at Engaged range with current weapon.';}}
-  else if(v==='heavy_strike'){if(actions<2){blocked=true;hint='Need 2 Actions. ('+actions+' left)';}else if(range!=='engaged'){blocked=true;hint='Strike requires Engaged range.';}}
-  else if(v==='heavy_shoot'){if(actions<2){blocked=true;hint='Need 2 Actions. ('+actions+' left)';}}
-  else if(v==='teamwork_event'){if(tmw<1){blocked=true;hint='Need at least 1 TMW. ('+tmw+' available)';}}
-  else if(['stance_agg','stance_def','switch','use_item','stand_help','move','cover_partial','cover_full'].indexOf(v)>=0){if(actions<1){blocked=true;hint='Need 1 Action. ('+actions+' left)';}}
-  // fast attack is always available (free)
+  if(!allow[v]){
+    blocked=true;
+    if(v==='teamwork_event')hint='Need 1 Action and 5 TMW. ('+actions+' Actions, '+tmw+' TMW)';
+    else if(v==='cover_partial'||v==='cover_full')hint='Cover requires Nearby/Far zone and 1 Action.';
+    else if(v==='stand_help')hint='Help requires not being in Far zone and 1 Action.';
+    else if(v==='fast_strike'||v==='standard_strike'||v==='heavy_strike')hint='Strike requires Engaged zone.';
+    else if(v==='fast_shoot'||v==='standard_shoot'||v==='heavy_shoot')hint='Shoot requires valid weapon/range.';
+    else hint='Not available with current spacing/actions.';
+  }
   btn.disabled=blocked;
   btn.style.opacity=blocked?'0.45':'1';
   if(info)info.textContent=blocked?'⚠ '+hint:'';
@@ -4530,8 +4585,17 @@ function executeWayfarerAction(){
     return;
   }
   if(v==='teamwork_event'){
-    if((S.tmw||0)<1){showNotif('No TMW available.','warn');return;}
-    openTMWActions();
+    if((S.tmw||0)<5){showNotif('Need 5 TMW for Teamwork Event.','warn');return;}
+    if(!consumeCombatAction('Teamwork Event'))return;
+    S.tmw=Math.max(0,(S.tmw||0)-5);
+    if(typeof updateTMWPool==='function')updateTMWPool();
+    if(typeof rollTeamworkEvent==='function'){
+      rollTeamworkEvent();
+      setRes('<span style="color:var(--teal);">Teamwork Event triggered (-5 TMW). See event result below.</span>');
+    }else{
+      setRes('<span style="color:var(--teal);">Teamwork Event triggered (-5 TMW).</span>');
+    }
+    showNotif('Teamwork Event activated (-5 TMW).','good');
     return;
   }
 }
@@ -4974,6 +5038,8 @@ function consumeCombatAction(label){
 function maybeResetActionsAfterDefend(){
   if(!S.combat)return;
   S.combat.enemyDefendsThisTurn=(S.combat.enemyDefendsThisTurn||0)+1;
+  updateCombatUI();
+  if(typeof renderQP==='function')renderQP('combat');
   var needed=Math.max(1,getEnemyActionsPerCycle());
   if(S.combat.enemyDefendsThisTurn>=needed){
     S.combat.enemyDefendsThisTurn=0;
@@ -5469,15 +5535,20 @@ function rollTraumaCheck(){
 }
 
 let enemyIdCounter=1;
+function pickRandomFactionStanding(){
+  var opts=['Military Orders','Religious Entities','Political Groups','Corporations','Rebel Faction','The Underworld'];
+  return opts[Math.floor(Math.random()*opts.length)];
+}
 function addEnemy(nameArg,dreadArg){
   const resolvedName=(typeof nameArg==='string'&&nameArg.trim())?nameArg.trim():(prompt('Enemy name:','Enemy '+(S.enemies.length+1))||'Enemy');
   const dd=parseInt(dreadArg,10)||S.combat.enemyDread;
   const maxStress=dd*2;
-  const factionInput=prompt('Faction / Power (optional — e.g. Syndicate, Void Lords, Raider Clan):', '') || '';
-  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress,health:0,conditions:[],faction:factionInput.trim()});
+  const factionSel=document.getElementById('enemyFactionStandingSel');
+  const standing=(factionSel&&factionSel.value)?String(factionSel.value):pickRandomFactionStanding();
+  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress,health:0,conditions:[],faction:standing});
   // Auto-place in zone map as Engaged by default
   if(typeof S.combatMap==='object'&&Array.isArray(S.combatMap.units)){
-    const label=factionInput.trim()?resolvedName+' ['+factionInput.trim()+']':resolvedName;
+    const label=standing?resolvedName+' ['+standing+']':resolvedName;
     if(!S.combatMap.units.some(function(u){return u.side==='enemy'&&u.name===label;})){
       if(typeof window.combatMapUnitId!=='undefined'){window.combatMapUnitId=window.combatMapUnitId||200;}
       S.combatMap.units.push({id:(Date.now()+Math.random())|0,name:label,side:'enemy',zone:'Engaged'});

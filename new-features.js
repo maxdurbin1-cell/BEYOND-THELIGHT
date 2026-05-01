@@ -2508,20 +2508,40 @@
     else if (/no far zone/i.test(terrain)) { targets = ['Engaged', 'Close', 'Nearby']; }
     else { targets = zones.slice(); }
 
+    var terrainLabel = 'Mixed Terrain';
+    var terrainIcon = '🧱';
+    if (/dense jungle|forest/i.test(terrain)) { terrainLabel = 'Dense Jungle / Forest'; terrainIcon = '🌿'; }
+    else if (/ruined structure|urban alley|shipwreck|debris/i.test(terrain)) { terrainLabel = 'Urban Ruins'; terrainIcon = '🏚'; }
+    else if (/cavern|tunnel/i.test(terrain)) { terrainLabel = 'Cavern / Tunnel'; terrainIcon = '🕳'; }
+    else if (/crater/i.test(terrain)) { terrainLabel = 'Crater Field'; terrainIcon = '🪨'; }
+    else if (/storm/i.test(terrain)) { terrainLabel = 'Storm Zone'; terrainIcon = '⛈'; }
+    else if (/open field/i.test(terrain)) { terrainLabel = 'Open Field'; terrainIcon = '🌾'; }
+
     var coverLabel = tier === 'partial' ? 'Partial Cover (+1 Defend)'
       : tier === 'heavy' ? 'Heavy Cover (+2 Defend)'
       : 'Full Cover (immune to ranged)';
+    var coverIcon = tier === 'partial' ? '🛡' : tier === 'heavy' ? '🛡🛡' : '🏰';
     var badgeBg = tier === 'partial' ? 'rgba(201,162,39,.14)'
       : tier === 'heavy' ? 'rgba(201,100,39,.16)'
       : 'rgba(201,64,64,.14)';
     var badgeBorder = tier === 'partial' ? 'rgba(201,162,39,.55)'
       : tier === 'heavy' ? 'rgba(201,100,39,.55)'
       : 'rgba(201,64,64,.55)';
+    var stripe = tier === 'partial'
+      ? 'repeating-linear-gradient(135deg,rgba(201,162,39,.12),rgba(201,162,39,.12) 6px,rgba(255,255,255,0) 6px,rgba(255,255,255,0) 12px)'
+      : tier === 'heavy'
+      ? 'repeating-linear-gradient(135deg,rgba(201,100,39,.13),rgba(201,100,39,.13) 6px,rgba(255,255,255,0) 6px,rgba(255,255,255,0) 12px)'
+      : 'repeating-linear-gradient(135deg,rgba(201,64,64,.14),rgba(201,64,64,.14) 6px,rgba(255,255,255,0) 6px,rgba(255,255,255,0) 12px)';
 
     targets.forEach(function(zone) {
       overlays[zone] = (overlays[zone] || '')
-        + '<div style="margin-top:.2rem;padding:.15rem .3rem;background:'+badgeBg+';border:1px solid '+badgeBorder+';border-radius:4px;font-size:.63rem;color:var(--text2);">'
-        + '🛡 ' + coverLabel + '</div>';
+        + '<div style="margin-top:.22rem;padding:.2rem .34rem;background:'+badgeBg+';background-image:'+stripe+';border:1px solid '+badgeBorder+';border-radius:4px;font-size:.62rem;color:var(--text2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 0 6px rgba(0,0,0,.15);">'
+        + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;">'
+        + '<span style="font-weight:700;letter-spacing:.02em;">'+coverIcon+' ' + coverLabel + '</span>'
+        + '<span style="font-size:.56rem;color:var(--muted2);">COVER</span>'
+        + '</div>'
+        + '<div style="margin-top:.1rem;font-size:.58rem;color:var(--muted2);">'+terrainIcon+' ' + terrainLabel + '</div>'
+        + '</div>';
     });
     return overlays;
   }

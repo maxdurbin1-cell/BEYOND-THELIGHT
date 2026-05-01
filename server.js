@@ -34,6 +34,7 @@ const AUTHORITATIVE_STATE_KEYS = [
   "starSystem",
   "worldThatWas",
   "gameDate",
+  "combatScene",
   "gmSettings",
   "campaignTravel",
   "factionRenown",
@@ -64,7 +65,8 @@ const PLAYER_PATCH_ALLOWED_KEYS = {
   partyStash: true,
   characterInventories: true,
   economyLedger: true,
-  readyCheck: true
+  readyCheck: true,
+  combatScene: true
 };
 
 const campaigns = new Map();

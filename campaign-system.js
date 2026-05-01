@@ -69,7 +69,9 @@
     lastCameraWorldSyncAt: 0,
     cameraSyncTimer: null,
     cameraSyncReason: "",
-    cameraSyncWantsWorld: false
+    cameraSyncWantsWorld: false,
+    combatSceneSyncTimer: null,
+    lastCombatSceneHash: ""
   };
 
   var readyCheckCallbacks = {};
@@ -117,7 +119,8 @@
     partyStash: true,
     characterInventories: true,
     economyLedger: true,
-    readyCheck: true
+    readyCheck: true,
+    combatScene: true
   };
 
   function safeNotif(msg, kind) {
@@ -616,6 +619,15 @@
     Object.keys(patch).forEach(function (key) {
       if (!PLAYER_SHARED_PATCH_KEYS[key]) return;
       if ((key === "provinceMap" || key === "campaignCombat") && (!patch[key] || typeof patch[key] !== "object")) return;
+      if (key === "combatScene") {
+        var scenePatch = patch.combatScene && typeof patch.combatScene === "object" ? patch.combatScene : null;
+        if (!scenePatch) return;
+        sanitized.combatScene = {
+          combat: deepCloneJson(scenePatch.combat || {}) || {},
+          enemies: Array.isArray(scenePatch.enemies) ? (deepCloneJson(scenePatch.enemies) || []) : []
+        };
+        return;
+      }
       if (key === "readyCheck") {
         var readyPatch = patch.readyCheck && typeof patch.readyCheck === "object" ? patch.readyCheck : null;
         var response = readyPatch && readyPatch.response && typeof readyPatch.response === "object" ? readyPatch.response : null;
@@ -660,6 +672,89 @@
       };
     }
     return sharedState.campaignTravel;
+  }
+
+  function collectCombatSceneState() {
+    if (typeof window.S === "undefined" || !window.S) return { combat: {}, enemies: [] };
+    return {
+      combat: deepCloneJson(window.S.combat || {}) || {},
+      enemies: Array.isArray(window.S.enemies) ? (deepCloneJson(window.S.enemies) || []) : []
+    };
+  }
+
+  function hashCombatSceneState(scene) {
+    try {
+      return JSON.stringify(scene || { combat: {}, enemies: [] });
+    } catch (_err) {
+      return "";
+    }
+  }
+
+  function refreshSharedCombatSceneUI() {
+    if (typeof window.setEnemyDread === "function") {
+      try { window.setEnemyDread(Number(window.S && window.S.combat && window.S.combat.enemyDread || 8) || 8); } catch (_err) {}
+    }
+    if (typeof window.updateCombatUI === "function") {
+      try { window.updateCombatUI(); } catch (_err) {}
+    }
+    if (typeof window.renderEnemies === "function") {
+      try { window.renderEnemies(); } catch (_err) {}
+    }
+    if (typeof window.updateSkirmishActionUI === "function") {
+      try { window.updateSkirmishActionUI("A"); } catch (_err) {}
+      try { window.updateSkirmishActionUI("B"); } catch (_err) {}
+    }
+    if (typeof window.updateSkirmishRoundUI === "function") {
+      try { window.updateSkirmishRoundUI(); } catch (_err) {}
+    }
+  }
+
+  function queueCombatSceneSync(reason) {
+    if (!state.socket || !state.connected || !state.code) return;
+    if (state.applyingSharedState) return;
+    if (state.combatSceneSyncTimer) clearTimeout(state.combatSceneSyncTimer);
+    state.combatSceneSyncTimer = setTimeout(function () {
+      state.combatSceneSyncTimer = null;
+      if (!state.socket || !state.connected || !state.code || state.applyingSharedState) return;
+      var scene = collectCombatSceneState();
+      var hash = hashCombatSceneState(scene);
+      if (!hash || hash === state.lastCombatSceneHash) return;
+      state.lastCombatSceneHash = hash;
+      var out = syncSharedPatch({ combatScene: scene }, reason || "combat-scene");
+      if (out && typeof out.catch === "function") out.catch(function () {});
+    }, 0);
+  }
+
+  function patchCombatSyncHooks() {
+    if (window._campaignPatchedCombatSyncHooks) return;
+
+    function wrap(fnName, reason) {
+      if (typeof window[fnName] !== "function") return;
+      var guardKey = "_campaignWrappedCombatSync_" + fnName;
+      if (window[guardKey]) return;
+      var original = window[fnName];
+      window[fnName] = function () {
+        var out = original.apply(this, arguments);
+        queueCombatSceneSync(reason || fnName);
+        return out;
+      };
+      window[guardKey] = true;
+    }
+
+    wrap("startCombat", "combat-start");
+    wrap("endCombat", "combat-end");
+    wrap("nextRound", "combat-next-round");
+    wrap("setEnemyDread", "combat-dread");
+    wrap("renderEnemies", "combat-enemies");
+    wrap("updateCombatUI", "combat-ui");
+    wrap("rollArmyStress", "skirmish-roll");
+    wrap("skirmishAction", "skirmish-action");
+    wrap("enemyPip", "combat-enemy-stress");
+    wrap("removeEnemy", "combat-remove-enemy");
+    wrap("enemyAttack", "combat-enemy-attack");
+    wrap("applyStressToEnemy", "combat-apply-stress");
+
+    window._campaignPatchedCombatSyncHooks = true;
   }
 
   function ensureSessionTimelineState(sharedState) {
@@ -1140,6 +1235,7 @@
       shared.starSystem = deepCloneJson(window.S.starSystem || {});
       shared.worldThatWas = deepCloneJson(window.S.worldThatWas || {});
       shared.gameDate = deepCloneJson(window.S.gameDate || {});
+      shared.combatScene = collectCombatSceneState();
       shared.gmSettings = deepCloneJson(current.gmSettings || ensureGmSettings());
       shared.campaignCombat = deepCloneJson(current.campaignCombat || ensureCampaignCombatState());
       shared.campaignTravel = deepCloneJson(current.campaignTravel || ensureCampaignTravelState());
@@ -1271,6 +1367,13 @@
       if (sharedState.gameDate && typeof sharedState.gameDate === "object") {
         window.S.gameDate = deepCloneJson(sharedState.gameDate) || {};
       }
+      if (sharedState.combatScene && typeof sharedState.combatScene === "object") {
+        window.S.combat = deepCloneJson(sharedState.combatScene.combat || {}) || {};
+        window.S.enemies = Array.isArray(sharedState.combatScene.enemies) ? (deepCloneJson(sharedState.combatScene.enemies) || []) : [];
+        state.lastCombatSceneHash = hashCombatSceneState(sharedState.combatScene);
+        var current = getCampaignSharedState() || {};
+        current.combatScene = deepCloneJson(sharedState.combatScene) || { combat: {}, enemies: [] };
+      }
       if (sharedState.gmSettings && typeof sharedState.gmSettings === "object") {
         var current = getCampaignSharedState() || {};
         if (!current.gmSettings) current.gmSettings = {};
@@ -1341,6 +1444,7 @@
     if (typeof window.updateCreditsUI === "function") window.updateCreditsUI();
     if (typeof window.updateRenown === "function") window.updateRenown();
     if (typeof window.updateMentalStressUI === "function") window.updateMentalStressUI();
+    refreshSharedCombatSceneUI();
     if (typeof window.renderLastSeaMap === "function") window.renderLastSeaMap();
     if (typeof window.renderLastSeaInfo === "function") window.renderLastSeaInfo();
     if (typeof window.renderStarSystemMap === "function") window.renderStarSystemMap();
@@ -4945,6 +5049,7 @@
     patchSharedProgressHooks();
     patchEncounterVisibilityHooks();
     patchCameraLockHooks();
+    patchCombatSyncHooks();
     refreshProgressHash();
     ensureSocket();
     window.addEventListener("resize", function () { syncDockOffset(); });

@@ -3446,6 +3446,50 @@ function getFlavorCooldownStamp(cooldownType){
   return 'phase|'+d+'|'+p;
 }
 
+function activateFlavorRoundEffect(effectKey,durationRounds){
+  if(!S.flavorState||typeof S.flavorState!=='object')S.flavorState={};
+  if(!S.flavorState.roundEffects||typeof S.flavorState.roundEffects!=='object')S.flavorState.roundEffects={};
+  var round=(S&&S.combat&&S.combat.active&&typeof S.combat.round==='number')?S.combat.round:1;
+  S.flavorState.roundEffects[String(effectKey||'')]={
+    combatActive:!!(S&&S.combat&&S.combat.active),
+    combatRound:round,
+    duration:Math.max(1,parseInt(durationRounds,10)||1),
+    day:(typeof S.day==='number')?S.day:0,
+    phase:(typeof S.phase==='number')?S.phase:0
+  };
+}
+
+function isFlavorRoundEffectActive(effectKey){
+  if(!S||!S.flavorState||!S.flavorState.roundEffects)return false;
+  var fx=S.flavorState.roundEffects[String(effectKey||'')];
+  if(!fx)return false;
+  var day=(typeof S.day==='number')?S.day:0;
+  var phase=(typeof S.phase==='number')?S.phase:0;
+  if(day!==Number(fx.day||0)||phase!==Number(fx.phase||0))return false;
+  if(fx.combatActive){
+    if(!S.combat||!S.combat.active)return false;
+    var round=Number(S.combat.round||0);
+    var start=Number(fx.combatRound||0);
+    var end=start+Math.max(1,Number(fx.duration||1))-1;
+    return round>=start&&round<=end;
+  }
+  return true;
+}
+window.isFlavorRoundEffectActive=isFlavorRoundEffectActive;
+
+function getCombatMoveActionCost(){
+  var baseCost=1;
+  var terrain=(S&&S.combat&&S.combat.sceneOpener&&S.combat.sceneOpener.zoneTerrain)?String(S.combat.sceneOpener.zoneTerrain).toLowerCase():'';
+  var hasPenalty=/move\s*[+]?1\s*action|all movement\s*[+]?1\s*action|zero-g|underwater/.test(terrain);
+  if(hasPenalty)baseCost+=1;
+  var flavor=String((S&&S.flavor)||'');
+  var profile=(typeof getPersonalFlavorMechanicProfile==='function')?getPersonalFlavorMechanicProfile(flavor):null;
+  var aquaticActive=isFlavorRoundEffectActive('aquaticMobility');
+  var canWaive=!!(aquaticActive&&(profile&&profile.vacuumReady)&&(/zero-g|underwater/.test(terrain)));
+  if(canWaive)baseCost=Math.max(1,baseCost-1);
+  return baseCost;
+}
+
 function getBespokeFlavorEntry(flavorText){
   var full=String(flavorText||'').trim();
   if(!full)return null;
@@ -3814,6 +3858,16 @@ function applySpecificFlavorActionOverride(entry){
   var isNight=(typeof isNightPhase==='function')?isNightPhase():false;
   var hasHostiles=Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&!e.ally;});
   var profile=getPersonalFlavorMechanicProfile(S.flavor||'');
+
+  if(base.indexOf('create a psychic dome')>=0){
+    activateFlavorRoundEffect('psychicDome',1);
+    return 'Psychic Dome active for this round: up to 4 allies within dome zone cannot be attacked.';
+  }
+
+  if(base.indexOf('in water: breathe')>=0){
+    activateFlavorRoundEffect('aquaticMobility',1);
+    return 'Aquatic Mobility active for this round: Zero-G/Underwater movement surcharge is removed.';
+  }
 
   if(profile.animalCompanion){
     if(hasHostiles&&S.combat&&S.combat.active){
@@ -4469,6 +4523,7 @@ function updateWayfarerActionBtn(){
   var canCover=(range==='nearby'||range==='far');
   var canHelp=(range!=='far');
   var canStrike=(range==='engaged');
+  var moveCost=(typeof getCombatMoveActionCost==='function')?getCombatMoveActionCost():1;
   var allow={
     standard_strike:(actions>=1&&canStrike),
     standard_shoot:(actions>=1&&canShoot),
@@ -4481,8 +4536,8 @@ function updateWayfarerActionBtn(){
     switch:(actions>=1),
     use_item:(actions>=1),
     stand_help:(actions>=1&&canHelp),
-    move_out:(actions>=1&&range!=='far'),
-    move_in:(actions>=1&&range!=='engaged'),
+    move_out:(actions>=moveCost&&range!=='far'),
+    move_in:(actions>=moveCost&&range!=='engaged'),
     surprise:true,
     cover_partial:(actions>=1&&canCover),
     cover_full:(actions>=1&&canCover),
@@ -4597,10 +4652,13 @@ function executeWayfarerAction(){
       showNotif('Already at the requested movement boundary.','warn');
       return;
     }
-    if(!consumeCombatAction('Move Zone'))return;
+    var moveCost=(typeof getCombatMoveActionCost==='function')?getCombatMoveActionCost():1;
+    for(var mc=0;mc<moveCost;mc++){
+      if(!consumeCombatAction('Move Zone'))return;
+    }
     var nextLabel=getCombatSpacingLabelFromRange(rangeOrder[nextIdx]);
     setCombatSpacing(nextLabel,false);
-    setRes('<span style="color:var(--teal);">Moved to '+nextLabel+'.</span>');
+    setRes('<span style="color:var(--teal);">Moved to '+nextLabel+' ('+moveCost+' Action'+(moveCost===1?'':'s')+').</span>');
     return;
   }
   if(v==='surprise'){

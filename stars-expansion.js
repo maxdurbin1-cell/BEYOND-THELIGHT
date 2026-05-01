@@ -9268,6 +9268,35 @@ function mapSceneTerrainToStarsLayoutId(terrainText) {
 
 function getSceneTerrainCustomLayout(terrainText) {
   const terrain = String(terrainText || '').toLowerCase();
+  if (terrain.indexOf('dense jungle') >= 0 || terrain.indexOf('forest') >= 0) {
+    return {
+      id: 103,
+      name: 'Dense Jungle / Forest — Canopy Maze',
+      desc: 'Thick growth and trunks create fragmented sight-lines and heavy natural cover.',
+      hexes: [
+        { row: 0, col: 0, cover: 'full' },
+        { row: 0, col: 1, cover: 'full' },
+        { row: 0, col: 2, cover: 'partial' },
+        { row: 0, col: 3, cover: 'full' },
+        { row: 0, col: 4, cover: 'full' },
+        { row: 1, col: 0, cover: 'full' },
+        { row: 1, col: 1, cover: 'partial' },
+        { row: 1, col: 2 },
+        { row: 1, col: 3, cover: 'partial' },
+        { row: 1, col: 4, cover: 'full' },
+        { row: 2, col: 0, cover: 'full' },
+        { row: 2, col: 1, cover: 'partial' },
+        { row: 2, col: 2 },
+        { row: 2, col: 3, cover: 'partial' },
+        { row: 2, col: 4, cover: 'full' },
+        { row: 3, col: 0, cover: 'full' },
+        { row: 3, col: 1, cover: 'full' },
+        { row: 3, col: 2, cover: 'partial' },
+        { row: 3, col: 3, cover: 'full' },
+        { row: 3, col: 4, cover: 'full' }
+      ]
+    };
+  }
   if (terrain.indexOf('urban alley') >= 0) {
     return {
       id: 104,
@@ -9290,7 +9319,77 @@ function getSceneTerrainCustomLayout(terrainText) {
       ]
     };
   }
+  if (terrain.indexOf('crater field') >= 0) {
+    return {
+      id: 105,
+      name: 'Crater Field — Broken Ground',
+      desc: 'Impact pits and ridges fragment movement lanes. Climbing craters slows advances.',
+      hexes: [
+        { row: 0, col: 0, cover: 'partial' },
+        { row: 0, col: 1 },
+        { row: 0, col: 2, cover: 'partial' },
+        { row: 0, col: 3 },
+        { row: 0, col: 4, cover: 'partial' },
+        { row: 1, col: 0 },
+        { row: 1, col: 1, cover: 'partial' },
+        { row: 1, col: 2, cover: 'full' },
+        { row: 1, col: 3, cover: 'partial' },
+        { row: 1, col: 4 },
+        { row: 2, col: 0, cover: 'partial' },
+        { row: 2, col: 1, cover: 'full' },
+        { row: 2, col: 2 },
+        { row: 2, col: 3, cover: 'full' },
+        { row: 2, col: 4, cover: 'partial' },
+        { row: 3, col: 0 },
+        { row: 3, col: 1, cover: 'partial' },
+        { row: 3, col: 2, cover: 'partial' },
+        { row: 3, col: 3, cover: 'partial' },
+        { row: 3, col: 4 }
+      ]
+    };
+  }
+  if (terrain.indexOf('cavern') >= 0 || terrain.indexOf('tunnel') >= 0) {
+    return {
+      id: 106,
+      name: 'Cavern / Tunnel — Chasm Pass',
+      desc: 'Narrow stone channels and blind corners collapse long-range lines.',
+      hexes: [
+        { row: 0, col: 1, cover: 'full' },
+        { row: 0, col: 2 },
+        { row: 0, col: 3, cover: 'full' },
+        { row: 1, col: 0, cover: 'full' },
+        { row: 1, col: 1 },
+        { row: 1, col: 2, cover: 'partial' },
+        { row: 1, col: 3 },
+        { row: 1, col: 4, cover: 'full' },
+        { row: 2, col: 1, cover: 'partial' },
+        { row: 2, col: 2 },
+        { row: 2, col: 3, cover: 'partial' },
+        { row: 3, col: 2, cover: 'full' }
+      ]
+    };
+  }
   return null;
+}
+
+function getStarsFlavorMapEffects(layout, openerOverride) {
+  const flavorText = String((typeof S !== 'undefined' && S && S.flavor) ? S.flavor : '').toLowerCase();
+  const roundEffectActive = (typeof window.isFlavorRoundEffectActive === 'function')
+    ? window.isFlavorRoundEffectActive.bind(window)
+    : function() { return false; };
+  const psychicDomeActive = roundEffectActive('psychicDome') && (flavorText.indexOf('psychic dome') >= 0 || flavorText.indexOf('create a psychic dome') >= 0);
+  const aquaticMobilityActive = roundEffectActive('aquaticMobility') && flavorText.indexOf('in water: breathe') >= 0;
+  const terrainText = String((openerOverride && openerOverride.terrainText) || (layout && layout.name) || '').toLowerCase();
+  const zeroGPenalty = !!(layout && layout.special === 'zerog') || terrainText.indexOf('zero-g') >= 0;
+  const underwaterPenalty = terrainText.indexOf('underwater') >= 0;
+  const mobilityPenaltyWaived = aquaticMobilityActive && (zeroGPenalty || underwaterPenalty);
+  return {
+    psychicDomeActive,
+    aquaticMobilityActive,
+    zeroGPenalty,
+    underwaterPenalty,
+    mobilityPenaltyWaived
+  };
 }
 
 function buildStarsCoverOverrides(layout, coverTier) {
@@ -9387,6 +9486,9 @@ function renderStarsCombatZone(layoutId) {
   starsZoneLayout = layout;
   syncStarsZoneUnitsFromCombatTracker(layout);
   const coverOverrides = openerOverrideActive ? buildStarsCoverOverrides(layout, starsZoneOpenerOverride.coverTier) : {};
+  const flavorFx = getStarsFlavorMapEffects(layout, openerOverrideActive ? starsZoneOpenerOverride : null);
+  const playerUnit = starsZoneUnits.find(u => u && u.trackerKey === 'player:self') || starsZoneUnits.find(u => u && u.type === 'ally');
+  const domeKey = (flavorFx.psychicDomeActive && playerUnit) ? `${playerUnit.row}:${playerUnit.col}` : '';
 
   const HSIZE = 34;
   const rows  = 4;
@@ -9405,7 +9507,7 @@ function renderStarsCombatZone(layoutId) {
     let sLabel = '';
 
     const coverKey = `${h.row}:${h.col}`;
-    const activeCover = coverOverrides[coverKey] || h.cover;
+    const activeCover = (coverKey === domeKey ? 'full' : '') || coverOverrides[coverKey] || h.cover;
 
     if (activeCover === 'full') {
       fill = '#111111'; stroke = '#444'; sLabel = '⬛';
@@ -9419,12 +9521,16 @@ function renderStarsCombatZone(layoutId) {
     const unitMarks = unitHere.map(u =>
       `<text x="${x}" y="${y + 4}" text-anchor="middle" font-size="13" fill="${u.type === 'ally' ? 'var(--teal)' : 'var(--red2)'}">${u.icon || (u.type === 'ally' ? '◉' : '✕')}</text>`
     ).join('');
+    const domeMark = (coverKey === domeKey)
+      ? `<text x="${x}" y="${y - 10}" text-anchor="middle" font-size="10" fill="#b39ddb" pointer-events="none">🔮</text>`
+      : '';
 
     svgContent += `
       <g onclick="starsZoneHexClick(${h.row},${h.col},event)" style="cursor:pointer;">
         <polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
         ${sLabel ? `<text x="${x}" y="${y+4}" text-anchor="middle" font-size="11" fill="${stroke}" pointer-events="none">${sLabel}</text>` : ''}
         ${unitMarks}
+        ${domeMark}
       </g>`;
   });
 
@@ -9432,7 +9538,10 @@ function renderStarsCombatZone(layoutId) {
     <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">
       <strong style="color:var(--text);">${openerOverrideActive ? starsZoneOpenerOverride.terrainText : layout.name}</strong> — ${layout.desc}
       ${openerOverrideActive ? `<span style="color:var(--gold2);"> · Cover: ${starsZoneOpenerOverride.coverDesc || starsZoneOpenerOverride.coverTier}</span>` : ''}
-      ${layout.special === 'zerog' ? '<span style="color:var(--teal);"> ⚠ Zero-G: Moving costs +1 Action</span>' : ''}
+      ${(layout.special === 'zerog' || flavorFx.zeroGPenalty) ? '<span style="color:var(--teal);"> ⚠ Zero-G: Moving costs +1 Action</span>' : ''}
+      ${flavorFx.underwaterPenalty ? '<span style="color:var(--teal);"> ⚠ Underwater: Moving costs +1 Action</span>' : ''}
+      ${flavorFx.mobilityPenaltyWaived ? '<span style="color:var(--green2);"> ✓ Personal Flavor active: movement surcharge removed this round</span>' : ''}
+      ${flavorFx.psychicDomeActive ? '<span style="color:#b39ddb;"> 🔮 Psychic Dome active this round</span>' : ''}
       ${layout.special === 'radiation' ? '<span style="color:var(--green2);"> ⚠ Rad Zone: +d100 Rads per Turn spent here</span>' : ''}
     </div>
     <svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;">

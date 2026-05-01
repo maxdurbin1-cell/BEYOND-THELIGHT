@@ -2434,17 +2434,13 @@
     // Auto-add player as ally if not on the map yet
     var playerName = (typeof S !== 'undefined' && S.name && S.name.trim()) ? S.name : 'You';
     var hasPlayer = S.combatMap.units.some(function(u){ return u.side === 'ally' && u.name === playerName; });
+    var spacingEl = document.getElementById('spacingSelect');
+    var relativeEnemyZone = spacingToZone(spacingEl ? spacingEl.value : 'Nearby (Shoot)');
     if (!hasPlayer) {
-      // Determine starting zone from spacing select
-      var spacingEl = document.getElementById('spacingSelect');
-      var startZone = spacingToZone(spacingEl ? spacingEl.value : '');
-      S.combatMap.units.push({ id: combatMapUnitId++, name: playerName, side: 'ally', zone: startZone, isPlayer: true });
+      S.combatMap.units.push({ id: combatMapUnitId++, name: playerName, side: 'ally', zone: 'Engaged', isPlayer: true });
     } else if (hasPlayer) {
-      // Mirror spacing select → player zone
-      var spacingEl2 = document.getElementById('spacingSelect');
-      var mirrorZone = spacingToZone(spacingEl2 ? spacingEl2.value : '');
       S.combatMap.units.forEach(function(u) {
-        if (u.side === 'ally' && u.name === playerName) { u.zone = mirrorZone; }
+        if (u.side === 'ally' && (u.name === playerName || u.isPlayer)) { u.zone = 'Engaged'; u.isPlayer = true; }
       });
     }
 
@@ -2466,23 +2462,17 @@
       if (!data) { return; }
       unit.name = data.name;
       unit.side = data.side;
+      if (unit.side === 'enemy') { unit.zone = relativeEnemyZone; }
     });
 
     Object.keys(desired).forEach(function(key) {
       var found = S.combatMap.units.some(function(u){ return !!u && u.fromTracker && u.trackerKey === key; });
       if (found) { return; }
-      var enemyZone = 'Engaged';
-      var opener = (S && S.combat && S.combat.sceneOpener) ? S.combat.sceneOpener : null;
-      var activityText = opener && opener.activityText ? String(opener.activityText) : '';
-      if (/fleeing/i.test(activityText)) { enemyZone = 'Far'; }
-      else if (/ambush/i.test(activityText)) { enemyZone = 'Nearby'; }
-      else if (opener && Number(opener.reactionRoll || 0) >= 7) { enemyZone = 'Nearby'; }
-      else if (opener && Number(opener.reactionRoll || 0) >= 3) { enemyZone = 'Close'; }
       S.combatMap.units.push({
         id: combatMapUnitId++,
         name: desired[key].name,
         side: desired[key].side,
-        zone: desired[key].side === 'enemy' ? enemyZone : 'Close',
+        zone: desired[key].side === 'enemy' ? relativeEnemyZone : 'Engaged',
         fromTracker: true,
         trackerKey: key
       });
@@ -2585,8 +2575,8 @@
       Nearby:  { color: "rgba(46,196,182,.06)",   border: "rgba(46,196,182,.3)",    range: "Ranged / Shoot" },
       Far:     { color: "rgba(122,120,152,.06)",  border: "rgba(122,120,152,.25)",  range: "Out of Range" }
     };
-    var flavOverlays = getFlavorOverlays();
-    var coverOverlays = getSceneCoverOverlays(zones);
+    var flavOverlays = {};
+    var coverOverlays = {};
     // Determine player zone for distance indicator
     var playerName2 = (typeof S !== 'undefined' && S.name && S.name.trim()) ? S.name : 'You';
     var playerUnit2 = S.combatMap.units.filter(function(u){ return u.side === 'ally' && u.name === playerName2; })[0];
@@ -2608,10 +2598,17 @@
         distBadge = '<span style="font-size:.58rem;color:var(--muted);margin-left:.35rem;">'+distLabel+'</span>';
       }
       var allyTags = allies.map(function(u) {
+        var isPlayer = !!u.isPlayer || u.name === playerName2;
         return '<div style="background:rgba(46,196,182,.13);border:1px solid var(--teal);padding:.14rem .32rem;font-size:.7rem;color:var(--teal);display:inline-flex;align-items:center;gap:.2rem;margin:.1rem;">'
           + '<span>\uD83D\uDFE6 ' + u.name + '</span>'
-          + '<select style="background:transparent;border:none;color:var(--teal);font-size:.62rem;cursor:pointer;" onchange="moveCombatUnit(' + u.id + ',this.value)">' + zoneOptions + '</select>'
-          + '<button style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:.68rem;line-height:1;" onclick="removeCombatUnit(' + u.id + ')">✕</button>'
+          + (isPlayer
+            ? '<span style="font-size:.62rem;color:var(--gold2);">(You)</span>'
+            : '<select style="background:transparent;border:none;color:var(--teal);font-size:.62rem;cursor:pointer;" onchange="moveCombatUnit(' + u.id + ',this.value)">' + zoneOptions + '</select>'
+          )
+          + (isPlayer
+            ? ''
+            : '<button style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:.68rem;line-height:1;" onclick="removeCombatUnit(' + u.id + ')">✕</button>'
+          )
           + '</div>';
       }).join("");
       var enemyTags = enemies.map(function(u) {
@@ -2631,7 +2628,6 @@
         + allyTags + enemyTags
         + (!units.length ? '<div style="font-size:.66rem;color:var(--muted);font-style:italic;">empty</div>' : '')
         + '</div>'
-        + overlay
         + '</div>';
     }).join("");
   }

@@ -817,7 +817,7 @@ select option{background:#0f1020;}
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.4rem;">
         <div><span class="sub-label">Spacing / Zone</span>
           <select id="spacingSelect" onchange="setCombatSpacing(this.value,true)">
-            <option>Engaged (Strike)</option><option>Close (Scrolls)</option><option>Nearby (Shoot)</option>
+            <option>Engaged (Strike)</option><option>Close (Scrolls)</option><option>Nearby (Shoot)</option><option>Far (Out of Range)</option>
           </select>
         </div>
         <div><span class="sub-label">Actions Remaining</span>
@@ -873,7 +873,8 @@ select option{background:#0f1020;}
             <option value="switch">Switch Weapon — 1 Action</option>
             <option value="use_item">Use Item / Hack / Spell / Flavor — 1 Action</option>
             <option value="stand_help">Help Ally — 1 Action (they gain Step Up Adv Die)</option>
-            <option value="move">Move Zone — 1 Action</option>
+            <option value="move_out">Move Outward (Engaged→Close→Nearby→Far) — 1 Action</option>
+            <option value="move_in">Move Inward (Far→Nearby→Close→Engaged) — 1 Action</option>
             <option value="surprise">Surprise (Control vs Dread) — +2 first round attacks</option>
             <option value="cover_partial">Take Partial Cover — 1 Action (+1 Defend)</option>
             <option value="cover_full">Take Full Cover — 1 Action (immune to ranged)</option>
@@ -4432,7 +4433,7 @@ function rollCombatOpener(){
     +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+reaction+' — '+ENCOUNTER_REACTIONS[reaction-1]+'</div>'
     +'<div style="font-size:.68rem;color:var(--muted2);">Enemy Activity (d6)</div>'
     +'<div style="font-size:.72rem;color:var(--text2);font-weight:600;">'+activity+' — '+ENEMY_ACTIVITIES[activity-1]+'</div>';
-  panel.style.display='none';
+  panel.style.display='block';
   // Auto-adjust spacing based on reaction
   if(reaction<=2&&typeof setCombatSpacing==='function')setCombatSpacing('Engaged (Strike)',false);
   else if(reaction>=7&&typeof setCombatSpacing==='function')setCombatSpacing('Nearby (Shoot)',false);
@@ -4477,7 +4478,8 @@ function updateWayfarerActionBtn(){
     switch:(actions>=1),
     use_item:(actions>=1),
     stand_help:(actions>=1&&canHelp),
-    move:(actions>=1),
+    move_out:(actions>=1&&range!=='far'),
+    move_in:(actions>=1&&range!=='engaged'),
     surprise:true,
     cover_partial:(actions>=1&&canCover),
     cover_full:(actions>=1&&canCover),
@@ -4503,6 +4505,8 @@ function updateWayfarerActionBtn(){
     if(v==='teamwork_event')hint='Need 1 Action and 5 TMW. ('+actions+' Actions, '+tmw+' TMW)';
     else if(v==='cover_partial'||v==='cover_full')hint='Cover requires Nearby/Far zone and 1 Action.';
     else if(v==='stand_help')hint='Help requires not being in Far zone and 1 Action.';
+    else if(v==='move_out')hint='Already at Far. Move Inward to close distance.';
+    else if(v==='move_in')hint='Already at Engaged. Move Outward to open distance.';
     else if(v==='fast_strike'||v==='standard_strike'||v==='heavy_strike')hint='Strike requires Engaged zone.';
     else if(v==='fast_shoot'||v==='standard_shoot'||v==='heavy_shoot')hint='Shoot requires valid weapon/range.';
     else hint='Not available with current spacing/actions.';
@@ -4580,9 +4584,20 @@ function executeWayfarerAction(){
     showNotif('Ally gains Step Up Adv Die (Ad'+advDieH+')','good');
     return;
   }
-  if(v==='move'){
+  if(v==='move_out'||v==='move_in'){
+    var curRange=getCombatRange();
+    var rangeOrder=['engaged','close','nearby','far'];
+    var curIdx=rangeOrder.indexOf(curRange);
+    if(curIdx<0)curIdx=0;
+    var nextIdx=v==='move_out'?Math.min(rangeOrder.length-1,curIdx+1):Math.max(0,curIdx-1);
+    if(nextIdx===curIdx){
+      showNotif('Already at the requested movement boundary.','warn');
+      return;
+    }
     if(!consumeCombatAction('Move Zone'))return;
-    setRes('<span style="color:var(--muted2);">Action spent. Change your Spacing / Zone above. Zero-G = +1 extra action.</span>');
+    var nextLabel=getCombatSpacingLabelFromRange(rangeOrder[nextIdx]);
+    setCombatSpacing(nextLabel,false);
+    setRes('<span style="color:var(--teal);">Moved to '+nextLabel+'.</span>');
     return;
   }
   if(v==='surprise'){
@@ -4704,6 +4719,28 @@ function getEnemyActionsRemaining(){
   var perCycle=Math.max(1,getEnemyActionsPerCycle());
   var spent=Math.max(0,Number(S.combat.enemyDefendsThisTurn||0));
   return Math.max(0,perCycle-spent);
+}
+
+function getPrimaryEnemyZoneRelative(){
+  var defaultRange=getCombatRange();
+  if(!S||!S.combatMap||!Array.isArray(S.combatMap.units))return defaultRange;
+  var playerName=(S.name&&String(S.name).trim())?String(S.name).trim():'You';
+  var units=S.combatMap.units;
+  var player=units.find(function(u){
+    return u&&u.side==='ally'&&(u.isPlayer||u.name===playerName);
+  });
+  var enemies=units.filter(function(u){return u&&u.side==='enemy';});
+  if(!player||!enemies.length)return defaultRange;
+  var distMap={Engaged:0,Close:1,Nearby:2,Far:3};
+  var labelByDist=['engaged','close','nearby','far'];
+  var playerDist=(typeof distMap[player.zone]==='number')?distMap[player.zone]:0;
+  var minDelta=99;
+  enemies.forEach(function(enemy){
+    var d=(typeof distMap[enemy.zone]==='number')?Math.abs(distMap[enemy.zone]-playerDist):0;
+    if(d<minDelta)minDelta=d;
+  });
+  if(minDelta===99)return defaultRange;
+  return labelByDist[Math.max(0,Math.min(3,minDelta))]||defaultRange;
 }
 
 function ensureEnemyEffectState(enemy){
@@ -5007,6 +5044,14 @@ function getCombatRange(){
   return 'engaged';
 }
 
+function getCombatSpacingLabelFromRange(range){
+  if(range==='engaged')return 'Engaged (Strike)';
+  if(range==='close')return 'Close (Scrolls)';
+  if(range==='nearby')return 'Nearby (Shoot)';
+  if(range==='far')return 'Far (Out of Range)';
+  return 'Engaged (Strike)';
+}
+
 function setCombatSpacing(newSpacing,consume){
   if(!S.combat)S.combat={};
   var oldSpacing=S.combat.spacing||'Engaged (Strike)';
@@ -5024,14 +5069,50 @@ function setCombatSpacing(newSpacing,consume){
   if(typeof renderCombatOptions==='function')renderCombatOptions();
 }
 
+function collectCombatRangeOverrideText(){
+  var chunks=[];
+  if(S&&S.equipment){
+    chunks.push(String(S.equipment.weapon1||''));
+    chunks.push(String(S.equipment.weapon2||''));
+  }
+  if(Array.isArray(S.weaponMods))chunks=chunks.concat(S.weaponMods.map(function(name){return String(name||'');}));
+  if(Array.isArray(S.augmentations))chunks=chunks.concat(S.augmentations.map(function(name){return String(name||'');}));
+  if(typeof SHOP_DATA!=='undefined'){
+    if(Array.isArray(SHOP_DATA.weapon_mods)&&Array.isArray(S.weaponMods)){
+      S.weaponMods.forEach(function(name){
+        var mod=SHOP_DATA.weapon_mods.find(function(entry){return entry&&entry.name===name;});
+        if(mod){chunks.push(String(mod.stat||''));chunks.push(String(mod.desc||''));}
+      });
+    }
+    if(Array.isArray(SHOP_DATA.augmentations)&&Array.isArray(S.augmentations)){
+      S.augmentations.forEach(function(name){
+        var aug=SHOP_DATA.augmentations.find(function(entry){return entry&&entry.name===name;});
+        if(aug){chunks.push(String(aug.stat||''));chunks.push(String(aug.desc||''));}
+      });
+    }
+  }
+  return chunks.join(' | ').toLowerCase();
+}
+
+function hasShootRangeOverride(range){
+  var text=collectCombatRangeOverrideText();
+  if(range==='close'){
+    return /shoot[^|.;]{0,60}close|close[^|.;]{0,60}shoot|range\s*close|at\s+close/.test(text);
+  }
+  if(range==='far'){
+    return /shoot[^|.;]{0,60}far|far[^|.;]{0,60}shoot|range\s*far|at\s+far/.test(text);
+  }
+  return false;
+}
+
 function weaponTextAllowsShootRange(range){
   var ws=[(S.equipment&&S.equipment.weapon1)||'',(S.equipment&&S.equipment.weapon2)||''];
   var joined=ws.join(' | ').toLowerCase();
   var hasShoot=joined.indexOf('shoot')>=0;
   if(!hasShoot)return range==='nearby';
   if(range==='nearby')return true;
-  if(range==='close')return joined.indexOf('close')>=0;
-  if(range==='far')return joined.indexOf('far')>=0;
+  if(range==='close')return joined.indexOf('close')>=0||hasShootRangeOverride('close');
+  if(range==='far')return joined.indexOf('far')>=0||hasShootRangeOverride('far');
   return false;
 }
 
@@ -5084,7 +5165,15 @@ function triggerEnemyActionEvent(){
   if(!actingEnemy){showNotif('Add an enemy first.','warn');return;}
   maybeResetActionsAfterDefend();
   if(consumeEnemyTurnBlock(actingEnemy))return;
-  var ev=pick(ENEMY_ACTION_EVENTS);
+  var enemyRange=getPrimaryEnemyZoneRelative();
+  var rangeKinds=enemyRange==='engaged'
+    ? ['defendCheck','healthStrike','forceTrauma']
+    : enemyRange==='close'
+      ? ['saveCondition','hack','defendCheck']
+      : ['directStress','radiation','healthStrike'];
+  var evPool=ENEMY_ACTION_EVENTS.filter(function(entry){return rangeKinds.indexOf(entry.kind)>=0;});
+  if(!evPool.length)evPool=ENEMY_ACTION_EVENTS;
+  var ev=pick(evPool);
   var dr=rollEnemyDreadWithEffects(actingEnemy,'Enemy Event DD');
   var dd=dr.effectiveDie;
   var summary='';
@@ -5153,7 +5242,7 @@ function triggerEnemyActionEvent(){
   }
 
   var res=document.getElementById('enemyActionResult');
-  if(res)res.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+summary+' <span style="font-size:.74rem;color:var(--muted2);">(DD'+dd+'='+dr.total+')</span>';
+  if(res)res.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+summary+' <span style="font-size:.74rem;color:var(--muted2);">(DD'+dd+'='+dr.total+' · '+enemyRange.toUpperCase()+')</span>';
   showNotif('Enemy Action: '+ev.name,'warn');
   finalizeEnemyTurn(actingEnemy);
   updateCombatUI();

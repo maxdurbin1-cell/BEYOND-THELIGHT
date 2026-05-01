@@ -9251,12 +9251,45 @@ function stepShipDefend(dir) {
 
 let starsZoneUnits = [];
 let starsZoneLayout = null;
+let starsZoneAutoPopulate = true;
+
+function ensureStarsZoneUnitsSeeded(layout) {
+  if (!starsZoneAutoPopulate || !layout || !Array.isArray(layout.hexes) || starsZoneUnits.length) return;
+  const hexes = layout.hexes.slice();
+  if (!hexes.length) return;
+
+  const centerRow = 1.5;
+  const centerCol = 2;
+  const sorted = hexes.slice().sort((a, b) => {
+    const da = Math.abs((a.row - centerRow)) + Math.abs((a.col - centerCol));
+    const db = Math.abs((b.row - centerRow)) + Math.abs((b.col - centerCol));
+    return da - db;
+  });
+  const centerHex = sorted[0];
+  const nearbySlots = sorted.filter(h => !(h.row === centerHex.row && h.col === centerHex.col));
+
+  const playerName = (typeof S !== 'undefined' && S && S.name && S.name.trim()) ? S.name.trim() : 'You';
+  starsZoneUnits.push({ row: centerHex.row, col: centerHex.col, type: 'ally', name: playerName, icon: '◉' });
+
+  const allies = (Array.isArray(S.enemies) ? S.enemies.filter(e => e && e.ally) : []);
+  allies.forEach((ally, idx) => {
+    const slot = nearbySlots[idx % nearbySlots.length] || centerHex;
+    starsZoneUnits.push({ row: slot.row, col: slot.col, type: 'ally', name: String(ally.name || `Ally ${idx + 1}`), icon: '◍' });
+  });
+
+  const enemies = (Array.isArray(S.enemies) ? S.enemies.filter(e => e && !e.ally) : []);
+  enemies.forEach((enemy, idx) => {
+    const slot = nearbySlots[(idx + allies.length) % nearbySlots.length] || centerHex;
+    starsZoneUnits.push({ row: slot.row, col: slot.col, type: 'enemy', name: String(enemy.name || `Enemy ${idx + 1}`), icon: '✕' });
+  });
+}
 
 function renderStarsCombatZone(layoutId) {
   const container = document.getElementById('starsCombatZoneContainer');
   if (!container) return;
   const layout = COMBAT_ZONES_PRESETS.find(z => z.id === layoutId) || COMBAT_ZONES_PRESETS[0];
   starsZoneLayout = layout;
+  ensureStarsZoneUnitsSeeded(layout);
 
   const HSIZE = 34;
   const rows  = 4;
@@ -10126,7 +10159,7 @@ function buildStarsCombatPanel() {
     </select>
     <button class="btn btn-sm btn-teal" onclick="rollCombatZone()">⚄ Roll Zone (d10)</button>
     <button class="btn btn-sm" onclick="rollCoverPlacement()">⚄ Roll Cover (d4+d20)</button>
-    <button class="btn btn-sm btn-red" onclick="starsZoneUnits=[];if(starsZoneLayout)renderStarsCombatZone(starsZoneLayout.id)">Clear Units</button>
+    <button class="btn btn-sm btn-red" onclick="starsZoneAutoPopulate=false;starsZoneUnits=[];if(starsZoneLayout)renderStarsCombatZone(starsZoneLayout.id)">Clear Units</button>
     <span id="zoneRollResult" style="font-size:.75rem;color:var(--muted2);"></span>
   </div>
   <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;margin-bottom:.4rem;">

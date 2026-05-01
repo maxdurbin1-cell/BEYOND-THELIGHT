@@ -310,6 +310,7 @@ select option{background:#0f1020;}
   </div>
   <nav aria-label="Main navigation" id="mainNavTablist" role="tablist" aria-orientation="horizontal">
     <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" onclick="switchTab('character',this)">Character</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-backstory" id="tabnav-backstory" onclick="switchTab('backstory',this)">Backstory</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" onclick="switchTab('codex',this)">Codex</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" onclick="switchTab('rules',this)">Rules</button>
@@ -631,6 +632,68 @@ select option{background:#0f1020;}
   <div id="starsCharPanels" style="display:contents;"></div>
 </div>
 
+<!-- BACKSTORY TAB -->
+<div class="tab-panel" id="tab-backstory" role="tabpanel" aria-labelledby="tabnav-backstory" tabindex="0">
+  <div style="display:grid;grid-template-columns:1.1fr .9fr;gap:.85rem;">
+    <div class="card">
+      <div class="section-title">Backstory Builder</div>
+      <div style="font-size:.8rem;color:var(--muted2);line-height:1.55;margin-bottom:.5rem;">
+        Build a deeper history, or roll everything. These choices can seed storyline options and place personal anchors in the Province.
+      </div>
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.6rem;">
+        <button class="btn btn-sm btn-primary" onclick="generateBackstory()">⚄ Roll Full Backstory</button>
+        <button class="btn btn-sm btn-teal" onclick="applyBackstoryToCharacter()">Apply to Character</button>
+        <button class="btn btn-sm" onclick="assignBackstoryProvinceMarkers()">Populate Province Anchors</button>
+      </div>
+
+      <div class="form-row"><span class="sub-label">Origin Realm</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsOrigin" placeholder="Heaven, Hell, Frontier, Deep Sea..." style="flex:1;" onchange="setBackstoryField('origin',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('origin')">⚄</button></div>
+      </div>
+      <div class="form-row"><span class="sub-label">How You Grew Up</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsUpbringing" placeholder="Temple choir, dock gangs, noble court..." style="flex:1;" onchange="setBackstoryField('upbringing',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('upbringing')">⚄</button></div>
+      </div>
+      <div class="form-row"><span class="sub-label">Hometown</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsHometown" placeholder="Name of your old district, shipyard, outpost..." style="flex:1;" onchange="setBackstoryField('hometown',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('hometown')">⚄</button></div>
+      </div>
+      <div class="form-row"><span class="sub-label">Faction Ties</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsFaction" placeholder="corporations, rebels, military, scholars..." style="flex:1;" onchange="setBackstoryField('faction',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('faction')">⚄</button></div>
+      </div>
+
+      <div class="form-row"><span class="sub-label">Rival</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsRival" placeholder="Who still wants to settle a score with you?" style="flex:1;" onchange="setBackstoryField('rival',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('rival')">⚄</button></div>
+      </div>
+      <div class="form-row"><span class="sub-label">Connection</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsConnection" placeholder="Who can still help you in hard places?" style="flex:1;" onchange="setBackstoryField('connection',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('connection')">⚄</button></div>
+      </div>
+
+      <div class="form-row"><span class="sub-label">Early Career Lean</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsCareer" placeholder="Maps into Character > Career" style="flex:1;" onchange="setBackstoryField('earlyCareer',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('career')">⚄</button></div>
+      </div>
+      <div class="form-row"><span class="sub-label">Early Background Lean</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsBackground" placeholder="Maps into Character > Background" style="flex:1;" onchange="setBackstoryField('earlyBackground',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('background')">⚄</button></div>
+      </div>
+      <div class="form-row"><span class="sub-label">Defining Event</span>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="bsEvent" placeholder="The one event that changed your path" style="flex:1;" onchange="setBackstoryField('lifeEvent',this.value)"><button class="btn btn-icon btn-sm" onclick="rollBackstoryField('event')">⚄</button></div>
+      </div>
+      <div class="form-row"><span class="sub-label">Notes</span>
+        <textarea id="bsNotes" rows="3" placeholder="Anything else tied to your concept" onchange="setBackstoryField('notes',this.value)"></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Backstory Impact</div>
+      <div id="backstorySummary" style="font-size:.8rem;color:var(--text2);line-height:1.6;">No backstory yet. Roll or enter details to personalize your world.</div>
+      <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.45rem;">
+        <div class="sub-label" style="margin-bottom:.25rem;">Province Anchors</div>
+        <div id="backstoryMarkerList" style="font-size:.76rem;color:var(--muted2);line-height:1.55;">No anchors assigned yet.</div>
+      </div>
+      <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.45rem;font-size:.74rem;color:var(--muted2);line-height:1.55;">
+        Storyline paths can now key off your backstory and personal flavor. Locked branches still require prerequisites, but your history can open unique routes.
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- PROVINCE TAB -->
 <div class="tab-panel" id="tab-map">
   <div class="map-controls">
@@ -672,6 +735,7 @@ select option{background:#0f1020;}
     <div class="leg-item"><div class="leg-dot" style="background:#282828;border:1px dashed #555;"></div>Barrier</div>
     <div class="leg-item"><div class="leg-dot" style="background:#3a2800;border:1px solid #f0a840;"></div>Trade Route</div>
     <div class="leg-item"><div class="leg-dot" style="background:rgba(200,50,50,.12);border:1px solid rgba(200,50,50,.55);color:#e05050;font-size:.72rem;text-align:center;line-height:1.35;">&#9876;</div>Mission</div>
+    <div class="leg-item"><div class="leg-dot" style="background:rgba(123,154,255,.18);border:1px solid #7b9aff;color:#7b9aff;font-size:.72rem;text-align:center;line-height:1.35;">✶</div>Backstory</div>
     <div id="provinceMarkerLegend" class="leg-item" style="display:none;"></div>
   </div>
   <div class="map-layout">
@@ -1649,8 +1713,199 @@ if(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.remedies)){
 }
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}}};
+let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}},backstory:{origin:'',upbringing:'',hometown:'',faction:'',rival:'',connection:'',earlyCareer:'',earlyBackground:'',lifeEvent:'',notes:'',provinceMarkers:{}}};
 let hexNotes={};
+
+const BACKSTORY_TABLES={
+  origin:['Heaven','Hell','The Last Sea','World That Was','Frontier Province','Machine Vault','Temple Quarter','Dust Colonies','Shattered Moon Refuge','Underworld Gate District'],
+  upbringing:['Temple acolyte','Street syndicate runner','Noble court ward','Caravan-raised drifter','Militia camp survivor','Dockside smuggler apprentice','Ruin-scout trainee','Scholarium orphan','Cult emissary child','Border-fort labor crew'],
+  hometown:['Gallows Orchard','Lantern Quay','Ashbank District','Nine Bell Hollow','Sable Gate Ward','Redwake Port','Glass Ladder Block','Vesper Docks','Cinder Plaza','Old Rail Bastion'],
+  faction:['corporations','religious','political','military','underworld','rebels','scholars'],
+  rival:['Voss loyalist debt-collector','Old regiment commander','Runaway cult sibling','Guildmaster who wants you ruined','Hunter from your old district','Defector who blames you','Broker who sold your family out','Court archivist sworn against you'],
+  connection:['Lyra-style sheriff contact','Temple sage mentor','Smuggler dockmaster ally','Rebel radio operator','Military quartermaster friend','Underworld fixer','Corporate data clerk ally','Wandering caravan elder'],
+  event:['Your district burned during a false-flag purge','You survived a gate malfunction alone','You took the blame for a noble crime','You won a skirmish no one believed','You broke a pact and lived','You escorted refugees through blight storms','You stole an archive ledger and escaped','You watched a magistrate execute your mentor']
+};
+
+function ensureBackstoryState(){
+  if(!S||typeof S!=='object')return;
+  if(!S.backstory||typeof S.backstory!=='object')S.backstory={};
+  const b=S.backstory;
+  if(typeof b.origin!=='string')b.origin='';
+  if(typeof b.upbringing!=='string')b.upbringing='';
+  if(typeof b.hometown!=='string')b.hometown='';
+  if(typeof b.faction!=='string')b.faction='';
+  if(typeof b.rival!=='string')b.rival='';
+  if(typeof b.connection!=='string')b.connection='';
+  if(typeof b.earlyCareer!=='string')b.earlyCareer='';
+  if(typeof b.earlyBackground!=='string')b.earlyBackground='';
+  if(typeof b.lifeEvent!=='string')b.lifeEvent='';
+  if(typeof b.notes!=='string')b.notes='';
+  if(!b.provinceMarkers||typeof b.provinceMarkers!=='object')b.provinceMarkers={};
+}
+
+function setBackstoryField(key,value){
+  ensureBackstoryState();
+  if(!S.backstory)return;
+  const v=String(value||'').trim();
+  S.backstory[key]=v;
+  renderBackstoryTab();
+}
+
+function rollBackstoryField(field){
+  ensureBackstoryState();
+  if(!S.backstory)return;
+  if(field==='career'){S.backstory.earlyCareer=pick(CAREERS||[]);}
+  else if(field==='background'){
+    const backgrounds=['Street-raised scavenger','Temple-taught acolyte','Ex-militia survivor','Refugee caravan drifter','Dockside fixer','Vault-born technician','Ruin scholar apprentice','Frontier homesteader','Guild runaway','Nomad clan scout'];
+    S.backstory.earlyBackground=pick(backgrounds);
+  }else if(field==='origin')S.backstory.origin=pick(BACKSTORY_TABLES.origin);
+  else if(field==='upbringing')S.backstory.upbringing=pick(BACKSTORY_TABLES.upbringing);
+  else if(field==='hometown')S.backstory.hometown=pick(BACKSTORY_TABLES.hometown);
+  else if(field==='faction')S.backstory.faction=pick(BACKSTORY_TABLES.faction);
+  else if(field==='rival')S.backstory.rival=pick(BACKSTORY_TABLES.rival);
+  else if(field==='connection')S.backstory.connection=pick(BACKSTORY_TABLES.connection);
+  else if(field==='event')S.backstory.lifeEvent=pick(BACKSTORY_TABLES.event);
+  renderBackstoryTab();
+}
+
+function generateBackstory(){
+  rollBackstoryField('origin');
+  rollBackstoryField('upbringing');
+  rollBackstoryField('hometown');
+  rollBackstoryField('faction');
+  rollBackstoryField('rival');
+  rollBackstoryField('connection');
+  rollBackstoryField('career');
+  rollBackstoryField('background');
+  rollBackstoryField('event');
+  if(!S.backstory.notes)S.backstory.notes='A personal history shaped by debt, survival, and unfinished promises.';
+  renderBackstoryTab();
+  showNotif('Backstory generated. Apply it to Character and map anchors when ready.','good');
+}
+
+function applyBackstoryToCharacter(){
+  ensureBackstoryState();
+  const b=S.backstory||{};
+  if(b.earlyCareer){
+    S.career=b.earlyCareer;
+    const c=document.getElementById('charCareer');if(c)c.value=S.career;
+  }
+  if(b.earlyBackground){
+    S.background=b.earlyBackground;
+    const bg=document.getElementById('charBackground');if(bg)bg.value=S.background;
+  }
+  if(b.faction&&window.changeFactionRenown){
+    try{window.changeFactionRenown(String(b.faction).toLowerCase(),1);}catch(_err){}
+  }
+  showNotif('Backstory applied to Character fields.','good');
+}
+
+function chooseProvinceHexByType(preferredTypes,used){
+  if(!Array.isArray(mapData)||!mapData.length)return null;
+  const usedMap=used||{};
+  let pool=mapData.filter(function(h){
+    return h&&preferredTypes.indexOf(h.type)>=0&&!usedMap[h.col+','+h.row];
+  });
+  if(!pool.length)pool=mapData.filter(function(h){return h&&!usedMap[h.col+','+h.row];});
+  if(!pool.length)return null;
+  return pick(pool);
+}
+
+function assignBackstoryProvinceMarkers(){
+  ensureBackstoryState();
+  if(!Array.isArray(mapData)||!mapData.length){
+    showNotif('Generate Province first, then populate backstory anchors.','warn');
+    return;
+  }
+  const b=S.backstory||{};
+  const used={};
+  const markers={};
+  const homeHex=chooseProvinceHexByType(['dwelling','holding','seat'],used);
+  if(homeHex){
+    const key=homeHex.col+','+homeHex.row;
+    used[key]=true;
+    markers.home={key:key,label:'Hometown Anchor',icon:'⌂',detail:b.hometown||'A place tied to your beginnings.'};
+  }
+  const rivalHex=chooseProvinceHexByType(['peril','ruins','barrier'],used);
+  if(rivalHex&&b.rival){
+    const key=rivalHex.col+','+rivalHex.row;
+    used[key]=true;
+    markers.rival={key:key,label:'Rival Trail',icon:'⚔',detail:b.rival};
+  }
+  const allyHex=chooseProvinceHexByType(['holding','temple','trade','dwelling'],used);
+  if(allyHex&&b.connection){
+    const key=allyHex.col+','+allyHex.row;
+    used[key]=true;
+    markers.connection={key:key,label:'Trusted Contact',icon:'✶',detail:b.connection};
+  }
+  S.backstory.provinceMarkers=markers;
+  renderBackstoryTab();
+  renderHexMap();
+  if(selectedHex)renderHexInfo(selectedHex);
+  showNotif('Backstory anchors placed on the Province map.','good');
+}
+
+function getBackstoryProvinceMarker(key){
+  ensureBackstoryState();
+  const markers=(S.backstory&&S.backstory.provinceMarkers&&typeof S.backstory.provinceMarkers==='object')?S.backstory.provinceMarkers:{};
+  const val=String(key||'');
+  const ids=Object.keys(markers);
+  for(let i=0;i<ids.length;i++){
+    const entry=markers[ids[i]];
+    if(entry&&String(entry.key||'')===val)return entry;
+  }
+  return null;
+}
+
+function renderBackstoryTab(){
+  ensureBackstoryState();
+  const b=S.backstory||{};
+  const setVal=function(id,val){const el=document.getElementById(id);if(el)el.value=String(val||'');};
+  setVal('bsOrigin',b.origin);
+  setVal('bsUpbringing',b.upbringing);
+  setVal('bsHometown',b.hometown);
+  setVal('bsFaction',b.faction);
+  setVal('bsRival',b.rival);
+  setVal('bsConnection',b.connection);
+  setVal('bsCareer',b.earlyCareer);
+  setVal('bsBackground',b.earlyBackground);
+  setVal('bsEvent',b.lifeEvent);
+  setVal('bsNotes',b.notes);
+
+  const summary=document.getElementById('backstorySummary');
+  if(summary){
+    const lines=[];
+    if(b.origin)lines.push('<strong>Origin:</strong> '+escapeHtmlLite(b.origin));
+    if(b.upbringing)lines.push('<strong>Upbringing:</strong> '+escapeHtmlLite(b.upbringing));
+    if(b.faction)lines.push('<strong>Faction Tie:</strong> '+escapeHtmlLite(b.faction));
+    if(b.lifeEvent)lines.push('<strong>Defining Event:</strong> '+escapeHtmlLite(b.lifeEvent));
+    if(!lines.length)lines.push('No backstory yet. Roll or enter details to personalize your world.');
+    summary.innerHTML=lines.join('<br>');
+  }
+
+  const markerHost=document.getElementById('backstoryMarkerList');
+  if(markerHost){
+    const markers=(b.provinceMarkers&&typeof b.provinceMarkers==='object')?b.provinceMarkers:{};
+    const ids=Object.keys(markers).filter(function(k){return markers[k]&&markers[k].key;});
+    if(!ids.length){
+      markerHost.textContent='No anchors assigned yet.';
+    }else{
+      markerHost.innerHTML=ids.map(function(k){
+        const m=markers[k];
+        return '<div>'+escapeHtmlLite((m.icon||'✶')+' '+(m.label||'Anchor'))+' → ['+escapeHtmlLite(m.key)+'] '+escapeHtmlLite(m.detail||'')+'</div>';
+      }).join('');
+    }
+  }
+}
+
+window.ensureBackstoryState=ensureBackstoryState;
+window.setBackstoryField=setBackstoryField;
+window.rollBackstoryField=rollBackstoryField;
+window.generateBackstory=generateBackstory;
+window.applyBackstoryToCharacter=applyBackstoryToCharacter;
+window.assignBackstoryProvinceMarkers=assignBackstoryProvinceMarkers;
+window.getBackstoryProvinceMarker=getBackstoryProvinceMarker;
+window.renderBackstoryTab=renderBackstoryTab;
 
 function getBackpackCapacity(){
   return String(S.flavor||'').toLowerCase().indexOf('mule')>=0?20:6;
@@ -5744,6 +5999,7 @@ function pickUniquePeril(){if(usedPerils.length>=PERIL_NAMES_UNIQUE.length)usedP
 function pickUniqueBarrier(){if(usedBarriers.length>=BARRIER_TYPES_UNIQUE.length)usedBarriers=[];const avail=BARRIER_TYPES_UNIQUE.filter((_,i)=>!usedBarriers.includes(i));const idx=BARRIER_TYPES_UNIQUE.indexOf(pick(avail));usedBarriers.push(idx);return{name:BARRIER_TYPES_UNIQUE[idx],desc:BARRIER_DESCS_UNIQUE[idx]};}
 
 function generateMap(){
+  ensureBackstoryState();
   mapData=[];usedPerils=[];usedBarriers=[];hexNotes={};
   for(let col=0;col<COLS;col++)for(let row=0;row<ROWS;row++)mapData.push({col,row,terrain:pick(TERRAIN_TYPES),type:'wilderness',name:'',data:{}});
 
@@ -5767,6 +6023,7 @@ function generateMap(){
   placeUnique('lostcity','Lost City',{buildingCondition:pick(LC_BUILDING_CONDITION),buildingThis:pick(LC_BUILDING_THIS),buildingMade:pick(LC_BUILDING_MADE),buildingFor:pick(LC_BUILDING_FOR),buildingInside:pick(LC_BUILDING_INSIDE),buildingNow:pick(LC_BUILDING_NOW),discovery:pick(LC_DISCOVERIES)});
   for(let i=0;i<roll(3)+1;i++){const b=pickUniqueBarrier();placeUnique('barrier',b.name,{desc:b.desc});}
 
+  assignBackstoryProvinceMarkers();
   renderHexMap();showNotif('Province generated!','good');
 }
 
@@ -6176,6 +6433,19 @@ function renderHexMap(){
       mlabel.setAttribute('pointer-events','none');
       mlabel.textContent=label;g.appendChild(mlabel);
     }
+    const bsMarker=getBackstoryProvinceMarker(markerKey);
+    if(bsMarker){
+      const bsGlow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      bsGlow.setAttribute('cx',x+HEX_SIZE*.06);bsGlow.setAttribute('cy',y-HEX_SIZE*.56);
+      bsGlow.setAttribute('r','9.2');bsGlow.setAttribute('fill','rgba(123,154,255,.16)');
+      bsGlow.setAttribute('stroke','#7b9aff');bsGlow.setAttribute('stroke-width','1.4');bsGlow.setAttribute('pointer-events','none');
+      g.appendChild(bsGlow);
+      const bsIcon=document.createElementNS('http://www.w3.org/2000/svg','text');
+      bsIcon.setAttribute('x',x+HEX_SIZE*.06);bsIcon.setAttribute('y',y-HEX_SIZE*.49);
+      bsIcon.setAttribute('text-anchor','middle');bsIcon.setAttribute('font-size','10.5');
+      bsIcon.setAttribute('fill','#9db3ff');bsIcon.setAttribute('pointer-events','none');
+      bsIcon.textContent=bsMarker.icon||'✶';g.appendChild(bsIcon);
+    }
     const fb=window.factionSystem&&typeof window.factionSystem.getProvinceMarker==='function'
       ? window.factionSystem.getProvinceMarker(`${hex.col},${hex.row}`)
       : null;
@@ -6360,6 +6630,15 @@ function renderHexInfo(hex){
       <div class="nb-label" style="color:var(--gold2);">📍 ${markerTitle}</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}</div>
       ${mt.type==='story_choice' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="joinAndOpenStoryline()">Continue Storyline</button></div>` : ''}
+    </div>`;
+  }
+
+  const bsMarker=getBackstoryProvinceMarker(nk);
+  if(bsMarker){
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(123,154,255,.55);background:rgba(123,154,255,.08);">
+      <div class="nb-label" style="color:#9db3ff;">${bsMarker.icon||'✶'} Backstory Anchor: ${escapeHtmlLite(bsMarker.label||'Personal Marker')}</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${escapeHtmlLite(bsMarker.detail||'A location tied to your history.')}</div>
+      <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Open Storyline</button></div>
     </div>`;
   }
 

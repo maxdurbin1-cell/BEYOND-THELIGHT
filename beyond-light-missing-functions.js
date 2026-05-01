@@ -214,6 +214,15 @@ function switchTab(tabId, btn) {
     ensureSpaceShopCategories();
   }
 
+  if (tabId === "backstory") {
+    if (typeof window.ensureBackstoryState === "function") {
+      window.ensureBackstoryState();
+    }
+    if (typeof window.renderBackstoryTab === "function") {
+      window.renderBackstoryTab();
+    }
+  }
+
   if (tabId === "map") {
     var provinceState = (typeof window.getProvinceMapState === "function") ? window.getProvinceMapState() : null;
     var hasProvinceMap = !!(provinceState && Array.isArray(provinceState.mapData) && provinceState.mapData.length);
@@ -1022,6 +1031,12 @@ function syncCharacterFields() {
   setInputValue("eqArmor", S.equipment.armor);
   setInputValue("eqReadied", S.equipment.readied);
   S.backpack.forEach((item, index) => setInputValue("bp" + index, item));
+  if (typeof window.ensureBackstoryState === "function") {
+    window.ensureBackstoryState();
+  }
+  if (typeof window.renderBackstoryTab === "function") {
+    window.renderBackstoryTab();
+  }
 }
 
 function applyFallbackAriaLabels() {
@@ -1345,6 +1360,7 @@ function clearCharacter(options) {
   S.ownedHacks    = [];
   S.weaponMods    = [];
   S.hackRoller    = { dreadDie: 6, guess: null, selectedHack: null };
+  S.backstory = { origin: '', upbringing: '', hometown: '', faction: '', rival: '', connection: '', earlyCareer: '', earlyBackground: '', lifeEvent: '', notes: '', provinceMarkers: {} };
   S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
   clearAllConditions();
   syncCharacterFields();
@@ -1560,6 +1576,10 @@ function applyLoadedCharacterState(saved) {
       armyB: { ...S.combat.armyB, ...((saved.combat && saved.combat.armyB) || {}) }
     }
   };
+
+  if (typeof window.ensureBackstoryState === 'function') {
+    window.ensureBackstoryState();
+  }
 
   syncCharacterFields();
   buildStatRows();

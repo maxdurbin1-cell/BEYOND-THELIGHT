@@ -257,6 +257,40 @@
             effects: { mentalStress: 1 },
           },
         },
+        {
+          id: "o7",
+          text: "Trigger your Personal Flavor edge and take control of the scene",
+          stat: "control",
+          baseDread: 7,
+          req: { flavorSet: true },
+          success: {
+            next: "intro_sigil",
+            text: "Your signature talent shifts the room in seconds. Witnesses confess and the sigil pattern snaps into focus.",
+            effects: { renown: 1, consequenceTags: ["flavor_opening_play"] },
+          },
+          fail: {
+            next: "intro_failtrail",
+            text: "You overplay the move. The crowd panics and your opening evaporates.",
+            effects: { tmw: 1 },
+          },
+        },
+        {
+          id: "o8",
+          text: "Use your personal history to identify who wanted these bodies displayed",
+          stat: "mind",
+          baseDread: 8,
+          req: { backstorySet: true },
+          success: {
+            next: "intro_sigil",
+            text: "The pattern matches your old world. This is staged messaging, not random slaughter, and you know exactly who speaks this dialect of fear.",
+            effects: { renown: 1, flags: { backstoryLeadOpened: true }, consequenceTags: ["backstory_opening_play"] },
+          },
+          fail: {
+            next: "intro_failtrail",
+            text: "Your memory cuts two ways. The old pain blurs your read and costs valuable time.",
+            effects: { mentalStress: 1 },
+          },
+        },
       ],
     },
 
@@ -1315,6 +1349,15 @@
           req: { flagEq: { key: "lyraDead", value: true } },
           success: { next: "ending_iron", text: "You invoke Lyra's name and the city backs a hard verdict with irreversible force.", effects: { renown: 3, faction: { military: 1, political: -1 }, consequenceTags: ["martyr_verdict"] } },
           fail: { next: "ending_iron", text: "The chamber fractures, but vengeance still carries the day.", effects: { health: 1, mentalStress: 2, consequenceTags: ["martyr_verdict_unstable"] } },
+        },
+        {
+          id: "o6",
+          text: "Call in your backstory network: settle the rival, elevate the trusted contact, and lock a new civic balance",
+          stat: "lead",
+          baseDread: 12,
+          req: { backstoryRivalExists: true, backstoryConnectionExists: true },
+          success: { next: "ending_openhand", text: "Your rival is neutralized by politics, not blood. Your contact builds the first stable coalition and the city chooses distributed rule.", effects: { renown: 3, faction: { political: 1, rebels: 1 }, consequenceTags: ["backstory_network_resolution"] } },
+          fail: { next: "ending_glass", text: "The network partially holds. It averts the worst collapse, but governance remains fragile and contested.", effects: { mentalStress: 1, consequenceTags: ["backstory_network_fragile"] } },
         },
         {
           id: "o_dark",
@@ -2819,6 +2862,39 @@
       const terms = Array.isArray(req.mutationIncludes) ? req.mutationIncludes : [req.mutationIncludes];
       if (!terms.some(function (t) { return m.indexOf(lc(t)) >= 0; })) return false;
     }
+    if (req.flavorSet) {
+      const flavorText = lc((S && S.flavor) || "");
+      if (!flavorText) return false;
+    }
+    if (Array.isArray(req.flavorAny) && req.flavorAny.length) {
+      const flavorText = lc((S && S.flavor) || "");
+      if (!req.flavorAny.some(function (term) { return flavorText.indexOf(lc(term)) >= 0; })) return false;
+    }
+    if (req.backstorySet) {
+      const bs = (S && S.backstory && typeof S.backstory === "object") ? S.backstory : null;
+      const hasAny = !!(bs && (bs.origin || bs.upbringing || bs.hometown || bs.faction || bs.rival || bs.connection || bs.lifeEvent));
+      if (!hasAny) return false;
+    }
+    if (Array.isArray(req.backstoryOriginAny) && req.backstoryOriginAny.length) {
+      const origin = lc((S && S.backstory && S.backstory.origin) || "");
+      if (!req.backstoryOriginAny.some(function (term) { return origin.indexOf(lc(term)) >= 0; })) return false;
+    }
+    if (Array.isArray(req.backstoryUpbringingAny) && req.backstoryUpbringingAny.length) {
+      const up = lc((S && S.backstory && S.backstory.upbringing) || "");
+      if (!req.backstoryUpbringingAny.some(function (term) { return up.indexOf(lc(term)) >= 0; })) return false;
+    }
+    if (Array.isArray(req.backstoryFactionAny) && req.backstoryFactionAny.length) {
+      const faction = lc((S && S.backstory && S.backstory.faction) || "");
+      if (!req.backstoryFactionAny.some(function (term) { return faction.indexOf(lc(term)) >= 0; })) return false;
+    }
+    if (req.backstoryRivalExists) {
+      const rival = lc((S && S.backstory && S.backstory.rival) || "");
+      if (!rival) return false;
+    }
+    if (req.backstoryConnectionExists) {
+      const conn = lc((S && S.backstory && S.backstory.connection) || "");
+      if (!conn) return false;
+    }
     if (Array.isArray(req.augmentationsAny) && req.augmentationsAny.length) {
       const augs = Array.isArray(S.augmentations) ? S.augmentations : [];
       if (!hasAnyInList(augs, req.augmentationsAny)) return false;
@@ -4320,6 +4396,14 @@
     if (Array.isArray(req.reputationAny)) bits.push("Reputation: " + req.reputationAny.join(" / "));
     if (req.misfortuneIs) bits.push("Misfortune: " + req.misfortuneIs);
     if (req.mutationIncludes) bits.push("Mutation: " + (Array.isArray(req.mutationIncludes) ? req.mutationIncludes.join(" / ") : req.mutationIncludes));
+    if (req.flavorSet) bits.push("Personal Flavor set");
+    if (Array.isArray(req.flavorAny) && req.flavorAny.length) bits.push("Personal Flavor: " + req.flavorAny.join(" / "));
+    if (req.backstorySet) bits.push("Backstory created");
+    if (Array.isArray(req.backstoryOriginAny) && req.backstoryOriginAny.length) bits.push("Backstory Origin: " + req.backstoryOriginAny.join(" / "));
+    if (Array.isArray(req.backstoryUpbringingAny) && req.backstoryUpbringingAny.length) bits.push("Backstory Upbringing: " + req.backstoryUpbringingAny.join(" / "));
+    if (Array.isArray(req.backstoryFactionAny) && req.backstoryFactionAny.length) bits.push("Backstory Faction: " + req.backstoryFactionAny.join(" / "));
+    if (req.backstoryRivalExists) bits.push("Backstory Rival required");
+    if (req.backstoryConnectionExists) bits.push("Backstory Connection required");
     if (Array.isArray(req.augmentationsAny) && req.augmentationsAny.length) bits.push("Augmentations: " + req.augmentationsAny.join(" / "));
     if (Array.isArray(req.ownedHacksAny) && req.ownedHacksAny.length) bits.push("OS Hack: " + req.ownedHacksAny.join(" / "));
     if (Array.isArray(req.backpackAny) && req.backpackAny.length) bits.push("Loadout item: " + req.backpackAny.join(" / "));

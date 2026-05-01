@@ -2870,6 +2870,12 @@
       const flavorText = lc((S && S.flavor) || "");
       if (!req.flavorAny.some(function (term) { return flavorText.indexOf(lc(term)) >= 0; })) return false;
     }
+    if (Array.isArray(req.flavorProfileAny) && req.flavorProfileAny.length) {
+      if (typeof window.getPersonalFlavorMechanicProfile !== "function") return false;
+      const profile = window.getPersonalFlavorMechanicProfile((S && S.flavor) || "");
+      const okProfile = req.flavorProfileAny.some(function (key) { return !!(profile && profile[String(key || "")]); });
+      if (!okProfile) return false;
+    }
     if (req.backstorySet) {
       const bs = (S && S.backstory && typeof S.backstory === "object") ? S.backstory : null;
       const hasAny = !!(bs && (bs.origin || bs.upbringing || bs.hometown || bs.faction || bs.rival || bs.connection || bs.lifeEvent));
@@ -3551,8 +3557,10 @@
     const statName = STAT_LABELS[option.stat] || option.stat;
     const assignee = String(checkResult.assigneeName || 'Wayfarer');
     const bonus = Number(checkResult.factionBonus || 0);
-    const actionTotalLabel = bonus > 0
-      ? (checkResult.action.total + " + " + bonus + " = " + checkResult.effectiveTotal)
+    const flavorBonus = Number(checkResult.flavorBonus || 0);
+    const aggregateBonus = Math.max(0, bonus) + Math.max(0, flavorBonus);
+    const actionTotalLabel = aggregateBonus > 0
+      ? (checkResult.action.total + " + " + aggregateBonus + " = " + checkResult.effectiveTotal)
       : String(checkResult.action.total);
     const html = ""
       + "<div style='text-align:center;font-family:Cinzel,serif;font-size:1.05rem;color:#ff6060;margin-bottom:.6rem;letter-spacing:.08em;'>✗ FAILED ROLL</div>"
@@ -3570,6 +3578,9 @@
       + "<div style='font-size:.79rem;color:var(--text2);margin-bottom:.55rem;text-align:center;font-style:italic;'>\"" + option.text + "\"</div>"
       + (bonus > 0 && revealHidden
         ? ("<div style='font-size:.74rem;color:var(--gold2);text-align:center;margin-bottom:.45rem;'>Faction bonus: +" + bonus + " from " + (FACTION_LABELS[checkResult.factionKey] || checkResult.factionKey) + " renown.</div>")
+        : "")
+      + (flavorBonus > 0 && revealHidden
+        ? ("<div style='font-size:.74rem;color:var(--teal);text-align:center;margin-bottom:.45rem;'>Personal Flavor bonus: +" + flavorBonus + "</div>")
         : "")
       + "<div style='background:rgba(255,96,96,.06);border:1px solid rgba(255,96,96,.25);padding:.45rem .55rem;border-radius:4px;margin-bottom:.55rem;'>"
       + "<div style='font-size:.76rem;font-family:Cinzel,serif;color:var(--gold2);margin-bottom:.25rem;'>Choose Your Response</div>"
@@ -3686,7 +3697,20 @@
     const bonus = (typeof window.getFactionStoryRollBonus === "function" && factionKey)
       ? Number(window.getFactionStoryRollBonus(factionKey, statKey) || 0)
       : 0;
-    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus) + relicTotal + campaignBonus;
+    let flavorBonus = 0;
+    try {
+      if (typeof window.getPersonalFlavorMechanicProfile === "function") {
+        const profile = window.getPersonalFlavorMechanicProfile((S && S.flavor) || "");
+        if (profile) {
+          if (profile.infernalEyes && statKey === "lead") flavorBonus += 1;
+          if (profile.telepathic && (statKey === "lead" || statKey === "mind" || statKey === "spirit")) flavorBonus += 1;
+          if (profile.beastForm && (statKey === "control" || statKey === "body")) flavorBonus += 1;
+          if (profile.holyShield && statKey === "defend") flavorBonus += 1;
+          if (profile.antiRad && (statKey === "mind" || statKey === "spirit")) flavorBonus += 1;
+        }
+      }
+    } catch (_err) {}
+    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus) + relicTotal + campaignBonus + Math.max(0, flavorBonus);
     return {
       success: effectiveTotal >= d.total,
       actionDie: actionDie,
@@ -3696,6 +3720,7 @@
       factionKey: factionKey || "",
       factionBonus: Math.max(0, bonus),
       campaignBonus: campaignBonus,
+      flavorBonus: Math.max(0, flavorBonus),
       effectiveTotal: effectiveTotal,
       assigneeName: decisionMeta && decisionMeta.assigneeName ? String(decisionMeta.assigneeName) : 'Wayfarer',
       rollSource: decisionMeta && decisionMeta.assigneeId ? String(decisionMeta.assigneeId) : 'local:self',
@@ -4398,6 +4423,7 @@
     if (req.mutationIncludes) bits.push("Mutation: " + (Array.isArray(req.mutationIncludes) ? req.mutationIncludes.join(" / ") : req.mutationIncludes));
     if (req.flavorSet) bits.push("Personal Flavor set");
     if (Array.isArray(req.flavorAny) && req.flavorAny.length) bits.push("Personal Flavor: " + req.flavorAny.join(" / "));
+    if (Array.isArray(req.flavorProfileAny) && req.flavorProfileAny.length) bits.push("Flavor profile: " + req.flavorProfileAny.join(" / "));
     if (req.backstorySet) bits.push("Backstory created");
     if (Array.isArray(req.backstoryOriginAny) && req.backstoryOriginAny.length) bits.push("Backstory Origin: " + req.backstoryOriginAny.join(" / "));
     if (Array.isArray(req.backstoryUpbringingAny) && req.backstoryUpbringingAny.length) bits.push("Backstory Upbringing: " + req.backstoryUpbringingAny.join(" / "));

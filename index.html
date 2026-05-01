@@ -3223,6 +3223,40 @@ function getPersonalFlavorMechanicProfile(flavorText){
   };
 }
 
+function getFlavorHazardTags(profile){
+  var tags=[];
+  if(!profile||typeof profile!=='object')return tags;
+  if(profile.antiRad)tags.push('radiation');
+  if(profile.heatWard)tags.push('heat');
+  if(profile.coldWard)tags.push('cold');
+  if(profile.vacuumReady)tags.push('vacuum');
+  if(profile.injuryWard)tags.push('injury');
+  return tags;
+}
+
+function isPassiveOnlyFlavorEntry(entry){
+  if(!entry)return false;
+  var base=String(entry.key||'');
+  if(base.indexOf('mule')>=0)return true;
+  if(base.indexOf('vault memory')>=0)return true;
+  if(base.indexOf('iron stomach')>=0)return true;
+  if(base.indexOf('faultline sense')>=0)return true;
+  if(base.indexOf('torchbearer')>=0)return true;
+  if(base.indexOf('cinder skin')>=0)return true;
+  if(base.indexOf('frost')>=0)return true;
+  if(base.indexOf('storm veins')>=0)return true;
+  if(base.indexOf('steel prayer')>=0)return true;
+  return false;
+}
+
+function getFlavorMechanicMode(entry){
+  if(!entry)return 'active';
+  if(isPassiveOnlyFlavorEntry(entry))return 'passive';
+  var profile=getPersonalFlavorMechanicProfile(entry.full||entry.title||entry.key||'');
+  var hazards=getFlavorHazardTags(profile);
+  return hazards.length?'hybrid':'active';
+}
+
 function flavorHashCode(txt){
   var s=String(txt||'');
   var h=0;
@@ -3335,7 +3369,7 @@ function getBespokeFlavorEntry(flavorText){
     else if(archetype==='guard')desc='Anchor '+labelPrefix+' into a defensive stance and clear pressure states.';
     else desc='Channel '+labelPrefix+' into a focused supernatural utility burst.';
   }
-  return {
+  var entry={
     key:base,
     full:full,
     index:idx,
@@ -3347,6 +3381,8 @@ function getBespokeFlavorEntry(flavorText){
     desc:desc,
     code:'F'+String(idx+1).padStart(3,'0')
   };
+  if(getFlavorMechanicMode(entry)==='passive')entry.actionLabel='Passive Effect · '+labelPrefix;
+  return entry;
 }
 
 function getFlavorSceneContext(){
@@ -3517,13 +3553,17 @@ function getFlavorInteractionDescriptor(flavorText){
   var entry=getBespokeFlavorEntry(flavorText);
   if(!entry)return{title:'No Flavor Selected',desc:'Roll or set a Personal Flavor to unlock a usable action.',label:'Use Flavor Action',cooldown:'phase'};
   var rule=getFlavorRuleForEntry(entry);
+  var mode=getFlavorMechanicMode(entry);
+  var hazards=getFlavorHazardTags(getPersonalFlavorMechanicProfile(entry.full||entry.title||entry.key||''));
   return {
     title:entry.title,
     desc:(rule&&rule.effect)?rule.effect:entry.desc,
-    label:entry.actionLabel,
+    label:mode==='passive'?'Passive Effect':entry.actionLabel,
     archetype:entry.archetype,
     cooldown:entry.cooldownType,
     code:entry.code,
+    mode:mode,
+    hazards:hazards,
     trigger:rule?rule.trigger:'',
     effect:rule?rule.effect:entry.desc,
     cue:rule?rule.cue:''
@@ -3547,7 +3587,37 @@ function openPersonalFlavorCodexModal(){
       +'<div style="font-size:.72rem;color:var(--gold2);margin-top:.1rem;line-height:1.45;"><strong>Cue:</strong> '+(rule?rule.cue:'—')+'</div>'
       +'</div>';
   }).join('');
-  if(typeof openModal==='function')openModal('Personal Flavor Mini Codex','<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.4rem;">100 normalized flavor rules with explicit trigger, effect, and cue guidance.</div><div style="display:grid;gap:.25rem;max-height:68vh;overflow:auto;">'+rows+'</div>');
+  var tableRows=entries.map(function(e){
+    var profile=getPersonalFlavorMechanicProfile(e.full||e.title||e.key||'');
+    var hazards=getFlavorHazardTags(profile);
+    var mode=getFlavorMechanicMode(e);
+    var hook=[];
+    if(profile.infernalEyes||profile.telepathic)hook.push('storyline-social');
+    if(profile.beastForm||profile.animalCompanion)hook.push('combat');
+    if(profile.antiRad||profile.heatWard||profile.coldWard||profile.vacuumReady)hook.push('hazard');
+    if(!hook.length)hook.push('general');
+    return '<tr>'
+      +'<td style="padding:.18rem .3rem;border-bottom:1px solid var(--border2);color:var(--gold2);font-family:Rajdhani,sans-serif;">'+e.code+'</td>'
+      +'<td style="padding:.18rem .3rem;border-bottom:1px solid var(--border2);color:var(--text2);">'+escapeHtmlLite(e.title)+'</td>'
+      +'<td style="padding:.18rem .3rem;border-bottom:1px solid var(--border2);color:'+(mode==='passive'?'var(--teal)':mode==='hybrid'?'var(--gold2)':'var(--muted2)')+';">'+mode.toUpperCase()+'</td>'
+      +'<td style="padding:.18rem .3rem;border-bottom:1px solid var(--border2);color:var(--muted2);">'+(hazards.length?hazards.join(', '):'—')+'</td>'
+      +'<td style="padding:.18rem .3rem;border-bottom:1px solid var(--border2);color:var(--muted2);">'+hook.join(', ')+'</td>'
+      +'</tr>';
+  }).join('');
+  var table=''
+    +'<div style="margin-top:.55rem;padding-top:.4rem;border-top:1px solid var(--border2);">'
+    +'<div style="font-size:.76rem;color:var(--teal);margin-bottom:.22rem;">Mechanic Mapping Table</div>'
+    +'<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.28rem;">Documents each Personal Flavor lane: passive/active mode, hazard niche coverage, and storyline hook profile.</div>'
+    +'<div style="max-height:34vh;overflow:auto;border:1px solid var(--border2);">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:.72rem;">'
+    +'<thead><tr style="background:rgba(255,255,255,.04);">'
+    +'<th style="text-align:left;padding:.2rem .3rem;color:var(--muted2);">Code</th>'
+    +'<th style="text-align:left;padding:.2rem .3rem;color:var(--muted2);">Flavor</th>'
+    +'<th style="text-align:left;padding:.2rem .3rem;color:var(--muted2);">Mode</th>'
+    +'<th style="text-align:left;padding:.2rem .3rem;color:var(--muted2);">Hazard Niche</th>'
+    +'<th style="text-align:left;padding:.2rem .3rem;color:var(--muted2);">Story Hook</th>'
+    +'</tr></thead><tbody>'+tableRows+'</tbody></table></div></div>';
+  if(typeof openModal==='function')openModal('Personal Flavor Mini Codex','<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.4rem;">100 normalized flavor rules with explicit trigger, effect, and cue guidance.</div><div style="display:grid;gap:.25rem;max-height:36vh;overflow:auto;">'+rows+'</div>'+table);
 }
 
 function refreshPersonalFlavorInteractionUI(){
@@ -3563,6 +3633,11 @@ function refreshPersonalFlavorInteractionUI(){
     var st=S.flavorActionState||{};
     var entry=getBespokeFlavorEntry(S.flavor);
     if(!entry){meta.textContent='Ready';return;}
+    var mode=getFlavorMechanicMode(entry);
+    if(mode==='passive'){
+      meta.textContent='Passive · always on · '+entry.code;
+      return;
+    }
     var key=entry.key;
     var needed=getFlavorCooldownStamp(entry.cooldownType);
     var used=(st[key]&&st[key].stamp===needed);
@@ -3708,6 +3783,12 @@ function usePersonalFlavorAction(){
   var entry=getBespokeFlavorEntry(flavor);
   if(!entry){showNotif('Flavor entry unavailable.','warn');return;}
   var profile=getPersonalFlavorMechanicProfile(flavor);
+  var mode=getFlavorMechanicMode(entry);
+  if(mode==='passive'){
+    showNotif(entry.title+' is passive and always on. No action spent.','info');
+    refreshPersonalFlavorInteractionUI();
+    return;
+  }
   var key=entry.key;
   var stamp=getFlavorCooldownStamp(entry.cooldownType);
   var bypassCooldown=!!(profile&&profile.beastForm);
@@ -3715,6 +3796,17 @@ function usePersonalFlavorAction(){
     showNotif('Flavor action on '+entry.cooldownType+' cooldown.','info');
     refreshPersonalFlavorInteractionUI();
     return;
+  }
+  if(S&&S.combat&&S.combat.active){
+    if(typeof consumeCombatAction==='function'){
+      if(!consumeCombatAction('Personal Flavor'))return;
+    }else if(S.combat.actionsLeft<=0){
+      showNotif('No Actions remaining for this turn.','warn');
+      return;
+    }else{
+      S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);
+      if(typeof updateCombatUI==='function')updateCombatUI();
+    }
   }
   var arch=entry.archetype;
   var potency=entry.potency;
@@ -4188,7 +4280,21 @@ function renderCampaignInitiativePanel(){
     +'<div style="display:grid;gap:.14rem;max-height:160px;overflow:auto;">'+rows+'</div>'
     +'</div>';
 }
-function updateCombatUI(){const el=document.getElementById('combatStatus');if(el)el.textContent=S.combat.active?`Round ${S.combat.round} — Active Scene`:'No active scene.';const al=document.getElementById('actionsLeft');if(al)al.textContent=S.combat.actionsLeft;const ml=document.getElementById('maxActionsHint');if(ml)ml.textContent='(max '+getMaxActions()+')';if(typeof renderCampaignInitiativePanel==='function')renderCampaignInitiativePanel();}
+function updateCombatUI(){
+  const el=document.getElementById('combatStatus');
+  if(el){
+    const enemyTotal=Math.max(1,(typeof getEnemyActionsPerCycle==='function'?getEnemyActionsPerCycle():0));
+    const enemyLeft=(typeof getEnemyActionsRemaining==='function'?getEnemyActionsRemaining():enemyTotal);
+    el.textContent=S.combat.active
+      ? (`Round ${S.combat.round} — Active Scene | Enemy Actions ${enemyLeft}/${enemyTotal}`)
+      : 'No active scene.';
+  }
+  const al=document.getElementById('actionsLeft');
+  if(al)al.textContent=S.combat.actionsLeft;
+  const ml=document.getElementById('maxActionsHint');
+  if(ml)ml.textContent='(max '+getMaxActions()+')';
+  if(typeof renderCampaignInitiativePanel==='function')renderCampaignInitiativePanel();
+}
 function setEnemyDread(n){
   S.combat.enemyDread=n;
   const el=document.getElementById('enemyDreadDisplay');
@@ -4216,6 +4322,13 @@ function getHostileEnemyCount(){
 
 function getEnemyActionsPerCycle(){
   return Math.max(0,getHostileEnemyCount()*2);
+}
+
+function getEnemyActionsRemaining(){
+  if(!S||!S.combat)return getEnemyActionsPerCycle();
+  var perCycle=Math.max(1,getEnemyActionsPerCycle());
+  var spent=Math.max(0,Number(S.combat.enemyDefendsThisTurn||0));
+  return Math.max(0,perCycle-spent);
 }
 
 function ensureEnemyEffectState(enemy){
@@ -4669,6 +4782,12 @@ function triggerEnemyActionEvent(){
 function getFlavorBonus(stat){
   var f=(S.flavor||'').toLowerCase();
   var profile=getPersonalFlavorMechanicProfile(f);
+  var env=(S&&S.environmentContext&&typeof S.environmentContext==='object')?S.environmentContext:{};
+  var temp=String(env.temperature||'').toLowerCase();
+  var inHeat=temp==='heat'||temp==='hot'||temp==='scorched';
+  var inCold=temp==='cold'||temp==='frigid'||temp==='winter';
+  var inVacuum=!!env.vacuum;
+  var inRad=Number((S&&S.rads)||0)>0||!!env.irradiated;
   var flat=0,advDice=[],holyShield=false;
   if(stat==='defend'){
     if(f.indexOf('stone skin')>=0)advDice.push(4);
@@ -4686,6 +4805,11 @@ function getFlavorBonus(stat){
   if(stat==='body'&&f.indexOf('feats of strength')>=0)advDice.push(10);
   if(stat==='lead'&&profile.infernalEyes&&(getCurrentActiveTabId()==='storyline'||getCurrentActiveTabId()==='factions'))advDice.push(stepUp(Number((S.stats&&S.stats.lead)||4)));
   if(stat==='lead'&&profile.telepathic&&(getCurrentActiveTabId()==='storyline'||getCurrentActiveTabId()==='missions'))flat+=1;
+  if(profile.heatWard&&inHeat&&(stat==='body'||stat==='defend'))flat+=2;
+  if(profile.coldWard&&inCold&&(stat==='body'||stat==='defend'))flat+=2;
+  if(profile.vacuumReady&&inVacuum&&(stat==='spirit'||stat==='defend'))advDice.push(8);
+  if(profile.antiRad&&inRad&&(stat==='mind'||stat==='spirit'||stat==='defend'))flat+=1;
+  if(profile.injuryWard&&stat==='defend')flat+=1;
   if(stat==='adventure'&&f.indexOf('mindshield')>=0)advDice.push(8);
   flat+=getDarkAfflictionPenalty(stat);
   flat+=getDarkAfflictionPowerBonus(stat);
@@ -9777,7 +9901,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     var dread = S.combat && S.combat.enemyDread ? S.combat.enemyDread : 6;
     var playerMaxActions = (typeof getMaxActions === 'function') ? getMaxActions() : 3;
     var playerActions = (S.combat && typeof S.combat.actionsLeft === 'number') ? S.combat.actionsLeft : playerMaxActions;
-    var enemyActions = (typeof getEnemyActionsPerCycle === 'function') ? getEnemyActionsPerCycle() : 0;
+    var enemyActions = (typeof getEnemyActionsRemaining === 'function')
+      ? getEnemyActionsRemaining()
+      : ((typeof getEnemyActionsPerCycle === 'function') ? getEnemyActionsPerCycle() : 0);
+    var enemyActionsMax = (typeof getEnemyActionsPerCycle === 'function') ? Math.max(1,getEnemyActionsPerCycle()) : Math.max(1,enemyActions);
     var enemies = S.enemies || [];
     var eneHtml = enemies.length
       ? enemies.map(function(e,idx){ 
@@ -9814,7 +9941,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerActions+'/'+playerMaxActions+'</strong></div>'
-      + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Actions: <strong style="color:var(--red2);">'+enemyActions+'</strong></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Actions: <strong style="color:var(--red2);">'+enemyActions+'/'+enemyActionsMax+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'
       + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;">'

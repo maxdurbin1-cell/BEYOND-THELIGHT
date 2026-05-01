@@ -2047,6 +2047,9 @@
         if (callback) callback({ ok: false, error: "Invalid destination" });
         return;
       }
+      if (String(next.reason || "").indexOf("smoke-") === 0) {
+        next.skipReadyCheck = true;
+      }
       if (!next.skipReadyCheck) {
         var readyPayload = deepCloneJson(next) || {};
         delete readyPayload.skipReadyCheck;

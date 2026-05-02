@@ -2557,6 +2557,16 @@ function resolveFacilityEncounterAction(moduleId, actionId) {
   } else if (action.kind === 'combatcue') {
     log = applyFacilityEncounterEffect(module, action, null, true);
   } else {
+    const flavorText = String((S && S.flavor) ? S.flavor : '').toLowerCase();
+    const plasticBonesActive = flavorText.indexOf('plastic bones') >= 0 || flavorText.indexOf('plastic bone structure') >= 0;
+    if (plasticBonesActive && (action.effect === 'lock-spot' || action.effect === 'lock-disable')) {
+      const effectText = applyFacilityEncounterEffect(module, action, null, true);
+      log = 'Plastic Bones bypass: reshaped through lock geometry. Success: ' + effectText;
+      action.resolved = true;
+      module.encounterLog.push(log);
+      renderFacilityPanel();
+      return;
+    }
     const statA = action.statA || 'mind';
     const statB = action.statB || null;
     const dd = action.dd || 8;

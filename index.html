@@ -1512,7 +1512,10 @@ const LORE_BOOK_POOL=[
   {item:'Book: Ruin Diver Field Notes',genre:'Expedition Journal',lore:'A ruin diver sketches hidden pressure marks and trap seams. The margins contain three routes through structures that no longer exist.',reward:'flatBonus'},
   {item:'Book: Children of the Drowned Mile',genre:'Folklore',lore:'Children in flooded settlements trade a story of a bell that rings underwater. Those who hear it always find the way home.',reward:'pathTokens'},
   {item:'Book: Bonewire Bestiary',genre:'Monster Catalog',lore:'Each entry tracks creature habits by season and moon phase. The final page is blank except for claw marks and a single fresh warning.',reward:'stepUp'},
-  {item:'Book: The Quiet Engine',genre:'Builder Relic Study',lore:'Engineers of the old world built a machine to archive grief. It still runs in a buried chamber, cataloging names nobody remembers.',reward:'positiveCondition'}
+  {item:'Book: The Quiet Engine',genre:'Builder Relic Study',lore:'Engineers of the old world built a machine to archive grief. It still runs in a buried chamber, cataloging names nobody remembers.',reward:'positiveCondition'},
+  {item:'Glyph Codex: Ashen Litany',genre:'Ancient Glyph',lore:'Each rune ignites briefly as you trace it, describing routes between ruined shrines hidden across dead frontiers.',reward:'pathTokens'},
+  {item:'Ancient Book: Cathedral Fragments',genre:'Ancient Script',lore:'These brittle pages preserve liturgies written before the Collapse. Marginalia maps forgotten temple vaults.',reward:'pathTokens'},
+  {item:'Glyph Tablet: Runebinder Testament',genre:'Glyph Archive',lore:'Stone-cut symbols describe vows, sigils, and passphrases once used to bypass sacred ward locks.',reward:'pathTokens'}
 ];
 const BACKPACK_TABLE=[['Sword (+1 Strike) | Light Armor (Ad4, 3 Actions) | Jewelry (A.D. to Spirit/Convince)','Mace (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Pet (A.D., 1 Action, 1 Stress)','Halberd (+3 Strike) | Light Armor (Ad4, 3 Actions) | Scroll: Speak with Animals','Two-Handed Axe (+3 Strike) | Balanced Armor (Ad6, 2 Actions) | Tinker Tools'],['Axe (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Compass (A.D. to Lead/Survival)','Staff (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Shield (A.D. to Defend)','Flail (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: See object vision','Quarterstaff (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: You can fly'],['Two-Handed Sword (+3 Strike) | Heavy Armor (Ad10, 1 Action) | Horse (A.D., 1 Action, 1 Stress)','Two-Handed Mace (+3 Strike) | Light Armor (Ad4, 3 Actions) | Lockpicks','Scythe (+2 Strike) | Light Armor (Ad4, 3 Actions) | Quill & Paper (A.D. to Forgery)','Two-Handed Scythe (+3 Strike) | Balanced Armor (Ad6, 2 Actions) | Net (A.D. to Grapple)'],['Crossbow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Spyglass (A.D. to Notice)','Whip (+1 Strike) | Light Armor (Ad4, 3 Actions) | Hood (A.D. to Stealth)','Gladius (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Mount (A.D., 1 Action, 1 Stress)','Crossbow (+3 Shoot) | Heavy Armor (Ad10, 1 Action) | Whiskey/Fiddle'],['Longbow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Levitate Objects','Sling (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Herbal Tea (A.D. to Diplomacy)','Carbine Rifle (+3 Shoot) | Balanced Armor (Ad6, 2 Actions) | Scroll: Invisibility','Reinforced Bow (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Night Vision'],['Rapier (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Create Light','Katana (+3 Strike) | Heavy Armor (Ad10, 1 Action) | Scroll: Repair broken object','Sabre (+2 Strike) | Light Armor (Ad4, 3 Actions) | Scroll: Accelerate plant growth','Musket (+3 Shoot) | Balanced Armor (Ad6, 2 Actions) | Scroll: None can lie to you'],['Dagger (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Book (A.D. to Mind/Lore)','Spear (+2 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Levitate Object','Recurve Bow (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Scroll: Reveal traps','Bow (+1 Shoot) | Heavy Armor (Ad10, 1 Action) | Herb Kit (A.D. to Heal)'],['Whip (+1 Strike) | Heavy Armor (Ad10, 1 Action) | Talisman (A.D. to Intuition)','Pistol (+1 Shoot) | Light Armor (Ad4, 3 Actions) | Gauntlet (A.D. to Body/Power)','Blunderbuss (+2 Shoot) | Light Armor (Ad4, 3 Actions) | Scroll: Create portal','2 Daggers (+1 Strike) | Balanced Armor (Ad6, 2 Actions) | Scroll: Silent steps']];
 const RENOWN_TITLES=[{min:0,max:2,title:'Unknown Wayfarer',desc:'Seeks Tasks from Nomads & Sages'},{min:3,max:5,title:'Whispered Wayfarer',desc:'Worthy of a seat in Council. Sought by Lords.'},{min:6,max:8,title:'Celebrated Wayfarer',desc:'Sought by the Sovereign. May join Skirmishes.'},{min:9,max:11,title:'Lord Wayfarer',desc:'Worthy of governing a Realm.'},{min:12,max:999,title:'Sovereign Wayfarer',desc:'Worthy of ruling a Seat of Power.'}];
@@ -2507,6 +2510,53 @@ function rollHometownRandomEvent(key,scope){
   if(typeof openModal==='function')openModal('Hometown Event',html);
 }
 
+function rollHometownMemoryEncounter(key,scope){
+  ensureBackstoryState();
+  var b=S.backstory||{};
+  var sk=String(scope||'province').toLowerCase();
+  var mapLabel=(sk==='sea'?'Sea Region':sk==='galaxy'?'Galaxy':sk==='wtw'?'World That Was':sk==='planet'?'Planetary Exploration':'Province');
+  var hometown=String(b.hometown||'your old district');
+  var upbringing=String(b.upbringing||'a rough upbringing');
+  var origin=String(b.origin||'a forgotten origin');
+  var rival=String(b.rival||'an old rival');
+  var connection=String(b.connection||'a trusted contact');
+
+  var shortPool=[
+    'You catch the smell of rain on rust and suddenly remember '+hometown+' before the fires.',
+    'A passing song uses the same cadence taught to you during '+upbringing+'.',
+    'A faded symbol mirrors one from your first days in '+origin+'.'
+  ];
+  var mediumPool=[
+    'A face in the crowd resembles someone from '+hometown+'. For a heartbeat you expect them to call your old name, then they disappear into the flow of travelers.',
+    'The route bends like the alleys where you learned '+upbringing+'. You remember exactly where you used to hide when patrols swept through at dusk.',
+    'An old insignia on a wall points back to '+origin+'. You recall the night you chose survival over certainty, and why '+rival+' never forgave you.'
+  ];
+  var longPool=[
+    'As you cross this '+mapLabel+' sector, the air and light align in a way that drags you backward in time. You remember standing in '+hometown+', younger and certain you would never leave, while '+connection+' argued that the world was larger than your fear. You left anyway, carrying more guilt than gear. The memory steadies you now: you survived once by moving forward, and you can do it again.',
+    'The architecture here mirrors fragments of '+origin+', and your hands move before thought, tracing old routes and old promises. You remember '+upbringing+' not as a story but as pressure in your chest: the lessons, the hunger, the vows made in dim light. You also remember '+rival+' watching when you walked away. The past is not gone, but it no longer owns your next step.'
+  ];
+
+  var r=roll(100);
+  var text=(r<=40)?pick(shortPool):(r<=80)?pick(mediumPool):pick(longPool);
+  var reward='';
+  if(r<=35){
+    if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+    else S.pathTokens=(S.pathTokens||0)+1;
+    reward='Memory Reward: +1 Path Token';
+  }else if(r>=92){
+    if(S.conditions)S.conditions.focused=true;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    reward='Memory Reward: Focused condition gained';
+  }
+
+  var html=''
+    +'<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.3rem;">Memory Encounter · '+escapeHtmlLite(mapLabel)+' · '+escapeHtmlLite(hometown)+'</div>'
+    +'<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'+escapeHtmlLite(text)+'</div>'
+    +(reward?('<div style="margin-top:.55rem;color:var(--teal);"><strong>'+escapeHtmlLite(reward)+'</strong></div>'):'');
+  if(typeof openModal==='function')openModal('Backstory Memory',html);
+  if(typeof showNotif==='function')showNotif('A memory from '+hometown+' surfaced in '+mapLabel+'.','info');
+}
+
 function resolveHometownEventCheck(key,scope,stat){
   const st=ensureBackstoryAnchorState();
   const ev=st.home&&st.home.pendingEvent?st.home.pendingEvent:null;
@@ -2597,6 +2647,7 @@ function openBackstoryAnchorInteraction(anchorId,key,scope){
       +'<button class="btn btn-sm btn-teal" onclick="doHometownDowntimeRest(\''+k+'\',\''+sk+'\')">Downtime Long Rest</button>'
       +'<button class="btn btn-sm btn-primary" onclick="generateHometownMission(\''+k+'\',\''+sk+'\')">Generate Hometown Mission</button>'
       +'<button class="btn btn-sm" onclick="rollHometownRandomEvent(\''+k+'\',\''+sk+'\')">Roll Hometown Event</button>'
+      +'<button class="btn btn-sm btn-warn" onclick="rollHometownMemoryEncounter(\''+k+'\',\''+sk+'\')">Roll Memory Encounter</button>'
       +'</div></div>';
     if(typeof openModal==='function')openModal('Hometown Anchor',html);
     return;
@@ -6854,6 +6905,57 @@ function isLoreBookItemName(nameText){
   return !!getLoreBookEntryByItem(parseBackpackStack(nameText).name);
 }
 
+function isGlyphOrAncientLoreBook(entry){
+  if(!entry)return false;
+  var item=String(entry.item||'').toLowerCase();
+  var genre=String(entry.genre||'').toLowerCase();
+  return item.indexOf('glyph')>=0||item.indexOf('ancient')>=0||item.indexOf('runebinder')>=0||genre.indexOf('glyph')>=0||genre.indexOf('ancient')>=0;
+}
+
+function getActiveMapTempleContext(){
+  var tab=(typeof getCurrentActiveTabId==='function')?String(getCurrentActiveTabId()||''):'map';
+
+  if(tab==='map'){
+    if(selectedHex&&String(selectedHex.type||'').toLowerCase()==='temple')return{ok:true,label:'Province Temple'};
+    return{ok:false,label:'not at a Province temple'};
+  }
+
+  if(tab==='lastsea'){
+    var seaMap=(S&&S.lastSea&&Array.isArray(S.lastSea.map))?S.lastSea.map:[];
+    var sk=S&&S.lastSea?String(S.lastSea.selectedKey||''):'';
+    var seaHex=seaMap.find(function(h){return String(h&&h.key||'')===sk;});
+    var seaText=[seaHex&&seaHex.type,seaHex&&seaHex.title,seaHex&&seaHex.islandName].join(' ').toLowerCase();
+    var seaTemple=seaText.indexOf('temple')>=0||seaText.indexOf('shrine')>=0||seaText.indexOf('abbey')>=0||seaText.indexOf('sanctum')>=0;
+    return{ok:!!seaTemple,label:seaTemple?'Sea Region Temple':'not at a Sea Region temple'};
+  }
+
+  if(tab==='galaxy'){
+    var hub=(S&&S.starSystem&&S.starSystem.activeHub)?S.starSystem.activeHub:null;
+    var hubText=[hub&&hub.name,hub&&hub.desc,hub&&hub.feature].join(' ').toLowerCase();
+    var galTemple=hubText.indexOf('temple')>=0||hubText.indexOf('shrine')>=0||hubText.indexOf('chapel')>=0||hubText.indexOf('sanctum')>=0;
+    return{ok:!!galTemple,label:galTemple?'Galaxy Temple Site':'not at a Galaxy temple site'};
+  }
+
+  if(tab==='planet'){
+    var ps=(typeof getCurrentPlanetSurfaceState==='function')?getCurrentPlanetSurfaceState():null;
+    var cell=(ps&&Array.isArray(ps.cells))?ps.cells.find(function(c){return Number(c.id)===Number(ps.selectedCellId);}):null;
+    var cellText=[cell&&cell.marker,cell&&cell.terrain,cell&&cell.name,cell&&cell.note].join(' ').toLowerCase();
+    var planetTemple=cellText.indexOf('temple')>=0||cellText.indexOf('shrine')>=0||cellText.indexOf('sanctum')>=0||cellText.indexOf('cathedral')>=0;
+    return{ok:!!planetTemple,label:planetTemple?'Planetary Temple Site':'not at a Planetary temple site'};
+  }
+
+  if(tab==='worldthatwas'){
+    var wtwHex=(S&&S.worldThatWas&&Array.isArray(S.worldThatWas.hexes))
+      ?S.worldThatWas.hexes.find(function(h){return Number(h&&h.id)===Number(S.worldThatWas.selectedHexId);})
+      :null;
+    var wtwText=[wtwHex&&wtwHex.zone,wtwHex&&wtwHex.name,wtwHex&&wtwHex.district,wtwHex&&wtwHex.title].join(' ').toLowerCase();
+    var wtwTemple=wtwText.indexOf('temple')>=0||wtwText.indexOf('shrine')>=0||wtwText.indexOf('cathedral')>=0||wtwText.indexOf('sanctum')>=0;
+    return{ok:!!wtwTemple,label:wtwTemple?'World That Was Temple Site':'not at a World That Was temple site'};
+  }
+
+  return{ok:false,label:'unknown location'};
+}
+
 function applyLoreBookReward(entry){
   var reward=String((entry&&entry.reward)||'pathTokens');
   if(reward==='pathTokens'){
@@ -6892,7 +6994,26 @@ function readLoreBookFromBackpack(index){
   if(!slot.name)return;
   var entry=getLoreBookEntryByItem(slot.name);
   if(!entry){showNotif('This item is not a readable lore book.','info');return;}
+  var isGlyphBook=isGlyphOrAncientLoreBook(entry);
+  if(isGlyphBook){
+    var templeCtx=getActiveMapTempleContext();
+    if(!templeCtx.ok){
+      showNotif('Glyph/Ancient books require a Temple to read. Current location: '+String(templeCtx.label||'unknown')+'.','warn');
+      return;
+    }
+  }
   var rewardText=applyLoreBookReward(entry);
+  if(isGlyphBook){
+    if(typeof changeCounter==='function')changeCounter('pathTokens',5);
+    else S.pathTokens=(S.pathTokens||0)+5;
+    rewardText='Decoded at temple: +5 Path Tokens';
+    var flavor=String((S&&S.flavor)||'').toLowerCase();
+    if(flavor.indexOf('rune tongue')>=0){
+      if(typeof changeCounter==='function')changeCounter('pathTokens',2);
+      else S.pathTokens=(S.pathTokens||0)+2;
+      rewardText+=' (+2 Rune Tongue insight bonus)';
+    }
+  }
   removeBackpackItem(index);
   var title=String(entry.item||'Lore Book');
   var body=String(entry.lore||'The pages are worn, but still useful.');

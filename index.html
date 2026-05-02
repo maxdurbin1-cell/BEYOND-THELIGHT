@@ -3130,12 +3130,14 @@ function buildNightModeTradeAddonEncounter(col,row){
     html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(70,196,182,.45);background:rgba(70,196,182,.08);"><div class="vr-type" style="color:var(--teal);">Night Mode Bonus: Nocturne Courier</div>A night courier offers fast mission routing and rumors.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="engageWayfarerMission('+col+','+row+')">📜 Offer a Mission</button><button class="btn btn-xs" onclick="talkToWayfarer('+col+','+row+')">💬 Talk</button></div></div>'
   };
 }
+const DARK_AFFLICTION_MAX_CORRUPTION=10;
 function ensureDarkAfflictionState(){
   if(!S.darkAfflictions||typeof S.darkAfflictions!=='object')S.darkAfflictions={};
   ['vampirism','wolfism'].forEach(function(key){
     if(!S.darkAfflictions[key]||typeof S.darkAfflictions[key]!=='object')S.darkAfflictions[key]={active:false,corruption:0,lastFedStamp:''};
     if(typeof S.darkAfflictions[key].active!=='boolean')S.darkAfflictions[key].active=false;
     if(typeof S.darkAfflictions[key].corruption!=='number')S.darkAfflictions[key].corruption=0;
+    S.darkAfflictions[key].corruption=Math.max(0,Math.min(DARK_AFFLICTION_MAX_CORRUPTION,parseInt(S.darkAfflictions[key].corruption,10)||0));
     if(typeof S.darkAfflictions[key].lastFedStamp!=='string')S.darkAfflictions[key].lastFedStamp='';
   });
   if(typeof S.darkAfflictions.sunlightHexCounter!=='number')S.darkAfflictions.sunlightHexCounter=0;
@@ -3183,8 +3185,9 @@ function getAfflictionFlavorKey(){
 }
 function getAfflictionTier(corruption){
   var c=Math.max(0,parseInt(corruption,10)||0);
-  if(c>=8)return 3;
-  if(c>=5)return 2;
+  if(c>=9)return 4;
+  if(c>=7)return 3;
+  if(c>=4)return 2;
   if(c>=2)return 1;
   return 0;
 }
@@ -3203,11 +3206,13 @@ function getAfflictionTierProfile(kind,tier){
   var key=String(kind||'').toLowerCase();
   var t=Math.max(0,parseInt(tier,10)||0);
   if(key==='vampirism'){
+    if(t>=4)return {ability:'Crimson Ascendant: +1 to all vampiric bonuses and consume grants Focused + Bolstered.',penalty:'Solar Agony: severe daytime penalties and faster corruption growth when unfed.'};
     if(t>=3)return {ability:'Blood Sovereignty: +1 Mind/Adventure and consume grants Focused for the scene.',penalty:'Sunlit Torpor: Day phases apply stronger stat penalties.'};
     if(t===2)return {ability:'Hemal Trance: +1 Defend/Shoot and consume grants +1 TMW.',penalty:'Holy Aversion: Day checks suffer affliction penalty.'};
     if(t===1)return {ability:'Night Senses: +1 Spirit/Control and consume grants +1 Path Token.',penalty:'Light Hunger: Day checks suffer affliction penalty.'};
     return {ability:'Dormant',penalty:'None'};
   }
+  if(t>=4)return {ability:'Apex Moon Tyrant: +1 to all wolf bonuses and consume grants Empowered + Protected.',penalty:'Razorback Instinct: severe daytime penalties and faster corruption growth when unfed.'};
   if(t>=3)return {ability:'Moon Tyrant: +1 Adventure/Spirit and consume grants Empowered this phase.',penalty:'Feral Backlash: Day phases apply stronger stat penalties.'};
   if(t===2)return {ability:'Pack Rush: +1 Defend/Lead and consume grants +1 TMW.',penalty:'Silver Unease: Day checks suffer affliction penalty.'};
   if(t===1)return {ability:'Predator Frame: +1 Body/Strike and consume grants +1 Path Token.',penalty:'Dayrest Strain: Day checks suffer affliction penalty.'};
@@ -3246,7 +3251,7 @@ function renderDarkAfflictionSheetPanel(){
   });
   if(summary){
     var dayPenalty=getDarkAfflictionPenalty('adventure');
-    summary.textContent='Phase: '+((typeof getCurrentPhaseLabel==='function')?String(getCurrentPhaseLabel()||'Unknown'):'Unknown')+' · Day penalty '+(dayPenalty<0?String(dayPenalty):'0')+' · Consume grants +1 corruption and tier abilities.';
+    summary.textContent='Phase: '+((typeof getCurrentPhaseLabel==='function')?String(getCurrentPhaseLabel()||'Unknown'):'Unknown')+' · Day penalty '+(dayPenalty<0?String(dayPenalty):'0')+' · Consume grants +1 corruption (max '+DARK_AFFLICTION_MAX_CORRUPTION+') and unlocks stronger powers with steeper consequences.';
   }
   if(body){
     body.innerHTML=lines.length?lines.join(''):'<div style="font-size:.74rem;color:var(--muted2);">No active dark afflictions.</div>';
@@ -3263,16 +3268,18 @@ function getDarkAfflictionPowerBonus(stat){
   var vamp=S.darkAfflictions.vampirism;
   var wolf=S.darkAfflictions.wolfism;
   if(vamp&&vamp.active){
-    var vt=getAfflictionTier(vamp.corruption);
-    if(vt>=1&&['spirit','control'].indexOf(stat)>=0)bonus+=1;
-    if(vt>=2&&['defend','shoot'].indexOf(stat)>=0)bonus+=1;
-    if(vt>=3&&['mind','adventure'].indexOf(stat)>=0)bonus+=1;
+    var vc=Math.max(0,parseInt(vamp.corruption,10)||0);
+    if(vc>=2&&['spirit','control'].indexOf(stat)>=0)bonus+=1;
+    if(vc>=4&&['defend','shoot'].indexOf(stat)>=0)bonus+=1;
+    if(vc>=7&&['mind','adventure'].indexOf(stat)>=0)bonus+=1;
+    if(vc>=9&&['spirit','control','defend','shoot','mind','adventure'].indexOf(stat)>=0)bonus+=1;
   }
   if(wolf&&wolf.active){
-    var wt=getAfflictionTier(wolf.corruption);
-    if(wt>=1&&['body','strike'].indexOf(stat)>=0)bonus+=1;
-    if(wt>=2&&['defend','lead'].indexOf(stat)>=0)bonus+=1;
-    if(wt>=3&&['adventure','spirit'].indexOf(stat)>=0)bonus+=1;
+    var wc=Math.max(0,parseInt(wolf.corruption,10)||0);
+    if(wc>=2&&['body','strike'].indexOf(stat)>=0)bonus+=1;
+    if(wc>=4&&['defend','lead'].indexOf(stat)>=0)bonus+=1;
+    if(wc>=7&&['adventure','spirit'].indexOf(stat)>=0)bonus+=1;
+    if(wc>=9&&['body','strike','defend','lead','adventure','spirit'].indexOf(stat)>=0)bonus+=1;
   }
   return bonus;
 }
@@ -3335,22 +3342,30 @@ function resolveDarkAfflictionConsume(consume){
     return;
   }
   var unlockLines=[];
+  var hungerBacklash=0;
   keys.forEach(function(key){
     var aff=S.darkAfflictions[key];
     var beforeTier=getAfflictionTier(aff.corruption);
-    aff.corruption=Math.min(12,Number(aff.corruption||0)+1);
+    aff.corruption=Math.min(DARK_AFFLICTION_MAX_CORRUPTION,Number(aff.corruption||0)+1);
     aff.lastFedStamp=getDateStampKey();
     var afterTier=getAfflictionTier(aff.corruption);
     if(afterTier>beforeTier)unlockLines.push((key==='vampirism'?'Vampirism':'Wolfism')+' reached Tier '+afterTier+'.');
     if(S.conditions){
       if(key==='vampirism')S.conditions.focused=true;
       if(key==='wolfism')S.conditions.empowered=true;
+      if(Number(aff.corruption||0)>=7){
+        if(key==='vampirism')S.conditions.bolstered=true;
+        if(key==='wolfism')S.conditions.protected=true;
+      }
     }
     if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+    if(typeof changeCounter==='function'&&Number(aff.corruption||0)>=4)changeCounter('tmw',1);
+    if(Number(aff.corruption||0)>=9)hungerBacklash+=1;
   });
   var recover=roll(4);
   if(typeof changeStress==='function')changeStress(-recover);
-  showNotif('Consumed '+corpse+': Corruption +'+keys.length+', recovered '+recover+' Stress.'+(unlockLines.length?(' '+unlockLines.join(' ')):''),'warn');
+  if(hungerBacklash>0&&typeof changeStress==='function')changeStress(hungerBacklash);
+  showNotif('Consumed '+corpse+': Corruption +'+keys.length+' (max '+DARK_AFFLICTION_MAX_CORRUPTION+'), recovered '+recover+' Stress.'+(hungerBacklash>0?(' Hunger backlash: +'+hungerBacklash+' Stress.'):'')+(unlockLines.length?(' '+unlockLines.join(' ')):''),'warn');
   if(typeof updateConditionButtons==='function')updateConditionButtons();
   if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
   renderDarkAfflictionSheetPanel();
@@ -3365,7 +3380,7 @@ function promptConsumeAfterEnemyDefeat(enemyName){
     openModal('Fallen Enemy',
       '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
       +'Defeated: <strong style="color:var(--gold2);">'+String(enemyName||'Unknown')+'</strong><br>'
-      +'Choose your response.<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">'
+      +'Consume can raise corruption up to '+DARK_AFFLICTION_MAX_CORRUPTION+' for stronger powers, but daytime consequences become harsher.<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">'
       +'<button class="btn btn-xs btn-warn" onclick="resolveDarkAfflictionConsume(true)">Consume</button>'
       +'<button class="btn btn-xs" onclick="resolveDarkAfflictionConsume(false)">Spare</button>'
       +'</div></div>'
@@ -3379,18 +3394,23 @@ function applySunlightTraversalPunishment(hexClicks){
   var cfg=getDarkAfflictionSunlightConfig();
   if(!cfg.enabled||isAfflictionSafePhase()||!!S.nightMode)return;
   var activeCount=0;
+  var totalCorruption=0;
   if(S.darkAfflictions.vampirism.active)activeCount++;
   if(S.darkAfflictions.wolfism.active)activeCount++;
+  if(S.darkAfflictions.vampirism.active)totalCorruption+=Number(S.darkAfflictions.vampirism.corruption||0);
+  if(S.darkAfflictions.wolfism.active)totalCorruption+=Number(S.darkAfflictions.wolfism.corruption||0);
   if(!activeCount)return;
   var clicks=Math.max(1,parseInt(hexClicks,10)||1);
-  var damage=Math.max(0,cfg.sunlightDamagePerHex)*clicks;
+  var damagePerHex=Math.max(0,cfg.sunlightDamagePerHex)+Math.floor(totalCorruption/4);
+  var damage=damagePerHex*clicks;
   if(damage&&typeof changeStress==='function')changeStress(damage);
   var before=S.darkAfflictions.sunlightHexCounter||0;
   var after=before+clicks;
   S.darkAfflictions.sunlightHexCounter=after;
   var traumaInc=0;
-  if(cfg.sunlightTraumaEveryHex>0){
-    traumaInc=Math.floor(after/cfg.sunlightTraumaEveryHex)-Math.floor(before/cfg.sunlightTraumaEveryHex);
+  var traumaEvery=cfg.sunlightTraumaEveryHex>0?Math.max(1,cfg.sunlightTraumaEveryHex-Math.floor(totalCorruption/3)):0;
+  if(traumaEvery>0){
+    traumaInc=Math.floor(after/traumaEvery)-Math.floor(before/traumaEvery);
   }
   if(traumaInc>0&&typeof changeTrauma==='function')changeTrauma(traumaInc);
   if(cfg.sunlightCondition&&S.conditions&&Object.prototype.hasOwnProperty.call(S.conditions,cfg.sunlightCondition))S.conditions[cfg.sunlightCondition]=true;
@@ -3401,10 +3421,17 @@ function getDarkAfflictionPenalty(stat){
   ensureDarkAfflictionState();
   if(isAfflictionSafePhase())return 0;
   var total=0;
+  var peak=0;
   if(S.darkAfflictions.vampirism.active)total+=Number(S.darkAfflictions.vampirism.corruption||0);
   if(S.darkAfflictions.wolfism.active)total+=Number(S.darkAfflictions.wolfism.corruption||0);
+  peak=Math.max(
+    S.darkAfflictions.vampirism&&S.darkAfflictions.vampirism.active?Number(S.darkAfflictions.vampirism.corruption||0):0,
+    S.darkAfflictions.wolfism&&S.darkAfflictions.wolfism.active?Number(S.darkAfflictions.wolfism.corruption||0):0
+  );
   if(!total)return 0;
-  var basePenalty=Math.max(1,Math.ceil(total/3));
+  var basePenalty=Math.max(1,Math.ceil(total/2));
+  if(peak>=7)basePenalty+=1;
+  if(peak>=10)basePenalty+=1;
   return ['defend','body','mind','spirit','control','lead','strike','shoot','adventure'].indexOf(stat)>=0?-basePenalty:0;
 }
 function applyDarkAfflictionDailyProgress(daysPassed){
@@ -3414,7 +3441,8 @@ function applyDarkAfflictionDailyProgress(daysPassed){
   ['vampirism','wolfism'].forEach(function(key){
     var aff=S.darkAfflictions[key];
     if(!aff.active||aff.lastFedStamp===stamp)return;
-    aff.corruption=Math.min(12,Number(aff.corruption||0)+days);
+    var hungerGain=days+(Number(aff.corruption||0)>=7?1:0);
+    aff.corruption=Math.min(DARK_AFFLICTION_MAX_CORRUPTION,Number(aff.corruption||0)+hungerGain);
   });
 }
 function attemptDarkAfflictionInfection(sourceLabel,dreadDie){
@@ -3426,7 +3454,7 @@ function attemptDarkAfflictionInfection(sourceLabel,dreadDie){
   var key=Math.random()<0.5?'vampirism':'wolfism';
   var aff=S.darkAfflictions[key];
   aff.active=true;
-  aff.corruption=Math.min(12,Number(aff.corruption||0)+1);
+  aff.corruption=Math.min(DARK_AFFLICTION_MAX_CORRUPTION,Number(aff.corruption||0)+1);
   showNotif('Dark affliction risk from '+(sourceLabel||'enemy action')+': Spirit d'+spiritDie+'='+action.total+' vs Dread d'+dd+'='+dread.total+'. You gain '+(key==='vampirism'?'Vampirism':'Wolfism')+'.','warn');
   return true;
 }

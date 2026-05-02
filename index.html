@@ -4001,6 +4001,24 @@ function applySpecificFlavorActionOverride(entry){
     return 'Psychic Dome active for this round: up to 4 allies within dome zone cannot be attacked.';
   }
 
+  if(base.indexOf('illusionist')>=0){
+    if(!hasHostiles)return 'No hostile targets. Cue: use Illusionist during combat to deploy a decoy.';
+    // Mark all hostile enemies as Distracted (they attack the illusion)
+    S.enemies.forEach(function(e){
+      if(!e||e.ally)return;
+      applyEnemyCombatCondition(e,'Distracted',1);
+    });
+    if(typeof renderEnemies==='function')renderEnemies();
+    // Spawn a ghost illusion unit on the Stars map
+    var spawnedHex=null;
+    if(typeof window.spawnIllusionOnStarsMap==='function'){
+      spawnedHex=window.spawnIllusionOnStarsMap();
+      if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
+    }
+    var hexTxt=spawnedHex?(' Illusion materialized at hex ('+spawnedHex.row+','+spawnedHex.col+').'):'';
+    return 'Illusionist: A decoy illusion distracts all hostiles — enemies are Distracted and may target the phantom this round.'+hexTxt;
+  }
+
   if(base.indexOf('in water: breathe')>=0){
     activateFlavorRoundEffect('aquaticMobility',1);
     return 'Aquatic Mobility active for this round: Zero-G/Underwater movement surcharge is removed.';
@@ -6410,7 +6428,48 @@ function enemyPip(id,i){
   if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
   updateCombatUI();
 }
+function generateCombatLoot(enemyName){
+  const credits=roll(20)*5+roll(10)*2;
+  const lootPool=['Med-Kit','Stim Pack','Ammo Cache','Scrap Parts','Data Chip','Credits Pouch','Weapon Mod Chip','Field Ration','Smoke Grenade','EMP Grenade','Armor Patch','Signal Jammer'];
+  const itemCount=(roll(6)>=5)?2:1;
+  const items=[];
+  const pool=lootPool.slice();
+  for(let i=0;i<itemCount;i++){
+    const idx=Math.floor(Math.random()*pool.length);
+    items.push(pool.splice(idx,1)[0]);
+  }
+  return{credits,items};
+}
+function showCombatLootModal(enemyName){
+  if(typeof openModal!=='function')return;
+  const loot=generateCombatLoot(enemyName);
+  const isAllClear=!Array.isArray(S.enemies)||S.enemies.filter(e=>e&&!e.ally).length===0;
+  const heading=isAllClear
+    ?'<div style="color:var(--gold2);font-weight:700;margin-bottom:.4rem;">⚔ All hostiles defeated!</div>'
+    :'';
+  const addItemsBtns=loot.items.map((item,i)=>
+    `<button class="btn btn-xs btn-teal" onclick="if(typeof addToBackpack==='function')addToBackpack('${item.replace(/'/g,"\\'")}');this.textContent='✓ Added';this.disabled=true;">${item}</button>`
+  ).join('');
+  const html=`
+    <div style="font-size:.84rem;line-height:1.7;">
+      ${heading}
+      <div style="margin-bottom:.35rem;color:var(--muted2);">Looting: <strong style="color:var(--text);">${enemyName||'Fallen Enemy'}</strong></div>
+      <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-bottom:.6rem;">
+        <span style="color:var(--gold2);font-size:1.05rem;">💰 ${loot.credits}₵</span>
+        <button class="btn btn-xs btn-gold" onclick="S.credits=(S.credits||0)+${loot.credits};if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();this.textContent='✓ Collected';this.disabled=true;">Collect Credits</button>
+      </div>
+      <div style="color:var(--muted2);font-size:.75rem;margin-bottom:.25rem;">Items Found:</div>
+      <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.65rem;">${addItemsBtns}</div>
+    </div>
+    <div style="display:flex;gap:.35rem;justify-content:flex-end;margin-top:.35rem;">
+      <button class="btn btn-sm" onclick="closeModal()">Done</button>
+    </div>`;
+  openModal('🗡 Loot the Body',html);
+}
 function removeEnemy(id){
+  const dying=S.enemies.find(e=>e.id===id);
+  const wasHostile=dying&&!dying.ally;
+  const dyingName=dying?dying.name:'Enemy';
   S.enemies=S.enemies.filter(e=>e.id===id?false:true);
   renderEnemies();
   if(typeof renderQP==='function')renderQP('combat');
@@ -6418,6 +6477,7 @@ function removeEnemy(id){
   if(typeof renderCombatOptions==='function')renderCombatOptions();
   if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
   updateCombatUI();
+  if(wasHostile&&S.combat&&S.combat.active){setTimeout(()=>showCombatLootModal(dyingName),120);}
 }
 function toggleEnemySide(id){
   const e=S.enemies.find(x=>x.id===id);
@@ -6430,6 +6490,20 @@ function toggleEnemySide(id){
   if(typeof syncStarsUnitsFromCombatMap==='function')syncStarsUnitsFromCombatMap();
   updateCombatUI();
   showNotif(e.name+' is now '+(e.ally?'an Ally':'Hostile'),'info');
+}
+function executeMimicAttack(sourceEnemyId){
+  const info=S._lastEnemyAttackInfo;
+  if(!info){showNotif('No recent enemy attack to mimic.','warn');return;}
+  if(!S.combat||!S.combat.active){showNotif('Mimic requires active combat.','warn');return;}
+  if(typeof consumeCombatAction==='function'){if(!consumeCombatAction('Mimic Attack'))return;}
+  const target=getPrimaryCombatEnemy&&getPrimaryCombatEnemy();
+  if(!target){showNotif('No focused enemy to mimic against.','warn');return;}
+  const mirrorRoll=info.roll;
+  const def=typeof explodingRoll==='function'?explodingRoll(target.dread||S.combat.enemyDread||6):{total:roll(target.dread||6)};
+  const hit=mirrorRoll>def.total;
+  const dmg=Math.max(1,mirrorRoll-def.total);
+  if(hit)applyStressToEnemy(target,dmg,'Mimic('+info.name+')');
+  showNotif(`🎭 Mimic: Copied ${info.name}'s technique — ${mirrorRoll} vs ${target.name} ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'good':'warn');
 }
 function enemyAttack(id){
   const e=S.enemies.find(x=>x.id===id);
@@ -6466,6 +6540,23 @@ function enemyAttack(id){
   if(hit){
     changeStress(dmg);
     attemptDarkAfflictionInfection(e.name, e.dread || S.combat.enemyDread || 6);
+    // Mimic: store last enemy attack for copying
+    S._lastEnemyAttackInfo={name:e.name,dread:e.dread||S.combat.enemyDread||6,roll:atk.total,dmg};
+  }
+  // Mimic flavor: offer to mirror the attack
+  const flavorBase=String(S.flavor||'').toLowerCase();
+  if(flavorBase.indexOf('mimic')>=0&&typeof openModal==='function'){
+    const focusedEnemy=getPrimaryCombatEnemy&&getPrimaryCombatEnemy();
+    const mimicTargetName=focusedEnemy&&focusedEnemy!==e?focusedEnemy.name:'another enemy';
+    const eTxt=hit?`${dmg} Stress`:'a miss';
+    const html=`<div style="font-size:.84rem;line-height:1.6;">
+      <div style="color:var(--muted2);margin-bottom:.4rem;">You witnessed <strong>${e.name}</strong> use their attack (rolled ${atk.total}, dealt ${eTxt}).</div>
+      <div style="color:var(--gold2);margin-bottom:.5rem;">Your <strong>Mimic</strong> ability lets you reproduce this exact technique.</div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-teal" onclick="executeMimicAttack(${e.id});closeModal()">⚔ Mimic Attack → ${mimicTargetName}</button>
+        <button class="btn btn-sm" onclick="closeModal()">Skip</button>
+      </div></div>`;
+    setTimeout(()=>openModal('🎭 Mimic — Copy Attack',html),200);
   }
   finalizeEnemyTurn(e);
 }

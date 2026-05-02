@@ -185,7 +185,7 @@ function switchTab(tabId, btn) {
       window.buildStarsCombatPanel();
     }
     if (typeof window.renderStarsCombatZone === "function") {
-      setTimeout(function () { window.renderStarsCombatZone(1); }, 0);
+      setTimeout(function () { window.renderStarsCombatZone(window.starsZoneRenderPresetId || 1); }, 0);
     }
   }
 

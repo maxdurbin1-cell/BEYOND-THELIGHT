@@ -9254,6 +9254,42 @@ let starsZoneLayout = null;
 let starsZoneAutoPopulate = true;
 let starsZoneOpenerOverride = null;
 let starsZoneRenderPresetId = 1;
+let starsZoneIllusionUnits = []; // [{row,col,round}] – temporary illusion markers
+
+function spawnIllusionOnStarsMap() {
+  if (!starsZoneLayout || !Array.isArray(starsZoneLayout.hexes)) return null;
+  // Place illusion at a hex occupied by a hostile, or near player
+  const hostileUnit = starsZoneUnits.find(u => u && u.type === 'enemy');
+  const playerUnit  = starsZoneUnits.find(u => u && (u.trackerKey === 'player:self' || u.type === 'ally'));
+  let targetHex = null;
+  if (hostileUnit) {
+    // Find an adjacent empty hex near the hostile
+    const candidates = starsZoneLayout.hexes.filter(h => {
+      const dr = Math.abs(h.row - hostileUnit.row);
+      const dc = Math.abs(h.col - hostileUnit.col);
+      return (dr + dc) === 1 && !starsZoneUnits.some(u => u.row === h.row && u.col === h.col);
+    });
+    targetHex = candidates[0] || hostileUnit;
+  } else if (playerUnit) {
+    const candidates = starsZoneLayout.hexes.filter(h => {
+      const dr = Math.abs(h.row - playerUnit.row);
+      const dc = Math.abs(h.col - playerUnit.col);
+      return (dr + dc) >= 1 && !starsZoneUnits.some(u => u.row === h.row && u.col === h.col);
+    });
+    targetHex = candidates[0] || null;
+  }
+  if (!targetHex) return null;
+  const currentRound = (typeof S !== 'undefined' && S.combat && S.combat.round) ? S.combat.round : 1;
+  starsZoneIllusionUnits = starsZoneIllusionUnits.filter(u => u.round >= currentRound);
+  starsZoneIllusionUnits.push({ row: targetHex.row, col: targetHex.col, round: currentRound });
+  return targetHex;
+}
+
+function clearExpiredIllusionUnits() {
+  const currentRound = (typeof S !== 'undefined' && S.combat && S.combat.round) ? S.combat.round : 1;
+  starsZoneIllusionUnits = starsZoneIllusionUnits.filter(u => u.round >= currentRound);
+}
+window.spawnIllusionOnStarsMap = spawnIllusionOnStarsMap;
 
 function getStarsZoneOrder() {
   return ['Engaged', 'Close', 'Nearby', 'Far'];
@@ -9551,6 +9587,8 @@ function getStarsFlavorMapEffects(layout, openerOverride) {
     ? window.isFlavorRoundEffectActive.bind(window)
     : function() { return false; };
   const psychicDomeActive = roundEffectActive('psychicDome') && (flavorText.indexOf('psychic dome') >= 0 || flavorText.indexOf('create a psychic dome') >= 0);
+  const illusionistActive = flavorText.indexOf('illusionist') >= 0;
+  const mimicActive = flavorText.indexOf('mimic') >= 0;
   const aquaticMobilityActive = roundEffectActive('aquaticMobility') && flavorText.indexOf('in water: breathe') >= 0;
   const terrainText = String((openerOverride && openerOverride.terrainText) || (layout && layout.name) || '').toLowerCase();
   const zeroGPenalty = !!(layout && layout.special === 'zerog') || terrainText.indexOf('zero-g') >= 0;
@@ -9558,6 +9596,8 @@ function getStarsFlavorMapEffects(layout, openerOverride) {
   const mobilityPenaltyWaived = aquaticMobilityActive && (zeroGPenalty || underwaterPenalty);
   return {
     psychicDomeActive,
+    illusionistActive,
+    mimicActive,
     aquaticMobilityActive,
     zeroGPenalty,
     underwaterPenalty,
@@ -9701,10 +9741,24 @@ function renderStarsCombatZone(layoutId) {
   const layout = (openerOverrideActive && starsZoneOpenerOverride.customLayout) ? starsZoneOpenerOverride.customLayout : baseLayout;
   starsZoneLayout = layout;
   syncStarsZoneUnitsFromCombatTracker(layout);
+  clearExpiredIllusionUnits();
   const coverOverrides = openerOverrideActive ? buildStarsCoverOverrides(layout, starsZoneOpenerOverride.coverTier) : {};
   const flavorFx = getStarsFlavorMapEffects(layout, openerOverrideActive ? starsZoneOpenerOverride : null);
   const playerUnit = starsZoneUnits.find(u => u && u.trackerKey === 'player:self') || starsZoneUnits.find(u => u && u.type === 'ally');
-  const domeKey = (flavorFx.psychicDomeActive && playerUnit) ? `${playerUnit.row}:${playerUnit.col}` : '';
+  // Psychic dome covers player + up to 3 nearby allies (max 4 total)
+  const allyUnits = starsZoneUnits.filter(u => u && u.type === 'ally');
+  const domeHexes = new Set();
+  if (flavorFx.psychicDomeActive && playerUnit) {
+    domeHexes.add(`${playerUnit.row}:${playerUnit.col}`);
+    let covered = 1;
+    for (const au of allyUnits) {
+      if (covered >= 4) break;
+      const key = `${au.row}:${au.col}`;
+      if (!domeHexes.has(key)) { domeHexes.add(key); covered++; }
+    }
+  }
+  // Illusion unit set for quick lookup
+  const illusionKeys = new Set(starsZoneIllusionUnits.map(u => `${u.row}:${u.col}`));
 
   const HSIZE = 34;
   const rows  = 4;
@@ -9723,7 +9777,7 @@ function renderStarsCombatZone(layoutId) {
     let sLabel = '';
 
     const coverKey = `${h.row}:${h.col}`;
-    const activeCover = (coverKey === domeKey ? 'full' : '') || coverOverrides[coverKey] || h.cover;
+    const activeCover = (domeHexes.has(coverKey) ? 'full' : '') || coverOverrides[coverKey] || h.cover;
 
     if (activeCover === 'full') {
       fill = '#111111'; stroke = '#444'; sLabel = '⬛';
@@ -9737,8 +9791,11 @@ function renderStarsCombatZone(layoutId) {
     const unitMarks = unitHere.map(u =>
       `<text x="${x}" y="${y + 4}" text-anchor="middle" font-size="13" fill="${u.type === 'ally' ? 'var(--teal)' : 'var(--red2)'}">${u.icon || (u.type === 'ally' ? '◉' : '✕')}</text>`
     ).join('');
-    const domeMark = (coverKey === domeKey)
+    const domeMark = domeHexes.has(coverKey)
       ? `<text x="${x}" y="${y - 10}" text-anchor="middle" font-size="10" fill="#b39ddb" pointer-events="none">🔮</text>`
+      : '';
+    const illusionMark = illusionKeys.has(coverKey)
+      ? `<text x="${x}" y="${y + 4}" text-anchor="middle" font-size="14" fill="rgba(120,200,255,0.75)" pointer-events="none" opacity="0.8">👻</text><text x="${x}" y="${y - 10}" text-anchor="middle" font-size="9" fill="rgba(120,200,255,0.6)" pointer-events="none">illusion</text>`
       : '';
 
     svgContent += `
@@ -9747,6 +9804,7 @@ function renderStarsCombatZone(layoutId) {
         ${sLabel ? `<text x="${x}" y="${y+4}" text-anchor="middle" font-size="11" fill="${stroke}" pointer-events="none">${sLabel}</text>` : ''}
         ${unitMarks}
         ${domeMark}
+        ${illusionMark}
       </g>`;
   });
 
@@ -9757,7 +9815,8 @@ function renderStarsCombatZone(layoutId) {
       ${(layout.special === 'zerog' || flavorFx.zeroGPenalty) ? '<span style="color:var(--teal);"> ⚠ Zero-G: Moving costs +1 Action</span>' : ''}
       ${flavorFx.underwaterPenalty ? '<span style="color:var(--teal);"> ⚠ Underwater: Moving costs +1 Action</span>' : ''}
       ${flavorFx.mobilityPenaltyWaived ? '<span style="color:var(--green2);"> ✓ Personal Flavor active: movement surcharge removed this round</span>' : ''}
-      ${flavorFx.psychicDomeActive ? '<span style="color:#b39ddb;"> 🔮 Psychic Dome active this round</span>' : ''}
+      ${flavorFx.psychicDomeActive ? '<span style="color:#b39ddb;"> 🔮 Psychic Dome active — up to 4 allies protected this round</span>' : ''}
+      ${flavorFx.illusionistActive && starsZoneIllusionUnits.length ? '<span style="color:rgba(120,200,255,0.8);"> 👻 Illusion active — enemies Distracted targeting the decoy</span>' : ''}
       ${layout.special === 'radiation' ? '<span style="color:var(--green2);"> ⚠ Rad Zone: +d100 Rads per Turn spent here</span>' : ''}
     </div>
     <svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;">

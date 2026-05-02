@@ -2843,7 +2843,7 @@
         ? `${result}Success. Loot: ${loot} added to Backpack.`
         : `${result}Success. Loot: ${loot}. Backpack full, loot held in Recovered Loot.`;
     } else {
-      if (typeof changeStress === 'function') changeStress(Math.max(1, dreadRoll.total - actionRoll.total));
+      if (typeof changeHealth === 'function') changeHealth(Math.max(1, dreadRoll.total - actionRoll.total));
       room.result = `${result}Failure. Suffer Stress equal to the difference.`;
     }
     room.cleared = true;

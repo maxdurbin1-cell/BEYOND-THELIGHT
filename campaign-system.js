@@ -72,7 +72,9 @@
     cameraSyncWantsWorld: false,
     combatSceneSyncTimer: null,
     lastCombatSceneHash: "",
-    lastPlayerDockSeed: ""
+    lastPlayerDockSeed: "",
+    lastDockActorKey: "",
+    dockActorFlashUntil: 0
   };
 
   var readyCheckCallbacks = {};
@@ -4164,13 +4166,15 @@
       : (token || "Wayfarer");
     return {
       active: true,
+      key: token + ":" + Math.max(1, Number(combatState.round || 1)),
       token: token,
       name: String((row && row.name) || fallbackName || "Wayfarer"),
       round: Math.max(1, Number(combatState.round || 1)),
       index: idx + 1,
       total: combatState.turnOrder.length,
       isEnemy: !!(row && row.isEnemy),
-      hasActed: !!(row && row.hasActed)
+      hasActed: !!(row && row.hasActed),
+      isMe: !!(state.token && token && String(state.token) === token)
     };
   }
 
@@ -4239,12 +4243,27 @@
       var cards = [];
 
       if (actor.active) {
+        var now = Date.now();
+        if (actor.key && actor.key !== state.lastDockActorKey) {
+          state.lastDockActorKey = actor.key;
+          state.dockActorFlashUntil = now + 3200;
+        }
+        var actorCardClass = "campaign-dock-status-card" + (state.dockActorFlashUntil > now ? " is-flash" : "");
+        var actorTurnText = actor.isMe
+          ? "your call to act"
+          : (actor.isEnemy ? "storyteller resolves enemy action" : "waiting on that wayfarer");
         cards.push(''
-          + '<div class="campaign-dock-status-card">'
+          + '<div class="' + actorCardClass + '">'
           + '<div class="campaign-dock-status-label">Current Actor</div>'
-          + '<div class="campaign-dock-status-main">' + escapeHtml(actor.name) + (actor.isEnemy ? ' <span class="campaign-dock-status-tag enemy">Enemy</span>' : ' <span class="campaign-dock-status-tag ally">Wayfarer</span>') + '</div>'
-          + '<div class="campaign-dock-status-sub">Round ' + actor.round + ' · Turn ' + actor.index + '/' + actor.total + (actor.hasActed ? ' · already acted' : ' · waiting on action') + '</div>'
+          + '<div class="campaign-dock-status-main">' + escapeHtml(actor.name)
+          + (actor.isEnemy ? ' <span class="campaign-dock-status-tag enemy">Enemy</span>' : ' <span class="campaign-dock-status-tag ally">Wayfarer</span>')
+          + (actor.isMe ? ' <span class="campaign-dock-status-tag ally">Your Turn</span>' : '')
+          + '</div>'
+          + '<div class="campaign-dock-status-sub">Round ' + actor.round + ' · Turn ' + actor.index + '/' + actor.total + (actor.hasActed ? ' · already acted' : ' · ' + escapeHtml(actorTurnText)) + '</div>'
           + '</div>');
+      } else {
+        state.lastDockActorKey = "";
+        state.dockActorFlashUntil = 0;
       }
 
       if (readyCheck && readyCheck.id && readyStatus !== "idle") {

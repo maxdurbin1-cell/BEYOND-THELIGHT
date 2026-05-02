@@ -3386,7 +3386,7 @@
       var malwareDmg = roll(6);
       S.tmw = Math.max(0, (S.tmw || 0) - 1);
       updateTMWPool();
-      changeStress(malwareDmg);
+      changeHealth(malwareDmg);
       malwareHtml = '<br><span style="color:var(--red2);">⚠ Malware! Lost 1 TMW &amp; took <strong>' + malwareDmg + ' Stress</strong> (1d6). Distracted applied.</span>';
       if (typeof updateConditionButtons === 'function') {
         S.conditions.distracted = true;

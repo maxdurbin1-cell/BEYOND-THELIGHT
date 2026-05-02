@@ -541,29 +541,33 @@ function updateCreditsUI() {
   });
 }
 
-function setStress(value) {
-  const maxStress = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
-  const oldStress = S.stress || 0;
-  S.stress = Math.max(0, Math.min(value, maxStress));
-  
-  // AUDIO: Play sound if stress increased
-  if (typeof window.AudioManager !== "undefined" && S.stress > oldStress) {
+function setHealth(value) {
+  const maxHealth = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
+  const oldHealth = S.health || 0;
+  S.health = Math.max(0, Math.min(value, maxHealth));
+  S.stress = S.health; // backwards-compat alias
+
+  // AUDIO: Play sound if health damage increased
+  if (typeof window.AudioManager !== "undefined" && S.health > oldHealth) {
     window.AudioManager.stressIncreased();
   }
-  
+
   updateStressUI();
 }
 
+function setStress(value) { setHealth(value); } // backwards-compat shim
+
 function updateStressUI() {
-  const maxStress = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
+  const maxHealth = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
   const bonus = Math.max(0, Number(S.tempStressCapacityBonus || 0));
-  if (S.stress > maxStress) {
-    S.stress = maxStress;
+  if ((S.health || 0) > maxHealth) {
+    S.health = maxHealth;
+    S.stress = S.health;
   }
   const stressVal = document.getElementById("stressVal");
   const bonusEl = document.getElementById("tempStressBonusVal");
   if (stressVal) {
-    stressVal.textContent = S.stress || 0;
+    stressVal.textContent = S.health || 0;
   }
   if (bonusEl) {
     if (bonus > 0) {
@@ -580,26 +584,23 @@ function updateStressUI() {
     return;
   }
 
-  track.innerHTML = Array.from({ length: maxStress }, (_, index) => {
-    const filled = index < (S.stress || 0) ? " filled" : "";
-    return '<div class="s-pip' + filled + '" onclick="setStress(' + (index + 1) + ')"></div>';
+  track.innerHTML = Array.from({ length: maxHealth }, (_, index) => {
+    const filled = index < (S.health || 0) ? " filled" : "";
+    return '<div class="s-pip' + filled + '" onclick="setHealth(' + (index + 1) + ')"></div>';
   }).join("");
 }
 
-function changeStress(delta) {
-  setStress((S.stress || 0) + delta);
+function changeHealth(delta) { setHealth((S.health || 0) + delta); }
+function halfHealth() { setHealth(Math.floor((S.health || 0) / 2)); }
+function clearHealth() {
+  if (S.tempStressCapacityBonus) S.tempStressCapacityBonus = 0;
+  setHealth(0);
 }
 
-function halfStress() {
-  setStress(Math.floor((S.stress || 0) / 2));
-}
-
-function clearStress() {
-  if (S.tempStressCapacityBonus) {
-    S.tempStressCapacityBonus = 0;
-  }
-  setStress(0);
-}
+// Backwards-compat shims — delegate to health functions
+function changeStress(delta) { changeHealth(delta); }
+function halfStress() { halfHealth(); }
+function clearStress() { clearHealth(); }
 
 function applyTemporaryStressCapacityBonus(amount, source) {
   var bonus = Math.max(0, Number(amount || 0));
@@ -1515,7 +1516,7 @@ function hasMeaningfulCharacterState() {
   if (S.name || S.career || S.background || S.reason) return true;
   if (Array.isArray(S.backpack) && S.backpack.some(Boolean)) return true;
   if (S.equipment && (S.equipment.weapon1 || S.equipment.weapon2 || S.equipment.armor || S.equipment.readied)) return true;
-  return !!(S.renown || S.credits || S.stress || S.trauma || S.pathTokens || S.tmw || S.successRolls);
+  return !!(S.renown || S.credits || S.health || S.stress || S.trauma || S.pathTokens || S.tmw || S.successRolls);
 }
 
 function hasUnsavedSoloChanges() {
@@ -2598,7 +2599,7 @@ function rollCheck() {
   renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success);
   if (!success) {
     addTMWOnFail();
-    changeStress(Math.max(1, dreadRoll.total - actionRoll.total));
+    changeHealth(Math.max(1, dreadRoll.total - actionRoll.total));
   } else {
     addSuccessRoll();
   }

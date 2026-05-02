@@ -71,7 +71,8 @@
     cameraSyncReason: "",
     cameraSyncWantsWorld: false,
     combatSceneSyncTimer: null,
-    lastCombatSceneHash: ""
+    lastCombatSceneHash: "",
+    lastPlayerDockSeed: ""
   };
 
   var readyCheckCallbacks = {};
@@ -627,7 +628,8 @@
           enemies: Array.isArray(scenePatch.enemies) ? (deepCloneJson(scenePatch.enemies) || []) : [],
           naval: (scenePatch.naval && typeof scenePatch.naval === "object") ? (deepCloneJson(scenePatch.naval) || null) : null,
           caravan: (scenePatch.caravan && typeof scenePatch.caravan === "object") ? (deepCloneJson(scenePatch.caravan) || null) : null,
-          combatMap: (scenePatch.combatMap && typeof scenePatch.combatMap === "object") ? (deepCloneJson(scenePatch.combatMap) || null) : null
+          combatMap: (scenePatch.combatMap && typeof scenePatch.combatMap === "object") ? (deepCloneJson(scenePatch.combatMap) || null) : null,
+          combatAugState: (scenePatch.combatAugState && typeof scenePatch.combatAugState === "object") ? (deepCloneJson(scenePatch.combatAugState) || null) : null
         };
         return;
       }
@@ -678,13 +680,14 @@
   }
 
   function collectCombatSceneState() {
-    if (typeof window.S === "undefined" || !window.S) return { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null };
+    if (typeof window.S === "undefined" || !window.S) return { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null, combatAugState: null };
     return {
       combat: deepCloneJson(window.S.combat || {}) || {},
       enemies: Array.isArray(window.S.enemies) ? (deepCloneJson(window.S.enemies) || []) : [],
       naval: window.S.naval ? (deepCloneJson(window.S.naval) || null) : null,
       caravan: window.S.caravan ? (deepCloneJson(window.S.caravan) || null) : null,
-      combatMap: (window.S.combatMap && typeof window.S.combatMap === "object") ? (deepCloneJson(window.S.combatMap) || null) : null
+      combatMap: (window.S.combatMap && typeof window.S.combatMap === "object") ? (deepCloneJson(window.S.combatMap) || null) : null,
+      combatAugState: (window.S.combatAugState && typeof window.S.combatAugState === "object") ? (deepCloneJson(window.S.combatAugState) || null) : null
     };
   }
 
@@ -741,6 +744,16 @@
       var out = syncSharedPatch({ combatScene: scene }, reason || "combat-scene");
       if (out && typeof out.catch === "function") out.catch(function () {});
     }, 0);
+  }
+
+  function syncCombatSceneHeartbeat(reason) {
+    if (state.role !== "gm" || !state.socket || !state.connected || !state.code || state.applyingSharedState) return;
+    var scene = collectCombatSceneState();
+    var hash = hashCombatSceneState(scene);
+    if (!hash || hash === state.lastCombatSceneHash) return;
+    state.lastCombatSceneHash = hash;
+    var out = syncSharedPatch({ combatScene: scene }, reason || "combat-scene-heartbeat");
+    if (out && typeof out.catch === "function") out.catch(function () {});
   }
 
   function patchCombatSyncHooks() {
@@ -1430,9 +1443,12 @@
         if (sharedState.combatScene.combatMap && typeof sharedState.combatScene.combatMap === "object") {
           window.S.combatMap = deepCloneJson(sharedState.combatScene.combatMap) || window.S.combatMap || null;
         }
+        if (sharedState.combatScene.combatAugState && typeof sharedState.combatScene.combatAugState === "object") {
+          window.S.combatAugState = deepCloneJson(sharedState.combatScene.combatAugState) || window.S.combatAugState || null;
+        }
         state.lastCombatSceneHash = hashCombatSceneState(sharedState.combatScene);
         var current = getCampaignSharedState() || {};
-        current.combatScene = deepCloneJson(sharedState.combatScene) || { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null };
+        current.combatScene = deepCloneJson(sharedState.combatScene) || { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null, combatAugState: null };
       }
       if (sharedState.gmSettings && typeof sharedState.gmSettings === "object") {
         var current = getCampaignSharedState() || {};
@@ -3530,10 +3546,22 @@
           return '<li>' + escapeHtml(item) + '</li>';
         }).join('') + '</ol>'
       + '<div class="campaign-actions" style="margin-top:.35rem;">'
+      + (!isGm && state.code ? '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.openDock()">Open Live Dock</button>' : '')
       + '<button class="btn btn-xs" onclick="window.campaignSystem.showOnboarding(true)">Open Onboarding</button>'
       + (state.code ? '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Check</button>' : '')
       + '</div>'
       + '</div>';
+    var playerLiveTableHtml = (!isGm && state.code)
+      ? ('<div class="campaign-card campaign-player-live-card">'
+        + '<div class="campaign-card-title">Live Table</div>'
+        + '<div class="campaign-muted">Keep rolls, chat, ready checks, and the live timeline open like a real table session while sync tools stay one tap away.</div>'
+        + '<div class="campaign-actions" style="margin-top:.35rem;">'
+        + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.openDock()">Open Roll / Chat Dock</button>'
+        + '<button class="btn btn-xs" onclick="window.campaignSystem.syncSharedNow()">Sync Shared World</button>'
+        + '<button class="btn btn-xs" onclick="window.campaignSystem.requestResync()">Request Resync</button>'
+        + '</div>'
+        + '</div>')
+      : '';
     var summaryHtml = isGm && noteSummaries.length
       ? ('<div class="campaign-muted" style="margin-top:.35rem;">' + noteSummaries.map(function (n) {
           var stamp = n.updatedAt ? (" @ " + formatTimestamp(n.updatedAt)) : "";
@@ -3576,6 +3604,7 @@
       + "</div>"
       + playerCameraLockBannerHtml
       + quickStartHtml
+      + playerLiveTableHtml
       + '<div class="campaign-card">'
       + '<div class="campaign-card-title">Shared Teamwork Points</div>'
       + '<div class="campaign-tmw">' + sharedTmw + "</div>"
@@ -3924,6 +3953,7 @@
 
     bindDraftInputs();
     applyGmCompactLayout();
+    applyPlayerCompactLayout();
   }
 
   function applyGmCompactLayout() {
@@ -3988,6 +4018,80 @@
     if (!host.childNodes.length) return;
 
     var insertionAnchor = section.querySelector(".campaign-card");
+    if (insertionAnchor) {
+      insertionAnchor.parentNode.insertBefore(host, insertionAnchor.nextSibling);
+    } else {
+      section.appendChild(host);
+    }
+  }
+
+  function applyPlayerCompactLayout() {
+    if (state.role !== "player") return;
+    var section = document.getElementById("campaignSettingsSection");
+    if (!section) return;
+    if (section.querySelector("#campaignPlayerCompactGroups")) return;
+
+    var cards = Array.prototype.slice.call(section.querySelectorAll(".campaign-card"));
+    if (!cards.length) return;
+
+    var essentialTitles = {
+      "Shared Teamwork Points": true,
+      "Ready Check": true,
+      "Online Members": true
+    };
+    var partyTitles = {
+      "Party Roster (All Players)": true,
+      "Phase 2: Party Status Dashboard": true,
+      "Campaign Wayfarers": true,
+      "Phase 2: Character Inventories": true,
+      "Phase 3: Character Dice Visibility": true,
+      "Party Backpack Sharing (Party Stash)": true
+    };
+    var archiveTitles = {
+      "Private Notes": true,
+      "Recent Log": true,
+      "Session Recap Timeline": true,
+      "Shared Economy Ledger": true
+    };
+
+    var essentials = [];
+    var party = [];
+    var archive = [];
+    cards.forEach(function (card) {
+      if (card.classList.contains("campaign-player-live-card")) return;
+      var titleEl = card.querySelector(".campaign-card-title");
+      var title = titleEl ? String(titleEl.textContent || "").trim() : "";
+      if (essentialTitles[title]) essentials.push(card);
+      else if (partyTitles[title]) party.push(card);
+      else if (archiveTitles[title]) archive.push(card);
+    });
+
+    function buildGroup(id, summaryText, items, openByDefault) {
+      if (!items.length) return null;
+      var wrapper = document.createElement("details");
+      wrapper.id = id;
+      wrapper.className = "campaign-card";
+      if (openByDefault) wrapper.open = true;
+      var summary = document.createElement("summary");
+      summary.className = "campaign-card-title";
+      summary.style.cursor = "pointer";
+      summary.textContent = summaryText;
+      wrapper.appendChild(summary);
+      items.forEach(function (item) { wrapper.appendChild(item); });
+      return wrapper;
+    }
+
+    var host = document.createElement("div");
+    host.id = "campaignPlayerCompactGroups";
+    var essentialsGroup = buildGroup("campaignPlayerEssentialsGroup", "Player Essentials", essentials, true);
+    var partyGroup = buildGroup("campaignPlayerPartyGroup", "Party Systems", party, false);
+    var archiveGroup = buildGroup("campaignPlayerArchiveGroup", "Notes & Logs", archive, false);
+    if (essentialsGroup) host.appendChild(essentialsGroup);
+    if (partyGroup) host.appendChild(partyGroup);
+    if (archiveGroup) host.appendChild(archiveGroup);
+    if (!host.childNodes.length) return;
+
+    var insertionAnchor = section.querySelector(".campaign-player-live-card") || section.querySelector(".campaign-card");
     if (insertionAnchor) {
       insertionAnchor.parentNode.insertBefore(host, insertionAnchor.nextSibling);
     } else {
@@ -4201,6 +4305,7 @@
     persistSession();
 
     refreshSettingsModeFromCampaign();
+    maybePrimePlayerDock();
 
     safeNotif("Restored campaign " + res.code + " as " + (res.role === "gm" ? "GM" : "Player") + ".", "good");
     renderSettingsSection();
@@ -4283,6 +4388,7 @@
       }
 
       refreshSettingsModeFromCampaign();
+      maybePrimePlayerDock();
       if (state.connected) {
         state.lastSyncAt = Date.now();
         refreshSyncHealth();
@@ -4347,6 +4453,7 @@
       state.activePromptId = "";
       state.uiDraft.code = "";
       state.uiDraft.joinPassword = "";
+      state.lastPlayerDockSeed = "";
       clearSession();
       refreshSettingsModeFromCampaign();
       safeNotif((code ? ("Campaign " + code + " was deleted by GM.") : "Campaign deleted by GM."), "warn");
@@ -4476,6 +4583,7 @@
     persistSession();
 
     refreshSettingsModeFromCampaign();
+    maybePrimePlayerDock();
 
     safeNotif("Campaign created. Share code " + res.code + ".", "good");
     syncCharacterToCampaign(true);
@@ -4536,6 +4644,7 @@
     persistSession();
 
     refreshSettingsModeFromCampaign();
+    maybePrimePlayerDock();
 
     if (!opts.silent) {
       safeNotif(
@@ -4560,6 +4669,7 @@
     state.campaign = null;
     state.activePromptId = "";
     state.uiDraft.joinPassword = "";
+    state.lastPlayerDockSeed = "";
     clearSession();
     refreshSettingsModeFromCampaign();
 
@@ -4754,6 +4864,7 @@
     state.activePromptId = "";
     state.uiDraft.code = "";
     state.uiDraft.joinPassword = "";
+    state.lastPlayerDockSeed = "";
     clearSession();
     safeNotif("Deleted campaign " + oldCode + ".", "warn");
     renderSettingsSection();
@@ -4923,9 +5034,23 @@
     renderDockPanel();
   }
 
+  function openDock(filterMode) {
+    if (filterMode) setTimelineFilter(filterMode);
+    state.dockOpen = true;
+    renderDockPanel();
+  }
+
   function toggleDock() {
     state.dockOpen = !state.dockOpen;
     renderDockPanel();
+  }
+
+  function maybePrimePlayerDock() {
+    if (state.role !== "player" || !state.code || !state.connected) return;
+    var seed = String(state.code || "") + ":" + String(state.token || "");
+    if (!seed || seed === state.lastPlayerDockSeed) return;
+    state.lastPlayerDockSeed = seed;
+    state.dockOpen = true;
   }
 
   function formatSyncStatusLine() {
@@ -5222,6 +5347,7 @@
     if (state.role !== "player") {
       syncSharedState("tick");
     }
+    syncCombatSceneHeartbeat("combat-heartbeat");
     if (state.role === "gm" && isStrictGmCameraLockEnabled()) {
       scheduleGmCameraSync("camera-heartbeat", true);
     }
@@ -5273,6 +5399,7 @@
     importSnapshotPrompt: importSnapshotPrompt,
     importSnapshotFromModal: importSnapshotFromModal,
     toggleDock: toggleDock,
+    openDock: openDock,
     recordEconomyDelta: recordEconomyDelta,
     toggleStrictTeamworkMode: function() {
       var enabled = false;

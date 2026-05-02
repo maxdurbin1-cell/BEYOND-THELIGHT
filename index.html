@@ -4723,6 +4723,40 @@ function requireCampaignTurn(actorKind){
   return true;
 }
 
+function maybeAdvanceCampaignInitiativeFromEnemyAction(){
+  if(!window.campaignSystem||typeof window.campaignSystem.getState!=='function'||typeof window.campaignSystem.getSharedState!=='function')return false;
+  var st=window.campaignSystem.getState();
+  if(!st||!st.code||st.role!=='gm')return false;
+  var shared=window.campaignSystem.getSharedState();
+  var cc=shared&&shared.campaignCombat&&typeof shared.campaignCombat==='object'?shared.campaignCombat:null;
+  if(!cc||!cc.active||!Array.isArray(cc.turnOrder)||!cc.turnOrder.length)return false;
+  var idx=Math.max(0,Math.min(Number(cc.currentActorIndex||0),cc.turnOrder.length-1));
+  var token=String(cc.turnOrder[idx]||'');
+  if(token.indexOf('enemy:')!==0)return false;
+  if(typeof window.campaignSystem.nextCombatActor==='function'){
+    window.campaignSystem.nextCombatActor();
+    return true;
+  }
+  return false;
+}
+
+function maybeAdvanceCampaignInitiativeFromWayfarerExhaustion(){
+  if(!window.campaignSystem||typeof window.campaignSystem.getState!=='function'||typeof window.campaignSystem.getSharedState!=='function')return false;
+  var st=window.campaignSystem.getState();
+  if(!st||!st.code||st.role!=='gm')return false;
+  var shared=window.campaignSystem.getSharedState();
+  var cc=shared&&shared.campaignCombat&&typeof shared.campaignCombat==='object'?shared.campaignCombat:null;
+  if(!cc||!cc.active||!Array.isArray(cc.turnOrder)||!cc.turnOrder.length)return false;
+  var idx=Math.max(0,Math.min(Number(cc.currentActorIndex||0),cc.turnOrder.length-1));
+  var token=String(cc.turnOrder[idx]||'');
+  if(token.indexOf('enemy:')===0)return false;
+  if(typeof window.campaignSystem.nextCombatActor==='function'){
+    window.campaignSystem.nextCombatActor();
+    return true;
+  }
+  return false;
+}
+
 function prepareCombatTurnStart(){
   if(!S.combat)S.combat={};
   S.combat.autoReloaderShots=0;
@@ -5972,11 +6006,22 @@ function consumeCombatAction(label){
   updateCombatUI();
   if(typeof renderQP==='function')renderQP('combat');
   if(label)showNotif(label+' (−1 Action)','good');
+  if((S.combat.actionsLeft||0)<=0&&maybeAdvanceCampaignInitiativeFromWayfarerExhaustion()){
+    showNotif('Wayfarer turn complete. Initiative advanced.','info');
+  }
   return true;
 }
 
 function maybeResetActionsAfterDefend(){
   if(!S.combat)return;
+  if(maybeAdvanceCampaignInitiativeFromEnemyAction()){
+    S.combat.enemyDefendsThisTurn=0;
+    S.combat.actionsLeft=getMaxActions();
+    updateCombatUI();
+    if(typeof renderQP==='function')renderQP('combat');
+    showNotif('Enemy turn consumed. Initiative advanced.','info');
+    return;
+  }
   S.combat.enemyDefendsThisTurn=(S.combat.enemyDefendsThisTurn||0)+1;
   updateCombatUI();
   if(typeof renderQP==='function')renderQP('combat');
@@ -6687,6 +6732,7 @@ function executeMimicAttack(sourceEnemyId){
 function enemyAttack(id){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;
+  maybeResetActionsAfterDefend();
   ensureEnemyEffectState(e);
   if(e.ally){
     const target=getPrimaryCombatEnemy();

@@ -224,6 +224,23 @@ select option{background:#0f1020;}
 .char-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem;}
 .char-top-title{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.14em;color:var(--muted2);text-transform:uppercase;}
 .solo-unsaved .char-top-title::after{content:' • UNSAVED';color:var(--warn);letter-spacing:.08em;margin-left:.35rem;}
+.homepage-hero{position:relative;overflow:hidden;background:linear-gradient(130deg,rgba(201,162,39,.16) 0%,rgba(16,20,42,.92) 38%,rgba(10,14,30,.96) 100%);border:1px solid rgba(201,162,39,.34);padding:1.15rem 1.15rem 1rem;margin-bottom:.8rem;}
+.homepage-hero::before{content:'';position:absolute;right:-3rem;top:-4rem;width:14rem;height:14rem;background:radial-gradient(circle,rgba(46,196,182,.22) 0%,rgba(46,196,182,0) 70%);pointer-events:none;}
+.hero-kicker{font-family:'Rajdhani',sans-serif;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold2);margin-bottom:.35rem;position:relative;}
+.hero-title{font-family:'Cinzel',serif;font-size:1.26rem;letter-spacing:.06em;color:var(--gold3);line-height:1.25;margin-bottom:.35rem;position:relative;}
+.hero-subheading{font-size:.93rem;color:var(--text2);line-height:1.6;max-width:74ch;position:relative;}
+.hero-cta-row{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.7rem;position:relative;}
+.hero-meta-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.35rem;margin-top:.7rem;position:relative;}
+.hero-meta-card{border:1px solid var(--border2);background:rgba(6,9,20,.62);padding:.42rem .48rem;}
+.hero-meta-card strong{display:block;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2);margin-bottom:.12rem;}
+.hero-meta-card span{font-size:.76rem;color:var(--muted3);line-height:1.4;}
+.onboarding-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:.7rem;}
+.onboarding-card{background:var(--card);border:1px solid var(--border);padding:.72rem;}
+.onboarding-step{border:1px solid var(--border2);background:var(--surface);padding:.5rem .55rem;margin-bottom:.36rem;}
+.onboarding-step strong{display:block;font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2);margin-bottom:.16rem;}
+.onboarding-step p{font-size:.84rem;color:var(--text2);line-height:1.55;}
+.onboarding-mini-list{display:grid;gap:.3rem;}
+.onboarding-mini-item{border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.42rem .48rem;font-size:.79rem;color:var(--muted3);line-height:1.45;}
 .wild-roll-output{background:var(--card);border:1px solid var(--border2);padding:.7rem;margin-top:.35rem;}
 .wild-section{margin-bottom:.5rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);}
 .wild-section:last-child{border-bottom:none;margin-bottom:0;}
@@ -288,6 +305,8 @@ select option{background:#0f1020;}
 }
 @media(max-width:980px){header{grid-template-columns:1fr auto;align-items:start;}.logo{grid-column:1 / 2;}.ctx-bar{grid-column:1 / -1;}.header-credits{grid-column:2 / 3;align-self:start;}.tab-btn{font-size:.68rem;padding:.4rem .72rem;}}
 @media(max-width:680px){header{grid-template-columns:1fr;}.header-credits{grid-column:1 / -1;justify-self:stretch;margin-left:0;}.ctx-bar{padding:.3rem .34rem;}nav{padding:.4rem;gap:.24rem;}#main-content{padding:1rem .7rem 2rem;}}
+@media(max-width:980px){.hero-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.onboarding-grid{grid-template-columns:1fr;}}
+@media(max-width:600px){.hero-title{font-size:1.05rem;}.hero-subheading{font-size:.86rem;}.hero-meta-grid{grid-template-columns:1fr;}}
 .job-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
 .job-difficulty{font-size:.7rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}
 .job-reward{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);margin-top:.2rem;}
@@ -310,6 +329,7 @@ select option{background:#0f1020;}
   </div>
   <nav aria-label="Main navigation" id="mainNavTablist" role="tablist" aria-orientation="horizontal">
     <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" onclick="switchTab('character',this)">Character</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-howto" id="tabnav-howto" onclick="switchTab('howto',this)">How To Use</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-backstory" id="tabnav-backstory" onclick="switchTab('backstory',this)">Backstory</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" onclick="switchTab('codex',this)">Codex</button>
@@ -347,6 +367,23 @@ select option{background:#0f1020;}
 <main id="main-content">
 <!-- CHARACTER TAB -->
 <div class="tab-panel active" id="tab-character" role="tabpanel" aria-labelledby="tabnav-character" tabindex="0">
+  <section class="homepage-hero" aria-label="Overview">
+    <div class="hero-kicker">Beyond The Light</div>
+    <h1 class="hero-title">A Living Sci-Fi Campaign Command Center</h1>
+    <p class="hero-subheading">Run solo sagas or full group arcs with synced combat flow, faction pressure, mission progression, and persistent world consequences. The suite connects character building, narrative engines, map exploration, economy tracking, and GM control into one seamless play surface.</p>
+    <div class="hero-cta-row">
+      <button class="btn btn-primary" onclick="generateCharacter()">Generate Wayfarer</button>
+      <button class="btn btn-teal" onclick="switchTab('howto',document.getElementById('tabnav-howto'))">Start Onboarding</button>
+      <button class="btn" onclick="switchTab('missions',document.getElementById('tabnav-missions'))">Open Mission Board</button>
+      <button class="btn" onclick="switchTab('map',document.getElementById('tabnav-map'))">Enter Province Map</button>
+    </div>
+    <div class="hero-meta-grid">
+      <div class="hero-meta-card"><strong>Characters</strong><span>Identity, stats, resources, trauma, and condition management.</span></div>
+      <div class="hero-meta-card"><strong>Campaign Sync</strong><span>Shared progression for GM and players with live updates.</span></div>
+      <div class="hero-meta-card"><strong>Combat Flow</strong><span>Fast action resolution, turn pacing, and encounter control.</span></div>
+      <div class="hero-meta-card"><strong>Story Systems</strong><span>Factions, rivals, missions, arcs, and long-term consequences.</span></div>
+    </div>
+  </section>
   <div class="char-top">
     <div class="char-top-title">Wayfarer Sheet</div>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
@@ -1250,6 +1287,67 @@ select option{background:#0f1020;}
         5–6 = No symptoms or reinvigorated.
       </div>
     </div>
+  </div>
+</div>
+
+<!-- HOW TO USE TAB -->
+<div class="tab-panel" id="tab-howto" role="tabpanel" aria-labelledby="tabnav-howto" tabindex="0">
+  <div class="onboarding-grid">
+    <section class="onboarding-card">
+      <div class="section-title">How To Use Beyond The Light</div>
+      <div class="onboarding-step">
+        <strong>Step 1. Create Your Wayfarer</strong>
+        <p>Open Character. Set identity, roll your Soul Array, tune health and trauma, and equip your starting loadout. This becomes your persistent baseline for every session.</p>
+      </div>
+      <div class="onboarding-step">
+        <strong>Step 2. Define Story Direction</strong>
+        <p>Use Backstory, Storyline, and Factions to establish motive, pressure, and long-term arcs. These systems turn one-off scenes into consequences that carry across the campaign.</p>
+      </div>
+      <div class="onboarding-step">
+        <strong>Step 3. Generate Session Objectives</strong>
+        <p>Open Missions to post contracts and activate a three-step loop: gather intel, move to site, resolve confrontation. Rewards feed economy, renown, and faction momentum.</p>
+      </div>
+      <div class="onboarding-step">
+        <strong>Step 4. Travel And Discover</strong>
+        <p>Use Province, Sea Region, Galaxy, and planet layers to move through terrain, weather, perils, and landmarks. Exploration drives encounters, clues, and emergent narrative beats.</p>
+      </div>
+      <div class="onboarding-step">
+        <strong>Step 5. Resolve Combat Cleanly</strong>
+        <p>When conflict starts, run it through Combat and supporting encounter tools. Keep turns moving, apply conditions, track damage, and sync outcomes back into campaign state.</p>
+      </div>
+      <div class="onboarding-step">
+        <strong>Step 6. Manage The World Between Scenes</strong>
+        <p>Use Caravan, Holdings, Merchants, economy ledgers, and codex references to process downtime, resources, and strategic decisions between missions and major set pieces.</p>
+      </div>
+      <div class="onboarding-step">
+        <strong>Step 7. Coordinate Multiplayer Sessions</strong>
+        <p>GM and players connect through Campaign controls. Shared state, synchronization tools, and dashboard utilities keep everyone aligned on map, combat, time, and progression.</p>
+      </div>
+      <div class="onboarding-step">
+        <strong>Step 8. Keep Momentum And Continuity</strong>
+        <p>Save character and campaign states frequently, then continue from where you left off. The platform is designed for long-form worlds rather than one-session throwaways.</p>
+      </div>
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.35rem;">
+        <button class="btn btn-primary" onclick="switchTab('character',document.getElementById('tabnav-character'))">Begin At Character</button>
+        <button class="btn btn-teal" onclick="switchTab('missions',document.getElementById('tabnav-missions'))">Go To Missions</button>
+        <button class="btn" onclick="switchTab('map',document.getElementById('tabnav-map'))">Go To Province</button>
+      </div>
+    </section>
+    <aside class="onboarding-card">
+      <div class="section-title">System Map</div>
+      <div class="onboarding-mini-list">
+        <div class="onboarding-mini-item"><strong style="color:var(--gold2);">Character Layer</strong><br>Identity, stats, health, trauma, inventory, and condition states.</div>
+        <div class="onboarding-mini-item"><strong style="color:var(--gold2);">Narrative Layer</strong><br>Backstory, storyline choices, faction influence, rival pressure, ending routes.</div>
+        <div class="onboarding-mini-item"><strong style="color:var(--gold2);">Operations Layer</strong><br>Missions, tasks, exploration events, map travel, and encounter generation.</div>
+        <div class="onboarding-mini-item"><strong style="color:var(--gold2);">Combat Layer</strong><br>Action resolution, dread checks, turn progression, outcomes, and aftermath.</div>
+        <div class="onboarding-mini-item"><strong style="color:var(--gold2);">Campaign Layer</strong><br>Multiplayer sync, GM controls, shared state, readiness checks, and pacing.</div>
+        <div class="onboarding-mini-item"><strong style="color:var(--gold2);">Persistence Layer</strong><br>Economy ledgers, downtime systems, saves, and long-form continuity.</div>
+      </div>
+      <div style="margin-top:.52rem;padding:.42rem .48rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.06);font-size:.79rem;color:var(--text2);line-height:1.5;">
+        Tip: keep one loop per session for smooth pacing.<br>
+        Character check-in -> mission objective -> travel and encounter -> combat resolution -> downtime and save.
+      </div>
+    </aside>
   </div>
 </div>
 

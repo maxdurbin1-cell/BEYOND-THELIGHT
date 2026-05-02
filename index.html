@@ -4095,6 +4095,134 @@ function applySpecificFlavorActionOverride(entry){
       : 'Leader: Empowered applied. Cue: this scales best in campaign faction scenes.';
   }
 
+  // ── TELEPORTATION ─────────────────────────────────────────────────────────
+  if(base.indexOf('teleportation')>=0||base.indexOf('teleport to any location')>=0){
+    if(S.combat&&S.combat.active&&typeof window.activateStarsTeleportMode==='function'){
+      window.activateStarsTeleportMode();
+      return 'Teleportation ready: click any open hex on the Stars map to teleport there instantly.';
+    }
+    return 'Teleportation: use during combat to instantly reposition to any visible hex on the Stars map.';
+  }
+
+  // ── PHASE WALKER ──────────────────────────────────────────────────────────
+  if(base.indexOf('phase walker')>=0||base.indexOf('pass through walls')>=0){
+    if(S.combat&&S.combat.active&&typeof window.activateStarsPhaseWalker==='function'){
+      window.activateStarsPhaseWalker();
+      return 'Phase Walker active this round: you can move through and occupy full-cover hexes; your position is marked.';
+    }
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    S.rollMod.flat=(S.rollMod.flat||0)+2;
+    return 'Phase Walker: +2 flat queued for your next traversal. Use in combat to phase through terrain.';
+  }
+
+  // ── VOID GAZER ────────────────────────────────────────────────────────────
+  if(base.indexOf('void gazer')>=0||base.indexOf('see invisibility')>=0){
+    if(S.combat&&S.combat.active&&typeof window.activateStarsVoidGazerReveal==='function'){
+      window.activateStarsVoidGazerReveal();
+    }
+    if(S.conditions)S.conditions.focused=true;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    return 'Void Gazer: all enemy positions revealed on Stars map; cover stripped from detected hexes. Focused gained.';
+  }
+
+  // ── EMIT ELECTRICITY (burst) ──────────────────────────────────────────────
+  if(base.indexOf('emit burst of electricity')>=0||base.indexOf('burst of electricity')>=0){
+    if(!hasHostiles)return 'No hostile targets. Use during combat for an AoE electricity burst.';
+    var shocked=0;
+    S.enemies.forEach(function(e){
+      if(!e||e.ally)return;
+      applyEnemyCombatCondition(e,'Shocked',1);
+      shocked++;
+    });
+    if(typeof renderEnemies==='function')renderEnemies();
+    if(typeof renderQP==='function')renderQP('combat');
+    if(typeof window.activateStarsElectricAoe==='function')window.activateStarsElectricAoe();
+    return 'Electricity burst: '+shocked+' enemy/enemies Shocked; all Engaged/Close hexes arc with ⚡ this round.';
+  }
+
+  // ── WARDING PALM ─────────────────────────────────────────────────────────
+  if(base.indexOf('warding palm')>=0){
+    if(typeof window.activateStarsWardingPalm==='function')window.activateStarsWardingPalm();
+    var hasAdj=Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&e.ally;});
+    if(!hasAdj)return 'Warding Palm: no adjacent ally. Place an ally on the Stars map first. Protected queued for when one arrives.';
+    return 'Warding Palm: adjacent ally shielded with 🛡 Protected on the Stars map for this round.';
+  }
+
+  // ── WEAKEN ARMOR ─────────────────────────────────────────────────────────
+  if(base.indexOf('weaken an object')>=0||base.indexOf('weaken')>=0){
+    if(!hasHostiles)return 'Weaken requires a hostile target.';
+    var focusedEnemy=typeof getPrimaryCombatEnemy==='function'?getPrimaryCombatEnemy():null;
+    if(focusedEnemy){
+      applyEnemyCombatCondition(focusedEnemy,'Weakened',1);
+      if(typeof renderEnemies==='function')renderEnemies();
+      // Mark the focused enemy's Stars hex
+      if(typeof window.starsZoneUnits!=='undefined'&&typeof window.activateStarsWeakenTarget==='function'){
+        var eu=window.starsZoneUnits&&window.starsZoneUnits.find(function(u){return u&&u.name===focusedEnemy.name;});
+        if(eu)window.activateStarsWeakenTarget(eu.row,eu.col);
+      }
+      return 'Armor Weaken: '+focusedEnemy.name+' armor/dread stepped down for a round. Marked ⬇ on Stars map.';
+    }
+    return 'Armor Weaken queued: focus an enemy in the tracker to apply the step-down effect.';
+  }
+
+  // ── NEW SENSES (echolocation / vibration sense) ───────────────────────────
+  if(base.indexOf('new senses')>=0||base.indexOf('vibration')>=0||base.indexOf('echolocation')>=0){
+    if(S.conditions)S.conditions.focused=true;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    if(S.combat&&S.combat.active&&typeof window.activateStarsVoidGazerReveal==='function'){
+      window.activateStarsVoidGazerReveal(); // same effect: reveal enemy hex cover
+    }
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    S.rollMod.flat=(S.rollMod.flat||0)+2;
+    return 'New Senses active: all enemy positions detected, cover ineffective against your awareness. Focused + +2 flat queued.';
+  }
+
+  // ── SOURCE ATTUNED ─────────────────────────────────────────────────────────
+  if(base.indexOf('source attuned')>=0||base.indexOf('sense nearby arcana')>=0){
+    if(S.conditions)S.conditions.focused=true;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    if(S.combat&&S.combat.active&&typeof window.activateStarsVoidGazerReveal==='function'){
+      window.activateStarsVoidGazerReveal();
+    }
+    if(typeof changeCounter==='function')changeCounter('pathTokens',2);
+    return 'Source Attuned: nearby arcana and mutant abilities sensed. Enemy hex positions revealed +2 Path Tokens.';
+  }
+
+  // ── VAMPIRE ───────────────────────────────────────────────────────────────
+  if(base.indexOf('vampire')>=0){
+    var isNightV=(typeof isNightPhase==='function')?isNightPhase():false;
+    if(typeof window.activateStarsVampireAura==='function')window.activateStarsVampireAura();
+    if(isNightV){
+      var bDie=Number((S.stats&&S.stats.body)||4);
+      var vDie=Math.min(20,bDie===4?6:bDie===6?8:bDie===8?10:bDie===10?12:20);
+      if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+      if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+      S.rollMod.advDice.push(vDie);
+      if(hasHostiles){
+        var healed=roll(4);
+        if(typeof changeHealth==='function')changeHealth(-healed);else if(typeof changeStress==='function')changeStress(-healed);
+        return 'Vampiric Surge (night): +Ad'+vDie+' queued, nocturnal power peaks — drained '+healed+' Stress from combat pressure. 🧛 aura on map.';
+      }
+      return 'Vampiric presence awakens at night: +Ad'+vDie+' queued for your next action. 🧛 aura on Stars map.';
+    }
+    return 'Vampire: daylight limits power. Gain +1 flat for your next roll but plan action for nightfall when surge peaks. 🧛 aura on map.';
+  }
+
+  // ── WEREWOLF ──────────────────────────────────────────────────────────────
+  if(base.indexOf('werewolf')>=0){
+    var isNightW=(typeof isNightPhase==='function')?isNightPhase():false;
+    if(typeof window.activateStarsWerewolfAura==='function')window.activateStarsWerewolfAura();
+    if(isNightW){
+      if(S.conditions){S.conditions.empowered=true;S.conditions.focused=true;}
+      if(typeof updateConditionButtons==='function')updateConditionButtons();
+      if(typeof changeCounter==='function'&&hasHostiles)changeCounter('tmw',2);
+      return 'Bestial Fury (night): Empowered + Focused applied; +2 Teamwork in the hunt. 🐺 aura blazes on Stars map.';
+    }
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    S.rollMod.flat=(S.rollMod.flat||0)+2;
+    return 'Werewolf: lunar instincts stir even by day — +2 flat queued for next action. 🐺 aura on Stars map. Night phase boosts to full rage.';
+  }
+
   return null;
 }
 

@@ -9291,6 +9291,76 @@ function clearExpiredIllusionUnits() {
 }
 window.spawnIllusionOnStarsMap = spawnIllusionOnStarsMap;
 
+// ── FLAVOR MAP OVERLAY STATE ──────────────────────────────────────────────────
+let starsZoneElectricAoeRound = -1;       // round on which electricity AoE is active
+let starsZoneVoidGazerHexes  = new Set(); // {row:col} keys where cover is revealed
+let starsZonePhaseWalkerRound = -1;       // round when Phase Walker is active
+let starsZoneTeleportMode    = false;     // next hex click = teleport player there
+let starsZoneWardingPalmHex  = null;      // {row,col} of the Warded ally hex this round
+let starsZoneWardingPalmRound = -1;
+let starsZoneWeakenedHexes   = new Set(); // enemy hexes marked with armor-weaken badge
+let starsZoneVampireAuraRound = -1;
+let starsZoneWerewolfAuraRound = -1;
+
+// Call from flavor overrides (exposed globally)
+function activateStarsElectricAoe() {
+  const r = (typeof S !== 'undefined' && S.combat && S.combat.round) ? S.combat.round : 1;
+  starsZoneElectricAoeRound = r;
+  if (typeof renderStarsCombatZone === 'function') renderStarsCombatZone(starsZoneRenderPresetId || 1);
+}
+function activateStarsPhaseWalker() {
+  const r = (typeof S !== 'undefined' && S.combat && S.combat.round) ? S.combat.round : 1;
+  starsZonePhaseWalkerRound = r;
+  if (typeof renderStarsCombatZone === 'function') renderStarsCombatZone(starsZoneRenderPresetId || 1);
+}
+function activateStarsVoidGazerReveal() {
+  // Reveal first enemy hex (remove its cover for this scene)
+  const enemyUnit = starsZoneUnits.find(u => u && u.type === 'enemy');
+  if (enemyUnit) starsZoneVoidGazerHexes.add(`${enemyUnit.row}:${enemyUnit.col}`);
+  // Also mark all enemy hexes as detected
+  starsZoneUnits.filter(u => u && u.type === 'enemy').forEach(u => starsZoneVoidGazerHexes.add(`${u.row}:${u.col}`));
+  if (typeof renderStarsCombatZone === 'function') renderStarsCombatZone(starsZoneRenderPresetId || 1);
+}
+function activateStarsWardingPalm() {
+  const r = (typeof S !== 'undefined' && S.combat && S.combat.round) ? S.combat.round : 1;
+  starsZoneWardingPalmRound = r;
+  const playerUnit = starsZoneUnits.find(u => u && u.trackerKey === 'player:self') || starsZoneUnits.find(u => u && u.type === 'ally');
+  if (playerUnit) {
+    // Find an adjacent ally
+    const adj = starsZoneUnits.find(u => u && u.type === 'ally' && u !== playerUnit &&
+      Math.abs(u.row - playerUnit.row) + Math.abs(u.col - playerUnit.col) === 1);
+    starsZoneWardingPalmHex = adj || null;
+  }
+  if (typeof renderStarsCombatZone === 'function') renderStarsCombatZone(starsZoneRenderPresetId || 1);
+}
+function activateStarsWeakenTarget(row, col) {
+  starsZoneWeakenedHexes.add(`${row}:${col}`);
+  if (typeof renderStarsCombatZone === 'function') renderStarsCombatZone(starsZoneRenderPresetId || 1);
+}
+function activateStarsVampireAura() {
+  const r = (typeof S !== 'undefined' && S.combat && S.combat.round) ? S.combat.round : 1;
+  starsZoneVampireAuraRound = r;
+  if (typeof renderStarsCombatZone === 'function') renderStarsCombatZone(starsZoneRenderPresetId || 1);
+}
+function activateStarsWerewolfAura() {
+  const r = (typeof S !== 'undefined' && S.combat && S.combat.round) ? S.combat.round : 1;
+  starsZoneWerewolfAuraRound = r;
+  if (typeof renderStarsCombatZone === 'function') renderStarsCombatZone(starsZoneRenderPresetId || 1);
+}
+function activateStarsTeleportMode() {
+  starsZoneTeleportMode = true;
+  if (typeof showNotif === 'function') showNotif('Teleportation: click a hex on the Stars map to teleport there.', 'good');
+  if (typeof renderStarsCombatZone === 'function') renderStarsCombatZone(starsZoneRenderPresetId || 1);
+}
+window.activateStarsElectricAoe    = activateStarsElectricAoe;
+window.activateStarsPhaseWalker    = activateStarsPhaseWalker;
+window.activateStarsVoidGazerReveal = activateStarsVoidGazerReveal;
+window.activateStarsWardingPalm    = activateStarsWardingPalm;
+window.activateStarsWeakenTarget   = activateStarsWeakenTarget;
+window.activateStarsVampireAura    = activateStarsVampireAura;
+window.activateStarsWerewolfAura   = activateStarsWerewolfAura;
+window.activateStarsTeleportMode   = activateStarsTeleportMode;
+
 function getStarsZoneOrder() {
   return ['Engaged', 'Close', 'Nearby', 'Far'];
 }
@@ -9586,22 +9656,25 @@ function getStarsFlavorMapEffects(layout, openerOverride) {
   const roundEffectActive = (typeof window.isFlavorRoundEffectActive === 'function')
     ? window.isFlavorRoundEffectActive.bind(window)
     : function() { return false; };
+  const currentRound = (typeof S !== 'undefined' && S.combat && S.combat.round) ? S.combat.round : 1;
   const psychicDomeActive = roundEffectActive('psychicDome') && (flavorText.indexOf('psychic dome') >= 0 || flavorText.indexOf('create a psychic dome') >= 0);
   const illusionistActive = flavorText.indexOf('illusionist') >= 0;
   const mimicActive = flavorText.indexOf('mimic') >= 0;
   const aquaticMobilityActive = roundEffectActive('aquaticMobility') && flavorText.indexOf('in water: breathe') >= 0;
+  const electricAoeActive = starsZoneElectricAoeRound === currentRound;
+  const phaseWalkerActive = starsZonePhaseWalkerRound === currentRound;
+  const wardingPalmActive = starsZoneWardingPalmRound === currentRound && !!starsZoneWardingPalmHex;
+  const vampireAuraActive = starsZoneVampireAuraRound === currentRound;
+  const werewolfAuraActive = starsZoneWerewolfAuraRound === currentRound;
   const terrainText = String((openerOverride && openerOverride.terrainText) || (layout && layout.name) || '').toLowerCase();
   const zeroGPenalty = !!(layout && layout.special === 'zerog') || terrainText.indexOf('zero-g') >= 0;
   const underwaterPenalty = terrainText.indexOf('underwater') >= 0;
   const mobilityPenaltyWaived = aquaticMobilityActive && (zeroGPenalty || underwaterPenalty);
   return {
-    psychicDomeActive,
-    illusionistActive,
-    mimicActive,
-    aquaticMobilityActive,
-    zeroGPenalty,
-    underwaterPenalty,
-    mobilityPenaltyWaived
+    psychicDomeActive, illusionistActive, mimicActive,
+    aquaticMobilityActive, electricAoeActive, phaseWalkerActive,
+    wardingPalmActive, vampireAuraActive, werewolfAuraActive,
+    zeroGPenalty, underwaterPenalty, mobilityPenaltyWaived
   };
 }
 
@@ -9776,8 +9849,17 @@ function renderStarsCombatZone(layoutId) {
     let stroke = '#2a2c4e';
     let sLabel = '';
 
+    // Phase Walker: allow entry into full-cover hexes (player hex gets phase glow)
     const coverKey = `${h.row}:${h.col}`;
-    const activeCover = (domeHexes.has(coverKey) ? 'full' : '') || coverOverrides[coverKey] || h.cover;
+    const isPlayerHex = playerUnit && h.row === playerUnit.row && h.col === playerUnit.col;
+    const resolvedCover = (domeHexes.has(coverKey) ? 'full' : '')
+      || (flavorFx.phaseWalkerActive && isPlayerHex ? '' : '') // phase walker sees through cover
+      || (starsZoneVoidGazerHexes.has(coverKey) ? '' : '') // void gazer strips cover
+      || coverOverrides[coverKey] || h.cover;
+    // Phase walker: if player is on a full-cover hex, clear it visually
+    const activeCover = (domeHexes.has(coverKey) ? 'full' : '')
+      || (flavorFx.phaseWalkerActive && isPlayerHex ? '' : resolvedCover)
+      || resolvedCover;
 
     if (activeCover === 'full') {
       fill = '#111111'; stroke = '#444'; sLabel = '⬛';
@@ -9786,6 +9868,19 @@ function renderStarsCombatZone(layoutId) {
     } else if (h.special === 'rad') {
       fill = '#1a2a10'; stroke = '#4a8020'; sLabel = '☢';
     }
+    // Electric AoE: tint engaged/close hexes
+    const isElectricHex = flavorFx.electricAoeActive && (() => {
+      if (!playerUnit) return false;
+      const dr = Math.abs(h.row - playerUnit.row), dc = Math.abs(h.col - playerUnit.col);
+      return (dr + dc) <= 2;
+    })();
+    if (isElectricHex && activeCover !== 'full') { fill = '#1a1a40'; stroke = '#5588ff'; }
+    // Vampire aura: dark-red tint on player hex
+    if (flavorFx.vampireAuraActive && isPlayerHex) { stroke = '#cc2244'; fill = '#2a0a12'; }
+    // Werewolf aura: amber tint on player hex
+    if (flavorFx.werewolfAuraActive && isPlayerHex) { stroke = '#cc7700'; fill = '#2a1a00'; }
+    // Teleport mode: tint all non-occupied hexes as clickable targets
+    if (starsZoneTeleportMode && !isPlayerHex && activeCover !== 'full') { stroke = '#44ffcc'; }
 
     const unitHere = starsZoneUnits.filter(u => u.row === h.row && u.col === h.col);
     const unitMarks = unitHere.map(u =>
@@ -9797,6 +9892,31 @@ function renderStarsCombatZone(layoutId) {
     const illusionMark = illusionKeys.has(coverKey)
       ? `<text x="${x}" y="${y + 4}" text-anchor="middle" font-size="14" fill="rgba(120,200,255,0.75)" pointer-events="none" opacity="0.8">👻</text><text x="${x}" y="${y - 10}" text-anchor="middle" font-size="9" fill="rgba(120,200,255,0.6)" pointer-events="none">illusion</text>`
       : '';
+    const electricMark = isElectricHex
+      ? `<text x="${x}" y="${y + 14}" text-anchor="middle" font-size="10" fill="#88aaff" pointer-events="none" opacity="0.9">⚡</text>`
+      : '';
+    const voidGazerMark = starsZoneVoidGazerHexes.has(coverKey)
+      ? `<text x="${x}" y="${y - 12}" text-anchor="middle" font-size="9" fill="#aaffee" pointer-events="none">👁</text>`
+      : '';
+    const weakenMark = starsZoneWeakenedHexes.has(coverKey)
+      ? `<text x="${x}" y="${y + 14}" text-anchor="middle" font-size="10" fill="#ff8844" pointer-events="none">⬇</text>`
+      : '';
+    const wardingPalmMark = (flavorFx.wardingPalmActive && starsZoneWardingPalmHex &&
+        h.row === starsZoneWardingPalmHex.row && h.col === starsZoneWardingPalmHex.col)
+      ? `<text x="${x}" y="${y - 12}" text-anchor="middle" font-size="11" fill="#44ccee" pointer-events="none">🛡</text>`
+      : '';
+    const phaseWalkerMark = (flavorFx.phaseWalkerActive && isPlayerHex)
+      ? `<text x="${x}" y="${y - 12}" text-anchor="middle" font-size="9" fill="#aa88ff" pointer-events="none">✦</text>`
+      : '';
+    const vampireMark = (flavorFx.vampireAuraActive && isPlayerHex)
+      ? `<text x="${x}" y="${y - 12}" text-anchor="middle" font-size="11" fill="#cc2244" pointer-events="none">🧛</text>`
+      : '';
+    const werewolfMark = (flavorFx.werewolfAuraActive && isPlayerHex)
+      ? `<text x="${x}" y="${y - 12}" text-anchor="middle" font-size="11" fill="#cc7700" pointer-events="none">🐺</text>`
+      : '';
+    const teleportMark = (starsZoneTeleportMode && !isPlayerHex && activeCover !== 'full')
+      ? `<text x="${x}" y="${y + 14}" text-anchor="middle" font-size="10" fill="#44ffcc" pointer-events="none" opacity="0.7">◎</text>`
+      : '';
 
     svgContent += `
       <g onclick="starsZoneHexClick(${h.row},${h.col},event)" style="cursor:pointer;">
@@ -9805,6 +9925,14 @@ function renderStarsCombatZone(layoutId) {
         ${unitMarks}
         ${domeMark}
         ${illusionMark}
+        ${electricMark}
+        ${voidGazerMark}
+        ${weakenMark}
+        ${wardingPalmMark}
+        ${phaseWalkerMark}
+        ${vampireMark}
+        ${werewolfMark}
+        ${teleportMark}
       </g>`;
   });
 
@@ -9817,6 +9945,14 @@ function renderStarsCombatZone(layoutId) {
       ${flavorFx.mobilityPenaltyWaived ? '<span style="color:var(--green2);"> ✓ Personal Flavor active: movement surcharge removed this round</span>' : ''}
       ${flavorFx.psychicDomeActive ? '<span style="color:#b39ddb;"> 🔮 Psychic Dome active — up to 4 allies protected this round</span>' : ''}
       ${flavorFx.illusionistActive && starsZoneIllusionUnits.length ? '<span style="color:rgba(120,200,255,0.8);"> 👻 Illusion active — enemies Distracted targeting the decoy</span>' : ''}
+      ${flavorFx.electricAoeActive ? '<span style="color:#88aaff;"> ⚡ Electricity burst — Engaged/Close enemies Shocked this round</span>' : ''}
+      ${flavorFx.phaseWalkerActive ? '<span style="color:#aa88ff;"> ✦ Phase Walker active — you can pass through cover this round</span>' : ''}
+      ${starsZoneTeleportMode ? '<span style="color:#44ffcc;"> ◎ Teleportation ready — click any open hex to teleport</span>' : ''}
+      ${flavorFx.wardingPalmActive ? '<span style="color:#44ccee;"> 🛡 Warding Palm — adjacent ally is Protected this round</span>' : ''}
+      ${starsZoneVoidGazerHexes.size ? '<span style="color:#aaffee;"> 👁 Void Gazer — enemy cover stripped, positions revealed</span>' : ''}
+      ${starsZoneWeakenedHexes.size ? '<span style="color:#ff8844;"> ⬇ Weakened armor on marked enemy hexes</span>' : ''}
+      ${flavorFx.vampireAuraActive ? '<span style="color:#cc2244;"> 🧛 Vampiric surge — enhanced night strike this round</span>' : ''}
+      ${flavorFx.werewolfAuraActive ? '<span style="color:#cc7700;"> 🐺 Bestial fury — Werewolf power active this round</span>' : ''}
       ${layout.special === 'radiation' ? '<span style="color:var(--green2);"> ⚠ Rad Zone: +d100 Rads per Turn spent here</span>' : ''}
     </div>
     <svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;">
@@ -9828,6 +9964,18 @@ function renderStarsCombatZone(layoutId) {
 }
 
 function starsZoneHexClick(row, col, evt) {
+  // Teleport mode: move player unit here
+  if (starsZoneTeleportMode) {
+    starsZoneTeleportMode = false;
+    const playerIdx = starsZoneUnits.findIndex(u => u && (u.trackerKey === 'player:self' || (u.type === 'ally' && !u.fromTracker)));
+    if (playerIdx >= 0) {
+      starsZoneUnits[playerIdx].row = row;
+      starsZoneUnits[playerIdx].col = col;
+      if (typeof showNotif === 'function') showNotif(`Teleported to hex (${row},${col}).`, 'good');
+    }
+    if (starsZoneLayout) renderStarsCombatZone(starsZoneRenderPresetId || 1);
+    return;
+  }
   if (starsZoneAutoPopulate) {
     if (moveSelectedTrackerUnitToStarsHex(row, col)) return;
     if (removeTrackedCombatantFromStarsHex(row, col)) return;

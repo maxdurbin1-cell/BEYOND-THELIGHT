@@ -4114,7 +4114,9 @@
       + '<div id="campaignDockBadge" class="campaign-dock-badge offline">Offline</div>'
       + "</div>"
       + '<div id="campaignDockMeta" class="campaign-dock-meta">No campaign connected.</div>'
+      + '<div id="campaignDockLiveStatus" class="campaign-dock-roll"></div>'
       + '<div id="campaignDockRoll" class="campaign-dock-roll"></div>'
+      + '<div id="campaignDockLock" class="campaign-dock-roll"></div>'
       + '<div id="campaignDockFilters" class="campaign-dock-filters"></div>'
       + '<div id="campaignDockTrigger" class="campaign-dock-roll"></div>'
       + '<div id="campaignDockTimeline" class="campaign-dock-timeline"></div>'
@@ -4139,6 +4141,39 @@
     renderDockPanel();
   }
 
+  function findCampaignCombatParticipant(combatState, token) {
+    if (!combatState || !Array.isArray(combatState.participants)) return null;
+    var target = String(token || "");
+    for (var i = 0; i < combatState.participants.length; i += 1) {
+      var row = combatState.participants[i];
+      if (!row) continue;
+      if (String(row.token || "") === target) return row;
+    }
+    return null;
+  }
+
+  function getCampaignCombatActorSummary(combatState) {
+    if (!combatState || !combatState.active || !Array.isArray(combatState.turnOrder) || !combatState.turnOrder.length) {
+      return { active: false };
+    }
+    var idx = Math.max(0, Math.min(Number(combatState.currentActorIndex || 0), combatState.turnOrder.length - 1));
+    var token = String(combatState.turnOrder[idx] || "");
+    var row = findCampaignCombatParticipant(combatState, token);
+    var fallbackName = token.indexOf("enemy:") === 0
+      ? token.replace(/^enemy:/, "").replace(/:turn\d+$/, "")
+      : (token || "Wayfarer");
+    return {
+      active: true,
+      token: token,
+      name: String((row && row.name) || fallbackName || "Wayfarer"),
+      round: Math.max(1, Number(combatState.round || 1)),
+      index: idx + 1,
+      total: combatState.turnOrder.length,
+      isEnemy: !!(row && row.isEnemy),
+      hasActed: !!(row && row.hasActed)
+    };
+  }
+
   function renderDockPanel() {
     var root = document.getElementById("campaignDock");
     if (!root) return;
@@ -4147,6 +4182,7 @@
 
     var badge = document.getElementById("campaignDockBadge");
     var meta = document.getElementById("campaignDockMeta");
+    var liveStatus = document.getElementById("campaignDockLiveStatus");
     var timeline = document.getElementById("campaignDockTimeline");
     var roll = document.getElementById("campaignDockRoll");
     var filters = document.getElementById("campaignDockFilters");
@@ -4166,6 +4202,13 @@
 
     var campaign = state.campaign;
     var active = campaign && campaign.activeRollRequest;
+    var shared = getCampaignSharedState();
+    var readyCheck = shared && shared.readyCheck && typeof shared.readyCheck === "object"
+      ? shared.readyCheck
+      : ensureReadyCheckState(shared);
+    var combatState = shared && shared.campaignCombat && typeof shared.campaignCombat === "object"
+      ? shared.campaignCombat
+      : ensureCampaignCombatState(shared);
 
     if (meta) {
       var roleLabel = state.role === "gm" ? "GM" : (state.role ? "Player" : "-");
@@ -4176,7 +4219,6 @@
     }
 
     if (lock) {
-      var shared = getCampaignSharedState();
       var cameraOn = isStrictGmCameraLockEnabled(shared);
       if (state.role === "player" && cameraOn) {
         lock.innerHTML = '<div class="campaign-dock-empty" style="text-align:left;border:1px solid rgba(232,192,80,.42);background:rgba(232,192,80,.1);color:var(--text2);">'
@@ -4186,6 +4228,43 @@
       } else {
         lock.innerHTML = "";
       }
+    }
+
+    if (liveStatus) {
+      var actor = getCampaignCombatActorSummary(combatState);
+      var readyRequiredCount = Array.isArray(readyCheck.requiredTokens) ? readyCheck.requiredTokens.length : 0;
+      var readyResponseCount = getReadyCheckResponseCount(readyCheck);
+      var readyStatus = String(readyCheck.status || "idle");
+      var canRespondReady = !!(state.token && readyCheck && readyCheck.responses && !readyCheck.responses[state.token]);
+      var cards = [];
+
+      if (actor.active) {
+        cards.push(''
+          + '<div class="campaign-dock-status-card">'
+          + '<div class="campaign-dock-status-label">Current Actor</div>'
+          + '<div class="campaign-dock-status-main">' + escapeHtml(actor.name) + (actor.isEnemy ? ' <span class="campaign-dock-status-tag enemy">Enemy</span>' : ' <span class="campaign-dock-status-tag ally">Wayfarer</span>') + '</div>'
+          + '<div class="campaign-dock-status-sub">Round ' + actor.round + ' · Turn ' + actor.index + '/' + actor.total + (actor.hasActed ? ' · already acted' : ' · waiting on action') + '</div>'
+          + '</div>');
+      }
+
+      if (readyCheck && readyCheck.id && readyStatus !== "idle") {
+        cards.push(''
+          + '<div class="campaign-dock-status-card">'
+          + '<div class="campaign-dock-status-label">Ready Check</div>'
+          + '<div class="campaign-dock-status-main">' + escapeHtml(String(readyCheck.label || "Shared action")) + '</div>'
+          + '<div class="campaign-dock-status-sub">' + escapeHtml(readyStatus) + ' · ' + readyResponseCount + '/' + readyRequiredCount + ' responses</div>'
+          + (readyStatus === "pending" && canRespondReady
+            ? '<div class="campaign-dock-roll-actions"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.respondReadyCheck(true)">Ready</button><button class="btn btn-xs btn-red" onclick="window.campaignSystem.respondReadyCheck(false)">Not Ready</button></div>'
+            : '')
+          + (readyStatus === "pending" && state.role === "gm"
+            ? '<div class="campaign-dock-roll-actions"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.forceApproveReadyCheck()">Force Approve</button><button class="btn btn-xs" onclick="window.campaignSystem.cancelReadyCheck()">Cancel</button></div>'
+            : '')
+          + '</div>');
+      }
+
+      liveStatus.innerHTML = cards.length
+        ? ('<div class="campaign-dock-status-grid">' + cards.join("") + '</div>')
+        : '<div class="campaign-dock-empty">No active initiative or ready check.</div>';
     }
 
     if (roll) {
@@ -4202,7 +4281,6 @@
           + (canRoll
             ? '<div class="campaign-dock-roll-actions"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.submitActiveRoll()">Roll Now</button></div>'
             : '<div class="campaign-dock-roll-actions"><button class="btn btn-xs" onclick="window.campaignSystem.closeActiveRoll()">Close Active</button></div>');
-          + '<div id="campaignDockLock"></div>'
       }
     }
 
@@ -4245,7 +4323,6 @@
 
     if (timeline) {
       var oldScrollBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
-      var shared = getCampaignSharedState();
       var combinedSource = buildDockTimelineSource(
         campaign && campaign.log ? campaign.log : [],
         shared && Array.isArray(shared.sessionTimeline) ? shared.sessionTimeline : []

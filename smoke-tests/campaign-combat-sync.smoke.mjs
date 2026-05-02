@@ -1,0 +1,351 @@
+import { spawn } from "node:child_process";
+import process from "node:process";
+
+import { chromium } from "playwright";
+
+const BASE_URL = process.env.SMOKE_URL || "http://127.0.0.1:3000";
+const START_TIMEOUT_MS = 20000;
+const STEP_TIMEOUT_MS = 16000;
+const COMBAT_SYNC_TIMEOUT_MS = 10000;
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function startServer() {
+  const child = spawn("node", ["server.js"], {
+    cwd: process.cwd(),
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PORT: process.env.PORT || "3000" }
+  });
+
+  child.stdout.on("data", (buf) => {
+    const line = String(buf || "").trim();
+    if (line) process.stdout.write(`[server] ${line}\n`);
+  });
+  child.stderr.on("data", (buf) => {
+    const line = String(buf || "").trim();
+    if (line) process.stderr.write(`[server:err] ${line}\n`);
+  });
+
+  return child;
+}
+
+async function waitForServer(url, timeoutMs) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return;
+    } catch (_err) {
+      // Retry until timeout.
+    }
+    await wait(350);
+  }
+  throw new Error(`Server did not become ready at ${url} within ${timeoutMs}ms`);
+}
+
+async function dismissBlockingOverlays(page) {
+  await page.evaluate(() => {
+    try {
+      if (window.introSystem && typeof window.introSystem.skipIntro === "function") {
+        window.introSystem.skipIntro();
+      }
+    } catch (_err) {}
+    try {
+      if (window.soloReference && typeof window.soloReference.close === "function") {
+        window.soloReference.close();
+      }
+    } catch (_err) {}
+    try {
+      if (typeof window.closeModal === "function") {
+        window.closeModal();
+      }
+    } catch (_err) {}
+  });
+}
+
+async function waitForCampaignReady(page) {
+  await page.waitForFunction(
+    () => !!(window.campaignSystem && window.campaignSystem.getState && window.campaignSystem.getState().connected),
+    null,
+    { timeout: STEP_TIMEOUT_MS }
+  );
+  await dismissBlockingOverlays(page);
+}
+
+async function clearSession(page) {
+  await page.evaluate(async () => {
+    try {
+      localStorage.removeItem("beyond-light-campaign-session");
+    } catch (_err) {}
+    try {
+      if (window.campaignSystem && window.campaignSystem.getState) {
+        const st = window.campaignSystem.getState();
+        if (st && st.code && typeof window.campaignSystem.leaveCampaign === "function") {
+          await window.campaignSystem.leaveCampaign();
+        }
+      }
+    } catch (_err) {}
+  });
+  await dismissBlockingOverlays(page);
+}
+
+async function ensureBaseState(page) {
+  await page.evaluate(() => {
+    if (!window.S && typeof window.generateCharacter === "function") {
+      try { window.generateCharacter(); } catch (_err) {}
+    }
+    if (!window.S) {
+      window.S = {};
+    }
+    window.S.combat = window.S.combat || {};
+    window.S.enemies = Array.isArray(window.S.enemies) ? window.S.enemies : [];
+    window.S.combatMap = window.S.combatMap && typeof window.S.combatMap === "object"
+      ? window.S.combatMap
+      : { units: [] };
+  });
+}
+
+async function collectCombatSummary(page) {
+  return page.evaluate(() => {
+    const combat = window.S && window.S.combat ? window.S.combat : {};
+    const enemies = Array.isArray(window.S && window.S.enemies) ? window.S.enemies : [];
+    const units = window.S && window.S.combatMap && Array.isArray(window.S.combatMap.units)
+      ? window.S.combatMap.units
+      : [];
+    const ashRaiderUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e1" || unit.name === "Ash Raider")) || null;
+    const paleHoundUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e2" || unit.name === "Pale Hound")) || null;
+    return {
+      active: !!combat.active,
+      enemyDread: Number(combat.enemyDread || 0),
+      firstEnemyStress: enemies[0] ? Number(enemies[0].stress || 0) : -1,
+      secondEnemyStress: enemies[1] ? Number(enemies[1].stress || 0) : -1,
+      ashRaiderZone: ashRaiderUnit ? String(ashRaiderUnit.zone || "") : "",
+      paleHoundPresent: !!paleHoundUnit,
+      unitCount: units.length,
+      combatAugState: !!(window.S && window.S.combatAugState && window.S.combatAugState.decentralizedHeartUsed)
+    };
+  });
+}
+
+async function waitForCombatSummary(page, expected, label) {
+  try {
+    await page.waitForFunction(
+      (target) => {
+        const combat = window.S && window.S.combat ? window.S.combat : {};
+        const enemies = Array.isArray(window.S && window.S.enemies) ? window.S.enemies : [];
+        const units = window.S && window.S.combatMap && Array.isArray(window.S.combatMap.units)
+          ? window.S.combatMap.units
+          : [];
+        const ashRaiderUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e1" || unit.name === "Ash Raider")) || null;
+        const paleHoundUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e2" || unit.name === "Pale Hound")) || null;
+        return (
+          !!combat.active === !!target.active &&
+          Number(combat.enemyDread || 0) === Number(target.enemyDread || 0) &&
+          Number(enemies[0] && enemies[0].stress || 0) === Number(target.firstEnemyStress || 0) &&
+          Number(enemies[1] && enemies[1].stress || 0) === Number(target.secondEnemyStress || 0) &&
+          String(ashRaiderUnit && ashRaiderUnit.zone || "") === String(target.ashRaiderZone || "") &&
+          (!!paleHoundUnit === !!target.paleHoundPresent) &&
+          units.length >= Number(target.minUnitCount || 0) &&
+          (!!(window.S && window.S.combatAugState && window.S.combatAugState.decentralizedHeartUsed) === !!target.combatAugState)
+        );
+      },
+      expected,
+      { timeout: COMBAT_SYNC_TIMEOUT_MS }
+    );
+  } catch (err) {
+    const summary = await collectCombatSummary(page);
+    throw new Error(`${label} wait timed out: expected=${JSON.stringify(expected)} actual=${JSON.stringify(summary)} error=${String(err && err.message ? err.message : err)}`);
+  }
+
+  const summary = await collectCombatSummary(page);
+  if (
+    summary.active !== expected.active ||
+    summary.enemyDread !== expected.enemyDread ||
+    summary.firstEnemyStress !== expected.firstEnemyStress ||
+    summary.secondEnemyStress !== expected.secondEnemyStress ||
+    summary.ashRaiderZone !== expected.ashRaiderZone ||
+    summary.paleHoundPresent !== expected.paleHoundPresent ||
+    summary.unitCount < expected.minUnitCount ||
+    summary.combatAugState !== expected.combatAugState
+  ) {
+    throw new Error(`${label} combat sync mismatch: expected=${JSON.stringify(expected)} actual=${JSON.stringify(summary)}`);
+  }
+}
+
+async function runScenario(browser) {
+  const gmPage = await browser.newPage();
+  const playerPage = await browser.newPage();
+
+  for (const page of [gmPage, playerPage]) {
+    await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await waitForCampaignReady(page);
+    await clearSession(page);
+    await ensureBaseState(page);
+  }
+
+  await gmPage.evaluate(() => {
+    const el = document.getElementById("campaignNameInput");
+    if (el) el.value = "Combat Smoke GM";
+  });
+  await gmPage.evaluate(async () => {
+    await window.campaignSystem.createCampaign();
+  });
+
+  await gmPage.waitForFunction(
+    () => {
+      const st = window.campaignSystem.getState();
+      return !!(st && st.code && st.role === "gm");
+    },
+    null,
+    { timeout: STEP_TIMEOUT_MS }
+  );
+
+  const code = await gmPage.evaluate(() => window.campaignSystem.getState().code || "");
+  if (!code) throw new Error("Combat smoke failed: no campaign code created.");
+
+  await playerPage.evaluate(async (campaignCode) => {
+    await window.campaignSystem.joinCampaign("player", { code: campaignCode, name: "Combat Smoke Player" });
+  }, code);
+
+  await playerPage.waitForFunction(
+    (campaignCode) => {
+      const st = window.campaignSystem.getState();
+      return !!(st && st.code === campaignCode && st.role === "player");
+    },
+    code,
+    { timeout: STEP_TIMEOUT_MS }
+  );
+
+  const seeded = await gmPage.evaluate(async () => {
+    window.S.combat = {
+      active: true,
+      enemyDread: 8,
+      spacing: "Nearby",
+      round: 1,
+      actionsLeft: 3,
+      sceneOpener: {
+        zoneTerrain: "ruins",
+        coverTier: "medium",
+        coverDesc: "Broken pillars and shattered masonry"
+      }
+    };
+    window.S.enemies = [
+      { id: "smoke-e1", name: "Ash Raider", stress: 1, maxStress: 6, ally: false, conditions: [] },
+      { id: "smoke-e2", name: "Pale Hound", stress: 0, maxStress: 4, ally: false, conditions: [] }
+    ];
+    window.S.combatMap = {
+      units: [
+        { id: 1, name: "Combat Smoke GM", side: "ally", zone: "Engaged", isPlayer: true },
+        { id: 2, name: "Ash Raider", side: "enemy", zone: "Nearby", fromTracker: true, trackerKey: "enemy:smoke-e1" }
+      ],
+      lastRelativeZone: "Nearby"
+    };
+    window.S.combatAugState = { decentralizedHeartUsed: false };
+    if (typeof window.updateCombatUI === "function") {
+      try { window.updateCombatUI(); } catch (_err) {}
+    }
+    if (typeof window.renderEnemies === "function") {
+      try { window.renderEnemies(); } catch (_err) {}
+    }
+    if (typeof window.renderCombatMap === "function") {
+      try { window.renderCombatMap(); } catch (_err) {}
+    }
+    return window.campaignSystem.syncSharedSilent("smoke-combat-seed");
+  });
+
+  if (!seeded || !seeded.ok) {
+    throw new Error(`Combat smoke failed to seed combat scene: ${JSON.stringify(seeded)}`);
+  }
+
+  const expectedSeed = {
+    active: true,
+    enemyDread: 8,
+    firstEnemyStress: 1,
+    secondEnemyStress: 0,
+    ashRaiderZone: "Nearby",
+    paleHoundPresent: true,
+    minUnitCount: 3,
+    combatAugState: false
+  };
+  await waitForCombatSummary(playerPage, expectedSeed, "Player seeded state");
+
+  const mutated = await gmPage.evaluate(async () => {
+    window.S.combat.enemyDread = 12;
+    if (Array.isArray(window.S.enemies) && window.S.enemies[0]) {
+      window.S.enemies[0].stress = 3;
+    }
+    if (Array.isArray(window.S.enemies) && window.S.enemies[1]) {
+      window.S.enemies[1].stress = 1;
+    }
+    if (window.S.combatMap && Array.isArray(window.S.combatMap.units) && window.S.combatMap.units[1]) {
+      window.S.combatMap.units[1].zone = "Engaged";
+    }
+    if (window.S.combatMap && Array.isArray(window.S.combatMap.units)) {
+      window.S.combatMap.units.push({
+        id: 3,
+        name: "Pale Hound",
+        side: "enemy",
+        zone: "Flanking",
+        fromTracker: true,
+        trackerKey: "enemy:smoke-e2"
+      });
+    }
+    window.S.combatAugState = { decentralizedHeartUsed: true };
+    if (typeof window.updateCombatUI === "function") {
+      try { window.updateCombatUI(); } catch (_err) {}
+    }
+    if (typeof window.renderEnemies === "function") {
+      try { window.renderEnemies(); } catch (_err) {}
+    }
+    if (typeof window.renderCombatMap === "function") {
+      try { window.renderCombatMap(); } catch (_err) {}
+    }
+    return window.campaignSystem.syncSharedSilent("smoke-combat-mutate");
+  });
+
+  if (!mutated || !mutated.ok) {
+    throw new Error(`Combat smoke failed to sync mutated combat scene: ${JSON.stringify(mutated)}`);
+  }
+
+  const expectedMutated = {
+    active: true,
+    enemyDread: 12,
+    firstEnemyStress: 3,
+    secondEnemyStress: 1,
+    ashRaiderZone: "Engaged",
+    paleHoundPresent: true,
+    minUnitCount: 4,
+    combatAugState: true
+  };
+  await waitForCombatSummary(playerPage, expectedMutated, "Player mutated state");
+
+  const gmSummary = await collectCombatSummary(gmPage);
+  const playerSummary = await collectCombatSummary(playerPage);
+  process.stdout.write(`Combat sync smoke passed: code=${code}, gm=${JSON.stringify(gmSummary)}, player=${JSON.stringify(playerSummary)}\n`);
+
+  await gmPage.close();
+  await playerPage.close();
+}
+
+async function run() {
+  const server = startServer();
+  let browser;
+
+  try {
+    await waitForServer(BASE_URL, START_TIMEOUT_MS);
+    browser = await chromium.launch({ headless: true });
+    await runScenario(browser);
+  } finally {
+    if (browser) {
+      try { await browser.close(); } catch (_err) {}
+    }
+    server.kill("SIGTERM");
+  }
+}
+
+run().catch((err) => {
+  console.error(err && err.stack ? err.stack : err);
+  process.exitCode = 1;
+});

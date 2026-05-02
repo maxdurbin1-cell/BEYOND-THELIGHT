@@ -756,7 +756,7 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-dock.open .campaign-dock-panel {
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto auto auto 1fr auto;
 }
 
 .campaign-dock-head {
@@ -829,7 +829,65 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 .campaign-dock-roll-actions {
   margin-top: 0.26rem;
   display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.campaign-dock-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.campaign-dock-status-card {
+  border: 1px solid var(--border2);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.42rem 0.48rem;
+  border-radius: 4px;
+}
+
+.campaign-dock-status-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.53rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold2);
+  margin-bottom: 0.22rem;
+}
+
+.campaign-dock-status-main {
+  font-size: 0.81rem;
+  color: var(--text2);
+}
+
+.campaign-dock-status-sub {
+  margin-top: 0.18rem;
+  font-size: 0.69rem;
+  color: var(--muted2);
+}
+
+.campaign-dock-status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.04rem 0.3rem;
+  border-radius: 999px;
+  border: 1px solid var(--border2);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.campaign-dock-status-tag.ally {
+  color: var(--teal);
+  border-color: rgba(46, 196, 182, 0.55);
+}
+
+.campaign-dock-status-tag.enemy {
+  color: var(--red2);
+  border-color: rgba(224, 96, 96, 0.6);
 }
 
 .campaign-dock-timeline {
@@ -1014,6 +1072,10 @@ body.phone-layout-mode .campaign-dock-head,
 body.phone-layout-mode .campaign-dock-chat {
   align-items: stretch;
   flex-direction: column;
+}
+
+body.phone-layout-mode .campaign-dock-status-grid {
+  grid-template-columns: 1fr;
 }
 
 body.phone-layout-mode .campaign-status-row {

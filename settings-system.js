@@ -20,6 +20,7 @@
     gmRevealHiddenInfo: true,
     colorBlindMode: false,
     monochromeMode: false,
+    phoneLayoutMode: false,
     textSize: 'medium',
     activeTab: 'general',
     nightModeRates: {
@@ -43,6 +44,7 @@
         this.gmRevealHiddenInfo = saved.gmRevealHiddenInfo !== undefined ? !!saved.gmRevealHiddenInfo : true;
         this.colorBlindMode = saved.colorBlindMode !== undefined ? !!saved.colorBlindMode : false;
         this.monochromeMode = saved.monochromeMode !== undefined ? !!saved.monochromeMode : false;
+        this.phoneLayoutMode = saved.phoneLayoutMode !== undefined ? !!saved.phoneLayoutMode : false;
         this.textSize = saved.textSize || 'medium';
         const defaults = { seaOpen: 42, seaIsland: 32, planetTrade: 34, planetHex: 28, wtw: 38 };
         const loadedRates = saved.nightModeRates && typeof saved.nightModeRates === 'object' ? saved.nightModeRates : {};
@@ -76,6 +78,7 @@
           gmRevealHiddenInfo: this.gmRevealHiddenInfo,
           colorBlindMode: this.colorBlindMode,
           monochromeMode: this.monochromeMode,
+          phoneLayoutMode: this.phoneLayoutMode,
           textSize: this.textSize,
           nightModeRates: this.nightModeRates
         }));
@@ -152,6 +155,7 @@
       if (!body) return;
       body.classList.toggle('colorblind-mode', !!this.colorBlindMode);
       body.classList.toggle('lowcolor-mode', !!this.monochromeMode);
+      body.classList.toggle('phone-layout-mode', !!this.phoneLayoutMode);
       this.applyTextSize();
     },
 
@@ -359,6 +363,15 @@
                   ${Settings.monochromeMode ? 'On' : 'Off'}
                 </button>
                 <span class="campaign-muted">Forces a strict black-and-white palette with shape/text cues (no color reliance).</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label>Phone Layout</label>
+              <div class="campaign-actions" style="margin:0;">
+                <button id="phoneLayoutModeBtn" class="btn btn-xs" onclick="window.settingsSystem.togglePhoneLayoutMode()">
+                  ${Settings.phoneLayoutMode ? 'On' : 'Off'}
+                </button>
+                <span class="campaign-muted">Reflows navigation, settings, and campaign tools into a tighter single-column phone layout.</span>
               </div>
             </div>
             <div class="setting-row">
@@ -640,6 +653,13 @@
       monochromeBtn.style.color = Settings.monochromeMode ? 'var(--teal)' : 'var(--muted2)';
     }
 
+    const phoneLayoutBtn = document.getElementById('phoneLayoutModeBtn');
+    if (phoneLayoutBtn) {
+      phoneLayoutBtn.textContent = Settings.phoneLayoutMode ? 'On' : 'Off';
+      phoneLayoutBtn.style.borderColor = Settings.phoneLayoutMode ? 'var(--teal)' : 'var(--border2)';
+      phoneLayoutBtn.style.color = Settings.phoneLayoutMode ? 'var(--teal)' : 'var(--muted2)';
+    }
+
     ['small','medium','large'].forEach(function(sz) {
       const btn = document.getElementById('textSize' + sz.charAt(0).toUpperCase() + sz.slice(1) + 'Btn');
       if (!btn) return;
@@ -683,6 +703,13 @@
 
   function toggleMonochromeMode() {
     Settings.monochromeMode = !Settings.monochromeMode;
+    Settings.applyAccessibilitySettings();
+    Settings.save();
+    syncGameModeUI();
+  }
+
+  function togglePhoneLayoutMode() {
+    Settings.phoneLayoutMode = !Settings.phoneLayoutMode;
     Settings.applyAccessibilitySettings();
     Settings.save();
     syncGameModeUI();
@@ -883,6 +910,7 @@
     setActiveTab,
     toggleColorBlindMode,
     toggleMonochromeMode,
+    togglePhoneLayoutMode,
     previewColorBlindMode,
     setMasterVolume,
     setMusicVolume,
@@ -907,6 +935,7 @@
       gmRevealHiddenInfo: Settings.gmRevealHiddenInfo,
       colorBlindMode: Settings.colorBlindMode,
       monochromeMode: Settings.monochromeMode,
+      phoneLayoutMode: Settings.phoneLayoutMode,
       textSize: Settings.textSize,
       activeTab: Settings.activeTab,
       nightModeRates: getNightModeRates()

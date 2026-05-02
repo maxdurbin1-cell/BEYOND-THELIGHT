@@ -911,6 +911,156 @@ body.gm-mode header {
   margin-bottom: 0.3rem;
 }
 
+body.phone-layout-mode header {
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+  padding: 0.68rem 0.75rem 0.82rem;
+}
+
+body.phone-layout-mode .logo,
+body.phone-layout-mode .header-credits,
+body.phone-layout-mode .ctx-bar,
+body.phone-layout-mode nav {
+  grid-column: 1 / -1;
+}
+
+body.phone-layout-mode .header-credits {
+  justify-self: stretch;
+}
+
+body.phone-layout-mode nav {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 0.22rem;
+  padding: 0.38rem;
+  border-radius: 14px;
+  scrollbar-width: none;
+}
+
+body.phone-layout-mode nav::-webkit-scrollbar,
+body.phone-layout-mode .global-quick-access::-webkit-scrollbar {
+  display: none;
+}
+
+body.phone-layout-mode .tab-btn,
+body.phone-layout-mode nav .settings-tab-btn,
+body.phone-layout-mode nav .gm-dashboard-btn,
+body.phone-layout-mode nav .solo-reference-btn {
+  flex: 0 0 auto;
+  font-size: 0.64rem;
+  padding: 0.38rem 0.62rem;
+  min-height: 2rem;
+}
+
+body.phone-layout-mode #main-content {
+  padding: 0.82rem 0.55rem 5.5rem;
+}
+
+body.phone-layout-mode .global-quick-access {
+  top: var(--quick-access-top, 7.25rem);
+  padding: 0.34rem 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+}
+
+body.phone-layout-mode .global-quick-access .btn,
+body.phone-layout-mode .quick-nav .btn {
+  flex: 0 0 auto;
+}
+
+body.phone-layout-mode .settings-panel {
+  width: 100vw;
+  max-width: 100vw;
+  max-height: 100vh;
+  top: 0;
+  right: 0;
+  border-left: none;
+  border-top: none;
+}
+
+body.phone-layout-mode .settings-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.28rem;
+}
+
+body.phone-layout-mode #settingsPanel .settings-tab-btn {
+  min-height: 2.2rem;
+  font-size: 0.62rem;
+  padding: 0.42rem 0.24rem;
+}
+
+body.phone-layout-mode .settings-section {
+  padding: 0.68rem 0.62rem;
+}
+
+body.phone-layout-mode .mode-selector,
+body.phone-layout-mode .campaign-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.32rem;
+}
+
+body.phone-layout-mode .campaign-actions .btn,
+body.phone-layout-mode .mode-btn {
+  width: 100%;
+}
+
+body.phone-layout-mode .volume-control,
+body.phone-layout-mode .campaign-status-row,
+body.phone-layout-mode .campaign-dock-roll-line,
+body.phone-layout-mode .campaign-dock-head,
+body.phone-layout-mode .campaign-dock-chat {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+body.phone-layout-mode .campaign-status-row {
+  justify-content: flex-start;
+}
+
+body.phone-layout-mode .campaign-card {
+  padding: 0.45rem 0.42rem;
+}
+
+body.phone-layout-mode .campaign-dock {
+  left: 0.55rem;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  align-items: stretch;
+}
+
+body.phone-layout-mode .campaign-dock.settings-open {
+  left: 0.55rem;
+  right: 0.55rem;
+}
+
+body.phone-layout-mode .campaign-dock-toggle,
+body.phone-layout-mode .campaign-dock-panel {
+  width: 100%;
+}
+
+body.phone-layout-mode .campaign-dock-panel {
+  height: min(60vh, 520px);
+}
+
+body.phone-layout-mode .campaign-dock-roll-actions {
+  justify-content: stretch;
+}
+
+body.phone-layout-mode .campaign-dock-roll-actions .btn {
+  width: 100%;
+}
+
+@media (max-width: 560px) {
+  body.phone-layout-mode .mode-selector,
+  body.phone-layout-mode .campaign-actions,
+  body.phone-layout-mode .settings-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Responsive adjustments */
 @media (max-width: 700px) {
   .settings-panel {

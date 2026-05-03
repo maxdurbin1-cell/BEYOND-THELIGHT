@@ -353,7 +353,6 @@ select option{background:#0f1020;}
   </div>
   <nav aria-label="Main navigation" id="mainNavTablist" role="tablist" aria-orientation="horizontal">
     <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" onclick="switchTab('character',this)">Character</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-howto" id="tabnav-howto" onclick="switchTab('howto',this)">How To Use</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-backstory" id="tabnav-backstory" onclick="switchTab('backstory',this)">Backstory</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" onclick="switchTab('codex',this)">Codex</button>
@@ -375,6 +374,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-howto" id="tabnav-howto" onclick="switchTab('howto',this)">How To Use</button>
     <button class="tab-btn solo-reference-btn" aria-label="Solo Reference" onclick="openSoloReference()" title="Solo Reference">🧭 Solo</button>
     <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="openGmDashboard()" title="GM Dashboard">👥 GM</button>
     <button class="tab-btn settings-tab-btn" aria-label="Settings" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
@@ -1245,70 +1245,73 @@ select option{background:#0f1020;}
 <div class="tab-panel" id="tab-rules">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
     <div class="card">
-      <div class="section-title">The M.A.D. System</div>
+      <div class="section-title">How Play Flows</div>
       <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
-        Roll your <strong style="color:var(--text);">Action Die</strong> against the <strong style="color:var(--text);">Dread Die (DD)</strong>. Equal or higher = <strong style="color:var(--green);">Success</strong>.<br><br>
-        <strong style="color:var(--text);">Critical:</strong> Roll the highest number — Explode! Roll again and add.<br><br>
-        <strong style="color:var(--text);">TMW:</strong> Every failed roll grants +1 TMW. Spend 1:1 to boost rolls, or 2 to Push Your Luck.<br><br>
-        <strong style="color:var(--text);">Trauma:</strong> Roll Adventure Die vs Dread. Fail = +1 Trauma.<br>1–2: Weakened · 3–4: Distracted · 5: Shaken · 6: Vulnerable
+        Every session follows the same loop: <strong style="color:var(--text);">set intent</strong>, <strong style="color:var(--text);">move through the world</strong>, <strong style="color:var(--text);">roll when outcome is uncertain</strong>, then <strong style="color:var(--text);">carry the fallout forward</strong>.<br><br>
+        A common sequence is: Character setup -> mission or objective -> travel by Phase -> event, peril, or social problem -> combat if violence starts -> downtime, trade, recovery, and save state.<br><br>
+        Use <strong style="color:var(--text);">How To Use</strong> for interface walkthroughs. Use this tab for the table rules that drive rolls, enemies, stress, recovery, and exploration.
       </div>
     </div>
     <div class="card">
-      <div class="section-title">Combat</div>
+      <div class="section-title">Rolls & TMW</div>
       <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
-        <strong style="color:var(--text);">Initiative:</strong> Wayfarers go first, then Enemies (2 Actions).<br>
-        <strong style="color:var(--text);">Actions:</strong> Light=3, Balanced=2, Heavy=1.<br>
-        <strong style="color:var(--text);">Attack:</strong> Strike or Shoot vs Dread. Hit = difference in Stress (min 1).<br>
-        <strong style="color:var(--text);">Defend:</strong> Defend vs Dread. Dread higher = that difference in Stress.<br>
-        <strong style="color:var(--text);">Death:</strong> Stress ≥ 2× Defend die value.<br>
-        <strong style="color:var(--text);">Recovery:</strong> Clear Conditions, halve Stress.<br>
-        <strong style="color:var(--text);">Long Rest:</strong> Clear all Conditions, recover all Stress.
+        Choose the <strong style="color:var(--text);">Action Die</strong> that matches what you are doing, then roll against the <strong style="color:var(--text);">Dread Die (DD)</strong>. Equal or higher is a success.<br><br>
+        <strong style="color:var(--text);">Exploding Rolls:</strong> If a die lands on its maximum face, roll again and add the new result.<br><br>
+        <strong style="color:var(--text);">TMW:</strong> Failed rolls grant +1 Teamwork. Spend TMW 1:1 to increase a roll, or spend 2 to Push Your Luck when a scene needs extra pressure.<br><br>
+        <strong style="color:var(--text);">Adventure Die:</strong> This is your swing die for Trauma checks, healing effects, peril recovery, and many Personal Flavor bonuses.
       </div>
     </div>
     <div class="card">
-      <div class="section-title">Travel & Landmarks</div>
+      <div class="section-title">Combat Round</div>
       <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
-        <strong style="color:var(--text);">Phases:</strong> Morning, Afternoon, Evening, Night.<br>
-        Trek: 1 Hex · Gallop: 2 Hexes · Ferry: 3 Hexes<br><br>
-        <strong style="color:var(--text);">Wilderness Roll (d6):</strong> 1=Random Event · 2–3=Nearest Event · 4–6=All Clear<br><br>
-        <strong style="color:var(--text);">Holding/Seat:</strong> Rest → Protected (Defend ↑)<br>
-        <strong style="color:var(--text);">Dwelling:</strong> Rest → Bolstered (Spirit/Lead ↑)<br>
-        <strong style="color:var(--text);">Temple:</strong> Rest → Focused (Mind/Control ↑). Sage −1 Trauma<br>
-        <strong style="color:var(--text);">Monument:</strong> Pass → Protected. No Wilderness Roll.<br>
-        <strong style="color:var(--text);">Ruins:</strong> Rest → Empowered (Body/Strike/Shoot ↑)<br><br>
-        Failing to rest in the Evening: +1 Trauma.<br><br>
-        <strong style="color:var(--text);">Rough Weather:</strong> Lead vs DD8. Failure: remain in Hex, lose 1 Phase.
+        <strong style="color:var(--text);">Initiative:</strong> Wayfarers act first, then enemies spend their action block.<br>
+        <strong style="color:var(--text);">Actions Per Turn:</strong> Light armor = 3, Balanced = 2, Heavy = 1.<br>
+        <strong style="color:var(--text);">Strike:</strong> Engaged range only. Roll Strike vs enemy Dread. A hit deals the difference in Stress, minimum 1.<br>
+        <strong style="color:var(--text);">Shoot:</strong> Use your weapon's listed range. Hit = difference in Stress, minimum 1.<br>
+        <strong style="color:var(--text);">Defend:</strong> Roll Defend vs Dread when enemy pressure lands. If Dread is higher, you take that difference in Stress.<br><br>
+        <strong style="color:var(--text);">Enemy Stress Rule:</strong> enemy Stress is always <strong style="color:var(--gold2);">2 x DD</strong>. Example: DD4 = 8 Stress, DD6 = 12 Stress, DD12 = 24 Stress.
       </div>
     </div>
     <div class="card">
-      <div class="section-title">Knowledge & Whispers</div>
+      <div class="section-title">Stress, Trauma & Recovery</div>
       <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
-        <strong style="color:var(--text);">Nomads</strong> (Dwellings): Know Landmarks and Events in adjacent Hex Zones. Know only the Whisper of an Event.<br><br>
-        <strong style="color:var(--text);">Sages</strong> (Temples): Know 1 random Event and its approximate direction. Know the nearest Landmark. Know a partial Mystery.<br><br>
-        <strong style="color:var(--text);">Lords</strong> (Holdings): Grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. Know all Locations.<br><br>
-        <strong style="color:var(--text);">The Sovereign</strong> (Seat): All knowledge above, plus can assign Tasks.
+        Your Wayfarer is taken out when <strong style="color:var(--text);">Stress is at least twice your Defend die</strong>.<br><br>
+        <strong style="color:var(--text);">Trauma Check:</strong> Roll Adventure Die vs Dread. On a failure, gain Trauma and suffer a condition.<br>
+        1-2: Weakened · 3-4: Distracted · 5: Shaken · 6: Vulnerable<br><br>
+        <strong style="color:var(--text);">Recovery:</strong> End of combat clears Conditions and halves current Stress.<br>
+        <strong style="color:var(--text);">Long Rest:</strong> Clear all Conditions and restore all Stress.<br>
+        <strong style="color:var(--text);">Mental / Hazard Pressure:</strong> Radiation, fear, shock, poison, and Trauma effects hit through their own saves. Personal Flavors that resist them should cancel or soften those exact threats.
       </div>
     </div>
     <div class="card">
-      <div class="section-title">Renown & Skirmish</div>
+      <div class="section-title">Travel, Peril & Landmarks</div>
       <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
-        <strong style="color:var(--text);">0–2:</strong> Unknown · <strong style="color:var(--text);">3–5:</strong> Whispered · <strong style="color:var(--text);">6–8:</strong> Celebrated · <strong style="color:var(--text);">9–11:</strong> Lord · <strong style="color:var(--text);">12+:</strong> Sovereign<br><br>
-        <strong style="color:var(--text);">Skirmish:</strong> Roll 2d12 for army Stress. Dread = d6 if ≥13, else d4.<br>
-        Win a Skirmish for a Holding = +1 Renown.<br><br>
-        <strong style="color:var(--text);">Trade Routes (d10):</strong> 1–2=Safe · 3–4=Profitable · 5–6=Aggressive · 7–8=Obstacle · 9–10=Wayfarer<br><br>
-        <strong style="color:var(--text);">Haggling:</strong> Roll Spirit vs DD8.
+        Time advances by <strong style="color:var(--text);">Morning, Afternoon, Evening, Night</strong>.<br>
+        Trek = 1 Hex · Gallop = 2 Hexes · Ferry = 3 Hexes<br><br>
+        <strong style="color:var(--text);">Wilderness Roll (d6):</strong> 1 = Random Event · 2-3 = Nearest Event · 4-6 = All Clear.<br><br>
+        <strong style="color:var(--text);">Rough Weather:</strong> Lead vs DD8. Failure means stay in the hex and lose 1 Phase.<br>
+        <strong style="color:var(--text);">No Evening Rest:</strong> gain +1 Trauma.<br><br>
+        <strong style="color:var(--text);">Landmark Rest Benefits:</strong><br>
+        Holding/Seat -> Protected · Dwelling -> Bolstered · Temple -> Focused and Sage -1 Trauma · Monument -> Protected and no Wilderness Roll · Ruins -> Empowered.
       </div>
     </div>
     <div class="card">
-      <div class="section-title">Ruins, Temples & Lost Cities</div>
+      <div class="section-title">Knowledge, Renown & Large-Scale Play</div>
       <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
-        <strong style="color:var(--text);">Ruins:</strong> 1 Entrance + d4+2 rooms. Rest = Empowered.<br>
-        Monsters: Beast (DD4|4), Bandits (DD4|8), Builder (DD6|12), Horror (DD12|24)<br><br>
-        <strong style="color:var(--text);">Temples:</strong> d4+2 Chambers. Rest = Focused. Generate rooms to explore.<br><br>
-        <strong style="color:var(--text);">Lost Cities:</strong> d6 Roll: 1–2=Urban Feature, 3–4=Building, 5–6=Discovery.<br>
-        Irradiated Ones (DD4|8 Stress) patrol. Stay quiet.<br><br>
-        <strong style="color:var(--text);">Gate Symptoms:</strong> Roll Spirit Save on entry.<br>
-        5–6 = No symptoms or reinvigorated.
+        <strong style="color:var(--text);">Knowledge Ladder:</strong> Nomads know nearby landmarks and whispers, Sages learn mysteries and directions, Lords grasp full event logic, and the Sovereign can assign Tasks.<br><br>
+        <strong style="color:var(--text);">Renown:</strong> 0-2 Unknown · 3-5 Whispered · 6-8 Celebrated · 9-11 Lord · 12+ Sovereign.<br>
+        <strong style="color:var(--text);">Skirmish:</strong> Roll 2d12 for army Stress. Dread is d6 at 13+, otherwise d4. Win for a Holding = +1 Renown.<br><br>
+        <strong style="color:var(--text);">Trade & Campaign Pressure:</strong> haggling is Spirit vs DD8, caravans create route events, and faction tasks feed the long campaign loop.
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Ruins, Gates & Flavor Logic</div>
+      <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
+        <strong style="color:var(--text);">Ruins:</strong> 1 entrance plus d4+2 rooms. Typical enemies follow the same Stress rule: Beast (DD4|8), Bandits (DD4|8), Builder (DD6|12), Horror (DD12|24).<br><br>
+        <strong style="color:var(--text);">Temples:</strong> d4+2 chambers and Focused rest benefits.<br>
+        <strong style="color:var(--text);">Lost Cities:</strong> Irradiated Ones patrol at DD4|8 Stress. Stay quiet.<br>
+        <strong style="color:var(--text);">Gates:</strong> entering them usually triggers a Spirit save against symptoms or void fallout.<br><br>
+        <strong style="color:var(--text);">Personal Flavors:</strong> treat these as mechanics, not loose lore. A Flavor should grant a die bonus, a condition, healing, a hazard defense, recovery edge, or a specific scene permission that matches the rules above.
       </div>
     </div>
   </div>
@@ -1597,7 +1600,7 @@ const OMENS=['Spring — Nurturing','Spring — Joyful','Spring — Quick-to-Act
 const REASONS=['Sent by a corporation to steal a sacred object','Sheer greed drives you toward comfort and luxury','Tracking a missing ledger — the only clue points to the Last Sea','Seeking new converts for your belief','Found a clue to the secret of immortality','Seeking a cure for a plague that claimed your child','Seeking vengeance for an ancient wrong','A loved one was stolen away by a horror in the night','Stories of a healing fruit draw you onward','Delivering a letter of inheritance to a distant Lord','A disembodied voice told you of a child destined to restore the world','Repaying an old debt — to a Lover, a Criminal, a Noble, or a Bank',"Searching for your Grandmother's lost Transporter",'Keeping a close eye on a dangerous rival','Seeking allies for a coming revolution','Looking for new lands for a displaced and lost tribe','Visions of glory and rebirth haunt your every sleep','You found a map to a Lost City in the wastes','A burning need to become famous drives every step','Pursued by the law for a crime — rightful or not'];
 const TRAITS={physique:['Athletic','Brawny','Flabby','Lanky','Chiseled','Scraggly','Short','Dashing','Stout','Enormous'],skin:['Birthmarked','Scarred','Dark','Rosy','Pockmarked','Soft','Tanned','Weathered','Hairy','Tattooed'],hair:['Bald','Long','Braided','Mohawked','Frizzy','Curled','Wavy','Oily','Luxurious','Dreadlocked'],face:['Elongated','Bony','Broken','Pale','Rugged','Chiseled','Squatty','Sunken','Square','Round'],clothing:['Antique','Bloody','Elegant','Soiled','Exotic','Royal','Eclectic','Topless','Plain','Tattered'],virtue:['Respect','Justice','Wisdom','Resolution','Mercy','Reliable','Hope','Courage','Moderation','Helpful'],vice:['Angry','Arrogant','Envious','Glutton','Greedy','Lustful','Lazy','Drunk','Coward','Vain'],reputation:['Leader','Loafer','Dangerous','Honest','Wise','Hardworking','Entertaining','Brash','Goofy','Repulsive'],misfortune:['Addicted','Defrauded','Exiled','Cursed','In Debt','Abandoned','Blackmailed','Betrayed','Condemned','Scarred']};
 const PERSONAL_FLAVORS_BASE=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: all Engaged Targets are Shaken','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Regenerate Adventure Die in Stress per Round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana / Mutants & Abilities','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity becomes 20 slots','Deity Pact: Wayfarer missions can include patron demands for favor or debt','Vampire: Blood hunger grants nocturnal power and daylight vulnerability','Werewolf: Bestial strength surges at night with lunar instincts'];
-const PERSONAL_FLAVORS_EXTRAS=['Echo Step: Reposition 1 range band after a successful Defend','Battle Cantor: Ally gains +1 on next Action Die','Glasswalker: Ignore first peril terrain penalty each phase','Iron Lungs: Ignore smoke and ash penalties','Runesmith: Mark one weapon for +1 Stress this scene','Scavenger Memory: First loot roll each day gets reroll','Hex Cartographer: Reveal one adjacent hex detail for free','Solar Needle: One ranged attack per scene gains +2','Grave Whisper: Ask one question to recent dead each day','Storm Veins: First lightning or shock damage each scene is ignored','Ruin Scholar: +1 on checks involving ruins and old tech','Blessed Appetite: Food use heals +1 extra Stress','Duelist Footwork: On hit, step to Nearby without cost','Pathfinder: First traversal check each phase gets +1','Dust Prophet: Predict next weather shift once per day','Mirror Nerves: Immune to first Distracted per scene','Moon Listener: +1 Spirit during Night phase','Chain Breaker: Ignore one restraint effect per scene','Warding Palm: Adjacent ally gains Protected for one roll','Quick Draw: First Strike/Shoot each combat gains +1','Bone Oracle: Read omen from remains once per day','Black Salt Ward: First Horror effect each day is negated','Field Surgeon: Stabilize ally for +1 Health recovery','Signal Caller: +1 Lead on caravan/trade checks','Scrap Alchemist: Convert one junk drop into remedy per day','Silent Knife: +1 Strike when no ally is Engaged','Ash Runner: Ignore first difficult terrain move cost','Beacon Heart: Allies in Close range get +1 vs fear','Clockmind: +1 Control on trap or lock interactions','Wild Empathy: Beasts hesitate before first attack','Grim Resolve: When Health is high stress, gain +1 Defend','Bloodhound: Track a target across two hexes automatically','Cold Reader: +1 Spirit in social deception scenes','Iron Stomach: Ignore first poison each day','Stormglass Eye: See hidden movement in rain/fog','Banner Oath: Gain +1 Lead while carrying mission objective','Trophy Keeper: First enemy defeat each scene gives +1 TMW','Quick Stitch: Once per scene reduce bleed-style penalty','Lantern Scholar: +1 Mind in darkness or ruins','Faultline Sense: Detect unstable ground before crossing','Arc Shot: Ranged attacks can ignore one cover source','Mercy Hand: Spare action grants +1 Renown chance','Rune Tongue: Read unknown glyphs with Mind check','Night Courier: +1 speed-equivalent on night travel actions','Chain Tactician: First ally action after yours gains +1','Cinder Skin: Resist heat and ember hazards','Vault Memory: Never forget map route already visited','Hunt Rhythm: +1 Strike after a successful evade','Vowkeeper: +1 on checks tied to your current task','Steel Prayer: Once per day, negate one Trauma gain','Ghoststride: Movement does not trigger simple traps','Iridescent Blood: Recover +1 Stress when using remedy','Field Quartermaster: Backpack stack cap effectively doubles','Cave Ears: +1 Notice in enclosed spaces','Apex Calm: Cannot be Shaken by minor foes','Shard Focus: +1 Control when using hacks or relics','Ashen Halo: Hostile morale drops on first reveal','Dawnbreaker: First morning action gains +1','Duskcaller: First evening action gains +1','Gale Step: Gain free reposition on crit success','Sable Ward: Reduce first incoming Stress each scene by 1','Fracture Sight: Spot weak points for +1 Shoot','Torchbearer: Allies ignore first darkness penalty','Oathbound Medic: Long Rest heals +1 Trauma every 3 days','Circuit Saint: +1 Mind with old-world devices','Feral Grace: +1 Defend against beasts','Pact Witness: +1 Spirit on deity pact outcomes'];
+const PERSONAL_FLAVORS_EXTRAS=['Echo Step: Reposition 1 range band after a successful Defend','Battle Cantor: Ally gains +1 on next Action Die','Glasswalker: Ignore first peril terrain penalty each phase','Iron Lungs: Ignore smoke and ash penalties','Runesmith: Mark one weapon for +1 Stress this scene','Scavenger Memory: First loot roll each day gets reroll','Hex Cartographer: Reveal one adjacent hex detail for free','Solar Needle: One ranged attack per scene gains +2','Grave Whisper: Ask one question to recent dead each day','Storm Veins: Cancel the first shock-tagged enemy action each scene','Ruin Scholar: +1 on checks involving ruins and old tech','Blessed Appetite: Food use heals +1 extra Stress','Duelist Footwork: On hit, step to Nearby without cost','Pathfinder: First traversal check each phase gets +1','Dust Prophet: Predict next weather shift once per day','Mirror Nerves: Immune to first Distracted per scene','Moon Listener: +1 Spirit during Night phase','Chain Breaker: Ignore one restraint effect per scene','Warding Palm: Adjacent ally gains Protected for one roll','Quick Draw: First Strike/Shoot each combat gains +1','Bone Oracle: Read omen from remains once per day','Black Salt Ward: Negate the first Horror, fear, or psychic enemy effect each day','Field Surgeon: Stabilize ally for +1 Health recovery','Signal Caller: +1 Lead on caravan and trade route checks','Scrap Alchemist: Convert one junk drop into remedy per day','Silent Knife: +1 Strike when no ally is Engaged','Ash Runner: Ignore first difficult terrain move cost','Beacon Heart: Allies in Close range get +1 vs fear','Clockmind: +1 Control on trap or lock interactions','Wild Empathy: Beasts hesitate before first attack','Grim Resolve: When Health is high stress, gain +1 Defend','Bloodhound: Track a target across two hexes automatically','Cold Reader: +1 Spirit in social deception scenes','Iron Stomach: Ignore first poison each day','Stormglass Eye: See hidden movement in rain/fog','Banner Oath: Gain +1 Lead while carrying mission objective','Trophy Keeper: First enemy defeat each scene gives +1 TMW','Quick Stitch: Once per scene reduce bleed-style penalty','Lantern Scholar: +1 Mind in darkness or ruins','Faultline Sense: Detect unstable ground before crossing','Arc Shot: Ranged attacks can ignore one cover source','Mercy Hand: Spare action grants +1 Renown chance','Rune Tongue: Read unknown glyphs with Mind check','Night Courier: +1 speed-equivalent on night travel actions','Chain Tactician: First ally action after yours gains +1','Cinder Skin: Ignore the first heat or ember hazard each day','Vault Memory: Never forget map route already visited','Hunt Rhythm: +1 Strike after a successful evade','Vowkeeper: +1 on checks tied to your current task','Steel Prayer: Once per day, negate one Trauma gain','Ghoststride: Movement does not trigger simple traps','Iridescent Blood: Recover +1 Stress when using remedy','Field Quartermaster: Backpack stack cap effectively doubles','Cave Ears: +1 Notice in enclosed spaces','Apex Calm: Cannot be Shaken by minor foes','Shard Focus: +1 Control when using hacks or relics','Ashen Halo: Hostile morale drops on first reveal','Dawnbreaker: First morning action gains +1','Duskcaller: First evening action gains +1','Gale Step: Gain free reposition on crit success','Sable Ward: Reduce first incoming Stress each scene by 1','Fracture Sight: Spot weak points for +1 Shoot','Torchbearer: Allies ignore first darkness penalty','Oathbound Medic: Long Rest heals +1 Trauma every 3 days','Circuit Saint: +1 Mind with old-world devices','Feral Grace: +1 Defend against beasts','Pact Witness: +1 Spirit on deity pact outcomes'];
 function normalizePersonalFlavorWording(text){
   var t=String(text||'');
   if(!t)return t;
@@ -1896,14 +1899,14 @@ const RUIN_BUILDERS=['Gnomes','Sages','Miners','Wizards','Cultists','Knights','W
 const RUIN_BUILT_FOR=['Mine for valuable gems (now depleted)','Arcane Forge (now inert)','Prison for a cosmic beast','Archive of forbidden records','Ritualistic Chapel','Prison for political enemies','Observatory for a dying star','Weapon foundry for a lost war','Testing ground for forbidden experiments','Tomb for someone who refused to stay dead'];
 const RUIN_NOVELTIES=['Doors seal behind the last person who passes through','Perplexing Runes — no one can cast Scrolls inside','Rooms 5–6 are completely submerged in water','Recent massacre; gravity reverses in every room','Floating hallucinogenic spores — Trauma Check required in Rooms 4–6','Every room has been overturned and searched — someone was here before you','Time moves strangely here — it was daytime when you entered','The walls are warm to the touch and occasionally pulse','Whispers repeat your last spoken words back to you, slightly wrong','Every mirror shows a different version of your face'];
 const RUIN_CONSTRUCTIONS=['Hewn Basalt','Twisted Fungal Growth','Tunnels of Clay','Obsidian Megaliths','Old Stone','Cracked Concrete and Iron','Bone-reinforced archways','Fused metal and crystal','Underground river-carved passages','Crystallized amber sealing every joint'];
-const RUIN_ENTRANCES=['Defended by a Guardian — Dread d8 (12 Stress)','Accessible only during the Evening Phase','Hidden inside a ruined temple','Concealed at the base of an abandoned mineshaft','A door of solid iron with no handle — opens only from inside','Partially collapsed, requiring Body vs DD6 to clear the rubble','Submerged under three feet of black water','Marked with a fresh warning scratched into the stone: WRONG DIRECTION'];
+const RUIN_ENTRANCES=['Defended by a Guardian — Dread d8 (16 Stress)','Accessible only during the Evening Phase','Hidden inside a ruined temple','Concealed at the base of an abandoned mineshaft','A door of solid iron with no handle — opens only from inside','Partially collapsed, requiring Body vs DD6 to clear the rubble','Submerged under three feet of black water','Marked with a fresh warning scratched into the stone: WRONG DIRECTION'];
 const RUIN_ROOM_TYPES=['Lair','Obstacle','Trap','Puzzle','Secret Cache','Boss Chamber','Shrine Room','Empty'];
 const RUIN_LAIR_DESC=['A submerged chamber, ankle-deep in dark water. Something has nested here.','A decaying hall with tattered banners. Bones arranged in a careful circle.','An ancient throne room. The throne is occupied.','A beautiful garden — somehow still alive — with something territorial inside.','An overgrown courtyard, roots cracking the stone. Eyes in the undergrowth.','A ruined library. Pages flutter with no wind. Something moves between the shelves.','A prison block. Most cells are empty. One is not — and it is locked from the outside.','A forge, still hot. The bellows work themselves. Something is being made.'];
 const RUIN_OBSTACLE_DESC=['A collapsed tunnel. Shifting rubble. Unstable ceiling. Body vs DD6 to squeeze through.','A flooded passage, chest-deep. Swim vs DD6. Failure = take difference in Stress.','An overgrown thicket. Razor thorns. Survival vs DD6 or take 3 Stress.','Quicksand pit covered by thin wooden boards — now rotted.','A ruined bridge over a twenty-foot drop. Agility vs DD6 to cross safely.','A sealing door, magically locked. Mind vs DD8 to decode the sigil.','A narrow ledge over a bottomless shaft. Control vs DD6 to cross without incident.','Three identical passages. Only one leads forward. The others loop back — or worse.'];
 const RUIN_TRAP_DESC=['Hidden spikes erupt from the floor. Control vs DD6 or take 4 Stress.','Poison gas hisses from stone statues. Body vs DD6 or take Distracted Condition.','A pitfall trap. Notice vs DD4 to spot it. Failure = 3 Stress and trapped below.','Flames burst from the walls on a pressure plate. Agility vs DD6 or take 4 Stress.','Thick webbing coats the doorway — and the spider is still home.','A rolling boulder triggered by a tripwire. Lead vs DD6 to outrun it or take 6 Stress.','A false floor. Below: sharpened stakes. Spirit vs DD6 to notice something is wrong before stepping.','A mirrored room that disorients instantly. Mind vs DD6 or gain Distracted.'];
 const RUIN_PUZZLE_DESC=['A labyrinth model on a table. Navigate a tiny figure through it using Control (DD8).','A wall of clocks at different times. Many moveable but one. Adjust them all to match (Mind DD6).','Runes cover the floor tiles. Step on them in the correct sequence or trigger a trap (Mind DD8).','Pipes with adjustable sections. Reroute the flow to unlock the mechanism (Control DD6).','Colored floor tiles. Step on them in the sequence of the rainbow (ROYGBIV). Fail = 2 Stress.','Scales with various objects. Balance them precisely to open the vault door (Mind DD6).','A locked chest with four symbols on rotating discs. The inscription above hints at the answer (Mind DD8 or find a clue to skip the roll).','An ancient door with seven pressure plates. Step on the wrong one and the ceiling lowers (Control DD10 to solve; fail = 3 Stress and restart).'];
 const RUIN_SECRET_DESC=['Behind a loose stone: a sealed iron box. It is locked but the key is warm from a nearby body.','A hidden alcove behind the tapestry. Inside: a single preserved scroll, unread for a century.','A collapsed section reveals a lower chamber not on any map. It was sealed deliberately.','A hidden passage behind the altar. Short, dark, and very recently used.','A false back to the wardrobe. Behind it: a staircase going down further than the ruin should allow.','Scratched into the underside of the table: a map, coordinates, and the word NEVER.'];
-const RUIN_BOSS_DESC=['The warden of this ruin — still here, still bound by oath, still deadly. DD8 | 20 Stress. On defeat: drops a Named Weapon.','The last of the builders, preserved through dark means and very bitter about it. DD10 | 24 Stress. Speaks before fighting.','A possessed construct the size of a room. It does not negotiate. DD10 | 30 Stress. Smashes the floor on initiative.','The thing that was imprisoned here, now free — because you opened the door. DD12 | 36 Stress. Reduce Dread by 1 on defeat.','A spectral general who has commanded this emptiness for decades. DD8 | 18 Stress. Knows everything about the ruin.','The original occupant. Not dead. Merely waiting for someone worthy to challenge them. DD12 | 28 Stress. High reward on defeat.'];
+const RUIN_BOSS_DESC=['The warden of this ruin — still here, still bound by oath, still deadly. DD8 | 16 Stress. On defeat: drops a Named Weapon.','The last of the builders, preserved through dark means and very bitter about it. DD10 | 20 Stress. Speaks before fighting.','A possessed construct the size of a room. It does not negotiate. DD10 | 20 Stress. Smashes the floor on initiative.','The thing that was imprisoned here, now free — because you opened the door. DD12 | 24 Stress. Reduce Dread by 1 on defeat.','A spectral general who has commanded this emptiness for decades. DD8 | 16 Stress. Knows everything about the ruin.','The original occupant. Not dead. Merely waiting for someone worthy to challenge them. DD12 | 24 Stress. High reward on defeat.'];
 const RUIN_SHRINE_DESC=['A shrine to something forgotten. Offerings still burn. Making an offering restores 1 Stress, no roll.','An idol of bone and wire. Touching it grants a vision of who built this ruin and why.','A carved basin filled with still black water. Gazing into it costs 1 Stress and shows one future event.','Candles arranged in a pattern. Lighting the correct one unlocks a sealed alcove nearby.','A prayer-wall covered in names. One of them is yours. It was carved long before you were born.','A statue of a figure you recognize — or think you do. Its expression changes each time you look away.'];
 const RUIN_MONSTER_DESC={beast:['A hulking mutated bear, its fur matted with old wounds','A pack of 4 pale, hairless wolves with glass-like eyes','A giant serpent coiled around the chamber\'s central pillar','A chitinous crab-creature the size of a cart horse','A swarm of 6 feral irradiated dogs hunting as one mind','A lone predator — scaled, fast, and unnervingly quiet','A creature that looks like a deer until it raises its head'],bandits:['4 desperate scavengers armed with scrap blades','6 well-organized raiders in mismatched armor','5 trigger-happy crossbow thieves','A trio of brutal enforcers sent to clear the ruin','4 armed settlers who have claimed this ruin','6 cult members who believe the ruin belongs to their god','3 assassins waiting in ambush — they know someone was coming'],builder:['The original builder, preserved in crystallized amber and inexplicably still moving','A golem of fused stone and metal, still following instructions from an age ago','A towering construct of bones and iron wiring, endlessly patrolling','A preserved guardian in rusted armor — sealed inside and never told the war ended','An animated suit of plate armor that challenges all who enter to a formal duel','A mass of living clay shaped roughly like a person, slow but nearly indestructible'],horror:['Something vast and eyeless, its body filling the entire chamber, waiting','A creature that wears the shape of the last person it consumed','A pulsing knot of irradiated flesh that split from something much larger','A floating horror of light and geometry that should not be able to exist','Something very old, very patient, and deeply offended by your presence','A sealed entity that was imprisoned here for good reason — and you just opened the seal']};
 const RUIN_TREASURE=['A named weapon sealed in a case (Roll Weapons table d6, add: +1 to all rolls for 1 session)','A full suit of armor from the builder\'s era (Roll Armor table d6, in pristine condition)','A scroll sealed with the builder\'s crest (Roll Scrolls table d6, double use)','A field medic\'s cache (Roll Items table d6 × 2 items)','A remedy pouch left by the last survivor (Roll Remedies table d6 × 2)','3d6×20 Credits in loose coin, ancient press','A Strange Item (d100), marked with arcane script','A Trade Good (d12), still sealed in original packing','1d4+1 Scrolls, one of which smells of smoke','A full starting Backpack roll, pre-packed for someone who never returned','A sealed letter addressed to no one. Reading it raises a moral question.','A relic of the builders: attune it to gain +A.D. on one stat permanently (player chooses, one use)'];
@@ -1929,7 +1932,7 @@ const LC_BUILDING_NOW=['Stalked by d6 Irradiated Ones (DD6 | 12 Stress)','Inhabi
 const LC_URBAN_FEATURES=['Memorial Transport Hub','Crumbling Statue Plaza','Vast Shattered Marketplace','Broad Ceremonial Square','Collapsed Public Garden','Long Submerged Staircase','Gutted Public Office Building','Broken-spired Church'];
 const LC_BUILDINGS=['Residential Tower, cracked at the midpoint','Corporate headquarters, still lit from within','Sprawling marketplace, stalls still stocked with rotten goods','Fallen opera house, its dome split open like an egg','Sports arena, something nesting in the upper seats','Overgrown railway station — the train is still there','Hotel, every room locked from the inside','University campus, library partially intact'];
 const LC_DISCOVERIES=[{shape:'Cube',appearance:'Mobile',fn:'Deep Prison',creator:'Prophet',discoverer:'Shaman',current:'Communication'},{shape:'Pyramid',appearance:'Brittle',fn:'Time Ark',creator:'Emperor',discoverer:'Farmer',current:'Defense'},{shape:'Prism',appearance:'Chaotic',fn:'Spiritual Improvement',creator:'Wanderer',discoverer:'Aristocrat',current:'Education'},{shape:'Tower',appearance:'Divine',fn:'Soul Decomposition',creator:'Architect',discoverer:'Trader',current:'Energy Production'},{shape:'Sphere',appearance:'Energy',fn:'Transport Revolution',creator:'Scientist',discoverer:'Savant',current:'Farming'},{shape:'Needle',appearance:'Fractal',fn:'Neo-Genesis',creator:'Refugee',discoverer:'Refugee',current:'Mining'},{shape:'Ring',appearance:'Gaseous',fn:'Musical Creation',creator:'Horror',discoverer:'Reporter',current:'Transportation'},{shape:'Plain',appearance:'Terrifying',fn:'Military Vault',creator:'Scavenger',discoverer:'Industrialist',current:'Weapon'},{shape:'Depression',appearance:'Illusory',fn:'Matter Processing',creator:'Community',discoverer:'Cultist',current:'Worship'},{shape:'Crater',appearance:'Solid',fn:'Athletic Games',creator:'Warrior',discoverer:'Archeologist',current:'Water Extraction'}];
-const LC_EXPLORE_REVEALS=['Cursory search: It\'s a death trap. 2 Rounds until it explodes. Treasure: 2d6×10 Credits.','Full of the Irradiated (DD12 | 8 Stress). A day of careful exploration reveals: a dull, safe quiet spot.','A concealed death trap. 2 Rounds until it explodes. Left with nothing but 2d12 Irradiated (DD4 | 8 Stress).','A mess, infested with vermin. Home to a Stitched Rat Horror (DDS | 16 Stress).','Safe — stay discreet. Safe spot, noisy nearby Creatures.','Hidden safe spot. Behind cleared shrubs: a badly vandalized piece of art. Roll BACKPACK for a full random pack.'];
+const LC_EXPLORE_REVEALS=['Cursory search: It\'s a death trap. 2 Rounds until it explodes. Treasure: 2d6×10 Credits.','Full of the Irradiated (DD12 | 24 Stress). A day of careful exploration reveals: a dull, safe quiet spot.','A concealed death trap. 2 Rounds until it explodes. Left with nothing but 2d12 Irradiated (DD4 | 8 Stress).','A mess, infested with vermin. Home to a Stitched Rat Horror (DD8 | 16 Stress).','Safe — stay discreet. Safe spot, noisy nearby Creatures.','Hidden safe spot. Behind cleared shrubs: a badly vandalized piece of art. Roll BACKPACK for a full random pack.'];
 
 const EVENTS={green:['The Forest','The Pack','The Goblin','The Wurm','The Mountain','The Mist','The Spider','The River','The Wyvern','The Sea','The Storm','The Desert'],golden:['The Sun','The Star','The Crown','The Order','The Road','The Citadel','The Liar','The Fortress','The Tower','The Child','The Wall','The Spire'],grey:['The Moon','The Demon','The Plague','The Catacomb','The Coven','The Legion','The Fallen','The Underworld','The Eye','The Shadow','The Colossus','The Hole']};
 const EVENT_WHISPERS={'The Forest':'The Conjunction of two realms begins where nature has a foothold.','The Pack':'Below the pale moon, the pack roams, driven by hunger that none can know.','The Goblin':"On toes it crept just out o'sight, the petty hoarder full o'spite.",'The Wurm':'Callous, cruel, awful, and long. Feasting far beyond its hunger.','The Mountain':'Its peaks touch the clouds, its roots delve into the very heart of the earth.','The Mist':'In the depths of the veil, where sight falters and reason wanes, lies a truth shrouded in whispers.','The Spider':'Where silence speaks, the eight-legged weaver plots.','The River':"A symbol of life's inception. It meanders, concealing ancient secrets.",'The Wyvern':"All jack-a-jaw and neck a knot'd string.",'The Sea':'In the heart of the sea, where silence reigns, lies a path to forgotten realms.','The Storm':"Nature's Unbridled Fury. Howling winds unveil hidden fears.",'The Desert':'A Figure of legend heralds a transformative era.','The Sun':"In lands where the sun's gaze never falters, shadows become the only sanctuary.",'The Star':'In the shadow of falling stars, destiny weaves its tale.','The Crown':'Knights clad in ancestral crests vie for glory.','The Order':'Rigid Structure and iron-clad authority where the unyielding rule.','The Road':'A winding path of adventure and peril.','The Citadel':'In the shadow of fallen stone, a crown lies lost, a throne overthrown.','The Liar':'Woven deceit and betrayal.','The Fortress':"In the heart of darkness, a power untold.",'The Tower':'Tall and mighty and magnificently strange.','The Child':'When night met day, where water flame, they saw the child.','The Wall':'Cutting through the land, the storms could not cross its heights.','The Spire':'Where stars touch earth, and sorrow weaves fate\'s thread.','The Moon':'In the shadow of the eclipse, light and dark dance in perilous embrace.','The Demon':'Pacts makes he of glorious intent driven by Lust most obscure.','The Plague':'They sang; flutters in the air, splashes in the stream. The uncaring terror.','The Catacomb':'Beneath hallowed ground, where shadows weave tales.','The Coven':"Where shadows gather and secrets brew.",'The Legion':'Sodden ranks, fought and fell, returning strong still.','The Fallen':'The ruins of an old fortress serve as a spectral haven.','The Underworld':'A place beneath our living world. A different path for those who brave the gloom.','The Eye':'In the stillness of night, beneath the gaze of the unblinking star.','The Shadow':'Ancient flatstones stand, marbled with moss.','The Colossus':'In the shadow of the sleeping giant, ancient guardians awake.','The Hole':'In the heart of the earth, a mouth wide and deep.'};
@@ -3116,7 +3119,7 @@ function buildNightModeTradeAddonEncounter(col,row){
     var n=roll(4)+2;
     return {
       title:'Midnight Ambush',
-      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(224,80,80,.45);background:rgba(224,80,80,.08);"><div class="vr-type" style="color:var(--red2);">Night Mode Bonus: Midnight Ambush</div>Raiders strike from the dark route edges. DD6 | '+(n*2)+' Stress.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'pirates\','+n+',\'Night Raiders\',6)">⚔ Engage Combat</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Evade</button></div></div>'
+      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(224,80,80,.45);background:rgba(224,80,80,.08);"><div class="vr-type" style="color:var(--red2);">Night Mode Bonus: Midnight Ambush</div>Raiders strike from the dark route edges. Each raider is DD6 | 12 Stress.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'pirates\','+n+',\'Night Raiders\',6)">⚔ Engage Combat</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Evade</button></div></div>'
     };
   }
   if(modeRoll===2){
@@ -3512,7 +3515,7 @@ const FLAVOR_COOLDOWN_BY_ARCHETYPE={
 const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
   var rows=[
     {key:'animal companion',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Animal Companion',trigger:'When the hunt opens and you need a second heartbeat beside you.',effect:'A bonded beast answers your call and joins the lane as an ally (DD6, 12 Stress).',cue:'Turns on when combat starts and no companion ally is in line; summon from the Flavor Interaction panel.',matchers:['inCombat']},
-    {key:'holy shield',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Holy Shield',trigger:'When a blow, curse, or burst would break your footing.',effect:'A sainted barrier catches the hit: add Spirit die to Defend and anchor yourself in Protected.',cue:'Shows when danger states are live: hazard terrain, cover penalties, or defensive condition pressure.',matchers:['danger']},
+    {key:'holy shield',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Holy Shield',trigger:'When a blow, curse, or burst would break your footing.',effect:'Gain Protected and queue your current Spirit die onto the next Defend-facing roll.',cue:'Shows when danger states are live: hazard terrain, cover penalties, or defensive condition pressure.',matchers:['danger']},
     {key:'emit blinding light — all engaged targets are distracted',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Emit blinding light — all Engaged Targets are Distracted',trigger:'When steel is drawn and the line starts to break.',effect:'You turn the battlefield tempo in your favor for a decisive exchange.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
     {key:'infernal eyes',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Infernal Eyes',trigger:'When fear is the cleanest weapon in the room.',effect:'Your stare kindles dread; enemies falter while your social pressure turns razor-sharp.',cue:'Highlights in social confrontation panels and night-combat intimidation windows.',matchers:['storylineSocial','inCombatNightBoost']},
     {key:'leader',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Leader',trigger:'When allies need a single signal to move as one.',effect:'In the Beyond, Leader means: Faction becomes Empowered for the Scene.',cue:'Highlights in Storyline/Factions/Missions contexts where command or coordination checks are active.',matchers:['leadershipCampaign']},
@@ -3554,7 +3557,7 @@ const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
     {key:'hex cartographer',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Chart Hex Cartographer',trigger:'When the path ahead is unclear or dangerous.',effect:'Hex Cartographer lets you reveal one adjacent hex detail for free.',cue:'Turns on during navigation windows; pair it with route decisions and movement cost cues.',matchers:['travel']},
     {key:'solar needle',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Solar Needle',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Solar Needle means: One ranged attack per scene gains +2.',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
     {key:'grave whisper',archetype:'scholar',cooldownType:'day',mechanicMode:'active',actionLabel:'Read Grave Whisper',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Grave Whisper lets you ask one question to recent dead each day.',cue:'Highlights in investigation contexts (ruins/events/gates) and technical interaction moments.',matchers:['analysis']},
-    {key:'storm veins',archetype:'guard',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive · Storm Veins',trigger:'When lightning crawls your nerves and shock damage is about to land.',effect:'Your blood grounds the surge; the first lightning or shock damage each scene dies in your veins.',cue:'Highlights when an enemy action is tagged lightning/shock so you can absorb the first surge.',matchers:['danger']},
+    {key:'storm veins',archetype:'guard',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive · Storm Veins',trigger:'When lightning crawls your nerves and shock damage is about to land.',effect:'The first shock-tagged enemy action each scene is negated before it deals Stress or applies a condition.',cue:'Highlights when an enemy action is tagged lightning/shock so you can absorb the first surge.',matchers:['danger']},
     {key:'ruin scholar',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Ruin Scholar',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Ruin Scholar means: +1 on checks involving ruins and old tech.',cue:'Appears when analysis-driven checks are relevant, including relic, trap, or lore prompts.',matchers:['analysis']},
     {key:'blessed appetite',archetype:'medic',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive · Blessed Appetite',trigger:'When pain, strain, or bleeding would end the push.',effect:'In the Beyond, Blessed Appetite means: Food use heals +1 extra Stress.',cue:'Appears at recovery breakpoints where a heal or mitigation changes survival odds.',matchers:['recovery']},
     {key:'duelist footwork',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Duelist Footwork',trigger:'When steel is drawn and the line starts to break.',effect:'Duelist Footwork lets you on hit, step to Nearby without cost.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
@@ -3566,7 +3569,7 @@ const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
     {key:'warding palm',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Warding Palm',trigger:'When allies need a single signal to move as one.',effect:'In the Beyond, Warding Palm means: Adjacent ally gains Protected for one roll.',cue:'Appears when ally support actions can chain value in the current scene.',matchers:['leadership']},
     {key:'quick draw',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Quick Draw',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Quick Draw means: First Strike/Shoot each combat gains +1.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
     {key:'bone oracle',archetype:'scholar',cooldownType:'day',mechanicMode:'active',actionLabel:'Read Bone Oracle',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Bone Oracle lets you read omen from remains once per day.',cue:'Shows during intel-heavy scenes where Mind/Control reads change the next decision.',matchers:['analysis']},
-    {key:'black salt ward',archetype:'guard',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive · Black Salt Ward',trigger:'When horror pressure first tries to root in your mind.',effect:'A ring of black salt breaks the first Horror effect each day before it settles.',cue:'Highlights on horror-tagged pressure windows where daily negation is still available.',matchers:['danger']},
+    {key:'black salt ward',archetype:'guard',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive · Black Salt Ward',trigger:'When horror pressure, fear, or a psychic assault first tries to root in your mind.',effect:'Negate the first horror-tagged psychic effect of the day, including forced Trauma, fear bursts, or hostile hacks.',cue:'Highlights on horror-tagged pressure windows where daily negation is still available.',matchers:['danger']},
     {key:'field surgeon',archetype:'medic',cooldownType:'day',mechanicMode:'active',actionLabel:'Mend Field Surgeon',trigger:'When an ally is one hit from collapse.',effect:'Battle triage stabilizes the target and improves immediate health recovery.',cue:'Shows when an ally is near collapse and a stabilize action can swing the exchange.',matchers:['recovery']},
     {key:'signal caller',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Signal Caller',trigger:'When allies need a single signal to move as one.',effect:'In the Beyond, Signal Caller means: +1 Lead checks on caravan/trade checks.',cue:'Turns on when team tempo matters; watch Teamwork, ally sequencing, and campaign objective widgets.',matchers:['leadershipCampaign']},
     {key:'scrap alchemist',archetype:'scrap_alchemist',cooldownType:'day',mechanicMode:'active',actionLabel:'Distill Scrap Alchemist',trigger:'When salvage is all you have and a remedy is needed now.',effect:'Scrap Alchemist lets you convert one junk drop into remedy per day.',cue:'Highlights if salvage inventory is present and a remedy conversion is available.',matchers:['salvage']},
@@ -3834,15 +3837,15 @@ function getBespokeFlavorEntry(flavorText){
   var actionLabel=authored&&authored.actionLabel?String(authored.actionLabel):((labels[archetype]||'Use Effect')+' · '+labelPrefix);
   var desc=authored&&authored.effect?String(authored.effect):rawDesc;
   if(!desc){
-    if(archetype==='scrap_alchemist')desc='Consume one junk/salvage item and distill a remedy attuned to '+labelPrefix+'.';
-    else if(archetype==='medic')desc='Apply '+labelPrefix+' as triage: recover stress/health and cleanse a condition.';
-    else if(archetype==='night')desc='Trigger '+labelPrefix+' for a phase-locked night/day adaptation bonus.';
-    else if(archetype==='scout')desc='Use '+labelPrefix+' to map safe vectors, gaining Path Tokens and route dice.';
-    else if(archetype==='scholar')desc='Decode '+labelPrefix+' into tactical data: flat bonus and teamwork momentum.';
-    else if(archetype==='leader')desc='Broadcast '+labelPrefix+' to rally allies, bolstering sheet conditions and TMW.';
-    else if(archetype==='combat')desc='Prime '+labelPrefix+' as an attack edge: queued step-up die and momentum.';
-    else if(archetype==='guard')desc='Anchor '+labelPrefix+' into a defensive stance and clear pressure states.';
-    else desc='Channel '+labelPrefix+' into a focused supernatural utility burst.';
+    if(archetype==='scrap_alchemist')desc='Spend one junk or salvage item to brew an on-demand remedy tied to '+labelPrefix+'.';
+    else if(archetype==='medic')desc='Use '+labelPrefix+' as field medicine: heal, stabilize, and clear one negative condition.';
+    else if(archetype==='night')desc='Trigger '+labelPrefix+' for a night/day adaptation: night rewards Focus and Teamwork, day grants Path Tokens and a bonus die.';
+    else if(archetype==='scout')desc='Convert '+labelPrefix+' into route control: gain Path Tokens and queue a travel-ready bonus die.';
+    else if(archetype==='scholar')desc='Translate '+labelPrefix+' into a concrete edge: gain a flat roll bonus and Teamwork.';
+    else if(archetype==='leader')desc='Project '+labelPrefix+' across the crew: become Bolstered and generate Teamwork for the group.';
+    else if(archetype==='combat')desc='Prime '+labelPrefix+' as a fight mechanic: queue a stepped Adventure Die and gain Teamwork.';
+    else if(archetype==='guard')desc='Anchor '+labelPrefix+' into a defensive stance: become Protected and clear Vulnerable or Shaken pressure.';
+    else desc='Channel '+labelPrefix+' into a mystic burst: gain Focused, Empowered, Path Tokens, and momentum.';
   }
   var entry={
     key:base,
@@ -3923,37 +3926,37 @@ function getFlavorRuleForEntry(entry){
 
   if(arch==='combat'){
     rule.trigger='Combat scene with at least one hostile enemy present.';
-    rule.effect='Gain immediate combat leverage tied to '+title+' (queued edge, pressure, or control effect).';
+    rule.effect='Spend 1 action to queue a stepped Adventure Die on your next combat roll and gain +1 to +3 TMW, unless this flavor has a bespoke combat override.';
     rule.cue='Lights in combat when hostiles are active.';
     rule.matchers=['inCombat'];
   }else if(arch==='guard'){
     rule.trigger='Any danger scene where defense, endurance, or condition stability matters.';
-    rule.effect='Convert pressure into protection and defensive stability using '+title+'.';
+    rule.effect='Become Protected and clear immediate defensive pressure such as Vulnerable or Shaken; some guard flavors also negate tagged hazard events automatically.';
     rule.cue='Lights when danger is present (combat, peril, or rough traversal).';
     rule.matchers=['danger'];
   }else if(arch==='scout'){
     rule.trigger='Travel, map movement, wilderness routing, or adjacent-hex recon moments.';
-    rule.effect='Convert '+title+' into route intel, traversal efficiency, and path momentum.';
+    rule.effect='Gain 2 to 4 Path Tokens and queue a route-focused bonus die for the next traversal, tracking, or positioning roll.';
     rule.cue='Lights while exploring map spaces outside direct combat.';
     rule.matchers=['travel'];
   }else if(arch==='scholar'){
     rule.trigger='Puzzle, investigation, codex, relic, trap, hack, or lore-analysis situations.';
-    rule.effect='Turn '+title+' into tactical insight and decision-quality bonuses.';
+    rule.effect='Gain a flat +2 to +4 style edge on the next relevant roll and generate +1 to +3 TMW from tactical insight.';
     rule.cue='Lights in investigation/analysis contexts and during hostile control scenes.';
     rule.matchers=['analysis'];
   }else if(arch==='leader'){
     rule.trigger='Team-facing moments: faction play, command checks, ally coordination, or campaign scenes.';
-    rule.effect='Project '+title+' to rally allies, grant momentum, and amplify team condition output.';
+    rule.effect='Apply Bolstered to yourself and generate +2 to +4 TMW for command, coordination, or faction follow-through.';
     rule.cue='Lights in campaign/faction contexts or when multiple allies are in play.';
     rule.matchers=['leadership'];
   }else if(arch==='medic'){
     rule.trigger='After damage, stress spikes, or negative-condition pressure.';
-    rule.effect='Apply '+title+' for recovery and condition stabilization.';
+    rule.effect='Restore 2 to 6 Health/Stress and clear one negative condition when the table needs immediate stabilization.';
     rule.cue='Lights when health/stress pressure or negative conditions are active.';
     rule.matchers=['recovery'];
   }else if(arch==='night'){
     rule.trigger='Night phases, affliction windows, or low-visibility scenes.';
-    rule.effect='Use '+title+' for nocturnal adaptation and phase-sensitive bonuses.';
+    rule.effect='At night, gain Focused and TMW; by day, gain Path Tokens and a queued bonus die for adaptation.';
     rule.cue='Lights strongly at night; can still provide fallback utility by day.';
     rule.matchers=['night'];
   }else if(arch==='scrap_alchemist'){
@@ -3963,7 +3966,7 @@ function getFlavorRuleForEntry(entry){
     rule.matchers=['salvage'];
   }else{
     rule.trigger='Mystic or utility pivot moments where flexible power conversion is needed.';
-    rule.effect='Channel '+title+' into utility, control, or momentum effects.';
+    rule.effect='Gain Focused and Empowered, plus Path Tokens and TMW, then pivot that momentum into utility or control.';
     rule.cue='Lights in unusual scenes where no direct archetype dominates.';
     rule.matchers=['flex'];
   }
@@ -4242,9 +4245,10 @@ function applySpecificFlavorActionOverride(entry){
     }
     if(!S.rollMod)S.rollMod={advDice:[],flat:0};
     if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
-    S.rollMod.advDice.push(8);
+    var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):((S.stats&&S.stats.spirit)||4);
+    S.rollMod.advDice.push(spiritDie);
     if(typeof updateConditionButtons==='function')updateConditionButtons();
-    return 'Holy Shield invoked: Protected applied and +Ad8 queued for your next defense-facing roll.';
+    return 'Holy Shield invoked: Protected applied and +d'+spiritDie+' from Spirit queued for your next defense-facing roll.';
   }
 
   if(base.indexOf('emit blinding light')>=0){
@@ -6043,8 +6047,17 @@ function getFlavorShortName(){
   return idx>=0?f.slice(0,idx).trim():f;
 }
 
-function shouldNegateEnemyEventByFlavor(element){
+function shouldNegateEnemyEventByFlavor(element, kind){
   if(!element||!S||!S.combat)return false;
+  var flavorFull=String((S&&S.flavor)||'').toLowerCase();
+  if(/black salt ward/.test(flavorFull) && (element==='psychic' || kind==='forceTrauma' || kind==='hack')){
+    if(!S.flavorActionState||typeof S.flavorActionState!=='object')S.flavorActionState={};
+    var dayStamp=getFlavorCooldownStamp('day');
+    var dailyWard=S.flavorActionState.blackSaltWardNegation;
+    if(dailyWard&&dailyWard.stamp===dayStamp)return false;
+    S.flavorActionState.blackSaltWardNegation={stamp:dayStamp,lastUsedAt:Date.now(),kind:String(kind||element)};
+    return true;
+  }
   if(!S.combat.flavorResistUsed||typeof S.combat.flavorResistUsed!=='object')S.combat.flavorResistUsed={};
   var resist=getFlavorElementResistances();
   if(!resist[element])return false;
@@ -6224,7 +6237,7 @@ function triggerEnemyActionEvent(){
 
   if(ev.kind==='defendCheck'){
     supportsSave=true;
-    if(shouldNegateEnemyEventByFlavor(ev.element)){
+    if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       var defDie=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):(S.stats.defend||4);
@@ -6243,7 +6256,7 @@ function triggerEnemyActionEvent(){
     }
   }else if(ev.kind==='saveCondition'){
     supportsSave=true;
-    if(shouldNegateEnemyEventByFlavor(ev.element)){
+    if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats[ev.stat]||4);
@@ -6261,7 +6274,7 @@ function triggerEnemyActionEvent(){
     var playerCoverTier2=getSceneCoverTierForZone(getCurrentPlayerZoneLabel());
     if(playerCoverTier2==='full'){
       summary='Full Cover blocks the ranged threat.';
-    }else if(shouldNegateEnemyEventByFlavor(ev.element)){
+    }else if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       var sDmg=Math.max(1,Math.ceil(dr.total/3)+(ev.scale||0)-getCoverDefenseBonusForTier(playerCoverTier2));
@@ -6270,7 +6283,7 @@ function triggerEnemyActionEvent(){
     }
   }else if(ev.kind==='radiation'){
     supportsSave=true;
-    if(shouldNegateEnemyEventByFlavor(ev.element)){
+    if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
@@ -6285,7 +6298,7 @@ function triggerEnemyActionEvent(){
       }
     }
   }else if(ev.kind==='healthStrike'){
-    if(shouldNegateEnemyEventByFlavor(ev.element)){
+    if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       var hDmg=Math.max(1,Math.ceil(dr.total/(ev.scale||4)));
@@ -6293,7 +6306,7 @@ function triggerEnemyActionEvent(){
       summary='Critical impact — '+hDmg+' Health damage.';
     }
   }else if(ev.kind==='forceTrauma'){
-    if(shouldNegateEnemyEventByFlavor(ev.element)){
+    if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       if(typeof rollTraumaCheck==='function')rollTraumaCheck();
@@ -10829,7 +10842,7 @@ function generateRuinRooms(col,row){
     const monsterRoll=roll(6);
     let monDesc='',monStats='',treasure='';
     if(!isEntrance&&rtype!=='Empty'){
-      if(monsterRoll===1){monDesc=pick(RUIN_MONSTER_DESC.beast);monStats='DD4 | 4 Stress';}
+      if(monsterRoll===1){monDesc=pick(RUIN_MONSTER_DESC.beast);monStats='DD4 | 8 Stress';}
       else if(monsterRoll===2){monDesc=pick(RUIN_MONSTER_DESC.bandits);monStats='DD4 | 8 Stress';}
       else if(monsterRoll===3){monDesc=pick(RUIN_MONSTER_DESC.builder);monStats=`DD6 | 12 Stress (Built by ${hex.data.builder||'Unknown'})`;}
       else if(monsterRoll===4){monDesc=pick(RUIN_MONSTER_DESC.horror);monStats='DD12 | 24 Stress';}
@@ -12829,7 +12842,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(typeof renderEnemies==='function')renderEnemies();
     if(typeof renderQP==='function')renderQP('combat');
     const resultEl = document.getElementById(`hexEnc-${col}-${row}`);
-    if (resultEl) resultEl.innerHTML = `<div style="background:rgba(200,50,50,.08); padding:.5rem;"><div style="font-family:Cinzel,serif; color:var(--red2);">⚔ Combat Ready: ${enemyCount} ${typeStr}</div><div style="font-size:.75rem; margin-top:.2rem;">DD${dd} · ${hpEach} Health each. Open Combat Tab to resolve.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceMonsterCombatOutcome(${col},${row},true)">Success</button><button class="btn btn-xs btn-red" onclick="resolveProvinceMonsterCombatOutcome(${col},${row},false)">Failed</button></div></div>`;
+    if (resultEl) resultEl.innerHTML = `<div style="background:rgba(200,50,50,.08); padding:.5rem;"><div style="font-family:Cinzel,serif; color:var(--red2);">⚔ Combat Ready: ${enemyCount} ${typeStr}</div><div style="font-size:.75rem; margin-top:.2rem;">DD${dd} · ${hpEach} Stress each. Open Combat Tab to resolve.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceMonsterCombatOutcome(${col},${row},true)">Success</button><button class="btn btn-xs btn-red" onclick="resolveProvinceMonsterCombatOutcome(${col},${row},false)">Failed</button></div></div>`;
     if (typeof switchTab === 'function') {
       setTimeout(() => showNotif('Engage in Combat Tab', 'warn'), 200);
     }

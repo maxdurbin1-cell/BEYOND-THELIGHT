@@ -507,6 +507,7 @@ function ensureSolarCycleState() {
   if (typeof sc.timeFracture.rewindsUsed !== 'number') sc.timeFracture.rewindsUsed = 0;
   if (!Array.isArray(sc.thresholdNotifs)) sc.thresholdNotifs = [];
   if (typeof sc.currentOmen !== 'string') sc.currentOmen = '';
+  if (!sc.pendingEchoMarker || typeof sc.pendingEchoMarker !== 'object') sc.pendingEchoMarker = null;
   sc.currentTier = getSolarCycleTier(sc.daysElapsed);
   if (!sc.currentOmen) {
     sc.currentOmen = (SOLAR_CYCLE_OMENS[sc.activeArc] && SOLAR_CYCLE_OMENS[sc.activeArc][sc.currentTier])
@@ -514,6 +515,157 @@ function ensureSolarCycleState() {
       : '';
   }
   return sc;
+}
+
+function clearSolarCycleProvinceMarkers() {
+  if (!S || !S.missionTokens || typeof S.missionTokens !== 'object') return;
+  Object.keys(S.missionTokens).forEach(function (key) {
+    var token = S.missionTokens[key];
+    if (token && token.missionId === 'solar_cycle') {
+      delete S.missionTokens[key];
+    }
+  });
+}
+
+function pickSolarCycleProvinceHex(seedOffset) {
+  if (typeof mapData === 'undefined' || !Array.isArray(mapData) || !mapData.length) return null;
+  var candidates = mapData.filter(function (hex) { return hex && hex.type === 'wilderness'; });
+  if (!candidates.length) candidates = mapData.filter(function (hex) { return !!hex; });
+  if (!candidates.length) return null;
+  var base = Number(seedOffset || 0);
+  var idx = Math.abs(base) % candidates.length;
+  return candidates[idx] || null;
+}
+
+function shouldSpawnSolarCycleMarker(daysElapsed, tier) {
+  var day = Math.max(0, Number(daysElapsed || 0));
+  if (day <= 0 || day >= SOLAR_CYCLE_DAY_LIMIT) return false;
+  if (tier === 'early') return day % 3 === 0;
+  if (tier === 'mid') return day % 4 === 1;
+  if (tier === 'late') return day % 2 === 0;
+  return true;
+}
+
+function getSolarCycleMarkerText(activeArc, tier) {
+  var arc = String(activeArc || 'relic');
+  if (tier === 'early') {
+    return arc === 'loop'
+      ? 'The lighthouse is abandoned, but your footsteps are already in the dust.'
+      : 'An abandoned lighthouse appears on old navigation sketches.';
+  }
+  if (tier === 'mid') {
+    return arc === 'herald'
+      ? 'The lighthouse keeper greets you by name and asks which sun you serve.'
+      : 'The lighthouse is active; the keeper says they remember your previous visit.';
+  }
+  if (tier === 'late') {
+    return 'The lighthouse is gone, but its light still sweeps the sea from nowhere.';
+  }
+  return 'Only a beam remains, searching for witnesses before the sky closes.';
+}
+
+function syncSolarCycleProvinceMarkers() {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.enabled) {
+    clearSolarCycleProvinceMarkers();
+    return;
+  }
+
+  S.missionTokens = S.missionTokens || {};
+  clearSolarCycleProvinceMarkers();
+
+  var tier = getSolarCycleTier(sc.daysElapsed);
+  var spawnNow = shouldSpawnSolarCycleMarker(sc.daysElapsed, tier);
+  if (sc.pendingEchoMarker && Number(sc.pendingEchoMarker.day || 0) <= Number(sc.daysElapsed || 0)) {
+    spawnNow = true;
+  }
+  if (!spawnNow) {
+    if (typeof renderHexMap === 'function') renderHexMap();
+    return;
+  }
+
+  var seedBase = Number(sc.echoSeed || 0) + Number(sc.daysElapsed || 0) * 17;
+  if (sc.pendingEchoMarker) seedBase += Number(sc.pendingEchoMarker.seedOffset || 31);
+  var targetHex = pickSolarCycleProvinceHex(seedBase);
+  if (!targetHex) return;
+
+  var key = String(targetHex.col) + ',' + String(targetHex.row);
+  var markerId = 'solar:' + String(sc.activeArc) + ':' + String(tier) + ':' + String(sc.daysElapsed);
+  S.missionTokens[key] = {
+    missionId: 'solar_cycle',
+    type: 'solar_cycle_marker',
+    title: 'Solar Omen',
+    solarMarkerId: markerId,
+    solarTier: tier,
+    solarArc: sc.activeArc,
+    text: getSolarCycleMarkerText(sc.activeArc, tier)
+  };
+
+  sc.pendingEchoMarker = null;
+  if (typeof renderHexMap === 'function') renderHexMap();
+}
+
+function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.enabled) return;
+
+  var key = hex ? (String(hex.col) + ',' + String(hex.row)) : '';
+  if (key && S.missionTokens && S.missionTokens[key] && S.missionTokens[key].missionId === 'solar_cycle') {
+    delete S.missionTokens[key];
+  }
+
+  var markerId = String((markerToken && markerToken.solarMarkerId) || ('solar:manual:' + Date.now()));
+  sc.resolvedMarkers[markerId] = {
+    approach: String(approach || 'observe'),
+    day: Number(sc.daysElapsed || 0),
+    tier: String((markerToken && markerToken.solarTier) || sc.currentTier || 'early')
+  };
+
+  if (approach === 'observe') {
+    sc.prophecyTrack.push('Observed omen on day ' + sc.daysElapsed + '. Hidden routes may open later.');
+    if (S.storyline && S.storyline.flags) S.storyline.flags.solarObserved = (S.storyline.flags.solarObserved || 0) + 1;
+    if (typeof showNotif === 'function') showNotif('You observed the omen. Lore recorded and future routes may shift.', 'good');
+  } else if (approach === 'intervene') {
+    if (typeof changeFactionRenown === 'function') {
+      var faction = sc.activeArc === 'herald' ? 'religious' : (sc.activeArc === 'loop' ? 'scholars' : 'political');
+      changeFactionRenown(faction, 1);
+    }
+    sc.worldTilt = Math.min(4, Number(sc.worldTilt || 1) + 1);
+    if (typeof showNotif === 'function') showNotif('You intervened. Faction balances shifted and reality tilt intensified.', 'warn');
+  } else {
+    sc.pendingEchoMarker = {
+      day: Math.min(SOLAR_CYCLE_DAY_LIMIT, Number(sc.daysElapsed || 0) + 2),
+      seedOffset: 97
+    };
+    if (typeof showNotif === 'function') showNotif('You ignored the omen. It will return elsewhere in altered form.', 'info');
+  }
+
+  if (typeof renderHexMap === 'function') renderHexMap();
+  if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+}
+
+function resolveSolarCycleProvinceMarker(hex, markerToken) {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.enabled) return false;
+  if (!markerToken || markerToken.missionId !== 'solar_cycle') return false;
+
+  var text = String(markerToken.text || sc.currentOmen || 'An omen waits for interpretation.');
+  var html = ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;margin-bottom:.45rem;">'
+    + '<strong style="color:var(--gold2);">Solar Omen</strong><br>' + text + '</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.45rem;">Choose how to interpret this marker. Interaction is permanent.</div>'
+    + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+    + '<button class="btn btn-sm btn-teal" onclick="completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"observe\"); closeModal();">Observe</button>'
+    + '<button class="btn btn-sm btn-warn" onclick="completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"intervene\"); closeModal();">Intervene</button>'
+    + '<button class="btn btn-sm" onclick="completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"ignore\"); closeModal();">Ignore</button>'
+    + '</div>';
+
+  window._activeSolarMarkerToken = markerToken;
+  if (typeof openModal === 'function') openModal('Solar Cycle Marker', html);
+  return true;
 }
 
 function startSolarCycleMode(activeArc) {
@@ -537,6 +689,9 @@ function startSolarCycleMode(activeArc) {
   sc.thresholdNotifs = [];
   sc.currentTier = 'early';
   sc.currentOmen = SOLAR_CYCLE_OMENS[arc].early;
+  sc.pendingEchoMarker = null;
+
+  syncSolarCycleProvinceMarkers();
 
   if (typeof showNotif === 'function') {
     showNotif('Solar Cycle started: 100 days until solar collapse.', 'warn');
@@ -582,6 +737,8 @@ function progressSolarCycleDay(days) {
     }
   }
 
+  syncSolarCycleProvinceMarkers();
+
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return sc;
 }
@@ -608,6 +765,8 @@ function getSolarCycleStatus() {
 window.startSolarCycleMode = startSolarCycleMode;
 window.progressSolarCycleDay = progressSolarCycleDay;
 window.getSolarCycleStatus = getSolarCycleStatus;
+window.resolveSolarCycleProvinceMarker = resolveSolarCycleProvinceMarker;
+window.completeSolarCycleMarkerInteraction = completeSolarCycleMarkerInteraction;
 
 function ensureStarsState() {
   if (!S.health && S.health !== 0) S.health = S.stress || 0;

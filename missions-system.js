@@ -981,6 +981,9 @@
     var key = String(hex.col) + ',' + String(hex.row);
     var token = S.missionTokens[key];
     if (!token || !token.missionId) return false;
+    if (token.missionId === 'solar_cycle' && typeof window.resolveSolarCycleProvinceMarker === 'function') {
+      return !!window.resolveSolarCycleProvinceMarker(hex, token);
+    }
     return autoAdvanceMissionByToken(token.missionId, token.type, 'province');
   }
 

@@ -1623,7 +1623,16 @@ function isSolarCycleSoloModeAvailable() {
   try {
     if (!window.campaignSystem || typeof window.campaignSystem.getState !== 'function') return true;
     var state = window.campaignSystem.getState() || {};
-    return !state.connected;
+    var inCampaignRoom = !!(state.code && String(state.code).trim());
+    var hasCampaignRole = !!(state.role && String(state.role).trim());
+    var activeCampaign = inCampaignRoom || hasCampaignRole;
+    if (!activeCampaign) return true;
+
+    // If Settings explicitly says solo, honor it and let New Sun run.
+    if (window.settingsSystem && typeof window.settingsSystem.isSoloMode === 'function') {
+      return !!window.settingsSystem.isSoloMode();
+    }
+    return false;
   } catch (_err) {
     return true;
   }

@@ -626,6 +626,15 @@ const NEW_SUN_STAGE_SCENES = {
         req: { backstorySet: true, actionDieAtLeast: { stat: 'mind', min: 8 } },
         success: { text: 'Your own origin refracts into a route no chart recorded. The keepers accept your passage under oath.', branchChoice: 'preserve', effects: { renown: 1, flags: { newSunBackstoryRoute: true }, prophecy: 'Your first home becomes the map key.' } },
         fail: { text: 'The refraction cuts too deep. You recover the route but carry a private wound into the sea.', branchChoice: 'preserve', effects: { mentalStress: 1, paradoxStrain: 1, flags: { newSunBackstoryRoute: true } } }
+      },
+      {
+        id: 'hack_lens',
+        text: 'Route an OS hack through the lens calibration rings',
+        stat: 'control',
+        baseDread: 9,
+        req: { augmentationsAny: ['operating system'], ownedHacksAny: ['ping', 'take control', 'reboot optics', 'weapon glitch'] },
+        success: { text: 'The lens yields its alignment tables to your intrusion. You stabilize the route without swearing to the old priests.', branchChoice: 'preserve', effects: { renown: 1, flags: { newSunLensHacked: true }, prophecy: 'Machine-light proves the old rite was only one interface.' } },
+        fail: { text: 'The calibration rings arc and burn your link, but the cracked tables still point the way forward.', branchChoice: 'preserve', effects: { mentalStress: 1, flags: { newSunLensHacked: true } } }
       }
     ]
   },
@@ -658,6 +667,15 @@ const NEW_SUN_STAGE_SCENES = {
         req: { flavorAny: ['grave whisper', 'time traveler', 'relive last moments'], backgroundIncludes: ['temple', 'scholar', 'outlaw'] },
         success: { text: 'The drowned answer with coordinates and demand mercy for the living.', branchChoice: 'bind', effects: { renown: 1, flags: { newSunDeadCharts: true }, prophecy: 'The drowned chart a merciful channel.' } },
         fail: { text: 'They answer in fragments. The route still opens, but the dead leave frost in your lungs.', branchChoice: 'bind', effects: { mentalStress: 1, tmw: 1 } }
+      },
+      {
+        id: 'flavor_forecast',
+        text: 'Use your personal gift to read the wave-pattern before it breaks',
+        stat: 'mind',
+        baseDread: 8,
+        req: { flavorProfileAny: ['timeSight', 'telepathic', 'antiRad'] },
+        success: { text: 'Your gift reads the sea before it moves. The fleet turns early and the beacon route holds.', branchChoice: 'bind', effects: { renown: 1, flags: { newSunFlavorCurrent: true }, prophecy: 'A private miracle becomes public survival.' } },
+        fail: { text: 'The vision arrives late, but still soon enough to salvage a narrow passage.', branchChoice: 'bind', effects: { tmw: 1, flags: { newSunFlavorCurrent: true } } }
       }
     ]
   },
@@ -690,6 +708,15 @@ const NEW_SUN_STAGE_SCENES = {
         req: { backpackAny: ['scroll', 'warding sigil', 'lockpick', 'dungeoneer\'s kit'], consumeRequiredItem: true },
         success: { text: 'The ward buckles. The false ledger burns and the true launch window appears beneath it.', effects: { credits: 80, flags: { newSunWardBroken: true } } },
         fail: { text: 'The rite misfires. The ledger still opens, but glass shards follow you into the launch corridor.', effects: { health: 1, mentalStress: 1 } }
+      },
+      {
+        id: 'ghost_archive_hack',
+        text: 'Hack the archive mirrors and force the false futures to identify themselves',
+        stat: 'control',
+        baseDread: 10,
+        req: { augmentationsAny: ['operating system'], ownedHacksAny: ['short circuit', 'take control', 'javelin', 'reboot optics'] },
+        success: { text: 'The mirrors tag their own forgeries. The true launch verdict survives the purge.', effects: { renown: 1, flags: { newSunArchiveHack: true }, prophecy: 'False futures confess when the mirror is forced to audit itself.' } },
+        fail: { text: 'The mirrors resist, but one honest reflection slips free with the launch key embedded in it.', effects: { mentalStress: 1, flags: { newSunArchiveHack: true } } }
       }
     ]
   },
@@ -722,6 +749,15 @@ const NEW_SUN_STAGE_SCENES = {
         req: { backgroundIncludes: ['outlaw', 'drifter', 'soldier', 'smuggler'] },
         success: { text: 'You cut the lattice loose. The old cycle survives, unstable and unwilling to forget you.', branchChoice: 'sever', effects: { renown: 1, paradoxStrain: 1, flags: { newSunSignalSevered: true }, prophecy: 'The sky remembers your refusal.' } },
         fail: { text: 'The lattice tears raggedly. The signal dies anyway, but takes a piece of you with it.', branchChoice: 'sever', effects: { health: 1, mentalStress: 1, paradoxStrain: 1, flags: { newSunSignalSevered: true } } }
+      },
+      {
+        id: 'conjure_true_dawn',
+        text: 'Use spellwork, hacks, and your personal gift together to ignite the true New Sun',
+        stat: 'spirit',
+        baseDread: 12,
+        req: { backpackAny: ['scroll', 'warding sigil', 'bind oath', 'none can lie'], ownedHacksAny: ['take control', 'reboot optics', 'ping'], flavorAny: ['reverse time', 'time traveler', 'stop time', 'slow time'] },
+        success: { text: 'Rite, machine, and private gift finally align. The dead heliostat answers with a living dawn.', branchChoice: 'open', effects: { renown: 3, worldTilt: -1, flags: { newSunTrueIgnition: true, newSunSharedDawn: true }, prophecy: 'The new sun rises because you learned how to combine law, code, and miracle.' } },
+        fail: { text: 'The first ignition tears through you before stabilizing. The route exists, but only if you dare finish it at Day 100.', branchChoice: 'open', effects: { health: 1, paradoxStrain: 1, flags: { newSunTrueIgnition: true } } }
       }
     ]
   }
@@ -783,6 +819,7 @@ function ensureSolarCycleState() {
   if (!sc.arcProgress.branchChoices || typeof sc.arcProgress.branchChoices !== 'object') sc.arcProgress.branchChoices = {};
   if (!sc.arcProgress.stageResults || typeof sc.arcProgress.stageResults !== 'object') sc.arcProgress.stageResults = {};
   if (!sc.arcProgress.activeMarker || typeof sc.arcProgress.activeMarker !== 'object') sc.arcProgress.activeMarker = null;
+  if (typeof sc.arcProgress.lastAutoOpenedMarkerKey !== 'string') sc.arcProgress.lastAutoOpenedMarkerKey = '';
   if (!Array.isArray(sc.arcProgress.history)) sc.arcProgress.history = [];
   if (typeof sc.arcProgress.lastSyncedCompletedCount !== 'number') sc.arcProgress.lastSyncedCompletedCount = 0;
   if (!sc.playstyle || typeof sc.playstyle !== 'object') sc.playstyle = { observe: 0, intervene: 0, ignore: 0 };
@@ -1009,41 +1046,30 @@ function chooseSolarCycleBranch(branchId, choiceId) {
 
 function getSolarCycleEndingKey(sc) {
   var state = sc || ensureSolarCycleState();
-  if (!state) return 'doom_nightfall';
+  if (!state) return 'old_world_religious_ending';
   var branches = (state.arcProgress && state.arcProgress.branchChoices) ? state.arcProgress.branchChoices : {};
-  var playstyle = state.playstyle || {};
-  var observe = Number(playstyle.observe || 0);
-  var intervene = Number(playstyle.intervene || 0);
-  var ignore = Number(playstyle.ignore || 0);
   var strain = (state.timeFracture && state.timeFracture.scarFlags) ? Number(state.timeFracture.scarFlags.paradoxStrain || 0) : 0;
-  var doomScore = 0;
-  var salvationScore = 0;
-
-  if (Number(state.worldTilt || 0) >= 4) doomScore += 1;
-  if (strain >= 5) doomScore += 2;
-  if (ignore > observe) doomScore += 1;
-  if (branches.final_signal === 'crown') doomScore += 2;
-  if (branches.tide_compact === 'draft') doomScore += 1;
-
-  if (branches.keeper_oath === 'preserve') salvationScore += 1;
-  if (branches.tide_compact === 'bind') salvationScore += 1;
-  if (branches.final_signal === 'open') salvationScore += 2;
-  if (observe >= ignore) salvationScore += 1;
-  if (strain <= 3) salvationScore += 1;
-
-  if (doomScore >= 4) return 'doom_nightfall';
-  if (salvationScore >= 4 && intervene <= observe + 1) return 'salvation_guarded_dawn';
-  return 'new_sun_transfigured';
+  var flags = (S && S.storyline && S.storyline.flags) ? S.storyline.flags : {};
+  var allStagesDone = state.arcProgress && Number(state.arcProgress.stageIndex || 0) >= NEW_SUN_ARC_STAGES.length;
+  var figuredOutNewSun = !!(
+    allStagesDone
+    && branches.keeper_oath === 'preserve'
+    && branches.tide_compact === 'bind'
+    && branches.final_signal === 'open'
+    && flags.newSunSharedDawn
+    && (flags.newSunTrueIgnition || (flags.newSunLensHacked && flags.newSunArchiveHack))
+    && (flags.newSunSafeCurrents || flags.newSunDeadCharts || flags.newSunFlavorCurrent)
+    && (flags.newSunArchiveAudit || flags.newSunArchiveHack || flags.newSunSmuggledArchive)
+    && strain <= 5
+  );
+  return figuredOutNewSun ? 'new_sun_risen' : 'old_world_religious_ending';
 }
 
 function getSolarCycleEndingText(endingKey) {
-  if (endingKey === 'doom_nightfall') {
-    return 'Doom Ending: the signal crowns a failing sun. Order survives briefly, then collapses into ash and rationed daylight.';
+  if (endingKey === 'new_sun_risen') {
+    return 'New Sun Ending: you figured out the true ignition. Rite, code, witness-law, and private miracle align, and a living new sun rises over a changed world.';
   }
-  if (endingKey === 'salvation_guarded_dawn') {
-    return 'Salvation Ending: evacuation lanes hold, the old compacts endure, and a measured dawn stabilizes the provinces.';
-  }
-  return 'New Sun Ending: paradox scars reshape the sky into a new cycle. The world survives, altered beyond all previous maps.';
+  return 'Old World Religious Ending: the old faith absorbs the collapse into doctrine. The people survive under sacred rationing, but dawn belongs to inherited law rather than a new future.';
 }
 
 function resolveSolarCycleEnding(forceResolve) {
@@ -1082,7 +1108,7 @@ function resolveSolarCycleEnding(forceResolve) {
   S.storyline.flags = S.storyline.flags || {};
   S.storyline.flags.newSunEnding = endingKey;
 
-  if (typeof showNotif === 'function') showNotif('New Sun ending resolved: ' + endingKey.replace(/_/g, ' ') + '.', endingKey === 'doom_nightfall' ? 'warn' : 'good');
+  if (typeof showNotif === 'function') showNotif('New Sun ending resolved: ' + endingKey.replace(/_/g, ' ') + '.', endingKey === 'old_world_religious_ending' ? 'warn' : 'good');
   if (typeof renderHexMap === 'function') renderHexMap();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
@@ -1759,8 +1785,41 @@ function placeSolarCycleStageMarker(stageId) {
   }
 
   sc.arcProgress.postedStageIds[stage.id] = true;
+  sc.arcProgress.lastAutoOpenedMarkerKey = '';
   sc.arcProgress.activeMarker = marker;
   return marker;
+}
+
+function getSolarCycleActiveMarkerKey(sc) {
+  var state = sc || ensureSolarCycleState();
+  var active = state && state.arcProgress ? state.arcProgress.activeMarker : null;
+  if (!active) return '';
+  return String(active.region || '') + ':' + String(active.key || active.hexId || active.taskId || '');
+}
+
+function maybeAutoOpenSolarCycleWTW() {
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.enabled || !sc.arcProgress || !sc.arcProgress.activeMarker) return false;
+  var active = sc.arcProgress.activeMarker;
+  if (active.region !== 'wtw') return false;
+  if (!S || !S.worldThatWas || String(S.worldThatWas.selectedHexId || '') !== String(active.hexId || active.key || '')) return false;
+  var markerKey = getSolarCycleActiveMarkerKey(sc);
+  if (sc.arcProgress.lastAutoOpenedMarkerKey === markerKey) return false;
+  sc.arcProgress.lastAutoOpenedMarkerKey = markerKey;
+  return resolveSolarCycleWTWMarker(active.hexId || active.key);
+}
+
+function maybeAutoOpenSolarCycleGalaxy() {
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.enabled || !sc.arcProgress || !sc.arcProgress.activeMarker) return false;
+  var active = sc.arcProgress.activeMarker;
+  if (active.region !== 'galaxy') return false;
+  if (!S || !S.starSystem || Number(S.starSystem.currentHexId) !== Number(active.hexId || active.key)) return false;
+  var markerKey = getSolarCycleActiveMarkerKey(sc);
+  if (sc.arcProgress.lastAutoOpenedMarkerKey === markerKey) return false;
+  sc.arcProgress.lastAutoOpenedMarkerKey = markerKey;
+  if (active.taskId) renderGalaxyTaskPanel(active.taskId);
+  return true;
 }
 
 function syncSolarCycleArcProgressFromCompleted(notify) {
@@ -1859,6 +1918,7 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
     day: Number(sc.daysElapsed || 0)
   };
   sc.arcProgress.completedStageIds[stageId] = true;
+  sc.arcProgress.lastAutoOpenedMarkerKey = '';
   sc.arcProgress.activeMarker = null;
   clearSolarCycleQuestMarkers();
   syncSolarCycleArcProgressFromCompleted(true);
@@ -1983,6 +2043,8 @@ window.resolveSolarCycleProvinceStoryMarker = resolveSolarCycleProvinceStoryMark
 window.resolveSolarCycleSeaMarker = resolveSolarCycleSeaMarker;
 window.resolveSolarCycleWTWMarker = resolveSolarCycleWTWMarker;
 window.renderSolarCycleGalaxyTaskPanel = renderSolarCycleGalaxyTaskPanel;
+window.maybeAutoOpenSolarCycleWTW = maybeAutoOpenSolarCycleWTW;
+window.maybeAutoOpenSolarCycleGalaxy = maybeAutoOpenSolarCycleGalaxy;
 
 function ensureStarsState() {
   if (!S.health && S.health !== 0) S.health = S.stress || 0;
@@ -9239,6 +9301,7 @@ function updateStarSystemReadouts() {
   if (radio) {
     radio.textContent = S.starSystem.lastRadioEvent || 'No monthly radio events yet.';
   }
+  maybeAutoOpenSolarCycleGalaxy();
 }
 
 function rollStarSystemExploration() {

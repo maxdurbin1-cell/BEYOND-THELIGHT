@@ -1594,6 +1594,9 @@
           });
         }
         renderWorldThatWas();
+        if (typeof window.maybeAutoOpenSolarCycleWTW === "function") {
+          window.maybeAutoOpenSolarCycleWTW();
+        }
       });
 
       svg.appendChild(g);
@@ -3168,6 +3171,9 @@
     renderWorldThatWasMap();
     renderWorldThatWasInfo();
     renderPowerReadout();
+    if (typeof window.maybeAutoOpenSolarCycleWTW === "function") {
+      window.maybeAutoOpenSolarCycleWTW();
+    }
   }
 
   function mountWorldThatWasPanel() {

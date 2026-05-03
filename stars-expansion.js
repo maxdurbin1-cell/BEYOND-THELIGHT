@@ -1547,9 +1547,9 @@ function resolveSolarCycleProvinceMarker(hex, markerToken) {
     + '<strong style="color:var(--gold2);">Solar Omen</strong><br>' + text + '</div>'
     + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.45rem;">Choose how to interpret this marker. Interaction is permanent.</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
-    + '<button class="btn btn-sm btn-teal" onclick="completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"observe\"); closeModal();">Observe</button>'
-    + '<button class="btn btn-sm btn-warn" onclick="completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"intervene\"); closeModal();">Intervene</button>'
-    + '<button class="btn btn-sm" onclick="completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"ignore\"); closeModal();">Ignore</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="window.completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"observe\"); closeModal();">Observe</button>'
+    + '<button class="btn btn-sm btn-warn" onclick="window.completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"intervene\"); closeModal();">Intervene</button>'
+    + '<button class="btn btn-sm" onclick="window.completeSolarCycleMarkerInteraction(window.selectedHex, window._activeSolarMarkerToken, \"ignore\"); closeModal();">Ignore</button>'
     + '</div>';
 
   window._activeSolarMarkerToken = markerToken;
@@ -1682,6 +1682,11 @@ function setSolarCycleStoryModeEnabled(enabled) {
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return sc;
+}
+
+function toggleSolarCycleStoryMode() {
+  var sc = ensureSolarCycleState();
+  return setSolarCycleStoryModeEnabled(!(sc && sc.storyModeEnabled));
 }
 
 function startSolarCycleMode(activeArc) {
@@ -1871,7 +1876,7 @@ function renderNewSunModePanel() {
       + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Resolve once Day 100 is forced or all stage markers are complete.</div>'
       + (projectedEndingText ? ('<div style="font-size:.75rem;color:var(--gold2);line-height:1.5;margin-bottom:.35rem;">Projected ending if the arc ended now: ' + projectedEndingText + '</div>') : '')
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
-      + '<button class="btn btn-sm btn-gold" onclick="resolveSolarCycleEnding(false)">Resolve Ending</button>'
+      + '<button class="btn btn-sm btn-gold" onclick="window.resolveSolarCycleEnding(false)">Resolve Ending</button>'
       + '</div>'
       + (endingText ? ('<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">' + endingText + '</div>' + (endingRewardText ? '<div style="font-size:.74rem;color:var(--teal);line-height:1.55;margin-top:.25rem;">' + endingRewardText + '</div>' : '')) : '<div style="font-size:.74rem;color:var(--muted2);">No ending locked yet.</div>')
       + '</div>')
@@ -1883,15 +1888,15 @@ function renderNewSunModePanel() {
     : '<div style="font-size:.74rem;color:var(--muted2);">No omens logged yet.</div>';
 
   var toggleBtn = '<button class="btn btn-sm ' + (status.storyModeEnabled ? 'btn-red' : 'btn-teal') + '"'
-    + (soloAllowed ? ' onclick="setSolarCycleStoryModeEnabled(' + (!status.storyModeEnabled) + ')"' : ' disabled')
+    + (soloAllowed ? ' onclick="window.toggleSolarCycleStoryMode()"' : ' disabled')
     + '>' + (status.storyModeEnabled ? 'Turn New Sun OFF' : 'Turn New Sun ON') + '</button>';
 
   var startButtons = status.storyModeEnabled
     ? ('<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.4rem;">'
-      + '<button class="btn btn-sm btn-gold" onclick="startSolarCycleMode(\'relic\')">Start Relic Arc</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="startSolarCycleMode(\'herald\')">Start Herald Arc</button>'
-      + '<button class="btn btn-sm btn-warn" onclick="startSolarCycleMode(\'loop\')">Start Loop Arc</button>'
-      + '<button class="btn btn-sm" onclick="stopSolarCycleRun()">Stop Current Run</button>'
+      + '<button class="btn btn-sm btn-gold" onclick="window.startSolarCycleMode(\'relic\')">Start Relic Arc</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="window.startSolarCycleMode(\'herald\')">Start Herald Arc</button>'
+      + '<button class="btn btn-sm btn-warn" onclick="window.startSolarCycleMode(\'loop\')">Start Loop Arc</button>'
+      + '<button class="btn btn-sm" onclick="window.stopSolarCycleRun()">Stop Current Run</button>'
       + '</div>')
     : '';
 
@@ -1905,7 +1910,7 @@ function renderNewSunModePanel() {
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
       + (rewindOptions.length
           ? rewindOptions.map(function (n) {
-              return '<button class="btn btn-sm btn-warn" onclick="applySolarCycleTimeFracture(' + n + ')">Rewind ' + n + ' Day' + (n === 1 ? '' : 's') + '</button>';
+              return '<button class="btn btn-sm btn-warn" onclick="window.applySolarCycleTimeFracture(' + n + ')">Rewind ' + n + ' Day' + (n === 1 ? '' : 's') + '</button>';
             }).join('')
           : '<button class="btn btn-sm" disabled>No rewind available</button>')
       + '</div>'
@@ -1915,9 +1920,27 @@ function renderNewSunModePanel() {
   host.innerHTML = ''
     + '<div style="max-width:1040px;margin:0 auto;padding:1rem;">'
     + '<div class="section-title">New Sun Mode</div>'
+    + '<div style="background:linear-gradient(135deg,rgba(201,162,39,.12) 0%,rgba(46,196,182,.06) 100%);border:1px solid rgba(201,162,39,.24);padding:.85rem .95rem;margin-bottom:.7rem;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.92rem;color:var(--gold2);margin-bottom:.25rem;">What This Tab Is</div>'
+    + '<div style="font-size:.8rem;color:var(--text2);line-height:1.62;margin-bottom:.45rem;">New Sun is a separate solo endgame mode. It runs a 100-day collapse clock, throws moving quest markers across multiple maps, includes missable omens and rewinds, and resolves into different endings depending on what you chose, failed, ignored, or reached too late.</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.45rem;">'
+    + '<div style="background:rgba(6,7,14,.42);border:1px solid var(--border2);padding:.45rem .5rem;">'
+    + '<div style="font-size:.68rem;color:var(--gold2);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.15rem;">New Sun</div>'
+    + '<div style="font-size:.76rem;color:var(--muted3);line-height:1.55;">A timed, map-driven apocalypse run. Quest markers can move or be missed, endings can fracture, and time travel scars the route.</div>'
+    + '</div>'
+    + '<div style="background:rgba(6,7,14,.42);border:1px solid var(--border2);padding:.45rem .5rem;">'
+    + '<div style="font-size:.68rem;color:var(--teal);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.15rem;">Storyline Tab</div>'
+    + '<div style="font-size:.76rem;color:var(--muted3);line-height:1.55;">The main scene-based narrative. It tracks dialogue and character consequences, but it does not run the New Sun doom clock or cross-map marker campaign.</div>'
+    + '</div>'
+    + '<div style="background:rgba(6,7,14,.42);border:1px solid var(--border2);padding:.45rem .5rem;">'
+    + '<div style="font-size:.68rem;color:var(--red2);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.15rem;">How To Use It</div>'
+    + '<div style="font-size:.76rem;color:var(--muted3);line-height:1.55;">Turn it on, start an arc, then follow the active marker through province, sea, World That Was, and space before missed windows or bad calls close routes.</div>'
+    + '</div>'
+    + '</div>'
+    + '</div>'
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.28rem;"><strong>Solo Story Toggle</strong></div>'
-    + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">New Sun is optional and separate from Storyline. Keep it OFF for legacy play, or turn it ON to run the 100-day solo collapse arc.</div>'
+    + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Turn this on to activate the New Sun ruleset. Unlike Storyline, this mode advances toward a forced finale, spawns moving map markers, and permanently changes the route when you miss or fail certain branches.</div>'
     + (soloAllowed ? '' : '<div style="font-size:.76rem;color:var(--red2);margin-top:.35rem;">Unavailable while connected to Campaign mode.</div>')
     + '<div style="margin-top:.45rem;">' + toggleBtn + '</div>'
     + startButtons
@@ -1925,11 +1948,11 @@ function renderNewSunModePanel() {
     + rewindControls
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Arc Campaign</strong></div>'
-    + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Province -> Last Sea -> World That Was -> Space. Each stage places a moving quest marker on the active map. Enter that hex to trigger hidden or unlocked narrative choices.</div>'
+    + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Province -> Last Sea -> World That Was -> Space. Each stage places an active story marker on the map itself. Enter that location to trigger hidden, unlocked, or time-sensitive choices that can open later routes, block others, or reshape the finale.</div>'
     + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">Progress: <strong>' + Number(status.arcStageIndex || 0) + '</strong> / ' + Number(status.arcStageTotal || NEW_SUN_ARC_STAGES.length) + '</div>'
     + (status.activeMarkerLabel ? '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.35rem;">Current Marker: ' + status.activeMarkerLabel + '</div>' : '')
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
-    + '<button class="btn btn-sm btn-teal"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="postNextSolarCycleArcMission()"' : ' disabled') + '>Place Next Story Marker</button>'
+    + '<button class="btn btn-sm btn-teal"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="window.postNextSolarCycleArcMission()"' : ' disabled') + '>Place Next Story Marker</button>'
     + '</div>'
     + arcRows
     + '</div>'
@@ -2175,7 +2198,7 @@ function renderSolarCycleChoiceCards(stageId, sceneChoices, compact) {
     var border = unlocked ? 'var(--border2)' : 'rgba(240,160,80,.35)';
     var titleTone = unlocked ? 'var(--text2)' : 'var(--muted2)';
     var buttonHtml = unlocked
-      ? '<button class="btn ' + (isCompact ? 'btn-xs' : 'btn-sm') + ' btn-teal" onclick="resolveSolarCycleStageChoice(\'' + stageId + '\',\'' + choice.id + '\')">Choose</button>'
+      ? '<button class="btn ' + (isCompact ? 'btn-xs' : 'btn-sm') + ' btn-teal" onclick="window.resolveSolarCycleStageChoice(\'' + stageId + '\',\'' + choice.id + '\')">Choose</button>'
       : '<button class="btn ' + (isCompact ? 'btn-xs' : 'btn-sm') + '" disabled>Unavailable</button>';
     return '<div style="border:1px solid ' + border + ';background:' + bg + ';padding:' + (isCompact ? '.45rem .5rem' : '.5rem .6rem') + ';margin-bottom:.35rem;opacity:' + (unlocked ? '1' : '.92') + ';">'
       + '<div style="font-size:' + (isCompact ? '.82rem' : '.84rem') + ';color:' + titleTone + ';margin-bottom:.18rem;">' + escapeSolarCycleHtml(choice.text) + (unlocked ? '' : ' <span style="color:var(--gold2);">[Locked]</span>') + '</div>'
@@ -2343,6 +2366,7 @@ window.getSolarCycleStatus = getSolarCycleStatus;
 window.resolveSolarCycleProvinceMarker = resolveSolarCycleProvinceMarker;
 window.completeSolarCycleMarkerInteraction = completeSolarCycleMarkerInteraction;
 window.setSolarCycleStoryModeEnabled = setSolarCycleStoryModeEnabled;
+window.toggleSolarCycleStoryMode = toggleSolarCycleStoryMode;
 window.stopSolarCycleRun = stopSolarCycleRun;
 window.renderNewSunModePanel = renderNewSunModePanel;
 window.applySolarCycleTimeFracture = applySolarCycleTimeFracture;

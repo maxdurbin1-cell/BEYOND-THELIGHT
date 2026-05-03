@@ -4805,6 +4805,9 @@
   window.renderStorylinePanel = renderStorylinePanel;
   window.openStorylineTab = openStorylineTab;
   window.runStoryOption = runStoryOption;
+  window.storyHasReq = hasReq;
+  window.storyRenderRequirement = renderRequirement;
+  window.storyConsumeBackpackAny = consumeBackpackAny;
   window.storyJumpSystem = jumpSystemById;
   window.storyAdjustOptionDread = adjustStoryOptionDread;
   window.storySetAssignee = storySetAssignee;

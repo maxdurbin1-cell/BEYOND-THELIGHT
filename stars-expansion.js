@@ -596,6 +596,137 @@ const NEW_SUN_BRANCH_POINTS = {
   }
 };
 
+const NEW_SUN_STAGE_SCENES = {
+  province_lens: {
+    intro: 'At the drowned observatory, the lens keeps replaying half-remembered dawns. The keeper recognizes your name, but only in futures that have not happened yet.',
+    choices: [
+      {
+        id: 'preserve_oath',
+        text: 'Recite the keeper oath and align the lens with witness-law',
+        stat: 'spirit',
+        baseDread: 8,
+        req: { backgroundIncludes: ['temple', 'scholar', 'historian'], backstorySet: true },
+        success: { text: 'The lens accepts restraint. The keeper yields the route and names you witness, not owner.', branchChoice: 'preserve', effects: { renown: 1, worldTilt: -1, flags: { newSunLensWitnessed: true }, prophecy: 'The drowned lens opens only for sworn witnesses.' } },
+        fail: { text: 'Your oath falters, but the keeper still marks a safe corridor if you agree to carry the old law forward.', branchChoice: 'preserve', effects: { mentalStress: 1, flags: { newSunLensWitnessed: true } } }
+      },
+      {
+        id: 'break_seal',
+        text: 'Break the seal, steal the lens, and outrun the flood',
+        stat: 'control',
+        baseDread: 10,
+        req: { backpackAny: ['lockpick', 'warding sigil', 'scavenger\'s pouch', 'bind oath'], consumeRequiredItem: true },
+        success: { text: 'The housing screams open. You leave with the lens and a future full of accusations.', branchChoice: 'break', effects: { credits: 60, worldTilt: 1, paradoxStrain: 1, flags: { newSunLensStolen: true }, prophecy: 'The first dawn is taken by force.' } },
+        fail: { text: 'The mechanism bites back. You still wrench the lens free, but the observatory brands you oathbreaker in every echo.', branchChoice: 'break', effects: { health: 1, mentalStress: 1, worldTilt: 1, paradoxStrain: 1, flags: { newSunLensStolen: true } } }
+      },
+      {
+        id: 'read_refraction',
+        text: 'Read your backstory in the refraction and take the hidden route',
+        stat: 'mind',
+        baseDread: 9,
+        req: { backstorySet: true, actionDieAtLeast: { stat: 'mind', min: 8 } },
+        success: { text: 'Your own origin refracts into a route no chart recorded. The keepers accept your passage under oath.', branchChoice: 'preserve', effects: { renown: 1, flags: { newSunBackstoryRoute: true }, prophecy: 'Your first home becomes the map key.' } },
+        fail: { text: 'The refraction cuts too deep. You recover the route but carry a private wound into the sea.', branchChoice: 'preserve', effects: { mentalStress: 1, paradoxStrain: 1, flags: { newSunBackstoryRoute: true } } }
+      }
+    ]
+  },
+  sea_keeper: {
+    intro: 'The beacon chain at the Last Sea rings without wind. Refugee hulls, warships, and pilgrim skiffs all wait for your verdict before the tides close.',
+    choices: [
+      {
+        id: 'bind_fleet',
+        text: 'Bind the fleet to evacuation lanes and shared witness marks',
+        stat: 'lead',
+        baseDread: 8,
+        req: { backgroundIncludes: ['merchant', 'investigator', 'temple', 'noble'] },
+        success: { text: 'Harbor captains swear the compact. Civilians clear the channel and the beacon burns steady.', branchChoice: 'bind', effects: { renown: 1, tmw: 1, worldTilt: -1, flags: { newSunSafeCurrents: true }, prophecy: 'The Last Sea remembers promises spoken aloud.' } },
+        fail: { text: 'Some captains balk, but enough obey to save a narrow lane through the storm.', branchChoice: 'bind', effects: { tmw: 1, flags: { newSunSafeCurrents: true } } }
+      },
+      {
+        id: 'draft_hulls',
+        text: 'Draft every hull for war and turn the beacon into a command tower',
+        stat: 'defend',
+        baseDread: 10,
+        req: { actionDieAtLeast: { stat: 'defend', min: 8 } },
+        success: { text: 'The coast obeys under iron discipline. No ship slips the blockade without your word.', branchChoice: 'draft', effects: { faction: { military: 1 }, worldTilt: 1, paradoxStrain: 1, flags: { newSunWarFleet: true }, prophecy: 'The bells become war-horns.' } },
+        fail: { text: 'The draft turns ugly. You hold the tower, but the sea remembers the violence.', branchChoice: 'draft', effects: { health: 1, worldTilt: 1, paradoxStrain: 1, flags: { newSunWarFleet: true } } }
+      },
+      {
+        id: 'speak_dead_tide',
+        text: 'Ask the drowned route-masters for the safer current',
+        stat: 'spirit',
+        baseDread: 9,
+        req: { flavorAny: ['grave whisper', 'time traveler', 'relive last moments'], backgroundIncludes: ['temple', 'scholar', 'outlaw'] },
+        success: { text: 'The drowned answer with coordinates and demand mercy for the living.', branchChoice: 'bind', effects: { renown: 1, flags: { newSunDeadCharts: true }, prophecy: 'The drowned chart a merciful channel.' } },
+        fail: { text: 'They answer in fragments. The route still opens, but the dead leave frost in your lungs.', branchChoice: 'bind', effects: { mentalStress: 1, tmw: 1 } }
+      }
+    ]
+  },
+  wtw_archive: {
+    intro: 'The Glass Archive catalogs false futures beside real ones. Each shelf contains a version of you that almost reached a different dawn.',
+    choices: [
+      {
+        id: 'audit_memories',
+        text: 'Audit the counterfeit memories and keep only verified testimony',
+        stat: 'mind',
+        baseDread: 10,
+        req: { backgroundIncludes: ['scholar', 'historian', 'investigator'], actionDieAtLeast: { stat: 'mind', min: 8 } },
+        success: { text: 'You cut through the archive lies and recover a lawful path to orbit.', effects: { renown: 1, flags: { newSunArchiveAudit: true }, prophecy: 'Only witnessed memory survives the glass.' } },
+        fail: { text: 'The archive floods you with almost-truths. You still escape with coordinates, but doubt clings to them.', effects: { mentalStress: 1, paradoxStrain: 1 } }
+      },
+      {
+        id: 'trade_rebel_passage',
+        text: 'Trade on your backstory network to smuggle the archive key out',
+        stat: 'control',
+        baseDread: 9,
+        req: { backstoryConnectionExists: true, backstoryRivalExists: true },
+        success: { text: 'Your old network closes ranks. The key reaches orbit before the Regiment can react.', effects: { faction: { rebels: 1, military: -1 }, flags: { newSunSmuggledArchive: true }, prophecy: 'Old debts buy tomorrow a second time.' } },
+        fail: { text: 'The network fractures, but one contact still carries the key clear of the district.', effects: { credits: -40, mentalStress: 1, flags: { newSunSmuggledArchive: true } } }
+      },
+      {
+        id: 'break_ledger_ward',
+        text: 'Break the archive ward with a stolen rite or field tool',
+        stat: 'adventure',
+        baseDread: 10,
+        req: { backpackAny: ['scroll', 'warding sigil', 'lockpick', 'dungeoneer\'s kit'], consumeRequiredItem: true },
+        success: { text: 'The ward buckles. The false ledger burns and the true launch window appears beneath it.', effects: { credits: 80, flags: { newSunWardBroken: true } } },
+        fail: { text: 'The rite misfires. The ledger still opens, but glass shards follow you into the launch corridor.', effects: { health: 1, mentalStress: 1 } }
+      }
+    ]
+  },
+  space_signal: {
+    intro: 'At heliostat grave orbit, the starward signal awaits a final doctrine. One verdict can disperse power, centralize it, or refuse the entire machine.',
+    choices: [
+      {
+        id: 'open_shared_dawn',
+        text: 'Open a shared dawn through distributed witness relays',
+        stat: 'lead',
+        baseDread: 12,
+        req: { flagEq: { key: 'newSunSafeCurrents', value: true }, actionDieAtLeast: { stat: 'lead', min: 8 } },
+        success: { text: 'The relays accept a thousand witnesses. Dawn is shared instead of owned.', branchChoice: 'open', effects: { renown: 2, worldTilt: -1, flags: { newSunSharedDawn: true }, prophecy: 'A thousand mirrors carry one sunrise.' } },
+        fail: { text: 'The lattice flickers, but enough relays hold to deny any single throne.', branchChoice: 'open', effects: { mentalStress: 1, flags: { newSunSharedDawn: true } } }
+      },
+      {
+        id: 'crown_successor',
+        text: 'Crown a successor sun and force every system to align',
+        stat: 'control',
+        baseDread: 12,
+        req: { actionDieAtLeast: { stat: 'control', min: 8 }, backpackAny: ['retainer contract', 'warding sigil', 'bind oath'] },
+        success: { text: 'The signal accepts a sovereign pattern. Order returns fast and hard.', branchChoice: 'crown', effects: { renown: 2, worldTilt: 1, paradoxStrain: 2, flags: { newSunCrowned: true }, prophecy: 'One star is named sovereign over all others.' } },
+        fail: { text: 'The crown slips crookedly into place. Authority holds, but every mirror hums with instability.', branchChoice: 'crown', effects: { health: 1, paradoxStrain: 2, flags: { newSunCrowned: true } } }
+      },
+      {
+        id: 'sever_signal',
+        text: 'Sever the signal and leave the old sky scarred but free',
+        stat: 'strike',
+        baseDread: 11,
+        req: { backgroundIncludes: ['outlaw', 'drifter', 'soldier', 'smuggler'] },
+        success: { text: 'You cut the lattice loose. The old cycle survives, unstable and unwilling to forget you.', branchChoice: 'sever', effects: { renown: 1, paradoxStrain: 1, flags: { newSunSignalSevered: true }, prophecy: 'The sky remembers your refusal.' } },
+        fail: { text: 'The lattice tears raggedly. The signal dies anyway, but takes a piece of you with it.', branchChoice: 'sever', effects: { health: 1, mentalStress: 1, paradoxStrain: 1, flags: { newSunSignalSevered: true } } }
+      }
+    ]
+  }
+};
+
 function getSolarCycleDayKey() {
   const gd = (S && S.gameDate) ? S.gameDate : {};
   return [gd.year || 1, gd.month || 1, gd.day || 1].join('-');
@@ -650,6 +781,8 @@ function ensureSolarCycleState() {
   if (!sc.arcProgress.postedStageIds || typeof sc.arcProgress.postedStageIds !== 'object') sc.arcProgress.postedStageIds = {};
   if (!sc.arcProgress.completedStageIds || typeof sc.arcProgress.completedStageIds !== 'object') sc.arcProgress.completedStageIds = {};
   if (!sc.arcProgress.branchChoices || typeof sc.arcProgress.branchChoices !== 'object') sc.arcProgress.branchChoices = {};
+  if (!sc.arcProgress.stageResults || typeof sc.arcProgress.stageResults !== 'object') sc.arcProgress.stageResults = {};
+  if (!sc.arcProgress.activeMarker || typeof sc.arcProgress.activeMarker !== 'object') sc.arcProgress.activeMarker = null;
   if (!Array.isArray(sc.arcProgress.history)) sc.arcProgress.history = [];
   if (typeof sc.arcProgress.lastSyncedCompletedCount !== 'number') sc.arcProgress.lastSyncedCompletedCount = 0;
   if (!sc.playstyle || typeof sc.playstyle !== 'object') sc.playstyle = { observe: 0, intervene: 0, ignore: 0 };
@@ -1195,6 +1328,8 @@ function stopSolarCycleRun() {
   if (!sc) return null;
   sc.enabled = false;
   sc.pendingEchoMarker = null;
+  if (sc.arcProgress) sc.arcProgress.activeMarker = null;
+  clearSolarCycleQuestMarkers();
   clearSolarCycleProvinceMarkers();
   if (typeof renderHexMap === 'function') renderHexMap();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
@@ -1253,6 +1388,8 @@ function startSolarCycleMode(activeArc) {
     postedStageIds: {},
     completedStageIds: {},
     branchChoices: {},
+    stageResults: {},
+    activeMarker: null,
     activeMissionId: null,
     history: [],
     lastSyncedCompletedCount: 0
@@ -1266,6 +1403,7 @@ function startSolarCycleMode(activeArc) {
   sc.pendingEchoMarker = null;
 
   syncSolarCycleProvinceMarkers();
+  postNextSolarCycleArcMission();
 
   if (typeof showNotif === 'function') {
     showNotif('Solar Cycle started: 100 days until solar collapse.', 'warn');
@@ -1356,6 +1494,7 @@ function getSolarCycleStatus() {
     rewindCap: getSolarCycleRewindCap(sc),
     arcStageIndex: sc.arcProgress ? Number(sc.arcProgress.stageIndex || 0) : 0,
     arcStageTotal: NEW_SUN_ARC_STAGES.length,
+    activeMarkerLabel: sc.arcProgress && sc.arcProgress.activeMarker ? String(sc.arcProgress.activeMarker.label || '') : '',
     pendingBranch: getPendingSolarCycleBranch(sc),
     endingKey: (sc.finale && sc.finale.key) ? String(sc.finale.key) : '',
     endingResolved: !!(sc.finale && sc.finale.resolved)
@@ -1389,24 +1528,18 @@ function renderNewSunModePanel() {
       + (idx + 1) + '. ' + stage.title + ' (' + stage.region + ') - ' + tag + branchText + '</div>';
   }).join('');
 
-  var branchControls = '';
-  if (branch) {
-    var branchButtons = Object.keys(branch.choices).map(function (choiceKey) {
-      var choice = branch.choices[choiceKey];
-      return '<button class="btn btn-sm btn-teal" onclick="chooseSolarCycleBranch(\'' + pendingBranch + '\',\'' + choiceKey + '\')">' + choice.label + '</button>';
-    }).join('');
-    branchControls = '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
+  var branchControls = branch
+    ? ('<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
       + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>' + branch.title + '</strong></div>'
-      + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">' + branch.prompt + '</div>'
-      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">' + branchButtons + '</div>'
-      + '</div>';
-  }
+      + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;">Pending legacy branch state detected. Resolve it from this panel, or continue the newer marker-driven route for future stages.</div>'
+      + '</div>')
+    : '';
 
   var endingText = (sc.finale && sc.finale.text) ? String(sc.finale.text) : '';
   var endingControls = (status.storyModeEnabled)
     ? ('<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
       + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Ending Resolution</strong></div>'
-      + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Resolve once Day 100 is forced or all arc missions are complete.</div>'
+      + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Resolve once Day 100 is forced or all stage markers are complete.</div>'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
       + '<button class="btn btn-sm btn-gold" onclick="resolveSolarCycleEnding(false)">Resolve Ending</button>'
       + '</div>'
@@ -1462,10 +1595,11 @@ function renderNewSunModePanel() {
     + rewindControls
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Arc Campaign</strong></div>'
-    + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Province -> Last Sea -> World That Was -> Space. Complete each posted mission to unlock the next stage.</div>'
+    + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Province -> Last Sea -> World That Was -> Space. Each stage places a moving quest marker on the active map. Enter that hex to trigger hidden or unlocked narrative choices.</div>'
     + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">Progress: <strong>' + Number(status.arcStageIndex || 0) + '</strong> / ' + Number(status.arcStageTotal || NEW_SUN_ARC_STAGES.length) + '</div>'
+    + (status.activeMarkerLabel ? '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.35rem;">Current Marker: ' + status.activeMarkerLabel + '</div>' : '')
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
-    + '<button class="btn btn-sm btn-teal"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="postNextSolarCycleArcMission()"' : ' disabled') + '>Post Next Arc Mission</button>'
+    + '<button class="btn btn-sm btn-teal"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="postNextSolarCycleArcMission()"' : ' disabled') + '>Place Next Story Marker</button>'
     + '</div>'
     + arcRows
     + '</div>'
@@ -1488,6 +1622,308 @@ function renderNewSunModePanel() {
     + prophecy
     + '</div>'
     + '</div>';
+}
+
+function getSolarCycleStageScene(stageId) {
+  return NEW_SUN_STAGE_SCENES[String(stageId || '')] || null;
+}
+
+function escapeSolarCycleHtml(value) {
+  return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function applySolarCycleChoiceEffects(effects) {
+  if (!effects || typeof effects !== 'object') return;
+  if (typeof effects.renown === 'number') {
+    if (typeof changeCounter === 'function') changeCounter('renown', effects.renown);
+    else S.renown = Math.max(0, Number(S.renown || 0) + Number(effects.renown || 0));
+  }
+  if (typeof effects.tmw === 'number') {
+    if (typeof changeCounter === 'function') changeCounter('tmw', effects.tmw);
+    else S.tmw = Math.max(0, Number(S.tmw || 0) + Number(effects.tmw || 0));
+  }
+  if (typeof effects.credits === 'number') {
+    if (typeof changeCredits === 'function') changeCredits(effects.credits);
+    else S.credits = Math.max(0, Number(S.credits || 0) + Number(effects.credits || 0));
+  }
+  if (typeof effects.health === 'number' && typeof changeHealth === 'function') changeHealth(effects.health);
+  if (typeof effects.mentalStress === 'number' && typeof changeMentalStress === 'function') changeMentalStress(effects.mentalStress);
+  if (effects.faction && typeof effects.faction === 'object') {
+    Object.keys(effects.faction).forEach(function (key) {
+      if (typeof changeFactionRenown === 'function') changeFactionRenown(key, Number(effects.faction[key] || 0));
+    });
+  }
+  if (effects.flags && typeof effects.flags === 'object') {
+    S.storyline = S.storyline || {};
+    S.storyline.flags = S.storyline.flags || {};
+    Object.keys(effects.flags).forEach(function (key) {
+      S.storyline.flags[key] = effects.flags[key];
+    });
+  }
+
+  var sc = ensureSolarCycleState();
+  if (!sc) return;
+  if (typeof effects.worldTilt === 'number') sc.worldTilt = Math.max(0, Math.min(4, Number(sc.worldTilt || 0) + Number(effects.worldTilt || 0)));
+  if (typeof effects.paradoxStrain === 'number' && sc.timeFracture && sc.timeFracture.scarFlags) {
+    sc.timeFracture.scarFlags.paradoxStrain = Math.max(0, Number(sc.timeFracture.scarFlags.paradoxStrain || 0) + Number(effects.paradoxStrain || 0));
+  }
+  if (effects.prophecy) sc.prophecyTrack.push(String(effects.prophecy));
+}
+
+function clearSolarCycleQuestMarkers() {
+  if (S && S.missionTokens && typeof S.missionTokens === 'object') {
+    Object.keys(S.missionTokens).forEach(function (key) {
+      var token = S.missionTokens[key];
+      if (token && token.missionId === 'solar_cycle_story') delete S.missionTokens[key];
+    });
+  }
+  if (S && S.lastSea && S.lastSea.missionTokens && typeof S.lastSea.missionTokens === 'object') {
+    Object.keys(S.lastSea.missionTokens).forEach(function (key) {
+      var token = S.lastSea.missionTokens[key];
+      if (token && token.missionId === 'solar_cycle_story') delete S.lastSea.missionTokens[key];
+    });
+  }
+  if (S && S.starSystem && Array.isArray(S.starSystem.taskMarkers)) {
+    S.starSystem.taskMarkers.forEach(function (task) {
+      if (task && task.interaction === 'solar_cycle_choice') {
+        task.resolved = true;
+        var hex = (S.starSystem.hexes || []).find(function (entry) { return entry && entry.id === task.hexId; });
+        if (hex && hex.taskMarker && hex.taskMarker.id === task.id) hex.taskMarker.resolved = true;
+      }
+    });
+  }
+  if (S && S.worldThatWas && typeof window.wtwSyncMarkers === 'function') {
+    try { window.wtwSyncMarkers(); } catch (_err) {}
+  }
+  if (typeof renderHexMap === 'function') renderHexMap();
+  if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+  if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+  if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+}
+
+function pickSolarCycleSeaHex(seedOffset) {
+  if (!S || !S.lastSea || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return null;
+  var candidates = S.lastSea.map.filter(function (hex) { return hex && (hex.type === 'island' || hex.siteType); });
+  if (!candidates.length) candidates = S.lastSea.map.slice();
+  var idx = Math.abs(Number(seedOffset || 0)) % candidates.length;
+  return candidates[idx] || null;
+}
+
+function pickSolarCycleWTWHex(seedOffset) {
+  if (!S || !S.worldThatWas || !Array.isArray(S.worldThatWas.hexes) || !S.worldThatWas.hexes.length) return null;
+  var candidates = S.worldThatWas.hexes.filter(function (hex) { return hex && !hex.station && !hex.landingPad; });
+  if (!candidates.length) candidates = S.worldThatWas.hexes.slice();
+  var idx = Math.abs(Number(seedOffset || 0)) % candidates.length;
+  return candidates[idx] || null;
+}
+
+function placeSolarCycleStageMarker(stageId) {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  var stage = getSolarCycleStageById(stageId);
+  if (!sc || !stage) return null;
+
+  clearSolarCycleQuestMarkers();
+  var seed = Number(sc.echoSeed || 0) + Number(sc.daysElapsed || 0) * 23 + Number(sc.arcProgress.stageIndex || 0) * 41;
+  var marker = null;
+
+  if (stage.region === 'province') {
+    var provinceHex = pickSolarCycleProvinceHex(seed);
+    if (!provinceHex) return null;
+    var provinceKey = String(provinceHex.col) + ',' + String(provinceHex.row);
+    S.missionTokens = S.missionTokens || {};
+    S.missionTokens[provinceKey] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', title: stage.title, stageId: stage.id, text: getSolarCycleStageScene(stage.id).intro };
+    marker = { stageId: stage.id, region: 'province', key: provinceKey, label: 'Province Hex [' + (provinceHex.col + 1) + ',' + (provinceHex.row + 1) + ']' };
+    if (typeof renderHexMap === 'function') renderHexMap();
+  } else if (stage.region === 'sea') {
+    var seaHex = pickSolarCycleSeaHex(seed);
+    if (!seaHex) return null;
+    S.lastSea.missionTokens = S.lastSea.missionTokens || {};
+    S.lastSea.missionTokens[seaHex.key] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', title: stage.title, stageId: stage.id, text: getSolarCycleStageScene(stage.id).intro };
+    marker = { stageId: stage.id, region: 'sea', key: seaHex.key, label: 'Sea Hex ' + seaHex.key };
+    if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+  } else if (stage.region === 'wtw') {
+    var worldHex = pickSolarCycleWTWHex(seed);
+    if (!worldHex) return null;
+    marker = { stageId: stage.id, region: 'wtw', key: String(worldHex.id), label: worldHex.zone + ' - ' + worldHex.district, hexId: String(worldHex.id) };
+    if (typeof window.wtwSyncMarkers === 'function') window.wtwSyncMarkers();
+  } else if (stage.region === 'galaxy') {
+    var task = createGalaxyTask('New Sun', {
+      title: stage.title,
+      text: getSolarCycleStageScene(stage.id).intro,
+      missionId: stage.id,
+      interaction: 'solar_cycle_choice'
+    });
+    if (!task) return null;
+    marker = { stageId: stage.id, region: 'galaxy', key: String(task.hexId), label: 'Galaxy Hex #' + task.hexId, taskId: task.id, hexId: task.hexId };
+  }
+
+  sc.arcProgress.postedStageIds[stage.id] = true;
+  sc.arcProgress.activeMarker = marker;
+  return marker;
+}
+
+function syncSolarCycleArcProgressFromCompleted(notify) {
+  var sc = ensureSolarCycleState();
+  if (!sc) return null;
+  var progress = sc.arcProgress || {};
+  var nextIndex = 0;
+  while (nextIndex < NEW_SUN_ARC_STAGES.length && progress.completedStageIds[NEW_SUN_ARC_STAGES[nextIndex].id]) nextIndex += 1;
+  if (nextIndex > Number(progress.stageIndex || 0)) {
+    progress.history.push('Arc advanced to stage ' + nextIndex + ' on day ' + Number(sc.daysElapsed || 0) + '.');
+    if (notify && typeof showNotif === 'function') showNotif('New Sun arc advanced: ' + nextIndex + '/' + NEW_SUN_ARC_STAGES.length + '.', 'good');
+  }
+  progress.stageIndex = nextIndex;
+  if (progress.activeMarker && progress.completedStageIds[progress.activeMarker.stageId]) progress.activeMarker = null;
+  return progress;
+}
+
+function postNextSolarCycleArcMission() {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) {
+    if (typeof showNotif === 'function') showNotif('Start a New Sun run first.', 'warn');
+    return null;
+  }
+  var progress = syncSolarCycleArcProgressFromCompleted(false);
+  if (progress.activeMarker && !progress.completedStageIds[progress.activeMarker.stageId]) {
+    if (typeof showNotif === 'function') showNotif('A New Sun marker is already active at ' + progress.activeMarker.label + '.', 'info');
+    return progress.activeMarker;
+  }
+  if (progress.stageIndex >= NEW_SUN_ARC_STAGES.length) {
+    if (typeof showNotif === 'function') showNotif('All New Sun stage markers are complete. Resolve the ending.', 'info');
+    return null;
+  }
+  var stage = NEW_SUN_ARC_STAGES[progress.stageIndex];
+  var marker = placeSolarCycleStageMarker(stage.id);
+  if (marker && typeof showNotif === 'function') showNotif('New Sun marker placed: ' + stage.title + ' at ' + marker.label + '.', 'good');
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+  return marker;
+}
+
+function renderSolarCycleStageChoiceModal(stageId, contextLabel) {
+  var sc = ensureSolarCycleState();
+  var stage = getSolarCycleStageById(stageId);
+  var scene = getSolarCycleStageScene(stageId);
+  if (!sc || !stage || !scene || typeof openModal !== 'function') return false;
+  var choices = (scene.choices || []).filter(function (choice) {
+    return typeof window.storyHasReq === 'function' ? !!window.storyHasReq(choice.req) : true;
+  });
+  var choiceHtml = choices.map(function (choice) {
+    var reqText = typeof window.storyRenderRequirement === 'function' ? window.storyRenderRequirement(choice.req) : '';
+    var die = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
+    return '<div style="border:1px solid var(--border2);background:var(--surface);padding:.5rem .6rem;margin-bottom:.35rem;">'
+      + '<div style="font-size:.84rem;color:var(--text2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(choice.text) + '</div>'
+      + (choice.stat ? ('<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">' + String(choice.stat).toUpperCase() + ' d' + die + ' vs DD' + Number(choice.baseDread || 8) + '</div>') : '')
+      + (reqText ? ('<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;">' + escapeSolarCycleHtml(reqText) + '</div>') : '')
+      + '<button class="btn btn-sm btn-teal" onclick="resolveSolarCycleStageChoice(\'' + stageId + '\',\'' + choice.id + '\')">Choose</button>'
+      + '</div>';
+  }).join('');
+
+  openModal(
+    stage.title,
+    '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.25rem;">' + escapeSolarCycleHtml(contextLabel || stage.location) + '</div>'
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;margin-bottom:.5rem;">' + escapeSolarCycleHtml(scene.intro) + '</div>'
+    + (choiceHtml || '<div style="font-size:.76rem;color:var(--muted2);">No visible options match your current background, backstory, item loadout, or action dice here.</div>')
+  );
+  return true;
+}
+
+function resolveSolarCycleStageChoice(stageId, choiceId) {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  var stage = getSolarCycleStageById(stageId);
+  var scene = getSolarCycleStageScene(stageId);
+  if (!sc || !stage || !scene) return false;
+  var choice = (scene.choices || []).find(function (entry) { return entry.id === choiceId; });
+  if (!choice) return false;
+  if (typeof window.storyHasReq === 'function' && !window.storyHasReq(choice.req)) return false;
+
+  if (choice.req && choice.req.consumeRequiredItem && Array.isArray(choice.req.backpackAny) && typeof window.storyConsumeBackpackAny === 'function') {
+    window.storyConsumeBackpackAny(choice.req.backpackAny);
+  }
+
+  var actionDie = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
+  var dreadDie = Number(choice.baseDread || 8);
+  var actionRoll = choice.stat ? (typeof explodingRoll === 'function' ? explodingRoll(actionDie) : { total: roll(actionDie), exploded: false }) : { total: 0, exploded: false };
+  var dreadRoll = choice.stat ? (typeof explodingRoll === 'function' ? explodingRoll(dreadDie) : { total: roll(dreadDie), exploded: false }) : { total: 0, exploded: false };
+  var success = !choice.stat || Number(actionRoll.total || 0) >= Number(dreadRoll.total || 0);
+  var outcome = success ? (choice.success || {}) : (choice.fail || choice.success || {});
+
+  applySolarCycleChoiceEffects(outcome.effects || {});
+  if (stage.branchPoint && outcome.branchChoice) chooseSolarCycleBranch(stage.branchPoint, outcome.branchChoice);
+
+  sc.arcProgress.stageResults[stageId] = {
+    choiceId: choice.id,
+    success: !!success,
+    day: Number(sc.daysElapsed || 0)
+  };
+  sc.arcProgress.completedStageIds[stageId] = true;
+  sc.arcProgress.activeMarker = null;
+  clearSolarCycleQuestMarkers();
+  syncSolarCycleArcProgressFromCompleted(true);
+
+  var nextMarker = null;
+  if (Number(sc.arcProgress.stageIndex || 0) < NEW_SUN_ARC_STAGES.length) {
+    nextMarker = placeSolarCycleStageMarker(NEW_SUN_ARC_STAGES[sc.arcProgress.stageIndex].id);
+  }
+
+  if (typeof closeModal === 'function') closeModal();
+  if (typeof openModal === 'function') {
+    openModal(
+      stage.title + ' Resolved',
+      '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;">'
+      + escapeSolarCycleHtml(outcome.text || 'The stage resolves and the route changes.')
+      + (choice.stat ? ('<div style="margin-top:.35rem;font-size:.74rem;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + String(choice.stat).toUpperCase() + ' d' + actionDie + ' = ' + actionRoll.total + ' vs DD' + dreadDie + ' = ' + dreadRoll.total + '</div>') : '')
+      + (nextMarker ? ('<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">Next marker moved to ' + escapeSolarCycleHtml(nextMarker.label) + '.</div>') : '<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">No further stage marker remains. Resolve the ending from New Sun.</div>')
+      + '</div>'
+    );
+  }
+
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+  if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+  return true;
+}
+
+function resolveSolarCycleProvinceStoryMarker(hex, markerToken) {
+  if (!markerToken || markerToken.missionId !== 'solar_cycle_story') return false;
+  return renderSolarCycleStageChoiceModal(markerToken.stageId, 'Province Hex [' + (Number(hex.col || 0) + 1) + ',' + (Number(hex.row || 0) + 1) + ']');
+}
+
+function resolveSolarCycleSeaMarker(hexKey, markerToken) {
+  if (!markerToken || markerToken.missionId !== 'solar_cycle_story') return false;
+  return renderSolarCycleStageChoiceModal(markerToken.stageId, 'Sea Hex ' + String(hexKey || ''));
+}
+
+function resolveSolarCycleWTWMarker(hexId) {
+  var sc = ensureSolarCycleState();
+  var active = sc && sc.arcProgress ? sc.arcProgress.activeMarker : null;
+  if (!active || active.region !== 'wtw' || String(active.hexId || active.key || '') !== String(hexId || '')) return false;
+  return renderSolarCycleStageChoiceModal(active.stageId, active.label || ('District ' + String(hexId || '')));
+}
+
+function renderSolarCycleGalaxyTaskPanel(task) {
+  var out = document.getElementById('starExplorationDetail');
+  if (!task || !out) return false;
+  var scene = getSolarCycleStageScene(task.missionId);
+  var stage = getSolarCycleStageById(task.missionId);
+  if (!scene || !stage) return false;
+  var choices = (scene.choices || []).filter(function (choice) {
+    return typeof window.storyHasReq === 'function' ? !!window.storyHasReq(choice.req) : true;
+  }).map(function (choice) {
+    var reqText = typeof window.storyRenderRequirement === 'function' ? window.storyRenderRequirement(choice.req) : '';
+    var die = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
+    return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;margin-top:.35rem;">'
+      + '<div style="font-size:.82rem;color:var(--text2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(choice.text) + '</div>'
+      + (choice.stat ? ('<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.15rem;">' + String(choice.stat).toUpperCase() + ' d' + die + ' vs DD' + Number(choice.baseDread || 8) + '</div>') : '')
+      + (reqText ? ('<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.15rem;">' + escapeSolarCycleHtml(reqText) + '</div>') : '')
+      + '<button class="btn btn-xs btn-teal" onclick="resolveSolarCycleStageChoice(\'' + stage.id + '\',\'' + choice.id + '\')">Choose</button>'
+      + '</div>';
+  }).join('');
+  out.innerHTML = '<div style="font-size:.92rem;color:var(--gold2);margin-bottom:.25rem;">New Sun Marker: ' + escapeSolarCycleHtml(stage.title) + '</div>'
+    + '<div style="font-size:.86rem;color:var(--muted2);line-height:1.6;">' + escapeSolarCycleHtml(scene.intro) + '</div>'
+    + (choices || '<div style="font-size:.78rem;color:var(--muted2);margin-top:.35rem;">No visible options match your current build here.</div>');
+  return true;
 }
 
 function ensureNewSunTab() {
@@ -1542,6 +1978,11 @@ window.applySolarCycleTimeFracture = applySolarCycleTimeFracture;
 window.postNextSolarCycleArcMission = postNextSolarCycleArcMission;
 window.chooseSolarCycleBranch = chooseSolarCycleBranch;
 window.resolveSolarCycleEnding = resolveSolarCycleEnding;
+window.resolveSolarCycleStageChoice = resolveSolarCycleStageChoice;
+window.resolveSolarCycleProvinceStoryMarker = resolveSolarCycleProvinceStoryMarker;
+window.resolveSolarCycleSeaMarker = resolveSolarCycleSeaMarker;
+window.resolveSolarCycleWTWMarker = resolveSolarCycleWTWMarker;
+window.renderSolarCycleGalaxyTaskPanel = renderSolarCycleGalaxyTaskPanel;
 
 function ensureStarsState() {
   if (!S.health && S.health !== 0) S.health = S.stress || 0;
@@ -2268,6 +2709,9 @@ function renderGalaxyTaskPanel(taskId) {
   const out = document.getElementById('starExplorationDetail');
   if (!task || !out) return;
   S.starSystem.activeTask = task;
+  if (task.interaction === 'solar_cycle_choice' && typeof window.renderSolarCycleGalaxyTaskPanel === 'function') {
+    if (window.renderSolarCycleGalaxyTaskPanel(task)) return;
+  }
   if (task.source === 'Mission Board' && task.missionId && task.interaction === 'mission-step') {
     const stepBtn = task.missionStep === 'informer'
       ? `<button class="btn btn-xs btn-teal" onclick="if(typeof startMissionStep1==='function'){startMissionStep1(${task.missionId});}">Run Step 1: Info</button>`

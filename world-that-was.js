@@ -1325,6 +1325,12 @@
         setMarker(w, storyHex, "story", "Story Objective", "Travel here to continue the storyline.");
       }
     }
+    if (S && S.solarCycle && S.solarCycle.arcProgress && S.solarCycle.arcProgress.activeMarker && S.solarCycle.arcProgress.activeMarker.region === "wtw") {
+      const solarHex = hexById(S.solarCycle.arcProgress.activeMarker.hexId || S.solarCycle.arcProgress.activeMarker.key);
+      if (solarHex) {
+        setMarker(w, solarHex, "solar_cycle", "New Sun Marker", "Enter this district to trigger the next New Sun branch.");
+      }
+    }
 
     if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === "function") {
       window.factionSystem.syncBaseMarkers();
@@ -1540,7 +1546,7 @@
         g.appendChild(you);
       }
 
-      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "task" || marker.type === "story" || marker.type === "faction_base" || marker.type === "faction_task");
+      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "task" || marker.type === "story" || marker.type === "solar_cycle" || marker.type === "faction_base" || marker.type === "faction_task");
       if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -2318,6 +2324,10 @@
       });
       if (typeof showNotif === "function") showNotif("Story marker reviewed: opening Storyline.", "good");
       delete w.markers[hexId];
+    } else if (marker.type === "solar_cycle") {
+      if (typeof window.resolveSolarCycleWTWMarker === "function") {
+        window.resolveSolarCycleWTWMarker(hexId);
+      }
     } else if (marker.type === "job") {
       const zone = zoneForHex(hex);
       const power = hex.controller || (zone && zone.leader) || MAJOR_POWERS[0];

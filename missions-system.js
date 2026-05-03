@@ -981,6 +981,9 @@
     var key = String(hex.col) + ',' + String(hex.row);
     var token = S.missionTokens[key];
     if (!token || !token.missionId) return false;
+    if (token.missionId === 'solar_cycle_story' && typeof window.resolveSolarCycleProvinceStoryMarker === 'function') {
+      return !!window.resolveSolarCycleProvinceStoryMarker(hex, token);
+    }
     if (token.missionId === 'solar_cycle' && typeof window.resolveSolarCycleProvinceMarker === 'function') {
       return !!window.resolveSolarCycleProvinceMarker(hex, token);
     }
@@ -991,6 +994,9 @@
     if (!S || !S.lastSea || !S.lastSea.missionTokens) return false;
     var token = S.lastSea.missionTokens[String(hexKey || '')];
     if (!token || !token.missionId) return false;
+    if (token.missionId === 'solar_cycle_story' && typeof window.resolveSolarCycleSeaMarker === 'function') {
+      return !!window.resolveSolarCycleSeaMarker(hexKey, token);
+    }
     return autoAdvanceMissionByToken(token.missionId, token.type, 'sea');
   }
 

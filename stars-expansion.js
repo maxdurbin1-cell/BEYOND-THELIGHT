@@ -1638,6 +1638,34 @@ function isSolarCycleSoloModeAvailable() {
   }
 }
 
+function getSolarCycleSoloModeLockReason() {
+  try {
+    if (!window.campaignSystem || typeof window.campaignSystem.getState !== 'function') return '';
+    var state = window.campaignSystem.getState() || {};
+    var campaignCode = String(state.code || '').trim().toUpperCase();
+    var campaignRole = String(state.role || '').trim().toLowerCase();
+    var inCampaignRoom = !!campaignCode;
+    var hasCampaignRole = !!campaignRole;
+    var activeCampaign = inCampaignRoom || hasCampaignRole;
+    if (!activeCampaign) return '';
+
+    var modeLabel = '';
+    if (window.settingsSystem) {
+      if (typeof window.settingsSystem.isGMMode === 'function' && window.settingsSystem.isGMMode()) modeLabel = 'GM';
+      else if (typeof window.settingsSystem.isCampaignMode === 'function' && window.settingsSystem.isCampaignMode()) modeLabel = 'Campaign';
+      else if (typeof window.settingsSystem.isSoloMode === 'function' && window.settingsSystem.isSoloMode()) modeLabel = 'Solo';
+    }
+
+    var reason = 'Active campaign';
+    if (campaignCode) reason += ' code detected: ' + campaignCode;
+    if (campaignRole) reason += ' (role: ' + campaignRole.toUpperCase() + ')';
+    if (modeLabel) reason += ' | Settings mode: ' + modeLabel;
+    return reason + '.';
+  } catch (_err) {
+    return 'Campaign state is still active.';
+  }
+}
+
 function stopSolarCycleRun() {
   ensureStarsState();
   var sc = ensureSolarCycleState();
@@ -1847,6 +1875,7 @@ function renderNewSunModePanel() {
   syncSolarCycleArcProgressFromCompleted(false);
   var status = getSolarCycleStatus() || {};
   var soloAllowed = isSolarCycleSoloModeAvailable();
+  var soloLockReason = soloAllowed ? '' : getSolarCycleSoloModeLockReason();
   var rewindOptions = getSolarCycleRewindOptions();
   var progress = sc.arcProgress || {};
   var pendingBranch = getPendingSolarCycleBranch(sc);
@@ -1950,7 +1979,10 @@ function renderNewSunModePanel() {
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.28rem;"><strong>Solo Story Toggle</strong></div>'
     + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Turn this on to activate the New Sun ruleset. Unlike Storyline, this mode advances toward a forced finale, spawns moving map markers, and permanently changes the route when you miss or fail certain branches.</div>'
-    + (soloAllowed ? '' : '<div style="font-size:.76rem;color:var(--red2);margin-top:.35rem;">Unavailable while connected to Campaign mode.</div>')
+    + (soloAllowed ? '' : '<div style="font-size:.76rem;color:var(--red2);margin-top:.35rem;">Unavailable while connected to Campaign mode.</div>'
+      + (soloLockReason
+          ? '<div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">' + String(soloLockReason).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>'
+          : ''))
     + '<div style="margin-top:.45rem;">' + toggleBtn + '</div>'
     + startButtons
     + '</div>'

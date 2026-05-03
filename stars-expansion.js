@@ -1072,6 +1072,48 @@ function getSolarCycleEndingText(endingKey) {
   return 'Old World Religious Ending: the old faith absorbs the collapse into doctrine. The people survive under sacred rationing, but dawn belongs to inherited law rather than a new future.';
 }
 
+function getSolarCycleEndingConfig(endingKey) {
+  if (endingKey === 'new_sun_risen') {
+    return {
+      title: 'Epilogue: The New Sun Rises',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'At orbital noon the dead heliostat answers with living fire. The old maps do not survive the first hour of the new dawn, because coastlines, routes, and political certainties all begin shifting around a light that did not exist before you made it.',
+        'The keepers, coders, smugglers, and witnesses who survived your route all claim part of the miracle, but none can own it outright. The new sun is not a crown. It is an infrastructure of shared risk, remembered dead, and techniques stolen from the collapsing world that came before.',
+        'Your name enters doctrine only reluctantly. Even the faithful admit this dawn was not inherited. It was solved.'
+      ],
+      rewards: {
+        renown: 3,
+        credits: 250,
+        faction: { rebels: 1, political: 1, religious: 1 },
+        flags: { newSunEpilogueSeen: true, newSunDawnSettlement: true }
+      },
+      rewardText: 'Rewards: +3 Renown, +250 credits, +1 Rebels, +1 Political, +1 Religious.'
+    };
+  }
+  return {
+    title: 'Epilogue: The Old World Survives',
+    summary: getSolarCycleEndingText(endingKey),
+    paragraphs: [
+      'Day 100 closes like a scripture being sealed. The old religious houses absorb the collapse into ritual language so quickly that most survivors never learn how near the sky came to changing forever.',
+      'Processions replace evacuation drills. Dawn is rationed by liturgy, legitimacy, and which districts can still prove they obeyed the old witness-laws when the light began to fail. The world lives, but it lives inside inherited terms.',
+      'You are remembered less as an inventor than as the last necessary heretic: the one whose trespass gave the priesthood enough knowledge to preserve the old order.'
+    ],
+    rewards: {
+      renown: 2,
+      credits: 140,
+      faction: { religious: 2, political: 1, rebels: -1 },
+      flags: { newSunEpilogueSeen: true, oldWorldDoctrineSecured: true }
+    },
+    rewardText: 'Rewards: +2 Renown, +140 credits, +2 Religious, +1 Political, -1 Rebels.'
+  };
+}
+
+function applySolarCycleEndingRewards(config) {
+  if (!config || !config.rewards) return;
+  applySolarCycleChoiceEffects(config.rewards);
+}
+
 function resolveSolarCycleEnding(forceResolve) {
   ensureStarsState();
   var sc = ensureSolarCycleState();
@@ -1095,11 +1137,12 @@ function resolveSolarCycleEnding(forceResolve) {
   }
 
   var endingKey = getSolarCycleEndingKey(sc);
-  var endingText = getSolarCycleEndingText(endingKey);
+  var endingConfig = getSolarCycleEndingConfig(endingKey);
+  var endingText = endingConfig.summary;
   sc.endingFlags = sc.endingFlags || {};
   sc.endingFlags.forcedFinaleTriggered = true;
   sc.endingFlags.ending = endingKey;
-  sc.finale = { resolved: true, key: endingKey, text: endingText };
+  sc.finale = { resolved: true, key: endingKey, text: endingText, title: endingConfig.title, rewardText: endingConfig.rewardText };
   sc.enabled = false;
   sc.pendingEchoMarker = null;
 
@@ -1107,8 +1150,21 @@ function resolveSolarCycleEnding(forceResolve) {
   S.storyline = S.storyline || {};
   S.storyline.flags = S.storyline.flags || {};
   S.storyline.flags.newSunEnding = endingKey;
+  applySolarCycleEndingRewards(endingConfig);
 
   if (typeof showNotif === 'function') showNotif('New Sun ending resolved: ' + endingKey.replace(/_/g, ' ') + '.', endingKey === 'old_world_religious_ending' ? 'warn' : 'good');
+  if (typeof openModal === 'function') {
+    openModal(
+      endingConfig.title,
+      '<div style="font-size:.84rem;color:var(--text2);line-height:1.62;">'
+      + '<div style="color:var(--gold2);margin-bottom:.35rem;">' + escapeSolarCycleHtml(endingConfig.summary) + '</div>'
+      + endingConfig.paragraphs.map(function (line) {
+          return '<div style="margin-bottom:.45rem;">' + escapeSolarCycleHtml(line) + '</div>';
+        }).join('')
+      + '<div style="margin-top:.55rem;padding:.4rem .5rem;border:1px solid var(--border2);background:var(--surface);color:var(--teal);">' + escapeSolarCycleHtml(endingConfig.rewardText) + '</div>'
+      + '</div>'
+    );
+  }
   if (typeof renderHexMap === 'function') renderHexMap();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
@@ -1562,6 +1618,7 @@ function renderNewSunModePanel() {
     : '';
 
   var endingText = (sc.finale && sc.finale.text) ? String(sc.finale.text) : '';
+  var endingRewardText = (sc.finale && sc.finale.rewardText) ? String(sc.finale.rewardText) : '';
   var endingControls = (status.storyModeEnabled)
     ? ('<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
       + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Ending Resolution</strong></div>'
@@ -1569,7 +1626,7 @@ function renderNewSunModePanel() {
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
       + '<button class="btn btn-sm btn-gold" onclick="resolveSolarCycleEnding(false)">Resolve Ending</button>'
       + '</div>'
-      + (endingText ? ('<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">' + endingText + '</div>') : '<div style="font-size:.74rem;color:var(--muted2);">No ending locked yet.</div>')
+      + (endingText ? ('<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">' + endingText + '</div>' + (endingRewardText ? '<div style="font-size:.74rem;color:var(--teal);line-height:1.55;margin-top:.25rem;">' + endingRewardText + '</div>' : '')) : '<div style="font-size:.74rem;color:var(--muted2);">No ending locked yet.</div>')
       + '</div>')
     : '';
   var prophecy = Array.isArray(sc.prophecyTrack) && sc.prophecyTrack.length

@@ -2247,16 +2247,16 @@ function ensureStarsState() {
 
 if (!window._newSunInitPatched) {
   window._newSunInitPatched = true;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-      ensureNewSunTab();
-      patchSwitchTabForNewSun();
-      renderNewSunModePanel();
-    });
-  } else {
+  var _bootNewSunPanel = function () {
     ensureNewSunTab();
     patchSwitchTabForNewSun();
     renderNewSunModePanel();
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _bootNewSunPanel);
+  } else {
+    // Defer so later const declarations in this file are initialized first.
+    setTimeout(_bootNewSunPanel, 0);
   }
 }
 

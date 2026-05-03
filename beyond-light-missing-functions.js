@@ -1003,7 +1003,7 @@ function renderTraits() {
     return (
       '<div class="stat-row">' +
       '<div class="stat-label">' + label + "</div>" +
-      '<div style="font-size:.84rem;color:var(--text2);">' + value + "</div>" +
+      '<div style="flex:1;min-width:0;font-size:.84rem;color:var(--text2);text-align:right;overflow-wrap:anywhere;word-break:break-word;">' + value + "</div>" +
       "</div>"
     );
   }).join("");

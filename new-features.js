@@ -2584,7 +2584,8 @@
     var overlays = {};
     if (typeof S === 'undefined' || !S.flavor) { return overlays; }
     var flavor = String(S.flavor).toLowerCase();
-    if (flavor.indexOf('psychic dome') >= 0 || flavor.indexOf('dome') >= 0) {
+    var domeActive = typeof isFlavorRoundEffectActive === 'function' && isFlavorRoundEffectActive('psychicDome');
+    if (domeActive && (flavor.indexOf('psychic dome') >= 0 || flavor.indexOf('dome') >= 0)) {
       // Find zone where the player is
       var playerName = S.name && S.name.trim() ? S.name : 'You';
       var playerUnit = S.combatMap.units.filter(function(u){ return u.side === 'ally' && u.name === playerName; })[0];

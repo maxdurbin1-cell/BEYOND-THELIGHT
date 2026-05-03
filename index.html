@@ -4606,6 +4606,7 @@ function normalizeItemName(text) {
 function normalizeLegacyLootAlias(text) {
   var clean = String(text || '').trim();
   var lower = clean.toLowerCase();
+  if (lower === 'stim pack' || lower === 'stimpack') return 'Stimulant';
   if (lower === 'reveal') return 'Reveal Traps';
   if (lower === 'relic') return 'Relic of the Builders';
   if (lower.indexOf('relic of the builders') >= 0) return 'Relic of the Builders';
@@ -4942,7 +4943,26 @@ function startCombat(){
   prepareCombatTurnStart();
   S.combat.sceneDefendBonus=0;
   S.combat.enemyDefendsThisTurn=0;
+  S.combat.enemyActionPenaltyThisRound=0;
   S.combat.flavorResistUsed={};
+  var pendingMercs=Math.max(0,Number(S.combat.pendingMercenaryAllies||0));
+  if(pendingMercs>0){
+    if(!Array.isArray(S.enemies))S.enemies=[];
+    for(var mi=0;mi<pendingMercs;mi++){
+      S.enemies.push({
+        id:Date.now()+Math.floor(Math.random()*100000)+mi,
+        name:'Mercenary (Ally)',
+        dread:6,
+        stress:0,
+        maxStress:12,
+        ally:true,
+        temporarySceneAlly:true
+      });
+    }
+    S.combat.pendingMercenaryAllies=0;
+    if(typeof renderEnemies==='function')renderEnemies();
+    showNotif('Hired mercenary joins this combat scene.','good');
+  }
   // Reset stances
   S.combat.stanceBonus=0;
   S.combat.stance=null;
@@ -4961,7 +4981,7 @@ function startCombat(){
     window.AudioManager.playMusic('music-combat', true);
   }
 }
-function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
+function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;updateCombatUI();}
 
 // ── FLEE, MORALE & REWARDS ────────────────────────────────────────────────────
 function promptCombatRewards(){
@@ -5056,16 +5076,22 @@ function finishCurrentQuest(){
   updateQuestUI();
 }
 
-function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;updateCombatUI();}
+function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;updateCombatUI();}
 function endCombat(){
   S.combat.active=false;
   S.combat.round=0;
   S.combat.sceneDefendBonus=0;
+  S.combat.enemyActionPenaltyThisRound=0;
   S.combat.playerSkipTurns=0;
   S.combat.weaponLockRounds=0;
   S.combat.autoReloaderShots=0;
   S.combat.autoReloaderActionSpent=false;
   S.combat.flavorResistUsed={};
+  if(Array.isArray(S.enemies)){
+    S.enemies=S.enemies.filter(function(e){
+      return !(e&&e.ally&&e.temporarySceneAlly);
+    });
+  }
   halfStress();
   clearAllConditions();
   updateCombatUI();
@@ -5629,7 +5655,9 @@ function getHostileEnemyCount(){
 }
 
 function getEnemyActionsPerCycle(){
-  return Math.max(0,getHostileEnemyCount()*2);
+  var base=Math.max(0,getHostileEnemyCount()*2);
+  var penalty=Math.max(0,Number((S&&S.combat&&S.combat.enemyActionPenaltyThisRound)||0));
+  return Math.max(0,base-penalty);
 }
 
 function getEnemyActionsRemaining(){
@@ -7378,6 +7406,9 @@ function removeShopDataEntry(cat,name){
 function applyShopDataOverrides(){
   if(typeof SHOP_DATA==='undefined'||!SHOP_DATA)return;
   removeShopDataEntry('remedies','Trauma Serum');
+  removeShopDataEntry('items','Antitoxin');
+  updateShopDataEntry('essentials','Stimulant',{desc:'Reduces 1d4 Mental Stress when consumed.'});
+  updateShopDataEntry('items','Healing Salve',{desc:'Recovers d4 Health (reduces Health damage by d4).'});
   updateShopDataEntry('items','Compass',{desc:'Adventure Die bonus to Survival and Lead checks.'});
   updateShopDataEntry('items','Spyglass',{desc:'Adventure Die bonus to Lead checks and scouting across maps.'});
   updateShopDataEntry('items','Lockpicks',{desc:'Adventure Die bonus to Control checks for locks and sealed doors.'});
@@ -7521,9 +7552,15 @@ function buyItem(cost, name, cat) {
           showNotif('Sage (Temple) added to Backpack. Use it to remove 1 Trauma.', 'good');
         }
       } else if (name === 'Mercenary') {
-        S.enemies.push({id: Date.now(), name: 'Mercenary (Ally)', dread: 6, stress: 0, maxStress: 12, ally: true});
-        if (typeof renderEnemies === 'function') renderEnemies();
-        showNotif('Mercenary added to Combat tracker', 'good');
+        if(!S.combat)S.combat={};
+        if(S.combat.active){
+          S.enemies.push({id: Date.now(), name: 'Mercenary (Ally)', dread: 6, stress: 0, maxStress: 12, ally: true, temporarySceneAlly:true});
+          if (typeof renderEnemies === 'function') renderEnemies();
+          showNotif('Mercenary joins this combat scene only.', 'good');
+        }else{
+          S.combat.pendingMercenaryAllies=Math.max(0,Number(S.combat.pendingMercenaryAllies||0))+1;
+          showNotif('Mercenary hired. They will join your next combat scene only.', 'good');
+        }
       } else if (name === 'Messenger') {
         setTimeout(openMessengerComposer, 0);
         showNotif('Compose a note for delivery. Reply arrives in 1 day.', 'good');
@@ -7576,7 +7613,6 @@ const ITEM_USE_CFG = {
   'Spirit Tonic':     {maxUses:1},
   'Fortifying Broth': {maxUses:1},
   'Snake Oil':        {maxUses:1},
-  'Antitoxin':        {maxUses:1},
   'Rations':          {maxUses:1},
   'Torch':            {maxUses:1},
   'Caltrops':         {maxUses:1,rollDesc:'Scatter to slow pursuers — no roll needed.'},
@@ -8169,7 +8205,29 @@ function useBackpackItem(index) {
     if(!spendUse()) return;
     var heal = explodingRoll(4).total;
     if(typeof changeHealth==='function')changeHealth(-heal);else changeStress(-heal);
-    showNotif(name+': restored '+heal+' Health','good');
+    showNotif(name+': recovered '+heal+' Health damage','good');
+    return;
+  }
+  // Stimulants reduce Mental Stress
+  if(name === 'Stimulant'){
+    if(!spendUse()) return;
+    var stimRecovery = explodingRoll(4).total;
+    if(typeof changeMentalStress==='function')changeMentalStress(-stimRecovery);else changeStress(-stimRecovery);
+    showNotif('Stimulant: −'+stimRecovery+' Mental Stress','good');
+    return;
+  }
+  // Caltrops reduce enemy actions for the current round only
+  if(name === 'Caltrops'){
+    if(!S.combat||!S.combat.active||getHostileEnemyCount()<=0){
+      showNotif('Use Caltrops during combat while at least one enemy is present.','warn');
+      return;
+    }
+    if(!spendUse()) return;
+    var cycleBase=Math.max(1,getHostileEnemyCount()*2);
+    var currentPenalty=Math.max(0,Number(S.combat.enemyActionPenaltyThisRound||0));
+    S.combat.enemyActionPenaltyThisRound=Math.min(cycleBase-1,currentPenalty+1);
+    updateCombatUI();
+    showNotif('Caltrops: enemy actions reduced by 1 this round.','good');
     return;
   }
   // Trauma
@@ -8258,18 +8316,6 @@ function useBackpackItem(index) {
     if(!spendUse()) return;
     if(typeof changeMentalStress==='function')changeMentalStress(-1);else changeStress(-1);
     showNotif(name+': −1 Mental Stress','good');
-    return;
-  }
-  // Antitoxin — remove Weakened and/or Shaken condition
-  if(name === 'Antitoxin'){
-    if(!spendUse()) return;
-    var cleared = [];
-    ['weakened','shaken','vulnerable'].forEach(function(c){
-      if(S.conditions && S.conditions[c]){ S.conditions[c]=false; cleared.push(c); }
-    });
-    if(typeof updateConditionButtons==='function') updateConditionButtons();
-    if(typeof updateAllStatDisplays==='function') updateAllStatDisplays();
-    showNotif('Antitoxin: '+(cleared.length?cleared.join(', ')+' removed':'no active conditions to clear'),'good');
     return;
   }
   // Snake Oil

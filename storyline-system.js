@@ -291,6 +291,23 @@
             effects: { mentalStress: 1 },
           },
         },
+        {
+          id: "o9",
+          text: "Touch one of the hanged dead and relive its final moments",
+          stat: "spirit",
+          baseDread: 7,
+          req: { flavorAny: ["grave whisper", "relive last moments"] },
+          success: {
+            next: "intro_sigil",
+            text: "The corpse remembers the magistrate seal being nailed in place after death. You catch the buyer's voice and the route they took back to the marsh roads.",
+            effects: { pathTokens: 1, npc: { iosef: 1 }, consequenceTags: ["corpse_memory_opening"] },
+          },
+          fail: {
+            next: "intro_failtrail",
+            text: "The memory arrives as panic, rope-burn, and mud. You still learn they came from the marsh, but you absorb the terror with it.",
+            effects: { mentalStress: 1, tmw: 1 },
+          },
+        },
       ],
     },
 
@@ -632,6 +649,15 @@
           },
           success: { next: "sea_mutiny", text: "You decode SER and log it in your fieldbook as a core key for Voss's legal liturgy.", effects: { lexicon: { ser: "star" }, flags: { glyphTrailStarted: true }, merchantReward: { credits: 80, factionKey: "underworld", factionRenown: 1 } } },
           fail: { next: "sea_mutiny", text: "You cannot crack the slab under pressure, but the symbol sketch survives.", effects: { mentalStress: 1 } },
+        },
+        {
+          id: "o4",
+          text: "Ask the drowned dead which ledger was moved last",
+          stat: "mind",
+          baseDread: 8,
+          req: { flavorAny: ["grave whisper", "relive last moments", "time traveler"] },
+          success: { next: "sea_mutiny", text: "A drowned clerk's last memory shows a sealed drawer being emptied moments before the archive lock-cycle. You take the right ledger on the first try.", effects: { credits: 110, flags: { witnessChain: true, drownedLedgerRead: true }, lexicon: { tor: "verdict" } } },
+          fail: { next: "sea_mutiny", text: "The dead remember flooding lungs more clearly than numbers. You still get a direction, but it costs you composure.", effects: { mentalStress: 1, tmw: 1 } },
         },
       ],
     },
@@ -1386,6 +1412,15 @@
           success: { next: "time_fracture", text: "The court buckles. Years invert. You wake before the first magistrate existed.", effects: { flags: { timeFractureOpened: true }, renown: 2, consequenceTags: ["timeline_rewrite_attempt"] } },
           fail: { next: "dark_coronation", text: "The time-lock resists you, but the throne does not.", effects: { mentalStress: 2 } },
         },
+        {
+          id: "o_time_edge",
+          text: "⚠ Use your own temporal gift to split the verdict before it lands",
+          stat: "control",
+          baseDread: 12,
+          req: { flavorAny: ["reverse time", "time traveler", "stop time", "slow time"], consequenceTagAny: ["tag:canticle_invoked", "tag:canticle_memory_weaponized", "tag:canticle_paradox_resolved"] },
+          success: { next: "time_fracture", text: "You catch the instant before judgment hardens and pull it sideways. The room shudders into an earlier century.", effects: { flags: { timeFractureOpened: true, personalTimeRift: true }, renown: 3, consequenceTags: ["timeline_personal_rift"] } },
+          fail: { next: "finale_choice", text: "You split the moment but cannot hold it. The chamber remembers what almost happened and turns colder.", effects: { mentalStress: 2, tmw: 1, consequenceTags: ["timeline_split_failed"] } },
+        },
       ],
     },
 
@@ -1460,6 +1495,15 @@
           baseDread: 12,
           success: { next: "finale_choice", text: "You leave the blank seal untouched and force history back onto uncertain rails.", effects: { renown: 1, flags: { timeFractureOpened: true }, consequenceTags: ["timeline_rejected_loop"] } },
           fail: { next: "dark_coronation", text: "The loop clings to you. You return with villain instincts sharpened.", effects: { mentalStress: 1, consequenceTags: ["timeline_corruption_seeded"] } },
+        },
+        {
+          id: "o4",
+          text: "Read the chamber's dead futures before choosing a founder",
+          stat: "mind",
+          baseDread: 10,
+          req: { flavorAny: ["time traveler", "grave whisper", "relive last moments"] },
+          success: { next: "warfront_genesis", text: "You see three dead futures stacked over the blank seal and pick the least catastrophic opening. Your first campaign begins with clearer supply lines and fewer lies.", effects: { activateWarfront: 10, renown: 2, faction: { political: 1 }, consequenceTags: ["timeline_dead_futures_read"] } },
+          fail: { next: "warfront_genesis", text: "You read too many endings at once. One useful future remains, but it scars your judgment.", effects: { mentalStress: 2, tmw: 1, consequenceTags: ["timeline_future_overload"] } },
         },
       ],
     },
@@ -3707,6 +3751,10 @@
           if (profile.beastForm && (statKey === "control" || statKey === "body")) flavorBonus += 1;
           if (profile.holyShield && statKey === "defend") flavorBonus += 1;
           if (profile.antiRad && (statKey === "mind" || statKey === "spirit")) flavorBonus += 1;
+            if (profile.timeSight && (statKey === "control" || statKey === "mind" || statKey === "spirit")) flavorBonus += 1;
+            if (profile.corpseMemory && (statKey === "mind" || statKey === "spirit")) flavorBonus += 1;
+            if (profile.disguiseShift && (statKey === "lead" || statKey === "control")) flavorBonus += 1;
+            if (profile.luckyReroll && statKey === "adventure") flavorBonus += 1;
         }
       }
     } catch (_err) {}

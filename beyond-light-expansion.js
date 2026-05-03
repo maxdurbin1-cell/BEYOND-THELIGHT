@@ -3866,6 +3866,13 @@
   const baseGenerateCharacter = generateCharacter;
   generateCharacter = function () {
     baseGenerateCharacter();
+    if (typeof generateBackstory === 'function') {
+      try {
+        generateBackstory();
+      } catch (err) {
+        console.warn('Auto-backstory generation failed:', err);
+      }
+    }
     ensureExpansionState();
     syncExpansionUIs();
   };

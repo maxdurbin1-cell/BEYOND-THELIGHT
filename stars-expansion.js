@@ -2228,7 +2228,7 @@ function spawnSolarCycleFailureBranch(sc, approach, tier, markerToken) {
     resolved: false,
     expired: false,
     postedDay: day,
-    portalHandoff: (reg === 'sea'),
+    portalHandoff: (region === 'sea'),
     locationKey: '',
     locationLabel: '',
     npcName: String(npcPool[seedSolarCycleMix(state, day + region.length) % npcPool.length] || 'Unknown Witness'),
@@ -2248,7 +2248,27 @@ function spawnSolarCycleFailureBranch(sc, approach, tier, markerToken) {
 
 function resolveSolarCycleMarkerChoice(approach) {
   var context = window._activeSolarMarkerContext || {};
-  return completeSolarCycleMarkerInteraction(context.hex || null, context.token || window._activeSolarMarkerToken, approach);
+  var hex = context.hex || null;
+  var token = context.token || window._activeSolarMarkerToken || null;
+  if (!token && typeof S !== 'undefined' && S && S.missionTokens) {
+    var keys = Object.keys(S.missionTokens);
+    for (var i = 0; i < keys.length; i += 1) {
+      var maybe = S.missionTokens[keys[i]];
+      if (maybe && maybe.missionId === 'solar_cycle') {
+        token = maybe;
+        if (!hex && keys[i].indexOf(',') > 0) {
+          var parts = keys[i].split(',');
+          hex = { col: Number(parts[0]), row: Number(parts[1]) };
+        }
+        break;
+      }
+    }
+  }
+  if (!token) {
+    if (typeof showNotif === 'function') showNotif('No active Solar marker found. Reopen the marker and choose again.', 'warn');
+    return false;
+  }
+  return !!completeSolarCycleMarkerInteraction(hex, token, approach);
 }
 
 function syncSolarCycleProvinceMarkers() {
@@ -2300,7 +2320,7 @@ function syncSolarCycleProvinceMarkers() {
 function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
   ensureStarsState();
   var sc = ensureSolarCycleState();
-  if (!sc || !sc.storyModeEnabled || !sc.enabled) return;
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) return false;
 
   var key = hex ? (String(hex.col) + ',' + String(hex.row)) : '';
   if (key && S.missionTokens && S.missionTokens[key] && S.missionTokens[key].missionId === 'solar_cycle') {
@@ -2380,6 +2400,7 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
   if (typeof renderHexMap === 'function') renderHexMap();
   syncSolarCycleQuestScheduler(false);
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+  return true;
 }
 
 function resolveSolarCycleProvinceMarker(hex, markerToken) {
@@ -2635,6 +2656,7 @@ function startSolarCycleMode(activeArc) {
     trackedQuestId: '',
     trackedRegion: '',
     trackedLocationKey: '',
+    artifactProgress: { total: 0, combat: 0, puzzle: 0, social: 0, stealth: 0, corrupted: 0, lastArtifact: '' },
     regionPostedCount: { province: 0, sea: 0, wtw: 0, galaxy: 0 },
     lastSpawnDay: -1,
     lastFailureBranchDay: -1
@@ -2789,6 +2811,15 @@ function renderNewSunModePanel() {
       + ' | WTW ' + Number(status.schedulerWtwDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.wtw || 0)
       + ' | Galaxy ' + Number(status.schedulerGalaxyDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.galaxy || 0))
     : 'Scheduler unavailable';
+  var artifactProgress = scheduler ? ensureSolarCycleArtifactProgress(scheduler) : null;
+  var artifactSummary = artifactProgress
+    ? ('Artifacts: ' + Number(artifactProgress.total || 0)
+      + ' | Combat ' + Number(artifactProgress.combat || 0)
+      + ' | Puzzle ' + Number(artifactProgress.puzzle || 0)
+      + ' | Social ' + Number(artifactProgress.social || 0)
+      + ' | Stealth ' + Number(artifactProgress.stealth || 0)
+      + (Number(artifactProgress.corrupted || 0) > 0 ? (' | Corrupted ' + Number(artifactProgress.corrupted || 0)) : ''))
+    : 'Artifacts: none logged';
   var schedulerActiveHtml = scheduler && Array.isArray(scheduler.activeQuestIds) && scheduler.activeQuestIds.length
     ? scheduler.activeQuestIds.slice(0, 6).map(function (qid) {
         var q = scheduler.questById ? scheduler.questById[qid] : null;
@@ -2880,6 +2911,7 @@ function renderNewSunModePanel() {
     + '<div>4) Successes and failures branch scenes, opening or locking future routes.</div>'
     + '<div>5) By Day 100, your choices decide whether a New Sun rises or collapse wins.</div>'
     + '</div>'
+    + '<div style="font-size:.72rem;color:var(--teal);line-height:1.5;margin-top:.3rem;">' + escapeSolarCycleHtml(artifactSummary) + (artifactProgress && artifactProgress.lastArtifact ? (' | Last: ' + escapeSolarCycleHtml(artifactProgress.lastArtifact)) : '') + '</div>'
     + '</div>';
 
   host.innerHTML = ''
@@ -3063,10 +3095,81 @@ function getSolarCycleRegionLabel(region) {
 function getSolarCycleNpcDemandText(region, methodTitle) {
   var reg = String(region || 'province');
   var method = String(methodTitle || 'the New Sun method');
-  if (reg === 'province') return '"I know about a telescope that can decode sky fractures, but I will only share it if you secure this district first."';
-  if (reg === 'sea') return '"I can give you the tide chart for ' + method + ', but only after you finish this convoy favor."';
-  if (reg === 'wtw') return '"The archive key is yours if you solve this contradiction and return alive."';
-  return '"I have an orbital relay key, but you must complete this run before I trust you with it."';
+  var seed = Math.abs((reg + '|' + method).split('').reduce(function (sum, ch) { return sum + ch.charCodeAt(0); }, 0));
+  var province = [
+    '"I can expose a lens route for ' + method + ', but first make this district hold through dawn."',
+    '"Secure this quarter and I will open the shutter keys tied to ' + method + '."',
+    '"Prove you can keep civilians alive here, then I hand over the observatory lock for ' + method + '."'
+  ];
+  var sea = [
+    '"I can draw a tide map for ' + method + ', but only if your crew escorts this convoy intact."',
+    '"Bring my signal runner home and I will release the drowned chart for ' + method + '."',
+    '"Finish this deck-side favor and I will give you the harbor vectors feeding ' + method + '."'
+  ];
+  var wtw = [
+    '"The archive key is yours if you survive this contradiction trial and keep the record coherent."',
+    '"Settle this paradox hearing and I will release the sealed witness file for ' + method + '."',
+    '"Restore continuity in this ruin and I will hand over the chronicle index for ' + method + '."'
+  ];
+  var galaxy = [
+    '"I carry an orbital relay key, but you must complete this run before the channel degrades."',
+    '"Win this route now and I will commit the relay handshake needed by ' + method + '."',
+    '"Hold this lane under dread pressure and I will transmit the outer-ring lock for ' + method + '."'
+  ];
+  var pool = reg === 'province' ? province : (reg === 'sea' ? sea : (reg === 'wtw' ? wtw : galaxy));
+  return pool[seed % pool.length];
+}
+
+function getSolarCycleInvestigationActionLine(quest) {
+  var q = quest || {};
+  var challenge = String(q.challengeType || 'social');
+  var method = String(q.methodTitle || 'this method');
+  var region = String(q.region || 'province');
+  if (challenge === 'combat') return 'Field action: break the hostile line and extract the witness carrying ' + method + ' route data.';
+  if (challenge === 'puzzle') return 'Field action: solve the relay sequence and lock a stable channel for ' + method + '.';
+  if (challenge === 'stealth') return 'Field action: infiltrate quietly, retrieve the route ledger, and leave no trail.';
+  if (region === 'wtw') return 'Field action: arbitrate surviving factions and force a public oath that protects your route.';
+  return 'Field action: negotiate leverage, secure cooperation, and move the network before dusk.';
+}
+
+function getSolarCycleInvestigationDialogueLine(quest) {
+  var q = quest || {};
+  var region = String(q.region || 'province');
+  var method = String(q.methodTitle || 'this route');
+  var challenge = String(q.challengeType || 'social');
+  var seedText = String(q.id || '') + '|' + region + '|' + method + '|' + challenge;
+  var seed = Math.abs(seedText.split('').reduce(function (sum, ch) { return sum + ch.charCodeAt(0); }, 0));
+  var pool = [
+    '"The sky is already changing. If we move now, ' + method + ' can still be made real."',
+    '"You came before the ashfall. Good. This is the hour where ' + method + ' still answers."',
+    '"Do not ask whether this is safe. Ask whether it is in time for ' + method + '."',
+    '"Every delayed minute becomes a grave. Take this lead and run it to completion."'
+  ];
+  if (region === 'sea') {
+    pool = [
+      '"The tide clock is wrong tonight. Use that error and carve a path for ' + method + '."',
+      '"Storm tribunals are searching decks. We move in their blind angle or we lose the corridor."',
+      '"Convoys are burning for less than this. Finish the run and I will open the sea vectors."'
+    ];
+  } else if (region === 'wtw') {
+    pool = [
+      '"The ruins still remember the first dawn. Make them remember us, and ' + method + ' becomes plausible."',
+      '"Contradictions are nesting in this district. Excise one and the archive will answer."',
+      '"Here, testimony rewrites stone. Win the hearing and the old route unfolds."'
+    ];
+  } else if (region === 'galaxy') {
+    pool = [
+      '"Orbital relays are dropping one by one. Complete this maneuver and we keep the outer bridge."',
+      '"Static is eating the constellations. Lock this lane before the map forgets its own shape."',
+      '"You have one pass through this ring. Spend it on a route that still reaches tomorrow."'
+    ];
+  }
+
+  var line = pool[seed % pool.length] || '"The countdown continues."';
+  if (challenge === 'combat') line += ' "Expect resistance at first contact."';
+  if (challenge === 'puzzle') line += ' "You will need precision, not force."';
+  if (challenge === 'stealth') line += ' "No alarms. No witnesses."';
+  return line;
 }
 
 function getSolarCycleNpcMemoryEntry(sc, npcName) {
@@ -3193,6 +3296,7 @@ function getSolarCycleQuestScheduler(sc) {
   if (typeof qs.trackedQuestId !== 'string') qs.trackedQuestId = '';
   if (typeof qs.trackedRegion !== 'string') qs.trackedRegion = '';
   if (typeof qs.trackedLocationKey !== 'string') qs.trackedLocationKey = '';
+  ensureSolarCycleArtifactProgress(qs);
   if (!qs.regionPostedCount || typeof qs.regionPostedCount !== 'object') qs.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
   if (typeof qs.lastSpawnDay !== 'number') qs.lastSpawnDay = -1;
   if (typeof qs.lastFailureBranchDay !== 'number') qs.lastFailureBranchDay = -1;
@@ -3586,6 +3690,76 @@ function maybeSpawnSolarCycleOpportunisticQuest(sc, sourceQuest) {
   return quest;
 }
 
+function ensureSolarCycleArtifactProgress(qs) {
+  if (!qs) return null;
+  if (!qs.artifactProgress || typeof qs.artifactProgress !== 'object') {
+    qs.artifactProgress = { total: 0, combat: 0, puzzle: 0, social: 0, stealth: 0, corrupted: 0, lastArtifact: '' };
+  }
+  var ap = qs.artifactProgress;
+  ['total', 'combat', 'puzzle', 'social', 'stealth', 'corrupted'].forEach(function (k) {
+    if (typeof ap[k] !== 'number') ap[k] = 0;
+  });
+  if (typeof ap.lastArtifact !== 'string') ap.lastArtifact = '';
+  return ap;
+}
+
+function awardSolarCycleQuestArtifact(sc, quest, misled) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  if (!state || !qs || !quest) return '';
+  var ap = ensureSolarCycleArtifactProgress(qs);
+  if (!ap) return '';
+
+  var byType = {
+    combat: 'Sun-forged Core Shard',
+    puzzle: 'Heliostat Cipher Ring',
+    social: 'Witness Oath Seal',
+    stealth: 'Mirror Route Sigil'
+  };
+  var type = String(quest.challengeType || 'social');
+  if (['combat', 'puzzle', 'social', 'stealth'].indexOf(type) < 0) type = 'social';
+
+  var label = misled ? ('Corrupted ' + byType[type]) : byType[type];
+  ap.total = Number(ap.total || 0) + 1;
+  ap[type] = Number(ap[type] || 0) + 1;
+  if (misled) ap.corrupted = Number(ap.corrupted || 0) + 1;
+  ap.lastArtifact = label;
+  return label;
+}
+
+function openSolarCyclePuzzleChallenge(quest, misled) {
+  if (typeof window.openStandaloneStoryPuzzle !== 'function' || !quest) {
+    if (misled) {
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+    } else if (typeof changeCounter === 'function') {
+      changeCounter('tmw', 1);
+    }
+    return;
+  }
+
+  var prompt = misled
+    ? 'The relay lattice is unstable. Solve the sequence anyway or lose the route.'
+    : 'Align the relay lattice and lock a stable dawn corridor before the signal decays.';
+
+  window.openStandaloneStoryPuzzle({
+    mode: 'rearrange',
+    title: 'New Sun Puzzle Challenge',
+    prompt: prompt,
+    bank: ['SUN', 'ROUTE', 'LOCK', 'WITNESS'],
+    answer: 'sun route lock witness',
+    thresholdLabel: 'New Sun Puzzle',
+    onResolve: function (result) {
+      if (result === 'success') {
+        if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+        if (typeof showNotif === 'function') showNotif('Puzzle solved: route stabilized for this branch.', 'good');
+      } else {
+        if (typeof changeMentalStress === 'function') changeMentalStress(1);
+        if (typeof showNotif === 'function') showNotif('Puzzle failed: the branch takes additional strain.', 'warn');
+      }
+    }
+  });
+}
+
 function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
   if (!quest) return;
   var type = String(quest.challengeType || 'social');
@@ -3603,19 +3777,18 @@ function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
       changeCounter('renown', 1);
     }
   } else if (type === 'puzzle') {
-    if (misled) {
-      if (typeof changeMentalStress === 'function') changeMentalStress(1);
-    } else if (typeof changeCounter === 'function') {
-      changeCounter('tmw', 1);
-    }
+    openSolarCyclePuzzleChallenge(quest, misled);
   } else if (type === 'stealth') {
-    if (misled) {
+    var stealthRoll = rollSolarCycleContest('agility', Math.max(6, Number(rollResult && rollResult.dreadDie || 8)));
+    if (misled || !stealthRoll.success) {
       if (typeof changeCounter === 'function') changeCounter('credits', -30);
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
     } else if (typeof changeCounter === 'function') {
       changeCounter('credits', 40);
     }
   } else {
-    if (misled) {
+    var socialRoll = rollSolarCycleContest('lead', Math.max(6, Number(rollResult && rollResult.dreadDie || 8)));
+    if (misled || !socialRoll.success) {
       if (typeof changeCounter === 'function') changeCounter('renown', -1);
     } else if (typeof changeCounter === 'function') {
       changeCounter('renown', 1);
@@ -3710,6 +3883,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0) + ' vs Dread ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0) + ').', misled ? 'warn' : 'good');
   }
   applySolarCycleQuestChallengeOutcome(quest, rollResult, misled);
+  var artifactLabel = awardSolarCycleQuestArtifact(sc, quest, misled);
 
   if (quest.portalHandoff && quest.region === 'sea') {
     var handoffQuest = createSolarCycleSchedulerQuest(sc, 'wtw');
@@ -3739,6 +3913,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     var nextHint = followup
       ? ('Go next to: <strong>' + escapeSolarCycleHtml(followup.locationLabel || getSolarCycleRegionLabel(followup.region)) + '</strong> for <strong>' + escapeSolarCycleHtml(followup.title || 'next lead') + '</strong>.')
       : ('No immediate marker was placed. Sync markers and continue in <strong>' + escapeSolarCycleHtml(getSolarCycleRegionLabel(misled ? (quest.nextFailRegion || quest.region) : (quest.nextSuccessRegion || quest.region))) + '</strong>.');
+    var actionLine = getSolarCycleInvestigationActionLine(quest);
     openModal(
       'New Sun Quest Outcome',
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
@@ -3747,7 +3922,9 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
       + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' = ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0)
       + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ' = ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0)
       + '</div>'
-      + '<div style="font-size:.75rem;color:var(--gold2);line-height:1.55;margin-bottom:.35rem;">' + escapeSolarCycleHtml(nextHint) + '</div>'
+      + '<div style="font-size:.75rem;color:var(--gold2);line-height:1.55;margin-bottom:.3rem;">' + nextHint + '</div>'
+      + '<div style="font-size:.74rem;color:var(--teal);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(actionLine) + '</div>'
+      + (artifactLabel ? ('<div style="font-size:.74rem;color:var(--green2);line-height:1.55;margin-bottom:.3rem;">Recovered artifact: <strong>' + escapeSolarCycleHtml(artifactLabel) + '</strong></div>') : '')
       + '<div style="font-size:.74rem;color:var(--muted2);">Challenge: ' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toUpperCase()) + '</div>'
       + '</div>'
     );
@@ -3766,6 +3943,8 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var windowText = 'Day ' + Number(quest.startDay || 0) + '-' + Number(quest.endDay || 0) + ' | Phase ' + (Array.isArray(quest.phaseWindow) ? quest.phaseWindow.map(function (n) { return getSolarCyclePhaseLabelByIndex(n); }).join(', ') : 'Any');
   var chosenStat = getSolarCycleQuestActionStat(quest.id);
   var memoryLine = String(quest.memoryCallbackLine || '');
+  var actionLine = getSolarCycleInvestigationActionLine(quest);
+  var dialogueLine = getSolarCycleInvestigationDialogueLine(quest);
   var statButtons = SOLAR_CYCLE_ACTION_STATS.map(function (stat) {
     var on = chosenStat === stat;
     return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.setSolarCycleQuestActionStat(\'' + String(quest.id) + '\',\'' + String(stat) + '\')">' + String(stat).toUpperCase() + '</button>';
@@ -3774,9 +3953,10 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     'New Sun Investigation: ' + escapeSolarCycleHtml(quest.title),
     '<div style="font-size:.76rem;color:var(--gold2);margin-bottom:.25rem;">' + escapeSolarCycleHtml(contextLabel || quest.locationLabel || quest.region) + '</div>'
     + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Arc pack: ' + String(quest.arc).toUpperCase() + ' / ' + String(quest.templateMode).toUpperCase() + ' | ' + escapeSolarCycleHtml(windowText) + '</div>'
-    + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;margin-bottom:.28rem;"><strong>' + escapeSolarCycleHtml(quest.npcName || 'Unknown Witness') + ':</strong> ' + escapeSolarCycleHtml(quest.dialogueLine || '"The countdown continues."') + '</div>'
+    + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;margin-bottom:.28rem;"><strong>' + escapeSolarCycleHtml(quest.npcName || 'Unknown Witness') + ':</strong> ' + escapeSolarCycleHtml(dialogueLine || quest.dialogueLine || '"The countdown continues."') + '</div>'
     + (memoryLine ? ('<div style="font-size:.74rem;color:var(--gold2);line-height:1.5;margin-bottom:.22rem;">Memory callback: ' + escapeSolarCycleHtml(memoryLine) + '</div>') : '')
     + '<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.28rem;">' + escapeSolarCycleHtml(quest.requestPrompt || getSolarCycleNpcDemandText(quest.region, quest.methodTitle)) + '</div>'
+    + '<div style="font-size:.75rem;color:var(--teal);line-height:1.55;margin-bottom:.28rem;">' + escapeSolarCycleHtml(actionLine) + '</div>'
     + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;margin-bottom:.45rem;">Every New Sun investigation reveals a route toward restoration. This lead suggests: <strong>' + escapeSolarCycleHtml(quest.methodSummary) + '</strong></div>'
     + '<div style="font-size:.74rem;color:var(--red2);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(quest.stakesText || '100 days remain. Your decision can change how the world ends.') + '</div>'
     + '<div style="font-size:.76rem;color:var(--teal);line-height:1.55;margin-bottom:.5rem;">Clue: ' + escapeSolarCycleHtml(quest.clueText) + '</div>'

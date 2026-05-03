@@ -65,6 +65,11 @@ nav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center
 .btn-sm{padding:.28rem .62rem;font-size:.8rem;}
 .btn-xs{padding:.2rem .48rem;font-size:.74rem;}
 .btn-icon{padding:.25rem .45rem;font-size:.9rem;line-height:1;}
+.flavor-action-row{display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;}
+.flavor-action-row .btn{white-space:normal;line-height:1.2;height:auto;min-height:2rem;}
+.flavor-action-main{flex:1 1 12rem;max-width:100%;}
+.flavor-passive-strip{display:flex;flex-wrap:wrap;gap:.22rem;margin-top:.24rem;}
+.flavor-passive-chip{display:inline-flex;align-items:center;padding:.1rem .38rem;border:1px solid rgba(46,196,182,.45);background:rgba(46,196,182,.08);color:var(--teal2);font-family:'Rajdhani',sans-serif;font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;}
 .step-btn{width:1.65rem;height:1.65rem;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
 .step-btn:hover{border-color:var(--teal);color:var(--teal);}
 input[type="text"],input[type="number"],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'Crimson Pro',serif;font-size:.9rem;padding:.3rem .5rem;width:100%;outline:none;transition:border-color .15s;}
@@ -658,8 +663,9 @@ select option{background:#0f1020;}
       <div id="flavorInteractionPanel" style="margin:-.1rem 0 .45rem 0;padding:.45rem .55rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.06);font-size:.78rem;color:var(--text2);line-height:1.5;">
         <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.18rem;">Flavor Interaction</div>
         <div id="flavorInteractionDesc">Set a Personal Flavor to unlock a usable Wayfarer interaction.</div>
-        <div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;">
-          <button class="btn btn-xs btn-teal" id="flavorActionBtn" onclick="usePersonalFlavorAction()">Use Flavor Action</button>
+        <div id="flavorPassiveBadges" class="flavor-passive-strip" style="margin-top:.25rem;display:none;"></div>
+        <div class="flavor-action-row" style="margin-top:.35rem;">
+          <button class="btn btn-xs btn-teal flavor-action-main" id="flavorActionBtn" onclick="usePersonalFlavorAction()">Use Flavor Action</button>
           <button class="btn btn-xs" onclick="openPersonalFlavorCodexModal()">Mini Codex</button>
           <span id="flavorActionMeta" style="font-size:.7rem;color:var(--muted2);"></span>
         </div>
@@ -4104,6 +4110,27 @@ function getFlavorInteractionDescriptor(flavorText){
   };
 }
 
+function escFlavorAttr(text){
+  return String(text||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function getFlavorPassiveBadgesHtml(flavorText,opts){
+  var profile=getPersonalFlavorMechanicProfile(flavorText||'');
+  var badges=[];
+  if(profile.monkUnarmed)badges.push({label:'Passive - Monk',tip:'Monk: while unarmed, add your Adventure Die as a bonus to Strike checks.',tone:'teal'});
+  if(profile.luckyReroll)badges.push({label:'Passive - Lucky',tip:'Lucky: reroll Action Die results of 1 and keep the new result.',tone:'gold'});
+  if(profile.siphonEnergy)badges.push({label:'Passive - Siphon',tip:'Siphon Energy: heal Health by damage dealt on successful Strike/Shoot hits.',tone:'red'});
+  if(!badges.length)return '';
+  var compact=!!(opts&&opts.compact);
+  return badges.map(function(b){
+    var style='';
+    if(b.tone==='gold')style='border-color:rgba(232,192,80,.45);background:rgba(232,192,80,.08);color:var(--gold2);';
+    else if(b.tone==='red')style='border-color:rgba(224,80,80,.45);background:rgba(224,80,80,.08);color:#ff8a72;';
+    var text=compact?b.label.replace('Passive - ',''):b.label;
+    return '<span class="flavor-passive-chip" style="'+style+'" title="'+escFlavorAttr(b.tip)+'">'+text+'</span>';
+  }).join('');
+}
+
 function getAllBespokeFlavorEntries(){
   return PERSONAL_FLAVORS.map(function(f){return getBespokeFlavorEntry(f);}).filter(Boolean);
 }
@@ -4176,6 +4203,12 @@ function refreshPersonalFlavorInteractionUI(){
     var needed=getFlavorCooldownStamp(entry.cooldownType);
     var used=(st[key]&&st[key].stamp===needed);
     meta.textContent=(used?'On cooldown':'Ready')+' · '+entry.cooldownType+' · '+entry.code;
+  }
+  var badges=document.getElementById('flavorPassiveBadges');
+  if(badges){
+    var badgeHtml=getFlavorPassiveBadgesHtml(S.flavor,{compact:false,context:'character'});
+    badges.innerHTML=badgeHtml;
+    badges.style.display=badgeHtml?'flex':'none';
   }
 }
 
@@ -5109,6 +5142,7 @@ function scrapAlchemistConvert(remedyName){
 }
 window.scrapAlchemistConvert=scrapAlchemistConvert;
 window.getPersonalFlavorMechanicProfile=getPersonalFlavorMechanicProfile;
+window.getFlavorPassiveBadgesHtml=getFlavorPassiveBadgesHtml;
 window.toggleDarkAfflictionSheetPanel=toggleDarkAfflictionSheetPanel;
 window.setFlavor=setFlavor;
 window.toggleNightMode=toggleNightMode;
@@ -5972,6 +6006,26 @@ function updateCombatUI(){
       caltropsEl.style.display='';
     }else{
       caltropsEl.style.display='none';
+    }
+  }
+  var flavorPassiveEl=document.getElementById('flavorPassiveCombatIndicator');
+  if(!flavorPassiveEl){
+    var combatStatusEl=document.getElementById('combatStatus');
+    if(combatStatusEl&&combatStatusEl.parentElement){
+      flavorPassiveEl=document.createElement('div');
+      flavorPassiveEl.id='flavorPassiveCombatIndicator';
+      flavorPassiveEl.style.cssText='margin-top:.16rem;';
+      combatStatusEl.parentElement.insertBefore(flavorPassiveEl,(caltropsEl&&caltropsEl.nextSibling)?caltropsEl.nextSibling:combatStatusEl.nextSibling);
+    }
+  }
+  if(flavorPassiveEl){
+    var combatBadges=(typeof getFlavorPassiveBadgesHtml==='function')?getFlavorPassiveBadgesHtml(S.flavor,{compact:false,context:'combat'}):'';
+    if(combatBadges&&S.combat&&S.combat.active){
+      flavorPassiveEl.innerHTML='<div style="font-size:.66rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.14rem;">Passive Flavor Effects</div><div class="flavor-passive-strip" style="margin-top:0;">'+combatBadges+'</div>';
+      flavorPassiveEl.style.display='';
+    }else{
+      flavorPassiveEl.style.display='none';
+      flavorPassiveEl.innerHTML='';
     }
   }
   if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();
@@ -12325,6 +12379,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       ? getFlavorInteractionDescriptor(S.flavor)
       : {title:'No Flavor Selected',desc:'Roll or set a Personal Flavor to unlock a usable action.',label:'Use Flavor Action',cooldown:'phase'};
     var flavorCueHtml=(typeof buildQPFlavorCueFeed==='function')?buildQPFlavorCueFeed():'';
+    var passiveFlavorBadges=(typeof getFlavorPassiveBadgesHtml==='function')?getFlavorPassiveBadgesHtml(S.flavor,{compact:false,context:'quick-char'}):'';
 
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;justify-content:space-between;font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">'
@@ -12380,8 +12435,9 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div style="font-size:.66rem;color:var(--text2);line-height:1.45;margin-top:.1rem;"><strong>Effect:</strong> '+(flavorDescriptor.effect||flavorDescriptor.desc||'')+'</div>'
         + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.45;margin-top:.1rem;"><strong>Cue:</strong> '+(flavorDescriptor.cue||'')+'</div>'
         + flavorCueHtml
-        + '<div style="margin-top:.24rem;display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;">'
-          + '<button class="btn btn-xs btn-teal" onclick="if(typeof usePersonalFlavorAction===\'function\')usePersonalFlavorAction();if(typeof refreshQuickPanelSection===\'function\')refreshQuickPanelSection(\'char\');">'+(flavorDescriptor.label||'Use Flavor Action')+'</button>'
+        + (passiveFlavorBadges?('<div class="flavor-passive-strip" style="margin-top:.2rem;">'+passiveFlavorBadges+'</div>'):'')
+        + '<div class="flavor-action-row" style="margin-top:.24rem;">'
+          + '<button class="btn btn-xs btn-teal flavor-action-main" onclick="if(typeof usePersonalFlavorAction===\'function\')usePersonalFlavorAction();if(typeof refreshQuickPanelSection===\'function\')refreshQuickPanelSection(\'char\');">'+(flavorDescriptor.label||'Use Flavor Action')+'</button>'
           + '<button class="btn btn-xs" onclick="if(typeof openPersonalFlavorCodexModal===\'function\')openPersonalFlavorCodexModal();">Mini Codex</button>'
           + '<span style="font-size:.64rem;color:var(--muted2);">Cooldown: '+(flavorDescriptor.cooldown||'phase')+'</span>'
         + '</div>'
@@ -12423,6 +12479,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         }).join('')
       : '<div style="font-size:.78rem;color:var(--muted2);">No enemies set.</div>';
     var hackHtml='';
+    var passiveCombatBadges=(typeof getFlavorPassiveBadgesHtml==='function')?getFlavorPassiveBadgesHtml(S.flavor,{compact:true,context:'quick-combat'}):'';
     if(Array.isArray(S.ownedHacks)&&S.ownedHacks.length){
       if(!S.hackRoller)S.hackRoller={dreadDie:6,guess:null,selectedHack:null};
       hackHtml='<div style="margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--border);">'
@@ -12467,6 +12524,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<button class="btn btn-xs btn-red" onclick="qpEnemyAction()">☠ Enemy Action</button>'
         + (Array.isArray(S.weaponMods)&&S.weaponMods.indexOf('Auto Reloader')>=0?'<button class="btn btn-xs btn-teal" onclick="activateAutoReloader()">🔩 Auto Reloader</button>':'')
       + '</div>'
+      + (passiveCombatBadges?('<div class="flavor-passive-strip" style="margin-top:.28rem;">'+passiveCombatBadges+'</div>'):'')
       + ((S.combat&&S.combat.autoReloaderShots>0)?'<div style="font-size:.68rem;color:var(--teal);margin-top:.22rem;">Auto Reloader active: '+S.combat.autoReloaderShots+' Shoot action'+(S.combat.autoReloaderShots===1?'':'s')+' left in burst.</div>':'')
       + hackHtml
       + '<div style="margin-top:.35rem;background:var(--surface);border:1px solid var(--border);padding:.35rem .45rem;font-size:.78rem;line-height:1.4;min-height:2rem;" id="qpCombatRollResult">'

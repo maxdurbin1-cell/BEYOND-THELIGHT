@@ -4525,6 +4525,9 @@
     }).join("  |  ");
     const gmFrame = "Frame this as " + (STORY_SCENE_TYPES[primarySceneType(scene)] || "Social")
       + ": escalate stakes, let the party choose approach, then lock in a visible consequence.";
+    const passiveFlavorBadges = (typeof window.getFlavorPassiveBadgesHtml === "function" && typeof S !== "undefined")
+      ? window.getFlavorPassiveBadgesHtml(S.flavor, { compact: false, context: "story" })
+      : "";
 
     const sceneOptions = scene.options || [];
     const unlockedCount = sceneOptions.filter(function (option) { return hasReq(option.req); }).length;
@@ -4662,6 +4665,7 @@
       + "</div>"
       + "<div class='story-body'>" + scene.text + "</div>"
       + "<div class='story-result' style='border-color:rgba(94,197,187,.4);background:rgba(94,197,187,.08);'><strong>GM Frame:</strong> " + gmFrame + "</div>"
+      + (passiveFlavorBadges ? ("<div class='story-result' style='border-color:rgba(46,196,182,.35);background:rgba(46,196,182,.08);'><strong>Passive Flavor Effects:</strong><div class='flavor-passive-strip' style='margin-top:.2rem;'>" + passiveFlavorBadges + "</div></div>") : "")
       + (variantText ? ("<div class='story-result'><strong>Variant:</strong> " + variantText + "</div>") : "")
       + (st.lastResult ? ("<div class='story-result'><strong>Last Outcome:</strong> " + st.lastResult + "</div>") : "")
       + (st.pendingTravel ? ("<div class='story-result' style='border:1px solid rgba(240,208,112,.4);background:rgba(240,208,112,.08);'>"

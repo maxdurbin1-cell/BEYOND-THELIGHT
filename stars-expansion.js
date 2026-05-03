@@ -507,6 +507,10 @@ function ensureSolarCycleState() {
   if (typeof sc.timeFracture.maxCharges !== 'number') sc.timeFracture.maxCharges = 1;
   if (!sc.timeFracture.scarFlags || typeof sc.timeFracture.scarFlags !== 'object') sc.timeFracture.scarFlags = {};
   if (typeof sc.timeFracture.rewindsUsed !== 'number') sc.timeFracture.rewindsUsed = 0;
+  if (typeof sc.timeFracture.scarFlags.paradoxStrain !== 'number') sc.timeFracture.scarFlags.paradoxStrain = 0;
+  if (typeof sc.timeFracture.scarFlags.echoArc !== 'string') sc.timeFracture.scarFlags.echoArc = '';
+  if (typeof sc.timeFracture.scarFlags.lastRewindDays !== 'number') sc.timeFracture.scarFlags.lastRewindDays = 0;
+  if (typeof sc.timeFracture.scarFlags.tmwBurnTotal !== 'number') sc.timeFracture.scarFlags.tmwBurnTotal = 0;
   if (!Array.isArray(sc.thresholdNotifs)) sc.thresholdNotifs = [];
   if (typeof sc.currentOmen !== 'string') sc.currentOmen = '';
   if (!sc.pendingEchoMarker || typeof sc.pendingEchoMarker !== 'object') sc.pendingEchoMarker = null;
@@ -517,6 +521,43 @@ function ensureSolarCycleState() {
       : '';
   }
   return sc;
+}
+
+function getSolarCycleEffectiveArc(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state) return 'relic';
+  var scarArc = state.timeFracture && state.timeFracture.scarFlags
+    ? String(state.timeFracture.scarFlags.echoArc || '')
+    : '';
+  if (SOLAR_CYCLE_ARCS.indexOf(scarArc) >= 0) return scarArc;
+  return SOLAR_CYCLE_ARCS.indexOf(state.activeArc) >= 0 ? state.activeArc : 'relic';
+}
+
+function getSolarCycleFractureMarkerText(activeArc, tier) {
+  if (tier === 'early') return 'You reach the lighthouse before arriving. Salt on your hands matches no timeline.';
+  if (tier === 'mid') return 'The keeper repeats your future answers and asks why your shadow is delayed.';
+  if (tier === 'late') return 'The structure is missing, but your own voice sweeps the coast as signal-light.';
+  return 'The beam speaks in verdicts from futures that should not exist.';
+}
+
+function getSolarCycleRewindCap(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state) return 0;
+  var elapsed = Math.max(0, Number(state.daysElapsed || 0));
+  var cap = 1;
+  if (elapsed >= 20) cap = 2;
+  if (elapsed >= 45) cap = 3;
+  return Math.min(cap, elapsed);
+}
+
+function getSolarCycleRewindOptions() {
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) return [];
+  if (!sc.timeFracture || Number(sc.timeFracture.charges || 0) <= 0) return [];
+  var cap = getSolarCycleRewindCap(sc);
+  var out = [];
+  for (var i = 1; i <= cap; i++) out.push(i);
+  return out;
 }
 
 function clearSolarCycleProvinceMarkers() {
@@ -578,6 +619,7 @@ function syncSolarCycleProvinceMarkers() {
   clearSolarCycleProvinceMarkers();
 
   var tier = getSolarCycleTier(sc.daysElapsed);
+  var effectiveArc = getSolarCycleEffectiveArc(sc);
   var spawnNow = shouldSpawnSolarCycleMarker(sc.daysElapsed, tier);
   if (sc.pendingEchoMarker && Number(sc.pendingEchoMarker.day || 0) <= Number(sc.daysElapsed || 0)) {
     spawnNow = true;
@@ -593,15 +635,18 @@ function syncSolarCycleProvinceMarkers() {
   if (!targetHex) return;
 
   var key = String(targetHex.col) + ',' + String(targetHex.row);
-  var markerId = 'solar:' + String(sc.activeArc) + ':' + String(tier) + ':' + String(sc.daysElapsed);
+  var markerId = 'solar:' + String(effectiveArc) + ':' + String(tier) + ':' + String(sc.daysElapsed);
+  var markerText = (sc.timeFracture && Number(sc.timeFracture.rewindsUsed || 0) > 0)
+    ? getSolarCycleFractureMarkerText(effectiveArc, tier)
+    : getSolarCycleMarkerText(effectiveArc, tier);
   S.missionTokens[key] = {
     missionId: 'solar_cycle',
     type: 'solar_cycle_marker',
     title: 'Solar Omen',
     solarMarkerId: markerId,
     solarTier: tier,
-    solarArc: sc.activeArc,
-    text: getSolarCycleMarkerText(sc.activeArc, tier)
+    solarArc: effectiveArc,
+    text: markerText
   };
 
   sc.pendingEchoMarker = null;
@@ -631,7 +676,8 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
     if (typeof showNotif === 'function') showNotif('You observed the omen. Lore recorded and future routes may shift.', 'good');
   } else if (approach === 'intervene') {
     if (typeof changeFactionRenown === 'function') {
-      var faction = sc.activeArc === 'herald' ? 'religious' : (sc.activeArc === 'loop' ? 'scholars' : 'political');
+      var arc = String((markerToken && markerToken.solarArc) || getSolarCycleEffectiveArc(sc));
+      var faction = arc === 'herald' ? 'religious' : (arc === 'loop' ? 'scholars' : 'political');
       changeFactionRenown(faction, 1);
     }
     sc.worldTilt = Math.min(4, Number(sc.worldTilt || 1) + 1);
@@ -667,6 +713,68 @@ function resolveSolarCycleProvinceMarker(hex, markerToken) {
 
   window._activeSolarMarkerToken = markerToken;
   if (typeof openModal === 'function') openModal('Solar Cycle Marker', html);
+  return true;
+}
+
+function applySolarCycleTimeFracture(daysBack) {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) {
+    if (typeof showNotif === 'function') showNotif('Start a New Sun run before using Time Fracture.', 'warn');
+    return false;
+  }
+  if (!sc.timeFracture || Number(sc.timeFracture.charges || 0) <= 0) {
+    if (typeof showNotif === 'function') showNotif('No Time Fracture charges remaining.', 'warn');
+    return false;
+  }
+
+  var requested = Math.max(1, parseInt(daysBack, 10) || 1);
+  var cap = getSolarCycleRewindCap(sc);
+  if (cap <= 0) {
+    if (typeof showNotif === 'function') showNotif('Not enough elapsed days to fracture time yet.', 'warn');
+    return false;
+  }
+  var rewindDays = Math.min(requested, cap);
+
+  var prevArc = getSolarCycleEffectiveArc(sc);
+  var prevIndex = SOLAR_CYCLE_ARCS.indexOf(prevArc);
+  var nextArc = SOLAR_CYCLE_ARCS[(prevIndex + 1 + Number(sc.timeFracture.rewindsUsed || 0)) % SOLAR_CYCLE_ARCS.length];
+
+  sc.daysElapsed = clampSolarCycleElapsed(Number(sc.daysElapsed || 0) - rewindDays);
+  sc.daysRemaining = Math.max(0, SOLAR_CYCLE_DAY_LIMIT - sc.daysElapsed);
+  sc.currentTier = getSolarCycleTier(sc.daysElapsed);
+  sc.timeFracture.charges = Math.max(0, Number(sc.timeFracture.charges || 0) - 1);
+  sc.timeFracture.rewindsUsed = Number(sc.timeFracture.rewindsUsed || 0) + 1;
+  sc.timeFracture.scarFlags.paradoxStrain = Number(sc.timeFracture.scarFlags.paradoxStrain || 0) + rewindDays;
+  sc.timeFracture.scarFlags.lastRewindDays = rewindDays;
+  sc.timeFracture.scarFlags.echoArc = nextArc;
+  sc.timeFracture.scarFlags.tmwBurnTotal = Number(sc.timeFracture.scarFlags.tmwBurnTotal || 0) + 1;
+
+  sc.currentOmen = getSolarCycleFractureMarkerText(nextArc, sc.currentTier);
+  sc.pendingEchoMarker = {
+    day: Math.min(SOLAR_CYCLE_DAY_LIMIT, Number(sc.daysElapsed || 0) + 1),
+    seedOffset: 199 + Number(sc.timeFracture.rewindsUsed || 0) * 17
+  };
+
+  if (typeof changeCounter === 'function') {
+    changeCounter('tmw', -1);
+  } else if (typeof S !== 'undefined') {
+    S.tmw = Math.max(0, Number(S.tmw || 0) - 1);
+  }
+
+  S.storyline = S.storyline || {};
+  S.storyline.flags = S.storyline.flags || {};
+  S.storyline.flags.solarParadoxMarks = Number(S.storyline.flags.solarParadoxMarks || 0) + 1;
+
+  advanceDay(-rewindDays, true);
+  syncSolarCycleProvinceMarkers();
+
+  if (typeof showNotif === 'function') {
+    showNotif('Time Fracture: rewound ' + rewindDays + ' day(s). Paradox scars remain.', 'warn');
+  }
+  if (typeof renderHexMap === 'function') renderHexMap();
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+  if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return true;
 }
 
@@ -738,7 +846,7 @@ function startSolarCycleMode(activeArc) {
   sc.prophecyTrack = [];
   sc.resolvedMarkers = {};
   sc.endingFlags = { forcedFinaleTriggered: false, ending: '' };
-  sc.timeFracture = { charges: 1, maxCharges: 1, scarFlags: {}, rewindsUsed: 0 };
+  sc.timeFracture = { charges: 1, maxCharges: 1, scarFlags: { paradoxStrain: 0, echoArc: '', lastRewindDays: 0, tmwBurnTotal: 0 }, rewindsUsed: 0 };
   sc.echoSeed = Math.floor(Math.random() * 1000000);
   sc.thresholdNotifs = [];
   sc.currentTier = 'early';
@@ -767,10 +875,21 @@ function progressSolarCycleDay(days) {
   sc.daysElapsed = clampSolarCycleElapsed(sc.daysElapsed + delta);
   sc.daysRemaining = Math.max(0, SOLAR_CYCLE_DAY_LIMIT - sc.daysElapsed);
   sc.worldTilt = Math.min(4, Math.floor(sc.daysElapsed / 25) + 1);
+  if (sc.timeFracture && sc.timeFracture.scarFlags) {
+    var strain = Number(sc.timeFracture.scarFlags.paradoxStrain || 0);
+    if (strain > 0) {
+      var strainTilt = Math.min(4, Math.floor((sc.daysElapsed + strain) / 25) + 1);
+      sc.worldTilt = Math.max(sc.worldTilt, strainTilt);
+    }
+  }
   sc.currentTier = getSolarCycleTier(sc.daysElapsed);
-  sc.currentOmen = (SOLAR_CYCLE_OMENS[sc.activeArc] && SOLAR_CYCLE_OMENS[sc.activeArc][sc.currentTier])
-    ? SOLAR_CYCLE_OMENS[sc.activeArc][sc.currentTier]
+  var effectiveArc = getSolarCycleEffectiveArc(sc);
+  sc.currentOmen = (SOLAR_CYCLE_OMENS[effectiveArc] && SOLAR_CYCLE_OMENS[effectiveArc][sc.currentTier])
+    ? SOLAR_CYCLE_OMENS[effectiveArc][sc.currentTier]
     : sc.currentOmen;
+  if (sc.timeFracture && Number(sc.timeFracture.rewindsUsed || 0) > 0) {
+    sc.currentOmen = getSolarCycleFractureMarkerText(effectiveArc, sc.currentTier);
+  }
 
   if (prevTier !== sc.currentTier) {
     sc.prophecyTrack.push('Day ' + sc.daysElapsed + ': ' + sc.currentOmen);
@@ -811,11 +930,16 @@ function getSolarCycleStatus() {
     daysRemaining: Number(sc.daysRemaining || 0),
     worldTilt: Number(sc.worldTilt || 0),
     activeArc: String(sc.activeArc || 'relic'),
+    effectiveArc: String(getSolarCycleEffectiveArc(sc) || 'relic'),
     currentTier: String(sc.currentTier || 'early'),
     currentOmen: String(sc.currentOmen || ''),
     finaleForced: !!(sc.endingFlags && sc.endingFlags.forcedFinaleTriggered),
     prophecyTrackCount: Array.isArray(sc.prophecyTrack) ? sc.prophecyTrack.length : 0,
-    rewindCharges: sc.timeFracture ? Number(sc.timeFracture.charges || 0) : 0
+    rewindCharges: sc.timeFracture ? Number(sc.timeFracture.charges || 0) : 0,
+    rewindMax: sc.timeFracture ? Number(sc.timeFracture.maxCharges || 0) : 0,
+    rewindsUsed: sc.timeFracture ? Number(sc.timeFracture.rewindsUsed || 0) : 0,
+    paradoxStrain: sc.timeFracture && sc.timeFracture.scarFlags ? Number(sc.timeFracture.scarFlags.paradoxStrain || 0) : 0,
+    rewindCap: getSolarCycleRewindCap(sc)
   };
 }
 
@@ -826,6 +950,7 @@ function renderNewSunModePanel() {
   var sc = ensureSolarCycleState();
   var status = getSolarCycleStatus() || {};
   var soloAllowed = isSolarCycleSoloModeAvailable();
+  var rewindOptions = getSolarCycleRewindOptions();
   var prophecy = Array.isArray(sc.prophecyTrack) && sc.prophecyTrack.length
     ? sc.prophecyTrack.slice(-5).map(function (line) {
         return '<div style="padding:.2rem 0;border-bottom:1px solid var(--border2);font-size:.74rem;color:var(--muted2);">' + String(line).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
@@ -845,6 +970,23 @@ function renderNewSunModePanel() {
       + '</div>')
     : '';
 
+  var rewindControls = (status.storyModeEnabled && status.enabled)
+    ? ('<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
+      + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.25rem;"><strong>Time Fracture</strong></div>'
+      + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Rewind 1-3 days. Costs 1 charge and always leaves paradox scars.</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">Charges: <strong>' + Number(status.rewindCharges || 0) + '</strong> / ' + Number(status.rewindMax || 0)
+      + '  |  Used: <strong>' + Number(status.rewindsUsed || 0) + '</strong>'
+      + '  |  Paradox Strain: <strong>' + Number(status.paradoxStrain || 0) + '</strong></div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+      + (rewindOptions.length
+          ? rewindOptions.map(function (n) {
+              return '<button class="btn btn-sm btn-warn" onclick="applySolarCycleTimeFracture(' + n + ')">Rewind ' + n + ' Day' + (n === 1 ? '' : 's') + '</button>';
+            }).join('')
+          : '<button class="btn btn-sm" disabled>No rewind available</button>')
+      + '</div>'
+      + '</div>')
+    : '';
+
   host.innerHTML = ''
     + '<div style="max-width:1040px;margin:0 auto;padding:1rem;">'
     + '<div class="section-title">New Sun Mode</div>'
@@ -855,11 +997,12 @@ function renderNewSunModePanel() {
     + '<div style="margin-top:.45rem;">' + toggleBtn + '</div>'
     + startButtons
     + '</div>'
+    + rewindControls
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.55rem;">'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Mode</div><div style="font-size:.9rem;color:var(--text2);">' + (status.storyModeEnabled ? 'New Sun Enabled' : 'Legacy Mode') + '</div></div>'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Run Status</div><div style="font-size:.9rem;color:var(--text2);">' + (status.enabled ? 'Active Run' : 'No Active Run') + '</div></div>'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Day Clock</div><div style="font-size:.9rem;color:var(--text2);">' + Number(status.daysElapsed || 0) + '/100 (' + Number(status.daysRemaining || 100) + ' left)</div></div>'
-    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Arc / Tier</div><div style="font-size:.9rem;color:var(--text2);">' + String((status.activeArc || 'relic')).toUpperCase() + ' / ' + String(status.currentTier || 'early') + '</div></div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Arc / Tier</div><div style="font-size:.9rem;color:var(--text2);">' + String((status.effectiveArc || status.activeArc || 'relic')).toUpperCase() + ' / ' + String(status.currentTier || 'early') + '</div></div>'
     + '</div>'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.65rem;margin-top:.6rem;">'
     + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.25rem;">Current Omen</div>'
@@ -922,6 +1065,7 @@ window.completeSolarCycleMarkerInteraction = completeSolarCycleMarkerInteraction
 window.setSolarCycleStoryModeEnabled = setSolarCycleStoryModeEnabled;
 window.stopSolarCycleRun = stopSolarCycleRun;
 window.renderNewSunModePanel = renderNewSunModePanel;
+window.applySolarCycleTimeFracture = applySolarCycleTimeFracture;
 
 function ensureStarsState() {
   if (!S.health && S.health !== 0) S.health = S.stress || 0;

@@ -976,7 +976,8 @@ function ensureSolarCycleState() {
   if (!sc.arcProgress.branchChoices || typeof sc.arcProgress.branchChoices !== 'object') sc.arcProgress.branchChoices = {};
   if (!sc.arcProgress.stageResults || typeof sc.arcProgress.stageResults !== 'object') sc.arcProgress.stageResults = {};
   if (!sc.arcProgress.activeMarker || typeof sc.arcProgress.activeMarker !== 'object') sc.arcProgress.activeMarker = null;
-  if (['fractal', 'straight'].indexOf(String(sc.arcProgress.routeMode || '')) < 0) sc.arcProgress.routeMode = 'fractal';
+  // New Sun Arc Campaign is locked to canonical straight routing.
+  sc.arcProgress.routeMode = 'straight';
   if (typeof sc.arcProgress.lastAutoOpenedMarkerKey !== 'string') sc.arcProgress.lastAutoOpenedMarkerKey = '';
   if (!Array.isArray(sc.arcProgress.history)) sc.arcProgress.history = [];
   if (typeof sc.arcProgress.lastSyncedCompletedCount !== 'number') sc.arcProgress.lastSyncedCompletedCount = 0;
@@ -2582,9 +2583,10 @@ function setSolarCycleStoryModeEnabled(enabled) {
     return sc;
   }
 
-  // Turning New Sun ON should immediately start a run.
+  // Turning New Sun ON should immediately start a run with a randomized arc.
   if (!sc.enabled) {
-    return startSolarCycleMode(sc.activeArc || 'relic');
+    var randomArc = SOLAR_CYCLE_ARCS[Math.floor(Math.random() * SOLAR_CYCLE_ARCS.length)] || 'relic';
+    return startSolarCycleMode(randomArc);
   }
 
   // If somehow enabled without a live marker, ensure progression is visible.
@@ -2636,7 +2638,7 @@ function startSolarCycleMode(activeArc) {
     branchChoices: {},
     stageResults: {},
     activeMarker: null,
-    routeMode: 'fractal',
+    routeMode: 'straight',
     activeMissionId: null,
     history: [],
     lastSyncedCompletedCount: 0
@@ -2875,15 +2877,6 @@ function renderNewSunModePanel() {
     + (soloAllowed ? ' onclick="window.toggleSolarCycleStoryMode()"' : ' disabled')
     + '>' + (status.storyModeEnabled ? 'Turn New Sun OFF' : 'Turn New Sun ON') + '</button>';
 
-  var startButtons = status.storyModeEnabled
-    ? ('<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.4rem;">'
-      + '<button class="btn btn-sm btn-gold" onclick="window.startSolarCycleMode(\'relic\')">Start Relic Arc</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="window.startSolarCycleMode(\'herald\')">Start Herald Arc</button>'
-      + '<button class="btn btn-sm btn-warn" onclick="window.startSolarCycleMode(\'loop\')">Start Loop Arc</button>'
-      + '<button class="btn btn-sm" onclick="window.stopSolarCycleRun()">Stop Current Run</button>'
-      + '</div>')
-    : '';
-
   var rewindControls = (status.storyModeEnabled && status.enabled)
     ? ('<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
       + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.25rem;"><strong>Time Fracture</strong></div>'
@@ -2939,21 +2932,18 @@ function renderNewSunModePanel() {
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.28rem;"><strong>Solo Story Toggle</strong></div>'
     + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Turn this on to activate the New Sun ruleset. Unlike Storyline, this mode advances toward a forced finale, spawns moving map markers, and permanently changes the route when you miss or fail certain branches.</div>'
+    + '<div style="font-size:.75rem;color:var(--gold2);line-height:1.55;margin-top:.3rem;">When enabled, New Sun auto-selects a random arc and runs as a GM-led solo campaign for your Wayfarer.</div>'
     + (soloAllowed ? '' : '<div style="font-size:.76rem;color:var(--red2);margin-top:.35rem;">Unavailable while connected to Campaign mode.</div>'
       + (soloLockReason
           ? '<div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">' + String(soloLockReason).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>'
           : ''))
     + '<div style="margin-top:.45rem;">' + toggleBtn + '</div>'
-    + startButtons
     + '</div>'
     + rewindControls
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Arc Campaign</strong></div>'
     + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Province -> Last Sea -> World That Was -> Space. Each stage places an active story marker on the map itself. Enter that location to trigger hidden, unlocked, or time-sensitive choices that can open later routes, block others, or reshape the finale.</div>'
-    + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">Routing Mode: <strong>' + (status.routeMode === 'straight' ? 'Straight Shot' : 'Fractal Routes') + '</strong> (Fractal can jump regions; Straight follows canonical order.)</div>'
-    + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
-    + '<button class="btn btn-sm"' + (status.storyModeEnabled ? ' onclick="window.setSolarCycleRouteMode(\'' + (status.routeMode === 'straight' ? 'fractal' : 'straight') + '\')"' : ' disabled') + '>' + (status.routeMode === 'straight' ? 'Switch to Fractal Routes' : 'Switch to Straight Shot') + '</button>'
-    + '</div>'
+    + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">Routing Mode: <strong>Straight Routes</strong> (Province -> Last Sea -> World That Was -> Space, always canonical.)</div>'
     + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">Progress: <strong>' + Number(status.arcStageIndex || 0) + '</strong> / ' + Number(status.arcStageTotal || NEW_SUN_ARC_STAGES.length) + '</div>'
     + (status.activeMarkerLabel ? '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.35rem;">Current Marker: ' + status.activeMarkerLabel + '</div>' : '')
     + ((status.activeMarkerExpiresDay > 0 && status.enabled) ? '<div style="font-size:.74rem;color:var(--red2);margin-bottom:.35rem;">Marker closes after Day ' + Number(status.activeMarkerExpiresDay || 0) + '.</div>' : '')
@@ -3387,8 +3377,8 @@ function getSolarCycleScheduledStartDay(qs, region) {
 }
 
 function getSolarCycleQuestTemplateMode(sc) {
-  var state = sc || ensureSolarCycleState();
-  if (state && state.arcProgress && state.arcProgress.routeMode === 'straight') return 'straight';
+  // Scheduler quests stay roaming so cross-region handoffs can still emerge,
+  // even though Arc Campaign progression is locked to canonical straight routes.
   return 'roaming';
 }
 
@@ -3803,7 +3793,45 @@ function awardSolarCycleQuestArtifact(sc, quest, misled) {
 }
 
 function openSolarCyclePuzzleChallenge(quest, misled) {
-  if (typeof window.openStandaloneStoryPuzzle !== 'function' || !quest) {
+  if (!quest) {
+    if (misled) {
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+    } else if (typeof changeCounter === 'function') {
+      changeCounter('tmw', 1);
+    }
+    return;
+  }
+
+  var sourceByRegion = {
+    province: 'province',
+    sea: 'sea',
+    wtw: 'wtw',
+    galaxy: 'galaxy'
+  };
+  var source = sourceByRegion[String(quest.region || 'province')] || 'event';
+
+  if (typeof window.openSharedPuzzleChallenge === 'function') {
+    window.openSharedPuzzleChallenge({
+      source: source,
+      title: 'New Sun Puzzle Challenge',
+      reward: {
+        credits: misled ? 15 : 35,
+        renown: misled ? 0 : 1,
+        item: (misled ? 'Fractured ' : '') + 'New Sun Puzzle Sigil'
+      },
+      onSuccess: function () {
+        if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+        if (typeof showNotif === 'function') showNotif('Puzzle solved: route stabilized for this branch.', 'good');
+      },
+      onFail: function () {
+        if (typeof changeMentalStress === 'function') changeMentalStress(1);
+        if (typeof showNotif === 'function') showNotif('Puzzle failed: the branch takes additional strain.', 'warn');
+      }
+    });
+    return;
+  }
+
+  if (typeof window.openStandaloneStoryPuzzle !== 'function') {
     if (misled) {
       if (typeof changeMentalStress === 'function') changeMentalStress(1);
     } else if (typeof changeCounter === 'function') {
@@ -4134,10 +4162,10 @@ function expireSolarCycleActiveStageMarkerIfNeeded(sc) {
 function setSolarCycleRouteMode(mode) {
   var sc = ensureSolarCycleState();
   if (!sc || !sc.arcProgress) return false;
-  var next = String(mode || '').toLowerCase() === 'straight' ? 'straight' : 'fractal';
+  var next = 'straight';
   sc.arcProgress.routeMode = next;
   if (typeof showNotif === 'function') {
-    showNotif('New Sun route mode: ' + (next === 'straight' ? 'Straight Shot' : 'Fractal Routes') + '.', 'info');
+    showNotif('New Sun route mode is locked to Straight Routes.', 'info');
   }
   syncSolarCycleQuestScheduler(false);
   renderSolarCycleGlobalDock();
@@ -4212,7 +4240,7 @@ function buildSolarCycleQuickPanelHtml() {
   if (!sc || !sc.storyModeEnabled || !sc.enabled) return '';
   var status = getSolarCycleStatus() || {};
   var qs = getSolarCycleQuestScheduler(sc);
-  var mode = status.routeMode === 'straight' ? 'Straight Shot' : 'Fractal Routes';
+  var mode = 'Straight Routes';
   var summary = qs
     ? ('P ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | S ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)

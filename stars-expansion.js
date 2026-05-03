@@ -1917,30 +1917,44 @@ function postNextSolarCycleArcMission() {
   return marker;
 }
 
+function renderSolarCycleChoiceCards(stageId, sceneChoices, compact) {
+  var choices = Array.isArray(sceneChoices) ? sceneChoices : [];
+  var isCompact = !!compact;
+  return choices.map(function (choice) {
+    var unlocked = typeof window.storyHasReq === 'function' ? !!window.storyHasReq(choice.req) : true;
+    var reqText = typeof window.storyRenderRequirement === 'function' ? window.storyRenderRequirement(choice.req) : '';
+    var die = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
+    var bg = unlocked ? 'var(--surface)' : 'rgba(160,120,80,.08)';
+    var border = unlocked ? 'var(--border2)' : 'rgba(240,160,80,.35)';
+    var titleTone = unlocked ? 'var(--text2)' : 'var(--muted2)';
+    var buttonHtml = unlocked
+      ? '<button class="btn ' + (isCompact ? 'btn-xs' : 'btn-sm') + ' btn-teal" onclick="resolveSolarCycleStageChoice(\'' + stageId + '\',\'' + choice.id + '\')">Choose</button>'
+      : '<button class="btn ' + (isCompact ? 'btn-xs' : 'btn-sm') + '" disabled>Unavailable</button>';
+    return '<div style="border:1px solid ' + border + ';background:' + bg + ';padding:' + (isCompact ? '.45rem .5rem' : '.5rem .6rem') + ';margin-bottom:.35rem;opacity:' + (unlocked ? '1' : '.92') + ';">'
+      + '<div style="font-size:' + (isCompact ? '.82rem' : '.84rem') + ';color:' + titleTone + ';margin-bottom:.18rem;">' + escapeSolarCycleHtml(choice.text) + (unlocked ? '' : ' <span style="color:var(--gold2);">[Locked]</span>') + '</div>'
+      + (choice.stat ? ('<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">' + String(choice.stat).toUpperCase() + ' d' + die + ' vs DD' + Number(choice.baseDread || 8) + '</div>') : '')
+      + (reqText ? ('<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;">' + escapeSolarCycleHtml(reqText) + '</div>') : (!unlocked ? '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;">Requirements not met.</div>' : ''))
+      + buttonHtml
+      + '</div>';
+  }).join('');
+}
+
 function renderSolarCycleStageChoiceModal(stageId, contextLabel) {
   var sc = ensureSolarCycleState();
   var stage = getSolarCycleStageById(stageId);
   var scene = getSolarCycleStageScene(stageId);
   if (!sc || !stage || !scene || typeof openModal !== 'function') return false;
-  var choices = (scene.choices || []).filter(function (choice) {
+  var choiceHtml = renderSolarCycleChoiceCards(stageId, scene.choices || [], false);
+  var unlockedCount = (scene.choices || []).filter(function (choice) {
     return typeof window.storyHasReq === 'function' ? !!window.storyHasReq(choice.req) : true;
-  });
-  var choiceHtml = choices.map(function (choice) {
-    var reqText = typeof window.storyRenderRequirement === 'function' ? window.storyRenderRequirement(choice.req) : '';
-    var die = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
-    return '<div style="border:1px solid var(--border2);background:var(--surface);padding:.5rem .6rem;margin-bottom:.35rem;">'
-      + '<div style="font-size:.84rem;color:var(--text2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(choice.text) + '</div>'
-      + (choice.stat ? ('<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">' + String(choice.stat).toUpperCase() + ' d' + die + ' vs DD' + Number(choice.baseDread || 8) + '</div>') : '')
-      + (reqText ? ('<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;">' + escapeSolarCycleHtml(reqText) + '</div>') : '')
-      + '<button class="btn btn-sm btn-teal" onclick="resolveSolarCycleStageChoice(\'' + stageId + '\',\'' + choice.id + '\')">Choose</button>'
-      + '</div>';
-  }).join('');
+  }).length;
 
   openModal(
     stage.title,
     '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.25rem;">' + escapeSolarCycleHtml(contextLabel || stage.location) + '</div>'
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;margin-bottom:.5rem;">' + escapeSolarCycleHtml(scene.intro) + '</div>'
-    + (choiceHtml || '<div style="font-size:.76rem;color:var(--muted2);">No visible options match your current background, backstory, item loadout, or action dice here.</div>')
+    + (!unlockedCount ? '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.35rem;">No branches are currently available, but you can see what this scene is waiting for below.</div>' : '')
+    + (choiceHtml || '<div style="font-size:.76rem;color:var(--muted2);">No story branches defined for this marker.</div>')
   );
   return true;
 }
@@ -2025,21 +2039,14 @@ function renderSolarCycleGalaxyTaskPanel(task) {
   var scene = getSolarCycleStageScene(task.missionId);
   var stage = getSolarCycleStageById(task.missionId);
   if (!scene || !stage) return false;
-  var choices = (scene.choices || []).filter(function (choice) {
+  var choices = renderSolarCycleChoiceCards(stage.id, scene.choices || [], true);
+  var unlockedCount = (scene.choices || []).filter(function (choice) {
     return typeof window.storyHasReq === 'function' ? !!window.storyHasReq(choice.req) : true;
-  }).map(function (choice) {
-    var reqText = typeof window.storyRenderRequirement === 'function' ? window.storyRenderRequirement(choice.req) : '';
-    var die = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
-    return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;margin-top:.35rem;">'
-      + '<div style="font-size:.82rem;color:var(--text2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(choice.text) + '</div>'
-      + (choice.stat ? ('<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.15rem;">' + String(choice.stat).toUpperCase() + ' d' + die + ' vs DD' + Number(choice.baseDread || 8) + '</div>') : '')
-      + (reqText ? ('<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.15rem;">' + escapeSolarCycleHtml(reqText) + '</div>') : '')
-      + '<button class="btn btn-xs btn-teal" onclick="resolveSolarCycleStageChoice(\'' + stage.id + '\',\'' + choice.id + '\')">Choose</button>'
-      + '</div>';
-  }).join('');
+  }).length;
   out.innerHTML = '<div style="font-size:.92rem;color:var(--gold2);margin-bottom:.25rem;">New Sun Marker: ' + escapeSolarCycleHtml(stage.title) + '</div>'
     + '<div style="font-size:.86rem;color:var(--muted2);line-height:1.6;">' + escapeSolarCycleHtml(scene.intro) + '</div>'
-    + (choices || '<div style="font-size:.78rem;color:var(--muted2);margin-top:.35rem;">No visible options match your current build here.</div>');
+    + (!unlockedCount ? '<div style="font-size:.76rem;color:var(--gold2);margin-top:.35rem;">All current branches are locked. Review the requirements below.</div>' : '')
+    + (choices || '<div style="font-size:.78rem;color:var(--muted2);margin-top:.35rem;">No story branches defined for this marker.</div>');
   return true;
 }
 

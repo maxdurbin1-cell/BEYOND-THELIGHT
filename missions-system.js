@@ -944,11 +944,15 @@
   function canAutoAdvanceMission(missionId, tokenType, regionTag) {
     var now = Date.now();
     var mode = (typeof window.getMissionMapAutoAdvanceMode === 'function') ? window.getMissionMapAutoAdvanceMode() : 'click';
-    var phaseToken = (mode === 'phase' && typeof window.getCurrentTravelPhaseToken === 'function')
-      ? String(window.getCurrentTravelPhaseToken() || 'phase-unknown')
-      : 'click';
-    var key = String(regionTag || 'region') + '|' + String(missionId || '') + '|' + String(tokenType || '') + '|' + phaseToken;
-    var dedupeWindow = mode === 'phase' ? 60000 : 500;
+    var travelToken = 'click';
+    if (mode === 'day') {
+      var gd = (typeof S !== 'undefined' && S && S.gameDate) ? S.gameDate : null;
+      travelToken = gd
+        ? [gd.year || 1, gd.month || 1, gd.day || 1].join('|')
+        : 'day-unknown';
+    }
+    var key = String(regionTag || 'region') + '|' + String(missionId || '') + '|' + String(tokenType || '') + '|' + travelToken;
+    var dedupeWindow = mode === 'day' ? 60000 : 500;
     if (_missionAutoAdvanceGuard.key === key && (now - Number(_missionAutoAdvanceGuard.at || 0)) < dedupeWindow) {
       return false;
     }

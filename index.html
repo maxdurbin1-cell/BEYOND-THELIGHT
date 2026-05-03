@@ -9427,7 +9427,7 @@ function getCurrentTravelPhaseToken(){
 window.getCurrentTravelPhaseToken=getCurrentTravelPhaseToken;
 function ensureMissionMapAutoAdvanceMode(){
   if(!S||typeof S!=='object')return 'click';
-  if(S.missionMapAutoAdvanceMode!=='phase'&&S.missionMapAutoAdvanceMode!=='click')S.missionMapAutoAdvanceMode='click';
+  if(S.missionMapAutoAdvanceMode!=='day'&&S.missionMapAutoAdvanceMode!=='click')S.missionMapAutoAdvanceMode='day';
   return S.missionMapAutoAdvanceMode;
 }
 function getMissionMapAutoAdvanceMode(){
@@ -9435,8 +9435,8 @@ function getMissionMapAutoAdvanceMode(){
 }
 function toggleMissionMapAutoAdvanceMode(){
   const cur=ensureMissionMapAutoAdvanceMode();
-  S.missionMapAutoAdvanceMode=cur==='click'?'phase':'click';
-  if(typeof showNotif==='function')showNotif('Map mission auto-advance: '+(S.missionMapAutoAdvanceMode==='phase'?'Once per phase':'Every travel click')+'.','good');
+  S.missionMapAutoAdvanceMode=cur==='click'?'day':'click';
+  if(typeof showNotif==='function')showNotif('Map mission auto-advance: '+(S.missionMapAutoAdvanceMode==='day'?'Once per day':'Every travel click')+'.','good');
   if(typeof window.refreshQuickPanelSection==='function')window.refreshQuickPanelSection('missions');
 }
 window.getMissionMapAutoAdvanceMode=getMissionMapAutoAdvanceMode;
@@ -12553,9 +12553,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     var missionAutoSummary='<div style="background:var(--surface);border:1px solid var(--border2);padding:.38rem .5rem;margin-bottom:.55rem;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
       + '<div style="font-size:.7rem;color:var(--gold2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;">Map Mission Auto-Advance</div>'
-      + '<button class="btn btn-xs '+(missionAutoMode==='phase'?'btn-teal':'')+'" onclick="toggleMissionMapAutoAdvanceMode()">'+(missionAutoMode==='phase'?'Once / Phase':'Every Click')+'</button>'
+      + '<button class="btn btn-xs '+(missionAutoMode==='day'?'btn-teal':'')+'" onclick="toggleMissionMapAutoAdvanceMode()">'+(missionAutoMode==='day'?'Once / Day':'Every Click')+'</button>'
       + '</div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.16rem;">Choose whether stepping on mission markers triggers once per phase or on every travel click.</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.16rem;">Choose whether stepping on mission markers triggers once per day or on every travel click.</div>'
       + '</div>';
     var newSunQuickHtml = '';
     if (typeof window.buildSolarCycleQuickPanelHtml === 'function') {

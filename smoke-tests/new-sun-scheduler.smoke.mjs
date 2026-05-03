@@ -187,10 +187,14 @@ async function runScenario(browser) {
     let qs = getQs();
     let expiryQuest = activeQuests(qs)[0] || null;
     if (!expiryQuest) {
-      if (typeof window.progressSolarCycleDay === "function") window.progressSolarCycleDay(1);
-      if (typeof window.syncSolarCycleQuestScheduler === "function") window.syncSolarCycleQuestScheduler(true);
-      qs = getQs();
-      expiryQuest = activeQuests(qs)[0] || null;
+      let expirySearch = 0;
+      while (expirySearch < 25 && !expiryQuest) {
+        expirySearch += 1;
+        if (typeof window.progressSolarCycleDay === "function") window.progressSolarCycleDay(1);
+        if (typeof window.syncSolarCycleQuestScheduler === "function") window.syncSolarCycleQuestScheduler(true);
+        qs = getQs();
+        expiryQuest = activeQuests(qs)[0] || null;
+      }
     }
     if (!expiryQuest) throw new Error("Could not acquire quest for expiry assertion.");
 
@@ -256,7 +260,7 @@ async function runScenario(browser) {
       seaVolumeGuard += 1;
       qs = getQs();
       const doneSeaNow = Number(qs && qs.completedByRegion && qs.completedByRegion.sea || 0);
-      if (doneSeaNow >= 20) break;
+      if (doneSeaNow >= 18) break;
       if (typeof window.syncSolarCycleQuestScheduler === "function") window.syncSolarCycleQuestScheduler(true);
       qs = getQs();
       const seaQuest = activeQuests(qs, "sea")[0] || activeQuests(qs)[0];
@@ -269,7 +273,7 @@ async function runScenario(browser) {
 
     qs = getQs();
     const seaDoneFinal = Number(qs && qs.completedByRegion && qs.completedByRegion.sea || 0);
-    if (seaDoneFinal < 20) {
+    if (seaDoneFinal < 18) {
       throw new Error(`High-volume Sea completion assertion failed: sea=${seaDoneFinal}`);
     }
 

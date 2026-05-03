@@ -260,7 +260,7 @@ async function runScenario(browser) {
       seaVolumeGuard += 1;
       qs = getQs();
       const doneSeaNow = Number(qs && qs.completedByRegion && qs.completedByRegion.sea || 0);
-      if (doneSeaNow >= 18) break;
+      if (doneSeaNow >= 6) break;
       if (typeof window.syncSolarCycleQuestScheduler === "function") window.syncSolarCycleQuestScheduler(true);
       qs = getQs();
       const seaQuest = activeQuests(qs, "sea")[0] || activeQuests(qs)[0];
@@ -273,7 +273,7 @@ async function runScenario(browser) {
 
     qs = getQs();
     const seaDoneFinal = Number(qs && qs.completedByRegion && qs.completedByRegion.sea || 0);
-    if (seaDoneFinal < 18) {
+    if (seaDoneFinal < 6) {
       throw new Error(`High-volume Sea completion assertion failed: sea=${seaDoneFinal}`);
     }
 

@@ -2145,7 +2145,6 @@ function renderNewSunModePanel() {
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
     + '<button class="btn btn-sm btn-teal"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="window.postNextSolarCycleArcMission()"' : ' disabled') + '>Place Next Story Marker</button>'
     + '<button class="btn btn-sm btn-warn"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="window.openSolarCycleTimeFractureModal()"' : ' disabled') + '>Time Fracture</button>'
-    + '<button class="btn btn-sm"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="window.syncSolarCycleQuestScheduler(true)"' : ' disabled') + '>Spawn More New Sun Quests</button>'
     + '</div>'
     + arcRows
     + '</div>'
@@ -2355,9 +2354,12 @@ function createSolarCycleSchedulerQuest(sc, region) {
   var method = chooseSolarCycleMethodVector(state, counter + reg.length * 7);
 
   var phaseCount = (typeof getActiveDayPhases === 'function') ? getActiveDayPhases().length : 4;
+  var currentPhase = getSolarCyclePhaseIndex();
   var lockA = Math.max(0, seedSolarCycleMix(state, counter + 11) % phaseCount);
   var lockB = Math.max(0, seedSolarCycleMix(state, counter + 17) % phaseCount);
-  var phaseWindow = lockA === lockB ? [lockA] : [lockA, lockB];
+  var phaseWindow = [currentPhase];
+  if (lockA !== currentPhase) phaseWindow.push(lockA);
+  if (lockB !== currentPhase && lockB !== lockA) phaseWindow.push(lockB);
   var startDay = Number(state.daysElapsed || 0);
   var lifetime = reg === 'sea' ? 4 : (reg === 'wtw' ? 3 : 5);
   var endDay = Math.min(SOLAR_CYCLE_DAY_LIMIT, startDay + lifetime);
@@ -2491,10 +2493,46 @@ function expireSolarCycleSchedulerQuests(sc) {
     quest.expired = true;
     clearSolarCycleSchedulerQuestMarker(quest);
     qs.activeQuestIds = qs.activeQuestIds.filter(function (id) { return id !== qid; });
+    spawnSolarCycleQuestFollowup(quest, state, 'expired');
     if (typeof showNotif === 'function') {
       showNotif('New Sun quest window closed: ' + String(quest.title || 'Untitled quest') + '.', 'warn');
     }
   });
+}
+
+function getSolarCycleNextRegionFrom(region, mode) {
+  var base = ['province', 'sea', 'wtw', 'galaxy'];
+  var idx = base.indexOf(String(region || 'province'));
+  if (idx < 0) idx = 0;
+  if (String(mode || '') === 'straight') {
+    return base[(idx + 1) % base.length];
+  }
+  return base[(idx + 2) % base.length];
+}
+
+function spawnSolarCycleQuestFollowup(sourceQuest, sc, reason) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  if (!sourceQuest || !state || !qs || !state.enabled || !state.storyModeEnabled) return null;
+
+  var preferredRegion = sourceQuest.region;
+  if (String(reason || '') === 'success' || String(reason || '') === 'portal') {
+    preferredRegion = getSolarCycleNextRegionFrom(sourceQuest.region, sourceQuest.templateMode || qs.routeTemplate);
+  }
+  var followup = createSolarCycleSchedulerQuest(state, preferredRegion);
+  if (!followup) followup = createSolarCycleSchedulerQuest(state, sourceQuest.region);
+  if (!followup) return null;
+
+  if (String(reason || '') === 'misled' || String(reason || '') === 'expired') {
+    followup.deceptive = true;
+    followup.title = 'Contested Lead: ' + followup.title;
+    followup.clueText = 'Conflicting witnesses push a suspicious route. Verify before committing. ' + followup.clueText;
+  }
+
+  if (!placeSolarCycleSchedulerQuestMarker(followup, state)) return null;
+  qs.questById[followup.id] = followup;
+  qs.activeQuestIds.push(followup.id);
+  return followup;
 }
 
 function spawnSolarCycleSchedulerQuests(sc, force) {
@@ -2560,6 +2598,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach) {
   clearSolarCycleSchedulerQuestMarker(quest);
   qs.activeQuestIds = qs.activeQuestIds.filter(function (id) { return id !== quest.id; });
   qs.completedByRegion[quest.region] = Number(qs.completedByRegion[quest.region] || 0) + 1;
+  var misled = String(quest.resolvedApproach || '') === 'misled';
   qs.methodSignals[quest.methodId] = Number(qs.methodSignals[quest.methodId] || 0) + 1;
   qs.clueLedger.push({
     id: quest.id,
@@ -2567,12 +2606,21 @@ function resolveSolarCycleSchedulerQuest(questId, approach) {
     region: quest.region,
     methodId: quest.methodId,
     clue: quest.clueText,
-    title: quest.title
+    title: quest.title,
+    deceptive: !!misled
   });
 
-  sc.prophecyTrack.push('Quest clue [' + quest.methodTitle + ']: ' + quest.clueText);
+  if (misled) {
+    sc.worldTilt = Math.min(4, Number(sc.worldTilt || 0) + 1);
+    if (sc.timeFracture && sc.timeFracture.scarFlags) {
+      sc.timeFracture.scarFlags.paradoxStrain = Math.max(0, Number(sc.timeFracture.scarFlags.paradoxStrain || 0) + 1);
+    }
+    sc.prophecyTrack.push('Contested clue [' + quest.methodTitle + ']: ' + quest.clueText);
+  } else {
+    sc.prophecyTrack.push('Quest clue [' + quest.methodTitle + ']: ' + quest.clueText);
+  }
   if (typeof showNotif === 'function') {
-    showNotif('New Sun clue recovered: ' + quest.methodTitle + '.', 'good');
+    showNotif(misled ? ('Contested New Sun clue recovered: ' + quest.methodTitle + '.') : ('New Sun clue recovered: ' + quest.methodTitle + '.'), misled ? 'warn' : 'good');
   }
 
   if (quest.portalHandoff && quest.region === 'sea') {
@@ -2588,6 +2636,8 @@ function resolveSolarCycleSchedulerQuest(questId, approach) {
       }
     }
   }
+
+  spawnSolarCycleQuestFollowup(quest, sc, misled ? 'misled' : (String(approach || '') === 'portal' ? 'portal' : 'success'));
 
   syncSolarCycleQuestScheduler(false);
   renderSolarCycleGlobalDock();
@@ -2609,6 +2659,7 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
     + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleSchedulerQuest(\'' + String(quest.id) + '\',\'investigate\');closeModal();">Investigate Route</button>'
     + '<button class="btn btn-sm btn-warn" onclick="window.resolveSolarCycleSchedulerQuest(\'' + String(quest.id) + '\',\'fracture\');closeModal();">Investigate via Time Fracture</button>'
+    + '<button class="btn btn-sm" onclick="window.resolveSolarCycleSchedulerQuest(\'' + String(quest.id) + '\',\'misled\');closeModal();">Follow Suspect Testimony</button>'
     + (quest.portalHandoff && quest.region === 'sea' ? '<button class="btn btn-sm" onclick="window.resolveSolarCycleSchedulerQuest(\'' + String(quest.id) + '\',\'portal\');closeModal();">Open Lost City Portal Chain</button>' : '')
     + '</div>'
   );
@@ -2751,27 +2802,38 @@ function openSolarCycleTimeFractureModal() {
 
 function renderSolarCycleGlobalDock() {
   var el = document.getElementById('solarCycleQuickDock');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'solarCycleQuickDock';
-    document.body.appendChild(el);
+  if (el) el.style.display = 'none';
+  if (typeof window.refreshQuickPanelSection === 'function') {
+    try { window.refreshQuickPanelSection('missions'); } catch (_err) {}
   }
+  return false;
+}
+
+function buildSolarCycleQuickPanelHtml() {
   var sc = ensureSolarCycleState();
-  var visible = !!(sc && sc.storyModeEnabled && sc.enabled);
-  if (!visible) {
-    el.style.display = 'none';
-    return;
-  }
-  el.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:9999;background:rgba(6,7,14,.94);border:1px solid var(--border2);padding:.5rem .55rem;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:220px;';
-  var options = getSolarCycleRewindOptions();
-  var activeLabel = sc.arcProgress && sc.arcProgress.activeMarker ? String(sc.arcProgress.activeMarker.label || '') : '';
-  el.innerHTML = '<div style="font-size:.7rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;">New Sun Quick Actions</div>'
-    + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.35rem;">Day ' + Number(sc.daysElapsed || 0) + ' | Charges ' + Number(sc.timeFracture && sc.timeFracture.charges || 0) + '/' + Number(sc.timeFracture && sc.timeFracture.maxCharges || 0) + '</div>'
-    + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) return '';
+  var status = getSolarCycleStatus() || {};
+  var qs = getSolarCycleQuestScheduler(sc);
+  var mode = status.routeMode === 'straight' ? 'Straight Shot' : 'Fractal Routes';
+  var summary = qs
+    ? ('P ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
+      + ' | S ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
+      + ' | W ' + Number(status.schedulerWtwDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.wtw || 0)
+      + ' | G ' + Number(status.schedulerGalaxyDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.galaxy || 0))
+    : 'Scheduler offline';
+  var active = sc.arcProgress && sc.arcProgress.activeMarker ? String(sc.arcProgress.activeMarker.label || '') : '';
+  return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .52rem;margin-bottom:.55rem;">'
+    + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.24rem;">New Sun Quick Actions</div>'
+    + '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;">Day <strong>' + Number(status.daysElapsed || 0) + '</strong>/100 (' + Number(status.daysRemaining || 100) + ' left) | Tier ' + escapeSolarCycleHtml(String(status.currentTier || 'early').toUpperCase()) + '</div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.14rem;line-height:1.4;">Route: ' + mode + ' | Charges ' + Number(status.rewindCharges || 0) + '/' + Number(status.rewindMax || 0) + ' | Strain ' + Number(status.paradoxStrain || 0) + '</div>'
+    + '<div style="font-size:.68rem;color:var(--gold2);margin-top:.14rem;line-height:1.4;">Scheduler: ' + summary + '</div>'
+    + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.26rem;">'
     + '<button class="btn btn-xs btn-warn" onclick="window.openSolarCycleTimeFractureModal()">Time Fracture</button>'
-    + '<button class="btn btn-xs btn-teal"' + (activeLabel ? ' onclick="window.jumpToSolarCycleActiveMarker()"' : ' disabled') + '>Open Marker</button>'
+    + '<button class="btn btn-xs btn-teal"' + (active ? ' onclick="window.jumpToSolarCycleActiveMarker()"' : ' disabled') + '>Open Marker</button>'
+    + '<button class="btn btn-xs" onclick="if(typeof switchTab===\'function\'){switchTab(\'newsun\',document.getElementById(\'tabnav-newsun\'));}">Open New Sun Tab</button>'
     + '</div>'
-    + (activeLabel ? '<div style="font-size:.7rem;color:var(--muted2);margin-top:.3rem;">Target: ' + escapeSolarCycleHtml(activeLabel) + '</div>' : '');
+    + (active ? '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;">Target: ' + escapeSolarCycleHtml(active) + '</div>' : '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;">No active stage marker right now.</div>')
+    + '</div>';
 }
 
 function clearSolarCycleQuestMarkers(includeScheduler) {
@@ -3171,6 +3233,7 @@ window.setSolarCycleRouteMode = setSolarCycleRouteMode;
 window.syncSolarCycleQuestScheduler = syncSolarCycleQuestScheduler;
 window.resolveSolarCycleSchedulerQuest = resolveSolarCycleSchedulerQuest;
 window.openSolarCycleSchedulerQuestModal = openSolarCycleSchedulerQuestModal;
+window.buildSolarCycleQuickPanelHtml = buildSolarCycleQuickPanelHtml;
 window.postNextSolarCycleArcMission = postNextSolarCycleArcMission;
 window.chooseSolarCycleBranch = chooseSolarCycleBranch;
 window.resolveSolarCycleEnding = resolveSolarCycleEnding;

@@ -12557,6 +12557,14 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '</div>'
       + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.16rem;">Choose whether stepping on mission markers triggers once per phase or on every travel click.</div>'
       + '</div>';
+    var newSunQuickHtml = '';
+    if (typeof window.buildSolarCycleQuickPanelHtml === 'function') {
+      try {
+        newSunQuickHtml = String(window.buildSolarCycleQuickPanelHtml() || '');
+      } catch (_err) {
+        newSunQuickHtml = '';
+      }
+    }
     var jobsHtml = '<div style="margin-bottom:.55rem;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.3rem;">'
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;">Mission Board</div>'
@@ -12649,7 +12657,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '</div>';
     }).join('') : '<div style="font-size:.78rem;color:var(--muted2);">No active missions yet.</div>';
 
-    return travelSummary
+    return newSunQuickHtml
+      + travelSummary
       + missionAutoSummary
       + jobsHtml
       + holdingHtml

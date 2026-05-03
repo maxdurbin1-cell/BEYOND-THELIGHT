@@ -3172,6 +3172,81 @@ function getSolarCycleInvestigationDialogueLine(quest) {
   return line;
 }
 
+function getSolarCycleOutcomeDialogueLine(quest, failed) {
+  var q = quest || {};
+  var npc = String(q.npcName || 'Contact');
+  var method = String(q.methodTitle || 'this lead');
+  var region = String(q.region || 'province');
+  var arc = String(q.arc || '');
+  var challenge = String(q.challengeType || 'social');
+  var seedText = String(q.id || '') + failed + region + arc + method;
+  var seed = Math.abs(seedText.split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 0));
+
+  if (failed) {
+    var failPools = {
+      province: [
+        '"' + method + ' is cold now. There is an alternate road into this district—find it before the window shuts."',
+        '"That approach is burned. I am not surprised, but I am disappointed. Come back through the southern route if you still want to move this forward."',
+        '"The ground shifted while we talked. ' + method + ' can still be salvaged, but not from here. Redirect."',
+        '"You were close. The arc is not over—press into the next marker before the cycle forgets you."',
+        '"Setbacks are also intelligence. ' + method + ' failed because the contact network was thin. Build from the edges."'
+      ],
+      sea: [
+        '"Storm forecasters sold us bad coordinates. ' + method + ' runs aground tonight. We pick it up past the shoal line."',
+        '"The convoy came through early. If you can reposition before the tide cycle, ' + method + ' still has a breath left in it."',
+        '"Lost it in the fog. There is a secondary vessel chart—use that and try the offshore angle."',
+        '"You will not recover ' + method + ' by sea tonight. Portal out and take the overland route. Ugly, but alive."'
+      ],
+      wtw: [
+        '"The ruin testimony collapsed under cross-examination. ' + method + ' stays buried—for now. There is a second archive three hexes east."',
+        '"The archive sealed itself. It does what it wants. Come at ' + method + ' from the old civic quarter instead."',
+        '"Contested, not destroyed. The old city remembers what the council tried to erase. Find the other memorial and continue."',
+        '"Wrong door. The district you need is the one the records forbid—approach from the eastern fragment and see what opens."'
+      ],
+      galaxy: [
+        '"Signal degraded before lock. ' + method + ' is still theoretically valid—recalibrate through the outer relay station."',
+        '"Orbital window closed two minutes early. I have already filed a correction. Resume from the secondary beacon at first light."',
+        '"The static is worse than modeled. ' + method + ' is not dead, only deferred. Use the backup ring."',
+        '"That node did not hold. Redirect to the rim station and try the off-axis approach to ' + method + '."'
+      ]
+    };
+    var pool = failPools[region] || failPools.province;
+    if (challenge === 'combat') pool = pool.map(function (l) { return l.replace(/"$/, ' You should have hit harder."'); });
+    return pool[seed % pool.length];
+  } else {
+    var successPools = {
+      province: [
+        '"Good work. ' + method + ' is still viable. Take this piece to the next contact before the phase turns."',
+        '"You held the line. I am adding this to the thread record. Move immediately—the arc has momentum now."',
+        '"Confirmed. ' + method + ' opened as predicted. The next door is already unlocked. Do not pause."',
+        '"The route holds. I will send word ahead. Your next move is marked."',
+        '"Fast and clean. ' + method + ' answered. Follow the next marker before the cycle shifts."'
+      ],
+      sea: [
+        '"Convoy cleared. ' + method + ' is logged. Get off the water before the tribunals do their sweep."',
+        '"You made the window. That is the hard part. The coast route is open—go now."',
+        '"Storm cooperated for once. ' + method + ' is in the record. Sail on."',
+        '"Clean run. Take the manifest and move. The next harbor master is expecting you."'
+      ],
+      wtw: [
+        '"The archive yielded. ' + method + ' is now canonical. Step out before the district inverts."',
+        '"Testimony accepted. I will seal this record. The eastern fragment is next—do not linger in the ruins."',
+        '"The old city remembers correctly now. ' + method + ' is woven in. Take the thread east."',
+        '"Confirmed through the ruins. The council ledger will reflect this. Move before the next sealing."'
+      ],
+      galaxy: [
+        '"Signal locked. ' + method + ' is in the relay network. The next station is already broadcasting."',
+        '"Orbital window held. I have logged the route. The outer ring is yours now."',
+        '"Broadcast confirmed. ' + method + ' propagates outward from this node. Follow the signal."',
+        '"Lock achieved. The constellation remembers. Advance to the next beacon immediately."'
+      ]
+    };
+    var pool = successPools[region] || successPools.province;
+    if (arc === 'eos') pool = pool.map(function (l) { return l.replace('"Good', '"The Eos route is confirmed—good').replace('"Confirmed', '"Eos arc: confirmed'); });
+    return pool[seed % pool.length];
+  }
+}
+
 function getSolarCycleNpcMemoryEntry(sc, npcName) {
   var state = sc || ensureSolarCycleState();
   var qs = getSolarCycleQuestScheduler(state);
@@ -3907,15 +3982,13 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
 
   if (typeof openModal === 'function') {
     var successLine = '<strong>' + escapeSolarCycleHtml(quest.npcName || 'Contact') + ':</strong> '
-      + escapeSolarCycleHtml(misled
-        ? '"You failed this angle. If you still want the telescope, try the backup route before the world closes."'
-        : '"Good. Take this piece and move fast. The next contact is waiting."');
+      + escapeSolarCycleHtml(getSolarCycleOutcomeDialogueLine(quest, !!misled));
     var nextHint = followup
       ? ('Go next to: <strong>' + escapeSolarCycleHtml(followup.locationLabel || getSolarCycleRegionLabel(followup.region)) + '</strong> for <strong>' + escapeSolarCycleHtml(followup.title || 'next lead') + '</strong>.')
       : ('No immediate marker was placed. Sync markers and continue in <strong>' + escapeSolarCycleHtml(getSolarCycleRegionLabel(misled ? (quest.nextFailRegion || quest.region) : (quest.nextSuccessRegion || quest.region))) + '</strong>.');
     var actionLine = getSolarCycleInvestigationActionLine(quest);
     openModal(
-      'New Sun Quest Outcome',
+      (misled ? 'Failed: ' : 'Confirmed: ') + escapeSolarCycleHtml(quest.title || 'New Sun Quest'),
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
       + '<div style="margin-bottom:.3rem;">' + successLine + '</div>'
       + '<div style="font-size:.74rem;color:' + (misled ? 'var(--red2)' : 'var(--green2)') + ';margin-bottom:.35rem;">'

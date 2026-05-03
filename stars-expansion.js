@@ -2870,6 +2870,18 @@ function renderNewSunModePanel() {
       + '</div>')
     : '';
 
+  var coreLoopPanelHtml = ''
+    + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.65rem .75rem;margin-bottom:.6rem;">'
+    + '<div style="font-size:.82rem;color:var(--gold2);margin-bottom:.22rem;"><strong>New Sun Core Loop</strong></div>'
+    + '<div style="font-size:.75rem;color:var(--text2);line-height:1.52;">'
+    + '<div>1) You have 100 days before the Old Sun dies.</div>'
+    + '<div>2) Chase map markers and questlines to discover a unique New Sun method.</div>'
+    + '<div>3) Random events can reveal truth, mislead you, or push a favored apocalypse route.</div>'
+    + '<div>4) Successes and failures branch scenes, opening or locking future routes.</div>'
+    + '<div>5) By Day 100, your choices decide whether a New Sun rises or collapse wins.</div>'
+    + '</div>'
+    + '</div>';
+
   host.innerHTML = ''
     + '<div style="max-width:1040px;margin:0 auto;padding:1rem;">'
     + '<div class="section-title">New Sun Mode</div>'
@@ -2891,6 +2903,7 @@ function renderNewSunModePanel() {
     + '</div>'
     + '</div>'
     + '</div>'
+    + coreLoopPanelHtml
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.28rem;"><strong>Solo Story Toggle</strong></div>'
     + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Turn this on to activate the New Sun ruleset. Unlike Storyline, this mode advances toward a forced finale, spawns moving map markers, and permanently changes the route when you miss or fail certain branches.</div>'

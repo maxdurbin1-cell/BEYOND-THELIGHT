@@ -1432,6 +1432,10 @@
     svg.setAttribute("width", String(svgW));
     svg.setAttribute("height", String(svgH));
     svg.innerHTML = "";
+    const trackedScheduler = (S && S.solarCycle && S.solarCycle.questScheduler) ? S.solarCycle.questScheduler : null;
+    const trackedWtwHexId = (trackedScheduler && String(trackedScheduler.trackedRegion || "") === "wtw")
+      ? String(trackedScheduler.trackedLocationKey || "")
+      : "";
     if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "wtw");
     if (typeof window.ensureBackstoryScopeMarkers === "function") {
       window.ensureBackstoryScopeMarkers("wtw", w.hexes.map(function (h) {
@@ -1468,6 +1472,7 @@
       const p = hexToPixel(hex.col, hex.row);
       const zone = w.zones.find(function (z) { return z.name === hex.zone; });
       const marker = w.markers[hex.id];
+      const isTrackedThreadHex = trackedWtwHexId && String(hex.id) === trackedWtwHexId;
       const r = WTW_HEX - 1;
 
       const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -1564,6 +1569,30 @@
       const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "task" || marker.type === "story" || marker.type === "solar_cycle" || marker.type === "faction_base" || marker.type === "faction_task");
       if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
+        if (isTrackedThreadHex) {
+          const haloOuter = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          haloOuter.setAttribute("cx", String(p.x));
+          haloOuter.setAttribute("cy", String(p.y));
+          haloOuter.setAttribute("r", "14");
+          haloOuter.setAttribute("fill", "rgba(240,208,112,.06)");
+          haloOuter.setAttribute("stroke", "rgba(240,208,112,.9)");
+          haloOuter.setAttribute("stroke-width", "1.4");
+          haloOuter.setAttribute("pointer-events", "none");
+          const pulse = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+          pulse.setAttribute("attributeName", "r");
+          pulse.setAttribute("values", "12;18;12");
+          pulse.setAttribute("dur", "1.8s");
+          pulse.setAttribute("repeatCount", "indefinite");
+          haloOuter.appendChild(pulse);
+          const pulseOpacity = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+          pulseOpacity.setAttribute("attributeName", "stroke-opacity");
+          pulseOpacity.setAttribute("values", "0.9;0.2;0.9");
+          pulseOpacity.setAttribute("dur", "1.8s");
+          pulseOpacity.setAttribute("repeatCount", "indefinite");
+          haloOuter.appendChild(pulseOpacity);
+          g.appendChild(haloOuter);
+        }
+
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
         mk.setAttribute("x", String(p.x + 8));
         mk.setAttribute("y", String(p.y - 8));
@@ -1572,6 +1601,18 @@
         mk.setAttribute("pointer-events", "none");
         mk.textContent = markerStyle.icon || "$";
         g.appendChild(mk);
+
+        if (isTrackedThreadHex) {
+          const tag = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          tag.setAttribute("x", String(p.x));
+          tag.setAttribute("y", String(p.y - 22));
+          tag.setAttribute("text-anchor", "middle");
+          tag.setAttribute("font-size", "6.5");
+          tag.setAttribute("fill", "#f0d070");
+          tag.setAttribute("pointer-events", "none");
+          tag.textContent = "TRACKED";
+          g.appendChild(tag);
+        }
       }
 
       const bsMarker = (typeof window.getBackstoryMapMarker === "function")

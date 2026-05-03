@@ -1836,6 +1836,10 @@ function trackSolarCycleThreadOnMap(threadRootId) {
     if (typeof showNotif === 'function') showNotif('No map marker is active for that thread right now.', 'warn');
     return false;
   }
+  qs.trackedThreadRootId = String(thread.id || '');
+  qs.trackedQuestId = String(quest.id || '');
+  qs.trackedRegion = String(quest.region || '');
+  qs.trackedLocationKey = String(quest.locationKey || quest.hexId || '');
   var ok = focusSolarCycleQuestOnMap(quest);
   if (ok && typeof showNotif === 'function') {
     showNotif((thread.label || 'Thread') + ' tracking: ' + String(quest.locationLabel || getSolarCycleRegionLabel(quest.region)) + '.', 'info');
@@ -2627,6 +2631,10 @@ function startSolarCycleMode(activeArc) {
     wtwQuestByHex: {},
     questActionStats: {},
     npcMemory: {},
+    trackedThreadRootId: '',
+    trackedQuestId: '',
+    trackedRegion: '',
+    trackedLocationKey: '',
     regionPostedCount: { province: 0, sea: 0, wtw: 0, galaxy: 0 },
     lastSpawnDay: -1,
     lastFailureBranchDay: -1
@@ -3168,6 +3176,10 @@ function getSolarCycleQuestScheduler(sc) {
   if (!qs.wtwQuestByHex || typeof qs.wtwQuestByHex !== 'object') qs.wtwQuestByHex = {};
   if (!qs.questActionStats || typeof qs.questActionStats !== 'object') qs.questActionStats = {};
   if (!qs.npcMemory || typeof qs.npcMemory !== 'object') qs.npcMemory = {};
+  if (typeof qs.trackedThreadRootId !== 'string') qs.trackedThreadRootId = '';
+  if (typeof qs.trackedQuestId !== 'string') qs.trackedQuestId = '';
+  if (typeof qs.trackedRegion !== 'string') qs.trackedRegion = '';
+  if (typeof qs.trackedLocationKey !== 'string') qs.trackedLocationKey = '';
   if (!qs.regionPostedCount || typeof qs.regionPostedCount !== 'object') qs.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
   if (typeof qs.lastSpawnDay !== 'number') qs.lastSpawnDay = -1;
   if (typeof qs.lastFailureBranchDay !== 'number') qs.lastFailureBranchDay = -1;
@@ -3316,7 +3328,7 @@ function createSolarCycleSchedulerQuest(sc, region) {
     resolved: false,
     expired: false,
     postedDay: startDay,
-    portalHandoff: (reg === 'sea'),
+    portalHandoff: (region === 'sea'),
     locationKey: '',
     locationLabel: '',
     npcName: String(npcPool[seedSolarCycleMix(state, counter + reg.length * 3) % npcPool.length] || 'Unknown Witness'),

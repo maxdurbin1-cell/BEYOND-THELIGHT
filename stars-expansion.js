@@ -486,7 +486,9 @@ function ensureSolarCycleState() {
   S.solarCycle = S.solarCycle || {};
   const sc = S.solarCycle;
 
+  if (typeof sc.storyModeEnabled !== 'boolean') sc.storyModeEnabled = false;
   if (typeof sc.enabled !== 'boolean') sc.enabled = false;
+  if (!sc.storyModeEnabled && sc.enabled) sc.enabled = false;
   if (typeof sc.startDayKey !== 'string') sc.startDayKey = '';
   sc.daysElapsed = clampSolarCycleElapsed(sc.daysElapsed);
   sc.daysRemaining = Math.max(0, SOLAR_CYCLE_DAY_LIMIT - sc.daysElapsed);
@@ -567,7 +569,7 @@ function getSolarCycleMarkerText(activeArc, tier) {
 function syncSolarCycleProvinceMarkers() {
   ensureStarsState();
   var sc = ensureSolarCycleState();
-  if (!sc || !sc.enabled) {
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) {
     clearSolarCycleProvinceMarkers();
     return;
   }
@@ -609,7 +611,7 @@ function syncSolarCycleProvinceMarkers() {
 function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
   ensureStarsState();
   var sc = ensureSolarCycleState();
-  if (!sc || !sc.enabled) return;
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) return;
 
   var key = hex ? (String(hex.col) + ',' + String(hex.row)) : '';
   if (key && S.missionTokens && S.missionTokens[key] && S.missionTokens[key].missionId === 'solar_cycle') {
@@ -649,7 +651,7 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
 function resolveSolarCycleProvinceMarker(hex, markerToken) {
   ensureStarsState();
   var sc = ensureSolarCycleState();
-  if (!sc || !sc.enabled) return false;
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) return false;
   if (!markerToken || markerToken.missionId !== 'solar_cycle') return false;
 
   var text = String(markerToken.text || sc.currentOmen || 'An omen waits for interpretation.');
@@ -668,9 +670,61 @@ function resolveSolarCycleProvinceMarker(hex, markerToken) {
   return true;
 }
 
+function isSolarCycleSoloModeAvailable() {
+  try {
+    if (!window.campaignSystem || typeof window.campaignSystem.getState !== 'function') return true;
+    var state = window.campaignSystem.getState() || {};
+    return !state.connected;
+  } catch (_err) {
+    return true;
+  }
+}
+
+function stopSolarCycleRun() {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  if (!sc) return null;
+  sc.enabled = false;
+  sc.pendingEchoMarker = null;
+  clearSolarCycleProvinceMarkers();
+  if (typeof renderHexMap === 'function') renderHexMap();
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+  if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+  return sc;
+}
+
+function setSolarCycleStoryModeEnabled(enabled) {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  if (!sc) return null;
+  var next = !!enabled;
+
+  if (next && !isSolarCycleSoloModeAvailable()) {
+    if (typeof showNotif === 'function') showNotif('New Sun mode is solo-only. Leave campaign first.', 'warn');
+    return sc;
+  }
+
+  sc.storyModeEnabled = next;
+  if (!next) {
+    stopSolarCycleRun();
+  }
+  if (typeof showNotif === 'function') {
+    showNotif('New Sun Story Mode ' + (next ? 'enabled.' : 'disabled. Legacy play restored.'), next ? 'good' : 'info');
+  }
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+  if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+  return sc;
+}
+
 function startSolarCycleMode(activeArc) {
   ensureStarsState();
   const sc = ensureSolarCycleState();
+  if (!sc) return null;
+  if (!isSolarCycleSoloModeAvailable()) {
+    if (typeof showNotif === 'function') showNotif('New Sun mode is solo-only. Leave campaign first.', 'warn');
+    return sc;
+  }
+  if (!sc.storyModeEnabled) sc.storyModeEnabled = true;
   const arc = SOLAR_CYCLE_ARCS.indexOf(String(activeArc || '').toLowerCase()) >= 0
     ? String(activeArc).toLowerCase()
     : 'relic';
@@ -696,6 +750,7 @@ function startSolarCycleMode(activeArc) {
   if (typeof showNotif === 'function') {
     showNotif('Solar Cycle started: 100 days until solar collapse.', 'warn');
   }
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return sc;
 }
@@ -703,7 +758,7 @@ function startSolarCycleMode(activeArc) {
 function progressSolarCycleDay(days) {
   ensureStarsState();
   const sc = ensureSolarCycleState();
-  if (!sc || !sc.enabled) return sc;
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) return sc;
 
   const delta = Math.max(0, parseInt(days, 10) || 0);
   if (!delta) return sc;
@@ -739,6 +794,7 @@ function progressSolarCycleDay(days) {
 
   syncSolarCycleProvinceMarkers();
 
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return sc;
 }
@@ -748,6 +804,7 @@ function getSolarCycleStatus() {
   const sc = ensureSolarCycleState();
   if (!sc) return null;
   return {
+    storyModeEnabled: !!sc.storyModeEnabled,
     enabled: !!sc.enabled,
     startDayKey: String(sc.startDayKey || ''),
     daysElapsed: Number(sc.daysElapsed || 0),
@@ -762,11 +819,109 @@ function getSolarCycleStatus() {
   };
 }
 
+function renderNewSunModePanel() {
+  ensureStarsState();
+  var host = document.getElementById('tab-newsun');
+  if (!host) return;
+  var sc = ensureSolarCycleState();
+  var status = getSolarCycleStatus() || {};
+  var soloAllowed = isSolarCycleSoloModeAvailable();
+  var prophecy = Array.isArray(sc.prophecyTrack) && sc.prophecyTrack.length
+    ? sc.prophecyTrack.slice(-5).map(function (line) {
+        return '<div style="padding:.2rem 0;border-bottom:1px solid var(--border2);font-size:.74rem;color:var(--muted2);">' + String(line).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+      }).join('')
+    : '<div style="font-size:.74rem;color:var(--muted2);">No omens logged yet.</div>';
+
+  var toggleBtn = '<button class="btn btn-sm ' + (status.storyModeEnabled ? 'btn-red' : 'btn-teal') + '"'
+    + (soloAllowed ? ' onclick="setSolarCycleStoryModeEnabled(' + (!status.storyModeEnabled) + ')"' : ' disabled')
+    + '>' + (status.storyModeEnabled ? 'Turn New Sun OFF' : 'Turn New Sun ON') + '</button>';
+
+  var startButtons = status.storyModeEnabled
+    ? ('<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.4rem;">'
+      + '<button class="btn btn-sm btn-gold" onclick="startSolarCycleMode(\'relic\')">Start Relic Arc</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="startSolarCycleMode(\'herald\')">Start Herald Arc</button>'
+      + '<button class="btn btn-sm btn-warn" onclick="startSolarCycleMode(\'loop\')">Start Loop Arc</button>'
+      + '<button class="btn btn-sm" onclick="stopSolarCycleRun()">Stop Current Run</button>'
+      + '</div>')
+    : '';
+
+  host.innerHTML = ''
+    + '<div style="max-width:1040px;margin:0 auto;padding:1rem;">'
+    + '<div class="section-title">New Sun Mode</div>'
+    + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
+    + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.28rem;"><strong>Solo Story Toggle</strong></div>'
+    + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">New Sun is optional and separate from Storyline. Keep it OFF for legacy play, or turn it ON to run the 100-day solo collapse arc.</div>'
+    + (soloAllowed ? '' : '<div style="font-size:.76rem;color:var(--red2);margin-top:.35rem;">Unavailable while connected to Campaign mode.</div>')
+    + '<div style="margin-top:.45rem;">' + toggleBtn + '</div>'
+    + startButtons
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.55rem;">'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Mode</div><div style="font-size:.9rem;color:var(--text2);">' + (status.storyModeEnabled ? 'New Sun Enabled' : 'Legacy Mode') + '</div></div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Run Status</div><div style="font-size:.9rem;color:var(--text2);">' + (status.enabled ? 'Active Run' : 'No Active Run') + '</div></div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Day Clock</div><div style="font-size:.9rem;color:var(--text2);">' + Number(status.daysElapsed || 0) + '/100 (' + Number(status.daysRemaining || 100) + ' left)</div></div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;"><div style="font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Arc / Tier</div><div style="font-size:.9rem;color:var(--text2);">' + String((status.activeArc || 'relic')).toUpperCase() + ' / ' + String(status.currentTier || 'early') + '</div></div>'
+    + '</div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.65rem;margin-top:.6rem;">'
+    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.25rem;">Current Omen</div>'
+    + '<div style="font-size:.82rem;color:var(--text2);line-height:1.5;">' + String(status.currentOmen || 'No omen yet. Start a New Sun run to begin.') + '</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);margin-top:.45rem;">Time Fracture Charges: <strong>' + Number(status.rewindCharges || 0) + '</strong>'
+    + (status.finaleForced ? '  |  <span style="color:var(--red2);">Finale Forced</span>' : '') + '</div>'
+    + '</div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.65rem;margin-top:.6rem;">'
+    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.25rem;">Prophecy Log</div>'
+    + prophecy
+    + '</div>'
+    + '</div>';
+}
+
+function ensureNewSunTab() {
+  var nav = document.getElementById('mainNavTablist') || document.querySelector('nav');
+  var panelHost = document.getElementById('tab-map') ? document.getElementById('tab-map').parentElement : null;
+  if (!nav || !panelHost) return;
+
+  if (!document.getElementById('tabnav-newsun')) {
+    var btn = document.createElement('button');
+    btn.className = 'tab-btn ctx-traveling';
+    btn.id = 'tabnav-newsun';
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', 'false');
+    btn.setAttribute('aria-controls', 'tab-newsun');
+    btn.setAttribute('onclick', "switchTab('newsun',this)");
+    btn.textContent = 'New Sun';
+    nav.insertBefore(btn, document.getElementById('tabnav-storyline'));
+  }
+
+  if (!document.getElementById('tab-newsun')) {
+    var panel = document.createElement('div');
+    panel.className = 'tab-panel';
+    panel.id = 'tab-newsun';
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', 'tabnav-newsun');
+    panelHost.appendChild(panel);
+  }
+}
+
+function patchSwitchTabForNewSun() {
+  if (typeof window.switchTab !== 'function' || window._newSunSwitchPatched) return;
+  window._newSunSwitchPatched = true;
+  var base = window.switchTab;
+  window.switchTab = function (tabId, btn) {
+    var out = base.apply(this, arguments);
+    if (tabId === 'newsun') {
+      renderNewSunModePanel();
+    }
+    return out;
+  };
+}
+
 window.startSolarCycleMode = startSolarCycleMode;
 window.progressSolarCycleDay = progressSolarCycleDay;
 window.getSolarCycleStatus = getSolarCycleStatus;
 window.resolveSolarCycleProvinceMarker = resolveSolarCycleProvinceMarker;
 window.completeSolarCycleMarkerInteraction = completeSolarCycleMarkerInteraction;
+window.setSolarCycleStoryModeEnabled = setSolarCycleStoryModeEnabled;
+window.stopSolarCycleRun = stopSolarCycleRun;
+window.renderNewSunModePanel = renderNewSunModePanel;
 
 function ensureStarsState() {
   if (!S.health && S.health !== 0) S.health = S.stress || 0;
@@ -848,6 +1003,9 @@ function ensureStarsState() {
     S.gameDate.ageEpochIndex = idx >= 0 ? idx : 0;
   }
   ensureSolarCycleState();
+  if (S.solarCycle && !S.solarCycle.storyModeEnabled) {
+    clearSolarCycleProvinceMarkers();
+  }
   if (typeof S.characterYears !== 'number') S.characterYears = getCharacterYearsFromBand(S.age);
   if (!Array.isArray(S.starSystem.hexes)) S.starSystem.hexes = [];
   if (!Array.isArray(S.starSystem.tradeRoutes)) S.starSystem.tradeRoutes = [];
@@ -898,6 +1056,21 @@ function ensureStarsState() {
   RAD_PENALTY_STATS.forEach((k) => {
     if (typeof S.radiationState.statPenalty[k] !== 'number') S.radiationState.statPenalty[k] = 0;
   });
+}
+
+if (!window._newSunInitPatched) {
+  window._newSunInitPatched = true;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      ensureNewSunTab();
+      patchSwitchTabForNewSun();
+      renderNewSunModePanel();
+    });
+  } else {
+    ensureNewSunTab();
+    patchSwitchTabForNewSun();
+    renderNewSunModePanel();
+  }
 }
 
 function getDeityPactPressure() {

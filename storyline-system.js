@@ -4644,34 +4644,6 @@
       return (STORY_SCENE_TYPES[typeId] + ": " + count);
     }).join("  |  ");
 
-    const solarCycle = (typeof window.getSolarCycleStatus === "function") ? window.getSolarCycleStatus() : null;
-    const solarCycleCard = (!solarCycle || !solarCycle.enabled)
-      ? (
-          "<div class='story-card'>"
-          + "<div class='story-label'>Solar Cycle Mode</div>"
-          + "<div class='story-value' style='font-size:.75rem;line-height:1.55;'>"
-          + "Solo challenge run: survive and decide fate in <strong>100 days</strong>. Start an arc to begin day-pressure and omen tracking."
-          + "</div>"
-          + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;'>"
-          + "<button class='btn btn-xs btn-gold' onclick='if(window.startSolarCycleMode)window.startSolarCycleMode(\"relic\")'>Start: Relic Arc</button>"
-          + "<button class='btn btn-xs btn-teal' onclick='if(window.startSolarCycleMode)window.startSolarCycleMode(\"herald\")'>Start: Herald Arc</button>"
-          + "<button class='btn btn-xs btn-warn' onclick='if(window.startSolarCycleMode)window.startSolarCycleMode(\"loop\")'>Start: Loop Arc</button>"
-          + "</div>"
-          + "</div>"
-        )
-      : (
-          "<div class='story-card'>"
-          + "<div class='story-label'>Solar Cycle Status</div>"
-          + "<div class='story-value'>Arc: <strong>" + escHtml(String(solarCycle.activeArc || '').toUpperCase()) + "</strong></div>"
-          + "<div class='story-value'>Day: <strong>" + Number(solarCycle.daysElapsed || 0) + "</strong>/100  |  Remaining: <strong>" + Number(solarCycle.daysRemaining || 0) + "</strong></div>"
-          + "<div class='story-value'>Reality Tilt: <strong>" + Number(solarCycle.worldTilt || 0) + "</strong>  |  Tier: <strong>" + escHtml(solarCycle.currentTier || 'early') + "</strong></div>"
-          + "<div class='story-value' style='font-size:.73rem;color:var(--muted2);line-height:1.5;margin-top:.2rem;'><strong>Current Omen:</strong> " + escHtml(solarCycle.currentOmen || 'No omen recorded yet.') + "</div>"
-          + "<div class='story-value' style='font-size:.73rem;color:var(--muted2);'>Time Fracture charges: <strong>" + Number(solarCycle.rewindCharges || 0) + "</strong>"
-          + (solarCycle.finaleForced ? "  |  <span style='color:var(--red2);'>Finale Forced</span>" : "")
-          + "</div>"
-          + "</div>"
-        );
-
     host.innerHTML = ""
       + "<div class='story-shell'>"
       + "<div class='story-column story-left'>"
@@ -4712,7 +4684,6 @@
       + "<div class='story-options'>" + options + "</div>"
       + "</div>"
       + "<div class='story-column story-right'>"
-      + solarCycleCard
       + "<div class='story-card'>"
       + "<div class='story-label'>All-Stat Usage</div><div class='story-value'>" + usedStats + "</div>"
       + "<div class='story-label'>NPC Arc Affinity</div><div class='story-value'>" + affinity + "</div>"

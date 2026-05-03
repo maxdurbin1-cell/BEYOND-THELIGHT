@@ -2047,7 +2047,7 @@
             <ul>
               <li><strong>Heroic:</strong> ${mission.pathways.heroic}</li>
               <li><strong>Tyrant:</strong> ${mission.pathways.tyrant}</li>
-              <li><strong>Sacrificial:</strong> ${mission.pathways.sacrificial}</li>
+              <li><strong>Sacrificial:</strong> ${mission.pathways.sacrificial || mission.pathways.martyr || '—'}</li>
             </ul>
           </div>
           ${unlocked && status === 'available' ? `<div class="contract-choice-actions"><button class="btn btn-xs btn-teal" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','heroic')">Accept Heroic Contract</button><button class="btn btn-xs" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','tyrant')">Accept Tyrant Contract</button><button class="btn btn-xs btn-primary" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','martyr')">Accept Martyr Contract</button></div>` : ""}

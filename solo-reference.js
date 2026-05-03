@@ -20,6 +20,10 @@
       body: '<ul><li>Gather information for bonuses.</li><li>Explore site rooms (hazards, puzzles, loot).</li><li>Finish with confrontation vs scene Dread.</li></ul>'
     },
     {
+      title: 'Solar Cycle (100-Day Solo Mode)',
+      body: '<ul><li>Start from Storyline: choose Relic, Herald, or Loop arc.</li><li>Every day advances collapse pressure and shifts reality tiers.</li><li>Day thresholds at 25/50/75/90 trigger omen warnings.</li><li>At Day 100, a forced finale begins.</li><li>Time Fracture is limited; rewinds are scarce and carry persistent scars.</li></ul>'
+    },
+    {
       title: 'Solo Guidance Flow',
       body: '<ul><li>Start with Character, then route to Province, Missions, and Storyline.</li><li>Use Jobs when you need credits between major arcs.</li><li>Use the Guide button on Character tab whenever you want a quick reset.</li></ul>'
     },

@@ -438,6 +438,177 @@ const COMBAT_ZONES_PRESETS = [
 
 // ── STATE EXTENSION ──────────────────────────────────────────────────────────
 
+const SOLAR_CYCLE_DAY_LIMIT = 100;
+const SOLAR_CYCLE_ARCS = ['relic', 'herald', 'loop'];
+const SOLAR_CYCLE_THRESHOLDS = [25, 50, 75, 90, 100];
+const SOLAR_CYCLE_OMENS = {
+  relic: {
+    early: 'A drowned observatory reports a lens that can bend dawn.',
+    mid: 'Guild archivists whisper of a vault key buried under the Last Sea tides.',
+    late: 'The relic now appears in conflicting star-charts as if it remembers other runs.',
+    terminal: 'Every sky points toward the same impossible sunrise coordinate.'
+  },
+  herald: {
+    early: 'Pilgrims describe a nameless guide walking shorelines at noon.',
+    mid: 'Witnesses claim the guide knew your answers before you asked.',
+    late: 'The herald appears in districts you have not reached yet.',
+    terminal: 'Only one testimony remains: find the herald before the sky closes.'
+  },
+  loop: {
+    early: 'Broken clocks in Province strike tomorrow at midday.',
+    mid: 'You begin meeting people who remember choices you have not made yet.',
+    late: 'Echo scenes repeat with missing details, as if history is degrading.',
+    terminal: 'A final fracture is possible, but only with a scar that cannot be undone.'
+  }
+};
+
+function getSolarCycleDayKey() {
+  const gd = (S && S.gameDate) ? S.gameDate : {};
+  return [gd.year || 1, gd.month || 1, gd.day || 1].join('-');
+}
+
+function clampSolarCycleElapsed(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(SOLAR_CYCLE_DAY_LIMIT, Math.floor(n)));
+}
+
+function getSolarCycleTier(daysElapsed) {
+  const day = clampSolarCycleElapsed(daysElapsed);
+  if (day >= 90) return 'terminal';
+  if (day >= 70) return 'late';
+  if (day >= 35) return 'mid';
+  return 'early';
+}
+
+function ensureSolarCycleState() {
+  if (typeof S === 'undefined') return null;
+  S.solarCycle = S.solarCycle || {};
+  const sc = S.solarCycle;
+
+  if (typeof sc.enabled !== 'boolean') sc.enabled = false;
+  if (typeof sc.startDayKey !== 'string') sc.startDayKey = '';
+  sc.daysElapsed = clampSolarCycleElapsed(sc.daysElapsed);
+  sc.daysRemaining = Math.max(0, SOLAR_CYCLE_DAY_LIMIT - sc.daysElapsed);
+  if (typeof sc.worldTilt !== 'number') sc.worldTilt = sc.daysElapsed > 0 ? Math.min(4, Math.floor(sc.daysElapsed / 25) + 1) : 0;
+  if (!Array.isArray(sc.prophecyTrack)) sc.prophecyTrack = [];
+  if (typeof sc.echoSeed !== 'number') sc.echoSeed = Math.floor(Math.random() * 1000000);
+  if (SOLAR_CYCLE_ARCS.indexOf(sc.activeArc) < 0) sc.activeArc = 'relic';
+  if (!sc.resolvedMarkers || typeof sc.resolvedMarkers !== 'object') sc.resolvedMarkers = {};
+  if (!sc.endingFlags || typeof sc.endingFlags !== 'object') sc.endingFlags = { forcedFinaleTriggered: false, ending: '' };
+  if (typeof sc.endingFlags.forcedFinaleTriggered !== 'boolean') sc.endingFlags.forcedFinaleTriggered = false;
+  if (typeof sc.endingFlags.ending !== 'string') sc.endingFlags.ending = '';
+  if (!sc.timeFracture || typeof sc.timeFracture !== 'object') {
+    sc.timeFracture = { charges: 1, maxCharges: 1, scarFlags: {}, rewindsUsed: 0 };
+  }
+  if (typeof sc.timeFracture.charges !== 'number') sc.timeFracture.charges = 1;
+  if (typeof sc.timeFracture.maxCharges !== 'number') sc.timeFracture.maxCharges = 1;
+  if (!sc.timeFracture.scarFlags || typeof sc.timeFracture.scarFlags !== 'object') sc.timeFracture.scarFlags = {};
+  if (typeof sc.timeFracture.rewindsUsed !== 'number') sc.timeFracture.rewindsUsed = 0;
+  if (!Array.isArray(sc.thresholdNotifs)) sc.thresholdNotifs = [];
+  if (typeof sc.currentOmen !== 'string') sc.currentOmen = '';
+  sc.currentTier = getSolarCycleTier(sc.daysElapsed);
+  if (!sc.currentOmen) {
+    sc.currentOmen = (SOLAR_CYCLE_OMENS[sc.activeArc] && SOLAR_CYCLE_OMENS[sc.activeArc][sc.currentTier])
+      ? SOLAR_CYCLE_OMENS[sc.activeArc][sc.currentTier]
+      : '';
+  }
+  return sc;
+}
+
+function startSolarCycleMode(activeArc) {
+  ensureStarsState();
+  const sc = ensureSolarCycleState();
+  const arc = SOLAR_CYCLE_ARCS.indexOf(String(activeArc || '').toLowerCase()) >= 0
+    ? String(activeArc).toLowerCase()
+    : 'relic';
+
+  sc.enabled = true;
+  sc.activeArc = arc;
+  sc.startDayKey = getSolarCycleDayKey();
+  sc.daysElapsed = 0;
+  sc.daysRemaining = SOLAR_CYCLE_DAY_LIMIT;
+  sc.worldTilt = 1;
+  sc.prophecyTrack = [];
+  sc.resolvedMarkers = {};
+  sc.endingFlags = { forcedFinaleTriggered: false, ending: '' };
+  sc.timeFracture = { charges: 1, maxCharges: 1, scarFlags: {}, rewindsUsed: 0 };
+  sc.echoSeed = Math.floor(Math.random() * 1000000);
+  sc.thresholdNotifs = [];
+  sc.currentTier = 'early';
+  sc.currentOmen = SOLAR_CYCLE_OMENS[arc].early;
+
+  if (typeof showNotif === 'function') {
+    showNotif('Solar Cycle started: 100 days until solar collapse.', 'warn');
+  }
+  if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+  return sc;
+}
+
+function progressSolarCycleDay(days) {
+  ensureStarsState();
+  const sc = ensureSolarCycleState();
+  if (!sc || !sc.enabled) return sc;
+
+  const delta = Math.max(0, parseInt(days, 10) || 0);
+  if (!delta) return sc;
+
+  const prevTier = sc.currentTier;
+  sc.daysElapsed = clampSolarCycleElapsed(sc.daysElapsed + delta);
+  sc.daysRemaining = Math.max(0, SOLAR_CYCLE_DAY_LIMIT - sc.daysElapsed);
+  sc.worldTilt = Math.min(4, Math.floor(sc.daysElapsed / 25) + 1);
+  sc.currentTier = getSolarCycleTier(sc.daysElapsed);
+  sc.currentOmen = (SOLAR_CYCLE_OMENS[sc.activeArc] && SOLAR_CYCLE_OMENS[sc.activeArc][sc.currentTier])
+    ? SOLAR_CYCLE_OMENS[sc.activeArc][sc.currentTier]
+    : sc.currentOmen;
+
+  if (prevTier !== sc.currentTier) {
+    sc.prophecyTrack.push('Day ' + sc.daysElapsed + ': ' + sc.currentOmen);
+  }
+
+  SOLAR_CYCLE_THRESHOLDS.forEach(function (threshold) {
+    if (sc.daysElapsed >= threshold && sc.thresholdNotifs.indexOf(threshold) < 0) {
+      sc.thresholdNotifs.push(threshold);
+      if (typeof showNotif === 'function') {
+        showNotif('Solar Cycle threshold reached: Day ' + threshold + '.', threshold >= 90 ? 'warn' : 'info');
+      }
+    }
+  });
+
+  if (sc.daysElapsed >= SOLAR_CYCLE_DAY_LIMIT && !sc.endingFlags.forcedFinaleTriggered) {
+    sc.endingFlags.forcedFinaleTriggered = true;
+    if (typeof showNotif === 'function') {
+      showNotif('Day 100 reached. Solar finale is now forced.', 'warn');
+    }
+  }
+
+  if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+  return sc;
+}
+
+function getSolarCycleStatus() {
+  ensureStarsState();
+  const sc = ensureSolarCycleState();
+  if (!sc) return null;
+  return {
+    enabled: !!sc.enabled,
+    startDayKey: String(sc.startDayKey || ''),
+    daysElapsed: Number(sc.daysElapsed || 0),
+    daysRemaining: Number(sc.daysRemaining || 0),
+    worldTilt: Number(sc.worldTilt || 0),
+    activeArc: String(sc.activeArc || 'relic'),
+    currentTier: String(sc.currentTier || 'early'),
+    currentOmen: String(sc.currentOmen || ''),
+    finaleForced: !!(sc.endingFlags && sc.endingFlags.forcedFinaleTriggered),
+    prophecyTrackCount: Array.isArray(sc.prophecyTrack) ? sc.prophecyTrack.length : 0,
+    rewindCharges: sc.timeFracture ? Number(sc.timeFracture.charges || 0) : 0
+  };
+}
+
+window.startSolarCycleMode = startSolarCycleMode;
+window.progressSolarCycleDay = progressSolarCycleDay;
+window.getSolarCycleStatus = getSolarCycleStatus;
+
 function ensureStarsState() {
   if (!S.health && S.health !== 0) S.health = S.stress || 0;
   if (!S.mentalStress && S.mentalStress !== 0) S.mentalStress = 0;
@@ -517,6 +688,7 @@ function ensureStarsState() {
     const idx = WORLD_AGE_ORDER.indexOf(startAge);
     S.gameDate.ageEpochIndex = idx >= 0 ? idx : 0;
   }
+  ensureSolarCycleState();
   if (typeof S.characterYears !== 'number') S.characterYears = getCharacterYearsFromBand(S.age);
   if (!Array.isArray(S.starSystem.hexes)) S.starSystem.hexes = [];
   if (!Array.isArray(S.starSystem.tradeRoutes)) S.starSystem.tradeRoutes = [];
@@ -9072,6 +9244,7 @@ function advanceDay(days, preserveTravelState) {
 
   const endYear = S.gameDate.year || 1;
   if (endYear > startYear) applyYearProgression(endYear - startYear);
+  if (days > 0) progressSolarCycleDay(days);
   updateDateUI();
 }
 

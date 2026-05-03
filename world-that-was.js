@@ -1332,6 +1332,21 @@
       }
     }
 
+    const scheduler = S && S.solarCycle && S.solarCycle.questScheduler;
+    const schedulerMap = scheduler && scheduler.wtwQuestByHex && typeof scheduler.wtwQuestByHex === "object"
+      ? scheduler.wtwQuestByHex
+      : null;
+    if (schedulerMap) {
+      Object.keys(schedulerMap).forEach(function (hexId) {
+        const qid = schedulerMap[hexId];
+        const quest = scheduler.questById && qid ? scheduler.questById[qid] : null;
+        if (!quest || quest.resolved || quest.expired) return;
+        const target = hexById(Number(hexId));
+        if (!target) return;
+        setMarker(w, target, "solar_cycle", "New Sun Portal Quest", "Lost City portal handoff: investigate to reveal a New Sun route.");
+      });
+    }
+
     if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === "function") {
       window.factionSystem.syncBaseMarkers();
     }

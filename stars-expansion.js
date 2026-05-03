@@ -819,6 +819,7 @@ function ensureSolarCycleState() {
   if (!sc.arcProgress.branchChoices || typeof sc.arcProgress.branchChoices !== 'object') sc.arcProgress.branchChoices = {};
   if (!sc.arcProgress.stageResults || typeof sc.arcProgress.stageResults !== 'object') sc.arcProgress.stageResults = {};
   if (!sc.arcProgress.activeMarker || typeof sc.arcProgress.activeMarker !== 'object') sc.arcProgress.activeMarker = null;
+  if (['fractal', 'straight'].indexOf(String(sc.arcProgress.routeMode || '')) < 0) sc.arcProgress.routeMode = 'fractal';
   if (typeof sc.arcProgress.lastAutoOpenedMarkerKey !== 'string') sc.arcProgress.lastAutoOpenedMarkerKey = '';
   if (!Array.isArray(sc.arcProgress.history)) sc.arcProgress.history = [];
   if (typeof sc.arcProgress.lastSyncedCompletedCount !== 'number') sc.arcProgress.lastSyncedCompletedCount = 0;
@@ -1675,6 +1676,7 @@ function stopSolarCycleRun() {
   if (sc.arcProgress) sc.arcProgress.activeMarker = null;
   clearSolarCycleQuestMarkers();
   clearSolarCycleProvinceMarkers();
+  renderSolarCycleGlobalDock();
   if (typeof renderHexMap === 'function') renderHexMap();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
@@ -1716,6 +1718,7 @@ function setSolarCycleStoryModeEnabled(enabled) {
   if (typeof showNotif === 'function') {
     showNotif('New Sun Story Mode enabled.', 'good');
   }
+  renderSolarCycleGlobalDock();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return sc;
@@ -1756,6 +1759,7 @@ function startSolarCycleMode(activeArc) {
     branchChoices: {},
     stageResults: {},
     activeMarker: null,
+    routeMode: 'fractal',
     activeMissionId: null,
     history: [],
     lastSyncedCompletedCount: 0
@@ -1774,6 +1778,7 @@ function startSolarCycleMode(activeArc) {
   if (typeof showNotif === 'function') {
     showNotif('Solar Cycle started: 100 days until solar collapse.', 'warn');
   }
+  renderSolarCycleGlobalDock();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return sc;
@@ -1828,9 +1833,11 @@ function progressSolarCycleDay(days) {
   }
 
   syncSolarCycleArcProgressFromCompleted(false);
+  expireSolarCycleActiveStageMarkerIfNeeded(sc);
 
   syncSolarCycleProvinceMarkers();
 
+  renderSolarCycleGlobalDock();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return sc;
@@ -1860,7 +1867,9 @@ function getSolarCycleStatus() {
     rewindCap: getSolarCycleRewindCap(sc),
     arcStageIndex: sc.arcProgress ? Number(sc.arcProgress.stageIndex || 0) : 0,
     arcStageTotal: NEW_SUN_ARC_STAGES.length,
+    routeMode: sc.arcProgress ? String(sc.arcProgress.routeMode || 'fractal') : 'fractal',
     activeMarkerLabel: sc.arcProgress && sc.arcProgress.activeMarker ? String(sc.arcProgress.activeMarker.label || '') : '',
+    activeMarkerExpiresDay: sc.arcProgress && sc.arcProgress.activeMarker ? Number(sc.arcProgress.activeMarker.expiresDay || 0) : 0,
     pendingBranch: getPendingSolarCycleBranch(sc),
     endingKey: (sc.finale && sc.finale.key) ? String(sc.finale.key) : '',
     endingResolved: !!(sc.finale && sc.finale.resolved)
@@ -1882,6 +1891,7 @@ function renderNewSunModePanel() {
   var branch = pendingBranch ? NEW_SUN_BRANCH_POINTS[pendingBranch] : null;
   var completedStageIds = progress.completedStageIds || {};
   var branchChoices = progress.branchChoices || {};
+  renderSolarCycleGlobalDock();
 
   var arcRows = NEW_SUN_ARC_STAGES.map(function (stage, idx) {
     var done = !!completedStageIds[stage.id];
@@ -1990,10 +2000,16 @@ function renderNewSunModePanel() {
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Arc Campaign</strong></div>'
     + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Province -> Last Sea -> World That Was -> Space. Each stage places an active story marker on the map itself. Enter that location to trigger hidden, unlocked, or time-sensitive choices that can open later routes, block others, or reshape the finale.</div>'
+    + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">Routing Mode: <strong>' + (status.routeMode === 'straight' ? 'Straight Shot' : 'Fractal Routes') + '</strong> (Fractal can jump regions; Straight follows canonical order.)</div>'
+    + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+    + '<button class="btn btn-sm"' + (status.storyModeEnabled ? ' onclick="window.setSolarCycleRouteMode(\'' + (status.routeMode === 'straight' ? 'fractal' : 'straight') + '\')"' : ' disabled') + '>' + (status.routeMode === 'straight' ? 'Switch to Fractal Routes' : 'Switch to Straight Shot') + '</button>'
+    + '</div>'
     + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">Progress: <strong>' + Number(status.arcStageIndex || 0) + '</strong> / ' + Number(status.arcStageTotal || NEW_SUN_ARC_STAGES.length) + '</div>'
     + (status.activeMarkerLabel ? '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.35rem;">Current Marker: ' + status.activeMarkerLabel + '</div>' : '')
+    + ((status.activeMarkerExpiresDay > 0 && status.enabled) ? '<div style="font-size:.74rem;color:var(--red2);margin-bottom:.35rem;">Marker closes after Day ' + Number(status.activeMarkerExpiresDay || 0) + '.</div>' : '')
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
     + '<button class="btn btn-sm btn-teal"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="window.postNextSolarCycleArcMission()"' : ' disabled') + '>Place Next Story Marker</button>'
+    + '<button class="btn btn-sm btn-warn"' + ((status.storyModeEnabled && status.enabled) ? ' onclick="window.openSolarCycleTimeFractureModal()"' : ' disabled') + '>Time Fracture</button>'
     + '</div>'
     + arcRows
     + '</div>'
@@ -2064,6 +2080,164 @@ function applySolarCycleChoiceEffects(effects) {
   if (effects.prophecy) sc.prophecyTrack.push(String(effects.prophecy));
 }
 
+function getSolarCycleStageFallbackChoiceId(stageId) {
+  return 'fracture_fallback_' + String(stageId || 'stage');
+}
+
+function getSolarCycleFallbackBranchChoice(stage) {
+  if (!stage || !stage.branchPoint) return '';
+  if (stage.branchPoint === 'keeper_oath') return 'preserve';
+  if (stage.branchPoint === 'tide_compact') return 'bind';
+  if (stage.branchPoint === 'final_signal') return 'open';
+  return '';
+}
+
+function getSolarCycleFallbackChoice(stageId, stage) {
+  return {
+    id: getSolarCycleStageFallbackChoiceId(stageId),
+    text: 'Invoke Time Fracture and force a path forward',
+    req: null,
+    fallback: true,
+    success: {
+      text: 'You force the marker open through paradox shear. The route survives, but the timeline scars.',
+      branchChoice: getSolarCycleFallbackBranchChoice(stage),
+      effects: { paradoxStrain: 1, worldTilt: 0, flags: { newSunForcedAdvance: true }, prophecy: 'A locked branch yielded to fracture pressure.' }
+    }
+  };
+}
+
+function getSolarCycleStageExpiryDays(sc, stage) {
+  var tier = getSolarCycleTier(sc && sc.daysElapsed);
+  if (tier === 'early') return 4;
+  if (tier === 'mid') return 3;
+  if (tier === 'late') return 2;
+  return 1;
+}
+
+function getSolarCycleRemainingStages(progress) {
+  var done = (progress && progress.completedStageIds) || {};
+  return NEW_SUN_ARC_STAGES.filter(function (stage) {
+    return stage && !done[stage.id];
+  });
+}
+
+function getNextSolarCycleStage(progress, sc) {
+  var remaining = getSolarCycleRemainingStages(progress);
+  if (!remaining.length) return null;
+  var mode = String((progress && progress.routeMode) || 'fractal');
+  if (mode === 'straight') {
+    for (var i = 0; i < NEW_SUN_ARC_STAGES.length; i++) {
+      var stage = NEW_SUN_ARC_STAGES[i];
+      if (!progress.completedStageIds[stage.id]) return stage;
+    }
+    return remaining[0];
+  }
+  var seed = Number(sc && sc.echoSeed || 0) + Number(sc && sc.daysElapsed || 0) * 29 + remaining.length * 11;
+  return remaining[Math.abs(seed) % remaining.length] || remaining[0];
+}
+
+function expireSolarCycleActiveStageMarkerIfNeeded(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state || !state.enabled || !state.arcProgress || !state.arcProgress.activeMarker) return false;
+  var active = state.arcProgress.activeMarker;
+  var expiresDay = Number(active.expiresDay || 0);
+  if (!expiresDay || Number(state.daysElapsed || 0) <= expiresDay) return false;
+  var stageId = String(active.stageId || '');
+  if (!stageId || (state.arcProgress.completedStageIds && state.arcProgress.completedStageIds[stageId])) return false;
+
+  if (!state.arcProgress.stageResults || typeof state.arcProgress.stageResults !== 'object') state.arcProgress.stageResults = {};
+  state.arcProgress.stageResults[stageId] = {
+    choiceId: 'timed_out',
+    success: false,
+    missed: true,
+    day: Number(state.daysElapsed || 0)
+  };
+  state.arcProgress.completedStageIds[stageId] = true;
+  state.arcProgress.history.push('Stage expired: ' + stageId + ' on day ' + Number(state.daysElapsed || 0) + '.');
+  state.arcProgress.activeMarker = null;
+  clearSolarCycleQuestMarkers();
+  syncSolarCycleArcProgressFromCompleted(false);
+
+  if (typeof showNotif === 'function') {
+    showNotif('New Sun marker expired: ' + String(active.label || stageId) + '.', 'warn');
+  }
+  if (typeof window.postNextSolarCycleArcMission === 'function') window.postNextSolarCycleArcMission();
+  return true;
+}
+
+function setSolarCycleRouteMode(mode) {
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.arcProgress) return false;
+  var next = String(mode || '').toLowerCase() === 'straight' ? 'straight' : 'fractal';
+  sc.arcProgress.routeMode = next;
+  if (typeof showNotif === 'function') {
+    showNotif('New Sun route mode: ' + (next === 'straight' ? 'Straight Shot' : 'Fractal Routes') + '.', 'info');
+  }
+  renderSolarCycleGlobalDock();
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+  return true;
+}
+
+function jumpToSolarCycleActiveMarker() {
+  var sc = ensureSolarCycleState();
+  var active = sc && sc.arcProgress ? sc.arcProgress.activeMarker : null;
+  if (!active || typeof window.switchTab !== 'function') return false;
+  var tabId = active.region === 'sea' ? 'lastsea'
+    : (active.region === 'wtw' ? 'worldthatwas'
+      : (active.region === 'galaxy' ? 'galaxy' : 'map'));
+  var btn = document.getElementById('tabnav-' + tabId);
+  window.switchTab(tabId, btn || null);
+  return true;
+}
+
+function openSolarCycleTimeFractureModal() {
+  var sc = ensureSolarCycleState();
+  if (!sc || !sc.storyModeEnabled || !sc.enabled) {
+    if (typeof showNotif === 'function') showNotif('Start a New Sun run before using Time Fracture.', 'warn');
+    return false;
+  }
+  var options = getSolarCycleRewindOptions();
+  if (typeof openModal === 'function') {
+    openModal(
+      'Time Fracture',
+      '<div style="font-size:.8rem;color:var(--muted2);line-height:1.55;margin-bottom:.45rem;">Rewind 1-3 days. Costs 1 charge and always leaves paradox scars.</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.45rem;">Charges: <strong>' + Number(sc.timeFracture && sc.timeFracture.charges || 0) + '</strong> / ' + Number(sc.timeFracture && sc.timeFracture.maxCharges || 0) + ' | Used: <strong>' + Number(sc.timeFracture && sc.timeFracture.rewindsUsed || 0) + '</strong> | Paradox Strain: <strong>' + Number(sc.timeFracture && sc.timeFracture.scarFlags && sc.timeFracture.scarFlags.paradoxStrain || 0) + '</strong></div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+      + (options.length
+          ? options.map(function (n) { return '<button class="btn btn-sm btn-warn" onclick="window.applySolarCycleTimeFracture(' + n + ');closeModal();">Rewind ' + n + ' Day' + (n === 1 ? '' : 's') + '</button>'; }).join('')
+          : '<button class="btn btn-sm" disabled>No rewind available</button>')
+      + '<button class="btn btn-sm btn-teal" onclick="window.jumpToSolarCycleActiveMarker();closeModal();">Open Active Marker</button>'
+      + '</div>'
+    );
+  }
+  return true;
+}
+
+function renderSolarCycleGlobalDock() {
+  var el = document.getElementById('solarCycleQuickDock');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'solarCycleQuickDock';
+    document.body.appendChild(el);
+  }
+  var sc = ensureSolarCycleState();
+  var visible = !!(sc && sc.storyModeEnabled && sc.enabled);
+  if (!visible) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:9999;background:rgba(6,7,14,.94);border:1px solid var(--border2);padding:.5rem .55rem;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:220px;';
+  var options = getSolarCycleRewindOptions();
+  var activeLabel = sc.arcProgress && sc.arcProgress.activeMarker ? String(sc.arcProgress.activeMarker.label || '') : '';
+  el.innerHTML = '<div style="font-size:.7rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;">New Sun Quick Actions</div>'
+    + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.35rem;">Day ' + Number(sc.daysElapsed || 0) + ' | Charges ' + Number(sc.timeFracture && sc.timeFracture.charges || 0) + '/' + Number(sc.timeFracture && sc.timeFracture.maxCharges || 0) + '</div>'
+    + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
+    + '<button class="btn btn-xs btn-warn" onclick="window.openSolarCycleTimeFractureModal()">Time Fracture</button>'
+    + '<button class="btn btn-xs btn-teal"' + (activeLabel ? ' onclick="window.jumpToSolarCycleActiveMarker()"' : ' disabled') + '>Open Marker</button>'
+    + '</div>'
+    + (activeLabel ? '<div style="font-size:.7rem;color:var(--muted2);margin-top:.3rem;">Target: ' + escapeSolarCycleHtml(activeLabel) + '</div>' : '');
+}
+
 function clearSolarCycleQuestMarkers() {
   if (S && S.missionTokens && typeof S.missionTokens === 'object') {
     Object.keys(S.missionTokens).forEach(function (key) {
@@ -2119,6 +2293,8 @@ function placeSolarCycleStageMarker(stageId) {
 
   clearSolarCycleQuestMarkers();
   var seed = Number(sc.echoSeed || 0) + Number(sc.daysElapsed || 0) * 23 + Number(sc.arcProgress.stageIndex || 0) * 41;
+  var markerId = 'newsun:' + String(stage.id) + ':' + String(sc.daysElapsed || 0) + ':' + String(Date.now());
+  var expiresDay = Math.min(SOLAR_CYCLE_DAY_LIMIT, Number(sc.daysElapsed || 0) + getSolarCycleStageExpiryDays(sc, stage));
   var marker = null;
 
   if (stage.region === 'province') {
@@ -2126,20 +2302,20 @@ function placeSolarCycleStageMarker(stageId) {
     if (!provinceHex) return null;
     var provinceKey = String(provinceHex.col) + ',' + String(provinceHex.row);
     S.missionTokens = S.missionTokens || {};
-    S.missionTokens[provinceKey] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', title: stage.title, stageId: stage.id, text: getSolarCycleStageScene(stage.id).intro };
-    marker = { stageId: stage.id, region: 'province', key: provinceKey, label: 'Province Hex [' + (provinceHex.col + 1) + ',' + (provinceHex.row + 1) + ']' };
+    S.missionTokens[provinceKey] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', markerId: markerId, title: stage.title, stageId: stage.id, expiresDay: expiresDay, text: getSolarCycleStageScene(stage.id).intro };
+    marker = { markerId: markerId, stageId: stage.id, region: 'province', key: provinceKey, label: 'Province Hex [' + (provinceHex.col + 1) + ',' + (provinceHex.row + 1) + ']', postedDay: Number(sc.daysElapsed || 0), expiresDay: expiresDay };
     if (typeof renderHexMap === 'function') renderHexMap();
   } else if (stage.region === 'sea') {
     var seaHex = pickSolarCycleSeaHex(seed);
     if (!seaHex) return null;
     S.lastSea.missionTokens = S.lastSea.missionTokens || {};
-    S.lastSea.missionTokens[seaHex.key] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', title: stage.title, stageId: stage.id, text: getSolarCycleStageScene(stage.id).intro };
-    marker = { stageId: stage.id, region: 'sea', key: seaHex.key, label: 'Sea Hex ' + seaHex.key };
+    S.lastSea.missionTokens[seaHex.key] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', markerId: markerId, title: stage.title, stageId: stage.id, expiresDay: expiresDay, text: getSolarCycleStageScene(stage.id).intro };
+    marker = { markerId: markerId, stageId: stage.id, region: 'sea', key: seaHex.key, label: 'Sea Hex ' + seaHex.key, postedDay: Number(sc.daysElapsed || 0), expiresDay: expiresDay };
     if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
   } else if (stage.region === 'wtw') {
     var worldHex = pickSolarCycleWTWHex(seed);
     if (!worldHex) return null;
-    marker = { stageId: stage.id, region: 'wtw', key: String(worldHex.id), label: worldHex.zone + ' - ' + worldHex.district, hexId: String(worldHex.id) };
+    marker = { markerId: markerId, stageId: stage.id, region: 'wtw', key: String(worldHex.id), label: worldHex.zone + ' - ' + worldHex.district, hexId: String(worldHex.id), postedDay: Number(sc.daysElapsed || 0), expiresDay: expiresDay };
     if (typeof window.wtwSyncMarkers === 'function') window.wtwSyncMarkers();
   } else if (stage.region === 'galaxy') {
     var task = createGalaxyTask('New Sun', {
@@ -2149,7 +2325,7 @@ function placeSolarCycleStageMarker(stageId) {
       interaction: 'solar_cycle_choice'
     });
     if (!task) return null;
-    marker = { stageId: stage.id, region: 'galaxy', key: String(task.hexId), label: 'Galaxy Hex #' + task.hexId, taskId: task.id, hexId: task.hexId };
+    marker = { markerId: markerId, stageId: stage.id, region: 'galaxy', key: String(task.hexId), label: 'Galaxy Hex #' + task.hexId, taskId: task.id, hexId: task.hexId, postedDay: Number(sc.daysElapsed || 0), expiresDay: expiresDay };
   }
 
   sc.arcProgress.postedStageIds[stage.id] = true;
@@ -2194,13 +2370,15 @@ function syncSolarCycleArcProgressFromCompleted(notify) {
   var sc = ensureSolarCycleState();
   if (!sc) return null;
   var progress = sc.arcProgress || {};
-  var nextIndex = 0;
-  while (nextIndex < NEW_SUN_ARC_STAGES.length && progress.completedStageIds[NEW_SUN_ARC_STAGES[nextIndex].id]) nextIndex += 1;
-  if (nextIndex > Number(progress.stageIndex || 0)) {
-    progress.history.push('Arc advanced to stage ' + nextIndex + ' on day ' + Number(sc.daysElapsed || 0) + '.');
-    if (notify && typeof showNotif === 'function') showNotif('New Sun arc advanced: ' + nextIndex + '/' + NEW_SUN_ARC_STAGES.length + '.', 'good');
+  var completedCount = NEW_SUN_ARC_STAGES.filter(function (stage) {
+    return !!(progress.completedStageIds && progress.completedStageIds[stage.id]);
+  }).length;
+  if (completedCount > Number(progress.lastSyncedCompletedCount || 0)) {
+    progress.history.push('Arc advanced to stage ' + completedCount + ' on day ' + Number(sc.daysElapsed || 0) + '.');
+    if (notify && typeof showNotif === 'function') showNotif('New Sun arc advanced: ' + completedCount + '/' + NEW_SUN_ARC_STAGES.length + '.', 'good');
   }
-  progress.stageIndex = nextIndex;
+  progress.stageIndex = completedCount;
+  progress.lastSyncedCompletedCount = completedCount;
   if (progress.activeMarker && progress.completedStageIds[progress.activeMarker.stageId]) progress.activeMarker = null;
   return progress;
 }
@@ -2221,9 +2399,13 @@ function postNextSolarCycleArcMission() {
     if (typeof showNotif === 'function') showNotif('All New Sun stage markers are complete. Resolve the ending.', 'info');
     return null;
   }
-  var stage = NEW_SUN_ARC_STAGES[progress.stageIndex];
+  var stage = getNextSolarCycleStage(progress, sc);
+  if (!stage) return null;
   var marker = placeSolarCycleStageMarker(stage.id);
-  if (marker && typeof showNotif === 'function') showNotif('New Sun marker placed: ' + stage.title + ' at ' + marker.label + '.', 'good');
+  if (marker && typeof showNotif === 'function') {
+    showNotif('New Sun marker placed: ' + stage.title + ' at ' + marker.label + ' (closes after Day ' + Number(marker.expiresDay || 0) + ').', 'good');
+  }
+  renderSolarCycleGlobalDock();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   return marker;
 }
@@ -2231,7 +2413,10 @@ function postNextSolarCycleArcMission() {
 function renderSolarCycleChoiceCards(stageId, sceneChoices, compact) {
   var choices = Array.isArray(sceneChoices) ? sceneChoices : [];
   var isCompact = !!compact;
-  return choices.map(function (choice) {
+  var unlockedCount = choices.filter(function (choice) {
+    return typeof window.storyHasReq === 'function' ? !!window.storyHasReq(choice.req) : true;
+  }).length;
+  var cards = choices.map(function (choice) {
     var unlocked = typeof window.storyHasReq === 'function' ? !!window.storyHasReq(choice.req) : true;
     var reqText = typeof window.storyRenderRequirement === 'function' ? window.storyRenderRequirement(choice.req) : '';
     var die = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
@@ -2248,6 +2433,15 @@ function renderSolarCycleChoiceCards(stageId, sceneChoices, compact) {
       + buttonHtml
       + '</div>';
   }).join('');
+  if (!unlockedCount) {
+    var fallback = getSolarCycleFallbackChoice(stageId, getSolarCycleStageById(stageId));
+    cards += '<div style="border:1px solid rgba(201,162,39,.45);background:rgba(201,162,39,.08);padding:' + (isCompact ? '.45rem .5rem' : '.5rem .6rem') + ';margin-bottom:.35rem;">'
+      + '<div style="font-size:' + (isCompact ? '.82rem' : '.84rem') + ';color:var(--text2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(fallback.text) + '</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.2rem;">Guaranteed fallback when all branch requirements are locked.</div>'
+      + '<button class="btn ' + (isCompact ? 'btn-xs' : 'btn-sm') + ' btn-warn" onclick="window.resolveSolarCycleStageChoice(\'' + stageId + '\',\'' + fallback.id + '\')">Force Path</button>'
+      + '</div>';
+  }
+  return cards;
 }
 
 function renderSolarCycleStageChoiceModal(stageId, contextLabel) {
@@ -2277,6 +2471,9 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
   var scene = getSolarCycleStageScene(stageId);
   if (!sc || !stage || !scene) return false;
   var choice = (scene.choices || []).find(function (entry) { return entry.id === choiceId; });
+  if (!choice && String(choiceId || '') === getSolarCycleStageFallbackChoiceId(stageId)) {
+    choice = getSolarCycleFallbackChoice(stageId, stage);
+  }
   if (!choice) return false;
   if (typeof window.storyHasReq === 'function' && !window.storyHasReq(choice.req)) return false;
 
@@ -2324,6 +2521,7 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
 
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+  renderSolarCycleGlobalDock();
   return true;
 }
 
@@ -2397,6 +2595,7 @@ function patchSwitchTabForNewSun() {
     if (tabId === 'newsun') {
       renderNewSunModePanel();
     }
+    renderSolarCycleGlobalDock();
     return out;
   };
 }
@@ -2411,6 +2610,9 @@ window.toggleSolarCycleStoryMode = toggleSolarCycleStoryMode;
 window.stopSolarCycleRun = stopSolarCycleRun;
 window.renderNewSunModePanel = renderNewSunModePanel;
 window.applySolarCycleTimeFracture = applySolarCycleTimeFracture;
+window.openSolarCycleTimeFractureModal = openSolarCycleTimeFractureModal;
+window.jumpToSolarCycleActiveMarker = jumpToSolarCycleActiveMarker;
+window.setSolarCycleRouteMode = setSolarCycleRouteMode;
 window.postNextSolarCycleArcMission = postNextSolarCycleArcMission;
 window.chooseSolarCycleBranch = chooseSolarCycleBranch;
 window.resolveSolarCycleEnding = resolveSolarCycleEnding;
@@ -2563,6 +2765,7 @@ if (!window._newSunInitPatched) {
     ensureNewSunTab();
     patchSwitchTabForNewSun();
     renderNewSunModePanel();
+    renderSolarCycleGlobalDock();
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _bootNewSunPanel);

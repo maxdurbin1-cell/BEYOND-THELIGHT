@@ -709,7 +709,7 @@ const NEW_SUN_STAGE_SCENES = {
         id: 'read_refraction',
         text: 'Read your backstory in the refraction and take the hidden route',
         stat: 'mind',
-        baseDread: 9,
+        baseDread: 10,
         req: { backstorySet: true, actionDieAtLeast: { stat: 'mind', min: 8 } },
         success: { text: 'Your own origin refracts into a route no chart recorded. The keepers accept your passage under oath.', branchChoice: 'preserve', effects: { renown: 1, flags: { newSunBackstoryRoute: true }, prophecy: 'Your first home becomes the map key.' } },
         fail: { text: 'The refraction cuts too deep. You recover the route but carry a private wound into the sea.', branchChoice: 'preserve', effects: { mentalStress: 1, paradoxStrain: 1, flags: { newSunBackstoryRoute: true } } }
@@ -718,7 +718,7 @@ const NEW_SUN_STAGE_SCENES = {
         id: 'hack_lens',
         text: 'Route an OS hack through the lens calibration rings',
         stat: 'control',
-        baseDread: 9,
+        baseDread: 10,
         req: { augmentationsAny: ['operating system'], ownedHacksAny: ['ping', 'take control', 'reboot optics', 'weapon glitch'] },
         success: { text: 'The lens yields its alignment tables to your intrusion. You stabilize the route without swearing to the old priests.', branchChoice: 'preserve', effects: { renown: 1, flags: { newSunLensHacked: true }, prophecy: 'Machine-light proves the old rite was only one interface.' } },
         fail: { text: 'The calibration rings arc and burn your link, but the cracked tables still point the way forward.', branchChoice: 'preserve', effects: { mentalStress: 1, flags: { newSunLensHacked: true } } }
@@ -750,7 +750,7 @@ const NEW_SUN_STAGE_SCENES = {
         id: 'speak_dead_tide',
         text: 'Ask the drowned route-masters for the safer current',
         stat: 'spirit',
-        baseDread: 9,
+        baseDread: 10,
         req: { flavorAny: ['grave whisper', 'time traveler', 'relive last moments'], backgroundIncludes: ['temple', 'scholar', 'outlaw'] },
         success: { text: 'The drowned answer with coordinates and demand mercy for the living.', branchChoice: 'bind', effects: { renown: 1, flags: { newSunDeadCharts: true }, prophecy: 'The drowned chart a merciful channel.' } },
         fail: { text: 'They answer in fragments. The route still opens, but the dead leave frost in your lungs.', branchChoice: 'bind', effects: { mentalStress: 1, tmw: 1 } }
@@ -782,7 +782,7 @@ const NEW_SUN_STAGE_SCENES = {
         id: 'trade_rebel_passage',
         text: 'Trade on your backstory network to smuggle the archive key out',
         stat: 'control',
-        baseDread: 9,
+        baseDread: 10,
         req: { backstoryConnectionExists: true, backstoryRivalExists: true },
         success: { text: 'Your old network closes ranks. The key reaches orbit before the Regiment can react.', effects: { faction: { rebels: 1, military: -1 }, flags: { newSunSmuggledArchive: true }, prophecy: 'Old debts buy tomorrow a second time.' } },
         fail: { text: 'The network fractures, but one contact still carries the key clear of the district.', effects: { credits: -40, mentalStress: 1, flags: { newSunSmuggledArchive: true } } }
@@ -832,7 +832,7 @@ const NEW_SUN_STAGE_SCENES = {
         id: 'sever_signal',
         text: 'Sever the signal and leave the old sky scarred but free',
         stat: 'strike',
-        baseDread: 11,
+        baseDread: 12,
         req: { backgroundIncludes: ['outlaw', 'drifter', 'soldier', 'smuggler'] },
         success: { text: 'You cut the lattice loose. The old cycle survives, unstable and unwilling to forget you.', branchChoice: 'sever', effects: { renown: 1, paradoxStrain: 1, flags: { newSunSignalSevered: true }, prophecy: 'The sky remembers your refusal.' } },
         fail: { text: 'The lattice tears raggedly. The signal dies anyway, but takes a piece of you with it.', branchChoice: 'sever', effects: { health: 1, mentalStress: 1, paradoxStrain: 1, flags: { newSunSignalSevered: true } } }

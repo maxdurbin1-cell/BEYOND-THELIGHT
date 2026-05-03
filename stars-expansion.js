@@ -1044,32 +1044,127 @@ function chooseSolarCycleBranch(branchId, choiceId) {
   return true;
 }
 
-function getSolarCycleEndingKey(sc) {
+function getSolarCycleOutcomeProfile(sc) {
   var state = sc || ensureSolarCycleState();
-  if (!state) return 'old_world_religious_ending';
-  var branches = (state.arcProgress && state.arcProgress.branchChoices) ? state.arcProgress.branchChoices : {};
-  var strain = (state.timeFracture && state.timeFracture.scarFlags) ? Number(state.timeFracture.scarFlags.paradoxStrain || 0) : 0;
+  var progress = state && state.arcProgress ? state.arcProgress : {};
+  var branches = progress.branchChoices || {};
+  var results = progress.stageResults || {};
   var flags = (S && S.storyline && S.storyline.flags) ? S.storyline.flags : {};
-  var allStagesDone = state.arcProgress && Number(state.arcProgress.stageIndex || 0) >= NEW_SUN_ARC_STAGES.length;
+  var playstyle = state && state.playstyle ? state.playstyle : {};
+  var stageSummary = { completed: 0, success: 0, failure: 0, missed: 0 };
+
+  NEW_SUN_ARC_STAGES.forEach(function (stage) {
+    if (!progress.completedStageIds || !progress.completedStageIds[stage.id]) return;
+    stageSummary.completed += 1;
+    if (results[stage.id] && results[stage.id].success === false) stageSummary.failure += 1;
+    else stageSummary.success += 1;
+  });
+
+  var allStagesDone = stageSummary.completed >= NEW_SUN_ARC_STAGES.length;
+  var forcedFinale = !!(state && state.endingFlags && state.endingFlags.forcedFinaleTriggered);
+  if (forcedFinale && !allStagesDone) {
+    stageSummary.missed = Math.max(0, NEW_SUN_ARC_STAGES.length - stageSummary.completed);
+  }
+
+  var strain = (state && state.timeFracture && state.timeFracture.scarFlags)
+    ? Number(state.timeFracture.scarFlags.paradoxStrain || 0)
+    : 0;
+  var rewinds = state && state.timeFracture ? Number(state.timeFracture.rewindsUsed || 0) : 0;
+  var worldTilt = state ? Number(state.worldTilt || 0) : 0;
+  var mercyRoute = branches.keeper_oath === 'preserve' && branches.tide_compact === 'bind';
+  var dominionRoute = branches.keeper_oath === 'break' || branches.tide_compact === 'draft' || branches.final_signal === 'crown';
+  var openRoute = branches.final_signal === 'open' || !!flags.newSunSharedDawn;
+  var severRoute = branches.final_signal === 'sever' || !!flags.newSunSignalSevered;
+  var trueIgnition = !!flags.newSunTrueIgnition;
+  var crowned = branches.final_signal === 'crown' || !!flags.newSunCrowned;
+  var warFleet = !!flags.newSunWarFleet || branches.tide_compact === 'draft';
+  var archiveSecured = !!(flags.newSunArchiveAudit || flags.newSunArchiveHack || flags.newSunSmuggledArchive || flags.newSunWardBroken);
+  var witnessNetwork = !!(flags.newSunSafeCurrents || flags.newSunDeadCharts || flags.newSunFlavorCurrent);
+  var timeTouched = rewinds >= 2 || Number(flags.solarParadoxMarks || 0) >= 2;
+  var ignoredOmens = Number(playstyle.ignore || 0);
+  var intervenedOmens = Number(playstyle.intervene || 0);
+  var observedOmens = Number(playstyle.observe || 0);
+
+  return {
+    state: state,
+    branches: branches,
+    flags: flags,
+    stageSummary: stageSummary,
+    allStagesDone: allStagesDone,
+    forcedFinale: forcedFinale,
+    strain: strain,
+    rewinds: rewinds,
+    worldTilt: worldTilt,
+    mercyRoute: mercyRoute,
+    dominionRoute: dominionRoute,
+    openRoute: openRoute,
+    severRoute: severRoute,
+    trueIgnition: trueIgnition,
+    crowned: crowned,
+    warFleet: warFleet,
+    archiveSecured: archiveSecured,
+    witnessNetwork: witnessNetwork,
+    timeTouched: timeTouched,
+    ignoredOmens: ignoredOmens,
+    intervenedOmens: intervenedOmens,
+    observedOmens: observedOmens,
+    effectiveArc: String(getSolarCycleEffectiveArc(state) || 'relic')
+  };
+}
+
+function getSolarCycleEndingKey(sc) {
+  var profile = getSolarCycleOutcomeProfile(sc);
+  if (!profile.state) return 'wormwood_cathedral';
+
   var figuredOutNewSun = !!(
-    allStagesDone
-    && branches.keeper_oath === 'preserve'
-    && branches.tide_compact === 'bind'
-    && branches.final_signal === 'open'
-    && flags.newSunSharedDawn
-    && (flags.newSunTrueIgnition || (flags.newSunLensHacked && flags.newSunArchiveHack))
-    && (flags.newSunSafeCurrents || flags.newSunDeadCharts || flags.newSunFlavorCurrent)
-    && (flags.newSunArchiveAudit || flags.newSunArchiveHack || flags.newSunSmuggledArchive)
-    && strain <= 5
+    profile.allStagesDone
+    && profile.mercyRoute
+    && profile.openRoute
+    && profile.trueIgnition
+    && profile.witnessNetwork
+    && profile.archiveSecured
+    && profile.stageSummary.failure <= 1
+    && profile.strain <= 5
+    && profile.ignoredOmens <= 1
   );
-  return figuredOutNewSun ? 'new_sun_risen' : 'old_world_religious_ending';
+
+  if (figuredOutNewSun) return 'new_sun_risen';
+  if (profile.crowned && profile.dominionRoute && profile.intervenedOmens >= 2 && profile.worldTilt >= 3) return 'black_sun_coronation';
+  if ((profile.strain >= 8 || (profile.rewinds >= 3 && profile.strain >= 6)) && (profile.timeTouched || profile.forcedFinale)) return 'black_mirror_apocalypse';
+  if (profile.timeTouched && profile.observedOmens >= 2 && profile.effectiveArc === 'loop') return 'witness_loop';
+  if (profile.openRoute && profile.stageSummary.completed >= 3 && profile.witnessNetwork) return 'shared_dawn_compromise';
+  if ((profile.warFleet || profile.dominionRoute) && profile.worldTilt >= 3) return 'iron_ragnarok';
+  if (profile.severRoute || (profile.forcedFinale && profile.stageSummary.missed >= 1 && profile.ignoredOmens >= 2)) return 'ashes_without_dawn';
+  if (profile.mercyRoute || profile.archiveSecured) return 'wormwood_cathedral';
+  return profile.forcedFinale ? 'last_liturgy_of_ruin' : 'wormwood_cathedral';
 }
 
 function getSolarCycleEndingText(endingKey) {
   if (endingKey === 'new_sun_risen') {
     return 'New Sun Ending: you figured out the true ignition. Rite, code, witness-law, and private miracle align, and a living new sun rises over a changed world.';
   }
-  return 'Old World Religious Ending: the old faith absorbs the collapse into doctrine. The people survive under sacred rationing, but dawn belongs to inherited law rather than a new future.';
+  if (endingKey === 'shared_dawn_compromise') {
+    return 'Shared Dawn Ending: you deny any single throne, but the new light rises through compromise, scars, and uneven survival.';
+  }
+  if (endingKey === 'black_sun_coronation') {
+    return 'Black Sun Ending: you force the heavens into obedience and become the sovereign disaster everyone feared.';
+  }
+  if (endingKey === 'iron_ragnarok') {
+    return 'Ragnarok Ending: the old world chooses war as prophecy, and the sky answers with iron, fire, and marching gods.';
+  }
+  if (endingKey === 'witness_loop') {
+    return 'Witness Loop Ending: time folds around your route until strangers remember meeting you before you arrive.';
+  }
+  if (endingKey === 'ashes_without_dawn') {
+    return 'Ashes Without Dawn Ending: you refuse the machine, the old sky survives, and whole futures die unlit.';
+  }
+  if (endingKey === 'black_mirror_apocalypse') {
+    return 'Black Mirror Apocalypse: paradox eats the route, omens turn hostile, and the world ends in reflected false suns.';
+  }
+  if (endingKey === 'last_liturgy_of_ruin') {
+    return 'Last Liturgy Ending: too many windows close at once, and the survivors inherit only ritualized collapse.';
+  }
+  return 'Wormwood Cathedral Ending: the old faith absorbs the collapse into doctrine. The people survive under sacred rationing, but dawn belongs to inherited law rather than a new future.';
 }
 
 function getSolarCycleEndingConfig(endingKey) {
@@ -1091,8 +1186,134 @@ function getSolarCycleEndingConfig(endingKey) {
       rewardText: 'Rewards: +3 Renown, +250 credits, +1 Rebels, +1 Political, +1 Religious.'
     };
   }
+  if (endingKey === 'shared_dawn_compromise') {
+    return {
+      title: 'Epilogue: Shared Dawn, Scarred World',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'The new light arrives distributed through damaged relays, jury-rigged rites, and survivors who never fully trusted one another. It works anyway, though not cleanly.',
+        'Some districts call you liberator. Others call you the one who proved dawn can be bargained, bought, and lost again. Both are right.',
+        'Later historians argue over whether you saved the world or merely gave it a harder, stranger future. They do agree on one thing: every compromise you made stayed in the light.'
+      ],
+      rewards: {
+        renown: 3,
+        credits: 190,
+        faction: { political: 2, rebels: 1 },
+        flags: { newSunEpilogueSeen: true, sharedDawnCompromise: true }
+      },
+      rewardText: 'Rewards: +3 Renown, +190 credits, +2 Political, +1 Rebels.'
+    };
+  }
+  if (endingKey === 'black_sun_coronation') {
+    return {
+      title: 'Epilogue: The Black Sun Crown',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'You do not save the world so much as seize it at the instant of collapse. The successor sun rises as a throne, not a commons, and every surviving district learns to orbit your verdict.',
+        'Mercy becomes a private vice. Skirmishes continue not because the war failed to end, but because fear is now the engine that keeps the light stable.',
+        'The gods who wanted their own apocalypse do not stop whispering. They merely begin negotiating with you.'
+      ],
+      rewards: {
+        renown: 4,
+        credits: 220,
+        faction: { military: 2, corporations: 1, rebels: -3 },
+        flags: { newSunEpilogueSeen: true, blackSunCoronation: true }
+      },
+      rewardText: 'Rewards: +4 Renown, +220 credits, +2 Military, +1 Corporations, -3 Rebels.'
+    };
+  }
+  if (endingKey === 'iron_ragnarok') {
+    return {
+      title: 'Epilogue: Iron Ragnarok',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'The last campaigns become scripture in steel. War fleets, district banners, and orbital verdict engines all decide the end should arrive loudly, with witnesses.',
+        'No single god wins. Each power manages to drag one piece of the world toward its own preferred ruin, and the result is a many-voiced apocalypse.',
+        'People remember you as the commander who taught the age how to end itself properly.'
+      ],
+      rewards: {
+        renown: 3,
+        credits: 170,
+        faction: { military: 2, political: -1, religious: -1 },
+        flags: { newSunEpilogueSeen: true, ironRagnarokSeen: true }
+      },
+      rewardText: 'Rewards: +3 Renown, +170 credits, +2 Military, -1 Political, -1 Religious.'
+    };
+  }
+  if (endingKey === 'witness_loop') {
+    return {
+      title: 'Epilogue: The Witness Loop',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'The route closes, then opens behind you. People who only now meet you react like old acquaintances because, for them, they are.',
+        'You become part messenger, part haunting. In some years you are remembered as the guide who warned them in time. In others you are the stranger whose first greeting was already a farewell.',
+        'The world survives by learning to treat paradox as history instead of error.'
+      ],
+      rewards: {
+        renown: 3,
+        credits: 160,
+        faction: { scholars: 2, political: 1 },
+        flags: { newSunEpilogueSeen: true, witnessLoopClosed: true }
+      },
+      rewardText: 'Rewards: +3 Renown, +160 credits, +2 Scholars, +1 Political.'
+    };
+  }
+  if (endingKey === 'ashes_without_dawn') {
+    return {
+      title: 'Epilogue: Ashes Without Dawn',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'You cut the mechanism loose or arrive too late to trust it. The old sky survives, but only in the narrow sense that the world keeps breathing.',
+        'Cities live on inherited fuel, inherited dogma, and inherited fear. Whole possible futures vanish quietly because nobody dared light them.',
+        'You become the patron saint of refusal: proof that saying no can save a life and doom an era at the same time.'
+      ],
+      rewards: {
+        renown: 2,
+        credits: 130,
+        faction: { political: 1, rebels: -1 },
+        flags: { newSunEpilogueSeen: true, ashesWithoutDawn: true }
+      },
+      rewardText: 'Rewards: +2 Renown, +130 credits, +1 Political, -1 Rebels.'
+    };
+  }
+  if (endingKey === 'black_mirror_apocalypse') {
+    return {
+      title: 'Epilogue: Black Mirror Apocalypse',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'Time travel works one time too many. Reflected suns appear over different districts, each insisting it is the true ending and each burning out a different law of reality.',
+        'Friends, enemies, and future selves cross paths in the wrong order. Some are helpful. Some are hungry. None agree on which century they belong to.',
+        'Later survivors describe the event in contradictory mythic language because no single account remains stable long enough to become doctrine.'
+      ],
+      rewards: {
+        renown: 1,
+        credits: 90,
+        faction: { scholars: 1, religious: -2, political: -1 },
+        flags: { newSunEpilogueSeen: true, blackMirrorApocalypse: true }
+      },
+      rewardText: 'Rewards: +1 Renown, +90 credits, +1 Scholars, -2 Religious, -1 Political.'
+    };
+  }
+  if (endingKey === 'last_liturgy_of_ruin') {
+    return {
+      title: 'Epilogue: The Last Liturgy of Ruin',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'Too many omens go unanswered and too many windows close before you reach them. By the time the final day arrives, the world is living inside triage instead of prophecy.',
+        'The survivors keep ceremonies for futures they missed. Entire quest-lines of history are remembered only as absences that still hurt to name.',
+        'You are remembered as the one who almost found a way through, which is sometimes a heavier legend than failure.'
+      ],
+      rewards: {
+        renown: 1,
+        credits: 110,
+        faction: { religious: 1, political: 1, rebels: -1 },
+        flags: { newSunEpilogueSeen: true, lastLiturgyOfRuin: true }
+      },
+      rewardText: 'Rewards: +1 Renown, +110 credits, +1 Religious, +1 Political, -1 Rebels.'
+    };
+  }
   return {
-    title: 'Epilogue: The Old World Survives',
+    title: 'Epilogue: Wormwood Cathedral',
     summary: getSolarCycleEndingText(endingKey),
     paragraphs: [
       'Day 100 closes like a scripture being sealed. The old religious houses absorb the collapse into ritual language so quickly that most survivors never learn how near the sky came to changing forever.',
@@ -1112,6 +1333,10 @@ function getSolarCycleEndingConfig(endingKey) {
 function applySolarCycleEndingRewards(config) {
   if (!config || !config.rewards) return;
   applySolarCycleChoiceEffects(config.rewards);
+}
+
+function isSolarCycleHopefulEnding(endingKey) {
+  return ['new_sun_risen', 'shared_dawn_compromise', 'witness_loop'].indexOf(String(endingKey || '')) >= 0;
 }
 
 function resolveSolarCycleEnding(forceResolve) {
@@ -1152,7 +1377,7 @@ function resolveSolarCycleEnding(forceResolve) {
   S.storyline.flags.newSunEnding = endingKey;
   applySolarCycleEndingRewards(endingConfig);
 
-  if (typeof showNotif === 'function') showNotif('New Sun ending resolved: ' + endingKey.replace(/_/g, ' ') + '.', endingKey === 'old_world_religious_ending' ? 'warn' : 'good');
+  if (typeof showNotif === 'function') showNotif('New Sun ending resolved: ' + endingKey.replace(/_/g, ' ') + '.', isSolarCycleHopefulEnding(endingKey) ? 'good' : 'warn');
   if (typeof openModal === 'function') {
     openModal(
       endingConfig.title,
@@ -1433,9 +1658,26 @@ function setSolarCycleStoryModeEnabled(enabled) {
   sc.storyModeEnabled = next;
   if (!next) {
     stopSolarCycleRun();
+    if (typeof showNotif === 'function') {
+      showNotif('New Sun Story Mode disabled. Legacy play restored.', 'info');
+    }
+    if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+    if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+    return sc;
   }
+
+  // Turning New Sun ON should immediately start a run.
+  if (!sc.enabled) {
+    return startSolarCycleMode(sc.activeArc || 'relic');
+  }
+
+  // If somehow enabled without a live marker, ensure progression is visible.
+  if (sc.arcProgress && !sc.arcProgress.activeMarker && Number(sc.arcProgress.stageIndex || 0) < NEW_SUN_ARC_STAGES.length) {
+    postNextSolarCycleArcMission();
+  }
+
   if (typeof showNotif === 'function') {
-    showNotif('New Sun Story Mode ' + (next ? 'enabled.' : 'disabled. Legacy play restored.'), next ? 'good' : 'info');
+    showNotif('New Sun Story Mode enabled.', 'good');
   }
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
@@ -1617,12 +1859,17 @@ function renderNewSunModePanel() {
       + '</div>')
     : '';
 
+  var projectedEndingKey = (status.storyModeEnabled && (status.enabled || status.endingResolved))
+    ? getSolarCycleEndingKey(sc)
+    : '';
+  var projectedEndingText = projectedEndingKey ? getSolarCycleEndingText(projectedEndingKey) : '';
   var endingText = (sc.finale && sc.finale.text) ? String(sc.finale.text) : '';
   var endingRewardText = (sc.finale && sc.finale.rewardText) ? String(sc.finale.rewardText) : '';
   var endingControls = (status.storyModeEnabled)
     ? ('<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
       + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Ending Resolution</strong></div>'
       + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Resolve once Day 100 is forced or all stage markers are complete.</div>'
+      + (projectedEndingText ? ('<div style="font-size:.75rem;color:var(--gold2);line-height:1.5;margin-bottom:.35rem;">Projected ending if the arc ended now: ' + projectedEndingText + '</div>') : '')
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;">'
       + '<button class="btn btn-sm btn-gold" onclick="resolveSolarCycleEnding(false)">Resolve Ending</button>'
       + '</div>'

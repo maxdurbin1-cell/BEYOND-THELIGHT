@@ -1431,6 +1431,49 @@ function buildSolarCycleQuestThreadCardsHtml(sc) {
     return '<div style="font-size:.73rem;color:var(--muted2);">No quest thread data available.</div>';
   }
 
+  var threads = getSolarCycleThreadSnapshots(state).slice(0, 3);
+  if (!threads.length) {
+    return '<div style="font-size:.73rem;color:var(--muted2);">No ongoing quest threads yet. Resolve a quest to seed Thread A/B/C.</div>';
+  }
+
+  return threads.map(function (thread, idx) {
+    var crumbTrail = thread.crumbs.slice(-4).map(function (crumb) {
+      return escapeSolarCycleHtml(crumb.text);
+    });
+    var activeTrail = thread.active.slice(0, 2).map(function (quest) {
+      return 'Now: ' + escapeSolarCycleHtml(quest.title) + ' @ ' + escapeSolarCycleHtml(quest.destination) + ' (Day ' + Number(quest.endDay || 0) + ')';
+    });
+    var risk = getSolarCycleThreadRisk(state, thread);
+    var trail = crumbTrail.concat(activeTrail);
+    var current = escapeSolarCycleHtml(thread.currentDestination || (thread.active[0] ? thread.active[0].destination : 'Awaiting next destination'));
+    var riskPct = Math.max(0, Math.min(100, Math.round((Number(risk.score || 0) / 18) * 100)));
+    var riskTone = riskPct >= 70 ? 'var(--red2)' : (riskPct >= 45 ? 'var(--gold2)' : 'var(--green2)');
+    var timeline = buildSolarCycleThreadTimelineStripHtml(state, thread);
+    var trackBtn = '<button class="btn btn-xs btn-teal" onclick="window.trackSolarCycleThreadOnMap(\'' + String(thread.id) + '\')">Track on map</button>';
+    return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;margin-bottom:.22rem;">'
+      + '<div style="font-size:.74rem;color:var(--teal);letter-spacing:.08em;text-transform:uppercase;">' + escapeSolarCycleHtml(thread.label || 'Thread') + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);">' + Number(thread.active.length || 0) + ' active</div>'
+      + '</div>'
+      + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.18rem;">Current destination: <strong>' + current + '</strong></div>'
+      + '<div style="font-size:.69rem;color:' + riskTone + ';margin-bottom:.2rem;">Risk ' + Number(risk.score || 0) + '/18 · ' + escapeSolarCycleHtml(risk.breakdown) + '</div>'
+      + '<div style="height:.28rem;background:rgba(255,255,255,.07);border:1px solid var(--border2);margin-bottom:.28rem;">'
+      + '<div style="height:100%;width:' + riskPct + '%;background:' + riskTone + ';"></div>'
+      + '</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">'
+      + (trail.length ? trail.join(' <span style="color:var(--muted3);">&rarr;</span> ') : 'No breadcrumb history yet.')
+      + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.4;margin-top:.28rem;">' + timeline + '</div>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.25rem;flex-wrap:wrap;margin-top:.32rem;">' + trackBtn + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function getSolarCycleThreadSnapshots(sc) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  if (!state || !qs) return [];
+
   var questById = qs.questById || {};
   var threadMap = {};
 
@@ -1439,12 +1482,16 @@ function buildSolarCycleQuestThreadCardsHtml(sc) {
     if (!threadMap[key]) {
       threadMap[key] = {
         id: key,
+        label: '',
         crumbs: [],
         active: [],
+        quests: [],
         currentDestination: '',
         currentDestinationEndDay: 9999,
         latestDay: -1,
-        latestOrder: -1
+        latestOrder: -1,
+        confirmedCount: 0,
+        contestedCount: 0
       };
     }
     return threadMap[key];
@@ -1470,18 +1517,28 @@ function buildSolarCycleQuestThreadCardsHtml(sc) {
   }
 
   var ledger = Array.isArray(qs.clueLedger) ? qs.clueLedger : [];
-  ledger.slice(-80).forEach(function (entry, idx) {
+  ledger.slice(-120).forEach(function (entry, idx) {
     var root = String(entry.threadRootId || entry.sourceQuestId || entry.id || '');
     var thread = getThread(root || ('ledger-' + idx));
     var day = Number(entry.day || 0);
-    var crumb = 'Day ' + day + ': ' + String(entry.title || 'Unknown clue') + (entry.deceptive ? ' (contested)' : ' (confirmed)');
-    thread.crumbs.push({
-      text: crumb,
-      day: day,
-      order: idx
-    });
+    var deceptive = !!entry.deceptive;
+    var crumb = 'Day ' + day + ': ' + String(entry.title || 'Unknown clue') + (deceptive ? ' (contested)' : ' (confirmed)');
+    thread.crumbs.push({ text: crumb, day: day, order: idx });
+    if (deceptive) thread.contestedCount += 1;
+    else thread.confirmedCount += 1;
     thread.latestDay = Math.max(thread.latestDay, day);
     thread.latestOrder = Math.max(thread.latestOrder, idx);
+  });
+
+  Object.keys(questById).forEach(function (qid, idx) {
+    var quest = questById[String(qid || '')];
+    if (!quest) return;
+    var root = resolveRootId(quest);
+    var thread = getThread(root || String(quest.id || ('quest-' + idx)));
+    var day = Number(quest.startDay || state.daysElapsed || 0);
+    thread.quests.push(quest);
+    thread.latestDay = Math.max(thread.latestDay, day);
+    thread.latestOrder = Math.max(thread.latestOrder, ledger.length + idx);
   });
 
   var activeIds = Array.isArray(qs.activeQuestIds) ? qs.activeQuestIds : [];
@@ -1497,7 +1554,8 @@ function buildSolarCycleQuestThreadCardsHtml(sc) {
       title: String(quest.title || 'Untitled quest'),
       destination: destination,
       endDay: Number(quest.endDay || 0),
-      region: String(quest.region || '')
+      region: String(quest.region || ''),
+      locationKey: String(quest.locationKey || '')
     });
     if (!thread.currentDestination || Number(quest.endDay || 0) < Number(thread.currentDestinationEndDay || 9999)) {
       thread.currentDestination = destination;
@@ -1524,10 +1582,6 @@ function buildSolarCycleQuestThreadCardsHtml(sc) {
     return thread.crumbs.length || thread.active.length;
   });
 
-  if (!threads.length) {
-    return '<div style="font-size:.73rem;color:var(--muted2);">No ongoing quest threads yet. Resolve a quest to seed Thread A/B/C.</div>';
-  }
-
   threads.sort(function (a, b) {
     if (!!b.active.length !== !!a.active.length) return b.active.length ? -1 : 1;
     if (Number(b.latestDay || -1) !== Number(a.latestDay || -1)) return Number(b.latestDay || -1) - Number(a.latestDay || -1);
@@ -1535,27 +1589,258 @@ function buildSolarCycleQuestThreadCardsHtml(sc) {
   });
 
   var labels = ['Thread A', 'Thread B', 'Thread C'];
-  return threads.slice(0, 3).map(function (thread, idx) {
-    var label = labels[idx] || ('Thread ' + String.fromCharCode(65 + idx));
-    var crumbTrail = thread.crumbs.slice(-4).map(function (crumb) {
-      return escapeSolarCycleHtml(crumb.text);
+  threads.forEach(function (thread, idx) {
+    thread.label = labels[idx] || ('Thread ' + String.fromCharCode(65 + idx));
+  });
+  return threads;
+}
+
+function getSolarCycleThreadRisk(sc, thread) {
+  var state = sc || ensureSolarCycleState();
+  var t = thread || {};
+  var now = Number(state && state.daysElapsed || 0);
+  var remaining = 99;
+  if (Array.isArray(t.active) && t.active.length) {
+    t.active.forEach(function (q) {
+      remaining = Math.min(remaining, Math.max(0, Number(q.endDay || now) - now));
     });
-    var activeTrail = thread.active.slice(0, 2).map(function (quest) {
-      return 'Now: ' + escapeSolarCycleHtml(quest.title) + ' @ ' + escapeSolarCycleHtml(quest.destination) + ' (Day ' + Number(quest.endDay || 0) + ')';
+  }
+  if (remaining === 99) remaining = 6;
+  var timeRisk = Math.max(0, Math.min(6, 6 - remaining));
+  var deceptionRisk = Math.max(0, Math.min(6, Number(t.contestedCount || 0) * 2));
+  var strainRisk = Math.max(0, Math.min(6, Number(state && state.timeFracture && state.timeFracture.scarFlags && state.timeFracture.scarFlags.paradoxStrain || 0)));
+  var score = Math.max(0, Math.min(18, timeRisk + deceptionRisk + strainRisk));
+  return {
+    score: score,
+    breakdown: 'time ' + timeRisk + ' | contested ' + deceptionRisk + ' | strain ' + strainRisk
+  };
+}
+
+function buildSolarCycleThreadTimelineStripHtml(sc, thread) {
+  var state = sc || ensureSolarCycleState();
+  var t = thread || {};
+  var items = [];
+  var now = Number(state && state.daysElapsed || 0);
+  (t.quests || []).forEach(function (q) {
+    if (!q) return;
+    var start = Number(q.startDay || 0);
+    items.push({ day: start, label: 'D' + start + ' post' });
+    if (q.resolved) {
+      var rday = Number(q.resolvedDay || q.endDay || start);
+      items.push({ day: rday, label: 'D' + rday + ' resolve' });
+    } else if (q.expired) {
+      var eday = Number(q.endDay || start);
+      items.push({ day: eday, label: 'D' + eday + ' miss!' });
+    } else {
+      var rem = Math.max(0, Number(q.endDay || now) - now);
+      items.push({ day: Number(q.endDay || now), label: 'D' + Number(q.endDay || now) + ' exp (' + rem + 'd)' });
+    }
+  });
+  items.sort(function (a, b) {
+    return Number(a.day || 0) - Number(b.day || 0);
+  });
+  var compact = items.slice(-8).map(function (item) {
+    var danger = String(item.label).indexOf('miss!') >= 0 || String(item.label).indexOf('exp') >= 0;
+    return '<span style="display:inline-block;padding:0 .25rem;margin:0 .08rem .08rem 0;border:1px solid ' + (danger ? 'rgba(224,80,80,.45)' : 'var(--border2)') + ';color:' + (danger ? 'var(--red2)' : 'var(--muted2)') + ';">' + escapeSolarCycleHtml(item.label) + '</span>';
+  }).join('');
+  return compact || '<span style="color:var(--muted2);">No timeline events yet.</span>';
+}
+
+function buildSolarCycleCanonBoardHtml(sc) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  if (!state || !qs) return '';
+  var ledger = Array.isArray(qs.clueLedger) ? qs.clueLedger : [];
+  var byMethod = {};
+  ledger.forEach(function (entry) {
+    var key = String(entry.methodId || 'unknown');
+    if (!byMethod[key]) {
+      byMethod[key] = {
+        id: key,
+        title: String(entry.methodTitle || key),
+        confirmed: 0,
+        contested: 0
+      };
+    }
+    if (entry.deceptive) byMethod[key].contested += 1;
+    else byMethod[key].confirmed += 1;
+  });
+  var rows = Object.keys(byMethod).map(function (key) { return byMethod[key]; }).sort(function (a, b) {
+    var at = Number(a.confirmed + a.contested || 0);
+    var bt = Number(b.confirmed + b.contested || 0);
+    return bt - at;
+  }).slice(0, 8);
+  var body = rows.length
+    ? rows.map(function (row) {
+        return '<div style="display:grid;grid-template-columns:1.8fr .8fr .8fr;gap:.2rem;padding:.15rem 0;border-bottom:1px solid var(--border2);font-size:.72rem;">'
+          + '<div style="color:var(--text2);">' + escapeSolarCycleHtml(row.title) + '</div>'
+          + '<div style="color:var(--green2);text-align:right;">' + Number(row.confirmed || 0) + '</div>'
+          + '<div style="color:var(--red2);text-align:right;">' + Number(row.contested || 0) + '</div>'
+          + '</div>';
+      }).join('')
+    : '<div style="font-size:.72rem;color:var(--muted2);">No clue matrix yet.</div>';
+  return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;margin-bottom:.35rem;">'
+    + '<div style="font-size:.73rem;color:var(--gold2);margin-bottom:.18rem;">Canon Board: True vs Contested</div>'
+    + '<div style="display:grid;grid-template-columns:1.8fr .8fr .8fr;gap:.2rem;font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.14rem;">'
+    + '<div>Method</div><div style="text-align:right;">True</div><div style="text-align:right;">Contested</div>'
+    + '</div>'
+    + body
+    + '</div>';
+}
+
+function getSolarCycleEndingKeyFromWeights(weights) {
+  var priority = ['new_sun_risen', 'shared_dawn_compromise', 'witness_loop', 'wormwood_cathedral', 'last_liturgy_of_ruin', 'ashes_without_dawn', 'iron_ragnarok', 'black_sun_coronation', 'black_mirror_apocalypse'];
+  var best = 'wormwood_cathedral';
+  var bestWeight = -999999;
+  priority.forEach(function (key) {
+    var val = Number(weights && weights[key] || 0);
+    if (val > bestWeight) {
+      bestWeight = val;
+      best = key;
+    }
+  });
+  return best;
+}
+
+function applySolarCycleScenarioDeltaToWeights(baseWeights, deltaMap) {
+  var out = {};
+  NEW_SUN_ENDING_KEYS.forEach(function (key) {
+    out[key] = Number(baseWeights && baseWeights[key] || 0) + Number(deltaMap && deltaMap[key] || 0);
+  });
+  return out;
+}
+
+function buildSolarCycleForecastSimulatorHtml(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state) return '';
+  var profile = getSolarCycleOutcomeProfile(state);
+  var baseWeights = getSolarCycleEndingWeights(profile);
+  var baseKey = getSolarCycleEndingKeyFromWeights(baseWeights);
+  var threads = getSolarCycleThreadSnapshots(state).slice(0, 3);
+  var failDelta = (SOLAR_CYCLE_IRREVERSIBLE_TAGS.scheduler_roll_failed && SOLAR_CYCLE_IRREVERSIBLE_TAGS.scheduler_roll_failed.endingWeights) || {};
+  var successDelta = (SOLAR_CYCLE_IRREVERSIBLE_TAGS.scheduler_clue_confirmed && SOLAR_CYCLE_IRREVERSIBLE_TAGS.scheduler_clue_confirmed.endingWeights) || {};
+
+  var scenarioRows = [];
+  scenarioRows.push({
+    label: 'If resolved now',
+    key: baseKey,
+    delta: 0
+  });
+
+  var threadA = threads[0] || null;
+  var threadB = threads[1] || null;
+  if (threadA) {
+    var aFailWeights = applySolarCycleScenarioDeltaToWeights(baseWeights, failDelta);
+    var aFailKey = getSolarCycleEndingKeyFromWeights(aFailWeights);
+    scenarioRows.push({
+      label: String(threadA.label || 'Thread A') + ' fails',
+      key: aFailKey,
+      delta: Number(aFailWeights[aFailKey] || 0) - Number(baseWeights[aFailKey] || 0)
     });
-    var trail = crumbTrail.concat(activeTrail);
-    var current = escapeSolarCycleHtml(thread.currentDestination || (thread.active[0] ? thread.active[0].destination : 'Awaiting next destination'));
-    return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;margin-bottom:.22rem;">'
-      + '<div style="font-size:.74rem;color:var(--teal);letter-spacing:.08em;text-transform:uppercase;">' + label + '</div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);">' + Number(thread.active.length || 0) + ' active</div>'
-      + '</div>'
-      + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.18rem;">Current destination: <strong>' + current + '</strong></div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">'
-      + (trail.length ? trail.join(' <span style="color:var(--muted3);">&rarr;</span> ') : 'No breadcrumb history yet.')
-      + '</div>'
+  }
+  if (threadA && threadB) {
+    var abDelta = {};
+    NEW_SUN_ENDING_KEYS.forEach(function (key) {
+      abDelta[key] = Number(failDelta[key] || 0) + Number(successDelta[key] || 0);
+    });
+    var comboWeights = applySolarCycleScenarioDeltaToWeights(baseWeights, abDelta);
+    var comboKey = getSolarCycleEndingKeyFromWeights(comboWeights);
+    scenarioRows.push({
+      label: String(threadA.label || 'Thread A') + ' fails / ' + String(threadB.label || 'Thread B') + ' succeeds',
+      key: comboKey,
+      delta: Number(comboWeights[comboKey] || 0) - Number(baseWeights[comboKey] || 0)
+    });
+  }
+
+  var rowsHtml = scenarioRows.map(function (row) {
+    var tone = Number(row.delta || 0) >= 0 ? 'var(--teal)' : 'var(--red2)';
+    var deltaText = Number(row.delta || 0) === 0 ? '0' : ((Number(row.delta || 0) > 0 ? '+' : '') + Number(row.delta || 0));
+    return '<div style="display:grid;grid-template-columns:1.8fr 1.2fr .6fr;gap:.2rem;padding:.14rem 0;border-bottom:1px solid var(--border2);font-size:.72rem;">'
+      + '<div style="color:var(--text2);">' + escapeSolarCycleHtml(row.label) + '</div>'
+      + '<div style="color:var(--gold2);">' + escapeSolarCycleHtml(String(row.key || '').replace(/_/g, ' ')) + '</div>'
+      + '<div style="color:' + tone + ';text-align:right;">' + escapeSolarCycleHtml(deltaText) + '</div>'
       + '</div>';
   }).join('');
+
+  return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;margin-bottom:.35rem;">'
+    + '<div style="font-size:.73rem;color:var(--gold2);margin-bottom:.18rem;">Finale Forecast Simulator</div>'
+    + '<div style="display:grid;grid-template-columns:1.8fr 1.2fr .6fr;gap:.2rem;font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.14rem;">'
+    + '<div>Scenario</div><div>Projected Ending</div><div style="text-align:right;">Delta</div>'
+    + '</div>'
+    + rowsHtml
+    + '</div>';
+}
+
+function focusSolarCycleQuestOnMap(quest) {
+  if (!quest || typeof window.switchTab !== 'function') return false;
+  var region = String(quest.region || 'province');
+  var tabId = region === 'sea' ? 'lastsea' : (region === 'wtw' ? 'worldthatwas' : (region === 'galaxy' ? 'galaxy' : 'map'));
+  var btn = document.getElementById('tabnav-' + tabId);
+  window.switchTab(tabId, btn || null);
+
+  if (region === 'province') {
+    if (typeof window.setProvinceSelectedKey === 'function' && quest.locationKey) {
+      window.setProvinceSelectedKey(String(quest.locationKey));
+      return true;
+    }
+    if (typeof showNotif === 'function') showNotif('Province map focused. Select the highlighted mission marker manually if needed.', 'info');
+    return true;
+  }
+
+  if (region === 'sea') {
+    if (S && S.lastSea) {
+      S.lastSea.selectedKey = String(quest.locationKey || S.lastSea.selectedKey || '');
+    }
+    if (typeof window.renderLastSeaMap === 'function') window.renderLastSeaMap();
+    return true;
+  }
+
+  if (region === 'wtw') {
+    if (S && S.worldThatWas) {
+      S.worldThatWas.selectedHexId = String(quest.locationKey || S.worldThatWas.selectedHexId || '');
+    }
+    if (typeof window.wtwSyncMarkers === 'function') {
+      window.wtwSyncMarkers();
+    }
+    return true;
+  }
+
+  if (region === 'galaxy') {
+    if (S && S.starSystem && quest.locationKey !== '') {
+      S.starSystem.currentHexId = Number(quest.locationKey);
+    }
+    if (quest.taskId && typeof window.renderGalaxyTaskPanel === 'function') {
+      window.renderGalaxyTaskPanel(String(quest.taskId));
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function trackSolarCycleThreadOnMap(threadRootId) {
+  var sc = ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(sc);
+  if (!sc || !qs) return false;
+  var threads = getSolarCycleThreadSnapshots(sc);
+  var thread = threads.find(function (t) { return String(t.id || '') === String(threadRootId || ''); }) || null;
+  if (!thread) return false;
+
+  var targetQuestId = thread.active.length ? String(thread.active[0].id || '') : '';
+  if (!targetQuestId && Array.isArray(thread.quests) && thread.quests.length) {
+    var latest = thread.quests.slice().sort(function (a, b) { return Number(b.startDay || 0) - Number(a.startDay || 0); })[0];
+    targetQuestId = String(latest && latest.id || '');
+  }
+  var quest = targetQuestId ? qs.questById[targetQuestId] : null;
+  if (!quest) {
+    if (typeof showNotif === 'function') showNotif('No map marker is active for that thread right now.', 'warn');
+    return false;
+  }
+  var ok = focusSolarCycleQuestOnMap(quest);
+  if (ok && typeof showNotif === 'function') {
+    showNotif((thread.label || 'Thread') + ' tracking: ' + String(quest.locationLabel || getSolarCycleRegionLabel(quest.region)) + '.', 'info');
+  }
+  return ok;
 }
 
 function getSolarCycleEndingKey(sc) {
@@ -2341,6 +2626,7 @@ function startSolarCycleMode(activeArc) {
     questCounter: 0,
     wtwQuestByHex: {},
     questActionStats: {},
+    npcMemory: {},
     regionPostedCount: { province: 0, sea: 0, wtw: 0, galaxy: 0 },
     lastSpawnDay: -1,
     lastFailureBranchDay: -1
@@ -2487,6 +2773,8 @@ function renderNewSunModePanel() {
   var scheduler = getSolarCycleQuestScheduler(sc);
   var irreversiblePanelHtml = buildSolarCycleIrreversiblePanelHtml(sc);
   var threadCardsHtml = buildSolarCycleQuestThreadCardsHtml(sc);
+  var canonBoardHtml = buildSolarCycleCanonBoardHtml(sc);
+  var forecastSimulatorHtml = buildSolarCycleForecastSimulatorHtml(sc);
   var schedulerSummary = scheduler
     ? ('Province ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | Sea ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
@@ -2628,6 +2916,8 @@ function renderNewSunModePanel() {
     + '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.35rem;">' + schedulerSummary + '</div>'
     + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.25rem;">Quest Threads (A/B/C)</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.4rem;margin-bottom:.35rem;">' + threadCardsHtml + '</div>'
+    + canonBoardHtml
+    + forecastSimulatorHtml
     + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.25rem;">Active quests: ' + Number(status.schedulerActiveCount || 0) + ' | Clues logged: ' + Number(status.schedulerClueCount || 0) + '</div>'
     + schedulerActiveHtml
     + '</div>'
@@ -2758,6 +3048,55 @@ function getSolarCycleNpcDemandText(region, methodTitle) {
   return '"I have an orbital relay key, but you must complete this run before I trust you with it."';
 }
 
+function getSolarCycleNpcMemoryEntry(sc, npcName) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  if (!qs) return null;
+  qs.npcMemory = qs.npcMemory || {};
+  var key = String(npcName || 'Unknown Witness');
+  if (!qs.npcMemory[key] || typeof qs.npcMemory[key] !== 'object') {
+    qs.npcMemory[key] = { success: 0, failed: 0, missed: 0, contested: 0, lastOutcome: '' };
+  }
+  return qs.npcMemory[key];
+}
+
+function recordSolarCycleNpcOutcome(sc, quest, outcome) {
+  if (!quest) return;
+  var mem = getSolarCycleNpcMemoryEntry(sc, quest.npcName || 'Unknown Witness');
+  if (!mem) return;
+  var key = String(outcome || '').toLowerCase();
+  if (key === 'success') mem.success = Number(mem.success || 0) + 1;
+  else if (key === 'contested') mem.contested = Number(mem.contested || 0) + 1;
+  else if (key === 'missed') mem.missed = Number(mem.missed || 0) + 1;
+  else mem.failed = Number(mem.failed || 0) + 1;
+  mem.lastOutcome = key;
+}
+
+function applySolarCycleNpcMemoryToQuest(sc, quest) {
+  if (!quest) return quest;
+  var mem = getSolarCycleNpcMemoryEntry(sc, quest.npcName || 'Unknown Witness');
+  if (!mem) return quest;
+  var success = Number(mem.success || 0);
+  var failed = Number(mem.failed || 0);
+  var missed = Number(mem.missed || 0);
+  var contested = Number(mem.contested || 0);
+
+  if (failed + missed > success) {
+    quest.memoryCallbackLine = '"I remember your misses. This offer is tighter and the window will not wait."';
+    quest.requestPrompt = String(quest.requestPrompt || '') + ' The contact shortens the deadline after previous failures.';
+    quest.endDay = Math.max(Number(quest.startDay || 0) + 1, Number(quest.endDay || 0) - 1);
+  } else if (success > failed + missed) {
+    quest.memoryCallbackLine = '"You delivered before. I am giving you the cleaner route this time."';
+    quest.requestPrompt = String(quest.requestPrompt || '') + ' Prior success unlocks a cleaner handoff route.';
+  }
+
+  if (contested >= 2) {
+    quest.memoryCallbackLine = '"Too many false leads. Verify everything before you move."';
+    quest.stakesText = 'This contact now expects double verification. Contested routes escalate collapse pressure faster.';
+  }
+  return quest;
+}
+
 function createSolarCycleImmediateQuest(sc, region, sourceQuest, reason) {
   var state = sc || ensureSolarCycleState();
   var qs = getSolarCycleQuestScheduler(state);
@@ -2804,6 +3143,7 @@ function createSolarCycleImmediateQuest(sc, region, sourceQuest, reason) {
     sourceQuestId: sourceQuest && sourceQuest.id ? String(sourceQuest.id) : '',
     threadRootId: sourceQuest ? String(sourceQuest.threadRootId || sourceQuest.id || '') : ''
   };
+  applySolarCycleNpcMemoryToQuest(state, quest);
   return quest;
 }
 
@@ -2827,6 +3167,7 @@ function getSolarCycleQuestScheduler(sc) {
   if (typeof qs.questCounter !== 'number') qs.questCounter = 0;
   if (!qs.wtwQuestByHex || typeof qs.wtwQuestByHex !== 'object') qs.wtwQuestByHex = {};
   if (!qs.questActionStats || typeof qs.questActionStats !== 'object') qs.questActionStats = {};
+  if (!qs.npcMemory || typeof qs.npcMemory !== 'object') qs.npcMemory = {};
   if (!qs.regionPostedCount || typeof qs.regionPostedCount !== 'object') qs.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
   if (typeof qs.lastSpawnDay !== 'number') qs.lastSpawnDay = -1;
   if (typeof qs.lastFailureBranchDay !== 'number') qs.lastFailureBranchDay = -1;
@@ -2989,6 +3330,7 @@ function createSolarCycleSchedulerQuest(sc, region) {
     nextFailRegion: failRegion
   };
   quest.threadRootId = String(quest.id || '');
+  applySolarCycleNpcMemoryToQuest(state, quest);
   return quest;
 }
 
@@ -3097,6 +3439,7 @@ function expireSolarCycleSchedulerQuests(sc) {
     quest.expired = true;
     clearSolarCycleSchedulerQuestMarker(quest);
     qs.activeQuestIds = qs.activeQuestIds.filter(function (id) { return id !== qid; });
+    recordSolarCycleNpcOutcome(state, quest, 'missed');
     spawnSolarCycleQuestFollowup(quest, state, 'expired');
     if (typeof showNotif === 'function') {
       showNotif('New Sun quest window closed: ' + String(quest.title || 'Untitled quest') + '.', 'warn');
@@ -3283,6 +3626,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     quest.expired = true;
     clearSolarCycleSchedulerQuestMarker(quest);
     qs.activeQuestIds = qs.activeQuestIds.filter(function (id) { return id !== quest.id; });
+    recordSolarCycleNpcOutcome(sc, quest, 'missed');
     if (typeof showNotif === 'function') showNotif('Quest window closed before investigation completed.', 'warn');
     return false;
   }
@@ -3335,6 +3679,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     recordSolarCycleIrreversibleTag('scheduler_clue_confirmed', { questId: quest.id, methodId: quest.methodId, approach: approach });
     sc.prophecyTrack.push('Quest clue [' + quest.methodTitle + ']: ' + quest.clueText);
   }
+  recordSolarCycleNpcOutcome(sc, quest, misled ? (forcedMisled ? 'failed' : 'contested') : 'success');
   if (forcedMisled) recordSolarCycleIrreversibleTag('scheduler_roll_failed', { questId: quest.id, methodId: quest.methodId, approach: approach });
   if (typeof showNotif === 'function') {
     showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0) + ' vs Dread ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0) + ').', misled ? 'warn' : 'good');
@@ -3395,6 +3740,7 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   if (!quest || quest.resolved || quest.expired || typeof openModal !== 'function') return false;
   var windowText = 'Day ' + Number(quest.startDay || 0) + '-' + Number(quest.endDay || 0) + ' | Phase ' + (Array.isArray(quest.phaseWindow) ? quest.phaseWindow.map(function (n) { return getSolarCyclePhaseLabelByIndex(n); }).join(', ') : 'Any');
   var chosenStat = getSolarCycleQuestActionStat(quest.id);
+  var memoryLine = String(quest.memoryCallbackLine || '');
   var statButtons = SOLAR_CYCLE_ACTION_STATS.map(function (stat) {
     var on = chosenStat === stat;
     return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.setSolarCycleQuestActionStat(\'' + String(quest.id) + '\',\'' + String(stat) + '\')">' + String(stat).toUpperCase() + '</button>';
@@ -3404,6 +3750,7 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     '<div style="font-size:.76rem;color:var(--gold2);margin-bottom:.25rem;">' + escapeSolarCycleHtml(contextLabel || quest.locationLabel || quest.region) + '</div>'
     + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Arc pack: ' + String(quest.arc).toUpperCase() + ' / ' + String(quest.templateMode).toUpperCase() + ' | ' + escapeSolarCycleHtml(windowText) + '</div>'
     + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;margin-bottom:.28rem;"><strong>' + escapeSolarCycleHtml(quest.npcName || 'Unknown Witness') + ':</strong> ' + escapeSolarCycleHtml(quest.dialogueLine || '"The countdown continues."') + '</div>'
+    + (memoryLine ? ('<div style="font-size:.74rem;color:var(--gold2);line-height:1.5;margin-bottom:.22rem;">Memory callback: ' + escapeSolarCycleHtml(memoryLine) + '</div>') : '')
     + '<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.28rem;">' + escapeSolarCycleHtml(quest.requestPrompt || getSolarCycleNpcDemandText(quest.region, quest.methodTitle)) + '</div>'
     + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;margin-bottom:.45rem;">Every New Sun investigation reveals a route toward restoration. This lead suggests: <strong>' + escapeSolarCycleHtml(quest.methodSummary) + '</strong></div>'
     + '<div style="font-size:.74rem;color:var(--red2);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(quest.stakesText || '100 days remain. Your decision can change how the world ends.') + '</div>'
@@ -3524,11 +3871,29 @@ function jumpToSolarCycleActiveMarker() {
   var sc = ensureSolarCycleState();
   var active = sc && sc.arcProgress ? sc.arcProgress.activeMarker : null;
   if (!active || typeof window.switchTab !== 'function') return false;
-  var tabId = active.region === 'sea' ? 'lastsea'
-    : (active.region === 'wtw' ? 'worldthatwas'
-      : (active.region === 'galaxy' ? 'galaxy' : 'map'));
+  var region = String(active.region || 'province');
+  var tabId = region === 'sea' ? 'lastsea'
+    : (region === 'wtw' ? 'worldthatwas'
+      : (region === 'galaxy' ? 'galaxy' : 'map'));
   var btn = document.getElementById('tabnav-' + tabId);
   window.switchTab(tabId, btn || null);
+
+  if (region === 'province' && typeof window.setProvinceSelectedKey === 'function' && active.key) {
+    window.setProvinceSelectedKey(String(active.key));
+  } else if (region === 'sea') {
+    if (S && S.lastSea) S.lastSea.selectedKey = String(active.key || active.hexKey || S.lastSea.selectedKey || '');
+    if (typeof window.renderLastSeaMap === 'function') window.renderLastSeaMap();
+  } else if (region === 'wtw') {
+    if (S && S.worldThatWas) S.worldThatWas.selectedHexId = String(active.hexId || active.key || S.worldThatWas.selectedHexId || '');
+    if (typeof window.wtwSyncMarkers === 'function') window.wtwSyncMarkers();
+  } else if (region === 'galaxy') {
+    if (S && S.starSystem && active.hexId !== undefined && active.hexId !== null) S.starSystem.currentHexId = Number(active.hexId);
+    if (active.taskId && typeof window.renderGalaxyTaskPanel === 'function') window.renderGalaxyTaskPanel(String(active.taskId));
+  }
+
+  if (typeof showNotif === 'function') {
+    showNotif('Tracking story marker: ' + String(active.label || active.stageId || 'New Sun marker') + '.', 'info');
+  }
   return true;
 }
 
@@ -3992,6 +4357,7 @@ window.getSolarCycleQuestActionStat = getSolarCycleQuestActionStat;
 window.setSolarCycleQuestActionStat = setSolarCycleQuestActionStat;
 window.resolveSolarCycleSchedulerQuestWithSelectedStat = resolveSolarCycleSchedulerQuestWithSelectedStat;
 window.resolveSolarCycleSchedulerQuest = resolveSolarCycleSchedulerQuest;
+window.trackSolarCycleThreadOnMap = trackSolarCycleThreadOnMap;
 window.openSolarCycleSchedulerQuestModal = openSolarCycleSchedulerQuestModal;
 window.buildSolarCycleQuickPanelHtml = buildSolarCycleQuickPanelHtml;
 window.postNextSolarCycleArcMission = postNextSolarCycleArcMission;

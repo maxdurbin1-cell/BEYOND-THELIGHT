@@ -2285,6 +2285,36 @@
 
     if (marker.type === "mission") {
       if (typeof showNotif === "function") showNotif("Mission marker reviewed. See Missions tab for full objective.", "good");
+    } else if (marker.type === "mission_informer" || marker.type === "mission_site") {
+      var missions = Array.isArray(S && S.activeMissions) ? S.activeMissions : [];
+      var mission = missions.find(function (m) {
+        if (!m || m.region !== "wtw") return false;
+        if (marker.type === "mission_informer") return String(m.wtwInformerHexId || "") === String(hexId || "");
+        return String(m.wtwSiteHexId || m.wtwHexId || "") === String(hexId || "");
+      }) || null;
+
+      if (!mission) {
+        if (typeof showNotif === "function") showNotif("Mission marker found, but no linked active mission was found.", "warn");
+      } else {
+        var steps = Array.isArray(mission.steps) ? mission.steps : [];
+        var infoDone = !!(steps[1] && steps[1].completed);
+        var siteDone = !!(steps[2] && steps[2].completed);
+        var finalDone = !!(steps[3] && steps[3].completed);
+
+        if (marker.type === "mission_informer") {
+          if (!infoDone && typeof window.startMissionStep1 === "function") {
+            window.startMissionStep1(mission.id);
+          } else if (typeof showNotif === "function") {
+            showNotif("Informer intel already resolved for this mission.", "info");
+          }
+        } else if (!siteDone && typeof window.startMissionStep2 === "function") {
+          window.startMissionStep2(mission.id);
+        } else if (!finalDone && typeof window.startMissionStep3 === "function") {
+          window.startMissionStep3(mission.id);
+        } else if (typeof showNotif === "function") {
+          showNotif("Mission site already resolved for this mission.", "info");
+        }
+      }
     } else if (marker.type === "task") {
       const task = w.activeTasks.find(function (t) { return t.hexId === hexId; }) || w.activeTasks[0];
       if (task) {

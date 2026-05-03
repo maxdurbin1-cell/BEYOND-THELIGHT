@@ -539,6 +539,37 @@ const NEW_SUN_DIALOGUE_SNIPPETS = {
   ]
 };
 
+const NEW_SUN_ENDING_KEYS = [
+  'new_sun_risen',
+  'shared_dawn_compromise',
+  'black_sun_coronation',
+  'iron_ragnarok',
+  'witness_loop',
+  'ashes_without_dawn',
+  'black_mirror_apocalypse',
+  'last_liturgy_of_ruin',
+  'wormwood_cathedral'
+];
+
+const SOLAR_CYCLE_IRREVERSIBLE_TAGS = {
+  omen_read_cleanly: { title: 'Omen Read Cleanly', endingWeights: { new_sun_risen: 2, shared_dawn_compromise: 1 } },
+  omen_forced_intervention: { title: 'Omen Forced Intervention', endingWeights: { black_sun_coronation: 1, iron_ragnarok: 1, new_sun_risen: -1 } },
+  omen_roll_failed: { title: 'Omen Roll Failed', endingWeights: { black_mirror_apocalypse: 2, ashes_without_dawn: 1, new_sun_risen: -1 } },
+  branch_preserve_success: { title: 'Keeper Oath Upheld', endingWeights: { new_sun_risen: 2, shared_dawn_compromise: 1, black_sun_coronation: -1 } },
+  branch_break_success: { title: 'Keeper Oath Broken', endingWeights: { black_sun_coronation: 2, iron_ragnarok: 1, wormwood_cathedral: -1 } },
+  branch_bind_success: { title: 'Evacuation Compact', endingWeights: { shared_dawn_compromise: 2, new_sun_risen: 1, iron_ragnarok: -1 } },
+  branch_draft_success: { title: 'War Draft Doctrine', endingWeights: { iron_ragnarok: 2, black_sun_coronation: 1, new_sun_risen: -1 } },
+  branch_open_success: { title: 'Shared Signal Opened', endingWeights: { new_sun_risen: 2, shared_dawn_compromise: 2 } },
+  branch_crown_success: { title: 'Successor Crowned', endingWeights: { black_sun_coronation: 3, iron_ragnarok: 1, shared_dawn_compromise: -1 } },
+  branch_sever_success: { title: 'Signal Severed', endingWeights: { ashes_without_dawn: 3, wormwood_cathedral: 1, new_sun_risen: -2 } },
+  stage_choice_failed: { title: 'Stage Choice Failed', endingWeights: { black_mirror_apocalypse: 1, last_liturgy_of_ruin: 1 } },
+  stage_choice_succeeded: { title: 'Stage Choice Succeeded', endingWeights: { new_sun_risen: 1, shared_dawn_compromise: 1 } },
+  scheduler_clue_confirmed: { title: 'Verified Clue Recovered', endingWeights: { new_sun_risen: 1, shared_dawn_compromise: 1 } },
+  scheduler_clue_contested: { title: 'Contested Clue Followed', endingWeights: { black_mirror_apocalypse: 1, iron_ragnarok: 1, new_sun_risen: -1 } },
+  scheduler_roll_failed: { title: 'Investigation Roll Failed', endingWeights: { ashes_without_dawn: 1, last_liturgy_of_ruin: 1 } },
+  fracture_used: { title: 'Time Fracture Used', endingWeights: { witness_loop: 1, black_mirror_apocalypse: 1, new_sun_risen: -1 } }
+};
+
 const NEW_SUN_TEMPLATE_REGION_ORDER = ['province', 'sea', 'wtw', 'galaxy'];
 
 const NEW_SUN_QUEST_PACKS = {
@@ -1173,6 +1204,14 @@ function chooseSolarCycleBranch(branchId, choiceId) {
   S.storyline.flags = S.storyline.flags || {};
   S.storyline.flags['newSunBranch_' + bId] = cId;
 
+  if (bId === 'keeper_oath' && cId === 'preserve') recordSolarCycleIrreversibleTag('branch_preserve_success', { branch: bId, choice: cId });
+  if (bId === 'keeper_oath' && cId === 'break') recordSolarCycleIrreversibleTag('branch_break_success', { branch: bId, choice: cId });
+  if (bId === 'tide_compact' && cId === 'bind') recordSolarCycleIrreversibleTag('branch_bind_success', { branch: bId, choice: cId });
+  if (bId === 'tide_compact' && cId === 'draft') recordSolarCycleIrreversibleTag('branch_draft_success', { branch: bId, choice: cId });
+  if (bId === 'final_signal' && cId === 'open') recordSolarCycleIrreversibleTag('branch_open_success', { branch: bId, choice: cId });
+  if (bId === 'final_signal' && cId === 'crown') recordSolarCycleIrreversibleTag('branch_crown_success', { branch: bId, choice: cId });
+  if (bId === 'final_signal' && cId === 'sever') recordSolarCycleIrreversibleTag('branch_sever_success', { branch: bId, choice: cId });
+
   if (typeof showNotif === 'function') showNotif('Branch chosen: ' + choice.label + '.', 'info');
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
@@ -1247,9 +1286,63 @@ function getSolarCycleOutcomeProfile(sc) {
   };
 }
 
-function getSolarCycleEndingKey(sc) {
-  var profile = getSolarCycleOutcomeProfile(sc);
-  if (!profile.state) return 'wormwood_cathedral';
+function ensureSolarCycleLegacyState() {
+  if (typeof S === 'undefined') return null;
+  S.solarCycleLegacy = S.solarCycleLegacy || {};
+  if (!S.solarCycleLegacy.irreversibleTags || typeof S.solarCycleLegacy.irreversibleTags !== 'object') {
+    S.solarCycleLegacy.irreversibleTags = {};
+  }
+  if (!Array.isArray(S.solarCycleLegacy.history)) S.solarCycleLegacy.history = [];
+  return S.solarCycleLegacy;
+}
+
+function recordSolarCycleIrreversibleTag(tagId, details) {
+  var id = String(tagId || '');
+  if (!id || !SOLAR_CYCLE_IRREVERSIBLE_TAGS[id]) return null;
+  var legacy = ensureSolarCycleLegacyState();
+  var sc = ensureSolarCycleState();
+  if (!legacy || !sc) return null;
+  var entry = legacy.irreversibleTags[id];
+  if (!entry || typeof entry !== 'object') {
+    entry = {
+      id: id,
+      title: String(SOLAR_CYCLE_IRREVERSIBLE_TAGS[id].title || id),
+      count: 0,
+      firstDay: Number(sc.daysElapsed || 0),
+      lastDay: Number(sc.daysElapsed || 0)
+    };
+    legacy.irreversibleTags[id] = entry;
+  }
+  entry.count = Number(entry.count || 0) + 1;
+  entry.lastDay = Number(sc.daysElapsed || 0);
+  if (!Array.isArray(sc.irreversibleTagsThisRun)) sc.irreversibleTagsThisRun = [];
+  sc.irreversibleTagsThisRun.push({ id: id, day: Number(sc.daysElapsed || 0), details: details || {} });
+  legacy.history.push({ id: id, day: Number(sc.daysElapsed || 0), details: details || {} });
+  if (legacy.history.length > 120) legacy.history = legacy.history.slice(-120);
+  return entry;
+}
+
+function getSolarCycleEndingWeightBias() {
+  var legacy = ensureSolarCycleLegacyState();
+  var out = {};
+  NEW_SUN_ENDING_KEYS.forEach(function (key) { out[key] = 0; });
+  if (!legacy || !legacy.irreversibleTags) return out;
+
+  Object.keys(legacy.irreversibleTags).forEach(function (tagId) {
+    var tag = SOLAR_CYCLE_IRREVERSIBLE_TAGS[tagId];
+    var entry = legacy.irreversibleTags[tagId];
+    if (!tag || !entry || !tag.endingWeights) return;
+    var count = Math.max(0, Number(entry.count || 0));
+    Object.keys(tag.endingWeights).forEach(function (endingKey) {
+      out[endingKey] = Number(out[endingKey] || 0) + Number(tag.endingWeights[endingKey] || 0) * count;
+    });
+  });
+  return out;
+}
+
+function getSolarCycleEndingWeights(profile) {
+  var weights = {};
+  NEW_SUN_ENDING_KEYS.forEach(function (key) { weights[key] = 0; });
 
   var figuredOutNewSun = !!(
     profile.allStagesDone
@@ -1263,15 +1356,41 @@ function getSolarCycleEndingKey(sc) {
     && profile.ignoredOmens <= 1
   );
 
-  if (figuredOutNewSun) return 'new_sun_risen';
-  if (profile.crowned && profile.dominionRoute && profile.intervenedOmens >= 2 && profile.worldTilt >= 3) return 'black_sun_coronation';
-  if ((profile.strain >= 8 || (profile.rewinds >= 3 && profile.strain >= 6)) && (profile.timeTouched || profile.forcedFinale)) return 'black_mirror_apocalypse';
-  if (profile.timeTouched && profile.observedOmens >= 2 && profile.effectiveArc === 'loop') return 'witness_loop';
-  if (profile.openRoute && profile.stageSummary.completed >= 3 && profile.witnessNetwork) return 'shared_dawn_compromise';
-  if ((profile.warFleet || profile.dominionRoute) && profile.worldTilt >= 3) return 'iron_ragnarok';
-  if (profile.severRoute || (profile.forcedFinale && profile.stageSummary.missed >= 1 && profile.ignoredOmens >= 2)) return 'ashes_without_dawn';
-  if (profile.mercyRoute || profile.archiveSecured) return 'wormwood_cathedral';
-  return profile.forcedFinale ? 'last_liturgy_of_ruin' : 'wormwood_cathedral';
+  weights.wormwood_cathedral += 2;
+  if (profile.forcedFinale) weights.last_liturgy_of_ruin += 1;
+  if (figuredOutNewSun) weights.new_sun_risen += 12;
+  if (profile.crowned && profile.dominionRoute && profile.intervenedOmens >= 2 && profile.worldTilt >= 3) weights.black_sun_coronation += 8;
+  if ((profile.strain >= 8 || (profile.rewinds >= 3 && profile.strain >= 6)) && (profile.timeTouched || profile.forcedFinale)) weights.black_mirror_apocalypse += 9;
+  if (profile.timeTouched && profile.observedOmens >= 2 && profile.effectiveArc === 'loop') weights.witness_loop += 7;
+  if (profile.openRoute && profile.stageSummary.completed >= 3 && profile.witnessNetwork) weights.shared_dawn_compromise += 6;
+  if ((profile.warFleet || profile.dominionRoute) && profile.worldTilt >= 3) weights.iron_ragnarok += 6;
+  if (profile.severRoute || (profile.forcedFinale && profile.stageSummary.missed >= 1 && profile.ignoredOmens >= 2)) weights.ashes_without_dawn += 6;
+  if (profile.mercyRoute || profile.archiveSecured) weights.wormwood_cathedral += 3;
+  if (profile.forcedFinale && !profile.allStagesDone) weights.last_liturgy_of_ruin += 3;
+
+  var bias = getSolarCycleEndingWeightBias();
+  Object.keys(weights).forEach(function (key) {
+    weights[key] = Number(weights[key] || 0) + Number(bias[key] || 0);
+  });
+
+  return weights;
+}
+
+function getSolarCycleEndingKey(sc) {
+  var profile = getSolarCycleOutcomeProfile(sc);
+  if (!profile.state) return 'wormwood_cathedral';
+  var weights = getSolarCycleEndingWeights(profile);
+  var priority = ['new_sun_risen', 'shared_dawn_compromise', 'witness_loop', 'wormwood_cathedral', 'last_liturgy_of_ruin', 'ashes_without_dawn', 'iron_ragnarok', 'black_sun_coronation', 'black_mirror_apocalypse'];
+  var best = 'wormwood_cathedral';
+  var bestWeight = -999999;
+  priority.forEach(function (key) {
+    var val = Number(weights[key] || 0);
+    if (val > bestWeight) {
+      bestWeight = val;
+      best = key;
+    }
+  });
+  return best;
 }
 
 function getSolarCycleEndingText(endingKey) {
@@ -1735,6 +1854,8 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
   var failureBranch = null;
 
   if (contest.success) {
+    if (approach === 'observe') recordSolarCycleIrreversibleTag('omen_read_cleanly', { approach: approach, day: Number(sc.daysElapsed || 0) });
+    if (approach === 'intervene') recordSolarCycleIrreversibleTag('omen_forced_intervention', { approach: approach, day: Number(sc.daysElapsed || 0) });
     if (approach === 'observe') {
       sc.prophecyTrack.push('Observed omen on day ' + sc.daysElapsed + '. Hidden routes may open later.');
       if (S.storyline && S.storyline.flags) S.storyline.flags.solarObserved = (S.storyline.flags.solarObserved || 0) + 1;
@@ -1756,6 +1877,7 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
       if (typeof showNotif === 'function') showNotif('You walked away cleanly. The omen will return in altered form.', 'info');
     }
   } else {
+    recordSolarCycleIrreversibleTag('omen_roll_failed', { approach: approach, day: Number(sc.daysElapsed || 0) });
     sc.worldTilt = Math.min(4, Number(sc.worldTilt || 0) + 1);
     if (sc.timeFracture && sc.timeFracture.scarFlags) {
       sc.timeFracture.scarFlags.paradoxStrain = Math.max(0, Number(sc.timeFracture.scarFlags.paradoxStrain || 0) + 1);
@@ -1871,6 +1993,7 @@ function applySolarCycleTimeFracture(daysBack) {
   if (typeof showNotif === 'function') {
     showNotif('Time Fracture: rewound ' + rewindDays + ' day(s). Paradox scars remain.', 'warn');
   }
+  recordSolarCycleIrreversibleTag('fracture_used', { rewindDays: rewindDays, day: Number(sc.daysElapsed || 0) });
   if (typeof renderHexMap === 'function') renderHexMap();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
@@ -2046,6 +2169,7 @@ function startSolarCycleMode(activeArc) {
   sc.currentTier = 'early';
   sc.currentOmen = SOLAR_CYCLE_OMENS[arc].early;
   sc.pendingEchoMarker = null;
+  sc.irreversibleTagsThisRun = [];
 
   syncSolarCycleProvinceMarkers();
   postNextSolarCycleArcMission();
@@ -2817,14 +2941,17 @@ function resolveSolarCycleSchedulerQuest(questId, approach) {
   });
 
   if (misled) {
+    recordSolarCycleIrreversibleTag('scheduler_clue_contested', { questId: quest.id, methodId: quest.methodId, approach: approach });
     sc.worldTilt = Math.min(4, Number(sc.worldTilt || 0) + 1);
     if (sc.timeFracture && sc.timeFracture.scarFlags) {
       sc.timeFracture.scarFlags.paradoxStrain = Math.max(0, Number(sc.timeFracture.scarFlags.paradoxStrain || 0) + 1);
     }
     sc.prophecyTrack.push('Contested clue [' + quest.methodTitle + ']: ' + quest.clueText);
   } else {
+    recordSolarCycleIrreversibleTag('scheduler_clue_confirmed', { questId: quest.id, methodId: quest.methodId, approach: approach });
     sc.prophecyTrack.push('Quest clue [' + quest.methodTitle + ']: ' + quest.clueText);
   }
+  if (forcedMisled) recordSolarCycleIrreversibleTag('scheduler_roll_failed', { questId: quest.id, methodId: quest.methodId, approach: approach });
   if (typeof showNotif === 'function') {
     showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0) + ' vs Dread ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0) + ').', misled ? 'warn' : 'good');
   }
@@ -3300,6 +3427,7 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
   var dreadRoll = choice.stat ? (typeof explodingRoll === 'function' ? explodingRoll(dreadDie) : { total: roll(dreadDie), exploded: false }) : { total: 0, exploded: false };
   var success = !choice.stat || Number(actionRoll.total || 0) >= Number(dreadRoll.total || 0);
   var outcome = success ? (choice.success || {}) : (choice.fail || choice.success || {});
+  recordSolarCycleIrreversibleTag(success ? 'stage_choice_succeeded' : 'stage_choice_failed', { stageId: stageId, choiceId: choice.id, success: !!success });
 
   applySolarCycleChoiceEffects(outcome.effects || {});
   if (stage.branchPoint && outcome.branchChoice) chooseSolarCycleBranch(stage.branchPoint, outcome.branchChoice);

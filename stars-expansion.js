@@ -1424,6 +1424,140 @@ function buildSolarCycleIrreversiblePanelHtml(sc) {
     + '</div>';
 }
 
+function buildSolarCycleQuestThreadCardsHtml(sc) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  if (!state || !qs) {
+    return '<div style="font-size:.73rem;color:var(--muted2);">No quest thread data available.</div>';
+  }
+
+  var questById = qs.questById || {};
+  var threadMap = {};
+
+  function getThread(rootId) {
+    var key = String(rootId || 'orphan');
+    if (!threadMap[key]) {
+      threadMap[key] = {
+        id: key,
+        crumbs: [],
+        active: [],
+        currentDestination: '',
+        currentDestinationEndDay: 9999,
+        latestDay: -1,
+        latestOrder: -1
+      };
+    }
+    return threadMap[key];
+  }
+
+  function resolveRootId(quest) {
+    if (!quest) return '';
+    if (quest.threadRootId) return String(quest.threadRootId);
+    var cursor = String(quest.id || '');
+    var parent = String(quest.sourceQuestId || '');
+    var guard = 0;
+    while (parent && guard < 10) {
+      var parentQuest = questById[parent];
+      if (!parentQuest) {
+        cursor = parent;
+        break;
+      }
+      cursor = parent;
+      parent = String(parentQuest.sourceQuestId || '');
+      guard += 1;
+    }
+    return String(cursor || quest.id || '');
+  }
+
+  var ledger = Array.isArray(qs.clueLedger) ? qs.clueLedger : [];
+  ledger.slice(-80).forEach(function (entry, idx) {
+    var root = String(entry.threadRootId || entry.sourceQuestId || entry.id || '');
+    var thread = getThread(root || ('ledger-' + idx));
+    var day = Number(entry.day || 0);
+    var crumb = 'Day ' + day + ': ' + String(entry.title || 'Unknown clue') + (entry.deceptive ? ' (contested)' : ' (confirmed)');
+    thread.crumbs.push({
+      text: crumb,
+      day: day,
+      order: idx
+    });
+    thread.latestDay = Math.max(thread.latestDay, day);
+    thread.latestOrder = Math.max(thread.latestOrder, idx);
+  });
+
+  var activeIds = Array.isArray(qs.activeQuestIds) ? qs.activeQuestIds : [];
+  activeIds.forEach(function (qid, idx) {
+    var quest = questById[String(qid || '')];
+    if (!quest) return;
+    var root = resolveRootId(quest);
+    var thread = getThread(root || String(quest.id || ('active-' + idx)));
+    var day = Number(quest.startDay || state.daysElapsed || 0);
+    var destination = String(quest.locationLabel || getSolarCycleRegionLabel(quest.region));
+    thread.active.push({
+      id: String(quest.id || ''),
+      title: String(quest.title || 'Untitled quest'),
+      destination: destination,
+      endDay: Number(quest.endDay || 0),
+      region: String(quest.region || '')
+    });
+    if (!thread.currentDestination || Number(quest.endDay || 0) < Number(thread.currentDestinationEndDay || 9999)) {
+      thread.currentDestination = destination;
+      thread.currentDestinationEndDay = Number(quest.endDay || 0);
+    }
+    thread.latestDay = Math.max(thread.latestDay, day);
+    thread.latestOrder = Math.max(thread.latestOrder, ledger.length + idx);
+  });
+
+  var threads = Object.keys(threadMap).map(function (key) {
+    var thread = threadMap[key];
+    thread.crumbs.sort(function (a, b) {
+      if (a.day !== b.day) return a.day - b.day;
+      return a.order - b.order;
+    });
+    thread.active.sort(function (a, b) {
+      return Number(a.endDay || 0) - Number(b.endDay || 0);
+    });
+    if (!thread.currentDestination && thread.active.length) {
+      thread.currentDestination = String(thread.active[0].destination || getSolarCycleRegionLabel(thread.active[0].region));
+    }
+    return thread;
+  }).filter(function (thread) {
+    return thread.crumbs.length || thread.active.length;
+  });
+
+  if (!threads.length) {
+    return '<div style="font-size:.73rem;color:var(--muted2);">No ongoing quest threads yet. Resolve a quest to seed Thread A/B/C.</div>';
+  }
+
+  threads.sort(function (a, b) {
+    if (!!b.active.length !== !!a.active.length) return b.active.length ? -1 : 1;
+    if (Number(b.latestDay || -1) !== Number(a.latestDay || -1)) return Number(b.latestDay || -1) - Number(a.latestDay || -1);
+    return Number(b.latestOrder || -1) - Number(a.latestOrder || -1);
+  });
+
+  var labels = ['Thread A', 'Thread B', 'Thread C'];
+  return threads.slice(0, 3).map(function (thread, idx) {
+    var label = labels[idx] || ('Thread ' + String.fromCharCode(65 + idx));
+    var crumbTrail = thread.crumbs.slice(-4).map(function (crumb) {
+      return escapeSolarCycleHtml(crumb.text);
+    });
+    var activeTrail = thread.active.slice(0, 2).map(function (quest) {
+      return 'Now: ' + escapeSolarCycleHtml(quest.title) + ' @ ' + escapeSolarCycleHtml(quest.destination) + ' (Day ' + Number(quest.endDay || 0) + ')';
+    });
+    var trail = crumbTrail.concat(activeTrail);
+    var current = escapeSolarCycleHtml(thread.currentDestination || (thread.active[0] ? thread.active[0].destination : 'Awaiting next destination'));
+    return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;margin-bottom:.22rem;">'
+      + '<div style="font-size:.74rem;color:var(--teal);letter-spacing:.08em;text-transform:uppercase;">' + label + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);">' + Number(thread.active.length || 0) + ' active</div>'
+      + '</div>'
+      + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.18rem;">Current destination: <strong>' + current + '</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">'
+      + (trail.length ? trail.join(' <span style="color:var(--muted3);">&rarr;</span> ') : 'No breadcrumb history yet.')
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
 function getSolarCycleEndingKey(sc) {
   var profile = getSolarCycleOutcomeProfile(sc);
   if (!profile.state) return 'wormwood_cathedral';
@@ -2352,6 +2486,7 @@ function renderNewSunModePanel() {
   var branchChoices = progress.branchChoices || {};
   var scheduler = getSolarCycleQuestScheduler(sc);
   var irreversiblePanelHtml = buildSolarCycleIrreversiblePanelHtml(sc);
+  var threadCardsHtml = buildSolarCycleQuestThreadCardsHtml(sc);
   var schedulerSummary = scheduler
     ? ('Province ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | Sea ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
@@ -2491,6 +2626,8 @@ function renderNewSunModePanel() {
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>New Sun Quest Scheduler</strong></div>'
     + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.3rem;">High-volume investigations with day/phase windows. Every resolved quest reveals one route to restore the New Sun, and different routes appear each run.</div>'
     + '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.35rem;">' + schedulerSummary + '</div>'
+    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.25rem;">Quest Threads (A/B/C)</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.4rem;margin-bottom:.35rem;">' + threadCardsHtml + '</div>'
     + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.25rem;">Active quests: ' + Number(status.schedulerActiveCount || 0) + ' | Clues logged: ' + Number(status.schedulerClueCount || 0) + '</div>'
     + schedulerActiveHtml
     + '</div>'
@@ -2664,7 +2801,8 @@ function createSolarCycleImmediateQuest(sc, region, sourceQuest, reason) {
     stakesText: 'A chain lead is open now. If this window closes, that route may be lost.',
     challengeType: challengeType,
     requestPrompt: getSolarCycleNpcDemandText(reg, method.title),
-    sourceQuestId: sourceQuest && sourceQuest.id ? String(sourceQuest.id) : ''
+    sourceQuestId: sourceQuest && sourceQuest.id ? String(sourceQuest.id) : '',
+    threadRootId: sourceQuest ? String(sourceQuest.threadRootId || sourceQuest.id || '') : ''
   };
   return quest;
 }
@@ -2845,9 +2983,12 @@ function createSolarCycleSchedulerQuest(sc, region) {
     stakesText: '100 days until collapse. This lead may reveal a New Sun method or worsen the ending.',
     challengeType: challengeType,
     requestPrompt: getSolarCycleNpcDemandText(reg, method.title),
+    sourceQuestId: '',
+    threadRootId: '',
     nextSuccessRegion: nextRegion,
     nextFailRegion: failRegion
   };
+  quest.threadRootId = String(quest.id || '');
   return quest;
 }
 
@@ -3008,6 +3149,9 @@ function spawnSolarCycleQuestFollowup(sourceQuest, sc, reason) {
     followup.clueText = 'A failed roll opened this branch. The world-ending route has shifted. ' + followup.clueText;
   }
 
+  followup.sourceQuestId = String(sourceQuest.id || followup.sourceQuestId || '');
+  followup.threadRootId = String(sourceQuest.threadRootId || sourceQuest.id || followup.threadRootId || followup.id || '');
+
   if (!placeSolarCycleSchedulerQuestMarker(followup, state)) return null;
   qs.questById[followup.id] = followup;
   qs.activeQuestIds.push(followup.id);
@@ -3166,6 +3310,8 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   qs.methodSignals[quest.methodId] = Number(qs.methodSignals[quest.methodId] || 0) + 1;
   qs.clueLedger.push({
     id: quest.id,
+    sourceQuestId: String(quest.sourceQuestId || ''),
+    threadRootId: String(quest.threadRootId || quest.id || ''),
     day: quest.resolvedDay,
     region: quest.region,
     methodId: quest.methodId,
@@ -3201,6 +3347,8 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     if (handoffQuest) {
       handoffQuest.title = handoffQuest.title + ' (Lost City Portal Handoff)';
       handoffQuest.portalHandoffSource = quest.id;
+      handoffQuest.sourceQuestId = String(quest.id || handoffQuest.sourceQuestId || '');
+      handoffQuest.threadRootId = String(quest.threadRootId || quest.id || handoffQuest.threadRootId || handoffQuest.id || '');
       placeSolarCycleSchedulerQuestMarker(handoffQuest, sc);
       qs.questById[handoffQuest.id] = handoffQuest;
       qs.activeQuestIds.push(handoffQuest.id);

@@ -3134,6 +3134,30 @@ function focusSolarCycleQuestOnMap(quest) {
   return false;
 }
 
+function getSolarCycleQuestTravelPromptLabel(quest) {
+  if (!quest) return 'Move to Next Region';
+  var region = String(quest.region || 'province');
+  if (region === 'sea') return 'Move to Sea Region';
+  if (region === 'wtw') return 'Move to the World That Was';
+  if (region === 'galaxy') return quest.taskId ? 'Move to Galaxy / Planetfall' : 'Move to Galaxy';
+  return 'Return to Province';
+}
+
+function moveToSolarCycleQuestRegion(questId) {
+  var sc = ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(sc);
+  var quest = qs && qs.questById ? qs.questById[String(questId || '')] : null;
+  if (!quest) {
+    if (typeof showNotif === 'function') showNotif('The next route is not pinned to a map yet.', 'warn');
+    return false;
+  }
+  var ok = focusSolarCycleQuestOnMap(quest);
+  if (ok && typeof showNotif === 'function') {
+    showNotif('Story guide: ' + getSolarCycleQuestTravelPromptLabel(quest) + ' — ' + String(quest.locationLabel || getSolarCycleRegionLabel(quest.region)) + '.', 'info');
+  }
+  return ok;
+}
+
 function trackSolarCycleThreadOnMap(threadRootId) {
   var sc = ensureSolarCycleState();
   var qs = getSolarCycleQuestScheduler(sc);
@@ -5206,6 +5230,7 @@ function applySolarCycleNpcVectorOutcome(sc, quest, approach, misled, forcedMisl
 }
 
 function getSolarCycleOutcomeDialogueLine(quest, failed, stance) {
+  var state = ensureSolarCycleState();
   var q = quest || {};
   var npc = String(q.npcName || 'Contact');
   var method = String(q.methodTitle || 'this lead');
@@ -5216,8 +5241,12 @@ function getSolarCycleOutcomeDialogueLine(quest, failed, stance) {
   var seed = Math.abs(seedText.split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 0));
 
   var vec = stance && stance.vector ? stance.vector : null;
+  var tone = getSolarCycleQuestDynamicTone(state, q, stance || evaluateSolarCycleNpcStance(state, q, ''));
+  var mem = getSolarCycleNpcMemoryEntry(state, q.npcName || 'Unknown Witness') || {};
   var promiseKept = vec && String(vec.lastPromiseStatus || '') === 'kept';
   var promiseBroken = vec && String(vec.lastPromiseStatus || '') === 'broken';
+  var repeatedFailures = Number(mem.failed || 0) + Number(mem.missed || 0) >= 2;
+  var repeatedSuccess = Number(mem.success || 0) >= 2;
 
   if (failed) {
     var failPools = {
@@ -5252,6 +5281,40 @@ function getSolarCycleOutcomeDialogueLine(quest, failed, stance) {
       pool = pool.concat([
         '"You gave me your word and broke it in the same breath. Bring me results before you bring me excuses."',
         '"I recorded your oath. I also recorded its failure. You now work under suspicion."'
+      ]);
+    }
+    if (tone.restorationLead) {
+      pool = pool.concat([
+        '"This was not just another lead. This was the restoration spine of the run, and you let it slip."',
+        '"Do you understand what failed here? Not a mission. A possible sunrise."'
+      ]);
+    }
+    if (tone.trustState === 'suspicious') {
+      pool = pool.concat([
+        '"I expected this shape of failure from you. Useful to have it confirmed."',
+        '"You walked in with suspicion on your name and left with proof attached to it."'
+      ]);
+    }
+    if (tone.arc === 'herald') {
+      pool = pool.concat([
+        '"The faithful will call this a judgment. I will call it a warning. Either way, the rite moved against us."',
+        '"A bad verdict travels fast in a herald-run. We will be answering for this in the next district."'
+      ]);
+    } else if (tone.arc === 'loop') {
+      pool = pool.concat([
+        '"I have heard this failure before. That is what frightens me."',
+        '"The route repeated the same wound. Next time do not mistake recurrence for safety."'
+      ]);
+    } else {
+      pool = pool.concat([
+        '"The old systems just ate a clean solution and spat back scrap. We work with scrap now."',
+        '"That was a machine-failure kind of loss: cold, avoidable, and expensive."'
+      ]);
+    }
+    if (repeatedFailures) {
+      pool = pool.concat([
+        '"This is becoming a pattern, and patterns get people killed before they get them wise."',
+        '"You have reached the point where I must plan around your misses, not your promises."'
       ]);
     }
     if (challenge === 'combat') pool = pool.map(function (l) { return l.replace(/"$/, ' You should have hit harder."'); });
@@ -5291,7 +5354,46 @@ function getSolarCycleOutcomeDialogueLine(quest, failed, stance) {
         '"I asked for proof, and you brought it. Your oath stands in my ledger as kept."'
       ]);
     }
-    if (arc === 'eos') pool = pool.map(function (l) { return l.replace('"Good', '"The Eos route is confirmed—good').replace('"Confirmed', '"Eos arc: confirmed'); });
+    if (tone.restorationLead) {
+      pool = pool.concat([
+        '"Remember this feeling. You did not just complete a thread; you kept the New Sun imaginable."',
+        '"This is the kind of success that changes endings, not just maps. Carry it like it matters."'
+      ]);
+    }
+    if (tone.portalHandoff) {
+      pool = pool.concat([
+        '"Good. The witness chain survives the crossing. The story can keep moving between worlds."',
+        '"You did the rare part: you kept the route alive while the map itself changed under you."'
+      ]);
+    }
+    if (tone.trustState === 'ally') {
+      pool = pool.concat([
+        '"This is why I keep opening the harder doors for you."',
+        '"I trusted your hand and the route survived it. That buys you more than gratitude."'
+      ]);
+    }
+    if (tone.arc === 'herald') {
+      pool = pool.concat([
+        '"Another witness added. Another fragment of doctrine wrestled back from panic."',
+        '"The rite grows clearer when you move like that. People will start calling this fate."'
+      ]);
+    } else if (tone.arc === 'loop') {
+      pool = pool.concat([
+        '"Good. That is one less version of the future we need to be afraid of."',
+        '"For once the loop gave us a correction instead of a wound."'
+      ]);
+    } else {
+      pool = pool.concat([
+        '"The old machinery still answers competence. You gave it exactly enough."',
+        '"That is how you build a sunrise from relic parts: one disciplined success at a time."'
+      ]);
+    }
+    if (repeatedSuccess) {
+      pool = pool.concat([
+        '"You are no longer a hopeful messenger in this story. You are becoming one of its load-bearing figures."',
+        '"This is not luck anymore. The network is starting to organize itself around your momentum."'
+      ]);
+    }
     return pool[seed % pool.length];
   }
 }
@@ -6385,10 +6487,17 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   if (!_isPuzzleChallenge && typeof openModal === 'function') {
     var successLine = '<strong>' + escapeSolarCycleHtml(quest.npcName || 'Contact') + ':</strong> '
       + escapeSolarCycleHtml(getSolarCycleOutcomeDialogueLine(quest, !!misled, npcStance));
+    var transitionQuest = followup || null;
+    var transitionLabel = transitionQuest ? getSolarCycleQuestTravelPromptLabel(transitionQuest) : '';
     var nextHint = followup
-      ? ('Go next to: <strong>' + escapeSolarCycleHtml(followup.locationLabel || getSolarCycleRegionLabel(followup.region)) + '</strong> for <strong>' + escapeSolarCycleHtml(followup.title || 'next lead') + '</strong>.')
+      ? ('Story guide: the next chapter is ready in <strong>' + escapeSolarCycleHtml(followup.locationLabel || getSolarCycleRegionLabel(followup.region)) + '</strong> as <strong>' + escapeSolarCycleHtml(followup.title || 'next lead') + '</strong>.')
       : ('No immediate marker was placed. Sync markers and continue in <strong>' + escapeSolarCycleHtml(getSolarCycleRegionLabel(misled ? (quest.nextFailRegion || quest.region) : (quest.nextSuccessRegion || quest.region))) + '</strong>.');
     var actionLine = getSolarCycleInvestigationActionLine(quest);
+    var transitionHtml = transitionQuest
+      ? ('<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.42rem;">'
+        + '<button class="btn btn-sm btn-teal" onclick="window.moveToSolarCycleQuestRegion(\'' + String(transitionQuest.id) + '\');closeModal();">' + escapeSolarCycleHtml(transitionLabel) + '</button>'
+        + '</div>')
+      : '';
     openModal(
       (misled ? 'Failed: ' : 'Confirmed: ') + escapeSolarCycleHtml(quest.title || 'New Sun Quest'),
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
@@ -6404,6 +6513,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
       + (socialStyle ? ('<div style="font-size:.74rem;color:var(--gold2);line-height:1.55;margin-bottom:.3rem;">Social branch signal: <strong>' + escapeSolarCycleHtml(socialStyle.label) + '</strong>. ' + escapeSolarCycleHtml(socialStyle.summary || '') + '</div>') : '')
       + (artifactLabel ? ('<div style="font-size:.74rem;color:var(--green2);line-height:1.55;margin-bottom:.3rem;">Recovered artifact: <strong>' + escapeSolarCycleHtml(artifactLabel) + '</strong></div>') : '')
       + '<div style="font-size:.74rem;color:var(--muted2);">Challenge: ' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toUpperCase()) + '</div>'
+      + transitionHtml
       + '</div>'
     );
   }

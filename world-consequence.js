@@ -70,6 +70,14 @@
         },
         factions: {},
         economy: { priceMultiplier: 1, scarcity: 0 },
+        governance: {
+          province: {
+            patrolStance: 'balanced',
+            tariffStance: 'balanced',
+            routePriority: 'trade',
+            updatedAt: 0
+          }
+        },
         capabilities: {},
         activeCrises: [],
         consequenceFeed: []
@@ -80,6 +88,8 @@
     ws.regions     = ws.regions     || {};
     ws.factions    = ws.factions    || {};
     ws.economy     = ws.economy     || { priceMultiplier: 1, scarcity: 0 };
+    ws.governance  = ws.governance  || { province: { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 } };
+    ws.governance.province = ws.governance.province || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
     ws.capabilities = ws.capabilities || {};
     ws.activeCrises     = Array.isArray(ws.activeCrises) ? ws.activeCrises : [];
     ws.consequenceFeed  = Array.isArray(ws.consequenceFeed) ? ws.consequenceFeed : [];
@@ -91,6 +101,39 @@
     });
     applyProgressionCapabilities(ws);
     return ws;
+  }
+
+  function ensureGovernanceState(ws) {
+    var world = ws || ensureWorldState();
+    if (!world) return null;
+    world.governance = world.governance || {};
+    world.governance.province = world.governance.province || {
+      patrolStance: 'balanced',
+      tariffStance: 'balanced',
+      routePriority: 'trade',
+      updatedAt: 0
+    };
+    return world.governance.province;
+  }
+
+  function getProvinceGovernancePolicyState() {
+    var ws = ensureWorldState();
+    return ws ? deepClone(ensureGovernanceState(ws)) : { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
+  }
+
+  function setProvinceGovernancePolicyState(next) {
+    var ws = ensureWorldState();
+    if (!ws) return null;
+    var state = ensureGovernanceState(ws);
+    var patch = next && typeof next === 'object' ? next : {};
+    var patrol = String(patch.patrolStance || state.patrolStance || 'balanced').toLowerCase();
+    var tariff = String(patch.tariffStance || state.tariffStance || 'balanced').toLowerCase();
+    var route = String(patch.routePriority || state.routePriority || 'trade').toLowerCase();
+    state.patrolStance = patrol === 'strict' || patrol === 'open' ? patrol : 'balanced';
+    state.tariffStance = tariff === 'extractive' || tariff === 'relief' ? tariff : 'balanced';
+    state.routePriority = route === 'military' || route === 'civic' ? route : 'trade';
+    state.updatedAt = Date.now();
+    return deepClone(state);
   }
 
   function ensureFactionWorldEntry(ws, factionId) {
@@ -156,8 +199,152 @@
       factionPermissions: renown >= 8,
       intelLayers: renown >= 5,
       saferRest: holding,
-      alternateResolutions: renown >= 10 || holding
+      alternateResolutions: renown >= 10 || holding,
+      governance: renown >= 12 && holding
     };
+  }
+
+  function getProvinceAdjacentKeys(key) {
+    var S = getS();
+    if (!S || typeof window === 'undefined' || !Array.isArray(window.mapData)) return [];
+    var parts = String(key || '').split(',');
+    if (parts.length !== 2) return [];
+    var col = Number(parts[0]);
+    var row = Number(parts[1]);
+    if (!isFinite(col) || !isFinite(row)) return [];
+    var dirs = [
+      { c: col - 1, r: row - 1 }, { c: col, r: row - 1 }, { c: col + 1, r: row - 1 },
+      { c: col - 1, r: row },                               { c: col + 1, r: row },
+      { c: col - 1, r: row + 1 }, { c: col, r: row + 1 }, { c: col + 1, r: row + 1 }
+    ];
+    return dirs.map(function (p) {
+      var hex = window.mapData.find(function (h) { return h && h.col === p.c && h.row === p.r; });
+      return hex ? (hex.col + ',' + hex.row) : '';
+    }).filter(Boolean);
+  }
+
+  function pickAdjacentTargets(originKey, limit, exclude) {
+    var omit = Array.isArray(exclude) ? exclude : [];
+    var keys = getProvinceAdjacentKeys(originKey).filter(function (key) { return omit.indexOf(key) < 0; });
+    var picked = [];
+    while (keys.length && picked.length < Math.max(0, Number(limit || 0))) {
+      var idx = Math.floor(Math.random() * keys.length);
+      picked.push(keys.splice(idx, 1)[0]);
+    }
+    return picked;
+  }
+
+  function buildPropagationPlan(event, ws) {
+    if (!event || event.region !== 'province' || !event.locationKey) return [];
+    var stage = Number(event.propagationStage || 0);
+    if (stage >= 2) return [];
+    var gov = ensureGovernanceState(ws) || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade' };
+    var tags = Array.isArray(event.tags) ? event.tags : [];
+    var deltas = event.deltas || {};
+    var stageLabel = stage === 0 ? '1-hop' : '2-hop';
+    var primaryCount = stage === 0 ? 2 : 1;
+    var targets = pickAdjacentTargets(event.locationKey, primaryCount, [String(event.sourceLocationKey || '')]);
+    if (!targets.length) return [];
+
+    function makePlan(targetKey, title, detail, spreadDeltas, spreadTags) {
+      return {
+        system: 'world-propagation',
+        title: title,
+        detail: detail,
+        region: 'province',
+        locationKey: targetKey,
+        severity: stage === 0 ? 'medium' : 'info',
+        factionId: event.factionId || '',
+        deltas: spreadDeltas,
+        tags: spreadTags,
+        propagationStage: stage + 1,
+        sourceLocationKey: event.locationKey,
+        noFurtherPropagation: stage + 1 >= 2
+      };
+    }
+
+    return targets.map(function (targetKey) {
+      var spreadDeltas = {};
+      var spreadTags = ['regional-ripple', 'propagation-' + stageLabel];
+      var title = 'Regional ripple';
+      var detail = 'Change spreads from nearby activity at ' + event.locationKey + '.';
+
+      if (tags.indexOf('closed-border') >= 0 || tags.indexOf('border-closed') >= 0 || tags.indexOf('dangerous-road') >= 0) {
+        spreadDeltas.scarcity = 1;
+        spreadDeltas.tension = stage === 0 ? 1 : 0;
+        spreadTags.push('route-friction', 'scarcity-ripple');
+        title = 'Route shockwave';
+        detail = 'Border friction near ' + event.locationKey + ' is choking nearby movement and supply.';
+      } else if (tags.indexOf('opened-border') >= 0 || tags.indexOf('discovered-route') >= 0 || tags.indexOf('contract-signed') >= 0) {
+        spreadDeltas.scarcity = -1;
+        if (stage === 0) spreadDeltas.stability = 1;
+        spreadTags.push('route-recovery', 'trade-ripple');
+        title = 'Trade recovery';
+        detail = 'A nearby route opening around ' + event.locationKey + ' is easing movement and commerce.';
+      } else if (tags.indexOf('active-crisis') >= 0 || event.severity === 'high') {
+        spreadDeltas.tension = 1;
+        if (stage === 0) spreadDeltas.scarcity = 1;
+        spreadTags.push('instability-ripple', 'unrest-ripple');
+        title = 'Instability ripple';
+        detail = 'A crisis centered on ' + event.locationKey + ' is unsettling neighboring ground.';
+      } else if (tags.indexOf('patrol-deployed') >= 0 || tags.indexOf('sanctuary-granted') >= 0) {
+        spreadDeltas.safety = 1;
+        if (stage === 0) spreadDeltas.tension = -1;
+        spreadTags.push('security-ripple');
+        title = 'Security ripple';
+        detail = 'Organized security around ' + event.locationKey + ' is calming nearby lanes.';
+      } else if (typeof deltas.stability === 'number' && deltas.stability > 0) {
+        spreadDeltas.safety = 1;
+        spreadTags.push('stability-ripple');
+        title = 'Stability ripple';
+        detail = 'Improved order at ' + event.locationKey + ' is carrying into neighboring hexes.';
+      } else if (typeof deltas.stability === 'number' && deltas.stability < 0) {
+        spreadDeltas.tension = 1;
+        spreadTags.push('instability-ripple');
+        title = 'Instability ripple';
+        detail = 'Loss of control at ' + event.locationKey + ' is spilling into nearby zones.';
+      } else if (typeof deltas.scarcity === 'number' && deltas.scarcity !== 0) {
+        spreadDeltas.scarcity = deltas.scarcity > 0 ? 1 : -1;
+        spreadTags.push('supply-ripple');
+        title = deltas.scarcity > 0 ? 'Supply strain' : 'Supply relief';
+        detail = 'Nearby markets are reacting to shifts centered on ' + event.locationKey + '.';
+      } else {
+        spreadDeltas.tension = stage === 0 ? 1 : 0;
+        spreadTags.push('general-ripple');
+      }
+
+      if (gov.patrolStance === 'strict' && spreadDeltas.tension > 0) {
+        spreadDeltas.tension = Math.max(0, Number(spreadDeltas.tension || 0) - 1);
+        spreadDeltas.safety = Number(spreadDeltas.safety || 0) + 1;
+        spreadTags.push('strict-patrol-buffer');
+      } else if (gov.patrolStance === 'open' && spreadDeltas.safety > 0) {
+        spreadDeltas.safety = Math.max(0, Number(spreadDeltas.safety || 0) - 1);
+        spreadDeltas.tension = Number(spreadDeltas.tension || 0) + 1;
+        spreadTags.push('open-patrol-exposure');
+      }
+
+      if (gov.tariffStance === 'relief' && spreadDeltas.scarcity > 0) {
+        spreadDeltas.scarcity = Math.max(0, Number(spreadDeltas.scarcity || 0) - 1);
+        spreadDeltas.prosperity = Number(spreadDeltas.prosperity || 0) + 1;
+        spreadTags.push('tariff-relief-buffer');
+      } else if (gov.tariffStance === 'extractive' && spreadDeltas.scarcity >= 0) {
+        spreadDeltas.scarcity = Number(spreadDeltas.scarcity || 0) + 1;
+        spreadTags.push('extractive-tariff-ripple');
+      }
+
+      if (gov.routePriority === 'trade' && (spreadTags.indexOf('trade-ripple') >= 0 || spreadTags.indexOf('route-recovery') >= 0)) {
+        spreadDeltas.prosperity = Number(spreadDeltas.prosperity || 0) + 1;
+        spreadTags.push('trade-priority-ripple');
+      } else if (gov.routePriority === 'military' && spreadTags.indexOf('security-ripple') >= 0) {
+        spreadDeltas.safety = Number(spreadDeltas.safety || 0) + 1;
+        spreadTags.push('military-route-ripple');
+      } else if (gov.routePriority === 'civic' && (spreadTags.indexOf('stability-ripple') >= 0 || spreadTags.indexOf('trade-ripple') >= 0)) {
+        spreadDeltas.stability = Number(spreadDeltas.stability || 0) + 1;
+        spreadTags.push('civic-route-ripple');
+      }
+
+      return makePlan(targetKey, title, detail, spreadDeltas, spreadTags);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -179,6 +366,9 @@
       factionId:   String(rawEvent.factionId   || ''),
       deltas:      (rawEvent.deltas && typeof rawEvent.deltas === 'object') ? rawEvent.deltas : {},
       tags:        Array.isArray(rawEvent.tags) ? rawEvent.tags : [],
+      propagationStage: Number(rawEvent.propagationStage || 0),
+      sourceLocationKey: String(rawEvent.sourceLocationKey || ''),
+      noFurtherPropagation: !!rawEvent.noFurtherPropagation,
       at:          now
     };
 
@@ -297,6 +487,20 @@
         if (typeof window.renderHexMap === 'function') window.renderHexMap();
       } catch (_e) {}
     }
+
+    if (!event.noFurtherPropagation) {
+      var spreadPlan = buildPropagationPlan(event, ws);
+      spreadPlan.forEach(function (spreadEvent) {
+        applyWorldConsequence(spreadEvent);
+        if (spreadEvent.locationKey) {
+          addHexRumor(spreadEvent.locationKey, {
+            text: spreadEvent.detail,
+            tags: spreadEvent.tags,
+            source: 'propagation'
+          });
+        }
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -369,17 +573,35 @@
   function getConsequenceMissionBias() {
     var S = getS();
     if (!S || !S.worldState) return { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+    var gov = ensureGovernanceState(S.worldState) || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade' };
     var crises = S.worldState.activeCrises || [];
-    if (!crises.length) return { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+    if (!crises.length) {
+      var quietPreferred = [];
+      if (gov.routePriority === 'trade') quietPreferred = ['Escort', 'Deliver', 'Guide', 'Secure'];
+      else if (gov.routePriority === 'civic') quietPreferred = ['Rebuild', 'Aid', 'Stabilize', 'Supply'];
+      else quietPreferred = ['Guard', 'Patrol', 'Strike', 'Secure'];
+      return {
+        focusRegion: 'province',
+        difficultyShift: gov.patrolStance === 'strict' ? 1 : 0,
+        rewardBonus: gov.tariffStance === 'extractive' ? 40 : 0,
+        preferredVerbs: quietPreferred
+      };
+    }
     var latest = crises[0];
     var preferred = ['Stabilize', 'Investigate', 'Reclaim', 'Escort'];
     var lowerTitle = String((latest && latest.title) || '').toLowerCase();
     if (lowerTitle.indexOf('border') >= 0 || lowerTitle.indexOf('faction') >= 0) preferred = ['Negotiate', 'Broker', 'Influence', 'Escort'];
     if (lowerTitle.indexOf('route') >= 0 || lowerTitle.indexOf('convoy') >= 0) preferred = ['Escort', 'Guard', 'Recover', 'Stabilize'];
+    if (gov.routePriority === 'trade') preferred = preferred.concat(['Deliver', 'Transport', 'Escort']);
+    if (gov.routePriority === 'civic') preferred = preferred.concat(['Aid', 'Rebuild', 'Stabilize']);
+    if (gov.routePriority === 'military') preferred = preferred.concat(['Guard', 'Strike', 'Patrol']);
+    if (gov.patrolStance === 'strict') preferred = preferred.concat(['Inspect', 'Suppress']);
+    if (gov.tariffStance === 'extractive') preferred = preferred.concat(['Smuggle', 'Sabotage']);
+    if (gov.tariffStance === 'relief') preferred = preferred.concat(['Supply', 'Deliver']);
     return {
       focusRegion:    String(latest.region || 'province'),
-      difficultyShift: crises.length >= 3 ? 1 : 0,
-      rewardBonus:     crises.length >= 2 ? 50 : 0,
+      difficultyShift: (crises.length >= 3 ? 1 : 0) + (gov.patrolStance === 'strict' ? 1 : 0),
+      rewardBonus:     (crises.length >= 2 ? 50 : 0) + (gov.tariffStance === 'extractive' ? 25 : 0),
       preferredVerbs:  preferred
     };
   }
@@ -538,6 +760,8 @@
   window.recordWorldConsequence    = applyWorldConsequence; // satisfy existing callers
   window.getWorldStateHexOverlay   = getWorldStateHexOverlay;
   window.getConsequenceMissionBias = getConsequenceMissionBias;
+  window.getProvinceGovernancePolicyState = getProvinceGovernancePolicyState;
+  window.setProvinceGovernancePolicyState = setProvinceGovernancePolicyState;
   window.triggerFactionTurn        = triggerFactionTurn;
   window.getWorldConsequenceFeed   = getWorldConsequenceFeed;
   window.addHexRumor               = addHexRumor;

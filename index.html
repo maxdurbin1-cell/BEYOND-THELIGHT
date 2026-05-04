@@ -7931,6 +7931,10 @@ function getShopMarketSnapshot(cat,name,baseCost){
   if(locationKey&&typeof window.getWorldStateHexOverlay==='function'){
     try{overlay=window.getWorldStateHexOverlay(locationKey);}catch(_e2){overlay=null;}
   }
+  var governance=(typeof window.getProvinceGovernancePolicyState==='function')?window.getProvinceGovernancePolicyState():null;
+  var patrolPolicy=String(governance&&governance.patrolStance||'balanced').toLowerCase();
+  var tariffPolicy=String(governance&&governance.tariffStance||'balanced').toLowerCase();
+  var routePolicy=String(governance&&governance.routePriority||'trade').toLowerCase();
 
   var notices=[];
   var blockedReasons=[];
@@ -7978,6 +7982,31 @@ function getShopMarketSnapshot(cat,name,baseCost){
       notices.push((control.charAt(0).toUpperCase()+control.slice(1))+' tariff policy raises listed prices.');
     }
     if(regime.notice)notices.push(regime.notice);
+  }
+
+  if(tariffPolicy==='extractive'&&['tradegoods','services','augmentations','ranged_exp'].indexOf(category)>=0){
+    mult+=0.08;
+    notices.push('Governance policy: Extractive tariffs are inflating this category.');
+  }else if(tariffPolicy==='relief'&&['tradegoods','services','essentials','remedies'].indexOf(category)>=0){
+    mult-=0.06;
+    notices.push('Governance policy: Tariff relief lowers local prices for core needs.');
+  }
+  if(routePolicy==='military'&&['weapons','armor','ranged_exp','armor_exp'].indexOf(category)>=0){
+    mult-=0.04;
+    notices.push('Route priority favors military logistics in this market.');
+  }else if(routePolicy==='trade'&&['tradegoods','services','toolkits'].indexOf(category)>=0){
+    mult-=0.05;
+    notices.push('Route priority favors trade throughput and lowers merchant friction.');
+  }else if(routePolicy==='civic'&&['remedies','essentials','services'].indexOf(category)>=0){
+    mult-=0.05;
+    notices.push('Route priority favors civic support and local welfare goods.');
+  }
+  if(patrolPolicy==='strict'&&['services','tradegoods','augmentations'].indexOf(category)>=0){
+    mult+=0.03;
+    notices.push('Strict patrol inspections increase transaction delays.');
+  }else if(patrolPolicy==='open'&&['weapon_mods','os_hacks','strange'].indexOf(category)>=0){
+    mult-=0.03;
+    notices.push('Open patrol doctrine increases shadow-market leakage.');
   }
 
   var portLockedCategories=['tradegoods','cosmic','augmentations','os_hacks'];
@@ -11003,6 +11032,7 @@ function renderHexInfo(hex){
     const wsOverlay=window.getWorldStateHexOverlay(nk);
     if(wsOverlay&&(wsOverlay.control||wsOverlay.tension||wsOverlay.tags.length)){
       const regime=typeof getControlRegimePackage==='function'?getControlRegimePackage(wsOverlay.control):null;
+      const governance=(typeof window.getProvinceGovernancePolicyState==='function')?window.getProvinceGovernancePolicyState():null;
       const TENSION_LABELS=['Calm','Uneasy','Tense','Volatile','Dangerous','Explosive'];
       const SAFETY_LABELS=['Deadly','Hostile','Risky','Neutral','Stable','Protected'];
       const tensionLabel=TENSION_LABELS[Math.min(5,Math.max(0,wsOverlay.tension))];
@@ -11031,7 +11061,9 @@ function renderHexInfo(hex){
           ${(wsOverlay.capabilities&&wsOverlay.capabilities.shortcuts)?`<div style="color:#7ed7ff;">Capability: Travel shortcuts unlocked</div>`:''}
           ${(wsOverlay.capabilities&&wsOverlay.capabilities.factionPermissions)?`<div style="color:#c9d6f0;">Capability: Faction permissions enabled</div>`:''}
           ${(wsOverlay.capabilities&&wsOverlay.capabilities.saferRest)?`<div style="color:var(--teal);">Capability: Safer rest options active</div>`:''}
+          ${(wsOverlay.capabilities&&wsOverlay.capabilities.governance)?`<div style="color:var(--gold2);">Capability: Governance policies unlocked</div>`:''}
           ${wsOverlay.recentChange?`<div style="color:rgba(255,255,255,.6);">⬤ Recently changed</div>`:''}
+          ${governance?`<div style="font-size:.73rem;color:var(--muted2);margin-top:.22rem;">Policy: Patrol <strong>${String(governance.patrolStance||'balanced')}</strong> · Tariff <strong>${String(governance.tariffStance||'balanced')}</strong> · Route <strong>${String(governance.routePriority||'trade')}</strong></div>`:''}
           ${regime&&regime.label?`<div style="margin-top:.3rem;padding:.35rem .45rem;border:1px solid rgba(180,180,255,.2);background:rgba(180,180,255,.04);"><div style="font-size:.72rem;color:var(--gold2);font-family:'Cinzel',serif;letter-spacing:.06em;">Regime Package: ${regime.label}</div>${Array.isArray(regime.governance)?regime.governance.map(function(line){return '<div style="font-size:.74rem;color:var(--text2);line-height:1.45;">• '+line+'</div>';}).join(''):''}</div>`:''}
           ${worldActions.length?`<div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;">${worldActions.join('')}</div>`:''}
         </div>
@@ -12366,6 +12398,10 @@ function buildWorldStateEncounterAddon(col,row,mode){
   if(!overlay)return null;
   var control=String(overlay.control||'').toLowerCase();
   var regime=getControlRegimePackage(control);
+  var governance=(typeof window.getProvinceGovernancePolicyState==='function')?window.getProvinceGovernancePolicyState():null;
+  var patrolPolicy=String(governance&&governance.patrolStance||'balanced').toLowerCase();
+  var tariffPolicy=String(governance&&governance.tariffStance||'balanced').toLowerCase();
+  var routePolicy=String(governance&&governance.routePriority||'trade').toLowerCase();
   var tension=Math.max(0,Number(overlay.tension||0));
   var tags=Array.isArray(overlay.tags)?overlay.tags:[];
   var controlRates={
@@ -12378,6 +12414,10 @@ function buildWorldStateEncounterAddon(col,row,mode){
   };
   var rate=control&&controlRates[control]?controlRates[control]:{chanceBonus:0,weights:{skirmish:1,presence:1,route:1,crisis:1}};
   var triggerChance=Math.min(85,10+(tension*10)+(overlay.activeCrisis?20:0)+(overlay.dangerousRoad?10:0)+(overlay.closedBorder?10:0)+Number(rate.chanceBonus||0)+(mode==='trade'&&control==='guilds'?8:0));
+  if(patrolPolicy==='strict')triggerChance=Math.max(5,triggerChance-4);
+  if(patrolPolicy==='open')triggerChance=Math.min(90,triggerChance+4);
+  if(tariffPolicy==='extractive'&&mode==='trade')triggerChance=Math.min(90,triggerChance+5);
+  if(routePolicy==='civic'&&overlay.activeCrisis)triggerChance=Math.max(5,triggerChance-3);
   var rollGate=roll(100);
   if(rollGate>triggerChance)return null;
 
@@ -12442,7 +12482,7 @@ function buildWorldStateEncounterAddon(col,row,mode){
   var pickEntry=pick(pool);
   return {
     title:pickEntry.title,
-    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+(regime&&regime.encounterNote?(' · '+regime.encounterNote):'')+'</div></div>'
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+(regime&&regime.encounterNote?(' · '+regime.encounterNote):'')+' · Policy: Patrol '+patrolPolicy+', Tariff '+tariffPolicy+', Route '+routePolicy+'</div></div>'
   };
 }
 

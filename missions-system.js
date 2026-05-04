@@ -152,6 +152,187 @@
     { id:'faction_politics',     label:'Faction Politics',    missionType:'faction_politics',      stepNames:{1:'Map Allegiances',2:'Apply Leverage',3:'Settle Power Shift'}, verbs:['Leverage','Influence','Arbitrate','Pressure'] }
   ];
 
+  var REGIONAL_ARC_TEMPLATES = {
+    escalation: {
+      id: 'escalation',
+      label: 'Escalation Arc',
+      steps: [
+        { title: 'Escalation Arc I: Track Flashpoint', templateLabel: 'Arc Chain · Escalation I', missionType: 'arc_escalation', verbs: ['Investigate','Track','Expose'], stepNames: {1:'Trace Flashpoint',2:'Enter Pressure Zone',3:'Contain First Breach'}, reward: 60 },
+        { title: 'Escalation Arc II: Break Supply Surge', templateLabel: 'Arc Chain · Escalation II', missionType: 'arc_escalation', verbs: ['Disrupt','Intercept','Contain'], stepNames: {1:'Map Surge Route',2:'Cut Supply Relay',3:'Hold Against Counterstrike'}, reward: 75 },
+        { title: 'Escalation Arc III: Decide Regional Outcome', templateLabel: 'Arc Chain · Escalation III', missionType: 'arc_escalation', verbs: ['Stabilize','Purge','Reclaim'], stepNames: {1:'Pick Doctrine',2:'Execute Regional Push',3:'Lock New Order'}, reward: 95 }
+      ]
+    },
+    reconciliation: {
+      id: 'reconciliation',
+      label: 'Reconciliation Arc',
+      steps: [
+        { title: 'Reconciliation Arc I: Broker Initial Truce', templateLabel: 'Arc Chain · Reconciliation I', missionType: 'arc_reconciliation', verbs: ['Negotiate','Mediate','Broker'], stepNames: {1:'Secure Delegates',2:'Open Neutral Ground',3:'Draft Truce Terms'}, reward: 55 },
+        { title: 'Reconciliation Arc II: Prove Mutual Good Faith', templateLabel: 'Arc Chain · Reconciliation II', missionType: 'arc_reconciliation', verbs: ['Deliver','Protect','Escort'], stepNames: {1:'Deliver Guarantees',2:'Protect Convoy',3:'Confirm Exchanges'}, reward: 70 },
+        { title: 'Reconciliation Arc III: Ratify Compact', templateLabel: 'Arc Chain · Reconciliation III', missionType: 'arc_reconciliation', verbs: ['Ratify','Stabilize','Rebuild'], stepNames: {1:'Assemble Signatories',2:'Defend Summit',3:'Seal Compact'}, reward: 90 }
+      ]
+    },
+    occupation: {
+      id: 'occupation',
+      label: 'Occupation Arc',
+      steps: [
+        { title: 'Occupation Arc I: Survey Occupied Zone', templateLabel: 'Arc Chain · Occupation I', missionType: 'arc_occupation', verbs: ['Survey','Infiltrate','Observe'], stepNames: {1:'Map Occupier Pattern',2:'Probe Checkpoints',3:'Exfiltrate Findings'}, reward: 60 },
+        { title: 'Occupation Arc II: Crack Control Grid', templateLabel: 'Arc Chain · Occupation II', missionType: 'arc_occupation', verbs: ['Sabotage','Resist','Bypass'], stepNames: {1:'Disable Grid Nodes',2:'Evade Sweep Teams',3:'Open Civil Corridor'}, reward: 80 },
+        { title: 'Occupation Arc III: Force Withdrawal Terms', templateLabel: 'Arc Chain · Occupation III', missionType: 'arc_occupation', verbs: ['Pressure','Liberate','Secure'], stepNames: {1:'Assemble Local Cells',2:'Break Occupier Strongpoint',3:'Set Withdrawal Terms'}, reward: 100 }
+      ]
+    },
+    collapse: {
+      id: 'collapse',
+      label: 'Collapse Arc',
+      steps: [
+        { title: 'Collapse Arc I: Identify Failing Systems', templateLabel: 'Arc Chain · Collapse I', missionType: 'arc_collapse', verbs: ['Diagnose','Trace','Survey'], stepNames: {1:'Read Failure Signals',2:'Tag Critical Nodes',3:'Prioritize Rescue'}, reward: 55 },
+        { title: 'Collapse Arc II: Prevent Cascading Failure', templateLabel: 'Arc Chain · Collapse II', missionType: 'arc_collapse', verbs: ['Repair','Stabilize','Defend'], stepNames: {1:'Secure Repair Team',2:'Protect Infrastructure',3:'Reboot Core Path'}, reward: 75 },
+        { title: 'Collapse Arc III: Rebuild Command Spine', templateLabel: 'Arc Chain · Collapse III', missionType: 'arc_collapse', verbs: ['Rebuild','Fortify','Recover'], stepNames: {1:'Draft Recovery Plan',2:'Deploy Regional Teams',3:'Anchor Governance Backbone'}, reward: 95 }
+      ]
+    },
+    reconstruction: {
+      id: 'reconstruction',
+      label: 'Reconstruction Arc',
+      steps: [
+        { title: 'Reconstruction Arc I: Audit What Survived', templateLabel: 'Arc Chain · Reconstruction I', missionType: 'arc_reconstruction', verbs: ['Audit','Assess','Recover'], stepNames: {1:'Catalog Assets',2:'Verify Civil Capacity',3:'Set Recovery Targets'}, reward: 55 },
+        { title: 'Reconstruction Arc II: Restore Core Services', templateLabel: 'Arc Chain · Reconstruction II', missionType: 'arc_reconstruction', verbs: ['Restore','Supply','Rebuild'], stepNames: {1:'Reopen Route Pair',2:'Deliver Civic Cargo',3:'Activate Local Services'}, reward: 75 },
+        { title: 'Reconstruction Arc III: Seed Long-Term Stability', templateLabel: 'Arc Chain · Reconstruction III', missionType: 'arc_reconstruction', verbs: ['Stabilize','Institutionalize','Secure'], stepNames: {1:'Install Regional Custodians',2:'Negotiate Last Blockers',3:'Ratify Recovery Charter'}, reward: 95 }
+      ]
+    }
+  };
+
+  function ensureMissionDirectorState() {
+    ensureState();
+    S.missionDirector = S.missionDirector || {};
+    if (!S.missionDirector.arcState || typeof S.missionDirector.arcState !== 'object') {
+      S.missionDirector.arcState = {
+        activeArcId: '',
+        stageIndex: 0,
+        momentum: 0,
+        history: []
+      };
+    }
+    if (!Array.isArray(S.missionDirector.arcState.history)) S.missionDirector.arcState.history = [];
+    return S.missionDirector.arcState;
+  }
+
+  function pickRegionalArcId(bias) {
+    var b = bias || {};
+    var verbs = Array.isArray(b.preferredVerbs) ? b.preferredVerbs.join('|').toLowerCase() : '';
+    if (verbs.indexOf('escort') >= 0 || verbs.indexOf('deliver') >= 0 || verbs.indexOf('rebuild') >= 0) return 'reconstruction';
+    if (verbs.indexOf('resist') >= 0 || verbs.indexOf('suppress') >= 0 || verbs.indexOf('patrol') >= 0) return 'occupation';
+    if (verbs.indexOf('negotiate') >= 0 || verbs.indexOf('broker') >= 0 || verbs.indexOf('mediate') >= 0) return 'reconciliation';
+    if (verbs.indexOf('stabilize') >= 0 || verbs.indexOf('repair') >= 0 || verbs.indexOf('recover') >= 0) return 'collapse';
+    if (verbs.indexOf('investigate') >= 0 || verbs.indexOf('expose') >= 0 || verbs.indexOf('track') >= 0) return 'escalation';
+    return pick(Object.keys(REGIONAL_ARC_TEMPLATES)) || 'escalation';
+  }
+
+  function getArcStageConfig(arcId, index) {
+    var arc = REGIONAL_ARC_TEMPLATES[String(arcId || '')];
+    if (!arc || !Array.isArray(arc.steps)) return null;
+    var idx = Math.max(0, Math.min(arc.steps.length - 1, Number(index || 0)));
+    return arc.steps[idx] || null;
+  }
+
+  function buildArcJobFromState(state, bias, region, factionData, seedBase, idx) {
+    var arcId = String(state.activeArcId || pickRegionalArcId(bias));
+    state.activeArcId = arcId;
+    var stageCfg = getArcStageConfig(arcId, state.stageIndex || 0);
+    if (!stageCfg) return null;
+    var diffKey = (state.stageIndex || 0) >= 2 ? 'hard' : ((state.stageIndex || 0) === 1 ? 'medium' : 'easy');
+    var diff = DIFFICULTIES[diffKey] || DIFFICULTIES.medium;
+    return {
+      id: seedBase + idx + 1,
+      title: stageCfg.title,
+      difficulty: diffKey,
+      dread: diff.dread,
+      location: getMissionLocationForRegion(region),
+      planetHexId: null,
+      planetName: '',
+      reward: Math.max(40, Number(stageCfg.reward || 50) + Number(bias && bias.rewardBonus || 0)),
+      region: region,
+      missionType: String(stageCfg.missionType || 'arc_chain'),
+      templateId: 'arc_chain_' + arcId,
+      templateLabel: String(stageCfg.templateLabel || 'Arc Chain Contract'),
+      stepNames: stageCfg.stepNames || null,
+      factionGain: factionData.gain,
+      factionLose: factionData.lose,
+      factionGainName: factionData.gainName,
+      factionLoseName: factionData.loseName,
+      lore: 'Arc progression: ' + (REGIONAL_ARC_TEMPLATES[arcId] ? REGIONAL_ARC_TEMPLATES[arcId].label : arcId) + ' · Stage ' + (Number(state.stageIndex || 0) + 1) + '/3',
+      arcChain: {
+        arcId: arcId,
+        stageIndex: Number(state.stageIndex || 0),
+        stageCount: 3
+      }
+    };
+  }
+
+  function pushNextArcJob(currentMission, success) {
+    ensureState();
+    var chain = currentMission && currentMission.arcChain && typeof currentMission.arcChain === 'object' ? currentMission.arcChain : null;
+    if (!chain) return;
+    var arcId = String(chain.arcId || '');
+    if (!arcId || !REGIONAL_ARC_TEMPLATES[arcId]) return;
+    var nextStage = Number(chain.stageIndex || 0) + 1;
+    if (nextStage >= 3) {
+      var arcStateDone = ensureMissionDirectorState();
+      arcStateDone.history.unshift({
+        arcId: arcId,
+        completedAt: new Date().toISOString(),
+        outcome: success ? 'completed' : 'fractured'
+      });
+      if (arcStateDone.history.length > 12) arcStateDone.history.length = 12;
+      arcStateDone.activeArcId = '';
+      arcStateDone.stageIndex = 0;
+      arcStateDone.momentum = success ? Number(arcStateDone.momentum || 0) + 1 : Math.max(0, Number(arcStateDone.momentum || 0) - 1);
+      return;
+    }
+    var cfg = getArcStageConfig(arcId, nextStage);
+    if (!cfg) return;
+    var diffKey = nextStage >= 2 ? 'hard' : 'medium';
+    var diff = DIFFICULTIES[diffKey] || DIFFICULTIES.medium;
+    var f = {
+      gain: currentMission.factionGain || 'political',
+      lose: currentMission.factionLose || 'underworld',
+      gainName: currentMission.factionGainName || 'Political Groups',
+      loseName: currentMission.factionLoseName || 'The Underworld'
+    };
+    var arcState = ensureMissionDirectorState();
+    arcState.activeArcId = arcId;
+    arcState.stageIndex = nextStage;
+    arcState.momentum = success ? Number(arcState.momentum || 0) + 1 : Math.max(0, Number(arcState.momentum || 0) - 1);
+
+    S.availableJobs = S.availableJobs || [];
+    S.availableJobs.push({
+      id: Date.now() + Math.floor(Math.random() * 9000),
+      title: cfg.title,
+      difficulty: diffKey,
+      dread: diff.dread,
+      location: currentMission.location || getMissionLocationForRegion(currentMission.region || 'province'),
+      planetHexId: currentMission.planetHexId || null,
+      planetName: currentMission.planetName || '',
+      reward: Math.max(45, Number(cfg.reward || 60) + (success ? 15 : 0)),
+      region: currentMission.region || 'province',
+      missionType: String(cfg.missionType || 'arc_chain'),
+      templateId: 'arc_chain_' + arcId,
+      templateLabel: String(cfg.templateLabel || 'Arc Chain Contract'),
+      stepNames: cfg.stepNames || null,
+      factionGain: f.gain,
+      factionLose: f.lose,
+      factionGainName: f.gainName,
+      factionLoseName: f.loseName,
+      lore: 'Arc progression: ' + (REGIONAL_ARC_TEMPLATES[arcId] ? REGIONAL_ARC_TEMPLATES[arcId].label : arcId) + ' · Stage ' + (nextStage + 1) + '/3',
+      arcChain: {
+        arcId: arcId,
+        stageIndex: nextStage,
+        stageCount: 3
+      }
+    });
+    if (typeof showNotif === 'function') {
+      showNotif('Arc advanced: ' + (REGIONAL_ARC_TEMPLATES[arcId] ? REGIONAL_ARC_TEMPLATES[arcId].label : arcId) + ' Stage ' + (nextStage + 1) + ' posted.', success ? 'good' : 'warn');
+    }
+  }
+
   var DEITY_PACT_PATHWAYS = {
     mercy: {
       id: 'mercy',
@@ -905,6 +1086,8 @@
       contractPathway: opts.contractPathway || null,
       storyTheme: opts.storyTheme || '',
       templateId: opts.templateId || '',
+      lore: opts.lore || '',
+      arcChain: opts.arcChain || null,
       factionContract: opts.factionContract || null,
       checkpoints: Array.isArray(opts.checkpoints) ? opts.checkpoints.slice() : [],
       step1Intro: opts.step1Intro || '',
@@ -973,6 +1156,7 @@
     var activeTabId = activePanel ? activePanel.id : '';
     var forceRegion = null;
     var bias = getMissionConsequenceBias();
+    var arcState = ensureMissionDirectorState();
     // Collect rumors from selected hex and inject verb bias
     var rumorVerbBonus = [];
     try {
@@ -1010,6 +1194,7 @@
     } else if (rumorVerbBonus.length) {
       bias.preferredVerbs = rumorVerbBonus;
     }
+    if (activeTabId === 'tab-galaxy') forceRegion = 'galaxy';
     else if (activeTabId === 'tab-lastsea') forceRegion = 'sea';
     else if (activeTabId === 'tab-map') forceRegion = 'province';
     for (var i = 0; i < count; i++) {
@@ -1028,6 +1213,18 @@
       var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
       var templateVerbs = (tpl && Array.isArray(tpl.verbs) && tpl.verbs.length) ? tpl.verbs : MISSION_VERBS;
       var verbPool = Array.isArray(bias.preferredVerbs) && bias.preferredVerbs.length ? bias.preferredVerbs.concat(templateVerbs) : templateVerbs;
+      var useArcSlot = i === 0 || (Math.random() < 0.35);
+      if (useArcSlot) {
+        if (!arcState.activeArcId) {
+          arcState.activeArcId = pickRegionalArcId(bias);
+          arcState.stageIndex = 0;
+        }
+        var arcJob = buildArcJobFromState(arcState, bias, region, f, seed, i);
+        if (arcJob) {
+          S.availableJobs.push(arcJob);
+          continue;
+        }
+      }
       S.availableJobs.push({
         id:seed + i + 1,
         title:pick(verbPool)+' '+pick(MISSION_TARGETS),
@@ -1065,7 +1262,9 @@
     }, {
       missionType: job.missionType || 'standard',
       templateId: job.templateId || 'standard',
-      stepNames: job.stepNames || null
+      stepNames: job.stepNames || null,
+      lore: job.lore || '',
+      arcChain: job.arcChain || null
     });
     if (job.region === 'galaxy') {
       mission.planetHexId = job.planetHexId || null;
@@ -1870,6 +2069,7 @@
       try { window.factionSystem.onMissionResolved(mission, success); } catch (err) {}
     }
     onDeityPactMissionResolved(mission, success);
+    pushNextArcJob(mission, success);
   }
 
   function resolveMissionOutcome(missionId, success) {

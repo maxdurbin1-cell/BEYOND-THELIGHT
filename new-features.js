@@ -164,6 +164,14 @@
       if (!Array.isArray(S.holding.vault))          { S.holding.vault = []; }
     if (!Array.isArray(S.holding.councilTasks))    { S.holding.councilTasks = []; }
     if (!Array.isArray(S.holding.taxLog))         { S.holding.taxLog = []; }
+    if (!S.holding.governance || typeof S.holding.governance !== 'object') {
+      S.holding.governance = {
+        patrolStance: 'balanced',
+        tariffStance: 'balanced',
+        routePriority: 'trade',
+        updatedAt: 0
+      };
+    }
     // Ownership is established by successful quest completion, not by entering a name.
 
     if (!S.holding.council || typeof S.holding.council !== "object") {
@@ -241,6 +249,58 @@
 
   function updateHoldingTabVisibility() {
     // Holdings tab is always visible; gate is handled inside the panel.
+  }
+
+  function getHoldingGovernanceState() {
+    ensureNewFeatureState();
+    var local = S.holding && S.holding.governance ? S.holding.governance : {};
+    var world = (typeof window !== 'undefined' && typeof window.getProvinceGovernancePolicyState === 'function')
+      ? (window.getProvinceGovernancePolicyState() || {})
+      : {};
+    return {
+      patrolStance: String(world.patrolStance || local.patrolStance || 'balanced'),
+      tariffStance: String(world.tariffStance || local.tariffStance || 'balanced'),
+      routePriority: String(world.routePriority || local.routePriority || 'trade'),
+      updatedAt: Number(world.updatedAt || local.updatedAt || 0)
+    };
+  }
+
+  function syncHoldingGovernanceToWorldState() {
+    ensureNewFeatureState();
+    var state = getHoldingGovernanceState();
+    S.holding.governance = Object.assign({}, state);
+    if (typeof window !== 'undefined' && typeof window.setProvinceGovernancePolicyState === 'function') {
+      try { window.setProvinceGovernancePolicyState(state); } catch (_err) {}
+    }
+  }
+
+  function setHoldingGovernancePolicy(field, value) {
+    ensureNewFeatureState();
+    var policy = getHoldingGovernanceState();
+    var key = String(field || '').toLowerCase();
+    var val = String(value || '').toLowerCase();
+    if (key === 'patrol') {
+      policy.patrolStance = (val === 'strict' || val === 'open') ? val : 'balanced';
+    } else if (key === 'tariff') {
+      policy.tariffStance = (val === 'extractive' || val === 'relief') ? val : 'balanced';
+    } else if (key === 'route') {
+      policy.routePriority = (val === 'military' || val === 'civic') ? val : 'trade';
+    } else {
+      return;
+    }
+    policy.updatedAt = Date.now();
+    S.holding.governance = Object.assign({}, policy);
+    if (typeof window !== 'undefined' && typeof window.setProvinceGovernancePolicyState === 'function') {
+      try { window.setProvinceGovernancePolicyState(policy); } catch (_err) {}
+    }
+    if (typeof showNotif === 'function') {
+      showNotif('Governance policy updated: ' + key + ' → ' + val + '.', 'good');
+    }
+    renderHoldingUI();
+    if (typeof renderHexMap === 'function') { try { renderHexMap(); } catch (_e0) {} }
+    if (typeof selectedHex !== 'undefined' && selectedHex && typeof renderHexInfo === 'function') {
+      try { renderHexInfo(selectedHex); } catch (_e1) {}
+    }
   }
 
   // ── CARAVAN HTML ──────────────────────────────────────────────────────────────
@@ -432,6 +492,11 @@
             '<button class="btn btn-warn" onclick="rollHoldingDowntimeActivity(\'explore\')">🧭 Explore Holdings</button>',
           '</div>',
           '<div id="holdingDowntimeResult" style="margin-top:.45rem;font-size:.82rem;"></div>',
+        '</div>',
+        '<div class="card">',
+          '<div class="section-title">Regional Governance</div>',
+          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Late-game policy loop (Renown 12+). Set patrol, tariff, and route priorities to shape consequence spread, mission bias, and market pressure.</div>',
+          '<div id="holdingGovernancePanel"></div>',
         '</div>',
         // Perils of Leadership — full width
         '<div class="card">',
@@ -1172,6 +1237,45 @@
           + '</div>'
           + '</div>';
       }).join("");
+    }
+
+    var governanceEl = document.getElementById('holdingGovernancePanel');
+    if (governanceEl) {
+      var maxRenown = getHoldingGateRenown();
+      var govUnlocked = maxRenown >= 12;
+      var gov = getHoldingGovernanceState();
+      syncHoldingGovernanceToWorldState();
+      var lockHtml = govUnlocked
+        ? ''
+        : '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.45rem;">🔒 Unlocks at Renown 12. Current highest standing: <strong style="color:var(--gold2);">' + maxRenown + '</strong>.</div>';
+      function btn(field, value, label, tone) {
+        var active = (field === 'patrol' && gov.patrolStance === value)
+          || (field === 'tariff' && gov.tariffStance === value)
+          || (field === 'route' && gov.routePriority === value);
+        var cls = active ? (tone || 'btn-primary') : 'btn';
+        var disabled = govUnlocked ? '' : ' disabled style="opacity:.45;cursor:default;"';
+        return '<button class="btn btn-xs ' + cls + '" onclick="setHoldingGovernancePolicy(\'' + field + '\',\'' + value + '\')"' + disabled + '>' + label + '</button>';
+      }
+      governanceEl.innerHTML = lockHtml
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;">Patrol Doctrine</div>'
+        + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+          + btn('patrol','strict','Strict Patrols','btn-warn')
+          + btn('patrol','balanced','Balanced Patrols','btn-teal')
+          + btn('patrol','open','Open Streets','btn-primary')
+        + '</div>'
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;">Tariff Stance</div>'
+        + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+          + btn('tariff','extractive','Extractive Tariffs','btn-red')
+          + btn('tariff','balanced','Balanced Tariffs','btn-teal')
+          + btn('tariff','relief','Relief Tariffs','btn-primary')
+        + '</div>'
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;">Route Priority</div>'
+        + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+          + btn('route','military','Military Routes','btn-red')
+          + btn('route','trade','Trade Routes','btn-gold')
+          + btn('route','civic','Civic Corridors','btn-teal')
+        + '</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">Current Policy: Patrol <strong>' + gov.patrolStance + '</strong> · Tariff <strong>' + gov.tariffStance + '</strong> · Route <strong>' + gov.routePriority + '</strong></div>';
     }
 
     renderHoldingCrises();
@@ -2928,6 +3032,7 @@
   window.addManualCrisis      = addManualCrisis;
   window.resolveCrisis        = resolveCrisis;
   window.clearAllCrises       = clearAllCrises;
+  window.setHoldingGovernancePolicy = setHoldingGovernancePolicy;
   window.startHoldingQuest    = startHoldingQuest;
   window.advanceHoldingQuest  = advanceHoldingQuest;
   window.holdingQuestStartStep1 = holdingQuestStartStep1;

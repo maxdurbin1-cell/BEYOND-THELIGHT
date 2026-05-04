@@ -3188,6 +3188,12 @@
       gridTemplate: [],
       gridRows: 0,
       gridCols: 0,
+      mazeLayout: [],
+      mazeRows: 0,
+      mazeCols: 0,
+      sudokuPuzzle: [],
+      sudokuSolution: [],
+      sudokuSize: 0,
       typed: "",
       lastClue: "",
       revealed: false,
@@ -3212,6 +3218,12 @@
     p.gridTemplate = [];
     p.gridRows = 0;
     p.gridCols = 0;
+    p.mazeLayout = [];
+    p.mazeRows = 0;
+    p.mazeCols = 0;
+    p.sudokuPuzzle = [];
+    p.sudokuSolution = [];
+    p.sudokuSize = 0;
     p.typed = "";
     p.lastClue = "";
     p.revealed = false;
@@ -3295,6 +3307,29 @@
       });
       return correct / maxLen;
     }
+    if (p.mode === "maze") {
+      const expected = String(p.answer || "").trim().toLowerCase();
+      const route = p.selected.join("-").trim().toLowerCase();
+      if (route && expected) return scoreTokens(route, expected);
+      const trace = traceStoryMazePath(p);
+      return trace.totalMoves ? (trace.validMoves / trace.totalMoves) : 0;
+    }
+    if (p.mode === "sudoku") {
+      let total = 0;
+      let correct = 0;
+      for (let r = 0; r < p.sudokuSize; r++) {
+        for (let c = 0; c < p.sudokuSize; c++) {
+          const given = String(((p.sudokuPuzzle[r] || [])[c] || "")).trim();
+          const expected = String(((p.sudokuSolution[r] || [])[c] || "")).trim();
+          if (given || !expected) continue;
+          total += 1;
+          const el = document.getElementById("storySudoku_" + r + "_" + c);
+          const typed = (el && typeof el.value === "string") ? el.value.trim() : "";
+          if (typed && typed === expected) correct += 1;
+        }
+      }
+      return total ? (correct / total) : 0;
+    }
 
     const el = document.getElementById("storyPuzzleInput");
     const val = (el && typeof el.value === "string") ? el.value.trim().toLowerCase() : "";
@@ -3348,9 +3383,83 @@
       }
       return "Most grid cells are already filled; check intersections carefully.";
     }
+    if (p.mode === "maze") {
+      const route = String(p.answer || "").trim().toUpperCase().split(/\s*-\s*/).filter(Boolean);
+      if (!route.length) return "Trace a valid route from S to E without crossing walls.";
+      return "The route begins with '" + route[0] + "' and uses " + route.length + " moves.";
+    }
+    if (p.mode === "sudoku") {
+      for (let r = 0; r < p.sudokuSize; r++) {
+        for (let c = 0; c < p.sudokuSize; c++) {
+          const given = String(((p.sudokuPuzzle[r] || [])[c] || "")).trim();
+          const expected = String(((p.sudokuSolution[r] || [])[c] || "")).trim();
+          if (given || !expected) continue;
+          const el = document.getElementById("storySudoku_" + r + "_" + c);
+          if (el && !String(el.value || "").trim()) {
+            el.value = expected;
+            return "A Sudoku cell was revealed for you.";
+          }
+        }
+      }
+      return "Most Sudoku cells are already filled; check row and column balance carefully.";
+    }
     const answer = String(p.answer || "").trim();
     if (!answer) return "Focus on keywords in the prompt.";
     return "Answer length is " + answer.length + ". It starts with '" + answer.charAt(0).toUpperCase() + "'.";
+  }
+
+  function traceStoryMazePath(p) {
+    const rows = Array.isArray(p && p.mazeLayout) ? p.mazeLayout : [];
+    const trace = {
+      row: 0,
+      col: 0,
+      exitRow: -1,
+      exitCol: -1,
+      invalid: false,
+      validMoves: 0,
+      totalMoves: Array.isArray(p && p.selected) ? p.selected.length : 0,
+      visited: {},
+    };
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r] || [];
+      for (let c = 0; c < row.length; c++) {
+        const cell = String(row[c] || ".").toUpperCase();
+        if (cell === "S") {
+          trace.row = r;
+          trace.col = c;
+        }
+        if (cell === "E") {
+          trace.exitRow = r;
+          trace.exitCol = c;
+        }
+      }
+    }
+    trace.visited[trace.row + ":" + trace.col] = true;
+    (p.selected || []).forEach(function (step) {
+      if (trace.invalid) return;
+      const move = String(step || "").trim().toUpperCase();
+      let nextRow = trace.row;
+      let nextCol = trace.col;
+      if (move === "U") nextRow -= 1;
+      else if (move === "D") nextRow += 1;
+      else if (move === "L") nextCol -= 1;
+      else if (move === "R") nextCol += 1;
+      else {
+        trace.invalid = true;
+        return;
+      }
+      const nextCell = String((((rows[nextRow] || [])[nextCol]) || "#")).toUpperCase();
+      if (nextCell === "#") {
+        trace.invalid = true;
+        return;
+      }
+      trace.row = nextRow;
+      trace.col = nextCol;
+      trace.validMoves += 1;
+      trace.visited[trace.row + ":" + trace.col] = true;
+    });
+    trace.reachedExit = !trace.invalid && trace.row === trace.exitRow && trace.col === trace.exitCol;
+    return trace;
   }
 
   function rollStoryPuzzleClue() {
@@ -3438,6 +3547,47 @@
         + p.clues.map(function (c, i) {
           return "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.12rem;'>" + (i + 1) + ". " + c.clue + "</div>";
         }).join("");
+    } else if (p.mode === "maze") {
+      const trace = traceStoryMazePath(p);
+      const cells = [];
+      for (let r = 0; r < p.mazeRows; r++) {
+        for (let c = 0; c < p.mazeCols; c++) {
+          const raw = String((((p.mazeLayout[r] || [])[c]) || ".")).toUpperCase();
+          const isWall = raw === "#";
+          const key = r + ":" + c;
+          const isTrail = !!trace.visited[key] && !isWall && raw !== "S" && raw !== "E";
+          const bg = isWall ? "var(--surface2)" : (raw === "S" ? "rgba(70,196,182,.18)" : raw === "E" ? "rgba(240,208,112,.18)" : isTrail ? "rgba(126,215,255,.14)" : "rgba(255,255,255,.03)");
+          const border = isWall ? "var(--border2)" : (key === trace.row + ":" + trace.col ? "#7ed7ff" : raw === "E" ? "#f0d070" : raw === "S" ? "#46c4b6" : "rgba(255,255,255,.08)");
+          const glyph = isWall ? "" : (raw === "S" ? "S" : raw === "E" ? "E" : (key === trace.row + ":" + trace.col ? "●" : (isTrail ? "•" : "")));
+          const color = raw === "E" ? "#f0d070" : raw === "S" ? "#46c4b6" : "#9de7ff";
+          cells.push("<div style='width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:" + bg + ";border:1px solid " + border + ";font-family:Rajdhani,sans-serif;font-weight:700;color:" + color + ";'>" + glyph + "</div>");
+        }
+      }
+      controls = ""
+        + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Route: <strong style='color:var(--teal);'>" + (p.selected.join("-") || "(empty)") + "</strong>" + (trace.invalid ? " <span style='color:var(--red2);'>(hit wall)</span>" : "") + "</div>"
+        + "<div style='display:grid;grid-template-columns:repeat(" + p.mazeCols + ",30px);gap:2px;justify-content:start;margin-bottom:.45rem;'>" + cells.join("") + "</div>"
+        + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;'>"
+        + ["U", "R", "D", "L"].map(function (dir) {
+          const label = dir === "U" ? "Up" : dir === "R" ? "Right" : dir === "D" ? "Down" : "Left";
+          return "<button class='btn btn-xs btn-teal' onclick='storyPuzzlePress(\"" + dir + "\")'>" + label + "</button>";
+        }).join("")
+        + "</div>";
+    } else if (p.mode === "sudoku") {
+      const cells = [];
+      for (let r = 0; r < p.sudokuSize; r++) {
+        for (let c = 0; c < p.sudokuSize; c++) {
+          const given = String((((p.sudokuPuzzle[r] || [])[c]) || "")).trim();
+          const borderStyle = "border:1px solid rgba(255,255,255,.12);" + (c % 2 === 0 ? "border-left:2px solid rgba(232,192,80,.35);" : "") + (r % 2 === 0 ? "border-top:2px solid rgba(232,192,80,.35);" : "") + (c === p.sudokuSize - 1 ? "border-right:2px solid rgba(232,192,80,.35);" : "") + (r === p.sudokuSize - 1 ? "border-bottom:2px solid rgba(232,192,80,.35);" : "");
+          if (given) {
+            cells.push("<div style='width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.05);" + borderStyle + "font-family:Rajdhani,sans-serif;font-weight:700;color:var(--gold2);'>" + given + "</div>");
+          } else {
+            cells.push("<input id='storySudoku_" + r + "_" + c + "' maxlength='1' inputmode='numeric' class='input' style='width:34px;height:34px;text-align:center;padding:0;font-family:Rajdhani,sans-serif;" + borderStyle + "'/>");
+          }
+        }
+      }
+      controls = ""
+        + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Mini Sudoku: each row, column, and 2x2 box must contain 1-" + p.sudokuSize + ".</div>"
+        + "<div style='display:grid;grid-template-columns:repeat(" + p.sudokuSize + ",34px);gap:0;justify-content:start;margin-bottom:.45rem;background:rgba(6,8,16,.5);padding:4px;width:max-content;'>" + cells.join("") + "</div>";
     } else {
       controls = ""
         + "<input id='storyPuzzleInput' class='input' placeholder='Type your decoded answer' style='width:100%;margin-bottom:.45rem;'/>";
@@ -3479,6 +3629,12 @@
     p.gridTemplate = Array.isArray(puzzle.gridTemplate) ? puzzle.gridTemplate.slice() : [];
     p.gridRows = Number(puzzle.gridRows || p.gridTemplate.length || 0);
     p.gridCols = Number(puzzle.gridCols || (p.gridTemplate[0] ? p.gridTemplate[0].length : 0));
+    p.mazeLayout = Array.isArray(puzzle.mazeLayout) ? puzzle.mazeLayout.map(function (row) { return Array.isArray(row) ? row.slice() : String(row || "").split(""); }) : [];
+    p.mazeRows = Number(puzzle.mazeRows || p.mazeLayout.length || 0);
+    p.mazeCols = Number(puzzle.mazeCols || (p.mazeLayout[0] ? p.mazeLayout[0].length : 0));
+    p.sudokuPuzzle = Array.isArray(puzzle.sudokuPuzzle) ? puzzle.sudokuPuzzle.map(function (row) { return Array.isArray(row) ? row.slice() : []; }) : [];
+    p.sudokuSolution = Array.isArray(puzzle.sudokuSolution) ? puzzle.sudokuSolution.map(function (row) { return Array.isArray(row) ? row.slice() : []; }) : [];
+    p.sudokuSize = Number(puzzle.sudokuSize || p.sudokuSolution.length || p.sudokuPuzzle.length || 0);
     p.typed = "";
     p.lastClue = "";
     p.revealed = false;
@@ -3504,6 +3660,12 @@
     p.gridTemplate = Array.isArray(config.gridTemplate) ? config.gridTemplate.slice() : [];
     p.gridRows = Number(config.gridRows || p.gridTemplate.length || 0);
     p.gridCols = Number(config.gridCols || (p.gridTemplate[0] ? p.gridTemplate[0].length : 0));
+    p.mazeLayout = Array.isArray(config.mazeLayout) ? config.mazeLayout.map(function (row) { return Array.isArray(row) ? row.slice() : String(row || "").split(""); }) : [];
+    p.mazeRows = Number(config.mazeRows || p.mazeLayout.length || 0);
+    p.mazeCols = Number(config.mazeCols || (p.mazeLayout[0] ? p.mazeLayout[0].length : 0));
+    p.sudokuPuzzle = Array.isArray(config.sudokuPuzzle) ? config.sudokuPuzzle.map(function (row) { return Array.isArray(row) ? row.slice() : []; }) : [];
+    p.sudokuSolution = Array.isArray(config.sudokuSolution) ? config.sudokuSolution.map(function (row) { return Array.isArray(row) ? row.slice() : []; }) : [];
+    p.sudokuSize = Number(config.sudokuSize || p.sudokuSolution.length || p.sudokuPuzzle.length || 0);
     p.typed = "";
     p.lastClue = "";
     p.revealed = false;
@@ -3539,6 +3701,24 @@
         const val = (el && typeof el.value === "string") ? el.value.trim().toLowerCase() : "";
         return val === String(c.answer || "").trim().toLowerCase();
       });
+    }
+    if (p.mode === "maze") {
+      const trace = traceStoryMazePath(p);
+      if (trace.reachedExit) return true;
+      return p.selected.join("-").trim().toLowerCase() === String(p.answer || "").trim().toLowerCase();
+    }
+    if (p.mode === "sudoku") {
+      for (let r = 0; r < p.sudokuSize; r++) {
+        for (let c = 0; c < p.sudokuSize; c++) {
+          const given = String((((p.sudokuPuzzle[r] || [])[c]) || "")).trim();
+          const expected = String((((p.sudokuSolution[r] || [])[c]) || "")).trim();
+          if (given || !expected) continue;
+          const el = document.getElementById("storySudoku_" + r + "_" + c);
+          const typed = (el && typeof el.value === "string") ? el.value.trim() : "";
+          if (typed !== expected) return false;
+        }
+      }
+      return true;
     }
     const el = document.getElementById("storyPuzzleInput");
     const val = (el && typeof el.value === "string") ? el.value.trim().toLowerCase() : "";
@@ -4874,7 +5054,7 @@
   };
   window.storyPuzzlePress = function (value) {
     const p = ensurePuzzleSession();
-    if (p.mode === "code" || p.mode === "crossword" || p.mode === "crossword_grid") return;
+    if (p.mode === "code" || p.mode === "crossword" || p.mode === "crossword_grid" || p.mode === "sudoku") return;
     if (p.mode === "memory") p.revealed = false;
     p.selected.push(String(value || ""));
     renderPuzzleModal();

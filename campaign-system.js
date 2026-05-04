@@ -1310,6 +1310,9 @@
       shared.characterDeathStates = deepCloneJson(current.characterDeathStates || ensureCharacterDeathStates());
       shared.contestedRolls = deepCloneJson(current.contestedRolls || ensureContestedRolls());
       shared.characterDice = deepCloneJson(current.characterDice || ensureCharacterDice());
+      if (window.S.worldState && typeof window.S.worldState === "object") {
+        shared.worldState = deepCloneJson(window.S.worldState);
+      }
     }
     return shared;
   }
@@ -1330,7 +1333,8 @@
       factionWayfarerTasks: deepCloneJson(window.S.factionWayfarerTasks || []),
       factionNarrative: deepCloneJson(window.S.factionNarrative || {}),
       factionRenown: deepCloneJson(window.S.factionRenown || {}),
-      factionBases: deepCloneJson(window.S.factionBases || {})
+      factionBases: deepCloneJson(window.S.factionBases || {}),
+      worldState: deepCloneJson(window.S.worldState || {})
     };
   }
 
@@ -1514,6 +1518,10 @@
           state.lastProvinceMapHash = nextProvinceMapHash;
           applyClientLocalProvinceState(localProvinceState);
         }
+      }
+      if (sharedState.worldState && typeof sharedState.worldState === "object") {
+        window.S.worldState = deepCloneJson(sharedState.worldState);
+        if (typeof window.ensureWorldState === "function") window.ensureWorldState();
       }
     } finally {
       state.applyingSharedState = false;

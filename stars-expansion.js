@@ -16208,6 +16208,9 @@ function advanceDay(days, preserveTravelState) {
   if (days > 0 && typeof window.applyDarkAfflictionDailyProgress === 'function') {
     window.applyDarkAfflictionDailyProgress(days);
   }
+  if (days > 0 && typeof window.triggerFactionTurn === 'function') {
+    try { window.triggerFactionTurn(); } catch (_e) {}
+  }
 
   while (S.gameDate.day > DAYS_PER_MONTH) {
     S.gameDate.day -= DAYS_PER_MONTH;

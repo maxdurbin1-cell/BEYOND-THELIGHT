@@ -26,11 +26,11 @@
     province: [
       { title: "Road Cipher", prompt: "Decode and enter: BRIDGE -> ? (Hint: reverse it)", answer: "egdirb" },
       { title: "Caravan Knot", prompt: "How many corners does a hex have?", answer: "6" },
-      { title: "Maze Step Count", prompt: "Simple Maze: Start S and reach E. S(1,1) E(4,4). Walls: (2,1) (2,2) (3,3). Minimum steps?", answer: "6" },
+      { title: "Maze Step Count", mode: "maze", prompt: "Guide the runner from S to E. Walls block movement.", answer: "R-R-D-D-R", mazeLayout: ["S..#", "##.#", "...#", "##.E"] },
       { title: "Jigsaw Relay", prompt: "Jigsaw order puzzle: Arrange tiles in correct sentence order: [KEY] [THE] [TURN] [NOW]. Enter full sentence.", answer: "turn the key now" },
       { title: "Word Search Marker", prompt: "Word Search: Find the hidden word in row 'B R I D G E'. Enter the found word.", answer: "bridge" },
       { title: "Word Scramble", prompt: "Unscramble: GNAIATVE", answer: "navigate" },
-      { title: "Mini Sudoku", prompt: "4x4 Sudoku (digits 1-4): Row1 1 _ 3 4. Row2 3 4 1 2. Row3 2 1 4 3. Row4 4 3 2 1. What is Row1 Col2?", answer: "2" },
+      { title: "Mini Sudoku", mode: "sudoku", prompt: "Fill the 4x4 grid so each row, column, and 2x2 box contains 1-4.", sudokuPuzzle: [["1", "", "3", "4"], ["3", "4", "1", "2"], ["2", "1", "4", "3"], ["4", "3", "2", "1"]], sudokuSolution: [["1", "2", "3", "4"], ["3", "4", "1", "2"], ["2", "1", "4", "3"], ["4", "3", "2", "1"]] },
       { title: "Magic Square", prompt: "3x3 Magic Square sum is 15. Grid: 8 1 6 / 3 5 7 / 4 _ 2. Missing value?", answer: "9" }
     ],
     sea: [
@@ -48,7 +48,7 @@
     planet: [
       { title: "Surface Lock", prompt: "Enter: BIO + ME = ?", answer: "biome" },
       { title: "Drill Code", prompt: "Solve: 9 + 7", answer: "16" },
-      { title: "Mini Maze Route", prompt: "Maze route directions from S to E: Right, Right, Down, Down, Left, Down. Enter as initials with dashes.", answer: "r-r-d-d-l-d" },
+      { title: "Mini Maze Route", mode: "maze", prompt: "Trace the rover's path through the cracked surface tunnels.", answer: "R-R-D-D-L-D", mazeLayout: ["S...", "###.", "..#.", "E..."] },
       { title: "Magic Square Delta", prompt: "Magic square line total is 15. Row: 2 7 _. Missing number?", answer: "6" }
     ],
     wtw: [
@@ -71,7 +71,7 @@
     holding: [
       { title: "Council Ledger", prompt: "Type the role that handles diplomacy in your council.", answer: "diplomat" },
       { title: "Home Registry", prompt: "Type HOME in uppercase.", answer: "HOME" },
-      { title: "Mini Sudoku", prompt: "4x4 Sudoku clue: Row1 1 2 3 _. Missing value?", answer: "4" },
+      { title: "Mini Sudoku", mode: "sudoku", prompt: "Restore the council ledger grid so each row, column, and 2x2 box contains 1-4.", sudokuPuzzle: [["1", "2", "3", ""], ["3", "4", "", "2"], ["2", "", "4", "3"], ["", "3", "2", "1"]], sudokuSolution: [["1", "2", "3", "4"], ["3", "4", "1", "2"], ["2", "1", "4", "3"], ["4", "3", "2", "1"]] },
       { title: "Magic Square", prompt: "3x3 Magic Square row: 4 9 _. Target row sum 15. Missing number?", answer: "2" }
     ]
   };
@@ -114,6 +114,35 @@
     return null;
   }
 
+  function finishSharedPuzzle(success) {
+    const st = ensurePuzzleState();
+    if (!st || !st.active) return;
+    const active = st.active;
+
+    st.bySource[active.source] = st.bySource[active.source] || { solved: 0, failed: 0 };
+
+    if (success) {
+      st.solved += 1;
+      st.bySource[active.source].solved += 1;
+      applyPuzzleReward(active.source, active.reward);
+      const okFn = resolveCallback(active.onSuccess);
+      if (okFn) {
+        try { okFn(); } catch (err) {}
+      }
+    } else {
+      st.failed += 1;
+      st.bySource[active.source].failed += 1;
+      if (typeof addTMWOnFail === "function") addTMWOnFail();
+      if (typeof showNotif === "function") showNotif("Puzzle failed (" + active.source + ").", "warn");
+      const failFn = resolveCallback(active.onFail);
+      if (failFn) {
+        try { failFn(); } catch (err) {}
+      }
+    }
+
+    st.active = null;
+  }
+
   function openSharedPuzzleChallenge(config) {
     const st = ensurePuzzleState();
     if (!st) return false;
@@ -131,8 +160,28 @@
       answer: answer,
       reward: reward,
       onSuccess: config ? config.onSuccess : null,
-      onFail: config ? config.onFail : null
+      onFail: config ? config.onFail : null,
+      mode: chosen.mode || ''
     };
+
+    if (chosen.mode && typeof window.openStandaloneStoryPuzzle === "function") {
+      window.openStandaloneStoryPuzzle({
+        mode: chosen.mode,
+        title: title,
+        prompt: prompt,
+        answer: answer,
+        mazeLayout: chosen.mazeLayout,
+        sudokuPuzzle: chosen.sudokuPuzzle,
+        sudokuSolution: chosen.sudokuSolution,
+        thresholdLabel: 'Shared Puzzle',
+        successThreshold: 0.7,
+        partialThreshold: 0.45,
+        onResolve: function (result) {
+          finishSharedPuzzle(result === 'success' || result === 'partial');
+        }
+      });
+      return true;
+    }
 
     const html = ""
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.4rem;'>"
@@ -162,29 +211,7 @@
     }
 
     if (typeof closeModal === "function") closeModal();
-
-    st.bySource[active.source] = st.bySource[active.source] || { solved: 0, failed: 0 };
-
-    if (success) {
-      st.solved += 1;
-      st.bySource[active.source].solved += 1;
-      applyPuzzleReward(active.source, active.reward);
-      const okFn = resolveCallback(active.onSuccess);
-      if (okFn) {
-        try { okFn(); } catch (err) {}
-      }
-    } else {
-      st.failed += 1;
-      st.bySource[active.source].failed += 1;
-      if (typeof addTMWOnFail === "function") addTMWOnFail();
-      if (typeof showNotif === "function") showNotif("Puzzle failed (" + active.source + ").", "warn");
-      const failFn = resolveCallback(active.onFail);
-      if (failFn) {
-        try { failFn(); } catch (err) {}
-      }
-    }
-
-    st.active = null;
+    finishSharedPuzzle(success);
   }
 
   function maybeSpawnSharedPuzzle(source, chance, reward) {

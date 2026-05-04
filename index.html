@@ -424,37 +424,6 @@ select option{background:#0f1020;}
       <div class="hero-meta-card"><strong>Story Systems</strong><span>Factions, rivals, missions, arcs, and long-term consequences.</span></div>
     </div>
   </section>
-  <section class="openworld-proof" aria-label="Open-world tabletop RPG pillars">
-    <div class="openworld-proof-header">
-      <div class="openworld-proof-copy">
-        <div class="section-title">Why This Works As An Open-World Tabletop RPG</div>
-        <p>Beyond The Light already carries the core traits players expect from a strong open-world campaign game: free movement through layered maps, consequence-driven story systems, a setting dense with factions and lore, progression that changes what your crew can attempt, and enough mission variance to keep later sessions from repeating the same rhythm.</p>
-      </div>
-      <div class="openworld-proof-note"><strong>Table Read:</strong> The site supports the same pillars that define standout open-world RPGs, but translated into tabletop form: discovery over rails, choices that alter the campaign state, and mechanics that keep the world moving even when the party leaves the main plot alone.</div>
-    </div>
-    <div class="openworld-proof-grid">
-      <article class="openworld-proof-card">
-        <strong>Freedom And Exploration</strong>
-        <p>Province, sea-region, galaxy, and landmark travel tools let players roam at their own pace. Side discoveries, peril rolls, and encounter hooks reward leaving the critical path.</p>
-      </article>
-      <article class="openworld-proof-card">
-        <strong>Narrative Depth And Choice</strong>
-        <p>Storyline, backstory, faction, rival, and ending systems all react to player decisions. Sessions build toward different alliances, pressures, and outcomes instead of one fixed route.</p>
-      </article>
-      <article class="openworld-proof-card">
-        <strong>Immersive World-Building</strong>
-        <p>The setting is supported by map layers, codex references, social powers, travel phases, and environmental hazards. That makes the world feel inhabited rather than decorative.</p>
-      </article>
-      <article class="openworld-proof-card">
-        <strong>Mechanics And Progression</strong>
-        <p>Character growth, combat pressure, conditions, economy, caravans, and downtime systems give players new options over time while making risk and recovery matter.</p>
-      </article>
-      <article class="openworld-proof-card">
-        <strong>Dynamic Content And Replayability</strong>
-        <p>Missions, random events, faction tasks, trade routes, and persistent saves create changing campaign states. Different choices and playstyles naturally produce different runs.</p>
-      </article>
-    </div>
-  </section>
   <div class="char-top">
     <div class="char-top-title">Wayfarer Sheet</div>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
@@ -1577,9 +1546,32 @@ function updateDiceVisualUI(){
     cineBtn.className='btn btn-xs '+(DICE_VISUAL.cinematicMajor?'btn-primary':'');
   }
 }
+function isManualRollModeEnabled(){
+  try{
+    return !!(window.settingsSystem&&typeof window.settingsSystem.isManualRollMode==='function'&&window.settingsSystem.isManualRollMode());
+  }catch(_err){
+    return false;
+  }
+}
+function getManualRollValue(sides,meta){
+  const die=Math.max(1,parseInt(sides,10)||1);
+  const label=meta&&meta.label?String(meta.label):('d'+die+' roll');
+  const promptText='Manual Roll Mode is enabled. Enter '+label+' result (1-'+die+').';
+  const raw=window.prompt(promptText,'1');
+  if(raw===null||raw===undefined||String(raw).trim()==='')return null;
+  const parsed=parseInt(String(raw).trim(),10);
+  if(!Number.isFinite(parsed))return null;
+  if(parsed<1||parsed>die)return null;
+  return parsed;
+}
 function roll(n,meta){
   const sides=Math.max(1,parseInt(n,10)||1);
-  const value=Math.floor(Math.random()*sides)+1;
+  let value=Math.floor(Math.random()*sides)+1;
+  if(isManualRollModeEnabled()){
+    const manualValue=getManualRollValue(sides,meta||null);
+    if(manualValue!==null)value=manualValue;
+    else if(typeof showNotif==='function')showNotif('Manual roll input invalid. Using auto-roll d'+sides+'='+value+'.','warn');
+  }
   queueDiceRollVisual(sides,value,meta||null);
   return value;
 }
@@ -3125,7 +3117,8 @@ function rollProvinceEncounterTypeByPact(){
 }
 function buildNightModeProvinceAddonEncounter(col,row){
   if(!isEncounterNightModeActive())return null;
-  if(roll(6)>2)return null;
+  var triggerRoll=roll(6);
+  if(triggerRoll>2)return null;
   var modeRoll=roll(4);
   var title='';
   var desc='';
@@ -3134,21 +3127,21 @@ function buildNightModeProvinceAddonEncounter(col,row){
     var n=roll(4)+2;
     var beastType=pick(['Moonfang pack in silver haze','Night terrors with mirrored eyes','Cinder wolves hunting in formation']);
     title='Moon Hunt';
-    desc='Night Mode stirs a secondary threat: '+beastType+' — DD6 | '+(n*2)+' Stress.';
+    desc='Night Mode stirs a secondary threat (trigger d6='+triggerRoll+', mode d4='+modeRoll+'): '+beastType+' — DD6 | '+(n*2)+' Stress.';
     action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
       +'<button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'beasts\','+n+',\''+beastType+'\',6)">⚔ Engage Bonus Combat</button>'
       +'<button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Evade</button>'
       +'</div>';
   }else if(modeRoll===2){
     title='Nocturne Smugglers';
-    desc='A hidden lane opens under moonlight. Contraband handlers are willing to deal if you can keep quiet.';
+    desc='A hidden lane opens under moonlight (trigger d6='+triggerRoll+', mode d4='+modeRoll+'). Contraband handlers are willing to deal if you can keep quiet.';
     action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
       +'<button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess('+col+','+row+')">Access (Control vs DD12)</button>'
       +'<button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery</button>'
       +'</div>';
   }else if(modeRoll===3){
     title='Moonlit Caravan';
-    desc='A guarded caravan travels only under cover of darkness, moving rare stock and silent escorts.';
+    desc='A guarded caravan travels only under cover of darkness (trigger d6='+triggerRoll+', mode d4='+modeRoll+'), moving rare stock and silent escorts.';
     action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
       +'<button class="btn btn-xs btn-info" onclick="showMerchantCaravan('+col+','+row+')">Shop</button>'
       +'<button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan===\'function\')haggleMerchantCaravan('+col+','+row+')">Haggle</button>'
@@ -3156,7 +3149,7 @@ function buildNightModeProvinceAddonEncounter(col,row){
       +'</div>';
   }else{
     title='Shadow Wayfarer';
-    desc='A night-traveling guide offers dangerous routes through wild zones and hidden mission rumors.';
+    desc='A night-traveling guide appears (trigger d6='+triggerRoll+', mode d4='+modeRoll+') and offers dangerous routes through wild zones and hidden mission rumors.';
     action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
       +'<button class="btn btn-xs btn-primary" onclick="engageWayfarerMission('+col+','+row+')">📜 Offer a Mission</button>'
       +'<button class="btn btn-xs" onclick="talkToWayfarer('+col+','+row+')">💬 Talk</button>'
@@ -3169,24 +3162,25 @@ function buildNightModeProvinceAddonEncounter(col,row){
 }
 function buildNightModeTradeAddonEncounter(col,row){
   if(!isEncounterNightModeActive())return null;
-  if(roll(6)>2)return null;
+  var triggerRoll=roll(6);
+  if(triggerRoll>2)return null;
   var modeRoll=roll(3);
   if(modeRoll===1){
     var n=roll(4)+2;
     return {
       title:'Midnight Ambush',
-      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(224,80,80,.45);background:rgba(224,80,80,.08);"><div class="vr-type" style="color:var(--red2);">Night Mode Bonus: Midnight Ambush</div>Raiders strike from the dark route edges. Each raider is DD6 | 12 Stress.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'pirates\','+n+',\'Night Raiders\',6)">⚔ Engage Combat</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Evade</button></div></div>'
+      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(224,80,80,.45);background:rgba(224,80,80,.08);"><div class="vr-type" style="color:var(--red2);">Night Mode Bonus: Midnight Ambush (d6='+triggerRoll+', d3='+modeRoll+')</div>Raiders strike from the dark route edges. Each raider is DD6 | 12 Stress.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'pirates\','+n+',\'Night Raiders\',6)">⚔ Engage Combat</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Evade</button></div></div>'
     };
   }
   if(modeRoll===2){
     return {
       title:'Moonlit Smuggler Cell',
-      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><div class="vr-type" style="color:#d7b0ff;">Night Mode Bonus: Moonlit Smuggler Cell</div>A coded broker exchange appears beside the trade route.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess('+col+','+row+')">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery</button></div></div>'
+      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><div class="vr-type" style="color:#d7b0ff;">Night Mode Bonus: Moonlit Smuggler Cell (d6='+triggerRoll+', d3='+modeRoll+')</div>A coded broker exchange appears beside the trade route.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess('+col+','+row+')">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery</button></div></div>'
     };
   }
   return {
     title:'Nocturne Courier',
-    html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(70,196,182,.45);background:rgba(70,196,182,.08);"><div class="vr-type" style="color:var(--teal);">Night Mode Bonus: Nocturne Courier</div>A night courier offers fast mission routing and rumors.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="engageWayfarerMission('+col+','+row+')">📜 Offer a Mission</button><button class="btn btn-xs" onclick="talkToWayfarer('+col+','+row+')">💬 Talk</button></div></div>'
+    html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(70,196,182,.45);background:rgba(70,196,182,.08);"><div class="vr-type" style="color:var(--teal);">Night Mode Bonus: Nocturne Courier (d6='+triggerRoll+', d3='+modeRoll+')</div>A night courier offers fast mission routing and rumors.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="engageWayfarerMission('+col+','+row+')">📜 Offer a Mission</button><button class="btn btn-xs" onclick="talkToWayfarer('+col+','+row+')">💬 Talk</button></div></div>'
   };
 }
 const DARK_AFFLICTION_MAX_CORRUPTION=10;
@@ -10247,6 +10241,73 @@ function renderHexMap(){
         g.appendChild(more);
       }
     }
+    // ── World-state consequence overlays ─────────────────────────────────────
+    if(typeof window.getWorldStateHexOverlay==='function'){
+      const ws=window.getWorldStateHexOverlay(markerKey);
+      if(ws){
+        // Tension ring — red when tension > 0, intensity scales with value
+        if(ws.tension>0){
+          const tensionAlpha=Math.min(0.18+ws.tension*0.06,0.55);
+          const tensionStroke=ws.tension>=5?'#e05050':'#d07040';
+          const tensionRing=document.createElementNS('http://www.w3.org/2000/svg','circle');
+          tensionRing.setAttribute('cx',x);tensionRing.setAttribute('cy',y);
+          tensionRing.setAttribute('r',String(HEX_SIZE*.85));
+          tensionRing.setAttribute('fill','rgba(224,80,80,'+tensionAlpha+')');
+          tensionRing.setAttribute('stroke',tensionStroke);
+          tensionRing.setAttribute('stroke-width','1.2');
+          tensionRing.setAttribute('pointer-events','none');
+          g.appendChild(tensionRing);
+        }
+        // Control ring — faction colour tint on the hex border
+        if(ws.control){
+          const CONTROL_COLORS={rebels:'#e05050',guilds:'#e8c050',church:'#c9d6f0',empire:'#7b9aff',syndicate:'#b060d0',scholars:'#46c4b6'};
+          const cc=CONTROL_COLORS[ws.control]||'#aaaaaa';
+          const ctrlRing=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          ctrlRing.setAttribute('points',hexPoints(x,y,HEX_SIZE-1));
+          ctrlRing.setAttribute('fill','none');
+          ctrlRing.setAttribute('stroke',cc);
+          ctrlRing.setAttribute('stroke-width','2.5');
+          ctrlRing.setAttribute('opacity','0.55');
+          ctrlRing.setAttribute('pointer-events','none');
+          g.appendChild(ctrlRing);
+          // Tiny faction crest label at bottom of hex
+          const ctrlLbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+          ctrlLbl.setAttribute('x',x);ctrlLbl.setAttribute('y',y+HEX_SIZE*.72);
+          ctrlLbl.setAttribute('text-anchor','middle');ctrlLbl.setAttribute('font-size','5.5');
+          ctrlLbl.setAttribute('font-family','Cinzel,serif');ctrlLbl.setAttribute('fill',cc);
+          ctrlLbl.setAttribute('opacity','0.75');ctrlLbl.setAttribute('pointer-events','none');
+          ctrlLbl.textContent=ws.control.toUpperCase().slice(0,6);
+          g.appendChild(ctrlLbl);
+        }
+        // Recent-change pulse glow — white halo for hexes changed in the last 10 min
+        if(ws.recentChange){
+          const rcGlow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+          rcGlow.setAttribute('cx',x);rcGlow.setAttribute('cy',y);
+          rcGlow.setAttribute('r',String(HEX_SIZE*.9));
+          rcGlow.setAttribute('fill','none');
+          rcGlow.setAttribute('stroke','rgba(255,255,255,0.30)');
+          rcGlow.setAttribute('stroke-width','3');
+          rcGlow.setAttribute('pointer-events','none');
+          g.appendChild(rcGlow);
+          // "CHANGED" label
+          const rcLbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+          rcLbl.setAttribute('x',x+HEX_SIZE*.58);rcLbl.setAttribute('y',y+HEX_SIZE*.16);
+          rcLbl.setAttribute('text-anchor','middle');rcLbl.setAttribute('font-size','5.5');
+          rcLbl.setAttribute('font-family','Cinzel,serif');rcLbl.setAttribute('fill','rgba(255,255,255,0.55)');
+          rcLbl.setAttribute('pointer-events','none');
+          rcLbl.textContent='●';
+          g.appendChild(rcLbl);
+        }
+        // Safety indicator — green tint for positive safety
+        if(ws.safety>0){
+          const safeTint=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          safeTint.setAttribute('points',hexPoints(x,y,HEX_SIZE-1));
+          safeTint.setAttribute('fill','rgba(70,196,182,'+Math.min(0.05+ws.safety*0.04,0.18)+')');
+          safeTint.setAttribute('pointer-events','none');
+          g.appendChild(safeTint);
+        }
+      }
+    }
     if(selectedHex&&selectedHex===hex){
       const youRing=document.createElementNS('http://www.w3.org/2000/svg','circle');
       youRing.setAttribute('cx',x);youRing.setAttribute('cy',y);
@@ -10284,6 +10345,7 @@ function renderHexMap(){
           });
         }
         if(moved&&typeof window.autoAdvanceMissionFromProvinceHex==='function')window.autoAdvanceMissionFromProvinceHex(hex);
+        if(moved&&typeof window.triggerFactionTurn==='function')window.triggerFactionTurn();
         if(window.campaignSystem&&typeof window.campaignSystem.syncProvinceFocus==='function'){
           window.campaignSystem.syncProvinceFocus('province-click');
         }
@@ -10643,6 +10705,44 @@ function renderHexInfo(hex){
     html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong>, cannot pass this Phase. Success = passage gained.${traversalHint?('<br><span style="color:var(--teal);">Item bonus: '+traversalHint+'</span>'):''}</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" title="${traversalHint}" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'barrier')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
   }
 
+  // World-state hex history
+  if(typeof window.getWorldStateHexOverlay==='function'){
+    const wsOverlay=window.getWorldStateHexOverlay(nk);
+    if(wsOverlay&&(wsOverlay.control||wsOverlay.tension||wsOverlay.tags.length)){
+      const TENSION_LABELS=['Calm','Uneasy','Tense','Volatile','Dangerous','Explosive'];
+      const SAFETY_LABELS=['Deadly','Hostile','Risky','Neutral','Stable','Protected'];
+      const tensionLabel=TENSION_LABELS[Math.min(5,Math.max(0,wsOverlay.tension))];
+      const safetyLabel=SAFETY_LABELS[Math.min(5,Math.max(0,wsOverlay.safety+2))];
+      const CTRL_COLORS={rebels:'#e05050',guilds:'#e8c050',church:'#c9d6f0',empire:'#7b9aff',syndicate:'#b060d0',scholars:'#46c4b6'};
+      const cc=wsOverlay.control?(CTRL_COLORS[wsOverlay.control]||'var(--teal)'):'var(--muted2)';
+      html+=`<div class="npc-block" style="margin-top:.4rem;border-color:rgba(180,180,255,.35);background:rgba(180,180,255,.05);">
+        <div class="nb-label" style="color:var(--purple);">🌐 World State</div>
+        <div style="font-size:.78rem;color:var(--text2);line-height:1.6;">
+          ${wsOverlay.control?`<div>Control: <strong style="color:${cc};">${wsOverlay.control.charAt(0).toUpperCase()+wsOverlay.control.slice(1)}</strong></div>`:''}
+          <div>Tension: <strong style="color:${wsOverlay.tension>=3?'var(--red2)':wsOverlay.tension>=1?'#e8c050':'var(--teal)'}">${tensionLabel} (${wsOverlay.tension})</strong></div>
+          <div>Safety: <strong>${safetyLabel} (${wsOverlay.safety})</strong></div>
+          ${wsOverlay.tags.length?`<div>Tags: <em style="color:var(--muted2);">${wsOverlay.tags.join(', ')}</em></div>`:''}
+          ${wsOverlay.recentChange?`<div style="color:rgba(255,255,255,.6);">⬤ Recently changed</div>`:''}
+        </div>
+      </div>`;
+    }
+    // Hex history log
+    const S=window.S;
+    const wsHexes=S&&S.worldState&&S.worldState.regions&&S.worldState.regions.province?S.worldState.regions.province.hexes:{};
+    const hexHist=wsHexes[nk]&&Array.isArray(wsHexes[nk].history)?wsHexes[nk].history:[];
+    if(hexHist.length){
+      const rows=hexHist.slice(0,5).map(function(e){
+        const d=new Date(e.at);
+        const ts=d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+        const sevColor=e.severity==='high'?'var(--red2)':e.severity==='medium'?'#e8c050':'var(--muted2)';
+        return `<div style="border-top:1px solid var(--border2);padding:.2rem 0;font-size:.76rem;"><span style="color:${sevColor};">●</span> <strong>${escapeHtmlLite?escapeHtmlLite(e.title):e.title}</strong><br><span style="color:var(--muted2);font-size:.72rem;">${ts} — ${escapeHtmlLite?escapeHtmlLite(e.detail):e.detail}</span></div>`;
+      }).join('');
+      html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(180,180,255,.25);background:rgba(180,180,255,.04);">
+        <div class="nb-label" style="color:var(--purple);">📜 Hex History</div>
+        <div style="line-height:1.55;">${rows}</div>
+      </div>`;
+    }
+  }
   // Notes
   html+=`<div style="margin-top:.5rem;border-top:1px solid var(--border);padding-top:.5rem;">
     <div class="sub-label">📝 Hex Notes</div>
@@ -11627,6 +11727,7 @@ function rollHexEncounter(col,row){
     }else{
       showNotif('Encounter rolled, but output panel was not found. Reopen the hex and try again.','warn');
     }
+    showNotif('Province encounter roll: d6='+vr+'.', 'info');
     // Broadcast result summary to all campaign players so the whole party sees it.
     if(window.campaignSystem&&typeof window.campaignSystem.broadcastRollResult==='function'){
       const hexObj2=mapData.find(h=>h.col===col&&h.row===row);
@@ -11695,6 +11796,7 @@ function rollTradeRouteEncounter(col,row){
     }else{
       showNotif('Trade encounter rolled, but output panel was not found. Reopen this hex and try again.','warn');
     }
+    showNotif('Trade encounter roll: d10='+r+'.', 'info');
     if(nightAddon)showNotif('Night Mode bonus encounter triggered: '+nightAddon.title+'.','info');
     // Broadcast trade result to all campaign players.
     if(window.campaignSystem&&typeof window.campaignSystem.broadcastRollResult==='function'){
@@ -14646,6 +14748,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 
 <!-- SCRIPT INCLUDES FOR NEW SYSTEMS -->
+<script defer src="./world-consequence.js"></script>
 <script defer src="./faction-system.js"></script>
 <script defer src="./intro-system.js"></script>
 <script defer src="./storyline-choices-system.js"></script>

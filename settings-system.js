@@ -259,7 +259,7 @@
 
             <div style="margin-top:.6rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">
               <button id="manualRollModeBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleManualRollMode()">Manual Roll Mode: ${Settings.manualRollMode ? 'On' : 'Off'}</button>
-              <span class="campaign-muted">When enabled, New Sun auto-roll scenes prompt for Success or Failure using your physical dice.</span>
+              <span class="campaign-muted">When enabled, all roll calls prompt for your physical dice result entry (d4, d6, d8, d10, d12, d20).</span>
             </div>
 
             <div style="margin-top:.65rem;border-top:1px solid var(--border2);padding-top:.55rem;">
@@ -713,8 +713,8 @@
     if (typeof showNotif === 'function') {
       showNotif(
         Settings.manualRollMode
-          ? 'Manual Roll Mode enabled: New Sun roll scenes now use Success/Failure prompts.'
-          : 'Manual Roll Mode disabled: New Sun roll scenes use auto-rolls.',
+          ? 'Manual Roll Mode enabled: all roll calls now prompt for manual dice entry.'
+          : 'Manual Roll Mode disabled: all roll calls now use auto-rolls.',
         'info'
       );
     }

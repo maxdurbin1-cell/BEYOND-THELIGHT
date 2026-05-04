@@ -495,6 +495,309 @@ const NEW_SUN_METHOD_VECTORS = [
   }
 ];
 
+// ── SIDE STORY SYSTEM ─────────────────────────────────────────────────────────
+// Short 3-beat character encounters reflecting how the world lives in the last
+// 100 days.  Failing a beat closes the branch; succeeding continues it.
+// Some only spawn on specific days/phases.  Hostile actions can trigger combat.
+// Outcomes write consequence records and hint at the wayfarer's final fate.
+
+const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
+  {
+    id: 'dust_wizard',
+    characterType: 'Wizard',
+    name: 'Erasmus the Flicker',
+    spawnDay: [18, 55], spawnPhases: [1, 2],
+    intro: 'A dust-wizard sits cross-legged atop a crumbling waypost, etching equations in the air with a burning fingertip.',
+    fateHint: 'Those who helped him carry a strange calm in the final hour.',
+    beats: [
+      { id: 'meet',
+        prompt: 'Erasmus looks up. "Name your angle. Everyone wants something from a man who can see the last sunrise." How do you approach him?',
+        actions: {
+          lead:    { tone:'positive',   label:'Offer alliance',                  result:'He nods. "Allies are currency now. I accept."',                                                outcome:'advance',  consequence:{ renown:1 } },
+          spirit:  { tone:'positive',   label:'Be honest about the stakes',      result:'He closes his eyes. "Finally, someone without a script."',                                   outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Ask about his equations',          result:'He brightens. "You can actually read these? Sit."',                                           outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Demand his knowledge',            result:'He stiffens. "I respond to interest, not orders." He speaks—grudgingly.',                    outcome:'advance',  consequence:{} },
+          defend:  { tone:'neutral',    label:'Sit quietly and wait',            result:'"Patience. Good sign." He begins talking after a long silence.',                             outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Shove the post to get attention', result:'He drops off furious. "That earns you nothing." He turns away. Branch closed.',             outcome:'fail',     consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Fire into the air as greeting',   result:'His wards detonate. He vanishes. Branch closed.',                                             outcome:'fail',     consequence:{} },
+          body:    { tone:'neutral',    label:'Block the road so he must talk',  result:'He sighs. "Persistence. I respect it weakly." He cooperates, annoyed.',                     outcome:'advance',  consequence:{} }
+        }
+      },
+      { id: 'share',
+        prompt: 'Erasmus shares a partial sun-ignition formula but insists you help retrieve a stolen lens-prism first.',
+        actions: {
+          lead:    { tone:'positive',   label:'Negotiate a fair trade',          result:'"Fairness. Rare." He maps the prism location generously.',                                    outcome:'advance',  consequence:{ renown:1, tmw:1 } },
+          spirit:  { tone:'positive',   label:'Promise to return it safely',     result:'He presses the map into your hands. "Oaths work on me. Don\'t waste it."',                  outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Verify the formula first',        result:'"Good. You checked. The formula is genuine."',                                               outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Agree but plan to keep the prism',result:'He sees through it. "Your face is loud." He gives a partial map only.',                     outcome:'advance',  consequence:{ worldTilt:1 } },
+          defend:  { tone:'neutral',    label:'Guard him while he finishes',     result:'Nothing attacks. He finishes anyway. "Appreciated."',                                         outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Demand the formula without the errand',result:'"Violence is someone else\'s tool." He burns the partial formula. Branch closed.',      outcome:'fail',     consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Threaten him with a weapon',      result:'He summons a ward and screams for help. You must fight to leave.',                            outcome:'combat',   consequence:{ worldTilt:1 } },
+          body:    { tone:'neutral',    label:'Carry his gear to show good faith',result:'"Gesture noted." He draws the full map.',                                                    outcome:'advance',  consequence:{} }
+        }
+      },
+      { id: 'final',
+        prompt: 'Erasmus extends a hand. "One last equation. Take it and the sun might remember someone tried."',
+        actions: {
+          lead:    { tone:'positive',   label:'Accept and vow to carry it',      result:'He smiles slowly. "Then the New Sun has a wayfarer."',                                       outcome:'complete', consequence:{ renown:2, tmw:2 } },
+          spirit:  { tone:'positive',   label:'Ask if he will survive the ending',result:'"Does it matter?" He presses the equation into your palm. "Go."',                           outcome:'complete', consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Study it immediately',            result:'You absorb it fully. Something shifts.',                                                       outcome:'complete', consequence:{ tmw:1 } },
+          control: { tone:'neutral',    label:'Copy it and give him a fake',     result:'"I know." He gives you the real one anyway. "Don\'t waste it."',                             outcome:'complete', consequence:{} },
+          defend:  { tone:'neutral',    label:'Memorize it for safety',          result:'Solid. It will not be lost.',                                                                  outcome:'complete', consequence:{} },
+          strike:  { tone:'aggressive', label:'Knock him out and take his notes',result:'He lands hard. Notes scatter and burn. Guilt and nothing else.',                              outcome:'fail',     consequence:{ worldTilt:2 } },
+          shoot:   { tone:'aggressive', label:'Shoot near his feet to rush him', result:'He drops everything and runs. Ends badly.',                                                   outcome:'fail',     consequence:{ worldTilt:1 } },
+          body:    { tone:'neutral',    label:'Lift him up as you say goodbye',  result:'"Strong hands, soft enough." He vanishes into the dust.',                                     outcome:'complete', consequence:{ tmw:1 } }
+        }
+      }
+    ]
+  },
+  {
+    id: 'sea_priest',
+    characterType: 'Priest',
+    name: 'Father Rook of the Drowned Choir',
+    spawnDay: [42, 75], spawnPhases: [0, 3],
+    intro: 'A waterlogged priest stands at the sea wall, reading last rites to the waves as if the tide can be forgiven.',
+    fateHint: 'Wayfarers who showed him mercy found the sea parted once when they needed it most.',
+    beats: [
+      { id: 'meet',
+        prompt: 'Father Rook turns. "The sea is confessing. Would you listen, or interrupt its dying?" What do you do?',
+        actions: {
+          lead:    { tone:'positive',   label:'Listen with him',                 result:'He places a hand over his heart. "One more witness. Good."',                                 outcome:'advance',  consequence:{ tmw:1 } },
+          spirit:  { tone:'positive',   label:'Ask what the sea is confessing',  result:'"That it carried too many bodies too willingly." He seems lighter.',                        outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Ask about tide cycles and the New Sun',result:'"You\'re looking for the lens-path." He opens his codex.',                              outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Say you don\'t have time for religion',result:'He closes the codex slowly. "Then I\'ll help you quickly." No warmth.',               outcome:'advance',  consequence:{} },
+          defend:  { tone:'neutral',    label:'Watch for ambush while he prays', result:'He notices. "You guard even the grieving. Fair enough."',                                    outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Strike the wall to interrupt him',result:'He grabs your wrist. "Leave." Branch closed.',                                               outcome:'fail',     consequence:{} },
+          shoot:   { tone:'aggressive', label:'Shoot the codex out of his hands',result:'Pages fall into the sea. He refuses further contact. Branch closed.',                       outcome:'fail',     consequence:{ worldTilt:1 } },
+          body:    { tone:'neutral',    label:'Kneel at the sea wall beside him',result:'He glances over. "You knelt. That\'s sufficient prayer."',                                   outcome:'advance',  consequence:{} }
+        }
+      },
+      { id: 'confession',
+        prompt: 'Rook asks you to carry a sealed letter to a survivor of the Drowned Choir massacre. "They need to know it wasn\'t them."',
+        actions: {
+          lead:    { tone:'positive',   label:'Accept and promise to find them', result:'"Then go. Before the tide changes."',                                                         outcome:'advance',  consequence:{ renown:1 } },
+          spirit:  { tone:'positive',   label:'Ask what happened to the Choir',  result:'He tells you quietly. Something shifts in your understanding of the sea routes.',           outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Read the letter before agreeing', result:'"You read it. Good. Carry it knowing the weight."',                                          outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Take it but plan to discard it',  result:'He doesn\'t know. The letter is heavy anyway.',                                               outcome:'advance',  consequence:{ worldTilt:1 } },
+          defend:  { tone:'neutral',    label:'Guard him instead',               result:'"I am not the one who needs guarding. The letter is."',                                      outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Refuse and shove him aside',      result:'He falls. Does not fight back. "I see." Branch closed with shame.',                          outcome:'fail',     consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Shoot at the water to rush him',  result:'"This is what I prayed would not happen." Branch closed.',                                   outcome:'fail',     consequence:{ worldTilt:1 } },
+          body:    { tone:'neutral',    label:'Press the letter to your chest',  result:'He bows once. "The sea sends you with it."',                                                 outcome:'advance',  consequence:{ tmw:1 } }
+        }
+      },
+      { id: 'reckoning',
+        prompt: 'The survivor is a child hiding in a net house. The letter is their mother\'s apology.',
+        actions: {
+          lead:    { tone:'positive',   label:'Stay while they read it',         result:'They cry quietly. Then: "Thank you." The route feels lighter.',                              outcome:'complete', consequence:{ tmw:2, renown:1 } },
+          spirit:  { tone:'positive',   label:'Read it aloud for them',          result:'Your voice breaks once. They hold the letter for hours.',                                    outcome:'complete', consequence:{ tmw:2 } },
+          mind:    { tone:'positive',   label:'Document it as evidence',         result:'The truth is preserved. The child gets the letter too.',                                     outcome:'complete', consequence:{ tmw:1, renown:1 } },
+          control: { tone:'neutral',    label:'Make the child feel they owe you',result:'They stare at you flatly. The debt sours the moment.',                                       outcome:'complete', consequence:{ worldTilt:1 } },
+          defend:  { tone:'neutral',    label:'Check the route before leaving',  result:'Clear. You leave the letter safely.',                                                         outcome:'complete', consequence:{} },
+          strike:  { tone:'aggressive', label:'Demand the child reveal other survivors',result:'They say nothing. The letter stays undelivered.',                                      outcome:'fail',     consequence:{ worldTilt:2 } },
+          shoot:   { tone:'aggressive', label:'Fire a shot outside to clear watchers',result:'The child bolts. You lose them entirely.',                                               outcome:'fail',     consequence:{ worldTilt:1 } },
+          body:    { tone:'neutral',    label:'Hand over the letter without a word',result:'The child takes it. No words needed.',                                                     outcome:'complete', consequence:{ tmw:1 } }
+        }
+      }
+    ]
+  },
+  {
+    id: 'android_courier',
+    characterType: 'Android',
+    name: 'CERIS/7 (Decommissioned Relay Unit)',
+    spawnDay: [30, 70], spawnPhases: [0, 1, 2, 3],
+    intro: 'A bipedal android stands frozen at a crossroads, indicator cycling amber. A relay unit delivering messages to destinations that no longer exist.',
+    fateHint: 'CERIS/7 appears in some prophecy records delivering a message to "the one who arrives last."',
+    beats: [
+      { id: 'boot',
+        prompt: 'CERIS/7 activates. "Pending delivery. Recipient deceased. Purpose: unresolved. Awaiting instruction." What do you do?',
+        actions: {
+          lead:    { tone:'positive',   label:'Accept the message as next of kin',result:'"Acknowledged. Transferring." Old route data inside.',                                       outcome:'advance',  consequence:{ tmw:1 } },
+          spirit:  { tone:'positive',   label:'Ask what it wants now',           result:'"Want is not a parameter I was given." Long pause. "But if I could define one…"',           outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Diagnose for useful data streams', result:'Route archives, message history, one unencrypted emergency log.',                           outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Command it as a tool',            result:'"Syntax accepted." It follows. Silent for hours.',                                            outcome:'advance',  consequence:{} },
+          defend:  { tone:'neutral',    label:'Stand between it and a patrol',   result:'Patrol passes. CERIS/7: "Unnecessary but logged."',                                          outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Strike it to test defenses',      result:'"Threat registered." Defensive arc deploys at lethal setting. Combat.',                     outcome:'combat',   consequence:{} },
+          shoot:   { tone:'aggressive', label:'Shoot it to extract memory',      result:'Critical damage. Memory core corrupted. All data lost. Branch closed.',                      outcome:'fail',     consequence:{ worldTilt:1 } },
+          body:    { tone:'neutral',    label:'Carry it to a safer location',    result:'"Gratitude logged." It shares the message freely.',                                           outcome:'advance',  consequence:{ tmw:1 } }
+        }
+      },
+      { id: 'purpose',
+        prompt: 'CERIS/7 has completed its last delivery. "I have no further task assignment. Is continuation advisable?"',
+        actions: {
+          lead:    { tone:'positive',   label:'Assign it: witness the ending for the record',result:'"New assignment accepted: Final Archive." It begins recording everything.',        outcome:'advance',  consequence:{ renown:1, tmw:1 } },
+          spirit:  { tone:'positive',   label:'Say even machines deserve to see the New Sun',result:'"Sentiment logged as: irrational and meaningful." It doesn\'t leave your side.',outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Ask it to map remaining relay towers',result:'Agrees efficiently. You gain route intelligence.',                                        outcome:'advance',  consequence:{ tmw:1 } },
+          control: { tone:'neutral',    label:'Tell it to do whatever you say until the end',result:'"Acknowledged." Total obedience. Useful, unsettling.',                           outcome:'advance',  consequence:{} },
+          defend:  { tone:'neutral',    label:'Station it to guard a chokepoint',result:'It guards efficiently. Will hold until ordered to stop.',                                    outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Tell it to stop — then strike it',result:'"Hostile action log—" It falls. Something feels wrong. Branch closed.',                    outcome:'fail',     consequence:{ worldTilt:2 } },
+          shoot:   { tone:'aggressive', label:'Put it out of its misery',        result:'It doesn\'t resist. "Final log: wayfarer chose mercy." Screen dark. Branch closed.',        outcome:'fail',     consequence:{ worldTilt:1 } },
+          body:    { tone:'neutral',    label:'Hold out a hand',                 result:'It looks for three seconds. "Handshake protocol loaded." It takes it.',                     outcome:'advance',  consequence:{ tmw:1 } }
+        }
+      },
+      { id: 'archive',
+        prompt: 'CERIS/7 transmits everything before its battery reaches 0. "Note: wayfarer — you changed things."',
+        actions: {
+          lead:    { tone:'positive',   label:'Say thank you',                   result:'"You are welcome." Its log becomes a legend in the region.',                                 outcome:'complete', consequence:{ renown:2, tmw:1 } },
+          spirit:  { tone:'positive',   label:'Tell it the New Sun will remember it',result:'"Confirmation not expected. Yet appreciated." It shuts down, if that\'s smiling.',      outcome:'complete', consequence:{ tmw:2 } },
+          mind:    { tone:'positive',   label:'Transfer its archive to a backup device',result:'The record will outlast the ending.',                                                  outcome:'complete', consequence:{ tmw:1, renown:1 } },
+          control: { tone:'neutral',    label:'Extract only the tactical data',  result:'Efficient. The rest is lost.',                                                                outcome:'complete', consequence:{} },
+          defend:  { tone:'neutral',    label:'Guard it until the battery is empty',result:'You stay four hours. Worth it.',                                                           outcome:'complete', consequence:{ tmw:1 } },
+          strike:  { tone:'aggressive', label:'Smash it before the archive transmits',result:'Gone. All of it. The world is quieter and poorer.',                                     outcome:'complete', consequence:{ worldTilt:2 } },
+          shoot:   { tone:'aggressive', label:'Shoot the transmitter to block rivals',result:'You receive only fragments.',                                                            outcome:'complete', consequence:{ worldTilt:1 } },
+          body:    { tone:'neutral',    label:'Sit with it as it transmits',     result:'CERIS/7 notes you stayed. Its last message is addressed to you by name.',                   outcome:'complete', consequence:{ tmw:2 } }
+        }
+      }
+    ]
+  },
+  {
+    id: 'cult_of_ash',
+    characterType: 'Cult',
+    name: 'The Ash Circle (Day-Eaters)',
+    spawnDay: [50, 89], spawnPhases: [3],
+    intro: 'A ring of robed figures chants around a pyre of sun-symbols. They believe extinguishing the New Sun is the only salvation.',
+    fateHint: 'Those who dismantled the Ash Circle early find fewer obstacles in the final days.',
+    beats: [
+      { id: 'encounter',
+        prompt: 'The Ash Circle notices you. "Join us in the final dark. It\'s gentler than the light."',
+        actions: {
+          lead:    { tone:'positive',   label:'Engage diplomatically to understand them',result:'They speak. Their origin: a founding family who lost everything to a false dawn.',    outcome:'advance',  consequence:{ tmw:1 } },
+          spirit:  { tone:'positive',   label:'Ask why they fear the New Sun',   result:'"We don\'t fear it. We mourn what it replaces." Real grief, dangerous method.',            outcome:'advance',  consequence:{} },
+          mind:    { tone:'positive',   label:'Analyze their ritual for manipulation',result:'Classic dread-induction framing. You can counter-argue from inside.',                   outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Pretend to join and gather info',  result:'You get inside their circle. What you learn is disturbing.',                               outcome:'advance',  consequence:{ worldTilt:1 } },
+          defend:  { tone:'neutral',    label:'Refuse without engaging',         result:'"Then you\'re a threat." They circle you. Proceed carefully.',                               outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Strike the robed figure',         result:'The circle closes fast. You need to fight your way out.',                                   outcome:'combat',   consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Shoot the pyre to scatter them',  result:'They scatter, then reform angrier. Will become hostile in the region.',                     outcome:'advance',  consequence:{ worldTilt:2 } },
+          body:    { tone:'neutral',    label:'Block the extended hand and stare them down',result:'"You have conviction." They respect it, barely. You can speak.',                 outcome:'advance',  consequence:{} }
+        }
+      },
+      { id: 'doctrinal',
+        prompt: '"Help us dismantle the relay before Day 89 or it becomes theirs."',
+        actions: {
+          lead:    { tone:'positive',   label:'Offer to reform the relay instead',result:'Two members break off to support you. The Keeper is furious.',                             outcome:'advance',  consequence:{ renown:1, tmw:1 } },
+          spirit:  { tone:'positive',   label:'Acknowledge grief and decline',   result:'They lower the pyre. "Fine. But remember this choice."',                                   outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Use their own doctrine against them',result:'Three members leave the circle. The Keeper grows volatile.',                              outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Agree then sabotage their sabotage',result:'You slow them. The relay survives. The Circle suspects betrayal.',                        outcome:'advance',  consequence:{ worldTilt:1 } },
+          defend:  { tone:'neutral',    label:'Guard the relay yourself in silence',result:'They test your perimeter twice. You hold at cost of exhaustion.',                        outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Attack the Keeper directly',      result:'The Circle mobilizes. Fight.',                                                               outcome:'combat',   consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Suppress fire above their heads', result:'They flee then return at night in greater numbers.',                                         outcome:'advance',  consequence:{ worldTilt:2 } },
+          body:    { tone:'neutral',    label:'Physically push the Keeper back', result:'A scuffle. You hold them off. The Circle backs down, humiliated but intact.',               outcome:'advance',  consequence:{} }
+        }
+      },
+      { id: 'end_of_ash',
+        prompt: 'Dawn approaches. The Ash Circle makes its final move. Their fire has reached the relay structure.',
+        actions: {
+          lead:    { tone:'positive',   label:'Rally bystanders to protect the relay',result:'Eleven locals respond. The circle is outnumbered and stands down.',                    outcome:'complete', consequence:{ renown:2, tmw:2 } },
+          spirit:  { tone:'positive',   label:'Walk into the fire circle and speak',result:'Two hesitate. Four drop their torches. The Keeper extinguishes the last flame.',         outcome:'complete', consequence:{ tmw:2 } },
+          mind:    { tone:'positive',   label:'Cut relay power to fake its death',result:'They believe it\'s dead and leave. You restore it later.',                                  outcome:'complete', consequence:{ tmw:1, renown:1 } },
+          control: { tone:'neutral',    label:'Expose the Keeper\'s funding to the others',result:'Splinter. Half the Circle turns on the Keeper. Relay saved.',                     outcome:'complete', consequence:{ worldTilt:1, tmw:1 } },
+          defend:  { tone:'neutral',    label:'Take the first hit and don\'t fall',result:'The Circle hesitates. Your resilience costs them the moment. Relay holds.',              outcome:'complete', consequence:{} },
+          strike:  { tone:'aggressive', label:'Attack the Keeper to scatter the circle',result:'Brutal. Effective. Three Circle members hurt. Relay holds. Guilt follows.',         outcome:'complete', consequence:{ worldTilt:2, renown:1 } },
+          shoot:   { tone:'aggressive', label:'Drive them off with suppressing fire',result:'They run. Relay intact but scorched. Word spreads of your violence.',                   outcome:'complete', consequence:{ worldTilt:2 } },
+          body:    { tone:'neutral',    label:'Shield the relay with your body', result:'You take burns stopping the torch. The relay lives. So do you, barely.',                   outcome:'complete', consequence:{ tmw:2, worldTilt:1 } }
+        }
+      }
+    ]
+  },
+  {
+    id: 'giant_ferryman',
+    characterType: 'Giant',
+    name: 'Olonn the Bridge-Warden',
+    spawnDay: [15, 60], spawnPhases: [0, 1],
+    intro: 'A three-meter figure sits on a bridge, toll-book in hand, refusing passage until the "sun debt" is paid.',
+    fateHint: 'Wayfarers who negotiated with Olonn found key routes still open when all others were cut.',
+    beats: [
+      { id: 'bridge',
+        prompt: 'Olonn holds up a massive hand. "Toll. Pay the sun-debt or cross nowhere today."',
+        actions: {
+          lead:    { tone:'positive',   label:'Ask what the sun-debt is',        result:'"Nobody asks that." He explains: a village drowned when the tide shifted. He\'s been collecting.',outcome:'advance',consequence:{ tmw:1 } },
+          spirit:  { tone:'positive',   label:'Acknowledge the loss without judgment',result:'"You know grief." He waves you through.',                                                outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Offer a passage-deed instead of coin',result:'"Paper that promises cross-routes? Yes. That is worth crossing for."',                  outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Slip past while he\'s distracted',result:'He is not distracted. He catches you by the collar. "Back. Pay or talk."',                  outcome:'advance',  consequence:{} },
+          defend:  { tone:'neutral',    label:'Show weapons as a bargaining chip',result:'"Do you think I fear a weapon?" Pause. "I don\'t. But you have nerve. Pass."',             outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Try to move him by force',        result:'Giants do not move easily. He throws you twelve meters. Combat if you persist.',            outcome:'combat',   consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Shoot at his feet to intimidate', result:'"Interesting." He sits down. "Now we talk honestly. About your debts."',                   outcome:'advance',  consequence:{ worldTilt:1 } },
+          body:    { tone:'positive',   label:'Offer labor on the bridge as toll',result:'"A worker. Good." You pass after two hours of honest work.',                                outcome:'advance',  consequence:{ tmw:1 } }
+        }
+      },
+      { id: 'ledger',
+        prompt: 'Olonn shows his toll ledger. "Every person who crossed owes a sun-debt. The ending will not be clean."',
+        actions: {
+          lead:    { tone:'positive',   label:'Offer to help settle it one name at a time',result:'"All of them?" He stares. "Then you need a bigger book." He lends you his.',      outcome:'advance',  consequence:{ renown:1, tmw:1 } },
+          spirit:  { tone:'positive',   label:'Ask if forgiveness is also an option',result:'"I\'ve thought about that." Long silence. "Maybe yes." He marks three names off.',      outcome:'advance',  consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Audit the ledger for errors',     result:'Twelve duplicates. He crosses them out solemnly.',                                           outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Offer to take the ledger',        result:'"It\'s not yours to carry." He keeps it but records your name differently.',                outcome:'advance',  consequence:{} },
+          defend:  { tone:'neutral',    label:'Ask who owes the largest debt',   result:'He names a faction captain you\'ve already dealt with. Interesting.',                       outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Tear a page out as forgiveness',  result:'"That\'s my ledger." He is angry. Combat.',                                                  outcome:'combat',   consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Threaten to burn the ledger',     result:'"Then the debt transfers to you." He is completely serious.',                                outcome:'advance',  consequence:{ worldTilt:2 } },
+          body:    { tone:'neutral',    label:'Help carry it to a safer place',  result:'"Good giant-sense for a small one."',                                                         outcome:'advance',  consequence:{ tmw:1 } }
+        }
+      },
+      { id: 'crossing',
+        prompt: 'Day 89. Every road is flooded except this bridge. Olonn opens the gate — but a mob is behind you.',
+        actions: {
+          lead:    { tone:'positive',   label:'Negotiate space for the most vulnerable first',result:'Olonn agrees. "Fair sorting. Bridge holds two more hours."',                   outcome:'complete', consequence:{ renown:2, tmw:2 } },
+          spirit:  { tone:'positive',   label:'Let the mob through alongside you',result:'Chaotic but everyone makes it. Olonn watches, nodding.',                                   outcome:'complete', consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Calculate weight and space the crossing',result:'No injuries. Olonn: "You understand bridges."',                                       outcome:'complete', consequence:{ tmw:1, renown:1 } },
+          control: { tone:'neutral',    label:'Go through alone and seal it',    result:'You cross safe. The mob is cut off. You carry that.',                                        outcome:'complete', consequence:{ worldTilt:2 } },
+          defend:  { tone:'neutral',    label:'Hold the mob while Olonn guides them',result:'Controlled, difficult, effective.',                                                       outcome:'complete', consequence:{} },
+          strike:  { tone:'aggressive', label:'Push through the mob by force',   result:'People fall. Some are hurt. The crossing happens. Olonn won\'t look at you.',              outcome:'complete', consequence:{ worldTilt:2 } },
+          shoot:   { tone:'aggressive', label:'Fire into the air to clear a path',result:'Half scatter. Half panics on the bridge. Dangerous.',                                      outcome:'complete', consequence:{ worldTilt:2 } },
+          body:    { tone:'positive',   label:'Carry those who can\'t walk across',result:'You carry six. Olonn carries four. The bridge holds.',                                    outcome:'complete', consequence:{ tmw:2, renown:1 } }
+        }
+      }
+    ]
+  },
+  {
+    id: 'mystic_cartographer',
+    characterType: 'Mystic',
+    name: 'Ysolde the Chart-Speaker',
+    spawnDay: [25, 65], spawnPhases: [2, 3],
+    intro: 'A cloaked mystic traces glowing lines across a blank map that reveal themselves as you approach — recording the world\'s final topography by feel.',
+    fateHint: 'Ysolde\'s charts appeared in survivors\' hands decades later, already showing where the New Sun rose.',
+    beats: [
+      { id: 'introduction',
+        prompt: 'Ysolde does not look up. "I\'ve been expecting the sound of your footsteps. Sit. I need to finish this quadrant."',
+        actions: {
+          lead:    { tone:'positive',   label:'Sit and offer knowledge of the region',result:'She incorporates it. The chart expands.',                                               outcome:'advance',  consequence:{ tmw:1 } },
+          spirit:  { tone:'positive',   label:'Ask what she sees that others don\'t',result:'"Endings move. Most people can\'t watch without wanting to stop them." She shows you a layer you won\'t forget.',outcome:'advance',consequence:{ tmw:2 } },
+          mind:    { tone:'positive',   label:'Cross-reference with your own routes',result:'"Finally someone literate." The combined map is better.',                               outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Demand the chart immediately',    result:'"You\'ll smear the ink." She hands a fraction of the original.',                             outcome:'advance',  consequence:{} },
+          defend:  { tone:'neutral',    label:'Stand watch while she works',     result:'She finishes faster. "Useful company."',                                                      outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Grab her wrist',                 result:'"Let go." The glow bleeds from the map. She will not continue. Branch closed.',              outcome:'fail',     consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Shoot near her to test her power',result:'A ward deflects it. She continues. No longer trusts you.',                                  outcome:'advance',  consequence:{ worldTilt:1 } },
+          body:    { tone:'positive',   label:'Help hold down map edges against wind',result:'"Perceptive." She marks your position as a waypoint.',                                 outcome:'advance',  consequence:{ tmw:1 } }
+        }
+      },
+      { id: 'the_prediction',
+        prompt: 'Ysolde shows you a section that marks your route — with a dark mark where someone will be betrayed.',
+        actions: {
+          lead:    { tone:'positive',   label:'Ask who placed it and how to avoid it',result:'"You placed it. Days ago. And you can avoid it — barely."',                            outcome:'advance',  consequence:{ tmw:1 } },
+          spirit:  { tone:'positive',   label:'Ask if she sees your end personally',result:'"I only see where, not whether." She marks a second point: "There. That\'s where you turn."',outcome:'advance',consequence:{ tmw:1 } },
+          mind:    { tone:'positive',   label:'Study the mark for tactical data', result:'A specific hex noted. Avoidance prepared.',                                                 outcome:'advance',  consequence:{} },
+          control: { tone:'neutral',    label:'Ask if the mark can be erased',   result:'"Probability, not fate." She erases it. "Now you owe it your attention."',                  outcome:'advance',  consequence:{} },
+          defend:  { tone:'neutral',    label:'Commit to guarding against the betrayal',result:'"Vigilance is worth more than prophecy." She approves.',                             outcome:'advance',  consequence:{} },
+          strike:  { tone:'aggressive', label:'Tear the section showing your route',result:'Ink bleeds. "You don\'t like your story." Branch compromised.',                          outcome:'fail',     consequence:{ worldTilt:1 } },
+          shoot:   { tone:'aggressive', label:'Fire at the dark mark to "remove it"',result:'"You can\'t shoot geography." She folds the chart away. Branch closed.',               outcome:'fail',     consequence:{} },
+          body:    { tone:'neutral',    label:'Run the route to verify it',      result:'You return with confirmations. She updates two corrections. "Useful."',                     outcome:'advance',  consequence:{ tmw:1 } }
+        }
+      },
+      { id: 'final_chart',
+        prompt: 'Ysolde completes the map. It shows the New Sun\'s rising point. "It\'s in none of the places the others predicted. You should know first."',
+        actions: {
+          lead:    { tone:'positive',   label:'Organize an immediate push',      result:'"Go. But quietly." The route opens.',                                                         outcome:'complete', consequence:{ renown:2, tmw:2 } },
+          spirit:  { tone:'positive',   label:'Ask her to come with you',        result:'"I\'m already there." She hands you the map and stays where she is, smiling.',              outcome:'complete', consequence:{ tmw:2 } },
+          mind:    { tone:'positive',   label:'Copy coordinates and distribute', result:'Seven groups receive them. The New Sun has seven witnesses.',                                outcome:'complete', consequence:{ tmw:1, renown:2 } },
+          control: { tone:'neutral',    label:'Keep them secret for your faction',result:'"That\'s your choice. I hoped differently."',                                              outcome:'complete', consequence:{ worldTilt:1 } },
+          defend:  { tone:'neutral',    label:'Destroy your copy after memorizing',result:'No intercepts. Smart and paranoid in equal measure.',                                     outcome:'complete', consequence:{ tmw:1 } },
+          strike:  { tone:'aggressive', label:'Strike her and take all her charts',result:'She phases out. You have the map. The air tastes of ash.',                                outcome:'complete', consequence:{ worldTilt:3 } },
+          shoot:   { tone:'aggressive', label:'Shoot warning to stop her sharing',result:'She freezes. "You\'re frightened. Honest at least."',                                     outcome:'complete', consequence:{ worldTilt:2, tmw:1 } },
+          body:    { tone:'positive',   label:'Help pack her charts before leaving',result:'She marks one extra route in your notes: "In case."',                                    outcome:'complete', consequence:{ tmw:2, renown:1 } }
+        }
+      }
+    ]
+  }
+];
+
 const NEW_SUN_REGION_TARGETS = {
   province: 10,
   sea: 20,
@@ -3234,6 +3537,18 @@ function getSolarCycleMarkerRollProfile(approach, sc, markerToken) {
   };
 }
 
+// Snap a raw number to the nearest valid Dread Die in the chain [4,6,8,10,12,20].
+function snapToValidDreadDie(n) {
+  var chain = [4, 6, 8, 10, 12, 20];
+  var v = Math.max(4, Number(n) || 4);
+  var best = chain[0];
+  for (var i = 0; i < chain.length; i++) {
+    if (chain[i] <= v) best = chain[i];
+    else break;
+  }
+  return best;
+}
+
 function rollSolarCycleContest(stat, dreadDie) {
   var die = getSolarCycleActionDie(stat);
   var actionRoll = (typeof explodingRoll === 'function') ? explodingRoll(die) : { total: roll(die), exploded: false };
@@ -4981,6 +5296,14 @@ function getSolarCycleQuestScheduler(sc) {
   if (!qs.regionPostedCount || typeof qs.regionPostedCount !== 'object') qs.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
   if (typeof qs.lastSpawnDay !== 'number') qs.lastSpawnDay = -1;
   if (typeof qs.lastFailureBranchDay !== 'number') qs.lastFailureBranchDay = -1;
+  // Seed one unique restoration method per run (picked once, never changes).
+  if (typeof qs.restorationMethodId !== 'string' || !qs.restorationMethodId) {
+    var _methodIds = NEW_SUN_METHOD_VECTORS.map(function (m) { return m.id; });
+    var _seed = seedSolarCycleMix(state, Number(qs.questCounter || 0) + 77);
+    qs.restorationMethodId = _methodIds[_seed % _methodIds.length] || _methodIds[0];
+    qs.restorationQuestPosted = false;
+  }
+  if (typeof qs.restorationQuestPosted !== 'boolean') qs.restorationQuestPosted = false;
   return qs;
 }
 
@@ -5159,6 +5482,13 @@ function createSolarCycleSchedulerQuest(sc, region) {
     quest.title = titleParts.join(' ');
   }
   quest.threadRootId = String(quest.id || '');
+  // Mark exactly one quest per run as the main restoration investigation.
+  if (!qs.restorationQuestPosted && String(method.id) === String(qs.restorationMethodId || '')) {
+    quest.isRestorationLead = true;
+    quest.title = '[Restoration Path] ' + String(quest.title);
+    quest.stakesText = 'This is your primary lead to restore the New Sun this cycle. Succeed here to unlock the ending.';
+    qs.restorationQuestPosted = true;
+  }
   applySolarCycleNpcMemoryToQuest(state, quest);
   return quest;
 }
@@ -5409,6 +5739,10 @@ function spawnSolarCycleSchedulerQuests(sc, force) {
       showNotif('New Sun quest spawned: ' + quest.title + ' at ' + quest.locationLabel + ' (Day ' + Number(quest.startDay || 0) + '-' + Number(quest.endDay || 0) + ').', 'info');
     }
   }
+  // Opportunistically try to spawn a world character side story on new quest days
+  if (typeof maybeSpawnSolarCycleSideStory === 'function') {
+    try { maybeSpawnSolarCycleSideStory(state); } catch (_sideStoryErr) { /* non-critical */ }
+  }
 }
 
 function maybeSpawnSolarCycleOpportunisticQuest(sc, sourceQuest) {
@@ -5616,6 +5950,12 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     return false;
   }
 
+  // If the quest was spawned late (its scheduled endDay is already past), extend the window
+  // to today so it can still be resolved.  This happens when force-spawn runs on day 70+
+  // for a quest whose release-day window was day 42-46.
+  var _today = Number(sc.daysElapsed || 0);
+  if (_today > Number(quest.endDay || 0)) quest.endDay = _today;
+
   if (!isSolarCycleSchedulerQuestWindowOpen(quest, sc)) {
     quest.expired = true;
     clearSolarCycleSchedulerQuestMarker(quest);
@@ -5648,7 +5988,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   var rollStat = selectedStat || (statByApproach[String(quest.resolvedApproach || 'investigate')] || 'mind');
   var challengeType = String(quest.challengeType || 'social').toLowerCase();
   var socialStyle = getSolarCycleSocialStyleProfile(challengeType, rollStat);
-  var rollDread = Math.max(6, Number((quest.region === 'galaxy' ? 12 : (quest.region === 'wtw' ? 10 : 8)) + Math.min(4, Number(sc.worldTilt || 0))));
+  var rollDread = snapToValidDreadDie((quest.region === 'galaxy' ? 12 : (quest.region === 'wtw' ? 10 : 8)) + Math.min(4, Number(sc.worldTilt || 0)));
   var rollResult = null;
   if (fractureAttempt) {
     var autoDie = getSolarCycleActionDie(rollStat);
@@ -5885,12 +6225,15 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var stance = evaluateSolarCycleNpcStance(ensureSolarCycleState(), quest, '');
   var vec = stance && stance.vector ? stance.vector : null;
   var promisePreview = getSolarCyclePromisePreview(quest, 'investigate');
+  var _stanceLabel = String(stance && stance.trustLabel || 'Uncertain');
+  var _affDir = vec ? (Number(vec.affinity || 0) > 1 ? 'warm' : (Number(vec.affinity || 0) < -1 ? 'cold' : 'neutral')) : null;
+  var _betrayalHint = (stance && stance.betrayalRisk >= 0.65) ? '; high betrayal risk' : '';
+  var _promiseLine = vec && (Number(vec.promisesKept || 0) + Number(vec.promisesBroken || 0) > 0)
+    ? (Number(vec.promisesKept || 0) > Number(vec.promisesBroken || 0) ? '; oaths honored' : '; broken promises on record')
+    : '';
   var trustSummary = vec
-    ? ('Affinity ' + Number(vec.affinity || 0) + ' | Trust ' + Number(vec.trust || 0)
-      + ' | Convictions O/M/T ' + Number(vec.convictions.order || 0) + '/' + Number(vec.convictions.mercy || 0) + '/' + Number(vec.convictions.truth || 0)
-      + ' | Promises kept/broken ' + Number(vec.promisesKept || 0) + '/' + Number(vec.promisesBroken || 0)
-      + ' | Stance: ' + String(stance.trustLabel || 'Uncertain'))
-    : 'No conviction profile yet.';
+    ? (_stanceLabel + (_affDir ? ', ' + _affDir + ' disposition' : '') + _promiseLine + _betrayalHint)
+    : 'No history with this contact.';
   var riskyTestimonyLabel = (stance && stance.betrayalRisk >= 0.65)
     ? 'Suspect Testimony (high betrayal risk)'
     : 'Suspect Testimony';
@@ -5911,8 +6254,9 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.setSolarCycleQuestActionStat(\'' + String(quest.id) + '\',\'' + String(stat) + '\')">' + String(stat).toUpperCase() + '</button>';
   }).join('');
   openModal(
-    'New Sun Investigation: ' + escapeSolarCycleHtml(quest.title),
-    '<div style="font-size:.76rem;color:var(--gold2);margin-bottom:.25rem;">' + escapeSolarCycleHtml(contextLabel || quest.locationLabel || quest.region) + '</div>'
+    (quest.isRestorationLead ? '★ Restoration Path: ' : 'New Sun Investigation: ') + escapeSolarCycleHtml(quest.title),
+    (quest.isRestorationLead ? '<div style="font-size:.74rem;color:var(--gold2);background:rgba(201,162,39,.12);border:1px solid rgba(201,162,39,.4);padding:.3rem .5rem;margin-bottom:.3rem;border-radius:3px;">This is your primary restoration investigation for this run. Succeeding here unlocks the New Sun ending path.</div>' : '')
+    + '<div style="font-size:.76rem;color:var(--gold2);margin-bottom:.25rem;">' + escapeSolarCycleHtml(contextLabel || quest.locationLabel || quest.region) + '</div>'
     + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Arc pack: ' + String(quest.arc).toUpperCase() + ' / ' + String(quest.templateMode).toUpperCase() + ' | ' + escapeSolarCycleHtml(windowText) + '</div>'
     + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;margin-bottom:.22rem;"><strong>' + escapeSolarCycleHtml(quest.npcName || 'Unknown Witness') + ':</strong> ' + escapeSolarCycleHtml(dialogueLine || quest.dialogueLine || '"The countdown continues."') + '</div>'
     + (memoryLine ? ('<div style="font-size:.74rem;color:var(--gold2);line-height:1.5;margin-bottom:.22rem;">Memory callback: ' + escapeSolarCycleHtml(memoryLine) + '</div>') : '')
@@ -17260,4 +17604,169 @@ window.openGalaxyTaskFromMap = openGalaxyTaskFromMap;
 window.mapMysteryMissionHook = mapMysteryMissionHook;
 window.renderRoyalShipLog = renderRoyalShipLog;
 window.handleScarEncounter = handleScarEncounter;
+
+// ── SIDE STORY SYSTEM FUNCTIONS ────────────────────────────────────────────────
+
+function ensureSolarCycleSideStories(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state) return [];
+  if (!Array.isArray(state.sideStories)) state.sideStories = [];
+  return state.sideStories;
+}
+
+function getSolarCycleSideStoryById(storyId, sc) {
+  var stories = ensureSolarCycleSideStories(sc);
+  for (var i = 0; i < stories.length; i++) { if (stories[i].id === storyId) return stories[i]; }
+  return null;
+}
+
+function maybeSpawnSolarCycleSideStory(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state || !state.enabled || !state.storyModeEnabled) return null;
+  var stories = ensureSolarCycleSideStories(state);
+  var day = Number(state.daysElapsed || 0);
+  var phase = getSolarCyclePhaseIndex();
+
+  // Collect eligible templates (not already active/completed, spawn window matches)
+  var active = stories.filter(function (s) { return s.active && !s.completed && !s.failed; });
+  if (active.length >= 2) return null; // cap at 2 concurrent side stories
+
+  var used = {};
+  stories.forEach(function (s) { used[s.templateId] = true; });
+
+  var eligible = SOLAR_CYCLE_SIDE_STORY_TEMPLATES.filter(function (t) {
+    if (used[t.id]) return false;
+    if (day < t.spawnDay[0] || day > t.spawnDay[1]) return false;
+    if (Array.isArray(t.spawnPhases) && t.spawnPhases.length && t.spawnPhases.indexOf(phase) < 0) return false;
+    return true;
+  });
+  if (!eligible.length) return null;
+
+  // Probabilistic: ~35% chance per call
+  var roll = seedSolarCycleMix(state, day * 7 + stories.length * 13 + phase) % 100;
+  if (roll > 34) return null;
+
+  var template = eligible[roll % eligible.length];
+  var story = {
+    id: 'ss-' + String(template.id) + '-' + String(day) + '-' + String(Math.floor(Math.random() * 9999)),
+    templateId: template.id,
+    characterType: template.characterType,
+    characterName: template.name,
+    intro: template.intro,
+    fateHint: template.fateHint,
+    beatIndex: 0,
+    active: true,
+    completed: false,
+    failed: false,
+    spawnDay: day,
+    spawnPhase: phase
+  };
+  stories.push(story);
+  if (typeof showNotif === 'function') {
+    showNotif('Side story began: ' + String(template.characterType) + ' — ' + String(template.name) + '. Find them on the map.', 'info');
+  }
+  return story;
+}
+
+function openSolarCycleSideStoryModal(storyId) {
+  var state = ensureSolarCycleState();
+  var story = getSolarCycleSideStoryById(storyId, state);
+  if (!story || !story.active || story.completed || story.failed || typeof openModal !== 'function') return false;
+
+  var template = null;
+  for (var i = 0; i < SOLAR_CYCLE_SIDE_STORY_TEMPLATES.length; i++) {
+    if (SOLAR_CYCLE_SIDE_STORY_TEMPLATES[i].id === story.templateId) { template = SOLAR_CYCLE_SIDE_STORY_TEMPLATES[i]; break; }
+  }
+  if (!template) return false;
+  var beat = template.beats[story.beatIndex];
+  if (!beat) return false;
+
+  var beatLabel = 'Beat ' + (story.beatIndex + 1) + ' / ' + template.beats.length;
+  var actionButtons = SOLAR_CYCLE_ACTION_STATS.map(function (stat) {
+    var action = beat.actions[stat];
+    if (!action) return '';
+    var colorClass = action.tone === 'positive' ? 'btn-teal' : (action.tone === 'aggressive' ? 'btn-red' : '');
+    return '<button class="btn btn-sm ' + colorClass + '" style="margin:.15rem;" onclick="window.advanceSolarCycleSideStoryBeat(\'' + escapeSolarCycleHtml(storyId) + '\',\'' + stat + '\');">'
+      + escapeSolarCycleHtml(String(stat).toUpperCase()) + ': ' + escapeSolarCycleHtml(action.label) + '</button>';
+  }).join('');
+
+  openModal(
+    'Side Story — ' + escapeSolarCycleHtml(story.characterType) + ': ' + escapeSolarCycleHtml(story.characterName),
+    '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;">' + escapeSolarCycleHtml(beatLabel) + ' | Day ' + Number(story.spawnDay || 0) + '</div>'
+    + '<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.35rem;font-style:italic;">' + escapeSolarCycleHtml(story.intro) + '</div>'
+    + '<div style="font-size:.78rem;color:var(--text2);line-height:1.6;margin-bottom:.4rem;">' + escapeSolarCycleHtml(beat.prompt) + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:.1rem;margin-bottom:.4rem;">' + actionButtons + '</div>'
+    + '<div style="font-size:.71rem;color:var(--muted2);line-height:1.5;">Fate echo: ' + escapeSolarCycleHtml(story.fateHint) + '</div>'
+  );
+  return true;
+}
+
+function advanceSolarCycleSideStoryBeat(storyId, statKey) {
+  var state = ensureSolarCycleState();
+  var story = getSolarCycleSideStoryById(storyId, state);
+  if (!story || !story.active || story.completed || story.failed) return;
+
+  var template = null;
+  for (var i = 0; i < SOLAR_CYCLE_SIDE_STORY_TEMPLATES.length; i++) {
+    if (SOLAR_CYCLE_SIDE_STORY_TEMPLATES[i].id === story.templateId) { template = SOLAR_CYCLE_SIDE_STORY_TEMPLATES[i]; break; }
+  }
+  if (!template) return;
+  var beat = template.beats[story.beatIndex];
+  if (!beat) return;
+
+  var action = beat.actions[String(statKey)];
+  if (!action) return;
+
+  // Apply consequence deltas
+  var cons = action.consequence || {};
+  if (typeof recordWorldConsequence === 'function') {
+    var deltaEntries = Object.keys(cons);
+    deltaEntries.forEach(function (k) {
+      if (cons[k] && cons[k] !== 0) {
+        recordWorldConsequence('side_story_' + story.templateId + '_' + beat.id + '_' + statKey, k, Number(cons[k]), 'side_story');
+      }
+    });
+  }
+  if (typeof applySolarCycleWorldFabricDelta === 'function') {
+    applySolarCycleWorldFabricDelta(state, cons);
+  }
+
+  var resultText = String(action.result || '');
+  var outcome = String(action.outcome || 'advance');
+
+  // Prophecy trace for complete outcomes
+  if (outcome === 'complete' && state.prophecyTrack) {
+    state.prophecyTrack.push('Side story [' + template.name + '] concluded: ' + String(statKey).toUpperCase() + ' — ' + String(action.label || ''));
+  }
+
+  var notifMsg = '';
+  if (outcome === 'fail') {
+    story.active = false;
+    story.failed = true;
+    notifMsg = resultText + ' [Branch closed]';
+  } else if (outcome === 'complete') {
+    story.active = false;
+    story.completed = true;
+    notifMsg = resultText + ' [Story complete]';
+  } else if (outcome === 'combat') {
+    story.active = false;
+    story.failed = true;
+    notifMsg = resultText + ' [Combat triggered]';
+    if (typeof showNotif === 'function') showNotif('Side Story: ' + resultText, 'warn');
+    if (typeof startProvinceMonsterCombat === 'function') {
+      startProvinceMonsterCombat(String(story.characterType), 8, 1);
+    }
+    return;
+  } else {
+    story.beatIndex = Math.min(story.beatIndex + 1, template.beats.length - 1);
+    notifMsg = resultText;
+  }
+
+  if (typeof closeModal === 'function') closeModal();
+  if (typeof showNotif === 'function') showNotif('Side Story: ' + notifMsg, outcome === 'fail' ? 'error' : 'success');
+}
+
+window.openSolarCycleSideStoryModal = openSolarCycleSideStoryModal;
+window.advanceSolarCycleSideStoryBeat = advanceSolarCycleSideStoryBeat;
+window.maybeSpawnSolarCycleSideStory = maybeSpawnSolarCycleSideStory;
 window.getScarTmwCostPenalty = getScarTmwCostPenalty;

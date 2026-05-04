@@ -10075,6 +10075,10 @@ function renderHexMap(){
       if(mt.type==='story_choice'){icon='➤';color='#f0d070';label='STORY';fill='rgba(240,208,112,.2)';}
       if(mt.type==='backstory_hometown'){icon='🏠';color='#9ad37b';label='HOMETOWN';fill='rgba(154,211,123,.18)';}
       if(mt.type==='backstory_contract'){icon='✉';color='#7ed7ff';label='CONTRACT';fill='rgba(126,215,255,.18)';}
+      if(mt.type==='solar_cycle_marker'){icon='☄';color='#f0a050';label='OMEN';fill='rgba(240,160,80,.18)';}
+      if(mt.type==='solar_cycle_story'&&mt.storyType==='stage'){icon='🌑';color='#f5d76e';label='NEW SUN';fill='rgba(245,215,110,.18)';}
+      if(mt.type==='solar_cycle_story'&&(mt.storyType==='quest'||mt.storyType==='investigation'||mt.nsSubtype==='investigation')){icon='⏳';color='#c9d6f0';label='INVESTIGATION';fill='rgba(200,214,240,.18)';}
+      if(mt.type==='solar_cycle_side'||(mt.type==='solar_cycle_story'&&mt.storyType==='sidestory')){icon='🌍';color='#9ad37b';label='SIDE STORY';fill='rgba(154,211,123,.18)';}
       // Outer glow circle
       const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');
       glow.setAttribute('cx',x+HEX_SIZE*.5);glow.setAttribute('cy',y-HEX_SIZE*.35);
@@ -10294,6 +10298,10 @@ function renderHexInfo(hex){
       :mt.type==='backstory_contract'?'Trusted Contract Mission'
       :mt.type==='holding_home'?'Holding Site: Establish Here'
       :mt.type==='informer'?'Mission Informer'
+      :mt.type==='solar_cycle_marker'?'Solar Omen'
+      :(mt.type==='solar_cycle_story'&&mt.storyType==='stage')?'New Sun Stage'
+      :(mt.type==='solar_cycle_story'&&(mt.storyType==='quest'||mt.storyType==='investigation'||mt.nsSubtype==='investigation'))?'New Sun Investigation'
+      :(mt.type==='solar_cycle_side'||(mt.type==='solar_cycle_story'&&mt.storyType==='sidestory'))?'New Sun Side Story'
       :'Mission Site';
     const markerActions=mt.type==='story_choice'
       ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="joinAndOpenStoryline()">Continue Storyline</button></div>`

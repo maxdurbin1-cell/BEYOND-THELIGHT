@@ -998,14 +998,24 @@
       // Render mission tokens for sea missions
       const missionToken = S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key];
       if (missionToken) {
-        const tokenIcon = missionToken.type === 'site' ? '🧭' : missionToken.type === 'informer' ? '👁' : missionToken.type === 'story' ? '➤' : '📍';
-        const tokenColor = missionToken.type === 'site' ? '#ff8450' : missionToken.type === 'informer' ? '#e8c050' : missionToken.type === 'story' ? '#f0d070' : '#e05050';
+        const tokenIcon = missionToken.type === 'site' ? '🧭' : missionToken.type === 'informer' ? '👁' : missionToken.type === 'story' ? '➤'
+          : missionToken.type === 'solar_cycle_marker' ? '☄'
+          : missionToken.type === 'solar_cycle_side' ? '🌍'
+          : (missionToken.type === 'solar_cycle_story' && missionToken.storyType === 'stage') ? '🌑'
+          : (missionToken.type === 'solar_cycle_story' && (missionToken.storyType === 'quest' || missionToken.storyType === 'investigation' || missionToken.nsSubtype === 'investigation')) ? '⏳'
+          : '📍';
+        const tokenColor = missionToken.type === 'site' ? '#ff8450' : missionToken.type === 'informer' ? '#e8c050' : missionToken.type === 'story' ? '#f0d070'
+          : missionToken.type === 'solar_cycle_marker' ? '#f0a050'
+          : missionToken.type === 'solar_cycle_side' ? '#9ad37b'
+          : (missionToken.type === 'solar_cycle_story' && missionToken.storyType === 'stage') ? '#f5d76e'
+          : (missionToken.type === 'solar_cycle_story' && (missionToken.storyType === 'quest' || missionToken.storyType === 'investigation' || missionToken.nsSubtype === 'investigation')) ? '#c9d6f0'
+          : '#e05050';
         
         const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         glow.setAttribute('cx', x);
         glow.setAttribute('cy', y - LAST_SEA_HEX * 0.35);
         glow.setAttribute('r', '8');
-        glow.setAttribute('fill', 'rgba(' + (tokenColor === '#ff8450' ? '255,132,80' : tokenColor === '#e8c050' ? '232,192,80' : tokenColor === '#f0d070' ? '240,208,112' : '224,80,80') + ',.15)');
+        glow.setAttribute('fill', 'rgba(' + (tokenColor === '#ff8450' ? '255,132,80' : tokenColor === '#e8c050' ? '232,192,80' : tokenColor === '#f0d070' ? '240,208,112' : tokenColor === '#f0a050' ? '240,160,80' : tokenColor === '#9ad37b' ? '154,211,123' : tokenColor === '#f5d76e' ? '245,215,110' : tokenColor === '#c9d6f0' ? '200,214,240' : '224,80,80') + ',.15)');
         glow.setAttribute('stroke', tokenColor);
         glow.setAttribute('stroke-width', '1');
         glow.setAttribute('pointer-events', 'none');

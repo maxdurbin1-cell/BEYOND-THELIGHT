@@ -79,8 +79,11 @@
   const WTW_CONDITION_KEYS = ["weakened", "distracted", "shaken", "vulnerable"];
 
   const WTW_MARKER_STYLE = {
-    solar_cycle: { icon: "☀", color: "#f5d76e", priority: 96, title: "New Sun Marker" },
-    solar_cycle_side: { icon: "✦", color: "#e8a84f", priority: 93, title: "New Sun Side Quest" },
+    solar_cycle: { icon: "🌑", color: "#f5d76e", priority: 98, title: "New Sun Stage" },
+    solar_cycle_side: { icon: "🌍", color: "#9ad37b", priority: 93, title: "New Sun Side Quest" },
+    solar_cycle_investigation: { icon: "⏳", color: "#c9d6f0", priority: 94, title: "New Sun Investigation" },
+    solar_cycle_omen: { icon: "☄", color: "#f0a050", priority: 96, title: "Solar Omen" },
+    solar_cycle_stage: { icon: "🌑", color: "#f5d76e", priority: 97, title: "New Sun Stage" },
     mission: { icon: "🎯", color: "#e8c050", priority: 100, title: "Mission Marker" },
     mission_informer: { icon: "👁", color: "#e8c050", priority: 101, title: "Mission Informer" },
     mission_site: { icon: "✖", color: "#ff8450", priority: 101, title: "Mission Site" },
@@ -1330,7 +1333,7 @@
     if (S && S.solarCycle && S.solarCycle.arcProgress && S.solarCycle.arcProgress.activeMarker && S.solarCycle.arcProgress.activeMarker.region === "wtw") {
       const solarHex = hexById(S.solarCycle.arcProgress.activeMarker.hexId || S.solarCycle.arcProgress.activeMarker.key);
       if (solarHex) {
-        setMarker(w, solarHex, "solar_cycle", "New Sun Marker", "Enter this district to trigger the next New Sun branch.");
+      setMarker(w, solarHex, "solar_cycle_stage", "New Sun Stage", "Enter this district to trigger the next New Sun branch.");
       }
     }
 
@@ -1345,7 +1348,7 @@
         if (!quest || quest.resolved || quest.expired) return;
         const target = hexById(Number(hexId));
         if (!target) return;
-        setMarker(w, target, "solar_cycle", "New Sun Portal Quest", "Lost City portal handoff: investigate to reveal a New Sun route.");
+        setMarker(w, target, "solar_cycle_investigation", "New Sun Portal Quest", "Lost City portal handoff: investigate to reveal a New Sun route.");
       });
     }
 
@@ -1568,7 +1571,7 @@
         g.appendChild(you);
       }
 
-      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "task" || marker.type === "story" || marker.type === "solar_cycle" || marker.type === "faction_base" || marker.type === "faction_task");
+      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "task" || marker.type === "story" || marker.type === "solar_cycle" || marker.type === "solar_cycle_stage" || marker.type === "solar_cycle_investigation" || marker.type === "solar_cycle_omen" || marker.type === "solar_cycle_side" || marker.type === "faction_base" || marker.type === "faction_task");
       if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         if (isTrackedThreadHex) {
@@ -1598,9 +1601,9 @@
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
         mk.setAttribute("x", String(p.x + 8));
         mk.setAttribute("y", String(p.y - 8));
-        mk.setAttribute("font-size", (marker.type === "solar_cycle" || marker.type === "solar_cycle_side") ? "13" : "10");
+        mk.setAttribute("font-size", (marker.type === "solar_cycle" || marker.type === "solar_cycle_side" || marker.type === "solar_cycle_stage" || marker.type === "solar_cycle_investigation" || marker.type === "solar_cycle_omen") ? "13" : "10");
         mk.setAttribute("fill", markerStyle.color || "#bbbbbb");
-        if (marker.type === "solar_cycle" || marker.type === "solar_cycle_side") {
+        if (marker.type === "solar_cycle" || marker.type === "solar_cycle_side" || marker.type === "solar_cycle_stage" || marker.type === "solar_cycle_investigation" || marker.type === "solar_cycle_omen") {
           mk.setAttribute("stroke", "rgba(10,14,20,.9)");
           mk.setAttribute("stroke-width", "0.9");
         }
@@ -2419,7 +2422,7 @@
       });
       if (typeof showNotif === "function") showNotif("Story marker reviewed: opening Storyline.", "good");
       delete w.markers[hexId];
-    } else if (marker.type === "solar_cycle") {
+    } else if (marker.type === "solar_cycle" || marker.type === "solar_cycle_stage" || marker.type === "solar_cycle_investigation" || marker.type === "solar_cycle_omen" || marker.type === "solar_cycle_side") {
       if (typeof window.resolveSolarCycleWTWMarker === "function") {
         window.resolveSolarCycleWTWMarker(hexId);
       }

@@ -3832,6 +3832,7 @@ function syncSolarCycleProvinceMarkers() {
   S.missionTokens[key] = {
     missionId: 'solar_cycle',
     type: 'solar_cycle_marker',
+    nsSubtype: 'omen',
     title: 'Solar Omen',
     solarMarkerId: markerId,
     solarTier: tier,
@@ -6042,6 +6043,7 @@ function placeSolarCycleSchedulerQuestMarker(quest, sc) {
     S.missionTokens[provinceKey] = {
       missionId: 'solar_cycle_story',
       type: 'solar_cycle_story',
+      nsSubtype: 'investigation',
       schedulerQuest: true,
       storyType: 'quest',
       questId: quest.id,
@@ -6063,6 +6065,7 @@ function placeSolarCycleSchedulerQuestMarker(quest, sc) {
     S.lastSea.missionTokens[String(seaHex.key)] = {
       missionId: 'solar_cycle_story',
       type: 'solar_cycle_story',
+      nsSubtype: 'investigation',
       schedulerQuest: true,
       storyType: 'quest',
       questId: quest.id,
@@ -6093,7 +6096,8 @@ function placeSolarCycleSchedulerQuestMarker(quest, sc) {
       title: quest.title,
       text: quest.clueText,
       missionId: quest.id,
-      interaction: 'solar_cycle_choice'
+      interaction: 'solar_cycle_choice',
+      nsSubtype: 'investigation'
     });
     if (!task) return false;
     quest.taskId = String(task.id);
@@ -7175,14 +7179,14 @@ function placeSolarCycleStageMarker(stageId) {
     if (!provinceHex) return null;
     var provinceKey = String(provinceHex.col) + ',' + String(provinceHex.row);
     S.missionTokens = S.missionTokens || {};
-    S.missionTokens[provinceKey] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', storyType: 'stage', markerId: markerId, title: stage.title, stageId: stage.id, expiresDay: expiresDay, text: getSolarCycleStageScene(stage.id).intro };
+    S.missionTokens[provinceKey] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', nsSubtype: 'stage', storyType: 'stage', markerId: markerId, title: stage.title, stageId: stage.id, expiresDay: expiresDay, text: getSolarCycleStageScene(stage.id).intro };
     marker = { markerId: markerId, stageId: stage.id, region: 'province', key: provinceKey, label: 'Province Hex [' + (provinceHex.col + 1) + ',' + (provinceHex.row + 1) + ']', postedDay: Number(sc.daysElapsed || 0), expiresDay: expiresDay };
     if (typeof renderHexMap === 'function') renderHexMap();
   } else if (stage.region === 'sea') {
     var seaHex = pickSolarCycleSeaHex(seed);
     if (!seaHex) return null;
     S.lastSea.missionTokens = S.lastSea.missionTokens || {};
-    S.lastSea.missionTokens[seaHex.key] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', storyType: 'stage', markerId: markerId, title: stage.title, stageId: stage.id, expiresDay: expiresDay, text: getSolarCycleStageScene(stage.id).intro };
+    S.lastSea.missionTokens[seaHex.key] = { missionId: 'solar_cycle_story', type: 'solar_cycle_story', nsSubtype: 'stage', storyType: 'stage', markerId: markerId, title: stage.title, stageId: stage.id, expiresDay: expiresDay, text: getSolarCycleStageScene(stage.id).intro };
     marker = { markerId: markerId, stageId: stage.id, region: 'sea', key: seaHex.key, label: 'Sea Hex ' + seaHex.key, postedDay: Number(sc.daysElapsed || 0), expiresDay: expiresDay };
     if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
   } else if (stage.region === 'wtw') {
@@ -7195,7 +7199,8 @@ function placeSolarCycleStageMarker(stageId) {
       title: stage.title,
       text: getSolarCycleStageScene(stage.id).intro,
       missionId: stage.id,
-      interaction: 'solar_cycle_choice'
+      interaction: 'solar_cycle_choice',
+      nsSubtype: 'stage'
     });
     if (!task) return null;
     marker = { markerId: markerId, stageId: stage.id, region: 'galaxy', key: String(task.hexId), label: 'Galaxy Hex #' + task.hexId, taskId: task.id, hexId: task.hexId, postedDay: Number(sc.daysElapsed || 0), expiresDay: expiresDay };
@@ -8244,6 +8249,7 @@ function createGalaxyTask(source, config) {
     id: task.id,
     title: task.title,
     source: task.source,
+    nsSubtype: config.nsSubtype || null,
     resolved: false,
   };
   S.starSystem.taskMarkers.push(task);
@@ -14462,7 +14468,8 @@ function renderStarSystemMap() {
     const border = hasTaskMarker ? '#f2d75a' : hex.id === S.starSystem.currentHexId ? '#ffffff' : '#2d3142';
     const opacity = hex.explored ? 0.9 : 0.55;
     const label = getStarHexGlyph(hex);
-    const markerGlyph = hasTaskMarker ? '✦' : hex.type === 'radio_task' && !hex.radioTaskResolved ? '✉' : '';
+    const _tmNsSub = hasTaskMarker && hex.taskMarker.nsSubtype ? String(hex.taskMarker.nsSubtype) : '';
+    const markerGlyph = hasTaskMarker ? (_tmNsSub === 'omen' ? '☄' : _tmNsSub === 'investigation' ? '⏳' : _tmNsSub === 'stage' ? '🌑' : _tmNsSub === 'sidestory' ? '🌍' : '✦') : hex.type === 'radio_task' && !hex.radioTaskResolved ? '✉' : '';
     const factionBase = window.factionSystem && typeof window.factionSystem.getGalaxyMarker === 'function'
       ? window.factionSystem.getGalaxyMarker(hex.id)
       : null;
@@ -18414,7 +18421,8 @@ function maybeSpawnSolarCycleSideStory(sc, opts) {
   if (_sideHex && _sideKey) {
     S.missionTokens[_sideKey] = {
       missionId: 'solar_cycle_story',
-      type: 'solar_cycle_story',
+      type: 'solar_cycle_side',
+      nsSubtype: 'sidestory',
       schedulerQuest: false,
       storyType: 'sidestory',
       sideStoryId: story.id,
@@ -18549,6 +18557,38 @@ function advanceSolarCycleSideStoryBeat(storyId, statKey) {
   } else {
     story.beatIndex = Math.min(story.beatIndex + 1, template.beats.length - 1);
     notifMsg = resultText;
+    // Relocate the side-story marker to a new hex so the character feels like they moved.
+    if (story.mapKey && typeof S !== 'undefined' && S && S.missionTokens) {
+      var _oldKey = String(story.mapKey);
+      var _newSideHex = null;
+      var _newSideKey = '';
+      if (typeof pickSolarCycleProvinceHex === 'function') {
+        for (var _rt = 0; _rt < 8; _rt++) {
+          var _rcandidate = pickSolarCycleProvinceHex(seedSolarCycleMix(state, Number(state.daysElapsed || 0) + story.beatIndex * 53 + _rt * 17));
+          if (!_rcandidate) continue;
+          var _rcandidateKey = String(_rcandidate.col) + ',' + String(_rcandidate.row);
+          if (_rcandidateKey !== _oldKey && !S.missionTokens[_rcandidateKey]) {
+            _newSideHex = _rcandidate;
+            _newSideKey = _rcandidateKey;
+            break;
+          }
+        }
+      }
+      if (_newSideHex && _newSideKey) {
+        var _existingToken = S.missionTokens[_oldKey];
+        delete S.missionTokens[_oldKey];
+        S.missionTokens[_newSideKey] = Object.assign({}, _existingToken || {}, {
+          missionId: 'solar_cycle_story',
+          type: 'solar_cycle_side',
+          nsSubtype: 'sidestory',
+          storyType: 'sidestory',
+          sideStoryId: story.id,
+          expiresDay: Number(state.daysElapsed || 0) + 8
+        });
+        story.mapKey = _newSideKey;
+        if (typeof renderHexMap === 'function') renderHexMap();
+      }
+    }
   }
 
   if (typeof closeModal === 'function') closeModal();

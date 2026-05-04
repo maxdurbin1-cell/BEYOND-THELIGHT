@@ -7865,6 +7865,7 @@ function getShopMarketSnapshot(cat,name,baseCost){
   var closedBorder=!!(overlay&&overlay.closedBorder);
   var dangerousRoad=!!(overlay&&overlay.dangerousRoad);
   var activeCrisis=!!(overlay&&overlay.activeCrisis);
+  var control=String(overlay&&overlay.control||'').toLowerCase();
   var pressure=(dangerousRoad?20:0)+(activeCrisis?25:0);
 
   if(closedPort){
@@ -7890,6 +7891,21 @@ function getShopMarketSnapshot(cat,name,baseCost){
   if(premiumCategories.indexOf(category)>=0)mult+=0.1;
   else if(tacticalCategories.indexOf(category)>=0)mult+=0.05;
 
+  var controlProfiles={
+    rebels:{discount:['weapons','melee_exp','ranged_exp','armor'],surcharge:['augmentations','os_hacks','tradegoods'],locks:['augmentations'],notice:'Rebel quartermasters prioritize field gear over imported tech.'},
+    guilds:{discount:['tradegoods','services','toolkits','essentials'],surcharge:['weapon_mods','ranged_exp'],locks:[],notice:'Guild caravans flood civic goods and squeeze military wares.'},
+    church:{discount:['scrolls','remedies','services'],surcharge:['weapon_mods','os_hacks','strange'],locks:['os_hacks'],notice:'Church stewards subsidize rites and medicine, restrict forbidden tech.'},
+    empire:{discount:['weapons','ranged_exp','armor','armor_exp'],surcharge:['strange','cosmic','services'],locks:['os_hacks'],notice:'Imperial requisitions favor armories and rationed combat stock.'},
+    syndicate:{discount:['weapon_mods','os_hacks','strange','cosmic'],surcharge:['remedies','essentials'],locks:['services'],notice:'Syndicate brokers flood contraband while choking public services.'},
+    scholars:{discount:['augmentations','os_hacks','scrolls','toolkits'],surcharge:['melee_exp','weapons'],locks:['tradegoods'],notice:'Scholar enclaves favor research wares and throttle bulk commerce.'}
+  };
+  var profile=control&&controlProfiles[control]?controlProfiles[control]:null;
+  if(profile){
+    if(profile.discount.indexOf(category)>=0)mult-=0.08;
+    if(profile.surcharge.indexOf(category)>=0)mult+=0.1;
+    if(profile.notice)notices.push(profile.notice);
+  }
+
   var portLockedCategories=['tradegoods','cosmic','augmentations','os_hacks'];
   var borderLockedCategories=['augmentations','os_hacks','weapon_mods','tradegoods','ranged_exp','cosmic'];
   if(closedPort&&portLockedCategories.indexOf(category)>=0){
@@ -7897,6 +7913,9 @@ function getShopMarketSnapshot(cat,name,baseCost){
   }
   if(closedBorder&&borderLockedCategories.indexOf(category)>=0){
     blockedReasons.push('Border restrictions block imported stock for this category.');
+  }
+  if(profile&&profile.locks&&profile.locks.indexOf(category)>=0){
+    blockedReasons.push((control.charAt(0).toUpperCase()+control.slice(1))+' control policy blocks this category.');
   }
 
   var volatilityCategories=['tradegoods','cosmic','services','weapon_mods','augmentations','os_hacks','ranged_exp'];
@@ -12025,6 +12044,149 @@ function buildProvinceHoldingDowntimePanel(hex){
 window.rollProvinceHoldingDowntime=rollProvinceHoldingDowntime;
 window.resolveProvinceHoldingDowntime=resolveProvinceHoldingDowntime;
 
+function buildWorldStateEncounterAddon(col,row,mode){
+  var key=String(col)+','+String(row);
+  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
+  if(!overlay)return null;
+  var tension=Math.max(0,Number(overlay.tension||0));
+  var tags=Array.isArray(overlay.tags)?overlay.tags:[];
+  var triggerChance=Math.min(70,10+(tension*10)+(overlay.activeCrisis?20:0)+(overlay.dangerousRoad?10:0)+(overlay.closedBorder?10:0));
+  var rollGate=roll(100);
+  if(rollGate>triggerChance)return null;
+
+  var pool=[];
+  if(overlay.activeCrisis)pool.push({
+    title:'World Event: Crisis Flare-Up',
+    desc:'A nearby emergency spillover disrupts the route. Respond now or tensions worsen.',
+    actions:'<button class="btn btn-xs btn-warn" onclick="resolveWorldStateAction('+col+','+row+',\'stabilize\')">🧯 Stabilize</button>'
+  });
+  if(overlay.closedBorder||overlay.closedPort||overlay.dangerousRoad)pool.push({
+    title:'World Event: Route Clampdown',
+    desc:'Checkpoints and patrol delays choke movement through this zone.',
+    actions:'<button class="btn btn-xs btn-teal" onclick="resolveWorldStateAction('+col+','+row+',\'reopen\')">🛣 Reopen Route</button>'
+  });
+  if(overlay.control){
+    var ctrl=String(overlay.control).toLowerCase();
+    var controlDescMap={
+      rebels:'Rebel quartermasters test loyalty and ask for covert aid.',
+      guilds:'Guild toll clerks audit manifests and demand route dues.',
+      church:'Church envoys impose doctrine checks on passing crews.',
+      empire:'Imperial marshals sweep the zone for dissidents.',
+      syndicate:'Syndicate agents offer shortcuts at a dangerous price.',
+      scholars:'Scholar surveyors lock down artifacts for study.'
+    };
+    pool.push({
+      title:'World Event: '+overlay.control.charAt(0).toUpperCase()+overlay.control.slice(1)+' Presence',
+      desc:controlDescMap[ctrl]||'Regional authorities are actively shaping this area.',
+      actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">🕊 Negotiate</button>'
+    });
+  }
+  if(tags.indexOf('recent-conflict')>=0||tension>=2){
+    pool.push({
+      title:'World Event: Skirmish Echo',
+      desc:'Fresh signs of recent conflict raise the chance of immediate trouble.',
+      actions:'<button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'world_event\',3,\'Conflict Remnants\',6)">⚔ Engage</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Avoid</button>'
+    });
+  }
+  if(!pool.length)return null;
+  var pickEntry=pick(pool);
+  return {
+    title:pickEntry.title,
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay</div></div>'
+  };
+}
+
+function buildSiteMemoryEncounterAddon(col,row){
+  var key=String(col)+','+String(row);
+  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
+  var ss=overlay&&overlay.siteState?overlay.siteState:null;
+  if(!ss)return null;
+  var discoveries=Number(ss.discoveries||0);
+  var threatsCleared=Number(ss.threatsCleared||0);
+  var failedExpeditions=Number(ss.failedExpeditions||0);
+  var hiddenCaches=Number(ss.hiddenCaches||0);
+  var npcRelationships=Number(ss.npcRelationships||0);
+  var infrastructure=Number(ss.infrastructure||0);
+  var memoryWeight=discoveries+threatsCleared+failedExpeditions+hiddenCaches+npcRelationships+infrastructure;
+  if(memoryWeight<=0)return null;
+  var chance=Math.min(60,12+(memoryWeight*6));
+  var gate=roll(100);
+  if(gate>chance)return null;
+
+  var pool=[];
+  if(discoveries>0)pool.push({kind:'discoveries',title:'Site Memory: Recovered Clue',desc:'Past discoveries align into a new trail marker.'});
+  if(hiddenCaches>0)pool.push({kind:'hiddenCaches',title:'Site Memory: Hidden Cache Echo',desc:'A previously mapped stash marker resurfaces.'});
+  if(threatsCleared>0)pool.push({kind:'threatsCleared',title:'Site Memory: Secured Ground',desc:'Cleared threat lines make this area safer to exploit.'});
+  if(failedExpeditions>0)pool.push({kind:'failedExpeditions',title:'Site Memory: Cautionary Remains',desc:'Signs of failed expeditions reveal both warning and salvage.'});
+  if(npcRelationships>0)pool.push({kind:'npcRelationships',title:'Site Memory: Ally Signal',desc:'A contact remembers your help and leaves support nearby.'});
+  if(infrastructure>0)pool.push({kind:'infrastructure',title:'Site Memory: Built Advantage',desc:'Local improvements create tactical and logistical leverage.'});
+  if(!pool.length)return null;
+  var entry=pick(pool);
+  return {
+    title:entry.title,
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(126,215,255,.45);background:rgba(126,215,255,.08);"><strong style="color:#7ed7ff;">'+entry.title+'</strong><br>'+entry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="resolveSiteMemoryEncounterOutcome('+col+','+row+',\''+entry.kind+'\')">🧠 Resolve Memory Encounter</button></div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+gate+' / '+chance+'% · Memory weight '+memoryWeight+'</div></div>'
+  };
+}
+
+function resolveSiteMemoryEncounterOutcome(col,row,kind){
+  var k=String(kind||'discoveries');
+  var statMap={discoveries:'mind',hiddenCaches:'control',threatsCleared:'defend',failedExpeditions:'spirit',npcRelationships:'lead',infrastructure:'body'};
+  var ddMap={discoveries:6,hiddenCaches:6,threatsCleared:8,failedExpeditions:8,npcRelationships:6,infrastructure:6};
+  var stat=statMap[k]||'mind';
+  var dd=ddMap[k]||6;
+  var die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat):((S.stats&&S.stats[stat])||4);
+  var check=explodingRoll(die);
+  var oppose=explodingRoll(dd);
+  var success=check.total>=oppose.total;
+  var detail='';
+  if(success){
+    if(k==='discoveries'){
+      if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+      detail='+1 Path Token from recovered clues.';
+    }else if(k==='hiddenCaches'){
+      var credits=roll(6)*10;
+      S.credits=(S.credits||0)+credits;
+      if(typeof updateCreditsUI==='function')updateCreditsUI();
+      detail='Recovered cache worth '+credits+'₵.';
+    }else if(k==='threatsCleared'){
+      if(typeof changeCounter==='function')changeCounter('renown',1);
+      detail='+1 Renown from secured routes.';
+    }else if(k==='failedExpeditions'){
+      if(typeof changeCounter==='function')changeCounter('tmw',1);
+      detail='+1 Teamwork from hard-won expedition lessons.';
+    }else if(k==='npcRelationships'){
+      if(typeof changeCounter==='function')changeCounter('tmw',1);
+      S.credits=(S.credits||0)+20;
+      if(typeof updateCreditsUI==='function')updateCreditsUI();
+      detail='An ally provides +1 Teamwork and 20₵ support.';
+    }else if(k==='infrastructure'){
+      if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+      if(typeof changeCounter==='function')changeCounter('tmw',1);
+      detail='Improved infrastructure grants +1 Path Token and +1 Teamwork.';
+    }
+    if(typeof window.applyWorldConsequence==='function'){
+      window.applyWorldConsequence({
+        system:'site-memory',
+        title:'Site memory encounter resolved',
+        detail:detail,
+        region:'province',
+        locationKey:String(col)+','+String(row),
+        severity:'info',
+        tags:['site-memory','npc-relationship']
+      });
+    }
+    showNotif('Site memory encounter success: '+detail,'good');
+  }else{
+    if(typeof changeMentalStress==='function')changeMentalStress(1);
+    detail='The memory trail turns risky. +1 Mental Stress.';
+    showNotif('Site memory encounter failed: +1 Mental Stress.','warn');
+  }
+  var el=document.getElementById('hexEnc-'+col+'-'+row);
+  if(el){
+    el.innerHTML+='<div style="margin-top:.3rem;padding:.35rem .45rem;border:1px solid '+(success?'rgba(76,175,116,.35)':'rgba(201,64,64,.35)')+';background:'+(success?'rgba(76,175,116,.08)':'rgba(201,64,64,.08)')+';font-size:.76rem;color:var(--text2);">Site Memory Check: '+stat.toUpperCase()+' d'+die+'='+check.total+' vs DD'+dd+'='+oppose.total+' — '+detail+'</div>';
+  }
+}
+
 function rollHexEncounter(col,row){
   let el=document.getElementById(`hexEnc-${col}-${row}`);
   if(!el&&selectedHex&&selectedHex.col===col&&selectedHex.row===row){
@@ -12140,6 +12302,10 @@ function rollHexEncounter(col,row){
       const hexObj=mapData.find(h=>h.col===col&&h.row===row);
       html=`<div style="font-size:.82rem;color:var(--green2);padding:.3rem 0;">d6=${vr} — All Clear. Uneventful travel through the ${hexObj?.terrain?.name||'wilderness'}.</div>`;
     }
+    const worldAddon=buildWorldStateEncounterAddon(col,row,'province');
+    if(worldAddon)html+=worldAddon.html;
+    const siteMemoryAddon=buildSiteMemoryEncounterAddon(col,row);
+    if(siteMemoryAddon)html+=siteMemoryAddon.html;
     const nightAddon=buildNightModeProvinceAddonEncounter(col,row);
     if(nightAddon){
       html+=nightAddon.html;
@@ -12172,6 +12338,8 @@ function rollHexEncounter(col,row){
       if(vr===1){encounterSummary='d6=1 — Shift in Weather at '+locLabel;}
       else if(vr===2){encounterSummary='d6=2 — Overland Encounter ('+locLabel+'): '+(typeof title!=='undefined'?title:'Unknown');}
       else{encounterSummary='d6='+vr+' — All Clear in '+locLabel+'.';}
+      if(worldAddon)encounterSummary+=' + World Event: '+worldAddon.title;
+      if(siteMemoryAddon)encounterSummary+=' + Site Memory: '+siteMemoryAddon.title;
       encounterSummary+=nightAddonSummary;
       window.campaignSystem.broadcastRollResult('Province Encounter',encounterSummary);
     }
@@ -12255,8 +12423,10 @@ function rollTradeRouteEncounter(col,row){
       result=`<strong>${wAdj} ${wType}</strong> (${wRole}) — ${wDesc}`;
       actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer',${targetHex.col},${targetHex.row})">Thievery</button></div>`;
     }
+    const worldAddon=buildWorldStateEncounterAddon(targetHex.col,targetHex.row,'trade');
+    const siteMemoryAddon=buildSiteMemoryEncounterAddon(targetHex.col,targetHex.row);
     const nightAddon=buildNightModeTradeAddonEncounter(targetHex.col,targetHex.row);
-    const finalHtml='<div class="venture-result"><div class="vr-type">Trade Route d10='+r+': '+title+'</div>'+result+actionHTML+'</div>'+(nightAddon?nightAddon.html:'');
+    const finalHtml='<div class="venture-result"><div class="vr-type">Trade Route d10='+r+': '+title+'</div>'+result+actionHTML+'</div>'+(worldAddon?worldAddon.html:'')+(siteMemoryAddon?siteMemoryAddon.html:'')+(nightAddon?nightAddon.html:'');
     let el=document.getElementById(`hexEnc-${targetHex.col}-${targetHex.row}`);
     if(!el&&selectedHex&&selectedHex.col===targetHex.col&&selectedHex.row===targetHex.row){
       renderHexInfo(selectedHex);
@@ -12273,7 +12443,9 @@ function rollTradeRouteEncounter(col,row){
     if(window.campaignSystem&&typeof window.campaignSystem.broadcastRollResult==='function'){
       const plainTitle=typeof title==='string'?title:'Trade Encounter';
       const nightLine=nightAddon?(' + Night Mode: '+nightAddon.title):'';
-      window.campaignSystem.broadcastRollResult('Trade Route Encounter','d10='+r+' — '+plainTitle+'.'+nightLine);
+      const worldLine=worldAddon?(' + World Event: '+worldAddon.title):'';
+      const siteLine=siteMemoryAddon?(' + Site Memory: '+siteMemoryAddon.title):'';
+      window.campaignSystem.broadcastRollResult('Trade Route Encounter','d10='+r+' — '+plainTitle+'.'+worldLine+siteLine+nightLine);
     }
   }catch(err){
     console.error('rollTradeRouteEncounter error',err);

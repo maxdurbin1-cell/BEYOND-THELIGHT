@@ -2695,9 +2695,9 @@ function resolveSolarCycleProvinceMarker(hex, markerToken) {
     + '<strong style="color:var(--gold2);">Solar Omen</strong><br>' + text + '</div>'
     + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.45rem;">Choose how to interpret this marker. Your Action Die will roll against Dread. Failure can open a new branch.</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
-    + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleMarkerChoice(\"observe\")">Observe</button>'
-    + '<button class="btn btn-sm btn-warn" onclick="window.resolveSolarCycleMarkerChoice(\"intervene\")">Intervene</button>'
-    + '<button class="btn btn-sm" onclick="window.resolveSolarCycleMarkerChoice(\"ignore\")">Ignore</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleMarkerChoice(\'observe\')">Observe</button>'
+    + '<button class="btn btn-sm btn-warn" onclick="window.resolveSolarCycleMarkerChoice(\'intervene\')">Intervene</button>'
+    + '<button class="btn btn-sm" onclick="window.resolveSolarCycleMarkerChoice(\'ignore\')">Ignore</button>'
     + '</div>';
 
   window._activeSolarMarkerToken = markerToken;

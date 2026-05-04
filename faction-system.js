@@ -1812,7 +1812,7 @@
 
     const lockText = finale.unlocked
       ? "Final outcome unlocked. Reveal the scene when ready."
-      : "Locked: reach " + FINAL_ENDING_THRESHOLD + " points in Heroic, Ruthless, or Sacrificial pathway.";
+      : "Locked: reach " + FINAL_ENDING_THRESHOLD + " points in Heroic, Tyrant, or Martyr pathway.";
 
     host.innerHTML = ""
       + "<div class='faction-container'>"
@@ -1826,7 +1826,7 @@
       + [
         { label: "Heroic", key: "heroic", color: "var(--teal)" },
         { label: "Tyrant", key: "tyrant", color: "var(--red2)" },
-        { label: "Sacrificial", key: "sacrificial", color: "var(--gold2)" }
+        { label: "Martyr", key: "martyr", color: "var(--gold2)" }
       ].map(function (row) {
         const value = Number(points[row.key] || 0);
         const pct = progressPct(value);
@@ -2084,7 +2084,7 @@
             <ul>
               <li><strong>Heroic:</strong> ${mission.pathways.heroic}</li>
               <li><strong>Tyrant:</strong> ${mission.pathways.tyrant}</li>
-              <li><strong>Sacrificial:</strong> ${mission.pathways.sacrificial || mission.pathways.martyr || '—'}</li>
+              <li><strong>Martyr:</strong> ${mission.pathways.martyr || mission.pathways.sacrificial || '—'}</li>
             </ul>
           </div>
           ${unlocked && status === 'available' ? `<div class="contract-choice-actions"><button class="btn btn-xs btn-teal" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','heroic')">Accept Heroic Contract</button><button class="btn btn-xs" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','tyrant')">Accept Tyrant Contract</button><button class="btn btn-xs btn-primary" onclick="factionSystem.acceptFactionMission('${factionId}','${mission.id}','martyr')">Accept Martyr Contract</button></div>` : ""}
@@ -2161,7 +2161,7 @@
       showNotif(
         "Faction narrative advanced: " + toTitle(pathway) + " +1 (Heroic "
         + Number(points.heroic || 0) + " / Tyrant " + Number(points.tyrant || 0)
-        + " / Sacrificial " + Number(points.sacrificial || 0) + ")",
+        + " / Martyr " + Number(points.martyr || 0) + ")",
         "good"
       );
       if (ending && ending.key && ending.key !== "contested") {

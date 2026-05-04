@@ -990,6 +990,283 @@ const NEW_SUN_STAGE_SCENES = {
   }
 };
 
+const NEW_SUN_STAGE_RELIC_REWARDS = {
+  province_lens: {
+    id: 'claw_conciliator',
+    name: 'Claw of the Conciliator',
+    kind: 'relic',
+    fallbackCredits: 120,
+    summary: 'A relic that can heal grievous harm and steady your mind when invoked.'
+  },
+  sea_keeper: {
+    id: 'fuligin_cloak',
+    name: 'Fuligin Cloak',
+    kind: 'armor',
+    stat: 'Ad8 | 2 Actions',
+    fallbackCredits: 130,
+    summary: 'A near-lightless mantle that grants armor-grade defensive advantage.'
+  },
+  wtw_archive: {
+    id: 'book_new_sun',
+    name: 'Book of the New Sun',
+    kind: 'relic',
+    fallbackCredits: 140,
+    summary: 'A memory-dense codex that permanently sharpens Mind and Spirit attunement.'
+  },
+  space_signal: {
+    id: 'terminus_est',
+    name: 'Terminus Est',
+    kind: 'weapon',
+    stat: 'Ad12 Strike | Engaged',
+    fallbackCredits: 180,
+    summary: 'Executioner-grade blade. Strike attacks gain Ad12 advantage while equipped.'
+  }
+};
+
+const NEW_SUN_ENDING_RELIC_REWARDS = {
+  new_sun_risen: {
+    id: 'autarch_signet',
+    name: "Autarch's Signet",
+    kind: 'relic',
+    fallbackCredits: 180,
+    summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
+  },
+  shared_dawn_compromise: {
+    id: 'autarch_signet',
+    name: "Autarch's Signet",
+    kind: 'relic',
+    fallbackCredits: 180,
+    summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
+  },
+  witness_loop: {
+    id: 'autarch_signet',
+    name: "Autarch's Signet",
+    kind: 'relic',
+    fallbackCredits: 180,
+    summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
+  }
+};
+
+function ensureSolarCycleRelicRewardState(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state) return null;
+  if (!state.relicRewardsGiven || typeof state.relicRewardsGiven !== 'object') state.relicRewardsGiven = {};
+  return state.relicRewardsGiven;
+}
+
+function getSolarCycleBackpackItemBaseName(raw) {
+  if (!raw) return '';
+  var text = String(raw || '');
+  if (typeof parseBackpackStack === 'function') {
+    var parsed = parseBackpackStack(text);
+    if (parsed && parsed.name) text = String(parsed.name);
+  }
+  text = text.split('(')[0].trim();
+  if (typeof normalizeLegacyLootAlias === 'function') text = normalizeLegacyLootAlias(text);
+  return String(text || '').trim();
+}
+
+function hasSolarCycleRelicName(name) {
+  var target = String(name || '').toLowerCase();
+  if (!target) return false;
+  if (typeof hasOwnedItemName === 'function' && hasOwnedItemName(name)) return true;
+
+  var items = [];
+  if (Array.isArray(S && S.backpack)) items = items.concat(S.backpack.filter(Boolean));
+  if (S && S.equipment) {
+    ['weapon1', 'weapon2', 'armor', 'readied'].forEach(function (slot) {
+      if (S.equipment[slot]) items.push(S.equipment[slot]);
+    });
+  }
+  return items.some(function (entry) {
+    return getSolarCycleBackpackItemBaseName(entry).toLowerCase() === target;
+  });
+}
+
+function tryStoreSolarCycleRelicReward(reward) {
+  if (!reward || !reward.name) return false;
+  var display = reward.name;
+  if (reward.stat && (reward.kind === 'weapon' || reward.kind === 'armor')) {
+    display = reward.name + ' (' + reward.stat + ')';
+  }
+
+  if (reward.kind === 'weapon' && S && S.equipment) {
+    if (!S.equipment.weapon1) {
+      S.equipment.weapon1 = display;
+      if (typeof setInputValue === 'function') setInputValue('eqWeapon1', display);
+      return true;
+    }
+    if (!S.equipment.weapon2) {
+      S.equipment.weapon2 = display;
+      if (typeof setInputValue === 'function') setInputValue('eqWeapon2', display);
+      return true;
+    }
+  }
+
+  if (reward.kind === 'armor' && S && S.equipment && !S.equipment.armor) {
+    S.equipment.armor = display;
+    if (typeof setInputValue === 'function') setInputValue('eqArmor', display);
+    return true;
+  }
+
+  if (typeof addToBackpack === 'function') return !!addToBackpack(display);
+  if (typeof addItemToBackpack === 'function') return !!addItemToBackpack(display);
+  return false;
+}
+
+function awardSolarCycleRelicReward(reward, sourceTag) {
+  var sc = ensureSolarCycleState();
+  if (!sc || !reward || !reward.id) return null;
+  var seen = ensureSolarCycleRelicRewardState(sc);
+  if (!seen) return null;
+  if (seen[reward.id]) return null;
+  if (hasSolarCycleRelicName(reward.name)) {
+    seen[reward.id] = true;
+    return { granted: false, duplicate: true, name: reward.name, summary: reward.summary || '' };
+  }
+
+  var stored = tryStoreSolarCycleRelicReward(reward);
+  if (!stored) {
+    var credits = Math.max(40, Number(reward.fallbackCredits || 100));
+    if (typeof changeCredits === 'function') changeCredits(credits);
+    else S.credits = Math.max(0, Number(S.credits || 0) + credits);
+    if (typeof showNotif === 'function') {
+      showNotif('Backpack full: ' + reward.name + ' converted to +' + credits + '₵.', 'warn');
+    }
+    return { granted: false, converted: true, credits: credits, name: reward.name, summary: reward.summary || '' };
+  }
+
+  seen[reward.id] = true;
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof renderBackpackUI === 'function') renderBackpackUI();
+  if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+  if (typeof showNotif === 'function') {
+    showNotif('New Sun relic acquired (' + String(sourceTag || 'arc') + '): ' + reward.name + '.', 'good');
+  }
+  return { granted: true, name: reward.name, summary: reward.summary || '' };
+}
+
+function awardSolarCycleStageRelicReward(stageId) {
+  var reward = NEW_SUN_STAGE_RELIC_REWARDS[String(stageId || '')];
+  if (!reward) return null;
+  return awardSolarCycleRelicReward(reward, 'stage');
+}
+
+function awardSolarCycleEndingRelicReward(endingKey) {
+  var reward = NEW_SUN_ENDING_RELIC_REWARDS[String(endingKey || '')];
+  if (!reward) return null;
+  return awardSolarCycleRelicReward(reward, 'ending');
+}
+
+function consumeSolarCycleBackpackItem(index, itemName) {
+  if (typeof consumeBackpackItemByName === 'function') {
+    if (consumeBackpackItemByName(itemName)) return true;
+  }
+  if (typeof removeBackpackItem === 'function') {
+    removeBackpackItem(index);
+    return true;
+  }
+  if (Array.isArray(S && S.backpack) && index >= 0 && index < S.backpack.length) {
+    S.backpack[index] = '';
+    return true;
+  }
+  return false;
+}
+
+function clearOneSolarCycleNegativeCondition() {
+  if (!S || !S.conditions) return '';
+  var keys = ['weakened', 'distracted', 'shaken', 'vulnerable'];
+  for (var i = 0; i < keys.length; i += 1) {
+    if (S.conditions[keys[i]]) {
+      S.conditions[keys[i]] = false;
+      return keys[i];
+    }
+  }
+  return '';
+}
+
+function handleSolarCycleRelicBackpackUse(index) {
+  if (!Array.isArray(S && S.backpack)) return false;
+  var entry = S.backpack[index];
+  if (!entry) return false;
+  var name = getSolarCycleBackpackItemBaseName(entry).toLowerCase();
+  if (!name) return false;
+
+  if (name === 'claw of the conciliator') {
+    consumeSolarCycleBackpackItem(index, 'Claw of the Conciliator');
+    var heal = typeof explodingRoll === 'function' ? explodingRoll(8).total : roll(8);
+    if (typeof changeHealth === 'function') changeHealth(-heal);
+    else if (typeof changeStress === 'function') changeStress(-heal);
+    if (typeof changeMentalStress === 'function') changeMentalStress(-1);
+    var cleared = clearOneSolarCycleNegativeCondition();
+    if (S.trauma > 0 && typeof updateTrauma === 'function') {
+      S.trauma = Math.max(0, Number(S.trauma || 0) - 1);
+      updateTrauma();
+    }
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof openModal === 'function') {
+      openModal('Claw of the Conciliator', '<div style="font-size:.9rem;color:var(--text2);line-height:1.65;">'
+        + 'The relic warms in your hand and knits flesh with impossible mercy.<br><br>'
+        + '<strong style="color:var(--green2);">Recovered ' + heal + ' Health</strong> and <strong style="color:var(--teal);">-1 Mental Stress</strong>'
+        + (cleared ? ('<br>Condition cleared: <strong>' + String(cleared) + '</strong>.') : '')
+        + '</div>');
+    }
+    return true;
+  }
+
+  if (name === 'book of the new sun') {
+    consumeSolarCycleBackpackItem(index, 'Book of the New Sun');
+    if (typeof ensureRelicBonusState === 'function') ensureRelicBonusState();
+    S.relicAdventureBonuses = S.relicAdventureBonuses || {};
+    S.relicAdventureBonuses.mind = Math.max(0, Number(S.relicAdventureBonuses.mind || 0)) + 1;
+    S.relicAdventureBonuses.spirit = Math.max(0, Number(S.relicAdventureBonuses.spirit || 0)) + 1;
+    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof showNotif === 'function') showNotif('Book of the New Sun attuned: permanent +A.D. to Mind and Spirit.', 'good');
+    return true;
+  }
+
+  if (name === "autarch's signet") {
+    consumeSolarCycleBackpackItem(index, "Autarch's Signet");
+    S.conditions = S.conditions || {};
+    S.conditions.focused = true;
+    S.conditions.protected = true;
+    S.rollMod = S.rollMod || { advDice: [], flat: 0 };
+    if (!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
+    S.rollMod.advDice.push((S.stats && S.stats.adventure) ? S.stats.adventure : 4);
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateRollModDisplay === 'function') updateRollModDisplay();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof showNotif === 'function') showNotif("Autarch's Signet invoked: Focused + Protected and +A.D. queued.", 'good');
+    return true;
+  }
+
+  return false;
+}
+
+function patchSolarCycleRelicBackpackUse(retryCount) {
+  var tries = Number(retryCount || 0);
+  if (window._solarCycleRelicUsePatched) return true;
+  if (typeof window.useBackpackItem !== 'function') {
+    if (tries < 20) {
+      setTimeout(function () { patchSolarCycleRelicBackpackUse(tries + 1); }, 250);
+    }
+    return false;
+  }
+  window._solarCycleRelicUsePatched = true;
+  var base = window.useBackpackItem;
+  window.useBackpackItem = function (index) {
+    if (handleSolarCycleRelicBackpackUse(index)) return;
+    return base.apply(this, arguments);
+  };
+  return true;
+}
+
 function getSolarCycleDayKey() {
   const gd = (S && S.gameDate) ? S.gameDate : {};
   return [gd.year || 1, gd.month || 1, gd.day || 1].join('-');
@@ -1022,6 +1299,7 @@ function ensureSolarCycleState() {
   sc.daysRemaining = Math.max(0, SOLAR_CYCLE_DAY_LIMIT - sc.daysElapsed);
   if (typeof sc.worldTilt !== 'number') sc.worldTilt = sc.daysElapsed > 0 ? Math.min(4, Math.floor(sc.daysElapsed / 25) + 1) : 0;
   if (!Array.isArray(sc.prophecyTrack)) sc.prophecyTrack = [];
+  if (!sc.relicRewardsGiven || typeof sc.relicRewardsGiven !== 'object') sc.relicRewardsGiven = {};
   if (typeof sc.echoSeed !== 'number') sc.echoSeed = Math.floor(Math.random() * 1000000);
   if (SOLAR_CYCLE_ARCS.indexOf(sc.activeArc) < 0) sc.activeArc = 'relic';
   if (!sc.resolvedMarkers || typeof sc.resolvedMarkers !== 'object') sc.resolvedMarkers = {};
@@ -2436,6 +2714,10 @@ function resolveSolarCycleEnding(forceResolve) {
   S.storyline.flags = S.storyline.flags || {};
   S.storyline.flags.newSunEnding = endingKey;
   applySolarCycleEndingRewards(endingConfig);
+  var endingRelic = awardSolarCycleEndingRelicReward(endingKey);
+  if (endingRelic && endingRelic.granted) {
+    sc.finale.rewardText = String(sc.finale.rewardText || endingConfig.rewardText || '') + ' Relic: ' + endingRelic.name + '.';
+  }
 
   if (typeof showNotif === 'function') showNotif('New Sun ending resolved: ' + endingKey.replace(/_/g, ' ') + '.', isSolarCycleHopefulEnding(endingKey) ? 'good' : 'warn');
   if (typeof openModal === 'function') {
@@ -2447,6 +2729,7 @@ function resolveSolarCycleEnding(forceResolve) {
           return '<div style="margin-bottom:.45rem;">' + escapeSolarCycleHtml(line) + '</div>';
         }).join('')
       + '<div style="margin-top:.55rem;padding:.4rem .5rem;border:1px solid var(--border2);background:var(--surface);color:var(--teal);">' + escapeSolarCycleHtml(endingConfig.rewardText) + '</div>'
+      + (endingRelic && endingRelic.granted ? ('<div style="margin-top:.35rem;padding:.35rem .5rem;border:1px solid var(--border2);background:var(--surface2);color:var(--gold2);">Unique relic granted: ' + escapeSolarCycleHtml(endingRelic.name) + '.</div>') : '')
       + '</div>'
     );
   }
@@ -3017,6 +3300,7 @@ function startSolarCycleMode(activeArc) {
     lastFailureBranchDay: -1
   };
   sc.playstyle = { observe: 0, intervene: 0, ignore: 0 };
+  sc.relicRewardsGiven = {};
   sc.finale = { resolved: false, key: '', text: '' };
   sc.echoSeed = Math.floor(Math.random() * 1000000);
   sc.thresholdNotifs = [];
@@ -5307,6 +5591,7 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
   recordSolarCycleIrreversibleTag(success ? 'stage_choice_succeeded' : 'stage_choice_failed', { stageId: stageId, choiceId: choice.id, success: !!success });
 
   applySolarCycleChoiceEffects(outcome.effects || {});
+  var stageRelic = awardSolarCycleStageRelicReward(stageId);
   if (stage.branchPoint && outcome.branchChoice) chooseSolarCycleBranch(stage.branchPoint, outcome.branchChoice);
 
   sc.arcProgress.stageResults[stageId] = {
@@ -5333,6 +5618,8 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
       '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;">'
       + escapeSolarCycleHtml(outcome.text || 'The stage resolves and the route changes.')
       + (choice.stat ? ('<div style="margin-top:.35rem;font-size:.74rem;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + String(choice.stat).toUpperCase() + ' d' + actionDie + ' = ' + actionRoll.total + ' vs DD' + dreadDie + ' = ' + dreadRoll.total + '</div>') : '')
+      + (stageRelic && stageRelic.granted ? ('<div style="margin-top:.4rem;font-size:.75rem;color:var(--teal);">Relic reward: <strong>' + escapeSolarCycleHtml(stageRelic.name) + '</strong>. ' + escapeSolarCycleHtml(stageRelic.summary || '') + '</div>') : '')
+      + (stageRelic && stageRelic.converted ? ('<div style="margin-top:.4rem;font-size:.75rem;color:var(--gold2);">Relic reward converted: ' + escapeSolarCycleHtml(stageRelic.name) + ' -> +' + Number(stageRelic.credits || 0) + '₵ (inventory full).</div>') : '')
       + (nextMarker ? ('<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">Next marker moved to ' + escapeSolarCycleHtml(nextMarker.label) + '.</div>') : '<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">No further stage marker remains. Resolve the ending from New Sun.</div>')
       + '</div>'
     );
@@ -5466,6 +5753,7 @@ window.maybeAutoOpenSolarCycleGalaxy = maybeAutoOpenSolarCycleGalaxy;
 window.recordWorldConsequence = recordWorldConsequence;
 window.getConsequenceMissionBias = getConsequenceMissionBias;
 window.buildConsequenceMotionPanelHtml = buildConsequenceMotionPanelHtml;
+patchSolarCycleRelicBackpackUse(0);
 
 function ensureStarsState() {
   if (!S.health && S.health !== 0) S.health = S.stress || 0;

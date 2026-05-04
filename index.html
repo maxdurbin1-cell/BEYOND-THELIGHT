@@ -7845,6 +7845,79 @@ function normalizeShopCategoryName(cat){
   return category;
 }
 
+function getControlRegimePackage(control){
+  var id=String(control||'').toLowerCase();
+  var packages={
+    rebels:{
+      label:'Rebel Cell Network',
+      notice:'Rebel cells lean on ambush lanes, covert aid, and cheap field gear.',
+      encounterNote:'Ambush risk is elevated; covert aid and backchannels are active.',
+      governance:[
+        'Ambush risk rises on roads and patrol routes.',
+        'Covert aid cells can supply medicine, scouts, and dead drops.',
+        'Weapons and field gear trend cheaper than imported tech.'
+      ],
+      market:{discount:['weapons','melee_exp','ranged_exp','armor'],surcharge:['augmentations','os_hacks','tradegoods'],locks:['augmentations'],permitCategories:[],tariffCategories:[]}
+    },
+    guilds:{
+      label:'Guild Tariff Compact',
+      notice:'Guild officers keep civic goods stable, but every route comes with contract tolls and tariff drag.',
+      encounterNote:'Toll checks and contract enforcement shape nearby movement.',
+      governance:[
+        'Essentials and civic goods stay stocked more reliably.',
+        'Tariffs bite imported and military wares.',
+        'Most travel friction arrives as fees, ledgers, and bonded contracts.'
+      ],
+      market:{discount:['tradegoods','services','toolkits','essentials'],surcharge:['weapon_mods','ranged_exp','augmentations'],locks:[],permitCategories:['tradegoods','services'],tariffCategories:['weapon_mods','ranged_exp','augmentations']}
+    },
+    church:{
+      label:'Church Stewardship',
+      notice:'Church stewards improve local safety and remedies while censoring unsanctioned tech.',
+      encounterNote:'Sanctuary is possible, but forbidden tools draw scrutiny.',
+      governance:[
+        'Towns are safer where church patrols and rites take hold.',
+        'Medicine, rites, and social services are favored.',
+        'Unsanctioned tech is censored or denied outright.'
+      ],
+      market:{discount:['scrolls','remedies','services'],surcharge:['weapon_mods','os_hacks','strange'],locks:['os_hacks','augmentations'],permitCategories:['strange'],tariffCategories:['weapon_mods']}
+    },
+    empire:{
+      label:'Imperial Permit State',
+      notice:'Imperial control means permit papers, checkpoint fees, and requisition pressure on the market.',
+      encounterNote:'Patrol security increases, but permit friction and inspections slow everything down.',
+      governance:[
+        'Patrol security is higher, especially near roads and choke points.',
+        'Permit checks add movement friction to trade, services, and specialist gear.',
+        'Cheap weapons are gone; regulated arms and imported tools cost more.'
+      ],
+      market:{discount:['armor','armor_exp'],surcharge:['weapons','ranged_exp','tradegoods','services','augmentations'],locks:['os_hacks','strange'],permitCategories:['tradegoods','services','ranged_exp','augmentations'],tariffCategories:['weapons','tradegoods']}
+    },
+    syndicate:{
+      label:'Syndicate Shadow Market',
+      notice:'Syndicate brokers flood contraband, but civic order and public services decay around them.',
+      encounterNote:'Smuggling lanes thrive while civic support hollows out.',
+      governance:[
+        'Contraband and illicit mods become easier to source.',
+        'Services, remedies, and essentials become less reliable.',
+        'The zone feels profitable, but increasingly hollowed out.'
+      ],
+      market:{discount:['weapon_mods','os_hacks','strange','cosmic'],surcharge:['remedies','essentials','services'],locks:['services'],permitCategories:[],tariffCategories:['remedies','services']}
+    },
+    scholars:{
+      label:'Scholar Research Mandate',
+      notice:'Scholar enclaves reward information gathering, but artifacts and bulk trade move under restriction.',
+      encounterNote:'Intel gains are stronger here, but artifacts and survey finds are tightly controlled.',
+      governance:[
+        'Intel actions pay off faster in surveyed zones.',
+        'Research gear and tools are favored over weapons.',
+        'Artifacts, curios, and bulk commerce are restricted under archive law.'
+      ],
+      market:{discount:['augmentations','os_hacks','scrolls','toolkits'],surcharge:['melee_exp','weapons','tradegoods'],locks:['tradegoods','cosmic','strange'],permitCategories:['cosmic','strange'],tariffCategories:['tradegoods']}
+    }
+  };
+  return packages[id]||null;
+}
+
 function getShopMarketSnapshot(cat,name,baseCost){
   var category=normalizeShopCategoryName(cat);
   var cost=Math.max(0,Number(baseCost||0));
@@ -7891,19 +7964,20 @@ function getShopMarketSnapshot(cat,name,baseCost){
   if(premiumCategories.indexOf(category)>=0)mult+=0.1;
   else if(tacticalCategories.indexOf(category)>=0)mult+=0.05;
 
-  var controlProfiles={
-    rebels:{discount:['weapons','melee_exp','ranged_exp','armor'],surcharge:['augmentations','os_hacks','tradegoods'],locks:['augmentations'],notice:'Rebel quartermasters prioritize field gear over imported tech.'},
-    guilds:{discount:['tradegoods','services','toolkits','essentials'],surcharge:['weapon_mods','ranged_exp'],locks:[],notice:'Guild caravans flood civic goods and squeeze military wares.'},
-    church:{discount:['scrolls','remedies','services'],surcharge:['weapon_mods','os_hacks','strange'],locks:['os_hacks'],notice:'Church stewards subsidize rites and medicine, restrict forbidden tech.'},
-    empire:{discount:['weapons','ranged_exp','armor','armor_exp'],surcharge:['strange','cosmic','services'],locks:['os_hacks'],notice:'Imperial requisitions favor armories and rationed combat stock.'},
-    syndicate:{discount:['weapon_mods','os_hacks','strange','cosmic'],surcharge:['remedies','essentials'],locks:['services'],notice:'Syndicate brokers flood contraband while choking public services.'},
-    scholars:{discount:['augmentations','os_hacks','scrolls','toolkits'],surcharge:['melee_exp','weapons'],locks:['tradegoods'],notice:'Scholar enclaves favor research wares and throttle bulk commerce.'}
-  };
-  var profile=control&&controlProfiles[control]?controlProfiles[control]:null;
+  var regime=getControlRegimePackage(control);
+  var profile=regime&&regime.market?regime.market:null;
   if(profile){
     if(profile.discount.indexOf(category)>=0)mult-=0.08;
     if(profile.surcharge.indexOf(category)>=0)mult+=0.1;
-    if(profile.notice)notices.push(profile.notice);
+    if(profile.permitCategories&&profile.permitCategories.indexOf(category)>=0){
+      mult+=0.08;
+      notices.push((control.charAt(0).toUpperCase()+control.slice(1))+' permit checks add administrative friction.');
+    }
+    if(profile.tariffCategories&&profile.tariffCategories.indexOf(category)>=0){
+      mult+=0.06;
+      notices.push((control.charAt(0).toUpperCase()+control.slice(1))+' tariff policy raises listed prices.');
+    }
+    if(regime.notice)notices.push(regime.notice);
   }
 
   var portLockedCategories=['tradegoods','cosmic','augmentations','os_hacks'];
@@ -10928,6 +11002,7 @@ function renderHexInfo(hex){
   if(typeof window.getWorldStateHexOverlay==='function'){
     const wsOverlay=window.getWorldStateHexOverlay(nk);
     if(wsOverlay&&(wsOverlay.control||wsOverlay.tension||wsOverlay.tags.length)){
+      const regime=typeof getControlRegimePackage==='function'?getControlRegimePackage(wsOverlay.control):null;
       const TENSION_LABELS=['Calm','Uneasy','Tense','Volatile','Dangerous','Explosive'];
       const SAFETY_LABELS=['Deadly','Hostile','Risky','Neutral','Stable','Protected'];
       const tensionLabel=TENSION_LABELS[Math.min(5,Math.max(0,wsOverlay.tension))];
@@ -10957,6 +11032,7 @@ function renderHexInfo(hex){
           ${(wsOverlay.capabilities&&wsOverlay.capabilities.factionPermissions)?`<div style="color:#c9d6f0;">Capability: Faction permissions enabled</div>`:''}
           ${(wsOverlay.capabilities&&wsOverlay.capabilities.saferRest)?`<div style="color:var(--teal);">Capability: Safer rest options active</div>`:''}
           ${wsOverlay.recentChange?`<div style="color:rgba(255,255,255,.6);">⬤ Recently changed</div>`:''}
+          ${regime&&regime.label?`<div style="margin-top:.3rem;padding:.35rem .45rem;border:1px solid rgba(180,180,255,.2);background:rgba(180,180,255,.04);"><div style="font-size:.72rem;color:var(--gold2);font-family:'Cinzel',serif;letter-spacing:.06em;">Regime Package: ${regime.label}</div>${Array.isArray(regime.governance)?regime.governance.map(function(line){return '<div style="font-size:.74rem;color:var(--text2);line-height:1.45;">• '+line+'</div>';}).join(''):''}</div>`:''}
           ${worldActions.length?`<div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;">${worldActions.join('')}</div>`:''}
         </div>
       </div>`;
@@ -12206,17 +12282,22 @@ function resolveWorldEventOption(col,row,option){
   var profiles={
     intel:{stat:'mind',dd:6,success:{deltas:{stability:1,factionHeat:-1},tags:['intel-gathered','discovered-route'],text:'Intel network mapped weak points.'},fail:{deltas:{factionHeat:1,tension:1},tags:['intel-blowback'],text:'Your questions drew the wrong attention.'}},
     aid:{stat:'body',dd:6,success:{deltas:{stability:1,tension:-1,safety:1},tags:['civic-aid','patrol-deployed'],text:'Your efforts on the ground rally locals.'},fail:{deltas:{tension:1},tags:['civic-aid-failed'],text:'Aid convoy was disrupted before it landed.'}},
+    covertaid:{stat:'lead',dd:6,success:{deltas:{stability:1,safety:1,factionHeat:-1},tags:['covert-aid','rebel-aid-network'],text:'A rebel aid ring opens dead drops and safe hands for the district.'},fail:{deltas:{factionHeat:1,tension:1},tags:['covert-aid-burned'],text:'The covert aid route is exposed and local cells go to ground.'}},
     backchannel:{stat:'control',dd:8,success:{deltas:{factionHeat:-2,tension:-1},tags:['backchannel-opened','opened-border'],text:'Backchannel terms cool the zone.'},fail:{deltas:{factionHeat:1,tension:1,stability:-1},tags:['backchannel-burned'],text:'A burned contact sparks retaliatory sweeps.'}},
+    permit:{stat:'control',dd:6,success:{deltas:{factionHeat:-1,tension:-1},tags:['permit-cleared','opened-border'],text:'Your papers clear inspection and the checkpoint wave-through opens a short movement window.'},fail:{deltas:{factionHeat:1,tension:1,scarcity:1},tags:['permit-flagged','inspection-delay'],text:'An imperial inspector flags the paperwork and movement slows to a crawl.'}},
+    sanctuary:{stat:'spirit',dd:6,success:{deltas:{safety:2,tension:-1},tags:['sanctuary-granted'],text:'Church sanctuary takes hold and the quarter calms under rite protection.'},fail:{deltas:{factionHeat:1},tags:['sanctuary-denied'],text:'The wardens refuse sanctuary and mark your crew for scrutiny.'}},
     resist:{stat:'strike',dd:8,success:{deltas:{safety:1,stability:1},tags:['crackdown-resisted'],text:'Residents hold the line and keep routes open.'},fail:{deltas:{safety:-1,tension:1},tags:['crackdown-escalated'],text:'Crackdown pressure spreads into nearby lanes.'}},
     smuggle:{stat:'control',dd:8,success:{deltas:{scarcity:-1,tension:1},tags:['smuggler-route','discovered-route'],text:'Contraband route opens and supply improves.'},fail:{deltas:{scarcity:1,factionHeat:1},tags:['smuggle-intercepted'],text:'Interception locks down commerce harder.'}},
     petition:{stat:'lead',dd:8,success:{deltas:{stability:1,factionHeat:-1,safety:1},tags:['council-petition'],text:'Council petition wins temporary concessions.'},fail:{deltas:{factionHeat:1},tags:['petition-rejected'],text:'Petition denied; officials tighten control.'}}
   };
   var p=profiles[choice]||profiles.intel;
+  var control=String(overlay&&overlay.control||'').toLowerCase();
   var die=(typeof getEffectiveDie==='function')?getEffectiveDie(p.stat):((S.stats&&S.stats[p.stat])||4);
   var actor=explodingRoll(Math.max(4,Number(die)||4));
   var oppose=explodingRoll(Number(p.dd)||6);
   var success=actor.total>=oppose.total;
   var outcome=success?p.success:p.fail;
+  var outcomeText=String(outcome.text||'');
 
   window.applyWorldConsequence({
     system:'world-event',
@@ -12231,6 +12312,13 @@ function resolveWorldEventOption(col,row,option){
   });
   if(success&&typeof changeCounter==='function'&&choice==='intel')changeCounter('pathTokens',1);
   if(success&&typeof changeCounter==='function'&&choice==='aid')changeCounter('renown',1);
+  if(success&&typeof changeCounter==='function'&&choice==='covertaid')changeCounter('tmw',1);
+  if(success&&typeof changeCounter==='function'&&choice==='permit')changeCounter('pathTokens',1);
+  if(success&&typeof changeCounter==='function'&&choice==='sanctuary')changeCounter('renown',1);
+  if(success&&choice==='intel'&&control==='scholars'&&typeof changeCounter==='function'){
+    changeCounter('pathTokens',1);
+    outcomeText+=' Scholar survey records turn the lead into an extra Path Token.';
+  }
   if(!success&&typeof changeMentalStress==='function')changeMentalStress(1);
 
   // Write a rumor to this hex so revisits reflect what happened
@@ -12251,7 +12339,10 @@ function resolveWorldEventOption(col,row,option){
     var worldEventMissions={
       intel:{title:'Exploit Mapped Intelligence',lore:'You identified a patrol weakness here. Someone needs to act on it before the window closes.',reward:45,templateLabel:'Reconnaissance Contract'},
       aid:{title:'Hold What Was Stabilized',lore:'The aid effort opened a fragile window. A crew needs to secure the gains before the situation reverts.',reward:40,templateLabel:'Stabilization Hold'},
+      covertaid:{title:'Run the Covert Aid Chain',lore:'A rebel aid line is open. Someone has to move medicine, scouts, and coded supplies before the net closes.',reward:50,templateLabel:'Dead-Drop Support Run'},
       backchannel:{title:'Deliver on the Backchannel Deal',lore:'Words were exchanged through covert channels. Now the other party expects delivery.',reward:55,templateLabel:'Covert Liaison Contract'},
+      permit:{title:'Exploit the Permit Window',lore:'The checkpoint cleared your papers. A narrow permit window is open for a fast move.',reward:45,templateLabel:'Checkpoint Transit'},
+      sanctuary:{title:'Secure the Sanctuary Quarter',lore:'Sanctuary has been granted, but it will not hold without a crew protecting the block.',reward:40,templateLabel:'Sanctuary Hold'},
       resist:{title:'Capitalize on the Crackdown Break',lore:'The crackdown was stalled. Use the opening to move something valuable through before it reseals.',reward:50,templateLabel:'Window Run'},
       smuggle:{title:'Move Product Through the New Route',lore:'The smuggler route is open. A supplier needs cargo moved before it draws attention.',reward:60,templateLabel:'Contraband Transit'},
       petition:{title:'Fulfill the Council Directive',lore:'The petition succeeded — a council directive was issued. Someone must act on it to make it stick.',reward:45,templateLabel:'Civic Mandate Contract'}
@@ -12266,7 +12357,7 @@ function resolveWorldEventOption(col,row,option){
       lore:wem.lore
     });
   }
-  showNotif((success?'✅ ':'❌ ')+p.stat.toUpperCase()+' d'+die+' rolled '+actor.total+' vs DD'+p.dd+' ('+oppose.total+'). '+outcome.text+(success?' 📋 New contract posted.':''),success?'good':'warn');
+  showNotif((success?'✅ ':'❌ ')+p.stat.toUpperCase()+' d'+die+' rolled '+actor.total+' vs DD'+p.dd+' ('+oppose.total+'). '+outcomeText+(success?' 📋 New contract posted.':''),success?'good':'warn');
 }
 
 function buildWorldStateEncounterAddon(col,row,mode){
@@ -12274,6 +12365,7 @@ function buildWorldStateEncounterAddon(col,row,mode){
   var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
   if(!overlay)return null;
   var control=String(overlay.control||'').toLowerCase();
+  var regime=getControlRegimePackage(control);
   var tension=Math.max(0,Number(overlay.tension||0));
   var tags=Array.isArray(overlay.tags)?overlay.tags:[];
   var controlRates={
@@ -12328,14 +12420,14 @@ function buildWorldStateEncounterAddon(col,row,mode){
     };
     pushWeighted({
       title:'World Event: '+overlay.control.charAt(0).toUpperCase()+overlay.control.slice(1)+' Presence',
-      desc:(controlDescMap[ctrl]||'Regional authorities are actively shaping this area.')+' Contact: '+contactName+'.',
-      actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">🕊 Negotiate (LEAD vs DD8)</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Intel (MIND vs DD6)</button><button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'bribe\')">💰 Bribe (-30₵)</button>'+(ctrl==='rebels'?'<button class="btn btn-xs btn-warn" onclick="resolveWorldEventOption('+col+','+row+',\'backchannel\')">🕸 Backchannel (CONTROL vs DD8)</button>':'')+(ctrl==='guilds'?'<button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'contract\')">📜 Contract (-20₵)</button>':'')+(ctrl==='empire'?'<button class="btn btn-xs btn-red" onclick="resolveWorldEventOption('+col+','+row+',\'resist\')">🛡 Resist Crackdown (STRIKE vs DD8)</button>':'')+(ctrl==='syndicate'?'<button class="btn btn-xs btn-dark" onclick="resolveWorldEventOption('+col+','+row+',\'smuggle\')">🕳 Smuggle (CONTROL vs DD8)</button>':'')+(ctrl==='scholars'?'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'petition\')">📚 Petition (LEAD vs DD8)</button>':'')
+      desc:(controlDescMap[ctrl]||'Regional authorities are actively shaping this area.')+' Contact: '+contactName+'.'+(regime&&regime.notice?' '+regime.notice:''),
+      actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">🕊 Negotiate (LEAD vs DD8)</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Intel (MIND vs DD6)</button><button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'bribe\')">💰 Bribe (-30₵)</button>'+(ctrl==='rebels'?'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'covertaid\')">🕯 Covert Aid (LEAD vs DD6)</button><button class="btn btn-xs btn-warn" onclick="resolveWorldEventOption('+col+','+row+',\'backchannel\')">🕸 Backchannel (CONTROL vs DD8)</button>':'')+(ctrl==='guilds'?'<button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'contract\')">📜 Contract (-20₵)</button>':'')+(ctrl==='church'?'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'sanctuary\')">🕯 Sanctuary (SPIRIT vs DD6)</button>':'')+(ctrl==='empire'?'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'permit\')">📜 Permit Check (CONTROL vs DD6)</button><button class="btn btn-xs btn-red" onclick="resolveWorldEventOption('+col+','+row+',\'resist\')">🛡 Resist Crackdown (STRIKE vs DD8)</button>':'')+(ctrl==='syndicate'?'<button class="btn btn-xs btn-dark" onclick="resolveWorldEventOption('+col+','+row+',\'smuggle\')">🕳 Smuggle (CONTROL vs DD8)</button>':'')+(ctrl==='scholars'?'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'petition\')">📚 Petition (LEAD vs DD8)</button>':'')
     },(rate.weights&&rate.weights.presence)||1);
   }
   if(tags.indexOf('recent-conflict')>=0||tension>=2||control==='rebels'){
     pushWeighted({
       title:'World Event: Skirmish Echo',
-      desc:'Fresh signs of recent conflict raise the chance of immediate trouble.',
+      desc:'Fresh signs of recent conflict raise the chance of immediate trouble.'+(control==='rebels'?' Rebel spotters are using the terrain for layered ambushes.':''),
       actions:'<button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'world_event\',3,\'Conflict Remnants\',6)">⚔ Engage</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Avoid</button>'
     },(rate.weights&&rate.weights.skirmish)||1);
   }
@@ -12350,7 +12442,7 @@ function buildWorldStateEncounterAddon(col,row,mode){
   var pickEntry=pick(pool);
   return {
     title:pickEntry.title,
-    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+'</div></div>'
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+(regime&&regime.encounterNote?(' · '+regime.encounterNote):'')+'</div></div>'
   };
 }
 

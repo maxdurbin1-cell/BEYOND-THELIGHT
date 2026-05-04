@@ -1930,6 +1930,31 @@ function chooseSolarCycleBranch(branchId, choiceId) {
   S.storyline.flags = S.storyline.flags || {};
   S.storyline.flags['newSunBranch_' + bId] = cId;
 
+  var branchConsequenceDeltas = {
+    stability: Number(choice.worldTiltDelta || 0) < 0 ? 1 : (Number(choice.worldTiltDelta || 0) > 0 ? -1 : 0),
+    scarcity: 0,
+    corruption: Number(choice.paradoxDelta || 0) > 0 ? 1 : 0,
+    rumor: Number(choice.paradoxDelta || 0) > 0 ? 1 : 0,
+    witness: Number(choice.worldTiltDelta || 0) < 0 ? 1 : -1,
+    factionHeat: Number(choice.worldTiltDelta || 0) > 0 ? 1 : 0
+  };
+  if (bId === 'tide_compact' && cId === 'bind') {
+    branchConsequenceDeltas.scarcity = -1;
+    branchConsequenceDeltas.witness = Number(branchConsequenceDeltas.witness || 0) + 1;
+  }
+  if (bId === 'tide_compact' && cId === 'draft') {
+    branchConsequenceDeltas.scarcity = 1;
+    branchConsequenceDeltas.factionHeat = Number(branchConsequenceDeltas.factionHeat || 0) + 1;
+  }
+  recordWorldConsequence({
+    system: 'newsun',
+    title: 'Branch locked: ' + String(branch.title || bId),
+    detail: String(choice.summary || choice.label || ''),
+    region: (bId === 'keeper_oath' ? 'province' : (bId === 'tide_compact' ? 'sea' : 'galaxy')),
+    severity: Number(choice.worldTiltDelta || 0) > 0 ? 'high' : 'medium',
+    deltas: branchConsequenceDeltas
+  });
+
   if (bId === 'keeper_oath' && cId === 'preserve') recordSolarCycleIrreversibleTag('branch_preserve_success', { branch: bId, choice: cId });
   if (bId === 'keeper_oath' && cId === 'break') recordSolarCycleIrreversibleTag('branch_break_success', { branch: bId, choice: cId });
   if (bId === 'tide_compact' && cId === 'bind') recordSolarCycleIrreversibleTag('branch_bind_success', { branch: bId, choice: cId });
@@ -3526,6 +3551,18 @@ function applySolarCycleTimeFracture(daysBack) {
   advanceDay(-rewindDays, true);
   syncSolarCycleProvinceMarkers();
 
+  if (typeof openModal === 'function') {
+    openModal(
+      'Time Fracture Event: Mirror Transit',
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="margin-bottom:.35rem;color:var(--gold2);">The fracture opens like a mirror corridor. You return ' + Number(rewindDays || 0) + ' days, but the world keeps traces of the version you just erased.</div>'
+      + '<div style="margin-bottom:.35rem;">Witnesses greet you with details from futures that now no longer exist. Some NPCs remember promises you have not made yet. Others accuse you of debts from timelines only you can still recall.</div>'
+      + '<div style="margin-bottom:.35rem;">Mechanically: quests and stage opportunities in this window can be attempted again, but paradox scars persist and continue to influence ending pressure.</div>'
+      + '<div style="font-size:.75rem;color:var(--teal);">Arc shift: <strong>' + escapeSolarCycleHtml(String(prevArc || 'relic').toUpperCase()) + '</strong> -> <strong>' + escapeSolarCycleHtml(String(nextArc || 'relic').toUpperCase()) + '</strong> | Paradox Strain: <strong>' + Number(sc.timeFracture && sc.timeFracture.scarFlags && sc.timeFracture.scarFlags.paradoxStrain || 0) + '</strong></div>'
+      + '</div>'
+    );
+  }
+
   if (typeof showNotif === 'function') {
     showNotif('Time Fracture: rewound ' + rewindDays + ' day(s). Paradox scars remain.', 'warn');
   }
@@ -4722,6 +4759,71 @@ function createSolarCycleImmediateQuest(sc, region, sourceQuest, reason) {
   return quest;
 }
 
+function getSolarCycleStageConsequenceDeltas(stage, success, branchChoice) {
+  var base = success
+    ? { stability: 1, scarcity: 0, corruption: -1, rumor: -1, witness: 1, factionHeat: -1 }
+    : { stability: -1, scarcity: 1, corruption: 1, rumor: 1, witness: -1, factionHeat: 1 };
+  var region = String(stage && stage.region || 'province');
+  var branch = String(branchChoice || '');
+
+  if (region === 'sea') {
+    base.scarcity = Number(base.scarcity || 0) + (success ? -1 : 1);
+  } else if (region === 'wtw') {
+    base.corruption = Number(base.corruption || 0) + (success ? -1 : 1);
+    base.rumor = Number(base.rumor || 0) + (success ? -1 : 1);
+  } else if (region === 'galaxy') {
+    base.stability = Number(base.stability || 0) + (success ? 1 : -1);
+    base.witness = Number(base.witness || 0) + (success ? 1 : -1);
+  }
+
+  if (branch === 'preserve' || branch === 'bind' || branch === 'open') {
+    base.stability = Number(base.stability || 0) + 1;
+    base.witness = Number(base.witness || 0) + 1;
+    base.corruption = Number(base.corruption || 0) - 1;
+  }
+  if (branch === 'break' || branch === 'draft' || branch === 'crown' || branch === 'sever') {
+    base.factionHeat = Number(base.factionHeat || 0) + 1;
+    base.corruption = Number(base.corruption || 0) + 1;
+    base.witness = Number(base.witness || 0) - 1;
+    base.rumor = Number(base.rumor || 0) + 1;
+  }
+  return base;
+}
+
+function spawnSolarCycleStageFollowupQuest(sc, stage, success, branchChoice) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  if (!state || !qs || !stage || !state.storyModeEnabled || !state.enabled) return null;
+  if (Number(qs.activeQuestIds && qs.activeQuestIds.length || 0) >= 5) return null;
+
+  var sourceQuest = {
+    id: 'stage-' + String(stage.id || 'unknown') + '-d' + Number(state.daysElapsed || 0),
+    threadRootId: 'stage-' + String(stage.id || 'unknown'),
+    region: String(stage.region || 'province'),
+    templateMode: 'straight',
+    arc: getSolarCycleEffectiveArc(state),
+    methodTitle: String(stage.title || 'Arc Stage')
+  };
+  var reason = success ? 'success' : 'failed';
+  if (String(branchChoice || '') === 'break' || String(branchChoice || '') === 'draft' || String(branchChoice || '') === 'crown') {
+    reason = success ? 'social_violent_success' : 'social_violent_fail';
+  }
+  if (String(branchChoice || '') === 'preserve' || String(branchChoice || '') === 'bind' || String(branchChoice || '') === 'open') {
+    reason = success ? 'social_diplomatic_success' : 'social_diplomatic_fail';
+  }
+
+  var followup = spawnSolarCycleQuestFollowup(sourceQuest, state, reason);
+  if (!followup) {
+    var preferredRegion = getSolarCycleNextRegionFrom(String(stage.region || 'province'), 'straight');
+    followup = createSolarCycleImmediateQuest(state, preferredRegion, sourceQuest, reason);
+    if (followup && placeSolarCycleSchedulerQuestMarker(followup, state)) {
+      qs.questById[followup.id] = followup;
+      qs.activeQuestIds.push(followup.id);
+    }
+  }
+  return followup;
+}
+
 function seedSolarCycleMix(sc, salt) {
   var state = sc || ensureSolarCycleState();
   var n = Number(state && state.echoSeed || 0) + Number(state && state.daysElapsed || 0) * 131 + Number(salt || 0) * 17;
@@ -4856,6 +4958,11 @@ function getSolarCycleNextSchedulerRegion(sc, qs) {
     return getSolarCycleQuestRemainingByRegion(scheduler, region) > 0;
   });
   if (!remaining.length) return 'galaxy';
+  var missionBias = getConsequenceMissionBias();
+  if (missionBias && missionBias.focusRegion && remaining.indexOf(String(missionBias.focusRegion)) >= 0) {
+    var focusRoll = seedSolarCycleMix(state, Number(scheduler.questCounter || 0) + remaining.length * 13) % 100;
+    if (focusRoll < 70) return String(missionBias.focusRegion);
+  }
   var mix = seedSolarCycleMix(state, Number(scheduler.questCounter || 0) + remaining.length * 5);
   return remaining[mix % remaining.length] || remaining[0];
 }
@@ -4872,6 +4979,7 @@ function createSolarCycleSchedulerQuest(sc, region) {
 
   var templateMode = getSolarCycleQuestTemplateMode(state);
   var arc = getSolarCycleEffectiveArc(state);
+  var missionBias = getConsequenceMissionBias();
   var entries = getSolarCycleQuestPackEntries(arc, templateMode, reg);
   var counter = Number(qs.questCounter || 0) + 1;
   qs.questCounter = counter;
@@ -4892,6 +5000,11 @@ function createSolarCycleSchedulerQuest(sc, region) {
   var challengeType = ['combat', 'puzzle', 'social', 'stealth'][seedSolarCycleMix(state, counter + 41) % 4];
   var nextRegion = getSolarCycleNextRegionFrom(reg, templateMode);
   var failRegion = getSolarCycleNextRegionFrom(reg, 'roaming');
+  if (missionBias && missionBias.difficultyShift > 0) {
+    endDay = Math.max(startDay + 1, Number(endDay || startDay + 3) - 1);
+  } else if (missionBias && missionBias.difficultyShift < 0) {
+    endDay = Math.min(SOLAR_CYCLE_DAY_LIMIT, Number(endDay || startDay + 3) + 1);
+  }
 
   var quest = {
     id: 'nsq-' + String(startDay) + '-' + String(counter) + '-' + String(Math.floor(Math.random() * 10000)),
@@ -4921,8 +5034,16 @@ function createSolarCycleSchedulerQuest(sc, region) {
     sourceQuestId: '',
     threadRootId: '',
     nextSuccessRegion: nextRegion,
-    nextFailRegion: failRegion
+    nextFailRegion: failRegion,
+    tensionFocusRegion: missionBias && missionBias.focusRegion ? String(missionBias.focusRegion) : '',
+    tensionRewardBonus: missionBias ? Number(missionBias.rewardBonus || 0) : 0,
+    tensionDifficultyShift: missionBias ? Number(missionBias.difficultyShift || 0) : 0
   };
+  if (missionBias && missionBias.preferredVerbs && missionBias.preferredVerbs.length && String(entry || '').indexOf(' ') > 0) {
+    var titleParts = String(entry).split(' ');
+    titleParts[0] = String(missionBias.preferredVerbs[seedSolarCycleMix(state, counter + 91) % missionBias.preferredVerbs.length] || titleParts[0]);
+    quest.title = titleParts.join(' ');
+  }
   quest.threadRootId = String(quest.id || '');
   applySolarCycleNpcMemoryToQuest(state, quest);
   return quest;
@@ -5122,6 +5243,34 @@ function spawnSolarCycleSchedulerQuests(sc, force) {
   var state = sc || ensureSolarCycleState();
   var qs = getSolarCycleQuestScheduler(state);
   if (!state || !qs || !state.enabled || !state.storyModeEnabled) return;
+
+  var provinceDone = Number(qs.completedByRegion && qs.completedByRegion.province || 0);
+  var seaDone = Number(qs.completedByRegion && qs.completedByRegion.sea || 0);
+  var hasActiveSeaPortal = Array.isArray(qs.activeQuestIds) && qs.activeQuestIds.some(function (qid) {
+    var q = qs.questById ? qs.questById[qid] : null;
+    return !!(q && !q.resolved && !q.expired && q.region === 'sea' && q.portalHandoff);
+  });
+  if (!hasActiveSeaPortal
+    && provinceDone >= Number(NEW_SUN_REGION_TARGETS.province || 10)
+    && seaDone >= Number(NEW_SUN_REGION_TARGETS.sea || 2)
+    && Number(qs.activeQuestIds && qs.activeQuestIds.length || 0) < 5) {
+    var portalSeedQuest = createSolarCycleImmediateQuest(state, 'sea', {
+      id: 'portal-seed-' + String(state.daysElapsed || 0),
+      threadRootId: 'portal-seed',
+      region: 'sea',
+      templateMode: 'roaming',
+      methodTitle: 'Lost City Portal Relay'
+    }, 'portal');
+    if (portalSeedQuest) {
+      portalSeedQuest.portalHandoff = true;
+      portalSeedQuest.title = 'Portal Relay Lead: ' + String(portalSeedQuest.title || 'Sea transit');
+      portalSeedQuest.stakesText = 'Open this sea relay to hand off the thread into World That Was.';
+      if (placeSolarCycleSchedulerQuestMarker(portalSeedQuest, state)) {
+        qs.questById[portalSeedQuest.id] = portalSeedQuest;
+        qs.activeQuestIds.push(portalSeedQuest.id);
+      }
+    }
+  }
 
   var activeCap = 4;
   var day = Number(state.daysElapsed || 0);
@@ -5466,9 +5615,17 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     severity: misled ? 'high' : 'medium',
     deltas: outcomeDeltas
   });
+  var tensionReward = Number(quest.tensionRewardBonus || 0);
+  if (tensionReward) {
+    var rewardDelta = misled ? Math.floor(tensionReward / 3) : tensionReward;
+    if (rewardDelta !== 0) {
+      if (typeof changeCredits === 'function') changeCredits(rewardDelta);
+      else S.credits = Math.max(0, Number(S.credits || 0) + rewardDelta);
+    }
+  }
   if (forcedMisled) recordSolarCycleIrreversibleTag('scheduler_roll_failed', { questId: quest.id, methodId: quest.methodId, approach: approach });
   if (typeof showNotif === 'function') {
-    showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + getSolarCycleRollTotal(rollResult.actionRoll) + ' vs Dread ' + getSolarCycleRollTotal(rollResult.dreadRoll) + ')' + getSolarCycleRollPenaltyNote(rollResult.actionRoll) + (socialStyle ? (' | ' + socialStyle.label) : '') + '.', misled ? 'warn' : 'good');
+    showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + getSolarCycleRollTotal(rollResult.actionRoll) + ' vs Dread ' + getSolarCycleRollTotal(rollResult.dreadRoll) + ')' + getSolarCycleRollPenaltyNote(rollResult.actionRoll) + (socialStyle ? (' | ' + socialStyle.label) : '') + (tensionReward ? (' | Pressure payout ' + (misled ? Math.floor(tensionReward / 3) : tensionReward) + '₵') : '') + '.', misled ? 'warn' : 'good');
   }
   var _isPuzzleChallenge = String(quest.challengeType || '') === 'puzzle';
   applySolarCycleQuestChallengeOutcome(quest, rollResult, misled);
@@ -6040,12 +6197,13 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
   var dreadRoll = choice.stat ? (typeof explodingRoll === 'function' ? explodingRoll(dreadDie) : { total: roll(dreadDie), exploded: false }) : { total: 0, exploded: false };
   var success = !choice.stat || getSolarCycleRollTotal(actionRoll) >= getSolarCycleRollTotal(dreadRoll);
   var outcome = success ? (choice.success || {}) : (choice.fail || choice.success || {});
+  var resolvedBranchChoice = String(outcome.branchChoice || '');
   recordSolarCycleIrreversibleTag(success ? 'stage_choice_succeeded' : 'stage_choice_failed', { stageId: stageId, choiceId: choice.id, success: !!success });
 
   applySolarCycleChoiceEffects(outcome.effects || {});
   var stageRelic = success ? awardSolarCycleStageRelicReward(stageId) : null;
   var stageRelicWithheld = !success && !!NEW_SUN_STAGE_RELIC_REWARDS[String(stageId || '')];
-  if (stage.branchPoint && outcome.branchChoice) chooseSolarCycleBranch(stage.branchPoint, outcome.branchChoice);
+  if (stage.branchPoint && resolvedBranchChoice) chooseSolarCycleBranch(stage.branchPoint, resolvedBranchChoice);
 
   sc.arcProgress.stageResults[stageId] = {
     choiceId: choice.id,
@@ -6058,10 +6216,41 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
   clearSolarCycleQuestMarkers();
   syncSolarCycleArcProgressFromCompleted(true);
 
+  var stageDeltas = getSolarCycleStageConsequenceDeltas(stage, success, resolvedBranchChoice);
+  recordWorldConsequence({
+    system: 'newsun',
+    title: (success ? 'Stage cleared' : 'Stage survived at cost') + ': ' + String(stage.title || 'New Sun stage'),
+    detail: String(outcome.text || ''),
+    region: String(stage.region || ''),
+    severity: success ? 'medium' : 'high',
+    deltas: stageDeltas
+  });
+
   var nextMarker = null;
   if (Number(sc.arcProgress.stageIndex || 0) < NEW_SUN_ARC_STAGES.length) {
     var nextStage = getNextSolarCycleStage(sc.arcProgress, sc);
     if (nextStage) nextMarker = placeSolarCycleStageMarker(nextStage.id);
+  }
+
+  var followupQuest = spawnSolarCycleStageFollowupQuest(sc, stage, success, resolvedBranchChoice);
+  syncSolarCycleQuestScheduler(true);
+
+  if (!nextMarker && Number(sc.arcProgress.stageIndex || 0) < NEW_SUN_ARC_STAGES.length) {
+    nextMarker = postNextSolarCycleArcMission() || null;
+  }
+
+  var continuationLine = '';
+  if (nextMarker) {
+    continuationLine = '<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">Next marker moved to ' + escapeSolarCycleHtml(nextMarker.label) + '.</div>';
+  } else if (Number(sc.arcProgress.stageIndex || 0) < NEW_SUN_ARC_STAGES.length) {
+    continuationLine = '<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">Story branch advanced. No physical stage marker is available yet; continue via quest leads and advance time to surface the next marker.</div>';
+  } else {
+    continuationLine = '<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">All stage markers are cleared. Resolve the ending from New Sun when ready.</div>';
+  }
+  if (followupQuest) {
+    continuationLine += '<div style="margin-top:.3rem;font-size:.75rem;color:var(--teal);">Branch follow-up opened: <strong>'
+      + escapeSolarCycleHtml(followupQuest.title || 'New lead') + '</strong> @ '
+      + escapeSolarCycleHtml(followupQuest.locationLabel || getSolarCycleRegionLabel(followupQuest.region)) + '.</div>';
   }
 
   if (typeof closeModal === 'function') closeModal();
@@ -6074,7 +6263,7 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
       + (stageRelic && stageRelic.granted ? ('<div style="margin-top:.4rem;font-size:.75rem;color:var(--teal);">Relic reward: <strong>' + escapeSolarCycleHtml(stageRelic.name) + '</strong>. ' + escapeSolarCycleHtml(stageRelic.summary || '') + '</div>') : '')
       + (stageRelic && stageRelic.converted ? ('<div style="margin-top:.4rem;font-size:.75rem;color:var(--gold2);">Relic reward converted: ' + escapeSolarCycleHtml(stageRelic.name) + ' -> +' + Number(stageRelic.credits || 0) + '₵ (inventory full).</div>') : '')
       + (stageRelicWithheld ? '<div style="margin-top:.4rem;font-size:.75rem;color:var(--muted2);">Stage relic withheld: relics now drop only on successful stage clears.</div>' : '')
-      + (nextMarker ? ('<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">Next marker moved to ' + escapeSolarCycleHtml(nextMarker.label) + '.</div>') : '<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">No further stage marker remains. Resolve the ending from New Sun.</div>')
+      + continuationLine
       + '</div>'
     );
   }

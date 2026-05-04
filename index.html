@@ -12090,6 +12090,91 @@ function resolveWorldEventToll(col,row,cost){
   showNotif('Toll paid: -'+price+'₵. Route pressure reduced.','good');
 }
 
+function applyWorldEventSpillover(col,row,label,deltas,tags){
+  if(typeof getProvinceAdjacentHexes!=='function'||typeof window.applyWorldConsequence!=='function')return;
+  var neighbors=getProvinceAdjacentHexes(col,row);
+  if(!Array.isArray(neighbors)||!neighbors.length)return;
+  var target=pick(neighbors);
+  if(!target)return;
+  window.applyWorldConsequence({
+    system:'world-event-spillover',
+    title:String(label||'Nearby ripple'),
+    detail:'Nearby hex '+String(target.col)+','+String(target.row)+' is affected by this decision.',
+    region:'province',
+    locationKey:String(target.col)+','+String(target.row),
+    severity:'info',
+    deltas:(deltas&&typeof deltas==='object')?deltas:{tension:1},
+    tags:Array.isArray(tags)?tags:['world-event-spillover']
+  });
+}
+
+function resolveWorldEventOption(col,row,option){
+  var key=String(col)+','+String(row);
+  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
+  if(typeof window.applyWorldConsequence!=='function')return;
+  var choice=String(option||'intel').toLowerCase();
+  if(choice==='contract'){
+    var contractFee=20;
+    if((S.credits||0)<contractFee){
+      showNotif('Contract fee requires '+contractFee+'₵.','warn');
+      return;
+    }
+    S.credits=(S.credits||0)-contractFee;
+    if(typeof updateCreditsUI==='function')updateCreditsUI();
+    window.applyWorldConsequence({
+      system:'world-event',
+      title:'Local contract signed',
+      detail:'A local contract stabilized market lanes at '+key+'.',
+      region:'province',
+      locationKey:key,
+      severity:'info',
+      factionId:overlay&&overlay.control?String(overlay.control):'',
+      deltas:{stability:1,scarcity:-1,tension:-1},
+      tags:['contract-signed','opened-border']
+    });
+    applyWorldEventSpillover(col,row,'Contract ripple',{scarcity:-1},['contract-ripple']);
+    showNotif('Contract signed (-20₵). Local and nearby trade pressure eased.','good');
+    return;
+  }
+
+  var profiles={
+    intel:{stat:'mind',dd:6,success:{deltas:{stability:1,factionHeat:-1},tags:['intel-gathered','discovered-route'],text:'Intel network mapped weak points.'},fail:{deltas:{factionHeat:1,tension:1},tags:['intel-blowback'],text:'Your questions drew the wrong attention.'}},
+    aid:{stat:'lead',dd:6,success:{deltas:{stability:1,tension:-1,safety:1},tags:['civic-aid','patrol-deployed'],text:'Locals rally around your intervention.'},fail:{deltas:{tension:1},tags:['civic-aid-failed'],text:'Aid convoy was disrupted before it landed.'}},
+    backchannel:{stat:'control',dd:8,success:{deltas:{factionHeat:-2,tension:-1},tags:['backchannel-opened','opened-border'],text:'Backchannel terms cool the zone.'},fail:{deltas:{factionHeat:1,tension:1,stability:-1},tags:['backchannel-burned'],text:'A burned contact sparks retaliatory sweeps.'}},
+    resist:{stat:'defend',dd:8,success:{deltas:{safety:1,stability:1},tags:['crackdown-resisted'],text:'Residents hold the line and keep routes open.'},fail:{deltas:{safety:-1,tension:1},tags:['crackdown-escalated'],text:'Crackdown pressure spreads into nearby lanes.'}},
+    smuggle:{stat:'control',dd:8,success:{deltas:{scarcity:-1,tension:1},tags:['smuggler-route','discovered-route'],text:'Contraband route opens and supply improves.'},fail:{deltas:{scarcity:1,factionHeat:1},tags:['smuggle-intercepted'],text:'Interception locks down commerce harder.'}},
+    petition:{stat:'lead',dd:8,success:{deltas:{stability:1,factionHeat:-1,safety:1},tags:['council-petition'],text:'Council petition wins temporary concessions.'},fail:{deltas:{factionHeat:1},tags:['petition-rejected'],text:'Petition denied; officials tighten control.'}}
+  };
+  var p=profiles[choice]||profiles.intel;
+  var die=(typeof getEffectiveDie==='function')?getEffectiveDie(p.stat):((S.stats&&S.stats[p.stat])||4);
+  var actor=explodingRoll(Math.max(4,Number(die)||4));
+  var oppose=explodingRoll(Number(p.dd)||6);
+  var success=actor.total>=oppose.total;
+  var outcome=success?p.success:p.fail;
+
+  window.applyWorldConsequence({
+    system:'world-event',
+    title:success?'World event action succeeded':'World event action failed',
+    detail:outcome.text,
+    region:'province',
+    locationKey:key,
+    severity:success?'info':'medium',
+    factionId:overlay&&overlay.control?String(overlay.control):'',
+    deltas:outcome.deltas,
+    tags:outcome.tags
+  });
+  if(success&&typeof changeCounter==='function'&&choice==='intel')changeCounter('pathTokens',1);
+  if(success&&typeof changeCounter==='function'&&choice==='aid')changeCounter('renown',1);
+  if(!success&&typeof changeMentalStress==='function')changeMentalStress(1);
+
+  if(success){
+    applyWorldEventSpillover(col,row,'Stability ripple',{tension:-1},['stability-ripple']);
+  }else{
+    applyWorldEventSpillover(col,row,'Instability ripple',{tension:1},['instability-ripple']);
+  }
+  showNotif((success?'Success: ':'Failure: ')+p.stat.toUpperCase()+' d'+die+' '+actor.total+' vs DD'+p.dd+' '+oppose.total+'. '+outcome.text,success?'good':'warn');
+}
+
 function buildWorldStateEncounterAddon(col,row,mode){
   var key=String(col)+','+String(row);
   var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
@@ -12110,6 +12195,17 @@ function buildWorldStateEncounterAddon(col,row,mode){
   var rollGate=roll(100);
   if(rollGate>triggerChance)return null;
 
+  var controlContacts={
+    rebels:['Quartermaster Yara','Courier Fen','Cell Leader Brant'],
+    guilds:['Factor Helio','Ledger Clerk Miri','Contractor Voss'],
+    church:['Canon Ilye','Templar Ardin','Confessor Pell'],
+    empire:['Marshal Kade','Inspector Rhun','Captain Solis'],
+    syndicate:['Fixer Nox','Broker Vale','Runner Kesh'],
+    scholars:['Archivist Tann','Surveyor Mirel','Curator Oren']
+  };
+  var contactPool=controlContacts[control]||['Regional Officer'];
+  var contactName=pick(contactPool);
+
   var pool=[];
   function pushWeighted(entry,weight){
     var n=Math.max(1,parseInt(weight,10)||1);
@@ -12118,28 +12214,28 @@ function buildWorldStateEncounterAddon(col,row,mode){
 
   if(overlay.activeCrisis)pushWeighted({
     title:'World Event: Crisis Flare-Up',
-    desc:'A nearby emergency spillover disrupts the route. Respond now or tensions worsen.',
-    actions:'<button class="btn btn-xs btn-warn" onclick="resolveWorldStateAction('+col+','+row+',\'stabilize\')">🧯 Stabilize</button>'
+    desc:'You arrive to smoke on the horizon, panicked runners, and '+contactName+' shouting for immediate response teams.',
+    actions:'<button class="btn btn-xs btn-warn" onclick="resolveWorldStateAction('+col+','+row+',\'stabilize\')">🧯 Stabilize Crisis</button><button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'aid\')">🚑 Organize Aid (Lead vs DD6)</button>'
   },(rate.weights&&rate.weights.crisis)||1);
   if(overlay.closedBorder||overlay.closedPort||overlay.dangerousRoad)pushWeighted({
     title:'World Event: Route Clampdown',
-    desc:'Checkpoints and patrol delays choke movement through this zone.',
-    actions:'<button class="btn btn-xs btn-teal" onclick="resolveWorldStateAction('+col+','+row+',\'reopen\')">🛣 Reopen Route</button>'
+    desc:'Barricades, toll braziers, and armed inspectors are halting caravans while '+contactName+' demands papers.',
+    actions:'<button class="btn btn-xs btn-teal" onclick="resolveWorldStateAction('+col+','+row+',\'reopen\')">🛣 Reopen Route</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Gather Intel (Mind vs DD6)</button>'
   },(rate.weights&&rate.weights.route)||1);
   if(overlay.control){
     var ctrl=String(overlay.control).toLowerCase();
     var controlDescMap={
-      rebels:'Rebel quartermasters test loyalty and ask for covert aid.',
-      guilds:'Guild toll clerks audit manifests and demand route dues.',
-      church:'Church envoys impose doctrine checks on passing crews.',
-      empire:'Imperial marshals sweep the zone for dissidents.',
-      syndicate:'Syndicate agents offer shortcuts at a dangerous price.',
-      scholars:'Scholar surveyors lock down artifacts for study.'
+      rebels:'You see coded banners on rooftops, lookouts on ridge-lines, and Rebel couriers screening strangers for loyalty.',
+      guilds:'You see bonded caravans, inked tariff ledgers, and Guild auditors running contract checks at portable desks.',
+      church:'You see ash-marked wardens, rite circles at crossroads, and Church envoys demanding doctrinal compliance.',
+      empire:'You see disciplined patrol wedges, portable checkpoints, and Empire marshals searching wagons for contraband.',
+      syndicate:'You see whisper-runners, hidden hand-sign exchanges, and Syndicate brokers selling passage to favored crews.',
+      scholars:'You see survey tripods, sealed artifact crates, and Scholar scribes documenting everyone entering the zone.'
     };
     pushWeighted({
       title:'World Event: '+overlay.control.charAt(0).toUpperCase()+overlay.control.slice(1)+' Presence',
-      desc:controlDescMap[ctrl]||'Regional authorities are actively shaping this area.',
-      actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">🕊 Negotiate</button>'
+      desc:(controlDescMap[ctrl]||'Regional authorities are actively shaping this area.')+' Contact: '+contactName+'.',
+      actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">🕊 Negotiate Control</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Gather Intel</button>'+(ctrl==='rebels'?'<button class="btn btn-xs btn-warn" onclick="resolveWorldEventOption('+col+','+row+',\'backchannel\')">🕸 Backchannel (Control vs DD8)</button>':'')+(ctrl==='guilds'?'<button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'contract\')">📜 Sign Contract (-20₵)</button>':'')+(ctrl==='empire'?'<button class="btn btn-xs btn-red" onclick="resolveWorldEventOption('+col+','+row+',\'resist\')">🛡 Resist Crackdown</button>':'')+(ctrl==='syndicate'?'<button class="btn btn-xs btn-dark" onclick="resolveWorldEventOption('+col+','+row+',\'smuggle\')">🕳 Smuggler Bargain</button>':'')+(ctrl==='scholars'?'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'petition\')">📚 Petition Council</button>':'')
     },(rate.weights&&rate.weights.presence)||1);
   }
   if(tags.indexOf('recent-conflict')>=0||tension>=2||control==='rebels'){
@@ -12152,15 +12248,15 @@ function buildWorldStateEncounterAddon(col,row,mode){
   if(control==='guilds'){
     pushWeighted({
       title:'World Event: Guild Toll & Contract Check',
-      desc:'Guild factors impose a tariff unless you sign a route contract.',
-      actions:'<button class="btn btn-xs btn-gold" onclick="resolveWorldEventToll('+col+','+row+',40)">🪙 Pay Toll (40₵)</button><button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">📜 Negotiate Contract</button>'
+      desc:'You encounter a ledger table, bonded guards, and stamped writs. The Guild offers immediate passage for a fee or contract terms.',
+      actions:'<button class="btn btn-xs btn-gold" onclick="resolveWorldEventToll('+col+','+row+',40)">🪙 Pay Toll (40₵)</button><button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">📜 Negotiate Terms</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'contract\')">✍ Sign Local Contract</button>'
     },(rate.weights&&rate.weights.toll)||3);
   }
   if(!pool.length)return null;
   var pickEntry=pick(pool);
   return {
     title:pickEntry.title,
-    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay'+(rate.note?(' · '+rate.note):'')+'</div></div>'
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+'</div></div>'
   };
 }
 

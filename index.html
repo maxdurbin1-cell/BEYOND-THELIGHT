@@ -11935,19 +11935,42 @@ function resolveWorldStateAction(col,row,action){
     clearWorldStatePressureAtKey(key,{route:true,crisis:false});
     showNotif('Routes reopened and market pressure eased.','good');
   }else if(choice==='negotiate'){
-    window.applyWorldConsequence({
-      system:'player-action',
-      title:'Wayfarers brokered local control talks',
-      detail:'Negotiations reduced faction heat in hex '+key+'.',
-      region:'province',
-      locationKey:key,
-      severity:'info',
-      factionId:overlay&&overlay.control?String(overlay.control):'',
-      deltas:{stability:1,factionHeat:-1,tension:-1},
-      tags:['negotiate','opened-border']
-    });
-    clearWorldStatePressureAtKey(key,{routeSafe:true});
-    showNotif('Negotiation lowered local tension.','good');
+    var leadDie=(typeof getEffectiveDie==='function')?getEffectiveDie('lead'):((S.stats&&S.stats.lead)||4);
+    var leadRoll=explodingRoll(Math.max(4,Number(leadDie)||4));
+    var ddRoll=explodingRoll(8);
+    var tension=Number(overlay&&overlay.tension||0);
+    var safety=Number(overlay&&overlay.safety||0);
+    var modifier=(safety-tension);
+    var adjustedLead=leadRoll.total+modifier;
+    var success=adjustedLead>=ddRoll.total;
+    if(success){
+      window.applyWorldConsequence({
+        system:'player-action',
+        title:'Wayfarers brokered local control talks',
+        detail:'Negotiations reduced faction heat in hex '+key+'.',
+        region:'province',
+        locationKey:key,
+        severity:'info',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{stability:1,factionHeat:-1,tension:-1},
+        tags:['negotiate','opened-border']
+      });
+      clearWorldStatePressureAtKey(key,{routeSafe:true});
+      showNotif('Negotiate Control success: LEAD '+leadRoll.total+(modifier>=0?(' +'+modifier):(' '+modifier))+' vs DD8 '+ddRoll.total+'.','good');
+    }else{
+      window.applyWorldConsequence({
+        system:'player-action',
+        title:'Control negotiations broke down',
+        detail:'Talks failed at '+key+' and local pressure increased.',
+        region:'province',
+        locationKey:key,
+        severity:'medium',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{factionHeat:1,tension:1,stability:-1},
+        tags:['faction-operation','negotiation-failed']
+      });
+      showNotif('Negotiate Control failed: LEAD '+leadRoll.total+(modifier>=0?(' +'+modifier):(' '+modifier))+' vs DD8 '+ddRoll.total+'.','warn');
+    }
   }
   if(hex&&hex.data&&hex.data.mood&&choice==='stabilize'){
     hex.data.mood.crisis='No Crisis';
@@ -12044,27 +12067,65 @@ function buildProvinceHoldingDowntimePanel(hex){
 window.rollProvinceHoldingDowntime=rollProvinceHoldingDowntime;
 window.resolveProvinceHoldingDowntime=resolveProvinceHoldingDowntime;
 
+function resolveWorldEventToll(col,row,cost){
+  var price=Math.max(0,Number(cost||40));
+  if((S.credits||0)<price){
+    showNotif('Insufficient credits to pay toll ('+price+'₵).','warn');
+    return;
+  }
+  S.credits=(S.credits||0)-price;
+  if(typeof updateCreditsUI==='function')updateCreditsUI();
+  if(typeof window.applyWorldConsequence==='function'){
+    window.applyWorldConsequence({
+      system:'world-event',
+      title:'Control toll paid',
+      detail:'Trade toll settled at '+String(col)+','+String(row)+'.',
+      region:'province',
+      locationKey:String(col)+','+String(row),
+      severity:'info',
+      deltas:{stability:1,scarcity:-1},
+      tags:['contract-toll','opened-border']
+    });
+  }
+  showNotif('Toll paid: -'+price+'₵. Route pressure reduced.','good');
+}
+
 function buildWorldStateEncounterAddon(col,row,mode){
   var key=String(col)+','+String(row);
   var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
   if(!overlay)return null;
+  var control=String(overlay.control||'').toLowerCase();
   var tension=Math.max(0,Number(overlay.tension||0));
   var tags=Array.isArray(overlay.tags)?overlay.tags:[];
-  var triggerChance=Math.min(70,10+(tension*10)+(overlay.activeCrisis?20:0)+(overlay.dangerousRoad?10:0)+(overlay.closedBorder?10:0));
+  var controlRates={
+    rebels:{chanceBonus:12,weights:{skirmish:3,presence:2,route:1,crisis:2},note:'Rebel zones trend toward skirmish echoes.'},
+    guilds:{chanceBonus:10,weights:{skirmish:1,presence:2,route:2,crisis:1,toll:4},note:'Guild zones produce toll and contract checkpoints.'},
+    church:{chanceBonus:7,weights:{skirmish:1,presence:3,route:1,crisis:2},note:'Church zones prioritize doctrine patrol events.'},
+    empire:{chanceBonus:9,weights:{skirmish:2,presence:3,route:2,crisis:1},note:'Empire zones escalate patrol and crackdown events.'},
+    syndicate:{chanceBonus:11,weights:{skirmish:2,presence:2,route:3,crisis:1,toll:1},note:'Syndicate zones favor risky route pressure.'},
+    scholars:{chanceBonus:8,weights:{skirmish:1,presence:3,route:1,crisis:2},note:'Scholar zones favor controlled survey incidents.'}
+  };
+  var rate=control&&controlRates[control]?controlRates[control]:{chanceBonus:0,weights:{skirmish:1,presence:1,route:1,crisis:1}};
+  var triggerChance=Math.min(85,10+(tension*10)+(overlay.activeCrisis?20:0)+(overlay.dangerousRoad?10:0)+(overlay.closedBorder?10:0)+Number(rate.chanceBonus||0)+(mode==='trade'&&control==='guilds'?8:0));
   var rollGate=roll(100);
   if(rollGate>triggerChance)return null;
 
   var pool=[];
-  if(overlay.activeCrisis)pool.push({
+  function pushWeighted(entry,weight){
+    var n=Math.max(1,parseInt(weight,10)||1);
+    for(var wi=0;wi<n;wi++)pool.push(entry);
+  }
+
+  if(overlay.activeCrisis)pushWeighted({
     title:'World Event: Crisis Flare-Up',
     desc:'A nearby emergency spillover disrupts the route. Respond now or tensions worsen.',
     actions:'<button class="btn btn-xs btn-warn" onclick="resolveWorldStateAction('+col+','+row+',\'stabilize\')">🧯 Stabilize</button>'
-  });
-  if(overlay.closedBorder||overlay.closedPort||overlay.dangerousRoad)pool.push({
+  },(rate.weights&&rate.weights.crisis)||1);
+  if(overlay.closedBorder||overlay.closedPort||overlay.dangerousRoad)pushWeighted({
     title:'World Event: Route Clampdown',
     desc:'Checkpoints and patrol delays choke movement through this zone.',
     actions:'<button class="btn btn-xs btn-teal" onclick="resolveWorldStateAction('+col+','+row+',\'reopen\')">🛣 Reopen Route</button>'
-  });
+  },(rate.weights&&rate.weights.route)||1);
   if(overlay.control){
     var ctrl=String(overlay.control).toLowerCase();
     var controlDescMap={
@@ -12075,24 +12136,31 @@ function buildWorldStateEncounterAddon(col,row,mode){
       syndicate:'Syndicate agents offer shortcuts at a dangerous price.',
       scholars:'Scholar surveyors lock down artifacts for study.'
     };
-    pool.push({
+    pushWeighted({
       title:'World Event: '+overlay.control.charAt(0).toUpperCase()+overlay.control.slice(1)+' Presence',
       desc:controlDescMap[ctrl]||'Regional authorities are actively shaping this area.',
       actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">🕊 Negotiate</button>'
-    });
+    },(rate.weights&&rate.weights.presence)||1);
   }
-  if(tags.indexOf('recent-conflict')>=0||tension>=2){
-    pool.push({
+  if(tags.indexOf('recent-conflict')>=0||tension>=2||control==='rebels'){
+    pushWeighted({
       title:'World Event: Skirmish Echo',
       desc:'Fresh signs of recent conflict raise the chance of immediate trouble.',
       actions:'<button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'world_event\',3,\'Conflict Remnants\',6)">⚔ Engage</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Avoid</button>'
-    });
+    },(rate.weights&&rate.weights.skirmish)||1);
+  }
+  if(control==='guilds'){
+    pushWeighted({
+      title:'World Event: Guild Toll & Contract Check',
+      desc:'Guild factors impose a tariff unless you sign a route contract.',
+      actions:'<button class="btn btn-xs btn-gold" onclick="resolveWorldEventToll('+col+','+row+',40)">🪙 Pay Toll (40₵)</button><button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">📜 Negotiate Contract</button>'
+    },(rate.weights&&rate.weights.toll)||3);
   }
   if(!pool.length)return null;
   var pickEntry=pick(pool);
   return {
     title:pickEntry.title,
-    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay</div></div>'
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay'+(rate.note?(' · '+rate.note):'')+'</div></div>'
   };
 }
 

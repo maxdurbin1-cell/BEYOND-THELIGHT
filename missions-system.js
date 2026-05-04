@@ -1234,10 +1234,23 @@
     +'</div>';
 
     var irradiated=mission.additionalDanger&&mission.additionalDanger.type==='complication'&&mission.additionalDanger.data.name==='Irradiated';
-    var roomsHTML='<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;">Site Layout \u2014 '+mission.rooms.length+' Room'+(mission.rooms.length!==1?'s':'')+'</div>';
+    function isRoomVisible(room,idx){
+      if(!room||!room.secretRoute)return true;
+      var originIdx=Number(room.fromPuzzleRoom);
+      if(!Number.isFinite(originIdx)||originIdx<0||originIdx>=mission.rooms.length)return false;
+      var origin=mission.rooms[originIdx];
+      return !!(origin&&origin.explored&&origin.find&&origin.find.resolved&&origin.find.secretRouteOpened);
+    }
+    var visibleRooms=[];
+    mission.rooms.forEach(function(room,idx){if(isRoomVisible(room,idx))visibleRooms.push({room:room,idx:idx});});
+    var roomsHTML='<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;">Site Layout \u2014 '+visibleRooms.length+' Room'+(visibleRooms.length!==1?'s':'')+'</div>';
 
-    mission.rooms.forEach(function(room,idx) {
+    visibleRooms.forEach(function(entry) {
+      var room=entry.room;
+      var idx=entry.idx;
       var explored=room.explored, confrontActive=room.confrontTriggered&&!room.confrontResolved;
+      var isBranch=!!room.secretRoute;
+      var branchFrom=(typeof room.fromPuzzleRoom==='number')?('Room '+(room.fromPuzzleRoom+1)):'the solved puzzle room';
       var findHTML='';
       if (explored&&room.find) {
         var fc=room.find.type==='trap'?'var(--red2)':room.find.type==='puzzle'?'var(--gold2)':room.find.type==='cache'?'var(--green2)':'var(--muted3)';
@@ -1256,14 +1269,15 @@
       } else if (confrontActive) {
         actionBtn='<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u26a1 Confrontation triggered!</div><button class="btn btn-xs btn-red" onclick="resolveRoomConfrontation('+missionId+','+idx+',false)">Fail</button><button class="btn btn-xs btn-primary" onclick="resolveRoomConfrontation('+missionId+','+idx+',true)">Succeed</button></div>';
       }
-      roomsHTML+='<div style="padding:.3rem .4rem;margin-bottom:.25rem;border:1px solid '+(confrontActive?'var(--red2)':explored?'var(--border)':'var(--border2)')+';background:'+(confrontActive?'rgba(200,50,50,.05)':'var(--surface)')+';">'
-        +'<div style="font-size:.75rem;color:'+(explored?'var(--muted2)':'var(--text)')+';">'+(explored?'\u2713 ':'')+room.label+'</div>'
+      roomsHTML+='<div style="padding:.3rem .4rem;margin-bottom:.25rem;'+(isBranch?'margin-left:1rem;border-left:3px solid rgba(201,162,39,.45);':'')+'border:1px solid '+(confrontActive?'var(--red2)':explored?'var(--border)':'var(--border2)')+';background:'+(confrontActive?'rgba(200,50,50,.05)':'var(--surface)')+';">'
+        +'<div style="font-size:.75rem;color:'+(explored?'var(--muted2)':'var(--text)')+';">'+(explored?'\u2713 ':'')+(isBranch?'\u21b3 ':'')+room.label+'</div>'
+        +(isBranch?'<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">Branch path from '+branchFrom+'</div>':'')
         +findHTML+actionBtn
       +'</div>';
     });
 
-    var allExplored=mission.rooms.every(function(r){return r.explored;});
-    var hasActive=mission.rooms.some(function(r){return r.confrontTriggered&&!r.confrontResolved;});
+    var allExplored=visibleRooms.every(function(entry){return entry.room.explored;});
+    var hasActive=visibleRooms.some(function(entry){var r=entry.room;return r.confrontTriggered&&!r.confrontResolved;});
     var proceedBtn='';
     if (!hasActive) {
       if (allExplored) {

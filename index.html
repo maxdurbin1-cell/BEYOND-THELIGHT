@@ -12090,6 +12090,35 @@ function resolveWorldEventToll(col,row,cost){
   showNotif('Toll paid: -'+price+'₵. Route pressure reduced.','good');
 }
 
+function injectContextMission(opts){
+  if(typeof S==='undefined'||!S)return;
+  S.availableJobs=Array.isArray(S.availableJobs)?S.availableJobs:[];
+  var DIFF=['easy','medium','hard'];
+  var diff=opts.difficulty&&DIFF.indexOf(opts.difficulty)>=0?opts.difficulty:'medium';
+  var dreadMap={easy:4,medium:6,hard:8};
+  S.availableJobs.push({
+    id:Date.now()+Math.floor(Math.random()*9999),
+    title:String(opts.title||'Field Contract'),
+    difficulty:diff,
+    dread:dreadMap[diff]||6,
+    location:String(opts.location||'Province'),
+    planetHexId:null,
+    planetName:'',
+    reward:Math.max(25,Number(opts.reward||40)),
+    region:String(opts.region||'province'),
+    missionType:String(opts.missionType||'standard'),
+    templateId:'context_generated',
+    templateLabel:String(opts.templateLabel||'Field Intel Contract'),
+    stepNames:null,
+    factionGain:'',
+    factionLose:'',
+    factionGainName:'Local',
+    factionLoseName:'Rival',
+    lore:String(opts.lore||'')
+  });
+  if(typeof window.renderMissionBoard==='function')window.renderMissionBoard();
+}
+
 function applyWorldEventSpillover(col,row,label,deltas,tags){
   if(typeof getProvinceAdjacentHexes!=='function'||typeof window.applyWorldConsequence!=='function')return;
   var neighbors=getProvinceAdjacentHexes(col,row);
@@ -12217,7 +12246,27 @@ function resolveWorldEventOption(col,row,option){
   }else{
     applyWorldEventSpillover(col,row,'Instability ripple',{tension:1},['instability-ripple']);
   }
-  showNotif((success?'✅ ':'❌ ')+p.stat.toUpperCase()+' d'+die+' rolled '+actor.total+' vs DD'+p.dd+' ('+oppose.total+'). '+outcome.text,success?'good':'warn');
+  // On success, generate a follow-on field mission that propels the world forward
+  if(success){
+    var worldEventMissions={
+      intel:{title:'Exploit Mapped Intelligence',lore:'You identified a patrol weakness here. Someone needs to act on it before the window closes.',reward:45,templateLabel:'Reconnaissance Contract'},
+      aid:{title:'Hold What Was Stabilized',lore:'The aid effort opened a fragile window. A crew needs to secure the gains before the situation reverts.',reward:40,templateLabel:'Stabilization Hold'},
+      backchannel:{title:'Deliver on the Backchannel Deal',lore:'Words were exchanged through covert channels. Now the other party expects delivery.',reward:55,templateLabel:'Covert Liaison Contract'},
+      resist:{title:'Capitalize on the Crackdown Break',lore:'The crackdown was stalled. Use the opening to move something valuable through before it reseals.',reward:50,templateLabel:'Window Run'},
+      smuggle:{title:'Move Product Through the New Route',lore:'The smuggler route is open. A supplier needs cargo moved before it draws attention.',reward:60,templateLabel:'Contraband Transit'},
+      petition:{title:'Fulfill the Council Directive',lore:'The petition succeeded — a council directive was issued. Someone must act on it to make it stick.',reward:45,templateLabel:'Civic Mandate Contract'}
+    };
+    var wem=worldEventMissions[choice]||{title:'Act on the Opening',lore:outcome.text,reward:40,templateLabel:'Field Contract'};
+    injectContextMission({
+      title:wem.title,
+      location:'Hex '+key,
+      region:'province',
+      reward:wem.reward,
+      templateLabel:wem.templateLabel,
+      lore:wem.lore
+    });
+  }
+  showNotif((success?'✅ ':'❌ ')+p.stat.toUpperCase()+' d'+die+' rolled '+actor.total+' vs DD'+p.dd+' ('+oppose.total+'). '+outcome.text+(success?' 📋 New contract posted.':''),success?'good':'warn');
 }
 
 function buildWorldStateEncounterAddon(col,row,mode){
@@ -12323,22 +12372,65 @@ function buildSiteMemoryEncounterAddon(col,row){
   if(gate>chance)return null;
 
   var pool=[];
-  if(discoveries>0)pool.push({kind:'discoveries',title:'Site Memory: Recovered Clue',desc:'Past discoveries align into a new trail marker.'});
-  if(hiddenCaches>0)pool.push({kind:'hiddenCaches',title:'Site Memory: Hidden Cache Echo',desc:'A previously mapped stash marker resurfaces.'});
-  if(threatsCleared>0)pool.push({kind:'threatsCleared',title:'Site Memory: Secured Ground',desc:'Cleared threat lines make this area safer to exploit.'});
-  if(failedExpeditions>0)pool.push({kind:'failedExpeditions',title:'Site Memory: Cautionary Remains',desc:'Signs of failed expeditions reveal both warning and salvage.'});
-  if(npcRelationships>0)pool.push({kind:'npcRelationships',title:'Site Memory: Ally Signal',desc:'A contact remembers your help and leaves support nearby.'});
-  if(infrastructure>0)pool.push({kind:'infrastructure',title:'Site Memory: Built Advantage',desc:'Local improvements create tactical and logistical leverage.'});
+  if(discoveries>0)pool.push({
+    kind:'discoveries',
+    title:'Site Memory: Recovered Clue',
+    desc:'Your past work here stirs a lead — partial survey marks, a hidden entrance, or a pre-war marker you noted last time. Requires MIND to follow the trail.'
+  });
+  if(hiddenCaches>0)pool.push({
+    kind:'hiddenCaches',
+    title:'Site Memory: Hidden Cache Echo',
+    desc:'A stash location mapped on a previous visit is close. A coded marker — a scratched stone, a knotted rope — points toward the cache. Requires CONTROL to extract safely.'
+  });
+  if(threatsCleared>0)pool.push({
+    kind:'threatsCleared',
+    title:'Site Memory: Secured Ground Follow-Up',
+    desc:'You cleared this ground before. But something crept back — trail marks, disturbed soil, a watchpost that should be empty. Requires DEFEND to hold the line.'
+  });
+  if(failedExpeditions>0)pool.push({
+    kind:'failedExpeditions',
+    title:'Site Memory: Cautionary Remains',
+    desc:'You know this area\'s traps better than anyone. Remains of a failed expedition your crew ran previously hold a lesson — and maybe salvage. Requires SPIRIT to push through.'
+  });
+  if(npcRelationships>0)pool.push({
+    kind:'npcRelationships',
+    title:'Site Memory: Contact Resurfaces',
+    desc:'A contact you built trust with in this area sent word ahead. They need something — a delivery, information, a package retrieved — before they share what they know. Requires LEAD.'
+  });
+  if(infrastructure>0)pool.push({
+    kind:'infrastructure',
+    title:'Site Memory: Built Advantage',
+    desc:'Infrastructure you helped establish at a prior visit — a relay, a route marker, a hidden depot — is still standing. It needs maintenance, or it\'s ready to exploit. Requires BODY.'
+  });
   if(!pool.length)return null;
   var entry=pick(pool);
+
+  // Show a mini summary of site memory state in the card
+  var memorySummary='';
+  if(discoveries>0)memorySummary+='<span style="font-size:.66rem;color:var(--teal);">🔭 Discoveries: '+discoveries+'</span> ';
+  if(threatsCleared>0)memorySummary+='<span style="font-size:.66rem;color:var(--green2);">🛡 Threats Cleared: '+threatsCleared+'</span> ';
+  if(failedExpeditions>0)memorySummary+='<span style="font-size:.66rem;color:var(--red2);">💀 Failed: '+failedExpeditions+'</span> ';
+  if(hiddenCaches>0)memorySummary+='<span style="font-size:.66rem;color:var(--gold);">📦 Caches: '+hiddenCaches+'</span> ';
+  if(npcRelationships>0)memorySummary+='<span style="font-size:.66rem;color:var(--blue2);">🤝 NPCs: '+npcRelationships+'</span> ';
+  if(infrastructure>0)memorySummary+='<span style="font-size:.66rem;color:var(--muted3);">🏗 Built: '+infrastructure+'</span> ';
+
   return {
     title:entry.title,
-    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(126,215,255,.45);background:rgba(126,215,255,.08);"><strong style="color:#7ed7ff;">'+entry.title+'</strong><br>'+entry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="resolveSiteMemoryEncounterOutcome('+col+','+row+',\''+entry.kind+'\')">🧠 Resolve Memory Encounter</button></div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+gate+' / '+chance+'% · Memory weight '+memoryWeight+'</div></div>'
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(126,215,255,.45);background:rgba(126,215,255,.08);">'
+      +'<strong style="color:#7ed7ff;">'+entry.title+'</strong><br>'
+      +'<div style="font-size:.78rem;color:var(--text2);margin:.2rem 0;">'+entry.desc+'</div>'
+      +'<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin:.15rem 0 .2rem;">'+memorySummary+'</div>'
+      +'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+        +'<button class="btn btn-xs btn-teal" onclick="resolveSiteMemoryEncounterOutcome('+col+','+row+',\''+entry.kind+'\')">🧠 Resolve Memory Encounter</button>'
+      +'</div>'
+      +'<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+gate+' / '+chance+'% · Memory weight '+memoryWeight+'</div>'
+    +'</div>'
   };
 }
 
 function resolveSiteMemoryEncounterOutcome(col,row,kind){
   var k=String(kind||'discoveries');
+  var key=String(col)+','+String(row);
   var statMap={discoveries:'mind',hiddenCaches:'control',threatsCleared:'defend',failedExpeditions:'spirit',npcRelationships:'lead',infrastructure:'body'};
   var ddMap={discoveries:6,hiddenCaches:6,threatsCleared:8,failedExpeditions:8,npcRelationships:6,infrastructure:6};
   var stat=statMap[k]||'mind';
@@ -12347,31 +12439,85 @@ function resolveSiteMemoryEncounterOutcome(col,row,kind){
   var check=explodingRoll(die);
   var oppose=explodingRoll(dd);
   var success=check.total>=oppose.total;
+
+  // ---- Scene content pools per kind ----
+  var discoveryScenes=[
+    {title:'Collapsed Survey Tunnel',scene:'A hidden entrance behind the broken mill wheel — partially sealed by old debris — opens to a low crawlway. Scholar survey marks confirm it was mapped once and abandoned.',missionTitle:'Explore the Collapsed Survey Tunnel'},
+    {title:'Buried Supply Depot',scene:'Pre-war survey stakes jut from the soil in a triangle pattern. Two paces past the center stake, the ground sounds hollow. Records suggest a military cache below.',missionTitle:'Excavate Buried Pre-War Depot'},
+    {title:'Signal Equipment Cache',scene:'The collapsed watchtower you mapped last time — its foundations hold intact signal relay equipment under a false floor. Operational if someone moves the rubble.',missionTitle:'Recover Tower Signal Equipment'},
+    {title:'Stone Tablet Route Map',scene:'Carved tablets wedged behind a standing stone predate any known cartography. Locations marked on them match terrain you recognize — and one you have never seen.',missionTitle:'Trace the Ancient Route Map'},
+    {title:'Coded Underground Cistern',scene:'A dry underground cistern, sealed with a Scholar-grade wax stamp. Its walls are covered in coded route notation — if decoded, this is a full regional map.',missionTitle:'Decode the Cistern Route Notation'},
+  ];
+  var cacheRiddles=[
+    {riddle:'Three stones face the sunrise. The middle stone hides the hollow. What is hidden never stands tall.',hint:'Look under the center stone — it lifts.',reward:60,missionTitle:'Crack the Three Stones Cache'},
+    {riddle:'Follow the shadow at midday. Where it points at the sixth hour, the ground remembers.',hint:'Mark the shadow direction, pace six meters — the loose flagstone is there.',reward:50,missionTitle:'Retrieve the Shadowmark Cache'},
+    {riddle:'The old well has two depths. The rope ends at the first. The cache waits below the second.',hint:'Lower a light — a false floor in the well hides a secondary drop.',reward:80,missionTitle:'Descend to the Second Well Floor'},
+    {riddle:'The fence post that leans east locks open from the west. Turn the cap twice.',hint:'The hollow post contains a sealed cylinder.',reward:40,missionTitle:'Recover the Fence Post Cylinder'},
+    {riddle:'Look for the stone with no moss — the only dry face in a wet place.',hint:'In the ravine wall, a smooth stone pivots — behind it, a niche.',reward:70,missionTitle:'Recover the Dry Stone Cache'},
+  ];
+  var threatFollowUps=[
+    {scene:'Remnant vanguard fighters — 3 or 4 — crept back into the cleared zone, reestablishing a cache line you dismantled last time. They move primarily at dusk.',missionTitle:'Eliminate Remnant Cache Line'},
+    {scene:'The passage you cleared was re-seeded with pressure-wire traps. Someone returned and reset them — and left a body as a warning.',missionTitle:'Clear Reseeded Trap Network'},
+    {scene:'A secondary patrol route is pushing through the cleared ground, using your old breach point as an entry lane. They do not know you\'re watching.',missionTitle:'Shut Down Secondary Patrol Route'},
+    {scene:'Old threat markers have been moved — deliberately repositioning danger to funnel travelers into an ambush zone that uses your cleared path as bait.',missionTitle:'Dismantle the Repositioned Ambush'},
+  ];
+  var failedExpeditionScenes=[
+    {scene:'Gear scattered near the creek bed. A waterproof case is still sealed — inside: route notes, a partial map, and a warning about a second exit blocked by a cave-in.',missionTitle:'Recover Failed Expedition Notes'},
+    {scene:'A basecamp still standing, but every supply stripped. The fire ring is cold. A carved marker in the center post reads: "North passage — do not enter without rope and light."',missionTitle:'Investigate Abandoned Basecamp'},
+    {scene:'A snare line set by your old crew is still live — and something is in it. Not game. A courier satchel, oilcloth-wrapped, with a broken seal.',missionTitle:'Retrieve Snagged Expedition Satchel'},
+  ];
+  var npcContacts=[
+    {name:'Mira Fend',role:'Ferryman',task:'Her cargo manifest was seized at the riverside checkpoint. She needs it recovered before the auditors arrive or she loses the ferry license.',reward:40,missionTitle:'Recover Mira\'s Cargo Manifest'},
+    {name:'Tolec Harr',role:'Off-grid Guide',task:'He cached supplies at three waypoints for your crew last time. He needs a resupply run — ammunition and dried rations at the east camp.',reward:35,missionTitle:'Resupply Tolec\'s East Camp'},
+    {name:'Sevryn',role:'Outpost Medic',task:'She\'s out of field antiseptic and one of her patients can\'t be moved. She needs a supply run from the trade post and back before nightfall.',reward:30,missionTitle:'Emergency Medical Supply Run for Sevryn'},
+    {name:'Dag the Record-Keeper',role:'Archive Courier',task:'He has a sealed case of survey documents that need to reach the next Scholar way-station. He can\'t carry them — he\'s being watched.',missionTitle:'Carry Dag\'s Survey Dispatch',reward:50},
+    {name:'Inna Cole',role:'Displaced Merchant',task:'She lost her trading license stamp in the occupation sweep. She knows exactly where it is — the abandoned clerk\'s office — but can\'t go in without an escort.',missionTitle:'Recover Inna\'s Trading License',reward:45},
+  ];
+  var infrastructureScenes=[
+    {scene:'The relay post your crew built — a simple weather-sealed lockbox on a high ridge — is still standing. Someone has been using it: there is a new message inside.',missionTitle:'Retrieve Message from Relay Post'},
+    {scene:'The hidden route marker your crew installed is still in place, but it\'s been turned 180 degrees. That\'s the signal for "compromised — verify source."',missionTitle:'Verify Compromised Route Marker'},
+    {scene:'The supply depot your crew stocked is accessible — and the stock has been touched. Someone else knows it\'s there. A handwritten note inside says: "We know who built this."',missionTitle:'Secure the Compromised Depot'},
+    {scene:'The reinforced crossing your crew built has held, but heavy cargo traffic has buckled the eastern anchor. Without repair in the next few days, it collapses.',missionTitle:'Emergency Repair: Reinforced Crossing'},
+  ];
+
+  var sceneData=null;
   var detail='';
   if(success){
     if(k==='discoveries'){
+      sceneData=pick(discoveryScenes);
       if(typeof changeCounter==='function')changeCounter('pathTokens',1);
-      detail='+1 Path Token from recovered clues.';
+      detail=sceneData.scene+' +1 Path Token.';
+      injectContextMission({title:sceneData.missionTitle,location:'Hex '+key,region:'province',reward:50,lore:'Site memory discovery: '+sceneData.title});
     }else if(k==='hiddenCaches'){
-      var credits=roll(6)*10;
+      sceneData=pick(cacheRiddles);
+      var credits=sceneData.reward;
       S.credits=(S.credits||0)+credits;
       if(typeof updateCreditsUI==='function')updateCreditsUI();
-      detail='Recovered cache worth '+credits+'₵.';
+      detail=sceneData.riddle+' ('+sceneData.hint+') +'+credits+'₵ recovered.';
+      injectContextMission({title:sceneData.missionTitle,location:'Hex '+key,region:'province',reward:credits+10,lore:'Cache riddle: '+sceneData.riddle});
     }else if(k==='threatsCleared'){
+      sceneData=pick(threatFollowUps);
       if(typeof changeCounter==='function')changeCounter('renown',1);
-      detail='+1 Renown from secured routes.';
+      detail=sceneData.scene+' +1 Renown.';
+      injectContextMission({title:sceneData.missionTitle,location:'Hex '+key,region:'province',reward:60,lore:'Threat follow-up: threat returned to cleared ground.'});
     }else if(k==='failedExpeditions'){
+      sceneData=pick(failedExpeditionScenes);
       if(typeof changeCounter==='function')changeCounter('tmw',1);
-      detail='+1 Teamwork from hard-won expedition lessons.';
+      detail=sceneData.scene+' +1 Teamwork from hard-won expedition lessons.';
+      injectContextMission({title:sceneData.missionTitle,location:'Hex '+key,region:'province',reward:45,lore:'Failed expedition recovery: salvage and route intelligence.'});
     }else if(k==='npcRelationships'){
+      sceneData=pick(npcContacts);
       if(typeof changeCounter==='function')changeCounter('tmw',1);
       S.credits=(S.credits||0)+20;
       if(typeof updateCreditsUI==='function')updateCreditsUI();
-      detail='An ally provides +1 Teamwork and 20₵ support.';
+      detail=sceneData.name+' ('+sceneData.role+'): '+sceneData.task+' +1 Teamwork and 20₵ advance.';
+      injectContextMission({title:sceneData.missionTitle,location:'Hex '+key+' via '+sceneData.name,region:'province',reward:sceneData.reward,lore:'Contact: '+sceneData.name+' ('+sceneData.role+') — '+sceneData.task});
     }else if(k==='infrastructure'){
+      sceneData=pick(infrastructureScenes);
       if(typeof changeCounter==='function')changeCounter('pathTokens',1);
       if(typeof changeCounter==='function')changeCounter('tmw',1);
-      detail='Improved infrastructure grants +1 Path Token and +1 Teamwork.';
+      detail=sceneData.scene+' +1 Path Token and +1 Teamwork.';
+      injectContextMission({title:sceneData.missionTitle,location:'Hex '+key,region:'province',reward:40,lore:'Infrastructure: '+sceneData.scene.substring(0,80)+'...'});
     }
     if(typeof window.applyWorldConsequence==='function'){
       window.applyWorldConsequence({
@@ -12379,23 +12525,29 @@ function resolveSiteMemoryEncounterOutcome(col,row,kind){
         title:'Site memory encounter resolved',
         detail:detail,
         region:'province',
-        locationKey:String(col)+','+String(row),
+        locationKey:key,
         severity:'info',
         tags:['site-memory','npc-relationship']
       });
     }
-    showNotif('Site memory encounter success: '+detail,'good');
+    if(typeof window.addHexRumor==='function'){
+      window.addHexRumor(key,{text:'Something was uncovered here recently — a local said they saw someone digging around the old site markers.',tags:['site-memory'],source:'site-memory'});
+    }
   }else{
     if(typeof changeMentalStress==='function')changeMentalStress(1);
-    detail='The memory trail turns risky. +1 Mental Stress.';
-    showNotif('Site memory encounter failed: +1 Mental Stress.','warn');
+    detail='The memory trail turns dangerous. +1 Mental Stress.';
   }
+
   var el=document.getElementById('hexEnc-'+col+'-'+row);
   if(el){
-    el.innerHTML+='<div style="margin-top:.3rem;padding:.35rem .45rem;border:1px solid '+(success?'rgba(76,175,116,.35)':'rgba(201,64,64,.35)')+';background:'+(success?'rgba(76,175,116,.08)':'rgba(201,64,64,.08)')+';font-size:.76rem;color:var(--text2);">Site Memory Check: '+stat.toUpperCase()+' d'+die+'='+check.total+' vs DD'+dd+'='+oppose.total+' — '+detail+'</div>';
+    var sceneText=sceneData?(success?'<div style="font-size:.78rem;color:var(--text2);margin:.25rem 0;line-height:1.45;padding:.3rem .4rem;background:rgba(126,215,255,.06);border-left:2px solid rgba(126,215,255,.4);">'+detail+'</div>':'<div style="font-size:.78rem;color:var(--red2);margin:.25rem 0;">'+detail+'</div>'):'';
+    var missionLine=success?'<div style="font-size:.7rem;color:var(--teal);margin-top:.15rem;">📋 New contract posted to mission board.</div>':'';
+    el.innerHTML+='<div style="margin-top:.3rem;padding:.35rem .45rem;border:1px solid '+(success?'rgba(76,175,116,.35)':'rgba(201,64,64,.35)')+';background:'+(success?'rgba(76,175,116,.08)':'rgba(201,64,64,.08)')+';font-size:.76rem;color:var(--text2);">'
+      +'<strong style="color:'+(success?'var(--green2)':'var(--red2)')+';">'+(success?'✅ ':'❌ ')+stat.toUpperCase()+' d'+die+' rolled '+check.total+' vs DD'+dd+' ('+oppose.total+')</strong>'
+      +sceneText+missionLine
+    +'</div>';
   }
 }
-
 function rollHexEncounter(col,row){
   let el=document.getElementById(`hexEnc-${col}-${row}`);
   if(!el&&selectedHex&&selectedHex.col===col&&selectedHex.row===row){

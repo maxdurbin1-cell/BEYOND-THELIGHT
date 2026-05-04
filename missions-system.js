@@ -1939,6 +1939,7 @@
       return '<div class="shop-card" style="display:flex;flex-direction:column;">'
         +'<div class="s-name" style="color:var(--gold2);">'+job.title+'</div>'
         +(job.templateLabel?'<div style="font-size:.62rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin:.1rem 0;">'+job.templateLabel+'</div>':'')
+        +(job.lore?'<div style="font-size:.72rem;color:var(--text2);line-height:1.4;margin:.1rem 0 .2rem;font-style:italic;border-left:2px solid var(--border2);padding-left:.4rem;">'+job.lore+'</div>':'')
         +'<div style="display:flex;gap:.35rem;align-items:center;font-family:\'Rajdhani\',sans-serif;font-size:.72rem;font-weight:700;margin:.15rem 0;">'
           +'<span style="color:'+dc+';text-transform:uppercase;">'+diff.name+'</span>'
           +'<span style="color:var(--muted2);">\u00B7</span>'

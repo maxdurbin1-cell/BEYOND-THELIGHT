@@ -646,6 +646,71 @@ const SOLAR_CYCLE_IRREVERSIBLE_TAGS = {
   fracture_used: { title: 'Time Fracture Used', endingWeights: { witness_loop: 1, black_mirror_apocalypse: 1, leviathan_gospel: 1, new_sun_risen: -1 } }
 };
 
+const SOLAR_CYCLE_FINALE_PRESSURE_DAYS = [90, 94, 97, 99];
+
+const SOLAR_CYCLE_FINALE_PRESSURE_SCENES = {
+  new_sun_risen: [
+    'Across ruined districts, people start aiming mirrors toward the horizon as if rehearsing for a dawn they cannot yet see.',
+    'Broken relays hum with impossible harmonics. Your crew swears this is what success sounds like before it arrives.',
+    'Ash storms thin for a single minute and every witness in the city says the sky looked newly forged.'
+  ],
+  ark_of_witness: [
+    'Convoys of patched carriers gather at old shrine ports. Families load tablets, engines, and names of the dead into a moving covenant.',
+    'The route-ark flotilla keeps growing. Every hour another district chooses salvage over surrender.',
+    'A thousand hands lash broken hulls into one migration machine and ask you for a destination before nightfall.'
+  ],
+  leviathan_gospel: [
+    'The sea goes glass-flat, then speaks in cathedral bass. Harbor bells answer by themselves.',
+    'Pilgrims kneel on wet stone while abyssal shapes circle beneath the docks in slow liturgical patterns.',
+    'A tide-mark appears on every wall in the district, all at the same height, as if measured by a single unseen eye.'
+  ],
+  atom_judgment: [
+    'Silo doors blossom open across the continent and the command frequencies begin reciting prayers.',
+    'Air-defense grids burn saint-names into the cloud deck while evacuation sirens refuse to stop.',
+    'Someone launches a warning shot into the upper atmosphere and calls it a sermon.'
+  ],
+  entropy_vespers: [
+    'Heat-exchanger monasteries ration warmth by hymn count. People now queue for sunlight the way they once queued for bread.',
+    'Street markets trade batteries, insulation, and stories about what noon felt like before the dimming.',
+    'The stars sharpen in broad daylight, and every engineer in the city suddenly sounds like a priest.'
+  ],
+  black_sun_coronation: [
+    'Banners of emergency sovereignty rise over ration towers. Dawn is now a permit system.',
+    'The throne-fleet broadcasts one command channel for all districts and calls dissent an eclipse crime.',
+    'Crown processions march under emergency floodlights while the real sun fails overhead.'
+  ],
+  iron_ragnarok: [
+    'War engines roll through shrine roads while both sides claim to be the final custodians of dawn.',
+    'Orbital batteries paint the sky in targeting geometry and entire armies chant impact coordinates.',
+    'The last peace envoys burn with their transports as militias cheer from rooftops.'
+  ],
+  witness_loop: [
+    'People you have not met yet call you by old nicknames and ask if this is the version where it works.',
+    'A child hands you a map you remember drawing tomorrow.',
+    'Clock towers strike contradictory hours, and somehow every witness writes down the same minute.'
+  ],
+  ashes_without_dawn: [
+    'District generators fail in rolling silence. Nobody riots because everyone already knew this shape of ending.',
+    'Processions for the unlit dead replace evacuation drills.',
+    'You pass murals of possible futures painted over with ash and ration tallies.'
+  ],
+  black_mirror_apocalypse: [
+    'False suns bloom over separate horizons, each demanding obedience to a different future.',
+    'Future-echoes of your own crew argue in public squares about which timeline deserves to survive.',
+    'Mirror storms reflect cities that never existed and erase streets that do.'
+  ],
+  last_liturgy_of_ruin: [
+    'Hospitals convert into archive chapels for plans that never got built.',
+    'Every district adds one more name to its ledger of almost-saved futures.',
+    'The city keeps moving, but only in triage rhythms now.'
+  ],
+  wormwood_cathedral: [
+    'Ration bells and scripture sirens now ring in the same rhythm across all survivor wards.',
+    'Old houses absorb panic into ritual and call it continuity.',
+    'The people survive, but every meal and watt of light now requires priestly paperwork.'
+  ]
+};
+
 const NEW_SUN_TEMPLATE_REGION_ORDER = ['province', 'sea', 'wtw', 'galaxy'];
 
 const NEW_SUN_QUEST_PACKS = {
@@ -1310,6 +1375,13 @@ function ensureSolarCycleState() {
   sc.daysRemaining = Math.max(0, SOLAR_CYCLE_DAY_LIMIT - sc.daysElapsed);
   if (typeof sc.worldTilt !== 'number') sc.worldTilt = sc.daysElapsed > 0 ? Math.min(4, Math.floor(sc.daysElapsed / 25) + 1) : 0;
   if (!Array.isArray(sc.prophecyTrack)) sc.prophecyTrack = [];
+  if (!sc.finalePressure || typeof sc.finalePressure !== 'object') {
+    sc.finalePressure = { shownDays: {}, pending: null, lastDay: 0, lastEnding: '', lastWeight: 0 };
+  }
+  if (!sc.finalePressure.shownDays || typeof sc.finalePressure.shownDays !== 'object') sc.finalePressure.shownDays = {};
+  if (typeof sc.finalePressure.lastDay !== 'number') sc.finalePressure.lastDay = 0;
+  if (typeof sc.finalePressure.lastEnding !== 'string') sc.finalePressure.lastEnding = '';
+  if (typeof sc.finalePressure.lastWeight !== 'number') sc.finalePressure.lastWeight = 0;
   if (!sc.relicRewardsGiven || typeof sc.relicRewardsGiven !== 'object') sc.relicRewardsGiven = {};
   if (typeof sc.echoSeed !== 'number') sc.echoSeed = Math.floor(Math.random() * 1000000);
   if (SOLAR_CYCLE_ARCS.indexOf(sc.activeArc) < 0) sc.activeArc = 'relic';
@@ -2334,6 +2406,161 @@ function getSolarCycleEndingKeyFromWeights(weights) {
   return best;
 }
 
+function ensureSolarCycleFinalePressureState(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state) return null;
+  if (!state.finalePressure || typeof state.finalePressure !== 'object') {
+    state.finalePressure = {
+      shownDays: {},
+      pending: null,
+      lastDay: 0,
+      lastEnding: '',
+      lastWeight: 0
+    };
+  }
+  if (!state.finalePressure.shownDays || typeof state.finalePressure.shownDays !== 'object') {
+    state.finalePressure.shownDays = {};
+  }
+  if (typeof state.finalePressure.lastDay !== 'number') state.finalePressure.lastDay = 0;
+  if (typeof state.finalePressure.lastEnding !== 'string') state.finalePressure.lastEnding = '';
+  if (typeof state.finalePressure.lastWeight !== 'number') state.finalePressure.lastWeight = 0;
+  return state.finalePressure;
+}
+
+function getSolarCycleDominantEndingSnapshot(sc) {
+  var state = sc || ensureSolarCycleState();
+  var profile = getSolarCycleOutcomeProfile(state);
+  var weights = getSolarCycleEndingWeights(profile);
+  var leadingKey = getSolarCycleEndingKeyFromWeights(weights);
+  var sorted = NEW_SUN_ENDING_KEYS.slice().sort(function (a, b) {
+    return Number(weights[b] || 0) - Number(weights[a] || 0);
+  });
+  var runnerUpKey = sorted.length > 1 ? sorted[1] : leadingKey;
+  var leadingWeight = Number(weights[leadingKey] || 0);
+  var runnerUpWeight = Number(weights[runnerUpKey] || 0);
+  return {
+    profile: profile,
+    weights: weights,
+    leadingKey: leadingKey,
+    leadingWeight: leadingWeight,
+    runnerUpKey: runnerUpKey,
+    runnerUpWeight: runnerUpWeight,
+    leadMargin: leadingWeight - runnerUpWeight
+  };
+}
+
+function pickSolarCycleFinalePressureScene(endingKey, day) {
+  var key = String(endingKey || '');
+  var pool = SOLAR_CYCLE_FINALE_PRESSURE_SCENES[key] || SOLAR_CYCLE_FINALE_PRESSURE_SCENES.wormwood_cathedral || [];
+  if (!pool.length) return 'The world trembles toward one ending while your crew counts what little time remains.';
+  var idx = Math.abs((Number(day || 0) + key.length * 7) % pool.length);
+  return String(pool[idx] || pool[0]);
+}
+
+function applySolarCycleFinalePressureConsequence(choiceId, pending) {
+  var p = pending || {};
+  var choice = String(choiceId || 'dawn');
+  if (choice === 'dawn') {
+    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+    if (typeof changeMentalStress === 'function') changeMentalStress(1);
+    else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + 1);
+    if (typeof showNotif === 'function') showNotif('You rally for dawn: +1 TMW, +1 Mental Stress.', 'warn');
+    return true;
+  }
+  if (choice === 'last_days') {
+    if (typeof changeMentalStress === 'function') changeMentalStress(-1);
+    else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) - 1);
+    if (typeof changeCounter === 'function') changeCounter('renown', 1);
+    else S.renown = Math.max(0, Number(S.renown || 0) + 1);
+    if (typeof showNotif === 'function') showNotif('You choose witness over conquest: -1 Mental Stress, +1 Renown.', 'good');
+    return true;
+  }
+  if (typeof changeMentalStress === 'function') changeMentalStress(Math.max(1, Number(p.pressureSeverity || 1)));
+  else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, Number(p.pressureSeverity || 1)));
+  if (typeof showNotif === 'function') showNotif('Pressure surges as the sky worsens.', 'warn');
+  return true;
+}
+
+function resolveSolarCycleFinalePressureChoice(choiceId) {
+  ensureStarsState();
+  var sc = ensureSolarCycleState();
+  var fp = ensureSolarCycleFinalePressureState(sc);
+  if (!sc || !fp || !fp.pending) return false;
+  var pending = fp.pending;
+  fp.pending = null;
+  applySolarCycleFinalePressureConsequence(choiceId, pending);
+  sc.prophecyTrack.push('Finale pressure choice (' + String(choiceId || 'panic') + ') on day ' + Number(sc.daysElapsed || 0) + '.');
+  if (typeof closeModal === 'function') closeModal();
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+  if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
+  return true;
+}
+
+function maybeRunSolarCycleFinalePressureScene(sc, prevDay) {
+  var state = sc || ensureSolarCycleState();
+  if (!state || !state.storyModeEnabled || !state.enabled) return false;
+  if (state.finale && state.finale.resolved) return false;
+  var fp = ensureSolarCycleFinalePressureState(state);
+  if (!fp) return false;
+
+  var beforeDay = Math.max(0, Number(prevDay || 0));
+  var nowDay = Math.max(0, Number(state.daysElapsed || 0));
+  var triggerDay = 0;
+  SOLAR_CYCLE_FINALE_PRESSURE_DAYS.forEach(function (d) {
+    var day = Number(d || 0);
+    if (beforeDay < day && nowDay >= day && !fp.shownDays[day]) triggerDay = Math.max(triggerDay, day);
+  });
+  if (!triggerDay) return false;
+
+  fp.shownDays[triggerDay] = true;
+  var snapshot = getSolarCycleDominantEndingSnapshot(state);
+  var sceneText = pickSolarCycleFinalePressureScene(snapshot.leadingKey, triggerDay);
+  var pressureDie = Math.max(6, Math.min(20, 7 + Math.max(0, Number(snapshot.leadingWeight || 0))));
+  var pressureRoll = rollSolarCycleContest('spirit', pressureDie);
+  var pressureSeverity = pressureRoll.success ? 1 : 2;
+
+  fp.lastDay = triggerDay;
+  fp.lastEnding = String(snapshot.leadingKey || 'wormwood_cathedral');
+  fp.lastWeight = Number(snapshot.leadingWeight || 0);
+  fp.pending = {
+    day: triggerDay,
+    endingKey: String(snapshot.leadingKey || 'wormwood_cathedral'),
+    pressureSeverity: pressureSeverity,
+    leadMargin: Number(snapshot.leadMargin || 0)
+  };
+
+  var trajectory = getSolarCycleEndingText(snapshot.leadingKey);
+  var hopefulTrajectory = ['new_sun_risen', 'ark_of_witness', 'shared_dawn_compromise', 'witness_loop'].indexOf(String(snapshot.leadingKey || '')) >= 0;
+  var pressureLine = hopefulTrajectory
+    ? 'The route still smells like possible dawn. If you can hold your witnesses together, this can still be saved.'
+    : 'The dominant route is collapsing into ruin. You can still resist, but every hour now costs blood and certainty.';
+
+  if (typeof openModal === 'function') {
+    openModal(
+      'Day ' + triggerDay + ' - Endgame Pressure',
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
+      + '<div style="margin-bottom:.35rem;color:var(--gold2);">' + escapeSolarCycleHtml(sceneText) + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;">Dominant trajectory: <strong>' + escapeSolarCycleHtml(String(snapshot.leadingKey || '').replace(/_/g, ' ')) + '</strong> (weight ' + Number(snapshot.leadingWeight || 0) + ', margin ' + Number(snapshot.leadMargin || 0) + ').</div>'
+      + '<div style="font-size:.74rem;color:' + (pressureRoll.success ? 'var(--green2)' : 'var(--red2)') + ';margin-bottom:.35rem;">Pressure roll: SPIRIT d' + Number(pressureRoll.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(pressureRoll.actionRoll) + ' vs Collapse d' + Number(pressureRoll.dreadDie || 6) + ' = ' + formatSolarCycleRollTotalHtml(pressureRoll.dreadRoll) + '</div>'
+      + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.45rem;">' + escapeSolarCycleHtml(pressureLine) + '</div>'
+      + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.35rem;">Projected ending if day 100 struck now: ' + escapeSolarCycleHtml(trajectory) + '</div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm btn-gold" onclick="window.resolveSolarCycleFinalePressureChoice(\'dawn\')">Fight For Dawn (+1 TMW, +1 Stress)</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleFinalePressureChoice(\'last_days\')">Live The Last Days (-1 Stress, +1 Renown)</button>'
+      + '<button class="btn btn-sm btn-red" onclick="window.resolveSolarCycleFinalePressureChoice(\'panic\')">Freeze Up (+Stress)</button>'
+      + '</div>'
+      + '</div>'
+    );
+  } else {
+    applySolarCycleFinalePressureConsequence('panic', fp.pending);
+    fp.pending = null;
+  }
+
+  state.prophecyTrack.push('Day ' + triggerDay + ' pressure scene: ' + String(snapshot.leadingKey || 'wormwood_cathedral') + ' (weight ' + Number(snapshot.leadingWeight || 0) + ').');
+  return true;
+}
+
 function applySolarCycleScenarioDeltaToWeights(baseWeights, deltaMap) {
   var out = {};
   NEW_SUN_ENDING_KEYS.forEach(function (key) {
@@ -2797,9 +3024,16 @@ function resolveSolarCycleEnding(forceResolve) {
   }
 
   var pendingBranch = getPendingSolarCycleBranch(sc);
+  var deadlineOverride = !!forceResolve || !!(sc.endingFlags && sc.endingFlags.forcedFinaleTriggered) || Number(sc.daysElapsed || 0) >= SOLAR_CYCLE_DAY_LIMIT;
   if (pendingBranch) {
-    if (typeof showNotif === 'function') showNotif('A branch choice is still pending.', 'warn');
-    return '';
+    if (!deadlineOverride) {
+      if (typeof showNotif === 'function') showNotif('A branch choice is still pending.', 'warn');
+      return '';
+    }
+    if (typeof showNotif === 'function') {
+      showNotif('Day 100 override: unresolved branch choices are locked by time and no longer block the ending.', 'warn');
+    }
+    sc.prophecyTrack.push('Pending branch ' + String(pendingBranch) + ' was overridden by Day ' + Number(sc.daysElapsed || 0) + ' finale lock.');
   }
 
   var endingKey = getSolarCycleEndingKey(sc);
@@ -3364,6 +3598,7 @@ function startSolarCycleMode(activeArc) {
   sc.daysRemaining = SOLAR_CYCLE_DAY_LIMIT;
   sc.worldTilt = 1;
   sc.prophecyTrack = [];
+  sc.finalePressure = { shownDays: {}, pending: null, lastDay: 0, lastEnding: '', lastWeight: 0 };
   sc.resolvedMarkers = {};
   sc.endingFlags = { forcedFinaleTriggered: false, ending: '' };
   sc.timeFracture = { charges: 1, maxCharges: 1, scarFlags: { paradoxStrain: 0, echoArc: '', lastRewindDays: 0, tmwBurnTotal: 0 }, rewindsUsed: 0 };
@@ -3432,6 +3667,7 @@ function progressSolarCycleDay(days) {
   if (!delta) return sc;
 
   const prevTier = sc.currentTier;
+  const prevDay = Number(sc.daysElapsed || 0);
   sc.daysElapsed = clampSolarCycleElapsed(sc.daysElapsed + delta);
   sc.daysRemaining = Math.max(0, SOLAR_CYCLE_DAY_LIMIT - sc.daysElapsed);
   sc.worldTilt = Math.min(4, Math.floor(sc.daysElapsed / 25) + 1);
@@ -3463,6 +3699,8 @@ function progressSolarCycleDay(days) {
       }
     }
   });
+
+  maybeRunSolarCycleFinalePressureScene(sc, prevDay);
 
   if (sc.daysElapsed >= SOLAR_CYCLE_DAY_LIMIT && !sc.endingFlags.forcedFinaleTriggered) {
     sc.endingFlags.forcedFinaleTriggered = true;
@@ -5878,6 +6116,7 @@ window.buildSolarCycleQuickPanelHtml = buildSolarCycleQuickPanelHtml;
 window.postNextSolarCycleArcMission = postNextSolarCycleArcMission;
 window.chooseSolarCycleBranch = chooseSolarCycleBranch;
 window.resolveSolarCycleEnding = resolveSolarCycleEnding;
+window.resolveSolarCycleFinalePressureChoice = resolveSolarCycleFinalePressureChoice;
 window.resolveSolarCycleStageChoice = resolveSolarCycleStageChoice;
 window.resolveSolarCycleProvinceStoryMarker = resolveSolarCycleProvinceStoryMarker;
 window.resolveSolarCycleSeaMarker = resolveSolarCycleSeaMarker;

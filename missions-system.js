@@ -27,6 +27,10 @@
     return !!window.settingsSystem.shouldRevealHiddenInfo();
   }
 
+  function isMissionManualRollMode() {
+    return !!(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
+  }
+
   function stepMissionDreadDie(current, dir) {
     var die = Number(current || 8);
     var idx = DREAD_DICE.indexOf(die);
@@ -1048,38 +1052,45 @@
     var mission = getMission(missionId);
     if (!mission) return;
     var advDie=getStat('adventure'), dreadDie=mission.dread;
-    var advR=explodingRoll(advDie), dreadR=explodingRoll(dreadDie);
-    var success=advR.total>=dreadR.total;
-    var fod = success ? rollInfoFeature() : rollInfoDanger();
+    var manualMode=isMissionManualRollMode();
+    var advR=manualMode?null:explodingRoll(advDie), dreadR=manualMode?null:explodingRoll(dreadDie);
+    var success=manualMode?null:(advR.total>=dreadR.total);
+    var successFod=rollInfoFeature();
+    var failureFod=rollInfoDanger();
 
-    var rollBlock = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.45rem;">'
-      + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Adventure d'+advDie+' vs Dread d'+dreadDie+'</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.3rem;">'
-        + '<div style="text-align:center;">'
-          + '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.1rem;">Your Roll</div>'
-          + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--teal);">'+advR.total+'</div>'
-          + (advR.exploded?'<div style="font-size:.62rem;color:var(--gold2);">\u2746 Crit!</div>':'')
-        + '</div>'
-        + '<div style="text-align:center;">'
-          + '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.1rem;">Dread Roll</div>'
-          + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--red);">'+dreadR.total+'</div>'
-        + '</div>'
+    var rollBlock = manualMode
+      ? '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .65rem;margin-bottom:.45rem;">'
+        + '<div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+advDie+' vs Dread d'+dreadDie+' using the Dice tab or physical dice, then choose the outcome.</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);">Success reveals a Hidden Feature and grants +5 bonus. Failure adds Additional Danger.</div>'
       + '</div>'
-      + '<div style="text-align:center;font-family:\'Cinzel\',serif;font-size:.78rem;color:'+(success?'var(--green2)':'var(--red2)')+';">'
-        + (success?'\u2713 Information gathered \u2014 +5 bonus secured':'\u2717 Contacts run dry \u2014 Additional Danger incoming')
-      + '</div>'
-    + '</div>';
+      : '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.45rem;">'
+        + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Adventure d'+advDie+' vs Dread d'+dreadDie+'</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.3rem;">'
+          + '<div style="text-align:center;">'
+            + '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.1rem;">Your Roll</div>'
+            + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--teal);">'+advR.total+'</div>'
+            + (advR.exploded?'<div style="font-size:.62rem;color:var(--gold2);">\u2746 Crit!</div>':'')
+          + '</div>'
+          + '<div style="text-align:center;">'
+            + '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.1rem;">Dread Roll</div>'
+            + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--red);">'+dreadR.total+'</div>'
+          + '</div>'
+        + '</div>'
+        + '<div style="text-align:center;font-family:\'Cinzel\',serif;font-size:.78rem;color:'+(success?'var(--green2)':'var(--red2)')+';">'
+          + (success?'\u2713 Information gathered \u2014 +5 bonus secured':'\u2717 Contacts run dry \u2014 Additional Danger incoming')
+        + '</div>'
+      + '</div>';
 
     var resultBlock='';
-    if (success) {
-      var f=fod;
+    if (!manualMode && success) {
+      var f=successFod;
       resultBlock='<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.5rem .6rem;margin-bottom:.45rem;">'
         +'<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.25rem;">\u2b62 Hidden Feature Revealed (d6 = '+f.id+')</div>'
         +'<div style="font-size:.85rem;color:var(--text);margin-bottom:.15rem;"><strong>'+f.icon+' '+f.name+'</strong></div>'
         +'<div style="font-size:.78rem;color:var(--muted3);line-height:1.5;">'+f.effectDesc+'</div>'
       +'</div>';
-    } else {
-      var d=fod;
+    } else if (!manualMode) {
+      var d=failureFod;
       if (d.type==='mercenary') {
         var actRows=MERCENARY_ACTIONS.map(function(a){ return '<div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted3);padding:.1rem 0;border-bottom:1px solid var(--border);"><span style="color:var(--muted2);width:1.4rem;">'+a.range[0]+(a.range[1]!==a.range[0]?'\u2013'+a.range[1]:'')+'</span><span style="color:var(--text2);flex:1;padding:0 .3rem;">'+a.name+'</span><span style="color:var(--muted);font-size:.65rem;">'+a.desc+'</span></div>'; }).join('');
         resultBlock='<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.5rem .6rem;margin-bottom:.45rem;">'
@@ -1098,13 +1109,17 @@
       }
     }
 
-    var encoded=encodeURIComponent(JSON.stringify(fod));
+    var successEncoded=encodeURIComponent(JSON.stringify(successFod));
+    var failureEncoded=encodeURIComponent(JSON.stringify(failureFod));
     var introLine = mission.step1Intro || ('<strong style="color:var(--gold2);">' + (mission.steps[1].name || 'Gather Information') + '</strong> - optional. Success grants <strong style="color:var(--teal);">+5 bonus</strong> and reveals a hidden feature. Failure introduces <strong style="color:var(--red2);">Additional Danger</strong>. You may also skip.');
     var html='<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.5rem;line-height:1.5;">'+introLine+'</div>'
       +rollBlock+resultBlock
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
         +'<button class="btn btn-sm" onclick="skipMissionStep1('+missionId+');closeModal();">Skip This Step</button>'
-        +'<button class="btn btn-sm btn-teal" onclick="completeMissionInfoStep('+missionId+','+success+',decodeURIComponent(\''+encoded+'\'));closeModal();">Confirm</button>'
+        +(manualMode
+          ? '<button class="btn btn-sm btn-red" onclick="completeMissionInfoStep('+missionId+',false,decodeURIComponent(\''+failureEncoded+'\'));closeModal();">Failure</button>'
+            +'<button class="btn btn-sm btn-primary" onclick="completeMissionInfoStep('+missionId+',true,decodeURIComponent(\''+successEncoded+'\'));closeModal();">Success</button>'
+          : '<button class="btn btn-sm btn-teal" onclick="completeMissionInfoStep('+missionId+','+success+',decodeURIComponent(\''+(success ? successEncoded : failureEncoded)+'\'));closeModal();">Confirm</button>')
       +'</div>';
     openModal('Step 1 - ' + (mission.steps[1].name || 'Gather Information'),html);
   }
@@ -1160,9 +1175,13 @@
     if (!mission.steps[1].completed) { showNotif('Complete or skip Step 1 first.','warn'); return; }
     if (!mission.siteRoll) {
       var advDie=getStat('adventure'), bonus=mission.bonus||0;
-      var aR=explodingRoll(advDie), dR=explodingRoll(mission.dread);
-      var tot=aR.total+bonus;
-      mission.siteRoll={ advDie:advDie, dreadDie:mission.dread, adv:aR.total, bonus:bonus, dread:dR.total, total:tot, success:tot>=dR.total, exploded:aR.exploded };
+      if (isMissionManualRollMode()) {
+        mission.siteRoll={ advDie:advDie, dreadDie:mission.dread, adv:null, bonus:bonus, dread:null, total:null, success:null, exploded:false, manual:true, pending:true };
+      } else {
+        var aR=explodingRoll(advDie), dR=explodingRoll(mission.dread);
+        var tot=aR.total+bonus;
+        mission.siteRoll={ advDie:advDie, dreadDie:mission.dread, adv:aR.total, bonus:bonus, dread:dR.total, total:tot, success:tot>=dR.total, exploded:aR.exploded };
+      }
     }
     renderSiteModal(missionId);
   }
@@ -1170,12 +1189,34 @@
   function renderSiteModal(missionId) {
     var mission=getMission(missionId); if (!mission) return;
     var sr=mission.siteRoll, bonus=sr.bonus||0;
+    var featureBadge='';
+    if (mission.infoFeature) {
+      featureBadge='<div style="font-size:.7rem;color:var(--teal);margin-bottom:.35rem;padding:.2rem .4rem;border:1px solid rgba(46,196,182,.3);display:inline-block;">'+mission.infoFeature.icon+' '+mission.infoFeature.name+' \u2014 '+mission.infoFeature.effectDesc+'</div><br>';
+    }
 
     // Complication banner
     var compBanner='';
     if (mission.additionalDanger&&mission.additionalDanger.type==='complication') {
       var comp=mission.additionalDanger.data;
       compBanner='<div style="background:rgba(200,50,50,.07);border:1px solid rgba(200,50,50,.35);padding:.3rem .5rem;margin-bottom:.4rem;font-size:.74rem;"><strong style="color:var(--red2);">\u26a0 '+comp.name+'</strong> <span style="color:var(--muted3);">\u2014 '+comp.desc+'</span></div>';
+    }
+
+    if (sr && sr.pending) {
+      var titleElPending=document.getElementById('modalTitle');
+      var contentElPending=document.getElementById('modalContent');
+      if (titleElPending) titleElPending.textContent='Step 2 - '+((mission.steps[2] && mission.steps[2].name) || 'Go to Site');
+      if (contentElPending) contentElPending.innerHTML=compBanner+featureBadge
+        +'<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .65rem;margin-bottom:.45rem;">'
+          +'<div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+sr.advDie+(bonus?' + '+bonus:'')+' vs Dread d'+sr.dreadDie+' to approach the site, then choose the outcome.</div>'
+          +'<div style="font-size:.7rem;color:var(--muted2);">Success means you arrive undetected. Failure means you lose time and the site is alerted.</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
+          +'<button class="btn btn-sm btn-red" onclick="resolveMissionSiteApproach('+missionId+',false)">Failure</button>'
+          +'<button class="btn btn-sm btn-primary" onclick="resolveMissionSiteApproach('+missionId+',true)">Success</button>'
+        +'</div>';
+      var pendingModal=document.getElementById('rollModal');
+      if (pendingModal&&!pendingModal.classList.contains('open')) pendingModal.classList.add('open');
+      return;
     }
 
     var rollBlock='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .5rem;margin-bottom:.4rem;">'
@@ -1191,11 +1232,6 @@
       +'</div>'
       +'<div style="text-align:center;font-family:\'Cinzel\',serif;font-size:.75rem;color:'+(sr.success?'var(--green2)':'var(--red2)')+';">'+(sr.success?'\u2713 Arrived undetected':'\u2717 Setback \u2014 lost time and exposed')+'</div>'
     +'</div>';
-
-    var featureBadge='';
-    if (mission.infoFeature) {
-      featureBadge='<div style="font-size:.7rem;color:var(--teal);margin-bottom:.35rem;padding:.2rem .4rem;border:1px solid rgba(46,196,182,.3);display:inline-block;">'+mission.infoFeature.icon+' '+mission.infoFeature.name+' \u2014 '+mission.infoFeature.effectDesc+'</div><br>';
-    }
 
     var irradiated=mission.additionalDanger&&mission.additionalDanger.type==='complication'&&mission.additionalDanger.data.name==='Irradiated';
     var roomsHTML='<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;">Site Layout \u2014 '+mission.rooms.length+' Room'+(mission.rooms.length!==1?'s':'')+'</div>';
@@ -1214,7 +1250,7 @@
       } else if (room.find&&room.find.type==='enemy'&&!room.find.resolved) {
         actionBtn='<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u2694 '+room.find.count+' enemies \u00b7 DD'+room.find.dd+' \u00b7 '+room.find.hp+' HP each</div><button class="btn btn-xs" onclick="switchTab(\'combat\',document.querySelector(\".tab-btn[onclick*=\\\"combat\\\"]\"))">Open Combat</button><button class="btn btn-xs btn-red" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',false)">Failure</button><button class="btn btn-xs btn-primary" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',true)">Success</button></div>';
       } else if (room.find&&room.find.type==='trap'&&!room.find.resolved) {
-        actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="resolveMissionRoomTrap('+missionId+','+idx+')">Resolve Trap (Action vs DD'+(room.find.dd||6)+')</button></div>';
+        actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="resolveMissionRoomTrap('+missionId+','+idx+')">'+(isMissionManualRollMode()?'Resolve Trap (Success/Failure)':'Resolve Trap (Action vs DD'+(room.find.dd||6)+')')+'</button></div>';
       } else if (room.find&&room.find.type==='puzzle'&&!room.find.resolved) {
         actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="startMissionRoomPuzzle('+missionId+','+idx+')">Solve Puzzle</button></div>';
       } else if (confrontActive) {
@@ -1284,6 +1320,15 @@
   function resolveMissionRoomTrap(missionId,roomIdx) {
     var mission=getMission(missionId); if (!mission) return;
     var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='trap'||room.find.resolved) return;
+    if (isMissionManualRollMode()) {
+      openModal('Room Trap','<div style="font-size:.84rem;color:var(--muted3);line-height:1.55;margin-bottom:.5rem;">'
+        +room.find.text+'<br><br>Roll Adventure d'+getStat('adventure')+' vs Dread d'+(room.find.dd||6)+' and choose the outcome.</div>'
+        +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
+          +'<button class="btn btn-sm btn-red" onclick="resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',false)">Failure</button>'
+          +'<button class="btn btn-sm btn-primary" onclick="resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',true)">Success</button>'
+        +'</div>');
+      return;
+    }
     var statDie=getStat('adventure');
     var a=explodingRoll(statDie), d=explodingRoll(room.find.dd||6);
     room.find.resolved=true;
@@ -1295,6 +1340,35 @@
       if (typeof addTMWOnFail==='function') addTMWOnFail();
       room.find.text='TRAP TRIGGERED \u2014 AD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'. +1 Stress.';
     }
+    renderSiteModal(missionId);
+  }
+
+  function resolveMissionRoomTrapOutcome(missionId,roomIdx,success) {
+    var mission=getMission(missionId); if (!mission) return;
+    var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='trap'||room.find.resolved) return;
+    room.find.resolved=true;
+    if (success) {
+      room.find.text='TRAP DISARMED — manual success against DD'+(room.find.dd||6)+'.';
+      if (typeof addSuccessRoll==='function') addSuccessRoll();
+    } else {
+      if (typeof changeStress==='function') changeStress(1);
+      if (typeof addTMWOnFail==='function') addTMWOnFail();
+      room.find.text='TRAP TRIGGERED — manual failure against DD'+(room.find.dd||6)+'. +1 Stress.';
+    }
+    renderSiteModal(missionId);
+  }
+
+  function resolveMissionSiteApproach(missionId, success) {
+    var mission=getMission(missionId); if (!mission) return;
+    var sr=mission.siteRoll; if (!sr) return;
+    var bonus=sr.bonus||0;
+    sr.manual=true;
+    sr.pending=false;
+    sr.success=!!success;
+    sr.adv='Manual';
+    sr.dread='Manual';
+    sr.total=success?('Success'+(bonus?' (+'+bonus+')':'')):'Failure';
+    sr.exploded=false;
     renderSiteModal(missionId);
   }
 

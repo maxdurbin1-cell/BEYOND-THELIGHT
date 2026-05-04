@@ -3536,17 +3536,17 @@ const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
     {key:'infernal eyes',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Infernal Eyes',trigger:'When fear is the cleanest weapon in the room.',effect:'Your stare kindles dread; enemies falter while your social pressure turns razor-sharp.',cue:'Highlights in social confrontation panels and night-combat intimidation windows.',matchers:['storylineSocial','inCombatNightBoost']},
     {key:'leader',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Leader',trigger:'When allies need a single signal to move as one.',effect:'In the Beyond, Leader means: Faction becomes Empowered for the Scene.',cue:'Highlights in Storyline/Factions/Missions contexts where command or coordination checks are active.',matchers:['leadershipCampaign']},
     {key:'beast form',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Beast Form',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Beast Form means: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8.',cue:'Turns on during navigation windows; pair it with route decisions and movement cost cues.',matchers:['inCombat','travel']},
-    {key:'communicate telepathically with anyone you have met',archetype:'mystic',cooldownType:'phase',mechanicMode:'active',actionLabel:'Invoke Communicate telepathically with anyone you have met',trigger:'When mortal methods are not enough for the moment.',effect:'You bend strange forces into practical leverage when stakes are high.',cue:'Turns on when team tempo matters; watch Teamwork, ally sequencing, and campaign objective widgets.',matchers:['storylineSocial','leadershipCampaign']},
+    {key:'communicate telepathically with anyone you have met',archetype:'mystic',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive · Communicate telepathically with anyone you have met',trigger:'When mortal methods are not enough for the moment.',effect:'You bend strange forces into practical leverage when stakes are high.',cue:'Turns on when team tempo matters; watch Teamwork, ally sequencing, and campaign objective widgets.',matchers:['storylineSocial','leadershipCampaign']},
     {key:'weaken an object or enemy armor by a step for a round',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Weaken Enemy Armor',trigger:'When steel is drawn and the line starts to break.',effect:'Reduce the focused enemy Dread by one Step (d6→d4; if already d4, they roll Disadvantage this round).',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
     {key:'plastic bones — readjust the shape and size of your bones',archetype:'mystic',cooldownType:'phase',mechanicMode:'active',actionLabel:'Invoke Plastic bones — readjust the shape and size of your bones',trigger:'When mortal methods are not enough for the moment.',effect:'You bend strange forces into practical leverage when stakes are high.',cue:'Appears when analysis-driven checks are relevant, including relic, trap, or lore prompts.',matchers:['travel','analysis']},
     {key:'illusionist',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Illusionist',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Illusionist means: Create minor visual illusions — Enemies are Distracted.',cue:'Shows during intel-heavy scenes where Mind/Control reads change the next decision.',matchers:['analysis','inCombat']},
-    {key:'regenerator',archetype:'medic',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Mend Regenerator',trigger:'When pain, strain, or bleeding would end the push.',effect:'In the Beyond, Regenerator means: Regenerate Adventure Die in Stress per Round.',cue:'Shows when Stress/Trauma pressure is visible; check condition chips and recovery windows.',matchers:['recovery']},
+    {key:'regenerator',archetype:'medic',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive · Regenerator',trigger:'When pain, strain, or bleeding would end the push.',effect:'In the Beyond, Regenerator means: Regenerate Adventure Die in Stress per Round.',cue:'Shows when Stress/Trauma pressure is visible; check condition chips and recovery windows.',matchers:['recovery']},
     {key:'emit burst of electricity — ad8 to shoot in close range',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Emit burst of electricity — Ad8 to Shoot in Close range',trigger:'When steel is drawn and the line starts to break.',effect:'You turn the battlefield tempo in your favor for a decisive exchange.',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
     {key:'stone skin',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Stone Skin',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, Stone Skin means: Ad4 to Defend.',cue:'Highlights when Defend pressure spikes or harmful conditions are about to land.',matchers:['danger']},
     {key:'mimic',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Mimic',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Mimic means: Copy successful actions of another without rolling.',cue:'Appears when ally support actions can chain value in the current scene.',matchers:['analysis','leadership']},
     {key:'in water',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand In water',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, In water means: breathe, gain +1 Action, all Action Dice step up.',cue:'Highlights during traversal and repositioning; check Combat Positions and hex spacing before moving.',matchers:['danger','travel']},
     {key:'void gazer',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Void Gazer',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Void Gazer lets you see invisibility and hidden things.',cue:'Shows during intel-heavy scenes where Mind/Control reads change the next decision.',matchers:['analysis']},
-    {key:'after a successful defend, gain a free strike',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash After a Successful Defend, gain a Free Strike',trigger:'When steel is drawn and the line starts to break.',effect:'You turn the battlefield tempo in your favor for a decisive exchange.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
+    {key:'after a successful defend, gain a free strike',archetype:'combat',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive · After a Successful Defend, gain a Free Strike',trigger:'When steel is drawn and the line starts to break.',effect:'You turn the battlefield tempo in your favor for a decisive exchange.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
     {key:'trickshot',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Trickshot',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Trickshot means: Ad10 to Shoot rolls.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
     {key:'create a psychic dome — up to 4 people, cannot be attacked within',archetype:'guard',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Stand Create a psychic dome — up to 4 people, cannot be attacked within',trigger:'When the squad is about to be overrun by direct fire.',effect:'You raise a psychic dome; up to four allies inside cannot be directly attacked for the round.',cue:'Appears in combat when incoming focus-fire is high; use before enemy burst actions resolve.',matchers:['inCombat']},
     {key:'new senses',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read New Senses',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'New Senses lets you vibration, echolocation, or magnetic.',cue:'Appears when analysis-driven checks are relevant, including relic, trap, or lore prompts.',matchers:['analysis','travel']},
@@ -3669,6 +3669,11 @@ function getCurrentActiveTabId(){
   }
 }
 
+function isTelepathicSceneContext(){
+  var activeTab=getCurrentActiveTabId();
+  return activeTab==='storyline'||activeTab==='missions'||activeTab==='factions';
+}
+
 function getPersonalFlavorMechanicProfile(flavorText){
   var full=String(flavorText||'').toLowerCase();
   var base=normalizeFlavorBase(flavorText);
@@ -3678,6 +3683,8 @@ function getPersonalFlavorMechanicProfile(flavorText){
     infernalEyes:base.indexOf('infernal eyes')>=0,
     beastForm:base.indexOf('beast form')>=0,
     telepathic:base.indexOf('communicate telepathically')>=0,
+    regenerator:base.indexOf('regenerator')>=0,
+    defendFreeStrike:base.indexOf('after a successful defend, gain a free strike')>=0,
     antiRad:full.indexOf('anti-rad')>=0||full.indexOf('radiation')>=0||full.indexOf('irradiat')>=0||base.indexOf('cinder skin')>=0,
     heatWard:full.indexOf('heat')>=0||full.indexOf('ember')>=0||base.indexOf('cinder skin')>=0,
     coldWard:full.indexOf('cold')>=0||full.indexOf('frigid')>=0||base.indexOf('iron lungs')>=0,
@@ -3718,6 +3725,9 @@ function isPassiveOnlyFlavorEntry(entry){
   if(base.indexOf('frost')>=0)return true;
   if(base.indexOf('storm veins')>=0)return true;
   if(base.indexOf('steel prayer')>=0)return true;
+  if(base.indexOf('communicate telepathically')>=0)return true;
+  if(base.indexOf('regenerator')>=0)return true;
+  if(base.indexOf('after a successful defend, gain a free strike')>=0)return true;
   if(base.indexOf('monk')>=0)return true;
   if(base.indexOf('lucky')>=0)return true;
   if(base.indexOf('siphon energy')>=0)return true;
@@ -4125,6 +4135,9 @@ function escFlavorAttr(text){
 function getFlavorPassiveBadgesHtml(flavorText,opts){
   var profile=getPersonalFlavorMechanicProfile(flavorText||'');
   var badges=[];
+  if(profile.telepathic)badges.push({label:'Passive - Telepathy',tip:'Telepathic contact is always on for storyline, mission, and leadership coordination bonuses.',tone:'purple'});
+  if(profile.regenerator)badges.push({label:'Passive - Regenerator',tip:'At each phase advance, roll your Adventure Die and recover that much Health.',tone:'green'});
+  if(profile.defendFreeStrike)badges.push({label:'Passive - Free Strike',tip:'After a successful Defend in combat, gain 1 free Action for an immediate strike.',tone:'teal'});
   if(profile.monkUnarmed)badges.push({label:'Passive - Monk',tip:'Monk: while unarmed, add your Adventure Die as a bonus to Strike checks.',tone:'teal'});
   if(profile.luckyReroll)badges.push({label:'Passive - Lucky',tip:'Lucky: reroll Action Die results of 1 and keep the new result.',tone:'gold'});
   if(profile.siphonEnergy)badges.push({label:'Passive - Siphon',tip:'Siphon Energy: heal Health by damage dealt on successful Strike/Shoot hits.',tone:'red'});
@@ -4133,7 +4146,10 @@ function getFlavorPassiveBadgesHtml(flavorText,opts){
   return badges.map(function(b){
     var style='';
     if(b.tone==='gold')style='border-color:rgba(232,192,80,.45);background:rgba(232,192,80,.08);color:var(--gold2);';
+    else if(b.tone==='green')style='border-color:rgba(52,180,120,.45);background:rgba(52,180,120,.08);color:#74d79d;';
+    else if(b.tone==='purple')style='border-color:rgba(156,116,255,.45);background:rgba(156,116,255,.08);color:#c6b4ff;';
     else if(b.tone==='red')style='border-color:rgba(224,80,80,.45);background:rgba(224,80,80,.08);color:#ff8a72;';
+    else style='border-color:rgba(46,196,182,.4);background:rgba(46,196,182,.08);color:var(--teal);';
     var text=compact?b.label.replace('Passive - ',''):b.label;
     return '<span class="flavor-passive-chip" style="'+style+'" title="'+escFlavorAttr(b.tip)+'">'+text+'</span>';
   }).join('');
@@ -5519,6 +5535,17 @@ function prepareCombatTurnStart(){
     return;
   }
   S.combat.actionsLeft=getMaxActions();
+}
+
+function applyPassiveDefendSuccessEffects(){
+  var profile=getPersonalFlavorMechanicProfile((S&&S.flavor)||'');
+  if(!(S&&S.combat&&S.combat.active))return;
+  if(profile.defendFreeStrike){
+    S.combat.actionsLeft=Math.max(0,Number(S.combat.actionsLeft||0))+1;
+    updateCombatUI();
+    if(typeof renderQP==='function')renderQP('combat');
+    showNotif('Personal Flavor: Free Strike gained after a successful Defend.','good');
+  }
 }
 
 function startCombat(){
@@ -6912,6 +6939,7 @@ function triggerEnemyActionEvent(){
         actionFailed=true;
         summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+targetDD+' — failed, '+dmg+' Stress.';
       }else{
+        applyPassiveDefendSuccessEffects();
         summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+targetDD+' — blocked.';
       }
     }
@@ -7026,7 +7054,7 @@ function getFlavorBonus(stat){
   if(stat==='control'&&S&&S.flavorState&&S.flavorState.beastForm&&S.flavorState.beastForm.stat==='control'&&S.flavorState.beastForm.stamp===getFlavorEncounterStamp())advDice.push(Number(S.flavorState.beastForm.die||10));
   if(stat==='body'&&f.indexOf('feats of strength')>=0)advDice.push(10);
   if(stat==='lead'&&profile.infernalEyes&&(getCurrentActiveTabId()==='storyline'||getCurrentActiveTabId()==='factions'))advDice.push(stepUp(Number((S.stats&&S.stats.lead)||4)));
-  if(stat==='lead'&&profile.telepathic&&(getCurrentActiveTabId()==='storyline'||getCurrentActiveTabId()==='missions'))flat+=1;
+  if(profile.telepathic&&isTelepathicSceneContext()&&(stat==='lead'||stat==='spirit'))flat+=1;
   if((stat==='lead'||stat==='control')&&profile.disguiseShift&&S&&S.flavorState&&S.flavorState.shedSkinStamp===('phase|'+((typeof S.day==='number')?S.day:0)+'|'+((typeof S.phase==='number')?S.phase:0)))flat+=1;
   if((stat==='mind'||stat==='control'||stat==='spirit')&&profile.timeSight&&(getCurrentActiveTabId()==='storyline'||getCurrentActiveTabId()==='factions'))flat+=1;
   if((stat==='mind'||stat==='spirit')&&profile.corpseMemory&&(getCurrentActiveTabId()==='storyline'||getCurrentActiveTabId()==='missions'))flat+=1;
@@ -7365,6 +7393,7 @@ function rollDefend(skipEnemyTurnTick) {
   var d = explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Enemy DD'});
   var success = effectiveTotal >= d.total;
   var diff = Math.max(1, d.total - effectiveTotal);
+  if(success)applyPassiveDefendSuccessEffects();
 
   var breakdown = ra.breakdown;
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
@@ -12815,6 +12844,19 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   function advanceProvincePhasePenalty(steps){
     const n=Math.max(1,parseInt(steps,10)||1);
+    if(S){
+      var flavorProfile=getPersonalFlavorMechanicProfile((S&&S.flavor)||'');
+      if(flavorProfile.regenerator){
+        var regenDie=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
+        var totalHeal=0;
+        for(var ri=0;ri<n;ri++)totalHeal+=explodingRoll(regenDie,{type:'action',major:false,label:'Regenerator'}).total;
+        if(totalHeal>0){
+          if(typeof changeHealth==='function')changeHealth(-totalHeal);
+          else if(typeof changeStress==='function')changeStress(-totalHeal);
+          showNotif('Regenerator: recovered '+totalHeal+' Health across '+n+' phase'+(n===1?'':'s')+'.','good');
+        }
+      }
+    }
     if(typeof registerProvinceHexTravel==='function'){
       registerProvinceHexTravel(n);
       return;

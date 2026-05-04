@@ -1567,7 +1567,9 @@ function getManualRollValue(sides,meta){
 function roll(n,meta){
   const sides=Math.max(1,parseInt(n,10)||1);
   let value=Math.floor(Math.random()*sides)+1;
-  if(isManualRollModeEnabled()){
+  var rollMeta=meta||null;
+  var manualEligible=!!(rollMeta&&(rollMeta.type==='action'||rollMeta.type==='dread'));
+  if(isManualRollModeEnabled()&&manualEligible){
     const manualValue=getManualRollValue(sides,meta||null);
     if(manualValue!==null)value=manualValue;
     else if(typeof showNotif==='function')showNotif('Manual roll input invalid. Using auto-roll d'+sides+'='+value+'.','warn');
@@ -1639,8 +1641,8 @@ const CAREERS=['Anthropologist','Hunter','Soldier','Merchant','Investigator','Pr
 const OMENS=['Spring — Nurturing','Spring — Joyful','Spring — Quick-to-Act','Harvest — Hot-headed','Harvest — Bold','Harvest — Adventurous','Winter — Cold','Winter — Harsh','Winter — Resilient'];
 const REASONS=['Sent by a corporation to steal a sacred object','Sheer greed drives you toward comfort and luxury','Tracking a missing ledger — the only clue points to the Last Sea','Seeking new converts for your belief','Found a clue to the secret of immortality','Seeking a cure for a plague that claimed your child','Seeking vengeance for an ancient wrong','A loved one was stolen away by a horror in the night','Stories of a healing fruit draw you onward','Delivering a letter of inheritance to a distant Lord','A disembodied voice told you of a child destined to restore the world','Repaying an old debt — to a Lover, a Criminal, a Noble, or a Bank',"Searching for your Grandmother's lost Transporter",'Keeping a close eye on a dangerous rival','Seeking allies for a coming revolution','Looking for new lands for a displaced and lost tribe','Visions of glory and rebirth haunt your every sleep','You found a map to a Lost City in the wastes','A burning need to become famous drives every step','Pursued by the law for a crime — rightful or not'];
 const TRAITS={physique:['Athletic','Brawny','Flabby','Lanky','Chiseled','Scraggly','Short','Dashing','Stout','Enormous'],skin:['Birthmarked','Scarred','Dark','Rosy','Pockmarked','Soft','Tanned','Weathered','Hairy','Tattooed'],hair:['Bald','Long','Braided','Mohawked','Frizzy','Curled','Wavy','Oily','Luxurious','Dreadlocked'],face:['Elongated','Bony','Broken','Pale','Rugged','Chiseled','Squatty','Sunken','Square','Round'],clothing:['Antique','Bloody','Elegant','Soiled','Exotic','Royal','Eclectic','Topless','Plain','Tattered'],virtue:['Respect','Justice','Wisdom','Resolution','Mercy','Reliable','Hope','Courage','Moderation','Helpful'],vice:['Angry','Arrogant','Envious','Glutton','Greedy','Lustful','Lazy','Drunk','Coward','Vain'],reputation:['Leader','Loafer','Dangerous','Honest','Wise','Hardworking','Entertaining','Brash','Goofy','Repulsive'],misfortune:['Addicted','Defrauded','Exiled','Cursed','In Debt','Abandoned','Blackmailed','Betrayed','Condemned','Scarred']};
-const PERSONAL_FLAVORS_BASE=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: all Engaged Targets are Shaken','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Regenerate Adventure Die in Stress per Round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana / Mutants & Abilities','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity becomes 20 slots','Deity Pact: Wayfarer missions can include patron demands for favor or debt','Vampire: Blood hunger grants nocturnal power and daylight vulnerability','Werewolf: Bestial strength surges at night with lunar instincts'];
-const PERSONAL_FLAVORS_EXTRAS=['Echo Step: After a successful Defend, reposition 1 range band and gain +Adventure Die on next Strike','Battle Cantor: Ally gains +Adventure Die bonus on their next Action roll','Glasswalker: Ignore first peril terrain penalty each phase','Iron Lungs: Ignore smoke and ash penalties','Runesmith: Your weapon carries the rune — +Adventure Die bonus damage on next Strike or Shoot this scene','Scavenger Memory: First loot roll each day may be rerolled — keep the better result, +Adventure Die queued','Hex Cartographer: Reveal one adjacent hex detail for free','Solar Needle: One ranged attack per scene gains +Adventure Die bonus to Shoot','Grave Whisper: Ask one question to the recent dead — receive a clue, lore, or warning','Storm Veins: Cancel the first shock-tagged enemy action each scene','Ruin Scholar: +Adventure Die bonus on all checks inside Ruins or the Lost City this phase','Blessed Appetite: Food use heals +1 extra Stress','Duelist Footwork: On hit, step to Nearby without cost','Pathfinder: Add Adventure Die as a bonus when encountering Barriers during traversal','Dust Prophet: Reveal the next weather shift — reroll and choose which result applies','Mirror Nerves: Immune to first Distracted per scene','Moon Listener: During Evening or Night phase, gain Adventure Die bonus to any roll','Chain Breaker: Ignore one restraint effect per scene','Warding Palm: Adjacent ally gains Protected for one roll','Quick Draw: First Strike or Shoot each combat gains +Adventure Die bonus','Bone Oracle: Read omen from remains once per day','Black Salt Ward: Negate the first Horror, fear, or psychic enemy effect each day','Field Surgeon: Stabilize ally for +1 Health recovery','Signal Caller: +Adventure Die bonus to Lead checks on caravan and trade routes','Scrap Alchemist: Choose an Item from your backpack and transform it into a remedy','Silent Knife: +Adventure Die bonus to Strike when no ally is Engaged','Ash Runner: In Planetary Exploration, ignore the first difficult terrain movement cost','Beacon Heart: Allies in Close range gain +Adventure Die bonus to Trauma checks','Clockmind: +Adventure Die bonus to Control on trap or lock interactions','Wild Empathy: Beast enemies are Distracted on their first action — they do not attack you first','Grim Resolve: At half Health or below, gain +Adventure Die bonus to Defend checks','Bloodhound: Track a target across two hexes automatically','Cold Reader: +Adventure Die bonus to Spirit checks in social or deception scenes','Iron Stomach: Consume any backpack item — roll Adventure Die, reduce Health by that amount for an unpredictable boon','Stormglass Eye: See hidden movement in rain/fog','Banner Oath: +Adventure Die bonus to Lead while carrying a mission objective','Trophy Keeper: First enemy defeat each scene gives +Adventure Die queued and +1 Teamwork','Quick Stitch: Remove one Injury or negative condition from self or nearby ally per scene','Lantern Scholar: +Adventure Die bonus to Mind checks in darkness or ruins','Faultline Sense: Safely pass through one Peril encounter this phase without Stress','Arc Shot: Ranged attacks can ignore one cover source','Mercy Hand: Spare a defeated enemy — +1 Renown for the act of mercy','Rune Tongue: Read unknown glyphs with Mind check','Night Courier: During Evening or Night, travel 2 hexes per click — phase clock does not tick until second move','Chain Tactician: First ally action after yours gains +Adventure Die bonus','Cinder Skin: Ignore heat and ember hazards — travel Hot planets without damage or Coolant Layer','Vault Memory: Returning to a visited route grants +Adventure Die bonus and +1 Path Token','Hunt Rhythm: After a successful Defend, next Strike gains +Adventure Die bonus','Vowkeeper: +Adventure Die bonus on checks tied to your current active task','Steel Prayer: Once per day, negate one Trauma gain','Ghoststride: Movement does not trigger simple traps','Iridescent Blood: Recover +Adventure Die additional Stress when using any remedy','Field Quartermaster: Backpack stack cap effectively doubles','Cave Ears: +Adventure Die bonus to Notice and Lead checks in enclosed spaces','Apex Calm: Cannot be Shaken by minor foes','Shard Focus: +Adventure Die bonus to Control when using hacks or relics','Ashen Halo: Hostile morale drops on first reveal','Dawnbreaker: First Morning action gains +Adventure Die bonus','Duskcaller: First Evening action gains +Adventure Die bonus','Gale Step: Gain free reposition on crit success','Sable Ward: Reduce first incoming Stress each scene by 1','Fracture Sight: Spot weak points — +Adventure Die bonus to next Shoot check','Torchbearer: Allies ignore first darkness penalty','Oathbound Medic: Long Rest heals +1 Trauma every 3 days','Circuit Saint: +Adventure Die bonus to Mind checks with old-world devices','Feral Grace: +Adventure Die bonus to Defend checks against beasts','Pact Witness: +Adventure Die bonus to Spirit on deity pact outcomes','Reverse Time: Rewind up to 2 rounds worth of momentum; take Mental Stress equal to rounds reversed','Enhance Abilities: Step up the next allied action with an elevated bonus die','Shed Skin: Roll a new appearance and count as disguised for the current scene','Time Traveler: Glimpse 1 hour into the past or future and gain a concrete clue','Undying: If struck down, regenerate into a newly generated Wayfarer shell','Beast Call: Summon 4 beasts, each DD4 with 8 Stress','Monk: Bonus Adventure Die to Strike when unarmed','Siphon Energy: Heal equal to the damage you deal','Stop Time: Freeze the field for a round; gain Adventure Die as Mental Stress each round time is stopped','Lucky: Reroll 1s on your Action Die','Tremor Pulse: All in your Zone must Save vs your Adventure Die or lose 1 Action','Cloning: Create clones equal to your current remaining Health, each DD4 with 1 Stress','Increase Gravity: A target’s actions cost +1 Action this round','Slow Time: One target only gets 1 Action on their turn this round','Relive Last Moments: Touch a corpse to replay its recent memories for clues, routes, or warnings'];
+const PERSONAL_FLAVORS_BASE=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: Lead rolls step up in fear scenes','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Recover Adventure Die Health each phase and combat round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana, Mutants, and unstable mutations','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity becomes 20 slots','Deity Pact: Request a patron favor or minor miracle once per day','Vampire: Blood hunger grants nocturnal power and daylight vulnerability','Werewolf: Bestial strength surges at night with lunar instincts'];
+const PERSONAL_FLAVORS_EXTRAS=['Echo Step: After a successful Defend, reposition 1 range band and gain +Adventure Die on next Strike','Battle Cantor: Ally gains +Adventure Die bonus on their next Action roll','Glasswalker: Ignore first peril terrain penalty each phase','Iron Lungs: Ignore smoke and ash penalties','Runesmith: Your weapon carries the rune — +Adventure Die bonus damage on next Strike or Shoot this scene','Scavenger Memory: First loot roll each day may be rerolled — keep the better result, +Adventure Die queued','Hex Cartographer: Reveal one adjacent hex detail for free','Solar Needle: One ranged attack per scene gains +Adventure Die bonus to Shoot','Grave Whisper: Commune with the recent dead for a clue, lore shard, or grave omen','Storm Veins: Glimpse one possible future and negate the first forced Trauma this scene','Ruin Scholar: +Adventure Die bonus on all checks inside Ruins or the Lost City this phase','Blessed Appetite: Food use heals +1 extra Stress','Duelist Footwork: On hit, step to Nearby without cost','Pathfinder: Add Adventure Die as a bonus when encountering Barriers during traversal','Dust Prophet: Reveal the next weather shift — reroll and choose which result applies','Mirror Nerves: Immune to first Distracted per scene','Moon Listener: During Evening or Night phase, gain Adventure Die bonus to any roll','Chain Breaker: Ignore one restraint effect per scene','Warding Palm: Adjacent ally gains Protected for one roll','Quick Draw: First Strike or Shoot each combat gains +Adventure Die bonus','Bone Oracle: Read omen from remains once per day','Black Salt Ward: Negate the first Horror, fear, or psychic enemy effect each day','Field Surgeon: Stabilize ally for +1 Health recovery','Signal Caller: +Adventure Die bonus to Lead checks on caravan and trade routes','Scrap Alchemist: Choose an Item from your backpack and transform it into a remedy','Silent Knife: +Adventure Die bonus to Strike when no ally is Engaged','Ash Runner: In Planetary Exploration, ignore the first difficult terrain movement cost','Beacon Heart: Allies in Close range gain +Adventure Die bonus to Trauma checks','Clockmind: +Adventure Die bonus to Control on trap or lock interactions','Wild Empathy: Beast enemies are Distracted on their first action — they do not attack you first','Grim Resolve: At half Health or below, gain +Adventure Die bonus to Defend checks','Bloodhound: Track a target across two hexes automatically','Cold Reader: +Adventure Die bonus to Spirit checks in social or deception scenes','Iron Stomach: Consume any backpack item — roll Adventure Die, reduce Health by that amount for an unpredictable boon','Stormglass Eye: See hidden movement in rain/fog','Banner Oath: +Adventure Die bonus to Lead while carrying a mission objective','Trophy Keeper: First enemy defeat each scene gives +Adventure Die queued and +1 Teamwork','Quick Stitch: Remove one Injury or negative condition from self or nearby ally per scene','Lantern Scholar: +Adventure Die bonus to Mind checks in darkness or ruins','Faultline Sense: Safely pass through one Peril encounter this phase without Stress','Arc Shot: Ranged attacks can ignore one cover source','Mercy Hand: Spare a defeated enemy — +1 Renown for the act of mercy','Rune Tongue: Read unknown glyphs with Mind check','Night Courier: During Evening or Night, travel 2 hexes per click — phase clock does not tick until second move','Chain Tactician: First ally action after yours gains +Adventure Die bonus','Cinder Skin: Ignore heat and ember hazards — travel Hot planets without damage or Coolant Layer','Vault Memory: Returning to a visited route grants +Adventure Die bonus and +1 Path Token','Hunt Rhythm: After a successful Defend, next Strike gains +Adventure Die bonus','Vowkeeper: +Adventure Die bonus on checks tied to your current active task','Steel Prayer: Once per day, negate one Trauma gain','Ghoststride: Movement does not trigger simple traps','Iridescent Blood: Recover +Adventure Die additional Stress when using any remedy','Field Quartermaster: Backpack stack cap effectively doubles','Cave Ears: +Adventure Die bonus to Notice and Lead checks in enclosed spaces','Apex Calm: Cannot be Shaken by minor foes','Shard Focus: +Adventure Die bonus to Control when using hacks or relics','Ashen Halo: First reveal steals 1 enemy Action this round','Dawnbreaker: First Morning action gains +Adventure Die bonus','Duskcaller: First Evening action gains +Adventure Die bonus','Gale Step: Gain free reposition on crit success','Sable Ward: Reduce first incoming Mental Stress each scene by your Adventure Die roll','Fracture Sight: Spot weak points — +Adventure Die bonus to next Shoot check','Torchbearer: Allies ignore first darkness penalty','Oathbound Medic: Long Rest heals +1 Trauma','Circuit Saint: +Adventure Die bonus to Hack and old-world device checks','Feral Grace: +Adventure Die bonus to Defend checks against beasts','Pact Witness: +Adventure Die bonus to Spirit on deity pact outcomes','Reverse Time: Rewind up to 2 rounds worth of momentum; take Mental Stress equal to rounds reversed','Enhance Abilities: Step up the next allied action with an elevated bonus die','Shed Skin: Roll a new appearance and count as disguised for the current scene','Time Traveler: Glimpse 1 hour into the past or future and gain a concrete clue','Undying: If struck down, regenerate into a newly generated Wayfarer shell','Beast Call: Summon 4 beasts, each DD4 with 8 Stress','Monk: Bonus Adventure Die to Strike when unarmed','Siphon Energy: Heal equal to the damage you deal','Stop Time: Freeze the field for a round; gain Adventure Die as Mental Stress each round time is stopped','Lucky: Reroll 1s on your Action Die','Tremor Pulse: All in your Zone must Save vs your Adventure Die or lose 1 Action','Cloning: Create clones equal to your current remaining Health, each DD4 with 1 Stress','Increase Gravity: A target’s actions cost +1 Action this round','Slow Time: One target only gets 1 Action on their turn this round','Relive Last Moments: Touch a corpse to replay its recent memories for clues, routes, or warnings'];
 function normalizePersonalFlavorWording(text){
   var t=String(text||'');
   if(!t)return t;
@@ -3566,27 +3568,27 @@ const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
   var rows=[
     {key:'animal companion',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Animal Companion',trigger:'When the hunt opens and you need a second heartbeat beside you.',effect:'A bonded beast answers your call and joins the lane as an ally (DD6, 12 Stress).',cue:'Turns on when combat starts and no companion ally is in line; summon from the Flavor Interaction panel.',matchers:['inCombat']},
     {key:'holy shield',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Holy Shield',trigger:'When a blow, curse, or burst would break your footing.',effect:'Gain Protected and queue your current Spirit die onto the next Defend-facing roll.',cue:'Shows when danger states are live: hazard terrain, cover penalties, or defensive condition pressure.',matchers:['danger']},
-    {key:'emit blinding light — all engaged targets are distracted',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Emit blinding light — all Engaged Targets are Distracted',trigger:'When steel is drawn and the line starts to break.',effect:'You turn the battlefield tempo in your favor for a decisive exchange.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
-    {key:'infernal eyes',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Infernal Eyes',trigger:'When fear is the cleanest weapon in the room.',effect:'Your stare kindles dread; enemies falter while your social pressure turns razor-sharp.',cue:'Highlights in social confrontation panels and night-combat intimidation windows.',matchers:['storylineSocial','inCombatNightBoost']},
+    {key:'emit blinding light — all engaged targets are distracted',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Emit blinding light — all Engaged Targets are Distracted',trigger:'When steel is drawn and the line starts to break.',effect:'All engaged targets are Distracted, and the enemy line loses 1 Action in the exchange.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
+    {key:'infernal eyes',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Infernal Eyes',trigger:'When fear is the cleanest weapon in the room.',effect:'Your stare kindles dread; Lead rolls step up in scenes where fear is the leverage point.',cue:'Highlights in social confrontation panels and night-combat intimidation windows.',matchers:['storylineSocial','inCombatNightBoost']},
     {key:'leader',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Leader',trigger:'When allies need a single signal to move as one.',effect:'In the Beyond, Leader means: Faction becomes Empowered for the Scene.',cue:'Highlights in Storyline/Factions/Missions contexts where command or coordination checks are active.',matchers:['leadershipCampaign']},
     {key:'beast form',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Beast Form',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Beast Form means: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8.',cue:'Turns on during navigation windows; pair it with route decisions and movement cost cues.',matchers:['inCombat','travel']},
     {key:'communicate telepathically with anyone you have met',archetype:'mystic',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive · Communicate telepathically with anyone you have met',trigger:'When mortal methods are not enough for the moment.',effect:'You bend strange forces into practical leverage when stakes are high.',cue:'Turns on when team tempo matters; watch Teamwork, ally sequencing, and campaign objective widgets.',matchers:['storylineSocial','leadershipCampaign']},
     {key:'weaken an object or enemy armor by a step for a round',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Weaken Enemy Armor',trigger:'When steel is drawn and the line starts to break.',effect:'Reduce the focused enemy Dread by one Step (d6→d4; if already d4, they roll Disadvantage this round).',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
     {key:'plastic bones — readjust the shape and size of your bones',archetype:'mystic',cooldownType:'phase',mechanicMode:'active',actionLabel:'Invoke Plastic bones — readjust the shape and size of your bones',trigger:'When mortal methods are not enough for the moment.',effect:'You bend strange forces into practical leverage when stakes are high.',cue:'Appears when analysis-driven checks are relevant, including relic, trap, or lore prompts.',matchers:['travel','analysis']},
     {key:'illusionist',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Illusionist',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Illusionist means: Create minor visual illusions — Enemies are Distracted.',cue:'Shows during intel-heavy scenes where Mind/Control reads change the next decision.',matchers:['analysis','inCombat']},
-    {key:'regenerator',archetype:'medic',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive · Regenerator',trigger:'When pain, strain, or bleeding would end the push.',effect:'In the Beyond, Regenerator means: Regenerate Adventure Die in Stress per Round.',cue:'Shows when Stress/Trauma pressure is visible; check condition chips and recovery windows.',matchers:['recovery']},
-    {key:'emit burst of electricity — ad8 to shoot in close range',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Emit burst of electricity — Ad8 to Shoot in Close range',trigger:'When steel is drawn and the line starts to break.',effect:'You turn the battlefield tempo in your favor for a decisive exchange.',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
+    {key:'regenerator',archetype:'medic',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive · Regenerator',trigger:'When pain, strain, or bleeding would end the push.',effect:'Passive: recover your Adventure Die in Health each phase of day and at the start of each combat round.',cue:'Shows when Stress/Trauma pressure is visible; check condition chips and recovery windows.',matchers:['recovery']},
+    {key:'emit burst of electricity — ad8 to shoot in close range',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Emit burst of electricity — Ad8 to Shoot in Close range',trigger:'When steel is drawn and the line starts to break.',effect:'Queue Ad8 to your next Close-range Shoot and let the discharge carry the shot.',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
     {key:'stone skin',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Stone Skin',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, Stone Skin means: Ad4 to Defend.',cue:'Highlights when Defend pressure spikes or harmful conditions are about to land.',matchers:['danger']},
-    {key:'mimic',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Mimic',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Mimic means: Copy successful actions of another without rolling.',cue:'Appears when ally support actions can chain value in the current scene.',matchers:['analysis','leadership']},
+    {key:'mimic',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Mimic',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Copy a successful action you just witnessed without rolling again.',cue:'Appears when ally support actions can chain value in the current scene.',matchers:['analysis','leadership']},
     {key:'in water',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand In water',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, In water means: breathe, gain +1 Action, all Action Dice step up.',cue:'Highlights during traversal and repositioning; check Combat Positions and hex spacing before moving.',matchers:['danger','travel']},
     {key:'void gazer',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Void Gazer',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Void Gazer lets you see invisibility and hidden things.',cue:'Shows during intel-heavy scenes where Mind/Control reads change the next decision.',matchers:['analysis']},
-    {key:'after a successful defend, gain a free strike',archetype:'combat',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive · After a Successful Defend, gain a Free Strike',trigger:'When steel is drawn and the line starts to break.',effect:'You turn the battlefield tempo in your favor for a decisive exchange.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
+    {key:'after a successful defend, gain a free strike',archetype:'combat',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive · After a Successful Defend, gain a Free Strike',trigger:'When steel is drawn and the line starts to break.',effect:'After a successful Defend, the website automatically grants a Free Strike action.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
     {key:'trickshot',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Trickshot',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Trickshot means: Ad10 to Shoot rolls.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
     {key:'create a psychic dome — up to 4 people, cannot be attacked within',archetype:'guard',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Stand Create a psychic dome — up to 4 people, cannot be attacked within',trigger:'When the squad is about to be overrun by direct fire.',effect:'You raise a psychic dome; up to four allies inside cannot be directly attacked for the round.',cue:'Appears in combat when incoming focus-fire is high; use before enemy burst actions resolve.',matchers:['inCombat']},
     {key:'new senses',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read New Senses',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'New Senses lets you vibration, echolocation, or magnetic.',cue:'Appears when analysis-driven checks are relevant, including relic, trap, or lore prompts.',matchers:['analysis','travel']},
     {key:'tinkerer',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Tinkerer',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Tinkerer lets you repair broken things — 1 hour.',cue:'Highlights in investigation contexts (ruins/events/gates) and technical interaction moments.',matchers:['analysis']},
     {key:'scaled skin',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Scaled Skin',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, Scaled Skin means: +3 to Defend rolls.',cue:'Appears when incoming damage, fear, poison, or restraint effects are in play.',matchers:['danger']},
-    {key:'source attuned',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Source Attuned',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Source Attuned lets you sense nearby Arcana / Mutants & Abilities.',cue:'Shows during intel-heavy scenes where Mind/Control reads change the next decision.',matchers:['analysis']},
+    {key:'source attuned',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Source Attuned',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Sense nearby Arcana, mutant abilities, and unstable mutation pressure before it breaks loose.',cue:'Shows during intel-heavy scenes where Mind/Control reads change the next decision.',matchers:['analysis']},
     {key:'failed rolls grant +2 teamwork points instead of +1',archetype:'leader',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive · Failed rolls grant +2 Teamwork Points instead of +1',trigger:'When allies need a single signal to move as one.',effect:'You convert presence into allied momentum and tighter team execution.',cue:'Appears when ally support actions can chain value in the current scene.',matchers:['leadership']},
     {key:'moves like the wind',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Moves like the Wind',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Moves like the Wind means: +1 Action during Combat Scenes.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
     {key:'feats of strength',archetype:'guard',cooldownType:'phase',mechanicMode:'active',actionLabel:'Stand Feats of Strength',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, Feats of Strength means: Ad10 to Body and Power checks.',cue:'Turns on during navigation windows; pair it with route decisions and movement cost cues.',matchers:['danger','travel']},
@@ -3595,7 +3597,7 @@ const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
     {key:'mindshield',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Mindshield',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, Mindshield means: Ad8 to Trauma checks.',cue:'Highlights when wounds, bleed effects, or stabilization choices are active.',matchers:['danger','recovery']},
     {key:'healer',archetype:'medic',cooldownType:'day',mechanicMode:'active',actionLabel:'Mend Healer',trigger:'When pain, strain, or bleeding would end the push.',effect:'In the Beyond, Healer means: Restore Adventure Die roll in Stress with a Touch.',cue:'Shows when Stress/Trauma pressure is visible; check condition chips and recovery windows.',matchers:['recovery']},
     {key:'mule',archetype:'scout',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive · Mule',trigger:'When the path ahead is unclear or dangerous.',effect:'Mule lets you backpack capacity becomes 20 slots.',cue:'Appears while routing on map systems; use it with the Zone Map card and Stars Combat hex state.',matchers:['travel']},
-    {key:'deity pact',archetype:'leader',cooldownType:'day',mechanicMode:'active',actionLabel:'Rally Deity Pact',trigger:'When allies need a single signal to move as one.',effect:'Deity Pact lets you wayfarer missions can include patron demands for favor or debt.',cue:'Appears when ally support actions can chain value in the current scene.',matchers:['leadershipCampaign']},
+    {key:'deity pact',archetype:'leader',cooldownType:'day',mechanicMode:'active',actionLabel:'Rally Deity Pact',trigger:'When a mission stalls unless something holy, forbidden, or impossible intervenes.',effect:'Request a patron favor or minor miracle tied to your god; every answered prayer adds debt, obligation, or a divine tell.',cue:'Appears when ally support actions can chain value in the current scene.',matchers:['leadershipCampaign']},
     {key:'vampire',archetype:'night',cooldownType:'phase',mechanicMode:'hybrid',actionLabel:'Awaken Vampire',trigger:'When night rises and hunger bargains for strength.',effect:'Nocturnal power floods your frame, but daylight costs become part of the debt.',cue:'Appears as phase timing shifts toward evening/night action windows.',matchers:['night']},
     {key:'werewolf',archetype:'night',cooldownType:'phase',mechanicMode:'hybrid',actionLabel:'Awaken Werewolf',trigger:'When moonlight and violence pull the same direction.',effect:'Lunar instinct surges through muscle and reflex, sharpening bestial force.',cue:'Appears as phase timing shifts toward evening/night action windows.',matchers:['night','inCombat']},
     {key:'echo step',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Echo Step',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Echo Step means: After a successful Defend, reposition 1 range band for free — +Adventure Die queued for your repositioning strike.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
@@ -3606,8 +3608,8 @@ const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
     {key:'scavenger memory',archetype:'scout',cooldownType:'day',mechanicMode:'active',actionLabel:'Chart Scavenger Memory',trigger:'When the path ahead is unclear or dangerous.',effect:'Scavenger Memory: Your first loot roll each day may be rerolled — roll again and keep the better result. +Adventure Die queued.',cue:'Turns on during navigation windows; pair it with route decisions and movement cost cues.',matchers:['travel']},
     {key:'hex cartographer',archetype:'scout',cooldownType:'phase',mechanicMode:'active',actionLabel:'Chart Hex Cartographer',trigger:'When the path ahead is unclear or dangerous.',effect:'Hex Cartographer lets you reveal one adjacent hex detail for free.',cue:'Turns on during navigation windows; pair it with route decisions and movement cost cues.',matchers:['travel']},
     {key:'solar needle',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Solar Needle',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Solar Needle means: One ranged attack per scene gains +Adventure Die as a bonus to the Shoot roll.',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
-    {key:'grave whisper',archetype:'scholar',cooldownType:'day',mechanicMode:'active',actionLabel:'Read Grave Whisper',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Grave Whisper: You commune with recently fallen dead. Ask one question — the answer may point to hidden lore, valuables, or danger. At Grave Sites or Battle sites a random encounter prompt is generated.',cue:'Highlights in investigation contexts (ruins/events/gates) and technical interaction moments.',matchers:['analysis']},
-    {key:'storm veins',archetype:'guard',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive · Storm Veins',trigger:'When lightning crawls your nerves and shock damage is about to land.',effect:'The first shock-tagged enemy action each scene is negated before it deals Stress or applies a condition.',cue:'Highlights when an enemy action is tagged lightning/shock so you can absorb the first surge.',matchers:['danger']},
+    {key:'grave whisper',archetype:'scholar',cooldownType:'day',mechanicMode:'active',actionLabel:'Read Grave Whisper',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Commune with the recently fallen dead. Ask one question; the answer points to hidden lore, valuables, danger, or a grave-site omen from the Province.',cue:'Highlights in investigation contexts (ruins/events/gates) and technical interaction moments.',matchers:['analysis']},
+    {key:'storm veins',archetype:'guard',cooldownType:'encounter',mechanicMode:'passive',actionLabel:'Passive · Storm Veins',trigger:'When a hostile future flashes across your nerves just before it happens.',effect:'Oracle reflexes reveal one possible future and negate the first forced Trauma roll each scene.',cue:'Highlights when dread spikes, omen windows appear, or a scene is about to force Trauma pressure.',matchers:['danger']},
     {key:'ruin scholar',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Ruin Scholar',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Ruin Scholar means: +Adventure Die bonus on all checks while inside a Ruin or Lost City this phase.',cue:'Appears when analysis-driven checks are relevant, including relic, trap, or lore prompts.',matchers:['analysis']},
     {key:'blessed appetite',archetype:'medic',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive · Blessed Appetite',trigger:'When pain, strain, or bleeding would end the push.',effect:'In the Beyond, Blessed Appetite means: Food use heals +1 extra Stress.',cue:'Appears at recovery breakpoints where a heal or mitigation changes survival odds.',matchers:['recovery']},
     {key:'duelist footwork',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Duelist Footwork',trigger:'When steel is drawn and the line starts to break.',effect:'Duelist Footwork lets you on hit, step to Nearby without cost.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
@@ -3652,17 +3654,17 @@ const PERSONAL_FLAVOR_AUTHORED_TABLE=(function(){
     {key:'iridescent blood',archetype:'medic',cooldownType:'phase',mechanicMode:'active',actionLabel:'Mend Iridescent Blood',trigger:'When pain, strain, or bleeding would end the push.',effect:'In the Beyond, Iridescent Blood means: Recover +Adventure Die additional Stress when using any remedy.',cue:'Highlights when wounds, bleed effects, or stabilization choices are active.',matchers:['recovery']},
     {key:'field quartermaster',archetype:'leader',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive · Field Quartermaster',trigger:'When allies need a single signal to move as one.',effect:'Field Quartermaster lets you backpack stack cap effectively doubles.',cue:'Highlights in Storyline/Factions/Missions contexts where command or coordination checks are active.',matchers:['leadership']},
     {key:'cave ears',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Cave Ears',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Cave Ears means: +Adventure Die bonus to Notice and Lead checks in enclosed spaces this phase.',cue:'Highlights in Storyline/Factions/Missions contexts where command or coordination checks are active.',matchers:['analysis','storylineSocial']},
-    {key:'apex calm',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Apex Calm',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, Apex Calm means: Cannot be Shaken by minor foes.',cue:'Appears when incoming damage, fear, poison, or restraint effects are in play.',matchers:['danger']},
+    {key:'apex calm',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Apex Calm',trigger:'When incoming pressure would force you back.',effect:'You cannot be Shaken by minor foes; this lane is your anti-Shaken answer, distinct from other guard wards.',cue:'Appears when incoming damage, fear, poison, or restraint effects are in play.',matchers:['danger']},
     {key:'shard focus',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Shard Focus',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Shard Focus means: +Adventure Die bonus to Control checks when using hacks or relics this phase.',cue:'Shows during intel-heavy scenes where Mind/Control reads change the next decision.',matchers:['analysis']},
-    {key:'ashen halo',archetype:'leader',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Rally Ashen Halo',trigger:'When allies need a single signal to move as one.',effect:'Ashen Halo lets you hostile morale drops on first reveal.',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
+    {key:'ashen halo',archetype:'leader',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Rally Ashen Halo',trigger:'When allies need a single signal to move as one.',effect:'Your first reveal rattles the enemy line and steals 1 Action from their next exchange.',cue:'Lights during active fights; use it when the Enemy Activity panel starts applying pressure.',matchers:['inCombat']},
     {key:'dawnbreaker',archetype:'night',cooldownType:'phase',mechanicMode:'active',actionLabel:'Awaken Dawnbreaker',trigger:'When twilight or moonlight tilts the odds.',effect:'In the Beyond, Dawnbreaker means: Your first action in the Morning phase gains +Adventure Die as a bonus roll.',cue:'Turns on under night-phase conditions; watch dusk/dawn timing and low-visibility modifiers.',matchers:['night']},
     {key:'duskcaller',archetype:'night',cooldownType:'phase',mechanicMode:'active',actionLabel:'Awaken Duskcaller',trigger:'When twilight or moonlight tilts the odds.',effect:'In the Beyond, Duskcaller means: Your first action in the Evening phase gains +Adventure Die as a bonus roll.',cue:'Turns on under night-phase conditions; watch dusk/dawn timing and low-visibility modifiers.',matchers:['night']},
     {key:'gale step',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Gale Step',trigger:'When steel is drawn and the line starts to break.',effect:'Gale Step lets you gain free reposition on crit success.',cue:'Pops when combat is active and enemies are present in tracker; check Strike/Shoot outcomes and enemy intent.',matchers:['inCombat']},
-    {key:'sable ward',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Sable Ward',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, Sable Ward means: Reduce first incoming Stress each scene by 1.',cue:'Shows when Stress/Trauma pressure is visible; check condition chips and recovery windows.',matchers:['danger','recovery']},
+    {key:'sable ward',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Sable Ward',trigger:'When incoming pressure would force you back.',effect:'Reduce the first incoming Mental Stress each scene by your Adventure Die roll.',cue:'Shows when Stress/Trauma pressure is visible; check condition chips and recovery windows.',matchers:['danger','recovery']},
     {key:'fracture sight',archetype:'combat',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Unleash Fracture Sight',trigger:'When steel is drawn and the line starts to break.',effect:'In the Beyond, Fracture Sight means: Spot weak points — +Adventure Die bonus to your next Shoot check.',cue:'Turns on in the Combat tab when hostiles are listed; watch the Enemy Action card and your action row.',matchers:['inCombat']},
     {key:'torchbearer',archetype:'guard',cooldownType:'phase',mechanicMode:'passive',actionLabel:'Passive · Torchbearer',trigger:'When darkness penalties would blunt the team.',effect:'Your light discipline lets allies ignore the first darkness penalty.',cue:'Turns on when darkness penalties are active so allies can ignore the first penalty.',matchers:['danger']},
-    {key:'oathbound medic',archetype:'medic',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive · Oathbound Medic',trigger:'When pain, strain, or bleeding would end the push.',effect:'In the Beyond, Oathbound Medic means: Long Rest heals +1 Trauma every 3 days.',cue:'Appears at recovery breakpoints where a heal or mitigation changes survival odds.',matchers:['recovery']},
-    {key:'circuit saint',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Circuit Saint',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'In the Beyond, Circuit Saint means: +Adventure Die bonus to Mind checks involving old-world devices this phase.',cue:'Highlights in investigation contexts (ruins/events/gates) and technical interaction moments.',matchers:['analysis']},
+    {key:'oathbound medic',archetype:'medic',cooldownType:'day',mechanicMode:'passive',actionLabel:'Passive · Oathbound Medic',trigger:'When pain, strain, or bleeding would end the push.',effect:'Long Rest heals +1 Trauma.',cue:'Appears at recovery breakpoints where a heal or mitigation changes survival odds.',matchers:['recovery']},
+    {key:'circuit saint',archetype:'scholar',cooldownType:'phase',mechanicMode:'active',actionLabel:'Read Circuit Saint',trigger:'When relic logic, omens, or hidden truths gate progress.',effect:'Queue your Adventure Die as a bonus on the next Hack or old-world device interaction this phase.',cue:'Highlights in investigation contexts (ruins/events/gates) and technical interaction moments.',matchers:['analysis']},
     {key:'feral grace',archetype:'guard',cooldownType:'encounter',mechanicMode:'hybrid',actionLabel:'Stand Feral Grace',trigger:'When incoming pressure would force you back.',effect:'In the Beyond, Feral Grace means: +Adventure Die bonus to Defend checks against beast-type enemies.',cue:'Shows when danger states are live: hazard terrain, cover penalties, or defensive condition pressure.',matchers:['danger']},
     {key:'reverse time',archetype:'mystic',cooldownType:'encounter',mechanicMode:'active',actionLabel:'Invoke Reverse Time',trigger:'When one exchange went wrong and you refuse to accept it.',effect:'Reverse Time: Rewind up to 2 rounds of momentum. Refund actions and damage, but take Mental Stress equal to the rounds reversed.',cue:'Best used in combat after a costly exchange or at a story pivot where one more attempt matters.',matchers:['inCombat','storylineSocial']},
     {key:'enhance abilities',archetype:'leader',cooldownType:'phase',mechanicMode:'active',actionLabel:'Rally Enhance Abilities',trigger:'When an ally needs one impossible action to land cleanly.',effect:'Enhance Abilities: Step up the next allied action by queueing a stepped bonus die and Focused momentum.',cue:'Appears in teamwork-heavy scenes and combat support turns.',matchers:['leadership','inCombat']},
@@ -3775,6 +3777,21 @@ function getFlavorMechanicMode(entry){
   var profile=getPersonalFlavorMechanicProfile(entry.full||entry.title||entry.key||'');
   var hazards=getFlavorHazardTags(profile);
   return hazards.length?'hybrid':'active';
+}
+
+function applyRegeneratorRecovery(units,label){
+  var flavorProfile=getPersonalFlavorMechanicProfile((S&&S.flavor)||'');
+  if(!flavorProfile.regenerator)return 0;
+  var totalUnits=Math.max(1,parseInt(units,10)||1);
+  var regenDie=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
+  var totalHeal=0;
+  for(var ri=0;ri<totalUnits;ri++)totalHeal+=explodingRoll(regenDie,{type:'action',major:false,label:'Regenerator'}).total;
+  if(totalHeal>0){
+    if(typeof changeHealth==='function')changeHealth(-totalHeal);
+    else if(typeof changeStress==='function')changeStress(-totalHeal);
+    showNotif('Regenerator: recovered '+totalHeal+' Health across '+totalUnits+' '+label+(totalUnits===1?'':'s')+'.','good');
+  }
+  return totalHeal;
 }
 
 function flavorHashCode(txt){
@@ -4459,14 +4476,13 @@ function applySpecificFlavorActionOverride(entry){
     var affected=0;
     S.enemies.forEach(function(e){
       if(!e||e.ally)return;
-      var eff=getEnemyEffectiveDread(e);
-      if(eff<=4)applyEnemyCombatCondition(e,'reboot optics',1);
-      else applyEnemyCombatCondition(e,'ping',1);
+      applyEnemyCombatCondition(e,'Distracted',1);
       affected++;
     });
+    if(S.combat)S.combat.enemyActionPenaltyThisRound=Math.max(0,Number(S.combat.enemyActionPenaltyThisRound||0)+1);
     if(typeof renderEnemies==='function')renderEnemies();
     if(typeof renderQP==='function')renderQP('combat');
-    return 'Blinding Light: '+affected+' enemies disrupted (Dread step-down, or disadvantage at d4).';
+    return 'Blinding Light: '+affected+' hostile target'+(affected===1?' is':'s are')+' Distracted, and the enemy line loses 1 Action this round.';
   }
 
   if(profile.infernalEyes){
@@ -4474,11 +4490,7 @@ function applySpecificFlavorActionOverride(entry){
     if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var leadDie=stepUp(Number((S.stats&&S.stats.lead)||4));
     S.rollMod.advDice.push(leadDie);
-    if(isNight&&hasHostiles){
-      S.enemies.forEach(function(e){if(!e||e.ally)return;applyEnemyCombatCondition(e,'Shaken',1);});
-      if(typeof renderEnemies==='function')renderEnemies();
-    }
-    return 'Infernal Eyes: intimidation pressure primed (+Ad'+leadDie+' for your next Lead/social check).';
+    return 'Infernal Eyes: your next fear-based Lead or social check steps up to Ad'+leadDie+'.';
   }
 
   if(profile.beastForm){
@@ -4535,17 +4547,11 @@ function applySpecificFlavorActionOverride(entry){
 
   // ── EMIT ELECTRICITY (burst) ──────────────────────────────────────────────
   if(base.indexOf('emit burst of electricity')>=0||base.indexOf('burst of electricity')>=0){
-    if(!hasHostiles)return 'No hostile targets. Use during combat for an AoE electricity burst.';
-    var shocked=0;
-    S.enemies.forEach(function(e){
-      if(!e||e.ally)return;
-      applyEnemyCombatCondition(e,'Shocked',1);
-      shocked++;
-    });
-    if(typeof renderEnemies==='function')renderEnemies();
-    if(typeof renderQP==='function')renderQP('combat');
-    if(typeof window.activateStarsElectricAoe==='function')window.activateStarsElectricAoe();
-    return 'Electricity burst: '+shocked+' enemy/enemies Shocked; all Engaged/Close hexes arc with ⚡ this round.';
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    S.rollMod.advDice.push(8);
+    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+    return 'Electricity burst: Ad8 queued for your next Close-range Shoot.';
   }
 
   // ── WARDING PALM ─────────────────────────────────────────────────────────
@@ -4601,8 +4607,24 @@ function applySpecificFlavorActionOverride(entry){
     if(S.combat&&S.combat.active&&typeof window.activateStarsVoidGazerReveal==='function'){
       window.activateStarsVoidGazerReveal();
     }
-    if(typeof changeCounter==='function')changeCounter('pathTokens',2);
-    return 'Source Attuned: nearby arcana and mutant abilities sensed. Enemy hex positions revealed +2 Path Tokens.';
+    if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+    return 'Source Attuned: nearby arcana, mutant abilities, and unstable mutation traces sensed. Enemy positions revealed, Focused gained, +1 Path Token.';
+  }
+
+  if(base.indexOf('ashen halo')>=0){
+    if(!hasHostiles)return 'Ashen Halo is ready. Cue: trigger it on first reveal in an active fight.';
+    if(S.combat)S.combat.enemyActionPenaltyThisRound=Math.max(0,Number(S.combat.enemyActionPenaltyThisRound||0)+1);
+    if(typeof renderQP==='function')renderQP('combat');
+    return 'Ashen Halo: the enemy line falters on first reveal and loses 1 Action this round.';
+  }
+
+  if(base.indexOf('circuit saint')>=0){
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    var adCircuit=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
+    S.rollMod.advDice.push(adCircuit);
+    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+    return 'Circuit Saint: +Ad'+adCircuit+' queued for your next Hack or old-world device interaction this phase.';
   }
 
   // ── VAMPIRE ───────────────────────────────────────────────────────────────
@@ -4668,12 +4690,16 @@ function applySpecificFlavorActionOverride(entry){
       'Whisper from the beyond: "Do not take the eastern path. Something watches that crossing."',
       'The fallen one murmurs: "My killer wore a faction seal — Syndicate mark, upper arm."',
       'Voice like dust: "There is a cache beneath the altar stone. We put it there before the end."',
-      'The shade speaks once: "The door opens with blood, not keys. They never wrote that down."'
+      'The shade speaks once: "The door opens with blood, not keys. They never wrote that down."',
+      'A grave-wind answer: "This Province remembers a battle site nearby. Search where the crows refuse to land."',
+      'A battlefield echo: "The dead here were moved after the fighting. Follow the dragged boot marks west."',
+      'The corpse remembers: "A relic was buried with the officer, not the soldiers. Find the raised cairn."',
+      'A whisper through broken teeth: "Someone living keeps returning to this grave site at dusk. Watch them."'
     ];
     var graveMsg=gravePrompts[Math.floor(Math.random()*gravePrompts.length)];
     if(typeof changeCounter==='function')changeCounter('pathTokens',1);
-    openModal('Grave Whisper','<div style="font-size:.9rem;color:var(--text2);line-height:1.7;"><em style="color:var(--muted2);">You commune with the recently dead…</em><div style="margin-top:.5rem;color:var(--gold2);font-style:italic;">'+graveMsg+'</div><div style="margin-top:.45rem;font-size:.76rem;color:var(--muted2);">+1 Path Token for the insight.</div></div>');
-    return 'Grave Whisper: a question answered. +1 Path Token.';
+    openModal('Grave Whisper','<div style="font-size:.9rem;color:var(--text2);line-height:1.7;"><em style="color:var(--muted2);">You commune with the recently dead…</em><div style="margin-top:.5rem;color:var(--gold2);font-style:italic;">'+graveMsg+'</div><div style="margin-top:.45rem;font-size:.76rem;color:var(--muted2);">+1 Path Token for the insight. Grave sites and battle sites are especially potent for this read.</div></div>');
+    return 'Grave Whisper: a question answered, with a clue anchored to graves, battlefields, or the recent dead. +1 Path Token.';
   }
 
   // ── RUIN SCHOLAR — Adventure Die to all checks in ruins this phase ────────
@@ -5626,7 +5652,7 @@ function startCombat(){
     window.AudioManager.playMusic('music-combat', true);
   }
 }
-function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;updateCombatUI();}
+function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;applyRegeneratorRecovery(1,'combat round');updateCombatUI();}
 
 // ── FLEE, MORALE & REWARDS ────────────────────────────────────────────────────
 function promptCombatRewards(){
@@ -5721,7 +5747,7 @@ function finishCurrentQuest(){
   updateQuestUI();
 }
 
-function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;updateCombatUI();}
+function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;applyRegeneratorRecovery(1,'combat round');updateCombatUI();}
 function endCombat(){
   S.combat.active=false;
   S.combat.round=0;
@@ -7748,9 +7774,18 @@ function skirmishAction(side,action){
     const a=explodingRoll(army.dread),d=explodingRoll(opp.dread||6);const diff=Math.max(1,a.total-d.total);
     if(a.total>=d.total){opp.stress=Math.max(0,opp.stress-diff);document.getElementById('army'+(side==='A'?'B':'A')+'Stress').textContent=opp.stress;if(rEl)rEl.innerHTML=`<span style="color:var(--green2);">Strike: ${a.total} vs ${d.total} — ${diff} Stress dealt</span>`;}else{if(rEl)rEl.innerHTML=`<span style="color:var(--red);">Strike: ${a.total} vs ${d.total} — Miss</span>`;}
   }else if(action==='parry'){
-    if(rEl)rEl.innerHTML='<span style="color:var(--green);">Reaction Parry — Protected gained</span>';
+    var oldDread=army.dread||6;
+    army.dread=stepUp(oldDread);
+    var dreadEl=document.getElementById('army'+side+'Dread');
+    if(dreadEl)dreadEl.textContent='d'+army.dread;
+    if(rEl)rEl.innerHTML='<span style="color:var(--green);">Parry: Dread stepped up d'+oldDread+' → d'+army.dread+'.</span>';
   }else if(action==='frighten'){
-    if(rEl)rEl.innerHTML='<span style="color:var(--red);">Frighten — Enemy Vulnerable</span>';
+    var oldOppDread=opp.dread||6;
+    opp.dread=stepDown(oldOppDread);
+    var oppSide=side==='A'?'B':'A';
+    var oppDreadEl=document.getElementById('army'+oppSide+'Dread');
+    if(oppDreadEl)oppDreadEl.textContent='d'+opp.dread;
+    if(rEl)rEl.innerHTML='<span style="color:var(--red);">Frighten: enemy Dread stepped down d'+oldOppDread+' → d'+opp.dread+'.</span>';
   }
   if((S.combat.armyA.actions||0)<=0&&(S.combat.armyB.actions||0)<=0){advanceSkirmishRound();}
   if(opp.stress<=0&&opp.dread)showNotif(`Army ${side==='A'?'B':'A'} defeated!`,'good');
@@ -8250,7 +8285,8 @@ function buyItem(cost, name, cat) {
       openModal(svc.name, svcHtml);
       // Immediate effects
       if (name === 'Bed & Board') {
-        S.stress = 0;
+        if (typeof clearStress === 'function') clearStress();
+        else S.stress = 0;
         clearAllConditions();
         updateStressUI();
         showNotif('Long Rest: all Stress cleared, all Conditions removed', 'good');
@@ -11641,11 +11677,23 @@ function rollHexEncounter(col,row){
       html+='</div>';
     }else if(vr===2){
     const enc=rollProvinceEncounterTypeByPact();let title,desc,actionHTML='';
+    const flavorBase=(typeof normalizeFlavorBase==='function')?normalizeFlavorBase(S&&S.flavor||''):String(S&&S.flavor||'').toLowerCase();
+    const hasGraveFlavor=(flavorBase.indexOf('grave whisper')>=0||flavorBase.indexOf('relive last moments')>=0);
+    const graveHookRoll=roll(12);
+    const graveHook=(graveHookRoll===1)||(hasGraveFlavor&&graveHookRoll<=4);
     const pressure=getDeityPactPressure();
     const hostileFaction=getMostHostileFactionLabel();
     const hostilityLine=hostileFaction?(' <span style="color:var(--red2);">Hostility watch: '+hostileFaction+' patrols are active.</span>'):'';
     const pactLine=(pressure.debt>=7)?' Pact debt has made the roads predatory.':(pressure.favor>=7?' Pact favor has softened some road contacts.':'');
-    if(enc===1){
+    if(graveHook){
+      title='Grave Site / Battle Site';
+      desc='Broken standards, disturbed cairns, and old dead in shallow earth. This province route can surface grave and battlefield clues.';
+      actionHTML='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+        +'<button class="btn btn-xs btn-teal" onclick="resolveProvinceGraveBattleEncounter('+col+','+row+',\'commune\')">🕯 Commune</button>'
+        +'<button class="btn btn-xs btn-warn" onclick="resolveProvinceGraveBattleEncounter('+col+','+row+',\'scavenge\')">🧿 Search Site</button>'
+      +'</div>';
+    }
+    else if(enc===1){
       const n=roll(4)+3;
       const banditType=pick(['Ragged scavengers in patchwork armor','Desperate deserters looking for easy marks','Professional road agents — this is their stretch','Cult enforcer unit collecting "donations"']);
       title=`${n} Bandits`;
@@ -11746,6 +11794,41 @@ function rollHexEncounter(col,row){
     console.error('rollHexEncounter error',err);
     showNotif('Encounter roll failed due to an internal error. Using safe fallback next roll.','warn');
   }
+}
+
+function resolveProvinceGraveBattleEncounter(col,row,mode){
+  var el=document.getElementById('hexEnc-'+col+'-'+row);
+  if(!el)return;
+  var pickMode=String(mode||'commune');
+  var out='';
+  if(pickMode==='commune'){
+    var omens=[
+      'A dead scout whispers: "The safe route bends west around black stone."',
+      'Battle-echo shows where the officer cache was buried after the rout.',
+      'A fallen voice warns of an ambush lane one hex ahead.',
+      'Grave-wind reveals a faction mark tied to this battlefield.'
+    ];
+    var msg=pick(omens);
+    if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+    if(typeof executeFlavorInteractionAction==='function'&&String((S&&S.flavor)||'').toLowerCase().indexOf('grave whisper')>=0){
+      executeFlavorInteractionAction();
+    }
+    out='<div style="margin-top:.35rem;padding:.35rem .45rem;border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.08);font-size:.78rem;color:var(--gold2);">'
+      +'🕯 '+msg+' <span style="color:var(--muted2);">(+1 Path Token)</span></div>';
+  }else{
+    var r=roll(6);
+    if(r>=5){
+      var credits=roll(4)*10;
+      if(typeof changeCounter==='function')changeCounter('credits',credits);
+      out='<div style="margin-top:.35rem;padding:.35rem .45rem;border:1px solid rgba(70,180,130,.35);background:rgba(70,180,130,.08);font-size:.78rem;color:var(--green2);">'
+        +'🧿 You recover battlefield salvage worth '+credits+'₵.</div>';
+    }else{
+      if(typeof changeMentalStress==='function')changeMentalStress(1); else if(typeof changeStress==='function')changeStress(1);
+      out='<div style="margin-top:.35rem;padding:.35rem .45rem;border:1px solid rgba(201,64,64,.35);background:rgba(201,64,64,.08);font-size:.78rem;color:var(--red2);">'
+        +'🧿 Disturbing remains shake your nerves (+1 Mental Stress).</div>';
+    }
+  }
+  el.innerHTML+=out;
 }
 
 function rollTradeRouteEncounter(col,row){
@@ -12995,17 +13078,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   function advanceProvincePhasePenalty(steps){
     const n=Math.max(1,parseInt(steps,10)||1);
     if(S){
-      var flavorProfile=getPersonalFlavorMechanicProfile((S&&S.flavor)||'');
-      if(flavorProfile.regenerator){
-        var regenDie=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-        var totalHeal=0;
-        for(var ri=0;ri<n;ri++)totalHeal+=explodingRoll(regenDie,{type:'action',major:false,label:'Regenerator'}).total;
-        if(totalHeal>0){
-          if(typeof changeHealth==='function')changeHealth(-totalHeal);
-          else if(typeof changeStress==='function')changeStress(-totalHeal);
-          showNotif('Regenerator: recovered '+totalHeal+' Health across '+n+' phase'+(n===1?'':'s')+'.','good');
-        }
-      }
+      applyRegeneratorRecovery(n,'phase');
     }
     if(typeof registerProvinceHexTravel==='function'){
       registerProvinceHexTravel(n);
@@ -14362,8 +14435,15 @@ document.addEventListener('DOMContentLoaded',()=>{
     mine.actions-=1;
     const rollVal=roll(12);
     const dread=mine.dread||6;
-    if(action==='strike'&&rollVal>=dread){opp.stress=Math.max(0,(opp.stress||0)-Math.max(1,rollVal-dread));}
-    else if(action==='frighten'&&roll(12)>=dread){opp.stress=Math.max(0,(opp.stress||0)-1);}
+    if(action==='strike'&&rollVal>=dread){
+      opp.stress=Math.max(0,(opp.stress||0)-Math.max(1,rollVal-dread));
+    }else if(action==='parry'){
+      mine.dread=stepUp(mine.dread||6);
+      showNotif('Skirmish Parry: side '+side+' Dread stepped up to d'+mine.dread+'.','good');
+    }else if(action==='frighten'){
+      opp.dread=stepDown(opp.dread||6);
+      showNotif('Skirmish Frighten: opposing side Dread stepped down to d'+opp.dread+'.','warn');
+    }
     if((S.combat.armyA.actions||0)<=0&&(S.combat.armyB.actions||0)<=0){
       S.combat.skirmishRound=(S.combat.skirmishRound||1)+1;
       S.combat.armyA.actions=2;

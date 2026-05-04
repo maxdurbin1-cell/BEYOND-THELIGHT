@@ -1372,6 +1372,31 @@
     renderSiteModal(missionId);
   }
 
+  function addMissionSecretRoom(mission, roomIdx, resultType) {
+    if (!mission || !Array.isArray(mission.rooms)) return false;
+    var origin = mission.rooms[roomIdx];
+    if (!origin || !origin.find || origin.find.type !== 'puzzle') return false;
+    if (origin.find.secretRouteOpened) return false;
+
+    var secretRoom = {
+      label: resultType === 'success' ? 'Secret Room (Unlocked Route)' : 'Secret Annex (Strained Route)',
+      explored: false,
+      fromPuzzleRoom: roomIdx,
+      secretRoute: true,
+      find: {
+        type: 'cache',
+        text: resultType === 'success'
+          ? 'SECRET CHAMBER \u2014 hidden cache and route intel revealed by the solved puzzle.'
+          : 'SECRET ANNEX \u2014 unstable route opens to salvage and partial intel.'
+      }
+    };
+
+    origin.find.secretRouteOpened = true;
+    origin.find.secretRoomIndex = mission.rooms.length;
+    mission.rooms.push(secretRoom);
+    return true;
+  }
+
   function startMissionRoomPuzzle(missionId,roomIdx) {
     var mission=getMission(missionId); if (!mission) return;
     var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='puzzle'||room.find.resolved) return;
@@ -1397,7 +1422,9 @@
         if (result==='success'||result==='partial') {
           if (result==='partial'&&typeof changeMentalStress==='function') changeMentalStress(1);
           if (typeof addSuccessRoll==='function') addSuccessRoll();
+          var opened=addMissionSecretRoom(mission,roomIdx,result);
           room.find.text=result==='success'?'PUZZLE SOLVED \u2014 route opened.':'PUZZLE PARTIAL \u2014 route opened with strain (+1 Mental Stress).';
+          if (opened) room.find.text+=' Secret room added to site layout.';
         } else {
           if (typeof changeMentalStress==='function') changeMentalStress(1);
           if (typeof addTMWOnFail==='function') addTMWOnFail();

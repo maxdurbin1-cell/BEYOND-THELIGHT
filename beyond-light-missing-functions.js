@@ -597,10 +597,27 @@ function clearHealth() {
   setHealth(0);
 }
 
+function hasOathboundMedicFlavor() {
+  var flavor = String((S && S.flavor) || '').toLowerCase();
+  return flavor.indexOf('oathbound medic') >= 0;
+}
+
+function applyOathboundMedicLongRestBonus() {
+  if (!hasOathboundMedicFlavor()) return 0;
+  if (!S || !Number(S.trauma || 0)) return 0;
+  S.trauma = Math.max(0, Number(S.trauma || 0) - 1);
+  if (typeof updateTrauma === 'function') updateTrauma();
+  if (typeof showNotif === 'function') showNotif('Oathbound Medic: Long Rest healed 1 Trauma.', 'good');
+  return 1;
+}
+
 // Backwards-compat shims — delegate to health functions
 function changeStress(delta) { changeHealth(delta); }
 function halfStress() { halfHealth(); }
-function clearStress() { clearHealth(); }
+function clearStress() {
+  clearHealth();
+  applyOathboundMedicLongRestBonus();
+}
 
 function applyTemporaryStressCapacityBonus(amount, source) {
   var bonus = Math.max(0, Number(amount || 0));

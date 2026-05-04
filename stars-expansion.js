@@ -15477,9 +15477,43 @@ function updateHealthUI() {
 
 // ── MENTAL STRESS FUNCTIONS ──────────────────────────────────────────────────
 
+function applySableWardMentalStress(delta) {
+  var incoming = Math.max(0, Number(delta || 0));
+  if (!incoming) return incoming;
+  var flavor = String((S && S.flavor) || '').toLowerCase();
+  if (flavor.indexOf('sable ward') < 0) return incoming;
+  if (!S.flavorState || typeof S.flavorState !== 'object') S.flavorState = {};
+  if (!S.flavorState.sableWard || typeof S.flavorState.sableWard !== 'object') {
+    S.flavorState.sableWard = { stamp: '', used: false };
+  }
+  var stamp = (typeof getFlavorEncounterStamp === 'function')
+    ? String(getFlavorEncounterStamp())
+    : ('fallback|' + String((S && S.day) || 0) + '|' + String((S && S.phase) || 0));
+  if (S.flavorState.sableWard.stamp !== stamp) {
+    S.flavorState.sableWard.stamp = stamp;
+    S.flavorState.sableWard.used = false;
+  }
+  if (S.flavorState.sableWard.used) return incoming;
+
+  var ad = Math.max(4, Number((S && S.stats && S.stats.adventure) || 4));
+  var reducedBy = (typeof explodingRoll === 'function')
+    ? Number(explodingRoll(ad, { type: 'action', major: false, label: 'Sable Ward' }).total || 0)
+    : (Math.floor(Math.random() * ad) + 1);
+  S.flavorState.sableWard.used = true;
+
+  if (typeof showNotif === 'function') {
+    showNotif('Sable Ward: first incoming Mental Stress reduced by ' + reducedBy + '.', 'good');
+  }
+  return Math.max(0, incoming - reducedBy);
+}
+
 function changeMentalStress(delta) {
   ensureStarsState();
   const before = S.mentalStress || 0;
+  delta = Number(delta || 0);
+  if (delta > 0) {
+    delta = applySableWardMentalStress(delta);
+  }
   if (delta > 0 && Array.isArray(S.augmentations) && S.augmentations.indexOf('CALM CIRCUIT') >= 0) {
     delta = Math.max(0, delta - 1);
   }

@@ -7812,6 +7812,117 @@ Weapons have as many available Mod Slots as their bonus damage value. <strong>Ad
   <li><em>Heavy</em> Weapons (+4 Strike/Shoot) — <strong>4 Mod Slots</strong></li>
 </ul>`
 };
+
+function getProvinceShopLocationKey(){
+  var key='';
+  try{
+    if(typeof getProvinceSelectedKey==='function')key=String(getProvinceSelectedKey()||'');
+  }catch(_e0){}
+  if(!key){
+    try{
+      if(window.selectedHex&&typeof window.selectedHex.col==='number'&&typeof window.selectedHex.row==='number'){
+        key=String(window.selectedHex.col)+','+String(window.selectedHex.row);
+      }
+    }catch(_e1){}
+  }
+  return key;
+}
+
+function hashShopMarketSeed(text){
+  var str=String(text||'');
+  var h=2166136261;
+  for(var i=0;i<str.length;i++){
+    h^=str.charCodeAt(i);
+    h+=((h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24));
+  }
+  return Math.abs(h>>>0);
+}
+
+function normalizeShopCategoryName(cat){
+  var category=String(cat||'items').toLowerCase();
+  if(category==='trade_goods')category='tradegoods';
+  if(category==='exocraft')category='exocrafts';
+  return category;
+}
+
+function getShopMarketSnapshot(cat,name,baseCost){
+  var category=normalizeShopCategoryName(cat);
+  var cost=Math.max(0,Number(baseCost||0));
+  var state=(window.S&&window.S.worldState&&typeof window.S.worldState==='object')?window.S.worldState:null;
+  var economy=state&&state.economy?state.economy:{};
+  var scarcity=Number(economy&&economy.scarcity||0);
+  var mult=Number(economy&&economy.priceMultiplier||1);
+  if(!isFinite(mult)||mult<=0)mult=1;
+  var locationKey=getProvinceShopLocationKey();
+  var overlay=null;
+  if(locationKey&&typeof window.getWorldStateHexOverlay==='function'){
+    try{overlay=window.getWorldStateHexOverlay(locationKey);}catch(_e2){overlay=null;}
+  }
+
+  var notices=[];
+  var blockedReasons=[];
+  var closedPort=!!(overlay&&overlay.closedPort);
+  var closedBorder=!!(overlay&&overlay.closedBorder);
+  var dangerousRoad=!!(overlay&&overlay.dangerousRoad);
+  var activeCrisis=!!(overlay&&overlay.activeCrisis);
+  var pressure=(dangerousRoad?20:0)+(activeCrisis?25:0);
+
+  if(closedPort){
+    mult+=0.1;
+    notices.push('Closed port taxes trade cargo.');
+  }
+  if(closedBorder){
+    mult+=0.12;
+    notices.push('Restricted borders raise import costs.');
+  }
+  if(dangerousRoad){
+    mult+=0.08;
+    notices.push('Dangerous roads increase caravan insurance.');
+  }
+  if(activeCrisis){
+    mult+=0.15;
+    notices.push('Active crisis emergency pricing in effect.');
+  }
+  if(scarcity>=2)notices.push('Regional scarcity is tightening supply.');
+
+  var premiumCategories=['tradegoods','cosmic','augmentations','os_hacks','weapon_mods','services'];
+  var tacticalCategories=['weapons','melee_exp','ranged_exp','armor','armor_exp','space_armor'];
+  if(premiumCategories.indexOf(category)>=0)mult+=0.1;
+  else if(tacticalCategories.indexOf(category)>=0)mult+=0.05;
+
+  var portLockedCategories=['tradegoods','cosmic','augmentations','os_hacks'];
+  var borderLockedCategories=['augmentations','os_hacks','weapon_mods','tradegoods','ranged_exp','cosmic'];
+  if(closedPort&&portLockedCategories.indexOf(category)>=0){
+    blockedReasons.push('Port closure blocks maritime stock for this category.');
+  }
+  if(closedBorder&&borderLockedCategories.indexOf(category)>=0){
+    blockedReasons.push('Border restrictions block imported stock for this category.');
+  }
+
+  var volatilityCategories=['tradegoods','cosmic','services','weapon_mods','augmentations','os_hacks','ranged_exp'];
+  if(pressure>0&&volatilityCategories.indexOf(category)>=0){
+    var daySeed=Number(window.S&&window.S.day||window.S&&window.S.days||window.S&&window.S.turn||0);
+    var stockRoll=hashShopMarketSeed(locationKey+'|'+category+'|'+String(name||'stock')+'|'+daySeed)%100;
+    if(stockRoll<pressure){
+      blockedReasons.push('Supply convoy failed to arrive during local unrest.');
+    }
+  }
+
+  if(mult<0.75)mult=0.75;
+  if(mult>2.4)mult=2.4;
+  var finalCost=Math.max(1,Math.round(cost*mult));
+  return {
+    available:blockedReasons.length===0,
+    blockedReason:blockedReasons.join(' '),
+    notices:notices,
+    multiplier:mult,
+    baseCost:cost,
+    finalCost:finalCost,
+    locationKey:locationKey,
+    overlay:overlay
+  };
+}
+
 function showShopCat(cat,btn){
   document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));
   if(btn)btn.classList.add('on');
@@ -7831,17 +7942,32 @@ function showShopCat(cat,btn){
   if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}
 
   const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];
+  const marketHint=getShopMarketSnapshot(cat,'_market_preview_',100);
+  if(marketHint&&marketHint.locationKey&&(marketHint.notices.length||marketHint.overlay&&((marketHint.overlay.closedBorder||marketHint.overlay.closedPort||marketHint.overlay.activeCrisis||marketHint.overlay.dangerousRoad)))){
+    rule+=`<div class="shop-rule-box" style="margin-top:.25rem;"><span class="srb-title">🌐 Local Market Pressure</span>${marketHint.notices.length?marketHint.notices.join(' '):'Local control flags currently affect pricing and stock.'}</div>`;
+  }
   let cardsHtml=items.map(item=>{
     const isInstalled=(cat==='augmentations')?installedAugs.indexOf(item.name)>=0:false;
+    const baseCost=typeof item.cost==='number'?item.cost:0;
+    const market=getShopMarketSnapshot(cat,item.name,baseCost);
     const buyBtn=isInstalled
       ? '<button class="btn btn-xs" disabled style="opacity:.55;cursor:default;">Installed</button>'
-      : `<button class="btn btn-xs btn-primary" onclick="buyItem(${typeof item.cost==='number'?item.cost:0},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}')">Buy</button>`;
+      : !market.available
+      ? `<button class="btn btn-xs" disabled title="${market.blockedReason.replace(/"/g,'&quot;')}" style="opacity:.55;cursor:default;">No Stock</button>`
+      : `<button class="btn btn-xs btn-primary" onclick="buyItem(${market.finalCost},'${item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${cat}',${baseCost})">Buy</button>`;
     const augBadge=isInstalled?' <span style="font-size:.6rem;color:var(--green);font-family:Cinzel,serif;letter-spacing:.08em;">✓ INSTALLED</span>':'';
-    return `<div class="shop-card"><div class="s-name">${item.name}${augBadge}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div><div class="s-foot"><span class="s-cost">${item.cost} ₵</span>${buyBtn}</div></div>`;
+    const costHtml=market.finalCost!==baseCost?`<span class="s-cost"><s style="opacity:.65;">${baseCost} ₵</s> ${market.finalCost} ₵</span>`:`<span class="s-cost">${baseCost} ₵</span>`;
+    const pressureNote=!market.available?`<div style="font-size:.68rem;color:var(--red2);margin-top:.2rem;line-height:1.4;">${market.blockedReason}</div>`:'';
+    return `<div class="shop-card"><div class="s-name">${item.name}${augBadge}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div>${pressureNote}<div class="s-foot">${costHtml}${buyBtn}</div></div>`;
   }).join('');
 
   if(cat==='services'){
-    cardsHtml += `<div class="shop-card"><div class="s-name">Retainer Contract</div><div class="s-stat">+1 Hire Token</div><div class="s-desc">Grants one Retainer hire for any Councilor in your Holding.</div><div class="s-foot"><span class="s-cost">200 ₵</span><button class="btn btn-xs btn-primary" onclick="buyItem(200,'Retainer Contract','services')">Buy</button></div></div>`;
+    const retainerMarket=getShopMarketSnapshot('services','Retainer Contract',200);
+    const retainerBtn=!retainerMarket.available
+      ? `<button class="btn btn-xs" disabled title="${retainerMarket.blockedReason.replace(/"/g,'&quot;')}" style="opacity:.55;cursor:default;">No Stock</button>`
+      : `<button class="btn btn-xs btn-primary" onclick="buyItem(${retainerMarket.finalCost},'Retainer Contract','services',200)">Buy</button>`;
+    const retainerCost=retainerMarket.finalCost!==200?`<span class="s-cost"><s style="opacity:.65;">200 ₵</s> ${retainerMarket.finalCost} ₵</span>`:`<span class="s-cost">200 ₵</span>`;
+    cardsHtml += `<div class="shop-card"><div class="s-name">Retainer Contract</div><div class="s-stat">+1 Hire Token</div><div class="s-desc">Grants one Retainer hire for any Councilor in your Holding.</div>${!retainerMarket.available?`<div style="font-size:.68rem;color:var(--red2);margin-top:.2rem;line-height:1.4;">${retainerMarket.blockedReason}</div>`:''}<div class="s-foot">${retainerCost}${retainerBtn}</div></div>`;
   }
 
   c.innerHTML=rule+cardsHtml;
@@ -8185,22 +8311,31 @@ var TOOLKIT_STATS = {
   "Alchemist's Vials": ['mind','body']
 };
 
-function buyItem(cost, name, cat) {
+function buyItem(cost, name, cat, baseCost) {
   // Defensive checks
   if (!S) { showNotif('Character data not loaded', 'warn'); return; }
   if (!S.backpack) S.backpack = ['', '', '', '', '', ''];
   if (!S.equipment) S.equipment = {};
-  
-  if (S.credits < cost) { showNotif('Not enough credits!', 'warn'); return; }
 
   // Find the item to get its stat string
   var found = findShopItem(name);
   var stat = found ? found.item.stat : '';
   var statStr = formatStatForSlot(stat);
   var slotText = statStr ? name + ' ' + statStr : name;
-  var category = cat || (found ? found.cat : 'items');
-  if (category === 'trade_goods') category = 'tradegoods';
-  if (category === 'exocraft') category = 'exocrafts';
+  var category = normalizeShopCategoryName(cat || (found ? found.cat : 'items'));
+  var listedCost = Number(baseCost);
+  if (!isFinite(listedCost) || listedCost <= 0) {
+    listedCost = found && found.item && typeof found.item.cost === 'number' ? Number(found.item.cost) : Number(cost || 0);
+  }
+  var market = getShopMarketSnapshot(category, name, listedCost);
+  if (!market.available) {
+    showNotif(market.blockedReason || 'This item is temporarily unavailable in this market.', 'warn');
+    return;
+  }
+  var effectiveCost = Number(market.finalCost || cost || listedCost || 0);
+  if (effectiveCost < 0) effectiveCost = 0;
+
+  if (S.credits < effectiveCost) { showNotif('Not enough credits! Need ' + effectiveCost + '₵.', 'warn'); return; }
 
   var storePurchasedItem = function(text) {
     if (typeof addItemToBackpack === 'function') return addItemToBackpack(text);
@@ -8325,7 +8460,7 @@ function buyItem(cost, name, cat) {
     return;
   }
 
-  S.credits -= cost;
+  S.credits -= effectiveCost;
   try {
     updateCreditsUI();
   } catch (err) {
@@ -8333,11 +8468,11 @@ function buyItem(cost, name, cat) {
   }
   var goesToBackpack = ['weapons','melee_exp','ranged_exp','armor','armor_exp','space_armor','tradegoods','cosmic','items','essentials','toolkits','scrolls','remedies','strange'].indexOf(category) >= 0;
   if (goesToBackpack) {
-    showNotif(name + ' is now in Backpack (−' + cost + '₵)', 'good');
+    showNotif(name + ' is now in Backpack (−' + effectiveCost + '₵)', 'good');
   } else if (category === 'exocrafts' && typeof addOwnedExocraftByName === 'function') {
-    showNotif(name + ' assigned to Exocraft Bay (−' + cost + '₵)', 'good');
+    showNotif(name + ' assigned to Exocraft Bay (−' + effectiveCost + '₵)', 'good');
   } else {
-    showNotif(name + ' purchased (−' + cost + '₵)', 'good');
+    showNotif(name + ' purchased (−' + effectiveCost + '₵)', 'good');
   }
 }
 
@@ -10607,7 +10742,10 @@ function renderHexInfo(hex){
       <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--gold);">Protected</strong> (Defend ↑ one Step).</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-gold" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'protected','Holding Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     const m=d.mood||{};
-    html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div></div>`;
+    const crisisText=String(m.crisis||'');
+    const hasHoldingCrisis=!!crisisText&&crisisText.toLowerCase().indexOf('no crisis')<0;
+    const crisisActionLabel=(crisisText.toLowerCase().indexOf('strengthen defense')>=0||String(m.mood||'').toLowerCase()==='fear')?'🛡 Aid Defenders':'🤝 Stabilize Holding';
+    html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div>${hasHoldingCrisis?`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveHoldingCrisisAction(${hex.col},${hex.row})">${crisisActionLabel}</button></div>`:''}</div>`;
     if(d.lord)html+=`<div class="wild-panel"><div class="wp-label">Lord</div><div class="wp-text">${d.lord}</div></div>`;
     if(d.style&&d.feature)html+=`<div class="wild-panel"><div class="wp-label">Character</div><div class="wp-text">${d.style} ${d.feature}</div></div>`;
     if(d.cultural)html+=`<div class="wild-panel"><div class="wp-label">Cultural Focus</div><div class="wp-text">${d.cultural}</div></div>`;
@@ -10777,6 +10915,10 @@ function renderHexInfo(hex){
       const safetyLabel=SAFETY_LABELS[Math.min(5,Math.max(0,wsOverlay.safety+2))];
       const CTRL_COLORS={rebels:'#e05050',guilds:'#e8c050',church:'#c9d6f0',empire:'#7b9aff',syndicate:'#b060d0',scholars:'#46c4b6'};
       const cc=wsOverlay.control?(CTRL_COLORS[wsOverlay.control]||'var(--teal)'):'var(--muted2)';
+      const worldActions=[];
+      if(wsOverlay.activeCrisis)worldActions.push(`<button class="btn btn-xs btn-warn" onclick="resolveWorldStateAction(${hex.col},${hex.row},'stabilize')">🧯 Stabilize Crisis</button>`);
+      if(wsOverlay.closedBorder||wsOverlay.closedPort||wsOverlay.dangerousRoad)worldActions.push(`<button class="btn btn-xs btn-teal" onclick="resolveWorldStateAction(${hex.col},${hex.row},'reopen')">🛣 Reopen Routes</button>`);
+      if(wsOverlay.control||wsOverlay.tags.indexOf('negotiate')>=0||wsOverlay.tags.indexOf('opened-border')>=0)worldActions.push(`<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction(${hex.col},${hex.row},'negotiate')">🕊 Negotiate Control</button>`);
       html+=`<div class="npc-block" style="margin-top:.4rem;border-color:rgba(180,180,255,.35);background:rgba(180,180,255,.05);">
         <div class="nb-label" style="color:var(--purple);">🌐 World State</div>
         <div style="font-size:.78rem;color:var(--text2);line-height:1.6;">
@@ -10796,6 +10938,7 @@ function renderHexInfo(hex){
           ${(wsOverlay.capabilities&&wsOverlay.capabilities.factionPermissions)?`<div style="color:#c9d6f0;">Capability: Faction permissions enabled</div>`:''}
           ${(wsOverlay.capabilities&&wsOverlay.capabilities.saferRest)?`<div style="color:var(--teal);">Capability: Safer rest options active</div>`:''}
           ${wsOverlay.recentChange?`<div style="color:rgba(255,255,255,.6);">⬤ Recently changed</div>`:''}
+          ${worldActions.length?`<div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;">${worldActions.join('')}</div>`:''}
         </div>
       </div>`;
     }
@@ -11667,6 +11810,197 @@ function resolveProvinceHoldingDowntime(col,row,statKey){
   hex.data.pendingDowntimeEvent=null;
   renderHexInfo(hex);
   showNotif(hex.data.downtimeLastResult.text,success?'good':'warn');
+}
+
+function getProvinceHexByKey(key){
+  var k=String(key||'');
+  if(!k||!Array.isArray(mapData))return null;
+  var parts=k.split(',');
+  if(parts.length<2)return null;
+  var col=parseInt(parts[0],10);
+  var row=parseInt(parts[1],10);
+  if(!isFinite(col)||!isFinite(row))return null;
+  return mapData.find(function(h){return h&&h.col===col&&h.row===row;})||null;
+}
+
+function resolveFactionRenownKeyFromControl(controlId){
+  var key=String(controlId||'').toLowerCase();
+  var map={
+    rebels:'rebels',
+    guilds:'corporations',
+    church:'religious',
+    empire:'military',
+    syndicate:'underworld',
+    scholars:'scholars',
+    corporations:'corporations',
+    religious:'religious',
+    political:'political',
+    military:'military',
+    underworld:'underworld'
+  };
+  return map[key]||'';
+}
+
+function clearWorldStatePressureAtKey(locationKey,flags){
+  if(!S||!S.worldState||!S.worldState.regions||!S.worldState.regions.province)return;
+  var key=String(locationKey||'');
+  if(!key)return;
+  var opts=flags&&typeof flags==='object'?flags:{};
+  var region=S.worldState.regions.province;
+  var hex=region.hexes&&region.hexes[key]?region.hexes[key]:null;
+  if(hex&&Array.isArray(hex.tags)){
+    var remove=[];
+    if(opts.crisis)remove.push('active-crisis');
+    if(opts.route)remove.push('dangerous-road','closed-border','border-closed','closed-port');
+    if(opts.routeSafe)remove.push('dangerous-road');
+    if(remove.length){
+      hex.tags=hex.tags.filter(function(tag){return remove.indexOf(String(tag||'').toLowerCase())<0;});
+    }
+  }
+  if(opts.crisis&&Array.isArray(S.worldState.activeCrises)){
+    S.worldState.activeCrises=S.worldState.activeCrises.filter(function(entry){
+      return String((entry&&entry.locationKey)||'')!==key;
+    });
+  }
+  if(opts.route&&region.routes&&region.routes[key]){
+    region.routes[key]={status:'discovered',at:Date.now()};
+  }else if(opts.routeSafe&&region.routes&&region.routes[key]&&region.routes[key].status==='danger'){
+    region.routes[key]={status:'discovered',at:Date.now()};
+  }
+  if(region.settlements&&region.settlements[key]){
+    var h=getProvinceHexByKey(key);
+    var currentStatus=String(region.settlements[key].status||'');
+    if(opts.crisis&&currentStatus==='crisis'){
+      if(h&&(h.type==='seat'||h.type==='holding'))region.settlements[key]={status:'holding',at:Date.now()};
+      else delete region.settlements[key];
+    }
+    if(opts.route&&currentStatus==='closed-port')delete region.settlements[key];
+  }
+}
+
+function resolveWorldStateAction(col,row,action){
+  var key=String(col)+','+String(row);
+  var hex=getProvinceHexByKey(key);
+  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
+  var choice=String(action||'').toLowerCase();
+  if(typeof window.applyWorldConsequence!=='function'){
+    showNotif('World state system unavailable.','warn');
+    return;
+  }
+  if(choice==='stabilize'){
+    window.applyWorldConsequence({
+      system:'player-action',
+      title:'Wayfarers stabilized a local crisis',
+      detail:'Emergency aid and patrol routes lowered tension around '+key+'.',
+      region:'province',
+      locationKey:key,
+      severity:'info',
+      factionId:overlay&&overlay.control?String(overlay.control):'',
+      deltas:{stability:1,tension:-1,scarcity:-1},
+      tags:['crisis-stabilized','patrol-deployed']
+    });
+    clearWorldStatePressureAtKey(key,{crisis:true,routeSafe:true});
+    showNotif('Local crisis pressure reduced.','good');
+  }else if(choice==='reopen'){
+    window.applyWorldConsequence({
+      system:'player-action',
+      title:'Wayfarers reopened blocked routes',
+      detail:'Escorts and diplomacy reopened trade movement at '+key+'.',
+      region:'province',
+      locationKey:key,
+      severity:'info',
+      factionId:overlay&&overlay.control?String(overlay.control):'',
+      deltas:{stability:1,scarcity:-2},
+      tags:['opened-border','discovered-route']
+    });
+    clearWorldStatePressureAtKey(key,{route:true,crisis:false});
+    showNotif('Routes reopened and market pressure eased.','good');
+  }else if(choice==='negotiate'){
+    window.applyWorldConsequence({
+      system:'player-action',
+      title:'Wayfarers brokered local control talks',
+      detail:'Negotiations reduced faction heat in hex '+key+'.',
+      region:'province',
+      locationKey:key,
+      severity:'info',
+      factionId:overlay&&overlay.control?String(overlay.control):'',
+      deltas:{stability:1,factionHeat:-1,tension:-1},
+      tags:['negotiate','opened-border']
+    });
+    clearWorldStatePressureAtKey(key,{routeSafe:true});
+    showNotif('Negotiation lowered local tension.','good');
+  }
+  if(hex&&hex.data&&hex.data.mood&&choice==='stabilize'){
+    hex.data.mood.crisis='No Crisis';
+    if(!hex.data.mood.resolution||String(hex.data.mood.resolution).toLowerCase().indexOf('guards ask')>=0){
+      hex.data.mood.resolution='The settlement regains confidence and trade resumes.';
+    }
+  }
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(hex&&typeof renderHexInfo==='function')renderHexInfo(hex);
+}
+
+function resolveHoldingCrisisAction(col,row){
+  var key=String(col)+','+String(row);
+  var hex=getProvinceHexByKey(key);
+  if(!hex||!(hex.type==='seat'||hex.type==='holding'))return;
+  if(!hex.data)hex.data={};
+  var mood=hex.data.mood=hex.data.mood||{};
+  var crisisText=String(mood.crisis||'');
+  if(!crisisText||crisisText.toLowerCase().indexOf('no crisis')>=0){
+    showNotif('This holding has no active crisis.','warn');
+    return;
+  }
+  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
+  var defendDie=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):((S.stats&&S.stats.defend)||4);
+  var leadDie=(typeof getEffectiveDie==='function')?getEffectiveDie('lead'):((S.stats&&S.stats.lead)||4);
+  var checkStat=defendDie>=leadDie?'defend':'lead';
+  var checkDie=Math.max(4,Number(checkStat==='defend'?defendDie:leadDie)||4);
+  var attack=explodingRoll(checkDie);
+  var oppose=explodingRoll(8);
+  var success=attack.total>=oppose.total;
+  if(success){
+    mood.crisis='No Crisis';
+    mood.resolution='Wayfarer support restored confidence and defensive readiness.';
+    if(typeof window.applyWorldConsequence==='function'){
+      window.applyWorldConsequence({
+        system:'holding-crisis',
+        title:'Holding defenders rallied',
+        detail:'Crisis response succeeded at '+key+'.',
+        region:'province',
+        locationKey:key,
+        severity:'info',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{stability:2,tension:-2,scarcity:-1},
+        tags:['holding-secured','patrol-deployed','crisis-stabilized']
+      });
+    }
+    clearWorldStatePressureAtKey(key,{crisis:true,routeSafe:true});
+    var renownFaction=resolveFactionRenownKeyFromControl(overlay&&overlay.control?overlay.control:'');
+    if(renownFaction&&typeof window.changeFactionRenown==='function'){
+      try{window.changeFactionRenown(renownFaction,1);}catch(_err){}
+    }
+    var factionNote=renownFaction?(' +1 '+renownFaction.charAt(0).toUpperCase()+renownFaction.slice(1)+' Renown.'):'';
+    showNotif('Holding defended ('+checkStat.toUpperCase()+' d'+checkDie+' '+attack.total+' vs DD8 '+oppose.total+').' + factionNote,'good');
+  }else{
+    if(typeof window.applyWorldConsequence==='function'){
+      window.applyWorldConsequence({
+        system:'holding-crisis',
+        title:'Holding crisis escalated',
+        detail:'Defense response failed at '+key+'.',
+        region:'province',
+        locationKey:key,
+        severity:'high',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{stability:-1,factionHeat:1,tension:1,scarcity:1},
+        tags:['active-crisis','dangerous-road']
+      });
+    }
+    if(typeof changeMentalStress==='function')changeMentalStress(1);
+    showNotif('Holding defense faltered ('+checkStat.toUpperCase()+' d'+checkDie+' '+attack.total+' vs DD8 '+oppose.total+'). +1 Mental Stress.','warn');
+  }
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(typeof renderHexInfo==='function')renderHexInfo(hex);
 }
 
 function buildProvinceHoldingDowntimePanel(hex){

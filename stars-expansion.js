@@ -802,21 +802,24 @@ const NEW_SUN_REGION_TARGETS = {
   province: 10,
   sea: 20,
   wtw: 12,
-  galaxy: 8
+  galaxy: 8,
+  planet: 5
 };
 
 const NEW_SUN_REGION_RELEASE_DAYS = {
   province: [3, 6, 10, 14, 18, 22, 27, 31, 34, 38],
   sea: [42, 45, 48, 49, 52, 54, 56, 58, 60, 62, 64, 66, 69, 72, 74, 77, 80, 83, 86, 89],
   wtw: [50, 53, 57, 61, 65, 68, 71, 75, 79, 82, 85, 88],
-  galaxy: [63, 67, 73, 78, 84, 90, 95, 98]
+  galaxy: [63, 67, 73, 78, 84, 90, 95, 98],
+  planet: [91, 93, 95, 97, 99]
 };
 
 const NEW_SUN_NPC_NAMES = {
   province: ['Keeper Sera', 'Archivist Maelin', 'Caravaner Holt', 'Witness Nia'],
   sea: ['Harbormaster Ys', 'Tidelock Venn', 'Captain Oro', 'Beacon Nun Tala'],
   wtw: ['District Witness Kel', 'Glass-Scribe Ruun', 'Rail Judge Orek', 'Ledger Child Vara'],
-  galaxy: ['Navigator Orun', 'Relay Pilot Cira', 'Heliostat Engineer Thane', 'Orbit Deacon Sol']
+  galaxy: ['Navigator Orun', 'Relay Pilot Cira', 'Heliostat Engineer Thane', 'Orbit Deacon Sol'],
+  planet: ['Surveyor Ilex', 'Landing Marshal Varo', 'Dust Witness Sen', 'Colony Anchor Yara']
 };
 
 const NEW_SUN_DIALOGUE_SNIPPETS = {
@@ -839,6 +842,11 @@ const NEW_SUN_DIALOGUE_SNIPPETS = {
     '"We can crown a sun, share a sun, or break the sky. None are clean."',
     '"Orbit relays are ready. Give the word, and someone loses the future."',
     '"When day 100 hits, indecision is also a verdict."'
+  ],
+  planet: [
+    '"Orbit was only the argument. Planetfall is where your verdict has to survive contact with the ground."',
+    '"The first sunrise means nothing if nobody can live beneath it. Land and prove it."',
+    '"Every landing zone is choosing who actually gets tomorrow. Walk carefully."'
   ]
 };
 
@@ -1037,7 +1045,7 @@ const SOLAR_CYCLE_FINALE_PRESSURE_SCENES = {
   ]
 };
 
-const NEW_SUN_TEMPLATE_REGION_ORDER = ['province', 'sea', 'wtw', 'galaxy'];
+const NEW_SUN_TEMPLATE_REGION_ORDER = ['province', 'sea', 'wtw', 'galaxy', 'planet'];
 
 const NEW_SUN_QUEST_PACKS = {
   relic: {
@@ -1045,13 +1053,15 @@ const NEW_SUN_QUEST_PACKS = {
       province: ['Lens Debris Survey', 'Sunwell Surveyor Appeal', 'Ash Observatory Lockbreak'],
       sea: ['Beacon Prism Convoy', 'Refraction Tide Ledger', 'Choir Evacuation Corridor'],
       wtw: ['Glass Archive Annex', 'Rail of Sainted Mirrors', 'District Lens Tribunal'],
-      galaxy: ['Heliostat Wreck Communion', 'Orbit Relay Rebuild', 'Dawn Engine Calibration']
+      galaxy: ['Heliostat Wreck Communion', 'Orbit Relay Rebuild', 'Dawn Engine Calibration'],
+      planet: ['Planetfall Lens Survey', 'Ash Colony Dawn Triage', 'Surface Ignition Corridor']
     },
     roaming: {
       province: ['Borrowed Dawn Smuggling Route', 'Night Lens Contraband', 'Ash-Script Ruin Audit'],
       sea: ['Corsair Prism Seizure', 'Underwake Signal Raid', 'Floodline Witness Rescue'],
       wtw: ['Counterfeit Testament Sweep', 'Mirror-Police Evasion', 'Ruin Choir Broadcast'],
-      galaxy: ['Ghost Relay Intercept', 'Sunseed Drift Retrieval', 'Outer Ring Dawn Leak']
+      galaxy: ['Ghost Relay Intercept', 'Sunseed Drift Retrieval', 'Outer Ring Dawn Leak'],
+      planet: ['Dustline Refraction Raid', 'Broken Colony Lens Lift', 'Surface Route Salvage']
     }
   },
   herald: {
@@ -1059,13 +1069,15 @@ const NEW_SUN_QUEST_PACKS = {
       province: ['Procession Through Salt District', 'Herald Testimony Patrol', 'Pilgrim Convocation'],
       sea: ['Beacon Oath Armada', 'Tide Sermon Routing', 'Refugee Litany Escort'],
       wtw: ['Witness Registry Purge', 'District Reliquary Trial', 'Choir in the Rail Tunnels'],
-      galaxy: ['Consecrated Relay Chain', 'Pilgrim Orbit Array', 'Herald Verdict Broadcast']
+      galaxy: ['Consecrated Relay Chain', 'Pilgrim Orbit Array', 'Herald Verdict Broadcast'],
+      planet: ['Planetfall Covenant Camp', 'Colony Witness Muster', 'Landing Rite Tribunal']
     },
     roaming: {
       province: ['Street Oracle Interview', 'Dawn Banner Dispute', 'Broken Chapel Signal'],
       sea: ['Night Harbor Vowbreak', 'Wave-Cathedral Breach', 'Beacon Bell Recovery'],
       wtw: ['False Prophet Sweep', 'Confessional Cache Lift', 'Witness Smuggling Trail'],
-      galaxy: ['Star Chapel Hijack', 'Pilgrim Fleet Schism', 'Sermon Through Static']
+      galaxy: ['Star Chapel Hijack', 'Pilgrim Fleet Schism', 'Sermon Through Static'],
+      planet: ['Dust Chapel Breach', 'Colony Schism Burial', 'Landing Sermon Intercept']
     }
   },
   loop: {
@@ -1073,13 +1085,15 @@ const NEW_SUN_QUEST_PACKS = {
       province: ['Tomorrow Echo Capture', 'Pre-Birth Coordinate Audit', 'Clocktower Fracture Survey'],
       sea: ['Recursive Tide Convoy', 'Beacon Time-Lag Trial', 'Looped Refuge Corridor'],
       wtw: ['Archive Recurrence Break', 'District Echo Evacuation', 'Paradox Rail Drill'],
-      galaxy: ['Temporal Relay Resonance', 'Fracture Orbit Sweep', 'Chrono-Heliostat Prime']
+      galaxy: ['Temporal Relay Resonance', 'Fracture Orbit Sweep', 'Chrono-Heliostat Prime'],
+      planet: ['Planetfall Echo Containment', 'Surface Recurrence Audit', 'Dust Horizon Loopbreak']
     },
     roaming: {
       province: ['Future Witness Interview', 'Reverse Dawn Contraband', 'Backflow Ruin Search'],
       sea: ['Late Signal Intercept', 'Loop-Corsair Ambush', 'Tideback Pilgrim Escape'],
       wtw: ['Counterfactual Census', 'Echo Gang Truce', 'Paradox Librarian Chase'],
-      galaxy: ['Yesterday Broadcast Leak', 'Fracture Gate Insertion', 'Loop Crown Decoy']
+      galaxy: ['Yesterday Broadcast Leak', 'Fracture Gate Insertion', 'Loop Crown Decoy'],
+      planet: ['Afterimage Colony Sweep', 'Surface Time-Slip Rescue', 'Landing Zone Decoy Loop']
     }
   }
 };
@@ -1801,8 +1815,9 @@ function ensureSolarCycleState() {
   if (!sc.pendingEchoMarker || typeof sc.pendingEchoMarker !== 'object') sc.pendingEchoMarker = null;
   if (!sc.questScheduler || typeof sc.questScheduler !== 'object') sc.questScheduler = {};
   if (!sc.questScheduler.completedByRegion || typeof sc.questScheduler.completedByRegion !== 'object') {
-    sc.questScheduler.completedByRegion = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
+    sc.questScheduler.completedByRegion = { province: 0, sea: 0, wtw: 0, galaxy: 0, planet: 0 };
   }
+  if (typeof sc.questScheduler.completedByRegion.planet !== 'number') sc.questScheduler.completedByRegion.planet = 0;
   if (!Array.isArray(sc.questScheduler.activeQuestIds)) sc.questScheduler.activeQuestIds = [];
   if (!sc.questScheduler.questById || typeof sc.questScheduler.questById !== 'object') sc.questScheduler.questById = {};
   if (!Array.isArray(sc.questScheduler.clueLedger)) sc.questScheduler.clueLedger = [];
@@ -1816,7 +1831,8 @@ function ensureSolarCycleState() {
   if (!sc.questScheduler.actionProfile.byStat || typeof sc.questScheduler.actionProfile.byStat !== 'object') sc.questScheduler.actionProfile.byStat = {};
   if (!sc.questScheduler.actionProfile.byChallenge || typeof sc.questScheduler.actionProfile.byChallenge !== 'object') sc.questScheduler.actionProfile.byChallenge = {};
   if (!sc.questScheduler.npcVectors || typeof sc.questScheduler.npcVectors !== 'object') sc.questScheduler.npcVectors = {};
-  if (!sc.questScheduler.regionPostedCount || typeof sc.questScheduler.regionPostedCount !== 'object') sc.questScheduler.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
+  if (!sc.questScheduler.regionPostedCount || typeof sc.questScheduler.regionPostedCount !== 'object') sc.questScheduler.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0, planet: 0 };
+  if (typeof sc.questScheduler.regionPostedCount.planet !== 'number') sc.questScheduler.regionPostedCount.planet = 0;
   if (typeof sc.questScheduler.lastSpawnDay !== 'number') sc.questScheduler.lastSpawnDay = -1;
   if (typeof sc.questScheduler.lastFailureBranchDay !== 'number') sc.questScheduler.lastFailureBranchDay = -1;
   sc.currentTier = getSolarCycleTier(sc.daysElapsed);
@@ -3090,7 +3106,7 @@ function buildSolarCycleForecastSimulatorHtml(sc) {
 function focusSolarCycleQuestOnMap(quest) {
   if (!quest || typeof window.switchTab !== 'function') return false;
   var region = String(quest.region || 'province');
-  var tabId = region === 'sea' ? 'lastsea' : (region === 'wtw' ? 'worldthatwas' : (region === 'galaxy' ? 'galaxy' : 'map'));
+  var tabId = region === 'sea' ? 'lastsea' : (region === 'wtw' ? 'worldthatwas' : (region === 'galaxy' ? 'galaxy' : (region === 'planet' ? 'planet' : 'map')));
   var btn = document.getElementById('tabnav-' + tabId);
   window.switchTab(tabId, btn || null);
 
@@ -3131,6 +3147,25 @@ function focusSolarCycleQuestOnMap(quest) {
     return true;
   }
 
+  if (region === 'planet') {
+    if (!S || !S.starSystem) return false;
+    var planetHexId = Number(quest.locationKey);
+    var planetHex = (S.starSystem.hexes || []).find(function (hex) {
+      return hex && Number(hex.id) === planetHexId && hex.type === 'planet';
+    }) || null;
+    if (!planetHex) return false;
+    S.starSystem.currentHexId = Number(planetHex.id);
+    S.starSystem.activePlanetHexId = Number(planetHex.id);
+    var planetState = ensurePlanetSurfaceState(planetHex);
+    if (!planetState) return false;
+    if (typeof quest.locationCellId === 'number') {
+      planetState.storyObjectiveCellId = Number(quest.locationCellId);
+      planetState.selectedCellId = Number(quest.locationCellId);
+    }
+    if (typeof window.renderPlanetExplorationPanel === 'function') window.renderPlanetExplorationPanel();
+    return true;
+  }
+
   return false;
 }
 
@@ -3139,7 +3174,8 @@ function getSolarCycleQuestTravelPromptLabel(quest) {
   var region = String(quest.region || 'province');
   if (region === 'sea') return 'Move to Sea Region';
   if (region === 'wtw') return 'Move to the World That Was';
-  if (region === 'galaxy') return quest.taskId ? 'Move to Galaxy / Planetfall' : 'Move to Galaxy';
+  if (region === 'galaxy') return 'Move to Galaxy';
+  if (region === 'planet') return 'Make Planetfall';
   return 'Return to Province';
 }
 
@@ -4360,6 +4396,7 @@ function getSolarCycleStatus() {
     schedulerSeaDone: sc.questScheduler && sc.questScheduler.completedByRegion ? Number(sc.questScheduler.completedByRegion.sea || 0) : 0,
     schedulerWtwDone: sc.questScheduler && sc.questScheduler.completedByRegion ? Number(sc.questScheduler.completedByRegion.wtw || 0) : 0,
     schedulerGalaxyDone: sc.questScheduler && sc.questScheduler.completedByRegion ? Number(sc.questScheduler.completedByRegion.galaxy || 0) : 0,
+    schedulerPlanetDone: sc.questScheduler && sc.questScheduler.completedByRegion ? Number(sc.questScheduler.completedByRegion.planet || 0) : 0,
     schedulerActiveCount: sc.questScheduler && Array.isArray(sc.questScheduler.activeQuestIds) ? Number(sc.questScheduler.activeQuestIds.length || 0) : 0,
     schedulerClueCount: sc.questScheduler && Array.isArray(sc.questScheduler.clueLedger) ? Number(sc.questScheduler.clueLedger.length || 0) : 0,
     pendingBranch: getPendingSolarCycleBranch(sc),
@@ -4394,7 +4431,8 @@ function renderNewSunModePanel() {
     ? ('Province ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | Sea ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
       + ' | WTW ' + Number(status.schedulerWtwDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.wtw || 0)
-      + ' | Galaxy ' + Number(status.schedulerGalaxyDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.galaxy || 0))
+      + ' | Galaxy ' + Number(status.schedulerGalaxyDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.galaxy || 0)
+      + ' | Planet ' + Number(status.schedulerPlanetDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.planet || 0))
     : 'Scheduler unavailable';
   var socialProfileSummary = 'Social style profile: no social rolls logged yet.';
   if (scheduler && scheduler.actionProfile && scheduler.actionProfile.byChallenge && scheduler.actionProfile.byChallenge.social) {
@@ -4875,6 +4913,7 @@ function getSolarCycleRegionLabel(region) {
   if (reg === 'sea') return 'Last Sea Region';
   if (reg === 'wtw') return 'World That Was';
   if (reg === 'galaxy') return 'Galaxy Routes';
+  if (reg === 'planet') return 'Planetfall Surface';
   return 'Unknown Region';
 }
 
@@ -4902,7 +4941,12 @@ function getSolarCycleNpcDemandText(region, methodTitle) {
     '"Win this route now and I will commit the relay handshake needed by ' + method + '."',
     '"Hold this lane under dread pressure and I will transmit the outer-ring lock for ' + method + '."'
   ];
-  var pool = reg === 'province' ? province : (reg === 'sea' ? sea : (reg === 'wtw' ? wtw : galaxy));
+  var planet = [
+    '"Orbit got you here. Planetfall is the real test. Hold this landing zone and I will release the surface proof for ' + method + '."',
+    '"Secure the colony spine before sunrise and I will hand over the grounded route data for ' + method + '."',
+    '"Make this world survivable for one more day and the final witness package for ' + method + ' is yours."'
+  ];
+  var pool = reg === 'province' ? province : (reg === 'sea' ? sea : (reg === 'wtw' ? wtw : (reg === 'planet' ? planet : galaxy)));
   return pool[seed % pool.length];
 }
 
@@ -4922,6 +4966,7 @@ function getSolarCycleInvestigationActionLine(quest) {
     return 'Primary restoration action: win this witness, secure ' + method + ', and keep the restoration route from collapsing ' + crisisTag + '.';
   }
   if (q.portalHandoff && region === 'sea') return 'Field action: hold the sea witness chain together long enough to hand ' + method + ' into the Lost City portal route.';
+  if (region === 'planet') return 'Field action: make planetfall, secure a survivable ground corridor, and prove ' + method + ' works after landing.';
   if (q.volatileLead && q.deceptive) return 'Field action: test whether this unstable lead is bait, then salvage any usable route data on ' + method + '.';
   if (q.volatileLead) return 'Field action: exploit the unstable opening quickly and convert it into durable route leverage for ' + method + '.';
   if (challenge === 'combat') return 'Field action: break the hostile line and extract the witness carrying ' + method + ' route data.';
@@ -5009,6 +5054,15 @@ function getSolarCycleInvestigationDialogueLine(quest, sc, stance) {
       '"I ran the projection seventeen times. ' + method + ' survives in four of them. We are chasing one of those four."',
       '"Outer ring communication is already fractured. What you secure here becomes the backbone of whatever follows."',
       '"Deep-space is not patient. ' + method + ' is viable for exactly the window I am describing. Act inside it."'
+    ];
+  } else if (region === 'planet') {
+    pool = [
+      '"We landed too late for elegance. We are in the part of the story where survival itself becomes evidence."',
+      '"Orbit only bought the chance. If ' + method + ' means anything, prove it on the ground before the colony breaks."',
+      '"The first sunrise needs roads, air, and witnesses. Secure those and I will call ' + method + ' real."',
+      '"Dust is inside every seal on this world. Move fast and make ' + method + ' hold under actual conditions."',
+      '"The landing zone is listening. Fail here and everyone will say the New Sun was only ever an orbital lie."',
+      '"This is the final argument: not whether dawn can rise, but whether people can live beneath it. Finish ' + method + '."'
     ];
   }
 
@@ -5274,6 +5328,12 @@ function getSolarCycleOutcomeDialogueLine(quest, failed, stance) {
         '"Orbital window closed two minutes early. I have already filed a correction. Resume from the secondary beacon at first light."',
         '"The static is worse than modeled. ' + method + ' is not dead, only deferred. Use the backup ring."',
         '"That node did not hold. Redirect to the rim station and try the off-axis approach to ' + method + '."'
+      ],
+      planet: [
+        '"The ground broke what the orbit held together. ' + method + ' needs a second landing zone—find solid terrain and try again."',
+        '"Failure on the surface is the honest kind. No signal interference to blame. Regroup and hit ' + method + ' from the colony perimeter."',
+        '"The dust ate the approach. There is a second access corridor three hexes south—use it before the settlement loses pressure."',
+        '"Everything failed in contact with actual conditions. That is information. ' + method + ' needs a different entry vector."'
       ]
     };
     var pool = failPools[region] || failPools.province;
@@ -5345,6 +5405,12 @@ function getSolarCycleOutcomeDialogueLine(quest, failed, stance) {
         '"Orbital window held. I have logged the route. The outer ring is yours now."',
         '"Broadcast confirmed. ' + method + ' propagates outward from this node. Follow the signal."',
         '"Lock achieved. The constellation remembers. Advance to the next beacon immediately."'
+      ],
+      planet: [
+        '"Confirmed on the ground. ' + method + ' is not just a theory anymore—it is a working sunrise on an actual world."',
+        '"The colony will remember this. ' + method + ' now has real people behind it, not just orbital projections."',
+        '"Surface secured. ' + method + ' proved itself where proof is hardest: in the open, under a new sky, with lives in the balance."',
+        '"You landed and held. The New Sun belongs to the ground now, not just the architects who drew it from orbit."'
       ]
     };
     var pool = successPools[region] || successPools.province;
@@ -5603,7 +5669,8 @@ function getSolarCycleQuestScheduler(sc) {
   if (typeof qs.trackedLocationKey !== 'string') qs.trackedLocationKey = '';
   if (typeof qs.portalHandoffTriggered !== 'boolean') qs.portalHandoffTriggered = false;
   ensureSolarCycleArtifactProgress(qs);
-  if (!qs.regionPostedCount || typeof qs.regionPostedCount !== 'object') qs.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
+  if (!qs.regionPostedCount || typeof qs.regionPostedCount !== 'object') qs.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0, planet: 0 };
+  if (typeof qs.regionPostedCount.planet !== 'number') qs.regionPostedCount.planet = 0;
   if (typeof qs.lastSpawnDay !== 'number') qs.lastSpawnDay = -1;
   if (typeof qs.lastFailureBranchDay !== 'number') qs.lastFailureBranchDay = -1;
   // Seed one unique restoration method per run (picked once, never changes).
@@ -5698,13 +5765,13 @@ function getSolarCycleNextSchedulerRegion(sc, qs) {
       var ordered = NEW_SUN_TEMPLATE_REGION_ORDER[i];
       if (getSolarCycleQuestRemainingByRegion(scheduler, ordered) > 0) return ordered;
     }
-    return 'galaxy';
+    return 'planet';
   }
 
   var remaining = NEW_SUN_TEMPLATE_REGION_ORDER.filter(function (region) {
     return getSolarCycleQuestRemainingByRegion(scheduler, region) > 0;
   });
-  if (!remaining.length) return 'galaxy';
+  if (!remaining.length) return 'planet';
   var missionBias = getConsequenceMissionBias();
   if (missionBias && missionBias.focusRegion && remaining.indexOf(String(missionBias.focusRegion)) >= 0) {
     var focusRoll = seedSolarCycleMix(state, Number(scheduler.questCounter || 0) + remaining.length * 13) % 100;
@@ -5740,7 +5807,7 @@ function createSolarCycleSchedulerQuest(sc, region) {
   var phaseWindow = [currentPhase];
   if (lockA !== currentPhase) phaseWindow.push(lockA);
   if (lockB !== currentPhase && lockB !== lockA) phaseWindow.push(lockB);
-  var lifetime = reg === 'sea' ? 4 : (reg === 'wtw' ? 3 : 5);
+  var lifetime = reg === 'sea' ? 4 : (reg === 'wtw' ? 3 : (reg === 'planet' ? 2 : 5));
   var endDay = Math.min(SOLAR_CYCLE_DAY_LIMIT, startDay + lifetime);
   var npcPool = NEW_SUN_NPC_NAMES[reg] || ['Unknown Witness'];
   var linePool = NEW_SUN_DIALOGUE_SNIPPETS[reg] || ['"The countdown continues."'];
@@ -5831,6 +5898,26 @@ function clearSolarCycleSchedulerQuestMarker(quest) {
     var qs = sc ? getSolarCycleQuestScheduler(sc) : null;
     if (qs && qs.wtwQuestByHex && quest.locationKey) delete qs.wtwQuestByHex[String(quest.locationKey)];
     if (typeof window.wtwSyncMarkers === 'function') window.wtwSyncMarkers();
+  } else if (region === 'galaxy' && S && S.starSystem) {
+    var galaxyTask = quest.taskId ? getGalaxyTaskById(String(quest.taskId)) : null;
+    if (galaxyTask) galaxyTask.resolved = true;
+    var galaxyHex = (S.starSystem.hexes || []).find(function (hex) {
+      return hex && Number(hex.id) === Number(quest.locationKey || (galaxyTask ? galaxyTask.hexId : null));
+    }) || null;
+    if (galaxyHex && galaxyHex.taskMarker && (!quest.taskId || String(galaxyHex.taskMarker.id || '') === String(quest.taskId))) {
+      galaxyHex.taskMarker.resolved = true;
+    }
+    if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+    if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+  } else if (region === 'planet' && S && S.starSystem && quest.locationKey !== '') {
+    var planetHex = (S.starSystem.hexes || []).find(function (hex) {
+      return hex && Number(hex.id) === Number(quest.locationKey) && hex.type === 'planet';
+    }) || null;
+    var planetState = ensurePlanetSurfaceState(planetHex);
+    if (planetState && Number(planetState.storyObjectiveCellId) === Number(quest.locationCellId)) {
+      planetState.storyObjectiveCellId = null;
+      if (typeof renderPlanetExplorationPanel === 'function') renderPlanetExplorationPanel();
+    }
   }
 }
 
@@ -5893,6 +5980,48 @@ function placeSolarCycleSchedulerQuestMarker(quest, sc) {
     return true;
   }
 
+  if (quest.region === 'galaxy') {
+    var task = createGalaxyTask('New Sun', {
+      title: quest.title,
+      text: quest.clueText,
+      missionId: quest.id,
+      interaction: 'solar_cycle_choice'
+    });
+    if (!task) return false;
+    quest.taskId = String(task.id);
+    quest.locationKey = String(task.hexId);
+    quest.locationLabel = 'Galaxy Hex #' + String(task.hexId);
+    return true;
+  }
+
+  if (quest.region === 'planet') {
+    var planetCandidates = S && S.starSystem && Array.isArray(S.starSystem.hexes)
+      ? S.starSystem.hexes.filter(function (hex) { return hex && hex.type === 'planet'; })
+      : [];
+    if (!planetCandidates.length) return false;
+    var scannedPlanets = planetCandidates.filter(function (hex) { return !!hex.scanned; });
+    var planetPool = scannedPlanets.length ? scannedPlanets : planetCandidates;
+    var planetHex = planetPool[Math.abs(seed + 313) % planetPool.length] || null;
+    if (!planetHex) return false;
+    planetHex.scanned = true;
+    var planetState = ensurePlanetSurfaceState(planetHex);
+    if (!planetState || !Array.isArray(planetState.cells) || !planetState.cells.length) return false;
+    var freeCells = planetState.cells.filter(function (cell) {
+      return cell && Number(cell.id) !== Number(planetState.landedCellId || 0);
+    });
+    var planetCellPool = freeCells.length ? freeCells : planetState.cells;
+    var planetCell = planetCellPool[Math.abs(seed + 419) % planetCellPool.length] || null;
+    if (!planetCell) return false;
+    planetState.storyObjectiveCellId = Number(planetCell.id);
+    quest.locationKey = String(planetHex.id);
+    quest.locationCellId = Number(planetCell.id);
+    quest.locationLabel = String(planetState.planetName || ensurePlanetProfile(planetHex).planetName || ('Planet Hex #' + planetHex.id)) + ' / Cell #' + String(planetCell.id);
+    if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+    if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+    if (typeof renderPlanetExplorationPanel === 'function') renderPlanetExplorationPanel();
+    return true;
+  }
+
   return false;
 }
 
@@ -5917,7 +6046,7 @@ function expireSolarCycleSchedulerQuests(sc) {
 }
 
 function getSolarCycleNextRegionFrom(region, mode) {
-  var base = ['province', 'sea', 'wtw', 'galaxy'];
+  var base = ['province', 'sea', 'wtw', 'galaxy', 'planet'];
   var idx = base.indexOf(String(region || 'province'));
   if (idx < 0) idx = 0;
   if (String(mode || '') === 'straight') {
@@ -5944,7 +6073,6 @@ function spawnSolarCycleQuestFollowup(sourceQuest, sc, reason) {
   }
   if (provinceDone < Number(NEW_SUN_REGION_TARGETS.province || 10)) preferredRegion = 'province';
   else if (seaDone < 2 && preferredRegion !== 'province') preferredRegion = 'sea';
-  if (preferredRegion === 'galaxy') preferredRegion = 'wtw';
   var followup = createSolarCycleSchedulerQuest(state, preferredRegion);
   if (!followup) followup = createSolarCycleSchedulerQuest(state, sourceQuest.region);
   if (!followup) followup = createSolarCycleImmediateQuest(state, preferredRegion, sourceQuest, reason);
@@ -6067,7 +6195,6 @@ function maybeSpawnSolarCycleOpportunisticQuest(sc, sourceQuest) {
   if (chance > 34) return null;
 
   var reg = getSolarCycleNextRegionFrom(sourceQuest.region, 'roaming');
-  if (reg === 'galaxy') reg = 'wtw';
   var quest = createSolarCycleImmediateQuest(state, reg, sourceQuest, 'volatile');
   if (!quest) return null;
   quest.volatileLead = true;
@@ -6298,7 +6425,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   var rollStat = selectedStat || (statByApproach[String(quest.resolvedApproach || 'investigate')] || 'mind');
   var challengeType = String(quest.challengeType || 'social').toLowerCase();
   var socialStyle = getSolarCycleSocialStyleProfile(challengeType, rollStat);
-  var rollDread = snapToValidDreadDie((quest.region === 'galaxy' ? 12 : (quest.region === 'wtw' ? 10 : 8)) + Math.min(4, Number(sc.worldTilt || 0)));
+  var rollDread = snapToValidDreadDie(((quest.region === 'galaxy' || quest.region === 'planet') ? 12 : (quest.region === 'wtw' ? 10 : 8)) + Math.min(4, Number(sc.worldTilt || 0)));
   var rollResult = null;
   if (fractureAttempt) {
     var autoDie = getSolarCycleActionDie(rollStat);
@@ -6805,7 +6932,8 @@ function buildSolarCycleQuickPanelHtml() {
     ? ('P ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | S ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
       + ' | W ' + Number(status.schedulerWtwDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.wtw || 0)
-      + ' | G ' + Number(status.schedulerGalaxyDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.galaxy || 0))
+      + ' | G ' + Number(status.schedulerGalaxyDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.galaxy || 0)
+      + ' | P ' + Number(status.schedulerPlanetDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.planet || 0))
     : 'Scheduler offline';
   var active = sc.arcProgress && sc.arcProgress.activeMarker ? String(sc.arcProgress.activeMarker.label || '') : '';
   return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .52rem;margin-bottom:.55rem;">'

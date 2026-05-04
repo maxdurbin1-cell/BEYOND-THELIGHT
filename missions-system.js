@@ -782,6 +782,37 @@
 
   function chooseMissionTemplate(bias) {
     var b = bias || {};
+
+    // Collect rumor tags from the current selected hex and its stored rumors
+    var rumorTags = [];
+    try {
+      if (typeof window !== 'undefined' && typeof window.getHexRumors === 'function') {
+        var selectedKey = '';
+        if (typeof window.getProvinceSelectedKey === 'function') selectedKey = String(window.getProvinceSelectedKey() || '');
+        if (!selectedKey && window.selectedHex && typeof window.selectedHex.col === 'number') {
+          selectedKey = window.selectedHex.col + ',' + window.selectedHex.row;
+        }
+        if (selectedKey) {
+          var hexRumors = window.getHexRumors(selectedKey) || [];
+          hexRumors.forEach(function(r){ if (Array.isArray(r.tags)) rumorTags = rumorTags.concat(r.tags); });
+        }
+      }
+    } catch (_re) {}
+
+    // Bias template from rumors before checking consequence feed
+    if (rumorTags.indexOf('crackdown-escalated') >= 0 || rumorTags.indexOf('instability-ripple') >= 0) {
+      return MISSION_TEMPLATES.find(function(t){ return t.id === 'survival'; }) || MISSION_TEMPLATES[0];
+    }
+    if (rumorTags.indexOf('backchannel-opened') >= 0 || rumorTags.indexOf('contract-signed') >= 0 || rumorTags.indexOf('bribe-paid') >= 0) {
+      return MISSION_TEMPLATES.find(function(t){ return t.id === 'faction_politics'; }) || MISSION_TEMPLATES[0];
+    }
+    if (rumorTags.indexOf('smuggler-route') >= 0 || rumorTags.indexOf('discovered-route') >= 0 || rumorTags.indexOf('contract-ripple') >= 0) {
+      return MISSION_TEMPLATES.find(function(t){ return t.id === 'escort_chain'; }) || MISSION_TEMPLATES[0];
+    }
+    if (rumorTags.indexOf('intel-gathered') >= 0) {
+      return MISSION_TEMPLATES.find(function(t){ return t.id === 'recon' || t.id === 'escort_chain'; }) || MISSION_TEMPLATES[0];
+    }
+
     var crises = (typeof window !== 'undefined' && typeof window.getWorldConsequenceFeed === 'function')
       ? (window.getWorldConsequenceFeed() || [])
       : [];
@@ -942,7 +973,43 @@
     var activeTabId = activePanel ? activePanel.id : '';
     var forceRegion = null;
     var bias = getMissionConsequenceBias();
-    if (activeTabId === 'tab-galaxy') forceRegion = 'galaxy';
+    // Collect rumors from selected hex and inject verb bias
+    var rumorVerbBonus = [];
+    try {
+      if (typeof window !== 'undefined' && typeof window.getHexRumors === 'function') {
+        var _selKey = '';
+        if (typeof window.getProvinceSelectedKey === 'function') _selKey = String(window.getProvinceSelectedKey() || '');
+        if (!_selKey && window.selectedHex && typeof window.selectedHex.col === 'number') {
+          _selKey = window.selectedHex.col + ',' + window.selectedHex.row;
+        }
+        if (_selKey) {
+          var _rumors = window.getHexRumors(_selKey) || [];
+          _rumors.forEach(function(r) {
+            var rt = Array.isArray(r.tags) ? r.tags : [];
+            if (rt.indexOf('crackdown-escalated') >= 0 || rt.indexOf('instability-ripple') >= 0) {
+              rumorVerbBonus.push('Resist','Survive','Evacuate','Shield');
+            }
+            if (rt.indexOf('smuggler-route') >= 0 || rt.indexOf('discovered-route') >= 0) {
+              rumorVerbBonus.push('Escort','Move','Guide','Transport');
+            }
+            if (rt.indexOf('intel-gathered') >= 0 || rt.indexOf('intel-blowback') >= 0) {
+              rumorVerbBonus.push('Investigate','Surveil','Expose','Track');
+            }
+            if (rt.indexOf('backchannel-opened') >= 0 || rt.indexOf('bribe-paid') >= 0 || rt.indexOf('contract-signed') >= 0) {
+              rumorVerbBonus.push('Negotiate','Broker','Infiltrate','Secure');
+            }
+            if (rt.indexOf('civic-aid') >= 0) {
+              rumorVerbBonus.push('Protect','Deliver','Rescue','Aid');
+            }
+          });
+        }
+      }
+    } catch (_rve) {}
+    if (rumorVerbBonus.length && Array.isArray(bias.preferredVerbs)) {
+      bias.preferredVerbs = bias.preferredVerbs.concat(rumorVerbBonus);
+    } else if (rumorVerbBonus.length) {
+      bias.preferredVerbs = rumorVerbBonus;
+    }
     else if (activeTabId === 'tab-lastsea') forceRegion = 'sea';
     else if (activeTabId === 'tab-map') forceRegion = 'province';
     for (var i = 0; i < count; i++) {

@@ -336,6 +336,34 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Hex rumor diffusion — lightweight word-of-mouth layer
+  // ---------------------------------------------------------------------------
+  var MAX_HEX_RUMORS = 6;
+
+  function addHexRumor(key, rumor) {
+    var ws = ensureWorldState();
+    if (!ws || !key) return;
+    var hexEntry = ensureHexEntry(ws, 'province', String(key));
+    if (!hexEntry) return;
+    if (!Array.isArray(hexEntry.rumors)) hexEntry.rumors = [];
+    hexEntry.rumors.unshift({
+      text:   String(rumor.text   || ''),
+      tags:   Array.isArray(rumor.tags) ? rumor.tags : [],
+      source: String(rumor.source || 'traveler'),
+      day:    rumor.day != null ? Number(rumor.day) : Date.now()
+    });
+    if (hexEntry.rumors.length > MAX_HEX_RUMORS) hexEntry.rumors.length = MAX_HEX_RUMORS;
+  }
+
+  function getHexRumors(key) {
+    var S = getS();
+    if (!S || !S.worldState) return [];
+    var hexes = (S.worldState.regions && S.worldState.regions.province && S.worldState.regions.province.hexes) || {};
+    var h = hexes[String(key || '')];
+    return (h && Array.isArray(h.rumors)) ? h.rumors.slice() : [];
+  }
+
+  // ---------------------------------------------------------------------------
   // Mission generation bias
   // ---------------------------------------------------------------------------
   function getConsequenceMissionBias() {
@@ -512,5 +540,7 @@
   window.getConsequenceMissionBias = getConsequenceMissionBias;
   window.triggerFactionTurn        = triggerFactionTurn;
   window.getWorldConsequenceFeed   = getWorldConsequenceFeed;
+  window.addHexRumor               = addHexRumor;
+  window.getHexRumors              = getHexRumors;
 
 })();

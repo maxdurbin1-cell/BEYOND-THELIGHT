@@ -12096,16 +12096,25 @@ function applyWorldEventSpillover(col,row,label,deltas,tags){
   if(!Array.isArray(neighbors)||!neighbors.length)return;
   var target=pick(neighbors);
   if(!target)return;
+  var targetKey=String(target.col)+','+String(target.row);
   window.applyWorldConsequence({
     system:'world-event-spillover',
     title:String(label||'Nearby ripple'),
-    detail:'Nearby hex '+String(target.col)+','+String(target.row)+' is affected by this decision.',
+    detail:'Nearby hex '+targetKey+' is affected by this decision.',
     region:'province',
-    locationKey:String(target.col)+','+String(target.row),
+    locationKey:targetKey,
     severity:'info',
     deltas:(deltas&&typeof deltas==='object')?deltas:{tension:1},
     tags:Array.isArray(tags)?tags:['world-event-spillover']
   });
+  // Write a rumor entry to the adjacent hex so visiting players hear word-of-mouth
+  if(typeof window.addHexRumor==='function'){
+    window.addHexRumor(targetKey,{
+      text:'Word from nearby: '+String(label||'something stirred')+'.',
+      tags:Array.isArray(tags)?tags:['world-event-spillover'],
+      source:'spillover'
+    });
+  }
 }
 
 function resolveWorldEventOption(col,row,option){
@@ -12137,11 +12146,39 @@ function resolveWorldEventOption(col,row,option){
     return;
   }
 
+  if(choice==='bribe'){
+    var bribeFee=30;
+    if((S.credits||0)<bribeFee){
+      showNotif('Bribe requires '+bribeFee+'₵ — not enough credits.','warn');
+      return;
+    }
+    S.credits=(S.credits||0)-bribeFee;
+    if(typeof updateCreditsUI==='function')updateCreditsUI();
+    // Bribe is a flat credit spend — no dice — but still applies world state
+    window.applyWorldConsequence({
+      system:'world-event',
+      title:'Official bribed',
+      detail:'A quiet payment to the right hands at '+key+' smoothed the way.',
+      region:'province',
+      locationKey:key,
+      severity:'info',
+      factionId:overlay&&overlay.control?String(overlay.control):'',
+      deltas:{factionHeat:-1,tension:-1,stability:1},
+      tags:['bribe-paid','opened-border']
+    });
+    if(typeof window.addHexRumor==='function'){
+      window.addHexRumor(key,{text:'An official near here was bought off. No questions asked.',tags:['bribe-paid'],source:'bystander'});
+    }
+    applyWorldEventSpillover(col,row,'Bribe ripple',{tension:-1},['bribe-ripple']);
+    showNotif('Bribe paid (-'+bribeFee+'₵). Heat reduced and passage opened.','good');
+    return;
+  }
+
   var profiles={
     intel:{stat:'mind',dd:6,success:{deltas:{stability:1,factionHeat:-1},tags:['intel-gathered','discovered-route'],text:'Intel network mapped weak points.'},fail:{deltas:{factionHeat:1,tension:1},tags:['intel-blowback'],text:'Your questions drew the wrong attention.'}},
-    aid:{stat:'lead',dd:6,success:{deltas:{stability:1,tension:-1,safety:1},tags:['civic-aid','patrol-deployed'],text:'Locals rally around your intervention.'},fail:{deltas:{tension:1},tags:['civic-aid-failed'],text:'Aid convoy was disrupted before it landed.'}},
+    aid:{stat:'body',dd:6,success:{deltas:{stability:1,tension:-1,safety:1},tags:['civic-aid','patrol-deployed'],text:'Your efforts on the ground rally locals.'},fail:{deltas:{tension:1},tags:['civic-aid-failed'],text:'Aid convoy was disrupted before it landed.'}},
     backchannel:{stat:'control',dd:8,success:{deltas:{factionHeat:-2,tension:-1},tags:['backchannel-opened','opened-border'],text:'Backchannel terms cool the zone.'},fail:{deltas:{factionHeat:1,tension:1,stability:-1},tags:['backchannel-burned'],text:'A burned contact sparks retaliatory sweeps.'}},
-    resist:{stat:'defend',dd:8,success:{deltas:{safety:1,stability:1},tags:['crackdown-resisted'],text:'Residents hold the line and keep routes open.'},fail:{deltas:{safety:-1,tension:1},tags:['crackdown-escalated'],text:'Crackdown pressure spreads into nearby lanes.'}},
+    resist:{stat:'strike',dd:8,success:{deltas:{safety:1,stability:1},tags:['crackdown-resisted'],text:'Residents hold the line and keep routes open.'},fail:{deltas:{safety:-1,tension:1},tags:['crackdown-escalated'],text:'Crackdown pressure spreads into nearby lanes.'}},
     smuggle:{stat:'control',dd:8,success:{deltas:{scarcity:-1,tension:1},tags:['smuggler-route','discovered-route'],text:'Contraband route opens and supply improves.'},fail:{deltas:{scarcity:1,factionHeat:1},tags:['smuggle-intercepted'],text:'Interception locks down commerce harder.'}},
     petition:{stat:'lead',dd:8,success:{deltas:{stability:1,factionHeat:-1,safety:1},tags:['council-petition'],text:'Council petition wins temporary concessions.'},fail:{deltas:{factionHeat:1},tags:['petition-rejected'],text:'Petition denied; officials tighten control.'}}
   };
@@ -12167,12 +12204,20 @@ function resolveWorldEventOption(col,row,option){
   if(success&&typeof changeCounter==='function'&&choice==='aid')changeCounter('renown',1);
   if(!success&&typeof changeMentalStress==='function')changeMentalStress(1);
 
+  // Write a rumor to this hex so revisits reflect what happened
+  if(typeof window.addHexRumor==='function'){
+    var rumorText=success
+      ?'Locals say a crew here recently '+choice+'d their way through the situation — things quieted down.'
+      :'Word is that an attempt to '+choice+' here went sideways. Authorities are on edge.';
+    window.addHexRumor(key,{text:rumorText,tags:outcome.tags,source:choice});
+  }
+
   if(success){
     applyWorldEventSpillover(col,row,'Stability ripple',{tension:-1},['stability-ripple']);
   }else{
     applyWorldEventSpillover(col,row,'Instability ripple',{tension:1},['instability-ripple']);
   }
-  showNotif((success?'Success: ':'Failure: ')+p.stat.toUpperCase()+' d'+die+' '+actor.total+' vs DD'+p.dd+' '+oppose.total+'. '+outcome.text,success?'good':'warn');
+  showNotif((success?'✅ ':'❌ ')+p.stat.toUpperCase()+' d'+die+' rolled '+actor.total+' vs DD'+p.dd+' ('+oppose.total+'). '+outcome.text,success?'good':'warn');
 }
 
 function buildWorldStateEncounterAddon(col,row,mode){
@@ -12215,12 +12260,12 @@ function buildWorldStateEncounterAddon(col,row,mode){
   if(overlay.activeCrisis)pushWeighted({
     title:'World Event: Crisis Flare-Up',
     desc:'You arrive to smoke on the horizon, panicked runners, and '+contactName+' shouting for immediate response teams.',
-    actions:'<button class="btn btn-xs btn-warn" onclick="resolveWorldStateAction('+col+','+row+',\'stabilize\')">🧯 Stabilize Crisis</button><button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'aid\')">🚑 Organize Aid (Lead vs DD6)</button>'
+    actions:'<button class="btn btn-xs btn-warn" onclick="resolveWorldStateAction('+col+','+row+',\'stabilize\')">🧯 Stabilize Crisis</button><button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'aid\')">🚑 Organize Aid (BODY vs DD6)</button>'
   },(rate.weights&&rate.weights.crisis)||1);
   if(overlay.closedBorder||overlay.closedPort||overlay.dangerousRoad)pushWeighted({
     title:'World Event: Route Clampdown',
     desc:'Barricades, toll braziers, and armed inspectors are halting caravans while '+contactName+' demands papers.',
-    actions:'<button class="btn btn-xs btn-teal" onclick="resolveWorldStateAction('+col+','+row+',\'reopen\')">🛣 Reopen Route</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Gather Intel (Mind vs DD6)</button>'
+    actions:'<button class="btn btn-xs btn-teal" onclick="resolveWorldStateAction('+col+','+row+',\'reopen\')">🛣 Reopen Route</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Gather Intel (MIND vs DD6)</button><button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'bribe\')">💰 Bribe Official (-30₵)</button>'
   },(rate.weights&&rate.weights.route)||1);
   if(overlay.control){
     var ctrl=String(overlay.control).toLowerCase();
@@ -12235,7 +12280,7 @@ function buildWorldStateEncounterAddon(col,row,mode){
     pushWeighted({
       title:'World Event: '+overlay.control.charAt(0).toUpperCase()+overlay.control.slice(1)+' Presence',
       desc:(controlDescMap[ctrl]||'Regional authorities are actively shaping this area.')+' Contact: '+contactName+'.',
-      actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">🕊 Negotiate Control</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Gather Intel</button>'+(ctrl==='rebels'?'<button class="btn btn-xs btn-warn" onclick="resolveWorldEventOption('+col+','+row+',\'backchannel\')">🕸 Backchannel (Control vs DD8)</button>':'')+(ctrl==='guilds'?'<button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'contract\')">📜 Sign Contract (-20₵)</button>':'')+(ctrl==='empire'?'<button class="btn btn-xs btn-red" onclick="resolveWorldEventOption('+col+','+row+',\'resist\')">🛡 Resist Crackdown</button>':'')+(ctrl==='syndicate'?'<button class="btn btn-xs btn-dark" onclick="resolveWorldEventOption('+col+','+row+',\'smuggle\')">🕳 Smuggler Bargain</button>':'')+(ctrl==='scholars'?'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'petition\')">📚 Petition Council</button>':'')
+      actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldStateAction('+col+','+row+',\'negotiate\')">🕊 Negotiate (LEAD vs DD8)</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Intel (MIND vs DD6)</button><button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'bribe\')">💰 Bribe (-30₵)</button>'+(ctrl==='rebels'?'<button class="btn btn-xs btn-warn" onclick="resolveWorldEventOption('+col+','+row+',\'backchannel\')">🕸 Backchannel (CONTROL vs DD8)</button>':'')+(ctrl==='guilds'?'<button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'contract\')">📜 Contract (-20₵)</button>':'')+(ctrl==='empire'?'<button class="btn btn-xs btn-red" onclick="resolveWorldEventOption('+col+','+row+',\'resist\')">🛡 Resist Crackdown (STRIKE vs DD8)</button>':'')+(ctrl==='syndicate'?'<button class="btn btn-xs btn-dark" onclick="resolveWorldEventOption('+col+','+row+',\'smuggle\')">🕳 Smuggle (CONTROL vs DD8)</button>':'')+(ctrl==='scholars'?'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'petition\')">📚 Petition (LEAD vs DD8)</button>':'')
     },(rate.weights&&rate.weights.presence)||1);
   }
   if(tags.indexOf('recent-conflict')>=0||tension>=2||control==='rebels'){

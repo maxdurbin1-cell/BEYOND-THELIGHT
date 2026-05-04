@@ -12980,7 +12980,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
 
   function createProvinceDepthsEntranceSegment(hex){
-    return {idx:1,kind:'Entrance Hall',description:(hex.data&&hex.data.entrance)||'A black stair breathes dust and cold air from below.',cleared:true,result:'Camp marked at the dungeon mouth. Press deeper to reveal the next segment.',hidden:false,pendingCombat:false};
+    return {idx:1,kind:'Entrance Hall',description:(hex.data&&hex.data.entrance)||'A black stair breathes dust and cold air from below.',cleared:true,result:'Camp marked at the dungeon mouth. Press deeper to reveal the next segment.',hidden:false,pendingCombat:false,discovered:true};
   }
 
   function getProvinceDepthsState(hex){
@@ -13050,6 +13050,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       result:'',
       hidden:kind==='Hidden Room',
       pendingCombat:false,
+      discovered:false,
       puzzle:kind==='Puzzle Door'?createProvinceRuinPuzzleSpec():null,
       encounterName:kind==='Monster Lair'||kind==='Watch Post'?pick(PROVINCE_DEPTHS_MONSTERS):'',
       encounterCount:kind==='Monster Lair'?Math.max(1,Math.min(4,Math.ceil((floorState.die||4)/6))):kind==='Watch Post'?Math.max(1,Math.min(3,Math.ceil((floorState.die||4)/8))):0
@@ -13093,6 +13094,43 @@ document.addEventListener('DOMContentLoaded',()=>{
     return null;
   }
 
+  function ensureProvinceDepthsFogState(floorState){
+    if(!floorState||!Array.isArray(floorState.segments))return;
+    floorState.segments.forEach(function(segment,idx){
+      if(!segment||typeof segment!=='object')return;
+      if(typeof segment.discovered!=='boolean'){
+        segment.discovered=!!segment.cleared||!!segment.pendingCombat||!!segment.result||idx===0;
+      }
+      if(segment.kind==='Entrance Hall')segment.discovered=true;
+    });
+  }
+
+  function getProvinceDepthsFogInfo(floorState){
+    ensureProvinceDepthsFogState(floorState);
+    const segments=Array.isArray(floorState&&floorState.segments)?floorState.segments:[];
+    const visibleMask={};
+    const frontierMask={};
+    let discoveredCount=0;
+    let frontierCount=0;
+    segments.forEach(function(segment,idx){
+      if(segment&&segment.discovered){
+        visibleMask[idx]=true;
+        discoveredCount+=1;
+      }
+    });
+    segments.forEach(function(segment,idx){
+      if(!segment||segment.discovered)return;
+      const prev=segments[idx-1];
+      const next=segments[idx+1];
+      if((prev&&prev.discovered)||(next&&next.discovered)){
+        visibleMask[idx]=true;
+        frontierMask[idx]=true;
+        frontierCount+=1;
+      }
+    });
+    return {visibleMask:visibleMask,frontierMask:frontierMask,discoveredCount:discoveredCount,frontierCount:frontierCount};
+  }
+
   function getProvinceDepthsSpiralCoord(index){
     const idx=Math.max(1,parseInt(index,10)||1);
     if(idx===1)return {q:0,r:0};
@@ -13116,7 +13154,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     return {q:q,r:r};
   }
 
-  function getProvinceDepthsSegmentVisual(segment,isSelected){
+  function getProvinceDepthsSegmentVisual(segment,isSelected,isFrontier){
+    if(isFrontier){
+      return {
+        fill:isSelected?'rgba(126,215,255,.12)':'rgba(126,215,255,.03)',
+        stroke:isSelected?'rgba(126,215,255,.85)':'rgba(126,215,255,.42)',
+        icon:'?'
+      };
+    }
     let fill='rgba(95,105,118,.3)';
     let stroke='rgba(140,152,168,.5)';
     let icon='·';
@@ -13145,9 +13190,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     return {fill:fill,stroke:stroke,icon:icon};
   }
 
-  function buildProvinceDepthsMiniMap(col,row,floorState){
+  function buildProvinceDepthsMiniMap(col,row,floorState,fogInfo){
     const segments=Array.isArray(floorState&&floorState.segments)?floorState.segments:[];
     if(!segments.length)return '';
+    const fog=fogInfo||getProvinceDepthsFogInfo(floorState);
     const selectedIdx=Math.max(0,Math.min(segments.length-1,parseInt(floorState.selectedIdx,10)||0));
     const spacing=18;
     const size=10;
@@ -13160,13 +13206,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     const links=[];
     for(let i=1;i<placed.length;i++){
       const a=placed[i-1],b=placed[i];
-      links.push('<line x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'" stroke="rgba(126,215,255,.22)" stroke-width="1.2" />');
+      if(!fog.visibleMask[i]||!fog.visibleMask[i-1])continue;
+      const lineStroke=(fog.frontierMask[i]||fog.frontierMask[i-1])?'rgba(126,215,255,.13)':'rgba(126,215,255,.22)';
+      links.push('<line x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'" stroke="'+lineStroke+'" stroke-width="1.2" />');
     }
     const cells=placed.map(function(node){
+      if(!fog.visibleMask[node.idx])return '';
       const segment=node.segment||{};
-      const visual=getProvinceDepthsSegmentVisual(segment,node.idx===selectedIdx);
+      const visual=getProvinceDepthsSegmentVisual(segment,node.idx===selectedIdx,!!fog.frontierMask[node.idx]);
       const points=hexPoints(node.x,node.y,size);
-      const label=(segment.idx||node.idx+1)+' '+(segment.kind||'Segment');
+      const label=fog.frontierMask[node.idx]?('Segment '+(segment.idx||node.idx+1)+' frontier'):(segment.idx||node.idx+1)+' '+(segment.kind||'Segment');
       return '<g style="cursor:pointer;" onclick="selectProvinceDepthsSegment('+col+','+row+','+node.idx+')">'
         +'<polygon points="'+points+'" fill="'+visual.fill+'" stroke="'+visual.stroke+'" stroke-width="1.4"></polygon>'
         +'<text x="'+node.x+'" y="'+(node.y+3)+'" text-anchor="middle" font-size="8.5" fill="var(--text)">'+visual.icon+'</text>'
@@ -13176,11 +13225,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     return '<div style="border:1px solid rgba(126,215,255,.25);background:rgba(9,18,24,.55);padding:.35rem;border-radius:4px;margin-bottom:.5rem;">'
       +'<div style="font-size:.68rem;color:#7ed7ff;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.25rem;">Mapped Crawl (click a node)</div>'
       +'<svg viewBox="0 0 280 165" style="width:100%;height:auto;display:block;">'+links.join('')+cells+'</svg>'
+        +'<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Fog of war: discovered nodes are solid; frontier nodes are faint outlines.</div>'
       +'</div>';
   }
 
   function buildProvinceDepthsSegmentActions(col,row,idx,segment,floorState){
     if(!segment)return '';
+    if(!segment.discovered)return '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceDepthsSegment('+col+','+row+','+idx+')">⚄ Scout Frontier</button></div>';
     if(segment.cleared)return '<div style="font-size:.72rem;color:var(--green2);margin-top:.25rem;">✓ Cleared</div>';
     if(segment.pendingCombat){
       return '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
@@ -13197,6 +13248,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     const segments=Array.isArray(floorState&&floorState.segments)?floorState.segments:[];
     const segment=segments[idx];
     if(!segment)return '';
+    if(!segment.discovered){
+      const frontierAction=buildProvinceDepthsSegmentActions(col,row,idx,segment,floorState);
+      return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid rgba(126,215,255,.5);padding-left:.5rem;">'
+        +'<div class="rb-title" style="color:#7ed7ff;">◌ Segment '+segment.idx+' — Frontier Node</div>'
+        +'<div class="rb-text" style="font-size:.8rem;line-height:1.55;">This node is only partially mapped. Type and hazards remain unknown until you scout it.</div>'
+        +frontierAction
+        +'</div>';
+    }
     const typeColor=segment.kind==='Monster Lair'||segment.kind==='Watch Post'?'var(--red2)':segment.kind==='Puzzle Door'?'var(--teal)':segment.kind==='Loot Vault'||segment.kind==='Hidden Room'?'var(--gold)':segment.kind==='Stairway'?'#7ed7ff':'var(--text2)';
     const icon=segment.kind==='Entrance Hall'?'🚪':segment.kind==='Hall'?'═':segment.kind==='Chamber'?'◻':segment.kind==='Monster Lair'?'👁':segment.kind==='Puzzle Door'?'🧩':segment.kind==='Collapsed Crossing'?'⛰':segment.kind==='Loot Vault'?'💰':segment.kind==='Shrine Niche'?'✦':segment.kind==='Watch Post'?'⚔':segment.kind==='Stairway'?'⇣':'🔍';
     const actionHtml=buildProvinceDepthsSegmentActions(col,row,idx,segment,floorState);
@@ -13463,12 +13522,21 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!state||!floorState)return;
     const floorIndex=state.currentFloor;
     const task=floorState.task||createProvinceDepthsFloorTask();
+    const fogInfo=getProvinceDepthsFogInfo(floorState);
     const canDescend=!!getProvinceDepthsLatestClearedStair(floorState)&&floorIndex<PROVINCE_DEPTHS_FLOOR_DICE.length;
     const canAscend=floorIndex>1;
-    const selectedIdx=Math.max(0,Math.min((floorState.segments||[]).length-1,parseInt(floorState.selectedIdx,10)||((floorState.segments||[]).length-1)));
+    let selectedIdx=Math.max(0,Math.min((floorState.segments||[]).length-1,parseInt(floorState.selectedIdx,10)||((floorState.segments||[]).length-1)));
+    if(!fogInfo.visibleMask[selectedIdx]){
+      const frontierIdx=(floorState.segments||[]).findIndex(function(_segment,idx){ return !!fogInfo.frontierMask[idx]; });
+      if(frontierIdx>=0)selectedIdx=frontierIdx;
+      else{
+        const visibleIdx=(floorState.segments||[]).findIndex(function(_segment,idx){ return !!fogInfo.visibleMask[idx]; });
+        selectedIdx=visibleIdx>=0?visibleIdx:0;
+      }
+    }
     floorState.selectedIdx=selectedIdx;
-    const mappedCount=(floorState.segments||[]).length;
-    const miniMapHtml=buildProvinceDepthsMiniMap(col,row,floorState);
+    const mappedCount=fogInfo.discoveredCount;
+    const miniMapHtml=buildProvinceDepthsMiniMap(col,row,floorState,fogInfo);
     const detailHtml=buildProvinceDepthsSegmentDetail(col,row,selectedIdx,floorState);
     const taskStatus=task.completed
       ? '<span style="color:var(--green2);">Completed</span>'+(task.rewardText?(' · '+task.rewardText):'')
@@ -13481,7 +13549,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       +'</div>';
     const header='<div style="margin-bottom:.5rem;">'
       +'<div style="font-size:.72rem;color:#7ed7ff;margin-bottom:.25rem;">'+(hex.data.entrance||'Buried stair')+'</div>'
-      +'<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.25rem;">Floor '+floorIndex+' · DD'+(floorState.die||4)+' · Deepest reached '+state.deepestFloor+' · Hidden rooms '+state.hiddenRoomsFound+' · Mapped nodes '+mappedCount+'</div>'
+      +'<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.25rem;">Floor '+floorIndex+' · DD'+(floorState.die||4)+' · Deepest reached '+state.deepestFloor+' · Hidden rooms '+state.hiddenRoomsFound+' · Mapped nodes '+mappedCount+' · Frontier '+fogInfo.frontierCount+'</div>'
       +'<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;">'+(hex.data.seal||'Unknown seals')+'</div>'
       +'<div style="padding:.35rem .45rem;border:1px solid rgba(126,215,255,.25);background:rgba(126,215,255,.05);margin-bottom:.45rem;">'
       +'<div style="font-size:.7rem;color:#7ed7ff;text-transform:uppercase;letter-spacing:.08em;">Floor Task</div>'
@@ -13499,7 +13567,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     const state=getProvinceDepthsState(hex);
     const floorState=getProvinceDepthsFloorState(hex,state.currentFloor);
     if(!floorState||!Array.isArray(floorState.segments)||!floorState.segments.length)return;
-    floorState.selectedIdx=Math.max(0,Math.min(floorState.segments.length-1,parseInt(idx,10)||0));
+    const fogInfo=getProvinceDepthsFogInfo(floorState);
+    const safeIdx=Math.max(0,Math.min(floorState.segments.length-1,parseInt(idx,10)||0));
+    if(!fogInfo.visibleMask[safeIdx])return;
+    floorState.selectedIdx=safeIdx;
     openProvinceDepthsPopup(col,row);
   };
 
@@ -13551,6 +13622,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     const floorState=getProvinceDepthsFloorState(hex,state.currentFloor);
     if(!floorState||!Array.isArray(floorState.segments)||!floorState.segments[idx])return;
     const segment=floorState.segments[idx];
+    segment.discovered=true;
+    floorState.selectedIdx=idx;
     if(segment.cleared)return;
     if(segment.kind==='Puzzle Door'){
       if(typeof openStandaloneStoryPuzzle!=='function'){

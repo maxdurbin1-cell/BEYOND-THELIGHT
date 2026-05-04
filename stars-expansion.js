@@ -1004,6 +1004,8 @@ function ensureSolarCycleState() {
   if (typeof sc.questScheduler.questCounter !== 'number') sc.questScheduler.questCounter = 0;
   if (!sc.questScheduler.wtwQuestByHex || typeof sc.questScheduler.wtwQuestByHex !== 'object') sc.questScheduler.wtwQuestByHex = {};
   if (!sc.questScheduler.questActionStats || typeof sc.questScheduler.questActionStats !== 'object') sc.questScheduler.questActionStats = {};
+  if (!sc.questScheduler.approachStats || typeof sc.questScheduler.approachStats !== 'object') sc.questScheduler.approachStats = { investigate: 0, fracture: 0, misled: 0, portal: 0 };
+  if (!sc.questScheduler.npcVectors || typeof sc.questScheduler.npcVectors !== 'object') sc.questScheduler.npcVectors = {};
   if (!sc.questScheduler.regionPostedCount || typeof sc.questScheduler.regionPostedCount !== 'object') sc.questScheduler.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
   if (typeof sc.questScheduler.lastSpawnDay !== 'number') sc.questScheduler.lastSpawnDay = -1;
   if (typeof sc.questScheduler.lastFailureBranchDay !== 'number') sc.questScheduler.lastFailureBranchDay = -1;
@@ -3322,6 +3324,111 @@ function getSolarCycleInvestigationDialogueLine(quest) {
   return line;
 }
 
+function getSolarCycleNpcVectorEntry(sc, quest) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  if (!qs) return null;
+  qs.npcVectors = qs.npcVectors || {};
+  var q = quest || {};
+  var npc = String(q.npcName || 'Unknown Witness');
+  var region = String(q.region || 'province');
+  var key = npc + '|' + region;
+  if (!qs.npcVectors[key] || typeof qs.npcVectors[key] !== 'object') {
+    var seedText = key + '|' + String(q.arc || '') + '|' + String(q.id || '');
+    var seed = Math.abs(seedText.split('').reduce(function (sum, ch) { return sum + ch.charCodeAt(0); }, 0));
+    qs.npcVectors[key] = {
+      key: key,
+      npcName: npc,
+      region: region,
+      affinity: 0,
+      trust: 0,
+      convictions: {
+        order: ((seed % 5) - 2),
+        mercy: (((seed + 7) % 5) - 2),
+        truth: (((seed + 13) % 5) - 2)
+      },
+      allyThreshold: 3 + (seed % 2),
+      betrayalThreshold: -3 - ((seed + 1) % 2),
+      betrayals: 0,
+      alliances: 0,
+      lastApproach: '',
+      lastOutcome: ''
+    };
+  }
+  return qs.npcVectors[key];
+}
+
+function getSolarCyclePlayerConvictionVector(sc) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  var stats = qs && qs.approachStats ? qs.approachStats : {};
+  var investigate = Number(stats.investigate || 0);
+  var fracture = Number(stats.fracture || 0);
+  var misled = Number(stats.misled || 0);
+  var portal = Number(stats.portal || 0);
+  var clamp = function (n) { return Math.max(-4, Math.min(4, Number(n || 0))); };
+  return {
+    order: clamp(fracture + portal - misled),
+    mercy: clamp(investigate - fracture),
+    truth: clamp(investigate + portal - (misled * 2))
+  };
+}
+
+function evaluateSolarCycleNpcStance(sc, quest, approach) {
+  var state = sc || ensureSolarCycleState();
+  var vec = getSolarCycleNpcVectorEntry(state, quest);
+  if (!vec) return { compatibility: 0, betrayalRisk: 0.2, allyPotential: false, trustLabel: 'Unknown' };
+  var player = getSolarCyclePlayerConvictionVector(state);
+  var deltaOrder = Math.abs(Number(player.order || 0) - Number(vec.convictions.order || 0));
+  var deltaMercy = Math.abs(Number(player.mercy || 0) - Number(vec.convictions.mercy || 0));
+  var deltaTruth = Math.abs(Number(player.truth || 0) - Number(vec.convictions.truth || 0));
+  var compatibility = 6 - (deltaOrder + deltaMercy + deltaTruth) + Math.floor((Number(vec.affinity || 0) + Number(vec.trust || 0)) / 2);
+  var cf = ensureConsequenceFabricState();
+  var factionHeat = cf && cf.tensions ? Number(cf.tensions.factionHeat || 0) : 0;
+  var corruption = cf && cf.tensions ? Number(cf.tensions.corruption || 0) : 0;
+  var approachPenalty = String(approach || '') === 'misled' ? 1 : 0;
+  var rawRisk = 0.2 + ((factionHeat + corruption) * 0.04) + (compatibility <= 0 ? Math.abs(compatibility) * 0.08 : -Math.min(0.12, compatibility * 0.03)) + approachPenalty * 0.14;
+  var betrayalRisk = Math.max(0.05, Math.min(0.9, rawRisk));
+  var allyPotential = Number(vec.affinity || 0) >= Number(vec.allyThreshold || 3) || compatibility >= 4;
+  var betrayalPotential = Number(vec.affinity || 0) <= Number(vec.betrayalThreshold || -3) || compatibility <= -3;
+  var trustLabel = allyPotential ? 'Ally-leaning' : (betrayalPotential ? 'Betrayal-leaning' : 'Uncertain');
+  return {
+    vector: vec,
+    compatibility: compatibility,
+    betrayalRisk: betrayalRisk,
+    allyPotential: allyPotential,
+    betrayalPotential: betrayalPotential,
+    trustLabel: trustLabel
+  };
+}
+
+function applySolarCycleNpcVectorOutcome(sc, quest, approach, misled, forcedMisled, stance) {
+  var state = sc || ensureSolarCycleState();
+  var vec = (stance && stance.vector) ? stance.vector : getSolarCycleNpcVectorEntry(state, quest);
+  if (!vec) return;
+  var ap = String(approach || 'investigate');
+  var deltaAffinity = misled ? -1 : 1;
+  var deltaTrust = misled ? -1 : 1;
+  if (ap === 'misled' && !misled) deltaTrust -= 1;
+  if (ap === 'fracture' && misled) deltaAffinity -= 1;
+  if (forcedMisled) {
+    deltaAffinity -= 1;
+    deltaTrust -= 1;
+  }
+  vec.affinity = Math.max(-8, Math.min(8, Number(vec.affinity || 0) + deltaAffinity));
+  vec.trust = Math.max(-8, Math.min(8, Number(vec.trust || 0) + deltaTrust));
+  if (!misled && Number(vec.affinity || 0) >= 2) {
+    vec.allyThreshold = Math.max(2, Number(vec.allyThreshold || 3) - 1);
+    vec.alliances = Number(vec.alliances || 0) + 1;
+  }
+  if (misled && Number(vec.affinity || 0) <= -2) {
+    vec.betrayalThreshold = Math.min(-1, Number(vec.betrayalThreshold || -3) + 1);
+    vec.betrayals = Number(vec.betrayals || 0) + 1;
+  }
+  vec.lastApproach = ap;
+  vec.lastOutcome = misled ? (forcedMisled ? 'failed' : 'contested') : 'success';
+}
+
 function getSolarCycleOutcomeDialogueLine(quest, failed) {
   var q = quest || {};
   var npc = String(q.npcName || 'Contact');
@@ -3516,7 +3623,9 @@ function getSolarCycleQuestScheduler(sc) {
   if (typeof qs.questCounter !== 'number') qs.questCounter = 0;
   if (!qs.wtwQuestByHex || typeof qs.wtwQuestByHex !== 'object') qs.wtwQuestByHex = {};
   if (!qs.questActionStats || typeof qs.questActionStats !== 'object') qs.questActionStats = {};
+  if (!qs.approachStats || typeof qs.approachStats !== 'object') qs.approachStats = { investigate: 0, fracture: 0, misled: 0, portal: 0 };
   if (!qs.npcMemory || typeof qs.npcMemory !== 'object') qs.npcMemory = {};
+  if (!qs.npcVectors || typeof qs.npcVectors !== 'object') qs.npcVectors = {};
   if (typeof qs.trackedThreadRootId !== 'string') qs.trackedThreadRootId = '';
   if (typeof qs.trackedQuestId !== 'string') qs.trackedQuestId = '';
   if (typeof qs.trackedRegion !== 'string') qs.trackedRegion = '';
@@ -4116,10 +4225,16 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   var rollDread = Math.max(6, Number((quest.region === 'galaxy' ? 12 : (quest.region === 'wtw' ? 10 : 8)) + Math.min(4, Number(sc.worldTilt || 0))));
   var rollResult = rollSolarCycleContest(rollStat, rollDread);
   var forcedMisled = !rollResult.success;
+  var approachKey = String(quest.resolvedApproach || 'investigate');
+  qs.approachStats = qs.approachStats || { investigate: 0, fracture: 0, misled: 0, portal: 0 };
+  if (qs.approachStats[approachKey] === undefined) qs.approachStats[approachKey] = 0;
+  qs.approachStats[approachKey] = Number(qs.approachStats[approachKey] || 0) + 1;
+  var npcStance = evaluateSolarCycleNpcStance(sc, quest, approachKey);
   clearSolarCycleSchedulerQuestMarker(quest);
   qs.activeQuestIds = qs.activeQuestIds.filter(function (id) { return id !== quest.id; });
   qs.completedByRegion[quest.region] = Number(qs.completedByRegion[quest.region] || 0) + 1;
-  var misled = String(quest.resolvedApproach || '') === 'misled' || forcedMisled;
+  // Quest success/failure is roll-driven: Action total must meet or beat Dread total.
+  var misled = forcedMisled;
   qs.methodSignals[quest.methodId] = Number(qs.methodSignals[quest.methodId] || 0) + 1;
   qs.clueLedger.push({
     id: quest.id,
@@ -4149,9 +4264,18 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     sc.prophecyTrack.push('Quest clue [' + quest.methodTitle + ']: ' + quest.clueText);
   }
   recordSolarCycleNpcOutcome(sc, quest, misled ? (forcedMisled ? 'failed' : 'contested') : 'success');
+  applySolarCycleNpcVectorOutcome(sc, quest, approachKey, misled, forcedMisled, npcStance);
   var outcomeDeltas = misled
     ? { stability: -1, corruption: 1, rumor: 1, witness: -1, factionHeat: 1 }
     : { stability: 1, corruption: -1, rumor: -1, witness: 1, factionHeat: -1 };
+  if (npcStance && npcStance.allyPotential && !misled) {
+    outcomeDeltas.witness = Number(outcomeDeltas.witness || 0) + 1;
+    outcomeDeltas.stability = Number(outcomeDeltas.stability || 0) + 1;
+  }
+  if (npcStance && npcStance.betrayalPotential && misled) {
+    outcomeDeltas.factionHeat = Number(outcomeDeltas.factionHeat || 0) + 1;
+    outcomeDeltas.corruption = Number(outcomeDeltas.corruption || 0) + 1;
+  }
   if (forcedMisled) outcomeDeltas.corruption = Number(outcomeDeltas.corruption || 0) + 1;
   recordWorldConsequence({
     system: 'newsun',
@@ -4234,6 +4358,19 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var memoryLine = String(quest.memoryCallbackLine || '');
   var actionLine = getSolarCycleInvestigationActionLine(quest);
   var dialogueLine = getSolarCycleInvestigationDialogueLine(quest);
+  var stance = evaluateSolarCycleNpcStance(ensureSolarCycleState(), quest, '');
+  var vec = stance && stance.vector ? stance.vector : null;
+  var trustSummary = vec
+    ? ('Affinity ' + Number(vec.affinity || 0) + ' | Trust ' + Number(vec.trust || 0)
+      + ' | Convictions O/M/T ' + Number(vec.convictions.order || 0) + '/' + Number(vec.convictions.mercy || 0) + '/' + Number(vec.convictions.truth || 0)
+      + ' | Stance: ' + String(stance.trustLabel || 'Uncertain'))
+    : 'No conviction profile yet.';
+  var riskyTestimonyLabel = (stance && stance.betrayalRisk >= 0.65)
+    ? 'Follow Suspect Testimony (HIGH betrayal risk)'
+    : 'Follow Suspect Testimony';
+  var investigateLabel = (stance && stance.allyPotential)
+    ? 'Investigate Route (Trusted Contact)'
+    : 'Investigate Route';
   var statButtons = SOLAR_CYCLE_ACTION_STATS.map(function (stat) {
     var on = chosenStat === stat;
     return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.setSolarCycleQuestActionStat(\'' + String(quest.id) + '\',\'' + String(stat) + '\')">' + String(stat).toUpperCase() + '</button>';
@@ -4250,12 +4387,13 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     + '<div style="font-size:.74rem;color:var(--red2);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(quest.stakesText || '100 days remain. Your decision can change how the world ends.') + '</div>'
     + '<div style="font-size:.76rem;color:var(--teal);line-height:1.55;margin-bottom:.5rem;">Clue: ' + escapeSolarCycleHtml(quest.clueText) + '</div>'
     + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.45rem;">Every choice rolls one Wayfarer Action Die against a Dread Die. Failure can open a darker branch.</div>'
+    + '<div style="font-size:.72rem;color:' + ((stance && stance.betrayalPotential) ? 'var(--red2)' : 'var(--muted2)') + ';line-height:1.5;margin-bottom:.3rem;">NPC Conviction Vector: ' + escapeSolarCycleHtml(trustSummary) + '</div>'
     + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.28rem;">Challenge Type: <strong>' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toUpperCase()) + '</strong> | Selected Action Die: <strong id="nsq-stat-current">' + escapeSolarCycleHtml(String(chosenStat).toUpperCase()) + '</strong></div>'
     + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.45rem;">' + statButtons + '</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
-    + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'investigate\');">Investigate Route</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'investigate\');">' + escapeSolarCycleHtml(investigateLabel) + '</button>'
     + '<button class="btn btn-sm btn-warn" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'fracture\');">Investigate via Time Fracture</button>'
-    + '<button class="btn btn-sm" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'misled\');">Follow Suspect Testimony</button>'
+    + '<button class="btn btn-sm ' + ((stance && stance.betrayalRisk >= 0.65) ? 'btn-red' : '') + '" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'misled\');">' + escapeSolarCycleHtml(riskyTestimonyLabel) + '</button>'
     + (quest.portalHandoff && quest.region === 'sea' ? '<button class="btn btn-sm" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'portal\');">Open Lost City Portal Chain</button>' : '')
     + '</div>'
   );

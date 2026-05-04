@@ -506,7 +506,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'dust_wizard',
     characterType: 'Wizard',
     name: 'Erasmus the Flicker',
-    spawnDay: [18, 55], spawnPhases: [1, 2], loreReward: 'Codex: Prophecy Fragments (Bound)',
+    spawnDay: [18, 55], spawnPhases: [1, 2], loreReward: 'Codex: Prophecy Fragments (Bound)', contentType: 'lore',
     intro: 'A dust-wizard sits cross-legged atop a crumbling waypost, etching equations in the air with a burning fingertip.',
     fateHint: 'Those who helped him carry a strange calm in the final hour.',
     beats: [
@@ -555,7 +555,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'sea_priest',
     characterType: 'Priest',
     name: 'Father Rook of the Drowned Choir',
-    spawnDay: [42, 75], spawnPhases: [0, 3], loreReward: 'Codex: The Sea Accord',
+    spawnDay: [42, 75], spawnPhases: [0, 3], loreReward: 'Codex: The Sea Accord', contentType: 'lore',
     intro: 'A waterlogged priest stands at the sea wall, reading last rites to the waves as if the tide can be forgiven.',
     fateHint: 'Wayfarers who showed him mercy found the sea parted once when they needed it most.',
     beats: [
@@ -604,7 +604,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'android_courier',
     characterType: 'Android',
     name: 'CERIS/7 (Decommissioned Relay Unit)',
-    spawnDay: [30, 70], spawnPhases: [0, 1, 2, 3], loreReward: 'Codex: Galaxy Relay Intercept',
+    spawnDay: [30, 70], spawnPhases: [0, 1, 2, 3], loreReward: 'Codex: Galaxy Relay Intercept', contentType: 'lore',
     intro: 'A bipedal android stands frozen at a crossroads, indicator cycling amber. A relay unit delivering messages to destinations that no longer exist.',
     fateHint: 'CERIS/7 appears in some prophecy records delivering a message to "the one who arrives last."',
     beats: [
@@ -653,7 +653,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'cult_of_ash',
     characterType: 'Cult',
     name: 'The Ash Circle (Day-Eaters)',
-    spawnDay: [50, 89], spawnPhases: [3], loreReward: 'Codex: Herald\'s Open Letter',
+    spawnDay: [50, 89], spawnPhases: [3], loreReward: 'Codex: Herald\'s Open Letter', contentType: 'faction',
     intro: 'A ring of robed figures chants around a pyre of sun-symbols. They believe extinguishing the New Sun is the only salvation.',
     fateHint: 'Those who dismantled the Ash Circle early find fewer obstacles in the final days.',
     beats: [
@@ -702,7 +702,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'giant_ferryman',
     characterType: 'Giant',
     name: 'Olonn the Bridge-Warden',
-    spawnDay: [15, 60], spawnPhases: [0, 1], loreReward: 'Codex: Loop Witness Transcripts',
+    spawnDay: [15, 60], spawnPhases: [0, 1], loreReward: 'Codex: Loop Witness Transcripts', contentType: 'faction',
     intro: 'A three-meter figure sits on a bridge, toll-book in hand, refusing passage until the "sun debt" is paid.',
     fateHint: 'Wayfarers who negotiated with Olonn found key routes still open when all others were cut.',
     beats: [
@@ -751,7 +751,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'mystic_cartographer',
     characterType: 'Mystic',
     name: 'Ysolde the Chart-Speaker',
-    spawnDay: [25, 65], spawnPhases: [2, 3], loreReward: 'Codex: The Lighthouse at Day Zero',
+    spawnDay: [25, 65], spawnPhases: [2, 3], loreReward: 'Codex: The Lighthouse at Day Zero', contentType: 'lore',
     intro: 'A cloaked mystic traces glowing lines across a blank map that reveal themselves as you approach — recording the world\'s final topography by feel.',
     fateHint: 'Ysolde\'s charts appeared in survivors\' hands decades later, already showing where the New Sun rose.',
     beats: [
@@ -1835,6 +1835,8 @@ function ensureSolarCycleState() {
   if (typeof sc.finale.key !== 'string') sc.finale.key = '';
   if (typeof sc.finale.text !== 'string') sc.finale.text = '';
   if (!Array.isArray(sc.thresholdNotifs)) sc.thresholdNotifs = [];
+  if (typeof sc.sideStoryLastSpawnDay !== 'number') sc.sideStoryLastSpawnDay = -1;
+  if (typeof sc.sideStoryPressureMemory !== 'number') sc.sideStoryPressureMemory = 0;
   if (typeof sc.currentOmen !== 'string') sc.currentOmen = '';
   if (!sc.pendingEchoMarker || typeof sc.pendingEchoMarker !== 'object') sc.pendingEchoMarker = null;
   if (!sc.questScheduler || typeof sc.questScheduler !== 'object') sc.questScheduler = {};
@@ -3926,10 +3928,39 @@ function getSolarCycleMarkerResolutionCopy(approach, success, sc, markerToken, f
   return pack.interveneFail;
 }
 
-function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
+function completeSolarCycleMarkerInteraction(hex, markerToken, approach, manualOutcome) {
   ensureStarsState();
   var sc = ensureSolarCycleState();
   if (!sc || !sc.storyModeEnabled || !sc.enabled) return false;
+
+  var profile = getSolarCycleMarkerRollProfile(approach, sc, markerToken);
+  if (String(approach || '') !== 'ignore' && isSolarCycleManualRollMode() && (!manualOutcome || typeof manualOutcome.success !== 'boolean')) {
+    window._solarCycleManualContext = {
+      kind: 'marker',
+      hex: hex,
+      markerToken: markerToken,
+      approach: String(approach || 'observe'),
+      stat: String(profile.stat || 'spirit'),
+      dreadDie: Number(profile.dreadDie || 6)
+    };
+    if (typeof openModal === 'function') {
+      openModal(
+        'Manual Roll - Solar Omen',
+        '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
+        + '<div style="margin-bottom:.35rem;">Roll your physical dice, then mark the outcome.</div>'
+        + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.4rem;">'
+        + 'Action Die: <strong>' + escapeSolarCycleHtml(String(profile.stat || 'spirit').toUpperCase()) + ' d' + Number(getSolarCycleActionDie(profile.stat)) + '</strong>'
+        + ' vs Dread <strong>d' + Number(profile.dreadDie || 6) + '</strong>'
+        + '</div>'
+        + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-sm btn-primary" onclick="window.resolveSolarCycleManualDecision(true)">Success</button>'
+        + '<button class="btn btn-sm btn-red" onclick="window.resolveSolarCycleManualDecision(false)">Failure</button>'
+        + '</div>'
+        + '</div>'
+      );
+    }
+    return true;
+  }
 
   var key = hex ? (String(hex.col) + ',' + String(hex.row)) : '';
   if (key && S.missionTokens && S.missionTokens[key] && S.missionTokens[key].missionId === 'solar_cycle') {
@@ -3948,8 +3979,9 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
   else if (approach === 'intervene') sc.playstyle.intervene = Number(sc.playstyle.intervene || 0) + 1;
   else sc.playstyle.ignore = Number(sc.playstyle.ignore || 0) + 1;
 
-  var profile = getSolarCycleMarkerRollProfile(approach, sc, markerToken);
-  var contest = rollSolarCycleContest(profile.stat, profile.dreadDie);
+  var contest = (manualOutcome && typeof manualOutcome.success === 'boolean')
+    ? buildSolarCycleManualContest(profile.stat, profile.dreadDie, !!manualOutcome.success)
+    : rollSolarCycleContest(profile.stat, profile.dreadDie);
   var tier = String((markerToken && markerToken.solarTier) || sc.currentTier || 'early');
   var failureBranch = null;
 
@@ -4000,8 +4032,10 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
       + '<div style="margin-bottom:.3rem;">' + escapeSolarCycleHtml(resolutionCopy.title) + '</div>'
       + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;">' + escapeSolarCycleHtml(resolutionCopy.detail) + '</div>'
       + '<div style="font-size:.74rem;color:' + (contest.success ? 'var(--green2)' : 'var(--red2)') + ';margin-bottom:.35rem;">'
-      + String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.actionRoll)
-      + ' vs Dread d' + Number(contest.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.dreadRoll)
+      + (contest.manual
+        ? ('Manual result: <strong>' + (contest.success ? 'SUCCESS' : 'FAILURE') + '</strong> (' + String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' vs Dread d' + Number(contest.dreadDie || 4) + ')')
+        : (String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.actionRoll)
+          + ' vs Dread d' + Number(contest.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.dreadRoll)))
       + '</div>'
       + (failureBranch ? ('<div style="font-size:.74rem;color:var(--gold2);">New branch unlocked: ' + escapeSolarCycleHtml(failureBranch.title || 'Fracture Branch') + '.</div>') : '')
       + '</div>'
@@ -4018,6 +4052,20 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
   return true;
 }
 
+function resolveSolarCycleManualDecision(success) {
+  var ctx = window._solarCycleManualContext || null;
+  if (!ctx) return false;
+  window._solarCycleManualContext = null;
+  if (typeof closeModal === 'function') closeModal();
+  if (ctx.kind === 'marker') {
+    return !!completeSolarCycleMarkerInteraction(ctx.hex, ctx.markerToken, ctx.approach, { success: !!success, manual: true });
+  }
+  if (ctx.kind === 'quest') {
+    return !!resolveSolarCycleSchedulerQuest(ctx.questId, ctx.approach, ctx.actionStat, { success: !!success, manual: true });
+  }
+  return false;
+}
+
 function resolveSolarCycleProvinceMarker(hex, markerToken) {
   ensureStarsState();
   var sc = ensureSolarCycleState();
@@ -4025,10 +4073,13 @@ function resolveSolarCycleProvinceMarker(hex, markerToken) {
   if (!markerToken || markerToken.missionId !== 'solar_cycle') return false;
 
   var text = String(markerToken.text || sc.currentOmen || 'An omen waits for interpretation.');
+  var omenRollLine = isSolarCycleManualRollMode()
+    ? 'Choose how to interpret this marker. You will roll physical dice, then mark Success or Failure.'
+    : 'Choose how to interpret this marker. Your Action Die will roll against Dread. Failure can open a new branch.';
   var html = ''
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;margin-bottom:.45rem;">'
     + '<strong style="color:var(--gold2);">Solar Omen</strong><br>' + text + '</div>'
-    + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.45rem;">Choose how to interpret this marker. Your Action Die will roll against Dread. Failure can open a new branch.</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.45rem;">' + escapeSolarCycleHtml(omenRollLine) + '</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
     + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleMarkerChoice(\'observe\')">Observe</button>'
     + '<button class="btn btn-sm btn-warn" onclick="window.resolveSolarCycleMarkerChoice(\'intervene\')">Intervene</button>'
@@ -4372,6 +4423,7 @@ function progressSolarCycleDay(days) {
   syncSolarCycleArcProgressFromCompleted(false);
   expireSolarCycleActiveStageMarkerIfNeeded(sc);
   syncSolarCycleQuestScheduler(false);
+  maybeEnsureSolarCycleSideStoryLoop(sc);
   if (!sc.arcProgress.activeMarker && Number(sc.arcProgress.stageIndex || 0) < NEW_SUN_ARC_STAGES.length && !getPendingSolarCycleBranch(sc)) {
     postNextSolarCycleArcMission();
   }
@@ -4732,6 +4784,26 @@ function getSolarCycleActionDie(stat) {
     : Number((S && S.stats && S.stats[key]) || 4);
   if (!Number.isFinite(die)) return 4;
   return Math.max(4, die);
+}
+
+function isSolarCycleManualRollMode() {
+  if (!window.settingsSystem || typeof window.settingsSystem.isManualRollMode !== 'function') return false;
+  return !!window.settingsSystem.isManualRollMode();
+}
+
+function buildSolarCycleManualContest(stat, dreadDie, success) {
+  var die = getSolarCycleActionDie(stat);
+  var dd = snapToValidDreadDie(dreadDie);
+  var actionTotal = success ? (dd + 1) : Math.max(0, dd - 1);
+  return {
+    stat: stat,
+    actionDie: die,
+    dreadDie: dd,
+    actionRoll: { total: actionTotal, exploded: false, manual: true },
+    dreadRoll: { total: dd, exploded: false, manual: true },
+    success: !!success,
+    manual: true
+  };
 }
 
 function getSolarCycleRollTotal(rollObj) {
@@ -6359,6 +6431,7 @@ function openSolarCyclePuzzleChallenge(quest, misled) {
 function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
   if (!quest) return;
   var type = String(quest.challengeType || 'social');
+  var manualMode = !!(rollResult && rollResult.manual);
   if (type === 'combat') {
     if (typeof clearEnemies === 'function') clearEnemies();
     if (typeof addEnemy === 'function') addEnemy('New Sun Enforcer', Math.max(6, Number(rollResult && rollResult.dreadDie || 8)));
@@ -6375,7 +6448,9 @@ function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
   } else if (type === 'puzzle') {
     openSolarCyclePuzzleChallenge(quest, misled);
   } else if (type === 'stealth') {
-    var stealthRoll = rollSolarCycleContest('agility', Math.max(6, Number(rollResult && rollResult.dreadDie || 8)));
+    var stealthRoll = manualMode
+      ? { success: !misled }
+      : rollSolarCycleContest('agility', Math.max(6, Number(rollResult && rollResult.dreadDie || 8)));
     if (misled || !stealthRoll.success) {
       if (typeof changeCounter === 'function') changeCounter('credits', -30);
       if (typeof changeMentalStress === 'function') changeMentalStress(1);
@@ -6383,7 +6458,9 @@ function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
       changeCounter('credits', 40);
     }
   } else {
-    var socialRoll = rollSolarCycleContest('lead', Math.max(6, Number(rollResult && rollResult.dreadDie || 8)));
+    var socialRoll = manualMode
+      ? { success: !misled }
+      : rollSolarCycleContest('lead', Math.max(6, Number(rollResult && rollResult.dreadDie || 8)));
     if (misled || !socialRoll.success) {
       if (typeof changeCounter === 'function') changeCounter('renown', -1);
     } else if (typeof changeCounter === 'function') {
@@ -6412,7 +6489,7 @@ function getSolarCycleSchedulerQuestById(questId) {
   return qs.questById[String(questId || '')] || null;
 }
 
-function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
+function resolveSolarCycleSchedulerQuest(questId, approach, actionStat, manualOutcome) {
   var sc = ensureSolarCycleState();
   var qs = getSolarCycleQuestScheduler(sc);
   var quest = qs ? qs.questById[String(questId || '')] : null;
@@ -6448,11 +6525,6 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     return false;
   }
 
-  if (typeof closeModal === 'function') closeModal();
-
-  quest.resolved = true;
-  quest.resolvedApproach = requestedApproach;
-  quest.resolvedDay = Number(sc.daysElapsed || 0);
   var statByApproach = {
     investigate: 'mind',
     fracture: 'control',
@@ -6460,10 +6532,46 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     portal: 'lead'
   };
   var selectedStat = normalizeSolarCycleActionStat(actionStat || getSolarCycleQuestActionStat(quest.id));
-  var rollStat = selectedStat || (statByApproach[String(quest.resolvedApproach || 'investigate')] || 'mind');
+  var rollStat = selectedStat || (statByApproach[requestedApproach] || 'mind');
   var challengeType = String(quest.challengeType || 'social').toLowerCase();
   var socialStyle = getSolarCycleSocialStyleProfile(challengeType, rollStat);
   var rollDread = snapToValidDreadDie(((quest.region === 'galaxy' || quest.region === 'planet') ? 12 : (quest.region === 'wtw' ? 10 : 8)) + Math.min(4, Number(sc.worldTilt || 0)));
+
+  if (!fractureAttempt && isSolarCycleManualRollMode() && (!manualOutcome || typeof manualOutcome.success !== 'boolean')) {
+    window._solarCycleManualContext = {
+      kind: 'quest',
+      questId: String(quest.id || ''),
+      approach: requestedApproach,
+      actionStat: rollStat,
+      dreadDie: rollDread,
+      actionDie: getSolarCycleActionDie(rollStat)
+    };
+    if (typeof openModal === 'function') {
+      openModal(
+        'Manual Roll - New Sun Quest',
+        '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
+        + '<div style="margin-bottom:.3rem;">' + escapeSolarCycleHtml(String(quest.title || 'New Sun Investigation')) + '</div>'
+        + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.4rem;">'
+        + 'Action Die: <strong>' + escapeSolarCycleHtml(String(rollStat || 'mind').toUpperCase()) + ' d' + Number(getSolarCycleActionDie(rollStat)) + '</strong>'
+        + ' vs Dread <strong>d' + Number(rollDread) + '</strong>'
+        + '</div>'
+        + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.4rem;">Roll physically, then mark the result.</div>'
+        + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-sm btn-primary" onclick="window.resolveSolarCycleManualDecision(true)">Success</button>'
+        + '<button class="btn btn-sm btn-red" onclick="window.resolveSolarCycleManualDecision(false)">Failure</button>'
+        + '</div>'
+        + '</div>'
+      );
+    }
+    return true;
+  }
+
+  if (typeof closeModal === 'function') closeModal();
+
+  quest.resolved = true;
+  quest.resolvedApproach = requestedApproach;
+  quest.resolvedDay = Number(sc.daysElapsed || 0);
+
   var rollResult = null;
   if (fractureAttempt) {
     var autoDie = getSolarCycleActionDie(rollStat);
@@ -6481,6 +6589,8 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
       autoFracture: true
     };
     sc.prophecyTrack.push('Time Fracture forced success on quest [' + String(quest.methodTitle || quest.title || 'Unknown route') + '].');
+  } else if (manualOutcome && typeof manualOutcome.success === 'boolean') {
+    rollResult = buildSolarCycleManualContest(rollStat, rollDread, !!manualOutcome.success);
   } else {
     rollResult = rollSolarCycleContest(rollStat, rollDread);
   }
@@ -6582,7 +6692,9 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   if (typeof showNotif === 'function') {
     showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + (rollResult.autoFracture
       ? ' (Time Fracture auto-success, 1 charge spent)'
-      : (' (' + String(rollResult.stat).toUpperCase() + ' ' + getSolarCycleRollTotal(rollResult.actionRoll) + ' vs Dread ' + getSolarCycleRollTotal(rollResult.dreadRoll) + ')' + getSolarCycleRollPenaltyNote(rollResult.actionRoll))) + (socialStyle ? (' | ' + socialStyle.label) : '') + (tensionReward ? (' | Pressure payout ' + (misled ? Math.floor(tensionReward / 3) : tensionReward) + '₵') : '') + '.', misled ? 'warn' : 'good');
+      : (rollResult.manual
+        ? (' (Manual ' + (rollResult.success ? 'SUCCESS' : 'FAILURE') + ': ' + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ')')
+        : (' (' + String(rollResult.stat).toUpperCase() + ' ' + getSolarCycleRollTotal(rollResult.actionRoll) + ' vs Dread ' + getSolarCycleRollTotal(rollResult.dreadRoll) + ')' + getSolarCycleRollPenaltyNote(rollResult.actionRoll)))) + (socialStyle ? (' | ' + socialStyle.label) : '') + (tensionReward ? (' | Pressure payout ' + (misled ? Math.floor(tensionReward / 3) : tensionReward) + '₵') : '') + '.', misled ? 'warn' : 'good');
   }
   var _isPuzzleChallenge = String(quest.challengeType || '') === 'puzzle';
   applySolarCycleQuestChallengeOutcome(quest, rollResult, misled);
@@ -6670,8 +6782,10 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
       + '<div style="font-size:.74rem;color:' + (misled ? 'var(--red2)' : 'var(--green2)') + ';margin-bottom:.35rem;">'
       + (rollResult.autoFracture
         ? ('TIME FRACTURE spent 1 charge for automatic success. Paradox strain increased.')
-        : (String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.actionRoll)
-          + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.dreadRoll)))
+        : (rollResult.manual
+          ? ('Manual result: <strong>' + (rollResult.success ? 'SUCCESS' : 'FAILURE') + '</strong> (' + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ')')
+          : (String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.actionRoll)
+            + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.dreadRoll))))
       + '</div>'
       + '<div style="font-size:.75rem;color:var(--gold2);line-height:1.55;margin-bottom:.3rem;">' + nextHint + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(actionLine) + '</div>'
@@ -6759,6 +6873,10 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
       : (quest.volatileLead
         ? (quest.deceptive ? 'Story pressure: this lead may be bait.' : 'Story pressure: this opening will not stay stable long.')
         : (status.crowned ? 'Story pressure: crown-route momentum is making every witness more political.' : (status.timeTouched ? 'Story pressure: paradox residue is changing how witnesses read you.' : 'Story pressure: contacts are adjusting to how you have handled the last days.'))));
+  var manualMode = isSolarCycleManualRollMode();
+  var rollInstruction = manualMode
+    ? 'Manual Roll Mode: each resolution prompts Success or Failure after you roll your physical Action Die against Dread. Time Fracture still auto-succeeds and spends 1 charge.'
+    : 'Investigate and Suspect Testimony roll your selected die vs Dread. Time Fracture spends 1 charge for automatic success and adds paradox strain.';
   var statButtons = SOLAR_CYCLE_ACTION_STATS.map(function (stat) {
     var on = chosenStat === stat;
     return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.setSolarCycleQuestActionStat(\'' + String(quest.id) + '\',\'' + String(stat) + '\')">' + String(stat).toUpperCase() + '</button>';
@@ -6778,7 +6896,7 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
       ? ('<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.45rem;border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.08);padding:.4rem .45rem;"><strong>Mirror Encounter Active:</strong> ' + escapeSolarCycleHtml(mirrorEncounter.intro) + ' <span style="color:var(--teal);">A pre-echo version of ' + escapeSolarCycleHtml(mirrorEncounter.echoName || quest.npcName || 'this witness') + ' is waiting inside the fracture route.</span></div>')
       : '')
     + '<div style="font-size:.72rem;color:var(--gold2);line-height:1.5;margin-bottom:.28rem;">' + escapeSolarCycleHtml(routePressure) + '</div>'
-    + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.35rem;">Investigate and Suspect Testimony roll your selected die vs Dread. Time Fracture spends 1 charge for automatic success and adds paradox strain.</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.35rem;">' + escapeSolarCycleHtml(rollInstruction) + '</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.35rem;margin-bottom:.38rem;">'
     + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:var(--teal);">' + escapeSolarCycleHtml(investigateLabel) + '</strong><br>' + escapeSolarCycleHtml(investigateDesc) + '</div>'
     + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:var(--gold2);">' + escapeSolarCycleHtml(fractureLabel) + '</strong><br>' + escapeSolarCycleHtml(fractureDesc) + '</div>'
@@ -7415,6 +7533,7 @@ window.progressSolarCycleDay = progressSolarCycleDay;
 window.getSolarCycleStatus = getSolarCycleStatus;
 window.resolveSolarCycleProvinceMarker = resolveSolarCycleProvinceMarker;
 window.resolveSolarCycleMarkerChoice = resolveSolarCycleMarkerChoice;
+window.resolveSolarCycleManualDecision = resolveSolarCycleManualDecision;
 window.completeSolarCycleMarkerInteraction = completeSolarCycleMarkerInteraction;
 window.setSolarCycleStoryModeEnabled = setSolarCycleStoryModeEnabled;
 window.toggleSolarCycleStoryMode = toggleSolarCycleStoryMode;
@@ -18135,16 +18254,105 @@ function getSolarCycleSideStoryById(storyId, sc) {
   return null;
 }
 
-function maybeSpawnSolarCycleSideStory(sc) {
+function getSolarCycleSideStoryBehaviorProfile(sc) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  var style = state && state.playstyle ? state.playstyle : { observe: 0, intervene: 0, ignore: 0 };
+  var approaches = qs && qs.approachStats ? qs.approachStats : { investigate: 0, fracture: 0, misled: 0, portal: 0 };
+  var byStat = qs && qs.actionProfile && qs.actionProfile.byStat ? qs.actionProfile.byStat : {};
+  var aggressiveStats = Number(byStat.strike || 0) + Number(byStat.shoot || 0) + Number(byStat.body || 0) + Math.floor(Number(byStat.control || 0) * 0.5);
+  var investigativeStats = Number(byStat.mind || 0) + Number(byStat.spirit || 0) + Number(byStat.lead || 0) + Math.floor(Number(byStat.control || 0) * 0.4);
+  var aggressiveScore = Number(style.intervene || 0) * 2 + Number(approaches.fracture || 0) * 2 + Number(approaches.misled || 0) + aggressiveStats;
+  var investigativeScore = Number(style.observe || 0) * 2 + Number(approaches.investigate || 0) * 2 + Number(approaches.portal || 0) + investigativeStats;
+  var bias = aggressiveScore - investigativeScore;
+  var targetActive = 2;
+  if (Number(state && state.daysElapsed || 0) >= 70) targetActive += 1;
+  if (bias >= 5 || bias <= -5) targetActive += 1;
+  targetActive = Math.max(2, Math.min(4, targetActive));
+  return {
+    aggressiveScore: aggressiveScore,
+    investigativeScore: investigativeScore,
+    bias: bias,
+    targetActive: targetActive
+  };
+}
+
+function getSolarCycleSideStorySpawnChance(profile, activeCount) {
+  var p = profile || { bias: 0, targetActive: 2 };
+  var count = Number(activeCount || 0);
+  if (count <= 0) return 100;
+  var chance = 55 + Math.min(25, Math.abs(Number(p.bias || 0)) * 3);
+  if (count < Number(p.targetActive || 2)) chance += 18;
+  return Math.max(30, Math.min(95, chance));
+}
+
+function pickSolarCycleSideStoryTemplateWeighted(eligible, state, profile, day, phase, storyCount) {
+  if (!eligible || !eligible.length) return null;
+  var totalWeight = 0;
+  var weighted = eligible.map(function (t, idx) {
+    var weight = 100;
+    var kind = String(t.contentType || 'lore');
+    if (kind === 'faction') {
+      weight += Math.max(0, Number(profile && profile.bias || 0)) * 18;
+    } else {
+      weight += Math.max(0, Number(-(profile && profile.bias || 0) || 0)) * 18;
+    }
+    weight += (idx % 3) * 7;
+    weight = Math.max(1, Math.floor(weight));
+    totalWeight += weight;
+    return { template: t, weight: weight };
+  });
+  var seed = seedSolarCycleMix(state, Number(day || 0) * 29 + Number(phase || 0) * 17 + Number(storyCount || 0) * 13);
+  var pick = totalWeight > 0 ? (seed % totalWeight) : 0;
+  for (var i = 0; i < weighted.length; i++) {
+    pick -= weighted[i].weight;
+    if (pick < 0) return weighted[i].template;
+  }
+  return weighted[0].template;
+}
+
+function expireSolarCycleSideStories(sc) {
+  var state = sc || ensureSolarCycleState();
+  if (!state) return;
+  var stories = ensureSolarCycleSideStories(state);
+  var day = Number(state.daysElapsed || 0);
+  stories.forEach(function (story) {
+    if (!story || !story.active || story.completed || story.failed) return;
+    if (Number(day - Number(story.spawnDay || 0)) <= 10) return;
+    story.active = false;
+    story.failed = true;
+    if (story.mapKey && S && S.missionTokens && S.missionTokens[String(story.mapKey)]) {
+      delete S.missionTokens[String(story.mapKey)];
+    }
+  });
+}
+
+function maybeEnsureSolarCycleSideStoryLoop(sc) {
   var state = sc || ensureSolarCycleState();
   if (!state || !state.enabled || !state.storyModeEnabled) return null;
+  expireSolarCycleSideStories(state);
+  var stories = ensureSolarCycleSideStories(state);
+  var profile = getSolarCycleSideStoryBehaviorProfile(state);
+  var active = stories.filter(function (s) { return s && s.active && !s.completed && !s.failed; }).length;
+  if (active >= Number(profile.targetActive || 2)) return null;
+  return maybeSpawnSolarCycleSideStory(state, { force: active <= 0 });
+}
+
+function maybeSpawnSolarCycleSideStory(sc, opts) {
+  var state = sc || ensureSolarCycleState();
+  if (!state || !state.enabled || !state.storyModeEnabled) return null;
+  var options = opts || {};
+  var force = !!options.force;
   var stories = ensureSolarCycleSideStories(state);
   var day = Number(state.daysElapsed || 0);
   var phase = getSolarCyclePhaseIndex();
+  if (!force && Number(state.sideStoryLastSpawnDay || -1) === day) return null;
+  expireSolarCycleSideStories(state);
+  var profile = getSolarCycleSideStoryBehaviorProfile(state);
 
   // Collect eligible templates (not already active/completed, spawn window matches)
   var active = stories.filter(function (s) { return s.active && !s.completed && !s.failed; });
-  if (active.length >= 3) return null; // cap at 3 concurrent side stories
+  if (active.length >= Number(profile.targetActive || 3)) return null;
 
   var activeTemplateUse = {};
   stories.forEach(function (s) {
@@ -18164,11 +18372,14 @@ function maybeSpawnSolarCycleSideStory(sc) {
   });
   if (!eligible.length) return null;
 
-  // Probabilistic: ~65% chance per call
-  var roll = seedSolarCycleMix(state, day * 7 + stories.length * 13 + phase) % 100;
-  if (roll > 64) return null; // ~65% chance — side stories should appear often
+  var spawnChance = getSolarCycleSideStorySpawnChance(profile, active.length);
+  if (!force) {
+    var roll = seedSolarCycleMix(state, day * 7 + stories.length * 13 + phase) % 100;
+    if (roll >= spawnChance) return null;
+  }
 
-  var template = eligible[roll % eligible.length];
+  var template = pickSolarCycleSideStoryTemplateWeighted(eligible, state, profile, day, phase, stories.length);
+  if (!template) return null;
   var story = {
     id: 'ss-' + String(template.id) + '-' + String(day) + '-' + String(Math.floor(Math.random() * 9999)),
     templateId: template.id,
@@ -18184,6 +18395,7 @@ function maybeSpawnSolarCycleSideStory(sc) {
     spawnPhase: phase
   };
   stories.push(story);
+  state.sideStoryLastSpawnDay = day;
   // Place a visible marker on the province map so the player can find the character.
   var _sideHex = null;
   var _sideKey = '';
@@ -18214,7 +18426,10 @@ function maybeSpawnSolarCycleSideStory(sc) {
     if (typeof renderHexMap === 'function') renderHexMap();
   }
   if (typeof showNotif === 'function') {
-    showNotif('Side quest appeared: ' + String(template.characterType) + ' — ' + String(template.name) + '. Find them on the Province map.', 'info');
+    var pacingLabel = Number(profile.bias || 0) >= 4
+      ? 'Faction pressure rising'
+      : (Number(profile.bias || 0) <= -4 ? 'Lore threads converging' : 'World pulse update');
+    showNotif('Side quest appeared: ' + String(template.characterType) + ' — ' + String(template.name) + '. ' + pacingLabel + '.', 'info');
   }
   return story;
 }

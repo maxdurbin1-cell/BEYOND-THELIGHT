@@ -18,6 +18,7 @@
     gameMode: 'solo', // 'solo' | 'gm' | 'campaign'
     gmRevealDC: true,
     gmRevealHiddenInfo: true,
+    manualRollMode: false,
     colorBlindMode: false,
     monochromeMode: false,
     phoneLayoutMode: false,
@@ -42,6 +43,7 @@
         this.gameMode = 'solo'; // always default to Solo on load — not persisted
         this.gmRevealDC = saved.gmRevealDC !== undefined ? !!saved.gmRevealDC : true;
         this.gmRevealHiddenInfo = saved.gmRevealHiddenInfo !== undefined ? !!saved.gmRevealHiddenInfo : true;
+        this.manualRollMode = saved.manualRollMode !== undefined ? !!saved.manualRollMode : false;
         this.colorBlindMode = saved.colorBlindMode !== undefined ? !!saved.colorBlindMode : false;
         this.monochromeMode = saved.monochromeMode !== undefined ? !!saved.monochromeMode : false;
         this.phoneLayoutMode = saved.phoneLayoutMode !== undefined ? !!saved.phoneLayoutMode : false;
@@ -76,6 +78,7 @@
           musicConsent: this.musicConsent,
           gmRevealDC: this.gmRevealDC,
           gmRevealHiddenInfo: this.gmRevealHiddenInfo,
+          manualRollMode: this.manualRollMode,
           colorBlindMode: this.colorBlindMode,
           monochromeMode: this.monochromeMode,
           phoneLayoutMode: this.phoneLayoutMode,
@@ -252,6 +255,11 @@
                 <button class="btn btn-xs" onclick="if(typeof openGMHexMarkerEditor==='function'){openGMHexMarkerEditor();}">Hex Marker</button>
                 <button class="btn btn-xs" onclick="if(typeof openGMDreadDirector==='function'){openGMDreadDirector();}">Dread Director</button>
               </div>
+            </div>
+
+            <div style="margin-top:.6rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">
+              <button id="manualRollModeBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleManualRollMode()">Manual Roll Mode: ${Settings.manualRollMode ? 'On' : 'Off'}</button>
+              <span class="campaign-muted">When enabled, New Sun auto-roll scenes prompt for Success or Failure using your physical dice.</span>
             </div>
 
             <div style="margin-top:.65rem;border-top:1px solid var(--border2);padding-top:.55rem;">
@@ -597,6 +605,13 @@
       gmRevealHiddenBtn.style.color = Settings.gmRevealHiddenInfo ? 'var(--teal)' : 'var(--muted2)';
     }
 
+    const manualRollModeBtn = document.getElementById('manualRollModeBtn');
+    if (manualRollModeBtn) {
+      manualRollModeBtn.textContent = 'Manual Roll Mode: ' + (Settings.manualRollMode ? 'On' : 'Off');
+      manualRollModeBtn.style.borderColor = Settings.manualRollMode ? 'var(--teal)' : 'var(--border2)';
+      manualRollModeBtn.style.color = Settings.manualRollMode ? 'var(--teal)' : 'var(--muted2)';
+    }
+
     const settingsBtn = document.querySelector('nav .settings-tab-btn');
     if (settingsBtn) {
       settingsBtn.title = isGM
@@ -689,6 +704,20 @@
     }
     Settings.save();
     syncGameModeUI();
+  }
+
+  function toggleManualRollMode() {
+    Settings.manualRollMode = !Settings.manualRollMode;
+    Settings.save();
+    syncGameModeUI();
+    if (typeof showNotif === 'function') {
+      showNotif(
+        Settings.manualRollMode
+          ? 'Manual Roll Mode enabled: New Sun roll scenes now use Success/Failure prompts.'
+          : 'Manual Roll Mode disabled: New Sun roll scenes use auto-rolls.',
+        'info'
+      );
+    }
   }
 
   function toggleColorBlindMode() {
@@ -919,12 +948,14 @@
     setTextSize,
     setGameMode: (mode, opts) => Settings.setGameMode(mode, opts),
     toggleGMReveal,
+    toggleManualRollMode,
     showGMPrompt,
     isGMMode: () => Settings.isGMMode(),
     isCampaignMode: () => Settings.gameMode === 'campaign',
     isSoloMode: () => Settings.gameMode !== 'gm' && Settings.gameMode !== 'campaign',
     shouldRevealDC: () => Settings.shouldRevealDC(),
     shouldRevealHiddenInfo: () => Settings.shouldRevealHiddenInfo(),
+    isManualRollMode: () => !!Settings.manualRollMode,
     getSettings: () => ({
       masterVolume: Settings.masterVolume,
       musicVolume: Settings.musicVolume,
@@ -933,6 +964,7 @@
       gameMode: Settings.gameMode,
       gmRevealDC: Settings.gmRevealDC,
       gmRevealHiddenInfo: Settings.gmRevealHiddenInfo,
+      manualRollMode: Settings.manualRollMode,
       colorBlindMode: Settings.colorBlindMode,
       monochromeMode: Settings.monochromeMode,
       phoneLayoutMode: Settings.phoneLayoutMode,

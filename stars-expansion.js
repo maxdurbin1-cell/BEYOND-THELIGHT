@@ -613,10 +613,14 @@ const SOLAR_CYCLE_SOCIAL_STYLE_BRANCHES = {
 
 const NEW_SUN_ENDING_KEYS = [
   'new_sun_risen',
+  'ark_of_witness',
   'shared_dawn_compromise',
+  'leviathan_gospel',
   'black_sun_coronation',
+  'atom_judgment',
   'iron_ragnarok',
   'witness_loop',
+  'entropy_vespers',
   'ashes_without_dawn',
   'black_mirror_apocalypse',
   'last_liturgy_of_ruin',
@@ -624,22 +628,22 @@ const NEW_SUN_ENDING_KEYS = [
 ];
 
 const SOLAR_CYCLE_IRREVERSIBLE_TAGS = {
-  omen_read_cleanly: { title: 'Omen Read Cleanly', endingWeights: { new_sun_risen: 2, shared_dawn_compromise: 1 } },
-  omen_forced_intervention: { title: 'Omen Forced Intervention', endingWeights: { black_sun_coronation: 1, iron_ragnarok: 1, new_sun_risen: -1 } },
-  omen_roll_failed: { title: 'Omen Roll Failed', endingWeights: { black_mirror_apocalypse: 2, ashes_without_dawn: 1, new_sun_risen: -1 } },
+  omen_read_cleanly: { title: 'Omen Read Cleanly', endingWeights: { new_sun_risen: 2, ark_of_witness: 1, shared_dawn_compromise: 1 } },
+  omen_forced_intervention: { title: 'Omen Forced Intervention', endingWeights: { black_sun_coronation: 1, atom_judgment: 1, iron_ragnarok: 1, new_sun_risen: -1 } },
+  omen_roll_failed: { title: 'Omen Roll Failed', endingWeights: { black_mirror_apocalypse: 2, leviathan_gospel: 1, ashes_without_dawn: 1, new_sun_risen: -1 } },
   branch_preserve_success: { title: 'Keeper Oath Upheld', endingWeights: { new_sun_risen: 2, shared_dawn_compromise: 1, black_sun_coronation: -1 } },
   branch_break_success: { title: 'Keeper Oath Broken', endingWeights: { black_sun_coronation: 2, iron_ragnarok: 1, wormwood_cathedral: -1 } },
-  branch_bind_success: { title: 'Evacuation Compact', endingWeights: { shared_dawn_compromise: 2, new_sun_risen: 1, iron_ragnarok: -1 } },
-  branch_draft_success: { title: 'War Draft Doctrine', endingWeights: { iron_ragnarok: 2, black_sun_coronation: 1, new_sun_risen: -1 } },
-  branch_open_success: { title: 'Shared Signal Opened', endingWeights: { new_sun_risen: 2, shared_dawn_compromise: 2 } },
+  branch_bind_success: { title: 'Evacuation Compact', endingWeights: { ark_of_witness: 3, shared_dawn_compromise: 2, new_sun_risen: 1, iron_ragnarok: -1 } },
+  branch_draft_success: { title: 'War Draft Doctrine', endingWeights: { atom_judgment: 2, iron_ragnarok: 2, black_sun_coronation: 1, new_sun_risen: -1 } },
+  branch_open_success: { title: 'Shared Signal Opened', endingWeights: { new_sun_risen: 2, ark_of_witness: 2, shared_dawn_compromise: 2 } },
   branch_crown_success: { title: 'Successor Crowned', endingWeights: { black_sun_coronation: 3, iron_ragnarok: 1, shared_dawn_compromise: -1 } },
-  branch_sever_success: { title: 'Signal Severed', endingWeights: { ashes_without_dawn: 3, wormwood_cathedral: 1, new_sun_risen: -2 } },
-  stage_choice_failed: { title: 'Stage Choice Failed', endingWeights: { black_mirror_apocalypse: 1, last_liturgy_of_ruin: 1 } },
-  stage_choice_succeeded: { title: 'Stage Choice Succeeded', endingWeights: { new_sun_risen: 1, shared_dawn_compromise: 1 } },
-  scheduler_clue_confirmed: { title: 'Verified Clue Recovered', endingWeights: { new_sun_risen: 1, shared_dawn_compromise: 1 } },
-  scheduler_clue_contested: { title: 'Contested Clue Followed', endingWeights: { black_mirror_apocalypse: 1, iron_ragnarok: 1, new_sun_risen: -1 } },
-  scheduler_roll_failed: { title: 'Investigation Roll Failed', endingWeights: { ashes_without_dawn: 1, last_liturgy_of_ruin: 1 } },
-  fracture_used: { title: 'Time Fracture Used', endingWeights: { witness_loop: 1, black_mirror_apocalypse: 1, new_sun_risen: -1 } }
+  branch_sever_success: { title: 'Signal Severed', endingWeights: { entropy_vespers: 3, ashes_without_dawn: 3, wormwood_cathedral: 1, new_sun_risen: -2 } },
+  stage_choice_failed: { title: 'Stage Choice Failed', endingWeights: { black_mirror_apocalypse: 1, leviathan_gospel: 1, last_liturgy_of_ruin: 1 } },
+  stage_choice_succeeded: { title: 'Stage Choice Succeeded', endingWeights: { new_sun_risen: 1, ark_of_witness: 1, shared_dawn_compromise: 1 } },
+  scheduler_clue_confirmed: { title: 'Verified Clue Recovered', endingWeights: { new_sun_risen: 1, ark_of_witness: 1, shared_dawn_compromise: 1 } },
+  scheduler_clue_contested: { title: 'Contested Clue Followed', endingWeights: { black_mirror_apocalypse: 1, leviathan_gospel: 1, iron_ragnarok: 1, new_sun_risen: -1 } },
+  scheduler_roll_failed: { title: 'Investigation Roll Failed', endingWeights: { entropy_vespers: 1, ashes_without_dawn: 1, last_liturgy_of_ruin: 1 } },
+  fracture_used: { title: 'Time Fracture Used', endingWeights: { witness_loop: 1, black_mirror_apocalypse: 1, leviathan_gospel: 1, new_sun_risen: -1 } }
 };
 
 const NEW_SUN_TEMPLATE_REGION_ORDER = ['province', 'sea', 'wtw', 'galaxy'];
@@ -1025,6 +1029,13 @@ const NEW_SUN_STAGE_RELIC_REWARDS = {
 
 const NEW_SUN_ENDING_RELIC_REWARDS = {
   new_sun_risen: {
+    id: 'autarch_signet',
+    name: "Autarch's Signet",
+    kind: 'relic',
+    fallbackCredits: 180,
+    summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
+  },
+  ark_of_witness: {
     id: 'autarch_signet',
     name: "Autarch's Signet",
     kind: 'relic',
@@ -1870,6 +1881,8 @@ function getSolarCycleOutcomeProfile(sc) {
   var warFleet = !!flags.newSunWarFleet || branches.tide_compact === 'draft';
   var archiveSecured = !!(flags.newSunArchiveAudit || flags.newSunArchiveHack || flags.newSunSmuggledArchive || flags.newSunWardBroken);
   var witnessNetwork = !!(flags.newSunSafeCurrents || flags.newSunDeadCharts || flags.newSunFlavorCurrent);
+  var seaCovenant = !!(flags.newSunSafeCurrents || flags.newSunDeadCharts);
+  var archiveTruth = !!(flags.newSunArchiveAudit || flags.newSunArchiveHack);
   var timeTouched = rewinds >= 2 || Number(flags.solarParadoxMarks || 0) >= 2;
   var ignoredOmens = Number(playstyle.ignore || 0);
   var intervenedOmens = Number(playstyle.intervene || 0);
@@ -1893,7 +1906,9 @@ function getSolarCycleOutcomeProfile(sc) {
     crowned: crowned,
     warFleet: warFleet,
     archiveSecured: archiveSecured,
+    archiveTruth: archiveTruth,
     witnessNetwork: witnessNetwork,
+    seaCovenant: seaCovenant,
     timeTouched: timeTouched,
     ignoredOmens: ignoredOmens,
     intervenedOmens: intervenedOmens,
@@ -1975,11 +1990,15 @@ function getSolarCycleEndingWeights(profile) {
   weights.wormwood_cathedral += 2;
   if (profile.forcedFinale) weights.last_liturgy_of_ruin += 1;
   if (figuredOutNewSun) weights.new_sun_risen += 12;
+  if (profile.openRoute && profile.witnessNetwork && profile.archiveSecured && profile.branches.tide_compact === 'bind' && profile.stageSummary.failure <= 2) weights.ark_of_witness += 8;
+  if (profile.seaCovenant && (profile.timeTouched || profile.observedOmens >= 2) && !profile.trueIgnition) weights.leviathan_gospel += 6;
   if (profile.crowned && profile.dominionRoute && profile.intervenedOmens >= 2 && profile.worldTilt >= 3) weights.black_sun_coronation += 8;
+  if (profile.warFleet && profile.dominionRoute && profile.worldTilt >= 3 && (profile.strain >= 5 || profile.stageSummary.failure >= 2)) weights.atom_judgment += 7;
   if ((profile.strain >= 8 || (profile.rewinds >= 3 && profile.strain >= 6)) && (profile.timeTouched || profile.forcedFinale)) weights.black_mirror_apocalypse += 9;
   if (profile.timeTouched && profile.observedOmens >= 2 && profile.effectiveArc === 'loop') weights.witness_loop += 7;
   if (profile.openRoute && profile.stageSummary.completed >= 3 && profile.witnessNetwork) weights.shared_dawn_compromise += 6;
   if ((profile.warFleet || profile.dominionRoute) && profile.worldTilt >= 3) weights.iron_ragnarok += 6;
+  if (!profile.trueIgnition && profile.severRoute && profile.archiveTruth && profile.stageSummary.completed >= 3) weights.entropy_vespers += 7;
   if (profile.severRoute || (profile.forcedFinale && profile.stageSummary.missed >= 1 && profile.ignoredOmens >= 2)) weights.ashes_without_dawn += 6;
   if (profile.mercyRoute || profile.archiveSecured) weights.wormwood_cathedral += 3;
   if (profile.forcedFinale && !profile.allStagesDone) weights.last_liturgy_of_ruin += 3;
@@ -2302,7 +2321,7 @@ function buildSolarCycleCanonBoardHtml(sc) {
 }
 
 function getSolarCycleEndingKeyFromWeights(weights) {
-  var priority = ['new_sun_risen', 'shared_dawn_compromise', 'witness_loop', 'wormwood_cathedral', 'last_liturgy_of_ruin', 'ashes_without_dawn', 'iron_ragnarok', 'black_sun_coronation', 'black_mirror_apocalypse'];
+  var priority = ['new_sun_risen', 'ark_of_witness', 'shared_dawn_compromise', 'witness_loop', 'wormwood_cathedral', 'entropy_vespers', 'leviathan_gospel', 'last_liturgy_of_ruin', 'ashes_without_dawn', 'atom_judgment', 'iron_ragnarok', 'black_sun_coronation', 'black_mirror_apocalypse'];
   var best = 'wormwood_cathedral';
   var bestWeight = -999999;
   priority.forEach(function (key) {
@@ -2481,17 +2500,29 @@ function getSolarCycleEndingText(endingKey) {
   if (endingKey === 'new_sun_risen') {
     return 'New Sun Ending: you figured out the true ignition. Rite, code, witness-law, and private miracle align, and a living new sun rises over a changed world.';
   }
+  if (endingKey === 'ark_of_witness') {
+    return 'Ark of Witness Ending: you cannot relight Urth cleanly, so you save it by building a living covenant-ark of routes, survivors, and portable dawn.';
+  }
   if (endingKey === 'shared_dawn_compromise') {
     return 'Shared Dawn Ending: you deny any single throne, but the new light rises through compromise, scars, and uneven survival.';
   }
+  if (endingKey === 'leviathan_gospel') {
+    return 'Leviathan Gospel Ending: abyssal gods answer the failing sun with scripture from the sea, and salvation arrives as a terrible covenant.';
+  }
   if (endingKey === 'black_sun_coronation') {
     return 'Black Sun Ending: you force the heavens into obedience and become the sovereign disaster everyone feared.';
+  }
+  if (endingKey === 'atom_judgment') {
+    return 'Atom Judgment Ending: the final doctrine is nuclear. Cities become censers of white fire and nations finish the liturgy with missiles.';
   }
   if (endingKey === 'iron_ragnarok') {
     return 'Ragnarok Ending: the old world chooses war as prophecy, and the sky answers with iron, fire, and marching gods.';
   }
   if (endingKey === 'witness_loop') {
     return 'Witness Loop Ending: time folds around your route until strangers remember meeting you before you arrive.';
+  }
+  if (endingKey === 'entropy_vespers') {
+    return 'Entropy Vespers Ending: no fire returns. The world learns to survive the slow liturgy of heat death under dimming stars.';
   }
   if (endingKey === 'ashes_without_dawn') {
     return 'Ashes Without Dawn Ending: you refuse the machine, the old sky survives, and whole futures die unlit.';
@@ -2524,6 +2555,24 @@ function getSolarCycleEndingConfig(endingKey) {
       rewardText: 'Rewards: +3 Renown, +250 credits, +1 Rebels, +1 Political, +1 Religious.'
     };
   }
+  if (endingKey === 'ark_of_witness') {
+    return {
+      title: 'Epilogue: The Ark of Witness',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'You never solve the sun in the clean, Severian sense. Instead you build a moving ark out of testimony, route-law, salvaged engines, and districts willing to bind themselves to one another before the sky finishes failing.',
+        'Seven great solutions are attempted in parallel: refuge fleets, liturgical mirrors, dead-chart navigation, cold orchards, orbital siphons, sainted batteries, and the human miracle of people deciding to carry one another. Some fail. Enough survive.',
+        'Later generations argue whether you saved the world or only preserved the pieces that deserved another century. They still keep your witness-tablets in the prow chapel of every migration ship.'
+      ],
+      rewards: {
+        renown: 3,
+        credits: 210,
+        faction: { rebels: 1, scholars: 1, political: 1 },
+        flags: { newSunEpilogueSeen: true, arkOfWitnessLaunched: true }
+      },
+      rewardText: 'Rewards: +3 Renown, +210 credits, +1 Rebels, +1 Scholars, +1 Political.'
+    };
+  }
   if (endingKey === 'shared_dawn_compromise') {
     return {
       title: 'Epilogue: Shared Dawn, Scarred World',
@@ -2542,6 +2591,24 @@ function getSolarCycleEndingConfig(endingKey) {
       rewardText: 'Rewards: +3 Renown, +190 credits, +2 Political, +1 Rebels.'
     };
   }
+  if (endingKey === 'leviathan_gospel') {
+    return {
+      title: 'Epilogue: The Leviathan Gospel',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'When the surface prayers fail, the abyss answers. Cathedral-sized things rise beneath the sea and speak in a grammar of tides, eyes, and trumpet-noise. Entire harbors convert in a single night.',
+        'The bargain is obscene and merciful in equal measure: the gods below will hold back the last dark if the living accept a world reordered around depth, tithe, and ecstatic fear. Children sleep. Priests drown. The fisheries become monasteries.',
+        'You are remembered either as the saint who negotiated with monsters or the monster who proved the saints were too small for the hour.'
+      ],
+      rewards: {
+        renown: 2,
+        credits: 150,
+        faction: { religious: 2, scholars: -1, rebels: -1 },
+        flags: { newSunEpilogueSeen: true, leviathanGospelSealed: true }
+      },
+      rewardText: 'Rewards: +2 Renown, +150 credits, +2 Religious, -1 Scholars, -1 Rebels.'
+    };
+  }
   if (endingKey === 'black_sun_coronation') {
     return {
       title: 'Epilogue: The Black Sun Crown',
@@ -2558,6 +2625,24 @@ function getSolarCycleEndingConfig(endingKey) {
         flags: { newSunEpilogueSeen: true, blackSunCoronation: true }
       },
       rewardText: 'Rewards: +4 Renown, +220 credits, +2 Military, +1 Corporations, -3 Rebels.'
+    };
+  }
+  if (endingKey === 'atom_judgment') {
+    return {
+      title: 'Epilogue: Atom Judgment',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'The final days become a missile liturgy. Silos open like censers. Orbital mirrors turn targeting saints. Every faction that spent the century rehearsing the end decides this is its one honest hour.',
+        'Some claim the nuclear fire is a counterfeit dawn and kneel to it anyway. Others vanish cleanly enough that future historians mistake the glass for geography. The world is not ended in silence but in unanimous, incandescent confession.',
+        'Your role in it remains contested: last strategist, failed savior, or prophet of necessary atrocity.'
+      ],
+      rewards: {
+        renown: 2,
+        credits: 160,
+        faction: { military: 2, political: -2, rebels: -1 },
+        flags: { newSunEpilogueSeen: true, atomJudgmentSeen: true }
+      },
+      rewardText: 'Rewards: +2 Renown, +160 credits, +2 Military, -2 Political, -1 Rebels.'
     };
   }
   if (endingKey === 'iron_ragnarok') {
@@ -2594,6 +2679,24 @@ function getSolarCycleEndingConfig(endingKey) {
         flags: { newSunEpilogueSeen: true, witnessLoopClosed: true }
       },
       rewardText: 'Rewards: +3 Renown, +160 credits, +2 Scholars, +1 Political.'
+    };
+  }
+  if (endingKey === 'entropy_vespers') {
+    return {
+      title: 'Epilogue: Entropy Vespers',
+      summary: getSolarCycleEndingText(endingKey),
+      paragraphs: [
+        'You find no final blaze, only the truth that every machine, rite, and empire was always bargaining with cooling time. So the world survives by changing its theology: warmth becomes sacrament, conservation becomes law, and festivals are measured in recovered degrees.',
+        'The old apocalypses never arrive in one blow. Instead there is a long, lucid surrender into cold stewardship. Archives matter more than armies. Choirs sing over seed vaults and heat exchangers. Hope becomes technical and monastic at once.',
+        'It is not the ending people wanted, but it is one in which children still grow old enough to ask what the sun used to feel like.'
+      ],
+      rewards: {
+        renown: 2,
+        credits: 170,
+        faction: { scholars: 2, political: 1, military: -1 },
+        flags: { newSunEpilogueSeen: true, entropyVespersSeen: true }
+      },
+      rewardText: 'Rewards: +2 Renown, +170 credits, +2 Scholars, +1 Political, -1 Military.'
     };
   }
   if (endingKey === 'ashes_without_dawn') {
@@ -2674,7 +2777,7 @@ function applySolarCycleEndingRewards(config) {
 }
 
 function isSolarCycleHopefulEnding(endingKey) {
-  return ['new_sun_risen', 'shared_dawn_compromise', 'witness_loop'].indexOf(String(endingKey || '')) >= 0;
+  return ['new_sun_risen', 'ark_of_witness', 'shared_dawn_compromise', 'witness_loop'].indexOf(String(endingKey || '')) >= 0;
 }
 
 function resolveSolarCycleEnding(forceResolve) {
@@ -2800,12 +2903,10 @@ function getSolarCycleMarkerRollProfile(approach, sc, markerToken) {
 }
 
 function rollSolarCycleContest(stat, dreadDie) {
-  var die = (typeof getEffectiveDie === 'function')
-    ? Number(getEffectiveDie(stat) || 4)
-    : Number((S && S.stats && S.stats[stat]) || 4);
+  var die = getSolarCycleActionDie(stat);
   var actionRoll = (typeof explodingRoll === 'function') ? explodingRoll(die) : { total: roll(die), exploded: false };
   var dreadRoll = (typeof explodingRoll === 'function') ? explodingRoll(dreadDie) : { total: roll(dreadDie), exploded: false };
-  var success = Number(actionRoll.total || 0) >= Number(dreadRoll.total || 0);
+  var success = getSolarCycleRollTotal(actionRoll) >= getSolarCycleRollTotal(dreadRoll);
   return {
     stat: stat,
     actionDie: die,
@@ -3025,8 +3126,8 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
       + '<div style="margin-bottom:.3rem;">' + escapeSolarCycleHtml(contest.success ? 'You bent the omen to your will.' : 'The omen resisted. Reality split around your choice.') + '</div>'
       + '<div style="font-size:.74rem;color:' + (contest.success ? 'var(--green2)' : 'var(--red2)') + ';margin-bottom:.35rem;">'
-      + String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' = ' + Number(contest.actionRoll && contest.actionRoll.total || 0)
-      + ' vs Dread d' + Number(contest.dreadDie || 4) + ' = ' + Number(contest.dreadRoll && contest.dreadRoll.total || 0)
+      + String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.actionRoll)
+      + ' vs Dread d' + Number(contest.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.dreadRoll)
       + '</div>'
       + (failureBranch ? ('<div style="font-size:.74rem;color:var(--gold2);">New branch unlocked: ' + escapeSolarCycleHtml(failureBranch.title || 'Fracture Branch') + '.</div>') : '')
       + '</div>'
@@ -3709,6 +3810,38 @@ function normalizeSolarCycleActionStat(stat) {
   var key = String(stat || '').toLowerCase();
   if (SOLAR_CYCLE_ACTION_STATS.indexOf(key) >= 0) return key;
   return 'mind';
+}
+
+function getSolarCycleActionDie(stat) {
+  var key = normalizeSolarCycleActionStat(stat);
+  var die = (typeof getEffectiveDie === 'function')
+    ? Number(getEffectiveDie(key))
+    : Number((S && S.stats && S.stats[key]) || 4);
+  if (!Number.isFinite(die)) return 4;
+  return Math.max(4, die);
+}
+
+function getSolarCycleRollTotal(rollObj) {
+  var total = Number(rollObj && rollObj.total);
+  if (!Number.isFinite(total)) return 0;
+  return total;
+}
+
+function formatSolarCycleRollTotalHtml(rollObj) {
+  var total = getSolarCycleRollTotal(rollObj);
+  var penalty = Number(rollObj && rollObj.rollPenalty || 0);
+  if (!penalty) return String(total);
+  var baseTotal = Number(rollObj && rollObj.baseTotal);
+  if (!Number.isFinite(baseTotal)) baseTotal = total - penalty;
+  var penaltyTone = penalty < 0 ? 'var(--red2)' : 'var(--teal)';
+  var penaltyText = penalty > 0 ? ('+' + penalty) : String(penalty);
+  return String(total) + ' <span style="font-size:.72rem;color:' + penaltyTone + ';">(base ' + baseTotal + ', scar ' + penaltyText + ')</span>';
+}
+
+function getSolarCycleRollPenaltyNote(rollObj) {
+  var penalty = Number(rollObj && rollObj.rollPenalty || 0);
+  if (!penalty) return '';
+  return ' Scar ' + (penalty > 0 ? ('+' + penalty) : String(penalty)) + '.';
 }
 
 function getSolarCycleActionPersona(stat) {
@@ -5016,7 +5149,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   });
   if (forcedMisled) recordSolarCycleIrreversibleTag('scheduler_roll_failed', { questId: quest.id, methodId: quest.methodId, approach: approach });
   if (typeof showNotif === 'function') {
-    showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0) + ' vs Dread ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0) + ')' + (socialStyle ? (' | ' + socialStyle.label) : '') + '.', misled ? 'warn' : 'good');
+    showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + getSolarCycleRollTotal(rollResult.actionRoll) + ' vs Dread ' + getSolarCycleRollTotal(rollResult.dreadRoll) + ')' + getSolarCycleRollPenaltyNote(rollResult.actionRoll) + (socialStyle ? (' | ' + socialStyle.label) : '') + '.', misled ? 'warn' : 'good');
   }
   var _isPuzzleChallenge = String(quest.challengeType || '') === 'puzzle';
   applySolarCycleQuestChallengeOutcome(quest, rollResult, misled);
@@ -5062,8 +5195,8 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
       + '<div style="margin-bottom:.3rem;">' + successLine + '</div>'
       + '<div style="font-size:.74rem;color:' + (misled ? 'var(--red2)' : 'var(--green2)') + ';margin-bottom:.35rem;">'
-      + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' = ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0)
-      + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ' = ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0)
+      + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.actionRoll)
+      + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.dreadRoll)
       + '</div>'
       + '<div style="font-size:.75rem;color:var(--gold2);line-height:1.55;margin-bottom:.3rem;">' + nextHint + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(actionLine) + '</div>'
@@ -5520,7 +5653,7 @@ function renderSolarCycleChoiceCards(stageId, sceneChoices, compact) {
   var cards = choices.map(function (choice) {
     var unlocked = typeof window.storyHasReq === 'function' ? !!window.storyHasReq(choice.req) : true;
     var reqText = typeof window.storyRenderRequirement === 'function' ? window.storyRenderRequirement(choice.req) : '';
-    var die = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
+    var die = choice.stat ? getSolarCycleActionDie(choice.stat) : 0;
     var bg = unlocked ? 'var(--surface)' : 'rgba(160,120,80,.08)';
     var border = unlocked ? 'var(--border2)' : 'rgba(240,160,80,.35)';
     var titleTone = unlocked ? 'var(--text2)' : 'var(--muted2)';
@@ -5582,16 +5715,17 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
     window.storyConsumeBackpackAny(choice.req.backpackAny);
   }
 
-  var actionDie = choice.stat ? ((typeof getEffectiveDie === 'function') ? Number(getEffectiveDie(choice.stat) || 4) : Number((S.stats && S.stats[choice.stat]) || 4)) : 0;
+  var actionDie = choice.stat ? getSolarCycleActionDie(choice.stat) : 0;
   var dreadDie = Number(choice.baseDread || 8);
   var actionRoll = choice.stat ? (typeof explodingRoll === 'function' ? explodingRoll(actionDie) : { total: roll(actionDie), exploded: false }) : { total: 0, exploded: false };
   var dreadRoll = choice.stat ? (typeof explodingRoll === 'function' ? explodingRoll(dreadDie) : { total: roll(dreadDie), exploded: false }) : { total: 0, exploded: false };
-  var success = !choice.stat || Number(actionRoll.total || 0) >= Number(dreadRoll.total || 0);
+  var success = !choice.stat || getSolarCycleRollTotal(actionRoll) >= getSolarCycleRollTotal(dreadRoll);
   var outcome = success ? (choice.success || {}) : (choice.fail || choice.success || {});
   recordSolarCycleIrreversibleTag(success ? 'stage_choice_succeeded' : 'stage_choice_failed', { stageId: stageId, choiceId: choice.id, success: !!success });
 
   applySolarCycleChoiceEffects(outcome.effects || {});
-  var stageRelic = awardSolarCycleStageRelicReward(stageId);
+  var stageRelic = success ? awardSolarCycleStageRelicReward(stageId) : null;
+  var stageRelicWithheld = !success && !!NEW_SUN_STAGE_RELIC_REWARDS[String(stageId || '')];
   if (stage.branchPoint && outcome.branchChoice) chooseSolarCycleBranch(stage.branchPoint, outcome.branchChoice);
 
   sc.arcProgress.stageResults[stageId] = {
@@ -5617,9 +5751,10 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
       stage.title + ' Resolved',
       '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;">'
       + escapeSolarCycleHtml(outcome.text || 'The stage resolves and the route changes.')
-      + (choice.stat ? ('<div style="margin-top:.35rem;font-size:.74rem;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + String(choice.stat).toUpperCase() + ' d' + actionDie + ' = ' + actionRoll.total + ' vs DD' + dreadDie + ' = ' + dreadRoll.total + '</div>') : '')
+      + (choice.stat ? ('<div style="margin-top:.35rem;font-size:.74rem;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + String(choice.stat).toUpperCase() + ' d' + actionDie + ' = ' + formatSolarCycleRollTotalHtml(actionRoll) + ' vs DD' + dreadDie + ' = ' + formatSolarCycleRollTotalHtml(dreadRoll) + '</div>') : '')
       + (stageRelic && stageRelic.granted ? ('<div style="margin-top:.4rem;font-size:.75rem;color:var(--teal);">Relic reward: <strong>' + escapeSolarCycleHtml(stageRelic.name) + '</strong>. ' + escapeSolarCycleHtml(stageRelic.summary || '') + '</div>') : '')
       + (stageRelic && stageRelic.converted ? ('<div style="margin-top:.4rem;font-size:.75rem;color:var(--gold2);">Relic reward converted: ' + escapeSolarCycleHtml(stageRelic.name) + ' -> +' + Number(stageRelic.credits || 0) + '₵ (inventory full).</div>') : '')
+      + (stageRelicWithheld ? '<div style="margin-top:.4rem;font-size:.75rem;color:var(--muted2);">Stage relic withheld: relics now drop only on successful stage clears.</div>' : '')
       + (nextMarker ? ('<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">Next marker moved to ' + escapeSolarCycleHtml(nextMarker.label) + '.</div>') : '<div style="margin-top:.45rem;font-size:.76rem;color:var(--gold2);">No further stage marker remains. Resolve the ending from New Sun.</div>')
       + '</div>'
     );
@@ -15629,7 +15764,12 @@ function patchStarsCrossSystemHooks() {
       const out = baseExplodingRoll.apply(this, arguments);
       const penalty = getScarRollPenalty();
       if (penalty) {
+        out.baseTotal = Number(out.total || 0);
+        out.rollPenalty = penalty;
         out.total = Math.max(0, out.total + penalty);
+      } else if (typeof out.baseTotal === 'undefined') {
+        out.baseTotal = Number(out.total || 0);
+        out.rollPenalty = 0;
       }
       return out;
     };

@@ -79,6 +79,8 @@
   const WTW_CONDITION_KEYS = ["weakened", "distracted", "shaken", "vulnerable"];
 
   const WTW_MARKER_STYLE = {
+    solar_cycle: { icon: "☀", color: "#f5d76e", priority: 96, title: "New Sun Marker" },
+    solar_cycle_side: { icon: "✦", color: "#e8a84f", priority: 93, title: "New Sun Side Quest" },
     mission: { icon: "🎯", color: "#e8c050", priority: 100, title: "Mission Marker" },
     mission_informer: { icon: "👁", color: "#e8c050", priority: 101, title: "Mission Informer" },
     mission_site: { icon: "✖", color: "#ff8450", priority: 101, title: "Mission Site" },
@@ -1596,8 +1598,12 @@
         const mk = document.createElementNS("http://www.w3.org/2000/svg", "text");
         mk.setAttribute("x", String(p.x + 8));
         mk.setAttribute("y", String(p.y - 8));
-        mk.setAttribute("font-size", "10");
+        mk.setAttribute("font-size", (marker.type === "solar_cycle" || marker.type === "solar_cycle_side") ? "13" : "10");
         mk.setAttribute("fill", markerStyle.color || "#bbbbbb");
+        if (marker.type === "solar_cycle" || marker.type === "solar_cycle_side") {
+          mk.setAttribute("stroke", "rgba(10,14,20,.9)");
+          mk.setAttribute("stroke-width", "0.9");
+        }
         mk.setAttribute("pointer-events", "none");
         mk.textContent = markerStyle.icon || "$";
         g.appendChild(mk);

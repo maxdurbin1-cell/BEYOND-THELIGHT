@@ -506,7 +506,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'dust_wizard',
     characterType: 'Wizard',
     name: 'Erasmus the Flicker',
-    spawnDay: [18, 55], spawnPhases: [1, 2],
+    spawnDay: [18, 55], spawnPhases: [1, 2], loreReward: 'Codex: Prophecy Fragments (Bound)',
     intro: 'A dust-wizard sits cross-legged atop a crumbling waypost, etching equations in the air with a burning fingertip.',
     fateHint: 'Those who helped him carry a strange calm in the final hour.',
     beats: [
@@ -555,7 +555,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'sea_priest',
     characterType: 'Priest',
     name: 'Father Rook of the Drowned Choir',
-    spawnDay: [42, 75], spawnPhases: [0, 3],
+    spawnDay: [42, 75], spawnPhases: [0, 3], loreReward: 'Codex: The Sea Accord',
     intro: 'A waterlogged priest stands at the sea wall, reading last rites to the waves as if the tide can be forgiven.',
     fateHint: 'Wayfarers who showed him mercy found the sea parted once when they needed it most.',
     beats: [
@@ -604,7 +604,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'android_courier',
     characterType: 'Android',
     name: 'CERIS/7 (Decommissioned Relay Unit)',
-    spawnDay: [30, 70], spawnPhases: [0, 1, 2, 3],
+    spawnDay: [30, 70], spawnPhases: [0, 1, 2, 3], loreReward: 'Codex: Galaxy Relay Intercept',
     intro: 'A bipedal android stands frozen at a crossroads, indicator cycling amber. A relay unit delivering messages to destinations that no longer exist.',
     fateHint: 'CERIS/7 appears in some prophecy records delivering a message to "the one who arrives last."',
     beats: [
@@ -653,7 +653,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'cult_of_ash',
     characterType: 'Cult',
     name: 'The Ash Circle (Day-Eaters)',
-    spawnDay: [50, 89], spawnPhases: [3],
+    spawnDay: [50, 89], spawnPhases: [3], loreReward: 'Codex: Herald\'s Open Letter',
     intro: 'A ring of robed figures chants around a pyre of sun-symbols. They believe extinguishing the New Sun is the only salvation.',
     fateHint: 'Those who dismantled the Ash Circle early find fewer obstacles in the final days.',
     beats: [
@@ -702,7 +702,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'giant_ferryman',
     characterType: 'Giant',
     name: 'Olonn the Bridge-Warden',
-    spawnDay: [15, 60], spawnPhases: [0, 1],
+    spawnDay: [15, 60], spawnPhases: [0, 1], loreReward: 'Codex: Loop Witness Transcripts',
     intro: 'A three-meter figure sits on a bridge, toll-book in hand, refusing passage until the "sun debt" is paid.',
     fateHint: 'Wayfarers who negotiated with Olonn found key routes still open when all others were cut.',
     beats: [
@@ -751,7 +751,7 @@ const SOLAR_CYCLE_SIDE_STORY_TEMPLATES = [
     id: 'mystic_cartographer',
     characterType: 'Mystic',
     name: 'Ysolde the Chart-Speaker',
-    spawnDay: [25, 65], spawnPhases: [2, 3],
+    spawnDay: [25, 65], spawnPhases: [2, 3], loreReward: 'Codex: The Lighthouse at Day Zero',
     intro: 'A cloaked mystic traces glowing lines across a blank map that reveal themselves as you approach — recording the world\'s final topography by feel.',
     fateHint: 'Ysolde\'s charts appeared in survivors\' hands decades later, already showing where the New Sun rose.',
     beats: [
@@ -1462,6 +1462,30 @@ const NEW_SUN_ENDING_RELIC_REWARDS = {
     summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
   }
 };
+
+function getSolarCycleItemDescription(itemName) {
+  var base = getSolarCycleBackpackItemBaseName(itemName).toLowerCase();
+  if (!base) return null;
+  var catalogs = [NEW_SUN_STAGE_RELIC_REWARDS, NEW_SUN_ENDING_RELIC_REWARDS];
+  for (var c = 0; c < catalogs.length; c++) {
+    var cat = catalogs[c] || {};
+    var keys = Object.keys(cat);
+    for (var i = 0; i < keys.length; i++) {
+      var reward = cat[keys[i]];
+      if (!reward || !reward.name) continue;
+      if (String(reward.name).toLowerCase() === base) {
+        return {
+          name: reward.name,
+          kind: reward.kind || 'relic',
+          stat: reward.stat || '',
+          summary: reward.summary || 'A New Sun relic with campaign-level consequences.',
+          source: (c === 0) ? 'stage' : 'ending'
+        };
+      }
+    }
+  }
+  return null;
+}
 
 function ensureSolarCycleRelicRewardState(sc) {
   var state = sc || ensureSolarCycleState();
@@ -3986,6 +4010,10 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
 
   if (typeof renderHexMap === 'function') renderHexMap();
   syncSolarCycleQuestScheduler(false);
+  // Omens can unlock side quests directly, not only on scheduler spawn cycles.
+  if (typeof maybeSpawnSolarCycleSideStory === 'function') {
+    try { maybeSpawnSolarCycleSideStory(sc); } catch (_sideErr) { /* non-critical */ }
+  }
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return true;
 }
@@ -4339,16 +4367,7 @@ function progressSolarCycleDay(days) {
 
   maybeRunSolarCycleFinalePressureScene(sc, prevDay);
 
-  if (sc.daysElapsed >= SOLAR_CYCLE_DAY_LIMIT && !sc.endingFlags.forcedFinaleTriggered) {
-    sc.endingFlags.forcedFinaleTriggered = true;
-    if (typeof showNotif === 'function') {
-      showNotif('Day 100 reached. The New Sun story ends now.', 'warn');
-    }
-    // Automatically trigger the ending — the story is over
-    if (typeof resolveSolarCycleEnding === 'function') {
-      resolveSolarCycleEnding(true);
-    }
-  }
+  maybeAutoResolveSolarCycleDay100(sc, 'day_progress');
 
   syncSolarCycleArcProgressFromCompleted(false);
   expireSolarCycleActiveStageMarkerIfNeeded(sc);
@@ -4363,6 +4382,23 @@ function progressSolarCycleDay(days) {
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
   return sc;
+}
+
+function maybeAutoResolveSolarCycleDay100(sc, sourceTag) {
+  var state = sc || ensureSolarCycleState();
+  if (!state || !state.storyModeEnabled || !state.enabled) return false;
+  if (Number(state.daysElapsed || 0) < SOLAR_CYCLE_DAY_LIMIT) return false;
+  if (state.endingFlags && state.endingFlags.forcedFinaleTriggered) return false;
+  state.endingFlags = state.endingFlags || {};
+  state.endingFlags.forcedFinaleTriggered = true;
+  if (typeof showNotif === 'function') {
+    showNotif('Day 100 reached. The New Sun story ends now.', 'warn');
+  }
+  if (state.prophecyTrack) {
+    state.prophecyTrack.push('Day 100 finale auto-triggered (' + String(sourceTag || 'runtime') + ').');
+  }
+  if (typeof resolveSolarCycleEnding === 'function') resolveSolarCycleEnding(true);
+  return true;
 }
 
 function getSolarCycleStatus() {
@@ -6359,6 +6395,8 @@ function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
 function syncSolarCycleQuestScheduler(forceSpawn) {
   var sc = ensureSolarCycleState();
   if (!sc || !sc.storyModeEnabled || !sc.enabled) return null;
+  maybeAutoResolveSolarCycleDay100(sc, 'scheduler_sync');
+  if (!sc.enabled) return null;
   var qs = getSolarCycleQuestScheduler(sc);
   if (!qs) return null;
   qs.routeTemplate = getSolarCycleQuestTemplateMode(sc);
@@ -7284,6 +7322,9 @@ function resolveSolarCycleStageChoice(stageId, choiceId) {
 
 function resolveSolarCycleProvinceStoryMarker(hex, markerToken) {
   if (!markerToken || markerToken.missionId !== 'solar_cycle_story') return false;
+  if (String(markerToken.storyType || '') === 'sidestory' && markerToken.sideStoryId) {
+    return openSolarCycleSideStoryModal(markerToken.sideStoryId);
+  }
   if (markerToken.schedulerQuest && markerToken.questId) {
     return openSolarCycleSchedulerQuestModal(markerToken.questId, 'Province Hex [' + (Number(hex.col || 0) + 1) + ',' + (Number(hex.row || 0) + 1) + ']');
   }
@@ -18103,22 +18144,29 @@ function maybeSpawnSolarCycleSideStory(sc) {
 
   // Collect eligible templates (not already active/completed, spawn window matches)
   var active = stories.filter(function (s) { return s.active && !s.completed && !s.failed; });
-  if (active.length >= 2) return null; // cap at 2 concurrent side stories
+  if (active.length >= 3) return null; // cap at 3 concurrent side stories
 
-  var used = {};
-  stories.forEach(function (s) { used[s.templateId] = true; });
+  var activeTemplateUse = {};
+  stories.forEach(function (s) {
+    if (s && s.active && !s.completed && !s.failed) activeTemplateUse[s.templateId] = true;
+  });
 
   var eligible = SOLAR_CYCLE_SIDE_STORY_TEMPLATES.filter(function (t) {
-    if (used[t.id]) return false;
+    if (activeTemplateUse[t.id]) return false;
     if (day < t.spawnDay[0] || day > t.spawnDay[1]) return false;
     if (Array.isArray(t.spawnPhases) && t.spawnPhases.length && t.spawnPhases.indexOf(phase) < 0) return false;
+    // Allow recurring side stories, but don't repeat the same template too quickly.
+    var recent = stories.filter(function (s) {
+      return s && s.templateId === t.id && Number(day - Number(s.spawnDay || 0)) < 9;
+    });
+    if (recent.length > 0) return false;
     return true;
   });
   if (!eligible.length) return null;
 
-  // Probabilistic: ~35% chance per call
+  // Probabilistic: ~65% chance per call
   var roll = seedSolarCycleMix(state, day * 7 + stories.length * 13 + phase) % 100;
-  if (roll > 34) return null;
+  if (roll > 64) return null; // ~65% chance — side stories should appear often
 
   var template = eligible[roll % eligible.length];
   var story = {
@@ -18136,8 +18184,37 @@ function maybeSpawnSolarCycleSideStory(sc) {
     spawnPhase: phase
   };
   stories.push(story);
+  // Place a visible marker on the province map so the player can find the character.
+  var _sideHex = null;
+  var _sideKey = '';
+  if (typeof S !== 'undefined' && S && S.missionTokens && typeof pickSolarCycleProvinceHex === 'function') {
+    for (var _try = 0; _try < 8; _try++) {
+      var _candidate = pickSolarCycleProvinceHex(seedSolarCycleMix(state, day + stories.length * 37 + _try * 11));
+      if (!_candidate) continue;
+      var _candidateKey = String(_candidate.col) + ',' + String(_candidate.row);
+      if (!S.missionTokens[_candidateKey]) {
+        _sideHex = _candidate;
+        _sideKey = _candidateKey;
+        break;
+      }
+    }
+  }
+  if (_sideHex && _sideKey) {
+    S.missionTokens[_sideKey] = {
+      missionId: 'solar_cycle_story',
+      type: 'solar_cycle_story',
+      schedulerQuest: false,
+      storyType: 'sidestory',
+      sideStoryId: story.id,
+      title: template.characterType + ': ' + template.name,
+      text: template.intro,
+      expiresDay: Number(state.daysElapsed || 0) + 8
+    };
+    story.mapKey = _sideKey;
+    if (typeof renderHexMap === 'function') renderHexMap();
+  }
   if (typeof showNotif === 'function') {
-    showNotif('Side story began: ' + String(template.characterType) + ' — ' + String(template.name) + '. Find them on the map.', 'info');
+    showNotif('Side quest appeared: ' + String(template.characterType) + ' — ' + String(template.name) + '. Find them on the Province map.', 'info');
   }
   return story;
 }
@@ -18191,6 +18268,15 @@ function advanceSolarCycleSideStoryBeat(storyId, statKey) {
   var action = beat.actions[String(statKey)];
   if (!action) return;
 
+  var clearSideStoryMapToken = function () {
+    if (!story.mapKey || typeof S === 'undefined' || !S || !S.missionTokens) return;
+    var token = S.missionTokens[String(story.mapKey)];
+    if (token && token.missionId === 'solar_cycle_story' && String(token.storyType || '') === 'sidestory') {
+      delete S.missionTokens[String(story.mapKey)];
+      if (typeof renderHexMap === 'function') renderHexMap();
+    }
+  };
+
   // Apply consequence deltas
   var cons = action.consequence || {};
   if (typeof recordWorldConsequence === 'function') {
@@ -18217,14 +18303,28 @@ function advanceSolarCycleSideStoryBeat(storyId, statKey) {
   if (outcome === 'fail') {
     story.active = false;
     story.failed = true;
+    clearSideStoryMapToken();
     notifMsg = resultText + ' [Branch closed]';
   } else if (outcome === 'complete') {
     story.active = false;
     story.completed = true;
     notifMsg = resultText + ' [Story complete]';
+      // Award the lore codex reward
+      if (template.loreReward && typeof addToBackpack === 'function') {
+        var _rewarded = addToBackpack(template.loreReward);
+        if (_rewarded && typeof showNotif === 'function') {
+          showNotif('Side quest reward: ' + template.loreReward + ' added to backpack.', 'good');
+        }
+      }
+      // Clear the map marker
+      if (story.mapKey && typeof S !== 'undefined' && S && S.missionTokens) {
+        delete S.missionTokens[story.mapKey];
+        if (typeof renderHexMap === 'function') renderHexMap();
+      }
   } else if (outcome === 'combat') {
     story.active = false;
     story.failed = true;
+    clearSideStoryMapToken();
     notifMsg = resultText + ' [Combat triggered]';
     if (typeof showNotif === 'function') showNotif('Side Story: ' + resultText, 'warn');
     if (typeof startProvinceMonsterCombat === 'function') {
@@ -18243,4 +18343,5 @@ function advanceSolarCycleSideStoryBeat(storyId, statKey) {
 window.openSolarCycleSideStoryModal = openSolarCycleSideStoryModal;
 window.advanceSolarCycleSideStoryBeat = advanceSolarCycleSideStoryBeat;
 window.maybeSpawnSolarCycleSideStory = maybeSpawnSolarCycleSideStory;
+window.getSolarCycleItemDescription = getSolarCycleItemDescription;
 window.getScarTmwCostPenalty = getScarTmwCostPenalty;

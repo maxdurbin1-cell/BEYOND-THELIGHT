@@ -541,6 +541,76 @@ const NEW_SUN_DIALOGUE_SNIPPETS = {
 
 const SOLAR_CYCLE_ACTION_STATS = ['lead', 'spirit', 'defend', 'strike', 'shoot', 'mind', 'control', 'body'];
 
+const SOLAR_CYCLE_ACTION_PERSONA = {
+  lead: 'diplomatic',
+  spirit: 'empathetic',
+  defend: 'hardline',
+  strike: 'violent',
+  shoot: 'violent',
+  mind: 'analytic',
+  control: 'coercive',
+  body: 'physical'
+};
+
+const SOLAR_CYCLE_SOCIAL_STYLE_BRANCHES = {
+  diplomatic: {
+    label: 'Diplomatic Consensus',
+    summary: 'Word spreads that you build coalitions under pressure.',
+    successReason: 'social_diplomatic_success',
+    failReason: 'social_diplomatic_fail',
+    successDeltas: { stability: 1, witness: 1, rumor: -1, factionHeat: -1 },
+    failDeltas: { stability: -1, witness: -1, rumor: 1 }
+  },
+  empathetic: {
+    label: 'Witness Mercy Route',
+    summary: 'People trust your compassion, even when the route is risky.',
+    successReason: 'social_empathetic_success',
+    failReason: 'social_empathetic_fail',
+    successDeltas: { witness: 2, stability: 1, corruption: -1 },
+    failDeltas: { witness: -1, rumor: 1 }
+  },
+  analytic: {
+    label: 'Evidence Tribunal Route',
+    summary: 'Your investigations read as methodical and evidence-led.',
+    successReason: 'social_analytic_success',
+    failReason: 'social_analytic_fail',
+    successDeltas: { corruption: -1, rumor: -1, witness: 1 },
+    failDeltas: { rumor: 1, factionHeat: 1 }
+  },
+  coercive: {
+    label: 'Control Pressure Route',
+    summary: 'Contacts comply, but many feel manipulated.',
+    successReason: 'social_coercive_success',
+    failReason: 'social_coercive_fail',
+    successDeltas: { stability: 1, factionHeat: 1, witness: -1 },
+    failDeltas: { stability: -1, factionHeat: 2, corruption: 1, witness: -1 }
+  },
+  physical: {
+    label: 'Physical Presence Route',
+    summary: 'You solve social deadlocks through force of presence and grit.',
+    successReason: 'social_physical_success',
+    failReason: 'social_physical_fail',
+    successDeltas: { stability: 1, rumor: 1, witness: -1 },
+    failDeltas: { stability: -1, rumor: 2, factionHeat: 1 }
+  },
+  hardline: {
+    label: 'Security Crackdown Route',
+    summary: 'Civilians read your posture as militarized control.',
+    successReason: 'social_hardline_success',
+    failReason: 'social_hardline_fail',
+    successDeltas: { stability: 1, factionHeat: 2, witness: -1, rumor: 1 },
+    failDeltas: { stability: -1, factionHeat: 2, corruption: 1, witness: -1, rumor: 1 }
+  },
+  violent: {
+    label: 'Violence Reputation Route',
+    summary: 'People now treat you as an enforcer more than a negotiator.',
+    successReason: 'social_violent_success',
+    failReason: 'social_violent_fail',
+    successDeltas: { stability: 1, factionHeat: 2, witness: -2, rumor: 2, corruption: 1 },
+    failDeltas: { stability: -2, factionHeat: 3, witness: -2, rumor: 2, corruption: 2 }
+  }
+};
+
 const NEW_SUN_ENDING_KEYS = [
   'new_sun_risen',
   'shared_dawn_compromise',
@@ -1005,6 +1075,9 @@ function ensureSolarCycleState() {
   if (!sc.questScheduler.wtwQuestByHex || typeof sc.questScheduler.wtwQuestByHex !== 'object') sc.questScheduler.wtwQuestByHex = {};
   if (!sc.questScheduler.questActionStats || typeof sc.questScheduler.questActionStats !== 'object') sc.questScheduler.questActionStats = {};
   if (!sc.questScheduler.approachStats || typeof sc.questScheduler.approachStats !== 'object') sc.questScheduler.approachStats = { investigate: 0, fracture: 0, misled: 0, portal: 0 };
+  if (!sc.questScheduler.actionProfile || typeof sc.questScheduler.actionProfile !== 'object') sc.questScheduler.actionProfile = { byStat: {}, byChallenge: {} };
+  if (!sc.questScheduler.actionProfile.byStat || typeof sc.questScheduler.actionProfile.byStat !== 'object') sc.questScheduler.actionProfile.byStat = {};
+  if (!sc.questScheduler.actionProfile.byChallenge || typeof sc.questScheduler.actionProfile.byChallenge !== 'object') sc.questScheduler.actionProfile.byChallenge = {};
   if (!sc.questScheduler.npcVectors || typeof sc.questScheduler.npcVectors !== 'object') sc.questScheduler.npcVectors = {};
   if (!sc.questScheduler.regionPostedCount || typeof sc.questScheduler.regionPostedCount !== 'object') sc.questScheduler.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
   if (typeof sc.questScheduler.lastSpawnDay !== 'number') sc.questScheduler.lastSpawnDay = -1;
@@ -2932,6 +3005,7 @@ function startSolarCycleMode(activeArc) {
     questCounter: 0,
     wtwQuestByHex: {},
     questActionStats: {},
+    actionProfile: { byStat: {}, byChallenge: {} },
     npcMemory: {},
     trackedThreadRootId: '',
     trackedQuestId: '',
@@ -3098,6 +3172,23 @@ function renderNewSunModePanel() {
       + ' | WTW ' + Number(status.schedulerWtwDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.wtw || 0)
       + ' | Galaxy ' + Number(status.schedulerGalaxyDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.galaxy || 0))
     : 'Scheduler unavailable';
+  var socialProfileSummary = 'Social style profile: no social rolls logged yet.';
+  if (scheduler && scheduler.actionProfile && scheduler.actionProfile.byChallenge && scheduler.actionProfile.byChallenge.social) {
+    var socialStats = scheduler.actionProfile.byChallenge.social;
+    var topStat = '';
+    var topCount = -1;
+    Object.keys(socialStats).forEach(function (k) {
+      var count = Number(socialStats[k] || 0);
+      if (count > topCount) {
+        topCount = count;
+        topStat = String(k || '');
+      }
+    });
+    if (topStat) {
+      var topStyle = getSolarCycleSocialStyleProfile('social', topStat);
+      socialProfileSummary = 'Social style profile: ' + String(topStat).toUpperCase() + ' -> ' + String((topStyle && topStyle.label) || 'Mixed Route') + ' (' + Number(topCount) + ' rolls).';
+    }
+  }
   var artifactProgress = scheduler ? ensureSolarCycleArtifactProgress(scheduler) : null;
   var artifactSummary = artifactProgress
     ? ('Artifacts: ' + Number(artifactProgress.total || 0)
@@ -3244,6 +3335,7 @@ function renderNewSunModePanel() {
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>New Sun Quest Scheduler</strong></div>'
     + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.3rem;">High-volume investigations with day/phase windows. Every resolved quest reveals one route to restore the New Sun, and different routes appear each run.</div>'
     + '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.35rem;">' + schedulerSummary + '</div>'
+    + '<div style="font-size:.74rem;color:var(--teal);line-height:1.5;margin-bottom:.35rem;">' + escapeSolarCycleHtml(socialProfileSummary) + '</div>'
     + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.25rem;">Quest Threads (A/B/C)</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.4rem;margin-bottom:.35rem;">' + threadCardsHtml + '</div>'
     + canonBoardHtml
@@ -3335,6 +3427,50 @@ function normalizeSolarCycleActionStat(stat) {
   return 'mind';
 }
 
+function getSolarCycleActionPersona(stat) {
+  var key = normalizeSolarCycleActionStat(stat);
+  return SOLAR_CYCLE_ACTION_PERSONA[key] || 'analytic';
+}
+
+function getSolarCycleActionStorySignal(challengeType, stat) {
+  var challenge = String(challengeType || 'social').toLowerCase();
+  var key = normalizeSolarCycleActionStat(stat);
+  if (challenge === 'social') {
+    if (key === 'strike' || key === 'shoot') return 'SOCIAL signal: overt violence. Success can still spread fear and trigger retaliation branches.';
+    if (key === 'defend') return 'SOCIAL signal: hardline security posture. NPCs may cooperate, but communities can read this as authoritarian pressure.';
+    if (key === 'body') return 'SOCIAL signal: physical presence and force-of-will. You may win compliance while risking intimidation fallout.';
+    if (key === 'spirit') return 'SOCIAL signal: empathy and witness care. This tends to open trust-forward branches.';
+    if (key === 'lead') return 'SOCIAL signal: diplomacy and coalition-building. This tends to open consensus branches.';
+    if (key === 'control') return 'SOCIAL signal: leverage and pressure tactics. It can create short-term order with long-term resentment.';
+    if (key === 'mind') return 'SOCIAL signal: investigation and cross-examination. It tends to open evidence-led tribunal branches.';
+  }
+  return 'Story signal: this Action Die shapes how factions remember your method, not only whether the roll succeeds.';
+}
+
+function getSolarCycleSocialStyleProfile(challengeType, stat) {
+  if (String(challengeType || '').toLowerCase() !== 'social') return null;
+  var persona = getSolarCycleActionPersona(stat);
+  var profile = SOLAR_CYCLE_SOCIAL_STYLE_BRANCHES[persona] || SOLAR_CYCLE_SOCIAL_STYLE_BRANCHES.analytic;
+  return {
+    key: persona,
+    label: String(profile.label || 'Social Route'),
+    summary: String(profile.summary || ''),
+    successReason: String(profile.successReason || ''),
+    failReason: String(profile.failReason || ''),
+    successDeltas: profile.successDeltas || {},
+    failDeltas: profile.failDeltas || {}
+  };
+}
+
+function mergeSolarCycleOutcomeDeltas(base, extra) {
+  var out = base || {};
+  var add = extra || {};
+  Object.keys(add).forEach(function (k) {
+    out[k] = Number(out[k] || 0) + Number(add[k] || 0);
+  });
+  return out;
+}
+
 function getSolarCycleQuestActionStat(questId) {
   var qs = getSolarCycleQuestScheduler();
   if (!qs) return 'mind';
@@ -3351,6 +3487,11 @@ function setSolarCycleQuestActionStat(questId, stat) {
   qs.questActionStats[key] = next;
   var labelEl = document.getElementById('nsq-stat-current');
   if (labelEl) labelEl.textContent = String(next).toUpperCase();
+  var signalEl = document.getElementById('nsq-style-signal');
+  if (signalEl) {
+    var challenge = signalEl.getAttribute('data-challenge-type') || 'social';
+    signalEl.textContent = getSolarCycleActionStorySignal(challenge, next);
+  }
   if (typeof showNotif === 'function') showNotif('Quest approach die set: ' + String(next).toUpperCase() + '.', 'info');
   return next;
 }
@@ -3866,6 +4007,9 @@ function getSolarCycleQuestScheduler(sc) {
   if (!qs.wtwQuestByHex || typeof qs.wtwQuestByHex !== 'object') qs.wtwQuestByHex = {};
   if (!qs.questActionStats || typeof qs.questActionStats !== 'object') qs.questActionStats = {};
   if (!qs.approachStats || typeof qs.approachStats !== 'object') qs.approachStats = { investigate: 0, fracture: 0, misled: 0, portal: 0 };
+  if (!qs.actionProfile || typeof qs.actionProfile !== 'object') qs.actionProfile = { byStat: {}, byChallenge: {} };
+  if (!qs.actionProfile.byStat || typeof qs.actionProfile.byStat !== 'object') qs.actionProfile.byStat = {};
+  if (!qs.actionProfile.byChallenge || typeof qs.actionProfile.byChallenge !== 'object') qs.actionProfile.byChallenge = {};
   if (!qs.npcMemory || typeof qs.npcMemory !== 'object') qs.npcMemory = {};
   if (!qs.npcVectors || typeof qs.npcVectors !== 'object') qs.npcVectors = {};
   Object.keys(qs.npcVectors).forEach(function (k) {
@@ -4204,6 +4348,29 @@ function spawnSolarCycleQuestFollowup(sourceQuest, sc, reason) {
     followup.deceptive = true;
     followup.title = 'Fractured Lead: ' + followup.title;
     followup.clueText = 'A failed roll opened this branch. The world-ending route has shifted. ' + followup.clueText;
+  } else if (String(reason || '') === 'social_violent_success' || String(reason || '') === 'social_hardline_success') {
+    followup.title = 'Fallout Branch: Security Panic - ' + followup.title;
+    followup.clueText = 'People complied, but fear spread fast. This branch is shaped by your forceful social posture. ' + followup.clueText;
+  } else if (String(reason || '') === 'social_violent_fail' || String(reason || '') === 'social_hardline_fail') {
+    followup.deceptive = true;
+    followup.title = 'Retaliation Branch: Public Backlash - ' + followup.title;
+    followup.clueText = 'Violence-coded social handling triggered retaliation narratives and contradictory testimony. ' + followup.clueText;
+  } else if (String(reason || '') === 'social_physical_success' || String(reason || '') === 'social_physical_fail') {
+    followup.title = 'Pressure Branch: Muscle and Momentum - ' + followup.title;
+    followup.clueText = 'Your physical presence solved immediate friction but changed how witnesses read your intent. ' + followup.clueText;
+  } else if (String(reason || '') === 'social_diplomatic_success' || String(reason || '') === 'social_empathetic_success') {
+    followup.title = 'Alliance Branch: Witness Accord - ' + followup.title;
+    followup.clueText = 'Your social handling built trust and opened a consensus route. ' + followup.clueText;
+  } else if (String(reason || '') === 'social_diplomatic_fail' || String(reason || '') === 'social_empathetic_fail') {
+    followup.deceptive = true;
+    followup.title = 'Trust Fracture Branch: Witness Doubt - ' + followup.title;
+    followup.clueText = 'The social attempt failed and trust cracked; testimony now carries more contradiction. ' + followup.clueText;
+  } else if (String(reason || '') === 'social_analytic_success' || String(reason || '') === 'social_analytic_fail') {
+    followup.title = 'Tribunal Branch: Evidence Contest - ' + followup.title;
+    followup.clueText = 'Your method reshaped the route into hearings, records, and evidence disputes. ' + followup.clueText;
+  } else if (String(reason || '') === 'social_coercive_success' || String(reason || '') === 'social_coercive_fail') {
+    followup.title = 'Leverage Branch: Compliance Debt - ' + followup.title;
+    followup.clueText = 'Contacts complied under pressure, but the debt and resentment now alter future testimony. ' + followup.clueText;
   }
 
   followup.sourceQuestId = String(sourceQuest.id || followup.sourceQuestId || '');
@@ -4473,6 +4640,8 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   };
   var selectedStat = normalizeSolarCycleActionStat(actionStat || getSolarCycleQuestActionStat(quest.id));
   var rollStat = selectedStat || (statByApproach[String(quest.resolvedApproach || 'investigate')] || 'mind');
+  var challengeType = String(quest.challengeType || 'social').toLowerCase();
+  var socialStyle = getSolarCycleSocialStyleProfile(challengeType, rollStat);
   var rollDread = Math.max(6, Number((quest.region === 'galaxy' ? 12 : (quest.region === 'wtw' ? 10 : 8)) + Math.min(4, Number(sc.worldTilt || 0))));
   var rollResult = rollSolarCycleContest(rollStat, rollDread);
   var forcedMisled = !rollResult.success;
@@ -4480,6 +4649,14 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   qs.approachStats = qs.approachStats || { investigate: 0, fracture: 0, misled: 0, portal: 0 };
   if (qs.approachStats[approachKey] === undefined) qs.approachStats[approachKey] = 0;
   qs.approachStats[approachKey] = Number(qs.approachStats[approachKey] || 0) + 1;
+  qs.actionProfile = qs.actionProfile || { byStat: {}, byChallenge: {} };
+  qs.actionProfile.byStat = qs.actionProfile.byStat || {};
+  qs.actionProfile.byChallenge = qs.actionProfile.byChallenge || {};
+  qs.actionProfile.byStat[rollStat] = Number(qs.actionProfile.byStat[rollStat] || 0) + 1;
+  if (!qs.actionProfile.byChallenge[challengeType] || typeof qs.actionProfile.byChallenge[challengeType] !== 'object') {
+    qs.actionProfile.byChallenge[challengeType] = {};
+  }
+  qs.actionProfile.byChallenge[challengeType][rollStat] = Number(qs.actionProfile.byChallenge[challengeType][rollStat] || 0) + 1;
   var npcStance = evaluateSolarCycleNpcStance(sc, quest, approachKey);
   if (npcStance && npcStance.vector) {
     upsertSolarCycleNpcPromise(npcStance.vector, quest, approachKey, 'declared', getSolarCyclePromisePreview(quest, approachKey));
@@ -4537,17 +4714,25 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     outcomeDeltas.factionHeat = Number(outcomeDeltas.factionHeat || 0) + 1;
   }
   if (forcedMisled) outcomeDeltas.corruption = Number(outcomeDeltas.corruption || 0) + 1;
+  if (socialStyle) {
+    outcomeDeltas = mergeSolarCycleOutcomeDeltas(outcomeDeltas, misled ? socialStyle.failDeltas : socialStyle.successDeltas);
+  }
+  var followupReason = forcedMisled ? 'failed' : (misled ? 'misled' : (String(approach || '') === 'portal' ? 'portal' : 'success'));
+  if (socialStyle) {
+    if (!misled && socialStyle.successReason) followupReason = socialStyle.successReason;
+    if (misled && socialStyle.failReason) followupReason = socialStyle.failReason;
+  }
   recordWorldConsequence({
     system: 'newsun',
-    title: (misled ? 'Contested clue' : 'Confirmed clue') + ': ' + String(quest.methodTitle || 'Route data'),
-    detail: String(quest.title || 'New Sun investigation') + ' [' + String(quest.challengeType || 'social').toUpperCase() + ']',
+    title: (misled ? 'Contested clue' : 'Confirmed clue') + ': ' + String(quest.methodTitle || 'Route data') + (socialStyle ? (' (' + socialStyle.label + ')') : ''),
+    detail: String(quest.title || 'New Sun investigation') + ' [' + String(quest.challengeType || 'social').toUpperCase() + '] via ' + String(rollStat || 'mind').toUpperCase(),
     region: String(quest.region || ''),
     severity: misled ? 'high' : 'medium',
     deltas: outcomeDeltas
   });
   if (forcedMisled) recordSolarCycleIrreversibleTag('scheduler_roll_failed', { questId: quest.id, methodId: quest.methodId, approach: approach });
   if (typeof showNotif === 'function') {
-    showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0) + ' vs Dread ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0) + ').', misled ? 'warn' : 'good');
+    showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0) + ' vs Dread ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0) + ')' + (socialStyle ? (' | ' + socialStyle.label) : '') + '.', misled ? 'warn' : 'good');
   }
   var _isPuzzleChallenge = String(quest.challengeType || '') === 'puzzle';
   applySolarCycleQuestChallengeOutcome(quest, rollResult, misled);
@@ -4578,7 +4763,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     }
   }
 
-  var followup = spawnSolarCycleQuestFollowup(quest, sc, forcedMisled ? 'failed' : (misled ? 'misled' : (String(approach || '') === 'portal' ? 'portal' : 'success')));
+  var followup = spawnSolarCycleQuestFollowup(quest, sc, followupReason);
   maybeSpawnSolarCycleOpportunisticQuest(sc, quest);
 
   if (!_isPuzzleChallenge && typeof openModal === 'function') {
@@ -4598,6 +4783,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
       + '</div>'
       + '<div style="font-size:.75rem;color:var(--gold2);line-height:1.55;margin-bottom:.3rem;">' + nextHint + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(actionLine) + '</div>'
+      + (socialStyle ? ('<div style="font-size:.74rem;color:var(--gold2);line-height:1.55;margin-bottom:.3rem;">Social branch signal: <strong>' + escapeSolarCycleHtml(socialStyle.label) + '</strong>. ' + escapeSolarCycleHtml(socialStyle.summary || '') + '</div>') : '')
       + (artifactLabel ? ('<div style="font-size:.74rem;color:var(--green2);line-height:1.55;margin-bottom:.3rem;">Recovered artifact: <strong>' + escapeSolarCycleHtml(artifactLabel) + '</strong></div>') : '')
       + '<div style="font-size:.74rem;color:var(--muted2);">Challenge: ' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toUpperCase()) + '</div>'
       + '</div>'
@@ -4619,6 +4805,7 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   if (_nowDay > Number(quest.endDay || 0)) quest.endDay = _nowDay;
   var windowText = 'Day ' + Number(quest.startDay || 0) + '-' + Number(quest.endDay || 0) + ' | Phase ' + (Array.isArray(quest.phaseWindow) ? quest.phaseWindow.map(function (n) { return getSolarCyclePhaseLabelByIndex(n); }).join(', ') : 'Any');
   var chosenStat = getSolarCycleQuestActionStat(quest.id);
+  var styleSignal = getSolarCycleActionStorySignal(quest.challengeType || 'social', chosenStat);
   var memoryLine = String(quest.memoryCallbackLine || '');
   var actionLine = getSolarCycleInvestigationActionLine(quest);
   var dialogueLine = getSolarCycleInvestigationDialogueLine(quest);
@@ -4662,6 +4849,7 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     + '<div style="font-size:.72rem;color:' + ((stance && stance.betrayalPotential) ? 'var(--red2)' : 'var(--muted2)') + ';line-height:1.5;margin-bottom:.3rem;">NPC Conviction Vector: ' + escapeSolarCycleHtml(trustSummary) + '</div>'
     + '<div style="font-size:.72rem;color:var(--gold2);line-height:1.5;margin-bottom:.3rem;">Promise on this lead: ' + escapeSolarCycleHtml(promisePreview) + '</div>'
     + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.28rem;">Challenge Type: <strong>' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toUpperCase()) + '</strong> | Selected Action Die: <strong id="nsq-stat-current">' + escapeSolarCycleHtml(String(chosenStat).toUpperCase()) + '</strong></div>'
+    + '<div id="nsq-style-signal" data-challenge-type="' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toLowerCase()) + '" style="font-size:.72rem;color:var(--gold2);line-height:1.5;margin-bottom:.3rem;">' + escapeSolarCycleHtml(styleSignal) + '</div>'
     + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.45rem;">' + statButtons + '</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
     + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'investigate\');">' + escapeSolarCycleHtml(investigateLabel) + '</button>'

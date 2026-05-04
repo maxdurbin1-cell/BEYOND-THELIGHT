@@ -242,6 +242,15 @@ select option{background:#0f1020;}
 .hero-meta-card{border:1px solid var(--border2);background:rgba(6,9,20,.62);padding:.42rem .48rem;}
 .hero-meta-card strong{display:block;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2);margin-bottom:.12rem;}
 .hero-meta-card span{font-size:.76rem;color:var(--muted3);line-height:1.4;}
+.openworld-proof{background:linear-gradient(180deg,rgba(11,14,28,.92) 0%,rgba(8,11,22,.98) 100%);border:1px solid rgba(46,196,182,.24);padding:.85rem .9rem;margin-bottom:.85rem;}
+.openworld-proof-header{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(16rem,.9fr);gap:.8rem;align-items:start;margin-bottom:.7rem;}
+.openworld-proof-copy p{font-size:.87rem;color:var(--text2);line-height:1.65;margin-top:.34rem;}
+.openworld-proof-note{border:1px solid rgba(201,162,39,.22);background:rgba(201,162,39,.06);padding:.55rem .6rem;font-size:.78rem;color:var(--muted3);line-height:1.55;}
+.openworld-proof-note strong{color:var(--gold2);}
+.openworld-proof-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.4rem;}
+.openworld-proof-card{border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.55rem .58rem;}
+.openworld-proof-card strong{display:block;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.11em;text-transform:uppercase;color:var(--teal2);margin-bottom:.2rem;}
+.openworld-proof-card p{font-size:.78rem;color:var(--muted3);line-height:1.55;}
 .onboarding-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:.7rem;}
 .onboarding-card{background:var(--card);border:1px solid var(--border);padding:.72rem;}
 .onboarding-step{border:1px solid var(--border2);background:var(--surface);padding:.5rem .55rem;margin-bottom:.36rem;}
@@ -336,7 +345,7 @@ select option{background:#0f1020;}
 }
 @media(max-width:980px){header{grid-template-columns:1fr auto;align-items:start;}.logo{grid-column:1 / 2;}.ctx-bar{grid-column:1 / -1;}.header-credits{grid-column:2 / 3;align-self:start;}.tab-btn{font-size:.68rem;padding:.4rem .72rem;}}
 @media(max-width:680px){header{grid-template-columns:1fr;}.header-credits{grid-column:1 / -1;justify-self:stretch;margin-left:0;}.ctx-bar{padding:.3rem .34rem;}nav{padding:.4rem;gap:.24rem;}#main-content{padding:1rem .7rem 2rem;}}
-@media(max-width:980px){.hero-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.onboarding-grid{grid-template-columns:1fr;}}
+@media(max-width:980px){.hero-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.openworld-proof-header,.openworld-proof-grid{grid-template-columns:1fr;}.onboarding-grid{grid-template-columns:1fr;}}
 @media(max-width:600px){.hero-title{font-size:1.05rem;}.hero-subheading{font-size:.86rem;}.hero-meta-grid{grid-template-columns:1fr;}}
 .job-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
 .job-difficulty{font-size:.7rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}
@@ -413,6 +422,37 @@ select option{background:#0f1020;}
       <div class="hero-meta-card"><strong>Campaign Sync</strong><span>Shared progression for GM and players with live updates.</span></div>
       <div class="hero-meta-card"><strong>Combat Flow</strong><span>Fast action resolution, turn pacing, and encounter control.</span></div>
       <div class="hero-meta-card"><strong>Story Systems</strong><span>Factions, rivals, missions, arcs, and long-term consequences.</span></div>
+    </div>
+  </section>
+  <section class="openworld-proof" aria-label="Open-world tabletop RPG pillars">
+    <div class="openworld-proof-header">
+      <div class="openworld-proof-copy">
+        <div class="section-title">Why This Works As An Open-World Tabletop RPG</div>
+        <p>Beyond The Light already carries the core traits players expect from a strong open-world campaign game: free movement through layered maps, consequence-driven story systems, a setting dense with factions and lore, progression that changes what your crew can attempt, and enough mission variance to keep later sessions from repeating the same rhythm.</p>
+      </div>
+      <div class="openworld-proof-note"><strong>Table Read:</strong> The site supports the same pillars that define standout open-world RPGs, but translated into tabletop form: discovery over rails, choices that alter the campaign state, and mechanics that keep the world moving even when the party leaves the main plot alone.</div>
+    </div>
+    <div class="openworld-proof-grid">
+      <article class="openworld-proof-card">
+        <strong>Freedom And Exploration</strong>
+        <p>Province, sea-region, galaxy, and landmark travel tools let players roam at their own pace. Side discoveries, peril rolls, and encounter hooks reward leaving the critical path.</p>
+      </article>
+      <article class="openworld-proof-card">
+        <strong>Narrative Depth And Choice</strong>
+        <p>Storyline, backstory, faction, rival, and ending systems all react to player decisions. Sessions build toward different alliances, pressures, and outcomes instead of one fixed route.</p>
+      </article>
+      <article class="openworld-proof-card">
+        <strong>Immersive World-Building</strong>
+        <p>The setting is supported by map layers, codex references, social powers, travel phases, and environmental hazards. That makes the world feel inhabited rather than decorative.</p>
+      </article>
+      <article class="openworld-proof-card">
+        <strong>Mechanics And Progression</strong>
+        <p>Character growth, combat pressure, conditions, economy, caravans, and downtime systems give players new options over time while making risk and recovery matter.</p>
+      </article>
+      <article class="openworld-proof-card">
+        <strong>Dynamic Content And Replayability</strong>
+        <p>Missions, random events, faction tasks, trade routes, and persistent saves create changing campaign states. Different choices and playstyles naturally produce different runs.</p>
+      </article>
     </div>
   </section>
   <div class="char-top">

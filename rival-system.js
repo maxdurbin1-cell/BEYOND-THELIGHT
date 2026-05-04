@@ -3,6 +3,26 @@
     return Math.max(min,Math.min(max,num));
   }
 
+  function snapRivalDreadDie(v){
+    var chain=[4,6,8,10,12,20];
+    var n=Math.max(4,Number(v)||4);
+    var best=chain[0];
+    for(var i=0;i<chain.length;i++){
+      if(chain[i]<=n)best=chain[i];
+      else break;
+    }
+    return best;
+  }
+
+  function shiftRivalDread(dread,steps){
+    var chain=[4,6,8,10,12,20];
+    var base=snapRivalDreadDie(dread);
+    var idx=chain.indexOf(base);
+    if(idx<0)idx=2;
+    var next=clamp(idx+Number(steps||0),0,chain.length-1);
+    return chain[next];
+  }
+
   function ensureRivalState(){
     if(typeof S==='undefined'||!S||typeof S!=='object')return null;
     if(!S.rival||typeof S.rival!=='object'){
@@ -44,7 +64,7 @@
     if(typeof r.lastMap!=='string')r.lastMap='';
     if(!Array.isArray(r.history))r.history=[];
     if(typeof r.lastGateToken!=='string')r.lastGateToken='';
-    r.dread=clamp(Math.round(r.dread||8),4,20);
+    r.dread=snapRivalDreadDie(r.dread||8);
     r.rapport=clamp(Math.round(r.rapport||0),-8,8);
     r.threatTier=clamp(Math.round(r.threatTier||1),1,10);
     return r;
@@ -149,7 +169,7 @@
     if(!r||!r.alive)return;
     var where=(ctx&&ctx.label)?String(ctx.label):'this zone';
     var mapLabel=String(mapKey||'province').toUpperCase();
-    var baseDd=clamp(r.dread + Math.max(0,Math.floor((r.threatTier-1)/2)),6,20);
+    var baseDd=snapRivalDreadDie(r.dread + Math.max(0,Math.floor((r.threatTier-1)/2)));
     var indicator=r.rapport>=2?'Positive Path':(r.rapport<=-2?'Negative Path':'Uncertain Path');
     var dialogue = r.rapport>=3
       ? '"We keep crossing paths for a reason. Help me end this cleanly."'
@@ -185,7 +205,7 @@
   function resolveRivalInteraction(action,stat,intent,mapKey,key){
     var r=ensureRivalState();
     if(!r||!r.alive)return;
-    var dread=clamp(r.dread + Math.max(0,Math.floor((r.threatTier-1)/2)),6,20);
+    var dread=snapRivalDreadDie(r.dread + Math.max(0,Math.floor((r.threatTier-1)/2)));
     var rollOut=rivalActionRoll(stat,dread);
     var success=!!rollOut.success;
     var label=String(action||'interaction');
@@ -193,24 +213,24 @@
     if(String(intent)==='positive'){
       if(success){
         r.rapport=clamp(r.rapport+1,-8,8);
-        r.dread=clamp(r.dread-1,4,20);
+        r.dread=shiftRivalDread(r.dread,-1);
         r.threatTier=clamp(r.threatTier-1,1,10);
         drift='Trust improved; rival pressure eased.';
       }else{
         r.rapport=clamp(r.rapport-1,-8,8);
-        r.dread=clamp(r.dread+1,4,20);
+        r.dread=shiftRivalDread(r.dread,1);
         r.threatTier=clamp(r.threatTier+1,1,10);
         drift='Attempt backfired; they grew sharper.';
       }
     }else{
       if(success){
         r.rapport=clamp(r.rapport-1,-8,8);
-        r.dread=clamp(r.dread+1,4,20);
+        r.dread=shiftRivalDread(r.dread,1);
         r.threatTier=clamp(r.threatTier+1,1,10);
         drift='You gain ground, but the rivalry escalates.';
       }else{
         r.rapport=clamp(r.rapport-2,-8,8);
-        r.dread=clamp(r.dread+2,4,20);
+        r.dread=shiftRivalDread(r.dread,2);
         r.threatTier=clamp(r.threatTier+2,1,10);
         drift='They exploit your opening and become more dangerous.';
       }
@@ -231,7 +251,7 @@
   function startRivalCombat(mapKey,key){
     var r=ensureRivalState();
     if(!r||!r.alive)return;
-    var dd=clamp(r.dread + Math.max(0,Math.floor(r.threatTier/2)),6,20);
+    var dd=snapRivalDreadDie(r.dread + Math.max(0,Math.floor(r.threatTier/2)));
     if(!S.combat||typeof S.combat!=='object')S.combat={enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}};
     S.combat.enemyDread=dd;
     if(Array.isArray(S.enemies)){
@@ -277,7 +297,7 @@
         addRivalHistory('Final defeat delivered. Rival fell after three combats.');
         if(typeof showNotif==='function')showNotif('Final defeat: your rival has fallen after the third combat.', 'good');
       }else{
-        r.dread=clamp(r.dread+1,4,20);
+        r.dread=shiftRivalDread(r.dread,1);
         r.threatTier=clamp(r.threatTier+1,1,10);
         r.lastOutcome='Combat Success - Rival Escaped';
         addRivalHistory('Combat won. Rival escaped and hardened. Defeats: '+String(r.defeatCount)+'/3');
@@ -285,7 +305,7 @@
       }
     }else{
       r.combatLosses=(r.combatLosses||0)+1;
-      r.dread=clamp(r.dread+1,4,20);
+      r.dread=shiftRivalDread(r.dread,1);
       r.threatTier=clamp(r.threatTier+2,1,10);
       r.rapport=clamp(r.rapport-1,-8,8);
       r.lastOutcome='Combat Failure';

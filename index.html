@@ -8294,6 +8294,8 @@ function showBackpackItem(index) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="decryptDataCache('+index+');">💾 Decrypt Cache</button> ';
     } else if (customAction === 'stabilizeRelicShard') {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="stabilizeRelicShard('+index+');">✶ Stabilize Shard</button> ';
+    } else if (customAction === 'useBackpackAction') {
+      btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useBackpackItem('+index+');closeModal();">⚑ Use</button> ';
     } else if (isScrollPrefix) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="castScrollFromBackpack('+index+');">⚄ Cast Scroll</button> ';
     } else if (hasAD) {
@@ -8452,9 +8454,10 @@ function equipBackpackItem(index, slot) {
   var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
   var isArmor = (cat === 'armor' || cat === 'armor_exp');
   var isSpaceArmor = (cat === 'space_armor');
-  if (!(isArmor || isSpaceArmor) && /armor|armour|radsuit|vaccsuit|hydrosuit|suit/i.test(String(itemName || item))) {
+  if (!(isArmor || isSpaceArmor) && /armor|armour|cloak|mantle|radsuit|vaccsuit|hydrosuit|suit/i.test(String(itemName || item))) {
     isArmor = true;
   }
+  if (!isArmor && /fuligin cloak/i.test(String(itemName || itemForEquip || item))) isArmor = true;
   var isLayer = isSpaceArmor && isSpaceArmorLayerName(itemName);
   var isSuit = isSpaceArmor && isSpaceSuitName(itemName);
   
@@ -8674,6 +8677,8 @@ function useEquippedReadiedItem() {
   // Use the item from temporary backpack slot.
   if (found) {
     useBackpackItem(emptyIdx);
+  } else if (getCustomBackpackAction(text) === 'useBackpackAction') {
+    useBackpackItem(emptyIdx);
   } else if (/^Scroll:/i.test(text.trim())) {
     castScrollFromBackpack(emptyIdx);
   } else if (/A\.D\.|Ad\d|d\d/i.test(text)) {
@@ -8813,6 +8818,8 @@ function useBackpackItem(index) {
       decryptDataCache(index);
     } else if (customAction === 'stabilizeRelicShard') {
       stabilizeRelicShard(index);
+    } else if (customAction === 'useBackpackAction') {
+      // Custom-use relics/sigils are handled by runtime systems (e.g. New Sun hooks).
     }
     return;
   }
@@ -9149,6 +9156,11 @@ function getCustomBackpackAction(text) {
   if (clean === 'builder\'s letter') return 'readBuildersLetter';
   if (clean === 'data cache') return 'decryptDataCache';
   if (clean === 'relic shard') return 'stabilizeRelicShard';
+  if (clean === "autarch's signet") return 'useBackpackAction';
+  if (clean === 'claw of the conciliator') return 'useBackpackAction';
+  if (clean === 'book of the new sun') return 'useBackpackAction';
+  if (clean === 'new sun puzzle sigil') return 'useBackpackAction';
+  if (clean === 'fractured new sun puzzle sigil') return 'useBackpackAction';
   return '';
 }
 

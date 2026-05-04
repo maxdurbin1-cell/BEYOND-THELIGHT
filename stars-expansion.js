@@ -1648,6 +1648,52 @@ function handleSolarCycleRelicBackpackUse(index) {
     return true;
   }
 
+  if (name === 'new sun puzzle sigil') {
+    consumeSolarCycleBackpackItem(index, 'New Sun Puzzle Sigil');
+    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+    S.rollMod = S.rollMod || { advDice: [], flat: 0 };
+    if (!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
+    S.rollMod.advDice.push((S.stats && S.stats.adventure) ? S.stats.adventure : 4);
+    if (typeof updateRollModDisplay === 'function') updateRollModDisplay();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof showNotif === 'function') showNotif('New Sun Puzzle Sigil aligned: +1 TMW and +A.D. queued.', 'good');
+    return true;
+  }
+
+  if (name === 'fractured new sun puzzle sigil') {
+    consumeSolarCycleBackpackItem(index, 'Fractured New Sun Puzzle Sigil');
+    var sc = ensureSolarCycleState();
+    var gainedCharge = false;
+    if (sc && sc.timeFracture) {
+      var current = Number(sc.timeFracture.charges || 0);
+      var cap = Math.max(1, Number(sc.timeFracture.maxCharges || 1));
+      if (current < cap) {
+        sc.timeFracture.charges = Math.min(cap, current + 1);
+        gainedCharge = true;
+      }
+      if (sc.timeFracture.scarFlags && typeof sc.timeFracture.scarFlags === 'object') {
+        sc.timeFracture.scarFlags.paradoxStrain = Math.max(0, Number(sc.timeFracture.scarFlags.paradoxStrain || 0) + 1);
+      }
+      if (typeof updateSolarCycleTimeFractureUI === 'function') updateSolarCycleTimeFractureUI();
+    }
+    if (!gainedCharge) {
+      S.rollMod = S.rollMod || { advDice: [], flat: 0 };
+      if (!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
+      S.rollMod.advDice.push((S.stats && S.stats.adventure) ? S.stats.adventure : 4);
+      if (typeof updateRollModDisplay === 'function') updateRollModDisplay();
+    }
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof showNotif === 'function') {
+      showNotif(gainedCharge
+        ? 'Fractured Sigil stabilized: +1 Time Fracture charge (Paradox Strain +1).'
+        : 'Fractured Sigil resonated: +A.D. queued (Paradox Strain +1).', 'warn');
+    }
+    return true;
+  }
+
   return false;
 }
 

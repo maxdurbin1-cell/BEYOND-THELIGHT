@@ -3674,7 +3674,17 @@ function resolveSolarCycleMarkerChoice(approach) {
       }
     }
     if (typeof closeModal === 'function') closeModal();
-    if (typeof showNotif === 'function') showNotif('You turned away. The omen will resurface elsewhere.', 'info');
+    var _copy = getSolarCycleMarkerResolutionCopy('ignore', true, _sc, _tkn || null, null);
+    if (typeof showNotif === 'function') showNotif(_copy.title, 'info');
+    if (typeof openModal === 'function') {
+      openModal(
+        'Solar Omen Deferred',
+        '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
+        + '<div style="margin-bottom:.3rem;">' + escapeSolarCycleHtml(_copy.title) + '</div>'
+        + '<div style="font-size:.74rem;color:var(--muted2);">' + escapeSolarCycleHtml(_copy.detail) + '</div>'
+        + '</div>'
+      );
+    }
     return true;
   }
   var context = window._activeSolarMarkerContext || {};
@@ -3747,6 +3757,48 @@ function syncSolarCycleProvinceMarkers() {
   if (typeof renderHexMap === 'function') renderHexMap();
 }
 
+function getSolarCycleMarkerResolutionCopy(approach, success, sc, markerToken, failureBranch) {
+  var pick = String(approach || 'observe');
+  var tier = String((markerToken && markerToken.solarTier) || (sc && sc.currentTier) || 'early');
+  var arc = String((markerToken && markerToken.solarArc) || getSolarCycleEffectiveArc(sc) || 'relic');
+  var branchLabel = failureBranch && failureBranch.title ? String(failureBranch.title) : 'a fracture branch';
+  var tierCue = tier === 'final'
+    ? 'the sky is already choosing heirs'
+    : (tier === 'mid' ? 'the omen has begun naming costs' : 'the sign is still soft enough to answer');
+  var arcCue = arc === 'herald'
+    ? 'bells, vows, and witness-fire'
+    : (arc === 'loop' ? 'echoes, loops, and broken returns' : 'relic light and old machinery');
+
+  if (pick === 'ignore') {
+    return {
+      title: 'You let the omen pass without touching it.',
+      detail: 'It folds back into ' + arcCue + ', and ' + tierCue + '. The sign will come again somewhere less convenient.'
+    };
+  }
+  if (success && pick === 'observe') {
+    return {
+      title: 'The omen opens instead of fighting you.',
+      detail: 'By watching instead of grasping, you catch the seam inside ' + arcCue + '. ' + tierCue + ', and the pattern yields a lead worth keeping.'
+    };
+  }
+  if (success && pick === 'intervene') {
+    return {
+      title: 'The omen flinches and obeys your hand.',
+      detail: 'You force a shape onto the sign before it can finish becoming prophecy. ' + tierCue + ', and the world gives you a short, costly advantage.'
+    };
+  }
+  if (!success && pick === 'observe') {
+    return {
+      title: 'The omen shows too much and refuses a single meaning.',
+      detail: 'You read past the safe edge. ' + arcCue + ' splits into competing truths, and ' + branchLabel + ' peels away from the future you were trying to hold.'
+    };
+  }
+  return {
+    title: 'The omen rejects your intervention and breaks sideways.',
+    detail: 'You put weight on the sign too early. ' + tierCue + ', the pressure snaps into ' + branchLabel + ', and reality answers with a new scar.'
+  };
+}
+
 function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
   ensureStarsState();
   var sc = ensureSolarCycleState();
@@ -3814,10 +3866,12 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
 
   if (typeof closeModal === 'function') closeModal();
   if (typeof openModal === 'function') {
+    var resolutionCopy = getSolarCycleMarkerResolutionCopy(approach, contest.success, sc, markerToken, failureBranch);
     openModal(
       'Solar Omen Resolved',
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
-      + '<div style="margin-bottom:.3rem;">' + escapeSolarCycleHtml(contest.success ? 'You bent the omen to your will.' : 'The omen resisted. Reality split around your choice.') + '</div>'
+      + '<div style="margin-bottom:.3rem;">' + escapeSolarCycleHtml(resolutionCopy.title) + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;">' + escapeSolarCycleHtml(resolutionCopy.detail) + '</div>'
       + '<div style="font-size:.74rem;color:' + (contest.success ? 'var(--green2)' : 'var(--red2)') + ';margin-bottom:.35rem;">'
       + String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.actionRoll)
       + ' vs Dread d' + Number(contest.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.dreadRoll)

@@ -3762,41 +3762,84 @@ function getSolarCycleMarkerResolutionCopy(approach, success, sc, markerToken, f
   var tier = String((markerToken && markerToken.solarTier) || (sc && sc.currentTier) || 'early');
   var arc = String((markerToken && markerToken.solarArc) || getSolarCycleEffectiveArc(sc) || 'relic');
   var branchLabel = failureBranch && failureBranch.title ? String(failureBranch.title) : 'a fracture branch';
-  var tierCue = tier === 'final'
-    ? 'the sky is already choosing heirs'
-    : (tier === 'mid' ? 'the omen has begun naming costs' : 'the sign is still soft enough to answer');
-  var arcCue = arc === 'herald'
-    ? 'bells, vows, and witness-fire'
-    : (arc === 'loop' ? 'echoes, loops, and broken returns' : 'relic light and old machinery');
-
-  if (pick === 'ignore') {
-    return {
-      title: 'You let the omen pass without touching it.',
-      detail: 'It folds back into ' + arcCue + ', and ' + tierCue + '. The sign will come again somewhere less convenient.'
-    };
-  }
-  if (success && pick === 'observe') {
-    return {
-      title: 'The omen opens instead of fighting you.',
-      detail: 'By watching instead of grasping, you catch the seam inside ' + arcCue + '. ' + tierCue + ', and the pattern yields a lead worth keeping.'
-    };
-  }
-  if (success && pick === 'intervene') {
-    return {
-      title: 'The omen flinches and obeys your hand.',
-      detail: 'You force a shape onto the sign before it can finish becoming prophecy. ' + tierCue + ', and the world gives you a short, costly advantage.'
-    };
-  }
-  if (!success && pick === 'observe') {
-    return {
-      title: 'The omen shows too much and refuses a single meaning.',
-      detail: 'You read past the safe edge. ' + arcCue + ' splits into competing truths, and ' + branchLabel + ' peels away from the future you were trying to hold.'
-    };
-  }
-  return {
-    title: 'The omen rejects your intervention and breaks sideways.',
-    detail: 'You put weight on the sign too early. ' + tierCue + ', the pressure snaps into ' + branchLabel + ', and reality answers with a new scar.'
+  var byArc = {
+    herald: {
+      early: {
+        ignore: { title: 'The bell-tone passes you by.', detail: 'You leave the witness-fire unanswered. Somewhere else, a vow will be offered to a weaker pair of hands.' },
+        observeSuccess: { title: 'The omen resolves into liturgy.', detail: 'Between ash and bell-metal you hear exactly which oath the dawn still honors. The sign leaves you a usable commandment, not just wonder.' },
+        interveneSuccess: { title: 'You force the rite to name you.', detail: 'The heraldic fire recoils, then accepts your interruption as a temporary article of faith. The faithful will move because you made the sky sound certain.' },
+        observeFail: { title: 'The liturgy forks in your mouth.', detail: 'You read one vow too many. The witness-fire answers with contradiction, and ' + branchLabel + ' breaks away like a rival gospel.' },
+        interveneFail: { title: 'The rite denounces your hand.', detail: 'You press on the omen before the witnesses are ready. The bells turn accusatory, and ' + branchLabel + ' opens like a schism.' }
+      },
+      mid: {
+        ignore: { title: 'You leave the tribunal unanswered.', detail: 'The omen was already naming costs. By walking away, you let the sentence fall on someone unseen.' },
+        observeSuccess: { title: 'The bells name the price clearly.', detail: 'The omen stops pretending to be mystery and becomes judgment. You read which sacrifice preserves the thread and which one only flatters fear.' },
+        interveneSuccess: { title: 'You seize the sermon before it hardens.', detail: 'The sky is already teaching obedience, but you rewrite the lesson in motion. For one brief window, authority travels with your decision.' },
+        observeFail: { title: 'The witnesses disagree at once.', detail: 'You pull testimony from the fire too quickly. The omen multiplies into accusation, and ' + branchLabel + ' peels off carrying the harsher doctrine.' },
+        interveneFail: { title: 'The tribunal rejects your verdict.', detail: 'You try to close the matter by force. Instead the heraldic pattern convicts you of haste, and ' + branchLabel + ' opens under the sentence.' }
+      },
+      final: {
+        ignore: { title: 'You refuse the last coronation call.', detail: 'The sky is already choosing heirs. By saying nothing, you leave the crown floating toward whoever reaches it next.' },
+        observeSuccess: { title: 'The final rite finally speaks plainly.', detail: 'No allegory remains now. You witness the exact shape of power the new dawn is willing to bless, and the omen yields a hard, royal truth.' },
+        interveneSuccess: { title: 'You place your hand on the crown-shadow.', detail: 'The heraldic fire tries to pass above you; you drag it down into decision. The omen grudgingly accepts your authority for this moment.' },
+        observeFail: { title: 'The coronation image shatters under scrutiny.', detail: 'You look too closely at the crown being offered. Its mirrored claimants split apart, and ' + branchLabel + ' marches out as a rival succession.' },
+        interveneFail: { title: 'The crown-shadow bites back.', detail: 'You try to claim the ending before it is ripe. The rite refuses you, and ' + branchLabel + ' opens like a contested throne.' }
+      }
+    },
+    loop: {
+      early: {
+        ignore: { title: 'The echo closes without you.', detail: 'You let the loop finish its sentence elsewhere. When it returns, it will remember that you once chose absence.' },
+        observeSuccess: { title: 'The echo finally stabilizes into sequence.', detail: 'You watch the repetition until one version stops lying. The omen gives you the usable pattern hidden inside all the false returns.' },
+        interveneSuccess: { title: 'You pin one timeline to the table.', detail: 'The loop tries to keep branching, but you nail a single version of events in place. Reality hates the shortcut and obeys anyway.' },
+        observeFail: { title: 'The loop overexplains itself.', detail: 'You follow one recursion too far. Cause and consequence swap places, and ' + branchLabel + ' spills out as a surviving misprint.' },
+        interveneFail: { title: 'The timeline slips your grip.', detail: 'You try to arrest the recursion mid-turn. Instead it accelerates around your choice and leaves ' + branchLabel + ' behind as proof.' }
+      },
+      mid: {
+        ignore: { title: 'You leave the rewind unstopped.', detail: 'The loop was already naming what it intended to repeat. By refusing it, you leave the next iteration crueler and faster.' },
+        observeSuccess: { title: 'The false versions collapse into one warning.', detail: 'At this stage the loop is all appetite and residue. You find the one recurrence that still wants to help and strip it for guidance.' },
+        interveneSuccess: { title: 'You cut a working route through recurrence.', detail: 'Paradox pressures rise around your hand, but you shear off enough dead futures to keep one line alive. The omen hates the surgery, not the result.' },
+        observeFail: { title: 'The recursion learns from being watched.', detail: 'You hoped to decode it quietly. Instead the loop notices you noticing, and ' + branchLabel + ' wakes up already adapted.' },
+        interveneFail: { title: 'The loop keeps the scar and throws away the answer.', detail: 'You intervene at the wrong hinge. Time folds the wound into permanence and casts ' + branchLabel + ' into the path ahead.' }
+      },
+      final: {
+        ignore: { title: 'You let the last return go unchallenged.', detail: 'This was not just another echo. It was the one trying to warn you before the future sealed.' },
+        observeSuccess: { title: 'The final recursion admits what it was for.', detail: 'Nothing ornamental remains. The omen exposes the bootstrap, the cost, and the exact point where the future still bends.' },
+        interveneSuccess: { title: 'You force the ending to choose one memory.', detail: 'At the edge of collapse, you decide which version of events gets to survive. The loop resists, then concedes the narrowest possible corridor.' },
+        observeFail: { title: 'The ending repeats in incompatible ways.', detail: 'You try to hold every version in mind at once. The omen tears along the load-bearing seam, and ' + branchLabel + ' escapes as a living contradiction.' },
+        interveneFail: { title: 'Time refuses your final edit.', detail: 'You reach for authorship when the loop is already closing. It snaps around your hand and leaves ' + branchLabel + ' as the only editable remainder.' }
+      }
+    },
+    relic: {
+      early: {
+        ignore: { title: 'You leave the machine-light undisturbed.', detail: 'The old instruments dim and pretend patience. The sign will surface again after it has had time to choose a crueler geometry.' },
+        observeSuccess: { title: 'The relic light resolves into instructions.', detail: 'Gears, mirror-lines, and dead engineering stop posing as myth. You read the machine correctly and keep the portion of dawn it was still storing.' },
+        interveneSuccess: { title: 'You wrench the mechanism into alignment.', detail: 'The omen was built to outlast softer hands. You strike the right pressure point and force the old machinery to produce an answer now.' },
+        observeFail: { title: 'The mechanism reveals too many tolerances.', detail: 'You inspect past the safe calibration. The relic light splinters through hidden channels, and ' + branchLabel + ' vents off as dangerous surplus.' },
+        interveneFail: { title: 'The machinery recoils from the override.', detail: 'You try to force the answer before the system is seated. The old architecture rejects the command and ejects ' + branchLabel + ' as instability.' }
+      },
+      mid: {
+        ignore: { title: 'You leave the engine to grind by itself.', detail: 'At this stage the omen is already producing heat and debt. Walking away means someone else inherits the backlash.' },
+        observeSuccess: { title: 'The blueprint finally shows its missing line.', detail: 'Under pressure the relic system stops hiding elegance and starts revealing compromise. You find the omitted step that keeps the route alive.' },
+        interveneSuccess: { title: 'You bully the dead architecture into service.', detail: 'The omen was never meant to forgive improvisation. It complains in sparks and stress, but the mechanism yields a temporary advantage.' },
+        observeFail: { title: 'The blueprint turns adversarial.', detail: 'You expected a pattern. Instead the machine offers nested failure states, and ' + branchLabel + ' spills out through the maintenance gap.' },
+        interveneFail: { title: 'The override burns the clean route away.', detail: 'You push on rusted certainty. The mechanism answers with fracture pressure, and ' + branchLabel + ' becomes the price of forcing speed.' }
+      },
+      final: {
+        ignore: { title: 'You refuse the last machine-answer.', detail: 'The old system was ready to spend its final reserve on you. By declining, you leave the output to drift toward a less careful operator.' },
+        observeSuccess: { title: 'The whole apparatus confesses at once.', detail: 'At the end, relic systems stop pretending to be neutral. The omen reveals who they were built for, what they consume, and how the route survives.' },
+        interveneSuccess: { title: 'You take command of the failing engine.', detail: 'The old machinery is already choosing between shutdown and apotheosis. You force it into a third option and steal a brief window of control.' },
+        observeFail: { title: 'The final blueprint tears under its own truth.', detail: 'You uncover more of the design than reality can hold in one shape. The pattern ruptures, and ' + branchLabel + ' escapes as a live defect.' },
+        interveneFail: { title: 'The engine rejects its last operator.', detail: 'You try to command the ending by hand. The mechanism answers with backlash, and ' + branchLabel + ' opens as the surviving fault line.' }
+      }
+    }
   };
+  var tierKey = tier === 'final' ? 'final' : (tier === 'mid' || tier === 'late' ? 'mid' : 'early');
+  var pack = (byArc[arc] && byArc[arc][tierKey]) ? byArc[arc][tierKey] : byArc.relic.early;
+  if (pick === 'ignore') return pack.ignore;
+  if (success && pick === 'observe') return pack.observeSuccess;
+  if (success && pick === 'intervene') return pack.interveneSuccess;
+  if (!success && pick === 'observe') return pack.observeFail;
+  return pack.interveneFail;
 }
 
 function completeSolarCycleMarkerInteraction(hex, markerToken, approach) {
@@ -4841,18 +4884,58 @@ function getSolarCycleNpcDemandText(region, methodTitle) {
 
 function getSolarCycleInvestigationActionLine(quest) {
   var q = quest || {};
+  var sc = ensureSolarCycleState();
+  var stance = evaluateSolarCycleNpcStance(sc, q, '');
+  var status = getSolarCycleStatus() || {};
   var challenge = String(q.challengeType || 'social');
   var method = String(q.methodTitle || 'this method');
   var region = String(q.region || 'province');
+  var crisisTag = status.crowned ? 'before the crown route hardens' : (status.timeTouched ? 'before the echo shear closes' : (status.worldTilt >= 3 ? 'before the world tilt worsens' : 'before dusk shifts the route'));
+  if (q.isRestorationLead) {
+    if (challenge === 'combat') return 'Primary restoration action: break the hostile screen, secure ' + method + ', and keep the New Sun path alive ' + crisisTag + '.';
+    if (challenge === 'puzzle') return 'Primary restoration action: solve the ignition sequence for ' + method + ' and lock the one route this run can still restore.';
+    if (challenge === 'stealth') return 'Primary restoration action: steal the surviving ledger for ' + method + ' without exposing the restoration path.';
+    return 'Primary restoration action: win this witness, secure ' + method + ', and keep the restoration route from collapsing ' + crisisTag + '.';
+  }
+  if (q.portalHandoff && region === 'sea') return 'Field action: hold the sea witness chain together long enough to hand ' + method + ' into the Lost City portal route.';
+  if (q.volatileLead && q.deceptive) return 'Field action: test whether this unstable lead is bait, then salvage any usable route data on ' + method + '.';
+  if (q.volatileLead) return 'Field action: exploit the unstable opening quickly and convert it into durable route leverage for ' + method + '.';
   if (challenge === 'combat') return 'Field action: break the hostile line and extract the witness carrying ' + method + ' route data.';
   if (challenge === 'puzzle') return 'Field action: solve the relay sequence and lock a stable channel for ' + method + '.';
   if (challenge === 'stealth') return 'Field action: infiltrate quietly, retrieve the route ledger, and leave no trail.';
-  if (region === 'wtw') return 'Field action: arbitrate surviving factions and force a public oath that protects your route.';
-  return 'Field action: negotiate leverage, secure cooperation, and move the network before dusk.';
+  if (region === 'wtw') return 'Field action: arbitrate surviving factions, leverage ' + (stance.allyPotential ? 'earned trust' : 'public pressure') + ', and force a civic oath that protects your route.';
+  return 'Field action: negotiate leverage, secure cooperation, and move the network ' + crisisTag + '.';
 }
 
-function getSolarCycleInvestigationDialogueLine(quest) {
+function getSolarCycleQuestDynamicTone(sc, quest, stance) {
   var q = quest || {};
+  var state = sc || ensureSolarCycleState();
+  var status = getSolarCycleStatus() || {};
+  var vec = stance && stance.vector ? stance.vector : null;
+  var trustState = stance && stance.allyPotential ? 'ally' : ((stance && stance.betrayalPotential) ? 'suspicious' : 'uncertain');
+  var promiseState = vec && Number(vec.promisesBroken || 0) > Number(vec.promisesKept || 0)
+    ? 'broken'
+    : (vec && Number(vec.promisesKept || 0) > 0 ? 'kept' : 'none');
+  return {
+    arc: String(q.arc || status.effectiveArc || 'relic'),
+    tier: getSolarCycleTier(Number(state && state.daysElapsed || 0)),
+    trustState: trustState,
+    promiseState: promiseState,
+    timeTouched: !!status.timeTouched,
+    worldTilt: Number(status.worldTilt || 0),
+    crowned: !!status.crowned,
+    volatileLead: !!q.volatileLead,
+    deceptive: !!q.deceptive,
+    restorationLead: !!q.isRestorationLead,
+    portalHandoff: !!q.portalHandoff
+  };
+}
+
+function getSolarCycleInvestigationDialogueLine(quest, sc, stance) {
+  var q = quest || {};
+  var state = sc || ensureSolarCycleState();
+  var npcStance = stance || evaluateSolarCycleNpcStance(state, q, '');
+  var tone = getSolarCycleQuestDynamicTone(state, q, npcStance);
   var region = String(q.region || 'province');
   var method = String(q.methodTitle || 'this route');
   var challenge = String(q.challengeType || 'social');
@@ -4913,10 +4996,35 @@ function getSolarCycleInvestigationDialogueLine(quest) {
   if (typeof window !== 'undefined') window[_lastKey] = _pick;
 
   var line = pool[_pick] || '"The countdown continues."';
+  var dynamicLead = '';
+  if (tone.restorationLead) {
+    dynamicLead = tone.trustState === 'ally'
+      ? '"This is the run-defining route. I chose you because you still keep the shape of your promises." '
+      : '"This is the run-defining route. If you fail me here, the restoration path fails with you." ';
+  } else if (tone.portalHandoff) {
+    dynamicLead = '"This is not a clue run. This is a handoff. If the witness chain breaks here, the city never sees the route." ';
+  } else if (tone.volatileLead && tone.deceptive) {
+    dynamicLead = '"Listen carefully: this lead may be bait, or it may be the only honest opening left. Treat every word like a trap until it proves otherwise." ';
+  } else if (tone.volatileLead) {
+    dynamicLead = '"This window is unstable but real. If you move cleanly, we can turn a flicker into an actual route." ';
+  } else if (tone.promiseState === 'broken') {
+    dynamicLead = '"You arrive under a broken oath. That means I give you less trust and shorter instructions." ';
+  } else if (tone.promiseState === 'kept' && tone.trustState === 'ally') {
+    dynamicLead = '"You kept the last thread alive. That buys you the version of this story I do not give strangers." ';
+  } else if (tone.trustState === 'suspicious') {
+    dynamicLead = '"I am speaking because the route matters, not because I trust you." ';
+  }
+  var arcTail = '';
+  if (tone.arc === 'herald') arcTail = ' "People are already acting like the sky has chosen a doctrine. Move before doctrine becomes law."';
+  else if (tone.arc === 'loop') arcTail = tone.timeTouched ? ' "You have loop-shadow on you. Use it carefully or this route will start remembering the wrong future."' : ' "This route has already failed in another version. Let us avoid repeating their mistake."';
+  else arcTail = tone.worldTilt >= 3 ? ' "The old machinery is slipping. Every clean option left is running out of tolerance."' : ' "The relic systems still answer, but only to people who move before fear settles in."';
+  var tierTail = tone.tier === 'final'
+    ? ' "This is late-cycle work now. Nobody gets a rehearsal."'
+    : (tone.tier === 'mid' ? ' "The middle days are where good plans become expensive."' : '');
   if (challenge === 'combat') line += ' "Expect resistance at first contact."';
   if (challenge === 'puzzle') line += ' "You will need precision, not force."';
   if (challenge === 'stealth') line += ' "No alarms. No witnesses."';
-  return line;
+  return (dynamicLead + line + arcTail + tierTail).trim();
 }
 
 function getSolarCycleNpcVectorEntry(sc, quest) {
@@ -6310,20 +6418,23 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
 function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var quest = getSolarCycleSchedulerQuestById(questId);
   if (!quest || quest.resolved || quest.expired || typeof openModal !== 'function') return false;
+  var sc = ensureSolarCycleState();
   // Extend the window so the player can resolve it right now from the modal
-  var _nowDay = Number(ensureSolarCycleState().daysElapsed || 0);
+  var _nowDay = Number(sc.daysElapsed || 0);
   if (_nowDay > Number(quest.endDay || 0)) quest.endDay = _nowDay;
   var windowText = 'Day ' + Number(quest.startDay || 0) + '-' + Number(quest.endDay || 0) + ' | Phase ' + (Array.isArray(quest.phaseWindow) ? quest.phaseWindow.map(function (n) { return getSolarCyclePhaseLabelByIndex(n); }).join(', ') : 'Any');
   var chosenStat = getSolarCycleQuestActionStat(quest.id);
   var styleSignal = getSolarCycleActionStorySignal(quest.challengeType || 'social', chosenStat);
   var memoryLine = String(quest.memoryCallbackLine || '');
+  var stance = evaluateSolarCycleNpcStance(sc, quest, '');
   var actionLine = getSolarCycleInvestigationActionLine(quest);
-  var dialogueLine = getSolarCycleInvestigationDialogueLine(quest);
-  var mirrorEncounter = ensureSolarCycleQuestMirrorEncounter(ensureSolarCycleState(), quest);
-  var fractureCharges = Number(ensureSolarCycleState() && ensureSolarCycleState().timeFracture && ensureSolarCycleState().timeFracture.charges || 0);
+  var dialogueLine = getSolarCycleInvestigationDialogueLine(quest, sc, stance);
+  var mirrorEncounter = ensureSolarCycleQuestMirrorEncounter(sc, quest);
+  var fractureCharges = Number(sc && sc.timeFracture && sc.timeFracture.charges || 0);
   var fractureAvailable = fractureCharges > 0;
-  var stance = evaluateSolarCycleNpcStance(ensureSolarCycleState(), quest, '');
   var vec = stance && stance.vector ? stance.vector : null;
+  var storyTone = getSolarCycleQuestDynamicTone(sc, quest, stance);
+  var status = getSolarCycleStatus() || {};
   var promisePreview = getSolarCyclePromisePreview(quest, 'investigate');
   var _stanceLabel = String(stance && stance.trustLabel || 'Uncertain');
   var _affDir = vec ? (Number(vec.affinity || 0) > 1 ? 'warm' : (Number(vec.affinity || 0) < -1 ? 'cold' : 'neutral')) : null;
@@ -6334,12 +6445,16 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var trustSummary = vec
     ? (_stanceLabel + (_affDir ? ', ' + _affDir + ' disposition' : '') + _promiseLine + _betrayalHint)
     : 'No history with this contact.';
-  var riskyTestimonyLabel = (stance && stance.betrayalRisk >= 0.65)
-    ? 'Suspect Testimony (high betrayal risk)'
-    : 'Suspect Testimony';
-  var investigateLabel = (stance && stance.allyPotential)
-    ? 'Investigate Route (Trusted Contact)'
-    : 'Investigate Route';
+  var riskyTestimonyLabel = quest.deceptive
+    ? 'Pressure the Unstable Lead'
+    : ((stance && stance.betrayalRisk >= 0.65)
+      ? 'Suspect Testimony (high betrayal risk)'
+      : (storyTone.promiseState === 'broken' ? 'Rebuild Trust Under Pressure' : 'Suspect Testimony'));
+  var investigateLabel = quest.isRestorationLead
+    ? 'Secure Restoration Route'
+    : (quest.volatileLead
+      ? (quest.deceptive ? 'Verify the Lead Carefully' : 'Stabilize the Opening')
+      : ((stance && stance.allyPotential) ? 'Investigate Route (Trusted Contact)' : 'Investigate Route'));
   var fractureLabel = fractureAvailable
     ? 'Time Fracture (1 charge, auto success)'
     : 'Time Fracture Unavailable';
@@ -6349,6 +6464,26 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var portalLabel = (stance && stance.promiseBalance >= 2)
     ? 'Open Lost City Portal Chain (oath-backed)'
     : 'Open Lost City Portal Chain';
+  var investigateDesc = quest.isRestorationLead
+    ? 'Best long-term route. Protects the one restoration thread this run can still finish.'
+    : (quest.volatileLead
+      ? (quest.deceptive ? 'Slow the scene down and verify what is real before you commit the network.' : 'Convert a short unstable window into a durable route before it collapses.')
+      : ((stance && stance.allyPotential) ? 'Lean on earned trust. Lowest betrayal pressure when this contact still believes in you.' : 'Standard path. Roll your selected die against Dread and build leverage cleanly.'));
+  var fractureDesc = fractureAvailable
+    ? ('Spend 1 charge for automatic success. Adds paradox strain' + (mirrorEncounter && !quest.mirrorEncounterResolved ? ' and opens a mirror-echo scene.' : (status.timeTouched ? '. The route already carries loop-pressure.' : '.'))) 
+    : 'Unavailable until you regain a Time Fracture charge.';
+  var testimonyDesc = quest.deceptive
+    ? 'Treat the contact like a possible liar. Highest information swing, highest chance of poisoning the route.'
+    : ((storyTone.promiseState === 'broken')
+      ? 'Push through suspicion and salvage testimony anyway. Useful if you need momentum more than trust.'
+      : 'Riskier shortcut. Still rolls, but carries the highest chance of betrayal and darker branches.');
+  var routePressure = quest.portalHandoff
+    ? 'Story pressure: this is a handoff scene. If the witness chain breaks here, the route dies between regions.'
+    : (quest.isRestorationLead
+      ? 'Story pressure: this is the run-defining restoration path.'
+      : (quest.volatileLead
+        ? (quest.deceptive ? 'Story pressure: this lead may be bait.' : 'Story pressure: this opening will not stay stable long.')
+        : (status.crowned ? 'Story pressure: crown-route momentum is making every witness more political.' : (status.timeTouched ? 'Story pressure: paradox residue is changing how witnesses read you.' : 'Story pressure: contacts are adjusting to how you have handled the last days.'))));
   var statButtons = SOLAR_CYCLE_ACTION_STATS.map(function (stat) {
     var on = chosenStat === stat;
     return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.setSolarCycleQuestActionStat(\'' + String(quest.id) + '\',\'' + String(stat) + '\')">' + String(stat).toUpperCase() + '</button>';
@@ -6367,11 +6502,12 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     + (mirrorEncounter && !quest.mirrorEncounterResolved
       ? ('<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.45rem;border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.08);padding:.4rem .45rem;"><strong>Mirror Encounter Active:</strong> ' + escapeSolarCycleHtml(mirrorEncounter.intro) + ' <span style="color:var(--teal);">A pre-echo version of ' + escapeSolarCycleHtml(mirrorEncounter.echoName || quest.npcName || 'this witness') + ' is waiting inside the fracture route.</span></div>')
       : '')
+    + '<div style="font-size:.72rem;color:var(--gold2);line-height:1.5;margin-bottom:.28rem;">' + escapeSolarCycleHtml(routePressure) + '</div>'
     + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.35rem;">Investigate and Suspect Testimony roll your selected die vs Dread. Time Fracture spends 1 charge for automatic success and adds paradox strain.</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.35rem;margin-bottom:.38rem;">'
-    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:var(--teal);">Investigate Route</strong><br>Standard path. Roll your selected die against Dread. Cleanest outcome when you trust the contact.</div>'
-    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:var(--gold2);">Time Fracture</strong><br>' + (fractureAvailable ? ('Spend 1 charge for automatic success. Adds paradox strain' + (mirrorEncounter && !quest.mirrorEncounterResolved ? ' and opens a mirror-echo scene.' : '.')) : 'Unavailable until you regain a Time Fracture charge.') + '</div>'
-    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:' + ((stance && stance.betrayalRisk >= 0.65) ? 'var(--red2)' : 'var(--gold2)') + ';">Suspect Testimony</strong><br>Riskier shortcut. Still rolls, but carries the highest chance of betrayal and darker branches.</div>'
+    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:var(--teal);">' + escapeSolarCycleHtml(investigateLabel) + '</strong><br>' + escapeSolarCycleHtml(investigateDesc) + '</div>'
+    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:var(--gold2);">' + escapeSolarCycleHtml(fractureLabel) + '</strong><br>' + escapeSolarCycleHtml(fractureDesc) + '</div>'
+    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:' + ((stance && stance.betrayalRisk >= 0.65) ? 'var(--red2)' : 'var(--gold2)') + ';">' + escapeSolarCycleHtml(riskyTestimonyLabel) + '</strong><br>' + escapeSolarCycleHtml(testimonyDesc) + '</div>'
     + '</div>'
     + '<div style="font-size:.72rem;color:' + ((stance && stance.betrayalPotential) ? 'var(--red2)' : 'var(--muted2)') + ';line-height:1.5;margin-bottom:.2rem;">NPC stance: ' + escapeSolarCycleHtml(trustSummary) + '</div>'
     + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.2rem;">Promise: ' + escapeSolarCycleHtml(promisePreview) + '</div>'

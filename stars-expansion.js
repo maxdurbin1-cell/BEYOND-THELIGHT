@@ -590,24 +590,24 @@ const SOLAR_CYCLE_SOCIAL_STYLE_BRANCHES = {
     summary: 'You solve social deadlocks through force of presence and grit.',
     successReason: 'social_physical_success',
     failReason: 'social_physical_fail',
-    successDeltas: { stability: 1, rumor: 1, witness: -1 },
-    failDeltas: { stability: -1, rumor: 2, factionHeat: 1 }
+    successDeltas: { stability: 1, rumor: 1 },
+    failDeltas: { stability: -1, rumor: 1, factionHeat: 1 }
   },
   hardline: {
     label: 'Security Crackdown Route',
     summary: 'Civilians read your posture as militarized control.',
     successReason: 'social_hardline_success',
     failReason: 'social_hardline_fail',
-    successDeltas: { stability: 1, factionHeat: 2, witness: -1, rumor: 1 },
-    failDeltas: { stability: -1, factionHeat: 2, corruption: 1, witness: -1, rumor: 1 }
+    successDeltas: { stability: 1, factionHeat: 3, witness: -1, rumor: 2, corruption: 1 },
+    failDeltas: { stability: -2, factionHeat: 4, corruption: 2, witness: -2, rumor: 2 }
   },
   violent: {
     label: 'Violence Reputation Route',
     summary: 'People now treat you as an enforcer more than a negotiator.',
     successReason: 'social_violent_success',
     failReason: 'social_violent_fail',
-    successDeltas: { stability: 1, factionHeat: 2, witness: -2, rumor: 2, corruption: 1 },
-    failDeltas: { stability: -2, factionHeat: 3, witness: -2, rumor: 2, corruption: 2 }
+    successDeltas: { stability: 0, factionHeat: 4, witness: -3, rumor: 3, corruption: 2 },
+    failDeltas: { stability: -3, factionHeat: 5, witness: -3, rumor: 3, corruption: 3 }
   }
 };
 

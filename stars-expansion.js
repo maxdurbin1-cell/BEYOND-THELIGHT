@@ -1176,6 +1176,107 @@ function buildConsequenceMotionPanelHtml(limit) {
     + '</div>';
 }
 
+function buildSolarCycleWitnessVowRecapHtml(sc, limit) {
+  var state = sc || ensureSolarCycleState();
+  var qs = getSolarCycleQuestScheduler(state);
+  var maxRows = Math.max(3, Number(limit || 5));
+  var vectors = qs && qs.npcVectors && typeof qs.npcVectors === 'object'
+    ? Object.keys(qs.npcVectors).map(function (k) { return qs.npcVectors[k]; }).filter(function (v) { return v && typeof v === 'object'; })
+    : [];
+
+  var ledger = [];
+  vectors.forEach(function (vec) {
+    var rows = Array.isArray(vec.promiseLedger) ? vec.promiseLedger : [];
+    rows.forEach(function (row) {
+      if (!row || typeof row !== 'object') return;
+      if (String(row.status || '') !== 'kept' && String(row.status || '') !== 'broken') return;
+      ledger.push({
+        npcName: String(vec.npcName || row.npcName || 'Unknown Witness'),
+        region: String(vec.region || row.region || ''),
+        status: String(row.status || ''),
+        title: String(row.title || 'Quest'),
+        dayLabel: String(row.dayLabel || ''),
+        note: String(row.note || ''),
+        ts: Number(row.ts || 0)
+      });
+    });
+  });
+  ledger.sort(function (a, b) { return Number(b.ts || 0) - Number(a.ts || 0); });
+
+  var recentHtml = ledger.length
+    ? ledger.slice(0, maxRows).map(function (row) {
+      var tone = row.status === 'kept' ? 'var(--green2)' : 'var(--red2)';
+      var tag = row.status === 'kept' ? 'KEPT' : 'BROKEN';
+      return '<div style="border-bottom:1px solid var(--border2);padding:.22rem 0;">'
+        + '<div style="font-size:.73rem;color:var(--text2);line-height:1.45;">'
+        + '<strong style="color:' + tone + ';">[' + tag + ']</strong> '
+        + escapeSolarCycleHtml(row.npcName) + ' · ' + escapeSolarCycleHtml(row.title)
+        + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;">'
+        + escapeSolarCycleHtml(row.dayLabel || '')
+        + (row.region ? (' · ' + escapeSolarCycleHtml(String(row.region).toUpperCase())) : '')
+        + (row.note ? (' · ' + escapeSolarCycleHtml(row.note)) : '')
+        + '</div>'
+        + '</div>';
+    }).join('')
+    : '<div style="font-size:.73rem;color:var(--muted2);">No vow outcomes logged yet. Promise memory begins after your next witness resolution.</div>';
+
+  var nearFlip = [];
+  vectors.forEach(function (vec) {
+    var pseudoQuest = { npcName: vec.npcName, region: vec.region };
+    var stance = evaluateSolarCycleNpcStance(state, pseudoQuest, '');
+    var affinity = Number(vec.affinity || 0);
+    var allyThreshold = Number(stance.dynamicAllyThreshold || 3);
+    var betrayalThreshold = Number(stance.dynamicBetrayalThreshold || -3);
+    var allyGap = allyThreshold - affinity;
+    var betrayalGap = affinity - betrayalThreshold;
+    if (!stance.allyPotential && allyGap === 1) {
+      nearFlip.push({
+        npcName: String(vec.npcName || 'Unknown Witness'),
+        region: String(vec.region || ''),
+        type: 'ally',
+        detail: '1 trust step from ally flip (' + affinity + ' -> ' + allyThreshold + ')'
+      });
+    }
+    if (!stance.betrayalPotential && betrayalGap === 1) {
+      nearFlip.push({
+        npcName: String(vec.npcName || 'Unknown Witness'),
+        region: String(vec.region || ''),
+        type: 'betrayal',
+        detail: '1 stress step from betrayal flip (' + affinity + ' -> ' + betrayalThreshold + ')'
+      });
+    }
+  });
+
+  var nearFlipHtml = nearFlip.length
+    ? nearFlip.slice(0, 6).map(function (item) {
+      var tone = item.type === 'ally' ? 'var(--teal)' : 'var(--red2)';
+      var tag = item.type === 'ally' ? 'ALLY WATCH' : 'BETRAYAL WATCH';
+      return '<div style="font-size:.69rem;color:' + tone + ';line-height:1.45;border-bottom:1px solid var(--border2);padding:.18rem 0;">'
+        + '<strong>' + tag + ':</strong> '
+        + escapeSolarCycleHtml(item.npcName)
+        + (item.region ? (' [' + escapeSolarCycleHtml(String(item.region).toUpperCase()) + ']') : '')
+        + ' · ' + escapeSolarCycleHtml(item.detail)
+        + '</div>';
+    }).join('')
+    : '<div style="font-size:.69rem;color:var(--muted2);line-height:1.45;">No NPCs are one step from a trust flip right now.</div>';
+
+  return '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.65rem .75rem;margin-bottom:.6rem;">'
+    + '<div style="font-size:.82rem;color:var(--gold2);margin-bottom:.22rem;"><strong>Witness Vow Recap</strong></div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-bottom:.3rem;">Top 5 promise outcomes (kept/broken) and witnesses closest to alliance or betrayal flips.</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.45rem;">'
+    + '<div>'
+    + '<div style="font-size:.71rem;color:var(--teal);margin-bottom:.2rem;">Recent Promise Outcomes</div>'
+    + recentHtml
+    + '</div>'
+    + '<div>'
+    + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.2rem;">Threshold Flip Watch</div>'
+    + nearFlipHtml
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
 function getSolarCycleEffectiveArc(sc) {
   var state = sc || ensureSolarCycleState();
   if (!state) return 'relic';
@@ -2968,6 +3069,7 @@ function renderNewSunModePanel() {
   var canonBoardHtml = buildSolarCycleCanonBoardHtml(sc);
   var forecastSimulatorHtml = buildSolarCycleForecastSimulatorHtml(sc);
   var consequenceMotionHtml = buildConsequenceMotionPanelHtml(6);
+  var witnessVowRecapHtml = buildSolarCycleWitnessVowRecapHtml(sc, 5);
   var schedulerSummary = scheduler
     ? ('Province ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | Sea ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
@@ -3091,6 +3193,7 @@ function renderNewSunModePanel() {
     + '</div>'
     + coreLoopPanelHtml
     + consequenceMotionHtml
+    + witnessVowRecapHtml
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.28rem;"><strong>Solo Story Toggle</strong></div>'
     + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Turn this on to activate the New Sun ruleset. Unlike Storyline, this mode advances toward a forced finale, spawns moving map markers, and permanently changes the route when you miss or fail certain branches.</div>'
@@ -3432,6 +3535,7 @@ function upsertSolarCycleNpcPromise(vec, quest, mode, status, note) {
       title: String(quest.title || 'Quest'),
       note: String(note || ''),
       declaredDay: getSolarCycleTimelineDayLabel(),
+      declaredTs: Date.now(),
       resolved: false
     };
     return;
@@ -3440,13 +3544,16 @@ function upsertSolarCycleNpcPromise(vec, quest, mode, status, note) {
   var record = {
     id: promiseId,
     questId: String(quest.id || ''),
+    npcName: String(vec.npcName || ''),
+    region: String(vec.region || ''),
     mode: String(mode || 'investigate'),
     status: String(status || ''),
     title: String(quest.title || 'Quest'),
     methodId: String(quest.methodId || ''),
     note: String(note || ''),
     dayLabel: getSolarCycleTimelineDayLabel(),
-    declaredDay: pending && pending.declaredDay ? String(pending.declaredDay) : ''
+    declaredDay: pending && pending.declaredDay ? String(pending.declaredDay) : '',
+    ts: Date.now()
   };
   vec.promiseLedger.push(record);
   if (vec.promiseLedger.length > 24) vec.promiseLedger = vec.promiseLedger.slice(-24);

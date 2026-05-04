@@ -3750,6 +3750,7 @@ function startSolarCycleMode(activeArc) {
     trackedLocationKey: '',
     artifactProgress: { total: 0, combat: 0, puzzle: 0, social: 0, stealth: 0, corrupted: 0, lastArtifact: '' },
     regionPostedCount: { province: 0, sea: 0, wtw: 0, galaxy: 0 },
+    portalHandoffTriggered: false,
     lastSpawnDay: -1,
     lastFailureBranchDay: -1
   };
@@ -4975,6 +4976,7 @@ function getSolarCycleQuestScheduler(sc) {
   if (typeof qs.trackedQuestId !== 'string') qs.trackedQuestId = '';
   if (typeof qs.trackedRegion !== 'string') qs.trackedRegion = '';
   if (typeof qs.trackedLocationKey !== 'string') qs.trackedLocationKey = '';
+  if (typeof qs.portalHandoffTriggered !== 'boolean') qs.portalHandoffTriggered = false;
   ensureSolarCycleArtifactProgress(qs);
   if (!qs.regionPostedCount || typeof qs.regionPostedCount !== 'object') qs.regionPostedCount = { province: 0, sea: 0, wtw: 0, galaxy: 0 };
   if (typeof qs.lastSpawnDay !== 'number') qs.lastSpawnDay = -1;
@@ -5365,8 +5367,7 @@ function spawnSolarCycleSchedulerQuests(sc, force) {
   if (!qs.portalHandoffTriggered
     && !hasActiveSeaPortal
     && provinceDone >= Number(NEW_SUN_REGION_TARGETS.province || 10)
-    && seaDone >= Number(NEW_SUN_REGION_TARGETS.sea || 2)
-    && Number(qs.activeQuestIds && qs.activeQuestIds.length || 0) < 5) {
+    && seaDone >= Number(NEW_SUN_REGION_TARGETS.sea || 2)) {
     var portalSeedQuest = createSolarCycleImmediateQuest(state, 'sea', {
       id: 'portal-seed-' + String(state.daysElapsed || 0),
       threadRootId: 'portal-seed',
@@ -5608,6 +5609,13 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   var quest = qs ? qs.questById[String(questId || '')] : null;
   if (!sc || !qs || !quest || quest.resolved || quest.expired) return false;
 
+  var requestedApproach = String(approach || 'investigate');
+  var fractureAttempt = requestedApproach === 'fracture';
+  if (fractureAttempt && (!sc.timeFracture || Number(sc.timeFracture.charges || 0) <= 0)) {
+    if (typeof showNotif === 'function') showNotif('No Time Fracture charges remain for this investigation.', 'warn');
+    return false;
+  }
+
   if (!isSolarCycleSchedulerQuestWindowOpen(quest, sc)) {
     quest.expired = true;
     clearSolarCycleSchedulerQuestMarker(quest);
@@ -5628,7 +5636,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   if (typeof closeModal === 'function') closeModal();
 
   quest.resolved = true;
-  quest.resolvedApproach = String(approach || 'investigate');
+  quest.resolvedApproach = requestedApproach;
   quest.resolvedDay = Number(sc.daysElapsed || 0);
   var statByApproach = {
     investigate: 'mind',
@@ -5641,7 +5649,26 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   var challengeType = String(quest.challengeType || 'social').toLowerCase();
   var socialStyle = getSolarCycleSocialStyleProfile(challengeType, rollStat);
   var rollDread = Math.max(6, Number((quest.region === 'galaxy' ? 12 : (quest.region === 'wtw' ? 10 : 8)) + Math.min(4, Number(sc.worldTilt || 0))));
-  var rollResult = rollSolarCycleContest(rollStat, rollDread);
+  var rollResult = null;
+  if (fractureAttempt) {
+    var autoDie = getSolarCycleActionDie(rollStat);
+    sc.timeFracture.charges = Math.max(0, Number(sc.timeFracture.charges || 0) - 1);
+    if (sc.timeFracture.scarFlags) {
+      sc.timeFracture.scarFlags.paradoxStrain = Math.max(0, Number(sc.timeFracture.scarFlags.paradoxStrain || 0) + 1);
+    }
+    rollResult = {
+      stat: rollStat,
+      actionDie: autoDie,
+      dreadDie: rollDread,
+      actionRoll: { total: rollDread + 1, exploded: false, auto: true },
+      dreadRoll: { total: rollDread, exploded: false, auto: true },
+      success: true,
+      autoFracture: true
+    };
+    sc.prophecyTrack.push('Time Fracture forced success on quest [' + String(quest.methodTitle || quest.title || 'Unknown route') + '].');
+  } else {
+    rollResult = rollSolarCycleContest(rollStat, rollDread);
+  }
   var forcedMisled = !rollResult.success;
   var approachKey = String(quest.resolvedApproach || 'investigate');
   qs.approachStats = qs.approachStats || { investigate: 0, fracture: 0, misled: 0, portal: 0 };
@@ -5738,7 +5765,9 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   }
   if (forcedMisled) recordSolarCycleIrreversibleTag('scheduler_roll_failed', { questId: quest.id, methodId: quest.methodId, approach: approach });
   if (typeof showNotif === 'function') {
-    showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + getSolarCycleRollTotal(rollResult.actionRoll) + ' vs Dread ' + getSolarCycleRollTotal(rollResult.dreadRoll) + ')' + getSolarCycleRollPenaltyNote(rollResult.actionRoll) + (socialStyle ? (' | ' + socialStyle.label) : '') + (tensionReward ? (' | Pressure payout ' + (misled ? Math.floor(tensionReward / 3) : tensionReward) + '₵') : '') + '.', misled ? 'warn' : 'good');
+    showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + (rollResult.autoFracture
+      ? ' (Time Fracture auto-success, 1 charge spent)'
+      : (' (' + String(rollResult.stat).toUpperCase() + ' ' + getSolarCycleRollTotal(rollResult.actionRoll) + ' vs Dread ' + getSolarCycleRollTotal(rollResult.dreadRoll) + ')' + getSolarCycleRollPenaltyNote(rollResult.actionRoll))) + (socialStyle ? (' | ' + socialStyle.label) : '') + (tensionReward ? (' | Pressure payout ' + (misled ? Math.floor(tensionReward / 3) : tensionReward) + '₵') : '') + '.', misled ? 'warn' : 'good');
   }
   var _isPuzzleChallenge = String(quest.challengeType || '') === 'puzzle';
   applySolarCycleQuestChallengeOutcome(quest, rollResult, misled);
@@ -5747,6 +5776,38 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
   if (quest.portalHandoff && quest.region === 'sea') {
     var handoffQuest = createSolarCycleSchedulerQuest(sc, 'wtw');
     if (!handoffQuest) handoffQuest = createSolarCycleImmediateQuest(sc, 'wtw', quest, 'portal');
+    if (!handoffQuest) {
+      handoffQuest = {
+        id: 'nsq-portal-' + String(Number(sc.daysElapsed || 0)) + '-' + String(Math.floor(Math.random() * 100000)),
+        schedulerQuest: true,
+        immediateFollowup: true,
+        region: 'wtw',
+        templateMode: getSolarCycleQuestTemplateMode(sc),
+        arc: getSolarCycleEffectiveArc(sc),
+        title: 'Emergency Portal Handoff',
+        methodId: String(quest.methodId || 'portal_handoff'),
+        methodTitle: String(quest.methodTitle || 'Lost City Portal Relay'),
+        methodSummary: 'Carry the sea-route testimony through the World That Was before the portal seal collapses.',
+        clueText: 'Portal spillover from the Last Sea opened an emergency World That Was handoff. ' + String(quest.clueText || ''),
+        startDay: Number(sc.daysElapsed || 0),
+        endDay: Math.min(SOLAR_CYCLE_DAY_LIMIT, Number(sc.daysElapsed || 0) + 3),
+        phaseWindow: [],
+        resolved: false,
+        expired: false,
+        postedDay: Number(sc.daysElapsed || 0),
+        portalHandoff: false,
+        locationKey: '',
+        locationLabel: '',
+        npcName: String(quest.npcName || 'Unknown Witness'),
+        dialogueLine: '"The sea route survives only if you carry it through the old city right now."',
+        stakesText: 'This emergency handoff keeps the portal route alive between regions.',
+        challengeType: 'social',
+        requestPrompt: 'Take the sea witness route through the World That Was before the handoff window fails.',
+        sourceQuestId: String(quest.id || ''),
+        threadRootId: String(quest.threadRootId || quest.id || '')
+      };
+      applySolarCycleNpcMemoryToQuest(sc, handoffQuest);
+    }
     if (handoffQuest) {
       qs.portalHandoffTriggered = true;
       handoffQuest.title = handoffQuest.title + ' (Lost City Portal Handoff)';
@@ -5785,8 +5846,10 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
       + '<div style="margin-bottom:.3rem;">' + successLine + '</div>'
       + '<div style="font-size:.74rem;color:' + (misled ? 'var(--red2)' : 'var(--green2)') + ';margin-bottom:.35rem;">'
-      + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.actionRoll)
-      + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.dreadRoll)
+      + (rollResult.autoFracture
+        ? ('TIME FRACTURE spent 1 charge for automatic success. Paradox strain increased.')
+        : (String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.actionRoll)
+          + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.dreadRoll)))
       + '</div>'
       + '<div style="font-size:.75rem;color:var(--gold2);line-height:1.55;margin-bottom:.3rem;">' + nextHint + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(actionLine) + '</div>'
@@ -5817,6 +5880,8 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var actionLine = getSolarCycleInvestigationActionLine(quest);
   var dialogueLine = getSolarCycleInvestigationDialogueLine(quest);
   var mirrorEncounter = ensureSolarCycleQuestMirrorEncounter(ensureSolarCycleState(), quest);
+  var fractureCharges = Number(ensureSolarCycleState() && ensureSolarCycleState().timeFracture && ensureSolarCycleState().timeFracture.charges || 0);
+  var fractureAvailable = fractureCharges > 0;
   var stance = evaluateSolarCycleNpcStance(ensureSolarCycleState(), quest, '');
   var vec = stance && stance.vector ? stance.vector : null;
   var promisePreview = getSolarCyclePromisePreview(quest, 'investigate');
@@ -5827,16 +5892,16 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
       + ' | Stance: ' + String(stance.trustLabel || 'Uncertain'))
     : 'No conviction profile yet.';
   var riskyTestimonyLabel = (stance && stance.betrayalRisk >= 0.65)
-    ? 'Follow Suspect Testimony (HIGH betrayal risk)'
-    : 'Follow Suspect Testimony';
+    ? 'Suspect Testimony (high betrayal risk)'
+    : 'Suspect Testimony';
   var investigateLabel = (stance && stance.allyPotential)
     ? 'Investigate Route (Trusted Contact)'
     : 'Investigate Route';
-  var fractureLabel = (stance && stance.promiseBalance <= -2)
-    ? 'Investigate via Time Fracture (must re-earn trust)'
-    : 'Investigate via Time Fracture';
+  var fractureLabel = fractureAvailable
+    ? 'Time Fracture (1 charge, auto success)'
+    : 'Time Fracture Unavailable';
   if (mirrorEncounter && !quest.mirrorEncounterResolved) {
-    fractureLabel = 'Investigate via Time Fracture (Mirror Echo Active)';
+    fractureLabel = fractureAvailable ? 'Time Fracture (Mirror Echo, auto success)' : 'Time Fracture Unavailable';
   }
   var portalLabel = (stance && stance.promiseBalance >= 2)
     ? 'Open Lost City Portal Chain (oath-backed)'
@@ -5849,25 +5914,29 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     'New Sun Investigation: ' + escapeSolarCycleHtml(quest.title),
     '<div style="font-size:.76rem;color:var(--gold2);margin-bottom:.25rem;">' + escapeSolarCycleHtml(contextLabel || quest.locationLabel || quest.region) + '</div>'
     + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">Arc pack: ' + String(quest.arc).toUpperCase() + ' / ' + String(quest.templateMode).toUpperCase() + ' | ' + escapeSolarCycleHtml(windowText) + '</div>'
-    + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;margin-bottom:.28rem;"><strong>' + escapeSolarCycleHtml(quest.npcName || 'Unknown Witness') + ':</strong> ' + escapeSolarCycleHtml(dialogueLine || quest.dialogueLine || '"The countdown continues."') + '</div>'
+    + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;margin-bottom:.22rem;"><strong>' + escapeSolarCycleHtml(quest.npcName || 'Unknown Witness') + ':</strong> ' + escapeSolarCycleHtml(dialogueLine || quest.dialogueLine || '"The countdown continues."') + '</div>'
     + (memoryLine ? ('<div style="font-size:.74rem;color:var(--gold2);line-height:1.5;margin-bottom:.22rem;">Memory callback: ' + escapeSolarCycleHtml(memoryLine) + '</div>') : '')
-    + '<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.28rem;">' + escapeSolarCycleHtml(quest.requestPrompt || getSolarCycleNpcDemandText(quest.region, quest.methodTitle)) + '</div>'
-    + '<div style="font-size:.75rem;color:var(--teal);line-height:1.55;margin-bottom:.28rem;">' + escapeSolarCycleHtml(actionLine) + '</div>'
-    + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;margin-bottom:.45rem;">Every New Sun investigation reveals a route toward restoration. This lead suggests: <strong>' + escapeSolarCycleHtml(quest.methodSummary) + '</strong></div>'
-    + '<div style="font-size:.74rem;color:var(--red2);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(quest.stakesText || '100 days remain. Your decision can change how the world ends.') + '</div>'
-    + '<div style="font-size:.76rem;color:var(--teal);line-height:1.55;margin-bottom:.5rem;">Clue: ' + escapeSolarCycleHtml(quest.clueText) + '</div>'
+    + '<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.22rem;">Objective: ' + escapeSolarCycleHtml(actionLine) + '</div>'
+    + '<div style="font-size:.75rem;color:var(--teal);line-height:1.55;margin-bottom:.22rem;">Route payoff: ' + escapeSolarCycleHtml(quest.methodSummary) + '</div>'
+    + '<div style="font-size:.74rem;color:var(--red2);line-height:1.55;margin-bottom:.22rem;">' + escapeSolarCycleHtml(quest.stakesText || '100 days remain. Your decision can change how the world ends.') + '</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.55;margin-bottom:.38rem;">Clue: ' + escapeSolarCycleHtml(quest.clueText) + '</div>'
     + (mirrorEncounter && !quest.mirrorEncounterResolved
       ? ('<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.45rem;border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.08);padding:.4rem .45rem;"><strong>Mirror Encounter Active:</strong> ' + escapeSolarCycleHtml(mirrorEncounter.intro) + ' <span style="color:var(--teal);">A pre-echo version of ' + escapeSolarCycleHtml(mirrorEncounter.echoName || quest.npcName || 'this witness') + ' is waiting inside the fracture route.</span></div>')
       : '')
-    + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.45rem;">Every choice rolls one Wayfarer Action Die against a Dread Die. Failure can open a darker branch.</div>'
-    + '<div style="font-size:.72rem;color:' + ((stance && stance.betrayalPotential) ? 'var(--red2)' : 'var(--muted2)') + ';line-height:1.5;margin-bottom:.3rem;">NPC Conviction Vector: ' + escapeSolarCycleHtml(trustSummary) + '</div>'
-    + '<div style="font-size:.72rem;color:var(--gold2);line-height:1.5;margin-bottom:.3rem;">Promise on this lead: ' + escapeSolarCycleHtml(promisePreview) + '</div>'
-    + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.28rem;">Challenge Type: <strong>' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toUpperCase()) + '</strong> | Selected Action Die: <strong id="nsq-stat-current">' + escapeSolarCycleHtml(String(chosenStat).toUpperCase()) + '</strong></div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.35rem;">Investigate and Suspect Testimony roll your selected die vs Dread. Time Fracture spends 1 charge for automatic success and adds paradox strain.</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.35rem;margin-bottom:.38rem;">'
+    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:var(--teal);">Investigate Route</strong><br>Standard path. Roll your selected die against Dread. Cleanest outcome when you trust the contact.</div>'
+    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:var(--gold2);">Time Fracture</strong><br>' + (fractureAvailable ? ('Spend 1 charge for automatic success. Adds paradox strain' + (mirrorEncounter && !quest.mirrorEncounterResolved ? ' and opens a mirror-echo scene.' : '.')) : 'Unavailable until you regain a Time Fracture charge.') + '</div>'
+    + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.4rem .45rem;font-size:.72rem;line-height:1.5;"><strong style="color:' + ((stance && stance.betrayalRisk >= 0.65) ? 'var(--red2)' : 'var(--gold2)') + ';">Suspect Testimony</strong><br>Riskier shortcut. Still rolls, but carries the highest chance of betrayal and darker branches.</div>'
+    + '</div>'
+    + '<div style="font-size:.72rem;color:' + ((stance && stance.betrayalPotential) ? 'var(--red2)' : 'var(--muted2)') + ';line-height:1.5;margin-bottom:.2rem;">NPC stance: ' + escapeSolarCycleHtml(trustSummary) + '</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.2rem;">Promise: ' + escapeSolarCycleHtml(promisePreview) + '</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.28rem;">Challenge: <strong>' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toUpperCase()) + '</strong> | Selected Action Die: <strong id="nsq-stat-current">' + escapeSolarCycleHtml(String(chosenStat).toUpperCase()) + '</strong></div>'
     + '<div id="nsq-style-signal" data-challenge-type="' + escapeSolarCycleHtml(String(quest.challengeType || 'social').toLowerCase()) + '" style="font-size:.72rem;color:var(--gold2);line-height:1.5;margin-bottom:.3rem;">' + escapeSolarCycleHtml(styleSignal) + '</div>'
     + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.45rem;">' + statButtons + '</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
     + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'investigate\');">' + escapeSolarCycleHtml(investigateLabel) + '</button>'
-    + '<button class="btn btn-sm btn-warn" onclick="window.openSolarCycleMirrorEncounter(\'' + String(quest.id) + '\');">' + escapeSolarCycleHtml(fractureLabel) + '</button>'
+    + '<button class="btn btn-sm btn-warn"' + (fractureAvailable ? (' onclick="window.openSolarCycleMirrorEncounter(\'' + String(quest.id) + '\');"') : ' disabled') + '>' + escapeSolarCycleHtml(fractureLabel) + '</button>'
     + '<button class="btn btn-sm ' + ((stance && stance.betrayalRisk >= 0.65) ? 'btn-red' : '') + '" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'misled\');">' + escapeSolarCycleHtml(riskyTestimonyLabel) + '</button>'
     + (quest.portalHandoff && quest.region === 'sea' ? '<button class="btn btn-sm" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'portal\');">' + escapeSolarCycleHtml(portalLabel) + '</button>' : '')
     + '</div>'

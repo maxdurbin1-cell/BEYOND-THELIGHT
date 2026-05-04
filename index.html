@@ -5297,10 +5297,10 @@ function rollWildernessFull(){
   }
   if(vr===2){
     const enc=roll(6);let title,desc;
-    if(enc===1){const n=roll(4)+3;title=`${n} Bandits`;desc=`${pick(['A ragged band of scavengers','Desperate ex-soldiers in mismatched kit','Hard-eyed outlaws','A well-organized caravan raider unit'])} blocks the road. DD4 | ${n*2} Stress per enemy.`;}
+    if(enc===1){const n=roll(4)+3;title=`${n} Bandits`;desc=`${pick(['A ragged band of scavengers','Desperate ex-soldiers in mismatched kit','Hard-eyed outlaws','A well-organized caravan raider unit'])} blocks the road. DD4 | 8 Stress per enemy.`;}
     else if(enc===2){title='Merchant Caravan';desc=`Trade caravan with ${rollMulti(6,2)*10}₵ worth of goods. Roll Haggle (Spirit vs DD8). They are: ${pick(['nervous and over-armed','friendly and looking for gossip','heavily loaded','accompanied by an unusual bodyguard'])}.`;}
     else if(enc===3){const na=roll(4)+4,nb=roll(4)+4;title='Warband vs Army';desc=`${na} ${pick(['cavalry in worn plate','spearmen in dyed leather','crossbow skirmishers','banner-bearers'])} vs ${nb} ${pick(['mounted raiders','hooded irregulars','shield-wall soldiers','desert fighters'])}. <strong>Skirmish</strong> — +1 Renown or 2d10×20₵ for winning side.`;}
-    else if(enc===4){const n=roll(4)+3;title=`${n} Hostile Beasts`;desc=`${pick(['Mutated wolves, pale-eyed and coordinated','Irradiated boars, tusks glowing faintly','Blade-winged birds hunting as one','A creature unlike anything in any record'])}. DD4 | ${n*2} Stress.`;}
+    else if(enc===4){const n=roll(4)+3;title=`${n} Hostile Beasts`;desc=`${pick(['Mutated wolves, pale-eyed and coordinated','Irradiated boars, tusks glowing faintly','Blade-winged birds hunting as one','A creature unlike anything in any record'])}. DD4 | 8 Stress per enemy.`;}
     else if(enc===5){title='Royal Caravan';desc=`Pay <strong>50₵ tax</strong> OR complete a TASK: <em style="color:var(--gold2);">${pick(TASK_VERBS)} ${pick(TASK_TARGETS)}, ${roll(4)+1} hexes ${pick(TASK_DIRS)}.</em>`;}
     else{const w=pick(TRAVELING_WAYFARERS);title=`Traveling Wayfarer: ${w[1]} ${w[2]}`;desc=`${w[0]} — ${w[3]} <strong>Drive:</strong> ${w[4]}`;}
     encounterHTML=`<div class="encounter-block" style="margin-top:.4rem;"><strong style="color:var(--teal);">${title}</strong><br>${desc}</div>`;
@@ -11441,7 +11441,7 @@ function rollHexEncounter(col,row){
       const n=roll(4)+3;
       const banditType=pick(['Ragged scavengers in patchwork armor','Desperate deserters looking for easy marks','Professional road agents — this is their stretch','Cult enforcer unit collecting "donations"']);
       title=`${n} Bandits`;
-      desc=`${banditType} — DD4 | ${n*2} Stress per enemy.${pactLine}${hostilityLine}`;
+      desc=`${banditType} — DD4 | 8 Stress per enemy.${pactLine}${hostilityLine}`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'bandits',${n},'${banditType}',4)">⚔ Fight${combatHint}</button>
         <button class="btn btn-xs" onclick="attemptEncounterThievery('bandits',${col},${row})">🧿 Thievery</button>
@@ -11464,7 +11464,7 @@ function rollHexEncounter(col,row){
       const n=roll(4)+2;
       const beastType=pick(['Mutated wolves, pale-eyed and coordinated','Irradiated boars, tusks glowing faintly','Blade-winged birds hunting as one','Something vast and hard to name']);
       title=`${n} Hostile Beasts`;
-      desc=`${beastType} — DD4 | ${n*2} Stress.${pactLine}`;
+      desc=`${beastType} — DD4 | 8 Stress per enemy.${pactLine}`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'beasts',${n},'${beastType}',4)">⚔ Engage Combat${combatHint}</button>
         <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>

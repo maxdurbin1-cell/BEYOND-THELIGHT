@@ -4269,6 +4269,118 @@ function setSolarCycleQuestActionStat(questId, stat) {
   return next;
 }
 
+function ensureSolarCycleQuestMirrorEncounter(sc, quest) {
+  var state = sc || ensureSolarCycleState();
+  if (!state || !quest || typeof quest !== 'object') return null;
+  if (quest.mirrorEncounterData && typeof quest.mirrorEncounterData === 'object') {
+    return quest.mirrorEncounterData;
+  }
+  var fracture = state.timeFracture || {};
+  var charges = Math.max(0, Number(fracture.charges || 0));
+  var rewinds = Math.max(0, Number(fracture.rewindsUsed || 0));
+  var strain = Math.max(0, Number(fracture.scarFlags && fracture.scarFlags.paradoxStrain || 0));
+  if (charges <= 0 && rewinds <= 0) return null;
+
+  var seed = seedSolarCycleMix(state,
+    String(quest.id || '').length * 17
+    + String(quest.threadRootId || '').length * 11
+    + String(quest.npcName || '').length * 7
+    + charges * 13
+    + rewinds * 19
+  ) % 100;
+  var chance = Math.min(75, 14 + (charges * 14) + (Math.min(3, rewinds) * 18) + Math.min(15, strain));
+  if (seed >= chance) return null;
+
+  var echoTitles = ['Mirror Encounter', 'Pre-Echo Witness', 'Inire Glass Crossing', 'Future Memory Intrusion'];
+  var descriptions = [
+    'A silvered seam opens in the air and another version of this witness steps through it: older in the face, younger in the eyes, already carrying the argument you were about to have.',
+    'For a breath the active route overlays an earlier failure. Your contact arrives twice, once in the present and once out of sequence, each version insisting the other is the counterfeit.',
+    'The corridor shines like a deliberate mirror rather than a natural fracture. Someone, somewhere, has already walked this conversation enough times to wear grooves into causality.',
+    'You meet the witness before you properly meet them. They know the promise, the wound, and the version of you that has not happened yet.'
+  ];
+  var hookLines = [
+    '"Do not waste this pass. I already watched you choose wrong once."',
+    '"You are early from your own point of view. From mine, you are overdue."',
+    '"If I speak as if we have history, it is because one of us still does."',
+    '"The road remembers a version of you that has not arrived yet. Listen carefully."'
+  ];
+  var idx = seedSolarCycleMix(state, seed + chance + charges + rewinds) % descriptions.length;
+  quest.mirrorEncounterData = {
+    title: echoTitles[idx] || 'Mirror Encounter',
+    intro: descriptions[idx] || descriptions[0],
+    hookLine: hookLines[idx] || hookLines[0],
+    echoName: String(quest.npcName || 'Unknown Witness'),
+    prophecy: 'Mirror encounter: ' + String(quest.npcName || 'Unknown Witness') + ' remembered a route from the wrong side of time.',
+    rewardText: 'Accepting the echo sharpens witness-memory but adds paradox strain. Refusing it protects your nerves, not your certainty.'
+  };
+  return quest.mirrorEncounterData;
+}
+
+function openSolarCycleMirrorEncounter(questId) {
+  var sc = ensureSolarCycleState();
+  var quest = getSolarCycleSchedulerQuestById(questId);
+  if (!sc || !quest) return resolveSolarCycleSchedulerQuestWithSelectedStat(questId, 'fracture');
+  if (quest.mirrorEncounterResolved) {
+    return resolveSolarCycleSchedulerQuestWithSelectedStat(questId, 'fracture');
+  }
+  var mirror = ensureSolarCycleQuestMirrorEncounter(sc, quest);
+  if (!mirror || typeof openModal !== 'function') {
+    return resolveSolarCycleSchedulerQuestWithSelectedStat(questId, 'fracture');
+  }
+  openModal(
+    mirror.title,
+    '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+    + '<div style="margin-bottom:.32rem;color:var(--gold2);">' + escapeSolarCycleHtml(mirror.intro || '') + '</div>'
+    + '<div style="margin-bottom:.32rem;"><strong>' + escapeSolarCycleHtml(mirror.echoName || 'Unknown Witness') + ':</strong> ' + escapeSolarCycleHtml(mirror.hookLine || '') + '</div>'
+    + '<div style="margin-bottom:.32rem;color:var(--muted2);">The active quest is now haunted by a pre-echo version of this witness. They recognize your route, your failures, and possibly your next lie before you say it.</div>'
+    + '<div style="margin-bottom:.42rem;color:var(--teal);">' + escapeSolarCycleHtml(mirror.rewardText || '') + '</div>'
+    + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+    + '<button class="btn btn-sm btn-warn" onclick="window.resolveSolarCycleMirrorEncounterDecision(\'' + String(questId) + '\',\'accept\')">Accept The Echo</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleMirrorEncounterDecision(\'' + String(questId) + '\',\'refuse\')">Refuse And Continue</button>'
+    + '</div>'
+    + '</div>'
+  );
+  return true;
+}
+
+function resolveSolarCycleMirrorEncounterDecision(questId, decision) {
+  var sc = ensureSolarCycleState();
+  var quest = getSolarCycleSchedulerQuestById(questId);
+  if (!sc || !quest) return false;
+  var mirror = ensureSolarCycleQuestMirrorEncounter(sc, quest);
+  var pick = String(decision || 'refuse');
+  quest.mirrorEncounterResolved = true;
+  if (pick === 'accept') {
+    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+    if (sc.timeFracture && sc.timeFracture.scarFlags) {
+      sc.timeFracture.scarFlags.paradoxStrain = Math.max(0, Number(sc.timeFracture.scarFlags.paradoxStrain || 0) + 1);
+    }
+    recordWorldConsequence({
+      system: 'newsun',
+      title: 'Mirror encounter accepted: ' + String(quest.npcName || 'Unknown Witness'),
+      detail: 'A pre-echo witness supplied temporal context during an active quest.',
+      region: String(quest.region || ''),
+      severity: 'medium',
+      deltas: { witness: 1, rumor: 1, corruption: 0, stability: 0, scarcity: 0, factionHeat: 0 }
+    });
+  } else {
+    if (typeof changeMentalStress === 'function') changeMentalStress(-1);
+    else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) - 1);
+    recordWorldConsequence({
+      system: 'newsun',
+      title: 'Mirror encounter refused: ' + String(quest.npcName || 'Unknown Witness'),
+      detail: 'You kept the route linear, but the unanswered echo still altered local testimony.',
+      region: String(quest.region || ''),
+      severity: 'low',
+      deltas: { witness: 0, rumor: 1, corruption: 0, stability: 0, scarcity: 0, factionHeat: 0 }
+    });
+  }
+  if (mirror && mirror.prophecy) sc.prophecyTrack.push(String(mirror.prophecy));
+  if (typeof closeModal === 'function') closeModal();
+  return resolveSolarCycleSchedulerQuestWithSelectedStat(questId, 'fracture');
+}
+
 function resolveSolarCycleSchedulerQuestWithSelectedStat(questId, approach) {
   var stat = getSolarCycleQuestActionStat(questId);
   return resolveSolarCycleSchedulerQuest(questId, approach, stat);
@@ -5250,7 +5362,8 @@ function spawnSolarCycleSchedulerQuests(sc, force) {
     var q = qs.questById ? qs.questById[qid] : null;
     return !!(q && !q.resolved && !q.expired && q.region === 'sea' && q.portalHandoff);
   });
-  if (!hasActiveSeaPortal
+  if (!qs.portalHandoffTriggered
+    && !hasActiveSeaPortal
     && provinceDone >= Number(NEW_SUN_REGION_TARGETS.province || 10)
     && seaDone >= Number(NEW_SUN_REGION_TARGETS.sea || 2)
     && Number(qs.activeQuestIds && qs.activeQuestIds.length || 0) < 5) {
@@ -5635,6 +5748,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     var handoffQuest = createSolarCycleSchedulerQuest(sc, 'wtw');
     if (!handoffQuest) handoffQuest = createSolarCycleImmediateQuest(sc, 'wtw', quest, 'portal');
     if (handoffQuest) {
+      qs.portalHandoffTriggered = true;
       handoffQuest.title = handoffQuest.title + ' (Lost City Portal Handoff)';
       handoffQuest.portalHandoffSource = quest.id;
       handoffQuest.sourceQuestId = String(quest.id || handoffQuest.sourceQuestId || '');
@@ -5702,6 +5816,7 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var memoryLine = String(quest.memoryCallbackLine || '');
   var actionLine = getSolarCycleInvestigationActionLine(quest);
   var dialogueLine = getSolarCycleInvestigationDialogueLine(quest);
+  var mirrorEncounter = ensureSolarCycleQuestMirrorEncounter(ensureSolarCycleState(), quest);
   var stance = evaluateSolarCycleNpcStance(ensureSolarCycleState(), quest, '');
   var vec = stance && stance.vector ? stance.vector : null;
   var promisePreview = getSolarCyclePromisePreview(quest, 'investigate');
@@ -5720,6 +5835,9 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
   var fractureLabel = (stance && stance.promiseBalance <= -2)
     ? 'Investigate via Time Fracture (must re-earn trust)'
     : 'Investigate via Time Fracture';
+  if (mirrorEncounter && !quest.mirrorEncounterResolved) {
+    fractureLabel = 'Investigate via Time Fracture (Mirror Echo Active)';
+  }
   var portalLabel = (stance && stance.promiseBalance >= 2)
     ? 'Open Lost City Portal Chain (oath-backed)'
     : 'Open Lost City Portal Chain';
@@ -5738,6 +5856,9 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;margin-bottom:.45rem;">Every New Sun investigation reveals a route toward restoration. This lead suggests: <strong>' + escapeSolarCycleHtml(quest.methodSummary) + '</strong></div>'
     + '<div style="font-size:.74rem;color:var(--red2);line-height:1.55;margin-bottom:.3rem;">' + escapeSolarCycleHtml(quest.stakesText || '100 days remain. Your decision can change how the world ends.') + '</div>'
     + '<div style="font-size:.76rem;color:var(--teal);line-height:1.55;margin-bottom:.5rem;">Clue: ' + escapeSolarCycleHtml(quest.clueText) + '</div>'
+    + (mirrorEncounter && !quest.mirrorEncounterResolved
+      ? ('<div style="font-size:.76rem;color:var(--gold2);line-height:1.55;margin-bottom:.45rem;border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.08);padding:.4rem .45rem;"><strong>Mirror Encounter Active:</strong> ' + escapeSolarCycleHtml(mirrorEncounter.intro) + ' <span style="color:var(--teal);">A pre-echo version of ' + escapeSolarCycleHtml(mirrorEncounter.echoName || quest.npcName || 'this witness') + ' is waiting inside the fracture route.</span></div>')
+      : '')
     + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.45rem;">Every choice rolls one Wayfarer Action Die against a Dread Die. Failure can open a darker branch.</div>'
     + '<div style="font-size:.72rem;color:' + ((stance && stance.betrayalPotential) ? 'var(--red2)' : 'var(--muted2)') + ';line-height:1.5;margin-bottom:.3rem;">NPC Conviction Vector: ' + escapeSolarCycleHtml(trustSummary) + '</div>'
     + '<div style="font-size:.72rem;color:var(--gold2);line-height:1.5;margin-bottom:.3rem;">Promise on this lead: ' + escapeSolarCycleHtml(promisePreview) + '</div>'
@@ -5746,7 +5867,7 @@ function openSolarCycleSchedulerQuestModal(questId, contextLabel) {
     + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.45rem;">' + statButtons + '</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
     + '<button class="btn btn-sm btn-teal" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'investigate\');">' + escapeSolarCycleHtml(investigateLabel) + '</button>'
-    + '<button class="btn btn-sm btn-warn" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'fracture\');">' + escapeSolarCycleHtml(fractureLabel) + '</button>'
+    + '<button class="btn btn-sm btn-warn" onclick="window.openSolarCycleMirrorEncounter(\'' + String(quest.id) + '\');">' + escapeSolarCycleHtml(fractureLabel) + '</button>'
     + '<button class="btn btn-sm ' + ((stance && stance.betrayalRisk >= 0.65) ? 'btn-red' : '') + '" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'misled\');">' + escapeSolarCycleHtml(riskyTestimonyLabel) + '</button>'
     + (quest.portalHandoff && quest.region === 'sea' ? '<button class="btn btn-sm" onclick="window.resolveSolarCycleSchedulerQuestWithSelectedStat(\'' + String(quest.id) + '\',\'portal\');">' + escapeSolarCycleHtml(portalLabel) + '</button>' : '')
     + '</div>'
@@ -11264,11 +11385,11 @@ function rollPlanetHexEncounter() {
   } else if (d10 === 3) {
     const beasts = roll(6) + 2;
     title = `${beasts} Hostile Beasts`;
-    text = 'Their jaws click in perfect rhythm while they drag fresh bones through the brush — DD4 | 10 Stress.';
+    text = 'Their jaws click in perfect rhythm while they drag fresh bones through the brush — DD4 | 8 Stress.';
   } else if (d10 === 4) {
     const pirates = roll(4) + 1;
     title = `${pirates} Pirates`;
-    text = 'They wear trophy masks made from prior crews and broadcast screams on open comms — DD4 | 10 Stress.';
+    text = 'They wear trophy masks made from prior crews and broadcast screams on open comms — DD4 | 8 Stress.';
   } else if (d10 === 5) {
     const groupA = roll(6) + 2;
     const groupB = roll(6) + 2;

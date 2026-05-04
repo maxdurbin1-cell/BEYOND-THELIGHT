@@ -646,7 +646,30 @@ const SOLAR_CYCLE_IRREVERSIBLE_TAGS = {
   fracture_used: { title: 'Time Fracture Used', endingWeights: { witness_loop: 1, black_mirror_apocalypse: 1, leviathan_gospel: 1, new_sun_risen: -1 } }
 };
 
-const SOLAR_CYCLE_FINALE_PRESSURE_DAYS = [90, 94, 97, 99];
+const SOLAR_CYCLE_HOPEFUL_ENDINGS = ['new_sun_risen', 'ark_of_witness', 'shared_dawn_compromise', 'witness_loop'];
+
+// Balance profile for endgame pressure cadence.
+// `fewer_bigger`: fewer scenes with larger swings.
+// `frequent`: more frequent scenes with smaller swings.
+const SOLAR_CYCLE_FINALE_PRESSURE_PROFILE = 'fewer_bigger';
+const SOLAR_CYCLE_FINALE_PRESSURE_PROFILES = {
+  fewer_bigger: {
+    days: [92, 97, 99],
+    pressureDieBase: 8,
+    weightScale: 0.35,
+    marginScale: 0.45,
+    dawnShift: 4,
+    panicShift: 3
+  },
+  frequent: {
+    days: [88, 92, 95, 97, 99],
+    pressureDieBase: 7,
+    weightScale: 0.28,
+    marginScale: 0.34,
+    dawnShift: 2,
+    panicShift: 2
+  }
+};
 
 const SOLAR_CYCLE_FINALE_PRESSURE_SCENES = {
   new_sun_risen: [
@@ -1382,6 +1405,10 @@ function ensureSolarCycleState() {
   if (typeof sc.finalePressure.lastDay !== 'number') sc.finalePressure.lastDay = 0;
   if (typeof sc.finalePressure.lastEnding !== 'string') sc.finalePressure.lastEnding = '';
   if (typeof sc.finalePressure.lastWeight !== 'number') sc.finalePressure.lastWeight = 0;
+  if (!sc.finalePressure.influence || typeof sc.finalePressure.influence !== 'object') sc.finalePressure.influence = {};
+  NEW_SUN_ENDING_KEYS.forEach(function (key) {
+    if (typeof sc.finalePressure.influence[key] !== 'number') sc.finalePressure.influence[key] = 0;
+  });
   if (!sc.relicRewardsGiven || typeof sc.relicRewardsGiven !== 'object') sc.relicRewardsGiven = {};
   if (typeof sc.echoSeed !== 'number') sc.echoSeed = Math.floor(Math.random() * 1000000);
   if (SOLAR_CYCLE_ARCS.indexOf(sc.activeArc) < 0) sc.activeArc = 'relic';
@@ -2080,6 +2107,13 @@ function getSolarCycleEndingWeights(profile) {
     weights[key] = Number(weights[key] || 0) + Number(bias[key] || 0);
   });
 
+  var fp = (profile.state && profile.state.finalePressure) ? ensureSolarCycleFinalePressureState(profile.state) : null;
+  if (fp && fp.influence) {
+    Object.keys(weights).forEach(function (key) {
+      weights[key] = Number(weights[key] || 0) + Number(fp.influence[key] || 0);
+    });
+  }
+
   return weights;
 }
 
@@ -2406,6 +2440,11 @@ function getSolarCycleEndingKeyFromWeights(weights) {
   return best;
 }
 
+function getSolarCycleFinalePressureConfig() {
+  var key = String(SOLAR_CYCLE_FINALE_PRESSURE_PROFILE || 'fewer_bigger');
+  return SOLAR_CYCLE_FINALE_PRESSURE_PROFILES[key] || SOLAR_CYCLE_FINALE_PRESSURE_PROFILES.fewer_bigger;
+}
+
 function ensureSolarCycleFinalePressureState(sc) {
   var state = sc || ensureSolarCycleState();
   if (!state) return null;
@@ -2424,6 +2463,12 @@ function ensureSolarCycleFinalePressureState(sc) {
   if (typeof state.finalePressure.lastDay !== 'number') state.finalePressure.lastDay = 0;
   if (typeof state.finalePressure.lastEnding !== 'string') state.finalePressure.lastEnding = '';
   if (typeof state.finalePressure.lastWeight !== 'number') state.finalePressure.lastWeight = 0;
+  if (!state.finalePressure.influence || typeof state.finalePressure.influence !== 'object') {
+    state.finalePressure.influence = {};
+  }
+  NEW_SUN_ENDING_KEYS.forEach(function (key) {
+    if (typeof state.finalePressure.influence[key] !== 'number') state.finalePressure.influence[key] = 0;
+  });
   return state.finalePressure;
 }
 
@@ -2460,24 +2505,51 @@ function pickSolarCycleFinalePressureScene(endingKey, day) {
 function applySolarCycleFinalePressureConsequence(choiceId, pending) {
   var p = pending || {};
   var choice = String(choiceId || 'dawn');
+  var sc = ensureSolarCycleState();
+  var fp = ensureSolarCycleFinalePressureState(sc);
+  var endingKey = String(p.endingKey || 'wormwood_cathedral');
+  var hopefulDominant = SOLAR_CYCLE_HOPEFUL_ENDINGS.indexOf(endingKey) >= 0;
+  var cfg = getSolarCycleFinalePressureConfig();
+  var shift = Math.max(1, Number(cfg.dawnShift || 3));
+  var panicShift = Math.max(1, Number(cfg.panicShift || 2));
+  var lateBoost = Number(p.day || 0) >= 97 ? 1 : 0;
+
+  function nudgeInfluence(targetKey, delta) {
+    if (!fp || !fp.influence || !targetKey) return;
+    fp.influence[targetKey] = Number(fp.influence[targetKey] || 0) + Number(delta || 0);
+  }
+
+  function shiftTowardHope(delta) {
+    var amount = Math.max(1, Number(delta || 0));
+    SOLAR_CYCLE_HOPEFUL_ENDINGS.forEach(function (k) { nudgeInfluence(k, amount); });
+    if (!hopefulDominant) nudgeInfluence(endingKey, -amount * 2);
+    if (p.runnerUpKey && SOLAR_CYCLE_HOPEFUL_ENDINGS.indexOf(String(p.runnerUpKey || '')) >= 0) {
+      nudgeInfluence(String(p.runnerUpKey || ''), amount);
+    }
+  }
+
   if (choice === 'dawn') {
-    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
-    else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+    if (typeof changeCounter === 'function') changeCounter('tmw', 2);
+    else S.tmw = Math.max(0, Number(S.tmw || 0) + 2);
     if (typeof changeMentalStress === 'function') changeMentalStress(1);
     else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + 1);
-    if (typeof showNotif === 'function') showNotif('You rally for dawn: +1 TMW, +1 Mental Stress.', 'warn');
+    shiftTowardHope(shift + lateBoost);
+    if (typeof showNotif === 'function') showNotif('You rally for dawn: +2 TMW, +1 Mental Stress, and hopeful endings gain momentum.', 'warn');
     return true;
   }
   if (choice === 'last_days') {
-    if (typeof changeMentalStress === 'function') changeMentalStress(-1);
-    else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) - 1);
+    if (typeof changeMentalStress === 'function') changeMentalStress(-2);
+    else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) - 2);
     if (typeof changeCounter === 'function') changeCounter('renown', 1);
     else S.renown = Math.max(0, Number(S.renown || 0) + 1);
-    if (typeof showNotif === 'function') showNotif('You choose witness over conquest: -1 Mental Stress, +1 Renown.', 'good');
+    if (hopefulDominant) nudgeInfluence(endingKey, 1 + lateBoost);
+    if (typeof showNotif === 'function') showNotif('You choose witness over conquest: -2 Mental Stress, +1 Renown.', 'good');
     return true;
   }
-  if (typeof changeMentalStress === 'function') changeMentalStress(Math.max(1, Number(p.pressureSeverity || 1)));
-  else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, Number(p.pressureSeverity || 1)));
+  var panicStress = Math.max(1, Number(p.pressureSeverity || 1)) + (hopefulDominant ? 0 : 1);
+  if (typeof changeMentalStress === 'function') changeMentalStress(panicStress);
+  else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + panicStress);
+  if (!hopefulDominant) nudgeInfluence(endingKey, panicShift + lateBoost);
   if (typeof showNotif === 'function') showNotif('Pressure surges as the sky worsens.', 'warn');
   return true;
 }
@@ -2507,7 +2579,9 @@ function maybeRunSolarCycleFinalePressureScene(sc, prevDay) {
   var beforeDay = Math.max(0, Number(prevDay || 0));
   var nowDay = Math.max(0, Number(state.daysElapsed || 0));
   var triggerDay = 0;
-  SOLAR_CYCLE_FINALE_PRESSURE_DAYS.forEach(function (d) {
+  var cfg = getSolarCycleFinalePressureConfig();
+  var cadence = (cfg && Array.isArray(cfg.days) && cfg.days.length) ? cfg.days : [92, 97, 99];
+  cadence.forEach(function (d) {
     var day = Number(d || 0);
     if (beforeDay < day && nowDay >= day && !fp.shownDays[day]) triggerDay = Math.max(triggerDay, day);
   });
@@ -2516,9 +2590,16 @@ function maybeRunSolarCycleFinalePressureScene(sc, prevDay) {
   fp.shownDays[triggerDay] = true;
   var snapshot = getSolarCycleDominantEndingSnapshot(state);
   var sceneText = pickSolarCycleFinalePressureScene(snapshot.leadingKey, triggerDay);
-  var pressureDie = Math.max(6, Math.min(20, 7 + Math.max(0, Number(snapshot.leadingWeight || 0))));
+  var hopefulDominant = SOLAR_CYCLE_HOPEFUL_ENDINGS.indexOf(String(snapshot.leadingKey || '')) >= 0;
+  var baseDie = Number(cfg.pressureDieBase || 8);
+  var pressureDie = Math.max(6, Math.min(20,
+    baseDie
+    + Math.floor(Math.max(0, Number(snapshot.leadingWeight || 0)) * Number(cfg.weightScale || 0.35))
+    + Math.floor(Math.max(0, Number(snapshot.leadMargin || 0)) * Number(cfg.marginScale || 0.45))
+    - ((nowDay >= 97 && !hopefulDominant) ? 1 : 0)
+  ));
   var pressureRoll = rollSolarCycleContest('spirit', pressureDie);
-  var pressureSeverity = pressureRoll.success ? 1 : 2;
+  var pressureSeverity = pressureRoll.success ? 1 : 2 + (hopefulDominant ? 0 : 1);
 
   fp.lastDay = triggerDay;
   fp.lastEnding = String(snapshot.leadingKey || 'wormwood_cathedral');
@@ -2527,11 +2608,13 @@ function maybeRunSolarCycleFinalePressureScene(sc, prevDay) {
     day: triggerDay,
     endingKey: String(snapshot.leadingKey || 'wormwood_cathedral'),
     pressureSeverity: pressureSeverity,
-    leadMargin: Number(snapshot.leadMargin || 0)
+    leadMargin: Number(snapshot.leadMargin || 0),
+    runnerUpKey: String(snapshot.runnerUpKey || ''),
+    hopefulDominant: hopefulDominant
   };
 
   var trajectory = getSolarCycleEndingText(snapshot.leadingKey);
-  var hopefulTrajectory = ['new_sun_risen', 'ark_of_witness', 'shared_dawn_compromise', 'witness_loop'].indexOf(String(snapshot.leadingKey || '')) >= 0;
+  var hopefulTrajectory = hopefulDominant;
   var pressureLine = hopefulTrajectory
     ? 'The route still smells like possible dawn. If you can hold your witnesses together, this can still be saved.'
     : 'The dominant route is collapsing into ruin. You can still resist, but every hour now costs blood and certainty.';
@@ -2710,17 +2793,7 @@ function getSolarCycleEndingKey(sc) {
   var profile = getSolarCycleOutcomeProfile(sc);
   if (!profile.state) return 'wormwood_cathedral';
   var weights = getSolarCycleEndingWeights(profile);
-  var priority = ['new_sun_risen', 'shared_dawn_compromise', 'witness_loop', 'wormwood_cathedral', 'last_liturgy_of_ruin', 'ashes_without_dawn', 'iron_ragnarok', 'black_sun_coronation', 'black_mirror_apocalypse'];
-  var best = 'wormwood_cathedral';
-  var bestWeight = -999999;
-  priority.forEach(function (key) {
-    var val = Number(weights[key] || 0);
-    if (val > bestWeight) {
-      bestWeight = val;
-      best = key;
-    }
-  });
-  return best;
+  return getSolarCycleEndingKeyFromWeights(weights);
 }
 
 function getSolarCycleEndingText(endingKey) {
@@ -3598,7 +3671,15 @@ function startSolarCycleMode(activeArc) {
   sc.daysRemaining = SOLAR_CYCLE_DAY_LIMIT;
   sc.worldTilt = 1;
   sc.prophecyTrack = [];
-  sc.finalePressure = { shownDays: {}, pending: null, lastDay: 0, lastEnding: '', lastWeight: 0 };
+  sc.finalePressure = {
+    shownDays: {},
+    pending: null,
+    lastDay: 0,
+    lastEnding: '',
+    lastWeight: 0,
+    influence: {}
+  };
+  NEW_SUN_ENDING_KEYS.forEach(function (key) { sc.finalePressure.influence[key] = 0; });
   sc.resolvedMarkers = {};
   sc.endingFlags = { forcedFinaleTriggered: false, ending: '' };
   sc.timeFracture = { charges: 1, maxCharges: 1, scarFlags: { paradoxStrain: 0, echoArc: '', lastRewindDays: 0, tmwBurnTotal: 0 }, rewindsUsed: 0 };

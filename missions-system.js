@@ -141,6 +141,17 @@
   var TARGET_NAMES = ['Lord Kastian','The Grey Merchant','Warden Cress','Elder Vorn','Captain Halved','The Iron Buyer','Countess Daela','Agent Zero','Baron Fell','Treasurer Olin','The Pale Architect','Commander Dusk'];
   var ROOM_TYPES = ['Empty corridor','Guard post (2 sentries)','Storage room','Locked vault','Watch room','Hidden passage','Armory','Workshop','Meeting hall','Supply depot','Infirmary','Command room','Trophy room','Server alcove','Sewage passage','Old chapel'];
 
+  var MISSION_TEMPLATES = [
+    { id:'standard',             label:'Standard Contract',   missionType:'standard',              stepNames:{1:'Gather Information',2:'Go to Site',3:'Confrontation'},     verbs:['Hunt','Retrieve','Rescue','Escort'] },
+    { id:'diplomacy',            label:'Diplomacy',           missionType:'diplomacy',             stepNames:{1:'Secure Audience',2:'Negotiate Terms',3:'Broker Outcome'},   verbs:['Negotiate','Mediate','Appeal','Broker'] },
+    { id:'survival',             label:'Survival Run',        missionType:'survival',              stepNames:{1:'Scout Conditions',2:'Endure Passage',3:'Extraction'},        verbs:['Survive','Endure','Recover','Traverse'] },
+    { id:'mystery',              label:'Mystery',             missionType:'mystery',               stepNames:{1:'Collect Clues',2:'Follow Trail',3:'Reveal Truth'},           verbs:['Investigate','Trace','Decode','Unmask'] },
+    { id:'infiltration',         label:'Infiltration',        missionType:'infiltration',          stepNames:{1:'Acquire Access',2:'Infiltrate Site',3:'Exfiltrate'},          verbs:['Infiltrate','Sabotage','Steal','Bypass'] },
+    { id:'settlement',           label:'Settlement Support',  missionType:'settlement_management', stepNames:{1:'Assess Settlement',2:'Secure Supplies',3:'Stabilize Zone'},   verbs:['Rebuild','Supply','Stabilize','Fortify'] },
+    { id:'escort_chain',         label:'Escort Chain',        missionType:'escort_chain',          stepNames:{1:'Prepare Convoy',2:'Escort Route',3:'Safe Delivery'},          verbs:['Escort','Guard','Deliver','Protect'] },
+    { id:'faction_politics',     label:'Faction Politics',    missionType:'faction_politics',      stepNames:{1:'Map Allegiances',2:'Apply Leverage',3:'Settle Power Shift'}, verbs:['Leverage','Influence','Arbitrate','Pressure'] }
+  ];
+
   var DEITY_PACT_PATHWAYS = {
     mercy: {
       id: 'mercy',
@@ -769,6 +780,40 @@
     }
   }
 
+  function chooseMissionTemplate(bias) {
+    var b = bias || {};
+    var crises = (typeof window !== 'undefined' && typeof window.getWorldConsequenceFeed === 'function')
+      ? (window.getWorldConsequenceFeed() || [])
+      : [];
+    if (Array.isArray(crises) && crises.length) {
+      var hot = String((crises[0] && crises[0].title) || '').toLowerCase();
+      if (hot.indexOf('route') >= 0 || hot.indexOf('escort') >= 0) {
+        return MISSION_TEMPLATES.find(function(t){ return t.id === 'escort_chain'; }) || MISSION_TEMPLATES[0];
+      }
+      if (hot.indexOf('faction') >= 0 || hot.indexOf('border') >= 0) {
+        return MISSION_TEMPLATES.find(function(t){ return t.id === 'faction_politics'; }) || MISSION_TEMPLATES[0];
+      }
+      if (hot.indexOf('crisis') >= 0 || hot.indexOf('danger') >= 0) {
+        return MISSION_TEMPLATES.find(function(t){ return t.id === 'survival'; }) || MISSION_TEMPLATES[0];
+      }
+    }
+    return pick(MISSION_TEMPLATES);
+  }
+
+  function getMissionLocationKey(mission) {
+    if (!mission || typeof mission !== 'object') return '';
+    if (mission.siteHex && typeof mission.siteHex.col === 'number' && typeof mission.siteHex.row === 'number') {
+      return mission.siteHex.col + ',' + mission.siteHex.row;
+    }
+    if (mission.mapHex && typeof mission.mapHex.col === 'number' && typeof mission.mapHex.row === 'number') {
+      return mission.mapHex.col + ',' + mission.mapHex.row;
+    }
+    if (mission.seaSiteKey) return String(mission.seaSiteKey);
+    if (mission.wtwSiteHexId) return String(mission.wtwSiteHexId);
+    if (mission.galaxyHexId) return String(mission.galaxyHexId);
+    return '';
+  }
+
   function recordMissionConsequence(entry) {
     if (typeof window === 'undefined' || typeof window.recordWorldConsequence !== 'function') return;
     try { window.recordWorldConsequence(entry || {}); } catch (_err) {}
@@ -901,6 +946,7 @@
     else if (activeTabId === 'tab-lastsea') forceRegion = 'sea';
     else if (activeTabId === 'tab-map') forceRegion = 'province';
     for (var i = 0; i < count; i++) {
+      var tpl = chooseMissionTemplate(bias);
       var diffKey = pick(DIFF_KEYS);
       var diffIdx = Math.max(0, DIFF_KEYS.indexOf(diffKey));
       diffIdx = Math.max(0, Math.min(DIFF_KEYS.length - 1, diffIdx + Number(bias.difficultyShift || 0)));
@@ -913,7 +959,8 @@
         region = bias.focusRegion;
       }
       var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
-      var verbPool = Array.isArray(bias.preferredVerbs) && bias.preferredVerbs.length ? bias.preferredVerbs : MISSION_VERBS;
+      var templateVerbs = (tpl && Array.isArray(tpl.verbs) && tpl.verbs.length) ? tpl.verbs : MISSION_VERBS;
+      var verbPool = Array.isArray(bias.preferredVerbs) && bias.preferredVerbs.length ? bias.preferredVerbs.concat(templateVerbs) : templateVerbs;
       S.availableJobs.push({
         id:seed + i + 1,
         title:pick(verbPool)+' '+pick(MISSION_TARGETS),
@@ -924,6 +971,10 @@
         planetName:planetTarget ? planetTarget.planetName : '',
         reward:Math.max(25, Number(diff.credits || 0) + Number(bias.rewardBonus || 0)),
         region:region,
+        missionType: (tpl && tpl.missionType) || 'standard',
+        templateId: (tpl && tpl.id) || 'standard',
+        templateLabel: (tpl && tpl.label) || 'Standard Contract',
+        stepNames: (tpl && tpl.stepNames) || null,
         factionGain:f.gain,
         factionLose:f.lose,
         factionGainName:f.gainName,
@@ -944,7 +995,11 @@
       lose:job.factionLose,
       gainName:job.factionGainName,
       loseName:job.factionLoseName
-    }, null);
+    }, {
+      missionType: job.missionType || 'standard',
+      templateId: job.templateId || 'standard',
+      stepNames: job.stepNames || null
+    });
     if (job.region === 'galaxy') {
       mission.planetHexId = job.planetHexId || null;
       mission.planetName = job.planetName || '';
@@ -963,8 +1018,10 @@
       title: 'Mission accepted: ' + String(mission.title || 'Contract'),
       detail: String(mission.location || '') + ' [' + String(mission.region || 'province').toUpperCase() + ']',
       region: String(mission.region || 'province'),
+      locationKey: getMissionLocationKey(mission),
       severity: 'info',
-      deltas: { rumor: 1, witness: 1 }
+      deltas: { rumor: 1, witness: 1 },
+      tags: ['mission-board', 'discovered-route', String(mission.missionType || 'standard')]
     });
   }
 
@@ -1710,8 +1767,10 @@
         title: 'Mission resolved: success',
         detail: String(mission.title || 'Contract') + ' completed.',
         region: String(mission.region || 'province'),
+        locationKey: getMissionLocationKey(mission),
         severity: 'medium',
-        deltas: { stability: 1, scarcity: -1, witness: 1, factionHeat: -1 }
+        deltas: { stability: 1, scarcity: -1, witness: 1, factionHeat: -1 },
+        tags: ['threat-cleared', 'discovery', 'infrastructure', String(mission.missionType || 'standard')]
       });
     } else {
       if (options.expired) {
@@ -1721,8 +1780,10 @@
           title: 'Mission expired',
           detail: String(mission.title || 'Contract') + ' timed out.',
           region: String(mission.region || 'province'),
+          locationKey: getMissionLocationKey(mission),
           severity: 'high',
-          deltas: { stability: -1, scarcity: 1, corruption: 1, rumor: 1, factionHeat: 1 }
+          deltas: { stability: -1, scarcity: 1, corruption: 1, rumor: 1, factionHeat: 1 },
+          tags: ['failed-expedition', 'active-crisis', 'dangerous-road', 'exhausted-site', String(mission.missionType || 'standard')]
         });
       } else {
         try { showNotif('Mission failed. \u22121 Renown \u00B7 ' + (mission.factionGainName||'Faction') + ' -1 / ' + (mission.factionLoseName||'Faction') + ' +1','warn'); } catch (err) {}
@@ -1731,8 +1792,10 @@
           title: 'Mission failed',
           detail: String(mission.title || 'Contract') + ' collapsed under pressure.',
           region: String(mission.region || 'province'),
+          locationKey: getMissionLocationKey(mission),
           severity: 'high',
-          deltas: { stability: -1, scarcity: 1, rumor: 1, witness: -1, factionHeat: 1 }
+          deltas: { stability: -1, scarcity: 1, rumor: 1, witness: -1, factionHeat: 1 },
+          tags: ['failed-expedition', 'dangerous-road', 'active-crisis', String(mission.missionType || 'standard')]
         });
       }
     }
@@ -1808,6 +1871,7 @@
         : '<span style="font-family:\'Cinzel\',serif;font-size:.55rem;color:var(--muted2);">DD hidden</span>';
       return '<div class="shop-card" style="display:flex;flex-direction:column;">'
         +'<div class="s-name" style="color:var(--gold2);">'+job.title+'</div>'
+        +(job.templateLabel?'<div style="font-size:.62rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin:.1rem 0;">'+job.templateLabel+'</div>':'')
         +'<div style="display:flex;gap:.35rem;align-items:center;font-family:\'Rajdhani\',sans-serif;font-size:.72rem;font-weight:700;margin:.15rem 0;">'
           +'<span style="color:'+dc+';text-transform:uppercase;">'+diff.name+'</span>'
           +'<span style="color:var(--muted2);">\u00B7</span>'

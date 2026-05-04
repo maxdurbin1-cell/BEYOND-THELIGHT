@@ -1507,6 +1507,19 @@
     try { window.recordWorldConsequence(entry || {}); } catch (_err) {}
   }
 
+  function factionLocationKeyFromBase(base, mission) {
+    if (mission && mission.siteHex && typeof mission.siteHex.col === 'number' && typeof mission.siteHex.row === 'number') {
+      return mission.siteHex.col + ',' + mission.siteHex.row;
+    }
+    if (mission && mission.mapHex && typeof mission.mapHex.col === 'number' && typeof mission.mapHex.row === 'number') {
+      return mission.mapHex.col + ',' + mission.mapHex.row;
+    }
+    if (base && base.marker && base.marker.system === 'province' && base.marker.key) {
+      return String(base.marker.key);
+    }
+    return '';
+  }
+
   function resolveFactionMission(factionId) {
     const base = ensureBaseActivity(factionId);
     if (!base || !base.activeMission || !base.activeMission.accepted || base.activeMission.resolved) return;
@@ -1534,8 +1547,10 @@
         title: 'Faction base mission succeeded',
         detail: String((base.activeMission && base.activeMission.title) || factionId || 'Faction mission'),
         region: String((base && base.regionType) || 'province').toLowerCase(),
+        locationKey: factionLocationKeyFromBase(base, base && base.activeMission),
         severity: 'medium',
-        deltas: { stability: 1, witness: 1, factionHeat: -1 }
+        deltas: { stability: 1, witness: 1, factionHeat: -1 },
+        tags: ['faction-mission', 'threat-cleared', 'discovered-route', 'npc-relationship']
       });
       base.activeMission = null;
     } else {
@@ -1547,8 +1562,10 @@
         title: 'Faction base mission failed',
         detail: String((base.activeMission && base.activeMission.title) || factionId || 'Faction mission'),
         region: String((base && base.regionType) || 'province').toLowerCase(),
+        locationKey: factionLocationKeyFromBase(base, base && base.activeMission),
         severity: 'high',
-        deltas: { stability: -1, rumor: 1, factionHeat: 1 }
+        deltas: { stability: -1, rumor: 1, factionHeat: 1 },
+        tags: ['faction-mission', 'failed-expedition', 'active-crisis', 'dangerous-road']
       });
     }
     openFactionBaseHub(factionId);
@@ -1597,8 +1614,10 @@
         title: 'Faction event stabilized',
         detail: String(ev.text || 'Base event'),
         region: String((base && base.regionType) || 'province').toLowerCase(),
+        locationKey: factionLocationKeyFromBase(base, null),
         severity: 'info',
-        deltas: { stability: 1, rumor: -1, witness: 1 }
+        deltas: { stability: 1, rumor: -1, witness: 1 },
+        tags: ['faction-event', 'infrastructure', 'npc-relationship']
       });
     } else {
       if (typeof changeStress === "function") changeStress(1);
@@ -1608,8 +1627,10 @@
         title: 'Faction event escalated',
         detail: String(ev.text || 'Base event'),
         region: String((base && base.regionType) || 'province').toLowerCase(),
+        locationKey: factionLocationKeyFromBase(base, null),
         severity: 'high',
-        deltas: { stability: -1, rumor: 1, factionHeat: 1 }
+        deltas: { stability: -1, rumor: 1, factionHeat: 1 },
+        tags: ['faction-event', 'active-crisis', 'dangerous-road']
       });
     }
     openFactionBaseHub(factionId);
@@ -2121,8 +2142,10 @@
         title: 'Faction contract failed',
         detail: String(mission.title || missionId || 'Contract') + ' [' + String(pathway).toUpperCase() + ']',
         region: String(mission.region || 'province'),
+        locationKey: factionLocationKeyFromBase(null, mission),
         severity: 'high',
-        deltas: { stability: -1, rumor: 1, witness: -1, factionHeat: 1 }
+        deltas: { stability: -1, rumor: 1, witness: -1, factionHeat: 1 },
+        tags: ['faction-contract', 'failed-expedition', 'active-crisis', 'border-closed']
       });
       setupFactionTab();
       renderEndingsPanel();
@@ -2176,8 +2199,10 @@
       title: 'Faction contract advanced',
       detail: String(mission.title || missionId || 'Contract') + ' [' + String(pathway).toUpperCase() + ']',
       region: String(mission.region || 'province'),
+      locationKey: factionLocationKeyFromBase(null, mission),
       severity: 'medium',
-      deltas: { stability: 1, witness: 1, factionHeat: -1 }
+      deltas: { stability: 1, witness: 1, factionHeat: -1 },
+      tags: ['faction-contract', 'threat-cleared', pathway === 'tyrant' ? 'patrol-deployed' : 'discovered-route', pathway === 'martyr' ? 'settled-holding' : 'npc-relationship']
     });
     setupFactionTab();
     renderEndingsPanel();

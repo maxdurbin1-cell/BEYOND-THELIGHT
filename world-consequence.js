@@ -69,6 +69,8 @@
           planet:   { cells: {}                               }
         },
         factions: {},
+        economy: { priceMultiplier: 1, scarcity: 0 },
+        capabilities: {},
         activeCrises: [],
         consequenceFeed: []
       };
@@ -77,12 +79,17 @@
     var ws = S.worldState;
     ws.regions     = ws.regions     || {};
     ws.factions    = ws.factions    || {};
+    ws.economy     = ws.economy     || { priceMultiplier: 1, scarcity: 0 };
+    ws.capabilities = ws.capabilities || {};
     ws.activeCrises     = Array.isArray(ws.activeCrises) ? ws.activeCrises : [];
     ws.consequenceFeed  = Array.isArray(ws.consequenceFeed) ? ws.consequenceFeed : [];
     ['province','sea','galaxy','wtw','planet'].forEach(function (r) {
       ws.regions[r] = ws.regions[r] || {};
       ws.regions[r].hexes = ws.regions[r].hexes || {};
+      ws.regions[r].routes = ws.regions[r].routes || {};
+      ws.regions[r].settlements = ws.regions[r].settlements || {};
     });
+    applyProgressionCapabilities(ws);
     return ws;
   }
 
@@ -113,11 +120,44 @@
         prosperity: 0,
         safety: 0,
         tags: [],
+        siteState: {
+          discoveries: 0,
+          threatsCleared: 0,
+          failedExpeditions: 0,
+          hiddenCaches: 0,
+          npcRelationships: 0,
+          infrastructure: 0
+        },
         lastChange: 0,
         history: []
       };
     }
+    if (!ws.regions[r].hexes[k].siteState || typeof ws.regions[r].hexes[k].siteState !== 'object') {
+      ws.regions[r].hexes[k].siteState = {
+        discoveries: 0,
+        threatsCleared: 0,
+        failedExpeditions: 0,
+        hiddenCaches: 0,
+        npcRelationships: 0,
+        infrastructure: 0
+      };
+    }
     return ws.regions[r].hexes[k];
+  }
+
+  function applyProgressionCapabilities(ws) {
+    var S = getS();
+    if (!ws || !S) return;
+    var renown = Number(S.renown || 0);
+    var holding = !!(S.holding && S.holding.established);
+    var caravanOwned = !!(S.caravan && S.caravan.owned);
+    ws.capabilities = {
+      shortcuts: renown >= 6 || caravanOwned,
+      factionPermissions: renown >= 8,
+      intelLayers: renown >= 5,
+      saferRest: holding,
+      alternateResolutions: renown >= 10 || holding
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -141,6 +181,8 @@
       tags:        Array.isArray(rawEvent.tags) ? rawEvent.tags : [],
       at:          now
     };
+
+    applyProgressionCapabilities(ws);
 
     // If callers omit a province location, project onto current selected hex.
     if (!event.locationKey && event.region === 'province') {
@@ -183,6 +225,39 @@
           hexEntry.tags.push('recent-conflict');
         }
 
+        // Permanent site memory updates for revisits.
+        var ss = hexEntry.siteState || {};
+        if (event.tags.indexOf('discovery') >= 0) ss.discoveries = Number(ss.discoveries || 0) + 1;
+        if (event.tags.indexOf('threat-cleared') >= 0) ss.threatsCleared = Number(ss.threatsCleared || 0) + 1;
+        if (event.tags.indexOf('failed-expedition') >= 0) ss.failedExpeditions = Number(ss.failedExpeditions || 0) + 1;
+        if (event.tags.indexOf('hidden-cache') >= 0) ss.hiddenCaches = Number(ss.hiddenCaches || 0) + 1;
+        if (event.tags.indexOf('npc-relationship') >= 0) ss.npcRelationships = Number(ss.npcRelationships || 0) + 1;
+        if (event.tags.indexOf('infrastructure') >= 0 || event.tags.indexOf('settled-holding') >= 0) ss.infrastructure = Number(ss.infrastructure || 0) + 1;
+        hexEntry.siteState = ss;
+
+        // Route and settlement projections used by map overlay layers.
+        if (event.tags.indexOf('dangerous-road') >= 0) {
+          ws.regions[event.region].routes[event.locationKey] = { status: 'danger', at: now };
+        }
+        if (event.tags.indexOf('discovered-route') >= 0) {
+          ws.regions[event.region].routes[event.locationKey] = { status: 'discovered', at: now };
+        }
+        if (event.tags.indexOf('closed-border') >= 0 || event.tags.indexOf('border-closed') >= 0) {
+          ws.regions[event.region].routes[event.locationKey] = { status: 'closed', at: now };
+        }
+        if (event.tags.indexOf('settled-holding') >= 0) {
+          ws.regions[event.region].settlements[event.locationKey] = { status: 'holding', at: now };
+        }
+        if (event.tags.indexOf('closed-port') >= 0) {
+          ws.regions[event.region].settlements[event.locationKey] = { status: 'closed-port', at: now };
+        }
+        if (event.tags.indexOf('active-crisis') >= 0) {
+          ws.regions[event.region].settlements[event.locationKey] = { status: 'crisis', at: now };
+        }
+        if (event.tags.indexOf('exhausted-site') >= 0) {
+          ws.regions[event.region].settlements[event.locationKey] = { status: 'exhausted', at: now };
+        }
+
         hexEntry.lastChange = now;
         hexEntry.history.unshift({ at: now, title: event.title, detail: event.detail, severity: event.severity });
         if (hexEntry.history.length > MAX_HEX_HISTORY) hexEntry.history.length = MAX_HEX_HISTORY;
@@ -200,12 +275,18 @@
       }
     }
 
+    // ---- 2b. Economy pressure ----------------------------------------------
+    if (typeof event.deltas.scarcity === 'number') {
+      ws.economy.scarcity = clamp((ws.economy.scarcity || 0) + event.deltas.scarcity, -5, 10);
+      ws.economy.priceMultiplier = clamp(1 + (ws.economy.scarcity * 0.05), 0.75, 2.0);
+    }
+
     // ---- 3. Consequence feed -----------------------------------------------
     ws.consequenceFeed.unshift({ at: now, system: event.system, title: event.title, detail: event.detail, severity: event.severity, region: event.region, locationKey: event.locationKey });
     if (ws.consequenceFeed.length > MAX_FEED) ws.consequenceFeed.length = MAX_FEED;
 
     // ---- 4. Active crises ---------------------------------------------------
-    if (event.severity === 'high') {
+    if (event.severity === 'high' || event.tags.indexOf('active-crisis') >= 0) {
       ws.activeCrises.unshift({ at: now, title: event.title, region: event.region, locationKey: event.locationKey });
       if (ws.activeCrises.length > MAX_CRISES) ws.activeCrises.length = MAX_CRISES;
     }
@@ -227,12 +308,28 @@
     var hexes = (S.worldState.regions && S.worldState.regions.province && S.worldState.regions.province.hexes) || {};
     var h = hexes[String(key || '')];
     if (!h) return null;
+    var region = (S.worldState.regions && S.worldState.regions.province) || {};
+    var routeState = region.routes && region.routes[String(key || '')] ? region.routes[String(key || '')] : null;
+    var settlementState = region.settlements && region.settlements[String(key || '')] ? region.settlements[String(key || '')] : null;
+    var isCrisis = Array.isArray(S.worldState.activeCrises) && S.worldState.activeCrises.some(function(c){ return c && String(c.locationKey || '') === String(key || ''); });
+    var tags = Array.isArray(h.tags) ? h.tags : [];
+    var caps = S.worldState.capabilities || {};
     return {
       control:      h.control     || '',
       tension:      h.tension     || 0,
       safety:       h.safety      || 0,
       prosperity:   h.prosperity  || 0,
-      tags:         Array.isArray(h.tags) ? h.tags : [],
+      tags:         tags,
+      dangerousRoad: !!(routeState && routeState.status === 'danger') || tags.indexOf('dangerous-road') >= 0,
+      discoveredRoute: !!(routeState && routeState.status === 'discovered') || tags.indexOf('discovered-route') >= 0,
+      closedBorder: !!(routeState && routeState.status === 'closed') || tags.indexOf('closed-border') >= 0 || tags.indexOf('border-closed') >= 0,
+      exhaustedSite: !!(settlementState && settlementState.status === 'exhausted') || tags.indexOf('exhausted-site') >= 0,
+      settledHolding: !!(settlementState && settlementState.status === 'holding') || tags.indexOf('settled-holding') >= 0,
+      closedPort: !!(settlementState && settlementState.status === 'closed-port') || tags.indexOf('closed-port') >= 0,
+      activeCrisis: !!isCrisis || tags.indexOf('active-crisis') >= 0,
+      patrols: tags.indexOf('patrol-deployed') >= 0,
+      capabilities: caps,
+      siteState: h.siteState || null,
       recentChange: h.lastChange  ? (Date.now() - h.lastChange < RECENT_CHANGE_WINDOW_MS) : false,
       lastChange:   h.lastChange  || 0
     };
@@ -247,11 +344,15 @@
     var crises = S.worldState.activeCrises || [];
     if (!crises.length) return { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
     var latest = crises[0];
+    var preferred = ['Stabilize', 'Investigate', 'Reclaim', 'Escort'];
+    var lowerTitle = String((latest && latest.title) || '').toLowerCase();
+    if (lowerTitle.indexOf('border') >= 0 || lowerTitle.indexOf('faction') >= 0) preferred = ['Negotiate', 'Broker', 'Influence', 'Escort'];
+    if (lowerTitle.indexOf('route') >= 0 || lowerTitle.indexOf('convoy') >= 0) preferred = ['Escort', 'Guard', 'Recover', 'Stabilize'];
     return {
       focusRegion:    String(latest.region || 'province'),
       difficultyShift: crises.length >= 3 ? 1 : 0,
       rewardBonus:     crises.length >= 2 ? 50 : 0,
-      preferredVerbs:  ['Stabilize', 'Investigate', 'Reclaim', 'Escort']
+      preferredVerbs:  preferred
     };
   }
 
@@ -311,11 +412,20 @@
     // Update faction posture
     fe.posture = operation.posture;
 
-    // Pick a region hex for the operation (random from province mapData if available)
+    // Pick a region hex for the operation (biased by operation type)
     var locationKey = '';
     var regionLabel = 'province';
     if (typeof window !== 'undefined' && Array.isArray(window.mapData) && window.mapData.length) {
-      var hex = pickRandom(window.mapData);
+      var poolHexes = window.mapData.slice();
+      if (operation.op === 'secure' || operation.op === 'destabilize') {
+        var roads = window.mapData.filter(function (hx) { return hx && hx.type === 'trade'; });
+        if (roads.length) poolHexes = roads;
+      }
+      if (operation.op === 'expand' || operation.op === 'negotiate') {
+        var settlements = window.mapData.filter(function (hx) { return hx && (hx.type === 'dwelling' || hx.type === 'seat' || hx.type === 'holding'); });
+        if (settlements.length) poolHexes = settlements;
+      }
+      var hex = pickRandom(poolHexes);
       if (hex) {
         locationKey = hex.col + ',' + hex.row;
         regionLabel  = 'province';
@@ -328,6 +438,13 @@
     if (fe.activeOperations.length > 5) fe.activeOperations.length = 5;
 
     // Emit the consequence
+    var opTags = ['faction-operation', operation.op];
+    if (operation.op === 'retaliate' || operation.op === 'destabilize') opTags.push('active-crisis', 'dangerous-road', 'border-closed');
+    if (operation.op === 'secure') opTags.push('discovered-route', 'patrol-deployed');
+    if (operation.op === 'expand') opTags.push('settled-holding');
+    if (operation.op === 'negotiate') opTags.push('opened-border');
+    if (operation.op === 'weaken') opTags.push('closed-port', 'exhausted-site');
+
     applyWorldConsequence({
       system:      'faction-turn',
       title:       toTitle(factionId) + ' faction ' + operation.label,
@@ -337,7 +454,7 @@
       severity:    operation.severity,
       factionId:   factionId,
       deltas:      operation.deltas,
-      tags:        ['faction-operation', operation.op]
+      tags:        opTags
     });
 
     // Optionally show a subtle notification only for high-severity turns

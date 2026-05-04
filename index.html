@@ -10342,6 +10342,32 @@ function renderHexMap(){
           safeTint.setAttribute('pointer-events','none');
           g.appendChild(safeTint);
         }
+        // Cause-and-effect glyph stack for open-world state readability.
+        const wsFlags=[];
+        if(ws.dangerousRoad)wsFlags.push({icon:'⚠',color:'#e05050',tip:'Dangerous road'});
+        if(ws.exhaustedSite)wsFlags.push({icon:'⛏',color:'#c99550',tip:'Exhausted site'});
+        if(ws.settledHolding)wsFlags.push({icon:'🏛',color:'#46c4b6',tip:'Settled holding'});
+        if(ws.closedPort)wsFlags.push({icon:'⛔',color:'#b060d0',tip:'Closed port'});
+        if(ws.activeCrisis)wsFlags.push({icon:'✶',color:'#ff8450',tip:'Active crisis'});
+        if(ws.discoveredRoute)wsFlags.push({icon:'⇄',color:'#7ed7ff',tip:'Discovered route'});
+        if(ws.closedBorder)wsFlags.push({icon:'⛓',color:'#e8c050',tip:'Closed border'});
+        if(ws.patrols)wsFlags.push({icon:'🛡',color:'#c9d6f0',tip:'Faction patrols'});
+        const maxFlags=Math.min(3,wsFlags.length);
+        for(let wi=0;wi<maxFlags;wi++){
+          const f=wsFlags[wi];
+          const fTxt=document.createElementNS('http://www.w3.org/2000/svg','text');
+          fTxt.setAttribute('x',x-HEX_SIZE*.56+(wi*10));
+          fTxt.setAttribute('y',y-HEX_SIZE*.66);
+          fTxt.setAttribute('text-anchor','middle');
+          fTxt.setAttribute('font-size','8.2');
+          fTxt.setAttribute('fill',f.color);
+          fTxt.setAttribute('pointer-events','none');
+          const tip=document.createElementNS('http://www.w3.org/2000/svg','title');
+          tip.textContent=f.tip;
+          fTxt.appendChild(tip);
+          fTxt.textContent=f.icon;
+          g.appendChild(fTxt);
+        }
       }
     }
     if(selectedHex&&selectedHex===hex){
@@ -10757,10 +10783,38 @@ function renderHexInfo(hex){
           ${wsOverlay.control?`<div>Control: <strong style="color:${cc};">${wsOverlay.control.charAt(0).toUpperCase()+wsOverlay.control.slice(1)}</strong></div>`:''}
           <div>Tension: <strong style="color:${wsOverlay.tension>=3?'var(--red2)':wsOverlay.tension>=1?'#e8c050':'var(--teal)'}">${tensionLabel} (${wsOverlay.tension})</strong></div>
           <div>Safety: <strong>${safetyLabel} (${wsOverlay.safety})</strong></div>
+          ${wsOverlay.dangerousRoad?`<div>Roads: <strong style="color:var(--red2);">Dangerous</strong></div>`:''}
+          ${wsOverlay.discoveredRoute?`<div>Routes: <strong style="color:#7ed7ff;">Discovered Shortcut</strong></div>`:''}
+          ${wsOverlay.exhaustedSite?`<div>Site: <strong style="color:#c99550;">Exhausted</strong></div>`:''}
+          ${wsOverlay.settledHolding?`<div>Holding: <strong style="color:var(--teal);">Settled</strong></div>`:''}
+          ${wsOverlay.closedPort?`<div>Port: <strong style="color:var(--purple);">Closed</strong></div>`:''}
+          ${wsOverlay.activeCrisis?`<div>Crisis: <strong style="color:var(--red2);">Active</strong></div>`:''}
+          ${wsOverlay.closedBorder?`<div>Borders: <strong style="color:var(--gold2);">Restricted</strong></div>`:''}
+          ${wsOverlay.patrols?`<div>Patrols: <strong style="color:#c9d6f0;">Deployed</strong></div>`:''}
           ${wsOverlay.tags.length?`<div>Tags: <em style="color:var(--muted2);">${wsOverlay.tags.join(', ')}</em></div>`:''}
+          ${(wsOverlay.capabilities&&wsOverlay.capabilities.shortcuts)?`<div style="color:#7ed7ff;">Capability: Travel shortcuts unlocked</div>`:''}
+          ${(wsOverlay.capabilities&&wsOverlay.capabilities.factionPermissions)?`<div style="color:#c9d6f0;">Capability: Faction permissions enabled</div>`:''}
+          ${(wsOverlay.capabilities&&wsOverlay.capabilities.saferRest)?`<div style="color:var(--teal);">Capability: Safer rest options active</div>`:''}
           ${wsOverlay.recentChange?`<div style="color:rgba(255,255,255,.6);">⬤ Recently changed</div>`:''}
         </div>
       </div>`;
+    }
+    if(wsOverlay&&wsOverlay.siteState){
+      const ss=wsOverlay.siteState;
+      const hasMemory=Number(ss.discoveries||0)+Number(ss.threatsCleared||0)+Number(ss.failedExpeditions||0)+Number(ss.hiddenCaches||0)+Number(ss.npcRelationships||0)+Number(ss.infrastructure||0);
+      if(hasMemory>0){
+        html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.05);">
+          <div class="nb-label" style="color:#7ed7ff;">🧠 Site Memory</div>
+          <div style="font-size:.76rem;line-height:1.55;color:var(--text2);">
+            <div>Discoveries: <strong>${Number(ss.discoveries||0)}</strong></div>
+            <div>Threats Cleared: <strong>${Number(ss.threatsCleared||0)}</strong></div>
+            <div>Failed Expeditions: <strong>${Number(ss.failedExpeditions||0)}</strong></div>
+            <div>Hidden Caches: <strong>${Number(ss.hiddenCaches||0)}</strong></div>
+            <div>NPC Relationships: <strong>${Number(ss.npcRelationships||0)}</strong></div>
+            <div>Infrastructure Built: <strong>${Number(ss.infrastructure||0)}</strong></div>
+          </div>
+        </div>`;
+      }
     }
     // Hex history log
     const S=window.S;

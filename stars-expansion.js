@@ -1016,6 +1016,164 @@ function ensureSolarCycleState() {
   return sc;
 }
 
+const CONSEQUENCE_TENSION_KEYS = ['stability', 'scarcity', 'corruption', 'rumor', 'witness', 'factionHeat'];
+
+function clampConsequenceTension(value) {
+  return Math.max(-10, Math.min(10, Number(value || 0)));
+}
+
+function ensureConsequenceFabricState() {
+  if (typeof S === 'undefined') return null;
+  S.consequenceFabric = S.consequenceFabric || {
+    tensions: {
+      stability: 0,
+      scarcity: 0,
+      corruption: 0,
+      rumor: 0,
+      witness: 0,
+      factionHeat: 0
+    },
+    timeline: [],
+    lastBySystem: {}
+  };
+  var cf = S.consequenceFabric;
+  if (!cf.tensions || typeof cf.tensions !== 'object') cf.tensions = {};
+  CONSEQUENCE_TENSION_KEYS.forEach(function (k) {
+    cf.tensions[k] = clampConsequenceTension(cf.tensions[k]);
+  });
+  if (!Array.isArray(cf.timeline)) cf.timeline = [];
+  if (!cf.lastBySystem || typeof cf.lastBySystem !== 'object') cf.lastBySystem = {};
+  return cf;
+}
+
+function getConsequenceTimelineDayLabel() {
+  var cycleDay = (S && S.solarCycle && typeof S.solarCycle.daysElapsed === 'number')
+    ? Number(S.solarCycle.daysElapsed || 0)
+    : 0;
+  if (cycleDay > 0) return 'New Sun Day ' + cycleDay;
+  var gd = S && S.gameDate ? S.gameDate : null;
+  if (!gd) return 'Day 0';
+  return 'Y' + Number(gd.year || 1) + ' M' + Number(gd.month || 1) + ' D' + Number(gd.day || 1);
+}
+
+function recordWorldConsequence(entry) {
+  var cf = ensureConsequenceFabricState();
+  if (!cf) return null;
+  var ev = entry || {};
+  var deltas = ev.deltas && typeof ev.deltas === 'object' ? ev.deltas : {};
+
+  CONSEQUENCE_TENSION_KEYS.forEach(function (k) {
+    var delta = Number(deltas[k] || 0);
+    if (!delta) return;
+    cf.tensions[k] = clampConsequenceTension(Number(cf.tensions[k] || 0) + delta);
+  });
+
+  var item = {
+    id: 'cf-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+    title: String(ev.title || 'World state shifted'),
+    detail: String(ev.detail || ''),
+    system: String(ev.system || 'world'),
+    region: String(ev.region || ''),
+    severity: String(ev.severity || 'info'),
+    dayLabel: getConsequenceTimelineDayLabel(),
+    ts: Date.now(),
+    deltas: {}
+  };
+
+  CONSEQUENCE_TENSION_KEYS.forEach(function (k) {
+    var delta = Number(deltas[k] || 0);
+    if (delta) item.deltas[k] = delta;
+  });
+
+  cf.timeline.push(item);
+  if (cf.timeline.length > 120) cf.timeline = cf.timeline.slice(-120);
+  cf.lastBySystem[item.system] = item.title;
+  return item;
+}
+
+function getConsequenceMissionBias() {
+  var cf = ensureConsequenceFabricState();
+  var t = cf ? (cf.tensions || {}) : {};
+  var corruption = Number(t.corruption || 0);
+  var scarcity = Number(t.scarcity || 0);
+  var stability = Number(t.stability || 0);
+  var rumor = Number(t.rumor || 0);
+  var witness = Number(t.witness || 0);
+  var factionHeat = Number(t.factionHeat || 0);
+
+  var focusRegion = '';
+  if (corruption >= 4) focusRegion = 'wtw';
+  else if (scarcity >= 4) focusRegion = 'sea';
+  else if (rumor >= 4) focusRegion = 'province';
+  else if (witness >= 4) focusRegion = 'galaxy';
+
+  var difficultyShift = 0;
+  if (corruption + factionHeat >= 8) difficultyShift = 1;
+  else if (stability >= 5 && witness >= 3) difficultyShift = -1;
+
+  var rewardBonus = Math.max(-30, Math.min(80, (Math.max(0, corruption) * 8) + (Math.max(0, scarcity) * 6) - (Math.max(0, stability) * 4)));
+
+  var preferredVerbs = ['Investigate', 'Recover'];
+  if (scarcity >= 3) preferredVerbs = ['Deliver', 'Escort', 'Recover'];
+  if (corruption >= 3) preferredVerbs = ['Sabotage', 'Investigate', 'Eliminate'];
+  if (witness >= 3) preferredVerbs = ['Rescue', 'Guard', 'Escort'];
+
+  return {
+    focusRegion: focusRegion,
+    difficultyShift: difficultyShift,
+    rewardBonus: rewardBonus,
+    preferredVerbs: preferredVerbs,
+    tensionSummary: {
+      stability: stability,
+      scarcity: scarcity,
+      corruption: corruption,
+      rumor: rumor,
+      witness: witness,
+      factionHeat: factionHeat
+    }
+  };
+}
+
+function buildConsequenceMotionPanelHtml(limit) {
+  var cf = ensureConsequenceFabricState();
+  var maxRows = Math.max(3, Number(limit || 6));
+  var t = cf ? (cf.tensions || {}) : {};
+  var tone = function (v) {
+    var n = Number(v || 0);
+    if (n >= 5) return 'var(--red2)';
+    if (n >= 2) return 'var(--gold2)';
+    if (n <= -5) return 'var(--green2)';
+    if (n <= -2) return 'var(--teal)';
+    return 'var(--muted2)';
+  };
+  var timeline = cf && Array.isArray(cf.timeline) ? cf.timeline : [];
+  var timelineHtml = timeline.length
+    ? timeline.slice(-maxRows).reverse().map(function (row) {
+      return '<div style="border-bottom:1px solid var(--border2);padding:.22rem 0;">'
+        + '<div style="font-size:.73rem;color:var(--text2);line-height:1.45;">' + escapeSolarCycleHtml(row.title || 'State shift') + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;">' + escapeSolarCycleHtml(row.dayLabel || '')
+          + (row.region ? (' · ' + escapeSolarCycleHtml(String(row.region).toUpperCase())) : '')
+          + (row.detail ? (' · ' + escapeSolarCycleHtml(row.detail)) : '')
+          + '</div>'
+        + '</div>';
+    }).join('')
+    : '<div style="font-size:.73rem;color:var(--muted2);">No consequences recorded yet. Resolve quests, missions, and faction actions to shape the world.</div>';
+
+  return '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.65rem .75rem;margin-bottom:.6rem;">'
+    + '<div style="font-size:.82rem;color:var(--gold2);margin-bottom:.22rem;"><strong>Consequences in Motion</strong></div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.5;margin-bottom:.3rem;">The world reacts across systems. These tensions alter mission pressure, faction responses, and available routes.</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.22rem;margin-bottom:.32rem;">'
+    + '<div style="font-size:.7rem;color:' + tone(t.stability) + ';">Stability: <strong>' + Number(t.stability || 0) + '</strong></div>'
+    + '<div style="font-size:.7rem;color:' + tone(t.scarcity) + ';">Scarcity: <strong>' + Number(t.scarcity || 0) + '</strong></div>'
+    + '<div style="font-size:.7rem;color:' + tone(t.corruption) + ';">Corruption: <strong>' + Number(t.corruption || 0) + '</strong></div>'
+    + '<div style="font-size:.7rem;color:' + tone(t.rumor) + ';">Rumor: <strong>' + Number(t.rumor || 0) + '</strong></div>'
+    + '<div style="font-size:.7rem;color:' + tone(t.witness) + ';">Witness Trust: <strong>' + Number(t.witness || 0) + '</strong></div>'
+    + '<div style="font-size:.7rem;color:' + tone(t.factionHeat) + ';">Faction Heat: <strong>' + Number(t.factionHeat || 0) + '</strong></div>'
+    + '</div>'
+    + timelineHtml
+    + '</div>';
+}
+
 function getSolarCycleEffectiveArc(sc) {
   var state = sc || ensureSolarCycleState();
   if (!state) return 'relic';
@@ -2807,6 +2965,7 @@ function renderNewSunModePanel() {
   var threadCardsHtml = buildSolarCycleQuestThreadCardsHtml(sc);
   var canonBoardHtml = buildSolarCycleCanonBoardHtml(sc);
   var forecastSimulatorHtml = buildSolarCycleForecastSimulatorHtml(sc);
+  var consequenceMotionHtml = buildConsequenceMotionPanelHtml(6);
   var schedulerSummary = scheduler
     ? ('Province ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | Sea ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
@@ -2929,6 +3088,7 @@ function renderNewSunModePanel() {
     + '</div>'
     + '</div>'
     + coreLoopPanelHtml
+    + consequenceMotionHtml
     + '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.28rem;"><strong>Solo Story Toggle</strong></div>'
     + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Turn this on to activate the New Sun ruleset. Unlike Storyline, this mode advances toward a forced finale, spawns moving map markers, and permanently changes the route when you miss or fail certain branches.</div>'
@@ -3928,6 +4088,14 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     clearSolarCycleSchedulerQuestMarker(quest);
     qs.activeQuestIds = qs.activeQuestIds.filter(function (id) { return id !== quest.id; });
     recordSolarCycleNpcOutcome(sc, quest, 'missed');
+    recordWorldConsequence({
+      system: 'newsun',
+      title: 'Quest window closed: ' + String(quest.title || 'Unknown quest'),
+      detail: 'The opportunity expired before investigation completed.',
+      region: String(quest.region || ''),
+      severity: 'high',
+      deltas: { stability: -1, corruption: 1, rumor: 1, witness: -1, factionHeat: 1 }
+    });
     if (typeof showNotif === 'function') showNotif('Quest window closed before investigation completed.', 'warn');
     return false;
   }
@@ -3981,6 +4149,18 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
     sc.prophecyTrack.push('Quest clue [' + quest.methodTitle + ']: ' + quest.clueText);
   }
   recordSolarCycleNpcOutcome(sc, quest, misled ? (forcedMisled ? 'failed' : 'contested') : 'success');
+  var outcomeDeltas = misled
+    ? { stability: -1, corruption: 1, rumor: 1, witness: -1, factionHeat: 1 }
+    : { stability: 1, corruption: -1, rumor: -1, witness: 1, factionHeat: -1 };
+  if (forcedMisled) outcomeDeltas.corruption = Number(outcomeDeltas.corruption || 0) + 1;
+  recordWorldConsequence({
+    system: 'newsun',
+    title: (misled ? 'Contested clue' : 'Confirmed clue') + ': ' + String(quest.methodTitle || 'Route data'),
+    detail: String(quest.title || 'New Sun investigation') + ' [' + String(quest.challengeType || 'social').toUpperCase() + ']',
+    region: String(quest.region || ''),
+    severity: misled ? 'high' : 'medium',
+    deltas: outcomeDeltas
+  });
   if (forcedMisled) recordSolarCycleIrreversibleTag('scheduler_roll_failed', { questId: quest.id, methodId: quest.methodId, approach: approach });
   if (typeof showNotif === 'function') {
     showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + ' (' + String(rollResult.stat).toUpperCase() + ' ' + Number(rollResult.actionRoll && rollResult.actionRoll.total || 0) + ' vs Dread ' + Number(rollResult.dreadRoll && rollResult.dreadRoll.total || 0) + ').', misled ? 'warn' : 'good');
@@ -4002,6 +4182,14 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat) {
       if (typeof showNotif === 'function') {
         showNotif('Lost City portal opened: handoff mission now active in World That Was.', 'warn');
       }
+      recordWorldConsequence({
+        system: 'newsun',
+        title: 'Portal handoff opened to World That Was',
+        detail: String(handoffQuest.title || 'WTW handoff quest'),
+        region: 'wtw',
+        severity: 'medium',
+        deltas: { stability: 1, rumor: 1, witness: 1 }
+      });
     }
   }
 
@@ -4676,6 +4864,9 @@ window.resolveSolarCycleWTWMarker = resolveSolarCycleWTWMarker;
 window.renderSolarCycleGalaxyTaskPanel = renderSolarCycleGalaxyTaskPanel;
 window.maybeAutoOpenSolarCycleWTW = maybeAutoOpenSolarCycleWTW;
 window.maybeAutoOpenSolarCycleGalaxy = maybeAutoOpenSolarCycleGalaxy;
+window.recordWorldConsequence = recordWorldConsequence;
+window.getConsequenceMissionBias = getConsequenceMissionBias;
+window.buildConsequenceMotionPanelHtml = buildConsequenceMotionPanelHtml;
 
 function ensureStarsState() {
   if (!S.health && S.health !== 0) S.health = S.stress || 0;
@@ -4757,6 +4948,7 @@ function ensureStarsState() {
     S.gameDate.ageEpochIndex = idx >= 0 ? idx : 0;
   }
   ensureSolarCycleState();
+  ensureConsequenceFabricState();
   if (S.solarCycle && !S.solarCycle.storyModeEnabled) {
     clearSolarCycleProvinceMarkers();
   }

@@ -754,6 +754,22 @@
     return pick(MISSION_FACTION_CONFLICTS);
   }
 
+  function getMissionConsequenceBias() {
+    if (typeof window === 'undefined' || typeof window.getConsequenceMissionBias !== 'function') {
+      return { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+    }
+    try {
+      return window.getConsequenceMissionBias() || { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+    } catch (_err) {
+      return { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+    }
+  }
+
+  function recordMissionConsequence(entry) {
+    if (typeof window === 'undefined' || typeof window.recordWorldConsequence !== 'function') return;
+    try { window.recordWorldConsequence(entry || {}); } catch (_err) {}
+  }
+
   function applyFactionStandingDelta(gainKey, loseKey) {
     if (!gainKey || !loseKey) { return; }
     if (typeof changeFactionRenown === 'function') {
@@ -876,24 +892,33 @@
     var activePanel = document.querySelector('.tab-panel.active');
     var activeTabId = activePanel ? activePanel.id : '';
     var forceRegion = null;
+    var bias = getMissionConsequenceBias();
     if (activeTabId === 'tab-galaxy') forceRegion = 'galaxy';
     else if (activeTabId === 'tab-lastsea') forceRegion = 'sea';
     else if (activeTabId === 'tab-map') forceRegion = 'province';
     for (var i = 0; i < count; i++) {
       var diffKey = pick(DIFF_KEYS);
+      var diffIdx = Math.max(0, DIFF_KEYS.indexOf(diffKey));
+      diffIdx = Math.max(0, Math.min(DIFF_KEYS.length - 1, diffIdx + Number(bias.difficultyShift || 0)));
+      diffKey = DIFF_KEYS[diffIdx] || diffKey;
       var diff    = DIFFICULTIES[diffKey];
       var f = pickFactionConflict();
-      var region = forceRegion || pick(getAvailableMissionRegions());
+      var regionPool = getAvailableMissionRegions();
+      var region = forceRegion || pick(regionPool);
+      if (!forceRegion && bias.focusRegion && regionPool.indexOf(bias.focusRegion) >= 0 && Math.random() < 0.45) {
+        region = bias.focusRegion;
+      }
       var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
+      var verbPool = Array.isArray(bias.preferredVerbs) && bias.preferredVerbs.length ? bias.preferredVerbs : MISSION_VERBS;
       S.availableJobs.push({
         id:seed + i + 1,
-        title:pick(MISSION_VERBS)+' '+pick(MISSION_TARGETS),
+        title:pick(verbPool)+' '+pick(MISSION_TARGETS),
         difficulty:diffKey,
         dread:diff.dread,
         location:planetTarget ? planetTarget.location : getMissionLocationForRegion(region),
         planetHexId:planetTarget ? planetTarget.planetHexId : null,
         planetName:planetTarget ? planetTarget.planetName : '',
-        reward:diff.credits,
+        reward:Math.max(25, Number(diff.credits || 0) + Number(bias.rewardBonus || 0)),
         region:region,
         factionGain:f.gain,
         factionLose:f.lose,
@@ -929,6 +954,14 @@
     renderMissionBoard();
     renderMissionTracker();
     showNotif('Mission accepted: '+mission.title,'good');
+    recordMissionConsequence({
+      system: 'missions',
+      title: 'Mission accepted: ' + String(mission.title || 'Contract'),
+      detail: String(mission.location || '') + ' [' + String(mission.region || 'province').toUpperCase() + ']',
+      region: String(mission.region || 'province'),
+      severity: 'info',
+      deltas: { rumor: 1, witness: 1 }
+    });
   }
 
   function refreshMissionSurfaces() {
@@ -1557,11 +1590,35 @@
         try { showNotif('Backpack full. Unstored loot: ' + dropped.join(', '), 'warn'); } catch (err) {}
       }
       triggerOriginStorylineHandoff(mission);
+      recordMissionConsequence({
+        system: 'missions',
+        title: 'Mission resolved: success',
+        detail: String(mission.title || 'Contract') + ' completed.',
+        region: String(mission.region || 'province'),
+        severity: 'medium',
+        deltas: { stability: 1, scarcity: -1, witness: 1, factionHeat: -1 }
+      });
     } else {
       if (options.expired) {
         try { showNotif('Mission expired (1 month elapsed): ' + mission.title + '.', 'warn'); } catch (err) {}
+        recordMissionConsequence({
+          system: 'missions',
+          title: 'Mission expired',
+          detail: String(mission.title || 'Contract') + ' timed out.',
+          region: String(mission.region || 'province'),
+          severity: 'high',
+          deltas: { stability: -1, scarcity: 1, corruption: 1, rumor: 1, factionHeat: 1 }
+        });
       } else {
         try { showNotif('Mission failed. \u22121 Renown \u00B7 ' + (mission.factionGainName||'Faction') + ' -1 / ' + (mission.factionLoseName||'Faction') + ' +1','warn'); } catch (err) {}
+        recordMissionConsequence({
+          system: 'missions',
+          title: 'Mission failed',
+          detail: String(mission.title || 'Contract') + ' collapsed under pressure.',
+          region: String(mission.region || 'province'),
+          severity: 'high',
+          deltas: { stability: -1, scarcity: 1, rumor: 1, witness: -1, factionHeat: 1 }
+        });
       }
     }
     if (typeof window !== 'undefined' && window.factionSystem && typeof window.factionSystem.onMissionResolved === 'function') {

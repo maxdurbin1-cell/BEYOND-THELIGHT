@@ -1502,6 +1502,11 @@
     openFactionModal("Faction Base: " + faction.name, html);
   }
 
+  function recordFactionConsequence(entry) {
+    if (typeof window === 'undefined' || typeof window.recordWorldConsequence !== 'function') return;
+    try { window.recordWorldConsequence(entry || {}); } catch (_err) {}
+  }
+
   function resolveFactionMission(factionId) {
     const base = ensureBaseActivity(factionId);
     if (!base || !base.activeMission || !base.activeMission.accepted || base.activeMission.resolved) return;
@@ -1524,11 +1529,27 @@
       if (typeof changeCredits === "function") changeCredits(pay);
       else if (S) S.credits = Math.max(0, Number(S.credits || 0) + pay);
       if (typeof showNotif === "function") showNotif("Mission success: +1 faction Renown, +" + pay + " credits.", "good");
+      recordFactionConsequence({
+        system: 'faction',
+        title: 'Faction base mission succeeded',
+        detail: String((base.activeMission && base.activeMission.title) || factionId || 'Faction mission'),
+        region: String((base && base.regionType) || 'province').toLowerCase(),
+        severity: 'medium',
+        deltas: { stability: 1, witness: 1, factionHeat: -1 }
+      });
       base.activeMission = null;
     } else {
       if (typeof changeMentalStress === "function") changeMentalStress(1);
       else if (typeof changeStress === "function") changeStress(1);
       if (typeof showNotif === "function") showNotif("Mission failed: " + stat.toUpperCase() + " d" + check.die + "=" + check.action + " vs DD" + dd + "=" + check.dread + ".", "warn");
+      recordFactionConsequence({
+        system: 'faction',
+        title: 'Faction base mission failed',
+        detail: String((base.activeMission && base.activeMission.title) || factionId || 'Faction mission'),
+        region: String((base && base.regionType) || 'province').toLowerCase(),
+        severity: 'high',
+        deltas: { stability: -1, rumor: 1, factionHeat: 1 }
+      });
     }
     openFactionBaseHub(factionId);
   }
@@ -1571,9 +1592,25 @@
     if (check.success) {
       if (typeof changeCounter === "function") changeCounter("tmw", 1);
       if (typeof showNotif === "function") showNotif("Event interaction succeeded: +1 Teamwork.", "good");
+      recordFactionConsequence({
+        system: 'faction',
+        title: 'Faction event stabilized',
+        detail: String(ev.text || 'Base event'),
+        region: String((base && base.regionType) || 'province').toLowerCase(),
+        severity: 'info',
+        deltas: { stability: 1, rumor: -1, witness: 1 }
+      });
     } else {
       if (typeof changeStress === "function") changeStress(1);
       if (typeof showNotif === "function") showNotif("Event interaction failed: +1 Stress.", "warn");
+      recordFactionConsequence({
+        system: 'faction',
+        title: 'Faction event escalated',
+        detail: String(ev.text || 'Base event'),
+        region: String((base && base.regionType) || 'province').toLowerCase(),
+        severity: 'high',
+        deltas: { stability: -1, rumor: 1, factionHeat: 1 }
+      });
     }
     openFactionBaseHub(factionId);
   }
@@ -2079,6 +2116,14 @@
         failedAt: Date.now()
       });
       if (typeof showNotif === "function") showNotif("Faction contract failed. You can accept it again to recover the arc.", "warn");
+      recordFactionConsequence({
+        system: 'faction',
+        title: 'Faction contract failed',
+        detail: String(mission.title || missionId || 'Contract') + ' [' + String(pathway).toUpperCase() + ']',
+        region: String(mission.region || 'province'),
+        severity: 'high',
+        deltas: { stability: -1, rumor: 1, witness: -1, factionHeat: 1 }
+      });
       setupFactionTab();
       renderEndingsPanel();
       return;
@@ -2126,6 +2171,14 @@
         showNotif("Final outcome unlocked in Endings.", "good");
       }
     }
+    recordFactionConsequence({
+      system: 'faction',
+      title: 'Faction contract advanced',
+      detail: String(mission.title || missionId || 'Contract') + ' [' + String(pathway).toUpperCase() + ']',
+      region: String(mission.region || 'province'),
+      severity: 'medium',
+      deltas: { stability: 1, witness: 1, factionHeat: -1 }
+    });
     setupFactionTab();
     renderEndingsPanel();
   }

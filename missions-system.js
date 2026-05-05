@@ -3959,12 +3959,12 @@
     if (cell.isStart) return '<span style="color:var(--muted2);">Entrance hex — no encounter. Begin from here.</span>';
     if (cell.isExit) return '<span style="color:var(--muted2);">Exit hex — complete objectives then pass through to advance.</span>';
     var rows = {
-      puzzle:  '🔏 <b>Puzzle:</b> Mind vs Dread d' + dd + ' · fail = objective blocked + −1 Tick' + loreDone,
+      puzzle:  '🔏 <b>Puzzle:</b> Shared puzzle challenge (sudoku / maze / crossword / lock sequence families) · fail = objective blocked + −1 Tick' + loreDone,
       peril:   '⚡ <b>Peril:</b> Defend vs Dread d' + dd + ' · fail = HP damage' + cleared,
       hazard:  '🌫 <b>Hazard:</b> Mind vs Dread d' + dd + ' · fail = +Mental Stress' + cleared,
       barrier: '🚧 <b>Barrier:</b> Body vs Dread d' + dd + ' · fail = Random Condition applied' + cleared,
       enemy:   '⚔️ <b>Enemy:</b> Combat (' + (w === 1 ? '1–4' : '2–8') + ' hostiles) · win = hex cleared' + cleared,
-      loot:    '💰 <b>Loot:</b> Adventure vs Dread d' + dd + ' · success = vault reward' + cleared,
+      loot:    '💰 <b>Loot:</b> Adventure vs Dread d' + dd + ' · success = Merchant loot + random key (Bronze/Silver/Gold/Platinum) vaulted until boss kill' + cleared,
       teleport:'🌀 <b>Teleport:</b> Instant warp to linked hex on entry · no roll required',
       rest:    '🛌 <b>Rest:</b> Enter to restore <b>+2 Ticks</b> (once per wing)' + rested
     };
@@ -3972,6 +3972,19 @@
     if (cell.lorePiece && et !== 'puzzle') summary += ' <span style="color:var(--gold2);">· Lore Fragment here' + loreDone + '</span>';
     if (cell.waypoint) summary += ' <span style="color:#8be;">· Door Waypoint</span>';
     return summary;
+  }
+
+  function getLegacyRaidHexPuzzleSource(mission, wingNum, cell) {
+    var region = String(mission && (mission.region || mission.legacyRaidRegion) || 'province').toLowerCase();
+    var allowed = ['province', 'sea', 'galaxy', 'planet', 'wtw', 'task', 'event'];
+    var pool = allowed.slice();
+    if (pool.indexOf(region) >= 0) {
+      pool.splice(pool.indexOf(region), 1);
+      pool.unshift(region);
+    }
+    var seed = String(mission && mission.id || 0) + '|' + String(wingNum || 1) + '|' + String(cell && cell.id || '0');
+    var idx = getLegacyRaidStableIndex(seed, pool.length);
+    return pool[idx] || 'event';
   }
 
   function getLegacyRaidStableIndex(seedText, max) {
@@ -4410,6 +4423,11 @@
     if (!state || !state.cells || !state.cells[cellId]) return false;
     if (!state.cells[cellId].revealed) return false;
     state.selectedId = String(cellId || state.selectedId || state.currentId);
+    // Clicking an adjacent hex is equivalent to "Press Deeper".
+    if (String(state.currentId || '') !== String(cellId || '')) {
+      var adjacent = getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(String(cellId || '')) >= 0;
+      if (adjacent) return window.moveLegacyRaidHex(missionId, wingNum);
+    }
     return openRaidWingPopup(missionId, wingNum);
   };
 
@@ -4484,14 +4502,11 @@
       var result = { success: true, diff: 0, note: '' };
       var bossTheme = getRaidTheme(mission);
       if (eventType === 'puzzle') {
-        result = resolveLegacyRaidHexContest('mind', getLegacyRaidHexDreadDie(wingNum, eventType));
-        if (!result.success) {
-          if (typeof addTMWOnFail === 'function') addTMWOnFail();
-          if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
-        } else if (typeof window.openSharedPuzzleChallenge === 'function') {
+        if (typeof window.openSharedPuzzleChallenge === 'function') {
+          var puzzleSource = getLegacyRaidHexPuzzleSource(mission, wingNum, cell);
           return window.openSharedPuzzleChallenge({
-            source: String(mission.region || 'province').toLowerCase(),
-            title: String(mission.legacyRaidBoss || 'Raid Boss') + ' Lore Puzzle',
+            source: puzzleSource,
+            title: String(mission.legacyRaidBoss || 'Raid Boss') + ' Chamber Puzzle',
             prompt: buildLegacyRaidHexDescription(mission, wingNum, 'puzzle', bossTheme),
             reward: { credits: 50, renown: 1, item: 'Lore Cipher Fragment' },
             onSuccess: function () {
@@ -4501,6 +4516,9 @@
                 if (Number(state.objectives.loreCollected || 0) >= Number(state.objectives.loreRequired || 3) && Number(wingNum || 1) === 1 && typeof showNotif === 'function') {
                   showNotif('All lore fragments recovered. Proceed to the wing exit to unlock Wing 2.', 'good');
                 }
+              }
+              if (cell.waypoint) {
+                state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
               }
               state.lastLog = 'Hex ' + cell.id + ' puzzle solved and chamber deciphered.';
               if (checkLegacyRaidWingGridCompletion(mission, wingNum, state)) {
@@ -4519,6 +4537,11 @@
               return openRaidWingPopup(mission.id, wingNum);
             }
           });
+        }
+        result = resolveLegacyRaidHexContest('mind', getLegacyRaidHexDreadDie(wingNum, eventType));
+        if (!result.success) {
+          if (typeof addTMWOnFail === 'function') addTMWOnFail();
+          if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
         }
       } else if (eventType === 'peril') {
         result = resolveLegacyRaidHexContest('defend', getLegacyRaidHexDreadDie(wingNum, eventType));
@@ -5070,6 +5093,10 @@
       var gridState = ensureLegacyRaidWingGridState(mission, wingNum);
       if (!gridState) return false;
       var objectives = gridState.objectives || {};
+      var w1State = mission.legacyRaidWingGrid && mission.legacyRaidWingGrid['1'];
+      var w2State = mission.legacyRaidWingGrid && mission.legacyRaidWingGrid['2'];
+      var w1Obj = w1State && w1State.objectives ? w1State.objectives : null;
+      var w2Obj = w2State && w2State.objectives ? w2State.objectives : null;
       var objectiveLine = wingNum === 1
         ? ('Lore Fragments: ' + Number(objectives.loreCollected || 0) + '/' + Number(objectives.loreRequired || 3))
         : ('Door Waypoints: ' + Number(objectives.waypointsActivated || 0) + '/' + Number(objectives.waypointsRequired || 3));
@@ -5105,10 +5132,13 @@
         + '<div style="display:flex;flex-direction:column;gap:.24rem;">'
         + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);font-size:.67rem;color:var(--muted2);">'
         + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Wing Objectives</strong></div>'
-        + '<div style="margin-bottom:.06rem;">' + objectiveLine + '</div>'
+        + '<div style="margin-bottom:.06rem;">Current Wing: ' + objectiveLine + '</div>'
+        + '<div style="margin-bottom:.06rem;">Wing 1 Lore: ' + (w1Obj ? (Number(w1Obj.loreCollected || 0) + '/' + Number(w1Obj.loreRequired || 3)) : '0/3') + '</div>'
+        + '<div style="margin-bottom:.06rem;">Wing 2 Waypoints: ' + (w2Obj ? (Number(w2Obj.waypointsActivated || 0) + '/' + Number(w2Obj.waypointsRequired || 3)) : '0/3') + '</div>'
         + '<div style="margin-bottom:.06rem;">Legend: S = Entrance · E = Exit · ? = Fog</div>'
         + '<div style="margin-bottom:.06rem;">Vaulted Loot: ' + vaultLootCount + '</div>'
-        + '<div>' + keyLine + '</div>'
+        + '<div style="margin-bottom:.06rem;">' + keyLine + '</div>'
+        + '<div style="font-size:.62rem;color:var(--muted3);">Vault loot and keys are only claimed after defeating the raid boss. Wipe = vault lost.</div>'
         + '</div>'
         + detailHtml
         + '<div style="border:1px solid var(--border2);padding:.22rem .28rem;background:rgba(0,0,0,.18);font-size:.64rem;color:var(--teal);">'

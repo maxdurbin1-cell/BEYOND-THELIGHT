@@ -3948,6 +3948,32 @@
     return wing === 1 ? 6 : 10;
   }
 
+  function getLegacyRaidHexMechanicSummary(wingNum, cell) {
+    if (!cell) return '';
+    var w = Math.max(1, Number(wingNum || 1));
+    var et = String(cell.eventType || '');
+    var dd = getLegacyRaidHexDreadDie(w, et);
+    var cleared = cell.cleared ? ' <span style="color:var(--green2);">[Cleared]</span>' : '';
+    var rested = cell.rested ? ' <span style="color:var(--green2);">[Rested]</span>' : '';
+    var loreDone = cell.loreCollected ? ' <span style="color:var(--gold2);">[Fragment Secured]</span>' : '';
+    if (cell.isStart) return '<span style="color:var(--muted2);">Entrance hex — no encounter. Begin from here.</span>';
+    if (cell.isExit) return '<span style="color:var(--muted2);">Exit hex — complete objectives then pass through to advance.</span>';
+    var rows = {
+      puzzle:  '🔏 <b>Puzzle:</b> Mind vs Dread d' + dd + ' · fail = objective blocked + −1 Tick' + loreDone,
+      peril:   '⚡ <b>Peril:</b> Defend vs Dread d' + dd + ' · fail = HP damage' + cleared,
+      hazard:  '🌫 <b>Hazard:</b> Mind vs Dread d' + dd + ' · fail = +Mental Stress' + cleared,
+      barrier: '🚧 <b>Barrier:</b> Body vs Dread d' + dd + ' · fail = Random Condition applied' + cleared,
+      enemy:   '⚔️ <b>Enemy:</b> Combat (' + (w === 1 ? '1–4' : '2–8') + ' hostiles) · win = hex cleared' + cleared,
+      loot:    '💰 <b>Loot:</b> Adventure vs Dread d' + dd + ' · success = vault reward' + cleared,
+      teleport:'🌀 <b>Teleport:</b> Instant warp to linked hex on entry · no roll required',
+      rest:    '🛌 <b>Rest:</b> Enter to restore <b>+2 Ticks</b> (once per wing)' + rested
+    };
+    var summary = rows[et] || ('<i style="color:var(--muted3);">Empty corridor — no encounter.</i>');
+    if (cell.lorePiece && et !== 'puzzle') summary += ' <span style="color:var(--gold2);">· Lore Fragment here' + loreDone + '</span>';
+    if (cell.waypoint) summary += ' <span style="color:#8be;">· Door Waypoint</span>';
+    return summary;
+  }
+
   function getLegacyRaidStableIndex(seedText, max) {
     var str = String(seedText || 'raid');
     var n = Math.max(1, Number(max || 1));
@@ -4356,6 +4382,7 @@
     return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.03);">'
       + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + typeLabel + ' · ' + encounterLabel + '</div>'
       + (hexDesc ? '<div style="font-size:.65rem;color:var(--muted3);line-height:1.42;margin-bottom:.12rem;font-style:italic;">' + hexDesc + '</div>' : '')
+      + '<div style="font-size:.67rem;line-height:1.5;background:rgba(0,0,0,.22);border-radius:.2rem;padding:.18rem .25rem;margin-bottom:.12rem;color:var(--muted2);">' + getLegacyRaidHexMechanicSummary(wingNum, cell) + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">' + (objectiveLine || '') + '</div>'
       + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">Ticks: ' + Number(state.ticks || 0) + ' · Current: ' + String(state.currentId || '') + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'

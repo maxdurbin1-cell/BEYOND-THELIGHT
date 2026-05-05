@@ -5603,6 +5603,7 @@
           + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.5;margin-bottom:.15rem;">Turn flow: Player action → Allies (2 actions each, max 6 total) → Boss action.</div>'
           + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;align-items:center;margin-bottom:.2rem;">'
           + '<button class="btn btn-xs btn-warn" onclick="if(typeof switchTab===\'function\'){var b=document.querySelector(\'.tab-btn[onclick*=\\\"combat\\\"]\');switchTab(\'combat\',b||null);}">⚔ Open Combat Tab</button>'
+          + '<button class="btn btn-xs btn-primary" onclick="if(typeof openWing3BossCombatModal===\'function\'){openWing3BossCombatModal(' + mission.id + ');}">🐉 Open Boss Modal</button>'
           + '<span style="font-size:.64rem;color:var(--muted2);">Boss + allies are seeded in the Combat Tab zone map automatically on entry.</span>'
           + '</div>'
           + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.24rem;margin-bottom:.18rem;">'

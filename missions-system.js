@@ -4116,6 +4116,87 @@
     return '<div style="display:grid;grid-template-columns:repeat(' + size + ',minmax(24px,1fr));gap:.08rem;">' + gridCells.join('') + '</div>';
   }
 
+  function getLegacyRaidBossEnemyPool(bossTheme) {
+    var themeKey = bossTheme && bossTheme.key ? bossTheme.key : 'default';
+    var pools = {
+      serpent: ['Tunnel Crawler', 'Venom Fang', 'Stone Wyrm', 'Burrower Swarm', 'Carapace Guard'],
+      fire: ['Cinder Sentinel', 'Ash Wraith', 'Molten Beast', 'Pyre Guardian', 'Heat Specter'],
+      sea: ['Brine Reaver', 'Glasswave Herald', 'Tidecaller', 'Abyssal Scout', 'Siren Thrall'],
+      void: ['Static Shade', 'Null Whisper', 'Void Echo', 'Dimensional Rift', 'Absence Wraith'],
+      stone: ['Ruin Guardian', 'Stone Colossus', 'Ancient Construct', 'Ironbound Sentry', 'Debris Giant'],
+      default: ['Raider Assassin', 'Corrupted Sentinel', 'Cursed Hollow One', 'Shadow Beast', 'Lost Guardian']
+    };
+    return pools[themeKey] || pools.default;
+  }
+
+  function buildLegacyRaidHexDescription(mission, wingNum, hexType, bossTheme) {
+    if (!bossTheme) bossTheme = getRaidTheme(mission);
+    var themeKey = bossTheme && bossTheme.key ? bossTheme.key : 'default';
+    var bossName = String(mission && mission.legacyRaidBoss || 'The Boss');
+    var descPool = {
+      puzzle: {
+        serpent: ['Ornate lock mechanism carved in spiraling patterns.', 'Ancient stone seal covered in cryptic runes.', 'Puzzle requiring knowledge of the underground routes.'],
+        fire: ['Charred mechanism with ember channels running through it.', 'Lock sealed with solidified slag that must be properly heated.', 'Puzzle requiring control of the raging heat.'],
+        sea: ['Corroded valve mechanism with tide-lock mechanisms.', 'Underwater stone seal glowing faintly with bioluminescence.', 'Puzzle needing navigation of false currents.'],
+        void: ['Lock that seems to phase between existence and void.', 'Mechanism that responds to silence rather than force.', 'Puzzle revealing hidden paths through dimensional folds.'],
+        stone: ['Massive stone door with interlocking mechanisms.', 'Ancient lock covered in dust from fallen civilizations.', 'Puzzle requiring weight distribution across stone platforms.'],
+        default: ['Ornate lock mechanism.', 'Ancient seal covering the path forward.', 'Puzzle blocking passage deeper into the vault.']
+      },
+      peril: {
+        serpent: ['Toxic venom pools bubble and hiss across the floor.', 'The tunnel ahead drips with caustic slime from passing predators.', 'Walls shift with the movement of unseen creatures.'],
+        fire: ['Waves of heat shimmer from cracked stone—breath from the pyre.', 'Slag rivers flow lazily, still radiating dangerous warmth.', 'Cinders drift lazily through air thick with ash and sulfur.'],
+        sea: ['Water sits still but somehow threatens to surge at any moment.', 'Pressure fluctuations suggest something vast moves nearby.', 'Brine stings your eyes; depths press from all directions.'],
+        void: ['Reality bends in ways your eyes struggle to register.', 'Silence carries a weight that threatens to pull you into it.', 'The air itself feels like it might shatter into fractured space.'],
+        stone: ['Ancient supports groan and creak--collapse is imminent here.', 'Stone paths crumble to dust where ' + bossName + ' has passed.', 'The walls pulse with something that might be a heartbeat of the deep.'],
+        default: ['Danger permeates every shadow here.', 'The hazard reeks of primal hunger.', 'Something ancient and furious left its mark on this chamber.']
+      },
+      hazard: {
+        serpent: ['Rocks and debris form maze-like obstacles carved by tunneling.', 'Narrow passages force careful navigation between stone fangs.', 'Ground unstable—sections drop into darkness below.'],
+        fire: ['Cracked stone reflects dancing firelight from internal vents.', 'Ash drifts like snow; breathing requires caution.', 'The stone itself is still warm to the touch from below.'],
+        sea: ['Flooded sections create treacherous footing and hidden depths.', 'Saltwater pools corrode anything metal left too long.', 'Currents suggest channels cutting through the stone unexpectedly.'],
+        void: ['Gravity shifts subtly in certain corners of this space.', 'Shadows seem to have corners where they shouldn\'t.', 'The path feels less solid than it appears.'],
+        stone: ['Collapsed sections block obvious routes--you must think creatively.', 'Cracks spider-web the floor in warning patterns.', 'Dust storms choke the air where tectonic settling continues.'],
+        default: ['Treacherous terrain requires careful movement.', 'Natural hazards bar the way forward.', 'The environment itself seems hostile to passage.']
+      },
+      barrier: {
+        serpent: ['A wall of crystallized venom blocks the way forward.', 'Stone door sealed by ancient worshippers of ' + bossName + '.', 'Webbing strong as steel blocks further passage.'],
+        fire: ['Slag wall still cooling and shifting—timing is critical to cross.', 'Obsidian barrier dark as the pyre\'s heart.', 'Volcanic glass wall sealed by the ' + bossName + '\'s passage.'],
+        sea: ['Current-locked stone barrier—the pressure keeps it sealed.', 'Coral growth binds the passage with living stone.', 'Brine-corroded lock mechanism that demands patience.'],
+        void: ['A barrier that exists in negative space—hard to perceive.', 'Dimensional seal that pushes back against physical force.', 'A wall of absence blocking what should be there.'],
+        stone: ['Ancient stone door massive enough to require the whole team.', 'Barrier carved with warnings in dead languages.', 'Gate locked since before the fall of civilizations.'],
+        default: ['A substantial barrier blocks further progress.', 'Stone wall sealed by magic or time.', 'Locked gate requiring careful approach.']
+      },
+      enemy: {
+        serpent: ['Echoing hisses announce worm-things hunting in darkness here.', 'The tunnel vibrates with the approach of something large.', 'Shadows move wrong—predators of the deep stalk this chamber.'],
+        fire: ['Heat distortion precedes the arrival of burning things.', 'Embers swirl in animated patterns—something intelligent stokes the flames.', 'Screams of creatures born of ash and ember echo ahead.'],
+        sea: ['Sudden cold suggests things from the abyss stirring.', 'The water itself seems to coalesce into shapes.', 'Bioluminescent shapes dart in organized patrol patterns.'],
+        void: ['The air cracks with static before manifesting as beings.', 'Whispering voices that shouldn\'t exist converge here.', 'Absence takes form—something emerges from non-being.'],
+        stone: ['Armored footsteps echo from guardians of the deep vault.', 'Ancient constructs grind to life as you approach.', bossName + '\'s servants stir, unwilling to let anyone pass.'],
+        default: ['Hostile forces converge on your position.', 'Creatures of malice bar the path.', 'Combat cannot be avoided here.']
+      },
+      loot: {
+        serpent: ['Treasure pile guarded by skeletal remains and shed carapace.', 'Glints of valuable material caught in ancient webbing.', 'Cache left behind when something was dragged deeper.'],
+        fire: ['Charred coins and melted jewels glow faintly with residual heat.', 'Refuse of burned travelers and ' + bossName + '\'s hoard mixed together.', 'Valuable materials half-buried in warm ash.'],
+        sea: ['Merchant goods from wrecked vessels, preserved by the deep.', 'Treasures of sunken fleets, encrusted with salt and time.', 'Brine-stained riches from drowned kingdoms.'],
+        void: ['Artifacts that seem to exist only partially in this realm.', 'Treasures from places outside normal space.', 'Loot that glimmers with otherworldly light.'],
+        stone: ['Imperial treasures left in this vault before civilization fell.', 'Ancient wealth accumulated across forgotten centuries.', 'Pre-collapse artifacts worth more than provinces.'],
+        default: ['Valuable materials lie within reach.', 'Merchant cache waiting for careful retrieval.', 'Treasures of the old world remain unclaimed.']
+      },
+      teleport: {
+        serpent: ['Spiral of amber stone marks a tunneling waypoint of ' + bossName + '.', 'Portal surrounded by crystallized venom and bone.', 'Gate that pulses with predator-like intent.'],
+        fire: ['Obsidian circle burns with ember-light--a flame-forged waypoint.', 'Portal that radiates heat and smells of ritual burning.', 'Gate wreathed in harmless fire, thrumming with power.'],
+        sea: ['Bioluminescent circle marking a brine-tide waypoint.', 'Portal deep-blue and cold, drawing energy from the abyss.', 'Gate that hums with current-song.'],
+        void: ['Circle of absolute stillness and negative potential.', 'Portal that seems to pull inward rather than outward.', 'Gate existing between moments and spaces.'],
+        stone: ['Ancient teleportation gate still marked by elder runes.', 'Portal carved from a single piece of pre-fall marble.', 'Gate powered by forces nobody modern understands.'],
+        default: ['Teleport waypoint glowing with mysterious energy.', 'Portal humming with otherworldly power.', 'Gate promising swift passage to safety.']
+      }
+    };
+    var typePool = descPool[hexType] || descPool.default;
+    var regionPool = typePool[themeKey] || typePool.default;
+    var picks = Array.isArray(regionPool) ? regionPool : [regionPool];
+    return picks.length ? picks[Math.floor(Math.random() * picks.length)] : 'A chamber awaiting your exploration.';
+  }
+
   function buildLegacyRaidWingGridCellDetail(mission, wingNum, state) {
     if (!state || !state.cells) return '';
     var cell = state.cells[String(state.selectedId || state.currentId || '')];
@@ -4124,11 +4205,13 @@
     var objectiveLine = '';
     if (cell.lorePiece) objectiveLine = 'Contains Lore Fragment.';
     if (cell.waypoint) objectiveLine = 'Contains Door Waypoint.';
+    var hexDesc = cell.isStart || cell.isExit ? '' : buildLegacyRaidHexDescription(mission, wingNum, cell.eventType, null);
     var moveAllowed = String(state.currentId || '') === cell.id || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
     var actionLabel = cell.cleared ? 'Traverse Hex (-1 Tick)' : 'Resolve Hex Encounter (-1 Tick)';
     return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.03);">'
       + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + typeLabel + '</div>'
-      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">Strict event type: ' + String(cell.eventType || 'empty') + '. ' + (objectiveLine || '') + '</div>'
+      + (hexDesc ? '<div style="font-size:.65rem;color:var(--muted3);line-height:1.42;margin-bottom:.12rem;font-style:italic;">' + hexDesc + '</div>' : '')
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">' + (objectiveLine || '') + '</div>'
       + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">Ticks: ' + Number(state.ticks || 0) + ' · Current: ' + String(state.currentId || '') + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-primary" ' + (moveAllowed ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + actionLabel + '</button>'
@@ -4164,7 +4247,6 @@
     if (!state || !state.cells) return false;
     var cell = state.cells[String(state.selectedId || state.currentId || '')];
     if (!cell) return false;
-    var current = state.cells[String(state.currentId || '')];
     var allowed = cell.id === state.currentId || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
     if (!allowed) {
       if (typeof showNotif === 'function') showNotif('Select an adjacent hex from your current position.', 'warn');
@@ -4179,11 +4261,43 @@
     if (!cell.cleared) {
       var eventType = String(cell.eventType || 'empty');
       var result = { success: true, diff: 0, note: '' };
+      var bossTheme = getRaidTheme(mission);
       if (eventType === 'puzzle') {
         result = resolveLegacyRaidHexContest('mind', getLegacyRaidHexDreadDie(wingNum, eventType));
         if (!result.success) {
           if (typeof addTMWOnFail === 'function') addTMWOnFail();
           if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
+        } else if (typeof window.openSharedPuzzleChallenge === 'function') {
+          return window.openSharedPuzzleChallenge({
+            source: String(mission.region || 'province').toLowerCase(),
+            title: String(mission.legacyRaidBoss || 'Raid Boss') + ' Lore Puzzle',
+            prompt: buildLegacyRaidHexDescription(mission, wingNum, 'puzzle', bossTheme),
+            reward: { credits: 50, renown: 1, item: 'Lore Cipher Fragment' },
+            onSuccess: function () {
+              cell.cleared = true;
+              if (cell.lorePiece) {
+                state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
+                if (Number(state.objectives.loreCollected || 0) >= Number(state.objectives.loreRequired || 3) && Number(wingNum || 1) === 1 && typeof showNotif === 'function') {
+                  showNotif('All lore fragments recovered. Proceed to the wing exit to unlock Wing 2.', 'good');
+                }
+              }
+              state.lastLog = 'Hex ' + cell.id + ' puzzle solved and chamber deciphered.';
+              if (checkLegacyRaidWingGridCompletion(mission, wingNum, state)) {
+                var runSolved = ensureLegacyRaidRunState(mission);
+                if (runSolved) markLegacyRaidWingOutcome(mission, wingNum, true);
+                return openLegacyRaidWingLootChoice(mission.id, wingNum, 'advance');
+              }
+              return openRaidWingPopup(mission.id, wingNum);
+            },
+            onFail: function () {
+              state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
+              if (typeof addTMWOnFail === 'function') addTMWOnFail();
+              if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + 1);
+              state.lastLog = 'Hex ' + cell.id + ' puzzle failed. Extra tick lost while deciphering.';
+              if (Number(state.ticks || 0) <= 0) return openLegacyRaidWipeDecision(mission.id);
+              return openRaidWingPopup(mission.id, wingNum);
+            }
+          });
         }
       } else if (eventType === 'peril') {
         result = resolveLegacyRaidHexContest('defend', getLegacyRaidHexDreadDie(wingNum, eventType));
@@ -4207,6 +4321,28 @@
           }
         }
       } else if (eventType === 'enemy') {
+        var enemyCount = Number(wingNum || 1) === 1
+          ? (1 + Math.floor(Math.random() * 4))
+          : (2 + Math.floor(Math.random() * 7));
+        var enemyPool = getLegacyRaidBossEnemyPool(bossTheme);
+        if (typeof S !== 'undefined' && S) {
+          if (!Array.isArray(S.enemies)) S.enemies = [];
+          S.enemies = [];
+          for (var ei = 0; ei < enemyCount; ei++) {
+            var enemyDd = getLegacyRaidHexDreadDie(wingNum, 'enemy');
+            S.enemies.push({
+              id: Date.now() + Math.floor(Math.random() * 100000) + ei,
+              name: enemyPool[ei % enemyPool.length] || 'Raid Hostile',
+              dread: enemyDd,
+              stress: 0,
+              maxStress: 8 + (Number(wingNum || 1) === 2 ? 4 : 0)
+            });
+          }
+        }
+        if (typeof startCombat === 'function') {
+          startCombat();
+          state.lastLog = 'Hex ' + cell.id + ' combat started against ' + enemyCount + ' hostile(s).';
+        }
         result = resolveLegacyRaidHexContest('adventure', getLegacyRaidHexDreadDie(wingNum, eventType));
         if (!result.success) {
           if (typeof addTMWOnFail === 'function') addTMWOnFail();
@@ -4236,11 +4372,11 @@
           state.currentId = cell.teleportTo;
           state.selectedId = cell.teleportTo;
           revealLegacyRaidGridAround(state, cell.teleportTo);
-          state.lastLog += ' ' + ((state.teleportTheme && state.teleportTheme.label) || 'Gate') + ' warped you to ' + cell.teleportTo + '.';
+          state.lastLog = 'Hex ' + cell.id + ' teleport selected. ' + ((state.teleportTheme && state.teleportTheme.label) || 'Gate') + ' warps you to ' + cell.teleportTo + '.';
         }
       }
     } else {
-      state.lastLog = 'Traversed cleared hex ' + cell.id + '.';
+      state.lastLog = 'Traversed cleared hex ' + cell.id + '. Movement costs 1 tick.';
     }
 
     if (Number(state.ticks || 0) <= 0) {

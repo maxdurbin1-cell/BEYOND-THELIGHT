@@ -1488,11 +1488,20 @@
     var run = ensureLegacyRaidRunState(mission);
     if (!run) return 0;
     var profile = getLegacyRaidProfile(mission);
-    var baseClock = Math.max(6, Number(profile.clockSegments || 10));
+    var baseClock = Math.max(10, Number(profile.clockSegments || 14));
     if (!Number.isFinite(Number(run.clockRemaining || 0)) || Number(run.clockRemaining || 0) <= 0) {
       run.clockRemaining = baseClock;
     }
     return Number(run.clockRemaining || baseClock);
+  }
+
+  function resetLegacyRaidClockAtCheckpoint(mission) {
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return 0;
+    var profile = getLegacyRaidProfile(mission);
+    var baseClock = Math.max(10, Number(profile.clockSegments || 14));
+    run.clockRemaining = baseClock;
+    return baseClock;
   }
 
   function consumeLegacyRaidClock(mission, wingNum, reasonLabel) {
@@ -1719,14 +1728,18 @@
       mission.steps[1] = mission.steps[1] || {};
       mission.steps[1].completed = true;
       if (run) markLegacyRaidWingOutcome(mission, 1, true);
+      if (run) run.checkpointWing = 2;
+      resetLegacyRaidClockAtCheckpoint(mission);
       if (typeof removeInformerToken === 'function') removeInformerToken(mission);
-      if (typeof showNotif === 'function') showNotif('Wing 1 clear confirmed. Wing 2 unlocked.', 'good');
+      if (typeof showNotif === 'function') showNotif('Wing 1 clear confirmed. Wing 2 unlocked. Raid timer reset at checkpoint.', 'good');
     } else if (w === 2) {
       mission.steps[2] = mission.steps[2] || {};
       mission.steps[2].completed = true;
       if (run) markLegacyRaidWingOutcome(mission, 2, true);
+      if (run) run.checkpointWing = 3;
+      resetLegacyRaidClockAtCheckpoint(mission);
       if (typeof removeSiteToken === 'function') removeSiteToken(mission);
-      if (typeof showNotif === 'function') showNotif('Wing 2 clear confirmed. Boss chamber unlocked.', 'good');
+      if (typeof showNotif === 'function') showNotif('Wing 2 clear confirmed. Boss chamber unlocked. Raid timer reset at checkpoint.', 'good');
     } else {
       mission.steps[3] = mission.steps[3] || {};
       mission.steps[3].completed = true;
@@ -1769,16 +1782,12 @@
 
   function getLegacyRaidRequiredRolesForRoom(room) {
     if (!room) return [];
-    if (room.type === 'Puzzle' || room.type === 'LoreReading' || room.type === 'Approach' || room.isBoss) {
+    if (room.type === 'Puzzle' || room.type === 'Approach' || room.isBoss) {
       return ['front', 'mechanics', 'support'];
     }
-    if (room.type === 'Hazard') return ['front', 'support'];
+    if (room.type === 'LoreReading') return ['mechanics'];
     if (room.type === 'Peril') return ['front', 'mechanics'];
-    if (room.type === 'Trap') return ['mechanics', 'support'];
     if (room.type === 'Combat') return ['front', 'support'];
-    if (room.type === 'Gambling') return ['mechanics', 'support'];
-    if (room.type === 'Loot') return ['mechanics', 'support'];
-    if (room.type === 'TrophyCache') return ['mechanics', 'support'];
     return [];
   }
 
@@ -4292,8 +4301,9 @@
       run.reviveCreditsSpent = Number(run.reviveCreditsSpent || 0) + effectiveCost;
       run.pendingReviveCost = 0;
       run.pendingWing = 0;
+      resetLegacyRaidClockAtCheckpoint(mission);
       if (typeof closeModal === 'function') closeModal();
-      if (typeof showNotif === 'function') showNotif('Raid revived at checkpoint. Re-enter the wing when ready.', 'good');
+      if (typeof showNotif === 'function') showNotif('Raid revived at checkpoint. Timer reset. Re-enter the wing when ready.', 'good');
       return openLegacyRaidMissionPopup(mission.id, { tokenType: 'confront', regionTag: mission.region || 'region' });
     }
     if (typeof closeModal === 'function') closeModal();

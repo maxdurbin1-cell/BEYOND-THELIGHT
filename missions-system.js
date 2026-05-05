@@ -4053,19 +4053,17 @@
     var vault = ensureLegacyRaidLootVault(mission);
     if (!vault) return '';
     var loot = Array.isArray(vault.loot) ? vault.loot : [];
-    var keys = vault.keys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
-    var lootRows = loot.length
-      ? loot.slice(-8).map(function (item, idx) {
-          return '<div style="font-size:.64rem;color:var(--text2);line-height:1.4;">' + (idx + 1) + '. ' + String(item || 'Unknown Loot') + '</div>';
-        }).join('')
-      : '<div style="font-size:.64rem;color:var(--muted2);">No vaulted loot yet.</div>';
+    if (loot.length === 0) return '';
+    var displayCount = Math.min(6, loot.length);
+    var lootRows = loot.slice(-displayCount).map(function (item, idx) {
+          return '<div style="font-size:.62rem;color:var(--text2);line-height:1.42;padding:.04rem 0;">'
+            + (loot.length - displayCount + idx + 1) + '.' + (loot.length > 99 ? '' : '')
+            + ' ' + String(item || 'Unknown Loot') + '</div>';
+        }).join('');
+    var moreText = loot.length > displayCount ? ' <span style="color:var(--muted3);">(+' + (loot.length - displayCount) + ' more)</span>' : '';
     return '<div style="border:1px solid var(--border2);padding:.24rem .28rem;background:rgba(255,255,255,.03);font-size:.66rem;color:var(--muted2);">'
-      + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Raid Vault Card</strong></div>'
-      + '<div style="margin-bottom:.06rem;">Keys: Bronze ' + Number(keys.bronze || 0)
-      + ' · Silver ' + Number(keys.silver || 0)
-      + ' · Gold ' + Number(keys.gold || 0)
-      + ' · Platinum ' + Number(keys.platinum || 0) + '</div>'
-      + '<div style="margin-bottom:.08rem;">Loot: ' + loot.length + ' item(s)</div>'
+      + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Vaulted Items</strong></div>'
+      + '<div style="margin-bottom:.08rem;font-size:.62rem;">Recent: ' + displayCount + ' / ' + loot.length + moreText + '</div>'
       + lootRows
       + '</div>';
   }
@@ -5251,14 +5249,16 @@
         + '</div>'
         + '<div style="display:flex;flex-direction:column;gap:.24rem;">'
         + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);font-size:.67rem;color:var(--muted2);">'
-        + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Wing Objectives</strong></div>'
-        + '<div style="margin-bottom:.06rem;">Current Wing: ' + objectiveLine + '</div>'
-        + '<div style="margin-bottom:.06rem;">Wing 1 Lore: ' + (w1Obj ? (Number(w1Obj.loreCollected || 0) + '/' + Number(w1Obj.loreRequired || 3)) : '0/3') + '</div>'
-        + '<div style="margin-bottom:.06rem;">Wing 2 Waypoints: ' + (w2Obj ? (Number(w2Obj.waypointsActivated || 0) + '/' + Number(w2Obj.waypointsRequired || 3)) : '0/3') + '</div>'
+        + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Wing Objective</strong></div>'
+        + '<div style="margin-bottom:.08rem;font-size:.7rem;color:var(--text2);"><strong>' + objectiveLine + '</strong></div>'
         + '<div style="margin-bottom:.06rem;">Legend: S = Entrance · E = Exit · 📜 = Lore · 🧭 = Waypoint</div>'
-        + '<div style="margin-bottom:.06rem;">Vaulted Loot: ' + vaultLootCount + '</div>'
-        + '<div style="margin-bottom:.06rem;">' + keyLine + '</div>'
-        + '<div style="font-size:.62rem;color:var(--muted3);">Vault loot and keys are resolved at raid end with a keep-or-sell decision.</div>'
+        + '<div style="font-size:.62rem;color:var(--muted3);margin-top:.1rem;padding-top:.1rem;border-top:1px solid rgba(255,255,255,.05);">Other wings: W1 ' + (w1Obj ? (Number(w1Obj.loreCollected || 0) + '/' + Number(w1Obj.loreRequired || 3)) : '0/3') + ' · W2 ' + (w2Obj ? (Number(w2Obj.waypointsActivated || 0) + '/' + Number(w2Obj.waypointsRequired || 3)) : '0/3') + '</div>'
+        + '</div>'
+        + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);font-size:.67rem;color:var(--muted2);">'
+        + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Vault Status</strong></div>'
+        + '<div style="margin-bottom:.06rem;">Loot: ' + vaultLootCount + ' item(s)</div>'
+        + '<div style="margin-bottom:.06rem;">Keys: B=' + Number(vault?.keys?.bronze || 0) + ' · S=' + Number(vault?.keys?.silver || 0) + ' · G=' + Number(vault?.keys?.gold || 0) + ' · P=' + Number(vault?.keys?.platinum || 0) + '</div>'
+        + '<div style="font-size:.62rem;color:var(--muted3);">Resolved at raid end.</div>'
         + '</div>'
         + vaultCardHtml
         + detailHtml

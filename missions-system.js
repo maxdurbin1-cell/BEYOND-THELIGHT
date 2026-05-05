@@ -1682,6 +1682,10 @@
   }
 
   function getLegacyRaidAllyFlavorProfile(allyName) {
+    var name = String(allyName || '').toLowerCase();
+    if (name.indexOf('sel the wayfinder') >= 0) return { name: 'Bulwark', attack: 0, support: 1, defend: 2, move: 1 };
+    if (name.indexOf('korvus pale') >= 0) return { name: 'Vanguard', attack: 2, support: 1, defend: 1, move: 0 };
+    if (name.indexOf('tinden ashmark') >= 0) return { name: 'Tactician', attack: 1, support: 2, defend: 1, move: 0 };
     var pool = [
       { name: 'Vanguard', attack: 2, support: 1, defend: 1, move: 0 },
       { name: 'Tactician', attack: 1, support: 2, defend: 1, move: 0 },
@@ -1994,9 +1998,23 @@
     return catalog[Math.abs(Number(seed || 0)) % catalog.length] || fallback;
   }
 
+  function ensureLegacyRaidModalButtonSafety() {
+    if (typeof document === 'undefined' || window.__legacyRaidModalButtonSafetyInstalled) return;
+    var modal = document.getElementById('rollModal');
+    if (!modal) return;
+    window.__legacyRaidModalButtonSafetyInstalled = true;
+    modal.addEventListener('click', function (evt) {
+      var btn = evt && evt.target && evt.target.closest ? evt.target.closest('button') : null;
+      if (!btn) return;
+      if (!btn.getAttribute('type')) btn.setAttribute('type', 'button');
+      evt.preventDefault();
+    }, true);
+  }
+
   function ensureLegacyRaidMissionConfig(mission) {
     if (!mission || mission.missionType !== 'legacy_raid') return mission;
     ensureLegacyRaidCombatEndHook();
+    ensureLegacyRaidModalButtonSafety();
     mission.steps = mission.steps || {};
     mission.steps[1] = mission.steps[1] || { completed: false, skipped: false };
     mission.steps[2] = mission.steps[2] || { completed: false };
@@ -3506,8 +3524,12 @@
         roleActionState: { actionBonus: 0, dreadReduction: 0, hazardGuard: false, pressureBonus: 0 },
         roleLanes: { front: 'left', mechanics: 'center', support: 'right' },
         hazardLane: 'center',
+        bossActionsLeft: 0,
         log: []
       };
+    }
+    if (typeof mission.legacyRaidBossEncounter.bossActionsLeft !== 'number') {
+      mission.legacyRaidBossEncounter.bossActionsLeft = 0;
     }
     ensureLegacyRaidBossRoleCooldowns(mission.legacyRaidBossEncounter);
     updateLegacyRaidBossHazardLane(mission.legacyRaidBossEncounter);
@@ -3636,6 +3658,11 @@
       if (typeof showNotif === 'function') showNotif('Boss can only act after your action and ally actions.', 'warn');
       return false;
     }
+    if (Number(encounter.bossActionsLeft || 0) <= 0) encounter.bossActionsLeft = 2;
+    if (Number(encounter.bossActionsLeft || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif('Boss has no actions left this turn.', 'warn');
+      return false;
+    }
     var action = pickLegacyRaidBossActionForZone(mission, encounter);
     if (!action) return false;
     encounter.currentAction = action;
@@ -3688,22 +3715,51 @@
         }
         encounter.pendingAction = null;
         encounter.log.push('TMW burst: ' + tmwCost + ' spent \u2014 ' + String(action.name || '') + ' prevented.');
-        encounter.turnStage = 'player';
-        encounter.allyActionsUsed = 0;
-        resetLegacyRaidAllyActionBudget(mission, encounter);
+        encounter.bossActionsLeft = Math.max(0, Number(encounter.bossActionsLeft || 0) - 1);
+        if (Number(encounter.bossActionsLeft || 0) > 0) {
+          encounter.turnStage = 'boss';
+          if (typeof showNotif === 'function') showNotif('Boss pressure persists. One action remains.', 'warn');
+        } else {
+          encounter.turnStage = 'player';
+          encounter.allyActionsUsed = 0;
+          resetLegacyRaidAllyActionBudget(mission, encounter);
+        }
         openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
         return true;
       }
     }
     var roll = function (sides) { return Math.floor(Math.random() * Math.max(1, Number(sides || 6))) + 1; };
     var dd = Number(action.dreadDie || 8);
-    var dreadRoll = roll(dd);
     var bonusRoll = 0;
     var dmgStr = String(action.damage || 'dd');
     if (dmgStr.indexOf('+d') >= 0) { bonusRoll = roll(parseInt(dmgStr.split('+d')[1] || '4', 10)); }
     var effect = String(action.effect || 'health');
-    var totalDmg = (dmgStr === '0' || effect === 'self_heal') ? 0 : (dreadRoll + bonusRoll);
-    encounter.log.push(String(action.name || '') + ': Dread d' + dd + ' rolled ' + dreadRoll + (bonusRoll ? '+' + bonusRoll + '=' + totalDmg : '') + '.');
+    var getPlayerDefendDie = function () {
+      return Math.max(4, Number(typeof getEffectiveDie === 'function' ? (getEffectiveDie('defend') || getEffectiveDie('adventure') || 8) : 8));
+    };
+    var allyTargets = [];
+    if (!encounter.partyHp || typeof encounter.partyHp !== 'object') encounter.partyHp = { allies: {} };
+    if (!encounter.partyHp.allies || typeof encounter.partyHp.allies !== 'object') encounter.partyHp.allies = {};
+    if (typeof S !== 'undefined' && S && S.combatMap && Array.isArray(S.combatMap.units)) {
+      allyTargets = S.combatMap.units.filter(function (u) { return u && u.side === 'ally' && !u.isPlayer; }).map(function (u) {
+        return String(u.name || 'Ally');
+      });
+    }
+    if (!allyTargets.length) {
+      allyTargets = getRaidWayfarersForWing(mission, 3)
+        .filter(function (wf) { return wf && wf.status !== 'failed'; })
+        .map(function (wf) { return String(wf.name || 'Wayfarer'); });
+    }
+    var targets = [];
+    if (action.raidwide) {
+      targets.push({ type: 'player', name: String(typeof S !== 'undefined' && S && S.name || 'Wayfarer') });
+      allyTargets.forEach(function (name) { targets.push({ type: 'ally', name: name }); });
+    } else if (allyTargets.length) {
+      targets.push({ type: 'ally', name: allyTargets[0] });
+    } else {
+      targets.push({ type: 'player', name: String(typeof S !== 'undefined' && S && S.name || 'Wayfarer') });
+    }
+    encounter.log.push(String(action.name || '') + ': resolving against ' + (action.raidwide ? 'all combatants' : (targets[0] && targets[0].name || 'closest target')) + '.');
     if (action.zoneHazard) applyLegacyRaidZoneHazard(mission, action.zoneHazard);
     if (action.condition) encounter.log.push('Condition: ' + action.condition + ' applied.');
     if (action.injures) encounter.log.push('Injury: Personal Flavor actions disabled until cleansed.');
@@ -3712,18 +3768,37 @@
       if (typeof S !== 'undefined' && S && Array.isArray(S.enemies) && S.enemies[0]) S.enemies[0].health = Math.max(0, Number(S.enemies[0].health || 0) + Number(action.selfHeal || 0));
       encounter.log.push('Boss healed ' + action.selfHeal + ' HP.');
     }
-    if ((effect === 'health' || effect === 'multi') && totalDmg > 0) {
-      if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - totalDmg);
-      encounter.log.push(String(action.stat || '?') + ' d6 vs Dread d' + dd + ': player takes ' + totalDmg + ' HP.');
-    }
-    if ((effect === 'stress' || effect === 'multi') && dreadRoll > 0) {
-      if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + dreadRoll);
-      encounter.log.push(String(action.stat || '?') + ' Mind vs Dread d' + dd + ': +' + dreadRoll + ' Mental Stress.');
-    }
+    targets.forEach(function (target) {
+      var dreadRoll = roll(dd);
+      var defendRoll = target.type === 'player' ? roll(getPlayerDefendDie()) : roll(6);
+      var diff = Math.max(0, dreadRoll - defendRoll);
+      var totalDmg = (dmgStr === '0' || effect === 'self_heal') ? 0 : (diff + bonusRoll);
+      if ((effect === 'health' || effect === 'multi') && totalDmg > 0) {
+        if (target.type === 'player') {
+          if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - totalDmg);
+        } else {
+          if (typeof encounter.partyHp.allies[target.name] !== 'number') encounter.partyHp.allies[target.name] = 12;
+          encounter.partyHp.allies[target.name] = Math.max(0, Number(encounter.partyHp.allies[target.name] || 12) - totalDmg);
+        }
+        encounter.log.push(target.name + ' defend ' + defendRoll + ' vs dread ' + dreadRoll + ': takes ' + totalDmg + ' HP.');
+      }
+      if ((effect === 'stress' || effect === 'multi') && diff > 0) {
+        if (target.type === 'player' && typeof S !== 'undefined' && S) {
+          S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + diff);
+        }
+        encounter.log.push(target.name + ' suffers ' + diff + ' mental pressure.');
+      }
+    });
     encounter.pendingAction = null;
-    encounter.turnStage = 'player';
-    encounter.allyActionsUsed = 0;
-    resetLegacyRaidAllyActionBudget(mission, encounter);
+    encounter.bossActionsLeft = Math.max(0, Number(encounter.bossActionsLeft || 0) - 1);
+    if (Number(encounter.bossActionsLeft || 0) > 0) {
+      encounter.turnStage = 'boss';
+      if (typeof showNotif === 'function') showNotif('Boss prepares a second action.', 'warn');
+    } else {
+      encounter.turnStage = 'player';
+      encounter.allyActionsUsed = 0;
+      resetLegacyRaidAllyActionBudget(mission, encounter);
+    }
     tickLegacyRaidZoneHazards(mission);
     if (typeof renderEnemies === 'function') renderEnemies();
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
@@ -3960,9 +4035,9 @@
     if (cell.isExit) return '<span style="color:var(--muted2);">Exit hex — complete objectives then pass through to advance.</span>';
     var rows = {
       puzzle:  '🔏 <b>Puzzle:</b> Shared puzzle challenge (sudoku / maze / crossword / lock sequence families) · fail = objective blocked + −1 Tick' + loreDone,
-      peril:   '⚡ <b>Peril:</b> Defend vs Dread d' + dd + ' · fail = HP damage' + cleared,
-      hazard:  '🌫 <b>Hazard:</b> Mind vs Dread d' + dd + ' · fail = +Mental Stress' + cleared,
-      barrier: '🚧 <b>Barrier:</b> Body vs Dread d' + dd + ' · fail = Random Condition applied' + cleared,
+      peril:   '⚡ <b>Peril:</b> Defend vs Dread d' + dd + ' · fail = +1 Teamwork, HP damage by difference, −1 Tick' + cleared,
+      hazard:  '🌫 <b>Hazard:</b> Mind vs Dread d' + dd + ' · fail = +1 Teamwork, Mental Stress by difference, −1 Tick' + cleared,
+      barrier: '🚧 <b>Barrier:</b> Body vs Dread d' + dd + ' · fail = +1 Teamwork, random Condition, −1 Tick' + cleared,
       enemy:   '⚔️ <b>Enemy:</b> Combat (' + (w === 1 ? '1–4' : '2–8') + ' hostiles) · win = hex cleared' + cleared,
       loot:    '💰 <b>Loot:</b> Adventure vs Dread d' + dd + ' · success = Merchant loot + random key (Bronze/Silver/Gold/Platinum) vaulted until boss kill' + cleared,
       teleport:'🌀 <b>Teleport:</b> Instant warp to linked hex on entry · no roll required',
@@ -3972,6 +4047,40 @@
     if (cell.lorePiece && et !== 'puzzle') summary += ' <span style="color:var(--gold2);">· Lore Fragment here' + loreDone + '</span>';
     if (cell.waypoint) summary += ' <span style="color:#8be;">· Door Waypoint</span>';
     return summary;
+  }
+
+  function buildLegacyRaidVaultCardHtml(mission) {
+    var vault = ensureLegacyRaidLootVault(mission);
+    if (!vault) return '';
+    var loot = Array.isArray(vault.loot) ? vault.loot : [];
+    var keys = vault.keys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    var lootRows = loot.length
+      ? loot.slice(-8).map(function (item, idx) {
+          return '<div style="font-size:.64rem;color:var(--text2);line-height:1.4;">' + (idx + 1) + '. ' + String(item || 'Unknown Loot') + '</div>';
+        }).join('')
+      : '<div style="font-size:.64rem;color:var(--muted2);">No vaulted loot yet.</div>';
+    return '<div style="border:1px solid var(--border2);padding:.24rem .28rem;background:rgba(255,255,255,.03);font-size:.66rem;color:var(--muted2);">'
+      + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Raid Vault Card</strong></div>'
+      + '<div style="margin-bottom:.06rem;">Keys: Bronze ' + Number(keys.bronze || 0)
+      + ' · Silver ' + Number(keys.silver || 0)
+      + ' · Gold ' + Number(keys.gold || 0)
+      + ' · Platinum ' + Number(keys.platinum || 0) + '</div>'
+      + '<div style="margin-bottom:.08rem;">Loot: ' + loot.length + ' item(s)</div>'
+      + lootRows
+      + '</div>';
+  }
+
+  function getLegacyRaidKeyDrop() {
+    var r = Math.random();
+    if (r < 0.35) return 'bronze';
+    if (r < 0.55) return 'silver';
+    if (r < 0.67) return 'gold';
+    return 'platinum';
+  }
+
+  function getLegacyRaidKeyItemLabel(tier, count) {
+    var title = String(tier || 'bronze').charAt(0).toUpperCase() + String(tier || 'bronze').slice(1);
+    return title + ' Key ' + Math.max(1, Number(count || 1));
   }
 
   function getLegacyRaidHexPuzzleSource(mission, wingNum, cell) {
@@ -4099,6 +4208,7 @@
       var isExit = cx === exit.x && cy === exit.y;
       var eventType = 'empty';
       if (!isStart && !isExit) eventType = pool[Math.floor(Math.random() * pool.length)] || 'hazard';
+      var showAll = Number(wingNum || 1) <= 2;
       cells[id] = {
         id: id,
         x: cx,
@@ -4107,7 +4217,7 @@
         strictEventType: true,
         isStart: isStart,
         isExit: isExit,
-        revealed: isStart,
+        revealed: showAll || isStart,
         visited: false,
         cleared: isStart,
         lorePiece: false,
@@ -4198,7 +4308,7 @@
     applyLegacyRaidHexIdentity(mission, wingNum, state);
 
     var startCell = state.cells[state.startId];
-    if (startCell) {
+    if (startCell && Number(wingNum || 1) > 2) {
       var neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
       neighbors.forEach(function (d) {
         var nid = (startCell.x + d[0]) + ',' + (startCell.y + d[1]);
@@ -4282,7 +4392,14 @@
         else if (cell.eventType === 'rest') icon = '🛌';
         var border = isCurrent ? '2px solid var(--teal)' : (isSelected ? '2px solid var(--gold2)' : '1px solid var(--border2)');
         var bg = !reveal ? 'rgba(20,20,26,.6)' : (cell.cleared ? 'rgba(50,180,90,.18)' : 'rgba(255,255,255,.04)');
-        gridCells.push('<button class="btn btn-xs" style="min-height:24px;padding:.05rem;font-size:.62rem;border:' + border + ';background:' + bg + ';" onclick="window.selectLegacyRaidHex(' + mission.id + ',' + wingNum + ',\'' + id + '\')">' + icon + '</button>');
+        var badge = '';
+        if (reveal && cell.lorePiece) badge += '📜';
+        if (reveal && cell.waypoint) badge += '🧭';
+        if (!badge) badge = '&nbsp;';
+        gridCells.push('<button type="button" class="btn btn-xs" style="min-height:24px;padding:.05rem;font-size:.62rem;border:' + border + ';background:' + bg + ';" onclick="window.selectLegacyRaidHex(' + mission.id + ',' + wingNum + ',\'' + id + '\')">'
+          + '<div style="line-height:1;">' + icon + '</div>'
+          + '<div style="line-height:1;font-size:.5rem;color:var(--gold2);">' + badge + '</div>'
+          + '</button>');
       }
     }
     return '<div style="display:grid;grid-template-columns:repeat(' + size + ',minmax(24px,1fr));gap:.08rem;">' + gridCells.join('') + '</div>';
@@ -4613,11 +4730,12 @@
         if (eventType === 'loot' && vault && !cell.lootSeeded) {
           var lootDrops = rollShopLoot(mission.difficulty) || [];
           lootDrops.forEach(function (item) { if (item) vault.loot.push(String(item)); });
-          var keyRoll = Math.random();
-          if (keyRoll < 0.35) vault.keys.bronze += 1;
-          else if (keyRoll < 0.55) vault.keys.silver += 1;
-          else if (keyRoll < 0.67) vault.keys.gold += 1;
-          else if (keyRoll < 0.72) vault.keys.platinum += 1;
+          var keyTier = getLegacyRaidKeyDrop();
+          vault.keys[keyTier] = Math.max(0, Number(vault.keys[keyTier] || 0) + 1);
+          var keyLabel = getLegacyRaidKeyItemLabel(keyTier, vault.keys[keyTier]);
+          state.lastLog = 'Hex ' + cell.id + ' loot secured: '
+            + (lootDrops.length ? lootDrops.join(', ') : 'No merchant salvage')
+            + ' · ' + keyLabel + '.';
           cell.lootSeeded = true;
         }
         if (eventType === 'teleport' && cell.teleportTo && state.cells[cell.teleportTo]) {
@@ -4739,7 +4857,7 @@
     return '<div style="background:' + theme.bg + ';border:1px solid ' + theme.hexStroke + ';padding:.3rem;border-radius:4px;margin-bottom:.4rem;">'
       + '<div style="font-size:.62rem;color:' + theme.tc + ';text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;">Wing ' + wingNum + ' Map — ' + theme.name + ' · click a room to explore</div>'
       + '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' + svgParts.join('') + '</svg>'
-      + '<div style="font-size:.6rem;color:' + theme.muted + ';margin-top:.15rem;">Fog of war active. Cleared rooms reveal frontier nodes.</div>'
+      + '<div style="font-size:.6rem;color:' + theme.muted + ';margin-top:.15rem;">Planning view active. Entrance, exit, lore, and waypoint routes are visible.</div>'
     + '</div>';
   }
 
@@ -4749,8 +4867,7 @@
         mission.raidWayfarers = [];
         return mission.raidWayfarers;
       }
-      var allNames = ['Sable Orin', 'Maren of the Third Road', 'Korvus Pale', 'Tinden Ashmark', 'Sel the Wayfinder', 'Breck Two-Roads'];
-      var picked = allNames.slice().sort(function() { return Math.random() - 0.5; }).slice(0, 3);
+      var picked = ['Sel the Wayfinder', 'Korvus Pale', 'Tinden Ashmark'];
       mission.raidWayfarers = picked.map(function (name, i) {
         return { idx: i, name: name, dd: 6, hp: 12, status: 'ready', wing: null };
       });
@@ -4980,6 +5097,7 @@
         var allyActionPanel = '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;margin-bottom:.12rem;">'
           + 'Allies have 2 actions each (6 total): Defend, Support, Attack, Move. No ally can exceed their budget.'
           + '</div>'
+          + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.45;margin-bottom:.08rem;">Defend: +3 Defend · Support: +3 Attack (Strike/Shoot) · Attack: d6 vs Boss Dread · Move: shift one range band</div>'
           + '<div style="margin-bottom:.08rem;">' + allyStatusRows + '</div>'
           + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">'
           + '<select class="input" id="raidAllySel-' + mission.id + '" style="max-width:140px;">' + allyOptionHtml + '</select>'
@@ -5028,8 +5146,8 @@
           + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.08rem;">Current Phase: ' + Number(encounter.phase || 1) + ' · Dread Die: d' + dreadDieNow + ' · HP ' + Number(encounter.phaseHp || 0) + '/' + Number(phaseProfile && phaseProfile.hp || 0) + '</div>'
           + '<div style="font-size:.64rem;color:var(--muted2);line-height:1.42;margin-bottom:.08rem;">' + phaseFlavor + '</div>'
           + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">Telegraph: ' + telegraphText + '</div>'
-          + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.1rem;">Turn Stage: <strong style="color:var(--text2);">' + turnStageLabel + '</strong></div>'
-          + '<button class="btn btn-xs btn-red" ' + (turnStage === 'boss' ? '' : 'disabled') + ' onclick="window.triggerLegacyRaidBossAction(' + mission.id + ')">Enemy Action</button>'
+          + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.1rem;">Turn Stage: <strong style="color:var(--text2);">' + turnStageLabel + '</strong> · Boss actions left: ' + Math.max(0, Number(encounter.bossActionsLeft || 0)) + '/2</div>'
+          + '<button class="btn btn-xs btn-red" ' + (turnStage === 'boss' ? '' : 'disabled') + ' onclick="window.triggerLegacyRaidBossAction(' + mission.id + ')">☠ Enemy Action</button>'
           + (encounter.bossReaction ? ('<div style="font-size:.63rem;color:var(--gold2);margin-top:.1rem;">' + encounter.bossReaction + '</div>') : '')
           + '</div>'
           + '</div>'
@@ -5090,6 +5208,7 @@
     ensureLegacyRaidClock(mission);
 
     if (wingNum === 1 || wingNum === 2) {
+      var scrollY = (typeof window !== 'undefined' && typeof window.scrollY === 'number') ? window.scrollY : 0;
       var gridState = ensureLegacyRaidWingGridState(mission, wingNum);
       if (!gridState) return false;
       var objectives = gridState.objectives || {};
@@ -5118,6 +5237,7 @@
       var vault = ensureLegacyRaidLootVault(mission);
       var vaultLootCount = vault && Array.isArray(vault.loot) ? vault.loot.length : 0;
       var keyLine = vault ? ('Keys B/S/G/P: ' + Number(vault.keys.bronze || 0) + '/' + Number(vault.keys.silver || 0) + '/' + Number(vault.keys.gold || 0) + '/' + Number(vault.keys.platinum || 0)) : '';
+      var vaultCardHtml = buildLegacyRaidVaultCardHtml(mission);
 
       var htmlGrid = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:860px;">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;margin-bottom:.32rem;">'
@@ -5135,11 +5255,12 @@
         + '<div style="margin-bottom:.06rem;">Current Wing: ' + objectiveLine + '</div>'
         + '<div style="margin-bottom:.06rem;">Wing 1 Lore: ' + (w1Obj ? (Number(w1Obj.loreCollected || 0) + '/' + Number(w1Obj.loreRequired || 3)) : '0/3') + '</div>'
         + '<div style="margin-bottom:.06rem;">Wing 2 Waypoints: ' + (w2Obj ? (Number(w2Obj.waypointsActivated || 0) + '/' + Number(w2Obj.waypointsRequired || 3)) : '0/3') + '</div>'
-        + '<div style="margin-bottom:.06rem;">Legend: S = Entrance · E = Exit · ? = Fog</div>'
+        + '<div style="margin-bottom:.06rem;">Legend: S = Entrance · E = Exit · 📜 = Lore · 🧭 = Waypoint</div>'
         + '<div style="margin-bottom:.06rem;">Vaulted Loot: ' + vaultLootCount + '</div>'
         + '<div style="margin-bottom:.06rem;">' + keyLine + '</div>'
-        + '<div style="font-size:.62rem;color:var(--muted3);">Vault loot and keys are only claimed after defeating the raid boss. Wipe = vault lost.</div>'
+        + '<div style="font-size:.62rem;color:var(--muted3);">Vault loot and keys are resolved at raid end with a keep-or-sell decision.</div>'
         + '</div>'
+        + vaultCardHtml
         + detailHtml
         + '<div style="border:1px solid var(--border2);padding:.22rem .28rem;background:rgba(0,0,0,.18);font-size:.64rem;color:var(--teal);">'
         + String(gridState.lastLog || 'Select a revealed adjacent hex to act.')
@@ -5151,6 +5272,11 @@
         + '</div>'
         + '</div>';
       openModal('Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + ' — ' + mission.title, htmlGrid);
+      if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+        setTimeout(function () {
+          try { window.scrollTo(0, scrollY); } catch (_err) {}
+        }, 0);
+      }
       return true;
     }
 
@@ -5935,17 +6061,20 @@
     var flavor = getLegacyRaidAllyFlavorProfile(ally);
     var summary = '';
     if (act === 'Defend') {
-      var defendBonus = 3 + Number(flavor.defend || 0);
-      encounter.roleActionState.dreadReduction = Number(encounter.roleActionState.dreadReduction || 0) + Math.max(1, Math.floor(defendBonus / 2));
+      var defendBonus = 3;
+      encounter.roleActionState.dreadReduction = Number(encounter.roleActionState.dreadReduction || 0) + 2;
       summary = ally + ' defends ' + target + ' (+' + defendBonus + ' defend pressure, flavor ' + flavor.name + ').';
     } else if (act === 'Support') {
-      var supportBonus = 3 + Number(flavor.support || 0);
-      encounter.roleActionState.actionBonus = Number(encounter.roleActionState.actionBonus || 0) + Math.max(1, Math.floor(supportBonus / 2));
+      var supportBonus = 3;
+      encounter.roleActionState.actionBonus = Number(encounter.roleActionState.actionBonus || 0) + 2;
       summary = ally + ' supports ' + target + ' (+' + supportBonus + ' support bonus, flavor ' + flavor.name + ').';
     } else if (act === 'Attack') {
-      var attackBonus = 1 + Number(flavor.attack || 0);
-      encounter.phaseHp = Math.max(0, Number(encounter.phaseHp || 0) - Math.max(1, attackBonus));
-      summary = ally + ' attacks the raid boss for ' + Math.max(1, attackBonus) + ' phase damage (flavor ' + flavor.name + ').';
+      var bossDread = getLegacyRaidBossDreadDie(encounter);
+      var allyRoll = (typeof roll === 'function') ? roll(6) : (Math.floor(Math.random() * 6) + 1);
+      var bossRoll = (typeof roll === 'function') ? roll(bossDread) : (Math.floor(Math.random() * bossDread) + 1);
+      var attackBonus = Math.max(1, allyRoll - bossRoll);
+      encounter.phaseHp = Math.max(0, Number(encounter.phaseHp || 0) - attackBonus);
+      summary = ally + ' attacks (d6=' + allyRoll + ' vs d' + bossDread + '=' + bossRoll + ') for ' + attackBonus + ' phase damage (flavor ' + flavor.name + ').';
     } else {
       var moveBonus = Number(flavor.move || 0);
       summary = ally + ' repositions to ' + target + ' range band (mobility bonus ' + moveBonus + ', flavor ' + flavor.name + ').';
@@ -5957,7 +6086,10 @@
     encounter.allyActionsUsed = Number(encounter.allyActionsUsed || 0) + 1;
     var leftTotal = Math.max(0, Number(encounter.allyActionBudget.total || 0) - Number(encounter.allyActionBudget.used || 0));
     encounter.log.push('Ally action ' + encounter.allyActionsUsed + '/6: ' + summary + ' Remaining ally actions: ' + leftTotal + '.');
-    if (leftTotal <= 0) encounter.turnStage = 'boss';
+    if (leftTotal <= 0) {
+      encounter.turnStage = 'boss';
+      encounter.bossActionsLeft = 2;
+    }
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
     return true;
   };
@@ -6004,6 +6136,7 @@
       return false;
     }
     encounter.turnStage = 'boss';
+    encounter.bossActionsLeft = 2;
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
     return true;
   };
@@ -7830,14 +7963,7 @@
       return openLegacyRaidMissionPopup(mission.id, { tokenType: 'confront', regionTag: mission.region || 'region' });
     }
     if (typeof closeModal === 'function') closeModal();
-    resolveMission(mission.id, false, {
-      legacyRaid: {
-        wipes: Number(run.wipes || 0),
-        revivesUsed: Number(run.revivesUsed || 0),
-        reviveCreditsSpent: Number(run.reviveCreditsSpent || 0)
-      }
-    });
-    return true;
+    return resolveMissionOutcome(mission.id, false);
   }
 
   function isLegacyRaidFirstTryClear(run) {
@@ -7919,6 +8045,82 @@
     return { bonusMedals: bonusMedals, html: html };
   }
 
+  function getLegacyRaidVaultSaleValue(vaultPayout) {
+    var payout = vaultPayout || {};
+    var loot = Array.isArray(payout.loot) ? payout.loot : [];
+    var keys = payout.keys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    return (loot.length * 60)
+      + (Number(keys.bronze || 0) * 30)
+      + (Number(keys.silver || 0) * 60)
+      + (Number(keys.gold || 0) * 120)
+      + (Number(keys.platinum || 0) * 220);
+  }
+
+  function flattenLegacyRaidVaultPayoutItems(vaultPayout) {
+    var payout = vaultPayout || {};
+    var loot = Array.isArray(payout.loot) ? payout.loot.slice() : [];
+    var keys = payout.keys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    var keyItems = [];
+    ['bronze', 'silver', 'gold', 'platinum'].forEach(function (tier) {
+      var n = Math.max(0, Number(keys[tier] || 0));
+      for (var i = 1; i <= n; i++) keyItems.push(getLegacyRaidKeyItemLabel(tier, i));
+    });
+    return loot.concat(keyItems);
+  }
+
+  function openLegacyRaidVaultPayoutDecision(missionId, successPath) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var payout = mission.legacyRaidVaultPayout || { loot: [], keys: { bronze: 0, silver: 0, gold: 0, platinum: 0 } };
+    var saleValue = getLegacyRaidVaultSaleValue(payout);
+    var itemized = flattenLegacyRaidVaultPayoutItems(payout);
+    var itemRows = itemized.length
+      ? itemized.map(function (item) { return '<div style="font-size:.68rem;color:var(--text2);line-height:1.4;">• ' + String(item || 'Loot') + '</div>'; }).join('')
+      : '<div style="font-size:.68rem;color:var(--muted2);">No raid vault items recovered.</div>';
+    openModal(
+      successPath ? 'Raid Vault Decision' : 'Raid Failure Vault Decision',
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="margin-bottom:.22rem;">Choose how to resolve your raid vault rewards.</div>'
+        + '<div style="margin-bottom:.2rem;border:1px solid var(--border2);padding:.24rem .3rem;background:rgba(255,255,255,.03);">'
+        + itemRows
+        + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.22rem;">Sell value now: ' + saleValue + ' ₵</div>'
+        + '<div style="display:flex;gap:.28rem;justify-content:flex-end;flex-wrap:wrap;">'
+        + '<button class="btn btn-sm" onclick="finalizeLegacyRaidVaultPayoutChoice(' + mission.id + ',\'sell\',' + (successPath ? 'true' : 'false') + ')">Sell Vault</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="finalizeLegacyRaidVaultPayoutChoice(' + mission.id + ',\'keep\',' + (successPath ? 'true' : 'false') + ')">Keep Vault (Backpack)</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
+  window.finalizeLegacyRaidVaultPayoutChoice = function (missionId, mode, successPath) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var payout = mission.legacyRaidVaultPayout || { loot: [], keys: { bronze: 0, silver: 0, gold: 0, platinum: 0 } };
+    var choice = String(mode || 'keep').toLowerCase();
+    if (choice === 'sell') {
+      var credits = getLegacyRaidVaultSaleValue(payout);
+      if (credits > 0) {
+        if (typeof changeCredits === 'function') changeCredits(credits);
+        else if (typeof S !== 'undefined' && S) S.credits = Number(S.credits || 0) + credits;
+      }
+      mission.legacyRaidVaultPayout = { loot: [], keys: { bronze: 0, silver: 0, gold: 0, platinum: 0 } };
+      mission.legacyRaidVaultChoice = { mode: 'sell', credits: credits };
+      if (typeof showNotif === 'function') showNotif('Sold raid vault for ' + credits + ' ₵.', 'good');
+    } else {
+      mission.legacyRaidVaultPayout = {
+        loot: flattenLegacyRaidVaultPayoutItems(payout),
+        keys: { bronze: 0, silver: 0, gold: 0, platinum: 0 }
+      };
+      mission.legacyRaidVaultChoice = { mode: 'keep', credits: 0 };
+      if (typeof showNotif === 'function') showNotif('Raid vault marked to keep and move to backpack.', 'good');
+    }
+    if (typeof closeModal === 'function') closeModal();
+    resolveMission(mission.id, !!successPath, { preserveVaultOnFail: true });
+    return true;
+  };
+
   function finalizeLegacyRaidClear(missionId, bonusMedals) {
     var mission = getMission(missionId);
     if (!mission || mission.missionType !== 'legacy_raid') return false;
@@ -7956,8 +8158,7 @@
       vault.keys = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
     }
     if (typeof closeModal === 'function') closeModal();
-    resolveMission(mission.id, true, { legacyRaid: mission.legacyRaidSummary });
-    return true;
+    return openLegacyRaidVaultPayoutDecision(mission.id, true);
   }
 
   /* ── RESOLVE MISSION ── */
@@ -8022,7 +8223,7 @@
         dropped = newLoot.slice();
       }
     } else {
-      if (mission.missionType === 'legacy_raid') {
+      if (mission.missionType === 'legacy_raid' && !options.preserveVaultOnFail) {
         var runState = ensureLegacyRaidRunState(mission);
         if (runState && runState.raidVault) {
           runState.raidVault.loot = [];
@@ -8144,15 +8345,27 @@
       var run = ensureLegacyRaidRunState(mission);
       if (run) run.currentWing = getLegacyRaidCurrentWing(mission);
       if (!success) {
-        var wing = Number(run && run.currentWing || 3);
-        markLegacyRaidWingOutcome(mission, wing, false);
-        if (run) {
-          run.wipes = Number(run.wipes || 0) + 1;
-          run.pendingWing = wing;
-          run.checkpointWing = Math.max(1, Math.min(3, wing));
-          run.pendingReviveCost = getLegacyRaidFailureReviveCost(mission, wing);
+        var failSummary = {
+          wipes: Number(run && run.wipes || 0),
+          revivesUsed: Number(run && run.revivesUsed || 0),
+          reviveCreditsSpent: Number(run && run.reviveCreditsSpent || 0)
+        };
+        mission.legacyRaidSummary = mission.legacyRaidSummary || failSummary;
+        var failVault = ensureLegacyRaidLootVault(mission);
+        mission.legacyRaidVaultPayout = {
+          loot: failVault && Array.isArray(failVault.loot) ? failVault.loot.slice() : [],
+          keys: failVault && failVault.keys ? {
+            bronze: Number(failVault.keys.bronze || 0),
+            silver: Number(failVault.keys.silver || 0),
+            gold: Number(failVault.keys.gold || 0),
+            platinum: Number(failVault.keys.platinum || 0)
+          } : { bronze: 0, silver: 0, gold: 0, platinum: 0 }
+        };
+        if (typeof S !== 'undefined' && S && Number(S.health || 1) <= 0) {
+          mission.legacyRaidVaultPayout = { loot: [], keys: { bronze: 0, silver: 0, gold: 0, platinum: 0 } };
+          if (typeof showNotif === 'function') showNotif('Raid death detected: vaulted loot/keys were lost.', 'warn');
         }
-        return openLegacyRaidWipeDecision(mission.id);
+        return openLegacyRaidVaultPayoutDecision(mission.id, false);
       }
       markLegacyRaidWingOutcome(mission, 3, true);
       try { if (typeof closeModal === 'function') closeModal(); } catch (_err) {}

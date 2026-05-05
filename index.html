@@ -12528,6 +12528,7 @@ function resolveWorldEventOption(col,row,option){
     tags:outcome.tags
   });
   if(success&&typeof changeCounter==='function'&&choice==='intel')changeCounter('pathTokens',1);
+  if(success&&typeof changeCounter==='function'&&choice==='shortcut')changeCounter('pathTokens',1);
   if(success&&typeof changeCounter==='function'&&choice==='aid')changeCounter('renown',1);
   if(success&&typeof changeCounter==='function'&&choice==='covertaid')changeCounter('tmw',1);
   if(success&&typeof changeCounter==='function'&&choice==='permit')changeCounter('pathTokens',1);
@@ -12605,6 +12606,14 @@ function buildWorldStateEncounterAddon(col,row,mode){
   if(patrolPolicy==='open')triggerChance=Math.min(90,triggerChance+4);
   if(tariffPolicy==='extractive'&&mode==='trade')triggerChance=Math.min(90,triggerChance+5);
   if(routePolicy==='civic'&&overlay.activeCrisis)triggerChance=Math.max(5,triggerChance-3);
+  var policyNotes=[];
+  if(patrolPolicy==='strict')policyNotes.push('Strict patrols reduce encounter chance, but failed checks may trigger harder inspections.');
+  else if(patrolPolicy==='open')policyNotes.push('Open patrols increase encounter chance and exposure to opportunists.');
+  if(tariffPolicy==='extractive'&&mode==='trade')policyNotes.push('Extractive tariffs increase trade-lane encounter pressure.');
+  else if(tariffPolicy==='relief'&&mode==='trade')policyNotes.push('Tariff relief keeps trade-lane pressure lower and friendlier.');
+  if(routePolicy==='military')policyNotes.push('Military route priority favors security responses over commerce recovery.');
+  else if(routePolicy==='civic')policyNotes.push('Civic route priority helps stabilize crisis lanes faster.');
+  else if(routePolicy==='trade')policyNotes.push('Trade route priority favors route reopening and supply recovery actions.');
   var rollGate=roll(100);
   if(rollGate>triggerChance)return null;
 
@@ -12658,6 +12667,27 @@ function buildWorldStateEncounterAddon(col,row,mode){
       actions:'<button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'world_event\',3,\'Conflict Remnants\',6)">⚔ Engage</button><button class="btn btn-xs" onclick="resolveMonsterAvoid('+col+','+row+')">🚫 Avoid</button>'
     },(rate.weights&&rate.weights.skirmish)||1);
   }
+  if(tension>=1){
+    pushWeighted({
+      title:'World Event: Civil Friction',
+      desc:'Crowds are short-tempered, rumor chains are hot, and one bad move could spark a wider flare-up.',
+      actions:'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'deescalate\')">🕊 De-escalate (SPIRIT vs DD8)</button><button class="btn btn-xs" onclick="resolveWorldEventOption('+col+','+row+',\'intel\')">🧭 Read The Crowd (MIND vs DD6)</button>'
+    },2+Math.min(3,tension));
+  }
+  if(overlay.discoveredRoute){
+    pushWeighted({
+      title:'World Event: Shortcut Window',
+      desc:'A recently discovered shortcut can be exploited now, before patrol maps and rival crews catch up.',
+      actions:'<button class="btn btn-xs btn-primary" onclick="resolveWorldEventOption('+col+','+row+',\'shortcut\')">⇄ Exploit Shortcut (CONTROL vs DD6)</button><button class="btn btn-xs" onclick="resolveWorldStateAction('+col+','+row+',\'reopen\')">🛣 Secure Route</button>'
+    },2);
+  }
+  if(overlay.patrols){
+    pushWeighted({
+      title:'World Event: Patrol Intercept',
+      desc:'A patrol cordon is actively checking manifests and movement papers in this hex.',
+      actions:'<button class="btn btn-xs btn-teal" onclick="resolveWorldEventOption('+col+','+row+',\'patrol\')">🛡 Coordinate Patrol (LEAD vs DD8)</button><button class="btn btn-xs btn-gold" onclick="resolveWorldEventOption('+col+','+row+',\'permit\')">📜 Show Papers (CONTROL vs DD6)</button>'
+    },2);
+  }
   if(control==='guilds'){
     pushWeighted({
       title:'World Event: Guild Toll & Contract Check',
@@ -12669,7 +12699,7 @@ function buildWorldStateEncounterAddon(col,row,mode){
   var pickEntry=pick(pool);
   return {
     title:pickEntry.title,
-    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+(regime&&regime.encounterNote?(' · '+regime.encounterNote):'')+' · Policy: Patrol '+patrolPolicy+', Tariff '+tariffPolicy+', Route '+routePolicy+'</div></div>'
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+(regime&&regime.encounterNote?(' · '+regime.encounterNote):'')+' · Policy: Patrol '+patrolPolicy+', Tariff '+tariffPolicy+', Route '+routePolicy+'</div>'+(policyNotes.length?('<div style="font-size:.66rem;color:var(--muted3);margin-top:.15rem;">Policy impact: '+policyNotes.join(' ')+'</div>'):'')+'</div>'
   };
 }
 

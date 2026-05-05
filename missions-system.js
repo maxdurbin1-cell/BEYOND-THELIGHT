@@ -3834,6 +3834,428 @@
     return map;
   }
 
+  function ensureLegacyRaidLootVault(mission) {
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return null;
+    if (!run.raidVault || typeof run.raidVault !== 'object') {
+      run.raidVault = {
+        loot: [],
+        keys: { bronze: 0, silver: 0, gold: 0, platinum: 0 }
+      };
+    }
+    if (!Array.isArray(run.raidVault.loot)) run.raidVault.loot = [];
+    if (!run.raidVault.keys || typeof run.raidVault.keys !== 'object') {
+      run.raidVault.keys = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    }
+    ['bronze', 'silver', 'gold', 'platinum'].forEach(function (k) {
+      run.raidVault.keys[k] = Math.max(0, Number(run.raidVault.keys[k] || 0));
+    });
+    return run.raidVault;
+  }
+
+  function getLegacyRaidTeleportTheme(mission) {
+    var boss = String(mission && mission.legacyRaidBoss || '').toLowerCase();
+    if (/sea|tide|leviathan|kraken|brine|undertow/.test(boss)) return { label: 'Tide Rift', icon: '🌀' };
+    if (/void|null|rail|executor|harvester|oracle|vault/.test(boss)) return { label: 'Void Gate', icon: '✶' };
+    if (/dragon|wyrm|hydra|basilisk|behemoth|ash/.test(boss)) return { label: 'Rift Flame', icon: '🔥' };
+    return { label: 'Ancient Gate', icon: '◇' };
+  }
+
+  function getLegacyRaidWingEncounterPool(wingNum) {
+    if (Number(wingNum || 1) === 1) {
+      return ['puzzle', 'puzzle', 'hazard', 'peril', 'barrier', 'enemy', 'loot', 'teleport'];
+    }
+    return ['enemy', 'enemy', 'puzzle', 'hazard', 'peril', 'barrier', 'loot', 'teleport'];
+  }
+
+  function getLegacyRaidHexDreadDie(wingNum, eventType) {
+    var wing = Math.max(1, Number(wingNum || 1));
+    if (eventType === 'enemy') return wing === 1 ? 4 : 6;
+    return wing === 1 ? 6 : 10;
+  }
+
+  function ensureLegacyRaidWingGridState(mission, wingNum) {
+    if (!mission || mission.missionType !== 'legacy_raid') return null;
+    if (Number(wingNum || 1) >= 3) return null;
+    if (!mission.legacyRaidWingGrid || typeof mission.legacyRaidWingGrid !== 'object') mission.legacyRaidWingGrid = {};
+    var key = String(wingNum);
+    if (mission.legacyRaidWingGrid[key] && mission.legacyRaidWingGrid[key].size === 12) return mission.legacyRaidWingGrid[key];
+
+    var size = 12;
+    var start = { x: 0, y: wingNum === 1 ? 5 : 6 };
+    var exit = { x: 11, y: wingNum === 1 ? 6 : 5 };
+    var cells = {};
+    var route = [];
+    var x = start.x;
+    var y = start.y;
+    route.push(x + ',' + y);
+    while (x < exit.x) {
+      var move = Math.random();
+      if (move < 0.18 && y > 1) y -= 1;
+      else if (move > 0.82 && y < size - 2) y += 1;
+      else x += 1;
+      route.push(x + ',' + y);
+    }
+    while (y !== exit.y) {
+      y += y < exit.y ? 1 : -1;
+      route.push(x + ',' + y);
+    }
+
+    var pathSet = {};
+    route.forEach(function (id) { pathSet[id] = true; });
+
+    var branchNodes = [];
+    route.forEach(function (id) {
+      var parts = id.split(',');
+      var bx = Number(parts[0]);
+      var by = Number(parts[1]);
+      var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      dirs.forEach(function (d) {
+        var nx = bx + d[0];
+        var ny = by + d[1];
+        var nid = nx + ',' + ny;
+        if (nx < 0 || ny < 0 || nx >= size || ny >= size) return;
+        if (pathSet[nid]) return;
+        if (Math.random() < 0.28) branchNodes.push(nid);
+      });
+    });
+
+    var pool = getLegacyRaidWingEncounterPool(wingNum);
+    var loreNeeded = wingNum === 1 ? 3 : 0;
+    var waypointNeeded = wingNum === 2 ? 3 : 0;
+    var loreAssigned = 0;
+    var waypointAssigned = 0;
+
+    Object.keys(pathSet).concat(branchNodes).forEach(function (id) {
+      if (cells[id]) return;
+      var parts = id.split(',');
+      var cx = Number(parts[0]);
+      var cy = Number(parts[1]);
+      var isStart = cx === start.x && cy === start.y;
+      var isExit = cx === exit.x && cy === exit.y;
+      var eventType = 'empty';
+      if (!isStart && !isExit) eventType = pool[Math.floor(Math.random() * pool.length)] || 'hazard';
+      cells[id] = {
+        id: id,
+        x: cx,
+        y: cy,
+        eventType: eventType,
+        strictEventType: true,
+        isStart: isStart,
+        isExit: isExit,
+        revealed: isStart,
+        visited: false,
+        cleared: isStart,
+        lorePiece: false,
+        waypoint: false,
+        teleportTo: '',
+        lootSeeded: false
+      };
+    });
+
+    var allIds = Object.keys(cells);
+    allIds.forEach(function (id) {
+      var cell = cells[id];
+      if (!cell || cell.isStart || cell.isExit) return;
+      if (wingNum === 1 && cell.eventType === 'puzzle' && loreAssigned < loreNeeded) {
+        cell.lorePiece = true;
+        loreAssigned += 1;
+      }
+      if (wingNum === 2 && (cell.eventType === 'barrier' || cell.eventType === 'puzzle') && waypointAssigned < waypointNeeded) {
+        cell.waypoint = true;
+        waypointAssigned += 1;
+      }
+    });
+
+    while (loreAssigned < loreNeeded) {
+      var lid = allIds[Math.floor(Math.random() * allIds.length)];
+      var lcell = cells[lid];
+      if (!lcell || lcell.isStart || lcell.isExit || lcell.lorePiece) continue;
+      lcell.eventType = 'puzzle';
+      lcell.lorePiece = true;
+      loreAssigned += 1;
+    }
+    while (waypointAssigned < waypointNeeded) {
+      var wid = allIds[Math.floor(Math.random() * allIds.length)];
+      var wcell = cells[wid];
+      if (!wcell || wcell.isStart || wcell.isExit || wcell.waypoint) continue;
+      wcell.eventType = 'barrier';
+      wcell.waypoint = true;
+      waypointAssigned += 1;
+    }
+
+    var teleports = allIds.map(function (id) { return cells[id]; }).filter(function (cell) {
+      return cell && !cell.isStart && !cell.isExit && cell.eventType === 'teleport';
+    });
+    if (teleports.length < 2) {
+      var candidates = allIds.map(function (id) { return cells[id]; }).filter(function (cell) {
+        return cell && !cell.isStart && !cell.isExit && cell.eventType !== 'teleport';
+      });
+      while (teleports.length < 2 && candidates.length) {
+        var pickIdx = Math.floor(Math.random() * candidates.length);
+        var picked = candidates.splice(pickIdx, 1)[0];
+        picked.eventType = 'teleport';
+        teleports.push(picked);
+      }
+    }
+    for (var ti = 0; ti < teleports.length; ti += 2) {
+      var a = teleports[ti];
+      var b = teleports[ti + 1] || teleports[0];
+      if (!a || !b) continue;
+      a.teleportTo = b.id;
+      b.teleportTo = a.id;
+    }
+
+    var state = {
+      size: size,
+      wing: Number(wingNum || 1),
+      startId: start.x + ',' + start.y,
+      exitId: exit.x + ',' + exit.y,
+      currentId: start.x + ',' + start.y,
+      selectedId: start.x + ',' + start.y,
+      ticks: 14,
+      cells: cells,
+      pathIds: Object.keys(pathSet),
+      objectives: {
+        loreCollected: 0,
+        loreRequired: loreNeeded,
+        waypointsActivated: 0,
+        waypointsRequired: waypointNeeded
+      },
+      teleportTheme: getLegacyRaidTeleportTheme(mission),
+      lastLog: 'Wing map initialized.'
+    };
+
+    var startCell = state.cells[state.startId];
+    if (startCell) {
+      var neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
+      neighbors.forEach(function (d) {
+        var nid = (startCell.x + d[0]) + ',' + (startCell.y + d[1]);
+        if (state.cells[nid]) state.cells[nid].revealed = true;
+      });
+    }
+
+    mission.legacyRaidWingGrid[key] = state;
+    return state;
+  }
+
+  function getLegacyRaidGridNeighbors(state, cellId) {
+    if (!state || !state.cells || !state.cells[cellId]) return [];
+    var cell = state.cells[cellId];
+    var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    return dirs.map(function (d) {
+      return (cell.x + d[0]) + ',' + (cell.y + d[1]);
+    }).filter(function (id) { return !!state.cells[id]; });
+  }
+
+  function revealLegacyRaidGridAround(state, cellId) {
+    if (!state || !state.cells || !state.cells[cellId]) return;
+    state.cells[cellId].revealed = true;
+    getLegacyRaidGridNeighbors(state, cellId).forEach(function (nid) {
+      state.cells[nid].revealed = true;
+    });
+  }
+
+  function getLegacyRaidCheckDieForStat(statKey) {
+    var key = String(statKey || 'adventure').toLowerCase();
+    if (typeof getEffectiveDie === 'function') {
+      if (key === 'mind') return Math.max(4, Number(getEffectiveDie('mind') || getEffectiveDie('adventure') || 8));
+      if (key === 'body') return Math.max(4, Number(getEffectiveDie('body') || getEffectiveDie('adventure') || 8));
+      if (key === 'defend') return Math.max(4, Number(getEffectiveDie('defend') || getEffectiveDie('adventure') || 8));
+      return Math.max(4, Number(getEffectiveDie('adventure') || 8));
+    }
+    return Math.max(4, Number(typeof getStat === 'function' ? getStat('adventure') : 8) || 8);
+  }
+
+  function resolveLegacyRaidHexContest(statKey, dreadDie) {
+    var ad = getLegacyRaidCheckDieForStat(statKey);
+    var dd = Math.max(4, Number(dreadDie || 6));
+    var aRoll = typeof roll === 'function' ? roll(ad) : (Math.floor(Math.random() * ad) + 1);
+    var dRoll = typeof roll === 'function' ? roll(dd) : (Math.floor(Math.random() * dd) + 1);
+    return {
+      success: Number(aRoll || 0) >= Number(dRoll || 0),
+      diff: Math.max(0, Number(dRoll || 0) - Number(aRoll || 0)),
+      actionDie: ad,
+      dreadDie: dd,
+      actionRoll: Number(aRoll || 0),
+      dreadRoll: Number(dRoll || 0)
+    };
+  }
+
+  function buildLegacyRaidWingGridHtml(mission, wingNum, state) {
+    if (!state || !state.cells) return '';
+    var size = Math.max(1, Number(state.size || 12));
+    var gridCells = [];
+    for (var y = 0; y < size; y++) {
+      for (var x = 0; x < size; x++) {
+        var id = x + ',' + y;
+        var cell = state.cells[id];
+        if (!cell) {
+          gridCells.push('<div style="min-height:22px;border:1px solid transparent;"></div>');
+          continue;
+        }
+        var isCurrent = String(state.currentId || '') === id;
+        var isSelected = String(state.selectedId || '') === id;
+        var reveal = !!cell.revealed;
+        var icon = '·';
+        if (!reveal) icon = '?';
+        else if (cell.isStart) icon = 'S';
+        else if (cell.isExit) icon = 'E';
+        else if (cell.eventType === 'puzzle') icon = '🧩';
+        else if (cell.eventType === 'peril') icon = '☠';
+        else if (cell.eventType === 'hazard') icon = '⚠';
+        else if (cell.eventType === 'barrier') icon = '⛔';
+        else if (cell.eventType === 'enemy') icon = '⚔';
+        else if (cell.eventType === 'loot') icon = '📦';
+        else if (cell.eventType === 'teleport') icon = (state.teleportTheme && state.teleportTheme.icon) || '◇';
+        var border = isCurrent ? '2px solid var(--teal)' : (isSelected ? '2px solid var(--gold2)' : '1px solid var(--border2)');
+        var bg = !reveal ? 'rgba(20,20,26,.6)' : (cell.cleared ? 'rgba(50,180,90,.18)' : 'rgba(255,255,255,.04)');
+        gridCells.push('<button class="btn btn-xs" style="min-height:24px;padding:.05rem;font-size:.62rem;border:' + border + ';background:' + bg + ';" onclick="window.selectLegacyRaidHex(' + mission.id + ',' + wingNum + ',\'' + id + '\')">' + icon + '</button>');
+      }
+    }
+    return '<div style="display:grid;grid-template-columns:repeat(' + size + ',minmax(24px,1fr));gap:.08rem;">' + gridCells.join('') + '</div>';
+  }
+
+  function buildLegacyRaidWingGridCellDetail(mission, wingNum, state) {
+    if (!state || !state.cells) return '';
+    var cell = state.cells[String(state.selectedId || state.currentId || '')];
+    if (!cell) return '<div style="font-size:.67rem;color:var(--muted2);">Select a hex.</div>';
+    var typeLabel = cell.isStart ? 'Start' : cell.isExit ? 'Exit' : String(cell.eventType || 'empty').replace(/_/g, ' ');
+    var objectiveLine = '';
+    if (cell.lorePiece) objectiveLine = 'Contains Lore Fragment.';
+    if (cell.waypoint) objectiveLine = 'Contains Door Waypoint.';
+    var moveAllowed = String(state.currentId || '') === cell.id || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
+    var actionLabel = cell.cleared ? 'Traverse Hex (-1 Tick)' : 'Resolve Hex Encounter (-1 Tick)';
+    return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.03);">'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + typeLabel + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">Strict event type: ' + String(cell.eventType || 'empty') + '. ' + (objectiveLine || '') + '</div>'
+      + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">Ticks: ' + Number(state.ticks || 0) + ' · Current: ' + String(state.currentId || '') + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-primary" ' + (moveAllowed ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + actionLabel + '</button>'
+      + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ')">Refresh</button>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function checkLegacyRaidWingGridCompletion(mission, wingNum, state) {
+    if (!mission || !state) return false;
+    if (Number(wingNum || 1) === 1) {
+      return Number(state.objectives.loreCollected || 0) >= Number(state.objectives.loreRequired || 3)
+        && String(state.currentId || '') === String(state.exitId || '');
+    }
+    return Number(state.objectives.waypointsActivated || 0) >= Number(state.objectives.waypointsRequired || 3)
+      && String(state.currentId || '') === String(state.exitId || '');
+  }
+
+  window.selectLegacyRaidHex = function (missionId, wingNum, cellId) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var state = ensureLegacyRaidWingGridState(mission, wingNum);
+    if (!state || !state.cells || !state.cells[cellId]) return false;
+    if (!state.cells[cellId].revealed) return false;
+    state.selectedId = String(cellId || state.selectedId || state.currentId);
+    return openRaidWingPopup(missionId, wingNum);
+  };
+
+  window.resolveLegacyRaidHexEncounter = function (missionId, wingNum) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var state = ensureLegacyRaidWingGridState(mission, wingNum);
+    if (!state || !state.cells) return false;
+    var cell = state.cells[String(state.selectedId || state.currentId || '')];
+    if (!cell) return false;
+    var current = state.cells[String(state.currentId || '')];
+    var allowed = cell.id === state.currentId || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
+    if (!allowed) {
+      if (typeof showNotif === 'function') showNotif('Select an adjacent hex from your current position.', 'warn');
+      return false;
+    }
+    state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
+    state.currentId = cell.id;
+    cell.visited = true;
+    revealLegacyRaidGridAround(state, cell.id);
+    var vault = ensureLegacyRaidLootVault(mission);
+
+    if (!cell.cleared) {
+      var eventType = String(cell.eventType || 'empty');
+      var result = { success: true, diff: 0, note: '' };
+      if (eventType === 'puzzle') {
+        result = resolveLegacyRaidHexContest('mind', getLegacyRaidHexDreadDie(wingNum, eventType));
+        if (!result.success) {
+          if (typeof addTMWOnFail === 'function') addTMWOnFail();
+          if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
+        }
+      } else if (eventType === 'peril') {
+        result = resolveLegacyRaidHexContest('defend', getLegacyRaidHexDreadDie(wingNum, eventType));
+        if (!result.success) {
+          if (typeof addTMWOnFail === 'function') addTMWOnFail();
+          if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - Math.max(1, result.diff));
+        }
+      } else if (eventType === 'hazard') {
+        result = resolveLegacyRaidHexContest('mind', getLegacyRaidHexDreadDie(wingNum, eventType));
+        if (!result.success) {
+          if (typeof addTMWOnFail === 'function') addTMWOnFail();
+          if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
+        }
+      } else if (eventType === 'barrier') {
+        result = resolveLegacyRaidHexContest('body', getLegacyRaidHexDreadDie(wingNum, eventType));
+        if (!result.success) {
+          if (typeof addTMWOnFail === 'function') addTMWOnFail();
+          if (typeof S !== 'undefined' && S && S.conditions && typeof S.conditions === 'object') {
+            var cKeys = Object.keys(S.conditions);
+            if (cKeys.length) S.conditions[cKeys[Math.floor(Math.random() * cKeys.length)]] = true;
+          }
+        }
+      } else if (eventType === 'enemy') {
+        result = resolveLegacyRaidHexContest('adventure', getLegacyRaidHexDreadDie(wingNum, eventType));
+        if (!result.success) {
+          if (typeof addTMWOnFail === 'function') addTMWOnFail();
+          if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - Math.max(1, result.diff));
+        }
+      }
+
+      if (!result.success) {
+        state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
+        state.lastLog = 'Hex ' + cell.id + ' failed (' + eventType + '). Extra tick lost.';
+      } else {
+        cell.cleared = true;
+        state.lastLog = 'Hex ' + cell.id + ' cleared (' + eventType + ').';
+        if (cell.lorePiece) state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
+        if (cell.waypoint) state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
+        if (eventType === 'loot' && vault && !cell.lootSeeded) {
+          var lootDrops = rollShopLoot(mission.difficulty) || [];
+          lootDrops.forEach(function (item) { if (item) vault.loot.push(String(item)); });
+          var keyRoll = Math.random();
+          if (keyRoll < 0.35) vault.keys.bronze += 1;
+          else if (keyRoll < 0.55) vault.keys.silver += 1;
+          else if (keyRoll < 0.67) vault.keys.gold += 1;
+          else if (keyRoll < 0.72) vault.keys.platinum += 1;
+          cell.lootSeeded = true;
+        }
+        if (eventType === 'teleport' && cell.teleportTo && state.cells[cell.teleportTo]) {
+          state.currentId = cell.teleportTo;
+          state.selectedId = cell.teleportTo;
+          revealLegacyRaidGridAround(state, cell.teleportTo);
+          state.lastLog += ' ' + ((state.teleportTheme && state.teleportTheme.label) || 'Gate') + ' warped you to ' + cell.teleportTo + '.';
+        }
+      }
+    } else {
+      state.lastLog = 'Traversed cleared hex ' + cell.id + '.';
+    }
+
+    if (Number(state.ticks || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif('Wing timer expired. Wipe state triggered.', 'warn');
+      return openLegacyRaidWipeDecision(mission.id);
+    }
+
+    if (checkLegacyRaidWingGridCompletion(mission, wingNum, state)) {
+      var run = ensureLegacyRaidRunState(mission);
+      if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
+      return openLegacyRaidWingLootChoice(mission.id, wingNum, 'advance');
+    }
+    return openRaidWingPopup(mission.id, wingNum);
+  };
+
   function buildRaidHexMapSvg(mission, wingNum) {
     var map = ensureRaidHexMap(mission);
     var rooms = map.wings[wingNum];
@@ -4223,6 +4645,64 @@
     var run = ensureLegacyRaidRunState(mission);
     if (run) run.currentWing = wingNum;
     ensureLegacyRaidClock(mission);
+
+    if (wingNum === 1 || wingNum === 2) {
+      var gridState = ensureLegacyRaidWingGridState(mission, wingNum);
+      if (!gridState) return false;
+      var objectives = gridState.objectives || {};
+      var objectiveLine = wingNum === 1
+        ? ('Lore Fragments: ' + Number(objectives.loreCollected || 0) + '/' + Number(objectives.loreRequired || 3))
+        : ('Door Waypoints: ' + Number(objectives.waypointsActivated || 0) + '/' + Number(objectives.waypointsRequired || 3));
+      var wingTitlesGrid = ['', (mission.steps[1] && mission.steps[1].name) || 'Lore Wing', (mission.steps[2] && mission.steps[2].name) || 'Mechanic Wing', (mission.steps[3] && mission.steps[3].name) || 'Boss Chamber'];
+      var wingThemesGrid = ['', 'Story Gate', 'Mechanic Gate', 'Execution Gate'];
+      if (typeof selectedRoomIdx === 'string' && gridState.cells && gridState.cells[selectedRoomIdx]) {
+        gridState.selectedId = selectedRoomIdx;
+      }
+      if (!gridState.selectedId || !gridState.cells[gridState.selectedId]) gridState.selectedId = gridState.currentId;
+
+      var backBtnGrid = '<button class="btn btn-xs" onclick="openLegacyRaidMissionPopup(' + missionId + ',null)">← Raid Overview</button>';
+      var wingNavGrid = [1, 2, 3].map(function (w) {
+        var done = mission.steps && mission.steps[w] && mission.steps[w].completed;
+        return '<button class="btn btn-xs' + (w === wingNum ? ' btn-teal' : '') + '" onclick="openRaidWingPopup(' + missionId + ',' + w + ')" ' + (w > 1 && !(mission.steps[w - 1] && mission.steps[w - 1].completed) && w !== wingNum ? 'disabled' : '') + '>Wing ' + w + (done ? ' ✓' : '') + '</button>';
+      }).join('');
+
+      var wingGridHtml = buildLegacyRaidWingGridHtml(mission, wingNum, gridState);
+      var detailHtml = buildLegacyRaidWingGridCellDetail(mission, wingNum, gridState);
+      var vault = ensureLegacyRaidLootVault(mission);
+      var vaultLootCount = vault && Array.isArray(vault.loot) ? vault.loot.length : 0;
+      var keyLine = vault ? ('Keys B/S/G/P: ' + Number(vault.keys.bronze || 0) + '/' + Number(vault.keys.silver || 0) + '/' + Number(vault.keys.gold || 0) + '/' + Number(vault.keys.platinum || 0)) : '';
+
+      var htmlGrid = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:860px;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;margin-bottom:.32rem;">'
+        + '<div><div style="font-size:.88rem;color:' + theme.tc + ';font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + '</strong></div>'
+        + '<div style="font-size:.68rem;color:' + theme.muted + ';text-transform:uppercase;letter-spacing:.07em;">' + wingThemesGrid[wingNum] + ' · 12x12 Tactical Branch Grid · Time ' + Number(gridState.ticks || 0) + ' ticks</div></div>'
+        + '<div style="display:flex;gap:.2rem;">' + wingNavGrid + '</div>'
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:minmax(0,1.8fr) minmax(220px,.95fr);gap:.35rem;align-items:start;">'
+        + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.02);">'
+        + wingGridHtml
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:.24rem;">'
+        + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);font-size:.67rem;color:var(--muted2);">'
+        + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Wing Objectives</strong></div>'
+        + '<div style="margin-bottom:.06rem;">' + objectiveLine + '</div>'
+        + '<div style="margin-bottom:.06rem;">Vaulted Loot: ' + vaultLootCount + '</div>'
+        + '<div>' + keyLine + '</div>'
+        + '</div>'
+        + detailHtml
+        + '<div style="border:1px solid var(--border2);padding:.22rem .28rem;background:rgba(0,0,0,.18);font-size:.64rem;color:var(--teal);">'
+        + String(gridState.lastLog || 'Select a revealed adjacent hex to act.')
+        + '</div>'
+        + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.28rem;">'
+        + backBtnGrid
+        + '</div>'
+        + '</div>';
+      openModal('Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + ' — ' + mission.title, htmlGrid);
+      return true;
+    }
+
     if (wingNum === 3) {
       var bossRooms = rooms.filter(function (r) { return !!(r && r.isBoss); });
       if (bossRooms.length && bossRooms[0].discovered) {
@@ -6969,6 +7449,15 @@
     if (!mission || mission.missionType !== 'legacy_raid') return false;
     var run = ensureLegacyRaidRunState(mission);
     if (!run) return false;
+    var vault = ensureLegacyRaidLootVault(mission);
+    var vaultedLoot = vault && Array.isArray(vault.loot) ? vault.loot.slice() : [];
+    var vaultedKeys = vault && vault.keys ? {
+      bronze: Number(vault.keys.bronze || 0),
+      silver: Number(vault.keys.silver || 0),
+      gold: Number(vault.keys.gold || 0),
+      platinum: Number(vault.keys.platinum || 0)
+    } : { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+
     mission.legacyRaidBonusMedals = Math.max(0, Number(bonusMedals || 0));
     mission.legacyRaidSummary = {
       wipes: Number(run.wipes || 0),
@@ -6979,8 +7468,18 @@
         2: Number(run.wingFailures[2] || 0),
         3: Number(run.wingFailures[3] || 0)
       },
-      abilityUses: Number(run.abilityUses || 0)
+      abilityUses: Number(run.abilityUses || 0),
+      vaultedLootCount: vaultedLoot.length,
+      vaultedKeys: vaultedKeys
     };
+    mission.legacyRaidVaultPayout = {
+      loot: vaultedLoot,
+      keys: vaultedKeys
+    };
+    if (vault) {
+      vault.loot = [];
+      vault.keys = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    }
     if (typeof closeModal === 'function') closeModal();
     resolveMission(mission.id, true, { legacyRaid: mission.legacyRaidSummary });
     return true;
@@ -7004,6 +7503,9 @@
         newLoot=rollShopLoot(mission.difficulty) || [];
       } catch (err) {
         newLoot=[];
+      }
+      if (mission.missionType === 'legacy_raid' && mission.legacyRaidVaultPayout && Array.isArray(mission.legacyRaidVaultPayout.loot)) {
+        newLoot = newLoot.concat(mission.legacyRaidVaultPayout.loot.slice());
       }
       mission.loot=mission.loot.concat(newLoot);
       S.credits=(S.credits||0)+(mission.reward||100); S.renown=(S.renown||0)+1;
@@ -7045,6 +7547,13 @@
         dropped = newLoot.slice();
       }
     } else {
+      if (mission.missionType === 'legacy_raid') {
+        var runState = ensureLegacyRaidRunState(mission);
+        if (runState && runState.raidVault) {
+          runState.raidVault.loot = [];
+          runState.raidVault.keys = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+        }
+      }
       S.renown=Math.max(0,(S.renown||0)-1);
       if (!mission.noFactionDelta) applyFactionStandingFailureDelta(mission.factionGain, mission.factionLose);
       try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
@@ -7078,6 +7587,7 @@
       completedEntry.legacyRaidSummary = mission.legacyRaidSummary || null;
       completedEntry.legacyRaidBoss = mission.legacyRaidBoss || null;
       completedEntry.legacyRaidPowerBonus = Number(mission.legacyRaidPowerBonus || 0);
+      completedEntry.legacyRaidVaultPayout = mission.legacyRaidVaultPayout || null;
     }
     if (S.completedMissions.length>=MAX_COMPLETED_MISSIONS) S.completedMissions.shift();
     S.completedMissions.push(completedEntry);

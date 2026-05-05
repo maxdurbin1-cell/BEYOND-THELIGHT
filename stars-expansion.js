@@ -2587,6 +2587,7 @@ function getLegacyRaidDifficulty(legacy) {
 
 function buildLegacyRaidProfile(legacy, boss, region, missionDifficulty) {
   var bossName = String(boss && boss.name || 'World Boss');
+  var regionKey = String(region || 'province').toLowerCase();
   var seed = Math.abs(seedSolarCycleMix(ensureSolarCycleState(), Number(legacy && legacy.raidCounter || 0) + bossName.length * 17 + String(region || '').length * 23));
   var tierCycle = ['normal', 'hard', 'mythic'];
   var tier = tierCycle[seed % tierCycle.length];
@@ -2629,6 +2630,68 @@ function buildLegacyRaidProfile(legacy, boss, region, missionDifficulty) {
   };
   var profile = JSON.parse(JSON.stringify(baseKnobs[tier] || baseKnobs.normal));
 
+  var regionKnobs = {
+    province: {
+      curveTag: 'social-attrition',
+      roomDdBonus: 0,
+      approachDdBonus: 0,
+      bossHpPhases: -1,
+      bossStrikesAllowed: 1,
+      bossActionCadence: 0,
+      wayfarerRiskBonus: 0,
+      actionPressureBonus: 1
+    },
+    sea: {
+      curveTag: 'hazard-surge',
+      roomDdBonus: 1,
+      approachDdBonus: 1,
+      bossHpPhases: 0,
+      bossStrikesAllowed: 0,
+      bossActionCadence: 1,
+      wayfarerRiskBonus: 1,
+      actionPressureBonus: 2
+    },
+    galaxy: {
+      curveTag: 'loop-pressure',
+      roomDdBonus: 1,
+      approachDdBonus: 2,
+      bossHpPhases: 1,
+      bossStrikesAllowed: -1,
+      bossActionCadence: 1,
+      wayfarerRiskBonus: 1,
+      actionPressureBonus: 2
+    },
+    planet: {
+      curveTag: 'mutation-attrition',
+      roomDdBonus: 1,
+      approachDdBonus: 1,
+      bossHpPhases: 2,
+      bossStrikesAllowed: 0,
+      bossActionCadence: 0,
+      wayfarerRiskBonus: 2,
+      actionPressureBonus: 1
+    },
+    wtw: {
+      curveTag: 'collapse-tech',
+      roomDdBonus: 2,
+      approachDdBonus: 2,
+      bossHpPhases: 1,
+      bossStrikesAllowed: -1,
+      bossActionCadence: 1,
+      wayfarerRiskBonus: 2,
+      actionPressureBonus: 3
+    }
+  };
+  var regionTuning = regionKnobs[regionKey] || regionKnobs.province;
+  profile.roomDdBonus += Number(regionTuning.roomDdBonus || 0);
+  profile.approachDdBonus += Number(regionTuning.approachDdBonus || 0);
+  profile.bossHpPhases = Math.max(2, Number(profile.bossHpPhases || 3) + Number(regionTuning.bossHpPhases || 0));
+  profile.bossStrikesAllowed = Math.max(1, Number(profile.bossStrikesAllowed || 2) + Number(regionTuning.bossStrikesAllowed || 0));
+  profile.bossActionCadence = Math.max(1, Number(profile.bossActionCadence || 1) + Number(regionTuning.bossActionCadence || 0));
+  profile.wayfarerRiskBonus += Number(regionTuning.wayfarerRiskBonus || 0);
+  profile.actionPressureBonus += Number(regionTuning.actionPressureBonus || 0);
+  profile.regionCurve = String(regionTuning.curveTag || 'regional');
+
   // Boss-specific progression curve and cadence tuning.
   var lower = bossName.toLowerCase();
   if (/eel|leviathan|kraken|whale|tide|brine|nautilus/.test(lower)) {
@@ -2647,7 +2710,7 @@ function buildLegacyRaidProfile(legacy, boss, region, missionDifficulty) {
 
   profile.tier = tier;
   profile.bossName = bossName;
-  profile.region = String(region || 'province');
+  profile.region = regionKey;
   profile.seed = seed;
   return profile;
 }

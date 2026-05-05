@@ -1496,6 +1496,225 @@
     return true;
   }
 
+  function getLegacyRaidTeamworkBurstCosts(mission) {
+    var region = String(mission && (mission.legacyRaidRegion || mission.region) || 'province').toLowerCase();
+    var table = {
+      province: { prevent: 6, negateWipe: 8, cinematic: 80 },
+      sea: { prevent: 8, negateWipe: 10, cinematic: 90 },
+      galaxy: { prevent: 10, negateWipe: 12, cinematic: 100 },
+      planet: { prevent: 9, negateWipe: 11, cinematic: 95 },
+      wtw: { prevent: 12, negateWipe: 14, cinematic: 110 }
+    };
+    return table[region] || table.province;
+  }
+
+  function getLegacyRaidArmorActionCount() {
+    if (typeof getMaxActions === 'function') return Math.max(1, Number(getMaxActions() || 1));
+    try {
+      var armorText = String(typeof S !== 'undefined' && S && S.equipment && S.equipment.armor || '');
+      var match = armorText.match(/(\d+)\s+Action/i);
+      if (match) return Math.max(1, Number(match[1] || 1));
+    } catch (_err) {}
+    return 3;
+  }
+
+  function getLegacyRaidCombatActionLabels() {
+    if (typeof document !== 'undefined') {
+      var select = document.getElementById('wayfarerActionSel');
+      if (select && select.options && select.options.length) {
+        return Array.prototype.slice.call(select.options).map(function (opt) {
+          return String(opt.textContent || opt.value || '').trim();
+        }).filter(Boolean).slice(0, 6);
+      }
+    }
+    return ['Strike', 'Shoot', 'Defend', 'Move', 'Support', 'Control'];
+  }
+
+  function buildLegacyRaidBossZoneMap(mission) {
+    var zones = ['Engaged', 'Close', 'Nearby', 'Far'];
+    var units = [];
+    if (typeof S !== 'undefined' && S && S.combatMap && Array.isArray(S.combatMap.units) && S.combatMap.units.length) {
+      units = S.combatMap.units.slice();
+    } else {
+      units = [{ name: String(typeof S !== 'undefined' && S && S.name || 'Wayfarer'), side: 'ally', zone: 'Engaged' }];
+      if (!isLegacyRaidCampaignMode()) {
+        getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; }).forEach(function (wf, idx) {
+          units.push({ name: String(wf.name || ('Ally ' + (idx + 1))), side: 'ally', zone: idx === 0 ? 'Close' : 'Nearby' });
+        });
+      }
+      units.push({ name: String(mission && mission.legacyRaidBoss || 'Boss'), side: 'enemy', zone: 'Engaged' });
+    }
+    return '<div style="display:grid;grid-template-columns:repeat(4,minmax(84px,1fr));gap:.18rem;">'
+      + zones.map(function (zone) {
+          var zoneUnits = units.filter(function (unit) { return unit && String(unit.zone || 'Engaged') === zone; });
+          return '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.18rem .2rem;min-height:72px;">'
+            + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.12rem;">' + zone + '</div>'
+            + (zoneUnits.length
+              ? zoneUnits.map(function (unit) {
+                  var tone = unit.side === 'enemy' ? 'var(--red2)' : 'var(--teal)';
+                  return '<div style="font-size:.63rem;color:' + tone + ';padding:.08rem .14rem;border:1px solid var(--border2);margin-bottom:.08rem;background:rgba(0,0,0,.12);">' + String(unit.name || unit.side || 'Unit') + '</div>';
+                }).join('')
+              : '<div style="font-size:.63rem;color:var(--muted2);">Empty</div>')
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
+
+  function buildLegacyRaidBossPlayerPanel(mission, encounter) {
+    var actions = getLegacyRaidCombatActionLabels();
+    var actionCount = getLegacyRaidArmorActionCount();
+    var tmw = getLegacyRaidTeamworkPool();
+    var hp = 24;
+    var name = String(typeof S !== 'undefined' && S && S.name || 'Wayfarer');
+    return '<div style="border:1px solid var(--border2);background:rgba(20,90,120,.12);padding:.32rem .36rem;">'
+      + '<div style="font-size:.72rem;color:var(--teal);margin-bottom:.12rem;"><strong>' + name + '</strong> · Player Panel</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;">HP ' + hp + ' · Armor Actions ' + actionCount + ' · TMW ' + tmw + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-top:.08rem;">Action Dice: ' + buildLegacyRaidCombatDieSummary() + '</div>'
+      + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.16rem;">'
+      + actions.map(function (label) { return '<span style="font-size:.62rem;color:var(--text2);padding:.08rem .14rem;border:1px solid var(--border2);background:rgba(255,255,255,.04);">' + label + '</span>'; }).join('')
+      + '</div>'
+      + '</div>';
+  }
+
+  function buildLegacyRaidBossAlliesPanel(mission) {
+    var allies = isLegacyRaidCampaignMode()
+      ? ['Defend', 'Support', 'Attack', 'Move']
+      : getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; }).map(function (wf) { return String(wf.name || 'Wayfarer'); });
+    var body = isLegacyRaidCampaignMode()
+      ? '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;">Campaign allies act as table teammates with Defend, Support, Attack, and Move on ally phase.</div>'
+      : allies.map(function (ally) {
+          return '<div style="font-size:.63rem;color:var(--text2);padding:.08rem .14rem;border:1px solid var(--border2);background:rgba(255,255,255,.04);margin-bottom:.08rem;">' + ally + ' · DD6 | 12 Stress · Defend / Support / Attack / Move</div>';
+        }).join('');
+    return '<div style="border:1px solid var(--border2);background:rgba(40,90,60,.12);padding:.32rem .36rem;">'
+      + '<div style="font-size:.72rem;color:var(--green2);margin-bottom:.12rem;"><strong>Allies</strong></div>'
+      + body
+      + '</div>';
+  }
+
+  function createLegacyRaidPipeFlowState() {
+    return {
+      tiles: [
+        { type: 'source', rotation: 0, locked: true },
+        { type: 'straight', rotation: 1, locked: false },
+        { type: 'elbow', rotation: 0, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'sink', rotation: 0, locked: true }
+      ]
+    };
+  }
+
+  function getLegacyRaidPipeTileExits(tile) {
+    if (!tile) return [];
+    var rot = Math.max(0, Number(tile.rotation || 0)) % 4;
+    if (tile.type === 'source') return ['right'];
+    if (tile.type === 'sink') return ['up'];
+    if (tile.type === 'straight') return rot % 2 === 0 ? ['left', 'right'] : ['up', 'down'];
+    if (tile.type === 'elbow') {
+      if (rot === 0) return ['up', 'right'];
+      if (rot === 1) return ['right', 'down'];
+      if (rot === 2) return ['down', 'left'];
+      return ['left', 'up'];
+    }
+    return [];
+  }
+
+  function isLegacyRaidPipeFlowSolved(puzzle) {
+    var tiles = puzzle && puzzle.state && Array.isArray(puzzle.state.tiles) ? puzzle.state.tiles : [];
+    var required = [0, 1, 2, 5, 8];
+    if (tiles.length < 9) return false;
+    var connections = {
+      0: { right: 1 },
+      1: { left: 0, right: 2 },
+      2: { left: 1, down: 5 },
+      5: { up: 2, down: 8 },
+      8: { up: 5 }
+    };
+    for (var i = 0; i < required.length; i++) {
+      var idx = required[i];
+      var tile = tiles[idx];
+      var exits = getLegacyRaidPipeTileExits(tile);
+      var map = connections[idx] || {};
+      var dirs = Object.keys(map);
+      for (var j = 0; j < dirs.length; j++) {
+        var dir = dirs[j];
+        var other = map[dir];
+        if (exits.indexOf(dir) < 0) return false;
+        var back = dir === 'left' ? 'right' : dir === 'right' ? 'left' : dir === 'up' ? 'down' : 'up';
+        if (getLegacyRaidPipeTileExits(tiles[other]).indexOf(back) < 0) return false;
+      }
+    }
+    return true;
+  }
+
+  function renderLegacyRaidPipeFlowControls(missionId, wingNum, roomIdx, puzzle) {
+    var glyph = function (tile) {
+      var rot = Math.max(0, Number(tile.rotation || 0)) % 4;
+      if (tile.type === 'source') return '▶';
+      if (tile.type === 'sink') return '▼';
+      if (tile.type === 'straight') return rot % 2 === 0 ? '═' : '║';
+      if (tile.type === 'elbow') return ['╚', '╔', '╗', '╝'][rot];
+      return '·';
+    };
+    var tiles = puzzle && puzzle.state && Array.isArray(puzzle.state.tiles) ? puzzle.state.tiles : [];
+    return '<div style="margin-bottom:.22rem;">'
+      + '<div style="font-size:.69rem;color:var(--muted2);margin-bottom:.14rem;">Rotate each pipe tile until the source feeds the sink.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,64px);gap:.16rem;justify-content:center;">'
+      + tiles.map(function (tile, idx) {
+          var locked = !!(tile && tile.locked);
+          return '<button class="btn btn-xs' + (locked ? '' : ' btn-primary') + '" ' + (locked ? 'disabled' : '')
+            + ' style="height:64px;font-size:1.5rem;line-height:1;background:' + (tile.type === 'source' ? 'rgba(40,180,220,.18)' : tile.type === 'sink' ? 'rgba(255,190,70,.18)' : 'rgba(255,255,255,.05)') + ';"'
+            + ' onclick="submitLegacyRaidPuzzleAction(' + missionId + ',' + wingNum + ',' + roomIdx + ',\'pipe_rotate\',\'' + idx + '\')">' + glyph(tile) + '</button>';
+        }).join('')
+      + '</div>'
+      + '</div>';
+  }
+
+  function createLegacyRaidWeightBalanceState() {
+    return {
+      target: 4,
+      pool: [1, 1, 2, 2, 3, 3],
+      left: [],
+      right: []
+    };
+  }
+
+  function renderLegacyRaidWeightBalanceControls(missionId, wingNum, roomIdx, puzzle) {
+    var state = puzzle && puzzle.state ? puzzle.state : {};
+    var leftSum = (state.left || []).reduce(function (sum, value) { return sum + Number(value || 0); }, 0);
+    var rightSum = (state.right || []).reduce(function (sum, value) { return sum + Number(value || 0); }, 0);
+    var pool = Array.isArray(state.pool) ? state.pool : [];
+    var renderPan = function (label, values, total) {
+      return '<div style="border:1px solid var(--border2);padding:.22rem .26rem;background:rgba(255,255,255,.03);">'
+        + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.12rem;">' + label + ' · ' + total + '</div>'
+        + ((values && values.length)
+          ? values.map(function (value, idx) {
+              return '<button class="btn btn-xs" style="margin:.06rem;" onclick="submitLegacyRaidPuzzleAction(' + missionId + ',' + wingNum + ',' + roomIdx + ',\'weight_remove\',\'' + label.toLowerCase() + ':' + idx + '\')">' + value + '</button>';
+            }).join('')
+          : '<div style="font-size:.63rem;color:var(--muted2);">No weights placed.</div>')
+        + '</div>';
+    };
+    return '<div style="margin-bottom:.22rem;">'
+      + '<div style="font-size:.69rem;color:var(--muted2);margin-bottom:.14rem;">Balance both pans to target load ' + Number(state.target || 4) + '. Click a weight to place it, or click placed weights to remove them.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.18rem;margin-bottom:.18rem;">'
+      + renderPan('Left', state.left || [], leftSum)
+      + renderPan('Right', state.right || [], rightSum)
+      + '</div>'
+      + '<div style="display:flex;gap:.14rem;flex-wrap:wrap;justify-content:center;">'
+      + pool.map(function (value, idx) {
+          return '<div style="display:flex;gap:.08rem;align-items:center;border:1px solid var(--border2);padding:.08rem .1rem;background:rgba(255,255,255,.04);">'
+            + '<span style="font-size:.68rem;color:var(--text2);min-width:14px;text-align:center;">' + value + '</span>'
+            + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + missionId + ',' + wingNum + ',' + roomIdx + ',\'weight_place\',\'' + idx + ':left\')">L</button>'
+            + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + missionId + ',' + wingNum + ',' + roomIdx + ',\'weight_place\',\'' + idx + ':right\')">R</button>'
+            + '</div>';
+        }).join('')
+      + '</div>'
+      + '</div>';
+  }
+
   function getLegacyRaidSeed(mission) {
     var text = String(mission && mission.title || '') + '|' + String(mission && mission.region || '') + '|' + String(mission && mission.id || '0');
     var hash = 0;
@@ -2874,16 +3093,22 @@
     var encounter = ensureLegacyRaidBossEncounter(mission);
     if (!encounter || !encounter.active) return false;
     var key = String(mode || '').toLowerCase();
+    var costs = getLegacyRaidTeamworkBurstCosts(mission);
+    if (key === 'prevent_action') {
+      if (!spendLegacyRaidTeamwork(costs.prevent, 'Raid attack prevention')) return false;
+      encounter.log.push('Teamwork burst: ' + costs.prevent + ' TMW prevented the incoming boss action.');
+      return window.resolveRaidBossPhase(mission.id, true, { preventedByTeamwork: true });
+    }
     if (key === 'negate_wipe') {
-      if (!spendLegacyRaidTeamwork(10, 'Raid emergency counterplay')) return false;
+      if (!spendLegacyRaidTeamwork(costs.negateWipe, 'Raid emergency counterplay')) return false;
       encounter.wipeShield = Math.max(1, Number(encounter.wipeShield || 0));
-      encounter.log.push('Teamwork burst: 10 TMW banked to negate the next wipe trigger.');
+      encounter.log.push('Teamwork burst: ' + costs.negateWipe + ' TMW banked to negate the next wipe trigger.');
       openRaidWingPopup(mission.id, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
       return true;
     }
     if (key === 'cinematic_success') {
-      if (!spendLegacyRaidTeamwork(100, 'Cinematic raid finish')) return false;
-      encounter.log.push('Cinematic finish triggered with 100 TMW. The boss line breaks under coordinated execution.');
+      if (!spendLegacyRaidTeamwork(costs.cinematic, 'Cinematic raid finish')) return false;
+      encounter.log.push('Cinematic finish triggered with ' + costs.cinematic + ' TMW. The boss line breaks under coordinated execution.');
       return window.resolveRaidBossRoom(mission.id, true);
     }
     return false;
@@ -3313,16 +3538,18 @@
           : '<strong style="color:var(--gold2);">Next Turn Warning:</strong> No telegraph captured yet.';
         var dreadDieNow = getLegacyRaidBossDreadDie(encounter);
         var teamworkPool = getLegacyRaidTeamworkPool();
+        var teamworkCosts = getLegacyRaidTeamworkBurstCosts(mission);
         var teamworkRow = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.14rem;">'
-          + '<button class="btn btn-xs btn-teal" ' + (teamworkPool >= 10 ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'negate_wipe\')">Spend 10 TMW: Negate Next Wipe</button>'
-          + '<button class="btn btn-xs btn-warn" ' + (teamworkPool >= 100 ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'cinematic_success\')">Spend 100 TMW: Cinematic Success</button>'
+          + '<button class="btn btn-xs btn-primary" ' + (teamworkPool >= teamworkCosts.prevent ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'prevent_action\')">Spend ' + teamworkCosts.prevent + ' TMW: Prevent</button>'
+          + '<button class="btn btn-xs btn-teal" ' + (teamworkPool >= teamworkCosts.negateWipe ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'negate_wipe\')">Spend ' + teamworkCosts.negateWipe + ' TMW: Bank Wipe Shield</button>'
+          + '<button class="btn btn-xs btn-warn" ' + (teamworkPool >= teamworkCosts.cinematic ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'cinematic_success\')">Spend ' + teamworkCosts.cinematic + ' TMW: Cinematic Success</button>'
           + '</div>';
         var classMapHtml = '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.14rem;">'
-          + '<strong style="color:var(--text2);">Role Identity:</strong> Engineer (Defend/Body) = Tank · Captain (Lead/Spirit) = Support · Gunner (Strike/Shoot) = DPS · Navigator (Control/Mind) = Mechanics/Positioning.'
+          + '<strong style="color:var(--text2);">Role Identity:</strong> Engineer = Tank · Captain = Support · Gunner = DPS · Navigator = Mechanics / positioning.'
           + '</div>';
         var allyActionList = isLegacyRaidCampaignMode()
-          ? '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.14rem;">Campaign ally phase: team members resolve Defend, Support, Attack, and Move across Engaged/Close/Nearby/Far zones.</div>'
-          : '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.14rem;">Traveling Wayfarers (DD6 | 12 Stress) act in ally phase with Defend, Support, Attack, and Move options across Engaged/Close/Nearby/Far.</div>';
+          ? '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.14rem;">Campaign ally phase uses the same Attack, Defend, Support, and Move cadence as the combat tab.</div>'
+          : '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.14rem;">Traveling Wayfarers act on ally phase with Attack, Defend, Support, and Move across Engaged, Close, Nearby, and Far.</div>';
         var roleButtons = '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin:.2rem 0 .18rem;">'
           + '<button class="btn btn-xs ' + (encounter.roles.front ? 'btn-primary' : '') + '" onclick="window.toggleRaidBossRole(' + mission.id + ',\'front\')">Front ' + (encounter.roles.front ? '✓' : '') + '</button>'
           + '<button class="btn btn-xs ' + (encounter.roles.mechanics ? 'btn-primary' : '') + '" onclick="window.toggleRaidBossRole(' + mission.id + ',\'mechanics\')">Mechanics ' + (encounter.roles.mechanics ? '✓' : '') + '</button>'
@@ -3385,10 +3612,19 @@
           : '';
         html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.28);padding:.4rem .45rem;margin-bottom:.25rem;">'
           + '<div style="font-size:.72rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.12rem;">⚔ Confrontation Engaged — ' + bossName + '</div>'
-          + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.5;margin-bottom:.15rem;">Visible 8-turn timeline with branch beats. Resolve each turn via <strong>Action Die vs Dread</strong>, keep pressure windows filled, and survive lane hazards.</div>'
-          + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.12rem;">Boss HP: ' + Number(encounter.hp || 0) + ' · Strikes: ' + Number(encounter.strikes || 0) + '/' + Number(encounter.strikesAllowed || 2) + ' · Turn: ' + Number(encounter.turn || 1) + '/8 · Dread Stage: d' + dreadDieNow + '</div>'
-          + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.12rem;line-height:1.45;">' + actionText + '</div>'
-          + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.12rem;line-height:1.45;">' + nextActionText + '</div>'
+          + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.5;margin-bottom:.15rem;">Raid combat now mirrors the combat tab more directly: player panel, allies panel, boss panel, zone map, then resolution choices.</div>'
+          + '<div style="display:grid;grid-template-columns:minmax(220px,1.2fr) minmax(200px,1fr) minmax(220px,1fr);gap:.24rem;margin-bottom:.18rem;">'
+          + buildLegacyRaidBossPlayerPanel(mission, encounter)
+          + buildLegacyRaidBossAlliesPanel(mission)
+          + '<div style="border:1px solid var(--border2);background:rgba(110,20,35,.14);padding:.32rem .36rem;">'
+          + '<div style="font-size:.72rem;color:var(--red2);margin-bottom:.12rem;"><strong>' + bossName + '</strong> · Boss Panel</div>'
+          + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.08rem;">Phase ' + Number(encounter.phase || 1) + '/' + Number(encounter.maxPhases || 3) + ' · HP ' + Number(encounter.hp || 0) + ' · Strikes ' + Number(encounter.strikes || 0) + '/' + Number(encounter.strikesAllowed || 2) + '</div>'
+          + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">' + actionText + '</div>'
+          + '<div style="font-size:.67rem;color:var(--gold2);line-height:1.45;">' + nextActionText + '</div>'
+          + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-top:.1rem;">Current Phase · Dread d' + dreadDieNow + ' · Telegraph before ally phase.</div>'
+          + '</div>'
+          + '</div>'
+          + '<div style="margin-bottom:.14rem;">' + buildLegacyRaidBossZoneMap(mission) + '</div>'
           + classMapHtml
           + allyActionList
           + '<div style="font-size:.67rem;color:var(--teal);margin-bottom:.12rem;">Current Beat: ' + String(currentTurnNode && currentTurnNode.beat || 'Unknown') + '</div>'
@@ -3409,8 +3645,9 @@
           + teamworkRow
           + '<div style="font-size:.66rem;margin-bottom:.14rem;">' + roleStatusText + '</div>'
           + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.18rem;">'
-          + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidBossPhase(' + mission.id + ')">Resolve Turn (Action Die vs Dread)</button>'
-          + '<button class="btn btn-xs btn-red" onclick="window.resolveRaidBossPhase(' + mission.id + ',false)">Force Failure</button>'
+          + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidBossPhase(' + mission.id + ')">Resolve Attack</button>'
+          + '<button class="btn btn-xs" ' + (teamworkPool >= teamworkCosts.prevent ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'prevent_action\')">Spend ' + teamworkCosts.prevent + ' TMW To Prevent</button>'
+          + '<button class="btn btn-xs btn-red" onclick="window.resolveRaidBossPhase(' + mission.id + ',false)">Let Boss Punish</button>'
           + '</div>'
           + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.06rem;">Encounter Log</div>'
           + '<div style="max-height:96px;overflow:auto;border:1px solid var(--border2);padding:.2rem .28rem;background:rgba(0,0,0,.18);">' + logHtml + '</div>'
@@ -4401,7 +4638,7 @@
       var mode = modes[Math.floor(Math.random() * modes.length)];
       room.raidPuzzle = {
         mode: mode,
-        attemptsLeft: 3,
+        attemptsLeft: mode === 'pipe_flow' ? 10 : mode === 'weight_balance' ? 12 : 3,
         solved: false,
         log: [],
         state: {}
@@ -4409,8 +4646,8 @@
       if (mode === 'lock_dials') room.raidPuzzle.state.code = [roll(6), roll(6), roll(6)];
       else if (mode === 'symbol_match') room.raidPuzzle.state.target = ['SUN', 'WAVE', 'MOON'][Math.floor(Math.random() * 3)];
       else if (mode === 'constellation') room.raidPuzzle.state.target = '135';
-      else if (mode === 'pipe_flow') room.raidPuzzle.state.targetPressure = 7;
-      else if (mode === 'weight_balance') room.raidPuzzle.state.target = 0;
+      else if (mode === 'pipe_flow') room.raidPuzzle.state = createLegacyRaidPipeFlowState();
+      else if (mode === 'weight_balance') room.raidPuzzle.state = createLegacyRaidWeightBalanceState();
       else if (mode === 'limited_move') room.raidPuzzle.state.path = 'LURRD';
       else if (mode === 'shape_route') room.raidPuzzle.state.target = 'ABCD';
     }
@@ -4440,9 +4677,9 @@
     } else if (puzzle.mode === 'constellation') {
       hints.push('Constellation clue: align stars in a single unbroken sweep path.');
     } else if (puzzle.mode === 'pipe_flow') {
-      hints.push('Pipe clue: target pressure is exactly ' + Number(puzzle.state.targetPressure || 7) + '.');
+      hints.push('Pipe clue: the source must feed the sink through one continuous route.');
     } else if (puzzle.mode === 'weight_balance') {
-      hints.push('Weight clue: left and right loads must resolve to parity (0 delta).');
+      hints.push('Weight clue: both pans must match the target load exactly.');
     } else if (puzzle.mode === 'limited_move') {
       hints.push('Maze clue: shortest safe path uses exactly 5 steps.');
     } else if (puzzle.mode === 'shape_route') {
@@ -4521,13 +4758,13 @@
       mechanics = [{ move: 'mech_calibrate_star', label: 'Calibrate Node' }];
       support = [{ move: 'support_sync_stars', label: 'Sync Pattern' }];
     } else if (mode === 'pipe_flow') {
-      front = [{ move: 'front_force_valve', label: 'Force +2 Valve' }];
+      front = [{ move: 'front_force_valve', label: 'Force Mainline' }];
       mechanics = [{ move: 'mech_route_pressure', label: 'Route Precision' }];
-      support = [{ move: 'support_bleed_pressure', label: 'Bleed -1 Pressure' }];
+      support = [{ move: 'support_bleed_pressure', label: 'Recover Attempt' }];
     } else if (mode === 'weight_balance') {
-      front = [{ move: 'front_shift_mass', label: 'Shift Heavy Load' }];
+      front = [{ move: 'front_shift_mass', label: 'Set Heavy Pair' }];
       mechanics = [{ move: 'mech_trim_mass', label: 'Fine Trim' }];
-      support = [{ move: 'support_counterweight', label: 'Counterweight' }];
+      support = [{ move: 'support_counterweight', label: 'True Center' }];
     } else if (mode === 'limited_move') {
       front = [{ move: 'front_dash_step', label: 'Dash Next Step' }];
       mechanics = [{ move: 'mech_reveal_path', label: 'Reveal Next Move' }];
@@ -4574,18 +4811,9 @@
         + [1,2,3,4,5,6,7,8,9].map(function (n) { return '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'constellation\',\'' + n + '\')">✦' + n + '</button>'; }).join('')
         + '</div>';
     } else if (puzzle.mode === 'pipe_flow') {
-      controls = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.2rem;">'
-        + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'pipe\',\'1\')">+1 valve</button>'
-        + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'pipe\',\'2\')">+2 valve</button>'
-        + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'pipe\',\'3\')">+3 valve</button>'
-        + '</div>';
+      controls = renderLegacyRaidPipeFlowControls(mission.id, wingNum, roomIdx, puzzle);
     } else if (puzzle.mode === 'weight_balance') {
-      controls = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.2rem;">'
-        + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'weight\',\'L2\')">Left +2</button>'
-        + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'weight\',\'R2\')">Right +2</button>'
-        + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'weight\',\'L1\')">Left +1</button>'
-        + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'weight\',\'R1\')">Right +1</button>'
-        + '</div>';
+      controls = renderLegacyRaidWeightBalanceControls(mission.id, wingNum, roomIdx, puzzle);
     } else if (puzzle.mode === 'limited_move') {
       controls = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.2rem;">'
         + ['L','U','R','D'].map(function (m) { return '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'maze\',\'' + m + '\')">' + m + '</button>'; }).join('')
@@ -4633,17 +4861,38 @@
       puzzle.state.seq = String((puzzle.state.seq || '') + String(payload || '')).split(',').join('');
       ok = String(puzzle.state.seq || '').slice(-3) === '135';
       puzzle.log.push('Constellation sequence: ' + String(puzzle.state.seq || ''));
-    } else if (mode === 'pipe_flow' && action === 'pipe') {
-      puzzle.state.pressure = Number(puzzle.state.pressure || 0) + Number(payload || 0);
-      ok = Number(puzzle.state.pressure || 0) === Number(puzzle.state.targetPressure || 7);
-      if (Number(puzzle.state.pressure || 0) > Number(puzzle.state.targetPressure || 7)) puzzle.state.pressure = 0;
-      puzzle.log.push('Pipe pressure now ' + Number(puzzle.state.pressure || 0) + '.');
-    } else if (mode === 'weight_balance' && action === 'weight') {
-      var v = String(payload || '');
-      var delta = v === 'L2' ? -2 : v === 'R2' ? 2 : v === 'L1' ? -1 : 1;
-      puzzle.state.balance = Number(puzzle.state.balance || 0) + delta;
-      ok = Number(puzzle.state.balance || 0) === 0 && Number(puzzle.state.moves || 0) >= 1;
-      puzzle.log.push('Balance delta now ' + Number(puzzle.state.balance || 0) + '.');
+    } else if (mode === 'pipe_flow' && action === 'pipe_rotate') {
+      var tileIndex = Math.max(0, Number(payload || 0));
+      if (puzzle.state.tiles && puzzle.state.tiles[tileIndex] && !puzzle.state.tiles[tileIndex].locked) {
+        puzzle.state.tiles[tileIndex].rotation = (Number(puzzle.state.tiles[tileIndex].rotation || 0) + 1) % 4;
+      }
+      ok = isLegacyRaidPipeFlowSolved(puzzle);
+      puzzle.log.push(ok ? 'Pipe route completed from source to sink.' : 'Pipe tile rotated. Flow path still incomplete.');
+    } else if (mode === 'weight_balance' && (action === 'weight_place' || action === 'weight_remove')) {
+      puzzle.state.pool = Array.isArray(puzzle.state.pool) ? puzzle.state.pool : [];
+      puzzle.state.left = Array.isArray(puzzle.state.left) ? puzzle.state.left : [];
+      puzzle.state.right = Array.isArray(puzzle.state.right) ? puzzle.state.right : [];
+      if (action === 'weight_place') {
+        var placeParts = String(payload || '').split(':');
+        var poolIndex = Math.max(0, Number(placeParts[0] || 0));
+        var side = placeParts[1] === 'right' ? 'right' : 'left';
+        if (poolIndex < puzzle.state.pool.length) {
+          var placedWeight = puzzle.state.pool.splice(poolIndex, 1)[0];
+          puzzle.state[side].push(placedWeight);
+        }
+      } else {
+        var removeParts = String(payload || '').split(':');
+        var fromSide = removeParts[0] === 'right' ? 'right' : 'left';
+        var removeIndex = Math.max(0, Number(removeParts[1] || 0));
+        if (removeIndex < puzzle.state[fromSide].length) {
+          var removedWeight = puzzle.state[fromSide].splice(removeIndex, 1)[0];
+          puzzle.state.pool.push(removedWeight);
+        }
+      }
+      var leftSum = puzzle.state.left.reduce(function (sum, value) { return sum + Number(value || 0); }, 0);
+      var rightSum = puzzle.state.right.reduce(function (sum, value) { return sum + Number(value || 0); }, 0);
+      ok = leftSum === rightSum && leftSum === Number(puzzle.state.target || 4);
+      puzzle.log.push(ok ? 'Both pans balanced on the true center line.' : ('Loads now left ' + leftSum + ' / right ' + rightSum + '.'));
     } else if (mode === 'limited_move' && action === 'maze') {
       puzzle.state.pathTaken = String((puzzle.state.pathTaken || '') + String(payload || ''));
       ok = String(puzzle.state.pathTaken || '') === String(puzzle.state.path || 'LURRD');
@@ -4758,58 +5007,52 @@
       }
       solved = String(puzzle.state.seq || '').slice(-3) === '135';
     } else if (mode === 'pipe_flow') {
-      puzzle.state.pressure = Number(puzzle.state.pressure || 0);
       if (move === 'front_force_valve') {
-        puzzle.state.pressure += 3;
-        puzzle.log.push('Front forces valves: pressure +3 (high risk) (now ' + puzzle.state.pressure + ').');
+        if (puzzle.state.tiles && puzzle.state.tiles[1]) puzzle.state.tiles[1].rotation = 0;
+        puzzle.log.push('Front forces the mainline straight into place.');
         state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 3);
       } else if (move === 'mech_route_pressure') {
-        var targetPressure = Number(puzzle.state.targetPressure || 7);
-        if (puzzle.state.pressure < targetPressure) puzzle.state.pressure += 1;
-        if (puzzle.state.pressure > targetPressure) puzzle.state.pressure = targetPressure;
-        puzzle.log.push('Mechanics routes pressure with precision (safe cap) (now ' + puzzle.state.pressure + ').');
+        if (puzzle.state.tiles) {
+          if (puzzle.state.tiles[2]) puzzle.state.tiles[2].rotation = 2;
+          if (puzzle.state.tiles[5]) puzzle.state.tiles[5].rotation = 1;
+        }
+        puzzle.log.push('Mechanics routes the remaining path with precision.');
         state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
       } else if (move === 'support_bleed_pressure') {
-        puzzle.state.pressure = Math.max(0, Number(puzzle.state.pressure || 0) - 1);
-        puzzle.log.push('Support bleeds pressure: -1 (stabilizing) (now ' + puzzle.state.pressure + ').');
+        puzzle.attemptsLeft = Math.min(3, Number(puzzle.attemptsLeft || 0) + 1);
+        puzzle.log.push('Support recovers a failed attempt and steadies the pressure rhythm.');
         state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 1);
       }
-      if (Number(puzzle.state.pressure || 0) > Number(puzzle.state.targetPressure || 7)) {
-        consumedAttempts += 2;
-        puzzle.state.pressure = 0;
-        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 4);
-        puzzle.log.push('Pressure spike! Major vent event: attempts -2, pressure reset, Front locked extra.');
-      }
-      solved = Number(puzzle.state.pressure || 0) === Number(puzzle.state.targetPressure || 7);
+      solved = isLegacyRaidPipeFlowSolved(puzzle);
     } else if (mode === 'weight_balance') {
-      puzzle.state.balance = Number(puzzle.state.balance || 0);
       if (move === 'front_shift_mass') {
-        var frontDelta = Math.random() < 0.5 ? -3 : 3;
-        puzzle.state.balance += frontDelta;
-        puzzle.log.push('Front shifts heavy load (' + (frontDelta > 0 ? '+' : '') + frontDelta + '). Delta now ' + puzzle.state.balance + '.');
+        puzzle.state.left = [2, 2];
+        puzzle.state.right = [1, 3];
+        puzzle.state.pool = [1, 3];
+        puzzle.log.push('Front locks the heavy pair into the left pan.');
         state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
-        if (Math.abs(Number(puzzle.state.balance || 0)) >= 5) {
-          consumedAttempts += 1;
-          puzzle.log.push('Structure sway exceeded tolerance. Attempt pressure +1.');
-        }
       } else if (move === 'mech_trim_mass') {
-        var trimDelta = puzzle.state.balance > 0 ? -1 : 1;
-        puzzle.state.balance += trimDelta;
-        puzzle.log.push('Mechanics fine trim (' + (trimDelta > 0 ? '+' : '') + trimDelta + '). Delta now ' + puzzle.state.balance + '.');
+        puzzle.state.left = [1, 3];
+        puzzle.state.right = [2, 2];
+        puzzle.state.pool = [1, 3];
+        puzzle.log.push('Mechanics fine-trim the pans into a near-even state.');
         state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
       } else if (move === 'support_counterweight') {
-        var counter = puzzle.state.balance > 0 ? -2 : 2;
-        puzzle.state.balance += counter;
-        puzzle.log.push('Support counterweight pulse (' + (counter > 0 ? '+' : '') + counter + '). Delta now ' + puzzle.state.balance + '.');
+        puzzle.state.left = [1, 3];
+        puzzle.state.right = [1, 3];
+        puzzle.state.pool = [2, 2];
+        puzzle.log.push('Support marks the true center and equalizes both pans.');
         state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
       }
-      solved = Number(puzzle.state.balance || 0) === Number(puzzle.state.target || 0);
+      var roleLeft = (puzzle.state.left || []).reduce(function (sum, value) { return sum + Number(value || 0); }, 0);
+      var roleRight = (puzzle.state.right || []).reduce(function (sum, value) { return sum + Number(value || 0); }, 0);
+      solved = roleLeft === roleRight && roleLeft === Number(puzzle.state.target || 4);
     } else if (mode === 'limited_move') {
       var targetPath = String(puzzle.state.path || 'LURRD');
       if (move === 'front_dash_step') {

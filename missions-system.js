@@ -1750,6 +1750,96 @@
       + '</div>';
   }
 
+  // ─── Tumbler Lockpick Puzzle ──────────────────────────────────────────────
+  //  5 pins, each with 5 positions.  Player clicks a pin to push it up by one;
+  //  clicking the top position wraps back to 1.  All 5 must reach their secret
+  //  target heights (seeded from mission id) to open the lock.
+
+  function createLegacyRaidTumblerState(mission) {
+    // Deterministic targets derived from mission id so they're stable across renders.
+    var seed = mission && mission.id ? Number(mission.id) : Date.now();
+    var targets = [];
+    for (var i = 0; i < 5; i++) {
+      seed = ((seed * 1664525) + 1013904223) >>> 0;
+      targets.push((seed % 5) + 1);   // 1-5
+    }
+    return {
+      pins: [1, 1, 1, 1, 1],   // current heights (1 = lowest, 5 = highest)
+      targets: targets,
+      code: [targets[0], targets[1], targets[2]],
+      revealed: []              // indices where the player has "felt" the correct height
+    };
+  }
+
+  function getLegacyRaidBossRequiredWeapon(region, bossName) {
+    var key = String(region || 'province').toLowerCase();
+    var lower = String(bossName || '').toLowerCase();
+    if (key === 'wtw') {
+      if (/violet|vault/.test(lower)) return 'Vault-Breaker Spike';
+      if (/warden|rail/.test(lower)) return 'Rail-Spike Disruptor';
+      if (/ashcourt|colossus/.test(lower)) return 'Court-Seal Hammer';
+    }
+    if (key === 'sea' && /deepwake|dragon/.test(lower)) return 'Depth-Iron Harpoon';
+    if (key === 'galaxy' && /blackstar|colossus/.test(lower)) return 'Null-Field Detonator';
+    if (key === 'planet' && /mycelial|titan/.test(lower)) return 'Anti-Spore Filter Mask';
+    if (key === 'province' && /thornstag|basilisk/.test(lower)) return 'Hollow-Iron Antler Spike';
+    return '';
+  }
+
+  function isLegacyRaidTumblerSolved(puzzle) {
+    var s = puzzle && puzzle.state;
+    if (!s || !Array.isArray(s.pins) || !Array.isArray(s.targets)) return false;
+    for (var i = 0; i < 5; i++) {
+      if (Number(s.pins[i] || 1) !== Number(s.targets[i] || 1)) return false;
+    }
+    return true;
+  }
+
+  function renderLegacyRaidTumblerControls(missionId, wingNum, roomIdx, puzzle) {
+    var s = puzzle && puzzle.state ? puzzle.state : {};
+    var pins    = Array.isArray(s.pins)     ? s.pins     : [1,1,1,1,1];
+    var targets = Array.isArray(s.targets)  ? s.targets  : [3,2,4,1,5];
+    var revealed = Array.isArray(s.revealed) ? s.revealed : [];
+    var MAX = 5;
+    // Render each pin as a vertical stack of 5 cells.
+    // Current height cell is highlighted; a subtle indicator if it's the target.
+    var pinCols = pins.map(function (height, idx) {
+      var isTarget = Number(height) === Number(targets[idx]);
+      var isRevealed = revealed.indexOf(idx) >= 0;
+      var borderColor = isTarget ? 'rgba(46,196,182,.7)' : 'rgba(255,255,255,.18)';
+      var cells = '';
+      for (var pos = MAX; pos >= 1; pos--) {
+        var active = pos === Number(height);
+        var bg = active
+          ? (isTarget ? 'rgba(46,196,182,.5)' : 'rgba(220,160,40,.5)')
+          : 'rgba(255,255,255,.03)';
+        var tick = active && isRevealed && isTarget ? '✓' : (active ? '▌' : '');
+        cells += '<div style="width:42px;height:22px;background:' + bg + ';border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:.65rem;color:' + (active ? 'var(--gold2)' : 'var(--muted2)') + ';">' + tick + '</div>';
+      }
+      return '<div style="display:flex;flex-direction:column;align-items:center;gap:.06rem;">'
+        + cells
+        + '<button class="btn btn-xs btn-primary" style="width:42px;margin-top:.1rem;border-color:' + borderColor + ';" '
+        + 'onclick="submitLegacyRaidPuzzleAction(' + missionId + ',' + wingNum + ',' + roomIdx + ',\'tumbler_push\',' + idx + ')">&uarr;</button>'
+        + '<div style="font-size:.6rem;color:var(--muted2);margin-top:.06rem;">Pin ' + (idx+1) + '</div>'
+        + '</div>';
+    }).join('');
+    var feedbackRow = '';
+    var atTarget = pins.filter(function (h, i) { return Number(h) === Number(targets[i]); }).length;
+    if (atTarget > 0) {
+      feedbackRow = '<div style="font-size:.68rem;color:var(--teal);margin-top:.14rem;">'
+        + atTarget + '/5 pins feel set. Listen for the binding click.</div>';
+    }
+    return '<div style="margin-bottom:.22rem;">'
+      + '<div style="font-size:.69rem;color:var(--muted2);margin-bottom:.14rem;">Push each pin up until you feel it set. A teal border means the pin clicked into place. Press <strong style="color:var(--gold2);">Try Lock</strong> when all five are set.</div>'
+      + '<div style="display:flex;gap:.2rem;justify-content:center;margin-bottom:.1rem;">' + pinCols + '</div>'
+      + feedbackRow
+      + '<div style="margin-top:.2rem;display:flex;gap:.18rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-primary" onclick="submitLegacyRaidPuzzleAction(' + missionId + ',' + wingNum + ',' + roomIdx + ',\'tumbler_try\',0)">🔓 Try Lock</button>'
+      + '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + missionId + ',' + wingNum + ',' + roomIdx + ',\'tumbler_probe\',0)" title="Feel for binding pins — reveals which pins are currently at their target height (without telling you the target number)">🖐 Feel Binding</button>'
+      + '</div>'
+      + '</div>';
+  }
+
   function getLegacyRaidSeed(mission) {
     var text = String(mission && mission.title || '') + '|' + String(mission && mission.region || '') + '|' + String(mission && mission.id || '0');
     var hash = 0;
@@ -1919,6 +2009,12 @@
         setup: String(chosenBoss.cinematic && chosenBoss.cinematic.setup || fallbackBoss.cinematic.setup),
         challenge: String(chosenBoss.cinematic && chosenBoss.cinematic.challenge || fallbackBoss.cinematic.challenge)
       };
+    }
+    if (!mission.legacyRaidBossRequiredWeapon) {
+      mission.legacyRaidBossRequiredWeapon = String(chosenBoss.requiresWeapon || getLegacyRaidBossRequiredWeapon(region, mission.legacyRaidBoss) || '');
+    }
+    if (typeof mission.legacyRaidBossWeaponAcquired !== 'boolean') {
+      mission.legacyRaidBossWeaponAcquired = !mission.legacyRaidBossRequiredWeapon;
     }
     if (!mission.step1Intro) {
       mission.step1Intro = 'Wing 1 is the lore breach. Recover the fragment that explains why ' + mission.legacyRaidBoss + ' matters to this route network before the timer collapses.';
@@ -2264,13 +2360,18 @@
           id: 'wing2-armory',
           rarity: 'silver',
           line: bossName + ' Armory Spoils Chest',
-          detail: '+1 medal reward, +2 raid power bonus, and one free Recover per combat room.',
+          detail: (mission && mission.legacyRaidBossRequiredWeapon
+            ? ('Acquire required weapon: ' + String(mission.legacyRaidBossRequiredWeapon) + ' · ')
+            : '') + '+1 medal reward, +2 raid power bonus, and one free Recover per combat room.',
           apply: function (m) {
             m.legacyRaidMedalReward = Number(m.legacyRaidMedalReward || 1) + 1;
             m.legacyRaidPowerBonus = Number(m.legacyRaidPowerBonus || 0) + 2;
             m.bonus = Math.min(20, Number(m.bonus || 0) + 2);
             var p = ensureLegacyRaidPerks(m);
             p.freeRecoverPerWing = Number(p.freeRecoverPerWing || 0) + 1;
+            if (m.legacyRaidBossRequiredWeapon) {
+              m.legacyRaidBossWeaponAcquired = true;
+            }
           }
         },
         {
@@ -2858,13 +2959,49 @@
   function getLegacyRaidBossActionSet(mission) {
     if (mission && Array.isArray(mission.legacyRaidBossActions) && mission.legacyRaidBossActions.length) {
       return mission.legacyRaidBossActions.map(function (line, idx) {
+        if (line && typeof line === 'object') {
+          var objectAction = Object.assign({}, line);
+          objectAction.name = String(objectAction.name || ('Boss Pattern ' + (idx + 1)));
+          objectAction.text = String(objectAction.text || objectAction.name);
+          if (!Array.isArray(objectAction.ranges) || !objectAction.ranges.length) objectAction.ranges = ['Engaged', 'Close', 'Nearby', 'Far'];
+          if (typeof objectAction.dreadDie !== 'number') objectAction.dreadDie = 10;
+          if (!objectAction.stat) objectAction.stat = 'Strike';
+          if (typeof objectAction.tmwDefend !== 'number') objectAction.tmwDefend = 4;
+          if (!objectAction.effect) objectAction.effect = objectAction.raidwide ? 'stress' : 'health';
+          if (!objectAction.damage) objectAction.damage = 'dd';
+          objectAction.kind = objectAction.kind || (objectAction.effect === 'stress' || objectAction.effect === 'condition' ? 'directStress' : 'defendCheck');
+          return objectAction;
+        }
         var text = String(line || 'Boss pressure action');
         var lower = text.toLowerCase();
+        var raidwide = /all|raid|everyone|chain|wave|broadcast|shock|flood/.test(lower);
+        var effect = /stress|panic|fear|mind/.test(lower)
+          ? 'stress'
+          : (/hazard|fire|collapse|zone|lane|flood/.test(lower) ? 'zone_hazard' : 'health');
+        var stat = /lore|decode|pattern|signal/.test(lower)
+          ? 'Lore'
+          : (/spirit|faith|morale/.test(lower) ? 'Spirit' : (/craft|tech|mechanic/.test(lower) ? 'Craft' : 'Body'));
+        var condition = /panic|fear/.test(lower)
+          ? 'Panicked'
+          : (/stun|stagger|freeze/.test(lower) ? 'Stunned' : (/burn|fire/.test(lower) ? 'Burned' : (/irradiat|radiation/.test(lower) ? 'Irradiated' : '')));
+        var hazard = effect === 'zone_hazard'
+          ? { zone: /far/.test(lower) ? 'Far' : (/near/.test(lower) ? 'Nearby' : 'Close'), type: /collapse|seal|lock/.test(lower) ? 'disabled' : 'fire', rounds: /2|double/.test(lower) ? 2 : 1, desc: text }
+          : null;
         return {
           name: text.split(':')[0] || ('Boss Pattern ' + (idx + 1)),
           text: text,
-          raidwide: /all|raid|everyone|chain|wave|broadcast|shock|flood/.test(lower),
-          kind: /hack|signal|psychic/.test(lower) ? 'hack' : (/health|crush|slam|impact/.test(lower) ? 'healthStrike' : (/radiation|toxic|brine|shock|lash/.test(lower) ? 'directStress' : 'defendCheck'))
+          raidwide: raidwide,
+          kind: /hack|signal|psychic/.test(lower) ? 'hack' : (/health|crush|slam|impact/.test(lower) ? 'healthStrike' : (/radiation|toxic|brine|shock|lash/.test(lower) ? 'directStress' : 'defendCheck')),
+          dreadDie: raidwide ? 12 : 10,
+          stat: stat,
+          vsDefend: /strike|shoot|hit|slam|crush/.test(lower),
+          effect: effect,
+          damage: /\+d6/.test(lower) ? 'dd+d6' : (/\+d4/.test(lower) ? 'dd+d4' : 'dd'),
+          condition: condition,
+          injures: /injur|cripple|disable personal flavor/.test(lower),
+          zoneHazard: hazard,
+          ranges: raidwide ? ['Engaged', 'Close', 'Nearby', 'Far'] : ['Engaged', 'Close'],
+          tmwDefend: raidwide ? 6 : 4
         };
       });
     }
@@ -3188,24 +3325,189 @@
     if (!encounter) return;
     encounter.active = !!active;
   }
+  // ─── Zone Hazard State ────────────────────────────────────────────────────
+  function ensureLegacyRaidZoneHazards(mission) {
+    if (!mission.legacyRaidZoneHazards || typeof mission.legacyRaidZoneHazards !== 'object') mission.legacyRaidZoneHazards = {};
+    return mission.legacyRaidZoneHazards;
+  }
+  function tickLegacyRaidZoneHazards(mission) {
+    var haz = ensureLegacyRaidZoneHazards(mission);
+    Object.keys(haz).forEach(function (zone) {
+      var h = haz[zone];
+      if (h && Number(h.rounds || 0) > 0) {
+        h.rounds = Number(h.rounds) - 1;
+        if (h.rounds <= 0) {
+          delete haz[zone];
+          if (typeof S !== 'undefined' && S && S.combatMap && Array.isArray(S.combatMap.hazards))
+            S.combatMap.hazards = S.combatMap.hazards.filter(function (h2) { return h2.zone !== zone; });
+        }
+      }
+    });
+    if (typeof renderCombatMap === 'function') renderCombatMap();
+  }
+  function applyLegacyRaidZoneHazard(mission, zoneHazard) {
+    if (!zoneHazard || !zoneHazard.zone) return;
+    var haz = ensureLegacyRaidZoneHazards(mission);
+    haz[String(zoneHazard.zone)] = { type: String(zoneHazard.type || 'fire'), rounds: Math.max(1, Number(zoneHazard.rounds || 1)), desc: String(zoneHazard.desc || '') };
+    if (typeof S !== 'undefined' && S && S.combatMap) {
+      if (!Array.isArray(S.combatMap.hazards)) S.combatMap.hazards = [];
+      S.combatMap.hazards = S.combatMap.hazards.filter(function (h) { return h.zone !== zoneHazard.zone; });
+      S.combatMap.hazards.push({ zone: zoneHazard.zone, type: String(zoneHazard.type || 'fire'), rounds: Math.max(1, Number(zoneHazard.rounds || 1)), desc: String(zoneHazard.desc || '') });
+      if (typeof renderCombatMap === 'function') renderCombatMap();
+    }
+  }
+
+  // ─── Boss Action Resolution ──────────────────────────────────────────────
   function buildLegacyRaidCombatEnemyEvents(mission) {
     var encounter = ensureLegacyRaidBossEncounter(mission);
     var actions = encounter && Array.isArray(encounter.actions) ? encounter.actions : [];
     if (!actions.length) return [];
-    return actions.map(function (action, idx) {
-      var kind = action && action.kind ? action.kind : (action && action.raidwide ? 'directStress' : 'defendCheck');
+    return actions.map(function (action) {
+      var effect = String(action && action.effect || 'health');
+      var kind = (effect === 'stress' || effect === 'condition') ? 'directStress' : 'defendCheck';
+      var dd = Number(action && action.dreadDie || 8);
       return {
-        name: String(action && action.name || ('Boss Pattern ' + (idx + 1))),
-        desc: String(action && action.text || 'Boss pressure pattern.'),
+        name: String(action && action.name || 'Boss Pattern'),
+        desc: String(action && action.text || ''),
         kind: kind,
-        bonus: Math.max(0, Number((mission && mission.legacyRaidProfile && mission.legacyRaidProfile.actionPressureBonus) || 0)),
-        scale: kind === 'healthStrike' ? 4 : 2,
-        element: /shock|static|electric|current|lash/i.test(String(action && action.text || '')) ? 'shock' : 'kinetic',
-        ranges: ['engaged', 'close', 'nearby', 'far'],
+        dreadDie: dd,
+        stat: String(action && action.stat || 'Strike'),
+        vsDefend: !!(action && action.vsDefend),
+        damage: String(action && action.damage || 'dd'),
+        condition: String(action && action.condition || ''),
+        injures: !!(action && action.injures),
+        zoneHazard: (action && action.zoneHazard) ? action.zoneHazard : null,
+        selfHeal: Number(action && action.selfHeal || 0),
+        tmwDefend: Number(action && action.tmwDefend || 3),
+        ranges: Array.isArray(action && action.ranges) ? action.ranges.map(function (r) { return r.toLowerCase(); }) : ['engaged'],
         raidBoss: true
       };
     });
   }
+
+  function pickLegacyRaidBossActionForZone(mission, encounter) {
+    var actions = Array.isArray(encounter && encounter.actions) ? encounter.actions : [];
+    if (!actions.length) return null;
+    var zoneOrder = ['Engaged', 'Close', 'Nearby', 'Far'];
+    var closestZone = 'Engaged';
+    if (typeof S !== 'undefined' && S && S.combatMap && Array.isArray(S.combatMap.units)) {
+      for (var zi = 0; zi < zoneOrder.length; zi++) {
+        var zc = zoneOrder[zi];
+        if (S.combatMap.units.some(function (u) { return u.side === 'ally' && u.zone === zc; })) { closestZone = zc; break; }
+      }
+    }
+    var suited = actions.filter(function (a) {
+      return !Array.isArray(a.ranges) || a.ranges.length === 4 || a.ranges.indexOf(closestZone) >= 0;
+    });
+    if (!suited.length) suited = actions;
+    return suited[Math.floor(Math.random() * suited.length)];
+  }
+
+  function buildBossActionPromptHtml(mission, action, targetZone) {
+    var dd = Number(action && action.dreadDie || 8);
+    var stat = String(action && action.stat || 'Strike');
+    var vsDefend = !!(action && action.vsDefend);
+    var bonusStr = String(action && action.damage || 'dd').replace('dd', 'd' + dd);
+    var rollLabel = vsDefend
+      ? '<strong>' + stat + ' d6</strong> vs Dread <strong>d' + dd + '</strong>'
+      : '<strong>Save:</strong> ' + stat + ' d6 must exceed Dread d' + dd;
+    var effect = String(action && action.effect || 'health');
+    var effectStr = effect === 'health' ? 'HP damage (' + bonusStr + ')' : effect === 'stress' ? 'Mental Stress (' + bonusStr + ')' : effect === 'condition' ? (action.condition || 'Status') + ' condition' : effect === 'zone_hazard' ? 'Zone hazard + damage' : effect === 'self_heal' ? 'Boss heals ' + Number(action.selfHeal || 0) + ' HP' : 'Damage + status';
+    var hazardNote = action && action.zoneHazard ? '<div style="margin-top:.1rem;font-size:.67rem;color:var(--red2);"><strong>⚠ Zone Effect:</strong> ' + String(action.zoneHazard.desc || '') + ' (' + Number(action.zoneHazard.rounds || 1) + ' round' + (Number(action.zoneHazard.rounds || 1) !== 1 ? 's' : '') + ')</div>' : '';
+    var condNote = (action && action.condition) ? '<div style="font-size:.67rem;color:var(--gold2);">Condition on hit: <strong>' + action.condition + '</strong>' + (action.injures ? ' · Personal Flavor disabled' : '') + '</div>' : (action && action.injures ? '<div style="font-size:.67rem;color:var(--gold2);">Injury → Personal Flavor disabled</div>' : '');
+    var tmwCost = Number(action && action.tmwDefend || 3);
+    var tmwPool = getLegacyRaidTeamworkPool();
+    var canPrevent = tmwPool >= tmwCost;
+    var bossName = String(mission.legacyRaidBoss || 'Boss');
+    return '<div style="border:1px solid rgba(200,50,50,.40);background:rgba(200,50,50,.08);padding:.4rem .46rem;border-radius:4px;">'
+      + '<div style="font-size:.78rem;color:var(--red2);font-weight:700;margin-bottom:.1rem;">&#x2694; ' + bossName + ' \u2192 ' + String(action.name || 'Action') + '</div>'
+      + '<div style="font-size:.69rem;color:var(--text2);line-height:1.5;margin-bottom:.14rem;">' + String(action.text || '') + '</div>'
+      + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Roll:</strong> ' + rollLabel + ' \u00b7 Effect: ' + effectStr + '</div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);margin-bottom:.06rem;">Target zone(s): <strong>' + (Array.isArray(action.ranges) ? action.ranges.join(' / ') : 'All') + '</strong> \u00b7 Closest ally: <strong>' + targetZone + '</strong></div>'
+      + hazardNote + condNote
+      + '<div style="margin-top:.16rem;display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">'
+      + '<button class="btn btn-xs btn-primary" onclick="window.resolveLegacyRaidBossActionEffect(' + mission.id + ',' + tmwCost + ',false)">Resolve Attack</button>'
+      + '<button class="btn btn-xs btn-warn" ' + (canPrevent ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidBossActionEffect(' + mission.id + ',' + tmwCost + ',true)">Spend ' + tmwCost + ' TMW: Prevent</button>'
+      + '<span style="font-size:.62rem;color:var(--muted2);">Pool: ' + tmwPool + ' TMW</span>'
+      + '</div>'
+      + '</div>';
+  }
+
+  window.triggerLegacyRaidBossAction = function (missionId) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var encounter = ensureLegacyRaidBossEncounter(mission);
+    if (!encounter || !encounter.active) return false;
+    var action = pickLegacyRaidBossActionForZone(mission, encounter);
+    if (!action) return false;
+    encounter.currentAction = action;
+    encounter.pendingAction = action;
+    encounter.log.push('Boss triggers: ' + String(action.name || '?') + ' [' + String(action.stat || '?') + ' d' + Number(action.dreadDie || 8) + ' vs Dread]');
+    var targetZone = 'Engaged';
+    if (typeof S !== 'undefined' && S && S.combatMap && Array.isArray(S.combatMap.units)) {
+      var zoneOrder = ['Engaged','Close','Nearby','Far'];
+      for (var zi = 0; zi < zoneOrder.length; zi++) {
+        var zc = zoneOrder[zi];
+        if (S.combatMap.units.some(function (u) { return u.side === 'ally' && u.zone === zc; })) { targetZone = zc; break; }
+      }
+    }
+    var promptHtml = buildBossActionPromptHtml(mission, action, targetZone);
+    if (typeof openModal === 'function') openModal('Enemy Action \u2014 ' + String(action.name || 'Boss Strike'), promptHtml);
+    else if (typeof showNotif === 'function') showNotif(String(action.name || '') + ': ' + String(action.text || ''), 'warn');
+    return true;
+  };
+
+  window.resolveLegacyRaidBossActionEffect = function (missionId, tmwCost, spend) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var encounter = ensureLegacyRaidBossEncounter(mission);
+    if (!encounter) return false;
+    var action = encounter.pendingAction || encounter.currentAction;
+    if (!action) return false;
+    if (typeof closeModal === 'function') closeModal();
+    if (spend) {
+      var spent = spendLegacyRaidTeamwork(Number(tmwCost || 0), 'Prevent: ' + String(action.name || ''));
+      if (!spent) { encounter.log.push('Not enough TMW to prevent ' + String(action.name || '') + '.'); }
+      else {
+        encounter.prepTags = encounter.prepTags || {};
+        encounter.prepTags['tmw-prevent'] = Number(encounter.prepTags['tmw-prevent'] || 0) + 1;
+        encounter.pendingAction = null;
+        encounter.log.push('TMW burst: ' + tmwCost + ' spent \u2014 ' + String(action.name || '') + ' prevented.');
+        openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
+        return true;
+      }
+    }
+    var roll = function (sides) { return Math.floor(Math.random() * Math.max(1, Number(sides || 6))) + 1; };
+    var dd = Number(action.dreadDie || 8);
+    var dreadRoll = roll(dd);
+    var bonusRoll = 0;
+    var dmgStr = String(action.damage || 'dd');
+    if (dmgStr.indexOf('+d') >= 0) { bonusRoll = roll(parseInt(dmgStr.split('+d')[1] || '4', 10)); }
+    var effect = String(action.effect || 'health');
+    var totalDmg = (dmgStr === '0' || effect === 'self_heal') ? 0 : (dreadRoll + bonusRoll);
+    encounter.log.push(String(action.name || '') + ': Dread d' + dd + ' rolled ' + dreadRoll + (bonusRoll ? '+' + bonusRoll + '=' + totalDmg : '') + '.');
+    if (action.zoneHazard) applyLegacyRaidZoneHazard(mission, action.zoneHazard);
+    if (action.condition) encounter.log.push('Condition: ' + action.condition + ' applied.');
+    if (action.injures) encounter.log.push('Injury: Personal Flavor actions disabled until cleansed.');
+    if (effect === 'self_heal' && action.selfHeal) {
+      encounter.hp = Number(encounter.hp || 0) + Number(action.selfHeal || 0);
+      if (typeof S !== 'undefined' && S && Array.isArray(S.enemies) && S.enemies[0]) S.enemies[0].health = Math.max(0, Number(S.enemies[0].health || 0) + Number(action.selfHeal || 0));
+      encounter.log.push('Boss healed ' + action.selfHeal + ' HP.');
+    }
+    if ((effect === 'health' || effect === 'multi') && totalDmg > 0) {
+      if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - totalDmg);
+      encounter.log.push(String(action.stat || '?') + ' d6 vs Dread d' + dd + ': player takes ' + totalDmg + ' HP.');
+    }
+    if ((effect === 'stress' || effect === 'multi') && dreadRoll > 0) {
+      if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + dreadRoll);
+      encounter.log.push(String(action.stat || '?') + ' Mind vs Dread d' + dd + ': +' + dreadRoll + ' Mental Stress.');
+    }
+    encounter.pendingAction = null;
+    tickLegacyRaidZoneHazards(mission);
+    if (typeof renderEnemies === 'function') renderEnemies();
+    openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
+    return true;
+  };
   function seedLegacyRaidBossCombatScene(mission) {
     if (!mission || mission.missionType !== 'legacy_raid') return false;
     if (mission.legacyRaidCombatSeeded) return true;
@@ -3590,6 +3892,12 @@
         var dreadDieNow = getLegacyRaidBossDreadDie(encounter);
         var teamworkPool = getLegacyRaidTeamworkPool();
         var teamworkCosts = getLegacyRaidTeamworkBurstCosts(mission);
+        var weaponStatusText = mission.legacyRaidBossRequiredWeapon
+          ? ('Required finisher weapon: <strong>' + String(mission.legacyRaidBossRequiredWeapon) + '</strong> · '
+            + (mission.legacyRaidBossWeaponAcquired
+              ? '<span style="color:var(--green2);">Acquired</span>'
+              : '<span style="color:var(--red2);">Missing (check Wing 2 armory loot)</span>'))
+          : 'No special finisher weapon required.';
         var teamworkRow = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.14rem;">'
           + '<button class="btn btn-xs btn-primary" ' + (teamworkPool >= teamworkCosts.prevent ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'prevent_action\')">Spend ' + teamworkCosts.prevent + ' TMW: Prevent</button>'
           + '<button class="btn btn-xs btn-teal" ' + (teamworkPool >= teamworkCosts.negateWipe ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'negate_wipe\')">Spend ' + teamworkCosts.negateWipe + ' TMW: Bank Wipe Shield</button>'
@@ -3696,6 +4004,7 @@
           + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.1rem;">Resources — Focus: ' + Number(resources.focus || 0) + ' · Momentum: ' + Number(resources.momentum || 0) + ' · Guard: ' + Number(resources.guard || 0) + ' · Timer: ' + Number(runState && runState.clockRemaining || 0) + '</div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.2rem;margin-bottom:.16rem;">' + roleActionHtml + '</div>'
           + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.14rem;">' + utilityRow + '</div>'
+          + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.08rem;">' + weaponStatusText + '</div>'
           + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.08rem;">Teamwork Pool: ' + teamworkPool + ' TMW · Failed rolls feed TMW, and you can cash it in to avert wipe mechanics.</div>'
           + teamworkRow
           + '<div style="font-size:.66rem;margin-bottom:.14rem;">' + roleStatusText + '</div>'
@@ -4576,6 +4885,16 @@
     var run = ensureLegacyRaidRunState(mission);
 
     if (success) {
+      if (mission.legacyRaidBossRequiredWeapon && !mission.legacyRaidBossWeaponAcquired) {
+        if (bossRoom) {
+          bossRoom.result = '⚠ ' + String(mission.legacyRaidBoss || 'Boss') + ' is vulnerable but cannot be finished without ' + String(mission.legacyRaidBossRequiredWeapon) + '.';
+        }
+        if (typeof showNotif === 'function') {
+          showNotif('Boss is not finishable yet. Acquire ' + String(mission.legacyRaidBossRequiredWeapon) + ' from Wing 2 armory loot.', 'warn');
+        }
+        openRaidWingPopup(missionId, 3, (rooms || []).length - 1);
+        return false;
+      }
       if (bossRoom) { bossRoom.cleared = true; bossRoom.result = '🐉 ' + String(mission.legacyRaidBoss || 'Boss') + ' defeated. Raid clear.'; }
       var encounter = ensureLegacyRaidBossEncounter(mission);
       if (encounter) encounter.active = false;
@@ -4698,10 +5017,10 @@
         log: [],
         state: {}
       };
-      if (mode === 'lock_dials') room.raidPuzzle.state.code = [roll(6), roll(6), roll(6)];
+      if (mode === 'lock_dials') room.raidPuzzle.state = createLegacyRaidTumblerState(mission);
       else if (mode === 'symbol_match') room.raidPuzzle.state.target = ['SUN', 'WAVE', 'MOON'][Math.floor(Math.random() * 3)];
       else if (mode === 'constellation') room.raidPuzzle.state.target = '135';
-      else if (mode === 'pipe_flow') room.raidPuzzle.state = createLegacyRaidPipeFlowState();
+      else if (mode === 'pipe_flow')      room.raidPuzzle.state = createLegacyRaidPipeFlowState();
       else if (mode === 'weight_balance') room.raidPuzzle.state = createLegacyRaidWeightBalanceState();
       else if (mode === 'limited_move') room.raidPuzzle.state.path = 'LURRD';
       else if (mode === 'shape_route') room.raidPuzzle.state.target = 'ABCD';
@@ -4723,9 +5042,10 @@
       hints.push('Previous room clue: ' + (prev.type === 'LoreReading' ? 'The archive emphasized parity and mirrored routes.' : 'Recovered logs marked left-to-right traversal priority.'));
     }
     if (puzzle.mode === 'lock_dials') {
-      var code = puzzle.state.code || [1, 1, 1];
-      hints.push('Tumbler clue: first dial ' + (code[0] <= 3 ? 'leans low (1-3).' : 'leans high (4-6).'));
-      hints.push('Tumbler clue: second dial is ' + (code[1] % 2 === 0 ? 'even.' : 'odd.'));
+      var targets = Array.isArray(puzzle.state.targets) ? puzzle.state.targets : [1, 1, 1, 1, 1];
+      var highPins = targets.filter(function (n) { return Number(n || 0) >= 4; }).length;
+      hints.push('Tumbler clue: ' + highPins + ' pin(s) are set in high positions (4-5).');
+      hints.push('Tumbler clue: the leftmost pin prefers a ' + (Number(targets[0] || 1) % 2 === 0 ? 'quiet even click.' : 'sharp odd click.'));
       if (assist > 0) hints.push('Wayfarer support can stabilize one tumbler alignment this attempt.');
     } else if (puzzle.mode === 'symbol_match') {
       hints.push('Symbol clue: match dominant icon family revealed in prior telemetry.');
@@ -4850,12 +5170,7 @@
     var hints = buildLegacyRaidPuzzleHints(mission, wingNum, roomIdx);
     var controls = '';
     if (puzzle.mode === 'lock_dials') {
-      controls = '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-bottom:.2rem;">'
-        + '<select id="raidDialA">' + [1,2,3,4,5,6].map(function (n) { return '<option value="' + n + '">' + n + '</option>'; }).join('') + '</select>'
-        + '<select id="raidDialB">' + [1,2,3,4,5,6].map(function (n) { return '<option value="' + n + '">' + n + '</option>'; }).join('') + '</select>'
-        + '<select id="raidDialC">' + [1,2,3,4,5,6].map(function (n) { return '<option value="' + n + '">' + n + '</option>'; }).join('') + '</select>'
-        + '<button class="btn btn-xs btn-primary" onclick="submitLegacyRaidLockDialGuess(' + mission.id + ',' + wingNum + ',' + roomIdx + ',document.getElementById(\'raidDialA\').value,document.getElementById(\'raidDialB\').value,document.getElementById(\'raidDialC\').value)">Align Tumblers</button>'
-        + '</div>';
+      controls = renderLegacyRaidTumblerControls(mission.id, wingNum, roomIdx, puzzle);
     } else if (puzzle.mode === 'symbol_match') {
       controls = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.2rem;">'
         + ['SUN','WAVE','MOON'].map(function (sym) { return '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'symbol\',\'' + sym + '\')">' + sym + '</button>'; }).join('')
@@ -4956,6 +5271,41 @@
       puzzle.state.route = String((puzzle.state.route || '') + String(payload || ''));
       ok = String(puzzle.state.route || '') === String(puzzle.state.target || 'ABCD');
       puzzle.log.push('Shape route: ' + String(puzzle.state.route || ''));
+    } else if (mode === 'lock_dials' && action === 'tumbler_push') {
+      // Push pin at index up by 1 (wraps 5→1)
+      var pinIdx = Math.max(0, Math.min(4, Number(payload || 0)));
+      if (!Array.isArray(puzzle.state.pins)) puzzle.state.pins = [1,1,1,1,1];
+      puzzle.state.pins[pinIdx] = (Number(puzzle.state.pins[pinIdx] || 1) % 5) + 1;
+      puzzle.log.push('Pin ' + (pinIdx+1) + ' pushed to height ' + puzzle.state.pins[pinIdx] + '.');
+      ok = false; // pushing alone doesn't solve — must press Try Lock
+    } else if (mode === 'lock_dials' && action === 'tumbler_probe') {
+      // Reveal which pins are currently at their target heights
+      if (!Array.isArray(puzzle.state.pins))    puzzle.state.pins    = [1,1,1,1,1];
+      if (!Array.isArray(puzzle.state.targets)) puzzle.state.targets = [1,1,1,1,1];
+      if (!Array.isArray(puzzle.state.revealed)) puzzle.state.revealed = [];
+      puzzle.state.revealed = [];
+      var feelCount = 0;
+      for (var pi = 0; pi < 5; pi++) {
+        if (Number(puzzle.state.pins[pi] || 1) === Number(puzzle.state.targets[pi] || 1)) {
+          puzzle.state.revealed.push(pi);
+          feelCount++;
+        }
+      }
+      puzzle.log.push('You feel ' + feelCount + ' binding pin(s) at the correct height.');
+      ok = isLegacyRaidTumblerSolved(puzzle);
+    } else if (mode === 'lock_dials' && action === 'tumbler_try') {
+      ok = isLegacyRaidTumblerSolved(puzzle);
+      if (!ok) {
+        puzzle.attemptsLeft = Math.max(0, Number(puzzle.attemptsLeft || 0) - 1);
+        puzzle.log.push('Lock won\'t turn — pins not all set. Attempts left: ' + Number(puzzle.attemptsLeft || 0) + '.');
+        if (Number(puzzle.attemptsLeft || 0) <= 0) {
+          if (typeof closeModal === 'function') closeModal();
+          room.result = '🧩 Lock seized — tumblers jammed after too many failed attempts.';
+          return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
+        }
+        return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
+      }
+      puzzle.log.push('All five tumblers clicked into place. The lock opens.');
     }
 
     puzzle.state.moves = Number(puzzle.state.moves || 0) + 1;

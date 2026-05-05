@@ -9129,6 +9129,409 @@ const STAR_SIGHTING_COLORS = {
   star:             { label: 'MAIN STAR', color: '#ff9a3c' },
 };
 
+// Each action object:
+//   name       — short display name
+//   text       — narrative description shown to the player
+//   dreadDie   — which dread die the boss rolls (4 / 6 / 8 / 10 / 12 / 20)
+//   stat       — player action die that contests this (Strike / Shoot / Lore / Spirit / Body / Craft)
+//   vsDefend   — true = contested roll (action die vs dread); false = flat save (beat dread total)
+//   ranges     — zones this action can target: subset of ['Engaged','Close','Nearby','Far']
+//   effect     — primary effect type: 'health' | 'stress' | 'condition' | 'zone_hazard' | 'self_heal' | 'multi'
+//   damage     — e.g. 'dd' (= dreadDie), 'dd+d4', 'dd+d6', or a flat number string
+//   zoneHazard — optional { zone, type: 'fire'|'disabled'|'collapsed', rounds, desc }
+//   condition  — optional condition applied on hit: 'Frozen'|'Burned'|'Irradiated'|'Stunned'|'Panicked'|'Injured'|'Blinded'
+//   injures    — true → disables Personal Flavor actions for that Wayfarer
+//   selfHeal   — optional number the boss heals on use
+//   tmwDefend  — TMW cost to fully prevent this action
+//   wingTheme  — short wing mechanic hint shown in pre-boss wings
+Object.assign(LEGACY_RAID_BOSS_POOLS, {
+  province: [
+    {
+      name: 'Ashwake Dragon',
+      hp: 24, actionsPerRound: 2,
+      uniqueLoot: 'Ashwake Scale Mantle',
+      flavor: 'An ancient ruin-dragon that nests in collapsed shrine roads.',
+      requiresWeapon: null,
+      wingTheme: 'Cinder trails score the walls — learn the breath-direction in wing rooms before you reach the dragon.',
+      actions: [
+        { name: 'Wingbeat Avalanche', text: 'The dragon pounds the ground — Far band collapses for 1 round. Anyone there is forced into Nearby.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'collapsed', rounds: 1, desc: 'Far band collapsed — forced retreat to Nearby.' }, tmwDefend: 4 },
+        { name: 'Cinder Hoard Pulse', text: 'A burst of molten embers from the chest — Body save vs Dread or take damage and gain Burned.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close'], effect: 'multi', damage: 'dd', condition: 'Burned', tmwDefend: 5 },
+        { name: 'Molten Oath Roar', text: 'Raidwide sonic-fire blast — Lore vs Dread or take Stress and lose Personal Flavor action next turn.', dreadDie: 10, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'stress', damage: 'dd', injures: true, tmwDefend: 6 },
+        { name: 'Shrine Road Slam', text: 'Chromefist-style slam — Strike vs Dread DD+d4 at Engaged target. Injury on big miss.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', injures: true, tmwDefend: 4 },
+        { name: 'Vault Breath', text: 'Sets Close band on fire — Burned condition and +2 Stress to every unit in Close this round.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Close'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'fire', rounds: 1, desc: 'Close band on fire — Burned + 2 Stress to all there.' }, condition: 'Burned', tmwDefend: 7 }
+      ]
+    },
+    {
+      name: 'Cryptid Thornstag',
+      hp: 20, actionsPerRound: 2,
+      uniqueLoot: 'Thornstag Crown Rack',
+      flavor: 'A horned territorial myth-beast that remembers old borders.',
+      requiresWeapon: 'Hollow-Iron Antler Spike',
+      wingTheme: 'Mirror-antler hallucinations repeat in wing rooms — you will fight a false version of earlier enemies.',
+      actions: [
+        { name: 'Mirror-Antler Feint', text: 'Creates a duplicate — Lore vs Dread or target attacks the wrong copy (wasted action).', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close'], effect: 'condition', damage: '0', condition: 'Panicked', tmwDefend: 4 },
+        { name: 'Bramble Stampede', text: 'Charges through Nearby/Far — Shoot vs Dread or take damage. Far band becomes thorned terrain (disabled 1 round).', dreadDie: 8, stat: 'Shoot', vsDefend: true, ranges: ['Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'collapsed', rounds: 1, desc: 'Thorned terrain — Far band disabled.' }, tmwDefend: 4 },
+        { name: 'Heartwood Bellow', text: 'If Puzzle was skipped this wing — boss heals 6 HP with a defiant roar. Spirit save vs Dread or Panicked.', dreadDie: 8, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'multi', selfHeal: 6, condition: 'Panicked', damage: '0', tmwDefend: 5 },
+        { name: 'Root Grapple', text: 'Vines seize the closest Engaged unit — Body vs Dread or lose next turn (Stunned).', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Antler Gore', text: 'Direct charge — Strike+d6 vs Defend. Hard hit injures, disabling Personal Flavor.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d6', injures: true, tmwDefend: 5 }
+      ]
+    },
+    {
+      name: 'Gravemouth Wyrm',
+      hp: 22, actionsPerRound: 2,
+      uniqueLoot: 'Gravemouth Core',
+      flavor: 'A tunneling ruin-serpent beneath quarry routes.',
+      requiresWeapon: null,
+      wingTheme: 'Tremors mark the wyrm\'s approach — use Combat rooms to learn the tunnel vibration patterns.',
+      actions: [
+        { name: 'Sinkhole Lunge', text: 'The ground opens — Body vs Dread or nearest unit drops from Far to Engaged involuntarily.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Far','Nearby'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 4 },
+        { name: 'Stone Swallow', text: 'Devours an item or puzzle result unless Support holds — Craft vs Dread or lose one loot/clue.', dreadDie: 8, stat: 'Craft', vsDefend: false, ranges: ['Engaged','Close'], effect: 'condition', damage: 'dd', condition: 'Injured', tmwDefend: 4 },
+        { name: 'Dust Cyclone Tail', text: 'Tail whip converts Nearby cover into hazard — Nearby becomes fire zone for 1 round.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'fire', rounds: 1, desc: 'Nearby band: hazard dust — equivalent to fire.' }, condition: 'Burned', tmwDefend: 5 },
+        { name: 'Tunnel Collapse', text: 'Burrows and re-emerges — Far band collapses for 2 rounds; units pushed to Nearby.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'collapsed', rounds: 2, desc: 'Tunnel collapse — Far band unusable for 2 rounds.' }, tmwDefend: 6 },
+        { name: 'Maw Swallow', text: 'Swallows the lead fighter — Strike vs Dread DD+d6. Injury + Blinded until freed.', dreadDie: 12, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d6', condition: 'Blinded', injures: true, tmwDefend: 7 }
+      ]
+    },
+    {
+      name: 'Bell Tower Matron',
+      hp: 20, actionsPerRound: 3,
+      uniqueLoot: 'Matron Bell Shard',
+      flavor: 'A skeletal brood-queen nesting in ruined belfries.',
+      requiresWeapon: null,
+      wingTheme: 'Choir fragments scattered in wing rooms — silencing them reduces the Matron\'s action count on reach.',
+      actions: [
+        { name: 'Carrion Choir Summon', text: 'Summons choir — each un-silenced member adds +1 to next Dread roll. Lore vs Dread to push through.', dreadDie: 6, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'stress', damage: 'dd', tmwDefend: 3 },
+        { name: 'Cathedral Toll Shockwave', text: 'Sonic bell shock — Spirit vs Dread or Panicked condition and 1 Stress.', dreadDie: 8, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby'], effect: 'multi', damage: 'dd', condition: 'Panicked', tmwDefend: 4 },
+        { name: 'Veil Molt', text: 'Changes weakness each round — previously effective stat no longer counts until Lore check reveals new weakness.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: '0', condition: 'Blinded', tmwDefend: 4 },
+        { name: 'Belfry Dive', text: 'Dives from above — Shoot+d4 vs Defend. Knocks unit from Engaged to Close and injures.', dreadDie: 10, stat: 'Shoot', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', injures: true, tmwDefend: 5 },
+        { name: 'Bone Toll Final', text: 'Phase finale bell — raidwide Spirit vs Dread DD12 or all take 2 Stress and lose Personal Flavor next phase.', dreadDie: 12, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'stress', damage: 'dd', injures: true, tmwDefend: 8 }
+      ]
+    },
+    {
+      name: 'Ironroot Basilisk',
+      hp: 26, actionsPerRound: 2,
+      uniqueLoot: 'Ironroot Eye',
+      flavor: 'A plated cryptid feeding on old war metal.',
+      requiresWeapon: 'Shatter-Glass Vial',
+      wingTheme: 'Metal walls corrode wherever the Basilisk has passed — Craft rooms teach the anti-rust formula used to crack its plates.',
+      actions: [
+        { name: 'Petrify Gaze', text: 'Gazes at the lead scout — Body vs Dread or Stunned for 1 round (cannot act).', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Root Lash', text: 'Metal root whip through adjacent zones — Craft vs Dread or take damage and Close band becomes collapsed for 1 round.', dreadDie: 8, stat: 'Craft', vsDefend: false, ranges: ['Close','Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'collapsed', rounds: 1, desc: 'Root tangle — Close band impassable.' }, tmwDefend: 4 },
+        { name: 'Armor Shed', text: 'Sheds plated spines — Nearby becomes hazard. Body vs Dread or Injured.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'collapsed', rounds: 1, desc: 'Spined plates litter Nearby — hazard zone.' }, condition: 'Injured', injures: true, tmwDefend: 5 },
+        { name: 'Iron Fang Strike', text: 'Snapping metal jaw — Strike+d6 vs Defend. Injury on hit, Blinded if no weapon.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d6', condition: 'Blinded', injures: true, tmwDefend: 5 },
+        { name: 'Full Petrify', text: 'Terminal gaze — raidwide Body vs Dread DD12 or all Stunned and lose next turn entirely.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 8 }
+      ]
+    }
+  ],
+  sea: [
+    {
+      name: 'Deepwake Dragon',
+      hp: 28, actionsPerRound: 2,
+      uniqueLoot: 'Deepwake Furnace Scale',
+      flavor: 'A sea-dragon that sleeps beneath wreck graveyards.',
+      requiresWeapon: 'Depth-Iron Harpoon',
+      wingTheme: 'Pressure vents in wing rooms can teach the dive rhythm — synchronized breathing saves Stress when the breath comes.',
+      actions: [
+        { name: 'Brinefire Breath', text: 'Drives a column of scalding brine — Body vs Dread DD10. Close band catches fire for 1 round.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Close','Engaged'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'fire', rounds: 1, desc: 'Brinefire — Close band burning.' }, condition: 'Burned', tmwDefend: 6 },
+        { name: 'Capsize Tail', text: 'Sweeping tail — Strike vs Dread. Far units are forced to Nearby; Nearby pushed to Close.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Far','Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'collapsed', rounds: 1, desc: 'Capsize — Far band closed; everyone forced inward.' }, tmwDefend: 5 },
+        { name: 'Pressure Dive', text: 'Vanishes and re-surfaces under the team — raidwide Body vs Dread DD10 or 2 Stress + Stunned.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'multi', damage: 'dd', condition: 'Stunned', tmwDefend: 6 },
+        { name: 'Furnace Bite', text: 'Superheated maw — Strike+d6 vs Defend. Injury + Burned on hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d6', condition: 'Burned', injures: true, tmwDefend: 5 },
+        { name: 'Tsunami Roar', text: 'Floods the whole zone map — all bands shift inward by one; Engaged units take double Stress. Lore vs Dread DD12 to anchor.', dreadDie: 12, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'collapsed', rounds: 2, desc: 'Flood surge — all bands shift inward; Far and Nearby hazardous.' }, tmwDefend: 8 }
+      ]
+    },
+    {
+      name: 'Tideglass Leviathan',
+      hp: 30, actionsPerRound: 2,
+      uniqueLoot: 'Tideglass Spinal Plate',
+      flavor: 'A translucent abyssal serpent that crushes flotillas.',
+      requiresWeapon: null,
+      wingTheme: 'The Leviathan reveals itself in glass-still water — Lore rooms teach how to track its invisible body.',
+      actions: [
+        { name: 'Flood Chamber Reset', text: 'Resets one zone to baseline — any hazard in that zone clears, but all in it take 1 Stress.', dreadDie: 6, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'stress', damage: 'dd', tmwDefend: 3 },
+        { name: 'Glasswave Beam', text: 'Transparent energy lance — Shoot vs Dread DD8. Blinded condition if missed.', dreadDie: 8, stat: 'Shoot', vsDefend: true, ranges: ['Nearby','Far'], effect: 'health', damage: 'dd', condition: 'Blinded', tmwDefend: 4 },
+        { name: 'Barnacle Armor Phase', text: 'Shell hardens — boss gains Armor condition and heals 4 HP. Craft vs Dread DD8 to dislodge before it sets.', dreadDie: 8, stat: 'Craft', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'self_heal', selfHeal: 4, damage: '0', tmwDefend: 5 },
+        { name: 'Crush Coil', text: 'Wraps the Engaged zone — Strike+d4 vs Defend; Injured and Stunned.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', condition: 'Stunned', injures: true, tmwDefend: 5 },
+        { name: 'Abyssal Implosion', text: 'Creates a vacuum pulling all into Engaged — Body vs Dread DD12 or take full damage and Stunned for 2 turns.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'multi', damage: 'dd', condition: 'Stunned', tmwDefend: 8 }
+      ]
+    },
+    {
+      name: 'Blackwake Kraken Lord',
+      hp: 32, actionsPerRound: 3,
+      uniqueLoot: 'Kraken Lord Anchor Fang',
+      flavor: 'A pirate legend that answers cannon fire with hunger.',
+      requiresWeapon: 'Barnacled War Cutlass',
+      wingTheme: 'Tentacles breach wing rooms — learn to sever them before reaching the main chamber or they arrive with full strength.',
+      actions: [
+        { name: 'Tentacle Room Breach', text: 'A tentacle breaks through the floor — Far band disabled 1 round; anyone in Far takes damage.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'disabled', rounds: 1, desc: 'Tentacle breach — Far band inaccessible.' }, tmwDefend: 4 },
+        { name: 'Ink Eclipse', text: 'Darkness floods the zone — all units Blinded for 1 round; Lore vs Dread DD8 to navigate.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Blinded', tmwDefend: 4 },
+        { name: 'Anchor Snare', text: 'Hooks an Engaged ally — Body vs Dread or that ally is Stunned and cannot move.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Boarding Surge', text: 'Drives tentacles at all ranges simultaneously — everyone makes Shoot vs Dread DD10 or takes damage.', dreadDie: 10, stat: 'Shoot', vsDefend: true, ranges: ['Engaged','Close','Nearby','Far'], effect: 'health', damage: 'dd', tmwDefend: 6 },
+        { name: 'Kraken Crush', text: 'The full body emerges — Strike+d8 vs Defend vs the whole Engaged zone; Injury + Stunned. Raidwipe risk.', dreadDie: 12, stat: 'Strike', vsDefend: true, ranges: ['Engaged','Close'], effect: 'health', damage: 'dd+d8', condition: 'Stunned', injures: true, tmwDefend: 9 }
+      ]
+    },
+    {
+      name: 'Corsair Eel Sovereign',
+      hp: 24, actionsPerRound: 2,
+      uniqueLoot: 'Sovereign Coil Spine',
+      flavor: 'An electrified tyrant eel worshipped by raiders.',
+      requiresWeapon: null,
+      wingTheme: 'Electric sigils charge the wing floors — insulators found in Loot rooms reduce the eel\'s Shock damage.',
+      actions: [
+        { name: 'Static Lash', text: 'Electric whip — Shoot vs Dread DD8. Spirit save vs Dread or Stunned 1 round from shock.', dreadDie: 8, stat: 'Shoot', vsDefend: true, ranges: ['Close','Nearby'], effect: 'multi', damage: 'dd', condition: 'Stunned', tmwDefend: 4 },
+        { name: 'Deck Split', text: 'Electrically splits the battle floor — Nearby band becomes charged (fire equivalent) for 1 round.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'fire', rounds: 1, desc: 'Charged floor — Nearby band electrified, fire equivalent.' }, condition: 'Stunned', tmwDefend: 4 },
+        { name: 'Boarding Surge', text: 'Rushes forward — Strike vs Dread. Pushes front units back one zone.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd', tmwDefend: 4 },
+        { name: 'Arc Coil', text: 'Chain lightning jumps between zones — hits Near and Far for dd+d4 each unless insulated.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Nearby','Far'], effect: 'health', damage: 'dd+d4', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Sovereign Surge', text: 'Raidwide discharge — raidwide Spirit vs Dread DD12 or Stunned and lose Personal Flavor action.', dreadDie: 12, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Stunned', injures: true, tmwDefend: 8 }
+      ]
+    },
+    {
+      name: 'Stormblind Nautilus',
+      hp: 26, actionsPerRound: 2,
+      uniqueLoot: 'Stormblind Spiral Shell',
+      flavor: 'A storm engine masquerading as a living shell.',
+      requiresWeapon: null,
+      wingTheme: 'The shell rewrites the layout — Lore rooms reveal the true path before the Nautilus spins it again.',
+      actions: [
+        { name: 'Cyclone Shell Spin', text: 'Rotates the arena — all units shift one zone clockwise (Far→Engaged→Far cycle). Body vs Dread or Stunned.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 4 },
+        { name: 'Lightning Siphon', text: 'Drains a unit\'s momentum — Spirit vs Dread DD8 or lose Personal Flavor this round.', dreadDie: 8, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close'], effect: 'condition', damage: 'dd', injures: true, tmwDefend: 4 },
+        { name: 'Labyrinth Shell Rewrite', text: 'Far band becomes inaccessible for 2 rounds; Nearby becomes fire zone for 1 round.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Far','Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'disabled', rounds: 2, desc: 'Shell labyrinth — Far sealed, Nearby storms.' }, tmwDefend: 5 },
+        { name: 'Storm Spike', text: 'Concentrated lightning — Shoot+d4 vs Defend at Nearby/Far. Burn on hit.', dreadDie: 10, stat: 'Shoot', vsDefend: true, ranges: ['Nearby','Far'], effect: 'health', damage: 'dd+d4', condition: 'Burned', tmwDefend: 5 },
+        { name: 'Category Eye', text: 'Final storm form — raidwide Body vs Dread DD12 and Far/Nearby both disabled 2 rounds. Team must survive Engaged.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'disabled', rounds: 2, desc: 'Eye of storm — Far and Nearby fully disabled; combat compresses to Engaged+Close.' }, condition: 'Stunned', tmwDefend: 9 }
+      ]
+    }
+  ],
+  galaxy: [
+    {
+      name: 'Voidwing Dragon',
+      hp: 30, actionsPerRound: 2,
+      uniqueLoot: 'Voidwing Reactor Fang',
+      flavor: 'A star-lane dragon that burns fleets along relays.',
+      requiresWeapon: 'Void-Iron Lance',
+      wingTheme: 'The vacuum kills sound — Lore wing rooms decode star-lane signals that reveal which breath pattern comes next.',
+      actions: [
+        { name: 'Solar Sail Sever', text: 'Severs Far band — Far collapses for 2 rounds. Body vs Dread or any Far unit takes full Dread in damage.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'disabled', rounds: 2, desc: 'Sail severed — Far band dark and unreachable.' }, tmwDefend: 6 },
+        { name: 'Vacuum Roar', text: 'Airless shockwave — Spirit vs Dread DD10 or Panicked and 2 Stress.', dreadDie: 10, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'stress', damage: 'dd', condition: 'Panicked', tmwDefend: 5 },
+        { name: 'Meteor Brood', text: 'Drops debris on Nearby — Nearby fire zone 1 round. Shoot vs Dread to shoot them down first.', dreadDie: 8, stat: 'Shoot', vsDefend: true, ranges: ['Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'fire', rounds: 1, desc: 'Meteor brood — Nearby ablaze with impact debris.' }, condition: 'Burned', tmwDefend: 4 },
+        { name: 'Reactor Fang Strike', text: 'Radioactive bite — Strike+d6 vs Defend at Engaged. Hit causes Irradiated condition (Stress each round).', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d6', condition: 'Irradiated', tmwDefend: 6 },
+        { name: 'Singularity Breath', text: 'Collapses all zones inward — raidwide Body vs Dread DD12. Close becomes fire; Far becomes disabled 2 rounds.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'collapsed', rounds: 2, desc: 'Gravity breath — Far+Nearby collapsed inward.' }, condition: 'Irradiated', injures: true, tmwDefend: 9 }
+      ]
+    },
+    {
+      name: 'Eclipse Harvester',
+      hp: 28, actionsPerRound: 2,
+      uniqueLoot: 'Eclipse Harvester Core',
+      flavor: 'A colossal siege organism grown around mining rigs.',
+      requiresWeapon: null,
+      wingTheme: 'The Harvester dims the lights to confuse — Craft rooms restore emergency lighting before the encounter.',
+      actions: [
+        { name: 'Light Starvation Field', text: 'Kills all lighting — everyone Blinded and Lore vs Dread DD8 to navigate. Close band collapses.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'disabled', rounds: 1, desc: 'Blackout — Close band dark and impassable.' }, condition: 'Blinded', tmwDefend: 5 },
+        { name: 'Drone Scythe Wall', text: 'Harvest drones sweep Nearby/Far — Shoot vs Dread DD8 or take damage.', dreadDie: 8, stat: 'Shoot', vsDefend: true, ranges: ['Nearby','Far'], effect: 'health', damage: 'dd', tmwDefend: 4 },
+        { name: 'Cargo Vent Ambush', text: 'Ambushes from a vent — Strike vs Dread at Engaged. Injury on hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', injures: true, tmwDefend: 5 },
+        { name: 'Gravity Harvest', text: 'Pulls everyone inward — Body vs Dread DD10 or shifted from Nearby to Engaged involuntarily.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Core Eruption', text: 'Central organ detonates — raidwide Craft+Body vs Dread DD12. Irradiated condition on all fails.', dreadDie: 12, stat: 'Craft', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'multi', damage: 'dd', condition: 'Irradiated', injures: true, tmwDefend: 9 }
+      ]
+    },
+    {
+      name: 'Graviton Seraph',
+      hp: 26, actionsPerRound: 2,
+      uniqueLoot: 'Seraph Halo Lens',
+      flavor: 'A failed orbital angel weapon now self-directed.',
+      requiresWeapon: 'Anti-Grav Disruptor',
+      wingTheme: 'Gravity plating in wing rooms is inverted — Craft rooms teach the correct orientation before the Seraph\'s halo locks the raid floor.',
+      actions: [
+        { name: 'Gravity Inversion', text: 'Flips Far and Engaged — all Far units drop to Engaged; all Engaged units thrown to Far. Body vs Dread.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Halo Beam Lattice', text: 'Energy lattice shreds Nearby — fire zone 1 round; Shoot vs Dread DD8 to avoid.', dreadDie: 8, stat: 'Shoot', vsDefend: true, ranges: ['Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'fire', rounds: 1, desc: 'Lattice fire — Nearby band burned.' }, condition: 'Burned', tmwDefend: 4 },
+        { name: 'Orbit Lock', text: 'Holds one unit in orbit (Stunned 2 rounds) — Spirit vs Dread DD10.', dreadDie: 10, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Seraphic Strike', text: 'Descends — Strike+d4 vs Defend. Irradiated on hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', condition: 'Irradiated', tmwDefend: 5 },
+        { name: 'Gravity Well Collapse', text: 'Tears a gravity well — all zones become fire for 1 round. Raidwide Body vs Dread DD20 or Irradiated + Injured.', dreadDie: 20, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'fire', rounds: 1, desc: 'Gravity well — all zones on fire for 1 round.' }, condition: 'Irradiated', injures: true, tmwDefend: 12 }
+      ]
+    },
+    {
+      name: 'Pulse Maw Behemoth',
+      hp: 24, actionsPerRound: 2,
+      uniqueLoot: 'Pulse Maw Capacitor Heart',
+      flavor: 'A beast that feeds on jump signatures.',
+      requiresWeapon: null,
+      wingTheme: 'Tech signatures attract the Maw — Craft rooms teach signal masking before the boss zone.',
+      actions: [
+        { name: 'EMP Howl', text: 'Electromagnetic shriek — all Craft-based actions disabled 1 round. Spirit vs Dread or Panicked.', dreadDie: 8, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Panicked', injures: true, tmwDefend: 4 },
+        { name: 'Drive-Eater Rush', text: 'Charges the heaviest tech — Strike+d4 vs Defend at Engaged. Injury on hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', injures: true, tmwDefend: 5 },
+        { name: 'Pulse Rebuke', text: 'Targets highest-tech Wayfarer — Craft vs Dread DD10 or take full Dread as damage and Stunned.', dreadDie: 10, stat: 'Craft', vsDefend: false, ranges: ['Close','Nearby'], effect: 'health', damage: 'dd', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Capacitor Overload', text: 'Close band becomes electrified fire for 1 round — anyone there takes Dread damage and Stunned.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Close'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'fire', rounds: 1, desc: 'Capacitor overload — Close electrified.' }, condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Maw Resonance', text: 'Raidwide pulse — Body vs Dread DD12 or Irradiated. Disables 1 random Personal Flavor action.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Irradiated', injures: true, tmwDefend: 8 }
+      ]
+    },
+    {
+      name: 'Blackstar Colossus',
+      hp: 36, actionsPerRound: 3,
+      uniqueLoot: 'Blackstar Null Diadem',
+      flavor: 'A collapse-era titan still trying to finish its war.',
+      requiresWeapon: 'Null-Field Detonator',
+      wingTheme: 'Ancient war-protocols lock wing doors — Lore rooms decode cease-fire commands that weaken the Colossus\'s phase HP.',
+      actions: [
+        { name: 'Miniature Singularity Pull', text: 'Pulls everything inward — all zones collapse to Engaged. Body vs Dread DD10 or Stunned.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'collapsed', rounds: 1, desc: 'Singularity — everything pulled to Engaged.' }, condition: 'Stunned', tmwDefend: 7 },
+        { name: 'Shadow Phase', text: 'Phases out — heals 8 HP and returns next round immune to the last action type used.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'self_heal', selfHeal: 8, damage: '0', tmwDefend: 6 },
+        { name: 'Starfall Retaliation', text: 'Retaliates after being hit — Far zone fire for 2 rounds; Nearby zone disabled 1 round.', dreadDie: 10, stat: 'Shoot', vsDefend: true, ranges: ['Far','Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'fire', rounds: 2, desc: 'Starfall retaliation — Far zone ablaze 2 rounds.' }, condition: 'Irradiated', tmwDefend: 6 },
+        { name: 'War Decree', text: 'Ancient war-law pulse — raidwide Spirit vs Dread DD12 or Panicked + Stress.', dreadDie: 12, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'stress', damage: 'dd', condition: 'Panicked', tmwDefend: 8 },
+        { name: 'Titan Collapse', text: 'Brings itself down partially — Strike+d8 hitsall Engaged; Injury + Stunned. Far disabled 3 rounds.', dreadDie: 20, stat: 'Strike', vsDefend: true, ranges: ['Engaged','Close'], effect: 'health', damage: 'dd+d8', zoneHazard: { zone: 'Far', type: 'disabled', rounds: 3, desc: 'Titan collapse — Far band sealed 3 rounds, wreckage blocks retreat.' }, condition: 'Stunned', injures: true, tmwDefend: 14 }
+      ]
+    }
+  ],
+  planet: [
+    {
+      name: 'Dustspine Dragon',
+      hp: 28, actionsPerRound: 2,
+      uniqueLoot: 'Dustspine Carapace Blade',
+      flavor: 'A planetary dragon sleeping under colony ruins.',
+      requiresWeapon: null,
+      wingTheme: 'The dragon\'s silica trails are in the wing rooms — seal the vents in Craft rooms before it breathes full force.',
+      actions: [
+        { name: 'Buried Emergence', text: 'Bursts from below — Far band collapses for 1 round; Engaged units take full Dread. Body vs Dread DD8.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Far','Engaged'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'collapsed', rounds: 1, desc: 'Buried emergence — Far band collapses.' }, tmwDefend: 4 },
+        { name: 'Silica Breath', text: 'Fine-grain silicon stream — Blinded condition; Body vs Dread DD8 or Injured (clogs armor joints).', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close'], effect: 'multi', damage: 'dd', condition: 'Blinded', injures: true, tmwDefend: 5 },
+        { name: 'Excavation Collapse', text: 'Caves in the corridor behind the team — Close band disabled 1 round; no retreat.', dreadDie: 8, stat: 'Craft', vsDefend: false, ranges: ['Close'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'disabled', rounds: 1, desc: 'Cave-in — Close band sealed, no retreat.' }, tmwDefend: 4 },
+        { name: 'Spine Strike', text: 'Drives crystalline spine — Strike+d4 vs Defend at Engaged. Injury.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', injures: true, tmwDefend: 5 },
+        { name: 'Dust Storm Roar', text: 'Raidwide silica storm — Body vs Dread DD12 or Irradiated. Far and Nearby become hazard zones 2 rounds.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'fire', rounds: 2, desc: 'Dust storm — Far and Nearby burning with silica.' }, condition: 'Irradiated', tmwDefend: 8 }
+      ]
+    },
+    {
+      name: 'Mycelial Titan',
+      hp: 30, actionsPerRound: 2,
+      uniqueLoot: 'Titan Spore Crown',
+      flavor: 'A fungal planetary giant spreading through bunker levels.',
+      requiresWeapon: 'Anti-Spore Filter Mask',
+      wingTheme: 'Mycelia grow through wing rooms — cut the main root in Craft rooms or the Titan arrives with 10 extra HP.',
+      actions: [
+        { name: 'Spore Maze Growth', text: 'Grows walls of spores — Nearby fire zone 1 round. Lore vs Dread to find the clean path.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'fire', rounds: 1, desc: 'Spore maze — Nearby band toxic/hazardous.' }, condition: 'Irradiated', tmwDefend: 4 },
+        { name: 'Hallucinatory Ally', text: 'Conjures false copies of allies — Lore vs Dread DD8 or Panicked; ally actions might target wrong unit.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: '0', condition: 'Panicked', tmwDefend: 4 },
+        { name: 'Root Body Snare', text: 'Roots burst from the floor at Engaged — Body vs Dread or Stunned. Personal Flavor disabled.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged'], effect: 'condition', damage: 'dd', condition: 'Stunned', injures: true, tmwDefend: 5 },
+        { name: 'Fungal Slam', text: 'Massive spore-fist — Strike+d4 vs Defend. Irradiated on hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', condition: 'Irradiated', tmwDefend: 5 },
+        { name: 'Sporehead Burst', text: 'Head explodes spores raidwide — raidwide Body vs Dread DD12 or Irradiated + 2 Stress.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'multi', damage: 'dd', condition: 'Irradiated', tmwDefend: 8 }
+      ]
+    },
+    {
+      name: 'Frostvault Revenant',
+      hp: 26, actionsPerRound: 2,
+      uniqueLoot: 'Frostvault Ossuary Key',
+      flavor: 'A polar revenant ruling dead colony vaults.',
+      requiresWeapon: null,
+      wingTheme: 'Cryo-seals in wing rooms can be unlocked with Lore — breaking the right three prevents the Revenant from respawning at phase 2.',
+      actions: [
+        { name: 'Cryo-Lock Room', text: 'Freezes the Close band — Close disabled for 1 round. Anyone there takes Dread and is Frozen (=Stunned).', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Close'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'disabled', rounds: 1, desc: 'Close band frozen solid — impassable.' }, condition: 'Stunned', tmwDefend: 4 },
+        { name: 'Revive Frozen Sentries', text: 'Heals 6 HP (revives frozen escort). Lore vs Dread DD8 to interrupt the revive.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'self_heal', selfHeal: 6, damage: '0', tmwDefend: 5 },
+        { name: 'Whiteout Inversion', text: 'Inverts temperature map — all currently safe zones become fire for 1 round. Body vs Dread.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'fire', rounds: 1, desc: 'Whiteout — safe zones become freezing hazard.' }, condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Ice Spear', text: 'Direct frozen lance — Shoot+d4 vs Defend. Frozen (Stunned) 2 rounds on hit.', dreadDie: 10, stat: 'Shoot', vsDefend: true, ranges: ['Nearby','Far'], effect: 'health', damage: 'dd+d4', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Vault Absolute Zero', text: 'Terminal cryo pulse — raidwide Body vs Dread DD12 or Frozen (Stunned) + Injury.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'multi', damage: 'dd', condition: 'Stunned', injures: true, tmwDefend: 8 }
+      ]
+    },
+    {
+      name: 'Radiant Mire Sovereign',
+      hp: 28, actionsPerRound: 2,
+      uniqueLoot: 'Mire Sovereign Halo',
+      flavor: 'A toxic marsh king worshipped by mutation cults.',
+      requiresWeapon: null,
+      wingTheme: 'Irradiated pools block the wing paths — Craft rooms neutralize one pool each before the Sovereign\'s radiation zone activates.',
+      actions: [
+        { name: 'Irradiated Pool Shift', text: 'Moves the hot zone — activates a random band as Irradiated fire for 1 round. Body vs Dread DD8.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'fire', rounds: 1, desc: 'Irradiated pool — Close band radioactive hazard.' }, condition: 'Irradiated', tmwDefend: 4 },
+        { name: 'Glow Swamp Clone', text: 'Creates a duplicate with 6 HP — Lore vs Dread to identify real Sovereign.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: '0', condition: 'Panicked', tmwDefend: 4 },
+        { name: 'Corruption Pulse', text: 'Targets highest-wealth Wayfarer — Body vs Dread DD10 or Irradiated condition (permanent until cleansed).', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby'], effect: 'condition', damage: 'dd', condition: 'Irradiated', tmwDefend: 5 },
+        { name: 'Toxic Slam', text: 'Slams the Engaged zone — Strike+d4 vs Defend. Irradiated on hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', condition: 'Irradiated', injures: true, tmwDefend: 5 },
+        { name: 'Mire Sovereign Eruption', text: 'Erupts irradiated mire — all zones fire 2 rounds; raidwide Body vs Dread DD12 or Irradiated.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'fire', rounds: 2, desc: 'Mire eruption — all zones irradiated fire.' }, condition: 'Irradiated', injures: true, tmwDefend: 9 }
+      ]
+    },
+    {
+      name: 'Cinder Bloom Hydra',
+      hp: 32, actionsPerRound: 3,
+      uniqueLoot: 'Cinder Bloom Seedheart',
+      flavor: 'A volcanic many-headed bloom-beast.',
+      requiresWeapon: null,
+      wingTheme: 'Each head is in a different wing — defeat the Wing 1 and Wing 2 sub-heads to enter the boss room with only the main head remaining.',
+      actions: [
+        { name: 'Fire Root Spread', text: 'Roots spread fire — Nearby band fire 1 round. Body vs Dread DD8 or Burned.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'fire', rounds: 1, desc: 'Fire roots — Nearby band burns.' }, condition: 'Burned', tmwDefend: 4 },
+        { name: 'Seed Pod Ambush', text: 'Pods burst from walls — Shoot vs Dread DD8 to destroy before they hit. Hit causes Injured.', dreadDie: 8, stat: 'Shoot', vsDefend: true, ranges: ['Engaged','Close','Nearby'], effect: 'health', damage: 'dd', condition: 'Injured', injures: true, tmwDefend: 4 },
+        { name: 'Head Regrowth', text: 'A severed head regrows +4 HP — Lore vs Dread to predict and interrupt regeneration cycle.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'self_heal', selfHeal: 4, damage: '0', tmwDefend: 5 },
+        { name: 'Bloom Bite', text: 'Multi-head bite chain — Strike vs Dread DD10 at Engaged. Burn on hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd', condition: 'Burned', tmwDefend: 5 },
+        { name: 'Cinder Bloom Full Eruption', text: 'All heads erupt — raidwide fire; all zones fire 2 rounds. Body vs Dread DD12 or Burned + Injured.', dreadDie: 12, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'fire', rounds: 2, desc: 'Full bloom eruption — all zones on fire.' }, condition: 'Burned', injures: true, tmwDefend: 10 }
+      ]
+    }
+  ],
+  wtw: [
+    {
+      name: 'Violet Vault Dragon',
+      hp: 34, actionsPerRound: 2,
+      uniqueLoot: 'Violet Vault Crest',
+      flavor: 'A district-forged dragon haunting the oldest vault corridors.',
+      requiresWeapon: 'Vault-Breaker Spike',
+      wingTheme: 'Ward sigils in wing rooms can be inverted to disrupt the Violet Aura — disarm two wards before the boss room.',
+      actions: [
+        { name: 'Sky Turns Violet', text: 'AoE wipe warning — raidwide Spirit vs Dread DD10 or take 3 Stress + Panicked. Far band disabled 1 round.', dreadDie: 10, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'disabled', rounds: 1, desc: 'Violet Aura — Far band sealed under ward-light.' }, condition: 'Panicked', tmwDefend: 7 },
+        { name: 'Hull-Groan Collapse Sweep', text: 'Sweeping vault collapse — row of Engaged + Close; Body vs Dread DD10.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close'], effect: 'health', damage: 'dd', tmwDefend: 5 },
+        { name: 'Ward Lock Lane Inversion', text: 'Inverts all zone ranges — Nearby becomes Engaged for 1 round; everyone repositions involuntarily.', dreadDie: 10, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'collapsed', rounds: 1, desc: 'Ward inversion — Nearby and Engaged swap identity.' }, condition: 'Stunned', tmwDefend: 6 },
+        { name: 'Vault Claw Strike', text: 'Ancient ward-claw — Strike+d6 vs Defend at Engaged. Irradiated and Injured on hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d6', condition: 'Irradiated', injures: true, tmwDefend: 6 },
+        { name: 'District Purge', text: 'Terminal district-fire — all zones fire for 2 rounds; raidwide Spirit vs Dread DD20 or Panicked + Injured.', dreadDie: 20, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'fire', rounds: 2, desc: 'District Purge — all zones ablaze 2 rounds.' }, condition: 'Panicked', injures: true, tmwDefend: 14 }
+      ]
+    },
+    {
+      name: 'District Hydra Mneme',
+      hp: 30, actionsPerRound: 3,
+      uniqueLoot: 'Mneme Hydra Sigil',
+      flavor: 'A multi-headed district horror that learns from repeated mistakes.',
+      requiresWeapon: null,
+      wingTheme: 'Mneme records every action taken in wing rooms — vary your approach each room or it arrives with a counter to your most-used stat.',
+      actions: [
+        { name: 'Memory Fog Lane Split', text: 'Splits Close and Nearby into two simultaneous hazard zones — Lore vs Dread DD8 to navigate.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Close','Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'fire', rounds: 1, desc: 'Memory fog — Close and Nearby simultaneously hazardous.' }, condition: 'Blinded', tmwDefend: 4 },
+        { name: 'Head Split After Failure', text: 'On any failed roll this phase, boss spawns add-head: heals 6 HP.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'self_heal', selfHeal: 6, damage: '0', tmwDefend: 5 },
+        { name: 'Desperation Frenzy', text: 'If team has ≥10 TMW: spike attack — Body vs Dread DD10 or 3 Stress + Panicked.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'stress', damage: 'dd', condition: 'Panicked', tmwDefend: 6 },
+        { name: 'Memory Bite', text: 'Chomps the most-repeated stat user — Strike+d4 vs Defend. Injured.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d4', injures: true, tmwDefend: 5 },
+        { name: 'Mneme Full Recall', text: 'All previously-used attacks fire simultaneously — raidwide, each Wayfarer gets the version hardest for their build. Spirit vs Dread DD12.', dreadDie: 12, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'multi', damage: 'dd', condition: 'Panicked', injures: true, tmwDefend: 10 }
+      ]
+    },
+    {
+      name: 'Cathedral Rail Warden',
+      hp: 28, actionsPerRound: 2,
+      uniqueLoot: 'Warden Rail Halo',
+      flavor: 'A rail-borne executioner from the World That Was transit cathedrals.',
+      requiresWeapon: 'Rail-Spike Disruptor',
+      wingTheme: 'Rail signals in wing rooms encode the Warden\'s patrol pattern — Craft rooms let you reroute a rail car to block its charge.',
+      actions: [
+        { name: 'Sanctum Rail Spike', text: 'Rail drives through — Shoot vs Dread DD8 or hit. Far unit pushed to Engaged involuntarily.', dreadDie: 8, stat: 'Shoot', vsDefend: true, ranges: ['Far','Nearby','Close'], effect: 'health', damage: 'dd', tmwDefend: 4 },
+        { name: 'Procession Crush', text: 'Engines fill Engaged — Engaged band fire for 1 round. Body vs Dread or Stunned.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Engaged'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Engaged', type: 'fire', rounds: 1, desc: 'Procession crush — Engaged band ablaze with rail engines.' }, condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Signal Lock', text: 'Locks the mechanics lane — Craft vs Dread DD8 or Mechanics role actions blocked 1 round.', dreadDie: 8, stat: 'Craft', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Stunned', injures: true, tmwDefend: 4 },
+        { name: 'Warden Verdict', text: 'Gavel-strike from the rail seat — Strike+d6 vs Defend at Engaged. Irradiated on hit (radiation from WTW rail decay).', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d6', condition: 'Irradiated', injures: true, tmwDefend: 6 },
+        { name: 'Full Rail Judgment', text: 'Raidwide rail charge — all zones unsafe; Far disabled 2 rounds. Spirit vs Dread DD12 or Panicked + Injured.', dreadDie: 12, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'disabled', rounds: 2, desc: 'Full rail judgment — entire rail network activates.' }, condition: 'Panicked', injures: true, tmwDefend: 9 }
+      ]
+    },
+    {
+      name: 'Ashcourt Colossus',
+      hp: 32, actionsPerRound: 2,
+      uniqueLoot: 'Ashcourt Verdict Plate',
+      flavor: 'A broken war-colossus enforcing dead imperial law.',
+      requiresWeapon: 'Court-Seal Hammer',
+      wingTheme: 'Imperial decree plates in wing rooms contain the old cease-fire codes — find and break three to disable the Colossus\'s Phase 3 armor.',
+      actions: [
+        { name: 'Court Decree Stun', text: 'Imperial edict — Spirit vs Dread DD10 or Stunned (cannot challenge the decree).', dreadDie: 10, stat: 'Spirit', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Stunned', tmwDefend: 5 },
+        { name: 'Siege-Step Lane Collapse', text: 'Stamps forward — Nearby band collapses for 1 round. Anyone there pushed to Close.', dreadDie: 8, stat: 'Body', vsDefend: false, ranges: ['Nearby'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Nearby', type: 'collapsed', rounds: 1, desc: 'Siege-step — Nearby band flattened.' }, tmwDefend: 4 },
+        { name: 'Radiation Dust Judgment', text: 'Irradiated dust cloud — Close becomes fire (radiation) for 1 round. Body vs Dread or Irradiated.', dreadDie: 10, stat: 'Body', vsDefend: false, ranges: ['Close'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'fire', rounds: 1, desc: 'Radiation dust — Close band irradiated.' }, condition: 'Irradiated', tmwDefend: 5 },
+        { name: 'Imperial Fist', text: 'Decree-empowered fist — Strike+d8 vs Defend. Injury. Personal Flavor disabled.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged'], effect: 'health', damage: 'dd+d8', injures: true, tmwDefend: 7 },
+        { name: 'Ashcourt Final Verdict', text: 'Terminal judgment — raidwide Body vs Dread DD20 or Irradiated + Stunned + Injury. Far disabled 3 rounds.', dreadDie: 20, stat: 'Body', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'disabled', rounds: 3, desc: 'Final verdict — Far sealed, radiation fills all zones.' }, condition: 'Irradiated', injures: true, tmwDefend: 14 }
+      ]
+    },
+    {
+      name: 'Mirror Docket Oracle',
+      hp: 24, actionsPerRound: 2,
+      uniqueLoot: 'Docket Oracle Prism',
+      flavor: 'An audit-born oracle that weaponizes prediction and panic.',
+      requiresWeapon: null,
+      wingTheme: 'False audit trails in wing rooms mirror tomorrow\'s events — Lore rooms help distinguish the real from the predicted.',
+      actions: [
+        { name: 'Forecast Repeated Action', text: 'Predicts the stat last used — that stat auto-fails vs Dread next round unless changed. Lore vs Dread to adapt.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: '0', condition: 'Panicked', tmwDefend: 4 },
+        { name: 'False-Safe Telegraph', text: 'Fakes a safe zone — Lore vs Dread DD8 to identify the real safe zone. Failure means wrong repositioning.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'condition', damage: 'dd', condition: 'Blinded', tmwDefend: 4 },
+        { name: 'Zone Becomes Lethal', text: 'Designates a zone as lethal next round — that zone fire-status 1 round. Lore vs Dread to read which one.', dreadDie: 8, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Close', type: 'fire', rounds: 1, desc: 'Oracle forecast — designated zone becomes lethal.' }, tmwDefend: 5 },
+        { name: 'Mirror Strike', text: 'Strikes using a copy of the player\'s own last attack — Strike+d4 vs your own roll. Panic if hit.', dreadDie: 10, stat: 'Strike', vsDefend: true, ranges: ['Engaged','Close'], effect: 'health', damage: 'dd+d4', condition: 'Panicked', tmwDefend: 5 },
+        { name: 'Docket Inversion', text: 'Inverts all zone hazards — safe becomes dangerous and vice versa for 2 rounds. Raidwide Lore vs Dread DD12.', dreadDie: 12, stat: 'Lore', vsDefend: false, ranges: ['Engaged','Close','Nearby','Far'], effect: 'zone_hazard', damage: 'dd', zoneHazard: { zone: 'Far', type: 'fire', rounds: 2, desc: 'Docket inversion — all zones swap: safe is now lethal.' }, condition: 'Panicked', injures: true, tmwDefend: 10 }
+      ]
+    }
+  ]
+});
+
 const STAR_WEATHER = {
   weather: ['ion storms', 'solar static', 'dust tides', 'gravitic waves', 'frozen glare', 'dark-matter squalls'],
   environment: ['void corridors', 'asteroid alleys', 'plasma belts', 'shattered orbits', 'collapsed lanes'],

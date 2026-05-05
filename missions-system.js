@@ -1446,6 +1446,10 @@
     var loreText = String(mission.step1Intro || mission.lore || 'A mythic threat has forced open a raid route.');
     var checkpoints = Array.isArray(mission.checkpoints) ? mission.checkpoints.slice() : [];
     var tokenType = String(context && context.tokenType || '').toLowerCase();
+    var powerBonus = Number(mission.legacyRaidPowerBonus || mission.bonus || 0);
+    var treeBonus = Number(mission.legacyRaidTreeBonus || 0);
+    var relicBonus = Number(mission.legacyRaidRelicBonus || 0);
+    var openDays = Math.max(1, Number(mission.legacyRaidOpenDays || 3));
     var stepButtons = '';
     var recommendedAction = 'Use the raid window to stage the next wing.';
 
@@ -1498,7 +1502,7 @@
         + '<div style="margin-bottom:.45rem;">'
         + '<div style="font-size:.93rem;color:var(--gold2);margin-bottom:.18rem;"><strong>' + mission.title + '</strong></div>'
         + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.18rem;">' + loreText + '</div>'
-        + '<div style="font-size:.72rem;color:var(--teal);">Boss: ' + bossName + ' | Marker: ' + (tokenType || 'raid') + ' | Recommended: ' + recommendedAction + '</div>'
+        + '<div style="font-size:.72rem;color:var(--teal);">Boss: ' + bossName + ' | Marker: ' + (tokenType || 'raid') + ' | Open window: ' + openDays + ' in-game days | Recommended: ' + recommendedAction + '</div>'
         + '</div>'
         + roleHtml
         + '<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:.45rem;margin-bottom:.42rem;">'
@@ -1512,6 +1516,7 @@
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Raid Rewards</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">+' + Number(mission.legacyRaidMedalReward || 1) + ' Medal · +' + Number(mission.legacyRaidPointReward || 1) + ' Raid Point</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Unique trophy: ' + String(mission.legacyRaidBoss || bossName) + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Raid power bonus: +' + powerBonus + ' (Tree +' + treeBonus + ', Trophy +' + relicBonus + ')</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Allied support: 3 Traveling Wayfarers (DD6 | 12 Stress)</div>'
         + '</div>'
         + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'

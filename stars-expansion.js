@@ -2447,6 +2447,7 @@ function ensureSolarCycleLegacyState() {
   if (typeof S.solarCycleLegacy.raidCounter !== 'number') S.solarCycleLegacy.raidCounter = 0;
   if (typeof S.solarCycleLegacy.medals !== 'number') S.solarCycleLegacy.medals = 0;
   if (typeof S.solarCycleLegacy.raidPoints !== 'number') S.solarCycleLegacy.raidPoints = 0;
+  if (!S.solarCycleLegacy.raidRelics || typeof S.solarCycleLegacy.raidRelics !== 'object') S.solarCycleLegacy.raidRelics = {};
   if (!S.solarCycleLegacy.raidTree || typeof S.solarCycleLegacy.raidTree !== 'object') {
     S.solarCycleLegacy.raidTree = { scout_network: false, bulwark_drill: false, trophy_claim: false };
   }
@@ -2460,7 +2461,7 @@ const LEGACY_RAID_TREE = {
   scout_network: {
     label: 'Scout Network',
     cost: 2,
-    summary: 'Future raids always reveal a cleaner lore thread and a broader briefing window in the Legacy board.'
+    summary: 'Future raids grant +5 mission bonus and keep their marker open for one extra day.'
   },
   bulwark_drill: {
     label: 'Bulwark Drill',
@@ -2473,6 +2474,8 @@ const LEGACY_RAID_TREE = {
     summary: 'Completed raids grant one bonus raid point and convert duplicate raid trophies into extra credits.'
   }
 };
+
+const LEGACY_RAID_OPEN_DAYS = 3;
 
 const LEGACY_RAID_BOSS_POOLS = {
   province: [
@@ -2657,7 +2660,8 @@ function createLegacyRaidEvent(legacy, region) {
   var puzzlePool = LEGACY_RAID_PUZZLES[targetRegion] || LEGACY_RAID_PUZZLES.province;
   var puzzleText = puzzlePool[Math.abs(seedSolarCycleMix(ensureSolarCycleState(), Number(legacy.raidCounter || 0) + targetRegion.length * 31)) % puzzlePool.length] || puzzlePool[0];
   var eventId = 'legacy-raid-' + String(targetRegion) + '-' + String(getLegacyRaidDayStamp()) + '-' + String(++legacy.raidCounter);
-  var availableUntil = getLegacyRaidDayStamp();
+  var openDays = Math.max(1, Number(LEGACY_RAID_OPEN_DAYS || 1) + ((legacy && legacy.raidTree && legacy.raidTree.scout_network) ? 1 : 0));
+  var availableUntil = getLegacyRaidDayStamp() + openDays - 1;
   var returnStamp = availableUntil + 30;
   var title = getLegacyRaidRegionLabel(targetRegion) + ' Raid: ' + String(boss.name || 'World Boss');
   var difficulty = getLegacyRaidDifficulty(legacy);
@@ -2704,6 +2708,20 @@ function createLegacyRaidEvent(legacy, region) {
   mission.legacyRaidStarted = false;
   mission.legacyRaidMedalReward = 1;
   mission.legacyRaidPointReward = legacy && legacy.raidTree && legacy.raidTree.trophy_claim ? 2 : 1;
+  mission.legacyRaidOpenDays = openDays;
+
+  var ownedRaidRelics = legacy && legacy.raidRelics && typeof legacy.raidRelics === 'object'
+    ? Object.keys(legacy.raidRelics).length
+    : 0;
+  var relicBonus = Math.max(0, Math.min(6, ownedRaidRelics * 2));
+  var treeBonus = legacy && legacy.raidTree && legacy.raidTree.scout_network ? 5 : 0;
+  var powerBonus = relicBonus + treeBonus;
+  if (powerBonus > 0) {
+    mission.bonus = Number(mission.bonus || 0) + powerBonus;
+    mission.legacyRaidPowerBonus = powerBonus;
+    mission.legacyRaidRelicBonus = relicBonus;
+    mission.legacyRaidTreeBonus = treeBonus;
+  }
 
   if (targetRegion === 'planet' && mission.region === 'galaxy' && S && S.starSystem && Array.isArray(S.starSystem.hexes)) {
     var planets = S.starSystem.hexes.filter(function (hex) { return hex && hex.type === 'planet'; });
@@ -2728,6 +2746,7 @@ function createLegacyRaidEvent(legacy, region) {
     postedStamp: getLegacyRaidDayStamp(),
     availableUntilStamp: availableUntil,
     returnStamp: returnStamp,
+    openDays: openDays,
     started: false,
     rewardProcessed: false,
     medalReward: 1,
@@ -2741,7 +2760,7 @@ function createLegacyRaidEvent(legacy, region) {
   legacy.history.push({ id: raid.id, type: 'raid_posted', day: getLegacyRaidDayStamp(), region: targetRegion, title: title });
   if (legacy.history.length > 120) legacy.history = legacy.history.slice(-120);
   if (typeof showNotif === 'function') {
-    showNotif('Legacy raid marker posted: ' + title + '. Start it today or it disappears for a month.', 'warn');
+    showNotif('Legacy raid marker posted: ' + title + '. Start it within ' + String(openDays) + ' in-game days or it disappears for a month.', 'warn');
   }
   return raid;
 }
@@ -2750,6 +2769,13 @@ function processLegacyRaidCompletion(legacy, raid, completedMission) {
   if (!legacy || !raid || raid.rewardProcessed) return false;
   var reward = getLegacyRaidUniqueLootReward(raid.region, { name: raid.bossName, uniqueLoot: raid.uniqueLoot });
   var stored = storeLegacyRaidLootReward(reward, legacy);
+  if (!legacy.raidRelics || typeof legacy.raidRelics !== 'object') legacy.raidRelics = {};
+  legacy.raidRelics[String(reward.id || reward.name || raid.id)] = {
+    id: String(reward.id || reward.name || raid.id),
+    name: String(reward.name || raid.uniqueLoot || raid.bossName || 'Raid Trophy'),
+    region: String(raid.region || 'province'),
+    day: getLegacyRaidDayStamp()
+  };
   legacy.medals = Number(legacy.medals || 0) + Number(raid.medalReward || 1);
   legacy.raidPoints = Number(legacy.raidPoints || 0) + Number(raid.pointReward || 1);
   raid.status = 'completed';
@@ -2903,7 +2929,7 @@ function buildLegacyRaidPanelHtml() {
         var statusTone = raid.status === 'in_progress' ? 'var(--teal)' : 'var(--gold2)';
         var windowText = raid.started
           ? 'Started: mission remains active until resolved.'
-          : ('Start by Day ' + Number(raid.availableUntilStamp || 0) + ' or it vanishes for a month.');
+            : ('Start by Day ' + Number(raid.availableUntilStamp || 0) + ' (' + Number(raid.openDays || LEGACY_RAID_OPEN_DAYS) + '-day raid window) or it vanishes for a month.');
         return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;">'
           + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;margin-bottom:.2rem;">'
           + '<div style="font-size:.78rem;color:var(--text2);"><strong>' + escapeSolarCycleHtml(raid.title || 'Raid Event') + '</strong></div>'
@@ -2938,11 +2964,12 @@ function buildLegacyRaidPanelHtml() {
 
   return '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Legacy Raid Board</strong></div>'
-    + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">In Legacy Mode, world-boss raid events can surface across the Province, Sea Region, Galaxy, and planet routes. Each one is a three-step mission with lore, intricate puzzles, and a mythic boss. If Step 1 is not started by the next day, the marker withdraws and only reappears after one in-game month.</div>'
+    + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">In Legacy Mode, world-boss raid events can surface across the Province, Sea Region, Galaxy, and planet routes. Each one is a three-step mission with lore, intricate puzzles, and a mythic boss. If Step 1 is not started within 3 in-game days, the marker withdraws and only reappears after one in-game month.</div>'
     + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.28rem;">Allied support: three Traveling Wayfarers (DD6 | 12 Stress) join every raid.</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.3rem;margin-bottom:.38rem;">'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Medals</div><div style="font-size:.9rem;color:var(--gold2);">' + Number(legacy.medals || 0) + '</div></div>'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Raid Points</div><div style="font-size:.9rem;color:var(--teal);">' + Number(legacy.raidPoints || 0) + '</div></div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Trophies Bound</div><div style="font-size:.9rem;color:var(--text2);">' + Number(Object.keys(legacy.raidRelics || {}).length || 0) + '</div></div>'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Live Raids</div><div style="font-size:.9rem;color:var(--text2);">' + Number(activeRaids.length || 0) + '</div></div>'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Unique Boss Pools</div><div style="font-size:.9rem;color:var(--text2);">10 / map</div></div>'
     + '</div>'

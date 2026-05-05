@@ -2451,6 +2451,9 @@ function ensureSolarCycleLegacyState() {
   if (!S.solarCycleLegacy.raidTree || typeof S.solarCycleLegacy.raidTree !== 'object') {
     S.solarCycleLegacy.raidTree = { scout_network: false, bulwark_drill: false, trophy_claim: false };
   }
+  if (!S.solarCycleLegacy.raidTreeRanks || typeof S.solarCycleLegacy.raidTreeRanks !== 'object') {
+    S.solarCycleLegacy.raidTreeRanks = {};
+  }
   if (typeof S.solarCycleLegacy.raidTree.scout_network !== 'boolean') S.solarCycleLegacy.raidTree.scout_network = false;
   if (typeof S.solarCycleLegacy.raidTree.bulwark_drill !== 'boolean') S.solarCycleLegacy.raidTree.bulwark_drill = false;
   if (typeof S.solarCycleLegacy.raidTree.trophy_claim !== 'boolean') S.solarCycleLegacy.raidTree.trophy_claim = false;
@@ -2461,17 +2464,66 @@ const LEGACY_RAID_TREE = {
   scout_network: {
     label: 'Predator Lattice',
     cost: 2,
-    summary: 'Future raids gain +5 mission bonus and raid markers stay open one extra day.'
+    maxRank: 1,
+    requires: [],
+    summary: 'Future raids gain +5 mission bonus and raid markers stay open one extra day.',
+    effectSummary: '+5 mission bonus | +1 raid open day'
   },
   bulwark_drill: {
     label: 'Bulwark Continuum',
     cost: 3,
-    summary: 'Raid contracts post one difficulty tier lower without reducing medal payout.'
+    maxRank: 1,
+    requires: ['scout_network'],
+    summary: 'Raid contracts post one difficulty tier lower without reducing medal payout.',
+    effectSummary: 'Contracts post one tier lower'
   },
   trophy_claim: {
     label: 'Anomaly Imprint',
     cost: 2,
-    summary: 'Completed raids grant a bonus raid point, and duplicate trophies convert into credits plus a small Teamwork refund.'
+    maxRank: 1,
+    requires: ['scout_network'],
+    summary: 'Completed raids grant a bonus raid point, and duplicate trophies convert into credits plus a small Teamwork refund.',
+    effectSummary: '+1 raid point on clear | duplicate trophy conversion boost'
+  },
+  strike_mastery: {
+    label: 'Strike Mastery',
+    cost: 2,
+    maxRank: 2,
+    requires: [],
+    summary: 'Increase raid strike scaling in two ranks (+1 then +3 total).',
+    effectSummary: 'R1: +1 Strike rolls | R2: +3 Strike rolls'
+  },
+  action_die_training: {
+    label: 'Action Die Training',
+    cost: 2,
+    maxRank: 2,
+    requires: ['strike_mastery'],
+    summary: 'Step up raid action dice in two ranks for strike, shoot, and wayfarer actions.',
+    effectSummary: 'R1: +1 die step | R2: +2 die steps'
+  },
+  flavor_glacial_tell: {
+    label: 'Flavor Branch: Glacial Tell',
+    cost: 2,
+    maxRank: 1,
+    requires: ['action_die_training'],
+    summary: 'Unlock a personal-flavor branch that can chill boss tempo for one beat.',
+    effectSummary: 'Unlock personal flavor: Glacial Tell'
+  },
+  flavor_null_veil: {
+    label: 'Flavor Branch: Null Veil',
+    cost: 2,
+    maxRank: 1,
+    requires: ['action_die_training'],
+    summary: 'Unlock a personal-flavor branch that can blur targeting for one beat.',
+    effectSummary: 'Unlock personal flavor: Null Veil'
+  },
+  teamwork_feedback: {
+    label: 'Teamwork Feedback',
+    cost: 3,
+    maxRank: 1,
+    requires: ['strike_mastery'],
+    summary: 'Failed raid checks grant extra teamwork and successful checks generate a small teamwork refund.',
+    effectSummary: '+1 TMW on failed raid checks | occasional +1 TMW on success'
   }
 };
 
@@ -3034,19 +3086,35 @@ function syncLegacyRaidBoard(force) {
 function spendLegacyRaidPoint(nodeId) {
   var legacy = ensureSolarCycleLegacyState();
   if (!legacy) return false;
-  var node = LEGACY_RAID_TREE[String(nodeId || '')];
+  var key = String(nodeId || '');
+  var node = LEGACY_RAID_TREE[key];
   if (!node) return false;
-  if (legacy.raidTree && legacy.raidTree[nodeId]) {
-    if (typeof showNotif === 'function') showNotif(node.label + ' already unlocked.', 'info');
+  if (!legacy.raidTreeRanks || typeof legacy.raidTreeRanks !== 'object') legacy.raidTreeRanks = {};
+  var rank = Math.max(0, Number(legacy.raidTreeRanks[key] || 0));
+  var maxRank = Math.max(1, Number(node.maxRank || 1));
+  if (rank >= maxRank) {
+    if (typeof showNotif === 'function') showNotif(node.label + ' already maxed.', 'info');
     return false;
   }
-  if (Number(legacy.raidPoints || 0) < Number(node.cost || 0)) {
-    if (typeof showNotif === 'function') showNotif('Need ' + Number(node.cost || 0) + ' raid points for ' + node.label + '.', 'warn');
+  var reqs = Array.isArray(node.requires) ? node.requires : [];
+  var unmet = reqs.filter(function (reqId) {
+    return Number(legacy.raidTreeRanks[reqId] || 0) <= 0;
+  });
+  if (unmet.length) {
+    if (typeof showNotif === 'function') showNotif('Need prerequisite: ' + unmet.map(function (id) {
+      return (LEGACY_RAID_TREE[id] && LEGACY_RAID_TREE[id].label) || id;
+    }).join(', ') + '.', 'warn');
     return false;
   }
-  legacy.raidPoints = Math.max(0, Number(legacy.raidPoints || 0) - Number(node.cost || 0));
-  legacy.raidTree[nodeId] = true;
-  if (typeof showNotif === 'function') showNotif('Raid tree unlocked: ' + node.label + '.', 'good');
+  var rankCost = Number(node.cost || 0) + rank;
+  if (Number(legacy.raidPoints || 0) < rankCost) {
+    if (typeof showNotif === 'function') showNotif('Need ' + rankCost + ' raid points for ' + node.label + ' rank ' + (rank + 1) + '.', 'warn');
+    return false;
+  }
+  legacy.raidPoints = Math.max(0, Number(legacy.raidPoints || 0) - rankCost);
+  legacy.raidTreeRanks[key] = rank + 1;
+  legacy.raidTree[key] = true;
+  if (typeof showNotif === 'function') showNotif('Raid tree upgraded: ' + node.label + ' rank ' + (rank + 1) + '/' + maxRank + '.', 'good');
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
   return true;
 }
@@ -3100,14 +3168,21 @@ function buildLegacyRaidPanelHtml() {
 
   var treeHtml = Object.keys(LEGACY_RAID_TREE).map(function (nodeId) {
     var node = LEGACY_RAID_TREE[nodeId];
-    var unlocked = !!(legacy.raidTree && legacy.raidTree[nodeId]);
-    var action = unlocked
-      ? '<button class="btn btn-xs" disabled>Unlocked</button>'
-      : '<button class="btn btn-xs btn-gold" onclick="window.spendLegacyRaidPoint(\'' + String(nodeId) + '\')">Buy (' + Number(node.cost || 0) + ')</button>';
+    var rank = Math.max(0, Number(legacy.raidTreeRanks && legacy.raidTreeRanks[nodeId] || 0));
+    var maxRank = Math.max(1, Number(node.maxRank || 1));
+    var unlocked = rank > 0;
+    var reqs = Array.isArray(node.requires) ? node.requires : [];
+    var unmet = reqs.filter(function (reqId) { return Number(legacy.raidTreeRanks && legacy.raidTreeRanks[reqId] || 0) <= 0; });
+    var buyCost = Number(node.cost || 0) + rank;
+    var action = rank >= maxRank
+      ? '<button class="btn btn-xs" disabled>Maxed</button>'
+      : '<button class="btn btn-xs btn-gold" ' + (unmet.length ? 'disabled' : '') + ' onclick="window.spendLegacyRaidPoint(\'' + String(nodeId) + '\')">Buy Rank ' + (rank + 1) + ' (' + buyCost + ')</button>';
     return '<div style="padding:.25rem 0;border-bottom:1px solid var(--border2);display:grid;grid-template-columns:1fr auto;gap:.35rem;align-items:center;">'
       + '<div>'
-      + '<div style="font-size:.73rem;color:' + (unlocked ? 'var(--teal)' : 'var(--text2)') + ';"><strong>' + escapeSolarCycleHtml(node.label) + '</strong></div>'
+      + '<div style="font-size:.73rem;color:' + (unlocked ? 'var(--teal)' : 'var(--text2)') + ';"><strong>' + escapeSolarCycleHtml(node.label) + '</strong> <span style="color:var(--muted2);">(' + rank + '/' + maxRank + ')</span></div>'
       + '<div style="font-size:.69rem;color:var(--muted2);line-height:1.45;">' + escapeSolarCycleHtml(node.summary) + '</div>'
+      + '<div style="font-size:.67rem;color:var(--gold2);line-height:1.4;">' + escapeSolarCycleHtml(String(node.effectSummary || '')) + '</div>'
+      + (reqs.length ? '<div style="font-size:.64rem;color:' + (unmet.length ? 'var(--red2)' : 'var(--green2)') + ';">Requires: ' + escapeSolarCycleHtml(reqs.map(function (id) { return (LEGACY_RAID_TREE[id] && LEGACY_RAID_TREE[id].label) || id; }).join(' · ')) + '</div>' : '')
       + '</div>'
       + action
       + '</div>';

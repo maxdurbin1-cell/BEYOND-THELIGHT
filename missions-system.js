@@ -1970,6 +1970,7 @@
 
   function ensureLegacyRaidMissionConfig(mission) {
     if (!mission || mission.missionType !== 'legacy_raid') return mission;
+    ensureLegacyRaidCombatEndHook();
     mission.steps = mission.steps || {};
     mission.steps[1] = mission.steps[1] || { completed: false, skipped: false };
     mission.steps[2] = mission.steps[2] || { completed: false };
@@ -3863,9 +3864,50 @@
 
   function getLegacyRaidWingEncounterPool(wingNum) {
     if (Number(wingNum || 1) === 1) {
-      return ['puzzle', 'puzzle', 'hazard', 'peril', 'barrier', 'enemy', 'loot', 'teleport'];
+      return ['puzzle', 'puzzle', 'hazard', 'peril', 'barrier', 'enemy', 'loot', 'teleport', 'rest'];
     }
-    return ['enemy', 'enemy', 'puzzle', 'hazard', 'peril', 'barrier', 'loot', 'teleport'];
+    return ['enemy', 'enemy', 'puzzle', 'hazard', 'peril', 'barrier', 'loot', 'teleport', 'rest'];
+  }
+
+  function getLegacyRaidPendingHexCombat() {
+    if (typeof S === 'undefined' || !S || !Array.isArray(S.activeMissions)) return null;
+    for (var i = 0; i < S.activeMissions.length; i++) {
+      var mission = S.activeMissions[i];
+      if (!mission || mission.missionType !== 'legacy_raid' || !mission.legacyRaidWingGrid) continue;
+      var keys = Object.keys(mission.legacyRaidWingGrid);
+      for (var j = 0; j < keys.length; j++) {
+        var wing = mission.legacyRaidWingGrid[keys[j]];
+        if (wing && wing.pendingCombat && wing.pendingCombat.active) {
+          return { mission: mission, wingKey: keys[j], state: wing, pending: wing.pendingCombat };
+        }
+      }
+    }
+    return null;
+  }
+
+  function ensureLegacyRaidCombatEndHook() {
+    if (typeof window === 'undefined' || window.__legacyRaidCombatEndHookInstalled) return;
+    if (typeof window.endCombat !== 'function') return;
+    window.__legacyRaidCombatEndHookInstalled = true;
+    var baseEndCombat = window.endCombat;
+    window.endCombat = function () {
+      var preEnemies = 0;
+      if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
+        preEnemies = S.enemies.filter(function (e) { return e && !e.ally; }).length;
+      }
+      var out = baseEndCombat.apply(this, arguments);
+      var pendingCtx = getLegacyRaidPendingHexCombat();
+      if (pendingCtx && typeof window.finalizeLegacyRaidHexCombatOutcome === 'function') {
+        var remaining = 0;
+        if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
+          remaining = S.enemies.filter(function (e) { return e && !e.ally; }).length;
+        }
+        var health = typeof S !== 'undefined' && S ? Number(S.health || 0) : 1;
+        var outcome = remaining <= 0 ? 'win' : (health <= 0 ? 'wipe' : 'retreat');
+        try { window.finalizeLegacyRaidHexCombatOutcome(outcome); } catch (_err) {}
+      }
+      return out;
+    };
   }
 
   function getLegacyRaidHexDreadDie(wingNum, eventType) {
@@ -4023,7 +4065,8 @@
         waypointsRequired: waypointNeeded
       },
       teleportTheme: getLegacyRaidTeleportTheme(mission),
-      lastLog: 'Wing map initialized.'
+      lastLog: 'Wing map initialized.',
+      pendingCombat: null
     };
 
     var startCell = state.cells[state.startId];
@@ -4108,6 +4151,7 @@
         else if (cell.eventType === 'enemy') icon = '⚔';
         else if (cell.eventType === 'loot') icon = '📦';
         else if (cell.eventType === 'teleport') icon = (state.teleportTheme && state.teleportTheme.icon) || '◇';
+        else if (cell.eventType === 'rest') icon = '🛌';
         var border = isCurrent ? '2px solid var(--teal)' : (isSelected ? '2px solid var(--gold2)' : '1px solid var(--border2)');
         var bg = !reveal ? 'rgba(20,20,26,.6)' : (cell.cleared ? 'rgba(50,180,90,.18)' : 'rgba(255,255,255,.04)');
         gridCells.push('<button class="btn btn-xs" style="min-height:24px;padding:.05rem;font-size:.62rem;border:' + border + ';background:' + bg + ';" onclick="window.selectLegacyRaidHex(' + mission.id + ',' + wingNum + ',\'' + id + '\')">' + icon + '</button>');
@@ -4189,6 +4233,14 @@
         void: ['Circle of absolute stillness and negative potential.', 'Portal that seems to pull inward rather than outward.', 'Gate existing between moments and spaces.'],
         stone: ['Ancient teleportation gate still marked by elder runes.', 'Portal carved from a single piece of pre-fall marble.', 'Gate powered by forces nobody modern understands.'],
         default: ['Teleport waypoint glowing with mysterious energy.', 'Portal humming with otherworldly power.', 'Gate promising swift passage to safety.']
+      },
+      rest: {
+        serpent: ['A hollowed chamber lined with shed carapace offers a rare safe pause.', 'Stone roots muffle the tunnel vibrations—good enough for a field rest.'],
+        fire: ['A cooled alcove between slag veins gives brief shelter from the heat.', 'The pyre wind calms here, letting the team steady breath and focus.'],
+        sea: ['A dry pocket above the floodline makes a temporary forward camp.', 'Low tide exposes an old watch ledge where the team can regroup.'],
+        void: ['A still-point where static quiets allows a careful reset.', 'The chamber edges hold reality long enough for a controlled long rest.'],
+        stone: ['An intact guard post survives here—perfect for a quick long rest.', 'The old vault barracks remain defensible for one careful pause.'],
+        default: ['A defensible room gives the team a brief chance to recover.', 'A quiet chamber allows a tactical long rest before pushing on.']
       }
     };
     var typePool = descPool[hexType] || descPool.default;
@@ -4340,8 +4392,16 @@
           }
         }
         if (typeof startCombat === 'function') {
+          state.pendingCombat = {
+            active: true,
+            wing: Number(wingNum || 1),
+            cellId: String(cell.id || ''),
+            enemyCount: Number(enemyCount || 1),
+            startedAt: Date.now()
+          };
+          state.lastLog = 'Hex ' + cell.id + ' combat engaged. Resolve combat to finalize this hex.';
           startCombat();
-          state.lastLog = 'Hex ' + cell.id + ' combat started against ' + enemyCount + ' hostile(s).';
+          return true;
         }
         result = resolveLegacyRaidHexContest('adventure', getLegacyRaidHexDreadDie(wingNum, eventType));
         if (!result.success) {
@@ -4374,6 +4434,16 @@
           revealLegacyRaidGridAround(state, cell.teleportTo);
           state.lastLog = 'Hex ' + cell.id + ' teleport selected. ' + ((state.teleportTheme && state.teleportTheme.label) || 'Gate') + ' warps you to ' + cell.teleportTo + '.';
         }
+        if (eventType === 'rest') {
+          var bonusTicks = Number(cell.rested ? 0 : 2);
+          if (!cell.rested) {
+            state.ticks = Math.min(20, Number(state.ticks || 0) + bonusTicks);
+            cell.rested = true;
+            state.lastLog = 'Long Rest complete at hex ' + cell.id + '. +2 ticks restored.';
+          } else {
+            state.lastLog = 'Rest chamber ' + cell.id + ' has already been used this run.';
+          }
+        }
       }
     } else {
       state.lastLog = 'Traversed cleared hex ' + cell.id + '. Movement costs 1 tick.';
@@ -4384,6 +4454,41 @@
       return openLegacyRaidWipeDecision(mission.id);
     }
 
+    if (checkLegacyRaidWingGridCompletion(mission, wingNum, state)) {
+      var run = ensureLegacyRaidRunState(mission);
+      if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
+      return openLegacyRaidWingLootChoice(mission.id, wingNum, 'advance');
+    }
+    return openRaidWingPopup(mission.id, wingNum);
+  };
+
+  window.finalizeLegacyRaidHexCombatOutcome = function (outcome) {
+    var ctx = getLegacyRaidPendingHexCombat();
+    if (!ctx || !ctx.mission || !ctx.state || !ctx.pending) return false;
+    var mission = ctx.mission;
+    var state = ctx.state;
+    var wingNum = Number(ctx.pending.wing || state.wing || 1);
+    var cellId = String(ctx.pending.cellId || state.currentId || '');
+    var cell = state.cells && state.cells[cellId] ? state.cells[cellId] : null;
+    state.pendingCombat = null;
+    if (!cell) return openRaidWingPopup(mission.id, wingNum);
+    var result = String(outcome || 'retreat').toLowerCase();
+    if (result === 'win') {
+      cell.cleared = true;
+      if (cell.waypoint) {
+        state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
+      }
+      state.lastLog = 'Hex ' + cell.id + ' combat won. Path secured.';
+    } else if (result === 'wipe') {
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      state.lastLog = 'Hex ' + cell.id + ' combat wipe. Retreating to checkpoint protocol.';
+      return openLegacyRaidWipeDecision(mission.id);
+    } else {
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
+      state.lastLog = 'Hex ' + cell.id + ' combat unresolved (retreat). Extra tick lost.';
+    }
+    if (Number(state.ticks || 0) <= 0) return openLegacyRaidWipeDecision(mission.id);
     if (checkLegacyRaidWingGridCompletion(mission, wingNum, state)) {
       var run = ensureLegacyRaidRunState(mission);
       if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
@@ -5642,14 +5747,21 @@
     var allies = mission ? getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; }).map(function (wf) { return String(wf.name || 'Wayfarer'); }) : [];
     var action = String(actionSel.value || 'Defend');
     var options = [];
+    var seen = {};
+    var pushOpt = function (value, label) {
+      var v = String(value || '');
+      if (!v || seen[v]) return;
+      seen[v] = true;
+      options.push({ value: v, label: String(label || v) });
+    };
     if (action === 'Attack') {
-      options = [{ value: 'raid_boss', label: 'Raid Boss' }];
+      pushOpt('raid_boss', 'Raid Boss');
     } else if (action === 'Move') {
-      options = ['Engaged', 'Close', 'Nearby', 'Far'].map(function (zone) { return { value: zone, label: zone }; });
+      ['Engaged', 'Close', 'Nearby', 'Far'].forEach(function (zone) { pushOpt(zone, zone); });
     } else {
-      options.push({ value: playerName, label: playerName + ' (You)' });
-      allies.forEach(function (name) { options.push({ value: name, label: name }); });
-      if (allySel && allySel.value) options.push({ value: allySel.value, label: allySel.value + ' (Self)' });
+      pushOpt(playerName, playerName + ' (You)');
+      allies.forEach(function (name) { pushOpt(name, name); });
+      if (allySel && allySel.value) pushOpt(allySel.value, String(allySel.value) + ' (Self)');
     }
     targetSel.innerHTML = options.map(function (opt) {
       return '<option value="' + String(opt.value || '') + '">' + String(opt.label || opt.value || '') + '</option>';

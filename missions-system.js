@@ -1639,6 +1639,8 @@
     var stepButtons = '';
     var recommendedAction = 'Use the raid window to stage the next wing.';
     var abilities = ensureLegacyRaidAbilities(mission);
+    var firstTryBadge = buildLegacyRaidFirstTryBadge(run, !!(s1.completed && s2.completed && s3.completed));
+    var timelineCard = buildLegacyRaidTimelineCard(run);
     var wingStateHtml = run
       ? ('<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Wing State</div>'
@@ -1714,12 +1716,14 @@
         + '<div style="font-size:.93rem;color:var(--gold2);margin-bottom:.18rem;"><strong>' + mission.title + '</strong></div>'
         + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.18rem;">' + loreText + '</div>'
         + '<div style="font-size:.72rem;color:var(--teal);">Boss: ' + bossName + ' | Marker: ' + (tokenType || 'raid') + ' | Open window: ' + openDays + ' in-game days | Recommended: ' + recommendedAction + '</div>'
+        + '<div style="margin-top:.22rem;">' + firstTryBadge + '</div>'
         + '</div>'
         + roleHtml
         + '<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:.45rem;margin-bottom:.42rem;">'
         + '<div style="display:grid;gap:.35rem;">' + wingHtml + '</div>'
         + '<div style="display:grid;gap:.35rem;">'
         + wingStateHtml
+        + timelineCard
         + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Telegraphs and Readability</div>'
         + telegraphHtml
@@ -2385,6 +2389,47 @@
     return true;
   }
 
+  function isLegacyRaidFirstTryClear(run) {
+    if (!run) return false;
+    var wingFailTotal = Number(run.wingFailures && run.wingFailures[1] || 0)
+      + Number(run.wingFailures && run.wingFailures[2] || 0)
+      + Number(run.wingFailures && run.wingFailures[3] || 0);
+    return Number(run.wipes || 0) === 0 && Number(run.revivesUsed || 0) === 0 && wingFailTotal === 0;
+  }
+
+  function buildLegacyRaidFirstTryBadge(run, completed) {
+    if (!run) return '';
+    var clear = isLegacyRaidFirstTryClear(run);
+    if (clear && completed) {
+      return '<span style="display:inline-block;padding:.14rem .45rem;border:1px solid #6fe0a8;background:rgba(90,214,138,.14);color:#9af0bf;font-family:\'Cinzel\',serif;font-size:.63rem;letter-spacing:.1em;text-transform:uppercase;border-radius:999px;">First-Try Clear</span>';
+    }
+    if (clear && !completed) {
+      return '<span style="display:inline-block;padding:.14rem .45rem;border:1px solid #f0d070;background:rgba(240,208,112,.12);color:#f0d070;font-family:\'Cinzel\',serif;font-size:.63rem;letter-spacing:.1em;text-transform:uppercase;border-radius:999px;">First-Try Track Intact</span>';
+    }
+    return '<span style="display:inline-block;padding:.14rem .45rem;border:1px solid rgba(220,120,120,.55);background:rgba(220,120,120,.12);color:#e09090;font-family:\'Cinzel\',serif;font-size:.63rem;letter-spacing:.1em;text-transform:uppercase;border-radius:999px;">First-Try Clear Broken</span>';
+  }
+
+  function buildLegacyRaidTimelineCard(run) {
+    if (!run) return '';
+    var rows = [1, 2, 3].map(function (wing) {
+      var fails = Number(run.wingFailures && run.wingFailures[wing] || 0);
+      var clean = fails <= 0;
+      var statusText = clean ? 'Clean' : ('Strained x' + fails);
+      var statusColor = clean ? 'var(--green2)' : 'var(--red2)';
+      var checkpoint = Number(run.checkpointWing || 0) === wing ? ' · Checkpoint' : '';
+      var current = Number(run.currentWing || 0) === wing ? ' · Current' : '';
+      return '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:.28rem;align-items:center;padding:.15rem 0;border-bottom:1px solid var(--border2);">'
+        + '<div style="font-size:.66rem;color:var(--gold2);">Wing ' + wing + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);">Timeline state' + checkpoint + current + '</div>'
+        + '<div style="font-size:.67rem;color:' + statusColor + ';text-transform:uppercase;letter-spacing:.07em;">' + statusText + '</div>'
+        + '</div>';
+    }).join('');
+    return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Wing Timeline</div>'
+      + rows
+      + '</div>';
+  }
+
   function buildLegacyRaidClearSummary(mission) {
     var run = ensureLegacyRaidRunState(mission);
     if (!run) return { bonusMedals: 0, html: '' };
@@ -2394,10 +2439,16 @@
     var bonusMedals = 0;
     if (Number(run.wipes || 0) === 0) bonusMedals += 1;
     if (wingFailTotal === 0) bonusMedals += 1;
+    var firstTryBadge = buildLegacyRaidFirstTryBadge(run, true);
+    var timelineCard = buildLegacyRaidTimelineCard(run);
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
-      + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.25rem;"><strong>Raid Summary</strong></div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.25rem;">'
+      + '<div style="font-size:.9rem;color:var(--gold2);"><strong>Raid Summary</strong></div>'
+      + firstTryBadge
+      + '</div>'
       + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.3rem;">Mechanics solved cleanly: ' + mechanicsClean + '/3 · Wipes: ' + Number(run.wipes || 0) + ' · Revives: ' + Number(run.revivesUsed || 0) + '</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.16rem;">Wing results: W1 ' + (run.wingClean[1] ? 'clean' : ('strained (' + Number(run.wingFailures[1] || 0) + ' failures)')) + ' · W2 ' + (run.wingClean[2] ? 'clean' : ('strained (' + Number(run.wingFailures[2] || 0) + ' failures)')) + ' · W3 ' + (run.wingClean[3] ? 'clean' : ('strained (' + Number(run.wingFailures[3] || 0) + ' failures)')) + '</div>'
+      + '<div style="margin-bottom:.3rem;">' + timelineCard + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.38rem;">Bonus medals for clean execution: +' + bonusMedals + '</div>'
       + '<div style="display:flex;justify-content:flex-end;gap:.3rem;flex-wrap:wrap;">'
       + '<button class="btn btn-sm btn-primary" onclick="finalizeLegacyRaidClear(' + mission.id + ',' + bonusMedals + ')">Claim Raid Rewards</button>'

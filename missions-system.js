@@ -1773,6 +1773,10 @@
       return ['front', 'mechanics', 'support'];
     }
     if (room.type === 'Hazard') return ['front', 'support'];
+    if (room.type === 'Peril') return ['front', 'mechanics'];
+    if (room.type === 'Trap') return ['mechanics', 'support'];
+    if (room.type === 'Combat') return ['front', 'support'];
+    if (room.type === 'Loot') return ['mechanics', 'support'];
     if (room.type === 'TrophyCache') return ['mechanics', 'support'];
     return [];
   }
@@ -1975,27 +1979,121 @@
   ];
   var RAID_THEME_DEFAULT = { key: 'default', name: 'Shattered Complex', bg: 'rgba(14,14,18,.92)', hexFill: '#1a1a24', hexStroke: '#484860', fogFill: '#0a0a12', fogStroke: '#2a2a40', tc: '#c0c0e0', ac: '#d8d8f0', muted: '#484860', desc: ['Cracked flagstones', 'failing supports', 'the distant sound of shifting rubble'] };
 
-  var RAID_WING_ROOM_SETS = {
-    1: [ // Lore Wing
-      { type: 'Entry',        icon: '🚪', label: 'Entry Threshold',      dd: 0,  hasWayfarer: false },
-      { type: 'Hazard',       icon: '⛰',  label: 'Collapsed Passage',    dd: 6,  hasWayfarer: false },
-      { type: 'LoreReading',  icon: '📜', label: 'Fragment Chamber',      dd: 8,  hasWayfarer: false },
-      { type: 'WayfarerPost', icon: '⚑',  label: 'Wayfarer Staging Post', dd: 0,  hasWayfarer: true }
+  var RAID_ROOM_VARIANTS = {
+    Hazard: [
+      { icon: '⛰', label: 'Collapsed Passage', dd: 7 },
+      { icon: '🌋', label: 'Magma Breach', dd: 8 },
+      { icon: '🌊', label: 'Flooded Causeway', dd: 7 }
     ],
-    2: [ // Mechanic/Puzzle Wing
-      { type: 'Entry',        icon: '🚪', label: 'Mechanism Threshold',   dd: 0,  hasWayfarer: false },
-      { type: 'Hazard',       icon: '⚠',  label: 'Trap Corridor',         dd: 6,  hasWayfarer: false },
-      { type: 'Puzzle',       icon: '🧩', label: 'Gate Mechanism Room',   dd: 8,  hasWayfarer: false },
-      { type: 'WayfarerPost', icon: '⚑',  label: 'Wayfarer Staging Post', dd: 0,  hasWayfarer: true },
-      { type: 'TrophyCache',  icon: '💠', label: 'Trophy Cache',          dd: 6,  hasWayfarer: false }
+    Peril: [
+      { icon: '☠', label: 'Deathzone Gallery', dd: 8 },
+      { icon: '🧪', label: 'Volatile Spore Drift', dd: 8 },
+      { icon: '🕳', label: 'Gravity Sink Hall', dd: 9 }
     ],
-    3: [ // Boss Wing
-      { type: 'Entry',        icon: '🚪', label: 'Confrontation Approach', dd: 0,  hasWayfarer: false },
-      { type: 'Approach',     icon: '🌀', label: 'Pressure Lane',          dd: 6,  hasWayfarer: false },
-      { type: 'WayfarerPost', icon: '⚑',  label: 'Final Staging Post',     dd: 0,  hasWayfarer: true },
-      { type: 'Confrontation',icon: '🐉', label: 'Boss Chamber',           dd: 10, hasWayfarer: false, isBoss: true }
+    Combat: [
+      { icon: '⚔', label: 'Raider Killbox', dd: 7 },
+      { icon: '🛡', label: 'Holdout Barricade', dd: 8 },
+      { icon: '💥', label: 'Ambush Junction', dd: 8 }
+    ],
+    Trap: [
+      { icon: '⚠', label: 'Trap Corridor', dd: 7 },
+      { icon: '🕸', label: 'Snare Lattice', dd: 8 },
+      { icon: '🔒', label: 'Pressure Lock Hall', dd: 8 }
+    ],
+    Loot: [
+      { icon: '📦', label: 'Smuggler Cache', dd: 7 },
+      { icon: '💰', label: 'Merchant Vault Spill', dd: 8 },
+      { icon: '🎒', label: 'Supply Seizure Bay', dd: 7 }
     ]
   };
+
+  var RAID_WING_ROOM_BLUEPRINTS = {
+    1: ['Entry', 'RANDOM', 'RANDOM', 'RANDOM', 'RANDOM', 'WayfarerPost'],
+    2: ['Entry', 'Puzzle', 'RANDOM', 'RANDOM', 'RANDOM', 'WayfarerPost'],
+    3: ['Entry', 'RANDOM', 'RANDOM', 'RANDOM', 'WayfarerPost', 'Confrontation']
+  };
+
+  var RAID_RANDOM_ROOM_TYPES = ['Hazard', 'Peril', 'Combat', 'Trap', 'Loot'];
+
+  function shuffleRaidArray(arr) {
+    var copy = arr.slice();
+    for (var i = copy.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = copy[i];
+      copy[i] = copy[j];
+      copy[j] = tmp;
+    }
+    return copy;
+  }
+
+  function pickRaidVariant(type) {
+    var pool = RAID_ROOM_VARIANTS[type] || [];
+    if (!pool.length) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function drawRaidRandomRoomTypes(count, forceCombat) {
+    var pool = shuffleRaidArray(RAID_RANDOM_ROOM_TYPES);
+    var picks = [];
+    for (var i = 0; i < count; i++) {
+      picks.push(pool[i % pool.length]);
+    }
+    if (forceCombat && picks.indexOf('Combat') < 0 && picks.length) {
+      picks[0] = 'Combat';
+    }
+    return shuffleRaidArray(picks);
+  }
+
+  function buildRaidWingTemplateByType(type, wingNum, idx) {
+    if (type === 'Entry') {
+      var entryLabel = wingNum === 1 ? 'Entry Threshold' : wingNum === 2 ? 'Mechanism Threshold' : 'Confrontation Approach';
+      return { type: 'Entry', icon: '🚪', label: entryLabel, dd: 0, hasWayfarer: false };
+    }
+    if (type === 'WayfarerPost') {
+      var postLabel = wingNum === 3 ? 'Final Staging Post' : 'Wayfarer Staging Post';
+      return { type: 'WayfarerPost', icon: '⚑', label: postLabel, dd: 0, hasWayfarer: true };
+    }
+    if (type === 'Puzzle') {
+      return { type: 'Puzzle', icon: '🧩', label: 'Gate Mechanism Room', dd: 9, hasWayfarer: false };
+    }
+    if (type === 'Confrontation') {
+      return { type: 'Confrontation', icon: '🐉', label: 'Boss Chamber', dd: 11, hasWayfarer: false, isBoss: true };
+    }
+    var variant = pickRaidVariant(type) || { icon: '⚄', label: 'Unknown Room', dd: 7 };
+    var tpl = {
+      type: type,
+      icon: variant.icon,
+      label: variant.label,
+      dd: Number(variant.dd || 7),
+      hasWayfarer: false
+    };
+    if (type === 'Combat') {
+      tpl.enemyCount = Math.max(1, Math.min(4, 1 + Math.floor(Math.random() * 4)));
+      tpl.label += ' (' + tpl.enemyCount + ' hostiles)';
+      tpl.dd += Math.max(0, tpl.enemyCount - 2);
+    }
+    if (type === 'Loot') {
+      tpl.label += ' (Merchant-linked loot)';
+    }
+    tpl.slot = idx;
+    return tpl;
+  }
+
+  function buildRaidWingTemplates(wingNum) {
+    var blueprint = RAID_WING_ROOM_BLUEPRINTS[wingNum] || RAID_WING_ROOM_BLUEPRINTS[1];
+    var randomSlots = blueprint.filter(function (t) { return t === 'RANDOM'; }).length;
+    var randomTypes = drawRaidRandomRoomTypes(randomSlots, true);
+    var randomIdx = 0;
+    var templates = [];
+    for (var i = 0; i < blueprint.length; i++) {
+      var type = blueprint[i];
+      if (type === 'RANDOM') {
+        type = randomTypes[randomIdx++] || 'Hazard';
+      }
+      templates.push(buildRaidWingTemplateByType(type, wingNum, i));
+    }
+    return templates;
+  }
 
   function getRaidTheme(mission) {
     var bossName = String(mission && mission.legacyRaidBoss || mission && mission.title || '');
@@ -2010,7 +2108,8 @@
     var profile = mission && mission.legacyRaidProfile && typeof mission.legacyRaidProfile === 'object' ? mission.legacyRaidProfile : {};
     var bonus = Math.max(0, Number(profile.roomProgressBonus || 0));
     if (roomType === 'Puzzle') return 3;
-    if (roomType === 'LoreReading' || roomType === 'Hazard' || roomType === 'Approach' || roomType === 'TrophyCache') return 2 + bonus;
+    if (roomType === 'Combat') return 2 + bonus;
+    if (roomType === 'LoreReading' || roomType === 'Hazard' || roomType === 'Peril' || roomType === 'Trap' || roomType === 'Loot' || roomType === 'Approach' || roomType === 'TrophyCache') return 2 + bonus;
     return 1 + Math.min(1, bonus);
   }
 
@@ -2023,6 +2122,7 @@
     var profile = getLegacyRaidProfile(mission);
     var dd = Math.max(0, Number(baseDd || 0));
     dd += Math.max(0, Number(profile.roomDdBonus || 0));
+    if (roomType === 'Peril') dd += 1;
     if (roomType === 'Approach' || roomType === 'Confrontation') dd += Math.max(0, Number(profile.approachDdBonus || 0));
     return dd;
   }
@@ -2160,12 +2260,18 @@
     encounter.currentAction = encounter.actions[next];
   }
 
-  function buildRaidRoomDescription(theme, wingNum, roomType, bossName) {
+  function buildRaidRoomDescription(theme, wingNum, room, bossName) {
+    var roomType = room && room.type ? room.type : 'Hazard';
+    var enemyCount = Math.max(1, Number(room && room.enemyCount || 1));
     var descFrag = theme.desc[Math.floor(Math.random() * theme.desc.length)];
     var wingCtx = wingNum === 1 ? 'The lore wing reeks of' : wingNum === 2 ? 'Mechanisms hum behind walls of' : 'The air thickens before the chamber of';
     var byType = {
       Entry:        wingCtx + ' ' + descFrag + '. The entrance threshold is passable but nothing beyond is mapped.',
       Hazard:       'A collapsed section blocks the direct path. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + ' create shifting footholds — patience and coordination are required to cross.',
+      Peril:        'A lethal pressure field saturates this room. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + '. One misread movement causes raidwide strain spikes.',
+      Combat:       'Enemy contact confirmed: ' + enemyCount + ' hostiles are entrenched in defensive angles. Break them before they call reinforcements into adjacent rooms.',
+      Trap:         'Mechanical killswitch lanes are active across this chamber. You must disable triggers while maintaining forward pressure.',
+      Loot:         'Merchant contraband is buried in this sector. Cracking this stash rolls direct loot from the Merchant tables and can swing the whole raid economy.',
       LoreReading:  'A fragment archive is embedded in the far wall. Assign one player to read the telegraphs while the rest hold against pressure. Success reveals why ' + (bossName || 'the boss') + ' matters to this region.',
       Puzzle:       'Three interlocked mechanisms control the passage seals. Each wrong answer resets the furthest. Use the room state and boss tells — repeating the first answer will lock the doors permanently.',
       WayfarerPost: 'Three Traveling Wayfarers hold this staging area. They can deploy ahead into the next room, covering a pressure lane or absorbing a hazard. If any Wayfarer fails, they\'re lost for the raid.',
@@ -2178,7 +2284,7 @@
 
   function generateRaidHexMapWing(mission, wingNum) {
     var theme = getRaidTheme(mission);
-    var templates = RAID_WING_ROOM_SETS[wingNum] || RAID_WING_ROOM_SETS[1];
+    var templates = buildRaidWingTemplates(wingNum);
     var bossName = String(mission.legacyRaidBoss || 'the Boss');
     return templates.map(function (tpl, idx) {
       var needed = getRaidRoomProgressNeeded(tpl.type, mission);
@@ -2196,7 +2302,8 @@
         discovered:  idx === 0,
         frontier:    idx === 1,
         cleared:     false,
-        description: buildRaidRoomDescription(theme, wingNum, tpl.type, bossName),
+        enemyCount:  Math.max(1, Number(tpl.enemyCount || 1)),
+        description: buildRaidRoomDescription(theme, wingNum, tpl, bossName),
         result:      ''
       };
     });
@@ -2384,7 +2491,16 @@
     var bossName = String(mission.legacyRaidBoss || 'the Boss');
     var run = ensureLegacyRaidRunState(mission);
 
-    var typeColor = room.isBoss ? 'var(--red2)' : room.type === 'LoreReading' ? theme.tc : room.type === 'Puzzle' ? 'var(--teal)' : room.type === 'TrophyCache' ? 'var(--gold)' : room.type === 'WayfarerPost' ? 'var(--gold2)' : 'var(--text2)';
+    var typeColor = room.isBoss ? 'var(--red2)'
+      : room.type === 'LoreReading' ? theme.tc
+      : room.type === 'Puzzle' ? 'var(--teal)'
+      : room.type === 'Loot' ? 'var(--gold)'
+      : room.type === 'Combat' ? 'var(--red2)'
+      : room.type === 'Trap' ? 'var(--gold2)'
+      : room.type === 'Peril' ? 'var(--red3)'
+      : room.type === 'TrophyCache' ? 'var(--gold)'
+      : room.type === 'WayfarerPost' ? 'var(--gold2)'
+      : 'var(--text2)';
 
     var html = '<div id="raidRoom-' + mission.id + '-' + wingNum + '-' + roomIdx + '" class="room-block" style="border-left:3px solid ' + typeColor + ';padding-left:.5rem;margin-bottom:.4rem;">'
       + '<div class="rb-title" style="color:' + typeColor + ';">' + room.icon + ' Room ' + (roomIdx + 1) + ' — ' + room.label + '</div>'
@@ -2465,7 +2581,17 @@
 
       // Standard rooms: action button
       } else {
-        var btnLabel = room.type === 'Entry' ? '→ Enter Wing' : room.type === 'Hazard' ? '⛰ Force Passage (DD' + room.dd + ')' : room.type === 'LoreReading' ? '📜 Read Lore Fragment (DD' + room.dd + ')' : room.type === 'Puzzle' ? '🧩 Open Lock-Dial Puzzle' : room.type === 'Approach' ? '🌀 Advance to Chamber (DD' + room.dd + ')' : room.type === 'TrophyCache' ? '💠 Claim Cache (DD' + room.dd + ')' : '⚄ Explore (DD' + room.dd + ')';
+        var btnLabel = room.type === 'Entry' ? '→ Enter Wing'
+          : room.type === 'Hazard' ? '⛰ Push Through Hazard (DD' + room.dd + ')'
+          : room.type === 'Peril' ? '☠ Survive Peril Zone (DD' + room.dd + ')'
+          : room.type === 'Combat' ? '⚔ Fight ' + Math.max(1, Number(room.enemyCount || 1)) + ' Enemies (DD' + room.dd + ')'
+          : room.type === 'Trap' ? '⚠ Disarm Trap Lanes (DD' + room.dd + ')'
+          : room.type === 'Loot' ? '📦 Breach Loot Stash (DD' + room.dd + ')'
+          : room.type === 'LoreReading' ? '📜 Read Lore Fragment (DD' + room.dd + ')'
+          : room.type === 'Puzzle' ? '🧩 Open Lock-Dial Puzzle'
+          : room.type === 'Approach' ? '🌀 Advance to Chamber (DD' + room.dd + ')'
+          : room.type === 'TrophyCache' ? '💠 Claim Cache (DD' + room.dd + ')'
+          : '⚄ Explore (DD' + room.dd + ')';
         html += '<div style="margin-top:.22rem;">'
           + '<button class="btn btn-xs btn-teal" onclick="window.resolveRaidRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">' + btnLabel + '</button>'
           + '</div>';
@@ -2651,6 +2777,10 @@
       var needed = Math.max(1, Number(room.progressNeeded || 1));
       var resultByType = {
         Hazard:      '⛰ Pressure reduced. Keep forcing the lane.',
+        Peril:       '☠ Peril pattern mapped. Hold formation and continue the push.',
+        Combat:      '⚔ Enemy line broken. Sweep for remaining hostiles.',
+        Trap:        '⚠ Trigger mesh partially disabled. Keep pressure while disarming.',
+        Loot:        '📦 Cache lock weakened. One more push should crack it open.',
         LoreReading: '📜 Fragment partially decoded. Hold while telegraphs are read.',
         Puzzle:      '🧩 One mechanism aligned. The gate still resists.',
         Approach:    '🌀 Formation advance successful. Keep pressure.',
@@ -2671,12 +2801,24 @@
         mission.bonus = Math.min(20, Number(mission.bonus || 0) + 1);
         room.result = '📜 ' + mission.legacyRaidLoreFragment + ' Wing 3 gains +1 tactical bonus from telegraph reads.';
         if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
+      } else if (room.type === 'Loot') {
+        var raidLoot = rollShopLoot(mission.difficulty) || [];
+        if (!Array.isArray(mission.loot)) mission.loot = [];
+        mission.loot = mission.loot.concat(raidLoot);
+        room.result = '📦 Merchant-linked cache cracked. Loot acquired: ' + (raidLoot.length ? raidLoot.join(', ') : 'No salvage.') + '.';
+        if (typeof showNotif === 'function') showNotif('Raid loot cache: ' + (raidLoot.length ? raidLoot.join(', ') : 'No salvage.'), raidLoot.length ? 'good' : 'info');
+      } else if (room.type === 'Combat') {
+        room.result = '⚔ Enemy pack neutralized (' + Math.max(1, Number(room.enemyCount || 1)) + ' hostiles). Route secured.';
       } else if (room.type === 'Puzzle') {
         room.result = '🧩 Mechanism solved. Gate seals open and the raid path advances.';
       } else if (room.type === 'Approach') {
         room.result = '🌀 Pressure lane cleared. Confrontation chamber opens.';
       } else if (room.type === 'Hazard') {
         room.result = '⛰ Passage forced. The route is open.';
+      } else if (room.type === 'Peril') {
+        room.result = '☠ Peril zone survived. Raid cohesion holds.';
+      } else if (room.type === 'Trap') {
+        room.result = '⚠ Trap grid disabled. Forward lane unlocked.';
       } else if (room.type === 'TrophyCache') {
         room.result = '💠 Cache secured. Raid receives tactical reserve.';
       } else {
@@ -2697,8 +2839,8 @@
       room.failures = Number(room.failures || 0) + 1;
       room.progress = Math.max(0, Number(room.progress || 0) - 1);
       room.result = '✗ Failed. The room holds. Progress reduced to ' + Number(room.progress || 0) + '/' + Math.max(1, Number(room.progressNeeded || 1)) + '. You are role-ready, but this room needs repeated successes. Deploy a Wayfarer from the recovery panel below for +2 room bonus, then retry.';
-      // Hazard/Approach failure in wing 3 → trigger wipe system
-      if (wingNum === 3 && (room.type === 'Hazard' || room.type === 'Approach')) {
+      // High-pressure room failure in wing 3 → trigger wipe system
+      if (wingNum === 3 && (room.type === 'Hazard' || room.type === 'Peril' || room.type === 'Trap' || room.type === 'Approach')) {
         run.pendingWing = wingNum;
         run.pendingReviveCost = getLegacyRaidFailureReviveCost(mission, wingNum);
         run.wipes = Number(run.wipes || 0) + 1;

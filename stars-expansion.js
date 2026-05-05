@@ -2713,6 +2713,9 @@ function createLegacyRaidEvent(legacy, region) {
   var ownedRaidRelics = legacy && legacy.raidRelics && typeof legacy.raidRelics === 'object'
     ? Object.keys(legacy.raidRelics).length
     : 0;
+  mission.legacyRaidRelics = legacy && legacy.raidRelics && typeof legacy.raidRelics === 'object'
+    ? Object.keys(legacy.raidRelics).map(function (key) { return legacy.raidRelics[key]; }).slice(-3)
+    : [];
   var relicBonus = Math.max(0, Math.min(6, ownedRaidRelics * 2));
   var treeBonus = legacy && legacy.raidTree && legacy.raidTree.scout_network ? 5 : 0;
   var powerBonus = relicBonus + treeBonus;
@@ -2776,7 +2779,8 @@ function processLegacyRaidCompletion(legacy, raid, completedMission) {
     region: String(raid.region || 'province'),
     day: getLegacyRaidDayStamp()
   };
-  legacy.medals = Number(legacy.medals || 0) + Number(raid.medalReward || 1);
+  var bonusMedals = Math.max(0, Number(completedMission && completedMission.legacyRaidBonusMedals || 0));
+  legacy.medals = Number(legacy.medals || 0) + Number(raid.medalReward || 1) + bonusMedals;
   legacy.raidPoints = Number(legacy.raidPoints || 0) + Number(raid.pointReward || 1);
   raid.status = 'completed';
   raid.rewardProcessed = true;
@@ -2794,7 +2798,8 @@ function processLegacyRaidCompletion(legacy, raid, completedMission) {
     tags: ['raid-event', 'world-boss', 'legacy-raid', 'mythic-clear']
   });
   if (typeof showNotif === 'function') {
-    showNotif('Raid cleared: +' + Number(raid.medalReward || 1) + ' medal, +' + Number(raid.pointReward || 1) + ' raid point.', 'good');
+    showNotif('Raid cleared: +' + (Number(raid.medalReward || 1) + bonusMedals) + ' medal, +' + Number(raid.pointReward || 1) + ' raid point.', 'good');
+    if (bonusMedals > 0) showNotif('Clean execution bonus: +' + bonusMedals + ' medal(s).', 'good');
     if (stored.granted) showNotif('Raid trophy secured: ' + String(stored.name || reward.name) + '.', 'good');
     else if (stored.converted) showNotif('Duplicate raid trophy converted: +' + Number(stored.credits || 0) + '₵.', 'info');
   }
@@ -8784,6 +8789,8 @@ function createGalaxyTask(source, config) {
     missionId: config.missionId || null,
     missionStep: config.missionStep || '',
     interaction: config.interaction || 'roll',
+    markerGlyph: config.markerGlyph || '',
+    markerColor: config.markerColor || '',
     hexId: hex.id,
     resolved: false,
   };
@@ -8792,6 +8799,8 @@ function createGalaxyTask(source, config) {
     title: task.title,
     source: task.source,
     nsSubtype: config.nsSubtype || null,
+    markerGlyph: task.markerGlyph || '',
+    markerColor: task.markerColor || '',
     resolved: false,
   };
   S.starSystem.taskMarkers.push(task);
@@ -8849,8 +8858,8 @@ function renderGalaxyTaskPanel(taskId) {
     const mission = (S && Array.isArray(S.activeMissions))
       ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(task.missionId || ''); })
       : null;
-    if (mission && mission.missionType === 'legacy_raid' && typeof window.openLegacyRaidMissionPopup === 'function') {
-      window.openLegacyRaidMissionPopup(mission.id, { tokenType: task.missionStep || 'site', regionTag: 'galaxy' });
+    if (mission && mission.missionType === 'legacy_raid' && typeof window.handleLegacyRaidMarkerInteraction === 'function') {
+      window.handleLegacyRaidMarkerInteraction(mission.id, task.missionStep || 'site', 'galaxy');
       return;
     }
     const stepBtn = task.missionStep === 'informer'
@@ -15018,7 +15027,12 @@ function renderStarSystemMap() {
     const opacity = hex.explored ? 0.9 : 0.55;
     const label = getStarHexGlyph(hex);
     const _tmNsSub = hasTaskMarker && hex.taskMarker.nsSubtype ? String(hex.taskMarker.nsSubtype) : '';
-    const markerGlyph = hasTaskMarker ? (_tmNsSub === 'omen' ? '☄' : _tmNsSub === 'investigation' ? '⏳' : _tmNsSub === 'stage' ? '🌑' : _tmNsSub === 'sidestory' ? '🌍' : '✦') : hex.type === 'radio_task' && !hex.radioTaskResolved ? '✉' : '';
+    const markerGlyph = hasTaskMarker
+      ? (hex.taskMarker && hex.taskMarker.markerGlyph ? String(hex.taskMarker.markerGlyph) : (_tmNsSub === 'omen' ? '☄' : _tmNsSub === 'investigation' ? '⏳' : _tmNsSub === 'stage' ? '🌑' : _tmNsSub === 'sidestory' ? '🌍' : '✦'))
+      : hex.type === 'radio_task' && !hex.radioTaskResolved ? '✉' : '';
+    const markerColor = hasTaskMarker && hex.taskMarker && hex.taskMarker.markerColor
+      ? String(hex.taskMarker.markerColor)
+      : (hasTaskMarker ? '#f2d75a' : '#9de7ff');
     const factionBase = window.factionSystem && typeof window.factionSystem.getGalaxyMarker === 'function'
       ? window.factionSystem.getGalaxyMarker(hex.id)
       : null;
@@ -15060,7 +15074,7 @@ function renderStarSystemMap() {
         ${factionBase ? `<text x="${x - 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="#46c4b6" pointer-events="none">🏰</text>` : ''}
         ${factionTask ? `<text x="${x + 13}" y="${y + 17}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050'}" pointer-events="none">${factionTask.monsterTask ? '⚔' : '✦'}</text>` : ''}
         ${bsMarker ? `<circle cx="${x - 12}" cy="${y + 16}" r="7" fill="rgba(123,154,255,.16)" stroke="#7b9aff" stroke-width="1.2" pointer-events="none"></circle><text x="${x - 12}" y="${y + 20}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="10" fill="#9db3ff" pointer-events="none">${bsMarker.icon || '✶'}</text>` : ''}
-        ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${hasTaskMarker ? '#f2d75a' : '#9de7ff'}" onclick="event.stopPropagation(); ${hasTaskMarker ? `openGalaxyTaskFromMap(${hex.id})` : ''}" style="cursor:${hasTaskMarker ? 'zoom-in' : 'pointer'};">${markerGlyph}</text>` : ''}
+        ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${markerColor}" onclick="event.stopPropagation(); ${hasTaskMarker ? `openGalaxyTaskFromMap(${hex.id})` : ''}" style="cursor:${hasTaskMarker ? 'zoom-in' : 'pointer'};">${markerGlyph}</text>` : ''}
       </g>`;
   }).join('');
 

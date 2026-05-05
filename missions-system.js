@@ -780,12 +780,16 @@
     if (mission.region === 'galaxy' && typeof createGalaxyTask === 'function') {
       // Mirror province flow with two markers: informer lead + site objective.
       var planetLabel = mission.planetName || mission.location;
+      var raidMarkerGlyph = mission.missionType === 'legacy_raid' ? '🐉' : '';
+      var raidMarkerColor = mission.missionType === 'legacy_raid' ? '#ff8450' : '';
       var informerTask = createGalaxyTask('Mission Board', {
         title: mission.title + ' (Informer)',
         text: 'Track local informants for mission intel on ' + planetLabel + '.',
         missionId: mission.id,
         missionStep: 'informer',
         interaction: 'mission-step',
+        markerGlyph: raidMarkerGlyph,
+        markerColor: raidMarkerColor,
         reward: { credits: 0 },
         preferredHexId: mission.planetHexId
       });
@@ -795,6 +799,8 @@
         missionId: mission.id,
         missionStep: 'site',
         interaction: 'mission-step',
+        markerGlyph: raidMarkerGlyph,
+        markerColor: raidMarkerColor,
         reward: { credits: mission.reward, globalRenown: 1 },
         preferredHexId: mission.planetHexId
       });
@@ -816,10 +822,10 @@
         var siteHex = seaCandidates[Math.floor(Math.random() * seaCandidates.length)];
         var informerPool = seaCandidates.filter(function(hex) { return hex.key !== siteHex.key; });
         var informerHex = informerPool.length ? informerPool[Math.floor(Math.random() * informerPool.length)] : null;
-        S.lastSea.missionTokens[siteHex.key] = { missionId: mission.id, title: mission.title, type: 'site' };
+        S.lastSea.missionTokens[siteHex.key] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'standard' };
         mission.seaSiteKey = siteHex.key;
         if (informerHex) {
-          S.lastSea.missionTokens[informerHex.key] = { missionId: mission.id, title: mission.title, type: 'informer' };
+          S.lastSea.missionTokens[informerHex.key] = { missionId: mission.id, title: mission.title, type: 'informer', missionType: mission.missionType || 'standard' };
           mission.seaInformerKey = informerHex.key;
         }
         if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
@@ -833,15 +839,15 @@
         var shuffled = candidates.slice().sort(function(){ return Math.random()-0.5; });
         var informerHex = shuffled[0];
         var siteHex = shuffled[1];
-        S.missionTokens[informerHex.col + ',' + informerHex.row] = { missionId: mission.id, title: mission.title, type: 'informer' };
-        S.missionTokens[siteHex.col + ',' + siteHex.row]      = { missionId: mission.id, title: mission.title, type: 'site' };
+        S.missionTokens[informerHex.col + ',' + informerHex.row] = { missionId: mission.id, title: mission.title, type: 'informer', missionType: mission.missionType || 'standard' };
+        S.missionTokens[siteHex.col + ',' + siteHex.row]      = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'standard' };
         mission.informerHex = { col: informerHex.col, row: informerHex.row };
         mission.siteHex     = { col: siteHex.col,     row: siteHex.row };
         // Keep mapHex pointing to site for backwards compatibility
         mission.mapHex = mission.siteHex;
       } else if (candidates.length === 1) {
         var hex = candidates[0];
-        S.missionTokens[hex.col + ',' + hex.row] = { missionId: mission.id, title: mission.title, type: 'site' };
+        S.missionTokens[hex.col + ',' + hex.row] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'standard' };
         mission.siteHex = { col: hex.col, row: hex.row };
         mission.mapHex  = mission.siteHex;
       }
@@ -1332,8 +1338,8 @@
   function autoAdvanceMissionByToken(missionId, tokenType, regionTag) {
     var mission = getMission(missionId);
     if (!mission) return false;
-    if (mission.missionType === 'legacy_raid' && typeof window.openLegacyRaidMissionPopup === 'function') {
-      return !!window.openLegacyRaidMissionPopup(mission.id, { tokenType: tokenType, regionTag: regionTag || mission.region || 'region' });
+    if (mission.missionType === 'legacy_raid') {
+      return handleLegacyRaidMarkerInteraction(mission.id, tokenType, regionTag || mission.region || 'region');
     }
     var type = String(tokenType || '').toLowerCase();
     if (!canAutoAdvanceMission(mission.id, type, regionTag || mission.region || 'region')) return false;
@@ -1376,6 +1382,76 @@
     return autoAdvanceMissionByToken(token.missionId, token.type, 'sea');
   }
 
+  function ensureLegacyRaidRunState(mission) {
+    if (!mission || mission.missionType !== 'legacy_raid') return null;
+    if (!mission.legacyRaidRun || typeof mission.legacyRaidRun !== 'object') {
+      mission.legacyRaidRun = {
+        currentWing: 1,
+        checkpointWing: 1,
+        wipes: 0,
+        revivesUsed: 0,
+        reviveCreditsSpent: 0,
+        wingFailures: { 1: 0, 2: 0, 3: 0 },
+        wingClean: { 1: false, 2: false, 3: false },
+        abilityUses: 0,
+        pendingReviveCost: 0,
+        pendingWing: 0
+      };
+    }
+    return mission.legacyRaidRun;
+  }
+
+  function getLegacyRaidCurrentWing(mission) {
+    if (!mission || !mission.steps) return 3;
+    if (!mission.steps[1] || !mission.steps[1].completed) return 1;
+    if (!mission.steps[2] || !mission.steps[2].completed) return 2;
+    return 3;
+  }
+
+  function setLegacyRaidCurrentWing(mission, wing) {
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return;
+    run.currentWing = Math.max(1, Math.min(3, Number(wing || getLegacyRaidCurrentWing(mission) || 1)));
+  }
+
+  function markLegacyRaidWingOutcome(mission, wing, clean) {
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return;
+    var w = Math.max(1, Math.min(3, Number(wing || 1)));
+    if (clean) {
+      if (Number(run.wingFailures[w] || 0) <= 0) run.wingClean[w] = true;
+      return;
+    }
+    run.wingFailures[w] = Number(run.wingFailures[w] || 0) + 1;
+    run.wingClean[w] = false;
+  }
+
+  function handleLegacyRaidMarkerInteraction(missionId, tokenType, regionTag) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var type = String(tokenType || '').toLowerCase();
+    if (!canAutoAdvanceMission(mission.id, type || 'raid', regionTag || mission.region || 'region')) return false;
+
+    if ((type === 'informer' || type === 'holding_info') && mission.steps[1] && !mission.steps[1].completed) {
+      setLegacyRaidCurrentWing(mission, 1);
+      startMissionStep1(mission.id);
+      return true;
+    }
+    if ((type === 'site' || type === 'holding_site') && mission.steps[2] && !mission.steps[2].completed) {
+      setLegacyRaidCurrentWing(mission, 2);
+      startMissionStep2(mission.id);
+      return true;
+    }
+
+    if (mission.steps && mission.steps[2] && mission.steps[2].completed && mission.steps[3] && !mission.steps[3].completed) {
+      setLegacyRaidCurrentWing(mission, 3);
+    }
+    if (typeof window.openLegacyRaidMissionPopup === 'function') {
+      return !!window.openLegacyRaidMissionPopup(mission.id, { tokenType: type || 'site', regionTag: regionTag || mission.region || 'region' });
+    }
+    return false;
+  }
+
   function getLegacyRaidTelegraphLines(mission) {
     var boss = String(mission && mission.legacyRaidBoss || 'World Boss');
     var telegraphs = [
@@ -1387,6 +1463,111 @@
       telegraphs.push('Puzzle telegraph: ' + String(mission.legacyRaidPuzzle || 'Unknown mechanism'));
     }
     return telegraphs;
+  }
+
+  function sanitizeLegacyRaidAbilityKey(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  function ensureLegacyRaidAbilities(mission) {
+    if (!mission || mission.missionType !== 'legacy_raid') return [];
+    if (Array.isArray(mission.legacyRaidAbilities) && mission.legacyRaidAbilities.length) return mission.legacyRaidAbilities;
+    var relics = Array.isArray(mission.legacyRaidRelics) ? mission.legacyRaidRelics.slice(0, 3) : [];
+    var templates = [
+      {
+        effect: 'battle_read',
+        actionLabel: 'Predict Pattern',
+        detail: 'Gain +4 raid bonus for this mission and stabilize one wing failure.',
+        apply: function (m) {
+          m.bonus = Number(m.bonus || 0) + 4;
+          var run = ensureLegacyRaidRunState(m);
+          if (!run) return;
+          [3, 2, 1].forEach(function (wing) {
+            if (Number(run.wingFailures[wing] || 0) > 0) {
+              run.wingFailures[wing] = Math.max(0, Number(run.wingFailures[wing] || 0) - 1);
+              if (Number(run.wingFailures[wing] || 0) <= 0) run.wingClean[wing] = true;
+            }
+          });
+        }
+      },
+      {
+        effect: 'revive_anchor',
+        actionLabel: 'Anchor Checkpoint',
+        detail: 'Waive the next checkpoint revive cost after a wipe.',
+        apply: function (m) {
+          var run = ensureLegacyRaidRunState(m);
+          if (!run) return;
+          run.freeReviveTokens = Number(run.freeReviveTokens || 0) + 1;
+        }
+      },
+      {
+        effect: 'wayfarer_surge',
+        actionLabel: 'Wayfarer Surge',
+        detail: 'Gain +1 clean wing credit and erase one wipe from this run.',
+        apply: function (m) {
+          var run = ensureLegacyRaidRunState(m);
+          if (!run) return;
+          run.wipes = Math.max(0, Number(run.wipes || 0) - 1);
+          var wing = Number(run.currentWing || getLegacyRaidCurrentWing(m) || 3);
+          run.wingClean[wing] = true;
+        }
+      }
+    ];
+    mission.legacyRaidAbilities = relics.map(function (relic, idx) {
+      var tpl = templates[idx % templates.length];
+      var idBase = sanitizeLegacyRaidAbilityKey((relic && (relic.id || relic.name)) || ('relic-' + idx));
+      return {
+        id: 'raid-ability-' + idBase,
+        relicName: String(relic && relic.name || ('Bound Trophy ' + (idx + 1))),
+        effect: tpl.effect,
+        actionLabel: tpl.actionLabel,
+        detail: tpl.detail,
+        used: false
+      };
+    });
+    return mission.legacyRaidAbilities;
+  }
+
+  function useLegacyRaidAbility(missionId, abilityId) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var abilities = ensureLegacyRaidAbilities(mission);
+    var ability = abilities.find(function (item) { return item && String(item.id || '') === String(abilityId || ''); });
+    if (!ability || ability.used) return false;
+    var templates = {
+      battle_read: function (m) {
+        m.bonus = Number(m.bonus || 0) + 4;
+        var run = ensureLegacyRaidRunState(m);
+        if (!run) return;
+        [3, 2, 1].forEach(function (wing) {
+          if (Number(run.wingFailures[wing] || 0) > 0) {
+            run.wingFailures[wing] = Math.max(0, Number(run.wingFailures[wing] || 0) - 1);
+            if (Number(run.wingFailures[wing] || 0) <= 0) run.wingClean[wing] = true;
+          }
+        });
+      },
+      revive_anchor: function (m) {
+        var run = ensureLegacyRaidRunState(m);
+        if (!run) return;
+        run.freeReviveTokens = Number(run.freeReviveTokens || 0) + 1;
+      },
+      wayfarer_surge: function (m) {
+        var run = ensureLegacyRaidRunState(m);
+        if (!run) return;
+        run.wipes = Math.max(0, Number(run.wipes || 0) - 1);
+        var wing = Number(run.currentWing || getLegacyRaidCurrentWing(m) || 3);
+        run.wingClean[wing] = true;
+      }
+    };
+    if (templates[ability.effect]) templates[ability.effect](mission);
+    ability.used = true;
+    var run = ensureLegacyRaidRunState(mission);
+    if (run) run.abilityUses = Number(run.abilityUses || 0) + 1;
+    if (typeof showNotif === 'function') {
+      showNotif('Raid ability activated: ' + String(ability.actionLabel || ability.relicName) + '.', 'good');
+    }
+    openLegacyRaidMissionPopup(mission.id, { tokenType: 'raid', regionTag: mission.region || 'region' });
+    return true;
   }
 
   function buildLegacyRaidWingData(mission) {
@@ -1437,6 +1618,11 @@
     var mission = getMission(missionId);
     if (!mission || mission.missionType !== 'legacy_raid') return false;
     if (typeof openModal !== 'function') return false;
+    var run = ensureLegacyRaidRunState(mission);
+    if (run) {
+      run.currentWing = getLegacyRaidCurrentWing(mission);
+      if (Number(run.checkpointWing || 0) < 1) run.checkpointWing = run.currentWing;
+    }
 
     var steps = mission.steps || {};
     var s1 = steps[1] || { completed: false };
@@ -1452,6 +1638,31 @@
     var openDays = Math.max(1, Number(mission.legacyRaidOpenDays || 3));
     var stepButtons = '';
     var recommendedAction = 'Use the raid window to stage the next wing.';
+    var abilities = ensureLegacyRaidAbilities(mission);
+    var wingStateHtml = run
+      ? ('<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Wing State</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Current wing: ' + Number(run.currentWing || 1) + ' · Checkpoint: Wing ' + Number(run.checkpointWing || 1) + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Wipes: ' + Number(run.wipes || 0) + ' · Revives: ' + Number(run.revivesUsed || 0) + ' · Credits spent: ' + Number(run.reviveCreditsSpent || 0) + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Wing failures: W1=' + Number(run.wingFailures && run.wingFailures[1] || 0) + ', W2=' + Number(run.wingFailures && run.wingFailures[2] || 0) + ', W3=' + Number(run.wingFailures && run.wingFailures[3] || 0) + '</div>'
+        + '</div>')
+      : '';
+
+    var abilityHtml = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Bound Trophy Abilities (1 use each)</div>'
+      + (abilities.length
+        ? abilities.map(function (ability) {
+            var isUsed = !!ability.used;
+            return '<div style="padding:.18rem 0;border-bottom:1px solid var(--border2);">'
+              + '<div style="font-size:.7rem;color:var(--text2);"><strong>' + String(ability.actionLabel || 'Ability') + '</strong> · ' + String(ability.relicName || 'Bound Trophy') + '</div>'
+              + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin:.08rem 0 .14rem;">' + String(ability.detail || '') + '</div>'
+              + (isUsed
+                ? '<button class="btn btn-xs" disabled>Used</button>'
+                : '<button class="btn btn-xs btn-primary" onclick="useLegacyRaidAbility(' + mission.id + ',\'' + String(ability.id || '') + '\')">Use Once</button>')
+              + '</div>';
+          }).join('')
+        : '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">No bound trophy actives yet. Clear more unique raids to expand this panel.</div>')
+      + '</div>';
 
     if (!s1.completed) {
       recommendedAction = 'Story gate open: launch Wing 1 to establish why this boss matters.';
@@ -1508,6 +1719,7 @@
         + '<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:.45rem;margin-bottom:.42rem;">'
         + '<div style="display:grid;gap:.35rem;">' + wingHtml + '</div>'
         + '<div style="display:grid;gap:.35rem;">'
+        + wingStateHtml
         + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Telegraphs and Readability</div>'
         + telegraphHtml
@@ -1523,6 +1735,7 @@
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Checkpoint Flow</div>'
         + checkpointHtml
         + '</div>'
+        + abilityHtml
         + '</div>'
         + '</div>'
         + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
@@ -1544,6 +1757,7 @@
     ensureState();
     var mission = getMission(missionId);
     if (!mission) return;
+    if (mission.missionType === 'legacy_raid') setLegacyRaidCurrentWing(mission, 1);
     var advDie=getStat('adventure'), dreadDie=mission.dread;
     var manualMode=isMissionManualRollMode();
     var advR=manualMode?null:explodingRoll(advDie), dreadR=manualMode?null:explodingRoll(dreadDie);
@@ -1623,6 +1837,7 @@
     mission.steps[1].completed=true; mission.steps[1].skipped=false;
     removeInformerToken(mission);
     if (success) {
+      if (mission.missionType === 'legacy_raid') markLegacyRaidWingOutcome(mission, 1, true);
       mission.bonus=5;
       var f=typeof encodedResult==='string'?JSON.parse(encodedResult):encodedResult;
       mission.infoFeature=f;
@@ -1647,6 +1862,7 @@
           showNotif('\u26A1 Vents \u2014 Empowered Condition granted!','good'); break;
       }
     } else {
+      if (mission.missionType === 'legacy_raid') markLegacyRaidWingOutcome(mission, 1, false);
       var dan=typeof encodedResult==='string'?JSON.parse(encodedResult):encodedResult;
       mission.additionalDanger=dan;
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
@@ -1666,6 +1882,7 @@
     ensureState();
     var mission=getMission(missionId); if (!mission) return;
     if (!mission.steps[1].completed) { showNotif('Complete or skip Step 1 first.','warn'); return; }
+    if (mission.missionType === 'legacy_raid') setLegacyRaidCurrentWing(mission, 2);
     if (!mission.siteRoll) {
       var advDie=getStat('adventure'), bonus=mission.bonus||0;
       if (isMissionManualRollMode()) {
@@ -1876,6 +2093,9 @@
     sr.dread='Manual';
     sr.total=success?('Success'+(bonus?' (+'+bonus+')':'')):'Failure';
     sr.exploded=false;
+    if (mission.missionType === 'legacy_raid') {
+      markLegacyRaidWingOutcome(mission, 2, !!success);
+    }
     renderSiteModal(missionId);
   }
 
@@ -1960,6 +2180,13 @@
   function completeMissionSiteStep(missionId) {
     var mission=getMission(missionId); if (!mission) return;
     mission.steps[2].completed=true;
+    if (mission.missionType === 'legacy_raid') {
+      setLegacyRaidCurrentWing(mission, 3);
+      var run = ensureLegacyRaidRunState(mission);
+      if (run && Number(run.wingFailures && run.wingFailures[2] || 0) <= 0) {
+        markLegacyRaidWingOutcome(mission, 2, true);
+      }
+    }
     if (mission.region === 'galaxy' && mission.galaxyTaskId && S.starSystem && Array.isArray(S.starSystem.taskMarkers)) {
       var gTask = S.starSystem.taskMarkers.find(function(t){ return t.id === mission.galaxyTaskId; });
       if (gTask) {
@@ -1998,6 +2225,7 @@
     ensureState();
     var mission=getMission(missionId); if (!mission) return;
     if (!mission.steps[2].completed) { showNotif('Complete Step 2 first.','warn'); return; }
+    if (mission.missionType === 'legacy_raid') setLegacyRaidCurrentWing(mission, 3);
     var advDie=getStat('adventure'), dreadDie=Number(mission.gmDreadOverride || mission.dread || 8), bonus=mission.bonus||0;
     var gmMode = isGMModeActive();
     var revealDC = shouldRevealDC();
@@ -2082,6 +2310,122 @@
     if (typeof renderStorylinePanel === 'function') {
       try { renderStorylinePanel(); } catch (err) {}
     }
+  }
+
+  function getLegacyRaidFailureReviveCost(mission, wing) {
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return 0;
+    var base = 120 + (Number(run.wipes || 0) * 40);
+    if (Number(wing || 3) === 3) base += 40;
+    return Math.max(80, base);
+  }
+
+  function openLegacyRaidWipeDecision(missionId) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return false;
+    var wing = Number(run.pendingWing || run.currentWing || 3);
+    var reviveCost = Number(run.pendingReviveCost || 0);
+    var freeTokens = Number(run.freeReviveTokens || 0);
+    var canFreeRevive = freeTokens > 0;
+    var effectiveCost = canFreeRevive ? 0 : reviveCost;
+
+    openModal(
+      'Raid Wipe - Checkpoint Breach',
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="margin-bottom:.35rem;color:var(--red2);"><strong>Wing ' + wing + ' failed.</strong> The encounter did not hold and the team is forced back to a checkpoint.</div>'
+        + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.24rem;">Checkpoint revive cost: ' + (canFreeRevive ? 'Free (trophy charge)' : (effectiveCost + ' ₵')) + ' · Wipes this run: ' + Number(run.wipes || 0) + '</div>'
+        + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.4rem;">Choose whether to revive at Wing ' + Number(run.checkpointWing || wing) + ' and continue, or accept mission failure.</div>'
+        + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
+        + '<button class="btn btn-sm btn-primary" onclick="resolveLegacyRaidReviveChoice(' + mission.id + ',true)">Revive At Checkpoint</button>'
+        + '<button class="btn btn-sm btn-red" onclick="resolveLegacyRaidReviveChoice(' + mission.id + ',false)">Fail Raid Contract</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
+  function resolveLegacyRaidReviveChoice(missionId, revive) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return false;
+    var reviveCost = Number(run.pendingReviveCost || 0);
+    var freeTokens = Number(run.freeReviveTokens || 0);
+    var canUseFree = freeTokens > 0;
+    var effectiveCost = canUseFree ? 0 : reviveCost;
+    if (revive) {
+      if (effectiveCost > 0 && Number(S && S.credits || 0) < effectiveCost) {
+        if (typeof showNotif === 'function') showNotif('Not enough credits for checkpoint revive.', 'warn');
+        return false;
+      }
+      if (canUseFree) {
+        run.freeReviveTokens = Math.max(0, freeTokens - 1);
+      } else if (effectiveCost > 0) {
+        if (typeof changeCredits === 'function') changeCredits(-effectiveCost);
+        else S.credits = Math.max(0, Number(S.credits || 0) - effectiveCost);
+      }
+      run.revivesUsed = Number(run.revivesUsed || 0) + 1;
+      run.reviveCreditsSpent = Number(run.reviveCreditsSpent || 0) + effectiveCost;
+      run.pendingReviveCost = 0;
+      run.pendingWing = 0;
+      if (typeof closeModal === 'function') closeModal();
+      if (typeof showNotif === 'function') showNotif('Raid revived at checkpoint. Re-enter the wing when ready.', 'good');
+      return openLegacyRaidMissionPopup(mission.id, { tokenType: 'confront', regionTag: mission.region || 'region' });
+    }
+    if (typeof closeModal === 'function') closeModal();
+    resolveMission(mission.id, false, {
+      legacyRaid: {
+        wipes: Number(run.wipes || 0),
+        revivesUsed: Number(run.revivesUsed || 0),
+        reviveCreditsSpent: Number(run.reviveCreditsSpent || 0)
+      }
+    });
+    return true;
+  }
+
+  function buildLegacyRaidClearSummary(mission) {
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return { bonusMedals: 0, html: '' };
+    var wingFailTotal = Number(run.wingFailures[1] || 0) + Number(run.wingFailures[2] || 0) + Number(run.wingFailures[3] || 0);
+    if (Number(run.wingFailures[3] || 0) <= 0) run.wingClean[3] = true;
+    var mechanicsClean = Math.max(0, 3 - wingFailTotal);
+    var bonusMedals = 0;
+    if (Number(run.wipes || 0) === 0) bonusMedals += 1;
+    if (wingFailTotal === 0) bonusMedals += 1;
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+      + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.25rem;"><strong>Raid Summary</strong></div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.3rem;">Mechanics solved cleanly: ' + mechanicsClean + '/3 · Wipes: ' + Number(run.wipes || 0) + ' · Revives: ' + Number(run.revivesUsed || 0) + '</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.16rem;">Wing results: W1 ' + (run.wingClean[1] ? 'clean' : ('strained (' + Number(run.wingFailures[1] || 0) + ' failures)')) + ' · W2 ' + (run.wingClean[2] ? 'clean' : ('strained (' + Number(run.wingFailures[2] || 0) + ' failures)')) + ' · W3 ' + (run.wingClean[3] ? 'clean' : ('strained (' + Number(run.wingFailures[3] || 0) + ' failures)')) + '</div>'
+      + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.38rem;">Bonus medals for clean execution: +' + bonusMedals + '</div>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.3rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm btn-primary" onclick="finalizeLegacyRaidClear(' + mission.id + ',' + bonusMedals + ')">Claim Raid Rewards</button>'
+      + '</div>'
+      + '</div>';
+    return { bonusMedals: bonusMedals, html: html };
+  }
+
+  function finalizeLegacyRaidClear(missionId, bonusMedals) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return false;
+    mission.legacyRaidBonusMedals = Math.max(0, Number(bonusMedals || 0));
+    mission.legacyRaidSummary = {
+      wipes: Number(run.wipes || 0),
+      revivesUsed: Number(run.revivesUsed || 0),
+      reviveCreditsSpent: Number(run.reviveCreditsSpent || 0),
+      wingFailures: {
+        1: Number(run.wingFailures[1] || 0),
+        2: Number(run.wingFailures[2] || 0),
+        3: Number(run.wingFailures[3] || 0)
+      },
+      abilityUses: Number(run.abilityUses || 0)
+    };
+    if (typeof closeModal === 'function') closeModal();
+    resolveMission(mission.id, true, { legacyRaid: mission.legacyRaidSummary });
+    return true;
   }
 
   /* ── RESOLVE MISSION ── */
@@ -2171,6 +2515,12 @@
       completedAt: mission.completedAt,
       missionType: mission.missionType || 'standard'
     };
+    if (mission.missionType === 'legacy_raid') {
+      completedEntry.legacyRaidBonusMedals = Math.max(0, Number(mission.legacyRaidBonusMedals || 0));
+      completedEntry.legacyRaidSummary = mission.legacyRaidSummary || null;
+      completedEntry.legacyRaidBoss = mission.legacyRaidBoss || null;
+      completedEntry.legacyRaidPowerBonus = Number(mission.legacyRaidPowerBonus || 0);
+    }
     if (S.completedMissions.length>=MAX_COMPLETED_MISSIONS) S.completedMissions.shift();
     S.completedMissions.push(completedEntry);
     S.activeMissions.splice(idx,1);
@@ -2190,7 +2540,10 @@
           + (mission.homeBonusCredits ? (' +' + mission.homeBonusCredits + '\u20B5') : '')
           + (mission.homeBonusRenown ? (' +' + mission.homeBonusRenown + ' Renown') : '');
       }
-      try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 '+(mission.factionGainName||'Faction')+' +1 / '+(mission.factionLoseName||'Faction')+' -1' + homeText + ' \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
+      var raidMedalText = mission.missionType === 'legacy_raid' && Number(mission.legacyRaidBonusMedals || 0) > 0
+        ? (' \u00B7 Raid Clean Bonus: +' + Number(mission.legacyRaidBonusMedals || 0) + ' medal(s)')
+        : '';
+      try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 '+(mission.factionGainName||'Faction')+' +1 / '+(mission.factionLoseName||'Faction')+' -1' + homeText + raidMedalText + ' \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
       if (stored.length) {
         try { showNotif('Added to backpack: ' + stored.join(', '), 'good'); } catch (err) {}
       }
@@ -2243,6 +2596,29 @@
   }
 
   function resolveMissionOutcome(missionId, success) {
+    var mission = getMission(missionId);
+    if (mission && mission.missionType === 'legacy_raid') {
+      var run = ensureLegacyRaidRunState(mission);
+      if (run) run.currentWing = getLegacyRaidCurrentWing(mission);
+      if (!success) {
+        var wing = Number(run && run.currentWing || 3);
+        markLegacyRaidWingOutcome(mission, wing, false);
+        if (run) {
+          run.wipes = Number(run.wipes || 0) + 1;
+          run.pendingWing = wing;
+          run.checkpointWing = Math.max(1, Math.min(3, wing));
+          run.pendingReviveCost = getLegacyRaidFailureReviveCost(mission, wing);
+        }
+        return openLegacyRaidWipeDecision(mission.id);
+      }
+      markLegacyRaidWingOutcome(mission, 3, true);
+      try { if (typeof closeModal === 'function') closeModal(); } catch (_err) {}
+      var summary = buildLegacyRaidClearSummary(mission);
+      if (summary && summary.html && typeof openModal === 'function') {
+        openModal('Raid Clear - Performance Summary', summary.html);
+        return;
+      }
+    }
     try { if (typeof closeModal === 'function') closeModal(); } catch (err) {}
     resolveMission(missionId, success);
   }
@@ -2542,7 +2918,11 @@
   window.createDeityPactMission=createDeityPactMission;
   window.autoAdvanceMissionFromProvinceHex=autoAdvanceMissionFromProvinceHex;
   window.autoAdvanceMissionFromSeaHex=autoAdvanceMissionFromSeaHex;
+  window.handleLegacyRaidMarkerInteraction=handleLegacyRaidMarkerInteraction;
   window.openLegacyRaidMissionPopup=openLegacyRaidMissionPopup;
+  window.useLegacyRaidAbility=useLegacyRaidAbility;
+  window.resolveLegacyRaidReviveChoice=resolveLegacyRaidReviveChoice;
+  window.finalizeLegacyRaidClear=finalizeLegacyRaidClear;
   window.completeMissionStep=function(missionId,stepId){
     if(stepId===1) completeMissionInfoStep(missionId,true,JSON.stringify(rollInfoFeature()));
     else if(stepId===2) completeMissionSiteStep(missionId);

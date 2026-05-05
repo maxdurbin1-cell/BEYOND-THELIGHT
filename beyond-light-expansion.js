@@ -998,25 +998,31 @@
       // Render mission tokens for sea missions
       const missionToken = S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key];
       if (missionToken) {
+        const missionRef = (S && Array.isArray(S.activeMissions))
+          ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(missionToken.missionId || ''); })
+          : null;
+        const isLegacyRaid = missionToken.missionType === 'legacy_raid' || !!(missionRef && missionRef.missionType === 'legacy_raid');
         const tokenIcon = missionToken.type === 'site' ? '🧭' : missionToken.type === 'informer' ? '👁' : missionToken.type === 'story' ? '➤'
           : missionToken.type === 'solar_cycle_marker' ? '☄'
           : missionToken.type === 'solar_cycle_side' ? '🌍'
           : (missionToken.type === 'solar_cycle_story' && missionToken.storyType === 'stage') ? '🌑'
           : (missionToken.type === 'solar_cycle_story' && (missionToken.storyType === 'quest' || missionToken.storyType === 'investigation' || missionToken.nsSubtype === 'investigation')) ? '⏳'
           : '📍';
+        const raidIcon = isLegacyRaid ? '🐉' : tokenIcon;
         const tokenColor = missionToken.type === 'site' ? '#ff8450' : missionToken.type === 'informer' ? '#e8c050' : missionToken.type === 'story' ? '#f0d070'
           : missionToken.type === 'solar_cycle_marker' ? '#f0a050'
           : missionToken.type === 'solar_cycle_side' ? '#9ad37b'
           : (missionToken.type === 'solar_cycle_story' && missionToken.storyType === 'stage') ? '#f5d76e'
           : (missionToken.type === 'solar_cycle_story' && (missionToken.storyType === 'quest' || missionToken.storyType === 'investigation' || missionToken.nsSubtype === 'investigation')) ? '#c9d6f0'
           : '#e05050';
+        const raidColor = isLegacyRaid ? '#ff8450' : tokenColor;
         
         const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         glow.setAttribute('cx', x);
         glow.setAttribute('cy', y - LAST_SEA_HEX * 0.35);
         glow.setAttribute('r', '8');
-        glow.setAttribute('fill', 'rgba(' + (tokenColor === '#ff8450' ? '255,132,80' : tokenColor === '#e8c050' ? '232,192,80' : tokenColor === '#f0d070' ? '240,208,112' : tokenColor === '#f0a050' ? '240,160,80' : tokenColor === '#9ad37b' ? '154,211,123' : tokenColor === '#f5d76e' ? '245,215,110' : tokenColor === '#c9d6f0' ? '200,214,240' : '224,80,80') + ',.15)');
-        glow.setAttribute('stroke', tokenColor);
+        glow.setAttribute('fill', 'rgba(' + (raidColor === '#ff8450' ? '255,132,80' : raidColor === '#e8c050' ? '232,192,80' : raidColor === '#f0d070' ? '240,208,112' : raidColor === '#f0a050' ? '240,160,80' : raidColor === '#9ad37b' ? '154,211,123' : raidColor === '#f5d76e' ? '245,215,110' : raidColor === '#c9d6f0' ? '200,214,240' : '224,80,80') + ',.15)');
+        glow.setAttribute('stroke', raidColor);
         glow.setAttribute('stroke-width', '1');
         glow.setAttribute('pointer-events', 'none');
         group.appendChild(glow);
@@ -1026,9 +1032,9 @@
         micon.setAttribute('y', y - LAST_SEA_HEX * 0.25);
         micon.setAttribute('text-anchor', 'middle');
         micon.setAttribute('font-size', '10');
-        micon.setAttribute('fill', tokenColor);
+        micon.setAttribute('fill', raidColor);
         micon.setAttribute('pointer-events', 'none');
-        micon.textContent = tokenIcon;
+        micon.textContent = raidIcon;
         group.appendChild(micon);
       }
 
@@ -1341,8 +1347,8 @@
         }
         ${
           S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key]
-            ? (() => { const mt = S.lastSea.missionTokens[hex.key]; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
-                <div class="nb-label" style="color:var(--gold2);">📍 ${mt.type === 'site' ? 'Sea Mission Site' : mt.type === 'story' ? 'Story Objective' : 'Sea Informer'}</div>
+            ? (() => { const mt = S.lastSea.missionTokens[hex.key]; const missionRef = (S && Array.isArray(S.activeMissions)) ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(mt.missionId || ''); }) : null; const isRaid = mt.missionType === 'legacy_raid' || !!(missionRef && missionRef.missionType === 'legacy_raid'); const raidLabel = isRaid ? (mt.type === 'informer' ? 'Raid Lore Wing' : 'Raid Confrontation Wing') : ''; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
+                <div class="nb-label" style="color:var(--gold2);">${isRaid ? '🐉' : '📍'} ${raidLabel || (mt.type === 'site' ? 'Sea Mission Site' : mt.type === 'story' ? 'Story Objective' : 'Sea Informer')}</div>
                 <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}</div>
                 ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Resolve Task (AD vs DD8)</button></div>` : ''}
                 ${mt.type === 'story' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div>` : ''}

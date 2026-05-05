@@ -87,6 +87,8 @@
     mission: { icon: "🎯", color: "#e8c050", priority: 100, title: "Mission Marker" },
     mission_informer: { icon: "👁", color: "#e8c050", priority: 101, title: "Mission Informer" },
     mission_site: { icon: "✖", color: "#ff8450", priority: 101, title: "Mission Site" },
+    mission_raid_informer: { icon: "🐉", color: "#ff8450", priority: 103, title: "Raid Informer" },
+    mission_raid_site: { icon: "🐉", color: "#ff6a3d", priority: 104, title: "Raid Confrontation" },
     task: { icon: "🧾", color: "#46c4b6", priority: 90, title: "Holding Task" },
     story: { icon: "➤", color: "#f0d070", priority: 88, title: "Story Objective" },
     landing: { icon: "🚀", color: "#7ed7ff", priority: 80, title: "Landing Pad" },
@@ -1311,10 +1313,22 @@
       }
 
       if (siteHex) {
-        setMarker(w, siteHex, "mission_site", m.title || "Mission", "Mission site objective active");
+        setMarker(
+          w,
+          siteHex,
+          m.missionType === "legacy_raid" ? "mission_raid_site" : "mission_site",
+          m.title || "Mission",
+          m.missionType === "legacy_raid" ? "Raid confrontation marker active" : "Mission site objective active"
+        );
       }
       if (!informerDone && informerHex) {
-        setMarker(w, informerHex, "mission_informer", m.title || "Mission", "Find informer and gather intel");
+        setMarker(
+          w,
+          informerHex,
+          m.missionType === "legacy_raid" ? "mission_raid_informer" : "mission_informer",
+          m.title || "Mission",
+          m.missionType === "legacy_raid" ? "Raid lore wing marker active" : "Find informer and gather intel"
+        );
       }
     });
 
@@ -1571,7 +1585,7 @@
         g.appendChild(you);
       }
 
-      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "task" || marker.type === "story" || marker.type === "solar_cycle" || marker.type === "solar_cycle_stage" || marker.type === "solar_cycle_investigation" || marker.type === "solar_cycle_omen" || marker.type === "solar_cycle_side" || marker.type === "faction_base" || marker.type === "faction_task");
+      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "mission_raid_informer" || marker.type === "mission_raid_site" || marker.type === "task" || marker.type === "story" || marker.type === "solar_cycle" || marker.type === "solar_cycle_stage" || marker.type === "solar_cycle_investigation" || marker.type === "solar_cycle_omen" || marker.type === "solar_cycle_side" || marker.type === "faction_base" || marker.type === "faction_task");
       if (showMarker) {
         const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
         if (isTrackedThreadHex) {
@@ -2335,31 +2349,32 @@
 
     if (marker.type === "mission") {
       if (typeof showNotif === "function") showNotif("Mission marker reviewed. See Missions tab for full objective.", "good");
-    } else if (marker.type === "mission_informer" || marker.type === "mission_site") {
+    } else if (marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "mission_raid_informer" || marker.type === "mission_raid_site") {
       var missions = Array.isArray(S && S.activeMissions) ? S.activeMissions : [];
       var mission = missions.find(function (m) {
         if (!m || m.region !== "wtw") return false;
-        if (marker.type === "mission_informer") return String(m.wtwInformerHexId || "") === String(hexId || "");
+        if (marker.type === "mission_informer" || marker.type === "mission_raid_informer") return String(m.wtwInformerHexId || "") === String(hexId || "");
         return String(m.wtwSiteHexId || m.wtwHexId || "") === String(hexId || "");
       }) || null;
 
       if (!mission) {
         if (typeof showNotif === "function") showNotif("Mission marker found, but no linked active mission was found.", "warn");
       } else {
-        if (mission.missionType === "legacy_raid" && typeof window.openLegacyRaidMissionPopup === "function") {
-          window.openLegacyRaidMissionPopup(mission.id, {
-            tokenType: marker.type === "mission_informer" ? "informer" : "site",
-            regionTag: "wtw",
-            hexId: hexId
-          });
-          return;
+        if (mission.missionType === "legacy_raid" && typeof window.handleLegacyRaidMarkerInteraction === "function") {
+          if (window.handleLegacyRaidMarkerInteraction(
+            mission.id,
+            (marker.type === "mission_informer" || marker.type === "mission_raid_informer") ? "informer" : "site",
+            "wtw"
+          )) {
+            return;
+          }
         }
         var steps = Array.isArray(mission.steps) ? mission.steps : [];
         var infoDone = !!(steps[1] && steps[1].completed);
         var siteDone = !!(steps[2] && steps[2].completed);
         var finalDone = !!(steps[3] && steps[3].completed);
 
-        if (marker.type === "mission_informer") {
+        if (marker.type === "mission_informer" || marker.type === "mission_raid_informer") {
           if (!infoDone && typeof window.startMissionStep1 === "function") {
             window.startMissionStep1(mission.id);
           } else if (typeof showNotif === "function") {
@@ -3236,6 +3251,8 @@
 
   function renderWtwMarkerLegend() {
     const entries = [
+      { key: "mission_raid_informer", label: "Raid Informer" },
+      { key: "mission_raid_site", label: "Raid Confrontation" },
       { key: "mission_informer", label: "Mission Informer" },
       { key: "mission_site", label: "Mission Site" },
       { key: "task", label: "Task" },

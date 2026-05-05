@@ -7845,8 +7845,20 @@ function normalizeShopCategoryName(cat){
   return category;
 }
 
-function getControlRegimePackage(control){
+function normalizeControlFaction(control){
   var id=String(control||'').toLowerCase();
+  var aliasMap={
+    religious:'church',
+    corporations:'guilds',
+    political:'empire',
+    military:'empire',
+    underworld:'syndicate'
+  };
+  return aliasMap[id]||id;
+}
+
+function getControlRegimePackage(control){
+  var id=normalizeControlFaction(control);
   var packages={
     rebels:{
       label:'Rebel Cell Network',
@@ -7942,7 +7954,7 @@ function getShopMarketSnapshot(cat,name,baseCost){
   var closedBorder=!!(overlay&&overlay.closedBorder);
   var dangerousRoad=!!(overlay&&overlay.dangerousRoad);
   var activeCrisis=!!(overlay&&overlay.activeCrisis);
-  var control=String(overlay&&overlay.control||'').toLowerCase();
+  var control=normalizeControlFaction(overlay&&overlay.control||'');
   var pressure=(dangerousRoad?20:0)+(activeCrisis?25:0);
 
   if(closedPort){
@@ -10653,6 +10665,10 @@ function renderHexMap(){
           moved=true;
         }
         selectedHex=hex;
+        // ⚡ Check for active bounties/threat interceptors BEFORE rendering
+        if(typeof triggerWorldEventThreatOnHex==='function'){
+          triggerWorldEventThreatOnHex(hex.col,hex.row);
+        }
         renderHexMap();
         renderHexInfo(hex);
         if(moved&&typeof maybeShiftBackstoryDynamicProvinceMarkers==='function')maybeShiftBackstoryDynamicProvinceMarkers();
@@ -12227,6 +12243,175 @@ function injectContextMission(opts){
   if(typeof window.renderMissionBoard==='function')window.renderMissionBoard();
 }
 
+function ensureWorldEventFailureState(){
+  if(typeof S==='undefined'||!S)return {pendingThreats:[],lastTriggeredKey:''};
+  S.worldEventFailureState=S.worldEventFailureState||{pendingThreats:[],lastTriggeredKey:''};
+  if(!Array.isArray(S.worldEventFailureState.pendingThreats))S.worldEventFailureState.pendingThreats=[];
+  if(typeof S.worldEventFailureState.lastTriggeredKey!=='string')S.worldEventFailureState.lastTriggeredKey='';
+  return S.worldEventFailureState;
+}
+
+function queueWorldEventFailureThreat(opts){
+  var st=ensureWorldEventFailureState();
+  var threat={
+    id:Date.now()+Math.floor(Math.random()*9999),
+    sourceKey:String(opts&&opts.sourceKey||''),
+    reason:String(opts&&opts.reason||'Hostiles are tracking your crew.'),
+    enemyType:String(opts&&opts.enemyType||'Bounty Hunters'),
+    enemyCount:Math.max(1,Number(opts&&opts.enemyCount||1)),
+    dread:Math.max(4,Number(opts&&opts.dread||8)),
+    hpEach:Math.max(8,Number(opts&&opts.hpEach||16)),
+    remainingHexes:Math.max(1,Number(opts&&opts.remainingHexes||1)),
+    lastHex:''
+  };
+  st.pendingThreats.push(threat);
+  return threat;
+}
+
+function applyWorldEventFailureConsequence(choice,col,row,overlay,outcome){
+  var key=String(col)+','+String(row);
+  var c=String(choice||'intel').toLowerCase();
+  var control=normalizeControlFaction(overlay&&overlay.control||'');
+  var threatLen=Math.max(1,Math.min(3,roll(3)));
+  if(c==='intel'||c==='backchannel'||c==='permit'){
+    var hunter=queueWorldEventFailureThreat({
+      sourceKey:key,
+      reason:'Your questions drew lethal attention. A kill team is now tracking your route.',
+      enemyType:'Bounty Hunters',
+      enemyCount:1,
+      dread:12,
+      hpEach:24,
+      remainingHexes:threatLen
+    });
+    if(typeof window.applyWorldConsequence==='function'){
+      window.applyWorldConsequence({
+        system:'world-event-failure',
+        title:'Bounty declared',
+        detail:'A hostile contract is active against your crew near '+key+'.',
+        region:'province',
+        locationKey:key,
+        severity:'high',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{factionHeat:2,tension:1},
+        tags:['bounty-active','assassins-tracking']
+      });
+    }
+    if(typeof window.addHexRumor==='function')window.addHexRumor(key,{text:'Word is out: someone posted a kill-order for your crew.',tags:['bounty-active'],source:'world-event'});
+    return 'Bounty issued. Next '+hunter.remainingHexes+' hexes may trigger DD'+hunter.dread+' assassins ('+hunter.hpEach+' HP).';
+  }
+  if(c==='aid'||c==='covertaid'){
+    if(typeof window.applyWorldConsequence==='function'){
+      window.applyWorldConsequence({
+        system:'world-event-failure',
+        title:'Aid network disrupted',
+        detail:'Failed relief action at '+key+' increases road danger and scarcity.',
+        region:'province',
+        locationKey:key,
+        severity:'medium',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{scarcity:1,tension:1,stability:-1},
+        tags:['dangerous-road','supply-routed-around']
+      });
+    }
+    return 'Aid failure escalated scarcity and road danger around this region.';
+  }
+  if(c==='resist'||(control==='empire'&&c==='intel')){
+    var patrol=queueWorldEventFailureThreat({
+      sourceKey:key,
+      reason:'Crackdown patrols are hunting your crew after the failed resistance.',
+      enemyType:'Imperial Patrol',
+      enemyCount:2,
+      dread:10,
+      hpEach:20,
+      remainingHexes:Math.max(1,Math.min(3,roll(2)+1))
+    });
+    if(typeof window.applyWorldConsequence==='function'){
+      window.applyWorldConsequence({
+        system:'world-event-failure',
+        title:'Crackdown escalated',
+        detail:'Patrol sweeps intensify from '+key+'.',
+        region:'province',
+        locationKey:key,
+        severity:'high',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{safety:-1,tension:2},
+        tags:['crackdown-escalated','patrol-deployed']
+      });
+    }
+    return 'Crackdown patrols deployed. Next '+patrol.remainingHexes+' hexes may trigger DD'+patrol.dread+' patrol combat.';
+  }
+  if(c==='smuggle'){
+    var seized=Math.min(80,Math.max(20,roll(4)*10));
+    S.credits=Math.max(0,(S.credits||0)-seized);
+    if(typeof updateCreditsUI==='function')updateCreditsUI();
+    if(typeof window.applyWorldConsequence==='function'){
+      window.applyWorldConsequence({
+        system:'world-event-failure',
+        title:'Contraband seized',
+        detail:'Failed smuggling operation at '+key+' triggered seizures and fines.',
+        region:'province',
+        locationKey:key,
+        severity:'medium',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{scarcity:1,factionHeat:1},
+        tags:['smuggle-intercepted','contraband-seized']
+      });
+    }
+    return 'Contraband seized. -'+seized+'₵ and local scarcity increased.';
+  }
+  if(c==='petition'||c==='sanctuary'){
+    if(typeof window.applyWorldConsequence==='function'){
+      window.applyWorldConsequence({
+        system:'world-event-failure',
+        title:'Petition backlash',
+        detail:'The failed appeal at '+key+' emboldened hardliners.',
+        region:'province',
+        locationKey:key,
+        severity:'medium',
+        factionId:overlay&&overlay.control?String(overlay.control):'',
+        deltas:{factionHeat:1,tension:1,stability:-1},
+        tags:['petition-backlash','closed-border']
+      });
+    }
+    return 'Appeal failed. Hardliners tightened local policy and border friction.';
+  }
+  return 'Failure caused local instability and rumor spread.';
+}
+
+function triggerWorldEventThreatOnHex(col,row){
+  if(typeof S==='undefined'||!S)return;
+  if(S.combat&&S.combat.monsterCombatActive)return;
+  var st=ensureWorldEventFailureState();
+  if(!st.pendingThreats.length)return;
+  var nk=String(col)+','+String(row);
+  for(var i=0;i<st.pendingThreats.length;i++){
+    var t=st.pendingThreats[i];
+    if(!t||Number(t.remainingHexes||0)<=0)continue;
+    if(t.lastHex===nk)continue;
+    if(t.sourceKey===nk&&Number(t.remainingHexes||0)>=1)continue;
+    t.lastHex=nk;
+    t.remainingHexes=Math.max(0,Number(t.remainingHexes||0)-1);
+    var created=[];
+    for(var j=0;j<Math.max(1,Number(t.enemyCount||1));j++)created.push({id:enemyIdCounter++,name:t.enemyType+(t.enemyCount>1?(' '+(j+1)):'')||'Hostile',dread:t.dread,stress:0,maxStress:t.hpEach,health:t.hpEach,conditions:[]});
+    if(!S.combat)S.combat={};
+    S.combat.monsterCombatActive=true;
+    S.combat.enemyCount=Math.max(1,Number(t.enemyCount||1));
+    S.combat.enemyHealth=t.hpEach;
+    S.combat.enemyDread=t.dread;
+    S.combat.enemyType=t.enemyType;
+    S.enemies=created;
+    if(typeof setEnemyDread==='function')setEnemyDread(t.dread);
+    if(typeof renderEnemies==='function')renderEnemies();
+    if(typeof renderQP==='function')renderQP('combat');
+    showNotif('⚠ Ambush! '+t.enemyType+' intercepts your crew (DD'+t.dread+' | '+t.hpEach+' HP). '+(t.remainingHexes>0?('Threat window: '+t.remainingHexes+' hexes remain.'):'Final pursuit strike.'),'warn');
+    if(t.remainingHexes<=0){
+      st.pendingThreats.splice(i,1);
+    }
+    return;
+  }
+  st.pendingThreats=st.pendingThreats.filter(function(x){ return x&&Number(x.remainingHexes||0)>0; });
+}
+
 function applyWorldEventSpillover(col,row,label,deltas,tags){
   if(typeof getProvinceAdjacentHexes!=='function'||typeof window.applyWorldConsequence!=='function')return;
   var neighbors=getProvinceAdjacentHexes(col,row);
@@ -12352,6 +12537,8 @@ function resolveWorldEventOption(col,row,option){
     outcomeText+=' Scholar survey records turn the lead into an extra Path Token.';
   }
   if(!success&&typeof changeMentalStress==='function')changeMentalStress(1);
+  var failConsequence='';
+  if(!success)failConsequence=applyWorldEventFailureConsequence(choice,col,row,overlay,outcome)||'';
 
   // Write a rumor to this hex so revisits reflect what happened
   if(typeof window.addHexRumor==='function'){
@@ -12389,7 +12576,7 @@ function resolveWorldEventOption(col,row,option){
       lore:wem.lore
     });
   }
-  showNotif((success?'✅ ':'❌ ')+p.stat.toUpperCase()+' d'+die+' rolled '+actor.total+' vs DD'+p.dd+' ('+oppose.total+'). '+outcomeText+(success?' 📋 New contract posted.':''),success?'good':'warn');
+  showNotif((success?'✅ ':'❌ ')+p.stat.toUpperCase()+' d'+die+' rolled '+actor.total+' vs DD'+p.dd+' ('+oppose.total+'). '+outcomeText+(success?' 📋 New contract posted.':(failConsequence?(' ⚠ '+failConsequence):'')),success?'good':'warn');
 }
 
 function buildWorldStateEncounterAddon(col,row,mode){

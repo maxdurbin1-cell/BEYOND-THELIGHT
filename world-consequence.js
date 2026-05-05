@@ -88,8 +88,11 @@
     ws.regions     = ws.regions     || {};
     ws.factions    = ws.factions    || {};
     ws.economy     = ws.economy     || { priceMultiplier: 1, scarcity: 0 };
-    ws.governance  = ws.governance  || { province: { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 } };
-    ws.governance.province = ws.governance.province || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
+    // ⚡ Governance now supports all regions (was province-only)
+    ws.governance  = ws.governance  || {};
+    ['province','sea','galaxy','wtw','planet'].forEach(function (reg) {
+      ws.governance[reg] = ws.governance[reg] || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
+    });
     ws.capabilities = ws.capabilities || {};
     ws.activeCrises     = Array.isArray(ws.activeCrises) ? ws.activeCrises : [];
     ws.consequenceFeed  = Array.isArray(ws.consequenceFeed) ? ws.consequenceFeed : [];
@@ -107,13 +110,16 @@
     var world = ws || ensureWorldState();
     if (!world) return null;
     world.governance = world.governance || {};
-    world.governance.province = world.governance.province || {
-      patrolStance: 'balanced',
-      tariffStance: 'balanced',
-      routePriority: 'trade',
-      updatedAt: 0
-    };
-    return world.governance.province;
+    // Ensure all regions have governance state
+    ['province','sea','galaxy','wtw','planet'].forEach(function (reg) {
+      world.governance[reg] = world.governance[reg] || {
+        patrolStance: 'balanced',
+        tariffStance: 'balanced',
+        routePriority: 'trade',
+        updatedAt: 0
+      };
+    });
+    return world.governance;
   }
 
   function getProvinceGovernancePolicyState() {
@@ -133,6 +139,34 @@
     state.tariffStance = tariff === 'extractive' || tariff === 'relief' ? tariff : 'balanced';
     state.routePriority = route === 'military' || route === 'civic' ? route : 'trade';
     state.updatedAt = Date.now();
+    return deepClone(state);
+  }
+
+  // ⚡ Generic region governance getters/setters
+  function getRegionGovernancePolicyState(region) {
+    var ws = ensureWorldState();
+    var r = String(region || 'province');
+    if (!ws || !ws.governance || !ws.governance[r]) {
+      return { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
+    }
+    return deepClone(ws.governance[r]);
+  }
+
+  function setRegionGovernancePolicyState(region, next) {
+    var ws = ensureWorldState();
+    if (!ws) return null;
+    var r = String(region || 'province');
+    ensureGovernanceState(ws);
+    var state = ws.governance[r] || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
+    var patch = next && typeof next === 'object' ? next : {};
+    var patrol = String(patch.patrolStance || state.patrolStance || 'balanced').toLowerCase();
+    var tariff = String(patch.tariffStance || state.tariffStance || 'balanced').toLowerCase();
+    var route = String(patch.routePriority || state.routePriority || 'trade').toLowerCase();
+    state.patrolStance = patrol === 'strict' || patrol === 'open' ? patrol : 'balanced';
+    state.tariffStance = tariff === 'extractive' || tariff === 'relief' ? tariff : 'balanced';
+    state.routePriority = route === 'military' || route === 'civic' ? route : 'trade';
+    state.updatedAt = Date.now();
+    ws.governance[r] = state;
     return deepClone(state);
   }
 
@@ -235,10 +269,13 @@
   }
 
   function buildPropagationPlan(event, ws) {
-    if (!event || event.region !== 'province' || !event.locationKey) return [];
+    // ⚡ Allow propagation for all hex-grid regions (province, sea, galaxy, wtw)
+    if (!event || !event.locationKey) return [];
+    var region = String(event.region || 'province');
+    if (['province','sea','galaxy','wtw'].indexOf(region) < 0) return [];
     var stage = Number(event.propagationStage || 0);
     if (stage >= 2) return [];
-    var gov = ensureGovernanceState(ws) || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade' };
+    var gov = getRegionGovernancePolicyState(region) || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade' };
     var tags = Array.isArray(event.tags) ? event.tags : [];
     var deltas = event.deltas || {};
     var stageLabel = stage === 0 ? '1-hop' : '2-hop';
@@ -251,7 +288,7 @@
         system: 'world-propagation',
         title: title,
         detail: detail,
-        region: 'province',
+        region: region,
         locationKey: targetKey,
         severity: stage === 0 ? 'medium' : 'info',
         factionId: event.factionId || '',
@@ -762,6 +799,8 @@
   window.getConsequenceMissionBias = getConsequenceMissionBias;
   window.getProvinceGovernancePolicyState = getProvinceGovernancePolicyState;
   window.setProvinceGovernancePolicyState = setProvinceGovernancePolicyState;
+  window.getRegionGovernancePolicyState   = getRegionGovernancePolicyState;   // ⚡ NEW: Works for any region
+  window.setRegionGovernancePolicyState   = setRegionGovernancePolicyState;   // ⚡ NEW: Works for any region
   window.triggerFactionTurn        = triggerFactionTurn;
   window.getWorldConsequenceFeed   = getWorldConsequenceFeed;
   window.addHexRumor               = addHexRumor;

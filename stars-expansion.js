@@ -12399,7 +12399,7 @@ function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, has
   return base;
 }
 
-function renderPlanetSurfaceSvg(state, selected) {
+function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
   if (!state || !Array.isArray(state.cells) || !state.cells.length) return '';
   if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
   const mapFx = (typeof window.getMapVisualSettings === 'function')
@@ -12439,6 +12439,13 @@ function renderPlanetSurfaceSvg(state, selected) {
     .join('');
 
   const cellsSvg = state.cells.map((cell) => {
+        const linkedMarkers = missionMarkersByCell && missionMarkersByCell[cell.id] ? missionMarkersByCell[cell.id] : [];
+        const raidMarker = linkedMarkers.find((entry) => {
+          const mission = (S && Array.isArray(S.activeMissions))
+            ? S.activeMissions.find((m) => m && String(m.id || '') === String(entry.missionId || ''))
+            : null;
+          return !!(mission && mission.missionType === 'legacy_raid');
+        }) || null;
     const isLanding = cell.id === state.landedCellId;
     const isSelected = selected && cell.id === selected.id;
     const isStoryObjective = state.storyObjectiveCellId === cell.id;
@@ -12454,7 +12461,8 @@ function renderPlanetSurfaceSvg(state, selected) {
     const bsMarker = (typeof window.getBackstoryMapMarker === 'function')
       ? window.getBackstoryMapMarker('planet', String(state.hexId) + ':' + String(cell.id))
       : null;
-    const tag = isLanding ? 'L'
+    const tag = raidMarker ? '🐉'
+      : isLanding ? 'L'
       : isStoryObjective ? '➤'
       : isWayfarerContract ? '✦'
       : hasTask ? 'T'
@@ -12516,12 +12524,21 @@ function renderPlanetSurfaceSvg(state, selected) {
          <text x="${x - size * 0.34}" y="${y - size * 0.22}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="8" fill="rgba(255,255,255,.25)" pointer-events="none">${terrainGlyph}</text>`
       : '';
 
+    const missionGlyphOverlay = raidMarker
+      ? `<g style="cursor:pointer;" onclick="if(window.event){window.event.stopPropagation();}openPlanetMissionMarker('${raidMarker.id}')">
+          <circle cx="${x + 14}" cy="${y - 14}" r="7.2" fill="rgba(255,120,74,.18)" stroke="#ff8450" stroke-width="1.2" />
+          <text x="${x + 14}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="#ffb080">🐉</text>
+          <title>${raidMarker.title || 'Raid Marker'} — click to launch</title>
+        </g>`
+      : '';
+
     return `<g class="planet-hex" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;">
       <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
       ${depthOverlay}
       ${factionOverlay}
       ${factionTaskOverlay}
       ${backstoryOverlay}
+      ${missionGlyphOverlay}
       <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="${visual.tag}">${tag || '·'}</text>
       ${selectedOverlay}
     </g>`;
@@ -13706,6 +13723,39 @@ function getActivePlanetHex() {
   return (S.starSystem.hexes || []).find((h) => h.id === activeId) || null;
 }
 
+function buildPlanetMissionMarkersByCell(state, planetHex, selectedCellId) {
+  ensureStarsState();
+  if (!state || !planetHex || !Array.isArray(state.cells)) return {};
+  S.starSystem.planetMissionMarkerCells = S.starSystem.planetMissionMarkerCells || {};
+  const byCell = {};
+  const missionMarkers = (S.starSystem.taskMarkers || []).filter((task) => {
+    return task && !task.resolved && task.source === 'Mission Board' && task.hexId === planetHex.id;
+  });
+  if (!missionMarkers.length) return byCell;
+
+  const fallbackCell = state.cells.find((c) => c.id === Number(selectedCellId))
+    || state.cells.find((c) => c.id === Number(state.landedCellId))
+    || state.cells[0]
+    || null;
+  const used = {};
+  missionMarkers.forEach((task) => {
+    var assigned = Number(task.planetCellId || 0);
+    if (!assigned || !state.cells.some((c) => c.id === assigned)) {
+      assigned = Number(S.starSystem.planetMissionMarkerCells[task.id] || 0);
+    }
+    if (!assigned || !state.cells.some((c) => c.id === assigned) || used[assigned]) {
+      const preferred = state.cells.find((c) => !used[c.id] && c.explored);
+      assigned = Number((preferred && preferred.id) || (fallbackCell && fallbackCell.id) || state.cells[0].id || 0);
+    }
+    used[assigned] = true;
+    task.planetCellId = assigned;
+    S.starSystem.planetMissionMarkerCells[task.id] = assigned;
+    if (!byCell[assigned]) byCell[assigned] = [];
+    byCell[assigned].push(task);
+  });
+  return byCell;
+}
+
 function getPlanetSurfaceDifficulty(profile) {
   const t = String((profile && profile.temperature) || '').toLowerCase();
   const g = String((profile && profile.gravity) || '').toLowerCase();
@@ -14119,6 +14169,7 @@ function renderPlanetExplorationPanel() {
   const planetMissionMarkers = (S.starSystem.taskMarkers || []).filter((task) => {
     return task && !task.resolved && task.source === 'Mission Board' && task.hexId === planetHex.id;
   });
+  const planetMissionMarkersByCell = buildPlanetMissionMarkersByCell(state, planetHex, selected && selected.id);
   const activeContractCount = taskList.filter((task) => task.source === 'wayfarer').length;
   const availableContacts = availableWayfarers.filter((wf) => !wf.acceptedTaskId);
   const bypass = isPlanetHazardBypassed(state);
@@ -14191,7 +14242,7 @@ function renderPlanetExplorationPanel() {
     </div>
     <div class="planet-layout">
       <div class="planet-scroll">
-        ${renderPlanetSurfaceSvg(state, selected)}
+        ${renderPlanetSurfaceSvg(state, selected, planetMissionMarkersByCell)}
         <div class="sea-group-list" style="margin-top:.55rem;">
           ${(state.provinces || []).map((province) => {
             const provinceCells = state.cells.filter((cell) => cell.province === province);
@@ -14273,7 +14324,7 @@ function renderPlanetExplorationPanel() {
           ${planetMissionMarkers.length ? `<div class="sea-site" style="margin-top:.35rem;">
             <div class="ss-title">Mission Markers</div>
             <div class="planet-micro" style="margin-bottom:.25rem;">Planet raid markers are now clickable from this panel.</div>
-            <div style="display:flex;gap:.25rem;flex-wrap:wrap;">${planetMissionMarkers.map((task) => `<button class="btn btn-xs btn-warn" onclick="openPlanetMissionMarker('${task.id}')">🐉 ${task.title} (${task.missionStep || 'site'})</button>`).join('')}</div>
+            <div style="display:flex;gap:.25rem;flex-wrap:wrap;">${planetMissionMarkers.map((task) => `<button class="btn btn-xs btn-warn" onclick="openPlanetMissionMarker('${task.id}')">🐉 ${task.title} · Cell ${Number(task.planetCellId || 0) || '?'} (${task.missionStep || 'site'})</button>`).join('')}</div>
           </div>` : ''}
 
           ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}${selectedTask.lastRollText ? `<br><span style="color:var(--muted2);">${selectedTask.lastRollText}</span>` : ''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="rollPlanetTaskCheck('${selectedTask.id}')">⚄ Roll to Succeed (AD vs Dread d6)</button></div></div>` : ''}

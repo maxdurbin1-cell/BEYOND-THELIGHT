@@ -2572,6 +2572,73 @@ function getLegacyRaidDifficulty(legacy) {
   return tree.bulwark_drill ? 'very_hard' : 'impossible';
 }
 
+function buildLegacyRaidProfile(legacy, boss, region, missionDifficulty) {
+  var bossName = String(boss && boss.name || 'World Boss');
+  var seed = Math.abs(seedSolarCycleMix(ensureSolarCycleState(), Number(legacy && legacy.raidCounter || 0) + bossName.length * 17 + String(region || '').length * 23));
+  var tierCycle = ['normal', 'hard', 'mythic'];
+  var tier = tierCycle[seed % tierCycle.length];
+  if (String(missionDifficulty || '') === 'impossible' && tier === 'normal') tier = 'hard';
+
+  var baseKnobs = {
+    normal: {
+      label: 'Normal Raid',
+      roomProgressBonus: 0,
+      roomDdBonus: 0,
+      approachDdBonus: 0,
+      bossHpPhases: 3,
+      bossStrikesAllowed: 2,
+      bossActionCadence: 1,
+      wayfarerRiskBonus: 0,
+      actionPressureBonus: 0
+    },
+    hard: {
+      label: 'Hard Raid',
+      roomProgressBonus: 1,
+      roomDdBonus: 1,
+      approachDdBonus: 1,
+      bossHpPhases: 4,
+      bossStrikesAllowed: 2,
+      bossActionCadence: 1,
+      wayfarerRiskBonus: 1,
+      actionPressureBonus: 1
+    },
+    mythic: {
+      label: 'Mythic Raid',
+      roomProgressBonus: 1,
+      roomDdBonus: 2,
+      approachDdBonus: 2,
+      bossHpPhases: 5,
+      bossStrikesAllowed: 1,
+      bossActionCadence: 2,
+      wayfarerRiskBonus: 2,
+      actionPressureBonus: 2
+    }
+  };
+  var profile = JSON.parse(JSON.stringify(baseKnobs[tier] || baseKnobs.normal));
+
+  // Boss-specific progression curve and cadence tuning.
+  var lower = bossName.toLowerCase();
+  if (/eel|leviathan|kraken|whale|tide|brine|nautilus/.test(lower)) {
+    profile.curve = 'surge-pressure';
+    profile.approachDdBonus += 1;
+    profile.actionPressureBonus += 1;
+  } else if (/serpent|wyrm|worm|gravemouth|dragon/.test(lower)) {
+    profile.curve = 'tunnel-collapse';
+    profile.roomDdBonus += 1;
+  } else if (/saint|golem|matron|basilisk|horror/.test(lower)) {
+    profile.curve = 'attrition-ritual';
+    profile.bossHpPhases += 1;
+  } else {
+    profile.curve = 'adaptive';
+  }
+
+  profile.tier = tier;
+  profile.bossName = bossName;
+  profile.region = String(region || 'province');
+  profile.seed = seed;
+  return profile;
+}
+
 function getLegacyRaidFactionConflict(region) {
   var key = String(region || 'province');
   if (key === 'sea') return { gain: 'religious', lose: 'underworld', gainName: 'Religious Entities', loseName: 'The Underworld' };
@@ -2665,6 +2732,7 @@ function createLegacyRaidEvent(legacy, region) {
   var returnStamp = availableUntil + 30;
   var title = getLegacyRaidRegionLabel(targetRegion) + ' Raid: ' + String(boss.name || 'World Boss');
   var difficulty = getLegacyRaidDifficulty(legacy);
+  var raidProfile = buildLegacyRaidProfile(legacy, boss, targetRegion, difficulty);
   var flavor = String(boss.flavor || 'A large-scale world event is drawing Wayfarers into a coordinated assault.');
   var mission = null;
 
@@ -2689,7 +2757,7 @@ function createLegacyRaidEvent(legacy, region) {
         checkpoints: [
           'Recover the raid lore cache before the marker cools.',
           puzzleText,
-          'Face ' + String(boss.name || 'the raid boss') + ' with three allied Traveling Wayfarers (DD6 | 12 Stress each).'
+          'Face ' + String(boss.name || 'the raid boss') + ' with three allied Traveling Wayfarers (DD6 | 12 Stress each). Profile: ' + String(raidProfile.label || 'Normal Raid') + ' · Curve: ' + String(raidProfile.curve || 'adaptive') + '.'
         ],
         step1Intro: flavor + ' Allied support: three Traveling Wayfarers arrive to reinforce the raid.',
         lore: flavor + ' Boss actions: ' + String((boss.actions || []).join('; '))
@@ -2705,6 +2773,8 @@ function createLegacyRaidEvent(legacy, region) {
   mission.legacyRaidRegion = targetRegion;
   mission.legacyRaidBoss = String(boss.name || 'World Boss');
   mission.legacyRaidPuzzle = puzzleText;
+  mission.legacyRaidBossActions = Array.isArray(boss.actions) ? boss.actions.slice() : [];
+  mission.legacyRaidProfile = raidProfile;
   mission.legacyRaidStarted = false;
   mission.legacyRaidMedalReward = 1;
   mission.legacyRaidPointReward = legacy && legacy.raidTree && legacy.raidTree.trophy_claim ? 2 : 1;

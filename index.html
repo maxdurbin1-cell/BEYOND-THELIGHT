@@ -6366,7 +6366,8 @@ function getHostileEnemyCount(){
 }
 
 function getEnemyActionsPerCycle(){
-  var base=Math.max(0,getHostileEnemyCount()*2);
+  var cadence=Math.max(1,Number((S&&S.combat&&S.combat.customEnemyActionCadence)||1));
+  var base=Math.max(0,getHostileEnemyCount()*2*cadence);
   var penalty=Math.max(0,Number((S&&S.combat&&S.combat.enemyActionPenaltyThisRound)||0));
   return Math.max(0,base-penalty);
 }
@@ -6958,6 +6959,13 @@ const ENEMY_ACTION_EVENTS=[
   {name:'Hostile Hack',desc:'The enemy tries to force your systems open.',kind:'hack',element:'psychic',ranges:['close','nearby']}
 ];
 
+function getActiveEnemyActionEventPool(){
+  if(S&&S.combat&&Array.isArray(S.combat.customEnemyActionEvents)&&S.combat.customEnemyActionEvents.length){
+    return S.combat.customEnemyActionEvents;
+  }
+  return ENEMY_ACTION_EVENTS;
+}
+
 function triggerEnemyActionEvent(){
   if(!requireCampaignTurn('enemy'))return;
   var actingEnemy=getPrimaryCombatEnemy();
@@ -6970,12 +6978,13 @@ function triggerEnemyActionEvent(){
     : enemyRange==='close'
       ? ['saveCondition','hack','defendCheck','directStress']
       : ['directStress','radiation','healthStrike'];
-  var evPool=ENEMY_ACTION_EVENTS.filter(function(entry){
+  var poolSource=getActiveEnemyActionEventPool();
+  var evPool=poolSource.filter(function(entry){
     var kindOk=rangeKinds.indexOf(entry.kind)>=0;
     var rangeOk=!Array.isArray(entry.ranges)||entry.ranges.indexOf(enemyRange)>=0;
     return kindOk&&rangeOk;
   });
-  if(!evPool.length)evPool=ENEMY_ACTION_EVENTS;
+  if(!evPool.length)evPool=poolSource;
   var ev=pick(evPool);
   var dr=rollEnemyDreadWithEffects(actingEnemy,'Enemy Event DD');
   var dd=dr.effectiveDie;
@@ -7075,8 +7084,10 @@ function triggerEnemyActionEvent(){
     summary += ' <span style="font-size:.72rem;color:var(--gold2);">(Reboot Optics active: low of d'+dd+' and d'+stepUp(dd)+')</span>';
   }
 
+  var sourceLabel=(S&&S.combat&&S.combat.customEnemyActionSource)?String(S.combat.customEnemyActionSource):'';
+  var cadence=Math.max(1,Number((S&&S.combat&&S.combat.customEnemyActionCadence)||1));
   var res=document.getElementById('enemyActionResult');
-  if(res)res.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+summary+' <span style="font-size:.74rem;color:var(--muted2);">(DD'+dd+'='+dr.total+' · '+enemyRange.toUpperCase()+')</span>';
+  if(res)res.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+summary+' <span style="font-size:.74rem;color:var(--muted2);">(DD'+dd+'='+dr.total+' · '+enemyRange.toUpperCase()+(sourceLabel?' · '+sourceLabel:'')+' · Cadence x'+cadence+')</span>';
   showNotif('Enemy Action: '+ev.name,'warn');
   finalizeEnemyTurn(actingEnemy);
   updateCombatUI();

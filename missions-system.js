@@ -3952,6 +3952,99 @@
     return hints;
   }
 
+  function ensureLegacyRaidPuzzleRoleState(puzzle) {
+    if (!puzzle || typeof puzzle !== 'object') return null;
+    if (!puzzle.state || typeof puzzle.state !== 'object') puzzle.state = {};
+    if (!puzzle.state.roleCooldowns || typeof puzzle.state.roleCooldowns !== 'object') {
+      puzzle.state.roleCooldowns = { front: 0, mechanics: 0, support: 0 };
+    }
+    if (typeof puzzle.state.frontlineMomentum !== 'number') puzzle.state.frontlineMomentum = 0;
+    if (typeof puzzle.state.mechanicsInsight !== 'number') puzzle.state.mechanicsInsight = 0;
+    if (typeof puzzle.state.supportHarmony !== 'number') puzzle.state.supportHarmony = 0;
+    if (typeof puzzle.state.stability !== 'number') puzzle.state.stability = 0;
+    return puzzle.state;
+  }
+
+  function tickLegacyRaidPuzzleRoleCooldowns(puzzle) {
+    var state = ensureLegacyRaidPuzzleRoleState(puzzle);
+    if (!state) return;
+    ['front', 'mechanics', 'support'].forEach(function (role) {
+      state.roleCooldowns[role] = Math.max(0, Number(state.roleCooldowns[role] || 0) - 1);
+    });
+  }
+
+  function setLegacyRaidPuzzleRoleCooldown(puzzle, role, turns) {
+    var state = ensureLegacyRaidPuzzleRoleState(puzzle);
+    if (!state) return;
+    state.roleCooldowns[role] = Math.max(Number(state.roleCooldowns[role] || 0), Math.max(1, Number(turns || 1)));
+  }
+
+  function renderLegacyRaidPuzzleRoleStatus(puzzle) {
+    var state = ensureLegacyRaidPuzzleRoleState(puzzle);
+    if (!state) return '';
+    return '<div style="display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:.2rem;margin-bottom:.2rem;">'
+      + '<div style="font-size:.68rem;color:var(--muted2);border:1px solid var(--border2);padding:.16rem .2rem;">Front CD: <strong style="color:' + (state.roleCooldowns.front > 0 ? 'var(--red2)' : 'var(--green2)') + ';">' + Number(state.roleCooldowns.front || 0) + '</strong> · Momentum ' + Number(state.frontlineMomentum || 0) + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);border:1px solid var(--border2);padding:.16rem .2rem;">Mechanics CD: <strong style="color:' + (state.roleCooldowns.mechanics > 0 ? 'var(--red2)' : 'var(--green2)') + ';">' + Number(state.roleCooldowns.mechanics || 0) + '</strong> · Insight ' + Number(state.mechanicsInsight || 0) + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);border:1px solid var(--border2);padding:.16rem .2rem;">Support CD: <strong style="color:' + (state.roleCooldowns.support > 0 ? 'var(--red2)' : 'var(--green2)') + ';">' + Number(state.roleCooldowns.support || 0) + '</strong> · Harmony ' + Number(state.supportHarmony || 0) + '</div>'
+      + '</div>';
+  }
+
+  function renderLegacyRaidPuzzleRoleActions(missionId, wingNum, roomIdx, puzzle) {
+    var state = ensureLegacyRaidPuzzleRoleState(puzzle);
+    if (!state) return '';
+    var roleButtons = function (role, buttons) {
+      var cd = Number(state.roleCooldowns[role] || 0);
+      var style = cd > 0 ? 'opacity:.55;filter:grayscale(.35);' : '';
+      return '<div style="border:1px solid var(--border2);padding:.2rem .24rem;background:rgba(255,255,255,.02);">'
+        + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.12rem;text-transform:uppercase;letter-spacing:.05em;">' + role + (cd > 0 ? ' · locked ' + cd + ' turn' + (cd > 1 ? 's' : '') : ' · ready') + '</div>'
+        + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;' + style + '">'
+        + buttons.map(function (btn) {
+          return '<button class="btn btn-xs" ' + (cd > 0 ? 'disabled' : '') + ' onclick="submitLegacyRaidPuzzleRoleAction(' + missionId + ',' + wingNum + ',' + roomIdx + ',\'' + role + '\',\'' + btn.move + '\')">' + btn.label + '</button>';
+        }).join('')
+        + '</div></div>';
+    };
+
+    var mode = String(puzzle.mode || 'lock_dials');
+    var front = [];
+    var mechanics = [];
+    var support = [];
+    if (mode === 'lock_dials') {
+      front = [{ move: 'front_stabilize', label: 'Stabilize Tumblers' }];
+      mechanics = [{ move: 'mech_probe', label: 'Probe Dial Signature' }];
+      support = [{ move: 'support_echo', label: 'Echo Alignment' }];
+    } else if (mode === 'symbol_match') {
+      front = [{ move: 'front_mark_family', label: 'Mark Dominant Family' }];
+      mechanics = [{ move: 'mech_decode_symbol', label: 'Decode Sigil' }];
+      support = [{ move: 'support_harmony_symbol', label: 'Harmonic Echo' }];
+    } else if (mode === 'constellation') {
+      front = [{ move: 'front_trace_path', label: 'Trace Safe Arc' }];
+      mechanics = [{ move: 'mech_calibrate_star', label: 'Calibrate Node' }];
+      support = [{ move: 'support_sync_stars', label: 'Sync Pattern' }];
+    } else if (mode === 'pipe_flow') {
+      front = [{ move: 'front_force_valve', label: 'Force +2 Valve' }];
+      mechanics = [{ move: 'mech_route_pressure', label: 'Route Precision' }];
+      support = [{ move: 'support_bleed_pressure', label: 'Bleed -1 Pressure' }];
+    } else if (mode === 'weight_balance') {
+      front = [{ move: 'front_shift_mass', label: 'Shift Heavy Load' }];
+      mechanics = [{ move: 'mech_trim_mass', label: 'Fine Trim' }];
+      support = [{ move: 'support_counterweight', label: 'Counterweight' }];
+    } else if (mode === 'limited_move') {
+      front = [{ move: 'front_dash_step', label: 'Dash Next Step' }];
+      mechanics = [{ move: 'mech_reveal_path', label: 'Reveal Next Move' }];
+      support = [{ move: 'support_rewind_step', label: 'Rewind Mistake' }];
+    } else {
+      front = [{ move: 'front_anchor_shape', label: 'Anchor Segment' }];
+      mechanics = [{ move: 'mech_rotate_shape', label: 'Rotate Segment' }];
+      support = [{ move: 'support_link_shape', label: 'Link Sequence' }];
+    }
+
+    return '<div style="display:grid;grid-template-columns:1fr;gap:.2rem;margin-bottom:.2rem;">'
+      + roleButtons('front', front)
+      + roleButtons('mechanics', mechanics)
+      + roleButtons('support', support)
+      + '</div>';
+  }
+
   function openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx) {
     var mission = getMission(missionId);
     if (!mission || mission.missionType !== 'legacy_raid') return false;
@@ -3960,6 +4053,7 @@
     if (!room || room.type !== 'Puzzle') return false;
     var puzzle = ensureLegacyRaidLockDialState(mission, wingNum, roomIdx);
     if (!puzzle) return false;
+    ensureLegacyRaidPuzzleRoleState(puzzle);
     if (puzzle.solved) return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
     var hints = buildLegacyRaidPuzzleHints(mission, wingNum, roomIdx);
     var controls = '';
@@ -4001,6 +4095,8 @@
         + ['A','B','C','D'].map(function (s) { return '<button class="btn btn-xs" onclick="submitLegacyRaidPuzzleAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'shape\',\'' + s + '\')">' + s + '</button>'; }).join('')
         + '</div>';
     }
+    var roleStatus = renderLegacyRaidPuzzleRoleStatus(puzzle);
+    var roleControls = renderLegacyRaidPuzzleRoleActions(mission.id, wingNum, roomIdx, puzzle);
     var logHtml = Array.isArray(puzzle.log) && puzzle.log.length
       ? puzzle.log.slice(-4).map(function (line) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + line + '</div>'; }).join('')
       : '<div style="font-size:.67rem;color:var(--muted2);">No attempts yet.</div>';
@@ -4009,6 +4105,8 @@
       + '<div style="margin-bottom:.2rem;"><strong style="color:var(--gold2);">Puzzle Type:</strong> ' + String(puzzle.mode).replace(/_/g, ' ') + ' · Attempts left: ' + Number(puzzle.attemptsLeft || 0) + '</div>'
       + '<div style="margin-bottom:.2rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);">'
       + hints.map(function (h) { return '<div style="font-size:.69rem;color:var(--muted2);">• ' + h + '</div>'; }).join('') + '</div>'
+      + roleStatus
+      + roleControls
       + controls
       + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;">Attempt Log</div>'
       + '<div style="max-height:100px;overflow:auto;border:1px solid var(--border2);padding:.2rem .26rem;background:rgba(0,0,0,.16);margin-bottom:.2rem;">' + logHtml + '</div>'
@@ -4068,6 +4166,202 @@
     if (Number(puzzle.attemptsLeft || 0) <= 0) {
       if (typeof closeModal === 'function') closeModal();
       room.result = '🧩 Puzzle lockout triggered after failed sequence.';
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
+    }
+    return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
+  };
+
+  window.submitLegacyRaidPuzzleRoleAction = function (missionId, wingNum, roomIdx, role, move) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var map = ensureRaidHexMap(mission);
+    var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
+    if (!room || room.type !== 'Puzzle') return false;
+    var puzzle = ensureLegacyRaidLockDialState(mission, wingNum, roomIdx);
+    if (!puzzle || puzzle.solved) return false;
+
+    var state = ensureLegacyRaidPuzzleRoleState(puzzle);
+    role = String(role || '').toLowerCase();
+    move = String(move || '');
+    if (!state.roleCooldowns.hasOwnProperty(role)) return false;
+    if (Number(state.roleCooldowns[role] || 0) > 0) {
+      puzzle.log.push(role + ' is on cooldown for ' + Number(state.roleCooldowns[role] || 0) + ' turn(s).');
+      return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
+    }
+
+    var mode = String(puzzle.mode || 'lock_dials');
+    var solved = false;
+    var consumedAttempt = false;
+
+    if (mode === 'lock_dials') {
+      var code = puzzle.state.code || [1, 1, 1];
+      if (move === 'front_stabilize') {
+        state.stability = Math.min(2, Number(state.stability || 0) + 1);
+        state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
+        puzzle.log.push('Front stabilizes tumblers. Stability +' + 1 + '.');
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
+      } else if (move === 'mech_probe') {
+        var idx = Math.floor(Math.random() * 3);
+        state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
+        puzzle.log.push('Mechanics probe: dial ' + (idx + 1) + ' reads ' + Number(code[idx] || 0) + '.');
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 2);
+      } else if (move === 'support_echo') {
+        state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
+        state.stability = Math.min(3, Number(state.stability || 0) + 1);
+        puzzle.log.push('Support echo refines lock resonance. Stability increased.');
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
+      }
+    } else if (mode === 'symbol_match') {
+      var target = String(puzzle.state.target || 'SUN');
+      if (move === 'front_mark_family') {
+        puzzle.log.push('Front marks probable family: ' + (target === 'SUN' ? 'solar crest' : target === 'WAVE' ? 'tidal sigil' : 'lunar seal') + '.');
+        state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 1);
+      } else if (move === 'mech_decode_symbol') {
+        puzzle.log.push('Mechanics decode: correct icon is ' + target + '.');
+        state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 2);
+      } else if (move === 'support_harmony_symbol') {
+        puzzle.log.push('Support harmonizes sigils. Next symbol mismatch will not consume an attempt.');
+        state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
+        state.symbolShield = true;
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
+      }
+    } else if (mode === 'constellation') {
+      if (move === 'front_trace_path') {
+        puzzle.state.seq = String((puzzle.state.seq || '') + '1');
+        puzzle.log.push('Front traces opening arc through star 1.');
+        state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
+      } else if (move === 'mech_calibrate_star') {
+        var nextMap = { '': '1', '1': '3', '13': '5' };
+        var key = String(puzzle.state.seq || '').slice(-2);
+        var next = nextMap.hasOwnProperty(key) ? nextMap[key] : '3';
+        puzzle.log.push('Mechanics calibration suggests next safe node: ' + next + '.');
+        state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
+      } else if (move === 'support_sync_stars') {
+        puzzle.state.seq = String(puzzle.state.seq || '').replace(/[^135]/g, '');
+        puzzle.log.push('Support sync purges noisy star links from the chain.');
+        state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
+      }
+      solved = String(puzzle.state.seq || '').slice(-3) === '135';
+    } else if (mode === 'pipe_flow') {
+      puzzle.state.pressure = Number(puzzle.state.pressure || 0);
+      if (move === 'front_force_valve') {
+        puzzle.state.pressure += 2;
+        puzzle.log.push('Front forces valves: pressure +2 (now ' + puzzle.state.pressure + ').');
+        state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
+      } else if (move === 'mech_route_pressure') {
+        var targetPressure = Number(puzzle.state.targetPressure || 7);
+        if (puzzle.state.pressure < targetPressure) puzzle.state.pressure += 1;
+        puzzle.log.push('Mechanics routes pressure with precision (now ' + puzzle.state.pressure + ').');
+        state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
+      } else if (move === 'support_bleed_pressure') {
+        puzzle.state.pressure = Math.max(0, Number(puzzle.state.pressure || 0) - 1);
+        puzzle.log.push('Support bleeds pressure: -1 (now ' + puzzle.state.pressure + ').');
+        state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 1);
+      }
+      if (Number(puzzle.state.pressure || 0) > Number(puzzle.state.targetPressure || 7)) {
+        consumedAttempt = true;
+        puzzle.state.pressure = 0;
+        puzzle.log.push('Pressure spike! System vented and reset to 0.');
+      }
+      solved = Number(puzzle.state.pressure || 0) === Number(puzzle.state.targetPressure || 7);
+    } else if (mode === 'weight_balance') {
+      puzzle.state.balance = Number(puzzle.state.balance || 0);
+      if (move === 'front_shift_mass') {
+        var frontDelta = Math.random() < 0.5 ? -2 : 2;
+        puzzle.state.balance += frontDelta;
+        puzzle.log.push('Front shifts heavy load (' + (frontDelta > 0 ? '+' : '') + frontDelta + '). Delta now ' + puzzle.state.balance + '.');
+        state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
+      } else if (move === 'mech_trim_mass') {
+        var trimDelta = puzzle.state.balance > 0 ? -1 : 1;
+        puzzle.state.balance += trimDelta;
+        puzzle.log.push('Mechanics fine trim (' + (trimDelta > 0 ? '+' : '') + trimDelta + '). Delta now ' + puzzle.state.balance + '.');
+        state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
+      } else if (move === 'support_counterweight') {
+        var counter = puzzle.state.balance > 0 ? -2 : 2;
+        puzzle.state.balance += counter;
+        puzzle.log.push('Support counterweight pulse (' + (counter > 0 ? '+' : '') + counter + '). Delta now ' + puzzle.state.balance + '.');
+        state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
+      }
+      solved = Number(puzzle.state.balance || 0) === Number(puzzle.state.target || 0);
+    } else if (mode === 'limited_move') {
+      var targetPath = String(puzzle.state.path || 'LURRD');
+      if (move === 'front_dash_step') {
+        var nextFrontStep = targetPath.charAt(String(puzzle.state.pathTaken || '').length) || 'L';
+        puzzle.state.pathTaken = String((puzzle.state.pathTaken || '') + nextFrontStep);
+        puzzle.log.push('Front dashes through lane: ' + nextFrontStep + '. Path now ' + puzzle.state.pathTaken + '.');
+        state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
+      } else if (move === 'mech_reveal_path') {
+        var nextStep = targetPath.charAt(String(puzzle.state.pathTaken || '').length) || '-';
+        puzzle.log.push('Mechanics reveal: next optimal move is ' + nextStep + '.');
+        state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
+      } else if (move === 'support_rewind_step') {
+        puzzle.state.pathTaken = String(puzzle.state.pathTaken || '').slice(0, -1);
+        puzzle.log.push('Support rewind removes last step. Path now ' + String(puzzle.state.pathTaken || '') + '.');
+        state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
+      }
+      if (String(puzzle.state.pathTaken || '').length > targetPath.length) {
+        consumedAttempt = true;
+        puzzle.state.pathTaken = '';
+        puzzle.log.push('Path overflow triggered reset.');
+      }
+      solved = String(puzzle.state.pathTaken || '') === targetPath;
+    } else if (mode === 'shape_route') {
+      var shapeTarget = String(puzzle.state.target || 'ABCD');
+      if (move === 'front_anchor_shape') {
+        var nextShape = shapeTarget.charAt(String(puzzle.state.route || '').length) || 'A';
+        puzzle.state.route = String((puzzle.state.route || '') + nextShape);
+        puzzle.log.push('Front anchors shape ' + nextShape + '. Route now ' + puzzle.state.route + '.');
+        state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
+      } else if (move === 'mech_rotate_shape') {
+        puzzle.log.push('Mechanics rotation confirms ordering: ' + shapeTarget.split('').join('→') + '.');
+        state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
+      } else if (move === 'support_link_shape') {
+        var remaining = shapeTarget.slice(String(puzzle.state.route || '').length);
+        if (remaining.length >= 2) {
+          puzzle.state.route = String((puzzle.state.route || '') + remaining.slice(0, 2));
+          puzzle.log.push('Support links two compatible segments. Route now ' + puzzle.state.route + '.');
+        } else {
+          puzzle.log.push('Support link attempted, but no compatible pair remained.');
+          consumedAttempt = true;
+        }
+        state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
+      }
+      solved = String(puzzle.state.route || '') === shapeTarget;
+    }
+
+    tickLegacyRaidPuzzleRoleCooldowns(puzzle);
+    if (solved) {
+      puzzle.solved = true;
+      room.progress = Math.max(0, Number(room.progressNeeded || 1) - 1);
+      if (typeof closeModal === 'function') closeModal();
+      room.result = '🧩 Puzzle solved via coordinated role actions.';
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
+    }
+
+    if (consumedAttempt) {
+      puzzle.attemptsLeft = Math.max(0, Number(puzzle.attemptsLeft || 0) - 1);
+      puzzle.log.push('Failure pressure consumed one attempt. Attempts left: ' + Number(puzzle.attemptsLeft || 0) + '.');
+    }
+    if (Number(puzzle.attemptsLeft || 0) <= 0) {
+      if (typeof closeModal === 'function') closeModal();
+      room.result = '🧩 Puzzle lockout after repeated failed role sequences.';
       return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
     }
     return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);

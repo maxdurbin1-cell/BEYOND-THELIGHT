@@ -1570,6 +1570,563 @@
     return true;
   }
 
+  /* ═══════════════════════════════════════════════════════════════
+     PLAYABLE RAID HEX MAP SYSTEM
+     Each Wing renders as a fog-of-war hex dungeon. Players click
+     rooms to explore them, Traveling Wayfarers are clickable NPCs,
+     and the boss Confrontation lives in its own final hex.
+  ═══════════════════════════════════════════════════════════════ */
+
+  var RAID_THEMES = [
+    { key: 'serpent',  matches: /serpent|snake|wyrm|crawler|worm/i,       name: 'Quarry Undercrawl',  bg: 'rgba(14,26,12,.92)', hexFill: '#182e1a', hexStroke: '#3d7040', fogFill: '#0d1a0e', fogStroke: '#1e3a21', tc: '#7ecf88', ac: '#a3d98c', muted: '#3d6b42', desc: ['Mildew-slicked quarry stone', 'collapsed tunnel props', 'the distant scraping of carapace on rock'] },
+    { key: 'fire',     matches: /ember|tyrant|flame|inferno|pyre|ash|brand|cinder/i, name: 'Ember Lair', bg: 'rgba(28,10,4,.92)', hexFill: '#3a1008', hexStroke: '#8b3a1a', fogFill: '#180602', fogStroke: '#5a220a', tc: '#ff8c50', ac: '#ffb87a', muted: '#8b3a1a', desc: ['Char-black walls radiating residual heat', 'pools of cooled slag', 'the bitter scent of burning resin'] },
+    { key: 'sea',      matches: /whale|tide|deep|abyss|kraken|leviathan|coral|brine/i, name: 'Submerged Vault', bg: 'rgba(6,16,28,.92)', hexFill: '#0a1c2e', hexStroke: '#1a5070', fogFill: '#040c18', fogStroke: '#0e3550', tc: '#4dd0e1', ac: '#80deea', muted: '#1a5070', desc: ['Brine-stained stonework dripping into darkness', 'half-flooded side passages', 'the weight of deep water pressing from above'] },
+    { key: 'void',     matches: /void|null|absence|shade|hollow|unlight/i, name: 'Null Hollow',       bg: 'rgba(8,8,18,.95)',  hexFill: '#0e0e22', hexStroke: '#3a3a80', fogFill: '#050510', fogStroke: '#222260', tc: '#8888ff', ac: '#aaaaff', muted: '#3a3a80', desc: ['Dimensional static crackling between fractured masonry', 'gravity feels optional', 'light bends at the wrong angles'] },
+    { key: 'stone',    matches: /ruin|stone|construct|golem|colossus|ancient|iron/i, name: 'Crumbling Complex', bg: 'rgba(18,15,10,.92)', hexFill: '#28231a', hexStroke: '#6b5e3e', fogFill: '#100d08', fogStroke: '#3e3526', tc: '#c9b47a', ac: '#e0ccaa', muted: '#6b5e3e', desc: ['Ancient dressed stone buckling under centuries of load', 'rusted iron fixtures', 'the groan of settling arches'] }
+  ];
+  var RAID_THEME_DEFAULT = { key: 'default', name: 'Shattered Complex', bg: 'rgba(14,14,18,.92)', hexFill: '#1a1a24', hexStroke: '#484860', fogFill: '#0a0a12', fogStroke: '#2a2a40', tc: '#c0c0e0', ac: '#d8d8f0', muted: '#484860', desc: ['Cracked flagstones', 'failing supports', 'the distant sound of shifting rubble'] };
+
+  var RAID_WING_ROOM_SETS = {
+    1: [ // Lore Wing
+      { type: 'Entry',        icon: '🚪', label: 'Entry Threshold',      dd: 0,  hasWayfarer: false },
+      { type: 'Hazard',       icon: '⛰',  label: 'Collapsed Passage',    dd: 6,  hasWayfarer: false },
+      { type: 'LoreReading',  icon: '📜', label: 'Fragment Chamber',      dd: 8,  hasWayfarer: false },
+      { type: 'WayfarerPost', icon: '⚑',  label: 'Wayfarer Staging Post', dd: 0,  hasWayfarer: true }
+    ],
+    2: [ // Mechanic/Puzzle Wing
+      { type: 'Entry',        icon: '🚪', label: 'Mechanism Threshold',   dd: 0,  hasWayfarer: false },
+      { type: 'Hazard',       icon: '⚠',  label: 'Trap Corridor',         dd: 6,  hasWayfarer: false },
+      { type: 'Puzzle',       icon: '🧩', label: 'Gate Mechanism Room',   dd: 8,  hasWayfarer: false },
+      { type: 'WayfarerPost', icon: '⚑',  label: 'Wayfarer Staging Post', dd: 0,  hasWayfarer: true },
+      { type: 'TrophyCache',  icon: '💠', label: 'Trophy Cache',          dd: 6,  hasWayfarer: false }
+    ],
+    3: [ // Boss Wing
+      { type: 'Entry',        icon: '🚪', label: 'Confrontation Approach', dd: 0,  hasWayfarer: false },
+      { type: 'Approach',     icon: '🌀', label: 'Pressure Lane',          dd: 6,  hasWayfarer: false },
+      { type: 'WayfarerPost', icon: '⚑',  label: 'Final Staging Post',     dd: 0,  hasWayfarer: true },
+      { type: 'Confrontation',icon: '🐉', label: 'Boss Chamber',           dd: 10, hasWayfarer: false, isBoss: true }
+    ]
+  };
+
+  function getRaidTheme(mission) {
+    var bossName = String(mission && mission.legacyRaidBoss || mission && mission.title || '');
+    for (var i = 0; i < RAID_THEMES.length; i++) {
+      if (RAID_THEMES[i].matches.test(bossName)) return RAID_THEMES[i];
+    }
+    return RAID_THEME_DEFAULT;
+  }
+
+  function buildRaidRoomDescription(theme, wingNum, roomType, bossName) {
+    var descFrag = theme.desc[Math.floor(Math.random() * theme.desc.length)];
+    var wingCtx = wingNum === 1 ? 'The lore wing reeks of' : wingNum === 2 ? 'Mechanisms hum behind walls of' : 'The air thickens before the chamber of';
+    var byType = {
+      Entry:        wingCtx + ' ' + descFrag + '. The entrance threshold is passable but nothing beyond is mapped.',
+      Hazard:       'A collapsed section blocks the direct path. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + ' create shifting footholds — patience and coordination are required to cross.',
+      LoreReading:  'A fragment archive is embedded in the far wall. Assign one player to read the telegraphs while the rest hold against pressure. Success reveals why ' + (bossName || 'the boss') + ' matters to this region.',
+      Puzzle:       'Three interlocked mechanisms control the passage seals. Each wrong answer resets the furthest. Use the room state and boss tells — repeating the first answer will lock the doors permanently.',
+      WayfarerPost: 'Three Traveling Wayfarers hold this staging area. They can deploy ahead into the next room, covering a pressure lane or absorbing a hazard. If any Wayfarer fails, they\'re lost for the raid.',
+      TrophyCache:  'A sealed alcove holds pre-raid spoils. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + '. Clearing this room does not automatically unlock the next wing — it grants advantage.',
+      Approach:     bossName + '\'s influence already warps the space here. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + '. Positioning and role assignments must be confirmed before moving to the Chamber.',
+      Confrontation:'The boss chamber. ' + (bossName || 'The boss') + ' fills the space with pattern, movement, and pressure. Each phase shift requires repositioning. The Wayfarers hold the flanks — if they fall, you hold alone.'
+    };
+    return byType[roomType] || (wingCtx + ' ' + descFrag + '.');
+  }
+
+  function generateRaidHexMapWing(mission, wingNum) {
+    var theme = getRaidTheme(mission);
+    var templates = RAID_WING_ROOM_SETS[wingNum] || RAID_WING_ROOM_SETS[1];
+    var bossName = String(mission.legacyRaidBoss || 'the Boss');
+    return templates.map(function (tpl, idx) {
+      return {
+        idx:         idx,
+        type:        tpl.type,
+        icon:        tpl.icon,
+        label:       tpl.label,
+        dd:          tpl.dd,
+        isBoss:      !!tpl.isBoss,
+        hasWayfarer: !!tpl.hasWayfarer,
+        discovered:  idx === 0,
+        frontier:    idx === 1,
+        cleared:     false,
+        description: buildRaidRoomDescription(theme, wingNum, tpl.type, bossName),
+        result:      ''
+      };
+    });
+  }
+
+  function ensureRaidHexMap(mission) {
+    if (!mission) return null;
+    if (!mission.raidHexMap) mission.raidHexMap = { wings: {} };
+    var map = mission.raidHexMap;
+    if (!map.wings) map.wings = {};
+    for (var w = 1; w <= 3; w++) {
+      if (!Array.isArray(map.wings[w])) {
+        map.wings[w] = generateRaidHexMapWing(mission, w);
+      }
+    }
+    return map;
+  }
+
+  function buildRaidHexMapSvg(mission, wingNum) {
+    var map = ensureRaidHexMap(mission);
+    var rooms = map.wings[wingNum];
+    var theme = getRaidTheme(mission);
+    if (!Array.isArray(rooms) || !rooms.length) return '';
+
+    var W = 280, H = 110;
+    var R = 26, dx = R * 1.72, startX = 30;
+    var svgParts = [];
+
+    rooms.forEach(function (room, i) {
+      var cx = startX + i * dx;
+      var cy = H / 2;
+      if (!room.discovered && !room.frontier) return;
+
+      var pts = [];
+      for (var a = 0; a < 6; a++) {
+        var angle = (Math.PI / 180) * (60 * a - 30);
+        pts.push((cx + R * Math.cos(angle)).toFixed(1) + ',' + (cy + R * Math.sin(angle)).toFixed(1));
+      }
+      var polygon = pts.join(' ');
+      var isFrontier = room.frontier && !room.discovered;
+      var isCleared = room.cleared;
+      var fill = isFrontier ? theme.fogFill : (isCleared ? 'rgba(50,180,90,.18)' : theme.hexFill);
+      var stroke = isFrontier ? theme.fogStroke : (isCleared ? '#3a9e60' : theme.hexStroke);
+      var textFill = isFrontier ? 'rgba(200,200,200,.25)' : (isCleared ? '#60d090' : theme.ac);
+      var opacity = isFrontier ? 0.45 : 1;
+      var clickAttr = (room.discovered && !room.cleared) ? ' style="cursor:pointer;" onclick="window.openRaidRoomDetail(' + mission.id + ',' + wingNum + ',' + i + ')"' : '';
+
+      svgParts.push(
+        '<g' + clickAttr + ' opacity="' + opacity + '">'
+          + '<polygon points="' + polygon + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.5"/>'
+          + '<text x="' + cx.toFixed(1) + '" y="' + (cy - 4).toFixed(1) + '" text-anchor="middle" font-size="14" fill="' + textFill + '">' + (isFrontier ? '?' : (isCleared ? '✓' : room.icon)) + '</text>'
+          + '<text x="' + cx.toFixed(1) + '" y="' + (cy + 13).toFixed(1) + '" text-anchor="middle" font-size="6" fill="' + textFill + '">' + (isFrontier ? 'Frontier' : (room.cleared ? 'Cleared' : 'Room ' + (i + 1))) + '</text>'
+        + '</g>'
+      );
+
+      // connector line to next
+      if (i < rooms.length - 1) {
+        var nextRoom = rooms[i + 1];
+        if (nextRoom && (nextRoom.discovered || nextRoom.frontier)) {
+          var x2 = startX + (i + 1) * dx;
+          svgParts.push('<line x1="' + (cx + R).toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="' + (x2 - R).toFixed(1) + '" y2="' + cy.toFixed(1) + '" stroke="' + (isFrontier ? theme.fogStroke : theme.hexStroke) + '" stroke-width="1" opacity="0.5"/>');
+        }
+      }
+    });
+
+    return '<div style="background:' + theme.bg + ';border:1px solid ' + theme.hexStroke + ';padding:.3rem;border-radius:4px;margin-bottom:.4rem;">'
+      + '<div style="font-size:.62rem;color:' + theme.tc + ';text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;">Wing ' + wingNum + ' Map — ' + theme.name + ' · click a room to explore</div>'
+      + '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' + svgParts.join('') + '</svg>'
+      + '<div style="font-size:.6rem;color:' + theme.muted + ';margin-top:.15rem;">Fog of war active. Cleared rooms reveal frontier nodes.</div>'
+    + '</div>';
+  }
+
+  function getRaidWayfarersForWing(mission, wingNum) {
+    if (!mission.raidWayfarers) {
+      var allNames = ['Sable Orin', 'Maren of the Third Road', 'Korvus Pale', 'Tinden Ashmark', 'Sel the Wayfinder', 'Breck Two-Roads'];
+      var picked = allNames.slice().sort(function() { return Math.random() - 0.5; }).slice(0, 3);
+      mission.raidWayfarers = picked.map(function (name, i) {
+        return { idx: i, name: name, dd: 6, hp: 12, status: 'ready', wing: null };
+      });
+    }
+    return mission.raidWayfarers;
+  }
+
+  function buildRaidWayfarerCard(mission, wayfarer, wingNum, roomIdx) {
+    var statusColor = wayfarer.status === 'failed' ? 'var(--red2)' : wayfarer.status === 'deployed' ? 'var(--teal)' : 'var(--gold2)';
+    var statusLabel = wayfarer.status === 'failed' ? '✗ Lost' : wayfarer.status === 'deployed' ? '⚑ Deployed (W' + (wayfarer.wing || '?') + ')' : '● Ready';
+    var actionHtml = '';
+    if (wayfarer.status === 'ready') {
+      actionHtml = '<button class="btn btn-xs btn-teal" onclick="window.deployRaidWayfarer(' + mission.id + ',' + wingNum + ',' + roomIdx + ',' + wayfarer.idx + ')">Deploy to Next Room</button>';
+    } else if (wayfarer.status === 'deployed') {
+      actionHtml = '<span style="font-size:.68rem;color:var(--teal);">Holding position — provides hazard absorption in Wing ' + (wayfarer.wing || wingNum) + '</span>';
+    } else {
+      actionHtml = '<span style="font-size:.68rem;color:var(--red2);">This Wayfarer was lost. Only remaining wayfarers can assist.</span>';
+    }
+    return '<div style="padding:.28rem .35rem;border:1px solid var(--border2);margin-bottom:.2rem;background:var(--surface);">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+      + '<div style="font-size:.72rem;color:var(--text2);"><strong>' + wayfarer.name + '</strong></div>'
+      + '<div style="font-size:.65rem;color:' + statusColor + ';">' + statusLabel + '</div>'
+      + '</div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);margin:.06rem 0 .22rem;">Traveling Wayfarer · DD' + wayfarer.dd + ' · ' + wayfarer.hp + ' Stress Pool</div>'
+      + actionHtml
+    + '</div>';
+  }
+
+  function buildRaidRoomDetail(mission, wingNum, roomIdx) {
+    var map = ensureRaidHexMap(mission);
+    var rooms = map.wings[wingNum];
+    var room = rooms && rooms[roomIdx];
+    if (!room) return '';
+    var theme = getRaidTheme(mission);
+    var bossName = String(mission.legacyRaidBoss || 'the Boss');
+    var run = ensureLegacyRaidRunState(mission);
+
+    var typeColor = room.isBoss ? 'var(--red2)' : room.type === 'LoreReading' ? theme.tc : room.type === 'Puzzle' ? 'var(--teal)' : room.type === 'TrophyCache' ? 'var(--gold)' : room.type === 'WayfarerPost' ? 'var(--gold2)' : 'var(--text2)';
+
+    var html = '<div id="raidRoom-' + mission.id + '-' + wingNum + '-' + roomIdx + '" class="room-block" style="border-left:3px solid ' + typeColor + ';padding-left:.5rem;margin-bottom:.4rem;">'
+      + '<div class="rb-title" style="color:' + typeColor + ';">' + room.icon + ' Room ' + (roomIdx + 1) + ' — ' + room.label + '</div>'
+      + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;margin-bottom:.28rem;">' + room.description + '</div>';
+
+    if (room.result) {
+      html += '<div style="padding:.22rem .35rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);margin-bottom:.28rem;">' + room.result + '</div>';
+    }
+
+    if (room.cleared) {
+      html += '<div style="font-size:.7rem;color:var(--green2);">✓ Cleared</div>';
+    } else if (!room.discovered) {
+      html += '<div style="font-size:.7rem;color:var(--muted2);">🔒 Not yet revealed.</div>';
+    } else {
+
+      // WayfarerPost: show wayfarer cards
+      if (room.type === 'WayfarerPost') {
+        var wayfarers = getRaidWayfarersForWing(mission, wingNum);
+        html += '<div style="margin-bottom:.22rem;font-size:.68rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.06em;">Traveling Wayfarers</div>';
+        wayfarers.forEach(function (wf) {
+          html += buildRaidWayfarerCard(mission, wf, wingNum, roomIdx);
+        });
+        html += '<div style="margin-top:.25rem;">'
+          + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Continue Past Staging Post</button>'
+          + '</div>';
+
+      // Confrontation (Boss Room)
+      } else if (room.isBoss) {
+        var advDie = getStat ? getStat('adventure') : 8;
+        var gmControls = isGMModeActive && isGMModeActive()
+          ? '<div style="margin-top:.22rem;display:flex;gap:.22rem;flex-wrap:wrap;">'
+            + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidBossRoom(' + mission.id + ',true)">GM: Boss Cleared</button>'
+            + '<button class="btn btn-xs btn-red" onclick="window.resolveRaidBossRoom(' + mission.id + ',false)">GM: Boss Wipe</button>'
+            + '</div>'
+          : '';
+        html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.28);padding:.4rem .45rem;margin-bottom:.25rem;">'
+          + '<div style="font-size:.72rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.12rem;">⚔ Confrontation — ' + bossName + '</div>'
+          + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.5;">Roll Adventure d' + advDie + ' vs Dread d' + Number(mission.dread || 8) + '. Telegraphs learned in prior wings ' + ((run && Number(run.wingClean && run.wingClean[1]) && Number(run.wingClean && run.wingClean[2])) ? '<strong style="color:var(--green2);">grant +4 bonus</strong>' : 'carry no extra bonus (all wings must be clean)') + '.</div>'
+          + gmControls
+          + '</div>'
+          + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;">'
+          + '<button class="btn btn-xs btn-red" onclick="window.resolveRaidBossRoom(' + mission.id + ',false)">✗ Wipe — Roll Failed</button>'
+          + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidBossRoom(' + mission.id + ',true)">✓ Cleared — Roll Succeeded</button>'
+          + '</div>';
+
+      // Standard rooms: action button
+      } else {
+        var btnLabel = room.type === 'Entry' ? '→ Enter Wing' : room.type === 'Hazard' ? '⛰ Force Passage (DD' + room.dd + ')' : room.type === 'LoreReading' ? '📜 Read Lore Fragment (DD' + room.dd + ')' : room.type === 'Puzzle' ? '🧩 Solve Mechanism (DD' + room.dd + ')' : room.type === 'Approach' ? '🌀 Advance to Chamber (DD' + room.dd + ')' : room.type === 'TrophyCache' ? '💠 Claim Cache (DD' + room.dd + ')' : '⚄ Explore (DD' + room.dd + ')';
+        html += '<div style="margin-top:.22rem;">'
+          + '<button class="btn btn-xs btn-teal" onclick="window.resolveRaidRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">' + btnLabel + '</button>'
+          + '</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  window.openRaidRoomDetail = function (missionId, wingNum, roomIdx) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    openRaidWingPopup(missionId, wingNum, roomIdx);
+  };
+
+  function openRaidWingPopup(missionId, wingNum, selectedRoomIdx) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    if (typeof openModal !== 'function') return false;
+
+    var map = ensureRaidHexMap(mission);
+    var rooms = map.wings[wingNum];
+    var theme = getRaidTheme(mission);
+    var run = ensureLegacyRaidRunState(mission);
+    if (run) run.currentWing = wingNum;
+
+    var cleared = rooms.filter(function (r) { return r.cleared; }).length;
+    var total = rooms.length;
+    var progressPct = Math.round(cleared / total * 100);
+    var progressBar = '<div style="background:' + theme.hexFill + ';border:1px solid ' + theme.hexStroke + ';border-radius:4px;height:5px;margin-bottom:.35rem;">'
+      + '<div style="background:' + theme.tc + ';height:100%;width:' + progressPct + '%;border-radius:4px;transition:width .3s;"></div>'
+    + '</div>';
+
+    var svgMap = buildRaidHexMapSvg(mission, wingNum);
+    var wingTitles = ['', (mission.steps[1] && mission.steps[1].name) || 'Lore Wing', (mission.steps[2] && mission.steps[2].name) || 'Mechanic Wing', (mission.steps[3] && mission.steps[3].name) || 'Boss Chamber'];
+    var wingThemes = ['', 'Story Gate', 'Mechanic Gate', 'Execution Gate'];
+
+    var roomDetailHtml = '';
+    if (typeof selectedRoomIdx === 'number') {
+      roomDetailHtml = buildRaidRoomDetail(mission, wingNum, selectedRoomIdx);
+    } else {
+      // Show all discovered rooms
+      rooms.forEach(function (room, i) {
+        if (room.discovered || room.frontier) {
+          roomDetailHtml += buildRaidRoomDetail(mission, wingNum, i);
+        }
+      });
+    }
+
+    var backBtn = '<button class="btn btn-xs" onclick="openLegacyRaidMissionPopup(' + missionId + ',null)">← Raid Overview</button>';
+    var wingNav = [1, 2, 3].map(function (w) {
+      var done = mission.steps && mission.steps[w] && mission.steps[w].completed;
+      return '<button class="btn btn-xs' + (w === wingNum ? ' btn-teal' : '') + '" onclick="openRaidWingPopup(' + missionId + ',' + w + ')" ' + (w > 1 && !(mission.steps[w - 1] && mission.steps[w - 1].completed) && w !== wingNum ? 'disabled' : '') + '>Wing ' + w + (done ? ' ✓' : '') + '</button>';
+    }).join('');
+
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:760px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;margin-bottom:.35rem;">'
+      + '<div><div style="font-size:.88rem;color:' + theme.tc + ';font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitles[wingNum] + '</strong></div>'
+      + '<div style="font-size:.68rem;color:' + theme.muted + ';text-transform:uppercase;letter-spacing:.07em;">' + wingThemes[wingNum] + ' · ' + cleared + '/' + total + ' rooms cleared</div></div>'
+      + '<div style="display:flex;gap:.2rem;">' + wingNav + '</div>'
+      + '</div>'
+      + progressBar
+      + svgMap
+      + '<div style="margin-bottom:.25rem;">' + roomDetailHtml + '</div>'
+      + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.3rem;">'
+      + backBtn
+      + '</div>'
+    + '</div>';
+
+    openModal('Wing ' + wingNum + ': ' + wingTitles[wingNum] + ' — ' + mission.title, html);
+    return true;
+  }
+
+  window.resolveRaidRoom = function (missionId, wingNum, roomIdx) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var map = ensureRaidHexMap(mission);
+    var rooms = map.wings[wingNum];
+    var room = rooms && rooms[roomIdx];
+    if (!room || room.cleared) return;
+
+    var theme = getRaidTheme(mission);
+    var run = ensureLegacyRaidRunState(mission);
+    var manualMode = typeof isMissionManualRollMode === 'function' && isMissionManualRollMode();
+
+    // Entry room: free pass, just reveal next
+    if (room.type === 'Entry' || room.dd === 0) {
+      room.cleared = true;
+      room.result = '→ Threshold crossed.';
+      _raidRevealNextRoom(rooms, roomIdx);
+      openRaidWingPopup(missionId, wingNum);
+      return;
+    }
+
+    // WayfarerPost with no action needed other than pass-through
+    if (room.type === 'WayfarerPost') {
+      room.cleared = true;
+      room.result = '⚑ Staging post secured. Wayfarers hold the flanks.';
+      _raidRevealNextRoom(rooms, roomIdx);
+      _checkRaidWingComplete(mission, wingNum, rooms);
+      openRaidWingPopup(missionId, wingNum);
+      return;
+    }
+
+    var advDie = typeof getStat === 'function' ? getStat('adventure') : 8;
+    var bonus = Number(mission.bonus || 0);
+    // Deployed wayfarers give a bonus in this wing
+    var wayfarerBonus = 0;
+    if (Array.isArray(mission.raidWayfarers)) {
+      mission.raidWayfarers.forEach(function (wf) {
+        if (wf.status === 'deployed' && Number(wf.wing || 0) === wingNum) wayfarerBonus += 2;
+      });
+    }
+    var cleanBonus = (run && run.wingClean && run.wingClean[wingNum - 1]) ? 2 : 0;
+    var totalBonus = bonus + wayfarerBonus + cleanBonus;
+    var dd = Number(room.dd || 6);
+
+    var success, advR, dreadR;
+    if (manualMode) {
+      // In manual mode: show result popup with Pass/Fail buttons similar to existing system
+      openModal('Room Roll — ' + room.label,
+        '<div style="font-size:.84rem;color:var(--muted3);line-height:1.55;margin-bottom:.4rem;">'
+        + room.description
+        + '</div>'
+        + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .55rem;margin-bottom:.4rem;">'
+        + '<div style="font-size:.8rem;color:var(--text2);">Roll Adventure d' + advDie + (totalBonus ? ' + ' + totalBonus : '') + ' vs DD' + dd + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);">Wayfarers: +' + wayfarerBonus + ' · Prior wing clean: +' + cleanBonus + ' · Bonus: +' + bonus + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:.3rem;justify-content:flex-end;flex-wrap:wrap;">'
+        + '<button class="btn btn-sm btn-red" onclick="window._resolveRaidRoomOutcome(' + missionId + ',' + wingNum + ',' + roomIdx + ',false);closeModal();">✗ Failure</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="window._resolveRaidRoomOutcome(' + missionId + ',' + wingNum + ',' + roomIdx + ',true);closeModal();">✓ Success</button>'
+        + '</div>'
+      );
+      return;
+    }
+
+    advR = typeof explodingRoll === 'function' ? explodingRoll(advDie) : { total: Math.floor(Math.random() * advDie) + 1 + totalBonus, exploded: false };
+    var dreadVal = typeof roll === 'function' ? roll(dd) : Math.floor(Math.random() * dd) + 1;
+    success = (advR.total + totalBonus) >= dreadVal;
+    window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, success);
+  };
+
+  window._resolveRaidRoomOutcome = function (missionId, wingNum, roomIdx, success) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var map = ensureRaidHexMap(mission);
+    var rooms = map.wings[wingNum];
+    var room = rooms && rooms[roomIdx];
+    if (!room) return;
+    var run = ensureLegacyRaidRunState(mission);
+    var bossName = String(mission.legacyRaidBoss || 'the Boss');
+
+    if (success) {
+      room.cleared = true;
+      var resultByType = {
+        Hazard:      '⛰ Passage forced. The route is open.',
+        LoreReading: '📜 Fragment recovered. The group now understands why ' + bossName + ' matters. Telegraph reading grants +1 bonus in Wing 3.',
+        Puzzle:      '🧩 Mechanism solved. The gate seals open outward.',
+        Approach:    '🌀 Pressure lane cleared. Position assignments confirmed.',
+        TrophyCache: '💠 Cache claimed. Advantage noted for the confrontation.',
+        Entry:       '→ Crossed.',
+        WayfarerPost:'⚑ Staging secured.'
+      };
+      room.result = resultByType[room.type] || '✓ Room cleared.';
+      if (room.type === 'LoreReading') {
+        // Lore success adds a small bonus
+        mission.bonus = Math.min(20, Number(mission.bonus || 0) + 1);
+        if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
+      }
+      _raidRevealNextRoom(rooms, roomIdx);
+      _checkRaidWingComplete(mission, wingNum, rooms);
+      if (typeof showNotif === 'function') showNotif('Room cleared: ' + room.label, 'good');
+
+    } else {
+      room.result = '✗ Failed. The room holds. Regroup or deploy a Wayfarer.';
+      // Hazard/Approach failure in wing 3 → trigger wipe system
+      if (wingNum === 3 && (room.type === 'Hazard' || room.type === 'Approach')) {
+        run.pendingWing = wingNum;
+        run.pendingReviveCost = getLegacyRaidFailureReviveCost(mission, wingNum);
+        run.wipes = Number(run.wipes || 0) + 1;
+        markLegacyRaidWingOutcome(mission, wingNum, false);
+        // kick to wipe decision
+        openLegacyRaidWipeDecision(missionId);
+        return;
+      }
+      if (run) markLegacyRaidWingOutcome(mission, wingNum, false);
+      if (typeof showNotif === 'function') showNotif('Room failed — regroup and try again, or deploy a Wayfarer.', 'warn');
+    }
+    openRaidWingPopup(missionId, wingNum);
+  };
+
+  window.resolveRaidBossRoom = function (missionId, success) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var map = ensureRaidHexMap(mission);
+    var rooms = map.wings[3];
+    var bossRoom = rooms && rooms[rooms.length - 1];
+    var run = ensureLegacyRaidRunState(mission);
+
+    if (success) {
+      if (bossRoom) { bossRoom.cleared = true; bossRoom.result = '🐉 ' + String(mission.legacyRaidBoss || 'Boss') + ' defeated. Raid clear.'; }
+      // mark wing 3 complete, then fire overall clear
+      if (typeof mission.steps !== 'undefined') mission.steps[3] = mission.steps[3] || {};
+      if (run) markLegacyRaidWingOutcome(mission, 3, true);
+      if (typeof closeModal === 'function') closeModal();
+      // Wire into existing outcome system
+      if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(missionId, true);
+    } else {
+      if (run) {
+        run.pendingWing = 3;
+        run.pendingReviveCost = getLegacyRaidFailureReviveCost(mission, 3);
+        run.wipes = Number(run.wipes || 0) + 1;
+        markLegacyRaidWingOutcome(mission, 3, false);
+      }
+      openLegacyRaidWipeDecision(missionId);
+    }
+  };
+
+  window.deployRaidWayfarer = function (missionId, wingNum, roomIdx, wayfarerIdx) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var wayfarers = getRaidWayfarersForWing(mission, wingNum);
+    var wf = wayfarers[wayfarerIdx];
+    if (!wf || wf.status !== 'ready') {
+      if (typeof showNotif === 'function') showNotif('Wayfarer is not available.', 'warn');
+      return;
+    }
+
+    var dd = 6;
+    var advDie = typeof getStat === 'function' ? getStat('adventure') : 8;
+    var manualMode = typeof isMissionManualRollMode === 'function' && isMissionManualRollMode();
+
+    if (manualMode) {
+      openModal('Deploy ' + wf.name,
+        '<div style="font-size:.84rem;color:var(--muted3);line-height:1.55;margin-bottom:.4rem;">'
+        + wf.name + ' advances into the next room, covering pressure and absorbing a hazard. Roll Adventure d' + advDie + ' vs DD' + dd + '.'
+        + '</div><div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.28);padding:.3rem .4rem;font-size:.73rem;color:var(--red2);margin-bottom:.35rem;">'
+        + '⚠ On failure, ' + wf.name + ' is lost for this raid. If all Wayfarers fall, the next wing begins with no allied support.'
+        + '</div>'
+        + '<div style="display:flex;gap:.3rem;justify-content:flex-end;">'
+        + '<button class="btn btn-xs btn-red" onclick="window._resolveWayfarerDeploy(' + missionId + ',' + wingNum + ',' + roomIdx + ',' + wayfarerIdx + ',false);closeModal();">✗ Wayfarer Falls</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="window._resolveWayfarerDeploy(' + missionId + ',' + wingNum + ',' + roomIdx + ',' + wayfarerIdx + ',true);closeModal();">✓ Deployment Succeeds</button>'
+        + '</div>'
+      );
+      return;
+    }
+
+    var advR = typeof explodingRoll === 'function' ? explodingRoll(advDie) : { total: Math.floor(Math.random() * advDie) + 1 };
+    var dreadVal = typeof roll === 'function' ? roll(dd) : Math.floor(Math.random() * dd) + 1;
+    var success = advR.total >= dreadVal;
+    window._resolveWayfarerDeploy(missionId, wingNum, roomIdx, wayfarerIdx, success);
+  };
+
+  window._resolveWayfarerDeploy = function (missionId, wingNum, roomIdx, wayfarerIdx, success) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var wayfarers = getRaidWayfarersForWing(mission, wingNum);
+    var wf = wayfarers[wayfarerIdx];
+    if (!wf) return;
+
+    if (success) {
+      wf.status = 'deployed';
+      wf.wing = wingNum;
+      if (typeof showNotif === 'function') showNotif(wf.name + ' deployed — holding the next room flank.', 'good');
+    } else {
+      wf.status = 'failed';
+      if (typeof showNotif === 'function') showNotif(wf.name + ' has fallen. Check remaining Wayfarer count.', 'warn');
+      // If ALL wayfarers lost, they can continue but note it
+      var allLost = wayfarers.every(function (w) { return w.status === 'failed'; });
+      if (allLost && typeof showNotif === 'function') {
+        showNotif('All Wayfarers lost — the raid continues unassisted. Wing 3 DD raised by +2.', 'warn');
+        // Penalty: raise boss dread
+        if (mission.dread && mission.dread < 12) mission.dread = Math.min(12, Number(mission.dread) + 2);
+      }
+    }
+    openRaidWingPopup(missionId, wingNum, roomIdx);
+  };
+
+  function _raidRevealNextRoom(rooms, clearedIdx) {
+    var nextIdx = clearedIdx + 1;
+    if (nextIdx < rooms.length) {
+      rooms[nextIdx].discovered = true;
+      rooms[nextIdx].frontier = false;
+      // Mark the one after that as frontier (visible but not enterable)
+      if (nextIdx + 1 < rooms.length) {
+        rooms[nextIdx + 1].frontier = true;
+      }
+    }
+  }
+
+  function _checkRaidWingComplete(mission, wingNum, rooms) {
+    if (!rooms) return;
+    // Boss wing variant: completion is handled by resolveRaidBossRoom
+    if (wingNum === 3) return;
+    var allClear = rooms.every(function (r) { return r.cleared; });
+    if (!allClear) return;
+    var run = ensureLegacyRaidRunState(mission);
+    if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
+    // Mark step complete and advance
+    if (wingNum === 1) {
+      mission.steps[1] = mission.steps[1] || {};
+      mission.steps[1].completed = true;
+      if (typeof removeInformerToken === 'function') removeInformerToken(mission);
+      if (typeof showNotif === 'function') showNotif('Wing 1 cleared — Lore fragment secured. Wing 2 is now unlocked.', 'good');
+    } else if (wingNum === 2) {
+      mission.steps[2] = mission.steps[2] || {};
+      mission.steps[2].completed = true;
+      if (typeof removeSiteToken === 'function') removeSiteToken(mission);
+      if (typeof showNotif === 'function') showNotif('Wing 2 cleared — Gate mechanism solved. Boss Chamber is now accessible.', 'good');
+    }
+    if (typeof refreshMissionSurfaces === 'function') refreshMissionSurfaces();
+  }
+
+  /* expose for inline onclick use */
+  window.openRaidWingPopup = openRaidWingPopup;
+
   function buildLegacyRaidWingData(mission) {
     var loreTitle = (mission && mission.steps && mission.steps[1] && mission.steps[1].name) || 'Breach the Lore Wing';
     var puzzleTitle = (mission && mission.steps && mission.steps[2] && mission.steps[2].name) || 'Solve the Intricate Gate Puzzle';
@@ -1666,15 +2223,24 @@
         : '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">No bound trophy actives yet. Clear more unique raids to expand this panel.</div>')
       + '</div>';
 
+    // Ensure raid hex map is initialized now so room counts are ready
+    ensureRaidHexMap(mission);
+    var raidMapRoomProgress = function (w) {
+      var wMap = mission.raidHexMap && mission.raidHexMap.wings && mission.raidHexMap.wings[w];
+      if (!Array.isArray(wMap)) return '';
+      var cl = wMap.filter(function (r) { return r.cleared; }).length;
+      return cl + '/' + wMap.length + ' rooms';
+    };
+
     if (!s1.completed) {
-      recommendedAction = 'Story gate open: launch Wing 1 to establish why this boss matters.';
-      stepButtons = '<button class="btn btn-sm btn-teal" onclick="startMissionStep1(' + mission.id + ');closeModal();">Open Wing 1</button>';
+      recommendedAction = 'Story gate open — enter Wing 1 to breach the lore and understand the boss.';
+      stepButtons = '<button class="btn btn-sm btn-teal" onclick="openRaidWingPopup(' + mission.id + ',1);closeModal();">🐉 Enter Wing 1 <span style="font-size:.65rem;opacity:.7;">(' + raidMapRoomProgress(1) + ')</span></button>';
     } else if (!s2.completed) {
-      recommendedAction = 'Mechanic gate open: solve Wing 2 before the boss chamber stabilizes.';
-      stepButtons = '<button class="btn btn-sm btn-primary" onclick="startMissionStep2(' + mission.id + ');closeModal();">Open Wing 2</button>';
+      recommendedAction = 'Mechanic gate open — Wing 2 puzzle must be solved before the boss chamber stabilises.';
+      stepButtons = '<button class="btn btn-sm btn-primary" onclick="openRaidWingPopup(' + mission.id + ',2);closeModal();">🧩 Enter Wing 2 <span style="font-size:.65rem;opacity:.7;">(' + raidMapRoomProgress(2) + ')</span></button>';
     } else if (!s3.completed) {
-      recommendedAction = 'Boss wing open: enter the encounter only when the group understands the telegraphs.';
-      stepButtons = '<button class="btn btn-sm btn-warn" onclick="startMissionStep3(' + mission.id + ');closeModal();">Open Final Wing</button>';
+      recommendedAction = 'Boss wing open — every telegraph learned. Enter the Confrontation Chamber.';
+      stepButtons = '<button class="btn btn-sm btn-warn" onclick="openRaidWingPopup(' + mission.id + ',3);closeModal();">⚔ Enter Wing 3 — Boss <span style="font-size:.65rem;opacity:.7;">(' + raidMapRoomProgress(3) + ')</span></button>';
     } else {
       recommendedAction = 'Raid contract already resolved.';
       stepButtons = '<button class="btn btn-sm" disabled>Raid Cleared</button>';
@@ -1689,7 +2255,8 @@
         + '<div style="font-size:.67rem;color:' + (done ? 'var(--green2)' : 'var(--gold2)') + ';text-transform:uppercase;letter-spacing:.08em;">' + (done ? 'Cleared' : wing.theme) + '</div>'
         + '</div>'
         + '<div style="font-size:.71rem;color:var(--muted2);line-height:1.5;margin-bottom:.18rem;">' + wing.detail + '</div>'
-        + '<div style="font-size:.69rem;color:var(--teal);line-height:1.45;">' + wing.actions.join(' ') + '</div>'
+        + '<div style="font-size:.69rem;color:var(--teal);line-height:1.45;margin-bottom:.22rem;">' + wing.actions.join(' ') + '</div>'
+        + (!done ? '<button class="btn btn-xs btn-teal" onclick="openRaidWingPopup(' + mission.id + ',' + wing.key + ')">→ Open Wing Map</button>' : '<span style="font-size:.67rem;color:var(--green2);">✓ Wing complete</span>')
         + '</div>';
     }).join('');
 

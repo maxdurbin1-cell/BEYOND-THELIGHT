@@ -12524,13 +12524,25 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
          <text x="${x - size * 0.34}" y="${y - size * 0.22}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="8" fill="rgba(255,255,255,.25)" pointer-events="none">${terrainGlyph}</text>`
       : '';
 
-    const missionGlyphOverlay = raidMarker
-      ? `<g style="cursor:pointer;" onclick="if(window.event){window.event.stopPropagation();}openPlanetMissionMarker('${raidMarker.id}')">
-          <circle cx="${x + 14}" cy="${y - 14}" r="7.2" fill="rgba(255,120,74,.18)" stroke="#ff8450" stroke-width="1.2" />
-          <text x="${x + 14}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="#ffb080">🐉</text>
-          <title>${raidMarker.title || 'Raid Marker'} — click to launch</title>
-        </g>`
-      : '';
+    const missionGlyphOverlay = (function () {
+      if (!raidMarker) return '';
+      const step = String(raidMarker.missionStep || '').toLowerCase();
+      const urgency = step === 'confront' ? 'hot' : (step === 'site' ? 'warm' : 'cool');
+      const pulse = urgency === 'hot'
+        ? { color: '#ff4a40', ring: 'rgba(255,74,64,.3)', base: 'rgba(255,74,64,.22)', r1: 6.8, r2: 12.8, dur: '0.9s' }
+        : (urgency === 'warm'
+          ? { color: '#ff8450', ring: 'rgba(255,132,80,.28)', base: 'rgba(255,132,80,.2)', r1: 6.8, r2: 11.2, dur: '1.2s' }
+          : { color: '#f0c070', ring: 'rgba(240,192,112,.24)', base: 'rgba(240,192,112,.18)', r1: 6.4, r2: 9.8, dur: '1.5s' });
+      return `<g style="cursor:pointer;" onclick="if(window.event){window.event.stopPropagation();}openPlanetMissionMarker('${raidMarker.id}')">
+          <circle cx="${x + 14}" cy="${y - 14}" r="${pulse.r1}" fill="none" stroke="${pulse.ring}" stroke-width="1.3">
+            <animate attributeName="r" values="${pulse.r1};${pulse.r2};${pulse.r1}" dur="${pulse.dur}" repeatCount="indefinite" />
+            <animate attributeName="opacity" values=".85;.25;.85" dur="${pulse.dur}" repeatCount="indefinite" />
+          </circle>
+          <circle cx="${x + 14}" cy="${y - 14}" r="7.2" fill="${pulse.base}" stroke="${pulse.color}" stroke-width="1.2" />
+          <text x="${x + 14}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="9" fill="#ffdfc9">🐉</text>
+          <title>${raidMarker.title || 'Raid Marker'} — ${urgency.toUpperCase()} urgency · click to launch</title>
+        </g>`;
+    })();
 
     return `<g class="planet-hex" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;">
       <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />

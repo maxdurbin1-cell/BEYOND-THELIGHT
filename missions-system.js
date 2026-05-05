@@ -2253,6 +2253,37 @@
       + '</div>';
   }
 
+  function getLegacyRaidRoomAssistBonus(mission, wingNum, roomIdx) {
+    if (!mission || !mission.legacyRaidRoomAssist || typeof mission.legacyRaidRoomAssist !== 'object') return 0;
+    var key = String(wingNum) + ':' + String(roomIdx);
+    return Math.max(0, Number(mission.legacyRaidRoomAssist[key] || 0));
+  }
+
+  function addLegacyRaidRoomAssistBonus(mission, wingNum, roomIdx, amount) {
+    if (!mission) return;
+    if (!mission.legacyRaidRoomAssist || typeof mission.legacyRaidRoomAssist !== 'object') {
+      mission.legacyRaidRoomAssist = {};
+    }
+    var key = String(wingNum) + ':' + String(roomIdx);
+    mission.legacyRaidRoomAssist[key] = Math.max(0, Number(mission.legacyRaidRoomAssist[key] || 0) + Number(amount || 0));
+  }
+
+  function buildRaidFailedRoomRecoveryHtml(mission, wingNum, roomIdx, room) {
+    if (!room || room.type === 'WayfarerPost' || room.isBoss || Number(room.failures || 0) <= 0) return '';
+    var wayfarers = getRaidWayfarersForWing(mission, wingNum).filter(function (wf) { return wf && wf.status === 'ready'; });
+    if (!wayfarers.length) {
+      return '<div style="margin-top:.18rem;font-size:.66rem;color:var(--red2);">No ready Wayfarers available for recovery deploy.</div>';
+    }
+    return '<div style="margin-top:.2rem;padding:.25rem .3rem;border:1px dashed var(--border2);background:rgba(240,208,112,.06);">'
+      + '<div style="font-size:.66rem;color:var(--gold2);margin-bottom:.12rem;">Recovery Deploy (after failure): choose one Wayfarer to reinforce this room (+2 room bonus).</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+      + wayfarers.map(function (wf) {
+          return '<button class="btn btn-xs btn-warn" onclick="deployRaidWayfarerToRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ',' + wf.idx + ')">⚑ ' + String(wf.name || 'Wayfarer') + '</button>';
+        }).join('')
+      + '</div>'
+      + '</div>';
+  }
+
   window.toggleRaidRoomRole = function (missionId, wingNum, roomIdx, roleKey) {
     var mission = getMission(missionId);
     if (!mission) return;
@@ -2286,6 +2317,7 @@
     }
     if (!room.isBoss && room.discovered && !room.cleared) {
       html += buildLegacyRaidRoomRoleHtml(mission, wingNum, roomIdx, room);
+      html += buildRaidFailedRoomRecoveryHtml(mission, wingNum, roomIdx, room);
     }
 
     if (room.cleared) {
@@ -2476,6 +2508,7 @@
       });
     }
     var cleanBonus = (run && run.wingClean && run.wingClean[wingNum - 1]) ? 2 : 0;
+    var assistBonus = getLegacyRaidRoomAssistBonus(mission, wingNum, roomIdx);
     var roleGate = evaluateLegacyRaidRoomRoleReadiness(mission, wingNum, roomIdx, room);
     if (!roleGate.ready) {
       if (consumeLegacyRaidClock(mission, wingNum, room.label)) return;
@@ -2486,7 +2519,7 @@
       openRaidWingPopup(missionId, wingNum, roomIdx);
       return;
     }
-    var totalBonus = bonus + wayfarerBonus + cleanBonus + Number(roleGate.bonus || 0);
+    var totalBonus = bonus + wayfarerBonus + cleanBonus + assistBonus + Number(roleGate.bonus || 0);
     var dd = Number(room.dd || 6);
 
     var success, advR, dreadR;
@@ -2498,7 +2531,7 @@
         + '</div>'
         + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .55rem;margin-bottom:.4rem;">'
         + '<div style="font-size:.8rem;color:var(--text2);">Roll Adventure d' + advDie + (totalBonus ? ' + ' + totalBonus : '') + ' vs DD' + dd + '</div>'
-        + '<div style="font-size:.7rem;color:var(--muted2);">Wayfarers: +' + wayfarerBonus + ' · Prior wing clean: +' + cleanBonus + ' · Roles: +' + Number(roleGate.bonus || 0) + ' · Bonus: +' + bonus + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);">Wayfarers: +' + wayfarerBonus + ' · Room assist: +' + assistBonus + ' · Prior wing clean: +' + cleanBonus + ' · Roles: +' + Number(roleGate.bonus || 0) + ' · Bonus: +' + bonus + '</div>'
         + '</div>'
         + '<div style="display:flex;gap:.3rem;justify-content:flex-end;flex-wrap:wrap;">'
         + '<button class="btn btn-sm btn-red" onclick="window._resolveRaidRoomOutcome(' + missionId + ',' + wingNum + ',' + roomIdx + ',false);closeModal();">✗ Failure</button>'
@@ -2575,7 +2608,7 @@
     } else {
       room.failures = Number(room.failures || 0) + 1;
       room.progress = Math.max(0, Number(room.progress || 0) - 1);
-      room.result = '✗ Failed. The room holds. Progress reduced to ' + Number(room.progress || 0) + '/' + Math.max(1, Number(room.progressNeeded || 1)) + '. Regroup or deploy a Wayfarer.';
+      room.result = '✗ Failed. The room holds. Progress reduced to ' + Number(room.progress || 0) + '/' + Math.max(1, Number(room.progressNeeded || 1)) + '. You are role-ready, but this room needs repeated successes. Deploy a Wayfarer from the recovery panel below for +2 room bonus, then retry.';
       // Hazard/Approach failure in wing 3 → trigger wipe system
       if (wingNum === 3 && (room.type === 'Hazard' || room.type === 'Approach')) {
         run.pendingWing = wingNum;
@@ -2729,6 +2762,22 @@
     var dreadVal = typeof roll === 'function' ? roll(dd) : Math.floor(Math.random() * dd) + 1;
     var success = advR.total >= dreadVal;
     window._resolveWayfarerDeploy(missionId, wingNum, roomIdx, wayfarerIdx, success);
+  };
+
+  window.deployRaidWayfarerToRoom = function (missionId, wingNum, roomIdx, wayfarerIdx) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var wayfarers = getRaidWayfarersForWing(mission, wingNum);
+    var wf = wayfarers[wayfarerIdx];
+    if (!wf || wf.status !== 'ready') {
+      if (typeof showNotif === 'function') showNotif('Selected Wayfarer is not ready.', 'warn');
+      return;
+    }
+    wf.status = 'deployed';
+    wf.wing = wingNum;
+    addLegacyRaidRoomAssistBonus(mission, wingNum, roomIdx, 2);
+    if (typeof showNotif === 'function') showNotif(wf.name + ' deployed to this room. +2 room bonus granted.', 'good');
+    openRaidWingPopup(missionId, wingNum, roomIdx);
   };
 
   window._resolveWayfarerDeploy = function (missionId, wingNum, roomIdx, wayfarerIdx, success) {

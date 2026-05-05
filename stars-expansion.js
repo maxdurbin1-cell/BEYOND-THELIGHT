@@ -8928,11 +8928,10 @@ function renderGalaxyTaskPanel(taskId) {
     const mission = (S && Array.isArray(S.activeMissions))
       ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(task.missionId || ''); })
       : null;
-    if (mission && mission.missionType === 'legacy_raid' && typeof window.handleLegacyRaidMarkerInteraction === 'function') {
-      window.handleLegacyRaidMarkerInteraction(mission.id, task.missionStep || 'site', 'galaxy');
-      return;
-    }
-    const stepBtn = task.missionStep === 'informer'
+    const missionTrackerBtnJs = "var btn=Array.from(document.querySelectorAll('.tab-btn')).find(function(node){return String(node.getAttribute('onclick')||'').indexOf(\"switchTab('missions'\")>=0;}); if(typeof switchTab==='function'){switchTab('missions',btn||null);} if(typeof renderMissionTracker==='function'){renderMissionTracker();}";
+    const stepBtn = mission && mission.missionType === 'legacy_raid'
+      ? `<button class="btn btn-xs btn-teal" onclick="if(typeof window.handleLegacyRaidMarkerInteraction==='function'){window.handleLegacyRaidMarkerInteraction(${task.missionId},'${String(task.missionStep || 'site')}', 'galaxy');}">${task.missionStep === 'informer' ? 'Run Step 1: Info' : (task.missionStep === 'confront' ? 'Run Step 3: Boss Wing' : 'Run Step 2: Door')}</button>`
+      : task.missionStep === 'informer'
       ? `<button class="btn btn-xs btn-teal" onclick="if(typeof startMissionStep1==='function'){startMissionStep1(${task.missionId});}">Run Step 1: Info</button>`
       : (task.missionStep === 'confront'
         ? `<button class="btn btn-xs btn-primary" onclick="if(typeof startMissionStep3==='function'){startMissionStep3(${task.missionId});}">Run Step 3: Confrontation</button>`
@@ -8945,7 +8944,7 @@ function renderGalaxyTaskPanel(taskId) {
       </div>
       <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">
         ${stepBtn}
-        <button class="btn btn-xs" onclick="if(typeof switchTab==='function'){switchTab('missions',document.querySelector(\".tab-btn[onclick*=\\\"switchTab('missions'\\\"]\"));} if(typeof renderMissionTracker==='function'){renderMissionTracker();}">Open Mission Tracker</button>
+        <button class="btn btn-xs" onclick="${missionTrackerBtnJs}">Open Mission Tracker</button>
       </div>`;
     return;
   }

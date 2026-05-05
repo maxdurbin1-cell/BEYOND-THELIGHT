@@ -1399,6 +1399,9 @@
         clockRemaining: 0
       };
     }
+    if (!mission.legacyRaidRun.wingEntryReset || typeof mission.legacyRaidRun.wingEntryReset !== 'object') {
+      mission.legacyRaidRun.wingEntryReset = { 1: false, 2: false, 3: false };
+    }
     return mission.legacyRaidRun;
   }
 
@@ -1447,6 +1450,223 @@
       if (m && m[1]) return Number(m[1]);
     } catch (_err) {}
     return typeof getStat === 'function' ? Number(getStat('adventure') || 8) : 8;
+  }
+
+  function getLegacyRaidCombatActionDie(actionType) {
+    var key = String(actionType || 'strike').toLowerCase() === 'shoot' ? 'shoot' : 'strike';
+    if (typeof getEffectiveDie === 'function') {
+      return Math.max(4, Number(getEffectiveDie(key) || 0) || Number(getStat(key) || 8));
+    }
+    return Math.max(4, Number(typeof getStat === 'function' ? getStat(key) : 8) || 8);
+  }
+
+  function getLegacyRaidBestCombatDie() {
+    return Math.max(getLegacyRaidCombatActionDie('strike'), getLegacyRaidCombatActionDie('shoot'));
+  }
+
+  function buildLegacyRaidCombatDieSummary() {
+    var strikeDie = getLegacyRaidCombatActionDie('strike');
+    var shootDie = getLegacyRaidCombatActionDie('shoot');
+    return 'Strike d' + strikeDie + ' · Shoot d' + shootDie + ' · Best d' + Math.max(strikeDie, shootDie);
+  }
+
+  function getLegacyRaidSeed(mission) {
+    var text = String(mission && mission.title || '') + '|' + String(mission && mission.region || '') + '|' + String(mission && mission.id || '0');
+    var hash = 0;
+    for (var i = 0; i < text.length; i++) {
+      hash = ((hash * 31) + text.charCodeAt(i)) >>> 0;
+    }
+    return hash;
+  }
+
+  function pickLegacyRaidEntry(catalog, seed, fallback) {
+    if (!Array.isArray(catalog) || !catalog.length) return fallback;
+    return catalog[Math.abs(Number(seed || 0)) % catalog.length] || fallback;
+  }
+
+  function ensureLegacyRaidMissionConfig(mission) {
+    if (!mission || mission.missionType !== 'legacy_raid') return mission;
+    mission.steps = mission.steps || {};
+    mission.steps[1] = mission.steps[1] || { completed: false, skipped: false };
+    mission.steps[2] = mission.steps[2] || { completed: false };
+    mission.steps[3] = mission.steps[3] || { completed: false };
+
+    var region = String(mission.legacyRaidRegion || mission.region || 'province').toLowerCase();
+    var seed = getLegacyRaidSeed(mission);
+    var bossCatalog = {
+      province: [
+        {
+          name: 'Quarry Maw Regent',
+          puzzle: 'Cryptogram seals describe which caravans were sacrificed to keep the tunnels open.',
+          lore: 'Lore Fragment: The Quarry Maw Regent decides which province caravans disappear beneath the old trade roads. Merchant houses keep feeding it captives so they can tax every surviving route.',
+          cinematic: {
+            opener: 'Lantern light drags across stone ribs the size of siege towers.',
+            setup: 'The chamber opens under the old province roadbed. Wagon bells ring from inside the rock as if the boss has eaten the road itself.',
+            challenge: 'If the Regent survives, inland caravans stop moving without paying tribute through the maw-road.'
+          },
+          actions: [
+            'Roadshear Crash: Province lanes collapse in sequence from left to right.',
+            'Tithe Bell: A raidwide toll pulse punishes any lane not covered by Support.',
+            'Burrow Verdict: Mechanics must read the false road before the chamber loops.'
+          ]
+        },
+        {
+          name: 'Ashen Toll King',
+          puzzle: 'A logic maze routes furnace pressure through false tollgates before the vault door opens.',
+          lore: 'Lore Fragment: The Ashen Toll King turned the province foundries into a toll empire. Every siege engine and caravan axle passed through its furnaces, and every failure meant a town starved.',
+          cinematic: {
+            opener: 'Furnace doors yawn open as sparks whirl like court attendants.',
+            setup: 'The boss rises from an iron throne chained into the vault floor. Burn marks trace old tribute routes across the chamber.',
+            challenge: 'If the King stands, province holds lose their artillery routes and submit to the ash tithe.'
+          },
+          actions: [
+            'Foundry Verdict: Heat bands sweep every lane and leave the center unstable.',
+            'Cinder Census: A raidwide flame-count punishes missing role coverage.',
+            'Tax Furnace: Front must hold the blast gate while Mechanics decodes the release order.'
+          ]
+        }
+      ],
+      galaxy: [
+        {
+          name: 'Eclipse Harvester',
+          puzzle: 'A cryptogram star-lattice identifies which mirrored jump lanes are real and which are bait.',
+          lore: 'Lore Fragment: The Eclipse Harvester is a lane-breaker wired into abandoned jump lattices. When it feeds, civilian ships vanish between stars and the surviving routes become tribute corridors for raider fleets.',
+          cinematic: {
+            opener: 'The star-lane ahead goes black, then starts harvesting light back into a single mechanical iris.',
+            setup: 'Wreckage drifts in a perfect ring around the chamber. Each shard still holds a frozen map of the last convoy that tried to cross.',
+            challenge: 'If the Harvester survives, the galaxy loses a civilian star lane and every convoy near this sector starts paying blood tolls.'
+          },
+          actions: [
+            'Lane Reap: The left and right lanes blink out, then return in the wrong order.',
+            'Gravitic Audit: A raidwide pull drags every role toward the dead lane unless Support stabilizes.',
+            'Event Horizon Ledger: Mechanics must decode the surviving route before the chamber harvests a second time.'
+          ]
+        },
+        {
+          name: 'Null Rail Executor',
+          puzzle: 'A maze of rail-state switches must be solved in five exact moves before the lockout cycle ends.',
+          lore: 'Lore Fragment: The Null Rail Executor was built to erase bad freight routes from the old star network. Raiders turned it into an executioner that deletes entire civilian convoys from the map.',
+          cinematic: {
+            opener: 'Void-static crawls over the bulkheads as dead rail-lines reignite one by one.',
+            setup: 'A crown of broken transit rings rotates above the arena. Each ring shows a star lane the Province once depended on.',
+            challenge: 'If the Executor stands, nearby sectors lose safe passage and relief fleets start disappearing from charts.'
+          },
+          actions: [
+            'Rail Sever: A branch beat cuts the center lane and spikes Dread.',
+            'Vacuum Census: Raidwide pressure strips momentum from uncovered roles.',
+            'Deletion Stamp: Front must hold the surviving ring while Mechanics chooses the true rail.'
+          ]
+        }
+      ],
+      sea: [
+        {
+          name: 'Undertow Archivist',
+          puzzle: 'A pressure-balance puzzle routes brine through coral locks while the tide clock keeps moving.',
+          lore: 'Lore Fragment: The Undertow Archivist remembers every sea route ever drowned. Raider flotillas worship it because it can collapse convoy currents and reopen pirate channels at will.',
+          cinematic: {
+            opener: 'Brine rises up the chamber walls and starts spelling old port names in foam.',
+            setup: 'Broken mastheads hang from the ceiling like relics. Each one belonged to a route the sea once promised was safe.',
+            challenge: 'If the Archivist survives, the coast loses another sea route and nearby ports fall back under raider tolls.'
+          },
+          actions: [
+            'Tide Audit: Current-shear crosses two lanes and floods the third.',
+            'Brine Broadcast: A raidwide pulse soaks every uncovered lane in static pressure.',
+            'Drowned Index: Mechanics must read the true channel before the tide closes again.'
+          ]
+        }
+      ]
+    };
+    var fallbackBoss = {
+      name: 'Shard Sovereign',
+      puzzle: 'A logic lock must be solved before the false chamber seals become permanent.',
+      lore: 'Lore Fragment: The Shard Sovereign rules a broken route network by turning every surviving passage into tribute.',
+      cinematic: {
+        opener: 'The last safe path narrows until only the boss chamber remains lit.',
+        setup: 'Every wall is carved with failed routes and the names of the people who tried them.',
+        challenge: 'If the Sovereign survives, this region loses another critical road, port, or lane.'
+      },
+      actions: [
+        'Shatter Pulse: Raidwide pressure breaks across every lane.',
+        'Pattern Debt: Mechanics must answer the shift before the room loops.',
+        'Overrun Ledger: Front and Support must cover the same beat or lose the line.'
+      ]
+    };
+    var chosenBoss = pickLegacyRaidEntry(bossCatalog[region], seed, fallbackBoss);
+    mission.legacyRaidRegion = region;
+    if (!mission.legacyRaidBoss) mission.legacyRaidBoss = String(chosenBoss.name || fallbackBoss.name);
+    if (!mission.legacyRaidPuzzle) mission.legacyRaidPuzzle = String(chosenBoss.puzzle || fallbackBoss.puzzle);
+    if (!mission.legacyRaidBossActions || !mission.legacyRaidBossActions.length) {
+      mission.legacyRaidBossActions = (chosenBoss.actions || fallbackBoss.actions || []).slice();
+    }
+    if (!mission.legacyRaidBossCinematic || typeof mission.legacyRaidBossCinematic !== 'object') {
+      mission.legacyRaidBossCinematic = {
+        opener: String(chosenBoss.cinematic && chosenBoss.cinematic.opener || fallbackBoss.cinematic.opener),
+        setup: String(chosenBoss.cinematic && chosenBoss.cinematic.setup || fallbackBoss.cinematic.setup),
+        challenge: String(chosenBoss.cinematic && chosenBoss.cinematic.challenge || fallbackBoss.cinematic.challenge)
+      };
+    }
+    if (!mission.step1Intro) {
+      mission.step1Intro = 'Wing 1 is the lore breach. Recover the fragment that explains why ' + mission.legacyRaidBoss + ' matters to this route network before the timer collapses.';
+    }
+    if (!mission.lore) {
+      mission.lore = String(chosenBoss.lore || fallbackBoss.lore);
+    }
+    if (!Array.isArray(mission.checkpoints) || !mission.checkpoints.length) {
+      mission.checkpoints = [
+        'Wing 1 checkpoint: recover the lore fragment and reset the raid timer.',
+        'Wing 2 checkpoint: solve the door logic and reopen the route under pressure.',
+        'Wing 3 checkpoint: breach the chamber, play the cinematic, then defeat ' + mission.legacyRaidBoss + '.'
+      ];
+    }
+    mission.steps[1].name = 'Recover the Lore Fragment';
+    mission.steps[2].name = 'Open the Dungeon Door';
+    mission.steps[3].name = 'Reach and Defeat ' + mission.legacyRaidBoss;
+    if (!mission.legacyRaidProfile || typeof mission.legacyRaidProfile !== 'object') {
+      mission.legacyRaidProfile = {
+        clockSegments: region === 'galaxy' ? 12 : 13,
+        roomDdBonus: 1,
+        roomProgressBonus: 0,
+        approachDdBonus: 2,
+        bossHpPhases: 3,
+        bossStrikesAllowed: 3,
+        bossActionCadence: 1,
+        actionPressureBonus: region === 'galaxy' ? 2 : 1
+      };
+    }
+    return mission;
+  }
+
+  function resetLegacyRaidClockAtWingEntry(mission, wingNum) {
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return 0;
+    if (!run.wingEntryReset || typeof run.wingEntryReset !== 'object') {
+      run.wingEntryReset = { 1: false, 2: false, 3: false };
+    }
+    var wing = Math.max(1, Math.min(3, Number(wingNum || run.currentWing || 1)));
+    if (run.wingEntryReset[wing]) return Number(run.clockRemaining || ensureLegacyRaidClock(mission));
+    run.wingEntryReset[wing] = true;
+    return resetLegacyRaidClockAtCheckpoint(mission);
+  }
+
+  function openLegacyRaidBossCinematic(missionId) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    ensureLegacyRaidMissionConfig(mission);
+    if (mission.legacyRaidBossCinematicSeen) return false;
+    mission.legacyRaidBossCinematicSeen = true;
+    var scene = mission.legacyRaidBossCinematic || {};
+    openModal(
+      'Boss Cinematic - ' + String(mission.legacyRaidBoss || 'Raid Boss'),
+      '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+        + '<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.18rem;"><strong>' + String(scene.opener || '') + '</strong></div>'
+        + '<div style="margin-bottom:.22rem;">' + String(scene.setup || '') + '</div>'
+        + '<div style="margin-bottom:.32rem;color:var(--muted2);">' + String(scene.challenge || '') + '</div>'
+        + '<div style="display:flex;justify-content:flex-end;">'
+        + '<button class="btn btn-sm btn-primary" onclick="openRaidWingPopup(' + mission.id + ',3,' + ((ensureRaidHexMap(mission).wings[3] || []).length - 1) + ')">Enter Boss Chamber</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
   }
 
   function buildLegacyRaidRecommendedCallouts(mission, encounter) {
@@ -1907,20 +2127,36 @@
     }
     var key = getLegacyRaidRoomRoleKey(wingNum, roomIdx);
     if (!mission.legacyRaidRoomRoles[key] || typeof mission.legacyRaidRoomRoles[key] !== 'object') {
-      mission.legacyRaidRoomRoles[key] = { front: false, mechanics: false, support: false };
+      mission.legacyRaidRoomRoles[key] = { front: false, mechanics: false, support: false, activeRequiredIndex: 0 };
+    }
+    if (typeof mission.legacyRaidRoomRoles[key].activeRequiredIndex !== 'number') {
+      mission.legacyRaidRoomRoles[key].activeRequiredIndex = 0;
     }
     return mission.legacyRaidRoomRoles[key];
   }
 
   function getLegacyRaidRequiredRolesForRoom(room) {
     if (!room) return [];
-    if (room.type === 'Puzzle' || room.type === 'Approach' || room.isBoss) {
+    if (room.type === 'Puzzle' || room.type === 'Approach' || room.type === 'LoreReading' || room.type === 'Peril' || room.type === 'Trap' || room.isBoss) {
       return ['front', 'mechanics', 'support'];
     }
-    if (room.type === 'LoreReading') return ['mechanics'];
-    if (room.type === 'Peril') return ['front', 'mechanics'];
     if (room.type === 'Combat') return ['front', 'support'];
     return [];
+  }
+
+  function getLegacyRaidRoomRiskLabels(room) {
+    var type = String(room && room.type || 'Hazard');
+    var labels = {
+      LoreReading: { front: 'High Risk Front', mechanics: 'Info Safe Mechanics', support: 'Recovery Support' },
+      Puzzle: { front: 'Pressure Front', mechanics: 'Info Safe Mechanics', support: 'Recovery Support' },
+      Peril: { front: 'Hazard Front', mechanics: 'Pattern Mechanics', support: 'Recovery Support' },
+      Trap: { front: 'Breach Front', mechanics: 'Trap Mechanics', support: 'Recovery Support' },
+      Approach: { front: 'Commit Front', mechanics: 'Read Mechanics', support: 'Stabilize Support' },
+      Confrontation: { front: 'Boss Front', mechanics: 'Telegraph Mechanics', support: 'Raid Support' },
+      Combat: { front: 'Killbox Front', mechanics: 'Sightline Mechanics', support: 'Recovery Support' },
+      Hazard: { front: 'Hazard Front', mechanics: 'Route Mechanics', support: 'Recovery Support' }
+    };
+    return labels[type] || { front: 'Front', mechanics: 'Mechanics', support: 'Support' };
   }
 
   function evaluateLegacyRaidRoomRoleReadiness(mission, wingNum, roomIdx, room) {
@@ -2155,9 +2391,9 @@
   };
 
   var RAID_WING_ROOM_BLUEPRINTS = {
-    1: ['Entry', 'RANDOM', 'RANDOM', 'RANDOM', 'RANDOM', 'WayfarerPost'],
-    2: ['Entry', 'Puzzle', 'RANDOM', 'RANDOM', 'RANDOM', 'WayfarerPost'],
-    3: ['Entry', 'RANDOM', 'RANDOM', 'RANDOM', 'WayfarerPost', 'Confrontation']
+    1: ['Entry', 'LoreReading', 'WayfarerPost'],
+    2: ['Entry', 'Puzzle', 'WayfarerPost'],
+    3: ['Entry', 'Approach', 'Confrontation']
   };
 
   var RAID_RANDOM_ROOM_TYPES = ['Hazard', 'Peril', 'Combat', 'Trap', 'Gambling', 'Loot'];
@@ -2202,6 +2438,12 @@
     }
     if (type === 'Puzzle') {
       return { type: 'Puzzle', icon: '🧩', label: 'Gate Mechanism Room', dd: 9, hasWayfarer: false };
+    }
+    if (type === 'LoreReading') {
+      return { type: 'LoreReading', icon: '📜', label: 'Lore Fragment Vault', dd: 8, hasWayfarer: false };
+    }
+    if (type === 'Approach') {
+      return { type: 'Approach', icon: '🌀', label: 'Chamber Breach', dd: 10, hasWayfarer: false };
     }
     if (type === 'Confrontation') {
       return { type: 'Confrontation', icon: '🐉', label: 'Boss Chamber', dd: 11, hasWayfarer: false, isBoss: true };
@@ -2632,6 +2874,9 @@
     var enemyCount = Math.max(1, Number(room && room.enemyCount || 1));
     var descFrag = theme.desc[Math.floor(Math.random() * theme.desc.length)];
     var wingCtx = wingNum === 1 ? 'The lore wing reeks of' : wingNum === 2 ? 'Mechanisms hum behind walls of' : 'The air thickens before the chamber of';
+    var mission = arguments.length > 4 ? arguments[4] : null;
+    var loreFragment = mission ? buildLegacyRaidLoreFragment(mission) : 'A fragment explaining why the boss matters to the route.';
+    var puzzleHook = mission && mission.legacyRaidPuzzle ? String(mission.legacyRaidPuzzle) : 'A hard logic gate blocks the route.';
     var byType = {
       Entry:        wingCtx + ' ' + descFrag + '. The entrance threshold is passable but nothing beyond is mapped.',
       Hazard:       'A collapsed section blocks the direct path. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + ' create shifting footholds — patience and coordination are required to cross.',
@@ -2640,8 +2885,8 @@
       Trap:         'Mechanical killswitch lanes are active across this chamber. You must disable triggers while maintaining forward pressure.',
       Gambling:     'The gatekeepers demand a wager game: win the table to gain passage. Lose too many hands and the raid takes pressure damage before being thrown back.',
       Loot:         'Merchant contraband is buried in this sector. Cracking this stash rolls direct loot from the Merchant tables and can swing the whole raid economy.',
-      LoreReading:  'A fragment archive is embedded in the far wall. Assign one player to read the telegraphs while the rest hold against pressure. Success reveals why ' + (bossName || 'the boss') + ' matters to this region.',
-      Puzzle:       'Three interlocked mechanisms control the passage seals. Each wrong answer resets the furthest. Use the room state and boss tells — repeating the first answer will lock the doors permanently.',
+      LoreReading:  'A fragment archive is embedded in the far wall. Assign one player to read the telegraphs while the rest hold against pressure. Preview: ' + loreFragment,
+      Puzzle:       'Three interlocked mechanisms control the passage seals. Expect cryptograms, mazes, constellation logic, or balance puzzles. Door hook: ' + puzzleHook,
       WayfarerPost: 'Three Traveling Wayfarers hold this staging area. They can deploy ahead into the next room, covering a pressure lane or absorbing a hazard. If any Wayfarer fails, they\'re lost for the raid.',
       TrophyCache:  'A sealed alcove holds pre-raid spoils. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + '. Clearing this room does not automatically unlock the next wing — it grants advantage.',
       Approach:     bossName + '\'s influence already warps the space here. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + '. Positioning and role assignments must be confirmed before moving to the Chamber.',
@@ -2671,7 +2916,7 @@
         frontier:    idx === 1,
         cleared:     false,
         enemyCount:  Math.max(1, Number(tpl.enemyCount || 1)),
-        description: buildRaidRoomDescription(theme, wingNum, tpl, bossName),
+        description: buildRaidRoomDescription(theme, wingNum, tpl, bossName, mission),
         result:      ''
       };
     });
@@ -2795,16 +3040,25 @@
     var required = getLegacyRaidRequiredRolesForRoom(room);
     if (!required.length) return '';
     var roles = ensureLegacyRaidRoomRoleState(mission, wingNum, roomIdx);
+    var riskLabels = getLegacyRaidRoomRiskLabels(room);
     var roleButtons = ['front', 'mechanics', 'support'].map(function (role) {
       var on = !!roles[role];
       var requiredRole = required.indexOf(role) >= 0;
+      var activeRequired = requiredRole && required.length && required.indexOf(role) === (Number(roles.activeRequiredIndex || 0) % required.length);
       var label = role === 'front' ? 'Front' : (role === 'mechanics' ? 'Mechanics' : 'Support');
       return '<button class="btn btn-xs ' + (on ? 'btn-primary' : '') + '" onclick="toggleRaidRoomRole(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'' + role + '\')">'
-        + label + (requiredRole ? ' *' : '') + (on ? ' ✓' : '')
+        + label + (requiredRole ? (activeRequired ? ' *' : ' ·') : '') + (on ? ' ✓' : '')
         + '</button>';
+    }).join('');
+    var riskHtml = ['front', 'mechanics', 'support'].map(function (role) {
+      var label = role === 'front' ? 'Front' : (role === 'mechanics' ? 'Mechanics' : 'Support');
+      return '<div style="font-size:.63rem;color:var(--muted2);padding:.12rem .18rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);">'
+        + '<strong style="color:var(--text2);">' + label + ':</strong> ' + String(riskLabels[role] || label)
+        + '</div>';
     }).join('');
     return '<div style="margin-bottom:.2rem;">'
       + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.12rem;">Role Assignment (required roles marked with *)</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:.16rem;margin-bottom:.16rem;">' + riskHtml + '</div>'
       + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;">' + roleButtons + '</div>'
       + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.12rem;">Balanced roles grant +1 to room checks and prevent coordination failures.</div>'
       + '</div>';
@@ -2846,7 +3100,15 @@
     if (!mission) return;
     var roles = ensureLegacyRaidRoomRoleState(mission, wingNum, roomIdx);
     if (!roles || !roles.hasOwnProperty(roleKey)) return;
-    roles[roleKey] = !roles[roleKey];
+    var map = ensureRaidHexMap(mission);
+    var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
+    var required = getLegacyRaidRequiredRolesForRoom(room);
+    var wasActiveRequired = required.length && required.indexOf(roleKey) === (Number(roles.activeRequiredIndex || 0) % required.length);
+    var nextValue = !roles[roleKey];
+    roles[roleKey] = nextValue;
+    if (nextValue && wasActiveRequired && required.length) {
+      roles.activeRequiredIndex = (Number(roles.activeRequiredIndex || 0) + 1) % required.length;
+    }
     openRaidWingPopup(missionId, wingNum, roomIdx);
   };
 
@@ -3046,6 +3308,8 @@
     if (!mission || mission.missionType !== 'legacy_raid') return false;
     if (typeof openModal !== 'function') return false;
 
+    ensureLegacyRaidMissionConfig(mission);
+
     var map = ensureRaidHexMap(mission);
     var rooms = map.wings[wingNum];
     var theme = getRaidTheme(mission);
@@ -3127,18 +3391,22 @@
         round: 1,
         actionsPerRound: 4,
         actionsLeft: 4,
-        wayfarerPending: true,
+        allyPending: true,
         suppressStacks: 0,
         playerHp: Math.max(10, hpBase * 2 + 4),
         playerMaxHp: Math.max(10, hpBase * 2 + 4),
-        actionDie: getLegacyRaidWayfarerActionDie(),
+        strikeDie: getLegacyRaidCombatActionDie('strike'),
+        shootDie: getLegacyRaidCombatActionDie('shoot'),
+        actionDie: getLegacyRaidBestCombatDie(),
         roomDd: Math.max(4, Number(dd || room.dd || 7)),
         roomBonus: Math.max(0, Number(totalBonus || 0)),
         enemies: enemies,
         log: []
       };
     }
-    room.combatCard.actionDie = getLegacyRaidWayfarerActionDie();
+    room.combatCard.strikeDie = getLegacyRaidCombatActionDie('strike');
+    room.combatCard.shootDie = getLegacyRaidCombatActionDie('shoot');
+    room.combatCard.actionDie = getLegacyRaidBestCombatDie();
     return room.combatCard;
   }
 
@@ -3159,13 +3427,13 @@
   }
 
   function runLegacyRaidWayfarerOpening(mission, card) {
-    if (!mission || !card || !card.wayfarerPending) return;
-    card.wayfarerPending = false;
+    if (!mission || !card || !card.allyPending) return;
+    card.allyPending = false;
     var wayfarers = Array.isArray(mission.raidWayfarers) ? mission.raidWayfarers.filter(function (wf) {
       return wf && (wf.status === 'ready' || wf.status === 'deployed');
     }) : [];
     if (!wayfarers.length) {
-      card.log.push('No active Wayfarers available for opening actions this round.');
+      card.log.push('No allied Wayfarers survived to act this round.');
       return;
     }
     var alive = card.enemies.filter(function (e) { return Number(e.hp || 0) > 0; });
@@ -3177,11 +3445,27 @@
       var contest = resolveLegacyRaidContest(Number(wf.dd || 6), Number(card.roomDd || 6), 0);
       if (contest.success) {
         target.hp = Math.max(0, Number(target.hp || 0) - 1);
-        card.log.push(String(wf.name || 'Wayfarer') + ' opens round with a hit on ' + target.name + ' (d' + contest.actionDie + '=' + contest.actionRoll + ' vs d' + contest.dreadDie + '=' + contest.dreadRoll + ').');
+        card.log.push(String(wf.name || 'Wayfarer') + ' acts after you and hits ' + target.name + ' (DD6=' + contest.actionRoll + ' vs d' + contest.dreadDie + '=' + contest.dreadRoll + ').');
       } else {
-        card.log.push(String(wf.name || 'Wayfarer') + ' misses opening strike (d' + contest.actionDie + '=' + contest.actionRoll + ' vs d' + contest.dreadDie + '=' + contest.dreadRoll + ').');
+        card.log.push(String(wf.name || 'Wayfarer') + ' acts after you but misses (DD6=' + contest.actionRoll + ' vs d' + contest.dreadDie + '=' + contest.dreadRoll + ').');
       }
     });
+  }
+
+  function buildLegacyRaidCombatZoneSummary() {
+    if (typeof S === 'undefined' || !S || !S.combatMap || !Array.isArray(S.combatMap.units) || !S.combatMap.units.length) return '';
+    var zones = ['Engaged', 'Close', 'Nearby', 'Far'];
+    return '<div style="display:grid;grid-template-columns:repeat(4,minmax(70px,1fr));gap:.16rem;margin:.18rem 0;">'
+      + zones.map(function (zone) {
+          var units = S.combatMap.units.filter(function (unit) { return unit && String(unit.zone || '') === zone; });
+          var allies = units.filter(function (unit) { return unit.side === 'ally'; }).length;
+          var enemies = units.filter(function (unit) { return unit.side === 'enemy'; }).length;
+          return '<div style="border:1px solid var(--border2);padding:.16rem .2rem;background:rgba(255,255,255,.03);">'
+            + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.06em;">' + zone + '</div>'
+            + '<div style="font-size:.65rem;color:var(--muted2);">Allies ' + allies + ' · Enemies ' + enemies + '</div>'
+            + '</div>';
+        }).join('')
+      + '</div>';
   }
 
   function runLegacyRaidEnemyTurn(card) {
@@ -3228,17 +3512,24 @@
     var logHtml = Array.isArray(card.log) && card.log.length
       ? card.log.slice(-6).map(function (line) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + line + '</div>'; }).join('')
       : '<div style="font-size:.67rem;color:var(--muted2);">No combat actions yet.</div>';
+    var livingWayfarers = (Array.isArray(mission.raidWayfarers) ? mission.raidWayfarers : []).filter(function (wf) {
+      return wf && wf.status !== 'failed';
+    }).length;
+    var turnOrder = '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.18rem;">Turn Order: <strong style="color:var(--text2);">You</strong> → <strong style="color:var(--teal);">Allies</strong> (DD6 | 12 Stress survivors: ' + livingWayfarers + ') → <strong style="color:var(--red2);">Enemies</strong></div>';
     openModal(
       'Combat Room — ' + room.label,
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
-        + '<div style="margin-bottom:.2rem;">Turn-based combat card. Wayfarers always open each round, you have 4 actions, then each enemy takes 2 actions.</div>'
-        + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.2rem;">Round ' + Number(card.round || 1) + ' · Actions Left ' + Number(card.actionsLeft || 0) + '/' + Number(card.actionsPerRound || 4) + ' · Action Die d' + Number(card.actionDie || 8) + ' vs Dread d' + Number(card.roomDd || room.dd || 7) + '</div>'
+        + '<div style="margin-bottom:.2rem;">Turn-based raid combat card. Your combat dice are pulled from the Combat tab, allies act second, then enemy phases resolve.</div>'
+        + turnOrder
+        + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.2rem;">Round ' + Number(card.round || 1) + ' · Actions Left ' + Number(card.actionsLeft || 0) + '/' + Number(card.actionsPerRound || 4) + ' · ' + buildLegacyRaidCombatDieSummary() + ' · Dread d' + Number(card.roomDd || room.dd || 7) + '</div>'
         + '<div style="margin-bottom:.22rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(70,120,220,.08);">'
         + '<div style="font-size:.7rem;color:var(--text2);">Raid Team HP: <strong style="color:var(--teal);">' + Math.max(0, Number(card.playerHp || 0)) + '/' + Math.max(1, Number(card.playerMaxHp || 1)) + '</strong> · Enemies Remaining: <strong style="color:var(--red2);">' + alive.length + '</strong></div>'
         + '</div>'
+        + buildLegacyRaidCombatZoneSummary()
         + '<div style="margin-bottom:.22rem;">' + enemyHtml + '</div>'
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.22rem;">'
         + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'strike\')">Strike (target first alive)</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'shoot\')">Shoot (target first alive)</button>'
         + '<button class="btn btn-xs btn-teal" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'suppress\')">Suppress</button>'
         + '<button class="btn btn-xs" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'recover\')">Recover</button>'
         + '<button class="btn btn-xs btn-warn" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'end\')">End Player Turn</button>'
@@ -3262,7 +3553,9 @@
     if (!room || room.type !== 'Combat') return false;
     var card = room.combatCard;
     if (!card) return false;
-    card.actionDie = getLegacyRaidWayfarerActionDie();
+    card.strikeDie = getLegacyRaidCombatActionDie('strike');
+    card.shootDie = getLegacyRaidCombatActionDie('shoot');
+    card.actionDie = getLegacyRaidBestCombatDie();
     var enemies = Array.isArray(card.enemies) ? card.enemies : [];
     var perks = ensureLegacyRaidPerks(mission);
     var playerHitBonus = Math.max(0, Number(card.roomBonus || 0) + Number(perks.assaultBonus || 0));
@@ -3274,21 +3567,31 @@
       return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
     }
 
-    runLegacyRaidWayfarerOpening(mission, card);
-
     if (actionKey === 'end') {
       card.actionsLeft = 0;
     } else if (Number(card.actionsLeft || 0) > 0) {
       if (actionKey === 'strike') {
         var target = enemies.filter(function (e) { return Number(e.hp || 0) > 0; })[0];
         if (target) {
-          var strikeContest = resolveLegacyRaidContest(Number(card.actionDie || 8), Number(card.roomDd || room.dd || 7), playerHitBonus);
+          var strikeContest = resolveLegacyRaidContest(Number(card.strikeDie || card.actionDie || 8), Number(card.roomDd || room.dd || 7), playerHitBonus);
           if (strikeContest.success) {
             var dmg = 1 + (strikeContest.total - strikeContest.dreadRoll >= 4 ? 1 : 0);
             target.hp = Math.max(0, Number(target.hp || 0) - dmg);
             card.log.push('Strike success on ' + target.name + ': d' + strikeContest.actionDie + '=' + strikeContest.actionRoll + ' +' + playerHitBonus + ' vs d' + strikeContest.dreadDie + '=' + strikeContest.dreadRoll + ' (' + dmg + ' dmg).');
           } else {
             card.log.push('Strike failed: d' + strikeContest.actionDie + '=' + strikeContest.actionRoll + ' +' + playerHitBonus + ' vs d' + strikeContest.dreadDie + '=' + strikeContest.dreadRoll + '.');
+          }
+        }
+      } else if (actionKey === 'shoot') {
+        var rangedTarget = enemies.filter(function (e) { return Number(e.hp || 0) > 0; })[0];
+        if (rangedTarget) {
+          var shootContest = resolveLegacyRaidContest(Number(card.shootDie || card.actionDie || 8), Number(card.roomDd || room.dd || 7), playerHitBonus);
+          if (shootContest.success) {
+            var rangedDmg = 1 + (shootContest.total - shootContest.dreadRoll >= 4 ? 1 : 0);
+            rangedTarget.hp = Math.max(0, Number(rangedTarget.hp || 0) - rangedDmg);
+            card.log.push('Shoot success on ' + rangedTarget.name + ': d' + shootContest.actionDie + '=' + shootContest.actionRoll + ' +' + playerHitBonus + ' vs d' + shootContest.dreadDie + '=' + shootContest.dreadRoll + ' (' + rangedDmg + ' dmg).');
+          } else {
+            card.log.push('Shoot failed: d' + shootContest.actionDie + '=' + shootContest.actionRoll + ' +' + playerHitBonus + ' vs d' + shootContest.dreadDie + '=' + shootContest.dreadRoll + '.');
           }
         }
       } else if (actionKey === 'suppress') {
@@ -3324,6 +3627,7 @@
     }
 
     if (Number(card.actionsLeft || 0) <= 0) {
+      runLegacyRaidWayfarerOpening(mission, card);
       runLegacyRaidEnemyTurn(card);
       if (Number(card.playerHp || 0) <= 0) {
         room.combatCard = null;
@@ -3332,7 +3636,7 @@
       }
       card.round = Number(card.round || 1) + 1;
       card.actionsLeft = Number(card.actionsPerRound || 4);
-      card.wayfarerPending = true;
+      card.allyPending = true;
     }
 
     return renderLegacyRaidCombatCard(mission, wingNum, roomIdx, room, card);
@@ -3351,6 +3655,7 @@
         chips: 3 + Math.max(0, Number(perks.gamblingChipBonus || 0)),
         targetWins: 2,
         handsPlayed: 0,
+        lastHand: null,
         log: []
       };
     }
@@ -3368,15 +3673,30 @@
     var logHtml = Array.isArray(gamble.log) && gamble.log.length
       ? gamble.log.slice(-5).map(function (line) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + line + '</div>'; }).join('')
       : '<div style="font-size:.67rem;color:var(--muted2);">No hands played yet.</div>';
+    var lastHandHtml = gamble.lastHand
+      ? '<div style="margin-bottom:.22rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);font-size:.68rem;color:var(--muted2);">'
+        + 'Last Hand: ' + gamble.lastHand
+        + '</div>'
+      : '';
+    var guessRow = function (mode, die, label, tone) {
+      return '<div style="margin-bottom:.18rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);">'
+        + '<div style="font-size:.69rem;color:' + tone + ';margin-bottom:.1rem;">' + label + ' · Gatekeeper d' + die + '</div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.14rem;">Roll two gatekeeper dice, then roll your Wayfarer Adventure Die and guess whether it lands under, middle, or over. Matching either gatekeeper die still counts as middle.</div>'
+        + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-xs" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'' + mode + '\',\'under\')">Guess Under</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'' + mode + '\',\'middle\')">Guess Middle</button>'
+        + '<button class="btn btn-xs btn-warn" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'' + mode + '\',\'over\')">Guess Over</button>'
+        + '</div>'
+        + '</div>';
+    };
     openModal(
       'Gambling Table — ' + room.label,
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
-      + '<div style="margin-bottom:.24rem;">Win <strong style="color:var(--gold2);">' + Number(gamble.targetWins || 2) + '</strong> hands before taking 2 losses. Each hand costs one chip unless you play safe.</div>'
+      + '<div style="margin-bottom:.24rem;">Win <strong style="color:var(--gold2);">' + Number(gamble.targetWins || 2) + '</strong> hands before taking 2 losses. Low stakes uses gatekeeper d20. High stakes uses gatekeeper d4 and awards 2 wins on a hit.</div>'
       + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.18rem;">Wins: ' + Number(gamble.wins || 0) + ' · Losses: ' + Number(gamble.losses || 0) + ' · Chips: ' + Number(gamble.chips || 0) + '</div>'
-      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.22rem;">'
-      + '<button class="btn btn-xs btn-primary" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'safe\')">Play Safe Hand</button>'
-      + '<button class="btn btn-xs btn-warn" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'high\')">Play High-Risk Hand</button>'
-      + '</div>'
+      + lastHandHtml
+      + guessRow('safe', 20, 'Low Stakes', 'var(--teal)')
+      + guessRow('high', 4, 'High Stakes', 'var(--red2)')
       + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;">Table Log</div>'
       + '<div style="max-height:96px;overflow:auto;border:1px solid var(--border2);padding:.2rem .26rem;background:rgba(0,0,0,.16);margin-bottom:.22rem;">' + logHtml + '</div>'
       + '<div style="display:flex;justify-content:flex-end;">'
@@ -3387,7 +3707,7 @@
     return true;
   }
 
-  window.submitLegacyRaidGambleHand = function (missionId, wingNum, roomIdx, mode) {
+  window.submitLegacyRaidGambleHand = function (missionId, wingNum, roomIdx, mode, guess) {
     var mission = getMission(missionId);
     if (!mission) return false;
     var map = ensureRaidHexMap(mission);
@@ -3397,19 +3717,27 @@
     if (!gamble) return false;
 
     var assist = getLegacyRaidRoomAssistBonus(mission, wingNum, roomIdx);
-    var playerRoll = typeof roll === 'function' ? roll(10) : (Math.floor(Math.random() * 10) + 1);
-    var houseRoll = typeof roll === 'function' ? roll(10) : (Math.floor(Math.random() * 10) + 1);
-    if (mode === 'high') playerRoll += 2;
-    if (assist > 0) playerRoll += 1;
+    var stakeDie = String(mode || 'safe') === 'high' ? 4 : 20;
+    var lowHouse = typeof roll === 'function' ? roll(stakeDie) : (Math.floor(Math.random() * stakeDie) + 1);
+    var highHouse = typeof roll === 'function' ? roll(stakeDie) : (Math.floor(Math.random() * stakeDie) + 1);
+    var sortedLow = Math.min(lowHouse, highHouse);
+    var sortedHigh = Math.max(lowHouse, highHouse);
+    var advDie = getLegacyRaidWayfarerActionDie();
+    var playerRoll = typeof roll === 'function' ? roll(advDie) : (Math.floor(Math.random() * advDie) + 1);
+    if (assist > 0 && String(mode || 'safe') === 'safe') playerRoll = Math.min(advDie, playerRoll + 1);
+    var outcome = playerRoll < sortedLow ? 'under' : (playerRoll > sortedHigh ? 'over' : 'middle');
+    var success = String(guess || '') === outcome;
+    var winValue = String(mode || 'safe') === 'high' ? 2 : 1;
     gamble.handsPlayed = Number(gamble.handsPlayed || 0) + 1;
-    gamble.chips = Math.max(0, Number(gamble.chips || 0) - (mode === 'high' ? 1 : 0));
+    gamble.chips = Math.max(0, Number(gamble.chips || 0) - (String(mode || 'safe') === 'high' ? 1 : 0));
 
-    if (playerRoll >= houseRoll) {
-      gamble.wins = Number(gamble.wins || 0) + 1;
-      gamble.log.push('Hand ' + gamble.handsPlayed + ': win (' + playerRoll + ' vs ' + houseRoll + ').');
+    gamble.lastHand = 'Gatekeeper d' + stakeDie + ': [' + sortedLow + ', ' + sortedHigh + '] · Adventure d' + advDie + ': ' + playerRoll + ' · guessed ' + String(guess || 'unknown') + ' · actual ' + outcome + '.';
+    if (success) {
+      gamble.wins = Number(gamble.wins || 0) + winValue;
+      gamble.log.push('Hand ' + gamble.handsPlayed + ': win (' + gamble.lastHand + ')');
     } else {
       gamble.losses = Number(gamble.losses || 0) + 1;
-      gamble.log.push('Hand ' + gamble.handsPlayed + ': loss (' + playerRoll + ' vs ' + houseRoll + ').');
+      gamble.log.push('Hand ' + gamble.handsPlayed + ': loss (' + gamble.lastHand + ')');
     }
 
     if (Number(gamble.wins || 0) >= Number(gamble.targetWins || 2)) {
@@ -3428,6 +3756,7 @@
   window.resolveRaidRoom = function (missionId, wingNum, roomIdx) {
     var mission = getMission(missionId);
     if (!mission) return;
+    ensureLegacyRaidMissionConfig(mission);
     var map = ensureRaidHexMap(mission);
     var rooms = map.wings[wingNum];
     var room = rooms && rooms[roomIdx];
@@ -3439,9 +3768,9 @@
 
     // Entry room: free pass, just reveal next
     if (room.type === 'Entry' || room.dd === 0) {
-      if (consumeLegacyRaidClock(mission, wingNum, room.label)) return;
+      var wingReset = resetLegacyRaidClockAtWingEntry(mission, wingNum);
       room.cleared = true;
-      room.result = '→ Threshold crossed.';
+      room.result = '→ Threshold crossed. Raid timer reset to ' + Number(wingReset || ensureLegacyRaidClock(mission)) + ' ticks for Wing ' + wingNum + '.';
       _raidRevealNextRoom(rooms, roomIdx);
       openRaidWingPopup(missionId, wingNum);
       return;
@@ -3470,7 +3799,7 @@
       return;
     }
 
-    var advDie = typeof getStat === 'function' ? getStat('adventure') : 8;
+    var advDie = getLegacyRaidBestCombatDie();
     var bonus = Number(mission.bonus || 0);
     // Deployed wayfarers give a bonus in this wing
     var wayfarerBonus = 0;
@@ -3513,7 +3842,7 @@
         + room.description
         + '</div>'
         + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .55rem;margin-bottom:.4rem;">'
-        + '<div style="font-size:.8rem;color:var(--text2);">Roll Adventure d' + advDie + (totalBonus ? ' + ' + totalBonus : '') + ' vs DD' + dd + '</div>'
+        + '<div style="font-size:.8rem;color:var(--text2);">Roll Combat Die (' + buildLegacyRaidCombatDieSummary() + ')' + (totalBonus ? ' + ' + totalBonus : '') + ' vs DD' + dd + '</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);">Wayfarers: +' + wayfarerBonus + ' · Room assist: +' + assistBonus + ' · Prior wing clean: +' + cleanBonus + ' · Roles: +' + Number(roleGate.bonus || 0) + ' · Bonus: +' + bonus + '</div>'
         + '</div>'
         + '<div style="display:flex;gap:.3rem;justify-content:flex-end;flex-wrap:wrap;">'
@@ -3569,7 +3898,8 @@
       if (room.type === 'LoreReading') {
         mission.legacyRaidLoreFragment = buildLegacyRaidLoreFragment(mission);
         mission.bonus = Math.min(20, Number(mission.bonus || 0) + 1);
-        room.result = '📜 ' + mission.legacyRaidLoreFragment + ' Wing 3 gains +1 tactical bonus from telegraph reads.';
+        addLegacyRaidRoomAssistBonus(mission, 2, 1, 1);
+        room.result = '📜 ' + mission.legacyRaidLoreFragment + ' The decoded route changes Wing 2: the dungeon door opens on the true channel and the gate room gains +1 assist.';
         if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
       } else if (room.type === 'Loot') {
         var raidLoot = rollShopLoot(mission.difficulty) || [];
@@ -3604,6 +3934,7 @@
       if (nextRoom && nextRoom.isBoss) {
         setLegacyRaidBossEncounterActive(mission, true);
         if (typeof showNotif === 'function') showNotif('Boss chamber breached. Confrontation is now live.', 'warn');
+        if (openLegacyRaidBossCinematic(missionId)) return;
         openRaidWingPopup(missionId, wingNum, roomIdx + 1);
         return;
       }
@@ -3685,7 +4016,7 @@
     if (consumeLegacyRaidClock(mission, 3, 'Boss Phase')) return;
 
     var success = false;
-    var actionDie = getLegacyRaidWayfarerActionDie();
+    var actionDie = getLegacyRaidBestCombatDie();
     var actionRoll = typeof explodingRoll === 'function' ? explodingRoll(actionDie) : { total: Math.floor(Math.random() * actionDie) + 1, exploded: false };
     var totalAction = Number(actionRoll.total || 0)
       + Number(mission.bonus || 0)
@@ -3778,6 +4109,7 @@
   window.resolveRaidBossRoom = function (missionId, success) {
     var mission = getMission(missionId);
     if (!mission) return;
+    ensureLegacyRaidMissionConfig(mission);
     var map = ensureRaidHexMap(mission);
     var rooms = map.wings[3];
     var bossRoom = rooms && rooms[rooms.length - 1];
@@ -4521,6 +4853,7 @@
     var mission = getMission(missionId);
     if (!mission || mission.missionType !== 'legacy_raid') return false;
     if (typeof openModal !== 'function') return false;
+    ensureLegacyRaidMissionConfig(mission);
     var run = ensureLegacyRaidRunState(mission);
     if (run) {
       run.currentWing = getLegacyRaidCurrentWing(mission);
@@ -4626,7 +4959,7 @@
       : '<div style="font-size:.7rem;color:var(--muted2);">No checkpoints recorded.</div>';
 
     var roleHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.28rem;margin-bottom:.35rem;">'
-      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.42rem .45rem;"><div style="font-size:.66rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">Front</div><div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Hold the boss, reposition telegraphs, and protect puzzle solvers.</div></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.42rem .45rem;"><div style="font-size:.66rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">Front Line</div><div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Hold the boss, reposition telegraphs, and protect puzzle solvers.</div></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.42rem .45rem;"><div style="font-size:.66rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;">Mechanics</div><div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Read tells, solve room logic, and call swaps before the wipe mechanic lands.</div></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.42rem .45rem;"><div style="font-size:.66rem;color:var(--red2);text-transform:uppercase;letter-spacing:.08em;">Support</div><div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Use the allied Wayfarers to cover pressure lanes and rescue failed positioning.</div></div>'
       + '</div>';
@@ -5738,6 +6071,7 @@
       return;
     }
     container.innerHTML=holdingTrackerHtml + pactCardHtml + S.activeMissions.map(function(mission){
+      if (mission && mission.missionType === 'legacy_raid') ensureLegacyRaidMissionConfig(mission);
       ensureMissionDeadline(mission);
       var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);
       var daysLeft = getMissionDaysRemaining(mission);

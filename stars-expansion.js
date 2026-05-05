@@ -2459,19 +2459,19 @@ function ensureSolarCycleLegacyState() {
 
 const LEGACY_RAID_TREE = {
   scout_network: {
-    label: 'Scout Network',
+    label: 'Predator Lattice',
     cost: 2,
-    summary: 'Future raids grant +5 mission bonus and keep their marker open for one extra day.'
+    summary: 'Future raids gain +5 mission bonus and raid markers stay open one extra day.'
   },
   bulwark_drill: {
-    label: 'Bulwark Drill',
+    label: 'Bulwark Continuum',
     cost: 3,
-    summary: 'Raid boss contracts are posted one difficulty tier lower without reducing medal payout.'
+    summary: 'Raid contracts post one difficulty tier lower without reducing medal payout.'
   },
   trophy_claim: {
-    label: 'Trophy Claim',
+    label: 'Anomaly Imprint',
     cost: 2,
-    summary: 'Completed raids grant one bonus raid point and convert duplicate raid trophies into extra credits.'
+    summary: 'Completed raids grant a bonus raid point, and duplicate trophies convert into credits plus a small Teamwork refund.'
   }
 };
 
@@ -5205,7 +5205,7 @@ function renderNewSunModePanel() {
   var forecastSimulatorHtml = buildSolarCycleForecastSimulatorHtml(sc);
   var consequenceMotionHtml = buildConsequenceMotionPanelHtml(6);
   var witnessVowRecapHtml = buildSolarCycleWitnessVowRecapHtml(sc, 5);
-  var legacyRaidPanelHtml = (!status.storyModeEnabled) ? buildLegacyRaidPanelHtml() : '';
+  var legacyRaidPanelHtml = '';
   var schedulerSummary = scheduler
     ? ('Province ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | Sea ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
@@ -8991,6 +8991,17 @@ function applyGalaxyRewardPackage(reward) {
   return notes.join(' · ');
 }
 
+function openMissionTrackerFromGalaxyTask() {
+  if (typeof switchTab === 'function') {
+    const missionBtn = document.getElementById('tabnav-missions')
+      || Array.from(document.querySelectorAll('.tab-btn')).find((node) => {
+        return String(node.getAttribute('onclick') || '').indexOf("switchTab('missions'") >= 0;
+      });
+    switchTab('missions', missionBtn || null);
+  }
+  if (typeof renderMissionTracker === 'function') renderMissionTracker();
+}
+
 function renderGalaxyTaskPanel(taskId) {
   ensureStarsState();
   const task = getGalaxyTaskById(taskId) || getCurrentGalaxyTask();
@@ -9004,7 +9015,6 @@ function renderGalaxyTaskPanel(taskId) {
     const mission = (S && Array.isArray(S.activeMissions))
       ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(task.missionId || ''); })
       : null;
-    const missionTrackerBtnJs = "var btn=Array.from(document.querySelectorAll('.tab-btn')).find(function(node){return String(node.getAttribute('onclick')||'').indexOf(\"switchTab('missions'\")>=0;}); if(typeof switchTab==='function'){switchTab('missions',btn||null);} if(typeof renderMissionTracker==='function'){renderMissionTracker();}";
     const stepBtn = mission && mission.missionType === 'legacy_raid'
       ? `<button class="btn btn-xs btn-teal" onclick="if(typeof window.handleLegacyRaidMarkerInteraction==='function'){window.handleLegacyRaidMarkerInteraction(${task.missionId},'${String(task.missionStep || 'site')}', 'galaxy');}">${task.missionStep === 'informer' ? 'Run Step 1: Info' : (task.missionStep === 'confront' ? 'Run Step 3: Boss Wing' : 'Run Step 2: Door')}</button>`
       : task.missionStep === 'informer'
@@ -9020,7 +9030,7 @@ function renderGalaxyTaskPanel(taskId) {
       </div>
       <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">
         ${stepBtn}
-        <button class="btn btn-xs" onclick="${missionTrackerBtnJs}">Open Mission Tracker</button>
+        <button class="btn btn-xs" onclick="if(typeof window.openMissionTrackerFromGalaxyTask==='function'){window.openMissionTrackerFromGalaxyTask();}">Open Mission Tracker</button>
       </div>`;
     return;
   }
@@ -19449,6 +19459,7 @@ window.moveExocraftCargoToBackpack = moveExocraftCargoToBackpack;
 window.loadExocraftFromBackpack = loadExocraftFromBackpack;
 window.setActiveExocraft = setActiveExocraft;
 window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
+window.openMissionTrackerFromGalaxyTask = openMissionTrackerFromGalaxyTask;
 window.openPlanetMissionMarker = openPlanetMissionMarker;
 window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
 window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;

@@ -2697,6 +2697,10 @@
       return true;
     }
     if (w === 3 && stage === 'raid-clear') {
+      var vault = ensureLegacyRaidLootVault(mission);
+      if (vault && (vault.loot.length > 0 || (vault.keys && (vault.keys.bronze || vault.keys.silver || vault.keys.gold || vault.keys.platinum)))) {
+        return openLegacyRaidLootRecoveryModal(mission);
+      }
       if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(mission.id, true);
       return true;
     }
@@ -2706,6 +2710,95 @@
   function getLegacyRaidRoomRoleKey(wingNum, roomIdx) {
     return String(wingNum) + ':' + String(roomIdx);
   }
+
+  function openLegacyRaidLootRecoveryModal(mission) {
+    if (!mission) return false;
+    var vault = ensureLegacyRaidLootVault(mission);
+    if (!vault) return false;
+    var loot = Array.isArray(vault.loot) ? vault.loot : [];
+    var keys = vault.keys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    var lootHtml = loot.length
+      ? loot.map(function (item, idx) {
+          return '<div style="font-size:.65rem;color:var(--text2);line-height:1.42;padding:.06rem 0;border-bottom:1px solid rgba(255,255,255,.05);">'
+            + (idx + 1) + '. ' + String(item || 'Unknown Item') + '</div>';
+        }).join('')
+      : '<div style="font-size:.65rem;color:var(--muted3);">No loot items collected.</div>';
+    var keysList = [];
+    if (Number(keys.bronze || 0) > 0) keysList.push('Bronze × ' + Number(keys.bronze));
+    if (Number(keys.silver || 0) > 0) keysList.push('Silver × ' + Number(keys.silver));
+    if (Number(keys.gold || 0) > 0) keysList.push('Gold × ' + Number(keys.gold));
+    if (Number(keys.platinum || 0) > 0) keysList.push('Platinum × ' + Number(keys.platinum));
+    var keysHtml = keysList.length
+      ? keysList.map(function (k) { return '<div style="font-size:.65rem;color:var(--gold2);padding:.04rem 0;">🔑 ' + k + '</div>'; }).join('')
+      : '<div style="font-size:.65rem;color:var(--muted3);">No keys collected.</div>';
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-bottom:.32rem;">'
+      + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);">'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Collected Loot</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.12rem;">' + loot.length + ' item(s) secured</div>'
+      + '<div style="max-height:160px;overflow-y:auto;padding-right:.12rem;">' + lootHtml + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);">'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Vault Keys</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.12rem;">Keys to boss loot</div>'
+      + keysHtml
+      + '</div>'
+      + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.5;margin-bottom:.24rem;">'
+      + '<strong>Raid Complete.</strong> Choose to claim your spoils into your backpack, or sell them to a fence for immediate credits.'
+      + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-primary" onclick="window.claimRaidLootToBackpack(' + mission.id + ')">📦 Claim to Backpack</button>'
+      + '<button class="btn btn-xs btn-warn" onclick="window.sellRaidLootForCredits(' + mission.id + ')">💰 Sell for Credits</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Raid Complete — Loot Recovery', html);
+    return true;
+  }
+
+  window.claimRaidLootToBackpack = function (missionId) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var vault = ensureLegacyRaidLootVault(mission);
+    if (!vault || !vault.loot.length) {
+      if (typeof showNotif === 'function') showNotif('No loot to claim.', 'info');
+      closeModal();
+      if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(mission.id, true);
+      return;
+    }
+    var total = 0;
+    if (typeof S !== 'undefined' && S && S.backpack && Array.isArray(S.backpack)) {
+      vault.loot.forEach(function (item) {
+        if (item) {
+          S.backpack.push(String(item));
+          total++;
+        }
+      });
+    }
+    closeModal();
+    if (typeof showNotif === 'function') showNotif('Claimed ' + total + ' items to your backpack.', 'good');
+    if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(mission.id, true);
+  };
+
+  window.sellRaidLootForCredits = function (missionId) {
+    var mission = getMission(missionId);
+    if (!mission) return;
+    var vault = ensureLegacyRaidLootVault(mission);
+    if (!vault || !vault.loot.length) {
+      if (typeof showNotif === 'function') showNotif('No loot to sell.', 'info');
+      closeModal();
+      if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(mission.id, true);
+      return;
+    }
+    var creditsPerItem = 100;
+    var totalCredits = vault.loot.length * creditsPerItem;
+    if (typeof S !== 'undefined' && S) {
+      S.credits = Math.max(0, Number(S.credits || 0) + totalCredits);
+    }
+    closeModal();
+    if (typeof showNotif === 'function') showNotif('Sold ' + vault.loot.length + ' items for ' + totalCredits + ' credits.', 'good');
+    if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(mission.id, true);
+  };
 
   function ensureLegacyRaidRoomRoleState(mission, wingNum, roomIdx) {
     if (!mission) return null;

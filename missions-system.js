@@ -5194,11 +5194,26 @@
           var allyHpRow = Math.max(0, Number(encounter.partyHp && encounter.partyHp.allies && encounter.partyHp.allies[allyNameRow] || 12));
           var allyActsRow = Math.max(0, Number(encounter.allyActionBudget.byAlly && encounter.allyActionBudget.byAlly[allyNameRow] || 0));
           var allyFlavor = getLegacyRaidAllyFlavorProfile(allyNameRow);
-          return '<div style="font-size:.62rem;color:var(--muted2);">' + allyNameRow + ' · HP ' + allyHpRow + ' · Actions ' + allyActsRow + '/2 · Flavor ' + allyFlavor.name + '</div>';
+          var allyStatus = allyHpRow > 0 ? '<span style="color:var(--green2);">●</span>' : '<span style="color:var(--red2);">●</span>';
+          return '<div style="font-size:.61rem;color:var(--text2);line-height:1.36;padding:.04rem .08rem;border-bottom:1px solid rgba(255,255,255,.04);">'
+            + allyStatus + ' <strong>' + allyNameRow + '</strong> · ' + allyHpRow + 'HP · ' + allyActsRow + '/2 · ' + allyFlavor.name
+            + '</div>';
         }).join('');
-        var allyActionPanel = '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;margin-bottom:.12rem;">'
-          + 'Allies have 2 actions each (6 total): Defend, Support, Attack, Move. No ally can exceed their budget.'
+        var allyActionPanel = '<div style="font-size:.66rem;color:var(--muted2);line-height:1.4;margin-bottom:.12rem;">'
+          + '<strong>Defend:</strong> +3 Defend · <strong>Support:</strong> +3 Attack · <strong>Attack:</strong> dd6 vs Dread · <strong>Move:</strong> shift range'
           + '</div>'
+          + '<div style="margin-bottom:.12rem;">' + allyStatusRows + '</div>'
+          + '<div style="display:flex;gap:.15rem;flex-wrap:wrap;align-items:center;">'
+          + '<select class="input" id="raidAllySel-' + mission.id + '" style="max-width:110px;font-size:.64rem;padding:.08rem .12rem;">' + allyOptionHtml + '</select>'
+          + '<select class="input" id="raidAllyAct-' + mission.id + '" style="max-width:110px;font-size:.64rem;padding:.08rem .12rem;" onchange="window.updateLegacyRaidAllyTargetOptions(' + mission.id + ')">'
+          + '<option value="Defend">Defend</option><option value="Support">Support</option><option value="Attack">Attack</option><option value="Move">Move</option>'
+          + '</select>'
+          + '<select class="input" id="raidAllyTarget-' + mission.id + '" style="max-width:120px;font-size:.64rem;padding:.08rem .12rem;">'
+          + '<option value="' + playerName + '">' + playerName + '(You)</option>'
+          + '</select>'
+          + '<button class="btn btn-xs" style="font-size:.62rem;padding:.06rem .2rem;" ' + (turnStage === 'ally' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidBossAllyAction(' + mission.id + ',document.getElementById(\'raidAllySel-' + mission.id + '\').value,document.getElementById(\'raidAllyAct-' + mission.id + '\').value,document.getElementById(\'raidAllyTarget-' + mission.id + '\').value)">Execute</button>'
+          + '</div>'
+          + '<div style="font-size:.63rem;color:var(--gold2);margin-top:.08rem;margin-bottom:.08rem;">Used: ' + Number(encounter.allyActionsUsed || 0) + '/6 · Remaining: ' + allyLeftTotal + '</div>'
           + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.45;margin-bottom:.08rem;">Defend: +3 Defend · Support: +3 Attack (Strike/Shoot) · Attack: d6 vs Boss Dread · Move: shift one range band</div>'
           + '<div style="margin-bottom:.08rem;">' + allyStatusRows + '</div>'
           + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">'

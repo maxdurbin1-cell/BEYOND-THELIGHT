@@ -1776,6 +1776,7 @@
     if (room.type === 'Peril') return ['front', 'mechanics'];
     if (room.type === 'Trap') return ['mechanics', 'support'];
     if (room.type === 'Combat') return ['front', 'support'];
+    if (room.type === 'Gambling') return ['mechanics', 'support'];
     if (room.type === 'Loot') return ['mechanics', 'support'];
     if (room.type === 'TrophyCache') return ['mechanics', 'support'];
     return [];
@@ -2000,6 +2001,11 @@
       { icon: '🕸', label: 'Snare Lattice', dd: 8 },
       { icon: '🔒', label: 'Pressure Lock Hall', dd: 8 }
     ],
+    Gambling: [
+      { icon: '🂡', label: 'Contraband Card Den', dd: 8 },
+      { icon: '🎲', label: 'Loaded Dice Pit', dd: 8 },
+      { icon: '♠', label: 'Shadow Wager Hall', dd: 9 }
+    ],
     Loot: [
       { icon: '📦', label: 'Smuggler Cache', dd: 7 },
       { icon: '💰', label: 'Merchant Vault Spill', dd: 8 },
@@ -2013,7 +2019,7 @@
     3: ['Entry', 'RANDOM', 'RANDOM', 'RANDOM', 'WayfarerPost', 'Confrontation']
   };
 
-  var RAID_RANDOM_ROOM_TYPES = ['Hazard', 'Peril', 'Combat', 'Trap', 'Loot'];
+  var RAID_RANDOM_ROOM_TYPES = ['Hazard', 'Peril', 'Combat', 'Trap', 'Gambling', 'Loot'];
 
   function shuffleRaidArray(arr) {
     var copy = arr.slice();
@@ -2075,6 +2081,9 @@
     if (type === 'Loot') {
       tpl.label += ' (Merchant-linked loot)';
     }
+    if (type === 'Gambling') {
+      tpl.label += ' (High-risk wager)';
+    }
     tpl.slot = idx;
     return tpl;
   }
@@ -2108,7 +2117,8 @@
     var profile = mission && mission.legacyRaidProfile && typeof mission.legacyRaidProfile === 'object' ? mission.legacyRaidProfile : {};
     var bonus = Math.max(0, Number(profile.roomProgressBonus || 0));
     if (roomType === 'Puzzle') return 3;
-    if (roomType === 'Combat') return 2 + bonus;
+    if (roomType === 'Combat') return 1;
+    if (roomType === 'Gambling') return 1;
     if (roomType === 'LoreReading' || roomType === 'Hazard' || roomType === 'Peril' || roomType === 'Trap' || roomType === 'Loot' || roomType === 'Approach' || roomType === 'TrophyCache') return 2 + bonus;
     return 1 + Math.min(1, bonus);
   }
@@ -2271,6 +2281,7 @@
       Peril:        'A lethal pressure field saturates this room. ' + descFrag.charAt(0).toUpperCase() + descFrag.slice(1) + '. One misread movement causes raidwide strain spikes.',
       Combat:       'Enemy contact confirmed: ' + enemyCount + ' hostiles are entrenched in defensive angles. Break them before they call reinforcements into adjacent rooms.',
       Trap:         'Mechanical killswitch lanes are active across this chamber. You must disable triggers while maintaining forward pressure.',
+      Gambling:     'The gatekeepers demand a wager game: win the table to gain passage. Lose too many hands and the raid takes pressure damage before being thrown back.',
       Loot:         'Merchant contraband is buried in this sector. Cracking this stash rolls direct loot from the Merchant tables and can swing the whole raid economy.',
       LoreReading:  'A fragment archive is embedded in the far wall. Assign one player to read the telegraphs while the rest hold against pressure. Success reveals why ' + (bossName || 'the boss') + ' matters to this region.',
       Puzzle:       'Three interlocked mechanisms control the passage seals. Each wrong answer resets the furthest. Use the room state and boss tells — repeating the first answer will lock the doors permanently.',
@@ -2497,6 +2508,7 @@
       : room.type === 'Loot' ? 'var(--gold)'
       : room.type === 'Combat' ? 'var(--red2)'
       : room.type === 'Trap' ? 'var(--gold2)'
+      : room.type === 'Gambling' ? 'var(--gold2)'
       : room.type === 'Peril' ? 'var(--red3)'
       : room.type === 'TrophyCache' ? 'var(--gold)'
       : room.type === 'WayfarerPost' ? 'var(--gold2)'
@@ -2586,6 +2598,7 @@
           : room.type === 'Peril' ? '☠ Survive Peril Zone (DD' + room.dd + ')'
           : room.type === 'Combat' ? '⚔ Fight ' + Math.max(1, Number(room.enemyCount || 1)) + ' Enemies (DD' + room.dd + ')'
           : room.type === 'Trap' ? '⚠ Disarm Trap Lanes (DD' + room.dd + ')'
+          : room.type === 'Gambling' ? '🂡 Play Wager Puzzle'
           : room.type === 'Loot' ? '📦 Breach Loot Stash (DD' + room.dd + ')'
           : room.type === 'LoreReading' ? '📜 Read Lore Fragment (DD' + room.dd + ')'
           : room.type === 'Puzzle' ? '🧩 Open Lock-Dial Puzzle'
@@ -2673,6 +2686,228 @@
     return true;
   }
 
+  function ensureLegacyRaidCombatCardState(mission, wingNum, roomIdx, room, totalBonus, dd) {
+    if (!mission || !room || room.type !== 'Combat') return null;
+    if (!room.combatCard || typeof room.combatCard !== 'object' || Number(room.combatCard.version || 0) !== 1) {
+      var enemyCount = Math.max(1, Math.min(4, Number(room.enemyCount || 1)));
+      var enemies = [];
+      var hpBase = Math.max(4, Number(dd || room.dd || 7));
+      for (var i = 0; i < enemyCount; i++) {
+        enemies.push({
+          id: i + 1,
+          name: 'Hostile ' + (i + 1),
+          hp: hpBase,
+          maxHp: hpBase
+        });
+      }
+      room.combatCard = {
+        version: 1,
+        active: true,
+        round: 1,
+        playerHp: Math.max(10, hpBase * 2 + 4),
+        playerMaxHp: Math.max(10, hpBase * 2 + 4),
+        roomDd: Math.max(4, Number(dd || room.dd || 7)),
+        roomBonus: Math.max(0, Number(totalBonus || 0)),
+        enemies: enemies,
+        log: []
+      };
+    }
+    return room.combatCard;
+  }
+
+  function renderLegacyRaidCombatCard(mission, wingNum, roomIdx, room, card) {
+    if (!mission || !room || !card) return false;
+    var enemies = Array.isArray(card.enemies) ? card.enemies : [];
+    var alive = enemies.filter(function (e) { return Number(e.hp || 0) > 0; });
+    var enemyHtml = enemies.map(function (enemy) {
+      var hp = Math.max(0, Number(enemy.hp || 0));
+      var maxHp = Math.max(1, Number(enemy.maxHp || hp || 1));
+      var pct = Math.max(0, Math.min(100, Math.round(hp / maxHp * 100)));
+      return '<div style="padding:.24rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);margin-bottom:.18rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;">'
+        + '<span style="font-size:.72rem;color:var(--text2);">' + String(enemy.name || 'Hostile') + '</span>'
+        + '<span style="font-size:.68rem;color:' + (hp > 0 ? 'var(--red2)' : 'var(--green2)') + ';">' + (hp > 0 ? ('HP ' + hp + '/' + maxHp) : 'Defeated') + '</span>'
+        + '</div>'
+        + '<div style="margin-top:.12rem;height:4px;background:var(--surface);border:1px solid var(--border2);">'
+        + '<div style="height:100%;width:' + pct + '%;background:' + (hp > 0 ? 'var(--red2)' : 'var(--green2)') + ';"></div>'
+        + '</div>'
+      + '</div>';
+    }).join('');
+    var logHtml = Array.isArray(card.log) && card.log.length
+      ? card.log.slice(-6).map(function (line) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + line + '</div>'; }).join('')
+      : '<div style="font-size:.67rem;color:var(--muted2);">No combat actions yet.</div>';
+    openModal(
+      'Combat Room — ' + room.label,
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="margin-bottom:.2rem;">Fight this pack directly in the raid card. Defeat all hostiles to clear the room.</div>'
+        + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.2rem;">Round ' + Number(card.round || 1) + ' · DD' + Number(card.roomDd || room.dd || 7) + ' · Bonus +' + Number(card.roomBonus || 0) + '</div>'
+        + '<div style="margin-bottom:.22rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(70,120,220,.08);">'
+        + '<div style="font-size:.7rem;color:var(--text2);">Raid Team HP: <strong style="color:var(--teal);">' + Math.max(0, Number(card.playerHp || 0)) + '/' + Math.max(1, Number(card.playerMaxHp || 1)) + '</strong> · Enemies Remaining: <strong style="color:var(--red2);">' + alive.length + '</strong></div>'
+        + '</div>'
+        + '<div style="margin-bottom:.22rem;">' + enemyHtml + '</div>'
+        + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.22rem;">'
+        + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'strike\')">Strike</button>'
+        + '<button class="btn btn-xs btn-teal" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'suppress\')">Suppress</button>'
+        + '<button class="btn btn-xs" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'recover\')">Recover</button>'
+        + '</div>'
+        + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;">Combat Log</div>'
+        + '<div style="max-height:92px;overflow:auto;border:1px solid var(--border2);padding:.2rem .26rem;background:rgba(0,0,0,.16);margin-bottom:.22rem;">' + logHtml + '</div>'
+        + '<div style="display:flex;justify-content:flex-end;">'
+        + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
+  window.resolveRaidCombatCardAction = function (missionId, wingNum, roomIdx, actionKey) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var map = ensureRaidHexMap(mission);
+    var rooms = map && map.wings ? map.wings[wingNum] : null;
+    var room = rooms && rooms[roomIdx];
+    if (!room || room.type !== 'Combat') return false;
+    var card = room.combatCard;
+    if (!card || !Array.isArray(card.enemies)) return false;
+
+    var advDie = typeof getStat === 'function' ? getStat('adventure') : 8;
+    var enemies = card.enemies;
+    var alive = enemies.filter(function (e) { return Number(e.hp || 0) > 0; });
+    if (!alive.length) {
+      room.combatCard = null;
+      if (typeof closeModal === 'function') closeModal();
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
+    }
+
+    var playerHitBonus = Math.max(0, Number(card.roomBonus || 0));
+    var suppressing = false;
+    var healAmount = 0;
+    if (actionKey === 'strike') {
+      var target = alive[0];
+      var dmgRoll = (typeof roll === 'function' ? roll(6) : (Math.floor(Math.random() * 6) + 1)) + Math.floor((advDie + playerHitBonus) / 4);
+      var dmg = Math.max(1, dmgRoll);
+      target.hp = Math.max(0, Number(target.hp || 0) - dmg);
+      card.log.push('You strike ' + target.name + ' for ' + dmg + ' damage.');
+    } else if (actionKey === 'suppress') {
+      suppressing = true;
+      card.log.push('You suppress enemy lanes, reducing incoming pressure this round.');
+    } else {
+      healAmount = Math.max(2, Math.floor((advDie + playerHitBonus) / 4));
+      card.playerHp = Math.min(Number(card.playerMaxHp || 12), Number(card.playerHp || 0) + healAmount);
+      card.log.push('You recover formation and restore ' + healAmount + ' HP.');
+    }
+
+    alive = enemies.filter(function (e) { return Number(e.hp || 0) > 0; });
+    if (!alive.length) {
+      room.combatCard = null;
+      if (typeof closeModal === 'function') closeModal();
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
+    }
+
+    var incoming = 0;
+    alive.forEach(function (_enemy) {
+      var hitRoll = typeof roll === 'function' ? roll(Math.max(4, Number(card.roomDd || room.dd || 7))) : (Math.floor(Math.random() * Math.max(4, Number(card.roomDd || room.dd || 7))) + 1);
+      if (hitRoll >= 4) incoming += 1;
+    });
+    if (suppressing) incoming = Math.max(0, incoming - 1);
+    card.playerHp = Math.max(0, Number(card.playerHp || 0) - incoming);
+    card.log.push('Enemy counterattack deals ' + incoming + ' damage.');
+    card.round = Number(card.round || 1) + 1;
+
+    if (Number(card.playerHp || 0) <= 0) {
+      room.combatCard = null;
+      if (typeof closeModal === 'function') closeModal();
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
+    }
+    return renderLegacyRaidCombatCard(mission, wingNum, roomIdx, room, card);
+  };
+
+  function ensureLegacyRaidGamblingState(mission, wingNum, roomIdx) {
+    var map = ensureRaidHexMap(mission);
+    var rooms = map && map.wings ? map.wings[wingNum] : null;
+    var room = rooms && rooms[roomIdx];
+    if (!room || room.type !== 'Gambling') return null;
+    if (!room.gambleState || typeof room.gambleState !== 'object') {
+      room.gambleState = {
+        wins: 0,
+        losses: 0,
+        chips: 3,
+        targetWins: 2,
+        handsPlayed: 0,
+        log: []
+      };
+    }
+    return room.gambleState;
+  }
+
+  function openLegacyRaidGamblingPuzzle(missionId, wingNum, roomIdx) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var map = ensureRaidHexMap(mission);
+    var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
+    if (!room || room.type !== 'Gambling') return false;
+    var gamble = ensureLegacyRaidGamblingState(mission, wingNum, roomIdx);
+    if (!gamble) return false;
+    var logHtml = Array.isArray(gamble.log) && gamble.log.length
+      ? gamble.log.slice(-5).map(function (line) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + line + '</div>'; }).join('')
+      : '<div style="font-size:.67rem;color:var(--muted2);">No hands played yet.</div>';
+    openModal(
+      'Gambling Table — ' + room.label,
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+      + '<div style="margin-bottom:.24rem;">Win <strong style="color:var(--gold2);">' + Number(gamble.targetWins || 2) + '</strong> hands before taking 2 losses. Each hand costs one chip unless you play safe.</div>'
+      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.18rem;">Wins: ' + Number(gamble.wins || 0) + ' · Losses: ' + Number(gamble.losses || 0) + ' · Chips: ' + Number(gamble.chips || 0) + '</div>'
+      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.22rem;">'
+      + '<button class="btn btn-xs btn-primary" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'safe\')">Play Safe Hand</button>'
+      + '<button class="btn btn-xs btn-warn" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'high\')">Play High-Risk Hand</button>'
+      + '</div>'
+      + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;">Table Log</div>'
+      + '<div style="max-height:96px;overflow:auto;border:1px solid var(--border2);padding:.2rem .26rem;background:rgba(0,0,0,.16);margin-bottom:.22rem;">' + logHtml + '</div>'
+      + '<div style="display:flex;justify-content:flex-end;">'
+      + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
+      + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
+  window.submitLegacyRaidGambleHand = function (missionId, wingNum, roomIdx, mode) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var map = ensureRaidHexMap(mission);
+    var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
+    if (!room || room.type !== 'Gambling') return false;
+    var gamble = ensureLegacyRaidGamblingState(mission, wingNum, roomIdx);
+    if (!gamble) return false;
+
+    var assist = getLegacyRaidRoomAssistBonus(mission, wingNum, roomIdx);
+    var playerRoll = typeof roll === 'function' ? roll(10) : (Math.floor(Math.random() * 10) + 1);
+    var houseRoll = typeof roll === 'function' ? roll(10) : (Math.floor(Math.random() * 10) + 1);
+    if (mode === 'high') playerRoll += 2;
+    if (assist > 0) playerRoll += 1;
+    gamble.handsPlayed = Number(gamble.handsPlayed || 0) + 1;
+    gamble.chips = Math.max(0, Number(gamble.chips || 0) - (mode === 'high' ? 1 : 0));
+
+    if (playerRoll >= houseRoll) {
+      gamble.wins = Number(gamble.wins || 0) + 1;
+      gamble.log.push('Hand ' + gamble.handsPlayed + ': win (' + playerRoll + ' vs ' + houseRoll + ').');
+    } else {
+      gamble.losses = Number(gamble.losses || 0) + 1;
+      gamble.log.push('Hand ' + gamble.handsPlayed + ': loss (' + playerRoll + ' vs ' + houseRoll + ').');
+    }
+
+    if (Number(gamble.wins || 0) >= Number(gamble.targetWins || 2)) {
+      if (typeof closeModal === 'function') closeModal();
+      room.gambleState = null;
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
+    }
+    if (Number(gamble.losses || 0) >= 2 || Number(gamble.chips || 0) <= 0) {
+      if (typeof closeModal === 'function') closeModal();
+      room.gambleState = null;
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
+    }
+    return openLegacyRaidGamblingPuzzle(missionId, wingNum, roomIdx);
+  };
+
   window.resolveRaidRoom = function (missionId, wingNum, roomIdx) {
     var mission = getMission(missionId);
     if (!mission) return;
@@ -2712,6 +2947,12 @@
       return;
     }
 
+    if (room.type === 'Gambling') {
+      if (consumeLegacyRaidClock(mission, wingNum, room.label)) return;
+      openLegacyRaidGamblingPuzzle(missionId, wingNum, roomIdx);
+      return;
+    }
+
     var advDie = typeof getStat === 'function' ? getStat('adventure') : 8;
     var bonus = Number(mission.bonus || 0);
     // Deployed wayfarers give a bonus in this wing
@@ -2735,6 +2976,12 @@
     }
     var totalBonus = bonus + wayfarerBonus + cleanBonus + assistBonus + Number(roleGate.bonus || 0);
     var dd = Number(room.dd || 6);
+
+    if (room.type === 'Combat') {
+      if (consumeLegacyRaidClock(mission, wingNum, room.label)) return;
+      var combatCard = ensureLegacyRaidCombatCardState(mission, wingNum, roomIdx, room, totalBonus, dd);
+      return renderLegacyRaidCombatCard(mission, wingNum, roomIdx, room, combatCard);
+    }
 
     var success, advR, dreadR;
     if (manualMode) {
@@ -2780,6 +3027,7 @@
         Peril:       '☠ Peril pattern mapped. Hold formation and continue the push.',
         Combat:      '⚔ Enemy line broken. Sweep for remaining hostiles.',
         Trap:        '⚠ Trigger mesh partially disabled. Keep pressure while disarming.',
+        Gambling:    '🂡 The table cracks. Your wager buys safe passage.',
         Loot:        '📦 Cache lock weakened. One more push should crack it open.',
         LoreReading: '📜 Fragment partially decoded. Hold while telegraphs are read.',
         Puzzle:      '🧩 One mechanism aligned. The gate still resists.',
@@ -2808,7 +3056,10 @@
         room.result = '📦 Merchant-linked cache cracked. Loot acquired: ' + (raidLoot.length ? raidLoot.join(', ') : 'No salvage.') + '.';
         if (typeof showNotif === 'function') showNotif('Raid loot cache: ' + (raidLoot.length ? raidLoot.join(', ') : 'No salvage.'), raidLoot.length ? 'good' : 'info');
       } else if (room.type === 'Combat') {
+        room.combatCard = null;
         room.result = '⚔ Enemy pack neutralized (' + Math.max(1, Number(room.enemyCount || 1)) + ' hostiles). Route secured.';
+      } else if (room.type === 'Gambling') {
+        room.result = '🂡 Wager won. Gatekeepers stand down and open passage.';
       } else if (room.type === 'Puzzle') {
         room.result = '🧩 Mechanism solved. Gate seals open and the raid path advances.';
       } else if (room.type === 'Approach') {
@@ -2836,6 +3087,8 @@
       }
 
     } else {
+      if (room.type === 'Combat') room.combatCard = null;
+      if (room.type === 'Gambling') room.gambleState = null;
       room.failures = Number(room.failures || 0) + 1;
       room.progress = Math.max(0, Number(room.progress || 0) - 1);
       room.result = '✗ Failed. The room holds. Progress reduced to ' + Number(room.progress || 0) + '/' + Math.max(1, Number(room.progressNeeded || 1)) + '. You are role-ready, but this room needs repeated successes. Deploy a Wayfarer from the recovery panel below for +2 room bonus, then retry.';

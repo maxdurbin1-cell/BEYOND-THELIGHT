@@ -2346,6 +2346,14 @@
       if (!mission) {
         if (typeof showNotif === "function") showNotif("Mission marker found, but no linked active mission was found.", "warn");
       } else {
+        if (mission.missionType === "legacy_raid" && typeof window.openLegacyRaidMissionPopup === "function") {
+          window.openLegacyRaidMissionPopup(mission.id, {
+            tokenType: marker.type === "mission_informer" ? "informer" : "site",
+            regionTag: "wtw",
+            hexId: hexId
+          });
+          return;
+        }
         var steps = Array.isArray(mission.steps) ? mission.steps : [];
         var infoDone = !!(steps[1] && steps[1].completed);
         var siteDone = !!(steps[2] && steps[2].completed);

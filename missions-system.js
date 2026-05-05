@@ -1332,6 +1332,9 @@
   function autoAdvanceMissionByToken(missionId, tokenType, regionTag) {
     var mission = getMission(missionId);
     if (!mission) return false;
+    if (mission.missionType === 'legacy_raid' && typeof window.openLegacyRaidMissionPopup === 'function') {
+      return !!window.openLegacyRaidMissionPopup(mission.id, { tokenType: tokenType, regionTag: regionTag || mission.region || 'region' });
+    }
     var type = String(tokenType || '').toLowerCase();
     if (!canAutoAdvanceMission(mission.id, type, regionTag || mission.region || 'region')) return false;
     if ((type === 'informer' || type === 'holding_info') && mission.steps[1] && !mission.steps[1].completed) {
@@ -1371,6 +1374,159 @@
       return !!window.resolveSolarCycleSeaMarker(hexKey, token);
     }
     return autoAdvanceMissionByToken(token.missionId, token.type, 'sea');
+  }
+
+  function getLegacyRaidTelegraphLines(mission) {
+    var boss = String(mission && mission.legacyRaidBoss || 'World Boss');
+    var telegraphs = [
+      boss + ' signals major attacks before they resolve: watch lane pressure, room collapse hints, and puzzle-state shifts.',
+      'Every wing expects a different answer. Standing still and trading damage should fall behind the encounter quickly.',
+      'Allies cover one lane only if your group commits the right role to it.'
+    ];
+    if (mission && mission.legacyRaidPuzzle) {
+      telegraphs.push('Puzzle telegraph: ' + String(mission.legacyRaidPuzzle || 'Unknown mechanism'));
+    }
+    return telegraphs;
+  }
+
+  function buildLegacyRaidWingData(mission) {
+    var loreTitle = (mission && mission.steps && mission.steps[1] && mission.steps[1].name) || 'Breach the Lore Wing';
+    var puzzleTitle = (mission && mission.steps && mission.steps[2] && mission.steps[2].name) || 'Solve the Intricate Gate Puzzle';
+    var bossTitle = (mission && mission.steps && mission.steps[3] && mission.steps[3].name) || ('Defeat ' + String(mission && mission.legacyRaidBoss || 'the Boss'));
+    var bossName = String(mission && mission.legacyRaidBoss || 'World Boss');
+    var puzzleText = String(mission && mission.legacyRaidPuzzle || 'Intricate multi-room mechanism');
+    var loreText = String(mission && mission.step1Intro || mission && mission.lore || 'The raid opens only after the group secures the first story lead.');
+    return [
+      {
+        key: 1,
+        title: loreTitle,
+        theme: 'Story gate',
+        detail: loreText,
+        actions: [
+          'Recover the lore fragment that explains why this boss matters to the Province, sea route, or star lane.',
+          'Assign one player to reading telegraphs while others hold the room and manage hazards.',
+          'Success should change what opens next instead of only granting damage.'
+        ]
+      },
+      {
+        key: 2,
+        title: puzzleTitle,
+        theme: 'Mechanic gate',
+        detail: puzzleText,
+        actions: [
+          'Split responsibilities so not every player is solving the same problem at once.',
+          'The mechanic should punish repeating the same answer; use the room state and boss tells.',
+          'Clearing this wing opens the true confrontation path.'
+        ]
+      },
+      {
+        key: 3,
+        title: bossTitle,
+        theme: 'Execution gate',
+        detail: bossName + ' changes patterns as the fight progresses. Learn the telegraph, react, wipe, and adapt.',
+        actions: [
+          'Three Traveling Wayfarers (DD6 | 12 Stress) support the raid as allied specialists.',
+          'Boss mechanics should force movement, positioning, and role swaps instead of tank-and-spank play.',
+          'The kill grants medals, raid points, and a unique trophy drop.'
+        ]
+      }
+    ];
+  }
+
+  function openLegacyRaidMissionPopup(missionId, context) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    if (typeof openModal !== 'function') return false;
+
+    var steps = mission.steps || {};
+    var s1 = steps[1] || { completed: false };
+    var s2 = steps[2] || { completed: false };
+    var s3 = steps[3] || { completed: false };
+    var bossName = String(mission.legacyRaidBoss || 'World Boss');
+    var loreText = String(mission.step1Intro || mission.lore || 'A mythic threat has forced open a raid route.');
+    var checkpoints = Array.isArray(mission.checkpoints) ? mission.checkpoints.slice() : [];
+    var tokenType = String(context && context.tokenType || '').toLowerCase();
+    var stepButtons = '';
+    var recommendedAction = 'Use the raid window to stage the next wing.';
+
+    if (!s1.completed) {
+      recommendedAction = 'Story gate open: launch Wing 1 to establish why this boss matters.';
+      stepButtons = '<button class="btn btn-sm btn-teal" onclick="startMissionStep1(' + mission.id + ');closeModal();">Open Wing 1</button>';
+    } else if (!s2.completed) {
+      recommendedAction = 'Mechanic gate open: solve Wing 2 before the boss chamber stabilizes.';
+      stepButtons = '<button class="btn btn-sm btn-primary" onclick="startMissionStep2(' + mission.id + ');closeModal();">Open Wing 2</button>';
+    } else if (!s3.completed) {
+      recommendedAction = 'Boss wing open: enter the encounter only when the group understands the telegraphs.';
+      stepButtons = '<button class="btn btn-sm btn-warn" onclick="startMissionStep3(' + mission.id + ');closeModal();">Open Final Wing</button>';
+    } else {
+      recommendedAction = 'Raid contract already resolved.';
+      stepButtons = '<button class="btn btn-sm" disabled>Raid Cleared</button>';
+    }
+
+    var wingHtml = buildLegacyRaidWingData(mission).map(function (wing) {
+      var step = steps[wing.key] || {};
+      var done = !!step.completed;
+      return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.35rem;margin-bottom:.18rem;">'
+        + '<div style="font-size:.77rem;color:var(--text2);"><strong>Wing ' + wing.key + ': ' + wing.title + '</strong></div>'
+        + '<div style="font-size:.67rem;color:' + (done ? 'var(--green2)' : 'var(--gold2)') + ';text-transform:uppercase;letter-spacing:.08em;">' + (done ? 'Cleared' : wing.theme) + '</div>'
+        + '</div>'
+        + '<div style="font-size:.71rem;color:var(--muted2);line-height:1.5;margin-bottom:.18rem;">' + wing.detail + '</div>'
+        + '<div style="font-size:.69rem;color:var(--teal);line-height:1.45;">' + wing.actions.join(' ') + '</div>'
+        + '</div>';
+    }).join('');
+
+    var telegraphHtml = getLegacyRaidTelegraphLines(mission).map(function (line) {
+      return '<div style="padding:.12rem 0;border-bottom:1px solid var(--border2);font-size:.7rem;color:var(--muted2);line-height:1.45;">' + line + '</div>';
+    }).join('');
+
+    var checkpointHtml = checkpoints.length
+      ? checkpoints.map(function (line) {
+          return '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;padding:.1rem 0;">• ' + line + '</div>';
+        }).join('')
+      : '<div style="font-size:.7rem;color:var(--muted2);">No checkpoints recorded.</div>';
+
+    var roleHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.28rem;margin-bottom:.35rem;">'
+      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.42rem .45rem;"><div style="font-size:.66rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">Front</div><div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Hold the boss, reposition telegraphs, and protect puzzle solvers.</div></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.42rem .45rem;"><div style="font-size:.66rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;">Mechanics</div><div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Read tells, solve room logic, and call swaps before the wipe mechanic lands.</div></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.42rem .45rem;"><div style="font-size:.66rem;color:var(--red2);text-transform:uppercase;letter-spacing:.08em;">Support</div><div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Use the allied Wayfarers to cover pressure lanes and rescue failed positioning.</div></div>'
+      + '</div>';
+
+    openModal(
+      'Raid Window - ' + mission.title,
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:960px;">'
+        + '<div style="margin-bottom:.45rem;">'
+        + '<div style="font-size:.93rem;color:var(--gold2);margin-bottom:.18rem;"><strong>' + mission.title + '</strong></div>'
+        + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.18rem;">' + loreText + '</div>'
+        + '<div style="font-size:.72rem;color:var(--teal);">Boss: ' + bossName + ' | Marker: ' + (tokenType || 'raid') + ' | Recommended: ' + recommendedAction + '</div>'
+        + '</div>'
+        + roleHtml
+        + '<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:.45rem;margin-bottom:.42rem;">'
+        + '<div style="display:grid;gap:.35rem;">' + wingHtml + '</div>'
+        + '<div style="display:grid;gap:.35rem;">'
+        + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Telegraphs and Readability</div>'
+        + telegraphHtml
+        + '</div>'
+        + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Raid Rewards</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">+' + Number(mission.legacyRaidMedalReward || 1) + ' Medal · +' + Number(mission.legacyRaidPointReward || 1) + ' Raid Point</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Unique trophy: ' + String(mission.legacyRaidBoss || bossName) + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Allied support: 3 Traveling Wayfarers (DD6 | 12 Stress)</div>'
+        + '</div>'
+        + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Checkpoint Flow</div>'
+        + checkpointHtml
+        + '</div>'
+        + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
+        + stepButtons
+        + '<button class="btn btn-sm" onclick="if(typeof renderMissionTracker===\'function\'){renderMissionTracker();}">Refresh Mission Tracker</button>'
+        + '</div>'
+        + '</div>'
+    );
+    return true;
   }
 
   /* ── STEP 1 ── */
@@ -2225,6 +2381,9 @@
       if (mission.bonus) badges+='<span style="font-size:.62rem;color:var(--teal);margin-left:.15rem;">+5 bonus</span>';
       var ddSummary = shouldRevealDC() ? ('DD d'+diff.dread) : 'DD hidden';
 
+      var raidBtn = mission.missionType === 'legacy_raid'
+        ? '<button class="btn btn-xs btn-gold" onclick="openLegacyRaidMissionPopup(' + mission.id + ',null)">Open Raid</button>'
+        : '';
       var btn1=s1.completed?'<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Info</button>':'<button class="btn btn-xs btn-teal" onclick="startMissionStep1('+mission.id+')">\u25B6 Info</button><button class="btn btn-xs" onclick="skipMissionStep1('+mission.id+')" style="font-size:.62rem;">Skip</button>';
       var btn2=s2.completed?'<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Site</button>':'<button class="btn btn-xs btn-teal" onclick="startMissionStep2('+mission.id+')"'+(!s1.completed?' disabled style="opacity:.45;"':'')+'>\u25B6 Site</button>';
       var btn3=s3.completed?'<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Confront</button>':'<button class="btn btn-xs btn-primary" onclick="startMissionStep3('+mission.id+')"'+(!s2.completed?' disabled style="opacity:.45;"':'')+'>\u25B6 Confront</button>';
@@ -2243,7 +2402,7 @@
           +'<button class="btn btn-xs btn-red" onclick="abandonMission('+mission.id+')">Abandon</button>'
         +'</div>'
         +'<div style="border:1px solid var(--border);padding:.2rem .3rem;margin-bottom:.3rem;">'+stepsHTML+'</div>'
-        +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+btn1+btn2+btn3+'</div>'
+        +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+raidBtn+btn1+btn2+btn3+'</div>'
       +'</div>';
     }).join('');
   }
@@ -2378,6 +2537,7 @@
   window.createDeityPactMission=createDeityPactMission;
   window.autoAdvanceMissionFromProvinceHex=autoAdvanceMissionFromProvinceHex;
   window.autoAdvanceMissionFromSeaHex=autoAdvanceMissionFromSeaHex;
+  window.openLegacyRaidMissionPopup=openLegacyRaidMissionPopup;
   window.completeMissionStep=function(missionId,stepId){
     if(stepId===1) completeMissionInfoStep(missionId,true,JSON.stringify(rollInfoFeature()));
     else if(stepId===2) completeMissionSiteStep(missionId);

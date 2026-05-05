@@ -8819,6 +8819,13 @@ function renderGalaxyTaskPanel(taskId) {
     if (window.renderSolarCycleGalaxyTaskPanel(task)) return;
   }
   if (task.source === 'Mission Board' && task.missionId && task.interaction === 'mission-step') {
+    const mission = (S && Array.isArray(S.activeMissions))
+      ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(task.missionId || ''); })
+      : null;
+    if (mission && mission.missionType === 'legacy_raid' && typeof window.openLegacyRaidMissionPopup === 'function') {
+      window.openLegacyRaidMissionPopup(mission.id, { tokenType: task.missionStep || 'site', regionTag: 'galaxy' });
+      return;
+    }
     const stepBtn = task.missionStep === 'informer'
       ? `<button class="btn btn-xs btn-teal" onclick="if(typeof startMissionStep1==='function'){startMissionStep1(${task.missionId});}">Run Step 1: Info</button>`
       : (task.missionStep === 'confront'

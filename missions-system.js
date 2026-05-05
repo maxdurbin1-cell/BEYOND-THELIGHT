@@ -1669,11 +1669,11 @@
     var actions = getLegacyRaidCombatActionLabels();
     var actionCount = getLegacyRaidArmorActionCount();
     var tmw = getLegacyRaidTeamworkPool();
-    var hp = 24;
+    var hp = Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0));
     var name = String(typeof S !== 'undefined' && S && S.name || 'Wayfarer');
     return '<div style="border:1px solid var(--border2);background:rgba(20,90,120,.12);padding:.32rem .36rem;">'
       + '<div style="font-size:.72rem;color:var(--teal);margin-bottom:.12rem;"><strong>' + name + '</strong> · Player Panel</div>'
-      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;">HP ' + hp + ' · Armor Actions ' + actionCount + ' · TMW ' + tmw + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;">HP ' + hp + ' · Actions ' + actionCount + '/' + actionCount + ' · TMW ' + tmw + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-top:.08rem;">Action Dice: ' + buildLegacyRaidCombatDieSummary() + '</div>'
       + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.16rem;">'
       + actions.map(function (label) { return '<span style="font-size:.62rem;color:var(--text2);padding:.08rem .14rem;border:1px solid var(--border2);background:rgba(255,255,255,.04);">' + label + '</span>'; }).join('')
@@ -1681,17 +1681,43 @@
       + '</div>';
   }
 
-  function buildLegacyRaidBossAlliesPanel(mission) {
-    var allies = isLegacyRaidCampaignMode()
-      ? ['Defend', 'Support', 'Attack', 'Move']
-      : getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; }).map(function (wf) { return String(wf.name || 'Wayfarer'); });
-    var body = isLegacyRaidCampaignMode()
-      ? '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;">Campaign allies act as table teammates with Defend, Support, Attack, and Move on ally phase.</div>'
-      : allies.map(function (ally) {
-          return '<div style="font-size:.63rem;color:var(--text2);padding:.08rem .14rem;border:1px solid var(--border2);background:rgba(255,255,255,.04);margin-bottom:.08rem;">' + ally + ' · DD6 | 12 Stress · Defend / Support / Attack / Move</div>';
-        }).join('');
+  function getLegacyRaidAllyFlavorProfile(allyName) {
+    var pool = [
+      { name: 'Vanguard', attack: 2, support: 1, defend: 1, move: 0 },
+      { name: 'Tactician', attack: 1, support: 2, defend: 1, move: 0 },
+      { name: 'Bulwark', attack: 0, support: 1, defend: 2, move: 1 },
+      { name: 'Ranger', attack: 1, support: 1, defend: 0, move: 2 }
+    ];
+    var idx = getLegacyRaidStableIndex(String(allyName || 'ally'), pool.length);
+    return pool[idx] || pool[0];
+  }
+
+  function resetLegacyRaidAllyActionBudget(mission, encounter) {
+    if (!encounter) return;
+    var allies = getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; }).map(function (wf) { return String(wf.name || 'Wayfarer'); });
+    encounter.allyActionBudget = { total: allies.length * 2, used: 0, byAlly: {} };
+    allies.forEach(function (name) { encounter.allyActionBudget.byAlly[name] = 2; });
+  }
+
+  function buildLegacyRaidBossAlliesPanel(mission, encounter) {
+    var allies = getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; }).map(function (wf) { return String(wf.name || 'Wayfarer'); });
+    if (!encounter || !encounter.allyActionBudget || !encounter.allyActionBudget.byAlly) {
+      resetLegacyRaidAllyActionBudget(mission, encounter);
+    }
+    var allyHp = encounter && encounter.partyHp && encounter.partyHp.allies ? encounter.partyHp.allies : {};
+    var body = allies.length
+      ? allies.map(function (ally) {
+          var left = Math.max(0, Number(encounter.allyActionBudget && encounter.allyActionBudget.byAlly && encounter.allyActionBudget.byAlly[ally] || 0));
+          var hp = Math.max(0, Number(allyHp[ally] || 12));
+          var flavor = getLegacyRaidAllyFlavorProfile(ally);
+          return '<div style="font-size:.63rem;color:var(--text2);padding:.08rem .14rem;border:1px solid var(--border2);background:rgba(255,255,255,.04);margin-bottom:.08rem;">'
+            + ally + ' · HP ' + hp + ' · Actions ' + left + '/2 · Flavor ' + flavor.name
+            + '</div>';
+        }).join('')
+      : '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;">No active allies remain.</div>';
+    var totalLeft = Math.max(0, Number(encounter && encounter.allyActionBudget ? (encounter.allyActionBudget.total - encounter.allyActionBudget.used) : 0));
     return '<div style="border:1px solid var(--border2);background:rgba(40,90,60,.12);padding:.32rem .36rem;">'
-      + '<div style="font-size:.72rem;color:var(--green2);margin-bottom:.12rem;"><strong>Allies</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--green2);margin-bottom:.12rem;"><strong>Allies</strong> · Remaining Actions ' + totalLeft + '</div>'
       + body
       + '</div>';
   }
@@ -3202,6 +3228,9 @@
     if (typeof encounter.wipeShield !== 'number') encounter.wipeShield = 0;
     if (!encounter.turnStage) encounter.turnStage = 'player';
     if (typeof encounter.allyActionsUsed !== 'number') encounter.allyActionsUsed = 0;
+    if (!encounter.allyActionBudget || typeof encounter.allyActionBudget !== 'object') {
+      encounter.allyActionBudget = { total: 0, used: 0, byAlly: {} };
+    }
     if (typeof encounter.playerActionLabel !== 'string') encounter.playerActionLabel = '';
     if (typeof encounter.lastTelegraph !== 'string') encounter.lastTelegraph = 'No active telegraph.';
     if (typeof encounter.bossReaction !== 'string') encounter.bossReaction = '';
@@ -3434,6 +3463,7 @@
       encounter.phaseHp = Math.max(1, Number(next && next.hp || 20));
       encounter.turnStage = 'player';
       encounter.allyActionsUsed = 0;
+      resetLegacyRaidAllyActionBudget(mission, encounter);
       openRaidWingPopup(mission.id, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
       return true;
     }
@@ -3660,6 +3690,7 @@
         encounter.log.push('TMW burst: ' + tmwCost + ' spent \u2014 ' + String(action.name || '') + ' prevented.');
         encounter.turnStage = 'player';
         encounter.allyActionsUsed = 0;
+        resetLegacyRaidAllyActionBudget(mission, encounter);
         openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
         return true;
       }
@@ -3692,6 +3723,7 @@
     encounter.pendingAction = null;
     encounter.turnStage = 'player';
     encounter.allyActionsUsed = 0;
+    resetLegacyRaidAllyActionBudget(mission, encounter);
     tickLegacyRaidZoneHazards(mission);
     if (typeof renderEnemies === 'function') renderEnemies();
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
@@ -3916,6 +3948,57 @@
     return wing === 1 ? 6 : 10;
   }
 
+  function getLegacyRaidStableIndex(seedText, max) {
+    var str = String(seedText || 'raid');
+    var n = Math.max(1, Number(max || 1));
+    var h = 0;
+    for (var i = 0; i < str.length; i++) h = ((h * 33) + str.charCodeAt(i)) >>> 0;
+    return Math.abs(h) % n;
+  }
+
+  function getLegacyRaidHexEncounterLabel(mission, wingNum, eventType, cellId) {
+    var theme = getRaidTheme(mission);
+    var key = String(theme && theme.key || 'default');
+    var catalog = {
+      puzzle: ['Cipher Lock', 'Rune Lattice', 'Signal Equation', 'Mirror Dial'],
+      peril: ['Kill Corridor', 'Pressure Sink', 'Collapse Sweep', 'Death Drift'],
+      hazard: ['Broken Causeway', 'Shard Field', 'Flooded Trench', 'Ash Channel'],
+      barrier: ['Seal Gate', 'Breach Door', 'Ward Wall', 'Titan Portcullis'],
+      enemy: ['Raid Patrol', 'Boss Vanguard', 'Sentinel Pack', 'Kill Team'],
+      loot: ['Hidden Cache', 'Merchant Spill', 'Smuggler Vault', 'Relic Lockbox'],
+      teleport: ['Phase Gate', 'Rift Step', 'Anchor Portal', 'Transit Sigil'],
+      rest: ['Forward Camp', 'Safe Room', 'Watch Post', 'Recovery Alcove']
+    };
+    if (key === 'sea' && eventType === 'teleport') catalog.teleport = ['Tide Rift', 'Brine Gate', 'Current Leap', 'Abyss Hop'];
+    if (key === 'fire' && eventType === 'teleport') catalog.teleport = ['Cinder Gate', 'Ember Rift', 'Pyre Step', 'Ash Leap'];
+    if (key === 'void' && eventType === 'teleport') catalog.teleport = ['Null Gate', 'Void Cut', 'Phase Tear', 'Static Rift'];
+    var list = catalog[eventType] || ['Unknown Chamber'];
+    return list[getLegacyRaidStableIndex(String(mission && mission.id || 0) + '|' + String(wingNum || 1) + '|' + String(cellId || '') + '|' + String(eventType || ''), list.length)];
+  }
+
+  function applyLegacyRaidHexIdentity(mission, wingNum, state) {
+    if (!state || !state.cells) return;
+    Object.keys(state.cells).forEach(function (id) {
+      var cell = state.cells[id];
+      if (!cell) return;
+      if (cell.isStart) {
+        cell.encounterLabel = 'Entrance';
+        cell.roomDescription = 'Raid entrance point. Press Deeper to push into the wing.';
+        return;
+      }
+      if (cell.isExit) {
+        cell.encounterLabel = 'Exit';
+        cell.roomDescription = 'Wing exit. Reach this point with objectives complete to advance.';
+        return;
+      }
+      cell.encounterLabel = getLegacyRaidHexEncounterLabel(mission, wingNum, cell.eventType, cell.id);
+      if (!cell.roomDescription) {
+        cell.roomDescription = buildLegacyRaidHexDescription(mission, wingNum, cell.eventType, null)
+          + ' Threat Signature: ' + String(mission && mission.legacyRaidBoss || 'Raid Boss') + '.';
+      }
+    });
+  }
+
   function ensureLegacyRaidWingGridState(mission, wingNum) {
     if (!mission || mission.missionType !== 'legacy_raid') return null;
     if (Number(wingNum || 1) >= 3) return null;
@@ -4040,12 +4123,16 @@
         teleports.push(picked);
       }
     }
-    for (var ti = 0; ti < teleports.length; ti += 2) {
-      var a = teleports[ti];
-      var b = teleports[ti + 1] || teleports[0];
-      if (!a || !b) continue;
-      a.teleportTo = b.id;
-      b.teleportTo = a.id;
+    for (var ti = 0; ti < teleports.length; ti++) {
+      var from = teleports[ti];
+      if (!from) continue;
+      var options = teleports.filter(function (t) { return t && t.id !== from.id; });
+      if (!options.length) {
+        from.teleportTo = from.id;
+        continue;
+      }
+      var pick = options[Math.floor(Math.random() * options.length)];
+      from.teleportTo = pick.id;
     }
 
     var state = {
@@ -4068,6 +4155,8 @@
       lastLog: 'Wing map initialized.',
       pendingCombat: null
     };
+
+    applyLegacyRaidHexIdentity(mission, wingNum, state);
 
     var startCell = state.cells[state.startId];
     if (startCell) {
@@ -4253,20 +4342,25 @@
     if (!state || !state.cells) return '';
     var cell = state.cells[String(state.selectedId || state.currentId || '')];
     if (!cell) return '<div style="font-size:.67rem;color:var(--muted2);">Select a hex.</div>';
-    var typeLabel = cell.isStart ? 'Start' : cell.isExit ? 'Exit' : String(cell.eventType || 'empty').replace(/_/g, ' ');
+    var typeLabel = cell.isStart ? 'Entrance' : cell.isExit ? 'Exit' : String(cell.eventType || 'empty').replace(/_/g, ' ');
     var objectiveLine = '';
     if (cell.lorePiece) objectiveLine = 'Contains Lore Fragment.';
     if (cell.waypoint) objectiveLine = 'Contains Door Waypoint.';
-    var hexDesc = cell.isStart || cell.isExit ? '' : buildLegacyRaidHexDescription(mission, wingNum, cell.eventType, null);
+    var hexDesc = String(cell.roomDescription || buildLegacyRaidHexDescription(mission, wingNum, cell.eventType, null) || '');
+    var encounterLabel = String(cell.encounterLabel || typeLabel);
     var moveAllowed = String(state.currentId || '') === cell.id || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
-    var actionLabel = cell.cleared ? 'Traverse Hex (-1 Tick)' : 'Resolve Hex Encounter (-1 Tick)';
+    var isCurrent = String(state.currentId || '') === cell.id;
+    var noTicks = Number(state.ticks || 0) <= 0;
+    var moveLabel = isCurrent ? 'Already Here' : 'Press Deeper (-1 Tick)';
+    var exploreLabel = 'Search Room (-1 Tick)';
     return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.03);">'
-      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + typeLabel + '</div>'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + typeLabel + ' · ' + encounterLabel + '</div>'
       + (hexDesc ? '<div style="font-size:.65rem;color:var(--muted3);line-height:1.42;margin-bottom:.12rem;font-style:italic;">' + hexDesc + '</div>' : '')
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">' + (objectiveLine || '') + '</div>'
       + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">Ticks: ' + Number(state.ticks || 0) + ' · Current: ' + String(state.currentId || '') + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs btn-primary" ' + (moveAllowed ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + actionLabel + '</button>'
+      + '<button class="btn btn-xs" ' + (moveAllowed && !isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.moveLegacyRaidHex(' + mission.id + ',' + wingNum + ')">' + moveLabel + '</button>'
+      + '<button class="btn btn-xs btn-primary" ' + (isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + exploreLabel + '</button>'
       + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ')">Refresh</button>'
       + '</div>'
       + '</div>';
@@ -4292,6 +4386,55 @@
     return openRaidWingPopup(missionId, wingNum);
   };
 
+  window.moveLegacyRaidHex = function (missionId, wingNum) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var state = ensureLegacyRaidWingGridState(mission, wingNum);
+    if (!state || !state.cells) return false;
+    var target = state.cells[String(state.selectedId || '')];
+    if (!target) return false;
+    if (Number(state.ticks || 0) <= 0) return openLegacyRaidWipeDecision(mission.id);
+    var currentId = String(state.currentId || '');
+    if (target.id === currentId) {
+      if (typeof showNotif === 'function') showNotif('Already in this hex.', 'info');
+      return false;
+    }
+    var adjacent = getLegacyRaidGridNeighbors(state, currentId).indexOf(target.id) >= 0;
+    if (!adjacent) {
+      if (typeof showNotif === 'function') showNotif('Press Deeper requires an adjacent revealed hex.', 'warn');
+      return false;
+    }
+    state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
+    state.currentId = target.id;
+    state.selectedId = target.id;
+    target.visited = true;
+    revealLegacyRaidGridAround(state, target.id);
+    state.lastLog = 'Moved to hex ' + target.id + ' (-1 tick).';
+
+    if (target.eventType === 'teleport' && target.teleportTo && state.cells[target.teleportTo]) {
+      state.currentId = target.teleportTo;
+      state.selectedId = target.teleportTo;
+      revealLegacyRaidGridAround(state, target.teleportTo);
+      state.lastLog = 'Moved into ' + String(target.encounterLabel || 'teleport') + '. Warp to ' + target.teleportTo + '.';
+    }
+
+    if (Number(state.ticks || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif('Wing timer expired. Wipe state triggered.', 'warn');
+      return openLegacyRaidWipeDecision(mission.id);
+    }
+
+    if (String(state.currentId || '') === String(state.exitId || '') && checkLegacyRaidWingGridCompletion(mission, wingNum, state)) {
+      var runMove = ensureLegacyRaidRunState(mission);
+      if (runMove) markLegacyRaidWingOutcome(mission, wingNum, true);
+      return openLegacyRaidWingLootChoice(mission.id, wingNum, 'advance');
+    }
+
+    if (String(state.currentId || '') === String(state.exitId || '') && !checkLegacyRaidWingGridCompletion(mission, wingNum, state)) {
+      state.lastLog = 'Exit reached, but wing objectives are incomplete.';
+    }
+    return openRaidWingPopup(mission.id, wingNum);
+  };
+
   window.resolveLegacyRaidHexEncounter = function (missionId, wingNum) {
     var mission = getMission(missionId);
     if (!mission) return false;
@@ -4299,13 +4442,12 @@
     if (!state || !state.cells) return false;
     var cell = state.cells[String(state.selectedId || state.currentId || '')];
     if (!cell) return false;
-    var allowed = cell.id === state.currentId || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
-    if (!allowed) {
-      if (typeof showNotif === 'function') showNotif('Select an adjacent hex from your current position.', 'warn');
+    if (Number(state.ticks || 0) <= 0) return openLegacyRaidWipeDecision(mission.id);
+    if (String(cell.id || '') !== String(state.currentId || '')) {
+      if (typeof showNotif === 'function') showNotif('Use Press Deeper first to move into that hex.', 'warn');
       return false;
     }
     state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
-    state.currentId = cell.id;
     cell.visited = true;
     revealLegacyRaidGridAround(state, cell.id);
     var vault = ensureLegacyRaidLootVault(mission);
@@ -4775,10 +4917,20 @@
         var telegraphText = String(encounter.lastTelegraph || 'No active telegraph.');
         var phaseProfile = encounter.phaseProfiles && encounter.phaseProfiles[Math.max(0, Number(encounter.phase || 1) - 1)] || null;
         var phaseFlavor = String(phaseProfile && phaseProfile.text || 'Boss pattern escalating.');
+        if (!encounter.allyActionBudget || !encounter.allyActionBudget.byAlly) resetLegacyRaidAllyActionBudget(mission, encounter);
         var allyTurnButton = '<button class="btn btn-xs btn-teal" ' + (turnStage === 'ally' ? '' : 'disabled') + ' onclick="window.advanceLegacyRaidToBossTurn(' + mission.id + ')">Proceed To Boss Turn</button>';
+        var allyLeftTotal = Math.max(0, Number(encounter.allyActionBudget.total || 0) - Number(encounter.allyActionBudget.used || 0));
+        var allyStatusRows = allies.map(function (wf) {
+          var allyNameRow = String(wf.name || 'Wayfarer');
+          var allyHpRow = Math.max(0, Number(encounter.partyHp && encounter.partyHp.allies && encounter.partyHp.allies[allyNameRow] || 12));
+          var allyActsRow = Math.max(0, Number(encounter.allyActionBudget.byAlly && encounter.allyActionBudget.byAlly[allyNameRow] || 0));
+          var allyFlavor = getLegacyRaidAllyFlavorProfile(allyNameRow);
+          return '<div style="font-size:.62rem;color:var(--muted2);">' + allyNameRow + ' · HP ' + allyHpRow + ' · Actions ' + allyActsRow + '/2 · Flavor ' + allyFlavor.name + '</div>';
+        }).join('');
         var allyActionPanel = '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;margin-bottom:.12rem;">'
-          + 'Allies take up to 2 actions after your turn: Defend (+3 Defend), Support (+3 next ally action), Attack (d6, 12 HP), Move (Engaged/Close/Nearby/Far).'
+          + 'Allies have 2 actions each (6 total): Defend, Support, Attack, Move. No ally can exceed their budget.'
           + '</div>'
+          + '<div style="margin-bottom:.08rem;">' + allyStatusRows + '</div>'
           + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">'
           + '<select class="input" id="raidAllySel-' + mission.id + '" style="max-width:140px;">' + allyOptionHtml + '</select>'
           + '<select class="input" id="raidAllyAct-' + mission.id + '" style="max-width:130px;" onchange="window.updateLegacyRaidAllyTargetOptions(' + mission.id + ')">'
@@ -4789,7 +4941,7 @@
           + '</select>'
           + '<button class="btn btn-xs" ' + (turnStage === 'ally' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidBossAllyAction(' + mission.id + ',document.getElementById(\'raidAllySel-' + mission.id + '\').value,document.getElementById(\'raidAllyAct-' + mission.id + '\').value,document.getElementById(\'raidAllyTarget-' + mission.id + '\').value)">Execute Ally Action</button>'
           + '</div>'
-          + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Ally actions used this turn: ' + Number(encounter.allyActionsUsed || 0) + '/2</div>';
+          + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Ally actions used this turn: ' + Number(encounter.allyActionsUsed || 0) + '/6 · Remaining: ' + allyLeftTotal + '</div>';
         var logHtml = Array.isArray(encounter.log) && encounter.log.length
           ? encounter.log.slice(-4).map(function (entry) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + entry + '</div>'; }).join('')
           : '<div style="font-size:.67rem;color:var(--muted2);">No boss phases resolved yet.</div>';
@@ -4801,7 +4953,7 @@
           : '';
         html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.28);padding:.4rem .45rem;margin-bottom:.25rem;overflow:hidden;">'
           + '<div style="font-size:.72rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.12rem;">⚔ Confrontation Engaged — ' + bossName + '</div>'
-          + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.5;margin-bottom:.15rem;">Turn flow: Player action → up to 2 Ally actions → Boss action.</div>'
+          + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.5;margin-bottom:.15rem;">Turn flow: Player action → Allies (2 actions each, max 6 total) → Boss action.</div>'
           + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;align-items:center;margin-bottom:.2rem;">'
           + '<button class="btn btn-xs btn-warn" onclick="if(typeof switchTab===\'function\'){var b=document.querySelector(\'.tab-btn[onclick*=\\\"combat\\\"]\');switchTab(\'combat\',b||null);}">⚔ Open Combat Tab</button>'
           + '<span style="font-size:.64rem;color:var(--muted2);">Boss + allies are seeded in the Combat Tab zone map automatically on entry.</span>'
@@ -4927,6 +5079,7 @@
         + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);font-size:.67rem;color:var(--muted2);">'
         + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Wing Objectives</strong></div>'
         + '<div style="margin-bottom:.06rem;">' + objectiveLine + '</div>'
+        + '<div style="margin-bottom:.06rem;">Legend: S = Entrance · E = Exit · ? = Fog</div>'
         + '<div style="margin-bottom:.06rem;">Vaulted Loot: ' + vaultLootCount + '</div>'
         + '<div>' + keyLine + '</div>'
         + '</div>'
@@ -5685,7 +5838,8 @@
     encounter.playerActionLabel = label;
     encounter.turnStage = 'ally';
     encounter.allyActionsUsed = 0;
-    encounter.log.push('Wayfarer action: ' + label + '. Allies may now take up to 2 actions.');
+    resetLegacyRaidAllyActionBudget(mission, encounter);
+    encounter.log.push('Wayfarer action: ' + label + '. Allies now have 2 actions each this turn.');
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
     return true;
   };
@@ -5698,41 +5852,55 @@
       if (typeof showNotif === 'function') showNotif('Use a Wayfarer action first.', 'warn');
       return false;
     }
-    if (Number(encounter.allyActionsUsed || 0) >= 2) {
-      if (typeof showNotif === 'function') showNotif('Allies already used both actions this turn.', 'warn');
-      return false;
+    if (!encounter.allyActionBudget || !encounter.allyActionBudget.byAlly) {
+      resetLegacyRaidAllyActionBudget(mission, encounter);
     }
     var ally = String(allyName || 'Ally');
     var act = String(allyAction || 'Defend');
     var target = String(targetValue || 'self');
-    if (!encounter.allyFlavor || typeof encounter.allyFlavor !== 'object') encounter.allyFlavor = {};
-    if (!encounter.allyFlavor[ally]) {
-      var flavorPool = ['Cold Read', 'Ghost Step', 'War Chant', 'Echo Lens', 'Void Pulse', 'Lantern Oath'];
-      encounter.allyFlavor[ally] = flavorPool[Math.floor(Math.random() * flavorPool.length)];
+    var remainingForAlly = Math.max(0, Number(encounter.allyActionBudget.byAlly[ally] || 0));
+    var remainingTotal = Math.max(0, Number(encounter.allyActionBudget.total || 0) - Number(encounter.allyActionBudget.used || 0));
+    if (remainingTotal <= 0) {
+      if (typeof showNotif === 'function') showNotif('All ally actions are spent this turn.', 'warn');
+      encounter.turnStage = 'boss';
+      return false;
     }
-    var flavor = encounter.allyFlavor[ally];
+    if (remainingForAlly <= 0) {
+      if (typeof showNotif === 'function') showNotif(ally + ' has no actions left this turn.', 'warn');
+      return false;
+    }
+
+    encounter.roleActionState = encounter.roleActionState || { actionBonus: 0, dreadReduction: 0, hazardGuard: false, pressureBonus: 0 };
+    if (!encounter.partyHp || typeof encounter.partyHp !== 'object') encounter.partyHp = { allies: {} };
+    if (!encounter.partyHp.allies || typeof encounter.partyHp.allies !== 'object') encounter.partyHp.allies = {};
+    if (typeof encounter.partyHp.allies[ally] !== 'number') encounter.partyHp.allies[ally] = 12;
+
+    var flavor = getLegacyRaidAllyFlavorProfile(ally);
     var summary = '';
     if (act === 'Defend') {
-      summary = ally + ' defends ' + target + ' (+3 Defend next roll).';
+      var defendBonus = 3 + Number(flavor.defend || 0);
+      encounter.roleActionState.dreadReduction = Number(encounter.roleActionState.dreadReduction || 0) + Math.max(1, Math.floor(defendBonus / 2));
+      summary = ally + ' defends ' + target + ' (+' + defendBonus + ' defend pressure, flavor ' + flavor.name + ').';
     } else if (act === 'Support') {
-      summary = ally + ' supports ' + target + ' (+3 to next action).';
-      encounter.roleActionState = encounter.roleActionState || { actionBonus: 0, dreadReduction: 0, hazardGuard: false, pressureBonus: 0 };
-      encounter.roleActionState.actionBonus = Number(encounter.roleActionState.actionBonus || 0) + 1;
+      var supportBonus = 3 + Number(flavor.support || 0);
+      encounter.roleActionState.actionBonus = Number(encounter.roleActionState.actionBonus || 0) + Math.max(1, Math.floor(supportBonus / 2));
+      summary = ally + ' supports ' + target + ' (+' + supportBonus + ' support bonus, flavor ' + flavor.name + ').';
     } else if (act === 'Attack') {
-      summary = ally + ' attacks the raid boss (d6 strike).';
-      encounter.roleActionState = encounter.roleActionState || { actionBonus: 0, dreadReduction: 0, hazardGuard: false, pressureBonus: 0 };
-      encounter.roleActionState.actionBonus = Number(encounter.roleActionState.actionBonus || 0) + 1;
+      var attackBonus = 1 + Number(flavor.attack || 0);
+      encounter.phaseHp = Math.max(0, Number(encounter.phaseHp || 0) - Math.max(1, attackBonus));
+      summary = ally + ' attacks the raid boss for ' + Math.max(1, attackBonus) + ' phase damage (flavor ' + flavor.name + ').';
     } else {
-      summary = ally + ' repositions to ' + target + ' range band.';
+      var moveBonus = Number(flavor.move || 0);
+      summary = ally + ' repositions to ' + target + ' range band (mobility bonus ' + moveBonus + ', flavor ' + flavor.name + ').';
+      encounter.roleActionState.pressureBonus = Number(encounter.roleActionState.pressureBonus || 0) + (moveBonus > 1 ? 1 : 0);
     }
-    if (Math.random() < 0.25) {
-      summary += ' Personal Flavor triggered: ' + flavor + ' gives +1 raid momentum.';
-      encounter.roleActionState = encounter.roleActionState || { actionBonus: 0, dreadReduction: 0, hazardGuard: false, pressureBonus: 0 };
-      encounter.roleActionState.actionBonus = Number(encounter.roleActionState.actionBonus || 0) + 1;
-    }
+
+    encounter.allyActionBudget.byAlly[ally] = Math.max(0, remainingForAlly - 1);
+    encounter.allyActionBudget.used = Number(encounter.allyActionBudget.used || 0) + 1;
     encounter.allyActionsUsed = Number(encounter.allyActionsUsed || 0) + 1;
-    encounter.log.push('Ally action ' + encounter.allyActionsUsed + '/2: ' + summary);
-    if (encounter.allyActionsUsed >= 2) encounter.turnStage = 'boss';
+    var leftTotal = Math.max(0, Number(encounter.allyActionBudget.total || 0) - Number(encounter.allyActionBudget.used || 0));
+    encounter.log.push('Ally action ' + encounter.allyActionsUsed + '/6: ' + summary + ' Remaining ally actions: ' + leftTotal + '.');
+    if (leftTotal <= 0) encounter.turnStage = 'boss';
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
     return true;
   };
@@ -5876,6 +6044,7 @@
       tickLegacyRaidTeamUtilityCooldowns(mission);
       encounter.turnStage = 'player';
       encounter.allyActionsUsed = 0;
+      resetLegacyRaidAllyActionBudget(mission, encounter);
       encounter.turn = Number(encounter.turn || 1) + 1;
       if (encounter.turn > 8) encounter.turn = 8;
       var nextNode = getLegacyRaidTimelineTurn(encounter);
@@ -5910,6 +6079,7 @@
     tickLegacyRaidTeamUtilityCooldowns(mission);
     encounter.turnStage = 'player';
     encounter.allyActionsUsed = 0;
+    resetLegacyRaidAllyActionBudget(mission, encounter);
     encounter.turn = Number(encounter.turn || 1) + 1;
     if (encounter.turn > 8) encounter.turn = 8;
     var nextTurnNode = getLegacyRaidTimelineTurn(encounter);

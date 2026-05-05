@@ -5273,9 +5273,15 @@
         + '</div>';
       openModal('Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + ' — ' + mission.title, htmlGrid);
       if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
-        setTimeout(function () {
-          try { window.scrollTo(0, scrollY); } catch (_err) {}
-        }, 0);
+        if (typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(function () {
+            try { window.scrollTo(0, scrollY); } catch (_err) {}
+          });
+        } else {
+          setTimeout(function () {
+            try { window.scrollTo(0, scrollY); } catch (_err) {}
+          }, 15);
+        }
       }
       return true;
     }
@@ -5288,6 +5294,7 @@
       }
     }
 
+    var scrollY = (typeof window !== 'undefined' && typeof window.scrollY === 'number') ? window.scrollY : 0;
     var cleared = rooms.filter(function (r) { return r.cleared; }).length;
     var total = rooms.length;
     var progressPct = Math.round(cleared / total * 100);
@@ -5336,6 +5343,17 @@
     + '</div>';
 
     openModal('Wing ' + wingNum + ': ' + wingTitles[wingNum] + ' — ' + mission.title, html);
+    if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(function () {
+          try { window.scrollTo(0, scrollY); } catch (_err) {}
+        });
+      } else {
+        setTimeout(function () {
+          try { window.scrollTo(0, scrollY); } catch (_err) {}
+        }, 15);
+      }
+    }
     if (wingNum === 3 && typeof window.updateLegacyRaidAllyTargetOptions === 'function') {
       setTimeout(function () {
         try { window.updateLegacyRaidAllyTargetOptions(missionId); } catch (_err) {}

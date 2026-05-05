@@ -2525,6 +2525,13 @@ const LEGACY_RAID_BOSS_POOLS = {
     { name: 'Ruin Choir Mammoth', actions: ['Sonic charge', 'Echo wall puzzle scramble', 'Bone trumpet morale break'], uniqueLoot: 'Choir Mammoth Tusk Harp', flavor: 'A canyon titan that weaponizes resonance.' },
     { name: 'Radiant Mire Sovereign', actions: ['Irradiated pool shift', 'Glow swamp clone', 'Corruption pulse against greedy looters'], uniqueLoot: 'Mire Sovereign Halo', flavor: 'A toxic marsh king worshipped by mutation cults.' },
     { name: 'Archive Devourer', actions: ['Eat one unrecovered lore cache', 'Paper storm slicing', 'Index reset: reshuffle puzzle clues'], uniqueLoot: 'Archive Devourer Jawpress', flavor: 'A sentient ruin-monster that feeds on records.' }
+  ],
+  wtw: [
+    { name: 'Violet Vault Dragon', actions: ['Sky turns violet: AoE wipe warning', 'Hull-groan collapse sweep', 'Ward lock while lanes invert'], uniqueLoot: 'Violet Vault Crest', flavor: 'A district-forged dragon haunting the oldest vault corridors.' },
+    { name: 'District Hydra Mneme', actions: ['Head split after back-to-back failures', 'Memory fog lane split', 'Desperation frenzy on high TMW'], uniqueLoot: 'Mneme Hydra Sigil', flavor: 'A multi-headed district horror that learns from repeated mistakes.' },
+    { name: 'Cathedral Rail Warden', actions: ['Sanctum rail spike', 'Procession crush in Engaged zone', 'Signal lock on mechanics lanes'], uniqueLoot: 'Warden Rail Halo', flavor: 'A rail-borne executioner from the World That Was transit cathedrals.' },
+    { name: 'Ashcourt Colossus', actions: ['Court decree stun', 'Siege-step lane collapse', 'Radiation dust judgment'], uniqueLoot: 'Ashcourt Verdict Plate', flavor: 'A broken war-colossus enforcing dead imperial law.' },
+    { name: 'Mirror Docket Oracle', actions: ['Forecast repeated action', 'False-safe telegraph', 'Zone becomes lethal next round'], uniqueLoot: 'Docket Oracle Prism', flavor: 'An audit-born oracle that weaponizes prediction and panic.' }
   ]
 };
 
@@ -2548,6 +2555,11 @@ const LEGACY_RAID_PUZZLES = {
     'Navigate a buried colony bunker where each solved room changes the route behind you.',
     'Piece together archive sigils that only become valid after recovering the right lore shard.',
     'Stabilize habitat power nodes in the right environmental sequence before the boss enrages.'
+  ],
+  wtw: [
+    'Solve a district cryptogram web where each decoded phrase unlocks one safe route and two traps.',
+    'Complete a pressure maze with rotating lethal zones and one-round telegraph warnings.',
+    'Resolve a logic-grid tribunal where wrong pairings trigger escalation mechanics.'
   ]
 };
 
@@ -2564,6 +2576,7 @@ function getLegacyRaidRegionLabel(region) {
   if (key === 'sea') return 'Sea Region';
   if (key === 'galaxy') return 'Galaxy';
   if (key === 'planet') return 'Planet';
+  if (key === 'wtw') return 'World That Was';
   return 'Province';
 }
 
@@ -2929,7 +2942,7 @@ function maybeSpawnLegacyRaidEvent(force) {
   if (dayStamp < Number(legacy.nextRaidEligibleStamp || 0)) return null;
   var chanceSeed = seedSolarCycleMix(sc, dayStamp + Number(legacy.raidCounter || 0) * 23 + 7);
   if (!force && (Math.abs(chanceSeed) % 100) > 26) return null;
-  var availableRegions = ['province', 'sea', 'galaxy', 'planet'].filter(function (region) {
+  var availableRegions = ['province', 'sea', 'galaxy', 'planet', 'wtw'].filter(function (region) {
     return !legacy.activeRaidIds.some(function (raidId) {
       var raid = legacy.raidsById[raidId];
       return raid && String(raid.region || '') === String(region);

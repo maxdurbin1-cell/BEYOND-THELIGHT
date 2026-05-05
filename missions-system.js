@@ -1470,6 +1470,32 @@
     return 'Strike d' + strikeDie + ' · Shoot d' + shootDie + ' · Best d' + Math.max(strikeDie, shootDie);
   }
 
+  function isLegacyRaidCampaignMode() {
+    return !!(typeof window !== 'undefined'
+      && window.campaignSystem
+      && window.campaignSystem.state
+      && window.campaignSystem.state.code);
+  }
+
+  function getLegacyRaidTeamworkPool() {
+    if (typeof S === 'undefined' || !S) return 0;
+    return Math.max(0, Number(S.tmw || 0));
+  }
+
+  function spendLegacyRaidTeamwork(cost, reason) {
+    var need = Math.max(0, Number(cost || 0));
+    if (!need) return true;
+    var have = getLegacyRaidTeamworkPool();
+    if (have < need) {
+      if (typeof showNotif === 'function') showNotif('Need ' + need + ' TMW. Current: ' + have + '.', 'warn');
+      return false;
+    }
+    if (typeof changeCounter === 'function') changeCounter('tmw', -need);
+    else if (typeof S !== 'undefined' && S) S.tmw = Math.max(0, have - need);
+    if (typeof showNotif === 'function') showNotif('Spent ' + need + ' TMW' + (reason ? (': ' + reason) : '.') , 'good');
+    return true;
+  }
+
   function getLegacyRaidSeed(mission) {
     var text = String(mission && mission.title || '') + '|' + String(mission && mission.region || '') + '|' + String(mission && mission.id || '0');
     var hash = 0;
@@ -1576,6 +1602,41 @@
         }
       ]
     };
+    var minimumBossPools = {
+      province: ['Quarry Maw Regent', 'Ashen Toll King', 'Mire Crown Behemoth', 'Vault Maw Patriarch', 'Red Harvest Horror'],
+      sea: ['Undertow Archivist', 'Tideglass Leviathan', 'Blackwake Kraken Lord', 'Corsair Eel Sovereign', 'Whalebone Regent'],
+      galaxy: ['Eclipse Harvester', 'Null Rail Executor', 'Voidwing Dragon', 'Plasma Hydra Prime', 'Blackstar Colossus'],
+      planet: ['Dustspine Dragon', 'Crater Widow Empress', 'Sunslag Gorgon', 'Cinder Bloom Hydra', 'Archive Devourer'],
+      wtw: ['Violet Vault Dragon', 'District Hydra Mneme', 'Cathedral Rail Warden', 'Ashcourt Colossus', 'Mirror Docket Oracle']
+    };
+    var defaultPuzzleByRegion = {
+      province: 'Solve an old-road cryptogram lock where mirrored clues hide false exits.',
+      sea: 'Balance tide valves through a rotating maze before the chamber floods.',
+      galaxy: 'Stabilize relay logic using branching node equations under vacuum pressure.',
+      planet: 'Clear a colony logic-grid where each wrong move rewrites the bunker route.',
+      wtw: 'Resolve district tribunal puzzles (cryptogram, maze, logic grid, and symbol-sudoku chains).'
+    };
+    Object.keys(minimumBossPools).forEach(function (catalogRegion) {
+      if (!Array.isArray(bossCatalog[catalogRegion])) bossCatalog[catalogRegion] = [];
+      while (bossCatalog[catalogRegion].length < 5) {
+        var poolName = minimumBossPools[catalogRegion][bossCatalog[catalogRegion].length] || ('Regional Tyrant ' + (bossCatalog[catalogRegion].length + 1));
+        bossCatalog[catalogRegion].push({
+          name: poolName,
+          puzzle: defaultPuzzleByRegion[catalogRegion] || defaultPuzzleByRegion.province,
+          lore: 'Lore Fragment: ' + poolName + ' controls the pressure routes in the ' + catalogRegion + ' theater. If it survives, safe passage collapses into tribute corridors.',
+          cinematic: {
+            opener: poolName + ' answers your breach with a chamber-wide warning pulse.',
+            setup: 'The room telegraphs collapse one beat early. Zone calls decide whether the team survives.',
+            challenge: 'Defeat ' + poolName + ' before repeated failures trigger escalation mechanics.'
+          },
+          actions: [
+            'Telegraphed wipe: warning appears one round early, then the zone turns lethal.',
+            'Escalation chain: two failed turns in a row raise boss pressure and Dread.',
+            'Immunity gate: boss ignores damage unless three distinct prep actions succeed.'
+          ]
+        });
+      }
+    });
     var fallbackBoss = {
       name: 'Shard Sovereign',
       puzzle: 'A logic lock must be solved before the false chamber seals become permanent.',
@@ -2227,8 +2288,10 @@
     var boss = String(mission && mission.legacyRaidBoss || 'World Boss');
     var telegraphs = [
       boss + ' signals major attacks before they resolve: watch lane pressure, room collapse hints, and puzzle-state shifts.',
+      'Warning language matters: "The sky turns violet" or "The ship groans" means a wipe-level mechanic is coming next round.',
       'Every wing expects a different answer. Standing still and trading damage should fall behind the encounter quickly.',
-      'Allies cover one lane only if your group commits the right role to it.'
+      'Allies cover one lane only if your group commits the right role to it.',
+      'If two players fail in a row, escalation triggers and boss pressure spikes until the team breaks the chain.'
     ];
     if (mission && mission.legacyRaidPuzzle) {
       telegraphs.push('Puzzle telegraph: ' + String(mission.legacyRaidPuzzle || 'Unknown mechanism'));
@@ -2522,12 +2585,18 @@
 
   function buildLegacyRaidLoreFragment(mission) {
     var bossName = String(mission && mission.legacyRaidBoss || 'this boss');
-    var region = String(mission && mission.region || '').toLowerCase();
+    var region = String(mission && (mission.legacyRaidRegion || mission.region) || '').toLowerCase();
     if (region === 'sea') {
       return 'Lore Fragment: The ' + bossName + ' is worshipped by raider flotillas because it can collapse convoy currents and open hidden brine channels. If left alive, sea routes lose three ports each cycle to extortion and sink raids.';
     }
     if (region === 'galaxy') {
       return 'Lore Fragment: ' + bossName + ' is not just a beast but a lane-breaker linked to old jump-lattice scars. Every reappearance distorts nearby star lanes and strands civilian fleets, forcing tribute runs to survive transit.';
+    }
+    if (region === 'planet') {
+      return 'Lore Fragment: ' + bossName + ' controls buried colony routes by forcing bunker sectors to rotate into dead ends. Each failed pass costs settlements power, med supply, and evacuation corridors.';
+    }
+    if (region === 'wtw') {
+      return 'Lore Fragment: ' + bossName + ' writes district-level fear events into surviving infrastructure. When it rises, entire blocks desync and movement corridors become lethal one round after warning.';
     }
     return 'Lore Fragment: ' + bossName + ' controls the old road tunnels beneath province quarries. Raider houses protect it because it decides which caravans pass safely and which vanish underground, letting them tax every land route.';
   }
@@ -2588,7 +2657,7 @@
     return {
       front: [
         { key: 'guard', label: 'Guard', cd: 2, text: 'Spend Guard to blunt lane hazards and reduce Dread this turn.' },
-        { key: 'anchor', label: 'Anchor', cd: 3, text: 'Lock Front lane; gain +1 Action bonus and ignore hazard displacement.' },
+        { key: 'anchor', label: 'Anchor', cd: 3, text: 'Engineer anchor stance: gain +2 Defend pressure and +1 Action bonus this turn.' },
         { key: 'breach', label: 'Breach', cd: 2, text: 'Aggressive push for +2 Action bonus this turn.' }
       ],
       mechanics: [
@@ -2599,7 +2668,7 @@
       support: [
         { key: 'cleanse', label: 'Cleanse', cd: 2, text: 'Remove raidwide pressure residue and grant +1 Action bonus.' },
         { key: 'rally', label: 'Rally', cd: 2, text: 'Restore 1 Focus and 1 Momentum to the team pool.' },
-        { key: 'command', label: 'Command Wayfarer', cd: 3, text: 'Order a Traveling Wayfarer to reinforce this encounter.' }
+        { key: 'command', label: 'Coordinate', cd: 3, text: 'Captain coordination: buff all active rolls this turn and call allied reinforcement.' }
       ]
     };
   }
@@ -2616,6 +2685,9 @@
       encounter.roleLanes = { front: 'left', mechanics: 'center', support: 'right' };
     }
     if (!encounter.hazardLane) encounter.hazardLane = 'center';
+    if (!encounter.prepTags || typeof encounter.prepTags !== 'object') encounter.prepTags = {};
+    if (typeof encounter.failedChain !== 'number') encounter.failedChain = 0;
+    if (typeof encounter.wipeShield !== 'number') encounter.wipeShield = 0;
     return encounter.roleActionCooldowns;
   }
 
@@ -2628,6 +2700,14 @@
       });
     });
     encounter.roleActionState = { actionBonus: 0, dreadReduction: 0, hazardGuard: false, pressureBonus: 0 };
+    encounter.prepTags = {};
+  }
+
+  function getLegacyRaidBossDreadDie(encounter) {
+    var phase = Math.max(1, Number(encounter && encounter.phase || 1));
+    if (phase >= 3) return 20;
+    if (phase >= 2) return 12;
+    return 10;
   }
 
   function getLegacyRaidTimelineTurn(encounter) {
@@ -2678,6 +2758,7 @@
     }
     var resources = ensureLegacyRaidResourcePools(mission);
     var state = encounter.roleActionState || { actionBonus: 0, dreadReduction: 0, hazardGuard: false, pressureBonus: 0 };
+    var prepTags = encounter.prepTags || {};
     if (action === 'guard') {
       if (Number(resources.guard || 0) <= 0) {
         if (typeof showNotif === 'function') showNotif('No Guard resource remaining.', 'warn');
@@ -2686,8 +2767,11 @@
       resources.guard = Math.max(0, Number(resources.guard || 0) - 1);
       state.hazardGuard = true;
       state.dreadReduction += 1;
+      prepTags['engineer-guard'] = true;
     } else if (action === 'anchor') {
       state.actionBonus += 1;
+      state.dreadReduction += 2;
+      prepTags['engineer-anchor'] = true;
     } else if (action === 'breach') {
       if (Number(resources.momentum || 0) <= 0) {
         if (typeof showNotif === 'function') showNotif('No Momentum resource remaining.', 'warn');
@@ -2695,6 +2779,7 @@
       }
       resources.momentum = Math.max(0, Number(resources.momentum || 0) - 1);
       state.actionBonus += 2;
+      prepTags['gunner-breach'] = true;
     } else if (action === 'decode') {
       if (Number(resources.focus || 0) <= 0) {
         if (typeof showNotif === 'function') showNotif('No Focus resource remaining.', 'warn');
@@ -2703,16 +2788,21 @@
       resources.focus = Math.max(0, Number(resources.focus || 0) - 1);
       state.actionBonus += 2;
       state.pressureBonus += 1;
+      prepTags['navigator-decode'] = true;
     } else if (action === 'stabilize') {
       encounter.strikes = Math.max(0, Number(encounter.strikes || 0) - 1);
+      prepTags['navigator-stabilize'] = true;
     } else if (action === 'disrupt') {
       state.dreadReduction += 2;
+      prepTags['navigator-disrupt'] = true;
     } else if (action === 'cleanse') {
       encounter.raidwideHits = Math.max(0, Number(encounter.raidwideHits || 0) - 1);
       state.actionBonus += 1;
+      prepTags['captain-cleanse'] = true;
     } else if (action === 'rally') {
       resources.focus = Math.min(5, Number(resources.focus || 0) + 1);
       resources.momentum = Math.min(5, Number(resources.momentum || 0) + 1);
+      prepTags['captain-rally'] = true;
     } else if (action === 'command') {
       var wayfarers = getRaidWayfarersForWing(mission, 3);
       var ready = wayfarers.find(function (wf) { return wf && wf.status === 'ready'; });
@@ -2722,10 +2812,12 @@
       }
       ready.status = 'deployed';
       ready.wing = 3;
-      state.actionBonus += 1;
+      state.actionBonus += 2;
       state.pressureBonus += 1;
+      prepTags['captain-coordinate'] = true;
     }
     encounter.roleActionState = state;
+    encounter.prepTags = prepTags;
     encounter.roleActionCooldowns[role][action] = Number(entry.cd || 2);
     encounter.log.push(role.toUpperCase() + ' action: ' + entry.label + '.');
     openRaidWingPopup(mission.id, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
@@ -2750,6 +2842,7 @@
       encounter.roleActionState.hazardGuard = true;
       encounter.roleActionState.dreadReduction += 1;
       encounter.log.push('Team Utility: Barrier deployed.');
+      encounter.prepTags['utility-barrier'] = true;
     } else if (key === 'emergency_rez') {
       var wayfarers = getRaidWayfarersForWing(mission, 3);
       var fallen = wayfarers.find(function (wf) { return wf && wf.status === 'failed'; });
@@ -2758,18 +2851,42 @@
         fallen.wing = null;
       }
       encounter.log.push('Team Utility: Emergency Rez restored allied support.');
+      encounter.prepTags['utility-rez'] = true;
     } else if (key === 'time_extension') {
       ensureLegacyRaidClock(mission);
       run.clockRemaining = Number(run.clockRemaining || 0) + 2;
       encounter.log.push('Team Utility: Time Extension granted +2 ticks.');
+      encounter.prepTags['utility-time'] = true;
     } else if (key === 'cleanse_pulse') {
       encounter.raidwideHits = Math.max(0, Number(encounter.raidwideHits || 0) - 2);
       encounter.strikes = Math.max(0, Number(encounter.strikes || 0) - 1);
       encounter.log.push('Team Utility: Cleanse Pulse reduced raid pressure.');
+      encounter.prepTags['utility-cleanse'] = true;
     }
     slot.cd = Number(slot.baseCd || 4);
     openRaidWingPopup(mission.id, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
     return true;
+  };
+
+  window.useLegacyRaidTeamworkBurst = function (missionId, mode) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var encounter = ensureLegacyRaidBossEncounter(mission);
+    if (!encounter || !encounter.active) return false;
+    var key = String(mode || '').toLowerCase();
+    if (key === 'negate_wipe') {
+      if (!spendLegacyRaidTeamwork(10, 'Raid emergency counterplay')) return false;
+      encounter.wipeShield = Math.max(1, Number(encounter.wipeShield || 0));
+      encounter.log.push('Teamwork burst: 10 TMW banked to negate the next wipe trigger.');
+      openRaidWingPopup(mission.id, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
+      return true;
+    }
+    if (key === 'cinematic_success') {
+      if (!spendLegacyRaidTeamwork(100, 'Cinematic raid finish')) return false;
+      encounter.log.push('Cinematic finish triggered with 100 TMW. The boss line breaks under coordinated execution.');
+      return window.resolveRaidBossRoom(mission.id, true);
+    }
+    return false;
   };
 
   function ensureLegacyRaidBossEncounter(mission) {
@@ -3006,6 +3123,10 @@
 
   function getRaidWayfarersForWing(mission, wingNum) {
     if (!mission.raidWayfarers) {
+      if (isLegacyRaidCampaignMode()) {
+        mission.raidWayfarers = [];
+        return mission.raidWayfarers;
+      }
       var allNames = ['Sable Orin', 'Maren of the Third Road', 'Korvus Pale', 'Tinden Ashmark', 'Sel the Wayfinder', 'Breck Two-Roads'];
       var picked = allNames.slice().sort(function() { return Math.random() - 0.5; }).slice(0, 3);
       mission.raidWayfarers = picked.map(function (name, i) {
@@ -3177,6 +3298,9 @@
         var utilities = ensureLegacyRaidTeamUtilities(mission) || {};
         var roleCatalog = getLegacyRaidRoleActionCatalog();
         var currentTurnNode = getLegacyRaidTimelineTurn(encounter);
+        var nextTurnNode = encounter && Array.isArray(encounter.timeline)
+          ? (encounter.timeline[Math.min(encounter.timeline.length - 1, Number(encounter.turn || 1))] || null)
+          : null;
         var roleStatusOk = encounter && encounter.roles && encounter.roles.front && encounter.roles.mechanics && encounter.roles.support;
         var roleStatusText = roleStatusOk
           ? '<span style="color:var(--green2);">Role Balance Ready: Front + Mechanics + Support assigned.</span>'
@@ -3184,6 +3308,21 @@
         var actionText = encounter && encounter.currentAction
           ? ('<strong style="color:var(--red2);">Current Boss Action:</strong> ' + encounter.currentAction.name + ' — ' + encounter.currentAction.text)
           : '<strong style="color:var(--red2);">Current Boss Action:</strong> Unknown.';
+        var nextActionText = nextTurnNode && Array.isArray(encounter.actions)
+          ? ('<strong style="color:var(--gold2);">Next Turn Warning:</strong> ' + String((encounter.actions[Math.max(0, Number(nextTurnNode.actionIndex || 0)) % encounter.actions.length] || {}).name || 'Unknown Pattern') + ' incoming on turn ' + Number(nextTurnNode.turn || (Number(encounter.turn || 1) + 1)) + '.')
+          : '<strong style="color:var(--gold2);">Next Turn Warning:</strong> No telegraph captured yet.';
+        var dreadDieNow = getLegacyRaidBossDreadDie(encounter);
+        var teamworkPool = getLegacyRaidTeamworkPool();
+        var teamworkRow = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.14rem;">'
+          + '<button class="btn btn-xs btn-teal" ' + (teamworkPool >= 10 ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'negate_wipe\')">Spend 10 TMW: Negate Next Wipe</button>'
+          + '<button class="btn btn-xs btn-warn" ' + (teamworkPool >= 100 ? '' : 'disabled') + ' onclick="useLegacyRaidTeamworkBurst(' + mission.id + ',\'cinematic_success\')">Spend 100 TMW: Cinematic Success</button>'
+          + '</div>';
+        var classMapHtml = '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.14rem;">'
+          + '<strong style="color:var(--text2);">Role Identity:</strong> Engineer (Defend/Body) = Tank · Captain (Lead/Spirit) = Support · Gunner (Strike/Shoot) = DPS · Navigator (Control/Mind) = Mechanics/Positioning.'
+          + '</div>';
+        var allyActionList = isLegacyRaidCampaignMode()
+          ? '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.14rem;">Campaign ally phase: team members resolve Defend, Support, Attack, and Move across Engaged/Close/Nearby/Far zones.</div>'
+          : '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.14rem;">Traveling Wayfarers (DD6 | 12 Stress) act in ally phase with Defend, Support, Attack, and Move options across Engaged/Close/Nearby/Far.</div>';
         var roleButtons = '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin:.2rem 0 .18rem;">'
           + '<button class="btn btn-xs ' + (encounter.roles.front ? 'btn-primary' : '') + '" onclick="window.toggleRaidBossRole(' + mission.id + ',\'front\')">Front ' + (encounter.roles.front ? '✓' : '') + '</button>'
           + '<button class="btn btn-xs ' + (encounter.roles.mechanics ? 'btn-primary' : '') + '" onclick="window.toggleRaidBossRole(' + mission.id + ',\'mechanics\')">Mechanics ' + (encounter.roles.mechanics ? '✓' : '') + '</button>'
@@ -3247,8 +3386,11 @@
         html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.28);padding:.4rem .45rem;margin-bottom:.25rem;">'
           + '<div style="font-size:.72rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.12rem;">⚔ Confrontation Engaged — ' + bossName + '</div>'
           + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.5;margin-bottom:.15rem;">Visible 8-turn timeline with branch beats. Resolve each turn via <strong>Action Die vs Dread</strong>, keep pressure windows filled, and survive lane hazards.</div>'
-          + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.12rem;">Boss HP: ' + Number(encounter.hp || 0) + '/3 · Strikes: ' + Number(encounter.strikes || 0) + '/2 · Turn: ' + Number(encounter.turn || 1) + '/8</div>'
+          + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.12rem;">Boss HP: ' + Number(encounter.hp || 0) + ' · Strikes: ' + Number(encounter.strikes || 0) + '/' + Number(encounter.strikesAllowed || 2) + ' · Turn: ' + Number(encounter.turn || 1) + '/8 · Dread Stage: d' + dreadDieNow + '</div>'
           + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.12rem;line-height:1.45;">' + actionText + '</div>'
+          + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.12rem;line-height:1.45;">' + nextActionText + '</div>'
+          + classMapHtml
+          + allyActionList
           + '<div style="font-size:.67rem;color:var(--teal);margin-bottom:.12rem;">Current Beat: ' + String(currentTurnNode && currentTurnNode.beat || 'Unknown') + '</div>'
           + calloutHtml
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;margin-bottom:.18rem;">'
@@ -3263,6 +3405,8 @@
           + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.1rem;">Resources — Focus: ' + Number(resources.focus || 0) + ' · Momentum: ' + Number(resources.momentum || 0) + ' · Guard: ' + Number(resources.guard || 0) + ' · Timer: ' + Number(runState && runState.clockRemaining || 0) + '</div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.2rem;margin-bottom:.16rem;">' + roleActionHtml + '</div>'
           + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.14rem;">' + utilityRow + '</div>'
+          + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.08rem;">Teamwork Pool: ' + teamworkPool + ' TMW · Failed rolls feed TMW, and you can cash it in to avert wipe mechanics.</div>'
+          + teamworkRow
           + '<div style="font-size:.66rem;margin-bottom:.14rem;">' + roleStatusText + '</div>'
           + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.18rem;">'
           + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidBossPhase(' + mission.id + ')">Resolve Turn (Action Die vs Dread)</button>'
@@ -4004,6 +4148,7 @@
     var strikeCap = Math.max(1, Number(encounter.strikesAllowed || 2));
     var perks = ensureLegacyRaidPerks(mission);
     var resources = ensureLegacyRaidResourcePools(mission) || { focus: 0, momentum: 0, guard: 0 };
+    var teamworkPool = getLegacyRaidTeamworkPool();
     var turnNode = getLegacyRaidTimelineTurn(encounter) || { turn: encounter.turn || 1, beat: 'Unknown Beat' };
     var actionState = encounter.roleActionState || { actionBonus: 0, dreadReduction: 0, hazardGuard: false, pressureBonus: 0 };
     var hazardLane = String(encounter.hazardLane || 'center');
@@ -4021,7 +4166,9 @@
     var totalAction = Number(actionRoll.total || 0)
       + Number(mission.bonus || 0)
       + Number(actionState.actionBonus || 0);
-    var dreadDie = Math.max(4, Number(mission.dread || 8) + (turnNode.branch ? 1 : 0) + hazardPenalty);
+    var tmwBossPressure = teamworkPool >= 100 ? 2 : (teamworkPool >= 50 ? 1 : 0);
+    var failedChainPressure = Number(encounter.failedChain || 0) >= 2 ? 2 : 0;
+    var dreadDie = Math.max(4, getLegacyRaidBossDreadDie(encounter) + (turnNode.branch ? 1 : 0) + hazardPenalty + tmwBossPressure + failedChainPressure);
     var dreadRoll = typeof roll === 'function' ? roll(dreadDie) : (Math.floor(Math.random() * dreadDie) + 1);
     dreadRoll = Math.max(1, Number(dreadRoll || 0) - Number(actionState.dreadReduction || 0));
 
@@ -4040,9 +4187,20 @@
     }
 
     if (success) {
-      encounter.hp = Math.max(0, Number(encounter.hp || 0) - 1);
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      encounter.failedChain = 0;
+      var prepCount = Object.keys(encounter.prepTags || {}).length;
+      var bossImmune = prepCount < 3;
+      if (!bossImmune) {
+        encounter.hp = Math.max(0, Number(encounter.hp || 0) - 1);
+      }
       var pressureState = applyLegacyRaidPressureWindow(encounter, Number(encounter.turn || 1), true, Number(actionState.pressureBonus || 0) + Number(perks.interruptWindow || 0));
-      encounter.log.push('Turn ' + Number(encounter.turn || 1) + ' (' + String(turnNode.beat || 'Beat') + '): Action ' + totalAction + ' vs Dread ' + dreadRoll + ' succeeded against ' + actionName + '. Boss HP now ' + encounter.hp + '/3.');
+      encounter.log.push('Turn ' + Number(encounter.turn || 1) + ' (' + String(turnNode.beat || 'Beat') + '): Action ' + totalAction + ' vs Dread ' + dreadRoll + ' succeeded against ' + actionName + '.');
+      if (bossImmune) {
+        encounter.log.push('Boss immunity active: fewer than 3 distinct prep actions this turn (' + prepCount + '/3). No HP damage dealt.');
+      } else {
+        encounter.log.push('Boss HP now ' + encounter.hp + '/3.');
+      }
       encounter.phase = Number(encounter.phase || 1) + 1;
       encounter.roles = { front: false, mechanics: false, support: false };
       if (pressureState.failedWindow) {
@@ -4067,7 +4225,9 @@
       return;
     }
 
+    if (typeof addTMWOnFail === 'function') addTMWOnFail();
     encounter.strikes = Number(encounter.strikes || 0) + 1;
+    encounter.failedChain = Number(encounter.failedChain || 0) + 1;
     applyLegacyRaidPressureWindow(encounter, Number(encounter.turn || 1), false, 0);
     if (encounter.currentAction && encounter.currentAction.raidwide) {
       encounter.raidwideHits = Number(encounter.raidwideHits || 0) + cadence;
@@ -4094,6 +4254,14 @@
     updateLegacyRaidBossHazardLane(encounter);
 
     if (encounter.strikes >= strikeCap) {
+      if (Number(encounter.wipeShield || 0) > 0) {
+        encounter.wipeShield = Math.max(0, Number(encounter.wipeShield || 0) - 1);
+        encounter.strikes = Math.max(0, strikeCap - 1);
+        encounter.log.push('Wipe negated by stored 10 TMW burst. Shield consumed.');
+        if (typeof showNotif === 'function') showNotif('Wipe negated by Teamwork Burst.', 'good');
+        openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
+        return;
+      }
       if (run) {
         run.pendingWing = 3;
         run.pendingReviveCost = getLegacyRaidFailureReviveCost(mission, 3);
@@ -4812,6 +4980,9 @@
     var puzzleText = String(mission && mission.legacyRaidPuzzle || 'Intricate multi-room mechanism');
     var loreText = String(mission && mission.step1Intro || mission && mission.lore || 'The raid opens only after the group secures the first story lead.');
     var recoveredLore = String(mission && mission.legacyRaidLoreFragment || '');
+    var alliedLine = isLegacyRaidCampaignMode()
+      ? 'Campaign Mode: your player team fills ally turns, with lane roles and zone coverage deciding survival.'
+      : 'Solo Mode: three Traveling Wayfarers (DD6 | 12 Stress) support the raid as allied specialists.';
     return [
       {
         key: 1,
@@ -4841,7 +5012,7 @@
         theme: 'Execution gate',
         detail: bossName + ' changes patterns as the fight progresses. Learn the telegraph, react, wipe, and adapt.',
         actions: [
-          'Three Traveling Wayfarers (DD6 | 12 Stress) support the raid as allied specialists.',
+          alliedLine,
           'Boss mechanics should force movement, positioning, and role swaps instead of tank-and-spank play.',
           'The kill grants medals, raid points, and a unique trophy drop.'
         ]
@@ -4850,6 +5021,10 @@
   }
 
   function openLegacyRaidMissionPopup(missionId, context) {
+        var campaignMode = isLegacyRaidCampaignMode();
+        var allySummaryText = campaignMode
+          ? 'Campaign Mode: Ally turns are handled by your team roster and role coverage.'
+          : 'Solo Mode: Allied support includes 3 Traveling Wayfarers (DD6 | 12 Stress).';
     var mission = getMission(missionId);
     if (!mission || mission.missionType !== 'legacy_raid') return false;
     if (typeof openModal !== 'function') return false;
@@ -4906,7 +5081,7 @@
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Raid Ops Brief</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Time management: ' + Number(run.clockRemaining || ensureLegacyRaidClock(mission)) + ' ticks remaining before forced wipe pressure.</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Role distribution: Front, Mechanics, and Support must be assigned per critical room.</div>'
-        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Wayfarers: 3 allied specialists can be deployed to stabilize high-pressure lanes.</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">' + allySummaryText + '</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Loot loop: Medals mark completions, Raid Points feed personal raid flavor growth, and trophy unlocks unique power lines.</div>'
         + '</div>')
       : '';
@@ -4989,7 +5164,7 @@
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">+' + Number(mission.legacyRaidMedalReward || 1) + ' Medal · +' + Number(mission.legacyRaidPointReward || 1) + ' Raid Point</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Unique trophy: ' + String(mission.legacyRaidBoss || bossName) + '</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Raid power bonus: +' + powerBonus + ' (Tree +' + treeBonus + ', Trophy +' + relicBonus + ')</div>'
-        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Allied support: 3 Traveling Wayfarers (DD6 | 12 Stress)</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">' + allySummaryText + '</div>'
         + '</div>'
         + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;">Checkpoint Flow</div>'

@@ -4191,7 +4191,8 @@
 
     var mode = String(puzzle.mode || 'lock_dials');
     var solved = false;
-    var consumedAttempt = false;
+    var consumedAttempts = 0;
+    var refundedAttempts = 0;
 
     if (mode === 'lock_dials') {
       var code = puzzle.state.code || [1, 1, 1];
@@ -4199,12 +4200,16 @@
         state.stability = Math.min(2, Number(state.stability || 0) + 1);
         state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
         puzzle.log.push('Front stabilizes tumblers. Stability +' + 1 + '.');
+        if (Number(state.stability || 0) >= 2 && Math.random() < 0.25) {
+          consumedAttempts += 1;
+          puzzle.log.push('Over-bracing jams a tumbler. Attempt pressure +1.');
+        }
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
       } else if (move === 'mech_probe') {
         var idx = Math.floor(Math.random() * 3);
         state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
         puzzle.log.push('Mechanics probe: dial ' + (idx + 1) + ' reads ' + Number(code[idx] || 0) + '.');
-        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 2);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
       } else if (move === 'support_echo') {
         state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
         state.stability = Math.min(3, Number(state.stability || 0) + 1);
@@ -4216,11 +4221,15 @@
       if (move === 'front_mark_family') {
         puzzle.log.push('Front marks probable family: ' + (target === 'SUN' ? 'solar crest' : target === 'WAVE' ? 'tidal sigil' : 'lunar seal') + '.');
         state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
-        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 1);
+        if (Math.random() < 0.2) {
+          consumedAttempts += 1;
+          puzzle.log.push('Front callout overcommitted the room to a false tell. Attempt pressure +1.');
+        }
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
       } else if (move === 'mech_decode_symbol') {
         puzzle.log.push('Mechanics decode: correct icon is ' + target + '.');
         state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
-        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 2);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
       } else if (move === 'support_harmony_symbol') {
         puzzle.log.push('Support harmonizes sigils. Next symbol mismatch will not consume an attempt.');
         state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
@@ -4237,9 +4246,10 @@
         var nextMap = { '': '1', '1': '3', '13': '5' };
         var key = String(puzzle.state.seq || '').slice(-2);
         var next = nextMap.hasOwnProperty(key) ? nextMap[key] : '3';
-        puzzle.log.push('Mechanics calibration suggests next safe node: ' + next + '.');
+        puzzle.log.push('Mechanics calibration suggests next safe node: ' + next + ' (safe scan, no penalty risk).');
         state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
-        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
+        puzzle.state.seqHint = next;
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 0);
       } else if (move === 'support_sync_stars') {
         puzzle.state.seq = String(puzzle.state.seq || '').replace(/[^135]/g, '');
         puzzle.log.push('Support sync purges noisy star links from the chain.');
@@ -4250,36 +4260,42 @@
     } else if (mode === 'pipe_flow') {
       puzzle.state.pressure = Number(puzzle.state.pressure || 0);
       if (move === 'front_force_valve') {
-        puzzle.state.pressure += 2;
-        puzzle.log.push('Front forces valves: pressure +2 (now ' + puzzle.state.pressure + ').');
+        puzzle.state.pressure += 3;
+        puzzle.log.push('Front forces valves: pressure +3 (high risk) (now ' + puzzle.state.pressure + ').');
         state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
-        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 3);
       } else if (move === 'mech_route_pressure') {
         var targetPressure = Number(puzzle.state.targetPressure || 7);
         if (puzzle.state.pressure < targetPressure) puzzle.state.pressure += 1;
-        puzzle.log.push('Mechanics routes pressure with precision (now ' + puzzle.state.pressure + ').');
+        if (puzzle.state.pressure > targetPressure) puzzle.state.pressure = targetPressure;
+        puzzle.log.push('Mechanics routes pressure with precision (safe cap) (now ' + puzzle.state.pressure + ').');
         state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
       } else if (move === 'support_bleed_pressure') {
         puzzle.state.pressure = Math.max(0, Number(puzzle.state.pressure || 0) - 1);
-        puzzle.log.push('Support bleeds pressure: -1 (now ' + puzzle.state.pressure + ').');
+        puzzle.log.push('Support bleeds pressure: -1 (stabilizing) (now ' + puzzle.state.pressure + ').');
         state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 1);
       }
       if (Number(puzzle.state.pressure || 0) > Number(puzzle.state.targetPressure || 7)) {
-        consumedAttempt = true;
+        consumedAttempts += 2;
         puzzle.state.pressure = 0;
-        puzzle.log.push('Pressure spike! System vented and reset to 0.');
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 4);
+        puzzle.log.push('Pressure spike! Major vent event: attempts -2, pressure reset, Front locked extra.');
       }
       solved = Number(puzzle.state.pressure || 0) === Number(puzzle.state.targetPressure || 7);
     } else if (mode === 'weight_balance') {
       puzzle.state.balance = Number(puzzle.state.balance || 0);
       if (move === 'front_shift_mass') {
-        var frontDelta = Math.random() < 0.5 ? -2 : 2;
+        var frontDelta = Math.random() < 0.5 ? -3 : 3;
         puzzle.state.balance += frontDelta;
         puzzle.log.push('Front shifts heavy load (' + (frontDelta > 0 ? '+' : '') + frontDelta + '). Delta now ' + puzzle.state.balance + '.');
         state.frontlineMomentum = Math.min(3, Number(state.frontlineMomentum || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'front', 2);
+        if (Math.abs(Number(puzzle.state.balance || 0)) >= 5) {
+          consumedAttempts += 1;
+          puzzle.log.push('Structure sway exceeded tolerance. Attempt pressure +1.');
+        }
       } else if (move === 'mech_trim_mass') {
         var trimDelta = puzzle.state.balance > 0 ? -1 : 1;
         puzzle.state.balance += trimDelta;
@@ -4308,13 +4324,22 @@
         state.mechanicsInsight = Math.min(3, Number(state.mechanicsInsight || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'mechanics', 1);
       } else if (move === 'support_rewind_step') {
-        puzzle.state.pathTaken = String(puzzle.state.pathTaken || '').slice(0, -1);
-        puzzle.log.push('Support rewind removes last step. Path now ' + String(puzzle.state.pathTaken || '') + '.');
+        var currentPath = String(puzzle.state.pathTaken || '');
+        var nextLen = currentPath.length;
+        var safePrefix = targetPath.slice(0, nextLen);
+        if (currentPath !== safePrefix) {
+          puzzle.state.pathTaken = targetPath.slice(0, Math.max(0, nextLen - 1));
+          puzzle.log.push('Support recovers route to safe prefix. Path now ' + String(puzzle.state.pathTaken || '') + '.');
+          if (Number(puzzle.attemptsLeft || 0) < 3) refundedAttempts = 1;
+        } else {
+          puzzle.state.pathTaken = currentPath.slice(0, -1);
+          puzzle.log.push('Support rewind removes last step safely. Path now ' + String(puzzle.state.pathTaken || '') + '.');
+        }
         state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
-        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
+        setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 1);
       }
       if (String(puzzle.state.pathTaken || '').length > targetPath.length) {
-        consumedAttempt = true;
+        consumedAttempts += 1;
         puzzle.state.pathTaken = '';
         puzzle.log.push('Path overflow triggered reset.');
       }
@@ -4338,7 +4363,7 @@
           puzzle.log.push('Support links two compatible segments. Route now ' + puzzle.state.route + '.');
         } else {
           puzzle.log.push('Support link attempted, but no compatible pair remained.');
-          consumedAttempt = true;
+          consumedAttempts += 1;
         }
         state.supportHarmony = Math.min(3, Number(state.supportHarmony || 0) + 1);
         setLegacyRaidPuzzleRoleCooldown(puzzle, 'support', 2);
@@ -4355,9 +4380,14 @@
       return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
     }
 
-    if (consumedAttempt) {
-      puzzle.attemptsLeft = Math.max(0, Number(puzzle.attemptsLeft || 0) - 1);
-      puzzle.log.push('Failure pressure consumed one attempt. Attempts left: ' + Number(puzzle.attemptsLeft || 0) + '.');
+    if (refundedAttempts > 0) {
+      puzzle.attemptsLeft = Math.min(3, Number(puzzle.attemptsLeft || 0) + refundedAttempts);
+      puzzle.log.push('Support recovery restored ' + refundedAttempts + ' attempt. Attempts left: ' + Number(puzzle.attemptsLeft || 0) + '.');
+    }
+
+    if (consumedAttempts > 0) {
+      puzzle.attemptsLeft = Math.max(0, Number(puzzle.attemptsLeft || 0) - consumedAttempts);
+      puzzle.log.push('Failure pressure consumed ' + consumedAttempts + ' attempt' + (consumedAttempts > 1 ? 's' : '') + '. Attempts left: ' + Number(puzzle.attemptsLeft || 0) + '.');
     }
     if (Number(puzzle.attemptsLeft || 0) <= 0) {
       if (typeof closeModal === 'function') closeModal();

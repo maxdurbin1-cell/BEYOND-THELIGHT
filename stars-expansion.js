@@ -5,7 +5,6 @@
  */
 
 // ── TABLES ──────────────────────────────────────────────────────────────────
-
 const INJURIES_D20 = [
   'Grazed — Minor cut. No mechanical effect.',
   'Bruised Ribs — −1 to all Body checks this scene.',
@@ -2439,7 +2438,519 @@ function ensureSolarCycleLegacyState() {
     S.solarCycleLegacy.irreversibleTags = {};
   }
   if (!Array.isArray(S.solarCycleLegacy.history)) S.solarCycleLegacy.history = [];
+  if (!S.solarCycleLegacy.raidsById || typeof S.solarCycleLegacy.raidsById !== 'object') S.solarCycleLegacy.raidsById = {};
+  if (!Array.isArray(S.solarCycleLegacy.activeRaidIds)) S.solarCycleLegacy.activeRaidIds = [];
+  if (!Array.isArray(S.solarCycleLegacy.completedRaidIds)) S.solarCycleLegacy.completedRaidIds = [];
+  if (!Array.isArray(S.solarCycleLegacy.missedRaidIds)) S.solarCycleLegacy.missedRaidIds = [];
+  if (typeof S.solarCycleLegacy.lastRaidSyncStamp !== 'number') S.solarCycleLegacy.lastRaidSyncStamp = -1;
+  if (typeof S.solarCycleLegacy.nextRaidEligibleStamp !== 'number') S.solarCycleLegacy.nextRaidEligibleStamp = 0;
+  if (typeof S.solarCycleLegacy.raidCounter !== 'number') S.solarCycleLegacy.raidCounter = 0;
+  if (typeof S.solarCycleLegacy.medals !== 'number') S.solarCycleLegacy.medals = 0;
+  if (typeof S.solarCycleLegacy.raidPoints !== 'number') S.solarCycleLegacy.raidPoints = 0;
+  if (!S.solarCycleLegacy.raidTree || typeof S.solarCycleLegacy.raidTree !== 'object') {
+    S.solarCycleLegacy.raidTree = { scout_network: false, bulwark_drill: false, trophy_claim: false };
+  }
+  if (typeof S.solarCycleLegacy.raidTree.scout_network !== 'boolean') S.solarCycleLegacy.raidTree.scout_network = false;
+  if (typeof S.solarCycleLegacy.raidTree.bulwark_drill !== 'boolean') S.solarCycleLegacy.raidTree.bulwark_drill = false;
+  if (typeof S.solarCycleLegacy.raidTree.trophy_claim !== 'boolean') S.solarCycleLegacy.raidTree.trophy_claim = false;
   return S.solarCycleLegacy;
+}
+
+const LEGACY_RAID_TREE = {
+  scout_network: {
+    label: 'Scout Network',
+    cost: 2,
+    summary: 'Future raids always reveal a cleaner lore thread and a broader briefing window in the Legacy board.'
+  },
+  bulwark_drill: {
+    label: 'Bulwark Drill',
+    cost: 3,
+    summary: 'Raid boss contracts are posted one difficulty tier lower without reducing medal payout.'
+  },
+  trophy_claim: {
+    label: 'Trophy Claim',
+    cost: 2,
+    summary: 'Completed raids grant one bonus raid point and convert duplicate raid trophies into extra credits.'
+  }
+};
+
+const LEGACY_RAID_BOSS_POOLS = {
+  province: [
+    { name: 'Ashwake Dragon', actions: ['Wingbeat avalanche: scatter the front line', 'Cinder hoard pulse: force body checks in the vault chamber', 'Molten oath roar: all failed rolls take +1 Stress'], uniqueLoot: 'Ashwake Scale Mantle', flavor: 'An ancient ruin-dragon that nests in collapsed shrine roads.' },
+    { name: 'Cryptid Thornstag', actions: ['Mirror-antler feint: punishes repeated approaches', 'Bramble stampede: seals one room behind it', 'Heartwood bellow: heals when the puzzle is ignored'], uniqueLoot: 'Thornstag Crown Rack', flavor: 'A horned territorial myth-beast that remembers old borders.' },
+    { name: 'Gravemouth Wyrm', actions: ['Sinkhole lunge: drags allies between rooms', 'Stone swallow: devours puzzle clues unless recovered', 'Dust cyclone tail: converts cover into hazard'], uniqueLoot: 'Gravemouth Core', flavor: 'A tunneling ruin-serpent beneath quarry routes.' },
+    { name: 'Bell Tower Matron', actions: ['Summon carrion choir', 'Cathedral toll shockwave', 'Veil molt: changes weakness each round'], uniqueLoot: 'Matron Bell Shard', flavor: 'A skeletal brood-queen nesting in ruined belfries.' },
+    { name: 'Ironroot Basilisk', actions: ['Petrify the lead scout', 'Root lash through adjacent rooms', 'Armor shed: spawns spined plates as hazards'], uniqueLoot: 'Ironroot Eye', flavor: 'A plated cryptid feeding on old war metal.' },
+    { name: 'Saint-Eater Golem', actions: ['Relic absorption', 'Shrine collapse', 'Judgment ray against highest renown'], uniqueLoot: 'Saint-Eater Reliquary', flavor: 'A desecrated construct animated by stolen vows.' },
+    { name: 'Mire Crown Behemoth', actions: ['Bog surge knockback', 'Mud cocoon restraint', 'Leech crown drain'], uniqueLoot: 'Mire Crown Lungstone', flavor: 'A swamp colossus that drags caravans into flooded roads.' },
+    { name: 'Harrowglass Roc', actions: ['Divebomb from unreachable rafters', 'Shard rain', 'Nest theft retaliation'], uniqueLoot: 'Harrowglass Pinion', flavor: 'A crystal-feathered apex predator haunting cliff temples.' },
+    { name: 'Red Harvest Horror', actions: ['Field of hooks', 'Harvest scream chain-fear', 'Blood spoor counterattack'], uniqueLoot: 'Harvest Hook Sigil', flavor: 'A famine thing born where armies were buried.' },
+    { name: 'Vault Maw Patriarch', actions: ['Room-sealing slam', 'Treasure lure domination', 'Bone key eruption'], uniqueLoot: 'Vault Maw Idol', flavor: 'An overgrown crypt predator guarding pre-fall vaults.' }
+  ],
+  sea: [
+    { name: 'Tideglass Leviathan', actions: ['Flood chamber reset', 'Glasswave beam across decks', 'Barnacle armor phase'], uniqueLoot: 'Tideglass Spinal Plate', flavor: 'A translucent abyssal serpent that crushes flotillas.' },
+    { name: 'Harbor Cryptid Morrowfin', actions: ['Echo-sonar stun', 'Harpoon reef summon', 'Drownlight camouflage'], uniqueLoot: 'Morrowfin Lantern Jaw', flavor: 'A harbor myth-beast that hunts inside storm walls.' },
+    { name: 'Deepwake Dragon', actions: ['Brinefire breath', 'Capsize tail', 'Pressure dive: skip directly to the boss room'], uniqueLoot: 'Deepwake Furnace Scale', flavor: 'A sea-dragon that sleeps beneath wreck graveyards.' },
+    { name: 'Salt Choir Colossus', actions: ['Siren split chorus', 'Salt pillar maze', 'Prayer current reposition'], uniqueLoot: 'Salt Choir Vox Pearl', flavor: 'A cathedral-sized singing giant of coral and bone.' },
+    { name: 'Blackwake Kraken Lord', actions: ['Tentacle room breach', 'Ink eclipse', 'Anchor snare on allies'], uniqueLoot: 'Kraken Lord Anchor Fang', flavor: 'A pirate legend that answers cannon fire with hunger.' },
+    { name: 'Stormblind Nautilus', actions: ['Cyclone shell spin', 'Lightning siphon', 'Labyrinth shell rewrite'], uniqueLoot: 'Stormblind Spiral Shell', flavor: 'A storm engine masquerading as a living shell.' },
+    { name: 'Riptide Saintbreaker', actions: ['Shrine undertow', 'Tidal martyr call', 'Wavecrest judgment'], uniqueLoot: 'Saintbreaker Trident', flavor: 'A drowned executioner haunting pilgrimage routes.' },
+    { name: 'Corsair Eel Sovereign', actions: ['Boarding surge', 'Static lash', 'Deck split through electrified water'], uniqueLoot: 'Sovereign Coil Spine', flavor: 'An electrified tyrant eel worshipped by raiders.' },
+    { name: 'Whalebone Regent', actions: ['Hull crush', 'Bone reef barricade', 'Call the drowned court'], uniqueLoot: 'Regent Rib Scepter', flavor: 'An ancient monarch spirit bound to an ossuary whale.' },
+    { name: 'Mooncurrent Hag', actions: ['False moon lure', 'Curse of the third tide', 'Mirror tide duplicate'], uniqueLoot: 'Mooncurrent Veil Net', flavor: 'A moon-marked monster that misguides whole fleets.' }
+  ],
+  galaxy: [
+    { name: 'Voidwing Dragon', actions: ['Solar sail sever', 'Vacuum roar panic', 'Meteor brood spawn'], uniqueLoot: 'Voidwing Reactor Fang', flavor: 'A star-lane dragon that burns fleets along relays.' },
+    { name: 'Relay Cryptid Mnemoshade', actions: ['Erase last clue used', 'Static ghosting', 'Blink between outer-ring rooms'], uniqueLoot: 'Mnemoshade Recall Spine', flavor: 'A memory-eating relay beast haunting dead comms grids.' },
+    { name: 'Eclipse Harvester', actions: ['Light starvation field', 'Drone scythe wall', 'Cargo vent ambush'], uniqueLoot: 'Eclipse Harvester Core', flavor: 'A colossal siege organism grown around mining rigs.' },
+    { name: 'Graviton Seraph', actions: ['Gravity inversion', 'Halo beam lattice', 'Orbit lock'], uniqueLoot: 'Seraph Halo Lens', flavor: 'A failed orbital angel weapon now self-directed.' },
+    { name: 'Wreckfield Tyrant', actions: ['Scrap storm', 'Magnet rip', 'Derelict slam'], uniqueLoot: 'Wreckfield Crown Magnet', flavor: 'A scrapyard king nesting inside fleet graveyards.' },
+    { name: 'Pulse Maw Behemoth', actions: ['EMP howl', 'Drive-eater rush', 'Pulse rebuke against tech-heavy teams'], uniqueLoot: 'Pulse Maw Capacitor Heart', flavor: 'A beast that feeds on jump signatures.' },
+    { name: 'Night Relay Oracle', actions: ['Predict repeated moves', 'Signal blackout', 'False objective broadcast'], uniqueLoot: 'Oracle Night Array', flavor: 'A prophetic predator nested in abandoned radio towers.' },
+    { name: 'Plasma Hydra Prime', actions: ['Split heads after failed puzzle rolls', 'Arc bridge sweep', 'Heat bloom arena shrink'], uniqueLoot: 'Plasma Hydra Crown Cell', flavor: 'A military prototype that became a starborne hydra.' },
+    { name: 'Cathedral Rail Reaver', actions: ['Trainline breach', 'Ion lance barrage', 'Boarding sermon frenzy'], uniqueLoot: 'Rail Reaver Canticle Blade', flavor: 'A war-pilgrim engine that treats stations as altars.' },
+    { name: 'Blackstar Colossus', actions: ['Miniature singularity pull', 'Shadow phase immunity', 'Starfall retaliation'], uniqueLoot: 'Blackstar Null Diadem', flavor: 'A collapse-era titan still trying to finish its war.' }
+  ],
+  planet: [
+    { name: 'Dustspine Dragon', actions: ['Buried emergence', 'Silica breath', 'Collapse the excavation route'], uniqueLoot: 'Dustspine Carapace Blade', flavor: 'A planetary dragon sleeping under colony ruins.' },
+    { name: 'Glass Cryptid Orison Jackal', actions: ['Mirror pack illusion', 'Prayer shard trail', 'Leap through laser fences'], uniqueLoot: 'Orison Jackal Mask', flavor: 'A ritual predator seen only in reflected sandstorms.' },
+    { name: 'Mycelial Titan', actions: ['Spore maze growth', 'Hallucinatory ally call', 'Root body snare'], uniqueLoot: 'Titan Spore Crown', flavor: 'A fungal planetary giant spreading through bunker levels.' },
+    { name: 'Crater Widow Empress', actions: ['Web bridge sever', 'Egg chamber reinforcement', 'Venom decree on the slowest ally'], uniqueLoot: 'Widow Empress Spinneret', flavor: 'A cavern sovereign beneath collapsed landing pads.' },
+    { name: 'Sunslag Gorgon', actions: ['Solar melt ray', 'Stone bloom curse', 'Thermal shell refresh'], uniqueLoot: 'Sunslag Gorgon Crest', flavor: 'A heat-scarred monster forged in mining furnaces.' },
+    { name: 'Frostvault Revenant', actions: ['Cryo-lock one room', 'Revive frozen sentries', 'Whiteout inversion'], uniqueLoot: 'Frostvault Ossuary Key', flavor: 'A polar revenant ruling dead colony vaults.' },
+    { name: 'Cinder Bloom Hydra', actions: ['Fire root spread', 'Seed pod ambush', 'Head regrowth if lore chamber ignored'], uniqueLoot: 'Cinder Bloom Seedheart', flavor: 'A volcanic many-headed bloom-beast.' },
+    { name: 'Ruin Choir Mammoth', actions: ['Sonic charge', 'Echo wall puzzle scramble', 'Bone trumpet morale break'], uniqueLoot: 'Choir Mammoth Tusk Harp', flavor: 'A canyon titan that weaponizes resonance.' },
+    { name: 'Radiant Mire Sovereign', actions: ['Irradiated pool shift', 'Glow swamp clone', 'Corruption pulse against greedy looters'], uniqueLoot: 'Mire Sovereign Halo', flavor: 'A toxic marsh king worshipped by mutation cults.' },
+    { name: 'Archive Devourer', actions: ['Eat one unrecovered lore cache', 'Paper storm slicing', 'Index reset: reshuffle puzzle clues'], uniqueLoot: 'Archive Devourer Jawpress', flavor: 'A sentient ruin-monster that feeds on records.' }
+  ]
+};
+
+const LEGACY_RAID_PUZZLES = {
+  province: [
+    'Rebuild the saint-road lock so the inner ruin opens in the correct order.',
+    'Align burial mirrors to reveal which chamber houses the living boss and which is a bait tomb.',
+    'Decode oath tablets that deliberately contradict one another unless read by moonlight.'
+  ],
+  sea: [
+    'Rotate floodgates to keep the raid hull from sinking while the team advances.',
+    'Route lighthouse lenses through a storm maze before the boss drowns the lower deck.',
+    'Solve tide-temple valve logic while siren echoes feed false directions.'
+  ],
+  galaxy: [
+    'Reconnect a dead relay lattice while the station rotates and rewrites the access map.',
+    'Bypass a sequential airlock puzzle that changes when the boss senses intrusion.',
+    'Stabilize a collapsing transit core without letting the boss weaponize the blackout.'
+  ],
+  planet: [
+    'Navigate a buried colony bunker where each solved room changes the route behind you.',
+    'Piece together archive sigils that only become valid after recovering the right lore shard.',
+    'Stabilize habitat power nodes in the right environmental sequence before the boss enrages.'
+  ]
+};
+
+function getLegacyRaidDayStamp() {
+  var gd = S && S.gameDate ? S.gameDate : null;
+  if (!gd) return 0;
+  return ((Math.max(1, Number(gd.year || 1)) - 1) * 360)
+    + ((Math.max(1, Number(gd.month || 1)) - 1) * 30)
+    + Math.max(1, Number(gd.day || 1));
+}
+
+function getLegacyRaidRegionLabel(region) {
+  var key = String(region || 'province');
+  if (key === 'sea') return 'Sea Region';
+  if (key === 'galaxy') return 'Galaxy';
+  if (key === 'planet') return 'Planet';
+  return 'Province';
+}
+
+function getLegacyRaidDifficulty(legacy) {
+  var tree = legacy && legacy.raidTree ? legacy.raidTree : {};
+  return tree.bulwark_drill ? 'very_hard' : 'impossible';
+}
+
+function getLegacyRaidFactionConflict(region) {
+  var key = String(region || 'province');
+  if (key === 'sea') return { gain: 'religious', lose: 'underworld', gainName: 'Religious Entities', loseName: 'The Underworld' };
+  if (key === 'galaxy') return { gain: 'military', lose: 'corporations', gainName: 'Military Orders', loseName: 'Corporations' };
+  if (key === 'planet') return { gain: 'scholars', lose: 'underworld', gainName: 'Scholars', loseName: 'The Underworld' };
+  return { gain: 'rebels', lose: 'military', gainName: 'Rebel Faction', loseName: 'Military Orders' };
+}
+
+function pickLegacyRaidBoss(region, legacy) {
+  var pool = LEGACY_RAID_BOSS_POOLS[String(region || 'province')] || LEGACY_RAID_BOSS_POOLS.province;
+  var seed = seedSolarCycleMix(ensureSolarCycleState(), Number(legacy && legacy.raidCounter || 0) + getLegacyRaidDayStamp() + String(region || '').length * 19);
+  return pool[Math.abs(seed) % pool.length] || pool[0];
+}
+
+function getLegacyRaidUniqueLootReward(region, boss) {
+  var itemName = boss && boss.uniqueLoot ? String(boss.uniqueLoot) : (getLegacyRaidRegionLabel(region) + ' Trophy');
+  return {
+    id: 'legacy-raid-' + String(region || 'province') + '-' + itemName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    name: itemName,
+    kind: 'relic',
+    summary: 'A raid trophy recovered from ' + String(boss && boss.name || 'a mythic target') + '. It marks a Legacy-mode world event clear.',
+    fallbackCredits: 220
+  };
+}
+
+function storeLegacyRaidLootReward(reward, legacy) {
+  if (!reward || !reward.name) return { granted: false };
+  var stored = tryStoreSolarCycleRelicReward(reward);
+  if (stored) return { granted: true, name: reward.name };
+  var bonus = Math.max(80, Number(reward.fallbackCredits || 220));
+  if (legacy && legacy.raidTree && legacy.raidTree.trophy_claim) bonus += 60;
+  if (typeof changeCredits === 'function') changeCredits(bonus);
+  else S.credits = Math.max(0, Number(S.credits || 0) + bonus);
+  return { granted: false, converted: true, credits: bonus, name: reward.name };
+}
+
+function clearLegacyRaidMissionPresence(mission) {
+  if (!mission) return;
+  if (mission.region === 'sea' && S && S.lastSea && S.lastSea.missionTokens) {
+    if (mission.seaInformerKey) delete S.lastSea.missionTokens[String(mission.seaInformerKey)];
+    if (mission.seaSiteKey) delete S.lastSea.missionTokens[String(mission.seaSiteKey)];
+    if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+    return;
+  }
+  if (mission.region === 'galaxy' && S && S.starSystem && Array.isArray(S.starSystem.taskMarkers)) {
+    [mission.galaxyInformerTaskId, mission.galaxyTaskId].filter(Boolean).forEach(function (taskId) {
+      S.starSystem.taskMarkers.forEach(function (task) {
+        if (task && String(task.id || '') === String(taskId)) task.resolved = true;
+      });
+    });
+    if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+    if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+    return;
+  }
+  if (mission.informerHex && S && S.missionTokens) {
+    delete S.missionTokens[String(mission.informerHex.col) + ',' + String(mission.informerHex.row)];
+  }
+  if (mission.siteHex && S && S.missionTokens) {
+    delete S.missionTokens[String(mission.siteHex.col) + ',' + String(mission.siteHex.row)];
+  }
+  if (typeof renderHexMap === 'function') renderHexMap();
+}
+
+function removeLegacyRaidMission(missionId) {
+  if (!S || !Array.isArray(S.activeMissions)) return null;
+  var idx = -1;
+  for (var i = 0; i < S.activeMissions.length; i++) {
+    if (String(S.activeMissions[i] && S.activeMissions[i].id || '') === String(missionId || '')) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) return null;
+  var mission = S.activeMissions[idx];
+  clearLegacyRaidMissionPresence(mission);
+  S.activeMissions.splice(idx, 1);
+  if (typeof renderMissionBoard === 'function') renderMissionBoard();
+  if (typeof renderMissionTracker === 'function') renderMissionTracker();
+  return mission;
+}
+
+function createLegacyRaidEvent(legacy, region) {
+  ensureStarsState();
+  var targetRegion = String(region || 'province');
+  var boss = pickLegacyRaidBoss(targetRegion, legacy);
+  var puzzlePool = LEGACY_RAID_PUZZLES[targetRegion] || LEGACY_RAID_PUZZLES.province;
+  var puzzleText = puzzlePool[Math.abs(seedSolarCycleMix(ensureSolarCycleState(), Number(legacy.raidCounter || 0) + targetRegion.length * 31)) % puzzlePool.length] || puzzlePool[0];
+  var eventId = 'legacy-raid-' + String(targetRegion) + '-' + String(getLegacyRaidDayStamp()) + '-' + String(++legacy.raidCounter);
+  var availableUntil = getLegacyRaidDayStamp();
+  var returnStamp = availableUntil + 30;
+  var title = getLegacyRaidRegionLabel(targetRegion) + ' Raid: ' + String(boss.name || 'World Boss');
+  var difficulty = getLegacyRaidDifficulty(legacy);
+  var flavor = String(boss.flavor || 'A large-scale world event is drawing Wayfarers into a coordinated assault.');
+  var mission = null;
+
+  if (typeof window.createMission === 'function') {
+    mission = window.createMission(
+      'Raid Signal',
+      title,
+      difficulty,
+      getLegacyRaidRegionLabel(targetRegion),
+      targetRegion === 'planet' ? 'galaxy' : targetRegion,
+      getLegacyRaidFactionConflict(targetRegion),
+      {
+        missionType: 'legacy_raid',
+        storyTheme: 'legacy_raid',
+        templateId: eventId,
+        templateLabel: 'Legacy Raid Event',
+        stepNames: {
+          1: 'Breach the Lore Wing',
+          2: 'Solve the Intricate Gate Puzzle',
+          3: 'Defeat ' + String(boss.name || 'the World Boss')
+        },
+        checkpoints: [
+          'Recover the raid lore cache before the marker cools.',
+          puzzleText,
+          'Face ' + String(boss.name || 'the raid boss') + ' with three allied Traveling Wayfarers (DD6 | 12 Stress each).'
+        ],
+        step1Intro: flavor + ' Allied support: three Traveling Wayfarers arrive to reinforce the raid.',
+        lore: flavor + ' Boss actions: ' + String((boss.actions || []).join('; '))
+      }
+    );
+  }
+
+  if (!mission) return null;
+
+  mission.reward = Math.max(Number(mission.reward || 0), difficulty === 'impossible' ? 420 : 320);
+  mission.lore = flavor + ' Boss actions: ' + String((boss.actions || []).join('; '));
+  mission.legacyRaidId = eventId;
+  mission.legacyRaidRegion = targetRegion;
+  mission.legacyRaidBoss = String(boss.name || 'World Boss');
+  mission.legacyRaidPuzzle = puzzleText;
+  mission.legacyRaidStarted = false;
+  mission.legacyRaidMedalReward = 1;
+  mission.legacyRaidPointReward = legacy && legacy.raidTree && legacy.raidTree.trophy_claim ? 2 : 1;
+
+  if (targetRegion === 'planet' && mission.region === 'galaxy' && S && S.starSystem && Array.isArray(S.starSystem.hexes)) {
+    var planets = S.starSystem.hexes.filter(function (hex) { return hex && hex.type === 'planet'; });
+    if (planets.length) {
+      var picked = planets[Math.abs(seedSolarCycleMix(ensureSolarCycleState(), legacy.raidCounter + 59)) % planets.length] || planets[0];
+      mission.planetHexId = Number(picked.id);
+      mission.planetName = String(picked.name || ('Planet Hex #' + picked.id));
+    }
+  }
+
+  var raid = {
+    id: eventId,
+    status: 'posted',
+    region: targetRegion,
+    title: title,
+    bossName: String(boss.name || 'World Boss'),
+    bossActions: Array.isArray(boss.actions) ? boss.actions.slice() : [],
+    flavor: flavor,
+    puzzleText: puzzleText,
+    uniqueLoot: String(boss.uniqueLoot || ''),
+    missionId: String(mission.id || ''),
+    postedStamp: getLegacyRaidDayStamp(),
+    availableUntilStamp: availableUntil,
+    returnStamp: returnStamp,
+    started: false,
+    rewardProcessed: false,
+    medalReward: 1,
+    pointReward: legacy && legacy.raidTree && legacy.raidTree.trophy_claim ? 2 : 1,
+    allyText: 'Three Traveling Wayfarers (DD6 | 12 Stress) join the assault as allies.',
+    locationLabel: String(mission.location || getLegacyRaidRegionLabel(targetRegion))
+  };
+
+  legacy.raidsById[raid.id] = raid;
+  legacy.activeRaidIds.push(raid.id);
+  legacy.history.push({ id: raid.id, type: 'raid_posted', day: getLegacyRaidDayStamp(), region: targetRegion, title: title });
+  if (legacy.history.length > 120) legacy.history = legacy.history.slice(-120);
+  if (typeof showNotif === 'function') {
+    showNotif('Legacy raid marker posted: ' + title + '. Start it today or it disappears for a month.', 'warn');
+  }
+  return raid;
+}
+
+function processLegacyRaidCompletion(legacy, raid, completedMission) {
+  if (!legacy || !raid || raid.rewardProcessed) return false;
+  var reward = getLegacyRaidUniqueLootReward(raid.region, { name: raid.bossName, uniqueLoot: raid.uniqueLoot });
+  var stored = storeLegacyRaidLootReward(reward, legacy);
+  legacy.medals = Number(legacy.medals || 0) + Number(raid.medalReward || 1);
+  legacy.raidPoints = Number(legacy.raidPoints || 0) + Number(raid.pointReward || 1);
+  raid.status = 'completed';
+  raid.rewardProcessed = true;
+  raid.completedStamp = getLegacyRaidDayStamp();
+  legacy.activeRaidIds = legacy.activeRaidIds.filter(function (id) { return id !== raid.id; });
+  if (legacy.completedRaidIds.indexOf(raid.id) < 0) legacy.completedRaidIds.push(raid.id);
+  legacy.nextRaidEligibleStamp = Math.max(Number(legacy.nextRaidEligibleStamp || 0), getLegacyRaidDayStamp() + 7);
+  recordWorldConsequence({
+    system: 'legacy_raid',
+    title: 'Raid cleared',
+    detail: String(raid.title || raid.id) + ' defeated ' + String(raid.bossName || 'the boss') + '.',
+    region: String(raid.region || 'province'),
+    severity: 'medium',
+    deltas: { stability: 1, rumor: 1, witness: 1, factionHeat: -1 },
+    tags: ['raid-event', 'world-boss', 'legacy-raid', 'mythic-clear']
+  });
+  if (typeof showNotif === 'function') {
+    showNotif('Raid cleared: +' + Number(raid.medalReward || 1) + ' medal, +' + Number(raid.pointReward || 1) + ' raid point.', 'good');
+    if (stored.granted) showNotif('Raid trophy secured: ' + String(stored.name || reward.name) + '.', 'good');
+    else if (stored.converted) showNotif('Duplicate raid trophy converted: +' + Number(stored.credits || 0) + '₵.', 'info');
+  }
+  legacy.history.push({ id: raid.id, type: 'raid_completed', day: getLegacyRaidDayStamp(), region: raid.region, title: raid.title });
+  if (legacy.history.length > 120) legacy.history = legacy.history.slice(-120);
+  if (completedMission) completedMission.legacyRaidRewardProcessed = true;
+  return true;
+}
+
+function syncLegacyRaidMissionState(legacy, raid) {
+  if (!legacy || !raid) return;
+  var activeMission = (S && Array.isArray(S.activeMissions))
+    ? S.activeMissions.find(function (mission) { return mission && String(mission.id || '') === String(raid.missionId || ''); })
+    : null;
+  var completedMission = (S && Array.isArray(S.completedMissions))
+    ? S.completedMissions.find(function (mission) { return mission && String(mission.id || '') === String(raid.missionId || ''); })
+    : null;
+
+  if (completedMission && completedMission.success) {
+    processLegacyRaidCompletion(legacy, raid, completedMission);
+    return;
+  }
+  if (completedMission && !completedMission.success) {
+    raid.status = 'failed';
+    raid.returnStamp = Math.max(Number(raid.returnStamp || 0), getLegacyRaidDayStamp() + 14);
+    legacy.activeRaidIds = legacy.activeRaidIds.filter(function (id) { return id !== raid.id; });
+    legacy.nextRaidEligibleStamp = Math.max(Number(legacy.nextRaidEligibleStamp || 0), getLegacyRaidDayStamp() + 5);
+    return;
+  }
+  if (!activeMission) return;
+
+  raid.started = !!(activeMission.steps && activeMission.steps[1] && activeMission.steps[1].completed);
+  if (raid.started) raid.status = 'in_progress';
+
+  if (!raid.started && getLegacyRaidDayStamp() > Number(raid.availableUntilStamp || 0)) {
+    removeLegacyRaidMission(raid.missionId);
+    raid.status = 'missed';
+    raid.missedStamp = getLegacyRaidDayStamp();
+    legacy.activeRaidIds = legacy.activeRaidIds.filter(function (id) { return id !== raid.id; });
+    if (legacy.missedRaidIds.indexOf(raid.id) < 0) legacy.missedRaidIds.push(raid.id);
+    legacy.nextRaidEligibleStamp = Math.max(Number(legacy.nextRaidEligibleStamp || 0), Number(raid.returnStamp || (getLegacyRaidDayStamp() + 30)));
+    legacy.history.push({ id: raid.id, type: 'raid_missed', day: getLegacyRaidDayStamp(), region: raid.region, title: raid.title });
+    if (legacy.history.length > 120) legacy.history = legacy.history.slice(-120);
+    if (typeof showNotif === 'function') {
+      showNotif('Legacy raid withdrew: ' + String(raid.title || 'Raid Event') + '. It may return in one month.', 'warn');
+    }
+  }
+}
+
+function maybeSpawnLegacyRaidEvent(force) {
+  var sc = ensureSolarCycleState();
+  var legacy = ensureSolarCycleLegacyState();
+  if (!sc || !legacy || !!sc.storyModeEnabled) return null;
+  var dayStamp = getLegacyRaidDayStamp();
+  if (!force && dayStamp <= Number(legacy.lastRaidSyncStamp || -1)) return null;
+  if (legacy.activeRaidIds.length >= 2) return null;
+  if (dayStamp < Number(legacy.nextRaidEligibleStamp || 0)) return null;
+  var chanceSeed = seedSolarCycleMix(sc, dayStamp + Number(legacy.raidCounter || 0) * 23 + 7);
+  if (!force && (Math.abs(chanceSeed) % 100) > 26) return null;
+  var availableRegions = ['province', 'sea', 'galaxy', 'planet'].filter(function (region) {
+    return !legacy.activeRaidIds.some(function (raidId) {
+      var raid = legacy.raidsById[raidId];
+      return raid && String(raid.region || '') === String(region);
+    });
+  });
+  if (!availableRegions.length) return null;
+  var region = availableRegions[Math.abs(chanceSeed + 17) % availableRegions.length] || availableRegions[0];
+  var raid = createLegacyRaidEvent(legacy, region);
+  if (raid) legacy.nextRaidEligibleStamp = Math.max(dayStamp + 1, Number(legacy.nextRaidEligibleStamp || 0));
+  return raid;
+}
+
+function syncLegacyRaidBoard(force) {
+  var sc = ensureSolarCycleState();
+  var legacy = ensureSolarCycleLegacyState();
+  if (!sc || !legacy) return legacy;
+  var dayStamp = getLegacyRaidDayStamp();
+  legacy.activeRaidIds.slice().forEach(function (raidId) {
+    syncLegacyRaidMissionState(legacy, legacy.raidsById[String(raidId || '')]);
+  });
+  if (!sc.storyModeEnabled) maybeSpawnLegacyRaidEvent(!!force);
+  legacy.lastRaidSyncStamp = dayStamp;
+  return legacy;
+}
+
+function spendLegacyRaidPoint(nodeId) {
+  var legacy = ensureSolarCycleLegacyState();
+  if (!legacy) return false;
+  var node = LEGACY_RAID_TREE[String(nodeId || '')];
+  if (!node) return false;
+  if (legacy.raidTree && legacy.raidTree[nodeId]) {
+    if (typeof showNotif === 'function') showNotif(node.label + ' already unlocked.', 'info');
+    return false;
+  }
+  if (Number(legacy.raidPoints || 0) < Number(node.cost || 0)) {
+    if (typeof showNotif === 'function') showNotif('Need ' + Number(node.cost || 0) + ' raid points for ' + node.label + '.', 'warn');
+    return false;
+  }
+  legacy.raidPoints = Math.max(0, Number(legacy.raidPoints || 0) - Number(node.cost || 0));
+  legacy.raidTree[nodeId] = true;
+  if (typeof showNotif === 'function') showNotif('Raid tree unlocked: ' + node.label + '.', 'good');
+  if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
+  return true;
+}
+
+function openLegacyRaidBriefing(raidId) {
+  var legacy = ensureSolarCycleLegacyState();
+  var raid = legacy && legacy.raidsById ? legacy.raidsById[String(raidId || '')] : null;
+  if (!raid || typeof openModal !== 'function') return false;
+  openModal(
+    'Legacy Raid Briefing',
+    '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
+      + '<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.25rem;"><strong>' + escapeSolarCycleHtml(raid.title || 'Raid Event') + '</strong></div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">' + escapeSolarCycleHtml(raid.flavor || '') + '</div>'
+      + '<div style="font-size:.75rem;color:var(--teal);margin-bottom:.3rem;">Boss actions: ' + escapeSolarCycleHtml((raid.bossActions || []).join(' | ')) + '</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">Puzzle wing: ' + escapeSolarCycleHtml(raid.puzzleText || '') + '</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">Allies: ' + escapeSolarCycleHtml(raid.allyText || '') + '</div>'
+      + '<div style="font-size:.75rem;color:var(--gold2);">Rewards: +' + Number(raid.medalReward || 1) + ' medal, +' + Number(raid.pointReward || 1) + ' raid point, ' + escapeSolarCycleHtml(raid.uniqueLoot || 'unique trophy') + '.</div>'
+      + '</div>'
+  );
+  return true;
+}
+
+function buildLegacyRaidPanelHtml() {
+  var legacy = syncLegacyRaidBoard(false);
+  if (!legacy) return '';
+  var activeRaids = legacy.activeRaidIds.map(function (raidId) {
+    return legacy.raidsById[String(raidId || '')];
+  }).filter(Boolean);
+  var activeHtml = activeRaids.length
+    ? activeRaids.map(function (raid) {
+        var statusTone = raid.status === 'in_progress' ? 'var(--teal)' : 'var(--gold2)';
+        var windowText = raid.started
+          ? 'Started: mission remains active until resolved.'
+          : ('Start by Day ' + Number(raid.availableUntilStamp || 0) + ' or it vanishes for a month.');
+        return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;">'
+          + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;margin-bottom:.2rem;">'
+          + '<div style="font-size:.78rem;color:var(--text2);"><strong>' + escapeSolarCycleHtml(raid.title || 'Raid Event') + '</strong></div>'
+          + '<div style="font-size:.68rem;color:' + statusTone + ';text-transform:uppercase;letter-spacing:.08em;">' + escapeSolarCycleHtml(String(raid.status || 'posted').replace(/_/g, ' ')) + '</div>'
+          + '</div>'
+          + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.22rem;">' + escapeSolarCycleHtml(raid.flavor || '') + '</div>'
+          + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(getLegacyRaidRegionLabel(raid.region)) + ' | Boss: ' + escapeSolarCycleHtml(raid.bossName || 'Unknown') + '</div>'
+          + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(windowText) + '</div>'
+          + '<div style="font-size:.69rem;color:var(--teal);line-height:1.45;margin-bottom:.24rem;">Puzzle: ' + escapeSolarCycleHtml(raid.puzzleText || '') + '</div>'
+          + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+          + '<button class="btn btn-xs btn-teal" onclick="window.openLegacyRaidBriefing(\'' + String(raid.id) + '\')">Briefing</button>'
+          + '<button class="btn btn-xs" onclick="window.renderMissionTracker && window.renderMissionTracker()">Mission Tracker</button>'
+          + '</div>'
+          + '</div>';
+      }).join('')
+    : '<div style="font-size:.73rem;color:var(--muted2);">No live Legacy raids right now. The board will post new raid markers as in-game days advance.</div>';
+
+  var treeHtml = Object.keys(LEGACY_RAID_TREE).map(function (nodeId) {
+    var node = LEGACY_RAID_TREE[nodeId];
+    var unlocked = !!(legacy.raidTree && legacy.raidTree[nodeId]);
+    var action = unlocked
+      ? '<button class="btn btn-xs" disabled>Unlocked</button>'
+      : '<button class="btn btn-xs btn-gold" onclick="window.spendLegacyRaidPoint(\'' + String(nodeId) + '\')">Buy (' + Number(node.cost || 0) + ')</button>';
+    return '<div style="padding:.25rem 0;border-bottom:1px solid var(--border2);display:grid;grid-template-columns:1fr auto;gap:.35rem;align-items:center;">'
+      + '<div>'
+      + '<div style="font-size:.73rem;color:' + (unlocked ? 'var(--teal)' : 'var(--text2)') + ';"><strong>' + escapeSolarCycleHtml(node.label) + '</strong></div>'
+      + '<div style="font-size:.69rem;color:var(--muted2);line-height:1.45;">' + escapeSolarCycleHtml(node.summary) + '</div>'
+      + '</div>'
+      + action
+      + '</div>';
+  }).join('');
+
+  return '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
+    + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Legacy Raid Board</strong></div>'
+    + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">In Legacy Mode, world-boss raid events can surface across the Province, Sea Region, Galaxy, and planet routes. Each one is a three-step mission with lore, intricate puzzles, and a mythic boss. If Step 1 is not started by the next day, the marker withdraws and only reappears after one in-game month.</div>'
+    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.28rem;">Allied support: three Traveling Wayfarers (DD6 | 12 Stress) join every raid.</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.3rem;margin-bottom:.38rem;">'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Medals</div><div style="font-size:.9rem;color:var(--gold2);">' + Number(legacy.medals || 0) + '</div></div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Raid Points</div><div style="font-size:.9rem;color:var(--teal);">' + Number(legacy.raidPoints || 0) + '</div></div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Live Raids</div><div style="font-size:.9rem;color:var(--text2);">' + Number(activeRaids.length || 0) + '</div></div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Unique Boss Pools</div><div style="font-size:.9rem;color:var(--text2);">10 / map</div></div>'
+    + '</div>'
+    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.22rem;">Active raid events</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.4rem;margin-bottom:.38rem;">' + activeHtml + '</div>'
+    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.2rem;">Raid tree</div>'
+    + treeHtml
+    + '</div>';
 }
 
 function recordSolarCycleIrreversibleTag(tagId, details) {
@@ -4516,6 +5027,7 @@ function renderNewSunModePanel() {
   var forecastSimulatorHtml = buildSolarCycleForecastSimulatorHtml(sc);
   var consequenceMotionHtml = buildConsequenceMotionPanelHtml(6);
   var witnessVowRecapHtml = buildSolarCycleWitnessVowRecapHtml(sc, 5);
+  var legacyRaidPanelHtml = (!status.storyModeEnabled) ? buildLegacyRaidPanelHtml() : '';
   var schedulerSummary = scheduler
     ? ('Province ' + Number(status.schedulerProvinceDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.province || 0)
       + ' | Sea ' + Number(status.schedulerSeaDone || 0) + '/' + Number(NEW_SUN_REGION_TARGETS.sea || 0)
@@ -4655,6 +5167,7 @@ function renderNewSunModePanel() {
     + '</div>'
     + '</div>'
     + '</div>'
+    + legacyRaidPanelHtml
     + coreLoopPanelHtml
     + consequenceMotionHtml
     + witnessVowRecapHtml
@@ -7543,6 +8056,8 @@ window.completeSolarCycleMarkerInteraction = completeSolarCycleMarkerInteraction
 window.setSolarCycleStoryModeEnabled = setSolarCycleStoryModeEnabled;
 window.toggleSolarCycleStoryMode = toggleSolarCycleStoryMode;
 window.stopSolarCycleRun = stopSolarCycleRun;
+window.spendLegacyRaidPoint = spendLegacyRaidPoint;
+window.openLegacyRaidBriefing = openLegacyRaidBriefing;
 window.renderNewSunModePanel = renderNewSunModePanel;
 window.applySolarCycleTimeFracture = applySolarCycleTimeFracture;
 window.openSolarCycleTimeFractureModal = openSolarCycleTimeFractureModal;
@@ -16271,6 +16786,7 @@ function advanceDay(days, preserveTravelState) {
   const endYear = S.gameDate.year || 1;
   if (endYear > startYear) applyYearProgression(endYear - startYear);
   if (days > 0) progressSolarCycleDay(days);
+  if (days !== 0) syncLegacyRaidBoard(false);
   updateDateUI();
 }
 

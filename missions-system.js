@@ -1438,13 +1438,52 @@
     return mission.legacyRaidWingLoot;
   }
 
+  function getLegacyRaidChestStyle(rarity) {
+    var key = String(rarity || 'bronze').toLowerCase();
+    if (key === 'mythic') {
+      return {
+        label: 'Mythic',
+        border: 'rgba(163,120,255,.8)',
+        bg: 'linear-gradient(135deg, rgba(44,22,68,.48), rgba(22,18,48,.58))',
+        glow: '0 0 14px rgba(163,120,255,.32), inset 0 0 10px rgba(163,120,255,.18)',
+        text: '#d8c6ff'
+      };
+    }
+    if (key === 'gold') {
+      return {
+        label: 'Gold',
+        border: 'rgba(240,208,112,.75)',
+        bg: 'linear-gradient(135deg, rgba(66,52,18,.4), rgba(32,26,10,.55))',
+        glow: '0 0 12px rgba(240,208,112,.28), inset 0 0 8px rgba(240,208,112,.16)',
+        text: '#f0d070'
+      };
+    }
+    if (key === 'silver') {
+      return {
+        label: 'Silver',
+        border: 'rgba(192,202,214,.72)',
+        bg: 'linear-gradient(135deg, rgba(46,52,60,.38), rgba(24,28,34,.52))',
+        glow: '0 0 10px rgba(192,202,214,.24), inset 0 0 7px rgba(192,202,214,.14)',
+        text: '#c8d4df'
+      };
+    }
+    return {
+      label: 'Bronze',
+      border: 'rgba(198,136,95,.72)',
+      bg: 'linear-gradient(135deg, rgba(74,42,24,.38), rgba(34,22,14,.5))',
+      glow: '0 0 8px rgba(198,136,95,.22), inset 0 0 6px rgba(198,136,95,.12)',
+      text: '#cf9c75'
+    };
+  }
+
   function buildLegacyRaidWingLootOptions(mission, wingNum) {
     var bossName = String(mission && mission.legacyRaidBoss || 'Raid Boss');
     if (Number(wingNum || 1) === 1) {
       return [
         {
           id: 'wing1-cartography',
-          line: 'Cartographer Cache',
+          rarity: 'bronze',
+          line: bossName + ' Surveyor Cache',
           detail: '+1 Raid Clock tick and +1 tactical bonus for future room checks.',
           apply: function (m) {
             var run = ensureLegacyRaidRunState(m);
@@ -1455,7 +1494,8 @@
         },
         {
           id: 'wing1-intel',
-          line: 'Lore Decoder Slate',
+          rarity: 'silver',
+          line: bossName + ' Lore Decoder Slate',
           detail: '+1 raid point reward and explicit lore decoding bonus for Wing 3 telegraph reads.',
           apply: function (m) {
             m.legacyRaidPointReward = Number(m.legacyRaidPointReward || 1) + 1;
@@ -1468,7 +1508,8 @@
       return [
         {
           id: 'wing2-armory',
-          line: 'Armory Spoils Chest',
+          rarity: 'silver',
+          line: bossName + ' Armory Spoils Chest',
           detail: '+1 medal reward and +2 raid power bonus toward this boss kill.',
           apply: function (m) {
             m.legacyRaidMedalReward = Number(m.legacyRaidMedalReward || 1) + 1;
@@ -1478,7 +1519,8 @@
         },
         {
           id: 'wing2-wayfarer',
-          line: 'Wayfarer Contract Chest',
+          rarity: 'gold',
+          line: bossName + ' Wayfarer Contract Chest',
           detail: 'Restore one fallen Traveling Wayfarer and gain one free checkpoint revive token.',
           apply: function (m) {
             var wayfarers = getRaidWayfarersForWing(m, 2);
@@ -1501,7 +1543,8 @@
     return [
       {
         id: 'wing3-triumph',
-        line: 'Triumph Reliquary',
+        rarity: 'gold',
+        line: bossName + ' Triumph Reliquary',
         detail: '+1 medal and +1 raid point added to end-of-raid payout.',
         apply: function (m) {
           m.legacyRaidMedalReward = Number(m.legacyRaidMedalReward || 1) + 1;
@@ -1510,6 +1553,7 @@
       },
       {
         id: 'wing3-imprint',
+        rarity: 'mythic',
         line: bossName + ' Trophy Imprint',
         detail: '+3 raid power bonus and trophy imprint logged on completion.',
         apply: function (m) {
@@ -1536,8 +1580,12 @@
       '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
         + '<div style="margin-bottom:.35rem;color:var(--gold2);"><strong>Raid Chest Revealed</strong> — choose one reward line before advancing.</div>'
         + options.map(function (opt) {
-            return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;margin-bottom:.28rem;">'
-              + '<div style="font-size:.75rem;color:var(--text2);margin-bottom:.1rem;"><strong>' + opt.line + '</strong></div>'
+            var style = getLegacyRaidChestStyle(opt.rarity);
+            return '<div style="background:' + style.bg + ';border:1px solid ' + style.border + ';box-shadow:' + style.glow + ';padding:.45rem .5rem;margin-bottom:.28rem;border-radius:6px;">'
+              + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.08rem;">'
+              + '<div style="font-size:.75rem;color:var(--text2);"><strong>' + opt.line + '</strong></div>'
+              + '<div style="font-size:.62rem;color:' + style.text + ';text-transform:uppercase;letter-spacing:.08em;">' + style.label + '</div>'
+              + '</div>'
               + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;margin-bottom:.22rem;">' + opt.detail + '</div>'
               + '<button class="btn btn-xs btn-primary" onclick="claimLegacyRaidWingLoot(' + mission.id + ',' + w + ',\'' + String(opt.id) + '\',\'' + String(completionStage || 'advance') + '\')">Choose Reward Line</button>'
               + '</div>';
@@ -1566,8 +1614,11 @@
     if (!choice) return false;
     if (typeof choice.apply === 'function') choice.apply(mission);
     if (lootState) {
+      var chosenStyle = getLegacyRaidChestStyle(choice.rarity);
       lootState[w] = {
         id: String(choice.id || ''),
+        rarity: String(choice.rarity || ''),
+        rarityLabel: String(chosenStyle.label || ''),
         line: String(choice.line || 'Wing Reward'),
         detail: String(choice.detail || '')
       };
@@ -3662,7 +3713,7 @@
     var lootRows = [1, 2, 3].map(function (w) {
       var picked = wingLoot[w];
       return '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Wing ' + w + ': '
-        + (picked ? ('<span style="color:var(--gold2);">' + String(picked.line || 'Reward') + '</span>') : '<span style="color:var(--muted2);">No chest reward selected</span>')
+        + (picked ? ('<span style="color:var(--gold2);">' + String(picked.line || 'Reward') + '</span>' + (picked.rarityLabel ? (' <span style="font-size:.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;">[' + String(picked.rarityLabel || '') + ']</span>') : '')) : '<span style="color:var(--muted2);">No chest reward selected</span>')
         + '</div>';
     }).join('');
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'

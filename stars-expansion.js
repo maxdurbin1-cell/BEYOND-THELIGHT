@@ -9008,6 +9008,27 @@ function resolveGalaxyTaskOutcome(taskId, success) {
   updateStarSystemReadouts();
 }
 
+function openPlanetMissionMarker(taskId) {
+  ensureStarsState();
+  const task = getGalaxyTaskById(taskId);
+  if (!task || task.resolved) {
+    if (typeof showNotif === 'function') showNotif('Mission marker is no longer active.', 'warn');
+    return false;
+  }
+  const mission = (S && Array.isArray(S.activeMissions))
+    ? S.activeMissions.find((m) => m && String(m.id || '') === String(task.missionId || ''))
+    : null;
+  if (mission && mission.missionType === 'legacy_raid' && typeof window.handleLegacyRaidMarkerInteraction === 'function') {
+    window.handleLegacyRaidMarkerInteraction(mission.id, task.missionStep || 'site', 'galaxy');
+    return true;
+  }
+  if (typeof renderGalaxyTaskPanel === 'function') {
+    renderGalaxyTaskPanel(String(task.id));
+    return true;
+  }
+  return false;
+}
+
 // ── STAR SYSTEM MAP SCAFFOLD ────────────────────────────────────────────────
 
 const STAR_RING_TABLES = {
@@ -14251,7 +14272,8 @@ function renderPlanetExplorationPanel() {
 
           ${planetMissionMarkers.length ? `<div class="sea-site" style="margin-top:.35rem;">
             <div class="ss-title">Mission Markers</div>
-            <div class="planet-micro">${planetMissionMarkers.map((task) => `${task.title} (${task.missionStep || 'site'})`).join(' · ')}</div>
+            <div class="planet-micro" style="margin-bottom:.25rem;">Planet raid markers are now clickable from this panel.</div>
+            <div style="display:flex;gap:.25rem;flex-wrap:wrap;">${planetMissionMarkers.map((task) => `<button class="btn btn-xs btn-warn" onclick="openPlanetMissionMarker('${task.id}')">🐉 ${task.title} (${task.missionStep || 'site'})</button>`).join('')}</div>
           </div>` : ''}
 
           ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}${selectedTask.lastRollText ? `<br><span style="color:var(--muted2);">${selectedTask.lastRollText}</span>` : ''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="rollPlanetTaskCheck('${selectedTask.id}')">⚄ Roll to Succeed (AD vs Dread d6)</button></div></div>` : ''}
@@ -18877,6 +18899,7 @@ window.moveExocraftCargoToBackpack = moveExocraftCargoToBackpack;
 window.loadExocraftFromBackpack = loadExocraftFromBackpack;
 window.setActiveExocraft = setActiveExocraft;
 window.renderGalaxyTaskPanel = renderGalaxyTaskPanel;
+window.openPlanetMissionMarker = openPlanetMissionMarker;
 window.resolveGalaxyTaskOutcome = resolveGalaxyTaskOutcome;
 window.buyGalaxyMerchantOffer = buyGalaxyMerchantOffer;
 window.openPlanetMerchantMarket = openPlanetMerchantMarket;

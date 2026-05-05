@@ -643,6 +643,10 @@
     var region = chooseOriginRegion();
     var location = originLocationForRegion(region);
     var title = 'First Road: ' + reasonLine;
+    
+    // Build narrative lore that ties reason to journey structure
+    var loreLine = 'Your reason echoes from countless nights to this moment. Three steps lie ahead: question those who know, reach the marked location, and accept the stranger\'s proposal to enter the main arc.';
+    
     var opts = {
       missionType: 'origin_story',
       stepNames: {
@@ -651,6 +655,8 @@
         3: 'Meet the Stranger'
       },
       storyTheme: 'origin',
+      templateLabel: 'First Road · Your Origin',
+      lore: loreLine,
       checkpoints: [
         'Question locals tied to your reason',
         'Travel to the marked lead in ' + (region === 'wtw' ? 'World That Was' : (region === 'galaxy' ? 'the Galaxy' : 'the Province')),
@@ -668,6 +674,8 @@
 
     if (!mission) return null;
     mission.originReason = reasonLine;
+    mission.templateLabel = opts.templateLabel;
+    mission.lore = opts.lore;
     S.originMissionInitialized = true;
     focusOriginRegion(region);
     if (typeof showNotif === 'function') {
@@ -1086,6 +1094,7 @@
       contractPathway: opts.contractPathway || null,
       storyTheme: opts.storyTheme || '',
       templateId: opts.templateId || '',
+      templateLabel: opts.templateLabel || '',
       lore: opts.lore || '',
       arcChain: opts.arcChain || null,
       factionContract: opts.factionContract || null,

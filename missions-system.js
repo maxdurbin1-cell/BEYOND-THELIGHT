@@ -1430,6 +1430,194 @@
     return true;
   }
 
+  function ensureLegacyRaidWingLootState(mission) {
+    if (!mission || mission.missionType !== 'legacy_raid') return null;
+    if (!mission.legacyRaidWingLoot || typeof mission.legacyRaidWingLoot !== 'object') {
+      mission.legacyRaidWingLoot = { 1: null, 2: null, 3: null };
+    }
+    return mission.legacyRaidWingLoot;
+  }
+
+  function buildLegacyRaidWingLootOptions(mission, wingNum) {
+    var bossName = String(mission && mission.legacyRaidBoss || 'Raid Boss');
+    if (Number(wingNum || 1) === 1) {
+      return [
+        {
+          id: 'wing1-cartography',
+          line: 'Cartographer Cache',
+          detail: '+1 Raid Clock tick and +1 tactical bonus for future room checks.',
+          apply: function (m) {
+            var run = ensureLegacyRaidRunState(m);
+            ensureLegacyRaidClock(m);
+            if (run) run.clockRemaining = Number(run.clockRemaining || 0) + 1;
+            m.bonus = Math.min(20, Number(m.bonus || 0) + 1);
+          }
+        },
+        {
+          id: 'wing1-intel',
+          line: 'Lore Decoder Slate',
+          detail: '+1 raid point reward and explicit lore decoding bonus for Wing 3 telegraph reads.',
+          apply: function (m) {
+            m.legacyRaidPointReward = Number(m.legacyRaidPointReward || 1) + 1;
+            m.bonus = Math.min(20, Number(m.bonus || 0) + 1);
+          }
+        }
+      ];
+    }
+    if (Number(wingNum || 1) === 2) {
+      return [
+        {
+          id: 'wing2-armory',
+          line: 'Armory Spoils Chest',
+          detail: '+1 medal reward and +2 raid power bonus toward this boss kill.',
+          apply: function (m) {
+            m.legacyRaidMedalReward = Number(m.legacyRaidMedalReward || 1) + 1;
+            m.legacyRaidPowerBonus = Number(m.legacyRaidPowerBonus || 0) + 2;
+            m.bonus = Math.min(20, Number(m.bonus || 0) + 2);
+          }
+        },
+        {
+          id: 'wing2-wayfarer',
+          line: 'Wayfarer Contract Chest',
+          detail: 'Restore one fallen Traveling Wayfarer and gain one free checkpoint revive token.',
+          apply: function (m) {
+            var wayfarers = getRaidWayfarersForWing(m, 2);
+            var restored = false;
+            for (var i = 0; i < wayfarers.length; i++) {
+              if (wayfarers[i].status === 'failed') {
+                wayfarers[i].status = 'ready';
+                wayfarers[i].wing = null;
+                restored = true;
+                break;
+              }
+            }
+            var run = ensureLegacyRaidRunState(m);
+            if (run) run.freeReviveTokens = Number(run.freeReviveTokens || 0) + 1;
+            if (!restored && run) run.clockRemaining = Number(run.clockRemaining || 0) + 1;
+          }
+        }
+      ];
+    }
+    return [
+      {
+        id: 'wing3-triumph',
+        line: 'Triumph Reliquary',
+        detail: '+1 medal and +1 raid point added to end-of-raid payout.',
+        apply: function (m) {
+          m.legacyRaidMedalReward = Number(m.legacyRaidMedalReward || 1) + 1;
+          m.legacyRaidPointReward = Number(m.legacyRaidPointReward || 1) + 1;
+        }
+      },
+      {
+        id: 'wing3-imprint',
+        line: bossName + ' Trophy Imprint',
+        detail: '+3 raid power bonus and trophy imprint logged on completion.',
+        apply: function (m) {
+          m.legacyRaidPowerBonus = Number(m.legacyRaidPowerBonus || 0) + 3;
+          m.bonus = Math.min(20, Number(m.bonus || 0) + 3);
+          m.legacyRaidTrophyImprint = bossName;
+        }
+      }
+    ];
+  }
+
+  function openLegacyRaidWingLootChoice(missionId, wingNum, completionStage) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var lootState = ensureLegacyRaidWingLootState(mission);
+    var w = Math.max(1, Math.min(3, Number(wingNum || 1)));
+    if (lootState && lootState[w]) {
+      return completeLegacyRaidWingAfterLoot(mission.id, w, completionStage || 'advance');
+    }
+    var options = buildLegacyRaidWingLootOptions(mission, w);
+    if (!options.length) return completeLegacyRaidWingAfterLoot(mission.id, w, completionStage || 'advance');
+    openModal(
+      'Wing ' + w + ' Chest Reveal',
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="margin-bottom:.35rem;color:var(--gold2);"><strong>Raid Chest Revealed</strong> — choose one reward line before advancing.</div>'
+        + options.map(function (opt) {
+            return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;margin-bottom:.28rem;">'
+              + '<div style="font-size:.75rem;color:var(--text2);margin-bottom:.1rem;"><strong>' + opt.line + '</strong></div>'
+              + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;margin-bottom:.22rem;">' + opt.detail + '</div>'
+              + '<button class="btn btn-xs btn-primary" onclick="claimLegacyRaidWingLoot(' + mission.id + ',' + w + ',\'' + String(opt.id) + '\',\'' + String(completionStage || 'advance') + '\')">Choose Reward Line</button>'
+              + '</div>';
+          }).join('')
+      + '</div>'
+    );
+    return true;
+  }
+
+  window.claimLegacyRaidWingLoot = function (missionId, wingNum, optionId, completionStage) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var w = Math.max(1, Math.min(3, Number(wingNum || 1)));
+    var lootState = ensureLegacyRaidWingLootState(mission);
+    if (lootState && lootState[w]) {
+      return completeLegacyRaidWingAfterLoot(mission.id, w, completionStage || 'advance');
+    }
+    var options = buildLegacyRaidWingLootOptions(mission, w);
+    var choice = null;
+    for (var i = 0; i < options.length; i++) {
+      if (String(options[i].id) === String(optionId || '')) {
+        choice = options[i];
+        break;
+      }
+    }
+    if (!choice) return false;
+    if (typeof choice.apply === 'function') choice.apply(mission);
+    if (lootState) {
+      lootState[w] = {
+        id: String(choice.id || ''),
+        line: String(choice.line || 'Wing Reward'),
+        detail: String(choice.detail || '')
+      };
+    }
+    if (typeof showNotif === 'function') showNotif('Wing ' + w + ' reward claimed: ' + String(choice.line || 'Reward'), 'good');
+    return completeLegacyRaidWingAfterLoot(mission.id, w, completionStage || 'advance');
+  };
+
+  function completeLegacyRaidWingAfterLoot(missionId, wingNum, completionStage) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var run = ensureLegacyRaidRunState(mission);
+    var w = Math.max(1, Math.min(3, Number(wingNum || 1)));
+    var stage = String(completionStage || 'advance');
+    if (w === 1) {
+      mission.steps[1] = mission.steps[1] || {};
+      mission.steps[1].completed = true;
+      if (run) markLegacyRaidWingOutcome(mission, 1, true);
+      if (typeof removeInformerToken === 'function') removeInformerToken(mission);
+      if (typeof showNotif === 'function') showNotif('Wing 1 clear confirmed. Wing 2 unlocked.', 'good');
+    } else if (w === 2) {
+      mission.steps[2] = mission.steps[2] || {};
+      mission.steps[2].completed = true;
+      if (run) markLegacyRaidWingOutcome(mission, 2, true);
+      if (typeof removeSiteToken === 'function') removeSiteToken(mission);
+      if (typeof showNotif === 'function') showNotif('Wing 2 clear confirmed. Boss chamber unlocked.', 'good');
+    } else {
+      mission.steps[3] = mission.steps[3] || {};
+      mission.steps[3].completed = true;
+      if (run) markLegacyRaidWingOutcome(mission, 3, true);
+    }
+
+    if (typeof refreshMissionSurfaces === 'function') refreshMissionSurfaces();
+    if (typeof closeModal === 'function') closeModal();
+
+    if (w === 2) {
+      if (typeof openRaidWingPopup === 'function') {
+        setTimeout(function () {
+          try { openRaidWingPopup(mission.id, 3); } catch (_err) {}
+        }, 0);
+      }
+      return true;
+    }
+    if (w === 3 && stage === 'raid-clear') {
+      if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(mission.id, true);
+      return true;
+    }
+    return true;
+  }
+
   function getLegacyRaidRoomRoleKey(wingNum, roomIdx) {
     return String(wingNum) + ':' + String(roomIdx);
   }
@@ -2439,9 +2627,8 @@
       // mark wing 3 complete, then fire overall clear
       if (typeof mission.steps !== 'undefined') mission.steps[3] = mission.steps[3] || {};
       if (run) markLegacyRaidWingOutcome(mission, 3, true);
-      if (typeof closeModal === 'function') closeModal();
-      // Wire into existing outcome system
-      if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(missionId, true);
+      openLegacyRaidWingLootChoice(mission.id, 3, 'raid-clear');
+      return true;
     } else {
       if (run) {
         run.pendingWing = 3;
@@ -2538,6 +2725,7 @@
     if (!allClear) return;
     var run = ensureLegacyRaidRunState(mission);
     if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
+    if (openLegacyRaidWingLootChoice(mission.id, wingNum, 'advance')) return;
     // Mark step complete and advance
     if (wingNum === 1) {
       mission.steps[1] = mission.steps[1] || {};
@@ -3470,6 +3658,13 @@
     if (wingFailTotal === 0) bonusMedals += 1;
     var firstTryBadge = buildLegacyRaidFirstTryBadge(run, true);
     var timelineCard = buildLegacyRaidTimelineCard(run);
+    var wingLoot = ensureLegacyRaidWingLootState(mission) || {};
+    var lootRows = [1, 2, 3].map(function (w) {
+      var picked = wingLoot[w];
+      return '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Wing ' + w + ': '
+        + (picked ? ('<span style="color:var(--gold2);">' + String(picked.line || 'Reward') + '</span>') : '<span style="color:var(--muted2);">No chest reward selected</span>')
+        + '</div>';
+    }).join('');
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.25rem;">'
       + '<div style="font-size:.9rem;color:var(--gold2);"><strong>Raid Summary</strong></div>'
@@ -3477,6 +3672,10 @@
       + '</div>'
       + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.3rem;">Mechanics solved cleanly: ' + mechanicsClean + '/3 · Wipes: ' + Number(run.wipes || 0) + ' · Revives: ' + Number(run.revivesUsed || 0) + '</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.16rem;">Wing results: W1 ' + (run.wingClean[1] ? 'clean' : ('strained (' + Number(run.wingFailures[1] || 0) + ' failures)')) + ' · W2 ' + (run.wingClean[2] ? 'clean' : ('strained (' + Number(run.wingFailures[2] || 0) + ' failures)')) + ' · W3 ' + (run.wingClean[3] ? 'clean' : ('strained (' + Number(run.wingFailures[3] || 0) + ' failures)')) + '</div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.35rem .45rem;margin-bottom:.24rem;">'
+      + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.12rem;">Wing Chest Picks</div>'
+      + lootRows
+      + '</div>'
       + '<div style="margin-bottom:.3rem;">' + timelineCard + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.38rem;">Bonus medals for clean execution: +' + bonusMedals + '</div>'
       + '<div style="display:flex;justify-content:flex-end;gap:.3rem;flex-wrap:wrap;">'

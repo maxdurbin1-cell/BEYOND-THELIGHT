@@ -1532,11 +1532,18 @@
 
   function buildLegacyRaidBossZoneMap(mission) {
     var zones = ['Engaged', 'Close', 'Nearby', 'Far'];
+    var zoneInfo = {
+      Engaged: { color: 'rgba(201,64,64,.07)',   border: 'rgba(201,64,64,.35)',   range: 'Melee / Strike' },
+      Close:   { color: 'rgba(201,162,39,.06)',  border: 'rgba(201,162,39,.3)',   range: 'Spells / Items' },
+      Nearby:  { color: 'rgba(46,196,182,.06)',  border: 'rgba(46,196,182,.3)',   range: 'Ranged / Shoot' },
+      Far:     { color: 'rgba(122,120,152,.06)', border: 'rgba(122,120,152,.25)', range: 'Out of Range' }
+    };
     var units = [];
     if (typeof S !== 'undefined' && S && S.combatMap && Array.isArray(S.combatMap.units) && S.combatMap.units.length) {
       units = S.combatMap.units.slice();
     } else {
-      units = [{ name: String(typeof S !== 'undefined' && S && S.name || 'Wayfarer'), side: 'ally', zone: 'Engaged' }];
+      var playerName = String(typeof S !== 'undefined' && S && S.name || 'Wayfarer');
+      units = [{ name: playerName, side: 'ally', zone: 'Engaged', isPlayer: true }];
       if (!isLegacyRaidCampaignMode()) {
         getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; }).forEach(function (wf, idx) {
           units.push({ name: String(wf.name || ('Ally ' + (idx + 1))), side: 'ally', zone: idx === 0 ? 'Close' : 'Nearby' });
@@ -1544,17 +1551,45 @@
       }
       units.push({ name: String(mission && mission.legacyRaidBoss || 'Boss'), side: 'enemy', zone: 'Engaged' });
     }
-    return '<div style="display:grid;grid-template-columns:repeat(4,minmax(84px,1fr));gap:.18rem;">'
+    var playerUnit = units.filter(function (u) { return u.isPlayer || (u.side === 'ally' && u.name === (typeof S !== 'undefined' && S && S.name || '')); })[0];
+    var playerZoneIdx = playerUnit ? zones.indexOf(playerUnit.zone) : -1;
+    var ZONE_DIST_NAMES = ['Adjacent Hex', 'Two Hexes away', 'Three Hexes away', 'Four Hexes away'];
+    return '<div style="margin:.15rem 0;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;">⚔ Zone Map — Boss in Red · Allies in Blue</div>'
       + zones.map(function (zone) {
+          var info = zoneInfo[zone];
           var zoneUnits = units.filter(function (unit) { return unit && String(unit.zone || 'Engaged') === zone; });
-          return '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.18rem .2rem;min-height:72px;">'
-            + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.12rem;">' + zone + '</div>'
-            + (zoneUnits.length
-              ? zoneUnits.map(function (unit) {
-                  var tone = unit.side === 'enemy' ? 'var(--red2)' : 'var(--teal)';
-                  return '<div style="font-size:.63rem;color:' + tone + ';padding:.08rem .14rem;border:1px solid var(--border2);margin-bottom:.08rem;background:rgba(0,0,0,.12);">' + String(unit.name || unit.side || 'Unit') + '</div>';
-                }).join('')
-              : '<div style="font-size:.63rem;color:var(--muted2);">Empty</div>')
+          var allies  = zoneUnits.filter(function (u) { return u.side === 'ally'; });
+          var enemies = zoneUnits.filter(function (u) { return u.side === 'enemy'; });
+          var zoneIdx = zones.indexOf(zone);
+          var distBadge = '';
+          if (playerZoneIdx >= 0 && playerUnit) {
+            var dist = Math.abs(zoneIdx - playerZoneIdx);
+            distBadge = dist === 0
+              ? '<span style="font-size:.58rem;color:var(--gold2);margin-left:.3rem;">📍 You</span>'
+              : '<span style="font-size:.58rem;color:var(--muted);margin-left:.3rem;">' + (ZONE_DIST_NAMES[dist - 1] || '') + '</span>';
+          }
+          var allyTags = allies.map(function (u) {
+            var isPlayer = u.isPlayer || u.name === (typeof S !== 'undefined' && S && S.name || '');
+            return '<div style="background:rgba(46,196,182,.13);border:1px solid var(--teal);padding:.12rem .28rem;font-size:.68rem;color:var(--teal);display:inline-flex;align-items:center;gap:.18rem;margin:.08rem;">'
+              + '🟦 ' + String(u.name || 'Ally')
+              + (isPlayer ? '<span style="font-size:.6rem;color:var(--gold2);">(You)</span>' : '')
+              + '</div>';
+          }).join('');
+          var enemyTags = enemies.map(function (u) {
+            return '<div style="background:rgba(201,64,64,.13);border:1px solid var(--red);padding:.12rem .28rem;font-size:.68rem;color:var(--red2);display:inline-flex;align-items:center;gap:.18rem;margin:.08rem;">'
+              + '🔴 ' + String(u.name || 'Enemy')
+              + '</div>';
+          }).join('');
+          return '<div style="border:2px solid ' + info.border + ';background:' + info.color + ';padding:.35rem .45rem;margin-bottom:.22rem;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.18rem;">'
+            + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:' + info.border + ';">' + zone + distBadge + '</div>'
+            + '<div style="font-size:.6rem;color:var(--muted2);">' + info.range + '</div>'
+            + '</div>'
+            + '<div style="display:flex;flex-wrap:wrap;min-height:1.3rem;">'
+            + allyTags + enemyTags
+            + (!zoneUnits.length ? '<div style="font-size:.64rem;color:var(--muted);font-style:italic;">empty</div>' : '')
+            + '</div>'
             + '</div>';
         }).join('')
       + '</div>';
@@ -3197,6 +3232,22 @@
         conditions: []
       }
     ];
+    // Seed the shared combatMap so Combat Tab and Raid boss panel show the same zone layout.
+    // Boss starts Engaged; player and traveling allies start Close/Nearby so spacing matters.
+    if (!S.combatMap || typeof S.combatMap !== 'object') S.combatMap = { units: [] };
+    if (!Array.isArray(S.combatMap.units)) S.combatMap.units = [];
+    // Clear any previous raid units keyed by raidSeed flag
+    S.combatMap.units = S.combatMap.units.filter(function (u) { return !u.raidSeed; });
+    var playerName = String(S.name || 'Wayfarer');
+    var unitId = Date.now();
+    S.combatMap.units.push({ id: unitId++, name: playerName, side: 'ally', zone: 'Engaged', isPlayer: true, raidSeed: true });
+    var allies = getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; });
+    var allyZones = ['Close', 'Close', 'Nearby'];
+    allies.slice(0, 3).forEach(function (wf, i) {
+      S.combatMap.units.push({ id: unitId++, name: String(wf.name || ('Ally ' + (i + 1))), side: 'ally', zone: allyZones[i] || 'Nearby', raidSeed: true });
+    });
+    S.combatMap.units.push({ id: unitId++, name: bossName, side: 'enemy', zone: 'Engaged', raidSeed: true });
+    if (typeof renderCombatMap === 'function') renderCombatMap();
     mission.legacyRaidCombatSeeded = true;
     if (typeof startCombat === 'function') startCombat();
     if (typeof renderEnemies === 'function') renderEnemies();
@@ -3613,6 +3664,10 @@
         html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.28);padding:.4rem .45rem;margin-bottom:.25rem;">'
           + '<div style="font-size:.72rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.12rem;">⚔ Confrontation Engaged — ' + bossName + '</div>'
           + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.5;margin-bottom:.15rem;">Raid combat now mirrors the combat tab more directly: player panel, allies panel, boss panel, zone map, then resolution choices.</div>'
+          + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;align-items:center;margin-bottom:.2rem;">'
+          + '<button class="btn btn-xs btn-warn" onclick="if(typeof switchTab===\'function\'){var b=document.querySelector(\'.tab-btn[onclick*=\\\"combat\\\"]\');switchTab(\'combat\',b||null);}">⚔ Open Combat Tab</button>'
+          + '<span style="font-size:.64rem;color:var(--muted2);">Boss + allies are seeded in the Combat Tab zone map automatically on entry.</span>'
+          + '</div>'
           + '<div style="display:grid;grid-template-columns:minmax(220px,1.2fr) minmax(200px,1fr) minmax(220px,1fr);gap:.24rem;margin-bottom:.18rem;">'
           + buildLegacyRaidBossPlayerPanel(mission, encounter)
           + buildLegacyRaidBossAlliesPanel(mission)

@@ -1500,6 +1500,8 @@
 
   function getLegacyRaidUnlockedFlavorBranches() {
     var out = [];
+    var playerFlavor = typeof S !== 'undefined' && S && String(S.flavor || '').toLowerCase();
+    if (playerFlavor) out.push(String(S.flavor || 'Wayfarer'));
     if (getLegacyRaidTalentRank('flavor_glacial_tell') > 0) out.push('Glacial Tell');
     if (getLegacyRaidTalentRank('flavor_null_veil') > 0) out.push('Null Veil');
     return out;
@@ -5059,11 +5061,14 @@
           : '<option value="Ally">Ally</option>';
         var turnStage = String(encounter.turnStage || 'player');
         var turnStageLabel = turnStage === 'player' ? 'Player Turn' : (turnStage === 'ally' ? 'Ally Turn' : 'Boss Turn');
+        var maxPlayActions = typeof getMaxActions === 'function' ? getMaxActions() : 3;
+        var currentPlayActions = Number(currentTurnNode && currentTurnNode.playerActionsLeft || maxPlayActions);
         var playerActionSelectHtml = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">'
           + '<select class="input" id="raidPlayerAct-' + mission.id + '" style="max-width:220px;">'
           + playerActions.map(function (label) { return '<option value="' + String(label).replace(/"/g, '&quot;') + '">' + label + '</option>'; }).join('')
           + '</select>'
-          + '<button class="btn btn-xs btn-primary" ' + (turnStage === 'player' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidBossPlayerAction(' + mission.id + ',document.getElementById(\'raidPlayerAct-' + mission.id + '\').value)">Execute</button>'
+          + '<span style="font-size:.64rem;color:var(--gold2);">Actions: ' + currentPlayActions + '/' + maxPlayActions + '</span>'
+          + '<button class="btn btn-xs btn-primary" ' + (turnStage === 'player' && currentPlayActions > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidBossPlayerAction(' + mission.id + ',document.getElementById(\'raidPlayerAct-' + mission.id + '\').value)">Execute</button>'
           + '</div>';
         var playerRange = 'Engaged';
         if (typeof S !== 'undefined' && S && S.combatMap && Array.isArray(S.combatMap.units)) {
@@ -5134,8 +5139,8 @@
           + '<div style="border:1px solid var(--border2);background:rgba(20,90,120,.12);padding:.32rem .36rem;">'
           + '<div style="font-size:.72rem;color:var(--teal);margin-bottom:.12rem;"><strong>' + playerName + '</strong> · Player Panel</div>'
           + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.1rem;">Current Range: <strong style="color:var(--gold2);">' + playerRange + '</strong></div>'
-          + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.12rem;">Wayfarer Actions (from Combat tab armor profile)</div>'
-          + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.4;margin-bottom:.1rem;">Personal Flavor Branches: ' + (flavorBranches.length ? flavorBranches.join(' · ') : 'None unlocked') + '</div>'
+          + '<div style="font-size:.66rem;color:var(--gold2);line-height:1.45;margin-bottom:.12rem;">Actions Available: ' + currentPlayActions + '/' + maxPlayActions + '</div>'
+          + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.4;margin-bottom:.1rem;">Personal Flavor: ' + (flavorBranches.length ? flavorBranches.join(' · ') : 'None') + '</div>'
           + '<div style="margin-bottom:.12rem;">' + rangeButtons + '</div>'
           + '<div style="font-size:.64rem;color:var(--muted2);margin-bottom:.08rem;">Range guidance: Engaged uses Strike. Close supports some weapons, hacks, spells, and items. Nearby/Far support ranged options.</div>'
           + playerActionSelectHtml

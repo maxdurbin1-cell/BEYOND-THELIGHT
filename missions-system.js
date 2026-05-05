@@ -4289,7 +4289,7 @@
       exitId: exit.x + ',' + exit.y,
       currentId: start.x + ',' + start.y,
       selectedId: start.x + ',' + start.y,
-      ticks: 14,
+      ticks: 20,
       cells: cells,
       pathIds: Object.keys(pathSet),
       objectives: {
@@ -4501,16 +4501,19 @@
     if (cell.lorePiece) objectiveLine = 'Contains Lore Fragment.';
     if (cell.waypoint) objectiveLine = 'Contains Door Waypoint.';
     var hexDesc = String(cell.roomDescription || buildLegacyRaidHexDescription(mission, wingNum, cell.eventType, null) || '');
-    var encounterLabel = String(cell.encounterLabel || typeLabel);
+    var showEncounter = cell.isStart || cell.isExit || cell.cleared;
+    var displayTypeLabel = showEncounter ? typeLabel : '? Unknown';
+    var encounterLabel = showEncounter ? String(cell.encounterLabel || typeLabel) : '';
+    var hexTitlePart = displayTypeLabel + (encounterLabel ? ' · ' + encounterLabel : '');
     var moveAllowed = String(state.currentId || '') === cell.id || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
     var isCurrent = String(state.currentId || '') === cell.id;
     var noTicks = Number(state.ticks || 0) <= 0;
     var moveLabel = isCurrent ? 'Already Here' : 'Press Deeper (-1 Tick)';
     var exploreLabel = 'Search Room (-1 Tick)';
     return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.03);">'
-      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + typeLabel + ' · ' + encounterLabel + '</div>'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + hexTitlePart + '</div>'
       + (hexDesc ? '<div style="font-size:.65rem;color:var(--muted3);line-height:1.42;margin-bottom:.12rem;font-style:italic;">' + hexDesc + '</div>' : '')
-      + '<div style="font-size:.67rem;line-height:1.5;background:rgba(0,0,0,.22);border-radius:.2rem;padding:.18rem .25rem;margin-bottom:.12rem;color:var(--muted2);">' + getLegacyRaidHexMechanicSummary(wingNum, cell) + '</div>'
+      + '<div style="font-size:.67rem;line-height:1.5;background:rgba(0,0,0,.22);border-radius:.2rem;padding:.18rem .25rem;margin-bottom:.12rem;color:var(--muted2);">' + (showEncounter ? getLegacyRaidHexMechanicSummary(wingNum, cell) : 'Unknown encounter. Search to discover.') + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">' + (objectiveLine || '') + '</div>'
       + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">Ticks: ' + Number(state.ticks || 0) + ' · Current: ' + String(state.currentId || '') + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
@@ -4619,13 +4622,15 @@
       if (eventType === 'puzzle') {
         if (typeof window.openSharedPuzzleChallenge === 'function') {
           var puzzleSource = getLegacyRaidHexPuzzleSource(mission, wingNum, cell);
+          var puzzleTitle = (cell.lorePiece ? 'Lore ' : '') + 'Vault Challenge';
           return window.openSharedPuzzleChallenge({
             source: puzzleSource,
-            title: String(mission.legacyRaidBoss || 'Raid Boss') + ' Chamber Puzzle',
+            title: puzzleTitle,
             prompt: buildLegacyRaidHexDescription(mission, wingNum, 'puzzle', bossTheme),
-            reward: { credits: 50, renown: 1, item: 'Lore Cipher Fragment' },
+            reward: { credits: 50, renown: 1, item: cell.lorePiece ? 'Lore Fragment' : 'Waypoint Key' },
             onSuccess: function () {
               cell.cleared = true;
+              state.ticks = Math.min(20, Number(state.ticks || 0) + 2);
               if (cell.lorePiece) {
                 state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
                 if (Number(state.objectives.loreCollected || 0) >= Number(state.objectives.loreRequired || 3) && Number(wingNum || 1) === 1 && typeof showNotif === 'function') {
@@ -4635,7 +4640,7 @@
               if (cell.waypoint) {
                 state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
               }
-              state.lastLog = 'Hex ' + cell.id + ' puzzle solved and chamber deciphered.';
+              state.lastLog = 'Hex ' + cell.id + ' puzzle solved. +2 ticks earned.';
               if (checkLegacyRaidWingGridCompletion(mission, wingNum, state)) {
                 var runSolved = ensureLegacyRaidRunState(mission);
                 if (runSolved) markLegacyRaidWingOutcome(mission, wingNum, true);
@@ -4722,7 +4727,8 @@
         state.lastLog = 'Hex ' + cell.id + ' failed (' + eventType + '). Extra tick lost.';
       } else {
         cell.cleared = true;
-        state.lastLog = 'Hex ' + cell.id + ' cleared (' + eventType + ').';
+        state.ticks = Math.min(20, Number(state.ticks || 0) + 2);
+        state.lastLog = 'Hex ' + cell.id + ' cleared (' + eventType + '). +2 ticks earned.';
         if (cell.lorePiece) state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
         if (cell.waypoint) state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
         if (eventType === 'loot' && vault && !cell.lootSeeded) {

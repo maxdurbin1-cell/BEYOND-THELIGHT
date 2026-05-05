@@ -12526,7 +12526,16 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
 
     const missionGlyphOverlay = (function () {
       if (!raidMarker) return '';
-      const step = String(raidMarker.missionStep || '').toLowerCase();
+      const raidMission = (S && Array.isArray(S.activeMissions))
+        ? S.activeMissions.find((m) => m && String(m.id || '') === String(raidMarker.missionId || ''))
+        : null;
+      var derivedStep = String(raidMarker.missionStep || '').toLowerCase();
+      if (raidMission && raidMission.missionType === 'legacy_raid' && raidMission.steps) {
+        if (!raidMission.steps[1] || !raidMission.steps[1].completed) derivedStep = 'informer';
+        else if (!raidMission.steps[2] || !raidMission.steps[2].completed) derivedStep = 'site';
+        else derivedStep = 'confront';
+      }
+      const step = derivedStep;
       const urgency = step === 'confront' ? 'hot' : (step === 'site' ? 'warm' : 'cool');
       const pulse = urgency === 'hot'
         ? { color: '#ff4a40', ring: 'rgba(255,74,64,.3)', base: 'rgba(255,74,64,.22)', r1: 6.8, r2: 12.8, dur: '0.9s' }

@@ -1402,6 +1402,88 @@
     return mission.legacyRaidRun;
   }
 
+  function ensureLegacyRaidLeadInState(mission) {
+    if (!mission || mission.missionType !== 'legacy_raid') return null;
+    if (!mission.legacyRaidLeadIn || typeof mission.legacyRaidLeadIn !== 'object') {
+      mission.legacyRaidLeadIn = {
+        1: { completed: false, result: '', attempts: 0 },
+        2: { completed: false, result: '', attempts: 0 }
+      };
+    }
+    return mission.legacyRaidLeadIn;
+  }
+
+  function getLegacyRaidLeadInObjective(mission, wingNum) {
+    var boss = String(mission && mission.legacyRaidBoss || 'the boss');
+    if (Number(wingNum || 1) === 1) {
+      return {
+        title: 'Lead-In Mission: Lore Breach',
+        text: 'Scout allies and recover the first fragment explaining why ' + boss + ' matters to this region before committing the raid team to Wing 1.',
+        success: 'Lore route secured. Wing 1 tactical readiness +1.',
+        failure: 'Intel partial. Wing 1 starts strained (+1 wing failure marker).'
+      };
+    }
+    return {
+      title: 'Lead-In Mission: Gate Setup',
+      text: 'Establish room assignments and decode preliminary mechanism traces before entering Wing 2.',
+      success: 'Mechanism route stabilized. Wing 2 starts with +1 room bonus.',
+      failure: 'Setup incomplete. Wing 2 room pressure increases.'
+    };
+  }
+
+  function openLegacyRaidLeadInMissionModal(missionId, wingNum) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var lead = ensureLegacyRaidLeadInState(mission);
+    if (!lead) return false;
+    var wing = Math.max(1, Math.min(2, Number(wingNum || 1)));
+    if (lead[wing] && lead[wing].completed) {
+      return openRaidWingPopup(mission.id, wing);
+    }
+    var objective = getLegacyRaidLeadInObjective(mission, wing);
+    openModal(
+      objective.title,
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="margin-bottom:.35rem;">' + objective.text + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.28rem;">Resolve this lead-in mission, then launch Wing ' + wing + '.</div>'
+        + '<div style="display:flex;gap:.3rem;justify-content:flex-end;flex-wrap:wrap;">'
+        + '<button class="btn btn-sm btn-red" onclick="resolveLegacyRaidLeadIn(' + mission.id + ',' + wing + ',false)">Lead-In Failed</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="resolveLegacyRaidLeadIn(' + mission.id + ',' + wing + ',true)">Lead-In Success</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+  window.openLegacyRaidLeadInMissionModal = openLegacyRaidLeadInMissionModal;
+
+  window.resolveLegacyRaidLeadIn = function (missionId, wingNum, success) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var lead = ensureLegacyRaidLeadInState(mission);
+    var wing = Math.max(1, Math.min(2, Number(wingNum || 1)));
+    var objective = getLegacyRaidLeadInObjective(mission, wing);
+    lead[wing] = lead[wing] || { completed: false, result: '', attempts: 0 };
+    lead[wing].attempts = Number(lead[wing].attempts || 0) + 1;
+    lead[wing].completed = true;
+    lead[wing].result = success ? objective.success : objective.failure;
+
+    if (success) {
+      if (wing === 1) {
+        mission.bonus = Math.min(20, Number(mission.bonus || 0) + 1);
+      } else {
+        if (!mission.legacyRaidRoomAssist || typeof mission.legacyRaidRoomAssist !== 'object') mission.legacyRaidRoomAssist = {};
+        mission.legacyRaidRoomAssist['2:0'] = Number(mission.legacyRaidRoomAssist['2:0'] || 0) + 1;
+      }
+      if (typeof showNotif === 'function') showNotif('Lead-in mission complete: Wing ' + wing + ' unlocked with tactical bonus.', 'good');
+    } else {
+      var run = ensureLegacyRaidRunState(mission);
+      if (run) markLegacyRaidWingOutcome(mission, wing, false);
+      if (typeof showNotif === 'function') showNotif('Lead-in mission failed. Wing ' + wing + ' can still proceed, but under pressure.', 'warn');
+    }
+    if (typeof closeModal === 'function') closeModal();
+    return openRaidWingPopup(mission.id, wing);
+  };
+
   function ensureLegacyRaidClock(mission) {
     var run = ensureLegacyRaidRunState(mission);
     if (!run) return 0;
@@ -1738,13 +1820,13 @@
 
     if ((type === 'informer' || type === 'holding_info') && mission.steps[1] && !mission.steps[1].completed) {
       setLegacyRaidCurrentWing(mission, 1);
-      if (typeof window.openRaidWingPopup === 'function') return !!window.openRaidWingPopup(mission.id, 1);
+      if (typeof window.openLegacyRaidLeadInMissionModal === 'function') return !!window.openLegacyRaidLeadInMissionModal(mission.id, 1);
       startMissionStep1(mission.id);
       return true;
     }
     if ((type === 'site' || type === 'holding_site') && mission.steps[2] && !mission.steps[2].completed) {
       setLegacyRaidCurrentWing(mission, 2);
-      if (typeof window.openRaidWingPopup === 'function') return !!window.openRaidWingPopup(mission.id, 2);
+      if (typeof window.openLegacyRaidLeadInMissionModal === 'function') return !!window.openLegacyRaidLeadInMissionModal(mission.id, 2);
       startMissionStep2(mission.id);
       return true;
     }
@@ -2383,7 +2465,7 @@
 
       // Standard rooms: action button
       } else {
-        var btnLabel = room.type === 'Entry' ? '→ Enter Wing' : room.type === 'Hazard' ? '⛰ Force Passage (DD' + room.dd + ')' : room.type === 'LoreReading' ? '📜 Read Lore Fragment (DD' + room.dd + ')' : room.type === 'Puzzle' ? '🧩 Solve Mechanism (DD' + room.dd + ')' : room.type === 'Approach' ? '🌀 Advance to Chamber (DD' + room.dd + ')' : room.type === 'TrophyCache' ? '💠 Claim Cache (DD' + room.dd + ')' : '⚄ Explore (DD' + room.dd + ')';
+        var btnLabel = room.type === 'Entry' ? '→ Enter Wing' : room.type === 'Hazard' ? '⛰ Force Passage (DD' + room.dd + ')' : room.type === 'LoreReading' ? '📜 Read Lore Fragment (DD' + room.dd + ')' : room.type === 'Puzzle' ? '🧩 Open Lock-Dial Puzzle' : room.type === 'Approach' ? '🌀 Advance to Chamber (DD' + room.dd + ')' : room.type === 'TrophyCache' ? '💠 Claim Cache (DD' + room.dd + ')' : '⚄ Explore (DD' + room.dd + ')';
         html += '<div style="margin-top:.22rem;">'
           + '<button class="btn btn-xs btn-teal" onclick="window.resolveRaidRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">' + btnLabel + '</button>'
           + '</div>';
@@ -2495,6 +2577,12 @@
       _raidRevealNextRoom(rooms, roomIdx);
       _checkRaidWingComplete(mission, wingNum, rooms);
       openRaidWingPopup(missionId, wingNum);
+      return;
+    }
+
+    if (room.type === 'Puzzle') {
+      if (consumeLegacyRaidClock(mission, wingNum, room.label)) return;
+      openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
       return;
     }
 
@@ -2803,6 +2891,124 @@
       }
     }
     openRaidWingPopup(missionId, wingNum, roomIdx);
+  };
+
+  function ensureLegacyRaidLockDialState(mission, wingNum, roomIdx) {
+    var map = ensureRaidHexMap(mission);
+    var rooms = map && map.wings ? map.wings[wingNum] : null;
+    var room = rooms && rooms[roomIdx];
+    if (!room) return null;
+    if (!room.lockDial || typeof room.lockDial !== 'object') {
+      room.lockDial = {
+        code: [roll(6), roll(6), roll(6)],
+        attemptsLeft: 3,
+        solved: false,
+        log: []
+      };
+    }
+    return room.lockDial;
+  }
+
+  function buildLegacyRaidPuzzleHints(mission, wingNum, roomIdx) {
+    var map = ensureRaidHexMap(mission);
+    var rooms = map && map.wings ? map.wings[wingNum] : [];
+    var room = rooms && rooms[roomIdx];
+    if (!room) return [];
+    var lock = ensureLegacyRaidLockDialState(mission, wingNum, roomIdx);
+    if (!lock) return [];
+    var hints = [];
+    var clearedBefore = rooms.slice(0, roomIdx).filter(function (r) { return r && r.cleared; }).length;
+    var assist = getLegacyRaidRoomAssistBonus(mission, wingNum, roomIdx);
+    var quality = clearedBefore + (assist > 0 ? 1 : 0) + (mission.legacyRaidLoreFragment ? 1 : 0);
+    if (quality >= 1) {
+      hints.push('Fragment A: The first dial is ' + (lock.code[0] <= 3 ? 'between 1 and 3.' : 'between 4 and 6.'));
+    }
+    if (quality >= 2) {
+      hints.push('Fragment B: The second dial is ' + (lock.code[1] % 2 === 0 ? 'even.' : 'odd.'));
+    }
+    if (quality >= 3) {
+      hints.push('Fragment C: Third dial exact value is ' + lock.code[2] + '.');
+    }
+    if (assist > 0) {
+      hints.push('Wayfarer assist: one tumbler alignment is guaranteed this attempt (+2 room bonus active).');
+    }
+    if (!hints.length) {
+      hints.push('No readable fragments yet. Clear earlier rooms or deploy a Wayfarer for better hints.');
+    }
+    return hints;
+  }
+
+  function openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var map = ensureRaidHexMap(mission);
+    var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
+    if (!room || room.type !== 'Puzzle') return false;
+    var lock = ensureLegacyRaidLockDialState(mission, wingNum, roomIdx);
+    if (!lock) return false;
+    if (lock.solved) return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
+    var hints = buildLegacyRaidPuzzleHints(mission, wingNum, roomIdx);
+    var guessControls = '<div style="display:flex;gap:.28rem;align-items:center;flex-wrap:wrap;margin-bottom:.26rem;">'
+      + '<select id="raidDialA" style="padding:.16rem .24rem;background:var(--surface);color:var(--text2);border:1px solid var(--border2);">'
+      + [1,2,3,4,5,6].map(function(n){return '<option value="'+n+'">'+n+'</option>';}).join('')
+      + '</select>'
+      + '<select id="raidDialB" style="padding:.16rem .24rem;background:var(--surface);color:var(--text2);border:1px solid var(--border2);">'
+      + [1,2,3,4,5,6].map(function(n){return '<option value="'+n+'">'+n+'</option>';}).join('')
+      + '</select>'
+      + '<select id="raidDialC" style="padding:.16rem .24rem;background:var(--surface);color:var(--text2);border:1px solid var(--border2);">'
+      + [1,2,3,4,5,6].map(function(n){return '<option value="'+n+'">'+n+'</option>';}).join('')
+      + '</select>'
+      + '<button class="btn btn-xs btn-primary" onclick="submitLegacyRaidLockDialGuess(' + mission.id + ',' + wingNum + ',' + roomIdx + ',document.getElementById(\'raidDialA\').value,document.getElementById(\'raidDialB\').value,document.getElementById(\'raidDialC\').value)">Attempt Unlock</button>'
+      + '</div>';
+    var logHtml = Array.isArray(lock.log) && lock.log.length
+      ? lock.log.slice(-3).map(function (line) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + line + '</div>'; }).join('')
+      : '<div style="font-size:.67rem;color:var(--muted2);">No attempts yet.</div>';
+    openModal(
+      'Lock-Dial Puzzle — ' + room.label,
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="margin-bottom:.24rem;">Three-dial lock. Use clue fragments found in previous rooms. You have <strong style="color:var(--gold2);">' + Number(lock.attemptsLeft || 0) + ' attempts</strong>.</div>'
+        + '<div style="margin-bottom:.24rem;padding:.24rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);">'
+        + hints.map(function (h) { return '<div style="font-size:.69rem;color:var(--muted2);line-height:1.45;">• ' + h + '</div>'; }).join('')
+        + '</div>'
+        + guessControls
+        + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;">Attempt Log</div>'
+        + '<div style="max-height:90px;overflow:auto;border:1px solid var(--border2);padding:.2rem .26rem;background:rgba(0,0,0,.16);margin-bottom:.22rem;">' + logHtml + '</div>'
+        + '<div style="display:flex;justify-content:flex-end;gap:.24rem;">'
+        + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
+  window.submitLegacyRaidLockDialGuess = function (missionId, wingNum, roomIdx, a, b, c) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var map = ensureRaidHexMap(mission);
+    var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
+    if (!room || room.type !== 'Puzzle') return false;
+    var lock = ensureLegacyRaidLockDialState(mission, wingNum, roomIdx);
+    if (!lock || lock.solved) return false;
+    var guess = [Number(a || 0), Number(b || 0), Number(c || 0)];
+    var matches = 0;
+    for (var i = 0; i < 3; i++) {
+      if (guess[i] === Number(lock.code[i] || 0)) matches += 1;
+    }
+    lock.attemptsLeft = Math.max(0, Number(lock.attemptsLeft || 0) - 1);
+    lock.log.push('Guess [' + guess.join('-') + '] → ' + matches + '/3 aligned. Attempts left: ' + lock.attemptsLeft + '.');
+    if (matches >= 3) {
+      lock.solved = true;
+      lock.log.push('Lock opened. Mechanism room stabilized.');
+      if (typeof closeModal === 'function') closeModal();
+      room.result = '🧩 Lock-dial solved: full alignment achieved.';
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
+    }
+    if (lock.attemptsLeft <= 0) {
+      if (typeof closeModal === 'function') closeModal();
+      room.result = '🧩 Lockout triggered after 3 failed attempts.';
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
+    }
+    return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
   };
 
   function _raidRevealNextRoom(rooms, clearedIdx) {

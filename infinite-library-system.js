@@ -869,7 +869,15 @@
       revealLibraryDoors(state, floor, node.idx - 1);
     } else {
       applyFailureConsequence('explore');
-      node.result = 'Failed to stabilize this hex. The stacks bite back: +1 instability.';
+      var mentalStressPenalty = 2;
+      var healthPenalty = 1;
+      var radiationExposure = 1;
+      if (typeof S !== 'undefined' && S) {
+        S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + mentalStressPenalty);
+        S.health = Math.max(0, Number(S.health || 0) - healthPenalty);
+        S.radiationExposure = Math.max(0, Number(S.radiationExposure || 0) + radiationExposure);
+      }
+      node.result = 'Failed to stabilize this hex. Radiation cascades through the archive: +' + mentalStressPenalty + ' Mental Stress, -' + healthPenalty + ' Health, +' + radiationExposure + ' Radiation Exposure.';
       state.instability = Math.max(0, Number(state.instability || 0) + 1);
       revealLibraryDoors(state, floor, node.idx - 1);
     }

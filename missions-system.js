@@ -6325,30 +6325,30 @@
           if (cell.lorePiece) {
             loreMode = Math.random() < 0.5 ? 'crossword_grid' : 'sudoku';
             if (loreMode === 'crossword_grid') {
-              // Pick a random crossword template each time to avoid repetitive clue loops.
+              // Simpler crossword templates with clean row-based layout to avoid numbering issues.
               var cwTemplates = [
                 {
-                  gridTemplate: ['GATE#', 'A#R#E', 'TEACH', 'E#I#R', 'MARK#'],
+                  gridTemplate: ['GATE', '#####', 'TEACH', '#####', 'MARK'],
                   clues: [
                     { clue: '1 Across (4): Old-world route marker', answer: 'gate' },
-                    { clue: '3 Across (5): What a teacher does with students', answer: 'teach' },
-                    { clue: '5 Across (4): Leave an identifying sign', answer: 'mark' }
+                    { clue: '2 Across (5): What a teacher does with students', answer: 'teach' },
+                    { clue: '3 Across (4): Leave an identifying sign', answer: 'mark' }
                   ]
                 },
                 {
-                  gridTemplate: ['ROAD#', 'U#R#E', 'LEARN', 'E#I#D', 'SIGN#'],
+                  gridTemplate: ['ROAD', '#####', 'LEARN', '#####', 'SIGN'],
                   clues: [
                     { clue: '1 Across (4): A path used for travel', answer: 'road' },
-                    { clue: '3 Across (5): Gain knowledge in study', answer: 'learn' },
-                    { clue: '5 Across (4): Posted notice with directions', answer: 'sign' }
+                    { clue: '2 Across (5): Gain knowledge in study', answer: 'learn' },
+                    { clue: '3 Across (4): Posted notice with directions', answer: 'sign' }
                   ]
                 },
                 {
-                  gridTemplate: ['PATH#', 'A#R#O', 'GUIDE', 'E#D#S', 'LORE#'],
+                  gridTemplate: ['PATH', '#####', 'GUIDE', '#####', 'LORE'],
                   clues: [
                     { clue: '1 Across (4): Trail or route on foot', answer: 'path' },
-                    { clue: '3 Across (5): Person who leads the group', answer: 'guide' },
-                    { clue: '5 Across (4): Traditional knowledge archive', answer: 'lore' }
+                    { clue: '2 Across (5): Person who leads the group', answer: 'guide' },
+                    { clue: '3 Across (4): Traditional knowledge archive', answer: 'lore' }
                   ]
                 }
               ];
@@ -7078,17 +7078,6 @@
         + '</div>'
         + '</div>';
       openModal('Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + ' — ' + mission.title, htmlGrid);
-      if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
-        if (typeof window.requestAnimationFrame === 'function') {
-          window.requestAnimationFrame(function () {
-            try { window.scrollTo(0, scrollY); } catch (_err) {}
-          });
-        } else {
-          setTimeout(function () {
-            try { window.scrollTo(0, scrollY); } catch (_err) {}
-          }, 15);
-        }
-      }
       return true;
     }
 
@@ -7149,17 +7138,6 @@
     + '</div>';
 
     openModal('Wing ' + wingNum + ': ' + wingTitles[wingNum] + ' — ' + mission.title, html);
-    if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
-      if (typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(function () {
-          try { window.scrollTo(0, scrollY); } catch (_err) {}
-        });
-      } else {
-        setTimeout(function () {
-          try { window.scrollTo(0, scrollY); } catch (_err) {}
-        }, 15);
-      }
-    }
     if (wingNum === 3 && typeof window.updateLegacyRaidAllyTargetOptions === 'function') {
       setTimeout(function () {
         try { window.updateLegacyRaidAllyTargetOptions(missionId); } catch (_err) {}
@@ -7825,14 +7803,18 @@
     }
     var label = String(actionLabel || 'Strike');
     encounter.playerActionLabel = label;
+    var playerActionsRemaining = 0;
     if (turnNode && Number(turnNode.playerActionsLeft || 0) > 0) {
       encounter.turnStage = 'player';
-      encounter.log.push('Wayfarer action: ' + label + '. ' + Number(turnNode.playerActionsLeft || 0) + ' player action(s) remain this turn.');
+      playerActionsRemaining = Number(turnNode.playerActionsLeft || 0);
+      encounter.log.push('Wayfarer action: ' + label + '. ' + playerActionsRemaining + ' player action(s) remain this turn.');
+      if (typeof showNotif === 'function') showNotif('⚔ ' + label + ' executed! ' + playerActionsRemaining + ' action(s) left.', 'good');
     } else {
       encounter.turnStage = 'ally';
       encounter.allyActionsUsed = 0;
       resetLegacyRaidAllyActionBudget(mission, encounter);
       encounter.log.push('Wayfarer action: ' + label + '. Player actions spent; allies now have 2 actions each this turn.');
+      if (typeof showNotif === 'function') showNotif('⚔ ' + label + ' executed! Advancing to Ally phase.', 'good');
     }
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
     return true;
@@ -7875,10 +7857,12 @@
       var defendBonus = 3;
       encounter.roleActionState.dreadReduction = Number(encounter.roleActionState.dreadReduction || 0) + 2;
       summary = ally + ' defends ' + target + ' (+' + defendBonus + ' defend pressure, flavor ' + flavor.name + ').';
+      if (typeof showNotif === 'function') showNotif(ally + ' defends: +' + defendBonus + ' pressure.', 'info');
     } else if (act === 'Support') {
       var supportBonus = 3;
       encounter.roleActionState.actionBonus = Number(encounter.roleActionState.actionBonus || 0) + 2;
       summary = ally + ' supports ' + target + ' (+' + supportBonus + ' support bonus, flavor ' + flavor.name + ').';
+      if (typeof showNotif === 'function') showNotif(ally + ' supports: +' + supportBonus + ' action bonus.', 'info');
     } else if (act === 'Attack') {
       var bossDread = getLegacyRaidBossDreadDie(encounter);
       var allyRoll = (typeof roll === 'function') ? roll(6) : (Math.floor(Math.random() * 6) + 1);
@@ -7886,10 +7870,12 @@
       var attackBonus = Math.max(1, allyRoll - bossRoll);
       encounter.phaseHp = Math.max(0, Number(encounter.phaseHp || 0) - attackBonus);
       summary = ally + ' attacks (d6=' + allyRoll + ' vs d' + bossDread + '=' + bossRoll + ') for ' + attackBonus + ' phase damage (flavor ' + flavor.name + ').';
+      if (typeof showNotif === 'function') showNotif(ally + ' attacks: ' + allyRoll + ' vs Boss (' + bossDread + ') rolled ' + bossRoll + '. ✓ ' + attackBonus + ' damage!', 'good');
     } else {
       var moveBonus = Number(flavor.move || 0);
       summary = ally + ' repositions to ' + target + ' range band (mobility bonus ' + moveBonus + ', flavor ' + flavor.name + ').';
       encounter.roleActionState.pressureBonus = Number(encounter.roleActionState.pressureBonus || 0) + (moveBonus > 1 ? 1 : 0);
+      if (typeof showNotif === 'function') showNotif(ally + ' moves to ' + target + ' (mobility +' + moveBonus + ').', 'info');
     }
 
     encounter.allyActionBudget.byAlly[ally] = Math.max(0, remainingForAlly - 1);

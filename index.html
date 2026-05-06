@@ -11237,6 +11237,7 @@ function renderHexInfo(hex){
     if(d.news)html+=`<div class="wild-panel"><div class="wp-label">📰 News & Hooks</div><div class="wp-text">${d.news}</div></div>`;
     html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
     html+=`<div style="margin:.35rem 0;"><button class="btn btn-sm btn-primary" onclick="if(typeof generateTaskForHex==='function')generateTaskForHex(${hex.col},${hex.row});else generateTask();">⚄ Generate Task</button></div>`;
+    if(hex.type==='holding')html+=`<div style="margin:.2rem 0;"><button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();else alert('Holdings system not ready');">◫ Enter Holding</button></div>`;
     html+=buildProvinceHoldingDowntimePanel(hex);
 
   // ── DWELLING ──

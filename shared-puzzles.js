@@ -148,19 +148,54 @@
   var _cp = null;
 
   function buildPipeFlowState() {
-    return {
-      tiles: [
-        { type: 'source',   rotation: 0, locked: true  },
-        { type: 'straight', rotation: 1, locked: false },
-        { type: 'elbow',    rotation: 0, locked: false },
-        { type: 'block',    rotation: 0, locked: true  },
-        { type: 'block',    rotation: 0, locked: true  },
-        { type: 'straight', rotation: 0, locked: false },
-        { type: 'block',    rotation: 0, locked: true  },
-        { type: 'block',    rotation: 0, locked: true  },
-        { type: 'sink',     rotation: 0, locked: true  }
-      ]
-    };
+    // Generate a unique pipe flow puzzle each time by randomizing tile positions and rotations.
+    var seed = Math.floor(Math.random() * 10000);
+    var rnd = function() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    
+    var configs = [
+      {
+        tiles: [
+          { type: 'source',   rotation: 0, locked: true  },
+          { type: 'elbow',    rotation: rnd() > 0.5 ? 0 : 1, locked: false },
+          { type: 'straight', rotation: rnd() > 0.5 ? 0 : 1, locked: false },
+          { type: 'elbow',    rotation: rnd() > 0.5 ? 2 : 3, locked: false },
+          { type: 'block',    rotation: 0, locked: true  },
+          { type: 'straight', rotation: 1, locked: false },
+          { type: 'block',    rotation: 0, locked: true  },
+          { type: 'elbow',    rotation: rnd() > 0.5 ? 1 : 2, locked: false },
+          { type: 'sink',     rotation: 0, locked: true  }
+        ]
+      },
+      {
+        tiles: [
+          { type: 'source',   rotation: 0, locked: true  },
+          { type: 'straight', rotation: 1, locked: false },
+          { type: 'elbow',    rotation: rnd() > 0.5 ? 1 : 2, locked: false },
+          { type: 'straight', rotation: 0, locked: false },
+          { type: 'elbow',    rotation: rnd() > 0.5 ? 3 : 0, locked: false },
+          { type: 'block',    rotation: 0, locked: true  },
+          { type: 'straight', rotation: 1, locked: false },
+          { type: 'block',    rotation: 0, locked: true  },
+          { type: 'sink',     rotation: 0, locked: true  }
+        ]
+      },
+      {
+        tiles: [
+          { type: 'source',   rotation: 0, locked: true  },
+          { type: 'elbow',    rotation: rnd() > 0.5 ? 0 : 3, locked: false },
+          { type: 'block',    rotation: 0, locked: true  },
+          { type: 'straight', rotation: 0, locked: false },
+          { type: 'elbow',    rotation: rnd() > 0.5 ? 1 : 2, locked: false },
+          { type: 'straight', rotation: 1, locked: false },
+          { type: 'block',    rotation: 0, locked: true  },
+          { type: 'elbow',    rotation: rnd() > 0.5 ? 2 : 3, locked: false },
+          { type: 'sink',     rotation: 0, locked: true  }
+        ]
+      }
+    ];
+    
+    var chosen = configs[Math.floor(rnd() * configs.length)];
+    return { tiles: chosen.tiles.slice() };
   }
 
   function _cpTileExits(tile) {

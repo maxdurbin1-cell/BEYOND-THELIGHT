@@ -15322,23 +15322,56 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms))return null;
     const rooms=hex.data.provinceRuinRooms;
     if(!hex.data.provinceRuinHexcrawl||typeof hex.data.provinceRuinHexcrawl!=='object'){
-      hex.data.provinceRuinHexcrawl={nodes:[]};
+      hex.data.provinceRuinHexcrawl={nodes:[],edges:[]};
     }
     if(!Array.isArray(hex.data.provinceRuinHexcrawl.nodes))hex.data.provinceRuinHexcrawl.nodes=[];
+    if(!Array.isArray(hex.data.provinceRuinHexcrawl.edges))hex.data.provinceRuinHexcrawl.edges=[];
     const nodes=hex.data.provinceRuinHexcrawl.nodes;
     const existing={};
     nodes.forEach(function(node){ if(node&&node.id)existing[String(node.id)]=node; });
+    const coords=[
+      {q:0,r:0},{q:1,r:0},{q:0,r:1},{q:1,r:1},{q:2,r:0},{q:-1,r:1},{q:2,r:1},{q:1,r:2},{q:0,r:2},{q:2,r:2},{q:-1,r:2},{q:3,r:1}
+    ];
     const nextNodes=rooms.map(function(room,idx){
       const id='r'+String(idx);
       const prior=existing[id]||{};
+      const c=coords[idx]||{q:Math.floor(idx/2),r:idx%2};
       return {
         id:id,
         roomIdx:idx,
         label:(room&&room.type?String(room.type):'Room')+' '+String((room&&room.idx)||idx+1),
-        explored:!!(room&&room.cleared)||!!prior.explored
+        explored:!!(room&&room.cleared)||!!prior.explored,
+        revealed:idx===0?true:!!prior.revealed,
+        q:c.q,
+        r:c.r
       };
     });
+    const edges=[];
+    if(nextNodes.length>1)edges.push(['r0','r1']);
+    if(nextNodes.length>2)edges.push(['r0','r2']);
+    for(let i=3;i<nextNodes.length;i++){
+      edges.push(['r'+String(i-1),'r'+String(i)]);
+      if(i%2===0)edges.push(['r'+String(i-2),'r'+String(i)]);
+    }
+    const byId={};
+    nextNodes.forEach(function(n){ byId[n.id]=n; });
+    var frontier={'r0':true};
+    nextNodes.forEach(function(n){
+      if(!n||!n.revealed)return;
+      frontier[n.id]=true;
+    });
+    nextNodes.forEach(function(n){
+      const room=rooms[n.roomIdx];
+      if(!room||!room.cleared)return;
+      frontier[n.id]=true;
+      edges.forEach(function(e){
+        if(e[0]===n.id&&byId[e[1]])frontier[e[1]]=true;
+        if(e[1]===n.id&&byId[e[0]])frontier[e[0]]=true;
+      });
+    });
+    nextNodes.forEach(function(n){ n.revealed=!!frontier[n.id]; });
     hex.data.provinceRuinHexcrawl.nodes=nextNodes;
+    hex.data.provinceRuinHexcrawl.edges=edges;
     return hex.data.provinceRuinHexcrawl;
   }
 
@@ -15349,6 +15382,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!crawl||!Array.isArray(crawl.nodes))return;
     const node=crawl.nodes.find(function(entry){ return entry&&String(entry.id)===String(nodeId); });
     if(!node)return;
+    if(!node.revealed){
+      showNotif('This room is still hidden. Clear a connected room first.','warn');
+      return;
+    }
     const room=hex.data.provinceRuinRooms[node.roomIdx];
     if(!room)return;
     if(room.cleared){
@@ -15483,23 +15520,56 @@ document.addEventListener('DOMContentLoaded',()=>{
     const total = hex.data.provinceRuinRooms.length;
     const hexcrawlHtml = ruinHexcrawl&&Array.isArray(ruinHexcrawl.nodes)&&ruinHexcrawl.nodes.length
       ? '<div class="room-block" style="border-color:rgba(46,196,182,.35);background:rgba(46,196,182,.05);margin-bottom:.5rem;">'
-        + '<div class="ruin-room-title" style="color:var(--teal);">Hexcrawl Search Grid</div>'
-        + '<div style="font-size:.78rem;color:var(--text2);line-height:1.5;margin-bottom:.3rem;">Search room-by-room from this node grid. Unsolved puzzle rooms still block progression.</div>'
-        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:.25rem;">'
-        + ruinHexcrawl.nodes.map(function(node){
-            const room=hex.data.provinceRuinRooms[node.roomIdx];
-            const nodeState=(room&&room.cleared)?'Cleared':'Unexplored';
-            const nodeAction=(room&&room.cleared)
-              ? '<span style="font-size:.68rem;color:var(--muted2);">Resolved</span>'
-              : '<button class="btn btn-xs btn-teal" onclick="exploreProvinceRuinHexNode('+col+','+row+',\''+String(node.id)+'\')">Explore Node</button>';
-            return '<div style="border:1px solid var(--border2);padding:.26rem .34rem;background:var(--surface);">'
-              + '<div style="font-size:.68rem;color:var(--gold2);">Hex ['+(Number(node.roomIdx)+1)+']</div>'
-              + '<div style="font-size:.74rem;color:var(--text2);margin-top:.1rem;">'+(room&&room.type?room.type:'Room')+'</div>'
-              + '<div style="font-size:.68rem;color:'+(room&&room.cleared?'var(--green2)':'var(--muted2)')+';margin-top:.14rem;">'+nodeState+'</div>'
-              + '<div style="margin-top:.18rem;">'+nodeAction+'</div>'
-              + '</div>';
-          }).join('')
-        + '</div>'
+        + '<div class="ruin-room-title" style="color:var(--teal);">Hexcrawl Ruin Map</div>'
+        + '<div style="font-size:.78rem;color:var(--text2);line-height:1.5;margin-bottom:.3rem;">Entrance reveals connected hexes. Clear a room to expose adjacent rooms.</div>'
+        + (function(){
+            const visible=ruinHexcrawl.nodes.filter(function(n){return n&&n.revealed;});
+            const all=ruinHexcrawl.nodes;
+            const nodeById={};
+            all.forEach(function(n){if(n&&n.id)nodeById[n.id]=n;});
+            const size=24;
+            const ox=200, oy=130;
+            const toXY=function(q,r){
+              const x=ox + (Math.sqrt(3)*size*(q + r/2));
+              const y=oy + ((3/2)*size*r);
+              return {x:x,y:y};
+            };
+            const hexPts=function(cx,cy){
+              const pts=[];
+              for(let i=0;i<6;i++){
+                const a=(Math.PI/180)*(60*i-30);
+                pts.push((cx+size*Math.cos(a)).toFixed(1)+','+(cy+size*Math.sin(a)).toFixed(1));
+              }
+              return pts.join(' ');
+            };
+            const edgeSvg=(ruinHexcrawl.edges||[]).map(function(e){
+              const a=nodeById[e[0]],b=nodeById[e[1]];
+              if(!a||!b||!a.revealed||!b.revealed)return '';
+              const pa=toXY(Number(a.q||0),Number(a.r||0));
+              const pb=toXY(Number(b.q||0),Number(b.r||0));
+              return '<line x1="'+pa.x.toFixed(1)+'" y1="'+pa.y.toFixed(1)+'" x2="'+pb.x.toFixed(1)+'" y2="'+pb.y.toFixed(1)+'" stroke="rgba(126,215,255,.35)" stroke-width="2" />';
+            }).join('');
+            const nodeSvg=visible.map(function(n){
+              const room=hex.data.provinceRuinRooms[n.roomIdx]||{};
+              const p=toXY(Number(n.q||0),Number(n.r||0));
+              const clearedNode=!!room.cleared;
+              const fill=clearedNode?'rgba(76,175,116,.26)':'rgba(34,42,56,.88)';
+              const stroke=clearedNode?'rgba(76,175,116,.85)':'rgba(126,215,255,.55)';
+              const label=(room.type||'Room').slice(0,6).toUpperCase();
+              return '<g>'
+                + '<polygon points="'+hexPts(p.x,p.y)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="2" style="cursor:pointer;" onclick="exploreProvinceRuinHexNode('+col+','+row+',\''+String(n.id)+'\')" />'
+                + '<text x="'+p.x.toFixed(1)+'" y="'+(p.y-2).toFixed(1)+'" text-anchor="middle" font-size="10" fill="var(--gold2)">#'+String((n.roomIdx||0)+1)+'</text>'
+                + '<text x="'+p.x.toFixed(1)+'" y="'+(p.y+10).toFixed(1)+'" text-anchor="middle" font-size="8" fill="var(--muted2)">'+label+'</text>'
+                + '</g>';
+            }).join('');
+            const listHtml=visible.map(function(n){
+              const room=hex.data.provinceRuinRooms[n.roomIdx]||{};
+              const state=(room&&room.cleared)?'Cleared':'Ready';
+              return '<div style="font-size:.68rem;color:var(--text2);">Hex '+String((n.roomIdx||0)+1)+' · '+String(room.type||'Room')+' · <span style="color:'+((room&&room.cleared)?'var(--green2)':'var(--teal)')+';">'+state+'</span></div>';
+            }).join('');
+            return '<svg viewBox="0 0 400 260" style="width:100%;max-width:520px;height:auto;display:block;margin:0 auto .24rem;">'+edgeSvg+nodeSvg+'</svg>'
+              + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.2rem;">'+listHtml+'</div>';
+          })()
       + '</div>'
       : '';
     const progressBar = '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;height:6px;margin-bottom:.5rem;"><div style="background:var(--teal);height:100%;width:'+Math.round(cleared/total*100)+'%;border-radius:4px;transition:width .3s;"></div></div>';

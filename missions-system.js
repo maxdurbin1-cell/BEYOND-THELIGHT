@@ -2329,19 +2329,48 @@
   }
 
   function createLegacyRaidPipeFlowState() {
+    var solved = [
+      { type: 'source', rotation: 0, locked: true },
+      { type: 'straight', rotation: 0, locked: false },
+      { type: 'elbow', rotation: 2, locked: false },
+      { type: 'block', rotation: 0, locked: true },
+      { type: 'elbow', rotation: 0, locked: false },
+      { type: 'straight', rotation: 1, locked: false },
+      { type: 'block', rotation: 0, locked: true },
+      { type: 'elbow', rotation: 1, locked: false },
+      { type: 'sink', rotation: 0, locked: true }
+    ];
     return {
-      tiles: [
-        { type: 'source', rotation: 0, locked: true },
-        { type: 'straight', rotation: 1, locked: false },
-        { type: 'elbow', rotation: 0, locked: false },
-        { type: 'block', rotation: 0, locked: true },
-        { type: 'block', rotation: 0, locked: true },
-        { type: 'straight', rotation: 0, locked: false },
-        { type: 'block', rotation: 0, locked: true },
-        { type: 'block', rotation: 0, locked: true },
-        { type: 'sink', rotation: 0, locked: true }
-      ]
+      tiles: solved.map(function (tile) {
+        var next = { type: tile.type, rotation: tile.rotation, locked: tile.locked };
+        if (!next.locked) {
+          var tries = 0;
+          do {
+            next.rotation = Math.floor(Math.random() * 4);
+            tries += 1;
+          } while (next.rotation === tile.rotation && tries < 6);
+        }
+        return next;
+      })
     };
+  }
+
+  function getLegacyRaidPipeOppositeDir(dir) {
+    if (dir === 'left') return 'right';
+    if (dir === 'right') return 'left';
+    if (dir === 'up') return 'down';
+    return 'up';
+  }
+
+  function getLegacyRaidPipeNeighborIndex(idx, dir) {
+    var row = Math.floor(Number(idx || 0) / 3);
+    var col = Number(idx || 0) % 3;
+    if (dir === 'left') col -= 1;
+    else if (dir === 'right') col += 1;
+    else if (dir === 'up') row -= 1;
+    else if (dir === 'down') row += 1;
+    if (row < 0 || row >= 3 || col < 0 || col >= 3) return -1;
+    return row * 3 + col;
   }
 
   function getLegacyRaidPipeTileExits(tile) {
@@ -2361,30 +2390,29 @@
 
   function isLegacyRaidPipeFlowSolved(puzzle) {
     var tiles = puzzle && puzzle.state && Array.isArray(puzzle.state.tiles) ? puzzle.state.tiles : [];
-    var required = [0, 1, 2, 5, 8];
     if (tiles.length < 9) return false;
-    var connections = {
-      0: { right: 1 },
-      1: { left: 0, right: 2 },
-      2: { left: 1, down: 5 },
-      5: { up: 2, down: 8 },
-      8: { up: 5 }
-    };
-    for (var i = 0; i < required.length; i++) {
-      var idx = required[i];
-      var tile = tiles[idx];
-      var exits = getLegacyRaidPipeTileExits(tile);
-      var map = connections[idx] || {};
-      var dirs = Object.keys(map);
-      for (var j = 0; j < dirs.length; j++) {
-        var dir = dirs[j];
-        var other = map[dir];
-        if (exits.indexOf(dir) < 0) return false;
-        var back = dir === 'left' ? 'right' : dir === 'right' ? 'left' : dir === 'up' ? 'down' : 'up';
-        if (getLegacyRaidPipeTileExits(tiles[other]).indexOf(back) < 0) return false;
+    var queue = [0];
+    var seen = { 0: true };
+    while (queue.length) {
+      var idx = Number(queue.shift());
+      if (idx === 8) return true;
+      var exits = getLegacyRaidPipeTileExits(tiles[idx]);
+      for (var i = 0; i < exits.length; i++) {
+        var dir = exits[i];
+        var ni = getLegacyRaidPipeNeighborIndex(idx, dir);
+        if (ni < 0) continue;
+        var nTile = tiles[ni] || {};
+        if (nTile.type === 'block') continue;
+        var back = getLegacyRaidPipeOppositeDir(dir);
+        var nExits = getLegacyRaidPipeTileExits(nTile);
+        if (nExits.indexOf(back) < 0) continue;
+        if (!seen[ni]) {
+          seen[ni] = true;
+          queue.push(ni);
+        }
       }
     }
-    return true;
+    return false;
   }
 
   function renderLegacyRaidPipeFlowControls(missionId, wingNum, roomIdx, puzzle) {
@@ -3860,43 +3888,50 @@
     var requestedType = String(targetType || (flow && flow.selectedEnemyTargetType) || 'ally').toLowerCase();
     var requestedName = String(targetName || (flow && flow.selectedAllyName) || '');
     var aliveAllies = getLegacyRaidSceneAllies();
-    hostiles.forEach(function (enemy) {
-      var dreadDie = Math.max(4, Number(enemy.dread || 6));
-      var target = null;
-      if (requestedType === 'player') {
-        target = { type: 'player', name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer') };
-      } else if (requestedName) {
-        var named = aliveAllies.find(function (ally) { return String(ally.name || '') === requestedName; });
-        if (named) target = { type: 'ally', name: requestedName, ref: named };
+    var cursor = Math.max(0, Number(flow.enemyActionCursor || 0));
+    var enemy = hostiles[cursor % hostiles.length];
+    flow.enemyActionCursor = cursor + 1;
+    var dreadDie = Math.max(4, Number(enemy && enemy.dread || 6));
+    var target = null;
+    if (requestedType === 'player') {
+      target = { type: 'player', name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer') };
+    } else if (requestedName) {
+      var named = aliveAllies.find(function (ally) { return String(ally.name || '') === requestedName; });
+      if (named) target = { type: 'ally', name: requestedName, ref: named };
+    }
+    if (!target) {
+      var fallback = aliveAllies[0] || null;
+      target = fallback
+        ? { type: 'ally', name: String(fallback.name || 'Wayfarer'), ref: fallback }
+        : { type: 'player', name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer') };
+    }
+    var hit = typeof roll === 'function' ? roll(dreadDie) : (Math.floor(Math.random() * dreadDie) + 1);
+    var defendDie = target.type === 'player' ? getLegacyRaidCombatActionDie('defend') : 6;
+    if (target.type === 'ally' && flow.allyDefendBonus && Number(flow.allyDefendBonus[target.name] || 0) > 0) {
+      hit = Math.max(1, Number(hit || 1) - Number(flow.allyDefendBonus[target.name] || 0));
+      flow.allyDefendBonus[target.name] = 0;
+    }
+    var defend = typeof roll === 'function' ? roll(defendDie) : (Math.floor(Math.random() * defendDie) + 1);
+    var dmg = Math.max(1, hit - defend);
+    if (target.type === 'player') {
+      if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - dmg);
+    } else {
+      if (!encounter.partyHp) encounter.partyHp = { allies: {} };
+      if (!encounter.partyHp.allies) encounter.partyHp.allies = {};
+      if (typeof encounter.partyHp.allies[target.name] !== 'number') encounter.partyHp.allies[target.name] = 12;
+      encounter.partyHp.allies[target.name] = Math.max(0, Number(encounter.partyHp.allies[target.name]) - dmg);
+      var allyRef = aliveAllies.find(function (a) { return String(a.name || '') === target.name; });
+      if (allyRef) {
+        allyRef.stress = Math.min(Number(allyRef.maxStress || 12), Number(allyRef.stress || 0) + dmg);
+        if (Number(allyRef.stress || 0) >= Number(allyRef.maxStress || 12)) markLegacyRaidSceneAllyDown(target.name);
       }
-      if (!target) {
-        var fallback = aliveAllies[0] || null;
-        target = fallback
-          ? { type: 'ally', name: String(fallback.name || 'Wayfarer'), ref: fallback }
-          : { type: 'player', name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer') };
-      }
-      var hit = typeof roll === 'function' ? roll(dreadDie) : (Math.floor(Math.random() * dreadDie) + 1);
-      var defendDie = target.type === 'player' ? getLegacyRaidCombatActionDie('defend') : 6;
-      if (target.type === 'ally' && flow.allyDefendBonus && Number(flow.allyDefendBonus[target.name] || 0) > 0) {
-        hit = Math.max(1, Number(hit || 1) - Number(flow.allyDefendBonus[target.name] || 0));
-        flow.allyDefendBonus[target.name] = 0;
-      }
-      var defend = typeof roll === 'function' ? roll(defendDie) : (Math.floor(Math.random() * defendDie) + 1);
-      var dmg = Math.max(1, hit - defend);
-      if (target.type === 'player') {
-        if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - dmg);
-      } else {
-        if (!encounter.partyHp) encounter.partyHp = { allies: {} };
-        if (!encounter.partyHp.allies) encounter.partyHp.allies = {};
-        if (typeof encounter.partyHp.allies[target.name] !== 'number') encounter.partyHp.allies[target.name] = 12;
-        encounter.partyHp.allies[target.name] = Math.max(0, Number(encounter.partyHp.allies[target.name]) - dmg);
-        var allyRef = aliveAllies.find(function (a) { return String(a.name || '') === target.name; });
-        if (allyRef) {
-          allyRef.stress = Math.min(Number(allyRef.maxStress || 12), Number(allyRef.stress || 0) + dmg);
-          if (Number(allyRef.stress || 0) >= Number(allyRef.maxStress || 12)) markLegacyRaidSceneAllyDown(target.name);
-        }
-      }
-    });
+    }
+    if (encounter && Array.isArray(encounter.log)) {
+      encounter.log.push('Enemy action: ' + String(enemy && enemy.name || 'Hostile') + ' rolled ' + hit + ' vs ' + target.name + ' defend ' + defend + ' for ' + dmg + ' damage.');
+    }
+    if (typeof showNotif === 'function') {
+      showNotif('Enemy action: ' + String(enemy && enemy.name || 'Hostile') + ' hit ' + target.name + ' for ' + dmg + ' (' + hit + ' vs ' + defend + ').', 'warn');
+    }
     flow.enemyActionBudget = Math.max(0, Number(flow.enemyActionBudget || 0) - 1);
     if (Number(S.health || 0) <= 0) {
       if (typeof showNotif === 'function') showNotif('Wayfarer down. Raid encounter failed.', 'warn');
@@ -4354,6 +4389,39 @@
     }
     return false;
   }
+
+  function openLegacyRaidPreludeModal(missionId) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return false;
+    var bossName = String(mission.legacyRaidBoss || 'the Sovereign');
+    var region = String(mission.region || mission.legacyRaidRegion || 'province');
+    openModal(
+      'Raid Prelude - ' + mission.title,
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:640px;">'
+        + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.18rem;"><strong>NPC Briefing</strong></div>'
+        + '<div style="margin-bottom:.22rem;">An allied informer intercepts you before the raid gate and warns that Wing 1 cannot be breached directly.</div>'
+        + '<div style="margin-bottom:.22rem;color:var(--muted2);">Objective: meet the informant in a staging hex, secure route intel, then move to the breach hex to enter Wing 1 against ' + bossName + '.</div>'
+        + '<div style="margin-bottom:.22rem;color:var(--teal);">Region: ' + region + ' · Status: ' + (run.preludeWing1Ready ? 'Breach hex ready' : 'Need staging run') + '</div>'
+        + '<div style="display:flex;gap:.28rem;justify-content:flex-end;">'
+        + '<button class="btn btn-xs" onclick="openLegacyRaidMissionPopup(' + mission.id + ',null)">Back</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="confirmLegacyRaidPrelude(' + mission.id + ')">Set Breach Hex Objective</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
+  window.confirmLegacyRaidPrelude = function (missionId) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var run = ensureLegacyRaidRunState(mission);
+    if (!run) return false;
+    run.preludeWing1Ready = true;
+    if (typeof showNotif === 'function') showNotif('Raid prelude complete. Travel to the breach hex to enter Wing 1.', 'good');
+    return openLegacyRaidMissionPopup(mission.id, { tokenType: 'site', regionTag: mission.region || mission.legacyRaidRegion || 'region' });
+  };
 
   function getLegacyRaidTelegraphLines(mission) {
     var boss = String(mission && mission.legacyRaidBoss || 'World Boss');
@@ -6978,6 +7046,10 @@
     var rooms = map.wings[wingNum];
     var theme = getRaidTheme(mission);
     var run = ensureLegacyRaidRunState(mission);
+    if (Number(wingNum || 1) === 1 && run && !run.preludeWing1Ready && !(mission.steps && mission.steps[1] && mission.steps[1].completed)) {
+      if (typeof showNotif === 'function') showNotif('Wing 1 is locked until the raid prelude objective is completed.', 'warn');
+      return openLegacyRaidPreludeModal(mission.id);
+    }
     if (run) run.currentWing = wingNum;
     ensureLegacyRaidClock(mission);
 
@@ -9026,8 +9098,13 @@
     };
 
     if (!s1.completed) {
-      recommendedAction = 'Story gate open — enter Wing 1 to breach the lore and understand the boss.';
-      stepButtons = '<button class="btn btn-sm btn-teal" onclick="openRaidWingPopup(' + mission.id + ',1);closeModal();">→ Open Wing Map: Wing 1 <span style="font-size:.65rem;opacity:.7;">(' + raidMapRoomProgress(1) + ')</span></button>';
+      if (run && !run.preludeWing1Ready) {
+        recommendedAction = 'Prelude required — get NPC intel and set the breach hex before Wing 1.';
+        stepButtons = '<button class="btn btn-sm btn-teal" onclick="openLegacyRaidPreludeModal(' + mission.id + ')">→ Start Raid Prelude</button>';
+      } else {
+        recommendedAction = 'Story gate open — enter Wing 1 to breach the lore and understand the boss.';
+        stepButtons = '<button class="btn btn-sm btn-teal" onclick="openRaidWingPopup(' + mission.id + ',1);closeModal();">→ Open Wing Map: Wing 1 <span style="font-size:.65rem;opacity:.7;">(' + raidMapRoomProgress(1) + ')</span></button>';
+      }
     } else if (!s2.completed) {
       recommendedAction = 'Mechanic gate open — Wing 2 puzzle must be solved before the boss chamber stabilises.';
       stepButtons = '<button class="btn btn-sm btn-primary" onclick="openRaidWingPopup(' + mission.id + ',2);closeModal();">→ Open Wing Map: Wing 2 <span style="font-size:.65rem;opacity:.7;">(' + raidMapRoomProgress(2) + ')</span></button>';
@@ -9042,6 +9119,7 @@
     var wingHtml = buildLegacyRaidWingData(mission).map(function (wing) {
       var step = steps[wing.key] || {};
       var done = !!step.completed;
+      var wingLockedByPrelude = (wing.key === 1 && !done && run && !run.preludeWing1Ready);
       return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
         + '<div style="display:flex;justify-content:space-between;gap:.35rem;margin-bottom:.18rem;">'
         + '<div style="font-size:.77rem;color:var(--text2);"><strong>Wing ' + wing.key + ': ' + wing.title + '</strong></div>'
@@ -9049,7 +9127,11 @@
         + '</div>'
         + '<div style="font-size:.71rem;color:var(--muted2);line-height:1.5;margin-bottom:.18rem;">' + wing.detail + '</div>'
         + '<div style="font-size:.69rem;color:var(--teal);line-height:1.45;margin-bottom:.22rem;">' + wing.actions.join(' ') + '</div>'
-        + (!done ? '<button class="btn btn-xs btn-teal" onclick="openRaidWingPopup(' + mission.id + ',' + wing.key + ')">→ Open Wing Map</button>' : '<span style="font-size:.67rem;color:var(--green2);">✓ Wing complete</span>')
+        + (!done
+          ? (wingLockedByPrelude
+            ? '<button class="btn btn-xs btn-teal" onclick="openLegacyRaidPreludeModal(' + mission.id + ')">→ Start Prelude</button>'
+            : '<button class="btn btn-xs btn-teal" onclick="openRaidWingPopup(' + mission.id + ',' + wing.key + ')">→ Open Wing Map</button>')
+          : '<span style="font-size:.67rem;color:var(--green2);">✓ Wing complete</span>')
         + '</div>';
     }).join('');
 
@@ -10526,6 +10608,7 @@
   window.autoAdvanceMissionFromSeaHex=autoAdvanceMissionFromSeaHex;
   window.handleLegacyRaidMarkerInteraction=handleLegacyRaidMarkerInteraction;
   window.openLegacyRaidMissionPopup=openLegacyRaidMissionPopup;
+  window.openLegacyRaidPreludeModal=openLegacyRaidPreludeModal;
   window.useLegacyRaidAbility=useLegacyRaidAbility;
   window.resolveLegacyRaidReviveChoice=resolveLegacyRaidReviveChoice;
   window.finalizeLegacyRaidClear=finalizeLegacyRaidClear;

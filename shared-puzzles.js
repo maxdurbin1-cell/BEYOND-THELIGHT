@@ -11,6 +11,24 @@
     return list[Math.floor(Math.random() * list.length)];
   }
 
+  function _pipeOpposite(dir) {
+    if (dir === 'left') return 'right';
+    if (dir === 'right') return 'left';
+    if (dir === 'up') return 'down';
+    return 'up';
+  }
+
+  function _pipeNeighborIndex(idx, dir) {
+    var row = Math.floor(idx / 3);
+    var col = idx % 3;
+    if (dir === 'left') col -= 1;
+    else if (dir === 'right') col += 1;
+    else if (dir === 'up') row -= 1;
+    else if (dir === 'down') row += 1;
+    if (row < 0 || row >= 3 || col < 0 || col >= 3) return -1;
+    return row * 3 + col;
+  }
+
   function ensurePuzzleState() {
     if (typeof S === "undefined") return null;
     S.sharedPuzzles = S.sharedPuzzles || {
@@ -148,54 +166,29 @@
   var _cp = null;
 
   function buildPipeFlowState() {
-    // Generate a unique pipe flow puzzle each time by randomizing tile positions and rotations.
-    var seed = Math.floor(Math.random() * 10000);
-    var rnd = function() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-    
-    var configs = [
-      {
-        tiles: [
-          { type: 'source',   rotation: 0, locked: true  },
-          { type: 'elbow',    rotation: rnd() > 0.5 ? 0 : 1, locked: false },
-          { type: 'straight', rotation: rnd() > 0.5 ? 0 : 1, locked: false },
-          { type: 'elbow',    rotation: rnd() > 0.5 ? 2 : 3, locked: false },
-          { type: 'block',    rotation: 0, locked: true  },
-          { type: 'straight', rotation: 1, locked: false },
-          { type: 'block',    rotation: 0, locked: true  },
-          { type: 'elbow',    rotation: rnd() > 0.5 ? 1 : 2, locked: false },
-          { type: 'sink',     rotation: 0, locked: true  }
-        ]
-      },
-      {
-        tiles: [
-          { type: 'source',   rotation: 0, locked: true  },
-          { type: 'straight', rotation: 1, locked: false },
-          { type: 'elbow',    rotation: rnd() > 0.5 ? 1 : 2, locked: false },
-          { type: 'straight', rotation: 0, locked: false },
-          { type: 'elbow',    rotation: rnd() > 0.5 ? 3 : 0, locked: false },
-          { type: 'block',    rotation: 0, locked: true  },
-          { type: 'straight', rotation: 1, locked: false },
-          { type: 'block',    rotation: 0, locked: true  },
-          { type: 'sink',     rotation: 0, locked: true  }
-        ]
-      },
-      {
-        tiles: [
-          { type: 'source',   rotation: 0, locked: true  },
-          { type: 'elbow',    rotation: rnd() > 0.5 ? 0 : 3, locked: false },
-          { type: 'block',    rotation: 0, locked: true  },
-          { type: 'straight', rotation: 0, locked: false },
-          { type: 'elbow',    rotation: rnd() > 0.5 ? 1 : 2, locked: false },
-          { type: 'straight', rotation: 1, locked: false },
-          { type: 'block',    rotation: 0, locked: true  },
-          { type: 'elbow',    rotation: rnd() > 0.5 ? 2 : 3, locked: false },
-          { type: 'sink',     rotation: 0, locked: true  }
-        ]
-      }
+    var baseTiles = [
+      { type: 'source',   rotation: 0, locked: true  },
+      { type: 'straight', rotation: 0, locked: false },
+      { type: 'elbow',    rotation: 2, locked: false },
+      { type: 'block',    rotation: 0, locked: true  },
+      { type: 'elbow',    rotation: 0, locked: false },
+      { type: 'straight', rotation: 1, locked: false },
+      { type: 'block',    rotation: 0, locked: true  },
+      { type: 'elbow',    rotation: 1, locked: false },
+      { type: 'sink',     rotation: 0, locked: true  }
     ];
-    
-    var chosen = configs[Math.floor(rnd() * configs.length)];
-    return { tiles: chosen.tiles.slice() };
+    var shuffled = baseTiles.map(function (tile) {
+      var next = { type: tile.type, rotation: tile.rotation, locked: tile.locked };
+      if (!next.locked) {
+        var tries = 0;
+        do {
+          next.rotation = Math.floor(Math.random() * 4);
+          tries += 1;
+        } while (next.rotation === tile.rotation && tries < 6);
+      }
+      return next;
+    });
+    return { tiles: shuffled };
   }
 
   function _cpTileExits(tile) {
@@ -213,15 +206,29 @@
   }
 
   function _pipeFlowSolved(tiles) {
-    var req = { 0: ['right'], 1: ['left', 'right'], 2: ['left', 'down'], 5: ['up', 'down'], 8: ['up'] };
-    for (var i in req) {
-      var exits = _cpTileExits(tiles[i]);
-      var needed = req[i];
-      for (var j = 0; j < needed.length; j++) {
-        if (exits.indexOf(needed[j]) < 0) return false;
+    if (!Array.isArray(tiles) || tiles.length < 9) return false;
+    var queue = [0];
+    var seen = { 0: true };
+    while (queue.length) {
+      var idx = Number(queue.shift());
+      if (idx === 8) return true;
+      var exits = _cpTileExits(tiles[idx]);
+      for (var i = 0; i < exits.length; i++) {
+        var dir = exits[i];
+        var ni = _pipeNeighborIndex(idx, dir);
+        if (ni < 0) continue;
+        var nTile = tiles[ni] || {};
+        if (nTile.type === 'block') continue;
+        var needBack = _pipeOpposite(dir);
+        var nExits = _cpTileExits(nTile);
+        if (nExits.indexOf(needBack) < 0) continue;
+        if (!seen[ni]) {
+          seen[ni] = true;
+          queue.push(ni);
+        }
       }
     }
-    return true;
+    return false;
   }
 
   function _renderPipeFlow(state, title, prompt) {

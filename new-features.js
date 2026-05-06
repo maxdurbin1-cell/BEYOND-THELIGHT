@@ -1475,51 +1475,281 @@
   function ensureHoldingSettlementHexcrawl() {
     ensureNewFeatureState();
     if (!S.holding || typeof S.holding !== 'object') { S.holding = {}; }
-    if (!S.holding.settlementHexcrawl || !Array.isArray(S.holding.settlementHexcrawl.nodes) || !S.holding.settlementHexcrawl.nodes.length) {
-      var templates = [
-        { id: 'road', label: 'Gate Road', kind: 'road', dd: 6 },
-        { id: 'inn', label: 'Lantern Inn', kind: 'inn', dd: 6 },
-        { id: 'mood', label: 'Mood Quarter', kind: 'mood', dd: 8 },
-        { id: 'merchant', label: 'Merchant Square', kind: 'merchant', dd: 6 },
-        { id: 'news', label: 'Town Criers', kind: 'news', dd: 6 },
-        { id: 'lord', label: 'Lord\'s Hall', kind: 'lord', dd: 8 },
-        { id: 'downtime', label: 'Courtyard Downtime', kind: 'downtime', dd: 6 }
-      ];
-      S.holding.settlementHexcrawl = {
-        nodes: templates.map(function (node) {
-          return {
-            id: node.id,
-            label: node.label,
-            kind: node.kind,
-            dd: node.dd,
-            explored: false,
-            result: ''
-          };
-        })
+    var byType = {
+      Fortress: ['Gate Ward', 'Market Square', 'Quarry Row', 'Old Shrine', 'Barracks', 'Lord\'s Hall', 'River Docks', 'Lower Tunnels'],
+      Citadel: ['High Gate', 'Scholars Court', 'Outer Market', 'Stone Ward', 'Temple Steps', 'Foundry Yard', 'Steward Hall'],
+      Keep: ['South Gate', 'Craft Lane', 'Well Square', 'Watch Barracks', 'Hall Quarter'],
+      Haven: ['Harbor Front', 'Salt Market', 'Pilgrim Row', 'Lantern Docks', 'Old Chapel', 'Warehouse Ring'],
+      Spire: ['Spire Base', 'Archive Ring', 'Skybridge Market', 'Watcher Terrace', 'Bell District']
+    };
+    var moods = ['Tense', 'Hopeful', 'Exhausted', 'Wary', 'Proud', 'Anxious', 'Defiant'];
+    var crowds = ['Laborers', 'Merchants', 'Guards', 'Pilgrims', 'Scouts', 'Masons', 'Miners'];
+    var activities = ['Stone hauling', 'Militia drills', 'Street bargaining', 'Public prayer', 'Quiet surveillance', 'Tavern dispute', 'Cargo loading'];
+    var rumors = [
+      'A silent stranger was spotted near a sealed stair.',
+      'Someone is buying relic fragments with silver nails.',
+      'Patrols avoid one alley after dusk.',
+      'A bell rings underground with no rope attached.',
+      'The western tunnel was closed for a reason.'
+    ];
+    var interactables = ['Hire laborers', 'Buy local goods', 'Hear rumors', 'Gamble for maps', 'Recruit a scout', 'Aid defenders'];
+    var hiddenThings = ['Smuggled relic fragments', 'A marked false wall', 'A bribed watch post', 'A hidden cellar route', 'A coded shrine ledger'];
+    var microPool = ['Tavern', 'Bathhouse', 'Armory', 'Shrine', 'Archive', 'Herbalist', 'Gambling Den', 'Hidden Cellar', 'Rooftop Garden', 'Abandoned House'];
+
+    function pickLocal(list) {
+      if (!Array.isArray(list) || !list.length) return '';
+      return list[Math.floor(Math.random() * list.length)] || list[0];
+    }
+
+    function buildDistrict(id, label, idx) {
+      var microCount = 2 + Math.floor(Math.random() * 4);
+      var micro = [];
+      for (var mi = 0; mi < microCount; mi++) micro.push(pickLocal(microPool));
+      return {
+        id: id,
+        label: label,
+        kind: String(label || 'district').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        dd: 6 + (idx % 3 === 0 ? 2 : 0),
+        explored: false,
+        revealed: idx === 0,
+        result: '',
+        atmosphere: pickLocal([
+          'Dust hangs in the air like incense.',
+          'Lantern light catches damp stone and iron rivets.',
+          'Voices echo between narrow walls and shuttered stalls.',
+          'The district hums with tired but stubborn life.'
+        ]),
+        npcDensity: pickLocal(crowds),
+        dangerLevel: pickLocal(['Low', 'Moderate', 'High']),
+        activity: pickLocal(activities),
+        mood: pickLocal(moods),
+        rumor: pickLocal(rumors),
+        interactable: pickLocal(interactables),
+        hiddenThing: pickLocal(hiddenThings),
+        microLocations: micro
       };
     }
-    return S.holding.settlementHexcrawl;
+
+    function buildNpcWeb() {
+      var names = ['Captain Helvek', 'Warden Sera', 'Archivist Noll', 'Dockmaster Breth', 'Sister Vael', 'Foreman Tarek', 'Broker Ines'];
+      var roles = ['Gate Watch Commander', 'Patrol Lead', 'Archivist', 'Dock Overseer', 'Shrine Acolyte', 'Quarry Foreman', 'Market Broker'];
+      var needs = ['More defenders', 'Food convoy', 'Quiet investigation', 'Secure route', 'Temple repair', 'Ore shipment', 'Debt relief'];
+      var secrets = ['Taking bribes', 'Hiding relic maps', 'Working with smugglers', 'Tracking the silent stranger', 'Forging permits', 'Cult contact'];
+      var factions = ['Wardens', 'Temple', 'Merchants', 'Labor Guild', 'Free Scouts'];
+      var schedule = ['Morning: walls', 'Midday: market', 'Dusk: council lane', 'Night: tavern cellar'];
+      return names.map(function (name, idx) {
+        return {
+          name: name,
+          role: roles[idx % roles.length],
+          need: needs[idx % needs.length],
+          secret: secrets[idx % secrets.length],
+          faction: factions[idx % factions.length],
+          schedule: [schedule[idx % schedule.length], schedule[(idx + 1) % schedule.length]],
+          relationship: 'Knows: missing caravan, silent stranger'
+        };
+      });
+    }
+
+    function buildStats() {
+      return {
+        security: 4 + Math.floor(Math.random() * 4),
+        food: 4 + Math.floor(Math.random() * 4),
+        wealth: 4 + Math.floor(Math.random() * 4),
+        faith: 3 + Math.floor(Math.random() * 5),
+        fear: 3 + Math.floor(Math.random() * 5),
+        mystery: 3 + Math.floor(Math.random() * 5),
+        health: 4 + Math.floor(Math.random() * 4)
+      };
+    }
+
+    if (!S.holding.settlementHexcrawl || !Array.isArray(S.holding.settlementHexcrawl.nodes) || !S.holding.settlementHexcrawl.nodes.length || Number(S.holding.settlementHexcrawl.version || 0) < 2) {
+      var type = String(S.holding.type || 'Fortress');
+      var districts = (byType[type] || byType.Fortress).slice();
+      var count = Math.max(3, Math.min(8, districts.length - Math.floor(Math.random() * 2)));
+      districts = districts.slice(0, count);
+      var coords = [
+        { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: 1, r: 1 },
+        { q: 2, r: 0 }, { q: -1, r: 1 }, { q: 2, r: 1 }, { q: 1, r: 2 }
+      ];
+      var nodes = districts.map(function (label, idx) {
+        var node = buildDistrict('d' + String(idx), label, idx);
+        node.q = (coords[idx] || { q: idx, r: 0 }).q;
+        node.r = (coords[idx] || { q: idx, r: 0 }).r;
+        return node;
+      });
+      var edges = [];
+      if (nodes.length > 1) edges.push(['d0', 'd1']);
+      if (nodes.length > 2) edges.push(['d0', 'd2']);
+      for (var ei = 3; ei < nodes.length; ei++) {
+        edges.push(['d' + String(ei - 1), 'd' + String(ei)]);
+        if (ei % 2 === 0) edges.push(['d' + String(ei - 2), 'd' + String(ei)]);
+      }
+      S.holding.settlementHexcrawl = {
+        version: 2,
+        holdingType: type,
+        timeOfDay: 'morning',
+        visitCount: 0,
+        activeNodeId: nodes.length ? nodes[0].id : null,
+        nodes: nodes,
+        edges: edges,
+        ambient: {},
+        npcWeb: buildNpcWeb(),
+        stats: buildStats(),
+        history: []
+      };
+    }
+
+    var crawl = S.holding.settlementHexcrawl;
+    var byId = {};
+    crawl.nodes.forEach(function (n) { byId[n.id] = n; });
+    crawl.nodes.forEach(function (n) {
+      if (!n.explored) return;
+      (crawl.edges || []).forEach(function (e) {
+        if (e[0] === n.id && byId[e[1]]) byId[e[1]].revealed = true;
+        if (e[1] === n.id && byId[e[0]]) byId[e[0]].revealed = true;
+      });
+    });
+    return crawl;
+  }
+
+  function rollHoldingAmbientState(crawl) {
+    var scenes = [
+      'Funeral procession passes through a narrow lane.',
+      'A child steals bread and vanishes into the crowd.',
+      'Militia drills spill into the market square.',
+      'A drunk miner collapses near a shrine.',
+      'Strange lights flicker beneath the district drains.',
+      'A bell rings underground with no visible tower.'
+    ];
+    var opportunities = [
+      'Win a district map in a dice game.',
+      'Buy discounted tools from a nervous smith.',
+      'Hire a temporary scout for the next expedition.',
+      'Get a guarded rumor from a dock messenger.'
+    ];
+    var mysteries = [
+      'No one enters one alley after dusk.',
+      'Dogs refuse to cross a shrine threshold.',
+      'A child keeps drawing the same symbol.',
+      'The silent stranger never casts a shadow.'
+    ];
+    var rumorPool = crawl.nodes.map(function (n) { return n.rumor; }).filter(Boolean);
+    var npc = (crawl.npcWeb || [])[Math.floor(Math.random() * Math.max(1, (crawl.npcWeb || []).length))] || { name: 'Patrol Captain' };
+    crawl.ambient = {
+      scene: scenes[Math.floor(Math.random() * scenes.length)],
+      rumor: rumorPool[Math.floor(Math.random() * Math.max(1, rumorPool.length))] || 'People whisper about sealed tunnels.',
+      npcMovement: 'NPC movement: ' + String(npc.name) + ' changed route this watch.',
+      threatEscalation: Math.random() < 0.35 ? 'Threat escalates: crisis pressure worsened.' : 'Threat steady: no escalation this watch.',
+      opportunity: opportunities[Math.floor(Math.random() * opportunities.length)],
+      mysterySignal: mysteries[Math.floor(Math.random() * mysteries.length)]
+    };
+  }
+
+  function buildHoldingHexMapHtml(crawl) {
+    var nodeById = {};
+    crawl.nodes.forEach(function (n) { if (n && n.id) nodeById[n.id] = n; });
+    var size = 22;
+    var ox = 220;
+    var oy = 120;
+    var toXY = function (q, r) {
+      return {
+        x: ox + (Math.sqrt(3) * size * (q + r / 2)),
+        y: oy + ((3 / 2) * size * r)
+      };
+    };
+    var hexPoints = function (cx, cy) {
+      var pts = [];
+      for (var i = 0; i < 6; i++) {
+        var ang = (Math.PI / 180) * (60 * i - 30);
+        pts.push((cx + size * Math.cos(ang)).toFixed(1) + ',' + (cy + size * Math.sin(ang)).toFixed(1));
+      }
+      return pts.join(' ');
+    };
+    var edgeSvg = (crawl.edges || []).map(function (e) {
+      var a = nodeById[e[0]], b = nodeById[e[1]];
+      if (!a || !b || !a.revealed || !b.revealed) return '';
+      var pa = toXY(Number(a.q || 0), Number(a.r || 0));
+      var pb = toXY(Number(b.q || 0), Number(b.r || 0));
+      return '<line x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) + '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '" stroke="rgba(126,215,255,.35)" stroke-width="2" />';
+    }).join('');
+    var nodeSvg = crawl.nodes.filter(function (n) { return n.revealed; }).map(function (n) {
+      var p = toXY(Number(n.q || 0), Number(n.r || 0));
+      var selected = String(crawl.activeNodeId || '') === String(n.id);
+      var stroke = selected ? 'rgba(240,208,112,.95)' : (n.explored ? 'rgba(76,175,116,.9)' : 'rgba(126,215,255,.75)');
+      var fill = n.explored ? 'rgba(76,175,116,.2)' : 'rgba(20,30,44,.88)';
+      return '<g>'
+        + '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2" style="cursor:pointer;" onclick="selectHoldingSettlementDistrict(\'' + String(n.id) + '\')" />'
+        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y - 1).toFixed(1) + '" text-anchor="middle" font-size="8" fill="var(--gold2)">' + String(n.label || 'District').slice(0, 9) + '</text>'
+        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y + 10).toFixed(1) + '" text-anchor="middle" font-size="8" fill="var(--muted2)">' + (n.explored ? 'Cleared' : 'Unexplored') + '</text>'
+        + '</g>';
+    }).join('');
+    return '<svg viewBox="0 0 440 260" style="width:100%;max-width:560px;height:auto;display:block;margin:0 auto;">' + edgeSvg + nodeSvg + '</svg>';
   }
 
   function buildHoldingSettlementHexcrawlModal() {
     var crawl = ensureHoldingSettlementHexcrawl();
-    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">'
-      + 'Settlement hexcrawl: each district node is a different town function. Explore one node at a time to trigger local outcomes.'
-      + '</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.28rem;">';
-    crawl.nodes.forEach(function (node) {
-      var state = node.explored ? 'Cleared' : 'Unexplored';
-      var action = node.explored
-        ? '<span style="font-size:.68rem;color:var(--muted2);">Resolved</span>'
-        : '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(node.id) + '\')">Explore Node</button>';
-      html += '<div style="border:1px solid var(--border2);background:var(--surface);padding:.32rem .38rem;">'
-        + '<div style="font-size:.68rem;color:var(--gold2);">' + node.label + '</div>'
-        + '<div style="font-size:.68rem;color:' + (node.explored ? 'var(--green2)' : 'var(--muted2)') + ';margin-top:.12rem;">' + state + '</div>'
-        + (node.result ? '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;margin-top:.16rem;">' + node.result + '</div>' : '')
-        + '<div style="margin-top:.22rem;">' + action + '</div>'
+    crawl.visitCount = Number(crawl.visitCount || 0) + 1;
+    rollHoldingAmbientState(crawl);
+    var active = crawl.nodes.find(function (n) { return String(n.id || '') === String(crawl.activeNodeId || ''); }) || crawl.nodes[0];
+    var stats = crawl.stats || {};
+    var statsHtml = ['security', 'food', 'wealth', 'faith', 'fear', 'mystery', 'health'].map(function (k) {
+      var v = Math.max(0, Math.min(10, Number(stats[k] || 0)));
+      return '<div style="font-size:.66rem;color:var(--muted2);">' + k.toUpperCase() + ': <strong style="color:var(--text2);">' + v + '/10</strong></div>';
+    }).join('');
+    var ambient = crawl.ambient || {};
+    var npcRows = (crawl.npcWeb || []).slice(0, 4).map(function (npc) {
+      return '<div style="font-size:.66rem;color:var(--text2);line-height:1.45;padding:.12rem 0;border-bottom:1px solid rgba(255,255,255,.06);">'
+        + '<strong>' + npc.name + '</strong> · ' + npc.role + '<br>'
+        + 'Need: ' + npc.need + ' · Secret: ' + npc.secret + '<br>'
+        + npc.schedule.join(' | ') + ' · ' + npc.faction
         + '</div>';
-    });
-    html += '</div>';
+    }).join('');
+    var micro = active && Array.isArray(active.microLocations) ? active.microLocations : [];
+    var microHtml = micro.map(function (m) { return '<div style="font-size:.66rem;color:var(--text2);">- ' + m + '</div>'; }).join('');
+    var actionButton = active && !active.explored
+      ? '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Explore (Action vs DD' + Number(active.dd || 6) + ')</button>'
+      : '<span style="font-size:.68rem;color:var(--green2);">District already resolved this visit.</span>';
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;margin-bottom:.28rem;">'
+      + '<strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1)
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,1fr);gap:.35rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.3rem;">'
+      + buildHoldingHexMapHtml(crawl)
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.18rem;">'
+      + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(1)">+1 Hour</button>'
+      + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(6)">+6 Hours</button>'
+      + '<button class="btn btn-xs btn-teal" onclick="openHoldingSettlementHexcrawl()">Refresh Scene</button>'
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:.24rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(0,0,0,.16);padding:.28rem;">'
+      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;"><strong>Ambient Pulse</strong></div>'
+      + '<div style="font-size:.68rem;color:var(--text2);">' + String(ambient.scene || 'The holding stirs.') + '</div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '</div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);">Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '</div>'
+      + '<div style="font-size:.64rem;color:var(--gold2);">Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);">' + String(ambient.npcMovement || '') + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
+      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Holding Pressure Gauges</strong></div>'
+      + statsHtml
+      + '</div>'
+      + (active ? ('<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
+          + '<div style="font-size:.72rem;color:var(--gold2);"><strong>' + active.label + '</strong></div>'
+          + '<div style="font-size:.66rem;color:var(--text2);margin-top:.08rem;">' + active.atmosphere + '</div>'
+          + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
+          + '<div style="font-size:.66rem;color:var(--muted2);">Hidden: ' + active.hiddenThing + ' · Interactable: ' + active.interactable + '</div>'
+          + '<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">Micro-Locations</div>'
+          + microHtml
+          + (active.result ? '<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">' + active.result + '</div>' : '')
+          + '<div style="margin-top:.18rem;">' + actionButton + '</div>'
+          + '</div>') : '')
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
+      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;"><strong>Recurring NPC Web</strong></div>'
+      + npcRows
+      + '</div>'
+      + '</div>'
+      + '</div>';
     return html;
   }
 
@@ -1527,64 +1757,78 @@
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
   }
 
+  function selectHoldingSettlementDistrict(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) { return; }
+    if (!node.revealed) {
+      if (typeof showNotif === 'function') showNotif('That district is still hidden. Explore connected districts first.', 'warn');
+      return;
+    }
+    crawl.activeNodeId = node.id;
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+  }
+
+  function advanceHoldingSettlementTime(hours) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var h = Math.max(1, Number(hours || 1));
+    var order = ['morning', 'dusk', 'night'];
+    var idx = order.indexOf(String(crawl.timeOfDay || 'morning'));
+    if (idx < 0) idx = 0;
+    idx = (idx + (h >= 6 ? 2 : 1)) % order.length;
+    crawl.timeOfDay = order[idx];
+    crawl.stats = crawl.stats || {};
+    crawl.stats.fear = Math.max(0, Math.min(10, Number(crawl.stats.fear || 0) + (crawl.timeOfDay === 'night' ? 1 : 0)));
+    crawl.stats.security = Math.max(0, Math.min(10, Number(crawl.stats.security || 0) + (crawl.timeOfDay === 'night' ? -1 : 0)));
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+  }
+
   function resolveHoldingSettlementHexNode(nodeId) {
     var crawl = ensureHoldingSettlementHexcrawl();
     var node = crawl.nodes.find(function (entry) { return String(entry.id) === String(nodeId); });
-    if (!node || node.explored) { return; }
+    if (!node || node.explored || !node.revealed) { return; }
     node.explored = true;
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
     var action = explodingRoll(die);
     var dread = explodingRoll(Number(node.dd || 6));
     var success = action.total >= dread.total;
     var line = 'Lead d' + die + ' ' + action.total + ' vs DD' + Number(node.dd || 6) + ' ' + dread.total + '. ';
+    crawl.stats = crawl.stats || {};
     if (success) {
-      if (node.kind === 'merchant') {
-        var cGain = 50;
-        S.credits = (S.credits || 0) + cGain;
-        if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
-        line += 'Merchant day went well. +' + cGain + ' Credits.';
-      } else if (node.kind === 'inn') {
-        if (typeof toggleCond === 'function' && S.conditions && !S.conditions.empowered) { toggleCond('empowered'); }
-        line += 'Inn rest granted Empowered boon.';
-      } else if (node.kind === 'mood') {
-        line += 'Settlement mood improved; one crisis pressure diffused.';
-        if (Array.isArray(S.holding.crises) && S.holding.crises.length) S.holding.crises.pop();
-      } else if (node.kind === 'news') {
-        if (typeof changeCounter === 'function') { changeCounter('tmw', 1); }
-        line += 'News and hooks gathered. +1 Teamwork and new lead rumors.';
-      } else if (node.kind === 'lord') {
-        if (typeof changeCounter === 'function') { changeCounter('renown', 1); }
-        S.holding.councilTasks = Array.isArray(S.holding.councilTasks) ? S.holding.councilTasks : [];
-        S.holding.councilTasks.push('Lord Task: Investigate unrest on the eastern road.');
-        line += 'Audience with the lord succeeded. +1 Renown and a new council task.';
-      } else if (node.kind === 'downtime') {
-        if (typeof changeCounter === 'function') { changeCounter('tmw', 1); }
-        line += 'Downtime completed cleanly. +1 Teamwork and stress relief.';
-        if (typeof changeMentalStress === 'function') { changeMentalStress(-1); }
-      } else if (node.kind === 'road') {
-        line += 'Road secured to the inn district. Movement and commerce are safer this phase.';
-      } else if (node.kind === 'focus') {
-        if (typeof toggleCond === 'function' && S.conditions && !S.conditions.focused) { toggleCond('focused'); }
-        line += 'Gained Focused.';
-      } else {
-        if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
-        line += 'Route secured.';
-      }
+      var cGain = 20 + Math.floor(Math.random() * 41);
+      S.credits = (S.credits || 0) + cGain;
+      if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
+      if (typeof changeCounter === 'function') { changeCounter('tmw', 1); }
+      crawl.stats.wealth = Math.min(10, Number(crawl.stats.wealth || 0) + 1);
+      crawl.stats.security = Math.min(10, Number(crawl.stats.security || 0) + (Math.random() < 0.5 ? 1 : 0));
+      crawl.stats.fear = Math.max(0, Number(crawl.stats.fear || 0) - 1);
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+      line += 'District stabilized. +' + cGain + ' Credits, +1 Teamwork, Fear reduced.';
     } else {
       if (typeof changeMentalStress === 'function') { changeMentalStress(1); }
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
-      if (node.kind === 'mood') {
-        S.holding.crises = Array.isArray(S.holding.crises) ? S.holding.crises : [];
+      crawl.stats.fear = Math.min(10, Number(crawl.stats.fear || 0) + 1);
+      crawl.stats.security = Math.max(0, Number(crawl.stats.security || 0) - 1);
+      line += 'District setback. +1 Mental Stress, Fear rises, Security drops.';
+      S.holding.crises = Array.isArray(S.holding.crises) ? S.holding.crises : [];
+      if (Math.random() < 0.4) {
         S.holding.crises.push({
-          name: 'Holding Mood Crisis',
-          desc: 'Tension spreads through the district after failed mediation.',
-          resolution: 'Complete a talk or task downtime action to restore trust.'
+          name: 'District Escalation',
+          desc: 'Local pressure rises after a failed district action.',
+          resolution: 'Resolve talk/task actions and revisit districts to stabilize the holding.'
         });
-        line += '+1 Mental Stress and a new mood crisis emerged.';
-      } else {
-        line += '+1 Mental Stress.';
       }
     }
+    (crawl.edges || []).forEach(function (e) {
+      if (e[0] === node.id) {
+        var n1 = crawl.nodes.find(function (x) { return x.id === e[1]; });
+        if (n1) n1.revealed = true;
+      }
+      if (e[1] === node.id) {
+        var n2 = crawl.nodes.find(function (x) { return x.id === e[0]; });
+        if (n2) n2.revealed = true;
+      }
+    });
     node.result = line;
     if (typeof showNotif === 'function') { showNotif(line, success ? 'good' : 'warn'); }
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
@@ -3177,6 +3421,8 @@
   window.rollHoldingDowntimeActivity = rollHoldingDowntimeActivity;
   window.resolveHoldingDowntimeEvent = resolveHoldingDowntimeEvent;
   window.openHoldingSettlementHexcrawl = openHoldingSettlementHexcrawl;
+  window.selectHoldingSettlementDistrict = selectHoldingSettlementDistrict;
+  window.advanceHoldingSettlementTime = advanceHoldingSettlementTime;
   window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;
   window.buyCaravan           = buyCaravan;
   window.rollCaravanName      = rollCaravanName;

@@ -2986,12 +2986,8 @@
       return true;
     }
     if (w === 3 && stage === 'raid-clear') {
-      var vault = ensureLegacyRaidLootVault(mission);
-      if (vault && (vault.loot.length > 0 || (vault.keys && (vault.keys.bronze || vault.keys.silver || vault.keys.gold || vault.keys.platinum)))) {
-        return openLegacyRaidLootRecoveryModal(mission);
-      }
-      if (typeof resolveMissionOutcome === 'function') resolveMissionOutcome(mission.id, true);
-      return true;
+      var clearSummary = buildLegacyRaidClearSummary(mission);
+      return finalizeLegacyRaidClear(mission.id, Number(clearSummary && clearSummary.bonusMedals || 0));
     }
     return true;
   }
@@ -3167,6 +3163,7 @@
       S.combat = S.combat || {};
       S.combat.actionsLeft = Math.max(4, Number(S.combat.actionsLeft || 0));
       if (typeof startCombat === 'function') startCombat();
+      setLegacyRaidCombatFlowActive(true);
       if (typeof updateCombatUI === 'function') updateCombatUI();
       if (typeof renderEnemies === 'function') renderEnemies();
       if (typeof renderCombatOptions === 'function') renderCombatOptions();
@@ -3178,6 +3175,130 @@
     }
   }
   window.openRaidCombatModal = openRaidCombatModal;
+
+  function setLegacyRaidCombatFlowActive(active) {
+    if (typeof S === 'undefined' || !S) return;
+    S.combat = S.combat || {};
+    if (!active) {
+      S.combat.raidFlow = null;
+      return;
+    }
+    var allyCount = Array.isArray(S.enemies)
+      ? S.enemies.filter(function (enemy) { return enemy && enemy.ally && enemy.temporarySceneAlly; }).length
+      : 0;
+    S.combat.raidFlow = {
+      active: true,
+      stage: 'player',
+      turn: 1,
+      allyCount: allyCount,
+      allyActionsPerTurn: 2,
+      enemyActionsPerTurn: 2
+    };
+  }
+
+  function runLegacyRaidAutoAllyPhase() {
+    if (typeof S === 'undefined' || !S || !Array.isArray(S.enemies)) return;
+    var allies = S.enemies.filter(function (enemy) { return enemy && enemy.ally && enemy.temporarySceneAlly; });
+    var hostiles = S.enemies.filter(function (enemy) { return enemy && !enemy.ally; });
+    if (!allies.length || !hostiles.length) return;
+    allies.forEach(function (ally) {
+      for (var i = 0; i < 2; i++) {
+        var target = hostiles.find(function (enemy) {
+          return enemy && Number(enemy.stress || 0) < Number(enemy.maxStress || 8);
+        });
+        if (!target) return;
+        var allyRoll = typeof roll === 'function' ? roll(6) : (Math.floor(Math.random() * 6) + 1);
+        var targetDd = Math.max(4, Number(target.dread || 6));
+        var enemyRoll = typeof roll === 'function' ? roll(targetDd) : (Math.floor(Math.random() * targetDd) + 1);
+        if (allyRoll >= enemyRoll) {
+          var dmg = Math.max(1, allyRoll - enemyRoll + 1);
+          target.stress = Math.min(Number(target.maxStress || 8), Number(target.stress || 0) + dmg);
+        }
+      }
+    });
+  }
+
+  function runLegacyRaidAutoEnemyPhase() {
+    if (typeof S === 'undefined' || !S || !Array.isArray(S.enemies)) return;
+    var hostiles = S.enemies.filter(function (enemy) {
+      return enemy && !enemy.ally && Number(enemy.stress || 0) < Number(enemy.maxStress || 8);
+    });
+    if (!hostiles.length) return;
+    var allies = S.enemies.filter(function (enemy) {
+      return enemy && enemy.ally && enemy.temporarySceneAlly;
+    });
+    hostiles.forEach(function (enemy) {
+      var dreadDie = Math.max(4, Number(enemy.dread || (S.combat && S.combat.enemyDread) || 6));
+      for (var i = 0; i < 2; i++) {
+        var allyTarget = allies.find(function (ally) {
+          return ally && Number(ally.stress || 0) < Number(ally.maxStress || 12);
+        });
+        var hit = typeof roll === 'function' ? roll(dreadDie) : (Math.floor(Math.random() * dreadDie) + 1);
+        var defend = typeof roll === 'function' ? roll(6) : (Math.floor(Math.random() * 6) + 1);
+        var dmg = Math.max(1, hit - defend);
+        if (allyTarget) {
+          allyTarget.stress = Math.min(Number(allyTarget.maxStress || 12), Number(allyTarget.stress || 0) + dmg);
+        } else if (typeof changeStress === 'function') {
+          changeStress(dmg);
+        }
+      }
+    });
+  }
+
+  function completeLegacyRaidCombatCycle() {
+    if (typeof S === 'undefined' || !S || !S.combat || !S.combat.raidFlow || !S.combat.raidFlow.active) return;
+    if (!getLegacyRaidPendingHexCombat()) {
+      S.combat.raidFlow = null;
+      return;
+    }
+    S.combat.raidFlow.stage = 'ally';
+    runLegacyRaidAutoAllyPhase();
+    S.combat.raidFlow.stage = 'enemy';
+    runLegacyRaidAutoEnemyPhase();
+    S.combat.raidFlow.stage = 'player';
+    S.combat.raidFlow.turn = Number(S.combat.raidFlow.turn || 1) + 1;
+    if (typeof getMaxActions === 'function') S.combat.actionsLeft = Math.max(1, Number(getMaxActions() || 3));
+    if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+  }
+
+  function patchLegacyRaidCombatStageHooks() {
+    if (typeof window === 'undefined' || window._legacyRaidCombatHooksPatched) return;
+    if (typeof window.consumeCombatAction !== 'function') return;
+    window._legacyRaidCombatHooksPatched = true;
+
+    var baseConsume = window.consumeCombatAction;
+    window.consumeCombatAction = function () {
+      if (typeof S !== 'undefined' && S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active && !getLegacyRaidPendingHexCombat()) {
+        S.combat.raidFlow = null;
+      }
+      if (typeof S !== 'undefined' && S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active
+        && S.combat.raidFlow.stage !== 'player') {
+        if (typeof showNotif === 'function') showNotif('Raid flow: wait for ally/enemy phase.', 'warn');
+        return false;
+      }
+      var out = baseConsume.apply(this, arguments);
+      if (out && typeof S !== 'undefined' && S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active) {
+        if (Number(S.combat.actionsLeft || 0) <= 0) completeLegacyRaidCombatCycle();
+      }
+      return out;
+    };
+
+    if (typeof window.rollDefend === 'function') {
+      var baseDefend = window.rollDefend;
+      window.rollDefend = function () {
+        if (typeof S !== 'undefined' && S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active && !getLegacyRaidPendingHexCombat()) {
+          S.combat.raidFlow = null;
+        }
+        if (typeof S !== 'undefined' && S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active
+          && S.combat.raidFlow.stage !== 'player') {
+          if (typeof showNotif === 'function') showNotif('Raid flow: Defend is only available in player stage.', 'warn');
+          return false;
+        }
+        return baseDefend.apply(this, arguments);
+      };
+    }
+  }
 
   window.executeRaidCombatRound = function (missionId, wingNum) {
     // Compatibility shim: execution happens in Combat tab actions now.
@@ -3194,7 +3315,10 @@
       state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
       state.lastLog = 'Combat entered but retreated (-1 tick).';
     }
-    if (typeof S !== 'undefined' && S) S.enemies = [];
+    if (typeof S !== 'undefined' && S) {
+      S.enemies = [];
+      if (S.combat) S.combat.raidFlow = null;
+    }
     window.finalizeLegacyRaidHexCombatOutcome('retreat');
   };
 
@@ -3202,7 +3326,10 @@
     var mission = getMission(missionId);
     if (!mission) return;
     if (typeof showNotif === 'function') showNotif('Combat wipe. Raid failed.', 'warn');
-    if (typeof S !== 'undefined' && S) S.enemies = [];
+    if (typeof S !== 'undefined' && S) {
+      S.enemies = [];
+      if (S.combat) S.combat.raidFlow = null;
+    }
     window.finalizeLegacyRaidHexCombatOutcome('wipe');
   };
 
@@ -5582,6 +5709,7 @@
     var wingNum = Number(ctx.pending.wing || state.wing || 1);
     var cellId = String(ctx.pending.cellId || state.currentId || '');
     var cell = state.cells && state.cells[cellId] ? state.cells[cellId] : null;
+    if (typeof S !== 'undefined' && S && S.combat) S.combat.raidFlow = null;
     state.pendingCombat = null;
     if (!cell) return openRaidWingPopup(mission.id, wingNum);
     var result = String(outcome || 'retreat').toLowerCase();
@@ -9488,6 +9616,7 @@
         }
       }
     }
+    patchLegacyRaidCombatStageHooks();
     patchRaidTreeTabRefresh();
     syncMissionUIs();
   }

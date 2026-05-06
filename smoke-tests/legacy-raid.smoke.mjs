@@ -223,6 +223,63 @@ async function runScenario(browser) {
     };
   });
 
+  const payoutSummary = await page.evaluate(() => {
+    if (typeof window.createMission !== "function" || typeof window.finalizeLegacyRaidVaultPayoutChoice !== "function") {
+      return { ok: false, reason: "raid APIs unavailable" };
+    }
+
+    const m = window.createMission(
+      "Raid Signal",
+      "Smoke Raid Payout Check",
+      "hard",
+      "Province",
+      "province",
+      "Test Hostiles",
+      { missionType: "legacy_raid", storyTheme: "legacy_raid" }
+    );
+    if (!m) return { ok: false, reason: "failed to create mission" };
+    m.missionType = "legacy_raid";
+
+    m.legacyRaidVaultPayout = {
+      loot: [],
+      keys: { bronze: 0, silver: 0, gold: 1, platinum: 0 }
+    };
+
+    const state = (typeof S !== "undefined" && S) ? S : window.S;
+    if (!state) return { ok: false, reason: "missing global state" };
+    state.solarCycleLegacy = {
+      raidMedals: 0,
+      raidPoints: 0,
+      raidTreeRanks: {},
+      raidKeys: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
+      raidTrophies: []
+    };
+
+    const beforeKeys = Number(
+      (state && state.solarCycleLegacy && state.solarCycleLegacy.raidKeys && state.solarCycleLegacy.raidKeys.gold) || 0
+    );
+    const keepApplied = !!window.finalizeLegacyRaidVaultPayoutChoice(m.id, "keep", true);
+    const afterKeepKeys = Number(
+      (state && state.solarCycleLegacy && state.solarCycleLegacy.raidKeys && state.solarCycleLegacy.raidKeys.gold) || 0
+    );
+
+    const creditsBefore = Number((state && state.credits) || 0);
+    const opened = typeof window.openLegacyRaidChest === "function" ? !!window.openLegacyRaidChest("gold") : false;
+    const afterChestKeys = Number(
+      (state && state.solarCycleLegacy && state.solarCycleLegacy.raidKeys && state.solarCycleLegacy.raidKeys.gold) || 0
+    );
+    const creditsAfter = Number((state && state.credits) || 0);
+
+    return {
+      ok: true,
+      keepApplied,
+      keyDeltaOnKeep: afterKeepKeys - beforeKeys,
+      chestOpened: opened,
+      keyDeltaOnChestOpen: afterChestKeys - afterKeepKeys,
+      creditDeltaOnChestOpen: creditsAfter - creditsBefore
+    };
+  });
+
   await page.close();
 
   if (pageErrors.length) {
@@ -230,6 +287,18 @@ async function runScenario(browser) {
   }
   if (!modalSummary.hasRewards || !modalSummary.hasCheckpoints || !modalSummary.hasTelegraphs) {
     throw new Error(`Legacy raid modal assertions failed: ${JSON.stringify(modalSummary)}`);
+  }
+  if (!payoutSummary.ok) {
+    throw new Error(`Legacy raid payout assertions unavailable: ${JSON.stringify(payoutSummary)}`);
+  }
+  if (!payoutSummary.keepApplied) {
+    throw new Error(`Expected keep payout path to apply, got: ${JSON.stringify(payoutSummary)}`);
+  }
+  if (payoutSummary.keyDeltaOnKeep < 1) {
+    throw new Error(`Expected key transfer into raid ledger, got: ${JSON.stringify(payoutSummary)}`);
+  }
+  if (!payoutSummary.chestOpened || payoutSummary.keyDeltaOnChestOpen > -1 || payoutSummary.creditDeltaOnChestOpen <= 0) {
+    throw new Error(`Expected chest spend to consume key and grant credits, got: ${JSON.stringify(payoutSummary)}`);
   }
 
   return { summary, modalSummary };

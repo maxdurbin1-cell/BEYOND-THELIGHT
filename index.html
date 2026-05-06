@@ -15298,6 +15298,46 @@ document.addEventListener('DOMContentLoaded',()=>{
     });
   }
 
+  function ensureProvinceRuinHexcrawlState(hex){
+    if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms))return null;
+    const rooms=hex.data.provinceRuinRooms;
+    if(!hex.data.provinceRuinHexcrawl||typeof hex.data.provinceRuinHexcrawl!=='object'){
+      hex.data.provinceRuinHexcrawl={nodes:[]};
+    }
+    if(!Array.isArray(hex.data.provinceRuinHexcrawl.nodes))hex.data.provinceRuinHexcrawl.nodes=[];
+    const nodes=hex.data.provinceRuinHexcrawl.nodes;
+    const existing={};
+    nodes.forEach(function(node){ if(node&&node.id)existing[String(node.id)]=node; });
+    const nextNodes=rooms.map(function(room,idx){
+      const id='r'+String(idx);
+      const prior=existing[id]||{};
+      return {
+        id:id,
+        roomIdx:idx,
+        label:(room&&room.type?String(room.type):'Room')+' '+String((room&&room.idx)||idx+1),
+        explored:!!(room&&room.cleared)||!!prior.explored
+      };
+    });
+    hex.data.provinceRuinHexcrawl.nodes=nextNodes;
+    return hex.data.provinceRuinHexcrawl;
+  }
+
+  window.exploreProvinceRuinHexNode = function(col,row,nodeId){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
+    if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms))return;
+    const crawl=ensureProvinceRuinHexcrawlState(hex);
+    if(!crawl||!Array.isArray(crawl.nodes))return;
+    const node=crawl.nodes.find(function(entry){ return entry&&String(entry.id)===String(nodeId); });
+    if(!node)return;
+    const room=hex.data.provinceRuinRooms[node.roomIdx];
+    if(!room)return;
+    if(room.cleared){
+      showNotif('This ruin node is already cleared.','info');
+      return;
+    }
+    resolveProvinceRuinRoom(col,row,node.roomIdx);
+  };
+
   function getProvinceRuinBlockingPuzzleIndex(rooms){
     if(!Array.isArray(rooms))return -1;
     for(let i=0;i<rooms.length;i++){
@@ -15394,6 +15434,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       generatedRuinRooms=true;
     }
     ensureProvinceRuinRoomState(hex);
+    const ruinHexcrawl=ensureProvinceRuinHexcrawlState(hex);
     if(generatedRuinRooms)syncProvinceRuinStateSoon('province-ruin-generated');
     const blockingPuzzleIdx=getProvinceRuinBlockingPuzzleIndex(hex.data.provinceRuinRooms);
     const rows=hex.data.provinceRuinRooms.map(function(room,i){
@@ -15420,6 +15461,27 @@ document.addEventListener('DOMContentLoaded',()=>{
     }).join('');
     const cleared = hex.data.provinceRuinRooms.filter(function(r){return r.cleared;}).length;
     const total = hex.data.provinceRuinRooms.length;
+    const hexcrawlHtml = ruinHexcrawl&&Array.isArray(ruinHexcrawl.nodes)&&ruinHexcrawl.nodes.length
+      ? '<div class="room-block" style="border-color:rgba(46,196,182,.35);background:rgba(46,196,182,.05);margin-bottom:.5rem;">'
+        + '<div class="ruin-room-title" style="color:var(--teal);">Hexcrawl Search Grid</div>'
+        + '<div style="font-size:.78rem;color:var(--text2);line-height:1.5;margin-bottom:.3rem;">Search room-by-room from this node grid. Unsolved puzzle rooms still block progression.</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:.25rem;">'
+        + ruinHexcrawl.nodes.map(function(node){
+            const room=hex.data.provinceRuinRooms[node.roomIdx];
+            const nodeState=(room&&room.cleared)?'Cleared':'Unexplored';
+            const nodeAction=(room&&room.cleared)
+              ? '<span style="font-size:.68rem;color:var(--muted2);">Resolved</span>'
+              : '<button class="btn btn-xs btn-teal" onclick="exploreProvinceRuinHexNode('+col+','+row+',\''+String(node.id)+'\')">Explore Node</button>';
+            return '<div style="border:1px solid var(--border2);padding:.26rem .34rem;background:var(--surface);">'
+              + '<div style="font-size:.68rem;color:var(--gold2);">Hex ['+(Number(node.roomIdx)+1)+']</div>'
+              + '<div style="font-size:.74rem;color:var(--text2);margin-top:.1rem;">'+(room&&room.type?room.type:'Room')+'</div>'
+              + '<div style="font-size:.68rem;color:'+(room&&room.cleared?'var(--green2)':'var(--muted2)')+';margin-top:.14rem;">'+nodeState+'</div>'
+              + '<div style="margin-top:.18rem;">'+nodeAction+'</div>'
+              + '</div>';
+          }).join('')
+        + '</div>'
+      + '</div>'
+      : '';
     const progressBar = '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;height:6px;margin-bottom:.5rem;"><div style="background:var(--teal);height:100%;width:'+Math.round(cleared/total*100)+'%;border-radius:4px;transition:width .3s;"></div></div>';
     const header = '<div style="margin-bottom:.45rem;">'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;">Built by <strong style="color:var(--gold);">'+(hex.data.builder||'Unknown')+'</strong> · <em>'+(hex.data.builtFor||'Unknown purpose')+'</em></div>'
@@ -15427,7 +15489,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">'+cleared+'/'+total+' rooms explored</div>'
       + progressBar
       + '</div>';
-    openModal('◫ Province Ruins — '+(hex.name||'Unknown Ruin'), header+rows);
+    openModal('◫ Province Ruins — '+(hex.name||'Unknown Ruin'), header+hexcrawlHtml+rows);
   };
 
   window.resolveProvinceRuinRoom = function(col,row,idx){

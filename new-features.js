@@ -1475,41 +1475,132 @@
   function ensureHoldingSettlementHexcrawl() {
     ensureNewFeatureState();
     if (!S.holding || typeof S.holding !== 'object') { S.holding = {}; }
-    var byType = {
-      Fortress: ['Gate Ward', 'Market Square', 'Quarry Row', 'Old Shrine', 'Barracks', 'Lord\'s Hall', 'River Docks', 'Lower Tunnels'],
-      Citadel: ['High Gate', 'Scholars Court', 'Outer Market', 'Stone Ward', 'Temple Steps', 'Foundry Yard', 'Steward Hall'],
-      Keep: ['South Gate', 'Craft Lane', 'Well Square', 'Watch Barracks', 'Hall Quarter'],
-      Haven: ['Harbor Front', 'Salt Market', 'Pilgrim Row', 'Lantern Docks', 'Old Chapel', 'Warehouse Ring'],
-      Spire: ['Spire Base', 'Archive Ring', 'Skybridge Market', 'Watcher Terrace', 'Bell District']
+    var archetypes = {
+      Fortress: {
+        vibe: 'Militarized quarry-fort under constant watch rotations.',
+        districts: ['Gate Ward', 'Market Square', 'Quarry Row', 'Old Shrine', 'Barracks', 'Lord\'s Hall', 'River Docks', 'Lower Tunnels'],
+        moods: ['Wary', 'Defiant', 'Exhausted', 'Proud'],
+        crowds: ['Guards', 'Laborers', 'Masons', 'Militia'],
+        activities: ['Stone hauling', 'Militia drills', 'Watch rotations', 'Armor repairs'],
+        rumors: ['Tunnel wall was breached then sealed overnight.', 'A watch captain is selling patrol routes.', 'A missing caravan sent no distress flare.'],
+        interactables: ['Aid defenders', 'Hire laborers', 'Inspect gate watch', 'Buy ironworks'],
+        hiddenThings: ['Bribed watch post', 'Smuggled relic shards', 'Unauthorized tunnel breach map'],
+        microPool: ['Barracks Mess', 'Armory', 'Guard Chapel', 'Siege Shed', 'Tunnel Hatch', 'Lift Yard'],
+        scenes: ['Militia formations block a full lane.', 'A funeral march for tunnel casualties passes.', 'A gate alarm rings and then abruptly stops.'],
+        opportunities: ['Join a paid patrol sweep.', 'Win ration vouchers in a lifting contest.', 'Secure discount armor plates.'],
+        mysteries: ['Helmet visors are found lined in chalk symbols.', 'No one speaks about the sealed third tunnel.', 'A bell rings from stone with no clapper.'],
+        statsBase: { security: 8, food: 5, wealth: 5, faith: 4, fear: 4, mystery: 4, health: 6 },
+        npcPool: [
+          { name: 'Captain Helvek', role: 'Gate Watch Commander', need: 'More defenders', secret: 'Taking bribes', faction: 'Wardens' },
+          { name: 'Foreman Tarek', role: 'Quarry Foreman', need: 'Safe blasting crews', secret: 'Hides relic fragments', faction: 'Labor Guild' },
+          { name: 'Sister Vael', role: 'Shrine Keeper', need: 'Night escorts', secret: 'Tracks tunnel omens', faction: 'Temple' }
+        ]
+      },
+      Citadel: {
+        vibe: 'Bureaucratic power-core of scribes, tribunals, and command halls.',
+        districts: ['High Gate', 'Scholars Court', 'Outer Market', 'Stone Ward', 'Temple Steps', 'Foundry Yard', 'Steward Hall'],
+        moods: ['Disciplined', 'Suspicious', 'Measured', 'Ambitious'],
+        crowds: ['Clerks', 'Magistrates', 'Merchants', 'Honor Guard'],
+        activities: ['Ledger audits', 'Court hearings', 'Policy decrees', 'Artifact cataloging'],
+        rumors: ['A decree was issued under a forged seal.', 'Steward Hall erased three names from records.', 'The northern archive moved cursed texts at dusk.'],
+        interactables: ['Review records', 'Petition magistrate', 'Hire a legal fixer', 'Purchase rare maps'],
+        hiddenThings: ['Altered tax ledger', 'Hidden tribunal chamber', 'Encrypted courier route'],
+        microPool: ['Archive Annex', 'Tribunal Hall', 'Record Vault', 'Codex Shop', 'Scribe Bath', 'Magistrate Office'],
+        scenes: ['A public sentencing halts all market noise.', 'Scribes race sealed tubes between towers.', 'A decree board is stripped clean at noon.'],
+        opportunities: ['Purchase privileged route permits.', 'Bribe for fast-tracked cargo papers.', 'Acquire archived star-survey copies.'],
+        mysteries: ['A courtroom door opens to different rooms nightly.', 'Every fourth decree vanishes by dawn.', 'A witness appears in records but never in person.'],
+        statsBase: { security: 7, food: 5, wealth: 7, faith: 5, fear: 4, mystery: 5, health: 6 },
+        npcPool: [
+          { name: 'Archivist Noll', role: 'Senior Archivist', need: 'Recovered codices', secret: 'Hides redacted pages', faction: 'Scholars' },
+          { name: 'Magistrate Ruen', role: 'Tribunal Judge', need: 'Reliable testimony', secret: 'Blackmails officials', faction: 'Steward Office' },
+          { name: 'Broker Ines', role: 'Permit Broker', need: 'Stable trade flow', secret: 'Sells forged seals', faction: 'Merchants' }
+        ]
+      },
+      Haven: {
+        vibe: 'Trade-port shelter driven by tides, cargo, and transient strangers.',
+        districts: ['Harbor Front', 'Salt Market', 'Pilgrim Row', 'Lantern Docks', 'Old Chapel', 'Warehouse Ring'],
+        moods: ['Restless', 'Hopeful', 'Greedy', 'Tired'],
+        crowds: ['Dockers', 'Pilgrims', 'Sailors', 'Porters'],
+        activities: ['Cargo loading', 'Boat repair', 'Open-air barter', 'Pilgrim processions'],
+        rumors: ['A silent ship arrived with no crew.', 'Warehouse Nine floods only at moonrise.', 'Dock fees doubled after an unmarked convoy.'],
+        interactables: ['Book passage', 'Hire dock hands', 'Buy salvaged gear', 'Track cargo manifests'],
+        hiddenThings: ['Smuggler tide code', 'Counterfeit cargo stamps', 'Sealed chapel crypt hatch'],
+        microPool: ['Dock Tavern', 'Net Menders', 'Harbor Shrine', 'Whale-oil Bath', 'Manifest Office', 'Flood Cellar'],
+        scenes: ['A dock crane snaps and spills crates.', 'A preacher denounces an incoming vessel.', 'Fog swallows the entire outer pier.'],
+        opportunities: ['Win contraband maps in dockside dice.', 'Buy spoiled cargo cheap for salvage.', 'Secure fast transport through reef channels.'],
+        mysteries: ['Lanterns relight themselves after midnight.', 'No footprints remain on one pier lane.', 'Harbor dogs refuse the chapel stairs.'],
+        statsBase: { security: 5, food: 7, wealth: 8, faith: 4, fear: 5, mystery: 5, health: 5 },
+        npcPool: [
+          { name: 'Dockmaster Breth', role: 'Dock Overseer', need: 'Reliable crews', secret: 'Skims cargo fees', faction: 'Harbor Guild' },
+          { name: 'Pilgrim-Marshal Oth', role: 'Pilgrim Escort Lead', need: 'Safe route markers', secret: 'Protects a fugitive', faction: 'Pilgrim Ward' },
+          { name: 'Quartermistress Venn', role: 'Warehouse Clerk', need: 'Dry storage', secret: 'Keeps ghost manifests', faction: 'Merchants' }
+        ]
+      },
+      Keep: {
+        vibe: 'Compact frontier redoubt where every hand is overworked.',
+        districts: ['South Gate', 'Craft Lane', 'Well Square', 'Watch Barracks', 'Hall Quarter'],
+        moods: ['Strained', 'Stubborn', 'Protective', 'Tense'],
+        crowds: ['Farmhands', 'Guards', 'Crafters', 'Messengers'],
+        activities: ['Well maintenance', 'Fence repairs', 'Watch drills', 'Ration sorting'],
+        rumors: ['The outer farm burned with no ash trail.', 'Night patrol hears knocking beneath the well.', 'A courier route now skips three hamlets.'],
+        interactables: ['Repair barricades', 'Train watch', 'Gather locals', 'Buy basic tools'],
+        hiddenThings: ['Hidden ration cache', 'Buried signal post', 'Unmarked grave ledger'],
+        microPool: ['Ration Hall', 'Well House', 'Fence Workshop', 'Scout Loft', 'Field Shrine', 'Watch Cupboard'],
+        scenes: ['A ration dispute erupts in Well Square.', 'A field alarm sends everyone to the gate.', 'Children repaint warning signs at dusk.'],
+        opportunities: ['Earn credits fixing defenses.', 'Recruit local scouts.', 'Trade spare tools for grain vouchers.'],
+        mysteries: ['A well bucket returns with black water only at noon.', 'The gate shadow points wrong at sunset.', 'A horn sounds from an abandoned tower.'],
+        statsBase: { security: 6, food: 6, wealth: 4, faith: 4, fear: 5, mystery: 4, health: 6 },
+        npcPool: [
+          { name: 'Warden Sera', role: 'Watch Captain', need: 'Fresh patrols', secret: 'Fakes casualty numbers', faction: 'Wardens' },
+          { name: 'Reeve Maln', role: 'Quartermaster', need: 'Stable stores', secret: 'Hides missing grain', faction: 'Provisioners' },
+          { name: 'Scout Eris', role: 'Pathfinder', need: 'Road support', secret: 'Guides smugglers by night', faction: 'Free Scouts' }
+        ]
+      },
+      Spire: {
+        vibe: 'Vertical mystic-city where research and omen cults overlap.',
+        districts: ['Spire Base', 'Archive Ring', 'Skybridge Market', 'Watcher Terrace', 'Bell District'],
+        moods: ['Obsessive', 'Detached', 'Inspired', 'Uneasy'],
+        crowds: ['Acolytes', 'Researchers', 'Sky traders', 'Bell wardens'],
+        activities: ['Astral readings', 'Archive indexing', 'Bridge tolling', 'Bell calibration'],
+        rumors: ['Watcher Terrace predicts storms before cloud rise.', 'A sealed codex writes in new ink at night.', 'Bell District counts an extra chime.'],
+        interactables: ['Read omen charts', 'Purchase relic diagrams', 'Hire ascenders', 'Decode inscriptions'],
+        hiddenThings: ['Forbidden codex leaf', 'Mirror chamber key', 'Cult route cipher'],
+        microPool: ['Observatory Cell', 'Bell Loft', 'Codex Vault', 'Skybridge Tea Hall', 'Rune Bath', 'Hidden Reliquary'],
+        scenes: ['A crowd pauses as all bells ring at once.', 'An acolyte collapses after a vision.', 'Skybridge traffic halts for an omen reading.'],
+        opportunities: ['Buy predictive route charts.', 'Win relic fragments in logic games.', 'Sell survey data to archivists.'],
+        mysteries: ['No shadows are cast in one archive aisle.', 'A bell toll is heard with no vibration.', 'Names spoken in the reliquary vanish from memory.'],
+        statsBase: { security: 5, food: 4, wealth: 6, faith: 7, fear: 5, mystery: 8, health: 5 },
+        npcPool: [
+          { name: 'Acolyte Maer', role: 'Omen Reader', need: 'Quiet observatory hours', secret: 'Edits prophecies', faction: 'Temple' },
+          { name: 'Curator Seln', role: 'Codex Curator', need: 'Recovered tablets', secret: 'Smuggles forbidden pages', faction: 'Archivists' },
+          { name: 'Bellwarden Korr', role: 'Bell District Keeper', need: 'Stable ring schedule', secret: 'Signals a hidden cell', faction: 'Bell Ward' }
+        ]
+      }
     };
-    var moods = ['Tense', 'Hopeful', 'Exhausted', 'Wary', 'Proud', 'Anxious', 'Defiant'];
-    var crowds = ['Laborers', 'Merchants', 'Guards', 'Pilgrims', 'Scouts', 'Masons', 'Miners'];
-    var activities = ['Stone hauling', 'Militia drills', 'Street bargaining', 'Public prayer', 'Quiet surveillance', 'Tavern dispute', 'Cargo loading'];
-    var rumors = [
-      'A silent stranger was spotted near a sealed stair.',
-      'Someone is buying relic fragments with silver nails.',
-      'Patrols avoid one alley after dusk.',
-      'A bell rings underground with no rope attached.',
-      'The western tunnel was closed for a reason.'
-    ];
-    var interactables = ['Hire laborers', 'Buy local goods', 'Hear rumors', 'Gamble for maps', 'Recruit a scout', 'Aid defenders'];
-    var hiddenThings = ['Smuggled relic fragments', 'A marked false wall', 'A bribed watch post', 'A hidden cellar route', 'A coded shrine ledger'];
-    var microPool = ['Tavern', 'Bathhouse', 'Armory', 'Shrine', 'Archive', 'Herbalist', 'Gambling Den', 'Hidden Cellar', 'Rooftop Garden', 'Abandoned House'];
 
     function pickLocal(list) {
       if (!Array.isArray(list) || !list.length) return '';
       return list[Math.floor(Math.random() * list.length)] || list[0];
     }
 
-    function buildDistrict(id, label, idx) {
+    function shuffleLocal(list) {
+      var out = Array.isArray(list) ? list.slice() : [];
+      for (var i = out.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = out[i]; out[i] = out[j]; out[j] = t;
+      }
+      return out;
+    }
+
+    function buildDistrict(archetype, id, label, idx) {
       var microCount = 2 + Math.floor(Math.random() * 4);
       var micro = [];
-      for (var mi = 0; mi < microCount; mi++) micro.push(pickLocal(microPool));
+      for (var mi = 0; mi < microCount; mi++) micro.push(pickLocal(archetype.microPool));
       return {
         id: id,
         label: label,
         kind: String(label || 'district').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        dd: 6 + (idx % 3 === 0 ? 2 : 0),
+        dd: 6 + (idx % 3 === 0 ? 2 : 0) + (String(archetype.key || '') === 'Spire' ? 1 : 0),
         explored: false,
         revealed: idx === 0,
         result: '',
@@ -1519,52 +1610,52 @@
           'Voices echo between narrow walls and shuttered stalls.',
           'The district hums with tired but stubborn life.'
         ]),
-        npcDensity: pickLocal(crowds),
+        npcDensity: pickLocal(archetype.crowds),
         dangerLevel: pickLocal(['Low', 'Moderate', 'High']),
-        activity: pickLocal(activities),
-        mood: pickLocal(moods),
-        rumor: pickLocal(rumors),
-        interactable: pickLocal(interactables),
-        hiddenThing: pickLocal(hiddenThings),
+        activity: pickLocal(archetype.activities),
+        mood: pickLocal(archetype.moods),
+        rumor: pickLocal(archetype.rumors),
+        interactable: pickLocal(archetype.interactables),
+        hiddenThing: pickLocal(archetype.hiddenThings),
         microLocations: micro
       };
     }
 
-    function buildNpcWeb() {
-      var names = ['Captain Helvek', 'Warden Sera', 'Archivist Noll', 'Dockmaster Breth', 'Sister Vael', 'Foreman Tarek', 'Broker Ines'];
-      var roles = ['Gate Watch Commander', 'Patrol Lead', 'Archivist', 'Dock Overseer', 'Shrine Acolyte', 'Quarry Foreman', 'Market Broker'];
-      var needs = ['More defenders', 'Food convoy', 'Quiet investigation', 'Secure route', 'Temple repair', 'Ore shipment', 'Debt relief'];
-      var secrets = ['Taking bribes', 'Hiding relic maps', 'Working with smugglers', 'Tracking the silent stranger', 'Forging permits', 'Cult contact'];
-      var factions = ['Wardens', 'Temple', 'Merchants', 'Labor Guild', 'Free Scouts'];
+    function buildNpcWeb(archetype) {
       var schedule = ['Morning: walls', 'Midday: market', 'Dusk: council lane', 'Night: tavern cellar'];
-      return names.map(function (name, idx) {
+      var seed = shuffleLocal(archetype.npcPool || []);
+      return seed.map(function (npc, idx) {
         return {
-          name: name,
-          role: roles[idx % roles.length],
-          need: needs[idx % needs.length],
-          secret: secrets[idx % secrets.length],
-          faction: factions[idx % factions.length],
+          name: String(npc.name || ('District Figure ' + (idx + 1))),
+          role: String(npc.role || 'Local Notable'),
+          need: String(npc.need || 'Stability'),
+          secret: String(npc.secret || 'Keeps personal leverage'),
+          faction: String(npc.faction || 'Locals'),
           schedule: [schedule[idx % schedule.length], schedule[(idx + 1) % schedule.length]],
           relationship: 'Knows: missing caravan, silent stranger'
         };
       });
     }
 
-    function buildStats() {
+    function buildStats(archetype) {
+      var base = archetype.statsBase || { security: 5, food: 5, wealth: 5, faith: 5, fear: 5, mystery: 5, health: 5 };
+      var jitter = function (v) { return Math.max(0, Math.min(10, Number(v || 0) + Math.floor(Math.random() * 3) - 1)); };
       return {
-        security: 4 + Math.floor(Math.random() * 4),
-        food: 4 + Math.floor(Math.random() * 4),
-        wealth: 4 + Math.floor(Math.random() * 4),
-        faith: 3 + Math.floor(Math.random() * 5),
-        fear: 3 + Math.floor(Math.random() * 5),
-        mystery: 3 + Math.floor(Math.random() * 5),
-        health: 4 + Math.floor(Math.random() * 4)
+        security: jitter(base.security),
+        food: jitter(base.food),
+        wealth: jitter(base.wealth),
+        faith: jitter(base.faith),
+        fear: jitter(base.fear),
+        mystery: jitter(base.mystery),
+        health: jitter(base.health)
       };
     }
 
     if (!S.holding.settlementHexcrawl || !Array.isArray(S.holding.settlementHexcrawl.nodes) || !S.holding.settlementHexcrawl.nodes.length || Number(S.holding.settlementHexcrawl.version || 0) < 2) {
       var type = String(S.holding.type || 'Fortress');
-      var districts = (byType[type] || byType.Fortress).slice();
+      var archetype = archetypes[type] || archetypes.Fortress;
+      archetype.key = type;
+      var districts = (archetype.districts || archetypes.Fortress.districts).slice();
       var count = Math.max(3, Math.min(8, districts.length - Math.floor(Math.random() * 2)));
       districts = districts.slice(0, count);
       var coords = [
@@ -1572,7 +1663,7 @@
         { q: 2, r: 0 }, { q: -1, r: 1 }, { q: 2, r: 1 }, { q: 1, r: 2 }
       ];
       var nodes = districts.map(function (label, idx) {
-        var node = buildDistrict('d' + String(idx), label, idx);
+        var node = buildDistrict(archetype, 'd' + String(idx), label, idx);
         node.q = (coords[idx] || { q: idx, r: 0 }).q;
         node.r = (coords[idx] || { q: idx, r: 0 }).r;
         return node;
@@ -1587,14 +1678,21 @@
       S.holding.settlementHexcrawl = {
         version: 2,
         holdingType: type,
+        archetype: type,
+        vibe: String(archetype.vibe || ''),
         timeOfDay: 'morning',
         visitCount: 0,
         activeNodeId: nodes.length ? nodes[0].id : null,
         nodes: nodes,
         edges: edges,
         ambient: {},
-        npcWeb: buildNpcWeb(),
-        stats: buildStats(),
+        ambientTables: {
+          scenes: (archetype.scenes || []).slice(),
+          opportunities: (archetype.opportunities || []).slice(),
+          mysteries: (archetype.mysteries || []).slice()
+        },
+        npcWeb: buildNpcWeb(archetype),
+        stats: buildStats(archetype),
         history: []
       };
     }
@@ -1613,36 +1711,44 @@
   }
 
   function rollHoldingAmbientState(crawl) {
-    var scenes = [
-      'Funeral procession passes through a narrow lane.',
-      'A child steals bread and vanishes into the crowd.',
-      'Militia drills spill into the market square.',
-      'A drunk miner collapses near a shrine.',
-      'Strange lights flicker beneath the district drains.',
-      'A bell rings underground with no visible tower.'
-    ];
-    var opportunities = [
-      'Win a district map in a dice game.',
-      'Buy discounted tools from a nervous smith.',
-      'Hire a temporary scout for the next expedition.',
-      'Get a guarded rumor from a dock messenger.'
-    ];
-    var mysteries = [
-      'No one enters one alley after dusk.',
-      'Dogs refuse to cross a shrine threshold.',
-      'A child keeps drawing the same symbol.',
-      'The silent stranger never casts a shadow.'
-    ];
+    var ambientTables = crawl.ambientTables || {};
+    var scenes = Array.isArray(ambientTables.scenes) && ambientTables.scenes.length
+      ? ambientTables.scenes
+      : [
+          'Funeral procession passes through a narrow lane.',
+          'A child steals bread and vanishes into the crowd.',
+          'Militia drills spill into the market square.',
+          'A drunk miner collapses near a shrine.'
+        ];
+    var opportunities = Array.isArray(ambientTables.opportunities) && ambientTables.opportunities.length
+      ? ambientTables.opportunities
+      : [
+          'Win a district map in a dice game.',
+          'Buy discounted tools from a nervous smith.',
+          'Hire a temporary scout for the next expedition.'
+        ];
+    var mysteries = Array.isArray(ambientTables.mysteries) && ambientTables.mysteries.length
+      ? ambientTables.mysteries
+      : [
+          'No one enters one alley after dusk.',
+          'Dogs refuse to cross a shrine threshold.',
+          'A child keeps drawing the same symbol.'
+        ];
     var rumorPool = crawl.nodes.map(function (n) { return n.rumor; }).filter(Boolean);
     var npc = (crawl.npcWeb || [])[Math.floor(Math.random() * Math.max(1, (crawl.npcWeb || []).length))] || { name: 'Patrol Captain' };
+    var activeDistrict = crawl.nodes[Math.floor(Math.random() * Math.max(1, crawl.nodes.length))] || null;
     crawl.ambient = {
       scene: scenes[Math.floor(Math.random() * scenes.length)],
       rumor: rumorPool[Math.floor(Math.random() * Math.max(1, rumorPool.length))] || 'People whisper about sealed tunnels.',
+      activeDistrict: activeDistrict ? activeDistrict.label : 'Unknown District',
       npcMovement: 'NPC movement: ' + String(npc.name) + ' changed route this watch.',
       threatEscalation: Math.random() < 0.35 ? 'Threat escalates: crisis pressure worsened.' : 'Threat steady: no escalation this watch.',
       opportunity: opportunities[Math.floor(Math.random() * opportunities.length)],
       mysterySignal: mysteries[Math.floor(Math.random() * mysteries.length)]
     };
+    crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
+    crawl.history.unshift(String(crawl.ambient.activeDistrict || 'District') + ': ' + String(crawl.ambient.scene || ''));
+    crawl.history = crawl.history.slice(0, 10);
   }
 
   function buildHoldingHexMapHtml(crawl) {
@@ -1711,6 +1817,7 @@
       : '<span style="font-size:.68rem;color:var(--green2);">District already resolved this visit.</span>';
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;margin-bottom:.28rem;">'
       + '<strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1)
+      + '<div style="font-size:.68rem;color:var(--teal);margin-top:.06rem;">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,1fr);gap:.35rem;">'
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.3rem;">'
@@ -1725,6 +1832,7 @@
       + '<div style="border:1px solid var(--border2);background:rgba(0,0,0,.16);padding:.28rem;">'
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;"><strong>Ambient Pulse</strong></div>'
       + '<div style="font-size:.68rem;color:var(--text2);">' + String(ambient.scene || 'The holding stirs.') + '</div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Active district: ' + String(ambient.activeDistrict || 'Unknown District') + '</div>'
       + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '</div>'
       + '<div style="font-size:.64rem;color:var(--muted2);">Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '</div>'
       + '<div style="font-size:.64rem;color:var(--gold2);">Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
@@ -1794,21 +1902,47 @@
     var success = action.total >= dread.total;
     var line = 'Lead d' + die + ' ' + action.total + ' vs DD' + Number(node.dd || 6) + ' ' + dread.total + '. ';
     crawl.stats = crawl.stats || {};
+    var holdingType = String(crawl.holdingType || S.holding.type || 'Fortress');
     if (success) {
       var cGain = 20 + Math.floor(Math.random() * 41);
       S.credits = (S.credits || 0) + cGain;
       if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
       if (typeof changeCounter === 'function') { changeCounter('tmw', 1); }
-      crawl.stats.wealth = Math.min(10, Number(crawl.stats.wealth || 0) + 1);
-      crawl.stats.security = Math.min(10, Number(crawl.stats.security || 0) + (Math.random() < 0.5 ? 1 : 0));
-      crawl.stats.fear = Math.max(0, Number(crawl.stats.fear || 0) - 1);
+      if (holdingType === 'Fortress' || holdingType === 'Keep') {
+        crawl.stats.security = Math.min(10, Number(crawl.stats.security || 0) + 2);
+        crawl.stats.fear = Math.max(0, Number(crawl.stats.fear || 0) - 1);
+        crawl.stats.wealth = Math.min(10, Number(crawl.stats.wealth || 0) + 1);
+      } else if (holdingType === 'Haven') {
+        crawl.stats.wealth = Math.min(10, Number(crawl.stats.wealth || 0) + 2);
+        crawl.stats.food = Math.min(10, Number(crawl.stats.food || 0) + 1);
+        crawl.stats.security = Math.min(10, Number(crawl.stats.security || 0) + 1);
+      } else if (holdingType === 'Citadel') {
+        crawl.stats.wealth = Math.min(10, Number(crawl.stats.wealth || 0) + 1);
+        crawl.stats.faith = Math.min(10, Number(crawl.stats.faith || 0) + 1);
+        crawl.stats.mystery = Math.min(10, Number(crawl.stats.mystery || 0) + 1);
+      } else if (holdingType === 'Spire') {
+        crawl.stats.mystery = Math.min(10, Number(crawl.stats.mystery || 0) + 2);
+        crawl.stats.faith = Math.min(10, Number(crawl.stats.faith || 0) + 1);
+        crawl.stats.fear = Math.max(0, Number(crawl.stats.fear || 0) - 1);
+      } else {
+        crawl.stats.wealth = Math.min(10, Number(crawl.stats.wealth || 0) + 1);
+        crawl.stats.security = Math.min(10, Number(crawl.stats.security || 0) + 1);
+      }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
       line += 'District stabilized. +' + cGain + ' Credits, +1 Teamwork, Fear reduced.';
     } else {
       if (typeof changeMentalStress === 'function') { changeMentalStress(1); }
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
-      crawl.stats.fear = Math.min(10, Number(crawl.stats.fear || 0) + 1);
-      crawl.stats.security = Math.max(0, Number(crawl.stats.security || 0) - 1);
+      crawl.stats.fear = Math.min(10, Number(crawl.stats.fear || 0) + 1 + (holdingType === 'Spire' ? 1 : 0));
+      if (holdingType === 'Haven') {
+        crawl.stats.wealth = Math.max(0, Number(crawl.stats.wealth || 0) - 1);
+        crawl.stats.food = Math.max(0, Number(crawl.stats.food || 0) - 1);
+      } else if (holdingType === 'Citadel') {
+        crawl.stats.faith = Math.max(0, Number(crawl.stats.faith || 0) - 1);
+        crawl.stats.security = Math.max(0, Number(crawl.stats.security || 0) - 1);
+      } else {
+        crawl.stats.security = Math.max(0, Number(crawl.stats.security || 0) - 1);
+      }
       line += 'District setback. +1 Mental Stress, Fear rises, Security drops.';
       S.holding.crises = Array.isArray(S.holding.crises) ? S.holding.crises : [];
       if (Math.random() < 0.4) {

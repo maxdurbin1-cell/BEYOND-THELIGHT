@@ -1686,6 +1686,61 @@
     return { layout: layout, answer: pathMoves.join('-') };
   }
 
+  function getLegacyRaidChallengeMazePreset(cellId, wingNum) {
+    var seed = String(cellId || '') + ':raid:' + String(wingNum || 1);
+    var h = 0;
+    for (var i = 0; i < seed.length; i++) { h = (Math.imul ? Math.imul(37, h) : h * 37) + seed.charCodeAt(i) | 0; }
+    h = Math.abs(h);
+    var ROWS = 6, COLS = 6;
+    var grid = [];
+    var r, c;
+    for (r = 0; r < ROWS; r++) {
+      var row = [];
+      for (c = 0; c < COLS; c++) row.push('.');
+      grid.push(row);
+    }
+    grid[0][0] = 'S';
+    grid[ROWS - 1][COLS - 1] = 'E';
+    var pathR = 0, pathC = 0;
+    var pathMoves = [];
+    var attempts = 0;
+    while (pathR !== ROWS - 1 || pathC !== COLS - 1) {
+      attempts++;
+      if (attempts > 500) break;
+      var canRight = pathC < COLS - 1;
+      var canDown = pathR < ROWS - 1;
+      if (!canRight && !canDown) break;
+      h = (h * 1103515245 + 12345) & 0x7fffffff;
+      var chooseRight = canRight && (!canDown || (h % 3 !== 0));
+      if (chooseRight) {
+        pathC++;
+        pathMoves.push('R');
+      } else {
+        pathR++;
+        pathMoves.push('D');
+      }
+    }
+    var pr = 0, pc = 0;
+    var pathMap = { '0:0': true };
+    for (var pi = 0; pi < pathMoves.length; pi++) {
+      if (pathMoves[pi] === 'R') pc++; else pr++;
+      pathMap[String(pr) + ':' + String(pc)] = true;
+    }
+    for (r = 0; r < ROWS; r++) {
+      for (c = 0; c < COLS; c++) {
+        if (r === 0 && c === 0) continue;
+        if (r === ROWS - 1 && c === COLS - 1) continue;
+        if (pathMap[String(r) + ':' + String(c)]) continue;
+        h = (h * 1664525 + 1013904223) & 0x7fffffff;
+        if (h % 4 === 0) grid[r][c] = '#';
+      }
+    }
+    return {
+      layout: grid.map(function (line) { return line.join(''); }),
+      answer: pathMoves.join('-')
+    };
+  }
+
   function renderLegacyRaidTreePanel() {
     var panel = typeof document !== 'undefined' ? document.getElementById('raidTreePanel') : null;
     if (!panel) return false;
@@ -5505,7 +5560,7 @@
         sea: ['Corroded valve mechanism with tide-lock mechanisms.', 'Underwater stone seal glowing faintly with bioluminescence.', 'Puzzle needing navigation of false currents.'],
         void: ['Lock that seems to phase between existence and void.', 'Mechanism that responds to silence rather than force.', 'Puzzle revealing hidden paths through dimensional folds.'],
         stone: ['Massive stone door with interlocking mechanisms.', 'Ancient lock covered in dust from fallen civilizations.', 'Puzzle requiring weight distribution across stone platforms.'],
-        default: ['Ornate lock mechanism.', 'Interlocked control lattice blocks the route forward.', 'Puzzle blocking passage deeper into the vault.']
+        default: ['Ornate lock mechanism.', 'A rolling-sphere maze lock blocks the route forward. Reach the exit channel to disengage it.', 'Puzzle blocking passage deeper into the vault.']
       },
       peril: {
         serpent: ['A cracked stairwell drops beneath the province bedrock — every step threatens collapse.', 'The tunnel ahead drips with caustic slime from passing predators.', 'Walls shift with the movement of unseen creatures pressing outward from the stone.', 'Toxic venom pools bubble and hiss across the floor — one wrong step and you are slow and burning.'],
@@ -5588,6 +5643,10 @@
     var noTicks = Number(state.ticks || 0) <= 0;
     var moveLabel = isCurrent ? 'Already Here' : 'Press Deeper (-1 Tick)';
     var exploreLabel = 'Search Room (-1 Tick)';
+    var teleportButton = '';
+    if (isCurrent && showEncounter && String(cell.eventType || '') === 'teleport' && cell.teleportTo) {
+      teleportButton = '<button class="btn btn-xs btn-teal" onclick="window.useLegacyRaidTeleport(' + mission.id + ',' + wingNum + ')">Use Teleport → ' + String(cell.teleportTo) + '</button>';
+    }
     return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.03);">'
       + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + hexTitlePart + '</div>'
       + (hexDesc ? '<div style="font-size:.65rem;color:var(--muted3);line-height:1.42;margin-bottom:.12rem;font-style:italic;">' + hexDesc + '</div>' : '')
@@ -5597,9 +5656,28 @@
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs" ' + (moveAllowed && !isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.moveLegacyRaidHex(' + mission.id + ',' + wingNum + ')">' + moveLabel + '</button>'
       + '<button class="btn btn-xs btn-primary" ' + (isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + exploreLabel + '</button>'
+      + teleportButton
       + '</div>'
       + '</div>';
   }
+
+  window.useLegacyRaidTeleport = function (missionId, wingNum) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var state = ensureLegacyRaidWingGridState(mission, wingNum);
+    if (!state || !state.cells) return false;
+    var current = state.cells[String(state.currentId || '')];
+    if (!current || String(current.eventType || '') !== 'teleport' || !current.teleportTo || !state.cells[current.teleportTo]) {
+      if (typeof showNotif === 'function') showNotif('No valid teleport link in this hex.', 'warn');
+      return false;
+    }
+    state.currentId = String(current.teleportTo);
+    state.selectedId = String(current.teleportTo);
+    revealLegacyRaidGridAround(state, state.currentId);
+    state.lastLog = 'Teleport engaged from ' + String(current.id || '?') + ' to ' + String(current.teleportTo || '?') + '.';
+    if (typeof showNotif === 'function') showNotif('Teleport engaged.', 'good');
+    return openRaidWingPopup(mission.id, wingNum, String(state.currentId || ''));
+  };
 
   function openLegacyRaidHexRiskCheckModal(missionId, wingNum, cell, eventType) {
     if (!cell) return false;
@@ -5715,10 +5793,7 @@
     state.lastLog = 'Moved to hex ' + target.id + ' (-1 tick).';
 
     if (target.eventType === 'teleport' && target.teleportTo && state.cells[target.teleportTo]) {
-      state.currentId = target.teleportTo;
-      state.selectedId = target.teleportTo;
-      revealLegacyRaidGridAround(state, target.teleportTo);
-      state.lastLog = 'Moved into ' + String(target.encounterLabel || 'teleport') + '. Warp to ' + target.teleportTo + '.';
+      state.lastLog = 'Moved into ' + String(target.encounterLabel || 'teleport') + '. Teleport link discovered to ' + target.teleportTo + ' (manual use).';
     }
 
     if (Number(state.ticks || 0) <= 0) {
@@ -5764,7 +5839,7 @@
           var puzzleSource = getLegacyRaidHexPuzzleSource(mission, wingNum, cell);
           var puzzleTitle = cell.lorePiece
             ? 'Lore Puzzle: Crossword or Sudoku'
-            : (cell.waypoint ? 'Waypoint Puzzle: Lockpick or Pipe Flow' : 'Raid Puzzle Challenge');
+            : (cell.waypoint ? 'Waypoint Puzzle: Lockpick or Pipe Flow' : 'Raid Maze Lock: Gravity Sphere');
           var loreMode = null;
           var loreConfig = {};
           var waypointPreset = null;
@@ -5812,13 +5887,20 @@
             waypointPreset = getLegacyRaidWaypointMazePreset(cell.id, wingNum);
             loreConfig.mazeLayout = waypointPreset.layout;
             loreConfig.answer = waypointPreset.answer;
+          } else {
+            loreMode = 'maze';
+            var raidMazePreset = getLegacyRaidChallengeMazePreset(cell.id, wingNum);
+            loreConfig.mazeLayout = raidMazePreset.layout;
+            loreConfig.answer = raidMazePreset.answer;
           }
           return window.openSharedPuzzleChallenge({
             source: puzzleSource,
             title: puzzleTitle,
             prompt: cell.waypoint
               ? ('Rewire the waypoint conduit in hex ' + cell.id + '. Route from S to E before the lock resets.')
-              : buildLegacyRaidHexDescription(mission, wingNum, 'puzzle', bossTheme),
+              : (loreMode === 'maze'
+                ? ('Roll the guidance sphere through the lock maze in hex ' + cell.id + '. Reach E from S before the pressure seals.')
+                : buildLegacyRaidHexDescription(mission, wingNum, 'puzzle', bossTheme)),
             mode: loreMode,
             answer: loreConfig.answer,
             gridTemplate: loreConfig.gridTemplate,
@@ -5936,10 +6018,7 @@
           cell.lootSeeded = true;
         }
         if (eventType === 'teleport' && cell.teleportTo && state.cells[cell.teleportTo]) {
-          state.currentId = cell.teleportTo;
-          state.selectedId = cell.teleportTo;
-          revealLegacyRaidGridAround(state, cell.teleportTo);
-          state.lastLog = 'Hex ' + cell.id + ' teleport selected. ' + ((state.teleportTheme && state.teleportTheme.label) || 'Gate') + ' warps you to ' + cell.teleportTo + '.';
+          state.lastLog = 'Hex ' + cell.id + ' teleport calibrated. Use the teleport action to warp to ' + cell.teleportTo + '.';
         }
         if (eventType === 'rest') {
           var bonusTicks = Number(cell.rested ? 0 : 2);
@@ -9160,7 +9239,15 @@
     var base = 120 + (Number(run.wipes || 0) * 40);
     var w = Math.max(1, Math.min(3, Number(wing || 3)));
     var wingFailures = Number(run.wingFailures && run.wingFailures[w] || 0);
-    base += wingFailures * 20;
+    if (w === 1) {
+      base += wingFailures * 35 + Math.max(0, wingFailures - 1) * 20;
+    } else if (w === 2) {
+      base += wingFailures * 45 + Math.max(0, wingFailures - 1) * 25;
+    } else {
+      base += wingFailures * 25;
+    }
+    if (Number(run.checkpointWing || 1) >= 2) base += 25;
+    if (Number(run.checkpointWing || 1) >= 3) base += 45;
     if (w === 3) base += 60;
     else if (w === 2) base += 20;
     return Math.max(80, base);

@@ -3188,6 +3188,41 @@
     const markerHtml = marker
       ? ("<div class='wtw-card'><div class='wtw-card-title'>" + markerTypeLabel + "</div><div class='wtw-card-text'><strong>" + marker.title + "</strong><br>" + marker.subtitle + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwCollectMarker(\"" + hex.id + "\")'>Review Marker</button>" + (marker.type === "story" ? "<button class='btn btn-xs btn-teal' onclick='if(typeof openStorylineTab===\"function\")openStorylineTab()'>Continue Storyline</button>" : "") + "</div></div>")
       : "<div class='wtw-muted'>No marker in this district.</div>";
+    const wtwOverlay = (typeof window.getWorldStateHexOverlayForRegion === "function")
+      ? window.getWorldStateHexOverlayForRegion("wtw", String(hex.id))
+      : null;
+    const wtwGov = (typeof window.getRegionGovernancePolicyState === "function")
+      ? window.getRegionGovernancePolicyState("wtw")
+      : null;
+    const wtwSignals = !!(wtwOverlay && (
+      Number(wtwOverlay.tension || 0) !== 0
+      || Number(wtwOverlay.safety || 0) !== 0
+      || !!wtwOverlay.activeCrisis
+      || !!wtwOverlay.closedBorder
+      || !!wtwOverlay.closedPort
+      || !!wtwOverlay.dangerousRoad
+      || (Array.isArray(wtwOverlay.tags) && wtwOverlay.tags.length)
+    ));
+    const wtwActions = [];
+    if (wtwOverlay && wtwOverlay.activeCrisis) {
+      wtwActions.push("<button class='btn btn-xs btn-warn' onclick=\"if(typeof resolveWorldStateActionAtKeyForRegion==='function')resolveWorldStateActionAtKeyForRegion('wtw','" + String(hex.id) + "','stabilize');if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">🧯 Stabilize Crisis</button>");
+    }
+    if (wtwOverlay && (wtwOverlay.closedBorder || wtwOverlay.closedPort || wtwOverlay.dangerousRoad)) {
+      wtwActions.push("<button class='btn btn-xs btn-teal' onclick=\"if(typeof resolveWorldStateActionAtKeyForRegion==='function')resolveWorldStateActionAtKeyForRegion('wtw','" + String(hex.id) + "','reopen');if(typeof renderWorldThatWas==='function')renderWorldThatWas();\">🛣 Reopen Routes</button>");
+    }
+    const wtwWorldStateHtml = wtwSignals
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>World State</div><div class='wtw-card-text'>"
+          + (wtwOverlay && wtwOverlay.control ? ("<strong>Control:</strong> " + wtwOverlay.control + "<br>") : "")
+          + (wtwOverlay ? ("<strong>Tension:</strong> " + Number(wtwOverlay.tension || 0) + " · <strong>Safety:</strong> " + Number(wtwOverlay.safety || 0) + "<br>") : "")
+          + (wtwOverlay && wtwOverlay.activeCrisis ? "<strong style='color:var(--red2);'>Active Crisis</strong><br>" : "")
+          + (wtwOverlay && wtwOverlay.closedBorder ? "<strong>Borders:</strong> Restricted<br>" : "")
+          + (wtwOverlay && wtwOverlay.closedPort ? "<strong>Ports:</strong> Restricted<br>" : "")
+          + (wtwOverlay && wtwOverlay.dangerousRoad ? "<strong>Lanes:</strong> Dangerous<br>" : "")
+          + (wtwGov ? ("<span style='font-size:.74rem;color:var(--muted2);'>Policy: Patrol <strong>" + String(wtwGov.patrolStance || "balanced") + "</strong> · Tariff <strong>" + String(wtwGov.tariffStance || "balanced") + "</strong> · Route <strong>" + String(wtwGov.routePriority || "trade") + "</strong></span>") : "")
+          + "</div>"
+          + (wtwActions.length ? ("<div class='wtw-card-actions'>" + wtwActions.join("") + "</div>") : "")
+        + "</div>")
+      : "";
     const backstoryAnchorHtml = (typeof window.buildBackstoryAnchorActionPanelHtml === "function")
       ? window.buildBackstoryAnchorActionPanelHtml("wtw", String(hex.id))
       : "";
@@ -3209,7 +3244,7 @@
       + "</div>"
       + summaryGrid
       + eventCard
-        + buildWtwAccordionStateful("Encounter & Markers", encounterHtml + markerHtml + backstoryAnchorHtml, true, "encounter")
+        + buildWtwAccordionStateful("Encounter & Markers", encounterHtml + markerHtml + wtwWorldStateHtml + backstoryAnchorHtml, true, "encounter")
         + buildWtwAccordionStateful("Hazards, Wayfarers, Exploration & Travel", worldSystems, false, "worldsystems")
         + buildWtwAccordionStateful("District Services", celebrationControls + (servicesHtml || "<div class='wtw-muted'>No services available here.</div>"), false, "services")
         + buildWtwAccordionStateful("Zone Power & Tasks", powerSection, false, "powertasks")

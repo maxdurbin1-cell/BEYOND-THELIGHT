@@ -12161,13 +12161,23 @@ function resolveWorldStateAction(col,row,action){
 }
 
 function resolveWorldStateActionForRegion(region,col,row,action){
+  return resolveWorldStateActionAtKeyForRegion(region,String(col)+','+String(row),action);
+}
+
+function resolveWorldStateActionAtKeyForRegion(region,key,action){
   var regionName=String(region||'province').toLowerCase();
   if(['province','sea','galaxy','wtw','planet'].indexOf(regionName)<0)regionName='province';
-  var key=String(col)+','+String(row);
-  var hex=regionName==='province'?getProvinceHexByKey(key):null;
+  var locationKey=String(key||'');
+  if(!locationKey){
+    showNotif('No region key selected for world-state action.','warn');
+    return;
+  }
+  var parts=locationKey.split(',');
+  var c=Number(parts[0]),r=Number(parts[1]);
+  var hex=regionName==='province'?getProvinceHexByKey(locationKey):null;
   var overlay=(typeof window.getWorldStateHexOverlayForRegion==='function')
-    ?window.getWorldStateHexOverlayForRegion(regionName,key)
-    :((typeof window.getWorldStateHexOverlay==='function'&&regionName==='province')?window.getWorldStateHexOverlay(key):null);
+    ?window.getWorldStateHexOverlayForRegion(regionName,locationKey)
+    :((typeof window.getWorldStateHexOverlay==='function'&&regionName==='province')?window.getWorldStateHexOverlay(locationKey):null);
   var choice=String(action||'').toLowerCase();
   if(typeof window.applyWorldConsequence!=='function'){
     showNotif('World state system unavailable.','warn');
@@ -12177,29 +12187,29 @@ function resolveWorldStateActionForRegion(region,col,row,action){
     window.applyWorldConsequence({
       system:'player-action',
       title:'Wayfarers stabilized a local crisis',
-      detail:'Emergency aid and patrol routes lowered tension around '+key+'.',
+      detail:'Emergency aid and patrol routes lowered tension around '+locationKey+'.',
       region:regionName,
-      locationKey:key,
+      locationKey:locationKey,
       severity:'info',
       factionId:overlay&&overlay.control?String(overlay.control):'',
       deltas:{stability:1,tension:-1,scarcity:-1},
       tags:['crisis-stabilized','patrol-deployed']
     });
-    if(regionName==='province')clearWorldStatePressureAtKey(key,{crisis:true,routeSafe:true});
+    if(regionName==='province')clearWorldStatePressureAtKey(locationKey,{crisis:true,routeSafe:true});
     showNotif('Local crisis pressure reduced.','good');
   }else if(choice==='reopen'){
     window.applyWorldConsequence({
       system:'player-action',
       title:'Wayfarers reopened blocked routes',
-      detail:'Escorts and diplomacy reopened trade movement at '+key+'.',
+      detail:'Escorts and diplomacy reopened trade movement at '+locationKey+'.',
       region:regionName,
-      locationKey:key,
+      locationKey:locationKey,
       severity:'info',
       factionId:overlay&&overlay.control?String(overlay.control):'',
       deltas:{stability:1,scarcity:-2},
       tags:['opened-border','discovered-route']
     });
-    if(regionName==='province')clearWorldStatePressureAtKey(key,{route:true,crisis:false});
+    if(regionName==='province')clearWorldStatePressureAtKey(locationKey,{route:true,crisis:false});
     showNotif('Routes reopened and market pressure eased.','good');
   }else if(choice==='negotiate'){
     var leadDie=(typeof getEffectiveDie==='function')?getEffectiveDie('lead'):((S.stats&&S.stats.lead)||4);
@@ -12214,23 +12224,23 @@ function resolveWorldStateActionForRegion(region,col,row,action){
       window.applyWorldConsequence({
         system:'player-action',
         title:'Wayfarers brokered local control talks',
-        detail:'Negotiations reduced faction heat in hex '+key+'.',
+        detail:'Negotiations reduced faction heat in hex '+locationKey+'.',
         region:regionName,
-        locationKey:key,
+        locationKey:locationKey,
         severity:'info',
         factionId:overlay&&overlay.control?String(overlay.control):'',
         deltas:{stability:1,factionHeat:-1,tension:-1},
         tags:['negotiate','opened-border']
       });
-      if(regionName==='province')clearWorldStatePressureAtKey(key,{routeSafe:true});
+      if(regionName==='province')clearWorldStatePressureAtKey(locationKey,{routeSafe:true});
       showNotif('Negotiate Control success: LEAD '+leadRoll.total+(modifier>=0?(' +'+modifier):(' '+modifier))+' vs DD8 '+ddRoll.total+'.','good');
     }else{
       window.applyWorldConsequence({
         system:'player-action',
         title:'Control negotiations broke down',
-        detail:'Talks failed at '+key+' and local pressure increased.',
+        detail:'Talks failed at '+locationKey+' and local pressure increased.',
         region:regionName,
-        locationKey:key,
+        locationKey:locationKey,
         severity:'medium',
         factionId:overlay&&overlay.control?String(overlay.control):'',
         deltas:{factionHeat:1,tension:1,stability:-1},
@@ -12246,10 +12256,14 @@ function resolveWorldStateActionForRegion(region,col,row,action){
     }
   }
   if(regionName==='province'&&typeof renderHexMap==='function')renderHexMap();
-  if(hex&&typeof renderHexInfo==='function')renderHexInfo(hex);
+  if(regionName==='province'&&isFinite(c)&&isFinite(r)&&typeof getProvinceHexByKey==='function'){
+    var refreshHex=getProvinceHexByKey(String(c)+','+String(r));
+    if(refreshHex&&typeof renderHexInfo==='function')renderHexInfo(refreshHex);
+  }
 }
 
 window.resolveWorldStateActionForRegion=resolveWorldStateActionForRegion;
+window.resolveWorldStateActionAtKeyForRegion=resolveWorldStateActionAtKeyForRegion;
 
 function resolveHoldingCrisisAction(col,row){
   var key=String(col)+','+String(row);

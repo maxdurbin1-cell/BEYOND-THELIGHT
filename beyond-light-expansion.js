@@ -1308,6 +1308,43 @@
     const island = S.lastSea.islands.find((item) => item.id === hex.islandId);
     const normalizedResultHtml = ensureSeaPerilResultHtml(hex);
     const note = S.lastSea.notes[hex.key] || "";
+    const seaOverlay = (typeof window.getWorldStateHexOverlayForRegion === 'function')
+      ? window.getWorldStateHexOverlayForRegion('sea', String(hex.key || ''))
+      : null;
+    const seaGov = (typeof window.getRegionGovernancePolicyState === 'function')
+      ? window.getRegionGovernancePolicyState('sea')
+      : null;
+    const seaSignals = seaOverlay
+      ? (Number(seaOverlay.tension || 0) !== 0
+        || Number(seaOverlay.safety || 0) !== 0
+        || !!seaOverlay.activeCrisis
+        || !!seaOverlay.dangerousRoad
+        || !!seaOverlay.closedBorder
+        || !!seaOverlay.closedPort
+        || (Array.isArray(seaOverlay.tags) && seaOverlay.tags.length > 0))
+      : false;
+    const seaWorldActions = [];
+    if (seaOverlay && seaOverlay.activeCrisis) {
+      seaWorldActions.push(`<button class="btn btn-xs btn-warn" onclick="if(typeof resolveWorldStateActionAtKeyForRegion==='function')resolveWorldStateActionAtKeyForRegion('sea','${hex.key}','stabilize');if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">🧯 Stabilize Crisis</button>`);
+    }
+    if (seaOverlay && (seaOverlay.closedBorder || seaOverlay.closedPort || seaOverlay.dangerousRoad)) {
+      seaWorldActions.push(`<button class="btn btn-xs btn-teal" onclick="if(typeof resolveWorldStateActionAtKeyForRegion==='function')resolveWorldStateActionAtKeyForRegion('sea','${hex.key}','reopen');if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">🛣 Reopen Routes</button>`);
+    }
+    const seaWorldStateHtml = seaSignals
+      ? `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(180,180,255,.35);background:rgba(180,180,255,.05);">
+          <div class="nb-label" style="color:var(--purple);">🌐 Sea World State</div>
+          <div style="font-size:.78rem;color:var(--text2);line-height:1.6;">
+            ${seaOverlay && seaOverlay.control ? `<div>Control: <strong>${seaOverlay.control}</strong></div>` : ''}
+            ${seaOverlay ? `<div>Tension: <strong>${Number(seaOverlay.tension || 0)}</strong> · Safety: <strong>${Number(seaOverlay.safety || 0)}</strong></div>` : ''}
+            ${seaOverlay && seaOverlay.activeCrisis ? `<div>Crisis: <strong style="color:var(--red2);">Active</strong></div>` : ''}
+            ${seaOverlay && seaOverlay.closedPort ? `<div>Ports: <strong style="color:var(--purple);">Restricted</strong></div>` : ''}
+            ${seaOverlay && seaOverlay.closedBorder ? `<div>Borders: <strong style="color:var(--gold2);">Restricted</strong></div>` : ''}
+            ${seaOverlay && seaOverlay.dangerousRoad ? `<div>Sea Lanes: <strong style="color:var(--red2);">Dangerous</strong></div>` : ''}
+            ${seaGov ? `<div style="font-size:.73rem;color:var(--muted2);margin-top:.2rem;">Policy: Patrol <strong>${String(seaGov.patrolStance || 'balanced')}</strong> · Tariff <strong>${String(seaGov.tariffStance || 'balanced')}</strong> · Route <strong>${String(seaGov.routePriority || 'trade')}</strong></div>` : ''}
+            ${seaWorldActions.length ? `<div style="margin-top:.32rem;display:flex;gap:.24rem;flex-wrap:wrap;">${seaWorldActions.join('')}</div>` : ''}
+          </div>
+        </div>`
+      : '';
     panel.innerHTML = `
       <div class="sea-info-inner">
         <div class="hex-type-tag ${
@@ -1383,6 +1420,7 @@
             </div>
           </div>`;
         })()}
+        ${seaWorldStateHtml}
         ${secretPadKey && secretPadKey === hex.key ? `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.5);background:rgba(126,215,255,.08);">
           <div class="nb-label" style="color:#7ed7ff;">🚀 Hidden Landing Pad</div>
           <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">A submerged launch platform can sling your ship straight to the Galaxy routes.</div>

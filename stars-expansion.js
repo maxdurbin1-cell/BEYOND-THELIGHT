@@ -16085,6 +16085,28 @@ function updateStarSystemReadouts() {
       const factionTask = window.factionSystem && typeof window.factionSystem.getGalaxyTask === 'function'
         ? window.factionSystem.getGalaxyTask(current.id)
         : null;
+      var galaxyOverlay = (typeof window.getWorldStateHexOverlayForRegion === 'function')
+        ? window.getWorldStateHexOverlayForRegion('galaxy', String(current.id))
+        : null;
+      var galaxyGov = (typeof window.getRegionGovernancePolicyState === 'function')
+        ? window.getRegionGovernancePolicyState('galaxy')
+        : null;
+      var galaxySignals = galaxyOverlay
+        ? (Number(galaxyOverlay.tension || 0) !== 0
+          || Number(galaxyOverlay.safety || 0) !== 0
+          || !!galaxyOverlay.activeCrisis
+          || !!galaxyOverlay.closedBorder
+          || !!galaxyOverlay.closedPort
+          || !!galaxyOverlay.dangerousRoad
+          || (Array.isArray(galaxyOverlay.tags) && galaxyOverlay.tags.length > 0))
+        : false;
+      var galaxyWorldActions = [];
+      if (galaxyOverlay && galaxyOverlay.activeCrisis) {
+        galaxyWorldActions.push('<button class="btn btn-xs btn-warn" onclick="if(typeof resolveWorldStateActionAtKeyForRegion===\'function\')resolveWorldStateActionAtKeyForRegion(\'galaxy\',\'' + String(current.id) + '\',\'stabilize\');renderStarSystemMap();updateStarSystemReadouts();">🧯 Stabilize Crisis</button>');
+      }
+      if (galaxyOverlay && (galaxyOverlay.closedBorder || galaxyOverlay.closedPort || galaxyOverlay.dangerousRoad)) {
+        galaxyWorldActions.push('<button class="btn btn-xs btn-teal" onclick="if(typeof resolveWorldStateActionAtKeyForRegion===\'function\')resolveWorldStateActionAtKeyForRegion(\'galaxy\',\'' + String(current.id) + '\',\'reopen\');renderStarSystemMap();updateStarSystemReadouts();">🛣 Reopen Routes</button>');
+      }
       if (factionBase) actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker===\'function\')window.factionSystem.openBaseFromMarker(\'galaxy\',' + current.id + ')">Enter Faction Base</button>');
       if (factionTask && !factionTask.monsterTask && factionTask.status === 'open') actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask(\'galaxy\',' + current.id + ');renderStarSystemMap();updateStarSystemReadouts();">Resolve Wayfarer Task (AD vs d6)</button>');
       if (factionTask && factionTask.monsterTask && factionTask.status === 'open') actionButtons.push('<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask(\'galaxy\',' + current.id + ');renderStarSystemMap();updateStarSystemReadouts();">Generate Monsters / Combat</button>');
@@ -16119,6 +16141,17 @@ function updateStarSystemReadouts() {
             ${hubState ? `<strong style="color:var(--text);">Hub Control:</strong> ${hubState.controller}<br>` : ''}
             ${current.analysisDetail ? `<strong style="color:var(--text);">Further Analysis:</strong> ${current.analysisDetail}` : ''}
           </div>
+          ${galaxySignals ? `<div style="padding:.4rem;border:1px solid rgba(180,180,255,.35);background:rgba(180,180,255,.05);font-size:.82rem;color:var(--text2);line-height:1.65;">
+            <div style="font-size:.72rem;color:var(--purple);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.12rem;">Galaxy World State</div>
+            ${galaxyOverlay && galaxyOverlay.control ? `<div>Control: <strong>${galaxyOverlay.control}</strong></div>` : ''}
+            ${galaxyOverlay ? `<div>Tension: <strong>${Number(galaxyOverlay.tension || 0)}</strong> · Safety: <strong>${Number(galaxyOverlay.safety || 0)}</strong></div>` : ''}
+            ${galaxyOverlay && galaxyOverlay.activeCrisis ? `<div>Crisis: <strong style="color:var(--red2);">Active</strong></div>` : ''}
+            ${galaxyOverlay && galaxyOverlay.closedBorder ? `<div>Borders: <strong style="color:var(--gold2);">Restricted</strong></div>` : ''}
+            ${galaxyOverlay && galaxyOverlay.closedPort ? `<div>Ports: <strong style="color:var(--purple);">Restricted</strong></div>` : ''}
+            ${galaxyOverlay && galaxyOverlay.dangerousRoad ? `<div>Lanes: <strong style="color:var(--red2);">Dangerous</strong></div>` : ''}
+            ${galaxyGov ? `<div style="font-size:.73rem;color:var(--muted2);margin-top:.18rem;">Policy: Patrol <strong>${String(galaxyGov.patrolStance || 'balanced')}</strong> · Tariff <strong>${String(galaxyGov.tariffStance || 'balanced')}</strong> · Route <strong>${String(galaxyGov.routePriority || 'trade')}</strong></div>` : ''}
+            ${galaxyWorldActions.length ? `<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.26rem;">${galaxyWorldActions.join('')}</div>` : ''}
+          </div>` : ''}
           ${(typeof window.buildBackstoryAnchorActionPanelHtml === 'function') ? window.buildBackstoryAnchorActionPanelHtml('galaxy', String(current.id)) : ''}
           ${actionButtons.length ? `<div style="display:flex;gap:.25rem;flex-wrap:wrap;">${actionButtons.join('')}</div>` : ''}
         </div>`;

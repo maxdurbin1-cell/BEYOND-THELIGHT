@@ -1609,16 +1609,67 @@
   }
 
   function getLegacyRaidWaypointMazePreset(cellId, wingNum) {
+    // Deterministically seed a hash from cellId + wingNum, then procedurally generate a 5x5 maze.
     var seed = String(cellId || '') + ':' + String(wingNum || 1);
-    var n = 0;
-    for (var i = 0; i < seed.length; i++) n += seed.charCodeAt(i);
-    var presets = [
-      { layout: ['S..#', '.##.', '...#', '#..E'], answer: 'R-R-D-D-R-D' },
-      { layout: ['S...', '##.#', '..#.', '..#E'], answer: 'R-R-R-D-D-D' },
-      { layout: ['S.#.', '..#.', '.##.', '...E'], answer: 'D-D-D-R-R-R' },
-      { layout: ['S..#', '#..#', '#...', '##.E'], answer: 'R-D-D-R-R-D' }
-    ];
-    return presets[n % presets.length];
+    var h = 0;
+    for (var i = 0; i < seed.length; i++) { h = (Math.imul ? Math.imul(31, h) : h * 31) + seed.charCodeAt(i) | 0; }
+    h = Math.abs(h);
+    var ROWS = 5, COLS = 6;
+    var grid = [];
+    var r, c;
+    for (r = 0; r < ROWS; r++) {
+      var row = [];
+      for (c = 0; c < COLS; c++) row.push('.');
+      grid.push(row);
+    }
+    // Start top-left, Exit bottom-right
+    grid[0][0] = 'S';
+    grid[ROWS - 1][COLS - 1] = 'E';
+    // Carve a guaranteed path using the seed
+    var pathR = 0, pathC = 0;
+    var visited = {};
+    visited['0:0'] = true;
+    var pathMoves = [];
+    var attempts = 0;
+    while (pathR !== ROWS - 1 || pathC !== COLS - 1) {
+      attempts++;
+      if (attempts > 200) break;
+      var needRight = COLS - 1 - pathC;
+      var needDown = ROWS - 1 - pathR;
+      var total = needRight + needDown + 1;
+      var rval = (h % total + total) % total;
+      h = (h * 1664525 + 1013904223) & 0x7fffffff;
+      var moved = false;
+      if (rval < needRight + 1 && pathC < COLS - 1 && !visited[pathR + ':' + (pathC + 1)]) {
+        pathC++; pathMoves.push('R'); visited[pathR + ':' + pathC] = true; moved = true;
+      } else if (pathR < ROWS - 1 && !visited[(pathR + 1) + ':' + pathC]) {
+        pathR++; pathMoves.push('D'); visited[pathR + ':' + pathC] = true; moved = true;
+      } else if (pathC < COLS - 1) {
+        pathC++; pathMoves.push('R'); visited[pathR + ':' + pathC] = true; moved = true;
+      } else if (pathR < ROWS - 1) {
+        pathR++; pathMoves.push('D'); visited[pathR + ':' + pathC] = true; moved = true;
+      } else { break; }
+    }
+    // Mark path in grid
+    var pr = 0, pc = 0;
+    pathMoves.forEach(function (m) {
+      if (m === 'R') pc++; else pr++;
+      if (!(pr === ROWS - 1 && pc === COLS - 1) && grid[pr][pc] === '.') grid[pr][pc] = '.';
+    });
+    // Seed walls on non-path cells
+    for (r = 0; r < ROWS; r++) {
+      for (c = 0; c < COLS; c++) {
+        if (grid[r][c] !== '.' && grid[r][c] !== 'E' && grid[r][c] !== 'S') continue;
+        if (r === 0 && c === 0) continue;
+        if (r === ROWS - 1 && c === COLS - 1) continue;
+        if (visited[r + ':' + c]) continue;
+        h = (h * 1664525 + 1013904223) & 0x7fffffff;
+        if (h % 3 === 0) grid[r][c] = '#';
+      }
+    }
+    // Build layout strings
+    var layout = grid.map(function (row) { return row.join(''); });
+    return { layout: layout, answer: pathMoves.join('-') };
   }
 
   function renderLegacyRaidTreePanel() {
@@ -3167,11 +3218,39 @@
       if (typeof updateCombatUI === 'function') updateCombatUI();
       if (typeof renderEnemies === 'function') renderEnemies();
       if (typeof renderCombatOptions === 'function') renderCombatOptions();
-      var cBtn = (typeof document !== 'undefined') ? document.querySelector(".tab-btn[onclick*=\"switchTab('combat'\"]") : null;
-      if (typeof switchTab === 'function') switchTab('combat', cBtn || null);
-      if (typeof showNotif === 'function') {
-        showNotif('Raid Combat uses Combat tab actions: You (Strike/Shoot), then allies (2 actions each), then enemies (2 actions each).', 'good');
-      }
+
+      // Build and show a combat briefing modal before switching to the combat tab.
+      var allyNames = allies.map(function (a) { return String(a && a.name || 'Wayfarer'); });
+      var hostileList = Array.isArray(S.enemies)
+        ? S.enemies.filter(function (e) { return e && !e.ally; })
+        : [];
+      var allyRows = allyNames.map(function (n) {
+        return '<div style="font-size:.64rem;color:var(--text2);">● ' + n + ' (Ally) · 12 HP</div>';
+      }).join('');
+      var enemyRows = hostileList.map(function (e) {
+        return '<div style="font-size:.64rem;color:var(--red2);">✕ ' + String(e.name || 'Hostile') + ' · Dread d' + Number(e.dread || 6) + ' · ' + Number(e.maxStress || 8) + ' HP</div>';
+      }).join('');
+      var combatBriefHtml = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="font-size:.86rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.14rem;"><strong>⚔ Combat Engaged — Wing ' + wingNum + '</strong></div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.18rem;">Turn order: <strong>You</strong> (Strike / Shoot) → <strong>Allies</strong> (auto — 2 attacks each) → <strong>Enemies</strong> (auto — 2 attacks each). Your actions left each round refill to your action max.</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.22rem;">'
+        + '<div style="border:1px solid rgba(70,196,182,.22);padding:.22rem .28rem;background:rgba(70,196,182,.06);">'
+        + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.08rem;"><strong>Allies</strong></div>'
+        + (allyRows || '<div style="font-size:.63rem;color:var(--muted2);">None present.</div>')
+        + '</div>'
+        + '<div style="border:1px solid rgba(200,80,80,.22);padding:.22rem .28rem;background:rgba(200,80,80,.06);">'
+        + '<div style="font-size:.68rem;color:var(--red2);margin-bottom:.08rem;"><strong>Hostiles</strong></div>'
+        + (enemyRows || '<div style="font-size:.63rem;color:var(--muted2);">None found.</div>')
+        + '</div>'
+        + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.16rem;">Peril (Defend vs Dread d6): failure = +1 Teamwork · damage = roll difference<br>'
+        + 'Hazard (Mind vs Dread d6): failure = +1 Teamwork · mental stress = roll difference<br>'
+        + 'Barrier (Body vs Dread d6): failure = +1 Teamwork · random condition applied (Weakened / Distracted / Vulnerable / Shaken)</div>'
+        + '<div style="display:flex;gap:.3rem;justify-content:flex-end;">'
+        + '<button class="btn btn-sm btn-primary" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof switchTab===\'function\'){var b=document.querySelector(\'.tab-btn[onclick*=\\\"combat\\\"]\');switchTab(\'combat\',b||null);}">Enter Combat Tab ⚔</button>'
+        + '</div>'
+        + '</div>';
+      if (typeof openModal === 'function') openModal('Raid Combat — Wing ' + wingNum, combatBriefHtml);
     }
   }
   window.openRaidCombatModal = openRaidCombatModal;
@@ -4975,8 +5054,7 @@
       }
       cell.encounterLabel = getLegacyRaidHexEncounterLabel(mission, wingNum, cell.eventType, cell.id);
       if (!cell.roomDescription) {
-        cell.roomDescription = buildLegacyRaidHexDescription(mission, wingNum, cell.eventType, null)
-          + ' Threat Signature: ' + String(mission && mission.legacyRaidBoss || 'Raid Boss') + '. Hex ID: ' + String(cell.id || '?') + '.';
+        cell.roomDescription = buildLegacyRaidHexDescription(mission, wingNum, cell.eventType, null);
       }
     });
   }
@@ -5275,28 +5353,28 @@
         default: ['Ornate lock mechanism.', 'Interlocked control lattice blocks the route forward.', 'Puzzle blocking passage deeper into the vault.']
       },
       peril: {
-        serpent: ['Toxic venom pools bubble and hiss across the floor.', 'The tunnel ahead drips with caustic slime from passing predators.', 'Walls shift with the movement of unseen creatures.'],
-        fire: ['Waves of heat shimmer from cracked stone—breath from the pyre.', 'Slag rivers flow lazily, still radiating dangerous warmth.', 'Cinders drift lazily through air thick with ash and sulfur.'],
-        sea: ['Water sits still but somehow threatens to surge at any moment.', 'Pressure fluctuations suggest something vast moves nearby.', 'Brine stings your eyes; depths press from all directions.'],
-        void: ['Reality bends in ways your eyes struggle to register.', 'Silence carries a weight that threatens to pull you into it.', 'The air itself feels like it might shatter into fractured space.'],
-        stone: ['Ancient supports groan and creak--collapse is imminent here.', 'Stone paths crumble to dust where ' + bossName + ' has passed.', 'The walls pulse with something that might be a heartbeat of the deep.'],
-        default: ['Danger permeates every shadow here.', 'The hazard reeks of primal hunger.', 'Something ancient and furious left its mark on this chamber.']
+        serpent: ['A cracked stairwell drops beneath the province bedrock — every step threatens collapse.', 'The tunnel ahead drips with caustic slime from passing predators.', 'Walls shift with the movement of unseen creatures pressing outward from the stone.', 'Toxic venom pools bubble and hiss across the floor — one wrong step and you are slow and burning.'],
+        fire: ['Waves of heat shimmer from cracked stone — breath from a pyre that never died.', 'Slag rivers flow lazily, still radiating dangerous warmth on every surface.', 'Cinders drift through air thick with ash and sulfur; breathing anything deep here is a gamble.', 'The floor is warm underfoot. Somewhere below, something still burns.'],
+        sea: ['Pressure fluctuations suggest something vast moves nearby, just beyond the stone.', 'Brine stings your eyes and fills your lungs; depths press from all directions.', 'This post once controlled traffic deeper below. Murder holes and arrow slits still stare into the passage.', 'Water sits still but somehow threatens to surge at any moment — the tide reads you.'],
+        void: ['Reality bends in ways your eyes struggle to register, like looking through warped glass.', 'Silence carries a weight that threatens to pull you into it permanently.', 'The air itself feels like it might shatter into fractured space if pressed too hard.', 'The corridor ahead exists in two states at once — and your body cannot choose between them.'],
+        stone: ['Ancient supports groan and creak — collapse is imminent unless you move precisely.', 'Stone paths crumble to dust where something enormous has passed before you.', 'The walls pulse with something that might be a heartbeat of the deep. It is not a machine.', 'A section of ceiling has already fallen. You can see sky — or something pretending to be it.'],
+        default: ['Danger permeates every shadow here. Nothing moves, but everything waits.', 'The hazard reeks of primal hunger. Something old marked this place as a feeding ground.', 'Something ancient and furious left its mark on this chamber. The walls remember it.', 'An edge-case corridor — the kind that kills the distracted, not the unprepared.']
       },
       hazard: {
-        serpent: ['Rocks and debris form maze-like obstacles carved by tunneling.', 'Narrow passages force careful navigation between stone fangs.', 'Ground unstable—sections drop into darkness below.'],
-        fire: ['Cracked stone reflects dancing firelight from internal vents.', 'Ash drifts like snow; breathing requires caution.', 'The stone itself is still warm to the touch from below.'],
-        sea: ['Flooded sections create treacherous footing and hidden depths.', 'Saltwater pools corrode anything metal left too long.', 'Currents suggest channels cutting through the stone unexpectedly.'],
-        void: ['Gravity shifts subtly in certain corners of this space.', 'Shadows seem to have corners where they shouldn\'t.', 'The path feels less solid than it appears.'],
-        stone: ['Collapsed sections block obvious routes--you must think creatively.', 'Cracks spider-web the floor in warning patterns.', 'Dust storms choke the air where tectonic settling continues.'],
-        default: ['Treacherous terrain requires careful movement.', 'Natural hazards bar the way forward.', 'The environment itself seems hostile to passage.']
+        serpent: ['Rocks and debris form maze-like obstacles carved by something that tunnels without care.', 'Narrow passages force careful navigation between stone fangs that jut from every surface.', 'Ground unstable — sections drop into darkness below, and the floor gives no warning.', 'Shed carapace litters the route; beneath it, the stone has been dissolved and re-hardened into treacherous footing.'],
+        fire: ['Cracked stone reflects dancing firelight from internal vents that breathe out like living lungs.', 'Ash drifts like snow; breathing too deep means breathing in what was once alive.', 'The stone itself is still warm — not dangerously so, but unnaturally, persistently, patient.', 'A collapsed vent has re-routed ember flood through the only clear passage forward.'],
+        sea: ['Flooded sections create treacherous footing and hidden depths that hide worse things below.', 'Saltwater pools corrode anything metal left too long — and everything rusts faster here than it should.', 'Currents suggest channels cutting through the stone unexpectedly; standing water is never just standing.', 'Brine-stained archways mark where something once moved freely through this space. The floods were not always here.'],
+        void: ['Gravity shifts subtly in certain corners of this space; your body learns this the hard way.', 'Shadows seem to have corners where they should not — geometry is broken in here.', 'The path feels less solid than it appears. Each step is a small act of faith.', 'A buzzing fills the inner ear that has no source. The static is the hazard.'],
+        stone: ['Collapsed sections block obvious routes — you must think spatially, laterally, and quickly.', 'Cracks spider-web the floor in warning patterns that suggest imminent failure.', 'Dust storms choke the air where tectonic settling continues deep in the rock.', 'A load-bearing pillar has been broken — by what, you cannot say, but recently.'],
+        default: ['Treacherous terrain requires careful movement and absolute focus.', 'Natural hazards bar the way forward. Nothing here is designed to kill — it just will.', 'The environment itself seems hostile to passage, like it learned from whatever lives here.', 'A route that looks navigable is not. The danger is the assumption of safety.']
       },
       barrier: {
-        serpent: ['A wall of crystallized venom blocks the way forward.', 'Stone door sealed by ancient worshippers of ' + bossName + '.', 'Webbing strong as steel blocks further passage.'],
-        fire: ['Slag wall still cooling and shifting—timing is critical to cross.', 'Obsidian barrier dark as the pyre\'s heart.', 'Volcanic glass wall sealed by the ' + bossName + '\'s passage.'],
-        sea: ['Current-locked stone barrier—the pressure keeps it sealed.', 'Coral growth binds the passage with living stone.', 'Brine-corroded lock mechanism that demands patience.'],
-        void: ['A barrier that exists in negative space—hard to perceive.', 'Dimensional seal that pushes back against physical force.', 'A wall of absence blocking what should be there.'],
-        stone: ['Ancient stone door massive enough to require the whole team.', 'Barrier carved with warnings in dead languages.', 'Gate locked since before the fall of civilizations.'],
-        default: ['A substantial barrier blocks further progress.', 'Stone wall sealed by magic or time.', 'Locked gate requiring careful approach.']
+        serpent: ['A wall of crystallized venom seals the passage — it has set hard over many years.', 'Stone door sealed by ancient worshippers; the lock mechanism is biological in design.', 'Webbing strong as steel blocks further passage — it still vibrates, faintly, from something living.', 'A resin barrier, secreted and dried. It was not built. It was grown to keep things out.'],
+        fire: ['Slag wall still cooling and shifting — the timing of a crossing is everything.', 'Obsidian barrier dark as the pyre\'s heart; the surface is smooth and offers no grip.', 'Volcanic glass wall sealed by heat and compression. It rings when struck. It does not give.', 'The passage is choked by hardened flow — navigating through means going underneath.'],
+        sea: ['Current-locked stone barrier — the pressure holds it sealed from the wrong side.', 'Coral growth binds the passage with living stone that still breathes at low tide.', 'Brine-corroded lock mechanism that demands patience and steady hands.', 'A rusted iron gate, swollen in its frame, and the mechanism is on a side you cannot reach yet.'],
+        void: ['A barrier that exists in negative space — difficult to perceive directly, impossible to ignore.', 'Dimensional seal that pushes back against physical force with equal and rising resistance.', 'A wall of absence. The block is not the stone — it is the space where stone should be.', 'The lock is not keyed to any metal. It only opens for something it recognizes.'],
+        stone: ['Ancient stone door massive enough that the whole team must brace and shift together.', 'Barrier carved with warnings in dead languages. Several of the glyphs are warnings about the others.', 'Gate locked since before the fall of civilizations — the mechanism still turns, just not easily.', 'A portcullis sealed from above. The winch is on the far side. There must be another way.'],
+        default: ['A substantial barrier blocks further progress. It was not placed to be ornamental.', 'Stone wall sealed by magic or time — the seam is visible but the gap is not.', 'Locked gate requiring careful approach, steady hands, and the right tool for the mechanism.', 'A sealed passage. The air on the other side feels different — cooler, older, quieter.']
       },
       enemy: {
         serpent: ['Echoing hisses announce worm-things hunting in darkness here.', 'The tunnel vibrates with the approach of something large.', 'Shadows move wrong—predators of the deep stalk this chamber.'],
@@ -5376,10 +5454,16 @@
     var statKey = statByType[eventType] || 'adventure';
     var statLabel = statKey === 'defend' ? 'Defend' : (statKey === 'mind' ? 'Mind' : (statKey === 'body' ? 'Body' : 'Adventure'));
     var dd = getLegacyRaidHexDreadDie(wingNum, eventType);
+    var failureDesc = et === 'peril'
+      ? 'Failure: +1 Teamwork · Physical damage = roll difference'
+      : (et === 'hazard'
+        ? 'Failure: +1 Teamwork · Mental stress = roll difference'
+        : 'Failure: +1 Teamwork · Random condition applied (Weakened / Distracted / Vulnerable / Shaken)');
     var body = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
       + '<div style="font-size:.86rem;color:var(--gold2);margin-bottom:.14rem;"><strong>' + String(cell.encounterLabel || 'Room Encounter') + '</strong></div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.16rem;">' + String(cell.roomDescription || '') + '</div>'
-      + '<div style="font-size:.74rem;color:var(--text2);margin-bottom:.18rem;">Roll <strong>' + statLabel + ' Action Die</strong> vs <strong>Dread d' + dd + '</strong>.</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.16rem;font-style:italic;">' + String(cell.roomDescription || '') + '</div>'
+      + '<div style="font-size:.74rem;color:var(--text2);margin-bottom:.1rem;">Roll <strong>' + statLabel + ' Action Die</strong> vs <strong>Dread d' + dd + '</strong>.</div>'
+      + '<div style="font-size:.67rem;color:var(--teal);margin-bottom:.18rem;">' + failureDesc + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-primary" onclick="window.resolveLegacyRaidHexRiskCheck(' + missionId + ',' + wingNum + ',\'' + String(cell.id || '') + '\',\'' + String(eventType || '') + '\')">Roll Check</button>'
       + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + missionId + ',' + wingNum + ',\'' + String(cell.id || '') + '\')">Back</button>'
@@ -5404,9 +5488,12 @@
       if (typeof addTMWOnFail === 'function') addTMWOnFail();
       if (et === 'peril' && typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - Math.max(1, result.diff));
       if (et === 'hazard' && typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
-      if (et === 'barrier' && typeof S !== 'undefined' && S && S.conditions && typeof S.conditions === 'object') {
-        var cKeys = Object.keys(S.conditions);
-        if (cKeys.length) S.conditions[cKeys[Math.floor(Math.random() * cKeys.length)]] = true;
+      if (et === 'barrier' && typeof S !== 'undefined' && S) {
+        var barrierConds = ['weakened', 'distracted', 'vulnerable', 'shaken'];
+        var applyCond = barrierConds[Math.floor(Math.random() * barrierConds.length)];
+        S.conditions = S.conditions || {};
+        S.conditions[applyCond] = true;
+        if (typeof showNotif === 'function') showNotif('Barrier failure — ' + applyCond.charAt(0).toUpperCase() + applyCond.slice(1) + ' condition applied.', 'warn');
       }
       state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
       state.lastLog = 'Hex ' + cell.id + ' failed (' + et + '). Roll ' + result.actionRoll + ' vs ' + result.dreadRoll + '. Extra tick lost.';
@@ -5529,12 +5616,38 @@
           if (cell.lorePiece) {
             loreMode = Math.random() < 0.5 ? 'crossword_grid' : 'sudoku';
             if (loreMode === 'crossword_grid') {
-              loreConfig.gridTemplate = ['GATE#', 'A#R#E', 'TEACH', 'E#I#R', 'MARK#'];
-              loreConfig.clues = [
-                { clue: 'Old-world route marker', answer: 'gate' },
-                { clue: 'Action of passing knowledge', answer: 'teach' },
-                { clue: 'Record or scar from the past', answer: 'mark' }
+              // Pick one of several crossword templates keyed by a hash of the cell id
+              var cSeed = 0;
+              for (var csi = 0; csi < String(cell.id || '').length; csi++) cSeed += String(cell.id || '').charCodeAt(csi);
+              var cwTemplates = [
+                {
+                  gridTemplate: ['GATE#', 'A#R#E', 'TEACH', 'E#I#R', 'MARK#'],
+                  clues: [
+                    { clue: "Man's best friend says 'woof' (3,1) — but ____ means door", answer: 'gate' },
+                    { clue: 'What a teacher does with students', answer: 'teach' },
+                    { clue: 'Leave a mark, like a scar or a score', answer: 'mark' }
+                  ]
+                },
+                {
+                  gridTemplate: ['ROAD#', 'U#R#E', 'LEARN', 'E#I#D', 'SIGN#'],
+                  clues: [
+                    { clue: 'Take the ___: a path or street for travel', answer: 'road' },
+                    { clue: 'What students do in class; gain knowledge', answer: 'learn' },
+                    { clue: 'A posted notice or symbol with directions', answer: 'sign' }
+                  ]
+                },
+                {
+                  gridTemplate: ['PATH#', 'A#R#O', 'GUIDE', 'E#D#S', 'LORE#'],
+                  clues: [
+                    { clue: 'A trail or route taken on foot', answer: 'path' },
+                    { clue: 'A tour ___ leads a group through a place', answer: 'guide' },
+                    { clue: 'Old stories and knowledge passed down', answer: 'lore' }
+                  ]
+                }
               ];
+              var cwPick = cwTemplates[cSeed % cwTemplates.length];
+              loreConfig.gridTemplate = cwPick.gridTemplate;
+              loreConfig.clues = cwPick.clues;
             } else {
               loreConfig.sudokuPuzzle = [['1', '', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']];
               loreConfig.sudokuSolution = [['1', '2', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']];
@@ -5715,6 +5828,10 @@
     var result = String(outcome || 'retreat').toLowerCase();
     if (result === 'win') {
       cell.cleared = true;
+      // Explicit cleanup: remove temporary raid allies from the scene enemy list on victory
+      if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
+        S.enemies = S.enemies.filter(function (e) { return e && !e.temporarySceneAlly; });
+      }
       if (cell.waypoint) {
         state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
       }
@@ -6023,24 +6140,11 @@
             + allyStatus + ' <strong>' + allyNameRow + '</strong> · ' + allyHpRow + 'HP · ' + allyActsRow + '/2 · ' + allyFlavor.name
             + '</div>';
         }).join('');
-        var allyActionPanel = '<div style="font-size:.66rem;color:var(--muted2);line-height:1.4;margin-bottom:.12rem;">'
-          + '<strong>Defend:</strong> +3 Defend · <strong>Support:</strong> +3 Attack · <strong>Attack:</strong> dd6 vs Dread · <strong>Move:</strong> shift range'
+        var allyActionPanel = '<div style="font-size:.66rem;color:var(--muted2);line-height:1.4;margin-bottom:.1rem;">'
+          + '<strong>Defend:</strong> +3 Defend · <strong>Support:</strong> +3 Attack · <strong>Attack:</strong> d6 vs Boss Dread · <strong>Move:</strong> shift range'
           + '</div>'
-          + '<div style="margin-bottom:.12rem;">' + allyStatusRows + '</div>'
-          + '<div style="display:flex;gap:.15rem;flex-wrap:wrap;align-items:center;">'
-          + '<select class="input" id="raidAllySel-' + mission.id + '" style="max-width:110px;font-size:.64rem;padding:.08rem .12rem;">' + allyOptionHtml + '</select>'
-          + '<select class="input" id="raidAllyAct-' + mission.id + '" style="max-width:110px;font-size:.64rem;padding:.08rem .12rem;" onchange="window.updateLegacyRaidAllyTargetOptions(' + mission.id + ')">'
-          + '<option value="Defend">Defend</option><option value="Support">Support</option><option value="Attack">Attack</option><option value="Move">Move</option>'
-          + '</select>'
-          + '<select class="input" id="raidAllyTarget-' + mission.id + '" style="max-width:120px;font-size:.64rem;padding:.08rem .12rem;">'
-          + '<option value="' + playerName + '">' + playerName + '(You)</option>'
-          + '</select>'
-          + '<button class="btn btn-xs" style="font-size:.62rem;padding:.06rem .2rem;" ' + (turnStage === 'ally' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidBossAllyAction(' + mission.id + ',document.getElementById(\'raidAllySel-' + mission.id + '\').value,document.getElementById(\'raidAllyAct-' + mission.id + '\').value,document.getElementById(\'raidAllyTarget-' + mission.id + '\').value)">Execute</button>'
-          + '</div>'
-          + '<div style="font-size:.63rem;color:var(--gold2);margin-top:.08rem;margin-bottom:.08rem;">Used: ' + Number(encounter.allyActionsUsed || 0) + '/6 · Remaining: ' + allyLeftTotal + '</div>'
-          + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.45;margin-bottom:.08rem;">Defend: +3 Defend · Support: +3 Attack (Strike/Shoot) · Attack: d6 vs Boss Dread · Move: shift one range band</div>'
-          + '<div style="margin-bottom:.08rem;">' + allyStatusRows + '</div>'
-          + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">'
+          + '<div style="margin-bottom:.1rem;">' + allyStatusRows + '</div>'
+          + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;margin-bottom:.08rem;">'
           + '<select class="input" id="raidAllySel-' + mission.id + '" style="max-width:140px;">' + allyOptionHtml + '</select>'
           + '<select class="input" id="raidAllyAct-' + mission.id + '" style="max-width:130px;" onchange="window.updateLegacyRaidAllyTargetOptions(' + mission.id + ')">'
           + '<option value="Defend">Defend</option><option value="Support">Support</option><option value="Attack">Attack</option><option value="Move">Move</option>'
@@ -6048,9 +6152,9 @@
           + '<select class="input" id="raidAllyTarget-' + mission.id + '" style="max-width:180px;">'
           + '<option value="' + playerName + '">' + playerName + ' (You)</option>'
           + '</select>'
-          + '<button class="btn btn-xs" ' + (turnStage === 'ally' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidBossAllyAction(' + mission.id + ',document.getElementById(\'raidAllySel-' + mission.id + '\').value,document.getElementById(\'raidAllyAct-' + mission.id + '\').value,document.getElementById(\'raidAllyTarget-' + mission.id + '\').value)">Execute Ally Action</button>'
+          + '<button class="btn btn-xs btn-primary" ' + (turnStage === 'ally' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidBossAllyAction(' + mission.id + ',document.getElementById(\'raidAllySel-' + mission.id + '\').value,document.getElementById(\'raidAllyAct-' + mission.id + '\').value,document.getElementById(\'raidAllyTarget-' + mission.id + '\').value)">Execute Ally Action</button>'
           + '</div>'
-          + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Ally actions used this turn: ' + Number(encounter.allyActionsUsed || 0) + '/6 · Remaining: ' + allyLeftTotal + '</div>';
+          + '<div style="font-size:.63rem;color:var(--gold2);">Ally actions used this turn: ' + Number(encounter.allyActionsUsed || 0) + '/6 · Remaining: ' + allyLeftTotal + '</div>';
         var logHtml = Array.isArray(encounter.log) && encounter.log.length
           ? encounter.log.slice(-4).map(function (entry) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + entry + '</div>'; }).join('')
           : '<div style="font-size:.67rem;color:var(--muted2);">No boss phases resolved yet.</div>';
@@ -6153,6 +6257,36 @@
       var scrollY = (typeof window !== 'undefined' && typeof window.scrollY === 'number') ? window.scrollY : 0;
       var gridState = ensureLegacyRaidWingGridState(mission, wingNum);
       if (!gridState) return false;
+
+      // If wing is already completed, show a compact summary instead of the interactive grid
+      var wingAlreadyDone = mission.steps && mission.steps[wingNum] && mission.steps[wingNum].completed;
+      if (wingAlreadyDone) {
+        var wingTitlesComp = ['', (mission.steps[1] && mission.steps[1].name) || 'Lore Wing', (mission.steps[2] && mission.steps[2].name) || 'Mechanic Wing'];
+        var backBtnComp = '<button class="btn btn-xs" onclick="openLegacyRaidMissionPopup(' + missionId + ',null)">← Raid Overview</button>';
+        var wingNavComp = [1, 2, 3].map(function (w) {
+          var done = mission.steps && mission.steps[w] && mission.steps[w].completed;
+          return '<button class="btn btn-xs' + (w === wingNum ? ' btn-teal' : '') + '" onclick="openRaidWingPopup(' + missionId + ',' + w + ')" ' + (w > 1 && !(mission.steps[w - 1] && mission.steps[w - 1].completed) && w !== wingNum ? 'disabled' : '') + '>Wing ' + w + (done ? ' ✓' : '') + '</button>';
+        }).join('');
+        var objComp = wingNum === 1
+          ? 'Lore Fragments: ' + Number(gridState.objectives.loreCollected || 0) + '/' + Number(gridState.objectives.loreRequired || 3) + ' — All recovered.'
+          : 'Door Waypoints: ' + Number(gridState.objectives.waypointsActivated || 0) + '/' + Number(gridState.objectives.waypointsRequired || 3) + ' — All activated.';
+        var compHtml = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:600px;">'
+          + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;margin-bottom:.32rem;">'
+          + '<div style="font-size:.88rem;color:var(--green2);font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitlesComp[wingNum] + ' — Completed ✓</strong></div>'
+          + '<div style="display:flex;gap:.2rem;">' + wingNavComp + '</div>'
+          + '</div>'
+          + '<div style="border:1px solid rgba(60,180,90,.24);background:rgba(60,180,90,.06);padding:.42rem .5rem;margin-bottom:.28rem;border-radius:.2rem;">'
+          + '<div style="font-size:.72rem;color:var(--green2);margin-bottom:.1rem;"><strong>' + objComp + '</strong></div>'
+          + '<div style="font-size:.66rem;color:var(--muted2);">This wing has been cleared. Loot was collected at the wing exit. Advance to the next wing from the Raid Overview.</div>'
+          + '</div>'
+          + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;justify-content:flex-end;">'
+          + backBtnComp
+          + (wingNum < 3 && !(mission.steps[wingNum + 1] && mission.steps[wingNum + 1].completed) ? '<button class="btn btn-xs btn-primary" onclick="openRaidWingPopup(' + missionId + ',' + (wingNum + 1) + ')">Enter Wing ' + (wingNum + 1) + ' →</button>' : '')
+          + '</div>'
+          + '</div>';
+        openModal('Wing ' + wingNum + ': ' + wingTitlesComp[wingNum] + ' — ' + mission.title, compHtml);
+        return true;
+      }
       var objectives = gridState.objectives || {};
       var w1State = mission.legacyRaidWingGrid && mission.legacyRaidWingGrid['1'];
       var w2State = mission.legacyRaidWingGrid && mission.legacyRaidWingGrid['2'];
@@ -8807,6 +8941,10 @@
 
     var targetRow='<div style="font-size:.78rem;margin-bottom:.45rem;padding:.25rem .35rem;border:1px solid var(--border2);"><strong style="color:var(--gold2);">Target:</strong> <span style="color:var(--text);">'+mission.target+'</span></div>';
     var rollInstr='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+advDie+(bonus?' + '+bonus:'')+' vs '+(revealDC?('Dread d'+dreadDie):'scene Dread')+' \u2014 then click your outcome:</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice. Add the +'+(bonus||0)+' bonus to your roll before comparing.</div></div>';
+    var isLegacyRaidMission = mission && mission.missionType === 'legacy_raid';
+    var successAction = isLegacyRaidMission
+      ? ('openLegacyRaidCompletionSummary(' + missionId + ')')
+      : ('resolveMissionOutcome(' + missionId + ',true)');
     var gmControls='';
     if (gmMode) {
       gmControls='<div style="background:rgba(128,96,192,.08);border:1px solid rgba(128,96,192,.35);padding:.35rem .45rem;margin-bottom:.45rem;">'
@@ -8814,8 +8952,8 @@
         +'<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
           +'<button class="btn btn-xs" style="border-color:var(--purple);color:var(--purple);" onclick="window.adjustMissionDread('+missionId+',-1)">Dread -</button>'
           +'<button class="btn btn-xs" style="border-color:var(--purple);color:var(--purple);" onclick="window.adjustMissionDread('+missionId+',1)">Dread +</button>'
-          +'<button class="btn btn-xs" style="border-color:var(--purple);color:var(--purple);" onclick="if(window.settingsSystem&&window.settingsSystem.showGMPrompt){window.settingsSystem.showGMPrompt(\'Mission Confrontation\',\'Frame the fiction, then choose the outcome based on the scene.\',[{label:\'Mark Success\',action:\'resolveMissionOutcome('+missionId+',true);closeModal();\'},{label:\'Mark Failure\',action:\'resolveMissionOutcome('+missionId+',false);closeModal();\'}]);}">Open GM Prompt</button>'
-          +'<button class="btn btn-xs btn-primary" onclick="resolveMissionOutcome('+missionId+',true)">GM: Force Success</button>'
+          +'<button class="btn btn-xs" style="border-color:var(--purple);color:var(--purple);" onclick="if(window.settingsSystem&&window.settingsSystem.showGMPrompt){window.settingsSystem.showGMPrompt(\'Mission Confrontation\',\'Frame the fiction, then choose the outcome based on the scene.\',[{label:\'Mark Success\',action:\''+successAction+';closeModal();\'},{label:\'Mark Failure\',action:\'resolveMissionOutcome('+missionId+',false);closeModal();\'}]);}">Open GM Prompt</button>'
+          +'<button class="btn btn-xs btn-primary" onclick="'+successAction+'">GM: Force Success</button>'
           +'<button class="btn btn-xs btn-red" onclick="resolveMissionOutcome('+missionId+',false)">GM: Force Failure</button>'
         +'</div>'
         +'<div style="font-size:.66rem;color:var(--muted2);margin-top:.22rem;">Scene Dread: d'+dreadDie+'</div>'
@@ -8825,7 +8963,7 @@
     var html=compBanner+featureBadge+guardsSection+mercSection+targetRow+rollInstr+gmControls
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
         +'<button class="btn btn-sm btn-red" onclick="resolveMissionOutcome('+missionId+',false)">\u2717 Failure \u2014 Roll Failed</button>'
-        +'<button class="btn btn-sm btn-primary" onclick="resolveMissionOutcome('+missionId+',true)">\u2713 Success \u2014 Roll Succeeded</button>'
+        +'<button class="btn btn-sm btn-primary" onclick="'+successAction+'">\u2713 Success \u2014 Roll Succeeded</button>'
       +'</div>';
     openModal('Step 3 - '+((mission.steps[3] && mission.steps[3].name) || 'Confrontation'),html);
   }

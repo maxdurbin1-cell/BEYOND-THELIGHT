@@ -3529,20 +3529,39 @@
             + "</div>";
         }).join("");
     } else if (p.mode === "crossword_grid") {
+      // Compute cell numbers: a cell gets a number if it starts an Across or Down word
+      const cellNums = {};
+      let numCounter = 1;
+      for (let r = 0; r < p.gridRows; r++) {
+        for (let c = 0; c < p.gridCols; c++) {
+          const ch = ((p.gridTemplate[r] || "")[c] || "#").toUpperCase();
+          if (ch === "#") continue;
+          const startsAcross = (c === 0 || ((p.gridTemplate[r] || "")[c - 1] || "#").toUpperCase() === "#")
+            && c + 1 < p.gridCols && ((p.gridTemplate[r] || "")[c + 1] || "#").toUpperCase() !== "#";
+          const startsDown = (r === 0 || ((p.gridTemplate[r - 1] || "")[c] || "#").toUpperCase() === "#")
+            && r + 1 < p.gridRows && ((p.gridTemplate[r + 1] || "")[c] || "#").toUpperCase() !== "#";
+          if (startsAcross || startsDown) {
+            cellNums[r + ":" + c] = numCounter++;
+          }
+        }
+      }
       const cells = [];
       for (let r = 0; r < p.gridRows; r++) {
         for (let c = 0; c < p.gridCols; c++) {
           const ch = ((p.gridTemplate[r] || "")[c] || "#").toUpperCase();
           if (ch === "#") {
-            cells.push("<div style='width:28px;height:28px;background:var(--surface2);border:1px solid var(--border2);'></div>");
+            cells.push("<div style='width:30px;height:30px;background:var(--surface2);border:1px solid var(--border2);'></div>");
           } else {
-            cells.push("<input id='storyGrid_" + r + "_" + c + "' maxlength='1' class='input' style='width:28px;height:28px;text-align:center;padding:0;text-transform:uppercase;'/>"
-            );
+            const num = cellNums[r + ":" + c];
+            cells.push("<div style='position:relative;width:30px;height:30px;'>"
+              + (num ? "<span style='position:absolute;top:1px;left:2px;font-size:7px;color:var(--muted2);line-height:1;pointer-events:none;z-index:1;'>" + num + "</span>" : "")
+              + "<input id='storyGrid_" + r + "_" + c + "' maxlength='1' class='input' style='width:30px;height:30px;text-align:center;padding:0;text-transform:uppercase;font-size:.8rem;' />"
+              + "</div>");
           }
         }
       }
       controls = ""
-        + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Grid crossword: fill all open cells. # blocks are locked.</div>"
+        + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Grid crossword: fill all open cells. Numbered cells start an Across or Down word. # blocks are locked.</div>"
         + "<div style='display:grid;grid-template-columns:repeat(" + p.gridCols + ",28px);gap:2px;justify-content:start;margin-bottom:.45rem;'>" + cells.join("") + "</div>"
         + p.clues.map(function (c, i) {
           return "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.12rem;'>" + (i + 1) + ". " + c.clue + "</div>";

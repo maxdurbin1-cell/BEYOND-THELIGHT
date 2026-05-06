@@ -1,20 +1,5 @@
 // infinite-library-system.js
 (function () {
-  function rngFromSeed(seed) {
-    var h = 2166136261;
-    var s = String(seed || 'library');
-    for (var i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return function () {
-      h += 0x6D2B79F5;
-      var t = Math.imul(h ^ (h >>> 15), 1 | h);
-      t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-
   function rollDie(max) {
     if (typeof roll === 'function') return roll(max);
     return 1 + Math.floor(Math.random() * max);
@@ -26,185 +11,117 @@
     return 6;
   }
 
-  var LIBRARY_TIERS = [
-    { die: 4, label: 'Index Vault', theme: 'catalog ladders, whisper-lanterns, librarian masks', boss: 'The Card Keeper' },
-    { die: 6, label: 'Sewer Codex', theme: 'dripping culverts, chained folios, salt ink', boss: 'The Drain Scribe' },
-    { die: 8, label: 'Underdark Stacks', theme: 'fungal vellum, blind script, basalt shelves', boss: 'The Blind Cartographer' },
-    { die: 10, label: 'Astral Annex', theme: 'floating bindings, static pages, impossible shelf angles', boss: 'The Comet Archivist' },
-    { die: 12, label: 'Broken Parliament', theme: 'forbidden decrees, vote-ledgers, hollow gavels', boss: 'The Last Clerk' },
-    { die: 20, label: 'Infinite Crown Floor', theme: 'recurring hexagons, mirrored ink, recursive corridors', boss: 'The Endless Curator' }
+  function pick(list) {
+    if (!Array.isArray(list) || !list.length) return '';
+    return list[Math.floor(Math.random() * list.length)] || list[0];
+  }
+
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  var LIBRARY_TIERS = [4, 6, 8, 10, 12, 20];
+
+  var LIBRARY_AXIAL_DIRECTIONS = [
+    { q: 1, r: 0 },
+    { q: 1, r: -1 },
+    { q: 0, r: -1 },
+    { q: -1, r: 0 },
+    { q: -1, r: 1 },
+    { q: 0, r: 1 }
   ];
 
-  var ROOM_SNIPPETS = {
-    4: [
-      'A low gallery of brass ladders and numbered alcoves smells of glue and old rain.',
-      'Index ribbons flutter from a draft with no visible source; each points somewhere else.',
-      'A reading desk repeats every twelve paces, each copy with a different unfinished sentence.'
-    ],
-    6: [
-      'Black water moves beneath iron grates while waterproof codices hang from hooks.',
-      'Scribes in waxed aprons scrape mildew from chapter spines and never look up.',
-      'Drain maps overlap with family trees; both end in the same locked chamber.'
-    ],
-    8: [
-      'Mushroom light pulses between carved shelves where stone tablets sit beside paper books.',
-      'The floor dips around root-bound lecterns, each carved in a language you almost remember.',
-      'A collapsed aisle reveals an older aisle beneath it, still organized by an extinct alphabet.'
-    ],
-    10: [
-      'Shelf rings orbit a silent core, books drifting between them like slow satellites.',
-      'Your footsteps echo a second late, as though another reader follows your route.',
-      'Ink motes rise from open pages and collect into constellations overhead.'
-    ],
-    12: [
-      'Debate transcripts are chained to podiums, amended in seven competing hands.',
-      'Civic laws are shelved beside confessions and battlefield weather reports.',
-      'A council chamber of empty chairs listens while you turn each page.'
-    ],
-    20: [
-      'Every corridor branches into six, each with the same door and different dust.',
-      'You find a book titled with your name; its first page describes this room exactly.',
-      'Hexagonal balconies stack into darkness while distant readers whisper your questions back.'
-    ]
-  };
+  var LIBRARY_NODE_TYPES = [
+    'Entrance Desk', 'Reading Room', 'Encounter Hex', 'Encounter Hex', 'Word Storm', 'Portal Niche',
+    'Elevator Shaft', 'Spider Archive', 'Owl Cult Worksite', 'Mutable Wing', 'Sentence Forge', 'Stairwell'
+  ];
 
-  // Original lore micro-texts inspired by public-domain-era motifs, not direct quotations.
-  var BOOK_MICRO_SNIPPETS = [
-    'A margin note claims the oldest roads were first measured by eclipse shadows, not by miles.',
-    'An unsigned preface argues that every empire fails twice: once in law, once in memory.',
-    'A sailor\'s ledger says the Sea Region tides still obey bells that sank centuries ago.',
-    'One chapter insists the Province map redraws itself whenever three rival banners burn in one night.',
-    'A field manual states that fear spreads faster than armies, but slower than rumor.',
-    'A dry botanical index marks one flower as "edible only after confession."',
-    'An anonymous tract lists seven names for winter and none for peace.',
-    'A scavenger diary describes seeing the same moon from two districts at once.',
-    'A war report suggests the first citadel was built to protect an archive, not a throne.',
-    'A pilgrim note says every true oath leaves ash on the tongue for a day.'
+  var LIBRARY_AMBIENCE = [
+    'Shelves breathe in and out as if the room itself is reading.',
+    'Candles relight behind you in the exact shape of your footprints.',
+    'Ink drifts in the air and settles into temporary constellations.',
+    'The architecture rearranges when nobody is looking directly at it.',
+    'Whispers in three languages repeat your next sentence before you speak.'
+  ];
+
+  var BOOK_WEIRDNESS = [
+    'A biography of someone who has not been born yet, but resembles your party.',
+    'A legal code where every law applies only while read aloud.',
+    'A romance written by two rival gods arguing in the margins.',
+    'A map that redraws the room to match your emotional state.',
+    'A hymnbook where each verse alters gravity for a heartbeat.',
+    'A glossary that erases one noun from your memory each time you blink.'
+  ];
+
+  var ENVIRONMENT_SHIFTS = [
+    'Aisles stretch into canyons of stacked atlases.',
+    'All wood hardens into wax and slowly melts upward.',
+    'Every unlabeled shelf grows black feathers.',
+    'Loose words float free as neon glyphs near the ceiling.',
+    'Floor tiles become index cards and slide underfoot.',
+    'Rain falls indoors, but only on open books.'
   ];
 
   var LIBRARY_ENCOUNTERS = [
-    { min: 1, max: 4, name: 'Elevator', depth: 'any', blurb: 'A brass lift clings to impossible shelves, built by Owl Cultists where ladders fail.' },
-    { min: 5, max: 5, name: 'Portal', depth: 'any', blurb: 'Rune-heavy steel plates hum. Nobody agrees where this portal lands next.' },
-    { min: 6, max: 6, name: 'Page Knights', depth: 'any', blurb: 'An oath-bound guardian linked to a single book challenges your right to pass.' },
-    { min: 7, max: 7, name: 'Owl Cultists', depth: 'shallow,deep', blurb: 'Masked trespassers in feathered cloaks drift deeper. They are wary, not eager for blood.' },
-    { min: 8, max: 8, name: 'Spider Archivist', depth: 'any', blurb: 'Wax-born librarian construct arrives to define, contain, and seal loose words.' },
-    { min: 9, max: 9, name: 'DeepReaders', depth: 'deep', blurb: 'A harsher archivist variant that does not define. It only destroys.' },
-    { min: 10, max: 10, name: 'BrowserLords', depth: 'deep', blurb: 'Half-spider, half-human sovereigns of deeper stacks. They know routes to exits.' },
-    { min: 11, max: 11, name: 'The Written', depth: 'any', blurb: 'Ink-bound thralls hunt any loose text and drag it to their section.' },
-    { min: 12, max: 12, name: 'Blackhearted', depth: 'any', blurb: 'Word-hungry infected wanderers licking pages to survive.' },
-    { min: 13, max: 13, name: 'Philophickers', depth: 'any', blurb: 'Walking Ideas test your beliefs and force outcomes as if doctrine were gravity.' },
-    { min: 14, max: 14, name: 'Inkmites', depth: 'any', blurb: 'Tiny ink-eaters with scalpel arms swarm toward fresh writing and open skin.' },
-    { min: 15, max: 15, name: 'Giant Termites', depth: 'deep', blurb: 'Shelf-boring predators create sudden tunnels and unstable shortcuts.' },
-    { min: 16, max: 16, name: 'Skeleton Crew', depth: 'deep', blurb: 'Candle-lit skeletons march deeper as if answering a call from below.' },
-    { min: 17, max: 17, name: 'Equillae', depth: 'deep', blurb: 'Biographic ghosts possess bodies to escape the stacks and reclaim old lives.' },
-    { min: 18, max: 18, name: 'Librarians', depth: 'deep', blurb: 'Empty robes seek their missing book and may puppet you to retrieve it.' },
-    { min: 19, max: 19, name: 'Bookworms', depth: 'any', blurb: 'Lost explorers turned giant caterpillars offer dubious aid, gossip, and drugs.' },
-    { min: 20, max: 20, name: 'Words Unbound', depth: 'deep', blurb: 'Loose words and proto-sentences drift free. If they connect, reality obeys.' }
+    { min: 1, max: 4, name: 'Elevator', depth: 'any', blurb: 'A brass lift clings to impossible shelves.' },
+    { min: 5, max: 5, name: 'Portal', depth: 'any', blurb: 'Rune-plates hum; destination unknown.' },
+    { min: 6, max: 6, name: 'Page Knights', depth: 'any', blurb: 'Book-bound guardians challenge your passage.' },
+    { min: 7, max: 7, name: 'Owl Cultists', depth: 'shallow,deep', blurb: 'Masked delvers wire machinery deeper down.' },
+    { min: 8, max: 8, name: 'Spider Archivist', depth: 'any', blurb: 'A wax archivist attempts to define and contain.' },
+    { min: 9, max: 9, name: 'DeepReaders', depth: 'deep', blurb: 'Deep patrols that destroy rather than define.' },
+    { min: 10, max: 10, name: 'BrowserLords', depth: 'deep', blurb: 'Half-spider lords who always know exit vectors.' },
+    { min: 11, max: 11, name: 'The Written', depth: 'any', blurb: 'Ink-thralls hunt all loose text.' },
+    { min: 12, max: 12, name: 'Blackhearted', depth: 'any', blurb: 'Word-hungry infected strip pages for sustenance.' },
+    { min: 13, max: 13, name: 'Philophickers', depth: 'any', blurb: 'Walking Ideas argue reality into new shape.' },
+    { min: 14, max: 14, name: 'Inkmites', depth: 'any', blurb: 'Tiny ink-eaters swarm exposed script and skin.' },
+    { min: 15, max: 15, name: 'Giant Termites', depth: 'deep', blurb: 'Shelf-borers carve sudden shortcuts and collapses.' },
+    { min: 16, max: 16, name: 'Skeleton Crew', depth: 'deep', blurb: 'Candle-lit skeletons march toward deeper halls.' },
+    { min: 17, max: 17, name: 'Equillae', depth: 'deep', blurb: 'Biography ghosts seek bodies and exits.' },
+    { min: 18, max: 18, name: 'Librarians', depth: 'deep', blurb: 'Empty robes puppet trespassers to find their book.' },
+    { min: 19, max: 19, name: 'Bookworms', depth: 'any', blurb: 'Friendly giant caterpillar guides with bizarre advice.' },
+    { min: 20, max: 20, name: 'Words Unbound', depth: 'deep', blurb: 'Loose words join into dangerous living sentences.' }
   ];
 
   var ELEVATOR_STATUS = [
     { min: 1, max: 4, text: 'Works fine.' },
-    { min: 5, max: 8, text: 'Works fine, but only once before locking hard.' },
-    { min: 9, max: 10, text: 'Inoperable. The lift can be repaired with parts and time.' },
-    { min: 11, max: 11, text: 'Works, but only climbs halfway before stalling.' },
-    { min: 12, max: 12, text: 'Wires will snap after 2 or more PCs step on it.' }
+    { min: 5, max: 8, text: 'Works fine, but only once.' },
+    { min: 9, max: 10, text: 'Inoperable without repairs.' },
+    { min: 11, max: 11, text: 'Only goes halfway.' },
+    { min: 12, max: 12, text: 'Wires will snap if overloaded.' }
   ];
 
   var PORTAL_DESTINATIONS = [
-    'Spidercombs - Wax catacombs rumored to lie near the Heart.',
-    'Black Candle - A once-burning district where soot still blinds and chokes.',
-    'The Labra - A giant candle chandelier wide enough to host whole stacks.',
-    'The Boneyard - A half-living giant body harvested for spine and binding material.',
-    'Shreddings - Drifts of torn notes, loose pages, and abandoned drafts.',
-    'Double Down Drive - A singular hall that keeps stretching far past reason.',
-    'The Intestine Labyrinth - Giant books hollowed into worm-eaten tunnels.',
-    'The Obliette - Where books go to die and titles are forgotten.',
-    'The Sway - Stacks balanced in open air, constantly moving with unseen wind.',
-    'Lawless - Ironically orderly archives of legal documents and true-name records.',
-    'Labrys - Home halls of the Bookbinder\'s Guild.',
-    'Settle - A settlement of seekers who gave up on finding the Heart.'
+    'Spidercombs', 'Black Candle', 'The Labra', 'The Boneyard', 'Shreddings', 'Double Down Drive',
+    'Intestine Labyrinth', 'The Obliette', 'The Sway', 'Lawless', 'Labrys', 'Settle'
   ];
 
-  var PHILOPHICKER_IDEAS = [
-    'Love: fused partners demand vows and legal marriage rites.',
-    'Nihilism: deny meaning, deny purpose, maybe deny your existence.',
-    'Shintoism: naked shrine-builders plant seeds in books and grow library gardens.',
-    'Relativism: reality changes by speaker; dissenters become foreign threats.',
-    'Absurdism: random wonder-magic and impossible decisions as doctrine.',
-    'Chaos: your life is judged by long consequence chains across history.'
-  ];
-
-  var LIBRARY_TRAPS = [
-    'Quiet Area: speak and your words shatter loudly on the floor, calling Word Stealers.',
-    'Bookworm Trigger: reading an unauthorized volume reduces all action dice to d4 until the book is replaced.',
-    'Dust Jacket: disturbed dust burns the truth of you into your skin as living text.',
-    'Bookwyrm Seal: removing a wing-book triggers a psychic fire-breath backlash (+3 Mental Stress) until replaced.'
-  ];
-
-  var LIBRARY_WINGS = [
-    'Goblin Thoughts - shelves of fragmented goblin ideas and accidental prophecies.',
-    'Taxes - one true-name ledger hidden among millions of decoys.',
-    'Tape Books - endless VHS archives filed like sacred scripture.',
-    'Not Yet - future books waiting for their authors to catch up.',
-    'Dinosaurs - false histories of things that never happened.',
-    'Inciting Incident - every text starts with a beginning and no resolution.'
-  ];
-
-  var LIBRARY_EXIT_PATHS = [
-    'Risk a Portal jump and trust the map re-roll.',
-    'Die before someone candles your skeleton.',
-    'Bargain with a BrowserLord, who always knows a nearest exit.',
-    'Track and persuade DeepReaders to point a way out.',
-    'Let an Urban Ranger guide the route; others risk getting lost.',
-    'Appeal to a spirit you still have favor with.',
-    'Swear Page Knight vows and follow your linked book to an exit.',
-    'Follow butterflies. They always fly toward the nearest way out.',
-    'Use songbirds that can always return home.'
-  ];
-
-  var BOOK_FETCH_OBJECTIVES = [
-    'recover a censored folio before a rival faction burns it',
-    'steal a true-name ledger page without waking the shelf ward',
-    'copy one paragraph from a future text in the Not Yet wing',
-    'retrieve a biography volume needed to banish an Equillae possession',
-    'deliver a blank codex to Labrys for emergency rebinding'
-  ];
-
-  var BOOK_FETCH_COMPLICATIONS = [
-    'an Owl Cultist elevator is one use from collapse',
-    'a Spider Archivist lit-candle trigger is already active in this wing',
-    'the path is sealed by a Quiet Area trap and Word Stealers are near',
-    'a Philophicker sect claims legal ownership of your target text',
-    'the target book has become a Page Knight anchor and cannot be moved openly'
-  ];
-
-  var BOOK_FETCH_TWISTS = [
-    'the target text is alive and negotiates its own ransom',
-    'the destination was misfiled and now sits one depth deeper',
-    'the client\'s "authorized copy" is forged, and the real one is cursed',
-    'every written note you carry attracts Inkmites until sealed in wax',
-    'the map itself keeps rewriting, pointing toward a different wing each hour'
-  ];
+  function tierForDepth(depth) {
+    return LIBRARY_TIERS[clamp(Math.floor((Math.max(1, Number(depth || 1)) - 1) / 3), 0, LIBRARY_TIERS.length - 1)] || 20;
+  }
 
   function ensureLibraryState() {
     if (typeof S === 'undefined' || !S) return null;
     if (!S.infiniteLibrary || typeof S.infiniteLibrary !== 'object') {
       S.infiniteLibrary = {
-        active: false,
-        depth: 1,
-        roomIndex: 0,
-        interactions: 0,
-        sinceRoll: 0,
-        bossDefeatedByTier: {},
-        currentQuest: null,
         activeHexKey: '',
+        depth: 1,
+        deepestDepth: 1,
         delveCount: 0,
+        roomIndex: 0,
         lastResult: '',
         lastEncounter: '',
-        lastHook: ''
+        lastHook: '',
+        floors: {},
+        atmosphere: '',
+        instability: 0,
+        selectedNodeByDepth: {}
       };
     }
-    return S.infiniteLibrary;
+    var st = S.infiniteLibrary;
+    if (!st.floors || typeof st.floors !== 'object') st.floors = {};
+    if (!st.selectedNodeByDepth || typeof st.selectedNodeByDepth !== 'object') st.selectedNodeByDepth = {};
+    if (!st.atmosphere) st.atmosphere = pick(LIBRARY_AMBIENCE);
+    return st;
   }
 
   function getProvinceHexByKey(key) {
@@ -214,13 +131,9 @@
     var row = Number(parts[1]);
     if (!isFinite(col) || !isFinite(row)) return null;
     if (typeof window.setProvinceSelectedKey === 'function') {
-      try {
-        window.setProvinceSelectedKey(col + ',' + row);
-      } catch (_err) {}
+      try { window.setProvinceSelectedKey(col + ',' + row); } catch (_err) {}
     }
-    if (window.selectedHex && Number(window.selectedHex.col) === col && Number(window.selectedHex.row) === row) {
-      return window.selectedHex;
-    }
+    if (window.selectedHex && Number(window.selectedHex.col) === col && Number(window.selectedHex.row) === row) return window.selectedHex;
     return null;
   }
 
@@ -229,42 +142,96 @@
     var hex = getProvinceHexByKey(state.activeHexKey);
     if (!hex) return;
     hex.data = hex.data || {};
-    hex.data.infiniteLibrary = hex.data.infiniteLibrary || {};
-    hex.data.infiniteLibrary.depth = Number(state.depth || 1);
-    hex.data.infiniteLibrary.roomIndex = Number(state.roomIndex || 0);
-    hex.data.infiniteLibrary.lastResult = String(state.lastResult || '');
-    hex.data.infiniteLibrary.delveCount = Number(state.delveCount || 0);
-    hex.data.infiniteLibrary.lastEncounter = String(state.lastEncounter || '');
-    hex.data.infiniteLibrary.lastHook = String(state.lastHook || '');
+    hex.data.infiniteLibrary = {
+      depth: Number(state.depth || 1),
+      deepestDepth: Number(state.deepestDepth || 1),
+      roomIndex: Number(state.roomIndex || 0),
+      delveCount: Number(state.delveCount || 0),
+      lastResult: String(state.lastResult || ''),
+      lastEncounter: String(state.lastEncounter || ''),
+      lastHook: String(state.lastHook || ''),
+      floors: state.floors,
+      atmosphere: String(state.atmosphere || ''),
+      instability: Number(state.instability || 0),
+      selectedNodeByDepth: state.selectedNodeByDepth
+    };
   }
 
   function readLibraryStateFromHex(state, key) {
-    if (!state) return;
     var hex = getProvinceHexByKey(key);
-    if (!hex || !hex.data || !hex.data.infiniteLibrary || typeof hex.data.infiniteLibrary !== 'object') return;
+    if (!hex || !hex.data || !hex.data.infiniteLibrary) return;
     var hs = hex.data.infiniteLibrary;
-    if (typeof hs.depth === 'number') state.depth = Math.max(1, Number(hs.depth || 1));
-    if (typeof hs.roomIndex === 'number') state.roomIndex = Math.max(0, Number(hs.roomIndex || 0));
-    if (typeof hs.lastResult === 'string') state.lastResult = hs.lastResult;
-    if (typeof hs.delveCount === 'number') state.delveCount = Math.max(Number(state.delveCount || 0), Number(hs.delveCount || 0));
-    if (typeof hs.lastEncounter === 'string') state.lastEncounter = hs.lastEncounter;
-    if (typeof hs.lastHook === 'string') state.lastHook = hs.lastHook;
+    state.depth = Math.max(1, Number(hs.depth || state.depth || 1));
+    state.deepestDepth = Math.max(state.depth, Number(hs.deepestDepth || state.deepestDepth || 1));
+    state.roomIndex = Math.max(0, Number(hs.roomIndex || state.roomIndex || 0));
+    state.delveCount = Math.max(0, Number(hs.delveCount || state.delveCount || 0));
+    state.lastResult = String(hs.lastResult || state.lastResult || '');
+    state.lastEncounter = String(hs.lastEncounter || state.lastEncounter || '');
+    state.lastHook = String(hs.lastHook || state.lastHook || '');
+    state.atmosphere = String(hs.atmosphere || state.atmosphere || pick(LIBRARY_AMBIENCE));
+    state.instability = Math.max(0, Number(hs.instability || state.instability || 0));
+    if (hs.floors && typeof hs.floors === 'object') state.floors = hs.floors;
+    if (hs.selectedNodeByDepth && typeof hs.selectedNodeByDepth === 'object') state.selectedNodeByDepth = hs.selectedNodeByDepth;
   }
 
-  function tierForDepth(depth) {
-    var idx = Math.max(0, Math.min(LIBRARY_TIERS.length - 1, Math.floor((Math.max(1, Number(depth || 1)) - 1) / 3)));
-    return LIBRARY_TIERS[idx];
+  function nodeIcon(kind) {
+    if (kind === 'Entrance Desk') return '🚪';
+    if (kind === 'Reading Room') return '📖';
+    if (kind === 'Encounter Hex') return '⚔';
+    if (kind === 'Word Storm') return '🗯';
+    if (kind === 'Portal Niche') return '◈';
+    if (kind === 'Elevator Shaft') return '⇳';
+    if (kind === 'Spider Archive') return '🕸';
+    if (kind === 'Owl Cult Worksite') return '🦉';
+    if (kind === 'Mutable Wing') return '✶';
+    if (kind === 'Sentence Forge') return '✍';
+    if (kind === 'Stairwell') return '⇣';
+    return '⬡';
   }
 
-  function pick(list, seed) {
-    if (!Array.isArray(list) || !list.length) return '';
-    var rng = rngFromSeed(seed);
-    return list[Math.floor(rng() * list.length)] || list[0];
+  function createLibraryNode(depth, floorState, forcedKind) {
+    var idx = (floorState.nodes || []).length + 1;
+    var kind = forcedKind || pick(LIBRARY_NODE_TYPES);
+    if (idx <= 2 && kind === 'Stairwell') kind = 'Reading Room';
+    if (idx === 1) kind = 'Entrance Desk';
+    return {
+      idx: idx,
+      kind: kind,
+      discovered: idx === 1,
+      cleared: idx === 1,
+      pendingCombat: false,
+      title: kind,
+      detail: '',
+      bookLine: kind === 'Reading Room' ? pick(BOOK_WEIRDNESS) : '',
+      environmentShift: kind === 'Mutable Wing' ? pick(ENVIRONMENT_SHIFTS) : '',
+      encounterSummary: ''
+    };
   }
 
-  function pickNow(list) {
-    if (!Array.isArray(list) || !list.length) return '';
-    return list[Math.floor(Math.random() * list.length)] || list[0];
+  function ensureFloorState(state, depth) {
+    var key = String(depth);
+    if (!state.floors[key] || typeof state.floors[key] !== 'object') {
+      state.floors[key] = {
+        die: tierForDepth(depth),
+        nodes: [createLibraryNode(depth, { nodes: [] }, 'Entrance Desk')],
+        mutationLevel: Math.max(0, depth - 1),
+        atmosphere: pick(LIBRARY_AMBIENCE),
+        currentSentence: '',
+        readings: 0
+      };
+    }
+    var floor = state.floors[key];
+    if (!Array.isArray(floor.nodes) || !floor.nodes.length) floor.nodes = [createLibraryNode(depth, { nodes: [] }, 'Entrance Desk')];
+    if (typeof floor.readings !== 'number') floor.readings = 0;
+    if (!floor.atmosphere) floor.atmosphere = pick(LIBRARY_AMBIENCE);
+    return floor;
+  }
+
+  function findByRoll(list, value) {
+    for (var i = 0; i < list.length; i++) {
+      if (value >= Number(list[i].min) && value <= Number(list[i].max)) return list[i];
+    }
+    return list[0] || null;
   }
 
   function depthBand(depth) {
@@ -274,225 +241,473 @@
     return 'mid';
   }
 
-  function depthAllowed(depthRule, band) {
-    var rule = String(depthRule || 'any').toLowerCase();
-    if (rule === 'any') return true;
-    if (rule.indexOf('shallow') >= 0 && band === 'shallow') return true;
-    if (rule.indexOf('deep') >= 0 && band === 'deep') return true;
+  function depthAllowed(rule, band) {
+    var r = String(rule || 'any').toLowerCase();
+    if (r === 'any') return true;
+    if (r.indexOf('shallow') >= 0 && band === 'shallow') return true;
+    if (r.indexOf('deep') >= 0 && band === 'deep') return true;
     return false;
-  }
-
-  function findByRoll(list, value) {
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i];
-      if (value >= Number(item.min) && value <= Number(item.max)) return item;
-    }
-    return list[0] || null;
-  }
-
-  function rollElevatorStatus() {
-    var r = rollDie(12);
-    var status = findByRoll(ELEVATOR_STATUS, r);
-    return 'Elevator d12=' + r + ': ' + (status ? status.text : 'Unknown status.');
-  }
-
-  function rollPortalDestination() {
-    var r = rollDie(12);
-    var place = PORTAL_DESTINATIONS[Math.max(0, r - 1)] || PORTAL_DESTINATIONS[0];
-    return 'Portal d12=' + r + ': ' + place;
   }
 
   function rollEncounterForDepth(depth) {
     var band = depthBand(depth);
-    var chosen = null;
     var d20 = 0;
-    for (var tries = 0; tries < 30; tries++) {
+    var chosen = null;
+    for (var i = 0; i < 30; i++) {
       d20 = rollDie(20);
-      var found = findByRoll(LIBRARY_ENCOUNTERS, d20);
-      if (found && depthAllowed(found.depth, band)) {
-        chosen = found;
+      var e = findByRoll(LIBRARY_ENCOUNTERS, d20);
+      if (e && depthAllowed(e.depth, band)) {
+        chosen = e;
         break;
       }
     }
     if (!chosen) chosen = LIBRARY_ENCOUNTERS[0];
-
     var detail = '';
-    if (chosen.name === 'Elevator') detail = rollElevatorStatus();
-    if (chosen.name === 'Portal') detail = rollPortalDestination();
-    if (chosen.name === 'Philophickers') detail = 'Idea pressure: ' + pickNow(PHILOPHICKER_IDEAS);
-    if (chosen.name === 'Words Unbound') detail = 'Word trap: ' + pickNow(LIBRARY_TRAPS);
-
+    if (chosen.name === 'Elevator') {
+      var eRoll = rollDie(12);
+      var eStatus = findByRoll(ELEVATOR_STATUS, eRoll);
+      detail = 'Elevator d12=' + eRoll + ' · ' + (eStatus ? eStatus.text : 'Unknown.');
+    }
+    if (chosen.name === 'Portal') {
+      var pRoll = rollDie(12);
+      detail = 'Portal d12=' + pRoll + ' · ' + (PORTAL_DESTINATIONS[pRoll - 1] || PORTAL_DESTINATIONS[0]);
+    }
     return {
       roll: d20,
       encounter: chosen,
       band: band,
+      summary: 'd20=' + d20 + ' (' + band + ') · ' + chosen.name + ' · ' + chosen.blurb,
       detail: detail
     };
   }
 
-  function generateBookFetchHook(state) {
-    var depth = Math.max(1, Number(state && state.depth || 1));
-    var wing = pickNow(LIBRARY_WINGS);
-    var objective = pickNow(BOOK_FETCH_OBJECTIVES);
-    var complication = pickNow(BOOK_FETCH_COMPLICATIONS);
-    var twist = pickNow(BOOK_FETCH_TWISTS);
-    var exitPlan = pickNow(LIBRARY_EXIT_PATHS);
-    return 'Depth ' + depth + ' · ' + wing + '. Objective: ' + objective + '. Complication: ' + complication + '. Twist: ' + twist + '. Exit plan: ' + exitPlan + '.';
-  }
-
-  function buildQuest(state, tier) {
-    var patrons = ['a widow from Ashline Ward', 'a caravan oath-keeper', 'a novice archivist', 'a masked magistrate courier'];
-    var tasks = [
-      'recover the red ledger from the flooded index',
-      'copy the final line of the 9th bridge chronicle',
-      'find who erased the seal from shelf hex 6-3',
-      'verify the true date of the Brass Uprising'
-    ];
+  function runActionRoll(statKey, dreadDie, label) {
+    var actionDie = statDie(statKey);
+    var actionTotal;
+    var dreadTotal;
+    if (typeof explodingRoll === 'function') {
+      var a = explodingRoll(actionDie, { type: 'action', major: true, label: label + ' AD' + actionDie });
+      var d = explodingRoll(dreadDie, { type: 'dread', major: true, label: label + ' DD' + dreadDie });
+      actionTotal = Number(a && a.total || 0);
+      dreadTotal = Number(d && d.total || 0);
+    } else {
+      actionTotal = rollDie(actionDie);
+      dreadTotal = rollDie(dreadDie);
+    }
     return {
-      patron: pick(patrons, 'p:' + state.depth + ':' + tier.die),
-      objective: pick(tasks, 't:' + state.depth + ':' + tier.die),
-      reward: '+' + (40 + (tier.die * 4)) + ' Credits · +1 Renown'
+      actionDie: actionDie,
+      dreadDie: dreadDie,
+      actionTotal: actionTotal,
+      dreadTotal: dreadTotal,
+      success: actionTotal >= dreadTotal
     };
   }
 
-  function maybeBossRoom(state, tier) {
-    return (state.roomIndex > 0 && state.roomIndex % 4 === 0 && !state.bossDefeatedByTier[String(tier.die)]);
+  function applyFailureConsequence(kind) {
+    if (typeof S === 'undefined' || !S) return;
+    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    if (kind === 'read' || kind === 'word') {
+      S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + 2);
+    } else {
+      S.health = Math.max(0, Number(S.health || 0) - 1);
+    }
   }
 
-  function renderLibraryModal() {
-    var state = ensureLibraryState();
-    if (!state || typeof openModal !== 'function') return false;
-    state.active = true;
-    if (!state.activeHexKey && typeof window.getProvinceSelectedKey === 'function') {
-      try { state.activeHexKey = String(window.getProvinceSelectedKey() || ''); } catch (_err) { state.activeHexKey = ''; }
+  function getSpiralCoord(index) {
+    var idx = Math.max(1, Number(index || 1));
+    if (idx === 1) return { q: 0, r: 0 };
+    var remaining = idx - 1;
+    var ring = 1;
+    while (remaining > 6 * ring) {
+      remaining -= 6 * ring;
+      ring += 1;
     }
-    var tier = tierForDepth(state.depth);
-    var roomText = pick(ROOM_SNIPPETS[tier.die], 'room:' + state.depth + ':' + state.roomIndex);
-    var bookText = pick(BOOK_MICRO_SNIPPETS, 'book:' + state.depth + ':' + state.roomIndex);
-    if (!state.currentQuest) state.currentQuest = buildQuest(state, tier);
-    var quest = state.currentQuest;
-    var bossNow = maybeBossRoom(state, tier);
-    var lastEncounter = String(state.lastEncounter || '').trim();
-    var lastHook = String(state.lastHook || '').trim();
+    var q = -ring;
+    var r = ring;
+    for (var side = 0; side < 6; side++) {
+      var dir = LIBRARY_AXIAL_DIRECTIONS[side];
+      for (var step = 0; step < ring; step++) {
+        if (remaining === 1) return { q: q, r: r };
+        q += dir.q;
+        r += dir.r;
+        remaining -= 1;
+      }
+    }
+    return { q: q, r: r };
+  }
 
-    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
-      + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.14rem;"><strong>The Infinite Library · Depth ' + Number(state.depth || 1) + '</strong></div>'
-      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.12rem;">Tier d' + tier.die + ' · ' + tier.label + ' · ' + tier.theme + '</div>'
-      + '<div style="margin-bottom:.14rem;">' + roomText + '</div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);font-style:italic;margin-bottom:.16rem;">Book fragment: ' + bookText + '</div>'
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.2rem .28rem;margin-bottom:.14rem;">'
-      + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Contract Request</strong></div>'
-      + '<div style="font-size:.66rem;color:var(--muted2);">' + quest.patron + ' asks you to ' + quest.objective + '. Reward: ' + quest.reward + '.</div>'
+  function localHexPoints(cx, cy, size) {
+    var pts = [];
+    for (var i = 0; i < 6; i++) {
+      var angle = (Math.PI / 180) * (60 * i - 30);
+      var x = Math.round(cx + size * Math.cos(angle));
+      var y = Math.round(cy + size * Math.sin(angle));
+      pts.push(x + ',' + y);
+    }
+    return pts.join(' ');
+  }
+
+  function getFloorFog(floor) {
+    var nodes = Array.isArray(floor && floor.nodes) ? floor.nodes : [];
+    var visibleMask = {};
+    var frontierMask = {};
+    var discovered = 0;
+    var frontier = 0;
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i] || {};
+      if (n.discovered) {
+        visibleMask[i] = true;
+        discovered += 1;
+        if (nodes[i + 1] && !nodes[i + 1].discovered) {
+          visibleMask[i + 1] = true;
+          frontierMask[i + 1] = true;
+          frontier += 1;
+        }
+      }
+    }
+    if (!discovered && nodes.length) {
+      visibleMask[0] = true;
+      discovered = 1;
+    }
+    return { visibleMask: visibleMask, frontierMask: frontierMask, discoveredCount: discovered, frontierCount: frontier };
+  }
+
+  function buildLibraryMiniMap(col, row, floor, selectedIdx) {
+    var nodes = floor.nodes || [];
+    var fog = getFloorFog(floor);
+    var spacing = 18;
+    var size = 10;
+    var placed = nodes.map(function (_node, idx) {
+      var c = getSpiralCoord(idx + 1);
+      return {
+        idx: idx,
+        x: Math.round(c.q * spacing + 150),
+        y: Math.round((c.r + c.q * 0.5) * (spacing * 0.94) + 90)
+      };
+    });
+
+    var links = [];
+    for (var i = 1; i < placed.length; i++) {
+      if (!fog.visibleMask[i] || !fog.visibleMask[i - 1]) continue;
+      links.push('<line x1="' + placed[i - 1].x + '" y1="' + placed[i - 1].y + '" x2="' + placed[i].x + '" y2="' + placed[i].y + '" stroke="rgba(156,184,255,.28)" stroke-width="1.2" />');
+    }
+
+    var cells = placed.map(function (p) {
+      if (!fog.visibleMask[p.idx]) return '';
+      var node = nodes[p.idx] || {};
+      var isFrontier = !!fog.frontierMask[p.idx];
+      var isSelected = p.idx === selectedIdx;
+      var fill = isFrontier ? 'rgba(156,184,255,.05)' : (node.cleared ? 'rgba(46,196,182,.2)' : 'rgba(70,80,110,.35)');
+      var stroke = isSelected ? '#9cb8ff' : (isFrontier ? 'rgba(156,184,255,.6)' : 'rgba(140,150,185,.55)');
+      if (node.pendingCombat) {
+        fill = 'rgba(224,80,80,.2)';
+        stroke = 'rgba(224,80,80,.75)';
+      }
+      return '<g style="cursor:pointer;" onclick="selectInfiniteLibraryNode(' + col + ',' + row + ',' + p.idx + ')">'
+        + '<polygon points="' + localHexPoints(p.x, p.y, size) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.4"></polygon>'
+        + '<text x="' + p.x + '" y="' + (p.y + 3) + '" text-anchor="middle" font-size="8.5" fill="var(--text)">' + nodeIcon(node.kind) + '</text>'
+        + '<title>Hex ' + (p.idx + 1) + ' · ' + (node.kind || 'Unknown') + '</title>'
+        + '</g>';
+    }).join('');
+
+    return '<div style="border:1px solid rgba(156,184,255,.3);background:rgba(10,16,34,.6);padding:.4rem;border-radius:4px;margin-bottom:.55rem;">'
+      + '<div style="font-size:.68rem;color:#9cb8ff;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.22rem;">Infinite Library Crawl Map</div>'
+      + '<svg viewBox="0 0 300 180" style="width:100%;height:auto;display:block;">' + links.join('') + cells + '</svg>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Solid nodes are mapped. Outlined nodes are frontier hexes.</div>'
+      + '</div>';
+  }
+
+  function buildNodeActions(col, row, node, depth, floor) {
+    if (!node) return '';
+    if (!node.discovered) {
+      return '<button class="btn btn-xs btn-teal" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'scout\')">⚄ Scout Frontier Hex</button>';
+    }
+    var actions = [];
+    if (!node.cleared && !node.pendingCombat) actions.push('<button class="btn btn-xs btn-primary" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'explore\')">⚄ Resolve Hex</button>');
+    if (node.kind === 'Reading Room' || node.kind === 'Sentence Forge') actions.push('<button class="btn btn-xs btn-teal" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'read\')">📖 Read A Dangerous Book</button>');
+    if (node.kind === 'Mutable Wing') actions.push('<button class="btn btn-xs" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'mutate\')">✶ Embrace The Shift</button>');
+    if (node.kind === 'Encounter Hex' && node.pendingCombat) {
+      actions.push('<button class="btn btn-xs btn-primary" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'victory\')">Victory</button>');
+      actions.push('<button class="btn btn-xs btn-red" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'fallback\')">Fall Back</button>');
+    }
+    if (node.kind === 'Stairwell' && node.cleared && depth < LIBRARY_TIERS.length * 3) actions.push('<button class="btn btn-xs btn-warn" onclick="descendInfiniteLibraryFloor(' + col + ',' + row + ')">Take Stair Down</button>');
+    if (actions.length === 0) return '<span style="font-size:.72rem;color:var(--green2);">✓ Hex stable.</span>';
+    return actions.join(' ');
+  }
+
+  function buildNodeDetail(col, row, floor, depth, selectedIdx) {
+    var node = floor.nodes[selectedIdx];
+    if (!node) return '';
+    var danger = tierForDepth(depth);
+    var titleColor = node.pendingCombat ? 'var(--red2)' : (node.cleared ? 'var(--green2)' : '#9cb8ff');
+    var status = !node.discovered ? 'Frontier (unscouted)' : (node.pendingCombat ? 'Hostiles active' : (node.cleared ? 'Cleared' : 'Unresolved'));
+    var details = [];
+    if (node.detail) details.push(node.detail);
+    if (node.bookLine) details.push('Book: ' + node.bookLine);
+    if (node.environmentShift) details.push('Shift: ' + node.environmentShift);
+    if (node.encounterSummary) details.push('Encounter: ' + node.encounterSummary);
+
+    return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid ' + titleColor + ';padding-left:.5rem;">'
+      + '<div class="rb-title" style="color:' + titleColor + ';">' + nodeIcon(node.kind) + ' Hex ' + node.idx + ' - ' + node.kind + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin:.16rem 0 .24rem;">Status: ' + status + ' · Floor DD' + danger + '</div>'
+      + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">' + (details.length ? details.join('<br>') : 'No details mapped yet.') + '</div>'
+      + (node.result ? '<div style="margin-top:.28rem;padding:.25rem .4rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);">' + node.result + '</div>' : '')
+      + '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">' + buildNodeActions(col, row, node, depth, floor) + '</div>'
+      + '</div>';
+  }
+
+  function parseHexKey(key) {
+    var parts = String(key || '').split(',');
+    return { col: Number(parts[0]), row: Number(parts[1]) };
+  }
+
+  function openLibraryUI() {
+    var st = ensureLibraryState();
+    if (!st || typeof openModal !== 'function') return false;
+    var pos = parseHexKey(st.activeHexKey);
+    var col = Number(pos.col);
+    var row = Number(pos.row);
+    var depth = Math.max(1, Number(st.depth || 1));
+    var floor = ensureFloorState(st, depth);
+    var selected = clamp(Number(st.selectedNodeByDepth[String(depth)] || 0), 0, Math.max(0, floor.nodes.length - 1));
+    var fog = getFloorFog(floor);
+    if (!fog.visibleMask[selected]) {
+      var frontierIdx = floor.nodes.findIndex(function (_n, i) { return !!fog.frontierMask[i]; });
+      selected = frontierIdx >= 0 ? frontierIdx : 0;
+    }
+    st.selectedNodeByDepth[String(depth)] = selected;
+
+    var canAscend = depth > 1;
+    var task = st.lastHook || ('Retrieve a depth-' + depth + ' volume and get it out alive.');
+
+    var header = '<div style="margin-bottom:.5rem;">'
+      + '<div style="font-size:.72rem;color:#9cb8ff;margin-bottom:.2rem;">Depth ' + depth + ' · DD' + tierForDepth(depth) + ' · Deepest ' + st.deepestDepth + ' · Delves ' + st.delveCount + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.22rem;">Atmosphere: ' + (floor.atmosphere || st.atmosphere) + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.3rem;">Instability: ' + st.instability + ' · Readings this floor: ' + Number(floor.readings || 0) + '</div>'
+      + '<div style="padding:.35rem .45rem;border:1px solid rgba(156,184,255,.3);background:rgba(156,184,255,.07);margin-bottom:.42rem;">'
+      + '<div style="font-size:.68rem;color:#9cb8ff;text-transform:uppercase;letter-spacing:.08em;">Contract</div>'
+      + '<div style="font-size:.8rem;color:var(--text2);">' + task + '</div>'
       + '</div>'
-      + (bossNow
-        ? ('<div style="font-size:.68rem;color:var(--red2);margin-bottom:.14rem;"><strong>Boss Gate:</strong> ' + tier.boss + ' blocks the next descent.</div>')
-        : '')
-      + (state.lastResult ? ('<div style="font-size:.66rem;color:var(--teal);margin-bottom:.14rem;">Last Result: ' + state.lastResult + '</div>') : '')
-      + (lastEncounter ? ('<div style="font-size:.66rem;color:#9cb8ff;margin-bottom:.12rem;"><strong>Encounter:</strong> ' + lastEncounter + '</div>') : '')
-      + (lastHook ? ('<div style="font-size:.66rem;color:var(--muted3);margin-bottom:.14rem;"><strong>Book Fetch Hook:</strong> ' + lastHook + '</div>') : '')
-      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm btn-primary" onclick="resolveInfiniteLibraryAction(\'search\')">Search Stacks (Mind vs d' + tier.die + ')</button>'
-      + '<button class="btn btn-sm" onclick="resolveInfiniteLibraryAction(\'trace\')">Trace Spiral Route (Adventure vs d' + tier.die + ')</button>'
-      + '<button class="btn btn-sm" onclick="resolveInfiniteLibraryAction(\'encounter\')">Roll Encounter (D20)</button>'
-      + '<button class="btn btn-sm" onclick="resolveInfiniteLibraryAction(\'hook\')">Generate Book-Fetch Hook</button>'
-      + (bossNow
-        ? '<button class="btn btn-sm btn-red" onclick="resolveInfiniteLibraryAction(\'boss\')">Confront ' + tier.boss + '</button>'
-        : '<button class="btn btn-sm btn-teal" onclick="resolveInfiniteLibraryAction(\'descend\')">Descend To Next Room</button>')
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem;">'
+      + '<button class="btn btn-sm btn-primary" onclick="generateInfiniteLibraryNode(' + col + ',' + row + ')">Press Deeper</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="resolveInfiniteLibraryAction(\'encounter\')">Roll Encounter</button>'
+      + '<button class="btn btn-sm" onclick="resolveInfiniteLibraryAction(\'hook\')">Generate Hook</button>'
+      + (canAscend ? '<button class="btn btn-sm" onclick="ascendInfiniteLibraryFloor(' + col + ',' + row + ')">Return To Higher Depth</button>' : '')
       + '</div>'
       + '</div>';
-    openModal('Infinite Library', html);
-    attachLibraryStateToHex(state);
+
+    var miniMap = buildLibraryMiniMap(col, row, floor, selected);
+    var detail = buildNodeDetail(col, row, floor, depth, selected);
+    var footer = ''
+      + (st.lastEncounter ? '<div style="font-size:.72rem;color:#9cb8ff;margin-top:.35rem;"><strong>Latest Encounter:</strong> ' + st.lastEncounter + '</div>' : '')
+      + (st.lastResult ? '<div style="font-size:.72rem;color:var(--teal);margin-top:.22rem;"><strong>Last Result:</strong> ' + st.lastResult + '</div>' : '');
+
+    attachLibraryStateToHex(st);
+    openModal('📚 Infinite Library — Hexcrawl', header + miniMap + detail + footer);
     return true;
   }
 
-  function applyFailureConsequence(action) {
+  function rewardCredits(amount) {
     if (typeof S === 'undefined' || !S) return;
-    if (typeof addTMWOnFail === 'function') addTMWOnFail();
-    if (action === 'search') {
-      S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + 2);
-    } else {
-      S.health = Math.max(0, Number(S.health || 0) - 2);
-    }
+    S.credits = Math.max(0, Number(S.credits || 0) + Math.max(0, Number(amount || 0)));
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
   }
 
+  function generateBookFetchHook(state) {
+    var depth = Math.max(1, Number(state.depth || 1));
+    return 'Depth ' + depth + ': retrieve a forbidden text, survive one hostile wing shift, and extract via stairwell or portal.';
+  }
+
+  function runNodeExplore(state, floor, node, mode) {
+    var depth = Number(state.depth || 1);
+    var dd = tierForDepth(depth);
+
+    if (mode === 'scout') {
+      var scoutRoll = runActionRoll('adventure', dd, 'Library Scout');
+      if (scoutRoll.success) {
+        node.discovered = true;
+        node.detail = pick(LIBRARY_AMBIENCE);
+        state.lastResult = 'Scout success: AD' + scoutRoll.actionDie + ' ' + scoutRoll.actionTotal + ' vs DD' + dd + ' ' + scoutRoll.dreadTotal + '.';
+        rewardCredits(10 + dd);
+      } else {
+        applyFailureConsequence('explore');
+        state.lastResult = 'Scout failed: AD' + scoutRoll.actionDie + ' ' + scoutRoll.actionTotal + ' vs DD' + dd + ' ' + scoutRoll.dreadTotal + '.';
+      }
+      return;
+    }
+
+    if (mode === 'read') {
+      var readRoll = runActionRoll('mind', dd, 'Library Read');
+      floor.readings = Number(floor.readings || 0) + 1;
+      node.bookLine = pick(BOOK_WEIRDNESS);
+      if (readRoll.success) {
+        node.environmentShift = pick(ENVIRONMENT_SHIFTS);
+        floor.currentSentence = 'Sentence effect: ' + pick(ENVIRONMENT_SHIFTS);
+        node.result = 'You master the text. ' + floor.currentSentence;
+        state.instability = Math.max(0, Number(state.instability || 0) + 1);
+        rewardCredits(15 + dd);
+        if (typeof toggleCond === 'function' && S && S.conditions && !S.conditions.focused) toggleCond('focused');
+      } else {
+        applyFailureConsequence('read');
+        node.result = 'The text reads you back. Take backlash and lose your footing.';
+      }
+      state.lastResult = 'Read result: AD' + readRoll.actionDie + ' ' + readRoll.actionTotal + ' vs DD' + dd + ' ' + readRoll.dreadTotal + '.';
+      node.cleared = true;
+      return;
+    }
+
+    if (mode === 'mutate') {
+      node.environmentShift = pick(ENVIRONMENT_SHIFTS);
+      floor.atmosphere = pick(LIBRARY_AMBIENCE);
+      state.instability = Math.max(0, Number(state.instability || 0) + 1);
+      node.result = 'The wing shifts. ' + node.environmentShift;
+      node.cleared = true;
+      state.lastResult = 'You let the library rewrite this hex.';
+      return;
+    }
+
+    if (mode === 'victory') {
+      node.pendingCombat = false;
+      node.cleared = true;
+      node.result = 'Hostiles scattered. The shelf-route is clear.';
+      rewardCredits(20 + dd);
+      state.lastResult = 'Encounter marked as victory.';
+      return;
+    }
+
+    if (mode === 'fallback') {
+      node.pendingCombat = false;
+      node.result = 'You fall back and lose ground in the stacks.';
+      applyFailureConsequence('explore');
+      state.lastResult = 'Encounter marked as fallback.';
+      return;
+    }
+
+    var stat = node.kind === 'Word Storm' ? 'spirit' : (node.kind === 'Sentence Forge' ? 'mind' : 'adventure');
+    var exploreRoll = runActionRoll(stat, dd, 'Library ' + node.kind);
+    node.discovered = true;
+    if (exploreRoll.success) {
+      node.cleared = true;
+      node.detail = node.detail || pick(LIBRARY_AMBIENCE);
+      if (node.kind === 'Encounter Hex' || node.kind === 'Spider Archive' || node.kind === 'Owl Cult Worksite') {
+        var encounter = rollEncounterForDepth(depth);
+        node.pendingCombat = true;
+        node.encounterSummary = encounter.summary + (encounter.detail ? (' | ' + encounter.detail) : '');
+        state.lastEncounter = node.encounterSummary;
+        node.result = 'Hostiles stirred. Resolve as victory/fallback.';
+      } else if (node.kind === 'Portal Niche') {
+        var p = rollDie(12);
+        node.result = 'Portal tuned to ' + (PORTAL_DESTINATIONS[p - 1] || PORTAL_DESTINATIONS[0]) + '.';
+        state.lastEncounter = 'Portal destination: ' + (PORTAL_DESTINATIONS[p - 1] || PORTAL_DESTINATIONS[0]);
+      } else if (node.kind === 'Elevator Shaft') {
+        var e = rollDie(12);
+        node.result = 'Elevator status: ' + (findByRoll(ELEVATOR_STATUS, e) || { text: 'Unknown' }).text;
+      } else {
+        node.result = 'Hex resolved cleanly.';
+      }
+      rewardCredits(12 + dd);
+    } else {
+      applyFailureConsequence('explore');
+      node.result = 'Failed to stabilize this hex.';
+    }
+    state.lastResult = 'Explore result: AD' + exploreRoll.actionDie + ' ' + exploreRoll.actionTotal + ' vs DD' + dd + ' ' + exploreRoll.dreadTotal + '.';
+  }
+
+  window.selectInfiniteLibraryNode = function (col, row, idx) {
+    var st = ensureLibraryState();
+    if (!st) return;
+    var floor = ensureFloorState(st, st.depth);
+    var fog = getFloorFog(floor);
+    var safeIdx = clamp(Number(idx || 0), 0, Math.max(0, floor.nodes.length - 1));
+    if (!fog.visibleMask[safeIdx]) return;
+    st.selectedNodeByDepth[String(st.depth)] = safeIdx;
+    attachLibraryStateToHex(st);
+    openLibraryUI();
+  };
+
+  window.generateInfiniteLibraryNode = function (col, row) {
+    var st = ensureLibraryState();
+    if (!st) return;
+    var floor = ensureFloorState(st, st.depth);
+    floor.nodes.push(createLibraryNode(st.depth, floor));
+    st.roomIndex = Math.max(0, Number(st.roomIndex || 0) + 1);
+    st.selectedNodeByDepth[String(st.depth)] = floor.nodes.length - 1;
+    attachLibraryStateToHex(st);
+    openLibraryUI();
+  };
+
+  window.resolveInfiniteLibraryNode = function (col, row, idx, mode) {
+    var st = ensureLibraryState();
+    if (!st) return;
+    var floor = ensureFloorState(st, st.depth);
+    var safeIdx = clamp(Number(idx || 0), 0, Math.max(0, floor.nodes.length - 1));
+    var node = floor.nodes[safeIdx];
+    if (!node) return;
+    runNodeExplore(st, floor, node, String(mode || 'explore'));
+    st.selectedNodeByDepth[String(st.depth)] = safeIdx;
+    attachLibraryStateToHex(st);
+    openLibraryUI();
+  };
+
+  window.descendInfiniteLibraryFloor = function (col, row) {
+    var st = ensureLibraryState();
+    if (!st) return;
+    st.depth = Math.max(1, Number(st.depth || 1) + 1);
+    st.deepestDepth = Math.max(st.deepestDepth || 1, st.depth);
+    ensureFloorState(st, st.depth);
+    st.selectedNodeByDepth[String(st.depth)] = Number(st.selectedNodeByDepth[String(st.depth)] || 0);
+    st.lastResult = 'You descend. The shelves breathe differently down here.';
+    attachLibraryStateToHex(st);
+    openLibraryUI();
+  };
+
+  window.ascendInfiniteLibraryFloor = function (col, row) {
+    var st = ensureLibraryState();
+    if (!st) return;
+    if (st.depth <= 1) {
+      if (typeof showNotif === 'function') showNotif('You are already at the highest mapped depth.', 'info');
+      return;
+    }
+    st.depth -= 1;
+    st.lastResult = 'You retreat to a higher shelf-band.';
+    attachLibraryStateToHex(st);
+    openLibraryUI();
+  };
+
   function resolveInfiniteLibraryAction(action) {
-    var state = ensureLibraryState();
-    if (!state) return false;
+    var st = ensureLibraryState();
+    if (!st) return false;
 
     if (action === 'encounter') {
-      var rolled = rollEncounterForDepth(state.depth);
-      var baseLine = 'd20=' + rolled.roll + ' (' + rolled.band + '): ' + rolled.encounter.name + ' - ' + rolled.encounter.blurb;
-      state.lastEncounter = rolled.detail ? (baseLine + ' | ' + rolled.detail) : baseLine;
-      state.lastResult = 'Encounter generated.';
-      attachLibraryStateToHex(state);
-      return renderLibraryModal();
+      var rolled = rollEncounterForDepth(st.depth);
+      st.lastEncounter = rolled.summary + (rolled.detail ? (' | ' + rolled.detail) : '');
+      st.lastResult = 'Encounter rolled from current depth band.';
+      attachLibraryStateToHex(st);
+      return openLibraryUI();
     }
 
     if (action === 'hook') {
-      state.lastHook = generateBookFetchHook(state);
-      state.lastResult = 'Book-fetch contract generated.';
-      attachLibraryStateToHex(state);
-      return renderLibraryModal();
+      st.lastHook = generateBookFetchHook(st);
+      st.lastResult = 'New contract generated.';
+      attachLibraryStateToHex(st);
+      return openLibraryUI();
     }
 
-    var tier = tierForDepth(state.depth);
-    var risky = action === 'search' || action === 'trace' || action === 'boss';
-
-    // Force at least one risk roll every 2-3 interactions.
-    if (!risky && state.sinceRoll >= 2) risky = true;
-
-    var success = true;
-    var detail = '';
-    if (risky) {
-      var stat = action === 'search' ? 'mind' : (action === 'boss' ? 'strike' : 'adventure');
-      var aDie = statDie(stat);
-      var a = rollDie(aDie);
-      var d = rollDie(tier.die);
-      success = a >= d;
-      state.sinceRoll = 0;
-      detail = stat + ' d' + aDie + '=' + a + ' vs d' + tier.die + '=' + d;
-      if (!success) applyFailureConsequence(action);
-    } else {
-      state.sinceRoll += 1;
-      detail = 'No risk roll needed this beat.';
+    // Legacy compatibility with older button handlers.
+    if (action === 'descend') return window.descendInfiniteLibraryFloor();
+    if (action === 'search' || action === 'trace' || action === 'boss') {
+      var floor = ensureFloorState(st, st.depth);
+      var idx = clamp(Number(st.selectedNodeByDepth[String(st.depth)] || 0), 0, floor.nodes.length - 1);
+      var mode = action === 'search' ? 'read' : 'explore';
+      if (action === 'boss') mode = 'explore';
+      return window.resolveInfiniteLibraryNode(0, 0, idx, mode);
     }
 
-    state.interactions += 1;
-    if (success) {
-      if (action === 'boss') {
-        state.bossDefeatedByTier[String(tier.die)] = true;
-        state.lastResult = 'Boss defeated (' + detail + '). The stacks part and the descent unlocks.';
-      } else if (action === 'descend') {
-        state.depth += 1;
-        state.roomIndex += 1;
-        state.currentQuest = buildQuest(state, tierForDepth(state.depth));
-        var travelEncounter = rollEncounterForDepth(state.depth);
-        state.lastEncounter = 'On descent: d20=' + travelEncounter.roll + ' (' + travelEncounter.band + '): ' + travelEncounter.encounter.name
-          + (travelEncounter.detail ? (' | ' + travelEncounter.detail) : '');
-        state.lastResult = 'You descend one floor. (' + detail + ')';
-      } else {
-        state.roomIndex += 1;
-        if (typeof S !== 'undefined' && S) {
-          S.credits = Math.max(0, Number(S.credits || 0) + 30 + tier.die);
-        }
-        if (action === 'search') {
-          var searchEncounter = rollEncounterForDepth(state.depth);
-          state.lastEncounter = 'While searching: d20=' + searchEncounter.roll + ' (' + searchEncounter.band + '): ' + searchEncounter.encounter.name
-            + (searchEncounter.detail ? (' | ' + searchEncounter.detail) : '');
-        }
-        state.lastResult = 'Success: lore recovered and clues logged. (' + detail + ')';
-      }
-    } else {
-      state.lastResult = 'Failure: consequence applied. (' + detail + ')';
-    }
-
-    if (typeof updateCreditsUI === 'function') updateCreditsUI();
-    attachLibraryStateToHex(state);
-    return renderLibraryModal();
+    return openLibraryUI();
   }
 
   function openInfiniteLibraryAtHex(col, row) {
-    if (typeof col !== 'number' || typeof row !== 'number') return renderLibraryModal();
+    if (typeof col !== 'number' || typeof row !== 'number') return openLibraryUI();
     var hex = getProvinceHexByKey(String(col) + ',' + String(row));
     if (!hex) {
       if (typeof showNotif === 'function') showNotif('Library hex could not be resolved.', 'warn');
@@ -503,18 +718,34 @@
       return false;
     }
 
-    var state = ensureLibraryState();
-    if (!state) return false;
-    state.activeHexKey = String(col) + ',' + String(row);
-    readLibraryStateFromHex(state, state.activeHexKey);
-    state.delveCount = Math.max(0, Number(state.delveCount || 0) + 1);
+    var st = ensureLibraryState();
+    if (!st) return false;
+    st.activeHexKey = String(col) + ',' + String(row);
+    readLibraryStateFromHex(st, st.activeHexKey);
+    st.delveCount = Math.max(0, Number(st.delveCount || 0) + 1);
+    ensureFloorState(st, st.depth);
+
     if (typeof S !== 'undefined' && S && S.soloGM && S.soloGM.websiteCounters) {
       S.soloGM.websiteCounters.libraryDelves = Math.max(0, Number(S.soloGM.websiteCounters.libraryDelves || 0) + 1);
     }
-    return renderLibraryModal();
+
+    attachLibraryStateToHex(st);
+    return openLibraryUI();
   }
 
-  window.openInfiniteLibrary = renderLibraryModal;
+  function openInfiniteLibrary() {
+    var st = ensureLibraryState();
+    if (!st) return false;
+    if (!st.activeHexKey && typeof window.getProvinceSelectedKey === 'function') {
+      try { st.activeHexKey = String(window.getProvinceSelectedKey() || ''); } catch (_err) { st.activeHexKey = ''; }
+    }
+    if (st.activeHexKey) readLibraryStateFromHex(st, st.activeHexKey);
+    ensureFloorState(st, st.depth);
+    attachLibraryStateToHex(st);
+    return openLibraryUI();
+  }
+
+  window.openInfiniteLibrary = openInfiniteLibrary;
   window.openInfiniteLibraryAtHex = openInfiniteLibraryAtHex;
   window.resolveInfiniteLibraryAction = resolveInfiniteLibraryAction;
 })();

@@ -5954,14 +5954,17 @@ function updateWayfarerActionBtn(){
 }
 
 function executeWayfarerAction(){
-  if(!requireCampaignTurn('wayfarer'))return;
   var sel=document.getElementById('wayfarerActionSel');
   var resEl=document.getElementById('wayfarerActionResult');
+  function setRes(html){if(resEl)resEl.innerHTML=html;}
+  if(!requireCampaignTurn('wayfarer')){
+    setRes('<span style="color:var(--red2);">Cannot execute action right now (campaign turn gate).</span>');
+    return;
+  }
   if(!sel)return;
   var v=sel.value;
   if(!v)return;
   if(resEl)resEl.innerHTML='';
-  function setRes(html){if(resEl)resEl.innerHTML=html;}
   if(v==='standard_strike'){rollAttack('strike');setRes('<span style="color:var(--muted2);font-size:.78rem;">\u2192 see Strike result below</span>');return;}
   if(v==='standard_shoot'){rollAttack('shoot');setRes('<span style="color:var(--muted2);font-size:.78rem;">\u2192 see Shoot result below</span>');return;}
   if(v==='heavy_strike'||v==='heavy_shoot'){
@@ -6012,6 +6015,7 @@ function executeWayfarerAction(){
     return;
   }
   if(v==='use_item'){
+    if(!consumeCombatAction('Use Item / Utility'))return;
     openCombatUtilityChooser();
     setRes('<span style="color:var(--muted2);">Choose a readied item, backpack item, owned hack, or Personal Flavor.</span>');
     return;
@@ -6075,6 +6079,8 @@ function executeWayfarerAction(){
     showNotif('Teamwork Event activated (-5 TMW).','good');
     return;
   }
+  showNotif('Selected combat action is not implemented: '+String(v)+'.','warn');
+  setRes('<span style="color:var(--red2);">Action "'+String(v)+'" is unavailable.</span>');
 }
 function renderCampaignInitiativePanel(){
   var panel=document.getElementById('campaignInitiativePanel');
@@ -12587,6 +12593,26 @@ function resolveWorldEventToll(col,row,cost){
     });
   }
   showNotif('Toll paid: -'+price+'₵. Route pressure reduced.','good');
+  finalizeWorldEventChoice(col,row);
+}
+
+function getWorldEventPhaseStamp(){
+  var day=(typeof S==='object'&&S&&typeof S.day==='number')?S.day:0;
+  var phase=(typeof S==='object'&&S&&typeof S.phase==='number')?S.phase:0;
+  return String(day)+'|'+String(phase);
+}
+
+function finalizeWorldEventChoice(col,row){
+  var key=String(col)+','+String(row);
+  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
+  if(overlay&&typeof overlay==='object'){
+    overlay.worldEventResolvedStamp=getWorldEventPhaseStamp();
+  }
+  if(typeof closeModal==='function')closeModal();
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(typeof renderHexInfo==='function'&&window.selectedHex&&Number(window.selectedHex.col)===Number(col)&&Number(window.selectedHex.row)===Number(row)){
+    renderHexInfo(window.selectedHex);
+  }
 }
 
 function injectContextMission(opts){
@@ -12840,6 +12866,7 @@ function resolveWorldEventOption(col,row,option){
     });
     applyWorldEventSpillover(col,row,'Contract ripple',{scarcity:-1},['contract-ripple']);
     showNotif('Contract signed (-20₵). Local and nearby trade pressure eased.','good');
+    finalizeWorldEventChoice(col,row);
     return;
   }
 
@@ -12868,6 +12895,7 @@ function resolveWorldEventOption(col,row,option){
     }
     applyWorldEventSpillover(col,row,'Bribe ripple',{tension:-1},['bribe-ripple']);
     showNotif('Bribe paid (-'+bribeFee+'₵). Heat reduced and passage opened.','good');
+    finalizeWorldEventChoice(col,row);
     return;
   }
 
@@ -12953,12 +12981,15 @@ function resolveWorldEventOption(col,row,option){
     });
   }
   showNotif((success?'✅ ':'❌ ')+p.stat.toUpperCase()+' d'+die+' rolled '+actor.total+' vs DD'+p.dd+' ('+oppose.total+'). '+outcomeText+(success?' 📋 New contract posted.':(failConsequence?(' ⚠ '+failConsequence):'')),success?'good':'warn');
+  finalizeWorldEventChoice(col,row);
 }
 
 function buildWorldStateEncounterAddon(col,row,mode){
   var key=String(col)+','+String(row);
   var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
   if(!overlay)return null;
+  var currentStamp=getWorldEventPhaseStamp();
+  if(String(overlay.worldEventResolvedStamp||'')===currentStamp)return null;
   var control=String(overlay.control||'').toLowerCase();
   var regime=getControlRegimePackage(control);
   var governance=(typeof window.getProvinceGovernancePolicyState==='function')?window.getProvinceGovernancePolicyState():null;

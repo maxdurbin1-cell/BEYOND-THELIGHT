@@ -303,6 +303,35 @@
     };
   }
 
+  function getLibraryEncounterProfile(name, depth) {
+    var d = Math.max(1, Number(depth || 1));
+    var dd = tierForDepth(d);
+    var key = String(name || '').toLowerCase();
+    if (key === 'inkmites') return { count: 4 + rollDie(3), dread: Math.max(4, dd - 2), label: 'Inkmite Swarm', autoCombat: true, scene: 'A black tide of thumb-sized mites pours from open spines and strip-mines exposed script from skin and page.' };
+    if (key === 'philophickers') return { count: 2 + rollDie(2), dread: Math.max(6, dd), label: 'Philophicker Chorus', autoCombat: true, scene: 'Translucent scholars in lacquered masks argue axioms in overlapping voices; every contradiction bends gravity and shelf geometry around you.' };
+    if (key === 'page knights') return { count: 1 + rollDie(2), dread: Math.max(6, dd), label: 'Page Knights', autoCombat: true, scene: 'Armor of stitched folios clatters between stacks, each knight carrying a blade made from sharpened brass bookmarks.' };
+    if (key === 'owl cultists') return { count: 2 + rollDie(2), dread: Math.max(6, dd), label: 'Owl Cult Delvers', autoCombat: true, scene: 'Masked delvers chalk ward-circles and trigger razor-wire traps across aisle choke points.' };
+    if (key === 'spider archivist') return { count: 1, dread: Math.max(8, dd), label: 'Spider Archivist', autoCombat: true, scene: 'A wax-bodied archivist descends on silk index ribbons, filing you as "misplaced material."' };
+    if (key === 'bookworms') return { count: 1, dread: Math.max(4, dd - 4), label: 'Bookworm Guide', autoCombat: false, scene: 'A giant caterpillar noses through bindings and points toward safer shelves with impatient chirps.' };
+    if (key === 'elevator') return { count: 0, dread: Math.max(4, dd - 2), label: 'Elevator Chamber', autoCombat: false, scene: 'A brass cage-lift hangs over a shaft of impossible depth.' };
+    if (key === 'portal') return { count: 0, dread: Math.max(4, dd - 2), label: 'Portal Niche', autoCombat: false, scene: 'Rune-plates spin around a doorway that has too many dimensions.' };
+    return { count: 2 + rollDie(2), dread: Math.max(4, dd), label: String(name || 'Library Hostiles'), autoCombat: true, scene: 'The stacks erupt into immediate hostilities.' };
+  }
+
+  function canUseElevator(statusText, onceSpent) {
+    if (!statusText) return false;
+    if (onceSpent) return false;
+    return String(statusText).toLowerCase().indexOf('inoperable') < 0;
+  }
+
+  function startLibraryEncounterCombat(col, row, profile) {
+    if (typeof window.startProvinceMonsterCombat !== 'function') return false;
+    if (!isFinite(col) || !isFinite(row)) return false;
+    if (!profile || !profile.autoCombat || Number(profile.count || 0) <= 0) return false;
+    window.startProvinceMonsterCombat(col, row, 'library', Number(profile.count || 1), String(profile.label || 'Library Hostiles'), Number(profile.dread || 4), true);
+    return true;
+  }
+
   function applyFailureConsequence(kind) {
     if (typeof S === 'undefined' || !S) return;
     if (typeof addTMWOnFail === 'function') addTMWOnFail();
@@ -479,6 +508,10 @@
       actions.push('<button class="btn btn-xs btn-primary" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'victory\')">Victory</button>');
       actions.push('<button class="btn btn-xs btn-red" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'fallback\')">Fall Back</button>');
     }
+    if (node.elevatorStatus && canUseElevator(node.elevatorStatus, !!node.elevatorSpent)) {
+      actions.push('<button class="btn btn-xs btn-warn" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'elevator_down\')">⇣ Ride Elevator Down</button>');
+      actions.push('<button class="btn btn-xs" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'elevator_up\')">⇡ Ride Elevator Up</button>');
+    }
     if (node.kind === 'Stairwell' && node.cleared && depth < LIBRARY_TIERS.length * 3) actions.push('<button class="btn btn-xs btn-warn" onclick="descendInfiniteLibraryFloor(' + col + ',' + row + ')">Take Stair Down</button>');
     if (actions.length === 0) return '<span style="font-size:.72rem;color:var(--green2);">✓ Hex stable.</span>';
     return actions.join(' ');
@@ -568,7 +601,7 @@
     return 'Depth ' + depth + ': retrieve a forbidden text, survive one hostile wing shift, and extract via stairwell or portal.';
   }
 
-  function runNodeExplore(state, floor, node, mode) {
+  function runNodeExplore(state, floor, node, mode, col, row) {
     var depth = Number(state.depth || 1);
     var dd = tierForDepth(depth);
 
@@ -633,6 +666,34 @@
       return;
     }
 
+    if (mode === 'elevator_down' || mode === 'elevator_up') {
+      var statusText = String(node.elevatorStatus || '');
+      if (!canUseElevator(statusText, !!node.elevatorSpent)) {
+        node.result = 'Elevator refuses to move. ' + (statusText || 'The mechanism is unresponsive.');
+        state.lastResult = 'Elevator travel failed.';
+        return;
+      }
+      var currentDepth = Math.max(1, Number(state.depth || 1));
+      var delta = mode === 'elevator_down' ? 1 : -1;
+      var targetDepth = Math.max(1, currentDepth + delta);
+      if (statusText.toLowerCase().indexOf('halfway') >= 0 && mode === 'elevator_down') {
+        targetDepth = Math.max(1, currentDepth + (rollDie(2) === 1 ? 1 : 2));
+      }
+      if (targetDepth === currentDepth) {
+        node.result = 'The elevator shudders but returns to the same shelf-band.';
+        state.lastResult = 'Elevator failed to change depth.';
+        return;
+      }
+      if (statusText.toLowerCase().indexOf('only once') >= 0) node.elevatorSpent = true;
+      state.depth = targetDepth;
+      state.deepestDepth = Math.max(Number(state.deepestDepth || 1), targetDepth);
+      ensureFloorState(state, targetDepth);
+      state.selectedNodeByDepth[String(targetDepth)] = Number(state.selectedNodeByDepth[String(targetDepth)] || 0);
+      node.result = 'Elevator transit complete. You arrive at Depth ' + targetDepth + '.';
+      state.lastResult = 'Elevator moved from Depth ' + currentDepth + ' to Depth ' + targetDepth + '.';
+      return;
+    }
+
     var stat = node.kind === 'Word Storm' ? 'spirit' : (node.kind === 'Sentence Forge' ? 'mind' : 'adventure');
     var exploreRoll = runActionRoll(stat, dd, 'Library ' + node.kind);
     node.discovered = true;
@@ -641,17 +702,43 @@
       node.detail = node.detail || pick(LIBRARY_AMBIENCE);
       if (node.kind === 'Encounter Hex' || node.kind === 'Spider Archive' || node.kind === 'Owl Cult Worksite') {
         var encounter = rollEncounterForDepth(depth);
-        node.pendingCombat = true;
+        var profile = getLibraryEncounterProfile(encounter.encounter && encounter.encounter.name, depth);
+        node.pendingCombat = !!profile.autoCombat;
         node.encounterSummary = encounter.summary + (encounter.detail ? (' | ' + encounter.detail) : '');
         state.lastEncounter = node.encounterSummary;
-        node.result = 'Hostiles stirred. Resolve as victory/fallback.';
+        node.result = profile.scene;
+        if (encounter.encounter && encounter.encounter.name === 'Philophickers') {
+          node.result += ' Their debate manifests as geometric guillotines of punctuation cutting through nearby stacks.';
+        }
+        if (encounter.encounter && encounter.encounter.name === 'Elevator') {
+          var eRoll = rollDie(12);
+          var eState = findByRoll(ELEVATOR_STATUS, eRoll) || { text: 'Unknown.' };
+          node.elevatorStatus = String(eState.text || 'Unknown.');
+          node.result += ' Elevator status: ' + node.elevatorStatus;
+          node.pendingCombat = false;
+        }
+        if (encounter.encounter && encounter.encounter.name === 'Portal') {
+          var pRoll = rollDie(12);
+          var portalTarget = PORTAL_DESTINATIONS[pRoll - 1] || PORTAL_DESTINATIONS[0];
+          node.result += ' Portal vector: ' + portalTarget + '.';
+          node.pendingCombat = false;
+        }
+        if (profile.autoCombat) {
+          var started = startLibraryEncounterCombat(Number(col), Number(row), profile);
+          if (started) {
+            node.result += ' Combat roster seeded in Combat and Quick tabs (' + profile.count + 'x ' + profile.label + ', DD' + profile.dread + ').';
+          } else {
+            node.result += ' Mark as Victory/Fallback after resolving manually.';
+          }
+        }
       } else if (node.kind === 'Portal Niche') {
         var p = rollDie(12);
         node.result = 'Portal tuned to ' + (PORTAL_DESTINATIONS[p - 1] || PORTAL_DESTINATIONS[0]) + '.';
         state.lastEncounter = 'Portal destination: ' + (PORTAL_DESTINATIONS[p - 1] || PORTAL_DESTINATIONS[0]);
       } else if (node.kind === 'Elevator Shaft') {
         var e = rollDie(12);
-        node.result = 'Elevator status: ' + (findByRoll(ELEVATOR_STATUS, e) || { text: 'Unknown' }).text;
+        node.elevatorStatus = String((findByRoll(ELEVATOR_STATUS, e) || { text: 'Unknown' }).text || 'Unknown');
+        node.result = 'Elevator status: ' + node.elevatorStatus + (canUseElevator(node.elevatorStatus, false) ? ' Use Ride Elevator to travel between depths.' : '');
       } else {
         node.result = 'Hex resolved cleanly.';
       }
@@ -693,7 +780,7 @@
     var safeIdx = clamp(Number(idx || 0), 0, Math.max(0, floor.nodes.length - 1));
     var node = floor.nodes[safeIdx];
     if (!node) return;
-    runNodeExplore(st, floor, node, String(mode || 'explore'));
+    runNodeExplore(st, floor, node, String(mode || 'explore'), Number(col), Number(row));
     st.selectedNodeByDepth[String(st.depth)] = safeIdx;
     attachLibraryStateToHex(st);
     openLibraryUI();

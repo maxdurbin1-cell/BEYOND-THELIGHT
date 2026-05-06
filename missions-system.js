@@ -4073,7 +4073,8 @@
       
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.2rem;margin-bottom:.2rem;">'
       + '<div style="font-size:.66rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Turn Order:</strong></div>'
-      + '<div style="font-size:.62rem;color:var(--muted2);">You (std/special) → Allies (support/defend/move) → Boss (2 actions)</div>'
+      + '<div style="font-size:.62rem;color:var(--muted2);">Fast Auto-Round: You attack → Allies attack → Boss takes 2 actions.</div>'
+      + (encounter.lastRoundSummary ? ('<div style="font-size:.62rem;color:var(--text2);margin-top:.12rem;padding:.14rem .16rem;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);">'+String(encounter.lastRoundSummary)+'</div>') : '')
       + '</div>'
       
       + '<div style="display:flex;gap:.15rem;flex-wrap:wrap;">'
@@ -4099,10 +4100,15 @@
     var phaseProfile = encounter.phaseProfiles && encounter.phaseProfiles[phase - 1];
     var maxPhaseHp = phaseProfile ? phaseProfile.hp : 20;
     
+    var rollFn = function (die) {
+      var d = Math.max(1, Number(die || 1));
+      return (typeof explodingRoll === 'function') ? explodingRoll(d).total : ((typeof roll === 'function') ? roll(d) : (1 + Math.floor(Math.random() * d)));
+    };
+
     var playerDie = getLegacyRaidBestCombatDie();
     var bossDie = Math.max(6, Number(encounter.dreadDie || 10));
-    var playerRoll = typeof roll === 'function' ? roll(playerDie) : (1 + Math.floor(Math.random() * playerDie));
-    var bossDefend = typeof roll === 'function' ? roll(bossDie) : (1 + Math.floor(Math.random() * bossDie));
+    var playerRoll = rollFn(playerDie);
+    var bossDefend = rollFn(bossDie);
     var damageDealt = Math.max(0, playerRoll - bossDefend);
 
     if (damageDealt > 0) {
@@ -4117,8 +4123,8 @@
     allyNames.forEach(function (allyName) {
       var hp = Math.max(0, Number(encounter.partyHp.allies[allyName] || 0));
       if (hp <= 0) return;
-      var aRoll = typeof roll === 'function' ? roll(6) : (1 + Math.floor(Math.random() * 6));
-      var aDefend = typeof roll === 'function' ? roll(bossDie) : (1 + Math.floor(Math.random() * bossDie));
+      var aRoll = rollFn(6);
+      var aDefend = rollFn(bossDie);
       allyDamage += Math.max(0, aRoll - aDefend);
     });
     if (allyDamage > 0) {
@@ -4149,9 +4155,9 @@
       for (var ai = 0; ai < 2; ai++) {
         if (!targets.length) break;
         var target = targets[Math.floor(Math.random() * targets.length)];
-        var bossHit = typeof roll === 'function' ? roll(bossDie) : (1 + Math.floor(Math.random() * bossDie));
+        var bossHit = rollFn(bossDie);
         var defendDie = target.kind === 'player' ? getLegacyRaidCombatActionDie('defend') : 6;
-        var targetDefend = typeof roll === 'function' ? roll(defendDie) : (1 + Math.floor(Math.random() * defendDie));
+        var targetDefend = rollFn(defendDie);
         var incoming = Math.max(0, bossHit - targetDefend);
         if (incoming <= 0) {
           encounter.log.push('Boss attack on ' + target.name + ' was defended.');
@@ -4168,6 +4174,10 @@
         }
       }
     }
+
+    var playerAfter = (typeof S !== 'undefined' && S) ? Math.max(0, Number(S.health || 0)) : 0;
+    encounter.lastRoundSummary = 'You dealt ' + damageDealt + ', allies dealt ' + allyDamage + ', phase HP now ' + Number(encounter.phaseHp || 0) + '/' + maxPhaseHp + ', your HP ' + playerAfter + '.';
+    if (typeof showNotif === 'function') showNotif('Boss round resolved: ' + encounter.lastRoundSummary, 'info');
     
     closeModal();
     openWing3BossCombatModal(missionId);

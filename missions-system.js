@@ -6085,7 +6085,6 @@
     var moveAllowed = String(state.currentId || '') === cell.id || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
     var isCurrent = String(state.currentId || '') === cell.id;
     var noTicks = Number(state.ticks || 0) <= 0;
-    var moveLabel = isCurrent ? 'Already Here' : 'Press Deeper (-1 Tick)';
     var exploreLabel = 'Search Room (-1 Tick)';
     var teleportButton = '';
     if (isCurrent && showEncounter && String(cell.eventType || '') === 'teleport' && cell.teleportTo) {
@@ -6099,7 +6098,7 @@
       + '<div style="font-size:.66rem;color:var(--teal);line-height:1.45;margin-bottom:.08rem;">' + (objectiveLine || '') + '</div>'
       + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">⏱ ' + Number(state.ticks || 0) + ' ticks remaining</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs" ' + (moveAllowed && !isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.moveLegacyRaidHex(' + mission.id + ',' + wingNum + ')">' + moveLabel + '</button>'
+      + (!isCurrent ? '<button class="btn btn-xs" ' + (moveAllowed && !noTicks ? '' : 'disabled') + ' onclick="window.moveLegacyRaidHex(' + mission.id + ',' + wingNum + ')">Press Deeper (-1 Tick)</button>' : '')
       + '<button class="btn btn-xs btn-primary" ' + (isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + exploreLabel + '</button>'
       + teleportButton
       + '</div>'
@@ -6132,6 +6131,7 @@
     var statKey = statByType[eventType] || 'adventure';
     var statLabel = statKey === 'defend' ? 'Defend' : (statKey === 'mind' ? 'Mind' : (statKey === 'body' ? 'Body' : 'Adventure'));
     var dd = getLegacyRaidHexDreadDie(wingNum, eventType);
+    var et = String(eventType || '').toLowerCase();
     var failureDesc = et === 'peril'
       ? 'Failure: +1 Teamwork · Physical damage = roll difference'
       : (et === 'hazard'
@@ -6277,11 +6277,14 @@
 
     var waypointNeedsActivation = !!(cell.waypoint && !cell.waypointActivated);
     if (waypointNeedsActivation && typeof window.openSharedPuzzleChallenge === 'function') {
+      var doorChessMode = Number(wingNum || 1) === 2 && Number(state.objectives.waypointsActivated || 0) === 1;
       return window.openSharedPuzzleChallenge({
         source: getLegacyRaidHexPuzzleSource(mission, wingNum, cell),
-        title: 'Waypoint Repair: Pipe Flow',
-        prompt: 'Repair the waypoint conduit in hex ' + cell.id + '. Rotate pipes until flow reaches the terminal to fix the waypoint.',
-        mode: 'pipe_flow',
+        title: doorChessMode ? 'Unlock the Door: Chess Puzzle' : 'Waypoint Repair: Pipe Flow',
+        prompt: doorChessMode
+          ? ('Room 2 lock in hex ' + cell.id + ': capture all marked pieces with legal rook moves to unlock the door.')
+          : ('Repair the waypoint conduit in hex ' + cell.id + '. Rotate pipes until flow reaches the terminal to fix the waypoint.'),
+        mode: doorChessMode ? 'chess_puzzle' : 'pipe_flow',
         reward: { credits: 60, renown: 1, item: 'Waypoint Key' },
         onSuccess: function () {
           cell.waypointActivated = true;
@@ -6364,10 +6367,13 @@
             loreConfig.mazeLayout = waypointPreset.layout;
             loreConfig.answer = waypointPreset.answer;
           } else {
-            loreMode = 'maze';
-            var raidMazePreset = getLegacyRaidChallengeMazePreset(cell.id, wingNum);
-            loreConfig.mazeLayout = raidMazePreset.layout;
-            loreConfig.answer = raidMazePreset.answer;
+            var varietyModes = ['maze', 'sliding_tile', 'math_grid', 'rotating_image'];
+            loreMode = varietyModes[getLegacyRaidStableIndex(String(cell.id || '') + '|variety|' + String(wingNum || 1), varietyModes.length)];
+            if (loreMode === 'maze') {
+              var raidMazePreset = getLegacyRaidChallengeMazePreset(cell.id, wingNum);
+              loreConfig.mazeLayout = raidMazePreset.layout;
+              loreConfig.answer = raidMazePreset.answer;
+            }
           }
           return window.openSharedPuzzleChallenge({
             source: puzzleSource,

@@ -143,6 +143,310 @@
     st.active = null;
   }
 
+
+  // ─── Custom inline puzzle modes ──────────────────────────────────────────
+  var _cp = null;
+
+  function buildPipeFlowState() {
+    return {
+      tiles: [
+        { type: 'source',   rotation: 0, locked: true  },
+        { type: 'straight', rotation: 1, locked: false },
+        { type: 'elbow',    rotation: 0, locked: false },
+        { type: 'block',    rotation: 0, locked: true  },
+        { type: 'block',    rotation: 0, locked: true  },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'block',    rotation: 0, locked: true  },
+        { type: 'block',    rotation: 0, locked: true  },
+        { type: 'sink',     rotation: 0, locked: true  }
+      ]
+    };
+  }
+
+  function _cpTileExits(tile) {
+    var r = (tile.rotation || 0) % 4;
+    if (tile.type === 'source') return ['right'];
+    if (tile.type === 'sink')   return ['up'];
+    if (tile.type === 'straight') return r % 2 === 0 ? ['left', 'right'] : ['up', 'down'];
+    if (tile.type === 'elbow') {
+      if (r === 0) return ['up', 'right'];
+      if (r === 1) return ['right', 'down'];
+      if (r === 2) return ['down', 'left'];
+      return ['left', 'up'];
+    }
+    return [];
+  }
+
+  function _pipeFlowSolved(tiles) {
+    var req = { 0: ['right'], 1: ['left', 'right'], 2: ['left', 'down'], 5: ['up', 'down'], 8: ['up'] };
+    for (var i in req) {
+      var exits = _cpTileExits(tiles[i]);
+      var needed = req[i];
+      for (var j = 0; j < needed.length; j++) {
+        if (exits.indexOf(needed[j]) < 0) return false;
+      }
+    }
+    return true;
+  }
+
+  function _renderPipeFlow(state, title, prompt) {
+    var glyph = function(tile) {
+      var r = (tile.rotation || 0) % 4;
+      if (tile.type === 'source') return '\u25b6';
+      if (tile.type === 'sink')   return '\u25b2';
+      if (tile.type === 'straight') return r % 2 === 0 ? '\u2550' : '\u2551';
+      if (tile.type === 'elbow') return ['\u255a', '\u2554', '\u2557', '\u255d'][r];
+      return '\u00b7';
+    };
+    var solved = _pipeFlowSolved(state.tiles);
+    return '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;"><strong>' + title + '</strong></div>'
+      + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.16rem;">' + prompt + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,68px);gap:.12rem;justify-content:center;margin-bottom:.18rem;">'
+      + state.tiles.map(function(tile, idx) {
+          var bg = tile.type === 'source' ? 'rgba(40,180,220,.22)' : tile.type === 'sink' ? 'rgba(255,190,70,.22)' : tile.locked ? 'rgba(20,20,30,.5)' : 'rgba(50,60,90,.5)';
+          return '<button class="btn btn-xs" style="height:68px;font-size:1.7rem;line-height:1;background:' + bg + ';border-color:rgba(255,255,255,.18);"'
+            + (tile.locked ? ' disabled' : ' onclick="window._cpAction(\'pipe_rotate\',' + idx + ')"')
+            + '>' + glyph(tile) + '</button>';
+        }).join('')
+      + '</div>'
+      + (solved ? '<div style="color:var(--teal);text-align:center;font-size:.75rem;margin-bottom:.1rem;">\u2713 Pipe flow connected!</div>' : '')
+      + '<div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.1rem;">'
+      + '<button class="btn btn-sm" onclick="window._cpAction(\'give_up\')">Give Up</button>'
+      + '<button class="btn btn-sm btn-primary"' + (solved ? '' : ' disabled') + ' onclick="window._cpAction(\'submit\')">Submit</button>'
+      + '</div>';
+  }
+
+  function _initChess() {
+    return {
+      board: 5,
+      rook: { r: 4, c: 0 },
+      pawns: [{ r: 0, c: 0 }, { r: 0, c: 4 }, { r: 2, c: 2 }, { r: 4, c: 4 }],
+      captured: []
+    };
+  }
+
+  function _rookCanCapture(state, pawn) {
+    var rook = state.rook;
+    if (rook.r !== pawn.r && rook.c !== pawn.c) return false;
+    var remaining = state.pawns.filter(function(p, i) { return state.captured.indexOf(i) < 0; });
+    if (rook.r === pawn.r) {
+      var minC = Math.min(rook.c, pawn.c), maxC = Math.max(rook.c, pawn.c);
+      return !remaining.some(function(p) { return p !== pawn && p.r === rook.r && p.c > minC && p.c < maxC; });
+    }
+    var minR = Math.min(rook.r, pawn.r), maxR = Math.max(rook.r, pawn.r);
+    return !remaining.some(function(p) { return p !== pawn && p.c === rook.c && p.r > minR && p.r < maxR; });
+  }
+
+  function _renderChess(state, title, prompt) {
+    var N = state.board;
+    var remaining = state.pawns.filter(function(_, i) { return state.captured.indexOf(i) < 0; });
+    var solved = remaining.length === 0;
+    var rows = '';
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        var isRook = state.rook.r === r && state.rook.c === c;
+        var pawnIdx = -1;
+        state.pawns.forEach(function(p, i) { if (p.r === r && p.c === c && state.captured.indexOf(i) < 0) pawnIdx = i; });
+        var bg = (r + c) % 2 === 0 ? 'rgba(80,80,90,.6)' : 'rgba(40,40,50,.6)';
+        var content = isRook ? '\u265c' : (pawnIdx >= 0 ? '\u265f' : '');
+        var canCapture = pawnIdx >= 0 && _rookCanCapture(state, state.pawns[pawnIdx]);
+        var style = 'width:52px;height:52px;font-size:1.4rem;line-height:1;background:' + bg + ';border:1px solid rgba(255,255,255,.1);color:'
+          + (isRook ? 'var(--teal)' : canCapture ? 'var(--gold2)' : 'var(--text2)') + ';';
+        rows += '<button style="' + style + '"'
+          + (canCapture ? ' onclick="window._cpAction(\'chess_capture\',' + pawnIdx + ')"' : ' disabled')
+          + '>' + content + '</button>';
+      }
+    }
+    return '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;"><strong>' + title + '</strong></div>'
+      + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.12rem;">' + prompt + '</div>'
+      + '<div style="font-size:.64rem;color:var(--teal);margin-bottom:.1rem;">\u265c Rook (teal) \u265f Pawn (gold = capturable). Click gold pawns to capture. Rook moves in straight lines only.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(' + N + ',52px);gap:2px;justify-content:center;margin-bottom:.16rem;">' + rows + '</div>'
+      + (solved ? '<div style="color:var(--teal);text-align:center;font-size:.75rem;margin-bottom:.1rem;">\u2713 All pawns captured!</div>' : '<div style="font-size:.63rem;color:var(--muted2);text-align:center;margin-bottom:.1rem;">' + remaining.length + ' pawn(s) remaining</div>')
+      + '<div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.1rem;">'
+      + '<button class="btn btn-sm" onclick="window._cpAction(\'give_up\')">Give Up</button>'
+      + '<button class="btn btn-sm btn-primary"' + (solved ? '' : ' disabled') + ' onclick="window._cpAction(\'submit\')">Submit</button>'
+      + '</div>';
+  }
+
+  function _initSliding() {
+    return { tiles: [1, 2, 3, 4, 0, 6, 7, 5, 8], size: 3 };
+  }
+
+  function _slidingSolved(tiles) {
+    var goal = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+    return tiles.every(function(v, i) { return v === goal[i]; });
+  }
+
+  function _renderSliding(state, title, prompt) {
+    var N = state.size;
+    var blankIdx = state.tiles.indexOf(0);
+    var solved = _slidingSolved(state.tiles);
+    var grid = state.tiles.map(function(v, idx) {
+      var isBlank = v === 0;
+      var blankR = Math.floor(blankIdx / N), blankC = blankIdx % N;
+      var r = Math.floor(idx / N), c = idx % N;
+      var adjacent = Math.abs(r - blankR) + Math.abs(c - blankC) === 1;
+      var bg = isBlank ? 'rgba(0,0,0,.1)' : 'rgba(60,80,120,.5)';
+      return '<button class="btn btn-xs" style="width:58px;height:58px;font-size:1.1rem;background:' + bg + ';border-color:rgba(255,255,255,.2);"'
+        + (isBlank ? ' disabled' : (!adjacent ? ' disabled' : ' onclick="window._cpAction(\'slide\',' + idx + ')"'))
+        + '>' + (isBlank ? '' : v) + '</button>';
+    }).join('');
+    return '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;"><strong>' + title + '</strong></div>'
+      + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.12rem;">' + prompt + '</div>'
+      + '<div style="font-size:.64rem;color:var(--teal);margin-bottom:.1rem;">Click tiles adjacent to the blank to slide them. Goal: 1\u20138, blank at bottom-right.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(' + N + ',58px);gap:4px;justify-content:center;margin-bottom:.16rem;">' + grid + '</div>'
+      + (solved ? '<div style="color:var(--teal);text-align:center;font-size:.75rem;margin-bottom:.1rem;">\u2713 Puzzle solved!</div>' : '')
+      + '<div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.1rem;">'
+      + '<button class="btn btn-sm" onclick="window._cpAction(\'give_up\')">Give Up</button>'
+      + '<button class="btn btn-sm btn-primary"' + (solved ? '' : ' disabled') + ' onclick="window._cpAction(\'submit\')">Submit</button>'
+      + '</div>';
+  }
+
+  function _initMathGrid() {
+    return {
+      equations: [
+        { a: 9, op: '+', b: '?', result: 12, answer: 3 },
+        { a: '?', op: '+', b: 4, result: 11, answer: 7 },
+        { a: 15, op: '-', b: '?', result: 8, answer: 7 }
+      ],
+      inputs: ['', '', '']
+    };
+  }
+
+  function _mathGridSolved(state) {
+    return state.equations.every(function(eq, i) {
+      return parseInt(state.inputs[i], 10) === eq.answer;
+    });
+  }
+
+  function _renderMathGrid(state, title, prompt) {
+    var solved = _mathGridSolved(state);
+    var rows = state.equations.map(function(eq, i) {
+      var inputHtml = '<input id="mathIn' + i + '" class="input" type="number" value="' + (state.inputs[i] || '') + '" oninput="window._cpAction(\'math_input\',' + i + ',this.value)" style="width:44px;height:28px;text-align:center;display:inline-block;padding:.08rem .1rem;font-size:.84rem;" />';
+      var lhs = eq.a === '?' ? inputHtml : String(eq.a);
+      var rhs = eq.b === '?' ? inputHtml : String(eq.b);
+      var correct = parseInt(state.inputs[i], 10) === eq.answer;
+      return '<div style="display:flex;align-items:center;gap:.45rem;font-size:.9rem;color:var(--text2);padding:.22rem .3rem;border:1px solid ' + (correct ? 'rgba(46,196,182,.5)' : 'rgba(255,255,255,.1)') + ';background:rgba(255,255,255,.03);margin-bottom:.1rem;">'
+        + lhs + ' <span style="color:var(--gold2);">' + String(eq.op) + '</span> ' + rhs + ' <span style="color:var(--muted2);"> = </span> <strong>' + String(eq.result) + '</strong>'
+        + (correct ? ' <span style="color:var(--teal);font-size:.7rem;">\u2713</span>' : '')
+        + '</div>';
+    }).join('');
+    return '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;"><strong>' + title + '</strong></div>'
+      + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.12rem;">' + prompt + '</div>'
+      + '<div style="font-size:.64rem;color:var(--teal);margin-bottom:.1rem;">Fill each missing number (?) so the equation is correct.</div>'
+      + '<div style="max-width:280px;margin:0 auto .18rem;">' + rows + '</div>'
+      + (solved ? '<div style="color:var(--teal);text-align:center;font-size:.75rem;margin-bottom:.1rem;">\u2713 All equations solved!</div>' : '')
+      + '<div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.1rem;">'
+      + '<button class="btn btn-sm" onclick="window._cpAction(\'give_up\')">Give Up</button>'
+      + '<button class="btn btn-sm btn-primary"' + (solved ? '' : ' disabled') + ' onclick="window._cpAction(\'submit\')">Submit</button>'
+      + '</div>';
+  }
+
+  function _initRotatingImage() {
+    return {
+      segments: [
+        { label: 'NW Shard', rot: 1 },
+        { label: 'NE Shard', rot: 2 },
+        { label: 'SW Shard', rot: 3 },
+        { label: 'SE Shard', rot: 1 }
+      ]
+    };
+  }
+
+  function _rotatingImageSolved(state) {
+    return state.segments.every(function(s) { return s.rot === 0; });
+  }
+
+  function _renderRotatingImage(state, title, prompt) {
+    var solved = _rotatingImageSolved(state);
+    var rotLabels = ['\u2191 Upright', '\u2192 90\u00b0 CW', '\u2193 180\u00b0', '\u2190 270\u00b0 CW'];
+    var icons = ['\u25e4', '\u25e5', '\u25e3', '\u25e2'];
+    var segGrid = state.segments.map(function(seg, i) {
+      var correct = seg.rot === 0;
+      var display = icons[(i + seg.rot) % 4];
+      return '<div style="border:1px solid ' + (correct ? 'rgba(46,196,182,.5)' : 'rgba(255,255,255,.14)') + ';padding:.3rem;background:rgba(255,255,255,.04);text-align:center;">'
+        + '<div style="font-size:2.2rem;color:var(--text2);margin-bottom:.1rem;">' + display + '</div>'
+        + '<div style="font-size:.6rem;color:var(--muted2);margin-bottom:.12rem;">' + seg.label + '<br>' + rotLabels[seg.rot] + '</div>'
+        + '<button class="btn btn-xs' + (correct ? '' : ' btn-primary') + '" onclick="window._cpAction(\'rotate_seg\',' + i + ')">' + (correct ? '\u2713 Aligned' : 'Rotate \u21bb') + '</button>'
+        + '</div>';
+    }).join('');
+    return '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;"><strong>' + title + '</strong></div>'
+      + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.12rem;">' + prompt + '</div>'
+      + '<div style="font-size:.64rem;color:var(--teal);margin-bottom:.1rem;">Rotate each shard so all four show \u2191 Upright.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.2rem;max-width:300px;margin:0 auto .2rem;">' + segGrid + '</div>'
+      + (solved ? '<div style="color:var(--teal);text-align:center;font-size:.75rem;margin-bottom:.1rem;">\u2713 Image restored!</div>' : '')
+      + '<div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.1rem;">'
+      + '<button class="btn btn-sm" onclick="window._cpAction(\'give_up\')">Give Up</button>'
+      + '<button class="btn btn-sm btn-primary"' + (solved ? '' : ' disabled') + ' onclick="window._cpAction(\'submit\')">Submit</button>'
+      + '</div>';
+  }
+
+  function _renderCustomPuzzle() {
+    if (!_cp) return;
+    var s = _cp.state;
+    var t = _cp.title || 'Puzzle';
+    var p = _cp.prompt || 'Solve the puzzle.';
+    var html = '';
+    if (_cp.mode === 'pipe_flow')        html = _renderPipeFlow(s, t, p);
+    else if (_cp.mode === 'chess_puzzle')  html = _renderChess(s, t, p);
+    else if (_cp.mode === 'sliding_tile')  html = _renderSliding(s, t, p);
+    else if (_cp.mode === 'math_grid')     html = _renderMathGrid(s, t, p);
+    else if (_cp.mode === 'rotating_image') html = _renderRotatingImage(s, t, p);
+    if (typeof openModal === 'function') openModal(t, html);
+  }
+
+  window._cpAction = function(action, arg1, arg2) {
+    if (!_cp) return;
+    var s = _cp.state;
+    if (action === 'give_up') {
+      _cp = null;
+      if (typeof closeModal === 'function') closeModal();
+      finishSharedPuzzle(false);
+      return;
+    }
+    if (action === 'submit') {
+      _cp = null;
+      if (typeof closeModal === 'function') closeModal();
+      finishSharedPuzzle(true);
+      return;
+    }
+    if (action === 'pipe_rotate') {
+      var idx = Number(arg1);
+      if (s.tiles[idx] && !s.tiles[idx].locked) s.tiles[idx].rotation = ((s.tiles[idx].rotation || 0) + 1) % 4;
+      _renderCustomPuzzle(); return;
+    }
+    if (action === 'chess_capture') {
+      var pIdx = Number(arg1);
+      var pawn = s.pawns[pIdx];
+      if (_rookCanCapture(s, pawn)) {
+        s.captured.push(pIdx);
+        s.rook = { r: pawn.r, c: pawn.c };
+      }
+      _renderCustomPuzzle(); return;
+    }
+    if (action === 'slide') {
+      var tIdx = Number(arg1);
+      var blankIdx = s.tiles.indexOf(0);
+      var N = s.size;
+      var tr2 = Math.floor(tIdx / N), tc2 = tIdx % N;
+      var br2 = Math.floor(blankIdx / N), bc2 = blankIdx % N;
+      if (Math.abs(tr2 - br2) + Math.abs(tc2 - bc2) === 1) {
+        var tmp = s.tiles[tIdx]; s.tiles[tIdx] = 0; s.tiles[blankIdx] = tmp;
+      }
+      _renderCustomPuzzle(); return;
+    }
+    if (action === 'math_input') {
+      s.inputs[Number(arg1)] = String(arg2 || '');
+      _renderCustomPuzzle(); return;
+    }
+    if (action === 'rotate_seg') {
+      s.segments[Number(arg1)].rot = (s.segments[Number(arg1)].rot + 1) % 4;
+      _renderCustomPuzzle(); return;
+    }
+  };
+
+  var CUSTOM_PUZZLE_MODES = ['pipe_flow', 'chess_puzzle', 'sliding_tile', 'math_grid', 'rotating_image'];
+
   function openSharedPuzzleChallenge(config) {
     const st = ensurePuzzleState();
     if (!st) return false;
@@ -169,6 +473,21 @@
       onFail: config ? config.onFail : null,
       mode: chosen.mode || ''
     };
+
+    if (chosen.mode && CUSTOM_PUZZLE_MODES.indexOf(chosen.mode) >= 0) {
+      _cp = {
+        mode: chosen.mode,
+        title: title,
+        prompt: prompt,
+        state: chosen.mode === 'pipe_flow' ? buildPipeFlowState()
+          : chosen.mode === 'chess_puzzle' ? _initChess()
+          : chosen.mode === 'sliding_tile' ? _initSliding()
+          : chosen.mode === 'math_grid' ? _initMathGrid()
+          : _initRotatingImage()
+      };
+      _renderCustomPuzzle();
+      return true;
+    }
 
     if (chosen.mode && typeof window.openStandaloneStoryPuzzle === "function") {
       window.openStandaloneStoryPuzzle({

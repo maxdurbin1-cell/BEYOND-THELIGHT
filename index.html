@@ -9849,6 +9849,146 @@ function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);c
 let mapData=[];
 const HEX_SIZE=30,COLS=12,ROWS=12;
 let usedPerils=[],usedBarriers=[];
+let provinceEdgeBarriers=[];
+
+function provinceHexKey(col,row){return String(col)+','+String(row);}
+function normalizeProvinceEdgeKey(a,b){
+  const left=String(a||'');
+  const right=String(b||'');
+  return left<right?(left+'|'+right):(right+'|'+left);
+}
+function areProvinceHexesAdjacent(a,b){
+  if(!a||!b)return false;
+  const dc=Math.abs(Number(a.col)-Number(b.col));
+  const dr=Math.abs(Number(a.row)-Number(b.row));
+  if(dc===0&&dr===0)return false;
+  return dc<=1&&dr<=1;
+}
+function getProvinceEdgeBarrierBetween(fromHex,toHex){
+  if(!fromHex||!toHex)return null;
+  const key=normalizeProvinceEdgeKey(provinceHexKey(fromHex.col,fromHex.row),provinceHexKey(toHex.col,toHex.row));
+  return provinceEdgeBarriers.find(function(edge){return edge&&edge.edgeKey===key;})||null;
+}
+function sanitizeProvinceEdgeBarriers(raw){
+  if(!Array.isArray(raw))return [];
+  const clean=[];
+  const seen={};
+  raw.forEach(function(entry){
+    if(!entry||typeof entry!=='object')return;
+    const fromKey=String(entry.fromKey||'');
+    const toKey=String(entry.toKey||'');
+    if(!fromKey||!toKey||fromKey===toKey)return;
+    const fromHex=resolveProvinceHexFromKey(fromKey);
+    const toHex=resolveProvinceHexFromKey(toKey);
+    if(!fromHex||!toHex||!areProvinceHexesAdjacent(fromHex,toHex))return;
+    const edgeKey=normalizeProvinceEdgeKey(fromKey,toKey);
+    if(seen[edgeKey])return;
+    seen[edgeKey]=true;
+    clean.push({
+      fromKey:fromKey,
+      toKey:toKey,
+      edgeKey:edgeKey,
+      name:String(entry.name||'Edge Barrier'),
+      desc:String(entry.desc||'A barrier blocks this crossing.'),
+      passToken:String(entry.passToken||'')
+    });
+  });
+  return clean;
+}
+function createProvinceEdgeBarriersFromHexes(barrierHexes){
+  if(!Array.isArray(barrierHexes)||!barrierHexes.length)return [];
+  const edges=[];
+  const seen={};
+  function localAdjacent(col,row){
+    const dirs=[
+      {c:col-1,r:row-1},{c:col,r:row-1},{c:col+1,r:row-1},
+      {c:col-1,r:row},{c:col+1,r:row},
+      {c:col-1,r:row+1},{c:col,r:row+1},{c:col+1,r:row+1}
+    ];
+    return dirs.map(function(p){
+      return mapData.find(function(h){ return h&&h.col===p.c&&h.row===p.r; });
+    }).filter(Boolean);
+  }
+  barrierHexes.forEach(function(bh){
+    if(!bh)return;
+    const neighbors=localAdjacent(bh.col,bh.row).filter(function(n){
+      return n&&String(n.type||'').toLowerCase()!=='barrier';
+    });
+    if(neighbors.length<2)return;
+    const first=pick(neighbors);
+    const secondPool=neighbors.filter(function(n){return n&&!(n.col===first.col&&n.row===first.row);});
+    const second=pick(secondPool.length?secondPool:neighbors);
+    if(!first||!second||first.col===second.col&&first.row===second.row)return;
+    if(!areProvinceHexesAdjacent(first,second))return;
+    const fromKey=provinceHexKey(first.col,first.row);
+    const toKey=provinceHexKey(second.col,second.row);
+    const edgeKey=normalizeProvinceEdgeKey(fromKey,toKey);
+    if(seen[edgeKey])return;
+    seen[edgeKey]=true;
+    edges.push({
+      fromKey:fromKey,
+      toKey:toKey,
+      edgeKey:edgeKey,
+      name:String((bh.name||'Edge Barrier')),
+      desc:String((bh.data&&bh.data.desc)||'A barrier blocks this crossing.'),
+      passToken:''
+    });
+  });
+  return edges;
+}
+function openProvinceEdgeBarrierModal(edge,fromHex,toHex){
+  if(!edge||!fromHex||!toHex||typeof openModal!=='function')return;
+  const fromLabel='['+(fromHex.col+1)+','+(fromHex.row+1)+']';
+  const toLabel='['+(toHex.col+1)+','+(toHex.row+1)+']';
+  const html=''
+    + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+    + '<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;"><strong>'+edge.name+'</strong></div>'
+    + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Crossing '+fromLabel+' -> '+toLabel+' is blocked on this edge.</div>'
+    + '<div style="font-size:.8rem;color:var(--text2);margin-bottom:.34rem;">'+edge.desc+'</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.18rem;">Traversal check (chosen stat vs DD6):</div>'
+    + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+    + '<select id="edgeBarrierStat" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;">'
+    + '<option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option>'
+    + '</select>'
+    + '<button class="btn btn-xs btn-primary" onclick="resolveProvinceEdgeBarrierCheck(\''+edge.fromKey+'\',\''+edge.toKey+'\')">⚄ Attempt Crossing</button>'
+    + '</div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);">On failure, you become Weakened and cannot pass this phase.</div>'
+    + '</div>';
+  openModal('Edge Barrier',html);
+}
+window.resolveProvinceEdgeBarrierCheck=function(fromKey,toKey){
+  const fromHex=resolveProvinceHexFromKey(fromKey);
+  const toHex=resolveProvinceHexFromKey(toKey);
+  const edge=getProvinceEdgeBarrierBetween(fromHex,toHex);
+  if(!fromHex||!toHex||!edge)return;
+  const statSel=document.getElementById('edgeBarrierStat');
+  const statKey=statSel?String(statSel.value||'lead'):'lead';
+  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(statKey):((S.stats&&S.stats[statKey])||4);
+  const itemFlags=getProvinceNarrativeItemFlags();
+  const bonusNotes=[];
+  const player=explodingRoll(die,{type:'action',major:true,label:'Edge Traversal'});
+  if(itemFlags.compass&&(statKey==='lead'||statKey==='control')){player.total+=2;bonusNotes.push('Compass +2');}
+  if(itemFlags.torch&&(statKey==='spirit'||statKey==='body')){player.total+=1;bonusNotes.push('Torch +1');}
+  const dread=explodingRoll(6,{type:'dread',major:true,label:'DD6'});
+  const success=player.total>=dread.total;
+  if(success){
+    edge.passToken=getCurrentTravelPhaseToken();
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+    if(S&&S.provinceTraversalLock)S.provinceTraversalLock.active=false;
+    closeModal();
+    renderHexMap();
+    showNotif('Edge crossing unlocked this phase ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+').'+(bonusNotes.length?(' '+bonusNotes.join(' · ')):''),'good');
+  }else{
+    if(typeof toggleCond==='function')toggleCond('weakened');
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+    if(!S.provinceTraversalLock||typeof S.provinceTraversalLock!=='object')S.provinceTraversalLock={};
+    S.provinceTraversalLock.active=true;
+    S.provinceTraversalLock.phaseToken=getCurrentTravelPhaseToken();
+    S.provinceTraversalLock.source='edge-barrier';
+    renderHexMap();
+    showNotif('Edge crossing failed ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+'). Cannot pass this phase.','warn');
+  }
+};
 
 function setAge(age,btn){S.currentAge=age;document.querySelectorAll('.age-btn').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');else{var autoBtn=document.getElementById('age-'+age);if(autoBtn)autoBtn.classList.add('on');}}
 function setSeason(season,btn){S.currentSeason=season;document.querySelectorAll('.season-btn').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');else{var autoBtn=document.getElementById('season-'+season);if(autoBtn)autoBtn.classList.add('on');}}
@@ -10068,7 +10208,19 @@ function generateMap(){
   evts.forEach(ev=>placeUnique('event',ev,{whisper:EVENT_WHISPERS[ev]||'',mysteries:EVENT_MYSTERIES[ev]||GENERIC_MYSTERIES,mysteryIdx:0}));
   for(let i=0;i<roll(2)+1;i++)placeUnique('gate',pick(GATE_NAME_FIRST)+' '+pick(GATE_NAME_LAST),{symptom:pick(GATE_SYMPTOMS),condition:pick(GATE_CONDITIONS),fn:pick(GATE_FUNCTIONS),where:pick(GATE_WHERE),material:pick(GATE_MATERIAL),maker:pick(GATE_MAKER),happened:pick(GATE_HAPPENED),leads:pick(GATE_LEADS)});
   placeUnique('lostcity','Lost City',{buildingCondition:pick(LC_BUILDING_CONDITION),buildingThis:pick(LC_BUILDING_THIS),buildingMade:pick(LC_BUILDING_MADE),buildingFor:pick(LC_BUILDING_FOR),buildingInside:pick(LC_BUILDING_INSIDE),buildingNow:pick(LC_BUILDING_NOW),discovery:pick(LC_DISCOVERIES)});
-  for(let i=0;i<roll(3)+1;i++){const b=pickUniqueBarrier();placeUnique('barrier',b.name,{desc:b.desc});}
+  const barrierHexes=[];
+  for(let i=0;i<roll(3)+1;i++){
+    const b=pickUniqueBarrier();
+    const placed=placeUnique('barrier',b.name,{desc:b.desc});
+    if(placed)barrierHexes.push(placed);
+  }
+  provinceEdgeBarriers=createProvinceEdgeBarriersFromHexes(barrierHexes);
+  barrierHexes.forEach(function(h){
+    if(!h)return;
+    h.type='wilderness';
+    h.name='';
+    h.data={};
+  });
 
   assignBackstoryProvinceMarkers();
   renderHexMap();showNotif('Province generated!','good');
@@ -10091,7 +10243,7 @@ function markTradeRoutes(nodes){
   }
 }
 
-function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];provinceMapCoreSignature='';provinceMapSelectedKeyCache='';if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','600');svg.setAttribute('height','540');svg.innerHTML='<text x="300" y="260" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
+function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];provinceEdgeBarriers=[];provinceMapCoreSignature='';provinceMapSelectedKeyCache='';if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','600');svg.setAttribute('height','540');svg.innerHTML='<text x="300" y="260" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
 
 function cloneProvinceState(value){
   try{return JSON.parse(JSON.stringify(value));}catch(_err){return null;}
@@ -10105,6 +10257,7 @@ function getProvinceMapCoreSignature(payload){
       hexNotes:src.hexNotes||{},
       usedPerils:Array.isArray(src.usedPerils)?src.usedPerils:[],
       usedBarriers:Array.isArray(src.usedBarriers)?src.usedBarriers:[],
+      provinceEdgeBarriers:Array.isArray(src.provinceEdgeBarriers)?src.provinceEdgeBarriers:[],
       provinceSecretPadKey:typeof src.provinceSecretPadKey==='string'?src.provinceSecretPadKey:''
     });
   }catch(_err){
@@ -10128,6 +10281,7 @@ function getProvinceMapState(){
     hexNotes:hexNotes,
     usedPerils:usedPerils,
     usedBarriers:usedBarriers,
+    provinceEdgeBarriers:provinceEdgeBarriers,
     selectedKey:selectedKey,
     provinceSecretPadKey:(S&&S.mapLinks)?(S.mapLinks.provinceSecretPadKey||''):''
   })||{};
@@ -10202,6 +10356,7 @@ function applyProvinceMapState(payload,opts){
   hexNotes=cloneProvinceState(incoming.hexNotes||{})||{};
   usedPerils=Array.isArray(incoming.usedPerils)?incoming.usedPerils.slice():[];
   usedBarriers=Array.isArray(incoming.usedBarriers)?incoming.usedBarriers.slice():[];
+  provinceEdgeBarriers=sanitizeProvinceEdgeBarriers(cloneProvinceState(incoming.provinceEdgeBarriers)||[]);
   selectedHex=resolveProvinceHexFromKey(selectedKey);
   if(S&&S.mapLinks&&typeof incoming.provinceSecretPadKey==='string'){S.mapLinks.provinceSecretPadKey=incoming.provinceSecretPadKey;}
   provinceMapCoreSignature=incomingCoreSignature;
@@ -10750,6 +10905,14 @@ function renderHexMap(){
       try{
         let moved=false;
         if(ensureMapClickMode()==='travel'){
+          const edgeBlock=(selectedHex&&selectedHex!==hex)?getProvinceEdgeBarrierBetween(selectedHex,hex):null;
+          if(edgeBlock){
+            const nowToken=getCurrentTravelPhaseToken();
+            if(String(edgeBlock.passToken||'')!==String(nowToken||'')){
+              openProvinceEdgeBarrierModal(edgeBlock,selectedHex,hex);
+              return;
+            }
+          }
           if(isTraversalPhaseLocked(hex))return;
           if(typeof registerProvinceHexTravel==='function')registerProvinceHexTravel(1);
           moved=true;
@@ -10785,6 +10948,45 @@ function renderHexMap(){
     g.addEventListener('mousemove',()=>{const c=document.getElementById('hexCoords');if(c)c.textContent=`[${hex.col+1},${hex.row+1}] ${hex.terrain.name} — ${hex.name||hex.type}`;});
     svg.appendChild(g);
   });
+  if(Array.isArray(provinceEdgeBarriers)&&provinceEdgeBarriers.length){
+    const phaseToken=getCurrentTravelPhaseToken();
+    provinceEdgeBarriers.forEach(function(edge){
+      if(!edge)return;
+      const fromHex=resolveProvinceHexFromKey(edge.fromKey);
+      const toHex=resolveProvinceHexFromKey(edge.toKey);
+      if(!fromHex||!toHex)return;
+      const a=hexToPixel(fromHex.col,fromHex.row);
+      const b=hexToPixel(toHex.col,toHex.row);
+      const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+      const dx=b.x-a.x,dy=b.y-a.y;
+      const len=Math.max(1,Math.sqrt(dx*dx+dy*dy));
+      const nx=-dy/len,ny=dx/len;
+      const unlocked=String(edge.passToken||'')===String(phaseToken||'');
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',String(mx-nx*10));
+      line.setAttribute('y1',String(my-ny*10));
+      line.setAttribute('x2',String(mx+nx*10));
+      line.setAttribute('y2',String(my+ny*10));
+      line.setAttribute('stroke',unlocked?'rgba(76,175,116,.9)':'rgba(232,192,80,.9)');
+      line.setAttribute('stroke-width','2');
+      line.setAttribute('stroke-dasharray',unlocked?'':'3 2');
+      line.setAttribute('pointer-events','none');
+      svg.appendChild(line);
+
+      const glyph=document.createElementNS('http://www.w3.org/2000/svg','text');
+      glyph.setAttribute('x',String(mx));
+      glyph.setAttribute('y',String(my+3));
+      glyph.setAttribute('text-anchor','middle');
+      glyph.setAttribute('font-size','8.5');
+      glyph.setAttribute('fill',unlocked?'#6ed090':'#e8c050');
+      glyph.setAttribute('pointer-events','none');
+      glyph.textContent=unlocked?'✓':'⛓';
+      const tip=document.createElementNS('http://www.w3.org/2000/svg','title');
+      tip.textContent=edge.name+(unlocked?' (cleared this phase)':' (blocked edge)');
+      glyph.appendChild(tip);
+      svg.appendChild(glyph);
+    });
+  }
 }
 // ── RENDER HEX INFO ──────────────────────────────────────────────────────────
 function renderHexInfo(hex){

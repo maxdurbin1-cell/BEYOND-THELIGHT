@@ -347,6 +347,36 @@
     return pts.join(' ');
   }
 
+  function ensureLibraryFxStyles() {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('infinite-library-fx-style')) return;
+    var style = document.createElement('style');
+    style.id = 'infinite-library-fx-style';
+    style.textContent = ''
+      + '@keyframes libGlyphDrift { 0% { transform: translateY(0px); opacity: .2; } 50% { transform: translateY(-6px); opacity: .65; } 100% { transform: translateY(-12px); opacity: .12; } }\n'
+      + '@keyframes libShelfParallaxNear { 0% { transform: translateX(0px); } 100% { transform: translateX(-24px); } }\n'
+      + '@keyframes libShelfParallaxFar { 0% { transform: translateX(0px); } 100% { transform: translateX(-12px); } }\n'
+      + '.library-fx-wrap { position: relative; }\n'
+      + '.library-fx-glyph { animation: libGlyphDrift 5.6s linear infinite; transform-origin: center; }\n'
+      + '.library-fx-shelf-near { animation: libShelfParallaxNear 10s linear infinite; }\n'
+      + '.library-fx-shelf-far { animation: libShelfParallaxFar 14s linear infinite; }\n';
+    document.head.appendChild(style);
+  }
+
+  function depthPalette(depth) {
+    var d = Math.max(1, Number(depth || 1));
+    var t = Math.min(1, (d - 1) / 14);
+    var h = Math.round(210 - (95 * t));
+    var h2 = Math.round(265 - (120 * t));
+    return {
+      glow: 'hsla(' + h + ', 88%, 68%, .36)',
+      line: 'hsla(' + h + ', 92%, 74%, .74)',
+      fillA: 'hsla(' + h2 + ', 66%, 22%, .86)',
+      fillB: 'hsla(' + h + ', 70%, 12%, .95)',
+      glyph: 'hsla(' + h + ', 96%, 78%, .85)'
+    };
+  }
+
   function getFloorFog(floor) {
     var nodes = Array.isArray(floor && floor.nodes) ? floor.nodes : [];
     var visibleMask = {};
@@ -375,6 +405,7 @@
   function buildLibraryMiniMap(col, row, floor, selectedIdx) {
     var nodes = floor.nodes || [];
     var fog = getFloorFog(floor);
+    var palette = depthPalette((typeof S !== 'undefined' && S && S.infiniteLibrary) ? S.infiniteLibrary.depth : 1);
     var spacing = 18;
     var size = 10;
     var placed = nodes.map(function (_node, idx) {
@@ -410,9 +441,27 @@
         + '</g>';
     }).join('');
 
-    return '<div style="border:1px solid rgba(156,184,255,.3);background:rgba(10,16,34,.6);padding:.4rem;border-radius:4px;margin-bottom:.55rem;">'
+    var glyphs = [];
+    for (var gi = 0; gi < 16; gi++) {
+      var gx = 14 + (gi * 17) % 284;
+      var gy = 20 + (gi * 23) % 150;
+      var glyph = (gi % 4 === 0) ? '⟡' : ((gi % 4 === 1) ? 'ᚠ' : ((gi % 4 === 2) ? '✶' : '◌'));
+      glyphs.push('<text class="library-fx-glyph" x="' + gx + '" y="' + gy + '" text-anchor="middle" font-size="7" fill="' + palette.glyph + '" style="animation-delay:' + (gi * 0.22) + 's;">' + glyph + '</text>');
+    }
+
+    var shelvesFar = [];
+    var shelvesNear = [];
+    for (var sy = 0; sy < 8; sy++) shelvesFar.push('<line x1="-20" y1="' + (18 + sy * 22) + '" x2="320" y2="' + (8 + sy * 22) + '" stroke="' + palette.glow + '" stroke-width="1" />');
+    for (var sz = 0; sz < 6; sz++) shelvesNear.push('<line x1="-30" y1="' + (26 + sz * 28) + '" x2="330" y2="' + (32 + sz * 28) + '" stroke="' + palette.line + '" stroke-opacity=".24" stroke-width="1.15" />');
+
+    return '<div class="library-fx-wrap" style="border:1px solid ' + palette.line + ';background:linear-gradient(180deg,' + palette.fillA + ' 0%,' + palette.fillB + ' 100%);padding:.4rem;border-radius:4px;margin-bottom:.55rem;box-shadow:0 0 24px ' + palette.glow + ';">'
       + '<div style="font-size:.68rem;color:#9cb8ff;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.22rem;">Infinite Library Crawl Map</div>'
-      + '<svg viewBox="0 0 300 180" style="width:100%;height:auto;display:block;">' + links.join('') + cells + '</svg>'
+      + '<svg viewBox="0 0 300 180" style="width:100%;height:auto;display:block;">'
+      + '<g class="library-fx-shelf-far">' + shelvesFar.join('') + '</g>'
+      + '<g class="library-fx-shelf-near">' + shelvesNear.join('') + '</g>'
+      + '<g>' + glyphs.join('') + '</g>'
+      + links.join('') + cells
+      + '</svg>'
       + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Solid nodes are mapped. Outlined nodes are frontier hexes.</div>'
       + '</div>';
   }
@@ -462,6 +511,7 @@
   }
 
   function openLibraryUI() {
+    ensureLibraryFxStyles();
     var st = ensureLibraryState();
     if (!st || typeof openModal !== 'function') return false;
     var pos = parseHexKey(st.activeHexKey);

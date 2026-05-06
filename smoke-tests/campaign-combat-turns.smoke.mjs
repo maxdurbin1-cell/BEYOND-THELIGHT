@@ -114,34 +114,52 @@ async function collectTurnSummary(page) {
 }
 
 async function waitForTurnSummary(page, expected, label) {
-  await page.waitForFunction(
-    (target) => {
-      const shared = window.campaignSystem && typeof window.campaignSystem.getSharedState === "function"
-        ? (window.campaignSystem.getSharedState() || {})
-        : {};
-      const combat = shared && shared.campaignCombat && typeof shared.campaignCombat === "object"
-        ? shared.campaignCombat
-        : {};
-      const turnOrder = Array.isArray(combat.turnOrder) ? combat.turnOrder : [];
-      const participants = Array.isArray(combat.participants) ? combat.participants : [];
-      const actorIndex = Number(combat.currentActorIndex || 0);
-      const actorToken = turnOrder.length ? String(turnOrder[Math.max(0, Math.min(actorIndex, turnOrder.length - 1))] || "") : "";
-      if (!!combat.active !== !!target.active) return false;
-      if (Number(combat.round || 0) !== Number(target.round || 0)) return false;
-      if (actorIndex !== Number(target.currentActorIndex || 0)) return false;
-      if (actorToken !== String(target.currentActorToken || "")) return false;
-      if (target.turnOrder && JSON.stringify(turnOrder) !== JSON.stringify(target.turnOrder)) return false;
-      if (target.participantActed) {
-        for (const key of Object.keys(target.participantActed)) {
-          const row = participants.find((item) => item && String(item.token || "") === String(key));
-          if (!!(row && row.hasActed) !== !!target.participantActed[key]) return false;
-        }
-      }
-      return true;
-    },
-    expected,
-    { timeout: STEP_TIMEOUT_MS }
-  );
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.waitForFunction(
+        (target) => {
+          const shared = window.campaignSystem && typeof window.campaignSystem.getSharedState === "function"
+            ? (window.campaignSystem.getSharedState() || {})
+            : {};
+          const combat = shared && shared.campaignCombat && typeof shared.campaignCombat === "object"
+            ? shared.campaignCombat
+            : {};
+          const turnOrder = Array.isArray(combat.turnOrder) ? combat.turnOrder : [];
+          const participants = Array.isArray(combat.participants) ? combat.participants : [];
+          const actorIndex = Number(combat.currentActorIndex || 0);
+          const actorToken = turnOrder.length ? String(turnOrder[Math.max(0, Math.min(actorIndex, turnOrder.length - 1))] || "") : "";
+          if (!!combat.active !== !!target.active) return false;
+          if (Number(combat.round || 0) !== Number(target.round || 0)) return false;
+          if (actorIndex !== Number(target.currentActorIndex || 0)) return false;
+          if (actorToken !== String(target.currentActorToken || "")) return false;
+          if (target.turnOrder && JSON.stringify(turnOrder) !== JSON.stringify(target.turnOrder)) return false;
+          if (target.participantActed) {
+            for (const key of Object.keys(target.participantActed)) {
+              const row = participants.find((item) => item && String(item.token || "") === String(key));
+              if (!!(row && row.hasActed) !== !!target.participantActed[key]) return false;
+            }
+          }
+          return true;
+        },
+        expected,
+        { timeout: STEP_TIMEOUT_MS }
+      );
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err;
+      await page.evaluate(async () => {
+        try {
+          if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {
+            await window.campaignSystem.syncSharedSilent();
+          }
+        } catch (_err) {}
+      });
+      await wait(200 * (attempt + 1));
+    }
+  }
+  if (lastErr) throw lastErr;
 
   const summary = await collectTurnSummary(page);
   if (

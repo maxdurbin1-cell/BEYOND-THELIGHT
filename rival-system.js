@@ -44,7 +44,9 @@
         lastOutcome:'',
         lastMap:'',
         history:[],
-        lastGateToken:''
+        lastGateToken:'',
+        pendingEncounter:null,
+        activeCombat:null
       };
     }
     var r=S.rival;
@@ -64,10 +66,18 @@
     if(typeof r.lastMap!=='string')r.lastMap='';
     if(!Array.isArray(r.history))r.history=[];
     if(typeof r.lastGateToken!=='string')r.lastGateToken='';
+    if(!r.pendingEncounter||typeof r.pendingEncounter!=='object')r.pendingEncounter=null;
+    if(!r.activeCombat||typeof r.activeCombat!=='object')r.activeCombat=null;
     r.dread=snapRivalDreadDie(r.dread||8);
     r.rapport=clamp(Math.round(r.rapport||0),-8,8);
     r.threatTier=clamp(Math.round(r.threatTier||1),1,10);
     return r;
+  }
+
+  function isCombatSceneActive(){
+    if(typeof S==='undefined'||!S||!S.combat)return false;
+    if(S.combat.active)return true;
+    return !!(Array.isArray(S.enemies)&&S.enemies.length);
   }
 
   function getPhaseGateToken(){
@@ -287,6 +297,12 @@
       S.enemies=[];
     }
     if(typeof addEnemy==='function')addEnemy(r.name,dd);
+    r.activeCombat={
+      mapKey:String(mapKey||'province'),
+      key:String(key||''),
+      startedAt:Date.now(),
+      dread:dd
+    };
     r.lastMap=String(mapKey||'');
     r.lastOutcome='Combat Engaged';
     addRivalHistory('['+String(mapKey||'province')+'] combat engaged at '+String(key||'unknown'));
@@ -295,18 +311,23 @@
     if(typeof renderEnemies==='function')renderEnemies();
     if(typeof renderQP==='function')renderQP('combat');
     if(typeof switchTab==='function')switchTab('combat',null);
+    if(typeof showNotif==='function')showNotif('Rival combat started. Resolve the scene, then record outcome after combat ends.', 'warn');
+  }
 
+  function openRivalCombatResolutionPrompt(){
+    var r=ensureRivalState();
+    if(!r||!r.activeCombat||typeof openModal!=='function')return false;
     var html=''
       + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
-      + '<div><strong>'+String(r.name)+'</strong> enters combat.</div>'
-      + '<div style="margin-top:.2rem;">Rival Dread: <strong>d'+String(dd)+'</strong> | Threat Tier: '+String(r.threatTier)+'</div>'
-      + '<div style="margin-top:.2rem;color:var(--muted2);">They cannot be killed in one battle. You must defeat them <strong>3 times</strong> total.</div>'
+      + '<div><strong>'+String(r.name)+'</strong> combat resolved.</div>'
+      + '<div style="margin-top:.2rem;">Record the outcome from the scene that just ended.</div>'
       + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;">'
       + '<button class="btn btn-sm btn-primary" onclick="finalizeRivalCombat(true)">Record Combat Success</button>'
       + '<button class="btn btn-sm btn-red" onclick="finalizeRivalCombat(false)">Record Combat Failure</button>'
       + '</div>'
       + '</div>';
-    if(typeof openModal==='function')openModal('Rival Combat',html);
+    openModal('Rival Combat Result',html);
+    return true;
   }
 
   function finalizeRivalCombat(success){
@@ -340,6 +361,7 @@
     }
     syncRivalStatus();
     renderRivalCombatStatus();
+    r.activeCombat=null;
     if(typeof closeModal==='function')closeModal();
     if(typeof renderQP==='function')renderQP('combat');
   }
@@ -350,6 +372,14 @@
     var where=ctx&&ctx.key?String(ctx.key):'unknown';
     var gate=String(mapKey||'province')+'|'+where+'|'+getPhaseGateToken();
     if(r.lastGateToken===gate)return false;
+    if(isCombatSceneActive()){
+      r.pendingEncounter={
+        gate:gate,
+        mapKey:String(mapKey||'province'),
+        ctx:ctx||{}
+      };
+      return false;
+    }
     r.lastGateToken=gate;
     if(rivalRoll(100)>20)return false;
     if(typeof ensureBackstoryScopeMarkers==='function'){
@@ -361,10 +391,38 @@
     return true;
   }
 
+  function patchRivalEndCombatHook(){
+    if(typeof window==='undefined'||window._rivalEndCombatPatched)return;
+    if(typeof window.endCombat!=='function'){
+      setTimeout(patchRivalEndCombatHook, 250);
+      return;
+    }
+    window._rivalEndCombatPatched=true;
+    var baseEndCombat=window.endCombat;
+    window.endCombat=function(){
+      var out=baseEndCombat.apply(this,arguments);
+      var r=ensureRivalState();
+      if(r&&r.activeCombat){
+        setTimeout(function(){
+          if(!isCombatSceneActive()) openRivalCombatResolutionPrompt();
+        },30);
+      } else if(r&&r.pendingEncounter){
+        var pending=r.pendingEncounter;
+        r.pendingEncounter=null;
+        r.lastGateToken=String(pending.gate||'');
+        setTimeout(function(){
+          if(!isCombatSceneActive()) openRivalEncounter(String(pending.mapKey||'province'),pending.ctx||{});
+        },40);
+      }
+      return out;
+    };
+  }
+
   window.ensureRivalState=ensureRivalState;
   window.rollRivalEncounterForMap=rollRivalEncounterForMap;
   window.resolveRivalInteraction=resolveRivalInteraction;
   window.startRivalCombat=startRivalCombat;
   window.finalizeRivalCombat=finalizeRivalCombat;
   window.renderRivalCombatStatus=renderRivalCombatStatus;
+  patchRivalEndCombatHook();
 })();

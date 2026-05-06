@@ -3057,7 +3057,18 @@ function maybeSpawnLegacyRaidEvent(force) {
   if (dayStamp < Number(legacy.nextRaidEligibleStamp || 0)) return null;
   var chanceSeed = seedSolarCycleMix(sc, dayStamp + Number(legacy.raidCounter || 0) * 23 + 7);
   if (!force && (Math.abs(chanceSeed) % 100) > 26) return null;
-  var availableRegions = ['province', 'sea', 'galaxy', 'planet', 'wtw'].filter(function (region) {
+  var hasSea = !!(S && S.lastSea && Array.isArray(S.lastSea.map) && S.lastSea.map.length);
+  var hasGalaxy = !!(S && S.starSystem && Array.isArray(S.starSystem.hexes) && S.starSystem.hexes.length);
+  var hasWtw = !!(S && S.worldThatWas && Array.isArray(S.worldThatWas.hexes) && S.worldThatWas.hexes.length);
+  var spawnPool = ['province'];
+  if (hasSea) spawnPool.push('sea');
+  if (hasGalaxy) {
+    spawnPool.push('galaxy');
+    spawnPool.push('planet');
+  }
+  if (hasWtw) spawnPool.push('wtw');
+
+  var availableRegions = spawnPool.filter(function (region) {
     return !legacy.activeRaidIds.some(function (raidId) {
       var raid = legacy.raidsById[raidId];
       return raid && String(raid.region || '') === String(region);

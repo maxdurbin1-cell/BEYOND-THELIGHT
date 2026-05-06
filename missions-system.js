@@ -3218,42 +3218,67 @@
       if (typeof updateCombatUI === 'function') updateCombatUI();
       if (typeof renderEnemies === 'function') renderEnemies();
       if (typeof renderCombatOptions === 'function') renderCombatOptions();
-
-      // Build and show a combat briefing modal before switching to the combat tab.
-      var allyNames = allies.map(function (a) { return String(a && a.name || 'Wayfarer'); });
-      var hostileList = Array.isArray(S.enemies)
-        ? S.enemies.filter(function (e) { return e && !e.ally; })
-        : [];
-      var allyRows = allyNames.map(function (n) {
-        return '<div style="font-size:.64rem;color:var(--text2);">● ' + n + ' (Ally) · 12 HP</div>';
-      }).join('');
-      var enemyRows = hostileList.map(function (e) {
-        return '<div style="font-size:.64rem;color:var(--red2);">✕ ' + String(e.name || 'Hostile') + ' · Dread d' + Number(e.dread || 6) + ' · ' + Number(e.maxStress || 8) + ' HP</div>';
-      }).join('');
-      var combatBriefHtml = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
-        + '<div style="font-size:.86rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.14rem;"><strong>⚔ Combat Engaged — Wing ' + wingNum + '</strong></div>'
-        + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.18rem;">Turn order: <strong>You</strong> (Strike / Shoot) → <strong>Allies</strong> (auto — 2 attacks each) → <strong>Enemies</strong> (auto — 2 attacks each). Your actions left each round refill to your action max.</div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.22rem;">'
-        + '<div style="border:1px solid rgba(70,196,182,.22);padding:.22rem .28rem;background:rgba(70,196,182,.06);">'
-        + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.08rem;"><strong>Allies</strong></div>'
-        + (allyRows || '<div style="font-size:.63rem;color:var(--muted2);">None present.</div>')
-        + '</div>'
-        + '<div style="border:1px solid rgba(200,80,80,.22);padding:.22rem .28rem;background:rgba(200,80,80,.06);">'
-        + '<div style="font-size:.68rem;color:var(--red2);margin-bottom:.08rem;"><strong>Hostiles</strong></div>'
-        + (enemyRows || '<div style="font-size:.63rem;color:var(--muted2);">None found.</div>')
-        + '</div>'
-        + '</div>'
-        + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.16rem;">Peril (Defend vs Dread d6): failure = +1 Teamwork · damage = roll difference<br>'
-        + 'Hazard (Mind vs Dread d6): failure = +1 Teamwork · mental stress = roll difference<br>'
-        + 'Barrier (Body vs Dread d6): failure = +1 Teamwork · random condition applied (Weakened / Distracted / Vulnerable / Shaken)</div>'
-        + '<div style="display:flex;gap:.3rem;justify-content:flex-end;">'
-        + '<button class="btn btn-sm btn-primary" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof switchTab===\'function\'){var b=document.querySelector(\'.tab-btn[onclick*=\\\"combat\\\"]\');switchTab(\'combat\',b||null);}">Enter Combat Tab ⚔</button>'
-        + '</div>'
-        + '</div>';
-      if (typeof openModal === 'function') openModal('Raid Combat — Wing ' + wingNum, combatBriefHtml);
+      renderLegacyRaidCombatModal(missionId, wingNum);
     }
   }
   window.openRaidCombatModal = openRaidCombatModal;
+
+  function renderLegacyRaidCombatModal(missionId, wingNum) {
+    if (typeof S === 'undefined' || !S || typeof openModal !== 'function') return false;
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var allies = Array.isArray(S.enemies)
+      ? S.enemies.filter(function (e) { return e && e.ally && e.temporarySceneAlly; })
+      : [];
+    var hostiles = Array.isArray(S.enemies)
+      ? S.enemies.filter(function (e) { return e && !e.ally; })
+      : [];
+    var flow = S.combat && S.combat.raidFlow ? S.combat.raidFlow : null;
+    var stage = flow && flow.active ? String(flow.stage || 'player') : 'player';
+    var stageLabel = stage === 'player' ? 'Player Actions' : (stage === 'ally' ? 'Ally Auto Phase' : 'Enemy Auto Phase');
+    var actionsLeft = Math.max(0, Number(S.combat && S.combat.actionsLeft || 0));
+
+    var allyRows = allies.map(function (e) {
+      var hp = Math.max(0, Number(e.maxStress || 12) - Number(e.stress || 0));
+      return '<div style="font-size:.64rem;color:var(--text2);">● ' + String(e.name || 'Wayfarer') + ' (Ally) · ' + hp + ' HP</div>';
+    }).join('');
+    var enemyRows = hostiles.map(function (e) {
+      var hp = Math.max(0, Number(e.maxStress || 8) - Number(e.stress || 0));
+      return '<div style="font-size:.64rem;color:var(--red2);">✕ ' + String(e.name || 'Hostile') + ' · Dread d' + Number(e.dread || 6) + ' · ' + hp + ' HP</div>';
+    }).join('');
+
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+      + '<div style="font-size:.86rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.14rem;"><strong>⚔ Combat Engaged — Wing ' + wingNum + '</strong></div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.14rem;">Turn order: You (Strike/Shoot/Defend) → Allies (auto, 2 actions each) → Enemies (auto, 2 actions each). Actions refill each round.</div>'
+      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.16rem;">Stage: <strong>' + stageLabel + '</strong> · Turn ' + Number(flow && flow.turn || 1) + ' · Actions Left: ' + actionsLeft + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.18rem;">'
+      + '<div style="border:1px solid rgba(70,196,182,.22);padding:.22rem .28rem;background:rgba(70,196,182,.06);">'
+      + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.08rem;"><strong>Allies</strong></div>'
+      + (allyRows || '<div style="font-size:.63rem;color:var(--muted2);">None present.</div>')
+      + '</div>'
+      + '<div style="border:1px solid rgba(200,80,80,.22);padding:.22rem .28rem;background:rgba(200,80,80,.06);">'
+      + '<div style="font-size:.68rem;color:var(--red2);margin-bottom:.08rem;"><strong>Hostiles</strong></div>'
+      + (enemyRows || '<div style="font-size:.63rem;color:var(--muted2);">None found.</div>')
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.12rem;">'
+      + '<button class="btn btn-sm btn-primary" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="rollAttack(\'strike\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Strike</button>'
+      + '<button class="btn btn-sm btn-primary" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="rollAttack(\'shoot\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Shoot</button>'
+      + '<button class="btn btn-sm" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="rollDefend();window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Defend</button>'
+      + '<button class="btn btn-sm" onclick="if(typeof endCombat===\'function\'){endCombat();}window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">End Scene</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:.24rem;justify-content:space-between;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs" onclick="window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Refresh</button>'
+      + '<button class="btn btn-xs" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof switchTab===\'function\'){var b=document.querySelector(\'.tab-btn[onclick*=\\\"combat\\\"]\');switchTab(\'combat\',b||null);}">Open Full Combat Tab</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Raid Combat — Wing ' + wingNum, html);
+    return true;
+  }
+
+  window.refreshLegacyRaidCombatModal = function (missionId, wingNum) {
+    return renderLegacyRaidCombatModal(missionId, wingNum);
+  };
 
   function setLegacyRaidCombatFlowActive(active) {
     if (typeof S === 'undefined' || !S) return;

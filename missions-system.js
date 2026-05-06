@@ -6091,12 +6091,13 @@
     if (isCurrent && showEncounter && String(cell.eventType || '') === 'teleport' && cell.teleportTo) {
       teleportButton = '<button class="btn btn-xs btn-teal" onclick="window.useLegacyRaidTeleport(' + mission.id + ',' + wingNum + ')">Use Teleport → ' + String(cell.teleportTo) + '</button>';
     }
+    var roomLabel = cell.isStart ? 'Entrance' : (cell.isExit ? 'Exit' : (showEncounter ? (encounterLabel || typeLabel) : '? Unexplored'));
     return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.03);">'
-      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">Hex ' + cell.id + ' · ' + hexTitlePart + '</div>'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">' + roomLabel + (isCurrent ? ' <span style="color:var(--teal);font-size:.62rem;">◆ Here</span>' : '') + '</div>'
       + (hexDesc ? '<div style="font-size:.65rem;color:var(--muted3);line-height:1.42;margin-bottom:.12rem;font-style:italic;">' + hexDesc + '</div>' : '')
-      + '<div style="font-size:.67rem;line-height:1.5;background:rgba(0,0,0,.22);border-radius:.2rem;padding:.18rem .25rem;margin-bottom:.12rem;color:var(--muted2);">' + (showEncounter ? getLegacyRaidHexMechanicSummary(wingNum, cell) : 'Unknown encounter. Search to discover.') + '</div>'
-      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.08rem;">' + (objectiveLine || '') + '</div>'
-      + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">Ticks: ' + Number(state.ticks || 0) + ' · Current: ' + String(state.currentId || '') + '</div>'
+      + '<div style="font-size:.67rem;line-height:1.5;background:rgba(0,0,0,.22);border-radius:.2rem;padding:.18rem .25rem;margin-bottom:.12rem;color:var(--muted2);">' + (showEncounter ? getLegacyRaidHexMechanicSummary(wingNum, cell) : 'Unexplored. Move here and search to reveal.') + '</div>'
+      + '<div style="font-size:.66rem;color:var(--teal);line-height:1.45;margin-bottom:.08rem;">' + (objectiveLine || '') + '</div>'
+      + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">⏱ ' + Number(state.ticks || 0) + ' ticks remaining</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs" ' + (moveAllowed && !isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.moveLegacyRaidHex(' + mission.id + ',' + wingNum + ')">' + moveLabel + '</button>'
       + '<button class="btn btn-xs btn-primary" ' + (isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + exploreLabel + '</button>'

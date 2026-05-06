@@ -498,7 +498,7 @@
   function buildNodeActions(col, row, node, depth, floor) {
     if (!node) return '';
     if (!node.discovered) {
-      return '<button class="btn btn-xs btn-teal" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'scout\')">⚄ Scout Frontier Hex</button>';
+      return '<button class="btn btn-xs btn-teal" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'scout\')">🔭 Scout Room</button>';
     }
     var actions = [];
     if (!node.cleared && !node.pendingCombat) actions.push('<button class="btn btn-xs btn-primary" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'explore\')">⚄ Resolve Hex</button>');
@@ -513,6 +513,8 @@
       actions.push('<button class="btn btn-xs" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'elevator_up\')">⇡ Ride Elevator Up</button>');
     }
     if (node.kind === 'Stairwell' && node.cleared && depth < LIBRARY_TIERS.length * 3) actions.push('<button class="btn btn-xs btn-warn" onclick="descendInfiniteLibraryFloor(' + col + ',' + row + ')">Take Stair Down</button>');
+    if (node.portalDestination && !node.portalUsed) actions.push('<button class="btn btn-xs btn-teal" onclick="useLibraryPortal(' + col + ',' + row + ',' + (node.idx - 1) + ')">◈ Enter Portal → ' + String(node.portalDestination) + '</button>');
+    if (node.cleared) actions.push('<button class="btn btn-xs" onclick="resolveInfiniteLibraryNode(' + col + ',' + row + ',' + (node.idx - 1) + ',\'hidden\')" title="Search for hidden rooms or secret lore fragments">🔍 Search Hidden Room</button>');
     if (actions.length === 0) return '<span style="font-size:.72rem;color:var(--green2);">✓ Hex stable.</span>';
     return actions.join(' ');
   }
@@ -525,13 +527,12 @@
     var status = !node.discovered ? 'Frontier (unscouted)' : (node.pendingCombat ? 'Hostiles active' : (node.cleared ? 'Cleared' : 'Unresolved'));
     var details = [];
     if (node.detail) details.push(node.detail);
-    if (node.bookLine) details.push('Book: ' + node.bookLine);
+    if (node.bookLine) details.push('<em>' + node.bookLine + '</em>');
     if (node.environmentShift) details.push('Shift: ' + node.environmentShift);
-    if (node.encounterSummary) details.push('Encounter: ' + node.encounterSummary);
 
     return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid ' + titleColor + ';padding-left:.5rem;">'
       + '<div class="rb-title" style="color:' + titleColor + ';">' + nodeIcon(node.kind) + ' Hex ' + node.idx + ' - ' + node.kind + '</div>'
-      + '<div style="font-size:.74rem;color:var(--muted2);margin:.16rem 0 .24rem;">Status: ' + status + ' · Floor DD' + danger + '</div>'
+      + '<div style="font-size:.68rem;color:' + titleColor + ';margin:.16rem 0 .24rem;text-transform:uppercase;letter-spacing:.05em;">' + status + '</div>'
       + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">' + (details.length ? details.join('<br>') : 'No details mapped yet.') + '</div>'
       + (node.result ? '<div style="margin-top:.28rem;padding:.25rem .4rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);">' + node.result + '</div>' : '')
       + '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">' + buildNodeActions(col, row, node, depth, floor) + '</div>'
@@ -573,7 +574,6 @@
       + '</div>'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem;">'
       + '<button class="btn btn-sm btn-primary" onclick="generateInfiniteLibraryNode(' + col + ',' + row + ')">Press Deeper</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="resolveInfiniteLibraryAction(\'encounter\')">Roll Encounter</button>'
       + '<button class="btn btn-sm" onclick="resolveInfiniteLibraryAction(\'hook\')">Generate Hook</button>'
       + (canAscend ? '<button class="btn btn-sm" onclick="ascendInfiniteLibraryFloor(' + col + ',' + row + ')">Return To Higher Depth</button>' : '')
       + '</div>'
@@ -610,11 +610,12 @@
       if (scoutRoll.success) {
         node.discovered = true;
         node.detail = pick(LIBRARY_AMBIENCE);
-        state.lastResult = 'Scout success: AD' + scoutRoll.actionDie + ' ' + scoutRoll.actionTotal + ' vs DD' + dd + ' ' + scoutRoll.dreadTotal + '.';
+        node.scouted = true;
+        state.lastResult = 'Scout: ' + String(node.kind || 'Unknown') + ' — room mapped.';
         rewardCredits(10 + dd);
       } else {
-        applyFailureConsequence('explore');
-        state.lastResult = 'Scout failed: AD' + scoutRoll.actionDie + ' ' + scoutRoll.actionTotal + ' vs DD' + dd + ' ' + scoutRoll.dreadTotal + '.';
+        node.discovered = true;
+        state.lastResult = 'Scout inconclusive — hex shape visible, contents unknown.';
       }
       return;
     }
@@ -663,6 +664,20 @@
       node.result = 'You fall back and lose ground in the stacks.';
       applyFailureConsequence('explore');
       state.lastResult = 'Encounter marked as fallback.';
+      return;
+    }
+
+    if (mode === 'hidden') {
+      var hRoll = runActionRoll('adventure', dd, 'Hidden Room Search');
+      if (hRoll.success) {
+        var hiddenFinds = ['A manuscript sealed inside a hollow book-spine.', 'A locked secondary shelf hidden behind the main stacks.', 'Faint glyphs carved beneath the flooring — fragment of an older map.', 'A cache wedged into a gap between shelves: provisions and one worn key.', 'A researcher\'s personal journal tucked behind a false wall panel.'];
+        node.result = pick(hiddenFinds);
+        rewardCredits(15 + dd);
+        state.lastResult = 'Hidden search: something found.';
+      } else {
+        node.result = 'Nothing concealed here — or it was already taken.';
+        state.lastResult = 'Hidden search came up empty.';
+      }
       return;
     }
 
@@ -720,7 +735,8 @@
         if (encounter.encounter && encounter.encounter.name === 'Portal') {
           var pRoll = rollDie(12);
           var portalTarget = PORTAL_DESTINATIONS[pRoll - 1] || PORTAL_DESTINATIONS[0];
-          node.result += ' Portal vector: ' + portalTarget + '.';
+          node.portalDestination = portalTarget;
+          node.result += ' Portal active — ' + portalTarget + '.';
           node.pendingCombat = false;
         }
         if (profile.autoCombat) {
@@ -733,8 +749,10 @@
         }
       } else if (node.kind === 'Portal Niche') {
         var p = rollDie(12);
-        node.result = 'Portal tuned to ' + (PORTAL_DESTINATIONS[p - 1] || PORTAL_DESTINATIONS[0]) + '.';
-        state.lastEncounter = 'Portal destination: ' + (PORTAL_DESTINATIONS[p - 1] || PORTAL_DESTINATIONS[0]);
+        var pDest = PORTAL_DESTINATIONS[p - 1] || PORTAL_DESTINATIONS[0];
+        node.portalDestination = pDest;
+        node.result = 'Portal active. Destination: ' + pDest + '.';
+        state.lastEncounter = 'Portal destination: ' + pDest;
       } else if (node.kind === 'Elevator Shaft') {
         var e = rollDie(12);
         node.elevatorStatus = String((findByRoll(ELEVATOR_STATUS, e) || { text: 'Unknown' }).text || 'Unknown');
@@ -766,9 +784,36 @@
     var st = ensureLibraryState();
     if (!st) return;
     var floor = ensureFloorState(st, st.depth);
-    floor.nodes.push(createLibraryNode(st.depth, floor));
-    st.roomIndex = Math.max(0, Number(st.roomIndex || 0) + 1);
+    var count = 2 + Math.floor(Math.random() * 2); // 2 or 3 new frontier hexes
+    for (var i = 0; i < count; i++) {
+      floor.nodes.push(createLibraryNode(st.depth, floor));
+    }
+    st.roomIndex = Math.max(0, Number(st.roomIndex || 0) + count);
     st.selectedNodeByDepth[String(st.depth)] = floor.nodes.length - 1;
+    attachLibraryStateToHex(st);
+    openLibraryUI();
+  };
+
+  window.useLibraryPortal = function (col, row, idx) {
+    var st = ensureLibraryState();
+    if (!st) return;
+    var floor = ensureFloorState(st, st.depth);
+    var node = floor.nodes[Number(idx || 0)];
+    if (!node || !node.portalDestination) {
+      if (typeof showNotif === 'function') showNotif('Portal has no confirmed destination.', 'warn');
+      return;
+    }
+    var dest = node.portalDestination;
+    var depthJump = 1 + Math.floor(Math.random() * 3);
+    var newDepth = Math.max(1, Number(st.depth || 1) + depthJump);
+    st.depth = newDepth;
+    st.deepestDepth = Math.max(Number(st.deepestDepth || 1), newDepth);
+    ensureFloorState(st, newDepth);
+    node.cleared = true;
+    node.portalUsed = true;
+    st.selectedNodeByDepth[String(newDepth)] = Number(st.selectedNodeByDepth[String(newDepth)] || 0);
+    st.lastResult = 'Portal transit complete. Arrived at ' + dest + ' (Depth ' + newDepth + ').';
+    if (typeof showNotif === 'function') showNotif('Portal: ' + dest + ' — Depth ' + newDepth, 'good');
     attachLibraryStateToHex(st);
     openLibraryUI();
   };

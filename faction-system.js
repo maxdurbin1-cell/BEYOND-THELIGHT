@@ -1452,6 +1452,21 @@
     if (!faction || !base) return;
     const anchor = resolveFactionBaseAnchor(base);
     const mission = base.activeMission;
+    const renown = getFactionRenown(factionId);
+    const contracts = (faction.factionMissions || []).map((m, idx) => {
+      const requiredRenown = getFactionMissionUnlockRenown(idx);
+      const unlocked = renown >= requiredRenown;
+      const state = getContractState(factionId, m.id);
+      const status = state && state.status ? state.status : 'available';
+      const statusLabel = status === 'completed'
+        ? 'Completed'
+        : (status === 'active' ? 'Active in Missions tab' : (unlocked ? 'Ready' : ('Locked (Renown ' + requiredRenown + ')')));
+      const statusColor = status === 'completed' ? 'var(--green2)' : (status === 'active' ? 'var(--gold2)' : (unlocked ? 'var(--teal)' : 'var(--red2)'));
+      const actions = unlocked && status === 'available'
+        ? "<div style='display:flex;gap:.22rem;flex-wrap:wrap;margin-top:.22rem;'><button class='btn btn-xs btn-teal' onclick=\"factionSystem.acceptFactionMission('" + factionId + "','" + m.id + "','heroic')\">Heroic</button><button class='btn btn-xs' onclick=\"factionSystem.acceptFactionMission('" + factionId + "','" + m.id + "','tyrant')\">Tyrant</button><button class='btn btn-xs btn-primary' onclick=\"factionSystem.acceptFactionMission('" + factionId + "','" + m.id + "','martyr')\">Martyr</button></div>"
+        : '';
+      return "<div style='padding:.28rem .34rem;border:1px solid var(--border2);margin-top:.24rem;background:var(--surface);'><div style='display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;'><div><strong>" + m.title + "</strong><div style='font-size:.74rem;color:var(--muted2);'>" + m.desc + "</div></div><div style='font-size:.72rem;color:" + statusColor + ";white-space:nowrap;'>" + statusLabel + "</div></div><div style='font-size:.72rem;color:var(--muted2);margin-top:.14rem;'>Difficulty: " + m.difficulty + " · Reward: " + m.reward + "⚜</div>" + actions + "</div>";
+    }).join('');
     const linkedMissionText = mission && mission.linkedMissionId
       ? `<div style="color:var(--teal);font-size:.78rem;">Linked Mission Contract #${mission.linkedMissionId} is active in the Missions tab.</div>`
       : "";
@@ -1472,6 +1487,12 @@
             ${mission.accepted && !mission.resolved && !mission.linkedMissionId ? `<button class="btn btn-xs btn-primary" onclick="factionSystem.resolveMission('${factionId}')">Resolve Mission</button>` : ""}
             ${mission.resolved ? `<span style="color:var(--green2);font-size:.78rem;">Resolved</span>` : ""}
           </div>
+        </div>
+
+        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Path Contracts (Base Board)</div>
+          <div style="font-size:.76rem;color:var(--muted2);margin-top:.14rem;">Heroic, Tyrant, and Martyr contracts are available here so they are easy to discover while visiting this base.</div>
+          ${contracts}
         </div>
 
         <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">

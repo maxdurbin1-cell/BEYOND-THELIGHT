@@ -867,6 +867,11 @@
       }
       return;
     }
+    if (typeof mapData !== 'undefined' && (!Array.isArray(mapData) || !mapData.length)) {
+      if (typeof generateMap === 'function') {
+        try { generateMap(); } catch (_err) {}
+      }
+    }
     if (typeof mapData !== 'undefined' && mapData.length) {
       var candidates = mapData.filter(function(h) { return h.type === 'wilderness'; });
       if (candidates.length >= 2) {
@@ -4487,8 +4492,14 @@
 
   function getLegacyRaidHexDreadDie(wingNum, eventType) {
     var wing = Math.max(1, Number(wingNum || 1));
-    if (eventType === 'enemy') return wing === 1 ? 4 : 6;
-    return wing === 1 ? 6 : 10;
+    if (eventType === 'enemy') {
+      if (wing <= 1) return 4;
+      if (wing === 2) return 6;
+      return 8;
+    }
+    if (wing <= 1) return 6;
+    if (wing === 2) return 8;
+    return 10;
   }
 
   function getLegacyRaidHexMechanicSummary(wingNum, cell) {
@@ -5155,10 +5166,31 @@
           var puzzleTitle = cell.lorePiece
             ? 'Lore Puzzle: Crossword or Sudoku'
             : (cell.waypoint ? 'Waypoint Puzzle: Lockpick or Pipe Flow' : 'Raid Puzzle Challenge');
+          var loreMode = null;
+          var loreConfig = {};
+          if (cell.lorePiece) {
+            loreMode = Math.random() < 0.5 ? 'crossword_grid' : 'sudoku';
+            if (loreMode === 'crossword_grid') {
+              loreConfig.gridTemplate = ['GATE#', 'A#R#E', 'TEACH', 'E#I#R', 'MARK#'];
+              loreConfig.clues = [
+                { clue: 'Old-world route marker', answer: 'gate' },
+                { clue: 'Action of passing knowledge', answer: 'teach' },
+                { clue: 'Record or scar from the past', answer: 'mark' }
+              ];
+            } else {
+              loreConfig.sudokuPuzzle = [['1', '', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']];
+              loreConfig.sudokuSolution = [['1', '2', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']];
+            }
+          }
           return window.openSharedPuzzleChallenge({
             source: puzzleSource,
             title: puzzleTitle,
             prompt: buildLegacyRaidHexDescription(mission, wingNum, 'puzzle', bossTheme),
+            mode: loreMode,
+            gridTemplate: loreConfig.gridTemplate,
+            clues: loreConfig.clues,
+            sudokuPuzzle: loreConfig.sudokuPuzzle,
+            sudokuSolution: loreConfig.sudokuSolution,
             reward: { credits: 50, renown: 1, item: cell.lorePiece ? 'Lore Fragment' : 'Waypoint Key' },
             onSuccess: function () {
               cell.cleared = true;
@@ -5386,7 +5418,7 @@
 
     return '<div style="background:' + theme.bg + ';border:1px solid ' + theme.hexStroke + ';padding:.3rem;border-radius:4px;margin-bottom:.4rem;">'
       + '<div style="font-size:.62rem;color:' + theme.tc + ';text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;">Wing ' + wingNum + ' Map — ' + theme.name + ' · click a room to explore</div>'
-      + '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' + svgParts.join('') + '</svg>'
+      + '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;max-width:560px;aspect-ratio:' + W + '/' + H + ';height:auto;display:block;margin:0 auto;">' + svgParts.join('') + '</svg>'
       + '<div style="font-size:.6rem;color:' + theme.muted + ';margin-top:.15rem;">Planning view active. Entrance, exit, lore, and waypoint routes are visible.</div>'
     + '</div>';
   }
@@ -8344,6 +8376,8 @@
       if (typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
     }
     refreshMissionSurfaces();
+    // Enter confrontation immediately so players do not need to re-click the site marker.
+    startMissionStep3(missionId);
   }
 
   function adjustMissionDread(missionId, dir) {
@@ -8463,7 +8497,11 @@
     var run = ensureLegacyRaidRunState(mission);
     if (!run) return 0;
     var base = 120 + (Number(run.wipes || 0) * 40);
-    if (Number(wing || 3) === 3) base += 40;
+    var w = Math.max(1, Math.min(3, Number(wing || 3)));
+    var wingFailures = Number(run.wingFailures && run.wingFailures[w] || 0);
+    base += wingFailures * 20;
+    if (w === 3) base += 60;
+    else if (w === 2) base += 20;
     return Math.max(80, base);
   }
 

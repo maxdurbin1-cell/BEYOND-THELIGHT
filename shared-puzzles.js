@@ -150,6 +150,12 @@
     const source = String((config && config.source) || "event").toLowerCase();
     const pool = PUZZLES[source] || PUZZLES.event;
     const chosen = Object.assign({}, safePick(pool, pool[0]));
+    if (config && config.mode) chosen.mode = String(config.mode);
+    if (config && Array.isArray(config.gridTemplate)) chosen.gridTemplate = config.gridTemplate.slice();
+    if (config && Array.isArray(config.clues)) chosen.clues = config.clues.slice();
+    if (config && Array.isArray(config.sudokuPuzzle)) chosen.sudokuPuzzle = config.sudokuPuzzle;
+    if (config && Array.isArray(config.sudokuSolution)) chosen.sudokuSolution = config.sudokuSolution;
+    if (config && Array.isArray(config.mazeLayout)) chosen.mazeLayout = config.mazeLayout;
     const title = (config && config.title) || chosen.title || "Shared Puzzle";
     const prompt = (config && config.prompt) || chosen.prompt || "Solve the prompt.";
     const answer = normalizeAnswer((config && config.answer) || chosen.answer || "");
@@ -170,6 +176,8 @@
         title: title,
         prompt: prompt,
         answer: answer,
+        clues: chosen.clues,
+        gridTemplate: chosen.gridTemplate,
         mazeLayout: chosen.mazeLayout,
         sudokuPuzzle: chosen.sudokuPuzzle,
         sudokuSolution: chosen.sudokuSolution,

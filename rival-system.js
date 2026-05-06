@@ -106,6 +106,30 @@
     if(r.history.length>24)r.history=r.history.slice(r.history.length-24);
   }
 
+  function ensureRivalPresenceMarker(isFriendly){
+    if(typeof getBackstoryMarkerBucket!=='function')return;
+    if(typeof mapData==='undefined'||!Array.isArray(mapData)||!mapData.length)return;
+    var bucket=getBackstoryMarkerBucket('province',true);
+    if(!bucket||typeof bucket!=='object')return;
+    var marker=bucket.rival;
+    if(!marker||!marker.key){
+      var pool=mapData.filter(function(h){
+        return h&&typeof h.col==='number'&&typeof h.row==='number'
+          && (h.type==='wilderness'||h.type==='holding'||h.type==='dwelling'||h.type==='trade');
+      });
+      if(!pool.length)pool=mapData.slice();
+      var picked=pool[Math.floor(Math.random()*pool.length)];
+      if(!picked)return;
+      marker={ key:String(picked.col)+','+String(picked.row) };
+      bucket.rival=marker;
+    }
+    marker.icon=isFriendly?'🤝':'✶';
+    marker.label=isFriendly?'Allied Rival Contact':'Rival Trail';
+    marker.detail=isFriendly
+      ?'Your rival turned ally is still active in the field. Meet here for support and hard choices.'
+      :'A moving rival trail with signs of pressure and confrontation.';
+  }
+
   function syncRivalStatus(){
     var r=ensureRivalState();
     if(!r)return;
@@ -129,6 +153,7 @@
     }else{
       r.status='rising';
     }
+    ensureRivalPresenceMarker(r.rapport>=2);
   }
 
   function ensureRivalStatusHost(){

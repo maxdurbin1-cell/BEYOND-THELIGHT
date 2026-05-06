@@ -42,7 +42,7 @@
     galaxy: [
       { title: "Signal Relay", prompt: "Type the binary value of decimal 5.", answer: "101" },
       { title: "Star Vector", prompt: "How many primary axes does a hex grid use?", answer: "3" },
-      { title: "Crossword Clue", prompt: "Crossword clue: 4 letters, " + '"Star path"' + " = ?", answer: "lane" },
+      { title: "Crossword Clue", prompt: "Crossword clue 1 Across (4): \"Star path\" = ?", answer: "lane" },
       { title: "Word Scramble", prompt: "Unscramble: RTOIB", answer: "orbit" }
     ],
     planet: [
@@ -54,7 +54,7 @@
     wtw: [
       { title: "District Relay", prompt: "Unscramble: RAILSTOANIT", answer: "railstation" },
       { title: "Control Pulse", prompt: "Solve: 12 - 5", answer: "7" },
-      { title: "District Crossword", prompt: "Crossword clue: 5 letters, " + '"Urban train stop"' + " = ?", answer: "depot" },
+      { title: "District Crossword", prompt: "Crossword clue 3 Down (5): \"Urban train stop\" = ?", answer: "depot" },
       { title: "Cryptogram Grid", prompt: "Cryptogram (+1 shift): [XPSME]. Decode.", answer: "world" }
     ],
     task: [
@@ -216,13 +216,54 @@
       + '</div>';
   }
 
+  function _isChessStateSolvable(state) {
+    function keyFor(rook, captured) {
+      return String(rook.r) + ':' + String(rook.c) + '|' + captured.slice().sort(function (a, b) { return a - b; }).join(',');
+    }
+    function dfs(rook, captured, memo) {
+      if (captured.length >= state.pawns.length) return true;
+      var key = keyFor(rook, captured);
+      if (memo[key]) return false;
+      memo[key] = true;
+      for (var i = 0; i < state.pawns.length; i++) {
+        if (captured.indexOf(i) >= 0) continue;
+        var testState = { board: state.board, rook: rook, pawns: state.pawns, captured: captured };
+        if (_rookCanCapture(testState, state.pawns[i])) {
+          var nextCaptured = captured.slice();
+          nextCaptured.push(i);
+          if (dfs({ r: state.pawns[i].r, c: state.pawns[i].c }, nextCaptured, memo)) return true;
+        }
+      }
+      return false;
+    }
+    return dfs({ r: state.rook.r, c: state.rook.c }, [], {});
+  }
+
+  function _buildRandomChessState() {
+    var size = 5;
+    var rook = { r: Math.floor(Math.random() * size), c: Math.floor(Math.random() * size) };
+    var pawns = [];
+    var used = {};
+    used[rook.r + ':' + rook.c] = true;
+    while (pawns.length < 4) {
+      var pr = Math.floor(Math.random() * size);
+      var pc = Math.floor(Math.random() * size);
+      var id = pr + ':' + pc;
+      if (used[id]) continue;
+      used[id] = true;
+      pawns.push({ r: pr, c: pc });
+    }
+    return { board: size, rook: rook, pawns: pawns, captured: [], seed: Date.now() + '-' + Math.floor(Math.random() * 100000) };
+  }
+
   function _initChess() {
-    return {
-      board: 5,
-      rook: { r: 4, c: 0 },
-      pawns: [{ r: 0, c: 0 }, { r: 0, c: 4 }, { r: 2, c: 2 }, { r: 4, c: 4 }],
-      captured: []
-    };
+    var tries = 0;
+    var state = _buildRandomChessState();
+    while (tries < 30 && !_isChessStateSolvable(state)) {
+      state = _buildRandomChessState();
+      tries += 1;
+    }
+    return state;
   }
 
   function _rookCanCapture(state, pawn) {
@@ -453,7 +494,11 @@
 
     const source = String((config && config.source) || "event").toLowerCase();
     const pool = PUZZLES[source] || PUZZLES.event;
-    const chosen = Object.assign({}, safePick(pool, pool[0]));
+    var chosen = Object.assign({}, safePick(pool, pool[0]));
+    if (pool.length > 1 && st.lastPuzzleTitle && String(chosen.title || '') === String(st.lastPuzzleTitle || '')) {
+      var filtered = pool.filter(function (p) { return String(p && p.title || '') !== String(st.lastPuzzleTitle || ''); });
+      if (filtered.length) chosen = Object.assign({}, safePick(filtered, filtered[0]));
+    }
     if (config && config.mode) chosen.mode = String(config.mode);
     if (config && Array.isArray(config.gridTemplate)) chosen.gridTemplate = config.gridTemplate.slice();
     if (config && Array.isArray(config.clues)) chosen.clues = config.clues.slice();
@@ -473,6 +518,7 @@
       onFail: config ? config.onFail : null,
       mode: chosen.mode || ''
     };
+    st.lastPuzzleTitle = String(title || 'Shared Puzzle');
 
     if (chosen.mode && CUSTOM_PUZZLE_MODES.indexOf(chosen.mode) >= 0) {
       _cp = {

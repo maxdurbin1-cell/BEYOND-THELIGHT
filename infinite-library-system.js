@@ -36,6 +36,21 @@
     'Elevator Shaft', 'Spider Archive', 'Owl Cult Worksite', 'Mutable Wing', 'Sentence Forge', 'Stairwell'
   ];
 
+  var LIBRARY_AREAS = [
+    'Catalog Atrium', 'Broken Index', 'Basilica Stacks', 'Whisper Annex', 'Ink Reservoir', 'Trial Shelves', 'Null Reference Wing'
+  ];
+
+  var LIBRARY_MERCHANT_STASH = [
+    'Seal-Bound Satchel', 'Archive Compass', 'Silent Lamp', 'Copper Lockpicks', 'Warded Ink Vial'
+  ];
+
+  var LIBRARY_FLAVOR_LINES = [
+    'Archive-Sighted: you notice routes hidden in marginalia.',
+    'Ink-Lung: old paper and smoke calm your breathing under pressure.',
+    'Shelf-Runner: movement through cluttered stacks feels effortless.',
+    'Codex Ear: distant whispers become legible hints.'
+  ];
+
   var LIBRARY_AMBIENCE = [
     'Shelves breathe in and out as if the room itself is reading.',
     'Candles relight behind you in the exact shape of your footprints.',
@@ -112,6 +127,7 @@
         lastEncounter: '',
         lastHook: '',
         floors: {},
+        activeArea: 'Catalog Atrium',
         atmosphere: '',
         instability: 0,
         selectedNodeByDepth: {}
@@ -121,7 +137,14 @@
     if (!st.floors || typeof st.floors !== 'object') st.floors = {};
     if (!st.selectedNodeByDepth || typeof st.selectedNodeByDepth !== 'object') st.selectedNodeByDepth = {};
     if (!st.atmosphere) st.atmosphere = pick(LIBRARY_AMBIENCE);
+    if (!st.activeArea) st.activeArea = 'Catalog Atrium';
     return st;
+  }
+
+  function getFloorKey(state, depth) {
+    if (!state) return String(depth || 1);
+    var area = String(state.activeArea || 'Catalog Atrium');
+    return area + '|' + String(depth || 1);
   }
 
   function getProvinceHexByKey(key) {
@@ -151,6 +174,7 @@
       lastEncounter: String(state.lastEncounter || ''),
       lastHook: String(state.lastHook || ''),
       floors: state.floors,
+      activeArea: String(state.activeArea || 'Catalog Atrium'),
       atmosphere: String(state.atmosphere || ''),
       instability: Number(state.instability || 0),
       selectedNodeByDepth: state.selectedNodeByDepth
@@ -168,6 +192,7 @@
     state.lastResult = String(hs.lastResult || state.lastResult || '');
     state.lastEncounter = String(hs.lastEncounter || state.lastEncounter || '');
     state.lastHook = String(hs.lastHook || state.lastHook || '');
+    state.activeArea = String(hs.activeArea || state.activeArea || 'Catalog Atrium');
     state.atmosphere = String(hs.atmosphere || state.atmosphere || pick(LIBRARY_AMBIENCE));
     state.instability = Math.max(0, Number(hs.instability || state.instability || 0));
     if (hs.floors && typeof hs.floors === 'object') state.floors = hs.floors;
@@ -199,6 +224,7 @@
       kind: kind,
       discovered: idx === 1,
       cleared: idx === 1,
+      hidden: false,
       pendingCombat: false,
       title: kind,
       detail: '',
@@ -209,7 +235,7 @@
   }
 
   function ensureFloorState(state, depth) {
-    var key = String(depth);
+    var key = getFloorKey(state, depth);
     if (!state.floors[key] || typeof state.floors[key] !== 'object') {
       state.floors[key] = {
         die: tierForDepth(depth),
@@ -417,7 +443,7 @@
       if (n.discovered) {
         visibleMask[i] = true;
         discovered += 1;
-        if (nodes[i + 1] && !nodes[i + 1].discovered) {
+        if (nodes[i + 1] && !nodes[i + 1].discovered && !nodes[i + 1].hidden) {
           visibleMask[i + 1] = true;
           frontierMask[i + 1] = true;
           frontier += 1;
@@ -539,6 +565,65 @@
       + '</div>';
   }
 
+  function revealLibraryDoors(state, floor, fromIdx) {
+    var reveals = 1 + (rollDie(2) === 2 ? 1 : 0);
+    var created = 0;
+    var idx = Math.max(0, Number(fromIdx || 0));
+    while (created < reveals) {
+      var targetIdx = idx + created + 1;
+      while (targetIdx >= floor.nodes.length) floor.nodes.push(createLibraryNode(state.depth, floor));
+      var next = floor.nodes[targetIdx];
+      if (next && !next.discovered) {
+        next.discovered = true;
+        next.hidden = false;
+        created += 1;
+      } else {
+        created += 1;
+      }
+    }
+    if (rollDie(4) === 4) {
+      var hiddenIdx = idx + reveals + 1;
+      while (hiddenIdx >= floor.nodes.length) floor.nodes.push(createLibraryNode(state.depth, floor));
+      var hiddenNode = floor.nodes[hiddenIdx];
+      if (hiddenNode && !hiddenNode.discovered) {
+        hiddenNode.hidden = true;
+        hiddenNode.discovered = false;
+      }
+    }
+  }
+
+  function applyLibraryLoot(state) {
+    var table = [
+      function () {
+        var gain = 1 + rollDie(10) - 1;
+        if (typeof changeCounter === 'function') changeCounter('pathTokens', gain);
+        else if (typeof S !== 'undefined' && S) S.pathTokens = Math.max(0, Number(S.pathTokens || 0) + gain);
+        return '+' + gain + ' Path Tokens';
+      },
+      function () {
+        var credits = 20 + (rollDie(6) * 10);
+        rewardCredits(credits);
+        return '+' + credits + ' Credits';
+      },
+      function () {
+        var flavor = pick(LIBRARY_FLAVOR_LINES);
+        if (typeof window.setFlavor === 'function') {
+          try { window.setFlavor(flavor); } catch (_err) { if (typeof S !== 'undefined' && S) S.flavor = flavor; }
+        } else if (typeof S !== 'undefined' && S) S.flavor = flavor;
+        return 'Personal Flavor shift: ' + flavor;
+      },
+      function () {
+        var item = pick(LIBRARY_MERCHANT_STASH);
+        if (typeof addToBackpack === 'function') {
+          try { addToBackpack(item); } catch (_err) {}
+        }
+        return 'Merchant stash found: ' + item;
+      }
+    ];
+    var fn = table[Math.floor(Math.random() * table.length)] || table[0];
+    return fn();
+  }
+
   function parseHexKey(key) {
     var parts = String(key || '').split(',');
     return { col: Number(parts[0]), row: Number(parts[1]) };
@@ -562,10 +647,10 @@
     st.selectedNodeByDepth[String(depth)] = selected;
 
     var canAscend = depth > 1;
-    var task = st.lastHook || ('Retrieve a depth-' + depth + ' volume and get it out alive.');
+    var task = st.lastHook || ('Retrieve a depth-' + depth + ' volume from ' + String(st.activeArea || 'Catalog Atrium') + ' and get it out alive.');
 
     var header = '<div style="margin-bottom:.5rem;">'
-      + '<div style="font-size:.72rem;color:#9cb8ff;margin-bottom:.2rem;">Depth ' + depth + ' · DD' + tierForDepth(depth) + ' · Deepest ' + st.deepestDepth + ' · Delves ' + st.delveCount + '</div>'
+      + '<div style="font-size:.72rem;color:#9cb8ff;margin-bottom:.2rem;">Depth ' + depth + ' · DD' + tierForDepth(depth) + ' · ' + String(st.activeArea || 'Catalog Atrium') + ' · Deepest ' + st.deepestDepth + ' · Delves ' + st.delveCount + '</div>'
       + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.22rem;">Atmosphere: ' + (floor.atmosphere || st.atmosphere) + '</div>'
       + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.3rem;">Instability: ' + st.instability + ' · Readings this floor: ' + Number(floor.readings || 0) + '</div>'
       + '<div style="padding:.35rem .45rem;border:1px solid rgba(156,184,255,.3);background:rgba(156,184,255,.07);margin-bottom:.42rem;">'
@@ -598,12 +683,12 @@
 
   function generateBookFetchHook(state) {
     var depth = Math.max(1, Number(state.depth || 1));
-    return 'Depth ' + depth + ': retrieve a forbidden text, survive one hostile wing shift, and extract via stairwell or portal.';
+    return String(state.activeArea || 'Catalog Atrium') + ' · Depth ' + depth + ': retrieve a forbidden text, survive one hostile wing shift, and extract via stairwell or portal.';
   }
 
   function runNodeExplore(state, floor, node, mode, col, row) {
     var depth = Number(state.depth || 1);
-    var dd = tierForDepth(depth);
+    var dd = tierForDepth(depth) + Math.min(4, Math.floor(Number(state.instability || 0) / 3));
 
     if (mode === 'scout') {
       var scoutRoll = runActionRoll('adventure', dd, 'Library Scout');
@@ -617,6 +702,7 @@
         node.discovered = true;
         state.lastResult = 'Scout inconclusive — hex shape visible, contents unknown.';
       }
+      revealLibraryDoors(state, floor, node.idx - 1);
       return;
     }
 
@@ -637,6 +723,7 @@
       }
       state.lastResult = 'Read result: AD' + readRoll.actionDie + ' ' + readRoll.actionTotal + ' vs DD' + dd + ' ' + readRoll.dreadTotal + '.';
       node.cleared = true;
+      revealLibraryDoors(state, floor, node.idx - 1);
       return;
     }
 
@@ -647,6 +734,7 @@
       node.result = 'The wing shifts. ' + node.environmentShift;
       node.cleared = true;
       state.lastResult = 'You let the library rewrite this hex.';
+      revealLibraryDoors(state, floor, node.idx - 1);
       return;
     }
 
@@ -656,6 +744,7 @@
       node.result = 'Hostiles scattered. The shelf-route is clear.';
       rewardCredits(20 + dd);
       state.lastResult = 'Encounter marked as victory.';
+      revealLibraryDoors(state, floor, node.idx - 1);
       return;
     }
 
@@ -664,16 +753,30 @@
       node.result = 'You fall back and lose ground in the stacks.';
       applyFailureConsequence('explore');
       state.lastResult = 'Encounter marked as fallback.';
+      revealLibraryDoors(state, floor, node.idx - 1);
       return;
     }
 
     if (mode === 'hidden') {
       var hRoll = runActionRoll('adventure', dd, 'Hidden Room Search');
       if (hRoll.success) {
-        var hiddenFinds = ['A manuscript sealed inside a hollow book-spine.', 'A locked secondary shelf hidden behind the main stacks.', 'Faint glyphs carved beneath the flooring — fragment of an older map.', 'A cache wedged into a gap between shelves: provisions and one worn key.', 'A researcher\'s personal journal tucked behind a false wall panel.'];
-        node.result = pick(hiddenFinds);
-        rewardCredits(15 + dd);
-        state.lastResult = 'Hidden search: something found.';
+        var hiddenNode = null;
+        for (var hi = 0; hi < floor.nodes.length; hi++) {
+          if (floor.nodes[hi] && floor.nodes[hi].hidden && !floor.nodes[hi].discovered) {
+            hiddenNode = floor.nodes[hi];
+            break;
+          }
+        }
+        var lootText = applyLibraryLoot(state);
+        if (hiddenNode) {
+          hiddenNode.hidden = false;
+          hiddenNode.discovered = true;
+          node.result = 'Hidden shelf door revealed: Hex ' + hiddenNode.idx + '. Loot recovered: ' + lootText + '.';
+          state.lastResult = 'Hidden search revealed a secret hex and loot.';
+        } else {
+          node.result = 'Concealed cache recovered: ' + lootText + '.';
+          state.lastResult = 'Hidden search recovered loot.';
+        }
       } else {
         node.result = 'Nothing concealed here — or it was already taken.';
         state.lastResult = 'Hidden search came up empty.';
@@ -700,12 +803,14 @@
         return;
       }
       if (statusText.toLowerCase().indexOf('only once') >= 0) node.elevatorSpent = true;
+      var candidates = LIBRARY_AREAS.filter(function (area) { return String(area) !== String(state.activeArea || ''); });
+      if (candidates.length) state.activeArea = pick(candidates);
       state.depth = targetDepth;
       state.deepestDepth = Math.max(Number(state.deepestDepth || 1), targetDepth);
       ensureFloorState(state, targetDepth);
       state.selectedNodeByDepth[String(targetDepth)] = Number(state.selectedNodeByDepth[String(targetDepth)] || 0);
-      node.result = 'Elevator transit complete. You arrive at Depth ' + targetDepth + '.';
-      state.lastResult = 'Elevator moved from Depth ' + currentDepth + ' to Depth ' + targetDepth + '.';
+      node.result = 'Elevator transit complete. You arrive at ' + String(state.activeArea || 'Catalog Atrium') + ', Depth ' + targetDepth + '.';
+      state.lastResult = 'Elevator moved from Depth ' + currentDepth + ' to Depth ' + targetDepth + ' and shifted area.';
       return;
     }
 
@@ -761,9 +866,12 @@
         node.result = 'Hex resolved cleanly.';
       }
       rewardCredits(12 + dd);
+      revealLibraryDoors(state, floor, node.idx - 1);
     } else {
       applyFailureConsequence('explore');
-      node.result = 'Failed to stabilize this hex.';
+      node.result = 'Failed to stabilize this hex. The stacks bite back: +1 instability.';
+      state.instability = Math.max(0, Number(state.instability || 0) + 1);
+      revealLibraryDoors(state, floor, node.idx - 1);
     }
     state.lastResult = 'Explore result: AD' + exploreRoll.actionDie + ' ' + exploreRoll.actionTotal + ' vs DD' + dd + ' ' + exploreRoll.dreadTotal + '.';
   }
@@ -786,7 +894,9 @@
     var floor = ensureFloorState(st, st.depth);
     var count = 2 + Math.floor(Math.random() * 2); // 2 or 3 new frontier hexes
     for (var i = 0; i < count; i++) {
-      floor.nodes.push(createLibraryNode(st.depth, floor));
+      var newNode = createLibraryNode(st.depth, floor);
+      if (rollDie(5) === 5) newNode.hidden = true;
+      floor.nodes.push(newNode);
     }
     st.roomIndex = Math.max(0, Number(st.roomIndex || 0) + count);
     st.selectedNodeByDepth[String(st.depth)] = floor.nodes.length - 1;
@@ -806,6 +916,7 @@
     var dest = node.portalDestination;
     var depthJump = 1 + Math.floor(Math.random() * 3);
     var newDepth = Math.max(1, Number(st.depth || 1) + depthJump);
+    st.activeArea = String(dest || pick(LIBRARY_AREAS));
     st.depth = newDepth;
     st.deepestDepth = Math.max(Number(st.deepestDepth || 1), newDepth);
     ensureFloorState(st, newDepth);

@@ -6325,36 +6325,34 @@
           if (cell.lorePiece) {
             loreMode = Math.random() < 0.5 ? 'crossword_grid' : 'sudoku';
             if (loreMode === 'crossword_grid') {
-              // Pick one of several crossword templates keyed by a hash of the cell id
-              var cSeed = 0;
-              for (var csi = 0; csi < String(cell.id || '').length; csi++) cSeed += String(cell.id || '').charCodeAt(csi);
+              // Pick a random crossword template each time to avoid repetitive clue loops.
               var cwTemplates = [
                 {
                   gridTemplate: ['GATE#', 'A#R#E', 'TEACH', 'E#I#R', 'MARK#'],
                   clues: [
-                    { clue: "Man's best friend says 'woof' (3,1) — but ____ means door", answer: 'gate' },
-                    { clue: 'What a teacher does with students', answer: 'teach' },
-                    { clue: 'Leave a mark, like a scar or a score', answer: 'mark' }
+                    { clue: '1 Across (4): Old-world route marker', answer: 'gate' },
+                    { clue: '3 Across (5): What a teacher does with students', answer: 'teach' },
+                    { clue: '5 Across (4): Leave an identifying sign', answer: 'mark' }
                   ]
                 },
                 {
                   gridTemplate: ['ROAD#', 'U#R#E', 'LEARN', 'E#I#D', 'SIGN#'],
                   clues: [
-                    { clue: 'Take the ___: a path or street for travel', answer: 'road' },
-                    { clue: 'What students do in class; gain knowledge', answer: 'learn' },
-                    { clue: 'A posted notice or symbol with directions', answer: 'sign' }
+                    { clue: '1 Across (4): A path used for travel', answer: 'road' },
+                    { clue: '3 Across (5): Gain knowledge in study', answer: 'learn' },
+                    { clue: '5 Across (4): Posted notice with directions', answer: 'sign' }
                   ]
                 },
                 {
                   gridTemplate: ['PATH#', 'A#R#O', 'GUIDE', 'E#D#S', 'LORE#'],
                   clues: [
-                    { clue: 'A trail or route taken on foot', answer: 'path' },
-                    { clue: 'A tour ___ leads a group through a place', answer: 'guide' },
-                    { clue: 'Old stories and knowledge passed down', answer: 'lore' }
+                    { clue: '1 Across (4): Trail or route on foot', answer: 'path' },
+                    { clue: '3 Across (5): Person who leads the group', answer: 'guide' },
+                    { clue: '5 Across (4): Traditional knowledge archive', answer: 'lore' }
                   ]
                 }
               ];
-              var cwPick = cwTemplates[cSeed % cwTemplates.length];
+              var cwPick = cwTemplates[Math.floor(Math.random() * cwTemplates.length)] || cwTemplates[0];
               loreConfig.gridTemplate = cwPick.gridTemplate;
               loreConfig.clues = cwPick.clues;
             } else {
@@ -7677,67 +7675,46 @@
     var bossName = String(mission.legacyRaidBoss || 'the Boss');
 
     if (success) {
-      room.progress = Number(room.progress || 0) + 1;
-      var needed = Math.max(1, Number(room.progressNeeded || 1));
-      var resultByType = {
-        Hazard:      '⛰ Pressure reduced. Keep forcing the lane.',
-        Peril:       '☠ Peril pattern mapped. Hold formation and continue the push.',
-        Combat:      '⚔ Enemy line broken. Sweep for remaining hostiles.',
-        Trap:        '⚠ Trigger mesh partially disabled. Keep pressure while disarming.',
-        Gambling:    '🂡 The table cracks. Your wager buys safe passage.',
-        Loot:        '📦 Cache lock weakened. One more push should crack it open.',
-        LoreReading: '📜 Fragment partially decoded. Hold while telegraphs are read.',
-        Puzzle:      '🧩 One mechanism aligned. The gate still resists.',
-        Approach:    '🌀 Formation advance successful. Keep pressure.',
-        TrophyCache: '💠 Cache lock weakened. One more coordinated push needed.',
-        Entry:       '→ Crossed.',
-        WayfarerPost:'⚑ Staging secured.'
-      };
-      if (Number(room.progress || 0) < needed) {
-        room.result = (resultByType[room.type] || 'Progress made.') + ' (' + Number(room.progress || 0) + '/' + needed + ')';
-        if (typeof showNotif === 'function') showNotif('Progress: ' + room.label + ' (' + Number(room.progress || 0) + '/' + needed + ')', 'info');
-        openRaidWingPopup(missionId, wingNum, roomIdx);
-        return;
-      }
-
+      room.progress = Math.max(1, Number(room.progressNeeded || 1));
       room.cleared = true;
+      if (run) run.clockRemaining = Math.max(0, Number(run.clockRemaining || 0) + 2);
       if (room.type === 'LoreReading') {
         mission.legacyRaidLoreFragment = buildLegacyRaidLoreFragment(mission);
         mission.bonus = Math.min(20, Number(mission.bonus || 0) + 1);
         addLegacyRaidRoomAssistBonus(mission, 2, 1, 1);
-        room.result = '📜 ' + mission.legacyRaidLoreFragment + ' The decoded route changes Wing 2: the dungeon door opens on the true channel and the gate room gains +1 assist.';
+        room.result = '✓ Success · +2 ticks. 📜 ' + mission.legacyRaidLoreFragment + ' The decoded route changes Wing 2: the dungeon door opens on the true channel and the gate room gains +1 assist.';
         if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
       } else if (room.type === 'Loot') {
         var raidLoot = rollShopLoot(mission.difficulty) || [];
         if (!Array.isArray(mission.loot)) mission.loot = [];
         mission.loot = mission.loot.concat(raidLoot);
-        room.result = '📦 Merchant-linked cache cracked. Loot acquired: ' + (raidLoot.length ? raidLoot.join(', ') : 'No salvage.') + '.';
+        room.result = '✓ Success · +2 ticks. 📦 Merchant-linked cache cracked. Loot acquired: ' + (raidLoot.length ? raidLoot.join(', ') : 'No salvage.') + '.';
         if (typeof showNotif === 'function') showNotif('Raid loot cache: ' + (raidLoot.length ? raidLoot.join(', ') : 'No salvage.'), raidLoot.length ? 'good' : 'info');
       } else if (room.type === 'Combat') {
         room.combatCard = null;
-        room.result = '⚔ Enemy pack neutralized (' + Math.max(1, Number(room.enemyCount || 1)) + ' hostiles). Route secured.';
+        room.result = '✓ Success · +2 ticks. ⚔ Enemy pack neutralized (' + Math.max(1, Number(room.enemyCount || 1)) + ' hostiles). Route secured.';
       } else if (room.type === 'Gambling') {
-        room.result = '🂡 Wager won. Gatekeepers stand down and open passage.';
+        room.result = '✓ Success · +2 ticks. 🂡 Wager won. Gatekeepers stand down and open passage.';
       } else if (room.type === 'Puzzle') {
         var loreState = ensureLegacyRaidLorePieces(mission);
         if (Number(wingNum || 1) === 1 && loreState) {
           loreState.collected = Math.min(Number(loreState.required || 3), Number(loreState.collected || 0) + 1);
-          room.result = '🧩 Mechanism solved. Lore fragment secured (' + loreState.collected + '/' + loreState.required + ').';
+          room.result = '✓ Success · +2 ticks. 🧩 Mechanism solved. Lore fragment secured (' + loreState.collected + '/' + loreState.required + ').';
         } else {
-          room.result = '🧩 Mechanism solved. Gate seals open and the raid path advances.';
+          room.result = '✓ Success · +2 ticks. 🧩 Mechanism solved. Gate seals open and the raid path advances.';
         }
       } else if (room.type === 'Approach') {
-        room.result = '🌀 Pressure lane cleared. Confrontation chamber opens.';
+        room.result = '✓ Success · +2 ticks. 🌀 Pressure lane cleared. Confrontation chamber opens.';
       } else if (room.type === 'Hazard') {
-        room.result = '⛰ Passage forced. The route is open.';
+        room.result = '✓ Success · +2 ticks. ⛰ Passage forced. The route is open.';
       } else if (room.type === 'Peril') {
-        room.result = '☠ Peril zone survived. Raid cohesion holds.';
+        room.result = '✓ Success · +2 ticks. ☠ Peril zone survived. Raid cohesion holds.';
       } else if (room.type === 'Trap') {
-        room.result = '⚠ Trap grid disabled. Forward lane unlocked.';
+        room.result = '✓ Success · +2 ticks. ⚠ Trap grid disabled. Forward lane unlocked.';
       } else if (room.type === 'TrophyCache') {
-        room.result = '💠 Cache secured. Raid receives tactical reserve.';
+        room.result = '✓ Success · +2 ticks. 💠 Cache secured. Raid receives tactical reserve.';
       } else {
-        room.result = '✓ Room cleared.';
+        room.result = '✓ Success · +2 ticks. Room cleared.';
       }
       _raidRevealNextRoom(rooms, roomIdx);
       _checkRaidWingComplete(mission, wingNum, rooms);
@@ -7773,25 +7750,18 @@
         }
       }
       room.failures = Number(room.failures || 0) + 1;
-      room.progress = Math.max(0, Number(room.progress || 0) - 1);
-      room.result = '✗ Failed. The room holds. Progress reduced to ' + Number(room.progress || 0) + '/' + Math.max(1, Number(room.progressNeeded || 1)) + '. Extra penalties applied: +1 tick loss, +1 TMW, and type-specific damage/stress.';
+      room.progress = Math.max(1, Number(room.progressNeeded || 1));
+      room.cleared = true;
+      room.result = '✗ Failed · room still cleared · -1 extra tick. Penalties applied: +1 TMW and type-specific damage/stress.';
       pushLegacyRaidReplayEvent(mission, {
         cause: 'Room failed under pressure',
-        detail: room.label + ' failed at ' + Number(room.progress || 0) + '/' + Math.max(1, Number(room.progressNeeded || 1)) + '.',
-        hint: 'Spend role actions/resources before resolving, or deploy a Wayfarer for added assist.'
+        detail: room.label + ' failed but was forced through under pressure.',
+        hint: 'Use role actions/resources before resolving to avoid penalty damage and extra tick loss.'
       });
-      // High-pressure room failure in wing 3 → trigger wipe system
-      if (wingNum === 3 && (room.type === 'Hazard' || room.type === 'Peril' || room.type === 'Trap' || room.type === 'Approach')) {
-        run.pendingWing = wingNum;
-        run.pendingReviveCost = getLegacyRaidFailureReviveCost(mission, wingNum);
-        run.wipes = Number(run.wipes || 0) + 1;
-        markLegacyRaidWingOutcome(mission, wingNum, false);
-        // kick to wipe decision
-        openLegacyRaidWipeDecision(missionId);
-        return;
-      }
+      _raidRevealNextRoom(rooms, roomIdx);
+      _checkRaidWingComplete(mission, wingNum, rooms);
       if (run) markLegacyRaidWingOutcome(mission, wingNum, false);
-      if (typeof showNotif === 'function') showNotif('Room failed — regroup and try again, or deploy a Wayfarer.', 'warn');
+      if (typeof showNotif === 'function') showNotif('Room failed and cleared with penalties (-1 extra tick).', 'warn');
     }
     openRaidWingPopup(missionId, wingNum);
   };
@@ -7843,12 +7813,27 @@
       if (typeof showNotif === 'function') showNotif('Complete boss turn reset before acting again.', 'warn');
       return false;
     }
+    var turnNode = getLegacyRaidTimelineTurn(encounter);
+    var maxPlayActions = typeof getMaxActions === 'function' ? getMaxActions() : 3;
+    if (turnNode) {
+      if (!Number.isFinite(Number(turnNode.playerActionsLeft))) turnNode.playerActionsLeft = maxPlayActions;
+      if (Number(turnNode.playerActionsLeft || 0) <= 0) {
+        if (typeof showNotif === 'function') showNotif('No player actions left this turn.', 'warn');
+        return false;
+      }
+      turnNode.playerActionsLeft = Math.max(0, Number(turnNode.playerActionsLeft || 0) - 1);
+    }
     var label = String(actionLabel || 'Strike');
     encounter.playerActionLabel = label;
-    encounter.turnStage = 'ally';
-    encounter.allyActionsUsed = 0;
-    resetLegacyRaidAllyActionBudget(mission, encounter);
-    encounter.log.push('Wayfarer action: ' + label + '. Allies now have 2 actions each this turn.');
+    if (turnNode && Number(turnNode.playerActionsLeft || 0) > 0) {
+      encounter.turnStage = 'player';
+      encounter.log.push('Wayfarer action: ' + label + '. ' + Number(turnNode.playerActionsLeft || 0) + ' player action(s) remain this turn.');
+    } else {
+      encounter.turnStage = 'ally';
+      encounter.allyActionsUsed = 0;
+      resetLegacyRaidAllyActionBudget(mission, encounter);
+      encounter.log.push('Wayfarer action: ' + label + '. Player actions spent; allies now have 2 actions each this turn.');
+    }
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
     return true;
   };

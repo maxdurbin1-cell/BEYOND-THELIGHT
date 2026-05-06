@@ -1477,13 +1477,13 @@
     if (!S.holding || typeof S.holding !== 'object') { S.holding = {}; }
     if (!S.holding.settlementHexcrawl || !Array.isArray(S.holding.settlementHexcrawl.nodes) || !S.holding.settlementHexcrawl.nodes.length) {
       var templates = [
-        { id: 'market', label: 'Market Road', kind: 'trade', dd: 6 },
-        { id: 'inn', label: 'Lantern Inn', kind: 'talk', dd: 6 },
-        { id: 'board', label: 'Mission Board', kind: 'task', dd: 8 },
-        { id: 'tower', label: 'Watch Tower', kind: 'security', dd: 8 },
-        { id: 'shrine', label: 'Shrine Court', kind: 'focus', dd: 6 },
-        { id: 'workshop', label: 'Forge Row', kind: 'craft', dd: 8 },
-        { id: 'gate', label: 'Outer Gate', kind: 'hazard', dd: 8 }
+        { id: 'road', label: 'Gate Road', kind: 'road', dd: 6 },
+        { id: 'inn', label: 'Lantern Inn', kind: 'inn', dd: 6 },
+        { id: 'mood', label: 'Mood Quarter', kind: 'mood', dd: 8 },
+        { id: 'merchant', label: 'Merchant Square', kind: 'merchant', dd: 6 },
+        { id: 'news', label: 'Town Criers', kind: 'news', dd: 6 },
+        { id: 'lord', label: 'Lord\'s Hall', kind: 'lord', dd: 8 },
+        { id: 'downtime', label: 'Courtyard Downtime', kind: 'downtime', dd: 6 }
       ];
       S.holding.settlementHexcrawl = {
         nodes: templates.map(function (node) {
@@ -1504,7 +1504,7 @@
   function buildHoldingSettlementHexcrawlModal() {
     var crawl = ensureHoldingSettlementHexcrawl();
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">'
-      + 'Settlement hexcrawl: move through roads and districts to uncover tasks, talk opportunities, and downtime rewards.'
+      + 'Settlement hexcrawl: each district node is a different town function. Explore one node at a time to trigger local outcomes.'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.28rem;">';
     crawl.nodes.forEach(function (node) {
@@ -1538,17 +1538,31 @@
     var success = action.total >= dread.total;
     var line = 'Lead d' + die + ' ' + action.total + ' vs DD' + Number(node.dd || 6) + ' ' + dread.total + '. ';
     if (success) {
-      if (node.kind === 'trade' || node.kind === 'craft') {
-        var cGain = node.kind === 'trade' ? 40 : 30;
+      if (node.kind === 'merchant') {
+        var cGain = 50;
         S.credits = (S.credits || 0) + cGain;
         if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
-        line += '+' + cGain + ' Credits.';
-      } else if (node.kind === 'talk' || node.kind === 'task') {
+        line += 'Merchant day went well. +' + cGain + ' Credits.';
+      } else if (node.kind === 'inn') {
+        if (typeof toggleCond === 'function' && S.conditions && !S.conditions.empowered) { toggleCond('empowered'); }
+        line += 'Inn rest granted Empowered boon.';
+      } else if (node.kind === 'mood') {
+        line += 'Settlement mood improved; one crisis pressure diffused.';
+        if (Array.isArray(S.holding.crises) && S.holding.crises.length) S.holding.crises.pop();
+      } else if (node.kind === 'news') {
         if (typeof changeCounter === 'function') { changeCounter('tmw', 1); }
-        line += '+1 Teamwork.';
-      } else if (node.kind === 'security') {
+        line += 'News and hooks gathered. +1 Teamwork and new lead rumors.';
+      } else if (node.kind === 'lord') {
         if (typeof changeCounter === 'function') { changeCounter('renown', 1); }
-        line += '+1 Renown.';
+        S.holding.councilTasks = Array.isArray(S.holding.councilTasks) ? S.holding.councilTasks : [];
+        S.holding.councilTasks.push('Lord Task: Investigate unrest on the eastern road.');
+        line += 'Audience with the lord succeeded. +1 Renown and a new council task.';
+      } else if (node.kind === 'downtime') {
+        if (typeof changeCounter === 'function') { changeCounter('tmw', 1); }
+        line += 'Downtime completed cleanly. +1 Teamwork and stress relief.';
+        if (typeof changeMentalStress === 'function') { changeMentalStress(-1); }
+      } else if (node.kind === 'road') {
+        line += 'Road secured to the inn district. Movement and commerce are safer this phase.';
       } else if (node.kind === 'focus') {
         if (typeof toggleCond === 'function' && S.conditions && !S.conditions.focused) { toggleCond('focused'); }
         line += 'Gained Focused.';
@@ -1559,7 +1573,17 @@
     } else {
       if (typeof changeMentalStress === 'function') { changeMentalStress(1); }
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
-      line += '+1 Mental Stress.';
+      if (node.kind === 'mood') {
+        S.holding.crises = Array.isArray(S.holding.crises) ? S.holding.crises : [];
+        S.holding.crises.push({
+          name: 'Holding Mood Crisis',
+          desc: 'Tension spreads through the district after failed mediation.',
+          resolution: 'Complete a talk or task downtime action to restore trust.'
+        });
+        line += '+1 Mental Stress and a new mood crisis emerged.';
+      } else {
+        line += '+1 Mental Stress.';
+      }
     }
     node.result = line;
     if (typeof showNotif === 'function') { showNotif(line, success ? 'good' : 'warn'); }

@@ -9973,7 +9973,7 @@ function openProvinceEdgeBarrierModal(edge,fromHex,toHex){
     + '</select>'
     + '<button class="btn btn-xs btn-primary" onclick="window.resolveProvinceEdgeBarrierCheck(\''+edge.fromKey+'\',\''+edge.toKey+'\')">⚄ Attempt Crossing</button>'
     + '</div>'
-    + '<div style="font-size:.7rem;color:var(--muted2);">On failure, you become Weakened and cannot pass this phase.</div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);">On failure, you become Weakened and only this crossing is blocked for this phase.</div>'
     + '</div>';
   openModal('Edge Barrier',html);
 }
@@ -10001,18 +10001,21 @@ window.resolveProvinceEdgeBarrierCheck=function(fromKey,toKey){
       edge.passToken=getCurrentTravelPhaseToken();
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       if(S&&S.provinceTraversalLock)S.provinceTraversalLock.active=false;
+      if(S&&S.provinceTraversalBlockedEdge)S.provinceTraversalBlockedEdge=null;
       closeModal();
       renderHexMap();
       showNotif('Edge crossing unlocked this phase ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+').'+(bonusNotes.length?(' '+bonusNotes.join(' · ')):''),'good');
     }else{
       if(typeof toggleCond==='function')toggleCond('weakened');
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-      if(!S.provinceTraversalLock||typeof S.provinceTraversalLock!=='object')S.provinceTraversalLock={};
-      S.provinceTraversalLock.active=true;
-      S.provinceTraversalLock.phaseToken=getCurrentTravelPhaseToken();
-      S.provinceTraversalLock.source='edge-barrier';
+      S.provinceTraversalBlockedEdge={
+        fromKey:String(fromKey||''),
+        toKey:String(toKey||''),
+        phaseToken:getCurrentTravelPhaseToken(),
+        source:'edge-barrier'
+      };
       renderHexMap();
-      showNotif('Edge crossing failed ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+'). Cannot pass this phase.','warn');
+      showNotif('Edge crossing failed ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+'). That edge is blocked this phase.','warn');
     }
     return success;
   }catch(_err){
@@ -10082,18 +10085,34 @@ function toggleMissionMapAutoAdvanceMode(){
 window.getMissionMapAutoAdvanceMode=getMissionMapAutoAdvanceMode;
 window.toggleMissionMapAutoAdvanceMode=toggleMissionMapAutoAdvanceMode;
 function isTraversalPhaseLocked(targetHex){
-  if(!S||!S.provinceTraversalLock||!S.provinceTraversalLock.active)return false;
-  const lock=S.provinceTraversalLock;
+  if(!S||!selectedHex||!targetHex)return false;
+  if(S.provinceTraversalLock&&S.provinceTraversalLock.active){
+    const lock=S.provinceTraversalLock;
+    const now=getCurrentTravelPhaseToken();
+    if(lock.phaseToken!==now){
+      S.provinceTraversalLock.active=false;
+    }else{
+      const tryingToLeave=selectedHex.col!==targetHex.col||selectedHex.row!==targetHex.row;
+      if(tryingToLeave){
+        showNotif('Traversal failed this phase. You cannot pass until the next phase.', 'warn');
+        return true;
+      }
+    }
+  }
+  const edgeLock=S.provinceTraversalBlockedEdge;
+  if(!edgeLock||typeof edgeLock!=='object')return false;
   const now=getCurrentTravelPhaseToken();
-  if(lock.phaseToken!==now){
-    S.provinceTraversalLock.active=false;
+  if(String(edgeLock.phaseToken||'')!==String(now||'')){
+    S.provinceTraversalBlockedEdge=null;
     return false;
   }
-  if(!selectedHex||!targetHex)return false;
-  const tryingToLeave=selectedHex.col!==targetHex.col||selectedHex.row!==targetHex.row;
-  if(!tryingToLeave)return false;
-  showNotif('Traversal failed this phase. You cannot pass until the next phase.', 'warn');
-  return true;
+  const fromKey=String(selectedHex.col)+','+String(selectedHex.row);
+  const toKey=String(targetHex.col)+','+String(targetHex.row);
+  if(String(edgeLock.fromKey||'')===fromKey&&String(edgeLock.toKey||'')===toKey){
+    showNotif('That crossing is blocked for this phase. Try another route.', 'warn');
+    return true;
+  }
+  return false;
 }
 function updateMapClickModeUI(){
   const b=document.getElementById('mapClickModeBtn');
@@ -11283,7 +11302,7 @@ function renderHexInfo(hex){
   // ── PERIL ──
   }else if(hex.type==='peril'){
     html+=`<div class="peril-block"><strong style="color:var(--red2);">⚠ ${hex.name}</strong><br><div style="font-size:.83rem;margin-top:.2rem;">${d.desc||'A dangerous location.'}</div></div>`;
-    html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong>, cannot pass this Phase.<br>Success = passage gained.${traversalHint?('<br><span style="color:var(--teal);">Item bonus: '+traversalHint+'</span>'):''}</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" title="${traversalHint}" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'peril')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong> and this crossing is blocked for this Phase.<br>Success = passage gained.${traversalHint?('<br><span style="color:var(--teal);">Item bonus: '+traversalHint+'</span>'):''}</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" title="${traversalHint}" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'peril')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
 
   // ── RUINS ──
   }else if(hex.type==='ruins'){
@@ -11385,7 +11404,7 @@ function renderHexInfo(hex){
   // ── BARRIER ──
   }else if(hex.type==='barrier'){
     html+=`<div class="barrier-block"><strong>${hex.name}</strong><br><div style="font-size:.83rem;margin-top:.2rem;">${d.desc||'An obstacle.'}</div></div>`;
-    html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong>, cannot pass this Phase. Success = passage gained.${traversalHint?('<br><span style="color:var(--teal);">Item bonus: '+traversalHint+'</span>'):''}</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" title="${traversalHint}" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'barrier')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">⚔ Traversal Check</div><div class="wp-text">Roll your best <strong>Domain or Skill</strong> vs <strong>DD6</strong>. Failure = <strong style="color:var(--red);">Weakened</strong> and this crossing is blocked for this Phase. Success = passage gained.${traversalHint?('<br><span style="color:var(--teal);">Item bonus: '+traversalHint+'</span>'):''}</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><select id="trvStat-${hex.col}-${hex.row}" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;"><option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option></select><button class="btn btn-xs btn-primary" title="${traversalHint}" onclick="resolveProvinceTraversalCheck(${hex.col},${hex.row},'barrier')">⚄ Roll vs DD6</button></div><div id="trvRes-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div></div>`;
   }
 
   // World-state hex history
@@ -15994,25 +16013,30 @@ document.addEventListener('DOMContentLoaded',()=>{
     const outEl=document.getElementById(`trvRes-${col}-${row}`);
     if(outEl){
       outEl.innerHTML='<div style="background:'+(success?'rgba(46,196,182,.08)':'rgba(200,50,50,.08)')+';border:1px solid '+(success?'rgba(46,196,182,.35)':'rgba(200,50,50,.35)')+';padding:.38rem .45rem;">'
-        +'<div style="font-size:.75rem;"><strong>'+statKey.toUpperCase()+'</strong> <span style="color:var(--teal);">'+player.total+'</span> vs <span style="color:var(--red);">'+dread.total+'</span> — '+(success?'<span style="color:var(--green2);font-weight:700;">Passage gained</span>':'<span style="color:var(--red2);font-weight:700;">Cannot pass this phase</span>')+'</div>'
-        +'<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">'+(success?'You cross safely.':'You are Weakened and must wait until the next phase to pass.')+'</div>'
+        +'<div style="font-size:.75rem;"><strong>'+statKey.toUpperCase()+'</strong> <span style="color:var(--teal);">'+player.total+'</span> vs <span style="color:var(--red);">'+dread.total+'</span> — '+(success?'<span style="color:var(--green2);font-weight:700;">Passage gained</span>':'<span style="color:var(--red2);font-weight:700;">This crossing is blocked this phase</span>')+'</div>'
+        +'<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">'+(success?'You cross safely.':'You are Weakened and can still move to other connected hexes this phase.')+'</div>'
         +provinceNarrativeBonusLine(bonusNotes)
       +'</div>';
     }
 
     if(success){
       if(S&&S.provinceTraversalLock)S.provinceTraversalLock.active=false;
+      if(S&&S.provinceTraversalBlockedEdge)S.provinceTraversalBlockedEdge=null;
       if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       showNotif(itemFlags.factionItem?'Traversal successful. Faction credentials: +1 Renown.':'Traversal successful. Passage gained.', 'good');
     }else{
       if(typeof toggleCond==='function')toggleCond('weakened');
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-      if(!S.provinceTraversalLock||typeof S.provinceTraversalLock!=='object')S.provinceTraversalLock={};
-      S.provinceTraversalLock.active=true;
-      S.provinceTraversalLock.phaseToken=getCurrentTravelPhaseToken();
-      S.provinceTraversalLock.source=sourceType||hex.type;
-      showNotif('Traversal failed. You cannot pass this phase.', 'warn');
+      const fromKey=selectedHex?(String(selectedHex.col)+','+String(selectedHex.row)):'';
+      const toKey=String(col)+','+String(row);
+      S.provinceTraversalBlockedEdge={
+        fromKey:fromKey,
+        toKey:toKey,
+        phaseToken:getCurrentTravelPhaseToken(),
+        source:sourceType||hex.type
+      };
+      showNotif('Traversal failed. That crossing is blocked this phase; reroute if needed.', 'warn');
     }
   };
 

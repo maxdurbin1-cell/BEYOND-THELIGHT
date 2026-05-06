@@ -2123,6 +2123,7 @@
       occupied[String(slot.q) + ',' + String(slot.r)] = true;
       var p = toPixel(slot.q, slot.r);
       return {
+        id: Number(unit.id || 0),
         name: String(unit.name || 'Unit'),
         side: String(unit.side || 'ally'),
         isPlayer: !!unit.isPlayer,
@@ -2154,14 +2155,25 @@
       var style = ringStyles[ring] || ringStyles[3];
       return '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + style.fill + '" stroke="' + style.stroke + '" stroke-width="1.1"/>';
     }).join('');
+    var clickHandler = (typeof opts.clickHandler === 'string' && opts.clickHandler) ? opts.clickHandler : '';
+    var modeArg = String(opts.mode || 'wing').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var missionArg = Number(opts.missionId || 0);
+    var wingArg = Number(opts.wingNum || 0);
+    var isSelected = typeof opts.isSelected === 'function' ? opts.isSelected : function () { return false; };
     var unitSvg = placedUnits.map(function (u) {
       var fill = u.side === 'enemy' ? 'rgba(201,64,64,.9)' : 'rgba(46,196,182,.9)';
       var stroke = u.isPlayer ? 'var(--gold2)' : (u.side === 'enemy' ? 'rgba(255,180,180,.8)' : 'rgba(170,255,245,.8)');
+      if (isSelected(u)) stroke = 'var(--gold2)';
       var hpText = u.hp > 0 ? ('HP ' + u.hp) : 'DOWN';
       var detailText = u.dread > 0 ? (' · Dread d' + u.dread) : '';
+      var nameArg = String(u.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      var clickAttr = '';
+      if (clickHandler) {
+        clickAttr = ' style="cursor:pointer;" onclick="' + clickHandler + '(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + String(u.side || 'ally') + '\',' + Number(u.id || 0) + ',\'' + nameArg + '\',' + (u.isPlayer ? 'true' : 'false') + ')"';
+      }
       return '<g>'
         + '<title>' + u.name + ' · ' + u.range + ' · ' + hpText + detailText + '</title>'
-        + '<circle cx="' + u.x.toFixed(2) + '" cy="' + u.y.toFixed(2) + '" r="10.2" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.6"/>'
+        + '<circle cx="' + u.x.toFixed(2) + '" cy="' + u.y.toFixed(2) + '" r="10.2" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.6"' + clickAttr + '/>'
         + '<text x="' + u.x.toFixed(2) + '" y="' + (u.y + 3.4).toFixed(2) + '" text-anchor="middle" font-size="8" fill="#fff">' + String(u.name || 'U').slice(0, 2).toUpperCase() + '</text>'
         + '</g>';
     }).join('');
@@ -2231,7 +2243,18 @@
     return buildLegacyRaidHexCombatBoard(boardUnits, {
       title: 'STARS COMBAT - HEX ZONE MAP',
       subtitle: 'Boss in red, allies in blue. Positioning governs valid actions.',
-      seed: String(mission && mission.id || 'raid') + '-boss'
+      seed: String(mission && mission.id || 'raid') + '-boss',
+      mode: 'boss',
+      missionId: mission && mission.id || 0,
+      wingNum: 3,
+      clickHandler: 'window.selectLegacyRaidHexBoardTarget',
+      isSelected: function (unit) {
+        var flow = (typeof S !== 'undefined' && S && S.combat && S.combat.raidFlow) ? S.combat.raidFlow : null;
+        if (!flow || !unit) return false;
+        if (unit.side === 'enemy') return String(flow.selectedHostileName || '').toLowerCase() === String(unit.name || '').toLowerCase();
+        if (unit.isPlayer) return String(flow.selectedEnemyTargetType || '') === 'player';
+        return String(flow.selectedEnemyTargetType || '') === 'ally' && String(flow.selectedAllyName || '') === String(unit.name || '');
+      }
     });
   }
 
@@ -3469,6 +3492,10 @@
     var flowAllyActs = flow ? Math.max(0, Number(flow.currentAllyActionsLeft || 0)) : 0;
     var enemyBudget = flow ? Math.max(0, Number(flow.enemyActionBudget || 0)) : 0;
     var playerRange = flow && flow.playerRange ? String(flow.playerRange) : 'Close';
+    var selectedHostileTxt = flow && flow.selectedHostileName ? String(flow.selectedHostileName) : 'Closest hostile';
+    var selectedEnemyTargetTxt = (flow && String(flow.selectedEnemyTargetType || '') === 'player')
+      ? 'Wayfarer'
+      : ((flow && flow.selectedAllyName) ? String(flow.selectedAllyName) : 'First alive ally');
 
     var allyRows = allies.map(function (e) {
       var hp = Math.max(0, Number(e.maxStress || 12) - Number(e.stress || 0));
@@ -3498,6 +3525,7 @@
     });
     hostiles.forEach(function (enemy) {
       boardUnits.push({
+        id: Number(enemy && enemy.id || 0),
         name: String(enemy && enemy.name || 'Hostile'),
         side: 'enemy',
         hp: Math.max(0, Number(enemy && enemy.maxStress || 8) - Number(enemy && enemy.stress || 0)),
@@ -3508,13 +3536,24 @@
     var hexBoardHtml = buildLegacyRaidHexCombatBoard(boardUnits, {
       title: 'STARS COMBAT - HEX ZONE MAP',
       subtitle: 'Wing ' + wingNum + ' encounter board with live turn positions.',
-      seed: String(missionId) + '-wing-' + String(wingNum || 1)
+      seed: String(missionId) + '-wing-' + String(wingNum || 1),
+      mode: 'wing',
+      missionId: missionId,
+      wingNum: wingNum,
+      clickHandler: 'window.selectLegacyRaidHexBoardTarget',
+      isSelected: function (unit) {
+        if (!flow || !unit) return false;
+        if (unit.side === 'enemy') return Number(unit.id || 0) > 0 && Number(unit.id || 0) === Number(flow.selectedHostileId || 0);
+        if (unit.isPlayer) return String(flow.selectedEnemyTargetType || '') === 'player';
+        return String(flow.selectedEnemyTargetType || '') === 'ally' && String(flow.selectedAllyName || '') === String(unit.name || '');
+      }
     });
 
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
       + '<div style="font-size:.86rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.14rem;"><strong>⚔ Combat Engaged — Wing ' + wingNum + '</strong></div>'
       + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.14rem;">Turn order: You (Strike/Shoot/Defend/Move) → Each Ally (Attack/Defend/Support/Move, 2 actions) → Enemies (targeted action).</div>'
       + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.16rem;">Stage: <strong>' + stageLabel + '</strong> · Turn ' + Number(flow && flow.turn || 1) + ' · Player Actions Left: ' + actionsLeft + ' · Range: ' + playerRange + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.12rem;">Selected hostile: <strong style="color:var(--red2);">' + selectedHostileTxt + '</strong> · Enemy target: <strong style="color:var(--teal);">' + selectedEnemyTargetTxt + '</strong> · Click tokens on the board to retarget.</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.18rem;">'
       + '<div style="border:1px solid rgba(70,196,182,.22);padding:.22rem .28rem;background:rgba(70,196,182,.06);">'
       + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.08rem;"><strong>Allies</strong></div>'
@@ -3675,6 +3714,43 @@
     }
   }
 
+  window.selectLegacyRaidHexBoardTarget = function (mode, missionId, wingNum, side, unitId, unitName, isPlayer) {
+    if (typeof S === 'undefined' || !S) return false;
+    var flow = S.combat && S.combat.raidFlow ? S.combat.raidFlow : null;
+    var role = String(side || 'ally');
+    var name = String(unitName || '');
+    var id = Number(unitId || 0);
+    var playerToken = !!isPlayer;
+
+    if (role === 'enemy') {
+      if (typeof window.setCombatFocusEnemy === 'function') window.setCombatFocusEnemy(id);
+      if (flow) {
+        flow.selectedHostileId = id;
+        flow.selectedHostileName = name;
+      }
+      if (typeof showNotif === 'function') showNotif('Target locked: ' + name + '.', 'good');
+    } else if (playerToken) {
+      if (flow) {
+        flow.selectedEnemyTargetType = 'player';
+        delete flow.selectedAllyName;
+      }
+      if (typeof showNotif === 'function') showNotif('Enemy target set to Wayfarer.', 'info');
+    } else {
+      if (flow) {
+        flow.selectedEnemyTargetType = 'ally';
+        flow.selectedAllyName = name;
+      }
+      if (typeof showNotif === 'function') showNotif('Enemy target set to ally: ' + name + '.', 'info');
+    }
+
+    if (String(mode || '') === 'wing' && typeof window.refreshLegacyRaidCombatModal === 'function') {
+      window.refreshLegacyRaidCombatModal(Number(missionId || 0), Number(wingNum || 1));
+    } else if (String(mode || '') === 'boss') {
+      if (typeof openRaidWingPopup === 'function') openRaidWingPopup(Number(missionId || 0), Number(wingNum || 3));
+    }
+    return true;
+  };
+
   function prepareLegacyRaidAllyStage() {
     if (typeof S === 'undefined' || !S || !S.combat || !S.combat.raidFlow) return;
     var flow = S.combat.raidFlow;
@@ -3719,7 +3795,10 @@
     var target = String(targetName || '');
     var hostiles = getLegacyRaidSceneHostiles();
     if (act === 'attack') {
-      var hostile = hostiles[0];
+      var preferredHostile = flow && Number(flow.selectedHostileId || 0) > 0
+        ? hostiles.find(function (h) { return Number(h && h.id || 0) === Number(flow.selectedHostileId || 0); })
+        : null;
+      var hostile = preferredHostile || hostiles[0];
       if (hostile) {
         var allyRoll = typeof roll === 'function' ? roll(6) : (Math.floor(Math.random() * 6) + 1);
         var enemyRoll = typeof roll === 'function' ? roll(Math.max(4, Number(hostile.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(hostile.dread || 6))) + 1);
@@ -3769,8 +3848,8 @@
       if (typeof getMaxActions === 'function') S.combat.actionsLeft = Math.max(1, Number(getMaxActions() || 3));
       return true;
     }
-    var requestedType = String(targetType || 'ally').toLowerCase();
-    var requestedName = String(targetName || '');
+    var requestedType = String(targetType || (flow && flow.selectedEnemyTargetType) || 'ally').toLowerCase();
+    var requestedName = String(targetName || (flow && flow.selectedAllyName) || '');
     var aliveAllies = getLegacyRaidSceneAllies();
     hostiles.forEach(function (enemy) {
       var dreadDie = Math.max(4, Number(enemy.dread || 6));

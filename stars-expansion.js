@@ -5021,7 +5021,7 @@ function setSolarCycleStoryModeEnabled(enabled) {
   var next = !!enabled;
 
   if (next && !isSolarCycleSoloModeAvailable()) {
-    if (typeof showNotif === 'function') showNotif('New Sun mode is solo-only. Leave campaign first.', 'warn');
+    if (typeof showNotif === 'function') showNotif('New Sun Solo Challenge mode is solo-only. Leave campaign first.', 'warn');
     return sc;
   }
 
@@ -5029,7 +5029,7 @@ function setSolarCycleStoryModeEnabled(enabled) {
   if (!next) {
     stopSolarCycleRun();
     if (typeof showNotif === 'function') {
-      showNotif('New Sun Story Mode disabled. Legacy play restored.', 'info');
+      showNotif('New Sun Solo Challenge mode disabled. Legacy play restored.', 'info');
     }
     if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
     if (typeof window.renderStorylinePanel === 'function') window.renderStorylinePanel();
@@ -5048,7 +5048,7 @@ function setSolarCycleStoryModeEnabled(enabled) {
   }
 
   if (typeof showNotif === 'function') {
-    showNotif('New Sun Story Mode enabled.', 'good');
+    showNotif('New Sun Solo Challenge mode enabled.', 'good');
   }
   renderSolarCycleGlobalDock();
   if (typeof window.renderNewSunModePanel === 'function') window.renderNewSunModePanel();
@@ -5066,7 +5066,7 @@ function startSolarCycleMode(activeArc) {
   const sc = ensureSolarCycleState();
   if (!sc) return null;
   if (!isSolarCycleSoloModeAvailable()) {
-    if (typeof showNotif === 'function') showNotif('New Sun mode is solo-only. Leave campaign first.', 'warn');
+    if (typeof showNotif === 'function') showNotif('New Sun Solo Challenge mode is solo-only. Leave campaign first.', 'warn');
     return sc;
   }
   if (!sc.storyModeEnabled) sc.storyModeEnabled = true;
@@ -5412,7 +5412,7 @@ function renderNewSunModePanel() {
 
   host.innerHTML = ''
     + '<div style="max-width:1040px;margin:0 auto;padding:1rem;">'
-    + '<div class="section-title">New Sun Mode</div>'
+    + '<div class="section-title">New Sun Solo Challenge Mode</div>'
     + '<div style="background:linear-gradient(135deg,rgba(201,162,39,.12) 0%,rgba(46,196,182,.06) 100%);border:1px solid rgba(201,162,39,.24);padding:.85rem .95rem;margin-bottom:.7rem;">'
     + '<div style="font-family:\'Cinzel\',serif;font-size:.92rem;color:var(--gold2);margin-bottom:.25rem;">What This Tab Is</div>'
     + '<div style="font-size:.8rem;color:var(--text2);line-height:1.62;margin-bottom:.45rem;">New Sun is a separate solo endgame mode. It runs a 100-day collapse clock, throws moving quest markers across multiple maps, includes missable omens and rewinds, and resolves into different endings depending on what you chose, failed, ignored, or reached too late.</div>'
@@ -8282,7 +8282,7 @@ function ensureNewSunTab() {
     btn.setAttribute('aria-selected', 'false');
     btn.setAttribute('aria-controls', 'tab-newsun');
     btn.setAttribute('onclick', "switchTab('newsun',this)");
-    btn.textContent = 'New Sun';
+    btn.textContent = 'Solo Challenge';
     nav.insertBefore(btn, document.getElementById('tabnav-storyline'));
   }
 
@@ -16865,7 +16865,24 @@ function clearMentalStress() {
 
 function checkStressThreshold() {
   let s = S.mentalStress || 0;
-  if (!S.mentalStressState) S.mentalStressState = { breakdownLatch: false, breakingObsessionApplied: false };
+  if (!S.mentalStressState) S.mentalStressState = { breakdownLatch: false, breakingObsessionApplied: false, nervousTickLatch: false, stressReactionLatch: false };
+
+  if (s >= 3 && !S.mentalStressState.nervousTickLatch) {
+    if (typeof rollNervousTic === 'function') rollNervousTic();
+    S.mentalStressState.nervousTickLatch = true;
+    showNotif('Mental Stress 3+: Nervous Tic rolled.', 'warn');
+  }
+  if (s < 3) {
+    S.mentalStressState.nervousTickLatch = false;
+  }
+
+  if (s >= 10 && !S.mentalStressState.stressReactionLatch) {
+    if (typeof rollStressReaction === 'function') rollStressReaction();
+    S.mentalStressState.stressReactionLatch = true;
+  }
+  if (s < 10) {
+    S.mentalStressState.stressReactionLatch = false;
+  }
 
   if (s >= 10 && S.conditions) {
     S.conditions.shaken = true;

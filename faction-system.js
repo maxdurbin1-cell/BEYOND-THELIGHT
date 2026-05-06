@@ -1321,9 +1321,11 @@
           </div>
         </div>
       </div>
+      <div id="endingsPanel" style="margin-top:.65rem;"></div>
     `;
 
     factionPanel.innerHTML = html;
+    renderEndingsPanel();
   }
 
   function getFactionStoryRollBonus(factionId, statKey) {
@@ -1898,8 +1900,8 @@
   }
 
   function openEndingsTab() {
-    const btn = document.querySelector(".tab-btn[onclick*=\"switchTab('" + ENDINGS_TAB_ID + "'\"]");
-    if (typeof switchTab === "function") switchTab(ENDINGS_TAB_ID, btn || null);
+    const btn = document.querySelector(".tab-btn[onclick*=\"switchTab('" + FACTION_TAB_ID + "'\"]");
+    if (typeof switchTab === "function") switchTab(FACTION_TAB_ID, btn || null);
     renderEndingsPanel();
   }
 

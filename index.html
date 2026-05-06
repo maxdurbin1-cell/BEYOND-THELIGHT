@@ -377,7 +377,6 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" onclick="switchTab('oracle',this)">Oracle</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" onclick="switchTab('storyline',this)">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" onclick="switchTab('factions',this)">Factions</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-endings" id="tabnav-endings" onclick="switchTab('endings',this)">Endings</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('raidtree',this)">Raid Tree</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
@@ -388,8 +387,8 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-exocrafts" id="tabnav-exocrafts" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-naval" id="tabnav-naval" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-shop" id="tabnav-shop" onclick="switchTab('shop',this)">Merchants</button>
-    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" onclick="switchTab('gambling',this)">Gambling</button>
-    <button class="tab-btn ctx-traveling ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" onclick="switchTab('caravan',this)">Caravan</button>
+    <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" onclick="switchTab('gambling',this)">Gambling</button>
+    <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-howto" id="tabnav-howto" onclick="switchTab('howto',this)">How To Use</button>
     <button class="tab-btn solo-reference-btn" aria-label="Solo Reference" onclick="openSoloReference()" title="Solo Reference">🧭 Solo</button>
@@ -7806,11 +7805,11 @@ function rollArmyStress(side){
   const s=rollMulti(12,2),dread=s>=13?6:4;
   if(typeof S.combat.skirmishRound!=='number')S.combat.skirmishRound=1;
   if(side==='A'){
-    S.combat.armyA={stress:s,dread,actions:2};
+    S.combat.armyA={stress:s,dread:dread,baseDread:dread,actions:2};
     document.getElementById('armyAStress').textContent=s;
     document.getElementById('armyADread').textContent='d'+dread;
   }else{
-    S.combat.armyB={stress:s,dread,actions:2};
+    S.combat.armyB={stress:s,dread:dread,baseDread:dread,actions:2};
     document.getElementById('armyBStress').textContent=s;
     document.getElementById('armyBDread').textContent='d'+dread;
   }
@@ -7826,24 +7825,39 @@ function skirmishAction(side,action){
   if(army.actions<=0){if(rEl)rEl.innerHTML='<span style="color:var(--red2);">No actions left this round (2 max).</span>';return;}
   army.actions=Math.max(0,army.actions-1);
   updateSkirmishActionUI(side);
+  var roundNow=Number(S.combat.skirmishRound||1);
+  var oppBaseDread=Math.max(4,Number(opp.baseDread||opp.dread||6));
   if(action==='strike'){
     const a=explodingRoll(army.dread),d=explodingRoll(opp.dread||6);const diff=Math.max(1,a.total-d.total);
     if(a.total>=d.total){opp.stress=Math.max(0,opp.stress-diff);document.getElementById('army'+(side==='A'?'B':'A')+'Stress').textContent=opp.stress;if(rEl)rEl.innerHTML=`<span style="color:var(--green2);">Strike: ${a.total} vs ${d.total} — ${diff} Stress dealt</span>`;}else{if(rEl)rEl.innerHTML=`<span style="color:var(--red);">Strike: ${a.total} vs ${d.total} — Miss</span>`;}
+    if(opp.parryUntilEnemyAttack){
+      opp.parryUntilEnemyAttack=false;
+      opp.dread=oppBaseDread;
+      var oppSideAfter=side==='A'?'B':'A';
+      var oppDreadAfter=document.getElementById('army'+oppSideAfter+'Dread');
+      if(oppDreadAfter)oppDreadAfter.textContent='d'+opp.dread;
+    }
   }else if(action==='parry'){
     var oldDread=army.dread||6;
     army.dread=stepUp(oldDread);
+    army.parryUntilEnemyAttack=true;
     var dreadEl=document.getElementById('army'+side+'Dread');
     if(dreadEl)dreadEl.textContent='d'+army.dread;
-    if(rEl)rEl.innerHTML='<span style="color:var(--green);">Parry: Dread stepped up d'+oldDread+' → d'+army.dread+'.</span>';
+    if(rEl)rEl.innerHTML='<span style="color:var(--green);">Parry: Dread stepped up d'+oldDread+' → d'+army.dread+' until enemy attacks this side.</span>';
   }else if(action==='frighten'){
     var oldOppDread=opp.dread||6;
     opp.dread=stepDown(oldOppDread);
+    opp.frightenedUntilRound=roundNow;
     var oppSide=side==='A'?'B':'A';
     var oppDreadEl=document.getElementById('army'+oppSide+'Dread');
     if(oppDreadEl)oppDreadEl.textContent='d'+opp.dread;
-    if(rEl)rEl.innerHTML='<span style="color:var(--red);">Frighten: enemy Dread stepped down d'+oldOppDread+' → d'+opp.dread+'.</span>';
+    if(rEl)rEl.innerHTML='<span style="color:var(--red);">Frighten: enemy Dread stepped down d'+oldOppDread+' → d'+opp.dread+' for this round.</span>';
   }
-  if((S.combat.armyA.actions||0)<=0&&(S.combat.armyB.actions||0)<=0){advanceSkirmishRound();}
+  if((S.combat.armyA.actions||0)<=0&&(S.combat.armyB.actions||0)<=0){
+    if(S.combat.armyA&&S.combat.armyA.frightenedUntilRound===roundNow){S.combat.armyA.dread=Math.max(4,Number(S.combat.armyA.baseDread||S.combat.armyA.dread||6));S.combat.armyA.frightenedUntilRound=0;}
+    if(S.combat.armyB&&S.combat.armyB.frightenedUntilRound===roundNow){S.combat.armyB.dread=Math.max(4,Number(S.combat.armyB.baseDread||S.combat.armyB.dread||6));S.combat.armyB.frightenedUntilRound=0;}
+    advanceSkirmishRound();
+  }
   if(opp.stress<=0&&opp.dread)showNotif(`Army ${side==='A'?'B':'A'} defeated!`,'good');
 }
 // ── SHOP ─────────────────────────────────────────────────────────────────────
@@ -13513,7 +13527,7 @@ function formatLostCityRevealText(reveal){
 }
 
 function revealLostCityBuilding(col,row){
-  const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='lostcity'; });
+  const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
   if(!hex||!hex.data)return;
   if(!hex.data.lostCityTravel||!hex.data.lostCityTravel.reveal){
     showNotif('Roll Lost City Travel first to reveal a building.', 'warn');
@@ -13521,6 +13535,22 @@ function revealLostCityBuilding(col,row){
   }
   const el=document.getElementById(`lcReveal-${col}-${row}`);
   if(el)el.style.display='block';
+  const revealText=String(hex.data.lostCityTravel.reveal||'');
+  const stitchedMatch=revealText.match(/Stitched Rat Horror \(DD(\d+) \| (\d+) Stress\)/i);
+  if(stitchedMatch&&typeof addEnemy==='function'){
+    const dd=Math.max(4,parseInt(stitchedMatch[1],10)||8);
+    const hp=Math.max(4,parseInt(stitchedMatch[2],10)||16);
+    addEnemy('Stitched Rat Horror',dd);
+    if(Array.isArray(S.enemies)&&S.enemies.length){
+      const last=S.enemies[S.enemies.length-1];
+      if(last){
+        last.maxStress=hp;
+        last.stress=0;
+      }
+    }
+    if(typeof renderEnemies==='function')renderEnemies();
+    if(typeof showNotif==='function')showNotif('Lost Lands reveal: Stitched Rat Horror added to Combat.', 'warn');
+  }
 }
 
 function generateTask(){
@@ -13762,7 +13792,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script defer src="./economy-ledger-system.js"></script>
 <script defer src="./teamwork-rules-system.js"></script>
 <script defer src="./infinite-library-system.js"></script>
-<script defer src="./solo-gm-system.js"></script>
 <script defer src="./audit-panel-ui.js"></script>
 
 <!-- ── QUICK PANEL ── -->
@@ -15776,8 +15805,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     S.combat.skirmishJoinedSide = null;
     S.combat.skirmishFaction = null;
     S.combat.skirmishHealthAdded = 0;
-    S.combat.armyA = { stress: roll(12) + roll(12), dread: 6, actions: 2, count: numA, type: armyA };
-    S.combat.armyB = { stress: roll(12) + roll(12), dread: 6, actions: 2, count: numB, type: armyB };
+    S.combat.armyA = { stress: roll(12) + roll(12), dread: 6, baseDread: 6, actions: 2, count: numA, type: armyA };
+    S.combat.armyB = { stress: roll(12) + roll(12), dread: 6, baseDread: 6, actions: 2, count: numB, type: armyB };
 
     const options=getProvinceMajorPowerOptions();
     const optHTML=options.map(function(o){return '<option value="'+o.key+'">'+o.label+'</option>';}).join('');
@@ -15872,17 +15901,27 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(mine.actions<=0){showNotif('No actions left for that side.','warn');return;}
     mine.actions-=1;
     const rollVal=roll(12);
+    const roundNow=Number(S.combat.skirmishRound||1);
+    const oppBaseDread=Math.max(4,Number(opp.baseDread||opp.dread||6));
     const dread=mine.dread||6;
     if(action==='strike'&&rollVal>=dread){
       opp.stress=Math.max(0,(opp.stress||0)-Math.max(1,rollVal-dread));
+      if(opp.parryUntilEnemyAttack){
+        opp.parryUntilEnemyAttack=false;
+        opp.dread=oppBaseDread;
+      }
     }else if(action==='parry'){
       mine.dread=stepUp(mine.dread||6);
-      showNotif('Skirmish Parry: side '+side+' Dread stepped up to d'+mine.dread+'.','good');
+      mine.parryUntilEnemyAttack=true;
+      showNotif('Skirmish Parry: side '+side+' Dread stepped up to d'+mine.dread+' until enemy attacks.','good');
     }else if(action==='frighten'){
       opp.dread=stepDown(opp.dread||6);
-      showNotif('Skirmish Frighten: opposing side Dread stepped down to d'+opp.dread+'.','warn');
+      opp.frightenedUntilRound=roundNow;
+      showNotif('Skirmish Frighten: opposing side Dread stepped down to d'+opp.dread+' for this round.','warn');
     }
     if((S.combat.armyA.actions||0)<=0&&(S.combat.armyB.actions||0)<=0){
+      if(S.combat.armyA&&S.combat.armyA.frightenedUntilRound===roundNow){S.combat.armyA.dread=Math.max(4,Number(S.combat.armyA.baseDread||S.combat.armyA.dread||6));S.combat.armyA.frightenedUntilRound=0;}
+      if(S.combat.armyB&&S.combat.armyB.frightenedUntilRound===roundNow){S.combat.armyB.dread=Math.max(4,Number(S.combat.armyB.baseDread||S.combat.armyB.dread||6));S.combat.armyB.frightenedUntilRound=0;}
       S.combat.skirmishRound=(S.combat.skirmishRound||1)+1;
       S.combat.armyA.actions=2;
       S.combat.armyB.actions=2;

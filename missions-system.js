@@ -1864,25 +1864,20 @@
     }
     profile.raidKeys[keyTier] = Math.max(0, Number(profile.raidKeys[keyTier] || 0) - 1);
 
-    var creditGain = 90;
-    var medalGain = 0;
-    var pointGain = 0;
-    var lootTier = 'easy';
-    if (keyTier === 'silver') {
-      creditGain = 180;
-      pointGain = 1;
-      lootTier = 'medium';
-    } else if (keyTier === 'gold') {
-      creditGain = 320;
-      medalGain = 1;
-      pointGain = 1;
-      lootTier = 'hard';
-    } else if (keyTier === 'platinum') {
-      creditGain = 520;
-      medalGain = 2;
-      pointGain = 2;
-      lootTier = 'very_hard';
-    }
+    var rewardByTier = {
+      bronze: { minCredits: 80, maxCredits: 140, medals: 0, points: 0, lootTier: 'easy', lootRolls: 1, keyRefundChance: 8 },
+      silver: { minCredits: 170, maxCredits: 260, medals: 0, points: 1, lootTier: 'medium', lootRolls: 2, keyRefundChance: 14 },
+      gold: { minCredits: 300, maxCredits: 440, medals: 1, points: 1, lootTier: 'hard', lootRolls: 3, keyRefundChance: 20 },
+      platinum: { minCredits: 500, maxCredits: 700, medals: 2, points: 2, lootTier: 'very_hard', lootRolls: 4, keyRefundChance: 28 }
+    };
+    var spec = rewardByTier[keyTier] || rewardByTier.bronze;
+    var creditRange = Math.max(0, Number(spec.maxCredits || 0) - Number(spec.minCredits || 0));
+    var creditGain = Number(spec.minCredits || 0) + (creditRange > 0 ? ((typeof roll === 'function' ? roll(creditRange + 1) : (Math.floor(Math.random() * (creditRange + 1)) + 1)) - 1) : 0);
+    var medalGain = Math.max(0, Number(spec.medals || 0));
+    var pointGain = Math.max(0, Number(spec.points || 0));
+    var lootTier = String(spec.lootTier || 'easy');
+    var lootRolls = Math.max(1, Number(spec.lootRolls || 1));
+    var keyRefundChance = Math.max(0, Number(spec.keyRefundChance || 0));
 
     if (typeof changeCredits === 'function') changeCredits(creditGain);
     else if (typeof S !== 'undefined' && S) S.credits = Number(S.credits || 0) + creditGain;
@@ -1890,11 +1885,24 @@
     profile.raidPoints = Math.max(0, Number(profile.raidPoints || 0) + pointGain);
 
     var chestLoot = [];
-    try { chestLoot = rollShopLoot(lootTier) || []; } catch (_err) { chestLoot = []; }
+    for (var draw = 0; draw < lootRolls; draw++) {
+      try {
+        var rolled = rollShopLoot(lootTier) || [];
+        rolled.forEach(function (item) { if (item) chestLoot.push(String(item)); });
+      } catch (_err) {}
+    }
     if (typeof addToBackpack === 'function') {
       chestLoot.forEach(function (item) {
         try { if (item) addToBackpack(item); } catch (_err) {}
       });
+    }
+    var keyRefunded = false;
+    if (keyRefundChance > 0) {
+      var refundRoll = typeof roll === 'function' ? roll(100) : (Math.floor(Math.random() * 100) + 1);
+      if (refundRoll <= keyRefundChance) {
+        profile.raidKeys[keyTier] = Math.max(0, Number(profile.raidKeys[keyTier] || 0) + 1);
+        keyRefunded = true;
+      }
     }
     if (keyTier === 'platinum' && chestLoot.length) {
       profile.raidTrophies.push('Platinum Cache: ' + String(chestLoot[0] || 'Mythic Trophy'));
@@ -1903,6 +1911,7 @@
     if (typeof renderBackpackUI === 'function') renderBackpackUI();
     if (typeof showNotif === 'function') {
       showNotif('Opened ' + keyTier + ' chest: +' + creditGain + ' credits, +' + pointGain + ' RP, +' + medalGain + ' medals'
+        + (keyRefunded ? (' · Key reclaimed!') : '')
         + (chestLoot.length ? (' · Loot: ' + chestLoot.join(', ')) : ''), 'good');
     }
     renderLegacyRaidTreePanel();
@@ -9370,9 +9379,9 @@
     var proceedBtn='';
     if (!hasActive) {
       if (allExplored) {
-        proceedBtn='<div style="display:flex;justify-content:flex-end;margin-top:.4rem;"><button class="btn btn-sm btn-teal" onclick="completeMissionSiteStep('+missionId+');closeModal();">Proceed to Confrontation</button></div>';
+        proceedBtn='<div style="display:flex;justify-content:flex-end;margin-top:.4rem;"><button class="btn btn-sm btn-teal" onclick="completeMissionSiteStep('+missionId+');">Proceed to Confrontation</button></div>';
       } else {
-        proceedBtn='<div style="display:flex;justify-content:flex-end;margin-top:.4rem;"><button class="btn btn-sm" onclick="completeMissionSiteStep('+missionId+');closeModal();" style="opacity:.75;">Skip Remaining Rooms \u2192 Confrontation</button></div>';
+        proceedBtn='<div style="display:flex;justify-content:flex-end;margin-top:.4rem;"><button class="btn btn-sm" onclick="completeMissionSiteStep('+missionId+');" style="opacity:.75;">Skip Remaining Rooms \u2192 Confrontation</button></div>';
       }
     }
 

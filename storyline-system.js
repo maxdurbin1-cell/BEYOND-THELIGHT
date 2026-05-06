@@ -4881,8 +4881,6 @@
         + "</div>") : "")
       + "<div style='display:flex;justify-content:flex-end;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem;'>"
       + "<button class='btn btn-sm btn-teal' onclick='storyOpenDialogueWheel()'>Dialogue Wheel</button>"
-      + "<button class='btn btn-sm btn-primary' onclick='if(typeof openSoloGMConsole===\"function\")openSoloGMConsole();else if(typeof showNotif===\"function\")showNotif(\"Solo-GM module not loaded\",\"warn\");'>Solo-GM</button>"
-      + "<button class='btn btn-sm btn-warn' onclick='if(typeof openInfiniteLibrary===\"function\")openInfiniteLibrary();else if(typeof showNotif===\"function\")showNotif(\"Infinite Library module not loaded\",\"warn\");'>Infinite Library</button>"
       + "</div>"
       + "<div class='story-options'>" + options + "</div>"
       + "</div>"

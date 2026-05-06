@@ -2221,7 +2221,7 @@
       desc = `An empty transport floats half-derelict. Salvage: ${lootText}. Hidden aboard: ${vampires} vampire${vampires > 1 ? "s" : ""}.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-secondary" title="${salvageTitle}" onclick="resolveSeaEncounter('salvage','${lootText}',{credits:${salvageCredits},item:'${salvageItemJs}'})">🪙 Salvage (+${salvageCredits}₵${compassHint})</button>
-        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${vampires} Vampires',{stress:${vampStress}})">⚔ Fight Vampires (+${vampStress} Stress)</button>
+        <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${vampires} Vampires',{stress:${vampStress},requireOutcome:true,dread:10,enemyCount:${vampires},enemyHealth:14,vampireEncounter:true,vampireCount:${vampires},vampireDread:10})">⚔ Fight Vampires (+${vampStress} Stress)</button>
         <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('avoid','Empty Transport',{})">⛵ Avoid</button>
       </div>`;
       return `<div class="sea-result-title">Open Sea Encounter - Empty Transport</div>${desc}${actions}`;
@@ -2275,6 +2275,31 @@
     if (action === 'fightOutcome') {
       const won = !!effects.won;
       if (won) {
+        const targetText = String(target || '').toLowerCase();
+        const isVampireFight = !!effects.vampireEncounter || targetText.indexOf('vampire') >= 0;
+        if (isVampireFight && typeof S !== 'undefined' && S) {
+          const spiritDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('spirit') : ((S.stats && S.stats.spirit) || 4);
+          const dreadDie = Math.max(6, Number(effects.vampireDread || effects.dread || 10));
+          const spiritRoll = (typeof explodingRoll === 'function') ? explodingRoll(spiritDie) : { total: Math.floor(Math.random() * spiritDie) + 1 };
+          const dreadRoll = (typeof explodingRoll === 'function') ? explodingRoll(dreadDie) : { total: Math.floor(Math.random() * dreadDie) + 1 };
+          if (Number(spiritRoll.total || 0) < Number(dreadRoll.total || 0)) {
+            if (typeof ensureDarkAfflictionState === 'function') {
+              try { ensureDarkAfflictionState(); } catch (_err) {}
+            }
+            S.darkAfflictions = S.darkAfflictions || {};
+            S.darkAfflictions.vampirism = S.darkAfflictions.vampirism || { active: false, corruption: 0, lastFedStamp: '' };
+            S.darkAfflictions.vampirism.active = true;
+            S.darkAfflictions.vampirism.corruption = Math.min(10, Math.max(1, Number(S.darkAfflictions.vampirism.corruption || 0) + 1));
+            if (typeof renderDarkAfflictionSheetPanel === 'function') {
+              try { renderDarkAfflictionSheetPanel(); } catch (_err) {}
+            }
+            if (typeof showNotif === 'function') {
+              showNotif('Vampire bite took hold (Spirit d' + spiritDie + ' ' + spiritRoll.total + ' vs Dread d' + dreadDie + ' ' + dreadRoll.total + '). Vampirism awakened.', 'warn');
+            }
+          } else if (typeof showNotif === 'function') {
+            showNotif('You resisted the vampire bite (Spirit d' + spiritDie + ' ' + spiritRoll.total + ' vs Dread d' + dreadDie + ' ' + dreadRoll.total + ').', 'good');
+          }
+        }
         concludeSeaEncounter(`You defeated ${target}. Encounter resolved.`, 'good');
       } else {
         concludeSeaEncounter(`Combat with ${target} ended in failure. Encounter resolved as failed.`, 'warn');

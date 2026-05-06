@@ -16,10 +16,11 @@
     "smoke:solo-library": "node smoke-tests/solo-library.smoke.mjs",
     "smoke:bone-oracle": "node smoke-tests/bone-oracle.smoke.mjs",
     "smoke:newsun-scheduler": "node smoke-tests/new-sun-scheduler.smoke.mjs",
+    "smoke:open-world": "node smoke-tests/open-world.smoke.mjs",
     "smoke:authority-travel": "node smoke-tests/campaign-authority-travel.smoke.mjs",
     "smoke:reconnect": "node smoke-tests/reconnect-churn.smoke.mjs",
     "smoke:maybe-reconnect": "node -e \"const run=['1','true','yes','on'].includes(String(process.env.SMOKE_RECONNECT||'').toLowerCase()); if(!run){console.log('Skipping reconnect soak (set SMOKE_RECONNECT=1 to enable).'); process.exit(0);} const {spawnSync}=require('node:child_process'); const cmd=process.platform==='win32'?'npm.cmd':'npm'; const r=spawnSync(cmd,['run','smoke:reconnect'],{stdio:'inherit'}); process.exit(r.status||0);\"",
-    "smoke:test": "npm run smoke:clicks && npm run smoke:solo-library && npm run smoke:bone-oracle && npm run smoke:combat-sync && npm run smoke:combat-turns && npm run smoke:scenario && npm run smoke:newsun-scheduler && npm run smoke:legacy-raid && npm run smoke:raid-teleport-choice && npm run smoke:maybe-reconnect"
+    "smoke:test": "npm run smoke:clicks && npm run smoke:solo-library && npm run smoke:bone-oracle && npm run smoke:combat-sync && npm run smoke:combat-turns && npm run smoke:scenario && npm run smoke:newsun-scheduler && npm run smoke:legacy-raid && npm run smoke:raid-teleport-choice && npm run smoke:open-world && npm run smoke:maybe-reconnect"
   },
   "dependencies": {
     "express": "^4.21.2",

@@ -116,6 +116,24 @@
     if(r.history.length>24)r.history=r.history.slice(r.history.length-24);
   }
 
+  function triggerRivalAllySupport(mapKey,ctx){
+    var r=ensureRivalState();
+    if(!r||!r.alive||r.rapport<5)return false;
+    if(rivalRoll(100)>35)return false;
+    var teamworkGranted=2;
+    var pathGranted=1;
+    try{ if(typeof changeCounter==='function') changeCounter('tmw',teamworkGranted); }catch(_err){}
+    try{ if(typeof changeCounter==='function') changeCounter('pathTokens',pathGranted); }catch(_err){}
+    try{ if(typeof changeMentalStress==='function') changeMentalStress(-1); }catch(_err){}
+    r.lastMap=String(mapKey||'');
+    r.lastOutcome='Ally Support';
+    addRivalHistory('['+String(mapKey||'province')+'] ally support triggered near '+String((ctx&&ctx.key)||'unknown')+'.');
+    if(typeof showNotif==='function'){
+      showNotif(String(r.name)+' intervenes as an ally: +'+teamworkGranted+' Teamwork, +'+pathGranted+' Path Token, and steadied nerves.', 'good');
+    }
+    return true;
+  }
+
   function ensureRivalPresenceMarker(isFriendly){
     if(typeof getBackstoryMarkerBucket!=='function')return;
     if(typeof mapData==='undefined'||!Array.isArray(mapData)||!mapData.length)return;
@@ -381,6 +399,12 @@
       return false;
     }
     r.lastGateToken=gate;
+    if(triggerRivalAllySupport(mapKey,ctx))return true;
+    if(r.threatTier>=7&&r.rapport<=-3){
+      if(typeof showNotif==='function')showNotif('Rival threat spike: hostile ambush triggered.', 'warn');
+      startRivalCombat(String(mapKey||'province'), String((ctx&&ctx.key)||''));
+      return true;
+    }
     if(rivalRoll(100)>20)return false;
     if(typeof ensureBackstoryScopeMarkers==='function'){
       try{

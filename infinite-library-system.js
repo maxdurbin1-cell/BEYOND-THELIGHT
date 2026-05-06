@@ -82,6 +82,110 @@
     'A pilgrim note says every true oath leaves ash on the tongue for a day.'
   ];
 
+  var LIBRARY_ENCOUNTERS = [
+    { min: 1, max: 4, name: 'Elevator', depth: 'any', blurb: 'A brass lift clings to impossible shelves, built by Owl Cultists where ladders fail.' },
+    { min: 5, max: 5, name: 'Portal', depth: 'any', blurb: 'Rune-heavy steel plates hum. Nobody agrees where this portal lands next.' },
+    { min: 6, max: 6, name: 'Page Knights', depth: 'any', blurb: 'An oath-bound guardian linked to a single book challenges your right to pass.' },
+    { min: 7, max: 7, name: 'Owl Cultists', depth: 'shallow,deep', blurb: 'Masked trespassers in feathered cloaks drift deeper. They are wary, not eager for blood.' },
+    { min: 8, max: 8, name: 'Spider Archivist', depth: 'any', blurb: 'Wax-born librarian construct arrives to define, contain, and seal loose words.' },
+    { min: 9, max: 9, name: 'DeepReaders', depth: 'deep', blurb: 'A harsher archivist variant that does not define. It only destroys.' },
+    { min: 10, max: 10, name: 'BrowserLords', depth: 'deep', blurb: 'Half-spider, half-human sovereigns of deeper stacks. They know routes to exits.' },
+    { min: 11, max: 11, name: 'The Written', depth: 'any', blurb: 'Ink-bound thralls hunt any loose text and drag it to their section.' },
+    { min: 12, max: 12, name: 'Blackhearted', depth: 'any', blurb: 'Word-hungry infected wanderers licking pages to survive.' },
+    { min: 13, max: 13, name: 'Philophickers', depth: 'any', blurb: 'Walking Ideas test your beliefs and force outcomes as if doctrine were gravity.' },
+    { min: 14, max: 14, name: 'Inkmites', depth: 'any', blurb: 'Tiny ink-eaters with scalpel arms swarm toward fresh writing and open skin.' },
+    { min: 15, max: 15, name: 'Giant Termites', depth: 'deep', blurb: 'Shelf-boring predators create sudden tunnels and unstable shortcuts.' },
+    { min: 16, max: 16, name: 'Skeleton Crew', depth: 'deep', blurb: 'Candle-lit skeletons march deeper as if answering a call from below.' },
+    { min: 17, max: 17, name: 'Equillae', depth: 'deep', blurb: 'Biographic ghosts possess bodies to escape the stacks and reclaim old lives.' },
+    { min: 18, max: 18, name: 'Librarians', depth: 'deep', blurb: 'Empty robes seek their missing book and may puppet you to retrieve it.' },
+    { min: 19, max: 19, name: 'Bookworms', depth: 'any', blurb: 'Lost explorers turned giant caterpillars offer dubious aid, gossip, and drugs.' },
+    { min: 20, max: 20, name: 'Words Unbound', depth: 'deep', blurb: 'Loose words and proto-sentences drift free. If they connect, reality obeys.' }
+  ];
+
+  var ELEVATOR_STATUS = [
+    { min: 1, max: 4, text: 'Works fine.' },
+    { min: 5, max: 8, text: 'Works fine, but only once before locking hard.' },
+    { min: 9, max: 10, text: 'Inoperable. The lift can be repaired with parts and time.' },
+    { min: 11, max: 11, text: 'Works, but only climbs halfway before stalling.' },
+    { min: 12, max: 12, text: 'Wires will snap after 2 or more PCs step on it.' }
+  ];
+
+  var PORTAL_DESTINATIONS = [
+    'Spidercombs - Wax catacombs rumored to lie near the Heart.',
+    'Black Candle - A once-burning district where soot still blinds and chokes.',
+    'The Labra - A giant candle chandelier wide enough to host whole stacks.',
+    'The Boneyard - A half-living giant body harvested for spine and binding material.',
+    'Shreddings - Drifts of torn notes, loose pages, and abandoned drafts.',
+    'Double Down Drive - A singular hall that keeps stretching far past reason.',
+    'The Intestine Labyrinth - Giant books hollowed into worm-eaten tunnels.',
+    'The Obliette - Where books go to die and titles are forgotten.',
+    'The Sway - Stacks balanced in open air, constantly moving with unseen wind.',
+    'Lawless - Ironically orderly archives of legal documents and true-name records.',
+    'Labrys - Home halls of the Bookbinder\'s Guild.',
+    'Settle - A settlement of seekers who gave up on finding the Heart.'
+  ];
+
+  var PHILOPHICKER_IDEAS = [
+    'Love: fused partners demand vows and legal marriage rites.',
+    'Nihilism: deny meaning, deny purpose, maybe deny your existence.',
+    'Shintoism: naked shrine-builders plant seeds in books and grow library gardens.',
+    'Relativism: reality changes by speaker; dissenters become foreign threats.',
+    'Absurdism: random wonder-magic and impossible decisions as doctrine.',
+    'Chaos: your life is judged by long consequence chains across history.'
+  ];
+
+  var LIBRARY_TRAPS = [
+    'Quiet Area: speak and your words shatter loudly on the floor, calling Word Stealers.',
+    'Bookworm Trigger: reading an unauthorized volume reduces all action dice to d4 until the book is replaced.',
+    'Dust Jacket: disturbed dust burns the truth of you into your skin as living text.',
+    'Bookwyrm Seal: removing a wing-book triggers a psychic fire-breath backlash (+3 Mental Stress) until replaced.'
+  ];
+
+  var LIBRARY_WINGS = [
+    'Goblin Thoughts - shelves of fragmented goblin ideas and accidental prophecies.',
+    'Taxes - one true-name ledger hidden among millions of decoys.',
+    'Tape Books - endless VHS archives filed like sacred scripture.',
+    'Not Yet - future books waiting for their authors to catch up.',
+    'Dinosaurs - false histories of things that never happened.',
+    'Inciting Incident - every text starts with a beginning and no resolution.'
+  ];
+
+  var LIBRARY_EXIT_PATHS = [
+    'Risk a Portal jump and trust the map re-roll.',
+    'Die before someone candles your skeleton.',
+    'Bargain with a BrowserLord, who always knows a nearest exit.',
+    'Track and persuade DeepReaders to point a way out.',
+    'Let an Urban Ranger guide the route; others risk getting lost.',
+    'Appeal to a spirit you still have favor with.',
+    'Swear Page Knight vows and follow your linked book to an exit.',
+    'Follow butterflies. They always fly toward the nearest way out.',
+    'Use songbirds that can always return home.'
+  ];
+
+  var BOOK_FETCH_OBJECTIVES = [
+    'recover a censored folio before a rival faction burns it',
+    'steal a true-name ledger page without waking the shelf ward',
+    'copy one paragraph from a future text in the Not Yet wing',
+    'retrieve a biography volume needed to banish an Equillae possession',
+    'deliver a blank codex to Labrys for emergency rebinding'
+  ];
+
+  var BOOK_FETCH_COMPLICATIONS = [
+    'an Owl Cultist elevator is one use from collapse',
+    'a Spider Archivist lit-candle trigger is already active in this wing',
+    'the path is sealed by a Quiet Area trap and Word Stealers are near',
+    'a Philophicker sect claims legal ownership of your target text',
+    'the target book has become a Page Knight anchor and cannot be moved openly'
+  ];
+
+  var BOOK_FETCH_TWISTS = [
+    'the target text is alive and negotiates its own ransom',
+    'the destination was misfiled and now sits one depth deeper',
+    'the client\'s "authorized copy" is forged, and the real one is cursed',
+    'every written note you carry attracts Inkmites until sealed in wax',
+    'the map itself keeps rewriting, pointing toward a different wing each hour'
+  ];
+
   function ensureLibraryState() {
     if (typeof S === 'undefined' || !S) return null;
     if (!S.infiniteLibrary || typeof S.infiniteLibrary !== 'object') {
@@ -95,7 +199,9 @@
         currentQuest: null,
         activeHexKey: '',
         delveCount: 0,
-        lastResult: ''
+        lastResult: '',
+        lastEncounter: '',
+        lastHook: ''
       };
     }
     return S.infiniteLibrary;
@@ -128,6 +234,8 @@
     hex.data.infiniteLibrary.roomIndex = Number(state.roomIndex || 0);
     hex.data.infiniteLibrary.lastResult = String(state.lastResult || '');
     hex.data.infiniteLibrary.delveCount = Number(state.delveCount || 0);
+    hex.data.infiniteLibrary.lastEncounter = String(state.lastEncounter || '');
+    hex.data.infiniteLibrary.lastHook = String(state.lastHook || '');
   }
 
   function readLibraryStateFromHex(state, key) {
@@ -139,6 +247,8 @@
     if (typeof hs.roomIndex === 'number') state.roomIndex = Math.max(0, Number(hs.roomIndex || 0));
     if (typeof hs.lastResult === 'string') state.lastResult = hs.lastResult;
     if (typeof hs.delveCount === 'number') state.delveCount = Math.max(Number(state.delveCount || 0), Number(hs.delveCount || 0));
+    if (typeof hs.lastEncounter === 'string') state.lastEncounter = hs.lastEncounter;
+    if (typeof hs.lastHook === 'string') state.lastHook = hs.lastHook;
   }
 
   function tierForDepth(depth) {
@@ -150,6 +260,84 @@
     if (!Array.isArray(list) || !list.length) return '';
     var rng = rngFromSeed(seed);
     return list[Math.floor(rng() * list.length)] || list[0];
+  }
+
+  function pickNow(list) {
+    if (!Array.isArray(list) || !list.length) return '';
+    return list[Math.floor(Math.random() * list.length)] || list[0];
+  }
+
+  function depthBand(depth) {
+    var d = Math.max(1, Number(depth || 1));
+    if (d <= 4) return 'shallow';
+    if (d >= 8) return 'deep';
+    return 'mid';
+  }
+
+  function depthAllowed(depthRule, band) {
+    var rule = String(depthRule || 'any').toLowerCase();
+    if (rule === 'any') return true;
+    if (rule.indexOf('shallow') >= 0 && band === 'shallow') return true;
+    if (rule.indexOf('deep') >= 0 && band === 'deep') return true;
+    return false;
+  }
+
+  function findByRoll(list, value) {
+    for (var i = 0; i < list.length; i++) {
+      var item = list[i];
+      if (value >= Number(item.min) && value <= Number(item.max)) return item;
+    }
+    return list[0] || null;
+  }
+
+  function rollElevatorStatus() {
+    var r = rollDie(12);
+    var status = findByRoll(ELEVATOR_STATUS, r);
+    return 'Elevator d12=' + r + ': ' + (status ? status.text : 'Unknown status.');
+  }
+
+  function rollPortalDestination() {
+    var r = rollDie(12);
+    var place = PORTAL_DESTINATIONS[Math.max(0, r - 1)] || PORTAL_DESTINATIONS[0];
+    return 'Portal d12=' + r + ': ' + place;
+  }
+
+  function rollEncounterForDepth(depth) {
+    var band = depthBand(depth);
+    var chosen = null;
+    var d20 = 0;
+    for (var tries = 0; tries < 30; tries++) {
+      d20 = rollDie(20);
+      var found = findByRoll(LIBRARY_ENCOUNTERS, d20);
+      if (found && depthAllowed(found.depth, band)) {
+        chosen = found;
+        break;
+      }
+    }
+    if (!chosen) chosen = LIBRARY_ENCOUNTERS[0];
+
+    var detail = '';
+    if (chosen.name === 'Elevator') detail = rollElevatorStatus();
+    if (chosen.name === 'Portal') detail = rollPortalDestination();
+    if (chosen.name === 'Philophickers') detail = 'Idea pressure: ' + pickNow(PHILOPHICKER_IDEAS);
+    if (chosen.name === 'Words Unbound') detail = 'Word trap: ' + pickNow(LIBRARY_TRAPS);
+
+    return {
+      roll: d20,
+      encounter: chosen,
+      band: band,
+      detail: detail
+    };
+  }
+
+  function generateBookFetchHook(state) {
+    var depth = Math.max(1, Number(state && state.depth || 1));
+    var wing = pickNow(LIBRARY_WINGS);
+    var objective = pickNow(BOOK_FETCH_OBJECTIVES);
+    var complication = pickNow(BOOK_FETCH_COMPLICATIONS);
+    var twist = pickNow(BOOK_FETCH_TWISTS);
+    var exitPlan = pickNow(LIBRARY_EXIT_PATHS);
+    return 'Depth ' + depth + ' · ' + wing + '. Objective: ' + objective + '. Complication: ' + complication + '. Twist: ' + twist + '. Exit plan: ' + exitPlan + '.';
   }
 
   function buildQuest(state, tier) {
@@ -184,6 +372,8 @@
     if (!state.currentQuest) state.currentQuest = buildQuest(state, tier);
     var quest = state.currentQuest;
     var bossNow = maybeBossRoom(state, tier);
+    var lastEncounter = String(state.lastEncounter || '').trim();
+    var lastHook = String(state.lastHook || '').trim();
 
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
       + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.14rem;"><strong>The Infinite Library · Depth ' + Number(state.depth || 1) + '</strong></div>'
@@ -198,9 +388,13 @@
         ? ('<div style="font-size:.68rem;color:var(--red2);margin-bottom:.14rem;"><strong>Boss Gate:</strong> ' + tier.boss + ' blocks the next descent.</div>')
         : '')
       + (state.lastResult ? ('<div style="font-size:.66rem;color:var(--teal);margin-bottom:.14rem;">Last Result: ' + state.lastResult + '</div>') : '')
+      + (lastEncounter ? ('<div style="font-size:.66rem;color:#9cb8ff;margin-bottom:.12rem;"><strong>Encounter:</strong> ' + lastEncounter + '</div>') : '')
+      + (lastHook ? ('<div style="font-size:.66rem;color:var(--muted3);margin-bottom:.14rem;"><strong>Book Fetch Hook:</strong> ' + lastHook + '</div>') : '')
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
       + '<button class="btn btn-sm btn-primary" onclick="resolveInfiniteLibraryAction(\'search\')">Search Stacks (Mind vs d' + tier.die + ')</button>'
       + '<button class="btn btn-sm" onclick="resolveInfiniteLibraryAction(\'trace\')">Trace Spiral Route (Adventure vs d' + tier.die + ')</button>'
+      + '<button class="btn btn-sm" onclick="resolveInfiniteLibraryAction(\'encounter\')">Roll Encounter (D20)</button>'
+      + '<button class="btn btn-sm" onclick="resolveInfiniteLibraryAction(\'hook\')">Generate Book-Fetch Hook</button>'
       + (bossNow
         ? '<button class="btn btn-sm btn-red" onclick="resolveInfiniteLibraryAction(\'boss\')">Confront ' + tier.boss + '</button>'
         : '<button class="btn btn-sm btn-teal" onclick="resolveInfiniteLibraryAction(\'descend\')">Descend To Next Room</button>')
@@ -224,6 +418,23 @@
   function resolveInfiniteLibraryAction(action) {
     var state = ensureLibraryState();
     if (!state) return false;
+
+    if (action === 'encounter') {
+      var rolled = rollEncounterForDepth(state.depth);
+      var baseLine = 'd20=' + rolled.roll + ' (' + rolled.band + '): ' + rolled.encounter.name + ' - ' + rolled.encounter.blurb;
+      state.lastEncounter = rolled.detail ? (baseLine + ' | ' + rolled.detail) : baseLine;
+      state.lastResult = 'Encounter generated.';
+      attachLibraryStateToHex(state);
+      return renderLibraryModal();
+    }
+
+    if (action === 'hook') {
+      state.lastHook = generateBookFetchHook(state);
+      state.lastResult = 'Book-fetch contract generated.';
+      attachLibraryStateToHex(state);
+      return renderLibraryModal();
+    }
+
     var tier = tierForDepth(state.depth);
     var risky = action === 'search' || action === 'trace' || action === 'boss';
 
@@ -255,11 +466,19 @@
         state.depth += 1;
         state.roomIndex += 1;
         state.currentQuest = buildQuest(state, tierForDepth(state.depth));
+        var travelEncounter = rollEncounterForDepth(state.depth);
+        state.lastEncounter = 'On descent: d20=' + travelEncounter.roll + ' (' + travelEncounter.band + '): ' + travelEncounter.encounter.name
+          + (travelEncounter.detail ? (' | ' + travelEncounter.detail) : '');
         state.lastResult = 'You descend one floor. (' + detail + ')';
       } else {
         state.roomIndex += 1;
         if (typeof S !== 'undefined' && S) {
           S.credits = Math.max(0, Number(S.credits || 0) + 30 + tier.die);
+        }
+        if (action === 'search') {
+          var searchEncounter = rollEncounterForDepth(state.depth);
+          state.lastEncounter = 'While searching: d20=' + searchEncounter.roll + ' (' + searchEncounter.band + '): ' + searchEncounter.encounter.name
+            + (searchEncounter.detail ? (' | ' + searchEncounter.detail) : '');
         }
         state.lastResult = 'Success: lore recovered and clues logged. (' + detail + ')';
       }

@@ -116,6 +116,8 @@ async function collectTurnSummary(page) {
 async function waitForTurnSummary(page, expected, label) {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    const before = await collectTurnSummary(page);
+    process.stdout.write(`[trace] ${label} attempt=${attempt + 1} before=${JSON.stringify(before)} expected=${JSON.stringify({ round: expected.round, actor: expected.currentActorToken, idx: expected.currentActorIndex })}\n`);
     try {
       await page.waitForFunction(
         (target) => {
@@ -146,9 +148,13 @@ async function waitForTurnSummary(page, expected, label) {
         { timeout: STEP_TIMEOUT_MS }
       );
       lastErr = null;
+      const after = await collectTurnSummary(page);
+      process.stdout.write(`[trace] ${label} attempt=${attempt + 1} matched=${JSON.stringify(after)}\n`);
       break;
     } catch (err) {
       lastErr = err;
+      const miss = await collectTurnSummary(page);
+      process.stdout.write(`[trace] ${label} attempt=${attempt + 1} timeoutSnapshot=${JSON.stringify(miss)}\n`);
       await page.evaluate(async () => {
         try {
           if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {
@@ -156,6 +162,8 @@ async function waitForTurnSummary(page, expected, label) {
           }
         } catch (_err) {}
       });
+      const postSync = await collectTurnSummary(page);
+      process.stdout.write(`[trace] ${label} attempt=${attempt + 1} postSync=${JSON.stringify(postSync)}\n`);
       await wait(200 * (attempt + 1));
     }
   }

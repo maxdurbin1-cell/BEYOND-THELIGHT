@@ -1545,9 +1545,9 @@
     {
       id: 'action_die_training',
       label: 'Action Die Training',
-      maxRank: 2,
-      costs: [{ points: 2, medals: 1 }, { points: 4, medals: 2 }],
-      detail: 'Upgrade Strike/Shoot action dice by one step per rank.'
+      maxRank: 3,
+      costs: [{ points: 2, medals: 1 }, { points: 4, medals: 2 }, { points: 6, medals: 3 }],
+      detail: 'Upgrade all action dice by one step per rank (d4→d6→d8→d10→d12→d20).'
     },
     {
       id: 'strike_mastery',
@@ -1557,11 +1557,25 @@
       detail: 'Gain +1 Strike pressure at rank 1, +3 at rank 2.'
     },
     {
+      id: 'raid_tick_overclock',
+      label: 'Raid Tick Overclock',
+      maxRank: 3,
+      costs: [{ points: 2, medals: 1 }, { points: 4, medals: 2 }, { points: 6, medals: 3 }],
+      detail: 'Gain +10 max ticks in raids at rank 1, +20 at rank 2, +30 at rank 3.'
+    },
+    {
       id: 'teamwork_feedback',
       label: 'Teamwork Feedback',
       maxRank: 1,
       costs: [{ points: 3, medals: 2 }],
-      detail: 'Unlock allied teamwork feedback during pressure windows.'
+      detail: 'Unlock allied teamwork feedback during pressure windows and halve Teamwork burst costs in raids.'
+    },
+    {
+      id: 'flavor_boss_personal',
+      label: 'Boss Personal Flavors',
+      maxRank: 1,
+      costs: [{ points: 4, medals: 2 }],
+      detail: 'Unlock raid boss personal flavor branches tied to active boss themes.'
     },
     {
       id: 'flavor_glacial_tell',
@@ -1836,11 +1850,33 @@
     if (playerFlavor) out.push(String(S.flavor || 'Wayfarer'));
     if (getLegacyRaidTalentRank('flavor_glacial_tell') > 0) out.push('Glacial Tell');
     if (getLegacyRaidTalentRank('flavor_null_veil') > 0) out.push('Null Veil');
+    var active = typeof S !== 'undefined' && S && Array.isArray(S.activeMissions)
+      ? S.activeMissions.find(function (m) { return m && m.missionType === 'legacy_raid' && m.steps && m.steps[3] && !m.steps[3].completed; })
+      : null;
+    var bossFlavor = getLegacyRaidBossPersonalFlavorBranch(active || null);
+    if (bossFlavor) out.push(bossFlavor);
     return out;
   }
 
+  function getLegacyRaidBossPersonalFlavorBranch(mission) {
+    if (getLegacyRaidTalentRank('flavor_boss_personal') <= 0) return '';
+    var boss = String(mission && mission.legacyRaidBoss || '').toLowerCase();
+    if (boss.indexOf('ember') >= 0 || boss.indexOf('pyre') >= 0 || boss.indexOf('flame') >= 0) return 'Pyre Litany';
+    if (boss.indexOf('void') >= 0 || boss.indexOf('null') >= 0) return 'Null Cant';
+    if (boss.indexOf('frost') >= 0 || boss.indexOf('glacial') >= 0) return 'Winter Oath';
+    if (boss.indexOf('sea') >= 0 || boss.indexOf('tide') >= 0 || boss.indexOf('abyss') >= 0) return 'Brine Psalm';
+    return 'Boss Imprint';
+  }
+
   function getLegacyRaidCombatActionDie(actionType) {
-    var key = String(actionType || 'strike').toLowerCase() === 'shoot' ? 'shoot' : 'strike';
+    var req = String(actionType || 'strike').toLowerCase();
+    var key = req === 'shoot' ? 'shoot'
+      : (req === 'defend' ? 'defend'
+        : (req === 'mind' ? 'mind'
+          : (req === 'control' ? 'control'
+            : (req === 'lead' ? 'lead'
+              : (req === 'body' ? 'body'
+                : (req === 'spirit' ? 'spirit' : 'strike'))))));
     var base = 8;
     if (typeof getEffectiveDie === 'function') {
       base = Math.max(4, Number(getEffectiveDie(key) || 0) || Number(getStat(key) || 8));
@@ -1851,7 +1887,20 @@
   }
 
   function getLegacyRaidBestCombatDie() {
-    return Math.max(getLegacyRaidCombatActionDie('strike'), getLegacyRaidCombatActionDie('shoot'));
+    return Math.max(
+      getLegacyRaidCombatActionDie('strike'),
+      getLegacyRaidCombatActionDie('shoot'),
+      getLegacyRaidCombatActionDie('defend'),
+      getLegacyRaidCombatActionDie('mind'),
+      getLegacyRaidCombatActionDie('lead'),
+      getLegacyRaidCombatActionDie('body'),
+      getLegacyRaidCombatActionDie('spirit')
+    );
+  }
+
+  function getLegacyRaidTickCap() {
+    var rank = getLegacyRaidTalentRank('raid_tick_overclock');
+    return 20 + (Math.max(0, rank) * 10);
   }
 
   function buildLegacyRaidCombatDieSummary() {
@@ -1887,7 +1936,14 @@
   }
 
   function getLegacyRaidTeamworkBurstCosts(mission) {
-    return { prevent: 10, puzzle: 25, revive: 50, cinematic: 100 };
+    var half = getLegacyRaidTalentRank('teamwork_feedback') > 0;
+    var scale = half ? 0.5 : 1;
+    return {
+      prevent: Math.max(1, Math.floor(10 * scale)),
+      puzzle: Math.max(1, Math.floor(25 * scale)),
+      revive: Math.max(1, Math.floor(50 * scale)),
+      cinematic: Math.max(1, Math.floor(100 * scale))
+    };
   }
 
   function getLegacyRaidArmorActionCount() {
@@ -3537,13 +3593,32 @@
     var phaseProfile = encounter.phaseProfiles && encounter.phaseProfiles[phase - 1];
     var maxPhaseHp = phaseProfile ? phaseProfile.hp : 20;
     
-    var dreadRoll = typeof roll === 'function' ? roll(6) : Math.floor(Math.random() * 6) + 1;
-    var playerRoll = typeof roll === 'function' ? roll(typeof getEffectiveDie === 'function' ? getEffectiveDie('strike') : 8) : (5 + Math.floor(Math.random() * 4));
-    var damageDealt = Math.max(1, playerRoll - dreadRoll);
-    
-    encounter.phaseHp = Math.max(0, Number(encounter.phaseHp || 0) - damageDealt);
+    var playerDie = getLegacyRaidBestCombatDie();
+    var bossDie = Math.max(6, Number(encounter.dreadDie || 10));
+    var playerRoll = typeof roll === 'function' ? roll(playerDie) : (1 + Math.floor(Math.random() * playerDie));
+    var bossDefend = typeof roll === 'function' ? roll(bossDie) : (1 + Math.floor(Math.random() * bossDie));
+    var damageDealt = Math.max(0, playerRoll - bossDefend);
+
+    if (damageDealt > 0) {
+      encounter.phaseHp = Math.max(0, Number(encounter.phaseHp || 0) - damageDealt);
+    }
     encounter.log = encounter.log || [];
-    encounter.log.push('Round: You rolled ' + playerRoll + ' vs Boss Dread ' + dreadRoll + '. Dealt ' + damageDealt + ' HP.');
+    encounter.log.push('Round: You rolled ' + playerRoll + ' vs Boss Defend ' + bossDefend + '. ' + (damageDealt > 0 ? ('Dealt ' + damageDealt + ' HP.') : 'No damage.'));
+
+    // Allies phase: each alive ally contributes one attack in this quick-battle resolver.
+    var allyNames = Object.keys(encounter.partyHp && encounter.partyHp.allies || {});
+    var allyDamage = 0;
+    allyNames.forEach(function (allyName) {
+      var hp = Math.max(0, Number(encounter.partyHp.allies[allyName] || 0));
+      if (hp <= 0) return;
+      var aRoll = typeof roll === 'function' ? roll(6) : (1 + Math.floor(Math.random() * 6));
+      var aDefend = typeof roll === 'function' ? roll(bossDie) : (1 + Math.floor(Math.random() * bossDie));
+      allyDamage += Math.max(0, aRoll - aDefend);
+    });
+    if (allyDamage > 0) {
+      encounter.phaseHp = Math.max(0, Number(encounter.phaseHp || 0) - allyDamage);
+      encounter.log.push('Allies dealt ' + allyDamage + ' total HP this round.');
+    }
     
     if (encounter.log.length > 5) encounter.log.shift();
     
@@ -3555,6 +3630,37 @@
       if (typeof showNotif === 'function') showNotif('🐉 Boss defeated! Raid clear!', 'good');
       window.resolveRaidBossRoom(mission.id, true);
       return;
+    } else {
+      // Boss phase: boss takes 2 actions and can damage player and allies.
+      var targets = [];
+      var playerHp = typeof S !== 'undefined' && S ? Math.max(0, Number(S.health || 0)) : 0;
+      if (playerHp > 0) targets.push({ kind: 'player', name: String((typeof S !== 'undefined' && S && S.name) || 'You') });
+      allyNames.forEach(function (allyName) {
+        if (Math.max(0, Number(encounter.partyHp.allies[allyName] || 0)) > 0) {
+          targets.push({ kind: 'ally', name: allyName });
+        }
+      });
+      for (var ai = 0; ai < 2; ai++) {
+        if (!targets.length) break;
+        var target = targets[Math.floor(Math.random() * targets.length)];
+        var bossHit = typeof roll === 'function' ? roll(bossDie) : (1 + Math.floor(Math.random() * bossDie));
+        var defendDie = target.kind === 'player' ? getLegacyRaidCombatActionDie('defend') : 6;
+        var targetDefend = typeof roll === 'function' ? roll(defendDie) : (1 + Math.floor(Math.random() * defendDie));
+        var incoming = Math.max(0, bossHit - targetDefend);
+        if (incoming <= 0) {
+          encounter.log.push('Boss attack on ' + target.name + ' was defended.');
+          continue;
+        }
+        if (target.kind === 'player') {
+          if (typeof S !== 'undefined' && S) {
+            S.health = Math.max(0, Number(S.health || 0) - incoming);
+          }
+          encounter.log.push('Boss hit ' + target.name + ' for ' + incoming + ' damage.');
+        } else {
+          encounter.partyHp.allies[target.name] = Math.max(0, Number(encounter.partyHp.allies[target.name] || 0) - incoming);
+          encounter.log.push('Boss hit ally ' + target.name + ' for ' + incoming + ' damage.');
+        }
+      }
     }
     
     closeModal();
@@ -3588,10 +3694,12 @@
   }
 
   window.getLegacyRaidTeamworkBurstCosts = function (mission) {
+    var half = getLegacyRaidTalentRank('teamwork_feedback') > 0;
+    var scale = half ? 0.5 : 1;
     return {
-      nullify: 10,
-      revive: 50,
-      cinematic_success: 100
+      nullify: Math.max(1, Math.floor(10 * scale)),
+      revive: Math.max(1, Math.floor(50 * scale)),
+      cinematic_success: Math.max(1, Math.floor(100 * scale))
     };
   };
 
@@ -5089,7 +5197,12 @@
     if (Number(wingNum || 1) >= 3) return null;
     if (!mission.legacyRaidWingGrid || typeof mission.legacyRaidWingGrid !== 'object') mission.legacyRaidWingGrid = {};
     var key = String(wingNum);
-    if (mission.legacyRaidWingGrid[key] && mission.legacyRaidWingGrid[key].size === 12) return mission.legacyRaidWingGrid[key];
+    if (mission.legacyRaidWingGrid[key] && mission.legacyRaidWingGrid[key].size === 12) {
+      var existing = mission.legacyRaidWingGrid[key];
+      var cap = getLegacyRaidTickCap();
+      existing.ticks = Math.max(0, Math.min(cap, Number(existing.ticks || cap)));
+      return existing;
+    }
 
     var size = 12;
     var start = { x: 0, y: wingNum === 1 ? 5 : 6 };
@@ -5235,7 +5348,7 @@
       exitId: exit.x + ',' + exit.y,
       currentId: start.x + ',' + start.y,
       selectedId: start.x + ',' + start.y,
-      ticks: 20,
+      ticks: getLegacyRaidTickCap(),
       cells: cells,
       pathIds: Object.keys(pathSet),
       objectives: {
@@ -5524,7 +5637,7 @@
       state.lastLog = 'Hex ' + cell.id + ' failed (' + et + '). Roll ' + result.actionRoll + ' vs ' + result.dreadRoll + '. Extra tick lost.';
     } else {
       cell.cleared = true;
-      state.ticks = Math.min(20, Number(state.ticks || 0) + 2);
+      state.ticks = Math.min(getLegacyRaidTickCap(), Number(state.ticks || 0) + 2);
       if (cell.waypoint) state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
       if (cell.lorePiece) state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
       state.lastLog = 'Hex ' + cell.id + ' cleared (' + et + '). Roll ' + result.actionRoll + ' vs ' + result.dreadRoll + '. +2 ticks.';
@@ -5699,7 +5812,7 @@
             reward: { credits: 50, renown: 1, item: cell.lorePiece ? 'Lore Fragment' : 'Waypoint Key' },
             onSuccess: function () {
               cell.cleared = true;
-              state.ticks = Math.min(20, Number(state.ticks || 0) + 2);
+              state.ticks = Math.min(getLegacyRaidTickCap(), Number(state.ticks || 0) + 2);
               if (cell.lorePiece) {
                 state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
                 if (Number(state.objectives.loreCollected || 0) >= Number(state.objectives.loreRequired || 3) && Number(wingNum || 1) === 1 && typeof showNotif === 'function') {
@@ -5790,7 +5903,7 @@
         state.lastLog = 'Hex ' + cell.id + ' failed (' + eventType + '). Extra tick lost.';
       } else {
         cell.cleared = true;
-        state.ticks = Math.min(20, Number(state.ticks || 0) + 2);
+        state.ticks = Math.min(getLegacyRaidTickCap(), Number(state.ticks || 0) + 2);
         state.lastLog = 'Hex ' + cell.id + ' cleared (' + eventType + '). +2 ticks earned.';
         if (cell.lorePiece) state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
         if (cell.waypoint) state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
@@ -5814,7 +5927,7 @@
         if (eventType === 'rest') {
           var bonusTicks = Number(cell.rested ? 0 : 2);
           if (!cell.rested) {
-            state.ticks = Math.min(20, Number(state.ticks || 0) + bonusTicks);
+            state.ticks = Math.min(getLegacyRaidTickCap(), Number(state.ticks || 0) + bonusTicks);
             cell.rested = true;
             state.lastLog = 'Long Rest complete at hex ' + cell.id + '. +2 ticks restored.';
           } else {

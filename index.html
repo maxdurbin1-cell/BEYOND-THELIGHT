@@ -4708,6 +4708,45 @@ function applySpecificFlavorActionOverride(entry){
     return 'Grave Whisper: a question answered, with a clue anchored to graves, battlefields, or the recent dead. +1 Path Token.';
   }
 
+  // ── BONE ORACLE — once per day omen read + Omen tab focus ───────────────
+  if(base.indexOf('bone oracle')>=0){
+    var omenText='';
+    var omenSource='Bone fragments';
+    if(typeof window.getSolarCycleStatus==='function'){
+      try{
+        var scStatus=window.getSolarCycleStatus()||null;
+        if(scStatus&&String(scStatus.currentOmen||'').trim()){
+          omenText=String(scStatus.currentOmen||'').trim();
+          omenSource='Omen Tab';
+        }
+      }catch(_boneErr){}
+    }
+    if(!omenText){
+      var boneOmens=[
+        'Ash in the marrow points toward a road that will close unless you move first.',
+        'A cracked femur hums with warning: trust the witness who arrives late, not the loud one first.',
+        'The jawbone clicks three times. Something sealed beneath stone is ready to answer a true name.',
+        'Char on old bone maps a spiral route; one detour now prevents a larger ruin later.',
+        'Dust patterns in the remains spell a bargain: take the hard path and keep your allies intact.'
+      ];
+      omenText=pick(boneOmens);
+    }
+    if(S&&S.storyline){
+      if(!Array.isArray(S.storyline.omenLog))S.storyline.omenLog=[];
+      S.storyline.omenLog.unshift('Bone Oracle: '+omenText);
+      if(S.storyline.omenLog.length>30)S.storyline.omenLog.length=30;
+    }
+    if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+    if(typeof window.switchTab==='function'){
+      try{window.switchTab('newsun',document.getElementById('tabnav-newsun'));}catch(_e0){}
+    }
+    if(typeof window.renderNewSunModePanel==='function'){
+      try{window.renderNewSunModePanel();}catch(_e1){}
+    }
+    openModal('Bone Oracle','<div style="font-size:.9rem;color:var(--text2);line-height:1.7;"><em style="color:var(--muted2);">You cast the remains and read the omen traces...</em><div style="margin-top:.45rem;color:var(--gold2);font-style:italic;">'+omenText+'</div><div style="margin-top:.45rem;font-size:.76rem;color:var(--muted2);">Source: '+omenSource+'. Omen Tab opened for follow-up interpretation. +1 Path Token.</div></div>');
+    return 'Bone Oracle: omen interpreted and logged. Omen Tab opened. +1 Path Token.';
+  }
+
   // ── RUIN SCHOLAR — Adventure Die to all checks in ruins this phase ────────
   if(base.indexOf('ruin scholar')>=0){
     if(!S.rollMod)S.rollMod={advDice:[],flat:0};
@@ -11115,8 +11154,8 @@ function renderHexInfo(hex){
       const CTRL_COLORS={rebels:'#e05050',guilds:'#e8c050',church:'#c9d6f0',empire:'#7b9aff',syndicate:'#b060d0',scholars:'#46c4b6'};
       const cc=wsOverlay.control?(CTRL_COLORS[wsOverlay.control]||'var(--teal)'):'var(--muted2)';
       const worldActions=[];
-      if(wsOverlay.activeCrisis)worldActions.push(`<button class="btn btn-xs btn-warn" onclick="resolveWorldStateAction(${hex.col},${hex.row},'stabilize')">🧯 Stabilize Crisis</button>`);
-      if(wsOverlay.closedBorder||wsOverlay.closedPort||wsOverlay.dangerousRoad)worldActions.push(`<button class="btn btn-xs btn-teal" onclick="resolveWorldStateAction(${hex.col},${hex.row},'reopen')">🛣 Reopen Routes</button>`);
+      if(wsOverlay.activeCrisis)worldActions.push(`<button class="btn btn-xs btn-warn" onclick="resolveWorldStateActionForRegion('province',${hex.col},${hex.row},'stabilize')">🧯 Stabilize Crisis</button>`);
+      if(wsOverlay.closedBorder||wsOverlay.closedPort||wsOverlay.dangerousRoad)worldActions.push(`<button class="btn btn-xs btn-teal" onclick="resolveWorldStateActionForRegion('province',${hex.col},${hex.row},'reopen')">🛣 Reopen Routes</button>`);
       html+=`<div class="npc-block" style="margin-top:.4rem;border-color:rgba(180,180,255,.35);background:rgba(180,180,255,.05);">
         <div class="nb-label" style="color:var(--purple);">🌐 World State</div>
         <div style="font-size:.78rem;color:var(--text2);line-height:1.6;">
@@ -12118,9 +12157,17 @@ function clearWorldStatePressureAtKey(locationKey,flags){
 }
 
 function resolveWorldStateAction(col,row,action){
+  return resolveWorldStateActionForRegion('province',col,row,action);
+}
+
+function resolveWorldStateActionForRegion(region,col,row,action){
+  var regionName=String(region||'province').toLowerCase();
+  if(['province','sea','galaxy','wtw','planet'].indexOf(regionName)<0)regionName='province';
   var key=String(col)+','+String(row);
-  var hex=getProvinceHexByKey(key);
-  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
+  var hex=regionName==='province'?getProvinceHexByKey(key):null;
+  var overlay=(typeof window.getWorldStateHexOverlayForRegion==='function')
+    ?window.getWorldStateHexOverlayForRegion(regionName,key)
+    :((typeof window.getWorldStateHexOverlay==='function'&&regionName==='province')?window.getWorldStateHexOverlay(key):null);
   var choice=String(action||'').toLowerCase();
   if(typeof window.applyWorldConsequence!=='function'){
     showNotif('World state system unavailable.','warn');
@@ -12131,28 +12178,28 @@ function resolveWorldStateAction(col,row,action){
       system:'player-action',
       title:'Wayfarers stabilized a local crisis',
       detail:'Emergency aid and patrol routes lowered tension around '+key+'.',
-      region:'province',
+      region:regionName,
       locationKey:key,
       severity:'info',
       factionId:overlay&&overlay.control?String(overlay.control):'',
       deltas:{stability:1,tension:-1,scarcity:-1},
       tags:['crisis-stabilized','patrol-deployed']
     });
-    clearWorldStatePressureAtKey(key,{crisis:true,routeSafe:true});
+    if(regionName==='province')clearWorldStatePressureAtKey(key,{crisis:true,routeSafe:true});
     showNotif('Local crisis pressure reduced.','good');
   }else if(choice==='reopen'){
     window.applyWorldConsequence({
       system:'player-action',
       title:'Wayfarers reopened blocked routes',
       detail:'Escorts and diplomacy reopened trade movement at '+key+'.',
-      region:'province',
+      region:regionName,
       locationKey:key,
       severity:'info',
       factionId:overlay&&overlay.control?String(overlay.control):'',
       deltas:{stability:1,scarcity:-2},
       tags:['opened-border','discovered-route']
     });
-    clearWorldStatePressureAtKey(key,{route:true,crisis:false});
+    if(regionName==='province')clearWorldStatePressureAtKey(key,{route:true,crisis:false});
     showNotif('Routes reopened and market pressure eased.','good');
   }else if(choice==='negotiate'){
     var leadDie=(typeof getEffectiveDie==='function')?getEffectiveDie('lead'):((S.stats&&S.stats.lead)||4);
@@ -12168,21 +12215,21 @@ function resolveWorldStateAction(col,row,action){
         system:'player-action',
         title:'Wayfarers brokered local control talks',
         detail:'Negotiations reduced faction heat in hex '+key+'.',
-        region:'province',
+        region:regionName,
         locationKey:key,
         severity:'info',
         factionId:overlay&&overlay.control?String(overlay.control):'',
         deltas:{stability:1,factionHeat:-1,tension:-1},
         tags:['negotiate','opened-border']
       });
-      clearWorldStatePressureAtKey(key,{routeSafe:true});
+      if(regionName==='province')clearWorldStatePressureAtKey(key,{routeSafe:true});
       showNotif('Negotiate Control success: LEAD '+leadRoll.total+(modifier>=0?(' +'+modifier):(' '+modifier))+' vs DD8 '+ddRoll.total+'.','good');
     }else{
       window.applyWorldConsequence({
         system:'player-action',
         title:'Control negotiations broke down',
         detail:'Talks failed at '+key+' and local pressure increased.',
-        region:'province',
+        region:regionName,
         locationKey:key,
         severity:'medium',
         factionId:overlay&&overlay.control?String(overlay.control):'',
@@ -12192,15 +12239,17 @@ function resolveWorldStateAction(col,row,action){
       showNotif('Negotiate Control failed: LEAD '+leadRoll.total+(modifier>=0?(' +'+modifier):(' '+modifier))+' vs DD8 '+ddRoll.total+'.','warn');
     }
   }
-  if(hex&&hex.data&&hex.data.mood&&choice==='stabilize'){
+  if(regionName==='province'&&hex&&hex.data&&hex.data.mood&&choice==='stabilize'){
     hex.data.mood.crisis='No Crisis';
     if(!hex.data.mood.resolution||String(hex.data.mood.resolution).toLowerCase().indexOf('guards ask')>=0){
       hex.data.mood.resolution='The settlement regains confidence and trade resumes.';
     }
   }
-  if(typeof renderHexMap==='function')renderHexMap();
+  if(regionName==='province'&&typeof renderHexMap==='function')renderHexMap();
   if(hex&&typeof renderHexInfo==='function')renderHexInfo(hex);
 }
+
+window.resolveWorldStateActionForRegion=resolveWorldStateActionForRegion;
 
 function resolveHoldingCrisisAction(col,row){
   var key=String(col)+','+String(row);

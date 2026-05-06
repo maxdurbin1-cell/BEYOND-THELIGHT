@@ -1700,18 +1700,34 @@
     var keyRow = ['bronze', 'silver', 'gold', 'platinum'].map(function (tier) {
       return '<span style="font-size:.68rem;color:var(--gold2);">' + tier.charAt(0).toUpperCase() + tier.slice(1) + ' Key x' + Math.max(0, Number(keyState[tier] || 0)) + '</span>';
     }).join(' · ');
+    var raidNodeAccents = {
+      action_die_training: '#7ed7ff',
+      strike_mastery: '#f08b6c',
+      raid_tick_overclock: '#ffd56a',
+      teamwork_feedback: '#67d6b3',
+      flavor_boss_personal: '#c39cff',
+      flavor_glacial_tell: '#9be9ff',
+      flavor_null_veil: '#b18dff'
+    };
     var nodeHtml = LEGACY_RAID_TREE_NODES.map(function (node) {
       var rank = getLegacyRaidTalentRank(node.id);
       var maxRank = Math.max(1, Number(node.maxRank || 1));
       var capped = rank >= maxRank;
       var cost = getLegacyRaidTreeNodeCost(node, rank);
       var affordable = !capped && pointCount >= Number(cost.points || 0) && medalCount >= Number(cost.medals || 0);
+      var fillPct = Math.max(0, Math.min(100, Math.round((rank / maxRank) * 100)));
+      var accent = raidNodeAccents[node.id] || '#7ed7ff';
       var rankText = 'Rank ' + rank + '/' + maxRank;
       var costText = capped ? 'Maxed' : ('Cost: ' + Number(cost.points || 0) + ' RP · ' + Number(cost.medals || 0) + ' Medals');
-      return '<div style="border:1px solid var(--border2);background:var(--surface);padding:.42rem .48rem;">'
+      return '<div style="position:relative;border:1px solid rgba(255,255,255,.16);background:linear-gradient(160deg, rgba(14,20,28,.92), rgba(10,14,20,.86));padding:.46rem .52rem .5rem .66rem;overflow:hidden;">'
+        + '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:' + accent + ';opacity:.9;"></div>'
+        + '<div style="position:absolute;right:.45rem;top:.28rem;color:' + accent + ';font-size:.56rem;letter-spacing:.16em;text-transform:uppercase;opacity:.75;">Node</div>'
         + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:center;">'
-        + '<div style="font-size:.74rem;color:var(--text2);"><strong>' + node.label + '</strong></div>'
+        + '<div style="font-size:.75rem;color:var(--text2);"><strong>' + node.label + '</strong></div>'
         + '<div style="font-size:.66rem;color:' + (capped ? 'var(--green2)' : 'var(--gold2)') + ';">' + rankText + '</div>'
+        + '</div>'
+        + '<div style="margin:.2rem 0 .22rem;height:5px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.35);">'
+        + '<div style="height:100%;width:' + fillPct + '%;background:linear-gradient(90deg,' + accent + ', rgba(255,255,255,.85));"></div>'
         + '</div>'
         + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin:.12rem 0;">' + node.detail + '</div>'
         + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.2rem;">' + costText + '</div>'
@@ -1720,18 +1736,19 @@
         + '</div>';
     }).join('');
 
-    panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;max-width:980px;">'
+    panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;max-width:980px;padding:.35rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(120% 100% at 0% 0%, rgba(126,215,255,.08), rgba(10,12,18,.95));">'
       + '<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:.45rem;">'
       + '<div style="display:grid;gap:.35rem;">'
-      + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.5rem .55rem;">'
+      + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.12), rgba(14,18,26,.92));padding:.5rem .55rem;">'
       + '<div style="font-size:.86rem;color:var(--gold2);margin-bottom:.14rem;"><strong>Raid Tree Progression</strong></div>'
       + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Medals and Raid Points from boss clears can be spent on persistent raid talents.</div>'
+      + '<div style="font-size:.64rem;color:rgba(255,255,255,.52);line-height:1.45;margin-top:.12rem;">Lane colors hint at focus: combat pressure, raid tempo, and flavor branches.</div>'
       + '<div style="font-size:.7rem;color:var(--teal);line-height:1.45;margin-top:.2rem;">Medals: ' + medalCount + ' · Raid Points: ' + pointCount + '</div>'
       + '</div>'
       + nodeHtml
       + '</div>'
       + '<div style="display:grid;gap:.35rem;">'
-      + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.5rem .55rem;">'
+      + '<div style="border:1px solid rgba(201,162,39,.2);background:linear-gradient(150deg, rgba(18,24,32,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
       + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Vault Keys</strong></div>'
       + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin-bottom:.18rem;">' + keyRow + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:.24rem;">'
@@ -1741,7 +1758,7 @@
       + '<button class="btn btn-xs btn-teal" onclick="openLegacyRaidChest(\'platinum\')">Open Platinum Chest</button>'
       + '</div>'
       + '</div>'
-      + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.5rem .55rem;">'
+      + '<div style="border:1px solid rgba(126,215,255,.22);background:linear-gradient(150deg, rgba(14,22,30,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
       + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Trophy Shelf</strong></div>'
       + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.42;max-height:180px;overflow:auto;">'
       + (profile.raidTrophies.length

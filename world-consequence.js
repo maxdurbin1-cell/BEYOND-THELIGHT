@@ -52,6 +52,20 @@
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v || 0)); }
 
+  function normalizeWorldRegion(region) {
+    var r = String(region || 'province').toLowerCase();
+    return (['province', 'sea', 'galaxy', 'wtw', 'planet'].indexOf(r) >= 0) ? r : 'province';
+  }
+
+  function getDefaultGovernanceState() {
+    return {
+      patrolStance: 'balanced',
+      tariffStance: 'balanced',
+      routePriority: 'trade',
+      updatedAt: 0
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // World-state initialiser
   // ---------------------------------------------------------------------------
@@ -123,41 +137,28 @@
   }
 
   function getProvinceGovernancePolicyState() {
-    var ws = ensureWorldState();
-    return ws ? deepClone(ensureGovernanceState(ws)) : { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
+    return getRegionGovernancePolicyState('province');
   }
 
   function setProvinceGovernancePolicyState(next) {
-    var ws = ensureWorldState();
-    if (!ws) return null;
-    var state = ensureGovernanceState(ws);
-    var patch = next && typeof next === 'object' ? next : {};
-    var patrol = String(patch.patrolStance || state.patrolStance || 'balanced').toLowerCase();
-    var tariff = String(patch.tariffStance || state.tariffStance || 'balanced').toLowerCase();
-    var route = String(patch.routePriority || state.routePriority || 'trade').toLowerCase();
-    state.patrolStance = patrol === 'strict' || patrol === 'open' ? patrol : 'balanced';
-    state.tariffStance = tariff === 'extractive' || tariff === 'relief' ? tariff : 'balanced';
-    state.routePriority = route === 'military' || route === 'civic' ? route : 'trade';
-    state.updatedAt = Date.now();
-    return deepClone(state);
+    return setRegionGovernancePolicyState('province', next);
   }
 
   // ⚡ Generic region governance getters/setters
   function getRegionGovernancePolicyState(region) {
     var ws = ensureWorldState();
-    var r = String(region || 'province');
-    if (!ws || !ws.governance || !ws.governance[r]) {
-      return { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
-    }
-    return deepClone(ws.governance[r]);
+    var r = normalizeWorldRegion(region);
+    if (!ws) return getDefaultGovernanceState();
+    ensureGovernanceState(ws);
+    return deepClone(ws.governance[r] || getDefaultGovernanceState());
   }
 
   function setRegionGovernancePolicyState(region, next) {
     var ws = ensureWorldState();
     if (!ws) return null;
-    var r = String(region || 'province');
+    var r = normalizeWorldRegion(region);
     ensureGovernanceState(ws);
-    var state = ws.governance[r] || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade', updatedAt: 0 };
+    var state = ws.governance[r] || getDefaultGovernanceState();
     var patch = next && typeof next === 'object' ? next : {};
     var patrol = String(patch.patrolStance || state.patrolStance || 'balanced').toLowerCase();
     var tariff = String(patch.tariffStance || state.tariffStance || 'balanced').toLowerCase();
@@ -543,16 +544,21 @@
   // ---------------------------------------------------------------------------
   // Map overlay accessor  (called from renderHexMap per hex)
   // ---------------------------------------------------------------------------
-  function getWorldStateHexOverlay(key) {
+  function getWorldStateHexOverlayForRegion(region, key) {
     var S = getS();
     if (!S || !S.worldState) return null;
-    var hexes = (S.worldState.regions && S.worldState.regions.province && S.worldState.regions.province.hexes) || {};
+    var r = normalizeWorldRegion(region);
+    var regionState = (S.worldState.regions && S.worldState.regions[r]) || {};
+    var hexes = regionState.hexes || {};
     var h = hexes[String(key || '')];
     if (!h) return null;
-    var region = (S.worldState.regions && S.worldState.regions.province) || {};
-    var routeState = region.routes && region.routes[String(key || '')] ? region.routes[String(key || '')] : null;
-    var settlementState = region.settlements && region.settlements[String(key || '')] ? region.settlements[String(key || '')] : null;
-    var isCrisis = Array.isArray(S.worldState.activeCrises) && S.worldState.activeCrises.some(function(c){ return c && String(c.locationKey || '') === String(key || ''); });
+    var routeState = regionState.routes && regionState.routes[String(key || '')] ? regionState.routes[String(key || '')] : null;
+    var settlementState = regionState.settlements && regionState.settlements[String(key || '')] ? regionState.settlements[String(key || '')] : null;
+    var isCrisis = Array.isArray(S.worldState.activeCrises) && S.worldState.activeCrises.some(function(c){
+      return c
+        && String(c.region || 'province') === r
+        && String(c.locationKey || '') === String(key || '');
+    });
     var tags = Array.isArray(h.tags) ? h.tags : [];
     var caps = S.worldState.capabilities || {};
     return {
@@ -574,6 +580,10 @@
       recentChange: h.lastChange  ? (Date.now() - h.lastChange < RECENT_CHANGE_WINDOW_MS) : false,
       lastChange:   h.lastChange  || 0
     };
+  }
+
+  function getWorldStateHexOverlay(key) {
+    return getWorldStateHexOverlayForRegion('province', key);
   }
 
   // ---------------------------------------------------------------------------
@@ -610,8 +620,9 @@
   function getConsequenceMissionBias() {
     var S = getS();
     if (!S || !S.worldState) return { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
-    var gov = ensureGovernanceState(S.worldState) || { patrolStance: 'balanced', tariffStance: 'balanced', routePriority: 'trade' };
     var crises = S.worldState.activeCrises || [];
+    var focusRegion = crises.length ? String((crises[0] && crises[0].region) || 'province') : 'province';
+    var gov = getRegionGovernancePolicyState(focusRegion) || getDefaultGovernanceState();
     if (!crises.length) {
       var quietPreferred = [];
       if (gov.routePriority === 'trade') quietPreferred = ['Escort', 'Deliver', 'Guide', 'Secure'];
@@ -796,6 +807,7 @@
   window.applyWorldConsequence     = applyWorldConsequence;
   window.recordWorldConsequence    = applyWorldConsequence; // satisfy existing callers
   window.getWorldStateHexOverlay   = getWorldStateHexOverlay;
+  window.getWorldStateHexOverlayForRegion = getWorldStateHexOverlayForRegion;
   window.getConsequenceMissionBias = getConsequenceMissionBias;
   window.getProvinceGovernancePolicyState = getProvinceGovernancePolicyState;
   window.setProvinceGovernancePolicyState = setProvinceGovernancePolicyState;

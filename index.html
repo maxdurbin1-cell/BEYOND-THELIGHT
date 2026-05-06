@@ -377,7 +377,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" onclick="switchTab('oracle',this)">Oracle</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" onclick="switchTab('storyline',this)">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" onclick="switchTab('factions',this)">Factions</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('raidtree',this)">Raid Tree</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('raidtree',this)">Raid</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
@@ -537,9 +537,9 @@ select option{background:#0f1020;}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">
         <div><span class="sub-label">Path Tokens</span>
           <div class="counter-row"><button class="step-btn" onclick="changeCounter('pathTokens',-1)">−</button><span class="counter-val teal-val" id="pathTokensVal">0</span><button class="step-btn" onclick="changeCounter('pathTokens',1)">+</button></div>
-          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">
-            <button class="btn btn-xs btn-teal" onclick="spendPathTokensUpgrade15()" title="Spend 15 Path Tokens to step up one Action Die">−15: Step Up Die</button>
-            <button class="btn btn-xs" onclick="spendPathTokensUpgrade20()" title="Spend 20 Path Tokens to gain a new Personal Trait">−20: New Trait</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem;margin-top:.3rem;">
+            <button class="btn btn-xs btn-teal" style="width:100%;padding:.2rem .35rem;" onclick="spendPathTokensUpgrade15()" title="Spend 15 Path Tokens to step up one Action Die">−15: Step Up Die</button>
+            <button class="btn btn-xs" style="width:100%;padding:.2rem .35rem;" onclick="spendPathTokensUpgrade20()" title="Spend 20 Path Tokens to gain a new Personal Trait">−20: New Trait</button>
           </div>
         </div>
         <div><span class="sub-label">Teamwork Pts</span>
@@ -9875,6 +9875,13 @@ function getProvinceEdgeBarrierBetween(fromHex,toHex){
   const key=normalizeProvinceEdgeKey(provinceHexKey(fromHex.col,fromHex.row),provinceHexKey(toHex.col,toHex.row));
   return provinceEdgeBarriers.find(function(edge){return edge&&edge.edgeKey===key;})||null;
 }
+function getProvinceEdgeBarrierByKeys(fromKey,toKey){
+  const a=String(fromKey||'');
+  const b=String(toKey||'');
+  if(!a||!b)return null;
+  const edgeKey=normalizeProvinceEdgeKey(a,b);
+  return provinceEdgeBarriers.find(function(edge){return edge&&edge.edgeKey===edgeKey;})||null;
+}
 function sanitizeProvinceEdgeBarriers(raw){
   if(!Array.isArray(raw))return [];
   const clean=[];
@@ -9921,24 +9928,32 @@ function createProvinceEdgeBarriersFromHexes(barrierHexes){
       return n&&String(n.type||'').toLowerCase()!=='barrier';
     });
     if(neighbors.length<2)return;
-    const first=pick(neighbors);
-    const secondPool=neighbors.filter(function(n){return n&&!(n.col===first.col&&n.row===first.row);});
-    const second=pick(secondPool.length?secondPool:neighbors);
-    if(!first||!second||first.col===second.col&&first.row===second.row)return;
-    if(!areProvinceHexesAdjacent(first,second))return;
-    const fromKey=provinceHexKey(first.col,first.row);
-    const toKey=provinceHexKey(second.col,second.row);
-    const edgeKey=normalizeProvinceEdgeKey(fromKey,toKey);
-    if(seen[edgeKey])return;
-    seen[edgeKey]=true;
-    edges.push({
-      fromKey:fromKey,
-      toKey:toKey,
-      edgeKey:edgeKey,
-      name:String((bh.name||'Edge Barrier')),
-      desc:String((bh.data&&bh.data.desc)||'A barrier blocks this crossing.'),
-      passToken:''
-    });
+    const desiredEdges=neighbors.length>=4?2:1;
+    let attempts=0;
+    let created=0;
+    while(created<desiredEdges&&attempts<12){
+      attempts++;
+      const first=pick(neighbors);
+      if(!first)continue;
+      const secondPool=neighbors.filter(function(n){return n&&!(n.col===first.col&&n.row===first.row);});
+      const second=pick(secondPool.length?secondPool:neighbors);
+      if(!second||first.col===second.col&&first.row===second.row)continue;
+      if(!areProvinceHexesAdjacent(first,second))continue;
+      const fromKey=provinceHexKey(first.col,first.row);
+      const toKey=provinceHexKey(second.col,second.row);
+      const edgeKey=normalizeProvinceEdgeKey(fromKey,toKey);
+      if(seen[edgeKey])continue;
+      seen[edgeKey]=true;
+      edges.push({
+        fromKey:fromKey,
+        toKey:toKey,
+        edgeKey:edgeKey,
+        name:String((bh.name||'Edge Barrier')),
+        desc:String((bh.data&&bh.data.desc)||'A barrier blocks this crossing.'),
+        passToken:''
+      });
+      created++;
+    }
   });
   return edges;
 }
@@ -9956,43 +9971,53 @@ function openProvinceEdgeBarrierModal(edge,fromHex,toHex){
     + '<select id="edgeBarrierStat" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;border-radius:3px;">'
     + '<option value="lead">Lead</option><option value="body">Body</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="control">Control</option><option value="defend">Defend</option><option value="strike">Strike</option><option value="shoot">Shoot</option>'
     + '</select>'
-    + '<button class="btn btn-xs btn-primary" onclick="resolveProvinceEdgeBarrierCheck(\''+edge.fromKey+'\',\''+edge.toKey+'\')">⚄ Attempt Crossing</button>'
+    + '<button class="btn btn-xs btn-primary" onclick="window.resolveProvinceEdgeBarrierCheck(\''+edge.fromKey+'\',\''+edge.toKey+'\')">⚄ Attempt Crossing</button>'
     + '</div>'
     + '<div style="font-size:.7rem;color:var(--muted2);">On failure, you become Weakened and cannot pass this phase.</div>'
     + '</div>';
   openModal('Edge Barrier',html);
 }
 window.resolveProvinceEdgeBarrierCheck=function(fromKey,toKey){
-  const fromHex=resolveProvinceHexFromKey(fromKey);
-  const toHex=resolveProvinceHexFromKey(toKey);
-  const edge=getProvinceEdgeBarrierBetween(fromHex,toHex);
-  if(!fromHex||!toHex||!edge)return;
-  const statSel=document.getElementById('edgeBarrierStat');
-  const statKey=statSel?String(statSel.value||'lead'):'lead';
-  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(statKey):((S.stats&&S.stats[statKey])||4);
-  const itemFlags=getProvinceNarrativeItemFlags();
-  const bonusNotes=[];
-  const player=explodingRoll(die,{type:'action',major:true,label:'Edge Traversal'});
-  if(itemFlags.compass&&(statKey==='lead'||statKey==='control')){player.total+=2;bonusNotes.push('Compass +2');}
-  if(itemFlags.torch&&(statKey==='spirit'||statKey==='body')){player.total+=1;bonusNotes.push('Torch +1');}
-  const dread=explodingRoll(6,{type:'dread',major:true,label:'DD6'});
-  const success=player.total>=dread.total;
-  if(success){
-    edge.passToken=getCurrentTravelPhaseToken();
-    if(typeof addSuccessRoll==='function')addSuccessRoll();
-    if(S&&S.provinceTraversalLock)S.provinceTraversalLock.active=false;
-    closeModal();
-    renderHexMap();
-    showNotif('Edge crossing unlocked this phase ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+').'+(bonusNotes.length?(' '+bonusNotes.join(' · ')):''),'good');
-  }else{
-    if(typeof toggleCond==='function')toggleCond('weakened');
-    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-    if(!S.provinceTraversalLock||typeof S.provinceTraversalLock!=='object')S.provinceTraversalLock={};
-    S.provinceTraversalLock.active=true;
-    S.provinceTraversalLock.phaseToken=getCurrentTravelPhaseToken();
-    S.provinceTraversalLock.source='edge-barrier';
-    renderHexMap();
-    showNotif('Edge crossing failed ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+'). Cannot pass this phase.','warn');
+  try{
+    const edge=getProvinceEdgeBarrierByKeys(fromKey,toKey);
+    const fromHex=resolveProvinceHexFromKey(fromKey);
+    const toHex=resolveProvinceHexFromKey(toKey);
+    if(!edge||!fromHex||!toHex){
+      if(typeof showNotif==='function')showNotif('That crossing is no longer valid. Pick the edge again.','warn');
+      if(typeof closeModal==='function')closeModal();
+      return false;
+    }
+    const statSel=document.getElementById('edgeBarrierStat');
+    const statKey=statSel?String(statSel.value||'lead'):'lead';
+    const die=(typeof getEffectiveDie==='function')?getEffectiveDie(statKey):((S.stats&&S.stats[statKey])||4);
+    const itemFlags=(typeof getProvinceNarrativeItemFlags==='function')?getProvinceNarrativeItemFlags():{};
+    const bonusNotes=[];
+    const player=explodingRoll(die,{type:'action',major:true,label:'Edge Traversal'});
+    if(itemFlags.compass&&(statKey==='lead'||statKey==='control')){player.total+=2;bonusNotes.push('Compass +2');}
+    if(itemFlags.torch&&(statKey==='spirit'||statKey==='body')){player.total+=1;bonusNotes.push('Torch +1');}
+    const dread=explodingRoll(6,{type:'dread',major:true,label:'DD6'});
+    const success=player.total>=dread.total;
+    if(success){
+      edge.passToken=getCurrentTravelPhaseToken();
+      if(typeof addSuccessRoll==='function')addSuccessRoll();
+      if(S&&S.provinceTraversalLock)S.provinceTraversalLock.active=false;
+      closeModal();
+      renderHexMap();
+      showNotif('Edge crossing unlocked this phase ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+').'+(bonusNotes.length?(' '+bonusNotes.join(' · ')):''),'good');
+    }else{
+      if(typeof toggleCond==='function')toggleCond('weakened');
+      if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+      if(!S.provinceTraversalLock||typeof S.provinceTraversalLock!=='object')S.provinceTraversalLock={};
+      S.provinceTraversalLock.active=true;
+      S.provinceTraversalLock.phaseToken=getCurrentTravelPhaseToken();
+      S.provinceTraversalLock.source='edge-barrier';
+      renderHexMap();
+      showNotif('Edge crossing failed ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+'). Cannot pass this phase.','warn');
+    }
+    return success;
+  }catch(_err){
+    if(typeof showNotif==='function')showNotif('Attempt Crossing failed unexpectedly. Please try again.','warn');
+    return false;
   }
 };
 
@@ -10215,7 +10240,7 @@ function generateMap(){
   for(let i=0;i<roll(2)+1;i++)placeUnique('gate',pick(GATE_NAME_FIRST)+' '+pick(GATE_NAME_LAST),{symptom:pick(GATE_SYMPTOMS),condition:pick(GATE_CONDITIONS),fn:pick(GATE_FUNCTIONS),where:pick(GATE_WHERE),material:pick(GATE_MATERIAL),maker:pick(GATE_MAKER),happened:pick(GATE_HAPPENED),leads:pick(GATE_LEADS)});
   placeUnique('lostcity','Lost City',{buildingCondition:pick(LC_BUILDING_CONDITION),buildingThis:pick(LC_BUILDING_THIS),buildingMade:pick(LC_BUILDING_MADE),buildingFor:pick(LC_BUILDING_FOR),buildingInside:pick(LC_BUILDING_INSIDE),buildingNow:pick(LC_BUILDING_NOW),discovery:pick(LC_DISCOVERIES)});
   const barrierHexes=[];
-  for(let i=0;i<roll(3)+1;i++){
+  for(let i=0;i<roll(4)+2;i++){
     const b=pickUniqueBarrier();
     const placed=placeUnique('barrier',b.name,{desc:b.desc});
     if(placed)barrierHexes.push(placed);

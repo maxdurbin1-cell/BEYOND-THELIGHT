@@ -418,6 +418,22 @@
       history: []
     };
     if (!Array.isArray(S.deityPact.history)) { S.deityPact.history = []; }
+    S.solarCycleLegacy = S.solarCycleLegacy || {
+      raidMedals: 0,
+      raidPoints: 0,
+      raidTreeRanks: {},
+      raidKeys: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
+      raidTrophies: []
+    };
+    if (!S.solarCycleLegacy.raidTreeRanks || typeof S.solarCycleLegacy.raidTreeRanks !== 'object') {
+      S.solarCycleLegacy.raidTreeRanks = {};
+    }
+    if (!S.solarCycleLegacy.raidKeys || typeof S.solarCycleLegacy.raidKeys !== 'object') {
+      S.solarCycleLegacy.raidKeys = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    }
+    if (!Array.isArray(S.solarCycleLegacy.raidTrophies)) S.solarCycleLegacy.raidTrophies = [];
+    S.solarCycleLegacy.raidMedals = Math.max(0, Number(S.solarCycleLegacy.raidMedals || 0));
+    S.solarCycleLegacy.raidPoints = Math.max(0, Number(S.solarCycleLegacy.raidPoints || 0));
 
     // Backfill older mission objects so resolve buttons work for legacy saves.
     S.activeMissions.forEach(function(m) {
@@ -1497,6 +1513,264 @@
     if (typeof S === 'undefined' || !S || !S.solarCycleLegacy || !S.solarCycleLegacy.raidTreeRanks) return 0;
     return Math.max(0, Number(S.solarCycleLegacy.raidTreeRanks[String(nodeId || '')] || 0));
   }
+
+  function ensureLegacyRaidProfile() {
+    ensureState();
+    if (typeof S === 'undefined' || !S) return null;
+    if (!S.solarCycleLegacy || typeof S.solarCycleLegacy !== 'object') {
+      S.solarCycleLegacy = {
+        raidMedals: 0,
+        raidPoints: 0,
+        raidTreeRanks: {},
+        raidKeys: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
+        raidTrophies: []
+      };
+    }
+    if (!S.solarCycleLegacy.raidTreeRanks || typeof S.solarCycleLegacy.raidTreeRanks !== 'object') {
+      S.solarCycleLegacy.raidTreeRanks = {};
+    }
+    if (!S.solarCycleLegacy.raidKeys || typeof S.solarCycleLegacy.raidKeys !== 'object') {
+      S.solarCycleLegacy.raidKeys = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    }
+    if (!Array.isArray(S.solarCycleLegacy.raidTrophies)) S.solarCycleLegacy.raidTrophies = [];
+    S.solarCycleLegacy.raidMedals = Math.max(0, Number(S.solarCycleLegacy.raidMedals || 0));
+    S.solarCycleLegacy.raidPoints = Math.max(0, Number(S.solarCycleLegacy.raidPoints || 0));
+    ['bronze', 'silver', 'gold', 'platinum'].forEach(function (tier) {
+      S.solarCycleLegacy.raidKeys[tier] = Math.max(0, Number(S.solarCycleLegacy.raidKeys[tier] || 0));
+    });
+    return S.solarCycleLegacy;
+  }
+
+  var LEGACY_RAID_TREE_NODES = [
+    {
+      id: 'action_die_training',
+      label: 'Action Die Training',
+      maxRank: 2,
+      costs: [{ points: 2, medals: 1 }, { points: 4, medals: 2 }],
+      detail: 'Upgrade Strike/Shoot action dice by one step per rank.'
+    },
+    {
+      id: 'strike_mastery',
+      label: 'Strike Mastery',
+      maxRank: 2,
+      costs: [{ points: 2, medals: 1 }, { points: 3, medals: 2 }],
+      detail: 'Gain +1 Strike pressure at rank 1, +3 at rank 2.'
+    },
+    {
+      id: 'teamwork_feedback',
+      label: 'Teamwork Feedback',
+      maxRank: 1,
+      costs: [{ points: 3, medals: 2 }],
+      detail: 'Unlock allied teamwork feedback during pressure windows.'
+    },
+    {
+      id: 'flavor_glacial_tell',
+      label: 'Glacial Tell Branch',
+      maxRank: 1,
+      costs: [{ points: 3, medals: 1 }],
+      detail: 'Unlock Glacial Tell raid flavor branch.'
+    },
+    {
+      id: 'flavor_null_veil',
+      label: 'Null Veil Branch',
+      maxRank: 1,
+      costs: [{ points: 3, medals: 1 }],
+      detail: 'Unlock Null Veil raid flavor branch.'
+    }
+  ];
+
+  function getLegacyRaidTreeNode(nodeId) {
+    var key = String(nodeId || '');
+    for (var i = 0; i < LEGACY_RAID_TREE_NODES.length; i++) {
+      if (LEGACY_RAID_TREE_NODES[i].id === key) return LEGACY_RAID_TREE_NODES[i];
+    }
+    return null;
+  }
+
+  function getLegacyRaidTreeNodeCost(node, currentRank) {
+    if (!node) return null;
+    var idx = Math.max(0, Number(currentRank || 0));
+    var costs = Array.isArray(node.costs) ? node.costs : [];
+    if (!costs.length) return { points: 0, medals: 0 };
+    return costs[Math.min(costs.length - 1, idx)] || { points: 0, medals: 0 };
+  }
+
+  function addLegacyRaidKeys(keys) {
+    var profile = ensureLegacyRaidProfile();
+    if (!profile || !keys) return { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    var gained = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    ['bronze', 'silver', 'gold', 'platinum'].forEach(function (tier) {
+      var n = Math.max(0, Number(keys[tier] || 0));
+      if (!n) return;
+      profile.raidKeys[tier] = Math.max(0, Number(profile.raidKeys[tier] || 0) + n);
+      gained[tier] = n;
+    });
+    return gained;
+  }
+
+  function getLegacyRaidWaypointMazePreset(cellId, wingNum) {
+    var seed = String(cellId || '') + ':' + String(wingNum || 1);
+    var n = 0;
+    for (var i = 0; i < seed.length; i++) n += seed.charCodeAt(i);
+    var presets = [
+      { layout: ['S..#', '.##.', '...#', '#..E'], answer: 'R-R-D-D-R-D' },
+      { layout: ['S...', '##.#', '..#.', '..#E'], answer: 'R-R-R-D-D-D' },
+      { layout: ['S.#.', '..#.', '.##.', '...E'], answer: 'D-D-D-R-R-R' },
+      { layout: ['S..#', '#..#', '#...', '##.E'], answer: 'R-D-D-R-R-D' }
+    ];
+    return presets[n % presets.length];
+  }
+
+  function renderLegacyRaidTreePanel() {
+    var panel = typeof document !== 'undefined' ? document.getElementById('raidTreePanel') : null;
+    if (!panel) return false;
+    var profile = ensureLegacyRaidProfile();
+    if (!profile) {
+      panel.innerHTML = '<div style="font-size:.78rem;color:var(--muted2);">Create or load a character to initialize raid progression.</div>';
+      return false;
+    }
+    var medalCount = Math.max(0, Number(profile.raidMedals || 0));
+    var pointCount = Math.max(0, Number(profile.raidPoints || 0));
+    var keyState = profile.raidKeys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    var keyRow = ['bronze', 'silver', 'gold', 'platinum'].map(function (tier) {
+      return '<span style="font-size:.68rem;color:var(--gold2);">' + tier.charAt(0).toUpperCase() + tier.slice(1) + ' Key x' + Math.max(0, Number(keyState[tier] || 0)) + '</span>';
+    }).join(' · ');
+    var nodeHtml = LEGACY_RAID_TREE_NODES.map(function (node) {
+      var rank = getLegacyRaidTalentRank(node.id);
+      var maxRank = Math.max(1, Number(node.maxRank || 1));
+      var capped = rank >= maxRank;
+      var cost = getLegacyRaidTreeNodeCost(node, rank);
+      var affordable = !capped && pointCount >= Number(cost.points || 0) && medalCount >= Number(cost.medals || 0);
+      var rankText = 'Rank ' + rank + '/' + maxRank;
+      var costText = capped ? 'Maxed' : ('Cost: ' + Number(cost.points || 0) + ' RP · ' + Number(cost.medals || 0) + ' Medals');
+      return '<div style="border:1px solid var(--border2);background:var(--surface);padding:.42rem .48rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:center;">'
+        + '<div style="font-size:.74rem;color:var(--text2);"><strong>' + node.label + '</strong></div>'
+        + '<div style="font-size:.66rem;color:' + (capped ? 'var(--green2)' : 'var(--gold2)') + ';">' + rankText + '</div>'
+        + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin:.12rem 0;">' + node.detail + '</div>'
+        + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.2rem;">' + costText + '</div>'
+        + '<button class="btn btn-xs ' + (affordable ? 'btn-primary' : '') + '" ' + (capped ? 'disabled' : '')
+        + ' onclick="buyLegacyRaidTreeNode(\'' + node.id + '\')">' + (capped ? 'Unlocked' : 'Buy Rank') + '</button>'
+        + '</div>';
+    }).join('');
+
+    panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;max-width:980px;">'
+      + '<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:.45rem;">'
+      + '<div style="display:grid;gap:.35rem;">'
+      + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.5rem .55rem;">'
+      + '<div style="font-size:.86rem;color:var(--gold2);margin-bottom:.14rem;"><strong>Raid Tree Progression</strong></div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Medals and Raid Points from boss clears can be spent on persistent raid talents.</div>'
+      + '<div style="font-size:.7rem;color:var(--teal);line-height:1.45;margin-top:.2rem;">Medals: ' + medalCount + ' · Raid Points: ' + pointCount + '</div>'
+      + '</div>'
+      + nodeHtml
+      + '</div>'
+      + '<div style="display:grid;gap:.35rem;">'
+      + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.5rem .55rem;">'
+      + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Vault Keys</strong></div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin-bottom:.18rem;">' + keyRow + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:.24rem;">'
+      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'bronze\')">Open Bronze Chest</button>'
+      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'silver\')">Open Silver Chest</button>'
+      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'gold\')">Open Gold Chest</button>'
+      + '<button class="btn btn-xs btn-teal" onclick="openLegacyRaidChest(\'platinum\')">Open Platinum Chest</button>'
+      + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);background:var(--surface);padding:.5rem .55rem;">'
+      + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Trophy Shelf</strong></div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.42;max-height:180px;overflow:auto;">'
+      + (profile.raidTrophies.length
+        ? profile.raidTrophies.slice(-12).reverse().map(function (trophy, idx) {
+            return '<div style="padding:.06rem 0;border-bottom:1px solid rgba(255,255,255,.06);">' + (idx + 1) + '. ' + String(trophy || 'Unknown Trophy') + '</div>';
+          }).join('')
+        : 'No raid trophies recorded yet. Clear legacy raids to fill this wall.')
+      + '</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+    return true;
+  }
+
+  window.buyLegacyRaidTreeNode = function (nodeId) {
+    var profile = ensureLegacyRaidProfile();
+    var node = getLegacyRaidTreeNode(nodeId);
+    if (!profile || !node) return false;
+    var rank = getLegacyRaidTalentRank(node.id);
+    var cap = Math.max(1, Number(node.maxRank || 1));
+    if (rank >= cap) {
+      if (typeof showNotif === 'function') showNotif('This raid node is already maxed.', 'info');
+      return false;
+    }
+    var cost = getLegacyRaidTreeNodeCost(node, rank);
+    var needPoints = Math.max(0, Number(cost.points || 0));
+    var needMedals = Math.max(0, Number(cost.medals || 0));
+    if (Number(profile.raidPoints || 0) < needPoints || Number(profile.raidMedals || 0) < needMedals) {
+      if (typeof showNotif === 'function') showNotif('Need ' + needPoints + ' Raid Points and ' + needMedals + ' Medals.', 'warn');
+      return false;
+    }
+    profile.raidPoints = Math.max(0, Number(profile.raidPoints || 0) - needPoints);
+    profile.raidMedals = Math.max(0, Number(profile.raidMedals || 0) - needMedals);
+    profile.raidTreeRanks[node.id] = rank + 1;
+    if (typeof showNotif === 'function') showNotif('Unlocked ' + node.label + ' rank ' + (rank + 1) + '.', 'good');
+    renderLegacyRaidTreePanel();
+    return true;
+  };
+
+  window.openLegacyRaidChest = function (tier) {
+    var keyTier = String(tier || 'bronze').toLowerCase();
+    var profile = ensureLegacyRaidProfile();
+    if (!profile) return false;
+    if (!profile.raidKeys || Number(profile.raidKeys[keyTier] || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif('No ' + keyTier + ' keys available.', 'warn');
+      return false;
+    }
+    profile.raidKeys[keyTier] = Math.max(0, Number(profile.raidKeys[keyTier] || 0) - 1);
+
+    var creditGain = 90;
+    var medalGain = 0;
+    var pointGain = 0;
+    var lootTier = 'easy';
+    if (keyTier === 'silver') {
+      creditGain = 180;
+      pointGain = 1;
+      lootTier = 'medium';
+    } else if (keyTier === 'gold') {
+      creditGain = 320;
+      medalGain = 1;
+      pointGain = 1;
+      lootTier = 'hard';
+    } else if (keyTier === 'platinum') {
+      creditGain = 520;
+      medalGain = 2;
+      pointGain = 2;
+      lootTier = 'very_hard';
+    }
+
+    if (typeof changeCredits === 'function') changeCredits(creditGain);
+    else if (typeof S !== 'undefined' && S) S.credits = Number(S.credits || 0) + creditGain;
+    profile.raidMedals = Math.max(0, Number(profile.raidMedals || 0) + medalGain);
+    profile.raidPoints = Math.max(0, Number(profile.raidPoints || 0) + pointGain);
+
+    var chestLoot = [];
+    try { chestLoot = rollShopLoot(lootTier) || []; } catch (_err) { chestLoot = []; }
+    if (typeof addToBackpack === 'function') {
+      chestLoot.forEach(function (item) {
+        try { if (item) addToBackpack(item); } catch (_err) {}
+      });
+    }
+    if (keyTier === 'platinum' && chestLoot.length) {
+      profile.raidTrophies.push('Platinum Cache: ' + String(chestLoot[0] || 'Mythic Trophy'));
+    }
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof showNotif === 'function') {
+      showNotif('Opened ' + keyTier + ' chest: +' + creditGain + ' credits, +' + pointGain + ' RP, +' + medalGain + ' medals'
+        + (chestLoot.length ? (' · Loot: ' + chestLoot.join(', ')) : ''), 'good');
+    }
+    renderLegacyRaidTreePanel();
+    return true;
+  };
 
   function getLegacyRaidStrikeTalentBonus() {
     var rank = getLegacyRaidTalentRank('strike_mastery');
@@ -2869,110 +3143,66 @@
       return;
     }
     var allies = getRaidWayfarersForWing(mission, wingNum).filter(function (w) { return w && w.status !== 'failed'; });
-    var enemies = Array.isArray(S && S.enemies) ? S.enemies : [];
-    var playerName = (typeof S !== 'undefined' && S && S.name) || 'Wayfarer';
-    var playerHp = typeof S !== 'undefined' && S ? Number(S.health || 12) : 12;
-    var playerRange = 'Engaged';
-    var maxActions = typeof getMaxActions === 'function' ? getMaxActions() : 3;
-    var allyRows = allies.map(function (ally) {
-      var hp = Number(encounter.partyHp.allies[ally.name] || 12);
-      var acts = Number(encounter.allyActionBudget.byAlly[ally.name] || 2);
-      var status = hp > 0 ? '<span style="color:var(--green2);">●</span>' : '<span style="color:var(--red2);">●</span>';
-      return '<div style="font-size:.64rem;color:var(--text2);line-height:1.4;padding:.08rem .12rem;border:1px solid rgba(255,255,255,.06);background:rgba(0,150,120,.08);">'
-        + status + ' <strong>' + ally.name + '</strong> · ' + hp + 'HP · ' + acts + ' Actions · ' + (ally.flavor || 'Ally')
-        + '</div>';
-    }).join('');
-    var enemyRows = enemies.slice(0, 4).map(function (enemy, idx) {
-      var stress = Number(enemy.stress || 0);
-      var maxStress = Number(enemy.maxStress || 8);
-      return '<div style="font-size:.64rem;color:var(--text2);line-height:1.4;padding:.08rem .12rem;border:1px solid rgba(255,255,255,.06);background:rgba(200,50,50,.08);">'
-        + '<strong>' + enemy.name + '</strong> · DD' + enemy.dread + ' · Stress ' + stress + '/' + maxStress
-        + '</div>';
-    }).join('');
-    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.5;">'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;margin-bottom:.28rem;">'
-      + '<div style="border:1px solid var(--border2);padding:.24rem;background:rgba(20,90,120,.08);">'
-      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.12rem;"><strong>⚔ COMBAT ENCOUNTER</strong></div>'
-      + '<div style="font-size:.64rem;color:var(--text2);margin-bottom:.16rem;">You · ' + playerHp + ' HP · ' + maxActions + ' Actions</div>'
-      + allyRows
-      + '</div>'
-      + '<div style="border:1px solid var(--border2);padding:.24rem;background:rgba(200,50,50,.08);">'
-      + '<div style="font-size:.7rem;color:var(--red2);margin-bottom:.12rem;"><strong>ENEMIES (' + enemies.length + ')</strong></div>'
-      + enemyRows
-      + '</div>'
-      + '</div>'
-      + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.16rem;"><strong>Combat Turn Order:</strong> You → Allies → Enemies</div>'
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs btn-primary" onclick="window.executeRaidCombatRound(' + mission.id + ',' + wingNum + ')">⚔ Execute Round</button>'
-      + '<button class="btn btn-xs btn-warn" onclick="window.retreatRaidCombat(' + mission.id + ',' + wingNum + ')">🏃 Retreat</button>'
-      + '<button class="btn btn-xs btn-red" onclick="window.surrenderRaidCombat(' + mission.id + ',' + wingNum + ')">⚒ Surrender</button>'
-      + '</div>'
-      + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.16rem;">Defeat all enemies or retreat. Enemies attack with accumulated stress damage. Allies support your actions.</div>'
-      + '</div>';
-    openModal('Raid Combat (' + enemies.length + ' Enemies)', html);
+    if (typeof S !== 'undefined' && S) {
+      if (!Array.isArray(S.enemies)) S.enemies = [];
+      var playerName = String(S.name || 'Wayfarer');
+      allies.forEach(function (ally) {
+        var allyName = String(ally && ally.name || 'Wayfarer');
+        var exists = S.enemies.some(function (enemy) {
+          return enemy && enemy.ally && String(enemy.name || '') === allyName;
+        });
+        if (!exists) {
+          S.enemies.push({
+            id: 'raid-ally-' + allyName,
+            name: allyName,
+            dread: Number(ally.dd || 6),
+            stress: Math.max(0, 12 - Number(encounter.partyHp && encounter.partyHp.allies ? encounter.partyHp.allies[allyName] : 12)),
+            maxStress: 12,
+            ally: true,
+            temporarySceneAlly: true,
+            faction: 'Raid Ally'
+          });
+        }
+      });
+      S.combat = S.combat || {};
+      S.combat.actionsLeft = Math.max(4, Number(S.combat.actionsLeft || 0));
+      if (typeof startCombat === 'function') startCombat();
+      if (typeof updateCombatUI === 'function') updateCombatUI();
+      if (typeof renderEnemies === 'function') renderEnemies();
+      if (typeof renderCombatOptions === 'function') renderCombatOptions();
+      var cBtn = (typeof document !== 'undefined') ? document.querySelector(".tab-btn[onclick*=\"switchTab('combat'\"]") : null;
+      if (typeof switchTab === 'function') switchTab('combat', cBtn || null);
+      if (typeof showNotif === 'function') {
+        showNotif('Raid Combat uses Combat tab actions: You (Strike/Shoot), then allies (2 actions each), then enemies (2 actions each).', 'good');
+      }
+    }
   }
   window.openRaidCombatModal = openRaidCombatModal;
 
   window.executeRaidCombatRound = function (missionId, wingNum) {
-    var mission = getMission(missionId);
-    if (!mission) return;
-    var encounter = ensureLegacyRaidBossEncounter(mission);
-    if (!encounter) return;
-    var enemies = Array.isArray(S && S.enemies) ? S.enemies.filter(function (e) { return Number(e.stress || 0) < Number(e.maxStress || 8); }) : [];
-    if (!enemies.length) {
-      closeModal();
-      if (typeof showNotif === 'function') showNotif('All enemies defeated!', 'good');
-      var state = ensureLegacyRaidWingGridState(mission, wingNum);
-      if (state && state.selectedId) {
-        var cell = state.cells && state.cells[String(state.selectedId || state.currentId || '')];
-        if (cell) {
-          cell.cleared = true;
-          state.ticks = Math.min(20, Number(state.ticks || 0) + 2);
-          state.lastLog = 'Combat victory. +2 ticks earned.';
-        }
-      }
-      window.finalizeLegacyRaidHexCombatOutcome('win');
-      return;
-    }
-    var damageRoll = typeof roll === 'function' ? roll(6) : Math.floor(Math.random() * 6) + 1;
-    var allyDamage = Math.floor(damageRoll * 0.7);
-    var damageDealt = Math.max(1, damageRoll + allyDamage);
-    var targetIdx = Math.floor(Math.random() * enemies.length);
-    var targetEnemy = enemies[targetIdx];
-    if (targetEnemy && typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
-      var tgtIdx = S.enemies.indexOf(targetEnemy);
-      if (tgtIdx >= 0) {
-        S.enemies[tgtIdx].stress = Math.min(Number(targetEnemy.maxStress || 8), Number(targetEnemy.stress || 0) + damageDealt);
-      }
-    }
-    encounter.log = encounter.log || [];
-    encounter.log.push('Dealt ' + damageDealt + ' stress to ' + targetEnemy.name);
-    if (encounter.log.length > 6) encounter.log.unshift();
-    if (typeof showNotif === 'function') showNotif('Combat: You and allies dealt ' + damageDealt + ' stress!', 'good');
-    closeModal();
+    // Compatibility shim: execution happens in Combat tab actions now.
+    if (typeof showNotif === 'function') showNotif('Use Combat tab actions (Strike/Shoot/Defend). Raid combat no longer resolves from this popup.', 'info');
     openRaidCombatModal(missionId, wingNum);
   };
 
   window.retreatRaidCombat = function (missionId, wingNum) {
     var mission = getMission(missionId);
     if (!mission) return;
-    closeModal();
     if (typeof showNotif === 'function') showNotif('Combat retreat. Hexes regain enemies next visit.', 'warn');
     var state = ensureLegacyRaidWingGridState(mission, wingNum);
     if (state) {
       state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
       state.lastLog = 'Combat entered but retreated (-1 tick).';
     }
-    S.enemies = [];
+    if (typeof S !== 'undefined' && S) S.enemies = [];
     window.finalizeLegacyRaidHexCombatOutcome('retreat');
   };
 
   window.surrenderRaidCombat = function (missionId, wingNum) {
     var mission = getMission(missionId);
     if (!mission) return;
-    closeModal();
     if (typeof showNotif === 'function') showNotif('Combat wipe. Raid failed.', 'warn');
-    S.enemies = [];
+    if (typeof S !== 'undefined' && S) S.enemies = [];
     window.finalizeLegacyRaidHexCombatOutcome('wipe');
   };
 
@@ -5168,6 +5398,7 @@
             : (cell.waypoint ? 'Waypoint Puzzle: Lockpick or Pipe Flow' : 'Raid Puzzle Challenge');
           var loreMode = null;
           var loreConfig = {};
+          var waypointPreset = null;
           if (cell.lorePiece) {
             loreMode = Math.random() < 0.5 ? 'crossword_grid' : 'sudoku';
             if (loreMode === 'crossword_grid') {
@@ -5181,13 +5412,22 @@
               loreConfig.sudokuPuzzle = [['1', '', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']];
               loreConfig.sudokuSolution = [['1', '2', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']];
             }
+          } else if (cell.waypoint) {
+            loreMode = 'maze';
+            waypointPreset = getLegacyRaidWaypointMazePreset(cell.id, wingNum);
+            loreConfig.mazeLayout = waypointPreset.layout;
+            loreConfig.answer = waypointPreset.answer;
           }
           return window.openSharedPuzzleChallenge({
             source: puzzleSource,
             title: puzzleTitle,
-            prompt: buildLegacyRaidHexDescription(mission, wingNum, 'puzzle', bossTheme),
+            prompt: cell.waypoint
+              ? ('Rewire the waypoint conduit in hex ' + cell.id + '. Route from S to E before the lock resets.')
+              : buildLegacyRaidHexDescription(mission, wingNum, 'puzzle', bossTheme),
             mode: loreMode,
+            answer: loreConfig.answer,
             gridTemplate: loreConfig.gridTemplate,
+            mazeLayout: loreConfig.mazeLayout,
             clues: loreConfig.clues,
             sudokuPuzzle: loreConfig.sudokuPuzzle,
             sudokuSolution: loreConfig.sudokuSolution,
@@ -5819,8 +6059,8 @@
         + '<div style="font-size:.68rem;color:' + theme.muted + ';text-transform:uppercase;letter-spacing:.07em;">' + wingThemesGrid[wingNum] + ' · 12x12 Tactical Branch Grid · Time ' + Number(gridState.ticks || 0) + ' ticks</div></div>'
         + '<div style="display:flex;gap:.2rem;">' + wingNavGrid + '</div>'
         + '</div>'
-        + '<div style="display:grid;grid-template-columns:minmax(0,1.8fr) minmax(220px,.95fr);gap:.35rem;align-items:start;">'
-        + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.02);">'
+        + '<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:.35rem;align-items:start;">'
+        + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.02);overflow:auto;max-width:100%;">'
         + wingGridHtml
         + '</div>'
         + '<div style="display:flex;flex-direction:column;gap:.24rem;">'
@@ -8709,12 +8949,19 @@
       mission.legacyRaidVaultChoice = { mode: 'sell', credits: credits };
       if (typeof showNotif === 'function') showNotif('Sold raid vault for ' + credits + ' ₵.', 'good');
     } else {
+      var movedKeys = addLegacyRaidKeys(payout.keys || {});
       mission.legacyRaidVaultPayout = {
-        loot: flattenLegacyRaidVaultPayoutItems(payout),
+        loot: Array.isArray(payout.loot) ? payout.loot.slice() : [],
         keys: { bronze: 0, silver: 0, gold: 0, platinum: 0 }
       };
       mission.legacyRaidVaultChoice = { mode: 'keep', credits: 0 };
-      if (typeof showNotif === 'function') showNotif('Raid vault marked to keep and move to backpack.', 'good');
+      if (typeof showNotif === 'function') {
+        showNotif('Raid vault kept. Keys moved to Raid Tree: '
+          + 'B+' + Number(movedKeys.bronze || 0)
+          + ', S+' + Number(movedKeys.silver || 0)
+          + ', G+' + Number(movedKeys.gold || 0)
+          + ', P+' + Number(movedKeys.platinum || 0) + '.', 'good');
+      }
     }
     if (typeof closeModal === 'function') closeModal();
     resolveMission(mission.id, !!successPath, { preserveVaultOnFail: true });
@@ -8809,6 +9056,19 @@
       if (!mission.noFactionDelta) applyFactionStandingDelta(mission.factionGain, mission.factionLose);
       try { if (typeof updateCreditsUI==='function') updateCreditsUI(); } catch (err) {}
       try { if (typeof updateRenown==='function') updateRenown(); } catch (err) {}
+
+      if (mission.missionType === 'legacy_raid') {
+        var raidProfile = ensureLegacyRaidProfile();
+        if (raidProfile) {
+          var raidMedalGain = Math.max(0, Number(mission.legacyRaidMedalReward || 1))
+            + Math.max(0, Number(mission.legacyRaidBonusMedals || 0));
+          var raidPointGain = Math.max(0, Number(mission.legacyRaidPointReward || 1));
+          raidProfile.raidMedals = Math.max(0, Number(raidProfile.raidMedals || 0) + raidMedalGain);
+          raidProfile.raidPoints = Math.max(0, Number(raidProfile.raidPoints || 0) + raidPointGain);
+          if (mission.legacyRaidBoss) raidProfile.raidTrophies.push(String(mission.legacyRaidBoss));
+          mission.legacyRaidRewarded = { medals: raidMedalGain, points: raidPointGain };
+        }
+      }
       // Add mission loot directly to backpack slots when possible.
       if (typeof addToBackpack === 'function') {
         for (var li=0; li<newLoot.length; li++) {
@@ -8884,8 +9144,8 @@
           + (mission.homeBonusCredits ? (' +' + mission.homeBonusCredits + '\u20B5') : '')
           + (mission.homeBonusRenown ? (' +' + mission.homeBonusRenown + ' Renown') : '');
       }
-      var raidMedalText = mission.missionType === 'legacy_raid' && Number(mission.legacyRaidBonusMedals || 0) > 0
-        ? (' \u00B7 Raid Clean Bonus: +' + Number(mission.legacyRaidBonusMedals || 0) + ' medal(s)')
+      var raidMedalText = mission.missionType === 'legacy_raid' && mission.legacyRaidRewarded
+        ? (' \u00B7 Raid Ledger: +' + Number(mission.legacyRaidRewarded.medals || 0) + ' medals / +' + Number(mission.legacyRaidRewarded.points || 0) + ' RP')
         : '';
       try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 '+(mission.factionGainName||'Faction')+' +1 / '+(mission.factionLoseName||'Faction')+' -1' + homeText + raidMedalText + ' \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
       if (stored.length) {
@@ -9202,6 +9462,18 @@
     renderMissionBoard();
     renderMissionTracker();
     renderCompletedMissions();
+    renderLegacyRaidTreePanel();
+  }
+
+  function patchRaidTreeTabRefresh() {
+    if (typeof window === 'undefined' || typeof window.switchTab !== 'function' || window._raidTreeTabRefreshPatched) return;
+    window._raidTreeTabRefreshPatched = true;
+    var baseSwitch = window.switchTab;
+    window.switchTab = function (tabId, btn) {
+      var out = baseSwitch.apply(this, arguments);
+      if (String(tabId || '') === 'raidtree') renderLegacyRaidTreePanel();
+      return out;
+    };
   }
 
   // Initialize on page ready
@@ -9216,6 +9488,7 @@
         }
       }
     }
+    patchRaidTreeTabRefresh();
     syncMissionUIs();
   }
   
@@ -9280,6 +9553,7 @@
   window.useLegacyRaidAbility=useLegacyRaidAbility;
   window.resolveLegacyRaidReviveChoice=resolveLegacyRaidReviveChoice;
   window.finalizeLegacyRaidClear=finalizeLegacyRaidClear;
+  window.renderLegacyRaidTreePanel=renderLegacyRaidTreePanel;
   window.completeMissionStep=function(missionId,stepId){
     if(stepId===1) completeMissionInfoStep(missionId,true,JSON.stringify(rollInfoFeature()));
     else if(stepId===2) completeMissionSiteStep(missionId);

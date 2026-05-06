@@ -378,6 +378,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" onclick="switchTab('storyline',this)">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" onclick="switchTab('factions',this)">Factions</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-endings" id="tabnav-endings" onclick="switchTab('endings',this)">Endings</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('raidtree',this)">Raid Tree</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
@@ -1403,6 +1404,11 @@ select option{background:#0f1020;}
 
 <!-- ORACLE TAB -->
 <div class="tab-panel" id="tab-oracle"></div>
+
+<!-- RAID TREE TAB -->
+<div class="tab-panel" id="tab-raidtree">
+  <div id="raidTreePanel"></div>
+</div>
 
 <!-- MISSIONS TAB -->
 <div class="tab-panel" id="tab-missions">

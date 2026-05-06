@@ -2155,6 +2155,104 @@
     renderLastSeaInfo();
   }
 
+  function ensureSeaDerelictHexcrawl(hex, options) {
+    if (!hex) return null;
+    if (!hex.derelictHexcrawl || !Array.isArray(hex.derelictHexcrawl.nodes) || !hex.derelictHexcrawl.nodes.length) {
+      const vampCount = Math.max(1, Number(options && options.vampires || 1));
+      const credits = Math.max(20, Number(options && options.salvageCredits || 60));
+      const item = String(options && options.salvageItem || 'Strange Relic');
+      hex.derelictHexcrawl = {
+        vampires: vampCount,
+        salvageCredits: credits,
+        salvageItem: item,
+        nodes: [
+          { id: 'airlock', label: 'Airlock', kind: 'hazard', explored: false, dd: 6 },
+          { id: 'cargo', label: 'Cargo Spine', kind: 'salvage', explored: false, dd: 8 },
+          { id: 'quarters', label: 'Crew Quarters', kind: 'lore', explored: false, dd: 6 },
+          { id: 'reactor', label: 'Reactor Crawlspace', kind: 'hazard', explored: false, dd: 8 },
+          { id: 'bridge', label: 'Bridge Console', kind: 'task', explored: false, dd: 8 },
+          { id: 'nest', label: 'Dark Nest', kind: 'vampire', explored: false, dd: 10 }
+        ]
+      };
+    }
+    return hex.derelictHexcrawl;
+  }
+
+  function buildSeaDerelictHexcrawlModal(col, row) {
+    const hex = seaHexByCoord(col, row);
+    const crawl = ensureSeaDerelictHexcrawl(hex, null);
+    if (!hex || !crawl) return '<div style="font-size:.82rem;color:var(--muted2);">Derelict drifted out of range.</div>';
+    const grid = crawl.nodes.map(function (node) {
+      const state = node.explored ? 'Cleared' : 'Unexplored';
+      const color = node.explored ? 'var(--green2)' : 'var(--muted2)';
+      const btn = node.explored
+        ? '<span style="font-size:.68rem;color:var(--muted2);">Resolved</span>'
+        : '<button class="btn btn-xs btn-primary" onclick="resolveSeaDerelictHexNode(' + Number(col) + ',' + Number(row) + ',\'' + String(node.id) + '\')">Explore</button>';
+      return '<div style="border:1px solid var(--border2);background:var(--surface);padding:.3rem .35rem;">'
+        + '<div style="font-size:.68rem;color:var(--gold2);">' + sanitizeInlineText(node.label) + '</div>'
+        + '<div style="font-size:.68rem;color:' + color + ';margin-top:.12rem;">' + state + '</div>'
+        + '<div style="margin-top:.2rem;">' + btn + '</div>'
+        + '</div>';
+    }).join('');
+    return '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">Boarding map: search each hex section for salvage, clues, and threats.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.28rem;margin-top:.4rem;">' + grid + '</div>';
+  }
+
+  function openSeaDerelictHexcrawl(vampires, salvageCredits, salvageItem) {
+    if (!S || !S.lastSea || !S.lastSea.activeEncounterKey) {
+      if (typeof showNotif === 'function') showNotif('Select a sea hex encounter first.', 'warn');
+      return;
+    }
+    const hex = S.lastSea.map.find(function (entry) { return entry && entry.key === S.lastSea.activeEncounterKey; });
+    if (!hex) return;
+    ensureSeaDerelictHexcrawl(hex, {
+      vampires: vampires,
+      salvageCredits: salvageCredits,
+      salvageItem: salvageItem
+    });
+    openModal('Derelict Ship Hexcrawl', buildSeaDerelictHexcrawlModal(hex.col, hex.row));
+  }
+  window.openSeaDerelictHexcrawl = openSeaDerelictHexcrawl;
+
+  function resolveSeaDerelictHexNode(col, row, nodeId) {
+    const hex = seaHexByCoord(col, row);
+    const crawl = ensureSeaDerelictHexcrawl(hex, null);
+    if (!hex || !crawl) return;
+    const node = crawl.nodes.find(function (entry) { return String(entry.id) === String(nodeId); });
+    if (!node || node.explored) return;
+    node.explored = true;
+    const ad = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S && S.stats && S.stats.control) || 4);
+    const action = explodingRoll(ad, { type: 'action', label: 'Derelict Crawl' });
+    const dread = explodingRoll(Number(node.dd || 8), { type: 'dread', label: 'Derelict Threat' });
+    const success = action.total >= dread.total;
+    let line = 'Control d' + ad + ' ' + action.total + ' vs DD' + Number(node.dd || 8) + ' ' + dread.total + '. ';
+    if (success) {
+      if (node.kind === 'salvage') {
+        const gain = Math.max(10, Number(crawl.salvageCredits || 40));
+        if (typeof resolveSeaEncounter === 'function') resolveSeaEncounter('salvage', String(crawl.salvageItem || 'Derelict Salvage'), { credits: gain, item: String(crawl.salvageItem || 'Derelict Salvage') });
+        line += 'Salvage secured.';
+      } else if (node.kind === 'task') {
+        if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+        line += 'Ship logs decrypted. +1 Teamwork.';
+      } else if (node.kind === 'lore') {
+        if (typeof window.tryAwardLoreBookDrop === 'function') window.tryAwardLoreBookDrop('derelict ship', 22);
+        line += 'Recovered lore fragments.';
+      } else if (node.kind === 'vampire') {
+        seedSeaEncounterCombat('Derelict Vampire', Math.max(1, Number(crawl.vampires || 1)), 10, 14);
+        line += 'Vampire nest stirred. Combat seeded.';
+      } else {
+        line += 'Hazard bypassed cleanly.';
+      }
+    } else {
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      line += 'You take +1 Mental Stress.';
+    }
+    if (typeof showNotif === 'function') showNotif(line, success ? 'good' : 'warn');
+    openModal('Derelict Ship Hexcrawl', buildSeaDerelictHexcrawlModal(col, row));
+    renderLastSeaInfo(hex);
+  }
+  window.resolveSeaDerelictHexNode = resolveSeaDerelictHexNode;
+
   function buildSeaEncounter() {
     var itemFlags = getSeaNarrativeItemFlags();
     var compassHint = itemFlags.compass ? ' (+Compass)' : '';
@@ -2221,6 +2319,7 @@
       desc = `An empty transport floats half-derelict. Salvage: ${lootText}. Hidden aboard: ${vampires} vampire${vampires > 1 ? "s" : ""}.`;
       actions = `<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-secondary" title="${salvageTitle}" onclick="resolveSeaEncounter('salvage','${lootText}',{credits:${salvageCredits},item:'${salvageItemJs}'})">🪙 Salvage (+${salvageCredits}₵${compassHint})</button>
+        <button class="btn btn-xs btn-teal" onclick="openSeaDerelictHexcrawl(${vampires},${salvageCredits},'${salvageItemJs}')">🧭 Board Derelict Hexcrawl</button>
         <button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${vampires} Vampires',{stress:${vampStress},requireOutcome:true,dread:10,enemyCount:${vampires},enemyHealth:14,vampireEncounter:true,vampireCount:${vampires},vampireDread:10})">⚔ Fight Vampires (+${vampStress} Stress)</button>
         <button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('avoid','Empty Transport',{})">⛵ Avoid</button>
       </div>`;
@@ -2766,6 +2865,21 @@
   }
 
   function buildDungeonModal(data) {
+    data.hexcrawl = data.hexcrawl || null;
+    if (!data.hexcrawl || !Array.isArray(data.hexcrawl.nodes) || !data.hexcrawl.nodes.length) {
+      const total = Math.max(3, Number(data.rooms || 3));
+      const tags = ['Entrance', 'Collapsed Hall', 'Watch Post', 'Puzzle Door', 'Loot Niche', 'Shrine Alcove', 'Flooded Crossing', 'Boss Threshold'];
+      data.hexcrawl = {
+        nodes: Array.from({ length: total }).map(function (_n, idx) {
+          return {
+            id: idx,
+            label: tags[idx] || ('Node ' + (idx + 1)),
+            roomIndex: idx,
+            explored: false
+          };
+        })
+      };
+    }
     data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
     let html = `
       <div class="room-block">
@@ -2773,6 +2887,25 @@
         <div class="rb-text">${data.entrance}</div>
       </div>
     `;
+
+    html += '<div class="room-block" style="border-color:rgba(46,196,182,.35);background:rgba(46,196,182,.05);">'
+      + '<div class="rb-title">Hexcrawl Search Grid</div>'
+      + '<div class="rb-text">Move node-by-node and resolve checks as you sweep this ruin.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.28rem;margin-top:.35rem;">'
+      + data.hexcrawl.nodes.map(function (node) {
+        const stateText = node.explored ? 'Cleared' : 'Unexplored';
+        const action = node.explored
+          ? '<span style="font-size:.68rem;color:var(--muted2);">Resolved</span>'
+          : '<button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonHexNode(' + Number(node.id) + ')">Explore Node</button>';
+        return '<div style="border:1px solid var(--border2);padding:.28rem .34rem;background:var(--surface);">'
+          + '<div style="font-size:.68rem;color:var(--gold2);">Hex [' + (Number(node.id) + 1) + ']</div>'
+          + '<div style="font-size:.76rem;color:var(--text2);margin-top:.12rem;">' + sanitizeInlineText(node.label) + '</div>'
+          + '<div style="font-size:.68rem;color:' + (node.explored ? 'var(--green2)' : 'var(--muted2)') + ';margin-top:.14rem;">' + stateText + '</div>'
+          + '<div style="margin-top:.22rem;">' + action + '</div>'
+          + '</div>';
+      }).join('')
+      + '</div>'
+      + '</div>';
 
     for (let index = 1; index <= data.rooms; index += 1) {
       if (!data.generatedRooms) data.generatedRooms = [];
@@ -2936,6 +3069,18 @@
     }
     openModal(data.name, buildDungeonModal(data));
   }
+  function exploreSeaDungeonHexNode(nodeId) {
+    if (!S.lastSea || !S.lastSea.activeDungeon) return;
+    const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
+    const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
+    if (!data || !data.hexcrawl || !Array.isArray(data.hexcrawl.nodes)) return;
+    const node = data.hexcrawl.nodes.find(function (entry) { return Number(entry.id) === Number(nodeId); });
+    if (!node || node.explored) return;
+    const roomIndex = Math.max(0, Number(node.roomIndex || 0));
+    node.explored = true;
+    exploreSeaDungeonRoom(roomIndex);
+  }
+  window.exploreSeaDungeonHexNode = exploreSeaDungeonHexNode;
   window.exploreSeaDungeonRoom = exploreSeaDungeonRoom;
 
   function getRankData(rank) {

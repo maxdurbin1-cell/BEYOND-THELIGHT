@@ -1472,6 +1472,101 @@
     return pools[String(activity || 'talk').toLowerCase()] || pools.talk;
   }
 
+  function ensureHoldingSettlementHexcrawl() {
+    ensureNewFeatureState();
+    if (!S.holding || typeof S.holding !== 'object') { S.holding = {}; }
+    if (!S.holding.settlementHexcrawl || !Array.isArray(S.holding.settlementHexcrawl.nodes) || !S.holding.settlementHexcrawl.nodes.length) {
+      var templates = [
+        { id: 'market', label: 'Market Road', kind: 'trade', dd: 6 },
+        { id: 'inn', label: 'Lantern Inn', kind: 'talk', dd: 6 },
+        { id: 'board', label: 'Mission Board', kind: 'task', dd: 8 },
+        { id: 'tower', label: 'Watch Tower', kind: 'security', dd: 8 },
+        { id: 'shrine', label: 'Shrine Court', kind: 'focus', dd: 6 },
+        { id: 'workshop', label: 'Forge Row', kind: 'craft', dd: 8 },
+        { id: 'gate', label: 'Outer Gate', kind: 'hazard', dd: 8 }
+      ];
+      S.holding.settlementHexcrawl = {
+        nodes: templates.map(function (node) {
+          return {
+            id: node.id,
+            label: node.label,
+            kind: node.kind,
+            dd: node.dd,
+            explored: false,
+            result: ''
+          };
+        })
+      };
+    }
+    return S.holding.settlementHexcrawl;
+  }
+
+  function buildHoldingSettlementHexcrawlModal() {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">'
+      + 'Settlement hexcrawl: move through roads and districts to uncover tasks, talk opportunities, and downtime rewards.'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.28rem;">';
+    crawl.nodes.forEach(function (node) {
+      var state = node.explored ? 'Cleared' : 'Unexplored';
+      var action = node.explored
+        ? '<span style="font-size:.68rem;color:var(--muted2);">Resolved</span>'
+        : '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(node.id) + '\')">Explore Node</button>';
+      html += '<div style="border:1px solid var(--border2);background:var(--surface);padding:.32rem .38rem;">'
+        + '<div style="font-size:.68rem;color:var(--gold2);">' + node.label + '</div>'
+        + '<div style="font-size:.68rem;color:' + (node.explored ? 'var(--green2)' : 'var(--muted2)') + ';margin-top:.12rem;">' + state + '</div>'
+        + (node.result ? '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;margin-top:.16rem;">' + node.result + '</div>' : '')
+        + '<div style="margin-top:.22rem;">' + action + '</div>'
+        + '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function openHoldingSettlementHexcrawl() {
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+  }
+
+  function resolveHoldingSettlementHexNode(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id) === String(nodeId); });
+    if (!node || node.explored) { return; }
+    node.explored = true;
+    var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+    var action = explodingRoll(die);
+    var dread = explodingRoll(Number(node.dd || 6));
+    var success = action.total >= dread.total;
+    var line = 'Lead d' + die + ' ' + action.total + ' vs DD' + Number(node.dd || 6) + ' ' + dread.total + '. ';
+    if (success) {
+      if (node.kind === 'trade' || node.kind === 'craft') {
+        var cGain = node.kind === 'trade' ? 40 : 30;
+        S.credits = (S.credits || 0) + cGain;
+        if (typeof updateCreditsUI === 'function') { updateCreditsUI(); }
+        line += '+' + cGain + ' Credits.';
+      } else if (node.kind === 'talk' || node.kind === 'task') {
+        if (typeof changeCounter === 'function') { changeCounter('tmw', 1); }
+        line += '+1 Teamwork.';
+      } else if (node.kind === 'security') {
+        if (typeof changeCounter === 'function') { changeCounter('renown', 1); }
+        line += '+1 Renown.';
+      } else if (node.kind === 'focus') {
+        if (typeof toggleCond === 'function' && S.conditions && !S.conditions.focused) { toggleCond('focused'); }
+        line += 'Gained Focused.';
+      } else {
+        if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+        line += 'Route secured.';
+      }
+    } else {
+      if (typeof changeMentalStress === 'function') { changeMentalStress(1); }
+      if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
+      line += '+1 Mental Stress.';
+    }
+    node.result = line;
+    if (typeof showNotif === 'function') { showNotif(line, success ? 'good' : 'warn'); }
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+    renderHoldingUI();
+  }
+
   function applyHoldingDowntimeEffect(effect) {
     if (!effect) { return; }
     if (effect.tmw && typeof changeCounter === 'function') { changeCounter('tmw', effect.tmw); }
@@ -1519,12 +1614,14 @@
     var out = document.getElementById('holdingDowntimeResult');
     if (!out) { return; }
     var stats = ['lead', 'mind', 'body', 'spirit', 'control', 'strike', 'shoot', 'defend'];
+    var mode = String(activity || '').toLowerCase();
     out.innerHTML = '<div style="padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:var(--teal);">' + evt.name + '</div>'
       + '<div style="font-size:.76rem;color:var(--muted2);margin-top:.15rem;">Activity roll: choose Action Die vs DD' + evt.dd + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">'
       + stats.map(function(key){ return '<button class="btn btn-xs btn-teal" onclick="resolveHoldingDowntimeEvent(\'' + key + '\')">' + key.charAt(0).toUpperCase() + key.slice(1) + '</button>'; }).join('')
       + '</div>'
+      + (mode === 'explore' ? '<div style="margin-top:.32rem;"><button class="btn btn-xs btn-primary" onclick="openHoldingSettlementHexcrawl()">Open Settlement Hexcrawl</button></div>' : '')
       + '</div>';
   }
 
@@ -3055,6 +3152,8 @@
   window.rollHoldingDowntimeEvent = rollHoldingDowntimeEvent;
   window.rollHoldingDowntimeActivity = rollHoldingDowntimeActivity;
   window.resolveHoldingDowntimeEvent = resolveHoldingDowntimeEvent;
+  window.openHoldingSettlementHexcrawl = openHoldingSettlementHexcrawl;
+  window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;
   window.buyCaravan           = buyCaravan;
   window.rollCaravanName      = rollCaravanName;
   window.clearCaravanName     = clearCaravanName;

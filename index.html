@@ -14150,14 +14150,6 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;">Province pace: ' + clicksPerDay + ' hex clicks / day (' + travelMode + ')</div>'
       + '<div style="font-size:.68rem;color:var(--muted2);">Last Sea ship pace: 1 hex click = 1 week</div>'
       + '</div>';
-    var missionAutoMode=(typeof getMissionMapAutoAdvanceMode==='function')?getMissionMapAutoAdvanceMode():'click';
-    var missionAutoSummary='<div style="background:var(--surface);border:1px solid var(--border2);padding:.38rem .5rem;margin-bottom:.55rem;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
-      + '<div style="font-size:.7rem;color:var(--gold2);font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;">Map Mission Auto-Advance</div>'
-      + '<button class="btn btn-xs '+(missionAutoMode==='day'?'btn-teal':'')+'" onclick="toggleMissionMapAutoAdvanceMode()">'+(missionAutoMode==='day'?'Once / Day':'Every Click')+'</button>'
-      + '</div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.16rem;">Choose whether stepping on mission markers triggers once per day or on every travel click.</div>'
-      + '</div>';
     var newSunQuickHtml = '';
     if (typeof window.buildSolarCycleQuickPanelHtml === 'function') {
       try {
@@ -14258,9 +14250,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '</div>';
     }).join('') : '<div style="font-size:.78rem;color:var(--muted2);">No active missions yet.</div>';
 
-    return newSunQuickHtml
-      + travelSummary
-      + missionAutoSummary
+    return travelSummary
+      + newSunQuickHtml
       + jobsHtml
       + holdingHtml
       + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Active Missions</div>'

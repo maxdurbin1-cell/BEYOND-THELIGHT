@@ -813,16 +813,18 @@
     if (mission.region === 'galaxy' && typeof createGalaxyTask === 'function') {
       // Mirror province flow with two markers: informer lead + site objective.
       var planetLabel = mission.planetName || mission.location;
-      var raidMarkerGlyph = mission.missionType === 'legacy_raid' ? '🐉' : '';
-      var raidMarkerColor = mission.missionType === 'legacy_raid' ? '#ff8450' : '';
+      var informerGlyph = mission.missionType === 'legacy_raid' ? '🐉' : '👁';
+      var informerColor = mission.missionType === 'legacy_raid' ? '#ff8450' : '#e8c050';
+      var siteGlyph = mission.missionType === 'legacy_raid' ? '🐉' : '⚔';
+      var siteColor = mission.missionType === 'legacy_raid' ? '#ff8450' : '#e05050';
       var informerTask = createGalaxyTask('Mission Board', {
         title: mission.title + ' (Informer)',
         text: 'Track local informants for mission intel on ' + planetLabel + '.',
         missionId: mission.id,
         missionStep: 'informer',
         interaction: 'mission-step',
-        markerGlyph: raidMarkerGlyph,
-        markerColor: raidMarkerColor,
+        markerGlyph: informerGlyph,
+        markerColor: informerColor,
         reward: { credits: 0 },
         preferredHexId: mission.planetHexId
       });
@@ -832,8 +834,8 @@
         missionId: mission.id,
         missionStep: 'site',
         interaction: 'mission-step',
-        markerGlyph: raidMarkerGlyph,
-        markerColor: raidMarkerColor,
+        markerGlyph: siteGlyph,
+        markerColor: siteColor,
         reward: { credits: mission.reward, globalRenown: 1 },
         preferredHexId: mission.planetHexId
       });
@@ -1601,6 +1603,14 @@
       }
       units.push({ name: String(mission && mission.legacyRaidBoss || 'Boss'), side: 'enemy', zone: 'Engaged' });
     }
+    var seenUnits = {};
+    units = units.filter(function (u) {
+      if (!u) return false;
+      var key = (u.isPlayer ? 'player:' : String(u.side || 'ally') + ':') + String(u.name || 'unit');
+      if (seenUnits[key]) return false;
+      seenUnits[key] = true;
+      return true;
+    });
     var playerUnit = units.filter(function (u) { return u.isPlayer || (u.side === 'ally' && u.name === (typeof S !== 'undefined' && S && S.name || '')); })[0];
     var encounter = ensureLegacyRaidBossEncounter(mission);
     if (encounter && (!encounter.partyHp || typeof encounter.partyHp !== 'object')) encounter.partyHp = { allies: {} };
@@ -2896,6 +2906,7 @@
       + '</div>';
     openModal('Raid Combat (' + enemies.length + ' Enemies)', html);
   }
+  window.openRaidCombatModal = openRaidCombatModal;
 
   window.executeRaidCombatRound = function (missionId, wingNum) {
     var mission = getMission(missionId);
@@ -3048,6 +3059,7 @@
     
     openModal('Wing 3: Boss Battle', html);
   }
+  window.openWing3BossCombatModal = openWing3BossCombatModal;
 
   window.executeBossRound = function (missionId) {
     var mission = getMission(missionId);
@@ -4283,9 +4295,16 @@
     // Boss starts Engaged; player and traveling allies start Close/Nearby so spacing matters.
     if (!S.combatMap || typeof S.combatMap !== 'object') S.combatMap = { units: [] };
     if (!Array.isArray(S.combatMap.units)) S.combatMap.units = [];
-    // Clear any previous raid units keyed by raidSeed flag
-    S.combatMap.units = S.combatMap.units.filter(function (u) { return !u.raidSeed; });
     var playerName = String(S.name || 'Wayfarer');
+    // Clear previous raid-seeded units and any pre-existing player/boss duplicates.
+    S.combatMap.units = S.combatMap.units.filter(function (u) {
+      if (!u) return false;
+      if (u.raidSeed) return false;
+      if (u.isPlayer) return false;
+      if (String(u.name || '') === playerName) return false;
+      if (u.side === 'enemy' && String(u.name || '') === bossName) return false;
+      return true;
+    });
     var unitId = Date.now();
     S.combatMap.units.push({ id: unitId++, name: playerName, side: 'ally', zone: 'Engaged', isPlayer: true, raidSeed: true });
     var allies = getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; });
@@ -4483,7 +4502,7 @@
     if (cell.isStart) return '<span style="color:var(--muted2);">Entrance hex — no encounter. Begin from here.</span>';
     if (cell.isExit) return '<span style="color:var(--muted2);">Exit hex — complete objectives then pass through to advance.</span>';
     var rows = {
-      puzzle:  '🔏 <b>Puzzle:</b> Shared puzzle challenge (sudoku / maze / crossword / lock sequence families) · fail = objective blocked + −1 Tick' + loreDone,
+      puzzle:  '🔏 <b>Puzzle:</b> Shared puzzle challenge (sudoku / maze / crossword / lock sequence families) · fail = +1 Teamwork, Mental Stress by roll difference, −1 Tick' + loreDone,
       peril:   '⚡ <b>Peril:</b> Defend vs Dread d' + dd + ' · fail = +1 Teamwork, HP damage by difference, −1 Tick' + cleared,
       hazard:  '🌫 <b>Hazard:</b> Mind vs Dread d' + dd + ' · fail = +1 Teamwork, Mental Stress by difference, −1 Tick' + cleared,
       barrier: '🚧 <b>Barrier:</b> Body vs Dread d' + dd + ' · fail = +1 Teamwork, random Condition, −1 Tick' + cleared,
@@ -4589,7 +4608,7 @@
       cell.encounterLabel = getLegacyRaidHexEncounterLabel(mission, wingNum, cell.eventType, cell.id);
       if (!cell.roomDescription) {
         cell.roomDescription = buildLegacyRaidHexDescription(mission, wingNum, cell.eventType, null)
-          + ' Threat Signature: ' + String(mission && mission.legacyRaidBoss || 'Raid Boss') + '.';
+          + ' Threat Signature: ' + String(mission && mission.legacyRaidBoss || 'Raid Boss') + '. Hex ID: ' + String(cell.id || '?') + '.';
       }
     });
   }
@@ -4655,7 +4674,6 @@
       var isExit = cx === exit.x && cy === exit.y;
       var eventType = 'empty';
       if (!isStart && !isExit) eventType = pool[Math.floor(Math.random() * pool.length)] || 'hazard';
-      var showAll = Number(wingNum || 1) <= 2;
       cells[id] = {
         id: id,
         x: cx,
@@ -4664,7 +4682,7 @@
         strictEventType: true,
         isStart: isStart,
         isExit: isExit,
-        revealed: showAll || isStart,
+        revealed: !!isStart,
         visited: false,
         cleared: isStart,
         lorePiece: false,
@@ -4719,16 +4737,24 @@
         teleports.push(picked);
       }
     }
+    var nonTeleportIds = allIds.filter(function (id) {
+      var cell = cells[id];
+      return cell && !cell.isStart && !cell.isExit && cell.eventType !== 'teleport';
+    });
     for (var ti = 0; ti < teleports.length; ti++) {
       var from = teleports[ti];
       if (!from) continue;
-      var options = teleports.filter(function (t) { return t && t.id !== from.id; });
-      if (!options.length) {
-        from.teleportTo = from.id;
-        continue;
+      if (nonTeleportIds.length) {
+        from.teleportTo = String(nonTeleportIds[Math.floor(Math.random() * nonTeleportIds.length)] || from.id);
+      } else {
+        var options = teleports.filter(function (t) { return t && t.id !== from.id; });
+        if (!options.length) {
+          from.teleportTo = from.id;
+          continue;
+        }
+        var pick = options[Math.floor(Math.random() * options.length)];
+        from.teleportTo = pick.id;
       }
-      var pick = options[Math.floor(Math.random() * options.length)];
-      from.teleportTo = pick.id;
     }
 
     var state = {
@@ -4825,31 +4851,33 @@
         var isCurrent = String(state.currentId || '') === id;
         var isSelected = String(state.selectedId || '') === id;
         var reveal = !!cell.revealed;
-        var icon = '·';
-        if (!reveal) icon = '?';
-        else if (cell.isStart) icon = 'S';
+        var icon = '?';
+        if (cell.isStart) icon = 'S';
         else if (cell.isExit) icon = 'E';
-        else if (cell.eventType === 'puzzle') icon = '🧩';
-        else if (cell.eventType === 'peril') icon = '☠';
-        else if (cell.eventType === 'hazard') icon = '⚠';
-        else if (cell.eventType === 'barrier') icon = '⛔';
-        else if (cell.eventType === 'enemy') icon = '⚔';
-        else if (cell.eventType === 'loot') icon = '📦';
-        else if (cell.eventType === 'teleport') icon = (state.teleportTheme && state.teleportTheme.icon) || '◇';
-        else if (cell.eventType === 'rest') icon = '🛌';
+        else if (!reveal) icon = '?';
+        else if (cell.cleared) {
+          if (cell.eventType === 'puzzle') icon = '🧩';
+          else if (cell.eventType === 'peril') icon = '☠';
+          else if (cell.eventType === 'hazard') icon = '⚠';
+          else if (cell.eventType === 'barrier') icon = '⛔';
+          else if (cell.eventType === 'enemy') icon = '⚔';
+          else if (cell.eventType === 'loot') icon = '📦';
+          else if (cell.eventType === 'teleport') icon = (state.teleportTheme && state.teleportTheme.icon) || '◇';
+          else if (cell.eventType === 'rest') icon = '🛌';
+        }
         var border = isCurrent ? '2px solid var(--teal)' : (isSelected ? '2px solid var(--gold2)' : '1px solid var(--border2)');
         var bg = !reveal ? 'rgba(20,20,26,.6)' : (cell.cleared ? 'rgba(50,180,90,.18)' : 'rgba(255,255,255,.04)');
         var badge = '';
         if (reveal && cell.lorePiece) badge += '📜';
         if (reveal && cell.waypoint) badge += '🧭';
         if (!badge) badge = '&nbsp;';
-        gridCells.push('<button type="button" class="btn btn-xs" style="min-height:24px;padding:.05rem;font-size:.62rem;border:' + border + ';background:' + bg + ';" onclick="window.selectLegacyRaidHex(' + mission.id + ',' + wingNum + ',\'' + id + '\')">'
+        gridCells.push('<button type="button" class="btn btn-xs" style="min-height:32px;padding:.1rem;font-size:.7rem;border:' + border + ';background:' + bg + ';" onclick="window.selectLegacyRaidHex(' + mission.id + ',' + wingNum + ',\'' + id + '\')">'
           + '<div style="line-height:1;">' + icon + '</div>'
           + '<div style="line-height:1;font-size:.5rem;color:var(--gold2);">' + badge + '</div>'
           + '</button>');
       }
     }
-    return '<div style="display:grid;grid-template-columns:repeat(' + size + ',minmax(24px,1fr));gap:.08rem;">' + gridCells.join('') + '</div>';
+    return '<div style="display:grid;grid-template-columns:repeat(' + size + ',minmax(32px,1fr));gap:.1rem;">' + gridCells.join('') + '</div>';
   }
 
   function getLegacyRaidBossEnemyPool(bossTheme) {
@@ -4876,7 +4904,7 @@
         sea: ['Corroded valve mechanism with tide-lock mechanisms.', 'Underwater stone seal glowing faintly with bioluminescence.', 'Puzzle needing navigation of false currents.'],
         void: ['Lock that seems to phase between existence and void.', 'Mechanism that responds to silence rather than force.', 'Puzzle revealing hidden paths through dimensional folds.'],
         stone: ['Massive stone door with interlocking mechanisms.', 'Ancient lock covered in dust from fallen civilizations.', 'Puzzle requiring weight distribution across stone platforms.'],
-        default: ['Ornate lock mechanism.', 'Ancient seal covering the path forward.', 'Puzzle blocking passage deeper into the vault.']
+        default: ['Ornate lock mechanism.', 'Interlocked control lattice blocks the route forward.', 'Puzzle blocking passage deeper into the vault.']
       },
       peril: {
         serpent: ['Toxic venom pools bubble and hiss across the floor.', 'The tunnel ahead drips with caustic slime from passing predators.', 'Walls shift with the movement of unseen creatures.'],
@@ -4968,10 +4996,63 @@
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs" ' + (moveAllowed && !isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.moveLegacyRaidHex(' + mission.id + ',' + wingNum + ')">' + moveLabel + '</button>'
       + '<button class="btn btn-xs btn-primary" ' + (isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + exploreLabel + '</button>'
-      + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ')">Refresh</button>'
       + '</div>'
       + '</div>';
   }
+
+  function openLegacyRaidHexRiskCheckModal(missionId, wingNum, cell, eventType) {
+    if (!cell) return false;
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var statByType = { peril: 'defend', hazard: 'mind', barrier: 'body' };
+    var statKey = statByType[eventType] || 'adventure';
+    var statLabel = statKey === 'defend' ? 'Defend' : (statKey === 'mind' ? 'Mind' : (statKey === 'body' ? 'Body' : 'Adventure'));
+    var dd = getLegacyRaidHexDreadDie(wingNum, eventType);
+    var body = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
+      + '<div style="font-size:.86rem;color:var(--gold2);margin-bottom:.14rem;"><strong>' + String(cell.encounterLabel || 'Room Encounter') + '</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.16rem;">' + String(cell.roomDescription || '') + '</div>'
+      + '<div style="font-size:.74rem;color:var(--text2);margin-bottom:.18rem;">Roll <strong>' + statLabel + ' Action Die</strong> vs <strong>Dread d' + dd + '</strong>.</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-primary" onclick="window.resolveLegacyRaidHexRiskCheck(' + missionId + ',' + wingNum + ',\'' + String(cell.id || '') + '\',\'' + String(eventType || '') + '\')">Roll Check</button>'
+      + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + missionId + ',' + wingNum + ',\'' + String(cell.id || '') + '\')">Back</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Raid Encounter', body);
+    return true;
+  }
+
+  window.resolveLegacyRaidHexRiskCheck = function (missionId, wingNum, cellId, eventType) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var state = ensureLegacyRaidWingGridState(mission, wingNum);
+    if (!state || !state.cells) return false;
+    var cell = state.cells[String(cellId || '')];
+    if (!cell) return false;
+    var et = String(eventType || '').toLowerCase();
+    var statByType = { peril: 'defend', hazard: 'mind', barrier: 'body' };
+    var result = resolveLegacyRaidHexContest(statByType[et] || 'adventure', getLegacyRaidHexDreadDie(wingNum, et));
+    if (typeof closeModal === 'function') closeModal();
+    if (!result.success) {
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      if (et === 'peril' && typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - Math.max(1, result.diff));
+      if (et === 'hazard' && typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
+      if (et === 'barrier' && typeof S !== 'undefined' && S && S.conditions && typeof S.conditions === 'object') {
+        var cKeys = Object.keys(S.conditions);
+        if (cKeys.length) S.conditions[cKeys[Math.floor(Math.random() * cKeys.length)]] = true;
+      }
+      state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
+      state.lastLog = 'Hex ' + cell.id + ' failed (' + et + '). Roll ' + result.actionRoll + ' vs ' + result.dreadRoll + '. Extra tick lost.';
+    } else {
+      cell.cleared = true;
+      state.ticks = Math.min(20, Number(state.ticks || 0) + 2);
+      if (cell.waypoint) state.objectives.waypointsActivated = Math.min(Number(state.objectives.waypointsRequired || 3), Number(state.objectives.waypointsActivated || 0) + 1);
+      if (cell.lorePiece) state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
+      state.lastLog = 'Hex ' + cell.id + ' cleared (' + et + '). Roll ' + result.actionRoll + ' vs ' + result.dreadRoll + '. +2 ticks.';
+    }
+    if (Number(state.ticks || 0) <= 0) return openLegacyRaidWipeDecision(mission.id);
+    if (checkLegacyRaidWingGridCompletion(mission, wingNum, state)) return openLegacyRaidWingLootChoice(mission.id, wingNum, 'advance');
+    return openRaidWingPopup(mission.id, wingNum, String(cell.id || ''));
+  };
 
   function checkLegacyRaidWingGridCompletion(mission, wingNum, state) {
     if (!mission || !state) return false;
@@ -5071,7 +5152,9 @@
       if (eventType === 'puzzle') {
         if (typeof window.openSharedPuzzleChallenge === 'function') {
           var puzzleSource = getLegacyRaidHexPuzzleSource(mission, wingNum, cell);
-          var puzzleTitle = (cell.lorePiece ? 'Lore ' : '') + 'Vault Challenge';
+          var puzzleTitle = cell.lorePiece
+            ? 'Lore Puzzle: Crossword or Sudoku'
+            : (cell.waypoint ? 'Waypoint Puzzle: Lockpick or Pipe Flow' : 'Raid Puzzle Challenge');
           return window.openSharedPuzzleChallenge({
             source: puzzleSource,
             title: puzzleTitle,
@@ -5098,9 +5181,10 @@
               return openRaidWingPopup(mission.id, wingNum);
             },
             onFail: function () {
+              var failRoll = resolveLegacyRaidHexContest('mind', getLegacyRaidHexDreadDie(wingNum, eventType));
               state.ticks = Math.max(0, Number(state.ticks || 0) - 1);
               if (typeof addTMWOnFail === 'function') addTMWOnFail();
-              if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + 1);
+              if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, failRoll.diff));
               state.lastLog = 'Hex ' + cell.id + ' puzzle failed. Extra tick lost while deciphering.';
               if (Number(state.ticks || 0) <= 0) return openLegacyRaidWipeDecision(mission.id);
               return openRaidWingPopup(mission.id, wingNum);
@@ -5113,26 +5197,11 @@
           if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
         }
       } else if (eventType === 'peril') {
-        result = resolveLegacyRaidHexContest('defend', getLegacyRaidHexDreadDie(wingNum, eventType));
-        if (!result.success) {
-          if (typeof addTMWOnFail === 'function') addTMWOnFail();
-          if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - Math.max(1, result.diff));
-        }
+        return openLegacyRaidHexRiskCheckModal(mission.id, wingNum, cell, eventType);
       } else if (eventType === 'hazard') {
-        result = resolveLegacyRaidHexContest('mind', getLegacyRaidHexDreadDie(wingNum, eventType));
-        if (!result.success) {
-          if (typeof addTMWOnFail === 'function') addTMWOnFail();
-          if (typeof S !== 'undefined' && S) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + Math.max(1, result.diff));
-        }
+        return openLegacyRaidHexRiskCheckModal(mission.id, wingNum, cell, eventType);
       } else if (eventType === 'barrier') {
-        result = resolveLegacyRaidHexContest('body', getLegacyRaidHexDreadDie(wingNum, eventType));
-        if (!result.success) {
-          if (typeof addTMWOnFail === 'function') addTMWOnFail();
-          if (typeof S !== 'undefined' && S && S.conditions && typeof S.conditions === 'object') {
-            var cKeys = Object.keys(S.conditions);
-            if (cKeys.length) S.conditions[cKeys[Math.floor(Math.random() * cKeys.length)]] = true;
-          }
-        }
+        return openLegacyRaidHexRiskCheckModal(mission.id, wingNum, cell, eventType);
       } else if (eventType === 'enemy') {
         var enemyCount = Number(wingNum || 1) === 1
           ? (1 + Math.floor(Math.random() * 4))
@@ -5499,17 +5568,10 @@
         var teamworkPool = getLegacyRaidTeamworkPool();
         var teamworkCosts = getLegacyRaidTeamworkBurstCosts(mission);
         var playerName = String(typeof S !== 'undefined' && S && S.name || 'Wayfarer');
-        var playerActions = [
-          'Standard Attack',
-          'Heavy Attack',
-          'Fast Attack',
-          'Stance',
-          'Switch',
-          'Use Item',
-          'Help / Stand',
-          'Move Zone',
-          'Take Cover'
-        ];
+        var playerActions = getLegacyRaidCombatActionLabels();
+        if (!Array.isArray(playerActions) || !playerActions.length) {
+          playerActions = ['Strike', 'Shoot', 'Defend', 'Move', 'Support', 'Control'];
+        }
         var allies = getRaidWayfarersForWing(mission, 3).filter(function (wf) { return wf && wf.status !== 'failed'; });
         var allyOptionHtml = allies.length
           ? allies.map(function (wf) { return '<option value="' + String(wf.name || 'Wayfarer') + '">' + String(wf.name || 'Wayfarer') + '</option>'; }).join('')
@@ -5719,7 +5781,7 @@
       var keyLine = vault ? ('Keys B/S/G/P: ' + Number(vault.keys.bronze || 0) + '/' + Number(vault.keys.silver || 0) + '/' + Number(vault.keys.gold || 0) + '/' + Number(vault.keys.platinum || 0)) : '';
       var vaultCardHtml = buildLegacyRaidVaultCardHtml(mission);
 
-      var htmlGrid = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:860px;">'
+      var htmlGrid = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:1100px;">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;margin-bottom:.32rem;">'
         + '<div><div style="font-size:.88rem;color:' + theme.tc + ';font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + '</strong></div>'
         + '<div style="font-size:.68rem;color:' + theme.muted + ';text-transform:uppercase;letter-spacing:.07em;">' + wingThemesGrid[wingNum] + ' · 12x12 Tactical Branch Grid · Time ' + Number(gridState.ticks || 0) + ' ticks</div></div>'

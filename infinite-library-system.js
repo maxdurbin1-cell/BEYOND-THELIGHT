@@ -93,10 +93,52 @@
         sinceRoll: 0,
         bossDefeatedByTier: {},
         currentQuest: null,
+        activeHexKey: '',
+        delveCount: 0,
         lastResult: ''
       };
     }
     return S.infiniteLibrary;
+  }
+
+  function getProvinceHexByKey(key) {
+    var parts = String(key || '').split(',');
+    if (parts.length !== 2) return null;
+    var col = Number(parts[0]);
+    var row = Number(parts[1]);
+    if (!isFinite(col) || !isFinite(row)) return null;
+    if (typeof window.setProvinceSelectedKey === 'function') {
+      try {
+        window.setProvinceSelectedKey(col + ',' + row);
+      } catch (_err) {}
+    }
+    if (window.selectedHex && Number(window.selectedHex.col) === col && Number(window.selectedHex.row) === row) {
+      return window.selectedHex;
+    }
+    return null;
+  }
+
+  function attachLibraryStateToHex(state) {
+    if (!state || !state.activeHexKey) return;
+    var hex = getProvinceHexByKey(state.activeHexKey);
+    if (!hex) return;
+    hex.data = hex.data || {};
+    hex.data.infiniteLibrary = hex.data.infiniteLibrary || {};
+    hex.data.infiniteLibrary.depth = Number(state.depth || 1);
+    hex.data.infiniteLibrary.roomIndex = Number(state.roomIndex || 0);
+    hex.data.infiniteLibrary.lastResult = String(state.lastResult || '');
+    hex.data.infiniteLibrary.delveCount = Number(state.delveCount || 0);
+  }
+
+  function readLibraryStateFromHex(state, key) {
+    if (!state) return;
+    var hex = getProvinceHexByKey(key);
+    if (!hex || !hex.data || !hex.data.infiniteLibrary || typeof hex.data.infiniteLibrary !== 'object') return;
+    var hs = hex.data.infiniteLibrary;
+    if (typeof hs.depth === 'number') state.depth = Math.max(1, Number(hs.depth || 1));
+    if (typeof hs.roomIndex === 'number') state.roomIndex = Math.max(0, Number(hs.roomIndex || 0));
+    if (typeof hs.lastResult === 'string') state.lastResult = hs.lastResult;
+    if (typeof hs.delveCount === 'number') state.delveCount = Math.max(Number(state.delveCount || 0), Number(hs.delveCount || 0));
   }
 
   function tierForDepth(depth) {
@@ -133,6 +175,9 @@
     var state = ensureLibraryState();
     if (!state || typeof openModal !== 'function') return false;
     state.active = true;
+    if (!state.activeHexKey && typeof window.getProvinceSelectedKey === 'function') {
+      try { state.activeHexKey = String(window.getProvinceSelectedKey() || ''); } catch (_err) { state.activeHexKey = ''; }
+    }
     var tier = tierForDepth(state.depth);
     var roomText = pick(ROOM_SNIPPETS[tier.die], 'room:' + state.depth + ':' + state.roomIndex);
     var bookText = pick(BOOK_MICRO_SNIPPETS, 'book:' + state.depth + ':' + state.roomIndex);
@@ -162,6 +207,7 @@
       + '</div>'
       + '</div>';
     openModal('Infinite Library', html);
+    attachLibraryStateToHex(state);
     return true;
   }
 
@@ -222,9 +268,34 @@
     }
 
     if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    attachLibraryStateToHex(state);
+    return renderLibraryModal();
+  }
+
+  function openInfiniteLibraryAtHex(col, row) {
+    if (typeof col !== 'number' || typeof row !== 'number') return renderLibraryModal();
+    var hex = getProvinceHexByKey(String(col) + ',' + String(row));
+    if (!hex) {
+      if (typeof showNotif === 'function') showNotif('Library hex could not be resolved.', 'warn');
+      return false;
+    }
+    if (String(hex.type || '').toLowerCase() !== 'library') {
+      if (typeof showNotif === 'function') showNotif('This area is not the Infinite Library.', 'warn');
+      return false;
+    }
+
+    var state = ensureLibraryState();
+    if (!state) return false;
+    state.activeHexKey = String(col) + ',' + String(row);
+    readLibraryStateFromHex(state, state.activeHexKey);
+    state.delveCount = Math.max(0, Number(state.delveCount || 0) + 1);
+    if (typeof S !== 'undefined' && S && S.soloGM && S.soloGM.websiteCounters) {
+      S.soloGM.websiteCounters.libraryDelves = Math.max(0, Number(S.soloGM.websiteCounters.libraryDelves || 0) + 1);
+    }
     return renderLibraryModal();
   }
 
   window.openInfiniteLibrary = renderLibraryModal;
+  window.openInfiniteLibraryAtHex = openInfiniteLibraryAtHex;
   window.resolveInfiniteLibraryAction = resolveInfiniteLibraryAction;
 })();

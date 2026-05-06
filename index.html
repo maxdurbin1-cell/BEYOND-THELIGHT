@@ -9974,6 +9974,19 @@ function placeUnique(type,name,data){
   if(hex){hex.type=type;hex.name=name;hex.data=data||{};}
   return hex;
 }
+function ensureProvinceLibraryHex(){
+  if(!Array.isArray(mapData)||!mapData.length)return null;
+  let existing=mapData.find(h=>h&&String(h.type||'').toLowerCase()==='library')||null;
+  if(existing)return existing;
+  const libraryName=pick(['Infinite Library Annex','The Laughing Stacks','Index of Impossible Manuals','The Megastack of Side Quests']);
+  const libraryData={entrance:pick(['A brass hex-door rotates open when someone tells a bad joke.','A card-catalog wall slides aside and exhales warm dust.','A librarian gargoyle stamps your wrist and points downward.']),motif:pick(['Recursive shelves and gossiping index cards','Floating ladders, cursed glossaries, and tea stains older than empires','Book-maze corridors with room numbers that refuse arithmetic']),seal:pick(['Reading lamps awaken one floor at a time.','The stacks only deepen after a floor contract is completed.','Every fourth room demands a duel with a footnote.'])};
+  const target=mapData.find(h=>h&&h.type==='wilderness')||mapData.find(h=>h&&h.type==='trade')||null;
+  if(!target)return null;
+  target.type='library';
+  target.name=libraryName;
+  target.data=libraryData;
+  return target;
+}
 function pickUniquePeril(){if(usedPerils.length>=PERIL_NAMES_UNIQUE.length)usedPerils=[];const avail=PERIL_NAMES_UNIQUE.filter((_,i)=>!usedPerils.includes(i));const idx=PERIL_NAMES_UNIQUE.indexOf(pick(avail));usedPerils.push(idx);return{name:PERIL_NAMES_UNIQUE[idx],desc:PERIL_DESCS_UNIQUE[idx]};}
 function pickUniqueBarrier(){if(usedBarriers.length>=BARRIER_TYPES_UNIQUE.length)usedBarriers=[];const avail=BARRIER_TYPES_UNIQUE.filter((_,i)=>!usedBarriers.includes(i));const idx=BARRIER_TYPES_UNIQUE.indexOf(pick(avail));usedBarriers.push(idx);return{name:BARRIER_TYPES_UNIQUE[idx],desc:BARRIER_DESCS_UNIQUE[idx]};}
 
@@ -9997,6 +10010,7 @@ function generateMap(){
   for(let i=0;i<roll(3)+1;i++){const p=pickUniquePeril();placeUnique('peril',p.name,{desc:p.desc});}
   for(let i=0;i<roll(3)+1;i++)placeUnique('ruins',pick(['The Fallen Hall','Ossuary Depths','Ruin of the Old World','Broken Spire','The Warden\'s Tomb','Collapsed Citadel']),{builder:pick(RUIN_BUILDERS),builtFor:pick(RUIN_BUILT_FOR),novelty:pick(RUIN_NOVELTIES),construction:pick(RUIN_CONSTRUCTIONS),entrance:pick(RUIN_ENTRANCES),rooms:roll(4)+2});
   placeUnique('depths',pick(['The Lantern Below','The Unfinished Vault','The Ashen Descent','The Black Stair','The Null Catacomb','The Endless Reliquary']),{entrance:pick(['A cracked stairwell drops beneath the province bedrock.','An iron lift shaft hums with old power.','A spiral stair bores into the dark below.','A collapsed chapel floor opens into a buried avenue.']),motif:pick(['Builder works and ossuaries','Flooded archive halls','Clockwork tomb corridors','Basalt shrines and sealed gates','Collapsed barracks beneath old roads']),seal:pick(['Sigils must be aligned to move deeper.','Some chambers only yield to a spoken key.','Secret doors answer to light, spellcraft, or patient searching.','Lower vaults wake only after nearby wards are broken.'])});
+  ensureProvinceLibraryHex();
   const evts=[...EVENTS[S.currentAge]].sort(()=>Math.random()-.5).slice(0,roll(4)+3);
   evts.forEach(ev=>placeUnique('event',ev,{whisper:EVENT_WHISPERS[ev]||'',mysteries:EVENT_MYSTERIES[ev]||GENERIC_MYSTERIES,mysteryIdx:0}));
   for(let i=0;i<roll(2)+1;i++)placeUnique('gate',pick(GATE_NAME_FIRST)+' '+pick(GATE_NAME_LAST),{symptom:pick(GATE_SYMPTOMS),condition:pick(GATE_CONDITIONS),fn:pick(GATE_FUNCTIONS),where:pick(GATE_WHERE),material:pick(GATE_MATERIAL),maker:pick(GATE_MAKER),happened:pick(GATE_HAPPENED),leads:pick(GATE_LEADS)});
@@ -10148,10 +10162,11 @@ window.getProvinceMapState=getProvinceMapState;
 window.applyProvinceMapState=applyProvinceMapState;
 window.getProvinceSelectedKey=getProvinceSelectedKey;
 window.setProvinceSelectedKey=setProvinceSelectedKey;
+window.ensureProvinceLibraryHex=ensureProvinceLibraryHex;
 
-const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling:'#3a6820',temple:'#502878',monument:'#484848',peril:'#783820',ruins:'#403830',depths:'#172028',event:'#6a5800',gate:'#1a5048',lostcity:'#5a1040',barrier:'#282828',trade:'#3a2800'};
-const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',depths:'#7ed7ff',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
-const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'◈',peril:'⚠',ruins:'◫',depths:'⬢',event:'✧',gate:'◆',lostcity:'⬡',trade:'═'};
+const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling:'#3a6820',temple:'#502878',monument:'#484848',peril:'#783820',ruins:'#403830',depths:'#172028',library:'#1a2436',event:'#6a5800',gate:'#1a5048',lostcity:'#5a1040',barrier:'#282828',trade:'#3a2800'};
+const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',depths:'#7ed7ff',library:'#9cb8ff',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
+const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'◈',peril:'⚠',ruins:'◫',depths:'⬢',library:'📚',event:'✧',gate:'◆',lostcity:'⬡',trade:'═'};
 let selectedHex=null;
 let provinceMapCoreSignature='';
 let provinceMapSelectedKeyCache='';
@@ -10332,6 +10347,7 @@ function renderProvinceMarkerLegend(markers){
 }
 
 function renderHexMap(){
+  ensureProvinceLibraryHex();
   if(window.factionSystem&&typeof window.factionSystem.syncBaseMarkers==='function')window.factionSystem.syncBaseMarkers();
   const secretPadKey=getProvinceSecretPadKey();
   const mapFx=getMapVisualSettings();
@@ -11010,6 +11026,24 @@ function renderHexInfo(hex){
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('depths',${hex.col},${hex.row})">Join Area: Infinite Dungeon</button>
     </div>`;
+
+  // ── INFINITE LIBRARY ──
+  }else if(hex.type==='library'){
+    const libState=d.infiniteLibrary||{};
+    const depth=Math.max(1,parseInt(libState.depth,10)||1);
+    const roomIdx=Math.max(0,parseInt(libState.roomIndex,10)||0);
+    const delves=Math.max(0,parseInt(libState.delveCount,10)||0);
+    html+=`<div class="rest-boon" style="background:rgba(156,184,255,.08);border-color:rgba(156,184,255,.45);">
+      <div class="rb-label" style="color:#9cb8ff;">📚 Reading Boon</div>
+      <div style="font-size:.82rem;color:var(--text2);">Camp in the stacks to gain <strong style="color:#9cb8ff;">Focused</strong> before descending into book-maze floors.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'focused','Library Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
+    </div>`;
+    html+=`<div class="ruin-room"><div class="ruin-room-title" style="color:#9cb8ff;">Infinite Library Details</div><div style="font-size:.8rem;color:var(--muted3);"><strong>Entrance:</strong> ${d.entrance||'Unknown'}<br><strong>Motif:</strong> ${d.motif||'Recursive shelves'}<br><strong>Seal Logic:</strong> ${d.seal||'Unknown'}<br><strong>Current Depth:</strong> ${depth}<br><strong>Rooms Traversed:</strong> ${roomIdx}<br><strong>Total Delves:</strong> ${delves}</div></div>`;
+    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
+      <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('library',${hex.col},${hex.row})">Join Area: Infinite Library Megastack</button>
+    </div>`;
+    if(libState.lastResult){
+      html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">Last Library Result</div><div style="font-size:.78rem;color:var(--muted2);">${libState.lastResult}</div></div>`;
+    }
 
   // ── EVENT ──
   }else if(hex.type==='event'){
@@ -13360,10 +13394,16 @@ function generateTempleRooms(col,row){
 
 function requestJoinProvinceArea(areaType,col,row){
   const area=String(areaType||'').toLowerCase();
-  const labels={ruins:'Province Ruins',depths:'Province Depths',dwelling:'Dwelling Rooms',temple:'Temple Chambers',lostcity:'Lost City Building'};
+  const labels={ruins:'Province Ruins',depths:'Province Depths',library:'Infinite Library',dwelling:'Dwelling Rooms',temple:'Temple Chambers',lostcity:'Lost City Building'};
   openCampaignAreaJoinPrompt(labels[area]||'Province Area',function(){
     if(area==='ruins'){openProvinceRuinPopup(col,row);return;}
     if(area==='depths'){openProvinceDepthsPopup(col,row);return;}
+    if(area==='library'){
+      if(typeof openInfiniteLibraryAtHex==='function'){openInfiniteLibraryAtHex(col,row);return;}
+      if(typeof openInfiniteLibrary==='function'){openInfiniteLibrary();return;}
+      showNotif('Infinite Library module not loaded.', 'warn');
+      return;
+    }
     if(area==='dwelling'){generateDwellingRooms(col,row);return;}
     if(area==='temple'){generateTempleRooms(col,row);return;}
     if(area==='lostcity'){revealLostCityBuilding(col,row);return;}

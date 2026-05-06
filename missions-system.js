@@ -2040,14 +2040,151 @@
     return ['Strike', 'Shoot', 'Defend', 'Move', 'Support', 'Control'];
   }
 
+  function normalizeLegacyRaidRange(range) {
+    var r = String(range || 'Close').toLowerCase();
+    if (r === 'engaged') return 'Engaged';
+    if (r === 'nearby') return 'Nearby';
+    if (r === 'far') return 'Far';
+    return 'Close';
+  }
+
+  function getLegacyRaidHexDistance(q, r) {
+    return (Math.abs(Number(q || 0)) + Math.abs(Number(r || 0)) + Math.abs(Number(q || 0) + Number(r || 0))) / 2;
+  }
+
+  function getLegacyRaidHexSlotsByRange() {
+    return {
+      Engaged: [{ q: 0, r: 0 }],
+      Close: [
+        { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },
+        { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }
+      ],
+      Nearby: [
+        { q: 2, r: 0 }, { q: 2, r: -1 }, { q: 2, r: -2 },
+        { q: 1, r: -2 }, { q: 0, r: -2 }, { q: -1, r: -1 },
+        { q: -2, r: 0 }, { q: -2, r: 1 }, { q: -2, r: 2 },
+        { q: -1, r: 2 }, { q: 0, r: 2 }, { q: 1, r: 1 }
+      ],
+      Far: [
+        { q: 3, r: 0 }, { q: 3, r: -1 }, { q: 3, r: -2 }, { q: 3, r: -3 },
+        { q: 2, r: -3 }, { q: 1, r: -3 }, { q: 0, r: -3 }, { q: -1, r: -2 },
+        { q: -2, r: -1 }, { q: -3, r: 0 }, { q: -3, r: 1 }, { q: -3, r: 2 },
+        { q: -3, r: 3 }, { q: -2, r: 3 }, { q: -1, r: 3 }, { q: 0, r: 3 },
+        { q: 1, r: 2 }, { q: 2, r: 1 }
+      ]
+    };
+  }
+
+  function buildLegacyRaidHexCombatBoard(units, options) {
+    var opts = options || {};
+    var title = String(opts.title || 'STARS COMBAT - HEX ZONE MAP');
+    var subtitle = String(opts.subtitle || 'Combat positions, range bands, and cover terrain');
+    var width = 560;
+    var height = 350;
+    var hexSize = 22;
+    var centerX = width / 2;
+    var centerY = height / 2 + 4;
+    var slotsByRange = getLegacyRaidHexSlotsByRange();
+    var grid = [].concat(slotsByRange.Engaged, slotsByRange.Close, slotsByRange.Nearby, slotsByRange.Far);
+    var ringStyles = {
+      0: { fill: 'rgba(201,64,64,.14)', stroke: 'rgba(201,64,64,.35)' },
+      1: { fill: 'rgba(201,162,39,.1)', stroke: 'rgba(201,162,39,.3)' },
+      2: { fill: 'rgba(46,196,182,.09)', stroke: 'rgba(46,196,182,.3)' },
+      3: { fill: 'rgba(122,120,152,.08)', stroke: 'rgba(122,120,152,.25)' }
+    };
+    var toPixel = function (q, r) {
+      var x = centerX + hexSize * Math.sqrt(3) * (Number(q || 0) + Number(r || 0) / 2);
+      var y = centerY + hexSize * 1.5 * Number(r || 0);
+      return { x: x, y: y };
+    };
+    var hexPoints = function (cx, cy) {
+      var pts = [];
+      for (var i = 0; i < 6; i++) {
+        var angle = ((60 * i) - 30) * Math.PI / 180;
+        pts.push((cx + hexSize * Math.cos(angle)).toFixed(2) + ',' + (cy + hexSize * Math.sin(angle)).toFixed(2));
+      }
+      return pts.join(' ');
+    };
+
+    var occupied = {};
+    var rangeCounts = { Engaged: 0, Close: 0, Nearby: 0, Far: 0 };
+    var placedUnits = (Array.isArray(units) ? units : []).map(function (u) {
+      var unit = u || {};
+      var range = normalizeLegacyRaidRange(unit.range || unit.zone || 'Close');
+      var slots = slotsByRange[range] || slotsByRange.Close;
+      var idx = Number(rangeCounts[range] || 0);
+      rangeCounts[range] = idx + 1;
+      var slot = slots[idx % Math.max(1, slots.length)] || { q: 0, r: 0 };
+      var key = String(slot.q) + ',' + String(slot.r);
+      if (occupied[key]) {
+        var alt = slots[(idx + 1) % Math.max(1, slots.length)] || slot;
+        slot = { q: Number(alt.q || 0), r: Number(alt.r || 0) };
+      }
+      occupied[String(slot.q) + ',' + String(slot.r)] = true;
+      var p = toPixel(slot.q, slot.r);
+      return {
+        name: String(unit.name || 'Unit'),
+        side: String(unit.side || 'ally'),
+        isPlayer: !!unit.isPlayer,
+        hp: Math.max(0, Number(unit.hp || 0)),
+        dread: Math.max(0, Number(unit.dread || 0)),
+        range: range,
+        x: p.x,
+        y: p.y
+      };
+    });
+
+    var terrainSeed = getLegacyRaidStableIndex(String(opts.seed || 'raid-hex-terrain'), 9999);
+    var terrainCoords = [
+      { q: 2, r: -1, icon: 'x' },
+      { q: -1, r: -2, icon: '^' },
+      { q: -2, r: 2, icon: '#' },
+      { q: 1, r: 2, icon: '~' }
+    ];
+    var terrain = terrainCoords.filter(function (_c, i) {
+      return ((terrainSeed + i) % 2) === 0;
+    }).map(function (c) {
+      var p = toPixel(c.q, c.r);
+      return '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 4).toFixed(2) + '" text-anchor="middle" font-size="11" opacity=".82" fill="var(--muted2)">' + c.icon + '</text>';
+    }).join('');
+
+    var gridSvg = grid.map(function (hex) {
+      var p = toPixel(hex.q, hex.r);
+      var ring = getLegacyRaidHexDistance(hex.q, hex.r);
+      var style = ringStyles[ring] || ringStyles[3];
+      return '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + style.fill + '" stroke="' + style.stroke + '" stroke-width="1.1"/>';
+    }).join('');
+    var unitSvg = placedUnits.map(function (u) {
+      var fill = u.side === 'enemy' ? 'rgba(201,64,64,.9)' : 'rgba(46,196,182,.9)';
+      var stroke = u.isPlayer ? 'var(--gold2)' : (u.side === 'enemy' ? 'rgba(255,180,180,.8)' : 'rgba(170,255,245,.8)');
+      var hpText = u.hp > 0 ? ('HP ' + u.hp) : 'DOWN';
+      var detailText = u.dread > 0 ? (' · Dread d' + u.dread) : '';
+      return '<g>'
+        + '<title>' + u.name + ' · ' + u.range + ' · ' + hpText + detailText + '</title>'
+        + '<circle cx="' + u.x.toFixed(2) + '" cy="' + u.y.toFixed(2) + '" r="10.2" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.6"/>'
+        + '<text x="' + u.x.toFixed(2) + '" y="' + (u.y + 3.4).toFixed(2) + '" text-anchor="middle" font-size="8" fill="#fff">' + String(u.name || 'U').slice(0, 2).toUpperCase() + '</text>'
+        + '</g>';
+    }).join('');
+    var legend = '<div style="display:flex;gap:.28rem;flex-wrap:wrap;font-size:.6rem;color:var(--muted2);margin-top:.12rem;">'
+      + '<span><strong style="color:var(--red2);">Engaged</strong> ring 0</span>'
+      + '<span><strong style="color:var(--gold2);">Close</strong> ring 1</span>'
+      + '<span><strong style="color:var(--teal);">Nearby</strong> ring 2</span>'
+      + '<span><strong style="color:var(--muted3);">Far</strong> ring 3</span>'
+      + '<span>Terrain creates movement pressure.</span>'
+      + '</div>';
+
+    return '<div style="margin:.15rem 0;border:1px solid var(--border2);padding:.28rem .3rem;background:rgba(255,255,255,.02);">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.2rem;">' + title + '</div>'
+      + '<div style="font-size:.62rem;color:var(--muted2);margin-bottom:.16rem;">' + subtitle + '</div>'
+      + '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" style="width:100%;max-width:640px;height:auto;display:block;margin:0 auto;">'
+      + gridSvg + terrain + unitSvg
+      + '</svg>'
+      + legend
+      + '</div>';
+  }
+
   function buildLegacyRaidBossZoneMap(mission) {
     var zones = ['Engaged', 'Close', 'Nearby', 'Far'];
-    var zoneInfo = {
-      Engaged: { color: 'rgba(201,64,64,.07)',   border: 'rgba(201,64,64,.35)',   range: 'Melee / Strike' },
-      Close:   { color: 'rgba(201,162,39,.06)',  border: 'rgba(201,162,39,.3)',   range: 'Spells / Items' },
-      Nearby:  { color: 'rgba(46,196,182,.06)',  border: 'rgba(46,196,182,.3)',   range: 'Ranged / Shoot' },
-      Far:     { color: 'rgba(122,120,152,.06)', border: 'rgba(122,120,152,.25)', range: 'Out of Range' }
-    };
     var units = [];
     if (typeof S !== 'undefined' && S && S.combatMap && Array.isArray(S.combatMap.units) && S.combatMap.units.length) {
       units = S.combatMap.units.slice();
@@ -2069,70 +2206,33 @@
       seenUnits[key] = true;
       return true;
     });
-    var playerUnit = units.filter(function (u) { return u.isPlayer || (u.side === 'ally' && u.name === (typeof S !== 'undefined' && S && S.name || '')); })[0];
     var encounter = ensureLegacyRaidBossEncounter(mission);
     if (encounter && (!encounter.partyHp || typeof encounter.partyHp !== 'object')) encounter.partyHp = { allies: {} };
     if (encounter && encounter.partyHp && !encounter.partyHp.allies) encounter.partyHp.allies = {};
-    var getUnitHpMarker = function (unit) {
-      if (!unit) return '';
-      var name = String(unit.name || '');
-      if (unit.side === 'enemy') {
-        var bossHp = encounter ? Math.max(0, Number(encounter.phaseHp || 0)) : 0;
-        return '<span style="font-size:.58rem;color:var(--gold2);">HP ' + bossHp + '</span>';
+    var boardUnits = units.map(function (u) {
+      var name = String(u && u.name || 'Unit');
+      var isPlayer = !!(u && u.isPlayer);
+      var hp = 12;
+      if (u && u.side === 'enemy') {
+        hp = encounter ? Math.max(0, Number(encounter.phaseHp || 0)) : 0;
+      } else if (isPlayer || name === String(typeof S !== 'undefined' && S && S.name || '')) {
+        hp = Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0));
+      } else if (encounter && encounter.partyHp && encounter.partyHp.allies && typeof encounter.partyHp.allies[name] === 'number') {
+        hp = Math.max(0, Number(encounter.partyHp.allies[name]));
       }
-      if (unit.isPlayer || name === String(typeof S !== 'undefined' && S && S.name || '')) {
-        var pHp = Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0));
-        return '<span style="font-size:.58rem;color:var(--gold2);">HP ' + pHp + '</span>';
-      }
-      if (encounter && encounter.partyHp && encounter.partyHp.allies && typeof encounter.partyHp.allies[name] !== 'number') {
-        encounter.partyHp.allies[name] = 12;
-      }
-      var aHp = encounter && encounter.partyHp && encounter.partyHp.allies ? Number(encounter.partyHp.allies[name] || 12) : 12;
-      return '<span style="font-size:.58rem;color:var(--gold2);">HP ' + Math.max(0, aHp) + '</span>';
-    };
-    var playerZoneIdx = playerUnit ? zones.indexOf(playerUnit.zone) : -1;
-    var ZONE_DIST_NAMES = ['Adjacent Hex', 'Two Hexes away', 'Three Hexes away', 'Four Hexes away'];
-    return '<div style="margin:.15rem 0;">'
-      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;">⚔ Zone Map — Boss in Red · Allies in Blue</div>'
-      + zones.map(function (zone) {
-          var info = zoneInfo[zone];
-          var zoneUnits = units.filter(function (unit) { return unit && String(unit.zone || 'Engaged') === zone; });
-          var allies  = zoneUnits.filter(function (u) { return u.side === 'ally'; });
-          var enemies = zoneUnits.filter(function (u) { return u.side === 'enemy'; });
-          var zoneIdx = zones.indexOf(zone);
-          var distBadge = '';
-          if (playerZoneIdx >= 0 && playerUnit) {
-            var dist = Math.abs(zoneIdx - playerZoneIdx);
-            distBadge = dist === 0
-              ? '<span style="font-size:.58rem;color:var(--gold2);margin-left:.3rem;">📍 You</span>'
-              : '<span style="font-size:.58rem;color:var(--muted);margin-left:.3rem;">' + (ZONE_DIST_NAMES[dist - 1] || '') + '</span>';
-          }
-          var allyTags = allies.map(function (u) {
-            var isPlayer = u.isPlayer || u.name === (typeof S !== 'undefined' && S && S.name || '');
-            return '<div style="background:rgba(46,196,182,.13);border:1px solid var(--teal);padding:.12rem .28rem;font-size:.68rem;color:var(--teal);display:inline-flex;align-items:center;gap:.18rem;margin:.08rem;">'
-              + '🟦 ' + String(u.name || 'Ally')
-              + getUnitHpMarker(u)
-              + (isPlayer ? '<span style="font-size:.6rem;color:var(--gold2);">(You)</span>' : '')
-              + '</div>';
-          }).join('');
-          var enemyTags = enemies.map(function (u) {
-            return '<div style="background:rgba(201,64,64,.13);border:1px solid var(--red);padding:.12rem .28rem;font-size:.68rem;color:var(--red2);display:inline-flex;align-items:center;gap:.18rem;margin:.08rem;">'
-              + '🔴 ' + String(u.name || 'Enemy')
-              + getUnitHpMarker(u)
-              + '</div>';
-          }).join('');
-          return '<div style="border:2px solid ' + info.border + ';background:' + info.color + ';padding:.35rem .45rem;margin-bottom:.22rem;">'
-            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.18rem;">'
-            + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:' + info.border + ';">' + zone + distBadge + '</div>'
-            + '<div style="font-size:.6rem;color:var(--muted2);">' + info.range + '</div>'
-            + '</div>'
-            + '<div style="display:flex;flex-wrap:wrap;min-height:1.3rem;">'
-            + allyTags + enemyTags
-            + (!zoneUnits.length ? '<div style="font-size:.64rem;color:var(--muted);font-style:italic;">empty</div>' : '')
-            + '</div>'
-            + '</div>';
-        }).join('')
-      + '</div>';
+      return {
+        name: name,
+        side: String(u && u.side || 'ally'),
+        isPlayer: isPlayer,
+        hp: hp,
+        range: normalizeLegacyRaidRange(u && (u.zone || u.range) || 'Close')
+      };
+    });
+    return buildLegacyRaidHexCombatBoard(boardUnits, {
+      title: 'STARS COMBAT - HEX ZONE MAP',
+      subtitle: 'Boss in red, allies in blue. Positioning governs valid actions.',
+      seed: String(mission && mission.id || 'raid') + '-boss'
+    });
   }
 
   function buildLegacyRaidBossPlayerPanel(mission, encounter) {
@@ -2182,7 +2282,7 @@
     var body = allies.length
       ? allies.map(function (ally) {
           var left = Math.max(0, Number(encounter.allyActionBudget && encounter.allyActionBudget.byAlly && encounter.allyActionBudget.byAlly[ally] || 0));
-          var hp = Math.max(0, Number(allyHp[ally] || 12));
+          var hp = typeof allyHp[ally] === 'number' ? Math.max(0, Number(allyHp[ally])) : 12;
           var flavor = getLegacyRaidAllyFlavorProfile(ally);
           return '<div style="font-size:.63rem;color:var(--text2);padding:.08rem .14rem;border:1px solid var(--border2);background:rgba(255,255,255,.04);margin-bottom:.08rem;">'
             + ally + ' · HP ' + hp + ' · Actions ' + left + '/2 · Flavor ' + flavor.name
@@ -3378,6 +3478,38 @@
       var hp = Math.max(0, Number(e.maxStress || 8) - Number(e.stress || 0));
       return '<div style="font-size:.64rem;color:var(--red2);">✕ ' + String(e.name || 'Hostile') + ' · Dread d' + Number(e.dread || 6) + ' · ' + hp + ' HP</div>';
     }).join('');
+    var boardUnits = [];
+    boardUnits.push({
+      name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer'),
+      side: 'ally',
+      isPlayer: true,
+      hp: Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0)),
+      range: normalizeLegacyRaidRange(playerRange)
+    });
+    allies.forEach(function (ally) {
+      var allyName = String(ally && ally.name || 'Wayfarer');
+      var allyRange = flow && flow.allyRange && flow.allyRange[allyName] ? flow.allyRange[allyName] : 'Close';
+      boardUnits.push({
+        name: allyName,
+        side: 'ally',
+        hp: Math.max(0, Number(ally.maxStress || 12) - Number(ally.stress || 0)),
+        range: normalizeLegacyRaidRange(allyRange)
+      });
+    });
+    hostiles.forEach(function (enemy) {
+      boardUnits.push({
+        name: String(enemy && enemy.name || 'Hostile'),
+        side: 'enemy',
+        hp: Math.max(0, Number(enemy && enemy.maxStress || 8) - Number(enemy && enemy.stress || 0)),
+        dread: Number(enemy && enemy.dread || 6),
+        range: 'Engaged'
+      });
+    });
+    var hexBoardHtml = buildLegacyRaidHexCombatBoard(boardUnits, {
+      title: 'STARS COMBAT - HEX ZONE MAP',
+      subtitle: 'Wing ' + wingNum + ' encounter board with live turn positions.',
+      seed: String(missionId) + '-wing-' + String(wingNum || 1)
+    });
 
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
       + '<div style="font-size:.86rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.14rem;"><strong>⚔ Combat Engaged — Wing ' + wingNum + '</strong></div>'
@@ -3393,6 +3525,7 @@
       + (enemyRows || '<div style="font-size:.63rem;color:var(--muted2);">None found.</div>')
       + '</div>'
       + '</div>'
+      + hexBoardHtml
       + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.08rem;">Player Actions</div>'
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.08rem;">'
       + '<button class="btn btn-sm btn-primary" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="rollAttack(\'strike\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Strike</button>'
@@ -3668,7 +3801,7 @@
         if (!encounter.partyHp) encounter.partyHp = { allies: {} };
         if (!encounter.partyHp.allies) encounter.partyHp.allies = {};
         if (typeof encounter.partyHp.allies[target.name] !== 'number') encounter.partyHp.allies[target.name] = 12;
-        encounter.partyHp.allies[target.name] = Math.max(0, Number(encounter.partyHp.allies[target.name] || 12) - dmg);
+        encounter.partyHp.allies[target.name] = Math.max(0, Number(encounter.partyHp.allies[target.name]) - dmg);
         var allyRef = aliveAllies.find(function (a) { return String(a.name || '') === target.name; });
         if (allyRef) {
           allyRef.stress = Math.min(Number(allyRef.maxStress || 12), Number(allyRef.stress || 0) + dmg);
@@ -3818,7 +3951,9 @@
       + '</div>';
     
     var allyRows = allies.map(function (ally) {
-      var hp = Number(encounter.partyHp.allies && encounter.partyHp.allies[ally.name] || 12);
+      var hp = (encounter.partyHp && encounter.partyHp.allies && typeof encounter.partyHp.allies[ally.name] === 'number')
+        ? Number(encounter.partyHp.allies[ally.name])
+        : 12;
       var acts = Number(encounter.allyActionBudget.byAlly && encounter.allyActionBudget.byAlly[ally.name] || 2);
       var status = hp > 0 ? '<span style="color:var(--green2);">●</span>' : '<span style="color:var(--red2);">●</span>';
       return '<div style="font-size:.63rem;color:var(--text2);line-height:1.36;padding:.06rem .1rem;border-bottom:1px solid rgba(255,255,255,.04);">'
@@ -5096,7 +5231,7 @@
           if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - totalDmg);
         } else {
           if (typeof encounter.partyHp.allies[target.name] !== 'number') encounter.partyHp.allies[target.name] = 12;
-          encounter.partyHp.allies[target.name] = Math.max(0, Number(encounter.partyHp.allies[target.name] || 12) - totalDmg);
+          encounter.partyHp.allies[target.name] = Math.max(0, Number(encounter.partyHp.allies[target.name]) - totalDmg);
         }
         encounter.log.push(target.name + ' defend ' + defendRoll + ' vs dread ' + dreadRoll + ': takes ' + totalDmg + ' HP.');
       }
@@ -6620,7 +6755,9 @@
         var allyLeftTotal = Math.max(0, Number(encounter.allyActionBudget.total || 0) - Number(encounter.allyActionBudget.used || 0));
         var allyStatusRows = allies.map(function (wf) {
           var allyNameRow = String(wf.name || 'Wayfarer');
-          var allyHpRow = Math.max(0, Number(encounter.partyHp && encounter.partyHp.allies && encounter.partyHp.allies[allyNameRow] || 12));
+          var allyHpRow = (encounter.partyHp && encounter.partyHp.allies && typeof encounter.partyHp.allies[allyNameRow] === 'number')
+            ? Math.max(0, Number(encounter.partyHp.allies[allyNameRow]))
+            : 12;
           var allyActsRow = Math.max(0, Number(encounter.allyActionBudget.byAlly && encounter.allyActionBudget.byAlly[allyNameRow] || 0));
           var allyFlavor = getLegacyRaidAllyFlavorProfile(allyNameRow);
           var allyStatus = allyHpRow > 0 ? '<span style="color:var(--green2);">●</span>' : '<span style="color:var(--red2);">●</span>';

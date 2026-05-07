@@ -6551,6 +6551,13 @@ function applyStressToEnemy(enemy, stress, source){
   if(enemy.stress>=(enemy.maxStress||enemy.stress)){
     var defeated=enemy.name;
     S.enemies=(S.enemies||[]).filter(function(entry){return entry!==enemy;});
+    var onKillAffix=getEquippedAffixCombatBonuses();
+    if(Number(onKillAffix.soulEaterOnKillHeal||0)>0){
+      var gain=Number(onKillAffix.soulEaterOnKillHeal||0);
+      if(typeof changeHealth==='function')changeHealth(-gain);
+      else if(typeof changeStress==='function')changeStress(-gain);
+      showNotif('Soul Eater restores '+gain+' Health on kill.','good');
+    }
     var next=getPrimaryCombatEnemy();
     var nextText=next?(' Next target: '+next.name+'.'):'';
     showNotif(defeated+' eliminated!'+nextText,'good');
@@ -6764,7 +6771,116 @@ function finishEnemyHackEvent(countered){
 
 // Return maximum actions per round from armor + bonuses.
 function parseArmorActions(){var a=(S&&S.equipment)?S.equipment.armor||'':'';var m=a.match(/(\d+)\s+Action/i);return m?parseInt(m[1],10):3;}
-function getMaxActions(){var base=parseArmorActions();if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0)base+=2;var fl=(S.flavor||'').toLowerCase();if(fl.indexOf('moves like the wind')>=0)base+=1;return base;}
+
+function normalizeAffixLabel(text){
+  return String(text||'').toLowerCase().replace(/[’`]/g,"'");
+}
+
+function getEquippedAffixTextBlob(){
+  var chunks=[];
+  if(S&&S.equipment&&typeof S.equipment==='object'){
+    chunks.push(String(S.equipment.weapon1||''));
+    chunks.push(String(S.equipment.weapon2||''));
+    chunks.push(String(S.equipment.armor||''));
+    chunks.push(String(S.equipment.readied||''));
+  }
+  return normalizeAffixLabel(chunks.filter(Boolean).join(' | '));
+}
+
+function hasEquippedAffix(name){
+  var needle=normalizeAffixLabel(name);
+  var blob=getEquippedAffixTextBlob();
+  if(!needle||!blob)return false;
+  return blob.indexOf(needle)>=0;
+}
+
+function getEquippedAffixCombatBonuses(){
+  var out={
+    actionBonus:0,
+    strikeFlat:0,
+    shootFlat:0,
+    defendFlat:0,
+    attackFlat:0,
+    controlFlat:0,
+    strikeDieSteps:0,
+    mindDieSteps:0,
+    spiritDieSteps:0,
+    leadDieSteps:0,
+    bodyDieSteps:0,
+    critShift:0,
+    pierceDreadSteps:0,
+    shootCloseBonus:0,
+    shootFarEnabled:false,
+    strikeCloseEnabled:false,
+    addBodyToStrikeDamage:false,
+    addSpiritToDamage:false,
+    lifedrinker:false,
+    onStrikeHitActionGain:0,
+    onHitFlatDamage:0,
+    autoCritChance:0,
+    autoKillChance:0,
+    doubleDamageTag:'',
+    knockbackZones:0,
+    enemySkipTurnsOnHit:0,
+    soulEaterOnKillHeal:0
+  };
+
+  if(hasEquippedAffix('keen'))out.strikeFlat+=1;
+  if(hasEquippedAffix('swift'))out.actionBonus+=1;
+  if(hasEquippedAffix('sturdy'))out.defendFlat+=1;
+  if(hasEquippedAffix('brutal')){out.strikeFlat+=2;out.actionBonus-=1;}
+  if(hasEquippedAffix('agile')){out.actionBonus+=2;out.strikeFlat-=1;}
+  if(hasEquippedAffix('reinforce')){out.defendFlat+=2;out.strikeFlat-=1;}
+  if(hasEquippedAffix('fierce')){out.strikeFlat+=3;out.defendFlat+=3;out.actionBonus-=2;}
+  if(hasEquippedAffix('nimble')){out.actionBonus+=3;out.strikeFlat-=2;out.defendFlat-=2;}
+  if(hasEquippedAffix('resilient')){out.defendFlat+=3;out.strikeFlat-=2;out.actionBonus-=2;}
+  if(hasEquippedAffix('balanced')){out.strikeFlat+=1;out.shootFlat+=1;out.defendFlat+=1;out.actionBonus+=1;}
+  if(hasEquippedAffix('accuracy'))out.critShift+=1;
+  if(hasEquippedAffix('range')){out.shootFarEnabled=true;out.strikeCloseEnabled=true;}
+  if(hasEquippedAffix('stealth'))out.controlFlat+=1;
+  if(hasEquippedAffix('piercing'))out.pierceDreadSteps+=1;
+  if(hasEquippedAffix('lethal')){out.critShift+=2;out.actionBonus-=1;}
+  if(hasEquippedAffix('vicious'))out.addBodyToStrikeDamage=true;
+  if(hasEquippedAffix('silent')){out.controlFlat+=2;out.actionBonus-=1;}
+  if(hasEquippedAffix('distance'))out.shootCloseBonus+=1;
+
+  if(hasEquippedAffix("dragon's breath"))out.onHitFlatDamage+=3;
+  if(hasEquippedAffix('stormcaller')){out.onHitFlatDamage+=3;out.enemySkipTurnsOnHit=Math.max(out.enemySkipTurnsOnHit,1);}
+  if(hasEquippedAffix('frostheart')){out.onHitFlatDamage+=1;out.enemySkipTurnsOnHit=Math.max(out.enemySkipTurnsOnHit,1);}
+  if(hasEquippedAffix('lifedrinker'))out.lifedrinker=true;
+  if(hasEquippedAffix('doombringer'))out.attackFlat+=5;
+  if(hasEquippedAffix('griffin'))out.knockbackZones=Math.max(out.knockbackZones,1);
+  if(hasEquippedAffix('valkyrie'))out.spiritDieSteps+=1;
+  if(hasEquippedAffix('leviathan'))out.bodyDieSteps+=1;
+  if(hasEquippedAffix('djinn'))out.mindDieSteps+=1;
+  if(hasEquippedAffix("gorgon's glare"))out.onStrikeHitActionGain+=2;
+  if(hasEquippedAffix("sphinx's riddle"))out.leadDieSteps+=1;
+  if(hasEquippedAffix("minotaur's strength"))out.strikeDieSteps+=1;
+  if(hasEquippedAffix("pegasus' flight"))out.actionBonus+=5;
+  if(hasEquippedAffix("roc's wind")){out.actionBonus+=2;out.shootFarEnabled=true;}
+
+  if(hasEquippedAffix("eternity's edge"))out.autoCritChance=Math.max(out.autoCritChance,0.20);
+  if(hasEquippedAffix('void'))out.autoKillChance=Math.max(out.autoKillChance,0.05);
+  if(hasEquippedAffix('celestial')){out.attackFlat+=5;out.doubleDamageTag='demon';}
+  if(hasEquippedAffix('abyssal')){out.attackFlat+=5;out.doubleDamageTag='celestial';}
+  if(hasEquippedAffix('primal'))out.attackFlat+=5;
+  if(hasEquippedAffix('ancestral'))out.addSpiritToDamage=true;
+  if(hasEquippedAffix('soul eater'))out.soulEaterOnKillHeal=3;
+  if(hasEquippedAffix("golem's fist"))out.knockbackZones=Math.max(out.knockbackZones,2);
+  if(hasEquippedAffix("basilisk's stare"))out.enemySkipTurnsOnHit=Math.max(out.enemySkipTurnsOnHit,1);
+
+  return out;
+}
+
+function getMaxActions(){
+  var base=parseArmorActions();
+  if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0)base+=2;
+  var fl=(S.flavor||'').toLowerCase();
+  if(fl.indexOf('moves like the wind')>=0)base+=1;
+  var affix=getEquippedAffixCombatBonuses();
+  base+=Number(affix.actionBonus||0);
+  return Math.max(1,base);
+}
 
 function getCombatRange(){
   var spacing=(S.combat&&S.combat.spacing)?S.combat.spacing:'Engaged (Strike)';
@@ -6950,11 +7066,13 @@ function hasShootRangeOverride(range){
 }
 
 function weaponTextAllowsShootRange(range){
+  var affix=getEquippedAffixCombatBonuses();
   var ws=[(S.equipment&&S.equipment.weapon1)||''];
   var joined=ws.join(' | ').toLowerCase();
   var hasShoot=joined.indexOf('shoot')>=0;
   if(!hasShoot)return range==='nearby';
   if(range==='nearby')return true;
+  if(range==='far'&&affix.shootFarEnabled)return true;
   if(range==='close')return joined.indexOf('close')>=0||hasShootRangeOverride('close');
   if(range==='far')return joined.indexOf('far')>=0||hasShootRangeOverride('far');
   return false;
@@ -6964,9 +7082,44 @@ function canUseAttackAtCurrentRange(type){
   var range=typeof getPrimaryEnemyZoneRelative==='function'
     ?getPrimaryEnemyZoneRelative()
     :getCombatRange();
-  if(type==='strike')return range==='engaged';
+  if(type==='strike'){
+    var affix=getEquippedAffixCombatBonuses();
+    return range==='engaged' || (!!affix.strikeCloseEnabled&&range==='close');
+  }
   if(type==='shoot')return weaponTextAllowsShootRange(range);
   return true;
+}
+
+function maybeApplyAffixCritExtension(rollObj, dieSize, shift){
+  if(!rollObj||shift<=0)return {added:0,triggered:false};
+  if(rollObj.exploded)return {added:0,triggered:false};
+  var threshold=Math.max(1,Number(dieSize||4)-Number(shift||0));
+  if(Number(rollObj.total||0)<threshold)return {added:0,triggered:false};
+  var bonus=explodingRoll(Math.max(2,Number(dieSize||4)),{type:'action',major:true,label:'Affix Critical'});
+  rollObj.total=Number(rollObj.total||0)+Number(bonus.total||0);
+  rollObj.exploded=true;
+  return {added:Number(bonus.total||0),triggered:true};
+}
+
+function enemyMatchesAffixTag(enemy, tag){
+  if(!enemy||!tag)return false;
+  var blob=(String(enemy.name||'')+' '+String(enemy.faction||'')).toLowerCase();
+  if(tag==='demon')return /demon|infernal|hell|abyss|fiend/.test(blob);
+  if(tag==='celestial')return /celestial|angel|seraph|divine/.test(blob);
+  return false;
+}
+
+function moveEnemyByKnockback(enemy, zones){
+  if(!enemy||!zones)return;
+  var unit=getCombatMapUnitForEnemy(enemy);
+  if(!unit)return;
+  var order=['Engaged','Close','Nearby','Far'];
+  var idx=order.indexOf(String(unit.zone||'Engaged'));
+  if(idx<0)idx=0;
+  var next=Math.min(order.length-1,idx+Math.max(1,Number(zones||1)));
+  unit.zone=order[next];
+  if(typeof renderCombatMap==='function')renderCombatMap();
+  if(typeof renderCombatOptions==='function')renderCombatOptions();
 }
 
 function consumeCombatAction(label){
@@ -7230,8 +7383,15 @@ function rollWithAdvantage(baseDie, advDiceArr){
     if(!advMeta.label&&meta&&meta.label)advMeta.label=meta.label;
     return{die:d,roll:explodingRoll(d,advMeta)};
   });
-  var best=base.total,bestSrc='base';
+  var best=base.total,bestSrc='base',bestDie=baseDie,bestRoll=base;
   for(var i=0;i<advRolls.length;i++){if(advRolls[i].roll.total>best){best=advRolls[i].roll.total;bestSrc='adv'+i;}}
+  if(bestSrc!=='base'){
+    var idx=parseInt(String(bestSrc).replace('adv',''),10);
+    if(!isNaN(idx)&&advRolls[idx]){
+      bestDie=advRolls[idx].die;
+      bestRoll=advRolls[idx].roll;
+    }
+  }
   var parts=[];
   if(advRolls.length){
     parts.push('d'+baseDie+'='+(bestSrc==='base'?'<em>'+base.total+'✓</em>':base.total));
@@ -7243,7 +7403,7 @@ function rollWithAdvantage(baseDie, advDiceArr){
   if(base.rerolledLucky)parts.push('Lucky reroll');
   var breakdown=parts.length?' <span style="font-size:.7rem;color:var(--muted2);">('+parts.join(', ')+')</span>':'';
   var anyExploded=base.exploded||advRolls.some(function(r){return r.roll.exploded;});
-  return{total:best,base:base,advRolls:advRolls,breakdown:breakdown,exploded:anyExploded};
+  return{total:best,base:base,advRolls:advRolls,breakdown:breakdown,exploded:anyExploded,bestDie:bestDie,bestRoll:bestRoll,bestSource:bestSrc};
 }
 
 // Collect all advantage die sizes from weapon, flavor, mutation, and manual rollMod.
@@ -7312,6 +7472,10 @@ function parseWeaponBonuses(stat) {
     // A.D. bonus (+A.D. StatLabel) — roll Adventure Die and ADD to result
     if (new RegExp('[+]?A\\.D\\.\\s+' + label, 'i').test(w)) addAdvDie = true;
   });
+  var affix=getEquippedAffixCombatBonuses();
+  if(stat==='strike')flat+=Number(affix.strikeFlat||0)+Number(affix.attackFlat||0);
+  if(stat==='shoot')flat+=Number(affix.shootFlat||0)+Number(affix.attackFlat||0);
+  if(stat==='defend')flat+=Number(affix.defendFlat||0);
   return {flat: flat, advDie: advDie, addAdvDie: addAdvDie};
 }
 
@@ -7381,7 +7545,9 @@ function rollAttack(type) {
     if(S.combat.autoReloaderShots<=0)S.combat.autoReloaderActionSpent=false;
   }else if(!consumeCombatAction(type==='strike'?'Strike action':'Shoot action'))return;
 
+  var affixBonus=getEquippedAffixCombatBonuses();
   var die = type === 'strike' ? S.stats.strike : S.stats.shoot;
+  if(type==='strike'&&Number(affixBonus.strikeDieSteps||0)!==0)die=applyDieSteps(die,Number(affixBonus.strikeDieSteps||0));
   var augDie = getAugBonus(type);
   var wpBonus = parseWeaponBonuses(type);
   var flBonus = getFlavorBonus(type);
@@ -7398,9 +7564,15 @@ function rollAttack(type) {
   if(S.rollMod && Array.isArray(S.rollMod.advDice)) advDiceArr = advDiceArr.concat(S.rollMod.advDice);
 
   var ra = rollWithAdvantage(die, advDiceArr, {type:'action',major:true,label:type==='strike'?'Strike':'Shoot'});
+  var critBoost=maybeApplyAffixCritExtension(ra.bestRoll||ra.base, ra.bestDie||die, Number(affixBonus.critShift||0));
+  if(critBoost.triggered){
+    ra.total=Number((ra.bestRoll||ra.base).total||ra.total||0);
+    ra.exploded=true;
+  }
   var a = ra.base;
   // +N flat bonus
   var flatTotal = wpBonus.flat + flBonus.flat + mtBonus.flat + (S.rollMod ? S.rollMod.flat : 0);
+  if(type==='shoot'&&getPrimaryEnemyZoneRelative()==='close')flatTotal+=Number(affixBonus.shootCloseBonus||0);
   var baseTotal = ra.total + flatTotal;
   // +A.D. additive adventure die
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4,{type:'action',major:true,label:'Adventure Bonus'}) : null;
@@ -7426,10 +7598,45 @@ function rollAttack(type) {
   if(enemyBonus>0)effectiveTotal+=enemyBonus;
   effectiveTotal=Math.max(0,effectiveTotal-terrainPenalty);
   var targetDreadTotal=d.total+coverBonus;
+  if(Number(affixBonus.pierceDreadSteps||0)>0){
+    for(var p=0;p<Number(affixBonus.pierceDreadSteps||0);p++)targetDreadTotal=stepDown(targetDreadTotal);
+  }
+
+  var forcedAutoCrit=false;
+  if(Number(affixBonus.autoCritChance||0)>0&&Math.random()<Number(affixBonus.autoCritChance||0)){
+    forcedAutoCrit=true;
+    var autoCritBonus=explodingRoll(Math.max(2,Number(ra.bestDie||die)),{type:'action',major:true,label:'Eternity Auto-Crit'});
+    effectiveTotal+=Number(autoCritBonus.total||0);
+    ra.exploded=true;
+  }
   var success = !coverBlocked && effectiveTotal >= targetDreadTotal;
   var diff = Math.max(1, effectiveTotal - targetDreadTotal);
+  var affixBreakdown='';
+
+  if(success){
+    if(Number(affixBonus.onHitFlatDamage||0)>0)diff+=Number(affixBonus.onHitFlatDamage||0);
+    if(type==='strike'&&affixBonus.addBodyToStrikeDamage){
+      var bodyRoll=explodingRoll(getEffectiveDie('body'),{type:'action',major:true,label:'Vicious Body Bonus'});
+      diff+=Number(bodyRoll.total||0);
+      affixBreakdown+=' <span style="font-size:.7rem;color:var(--gold2);">(+Body='+bodyRoll.total+')</span>';
+    }
+    if(affixBonus.addSpiritToDamage){
+      var spiritRoll=explodingRoll(getEffectiveDie('spirit'),{type:'action',major:true,label:'Ancestral Spirit Bonus'});
+      diff+=Number(spiritRoll.total||0);
+      affixBreakdown+=' <span style="font-size:.7rem;color:var(--gold2);">(+Spirit='+spiritRoll.total+')</span>';
+    }
+    if(affixBonus.doubleDamageTag&&enemyMatchesAffixTag(targetEnemy,affixBonus.doubleDamageTag)){
+      diff*=2;
+      affixBreakdown+=' <span style="font-size:.7rem;color:var(--gold2);">(Affinity x2)</span>';
+    }
+    if(Number(affixBonus.autoKillChance||0)>0&&targetEnemy&&Math.random()<Number(affixBonus.autoKillChance||0)){
+      diff=Math.max(diff,Number(targetEnemy.maxStress||diff));
+      affixBreakdown+=' <span style="font-size:.7rem;color:var(--red2);">(Void Execute)</span>';
+    }
+  }
 
   var breakdown = ra.breakdown;
+  breakdown += affixBreakdown;
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+A.D.='+adBonus.total+')</span>';
   breakdown += formatAdventureBonusRolls(relicRolls);
@@ -7438,6 +7645,8 @@ function rollAttack(type) {
   if(terrainPenalty>0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+terrainPenalty+' Terrain)</span>';
   if(coverBonus>0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(Target Cover +'+coverBonus+')</span>';
   if(coverBlocked) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(Target Full Cover)</span>';
+  if(critBoost.triggered) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(Affix Crit +'+critBoost.added+')</span>';
+  if(forcedAutoCrit) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(Eternity\'s Edge)</span>';
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var modNotes = [];
@@ -7468,6 +7677,21 @@ function rollAttack(type) {
   // Auto-apply stress to the first tracked enemy on successful Strike/Shoot.
   if(success && Array.isArray(S.enemies) && S.enemies.length){
     applyStressToCurrentEnemy(diff, type);
+    if(affixBonus.lifedrinker){
+      if(typeof changeHealth==='function')changeHealth(-diff);
+      else if(typeof changeStress==='function')changeStress(-diff);
+      showNotif('Lifedrinker restores '+diff+' Health.','good');
+    }
+    if(type==='strike'&&Number(affixBonus.onStrikeHitActionGain||0)>0){
+      S.combat.actionsLeft=Math.max(0,Number(S.combat.actionsLeft||0))+Number(affixBonus.onStrikeHitActionGain||0);
+      updateCombatUI();
+      showNotif('Gorgon\'s Glare: +'+Number(affixBonus.onStrikeHitActionGain||0)+' Actions on hit.','good');
+    }
+    if(affixBonus.enemySkipTurnsOnHit>0&&targetEnemy)applyEnemyCombatCondition(targetEnemy,'Short Circuit',affixBonus.enemySkipTurnsOnHit);
+    if(affixBonus.knockbackZones>0&&targetEnemy){
+      moveEnemyByKnockback(targetEnemy,affixBonus.knockbackZones);
+      showNotif(targetEnemy.name+' knocked back '+affixBonus.knockbackZones+' zone(s).','good');
+    }
   }
 
   if(success&&targetEnemy&&targetEnemy.effectState&&targetEnemy.effectState.sonicShockBonus>0){

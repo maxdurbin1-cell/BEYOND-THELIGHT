@@ -2198,45 +2198,50 @@
       if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Enter Gambling Den</button>';
     }
 
-    var html = '<div style="font-size:.78rem;color:var(--text2);line-height:1.48;display:grid;gap:.32rem;">'
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.04);padding:.4rem;">'
+    var html = '<div style="font-size:.77rem;color:var(--text2);line-height:1.46;display:grid;gap:.24rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.04);padding:.3rem .34rem;">'
       + '<div style="font-size:.74rem;color:var(--gold2);letter-spacing:.05em;text-transform:uppercase;"><strong>Holding Overview</strong></div>'
-      + '<div style="margin-top:.12rem;font-size:.75rem;color:var(--text2);"><strong style="color:var(--gold2);">District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
-      + '<div style="margin-top:.08rem;font-size:.69rem;color:var(--muted2);">Type: ' + String(crawl.holdingType || 'Settlement') + ' · Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + ' · Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + '</div>'
-      + '<div style="margin-top:.08rem;font-size:.69rem;color:var(--teal);">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + '</div>'
-      + '<div style="margin-top:.12rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:.18rem;">' + statsHtml + '</div>'
+      + '<div style="margin-top:.08rem;font-size:.73rem;color:var(--text2);"><strong style="color:var(--gold2);">District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
+      + '<details style="margin-top:.1rem;">'
+      + '<summary style="cursor:pointer;font-size:.66rem;color:var(--muted2);">Settlement Metadata</summary>'
+      + '<div style="margin-top:.08rem;font-size:.68rem;color:var(--muted2);">Type: ' + String(crawl.holdingType || 'Settlement') + ' · Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + ' · Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + '</div>'
+      + '<div style="margin-top:.08rem;font-size:.68rem;color:var(--teal);">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + '</div>'
+      + '<div style="margin-top:.1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:.14rem;">' + statsHtml + '</div>'
+      + '</details>'
       + '</div>'
 
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.38rem;">'
-      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;"><strong>District Hex Map</strong></div>'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.3rem .34rem;">'
+      + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.14rem;"><strong>District Hex Map</strong></div>'
       + buildHoldingHexMapHtml(crawl)
-      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.18rem;">'
+      + '<div style="display:flex;gap:.14rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.14rem;">'
       + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(1)">+1 Hour</button>'
       + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(6)">+6 Hours</button>'
       + '<button class="btn btn-xs btn-teal" onclick="openHoldingSettlementHexcrawl()">Refresh Scene</button>'
       + '</div>'
       + '</div>'
 
-      + (active ? ('<div style="border:1px solid var(--border2);background:rgba(0,0,0,.14);padding:.38rem;">'
+      + (active ? ('<div style="border:1px solid var(--border2);background:rgba(0,0,0,.14);padding:.3rem .34rem;">'
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;"><strong>District Details</strong></div>'
-        + '<div style="font-size:.8rem;color:var(--text);"><strong>' + active.label + '</strong> <span style="font-size:.68rem;color:var(--muted2);">(' + (active.explored ? 'Visited' : 'Unexplored') + ')</span></div>'
-        + '<div style="font-size:.69rem;color:var(--text2);margin-top:.1rem;line-height:1.5;">' + active.atmosphere + '</div>'
-        + '<div style="font-size:.67rem;color:var(--muted2);margin-top:.1rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
-        + '<div style="font-size:.67rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
-        + '<div style="font-size:.67rem;color:var(--teal);margin-top:.1rem;">Micro-Locations</div>'
-        + microHtml
-        + '<div style="margin-top:.14rem;display:flex;gap:.18rem;flex-wrap:wrap;">' + actionButton + '</div>'
-        + '<div style="margin-top:.12rem;display:flex;gap:.18rem;flex-wrap:wrap;">' + districtButtons + '</div>'
-        + '<div style="margin-top:.12rem;display:flex;gap:.18rem;flex-wrap:wrap;">'
+        + '<div style="font-size:.79rem;color:var(--text);"><strong>' + active.label + '</strong> <span style="font-size:.66rem;color:var(--muted2);">(' + (active.explored ? 'Visited' : 'Unexplored') + ')</span></div>'
+        + '<div style="font-size:.68rem;color:var(--text2);margin-top:.08rem;line-height:1.46;">' + active.atmosphere + '</div>'
+        + '<details style="margin-top:.1rem;">'
+        + '<summary style="cursor:pointer;font-size:.65rem;color:var(--muted2);">District Metadata</summary>'
+        + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
+        + (microHtml ? ('<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">Micro-Locations</div>' + microHtml) : '')
+        + '</details>'
+        + '<div style="margin-top:.12rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + actionButton + '</div>'
+        + '<div style="margin-top:.1rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + districtButtons + '</div>'
+        + '<div style="margin-top:.1rem;display:flex;gap:.14rem;flex-wrap:wrap;">'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">District Event</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse District</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Check Mission Board</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk to Locals</button>'
         + '</div>'
-        + '<div id="holdingDowntimeResult" style="margin-top:.14rem;">' + buildHoldingPendingEventHtml() + '</div>'
+        + '<div id="holdingDowntimeResult" style="margin-top:.12rem;">' + buildHoldingPendingEventHtml() + '</div>'
         + (active && active.services && active.services.gamblingDen
-          ? ('<div style="margin-top:.12rem;padding:.24rem .3rem;border:1px solid rgba(201,162,39,.28);background:rgba(201,162,39,.05);">'
+          ? ('<div style="margin-top:.1rem;padding:.2rem .28rem;border:1px solid rgba(201,162,39,.28);background:rgba(201,162,39,.05);">'
             + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Gambling Den</strong></div>'
             + (String(crawl.gamblingActiveNodeId || '') === String(active.id || '')
               ? ('<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-bottom:.18rem;">'
@@ -2246,12 +2251,16 @@
               : '<button class="btn btn-xs btn-gold" onclick="toggleHoldingGamblingNode(\'' + String(active.id) + '\')">Open Gambling Table</button>')
             + '</div>')
           : '')
-        + (active.result ? '<div style="font-size:.68rem;color:var(--gold2);margin-top:.12rem;line-height:1.48;">' + active.result + '</div>' : '')
+        + (active.result ? '<div style="font-size:.67rem;color:var(--gold2);margin-top:.1rem;line-height:1.46;">' + active.result + '</div>' : '')
         + '</div>') : '')
 
-      + '<div style="border:1px solid var(--border2);background:rgba(46,196,182,.08);padding:.32rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(46,196,182,.08);padding:.26rem .32rem;">'
       + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Settlement Life</strong></div>'
-      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.5;">' + String(ambient.scene || 'The holding stirs.') + '<br>Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '<br>Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.44;">' + String(ambient.scene || 'The holding stirs.') + '</div>'
+      + '<details style="margin-top:.1rem;">'
+      + '<summary style="cursor:pointer;font-size:.65rem;color:var(--muted2);">Rumors And Signals</summary>'
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.44;margin-top:.06rem;">Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '<br>Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
+      + '</details>'
       + (historyHtml ? ('<div style="margin-top:.14rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.12rem;">'
         + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.06rem;">Recent District Activity</div>'
         + historyHtml

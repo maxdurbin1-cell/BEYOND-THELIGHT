@@ -3325,6 +3325,15 @@
     if (typeof refreshMissionSurfaces === 'function') refreshMissionSurfaces();
     if (typeof closeModal === 'function') closeModal();
 
+    if (w === 1) {
+      if (typeof openRaidWingPopup === 'function') {
+        setTimeout(function () {
+          try { openRaidWingPopup(mission.id, 2); } catch (_err) {}
+        }, 0);
+      }
+      return true;
+    }
+
     if (w === 2) {
       if (typeof openRaidWingPopup === 'function') {
         setTimeout(function () {
@@ -5638,12 +5647,19 @@
     var wing2 = mission.raidHexMap.wings[2] || [];
     var wing1Done = wing1.length > 0 && wing1.every(function (r) { return !!r.cleared; });
     var wing2Done = wing2.length > 0 && wing2.every(function (r) { return !!r.cleared; });
+    var grid = mission.legacyRaidWingGrid || {};
+    var wing1Grid = grid['1'];
+    var wing2Grid = grid['2'];
+    var wing1Obj = wing1Grid && wing1Grid.objectives ? wing1Grid.objectives : null;
+    var wing2Obj = wing2Grid && wing2Grid.objectives ? wing2Grid.objectives : null;
+    var wing1GridDone = !!(wing1Obj && Number(wing1Obj.loreCollected || 0) >= Number(wing1Obj.loreRequired || 3));
+    var wing2GridDone = !!(wing2Obj && Number(wing2Obj.waypointsActivated || 0) >= Number(wing2Obj.waypointsRequired || 3));
     mission.steps[1] = mission.steps[1] || {};
     mission.steps[2] = mission.steps[2] || {};
     mission.steps[3] = mission.steps[3] || {};
-    mission.steps[1].completed = !!wing1Done;
-    mission.steps[2].completed = !!wing2Done;
-    if (!wing2Done) mission.steps[3].completed = false;
+    mission.steps[1].completed = !!(mission.steps[1].completed || wing1Done || wing1GridDone);
+    mission.steps[2].completed = !!(mission.steps[2].completed || wing2Done || wing2GridDone);
+    if (!(mission.steps[2].completed || wing2Done || wing2GridDone)) mission.steps[3].completed = false;
   }
 
   function ensureRaidHexMap(mission) {
@@ -5716,12 +5732,13 @@
     window.__legacyRaidCombatEndHookInstalled = true;
     var baseEndCombat = window.endCombat;
     window.endCombat = function () {
+      var pendingCtxBeforeEnd = getLegacyRaidPendingHexCombat();
       var preEnemies = 0;
       if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
         preEnemies = S.enemies.filter(function (e) { return e && !e.ally; }).length;
       }
       var out = baseEndCombat.apply(this, arguments);
-      var pendingCtx = getLegacyRaidPendingHexCombat();
+      var pendingCtx = getLegacyRaidPendingHexCombat() || pendingCtxBeforeEnd;
       if (pendingCtx && typeof window.finalizeLegacyRaidHexCombatOutcome === 'function') {
         var remaining = 0;
         if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
@@ -6746,8 +6763,11 @@
     var theme = getRaidTheme(mission);
     if (!Array.isArray(rooms) || !rooms.length) return '';
 
-    var W = 280, H = 110;
-    var R = 26, dx = R * 1.72, startX = 30;
+    var R = 34;
+    var dx = R * 1.72;
+    var startX = R + 8;
+    var W = Math.max(320, Math.round(startX * 2 + Math.max(0, rooms.length - 1) * dx + R * 2));
+    var H = Math.max(150, Math.round(R * 3.4));
     var svgParts = [];
 
     rooms.forEach(function (room, i) {

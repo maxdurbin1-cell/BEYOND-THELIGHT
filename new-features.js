@@ -1785,7 +1785,7 @@
   function buildHoldingHexMapHtml(crawl) {
     var nodeById = {};
     crawl.nodes.forEach(function (n) { if (n && n.id) nodeById[n.id] = n; });
-    var size = 40;
+    var size = 34;
     var ox = 380;
     var oy = 250;
     var toXY = function (q, r) {
@@ -1842,10 +1842,10 @@
     var crawl = ensureHoldingSettlementHexcrawl();
     var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); }) || crawl.nodes[0];
     if (node) {
-      node.result = 'The local gambling den is open tonight. Dice crews crowd the tables and wagers are flowing.';
+      node.result = 'The local gambling den is open tonight. Dice crews are loud, the table is hot, and wagers are moving fast.';
       crawl.activeNodeId = node.id;
     }
-    if (typeof showNotif === 'function') showNotif('Gambling den opened inside this district.', 'info');
+    if (typeof showNotif === 'function') showNotif('Gambling den is now open in this district.', 'info');
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
 
@@ -1865,15 +1865,15 @@
     var actionRoll = explodingRoll(bodyDie);
     var dreadRoll = explodingRoll(6);
     var success = Number(actionRoll.total || 0) >= Number(dreadRoll.total || 0);
-    var msg = 'WORK YOUR JOB (BODY vs DREAD d6): BODY d' + bodyDie + ' ' + actionRoll.total + ' vs DD6 ' + dreadRoll.total + '. ';
+    var msg = 'Local shift (Body vs Dread d6): Body d' + bodyDie + ' ' + actionRoll.total + ' vs DD6 ' + dreadRoll.total + '. ';
     advanceHoldingOneDay();
     if (success) {
       S.credits = Number(S.credits || 0) + 100;
       if (typeof updateCreditsUI === 'function') updateCreditsUI();
-      msg += 'Success. +100 Credits and +1 day advanced.';
+      msg += 'Shift complete. +100 Credits and +1 day advanced.';
     } else {
       if (typeof changeMentalStress === 'function') changeMentalStress(1);
-      msg += 'Failed shift. +1 day advanced and +1 Mental Stress from overwork.';
+      msg += 'Rough shift. +1 day advanced and +1 Mental Stress from overwork.';
     }
     node.result = msg;
     var crawl = ensureHoldingSettlementHexcrawl();
@@ -1894,7 +1894,7 @@
       return;
     }
     var cat = String(services.merchantCategory || 'items');
-    node.result = 'Merchant stalls opened. Redirecting to Merchants tab (' + cat + ').';
+    node.result = 'Merchant stalls are active. Redirecting to Merchants (' + cat + ').';
     if (typeof switchTab === 'function') {
       var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('merchants'\"]");
       switchTab('merchants', btn || null);
@@ -1902,7 +1902,7 @@
     if (typeof showShopCat === 'function') {
       try { showShopCat(cat, null); } catch (_err) {}
     }
-    if (typeof showNotif === 'function') showNotif('Merchant access opened for ' + node.label + '.', 'info');
+    if (typeof showNotif === 'function') showNotif('Merchant access opened in ' + node.label + '.', 'info');
   }
 
   function openHoldingDistrictMissionPickup(nodeId) {
@@ -1911,16 +1911,16 @@
     if (!node) return;
     var services = node.services || {};
     if (!services.missionBoard) {
-      node.result = 'No mission board is active in this district. Ask around for rumors or check another district.';
+      node.result = 'No active mission board in this district. Ask for rumors or try another district.';
       openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
       return;
     }
     if (typeof generateTask === 'function') generateTask();
-    node.result = 'Mission board refreshed. Pick up a mission from the generated contracts.';
+    node.result = 'Mission board refreshed. New contracts are ready to review.';
     crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
     crawl.history.unshift(String(node.label || 'District') + ': Mission board refreshed.');
     crawl.history = crawl.history.slice(0, 12);
-    if (typeof showNotif === 'function') showNotif('New mission posted from ' + node.label + '.', 'good');
+    if (typeof showNotif === 'function') showNotif('New mission posted in ' + node.label + '.', 'good');
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
 
@@ -1935,14 +1935,14 @@
     var ambient = crawl.ambient || {};
     var msg = '';
     if (action === 'rumor') {
-      msg = 'Rumor circuit: ' + String(node.rumor || ambient.rumor || 'The district is quiet for now.') + ' Opportunity: ' + String(ambient.opportunity || 'Nothing immediate.');
+      msg = 'Rumor sweep: ' + String(node.rumor || ambient.rumor || 'The district is quiet for now.') + ' Opportunity: ' + String(ambient.opportunity || 'Nothing immediate.');
     } else if (action === 'browse') {
-      msg = 'You browse ' + String(node.label || 'the district') + '. Vendors advertise ' + String(node.interactable || 'small necessities') + '. Crowd pressure is ' + String(node.npcDensity || 'steady') + '.';
+      msg = 'You make a pass through ' + String(node.label || 'the district') + '. Vendors are pushing ' + String(node.interactable || 'small necessities') + '. Crowd pressure is ' + String(node.npcDensity || 'steady') + '.';
     } else if (action === 'task') {
       openHoldingDistrictMissionPickup(node.id);
       return;
     } else if (action === 'event') {
-      msg = 'District event: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
+      msg = 'District pulse: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
     } else if (action === 'downtime_talk') {
       rollHoldingDowntimeActivity('talk');
       openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
@@ -1956,7 +1956,7 @@
       return;
     } else if (action === 'gamble') {
       if (!node.services || !node.services.gamblingDen) {
-        node.result = 'This district does not run a gambling den tonight.';
+        node.result = 'No gambling den is running in this district tonight.';
         openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
         return;
       }
@@ -2027,7 +2027,7 @@
       + guessBtn('under', 'Under') + guessBtn('middle', 'Middle') + guessBtn('over', 'Over')
       + '</div>'
       + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.2rem;">'
-      + '<button class="btn btn-xs btn-primary" onclick="playHoldingGamblingRound(\'' + String(node.id) + '\')">Play Hand</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="playHoldingGamblingRound(\'' + String(node.id) + '\')">Play Round</button>'
       + '<button class="btn btn-xs" onclick="clearHoldingGamblingHistory(\'' + String(node.id) + '\')">Clear Ledger</button>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(3,minmax(64px,1fr));gap:.16rem;margin-top:.2rem;">'
@@ -2066,7 +2066,7 @@
     if (!node) return;
     var state = ensureHoldingGamblingState(crawl, node);
     state.history = [];
-    state.outcome = 'Ledger cleared. Pick a guess and play a hand.';
+    state.outcome = 'Ledger cleared. Pick a guess and play a round.';
     crawl.activeNodeId = node.id;
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
@@ -2080,7 +2080,7 @@
     var buyIn = level * 10;
     var payout = level * 10;
     if (!state.guess) {
-      state.outcome = 'Select Under / Middle / Over before playing.';
+      state.outcome = 'Select Under / Middle / Over before you play.';
       openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
       return;
     }
@@ -2099,7 +2099,7 @@
     var win = String(actual) === String(state.guess);
     if (win) {
       S.credits = Number(S.credits || 0) + buyIn + payout;
-      state.outcome = 'Win. Guess ' + String(state.guess).toUpperCase() + ' hit. Profit +' + payout + '₵.';
+      state.outcome = 'Win. Call ' + String(state.guess).toUpperCase() + ' landed. Profit +' + payout + '₵.';
     } else {
       state.outcome = 'Loss. Adventure landed ' + String(actual).toUpperCase() + '. Buy-in lost.';
     }
@@ -2139,22 +2139,22 @@
     var micro = active && Array.isArray(active.microLocations) ? active.microLocations : [];
     var microHtml = micro.map(function (m) { return '<div style="font-size:.7rem;color:var(--text2);">- ' + m + '</div>'; }).join('');
     var actionButton = active && !active.explored
-      ? '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Explore (Action vs DD' + Number(active.dd || 6) + ')</button>'
+      ? '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (Action vs DD' + Number(active.dd || 6) + ')</button>'
       : '<span style="font-size:.68rem;color:var(--green2);">District already resolved this visit.</span>';
     var districtButtons = '';
     if (active) {
       var services = active.services || {};
       if (active.kind === 'inn') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest At Inn</button>';
       if (active.kind === 'lord') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience With Lord</button>';
-      if (services.merchant) districtButtons += '<button class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Open District Merchant</button>';
-      if (services.missionBoard) districtButtons += '<button class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Pick Up Mission</button>';
-      if (services.localWork) districtButtons += '<button class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Work Your Job</button>';
-      if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Gambling Den</button>';
+      if (services.merchant) districtButtons += '<button class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Open Merchant</button>';
+      if (services.missionBoard) districtButtons += '<button class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Check Mission Board</button>';
+      if (services.localWork) districtButtons += '<button class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Take Local Shift</button>';
+      if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Enter Gambling Den</button>';
     }
 
     var html = '<div style="font-size:.78rem;color:var(--text2);line-height:1.48;display:grid;gap:.32rem;">'
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.04);padding:.4rem;">'
-      + '<div style="font-size:.74rem;color:var(--gold2);letter-spacing:.05em;text-transform:uppercase;"><strong>Overview Of The Holding</strong></div>'
+      + '<div style="font-size:.74rem;color:var(--gold2);letter-spacing:.05em;text-transform:uppercase;"><strong>Holding Overview</strong></div>'
       + '<div style="margin-top:.12rem;font-size:.75rem;color:var(--text2);"><strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
       + '<div style="margin-top:.08rem;font-size:.69rem;color:var(--muted2);">Type: ' + String(crawl.holdingType || 'Settlement') + ' · Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + ' · Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + '</div>'
       + '<div style="margin-top:.08rem;font-size:.69rem;color:var(--teal);">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + '</div>'
@@ -2162,7 +2162,7 @@
       + '</div>'
 
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.38rem;">'
-      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;"><strong>Big Screen Of The Hex</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;"><strong>District Hex Map</strong></div>'
       + buildHoldingHexMapHtml(crawl)
       + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.18rem;">'
       + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(1)">+1 Hour</button>'
@@ -2172,7 +2172,7 @@
       + '</div>'
 
       + (active ? ('<div style="border:1px solid var(--border2);background:rgba(0,0,0,.14);padding:.38rem;">'
-        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Per Hex Information</strong></div>'
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;"><strong>District Details</strong></div>'
         + '<div style="font-size:.8rem;color:var(--text);"><strong>' + active.label + '</strong> <span style="font-size:.68rem;color:var(--muted2);">(' + (active.explored ? 'Visited' : 'Unexplored') + ')</span></div>'
         + '<div style="font-size:.69rem;color:var(--text2);margin-top:.1rem;line-height:1.5;">' + active.atmosphere + '</div>'
         + '<div style="font-size:.67rem;color:var(--muted2);margin-top:.1rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
@@ -2185,8 +2185,8 @@
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">District Event</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse District</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Pick Up Mission</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk To People</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Check Mission Board</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk to Locals</button>'
         + '</div>'
         + '<div id="holdingDowntimeResult" style="margin-top:.14rem;">' + buildHoldingPendingEventHtml() + '</div>'
         + (active && active.services && active.services.gamblingDen ? buildHoldingGamblingEmbedHtml(active, crawl) : '')

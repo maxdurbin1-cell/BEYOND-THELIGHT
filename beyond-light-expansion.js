@@ -2971,6 +2971,15 @@
     renderLastSeaMap();
   }
 
+  // Sea-specific puzzle pool (self-contained in beyond-light-expansion.js)
+  var SEA_RUIN_PUZZLES = SEA_RUIN_PUZZLES || [
+    { mode: 'code', title: 'Tidal Cipher', prompt: 'The basin inscription reads: WAVE → ? The sea builders reversed words to seal their vaults. Enter the reversed word.', answer: 'evaw' },
+    { mode: 'rearrange', title: 'Anchor Phrase', prompt: 'Arrange the worn stones into the correct docking mantra.', bank: ['THE', 'SEA', 'HOLDS', 'NO', 'MERCY'], answer: 'the sea holds no mercy' },
+    { mode: 'memory', title: 'Depth Marker Sequence', prompt: 'The floor markers flash once, then go dark. Rebuild the order before the lock hardens.', sequence: ['REEF', 'FOAM', 'KELP', 'REEF'], bank: ['REEF', 'FOAM', 'KELP', 'TIDE'] },
+    { mode: 'crossword_grid', title: 'Navigator\'s Lattice', prompt: 'Complete the 7×7 sub-sea lattice. Black tiles blocked, white tiles must all resolve.', gridTemplate: ['##REEF#', '#A#E#O#', 'ANCHOR', '#H#F#C#', '##TIDE#', '#R#A#T#', '##SALT#'], clues: [{ clue: 'Across 1: Coral formation', answer: 'reef' }, { clue: 'Across 2: Ship tie', answer: 'anchor' }, { clue: 'Across 3: Tidal flow', answer: 'tide' }, { clue: 'Across 4: Ocean mineral', answer: 'salt' }] },
+    { mode: 'mosaic', title: 'Current Map', prompt: 'Restore the current chart to unlock the depth hatch.', bank: ['TIDE', 'REEF', 'PORT'], answer: 'tide reef port' }
+  ];
+
   function buildDungeonModal(data) {
     data.hexcrawl = data.hexcrawl || null;
     if (!data.hexcrawl || !Array.isArray(data.hexcrawl.nodes) || !data.hexcrawl.nodes.length) {
@@ -2988,9 +2997,15 @@
       };
     }
     data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
+
+    // Progressive unlock: default to showing only Room 1 (Entrance is always shown)
+    if (typeof data.unlockedRooms !== 'number') data.unlockedRooms = 1;
+    if (!data.hiddenSearched) data.hiddenSearched = false;
+    if (!data.hiddenRoomResult) data.hiddenRoomResult = '';
+
     let html = `
-      <div class="room-block">
-        <div class="rb-title">Entrance</div>
+      <div class="room-block" style="border-color:rgba(46,196,182,.6);background:rgba(46,196,182,.07);">
+        <div class="rb-title" style="color:var(--teal);">⚓ Entrance</div>
         <div class="rb-text">${data.entrance}</div>
       </div>
     `;
@@ -3088,28 +3103,73 @@
       + '</div>';
 
     for (let index = 1; index <= data.rooms; index += 1) {
+      // Only reveal rooms that are unlocked
+      const unlocked = index <= data.unlockedRooms;
+      if (!unlocked) {
+        html += `<div class="room-block" style="opacity:.35;border-style:dashed;"><div class="rb-title">Room ${index} — ?</div><div class="rb-text" style="font-size:.74rem;color:var(--muted2);">Locked. Resolve a previous room to reveal this passage.</div></div>`;
+        continue;
+      }
       if (!data.generatedRooms) data.generatedRooms = [];
       if (!data.generatedRooms[index - 1]) data.generatedRooms[index - 1] = { type: pick(RUIN_ROOM_TYPES), cleared: false, result: '' };
       const room = data.generatedRooms[index - 1];
       const type = room.type;
-      const text =
-        type === "Lair"
-          ? pick(RUIN_LAIR_DESC)
-          : type === "Obstacle"
-            ? pick(RUIN_OBSTACLE_DESC)
-            : type === "Trap"
-              ? pick(RUIN_TRAP_DESC)
-              : type === "Puzzle"
-                ? pick(RUIN_PUZZLE_DESC)
-                : "A quiet chamber full of salt-stained debris.";
-      html += `
-        <div class="room-block">
-          <div class="rb-title">Room ${index} - ${type}</div>
+      if (!room.text) {
+        room.text = type === "Lair" ? pick(RUIN_LAIR_DESC)
+          : type === "Obstacle" ? pick(RUIN_OBSTACLE_DESC)
+          : type === "Trap" ? pick(RUIN_TRAP_DESC)
+          : type === "Puzzle" ? pick(RUIN_PUZZLE_DESC)
+          : "A quiet chamber full of salt-stained debris.";
+      }
+      const text = room.text;
+      // Puzzle rooms get real puzzle rendering
+      const isPuzzleRoom = type === "Puzzle";
+      if (isPuzzleRoom && !room.cleared) {
+        if (!room.puzzleSpec) {
+          var pPool = (typeof SEA_RUIN_PUZZLES !== 'undefined' ? SEA_RUIN_PUZZLES : []);
+          room.puzzleSpec = pPool.length ? pPool[Math.floor(Math.random() * pPool.length)] : null;
+        }
+        const ps = room.puzzleSpec;
+        let puzzleHtml = '';
+        if (ps) {
+          if (ps.mode === 'code') {
+            puzzleHtml = `<div style="margin-top:.3rem;background:rgba(0,0,0,.3);padding:.35rem .4rem;border-radius:3px;">
+              <div style="font-size:.74rem;color:var(--gold2);font-weight:700;">🧩 ${ps.title}</div>
+              <div style="font-size:.78rem;color:var(--text2);margin:.2rem 0;">${ps.prompt}</div>
+              <input id="seaPuzzle_${index}" class="input" style="width:100%;max-width:200px;margin-top:.2rem;background:#fff;color:#000;text-transform:lowercase;" placeholder="Your answer…" />
+              <div style="margin-top:.3rem;display:flex;gap:.3rem;flex-wrap:wrap;">
+                <button class="btn btn-xs btn-teal" onclick="checkSeaDungeonPuzzle(${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.col:0},${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.row:0},${index-1},'seaPuzzle_${index}')">✓ Submit Answer</button>
+              </div>
+            </div>`;
+          } else if (ps.mode === 'rearrange' || ps.mode === 'mosaic') {
+            puzzleHtml = `<div style="margin-top:.3rem;background:rgba(0,0,0,.3);padding:.35rem .4rem;border-radius:3px;">
+              <div style="font-size:.74rem;color:var(--gold2);font-weight:700;">🧩 ${ps.title}</div>
+              <div style="font-size:.78rem;color:var(--text2);margin:.2rem 0;">${ps.prompt}</div>
+              <div style="font-size:.74rem;color:var(--muted2);margin:.18rem 0;">Words: ${ps.bank.join(' · ')}</div>
+              <input id="seaPuzzle_${index}" class="input" style="width:100%;max-width:260px;margin-top:.2rem;background:#fff;color:#000;text-transform:lowercase;" placeholder="Arrange the words…" />
+              <div style="margin-top:.3rem;">
+                <button class="btn btn-xs btn-teal" onclick="checkSeaDungeonPuzzle(${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.col:0},${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.row:0},${index-1},'seaPuzzle_${index}')">✓ Submit Answer</button>
+              </div>
+            </div>`;
+          } else {
+            puzzleHtml = `<div style="margin-top:.3rem;font-size:.78rem;color:var(--muted2);">${text}</div>`;
+          }
+        }
+        html += `<div class="room-block">
+          <div class="rb-title">Room ${index} — Puzzle</div>
           <div class="rb-text">${text}</div>
-          ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : ''}
-          ${room.cleared ? '' : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">Resolve Room (Action vs DD8)</button></div>`}
-        </div>
-      `;
+          ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : puzzleHtml}
+          ${!room.result ? `<div style="margin-top:.28rem;font-size:.72rem;color:var(--muted2);"><em>Alternatively, force the lock: </em><button class="btn btn-xs" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Force Lock (AD vs DD8)</button></div>` : ''}
+        </div>`;
+      } else {
+        html += `
+          <div class="room-block">
+            <div class="rb-title">Room ${index} — ${type}</div>
+            <div class="rb-text">${text}</div>
+            ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : ''}
+            ${room.cleared ? '<div style="font-size:.74rem;color:var(--green2);margin-top:.2rem;">✓ Cleared</div>' : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Resolve Room (AD vs DD8)</button></div>`}
+          </div>
+        `;
+      }
     }
     if (data.exploration.discoveredLoot.length) {
       html += `
@@ -3118,6 +3178,18 @@
           <div class="rb-text">${data.exploration.discoveredLoot.join(', ')}</div>
         </div>
       `;
+    }
+    // Hidden room search
+    const hiddenAreaUnlocked = data.unlockedRooms >= 1;
+    if (hiddenAreaUnlocked) {
+      const searchDone = !!data.hiddenSearched;
+      html += `<div class="room-block" style="border-color:rgba(176,96,208,.5);background:rgba(176,96,208,.06);">
+        <div class="rb-title" style="color:var(--purple);">🔎 Hidden Room Search</div>
+        <div class="rb-text">Roll your Adventure Die vs DD6. Success reveals a secret compartment with rare loot.</div>
+        ${searchDone
+          ? (data.hiddenRoomResult ? `<div style="font-size:.78rem;color:var(--gold2);margin-top:.2rem;">${data.hiddenRoomResult}</div>` : '<div style="font-size:.74rem;color:var(--muted2);">Search complete — nothing more found.</div>')
+          : `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="seaDungeonSearchHidden(${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.col:0},${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.row:0})">⚄ Search (AD vs DD6)</button></div>`}
+      </div>`;
     }
     return html;
   }
@@ -3208,6 +3280,8 @@
       data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
       data.exploration.clearedRooms += 1;
       data.exploration.discoveredLoot.push(loot);
+      // Province-style progression: resolving one room reveals up to 2 more.
+      data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 2);
       let stored = false;
       if (typeof addToBackpack === 'function') {
         try {
@@ -3237,6 +3311,7 @@
     } else {
       if (typeof changeHealth === 'function') changeHealth(Math.max(1, dreadRoll.total - actionRoll.total));
       room.result = `${result}Failure. Suffer Stress equal to the difference.`;
+      data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 1);
     }
     room.cleared = true;
     // Sync Sea Region dungeon exploration to campaign if available
@@ -3246,6 +3321,65 @@
           window.campaignSystem.syncSharedSilent('sea-dungeon-room-explored'); 
         } catch (_err) {}
       }, 0);
+    }
+    openModal(data.name, buildDungeonModal(data));
+  }
+
+  function checkSeaDungeonPuzzle(col, row, roomIndex, inputId) {
+    const hex = getSeaCell(col, row);
+    const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
+    if (!data || !Array.isArray(data.generatedRooms) || !data.generatedRooms[roomIndex]) return;
+    const room = data.generatedRooms[roomIndex];
+    if (!room || room.cleared || !room.puzzleSpec) return;
+    const input = document.getElementById(String(inputId || ''));
+    const val = input ? String(input.value || '').trim().toLowerCase() : '';
+    const spec = room.puzzleSpec;
+    let solved = false;
+    if (spec.mode === 'memory') {
+      solved = val === String((spec.sequence || []).join(' ')).toLowerCase();
+    } else {
+      solved = val === String(spec.answer || '').trim().toLowerCase();
+    }
+    if (solved) {
+      const loot = rollSeaDungeonLoot();
+      data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
+      data.exploration.clearedRooms += 1;
+      data.exploration.discoveredLoot.push(loot);
+      room.cleared = true;
+      room.result = 'Puzzle solved. Loot recovered: ' + loot + '.';
+      data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 2);
+      if (typeof addToBackpack === 'function') {
+        try { addToBackpack(loot); } catch (_err) {}
+      }
+      if (typeof showNotif === 'function') showNotif('Puzzle solved. ' + loot + ' recovered.', 'good');
+    } else {
+      room.result = 'Incorrect sequence. The lock grinds shut; force it or retry later.';
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      if (typeof showNotif === 'function') showNotif('Puzzle failed: +1 Mental Stress.', 'warn');
+    }
+    openModal(data.name, buildDungeonModal(data));
+  }
+
+  function seaDungeonSearchHidden(col, row) {
+    const hex = getSeaCell(col, row);
+    const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
+    if (!data || data.hiddenSearched) return;
+    const ad = (S.stats && S.stats.adventure) ? S.stats.adventure : ((S.stats && S.stats.action) ? S.stats.action : 4);
+    const a = explodingRoll(ad);
+    const d = explodingRoll(6);
+    const success = a.total >= d.total;
+    data.hiddenSearched = true;
+    if (success) {
+      const loot = rollSeaDungeonLoot();
+      data.hiddenRoomResult = 'AD' + ad + ' ' + a.total + ' vs DD6 ' + d.total + ' — Hidden room revealed. Loot: ' + loot + '.';
+      data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
+      data.exploration.discoveredLoot.push(loot);
+      if (typeof addToBackpack === 'function') {
+        try { addToBackpack(loot); } catch (_err) {}
+      }
+      if (typeof showNotif === 'function') showNotif('Hidden room found: ' + loot + '.', 'good');
+    } else {
+      data.hiddenRoomResult = 'AD' + ad + ' ' + a.total + ' vs DD6 ' + d.total + ' — No hidden rooms revealed.';
     }
     openModal(data.name, buildDungeonModal(data));
   }
@@ -3262,6 +3396,8 @@
   }
   window.exploreSeaDungeonHexNode = exploreSeaDungeonHexNode;
   window.exploreSeaDungeonRoom = exploreSeaDungeonRoom;
+  window.checkSeaDungeonPuzzle = checkSeaDungeonPuzzle;
+  window.seaDungeonSearchHidden = seaDungeonSearchHidden;
 
   function getRankData(rank) {
     return NAVAL_RANKS.find((item) => item.name === rank) || NAVAL_RANKS[0];

@@ -2723,7 +2723,17 @@
     runHoldingDistrictAction(target.id, action);
   }
 
-  function openHoldingSettlementHexcrawl() {
+  function openHoldingSettlementHexcrawl(holdingType) {
+    if (holdingType) {
+      var crawl = ensureHoldingSettlementHexcrawl();
+      var t = String(holdingType).trim();
+      if (t && crawl.holdingType !== t) {
+        // New holding type — reset crawl so districts regenerate for this type
+        crawl.holdingType = t;
+        S.holding.type = t;
+        delete S.holding.settlementHexcrawl;
+      }
+    }
     rerenderHoldingSettlementHexcrawl({ advanceVisit: true });
   }
 

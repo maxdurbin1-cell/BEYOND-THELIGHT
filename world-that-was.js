@@ -100,8 +100,7 @@
     faction_task: { icon: "✦", color: "#e8c050", priority: 67, title: "Wayfarer Task" },
     hazard: { icon: "☣", color: "#ff8a72", priority: 60, title: "Hazard" },
     peril: { icon: "⚠", color: "#ff8070", priority: 59, title: "Peril" },
-    barrier: { icon: "⛔", color: "#ff9066", priority: 58, title: "Barrier" },
-    job: { icon: "💼", color: "#bbbbbb", priority: 40, title: "District Job" }
+    barrier: { icon: "⛔", color: "#ff9066", priority: 58, title: "Barrier" }
   };
 
   const WTW_STRUCTURE_TYPES = [
@@ -1012,7 +1011,7 @@
 
   function setMarker(w, hex, type, title, subtitle) {
     if (!w || !hex || !type) return;
-    const style = WTW_MARKER_STYLE[type] || WTW_MARKER_STYLE.job;
+    const style = WTW_MARKER_STYLE[type] || WTW_MARKER_STYLE.task;
     const current = w.markers[hex.id];
     if (current && (current.priority || 0) > style.priority) return;
     w.markers[hex.id] = {
@@ -1390,12 +1389,8 @@
     }
 
     w.hexes.forEach(function (hex) {
-      const danger = dangerForZone(hex.zone);
-      if (!w.markers[hex.id]) {
-        hex.markerType = safeRoll(100) <= Math.max(8, Math.floor(danger.encounterChance / 2)) ? "job" : null;
-        if (hex.markerType === "job") {
-          setMarker(w, hex, "job", "District Job", "Quick contract available");
-        }
+      if (!w.markers[hex.id] && hex.markerType === "job") {
+        hex.markerType = null;
       }
     });
   }
@@ -1505,6 +1500,28 @@
       poly.setAttribute("stroke-width", w.selectedHexId === hex.id ? "2.6" : (minimal ? "1" : (mapFx.hex3d ? "1.7" : "1.2")));
       g.appendChild(poly);
 
+      // Province-style barrier presentation: draw the barrier on the edge of the hex instead of center icon.
+      if (marker && marker.type === "barrier") {
+        const side = Math.abs(Number(hex.col || 0) * 13 + Number(hex.row || 0) * 7) % 6;
+        const a1 = ((60 * side) - 30) * Math.PI / 180;
+        const a2 = ((60 * (side + 1)) - 30) * Math.PI / 180;
+        const bx1 = p.x + r * Math.cos(a1);
+        const by1 = p.y + r * Math.sin(a1);
+        const bx2 = p.x + r * Math.cos(a2);
+        const by2 = p.y + r * Math.sin(a2);
+
+        const barrierEdge = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        barrierEdge.setAttribute("x1", String(bx1));
+        barrierEdge.setAttribute("y1", String(by1));
+        barrierEdge.setAttribute("x2", String(bx2));
+        barrierEdge.setAttribute("y2", String(by2));
+        barrierEdge.setAttribute("stroke", "#ff9066");
+        barrierEdge.setAttribute("stroke-width", w.selectedHexId === hex.id ? "4.5" : "3.4");
+        barrierEdge.setAttribute("stroke-linecap", "round");
+        barrierEdge.setAttribute("pointer-events", "none");
+        g.appendChild(barrierEdge);
+      }
+
       if (mapFx.hex3d) {
         const topA = Math.PI / 180 * -30;
         const topB = Math.PI / 180 * 30;
@@ -1585,9 +1602,9 @@
         g.appendChild(you);
       }
 
-      const showMarker = marker && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "mission_raid_informer" || marker.type === "mission_raid_site" || marker.type === "task" || marker.type === "story" || marker.type === "solar_cycle" || marker.type === "solar_cycle_stage" || marker.type === "solar_cycle_investigation" || marker.type === "solar_cycle_omen" || marker.type === "solar_cycle_side" || marker.type === "faction_base" || marker.type === "faction_task");
+      const showMarker = marker && marker.type !== "barrier" && (!minimal || w.selectedHexId === hex.id || marker.type === "mission" || marker.type === "mission_informer" || marker.type === "mission_site" || marker.type === "mission_raid_informer" || marker.type === "mission_raid_site" || marker.type === "task" || marker.type === "story" || marker.type === "solar_cycle" || marker.type === "solar_cycle_stage" || marker.type === "solar_cycle_investigation" || marker.type === "solar_cycle_omen" || marker.type === "solar_cycle_side" || marker.type === "faction_base" || marker.type === "faction_task");
       if (showMarker) {
-        const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.job;
+        const markerStyle = WTW_MARKER_STYLE[marker.type] || WTW_MARKER_STYLE.task;
         if (isTrackedThreadHex) {
           const haloOuter = document.createElementNS("http://www.w3.org/2000/svg", "circle");
           haloOuter.setAttribute("cx", String(p.x));
@@ -1786,7 +1803,7 @@
       spendWorldItem("dataDrives", 1);
       const target = safePick(w.hexes.filter(function (h) { return h.id !== hex.id; }), null);
       if (target) {
-        setMarker(w, target, "job", "Intel Lead", "Service generated this lead");
+        setMarker(w, target, "task", "Intel Lead", "Service generated this lead");
       }
       addWorldItem("scrap", 1);
       addZoneReputation(hex.zone, 1);
@@ -1812,9 +1829,9 @@
       grantWorldServiceBonus("nextTradeBonus", 2, 6);
       addZoneReputation(hex.zone, 1);
       const target = safePick(w.hexes.filter(function (h) { return h.id !== hex.id; }), null);
-      if (target) setMarker(w, target, "job", "Convoy Lane", "Service-generated route contract");
+      if (target) setMarker(w, target, "task", "Convoy Lane", "Service-generated route lead");
       putLootInBackpack("Route Warrant");
-      if (typeof showNotif === "function") showNotif("Convoy Routing: next Trade +2, route contract marker spawned, Route Warrant added.", "good");
+      if (typeof showNotif === "function") showNotif("Convoy Routing: next Trade +2, route lead marker spawned, Route Warrant added.", "good");
       return true;
     }
 
@@ -2450,43 +2467,6 @@
       if (typeof window.resolveSolarCycleWTWMarker === "function") {
         window.resolveSolarCycleWTWMarker(hexId);
       }
-    } else if (marker.type === "job") {
-      const zone = zoneForHex(hex);
-      const power = hex.controller || (zone && zone.leader) || MAJOR_POWERS[0];
-      const factionKey = POWER_TO_FACTION_RENOWN[power] || "political";
-      const rivals = ["corporations", "religious", "political", "military", "underworld", "rebels"].filter(function (k) { return k !== factionKey; });
-      const rivalKey = rivals.length ? safePick(rivals, rivals[0]) : "rebels";
-      const zoneDanger = dangerForZone(hex.zone);
-      const difficulty = zoneDanger.eventDreadBias >= 2
-        ? "very_hard"
-        : (zoneDanger.eventDreadBias >= 1 ? "hard" : (zoneDanger.eventDreadBias <= -1 ? "easy" : "medium"));
-      const missionTitle = "District Contract: " + hex.zone + " - " + hex.district;
-
-      if (typeof createMission === "function") {
-        createMission(
-          power,
-          missionTitle,
-          difficulty,
-          hex.zone + " / " + hex.district,
-          "wtw",
-          {
-            gain: factionKey,
-            lose: rivalKey,
-            gainName: power,
-            loseName: rivalKey.charAt(0).toUpperCase() + rivalKey.slice(1),
-          },
-          {
-            missionType: "wtw_contract",
-            wtwHexId: hex.id,
-            wtwZone: hex.zone,
-            wtwDistrict: hex.district,
-          }
-        );
-        if (typeof showNotif === "function") showNotif("Contract accepted from " + power + ": posted to Missions tab.", "good");
-      } else if (typeof showNotif === "function") {
-        showNotif("Missions system unavailable: cannot post district contract.", "warn");
-      }
-      delete w.markers[hexId];
     }
 
     advanceWorldTime("district marker");
@@ -3298,8 +3278,7 @@
       { key: "landing", label: "Landing" },
       { key: "service", label: "Service" },
       { key: "wayfarer", label: "Wayfarer" },
-      { key: "hazard", label: "Hazard" },
-      { key: "job", label: "Contract" }
+      { key: "hazard", label: "Hazard" }
     ];
     return entries.map(function (entry) {
       const style = WTW_MARKER_STYLE[entry.key] || { icon: "?", color: "#bbb" };

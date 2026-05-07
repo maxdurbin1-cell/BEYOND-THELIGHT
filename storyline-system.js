@@ -3888,17 +3888,23 @@
           }
         }
         const acrossHtml = crossword.across.map(function (entry) {
-          return "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.12rem;'><strong style='color:var(--text2);'>" + entry.number + "</strong>. " + entry.clue + "</div>";
-        }).join("") || "<div style='font-size:.74rem;color:var(--muted2);'>No across clues.</div>";
+          return "<div style='display:grid;grid-template-columns:1.6rem 1fr;gap:.18rem;align-items:baseline;margin-bottom:.18rem;'>"
+            + "<span style='font-size:.7rem;font-weight:700;color:#111;background:var(--text2);border-radius:2px;text-align:center;padding:0 .2rem;line-height:1.4;'>" + entry.number + "</span>"
+            + "<span style='font-size:.74rem;color:var(--muted2);line-height:1.5;'>" + entry.clue + "</span>"
+            + "</div>";
+        }).join("") || "<div style='font-size:.74rem;color:var(--muted2);'>—</div>";
         const downHtml = crossword.down.map(function (entry) {
-          return "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.12rem;'><strong style='color:var(--text2);'>" + entry.number + "</strong>. " + entry.clue + "</div>";
-        }).join("") || "<div style='font-size:.74rem;color:var(--muted2);'>No down clues.</div>";
+          return "<div style='display:grid;grid-template-columns:1.6rem 1fr;gap:.18rem;align-items:baseline;margin-bottom:.18rem;'>"
+            + "<span style='font-size:.7rem;font-weight:700;color:#111;background:var(--text2);border-radius:2px;text-align:center;padding:0 .2rem;line-height:1.4;'>" + entry.number + "</span>"
+            + "<span style='font-size:.74rem;color:var(--muted2);line-height:1.5;'>" + entry.clue + "</span>"
+            + "</div>";
+        }).join("") || "<div style='font-size:.74rem;color:var(--muted2);'>—</div>";
         controls = ""
-          + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Crossword grid: black squares are blocked. Fill white cells so Across and Down clues both resolve.</div>"
+          + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;border-bottom:1px solid var(--border2);padding-bottom:.28rem;'>Fill every white square. Numbered cells mark word starts. Black squares are blocked.</div>"
           + "<div style='display:grid;grid-template-columns:repeat(" + crossword.cols + ",32px);gap:2px;justify-content:start;margin-bottom:.45rem;'>" + cells.join("") + "</div>"
           + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.5rem;'>"
-          + "<div><div style='font-size:.73rem;color:var(--gold2);margin-bottom:.2rem;'>Across</div>" + acrossHtml + "</div>"
-          + "<div><div style='font-size:.73rem;color:var(--gold2);margin-bottom:.2rem;'>Down</div>" + downHtml + "</div>"
+          + "<div><div style='font-family:\"Cinzel\",serif;font-size:.74rem;font-weight:700;color:var(--text2);letter-spacing:.12em;text-transform:uppercase;border-bottom:2px solid var(--text2);padding-bottom:.1rem;margin-bottom:.28rem;'>ACROSS</div>" + acrossHtml + "</div>"
+          + "<div><div style='font-family:\"Cinzel\",serif;font-size:.74rem;font-weight:700;color:var(--text2);letter-spacing:.12em;text-transform:uppercase;border-bottom:2px solid var(--text2);padding-bottom:.1rem;margin-bottom:.28rem;'>DOWN</div>" + downHtml + "</div>"
           + "</div>";
       }
     } else if (p.mode === "crossword_grid") {

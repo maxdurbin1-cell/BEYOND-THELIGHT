@@ -11646,7 +11646,7 @@ function renderHexInfo(hex){
     if(d.lord)html+=`<div class="wild-panel"><div class="wp-label">Lord</div><div class="wp-text">${d.lord}</div></div>`;
     html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.79rem;color:var(--muted3);line-height:1.58;">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
     html+=`<div class="holding-actions-row">
-      <button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();else alert('Holdings system not ready');">◫ Enter Holding</button>
+      <button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl('${hex.name||'Holding'}');else alert('Holdings system not ready');">◫ Enter ${hex.name||'Holding'}</button>
     </div>`;
     html+='</div>';
 
@@ -11800,17 +11800,27 @@ function renderHexInfo(hex){
 
   // ── LOST CITY ──
   }else if(hex.type==='lostcity'){
-    [['Condition',d.buildingCondition],['Building',d.buildingThis],['Made Of',d.buildingMade],['Built For',d.buildingFor],['Inside',d.buildingInside],['Now',d.buildingNow]].forEach(([l,v])=>{
-      if(v)html+=`<div class="lc-block"><div class="lb-label">${l}</div><div class="lb-text">${v}</div></div>`;
-    });
-    if(d.discovery)html+=`<div class="lc-block"><div class="lb-label">Discovery: ${d.discovery.shape}</div><div class="lb-text">${d.discovery.fn} · Now: ${d.discovery.current}</div></div>`;
-    html+=`<div style="font-size:.78rem;color:var(--red);margin-top:.3rem;">⚠ Irradiated Ones (DD4 | 8 Stress) patrol. Stay quiet.</div>`;
-    html+=`<div style="margin:.35rem 0;"><button class="btn btn-sm btn-primary" onclick="rollLostCityTravel(${hex.col},${hex.row})">⚄ Travel Roll (d6)</button></div>`;
-    html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
-      <button class="btn btn-sm btn-teal" onclick="travelToWorldThatWas()">Descend To World That Was</button>
-      <button class="btn btn-sm" onclick="travelToLastSeaFromMap()">Take Sewer Route To Last Sea</button>
-    </div>`;
-    html+=`<div id="lcTravel-${hex.col}-${hex.row}"></div>`;
+      html+=`<div class="npc-block" style="border-color:rgba(224,128,192,.5);background:rgba(90,16,64,.12);">
+        <div class="nb-label" style="color:#e080c0;">⬡ Lost City — ${hex.name}</div>
+        <div style="font-size:.8rem;color:var(--text2);line-height:1.58;">${d.buildingCondition||'Crumbling.'} ${d.buildingThis?'Structure: '+d.buildingThis+'.':('')} ${d.buildingMade?'Made of '+d.buildingMade+'.':('')} </div>
+        ${d.buildingFor?`<div style="font-size:.78rem;color:var(--muted2);">Built for: ${d.buildingFor}</div>`:''}
+        ${d.buildingInside?`<div style="font-size:.78rem;color:var(--muted2);">Inside: ${d.buildingInside}</div>`:''}
+        ${d.buildingNow?`<div style="font-size:.78rem;color:#e080c0;">Now: ${d.buildingNow}</div>`:''}
+        ${d.discovery?`<div style="font-size:.78rem;color:var(--gold2);margin-top:.18rem;">Discovery — ${d.discovery.shape}: ${d.discovery.fn}. <em>Now: ${d.discovery.current}</em></div>`:''}
+      </div>`;
+      html+=`<div class="wild-panel" style="border-color:rgba(224,80,80,.4);background:rgba(120,30,30,.1);margin-top:.3rem;">
+        <div class="wp-label" style="color:var(--red2);">☢ Irradiated Ones</div>
+        <div class="wp-text">Irradiated Ones patrol in packs (DD4 | <strong style="color:var(--red);">8 Radiation Stress</strong> on hit). Staying quiet avoids detection. On failure: gain Irradiated condition (+1 Stress per Phase until cleansed).</div>
+      </div>`;
+      html+=`<div style="margin:.4rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-primary" onclick="rollLostCityTravel(${hex.col},${hex.row})">⚄ Travel Roll (d6)</button>
+        <button class="btn btn-sm btn-teal" onclick="openLostCityBuildingHexcrawl(${hex.col},${hex.row})">🔍 Search Buildings</button>
+      </div>`;
+      html+=`<div style="margin:.32rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
+        <button class="btn btn-sm" onclick="travelToWorldThatWas()">Descend To World That Was</button>
+        <button class="btn btn-sm" onclick="travelToLastSeaFromMap()">Sewer Route To Last Sea</button>
+      </div>`;
+      html+=`<div id="lcTravel-${hex.col}-${hex.row}"></div>`;
 
   // ── BARRIER ──
   }else if(hex.type==='barrier'){
@@ -14283,6 +14293,131 @@ function revealLostCityBuilding(col,row){
     if(typeof renderEnemies==='function')renderEnemies();
     if(typeof showNotif==='function')showNotif('Lost Lands reveal: Stitched Rat Horror added to Combat.', 'warn');
   }
+}
+
+function openLostCityBuildingHexcrawl(col,row){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex)return;
+    hex.data=hex.data||{};
+    // Initialize hexcrawl state for this Lost City
+    if(!hex.data.hexcrawl){
+      const LC_TRAPS=['Pressure plate triggers a sealed gas vent (Body vs DD8 or Irradiated).','Tripwire releases a wall panel — roll Control vs DD6 or take 3 damage.','Magnetic mine array — metallic armor wearers check Defend vs DD10.','Rigged door detonates a charge: AD vs DD8 or Weakened.','Automated seeker turret activates — first action costs 1 extra AP.','Weight-sensitive floor panel collapses: Body vs DD8 or fall 1 floor (4 damage + Irradiated).'];
+      const LC_LOOT_ITEMS=['Lost City Fuel Rod (poisonous rods, sell for 200₵)','Radiothermal Canister (powers caravan drive cells)','Pre-fall Currency Cache (roll 3d6 × 10 credits)','Builder\'s Blueprint (rare schematic)','Irradiated Power Cell (functions as a grenade equivalent)','Sealed Medkit (heals 6 HP, removes Irradiated)','Pre-fall Comms Unit (repair to active use)','Salvage Circuit Board (sell 150₵)'];
+      const roomCount=4;
+      const types=['Entrance Hall','Residential Block','Utility Crawl','Archive Shelf','Irradiated Core','Basement Vault'];
+      hex.data.hexcrawl={
+        currentBuilding:pick(LC_BUILDINGS),
+        unlockedRooms:1,
+        hiddenSearched:false,
+        rooms:Array.from({length:roomCount},function(_,i){
+          var kind=types[i]||types[types.length-1];
+          return{idx:i+1,kind:kind,cleared:false,result:'',trap:pick(LC_TRAPS),loot:pick(LC_LOOT_ITEMS)};
+        })
+      };
+      hex.data._lcTraps=LC_TRAPS;
+      hex.data._lcLoot=LC_LOOT_ITEMS;
+    }
+    const crawl=hex.data.hexcrawl;
+    const LC_TRAPS=hex.data._lcTraps||[];
+    const LC_LOOT_ITEMS=hex.data._lcLoot||[];
+    function roomCard(r,idx){
+      if(idx>=crawl.unlockedRooms)return '';
+      var cleared=r.cleared;
+      var result=r.result?`<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">${r.result}</div>`:'';
+      var btn=cleared?`<span style="font-size:.74rem;color:var(--green2);">✓ Cleared</span>`
+        :`<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;">
+            <button class="btn btn-xs btn-teal" onclick="lcResolveRoom(${col},${row},${idx})">⚄ Resolve Room (AD vs DD6)</button>
+            <button class="btn btn-xs btn-warn" onclick="lcTriggerTrap(${col},${row},${idx})">🜸 Check for Trap</button>
+          </div>`;
+      return `<div class="lc-block" style="border-color:rgba(224,128,192,.35);margin-top:.3rem;">
+        <div class="lb-label" style="color:#d090c0;">Room ${r.idx}: ${r.kind}</div>
+        ${result}${btn}
+      </div>`;
+    }
+    var roomsHtml=crawl.rooms.map(function(r,i){ return roomCard(r,i); }).join('');
+    var searchBtn=(!crawl.hiddenSearched&&crawl.unlockedRooms>0)?
+      `<button class="btn btn-xs btn-primary" onclick="lcSearchHiddenRoom(${col},${row})">🔎 Search for Hidden Room (AD vs DD6)</button>`:'';
+    var hiddenResult=crawl.hiddenResult?`<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">${crawl.hiddenResult}</div>`:'';
+    openModal('Lost City Building: '+hex.name,
+      `<div style="font-size:.83rem;color:var(--text2);line-height:1.65;">
+        <div style="font-family:'Cinzel',serif;color:#e080c0;font-size:.86rem;margin-bottom:.35rem;">⬡ ${hex.data.hexcrawl.currentBuilding}</div>
+        <div style="font-size:.78rem;color:var(--red2);margin-bottom:.3rem;">☢ Irradiated Ones patrol all floors. Stay quiet or roll Body vs DD8 on fail.</div>
+        ${roomsHtml}
+        <div style="margin-top:.5rem;border-top:1px solid var(--border2);padding-top:.4rem;">
+          ${searchBtn}${hiddenResult}
+        </div>
+        <div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap;">
+          <button class="btn btn-xs" onclick="hex_lc_reset(${col},${row})">🗘 New Building</button>
+        </div>
+      </div>`
+    );
+}
+
+function lcResolveRoom(col,row,idx){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data||!hex.data.hexcrawl)return;
+    const crawl=hex.data.hexcrawl;
+    const r=crawl.rooms[idx];
+    if(!r||r.cleared)return;
+    const ad=(S.stats&&S.stats.action)||4;
+    const a=explodingRoll(ad),d=explodingRoll(6);
+    const success=a.total>=d.total;
+    if(success){
+      r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Success! Loot found: '+r.loot+'.';
+      r.cleared=true;
+      // Unlock next 2 rooms
+      crawl.unlockedRooms=Math.min(crawl.rooms.length,crawl.unlockedRooms+2);
+      if(typeof addToBackpack==='function')try{addToBackpack(r.loot);}catch(_){}
+      if(typeof showNotif==='function')showNotif('Room cleared. Loot: '+r.loot+'.','good');
+    }else{
+      r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Failure. +2 Radiation Stress.';
+      r.cleared=true;
+      if(typeof changeStress==='function')changeStress(2);
+      else if(typeof changeMentalStress==='function')changeMentalStress(2);
+    }
+    openLostCityBuildingHexcrawl(col,row);
+}
+
+function lcTriggerTrap(col,row,idx){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data||!hex.data.hexcrawl)return;
+    const r=hex.data.hexcrawl.rooms[idx];
+    if(!r)return;
+    const ad=(S.stats&&S.stats.action)||4;
+    const a=explodingRoll(ad),d=explodingRoll(8);
+    const success=a.total>=d.total;
+    const resultMsg=success?'No trap triggered — room is safe.':'Trap! '+r.trap;
+    if(!success){
+      if(typeof changeHealth==='function')changeHealth(Math.max(1,d.total-a.total));
+      if(typeof showNotif==='function')showNotif('Trap triggered!','warn');
+    }
+    openModal('Trap Check',`<div style="font-size:.83rem;color:var(--text2);">AD${ad} ${a.total} vs DD8 ${d.total} — <strong style="color:${success?'var(--green2)':'var(--red2)'};">${resultMsg}</strong></div>`);
+}
+
+function lcSearchHiddenRoom(col,row){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data||!hex.data.hexcrawl)return;
+    const crawl=hex.data.hexcrawl;
+    const ad=(S.stats&&S.stats.adventure||S.stats&&S.stats.action)||4;
+    const a=explodingRoll(ad),d=explodingRoll(6);
+    const success=a.total>=d.total;
+    crawl.hiddenSearched=true;
+    if(success){
+      const hiddenLoot=(hex.data._lcLoot||['Sealed Cache'])[Math.floor(Math.random()*(hex.data._lcLoot||['Sealed Cache']).length)];
+      crawl.hiddenResult='Hidden room found! '+hiddenLoot+' recovered.';
+      if(typeof addToBackpack==='function')try{addToBackpack(hiddenLoot);}catch(_){}
+      if(typeof showNotif==='function')showNotif('Hidden room revealed: '+hiddenLoot+'.','good');
+    }else{
+      crawl.hiddenResult='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — No hidden rooms found.';
+    }
+    openLostCityBuildingHexcrawl(col,row);
+}
+
+function hex_lc_reset(col,row){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data)return;
+    delete hex.data.hexcrawl;
+    openLostCityBuildingHexcrawl(col,row);
 }
 
 function generateTask(){

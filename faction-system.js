@@ -1474,51 +1474,72 @@
       : "";
 
     const html = `
-      <div style="font-size:.83rem;color:var(--text2);line-height:1.65;">
-        <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.92rem;letter-spacing:.08em;margin-bottom:.35rem;">${faction.emoji} ${base.baseName}</div>
-        <div style="margin-bottom:.45rem;"><strong>Region:</strong> ${base.regionType} · <strong>Anchor:</strong> ${anchor}</div>
-        <div style="margin-bottom:.5rem;">Base status feels alive: ${base.ambientDetail}. Rumor pulse: <strong>${base.rumorClock}</strong>.</div>
+      <div style="font-size:.83rem;color:var(--text2);line-height:1.6;">
 
-        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">
-          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Faction Mission</div>
-          <div><strong>${mission.title}</strong></div>
-          <div style="color:var(--muted2);">Difficulty: ${mission.difficulty} · Payout: ${mission.payout}</div>
+        <!-- HEADER BANNER -->
+        <div style="background:linear-gradient(135deg,rgba(0,0,0,.5),rgba(30,20,8,.9));border:1px solid rgba(201,162,39,.45);border-radius:4px;padding:.55rem .65rem;margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem;">
+          <div style="font-size:1.6rem;line-height:1;">${faction.emoji}</div>
+          <div>
+            <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.96rem;letter-spacing:.1em;">${base.baseName}</div>
+            <div style="font-size:.74rem;color:var(--muted2);">${faction.name} · ${base.regionType} · ${anchor}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right;">
+            <div style="font-size:.7rem;color:var(--teal);">Rumor Clock</div>
+            <div style="font-size:.82rem;font-weight:700;color:var(--gold2);">${base.rumorClock}</div>
+          </div>
+        </div>
+        <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.45rem;font-style:italic;">${base.ambientDetail}</div>
+
+        <!-- FACTION MISSION -->
+        <div style="border-left:3px solid var(--teal);background:rgba(46,196,182,.06);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.25rem;">⚔ Faction Mission</div>
+          <div style="font-weight:700;color:var(--text2);">${mission.title}</div>
+          <div style="font-size:.74rem;color:var(--muted2);">Difficulty: ${mission.difficulty} · Payout: ${mission.payout}</div>
           ${linkedMissionText}
-          <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.35rem;">
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;">
             ${mission.accepted ? `<button class="btn btn-xs" disabled>Accepted</button>` : `<button class="btn btn-xs btn-teal" onclick="factionSystem.acceptMission('${factionId}')">Accept Mission</button>`}
             ${mission.accepted && !mission.resolved && !mission.linkedMissionId ? `<button class="btn btn-xs btn-primary" onclick="factionSystem.resolveMission('${factionId}')">Resolve Mission</button>` : ""}
-            ${mission.resolved ? `<span style="color:var(--green2);font-size:.78rem;">Resolved</span>` : ""}
+            ${mission.resolved ? `<span style="color:var(--green2);font-size:.78rem;">✓ Resolved</span>` : ""}
           </div>
         </div>
 
-        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">
-          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Path Contracts (Base Board)</div>
-          <div style="font-size:.76rem;color:var(--muted2);margin-top:.14rem;">Heroic, Tyrant, and Martyr contracts are available here so they are easy to discover while visiting this base.</div>
+        <!-- PATH CONTRACTS -->
+        <div style="border-left:3px solid var(--gold2);background:rgba(201,162,39,.05);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">📋 Path Contracts</div>
+          <div style="font-size:.74rem;color:var(--muted2);margin-bottom:.22rem;">Heroic, Tyrant, and Martyr paths available here. Your choices shape faction alignment.</div>
           ${contracts}
         </div>
 
-        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">
-          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Random Events</div>
-          <ul style="margin:.3rem 0 0 1rem;">${base.activeEvents.map((ev, idx) => `<li>${ev.text} ${ev.resolved ? `<span style='color:var(--green2);'>(resolved)</span>` : `<button class='btn btn-xs' style='margin-left:.35rem;' onclick="factionSystem.resolveEvent('${factionId}',${idx})">Interact</button>`}</li>`).join("")}</ul>
+        <!-- PEOPLE TO TALK TO -->
+        <div style="border-left:3px solid var(--purple);background:rgba(176,96,208,.05);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--purple);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">👤 Base Contacts</div>
+          <div style="font-size:.74rem;color:var(--muted2);margin-bottom:.22rem;">Lead vs Dread d6 to Talk. Success reveals a faction secret.</div>
+          ${base.npcs.map((npc, idx) => `
+            <div style="background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:3px;padding:.32rem .4rem;margin-top:.25rem;">
+              <div style="font-weight:700;color:var(--text2);">${npc.name} <span style="font-size:.72rem;color:var(--muted2);">(${npc.mood})</span></div>
+              <div style="font-size:.76rem;color:var(--muted2);margin:.1rem 0 .2rem;">${npc.rumor}</div>
+              <div style="display:flex;gap:.25rem;flex-wrap:wrap;">
+                <button class="btn btn-xs btn-teal" onclick="factionSystem.talkNpc('${factionId}',${idx})">Talk (Lead vs d6)</button>
+                <button class="btn btn-xs btn-primary" onclick="factionSystem.generateNpcTask('${factionId}',${idx})">Generate Task Marker</button>
+              </div>
+            </div>`).join("")}
+          ${Array.isArray(base.discoveredSecrets) && base.discoveredSecrets.length ? `<div style='margin-top:.4rem;border-top:1px solid var(--border2);padding-top:.3rem;'><div style='font-family:Cinzel,serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);text-transform:uppercase;margin-bottom:.18rem;'>Discovered Secrets</div>${base.discoveredSecrets.slice(0,3).map((s)=>`<div style='font-size:.78rem;color:var(--muted2);margin-top:.14rem;'>• ${s}</div>`).join('')}</div>` : ''}
         </div>
 
-        <div style="border:1px solid var(--border2);padding:.5rem;margin-bottom:.45rem;">
-          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">People To Talk To</div>
-          <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Talk uses <strong>Lead vs Dread d6</strong>. Success reveals a secret.</div>
-          ${base.npcs.map((npc, idx) => `<div style='margin-top:.25rem;'><strong>${npc.name}</strong> (${npc.mood}) - ${npc.rumor}<div style='display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.2rem;'><button class='btn btn-xs btn-teal' onclick="factionSystem.talkNpc('${factionId}',${idx})">Talk (Lead vs d6)</button><button class='btn btn-xs btn-primary' onclick="factionSystem.generateNpcTask('${factionId}',${idx})">Generate Task Marker</button></div></div>`).join("")}
-          ${Array.isArray(base.discoveredSecrets) && base.discoveredSecrets.length ? `<div style='margin-top:.4rem;border-top:1px solid var(--border2);padding-top:.35rem;'><div style='font-family:Cinzel,serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);text-transform:uppercase;'>Discovered Secrets</div>${base.discoveredSecrets.slice(0,3).map((s)=>`<div style='font-size:.78rem;color:var(--muted2);margin-top:.2rem;'>• ${s}</div>`).join('')}</div>` : ''}
+        <!-- BASE INTERIOR ROOMS -->
+        <div style="border-left:3px solid rgba(126,215,255,.6);background:rgba(126,215,255,.04);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:#7ed7ff;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">🏛 Base Interior</div>
+          ${base.generatedRooms.length
+            ? base.generatedRooms.map((room, idx) => `<div style="font-size:.78rem;color:var(--text2);padding:.18rem 0;border-bottom:1px solid var(--border2);">${idx + 1}. ${room}</div>`).join("")
+            : `<div style="font-size:.76rem;color:var(--muted2);">No rooms generated yet.</div>`}
         </div>
 
-        <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem;">
-          <button class="btn btn-xs btn-primary" onclick="factionSystem.openMerchant('${factionId}')">Open Base Merchant</button>
-          <button class="btn btn-xs" onclick="factionSystem.generateRooms('${factionId}')">Generate Rooms</button>
-          <button class="btn btn-xs" onclick="factionSystem.rollEvents('${factionId}')">Roll New Events</button>
+        <!-- ACTIONS -->
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;padding-top:.2rem;">
+          <button class="btn btn-xs btn-primary" onclick="factionSystem.openMerchant('${factionId}')">🛒 Base Merchant</button>
+          <button class="btn btn-xs" onclick="factionSystem.generateRooms('${factionId}')">🗘 Generate Rooms</button>
         </div>
 
-        <div style="border:1px solid var(--border2);padding:.5rem;">
-          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;">Base Interior Rooms</div>
-          ${base.generatedRooms.map((room, idx) => `<div style='margin-top:.22rem;'>Room ${idx + 1}: ${room}</div>`).join("")}
-        </div>
       </div>
     `;
 

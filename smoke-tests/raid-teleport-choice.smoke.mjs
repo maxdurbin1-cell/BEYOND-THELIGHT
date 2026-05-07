@@ -82,7 +82,8 @@ async function runScenario(browser) {
     mission.legacyRaidBoss = "Ember Tyrant";
     mission.legacyRaidRegion = "province";
     mission.steps = mission.steps || {};
-    mission.steps[1] = mission.steps[1] || { completed: true };
+    mission.steps[1] = mission.steps[1] || {};
+    mission.steps[1].completed = true;
 
     if (!window.openRaidWingPopup(mission.id, 2)) {
       throw new Error("Failed to open Wing 2 popup.");

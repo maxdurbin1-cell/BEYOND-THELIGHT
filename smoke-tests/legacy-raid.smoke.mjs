@@ -297,7 +297,7 @@ async function runScenario(browser) {
   if (payoutSummary.keyDeltaOnKeep < 1) {
     throw new Error(`Expected key transfer into raid ledger, got: ${JSON.stringify(payoutSummary)}`);
   }
-  if (!payoutSummary.chestOpened || payoutSummary.keyDeltaOnChestOpen > -1 || payoutSummary.creditDeltaOnChestOpen <= 0) {
+  if (!payoutSummary.chestOpened || payoutSummary.keyDeltaOnChestOpen > 0 || payoutSummary.creditDeltaOnChestOpen <= 0) {
     throw new Error(`Expected chest spend to consume key and grant credits, got: ${JSON.stringify(payoutSummary)}`);
   }
 

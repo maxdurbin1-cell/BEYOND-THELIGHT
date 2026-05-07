@@ -1775,9 +1775,9 @@
   function buildHoldingHexMapHtml(crawl) {
     var nodeById = {};
     crawl.nodes.forEach(function (n) { if (n && n.id) nodeById[n.id] = n; });
-    var size = 30;
-    var ox = 280;
-    var oy = 170;
+    var size = 40;
+    var ox = 380;
+    var oy = 250;
     var toXY = function (q, r) {
       return {
         x: ox + (Math.sqrt(3) * size * (q + r / 2)),
@@ -1806,99 +1806,96 @@
       var fill = n.explored ? 'rgba(76,175,116,.2)' : 'rgba(20,30,44,.88)';
       return '<g>'
         + '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2" style="cursor:pointer;" onclick="selectHoldingSettlementDistrict(\'' + String(n.id) + '\')" />'
-        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y - 2).toFixed(1) + '" text-anchor="middle" font-size="10" fill="var(--gold2)">' + String(n.label || 'District').slice(0, 10) + '</text>'
-        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y + 12).toFixed(1) + '" text-anchor="middle" font-size="9" fill="var(--muted2)">' + (n.explored ? 'Visited' : 'New') + '</text>'
+        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y - 3).toFixed(1) + '" text-anchor="middle" font-size="12" fill="var(--gold2)">' + String(n.label || 'District').slice(0, 12) + '</text>'
+        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y + 15).toFixed(1) + '" text-anchor="middle" font-size="10" fill="var(--muted2)">' + (n.explored ? 'Visited' : 'New') + '</text>'
         + '</g>';
     }).join('');
-    return '<svg viewBox="0 0 560 340" style="width:100%;max-width:760px;height:auto;display:block;margin:0 auto;">' + edgeSvg + nodeSvg + '</svg>';
+    return '<svg viewBox="0 0 760 500" style="width:100%;max-width:1080px;height:auto;display:block;margin:0 auto;">' + edgeSvg + nodeSvg + '</svg>';
   }
 
-  function buildHoldingSettlementHexcrawlModal() {
+  function buildHoldingSettlementHexcrawlModal(opts) {
+    opts = opts || {};
     var crawl = ensureHoldingSettlementHexcrawl();
-    crawl.visitCount = Number(crawl.visitCount || 0) + 1;
-    rollHoldingAmbientState(crawl);
+    if (opts.advanceVisit !== false) {
+      crawl.visitCount = Number(crawl.visitCount || 0) + 1;
+      rollHoldingAmbientState(crawl);
+    } else if (!crawl.ambient || !crawl.ambient.scene) {
+      rollHoldingAmbientState(crawl);
+    }
     var active = crawl.nodes.find(function (n) { return String(n.id || '') === String(crawl.activeNodeId || ''); }) || crawl.nodes[0];
     var stats = crawl.stats || {};
     var statsHtml = ['security', 'food', 'wealth', 'faith', 'fear', 'mystery', 'health'].map(function (k) {
       var v = Math.max(0, Math.min(10, Number(stats[k] || 0)));
-      return '<div style="font-size:.66rem;color:var(--muted2);">' + k.toUpperCase() + ': <strong style="color:var(--text2);">' + v + '/10</strong></div>';
+      return '<div style="font-size:.68rem;color:var(--muted2);padding:.1rem .25rem;border:1px solid rgba(255,255,255,.06);">' + k.toUpperCase() + ': <strong style="color:var(--text2);">' + v + '/10</strong></div>';
     }).join('');
     var ambient = crawl.ambient || {};
+    var historyHtml = (Array.isArray(crawl.history) ? crawl.history : []).slice(0, 4).map(function (line) {
+      return '<div style="font-size:.68rem;color:var(--muted2);">• ' + String(line || '') + '</div>';
+    }).join('');
     var micro = active && Array.isArray(active.microLocations) ? active.microLocations : [];
-    var microHtml = micro.map(function (m) { return '<div style="font-size:.66rem;color:var(--text2);">- ' + m + '</div>'; }).join('');
+    var microHtml = micro.map(function (m) { return '<div style="font-size:.7rem;color:var(--text2);">- ' + m + '</div>'; }).join('');
     var actionButton = active && !active.explored
       ? '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Explore (Action vs DD' + Number(active.dd || 6) + ')</button>'
       : '<span style="font-size:.68rem;color:var(--green2);">District already resolved this visit.</span>';
-    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;margin-bottom:.28rem;">'
-      + '<strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1)
-      + '<div style="font-size:.68rem;color:var(--teal);margin-top:.06rem;">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
+    var districtButtons = '';
+    if (active) {
+      if (active.kind === 'inn') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest At Inn</button>';
+      if (active.kind === 'lord') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience With Lord</button>';
+      if (active.kind === 'merchant_items') {
+        districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_item\')">Buy Rations (50₵)</button>';
+        districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_tools\')">Buy Tools (65₵)</button>';
+        districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_medicine\')">Buy Medicine (85₵)</button>';
+      }
+      if (active.kind === 'merchant_weapons') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_weapon\')">Buy Weapon+ (120₵)</button>';
+      if (active.kind === 'mission') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'mission\')">Generate Task/Mission</button>';
+      if (active.kind === 'downtime') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'downtime\')">Province Downtime</button>';
+    }
+
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;display:grid;gap:.4rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.04);padding:.45rem;">'
+      + '<div style="font-size:.74rem;color:var(--gold2);letter-spacing:.05em;text-transform:uppercase;"><strong>Overview Of The Holding</strong></div>'
+      + '<div style="margin-top:.16rem;font-size:.78rem;color:var(--text2);"><strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
+      + '<div style="margin-top:.12rem;font-size:.72rem;color:var(--muted2);">Type: ' + String(crawl.holdingType || 'Settlement') + ' · Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + ' · Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + '</div>'
+      + '<div style="margin-top:.12rem;font-size:.72rem;color:var(--teal);">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + '</div>'
+      + '<div style="margin-top:.16rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:.2rem;">' + statsHtml + '</div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,1fr);gap:.35rem;">'
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.3rem;">'
+
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.42rem;">'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;"><strong>Big Screen Of The Hex</strong></div>'
       + buildHoldingHexMapHtml(crawl)
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.18rem;">'
+      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.2rem;">'
       + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(1)">+1 Hour</button>'
       + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(6)">+6 Hours</button>'
       + '<button class="btn btn-xs btn-teal" onclick="openHoldingSettlementHexcrawl()">Refresh Scene</button>'
       + '</div>'
       + '</div>'
-      + '<div style="display:flex;flex-direction:column;gap:.24rem;">'
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
-      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Holding Overview</strong></div>'
-      + '<div style="font-size:.66rem;color:var(--text2);">Type: ' + String(crawl.holdingType || 'Settlement') + '</div>'
-      + '<div style="font-size:.66rem;color:var(--text2);">Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + '</div>'
-      + '<div style="font-size:.66rem;color:var(--muted2);">Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + ' · ' + String((window.WEATHER && window.WEATHER[S.currentSeason || 'spring']) ? 'Clear and Warm' : 'Clear and Warm') + '</div>'
-      + '</div>'
-      + '<div style="border:1px solid var(--border2);background:rgba(0,0,0,.16);padding:.28rem;">'
-      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;"><strong>Ambient Pulse</strong></div>'
-      + '<div style="font-size:.68rem;color:var(--text2);">' + String(ambient.scene || 'The holding stirs.') + '</div>'
-      + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Active district: ' + String(ambient.activeDistrict || 'Unknown District') + '</div>'
-      + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '</div>'
-      + '<div style="font-size:.64rem;color:var(--muted2);">Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '</div>'
-      + '<div style="font-size:.64rem;color:var(--gold2);">Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
-      + '<div style="font-size:.64rem;color:var(--muted2);">' + String(ambient.npcMovement || '') + '</div>'
-      + '</div>'
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
-      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Holding Pressure Gauges</strong></div>'
-      + statsHtml
-      + '</div>'
-      + (active ? ('<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
-          + '<div style="font-size:.72rem;color:var(--gold2);"><strong>' + active.label + '</strong></div>'
-          + '<div style="font-size:.66rem;color:var(--text2);margin-top:.08rem;">' + active.atmosphere + '</div>'
-          + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
-          + '<div style="font-size:.66rem;color:var(--muted2);">Hidden: ' + active.hiddenThing + ' · Interactable: ' + active.interactable + '</div>'
-          + '<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">Micro-Locations</div>'
-          + microHtml
-          + '<div style="margin-top:.14rem;display:flex;gap:.2rem;flex-wrap:wrap;">'
-          + (active.kind === 'inn' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest At Inn</button>' : '')
-          + (active.kind === 'lord' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience With Lord</button>' : '')
-          + (active.kind === 'merchant_items' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_item\')">Buy Item (50c)</button>' : '')
-          + (active.kind === 'merchant_weapons' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_weapon\')">Buy Weapon+ (120c)</button>' : '')
-          + (active.kind === 'mission' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'mission\')">Generate Task/Mission</button>' : '')
-          + (active.kind === 'downtime' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'downtime\')">Province Downtime</button>' : '')
-          + '</div>'
-          + (active.result ? '<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">' + active.result + '</div>' : '')
-          + '<div style="margin-top:.18rem;">' + actionButton + '</div>'
-          + '</div>') : '')
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
-      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;"><strong>Settlement Actions</strong></div>'
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs" onclick="if(typeof generateTask===\'function\')generateTask();">Generate Task</button>'
-      + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'talk\')">Talk To People</button>'
-      + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'task\')">Run A Task</button>'
-      + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'explore\')">Explore Province</button>'
-      + '</div>'
-      + '</div>'
-      + '<div style="border:1px solid var(--border2);background:rgba(46,196,182,.08);padding:.28rem;">'
-      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Market & Stores</strong></div>'
-      + '<div style="font-size:.66rem;color:var(--text2);margin-bottom:.14rem;">Buy practical supplies from local vendors to simulate daily settlement commerce.</div>'
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs btn-teal" onclick="runHoldingDistrictActionByKind(\'merchant_items\',\'buy_item\')">Ration Kit (50₵)</button>'
-      + '<button class="btn btn-xs" onclick="runHoldingDistrictActionByKind(\'merchant_items\',\'buy_tools\')">Tool Kit (65₵)</button>'
-      + '<button class="btn btn-xs" onclick="runHoldingDistrictActionByKind(\'merchant_items\',\'buy_medicine\')">Medicine (85₵)</button>'
-      + '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictActionByKind(\'merchant_weapons\',\'buy_weapon\')">Weapon+ (120₵)</button>'
-      + '</div>'
-      + '</div>'
+
+      + (active ? ('<div style="border:1px solid var(--border2);background:rgba(0,0,0,.14);padding:.42rem;">'
+        + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Per Hex Information</strong></div>'
+        + '<div style="font-size:.84rem;color:var(--text);"><strong>' + active.label + '</strong> <span style="font-size:.72rem;color:var(--muted2);">(' + (active.explored ? 'Visited' : 'Unexplored') + ')</span></div>'
+        + '<div style="font-size:.72rem;color:var(--text2);margin-top:.12rem;line-height:1.55;">' + active.atmosphere + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.12rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
+        + '<div style="font-size:.7rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
+        + '<div style="font-size:.7rem;color:var(--teal);margin-top:.12rem;">Micro-Locations</div>'
+        + microHtml
+        + '<div style="margin-top:.18rem;display:flex;gap:.2rem;flex-wrap:wrap;">' + actionButton + '</div>'
+        + '<div style="margin-top:.16rem;display:flex;gap:.2rem;flex-wrap:wrap;">' + districtButtons + '</div>'
+        + '<div style="margin-top:.16rem;display:flex;gap:.2rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'talk\')">Walk Streets</button>'
+        + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'task\')">Do Local Work</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictActionByKind(\'merchant_items\',\'buy_item\')">Market Purchase</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictActionByKind(\'merchant_weapons\',\'buy_weapon\')">Visit Smith</button>'
+        + '</div>'
+        + (active.result ? '<div style="font-size:.7rem;color:var(--gold2);margin-top:.14rem;line-height:1.5;">' + active.result + '</div>' : '')
+        + '</div>') : '')
+
+      + '<div style="border:1px solid var(--border2);background:rgba(46,196,182,.08);padding:.36rem;">'
+      + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Settlement Life</strong></div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.55;">' + String(ambient.scene || 'The holding stirs.') + '<br>Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '<br>Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
+      + (historyHtml ? ('<div style="margin-top:.14rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.12rem;">'
+        + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.06rem;">Recent District Activity</div>'
+        + historyHtml
+        + '</div>') : '')
       + '</div>'
       + '</div>';
     return html;
@@ -1915,11 +1912,13 @@
     if (action === 'rest') {
       if (typeof toggleCond === 'function' && S.conditions && !S.conditions.protected) toggleCond('protected');
       if (typeof changeMentalStress === 'function') changeMentalStress(-1);
+      crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 1);
       msg = 'You rest at the inn. Protected applied and stress eased.';
     } else if (action === 'audience') {
       if (typeof changeCounter === 'function') changeCounter('renown', 1);
       S.holding.councilTasks = Array.isArray(S.holding.councilTasks) ? S.holding.councilTasks : [];
       S.holding.councilTasks.push('Lord mission: secure outlying district route.');
+      crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
       msg = 'Audience complete. +1 Renown and a new mission directive.';
     } else if (action === 'buy_item') {
       if (Number(S.credits || 0) < 50) msg = 'Not enough credits.';
@@ -1927,6 +1926,7 @@
         S.credits = Math.max(0, Number(S.credits || 0) - 50);
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
         if (typeof addToBackpack === 'function') addToBackpack('Ration Kit');
+        crawl.stats.food = Math.min(10, Number((crawl.stats && crawl.stats.food) || 0) + 1);
         msg = 'Purchased item: Ration Kit (-50 Credits).';
       }
     } else if (action === 'buy_tools') {
@@ -1935,6 +1935,7 @@
         S.credits = Math.max(0, Number(S.credits || 0) - 65);
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
         if (typeof addToBackpack === 'function') addToBackpack('Tool Kit');
+        crawl.stats.wealth = Math.min(10, Number((crawl.stats && crawl.stats.wealth) || 0) + 1);
         msg = 'Purchased item: Tool Kit (-65 Credits).';
       }
     } else if (action === 'buy_medicine') {
@@ -1943,6 +1944,7 @@
         S.credits = Math.max(0, Number(S.credits || 0) - 85);
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
         if (typeof addToBackpack === 'function') addToBackpack('Medicine Satchel');
+        crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 1);
         msg = 'Purchased item: Medicine Satchel (-85 Credits).';
       }
     } else if (action === 'buy_weapon') {
@@ -1951,6 +1953,7 @@
         S.credits = Math.max(0, Number(S.credits || 0) - 120);
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
         if (typeof addToBackpack === 'function') addToBackpack('Weapon+ Voucher');
+        crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
         msg = 'Purchased Weapon+ voucher (-120 Credits).';
       }
     } else if (action === 'mission') {
@@ -1961,8 +1964,13 @@
       msg = 'Province holding downtime initiated.';
     }
     node.result = msg || node.result;
+    crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
+    if (msg) {
+      crawl.history.unshift(String(node.label || 'District') + ': ' + msg);
+      crawl.history = crawl.history.slice(0, 12);
+    }
     if (typeof showNotif === 'function' && msg) showNotif(msg, msg.toLowerCase().indexOf('not enough') >= 0 ? 'warn' : 'good');
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
 
   function runHoldingDistrictActionByKind(kind, action) {
@@ -1973,11 +1981,12 @@
       if (typeof showNotif === 'function') showNotif('No active district is available in this holding.', 'warn');
       return;
     }
+    crawl.activeNodeId = target.id;
     runHoldingDistrictAction(target.id, action);
   }
 
   function openHoldingSettlementHexcrawl() {
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: true }));
   }
 
   function selectHoldingSettlementDistrict(nodeId) {
@@ -1988,10 +1997,10 @@
     var eventPool = crawl.ambientTables && Array.isArray(crawl.ambientTables.scenes) ? crawl.ambientTables.scenes : [];
     if (eventPool.length) {
       var ev = eventPool[Math.floor(Math.random() * eventPool.length)];
-      node.result = 'District event: ' + ev;
+      if (!node.result || Math.random() < 0.35) node.result = 'District event: ' + ev;
       if (typeof showNotif === 'function') showNotif(node.label + ': ' + ev, 'info');
     }
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
 
   function advanceHoldingSettlementTime(hours) {
@@ -2005,8 +2014,9 @@
     crawl.stats = crawl.stats || {};
     crawl.stats.fear = Math.max(0, Math.min(10, Number(crawl.stats.fear || 0) + (crawl.timeOfDay === 'night' ? 1 : 0)));
     crawl.stats.security = Math.max(0, Math.min(10, Number(crawl.stats.security || 0) + (crawl.timeOfDay === 'night' ? -1 : 0)));
+    rollHoldingAmbientState(crawl);
     if (typeof showNotif === 'function') showNotif('Time advanced to ' + String(crawl.timeOfDay).toUpperCase() + '.', 'info');
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
 
   function resolveHoldingSettlementHexNode(nodeId) {
@@ -2083,7 +2093,7 @@
     });
     node.result = line;
     if (typeof showNotif === 'function') { showNotif(line, success ? 'good' : 'warn'); }
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
     renderHoldingUI();
   }
 

@@ -15249,12 +15249,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!segments.length)return '';
     const fog=fogInfo||getProvinceDepthsFogInfo(floorState);
     const selectedIdx=Math.max(0,Math.min(segments.length-1,parseInt(floorState.selectedIdx,10)||0));
-    const spacing=24;
-    const size=14;
+    const spacing=30;
+    const size=18;
     const placed=segments.map(function(segment,idx){
       const coord=getProvinceDepthsSpiralCoord(idx+1);
-      const x=Math.round(coord.q*spacing+180);
-      const y=Math.round((coord.r+coord.q*0.5)*(spacing*0.94)+112);
+      const x=Math.round(coord.q*spacing+230);
+      const y=Math.round((coord.r+coord.q*0.5)*(spacing*0.94)+145);
       return {segment:segment,idx:idx,x:x,y:y};
     });
     const links=[];
@@ -15272,13 +15272,13 @@ document.addEventListener('DOMContentLoaded',()=>{
       const label=fog.frontierMask[node.idx]?('Segment '+(segment.idx||node.idx+1)+' frontier'):(segment.idx||node.idx+1)+' '+(segment.kind||'Segment');
       return '<g style="cursor:pointer;" onclick="selectProvinceDepthsSegment('+col+','+row+','+node.idx+')">'
         +'<polygon points="'+points+'" fill="'+visual.fill+'" stroke="'+visual.stroke+'" stroke-width="1.4"></polygon>'
-        +'<text x="'+node.x+'" y="'+(node.y+4)+'" text-anchor="middle" font-size="11" fill="var(--text)">'+visual.icon+'</text>'
+        +'<text x="'+node.x+'" y="'+(node.y+5)+'" text-anchor="middle" font-size="13" fill="var(--text)">'+visual.icon+'</text>'
         +'<title>'+label+'</title>'
         +'</g>';
     }).join('');
     return '<div style="border:1px solid rgba(126,215,255,.25);background:rgba(9,18,24,.55);padding:.35rem;border-radius:4px;margin-bottom:.5rem;">'
       +'<div style="font-size:.68rem;color:#7ed7ff;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.25rem;">Mapped Crawl (click a node)</div>'
-      +'<svg viewBox="0 0 360 230" style="width:100%;height:auto;display:block;">'+links.join('')+cells+'</svg>'
+      +'<svg viewBox="0 0 460 300" style="width:100%;height:auto;display:block;">'+links.join('')+cells+'</svg>'
         +'<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Fog of war: discovered nodes are solid; frontier nodes are faint outlines.</div>'
       +'</div>';
   }

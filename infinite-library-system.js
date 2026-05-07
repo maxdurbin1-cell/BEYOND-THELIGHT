@@ -868,7 +868,6 @@
       rewardCredits(12 + dd);
       revealLibraryDoors(state, floor, node.idx - 1);
     } else {
-      applyFailureConsequence('explore');
       var mentalStressPenalty = 2;
       var healthPenalty = 1;
       var radiationExposure = 1;

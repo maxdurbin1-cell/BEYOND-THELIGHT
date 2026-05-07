@@ -11220,6 +11220,8 @@ function renderHexInfo(hex){
 
   // ── SEAT / HOLDING ──
   }else if(hex.type==='seat'||hex.type==='holding'){
+    html+=`<div class="wild-panel"><div class="wp-label">${hex.type==='holding'?'Holding':'Site of Power'}</div><div class="wp-text">Settlement</div></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">🌦 Weather</div><div class="wp-text">${(S.currentSeason||'spring').toUpperCase()}: ${(weatherResult&&weatherResult.title)||'Clear and Warm'}<br>${(weatherResult&&weatherResult.desc)||'A fine spring day. Nothing impedes the road.'}</div></div>`;
     // Rest boon banner
     html+=`<div class="rest-boon" style="background:rgba(201,162,39,.06);border-color:rgba(201,162,39,.4);">
       <div class="rb-label" style="color:var(--gold);">🛡 Rest Boon</div>
@@ -11231,14 +11233,8 @@ function renderHexInfo(hex){
     const crisisActionLabel=(crisisText.toLowerCase().indexOf('strengthen defense')>=0||String(m.mood||'').toLowerCase()==='fear')?'🛡 Aid Defenders':'🤝 Stabilize Holding';
     html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div>${hasHoldingCrisis?`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveHoldingCrisisAction(${hex.col},${hex.row})">${crisisActionLabel}</button></div>`:''}</div>`;
     if(d.lord)html+=`<div class="wild-panel"><div class="wp-label">Lord</div><div class="wp-text">${d.lord}</div></div>`;
-    if(d.style&&d.feature)html+=`<div class="wild-panel"><div class="wp-label">Character</div><div class="wp-text">${d.style} ${d.feature}</div></div>`;
-    if(d.cultural)html+=`<div class="wild-panel"><div class="wp-label">Cultural Focus</div><div class="wp-text">${d.cultural}</div></div>`;
-    if(d.food)html+=`<div class="info-row"><div class="info-cell"><span class="ic-label">Food</span>${d.food}</div><div class="info-cell"><span class="ic-label">Goods</span>${d.goods||'—'}</div></div>`;
-    if(d.news)html+=`<div class="wild-panel"><div class="wp-label">📰 News & Hooks</div><div class="wp-text">${d.news}</div></div>`;
     html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
-    html+=`<div style="margin:.35rem 0;"><button class="btn btn-sm btn-primary" onclick="if(typeof generateTaskForHex==='function')generateTaskForHex(${hex.col},${hex.row});else generateTask();">⚄ Generate Task</button></div>`;
-    if(hex.type==='holding')html+=`<div style="margin:.2rem 0;"><button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();else alert('Holdings system not ready');">◫ Enter Holding</button></div>`;
-    html+=buildProvinceHoldingDowntimePanel(hex);
+    html+=`<div style="margin:.2rem 0;"><button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();else alert('Holdings system not ready');">◫ Enter Holding</button></div>`;
 
   // ── DWELLING ──
   }else if(hex.type==='dwelling'){
@@ -15322,7 +15318,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms))return null;
     const rooms=hex.data.provinceRuinRooms;
     if(!hex.data.provinceRuinHexcrawl||typeof hex.data.provinceRuinHexcrawl!=='object'){
-      hex.data.provinceRuinHexcrawl={nodes:[],edges:[]};
+      hex.data.provinceRuinHexcrawl={nodes:[],edges:[],currentNodeId:'r0',secretRevealed:false};
     }
     if(!Array.isArray(hex.data.provinceRuinHexcrawl.nodes))hex.data.provinceRuinHexcrawl.nodes=[];
     if(!Array.isArray(hex.data.provinceRuinHexcrawl.edges))hex.data.provinceRuinHexcrawl.edges=[];
@@ -15372,6 +15368,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     nextNodes.forEach(function(n){ n.revealed=!!frontier[n.id]; });
     hex.data.provinceRuinHexcrawl.nodes=nextNodes;
     hex.data.provinceRuinHexcrawl.edges=edges;
+    if(!hex.data.provinceRuinHexcrawl.currentNodeId||!nextNodes.some(function(n){return n.id===hex.data.provinceRuinHexcrawl.currentNodeId;})){
+      hex.data.provinceRuinHexcrawl.currentNodeId=nextNodes.length?nextNodes[0].id:'r0';
+    }
     return hex.data.provinceRuinHexcrawl;
   }
 
@@ -15382,17 +15381,38 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!crawl||!Array.isArray(crawl.nodes))return;
     const node=crawl.nodes.find(function(entry){ return entry&&String(entry.id)===String(nodeId); });
     if(!node)return;
+    crawl.currentNodeId=node.id;
     if(!node.revealed){
       showNotif('This room is still hidden. Clear a connected room first.','warn');
+      openProvinceRuinPopup(col,row);
       return;
     }
-    const room=hex.data.provinceRuinRooms[node.roomIdx];
-    if(!room)return;
-    if(room.cleared){
-      showNotif('This ruin node is already cleared.','info');
+    openProvinceRuinPopup(col,row);
+  };
+
+  window.revealProvinceRuinSecretHex = function(col,row){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='ruins'; });
+    if(!hex||!hex.data||!Array.isArray(hex.data.provinceRuinRooms))return;
+    const crawl=ensureProvinceRuinHexcrawlState(hex);
+    if(crawl&&crawl.secretRevealed){
+      showNotif('The hidden room has already been revealed in this ruin.', 'info');
       return;
     }
-    resolveProvinceRuinRoom(col,row,node.roomIdx);
+    const nextIdx=hex.data.provinceRuinRooms.length+1;
+    hex.data.provinceRuinRooms.push({
+      idx:nextIdx,
+      type:'Hidden Annex',
+      cleared:false,
+      result:'',
+      description:'A sealed chamber behind fractured masonry. Dustless footprints curve toward a locked reliquary.'
+    });
+    if(crawl){
+      crawl.secretRevealed=true;
+    }
+    ensureProvinceRuinHexcrawlState(hex);
+    syncProvinceRuinStateSoon('province-ruin-secret');
+    showNotif('A secret ruin hex was revealed.', 'good');
+    openProvinceRuinPopup(col,row);
   };
 
   function getProvinceRuinBlockingPuzzleIndex(rooms){
@@ -15494,28 +15514,31 @@ document.addEventListener('DOMContentLoaded',()=>{
     const ruinHexcrawl=ensureProvinceRuinHexcrawlState(hex);
     if(generatedRuinRooms)syncProvinceRuinStateSoon('province-ruin-generated');
     const blockingPuzzleIdx=getProvinceRuinBlockingPuzzleIndex(hex.data.provinceRuinRooms);
-    const rows=hex.data.provinceRuinRooms.map(function(room,i){
-      const typeColor = room.type==='Boss Chamber'?'var(--red2)':room.type==='Secret Cache'?'var(--gold)':room.type==='Shrine Room'?'var(--purple)':room.type==='Puzzle'?'var(--teal)':'var(--text2)';
-      const typeIcon = room.type==='Entrance'?'🚪':room.type==='Lair'?'👁':room.type==='Obstacle'?'⛰':room.type==='Trap'?'⚠':room.type==='Puzzle'?'🧩':room.type==='Secret Cache'?'🔍':room.type==='Boss Chamber'?'💀':room.type==='Shrine Room'?'✦':'◻';
-      let roomDesc = room.description || buildProvinceRuinRoomDescription(hex,room);
-      const dreadForRoom = room.type==='Boss Chamber'?12:room.type==='Horror'?10:room.type==='Trap'||room.type==='Obstacle'?6:8;
-      const trapNote = room.type==='Trap'&&getProvinceRuinTrapCharge()>0?'<div style="font-size:.72rem;color:var(--gold2);margin-top:.2rem;">Reveal Traps is active: this trap will be exposed and disarmed.</div>':'';
-      const puzzleLocked = !room.cleared && blockingPuzzleIdx>=0 && i>blockingPuzzleIdx;
-      const actionHtml = room.cleared
-        ? '<div style="font-size:.7rem;color:var(--green);margin-top:.2rem;">✓ Cleared</div>'
-        : puzzleLocked
-          ? '<div style="font-size:.72rem;color:var(--red2);margin-top:.2rem;">🔒 Progress blocked by an unsolved puzzle in an earlier room.</div>'
-        : room.type==='Puzzle'
-          ? '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="startProvinceRuinPuzzle('+col+','+row+','+i+')">🧩 Solve Puzzle</button></div>'
-          : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+i+')">⚄ Explore (Action vs DD'+dreadForRoom+')</button></div>';
-      return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid '+typeColor+';padding-left:.5rem;">'
-        + '<div class="rb-title" style="color:'+typeColor+';">'+typeIcon+' Room '+room.idx+' — '+room.type+'</div>'
-        + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">'+roomDesc+'</div>'
-        + trapNote
-        + (room.result?('<div style="margin-top:.28rem;padding:.25rem .4rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);">'+room.result+'</div>'):'')
-        + actionHtml
-      + '</div>';
-    }).join('');
+    const activeNodeId=(ruinHexcrawl&&ruinHexcrawl.currentNodeId)?String(ruinHexcrawl.currentNodeId):'r0';
+    const activeNode=ruinHexcrawl&&Array.isArray(ruinHexcrawl.nodes)?ruinHexcrawl.nodes.find(function(n){ return n&&String(n.id)===activeNodeId; }):null;
+    const activeIdx=activeNode?Number(activeNode.roomIdx||0):0;
+    const room=hex.data.provinceRuinRooms[activeIdx]||hex.data.provinceRuinRooms[0];
+    const roomI=Math.max(0,activeIdx);
+    const typeColor = room.type==='Boss Chamber'?'var(--red2)':room.type==='Secret Cache'?'var(--gold)':room.type==='Shrine Room'?'var(--purple)':room.type==='Puzzle'?'var(--teal)':'var(--text2)';
+    const typeIcon = room.type==='Entrance'?'🚪':room.type==='Lair'?'👁':room.type==='Obstacle'?'⛰':room.type==='Trap'?'⚠':room.type==='Puzzle'?'🧩':room.type==='Secret Cache'?'🔍':room.type==='Boss Chamber'?'💀':room.type==='Shrine Room'?'✦':'◻';
+    let roomDesc = room.description || buildProvinceRuinRoomDescription(hex,room);
+    const dreadForRoom = room.type==='Boss Chamber'?12:room.type==='Horror'?10:room.type==='Trap'||room.type==='Obstacle'?6:8;
+    const trapNote = room.type==='Trap'&&getProvinceRuinTrapCharge()>0?'<div style="font-size:.72rem;color:var(--gold2);margin-top:.2rem;">Reveal Traps is active: this trap will be exposed and disarmed.</div>':'';
+    const puzzleLocked = !room.cleared && blockingPuzzleIdx>=0 && roomI>blockingPuzzleIdx;
+    const actionHtml = room.cleared
+      ? '<div style="font-size:.7rem;color:var(--green);margin-top:.2rem;">✓ Cleared</div>'
+      : puzzleLocked
+        ? '<div style="font-size:.72rem;color:var(--red2);margin-top:.2rem;">🔒 Progress blocked by an unsolved puzzle in an earlier room.</div>'
+      : room.type==='Puzzle'
+        ? '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="startProvinceRuinPuzzle('+col+','+row+','+roomI+')">🧩 Solve Puzzle</button></div>'
+        : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+roomI+')">⚄ Explore (Action vs DD'+dreadForRoom+')</button></div>';
+    const currentRoomCard='<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid '+typeColor+';padding-left:.5rem;">'
+      + '<div class="rb-title" style="color:'+typeColor+';">'+typeIcon+' Room '+room.idx+' — '+room.type+'</div>'
+      + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">'+roomDesc+'</div>'
+      + trapNote
+      + (room.result?('<div style="margin-top:.28rem;padding:.25rem .4rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);">'+room.result+'</div>'):'')
+      + actionHtml
+    + '</div>';
     const cleared = hex.data.provinceRuinRooms.filter(function(r){return r.cleared;}).length;
     const total = hex.data.provinceRuinRooms.length;
     const hexcrawlHtml = ruinHexcrawl&&Array.isArray(ruinHexcrawl.nodes)&&ruinHexcrawl.nodes.length
@@ -15557,7 +15580,7 @@ document.addEventListener('DOMContentLoaded',()=>{
               const stroke=clearedNode?'rgba(76,175,116,.85)':'rgba(126,215,255,.55)';
               const label=(room.type||'Room').slice(0,6).toUpperCase();
               return '<g>'
-                + '<polygon points="'+hexPts(p.x,p.y)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="2" style="cursor:pointer;" onclick="exploreProvinceRuinHexNode('+col+','+row+',\''+String(n.id)+'\')" />'
+                + '<polygon points="'+hexPts(p.x,p.y)+'" fill="'+fill+'" stroke="'+(String(n.id)===String(activeNodeId)?'var(--gold2)':stroke)+'" stroke-width="2" style="cursor:pointer;" onclick="exploreProvinceRuinHexNode('+col+','+row+',\''+String(n.id)+'\')" />'
                 + '<text x="'+p.x.toFixed(1)+'" y="'+(p.y-2).toFixed(1)+'" text-anchor="middle" font-size="10" fill="var(--gold2)">#'+String((n.roomIdx||0)+1)+'</text>'
                 + '<text x="'+p.x.toFixed(1)+'" y="'+(p.y+10).toFixed(1)+'" text-anchor="middle" font-size="8" fill="var(--muted2)">'+label+'</text>'
                 + '</g>';
@@ -15568,6 +15591,9 @@ document.addEventListener('DOMContentLoaded',()=>{
               return '<div style="font-size:.68rem;color:var(--text2);">Hex '+String((n.roomIdx||0)+1)+' · '+String(room.type||'Room')+' · <span style="color:'+((room&&room.cleared)?'var(--green2)':'var(--teal)')+';">'+state+'</span></div>';
             }).join('');
             return '<svg viewBox="0 0 400 260" style="width:100%;max-width:520px;height:auto;display:block;margin:0 auto .24rem;">'+edgeSvg+nodeSvg+'</svg>'
+              + '<div style="display:flex;gap:.24rem;justify-content:flex-end;margin-bottom:.16rem;">'
+              + '<button class="btn btn-xs btn-primary" onclick="revealProvinceRuinSecretHex('+col+','+row+')">Reveal Secret Location</button>'
+              + '</div>'
               + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.2rem;">'+listHtml+'</div>';
           })()
       + '</div>'
@@ -15579,7 +15605,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">'+cleared+'/'+total+' rooms explored</div>'
       + progressBar
       + '</div>';
-    openModal('◫ Province Ruins — '+(hex.name||'Unknown Ruin'), header+hexcrawlHtml+rows);
+    openModal('◫ Province Ruins — '+(hex.name||'Unknown Ruin'), header+hexcrawlHtml+currentRoomCard);
   };
 
   window.resolveProvinceRuinRoom = function(col,row,idx){

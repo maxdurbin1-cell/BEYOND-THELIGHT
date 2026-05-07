@@ -1593,13 +1593,23 @@
     }
 
     function buildDistrict(archetype, id, label, idx) {
+      function inferKind(text) {
+        var t = String(text || '').toLowerCase();
+        if (t.indexOf('inn') >= 0 || t.indexOf('tavern') >= 0 || t.indexOf('pilgrim') >= 0) return 'inn';
+        if (t.indexOf('hall') >= 0 || t.indexOf('steward') >= 0 || t.indexOf('lord') >= 0) return 'lord';
+        if (t.indexOf('market') >= 0 || t.indexOf('harbor') >= 0 || t.indexOf('dock') >= 0) return 'merchant_items';
+        if (t.indexOf('foundry') >= 0 || t.indexOf('barracks') >= 0 || t.indexOf('watch') >= 0 || t.indexOf('armory') >= 0) return 'merchant_weapons';
+        if (t.indexOf('archive') >= 0 || t.indexOf('court') >= 0 || t.indexOf('shrine') >= 0 || t.indexOf('bell') >= 0) return 'mission';
+        if (t.indexOf('gate') >= 0 || t.indexOf('ward') >= 0 || t.indexOf('square') >= 0 || t.indexOf('lane') >= 0) return 'downtime';
+        return 'district';
+      }
       var microCount = 2 + Math.floor(Math.random() * 4);
       var micro = [];
       for (var mi = 0; mi < microCount; mi++) micro.push(pickLocal(archetype.microPool));
       return {
         id: id,
         label: label,
-        kind: String(label || 'district').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        kind: inferKind(label),
         dd: 6 + (idx % 3 === 0 ? 2 : 0) + (String(archetype.key || '') === 'Spire' ? 1 : 0),
         explored: false,
         revealed: idx === 0,
@@ -1658,23 +1668,42 @@
       var districts = (archetype.districts || archetypes.Fortress.districts).slice();
       var count = Math.max(3, Math.min(8, districts.length - Math.floor(Math.random() * 2)));
       districts = districts.slice(0, count);
-      var coords = [
-        { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: 1, r: 1 },
-        { q: 2, r: 0 }, { q: -1, r: 1 }, { q: 2, r: 1 }, { q: 1, r: 2 }
-      ];
+      var topoByType = {
+        Fortress: {
+          coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 2, r: 0 }],
+          edges: [['d0', 'd1'], ['d0', 'd2'], ['d0', 'd3'], ['d0', 'd4'], ['d0', 'd5'], ['d0', 'd6'], ['d1', 'd7']]
+        },
+        Haven: {
+          coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }, { q: 0, r: 1 }, { q: 0, r: -1 }, { q: -1, r: 1 }, { q: -1, r: 0 }, { q: 1, r: 1 }],
+          edges: [['d0', 'd1'], ['d1', 'd2'], ['d0', 'd3'], ['d0', 'd4'], ['d0', 'd5'], ['d0', 'd6'], ['d3', 'd7']]
+        },
+        Spire: {
+          coords: [{ q: 0, r: 0 }, { q: 0, r: 1 }, { q: 0, r: 2 }, { q: 0, r: 3 }, { q: 0, r: 4 }, { q: 1, r: 1 }, { q: 1, r: 2 }, { q: -1, r: 2 }],
+          edges: [['d0', 'd1'], ['d1', 'd2'], ['d2', 'd3'], ['d3', 'd4'], ['d1', 'd5'], ['d2', 'd6'], ['d2', 'd7']]
+        },
+        Citadel: {
+          coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 2, r: 0 }],
+          edges: [['d0', 'd1'], ['d0', 'd2'], ['d0', 'd3'], ['d0', 'd4'], ['d0', 'd5'], ['d0', 'd6'], ['d1', 'd7']]
+        },
+        Keep: {
+          coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 4, r: 0 }, { q: 1, r: 1 }, { q: 3, r: -1 }, { q: 2, r: 1 }],
+          edges: [['d0', 'd1'], ['d1', 'd2'], ['d2', 'd3'], ['d3', 'd4'], ['d1', 'd5'], ['d3', 'd6'], ['d2', 'd7']]
+        }
+      };
+      var topo = topoByType[type] || topoByType.Fortress;
+      var coords = topo.coords;
       var nodes = districts.map(function (label, idx) {
         var node = buildDistrict(archetype, 'd' + String(idx), label, idx);
         node.q = (coords[idx] || { q: idx, r: 0 }).q;
         node.r = (coords[idx] || { q: idx, r: 0 }).r;
+        node.revealed = true;
         return node;
       });
-      var edges = [];
-      if (nodes.length > 1) edges.push(['d0', 'd1']);
-      if (nodes.length > 2) edges.push(['d0', 'd2']);
-      for (var ei = 3; ei < nodes.length; ei++) {
-        edges.push(['d' + String(ei - 1), 'd' + String(ei)]);
-        if (ei % 2 === 0) edges.push(['d' + String(ei - 2), 'd' + String(ei)]);
-      }
+      var edges = (topo.edges || []).filter(function (e) {
+        var a = Number(String(e[0] || '').replace('d', ''));
+        var b = Number(String(e[1] || '').replace('d', ''));
+        return a < nodes.length && b < nodes.length;
+      });
       S.holding.settlementHexcrawl = {
         version: 2,
         holdingType: type,
@@ -1698,15 +1727,7 @@
     }
 
     var crawl = S.holding.settlementHexcrawl;
-    var byId = {};
-    crawl.nodes.forEach(function (n) { byId[n.id] = n; });
-    crawl.nodes.forEach(function (n) {
-      if (!n.explored) return;
-      (crawl.edges || []).forEach(function (e) {
-        if (e[0] === n.id && byId[e[1]]) byId[e[1]].revealed = true;
-        if (e[1] === n.id && byId[e[0]]) byId[e[0]].revealed = true;
-      });
-    });
+    crawl.nodes.forEach(function (n) { n.revealed = true; });
     return crawl;
   }
 
@@ -1754,9 +1775,9 @@
   function buildHoldingHexMapHtml(crawl) {
     var nodeById = {};
     crawl.nodes.forEach(function (n) { if (n && n.id) nodeById[n.id] = n; });
-    var size = 22;
-    var ox = 220;
-    var oy = 120;
+    var size = 30;
+    var ox = 280;
+    var oy = 170;
     var toXY = function (q, r) {
       return {
         x: ox + (Math.sqrt(3) * size * (q + r / 2)),
@@ -1773,23 +1794,23 @@
     };
     var edgeSvg = (crawl.edges || []).map(function (e) {
       var a = nodeById[e[0]], b = nodeById[e[1]];
-      if (!a || !b || !a.revealed || !b.revealed) return '';
+      if (!a || !b) return '';
       var pa = toXY(Number(a.q || 0), Number(a.r || 0));
       var pb = toXY(Number(b.q || 0), Number(b.r || 0));
       return '<line x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) + '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '" stroke="rgba(126,215,255,.35)" stroke-width="2" />';
     }).join('');
-    var nodeSvg = crawl.nodes.filter(function (n) { return n.revealed; }).map(function (n) {
+    var nodeSvg = crawl.nodes.map(function (n) {
       var p = toXY(Number(n.q || 0), Number(n.r || 0));
       var selected = String(crawl.activeNodeId || '') === String(n.id);
       var stroke = selected ? 'rgba(240,208,112,.95)' : (n.explored ? 'rgba(76,175,116,.9)' : 'rgba(126,215,255,.75)');
       var fill = n.explored ? 'rgba(76,175,116,.2)' : 'rgba(20,30,44,.88)';
       return '<g>'
         + '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2" style="cursor:pointer;" onclick="selectHoldingSettlementDistrict(\'' + String(n.id) + '\')" />'
-        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y - 1).toFixed(1) + '" text-anchor="middle" font-size="8" fill="var(--gold2)">' + String(n.label || 'District').slice(0, 9) + '</text>'
-        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y + 10).toFixed(1) + '" text-anchor="middle" font-size="8" fill="var(--muted2)">' + (n.explored ? 'Cleared' : 'Unexplored') + '</text>'
+        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y - 2).toFixed(1) + '" text-anchor="middle" font-size="10" fill="var(--gold2)">' + String(n.label || 'District').slice(0, 10) + '</text>'
+        + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y + 12).toFixed(1) + '" text-anchor="middle" font-size="9" fill="var(--muted2)">' + (n.explored ? 'Visited' : 'New') + '</text>'
         + '</g>';
     }).join('');
-    return '<svg viewBox="0 0 440 260" style="width:100%;max-width:560px;height:auto;display:block;margin:0 auto;">' + edgeSvg + nodeSvg + '</svg>';
+    return '<svg viewBox="0 0 560 340" style="width:100%;max-width:760px;height:auto;display:block;margin:0 auto;">' + edgeSvg + nodeSvg + '</svg>';
   }
 
   function buildHoldingSettlementHexcrawlModal() {
@@ -1803,13 +1824,6 @@
       return '<div style="font-size:.66rem;color:var(--muted2);">' + k.toUpperCase() + ': <strong style="color:var(--text2);">' + v + '/10</strong></div>';
     }).join('');
     var ambient = crawl.ambient || {};
-    var npcRows = (crawl.npcWeb || []).slice(0, 4).map(function (npc) {
-      return '<div style="font-size:.66rem;color:var(--text2);line-height:1.45;padding:.12rem 0;border-bottom:1px solid rgba(255,255,255,.06);">'
-        + '<strong>' + npc.name + '</strong> · ' + npc.role + '<br>'
-        + 'Need: ' + npc.need + ' · Secret: ' + npc.secret + '<br>'
-        + npc.schedule.join(' | ') + ' · ' + npc.faction
-        + '</div>';
-    }).join('');
     var micro = active && Array.isArray(active.microLocations) ? active.microLocations : [];
     var microHtml = micro.map(function (m) { return '<div style="font-size:.66rem;color:var(--text2);">- ' + m + '</div>'; }).join('');
     var actionButton = active && !active.explored
@@ -1819,7 +1833,7 @@
       + '<strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1)
       + '<div style="font-size:.68rem;color:var(--teal);margin-top:.06rem;">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,1fr);gap:.35rem;">'
+      + '<div style="display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,1fr);gap:.35rem;">'
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.3rem;">'
       + buildHoldingHexMapHtml(crawl)
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.18rem;">'
@@ -1829,6 +1843,12 @@
       + '</div>'
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:.24rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
+      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Holding Overview</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--text2);">Type: ' + String(crawl.holdingType || 'Settlement') + '</div>'
+      + '<div style="font-size:.66rem;color:var(--text2);">Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + ' · ' + String((window.WEATHER && window.WEATHER[S.currentSeason || 'spring']) ? 'Clear and Warm' : 'Clear and Warm') + '</div>'
+      + '</div>'
       + '<div style="border:1px solid var(--border2);background:rgba(0,0,0,.16);padding:.28rem;">'
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;"><strong>Ambient Pulse</strong></div>'
       + '<div style="font-size:.68rem;color:var(--text2);">' + String(ambient.scene || 'The holding stirs.') + '</div>'
@@ -1849,16 +1869,71 @@
           + '<div style="font-size:.66rem;color:var(--muted2);">Hidden: ' + active.hiddenThing + ' · Interactable: ' + active.interactable + '</div>'
           + '<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">Micro-Locations</div>'
           + microHtml
+          + '<div style="margin-top:.14rem;display:flex;gap:.2rem;flex-wrap:wrap;">'
+          + (active.kind === 'inn' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest At Inn</button>' : '')
+          + (active.kind === 'lord' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience With Lord</button>' : '')
+          + (active.kind === 'merchant_items' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_item\')">Buy Item (50c)</button>' : '')
+          + (active.kind === 'merchant_weapons' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_weapon\')">Buy Weapon+ (120c)</button>' : '')
+          + (active.kind === 'mission' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'mission\')">Generate Task/Mission</button>' : '')
+          + (active.kind === 'downtime' ? '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'downtime\')">Province Downtime</button>' : '')
+          + '</div>'
           + (active.result ? '<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">' + active.result + '</div>' : '')
           + '<div style="margin-top:.18rem;">' + actionButton + '</div>'
           + '</div>') : '')
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.28rem;">'
-      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;"><strong>Recurring NPC Web</strong></div>'
-      + npcRows
+      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;"><strong>Settlement Actions</strong></div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs" onclick="if(typeof generateTask===\'function\')generateTask();">Generate Task</button>'
+      + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'talk\')">Talk To People</button>'
+      + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'task\')">Run A Task</button>'
+      + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'explore\')">Explore Province</button>'
+      + '</div>'
       + '</div>'
       + '</div>'
       + '</div>';
     return html;
+  }
+
+  function runHoldingDistrictAction(nodeId, action) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    var msg = '';
+    if (action === 'rest') {
+      if (typeof toggleCond === 'function' && S.conditions && !S.conditions.protected) toggleCond('protected');
+      if (typeof changeMentalStress === 'function') changeMentalStress(-1);
+      msg = 'You rest at the inn. Protected applied and stress eased.';
+    } else if (action === 'audience') {
+      if (typeof changeCounter === 'function') changeCounter('renown', 1);
+      S.holding.councilTasks = Array.isArray(S.holding.councilTasks) ? S.holding.councilTasks : [];
+      S.holding.councilTasks.push('Lord mission: secure outlying district route.');
+      msg = 'Audience complete. +1 Renown and a new mission directive.';
+    } else if (action === 'buy_item') {
+      if (Number(S.credits || 0) < 50) msg = 'Not enough credits.';
+      else {
+        S.credits = Math.max(0, Number(S.credits || 0) - 50);
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        if (typeof addToBackpack === 'function') addToBackpack('Ration Kit');
+        msg = 'Purchased item: Ration Kit (-50 Credits).';
+      }
+    } else if (action === 'buy_weapon') {
+      if (Number(S.credits || 0) < 120) msg = 'Not enough credits.';
+      else {
+        S.credits = Math.max(0, Number(S.credits || 0) - 120);
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        if (typeof addToBackpack === 'function') addToBackpack('Weapon+ Voucher');
+        msg = 'Purchased Weapon+ voucher (-120 Credits).';
+      }
+    } else if (action === 'mission') {
+      if (typeof generateTask === 'function') generateTask();
+      msg = 'A mission lead was generated from district intel.';
+    } else if (action === 'downtime') {
+      rollHoldingDowntimeActivity('explore');
+      msg = 'Province holding downtime initiated.';
+    }
+    node.result = msg || node.result;
+    if (typeof showNotif === 'function' && msg) showNotif(msg, msg.toLowerCase().indexOf('not enough') >= 0 ? 'warn' : 'good');
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
   }
 
   function openHoldingSettlementHexcrawl() {
@@ -1869,11 +1944,13 @@
     var crawl = ensureHoldingSettlementHexcrawl();
     var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
     if (!node) { return; }
-    if (!node.revealed) {
-      if (typeof showNotif === 'function') showNotif('That district is still hidden. Explore connected districts first.', 'warn');
-      return;
-    }
     crawl.activeNodeId = node.id;
+    var eventPool = crawl.ambientTables && Array.isArray(crawl.ambientTables.scenes) ? crawl.ambientTables.scenes : [];
+    if (eventPool.length) {
+      var ev = eventPool[Math.floor(Math.random() * eventPool.length)];
+      node.result = 'District event: ' + ev;
+      if (typeof showNotif === 'function') showNotif(node.label + ': ' + ev, 'info');
+    }
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
   }
 
@@ -1888,6 +1965,7 @@
     crawl.stats = crawl.stats || {};
     crawl.stats.fear = Math.max(0, Math.min(10, Number(crawl.stats.fear || 0) + (crawl.timeOfDay === 'night' ? 1 : 0)));
     crawl.stats.security = Math.max(0, Math.min(10, Number(crawl.stats.security || 0) + (crawl.timeOfDay === 'night' ? -1 : 0)));
+    if (typeof showNotif === 'function') showNotif('Time advanced to ' + String(crawl.timeOfDay).toUpperCase() + '.', 'info');
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
   }
 
@@ -3555,6 +3633,7 @@
   window.rollHoldingDowntimeActivity = rollHoldingDowntimeActivity;
   window.resolveHoldingDowntimeEvent = resolveHoldingDowntimeEvent;
   window.openHoldingSettlementHexcrawl = openHoldingSettlementHexcrawl;
+  window.runHoldingDistrictAction = runHoldingDistrictAction;
   window.selectHoldingSettlementDistrict = selectHoldingSettlementDistrict;
   window.advanceHoldingSettlementTime = advanceHoldingSettlementTime;
   window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;

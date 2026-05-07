@@ -461,14 +461,14 @@
     var nodes = floor.nodes || [];
     var fog = getFloorFog(floor);
     var palette = depthPalette((typeof S !== 'undefined' && S && S.infiniteLibrary) ? S.infiniteLibrary.depth : 1);
-    var spacing = 56;
-    var size = 34;
+    var spacing = 72;
+    var size = 44;
     var placed = nodes.map(function (_node, idx) {
       var c = getSpiralCoord(idx + 1);
       return {
         idx: idx,
-        x: Math.round(c.q * spacing + 420),
-        y: Math.round((c.r + c.q * 0.5) * (spacing * 0.94) + 260)
+        x: Math.round(c.q * spacing + 520),
+        y: Math.round((c.r + c.q * 0.5) * (spacing * 0.94) + 320)
       };
     });
 
@@ -498,20 +498,20 @@
 
     var glyphs = [];
     for (var gi = 0; gi < 16; gi++) {
-      var gx = 20 + (gi * 49) % 800;
-      var gy = 26 + (gi * 61) % 500;
+      var gx = 24 + (gi * 61) % 980;
+      var gy = 30 + (gi * 83) % 620;
       var glyph = (gi % 4 === 0) ? '⟡' : ((gi % 4 === 1) ? 'ᚠ' : ((gi % 4 === 2) ? '✶' : '◌'));
       glyphs.push('<text class="library-fx-glyph" x="' + gx + '" y="' + gy + '" text-anchor="middle" font-size="7" fill="' + palette.glyph + '" style="animation-delay:' + (gi * 0.22) + 's;">' + glyph + '</text>');
     }
 
     var shelvesFar = [];
     var shelvesNear = [];
-    for (var sy = 0; sy < 9; sy++) shelvesFar.push('<line x1="-40" y1="' + (36 + sy * 56) + '" x2="900" y2="' + (22 + sy * 56) + '" stroke="' + palette.glow + '" stroke-width="1" />');
-    for (var sz = 0; sz < 7; sz++) shelvesNear.push('<line x1="-52" y1="' + (44 + sz * 70) + '" x2="910" y2="' + (60 + sz * 70) + '" stroke="' + palette.line + '" stroke-opacity=".24" stroke-width="1.15" />');
+    for (var sy = 0; sy < 10; sy++) shelvesFar.push('<line x1="-60" y1="' + (46 + sy * 66) + '" x2="1120" y2="' + (28 + sy * 66) + '" stroke="' + palette.glow + '" stroke-width="1" />');
+    for (var sz = 0; sz < 8; sz++) shelvesNear.push('<line x1="-72" y1="' + (58 + sz * 82) + '" x2="1130" y2="' + (82 + sz * 82) + '" stroke="' + palette.line + '" stroke-opacity=".24" stroke-width="1.15" />');
 
     return '<div class="library-fx-wrap" style="border:1px solid ' + palette.line + ';background:linear-gradient(180deg,' + palette.fillA + ' 0%,' + palette.fillB + ' 100%);padding:.4rem;border-radius:4px;margin-bottom:.55rem;box-shadow:0 0 24px ' + palette.glow + ';">'
       + '<div style="font-size:.68rem;color:#9cb8ff;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.22rem;">Infinite Library Crawl Map</div>'
-      + '<svg viewBox="0 0 840 520" style="width:100%;height:auto;display:block;">'
+      + '<svg viewBox="0 0 1040 680" style="width:100%;height:auto;display:block;">'
       + '<g class="library-fx-shelf-far">' + shelvesFar.join('') + '</g>'
       + '<g class="library-fx-shelf-near">' + shelvesNear.join('') + '</g>'
       + '<g>' + glyphs.join('') + '</g>'

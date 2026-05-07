@@ -12669,6 +12669,184 @@ function rollPlanetLostCityIrradiatedPatrol() {
   renderPlanetExplorationPanel();
 }
 
+function ensurePlanetLostCityHexcrawlState(cell) {
+  if (!cell) return null;
+  cell.data = cell.data || {};
+  if (!cell.data.lostCityHexcrawl || !Array.isArray(cell.data.lostCityHexcrawl.nodes) || !cell.data.lostCityHexcrawl.nodes.length) {
+    const labels = ['Transit Arch', 'Collapsed Plaza', 'Signal Spire', 'Market Shell', 'Drain Tunnels', 'Data Vault', 'Ash Courtyard'];
+    const coords = [
+      { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
+      { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 }
+    ];
+    const edges = [
+      ['lc0', 'lc1'], ['lc0', 'lc2'], ['lc0', 'lc3'], ['lc0', 'lc4'], ['lc0', 'lc5'], ['lc0', 'lc6'],
+      ['lc1', 'lc6'], ['lc2', 'lc3'], ['lc4', 'lc5']
+    ];
+    const nodes = labels.map((label, idx) => {
+      return {
+        id: 'lc' + String(idx),
+        label: label,
+        q: coords[idx].q,
+        r: coords[idx].r,
+        explored: false,
+        revealed: idx === 0,
+        dd: 5 + (idx % 3),
+        atmosphere: pick([
+          'Dust hangs motionless between cracked lights.',
+          'Collapsed signage hums with old power.',
+          'A distant metallic knock echoes through the sector.',
+          'Ash drifts through broken glass corridors.'
+        ]),
+        result: ''
+      };
+    });
+    cell.data.lostCityHexcrawl = {
+      version: 1,
+      activeNodeId: nodes[0] ? nodes[0].id : null,
+      nodes: nodes,
+      edges: edges,
+      history: []
+    };
+  }
+  return cell.data.lostCityHexcrawl;
+}
+
+function buildPlanetLostCityHexcrawlMapSvg(crawl) {
+  if (!crawl || !Array.isArray(crawl.nodes)) return '';
+  const nodeById = {};
+  crawl.nodes.forEach((n) => { if (n && n.id) nodeById[n.id] = n; });
+  const size = 34;
+  const ox = 360;
+  const oy = 220;
+  const toXY = function (q, r) {
+    return {
+      x: ox + (Math.sqrt(3) * size * (q + r / 2)),
+      y: oy + ((3 / 2) * size * r)
+    };
+  };
+  const hexPoints = function (cx, cy) {
+    const pts = [];
+    for (let i = 0; i < 6; i += 1) {
+      const ang = (Math.PI / 180) * (60 * i - 30);
+      pts.push((cx + size * Math.cos(ang)).toFixed(1) + ',' + (cy + size * Math.sin(ang)).toFixed(1));
+    }
+    return pts.join(' ');
+  };
+  const edges = (crawl.edges || []).map((e) => {
+    const a = nodeById[e[0]];
+    const b = nodeById[e[1]];
+    if (!a || !b || (!a.revealed && !a.explored) || (!b.revealed && !b.explored)) return '';
+    const pa = toXY(Number(a.q || 0), Number(a.r || 0));
+    const pb = toXY(Number(b.q || 0), Number(b.r || 0));
+    return '<line x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) + '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '" stroke="rgba(126,215,255,.32)" stroke-width="2" />';
+  }).join('');
+  const nodes = crawl.nodes.map((n) => {
+    if (!n || (!n.revealed && !n.explored)) return '';
+    const p = toXY(Number(n.q || 0), Number(n.r || 0));
+    const selected = String(crawl.activeNodeId || '') === String(n.id || '');
+    const stroke = selected ? 'rgba(240,208,112,.95)' : (n.explored ? 'rgba(76,175,116,.92)' : 'rgba(126,215,255,.75)');
+    const fill = n.explored ? 'rgba(76,175,116,.2)' : 'rgba(16,24,34,.9)';
+    const icon = n.explored ? '✓' : '◆';
+    return '<g>'
+      + '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2" style="cursor:pointer;" onclick="selectPlanetLostCityHexNode(\'' + String(n.id) + '\')" />'
+      + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y + 4).toFixed(1) + '" text-anchor="middle" font-size="11" fill="var(--gold2)">' + icon + '</text>'
+      + '</g>';
+  }).join('');
+  return '<svg viewBox="0 0 720 460" style="width:100%;height:auto;display:block;border:1px solid var(--border2);background:linear-gradient(180deg,rgba(12,20,30,.95),rgba(7,11,18,.98));">'
+    + edges + nodes + '</svg>';
+}
+
+function openPlanetLostCityHexcrawl() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected || selected.marker !== 'empty_colony') return;
+  const crawl = ensurePlanetLostCityHexcrawlState(selected);
+  if (!crawl) return;
+  const active = crawl.nodes.find((n) => String(n.id || '') === String(crawl.activeNodeId || '')) || crawl.nodes[0];
+  const history = (crawl.history || []).slice(0, 5).map((line) => '<div style="font-size:.68rem;color:var(--muted2);">• ' + String(line || '') + '</div>').join('');
+  const detail = active
+    ? ('<div style="font-size:.73rem;color:var(--text2);line-height:1.5;margin-top:.24rem;">'
+      + '<strong style="color:var(--gold2);">' + String(active.label || 'District Node') + '</strong><br>'
+      + String(active.atmosphere || 'No atmospheric readout.') + '<br>'
+      + 'Check: Adventure vs DD' + Number(active.dd || 6) + ' · Status: ' + (active.explored ? 'Explored' : 'Unexplored')
+      + (active.result ? ('<br><span style="color:var(--teal);">' + String(active.result) + '</span>') : '')
+      + '</div>')
+    : '';
+  const actionBtn = active && !active.explored
+    ? '<button class="btn btn-xs btn-teal" onclick="resolvePlanetLostCityHexNode(\'' + String(active.id) + '\')">Scout Node</button>'
+    : '<span style="font-size:.7rem;color:var(--green2);">Node already explored.</span>';
+
+  openModal('Lost City District Hexcrawl', '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+    + '<div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;"><strong>District Network</strong></div>'
+    + buildPlanetLostCityHexcrawlMapSvg(crawl)
+    + detail
+    + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.22rem;">'
+    + actionBtn
+    + '<button class="btn btn-xs" onclick="openPlanetLostCityBuildingExploration()">Back to Building</button>'
+    + '</div>'
+    + (history ? ('<div style="margin-top:.22rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.14rem;">'
+      + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.08rem;">Recent District Activity</div>' + history + '</div>') : '')
+    + '</div>');
+}
+
+function selectPlanetLostCityHexNode(nodeId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected || selected.marker !== 'empty_colony') return;
+  const crawl = ensurePlanetLostCityHexcrawlState(selected);
+  if (!crawl) return;
+  const node = crawl.nodes.find((n) => String(n.id || '') === String(nodeId || ''));
+  if (!node || (!node.revealed && !node.explored)) return;
+  crawl.activeNodeId = node.id;
+  openPlanetLostCityHexcrawl();
+}
+
+function resolvePlanetLostCityHexNode(nodeId) {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
+  if (!selected || selected.marker !== 'empty_colony') return;
+  const crawl = ensurePlanetLostCityHexcrawlState(selected);
+  if (!crawl) return;
+  const node = crawl.nodes.find((n) => String(n.id || '') === String(nodeId || ''));
+  if (!node || node.explored) return;
+  const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const action = explodingRoll(adDie);
+  const dread = explodingRoll(Number(node.dd || 6));
+  const success = action.total >= dread.total;
+  node.explored = true;
+  if (success) {
+    const loot = rollGalaxyMerchantLoot();
+    node.result = 'Recovered: ' + String(loot || 'salvage cache') + '.';
+    takeGalaxyLoot(loot, 'pack');
+    showNotif('Lost City node cleared: ' + String(node.label || 'Node') + '.', 'good');
+  } else {
+    if (typeof changeStress === 'function') changeStress(1);
+    node.result = 'Setback: +1 Stress while traversing unstable sectors.';
+    showNotif('Lost City node failed: +1 Stress.', 'warn');
+  }
+  (crawl.edges || []).forEach((edge) => {
+    if (edge[0] === node.id) {
+      const nxt = crawl.nodes.find((n) => n.id === edge[1]);
+      if (nxt) nxt.revealed = true;
+    }
+    if (edge[1] === node.id) {
+      const prv = crawl.nodes.find((n) => n.id === edge[0]);
+      if (prv) prv.revealed = true;
+    }
+  });
+  crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
+  crawl.history.unshift(String(node.label || 'Node') + ': ' + String(node.result || ''));
+  crawl.history = crawl.history.slice(0, 10);
+  syncCampaignSharedWorldSoon('planet-lostcity-hexcrawl');
+  openPlanetLostCityHexcrawl();
+}
+
 function resolvePlanetLostCityRoom(cellId, roomId) {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
@@ -12729,7 +12907,7 @@ function openPlanetLostCityBuildingExploration() {
       Built For: ${lc.buildingFor || 'Unknown'}<br>
       Inside: ${lc.buildingInside || 'Unknown'}<br>
       Now: ${lc.buildingNow || 'Unknown'}<br><br>
-      <div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.3rem;'><button class='btn btn-xs btn-warn' onclick='rollPlanetLostCityIrradiatedPatrol()'>Irradiated Patrol (d6 count)</button><button class='btn btn-xs' onclick='rollPlanetLostCityTravel()'>District Travel (d6)</button></div>
+      <div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.3rem;'><button class='btn btn-xs btn-warn' onclick='rollPlanetLostCityIrradiatedPatrol()'>Irradiated Patrol (d6 count)</button><button class='btn btn-xs' onclick='rollPlanetLostCityTravel()'>District Travel (d6)</button><button class='btn btn-xs btn-teal' onclick='openPlanetLostCityHexcrawl()'>Open District Hexcrawl</button></div>
       <strong style="color:var(--gold2);">Building Exploration</strong><br>
       ${roomsHtml}
     </div>`);

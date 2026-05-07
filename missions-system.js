@@ -5843,6 +5843,92 @@
     return Math.abs(h) % n;
   }
 
+  function pickUniqueLegacyRaidLoreTemplate(mission, type, list, seedText) {
+    if (!mission) return list[0] || null;
+    mission.legacyRaidLorePuzzleUsed = mission.legacyRaidLorePuzzleUsed || { crossword: {}, sudoku: {} };
+    mission.legacyRaidLorePuzzleUsed[type] = mission.legacyRaidLorePuzzleUsed[type] || {};
+    var used = mission.legacyRaidLorePuzzleUsed[type];
+    var available = [];
+    for (var i = 0; i < list.length; i++) {
+      if (!used[i]) available.push(i);
+    }
+    if (!available.length) {
+      mission.legacyRaidLorePuzzleUsed[type] = {};
+      used = mission.legacyRaidLorePuzzleUsed[type];
+      for (var j = 0; j < list.length; j++) available.push(j);
+    }
+    var idx = available[getLegacyRaidStableIndex(seedText, available.length)] || 0;
+    used[idx] = true;
+    return list[idx] || list[0] || null;
+  }
+
+  function createLegacyRaidLoreCrosswordConfig(mission, wingNum, cell) {
+    var sets = [
+      {
+        clues: [
+          { clue: 'Across 1 (4): Route between districts', answer: 'lane' },
+          { clue: 'Across 3 (4): Secure entry point', answer: 'gate' },
+          { clue: 'Down 1 (4): Story archive', answer: 'lore' },
+          { clue: 'Down 2 (4): Team scout role', answer: 'guide' }
+        ]
+      },
+      {
+        clues: [
+          { clue: 'Across 1 (4): Safe shelter stop', answer: 'inns' },
+          { clue: 'Across 3 (4): Marked travel path', answer: 'road' },
+          { clue: 'Down 1 (4): Old written record', answer: 'text' },
+          { clue: 'Down 2 (4): Keep watch over', answer: 'guard' }
+        ]
+      },
+      {
+        clues: [
+          { clue: 'Across 1 (5): Planned movement line', answer: 'route' },
+          { clue: 'Across 3 (5): Small supply box', answer: 'crate' },
+          { clue: 'Down 1 (5): Learn and remember', answer: 'study' },
+          { clue: 'Down 2 (6): Signal from afar', answer: 'beacon' }
+        ]
+      },
+      {
+        clues: [
+          { clue: 'Across 1 (4): Team objective', answer: 'goal' },
+          { clue: 'Across 3 (4): Public posting board', answer: 'board' },
+          { clue: 'Down 1 (4): Puzzle answer hint', answer: 'clue' },
+          { clue: 'Down 2 (4): Travel preparation', answer: 'plan' }
+        ]
+      }
+    ];
+    var seed = String(mission && mission.id || 0) + '|cw|' + String(wingNum || 1) + '|' + String(cell && cell.id || '0');
+    var picked = pickUniqueLegacyRaidLoreTemplate(mission, 'crossword', sets, seed) || sets[0];
+    return { clues: Array.isArray(picked.clues) ? picked.clues.slice() : [] };
+  }
+
+  function createLegacyRaidLoreSudokuConfig(mission, wingNum, cell) {
+    var sets = [
+      {
+        puzzle: [['1', '', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']],
+        solution: [['1', '2', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']]
+      },
+      {
+        puzzle: [['', '2', '3', '4'], ['3', '', '1', '2'], ['2', '1', '', '3'], ['4', '3', '2', '']],
+        solution: [['1', '2', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']]
+      },
+      {
+        puzzle: [['1', '2', '', '4'], ['', '4', '1', '2'], ['2', '', '4', '3'], ['4', '3', '2', '1']],
+        solution: [['1', '2', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']]
+      },
+      {
+        puzzle: [['1', '2', '3', ''], ['3', '4', '', '2'], ['', '1', '4', '3'], ['4', '', '2', '1']],
+        solution: [['1', '2', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']]
+      }
+    ];
+    var seed = String(mission && mission.id || 0) + '|sdk|' + String(wingNum || 1) + '|' + String(cell && cell.id || '0');
+    var picked = pickUniqueLegacyRaidLoreTemplate(mission, 'sudoku', sets, seed) || sets[0];
+    return {
+      sudokuPuzzle: Array.isArray(picked.puzzle) ? picked.puzzle.map(function (row) { return row.slice(); }) : [],
+      sudokuSolution: Array.isArray(picked.solution) ? picked.solution.map(function (row) { return row.slice(); }) : []
+    };
+  }
+
   function getLegacyRaidHexEncounterLabel(mission, wingNum, eventType, cellId) {
     var theme = getRaidTheme(mission);
     var key = String(theme && theme.key || 'default');
@@ -6500,41 +6586,14 @@
           var loreConfig = {};
           var waypointPreset = null;
           if (cell.lorePiece) {
-            loreMode = Math.random() < 0.5 ? 'crossword_grid' : 'sudoku';
-            if (loreMode === 'crossword_grid') {
-              // Simpler crossword templates with clean row-based layout to avoid numbering issues.
-              var cwTemplates = [
-                {
-                  gridTemplate: ['GATE', '#####', 'TEACH', '#####', 'MARK'],
-                  clues: [
-                    { clue: '1 Across (4): Old-world route marker', answer: 'gate' },
-                    { clue: '2 Across (5): What a teacher does with students', answer: 'teach' },
-                    { clue: '3 Across (4): Leave an identifying sign', answer: 'mark' }
-                  ]
-                },
-                {
-                  gridTemplate: ['ROAD', '#####', 'LEARN', '#####', 'SIGN'],
-                  clues: [
-                    { clue: '1 Across (4): A path used for travel', answer: 'road' },
-                    { clue: '2 Across (5): Gain knowledge in study', answer: 'learn' },
-                    { clue: '3 Across (4): Posted notice with directions', answer: 'sign' }
-                  ]
-                },
-                {
-                  gridTemplate: ['PATH', '#####', 'GUIDE', '#####', 'LORE'],
-                  clues: [
-                    { clue: '1 Across (4): Trail or route on foot', answer: 'path' },
-                    { clue: '2 Across (5): Person who leads the group', answer: 'guide' },
-                    { clue: '3 Across (4): Traditional knowledge archive', answer: 'lore' }
-                  ]
-                }
-              ];
-              var cwPick = cwTemplates[Math.floor(Math.random() * cwTemplates.length)] || cwTemplates[0];
-              loreConfig.gridTemplate = cwPick.gridTemplate;
-              loreConfig.clues = cwPick.clues;
+            loreMode = Math.random() < 0.5 ? 'crossword' : 'sudoku';
+            if (loreMode === 'crossword') {
+              var cwConfig = createLegacyRaidLoreCrosswordConfig(mission, wingNum, cell);
+              loreConfig.clues = cwConfig.clues;
             } else {
-              loreConfig.sudokuPuzzle = [['1', '', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']];
-              loreConfig.sudokuSolution = [['1', '2', '3', '4'], ['3', '4', '1', '2'], ['2', '1', '4', '3'], ['4', '3', '2', '1']];
+              var sdkConfig = createLegacyRaidLoreSudokuConfig(mission, wingNum, cell);
+              loreConfig.sudokuPuzzle = sdkConfig.sudokuPuzzle;
+              loreConfig.sudokuSolution = sdkConfig.sudokuSolution;
             }
           } else if (cell.waypoint) {
             loreMode = 'maze';
@@ -6769,6 +6828,26 @@
     var W = Math.max(320, Math.round(startX * 2 + Math.max(0, rooms.length - 1) * dx + R * 2));
     var H = Math.max(150, Math.round(R * 3.4));
     var svgParts = [];
+    var bossName = String(mission && mission.legacyRaidBoss || 'Raid Boss');
+    var bossSeed = getLegacyRaidStableIndex(bossName + '|' + String(wingNum || 1), 1000);
+    var bgHue = (bossSeed % 360);
+    var bgHueAlt = (bgHue + 38) % 360;
+    var bgGradientId = 'raidWingBg_' + String(mission && mission.id || 0) + '_' + String(wingNum || 1);
+    var fogPatternId = 'raidWingFog_' + String(mission && mission.id || 0) + '_' + String(wingNum || 1);
+    var bgDefs = '<defs>'
+      + '<linearGradient id="' + bgGradientId + '" x1="0" y1="0" x2="1" y2="1">'
+      + '<stop offset="0%" stop-color="hsla(' + bgHue + ',48%,18%,0.75)"/>'
+      + '<stop offset="100%" stop-color="hsla(' + bgHueAlt + ',44%,10%,0.92)"/>'
+      + '</linearGradient>'
+      + '<pattern id="' + fogPatternId + '" width="36" height="36" patternUnits="userSpaceOnUse">'
+      + '<circle cx="7" cy="7" r="1.4" fill="rgba(255,255,255,.12)"/>'
+      + '<circle cx="24" cy="18" r="1" fill="rgba(255,255,255,.08)"/>'
+      + '<circle cx="13" cy="27" r="1.1" fill="rgba(255,255,255,.09)"/>'
+      + '</pattern>'
+      + '</defs>';
+    var bgLayer = '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="url(#' + bgGradientId + ')"/>'
+      + '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="url(#' + fogPatternId + ')" opacity=".35"/>'
+      + '<text x="' + Math.round(W / 2) + '" y="' + Math.round(H - 8) + '" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.35)">Wing ' + wingNum + ' · ' + bossName + '</text>';
 
     rooms.forEach(function (room, i) {
       var cx = startX + i * dx;
@@ -6809,7 +6888,7 @@
 
     return '<div style="background:' + theme.bg + ';border:1px solid ' + theme.hexStroke + ';padding:.3rem;border-radius:4px;margin-bottom:.4rem;">'
       + '<div style="font-size:.62rem;color:' + theme.tc + ';text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;">Wing ' + wingNum + ' Map — ' + theme.name + ' · click a room to explore</div>'
-      + '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;max-width:560px;aspect-ratio:' + W + '/' + H + ';height:auto;display:block;margin:0 auto;">' + svgParts.join('') + '</svg>'
+      + '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;max-width:560px;aspect-ratio:' + W + '/' + H + ';height:auto;display:block;margin:0 auto;">' + bgDefs + bgLayer + svgParts.join('') + '</svg>'
       + '<div style="font-size:.6rem;color:' + theme.muted + ';margin-top:.15rem;">Planning view active. Entrance, exit, lore, and waypoint routes are visible.</div>'
     + '</div>';
   }

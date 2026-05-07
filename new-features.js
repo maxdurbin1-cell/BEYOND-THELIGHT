@@ -1785,7 +1785,7 @@
   function buildHoldingHexMapHtml(crawl) {
     var nodeById = {};
     crawl.nodes.forEach(function (n) { if (n && n.id) nodeById[n.id] = n; });
-    var size = 34;
+    var size = 38;
     var ox = 380;
     var oy = 250;
     var toXY = function (q, r) {
@@ -1820,7 +1820,40 @@
         + '<text x="' + p.x.toFixed(1) + '" y="' + (p.y + 15).toFixed(1) + '" text-anchor="middle" font-size="10" fill="var(--muted2)">' + (n.explored ? 'Visited' : 'New') + '</text>'
         + '</g>';
     }).join('');
-    return '<svg viewBox="0 0 760 500" style="width:100%;max-width:1080px;height:auto;display:block;margin:0 auto;">' + edgeSvg + nodeSvg + '</svg>';
+    var glyphs = [];
+    for (var i = 0; i < 14; i++) {
+      var gx = 28 + ((i * 53) % 700);
+      var gy = 24 + ((i * 67) % 440);
+      var glyph = (i % 4 === 0) ? '✶' : (i % 4 === 1 ? '◌' : (i % 4 === 2 ? '⟡' : 'ᚠ'));
+      glyphs.push('<text x="' + gx + '" y="' + gy + '" text-anchor="middle" font-size="7" fill="rgba(126,215,255,.35)">' + glyph + '</text>');
+    }
+    var shelfFar = [];
+    var shelfNear = [];
+    for (var sy = 0; sy < 8; sy++) shelfFar.push('<line x1="-20" y1="' + (40 + sy * 58) + '" x2="820" y2="' + (24 + sy * 58) + '" stroke="rgba(126,215,255,.12)" stroke-width="1" />');
+    for (var sz = 0; sz < 6; sz++) shelfNear.push('<line x1="-30" y1="' + (56 + sz * 74) + '" x2="830" y2="' + (76 + sz * 74) + '" stroke="rgba(201,162,39,.12)" stroke-width="1.1" />');
+    return '<div style="border:1px solid rgba(126,215,255,.24);background:linear-gradient(180deg,rgba(14,22,34,.92) 0%, rgba(8,13,22,.98) 100%);padding:.32rem;border-radius:4px;box-shadow:inset 0 0 26px rgba(126,215,255,.08);">'
+      + '<svg viewBox="0 0 760 500" style="width:100%;max-width:1080px;height:auto;display:block;margin:0 auto;">'
+      + '<g>' + shelfFar.join('') + '</g>'
+      + '<g>' + shelfNear.join('') + '</g>'
+      + '<g>' + glyphs.join('') + '</g>'
+      + edgeSvg + nodeSvg + '</svg>'
+      + '</div>';
+  }
+
+  function rerenderHoldingSettlementHexcrawl(opts) {
+    var prevScrollTop = 0;
+    if (typeof document !== 'undefined') {
+      var contentEl = document.getElementById('modalContent');
+      if (contentEl) prevScrollTop = Number(contentEl.scrollTop || 0);
+    }
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal(opts || { advanceVisit: false }));
+    if (typeof setTimeout === 'function') {
+      setTimeout(function () {
+        if (typeof document === 'undefined') return;
+        var contentEl = document.getElementById('modalContent');
+        if (contentEl) contentEl.scrollTop = prevScrollTop;
+      }, 0);
+    }
   }
 
   function buildHoldingPendingEventHtml() {
@@ -1844,9 +1877,10 @@
     if (node) {
       node.result = 'The local gambling den is open tonight. Dice crews are loud, the table is hot, and wagers are moving fast.';
       crawl.activeNodeId = node.id;
+      crawl.gamblingActiveNodeId = node.id;
     }
     if (typeof showNotif === 'function') showNotif('Gambling den is now open in this district.', 'info');
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function advanceHoldingOneDay() {
@@ -1881,7 +1915,7 @@
     crawl.history.unshift(String(node.label || 'District') + ': ' + msg);
     crawl.history = crawl.history.slice(0, 12);
     if (typeof showNotif === 'function') showNotif(msg, success ? 'good' : 'warn');
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function openHoldingMerchantDistrict(nodeId) {
@@ -1912,7 +1946,7 @@
     var services = node.services || {};
     if (!services.missionBoard) {
       node.result = 'No active mission board in this district. Ask for rumors or try another district.';
-      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     }
     if (typeof generateTask === 'function') generateTask();
@@ -1921,7 +1955,7 @@
     crawl.history.unshift(String(node.label || 'District') + ': Mission board refreshed.');
     crawl.history = crawl.history.slice(0, 12);
     if (typeof showNotif === 'function') showNotif('New mission posted in ' + node.label + '.', 'good');
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function runHoldingDistrictFlavorAction(nodeId, action) {
@@ -1945,19 +1979,19 @@
       msg = 'District pulse: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
     } else if (action === 'downtime_talk') {
       rollHoldingDowntimeActivity('talk');
-      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     } else if (action === 'downtime_task') {
       runHoldingLocalWork(node);
       return;
     } else if (action === 'downtime_explore') {
       rollHoldingDowntimeActivity('explore');
-      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     } else if (action === 'gamble') {
       if (!node.services || !node.services.gamblingDen) {
         node.result = 'No gambling den is running in this district tonight.';
-        openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+        rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
         return;
       }
       openHoldingGamblingDen(node.id);
@@ -1970,7 +2004,7 @@
       crawl.history = crawl.history.slice(0, 12);
       if (typeof showNotif === 'function') showNotif(msg, 'info');
     }
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function ensureHoldingGamblingState(crawl, node) {
@@ -1988,6 +2022,18 @@
       };
     }
     return crawl.gambling[key];
+  }
+
+  function toggleHoldingGamblingNode(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var key = String(nodeId || '');
+    if (!key) {
+      crawl.gamblingActiveNodeId = '';
+    } else {
+      crawl.gamblingActiveNodeId = String(crawl.gamblingActiveNodeId || '') === key ? '' : key;
+      crawl.activeNodeId = key;
+    }
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function holdingGambleAdventureDie(level) {
@@ -2047,7 +2093,7 @@
     var state = ensureHoldingGamblingState(crawl, node);
     state.level = Math.max(1, Math.min(6, Number(level || 1)));
     crawl.activeNodeId = node.id;
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function setHoldingGamblingGuess(nodeId, guess) {
@@ -2057,7 +2103,7 @@
     var state = ensureHoldingGamblingState(crawl, node);
     state.guess = String(guess || '');
     crawl.activeNodeId = node.id;
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function clearHoldingGamblingHistory(nodeId) {
@@ -2068,7 +2114,7 @@
     state.history = [];
     state.outcome = 'Ledger cleared. Pick a guess and play a round.';
     crawl.activeNodeId = node.id;
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function playHoldingGamblingRound(nodeId) {
@@ -2081,12 +2127,12 @@
     var payout = level * 10;
     if (!state.guess) {
       state.outcome = 'Select Under / Middle / Over before you play.';
-      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     }
     if (Number(S.credits || 0) < buyIn) {
       state.outcome = 'Not enough credits for buy-in (' + buyIn + '₵ needed).';
-      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     }
     S.credits = Math.max(0, Number(S.credits || 0) - buyIn);
@@ -2114,7 +2160,7 @@
     crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
     crawl.history.unshift(String(node.label || 'District') + ': ' + state.outcome);
     crawl.history = crawl.history.slice(0, 12);
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function buildHoldingSettlementHexcrawlModal(opts) {
@@ -2155,7 +2201,7 @@
     var html = '<div style="font-size:.78rem;color:var(--text2);line-height:1.48;display:grid;gap:.32rem;">'
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.04);padding:.4rem;">'
       + '<div style="font-size:.74rem;color:var(--gold2);letter-spacing:.05em;text-transform:uppercase;"><strong>Holding Overview</strong></div>'
-      + '<div style="margin-top:.12rem;font-size:.75rem;color:var(--text2);"><strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
+      + '<div style="margin-top:.12rem;font-size:.75rem;color:var(--text2);"><strong style="color:var(--gold2);">District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
       + '<div style="margin-top:.08rem;font-size:.69rem;color:var(--muted2);">Type: ' + String(crawl.holdingType || 'Settlement') + ' · Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + ' · Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + '</div>'
       + '<div style="margin-top:.08rem;font-size:.69rem;color:var(--teal);">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + '</div>'
       + '<div style="margin-top:.12rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:.18rem;">' + statsHtml + '</div>'
@@ -2189,7 +2235,17 @@
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk to Locals</button>'
         + '</div>'
         + '<div id="holdingDowntimeResult" style="margin-top:.14rem;">' + buildHoldingPendingEventHtml() + '</div>'
-        + (active && active.services && active.services.gamblingDen ? buildHoldingGamblingEmbedHtml(active, crawl) : '')
+        + (active && active.services && active.services.gamblingDen
+          ? ('<div style="margin-top:.12rem;padding:.24rem .3rem;border:1px solid rgba(201,162,39,.28);background:rgba(201,162,39,.05);">'
+            + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Gambling Den</strong></div>'
+            + (String(crawl.gamblingActiveNodeId || '') === String(active.id || '')
+              ? ('<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-bottom:.18rem;">'
+                + '<button class="btn btn-xs btn-gold" onclick="toggleHoldingGamblingNode(\'' + String(active.id) + '\')">Hide Gambling Table</button>'
+                + '</div>'
+                + buildHoldingGamblingEmbedHtml(active, crawl))
+              : '<button class="btn btn-xs btn-gold" onclick="toggleHoldingGamblingNode(\'' + String(active.id) + '\')">Open Gambling Table</button>')
+            + '</div>')
+          : '')
         + (active.result ? '<div style="font-size:.68rem;color:var(--gold2);margin-top:.12rem;line-height:1.48;">' + active.result + '</div>' : '')
         + '</div>') : '')
 
@@ -2271,7 +2327,7 @@
       crawl.history = crawl.history.slice(0, 12);
     }
     if (typeof showNotif === 'function' && msg) showNotif(msg, msg.toLowerCase().indexOf('not enough') >= 0 ? 'warn' : 'good');
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function runHoldingDistrictActionByKind(kind, action) {
@@ -2287,7 +2343,7 @@
   }
 
   function openHoldingSettlementHexcrawl() {
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: true }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: true });
   }
 
   function selectHoldingSettlementDistrict(nodeId) {
@@ -2301,7 +2357,8 @@
       + ' Activity focus: ' + String(node.activity || 'Local movement')
       + '. Rumor focus: ' + String(node.rumor || 'No rumor currently surfaced') + '.';
     if (typeof showNotif === 'function') showNotif(node.label + ': ' + ev, 'info');
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    crawl.gamblingActiveNodeId = '';
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function advanceHoldingSettlementTime(hours) {
@@ -2317,7 +2374,7 @@
     crawl.stats.security = Math.max(0, Math.min(10, Number(crawl.stats.security || 0) + (crawl.timeOfDay === 'night' ? -1 : 0)));
     rollHoldingAmbientState(crawl);
     if (typeof showNotif === 'function') showNotif('Time advanced to ' + String(crawl.timeOfDay).toUpperCase() + '.', 'info');
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function resolveHoldingSettlementHexNode(nodeId) {
@@ -2394,7 +2451,7 @@
     });
     node.result = line;
     if (typeof showNotif === 'function') { showNotif(line, success ? 'good' : 'warn'); }
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
     renderHoldingUI();
   }
 
@@ -2444,7 +2501,7 @@
     S.holding.pendingDowntimeEvent = evt;
     var out = document.getElementById('holdingDowntimeResult');
     if (!out) {
-      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     }
     var stats = ['lead', 'mind', 'body', 'spirit', 'control', 'strike', 'shoot', 'defend'];
@@ -2466,7 +2523,7 @@
     S.holding.pendingDowntimeEvent = evt;
     var out = document.getElementById('holdingDowntimeResult');
     if (!out) {
-      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     }
     var stats = ['lead','mind','body','spirit','control','strike','shoot','defend'];
@@ -3996,6 +4053,7 @@
   window.openHoldingGamblingDen = openHoldingGamblingDen;
   window.openHoldingMerchantDistrict = openHoldingMerchantDistrict;
   window.openHoldingDistrictMissionPickup = openHoldingDistrictMissionPickup;
+  window.toggleHoldingGamblingNode = toggleHoldingGamblingNode;
   window.setHoldingGamblingDifficulty = setHoldingGamblingDifficulty;
   window.setHoldingGamblingGuess = setHoldingGamblingGuess;
   window.playHoldingGamblingRound = playHoldingGamblingRound;

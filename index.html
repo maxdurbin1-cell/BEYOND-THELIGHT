@@ -11243,12 +11243,8 @@ function renderHexInfo(hex){
     html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div>${hasHoldingCrisis?`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveHoldingCrisisAction(${hex.col},${hex.row})">${crisisActionLabel}</button></div>`:''}</div>`;
     if(d.lord)html+=`<div class="wild-panel"><div class="wp-label">Lord</div><div class="wp-text">${d.lord}</div></div>`;
     html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.79rem;color:var(--muted3);line-height:1.58;">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
-    html+=`<div class="wild-panel"><div class="wp-label">🏪 Settlement Life</div><div class="wp-text">Markets open at first light, crafters trade tools, and caravans exchange supplies all day. Spend coin locally to keep the holding fed and armed.</div></div>`;
     html+=`<div class="holding-actions-row">
       <button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();else alert('Holdings system not ready');">◫ Enter Holding</button>
-      <button class="btn btn-sm" onclick="if(typeof runHoldingDistrictActionByKind==='function')runHoldingDistrictActionByKind('merchant_items','buy_item');">Buy Ration Kit (50₵)</button>
-      <button class="btn btn-sm" onclick="if(typeof runHoldingDistrictActionByKind==='function')runHoldingDistrictActionByKind('merchant_weapons','buy_weapon');">Buy Weapon+ (120₵)</button>
-      <button class="btn btn-sm btn-gold" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"nav .tab-btn[onclick*=\\\"switchTab('shop'\\\"]\");switchTab('shop',b||null);}">Open Merchants Tab</button>
     </div>`;
     html+='</div>';
 

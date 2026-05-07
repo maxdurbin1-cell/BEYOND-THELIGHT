@@ -1813,6 +1813,80 @@
     return '<svg viewBox="0 0 760 500" style="width:100%;max-width:1080px;height:auto;display:block;margin:0 auto;">' + edgeSvg + nodeSvg + '</svg>';
   }
 
+  function buildHoldingPendingEventHtml() {
+    var evt = S.holding && S.holding.pendingDowntimeEvent;
+    if (!evt) {
+      return '<div style="font-size:.68rem;color:var(--muted2);line-height:1.55;">Use district actions to surface work, rumors, local games, and mission leads. Results will appear here.</div>';
+    }
+    var stats = ['lead', 'mind', 'body', 'spirit', 'control', 'strike', 'shoot', 'defend'];
+    return '<div style="padding:.34rem .4rem;border:1px solid rgba(126,215,255,.22);background:rgba(126,215,255,.05);">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:var(--teal);">' + evt.name + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin-top:.12rem;line-height:1.52;">Choose an Action Die vs DD' + evt.dd + '.</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.24rem;">'
+      + stats.map(function (key) { return '<button class="btn btn-xs btn-teal" onclick="resolveHoldingDowntimeEvent(\'' + key + '\')">' + key.charAt(0).toUpperCase() + key.slice(1) + '</button>'; }).join('')
+      + '</div>'
+      + '</div>';
+  }
+
+  function openHoldingGamblingDen(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); }) || crawl.nodes[0];
+    if (node) {
+      node.result = 'The local gambling den is open tonight. Dice crews crowd the tables and wagers are flowing.';
+      crawl.activeNodeId = node.id;
+    }
+    if (typeof switchTab === 'function') {
+      var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('gambling'\"]");
+      switchTab('gambling', btn || null);
+    }
+    if (typeof showNotif === 'function') showNotif('Gambling Den opened from the settlement.', 'info');
+  }
+
+  function runHoldingDistrictFlavorAction(nodeId, action) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) {
+      if (typeof showNotif === 'function') showNotif('Select a district first.', 'warn');
+      return;
+    }
+    crawl.activeNodeId = node.id;
+    var ambient = crawl.ambient || {};
+    var msg = '';
+    if (action === 'rumor') {
+      msg = 'Rumor circuit: ' + String(node.rumor || ambient.rumor || 'The district is quiet for now.') + ' Opportunity: ' + String(ambient.opportunity || 'Nothing immediate.');
+    } else if (action === 'browse') {
+      msg = 'You browse ' + String(node.label || 'the district') + '. Vendors advertise ' + String(node.interactable || 'small necessities') + '. Crowd pressure is ' + String(node.npcDensity || 'steady') + '.';
+    } else if (action === 'task') {
+      if (typeof generateTask === 'function') generateTask();
+      msg = 'Task board checked: new local work and mission leads are now posted.';
+    } else if (action === 'event') {
+      msg = 'District event: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
+    } else if (action === 'downtime_talk') {
+      rollHoldingDowntimeActivity('talk');
+      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      return;
+    } else if (action === 'downtime_task') {
+      rollHoldingDowntimeActivity('task');
+      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      return;
+    } else if (action === 'downtime_explore') {
+      rollHoldingDowntimeActivity('explore');
+      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      return;
+    } else if (action === 'gamble') {
+      openHoldingGamblingDen(node.id);
+      return;
+    }
+    node.result = msg || node.result;
+    crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
+    if (msg) {
+      crawl.history.unshift(String(node.label || 'District') + ': ' + msg);
+      crawl.history = crawl.history.slice(0, 12);
+      if (typeof showNotif === 'function') showNotif(msg, 'info');
+    }
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+  }
+
   function buildHoldingSettlementHexcrawlModal(opts) {
     opts = opts || {};
     var crawl = ensureHoldingSettlementHexcrawl();
@@ -1851,47 +1925,52 @@
       if (active.kind === 'downtime') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'downtime\')">Province Downtime</button>';
     }
 
-    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;display:grid;gap:.4rem;">'
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.04);padding:.45rem;">'
+    var html = '<div style="font-size:.78rem;color:var(--text2);line-height:1.48;display:grid;gap:.32rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.04);padding:.4rem;">'
       + '<div style="font-size:.74rem;color:var(--gold2);letter-spacing:.05em;text-transform:uppercase;"><strong>Overview Of The Holding</strong></div>'
-      + '<div style="margin-top:.16rem;font-size:.78rem;color:var(--text2);"><strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
-      + '<div style="margin-top:.12rem;font-size:.72rem;color:var(--muted2);">Type: ' + String(crawl.holdingType || 'Settlement') + ' · Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + ' · Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + '</div>'
-      + '<div style="margin-top:.12rem;font-size:.72rem;color:var(--teal);">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + '</div>'
-      + '<div style="margin-top:.16rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:.2rem;">' + statsHtml + '</div>'
+      + '<div style="margin-top:.12rem;font-size:.75rem;color:var(--text2);"><strong style="color:var(--gold2);">' + String(crawl.holdingType || S.holding.type || 'Holding') + ' District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · Time: ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
+      + '<div style="margin-top:.08rem;font-size:.69rem;color:var(--muted2);">Type: ' + String(crawl.holdingType || 'Settlement') + ' · Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + ' · Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + '</div>'
+      + '<div style="margin-top:.08rem;font-size:.69rem;color:var(--teal);">Style: ' + String(crawl.vibe || 'Living settlement pressure ecosystem') + '</div>'
+      + '<div style="margin-top:.12rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:.18rem;">' + statsHtml + '</div>'
       + '</div>'
 
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.42rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.38rem;">'
       + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;"><strong>Big Screen Of The Hex</strong></div>'
       + buildHoldingHexMapHtml(crawl)
-      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.2rem;">'
+      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.18rem;">'
       + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(1)">+1 Hour</button>'
       + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(6)">+6 Hours</button>'
       + '<button class="btn btn-xs btn-teal" onclick="openHoldingSettlementHexcrawl()">Refresh Scene</button>'
       + '</div>'
       + '</div>'
 
-      + (active ? ('<div style="border:1px solid var(--border2);background:rgba(0,0,0,.14);padding:.42rem;">'
+      + (active ? ('<div style="border:1px solid var(--border2);background:rgba(0,0,0,.14);padding:.38rem;">'
         + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Per Hex Information</strong></div>'
-        + '<div style="font-size:.84rem;color:var(--text);"><strong>' + active.label + '</strong> <span style="font-size:.72rem;color:var(--muted2);">(' + (active.explored ? 'Visited' : 'Unexplored') + ')</span></div>'
-        + '<div style="font-size:.72rem;color:var(--text2);margin-top:.12rem;line-height:1.55;">' + active.atmosphere + '</div>'
-        + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.12rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
-        + '<div style="font-size:.7rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
-        + '<div style="font-size:.7rem;color:var(--teal);margin-top:.12rem;">Micro-Locations</div>'
+        + '<div style="font-size:.8rem;color:var(--text);"><strong>' + active.label + '</strong> <span style="font-size:.68rem;color:var(--muted2);">(' + (active.explored ? 'Visited' : 'Unexplored') + ')</span></div>'
+        + '<div style="font-size:.69rem;color:var(--text2);margin-top:.1rem;line-height:1.5;">' + active.atmosphere + '</div>'
+        + '<div style="font-size:.67rem;color:var(--muted2);margin-top:.1rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
+        + '<div style="font-size:.67rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
+        + '<div style="font-size:.67rem;color:var(--teal);margin-top:.1rem;">Micro-Locations</div>'
         + microHtml
-        + '<div style="margin-top:.18rem;display:flex;gap:.2rem;flex-wrap:wrap;">' + actionButton + '</div>'
-        + '<div style="margin-top:.16rem;display:flex;gap:.2rem;flex-wrap:wrap;">' + districtButtons + '</div>'
-        + '<div style="margin-top:.16rem;display:flex;gap:.2rem;flex-wrap:wrap;">'
-        + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'talk\')">Walk Streets</button>'
-        + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'task\')">Do Local Work</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictActionByKind(\'merchant_items\',\'buy_item\')">Market Purchase</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictActionByKind(\'merchant_weapons\',\'buy_weapon\')">Visit Smith</button>'
+        + '<div style="margin-top:.14rem;display:flex;gap:.18rem;flex-wrap:wrap;">' + actionButton + '</div>'
+        + '<div style="margin-top:.12rem;display:flex;gap:.18rem;flex-wrap:wrap;">' + districtButtons + '</div>'
+        + '<div style="margin-top:.12rem;display:flex;gap:.18rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">District Event</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse Shops</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Pick Up Task</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk To People</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Run A Task</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_explore\')">Explore Province</button>'
+        + '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Gambling Den</button>'
         + '</div>'
-        + (active.result ? '<div style="font-size:.7rem;color:var(--gold2);margin-top:.14rem;line-height:1.5;">' + active.result + '</div>' : '')
+        + '<div id="holdingDowntimeResult" style="margin-top:.14rem;">' + buildHoldingPendingEventHtml() + '</div>'
+        + (active.result ? '<div style="font-size:.68rem;color:var(--gold2);margin-top:.12rem;line-height:1.48;">' + active.result + '</div>' : '')
         + '</div>') : '')
 
-      + '<div style="border:1px solid var(--border2);background:rgba(46,196,182,.08);padding:.36rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(46,196,182,.08);padding:.32rem;">'
       + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Settlement Life</strong></div>'
-      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.55;">' + String(ambient.scene || 'The holding stirs.') + '<br>Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '<br>Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.5;">' + String(ambient.scene || 'The holding stirs.') + '<br>Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '<br>Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
       + (historyHtml ? ('<div style="margin-top:.14rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.12rem;">'
         + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.06rem;">Recent District Activity</div>'
         + historyHtml
@@ -2142,7 +2221,10 @@
     var evt = pool[roll(pool.length) - 1];
     S.holding.pendingDowntimeEvent = evt;
     var out = document.getElementById('holdingDowntimeResult');
-    if (!out) { return; }
+    if (!out) {
+      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      return;
+    }
     var stats = ['lead', 'mind', 'body', 'spirit', 'control', 'strike', 'shoot', 'defend'];
     var mode = String(activity || '').toLowerCase();
     out.innerHTML = '<div style="padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);">'
@@ -2161,7 +2243,10 @@
     var evt = pool[roll(pool.length)-1];
     S.holding.pendingDowntimeEvent = evt;
     var out = document.getElementById('holdingDowntimeResult');
-    if (!out) { return; }
+    if (!out) {
+      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      return;
+    }
     var stats = ['lead','mind','body','spirit','control','strike','shoot','defend'];
     out.innerHTML = '<div style="padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);">'+evt.name+'</div>'
@@ -3685,6 +3770,8 @@
   window.openHoldingSettlementHexcrawl = openHoldingSettlementHexcrawl;
   window.runHoldingDistrictAction = runHoldingDistrictAction;
   window.runHoldingDistrictActionByKind = runHoldingDistrictActionByKind;
+  window.runHoldingDistrictFlavorAction = runHoldingDistrictFlavorAction;
+  window.openHoldingGamblingDen = openHoldingGamblingDen;
   window.selectHoldingSettlementDistrict = selectHoldingSettlementDistrict;
   window.advanceHoldingSettlementTime = advanceHoldingSettlementTime;
   window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;

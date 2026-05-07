@@ -3406,7 +3406,7 @@
         answer: crosswordNormalizeAnswer(entry && entry.answer),
         preferred: crosswordClueDirection(entry),
       };
-    }).filter(function (entry) { return entry.answer.length >= 3; }) : [];
+    }).filter(function (entry) { return entry.answer.length >= 2; }) : [];
     if (clues.length < 2) return null;
 
     function tryBuild(order, firstDir, attempt) {

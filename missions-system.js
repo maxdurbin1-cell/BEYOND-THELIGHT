@@ -6120,67 +6120,14 @@
     var sets = [
       {
         clues: [
-          { clue: 'Across: Sneaky backstabber class (5)', answer: 'rogue', direction: 'across' },
-          { clue: 'Across: Classic low-level monster (6)', answer: 'goblin', direction: 'across' },
-          { clue: 'Across: Magical energy pool (4)', answer: 'mana', direction: 'across' },
-          { clue: 'Across: Holy armored knight class (7)', answer: 'paladin', direction: 'across' },
-          { clue: 'Down: Fantasy tabletop abbreviation (3)', answer: 'rpg', direction: 'down' },
-          { clue: 'Down: Green raider species (3)', answer: 'orc', direction: 'down' },
-          { clue: 'Down: Health shorthand on sheets (2)', answer: 'hp', direction: 'down' },
-          { clue: 'Down: Drawn adventure layout (3)', answer: 'map', direction: 'down' },
-          { clue: 'Down: Polyhedral roller shorthand (4)', answer: 'dice', direction: 'down' }
-        ]
-      },
-      {
-        clues: [
-          { clue: 'Across: Arcane spellcaster (4)', answer: 'mage', direction: 'across' },
-          { clue: 'Across: Dark necrotic caster short form (6)', answer: 'necrom', direction: 'across' },
-          { clue: 'Across: Scaled treasure hoarder (6)', answer: 'dragon', direction: 'across' },
-          { clue: 'Across: Musical support class (4)', answer: 'bard', direction: 'across' },
-          { clue: 'Down: Session runner initials (2)', answer: 'dm', direction: 'down' },
-          { clue: 'Down: Magical sphere of power (3)', answer: 'orb', direction: 'down' },
-          { clue: 'Down: Armor rating shorthand (2)', answer: 'ac', direction: 'down' },
-          { clue: 'Down: Bladed weapon head (3)', answer: 'axe', direction: 'down' },
-          { clue: 'Down: Background world history (4)', answer: 'lore', direction: 'down' }
-        ]
-      },
-      {
-        clues: [
-          { clue: 'Across: Divine healer class (6)', answer: 'cleric', direction: 'across' },
-          { clue: 'Across: Main thing adventurers accept (5)', answer: 'quest', direction: 'across' },
-          { clue: 'Across: Place adventurers sleep (3)', answer: 'inn', direction: 'across' },
-          { clue: 'Across: Dungeon hazards everywhere (5)', answer: 'traps', direction: 'across' },
-          { clue: 'Down: Dramatic lucky hit term (4)', answer: 'crit', direction: 'down' },
-          { clue: 'Down: Roll-playing game abbreviation (3)', answer: 'rpg', direction: 'down' },
-          { clue: 'Down: Treasure chest danger (4)', answer: 'mimic', direction: 'down' },
-          { clue: 'Down: Tavern worker role (6)', answer: 'innkeep', direction: 'down' },
-          { clue: 'Down: Villain opposite of good (4)', answer: 'evil', direction: 'down' }
-        ]
-      },
-      {
-        clues: [
-          { clue: 'Across: Polyhedral click-clacks (4)', answer: 'dice', direction: 'across' },
-          { clue: 'Across: Natural twenty success type (4)', answer: 'crit', direction: 'across' },
-          { clue: 'Across: Treasure after battle (4)', answer: 'loot', direction: 'across' },
-          { clue: 'Across: Big ugly fantasy monsters (5)', answer: 'ogres', direction: 'across' },
-          { clue: 'Down: Game referee abbreviation (2)', answer: 'dm', direction: 'down' },
-          { clue: 'Down: Monster cave dweller (4)', answer: 'ogre', direction: 'down' },
-          { clue: 'Down: Fantasy brute species (4)', answer: 'orcs', direction: 'down' },
-          { clue: 'Down: Session reward pile (4)', answer: 'loot', direction: 'down' },
-          { clue: 'Down: Table rule tweak (4)', answer: 'home', direction: 'down' }
-        ]
-      },
-      {
-        clues: [
           { clue: 'Across: Undead wizard villain (4)', answer: 'lich', direction: 'across' },
           { clue: 'Across: Ancient magical artifact (5)', answer: 'relic', direction: 'across' },
           { clue: 'Across: Magic cast by a wizard (5)', answer: 'spell', direction: 'across' },
           { clue: 'Across: Sneaky dagger-user (5)', answer: 'rogue', direction: 'across' },
           { clue: 'Down: Person running the campaign (2)', answer: 'dm', direction: 'down' },
-          { clue: 'Down: Adventure setting history (4)', answer: 'lore', direction: 'down' },
+          { clue: 'Down: Adventure setting location (4)', answer: 'lore', direction: 'down' },
           { clue: 'Down: Character morality system (5)', answer: 'align', direction: 'down' },
-          { clue: 'Down: Arcane casting class (3)', answer: 'mage', direction: 'down' },
-          { clue: 'Down: Classic sword-and-shield role (6)', answer: 'fighter', direction: 'down' }
+          { clue: 'Down: Arcane casting class (3)', answer: 'arc', direction: 'down' }
         ]
       }
     ];
@@ -7503,12 +7450,23 @@
           + '</div>'
           + '<div style="font-size:.66rem;color:var(--muted2);">Use Teamwork spends to change outcomes, but expect the boss to react when mechanics are canceled.</div>';
 
+      // Combat rooms: inline encounter card in wing view (same behavior style as boss confrontation panel)
+      } else if (room.type === 'Combat') {
+        var card = room.combatCard || null;
+        if (!card) {
+          var ddCombat = normalizeMissionDreadDie(room.dd || 6);
+          var bonusCombat = Number(mission.bonus || 0) + getLegacyRaidRoomAssistBonus(mission, wingNum, roomIdx);
+          card = ensureLegacyRaidCombatCardState(mission, wingNum, roomIdx, room, bonusCombat, ddCombat);
+        }
+        html += '<div style="margin-top:.22rem;padding:.32rem .36rem;border:1px solid rgba(200,50,50,.28);background:rgba(200,50,50,.06);">'
+          + '<div style="font-size:.72rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.12rem;">⚔ Enemy Combat Engaged</div>'
+          + buildLegacyRaidCombatCardContentHtml(mission, wingNum, roomIdx, room, card, true)
+          + '</div>';
       // Standard rooms: action button
       } else {
         var btnLabel = room.type === 'Entry' ? '→ Enter Wing'
           : room.type === 'Hazard' ? '⛰ Push Through Hazard (' + getLegacyRaidRoomCheckLine('Hazard', room.dd) + ')'
           : room.type === 'Peril' ? '☠ Survive Peril Zone (' + getLegacyRaidRoomCheckLine('Peril', room.dd) + ')'
-          : room.type === 'Combat' ? '⚔ Fight ' + Math.max(1, Number(room.enemyCount || 1)) + ' Enemies (Adventure vs Dread d' + normalizeMissionDreadDie(room.dd) + ')'
           : room.type === 'Trap' ? '⚠ Disarm Trap Lanes (' + getLegacyRaidRoomCheckLine('Trap', room.dd) + ')'
           : room.type === 'Gambling' ? '🂡 Play Wager Puzzle'
           : room.type === 'Loot' ? '📦 Breach Loot Stash (' + getLegacyRaidRoomCheckLine('Loot', room.dd) + ')'
@@ -7860,8 +7818,8 @@
     });
   }
 
-  function renderLegacyRaidCombatCard(mission, wingNum, roomIdx, room, card) {
-    if (!mission || !room || !card) return false;
+  function buildLegacyRaidCombatCardContentHtml(mission, wingNum, roomIdx, room, card, inlineMode) {
+    if (!mission || !room || !card) return '';
     var enemies = Array.isArray(card.enemies) ? card.enemies : [];
     var alive = enemies.filter(function (e) { return Number(e.hp || 0) > 0; });
     var enemyHtml = enemies.map(function (enemy) {
@@ -7885,31 +7843,36 @@
       return wf && wf.status !== 'failed';
     }).length;
     var turnOrder = '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.18rem;">Turn Order: <strong style="color:var(--text2);">You</strong> → <strong style="color:var(--teal);">Allies</strong> (DD6 | 12 Stress survivors: ' + livingWayfarers + ') → <strong style="color:var(--red2);">Enemies</strong></div>';
-    openModal(
-      'Combat Room — ' + room.label,
-      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
-        + '<div style="margin-bottom:.2rem;">Turn-based raid combat card. Your combat dice are pulled from the Combat tab, allies act second, then enemy phases resolve.</div>'
-        + turnOrder
-        + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.2rem;">Round ' + Number(card.round || 1) + ' · Actions Left ' + Number(card.actionsLeft || 0) + '/' + Number(card.actionsPerRound || 4) + ' · ' + buildLegacyRaidCombatDieSummary() + ' · Dread d' + Number(card.roomDd || room.dd || 7) + '</div>'
-        + '<div style="margin-bottom:.22rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(70,120,220,.08);">'
-        + '<div style="font-size:.7rem;color:var(--text2);">Raid Team HP: <strong style="color:var(--teal);">' + Math.max(0, Number(card.playerHp || 0)) + '/' + Math.max(1, Number(card.playerMaxHp || 1)) + '</strong> · Enemies Remaining: <strong style="color:var(--red2);">' + alive.length + '</strong></div>'
-        + '</div>'
-        + buildLegacyRaidCombatZoneSummary()
-        + '<div style="margin-bottom:.22rem;">' + enemyHtml + '</div>'
-        + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.22rem;">'
-        + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'strike\')">Strike (target first alive)</button>'
-        + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'shoot\')">Shoot (target first alive)</button>'
-        + '<button class="btn btn-xs btn-teal" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'suppress\')">Suppress</button>'
-        + '<button class="btn btn-xs" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'recover\')">Recover</button>'
-        + '<button class="btn btn-xs btn-warn" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'end\')">End Player Turn</button>'
-        + '</div>'
-        + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;">Combat Log</div>'
-        + '<div style="max-height:92px;overflow:auto;border:1px solid var(--border2);padding:.2rem .26rem;background:rgba(0,0,0,.16);margin-bottom:.22rem;">' + logHtml + '</div>'
-        + '<div style="display:flex;justify-content:flex-end;">'
-        + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
-        + '</div>'
+    var footer = inlineMode
+      ? ''
+      : ('<div style="display:flex;justify-content:flex-end;">'
+          + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
+          + '</div>');
+    return '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+      + '<div style="margin-bottom:.2rem;">Turn-based raid combat card. Your combat dice are pulled from the Combat tab, allies act second, then enemy phases resolve.</div>'
+      + turnOrder
+      + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.2rem;">Round ' + Number(card.round || 1) + ' · Actions Left ' + Number(card.actionsLeft || 0) + '/' + Number(card.actionsPerRound || 4) + ' · ' + buildLegacyRaidCombatDieSummary() + ' · Dread d' + Number(card.roomDd || room.dd || 7) + '</div>'
+      + '<div style="margin-bottom:.22rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(70,120,220,.08);">'
+      + '<div style="font-size:.7rem;color:var(--text2);">Raid Team HP: <strong style="color:var(--teal);">' + Math.max(0, Number(card.playerHp || 0)) + '/' + Math.max(1, Number(card.playerMaxHp || 1)) + '</strong> · Enemies Remaining: <strong style="color:var(--red2);">' + alive.length + '</strong></div>'
       + '</div>'
-    );
+      + buildLegacyRaidCombatZoneSummary()
+      + '<div style="margin-bottom:.22rem;">' + enemyHtml + '</div>'
+      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.22rem;">'
+      + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'strike\')">Strike (target first alive)</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'shoot\')">Shoot (target first alive)</button>'
+      + '<button class="btn btn-xs btn-teal" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'suppress\')">Suppress</button>'
+      + '<button class="btn btn-xs" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'recover\')">Recover</button>'
+      + '<button class="btn btn-xs btn-warn" onclick="window.resolveRaidCombatCardAction(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'end\')">End Player Turn</button>'
+      + '</div>'
+      + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;">Combat Log</div>'
+      + '<div style="max-height:92px;overflow:auto;border:1px solid var(--border2);padding:.2rem .26rem;background:rgba(0,0,0,.16);margin-bottom:.22rem;">' + logHtml + '</div>'
+      + footer
+      + '</div>';
+  }
+
+  function renderLegacyRaidCombatCard(mission, wingNum, roomIdx, room, card) {
+    if (!mission || !room || !card) return false;
+    openModal('Combat Room — ' + room.label, buildLegacyRaidCombatCardContentHtml(mission, wingNum, roomIdx, room, card, false));
     return true;
   }
 
@@ -8014,7 +7977,7 @@
       card.allyPending = true;
     }
 
-    return renderLegacyRaidCombatCard(mission, wingNum, roomIdx, room, card);
+    return openRaidWingPopup(missionId, wingNum, roomIdx);
   };
 
   function ensureLegacyRaidGamblingState(mission, wingNum, roomIdx) {
@@ -8229,8 +8192,8 @@
 
     if (room.type === 'Combat') {
       if (consumeLegacyRaidClock(mission, wingNum, room.label)) return;
-      var combatCard = ensureLegacyRaidCombatCardState(mission, wingNum, roomIdx, room, totalBonus, dd);
-      return renderLegacyRaidCombatCard(mission, wingNum, roomIdx, room, combatCard);
+      ensureLegacyRaidCombatCardState(mission, wingNum, roomIdx, room, totalBonus, dd);
+      return openRaidWingPopup(missionId, wingNum, roomIdx);
     }
 
     var success, advR, dreadR;

@@ -5866,34 +5866,54 @@
     var sets = [
       {
         clues: [
-          { clue: 'Across 1 (4): Route between districts', answer: 'lane' },
-          { clue: 'Across 3 (4): Secure entry point', answer: 'gate' },
-          { clue: 'Down 1 (4): Story archive', answer: 'lore' },
-          { clue: 'Down 2 (4): Team scout role', answer: 'guide' }
+          { clue: 'Across: Route between districts (4)', answer: 'lane' },
+          { clue: 'Across: Secure entry point (4)', answer: 'gate' },
+          { clue: 'Across: Team movement plan (5)', answer: 'route' },
+          { clue: 'Across: Signal raised for allies (5)', answer: 'beacon' },
+          { clue: 'Across: Archive record fragment (4)', answer: 'note' },
+          { clue: 'Down: Story archive (4)', answer: 'lore' },
+          { clue: 'Down: Team scout role (5)', answer: 'guide' },
+          { clue: 'Down: Hidden supply container (5)', answer: 'cache' },
+          { clue: 'Down: Warden watch path (6)', answer: 'patrol' }
         ]
       },
       {
         clues: [
-          { clue: 'Across 1 (4): Safe shelter stop', answer: 'inns' },
-          { clue: 'Across 3 (4): Marked travel path', answer: 'road' },
-          { clue: 'Down 1 (4): Old written record', answer: 'text' },
-          { clue: 'Down 2 (4): Keep watch over', answer: 'guard' }
+          { clue: 'Across: Safe shelter stop (4)', answer: 'inns' },
+          { clue: 'Across: Marked travel path (4)', answer: 'road' },
+          { clue: 'Across: Public posting board (5)', answer: 'board' },
+          { clue: 'Across: Quick district report (5)', answer: 'brief' },
+          { clue: 'Across: Team objective (4)', answer: 'goal' },
+          { clue: 'Down: Old written record (4)', answer: 'text' },
+          { clue: 'Down: Keep watch over (5)', answer: 'guard' },
+          { clue: 'Down: Crossing over water (6)', answer: 'bridge' },
+          { clue: 'Down: Enclosed route marker (4)', answer: 'arch' }
         ]
       },
       {
         clues: [
-          { clue: 'Across 1 (5): Planned movement line', answer: 'route' },
-          { clue: 'Across 3 (5): Small supply box', answer: 'crate' },
-          { clue: 'Down 1 (5): Learn and remember', answer: 'study' },
-          { clue: 'Down 2 (6): Signal from afar', answer: 'beacon' }
+          { clue: 'Across: Planned movement line (5)', answer: 'route' },
+          { clue: 'Across: Small supply box (5)', answer: 'crate' },
+          { clue: 'Across: Path through old stone (4)', answer: 'arch' },
+          { clue: 'Across: Unstable district front (5)', answer: 'front' },
+          { clue: 'Across: Record of a clue trail (4)', answer: 'log' },
+          { clue: 'Down: Learn and remember (5)', answer: 'study' },
+          { clue: 'Down: Signal from afar (6)', answer: 'beacon' },
+          { clue: 'Down: Local trade center (6)', answer: 'market' },
+          { clue: 'Down: Patrol staging point (4)', answer: 'post' }
         ]
       },
       {
         clues: [
-          { clue: 'Across 1 (4): Team objective', answer: 'goal' },
-          { clue: 'Across 3 (4): Public posting board', answer: 'board' },
-          { clue: 'Down 1 (4): Puzzle answer hint', answer: 'clue' },
-          { clue: 'Down 2 (4): Travel preparation', answer: 'plan' }
+          { clue: 'Across: Team objective (4)', answer: 'goal' },
+          { clue: 'Across: Public posting board (5)', answer: 'board' },
+          { clue: 'Across: Puzzle answer hint (4)', answer: 'clue' },
+          { clue: 'Across: Travel preparation (4)', answer: 'plan' },
+          { clue: 'Across: Signed movement writ (4)', answer: 'pass' },
+          { clue: 'Down: District watch patrol (6)', answer: 'patrol' },
+          { clue: 'Down: Encoded gate signal (4)', answer: 'code' },
+          { clue: 'Down: Shared expedition pool (4)', answer: 'team' },
+          { clue: 'Down: Message carried ahead (7)', answer: 'courier' }
         ]
       }
     ];

@@ -1379,7 +1379,7 @@
                  <div class="ss-title">${capitalize(hex.siteType)}</div>
                  <div class="ss-text">${describeSeaSite(hex.siteType, hex.siteData)}</div>
                  ${hex.siteType === 'settlement' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="generateTaskForSeaHex(${hex.col},${hex.row})">⚄ Generate Task</button></div>${buildSeaSettlementDowntimePanel(hex)}` : ''}
-                 ${hex.siteType === 'dungeon' ? `<div class="ruin-room" style="margin-top:.32rem;"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Built by:</strong> ${hex.siteData.builder || 'Unknown'}<br><strong>Purpose:</strong> ${hex.siteData.builtFor || 'Unknown'}<br><strong>Construction:</strong> ${hex.siteData.construction || 'Stone'}<br><strong>Entrance:</strong> ${hex.siteData.entrance || 'Collapsed arch'}<br><strong>Rooms:</strong> ${hex.siteData.rooms || 4} total<br><strong>Novelty:</strong> ${hex.siteData.novelty || 'None'}</div></div><div style="margin-top:.32rem;display:flex;gap:.24rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="requestJoinSeaArea('dungeon',${hex.col},${hex.row})">Join Area: Sea Ruins</button></div>` : ''}
+                 ${hex.siteType === 'dungeon' ? `<div class="rest-boon" style="margin-top:.28rem;background:rgba(160,152,112,.06);border-color:rgba(160,152,112,.4);"><div class="rb-label" style="color:#a09870;">◫ Rest Boon</div><div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Empowered</strong> (Body/Strike/Shoot ↑).</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="if(typeof advanceDay==='function')advanceDay(1);if(typeof toggleCond==='function'&&S.conditions&&!S.conditions.empowered)toggleCond('empowered');showNotif('Sea ruin camp complete. +1 day, Empowered applied.','good');">Accept Boon Rest (Long Rest +1 Day)</button></div></div><div class="ruin-room" style="margin-top:.32rem;"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Built by:</strong> ${hex.siteData.builder || 'Unknown'}<br><strong>Purpose:</strong> ${hex.siteData.builtFor || 'Unknown'}<br><strong>Construction:</strong> ${hex.siteData.construction || 'Stone'}<br><strong>Entrance:</strong> ${hex.siteData.entrance || 'Collapsed arch'}<br><strong>Rooms:</strong> ${hex.siteData.rooms || 4} total<br><strong>Novelty:</strong> ${hex.siteData.novelty || 'None'}</div></div><div style="margin-top:.32rem;display:flex;gap:.24rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="openSeaDungeon(${hex.col},${hex.row})">Enter Sea Ruins Hexcrawl</button><button class="btn btn-xs" onclick="requestJoinSeaArea('dungeon',${hex.col},${hex.row})">Join Area: Sea Ruins</button></div>` : ''}
                </div>`
             : ""
         }
@@ -1624,19 +1624,123 @@
     return '<div style="font-size:.75rem;color:var(--teal);margin-top:.12rem;">Narrative item bonus: ' + parts.join(' · ') + '</div>';
   }
 
+  function ensureSeaSettlementLife(hex) {
+    if (!hex || hex.siteType !== 'settlement') return null;
+    hex.siteData = hex.siteData || {};
+    var life = hex.siteData.life;
+    if (!life || typeof life !== 'object') {
+      var economies = ['fishing lanes', 'salvage docks', 'reef farming', 'charter smugglers', 'storm trawlers'];
+      var scarcity = ['surplus', 'balanced', 'strained', 'scarce'];
+      life = {
+        economy: economies[Math.floor(Math.random() * economies.length)] || 'fishing lanes',
+        scarcity: scarcity[Math.floor(Math.random() * scarcity.length)] || 'balanced',
+        npcs: [
+          { name: pick(['Dockmaster Iven', 'Harbormaster Sela', 'Quartermaster Brin']), role: 'Port Control', relation: 0, memory: 'No deal made yet.' },
+          { name: pick(['Netwright Tal', 'Hullwright Mora', 'Signaler Vesk']), role: 'Trade Crew', relation: 0, memory: 'Watching your choices.' },
+          { name: pick(['Tide Priest Orun', 'Fog Speaker Lin', 'Chart Keeper Nara']), role: 'Local Voice', relation: 0, memory: 'Waiting for proof.' }
+        ],
+        storylets: [
+          { id: 'sea-chain-1', title: 'Harbor Ledger Theft', stage: 1, ignoredDays: 0, resolved: false },
+          { id: 'sea-chain-2', title: 'Ghost Buoy Signals', stage: 1, ignoredDays: 0, resolved: false }
+        ]
+      };
+      hex.siteData.life = life;
+    }
+    return life;
+  }
+
+  function updateSeaNpcMemory(hex, tone, note) {
+    var life = ensureSeaSettlementLife(hex);
+    if (!life || !Array.isArray(life.npcs) || !life.npcs.length) return;
+    var npc = life.npcs[Math.floor(Math.random() * life.npcs.length)] || null;
+    if (!npc) return;
+    npc.relation = Number(npc.relation || 0) + (tone === 'positive' ? 1 : (tone === 'negative' ? -1 : 0));
+    npc.memory = String(note || 'Interaction logged.');
+  }
+
+  function openSeaSettlementMerchant(col, row) {
+    var hex = seaHexByCoord(col, row);
+    var life = ensureSeaSettlementLife(hex);
+    if (!hex || !life) return;
+    var cat = life.scarcity === 'scarce' ? 'weapon_mods' : 'items';
+    if (typeof switchTab === 'function') {
+      var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+      switchTab('shop', btn || null);
+    }
+    if (typeof showShopCat === 'function') {
+      try { showShopCat(cat, null); } catch (_err) {}
+    }
+    updateSeaNpcMemory(hex, 'positive', 'Opened trade lanes for ' + cat + '.');
+    showNotif('Sea merchant opened (' + cat + ').', 'good');
+  }
+
+  function runSeaSettlementSideTask(col, row) {
+    var hex = seaHexByCoord(col, row);
+    if (!hex || hex.siteType !== 'settlement') return;
+    var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+    var a = explodingRoll(die);
+    var d = explodingRoll(6);
+    var success = Number(a.total || 0) >= Number(d.total || 0);
+    if (success) {
+      S.credits = Number(S.credits || 0) + 40;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    } else {
+      ensureMentalStress(1);
+    }
+    updateSeaNpcMemory(hex, success ? 'positive' : 'negative', success ? 'Solved a dockside side task.' : 'A dockside side task failed.');
+    hex.resultHtml = '<div class="sea-result-title">Sea Side Task</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Lead d' + die + '=' + a.total + ' vs DD6=' + d.total + '. '
+      + (success ? '+40 credits, +1 Teamwork.' : '+1 Mental Stress.') + '</div>';
+    renderLastSeaInfo(hex);
+  }
+
+  function tickSeaSettlementDaily(days) {
+    if (!S || !S.lastSea || !Array.isArray(S.lastSea.map)) return;
+    var d = Math.max(1, Number(days || 1));
+    S.lastSea.map.forEach(function (hex) {
+      if (!hex || hex.siteType !== 'settlement') return;
+      var life = ensureSeaSettlementLife(hex);
+      if (!life || !Array.isArray(life.storylets)) return;
+      life.storylets.forEach(function (s) {
+        if (!s || s.resolved) return;
+        s.ignoredDays = Number(s.ignoredDays || 0) + d;
+        if (s.ignoredDays >= 2 && Number(s.stage || 1) < 3) {
+          s.stage = Number(s.stage || 1) + 1;
+          s.ignoredDays = 0;
+        }
+      });
+    });
+  }
+
   function buildSeaSettlementDowntimePanel(hex) {
     if (!hex || hex.siteType !== 'settlement') return '';
+    var life = ensureSeaSettlementLife(hex);
     var pending = hex.pendingDowntimeEvent;
     var result = hex.downtimeLastResult;
+    var npcHtml = life && Array.isArray(life.npcs)
+      ? life.npcs.map(function (npc) {
+          return '<div style="font-size:.72rem;color:var(--muted2);">• ' + String(npc.name || 'Local') + ' (' + String(npc.role || 'Crew') + ') · Rel ' + (Number(npc.relation || 0) >= 0 ? '+' : '') + Number(npc.relation || 0) + '</div>';
+        }).join('')
+      : '';
+    var storyletHtml = life && Array.isArray(life.storylets)
+      ? life.storylets.filter(function (s) { return s && !s.resolved; }).map(function (s) {
+          return '<div style="font-size:.72rem;color:var(--muted2);">• ' + String(s.title || 'Sea storylet') + ' — Stage ' + Number(s.stage || 1) + '/3</div>';
+        }).join('')
+      : '';
     var stats = ['lead', 'mind', 'body', 'spirit', 'control', 'strike', 'shoot', 'defend'];
     return `<div class="npc-block" style="margin-top:.4rem;border-color:rgba(46,196,182,.35);background:rgba(46,196,182,.06);">
       <div class="nb-label" style="color:var(--teal);">🏘 Sea Holding Downtime</div>
       <div style="font-size:.78rem;color:var(--text2);line-height:1.5;">Pick an activity lane: talk to people, run a local task, or explore nearby routes.</div>
+      <div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Economy: <strong>${life ? life.economy : 'mixed'}</strong> · Scarcity: <strong>${life ? life.scarcity : 'balanced'}</strong></div>
       <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-teal" onclick="rollSeaSettlementDowntime(${hex.col},${hex.row},'talk')">💬 Talk To Locals</button>
         <button class="btn btn-xs btn-primary" onclick="rollSeaSettlementDowntime(${hex.col},${hex.row},'task')">🧾 Run A Task</button>
         <button class="btn btn-xs btn-warn" onclick="rollSeaSettlementDowntime(${hex.col},${hex.row},'explore')">🧭 Explore Nearby</button>
+        <button class="btn btn-xs" onclick="openSeaSettlementMerchant(${hex.col},${hex.row})">🛒 Browse Market</button>
+        <button class="btn btn-xs" onclick="runSeaSettlementSideTask(${hex.col},${hex.row})">📌 Side Task</button>
       </div>
+      ${npcHtml ? `<div style="margin-top:.28rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.22rem;"><div style="font-size:.7rem;color:var(--teal);">District NPC Roster</div>${npcHtml}</div>` : ''}
+      ${storyletHtml ? `<div style="margin-top:.22rem;"><div style="font-size:.7rem;color:var(--teal);">Escalating Storylets</div>${storyletHtml}</div>` : ''}
       ${pending ? `<div style="margin-top:.35rem;padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);">
         <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);">${pending.name}</div>
         <div style="font-size:.76rem;color:var(--muted2);margin-top:.15rem;">Choose Action Die vs DD${pending.dd}</div>
@@ -1715,6 +1819,7 @@
     var outcomeBonusNotes = [];
     if (success) {
       applySeaDowntimeEffect(evt.successEffect);
+      updateSeaNpcMemory(hex, 'positive', 'Downtime success in ' + String(evt.activity || 'activity') + '.');
       if (itemFlags.compass && evt.activity === 'explore') {
         S.credits = (S.credits || 0) + 20;
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
@@ -1727,6 +1832,7 @@
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
     } else {
       applySeaDowntimeEffect(evt.failEffect);
+      updateSeaNpcMemory(hex, 'negative', 'Downtime failure in ' + String(evt.activity || 'activity') + '.');
       if (typeof addTMWOnFail === 'function') addTMWOnFail();
     }
     hex.downtimeLastResult = {
@@ -4198,6 +4304,9 @@
   window.resolveOpenSeaPerilCheck = resolveOpenSeaPerilCheck;
   window.rollSeaSettlementDowntime = rollSeaSettlementDowntime;
   window.resolveSeaSettlementDowntime = resolveSeaSettlementDowntime;
+  window.openSeaSettlementMerchant = openSeaSettlementMerchant;
+  window.runSeaSettlementSideTask = runSeaSettlementSideTask;
+  window.tickSeaSettlementDaily = tickSeaSettlementDaily;
   window.generateTaskForSeaHex = generateTaskForSeaHex;
   window.acceptSeaTask = acceptSeaTask;
   window.completeSeaTask = completeSeaTask;

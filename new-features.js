@@ -1615,6 +1615,10 @@
       var microCount = 2 + Math.floor(Math.random() * 4);
       var micro = [];
       for (var mi = 0; mi < microCount; mi++) micro.push(pickLocal(archetype.microPool));
+      var economicProfiles = ['salvage-heavy', 'agrarian', 'artisan', 'black-market', 'ritual', 'industrial'];
+      var scarcityTiers = ['surplus', 'balanced', 'strained', 'scarce'];
+      var districtEconomy = economicProfiles[(idx + Math.floor(Math.random() * economicProfiles.length)) % economicProfiles.length];
+      var scarcity = scarcityTiers[Math.floor(Math.random() * scarcityTiers.length)] || 'balanced';
       return {
         id: id,
         label: label,
@@ -1634,11 +1638,28 @@
         dangerLevel: pickLocal(['Low', 'Moderate', 'High']),
         activity: pickLocal(archetype.activities),
         mood: pickLocal(archetype.moods),
+        economy: districtEconomy,
+        scarcity: scarcity,
         rumor: pickLocal(archetype.rumors),
         interactable: pickLocal(archetype.interactables),
         hiddenThing: pickLocal(archetype.hiddenThings),
-        microLocations: micro
+        microLocations: micro,
+        npcRoster: []
       };
+    }
+
+    function buildDistrictNpcRoster(archetype, label, idx) {
+      var base = shuffleLocal(archetype.npcPool || []).slice(0, 2 + (idx % 2));
+      return base.map(function (npc, ii) {
+        return {
+          id: 'npc-' + String(idx) + '-' + String(ii),
+          name: String(npc.name || ('District Figure ' + (ii + 1))),
+          role: String(npc.role || 'Local Notable'),
+          faction: String(npc.faction || 'Locals'),
+          relation: 0,
+          memory: 'First impression pending in ' + String(label || 'district') + '.'
+        };
+      });
     }
 
     function buildNpcWeb(archetype) {
@@ -1707,6 +1728,7 @@
         node.q = (coords[idx] || { q: idx, r: 0 }).q;
         node.r = (coords[idx] || { q: idx, r: 0 }).r;
         node.revealed = true;
+        node.npcRoster = buildDistrictNpcRoster(archetype, label, idx);
         return node;
       });
       var edges = (topo.edges || []).filter(function (e) {
@@ -1731,6 +1753,9 @@
           mysteries: (archetype.mysteries || []).slice()
         },
         npcWeb: buildNpcWeb(archetype),
+        relationshipMemory: {},
+        storylets: [],
+        lastDailyTick: '',
         stats: buildStats(archetype),
         history: []
       };
@@ -1928,6 +1953,7 @@
       return;
     }
     var cat = String(services.merchantCategory || 'items');
+    if (cat === 'weapons') cat = 'weapon_mods';
     node.result = 'Merchant stalls are active. Redirecting to Merchants (' + cat + ').';
     if (typeof switchTab === 'function') {
       var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
@@ -1936,7 +1962,98 @@
     if (typeof showShopCat === 'function') {
       try { showShopCat(cat, null); } catch (_err) {}
     }
-    if (typeof showNotif === 'function') showNotif('Merchant access opened in ' + node.label + '.', 'info');
+    if (typeof showNotif === 'function') showNotif('Merchant access opened in ' + node.label + ' (' + cat + ').', 'info');
+  }
+
+  function getCurrentGameDayStampLocal() {
+    if (typeof getCurrentGameDayStamp === 'function') return String(getCurrentGameDayStamp() || '');
+    if (S && S.gameDate && typeof S.gameDate === 'object') {
+      return [Number(S.gameDate.year || 1), Number(S.gameDate.month || 1), Number(S.gameDate.day || 1)].join('-');
+    }
+    return '';
+  }
+
+  function ensureHoldingStorylets(crawl) {
+    crawl.storylets = Array.isArray(crawl.storylets) ? crawl.storylets : [];
+    if (crawl.storylets.length) return;
+    var nodes = Array.isArray(crawl.nodes) ? crawl.nodes : [];
+    var picks = nodes.slice(0, 3);
+    picks.forEach(function (node, idx) {
+      crawl.storylets.push({
+        id: 'storylet-' + String(idx + 1),
+        districtId: node && node.id ? node.id : '',
+        title: pick(['Missing Courier Chain', 'Market Sabotage Ring', 'Quiet Shrine Omen', 'Barracks Debt Spiral']),
+        stage: 1,
+        ignoredDays: 0,
+        resolved: false
+      });
+    });
+  }
+
+  function tickHoldingSettlementDaily(days) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var d = Math.max(1, Number(days || 1));
+    ensureHoldingStorylets(crawl);
+    crawl.storylets.forEach(function (s) {
+      if (!s || s.resolved) return;
+      s.ignoredDays = Number(s.ignoredDays || 0) + d;
+      if (s.ignoredDays >= 2 && Number(s.stage || 1) < 3) {
+        s.stage = Number(s.stage || 1) + 1;
+        s.ignoredDays = 0;
+      }
+    });
+  }
+
+  function updateHoldingDailyProgress() {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var stamp = getCurrentGameDayStampLocal();
+    if (!stamp) return;
+    if (!crawl.lastDailyTick) {
+      crawl.lastDailyTick = stamp;
+      return;
+    }
+    if (crawl.lastDailyTick !== stamp) {
+      tickHoldingSettlementDaily(1);
+      crawl.lastDailyTick = stamp;
+    }
+  }
+
+  function recordHoldingNpcInteraction(node, mood, note) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    if (!node || !Array.isArray(node.npcRoster) || !node.npcRoster.length) return;
+    crawl.relationshipMemory = crawl.relationshipMemory || {};
+    var target = node.npcRoster[Math.floor(Math.random() * node.npcRoster.length)] || null;
+    if (!target) return;
+    var k = String(target.id || target.name || 'npc');
+    var rel = crawl.relationshipMemory[k] || { score: 0, notes: [] };
+    rel.score += (mood === 'positive' ? 1 : (mood === 'negative' ? -1 : 0));
+    rel.notes.unshift(String(note || 'Conversation logged.') + ' (' + String(node.label || 'District') + ')');
+    rel.notes = rel.notes.slice(0, 4);
+    crawl.relationshipMemory[k] = rel;
+    target.relation = rel.score;
+    target.memory = rel.notes[0];
+  }
+
+  function openHoldingDistrictSideTask(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+    var a = explodingRoll(die);
+    var d = explodingRoll(6);
+    var success = Number(a.total || 0) >= Number(d.total || 0);
+    if (success) {
+      S.credits = Number(S.credits || 0) + 45;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+    } else {
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    }
+    node.result = 'Side task (' + String(node.label || 'District') + '): Lead d' + die + '=' + a.total + ' vs DD6=' + d.total + '. '
+      + (success ? 'Task closed locally. +45 Credits, +1 Teamwork.' : 'Complication triggered. +1 Mental Stress.');
+    recordHoldingNpcInteraction(node, success ? 'positive' : 'negative', success ? 'Closed a side task quickly.' : 'A side task spiraled.');
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
   function openHoldingDistrictMissionPickup(nodeId) {
@@ -1999,6 +2116,7 @@
   }
 
   function runHoldingDistrictFlavorAction(nodeId, action) {
+    updateHoldingDailyProgress();
     var crawl = ensureHoldingSettlementHexcrawl();
     var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
     if (!node) {
@@ -2010,15 +2128,19 @@
     var msg = '';
     if (action === 'rumor') {
       msg = 'Rumor sweep: ' + String(node.rumor || ambient.rumor || 'The district is quiet for now.') + ' Opportunity: ' + String(ambient.opportunity || 'Nothing immediate.');
+      recordHoldingNpcInteraction(node, 'neutral', 'Collected district rumors.');
     } else if (action === 'browse') {
-      msg = 'You make a pass through ' + String(node.label || 'the district') + '. Vendors are pushing ' + String(node.interactable || 'small necessities') + '. Crowd pressure is ' + String(node.npcDensity || 'steady') + '.';
+      openHoldingMerchantDistrict(node.id);
+      return;
     } else if (action === 'task') {
-      openHoldingDistrictMissionPickup(node.id);
+      openHoldingDistrictSideTask(node.id);
       return;
     } else if (action === 'event') {
-      msg = 'District pulse: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
+      msg = 'Random encounter: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
+      recordHoldingNpcInteraction(node, 'neutral', 'Handled a district random encounter.');
     } else if (action === 'downtime_talk') {
       rollHoldingDowntimeActivity('talk');
+      recordHoldingNpcInteraction(node, 'positive', 'Spent time talking with locals.');
       rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     } else if (action === 'downtime_task') {
@@ -2224,6 +2346,10 @@
     }).join('');
     var micro = active && Array.isArray(active.microLocations) ? active.microLocations : [];
     var microHtml = micro.map(function (m) { return '<div style="font-size:.7rem;color:var(--text2);">- ' + m + '</div>'; }).join('');
+    ensureHoldingStorylets(crawl);
+    var storyletHtml = (crawl.storylets || []).filter(function (s) { return s && !s.resolved; }).slice(0, 3).map(function (s) {
+      return '<div style="font-size:.66rem;color:var(--muted2);">• ' + String(s.title || 'Local chain') + ' — Stage ' + Number(s.stage || 1) + '/3</div>';
+    }).join('');
     var actionButton = active && !active.explored
       ? '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (DD' + Number(active.dd || 6) + ')</button>'
       : '<span style="font-size:.68rem;color:var(--green2);">Scouted this visit.</span>';
@@ -2268,7 +2394,11 @@
         + '<details style="margin-top:.1rem;">'
         + '<summary style="cursor:pointer;font-size:.65rem;color:var(--muted2);">District Metadata</summary>'
         + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);">Economy: ' + String(active.economy || 'mixed') + ' · Scarcity: ' + String(active.scarcity || 'balanced') + '</div>'
         + '<div style="font-size:.66rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
+        + (Array.isArray(active.npcRoster) && active.npcRoster.length ? ('<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">District NPC Roster</div>' + active.npcRoster.map(function (npc) {
+          return '<div style="font-size:.66rem;color:var(--muted2);">• ' + String(npc.name || 'Local') + ' (' + String(npc.role || 'Resident') + ') · Relation ' + (Number(npc.relation || 0) >= 0 ? '+' : '') + Number(npc.relation || 0) + '</div>';
+        }).join('')) : '')
         + (microHtml ? ('<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">Micro-Locations</div>' + microHtml) : '')
         + '</details>'
         + '<div style="margin-top:.12rem;font-size:.64rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Core Action</div>'
@@ -2280,7 +2410,7 @@
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk to Locals</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">District Event</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">Random Encounter</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Find Side Task</button>'
         + '</div>'
         + '<div id="holdingDowntimeResult" style="margin-top:.12rem;">' + buildHoldingPendingEventHtml() + '</div>'
@@ -2299,12 +2429,13 @@
         + '</div>') : '')
 
       + '<div style="border:1px solid var(--border2);background:rgba(46,196,182,.08);padding:.26rem .32rem;">'
-      + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Settlement Life</strong></div>'
+      + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Random Encounters And World Pulse</strong></div>'
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.44;">' + String(ambient.scene || 'The holding stirs.') + '</div>'
       + '<details style="margin-top:.1rem;">'
       + '<summary style="cursor:pointer;font-size:.65rem;color:var(--muted2);">Rumors And Signals</summary>'
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.44;margin-top:.06rem;">Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '<br>Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
       + '</details>'
+      + (storyletHtml ? ('<div style="margin-top:.1rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.1rem;"><div style="font-size:.66rem;color:var(--teal);">Escalating Storylets</div>' + storyletHtml + '</div>') : '')
       + (historyHtml ? ('<div style="margin-top:.14rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.12rem;">'
         + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.06rem;">Recent District Activity</div>'
         + historyHtml
@@ -4106,6 +4237,7 @@
   window.openHoldingGamblingDen = openHoldingGamblingDen;
   window.openHoldingMerchantDistrict = openHoldingMerchantDistrict;
   window.openHoldingDistrictMissionPickup = openHoldingDistrictMissionPickup;
+  window.tickHoldingSettlementDaily = tickHoldingSettlementDaily;
   window.toggleHoldingGamblingNode = toggleHoldingGamblingNode;
   window.setHoldingGamblingDifficulty = setHoldingGamblingDifficulty;
   window.setHoldingGamblingGuess = setHoldingGamblingGuess;

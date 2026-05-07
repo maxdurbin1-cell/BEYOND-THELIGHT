@@ -1712,6 +1712,7 @@
     const dominance = owned / total;
 
     const base = (ZONE_SERVICES[z.name] || []).slice();
+    base.push({ name: "Merchant Colony Exchange", cost: 55, desc: "Planetary merchant-colony brokers trade route intel and specialty stock." });
     const power = (POWER_SERVICES[z.leader] || []).slice();
 
     return dominance >= 0.5 ? base.concat(power) : base.concat(power.slice(0, 1));
@@ -3108,6 +3109,7 @@
     const encounterHtml = hex.encounter
       ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + encounterSummary + "</div><div class='wtw-card-actions'>" + encounterActions + "</div></div>")
       : "<div class='wtw-muted'>No rolled encounter in this district.</div>";
+    const activityHtml = "<div class='wtw-card'><div class='wtw-card-title'>Living World Activity</div><div class='wtw-card-text'>Activity clock: <strong>" + String(w.activityClicks || 0) + "/10</strong>. Random encounters and services push this toward the next control-cycle shift.</div></div>";
 
     const servicesHtml = services.map(function (svc, idx) {
       return ""
@@ -3244,7 +3246,7 @@
       + "</div>"
       + summaryGrid
       + eventCard
-        + buildWtwAccordionStateful("Encounter & Markers", encounterHtml + markerHtml + wtwWorldStateHtml + backstoryAnchorHtml, true, "encounter")
+        + buildWtwAccordionStateful("Encounter & Markers", activityHtml + encounterHtml + markerHtml + wtwWorldStateHtml + backstoryAnchorHtml, true, "encounter")
         + buildWtwAccordionStateful("Hazards, Wayfarers, Exploration & Travel", worldSystems, false, "worldsystems")
         + buildWtwAccordionStateful("District Services", celebrationControls + (servicesHtml || "<div class='wtw-muted'>No services available here.</div>"), false, "services")
         + buildWtwAccordionStateful("Zone Power & Tasks", powerSection, false, "powertasks")
@@ -3351,7 +3353,6 @@
       + "<div class='wtw-toolbar-meta'>"
       + "<span class='wtw-stat-pill'>Zone: <strong id='wtwCurrentZone' style='color:var(--gold2);'>-</strong></span>"
       + "<span class='wtw-stat-pill' id='wtwTick'>Cycle 0</span>"
-      + "<span class='wtw-stat-pill'>Activity: <strong id='wtwActivity' style='color:var(--teal);'>0/10</strong></span>"
       + "<span class='wtw-stat-pill' id='wtwTimeDisplay'>Month 1, Day 1, Year 1 — Morning</span>"
       + "</div>"
       + "</div>"

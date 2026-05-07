@@ -11126,8 +11126,77 @@ function createSpaceHubState(ring) {
       want: pick(SPACE_HUB_WANTS),
       quirk: pick(MYSTERY_QUIRKS),
     },
+    life: {
+      economy: pick(['fuel arbitrage', 'contract brokerage', 'salvage auctions', 'armory turnover']),
+      scarcity: pick(['balanced', 'strained', 'scarce', 'surplus']),
+      npcs: [
+        { name: pick(MYSTERY_CREW_NAMES), role: 'Dock Broker', relation: 0, memory: 'No contracts signed.' },
+        { name: pick(MYSTERY_CREW_NAMES), role: 'Transit Marshal', relation: 0, memory: 'Evaluating your flight logs.' },
+        { name: pick(MYSTERY_CREW_NAMES), role: 'Module Quartermaster', relation: 0, memory: 'Watching supply integrity.' }
+      ],
+      storylets: [
+        { id: 'hub-chain-1', title: 'Customs Leak Investigation', stage: 1, ignoredDays: 0, resolved: false },
+        { id: 'hub-chain-2', title: 'Missing Shuttle Ledger', stage: 1, ignoredDays: 0, resolved: false }
+      ]
+    },
     modules: [],
   };
+}
+
+function openSpaceHubMarket() {
+  ensureStarsState();
+  const hub = S.starSystem.activeHub;
+  if (!hub) return;
+  const cat = hub.life && hub.life.scarcity === 'scarce' ? 'weapon_mods' : 'items';
+  if (typeof switchTab === 'function') {
+    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+    switchTab('shop', btn || null);
+  }
+  if (typeof showShopCat === 'function') {
+    try { showShopCat(cat, null); } catch (_err) {}
+  }
+  showNotif('Space Hub market opened (' + cat + ').', 'good');
+}
+
+function runSpaceHubSideTask() {
+  ensureStarsState();
+  const hub = S.starSystem.activeHub;
+  if (!hub) return;
+  const die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+  const a = explodingRoll(die);
+  const d = explodingRoll(8);
+  const success = Number(a.total || 0) >= Number(d.total || 0);
+  if (success) {
+    S.credits = Number(S.credits || 0) + 80;
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+  } else if (typeof changeMentalStress === 'function') {
+    changeMentalStress(1);
+  }
+  if (hub.life && Array.isArray(hub.life.npcs) && hub.life.npcs.length) {
+    const npc = hub.life.npcs[Math.floor(Math.random() * hub.life.npcs.length)] || null;
+    if (npc) {
+      npc.relation = Number(npc.relation || 0) + (success ? 1 : -1);
+      npc.memory = success ? 'You closed a high-priority hub errand.' : 'A hub errand slipped through your hands.';
+    }
+  }
+  showNotif(success ? 'Space Hub side task complete (+80 credits, +1 Teamwork).' : 'Space Hub side task failed (+1 Mental Stress).', success ? 'good' : 'warn');
+  renderSpaceHubPanel();
+}
+
+function tickSpaceHubDaily(days) {
+  ensureStarsState();
+  const d = Math.max(1, Number(days || 1));
+  const hub = S.starSystem && S.starSystem.activeHub ? S.starSystem.activeHub : null;
+  if (!hub || !hub.life || !Array.isArray(hub.life.storylets)) return;
+  hub.life.storylets.forEach(function (s) {
+    if (!s || s.resolved) return;
+    s.ignoredDays = Number(s.ignoredDays || 0) + d;
+    if (s.ignoredDays >= 2 && Number(s.stage || 1) < 3) {
+      s.stage = Number(s.stage || 1) + 1;
+      s.ignoredDays = 0;
+    }
+  });
 }
 
 function exploreSpaceHubModule() {
@@ -11166,6 +11235,13 @@ function renderSpaceHubPanel() {
   const hub = S.starSystem.activeHub;
   const out = document.getElementById('starExplorationDetail');
   if (!hub || !out) return;
+  const life = hub.life || { economy: 'mixed', scarcity: 'balanced', npcs: [], storylets: [] };
+  const npcHtml = Array.isArray(life.npcs) ? life.npcs.map(function (npc) {
+    return '<div style="font-size:.72rem;color:var(--muted2);">• ' + npc.name + ' (' + npc.role + ') · Rel ' + (Number(npc.relation || 0) >= 0 ? '+' : '') + Number(npc.relation || 0) + '</div>';
+  }).join('') : '';
+  const storyletHtml = Array.isArray(life.storylets) ? life.storylets.filter(function (s) { return s && !s.resolved; }).map(function (s) {
+    return '<div style="font-size:.72rem;color:var(--muted2);">• ' + s.title + ' — Stage ' + Number(s.stage || 1) + '/3</div>';
+  }).join('') : '';
   if (typeof hub._currentModuleView !== 'number') hub._currentModuleView = 0;
   const moduleIdx = Math.max(0, Math.min(hub.modules.length - 1, hub._currentModuleView || 0));
   const currentModule = hub.modules[moduleIdx] || null;
@@ -11175,13 +11251,18 @@ function renderSpaceHubPanel() {
       Controlled By: <strong style="color:var(--teal);">${hub.controller}</strong><br>
       Station Type: <strong>${hub.stationType}</strong> · Engine: ${hub.engine} · Crew: ${hub.crew}<br>
       Leader: <strong>${hub.leader.name}</strong> (${hub.leader.feature}, ${hub.leader.quirk}) wants ${hub.leader.want} and offers job: ${hub.leader.job}.<br>
-      Dockside: ${hub.workers.map(w => `${w.disposition} ${w.worker} ${w.action} ${w.subject}`).join(' · ')}
+      Dockside: ${hub.workers.map(w => `${w.disposition} ${w.worker} ${w.action} ${w.subject}`).join(' · ')}<br>
+      Economy: <strong>${life.economy}</strong> · Scarcity: <strong>${life.scarcity}</strong>
     </div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="exploreSpaceHubModule()">Explore Hub Module</button>
       <button class="btn btn-xs" onclick="purchaseSpaceHubFuel('standard')">Refuel Standard +1 (200₵)</button>
       <button class="btn btn-xs" onclick="var task=createGalaxyTask('Space Hub',{title:'Hub Contract',text:'Carry a Holding-style contract package to the marked hex and report back through Space Hub channels.',reward:{renown:'corporations',globalRenown:1,lootFromMerchant:true}});if(task)showNotif('Galaxy task marker placed at Hex '+task.hexId+'.','good');">Generate Task</button>
+      <button class="btn btn-xs" onclick="openSpaceHubMarket()">Browse Market</button>
+      <button class="btn btn-xs" onclick="runSpaceHubSideTask()">Find Side Task</button>
     </div>
+    ${npcHtml ? `<div style="margin-top:.28rem;border-top:1px solid var(--border2);padding-top:.2rem;"><div style="font-size:.7rem;color:var(--teal);">Hub NPC Roster</div>${npcHtml}</div>` : ''}
+    ${storyletHtml ? `<div style="margin-top:.2rem;"><div style="font-size:.7rem;color:var(--teal);">Escalating Hub Storylets</div>${storyletHtml}</div>` : ''}
     <div style="margin-top:.35rem;display:grid;gap:.3rem;">
       ${hub.modules.length ? `<div style="display:flex;gap:.15rem;flex-wrap:wrap;">${hub.modules.map((module, idx) => `<button class="btn btn-xs ${idx === moduleIdx ? 'btn-teal' : ''}" style="padding:.15rem .3rem;font-size:.65rem;" onclick="S.starSystem.activeHub._currentModuleView=${idx};renderSpaceHubPanel();">M${module.id}${module.completed ? '✓' : ''}</button>`).join('')}</div>
       ${currentModule ? `<div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
@@ -17770,6 +17851,18 @@ function advanceDay(days, preserveTravelState) {
   S.gameDate.day += days;
   if (days > 0 && typeof window.applyDarkAfflictionDailyProgress === 'function') {
     window.applyDarkAfflictionDailyProgress(days);
+  }
+  if (days > 0 && typeof window.tickHoldingSettlementDaily === 'function') {
+    try { window.tickHoldingSettlementDaily(days); } catch (_e) {}
+  }
+  if (days > 0 && typeof window.tickSeaSettlementDaily === 'function') {
+    try { window.tickSeaSettlementDaily(days); } catch (_e) {}
+  }
+  if (days > 0 && typeof window.tickSpaceHubDaily === 'function') {
+    try { window.tickSpaceHubDaily(days); } catch (_e) {}
+  }
+  if (days > 0 && typeof window.advanceProvinceConflictFronts === 'function') {
+    try { window.advanceProvinceConflictFronts(days); } catch (_e) {}
   }
   if (days > 0 && typeof window.triggerFactionTurn === 'function') {
     try { window.triggerFactionTurn(); } catch (_e) {}

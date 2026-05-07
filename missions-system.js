@@ -4301,7 +4301,7 @@
       if (typeof showNotif === 'function') showNotif('Invalid raid mission.', 'warn');
       return;
     }
-    var encounter = ensureLegacyRaidBossEncounter(mission);
+    var encounter = initializeBossPhases(mission, 3) || ensureLegacyRaidBossEncounter(mission);
     var bossName = String(mission.legacyRaidBoss || 'The Boss');
     var phase = Number(encounter.phase || 1);
     var phaseHp = Number(encounter.phaseHp || 20);
@@ -4418,7 +4418,7 @@
     
     if (Number(encounter.phaseHp || 0) <= 0 && phase < 3) {
       transitionBossPhase(encounter);
-      if (typeof showNotif === 'function') showNotif('Phase ' + (phase + 1) + ' begins! Boss transforms!', 'good');
+      if (typeof showNotif === 'function') showNotif('Phase ' + Number(encounter.phase || phase + 1) + ' begins! Boss transforms!', 'good');
     } else if (Number(encounter.phaseHp || 0) <= 0 && phase >= 3) {
       closeModal();
       if (typeof showNotif === 'function') showNotif('🐉 Boss defeated! Raid clear!', 'good');
@@ -5237,6 +5237,25 @@
     return timeline[idx] || null;
   }
 
+  function advanceLegacyRaidBossToNextPlayerTurn(mission, encounter) {
+    if (!mission || !encounter) return false;
+    var maxPlayActions = typeof getMaxActions === 'function' ? getMaxActions() : 3;
+    encounter.turnStage = 'player';
+    encounter.allyActionsUsed = 0;
+    encounter.bossActionsLeft = 0;
+    resetLegacyRaidAllyActionBudget(mission, encounter);
+    encounter.turn = Math.min(8, Number(encounter.turn || 1) + 1);
+    var nextNode = getLegacyRaidTimelineTurn(encounter);
+    if (nextNode) {
+      nextNode.playerActionsLeft = maxPlayActions;
+      if (Array.isArray(encounter.actions) && encounter.actions.length) {
+        encounter.currentAction = encounter.actions[Math.max(0, Number(nextNode.actionIndex || 0)) % encounter.actions.length];
+      }
+    }
+    updateLegacyRaidBossHazardLane(encounter);
+    return true;
+  }
+
   function updateLegacyRaidBossHazardLane(encounter) {
     var turnNode = getLegacyRaidTimelineTurn(encounter);
     var lane = turnNode && turnNode.laneShift ? String(turnNode.laneShift) : 'center';
@@ -5675,9 +5694,9 @@
           encounter.turnStage = 'boss';
           if (typeof showNotif === 'function') showNotif('Boss pressure persists. One action remains.', 'warn');
         } else {
-          encounter.turnStage = 'player';
-          encounter.allyActionsUsed = 0;
-          resetLegacyRaidAllyActionBudget(mission, encounter);
+          advanceLegacyRaidBossToNextPlayerTurn(mission, encounter);
+          encounter.log.push('Boss turn ended. New player round begins.');
+          if (typeof showNotif === 'function') showNotif('Boss turn ended. Your next round is ready.', 'good');
         }
         openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
         return true;
@@ -5750,9 +5769,9 @@
       encounter.turnStage = 'boss';
       if (typeof showNotif === 'function') showNotif('Boss prepares a second action.', 'warn');
     } else {
-      encounter.turnStage = 'player';
-      encounter.allyActionsUsed = 0;
-      resetLegacyRaidAllyActionBudget(mission, encounter);
+      advanceLegacyRaidBossToNextPlayerTurn(mission, encounter);
+      encounter.log.push('Boss turn resolved. New player round begins.');
+      if (typeof showNotif === 'function') showNotif('Boss turn resolved. Your next round is ready.', 'good');
     }
     tickLegacyRaidZoneHazards(mission);
     if (typeof renderEnemies === 'function') renderEnemies();
@@ -7355,6 +7374,11 @@
         var turnStageLabel = turnStage === 'player' ? 'Player Turn' : (turnStage === 'ally' ? 'Ally Turn' : 'Boss Turn');
         var maxPlayActions = typeof getMaxActions === 'function' ? getMaxActions() : 3;
         var currentPlayActions = Number(currentTurnNode && currentTurnNode.playerActionsLeft || maxPlayActions);
+        var nextStepText = turnStage === 'player'
+          ? ('Use your remaining actions, then allies will take over. Current beat: ' + String(currentTurnNode && currentTurnNode.beat || 'Unknown') + '.')
+          : (turnStage === 'ally'
+            ? 'Spend ally actions, then press Proceed To Boss Turn to hand control over.'
+            : 'Resolve all boss actions. When the boss finishes, a fresh player round starts automatically.');
         var playerActionSelectHtml = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">'
           + '<select class="input" id="raidPlayerAct-' + mission.id + '" style="max-width:220px;">'
           + playerActions.map(function (label) { return '<option value="' + String(label).replace(/"/g, '&quot;') + '">' + label + '</option>'; }).join('')
@@ -7445,6 +7469,7 @@
           + '<div style="font-size:.72rem;color:var(--teal);margin-bottom:.12rem;"><strong>' + playerName + '</strong> · Player Panel</div>'
           + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-bottom:.1rem;">Current Range: <strong style="color:var(--gold2);">' + playerRange + '</strong></div>'
           + '<div style="font-size:.66rem;color:var(--gold2);line-height:1.45;margin-bottom:.12rem;">Actions Available: ' + currentPlayActions + '/' + maxPlayActions + '</div>'
+          + '<div style="font-size:.65rem;color:var(--teal);line-height:1.45;margin-bottom:.12rem;">Next Step: ' + nextStepText + '</div>'
           + '<div style="font-size:.64rem;color:var(--gold2);line-height:1.4;margin-bottom:.1rem;">Personal Flavor: ' + (flavorBranches.length ? flavorBranches.join(' · ') : 'None') + '</div>'
           + '<div style="margin-bottom:.12rem;">' + rangeButtons + '</div>'
           + '<div style="font-size:.64rem;color:var(--muted2);margin-bottom:.08rem;">Range guidance: Engaged uses Strike. Close supports some weapons, hacks, spells, and items. Nearby/Far support ranged options.</div>'
@@ -7489,7 +7514,9 @@
           : room.type === 'Loot' ? '📦 Breach Loot Stash (' + getLegacyRaidRoomCheckLine('Loot', room.dd) + ')'
           : room.type === 'LoreReading' ? '📜 Read Lore Fragment (' + getLegacyRaidRoomCheckLine('LoreReading', room.dd) + ')'
           : room.type === 'Puzzle' ? '🧩 Open Lock-Dial Puzzle'
-          : room.type === 'Approach' ? '🌀 Advance to Chamber (' + getLegacyRaidRoomCheckLine('Approach', room.dd) + ')'
+          : room.type === 'Approach' ? (wingNum === 3 && roomIdx === 1
+            ? '🌀 Room 2 — Chamber Breach Lockpick Minigame (clear to skip Phase 2)'
+            : '🌀 Advance to Chamber (' + getLegacyRaidRoomCheckLine('Approach', room.dd) + ')')
           : room.type === 'TrophyCache' ? '💠 Claim Cache (' + getLegacyRaidRoomCheckLine('TrophyCache', room.dd) + ')'
           : '⚄ Explore (' + getLegacyRaidRoomCheckLine(room.type, room.dd) + ')';
         html += '<div style="margin-top:.22rem;">'
@@ -10843,6 +10870,9 @@
     try { renderCompletedMissions(); } catch (err) {}
     try { if (typeof renderBackpackUI === 'function') renderBackpackUI(); } catch (err) {}
     try { if (typeof window.refreshQuickPanelSection === 'function') window.refreshQuickPanelSection('missions'); } catch (err) {}
+    if (mission.missionType === 'holding_crisis' && mission.holdingCrisis) {
+      try { applyHoldingCrisisMissionOutcome(mission, !!success); } catch (err) {}
+    }
     if (success) {
       // AUDIO: Mission complete
       if (typeof window.AudioManager !== 'undefined') {
@@ -10915,6 +10945,64 @@
     }
     onDeityPactMissionResolved(mission, success);
     pushNextArcJob(mission, success);
+  }
+
+  function applyHoldingCrisisMissionOutcome(mission, success) {
+    var crisis = mission && mission.holdingCrisis;
+    if (!crisis || typeof window.getProvinceHexByKey !== 'function') return;
+    var key = String(crisis.key || '');
+    var hex = window.getProvinceHexByKey(key);
+    if (!hex) return;
+    if (!hex.data) hex.data = {};
+    var mood = hex.data.mood = hex.data.mood || {};
+    var factionId = String(crisis.control || '');
+    if (success) {
+      mood.crisis = 'No Crisis';
+      mood.resolution = String(crisis.successResolution || 'Wayfarer support restored confidence and defensive readiness.');
+      if (typeof window.clearWorldStatePressureAtKey === 'function') {
+        window.clearWorldStatePressureAtKey(key, { crisis: true, routeSafe: true });
+      }
+      var renownFaction = typeof window.resolveFactionRenownKeyFromControl === 'function'
+        ? window.resolveFactionRenownKeyFromControl(factionId)
+        : '';
+      if (renownFaction && typeof window.changeFactionRenown === 'function') {
+        try { window.changeFactionRenown(renownFaction, 1); } catch (_err) {}
+      }
+      if (typeof window.applyWorldConsequence === 'function') {
+        window.applyWorldConsequence({
+          system: 'holding-crisis',
+          title: 'Holding crisis resolved',
+          detail: String(mission.title || 'Holding crisis') + ' stabilized at ' + key + '.',
+          region: 'province',
+          locationKey: key,
+          severity: 'info',
+          factionId: factionId,
+          deltas: { stability: 2, tension: -2, scarcity: -1 },
+          tags: ['holding-secured', 'quest-resolved', 'crisis-stabilized']
+        });
+      }
+    } else {
+      mood.resolution = String(crisis.failureResolution || 'The holding remains shaken and asks for renewed aid.');
+      if (typeof window.applyWorldConsequence === 'function') {
+        window.applyWorldConsequence({
+          system: 'holding-crisis',
+          title: 'Holding crisis unresolved',
+          detail: String(mission.title || 'Holding crisis') + ' failed at ' + key + '.',
+          region: 'province',
+          locationKey: key,
+          severity: 'high',
+          factionId: factionId,
+          deltas: { stability: -1, factionHeat: 1, tension: 1, scarcity: 1 },
+          tags: ['active-crisis', 'quest-failed', 'dangerous-road']
+        });
+      }
+    }
+    if (typeof window.renderHexMap === 'function') {
+      try { window.renderHexMap(); } catch (_err2) {}
+    }
+    if (typeof window.renderHexInfo === 'function') {
+      try { window.renderHexInfo(hex); } catch (_err3) {}
+    }
   }
 
   function resolveMissionOutcome(missionId, success) {

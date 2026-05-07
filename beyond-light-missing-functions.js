@@ -2564,6 +2564,123 @@ function rollCredits() {
 
 window.selectedDice = window.selectedDice || { action: 4, dread: 6 };
 
+function syncManualCheckPanel() {
+  var panel = document.getElementById("manualCheckPanel");
+  if (!panel) {
+    return;
+  }
+  var manualMode = typeof isManualRollModeEnabled === "function" && isManualRollModeEnabled();
+  panel.style.display = manualMode ? "block" : "none";
+
+  var actionDie = Math.max(1, Number(window.selectedDice.action || 4));
+  var dreadDie = Math.max(1, Number(window.selectedDice.dread || 6));
+  var actionLabel = document.getElementById("manualActionLabel");
+  var dreadLabel = document.getElementById("manualDreadLabel");
+  var actionInput = document.getElementById("manualActionValue");
+  var dreadInput = document.getElementById("manualDreadValue");
+  var prompt = document.getElementById("manualCheckPrompt");
+
+  if (actionLabel) actionLabel.textContent = "Action d" + actionDie;
+  if (dreadLabel) dreadLabel.textContent = "Dread d" + dreadDie;
+  if (actionInput) {
+    actionInput.min = "1";
+    actionInput.max = String(actionDie);
+    actionInput.placeholder = "1-" + actionDie;
+  }
+  if (dreadInput) {
+    dreadInput.min = "1";
+    dreadInput.max = String(dreadDie);
+    dreadInput.placeholder = "1-" + dreadDie;
+  }
+  if (prompt) {
+    prompt.textContent = manualMode
+      ? "Enter your physical Action and Dread results, then compare them or mark the outcome below."
+      : "Turn on Manual Roll Mode in Settings to enter physical dice results here.";
+  }
+}
+
+function readManualCheckValue(kind, consume) {
+  var die = Math.max(1, Number(window.selectedDice[kind] || (kind === "action" ? 4 : 6)));
+  var input = document.getElementById(kind === "action" ? "manualActionValue" : "manualDreadValue");
+  if (!input) {
+    return null;
+  }
+  var raw = String(input.value || "").trim();
+  if (!raw) {
+    showNotif("Enter a " + (kind === "action" ? "Action" : "Dread") + " d" + die + " result first.", "warn");
+    input.focus();
+    return null;
+  }
+  var value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value < 1 || value > die) {
+    showNotif((kind === "action" ? "Action" : "Dread") + " result must be between 1 and " + die + ".", "warn");
+    input.focus();
+    return null;
+  }
+  if (consume !== false) {
+    input.value = "";
+  }
+  return value;
+}
+
+function consumeVisibleManualRollValue(kind, sides) {
+  if (!(typeof isManualRollModeEnabled === "function" && isManualRollModeEnabled())) {
+    return null;
+  }
+  if (kind !== "action" && kind !== "dread") {
+    return null;
+  }
+  var selectedSides = Math.max(1, Number(window.selectedDice[kind] || sides || 1));
+  if (Number(sides || 0) !== selectedSides) {
+    return null;
+  }
+  return readManualCheckValue(kind, true);
+}
+
+function finalizeCheckResult(actionDie, dreadDie, actionTotal, dreadTotal, success) {
+  renderCheckResult(
+    actionDie,
+    dreadDie,
+    { total: actionTotal, exploded: false },
+    { total: dreadTotal, exploded: false },
+    success
+  );
+  if (!success) {
+    addTMWOnFail();
+    changeHealth(Math.max(1, dreadTotal - actionTotal));
+  } else {
+    addSuccessRoll();
+  }
+}
+
+function compareManualCheckValues() {
+  var actionDie = Math.max(1, Number(window.selectedDice.action || 4));
+  var dreadDie = Math.max(1, Number(window.selectedDice.dread || 6));
+  var actionValue = readManualCheckValue("action", true);
+  if (actionValue === null) {
+    return;
+  }
+  var dreadValue = readManualCheckValue("dread", true);
+  if (dreadValue === null) {
+    return;
+  }
+  finalizeCheckResult(actionDie, dreadDie, actionValue, dreadValue, actionValue >= dreadValue);
+}
+
+function resolveManualCheckOverride(success) {
+  var actionDie = Math.max(1, Number(window.selectedDice.action || 4));
+  var dreadDie = Math.max(1, Number(window.selectedDice.dread || 6));
+  var actionValue = readManualCheckValue("action", true);
+  if (actionValue === null) {
+    return;
+  }
+  var dreadValue = readManualCheckValue("dread", true);
+  if (dreadValue === null) {
+    return;
+  }
+  finalizeCheckResult(actionDie, dreadDie, actionValue, dreadValue, !!success);
+}
+
 function selectDie(kind, value) {
   window.selectedDice[kind] = value;
   const containerId = kind === "action" ? "actionDiceOpts" : "dreadDiceOpts";
@@ -2578,6 +2695,7 @@ function selectDie(kind, value) {
       opt.classList.add(selectedClass);
     }
   });
+  syncManualCheckPanel();
 }
 
 function renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success) {
@@ -2615,6 +2733,10 @@ function renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success) 
 }
 
 function rollCheck() {
+  if (typeof isManualRollModeEnabled === "function" && isManualRollModeEnabled()) {
+    compareManualCheckValues();
+    return;
+  }
   const actionDie = window.selectedDice.action;
   const dreadDie = window.selectedDice.dread;
   const actionRoll = explodingRoll(actionDie, { type: "action", major: true, label: "Check Action" });
@@ -2631,10 +2753,24 @@ function rollCheck() {
 }
 
 function rollSingle(kind) {
+  if (typeof isManualRollModeEnabled === "function" && isManualRollModeEnabled()) {
+    var value = readManualCheckValue(kind, true);
+    if (value === null) {
+      return;
+    }
+    showNotif((kind === "action" ? "Action" : "Dread") + " d" + window.selectedDice[kind] + ": " + value, "");
+    return;
+  }
   const die = window.selectedDice[kind];
   const result = explodingRoll(die, { type: kind === "action" ? "action" : "dread", label: kind === "action" ? "Action" : "Dread" });
   showNotif((kind === "action" ? "Action" : "Dread") + " d" + die + ": " + result.total, result.exploded ? "good" : "");
 }
+
+window.consumeVisibleManualRollValue = consumeVisibleManualRollValue;
+window.compareManualCheckValues = compareManualCheckValues;
+window.resolveManualCheckOverride = resolveManualCheckOverride;
+window.syncManualCheckPanel = syncManualCheckPanel;
+syncManualCheckPanel();
 
 function rollWilderness() {
   const result = roll(6);

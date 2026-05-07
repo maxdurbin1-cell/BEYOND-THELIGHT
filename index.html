@@ -914,7 +914,7 @@ select option{background:#0f1020;}
             <span class="counter-val gold-val" id="actionsLeft" style="font-size:1.6rem;">3</span>
             <button class="step-btn" onclick="S.combat.actionsLeft++;updateCombatUI()">+</button>
           </div>
-          <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;" id="maxActionsHint"></div>
+          <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;line-height:1.45;" id="maxActionsHint"></div>
         </div>
         <div><span class="sub-label" title="Decrements when: ☠ Enemy Action button is clicked (enemy spends 1 action), or ⚄ Roll Defend is clicked (defending triggers an enemy response). Resets at start of each new combat cycle once all enemy actions are spent." style="cursor:help;border-bottom:1px dotted var(--muted2);">Enemy Actions Left ⓘ</span>
           <div class="counter-row" style="padding-top:.3rem;">
@@ -1186,6 +1186,25 @@ select option{background:#0f1020;}
         <button class="btn" onclick="rollSingle('action')">Roll Action</button>
         <button class="btn btn-red btn-sm" onclick="rollSingle('dread')">Roll Dread</button>
         <button class="btn btn-sm" onclick="openTMWActions()">Push Your Luck</button>
+      </div>
+      <div id="manualCheckPanel" style="display:none;margin-top:.7rem;padding:.55rem .6rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.06);">
+        <div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;">Manual Check Entry</div>
+        <div id="manualCheckPrompt" style="font-size:.75rem;color:var(--text2);margin-top:.2rem;line-height:1.45;">Enter physical dice results here.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.45rem;">
+          <label style="display:block;">
+            <div id="manualActionLabel" class="sub-label" style="margin-bottom:.22rem;">Action d4</div>
+            <input type="number" id="manualActionValue" min="1" max="4" inputmode="numeric" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.38rem .45rem;font-size:.9rem;border-radius:4px;" placeholder="1-4">
+          </label>
+          <label style="display:block;">
+            <div id="manualDreadLabel" class="sub-label" style="margin-bottom:.22rem;">Dread d6</div>
+            <input type="number" id="manualDreadValue" min="1" max="6" inputmode="numeric" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.38rem .45rem;font-size:.9rem;border-radius:4px;" placeholder="1-6">
+          </label>
+        </div>
+        <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.5rem;">
+          <button class="btn btn-sm" onclick="compareManualCheckValues()">Compare Entered Dice</button>
+          <button class="btn btn-sm btn-red" onclick="resolveManualCheckOverride(false)">Failure</button>
+          <button class="btn btn-sm btn-primary" onclick="resolveManualCheckOverride(true)">Success</button>
+        </div>
       </div>
       <div style="margin-top:.55rem;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;">
         <span class="sub-label" style="margin:0;">Dice Visuals</span>
@@ -1569,14 +1588,11 @@ function isManualRollModeEnabled(){
 }
 function getManualRollValue(sides,meta){
   const die=Math.max(1,parseInt(sides,10)||1);
-  const label=meta&&meta.label?String(meta.label):('d'+die+' roll');
-  const promptText='Manual Roll Mode is enabled. Enter '+label+' result (1-'+die+').';
-  const raw=window.prompt(promptText,'1');
-  if(raw===null||raw===undefined||String(raw).trim()==='')return null;
-  const parsed=parseInt(String(raw).trim(),10);
-  if(!Number.isFinite(parsed))return null;
-  if(parsed<1||parsed>die)return null;
-  return parsed;
+  if(window&&typeof window.consumeVisibleManualRollValue==='function'){
+    const visibleValue=window.consumeVisibleManualRollValue(meta&&meta.type?String(meta.type):'',die);
+    if(visibleValue!==null)return visibleValue;
+  }
+  return null;
 }
 function roll(n,meta){
   const sides=Math.max(1,parseInt(n,10)||1);
@@ -6141,7 +6157,10 @@ function updateCombatUI(){
   const enemyMaxMain=document.getElementById('enemyActionsMaxMain');
   if(enemyMaxMain)enemyMaxMain.textContent=(typeof getEnemyActionsPerCycle==='function')?Math.max(1,getEnemyActionsPerCycle()):0;
   const ml=document.getElementById('maxActionsHint');
-  if(ml)ml.textContent='(max '+getMaxActions()+')';
+  if(ml){
+    var actionBreakdown=getCombatActionBreakdown();
+    ml.textContent=actionBreakdown.summary;
+  }
   // Caltrops penalty indicator
   var caltropsEl=document.getElementById('caltropsIndicator');
   var penalty=S&&S.combat?Number(S.combat.enemyActionPenaltyThisRound||0):0;
@@ -6873,13 +6892,30 @@ function getEquippedAffixCombatBonuses(){
 }
 
 function getMaxActions(){
+  return getCombatActionBreakdown().total;
+}
+
+function getCombatActionBreakdown(){
   var base=parseArmorActions();
-  if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0)base+=2;
+  var total=base;
+  var parts=['Base '+base];
+  if(Array.isArray(S.augmentations)&&S.augmentations.indexOf('ADRENALIN BOOSTER')>=0){
+    total+=2;
+    parts.push('Adrenalin +2');
+  }
   var fl=(S.flavor||'').toLowerCase();
-  if(fl.indexOf('moves like the wind')>=0)base+=1;
+  if(fl.indexOf('moves like the wind')>=0){
+    total+=1;
+    parts.push('Flavor +1');
+  }
   var affix=getEquippedAffixCombatBonuses();
-  base+=Number(affix.actionBonus||0);
-  return Math.max(1,base);
+  var affixBonus=Number(affix.actionBonus||0);
+  if(affixBonus!==0){
+    total+=affixBonus;
+    parts.push('Affix '+(affixBonus>=0?'+':'')+affixBonus);
+  }
+  total=Math.max(1,total);
+  return { base:base, total:total, parts:parts, summary:parts.join(' + ').replace(/\+ -/g,'- ')+' = '+total };
 }
 
 function getCombatRange(){
@@ -11572,18 +11608,6 @@ function renderHexInfo(hex){
     </div>
   `;
 
-  const frontOverlay=getProvinceFrontOverlayForHex(nk);
-  if(frontOverlay&&frontOverlay.control){
-    html+=`<div class="npc-block" style="margin-top:.35rem;border-color:rgba(255,132,80,.45);background:rgba(255,132,80,.08);">
-      <div class="nb-label" style="color:#ffb38a;">⚔ Regional Control And Front</div>
-      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">Control: <strong>${frontOverlay.control}</strong><br>Front Pressure: <strong>${Number(frontOverlay.pressure||0)}</strong> (${frontOverlay.isFront?'Active front line':'Stable'})</div>
-      <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-teal" onclick="adjustProvinceFrontPressure('${nk}',-1)">Stabilize</button>
-        <button class="btn btn-xs btn-warn" onclick="adjustProvinceFrontPressure('${nk}',1)">Contest</button>
-      </div>
-    </div>`;
-  }
-
   // Wilderness encounters are intentionally scoped to wilderness hexes only.
 
   // ── WILDERNESS ──
@@ -11616,8 +11640,9 @@ function renderHexInfo(hex){
     const m=d.mood||{};
     const crisisText=String(m.crisis||'');
     const hasHoldingCrisis=!!crisisText&&crisisText.toLowerCase().indexOf('no crisis')<0;
-    const crisisActionLabel=(crisisText.toLowerCase().indexOf('strengthen defense')>=0||String(m.mood||'').toLowerCase()==='fear')?'🛡 Aid Defenders':'🤝 Stabilize Holding';
-    html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div>${hasHoldingCrisis?`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveHoldingCrisisAction(${hex.col},${hex.row})">${crisisActionLabel}</button></div>`:''}</div>`;
+    const activeHoldingMission=hasHoldingCrisis?getActiveHoldingCrisisMissionForKey(nk):null;
+    const crisisActionLabel=activeHoldingMission?'🗺 Open Crisis Quest':((crisisText.toLowerCase().indexOf('strengthen defense')>=0||String(m.mood||'').toLowerCase()==='fear')?'🛡 Create Defense Quest':'🤝 Create Stabilization Quest');
+    html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div>${activeHoldingMission?`<div style="font-size:.73rem;color:var(--gold2);margin-top:.22rem;">Active quest: <strong>${activeHoldingMission.title}</strong></div>`:''}${hasHoldingCrisis?`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveHoldingCrisisAction(${hex.col},${hex.row})">${crisisActionLabel}</button></div>`:''}</div>`;
     if(d.lord)html+=`<div class="wild-panel"><div class="wp-label">Lord</div><div class="wp-text">${d.lord}</div></div>`;
     html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.79rem;color:var(--muted3);line-height:1.58;">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
     html+=`<div class="holding-actions-row">
@@ -12928,56 +12953,100 @@ function resolveHoldingCrisisAction(col,row){
     showNotif('This holding has no active crisis.','warn');
     return;
   }
-  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
-  var defendDie=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):((S.stats&&S.stats.defend)||4);
-  var leadDie=(typeof getEffectiveDie==='function')?getEffectiveDie('lead'):((S.stats&&S.stats.lead)||4);
-  var checkStat=defendDie>=leadDie?'defend':'lead';
-  var checkDie=Math.max(4,Number(checkStat==='defend'?defendDie:leadDie)||4);
-  var attack=explodingRoll(checkDie);
-  var oppose=explodingRoll(8);
-  var success=attack.total>=oppose.total;
-  if(success){
-    mood.crisis='No Crisis';
-    mood.resolution='Wayfarer support restored confidence and defensive readiness.';
-    if(typeof window.applyWorldConsequence==='function'){
-      window.applyWorldConsequence({
-        system:'holding-crisis',
-        title:'Holding defenders rallied',
-        detail:'Crisis response succeeded at '+key+'.',
-        region:'province',
-        locationKey:key,
-        severity:'info',
-        factionId:overlay&&overlay.control?String(overlay.control):'',
-        deltas:{stability:2,tension:-2,scarcity:-1},
-        tags:['holding-secured','patrol-deployed','crisis-stabilized']
-      });
-    }
-    clearWorldStatePressureAtKey(key,{crisis:true,routeSafe:true});
-    var renownFaction=resolveFactionRenownKeyFromControl(overlay&&overlay.control?overlay.control:'');
-    if(renownFaction&&typeof window.changeFactionRenown==='function'){
-      try{window.changeFactionRenown(renownFaction,1);}catch(_err){}
-    }
-    var factionNote=renownFaction?(' +1 '+renownFaction.charAt(0).toUpperCase()+renownFaction.slice(1)+' Renown.'):'';
-    showNotif('Holding defended ('+checkStat.toUpperCase()+' d'+checkDie+' '+attack.total+' vs DD8 '+oppose.total+').' + factionNote,'good');
-  }else{
-    if(typeof window.applyWorldConsequence==='function'){
-      window.applyWorldConsequence({
-        system:'holding-crisis',
-        title:'Holding crisis escalated',
-        detail:'Defense response failed at '+key+'.',
-        region:'province',
-        locationKey:key,
-        severity:'high',
-        factionId:overlay&&overlay.control?String(overlay.control):'',
-        deltas:{stability:-1,factionHeat:1,tension:1,scarcity:1},
-        tags:['active-crisis','dangerous-road']
-      });
-    }
-    if(typeof changeMentalStress==='function')changeMentalStress(1);
-    showNotif('Holding defense faltered ('+checkStat.toUpperCase()+' d'+checkDie+' '+attack.total+' vs DD8 '+oppose.total+'). +1 Mental Stress.','warn');
+  var existingMission=getActiveHoldingCrisisMissionForKey(key);
+  if(existingMission){
+    if(typeof window.startMissionStep1==='function')window.startMissionStep1(existingMission.id);
+    else showNotif('Holding crisis quest already active: '+existingMission.title+'.','warn');
+    return;
   }
+  if(typeof window.createMission!=='function'){
+    showNotif('Mission system unavailable for holding crisis quests.','warn');
+    return;
+  }
+  var missionConfig=buildHoldingCrisisMissionConfig(hex,key);
+  var createdMission=window.createMission(
+    missionConfig.npcName,
+    missionConfig.title,
+    missionConfig.difficulty,
+    missionConfig.location,
+    'province',
+    missionConfig.factionData,
+    missionConfig.options
+  );
+  if(createdMission&&typeof renderMissionTracker==='function')renderMissionTracker();
+  showNotif('Created holding crisis quest: '+missionConfig.title+'. Resolve it from Missions.','good');
   if(typeof renderHexMap==='function')renderHexMap();
   if(typeof renderHexInfo==='function')renderHexInfo(hex);
+}
+
+function getActiveHoldingCrisisMissionForKey(key){
+  var active=(S&&Array.isArray(S.activeMissions))?S.activeMissions:[];
+  for(var i=0;i<active.length;i++){
+    var mission=active[i];
+    if(mission&&mission.missionType==='holding_crisis'&&mission.holdingCrisis&&String(mission.holdingCrisis.key||'')===String(key||''))return mission;
+  }
+  return null;
+}
+
+function getHoldingDisplayName(hex,key){
+  if(!hex)return 'Holding '+key;
+  return String((hex.data&&hex.data.name)||hex.name||hex.title||hex.label||('Holding '+key));
+}
+
+function buildHoldingCrisisMissionConfig(hex,key){
+  var mood=(hex&&hex.data&&hex.data.mood)||{};
+  var crisisText=String(mood.crisis||'Unrest in the holding');
+  var lower=crisisText.toLowerCase();
+  var name=getHoldingDisplayName(hex,key);
+  var overlay=(typeof window.getWorldStateHexOverlay==='function')?window.getWorldStateHexOverlay(key):null;
+  var title='Stabilize '+name;
+  var difficulty='medium';
+  var stepNames={1:'Assess The Trouble',2:'Reach The Holding',3:'Resolve The Crisis'};
+  var successResolution='Wayfarer support restored confidence and defensive readiness.';
+  var failureResolution='The holding remains shaken and asks for renewed aid.';
+  if(lower.indexOf('defense')>=0||lower.indexOf('raid')>=0||String(mood.mood||'').toLowerCase()==='fear'){
+    title='Defend '+name;
+    difficulty='hard';
+    stepNames={1:'Survey The Threat',2:'Rally The Defenders',3:'Break The Assault'};
+    successResolution='The defenders held firm and the holding regained confidence.';
+    failureResolution='The defenders were driven back and fear still grips the holding.';
+  }else if(lower.indexOf('scarcity')>=0||lower.indexOf('supply')>=0||lower.indexOf('trade')>=0){
+    title='Resupply '+name;
+    difficulty='medium';
+    stepNames={1:'Trace Missing Supplies',2:'Secure The Route',3:'Restore Holding Stores'};
+    successResolution='Supplies arrived and the holding returned to steady routine.';
+    failureResolution='The supply shortage persists and tempers remain short.';
+  }else if(lower.indexOf('disease')>=0||lower.indexOf('sickness')>=0||lower.indexOf('plague')>=0){
+    title='Treat The Sick At '+name;
+    difficulty='hard';
+    stepNames={1:'Assess The Illness',2:'Find A Remedy',3:'Stabilize The Infirmary'};
+    successResolution='The worst of the sickness passed and the holding steadied.';
+    failureResolution='The sickness continues to strain the holding.';
+  }
+  return {
+    npcName:name,
+    title:title,
+    difficulty:difficulty,
+    location:name+' ('+key+')',
+    factionData:{ gain:'holding', lose:'unrest', gainName:name, loseName:'Unrest' },
+    options:{
+      missionType:'holding_crisis',
+      noFactionDelta:true,
+      lore:crisisText,
+      stepNames:stepNames,
+      checkpoints:['Holding crisis', String(mood.mood||'Unknown mood'), key],
+      holdingCrisis:{
+        key:key,
+        col:Number(hex&&hex.col),
+        row:Number(hex&&hex.row),
+        name:name,
+        control:overlay&&overlay.control?String(overlay.control):'',
+        crisisText:crisisText,
+        successResolution:successResolution,
+        failureResolution:failureResolution
+      }
+    }
+  };
 }
 
 function buildProvinceHoldingDowntimePanel(hex){

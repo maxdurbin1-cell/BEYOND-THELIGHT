@@ -89,8 +89,8 @@
     return [d.getUTCFullYear(),d.getUTCMonth()+1,d.getUTCDate(),d.getUTCHours()].join('|');
   }
 
-  function rivalRoll(n){
-    if(typeof roll==='function')return roll(n);
+  function rivalRoll(n,meta){
+    if(typeof roll==='function')return roll(n,meta||null);
     return Math.floor(Math.random()*n)+1;
   }
 
@@ -98,8 +98,10 @@
     var die=4;
     if(typeof getEffectiveDie==='function')die=getEffectiveDie(stat||'lead')||4;
     else if(S&&S.stats&&typeof S.stats[stat]==='number')die=S.stats[stat];
-    var actor=(typeof explodingRoll==='function')?explodingRoll(die):{total:rivalRoll(die)};
-    var dread=(typeof explodingRoll==='function')?explodingRoll(dreadDie||8):{total:rivalRoll(dreadDie||8)};
+    var actorMeta={type:'action',major:true,label:'Rival '+String(stat||'lead').toUpperCase()};
+    var dreadMeta={type:'dread',major:true,label:'Rival Dread'};
+    var actor=(typeof explodingRoll==='function')?explodingRoll(die,actorMeta):{total:rivalRoll(die,actorMeta)};
+    var dread=(typeof explodingRoll==='function')?explodingRoll(dreadDie||8,dreadMeta):{total:rivalRoll(dreadDie||8,dreadMeta)};
     return {
       actorTotal:Number(actor&&actor.total||0),
       dreadTotal:Number(dread&&dread.total||0),

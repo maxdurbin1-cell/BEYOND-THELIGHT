@@ -41,7 +41,7 @@
   ];
 
   var LIBRARY_MERCHANT_STASH = [
-    'Seal-Bound Satchel', 'Archive Compass', 'Silent Lamp', 'Copper Lockpicks', 'Warded Ink Vial'
+    'Med-Kit', 'Stimulant', 'Wound Salve', 'Ration Kit', 'Tool Kit'
   ];
 
   var LIBRARY_FLAVOR_LINES = [

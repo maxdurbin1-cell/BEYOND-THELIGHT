@@ -3291,9 +3291,17 @@
     return "";
   }
 
+  const STORY_CROSSWORD_STRICT_ROWS = 7;
+  const STORY_CROSSWORD_STRICT_COLS = 7;
+  const STORY_CROSSWORD_MIN_ENTRIES = 8;
+  const STORY_CROSSWORD_MAX_ENTRIES = 12;
+
   function crosswordEvaluateStrictTemplate(template) {
     const rows = Array.isArray(template) ? template.length : 0;
     const cols = rows ? String(template[0] || "").length : 0;
+    const sizeOk = rows === STORY_CROSSWORD_STRICT_ROWS
+      && cols === STORY_CROSSWORD_STRICT_COLS
+      && template.every(function (row) { return String(row || "").length === STORY_CROSSWORD_STRICT_COLS; });
     let unchecked = 0;
     let stubs = 0;
     let isolated = 0;
@@ -3322,7 +3330,7 @@
       }
     }
     symmetryMismatch = Math.floor(symmetryMismatch / 2);
-    const ok = rows >= 2 && cols >= 2 && unchecked === 0 && stubs === 0 && isolated === 0;
+    const ok = sizeOk && unchecked === 0 && stubs === 0 && isolated === 0;
     return { ok: ok, unchecked: unchecked, stubs: stubs, isolated: isolated, symmetryMismatch: symmetryMismatch };
   }
 
@@ -3512,7 +3520,10 @@
       });
       const built = crosswordBuildEntriesFromTemplate(candidate.template, clueLookup);
       if (!built || !Array.isArray(built.across) || !Array.isArray(built.down)) continue;
-      const fillRatio = built.across.length + built.down.length;
+      if (built.rows !== STORY_CROSSWORD_STRICT_ROWS || built.cols !== STORY_CROSSWORD_STRICT_COLS) continue;
+      const totalEntries = built.across.length + built.down.length;
+      if (totalEntries < STORY_CROSSWORD_MIN_ENTRIES || totalEntries > STORY_CROSSWORD_MAX_ENTRIES) continue;
+      const fillRatio = totalEntries;
       const quality = {
         symmetryMismatch: strict.symmetryMismatch,
         fillRatio: fillRatio,

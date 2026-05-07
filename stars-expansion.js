@@ -13448,6 +13448,7 @@ function buildPlanetHoldingInfoHtml(state, selected) {
     <div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;">${h.knowledge}</div></div>
     <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="rollPlanetCelebrationEvent()">⚄ Roll Celebration Event</button>
+      <button class="btn btn-xs btn-primary" onclick="if(typeof openRegionalSettlementHexcrawl==='function')openRegionalSettlementHexcrawl('space','${String(h.title || 'Merchant Colony').replace(/'/g, "\\'")}');else if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();">◫ Enter Settlement</button>
     </div>
     <div id="planetCelebrationResult" style="margin-top:.35rem;font-size:.78rem;"></div>`;
 }
@@ -16327,7 +16328,10 @@ function updateStarSystemReadouts() {
       const hubState = current.type === 'hub'
         ? getHexPersistentState(current, 'hub', function() { return createSpaceHubState(current.ring); })
         : null;
-      if (current.type === 'hub') actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeHub=getHexPersistentState(h,\'hub\',function(){return createSpaceHubState(h.ring);});renderSpaceHubPanel();">Open Space Hub</button>');
+      if (current.type === 'hub') {
+        actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeHub=getHexPersistentState(h,\'hub\',function(){return createSpaceHubState(h.ring);});renderSpaceHubPanel();">Open Space Hub</button>');
+        actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(typeof openSpaceHubHexcrawl===\'function\')openSpaceHubHexcrawl(\'' + String(current.label || current.name || 'Orbital Hub').replace(/'/g, "\\'") + '\');else if(typeof openHoldingSettlementHexcrawl===\'function\')openHoldingSettlementHexcrawl();">◫ Enter Space Hub</button>');
+      }
       if (current.type === 'planet' && current.scanned) {
         actionButtons.push('<button class="btn btn-xs btn-teal" onclick="rollPlanetExploration()">Planet Exploration</button>');
         actionButtons.push('<button class="btn btn-xs" onclick="openActivePlanetMap()">Open Planet Map</button>');

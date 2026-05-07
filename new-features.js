@@ -2132,9 +2132,6 @@
     } else if (action === 'browse') {
       openHoldingMerchantDistrict(node.id);
       return;
-    } else if (action === 'task') {
-      openHoldingDistrictSideTask(node.id);
-      return;
     } else if (action === 'event') {
       msg = 'Random encounter: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
       recordHoldingNpcInteraction(node, 'neutral', 'Handled a district random encounter.');
@@ -2411,7 +2408,6 @@
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">Random Encounter</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Find Side Task</button>'
         + '</div>'
         + '<div id="holdingDowntimeResult" style="margin-top:.12rem;">' + buildHoldingPendingEventHtml() + '</div>'
         + (active && active.services && active.services.gamblingDen
@@ -2461,9 +2457,41 @@
     } else if (action === 'audience') {
       if (typeof changeCounter === 'function') changeCounter('renown', 1);
       S.holding.councilTasks = Array.isArray(S.holding.councilTasks) ? S.holding.councilTasks : [];
-      S.holding.councilTasks.push('Lord mission: secure outlying district route.');
+      var rulerName = '';
+      if (Array.isArray(node.npcRoster) && node.npcRoster.length) {
+        var lordNpc = node.npcRoster.find(function (npc) {
+          return npc && /lord|regent|steward|magistrate|commander/i.test(String(npc.role || ''));
+        });
+        rulerName = lordNpc ? String(lordNpc.name || '') : '';
+      }
+      if (!rulerName) rulerName = String((S.holding && S.holding.name) ? ('Ruler of ' + S.holding.name) : 'Settlement Ruler');
+      S.holding.councilTasks.push('Ruler mission: secure outlying district route and keep civic pressure stable.');
+      var postedMission = null;
+      if (typeof createMission === 'function') {
+        postedMission = createMission(
+          rulerName,
+          'Audience Directive: ' + String(node.label || 'Settlement') + ' Stability Charter',
+          pick(['medium', 'hard']),
+          String(node.label || 'Holding District'),
+          'province',
+          { gain: 'Grey Kingdom', lose: 'Nomad Clans', gainName: 'Grey Kingdom', loseName: 'Nomad Clans' },
+          {
+            missionType: 'settlement_management',
+            source: 'holding_audience',
+            locationKey: String(node.id || ''),
+            lore: rulerName + ' asks you to restore order between district factions, secure supply lanes, and settle escalating civil disputes.'
+          }
+        );
+      }
+      if (!postedMission && typeof generateTask === 'function') {
+        try { generateTask(); } catch (_err) {}
+      }
       crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
-      msg = 'Audience complete. +1 Renown and a new mission directive.';
+      if (typeof switchTab === 'function') {
+        var missionBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('missions'\"]");
+        switchTab('missions', missionBtn || null);
+      }
+      msg = 'Audience complete. +1 Renown and a ruler-issued mission is now active in Missions.';
     } else if (action === 'buy_item') {
       if (Number(S.credits || 0) < 50) msg = 'Not enough credits.';
       else {
@@ -2528,6 +2556,35 @@
 
   function openHoldingSettlementHexcrawl() {
     rerenderHoldingSettlementHexcrawl({ advanceVisit: true });
+  }
+
+  function openRegionalSettlementHexcrawl(mode, label) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var regionMode = String(mode || 'holding').toLowerCase();
+    var settlementLabel = String(label || '').trim();
+    if (regionMode === 'sea') {
+      crawl.holdingType = settlementLabel || 'Sea Settlement';
+      crawl.vibe = 'A tide-cut settlement of docks, taverns, brokers, and rumor routes under contested harbor control.';
+    } else if (regionMode === 'space') {
+      crawl.holdingType = settlementLabel || 'Space Hub';
+      crawl.vibe = 'A pressure-sealed orbital hub where factions bargain, pilots refuel, and covert contracts trade hands.';
+    } else {
+      crawl.holdingType = settlementLabel || String(crawl.holdingType || 'Settlement');
+    }
+    if (!crawl.timeOfDay) crawl.timeOfDay = 'morning';
+    rollHoldingAmbientState(crawl);
+    var title = regionMode === 'sea'
+      ? 'Sea Settlement Hexcrawl'
+      : (regionMode === 'space' ? 'Space Hub Hexcrawl' : 'Holding Settlement Hexcrawl');
+    openModal(title, buildHoldingSettlementHexcrawlModal({ advanceVisit: true }));
+  }
+
+  function openSeaSettlementHexcrawl(label) {
+    openRegionalSettlementHexcrawl('sea', label);
+  }
+
+  function openSpaceHubHexcrawl(label) {
+    openRegionalSettlementHexcrawl('space', label);
   }
 
   function selectHoldingSettlementDistrict(nodeId) {
@@ -4231,6 +4288,9 @@
   window.rollHoldingDowntimeActivity = rollHoldingDowntimeActivity;
   window.resolveHoldingDowntimeEvent = resolveHoldingDowntimeEvent;
   window.openHoldingSettlementHexcrawl = openHoldingSettlementHexcrawl;
+  window.openRegionalSettlementHexcrawl = openRegionalSettlementHexcrawl;
+  window.openSeaSettlementHexcrawl = openSeaSettlementHexcrawl;
+  window.openSpaceHubHexcrawl = openSpaceHubHexcrawl;
   window.runHoldingDistrictAction = runHoldingDistrictAction;
   window.runHoldingDistrictActionByKind = runHoldingDistrictActionByKind;
   window.runHoldingDistrictFlavorAction = runHoldingDistrictFlavorAction;

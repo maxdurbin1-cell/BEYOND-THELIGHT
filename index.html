@@ -10491,7 +10491,57 @@ function adjustProvinceFrontPressure(key,delta){
   ensureProvinceConflictFronts(false);
   const pf=S&&S.provinceFronts?S.provinceFronts:null;
   if(!pf||!key)return;
+  const previousPressure=Number(pf.frontPressure[key]||0);
   pf.frontPressure[key]=Math.max(-4,Math.min(4,Number(pf.frontPressure[key]||0)+Number(delta||0)));
+  const updatedPressure=Number(pf.frontPressure[key]||0);
+  const mode=Number(delta||0)<0?'stabilize':'contest';
+  const controlLabel=String((pf.controlByKey&&pf.controlByKey[key])||'Grey Kingdom');
+  if(typeof createMission==='function'&&S&&Array.isArray(S.activeMissions)){
+    const existing=S.activeMissions.find(function(m){
+      return m
+        && !m.completed
+        && String(m.missionType||'')==='front_control'
+        && String(m.locationKey||'')===String(key)
+        && String(m.frontAction||'')===mode;
+    });
+    if(!existing){
+      const targetHex=getProvinceHexByKey(key);
+      const locationLabel=targetHex
+        ? ((targetHex.name||targetHex.terrain&&targetHex.terrain.name||('Hex '+key))+' ['+(targetHex.col+1)+','+(targetHex.row+1)+']')
+        : ('Province Hex '+key);
+      const diff=Math.abs(updatedPressure)>=2?'hard':'medium';
+      const title=(mode==='stabilize'?'Frontline Stabilization':'Frontline Contest')+' — '+controlLabel;
+      const mission=createMission(
+        'Regional Command',
+        title,
+        diff,
+        locationLabel,
+        'province',
+        {gain:'Grey Kingdom',lose:'Nomad Clans',gainName:'Grey Kingdom',loseName:'Nomad Clans'},
+        {
+          missionType:'front_control',
+          source:'province_front_pressure',
+          locationKey:String(key),
+          frontAction:mode,
+          frontPressureBefore:previousPressure,
+          frontPressureAfter:updatedPressure,
+          frontControl:controlLabel,
+          lore:(mode==='stabilize'
+            ? ('Command reports '+controlLabel+' lines are fraying at '+locationLabel+'. Stabilize pressure before control collapses.')
+            : ('Scouts confirm an opening at '+locationLabel+'. Contest '+controlLabel+' control and force a new front outcome.'))
+        }
+      );
+      if(mission&&typeof switchTab==='function'){
+        const missionBtn=document.querySelector("nav .tab-btn[onclick*=\"switchTab('missions'\"]");
+        switchTab('missions',missionBtn||null);
+      }
+      if(typeof showNotif==='function'){
+        showNotif((mode==='stabilize'?'Stabilization':'Contest')+' mission posted for '+locationLabel+'.','good');
+      }
+    }else if(typeof showNotif==='function'){
+      showNotif('Front mission already active for this '+mode+' objective.','info');
+    }
+  }
   if(Math.abs(pf.frontPressure[key])>=3){
     pf.controlByKey[key]=pick(PROVINCE_FRONT_FACTIONS);
     pf.frontPressure[key]=0;

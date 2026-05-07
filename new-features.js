@@ -1610,6 +1610,11 @@
         merchantCategory: kind === 'merchant_weapons' ? 'weapons' : 'items',
         missionBoard: kind === 'mission' || /archive|court|hall|chapel|shrine|watch|gate|ward/.test(labelText) || (idx % 3 === 1),
         gamblingDen: /market|harbor|dock|square|lane|ring|front|yard/.test(labelText) || (idx % 4 === 0),
+        inn: /inn|tavern|pilgrim|hostel|chapel/.test(labelText) || (idx % 5 === 0),
+        bar: /dock|market|square|lane|yard|front/.test(labelText) || (idx % 4 === 1),
+        banking: /market|court|hall|steward|ledger|custom/.test(labelText) || (idx % 4 === 2),
+        legal: /court|hall|steward|gate|ward|tribunal/.test(labelText) || (idx % 4 === 3),
+        hospital: /shrine|chapel|barracks|ward|archive|well/.test(labelText) || (idx % 3 === 0),
         localWork: true
       };
       var microCount = 2 + Math.floor(Math.random() * 4);
@@ -1641,6 +1646,8 @@
         economy: districtEconomy,
         scarcity: scarcity,
         rumor: pickLocal(archetype.rumors),
+        districtLandmark: pickLocal(archetype.scenes),
+        factionHeadline: pickLocal(archetype.rumors),
         interactable: pickLocal(archetype.interactables),
         hiddenThing: pickLocal(archetype.hiddenThings),
         microLocations: micro,
@@ -1767,6 +1774,35 @@
   }
 
   function rollHoldingAmbientState(crawl) {
+    var regionMode = String(crawl.regionMode || 'province').toLowerCase();
+    var regionalFlavor = {
+      province: {
+        landmarks: ['Bell Bastion overlook', 'Salt aqueduct gatehouse', 'Old tribunal arch', 'Red quarry crane'],
+        scenic: ['Rain catches on banner cords across the district roofs.', 'A candle parade winds through lane shrines at dusk.', 'Scouts return through fog with cracked lanterns.'],
+        headlines: ['Faction pressure: Wardens accuse Merchants of route theft.', 'Council bulletin: emergency grain levies approved.', 'Street gossip: watch rotations quietly reduced tonight.']
+      },
+      sea: {
+        landmarks: ['Broken lighthouse platform', 'Moon-tide drydock', 'Chain buoy gate', 'Flood chapel stairs'],
+        scenic: ['Harbor bells ring under rolling fog.', 'Salt spray coats every lantern and sign.', 'A black-hulled ship cuts in without flags.'],
+        headlines: ['Faction pressure: Dock guilds threaten strike at dawn.', 'Harbor bulletin: convoy lanes now permit-only.', 'Pier gossip: customs ledgers were altered overnight.']
+      },
+      space: {
+        landmarks: ['Docking ring A-12', 'Pressure garden spindle', 'Relay mast cathedral', 'Zero-g customs node'],
+        scenic: ['Cargo drones arc past the viewport in silent lines.', 'Mag boots spark along grated catwalks.', 'A shuttle burns retro-thrusters across the observation dome.'],
+        headlines: ['Faction pressure: station syndicates contest fuel taxes.', 'Hub bulletin: quarantine lanes expanded to outer berths.', 'Crew gossip: one docking bay has no camera feed.']
+      },
+      planet: {
+        landmarks: ['Dustwall transit gate', 'Orbital elevator spur', 'Survey beacon field', 'Coolant cistern ring'],
+        scenic: ['Ion haze turns the skyline metallic blue.', 'Rover caravans queue beneath floodlights.', 'Ash squalls drag long shadows across the colony lanes.'],
+        headlines: ['Faction pressure: colony guards and brokers split command.', 'Settlement bulletin: med supplies restricted by ration tier.', 'Worker gossip: tunnel maps no longer match reality.']
+      },
+      ruins: {
+        landmarks: ['Collapsed observatory nave', 'Amber-sealed stairwell', 'Rune kiln court', 'Bonewire archive gate'],
+        scenic: ['Dust motes drift through broken stained glass.', 'Echoes carry farther than they should.', 'Ancient mechanisms click behind sealed walls.'],
+        headlines: ['Faction pressure: relic hunters clash with shrine wardens.', 'Expedition bulletin: lower vault access revoked.', 'Camp gossip: someone entered the sealed floor and returned mute.']
+      }
+    };
+    var regionPack = regionalFlavor[regionMode] || regionalFlavor.province;
     var ambientTables = crawl.ambientTables || {};
     var scenes = Array.isArray(ambientTables.scenes) && ambientTables.scenes.length
       ? ambientTables.scenes
@@ -1795,6 +1831,9 @@
     var activeDistrict = crawl.nodes[Math.floor(Math.random() * Math.max(1, crawl.nodes.length))] || null;
     crawl.ambient = {
       scene: scenes[Math.floor(Math.random() * scenes.length)],
+      scenicEncounter: regionPack.scenic[Math.floor(Math.random() * regionPack.scenic.length)],
+      districtLandmark: regionPack.landmarks[Math.floor(Math.random() * regionPack.landmarks.length)],
+      factionHeadline: regionPack.headlines[Math.floor(Math.random() * regionPack.headlines.length)],
       rumor: rumorPool[Math.floor(Math.random() * Math.max(1, rumorPool.length))] || 'People whisper about sealed tunnels.',
       activeDistrict: activeDistrict ? activeDistrict.label : 'Unknown District',
       npcMovement: 'NPC movement: ' + String(npc.name) + ' changed route this watch.',
@@ -2358,6 +2397,11 @@
       if (services.merchant) districtButtons += '<button class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchant</button>';
       if (active.kind === 'inn') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
       if (active.kind === 'lord') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
+      if (services.inn) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop</button>';
+      if (services.bar) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'bar\')">Bar Loop</button>';
+      if (services.banking) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'banking\')">Banking</button>';
+      if (services.legal) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'legal\')">Legal Desk</button>';
+      if (services.hospital) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'hospital\')">Hospital</button>';
       if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Gamble</button>';
       districtButtons += '<button class="btn btn-xs" onclick="openHoldingSettlementSewerRoute(\'' + String(active.id) + '\')">Sewer Route</button>';
     }
@@ -2393,6 +2437,8 @@
         + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;">Activity: ' + active.activity + ' · Crowd: ' + active.npcDensity + ' · Mood: ' + active.mood + '</div>'
         + '<div style="font-size:.66rem;color:var(--muted2);">Economy: ' + String(active.economy || 'mixed') + ' · Scarcity: ' + String(active.scarcity || 'balanced') + '</div>'
         + '<div style="font-size:.66rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
+        + '<div style="font-size:.66rem;color:var(--text2);margin-top:.06rem;">District Landmark: <strong style="color:var(--gold2);">' + String(active.districtLandmark || 'Ward landmark pending') + '</strong></div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);">Faction Headline: ' + String(active.factionHeadline || 'No headline filed') + '</div>'
         + (Array.isArray(active.npcRoster) && active.npcRoster.length ? ('<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">District NPC Roster</div>' + active.npcRoster.map(function (npc) {
           return '<div style="font-size:.66rem;color:var(--muted2);">• ' + String(npc.name || 'Local') + ' (' + String(npc.role || 'Resident') + ') · Relation ' + (Number(npc.relation || 0) >= 0 ? '+' : '') + Number(npc.relation || 0) + '</div>';
         }).join('')) : '')
@@ -2429,7 +2475,14 @@
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.44;">' + String(ambient.scene || 'The holding stirs.') + '</div>'
       + '<details style="margin-top:.1rem;">'
       + '<summary style="cursor:pointer;font-size:.65rem;color:var(--muted2);">Rumors And Signals</summary>'
-      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.44;margin-top:.06rem;">Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '<br>Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.') + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.44;margin-top:.06rem;">'
+      + 'Headline: <strong style="color:var(--gold2);">' + String(ambient.factionHeadline || 'No faction headline.') + '</strong><br>'
+      + 'District Landmark: ' + String(ambient.districtLandmark || 'No landmark surfaced.') + '<br>'
+      + 'Scenic Encounter: ' + String(ambient.scenicEncounter || 'No scenic encounter.') + '<br>'
+      + 'Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>'
+      + 'Opportunity: ' + String(ambient.opportunity || 'No opportunity yet.') + '<br>'
+      + 'Mystery: ' + String(ambient.mysterySignal || 'No anomaly yet.')
+      + '</div>'
       + '</details>'
       + (storyletHtml ? ('<div style="margin-top:.1rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.1rem;"><div style="font-size:.66rem;color:var(--teal);">Escalating Storylets</div>' + storyletHtml + '</div>') : '')
       + (historyHtml ? ('<div style="margin-top:.14rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.12rem;">'
@@ -2492,6 +2545,29 @@
         switchTab('missions', missionBtn || null);
       }
       msg = 'Audience complete. +1 Renown and a ruler-issued mission is now active in Missions.';
+    } else if (action === 'inn_service') {
+      if (typeof changeMentalStress === 'function') changeMentalStress(-1);
+      crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 1);
+      crawl.stats.fear = Math.max(0, Number((crawl.stats && crawl.stats.fear) || 0) - 1);
+      msg = 'Inn service loop complete: you recover, gather traveler routes, and lower district fear by 1.';
+    } else if (action === 'bar') {
+      if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+      crawl.stats.wealth = Math.min(10, Number((crawl.stats && crawl.stats.wealth) || 0) + 1);
+      msg = 'Bar loop complete: table gossip yields one tactical lead and +1 Teamwork.';
+    } else if (action === 'banking') {
+      S.credits = Number(S.credits || 0) + 25;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      crawl.stats.wealth = Math.min(10, Number((crawl.stats && crawl.stats.wealth) || 0) + 1);
+      msg = 'Banking loop complete: letters of credit settle and +25 Credits are secured.';
+    } else if (action === 'legal') {
+      if (typeof changeCounter === 'function') changeCounter('renown', 1);
+      crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
+      msg = 'Legal loop complete: a district dispute is adjudicated and civic security improves.';
+    } else if (action === 'hospital') {
+      if (typeof changeHealth === 'function') changeHealth(1);
+      if (typeof changeMentalStress === 'function') changeMentalStress(-1);
+      crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 1);
+      msg = 'Hospital loop complete: casualties stabilized and district health rises.';
     } else if (action === 'buy_item') {
       if (Number(S.credits || 0) < 50) msg = 'Not enough credits.';
       else {
@@ -2565,12 +2641,20 @@
     if (regionMode === 'sea') {
       crawl.holdingType = settlementLabel || 'Sea Settlement';
       crawl.vibe = 'A tide-cut settlement of docks, taverns, brokers, and rumor routes under contested harbor control.';
-    } else if (regionMode === 'space') {
+    } else if (regionMode === 'space' || regionMode === 'planet') {
       crawl.holdingType = settlementLabel || 'Space Hub';
       crawl.vibe = 'A pressure-sealed orbital hub where factions bargain, pilots refuel, and covert contracts trade hands.';
+      if (regionMode === 'planet') {
+        crawl.holdingType = settlementLabel || 'Planet Settlement';
+        crawl.vibe = 'A frontier planet settlement balancing colony logistics, survey pressure, and faction contracts.';
+      }
+    } else if (regionMode === 'ruins') {
+      crawl.holdingType = settlementLabel || 'Ruin Encampment';
+      crawl.vibe = 'An expedition camp threaded through unstable ruins, salvage claims, and contested shrine law.';
     } else {
       crawl.holdingType = settlementLabel || String(crawl.holdingType || 'Settlement');
     }
+    crawl.regionMode = regionMode;
     if (!crawl.timeOfDay) crawl.timeOfDay = 'morning';
     rollHoldingAmbientState(crawl);
     var title = regionMode === 'sea'

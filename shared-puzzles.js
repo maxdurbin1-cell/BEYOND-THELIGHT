@@ -40,6 +40,13 @@
     return S.sharedPuzzles;
   }
 
+  const CHESS_PRESETS = [
+    { board: 5, rook: { r: 2, c: 2 }, pawns: [{ r: 2, c: 0 }, { r: 0, c: 2 }, { r: 4, c: 2 }, { r: 2, c: 4 }], captured: [] },
+    { board: 5, rook: { r: 4, c: 0 }, pawns: [{ r: 4, c: 3 }, { r: 1, c: 3 }, { r: 1, c: 1 }, { r: 3, c: 1 }], captured: [] },
+    { board: 5, rook: { r: 0, c: 4 }, pawns: [{ r: 0, c: 1 }, { r: 3, c: 1 }, { r: 3, c: 3 }, { r: 1, c: 3 }], captured: [] },
+    { board: 5, rook: { r: 1, c: 1 }, pawns: [{ r: 1, c: 4 }, { r: 4, c: 4 }, { r: 4, c: 0 }, { r: 2, c: 0 }], captured: [] }
+  ];
+
   const PUZZLES = {
     province: [
       { title: "Road Cipher", prompt: "Decode and enter: BRIDGE -> ? (Hint: reverse it)", answer: "egdirb" },
@@ -48,6 +55,7 @@
       { title: "Jigsaw Relay", prompt: "Jigsaw order puzzle: Arrange tiles in correct sentence order: [KEY] [THE] [TURN] [NOW]. Enter full sentence.", answer: "turn the key now" },
       { title: "Word Search Marker", prompt: "Word Search: Find the hidden word in row 'B R I D G E'. Enter the found word.", answer: "bridge" },
       { title: "Word Scramble", prompt: "Unscramble: GNAIATVE", answer: "navigate" },
+      { title: "Rook Relay I", mode: "chess_puzzle", prompt: "Capture every marked piece using legal rook moves.", chessState: CHESS_PRESETS[0] },
       { title: "Mini Sudoku", mode: "sudoku", prompt: "Fill the 4x4 grid so each row, column, and 2x2 box contains 1-4.", sudokuPuzzle: [["1", "", "3", "4"], ["3", "4", "1", "2"], ["2", "1", "4", "3"], ["4", "3", "2", "1"]], sudokuSolution: [["1", "2", "3", "4"], ["3", "4", "1", "2"], ["2", "1", "4", "3"], ["4", "3", "2", "1"]] },
       { title: "Magic Square", prompt: "3x3 Magic Square sum is 15. Grid: 8 1 6 / 3 5 7 / 4 _ 2. Missing value?", answer: "9" }
     ],
@@ -55,6 +63,7 @@
       { title: "Tide Sequence", prompt: "Enter the next term: 2, 4, 8, 16, ?", answer: "32" },
       { title: "Chart Mark", prompt: "Type the nautical shorthand for North-East.", answer: "ne" },
       { title: "Sea Cryptogram", prompt: "Cryptogram (Caesar +1): TFB -> ?", answer: "sea" },
+      { title: "Harbor Rook Lock", mode: "chess_puzzle", prompt: "Rook lockboard: capture all sentries to open the harbor gate.", chessState: CHESS_PRESETS[1] },
       { title: "Word Search Buoy", prompt: "Word Search row: A N C H O R. Enter the hidden word.", answer: "anchor" }
     ],
     galaxy: [
@@ -67,11 +76,13 @@
       { title: "Surface Lock", prompt: "Enter: BIO + ME = ?", answer: "biome" },
       { title: "Drill Code", prompt: "Solve: 9 + 7", answer: "16" },
       { title: "Mini Maze Route", mode: "maze", prompt: "Trace the rover's path through the cracked surface tunnels.", answer: "R-R-D-D-L-D", mazeLayout: ["S...", "###.", "..#.", "E..."] },
+      { title: "Colony Rook Protocol", mode: "chess_puzzle", prompt: "Use rook captures to clear the colony lockgrid.", chessState: CHESS_PRESETS[2] },
       { title: "Magic Square Delta", prompt: "Magic square line total is 15. Row: 2 7 _. Missing number?", answer: "6" }
     ],
     wtw: [
       { title: "District Relay", prompt: "Unscramble: RAILSTOANIT", answer: "railstation" },
       { title: "Control Pulse", prompt: "Solve: 12 - 5", answer: "7" },
+      { title: "Tribunal Rook Trial", mode: "chess_puzzle", prompt: "Capture all witness-pawns in legal rook lines.", chessState: CHESS_PRESETS[3] },
       { title: "District Crossword", prompt: "Crossword clue 3 Down (5): \"Urban train stop\" = ?", answer: "depot" },
       { title: "Cryptogram Grid", prompt: "Cryptogram (+1 shift): [XPSME]. Decode.", answer: "world" }
     ],
@@ -547,6 +558,7 @@
     if (config && Array.isArray(config.sudokuPuzzle)) chosen.sudokuPuzzle = config.sudokuPuzzle;
     if (config && Array.isArray(config.sudokuSolution)) chosen.sudokuSolution = config.sudokuSolution;
     if (config && Array.isArray(config.mazeLayout)) chosen.mazeLayout = config.mazeLayout;
+    if (config && config.chessState && typeof config.chessState === 'object') chosen.chessState = config.chessState;
     const title = (config && config.title) || chosen.title || "Shared Puzzle";
     const prompt = (config && config.prompt) || chosen.prompt || "Solve the prompt.";
     const answer = normalizeAnswer((config && config.answer) || chosen.answer || "");
@@ -568,7 +580,8 @@
         title: title,
         prompt: prompt,
         state: chosen.mode === 'pipe_flow' ? buildPipeFlowState()
-          : chosen.mode === 'chess_puzzle' ? _initChess()
+          : chosen.mode === 'chess_puzzle'
+            ? JSON.parse(JSON.stringify(chosen.chessState || _initChess()))
           : chosen.mode === 'sliding_tile' ? _initSliding()
           : chosen.mode === 'math_grid' ? _initMathGrid()
           : _initRotatingImage()

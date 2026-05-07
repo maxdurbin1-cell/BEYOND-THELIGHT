@@ -116,7 +116,16 @@ select option{background:#0f1020;}
 @media(max-width:900px){.map-layout{grid-template-rows:minmax(420px,58vh) auto;}}
 .map-scroll{overflow:auto;background:var(--card);border:1px solid var(--border);position:relative;}
 .hex-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;max-height:34vh;}
-.hex-info-inner{padding:.7rem;}
+.hex-info-inner{padding:clamp(.62rem,1.2vw,.88rem);display:grid;gap:.4rem;}
+.province-info-intro{font-size:clamp(.77rem,.9vw,.86rem);color:var(--muted2);line-height:1.62;margin-top:.12rem;}
+.holding-card-stack{display:grid;gap:.34rem;}
+.holding-actions-row{margin:.2rem 0 0;display:flex;gap:.28rem;flex-wrap:wrap;align-items:center;}
+.holding-actions-row .btn{font-size:.72rem;padding:.28rem .5rem;line-height:1.3;}
+@media(max-width:1366px){
+  .hex-info{max-height:40vh;}
+  .hex-info-inner{gap:.3rem;}
+  .holding-actions-row .btn{font-size:.69rem;padding:.24rem .44rem;}
+}
 .hex-type-tag{display:inline-block;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;padding:.12rem .45rem;border:1px solid;margin-bottom:.3rem;}
 .hex-type-tag.wilderness{color:var(--teal);border-color:var(--teal);}.hex-type-tag.holding{color:var(--red2);border-color:var(--red2);}.hex-type-tag.seat{color:var(--gold);border-color:var(--gold);}.hex-type-tag.dwelling{color:#a0c040;border-color:#a0c040;}.hex-type-tag.temple{color:#b060d0;border-color:#b060d0;}.hex-type-tag.monument{color:var(--muted3);border-color:var(--muted3);}.hex-type-tag.peril{color:var(--red2);border-color:var(--red2);}.hex-type-tag.ruins{color:#a09870;border-color:#a09870;}.hex-type-tag.event{color:var(--gold2);border-color:var(--gold2);}.hex-type-tag.gate{color:var(--teal);border-color:var(--teal);}.hex-type-tag.lostcity{color:#e080c0;border-color:#e080c0;}.hex-type-tag.barrier{color:var(--muted2);border-color:var(--muted2);}.hex-type-tag.trade{color:#f0a840;border-color:#f0a840;}
 .hex-name{font-family:'Cinzel',serif;font-size:.8rem;color:var(--gold2);margin-bottom:.25rem;}
@@ -830,7 +839,7 @@ select option{background:#0f1020;}
     <div class="hex-info" id="hexInfo">
       <div class="hex-info-inner">
         <div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;">Province</div>
-        <div style="font-size:.83rem;color:var(--muted2);line-height:1.65;margin-top:.4rem;">
+        <div class="province-info-intro">
           Generate a map, then click any hex to explore it.<br><br>
           <strong style="color:var(--text);">12×12 Grid — each Hex = 6 miles</strong><br><br>
           <strong>Travel per Phase:</strong><br>
@@ -11220,6 +11229,7 @@ function renderHexInfo(hex){
 
   // ── SEAT / HOLDING ──
   }else if(hex.type==='seat'||hex.type==='holding'){
+    html+='<div class="holding-card-stack">';
     html+=`<div class="wild-panel"><div class="wp-label">${hex.type==='holding'?'Holding':'Site of Power'}</div><div class="wp-text">Settlement</div></div>`;
     // Rest boon banner
     html+=`<div class="rest-boon" style="background:rgba(201,162,39,.06);border-color:rgba(201,162,39,.4);">
@@ -11232,14 +11242,15 @@ function renderHexInfo(hex){
     const crisisActionLabel=(crisisText.toLowerCase().indexOf('strengthen defense')>=0||String(m.mood||'').toLowerCase()==='fear')?'🛡 Aid Defenders':'🤝 Stabilize Holding';
     html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div>${hasHoldingCrisis?`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveHoldingCrisisAction(${hex.col},${hex.row})">${crisisActionLabel}</button></div>`:''}</div>`;
     if(d.lord)html+=`<div class="wild-panel"><div class="wp-label">Lord</div><div class="wp-text">${d.lord}</div></div>`;
-    html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
+    html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.79rem;color:var(--muted3);line-height:1.58;">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
     html+=`<div class="wild-panel"><div class="wp-label">🏪 Settlement Life</div><div class="wp-text">Markets open at first light, crafters trade tools, and caravans exchange supplies all day. Spend coin locally to keep the holding fed and armed.</div></div>`;
-    html+=`<div style="margin:.25rem 0;display:flex;gap:.28rem;flex-wrap:wrap;">
+    html+=`<div class="holding-actions-row">
       <button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();else alert('Holdings system not ready');">◫ Enter Holding</button>
       <button class="btn btn-sm" onclick="if(typeof runHoldingDistrictActionByKind==='function')runHoldingDistrictActionByKind('merchant_items','buy_item');">Buy Ration Kit (50₵)</button>
       <button class="btn btn-sm" onclick="if(typeof runHoldingDistrictActionByKind==='function')runHoldingDistrictActionByKind('merchant_weapons','buy_weapon');">Buy Weapon+ (120₵)</button>
       <button class="btn btn-sm btn-gold" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"nav .tab-btn[onclick*=\\\"switchTab('shop'\\\"]\");switchTab('shop',b||null);}">Open Merchants Tab</button>
     </div>`;
+    html+='</div>';
 
   // ── DWELLING ──
   }else if(hex.type==='dwelling'){

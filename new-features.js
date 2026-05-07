@@ -1906,9 +1906,12 @@
 
   function rerenderHoldingSettlementHexcrawl(opts) {
     var prevScrollTop = 0;
+    var prevPageScrollTop = 0;
     if (typeof document !== 'undefined') {
       var contentEl = document.getElementById('modalContent');
       if (contentEl) prevScrollTop = Number(contentEl.scrollTop || 0);
+      var rootEl = document.scrollingElement || document.documentElement || document.body;
+      if (rootEl) prevPageScrollTop = Number(rootEl.scrollTop || 0);
     }
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal(opts || { advanceVisit: false }));
     if (typeof setTimeout === 'function') {
@@ -1916,6 +1919,8 @@
         if (typeof document === 'undefined') return;
         var contentEl = document.getElementById('modalContent');
         if (contentEl) contentEl.scrollTop = prevScrollTop;
+        var rootEl = document.scrollingElement || document.documentElement || document.body;
+        if (rootEl && Number(rootEl.scrollTop || 0) < prevPageScrollTop) rootEl.scrollTop = prevPageScrollTop;
       }, 0);
     }
   }
@@ -2251,11 +2256,11 @@
     }).join('');
     var levelButtons = [1, 2, 3, 4, 5, 6].map(function (lv) {
       var on = lv === level;
-      return '<button class="btn btn-xs' + (on ? ' btn-teal' : '') + '" onclick="setHoldingGamblingDifficulty(\'' + String(node.id) + '\',' + lv + ')">L' + lv + ' (' + (lv * 10) + '₵)</button>';
+      return '<button type="button" class="btn btn-xs' + (on ? ' btn-teal' : '') + '" onclick="setHoldingGamblingDifficulty(\'' + String(node.id) + '\',' + lv + ')">L' + lv + ' (' + (lv * 10) + '₵)</button>';
     }).join('');
     var guessBtn = function (key, label) {
       var on = String(state.guess || '') === key;
-      return '<button class="btn btn-xs' + (on ? ' btn-gold' : '') + '" onclick="setHoldingGamblingGuess(\'' + String(node.id) + '\',\'' + key + '\')">' + label + '</button>';
+      return '<button type="button" class="btn btn-xs' + (on ? ' btn-gold' : '') + '" onclick="setHoldingGamblingGuess(\'' + String(node.id) + '\',\'' + key + '\')">' + label + '</button>';
     };
     return '<div style="margin-top:.14rem;padding:.34rem .38rem;border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.06);">'
       + '<div style="font-size:.68rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">Embedded Gambling Den</div>'
@@ -2271,8 +2276,8 @@
       + guessBtn('under', 'Under') + guessBtn('middle', 'Middle') + guessBtn('over', 'Over')
       + '</div>'
       + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.2rem;">'
-      + '<button class="btn btn-xs btn-primary" onclick="playHoldingGamblingRound(\'' + String(node.id) + '\')">Play Round</button>'
-      + '<button class="btn btn-xs" onclick="clearHoldingGamblingHistory(\'' + String(node.id) + '\')">Clear Ledger</button>'
+      + '<button type="button" class="btn btn-xs btn-primary" onclick="playHoldingGamblingRound(\'' + String(node.id) + '\')">Play Round</button>'
+      + '<button type="button" class="btn btn-xs" onclick="clearHoldingGamblingHistory(\'' + String(node.id) + '\')">Clear Ledger</button>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(3,minmax(64px,1fr));gap:.16rem;margin-top:.2rem;">'
       + '<div style="font-size:.66rem;color:var(--muted2);">Dread 1<br><strong style="color:var(--red2);font-size:.84rem;">' + state.dieOne + '</strong></div>'
@@ -2402,7 +2407,6 @@
       if (services.banking) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'banking\')">Banking</button>';
       if (services.legal) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'legal\')">Legal Desk</button>';
       if (services.hospital) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'hospital\')">Hospital</button>';
-      if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Gamble</button>';
       districtButtons += '<button class="btn btn-xs" onclick="openHoldingSettlementSewerRoute(\'' + String(active.id) + '\')">Sewer Route</button>';
     }
 
@@ -2461,10 +2465,10 @@
             + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Gambling Den</strong></div>'
             + (String(crawl.gamblingActiveNodeId || '') === String(active.id || '')
               ? ('<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-bottom:.18rem;">'
-                + '<button class="btn btn-xs btn-gold" onclick="toggleHoldingGamblingNode(\'' + String(active.id) + '\')">Hide Gambling Table</button>'
+                + '<button type="button" class="btn btn-xs btn-gold" onclick="toggleHoldingGamblingNode(\'' + String(active.id) + '\')">Hide Gambling Table</button>'
                 + '</div>'
                 + buildHoldingGamblingEmbedHtml(active, crawl))
-              : '<button class="btn btn-xs btn-gold" onclick="toggleHoldingGamblingNode(\'' + String(active.id) + '\')">Open Gambling Table</button>')
+              : '<button type="button" class="btn btn-xs btn-gold" onclick="toggleHoldingGamblingNode(\'' + String(active.id) + '\')">Open Gambling Table</button>')
             + '</div>')
           : '')
         + (active.result ? '<div style="font-size:.67rem;color:var(--gold2);margin-top:.1rem;line-height:1.46;">' + active.result + '</div>' : '')
@@ -2659,8 +2663,23 @@
     rollHoldingAmbientState(crawl);
     var title = regionMode === 'sea'
       ? 'Sea Settlement Hexcrawl'
-      : (regionMode === 'space' ? 'Space Hub Hexcrawl' : 'Holding Settlement Hexcrawl');
+      : (regionMode === 'space' ? 'Space Hub Hexcrawl' : (regionMode === 'ruins' ? 'Ruin Encampment Hexcrawl' : 'Holding Settlement Hexcrawl'));
     openModal(title, buildHoldingSettlementHexcrawlModal({ advanceVisit: true }));
+  }
+
+  function openRuinEncampmentHexcrawl(label) {
+    openRegionalSettlementHexcrawl('ruins', label);
+  }
+
+  function openRuinEncampmentFromProvince(col, row) {
+    var ruinLabel = 'Ruin Encampment';
+    if (typeof mapData !== 'undefined' && Array.isArray(mapData)) {
+      var ruinHex = mapData.find(function (hex) {
+        return hex && Number(hex.col) === Number(col) && Number(hex.row) === Number(row) && String(hex.type || '') === 'ruins';
+      });
+      if (ruinHex && ruinHex.name) ruinLabel = String(ruinHex.name) + ' Encampment';
+    }
+    openRuinEncampmentHexcrawl(ruinLabel);
   }
 
   function openSeaSettlementHexcrawl(label) {
@@ -2777,7 +2796,6 @@
     node.result = line;
     if (typeof showNotif === 'function') { showNotif(line, success ? 'good' : 'warn'); }
     rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
-    renderHoldingUI();
   }
 
   function applyHoldingDowntimeEffect(effect) {
@@ -4375,6 +4393,8 @@
   window.openRegionalSettlementHexcrawl = openRegionalSettlementHexcrawl;
   window.openSeaSettlementHexcrawl = openSeaSettlementHexcrawl;
   window.openSpaceHubHexcrawl = openSpaceHubHexcrawl;
+  window.openRuinEncampmentHexcrawl = openRuinEncampmentHexcrawl;
+  window.openRuinEncampmentFromProvince = openRuinEncampmentFromProvince;
   window.runHoldingDistrictAction = runHoldingDistrictAction;
   window.runHoldingDistrictActionByKind = runHoldingDistrictActionByKind;
   window.runHoldingDistrictFlavorAction = runHoldingDistrictFlavorAction;

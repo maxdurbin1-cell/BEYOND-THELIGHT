@@ -1,9 +1,13 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import net from "node:net";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
 
 import { chromium } from "playwright";
 
-const BASE_URL = process.env.SMOKE_URL || "http://127.0.0.1:3000";
+let BASE_URL = process.env.SMOKE_URL || "http://127.0.0.1:3000";
 const START_TIMEOUT_MS = 20000;
 const CLICK_LIMIT = 280;
 const MULTI_CLIENT_TIMEOUT_MS = 25000;
@@ -24,6 +28,32 @@ function shouldSkipLabel(label) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function checkPortOpen(port) {
+  return new Promise((resolve) => {
+    const tester = net.createServer();
+    tester.once("error", () => resolve(false));
+    tester.once("listening", () => {
+      tester.close(() => resolve(true));
+    });
+    tester.listen(port, "127.0.0.1");
+  });
+}
+
+async function pickAvailablePort(preferredPort) {
+  if (Number.isFinite(preferredPort) && preferredPort > 0 && preferredPort < 65536) {
+    const available = await checkPortOpen(preferredPort);
+    if (available) return preferredPort;
+  }
+
+  for (let i = 0; i < 30; i += 1) {
+    const candidate = 4000 + Math.floor(Math.random() * 2000);
+    const available = await checkPortOpen(candidate);
+    if (available) return candidate;
+  }
+
+  throw new Error("Unable to find a free local port for smoke server.");
 }
 
 async function dismissBlockingOverlays(page) {
@@ -375,11 +405,17 @@ async function waitForServer(url, timeoutMs) {
   throw new Error(`Server did not become ready at ${url} within ${timeoutMs}ms`);
 }
 
-function startServer() {
+function startServer(port) {
+  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), "beyond-light-click-smoke-"));
+  const storePath = path.join(storeDir, "campaign-data.json");
   const child = spawn("node", ["server.js"], {
     cwd: process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, PORT: process.env.PORT || "3000" }
+    env: {
+      ...process.env,
+      PORT: String(port),
+      CAMPAIGN_STORE_PATH: storePath
+    }
   });
 
   child.stdout.on("data", (buf) => {
@@ -391,11 +427,25 @@ function startServer() {
     if (line) process.stderr.write(`[server:err] ${line}\n`);
   });
 
-  return child;
+  return {
+    child,
+    cleanup() {
+      try {
+        fs.rmSync(storeDir, { recursive: true, force: true });
+      } catch (_err) {
+        // Best-effort cleanup for temp smoke data.
+      }
+    }
+  };
 }
 
 async function run() {
-  const server = startServer();
+  const requestedPort = Number(process.env.PORT || 3000);
+  const port = await pickAvailablePort(requestedPort);
+  BASE_URL = process.env.SMOKE_URL || `http://127.0.0.1:${port}`;
+
+  const serverHandle = startServer(port);
+  const server = serverHandle.child;
   let browser;
   const failures = [];
   const pageErrors = [];
@@ -475,6 +525,9 @@ async function run() {
     if (browser) await browser.close();
     if (server && !server.killed) {
       server.kill("SIGTERM");
+    }
+    if (serverHandle && typeof serverHandle.cleanup === "function") {
+      serverHandle.cleanup();
     }
   }
 }

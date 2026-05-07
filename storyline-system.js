@@ -3824,12 +3824,12 @@
           for (let c = 0; c < crossword.cols; c++) {
             const ch = ((crossword.gridTemplate[r] || "")[c] || "#").toUpperCase();
             if (ch === "#") {
-              cells.push("<div style='width:32px;height:32px;background:var(--surface2);border:1px solid var(--border2);'></div>");
+              cells.push("<div style='width:32px;height:32px;background:#000;border:1px solid #111;'></div>");
             } else {
               const num = crossword.cellNums[r + ":" + c] || "";
               cells.push("<div style='position:relative;width:32px;height:32px;'>"
-                + (num ? "<span style='position:absolute;top:1px;left:2px;font-size:7px;color:var(--muted2);line-height:1;pointer-events:none;z-index:1;'>" + num + "</span>" : "")
-                + "<input id='storyCrossGrid_" + r + "_" + c + "' maxlength='1' class='input' style='width:32px;height:32px;text-align:center;padding:0;text-transform:uppercase;font-size:.82rem;' />"
+                + (num ? "<span style='position:absolute;top:1px;left:2px;font-size:7px;color:#111;line-height:1;pointer-events:none;z-index:1;'>" + num + "</span>" : "")
+                + "<input id='storyCrossGrid_" + r + "_" + c + "' maxlength='1' class='input' style='width:32px;height:32px;text-align:center;padding:0;text-transform:uppercase;font-size:.82rem;background:#fff;color:#000;border:1px solid #111;' />"
                 + "</div>");
             }
           }
@@ -3870,12 +3870,12 @@
         for (let c = 0; c < p.gridCols; c++) {
           const ch = ((p.gridTemplate[r] || "")[c] || "#").toUpperCase();
           if (ch === "#") {
-            cells.push("<div style='width:30px;height:30px;background:var(--surface2);border:1px solid var(--border2);'></div>");
+            cells.push("<div style='width:30px;height:30px;background:#000;border:1px solid #111;'></div>");
           } else {
             const num = cellNums[r + ":" + c];
             cells.push("<div style='position:relative;width:30px;height:30px;'>"
-              + (num ? "<span style='position:absolute;top:1px;left:2px;font-size:7px;color:var(--muted2);line-height:1;pointer-events:none;z-index:1;'>" + num + "</span>" : "")
-              + "<input id='storyGrid_" + r + "_" + c + "' maxlength='1' class='input' style='width:30px;height:30px;text-align:center;padding:0;text-transform:uppercase;font-size:.8rem;' />"
+              + (num ? "<span style='position:absolute;top:1px;left:2px;font-size:7px;color:#111;line-height:1;pointer-events:none;z-index:1;'>" + num + "</span>" : "")
+              + "<input id='storyGrid_" + r + "_" + c + "' maxlength='1' class='input' style='width:30px;height:30px;text-align:center;padding:0;text-transform:uppercase;font-size:.8rem;background:#fff;color:#000;border:1px solid #111;' />"
               + "</div>");
           }
         }

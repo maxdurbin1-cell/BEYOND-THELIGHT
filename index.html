@@ -15081,7 +15081,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     {mode:'rearrange',title:'Puzzle: Prayer Ring',prompt:'Arrange the words into the correct sealing phrase.',bank:['THE','GATE','OPENS','AT','DAWN'],answer:'the gate opens at dawn'},
     {mode:'memory',title:'Puzzle: Sigil Sequence',prompt:'The sigils flash once, then go dark. Rebuild the sequence before the lock hardens.',sequence:['ASH','SUN','KEY','ASH'],bank:['ASH','SUN','KEY','WAVE']},
     {mode:'mosaic',title:'Puzzle: Mosaic Relay',prompt:'Restore the mural order that routes power through the chamber.',bank:['SUN','ARCH','KEY'],answer:'sun arch key'},
-    {mode:'crossword',title:'Puzzle: Archive Lattice',prompt:'Complete the builders\' crossword lattice to unlock the compartment.',clues:[{clue:'Old-world route marker',answer:'gate'},{clue:'A written clue or record',answer:'note'}]}
+    {mode:'crossword_grid',title:'Puzzle: Archive Lattice I',prompt:'Complete this 7x7 lattice. Black tiles are blocked and white tiles must all resolve.',gridTemplate:['##GATE#','#R#A#R#','ANCHOR#','#I#E#B#','#STAR##','#L#E#R#','##NOTE#'],clues:[{clue:'Across 1: Portal threshold',answer:'gate'},{clue:'Across 2: Harbor hook',answer:'anchor'},{clue:'Across 3: Celestial light',answer:'star'},{clue:'Across 4: Written record',answer:'note'}]},
+    {mode:'crossword_grid',title:'Puzzle: Archive Lattice II',prompt:'Restore the 7x7 builders grid from clues and intersections.',gridTemplate:['#EMBER#','R#A#I#N','OASIS##','U#E#O#S','TEMPLE#','E#T#A#T','#SIGIL#'],clues:[{clue:'Across 1: Burning residue',answer:'ember'},{clue:'Across 2: Desert spring',answer:'oasis'},{clue:'Across 3: Sacred structure',answer:'temple'},{clue:'Across 4: Arcane mark',answer:'sigil'}]},
+    {mode:'crossword_grid',title:'Puzzle: Archive Lattice III',prompt:'Solve the 7x7 ruin crossword lattice to open the lockwheel.',gridTemplate:['##CRYPT','#A#R#U#','RELAY##','#R#I#N#','VAULT##','#H#E#R#','##STONE'],clues:[{clue:'Across 1: Hidden chamber',answer:'crypt'},{clue:'Across 2: Signal bridge',answer:'relay'},{clue:'Across 3: Secure room',answer:'vault'},{clue:'Across 4: Carved rock',answer:'stone'}]},
+    {mode:'crossword_grid',title:'Puzzle: Archive Lattice IV',prompt:'Fill the 7x7 matrix. Every white tile should be a valid letter cell.',gridTemplate:['#ALTAR#','M#O#R#E','ORACLE#','S#D#U#N','TEMPLE#','A#R#E#S','#RUNIC#'],clues:[{clue:'Across 1: Shrine table',answer:'altar'},{clue:'Across 2: Seer source',answer:'oracle'},{clue:'Across 3: Sacred hall',answer:'temple'},{clue:'Across 4: Inscribed script',answer:'runic'}]},
+    {mode:'crossword_grid',title:'Puzzle: Archive Lattice V',prompt:'Complete the final 7x7 ruin crossword lattice.',gridTemplate:['##GLYPH','#R#U#N#','RELIC##','#I#N#E#','TABLET#','#D#E#R#','##VAULT'],clues:[{clue:'Across 1: Carved symbol',answer:'glyph'},{clue:'Across 2: Ancient artifact',answer:'relic'},{clue:'Across 3: Inscribed slab',answer:'tablet'},{clue:'Across 4: Sealed chamber',answer:'vault'}]}
   ];
   const PROVINCE_DEPTHS_FLOOR_DICE=[4,6,8,10,12,20];
   const PROVINCE_DEPTHS_ROOM_TYPES=['Hall','Chamber','Monster Lair','Puzzle Door','Collapsed Crossing','Loot Vault','Shrine Niche','Watch Post'];
@@ -15791,6 +15795,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;">Built by <strong style="color:var(--gold);">'+(hex.data.builder||'Unknown')+'</strong> · <em>'+(hex.data.builtFor||'Unknown purpose')+'</em></div>'
       + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.25rem;">Construction: '+(hex.data.construction||'Stone')+' · Novelty: '+(hex.data.novelty||'None')+'</div>'
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">'+cleared+'/'+total+' rooms explored</div>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.25rem;margin-bottom:.3rem;">'
+      + '<button type="button" class="btn btn-xs btn-teal" onclick="openRuinEncampmentFromProvince('+col+','+row+')">Ruin Encampment</button>'
+      + '</div>'
       + progressBar
       + '</div>';
     openModal('◫ Province Ruins — '+(hex.name||'Unknown Ruin'), header+hexcrawlHtml+currentRoomCard);

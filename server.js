@@ -17,7 +17,7 @@ const io = new Server(server, {
 const PORT = Number(process.env.PORT || 3000);
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
-const STORE_PATH = path.join(__dirname, "campaign-data.json");
+const STORE_PATH = path.resolve(process.env.CAMPAIGN_STORE_PATH || path.join(__dirname, "campaign-data.json"));
 const GM_ONLY_EVENTS = {
   "campaign:archive": true,
   "campaign:unarchive": true,
@@ -379,6 +379,7 @@ function persistCampaignsNow() {
     savedAt: Date.now(),
     campaigns: Array.from(campaigns.values()).map(serializeCampaign)
   };
+  fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2), "utf8");
 }
 

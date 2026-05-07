@@ -1532,7 +1532,8 @@
         raidPoints: 0,
         raidTreeRanks: {},
         raidKeys: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
-        raidTrophies: []
+        raidTrophies: [],
+        raidOverflowLoot: []
       };
     }
     if (!S.solarCycleLegacy.raidTreeRanks || typeof S.solarCycleLegacy.raidTreeRanks !== 'object') {
@@ -1542,6 +1543,7 @@
       S.solarCycleLegacy.raidKeys = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
     }
     if (!Array.isArray(S.solarCycleLegacy.raidTrophies)) S.solarCycleLegacy.raidTrophies = [];
+    if (!Array.isArray(S.solarCycleLegacy.raidOverflowLoot)) S.solarCycleLegacy.raidOverflowLoot = [];
     S.solarCycleLegacy.raidMedals = Math.max(0, Number(S.solarCycleLegacy.raidMedals || 0));
     S.solarCycleLegacy.raidPoints = Math.max(0, Number(S.solarCycleLegacy.raidPoints || 0));
     ['bronze', 'silver', 'gold', 'platinum'].forEach(function (tier) {
@@ -1761,6 +1763,7 @@
     var medalCount = Math.max(0, Number(profile.raidMedals || 0));
     var pointCount = Math.max(0, Number(profile.raidPoints || 0));
     var keyState = profile.raidKeys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    var overflow = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
     var keyRow = ['bronze', 'silver', 'gold', 'platinum'].map(function (tier) {
       return '<span style="font-size:.68rem;color:var(--gold2);">' + tier.charAt(0).toUpperCase() + tier.slice(1) + ' Key x' + Math.max(0, Number(keyState[tier] || 0)) + '</span>';
     }).join(' · ');
@@ -1832,6 +1835,19 @@
         : 'No raid trophies recorded yet. Clear legacy raids to fill this wall.')
       + '</div>'
       + '</div>'
+      + '<div style="border:1px solid rgba(126,215,255,.22);background:linear-gradient(150deg, rgba(14,22,30,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
+      + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Storage Overflow</strong></div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.42;max-height:120px;overflow:auto;">'
+      + (overflow.length
+        ? overflow.slice(-18).reverse().map(function (item, idx) {
+            return '<div style="padding:.06rem 0;border-bottom:1px solid rgba(255,255,255,.06);">' + (idx + 1) + '. ' + String(item || 'Unknown Loot') + '</div>';
+          }).join('')
+        : 'No overflow loot.')
+      + '</div>'
+      + '<div style="margin-top:.16rem;">'
+      + '<button class="btn btn-xs btn-primary" onclick="claimLegacyRaidOverflowLoot()">Claim Overflow To Backpack</button>'
+      + '</div>'
+      + '</div>'
       + '</div>'
       + '</div>'
       + '</div>';
@@ -1900,10 +1916,22 @@
         rolled.forEach(function (item) { if (item) chestLoot.push(String(item)); });
       } catch (_err) {}
     }
+    var overflowLoot = [];
     if (typeof addToBackpack === 'function') {
       chestLoot.forEach(function (item) {
-        try { if (item) addToBackpack(item); } catch (_err) {}
+        try {
+          if (!item) return;
+          if (!addToBackpack(item)) overflowLoot.push(String(item));
+        } catch (_err) {
+          overflowLoot.push(String(item || ''));
+        }
       });
+    } else {
+      overflowLoot = chestLoot.slice();
+    }
+    if (overflowLoot.length) {
+      profile.raidOverflowLoot = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
+      profile.raidOverflowLoot = profile.raidOverflowLoot.concat(overflowLoot).slice(-120);
     }
     var keyRefunded = false;
     if (keyRefundChance > 0) {
@@ -1921,7 +1949,40 @@
     if (typeof showNotif === 'function') {
       showNotif('Opened ' + keyTier + ' chest: +' + creditGain + ' credits, +' + pointGain + ' RP, +' + medalGain + ' medals'
         + (keyRefunded ? (' · Key reclaimed!') : '')
-        + (chestLoot.length ? (' · Loot: ' + chestLoot.join(', ')) : ''), 'good');
+        + (chestLoot.length ? (' · Loot: ' + chestLoot.join(', ')) : '')
+        + (overflowLoot.length ? (' · Overflow stored: ' + overflowLoot.length) : ''), 'good');
+    }
+    renderLegacyRaidTreePanel();
+    return true;
+  };
+
+  window.claimLegacyRaidOverflowLoot = function () {
+    var profile = ensureLegacyRaidProfile();
+    if (!profile) return false;
+    profile.raidOverflowLoot = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
+    if (!profile.raidOverflowLoot.length) {
+      if (typeof showNotif === 'function') showNotif('No overflow loot waiting.', 'info');
+      return false;
+    }
+    if (typeof addToBackpack !== 'function') {
+      if (typeof showNotif === 'function') showNotif('Backpack handler unavailable right now.', 'warn');
+      return false;
+    }
+    var kept = [];
+    var moved = 0;
+    profile.raidOverflowLoot.forEach(function (item) {
+      if (!item) return;
+      try {
+        if (addToBackpack(item)) moved += 1;
+        else kept.push(String(item));
+      } catch (_err) {
+        kept.push(String(item));
+      }
+    });
+    profile.raidOverflowLoot = kept;
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof showNotif === 'function') {
+      showNotif('Moved ' + moved + ' overflow item(s) to backpack.' + (kept.length ? (' ' + kept.length + ' still waiting.') : ''), moved ? 'good' : 'warn');
     }
     renderLegacyRaidTreePanel();
     return true;
@@ -3467,6 +3528,29 @@
       };
       mission.legacyRaidBossEncounter = encounter;
     }
+
+    function ensureLegacyRaidCombatHostiles(mission, wingNum, encounter) {
+      if (typeof S === 'undefined' || !S) return;
+      if (!Array.isArray(S.enemies)) S.enemies = [];
+      var activeHostiles = S.enemies.filter(function (enemy) { return enemy && !enemy.ally; });
+      if (activeHostiles.length) return;
+      var bossName = String(mission && mission.legacyRaidBoss || 'Raid Hostile');
+      var primaryDread = Math.max(4, Number(encounter && encounter.dreadDie || 6));
+      var hostileCount = Math.max(1, Number(wingNum || 1));
+      for (var i = 0; i < hostileCount; i++) {
+        var hostileName = (i === 0) ? bossName : (bossName + ' Add ' + i);
+        S.enemies.push({
+          id: Date.now() + i + 1,
+          name: hostileName,
+          dread: Math.max(4, primaryDread - (i > 0 ? 1 : 0)),
+          stress: 0,
+          maxStress: Math.max(8, Number(encounter && encounter.maxPhaseHp || 16) - (i > 0 ? 4 : 0)),
+          ally: false,
+          temporarySceneAlly: false,
+          faction: 'Raid Hostile'
+        });
+      }
+    }
     if (!encounter.partyHp) encounter.partyHp = { player: 999, allies: {} };
     if (!encounter.partyHp.allies) encounter.partyHp.allies = {};
     var allies = getRaidWayfarersForWing(mission, wingNum).filter(function (w) { return w && w.status !== 'failed'; });
@@ -3498,6 +3582,7 @@
     var allies = getRaidWayfarersForWing(mission, wingNum).filter(function (w) { return w && w.status !== 'failed'; });
     if (typeof S !== 'undefined' && S) {
       if (!Array.isArray(S.enemies)) S.enemies = [];
+      S.enemies = S.enemies.filter(function (enemy) { return enemy && !enemy.temporarySceneAlly; });
       var playerName = String(S.name || 'Wayfarer');
       allies.forEach(function (ally) {
         var allyName = String(ally && ally.name || 'Wayfarer');
@@ -3518,9 +3603,21 @@
         }
       });
       S.combat = S.combat || {};
+      ensureLegacyRaidCombatHostiles(mission, wingNum, encounter);
+      S.combat.enemyDread = Math.max(4, Number(encounter.dreadDie || S.combat.enemyDread || 6));
       S.combat.actionsLeft = Math.max(4, Number(S.combat.actionsLeft || 0));
       if (typeof startCombat === 'function') startCombat();
       setLegacyRaidCombatFlowActive(true);
+      if (S.combat && S.combat.raidFlow) {
+        var firstHostile = Array.isArray(S.enemies) ? S.enemies.find(function (enemy) { return enemy && !enemy.ally; }) : null;
+        if (firstHostile) {
+          S.combat.raidFlow.selectedHostileId = Number(firstHostile.id || 0);
+          S.combat.raidFlow.selectedHostileName = String(firstHostile.name || 'Hostile');
+          if (typeof window.setCombatFocusEnemy === 'function') window.setCombatFocusEnemy(Number(firstHostile.id || 0));
+        }
+        S.combat.raidFlow.selectedEnemyTargetType = allies.length ? 'ally' : 'player';
+        S.combat.raidFlow.selectedAllyName = allies.length ? String(allies[0].name || 'Wayfarer') : '';
+      }
       if (typeof updateCombatUI === 'function') updateCombatUI();
       if (typeof renderEnemies === 'function') renderEnemies();
       if (typeof renderCombatOptions === 'function') renderCombatOptions();
@@ -3551,6 +3648,12 @@
     var selectedEnemyTargetTxt = (flow && String(flow.selectedEnemyTargetType || '') === 'player')
       ? 'Wayfarer'
       : ((flow && flow.selectedAllyName) ? String(flow.selectedAllyName) : 'First alive ally');
+    var enemyTargetButtons = '<button class="btn btn-xs" ' + (stage === 'enemy' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidSceneEnemyAction(\'player\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Target: You</button>'
+      + allies.map(function (ally) {
+          var allyName = String(ally && ally.name || 'Wayfarer');
+          var allyArg = allyName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          return '<button class="btn btn-xs" ' + (stage === 'enemy' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidSceneEnemyAction(\'ally\',\'' + allyArg + '\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Target: ' + allyName + '</button>';
+        }).join('');
 
     var allyRows = allies.map(function (e) {
       var hp = Math.max(0, Number(e.maxStress || 12) - Number(e.stress || 0));
@@ -3643,9 +3746,9 @@
       + '</div>'
       + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.08rem;">Enemy Phase · Remaining Actions: ' + enemyBudget + '</div>'
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.12rem;">'
-      + '<button class="btn btn-xs btn-warn" ' + (stage === 'enemy' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidSceneEnemyAction(\'ally\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Enemy Action → Ally</button>'
-      + '<button class="btn btn-xs btn-warn" ' + (stage === 'enemy' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidSceneEnemyAction(\'player\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Enemy Action → You</button>'
+      + '<button class="btn btn-xs btn-warn" ' + (stage === 'enemy' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidSceneEnemyAction();window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Enemy Action</button>'
       + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.14rem;">' + enemyTargetButtons + '</div>'
       + '<div style="display:flex;gap:.24rem;justify-content:space-between;flex-wrap:wrap;">'
       + '<button class="btn btn-xs" onclick="window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Refresh</button>'
       + '<button class="btn btn-xs" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof switchTab===\'function\'){var b=document.querySelector(\'.tab-btn[onclick*=\\\"combat\\\"]\');switchTab(\'combat\',b||null);}">Open Full Combat Tab</button>'
@@ -3675,7 +3778,7 @@
       turn: 1,
       allyCount: allyCount,
       allyActionsPerTurn: 2,
-      enemyActionsPerTurn: 2,
+      enemyActionsPerTurn: 1,
       playerRange: 'Close',
       allyOrder: [],
       currentAllyIndex: 0,
@@ -3900,7 +4003,9 @@
     var hostiles = getLegacyRaidSceneHostiles();
     if (!hostiles.length) {
       flow.stage = 'player';
-      if (typeof getMaxActions === 'function') S.combat.actionsLeft = Math.max(1, Number(getMaxActions() || 3));
+      S.combat.actionsLeft = (typeof getMaxActions === 'function')
+        ? Math.max(1, Number(getMaxActions() || 3))
+        : Math.max(1, Number(S.combat.actionsLeft || 3));
       return true;
     }
     var requestedType = String(targetType || (flow && flow.selectedEnemyTargetType) || 'ally').toLowerCase();
@@ -3923,6 +4028,8 @@
         ? { type: 'ally', name: String(fallback.name || 'Wayfarer'), ref: fallback }
         : { type: 'player', name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer') };
     }
+    flow.selectedEnemyTargetType = target.type;
+    flow.selectedAllyName = target.type === 'ally' ? String(target.name || '') : '';
     var hit = typeof roll === 'function' ? roll(dreadDie) : (Math.floor(Math.random() * dreadDie) + 1);
     var defendDie = target.type === 'player' ? getLegacyRaidCombatActionDie('defend') : 6;
     if (target.type === 'ally' && flow.allyDefendBonus && Number(flow.allyDefendBonus[target.name] || 0) > 0) {
@@ -3959,9 +4066,13 @@
     if (flow.enemyActionBudget <= 0) {
       flow.stage = 'player';
       flow.turn = Number(flow.turn || 1) + 1;
-      if (typeof getMaxActions === 'function') S.combat.actionsLeft = Math.max(1, Number(getMaxActions() || 3));
+      S.combat.actionsLeft = (typeof getMaxActions === 'function')
+        ? Math.max(1, Number(getMaxActions() || 3))
+        : Math.max(1, Number(S.combat.actionsLeft || 3));
       flow.allyDefendBonus = {};
       flow.allyAttackBonus = 0;
+      flow.enemyActionCursor = 0;
+      if (typeof showNotif === 'function') showNotif('Enemy turn complete. Your actions are refreshed.', 'good');
     }
     if (typeof renderEnemies === 'function') renderEnemies();
     if (typeof updateCombatUI === 'function') updateCombatUI();
@@ -10572,6 +10683,14 @@
       try { showNotif('Mission complete! +1 Renown \u00B7 +'+mission.reward+'\u20B5 \u00B7 '+(mission.factionGainName||'Faction')+' +1 / '+(mission.factionLoseName||'Faction')+' -1' + homeText + raidMedalText + ' \u00B7 Loot: '+mission.loot.join(', '),'good'); } catch (err) {}
       if (stored.length) {
         try { showNotif('Added to backpack: ' + stored.join(', '), 'good'); } catch (err) {}
+      }
+      if (dropped.length && mission.missionType === 'legacy_raid') {
+        var overflowVault = ensureLegacyRaidLootVault(mission);
+        if (overflowVault && Array.isArray(overflowVault.loot)) {
+          overflowVault.loot = overflowVault.loot.concat(dropped.map(function (item) { return String(item || ''); }).filter(Boolean));
+          try { showNotif('Backpack full. Stored raid overflow in Raid Storage: ' + dropped.join(', '), 'warn'); } catch (err) {}
+          dropped = [];
+        }
       }
       if (dropped.length) {
         try { showNotif('Backpack full. Unstored loot: ' + dropped.join(', '), 'warn'); } catch (err) {}

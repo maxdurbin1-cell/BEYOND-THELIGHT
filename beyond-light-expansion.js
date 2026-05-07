@@ -1,7 +1,7 @@
 (function () {
   const LAST_SEA_COLS = 12;
   const LAST_SEA_ROWS = 12;
-  const LAST_SEA_HEX = 30;
+  const LAST_SEA_HEX = 34;
   const NAVAL_ZONES = ["Engaged", "Close", "Nearby", "Far"];
 
   const LAST_SEA_TERRAINS = [
@@ -378,7 +378,7 @@
         <div class="sea-group-list" id="lastSeaIslandGroups"></div>
         <div class="sea-layout">
           <div class="sea-scroll">
-            <svg id="lastSeaSvg" width="620" height="560" xmlns="http://www.w3.org/2000/svg">
+            <svg id="lastSeaSvg" width="700" height="640" xmlns="http://www.w3.org/2000/svg">
               <text x="310" y="270" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#254454">Generate the Last Sea to begin</text>
               <text x="310" y="294" text-anchor="middle" font-family="Cinzel,serif" font-size="10" fill="#1a2c38">Every hex carries a description and an exploration roll.</text>
             </svg>

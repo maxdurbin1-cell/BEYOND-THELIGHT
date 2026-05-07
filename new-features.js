@@ -1962,6 +1962,42 @@
     }
   }
 
+  function clearHoldingMedicalState() {
+    if (typeof clearStress === 'function') clearStress();
+    else if (typeof changeStress === 'function') changeStress(-999);
+    if (typeof clearMentalStress === 'function') clearMentalStress();
+    else if (typeof changeMentalStress === 'function') changeMentalStress(-999);
+    if (typeof clearAllConditions === 'function') clearAllConditions();
+    if (typeof S !== 'undefined' && S) {
+      S.trauma = 0;
+      if (S.radiationState && typeof S.radiationState === 'object') {
+        S.radiationState.gainTicks = 0;
+        S.radiationState.mutations = [];
+        if (S.radiationState.statPenalty && typeof S.radiationState.statPenalty === 'object') {
+          Object.keys(S.radiationState.statPenalty).forEach(function (key) {
+            S.radiationState.statPenalty[key] = 0;
+          });
+        }
+      }
+      if (Array.isArray(S.injuries)) S.injuries = [];
+      S.scarState = {
+        avoidedDeaths: 0,
+        results: [],
+        tmwCostPenalty: 0,
+        rollPenalty: 0,
+        cannotEscapeCombat: false,
+        loseHealthOnFailedRoll: false,
+        baseTeamwork: Number(S.tmw || 0),
+        inProgress: false
+      };
+    }
+    if (typeof updateTrauma === 'function') updateTrauma();
+    if (typeof updateInjuryUI === 'function') updateInjuryUI();
+    if (typeof updateScarUI === 'function') updateScarUI();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  }
+
   function runHoldingLocalWork(node) {
     if (!node) { return; }
     var bodyDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('body') : ((S.stats && S.stats.body) || 4);
@@ -2275,6 +2311,7 @@
       + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.16rem;">'
       + guessBtn('under', 'Under') + guessBtn('middle', 'Middle') + guessBtn('over', 'Over')
       + '</div>'
+      + '<div style="font-size:.7rem;color:var(--gold2);margin-top:.12rem;">Current Call: <strong>' + (state.guess ? String(state.guess).toUpperCase() : 'NONE') + '</strong></div>'
       + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.2rem;">'
       + '<button type="button" class="btn btn-xs btn-primary" onclick="playHoldingGamblingRound(\'' + String(node.id) + '\')">Play Round</button>'
       + '<button type="button" class="btn btn-xs" onclick="clearHoldingGamblingHistory(\'' + String(node.id) + '\')">Clear Ledger</button>'
@@ -2392,22 +2429,22 @@
       return '<div style="font-size:.66rem;color:var(--muted2);">• ' + String(s.title || 'Local chain') + ' — Stage ' + Number(s.stage || 1) + '/3</div>';
     }).join('');
     var actionButton = active && !active.explored
-      ? '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (DD' + Number(active.dd || 6) + ')</button>'
+      ? '<button type="button" class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (DD' + Number(active.dd || 6) + ')</button>'
       : '<span style="font-size:.68rem;color:var(--green2);">Scouted this visit.</span>';
     var districtButtons = '';
     if (active) {
       var services = active.services || {};
-      if (services.missionBoard) districtButtons += '<button class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Mission Board</button>';
-      if (services.localWork) districtButtons += '<button class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Local Shift</button>';
-      if (services.merchant) districtButtons += '<button class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchant</button>';
-      if (active.kind === 'inn') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
-      if (active.kind === 'lord') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
-      if (services.inn) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop</button>';
-      if (services.bar) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'bar\')">Bar Loop</button>';
-      if (services.banking) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'banking\')">Banking</button>';
-      if (services.legal) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'legal\')">Legal Desk</button>';
-      if (services.hospital) districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'hospital\')">Hospital</button>';
-      districtButtons += '<button class="btn btn-xs" onclick="openHoldingSettlementSewerRoute(\'' + String(active.id) + '\')">Sewer Route</button>';
+      if (services.missionBoard) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Mission Board</button>';
+      if (services.localWork) districtButtons += '<button type="button" class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Local Shift</button>';
+      if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchant</button>';
+      if (active.kind === 'inn') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
+      if (active.kind === 'lord') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
+      if (services.inn) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop</button>';
+      if (services.bar) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'bar\')">Bar Loop</button>';
+      if (services.banking) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'banking\')">Banking</button>';
+      if (services.legal) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'legal\')">Legal Desk</button>';
+      if (services.hospital) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'hospital\')">Hospital</button>';
+      districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingSettlementSewerRoute(\'' + String(active.id) + '\')">Sewer Route</button>';
     }
 
     var html = '<div style="font-size:.77rem;color:var(--text2);line-height:1.46;display:grid;gap:.24rem;">'
@@ -2426,9 +2463,9 @@
       + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.14rem;"><strong>District Hex Map</strong></div>'
       + buildHoldingHexMapHtml(crawl)
       + '<div style="display:flex;gap:.14rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.14rem;">'
-      + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(1)">+1 Hour</button>'
-      + '<button class="btn btn-xs" onclick="advanceHoldingSettlementTime(6)">+6 Hours</button>'
-      + '<button class="btn btn-xs btn-teal" onclick="openHoldingSettlementHexcrawl()">Refresh Scene</button>'
+      + '<button type="button" class="btn btn-xs" onclick="advanceHoldingSettlementTime(1)">+1 Hour</button>'
+      + '<button type="button" class="btn btn-xs" onclick="advanceHoldingSettlementTime(6)">+6 Hours</button>'
+      + '<button type="button" class="btn btn-xs btn-teal" onclick="openHoldingSettlementHexcrawl()">Refresh Scene</button>'
       + '</div>'
       + '</div>'
 
@@ -2550,10 +2587,18 @@
       }
       msg = 'Audience complete. +1 Renown and a ruler-issued mission is now active in Missions.';
     } else if (action === 'inn_service') {
-      if (typeof changeMentalStress === 'function') changeMentalStress(-1);
-      crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 1);
-      crawl.stats.fear = Math.max(0, Number((crawl.stats && crawl.stats.fear) || 0) - 1);
-      msg = 'Inn service loop complete: you recover, gather traveler routes, and lower district fear by 1.';
+      var innCost = 10;
+      if (Number(S.credits || 0) < innCost) {
+        msg = 'Inn Loop costs 10₵. Not enough credits.';
+      } else {
+        S.credits = Math.max(0, Number(S.credits || 0) - innCost);
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        clearHoldingMedicalState();
+        advanceHoldingOneDay();
+        crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 1);
+        crawl.stats.fear = Math.max(0, Number((crawl.stats && crawl.stats.fear) || 0) - 1);
+        msg = 'Inn Loop complete: Long Rest applied for 10₵ and +1 day advanced.';
+      }
     } else if (action === 'bar') {
       if (typeof changeCounter === 'function') changeCounter('tmw', 1);
       crawl.stats.wealth = Math.min(10, Number((crawl.stats && crawl.stats.wealth) || 0) + 1);
@@ -2564,14 +2609,28 @@
       crawl.stats.wealth = Math.min(10, Number((crawl.stats && crawl.stats.wealth) || 0) + 1);
       msg = 'Banking loop complete: letters of credit settle and +25 Credits are secured.';
     } else if (action === 'legal') {
-      if (typeof changeCounter === 'function') changeCounter('renown', 1);
-      crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
-      msg = 'Legal loop complete: a district dispute is adjudicated and civic security improves.';
+      var legalCost = 20;
+      if (Number(S.credits || 0) < legalCost) {
+        msg = 'Legal Desk costs 20₵. Not enough credits.';
+      } else {
+        S.credits = Math.max(0, Number(S.credits || 0) - legalCost);
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        S.renown = Math.max(0, Number(S.renown || 0));
+        if (typeof updateRenown === 'function') updateRenown();
+        crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
+        msg = 'Legal Desk complete: Renown floor reset to 0 for 20₵ and district security improved.';
+      }
     } else if (action === 'hospital') {
-      if (typeof changeHealth === 'function') changeHealth(1);
-      if (typeof changeMentalStress === 'function') changeMentalStress(-1);
-      crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 1);
-      msg = 'Hospital loop complete: casualties stabilized and district health rises.';
+      var hospitalCost = 50;
+      if (Number(S.credits || 0) < hospitalCost) {
+        msg = 'Hospital costs 50₵. Not enough credits.';
+      } else {
+        S.credits = Math.max(0, Number(S.credits || 0) - hospitalCost);
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        clearHoldingMedicalState();
+        crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 2);
+        msg = 'Hospital complete: Stress, Radiation, Trauma, Injuries, and Scars cleared for 50₵.';
+      }
     } else if (action === 'buy_item') {
       if (Number(S.credits || 0) < 50) msg = 'Not enough credits.';
       else {

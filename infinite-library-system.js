@@ -350,6 +350,15 @@
     return String(statusText).toLowerCase().indexOf('inoperable') < 0;
   }
 
+  function getLibraryNodeRelevantEffects(node) {
+    var kind = String(node && node.kind || '').toLowerCase();
+    if (/reading|sentence|word/.test(kind)) return ['Mind checks', 'Mental Stress risk', 'Instability +1 on shifts'];
+    if (/encounter|spider|owl/.test(kind)) return ['Adventure checks', 'Health risk', 'Combat escalation'];
+    if (/mutable/.test(kind)) return ['Environment shift', 'Instability +1', 'Pathing changes'];
+    if (/portal|elevator|stair/.test(kind)) return ['Depth transition', 'Area transition', 'Route volatility'];
+    return ['Adventure checks', 'Radiation exposure risk', 'Mental Stress risk'];
+  }
+
   function startLibraryEncounterCombat(col, row, profile) {
     if (typeof window.startProvinceMonsterCombat !== 'function') return false;
     if (!isFinite(col) || !isFinite(row)) return false;
@@ -558,6 +567,7 @@
     if (node.detail) details.push(node.detail);
     if (node.bookLine) details.push('<em>' + node.bookLine + '</em>');
     if (node.environmentShift) details.push('Shift: ' + node.environmentShift);
+    details.push('Relevant effects: ' + getLibraryNodeRelevantEffects(node).join(' · '));
 
     return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid ' + titleColor + ';padding-left:.5rem;">'
       + '<div class="rb-title" style="color:' + titleColor + ';">' + nodeIcon(node.kind) + ' Hex ' + node.idx + ' - ' + node.kind + '</div>'
@@ -648,6 +658,8 @@
       selected = frontierIdx >= 0 ? frontierIdx : 0;
     }
     st.selectedNodeByDepth[String(depth)] = selected;
+    var selectedNode = floor.nodes[selected] || null;
+    var relevantEffectsLine = selectedNode ? getLibraryNodeRelevantEffects(selectedNode).join(' · ') : 'Adventure checks · Radiation exposure risk · Mental Stress risk';
 
     var canAscend = depth > 1;
     var task = st.lastHook || ('Retrieve a depth-' + depth + ' volume from ' + String(st.activeArea || 'Catalog Atrium') + ' and get it out alive.');
@@ -656,6 +668,7 @@
       + '<div style="font-size:.72rem;color:#9cb8ff;margin-bottom:.2rem;">Depth ' + depth + ' · DD' + tierForDepth(depth) + ' · ' + String(st.activeArea || 'Catalog Atrium') + ' · Deepest ' + st.deepestDepth + ' · Delves ' + st.delveCount + '</div>'
       + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.22rem;">Atmosphere: ' + (floor.atmosphere || st.atmosphere) + '</div>'
       + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.3rem;">Instability: ' + st.instability + ' · Readings this floor: ' + Number(floor.readings || 0) + '</div>'
+      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.24rem;">Relevant Effects: ' + relevantEffectsLine + '</div>'
       + '<div style="padding:.35rem .45rem;border:1px solid rgba(156,184,255,.3);background:rgba(156,184,255,.07);margin-bottom:.42rem;">'
       + '<div style="font-size:.68rem;color:#9cb8ff;text-transform:uppercase;letter-spacing:.08em;">Contract</div>'
       + '<div style="font-size:.8rem;color:var(--text2);">' + task + '</div>'

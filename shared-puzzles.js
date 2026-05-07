@@ -18,15 +18,16 @@
     return 'up';
   }
 
-  function _pipeNeighborIndex(idx, dir) {
-    var row = Math.floor(idx / 3);
-    var col = idx % 3;
+  function _pipeNeighborIndex(idx, dir, size) {
+    var boardSize = Math.max(3, Number(size || 3));
+    var row = Math.floor(idx / boardSize);
+    var col = idx % boardSize;
     if (dir === 'left') col -= 1;
     else if (dir === 'right') col += 1;
     else if (dir === 'up') row -= 1;
     else if (dir === 'down') row += 1;
-    if (row < 0 || row >= 3 || col < 0 || col >= 3) return -1;
-    return row * 3 + col;
+    if (row < 0 || row >= boardSize || col < 0 || col >= boardSize) return -1;
+    return row * boardSize + col;
   }
 
   function ensurePuzzleState() {
@@ -41,10 +42,10 @@
   }
 
   const CHESS_PRESETS = [
-    { board: 5, rook: { r: 2, c: 2 }, pawns: [{ r: 2, c: 0 }, { r: 0, c: 2 }, { r: 4, c: 2 }, { r: 2, c: 4 }], captured: [] },
-    { board: 5, rook: { r: 4, c: 0 }, pawns: [{ r: 4, c: 3 }, { r: 1, c: 3 }, { r: 1, c: 1 }, { r: 3, c: 1 }], captured: [] },
-    { board: 5, rook: { r: 0, c: 4 }, pawns: [{ r: 0, c: 1 }, { r: 3, c: 1 }, { r: 3, c: 3 }, { r: 1, c: 3 }], captured: [] },
-    { board: 5, rook: { r: 1, c: 1 }, pawns: [{ r: 1, c: 4 }, { r: 4, c: 4 }, { r: 4, c: 0 }, { r: 2, c: 0 }], captured: [] }
+    { board: 5, piece: 'rook', rook: { r: 2, c: 2 }, pawns: [{ r: 2, c: 0 }, { r: 0, c: 0 }, { r: 0, c: 4 }, { r: 4, c: 4 }], captured: [] },
+    { board: 5, piece: 'bishop', rook: { r: 2, c: 2 }, pawns: [{ r: 0, c: 0 }, { r: 4, c: 0 }, { r: 4, c: 4 }, { r: 0, c: 4 }], captured: [] },
+    { board: 5, piece: 'knight', rook: { r: 2, c: 2 }, pawns: [{ r: 0, c: 1 }, { r: 1, c: 3 }, { r: 3, c: 4 }, { r: 4, c: 2 }], captured: [] },
+    { board: 5, piece: 'rook', rook: { r: 1, c: 1 }, pawns: [{ r: 1, c: 4 }, { r: 3, c: 4 }, { r: 3, c: 0 }, { r: 0, c: 0 }], captured: [] }
   ];
 
   const PUZZLES = {
@@ -63,7 +64,7 @@
       { title: "Tide Sequence", prompt: "Enter the next term: 2, 4, 8, 16, ?", answer: "32" },
       { title: "Chart Mark", prompt: "Type the nautical shorthand for North-East.", answer: "ne" },
       { title: "Sea Cryptogram", prompt: "Cryptogram (Caesar +1): TFB -> ?", answer: "sea" },
-      { title: "Harbor Rook Lock", mode: "chess_puzzle", prompt: "Rook lockboard: capture all sentries to open the harbor gate.", chessState: CHESS_PRESETS[1] },
+      { title: "Harbor Bishop Lock", mode: "chess_puzzle", prompt: "Bishop lockboard: capture all sentries using legal bishop diagonals.", chessState: CHESS_PRESETS[1] },
       { title: "Word Search Buoy", prompt: "Word Search row: A N C H O R. Enter the hidden word.", answer: "anchor" }
     ],
     galaxy: [
@@ -76,7 +77,7 @@
       { title: "Surface Lock", prompt: "Enter: BIO + ME = ?", answer: "biome" },
       { title: "Drill Code", prompt: "Solve: 9 + 7", answer: "16" },
       { title: "Mini Maze Route", mode: "maze", prompt: "Trace the rover's path through the cracked surface tunnels.", answer: "R-R-D-D-L-D", mazeLayout: ["S...", "###.", "..#.", "E..."] },
-      { title: "Colony Rook Protocol", mode: "chess_puzzle", prompt: "Use rook captures to clear the colony lockgrid.", chessState: CHESS_PRESETS[2] },
+      { title: "Colony Knight Protocol", mode: "chess_puzzle", prompt: "Use knight jumps to capture every marked sentry.", chessState: CHESS_PRESETS[2] },
       { title: "Magic Square Delta", prompt: "Magic square line total is 15. Row: 2 7 _. Missing number?", answer: "6" }
     ],
     wtw: [
@@ -177,15 +178,23 @@
   var _cp = null;
 
   function buildPipeFlowState() {
+    var size = 4;
     var baseTiles = [
       { type: 'source',   rotation: 0, locked: true  },
       { type: 'straight', rotation: 0, locked: false },
+      { type: 'tee',      rotation: 1, locked: false },
       { type: 'elbow',    rotation: 2, locked: false },
-      { type: 'block',    rotation: 0, locked: true  },
       { type: 'elbow',    rotation: 0, locked: false },
-      { type: 'straight', rotation: 1, locked: false },
       { type: 'block',    rotation: 0, locked: true  },
+      { type: 'straight', rotation: 1, locked: false },
+      { type: 'tee',      rotation: 0, locked: false },
+      { type: 'straight', rotation: 1, locked: false },
       { type: 'elbow',    rotation: 1, locked: false },
+      { type: 'cross',    rotation: 0, locked: false },
+      { type: 'straight', rotation: 0, locked: false },
+      { type: 'block',    rotation: 0, locked: true  },
+      { type: 'elbow',    rotation: 3, locked: false },
+      { type: 'straight', rotation: 0, locked: false },
       { type: 'sink',     rotation: 0, locked: true  }
     ];
     var shuffled = baseTiles.map(function (tile) {
@@ -199,13 +208,13 @@
       }
       return next;
     });
-    return { tiles: shuffled };
+    return { tiles: shuffled, size: size };
   }
 
   function _cpTileExits(tile) {
     var r = (tile.rotation || 0) % 4;
     if (tile.type === 'source') return ['right'];
-    if (tile.type === 'sink')   return ['up'];
+    if (tile.type === 'sink')   return ['left'];
     if (tile.type === 'straight') return r % 2 === 0 ? ['left', 'right'] : ['up', 'down'];
     if (tile.type === 'elbow') {
       if (r === 0) return ['up', 'right'];
@@ -213,20 +222,30 @@
       if (r === 2) return ['down', 'left'];
       return ['left', 'up'];
     }
+    if (tile.type === 'tee') {
+      if (r === 0) return ['up', 'left', 'right'];
+      if (r === 1) return ['up', 'right', 'down'];
+      if (r === 2) return ['right', 'down', 'left'];
+      return ['up', 'down', 'left'];
+    }
+    if (tile.type === 'cross') return ['up', 'right', 'down', 'left'];
     return [];
   }
 
   function _pipeFlowSolved(tiles) {
-    if (!Array.isArray(tiles) || tiles.length < 9) return false;
+    if (!Array.isArray(tiles) || !tiles.length) return false;
+    var size = Math.max(3, Math.round(Math.sqrt(tiles.length)));
+    if (tiles.length !== size * size) return false;
+    var sinkIndex = (size * size) - 1;
     var queue = [0];
     var seen = { 0: true };
     while (queue.length) {
       var idx = Number(queue.shift());
-      if (idx === 8) return true;
+      if (idx === sinkIndex) return true;
       var exits = _cpTileExits(tiles[idx]);
       for (var i = 0; i < exits.length; i++) {
         var dir = exits[i];
-        var ni = _pipeNeighborIndex(idx, dir);
+        var ni = _pipeNeighborIndex(idx, dir, size);
         if (ni < 0) continue;
         var nTile = tiles[ni] || {};
         if (nTile.type === 'block') continue;
@@ -243,18 +262,21 @@
   }
 
   function _renderPipeFlow(state, title, prompt) {
+    var size = Math.max(3, Number((state && state.size) || (Math.round(Math.sqrt((state && state.tiles && state.tiles.length) || 9)) || 3)));
     var glyph = function(tile) {
       var r = (tile.rotation || 0) % 4;
       if (tile.type === 'source') return '\u25b6';
-      if (tile.type === 'sink')   return '\u25b2';
+      if (tile.type === 'sink')   return '\u25c0';
       if (tile.type === 'straight') return r % 2 === 0 ? '\u2550' : '\u2551';
       if (tile.type === 'elbow') return ['\u255a', '\u2554', '\u2557', '\u255d'][r];
+      if (tile.type === 'tee') return ['\u2569', '\u2560', '\u2566', '\u2563'][r];
+      if (tile.type === 'cross') return '\u256c';
       return '\u00b7';
     };
     var solved = _pipeFlowSolved(state.tiles);
     return '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;"><strong>' + title + '</strong></div>'
       + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.16rem;">' + prompt + '</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(3,68px);gap:.12rem;justify-content:center;margin-bottom:.18rem;">'
+      + '<div style="display:grid;grid-template-columns:repeat(' + size + ',68px);gap:.12rem;justify-content:center;margin-bottom:.18rem;">'
       + state.tiles.map(function(tile, idx) {
           var bg = tile.type === 'source' ? 'rgba(40,180,220,.22)' : tile.type === 'sink' ? 'rgba(255,190,70,.22)' : tile.locked ? 'rgba(20,20,30,.5)' : 'rgba(50,60,90,.5)';
           return '<button class="btn btn-xs" style="height:68px;font-size:1.7rem;line-height:1;background:' + bg + ';border-color:rgba(255,255,255,.18);"'
@@ -280,8 +302,8 @@
       memo[key] = true;
       for (var i = 0; i < state.pawns.length; i++) {
         if (captured.indexOf(i) >= 0) continue;
-        var testState = { board: state.board, rook: rook, pawns: state.pawns, captured: captured };
-        if (_rookCanCapture(testState, state.pawns[i])) {
+        var testState = { board: state.board, piece: state.piece || 'rook', rook: rook, pawns: state.pawns, captured: captured };
+        if (_pieceCanCapture(testState, state.pawns[i])) {
           var nextCaptured = captured.slice();
           nextCaptured.push(i);
           if (dfs({ r: state.pawns[i].r, c: state.pawns[i].c }, nextCaptured, memo)) return true;
@@ -306,7 +328,8 @@
       used[id] = true;
       pawns.push({ r: pr, c: pc });
     }
-    return { board: size, rook: rook, pawns: pawns, captured: [], seed: Date.now() + '-' + Math.floor(Math.random() * 100000) };
+    var pieceOptions = ['rook', 'bishop', 'knight'];
+    return { board: size, piece: pieceOptions[Math.floor(Math.random() * pieceOptions.length)], rook: rook, pawns: pawns, captured: [], seed: Date.now() + '-' + Math.floor(Math.random() * 100000) };
   }
 
   function _initChess() {
@@ -319,7 +342,29 @@
     return state;
   }
 
-  function _rookCanCapture(state, pawn) {
+  function _pieceCanCapture(state, pawn) {
+    var piece = String((state && state.piece) || 'rook').toLowerCase();
+    if (piece === 'knight') {
+      var drK = Math.abs(Number(state.rook.r || 0) - Number(pawn.r || 0));
+      var dcK = Math.abs(Number(state.rook.c || 0) - Number(pawn.c || 0));
+      return (drK === 2 && dcK === 1) || (drK === 1 && dcK === 2);
+    }
+    if (piece === 'bishop') {
+      var drB = Number(pawn.r || 0) - Number(state.rook.r || 0);
+      var dcB = Number(pawn.c || 0) - Number(state.rook.c || 0);
+      if (Math.abs(drB) !== Math.abs(dcB)) return false;
+      var stepR = drB > 0 ? 1 : -1;
+      var stepC = dcB > 0 ? 1 : -1;
+      var remainingDiag = state.pawns.filter(function(p, i) { return state.captured.indexOf(i) < 0; });
+      var rr = Number(state.rook.r || 0) + stepR;
+      var cc = Number(state.rook.c || 0) + stepC;
+      while (rr !== Number(pawn.r || 0) && cc !== Number(pawn.c || 0)) {
+        if (remainingDiag.some(function(p) { return p !== pawn && Number(p.r) === rr && Number(p.c) === cc; })) return false;
+        rr += stepR;
+        cc += stepC;
+      }
+      return true;
+    }
     var rook = state.rook;
     if (rook.r !== pawn.r && rook.c !== pawn.c) return false;
     var remaining = state.pawns.filter(function(p, i) { return state.captured.indexOf(i) < 0; });
@@ -333,6 +378,9 @@
 
   function _renderChess(state, title, prompt) {
     var N = state.board;
+    var piece = String(state.piece || 'rook').toLowerCase();
+    var pieceGlyph = piece === 'bishop' ? '\u265d' : (piece === 'knight' ? '\u265e' : '\u265c');
+    var pieceName = piece === 'bishop' ? 'Bishop' : (piece === 'knight' ? 'Knight' : 'Rook');
     var remaining = state.pawns.filter(function(_, i) { return state.captured.indexOf(i) < 0; });
     var solved = remaining.length === 0;
     var rows = '';
@@ -342,8 +390,8 @@
         var pawnIdx = -1;
         state.pawns.forEach(function(p, i) { if (p.r === r && p.c === c && state.captured.indexOf(i) < 0) pawnIdx = i; });
         var bg = (r + c) % 2 === 0 ? 'rgba(80,80,90,.6)' : 'rgba(40,40,50,.6)';
-        var content = isRook ? '\u265c' : (pawnIdx >= 0 ? '\u265f' : '');
-        var canCapture = pawnIdx >= 0 && _rookCanCapture(state, state.pawns[pawnIdx]);
+        var content = isRook ? pieceGlyph : (pawnIdx >= 0 ? '\u265f' : '');
+        var canCapture = pawnIdx >= 0 && _pieceCanCapture(state, state.pawns[pawnIdx]);
         var style = 'width:52px;height:52px;font-size:1.4rem;line-height:1;background:' + bg + ';border:1px solid rgba(255,255,255,.1);color:'
           + (isRook ? 'var(--teal)' : canCapture ? 'var(--gold2)' : 'var(--text2)') + ';';
         rows += '<button style="' + style + '"'
@@ -353,7 +401,7 @@
     }
     return '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.16rem;"><strong>' + title + '</strong></div>'
       + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.12rem;">' + prompt + '</div>'
-      + '<div style="font-size:.64rem;color:var(--teal);margin-bottom:.1rem;">\u265c Rook (teal) \u265f Pawn (gold = capturable). Click gold pawns to capture. Rook moves in straight lines only.</div>'
+      + '<div style="font-size:.64rem;color:var(--teal);margin-bottom:.1rem;">' + pieceGlyph + ' ' + pieceName + ' (teal) \u265f Pawn (gold = capturable). Click gold pawns to capture with legal ' + pieceName.toLowerCase() + ' moves.</div>'
       + '<div style="display:grid;grid-template-columns:repeat(' + N + ',52px);gap:2px;justify-content:center;margin-bottom:.16rem;">' + rows + '</div>'
       + (solved ? '<div style="color:var(--teal);text-align:center;font-size:.75rem;margin-bottom:.1rem;">\u2713 All pawns captured!</div>' : '<div style="font-size:.63rem;color:var(--muted2);text-align:center;margin-bottom:.1rem;">' + remaining.length + ' pawn(s) remaining</div>')
       + '<div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.1rem;">'
@@ -512,7 +560,7 @@
     if (action === 'chess_capture') {
       var pIdx = Number(arg1);
       var pawn = s.pawns[pIdx];
-      if (_rookCanCapture(s, pawn)) {
+      if (_pieceCanCapture(s, pawn)) {
         s.captured.push(pIdx);
         s.rook = { r: pawn.r, c: pawn.c };
       }

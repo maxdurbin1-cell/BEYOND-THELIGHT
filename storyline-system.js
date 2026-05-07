@@ -3539,6 +3539,65 @@
     return best ? best.crossword : null;
   }
 
+  function buildFallbackStoryCrossword() {
+    const packs = [
+      {
+        template: ['ROGUE##', 'P#O#HP#', 'GOBLIN#', '#R#P#C#', 'MANA###', 'A#P#DM#', 'PALADIN'],
+        across: ['Sneaky backstabber class', 'Classic low-level monster', 'Magical energy pool', 'Holy armored knight class'],
+        down: ['Fantasy tabletop abbreviation', 'Orcish raider species', 'Health shorthand', 'Dungeon layout chart', 'Session runner initials']
+      },
+      {
+        template: ['LICH###', 'O#N#DM#', 'RELIC##', 'E#I#AR#', 'SPELL##', '#C#P#C#', 'ROGUE##'],
+        across: ['Undead wizard villain', 'Ancient magical artifact', 'Magic cast by a wizard', 'Sneaky dagger-user'],
+        down: ['Person running the campaign', 'Adventure setting history', 'Character morality system', 'Arcane casting role']
+      },
+      {
+        template: ['GATE###', 'O#R#DM#', 'ROUTE##', 'E#P#AR#', 'MAPS###', '#G#G#C#', 'LORE###'],
+        across: ['Secure entry point', 'Team travel plan', 'Dungeon layout charts', 'Story archive'],
+        down: ['Fantasy tabletop abbreviation', 'Green raider species', 'Health shorthand', 'Campaign runner initials']
+      }
+    ];
+    const start = Math.floor(Math.random() * packs.length);
+    for (let i = 0; i < packs.length; i++) {
+      const pick = packs[(start + i) % packs.length] || packs[0];
+      const built = crosswordBuildEntriesFromTemplate(pick.template, {});
+      if (!built) continue;
+      built.across.forEach(function (entry, idx) {
+        entry.clue = pick.across[idx % pick.across.length] || entry.clue;
+      });
+      built.down.forEach(function (entry, idx) {
+        entry.clue = pick.down[idx % pick.down.length] || entry.clue;
+      });
+      return built;
+    }
+
+    const emergency = crosswordBuildEntriesFromTemplate(['ROGUE##', 'P#O#HP#', 'GOBLIN#', '#R#P#C#', 'MANA###', 'A#P#DM#', 'PALADIN'], {});
+    if (emergency) {
+      emergency.across.forEach(function (entry, idx) {
+        var cues = ['Sneaky class', 'Classic monster', 'Magic resource', 'Holy knight'];
+        entry.clue = cues[idx % cues.length] || entry.clue;
+      });
+      emergency.down.forEach(function (entry, idx) {
+        var cues = ['Tabletop abbreviation', 'Orcish weapon shorthand', 'Healing shorthand', 'Dungeon chart', 'Campaign initials'];
+        entry.clue = cues[idx % cues.length] || entry.clue;
+      });
+      return emergency;
+    }
+    var micro = crosswordBuildEntriesFromTemplate(['#######', '##CAT##', '##ARE##', '##TEN##', '#######', '#######', '#######'], {});
+    if (micro) {
+      micro.across.forEach(function (entry, idx) {
+        var cues = ['House pet', 'To exist', 'Number after nine'];
+        entry.clue = cues[idx % cues.length] || entry.clue;
+      });
+      micro.down.forEach(function (entry, idx) {
+        var cues = ['Small feline', 'Action verb', 'Count value'];
+        entry.clue = cues[idx % cues.length] || entry.clue;
+      });
+      return micro;
+    }
+    return null;
+  }
+
   function puzzleAttemptScore() {
     const p = ensurePuzzleSession();
     if (p.mode === "tune") {
@@ -3807,17 +3866,11 @@
         }).join("")
         + "</div>";
     } else if (p.mode === "crossword") {
-      const crossword = p.crossword || buildStoryCrosswordFromClues(p.clues || []);
+      const crossword = p.crossword || buildStoryCrosswordFromClues(p.clues || []) || buildFallbackStoryCrossword();
       if (crossword) p.crossword = crossword;
       if (!crossword) {
         controls = ""
-          + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Crossword clues: enter each answer and submit.</div>"
-          + p.clues.map(function (c, i) {
-            return "<div style='margin-bottom:.3rem;'>"
-              + "<div style='font-size:.76rem;color:var(--text2);margin-bottom:.12rem;'>" + (i + 1) + ". " + c.clue + "</div>"
-              + "<input id='storyCross_" + i + "' class='input' placeholder='Answer " + (i + 1) + "' style='width:100%;'/>"
-              + "</div>";
-          }).join("");
+          + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>Crossword grid currently unavailable. Regenerate puzzle context to continue.</div>";
       } else {
         const cells = [];
         for (let r = 0; r < crossword.rows; r++) {
@@ -3977,7 +4030,7 @@
     p.typed = "";
     p.lastClue = "";
     p.revealed = false;
-    p.crossword = (p.mode === "crossword") ? buildStoryCrosswordFromClues(p.clues || []) : null;
+    p.crossword = (p.mode === "crossword") ? (buildStoryCrosswordFromClues(p.clues || []) || buildFallbackStoryCrossword()) : null;
     if (p.mode === "memory" && !p.bank.length) {
       p.bank = Array.from(new Set(p.sequence));
     }
@@ -4015,7 +4068,7 @@
       success: Number(config.successThreshold || 0.7),
       partial: Number(config.partialThreshold || 0.45)
     };
-    p.crossword = (p.mode === "crossword") ? buildStoryCrosswordFromClues(p.clues || []) : null;
+    p.crossword = (p.mode === "crossword") ? (buildStoryCrosswordFromClues(p.clues || []) || buildFallbackStoryCrossword()) : null;
     if (p.mode === "memory" && !p.bank.length) {
       p.bank = Array.from(new Set(p.sequence));
     }

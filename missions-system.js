@@ -1764,6 +1764,17 @@
     var pointCount = Math.max(0, Number(profile.raidPoints || 0));
     var keyState = profile.raidKeys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
     var overflow = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
+    var overflowStart = Math.max(0, overflow.length - 18);
+    var overflowRows = overflow.length
+      ? overflow.slice(overflowStart).map(function (item, idx) {
+          var absoluteIndex = overflowStart + idx;
+          return '<div style="padding:.06rem 0;border-bottom:1px solid rgba(255,255,255,.06);display:grid;grid-template-columns:1fr auto auto;gap:.16rem;align-items:center;">'
+            + '<div>' + String(item || 'Unknown Loot') + '</div>'
+            + '<button class="btn btn-xs" onclick="claimLegacyRaidOverflowLootAt(' + absoluteIndex + ')">Backpack</button>'
+            + '<button class="btn btn-xs" onclick="sellLegacyRaidOverflowLootAt(' + absoluteIndex + ')">Sell</button>'
+            + '</div>';
+        }).reverse().join('')
+      : '';
     var keyRow = ['bronze', 'silver', 'gold', 'platinum'].map(function (tier) {
       return '<span style="font-size:.68rem;color:var(--gold2);">' + tier.charAt(0).toUpperCase() + tier.slice(1) + ' Key x' + Math.max(0, Number(keyState[tier] || 0)) + '</span>';
     }).join(' · ');
@@ -1838,11 +1849,7 @@
       + '<div style="border:1px solid rgba(126,215,255,.22);background:linear-gradient(150deg, rgba(14,22,30,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
       + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Storage Overflow</strong></div>'
       + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.42;max-height:120px;overflow:auto;">'
-      + (overflow.length
-        ? overflow.slice(-18).reverse().map(function (item, idx) {
-            return '<div style="padding:.06rem 0;border-bottom:1px solid rgba(255,255,255,.06);">' + (idx + 1) + '. ' + String(item || 'Unknown Loot') + '</div>';
-          }).join('')
-        : 'No overflow loot.')
+      + (overflow.length ? overflowRows : 'No overflow loot.')
       + '</div>'
       + '<div style="margin-top:.16rem;">'
       + '<button class="btn btn-xs btn-primary" onclick="claimLegacyRaidOverflowLoot()">Claim Overflow To Backpack</button>'
@@ -1878,6 +1885,36 @@
     renderLegacyRaidTreePanel();
     return true;
   };
+
+  function rollLegacyRaidPlatinumSignatureLoot() {
+    var weaponNames = ['Limbsplit', 'Dyadus', 'Ashpiercer', 'Nullbrand', 'Ruinwake', 'Stormsunder', 'Godsbite', 'Widowlane', 'Hexspike', 'Starrender', 'Emberlash', 'Voidharrow', 'Cinderlaw', 'Relicfang', 'Mooncleaver', 'Nightlance', 'Dreadshard', 'Aegisbreaker', 'Skylacer', 'Gravequill'];
+    var armorNames = ['Axiom Plate', 'Riftguard Harness', 'Emberward Bastion', 'Nullweave Carapace', 'Oathshell Cuirass', 'Iron Psalm Mail', 'Skydread Mantle', 'Ash Covenant Suit', 'Vaultbone Plate', 'Stormglass Frame', 'Leviathan Aegis', 'Sunforged Ward', 'Thornbound Shell', 'Dawnkeeper Plate', 'Nightwarden Mail', 'Gilded Exuvia', 'Frostwall Harness', 'Wyrmproof Plate', 'Starbound Bulwark', 'Obsidian Promise'];
+    var itemNames = ['Heartcoil Injector', 'Aether Compass', 'Crown of Echoes', 'Chrono Lantern', 'Warden Sigil', 'Mirror Key', 'Abyss Beacon', 'Soul Relay', 'Void Map', 'Oracle Thread', 'Rune Battery', 'Titan Lens', 'Phoenix Flask', 'Gorgon Prism', 'Sphinx Coin', 'Hydra Capsule', 'Thunder Seal', 'Basilisk Ampoule', 'Griffin Banner', 'Minotaur Totem'];
+
+    var regularAffixes = ['Keen', 'Swift', 'Sturdy', 'Brutal', 'Agile', 'Reinforce', 'Fierce', 'Nimble', 'Resilient', 'Balanced', 'Accuracy', 'Range', 'Stealth', 'Piercing', 'Lethal', 'Vicious', 'Silent', 'Distance'];
+    var legendaryAffixes = ['Dragon\'s Breath', 'Stormcaller', 'Frostheart', 'Lifedrinker', 'Doombringer', 'Griffin', 'Valkyrie', 'Leviathan', 'Basilisk', 'Djinn', 'Phoenix\'s Resurgence', 'Gorgon\'s Glare', 'Thunderbird\'s Squall', 'Gryphon\'s Roar', 'Behemoth\'s Rage', 'Sphinx\'s Riddle', 'Minotaur\'s Strength', 'Basilisk\'s Venom', 'Pegasus\' Flight', 'Hydra\'s Growth'];
+    var uniqueAffixes = ['Eternity\'s Edge', 'Void', 'Celestial', 'Abyssal', 'Primal', 'Ancestral', 'Ghost', 'Soul Eater', 'Arachnid\'s Web', 'Beholder\'s Gaze', 'Unicorn\'s Grace', 'Golem\'s Fist', 'Salamander\'s Flame', 'Roc\'s Wind', 'Basilisk\'s Stare', 'Chimera\'s Chaos', 'Phoenix\'s Ashes', 'Yeti\'s Cold', 'Siren\'s Song', 'Wendigo\'s Hunger'];
+
+    function pickOne(list) {
+      if (!Array.isArray(list) || !list.length) return '';
+      return String(list[Math.floor(Math.random() * list.length)] || '');
+    }
+
+    var weaponName = pickOne(weaponNames);
+    var armorName = pickOne(armorNames);
+    var itemName = pickOne(itemNames);
+    var weaponAffix = Math.random() < 0.5 ? pickOne(legendaryAffixes) : pickOne(uniqueAffixes);
+    var armorAffix = Math.random() < 0.6 ? pickOne(legendaryAffixes) : pickOne(uniqueAffixes);
+    var utilityAffix = pickOne(uniqueAffixes);
+    var regularWeaponAffix = pickOne(regularAffixes);
+    var regularArmorAffix = pickOne(regularAffixes);
+
+    return [
+      weaponName + ' [Platinum Weapon] +4 Strike | Engaged · Affixes: ' + regularWeaponAffix + ', ' + weaponAffix,
+      armorName + ' [Platinum Armor] Ad10 Defend | 1 Action · Affixes: ' + regularArmorAffix + ', ' + armorAffix,
+      itemName + ' [Platinum Item] Utility Relic · Affix: ' + utilityAffix
+    ];
+  }
 
   window.openLegacyRaidChest = function (tier) {
     var keyTier = String(tier || 'bronze').toLowerCase();
@@ -1915,6 +1952,9 @@
         var rolled = rollShopLoot(lootTier) || [];
         rolled.forEach(function (item) { if (item) chestLoot.push(String(item)); });
       } catch (_err) {}
+    }
+    if (keyTier === 'platinum') {
+      chestLoot = chestLoot.concat(rollLegacyRaidPlatinumSignatureLoot());
     }
     var overflowLoot = [];
     if (typeof addToBackpack === 'function') {
@@ -1984,6 +2024,51 @@
     if (typeof showNotif === 'function') {
       showNotif('Moved ' + moved + ' overflow item(s) to backpack.' + (kept.length ? (' ' + kept.length + ' still waiting.') : ''), moved ? 'good' : 'warn');
     }
+    renderLegacyRaidTreePanel();
+    return true;
+  };
+
+  window.claimLegacyRaidOverflowLootAt = function (idx) {
+    var profile = ensureLegacyRaidProfile();
+    if (!profile) return false;
+    profile.raidOverflowLoot = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
+    var at = Number(idx || 0);
+    if (at < 0 || at >= profile.raidOverflowLoot.length) return false;
+    if (typeof addToBackpack !== 'function') {
+      if (typeof showNotif === 'function') showNotif('Backpack handler unavailable right now.', 'warn');
+      return false;
+    }
+    var item = String(profile.raidOverflowLoot[at] || '');
+    if (!item) return false;
+    try {
+      if (addToBackpack(item)) {
+        profile.raidOverflowLoot.splice(at, 1);
+        if (typeof renderBackpackUI === 'function') renderBackpackUI();
+        if (typeof showNotif === 'function') showNotif('Moved to backpack: ' + item, 'good');
+      } else if (typeof showNotif === 'function') {
+        showNotif('Backpack full. Item remains in overflow.', 'warn');
+      }
+    } catch (_err) {
+      if (typeof showNotif === 'function') showNotif('Could not move overflow item right now.', 'warn');
+    }
+    renderLegacyRaidTreePanel();
+    return true;
+  };
+
+  window.sellLegacyRaidOverflowLootAt = function (idx) {
+    var profile = ensureLegacyRaidProfile();
+    if (!profile) return false;
+    profile.raidOverflowLoot = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
+    var at = Number(idx || 0);
+    if (at < 0 || at >= profile.raidOverflowLoot.length) return false;
+    var item = String(profile.raidOverflowLoot[at] || '');
+    if (!item) return false;
+    var sale = Math.max(20, Math.min(180, 30 + Math.floor(item.length * 2.5)));
+    profile.raidOverflowLoot.splice(at, 1);
+    if (typeof changeCredits === 'function') changeCredits(sale);
+    else if (typeof S !== 'undefined' && S) S.credits = Number(S.credits || 0) + sale;
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    if (typeof showNotif === 'function') showNotif('Sold overflow item: ' + item + ' (+' + sale + '₵).', 'good');
     renderLegacyRaidTreePanel();
     return true;
   };
@@ -3628,6 +3713,11 @@
 
   function renderLegacyRaidCombatModal(missionId, wingNum) {
     if (typeof S === 'undefined' || !S || typeof openModal !== 'function') return false;
+    var prevScrollTop = 0;
+    if (typeof document !== 'undefined') {
+      var prevContentEl = document.getElementById('modalContent');
+      if (prevContentEl) prevScrollTop = Number(prevContentEl.scrollTop || 0);
+    }
     var mission = getMission(missionId);
     if (!mission || mission.missionType !== 'legacy_raid') return false;
     var allies = Array.isArray(S.enemies)
@@ -3648,6 +3738,16 @@
     var selectedEnemyTargetTxt = (flow && String(flow.selectedEnemyTargetType || '') === 'player')
       ? 'Wayfarer'
       : ((flow && flow.selectedAllyName) ? String(flow.selectedAllyName) : 'First alive ally');
+    var moveAdjacency = {
+      Engaged: ['Close'],
+      Close: ['Engaged', 'Nearby'],
+      Nearby: ['Close', 'Far'],
+      Far: ['Nearby']
+    };
+    var moveTargets = moveAdjacency[String(playerRange || 'Close')] || ['Close'];
+    var moveButtons = moveTargets.map(function (zone) {
+      return '<button class="btn btn-sm" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.setLegacyRaidPlayerRange(\'' + zone + '\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Move to ' + zone + '</button>';
+    }).join('');
     var enemyTargetButtons = '<button class="btn btn-xs" ' + (stage === 'enemy' ? '' : 'disabled') + ' onclick="window.executeLegacyRaidSceneEnemyAction(\'player\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Target: You</button>'
       + allies.map(function (ally) {
           var allyName = String(ally && ally.name || 'Wayfarer');
@@ -3728,10 +3828,7 @@
       + '<button class="btn btn-sm btn-primary" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="rollAttack(\'strike\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Strike</button>'
       + '<button class="btn btn-sm btn-primary" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="rollAttack(\'shoot\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Shoot</button>'
       + '<button class="btn btn-sm" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="rollDefend();window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Defend</button>'
-      + '<button class="btn btn-sm" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.setLegacyRaidPlayerRange(\'Engaged\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Engaged</button>'
-      + '<button class="btn btn-sm" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.setLegacyRaidPlayerRange(\'Close\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Close</button>'
-      + '<button class="btn btn-sm" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.setLegacyRaidPlayerRange(\'Nearby\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Nearby</button>'
-      + '<button class="btn btn-sm" ' + (stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.setLegacyRaidPlayerRange(\'Far\');window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Far</button>'
+      + moveButtons
       + '<button class="btn btn-sm" onclick="if(typeof endCombat===\'function\'){endCombat();}window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">End Scene</button>'
       + '</div>'
       + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.08rem;">Ally Phase ' + (flowAllyName ? ('· Current: ' + flowAllyName + ' (' + flowAllyActs + ' actions left)') : '') + '</div>'
@@ -3755,6 +3852,13 @@
       + '</div>'
       + '</div>';
     openModal('Raid Combat — Wing ' + wingNum, html);
+    if (typeof setTimeout === 'function') {
+      setTimeout(function () {
+        if (typeof document === 'undefined') return;
+        var contentEl = document.getElementById('modalContent');
+        if (contentEl) contentEl.scrollTop = prevScrollTop;
+      }, 0);
+    }
     return true;
   }
 
@@ -3927,8 +4031,22 @@
       if (typeof showNotif === 'function') showNotif('Player movement is only available during your turn.', 'warn');
       return false;
     }
-    if (typeof window.consumeCombatAction === 'function' && !window.consumeCombatAction()) return false;
-    flow.playerRange = String(range || 'Close');
+    var nextRange = String(range || 'Close');
+    if (String(flow.playerRange || 'Close') === nextRange) {
+      if (typeof showNotif === 'function') showNotif('Already at ' + nextRange + ' range.', 'info');
+      return false;
+    }
+    if (typeof window.consumeCombatAction === 'function') {
+      if (!window.consumeCombatAction()) return false;
+    } else {
+      var left = Math.max(0, Number(S.combat.actionsLeft || 0));
+      if (left <= 0) {
+        if (typeof showNotif === 'function') showNotif('No actions left to move.', 'warn');
+        return false;
+      }
+      S.combat.actionsLeft = left - 1;
+    }
+    flow.playerRange = nextRange;
     if (typeof showNotif === 'function') showNotif('Repositioned to ' + flow.playerRange + '.', 'info');
     if (typeof updateCombatUI === 'function') updateCombatUI();
     if (typeof renderEnemies === 'function') renderEnemies();
@@ -7249,7 +7367,13 @@
           var playerUnit = S.combatMap.units.find(function (u) { return !!u && (u.isPlayer || (u.side === 'ally' && String(u.name || '') === playerName)); });
           if (playerUnit && playerUnit.zone) playerRange = String(playerUnit.zone);
         }
-        var rangeButtons = ['Engaged', 'Close', 'Nearby', 'Far'].map(function (zone) {
+        var bossMoveAdjacency = {
+          Engaged: ['Close'],
+          Close: ['Engaged', 'Nearby'],
+          Nearby: ['Close', 'Far'],
+          Far: ['Nearby']
+        };
+        var rangeButtons = (bossMoveAdjacency[playerRange] || ['Close']).map(function (zone) {
           return '<button class="btn btn-xs' + (playerRange === zone ? ' btn-primary' : '') + '" onclick="window.setLegacyRaidBossPlayerRange(' + mission.id + ',\'' + zone + '\')">' + zone + '</button>';
         }).join(' ');
         var flavorBranches = getLegacyRaidUnlockedFlavorBranches();
@@ -7387,6 +7511,21 @@
     var mission = getMission(missionId);
     if (!mission || mission.missionType !== 'legacy_raid') return false;
     if (typeof openModal !== 'function') return false;
+    var prevScrollTop = 0;
+    if (typeof document !== 'undefined') {
+      var prevContentEl = document.getElementById('modalContent');
+      if (prevContentEl) prevScrollTop = Number(prevContentEl.scrollTop || 0);
+    }
+    function openWingModal(title, body) {
+      openModal(title, body);
+      if (typeof setTimeout === 'function') {
+        setTimeout(function () {
+          if (typeof document === 'undefined') return;
+          var contentEl = document.getElementById('modalContent');
+          if (contentEl) contentEl.scrollTop = prevScrollTop;
+        }, 0);
+      }
+    }
 
     ensureLegacyRaidMissionConfig(mission);
 
@@ -7440,7 +7579,7 @@
           + (wingNum < 3 && !(mission.steps[wingNum + 1] && mission.steps[wingNum + 1].completed) ? '<button class="btn btn-xs btn-primary" onclick="openRaidWingPopup(' + missionId + ',' + (wingNum + 1) + ')">Enter Wing ' + (wingNum + 1) + ' →</button>' : '')
           + '</div>'
           + '</div>';
-        openModal('Wing ' + wingNum + ': ' + wingTitlesComp[wingNum] + ' — ' + mission.title, compHtml);
+        openWingModal('Wing ' + wingNum + ': ' + wingTitlesComp[wingNum] + ' — ' + mission.title, compHtml);
         return true;
       }
       var objectives = gridState.objectives || {};
@@ -7505,7 +7644,7 @@
         + backBtnGrid
         + '</div>'
         + '</div>';
-      openModal('Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + ' — ' + mission.title, htmlGrid);
+      openWingModal('Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + ' — ' + mission.title, htmlGrid);
       return true;
     }
 
@@ -7565,7 +7704,7 @@
       + '</div>'
     + '</div>';
 
-    openModal('Wing ' + wingNum + ': ' + wingTitles[wingNum] + ' — ' + mission.title, html);
+    openWingModal('Wing ' + wingNum + ': ' + wingTitles[wingNum] + ' — ' + mission.title, html);
     if (wingNum === 3 && typeof window.updateLegacyRaidAllyTargetOptions === 'function') {
       setTimeout(function () {
         try { window.updateLegacyRaidAllyTargetOptions(missionId); } catch (_err) {}
@@ -8222,6 +8361,11 @@
   window.setLegacyRaidBossPlayerRange = function (missionId, zoneKey) {
     var mission = getMission(missionId);
     if (!mission || !S || !S.combatMap || !Array.isArray(S.combatMap.units)) return false;
+    var encounter = ensureLegacyRaidBossEncounter(mission);
+    if (!encounter || String(encounter.turnStage || 'player') !== 'player') {
+      if (typeof showNotif === 'function') showNotif('You can only move during your player turn.', 'warn');
+      return false;
+    }
     var zone = String(zoneKey || 'Engaged');
     if (['Engaged', 'Close', 'Nearby', 'Far'].indexOf(zone) < 0) return false;
     var playerName = String(S.name || 'Wayfarer');
@@ -8229,7 +8373,27 @@
       return !!u && (u.isPlayer || (u.side === 'ally' && String(u.name || '') === playerName));
     });
     if (!player) return false;
+    var currentZone = String(player.zone || 'Engaged');
+    var adjacency = {
+      Engaged: ['Close'],
+      Close: ['Engaged', 'Nearby'],
+      Nearby: ['Close', 'Far'],
+      Far: ['Nearby']
+    };
+    if ((adjacency[currentZone] || []).indexOf(zone) < 0) {
+      if (typeof showNotif === 'function') showNotif('Invalid move: from ' + currentZone + ' you can move to ' + (adjacency[currentZone] || ['Close']).join(' or ') + '.', 'warn');
+      return false;
+    }
+    var turnNode = getLegacyRaidTimelineTurn(encounter);
+    if (!turnNode) return false;
+    var actionsLeft = Math.max(0, Number(turnNode.playerActionsLeft || 0));
+    if (actionsLeft <= 0) {
+      if (typeof showNotif === 'function') showNotif('No player actions left this turn.', 'warn');
+      return false;
+    }
+    turnNode.playerActionsLeft = actionsLeft - 1;
     player.zone = zone;
+    encounter.log.push('Wayfarer moved from ' + currentZone + ' to ' + zone + ' (1 action).');
     if (typeof renderCombatMap === 'function') renderCombatMap();
     openRaidWingPopup(missionId, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
     return true;

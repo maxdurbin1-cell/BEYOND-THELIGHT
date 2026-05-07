@@ -2045,6 +2045,25 @@
     if (typeof showNotif === 'function') showNotif('Merchant access opened in ' + node.label + ' (' + cat + ').', 'info');
   }
 
+  function buildHoldingMerchantBrowsePreview() {
+    var offers = [
+      'Ration Kit', 'Tool Kit', 'Medicine Satchel', 'Scrap Rifle',
+      'Stimulant', 'Wound Salve', 'Signal Flare', 'Scope Lens',
+      'Portable Shield Emitter', 'Adrenal Injector', 'Spoolwire', 'Field Battery'
+    ];
+    var categories = ['weapon_mods', 'supplies', 'curios', 'combat_kits'];
+    var picked = [];
+    var pool = offers.slice();
+    while (pool.length && picked.length < 4) {
+      var idx = Math.floor(Math.random() * pool.length);
+      picked.push(pool.splice(idx, 1)[0]);
+    }
+    return {
+      category: categories[Math.floor(Math.random() * categories.length)],
+      offers: picked
+    };
+  }
+
   function getCurrentGameDayStampLocal() {
     if (typeof getCurrentGameDayStamp === 'function') return String(getCurrentGameDayStamp() || '');
     if (S && S.gameDate && typeof S.gameDate === 'object') {
@@ -2210,8 +2229,8 @@
       msg = 'Rumor sweep: ' + String(node.rumor || ambient.rumor || 'The district is quiet for now.') + ' Opportunity: ' + String(ambient.opportunity || 'Nothing immediate.');
       recordHoldingNpcInteraction(node, 'neutral', 'Collected district rumors.');
     } else if (action === 'browse') {
-      openHoldingMerchantDistrict(node.id);
-      return;
+      node.browsePreview = buildHoldingMerchantBrowsePreview();
+      msg = 'Browse loaded local merchant stock (' + String(node.browsePreview.category || 'mixed') + ').';
     } else if (action === 'event') {
       msg = 'Random encounter: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
       recordHoldingNpcInteraction(node, 'neutral', 'Handled a district random encounter.');
@@ -2296,7 +2315,7 @@
     }).join('');
     var guessBtn = function (key, label) {
       var on = String(state.guess || '') === key;
-      return '<button type="button" class="btn btn-xs' + (on ? ' btn-gold' : '') + '" onclick="setHoldingGamblingGuess(\'' + String(node.id) + '\',\'' + key + '\')">' + label + '</button>';
+      return '<button type="button" class="btn btn-xs' + (on ? ' btn-teal' : '') + '" onclick="setHoldingGamblingGuess(\'' + String(node.id) + '\',\'' + key + '\')">' + label + '</button>';
     };
     return '<div style="margin-top:.14rem;padding:.34rem .38rem;border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.06);">'
       + '<div style="font-size:.68rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">Embedded Gambling Den</div>'
@@ -2491,10 +2510,10 @@
         + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + districtButtons + '</div>'
         + '<div style="margin-top:.08rem;font-size:.64rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Local Flavor</div>'
         + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk to Locals</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">Random Encounter</button>'
+        + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk to Locals</button>'
+        + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
+        + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse</button>'
+        + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">Random Encounter</button>'
         + '</div>'
         + '<div id="holdingDowntimeResult" style="margin-top:.12rem;">' + buildHoldingPendingEventHtml() + '</div>'
         + (active && active.services && active.services.gamblingDen
@@ -2506,6 +2525,14 @@
                 + '</div>'
                 + buildHoldingGamblingEmbedHtml(active, crawl))
               : '<button type="button" class="btn btn-xs btn-gold" onclick="toggleHoldingGamblingNode(\'' + String(active.id) + '\')">Open Gambling Table</button>')
+            + '</div>')
+          : '')
+        + (active && active.browsePreview && Array.isArray(active.browsePreview.offers)
+          ? ('<div style="margin-top:.1rem;padding:.2rem .28rem;border:1px solid rgba(126,215,255,.28);background:rgba(126,215,255,.06);">'
+            + '<div style="font-size:.67rem;color:var(--teal);margin-bottom:.08rem;"><strong>Browse Offers</strong> · ' + String(active.browsePreview.category || 'mixed') + '</div>'
+            + active.browsePreview.offers.map(function (offer) {
+                return '<div style="font-size:.68rem;color:var(--text2);line-height:1.4;">• ' + String(offer || 'Item') + '</div>';
+              }).join('')
             + '</div>')
           : '')
         + (active.result ? '<div style="font-size:.67rem;color:var(--gold2);margin-top:.1rem;line-height:1.46;">' + active.result + '</div>' : '')
@@ -2602,7 +2629,10 @@
     } else if (action === 'bar') {
       if (typeof changeCounter === 'function') changeCounter('tmw', 1);
       crawl.stats.wealth = Math.min(10, Number((crawl.stats && crawl.stats.wealth) || 0) + 1);
-      msg = 'Bar loop complete: table gossip yields one tactical lead and +1 Teamwork.';
+      crawl.gamblingActiveNodeId = String(node.id || '');
+      crawl.activeNodeId = String(node.id || crawl.activeNodeId || '');
+      var rumorLine = String(node.rumor || (crawl.ambient && crawl.ambient.rumor) || 'No clear rumor tonight.');
+      msg = 'Bar loop complete: +1 Teamwork. Rumor: ' + rumorLine + ' Gambling table opened.';
     } else if (action === 'banking') {
       S.credits = Number(S.credits || 0) + 25;
       if (typeof updateCreditsUI === 'function') updateCreditsUI();
@@ -2753,6 +2783,9 @@
     var crawl = ensureHoldingSettlementHexcrawl();
     var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
     if (!node) { return; }
+    (crawl.nodes || []).forEach(function (entry) {
+      if (entry && String(entry.id || '') !== String(node.id || '')) entry.browsePreview = null;
+    });
     crawl.activeNodeId = node.id;
     var eventPool = crawl.ambientTables && Array.isArray(crawl.ambientTables.scenes) ? crawl.ambientTables.scenes : [];
     var ev = eventPool.length ? eventPool[Math.floor(Math.random() * eventPool.length)] : 'The district rotates through ordinary traffic and watch shifts.';

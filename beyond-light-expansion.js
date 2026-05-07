@@ -2889,21 +2889,94 @@
       </div>
     `;
 
+    var seaSize = 22;
+    var seaSpacing = 40;
+    var seaCenterX = 210;
+    var seaCenterY = 130;
+    var toSpiral = function (idx) {
+      idx = Math.max(1, Number(idx || 1));
+      if (idx === 1) return { q: 0, r: 0 };
+      var dirs = [
+        { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
+        { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 }
+      ];
+      var remain = idx - 1;
+      var ring = 1;
+      while (remain > 6 * ring) {
+        remain -= 6 * ring;
+        ring += 1;
+      }
+      var q = -ring;
+      var r = ring;
+      for (var side = 0; side < 6; side++) {
+        var d = dirs[side];
+        for (var step = 0; step < ring; step++) {
+          if (remain === 1) return { q: q, r: r };
+          q += d.q;
+          r += d.r;
+          remain -= 1;
+        }
+      }
+      return { q: q, r: r };
+    };
+    var toXY = function (q, r) {
+      return {
+        x: Math.round((Math.sqrt(3) * seaSize * (q + r / 2)) + seaCenterX),
+        y: Math.round(((3 / 2) * seaSize * r) + seaCenterY)
+      };
+    };
+    var seaHexPoints = function (cx, cy) {
+      var pts = [];
+      for (var i = 0; i < 6; i++) {
+        var a = (Math.PI / 180) * (60 * i - 30);
+        pts.push((cx + seaSize * Math.cos(a)).toFixed(1) + ',' + (cy + seaSize * Math.sin(a)).toFixed(1));
+      }
+      return pts.join(' ');
+    };
+    var seaPlaced = (data.hexcrawl.nodes || []).map(function (node, idx) {
+      var c = toSpiral(idx + 1);
+      var p = toXY(c.q, c.r);
+      return { node: node, idx: idx, x: p.x, y: p.y };
+    });
+    var seaLinks = [];
+    for (var si = 1; si < seaPlaced.length; si++) {
+      seaLinks.push('<line x1="' + seaPlaced[si - 1].x + '" y1="' + seaPlaced[si - 1].y + '" x2="' + seaPlaced[si].x + '" y2="' + seaPlaced[si].y + '" stroke="rgba(126,215,255,.28)" stroke-width="1.7" />');
+    }
+    var seaGlyphs = [];
+    for (var gi = 0; gi < 12; gi++) {
+      var gx = 22 + ((gi * 59) % 396);
+      var gy = 18 + ((gi * 37) % 232);
+      var mark = (gi % 3 === 0) ? '◌' : ((gi % 3 === 1) ? '✶' : '⟡');
+      seaGlyphs.push('<text x="' + gx + '" y="' + gy + '" text-anchor="middle" font-size="8" fill="rgba(126,215,255,.2)">' + mark + '</text>');
+    }
+    var seaNodes = seaPlaced.map(function (entry) {
+      var node = entry.node || {};
+      var explored = !!node.explored;
+      var stroke = explored ? 'rgba(76,175,116,.85)' : 'rgba(126,215,255,.62)';
+      var fill = explored ? 'rgba(76,175,116,.22)' : 'rgba(22,30,44,.9)';
+      var icon = explored ? '✓' : '?';
+      return '<g style="cursor:pointer;" onclick="exploreSeaDungeonHexNode(' + Number(node.id || 0) + ')">'
+        + '<polygon points="' + seaHexPoints(entry.x, entry.y) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"></polygon>'
+        + '<text x="' + entry.x + '" y="' + (entry.y - 2) + '" text-anchor="middle" font-size="10" fill="var(--gold2)">#' + (Number(node.id || 0) + 1) + '</text>'
+        + '<text x="' + entry.x + '" y="' + (entry.y + 10) + '" text-anchor="middle" font-size="9" fill="var(--text2)">' + icon + '</text>'
+        + '<title>' + sanitizeInlineText(String(node.label || ('Node ' + (Number(node.id || 0) + 1)))) + '</title>'
+        + '</g>';
+    }).join('');
+
     html += '<div class="room-block" style="border-color:rgba(46,196,182,.35);background:rgba(46,196,182,.05);">'
-      + '<div class="rb-title">Hexcrawl Search Grid</div>'
-      + '<div class="rb-text">Move node-by-node and resolve checks as you sweep this ruin.</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.28rem;margin-top:.35rem;">'
+      + '<div class="rb-title">Hexcrawl Ruin Map</div>'
+      + '<div class="rb-text">Province-style node crawl. Select a hex and resolve its room.</div>'
+      + '<svg viewBox="0 0 420 260" style="width:100%;height:auto;display:block;margin-top:.28rem;">'
+      + '<defs><linearGradient id="seaRuinBg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(10,26,36,.86)"/><stop offset="100%" stop-color="rgba(6,14,22,.95)"/></linearGradient></defs>'
+      + '<rect x="0" y="0" width="420" height="260" fill="url(#seaRuinBg)"></rect>'
+      + seaGlyphs.join('')
+      + seaLinks.join('')
+      + seaNodes
+      + '</svg>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.24rem;margin-top:.28rem;">'
       + data.hexcrawl.nodes.map(function (node) {
-        const stateText = node.explored ? 'Cleared' : 'Unexplored';
-        const action = node.explored
-          ? '<span style="font-size:.68rem;color:var(--muted2);">Resolved</span>'
-          : '<button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonHexNode(' + Number(node.id) + ')">Explore Node</button>';
-        return '<div style="border:1px solid var(--border2);padding:.28rem .34rem;background:var(--surface);">'
-          + '<div style="font-size:.68rem;color:var(--gold2);">Hex [' + (Number(node.id) + 1) + ']</div>'
-          + '<div style="font-size:.76rem;color:var(--text2);margin-top:.12rem;">' + sanitizeInlineText(node.label) + '</div>'
-          + '<div style="font-size:.68rem;color:' + (node.explored ? 'var(--green2)' : 'var(--muted2)') + ';margin-top:.14rem;">' + stateText + '</div>'
-          + '<div style="margin-top:.22rem;">' + action + '</div>'
-          + '</div>';
+        return '<div style="font-size:.74rem;color:var(--text2);">Hex ' + (Number(node.id) + 1) + ' · ' + sanitizeInlineText(String(node.label || 'Node'))
+          + ' · <span style="color:' + (node.explored ? 'var(--green2)' : 'var(--teal)') + ';">' + (node.explored ? 'Cleared' : 'Unexplored') + '</span></div>';
       }).join('')
       + '</div>'
       + '</div>';

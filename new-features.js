@@ -1930,8 +1930,8 @@
     var cat = String(services.merchantCategory || 'items');
     node.result = 'Merchant stalls are active. Redirecting to Merchants (' + cat + ').';
     if (typeof switchTab === 'function') {
-      var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('merchants'\"]");
-      switchTab('merchants', btn || null);
+      var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+      switchTab('shop', btn || null);
     }
     if (typeof showShopCat === 'function') {
       try { showShopCat(cat, null); } catch (_err) {}
@@ -1949,13 +1949,53 @@
       rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
       return;
     }
-    if (typeof generateTask === 'function') generateTask();
-    node.result = 'Mission board refreshed. New contracts are ready to review.';
+    var missionTitle = pick([
+      'Settlement Contract: ' + String(node.label || 'District') + ' Stabilization',
+      'Settlement Contract: Secure ' + String(node.label || 'District') + ' Route',
+      'Settlement Contract: Civic Relief Sweep'
+    ]);
+    var posted = false;
+    if (typeof createMission === 'function') {
+      var created = createMission(
+        'Settlement Board',
+        missionTitle,
+        pick(['easy', 'medium', 'hard']),
+        String(node.label || 'Holding District'),
+        'province',
+        { gain: 'Grey Kingdom', lose: 'Nomad Clans' },
+        { missionType: 'settlement_management', source: 'holding_settlement_board' }
+      );
+      posted = !!created;
+    }
+    if (!posted && typeof generateTask === 'function') generateTask();
+    node.result = posted
+      ? 'Mission board posted a live contract in Missions.'
+      : 'Mission board refreshed. New contracts are ready to review.';
     crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
     crawl.history.unshift(String(node.label || 'District') + ': Mission board refreshed.');
     crawl.history = crawl.history.slice(0, 12);
-    if (typeof showNotif === 'function') showNotif('New mission posted in ' + node.label + '.', 'good');
+    if (typeof switchTab === 'function') {
+      var missionBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('missions'\"]");
+      switchTab('missions', missionBtn || null);
+    }
+    if (typeof showNotif === 'function') showNotif((posted ? 'Contract posted to Missions: ' : 'New mission posted in ') + node.label + '.', 'good');
     rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
+  }
+
+  function openHoldingSettlementSewerRoute(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    var depthHex = (typeof mapData !== 'undefined' && Array.isArray(mapData))
+      ? mapData.find(function (hex) { return hex && String(hex.type || '') === 'depths'; })
+      : null;
+    if (!depthHex || typeof openProvinceDepthsPopup !== 'function') {
+      if (node) node.result = 'Sewer grates are mapped, but no megadungeon entrance is active in this province yet.';
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
+      return;
+    }
+    if (node) node.result = 'You route through the sewer culverts toward ' + String(depthHex.name || 'the Lantern Below') + '.';
+    if (typeof showNotif === 'function') showNotif('Sewer route opened to the megadungeon entrance.', 'info');
+    openProvinceDepthsPopup(depthHex.col, depthHex.row);
   }
 
   function runHoldingDistrictFlavorAction(nodeId, action) {
@@ -2196,6 +2236,7 @@
       if (active.kind === 'inn') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
       if (active.kind === 'lord') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
       if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Gamble</button>';
+      districtButtons += '<button class="btn btn-xs" onclick="openHoldingSettlementSewerRoute(\'' + String(active.id) + '\')">Sewer Route</button>';
     }
 
     var html = '<div style="font-size:.77rem;color:var(--text2);line-height:1.46;display:grid;gap:.24rem;">'
@@ -4073,6 +4114,7 @@
   window.selectHoldingSettlementDistrict = selectHoldingSettlementDistrict;
   window.advanceHoldingSettlementTime = advanceHoldingSettlementTime;
   window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;
+  window.openHoldingSettlementSewerRoute = openHoldingSettlementSewerRoute;
   window.buyCaravan           = buyCaravan;
   window.rollCaravanName      = rollCaravanName;
   window.clearCaravanName     = clearCaravanName;

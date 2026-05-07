@@ -5983,11 +5983,67 @@
     var sets = [
       {
         clues: [
-          { clue: '1 Across (4): Old-world route marker', answer: 'gate' },
-          { clue: '2 Across (5): What a teacher does with students', answer: 'teach' },
-          { clue: '3 Across (4): Leave an identifying sign', answer: 'mark' },
-          { clue: '4 Across (4): A path used for travel', answer: 'road' },
-          { clue: '5 Across (5): Gain knowledge in study', answer: 'learn' }
+          { clue: 'Across: Sneaky backstabber class (5)', answer: 'rogue', direction: 'across' },
+          { clue: 'Across: Classic low-level monster (6)', answer: 'goblin', direction: 'across' },
+          { clue: 'Across: Magical energy pool (4)', answer: 'mana', direction: 'across' },
+          { clue: 'Across: Holy armored knight class (7)', answer: 'paladin', direction: 'across' },
+          { clue: 'Down: Fantasy tabletop abbreviation (3)', answer: 'rpg', direction: 'down' },
+          { clue: 'Down: Green raider species (3)', answer: 'orc', direction: 'down' },
+          { clue: 'Down: Health shorthand on sheets (2)', answer: 'hp', direction: 'down' },
+          { clue: 'Down: Drawn adventure layout (3)', answer: 'map', direction: 'down' },
+          { clue: 'Down: Polyhedral roller shorthand (4)', answer: 'dice', direction: 'down' }
+        ]
+      },
+      {
+        clues: [
+          { clue: 'Across: Arcane spellcaster (4)', answer: 'mage', direction: 'across' },
+          { clue: 'Across: Dark necrotic caster short form (6)', answer: 'necrom', direction: 'across' },
+          { clue: 'Across: Scaled treasure hoarder (6)', answer: 'dragon', direction: 'across' },
+          { clue: 'Across: Musical support class (4)', answer: 'bard', direction: 'across' },
+          { clue: 'Down: Session runner initials (2)', answer: 'dm', direction: 'down' },
+          { clue: 'Down: Magical sphere of power (3)', answer: 'orb', direction: 'down' },
+          { clue: 'Down: Armor rating shorthand (2)', answer: 'ac', direction: 'down' },
+          { clue: 'Down: Bladed weapon head (3)', answer: 'axe', direction: 'down' },
+          { clue: 'Down: Background world history (4)', answer: 'lore', direction: 'down' }
+        ]
+      },
+      {
+        clues: [
+          { clue: 'Across: Divine healer class (6)', answer: 'cleric', direction: 'across' },
+          { clue: 'Across: Main thing adventurers accept (5)', answer: 'quest', direction: 'across' },
+          { clue: 'Across: Place adventurers sleep (3)', answer: 'inn', direction: 'across' },
+          { clue: 'Across: Dungeon hazards everywhere (5)', answer: 'traps', direction: 'across' },
+          { clue: 'Down: Dramatic lucky hit term (4)', answer: 'crit', direction: 'down' },
+          { clue: 'Down: Roll-playing game abbreviation (3)', answer: 'rpg', direction: 'down' },
+          { clue: 'Down: Treasure chest danger (4)', answer: 'mimic', direction: 'down' },
+          { clue: 'Down: Tavern worker role (6)', answer: 'innkeep', direction: 'down' },
+          { clue: 'Down: Villain opposite of good (4)', answer: 'evil', direction: 'down' }
+        ]
+      },
+      {
+        clues: [
+          { clue: 'Across: Polyhedral click-clacks (4)', answer: 'dice', direction: 'across' },
+          { clue: 'Across: Natural twenty success type (4)', answer: 'crit', direction: 'across' },
+          { clue: 'Across: Treasure after battle (4)', answer: 'loot', direction: 'across' },
+          { clue: 'Across: Big ugly fantasy monsters (5)', answer: 'ogres', direction: 'across' },
+          { clue: 'Down: Game referee abbreviation (2)', answer: 'dm', direction: 'down' },
+          { clue: 'Down: Monster cave dweller (4)', answer: 'ogre', direction: 'down' },
+          { clue: 'Down: Fantasy brute species (4)', answer: 'orcs', direction: 'down' },
+          { clue: 'Down: Session reward pile (4)', answer: 'loot', direction: 'down' },
+          { clue: 'Down: Table rule tweak (4)', answer: 'home', direction: 'down' }
+        ]
+      },
+      {
+        clues: [
+          { clue: 'Across: Undead wizard villain (4)', answer: 'lich', direction: 'across' },
+          { clue: 'Across: Ancient magical artifact (5)', answer: 'relic', direction: 'across' },
+          { clue: 'Across: Magic cast by a wizard (5)', answer: 'spell', direction: 'across' },
+          { clue: 'Across: Sneaky dagger-user (5)', answer: 'rogue', direction: 'across' },
+          { clue: 'Down: Person running the campaign (2)', answer: 'dm', direction: 'down' },
+          { clue: 'Down: Adventure setting history (4)', answer: 'lore', direction: 'down' },
+          { clue: 'Down: Character morality system (5)', answer: 'align', direction: 'down' },
+          { clue: 'Down: Arcane casting class (3)', answer: 'mage', direction: 'down' },
+          { clue: 'Down: Classic sword-and-shield role (6)', answer: 'fighter', direction: 'down' }
         ]
       }
     ];

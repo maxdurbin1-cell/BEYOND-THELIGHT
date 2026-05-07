@@ -3035,6 +3035,193 @@ function getDateStampKey(){
   if(S&&S.gameDate)return[(S.gameDate.year||1),(S.gameDate.month||1),(S.gameDate.day||1)].join('-');
   return '1-1-1';
 }
+function ensureProvinceWorldPulseState(){
+  if(!S||typeof S!=='object')return {byKey:{}};
+  if(!S.provinceWorldPulse||typeof S.provinceWorldPulse!=='object')S.provinceWorldPulse={byKey:{}};
+  if(!S.provinceWorldPulse.byKey||typeof S.provinceWorldPulse.byKey!=='object')S.provinceWorldPulse.byKey={};
+  return S.provinceWorldPulse;
+}
+function getProvinceWorldPulseKey(hex){
+  const day=getDateStampKey();
+  return day+':'+String(hex&&hex.type||'unknown')+':'+String(hex&&hex.col||0)+','+String(hex&&hex.row||0);
+}
+function rollProvinceWorldPulse(hex){
+  const type=String(hex&&hex.type||'wilderness');
+  const conflictByType={
+    holding:['Guild tariff dispute in the square','Quiet knives war between two trade houses','Night patrols tightening after sabotage rumors'],
+    seat:['Court faction pressure over food routes','Noble retainers feuding over levy rights','Messenger corps reports coded interference'],
+    dwelling:['Travelers report a missing caravan lane','Hunters and settlers dispute water rights','A local guide vanished on a routine path'],
+    temple:['Pilgrim lines split over doctrine signs','Temple vault records show altered entries','A relic broker is asking dangerous questions'],
+    ruins:['Scavenger crews mark rival salvage claims','A hostile camp watches all ruin entrances','Collapsed halls expose a new forbidden route'],
+    depths:['Lower tunnels are drawing surface gangs','Delver crews argue over map ownership','Supply mules vanish near floor transitions'],
+    library:['Competing scholars duel over index keys','Catalog wardens blacklist a faction sigil','Book smugglers trade in forbidden annotations'],
+    wilderness:['Poachers and trackers are crossing lines','A hunting trail is suddenly abandoned','A watchfire ring marks contested ground'],
+    trade:['Convoys are delayed by route extortion','A caravan guild is hoarding permits','Black-market couriers undercut legal lanes'],
+    event:['Whisper networks report conflicting omens','Witness testimonies disagree violently','A lead source wants payment before details'],
+    lostcity:['Scrap crews found signs of fresh occupancy','Collapsed district lanes now hum at dusk','Signal pings map an unclaimed vault chain']
+  };
+  const hookByType={
+    holding:['Escort a tax collector through unrest','Break up a price-fixing ring','Protect a relief convoy before nightfall'],
+    seat:['Audit a forged permit archive','Recover stolen court correspondence','Negotiate a ceasefire between patrol captains'],
+    dwelling:['Find the missing trail guide','Secure medicine for an isolated family','Resolve a border dispute peacefully'],
+    temple:['Retrieve a compromised relic','Unmask a fake miracle broker','Escort a fragile witness to sanctuary'],
+    ruins:['Clear an occupied salvage route','Map a newly opened chamber chain','Recover records before rivals torch them'],
+    depths:['Secure stair routes for delver traffic','Disable a tunnel ambush point','Recover a lost floor map codex'],
+    library:['Extract a restricted text alive','Track a rogue scribe through stacks','Seal a corridor before it mutates'],
+    wilderness:['Survey a hostile migration lane','Tag and map a new hazard belt','Escort a trader through beast territory'],
+    trade:['Guard a high-value caravan run','Investigate convoy disappearances','Break a smuggling choke-point'],
+    event:['Validate a contradictory witness chain','Secure an omen site before rivals','Decipher a warning before sunset'],
+    lostcity:['Open a safe lane to a vault district','Stabilize a collapsing street stack','Recover power cells from a sealed substation']
+  };
+  const sceneByType={
+    holding:['Market bells and shouting hawkers','Lantern-lit alleys with shifting patrols','Public square full of rumors and wagers'],
+    seat:['Courtyard processions and armored clerks','Banner walls crowded with petitioners','Drums signaling policy changes'],
+    dwelling:['Cookfires and patched wagons in a ring','Quiet porches with watchful elders','Travel maps pinned to a shared table'],
+    temple:['Incense haze and layered hymns','Scriptorium tables stacked with vellum','Pilgrim queues beneath old bells'],
+    ruins:['Dust plumes around fresh rope lines','Torchlight glinting off exposed stone','Collapsed arches framing dark corridors'],
+    depths:['Cold air vents and dripping chainworks','Chalk marks and warning sigils on walls','Pack trains staging at the stair mouth'],
+    library:['Floating motes between endless stacks','Whispered debates in unsafe aisles','Index lamps flickering in geometric rhythm'],
+    wilderness:['Wind through old road skeletons','Distant howls and bird alarms','Fresh tracks crossing your path'],
+    trade:['Wagon clatter, guards, and haggling','Tarpaulins snapping in convoy winds','Roadside brokers exchanging tokens'],
+    event:['Crowds gathering around whispered claims','Runners carrying sealed notes','Street corners alive with theories'],
+    lostcity:['Echoing avenues with scavenger lights','Rooftop silhouettes signaling routes','Dust storms revealing hidden signs']
+  };
+  const offerPoolByType={
+    holding:[
+      {id:'med-cache',name:'Field Med Cache',cost:85,item:'Medicine Satchel',blurb:'Stabilize rough expeditions fast.'},
+      {id:'ration-crate',name:'Ration Crate',cost:50,item:'Ration Kit',blurb:'Reliable supply for long sorties.'},
+      {id:'route-map',name:'Route Sketch Packet',cost:65,item:'Mapping Materials',blurb:'Annotated patrol and trade cuts.'}
+    ],
+    seat:[
+      {id:'seal-pass',name:'Stamped Transit Pass',cost:90,item:'Messenger Pass',blurb:'Skip one checkpoint argument.'},
+      {id:'levy-kit',name:'Levy Quarter Kit',cost:70,item:'Tool Kit',blurb:'Practical gear from quartermasters.'}
+    ],
+    dwelling:[
+      {id:'camp-bundle',name:'Camp Bundle',cost:35,item:'Rations',blurb:'Simple and reliable travel stock.'},
+      {id:'trail-cord',name:'Trail Cord Pack',cost:40,item:'Rope (50ft)',blurb:'Useful for crossings and climbs.'}
+    ],
+    temple:[
+      {id:'focus-tonic',name:'Focus Tonic',cost:75,item:'Mind Draught',blurb:'Clear your head before checks.'},
+      {id:'ward-oil',name:'Ward Oil Vial',cost:60,item:'Warding Sigil',blurb:'Temple-made defensive script.'}
+    ],
+    ruins:[
+      {id:'salvage-lot',name:'Salvage Lot',cost:80,item:'Strange Item #01',blurb:'Unsorted old-world fragments.'},
+      {id:'rust-arm',name:'Rusted Arms Bundle',cost:95,item:'Sword',blurb:'Refurbished but battle-ready.'}
+    ],
+    depths:[
+      {id:'delver-kit',name:'Delver Kit',cost:95,item:'Scavenger\'s Pouch',blurb:'Standard issue for deep runs.'},
+      {id:'flare-pack',name:'Flare Pack',cost:55,item:'Torch',blurb:'Mark routes and signal allies.'}
+    ],
+    library:[
+      {id:'index-shard',name:'Index Shard Copy',cost:110,item:'Reveal Traps',blurb:'Tagged with unstable references.'},
+      {id:'scribe-roll',name:'Scribe Utility Roll',cost:80,item:'Lockpicks',blurb:'Fine instruments and coded tabs.'}
+    ],
+    wilderness:[
+      {id:'hunter-bundle',name:'Hunter Bundle',cost:45,item:'Rations',blurb:'Quick trail provisions.'},
+      {id:'field-salve',name:'Field Salve',cost:50,item:'Healing Salve',blurb:'Patch up before the next push.'}
+    ],
+    trade:[
+      {id:'caravan-spares',name:'Caravan Spares',cost:70,item:'Tool Kit',blurb:'Fixes before breakdowns start.'},
+      {id:'contract-ledger',name:'Contract Ledger',cost:95,item:'Mapping Materials',blurb:'Route notes and buyer marks.'}
+    ],
+    event:[
+      {id:'witness-bribe',name:'Witness Bribe Purse',cost:60,item:'Gold',blurb:'Loose tongues, useful truths.'},
+      {id:'cipher-sheet',name:'Cipher Sheet',cost:75,item:'Mark of Passage',blurb:'Decode clue-chain scraps.'}
+    ],
+    lostcity:[
+      {id:'power-cell',name:'Salvaged Power Cell',cost:120,item:'Lost City Fuel',blurb:'Rare and volatile salvage.'},
+      {id:'vault-tag',name:'Vault Access Tag',cost:90,item:'Lockpicks',blurb:'Bypass old lock clusters.'}
+    ]
+  };
+  const pool=offerPoolByType[type]||offerPoolByType.wilderness;
+  const picked=[];
+  const offerCount=Math.min(pool.length,(type==='holding'||type==='seat'||type==='trade')?2:1);
+  while(picked.length<offerCount){
+    const candidate=pick(pool);
+    if(!candidate)break;
+    if(!picked.some(function(entry){return entry.id===candidate.id;}))picked.push(Object.assign({},candidate));
+  }
+  return {
+    generatedOn:getDateStampKey(),
+    scene:pick(sceneByType[type]||sceneByType.wilderness),
+    conflict:pick(conflictByType[type]||conflictByType.wilderness),
+    hook:pick(hookByType[type]||hookByType.wilderness),
+    offers:picked,
+    purchased:{}
+  };
+}
+function getProvinceWorldPulseForHex(hex,force){
+  if(!hex)return null;
+  const state=ensureProvinceWorldPulseState();
+  const key=getProvinceWorldPulseKey(hex);
+  if(force||!state.byKey[key])state.byKey[key]=rollProvinceWorldPulse(hex);
+  return state.byKey[key];
+}
+function renderProvinceWorldPulseHtml(hex,pulse){
+  if(!hex||!pulse)return '';
+  const offers=Array.isArray(pulse.offers)?pulse.offers:[];
+  const offerHtml=offers.length
+    ? offers.map(function(offer,idx){
+        const bought=!!(pulse.purchased&&pulse.purchased[offer.id]);
+        return '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.34rem .42rem;">'
+          +'<div style="font-size:.7rem;color:var(--gold2);">'+String(offer.name||'Local Offer')+' · '+Number(offer.cost||0)+'₵</div>'
+          +'<div style="font-size:.78rem;color:var(--text2);line-height:1.48;margin-top:.1rem;">'+String(offer.blurb||'')+'</div>'
+          +'<div style="margin-top:.2rem;display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">'
+          +(bought?'<span style="font-size:.68rem;color:var(--green2);">Purchased today</span>'
+            :('<button class="btn btn-xs btn-teal" onclick="buyProvinceWorldPulseOffer('+hex.col+','+hex.row+','+idx+')">Buy</button>'))
+          +'<span style="font-size:.68rem;color:var(--muted2);">Item: '+String(offer.item||'Unknown')+'</span>'
+          +'</div>'
+          +'</div>';
+      }).join('')
+    : '<div style="font-size:.76rem;color:var(--muted2);">No traders are posting stock in this hex right now.</div>';
+  return '<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.4);background:rgba(201,162,39,.06);">'
+    +'<div class="nb-label" style="color:var(--gold2);">🌐 Living World Activity</div>'
+    +'<div style="font-size:.83rem;color:var(--text2);line-height:1.56;">'
+      +'<strong style="color:var(--teal);">Now:</strong> '+String(pulse.scene||'')+'<br>'
+      +'<strong style="color:var(--red2);">Pressure:</strong> '+String(pulse.conflict||'')+'<br>'
+      +'<strong style="color:var(--gold2);">Hook:</strong> '+String(pulse.hook||'')
+    +'</div>'
+    +'<div style="margin-top:.28rem;font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Local Offers</div>'
+    +'<div style="margin-top:.22rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.25rem;">'+offerHtml+'</div>'
+    +'<div style="margin-top:.24rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+      +'<button class="btn btn-xs" onclick="refreshProvinceWorldPulse('+hex.col+','+hex.row+')">Refresh Local Rumors</button>'
+    +'</div>'
+  +'</div>';
+}
+window.buyProvinceWorldPulseOffer=function(col,row,offerIdx){
+  const hex=Array.isArray(mapData)?mapData.find(function(h){return h&&h.col===Number(col)&&h.row===Number(row);}):null;
+  if(!hex)return;
+  const pulse=getProvinceWorldPulseForHex(hex,false);
+  const offers=Array.isArray(pulse&&pulse.offers)?pulse.offers:[];
+  const offer=offers[Number(offerIdx)];
+  if(!offer)return;
+  pulse.purchased=pulse.purchased||{};
+  if(pulse.purchased[offer.id]){
+    showNotif('Already purchased in this hex today.', 'info');
+    return;
+  }
+  const cost=Math.max(0,Number(offer.cost||0));
+  if(Number(S.credits||0)<cost){
+    showNotif('Not enough credits for '+String(offer.name||'offer')+'.', 'warn');
+    return;
+  }
+  S.credits=Math.max(0,Number(S.credits||0)-cost);
+  if(typeof updateCreditsUI==='function')updateCreditsUI();
+  let stored=false;
+  if(typeof addToBackpack==='function'){
+    try{stored=!!addToBackpack(String(offer.item||'Unknown Item'));}catch(_err){stored=false;}
+  }
+  pulse.purchased[offer.id]=true;
+  showNotif((stored?'Purchased: ':'Purchased (inventory full): ')+String(offer.item||'Unknown Item')+'.', stored?'good':'info');
+  if(selectedHex&&selectedHex.col===Number(col)&&selectedHex.row===Number(row)&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+};
+window.refreshProvinceWorldPulse=function(col,row){
+  const hex=Array.isArray(mapData)?mapData.find(function(h){return h&&h.col===Number(col)&&h.row===Number(row);}):null;
+  if(!hex)return;
+  getProvinceWorldPulseForHex(hex,true);
+  showNotif('Local activity refreshed for this hex.', 'info');
+  if(selectedHex&&selectedHex.col===Number(col)&&selectedHex.row===Number(row)&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+};
 function ensureNightModeState(){
   if(!S||typeof S!=='object')return;
   if(typeof S.nightMode!=='boolean')S.nightMode=false;
@@ -11206,6 +11393,9 @@ function renderHexInfo(hex){
       <div id="weather-result-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div>
     </div>
   `;
+
+  const worldPulse=getProvinceWorldPulseForHex(hex,false);
+  html+=renderProvinceWorldPulseHtml(hex,worldPulse);
 
   // Wilderness encounters are intentionally scoped to wilderness hexes only.
 

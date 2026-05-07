@@ -2185,17 +2185,17 @@
     var micro = active && Array.isArray(active.microLocations) ? active.microLocations : [];
     var microHtml = micro.map(function (m) { return '<div style="font-size:.7rem;color:var(--text2);">- ' + m + '</div>'; }).join('');
     var actionButton = active && !active.explored
-      ? '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (Action vs DD' + Number(active.dd || 6) + ')</button>'
-      : '<span style="font-size:.68rem;color:var(--green2);">District already resolved this visit.</span>';
+      ? '<button class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (DD' + Number(active.dd || 6) + ')</button>'
+      : '<span style="font-size:.68rem;color:var(--green2);">Scouted this visit.</span>';
     var districtButtons = '';
     if (active) {
       var services = active.services || {};
-      if (active.kind === 'inn') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest At Inn</button>';
-      if (active.kind === 'lord') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience With Lord</button>';
-      if (services.merchant) districtButtons += '<button class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Open Merchant</button>';
-      if (services.missionBoard) districtButtons += '<button class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Check Mission Board</button>';
-      if (services.localWork) districtButtons += '<button class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Take Local Shift</button>';
-      if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Enter Gambling Den</button>';
+      if (services.missionBoard) districtButtons += '<button class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Mission Board</button>';
+      if (services.localWork) districtButtons += '<button class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Local Shift</button>';
+      if (services.merchant) districtButtons += '<button class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchant</button>';
+      if (active.kind === 'inn') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
+      if (active.kind === 'lord') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
+      if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Gamble</button>';
     }
 
     var html = '<div style="font-size:.77rem;color:var(--text2);line-height:1.46;display:grid;gap:.24rem;">'
@@ -2230,14 +2230,17 @@
         + '<div style="font-size:.66rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
         + (microHtml ? ('<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">Micro-Locations</div>' + microHtml) : '')
         + '</details>'
-        + '<div style="margin-top:.12rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + actionButton + '</div>'
-        + '<div style="margin-top:.1rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + districtButtons + '</div>'
-        + '<div style="margin-top:.1rem;display:flex;gap:.14rem;flex-wrap:wrap;">'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">District Event</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse District</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Check Mission Board</button>'
+        + '<div style="margin-top:.12rem;font-size:.64rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Core Action</div>'
+        + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + actionButton + '</div>'
+        + (districtButtons ? '<div style="margin-top:.08rem;font-size:.64rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">District Services</div>' : '')
+        + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + districtButtons + '</div>'
+        + '<div style="margin-top:.08rem;font-size:.64rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Local Flavor</div>'
+        + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk to Locals</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">District Event</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Find Side Task</button>'
         + '</div>'
         + '<div id="holdingDowntimeResult" style="margin-top:.12rem;">' + buildHoldingPendingEventHtml() + '</div>'
         + (active && active.services && active.services.gamblingDen

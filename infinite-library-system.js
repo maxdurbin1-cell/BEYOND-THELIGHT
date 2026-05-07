@@ -461,21 +461,21 @@
     var nodes = floor.nodes || [];
     var fog = getFloorFog(floor);
     var palette = depthPalette((typeof S !== 'undefined' && S && S.infiniteLibrary) ? S.infiniteLibrary.depth : 1);
-    var spacing = 18;
-    var size = 10;
+    var spacing = 24;
+    var size = 14;
     var placed = nodes.map(function (_node, idx) {
       var c = getSpiralCoord(idx + 1);
       return {
         idx: idx,
-        x: Math.round(c.q * spacing + 150),
-        y: Math.round((c.r + c.q * 0.5) * (spacing * 0.94) + 90)
+        x: Math.round(c.q * spacing + 180),
+        y: Math.round((c.r + c.q * 0.5) * (spacing * 0.94) + 112)
       };
     });
 
     var links = [];
     for (var i = 1; i < placed.length; i++) {
       if (!fog.visibleMask[i] || !fog.visibleMask[i - 1]) continue;
-      links.push('<line x1="' + placed[i - 1].x + '" y1="' + placed[i - 1].y + '" x2="' + placed[i].x + '" y2="' + placed[i].y + '" stroke="rgba(156,184,255,.28)" stroke-width="1.2" />');
+      links.push('<line x1="' + placed[i - 1].x + '" y1="' + placed[i - 1].y + '" x2="' + placed[i].x + '" y2="' + placed[i].y + '" stroke="rgba(156,184,255,.34)" stroke-width="1.4" />');
     }
 
     var cells = placed.map(function (p) {
@@ -491,27 +491,27 @@
       }
       return '<g style="cursor:pointer;" onclick="selectInfiniteLibraryNode(' + col + ',' + row + ',' + p.idx + ')">'
         + '<polygon points="' + localHexPoints(p.x, p.y, size) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.4"></polygon>'
-        + '<text x="' + p.x + '" y="' + (p.y + 3) + '" text-anchor="middle" font-size="8.5" fill="var(--text)">' + nodeIcon(node.kind) + '</text>'
+        + '<text x="' + p.x + '" y="' + (p.y + 4) + '" text-anchor="middle" font-size="10.5" fill="var(--text)">' + nodeIcon(node.kind) + '</text>'
         + '<title>Hex ' + (p.idx + 1) + ' · ' + (node.kind || 'Unknown') + '</title>'
         + '</g>';
     }).join('');
 
     var glyphs = [];
     for (var gi = 0; gi < 16; gi++) {
-      var gx = 14 + (gi * 17) % 284;
-      var gy = 20 + (gi * 23) % 150;
+      var gx = 16 + (gi * 21) % 334;
+      var gy = 22 + (gi * 27) % 186;
       var glyph = (gi % 4 === 0) ? '⟡' : ((gi % 4 === 1) ? 'ᚠ' : ((gi % 4 === 2) ? '✶' : '◌'));
       glyphs.push('<text class="library-fx-glyph" x="' + gx + '" y="' + gy + '" text-anchor="middle" font-size="7" fill="' + palette.glyph + '" style="animation-delay:' + (gi * 0.22) + 's;">' + glyph + '</text>');
     }
 
     var shelvesFar = [];
     var shelvesNear = [];
-    for (var sy = 0; sy < 8; sy++) shelvesFar.push('<line x1="-20" y1="' + (18 + sy * 22) + '" x2="320" y2="' + (8 + sy * 22) + '" stroke="' + palette.glow + '" stroke-width="1" />');
-    for (var sz = 0; sz < 6; sz++) shelvesNear.push('<line x1="-30" y1="' + (26 + sz * 28) + '" x2="330" y2="' + (32 + sz * 28) + '" stroke="' + palette.line + '" stroke-opacity=".24" stroke-width="1.15" />');
+    for (var sy = 0; sy < 9; sy++) shelvesFar.push('<line x1="-24" y1="' + (20 + sy * 24) + '" x2="390" y2="' + (10 + sy * 24) + '" stroke="' + palette.glow + '" stroke-width="1" />');
+    for (var sz = 0; sz < 7; sz++) shelvesNear.push('<line x1="-32" y1="' + (28 + sz * 30) + '" x2="396" y2="' + (36 + sz * 30) + '" stroke="' + palette.line + '" stroke-opacity=".24" stroke-width="1.15" />');
 
     return '<div class="library-fx-wrap" style="border:1px solid ' + palette.line + ';background:linear-gradient(180deg,' + palette.fillA + ' 0%,' + palette.fillB + ' 100%);padding:.4rem;border-radius:4px;margin-bottom:.55rem;box-shadow:0 0 24px ' + palette.glow + ';">'
       + '<div style="font-size:.68rem;color:#9cb8ff;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.22rem;">Infinite Library Crawl Map</div>'
-      + '<svg viewBox="0 0 300 180" style="width:100%;height:auto;display:block;">'
+      + '<svg viewBox="0 0 360 230" style="width:100%;height:auto;display:block;">'
       + '<g class="library-fx-shelf-far">' + shelvesFar.join('') + '</g>'
       + '<g class="library-fx-shelf-near">' + shelvesNear.join('') + '</g>'
       + '<g>' + glyphs.join('') + '</g>'
@@ -566,7 +566,7 @@
   }
 
   function revealLibraryDoors(state, floor, fromIdx) {
-    var reveals = 1 + (rollDie(2) === 2 ? 1 : 0);
+    var reveals = 2;
     var created = 0;
     var idx = Math.max(0, Number(fromIdx || 0));
     while (created < reveals) {

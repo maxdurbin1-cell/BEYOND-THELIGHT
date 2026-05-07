@@ -1603,13 +1603,23 @@
         if (t.indexOf('gate') >= 0 || t.indexOf('ward') >= 0 || t.indexOf('square') >= 0 || t.indexOf('lane') >= 0) return 'downtime';
         return 'district';
       }
+      var labelText = String(label || '').toLowerCase();
+      var kind = inferKind(label);
+      var services = {
+        merchant: kind === 'merchant_items' || kind === 'merchant_weapons' || /market|harbor|dock|ring|trade|bazaar/.test(labelText),
+        merchantCategory: kind === 'merchant_weapons' ? 'weapons' : 'items',
+        missionBoard: kind === 'mission' || /archive|court|hall|chapel|shrine|watch|gate|ward/.test(labelText) || (idx % 3 === 1),
+        gamblingDen: /market|harbor|dock|square|lane|ring|front|yard/.test(labelText) || (idx % 4 === 0),
+        localWork: true
+      };
       var microCount = 2 + Math.floor(Math.random() * 4);
       var micro = [];
       for (var mi = 0; mi < microCount; mi++) micro.push(pickLocal(archetype.microPool));
       return {
         id: id,
         label: label,
-        kind: inferKind(label),
+        kind: kind,
+        services: services,
         dd: 6 + (idx % 3 === 0 ? 2 : 0) + (String(archetype.key || '') === 'Spire' ? 1 : 0),
         explored: false,
         revealed: idx === 0,
@@ -1835,11 +1845,83 @@
       node.result = 'The local gambling den is open tonight. Dice crews crowd the tables and wagers are flowing.';
       crawl.activeNodeId = node.id;
     }
-    if (typeof switchTab === 'function') {
-      var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('gambling'\"]");
-      switchTab('gambling', btn || null);
+    if (typeof showNotif === 'function') showNotif('Gambling den opened inside this district.', 'info');
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+  }
+
+  function advanceHoldingOneDay() {
+    if (typeof advanceDay === 'function') {
+      advanceDay(1);
+      return;
     }
-    if (typeof showNotif === 'function') showNotif('Gambling Den opened from the settlement.', 'info');
+    if (typeof advanceProvincePhasePenalty === 'function') {
+      advanceProvincePhasePenalty(3);
+    }
+  }
+
+  function runHoldingLocalWork(node) {
+    if (!node) { return; }
+    var bodyDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('body') : ((S.stats && S.stats.body) || 4);
+    var actionRoll = explodingRoll(bodyDie);
+    var dreadRoll = explodingRoll(6);
+    var success = Number(actionRoll.total || 0) >= Number(dreadRoll.total || 0);
+    var msg = 'WORK YOUR JOB (BODY vs DREAD d6): BODY d' + bodyDie + ' ' + actionRoll.total + ' vs DD6 ' + dreadRoll.total + '. ';
+    advanceHoldingOneDay();
+    if (success) {
+      S.credits = Number(S.credits || 0) + 100;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      msg += 'Success. +100 Credits and +1 day advanced.';
+    } else {
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      msg += 'Failed shift. +1 day advanced and +1 Mental Stress from overwork.';
+    }
+    node.result = msg;
+    var crawl = ensureHoldingSettlementHexcrawl();
+    crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
+    crawl.history.unshift(String(node.label || 'District') + ': ' + msg);
+    crawl.history = crawl.history.slice(0, 12);
+    if (typeof showNotif === 'function') showNotif(msg, success ? 'good' : 'warn');
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+  }
+
+  function openHoldingMerchantDistrict(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    var services = node.services || {};
+    if (!services.merchant) {
+      if (typeof showNotif === 'function') showNotif('No active merchant stalls in this district right now.', 'warn');
+      return;
+    }
+    var cat = String(services.merchantCategory || 'items');
+    node.result = 'Merchant stalls opened. Redirecting to Merchants tab (' + cat + ').';
+    if (typeof switchTab === 'function') {
+      var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('merchants'\"]");
+      switchTab('merchants', btn || null);
+    }
+    if (typeof showShopCat === 'function') {
+      try { showShopCat(cat, null); } catch (_err) {}
+    }
+    if (typeof showNotif === 'function') showNotif('Merchant access opened for ' + node.label + '.', 'info');
+  }
+
+  function openHoldingDistrictMissionPickup(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    var services = node.services || {};
+    if (!services.missionBoard) {
+      node.result = 'No mission board is active in this district. Ask around for rumors or check another district.';
+      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      return;
+    }
+    if (typeof generateTask === 'function') generateTask();
+    node.result = 'Mission board refreshed. Pick up a mission from the generated contracts.';
+    crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
+    crawl.history.unshift(String(node.label || 'District') + ': Mission board refreshed.');
+    crawl.history = crawl.history.slice(0, 12);
+    if (typeof showNotif === 'function') showNotif('New mission posted from ' + node.label + '.', 'good');
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
 
   function runHoldingDistrictFlavorAction(nodeId, action) {
@@ -1857,8 +1939,8 @@
     } else if (action === 'browse') {
       msg = 'You browse ' + String(node.label || 'the district') + '. Vendors advertise ' + String(node.interactable || 'small necessities') + '. Crowd pressure is ' + String(node.npcDensity || 'steady') + '.';
     } else if (action === 'task') {
-      if (typeof generateTask === 'function') generateTask();
-      msg = 'Task board checked: new local work and mission leads are now posted.';
+      openHoldingDistrictMissionPickup(node.id);
+      return;
     } else if (action === 'event') {
       msg = 'District event: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
     } else if (action === 'downtime_talk') {
@@ -1866,14 +1948,18 @@
       openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
       return;
     } else if (action === 'downtime_task') {
-      rollHoldingDowntimeActivity('task');
-      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      runHoldingLocalWork(node);
       return;
     } else if (action === 'downtime_explore') {
       rollHoldingDowntimeActivity('explore');
       openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
       return;
     } else if (action === 'gamble') {
+      if (!node.services || !node.services.gamblingDen) {
+        node.result = 'This district does not run a gambling den tonight.';
+        openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+        return;
+      }
       openHoldingGamblingDen(node.id);
       return;
     }
@@ -1884,6 +1970,150 @@
       crawl.history = crawl.history.slice(0, 12);
       if (typeof showNotif === 'function') showNotif(msg, 'info');
     }
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+  }
+
+  function ensureHoldingGamblingState(crawl, node) {
+    crawl.gambling = crawl.gambling || {};
+    var key = String((node && node.id) || crawl.activeNodeId || 'district');
+    if (!crawl.gambling[key] || typeof crawl.gambling[key] !== 'object') {
+      crawl.gambling[key] = {
+        level: 1,
+        guess: '',
+        dieOne: '-',
+        dieTwo: '-',
+        adventure: '-',
+        outcome: 'Pick a difficulty and guess, then play a hand.',
+        history: []
+      };
+    }
+    return crawl.gambling[key];
+  }
+
+  function holdingGambleAdventureDie(level) {
+    var map = { 1: 20, 2: 12, 3: 10, 4: 8, 5: 6, 6: 4 };
+    var key = Math.max(1, Math.min(6, Number(level || 1)));
+    return map[key] || 20;
+  }
+
+  function buildHoldingGamblingEmbedHtml(node, crawl) {
+    if (!node || !crawl) return '';
+    var state = ensureHoldingGamblingState(crawl, node);
+    var level = Math.max(1, Math.min(6, Number(state.level || 1)));
+    var buyIn = level * 10;
+    var advDie = holdingGambleAdventureDie(level);
+    var historyHtml = (state.history || []).slice(0, 6).map(function (line) {
+      return '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;">• ' + String(line || '') + '</div>';
+    }).join('');
+    var levelButtons = [1, 2, 3, 4, 5, 6].map(function (lv) {
+      var on = lv === level;
+      return '<button class="btn btn-xs' + (on ? ' btn-teal' : '') + '" onclick="setHoldingGamblingDifficulty(\'' + String(node.id) + '\',' + lv + ')">L' + lv + ' (' + (lv * 10) + '₵)</button>';
+    }).join('');
+    var guessBtn = function (key, label) {
+      var on = String(state.guess || '') === key;
+      return '<button class="btn btn-xs' + (on ? ' btn-gold' : '') + '" onclick="setHoldingGamblingGuess(\'' + String(node.id) + '\',\'' + key + '\')">' + label + '</button>';
+    };
+    return '<div style="margin-top:.14rem;padding:.34rem .38rem;border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.06);">'
+      + '<div style="font-size:.68rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">Embedded Gambling Den</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;line-height:1.5;">House rules: pay buy-in, roll two Dread d6 and one Adventure die, then call Under / Middle / Over. Matching either Dread die counts as Middle.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(4,minmax(72px,1fr));gap:.18rem;margin-top:.22rem;">'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Credits<br><strong style="color:var(--gold2);font-size:.8rem;">' + Number(S.credits || 0) + '₵</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Buy In<br><strong style="color:var(--text2);font-size:.8rem;">' + buyIn + '₵</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Difficulty<br><strong style="color:var(--text2);font-size:.8rem;">Level ' + level + '</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Adventure Die<br><strong style="color:var(--text2);font-size:.8rem;">d' + advDie + '</strong></div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.22rem;">' + levelButtons + '</div>'
+      + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.16rem;">'
+      + guessBtn('under', 'Under') + guessBtn('middle', 'Middle') + guessBtn('over', 'Over')
+      + '</div>'
+      + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;margin-top:.2rem;">'
+      + '<button class="btn btn-xs btn-primary" onclick="playHoldingGamblingRound(\'' + String(node.id) + '\')">Play Hand</button>'
+      + '<button class="btn btn-xs" onclick="clearHoldingGamblingHistory(\'' + String(node.id) + '\')">Clear Ledger</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,minmax(64px,1fr));gap:.16rem;margin-top:.2rem;">'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Dread 1<br><strong style="color:var(--red2);font-size:.84rem;">' + state.dieOne + '</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Adventure<br><strong style="color:var(--teal);font-size:.84rem;">' + state.adventure + '</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Dread 2<br><strong style="color:var(--red2);font-size:.84rem;">' + state.dieTwo + '</strong></div>'
+      + '</div>'
+      + '<div style="font-size:.72rem;color:var(--text2);margin-top:.2rem;">' + String(state.outcome || '') + '</div>'
+      + (historyHtml ? ('<div style="margin-top:.2rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.14rem;">' + historyHtml + '</div>') : '')
+      + '</div>';
+  }
+
+  function setHoldingGamblingDifficulty(nodeId, level) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    var state = ensureHoldingGamblingState(crawl, node);
+    state.level = Math.max(1, Math.min(6, Number(level || 1)));
+    crawl.activeNodeId = node.id;
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+  }
+
+  function setHoldingGamblingGuess(nodeId, guess) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    var state = ensureHoldingGamblingState(crawl, node);
+    state.guess = String(guess || '');
+    crawl.activeNodeId = node.id;
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+  }
+
+  function clearHoldingGamblingHistory(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    var state = ensureHoldingGamblingState(crawl, node);
+    state.history = [];
+    state.outcome = 'Ledger cleared. Pick a guess and play a hand.';
+    crawl.activeNodeId = node.id;
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+  }
+
+  function playHoldingGamblingRound(nodeId) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    var state = ensureHoldingGamblingState(crawl, node);
+    var level = Math.max(1, Math.min(6, Number(state.level || 1)));
+    var buyIn = level * 10;
+    var payout = level * 10;
+    if (!state.guess) {
+      state.outcome = 'Select Under / Middle / Over before playing.';
+      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      return;
+    }
+    if (Number(S.credits || 0) < buyIn) {
+      state.outcome = 'Not enough credits for buy-in (' + buyIn + '₵ needed).';
+      openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
+      return;
+    }
+    S.credits = Math.max(0, Number(S.credits || 0) - buyIn);
+    var dreadA = roll(6);
+    var dreadB = roll(6);
+    var low = Math.min(dreadA, dreadB);
+    var high = Math.max(dreadA, dreadB);
+    var adventure = roll(holdingGambleAdventureDie(level));
+    var actual = adventure < low ? 'under' : (adventure > high ? 'over' : 'middle');
+    var win = String(actual) === String(state.guess);
+    if (win) {
+      S.credits = Number(S.credits || 0) + buyIn + payout;
+      state.outcome = 'Win. Guess ' + String(state.guess).toUpperCase() + ' hit. Profit +' + payout + '₵.';
+    } else {
+      state.outcome = 'Loss. Adventure landed ' + String(actual).toUpperCase() + '. Buy-in lost.';
+    }
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    state.dieOne = low;
+    state.dieTwo = high;
+    state.adventure = adventure;
+    state.history = Array.isArray(state.history) ? state.history : [];
+    state.history.unshift('L' + level + ' · ' + low + '/' + high + ' vs Ad' + holdingGambleAdventureDie(level) + '=' + adventure + ' · called ' + String(state.guess).toUpperCase() + ' · ' + (win ? 'WIN' : 'LOSS'));
+    state.history = state.history.slice(0, 10);
+    node.result = 'Gambling round: ' + state.outcome;
+    crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
+    crawl.history.unshift(String(node.label || 'District') + ': ' + state.outcome);
+    crawl.history = crawl.history.slice(0, 12);
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
 
@@ -1913,16 +2143,13 @@
       : '<span style="font-size:.68rem;color:var(--green2);">District already resolved this visit.</span>';
     var districtButtons = '';
     if (active) {
+      var services = active.services || {};
       if (active.kind === 'inn') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest At Inn</button>';
       if (active.kind === 'lord') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience With Lord</button>';
-      if (active.kind === 'merchant_items') {
-        districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_item\')">Buy Rations (50₵)</button>';
-        districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_tools\')">Buy Tools (65₵)</button>';
-        districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_medicine\')">Buy Medicine (85₵)</button>';
-      }
-      if (active.kind === 'merchant_weapons') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'buy_weapon\')">Buy Weapon+ (120₵)</button>';
-      if (active.kind === 'mission') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'mission\')">Generate Task/Mission</button>';
-      if (active.kind === 'downtime') districtButtons += '<button class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'downtime\')">Province Downtime</button>';
+      if (services.merchant) districtButtons += '<button class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Open District Merchant</button>';
+      if (services.missionBoard) districtButtons += '<button class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Pick Up Mission</button>';
+      if (services.localWork) districtButtons += '<button class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Work Your Job</button>';
+      if (services.gamblingDen) districtButtons += '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Gambling Den</button>';
     }
 
     var html = '<div style="font-size:.78rem;color:var(--text2);line-height:1.48;display:grid;gap:.32rem;">'
@@ -1957,14 +2184,12 @@
         + '<div style="margin-top:.12rem;display:flex;gap:.18rem;flex-wrap:wrap;">'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">District Event</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse Shops</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Pick Up Task</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse District</button>'
+        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'task\')">Pick Up Mission</button>'
         + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk To People</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Run A Task</button>'
-        + '<button class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_explore\')">Explore Province</button>'
-        + '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'gamble\')">Gambling Den</button>'
         + '</div>'
         + '<div id="holdingDowntimeResult" style="margin-top:.14rem;">' + buildHoldingPendingEventHtml() + '</div>'
+        + (active && active.services && active.services.gamblingDen ? buildHoldingGamblingEmbedHtml(active, crawl) : '')
         + (active.result ? '<div style="font-size:.68rem;color:var(--gold2);margin-top:.12rem;line-height:1.48;">' + active.result + '</div>' : '')
         + '</div>') : '')
 
@@ -2036,11 +2261,8 @@
         msg = 'Purchased Weapon+ voucher (-120 Credits).';
       }
     } else if (action === 'mission') {
-      if (typeof generateTask === 'function') generateTask();
-      msg = 'A mission lead was generated from district intel.';
-    } else if (action === 'downtime') {
-      rollHoldingDowntimeActivity('explore');
-      msg = 'Province holding downtime initiated.';
+      openHoldingDistrictMissionPickup(node.id);
+      return;
     }
     node.result = msg || node.result;
     crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
@@ -2074,11 +2296,11 @@
     if (!node) { return; }
     crawl.activeNodeId = node.id;
     var eventPool = crawl.ambientTables && Array.isArray(crawl.ambientTables.scenes) ? crawl.ambientTables.scenes : [];
-    if (eventPool.length) {
-      var ev = eventPool[Math.floor(Math.random() * eventPool.length)];
-      if (!node.result || Math.random() < 0.35) node.result = 'District event: ' + ev;
-      if (typeof showNotif === 'function') showNotif(node.label + ': ' + ev, 'info');
-    }
+    var ev = eventPool.length ? eventPool[Math.floor(Math.random() * eventPool.length)] : 'The district rotates through ordinary traffic and watch shifts.';
+    node.result = 'Selected district: ' + String(node.label || 'District') + '. Current scene: ' + ev
+      + ' Activity focus: ' + String(node.activity || 'Local movement')
+      + '. Rumor focus: ' + String(node.rumor || 'No rumor currently surfaced') + '.';
+    if (typeof showNotif === 'function') showNotif(node.label + ': ' + ev, 'info');
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal({ advanceVisit: false }));
   }
 
@@ -3772,6 +3994,12 @@
   window.runHoldingDistrictActionByKind = runHoldingDistrictActionByKind;
   window.runHoldingDistrictFlavorAction = runHoldingDistrictFlavorAction;
   window.openHoldingGamblingDen = openHoldingGamblingDen;
+  window.openHoldingMerchantDistrict = openHoldingMerchantDistrict;
+  window.openHoldingDistrictMissionPickup = openHoldingDistrictMissionPickup;
+  window.setHoldingGamblingDifficulty = setHoldingGamblingDifficulty;
+  window.setHoldingGamblingGuess = setHoldingGamblingGuess;
+  window.playHoldingGamblingRound = playHoldingGamblingRound;
+  window.clearHoldingGamblingHistory = clearHoldingGamblingHistory;
   window.selectHoldingSettlementDistrict = selectHoldingSettlementDistrict;
   window.advanceHoldingSettlementTime = advanceHoldingSettlementTime;
   window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;

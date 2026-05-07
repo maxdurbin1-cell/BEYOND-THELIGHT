@@ -366,6 +366,8 @@
     } else {
       S.health = Math.max(0, Number(S.health || 0) - 1);
     }
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    if (typeof renderQP === 'function') renderQP('hero');
   }
 
   function getSpiralCoord(index) {
@@ -463,6 +465,7 @@
     var palette = depthPalette((typeof S !== 'undefined' && S && S.infiniteLibrary) ? S.infiniteLibrary.depth : 1);
     var spacing = 84;
     var size = 56;
+    var iconFontSize = Math.max(13, Math.round(size * 0.26));
     var placed = nodes.map(function (_node, idx) {
       var c = getSpiralCoord(idx + 1);
       return {
@@ -491,7 +494,7 @@
       }
       return '<g style="cursor:pointer;" onclick="selectInfiniteLibraryNode(' + col + ',' + row + ',' + p.idx + ')">'
         + '<polygon points="' + localHexPoints(p.x, p.y, size) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.4"></polygon>'
-        + '<text x="' + p.x + '" y="' + (p.y + 4) + '" text-anchor="middle" font-size="10.5" fill="var(--text)">' + nodeIcon(node.kind) + '</text>'
+        + '<text x="' + p.x + '" y="' + (p.y + Math.round(iconFontSize * 0.38)) + '" text-anchor="middle" font-size="' + iconFontSize + '" fill="var(--text)">' + nodeIcon(node.kind) + '</text>'
         + '<title>Hex ' + (p.idx + 1) + ' · ' + (node.kind || 'Unknown') + '</title>'
         + '</g>';
     }).join('');
@@ -876,6 +879,8 @@
         S.health = Math.max(0, Number(S.health || 0) - healthPenalty);
         S.radiationExposure = Math.max(0, Number(S.radiationExposure || 0) + radiationExposure);
       }
+      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+      if (typeof renderQP === 'function') renderQP('hero');
       node.result = 'Failed to stabilize this hex. Radiation cascades through the archive: +' + mentalStressPenalty + ' Mental Stress, -' + healthPenalty + ' Health, +' + radiationExposure + ' Radiation Exposure.';
       state.instability = Math.max(0, Number(state.instability || 0) + 1);
       revealLibraryDoors(state, floor, node.idx - 1);

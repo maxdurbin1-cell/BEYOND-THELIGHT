@@ -9419,6 +9419,36 @@
   }
 
   /* ── STEP 1 ── */
+  function buildMissionStepDialogue(mission, stepKey) {
+    if (!mission || mission.missionType === 'legacy_raid') return '';
+    var title = String(mission.title || 'Contract');
+    var target = String(mission.target || 'the objective');
+    var location = String(mission.location || 'the route');
+    var district = String(mission.wtwDistrict || mission.wtwZone || location || 'the district');
+    if (String(stepKey) === 'informer') {
+      return '<div style="background:rgba(201,162,39,.08);border:1px solid rgba(201,162,39,.35);padding:.45rem .55rem;margin-bottom:.45rem;font-size:.76rem;line-height:1.5;color:var(--text2);">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;letter-spacing:.08em;color:var(--gold2);text-transform:uppercase;margin-bottom:.16rem;">Informer Dialogue</div>'
+        + '<div style="margin-bottom:.12rem;"><strong style="color:var(--teal);">Informer:</strong> "You are the one on <em>' + title + '</em>? Then listen carefully. ' + target + ' is tied to ' + district + ', and someone is trying to bury the trail."</div>'
+        + '<div><strong style="color:var(--gold2);">You:</strong> "Give me one lead that matters." <strong style="color:var(--teal);">Informer:</strong> "Find the site first. Do not start loud. If the wrong eyes spot you, the confrontation becomes a trap."</div>'
+      + '</div>';
+    }
+    if (String(stepKey) === 'site') {
+      return '<div style="background:rgba(46,196,182,.08);border:1px solid rgba(46,196,182,.35);padding:.45rem .55rem;margin-bottom:.45rem;font-size:.76rem;line-height:1.5;color:var(--text2);">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;letter-spacing:.08em;color:var(--teal);text-transform:uppercase;margin-bottom:.16rem;">Site Dialogue</div>'
+        + '<div style="margin-bottom:.12rem;"><strong style="color:var(--gold2);">Field Comms:</strong> "This is the ' + location + '. Signs of a rushed operation everywhere. Whoever staged this expected company."</div>'
+        + '<div><strong style="color:var(--teal);">Scout:</strong> "I can map a safer lane, but we only get one clean attempt. If we miss, they know we are here before confrontation starts."</div>'
+      + '</div>';
+    }
+    if (String(stepKey) === 'confrontation') {
+      return '<div style="background:rgba(224,80,80,.08);border:1px solid rgba(224,80,80,.35);padding:.45rem .55rem;margin-bottom:.45rem;font-size:.76rem;line-height:1.5;color:var(--text2);">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;letter-spacing:.08em;color:var(--red2);text-transform:uppercase;margin-bottom:.16rem;">Confrontation Dialogue</div>'
+        + '<div style="margin-bottom:.12rem;"><strong style="color:var(--gold2);">Target Channel:</strong> "So the board sent you. You should have stayed in the briefing room."</div>'
+        + '<div><strong style="color:var(--teal);">You:</strong> "This ends now. ' + title + ' is done when you stand down or fall."</div>'
+      + '</div>';
+    }
+    return '';
+  }
+
   function rollInfoFeature() { return INFO_FEATURES[roll(6)-1]; }
   function rollInfoDanger() {
     return roll(6)<=3 ? {type:'mercenary',data:{name:'Mercenary',dread:10,hp:20}} : {type:'complication',data:pick(LOCATION_COMPLICATIONS)};
@@ -9496,7 +9526,8 @@
     var successEncoded=encodeURIComponent(JSON.stringify(successFod));
     var failureEncoded=encodeURIComponent(JSON.stringify(failureFod));
     var introLine = mission.step1Intro || ('<strong style="color:var(--gold2);">' + (mission.steps[1].name || 'Gather Information') + '</strong> - optional. Success grants <strong style="color:var(--teal);">+5 bonus</strong> and reveals a hidden feature. Failure introduces <strong style="color:var(--red2);">Additional Danger</strong>. You may also skip.');
-    var html='<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.5rem;line-height:1.5;">'+introLine+'</div>'
+    var html=buildMissionStepDialogue(mission, 'informer')
+      +'<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.5rem;line-height:1.5;">'+introLine+'</div>'
       +rollBlock+resultBlock
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
         +'<button class="btn btn-sm" onclick="skipMissionStep1('+missionId+');closeModal();">Skip This Step</button>'
@@ -9598,7 +9629,7 @@
       var titleElPending=document.getElementById('modalTitle');
       var contentElPending=document.getElementById('modalContent');
       if (titleElPending) titleElPending.textContent='Step 2 - '+((mission.steps[2] && mission.steps[2].name) || 'Go to Site');
-      if (contentElPending) contentElPending.innerHTML=compBanner+featureBadge
+      if (contentElPending) contentElPending.innerHTML=buildMissionStepDialogue(mission, 'site')+compBanner+featureBadge
         +'<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .65rem;margin-bottom:.45rem;">'
           +'<div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+sr.advDie+(bonus?' + '+bonus:'')+' vs Dread d'+sr.dreadDie+' to approach the site, then choose the outcome.</div>'
           +'<div style="font-size:.7rem;color:var(--muted2);">Success means you arrive undetected. Failure means you lose time and the site is alerted.</div>'
@@ -9683,7 +9714,7 @@
     var titleEl=document.getElementById('modalTitle');
     var contentEl=document.getElementById('modalContent');
     if (titleEl) titleEl.textContent='Step 2 - '+((mission.steps[2] && mission.steps[2].name) || 'Go to Site');
-    if (contentEl) contentEl.innerHTML=compBanner+featureBadge+rollBlock+roomsHTML+proceedBtn;
+    if (contentEl) contentEl.innerHTML=buildMissionStepDialogue(mission, 'site')+compBanner+featureBadge+rollBlock+roomsHTML+proceedBtn;
     var modal=document.getElementById('rollModal');
     if (modal&&!modal.classList.contains('open')) modal.classList.add('open');
   }
@@ -9968,7 +9999,7 @@
       +'</div>';
     }
 
-    var html=compBanner+featureBadge+guardsSection+mercSection+targetRow+rollInstr+gmControls
+    var html=buildMissionStepDialogue(mission, 'confrontation')+compBanner+featureBadge+guardsSection+mercSection+targetRow+rollInstr+gmControls
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
         +'<button class="btn btn-sm btn-red" onclick="resolveMissionOutcome('+missionId+',false)">\u2717 Failure \u2014 Roll Failed</button>'
         +'<button class="btn btn-sm btn-primary" onclick="'+successAction+'">\u2713 Success \u2014 Roll Succeeded</button>'

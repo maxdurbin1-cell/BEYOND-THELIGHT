@@ -211,7 +211,15 @@ async function runScenario(browser) {
     );
   }, null, { timeout: STEP_TIMEOUT_MS });
 
-  const modalSummary = await page.evaluate(() => {
+  const modalSummary = await page.evaluate((missionId) => {
+    try {
+      if (typeof window.closeModal === "function") window.closeModal();
+    } catch (_err) {}
+    try {
+      if (typeof window.openLegacyRaidMissionPopup === "function") {
+        window.openLegacyRaidMissionPopup(missionId, null);
+      }
+    } catch (_err) {}
     const title = document.getElementById("modalTitle");
     const content = document.getElementById("modalContent");
     const text = String(content && content.textContent ? content.textContent : "");
@@ -221,7 +229,7 @@ async function runScenario(browser) {
       hasCheckpoints: /Checkpoint|checkpoints/i.test(text),
       hasTelegraphs: /Telegraphs/i.test(text)
     };
-  });
+  }, summary.missionId);
 
   const payoutSummary = await page.evaluate(() => {
     if (typeof window.createMission !== "function" || typeof window.finalizeLegacyRaidVaultPayoutChoice !== "function") {

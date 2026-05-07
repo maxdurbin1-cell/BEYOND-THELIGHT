@@ -1889,6 +1889,16 @@
       + '<button class="btn btn-xs" onclick="rollHoldingDowntimeActivity(\'explore\')">Explore Province</button>'
       + '</div>'
       + '</div>'
+      + '<div style="border:1px solid var(--border2);background:rgba(46,196,182,.08);padding:.28rem;">'
+      + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Market & Stores</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--text2);margin-bottom:.14rem;">Buy practical supplies from local vendors to simulate daily settlement commerce.</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-teal" onclick="runHoldingDistrictActionByKind(\'merchant_items\',\'buy_item\')">Ration Kit (50₵)</button>'
+      + '<button class="btn btn-xs" onclick="runHoldingDistrictActionByKind(\'merchant_items\',\'buy_tools\')">Tool Kit (65₵)</button>'
+      + '<button class="btn btn-xs" onclick="runHoldingDistrictActionByKind(\'merchant_items\',\'buy_medicine\')">Medicine (85₵)</button>'
+      + '<button class="btn btn-xs btn-gold" onclick="runHoldingDistrictActionByKind(\'merchant_weapons\',\'buy_weapon\')">Weapon+ (120₵)</button>'
+      + '</div>'
+      + '</div>'
       + '</div>'
       + '</div>';
     return html;
@@ -1897,7 +1907,10 @@
   function runHoldingDistrictAction(nodeId, action) {
     var crawl = ensureHoldingSettlementHexcrawl();
     var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
-    if (!node) return;
+    if (!node) {
+      if (typeof showNotif === 'function') showNotif('District action unavailable here. Enter the holding map and choose a district first.', 'warn');
+      return;
+    }
     var msg = '';
     if (action === 'rest') {
       if (typeof toggleCond === 'function' && S.conditions && !S.conditions.protected) toggleCond('protected');
@@ -1915,6 +1928,22 @@
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
         if (typeof addToBackpack === 'function') addToBackpack('Ration Kit');
         msg = 'Purchased item: Ration Kit (-50 Credits).';
+      }
+    } else if (action === 'buy_tools') {
+      if (Number(S.credits || 0) < 65) msg = 'Not enough credits.';
+      else {
+        S.credits = Math.max(0, Number(S.credits || 0) - 65);
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        if (typeof addToBackpack === 'function') addToBackpack('Tool Kit');
+        msg = 'Purchased item: Tool Kit (-65 Credits).';
+      }
+    } else if (action === 'buy_medicine') {
+      if (Number(S.credits || 0) < 85) msg = 'Not enough credits.';
+      else {
+        S.credits = Math.max(0, Number(S.credits || 0) - 85);
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        if (typeof addToBackpack === 'function') addToBackpack('Medicine Satchel');
+        msg = 'Purchased item: Medicine Satchel (-85 Credits).';
       }
     } else if (action === 'buy_weapon') {
       if (Number(S.credits || 0) < 120) msg = 'Not enough credits.';
@@ -1934,6 +1963,17 @@
     node.result = msg || node.result;
     if (typeof showNotif === 'function' && msg) showNotif(msg, msg.toLowerCase().indexOf('not enough') >= 0 ? 'warn' : 'good');
     openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal());
+  }
+
+  function runHoldingDistrictActionByKind(kind, action) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var target = crawl.nodes.find(function (entry) { return String(entry.kind || '') === String(kind || ''); })
+      || crawl.nodes.find(function (entry) { return !!entry; });
+    if (!target) {
+      if (typeof showNotif === 'function') showNotif('No active district is available in this holding.', 'warn');
+      return;
+    }
+    runHoldingDistrictAction(target.id, action);
   }
 
   function openHoldingSettlementHexcrawl() {
@@ -3634,6 +3674,7 @@
   window.resolveHoldingDowntimeEvent = resolveHoldingDowntimeEvent;
   window.openHoldingSettlementHexcrawl = openHoldingSettlementHexcrawl;
   window.runHoldingDistrictAction = runHoldingDistrictAction;
+  window.runHoldingDistrictActionByKind = runHoldingDistrictActionByKind;
   window.selectHoldingSettlementDistrict = selectHoldingSettlementDistrict;
   window.advanceHoldingSettlementTime = advanceHoldingSettlementTime;
   window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;

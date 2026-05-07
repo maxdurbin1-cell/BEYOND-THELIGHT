@@ -3291,6 +3291,105 @@
     return "";
   }
 
+  function crosswordEvaluateStrictTemplate(template) {
+    const rows = Array.isArray(template) ? template.length : 0;
+    const cols = rows ? String(template[0] || "").length : 0;
+    let unchecked = 0;
+    let stubs = 0;
+    let isolated = 0;
+    let symmetryMismatch = 0;
+    const isWhite = function (r, c) {
+      if (r < 0 || c < 0 || r >= rows || c >= cols) return false;
+      return ((String(template[r] || "")[c] || "#") !== "#");
+    };
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!isWhite(r, c)) continue;
+        const hasHoriz = isWhite(r, c - 1) || isWhite(r, c + 1);
+        const hasVert = isWhite(r - 1, c) || isWhite(r + 1, c);
+        if (!hasHoriz || !hasVert) unchecked += 1;
+        if ((hasHoriz && !hasVert) || (!hasHoriz && hasVert)) stubs += 1;
+        if (!hasHoriz && !hasVert) isolated += 1;
+      }
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const rr = rows - 1 - r;
+        const cc = cols - 1 - c;
+        const a = (String(template[r] || "")[c] || "#") === "#";
+        const b = (String(template[rr] || "")[cc] || "#") === "#";
+        if (a !== b) symmetryMismatch += 1;
+      }
+    }
+    symmetryMismatch = Math.floor(symmetryMismatch / 2);
+    const ok = rows >= 2 && cols >= 2 && unchecked === 0 && stubs === 0 && isolated === 0;
+    return { ok: ok, unchecked: unchecked, stubs: stubs, isolated: isolated, symmetryMismatch: symmetryMismatch };
+  }
+
+  function crosswordBuildEntriesFromTemplate(template, clueLookup) {
+    const rows = Array.isArray(template) ? template.length : 0;
+    const cols = rows ? String(template[0] || "").length : 0;
+    if (!rows || !cols) return null;
+    const cellNums = {};
+    const isWhite = function (r, c) {
+      if (r < 0 || c < 0 || r >= rows || c >= cols) return false;
+      return ((String(template[r] || "")[c] || "#") !== "#");
+    };
+    const readWord = function (r, c, dir) {
+      let out = "";
+      if (dir === "across") {
+        let cc = c;
+        while (cc < cols && isWhite(r, cc)) {
+          out += (String(template[r] || "")[cc] || "").toUpperCase();
+          cc += 1;
+        }
+      } else {
+        let rr = r;
+        while (rr < rows && isWhite(rr, c)) {
+          out += (String(template[rr] || "")[c] || "").toUpperCase();
+          rr += 1;
+        }
+      }
+      return out;
+    };
+
+    let num = 1;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!isWhite(r, c)) continue;
+        const startsAcross = (!isWhite(r, c - 1)) && isWhite(r, c + 1);
+        const startsDown = (!isWhite(r - 1, c)) && isWhite(r + 1, c);
+        if (startsAcross || startsDown) {
+          cellNums[r + ":" + c] = num;
+          num += 1;
+        }
+      }
+    }
+
+    const across = [];
+    const down = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!isWhite(r, c)) continue;
+        const number = Number(cellNums[r + ":" + c] || 0);
+        if (!number) continue;
+        const startsAcross = (!isWhite(r, c - 1)) && isWhite(r, c + 1);
+        const startsDown = (!isWhite(r - 1, c)) && isWhite(r + 1, c);
+        if (startsAcross) {
+          const key = "across:" + r + ":" + c;
+          across.push({ number: number, clue: (clueLookup && clueLookup[key]) || "Cross-check entry", answer: readWord(r, c, "across"), row: r, col: c });
+        }
+        if (startsDown) {
+          const key = "down:" + r + ":" + c;
+          down.push({ number: number, clue: (clueLookup && clueLookup[key]) || "Cross-check entry", answer: readWord(r, c, "down"), row: r, col: c });
+        }
+      }
+    }
+    across.sort(function (a, b) { return a.number - b.number; });
+    down.sort(function (a, b) { return a.number - b.number; });
+    return { rows: rows, cols: cols, gridTemplate: template, cellNums: cellNums, across: across, down: down };
+  }
+
   function buildStoryCrosswordFromClues(rawClues) {
     const clues = Array.isArray(rawClues) ? rawClues.map(function (entry, idx) {
       return {
@@ -3302,129 +3401,131 @@
     }).filter(function (entry) { return entry.answer.length >= 3; }) : [];
     if (clues.length < 2) return null;
 
-    const grid = {};
-    const placements = [];
-    const key = function (x, y) { return x + ":" + y; };
-    const get = function (x, y) { return grid[key(x, y)] || ""; };
-    const set = function (x, y, ch) { grid[key(x, y)] = ch; };
-
-    function canPlace(word, x, y, dir) {
-      const dx = dir === "across" ? 1 : 0;
-      const dy = dir === "down" ? 1 : 0;
-      for (let i = 0; i < word.length; i++) {
-        const cx = x + dx * i;
-        const cy = y + dy * i;
-        const existing = get(cx, cy);
-        if (existing && existing !== word[i]) return { ok: false, crosses: 0 };
-        if (!existing) {
-          if (dir === "across") {
-            if (get(cx, cy - 1) || get(cx, cy + 1)) return { ok: false, crosses: 0 };
+    function tryBuild(order, firstDir, attempt) {
+      const grid = {};
+      const placements = [];
+      const key = function (x, y) { return x + ":" + y; };
+      const get = function (x, y) { return grid[key(x, y)] || ""; };
+      const set = function (x, y, ch) { grid[key(x, y)] = ch; };
+      const jitter = function (n) {
+        const raw = Math.sin((n + 1) * (attempt + 3) * 12.9898) * 43758.5453;
+        return raw - Math.floor(raw);
+      };
+      const canPlace = function (word, x, y, dir) {
+        const dx = dir === "across" ? 1 : 0;
+        const dy = dir === "down" ? 1 : 0;
+        let crosses = 0;
+        for (let i = 0; i < word.length; i++) {
+          const cx = x + dx * i;
+          const cy = y + dy * i;
+          const existing = get(cx, cy);
+          if (existing && existing !== word[i]) return { ok: false, crosses: 0 };
+          if (!existing) {
+            if (dir === "across") {
+              if (get(cx, cy - 1) || get(cx, cy + 1)) return { ok: false, crosses: 0 };
+            } else {
+              if (get(cx - 1, cy) || get(cx + 1, cy)) return { ok: false, crosses: 0 };
+            }
           } else {
-            if (get(cx - 1, cy) || get(cx + 1, cy)) return { ok: false, crosses: 0 };
+            crosses += 1;
           }
         }
-      }
-      const before = get(x - dx, y - dy);
-      const after = get(x + dx * word.length, y + dy * word.length);
-      if (before || after) return { ok: false, crosses: 0 };
-      let crosses = 0;
-      for (let i = 0; i < word.length; i++) {
-        if (get(x + dx * i, y + dy * i) === word[i]) crosses += 1;
-      }
-      return { ok: true, crosses: crosses };
-    }
+        if (get(x - dx, y - dy) || get(x + dx * word.length, y + dy * word.length)) return { ok: false, crosses: 0 };
+        return { ok: true, crosses: crosses };
+      };
+      const doPlace = function (clue, x, y, dir) {
+        const dx = dir === "across" ? 1 : 0;
+        const dy = dir === "down" ? 1 : 0;
+        for (let i = 0; i < clue.answer.length; i++) set(x + dx * i, y + dy * i, clue.answer[i]);
+        placements.push({ id: clue.id, clue: clue.clue, answer: clue.answer, dir: dir, x: x, y: y });
+      };
 
-    function doPlace(clue, x, y, dir) {
-      const word = clue.answer;
-      const dx = dir === "across" ? 1 : 0;
-      const dy = dir === "down" ? 1 : 0;
-      for (let i = 0; i < word.length; i++) {
-        set(x + dx * i, y + dy * i, word[i]);
-      }
-      placements.push({ id: clue.id, clue: clue.clue, answer: word, dir: dir, x: x, y: y });
-    }
-
-    const sorted = clues.slice().sort(function (a, b) { return b.answer.length - a.answer.length; });
-    const firstDir = sorted[0].preferred || "across";
-    doPlace(sorted[0], 0, 0, firstDir);
-
-    for (let ci = 1; ci < sorted.length; ci++) {
-      const clue = sorted[ci];
-      const word = clue.answer;
-      let best = null;
-      const preferredOrder = clue.preferred
-        ? [clue.preferred, clue.preferred === "across" ? "down" : "across"]
-        : ["down", "across"];
-      Object.keys(grid).forEach(function (kxy) {
-        const parts = kxy.split(":");
-        const gx = Number(parts[0]);
-        const gy = Number(parts[1]);
-        const gch = grid[kxy];
-        for (let wi = 0; wi < word.length; wi++) {
-          if (word[wi] !== gch) continue;
-          for (let oi = 0; oi < preferredOrder.length; oi++) {
-            const dir = preferredOrder[oi];
-            const sx = dir === "across" ? gx - wi : gx;
-            const sy = dir === "down" ? gy - wi : gy;
-            const fit = canPlace(word, sx, sy, dir);
-            if (!fit.ok || fit.crosses < 1) continue;
-            if (!best || fit.crosses > best.crosses) {
-              best = { x: sx, y: sy, dir: dir, crosses: fit.crosses };
+      doPlace(order[0], 0, 0, firstDir);
+      for (let ci = 1; ci < order.length; ci++) {
+        const clue = order[ci];
+        const word = clue.answer;
+        let best = null;
+        const preferredOrder = clue.preferred
+          ? [clue.preferred, clue.preferred === "across" ? "down" : "across"]
+          : ["down", "across"];
+        Object.keys(grid).forEach(function (kxy) {
+          const parts = kxy.split(":");
+          const gx = Number(parts[0]);
+          const gy = Number(parts[1]);
+          const gch = grid[kxy];
+          for (let wi = 0; wi < word.length; wi++) {
+            if (word[wi] !== gch) continue;
+            for (let oi = 0; oi < preferredOrder.length; oi++) {
+              const dir = preferredOrder[oi];
+              const sx = dir === "across" ? gx - wi : gx;
+              const sy = dir === "down" ? gy - wi : gy;
+              const fit = canPlace(word, sx, sy, dir);
+              if (!fit.ok || fit.crosses < 1) continue;
+              const score = fit.crosses * 12 + (dir === clue.preferred ? 2 : 0) + jitter(ci * 37 + wi * 11 + oi * 3);
+              if (!best || score > best.score) best = { x: sx, y: sy, dir: dir, score: score };
             }
           }
-        }
+        });
+        if (!best) return null;
+        doPlace(clue, best.x, best.y, best.dir);
+      }
+
+      const coords = Object.keys(grid).map(function (kxy) {
+        const p = kxy.split(":");
+        return { x: Number(p[0]), y: Number(p[1]) };
       });
-      if (!best) return null;
-      doPlace(clue, best.x, best.y, best.dir);
-    }
-
-    const coords = Object.keys(grid).map(function (kxy) {
-      const parts = kxy.split(":");
-      return { x: Number(parts[0]), y: Number(parts[1]) };
-    });
-    const minX = Math.min.apply(null, coords.map(function (c) { return c.x; }));
-    const maxX = Math.max.apply(null, coords.map(function (c) { return c.x; }));
-    const minY = Math.min.apply(null, coords.map(function (c) { return c.y; }));
-    const maxY = Math.max.apply(null, coords.map(function (c) { return c.y; }));
-    const rows = maxY - minY + 1;
-    const cols = maxX - minX + 1;
-    const template = [];
-    for (let y = minY; y <= maxY; y++) {
-      let row = "";
-      for (let x = minX; x <= maxX; x++) {
-        row += get(x, y) || "#";
+      if (!coords.length) return null;
+      const minX = Math.min.apply(null, coords.map(function (c) { return c.x; }));
+      const maxX = Math.max.apply(null, coords.map(function (c) { return c.x; }));
+      const minY = Math.min.apply(null, coords.map(function (c) { return c.y; }));
+      const maxY = Math.max.apply(null, coords.map(function (c) { return c.y; }));
+      const template = [];
+      for (let y = minY; y <= maxY; y++) {
+        let row = "";
+        for (let x = minX; x <= maxX; x++) row += get(x, y) || "#";
+        template.push(row);
       }
-      template.push(row);
+      const placed = placements.map(function (pl) {
+        return { dir: pl.dir, row: pl.y - minY, col: pl.x - minX, clue: pl.clue };
+      });
+      return { template: template, placements: placed };
     }
 
-    const cellNums = {};
-    let num = 1;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const ch = (template[r][c] || "#").toUpperCase();
-        if (ch === "#") continue;
-        const startsAcross = (c === 0 || (template[r][c - 1] || "#") === "#") && c + 1 < cols && (template[r][c + 1] || "#") !== "#";
-        const startsDown = (r === 0 || (template[r - 1][c] || "#") === "#") && r + 1 < rows && (template[r + 1][c] || "#") !== "#";
-        if (startsAcross || startsDown) {
-          cellNums[r + ":" + c] = num;
-          num += 1;
-        }
+    let best = null;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const ordered = clues.slice().sort(function (a, b) {
+        const lenDiff = b.answer.length - a.answer.length;
+        if (lenDiff !== 0) return lenDiff;
+        const aw = Math.floor(Math.abs(Math.sin((a.id + 1) * (attempt + 5))) * 1000);
+        const bw = Math.floor(Math.abs(Math.sin((b.id + 1) * (attempt + 5))) * 1000);
+        return aw - bw;
+      });
+      const naturalDir = ordered[0].preferred || "across";
+      const firstDir = (attempt % 2 === 0) ? naturalDir : (naturalDir === "across" ? "down" : "across");
+      const candidate = tryBuild(ordered, firstDir, attempt);
+      if (!candidate) continue;
+      const strict = crosswordEvaluateStrictTemplate(candidate.template);
+      if (!strict.ok) continue;
+      const clueLookup = {};
+      candidate.placements.forEach(function (pl) {
+        clueLookup[pl.dir + ":" + pl.row + ":" + pl.col] = pl.clue;
+      });
+      const built = crosswordBuildEntriesFromTemplate(candidate.template, clueLookup);
+      if (!built || !Array.isArray(built.across) || !Array.isArray(built.down)) continue;
+      const fillRatio = built.across.length + built.down.length;
+      const quality = {
+        symmetryMismatch: strict.symmetryMismatch,
+        fillRatio: fillRatio,
+        area: built.rows * built.cols
+      };
+      if (!best
+        || quality.symmetryMismatch < best.quality.symmetryMismatch
+        || (quality.symmetryMismatch === best.quality.symmetryMismatch && quality.fillRatio > best.quality.fillRatio)
+        || (quality.symmetryMismatch === best.quality.symmetryMismatch && quality.fillRatio === best.quality.fillRatio && quality.area < best.quality.area)) {
+        best = { crossword: built, quality: quality };
       }
     }
-
-    const across = [];
-    const down = [];
-    placements.forEach(function (pl) {
-      const r = pl.y - minY;
-      const c = pl.x - minX;
-      const number = Number(cellNums[r + ":" + c] || 0);
-      const record = { number: number, clue: pl.clue, answer: pl.answer, row: r, col: c };
-      if (pl.dir === "down") down.push(record);
-      else across.push(record);
-    });
-    across.sort(function (a, b) { return a.number - b.number; });
-    down.sort(function (a, b) { return a.number - b.number; });
-    return { rows: rows, cols: cols, gridTemplate: template, cellNums: cellNums, across: across, down: down };
+    return best ? best.crossword : null;
   }
 
   function puzzleAttemptScore() {

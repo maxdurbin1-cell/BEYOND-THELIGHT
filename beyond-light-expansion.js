@@ -1379,6 +1379,7 @@
                  <div class="ss-title">${capitalize(hex.siteType)}</div>
                  <div class="ss-text">${describeSeaSite(hex.siteType, hex.siteData)}</div>
                  ${hex.siteType === 'settlement' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="generateTaskForSeaHex(${hex.col},${hex.row})">⚄ Generate Task</button></div>${buildSeaSettlementDowntimePanel(hex)}` : ''}
+                 ${hex.siteType === 'dungeon' ? `<div class="ruin-room" style="margin-top:.32rem;"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Built by:</strong> ${hex.siteData.builder || 'Unknown'}<br><strong>Purpose:</strong> ${hex.siteData.builtFor || 'Unknown'}<br><strong>Construction:</strong> ${hex.siteData.construction || 'Stone'}<br><strong>Entrance:</strong> ${hex.siteData.entrance || 'Collapsed arch'}<br><strong>Rooms:</strong> ${hex.siteData.rooms || 4} total<br><strong>Novelty:</strong> ${hex.siteData.novelty || 'None'}</div></div><div style="margin-top:.32rem;display:flex;gap:.24rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="requestJoinSeaArea('dungeon',${hex.col},${hex.row})">Join Area: Sea Ruins</button></div>` : ''}
                </div>`
             : ""
         }

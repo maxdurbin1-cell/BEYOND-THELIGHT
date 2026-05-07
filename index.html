@@ -112,10 +112,10 @@ select option{background:#0f1020;}
 .ctx-btn{background:transparent;border:1px solid transparent;color:var(--muted2);font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.1em;padding:.28rem .7rem;cursor:pointer;border-radius:999px;text-transform:uppercase;transition:all .15s;min-height:2rem;}
 .ctx-btn:hover{color:var(--gold);border-color:rgba(201,162,39,.24);background:rgba(201,162,39,.05);}
 .ctx-btn.on{color:var(--gold3);border-color:rgba(201,162,39,.45);background:linear-gradient(180deg,rgba(201,162,39,.14) 0%,rgba(201,162,39,.06) 100%);}
-.map-layout{display:grid;grid-template-columns:1fr 380px;gap:.65rem;height:calc(100vh - 160px);}
-@media(max-width:900px){.map-layout{grid-template-columns:1fr;height:auto;}}
+.map-layout{display:grid;grid-template-columns:1fr;grid-template-rows:minmax(560px,68vh) auto;gap:.65rem;}
+@media(max-width:900px){.map-layout{grid-template-rows:minmax(420px,58vh) auto;}}
 .map-scroll{overflow:auto;background:var(--card);border:1px solid var(--border);position:relative;}
-.hex-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;}
+.hex-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;max-height:34vh;}
 .hex-info-inner{padding:.7rem;}
 .hex-type-tag{display:inline-block;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;padding:.12rem .45rem;border:1px solid;margin-bottom:.3rem;}
 .hex-type-tag.wilderness{color:var(--teal);border-color:var(--teal);}.hex-type-tag.holding{color:var(--red2);border-color:var(--red2);}.hex-type-tag.seat{color:var(--gold);border-color:var(--gold);}.hex-type-tag.dwelling{color:#a0c040;border-color:#a0c040;}.hex-type-tag.temple{color:#b060d0;border-color:#b060d0;}.hex-type-tag.monument{color:var(--muted3);border-color:var(--muted3);}.hex-type-tag.peril{color:var(--red2);border-color:var(--red2);}.hex-type-tag.ruins{color:#a09870;border-color:#a09870;}.hex-type-tag.event{color:var(--gold2);border-color:var(--gold2);}.hex-type-tag.gate{color:var(--teal);border-color:var(--teal);}.hex-type-tag.lostcity{color:#e080c0;border-color:#e080c0;}.hex-type-tag.barrier{color:var(--muted2);border-color:var(--muted2);}.hex-type-tag.trade{color:#f0a840;border-color:#f0a840;}
@@ -822,9 +822,9 @@ select option{background:#0f1020;}
   </div>
   <div class="map-layout">
     <div class="map-scroll" id="mapScroll">
-      <svg id="hexMapSvg" width="600" height="540" xmlns="http://www.w3.org/2000/svg">
-        <text x="300" y="260" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text>
-        <text x="300" y="285" text-anchor="middle" font-family="Cinzel,serif" font-size="10" fill="#1a1c35">Select an Age and Season above before generating</text>
+      <svg id="hexMapSvg" width="760" height="660" xmlns="http://www.w3.org/2000/svg">
+        <text x="380" y="318" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text>
+        <text x="380" y="343" text-anchor="middle" font-family="Cinzel,serif" font-size="10" fill="#1a1c35">Select an Age and Season above before generating</text>
       </svg>
     </div>
     <div class="hex-info" id="hexInfo">
@@ -9853,7 +9853,7 @@ function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);c
 // ── MAP GENERATION ────────────────────────────────────────────────────────────
 // FIX: 12×12 grid
 let mapData=[];
-const HEX_SIZE=30,COLS=12,ROWS=12;
+const HEX_SIZE=34,COLS=12,ROWS=12;
 let usedPerils=[],usedBarriers=[];
 let provinceEdgeBarriers=[];
 
@@ -10293,7 +10293,7 @@ function markTradeRoutes(nodes){
   }
 }
 
-function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];provinceEdgeBarriers=[];provinceMapCoreSignature='';provinceMapSelectedKeyCache='';if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','600');svg.setAttribute('height','540');svg.innerHTML='<text x="300" y="260" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
+function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];provinceEdgeBarriers=[];provinceMapCoreSignature='';provinceMapSelectedKeyCache='';if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','760');svg.setAttribute('height','660');svg.innerHTML='<text x="380" y="318" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text><text x="380" y="343" text-anchor="middle" font-family="Cinzel,serif" font-size="10" fill="#1a1c35">Select an Age and Season above before generating</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
 
 function cloneProvinceState(value){
   try{return JSON.parse(JSON.stringify(value));}catch(_err){return null;}
@@ -11221,7 +11221,6 @@ function renderHexInfo(hex){
   // ── SEAT / HOLDING ──
   }else if(hex.type==='seat'||hex.type==='holding'){
     html+=`<div class="wild-panel"><div class="wp-label">${hex.type==='holding'?'Holding':'Site of Power'}</div><div class="wp-text">Settlement</div></div>`;
-    html+=`<div class="wild-panel"><div class="wp-label">🌦 Weather</div><div class="wp-text">${(S.currentSeason||'spring').toUpperCase()}: ${(weatherResult&&weatherResult.title)||'Clear and Warm'}<br>${(weatherResult&&weatherResult.desc)||'A fine spring day. Nothing impedes the road.'}</div></div>`;
     // Rest boon banner
     html+=`<div class="rest-boon" style="background:rgba(201,162,39,.06);border-color:rgba(201,162,39,.4);">
       <div class="rb-label" style="color:var(--gold);">🛡 Rest Boon</div>
@@ -11234,7 +11233,13 @@ function renderHexInfo(hex){
     html+=`<div class="mood-block"><div class="mb-label">Mood: ${m.mood||'Unknown'}</div><div style="font-size:.82rem;color:var(--text2);">${m.crisis||''}<br><em style="font-size:.78rem;">${m.resolution||''}</em></div>${hasHoldingCrisis?`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveHoldingCrisisAction(${hex.col},${hex.row})">${crisisActionLabel}</button></div>`:''}</div>`;
     if(d.lord)html+=`<div class="wild-panel"><div class="wp-label">Lord</div><div class="wp-text">${d.lord}</div></div>`;
     html+=`<div class="npc-block"><div class="nb-label">🎯 Lord's Knowledge</div><div style="font-size:.8rem;color:var(--muted3);">Lords grasp all Mysteries — their secrets, locations, vulnerabilities, and remedies. They know all Locations across the Province. Such knowledge is rarely given freely.</div></div>`;
-    html+=`<div style="margin:.2rem 0;"><button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();else alert('Holdings system not ready');">◫ Enter Holding</button></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">🏪 Settlement Life</div><div class="wp-text">Markets open at first light, crafters trade tools, and caravans exchange supplies all day. Spend coin locally to keep the holding fed and armed.</div></div>`;
+    html+=`<div style="margin:.25rem 0;display:flex;gap:.28rem;flex-wrap:wrap;">
+      <button class="btn btn-sm btn-teal" onclick="if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();else alert('Holdings system not ready');">◫ Enter Holding</button>
+      <button class="btn btn-sm" onclick="if(typeof runHoldingDistrictActionByKind==='function')runHoldingDistrictActionByKind('merchant_items','buy_item');">Buy Ration Kit (50₵)</button>
+      <button class="btn btn-sm" onclick="if(typeof runHoldingDistrictActionByKind==='function')runHoldingDistrictActionByKind('merchant_weapons','buy_weapon');">Buy Weapon+ (120₵)</button>
+      <button class="btn btn-sm btn-gold" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"nav .tab-btn[onclick*=\\\"switchTab('shop'\\\"]\");switchTab('shop',b||null);}">Open Merchants Tab</button>
+    </div>`;
 
   // ── DWELLING ──
   }else if(hex.type==='dwelling'){
@@ -15233,12 +15238,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!segments.length)return '';
     const fog=fogInfo||getProvinceDepthsFogInfo(floorState);
     const selectedIdx=Math.max(0,Math.min(segments.length-1,parseInt(floorState.selectedIdx,10)||0));
-    const spacing=18;
-    const size=10;
+    const spacing=24;
+    const size=14;
     const placed=segments.map(function(segment,idx){
       const coord=getProvinceDepthsSpiralCoord(idx+1);
-      const x=Math.round(coord.q*spacing+140);
-      const y=Math.round((coord.r+coord.q*0.5)*(spacing*0.94)+82);
+      const x=Math.round(coord.q*spacing+180);
+      const y=Math.round((coord.r+coord.q*0.5)*(spacing*0.94)+112);
       return {segment:segment,idx:idx,x:x,y:y};
     });
     const links=[];
@@ -15256,13 +15261,13 @@ document.addEventListener('DOMContentLoaded',()=>{
       const label=fog.frontierMask[node.idx]?('Segment '+(segment.idx||node.idx+1)+' frontier'):(segment.idx||node.idx+1)+' '+(segment.kind||'Segment');
       return '<g style="cursor:pointer;" onclick="selectProvinceDepthsSegment('+col+','+row+','+node.idx+')">'
         +'<polygon points="'+points+'" fill="'+visual.fill+'" stroke="'+visual.stroke+'" stroke-width="1.4"></polygon>'
-        +'<text x="'+node.x+'" y="'+(node.y+3)+'" text-anchor="middle" font-size="8.5" fill="var(--text)">'+visual.icon+'</text>'
+        +'<text x="'+node.x+'" y="'+(node.y+4)+'" text-anchor="middle" font-size="11" fill="var(--text)">'+visual.icon+'</text>'
         +'<title>'+label+'</title>'
         +'</g>';
     }).join('');
     return '<div style="border:1px solid rgba(126,215,255,.25);background:rgba(9,18,24,.55);padding:.35rem;border-radius:4px;margin-bottom:.5rem;">'
       +'<div style="font-size:.68rem;color:#7ed7ff;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.25rem;">Mapped Crawl (click a node)</div>'
-      +'<svg viewBox="0 0 280 165" style="width:100%;height:auto;display:block;">'+links.join('')+cells+'</svg>'
+      +'<svg viewBox="0 0 360 230" style="width:100%;height:auto;display:block;">'+links.join('')+cells+'</svg>'
         +'<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Fog of war: discovered nodes are solid; frontier nodes are faint outlines.</div>'
       +'</div>';
   }

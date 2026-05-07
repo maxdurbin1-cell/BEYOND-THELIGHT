@@ -10701,9 +10701,9 @@ function renderHexMap(){
       const mtMission=(S&&Array.isArray(S.activeMissions))?S.activeMissions.find(m=>m&&String(m.id||'')===String(mt.missionId||'')):null;
       const isLegacyRaidToken=mt.missionType==='legacy_raid'||(mtMission&&mtMission.missionType==='legacy_raid');
       let icon='⚔',color='#e05050',label='SITE',fill='rgba(224,80,80,.18)';
-      if(isLegacyRaidToken){icon='🐉';color='#ff8450';label=(mt.type==='informer'?'RAID LORE':'RAID');fill='rgba(255,132,80,.2)';}
+      if(isLegacyRaidToken){icon='🐉';color='#ff8450';label=(mt.type==='informer'?'RAID AVAILABLE':'RAID');fill='rgba(255,132,80,.2)';}
       if(mt.type==='informer'||mt.type==='holding_info'){icon='👁';color='#e8c050';label='INFORMER';fill='rgba(232,192,80,.18)';}
-      if(isLegacyRaidToken&&(mt.type==='informer'||mt.type==='holding_info')){icon='🐉';color='#ff8450';label='RAID LORE';fill='rgba(255,132,80,.2)';}
+      if(isLegacyRaidToken&&(mt.type==='informer'||mt.type==='holding_info')){icon='🐉';color='#ff8450';label='RAID AVAILABLE';fill='rgba(255,132,80,.2)';}
       if(mt.type==='holding_site'){icon='🧭';color='#ff8450';label='HOLDING SITE';fill='rgba(255,132,80,.18)';}
       if(mt.type==='holding_home'){icon='🏛';color='#46c4b6';label='HOLDING';fill='rgba(70,196,182,.2)';}
       if(mt.type==='story_choice'){icon='➤';color='#f0d070';label='STORY';fill='rgba(240,208,112,.2)';}
@@ -11073,7 +11073,7 @@ function renderHexInfo(hex){
     const mtMission=(S&&Array.isArray(S.activeMissions))?S.activeMissions.find(m=>m&&String(m.id||'')===String(mt.missionId||'')):null;
     const isLegacyRaidToken=mt.missionType==='legacy_raid'||(mtMission&&mtMission.missionType==='legacy_raid');
     const markerTitle=(mt.missionId==='holding_quest'&&mt.type==='informer')?'Holding Quest: Gather Information'
-      :(isLegacyRaidToken&&mt.type==='informer')?'Raid Lore Wing'
+      :(isLegacyRaidToken&&mt.type==='informer')?'Raid Mission Available'
       :(isLegacyRaidToken)?'Raid Confrontation Wing'
       :(mt.missionId==='holding_quest'&&mt.type==='site')?'Holding Quest: Go To Site'
       :mt.type==='story_choice'?'Story Objective'

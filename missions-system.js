@@ -896,9 +896,18 @@
         var informerHex = shuffled[0];
         var siteHex = shuffled[1];
         S.missionTokens[informerHex.col + ',' + informerHex.row] = { missionId: mission.id, title: mission.title, type: 'informer', missionType: mission.missionType || 'standard' };
-        S.missionTokens[siteHex.col + ',' + siteHex.row]      = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'standard' };
         mission.informerHex = { col: informerHex.col, row: informerHex.row };
         mission.siteHex     = { col: siteHex.col,     row: siteHex.row };
+        if (mission.missionType === 'legacy_raid') {
+          var mapPrompt = ensureLegacyRaidMapPromptState(mission);
+          if (mapPrompt && mapPrompt.siteRevealed) {
+            S.missionTokens[siteHex.col + ',' + siteHex.row] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'legacy_raid' };
+          } else {
+            delete S.missionTokens[siteHex.col + ',' + siteHex.row];
+          }
+        } else {
+          S.missionTokens[siteHex.col + ',' + siteHex.row] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'standard' };
+        }
         // Keep mapHex pointing to site for backwards compatibility
         mission.mapHex = mission.siteHex;
       } else if (candidates.length === 1) {
@@ -4361,34 +4370,117 @@
     run.wingClean[w] = false;
   }
 
+  function ensureLegacyRaidMapPromptState(mission) {
+    if (!mission || mission.missionType !== 'legacy_raid') return null;
+    if (!mission.legacyRaidMapPrompt || typeof mission.legacyRaidMapPrompt !== 'object') {
+      mission.legacyRaidMapPrompt = {
+        warningAccepted: false,
+        siteRevealed: false
+      };
+    }
+    mission.legacyRaidMapPrompt.warningAccepted = !!mission.legacyRaidMapPrompt.warningAccepted;
+    mission.legacyRaidMapPrompt.siteRevealed = !!mission.legacyRaidMapPrompt.siteRevealed;
+    return mission.legacyRaidMapPrompt;
+  }
+
+  function syncLegacyRaidMapMarkerViews() {
+    if (typeof renderHexMap === 'function') {
+      try { renderHexMap(); } catch (_err) {}
+    }
+    if (typeof renderHexInfo === 'function' && typeof selectedHex !== 'undefined' && selectedHex) {
+      try { renderHexInfo(selectedHex); } catch (_err2) {}
+    }
+    if (typeof refreshMissionSurfaces === 'function') {
+      try { refreshMissionSurfaces(); } catch (_err3) {}
+    }
+  }
+
+  function revealLegacyRaidSiteMarker(mission) {
+    if (!mission || mission.missionType !== 'legacy_raid' || !mission.siteHex) return false;
+    ensureState();
+    var state = ensureLegacyRaidMapPromptState(mission);
+    if (!state) return false;
+    var key = String(mission.siteHex.col) + ',' + String(mission.siteHex.row);
+    S.missionTokens[key] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'legacy_raid' };
+    state.siteRevealed = true;
+    syncLegacyRaidMapMarkerViews();
+    return true;
+  }
+
+  function openLegacyRaidEntryPrompt(mission) {
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var bossName = String(mission.legacyRaidBoss || 'Raid Boss');
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:600px;">'
+      + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.2rem;"><strong>Raid Location Found</strong></div>'
+      + '<div style="margin-bottom:.28rem;">The raid gate to <strong style="color:var(--gold2);">' + bossName + '</strong> hums with unstable energy.</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.34rem;">Enter to open the Raid overview, or leave and return when ready.</div>'
+      + '<div style="display:flex;gap:.3rem;justify-content:flex-end;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm" onclick="closeModal()">Leave</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="openLegacyRaidMissionPopup(' + mission.id + ',{tokenType:\'raid\',regionTag:\'' + String(mission.region || 'region') + '\'});">Enter Raid</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Raid Gate', html);
+    return true;
+  }
+
   function handleLegacyRaidMarkerInteraction(missionId, tokenType, regionTag) {
     var mission = getMission(missionId);
     if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var mapPrompt = ensureLegacyRaidMapPromptState(mission);
     var type = String(tokenType || '').toLowerCase();
     if (!canAutoAdvanceMission(mission.id, type || 'raid', regionTag || mission.region || 'region')) return false;
 
     if ((type === 'informer' || type === 'holding_info') && mission.steps[1] && !mission.steps[1].completed) {
-      setLegacyRaidCurrentWing(mission, 1);
-      if (typeof window.openLegacyRaidLeadInMissionModal === 'function') return !!window.openLegacyRaidLeadInMissionModal(mission.id, 1);
-      startMissionStep1(mission.id);
+      openModal(
+        'Endgame Raid Warning',
+        '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:620px;">'
+          + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.2rem;"><strong>This is an endgame raid. Be wary.</strong></div>'
+          + '<div style="margin-bottom:.26rem;">Your contact can expose the raid gate hex, but this route expects late-campaign readiness.</div>'
+          + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.34rem;">Accepting reveals the Raid location marker on another hex.</div>'
+          + '<div style="display:flex;gap:.3rem;justify-content:flex-end;flex-wrap:wrap;">'
+          + '<button class="btn btn-sm" onclick="closeModal()">Leave</button>'
+          + '<button class="btn btn-sm btn-primary" onclick="acceptLegacyRaidWarning(' + mission.id + ')">Accept</button>'
+          + '</div>'
+          + '</div>'
+      );
       return true;
     }
-    if ((type === 'site' || type === 'holding_site') && mission.steps[2] && !mission.steps[2].completed) {
-      setLegacyRaidCurrentWing(mission, 2);
-      if (typeof window.openLegacyRaidLeadInMissionModal === 'function') return !!window.openLegacyRaidLeadInMissionModal(mission.id, 2);
-      startMissionStep2(mission.id);
-      return true;
+
+    if ((type === 'site' || type === 'holding_site')) {
+      if (!mapPrompt || !mapPrompt.warningAccepted) {
+        if (typeof showNotif === 'function') showNotif('Talk to the raid contact first before the gate can be approached.', 'warn');
+        return true;
+      }
+      if (!mapPrompt.siteRevealed) revealLegacyRaidSiteMarker(mission);
+      setLegacyRaidCurrentWing(mission, getLegacyRaidCurrentWing(mission));
+      return openLegacyRaidEntryPrompt(mission);
     }
 
     if (mission.steps && mission.steps[2] && mission.steps[2].completed && mission.steps[3] && !mission.steps[3].completed) {
       setLegacyRaidCurrentWing(mission, 3);
-      if (typeof window.openRaidWingPopup === 'function') return !!window.openRaidWingPopup(mission.id, 3);
+      return openLegacyRaidEntryPrompt(mission);
     }
     if (typeof window.openLegacyRaidMissionPopup === 'function') {
-      return !!window.openLegacyRaidMissionPopup(mission.id, { tokenType: type || 'site', regionTag: regionTag || mission.region || 'region' });
+      return !!window.openLegacyRaidMissionPopup(mission.id, { tokenType: type || 'raid', regionTag: regionTag || mission.region || 'region' });
     }
     return false;
   }
+
+  window.acceptLegacyRaidWarning = function (missionId) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'legacy_raid') return false;
+    var state = ensureLegacyRaidMapPromptState(mission);
+    if (!state) return false;
+    state.warningAccepted = true;
+    state.siteRevealed = true;
+    revealLegacyRaidSiteMarker(mission);
+    if (typeof showNotif === 'function') {
+      var hexLabel = mission.siteHex ? ('Hex ' + String(Number(mission.siteHex.col || 0) + 1) + ',' + String(Number(mission.siteHex.row || 0) + 1)) : 'a nearby hex';
+      showNotif('Raid location revealed at ' + hexLabel + '.', 'good');
+    }
+    if (typeof closeModal === 'function') closeModal();
+    return true;
+  };
 
   function openLegacyRaidPreludeModal(missionId) {
     var mission = getMission(missionId);
@@ -4410,8 +4502,8 @@
         + '</div>'
       + '</div>'
     );
-    return true;
-  }
+      return true;
+    }
 
   window.confirmLegacyRaidPrelude = function (missionId) {
     var mission = getMission(missionId);
@@ -7046,6 +7138,14 @@
     var rooms = map.wings[wingNum];
     var theme = getRaidTheme(mission);
     var run = ensureLegacyRaidRunState(mission);
+    if (Number(wingNum || 1) === 2 && !(mission.steps && mission.steps[1] && mission.steps[1].completed)) {
+      if (typeof showNotif === 'function') showNotif('Wing 2 is locked. Clear Wing 1 first.', 'warn');
+      return openLegacyRaidMissionPopup(mission.id, null);
+    }
+    if (Number(wingNum || 1) === 3 && !(mission.steps && mission.steps[2] && mission.steps[2].completed)) {
+      if (typeof showNotif === 'function') showNotif('Wing 3 is locked. Clear Wing 2 first.', 'warn');
+      return openLegacyRaidMissionPopup(mission.id, null);
+    }
     if (Number(wingNum || 1) === 1 && run && !run.preludeWing1Ready && !(mission.steps && mission.steps[1] && mission.steps[1].completed)) {
       if (typeof showNotif === 'function') showNotif('Wing 1 is locked until the raid prelude objective is completed.', 'warn');
       return openLegacyRaidPreludeModal(mission.id);
@@ -9120,6 +9220,10 @@
       var step = steps[wing.key] || {};
       var done = !!step.completed;
       var wingLockedByPrelude = (wing.key === 1 && !done && run && !run.preludeWing1Ready);
+      var wingLockedByProgress = (wing.key === 2 && !done && !s1.completed) || (wing.key === 3 && !done && !s2.completed);
+      var lockNote = wing.key === 2
+        ? 'Locked until Wing 1 lore breach is complete.'
+        : (wing.key === 3 ? 'Locked until Wing 2 waypoint mechanics are complete.' : '');
       return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .55rem;">'
         + '<div style="display:flex;justify-content:space-between;gap:.35rem;margin-bottom:.18rem;">'
         + '<div style="font-size:.77rem;color:var(--text2);"><strong>Wing ' + wing.key + ': ' + wing.title + '</strong></div>'
@@ -9130,6 +9234,8 @@
         + (!done
           ? (wingLockedByPrelude
             ? '<button class="btn btn-xs btn-teal" onclick="openLegacyRaidPreludeModal(' + mission.id + ')">→ Start Prelude</button>'
+            : wingLockedByProgress
+              ? '<button class="btn btn-xs" disabled>Locked</button><div style="font-size:.64rem;color:var(--muted2);margin-top:.16rem;">' + lockNote + '</div>'
             : '<button class="btn btn-xs btn-teal" onclick="openRaidWingPopup(' + mission.id + ',' + wing.key + ')">→ Open Wing Map</button>')
           : '<span style="font-size:.67rem;color:var(--green2);">✓ Wing complete</span>')
         + '</div>';

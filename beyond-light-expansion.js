@@ -3134,44 +3134,22 @@
           : "A quiet chamber full of salt-stained debris.";
       }
       const text = room.text;
-      // Puzzle rooms get real puzzle rendering
+      // Puzzle rooms use the same standalone puzzle flow as Province Ruins.
       const isPuzzleRoom = type === "Puzzle";
       if (isPuzzleRoom && !room.cleared) {
         if (!room.puzzleSpec) {
           var pPool = (typeof SEA_RUIN_PUZZLES !== 'undefined' ? SEA_RUIN_PUZZLES : []);
           room.puzzleSpec = pPool.length ? pPool[Math.floor(Math.random() * pPool.length)] : null;
         }
-        const ps = room.puzzleSpec;
-        let puzzleHtml = '';
-        if (ps) {
-          if (ps.mode === 'code') {
-            puzzleHtml = `<div style="margin-top:.3rem;background:rgba(0,0,0,.3);padding:.35rem .4rem;border-radius:3px;">
-              <div style="font-size:.74rem;color:var(--gold2);font-weight:700;">🧩 ${ps.title}</div>
-              <div style="font-size:.78rem;color:var(--text2);margin:.2rem 0;">${ps.prompt}</div>
-              <input id="seaPuzzle_${index}" class="input" style="width:100%;max-width:200px;margin-top:.2rem;background:#fff;color:#000;text-transform:lowercase;" placeholder="Your answer…" />
-              <div style="margin-top:.3rem;display:flex;gap:.3rem;flex-wrap:wrap;">
-                <button class="btn btn-xs btn-teal" onclick="checkSeaDungeonPuzzle(${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.col:0},${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.row:0},${index-1},'seaPuzzle_${index}')">✓ Submit Answer</button>
-              </div>
-            </div>`;
-          } else if (ps.mode === 'rearrange' || ps.mode === 'mosaic') {
-            puzzleHtml = `<div style="margin-top:.3rem;background:rgba(0,0,0,.3);padding:.35rem .4rem;border-radius:3px;">
-              <div style="font-size:.74rem;color:var(--gold2);font-weight:700;">🧩 ${ps.title}</div>
-              <div style="font-size:.78rem;color:var(--text2);margin:.2rem 0;">${ps.prompt}</div>
-              <div style="font-size:.74rem;color:var(--muted2);margin:.18rem 0;">Words: ${ps.bank.join(' · ')}</div>
-              <input id="seaPuzzle_${index}" class="input" style="width:100%;max-width:260px;margin-top:.2rem;background:#fff;color:#000;text-transform:lowercase;" placeholder="Arrange the words…" />
-              <div style="margin-top:.3rem;">
-                <button class="btn btn-xs btn-teal" onclick="checkSeaDungeonPuzzle(${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.col:0},${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.row:0},${index-1},'seaPuzzle_${index}')">✓ Submit Answer</button>
-              </div>
-            </div>`;
-          } else {
-            puzzleHtml = `<div style="margin-top:.3rem;font-size:.78rem;color:var(--muted2);">${text}</div>`;
-          }
-        }
+        const blockingPuzzleIdx = getSeaDungeonBlockingPuzzleIndex(data.generatedRooms);
+        const puzzleLocked = blockingPuzzleIdx >= 0 && (index - 1) > blockingPuzzleIdx;
+        const puzzleAction = puzzleLocked
+          ? '<div style="margin-top:.28rem;font-size:.72rem;color:var(--red2);">🔒 Progress blocked by an unsolved puzzle in an earlier room.</div>'
+          : `<div style="margin-top:.32rem;"><button class="btn btn-xs btn-teal" onclick="startSeaDungeonPuzzle(${index - 1})">🧩 Solve Puzzle</button></div>`;
         html += `<div class="room-block">
           <div class="rb-title">Room ${index} — Puzzle</div>
           <div class="rb-text">${text}</div>
-          ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : puzzleHtml}
-          ${!room.result ? `<div style="margin-top:.28rem;font-size:.72rem;color:var(--muted2);"><em>Alternatively, force the lock: </em><button class="btn btn-xs" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Force Lock (AD vs DD6)</button></div>` : ''}
+          ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : puzzleAction}
         </div>`;
       } else {
         html += `
@@ -3276,18 +3254,50 @@
     return pick(table)();
   }
 
+  function getSeaDungeonBlockingPuzzleIndex(rooms) {
+    if (!Array.isArray(rooms)) return -1;
+    for (var i = 0; i < rooms.length; i++) {
+      var room = rooms[i];
+      if (room && room.type === 'Puzzle' && !room.cleared) return i;
+    }
+    return -1;
+  }
+
+  function getSeaDungeonRoomDread(type) {
+    if (type === 'Boss Chamber') return 12;
+    if (type === 'Trap' || type === 'Obstacle') return 6;
+    return 8;
+  }
+
+  function syncSeaDungeonState(reason) {
+    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
+      setTimeout(function () {
+        try {
+          window.campaignSystem.syncSharedSilent(reason || 'sea-dungeon-update');
+        } catch (_err) {}
+      }, 0);
+    }
+  }
+
   function exploreSeaDungeonRoom(roomIndex) {
     if (!S.lastSea || !S.lastSea.activeDungeon) return;
     const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
     const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
     if (!data || !data.generatedRooms || !data.generatedRooms[roomIndex]) return;
+    const blockingPuzzleIdx = getSeaDungeonBlockingPuzzleIndex(data.generatedRooms);
+    if (blockingPuzzleIdx >= 0 && Number(roomIndex || 0) > blockingPuzzleIdx) {
+      if (typeof showNotif === 'function') showNotif('Progress blocked: solve the earlier puzzle room first.', 'warn');
+      return openModal(data.name, buildDungeonModal(data));
+    }
     const room = data.generatedRooms[roomIndex];
     if (room.cleared) return;
-    const actionDie = (S.stats && S.stats.action) ? S.stats.action : 4;
+    if (room.type === 'Puzzle') return startSeaDungeonPuzzle(roomIndex);
+    const actionDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+    const dreadDie = getSeaDungeonRoomDread(room.type);
     const actionRoll = explodingRoll(actionDie);
-    const dreadRoll = explodingRoll(6);
+    const dreadRoll = explodingRoll(dreadDie);
     const success = actionRoll.total >= dreadRoll.total;
-    let result = `AD${actionDie} ${actionRoll.total} vs DD6 ${dreadRoll.total}. `;
+    let result = `AD${actionDie} ${actionRoll.total} vs DD${dreadDie} ${dreadRoll.total}. `;
     if (success) {
       const loot = rollSeaDungeonLoot();
       data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
@@ -3322,20 +3332,73 @@
         ? `${result}Success. Loot: ${loot} added to Backpack.`
         : `${result}Success. Loot: ${loot}. Backpack full, loot held in Recovered Loot.`;
     } else {
-      if (typeof changeHealth === 'function') changeHealth(Math.max(1, dreadRoll.total - actionRoll.total));
-      room.result = `${result}Failure. Suffer Stress equal to the difference.`;
+      const diff = Math.max(1, dreadRoll.total - actionRoll.total);
+      if (typeof changeStress === 'function') changeStress(diff);
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (room.type === 'Trap' && S && S.conditions) S.conditions.distracted = true;
+      room.result = `${result}Failure. Suffer ${diff} Stress.`;
       data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 1);
     }
     room.cleared = true;
-    // Sync Sea Region dungeon exploration to campaign if available
-    if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === 'function') {
-      setTimeout(function() {
-        try { 
-          window.campaignSystem.syncSharedSilent('sea-dungeon-room-explored'); 
-        } catch (_err) {}
-      }, 0);
-    }
+    syncSeaDungeonState('sea-dungeon-room-explored');
     openModal(data.name, buildDungeonModal(data));
+  }
+
+  function startSeaDungeonPuzzle(roomIndex) {
+    if (!S.lastSea || !S.lastSea.activeDungeon) return false;
+    const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
+    const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
+    if (!data || !Array.isArray(data.generatedRooms) || !data.generatedRooms[roomIndex]) return false;
+    const room = data.generatedRooms[roomIndex];
+    if (!room || room.cleared || room.type !== 'Puzzle') return false;
+    if (typeof openStandaloneStoryPuzzle !== 'function') {
+      if (typeof showNotif === 'function') showNotif('Puzzle system unavailable. Falling back to room resolve.', 'warn');
+      return false;
+    }
+    if (!room.puzzleSpec) {
+      var pool = (typeof SEA_RUIN_PUZZLES !== 'undefined' ? SEA_RUIN_PUZZLES : []);
+      room.puzzleSpec = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    }
+    const spec = room.puzzleSpec || { mode: 'code', title: 'Sea Ruin Lock', prompt: 'Enter SEA', answer: 'sea' };
+    openStandaloneStoryPuzzle({
+      mode: spec.mode,
+      title: spec.title || 'Sea Ruin Puzzle',
+      prompt: spec.prompt || 'Solve the lock.',
+      answer: spec.answer,
+      sequence: spec.sequence,
+      bank: spec.bank,
+      clues: spec.clues,
+      gridTemplate: spec.gridTemplate,
+      sudokuPuzzle: spec.sudokuPuzzle,
+      sudokuSolution: spec.sudokuSolution,
+      mazeLayout: spec.mazeLayout,
+      thresholdLabel: 'Sea Ruin Puzzle',
+      successThreshold: 0.7,
+      partialThreshold: 0.45,
+      onResolve: function (result) {
+        if (result === 'success' || result === 'partial') {
+          const loot = rollSeaDungeonLoot();
+          data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
+          data.exploration.clearedRooms += 1;
+          data.exploration.discoveredLoot.push(loot);
+          room.cleared = true;
+          room.result = (result === 'success' ? '🧩 Solved' : '🧩 Partial success') + ' — Loot recovered: ' + loot + (result === 'partial' ? ' · Take 1 Stress.' : '');
+          data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 2);
+          if (typeof addToBackpack === 'function') {
+            try { addToBackpack(loot); } catch (_err) {}
+          }
+          if (result === 'partial' && typeof changeStress === 'function') changeStress(1);
+        } else {
+          if (typeof changeStress === 'function') changeStress(2);
+          if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+          room.cleared = false;
+          room.result = '🧩 Failed — lock backlash inflicts 2 Stress. This room blocks progress until solved.';
+        }
+        syncSeaDungeonState('sea-dungeon-puzzle');
+        openModal(data.name, buildDungeonModal(data));
+      }
+    });
+    return true;
   }
 
   function checkSeaDungeonPuzzle(col, row, roomIndex, inputId) {
@@ -3422,6 +3485,7 @@
   window.selectSeaDungeonHexNode = selectSeaDungeonHexNode;
   window.exploreSeaDungeonHexNode = exploreSeaDungeonHexNode;
   window.exploreSeaDungeonRoom = exploreSeaDungeonRoom;
+  window.startSeaDungeonPuzzle = startSeaDungeonPuzzle;
   window.checkSeaDungeonPuzzle = checkSeaDungeonPuzzle;
   window.seaDungeonSearchHidden = seaDungeonSearchHidden;
 

@@ -2484,17 +2484,42 @@
   }
 
   function createLegacyRaidPipeFlowState() {
-    var solved = [
-      { type: 'source', rotation: 0, locked: true },
-      { type: 'straight', rotation: 0, locked: false },
-      { type: 'elbow', rotation: 2, locked: false },
-      { type: 'block', rotation: 0, locked: true },
-      { type: 'elbow', rotation: 0, locked: false },
-      { type: 'straight', rotation: 1, locked: false },
-      { type: 'block', rotation: 0, locked: true },
-      { type: 'elbow', rotation: 1, locked: false },
-      { type: 'sink', rotation: 0, locked: true }
+    var templates = [
+      [
+        { type: 'source', rotation: 0, locked: true },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'elbow', rotation: 2, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'elbow', rotation: 0, locked: false },
+        { type: 'straight', rotation: 1, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'elbow', rotation: 1, locked: false },
+        { type: 'sink', rotation: 0, locked: true }
+      ],
+      [
+        { type: 'source', rotation: 0, locked: true },
+        { type: 'elbow', rotation: 2, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'tee', rotation: 1, locked: false },
+        { type: 'elbow', rotation: 3, locked: false },
+        { type: 'straight', rotation: 1, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'sink', rotation: 0, locked: true }
+      ],
+      [
+        { type: 'source', rotation: 0, locked: true },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'elbow', rotation: 1, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'elbow', rotation: 3, locked: false },
+        { type: 'elbow', rotation: 0, locked: false },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'sink', rotation: 0, locked: true }
+      ]
     ];
+    var solved = templates[Math.floor(Math.random() * templates.length)] || templates[0];
     return {
       tiles: solved.map(function (tile) {
         var next = { type: tile.type, rotation: tile.rotation, locked: tile.locked };
@@ -6640,7 +6665,11 @@
     var moveAllowed = String(state.currentId || '') === cell.id || getLegacyRaidGridNeighbors(state, String(state.currentId || '')).indexOf(cell.id) >= 0;
     var isCurrent = String(state.currentId || '') === cell.id;
     var noTicks = Number(state.ticks || 0) <= 0;
-    var exploreLabel = 'Search Room (-1 Tick)';
+    var et = String(cell.eventType || '').toLowerCase();
+    var exploreLabel = et === 'empty' ? 'Search Empty Room (-1 Tick)' : 'Search Room (-1 Tick)';
+    var actionHint = isCurrent
+      ? ''
+      : '<div style="font-size:.7rem;color:var(--muted2);margin:.08rem 0 .12rem;">Select this hex and press <strong>Press Deeper</strong> first, then search.</div>';
     var teleportButton = '';
     if (isCurrent && showEncounter && String(cell.eventType || '') === 'teleport' && cell.teleportTo) {
       teleportButton = '<button class="btn btn-xs btn-teal" onclick="window.useLegacyRaidTeleport(' + mission.id + ',' + wingNum + ')">Use Teleport → ' + String(cell.teleportTo) + '</button>';
@@ -6648,10 +6677,11 @@
     var roomLabel = cell.isStart ? 'Entrance' : (cell.isExit ? 'Exit' : (showEncounter ? (encounterLabel || typeLabel) : '? Unexplored'));
     return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.03);">'
       + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;">' + roomLabel + (isCurrent ? ' <span style="color:var(--teal);font-size:.62rem;">◆ Here</span>' : '') + '</div>'
-      + (hexDesc ? '<div style="font-size:.65rem;color:var(--muted3);line-height:1.42;margin-bottom:.12rem;font-style:italic;">' + hexDesc + '</div>' : '')
-      + '<div style="font-size:.67rem;line-height:1.5;background:rgba(0,0,0,.22);border-radius:.2rem;padding:.18rem .25rem;margin-bottom:.12rem;color:var(--muted2);">' + (showEncounter ? getLegacyRaidHexMechanicSummary(wingNum, cell) : 'Unexplored. Move here and search to reveal.') + '</div>'
+      + (hexDesc ? '<div style="font-size:.74rem;color:var(--text2);line-height:1.56;margin-bottom:.12rem;">' + hexDesc + '</div>' : '')
+      + '<div style="font-size:.72rem;line-height:1.58;background:rgba(0,0,0,.22);border-radius:.2rem;padding:.2rem .28rem;margin-bottom:.12rem;color:var(--text2);">' + (showEncounter ? getLegacyRaidHexMechanicSummary(wingNum, cell) : 'Unexplored. Move here and search to reveal.') + '</div>'
       + '<div style="font-size:.66rem;color:var(--teal);line-height:1.45;margin-bottom:.08rem;">' + (objectiveLine || '') + '</div>'
       + '<div style="font-size:.65rem;color:var(--muted2);margin-bottom:.1rem;">⏱ ' + Number(state.ticks || 0) + ' ticks remaining</div>'
+      + actionHint
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
       + (!isCurrent ? '<button class="btn btn-xs" ' + (moveAllowed && !noTicks ? '' : 'disabled') + ' onclick="window.moveLegacyRaidHex(' + mission.id + ',' + wingNum + ')">Press Deeper (-1 Tick)</button>' : '')
       + '<button class="btn btn-xs btn-primary" ' + (isCurrent && !noTicks ? '' : 'disabled') + ' onclick="window.resolveLegacyRaidHexEncounter(' + mission.id + ',' + wingNum + ')">' + exploreLabel + '</button>'
@@ -7012,7 +7042,9 @@
       } else {
         cell.cleared = true;
         state.ticks = Math.min(getLegacyRaidTickCap(), Number(state.ticks || 0) + 2);
-        state.lastLog = 'Hex ' + cell.id + ' cleared (' + eventType + '). +2 ticks earned.';
+        state.lastLog = eventType === 'empty'
+          ? ('Hex ' + cell.id + ' is empty. No encounter present. +2 ticks earned for a fast sweep.')
+          : ('Hex ' + cell.id + ' cleared (' + eventType + '). +2 ticks earned.');
         if (cell.lorePiece) state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
         if (cell.waypoint && !cell.waypointActivated) {
           cell.waypointActivated = true;

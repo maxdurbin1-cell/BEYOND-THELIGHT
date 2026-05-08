@@ -173,7 +173,7 @@
       this.clearMusicRotationTimer();
       const pool = this.getMusicVariantPool(baseId);
       if (!baseId || pool.length < 2 || !this.musicConsent || !this.enabled) return;
-      const seconds = Math.max(45, Math.min(110, Math.round((Number(bufferDuration || 18) || 18) * 3.5)));
+      const seconds = Math.max(20, Math.round(Number(bufferDuration || 18) + 1));
       const self = this;
       this.currentMusicRotationTimer = setTimeout(function () {
         if (!self.musicConsent || !self.enabled) return;
@@ -416,8 +416,6 @@
       const baseId = String(musicId || '').trim();
       if (!baseId) return;
       if (this.currentMusic && !options.forceVariantChange && String(this.currentMusicBaseId || '') === baseId) {
-        const currentBuffer = this.getBuffer(String(this.currentMusicId || ''));
-        this.scheduleMusicRotation(baseId, String(this.currentMusicId || ''), currentBuffer && currentBuffer.duration);
         return;
       }
 
@@ -449,12 +447,26 @@
         const source = this.audioContext.createBufferSource();
         const gainNode = this.audioContext.createGain();
 
-        source.loop = true;
+        source.loop = false;
         source.buffer = musicData;
         gainNode.gain.value = fadeIn ? 0 : this.masterVolume * this.musicVolume;
 
         source.connect(gainNode);
         gainNode.connect(this.audioContext.destination);
+        var self = this;
+        source.onended = function () {
+          if (!self.currentMusic || self.currentMusic.source !== source) return;
+          if (!self.musicConsent || !self.enabled) {
+            self.currentMusic = null;
+            self.currentMusicId = '';
+            self.currentMusicBaseId = '';
+            self.currentMusicPool = [];
+            self.emitNowPlayingChanged();
+            return;
+          }
+          self.currentMusic = null;
+          self.playMusic(baseId, true, { forceVariantChange: true, excludeId: chosenId, preserveScenario: true });
+        };
         source.start(0);
 
         this.currentMusic = { source, gainNode };
@@ -760,7 +772,8 @@
       ]);
       this.registerMusicVariants('music-town', [
         { root: 207.65, bpm: 88, mode: 'major', shimmer: 0.4 },
-        { root: 174.61, bpm: 78, energy: 0.44, waveformLead: 'sine' }
+        { root: 174.61, bpm: 78, energy: 0.44, waveformLead: 'sine' },
+        { root: 196, bpm: 74, mode: 'major', shimmer: 0.5, leadMix: 0.22 }
       ]);
       this.registerMusicVariants('music-city', [
         { root: 246.94, bpm: 100, shimmer: 0.38 },
@@ -768,7 +781,8 @@
       ]);
       this.registerMusicVariants('music-village', [
         { root: 155.56, bpm: 70, mode: 'major', shimmer: 0.42 },
-        { root: 185, bpm: 76, energy: 0.4, waveformPad: 'triangle' }
+        { root: 185, bpm: 76, energy: 0.4, waveformPad: 'triangle' },
+        { root: 164.81, bpm: 68, mode: 'major', shimmer: 0.5, leadMix: 0.2 }
       ]);
       this.registerMusicVariants('music-tavern', [
         { root: 174.61, bpm: 110, mode: 'major', pulseMix: 0.34 },
@@ -780,15 +794,18 @@
       ]);
       this.registerMusicVariants('music-wilderness', [
         { root: 155.56, bpm: 74, shimmer: 0.52 },
-        { root: 130.81, bpm: 68, energy: 0.42, waveformPad: 'triangle' }
+        { root: 130.81, bpm: 68, energy: 0.42, waveformPad: 'triangle' },
+        { root: 146.83, bpm: 64, mode: 'minor', shimmer: 0.58, leadMix: 0.18 }
       ]);
       this.registerMusicVariants('music-dungeon', [
         { root: 92.5, bpm: 62, shimmer: 0.12, noiseMix: 0.1 },
-        { root: 110, bpm: 76, energy: 0.64, bassMix: 0.38 }
+        { root: 110, bpm: 76, energy: 0.64, bassMix: 0.38 },
+        { root: 98, bpm: 66, energy: 0.52, noiseMix: 0.18, pulseMix: 0.26 }
       ]);
       this.registerMusicVariants('music-sacred', [
         { root: 146.83, bpm: 54, shimmer: 0.8, leadMix: 0.22 },
-        { root: 116.54, bpm: 62, mode: 'major', shimmer: 0.72 }
+        { root: 116.54, bpm: 62, mode: 'major', shimmer: 0.72 },
+        { root: 138.59, bpm: 52, mode: 'major', shimmer: 0.88, waveformLead: 'sine' }
       ]);
       this.registerMusicVariants('music-space', [
         { root: 92.5, bpm: 58, shimmer: 0.92, noiseMix: 0.18 },
@@ -812,7 +829,8 @@
       ]);
       this.registerMusicVariants('music-sea', [
         { root: 174.61, bpm: 70, shimmer: 0.66 },
-        { root: 146.83, bpm: 62, energy: 0.38, waveformLead: 'sine' }
+        { root: 146.83, bpm: 62, energy: 0.38, waveformLead: 'sine' },
+        { root: 164.81, bpm: 60, mode: 'major', shimmer: 0.72, leadMix: 0.2 }
       ]);
       this.registerMusicVariants('music-storm-sea', [
         { root: 116.54, bpm: 118, energy: 0.98, noiseMix: 0.2 },

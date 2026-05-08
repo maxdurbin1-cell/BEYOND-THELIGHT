@@ -179,24 +179,63 @@
 
   function buildPipeFlowState() {
     var size = 4;
-    var baseTiles = [
-      { type: 'source',   rotation: 0, locked: true  },
-      { type: 'straight', rotation: 0, locked: false },
-      { type: 'tee',      rotation: 1, locked: false },
-      { type: 'elbow',    rotation: 2, locked: false },
-      { type: 'elbow',    rotation: 0, locked: false },
-      { type: 'block',    rotation: 0, locked: true  },
-      { type: 'straight', rotation: 1, locked: false },
-      { type: 'tee',      rotation: 0, locked: false },
-      { type: 'straight', rotation: 1, locked: false },
-      { type: 'elbow',    rotation: 1, locked: false },
-      { type: 'cross',    rotation: 0, locked: false },
-      { type: 'straight', rotation: 0, locked: false },
-      { type: 'block',    rotation: 0, locked: true  },
-      { type: 'elbow',    rotation: 3, locked: false },
-      { type: 'straight', rotation: 0, locked: false },
-      { type: 'sink',     rotation: 0, locked: true  }
+    var templates = [
+      [
+        { type: 'source', rotation: 0, locked: true },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'tee', rotation: 1, locked: false },
+        { type: 'elbow', rotation: 2, locked: false },
+        { type: 'elbow', rotation: 0, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'straight', rotation: 1, locked: false },
+        { type: 'tee', rotation: 0, locked: false },
+        { type: 'straight', rotation: 1, locked: false },
+        { type: 'elbow', rotation: 1, locked: false },
+        { type: 'cross', rotation: 0, locked: false },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'elbow', rotation: 3, locked: false },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'sink', rotation: 0, locked: true }
+      ],
+      [
+        { type: 'source', rotation: 0, locked: true },
+        { type: 'elbow', rotation: 2, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'tee', rotation: 1, locked: false },
+        { type: 'elbow', rotation: 3, locked: false },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'straight', rotation: 1, locked: false },
+        { type: 'elbow', rotation: 0, locked: false },
+        { type: 'tee', rotation: 1, locked: false },
+        { type: 'elbow', rotation: 2, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'sink', rotation: 0, locked: true }
+      ],
+      [
+        { type: 'source', rotation: 0, locked: true },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'elbow', rotation: 2, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'elbow', rotation: 1, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'straight', rotation: 1, locked: false },
+        { type: 'tee', rotation: 0, locked: false },
+        { type: 'elbow', rotation: 1, locked: false },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'elbow', rotation: 3, locked: false },
+        { type: 'tee', rotation: 1, locked: false },
+        { type: 'block', rotation: 0, locked: true },
+        { type: 'straight', rotation: 0, locked: false },
+        { type: 'sink', rotation: 0, locked: true }
+      ]
     ];
+    var baseTiles = templates[Math.floor(Math.random() * templates.length)] || templates[0];
     var shuffled = baseTiles.map(function (tile) {
       var next = { type: tile.type, rotation: tile.rotation, locked: tile.locked };
       if (!next.locked) {
@@ -314,7 +353,7 @@
     return dfs({ r: state.rook.r, c: state.rook.c }, [], {});
   }
 
-  function _buildRandomChessState() {
+  function _buildRandomChessState(preferredPiece) {
     var size = 5;
     var rook = { r: Math.floor(Math.random() * size), c: Math.floor(Math.random() * size) };
     var pawns = [];
@@ -329,17 +368,38 @@
       pawns.push({ r: pr, c: pc });
     }
     var pieceOptions = ['rook', 'bishop', 'knight'];
-    return { board: size, piece: pieceOptions[Math.floor(Math.random() * pieceOptions.length)], rook: rook, pawns: pawns, captured: [], seed: Date.now() + '-' + Math.floor(Math.random() * 100000) };
+    var forced = String(preferredPiece || '').toLowerCase();
+    var piece = pieceOptions.indexOf(forced) >= 0
+      ? forced
+      : pieceOptions[Math.floor(Math.random() * pieceOptions.length)];
+    return { board: size, piece: piece, rook: rook, pawns: pawns, captured: [], seed: Date.now() + '-' + Math.floor(Math.random() * 100000) };
   }
 
-  function _initChess() {
+  function _initChess(preferredPiece) {
     var tries = 0;
-    var state = _buildRandomChessState();
+    var state = _buildRandomChessState(preferredPiece);
     while (tries < 30 && !_isChessStateSolvable(state)) {
-      state = _buildRandomChessState();
+      state = _buildRandomChessState(preferredPiece);
       tries += 1;
     }
+    if (!_isChessStateSolvable(state)) {
+      state = _buildRandomChessState();
+      tries = 0;
+      while (tries < 30 && !_isChessStateSolvable(state)) {
+        state = _buildRandomChessState();
+        tries += 1;
+      }
+    }
     return state;
+  }
+
+  function _nextChessPieceForSession(st) {
+    var cycle = ['rook', 'bishop', 'knight'];
+    var last = st && st.lastChessPiece ? String(st.lastChessPiece).toLowerCase() : '';
+    var idx = cycle.indexOf(last);
+    var next = cycle[(idx + 1 + cycle.length) % cycle.length];
+    if (st) st.lastChessPiece = next;
+    return next;
   }
 
   function _pieceCanCapture(state, pawn) {
@@ -623,13 +683,24 @@
     st.lastPuzzleTitle = String(title || 'Shared Puzzle');
 
     if (chosen.mode && CUSTOM_PUZZLE_MODES.indexOf(chosen.mode) >= 0) {
+      var chessPreferred = null;
+      var presetChess = null;
+      if (chosen.mode === 'chess_puzzle') {
+        chessPreferred = _nextChessPieceForSession(st);
+        if (chosen.chessState && typeof chosen.chessState === 'object') {
+          presetChess = JSON.parse(JSON.stringify(chosen.chessState));
+          if (!_isChessStateSolvable(presetChess)) {
+            presetChess = null;
+          }
+        }
+      }
       _cp = {
         mode: chosen.mode,
         title: title,
         prompt: prompt,
         state: chosen.mode === 'pipe_flow' ? buildPipeFlowState()
           : chosen.mode === 'chess_puzzle'
-            ? JSON.parse(JSON.stringify(chosen.chessState || _initChess()))
+            ? (presetChess || _initChess(chessPreferred))
           : chosen.mode === 'sliding_tile' ? _initSliding()
           : chosen.mode === 'math_grid' ? _initMathGrid()
           : _initRotatingImage()

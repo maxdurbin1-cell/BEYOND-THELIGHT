@@ -3540,6 +3540,35 @@
   }
 
   function buildFallbackStoryCrossword() {
+    var fallbackCluesByAnswer = {
+      lich: 'Undead wizard villain',
+      relic: 'Ancient magical artifact',
+      spell: 'Magic cast by a wizard',
+      rogue: 'Sneaky dagger-user',
+      goblin: 'Classic low-level monster',
+      mana: 'Magical energy pool',
+      paladin: 'Holy armored knight class',
+      gate: 'Secure entry point',
+      route: 'Team travel plan',
+      maps: 'Dungeon layout charts',
+      lore: 'Story archive',
+      ttrpg: 'Fantasy tabletop abbreviation',
+      orc: 'Green raider species',
+      hp: 'Health shorthand',
+      gm: 'Campaign runner initials',
+      dm: 'Person running the campaign',
+      cat: 'House pet',
+      are: 'To exist',
+      ten: 'Number after nine'
+    };
+    function fallbackCrosswordClueFor(entry, direction) {
+      var answer = String(entry && entry.answer || '').trim().toLowerCase();
+      var clue = fallbackCluesByAnswer[answer];
+      if (clue) return clue + ' (' + String(answer || '').length + ')';
+      var dirLabel = String(direction || 'across').toLowerCase() === 'down' ? 'Down' : 'Across';
+      return dirLabel + ' clue for ' + String(answer || '?').toUpperCase() + ' (' + String(answer || '').length + ')';
+    }
+
     const packs = [
       {
         template: ['ROGUE##', 'P#O#HP#', 'GOBLIN#', '#R#P#C#', 'MANA###', 'A#P#DM#', 'PALADIN'],
@@ -3562,36 +3591,32 @@
       const pick = packs[(start + i) % packs.length] || packs[0];
       const built = crosswordBuildEntriesFromTemplate(pick.template, {});
       if (!built) continue;
-      built.across.forEach(function (entry, idx) {
-        entry.clue = pick.across[idx % pick.across.length] || entry.clue;
+      built.across.forEach(function (entry) {
+        entry.clue = fallbackCrosswordClueFor(entry, 'across');
       });
-      built.down.forEach(function (entry, idx) {
-        entry.clue = pick.down[idx % pick.down.length] || entry.clue;
+      built.down.forEach(function (entry) {
+        entry.clue = fallbackCrosswordClueFor(entry, 'down');
       });
       return built;
     }
 
     const emergency = crosswordBuildEntriesFromTemplate(['ROGUE##', 'P#O#HP#', 'GOBLIN#', '#R#P#C#', 'MANA###', 'A#P#DM#', 'PALADIN'], {});
     if (emergency) {
-      emergency.across.forEach(function (entry, idx) {
-        var cues = ['Sneaky class', 'Classic monster', 'Magic resource', 'Holy knight'];
-        entry.clue = cues[idx % cues.length] || entry.clue;
+      emergency.across.forEach(function (entry) {
+        entry.clue = fallbackCrosswordClueFor(entry, 'across');
       });
-      emergency.down.forEach(function (entry, idx) {
-        var cues = ['Tabletop abbreviation', 'Orcish weapon shorthand', 'Healing shorthand', 'Dungeon chart', 'Campaign initials'];
-        entry.clue = cues[idx % cues.length] || entry.clue;
+      emergency.down.forEach(function (entry) {
+        entry.clue = fallbackCrosswordClueFor(entry, 'down');
       });
       return emergency;
     }
     var micro = crosswordBuildEntriesFromTemplate(['#######', '##CAT##', '##ARE##', '##TEN##', '#######', '#######', '#######'], {});
     if (micro) {
-      micro.across.forEach(function (entry, idx) {
-        var cues = ['House pet', 'To exist', 'Number after nine'];
-        entry.clue = cues[idx % cues.length] || entry.clue;
+      micro.across.forEach(function (entry) {
+        entry.clue = fallbackCrosswordClueFor(entry, 'across');
       });
-      micro.down.forEach(function (entry, idx) {
-        var cues = ['Small feline', 'Action verb', 'Count value'];
-        entry.clue = cues[idx % cues.length] || entry.clue;
+      micro.down.forEach(function (entry) {
+        entry.clue = fallbackCrosswordClueFor(entry, 'down');
       });
       return micro;
     }

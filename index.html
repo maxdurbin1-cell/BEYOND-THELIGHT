@@ -9167,6 +9167,8 @@ function showBackpackItem(index) {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="decryptDataCache('+index+');">💾 Decrypt Cache</button> ';
     } else if (customAction === 'stabilizeRelicShard') {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="stabilizeRelicShard('+index+');">✶ Stabilize Shard</button> ';
+    } else if (customAction === 'phoenixFlash') {
+      btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="usePhoenixFlashBackpackItem('+index+');closeModal();">🔥 Use Phoenix Flash</button> ';
     } else if (customAction === 'useBackpackAction') {
       btnHtml = '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useBackpackItem('+index+');closeModal();">⚑ Use</button> ';
     } else if (isScrollPrefix) {
@@ -9337,6 +9339,7 @@ function equipBackpackItem(index, slot) {
   }
   var cat = found ? found.cat : null;
   var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
+  if (!isWeapon && /\bstrike\s*\||\bshoot\s*\||\[.*weapon\]|platinum weapon|gold weapon|silver weapon|bronze weapon/i.test(String(itemForEquip || item))) isWeapon = true;
   var isArmor = (cat === 'armor' || cat === 'armor_exp');
   var isSpaceArmor = (cat === 'space_armor');
   if (!(isArmor || isSpaceArmor) && /armor|armour|cloak|mantle|radsuit|vaccsuit|hydrosuit|suit/i.test(String(itemName || item))) {

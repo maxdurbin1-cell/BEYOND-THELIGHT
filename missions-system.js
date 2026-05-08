@@ -1764,7 +1764,7 @@
     var pointCount = Math.max(0, Number(profile.raidPoints || 0));
     var keyState = profile.raidKeys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
     var overflow = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
-    var overflowStart = Math.max(0, overflow.length - 18);
+    var overflowStart = Math.max(0, overflow.length - 48);
     var overflowRows = overflow.length
       ? overflow.slice(overflowStart).map(function (item, idx) {
           var absoluteIndex = overflowStart + idx;
@@ -3066,14 +3066,33 @@
     if (mission.legacyRaidBossCinematicSeen) return false;
     mission.legacyRaidBossCinematicSeen = true;
     var scene = mission.legacyRaidBossCinematic || {};
+    var encounter = mission.legacyRaidBossEncounter || {};
+    var skipHappened = mission.legacyRaidSkipPhase2 === false && Number(encounter.phase || 1) === 3;
+    var phase3Profile = encounter.phaseProfiles && encounter.phaseProfiles[2] || null;
+    var phase3Hp = Number(phase3Profile && phase3Profile.hp || encounter.maxPhaseHp || 20);
+    var phase3Dread = Number(phase3Profile && phase3Profile.dread || encounter.dreadDie || 12);
+    var phase3Flavor = String(phase3Profile && phase3Profile.text || encounter.phaseFlavor || 'Final confrontation — the boss has abandoned all restraint.');
+    var skipBannerHtml = skipHappened
+      ? '<div style="margin:.2rem 0 .3rem;padding:.2rem .32rem;background:rgba(126,215,255,.08);border-left:3px solid var(--teal);font-size:.74rem;color:var(--teal);">'
+        + '<strong>\u26a1 Breach Override Active</strong> — Lockpick exploit succeeded. Phase 2 systems were bypassed; the boss surges directly to Phase 3 in a destabilized state.'
+        + '</div>'
+      : '';
+    var phase3StatsHtml = '<div style="margin-top:.22rem;padding:.16rem .28rem;background:rgba(255,255,255,.04);border:1px solid var(--border2);font-size:.68rem;color:var(--muted2);line-height:1.55;">'
+      + '<div style="color:var(--gold2);font-size:.7rem;margin-bottom:.08rem;"><strong>\u2620 Phase 3 — Final Form</strong></div>'
+      + '<div>\u2665 Boss HP: <span style="color:var(--text2);">' + phase3Hp + '</span></div>'
+      + '<div>\ud83c\udfb2 Dread Die: <span style="color:var(--text2);">d' + phase3Dread + '</span></div>'
+      + '<div style="color:var(--muted3);font-style:italic;margin-top:.06rem;">' + phase3Flavor + '</div>'
+      + '</div>';
     openModal(
-      'Boss Cinematic - ' + String(mission.legacyRaidBoss || 'Raid Boss'),
+      '\ud83c\udfac Boss Cinematic \u2014 ' + String(mission.legacyRaidBoss || 'Raid Boss'),
       '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
-        + '<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.18rem;"><strong>' + String(scene.opener || '') + '</strong></div>'
-        + '<div style="margin-bottom:.22rem;">' + String(scene.setup || '') + '</div>'
-        + '<div style="margin-bottom:.32rem;color:var(--muted2);">' + String(scene.challenge || '') + '</div>'
-        + '<div style="display:flex;justify-content:flex-end;">'
-        + '<button class="btn btn-sm btn-primary" onclick="openRaidWingPopup(' + mission.id + ',3,' + ((ensureRaidHexMap(mission).wings[3] || []).length - 1) + ')">Enter Boss Chamber</button>'
+        + '<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.18rem;"><strong>' + String(scene.opener || 'The chamber shudders. Something is wrong.') + '</strong></div>'
+        + '<div style="margin-bottom:.22rem;">' + String(scene.setup || 'The boss absorbs the lockpick shock, circuits sparking — normal phase protocols have collapsed.') + '</div>'
+        + '<div style="margin-bottom:.14rem;color:var(--muted2);">' + String(scene.challenge || 'What happens next was never supposed to happen.') + '</div>'
+        + skipBannerHtml
+        + phase3StatsHtml
+        + '<div style="display:flex;justify-content:flex-end;margin-top:.36rem;">'
+        + '<button class="btn btn-sm btn-primary" onclick="closeModal();openWing3BossCombatModal(' + mission.id + ');">\u2694 Face Phase 3</button>'
         + '</div>'
       + '</div>'
     );
@@ -4496,6 +4515,12 @@
     }
     var modalPhaseState = normalizeLegacyRaidBossPhaseState(mission, encounter, { openCinematic: true });
     if (modalPhaseState === 'victory' || modalPhaseState === 'cinematic') return;
+    if (modalPhaseState === 'phase') {
+      if (typeof showNotif === 'function') showNotif('☆ Boss Phase ' + Number(encounter.phase || 2) + ' begins! The boss transforms!', 'good');
+      closeModal();
+      openWing3BossCombatModal(missionId);
+      return;
+    }
     
     if (encounter.log.length > 5) encounter.log.shift();
     
@@ -5224,9 +5249,18 @@
       ];
     }
     return [
-      { name: 'Cataclysm Pulse', text: 'Raidwide pulse pressure. Support and Front must both be present to blunt it.', raidwide: true },
-      { name: 'Pattern Break', text: 'Mechanics role must decode the pattern shift before it loops.', raidwide: false },
-      { name: 'Overrun Lane', text: 'Boss floods two lanes at once; role balance is mandatory this phase.', raidwide: true }
+      { name: 'Cataclysm Pulse', text: 'Raidwide pulse: everyone takes 2 Stress unless Support is assigned. Boss spends 4 AP.', raidwide: true, dreadDie: 12, stat: 'Spirit', effect: 'stress', kind: 'directStress' },
+      { name: 'Pattern Break', text: 'Mechanics must decode a signal shift (DD 6) or the next boss action gains +2 DD.', raidwide: false, dreadDie: 6, stat: 'Craft', effect: 'health', kind: 'hack' },
+      { name: 'Overrun Lane', text: 'Boss floods two lanes — Front must anchor (Defend DD 5) or the party takes 3 damage.', raidwide: true, dreadDie: 10, stat: 'Body', effect: 'health', kind: 'defendCheck' },
+      { name: 'Crushing Advance', text: 'Boss slams the front line (Engaged/Close). Front target defends with Body DD 4 or takes +2 damage.', raidwide: false, dreadDie: 10, stat: 'Body', effect: 'health', kind: 'healthStrike', ranges: ['Engaged', 'Close'] },
+      { name: 'Void Lash', text: 'A sweeping void tendril strikes everyone at Close range (DD 5) and may cause Staggered.', raidwide: false, condition: 'Stunned', dreadDie: 10, stat: 'Body', effect: 'health', kind: 'defendCheck', ranges: ['Engaged', 'Close', 'Nearby'] },
+      { name: 'Neural Barrage', text: 'Psychic blast targets all — Mind roll (DD 6) or lose 2 AP next round.', raidwide: true, dreadDie: 12, stat: 'Mind', effect: 'stress', kind: 'directStress' },
+      { name: 'Phase Rend', text: 'Boss tears phase energy across the room — Mechanics decode (DD 7) or party HP ceiling drops by 2 this round.', raidwide: true, dreadDie: 12, stat: 'Craft', effect: 'health', kind: 'hack' },
+      { name: 'Predator Lockdown', text: 'Boss marks 1 target — that character cannot spend AP for defense this round.', raidwide: false, dreadDie: 8, stat: 'Lead', effect: 'condition', kind: 'directStress', condition: 'Exposed' },
+      { name: 'Rend the Veil', text: 'Forces a Lore check (DD 7) vs. psychic imprint — fail: 3 Stress and vision impairment next round.', raidwide: false, dreadDie: 10, stat: 'Lore', effect: 'stress', kind: 'directStress' },
+      { name: 'Seismic Slam', text: 'Ground shockwave hits everyone at Nearby or closer; Defend DD 5 or fall Prone (lose 2 AP next round).', raidwide: true, dreadDie: 10, stat: 'Body', effect: 'health', kind: 'defendCheck', ranges: ['Engaged', 'Close', 'Nearby'] },
+      { name: 'Siege Roar', text: 'Morale disruption: whole raid rolls Spirit DD 5 or takes 1 Stress and -1 Action next round.', raidwide: true, dreadDie: 8, stat: 'Spirit', effect: 'stress', kind: 'directStress' },
+      { name: 'Shadowstep', text: 'Boss repositions instantly — all zone assignments are cleared and must be re-assigned next round.', raidwide: true, dreadDie: 6, stat: 'Lead', effect: 'condition', kind: 'directStress' }
     ];
   }
 
@@ -6132,7 +6166,7 @@
     if (!vault) return '';
     var loot = Array.isArray(vault.loot) ? vault.loot : [];
     if (loot.length === 0) return '';
-    var displayCount = Math.min(6, loot.length);
+    var displayCount = Math.min(20, loot.length);
     var lootRows = loot.slice(-displayCount).map(function (item, idx) {
           return '<div style="font-size:.62rem;color:var(--text2);line-height:1.42;padding:.04rem 0;">'
             + (loot.length - displayCount + idx + 1) + '.' + (loot.length > 99 ? '' : '')

@@ -159,8 +159,9 @@ async function runScenario(browser) {
       content &&
       /Stage:/i.test(text) &&
       /Round:/i.test(text) &&
-      /Return to Wing/i.test(text) &&
+      /Turn:/i.test(text) &&
       /Start Scene/i.test(text) &&
+      /Enemy Action/i.test(text) &&
       /Combat Tab Wayfarer Action/i.test(text) &&
       !/Trauma Check/i.test(text)
     );
@@ -172,8 +173,9 @@ async function runScenario(browser) {
     return {
       hasRaidStage: /Stage:/i.test(text),
       hasRound: /Round:/i.test(text),
-      hasReturn: /Return to Wing/i.test(text),
+      hasTurn: /Turn:/i.test(text),
       hasStart: /Start Scene/i.test(text),
+      hasEnemyAction: /Enemy Action/i.test(text),
       hasWayfarerSelect: !!document.getElementById("qpCombatTabActionSelect"),
       hasTrauma: /Trauma Check/i.test(text)
     };
@@ -184,7 +186,7 @@ async function runScenario(browser) {
   if (pageErrors.length) {
     throw new Error(`Quick panel raid UI smoke saw page errors: ${pageErrors.join(" | ")}`);
   }
-  if (!qpSummary.hasRaidStage || !qpSummary.hasRound || !qpSummary.hasReturn || !qpSummary.hasStart || !qpSummary.hasWayfarerSelect || qpSummary.hasTrauma) {
+  if (!qpSummary.hasRaidStage || !qpSummary.hasRound || !qpSummary.hasTurn || !qpSummary.hasStart || !qpSummary.hasEnemyAction || !qpSummary.hasWayfarerSelect || qpSummary.hasTrauma) {
     throw new Error(`Quick panel raid UI assertions failed: ${JSON.stringify(qpSummary)}`);
   }
 

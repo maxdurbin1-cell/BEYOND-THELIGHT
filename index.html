@@ -8574,11 +8574,16 @@ function showShopCat(cat,btn){
   if(!items.length){c.innerHTML=rule+'<div style="color:var(--muted2);font-size:.85rem;">No items.</div>';return;}
 
   const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];
+  const iconApi=(typeof window!=='undefined')?window.SharedIconSystem:null;
   const marketHint=getShopMarketSnapshot(cat,'_market_preview_',100);
   if(marketHint&&marketHint.locationKey&&(marketHint.notices.length||marketHint.overlay&&((marketHint.overlay.closedBorder||marketHint.overlay.closedPort||marketHint.overlay.activeCrisis||marketHint.overlay.dangerousRoad)))){
     rule+=`<div class="shop-rule-box" style="margin-top:.25rem;"><span class="srb-title">🌐 Local Market Pressure</span>${marketHint.notices.length?marketHint.notices.join(' '):'Local control flags currently affect pricing and stock.'}</div>`;
   }
   let cardsHtml=items.map(item=>{
+    const isWeaponCat=(cat==='weapons'||cat==='melee_exp'||cat==='ranged_exp');
+    const weaponIcon=isWeaponCat&&iconApi&&typeof iconApi.iconWeapon==='function'
+      ? iconApi.iconWeapon(item.name,{size:20,title:item.name,accent:iconApi.resolveAccent?iconApi.resolveAccent(item.name):undefined})
+      : '';
     const isInstalled=(cat==='augmentations')?installedAugs.indexOf(item.name)>=0:false;
     const baseCost=typeof item.cost==='number'?item.cost:0;
     const market=getShopMarketSnapshot(cat,item.name,baseCost);
@@ -8590,7 +8595,7 @@ function showShopCat(cat,btn){
     const augBadge=isInstalled?' <span style="font-size:.6rem;color:var(--green);font-family:Cinzel,serif;letter-spacing:.08em;">✓ INSTALLED</span>':'';
     const costHtml=market.finalCost!==baseCost?`<span class="s-cost"><s style="opacity:.65;">${baseCost} ₵</s> ${market.finalCost} ₵</span>`:`<span class="s-cost">${baseCost} ₵</span>`;
     const pressureNote=!market.available?`<div style="font-size:.68rem;color:var(--red2);margin-top:.2rem;line-height:1.4;">${market.blockedReason}</div>`:'';
-    return `<div class="shop-card"><div class="s-name">${item.name}${augBadge}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div>${pressureNote}<div class="s-foot">${costHtml}${buyBtn}</div></div>`;
+    return `<div class="shop-card"><div class="s-name" style="display:flex;align-items:center;gap:.35rem;">${weaponIcon}${item.name}${augBadge}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div>${pressureNote}<div class="s-foot">${costHtml}${buyBtn}</div></div>`;
   }).join('');
 
   if(cat==='services'){
@@ -15293,12 +15298,11 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   window.qpCombatAction = function(kind) {
     var raidFlow = S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active ? S.combat.raidFlow : null;
-    if (raidFlow && (kind === 'strike' || kind === 'shoot' || kind === 'defend')) {
+    if (raidFlow && (kind === 'strike' || kind === 'shoot')) {
       if (typeof window.executeLegacyRaidPlayerActionFromPanel === 'function') {
         window.executeLegacyRaidPlayerActionFromPanel(kind, Number(raidFlow.missionId || 0), Number(raidFlow.wingNum || 1));
       }
       if(kind==='strike'||kind==='shoot')S.quickPanel.lastCombatRoll=(document.getElementById('attackResult')||{}).innerHTML||S.quickPanel.lastCombatRoll;
-      else if(kind==='defend')S.quickPanel.lastCombatRoll=(document.getElementById('defendResult')||{}).innerHTML||S.quickPanel.lastCombatRoll;
       renderQP('combat');
       return;
     }
@@ -15339,6 +15343,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.qpEnemyAction=function(){
     var raidFlow = S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active ? S.combat.raidFlow : null;
     if (raidFlow && typeof window.executeLegacyRaidSceneEnemyAction === 'function') {
+      var enemyTargetSel=document.getElementById('qpRaidEnemyTargetSel');
+      if(enemyTargetSel&&typeof window.qpRaidSetEnemyTarget==='function')window.qpRaidSetEnemyTarget(String(enemyTargetSel.value||'player'));
       var targetType = String(raidFlow.selectedEnemyTargetType || 'player');
       if (targetType === 'ally') window.executeLegacyRaidSceneEnemyAction('ally', String(raidFlow.selectedAllyName || ''));
       else window.executeLegacyRaidSceneEnemyAction('player');
@@ -15378,6 +15384,37 @@ document.addEventListener('DOMContentLoaded',()=>{
     var raidFlow = S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active ? S.combat.raidFlow : null;
     if(!raidFlow||typeof window.openRaidWingPopup!=='function')return;
     window.openRaidWingPopup(Number(raidFlow.missionId || 0), Number(raidFlow.wingNum || 1));
+    renderQP('combat');
+  };
+  window.qpRaidSetEnemyTarget=function(target){
+    var raidFlow = S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active ? S.combat.raidFlow : null;
+    if(!raidFlow)return;
+    var val=String(target||'player');
+    if(val==='player'){
+      raidFlow.selectedEnemyTargetType='player';
+      raidFlow.selectedAllyName='';
+    }else{
+      raidFlow.selectedEnemyTargetType='ally';
+      raidFlow.selectedAllyName=val;
+    }
+    renderQP('combat');
+  };
+  window.qpRaidExecuteAllyAction=function(){
+    var raidFlow = S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active ? S.combat.raidFlow : null;
+    if(!raidFlow||typeof window.executeLegacyRaidSceneAllyAction!=='function')return;
+    var actionSel=document.getElementById('qpRaidAllyActionSel');
+    var targetSel=document.getElementById('qpRaidAllyTargetSel');
+    var moveSel=document.getElementById('qpRaidAllyMoveSel');
+    var action=actionSel?String(actionSel.value||'attack'):'attack';
+    var target=targetSel?String(targetSel.value||'self'):'self';
+    if(action==='move'){
+      target=moveSel?String(moveSel.value||'Close'):'Close';
+    }else if(target==='self'){
+      target='';
+    }else if(target==='player'){
+      target=String((S&&S.name)||'Wayfarer');
+    }
+    window.executeLegacyRaidSceneAllyAction(action,target);
     renderQP('combat');
   };
   window.qpCombatTabWayfarerAction=function(){
@@ -15625,43 +15662,51 @@ document.addEventListener('DOMContentLoaded',()=>{
       var stageLabel = !sceneStarted
         ? 'Scene Not Started'
         : (stage === 'player' ? 'Player Actions' : (stage === 'ally' ? 'Ally Turn' : 'Enemy Turn'));
+      var turnOwner = !sceneStarted ? 'You' : (stage === 'player' ? 'You' : (stage === 'ally' ? 'Allies' : 'Enemies'));
       var enemyBudget = Math.max(0, Number(raidFlow.enemyActionBudget || 0));
       var enemyBudgetMax = Math.max(1, raidHostiles.length * Math.max(1, Number(raidFlow.enemyActionsPerTurn || 2)));
+      var allyBudget = stage === 'ally'
+        ? Math.max(0, Number(raidFlow.currentAllyActionsLeft || 0))
+        : Math.max(0, raidAllies.length * Math.max(1, Number(raidFlow.allyActionsPerTurn || 2)));
       var playerRange = String(raidFlow.playerRange || 'Close');
       var moveAdjacency = {
         Engaged: ['Close'],
-        Close: ['Engaged', 'Far'],
+        Close: ['Engaged', 'Nearby'],
         Nearby: ['Close', 'Far'],
-        Far: ['Close']
+        Far: ['Nearby']
       };
       var moveTargets = moveAdjacency[playerRange] || ['Close'];
       var selectedHostileTxt = raidFlow.selectedHostileName ? String(raidFlow.selectedHostileName) : 'Closest hostile';
       var selectedEnemyTargetTxt = String(raidFlow.selectedEnemyTargetType || '') === 'ally'
         ? String(raidFlow.selectedAllyName || 'First alive ally')
         : 'Wayfarer';
+      var raidEnemyTargetOptions = ['<option value="player"'+(String(raidFlow.selectedEnemyTargetType||'player')==='player'?' selected':'')+'>You</option>']
+        .concat(raidAllies.map(function(a){
+          var nm=String(a&&a.name||'Wayfarer');
+          var selected=(String(raidFlow.selectedEnemyTargetType||'')==='ally'&&String(raidFlow.selectedAllyName||'')===nm)?' selected':'';
+          return '<option value="'+nm.replace(/"/g,'&quot;')+'"'+selected+'>'+nm+'</option>';
+        })).join('');
       var moveButtons = moveTargets.map(function(zone){
         return '<button class="btn btn-xs" ' + (sceneStarted && stage === 'player' && playerRaidActions > 0 ? '' : 'disabled') + ' onclick="qpMoveRange(\'' + zone + '\')">Move: ' + zone + '</button>';
       }).join('');
       var raidEnemyRows = raidHostiles.length
         ? raidHostiles.map(function(e){
-            var id = Number(e && e.id || 0);
             var nm = String(e && e.name || 'Hostile');
+            var maxHp = Math.max(1, Number(e && e.maxStress || 8));
             var hp = Math.max(0, Number(e && e.maxStress || 8) - Number(e && e.stress || 0));
             var dreadVal = Number(e && e.dread || S.combat.enemyDread || 6);
             var hostileRanges = raidFlow.hostileRangeById || {};
-            var relRange = String(hostileRanges[String(id)] || 'Engaged');
-            var selected = Number(raidFlow.selectedHostileId || 0) === id;
-            var safeName = nm.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-            return '<div style="display:flex;flex-direction:column;gap:.16rem;padding:.28rem .26rem;margin-bottom:.18rem;border:1px solid '+(selected?'rgba(232,192,80,.5)':'rgba(255,255,255,.08)')+';background:'+(selected?'rgba(232,192,80,.08)':'rgba(255,255,255,.01)')+';">'
+            var relRange = String(hostileRanges[String(Number(e&&e.id||0))] || 'Engaged');
+            var hpPct = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
+            return '<div style="display:flex;flex-direction:column;gap:.16rem;padding:.28rem .26rem;margin-bottom:.18rem;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.01);">'
               + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
                 + '<span style="font-size:.76rem;color:var(--text2);">'+nm+'</span>'
                 + '<span style="font-size:.72rem;color:var(--red2);">HP '+hp+' · d'+dreadVal+'</span>'
               + '</div>'
-              + '<div style="font-size:.66rem;color:var(--muted2);">Relative Band: <strong style="color:var(--gold2);">'+relRange+'</strong></div>'
-              + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;">'
-                + '<button class="btn btn-xs'+(selected?' btn-primary':'')+'" onclick="qpRaidSelectHostile('+id+',\''+safeName+'\')">Target</button>'
-                + ['Engaged','Close','Nearby','Far'].map(function(zone){ return '<button class="btn btn-xs'+(relRange===zone?' btn-teal':'')+'" onclick="qpRaidSetHostileRange('+id+',\''+zone+'\')">'+zone+'</button>'; }).join('')
+              + '<div style="height:7px;border:1px solid var(--border2);background:rgba(255,255,255,.05);">'
+              + '<div style="height:100%;width:'+hpPct+'%;background:linear-gradient(90deg,var(--red2),var(--gold2));"></div>'
               + '</div>'
+              + '<div style="font-size:.66rem;color:var(--muted2);">Relative Band: <strong style="color:var(--gold2);">'+relRange+'</strong></div>'
             + '</div>';
           }).join('')
         : '<div style="font-size:.78rem;color:var(--muted2);">No hostiles in this scene.</div>';
@@ -15673,39 +15718,37 @@ document.addEventListener('DOMContentLoaded',()=>{
             return '<option value="'+opt.value.replace(/"/g,'&quot;')+'">'+opt.textContent+'</option>';
           }).join('')
         : '';
-      var raidWayfarerOptions = ['strike','shoot','defend'].concat(moveTargets.map(function(zone){ return 'move:'+zone; }));
+      var allyTargetOptions = ['<option value="self">Self</option><option value="player">You</option>']
+        .concat(raidAllies.map(function(a){
+          var nm=String(a&&a.name||'Wayfarer');
+          return '<option value="'+nm.replace(/"/g,'&quot;')+'">'+nm+'</option>';
+        })).join('');
       return '<div style="margin-bottom:.5rem;">'
         + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Stage: <strong style="color:var(--gold2);">'+stageLabel+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Round: <strong style="color:var(--gold2);">'+Math.max(1, Number(raidFlow.turn || 1))+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerRaidActions+'/'+playerMaxRaidActions+'</strong></div>'
+        + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Ally Budget: <strong style="color:var(--teal);">'+allyBudget+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Budget: <strong style="color:var(--red2);">'+enemyBudget+'/'+enemyBudgetMax+'</strong></div>'
-        + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Range: <strong style="color:var(--teal);">'+playerRange+'</strong></div>'
+        + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Turn: <strong style="color:var(--teal);">'+turnOwner+'</strong></div>'
         + '</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.3rem;">Selected hostile: <strong style="color:var(--red2);">'+selectedHostileTxt+'</strong> · Enemy target: <strong style="color:var(--teal);">'+selectedEnemyTargetTxt+'</strong> · Allies: '+raidAllies.length+'</div>'
         + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.42rem;">'
-        + '<button class="btn btn-xs btn-teal" onclick="qpRaidReturnToWing()">Return to Wing</button>'
         + (sceneStarted ? '' : '<button class="btn btn-xs btn-primary" onclick="qpRaidStartScene()">Start Scene</button>')
         + '<button class="btn btn-xs" onclick="if(typeof window.finishLegacyRaidCombatScene===\'function\')window.finishLegacyRaidCombatScene('+Number(raidFlow.missionId || 0)+','+Number(raidFlow.wingNum || 1)+');renderQP(\'combat\')">End Scene</button>'
         + '</div>'
         + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Hostiles</div>'
         + raidEnemyRows
-        + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin:.42rem 0 .3rem;">Wayfarer Actions</div>'
+        + '<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin:.24rem 0 .35rem;">'
+        + '<label style="font-size:.63rem;color:var(--muted2);">Enemy Target'
+        + '<select id="qpRaidEnemyTargetSel" onchange="qpRaidSetEnemyTarget(this.value)" style="width:100%;margin-top:.08rem;">'+raidEnemyTargetOptions+'</select></label>'
+        + '<button class="btn btn-xs btn-warn" ' + (sceneStarted && stage === 'enemy' && enemyBudget > 0 ? '' : 'disabled') + ' onclick="qpEnemyAction()">Enemy Action</button>'
+        + '</div>'
+        + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin:.42rem 0 .3rem;">Your Actions</div>'
         + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.22rem;">'
           + '<button class="btn btn-xs btn-primary" ' + (sceneStarted && stage === 'player' && playerRaidActions > 0 ? '' : 'disabled') + ' onclick="qpCombatAction(\'strike\')">Strike</button>'
           + '<button class="btn btn-xs btn-primary" ' + (sceneStarted && stage === 'player' && playerRaidActions > 0 ? '' : 'disabled') + ' onclick="qpCombatAction(\'shoot\')">Shoot</button>'
-          + '<button class="btn btn-xs btn-teal" ' + (sceneStarted && stage === 'player' && playerRaidActions > 0 ? '' : 'disabled') + ' onclick="qpCombatAction(\'defend\')">Defend</button>'
           + moveButtons
-        + '</div>'
-        + '<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-bottom:.1rem;">'
-        + '<label style="font-size:.63rem;color:var(--muted2);">Wayfarer Action'
-        + '<select id="qpRaidActionSelect" style="width:100%;margin-top:.08rem;">'
-        + raidWayfarerOptions.map(function(opt){
-            var label = opt.indexOf('move:')===0 ? ('Move to ' + opt.split(':')[1]) : (opt.charAt(0).toUpperCase()+opt.slice(1));
-            return '<option value="'+opt+'">'+label+'</option>';
-          }).join('')
-        + '</select></label>'
-        + '<button class="btn btn-xs btn-primary" ' + (sceneStarted && stage === 'player' && playerRaidActions > 0 ? '' : 'disabled') + ' onclick="qpRaidActionFromSelect()">Do Action</button>'
         + '</div>'
         + (combatTabActionOptions
           ? ('<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-top:.22rem;">'
@@ -15714,6 +15757,15 @@ document.addEventListener('DOMContentLoaded',()=>{
             + '<button class="btn btn-xs btn-teal" ' + (sceneStarted && stage === 'player' && playerRaidActions > 0 ? '' : 'disabled') + ' onclick="qpCombatTabWayfarerAction()">Use Combat Action</button>'
             + '</div>')
           : '<div style="font-size:.64rem;color:var(--muted2);margin-top:.22rem;">Combat tab Wayfarer actions unavailable.</div>')
+        + (raidAllies.length
+          ? ('<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin:.42rem 0 .3rem;">Allies</div>'
+            + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.2rem;align-items:end;">'
+            + '<label style="font-size:.63rem;color:var(--muted2);">Action<select id="qpRaidAllyActionSel" style="width:100%;margin-top:.08rem;"><option value="defend">Defend</option><option value="support">Support</option><option value="attack">Attack</option><option value="move">Move</option></select></label>'
+            + '<label style="font-size:.63rem;color:var(--muted2);">Target<select id="qpRaidAllyTargetSel" style="width:100%;margin-top:.08rem;">'+allyTargetOptions+'</select></label>'
+            + '<label style="font-size:.63rem;color:var(--muted2);">Move Band<select id="qpRaidAllyMoveSel" style="width:100%;margin-top:.08rem;"><option value="Engaged">Engaged</option><option value="Close" selected>Close</option><option value="Nearby">Nearby</option><option value="Far">Far</option></select></label>'
+            + '<button class="btn btn-xs btn-primary" ' + (sceneStarted && stage === 'ally' && allyBudget > 0 ? '' : 'disabled') + ' onclick="qpRaidExecuteAllyAction()">Execute</button>'
+            + '</div>')
+          : '')
         + '<div style="margin-top:.35rem;background:var(--surface);border:1px solid var(--border);padding:.35rem .45rem;font-size:.78rem;line-height:1.4;min-height:2rem;" id="qpCombatRollResult">'
           + (S.quickPanel.lastCombatRoll||'No combat roll yet.')
         + '</div>'

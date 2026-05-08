@@ -105,6 +105,66 @@
     return frameSvg(glyphs[String(kind || 'caravan')] || glyphs.caravan, Object.assign({}, opts || {}, { accent: accent }));
   }
 
+  function weaponKindFromName(name) {
+    var n = String(name || '').toLowerCase();
+    if (!n) return 'blade';
+    if (/(hammer|maul|mace|club)/.test(n)) return 'hammer';
+    if (/(spear|halberd|pike|lance|staff|scythe)/.test(n)) return 'polearm';
+    if (/(bow|crossbow|sling)/.test(n)) return 'bow';
+    if (/(pistol|rifle|musket|blunderbuss|carbine|gun)/.test(n)) return 'firearm';
+    if (/(wand|stave|rod|focus)/.test(n)) return 'arcane';
+    return 'blade';
+  }
+
+  function iconWeapon(name, opts) {
+    var kind = weaponKindFromName(name);
+    var accent = String(opts && opts.accent || resolveAccent(String(name || kind)));
+    var glyphs = {
+      blade: '<path d="M18 46l8-8 4 4-8 8h-4z" fill="#f0f4ff"/><path d="M30 40L48 18l-2-2-22 18z" fill="' + accent + '"/><path d="M45 15l4 4-3 3-4-4z" fill="#f6e3a2"/>',
+      hammer: '<rect x="34" y="14" width="16" height="10" rx="2" fill="' + accent + '"/><rect x="40" y="24" width="4" height="26" rx="2" fill="#d8dee7"/><rect x="30" y="16" width="6" height="6" rx="1" fill="#93a1b5"/>',
+      polearm: '<rect x="31" y="10" width="3" height="42" rx="1.5" fill="#d8dee7"/><path d="M33 10l9 9-9 5-9-5z" fill="' + accent + '"/>',
+      bow: '<path d="M19 16c12 7 12 25 0 32" fill="none" stroke="' + accent + '" stroke-width="4" stroke-linecap="round"/><path d="M19 16v32" stroke="#d8dee7" stroke-width="2"/><path d="M19 32h22" stroke="#d8dee7" stroke-width="2"/><path d="M38 29l10 3-10 3z" fill="#f3f6fd"/>',
+      firearm: '<rect x="14" y="26" width="28" height="8" rx="2" fill="' + accent + '"/><rect x="38" y="28" width="12" height="4" rx="1" fill="#d8dee7"/><path d="M22 34h8l3 8h-9z" fill="#8896ab"/>',
+      arcane: '<path d="M31 10h2v34h-2z" fill="#d8dee7"/><circle cx="32" cy="18" r="8" fill="' + accent + '" opacity=".9"/><circle cx="32" cy="18" r="3" fill="#f9f4df"/><path d="M24 42h16l-3 10H27z" fill="#6f7f95"/>'
+    };
+    return frameSvg(glyphs[kind] || glyphs.blade, Object.assign({}, opts || {}, { accent: accent, title: String(opts && opts.title || name || 'Weapon') }));
+  }
+
+  function buildPerchanceCharacterPrompt(state) {
+    var safe = state || {};
+    var traitPairs = [
+      ['physique', 'Physique'],
+      ['skin', 'Skin'],
+      ['hair', 'Hair'],
+      ['face', 'Face'],
+      ['clothing', 'Clothing'],
+      ['virtue', 'Virtue'],
+      ['vice', 'Vice'],
+      ['reputation', 'Reputation'],
+      ['misfortune', 'Misfortune']
+    ];
+    var picked = [];
+    for (var i = 0; i < traitPairs.length; i++) {
+      var key = traitPairs[i][0];
+      var label = traitPairs[i][1];
+      var value = safe[key];
+      if (!value && safe.traits && typeof safe.traits === 'object') value = safe.traits[key];
+      if (value) picked.push(label + ': ' + String(value));
+    }
+    var fallback = [];
+    if (safe.career) fallback.push('Career: ' + String(safe.career));
+    if (safe.background) fallback.push('Background: ' + String(safe.background));
+    if (safe.omen) fallback.push('Omen: ' + String(safe.omen));
+    var tags = picked.length ? picked : fallback;
+    var intro = 'fantasy character portrait, painterly, dramatic lighting';
+    return intro + (tags.length ? (', ' + tags.join(', ')) : '');
+  }
+
+  function getPerchanceCharacterGeneratorUrl(state) {
+    var prompt = buildPerchanceCharacterPrompt(state);
+    return 'https://perchance.org/ai-character-generator?prompt=' + encodeURIComponent(prompt);
+  }
+
   function getChestAccent(tier) {
     return {
       bronze: '#c98d44',
@@ -150,6 +210,7 @@
     var omen = safeState.omen || 'No omen chosen';
     var accent = resolveAccent([name, career, background, omen].join('|'));
     var portrait = iconWayfarer([name, career].join('|'), { size: opts && opts.size || 92, accent: accent, title: name });
+    var perchanceUrl = getPerchanceCharacterGeneratorUrl(safeState);
     return '<div style="display:grid;grid-template-columns:auto 1fr;gap:.65rem;align-items:center;padding:.58rem .62rem;border:1px solid ' + accent + '55;background:linear-gradient(155deg, ' + accent + '16, rgba(9,13,18,.92));">'
       + portrait
       + '<div>'
@@ -160,6 +221,9 @@
       + '<span style="font-size:.58rem;padding:.08rem .22rem;border:1px solid ' + accent + '44;color:' + accent + ';text-transform:uppercase;letter-spacing:.08em;">Omen</span>'
       + '<span style="font-size:.6rem;color:var(--muted2);">' + escHtml(omen) + '</span>'
       + '</div>'
+        + '<div style="margin-top:.28rem;">'
+        + '<a href="' + perchanceUrl + '" target="_blank" rel="noopener noreferrer" class="btn btn-xs" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">Generate AI Portrait (Perchance)</a>'
+        + '</div>'
       + '</div>'
       + '</div>';
   }
@@ -179,10 +243,12 @@
     iconWayfarer: iconWayfarer,
     iconTrophy: iconTrophy,
     iconVehicle: iconVehicle,
+    iconWeapon: iconWeapon,
     getRaidChestLabelHtml: getRaidChestLabelHtml,
     getRaidMedalStripHtml: getRaidMedalStripHtml,
     getTrophyEntryHtml: getTrophyEntryHtml,
     getBestiaryEntryIconHtml: getBestiaryEntryIconHtml,
+    getPerchanceCharacterGeneratorUrl: getPerchanceCharacterGeneratorUrl,
     getWayfarerPortraitHtml: getWayfarerPortraitHtml,
     renderWayfarerSheetPanel: renderWayfarerSheetPanel,
     resolveAccent: resolveAccent

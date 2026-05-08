@@ -159,7 +159,7 @@ async function runScenario(browser) {
       /Raid Combat/i.test(titleText) &&
       /Combat Engaged/i.test(text)
     );
-    const hasRaidQuickPanel = /Return to Wing/i.test(qpText) && /Stage:/i.test(qpText);
+    const hasRaidQuickPanel = /Stage:/i.test(qpText) && /Enemy Action/i.test(qpText) && /Turn:/i.test(qpText);
     return !!(
       raidFlowActive &&
       (hasRaidModal || hasRaidQuickPanel)

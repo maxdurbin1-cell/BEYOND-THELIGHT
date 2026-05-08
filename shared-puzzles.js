@@ -732,31 +732,34 @@
   function _scoreWordleGuess(guess, answer) {
     var g = String(guess || '').toLowerCase();
     var a = String(answer || '').toLowerCase();
+    var len = Math.max(0, Math.min(g.length, a.length));
     var out = [];
-    for (var i = 0; i < g.length; i++) out.push('absent');
     var counts = {};
-    for (var c = 0; c < a.length; c++) {
-      var ch = a.charAt(c);
-      counts[ch] = Number(counts[ch] || 0) + 1;
-    }
+    var i;
+    for (i = 0; i < len; i++) out.push('absent');
 
-    // Pass 1: exact matches first.
-    for (var j = 0; j < g.length; j++) {
-      if (g.charAt(j) === a.charAt(j)) {
-        out[j] = 'correct';
-        counts[g.charAt(j)] = Math.max(0, Number(counts[g.charAt(j)] || 0) - 1);
+    // Build counts from answer letters that are not already exact matches.
+    for (i = 0; i < len; i++) {
+      if (g.charAt(i) !== a.charAt(i)) {
+        var answerChar = a.charAt(i);
+        counts[answerChar] = Number(counts[answerChar] || 0) + 1;
       }
     }
 
-    // Pass 2: present but misplaced using remaining unmatched letters only.
-    for (var k = 0; k < g.length; k++) {
-      if (out[k] === 'correct') continue;
-      var gc = g.charAt(k);
-      if (Number(counts[gc] || 0) > 0) {
-        out[k] = 'present';
-        counts[gc] = Math.max(0, Number(counts[gc] || 0) - 1);
+    // Pass 1: mark exact-position letters.
+    for (i = 0; i < len; i++) {
+      if (g.charAt(i) === a.charAt(i)) out[i] = 'correct';
+    }
+
+    // Pass 2: mark misplaced letters using remaining unmatched counts.
+    for (i = 0; i < len; i++) {
+      if (out[i] === 'correct') continue;
+      var guessChar = g.charAt(i);
+      if (Number(counts[guessChar] || 0) > 0) {
+        out[i] = 'present';
+        counts[guessChar] = Number(counts[guessChar] || 0) - 1;
       } else {
-        out[k] = 'absent';
+        out[i] = 'absent';
       }
     }
     return out;

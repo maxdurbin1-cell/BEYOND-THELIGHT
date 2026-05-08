@@ -2064,6 +2064,80 @@
     };
   }
 
+  function getHoldingBrowseOfferCost(offerName) {
+    var name = String(offerName || '').trim();
+    if (!name) return 50;
+    var catalog = [
+      (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && SHOP_DATA.items) ? SHOP_DATA.items : [],
+      (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && SHOP_DATA.essentials) ? SHOP_DATA.essentials : [],
+      (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && SHOP_DATA.weapons) ? SHOP_DATA.weapons : [],
+      (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && SHOP_DATA.weapon_mods) ? SHOP_DATA.weapon_mods : [],
+      (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && SHOP_DATA.armor) ? SHOP_DATA.armor : []
+    ];
+    for (var c = 0; c < catalog.length; c++) {
+      var list = catalog[c] || [];
+      for (var i = 0; i < list.length; i++) {
+        var it = list[i];
+        if (!it || !it.name) continue;
+        if (String(it.name).toLowerCase() === name.toLowerCase()) return Math.max(10, Number(it.cost || 50));
+      }
+    }
+    return 50;
+  }
+
+  function buyHoldingBrowseOffer(nodeId, offerName) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node || !node.browsePreview || !Array.isArray(node.browsePreview.offers)) return;
+    var offer = String(offerName || '').trim();
+    if (!offer || node.browsePreview.offers.indexOf(offer) < 0) return;
+    var cost = getHoldingBrowseOfferCost(offer);
+    if (Number(S.credits || 0) < cost) {
+      node.result = 'Not enough credits to buy ' + offer + ' (' + cost + '₵).';
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
+      return;
+    }
+    S.credits = Math.max(0, Number(S.credits || 0) - cost);
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    if (typeof addToBackpack === 'function' && !addToBackpack(offer)) {
+      node.result = 'Backpack full. Could not buy ' + offer + '.';
+      S.credits = Number(S.credits || 0) + cost;
+      if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
+      return;
+    }
+    node.result = 'Purchased ' + offer + ' for ' + cost + '₵.';
+    if (window.TrophySystem) window.TrophySystem.check('first_shop_purchase');
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
+  }
+
+  function sellHoldingBrowseBackpackItem(nodeId, slotIdx) {
+    var crawl = ensureHoldingSettlementHexcrawl();
+    var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
+    if (!node) return;
+    if (!Array.isArray(S.backpack)) {
+      node.result = 'Backpack unavailable.';
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
+      return;
+    }
+    var idx = Number(slotIdx || 0);
+    var entry = String(S.backpack[idx] || '').trim();
+    if (!entry) {
+      node.result = 'That backpack slot is empty.';
+      rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
+      return;
+    }
+    var unit = parseBackpackStack(entry);
+    var sale = Math.max(10, Math.floor(getHoldingBrowseOfferCost(unit.name || entry) * 0.5));
+    if (typeof removeBackpackItem === 'function') removeBackpackItem(idx);
+    else S.backpack[idx] = '';
+    S.credits = Number(S.credits || 0) + sale;
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    node.result = 'Sold ' + (unit.name || entry) + ' for ' + sale + '₵.';
+    rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
+  }
+
   function getCurrentGameDayStampLocal() {
     if (typeof getCurrentGameDayStamp === 'function') return String(getCurrentGameDayStamp() || '');
     if (S && S.gameDate && typeof S.gameDate === 'object') {
@@ -2531,8 +2605,23 @@
           ? ('<div style="margin-top:.1rem;padding:.2rem .28rem;border:1px solid rgba(126,215,255,.28);background:rgba(126,215,255,.06);">'
             + '<div style="font-size:.67rem;color:var(--teal);margin-bottom:.08rem;"><strong>Browse Offers</strong> · ' + String(active.browsePreview.category || 'mixed') + '</div>'
             + active.browsePreview.offers.map(function (offer) {
-                return '<div style="font-size:.68rem;color:var(--text2);line-height:1.4;">• ' + String(offer || 'Item') + '</div>';
+                var itemName = String(offer || 'Item');
+                var itemCost = getHoldingBrowseOfferCost(itemName);
+                return '<div style="font-size:.68rem;color:var(--text2);line-height:1.4;display:flex;gap:.14rem;align-items:center;justify-content:space-between;">'
+                  + '<span>• ' + itemName + ' <span style="color:var(--gold2);">(' + itemCost + '₵)</span></span>'
+                  + '<button type="button" class="btn btn-xs btn-teal" onclick="buyHoldingBrowseOffer(\'' + String(active.id) + '\',\'' + itemName.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">Buy</button>'
+                  + '</div>';
               }).join('')
+            + '<div style="margin-top:.16rem;padding-top:.12rem;border-top:1px solid rgba(255,255,255,.1);font-size:.66rem;color:var(--muted2);">'
+            + '<strong style="color:var(--gold2);">Sell From Backpack</strong>'
+            + ((Array.isArray(S.backpack) ? S.backpack : []).map(function (bp, bIdx) {
+                if (!bp) return '';
+                return '<div style="margin-top:.08rem;display:flex;gap:.12rem;justify-content:space-between;align-items:center;">'
+                  + '<span>BP' + (bIdx + 1) + ': ' + String(bp) + '</span>'
+                  + '<button type="button" class="btn btn-xs" onclick="sellHoldingBrowseBackpackItem(\'' + String(active.id) + '\',' + bIdx + ')">Sell</button>'
+                  + '</div>';
+              }).join('') || '<div style="margin-top:.08rem;">Backpack empty.</div>')
+            + '</div>'
             + '</div>')
           : '')
         + (active.result ? '<div style="font-size:.67rem;color:var(--gold2);margin-top:.1rem;line-height:1.46;">' + active.result + '</div>' : '')
@@ -2646,9 +2735,21 @@
         S.credits = Math.max(0, Number(S.credits || 0) - legalCost);
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
         S.renown = Math.max(0, Number(S.renown || 0));
+        if (!S.factionRenown || typeof S.factionRenown !== 'object') {
+          S.factionRenown = { corporations: 0, religious: 0, political: 0, military: 0, underworld: 0 };
+        }
+        Object.keys(S.factionRenown).forEach(function (key) {
+          S.factionRenown[key] = Math.max(0, Number(S.factionRenown[key] || 0));
+        });
+        if (S.powerRenown && typeof S.powerRenown === 'object') {
+          Object.keys(S.powerRenown).forEach(function (key) {
+            S.powerRenown[key] = Math.max(0, Number(S.powerRenown[key] || 0));
+          });
+        }
         if (typeof updateRenown === 'function') updateRenown();
+        if (typeof updateFactionRenownUI === 'function') updateFactionRenownUI();
         crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
-        msg = 'Legal Desk complete: Renown floor reset to 0 for 20₵ and district security improved.';
+        msg = 'Legal Desk complete: all renown tracks floored to 0 for 20₵ and district security improved.';
       }
     } else if (action === 'hospital') {
       var hospitalCost = 50;
@@ -5006,6 +5107,8 @@
   window.setHackDreadDie        = setHackDreadDie;
   window.castHack               = castHack;
   window.getAvailableWeaponModSlots = getAvailableWeaponModSlots;
+  window.buyHoldingBrowseOffer = buyHoldingBrowseOffer;
+  window.sellHoldingBrowseBackpackItem = sellHoldingBrowseBackpackItem;
 }());
 
 // ── TROPHY SYSTEM ─────────────────────────────────────────────────────────────

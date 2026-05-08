@@ -1378,7 +1378,7 @@
             ? `<div class="sea-site">
                  <div class="ss-title">${capitalize(hex.siteType)}</div>
                  <div class="ss-text">${describeSeaSite(hex.siteType, hex.siteData)}</div>
-                 ${hex.siteType === 'settlement' ? `<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="generateTaskForSeaHex(${hex.col},${hex.row})">⚄ Generate Task</button><button class="btn btn-xs btn-teal" onclick="if(typeof openSeaSettlementHexcrawl==='function')openSeaSettlementHexcrawl('${String(hex.title||hex.islandName||'Sea Settlement').replace(/'/g,"\\'")}');else if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();">◫ Enter Settlement</button></div>${buildSeaSettlementDowntimePanel(hex)}` : ''}
+                 ${hex.siteType === 'settlement' ? `<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="generateTaskForSeaHex(${hex.col},${hex.row})">⚄ Generate Task</button><button class="btn btn-xs btn-teal" onclick="if(typeof openSeaSettlementHexcrawl==='function')openSeaSettlementHexcrawl('${String(hex.title||hex.islandName||'Sea Settlement').replace(/'/g,"\\'")}');else if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();">◫ Enter Settlement</button></div>` : ''}
                  ${hex.siteType === 'dungeon' ? `<div class="rest-boon" style="margin-top:.28rem;background:rgba(160,152,112,.06);border-color:rgba(160,152,112,.4);"><div class="rb-label" style="color:#a09870;">◫ Rest Boon</div><div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Empowered</strong> (Body/Strike/Shoot ↑).</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="if(typeof advanceDay==='function')advanceDay(1);if(typeof toggleCond==='function'&&S.conditions&&!S.conditions.empowered)toggleCond('empowered');showNotif('Sea ruin camp complete. +1 day, Empowered applied.','good');">Accept Boon Rest (Long Rest +1 Day)</button></div></div><div class="ruin-room" style="margin-top:.32rem;"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Built by:</strong> ${hex.siteData.builder || 'Unknown'}<br><strong>Purpose:</strong> ${hex.siteData.builtFor || 'Unknown'}<br><strong>Construction:</strong> ${hex.siteData.construction || 'Stone'}<br><strong>Entrance:</strong> ${hex.siteData.entrance || 'Collapsed arch'}<br><strong>Rooms:</strong> ${hex.siteData.rooms || 4} total<br><strong>Novelty:</strong> ${hex.siteData.novelty || 'None'}</div></div><div style="margin-top:.32rem;display:flex;gap:.24rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="openSeaDungeon(${hex.col},${hex.row})">Enter Sea Ruins Hexcrawl</button><button class="btn btn-xs" onclick="requestJoinSeaArea('dungeon',${hex.col},${hex.row})">Join Area: Sea Ruins</button></div>` : ''}
                </div>`
             : ""
@@ -3002,6 +3002,7 @@
     if (typeof data.unlockedRooms !== 'number') data.unlockedRooms = 1;
     if (!data.hiddenSearched) data.hiddenSearched = false;
     if (!data.hiddenRoomResult) data.hiddenRoomResult = '';
+    if (typeof data.hexcrawl.activeNodeId !== 'number') data.hexcrawl.activeNodeId = 0;
 
     let html = `
       <div class="room-block" style="border-color:rgba(46,196,182,.6);background:rgba(46,196,182,.07);">
@@ -3073,10 +3074,11 @@
     var seaNodes = seaPlaced.map(function (entry) {
       var node = entry.node || {};
       var explored = !!node.explored;
-      var stroke = explored ? 'rgba(76,175,116,.85)' : 'rgba(126,215,255,.62)';
-      var fill = explored ? 'rgba(76,175,116,.22)' : 'rgba(22,30,44,.9)';
+      var selected = Number(data.hexcrawl.activeNodeId || 0) === Number(node.id || 0);
+      var stroke = selected ? 'rgba(240,208,112,.95)' : (explored ? 'rgba(76,175,116,.85)' : 'rgba(126,215,255,.62)');
+      var fill = selected ? 'rgba(240,208,112,.14)' : (explored ? 'rgba(76,175,116,.22)' : 'rgba(22,30,44,.9)');
       var icon = explored ? '✓' : '?';
-      return '<g style="cursor:pointer;" onclick="exploreSeaDungeonHexNode(' + Number(node.id || 0) + ')">'
+      return '<g style="cursor:pointer;" onclick="selectSeaDungeonHexNode(' + Number(node.id || 0) + ')">'
         + '<polygon points="' + seaHexPoints(entry.x, entry.y) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"></polygon>'
         + '<text x="' + entry.x + '" y="' + (entry.y - 2) + '" text-anchor="middle" font-size="10" fill="var(--gold2)">#' + (Number(node.id || 0) + 1) + '</text>'
         + '<text x="' + entry.x + '" y="' + (entry.y + 10) + '" text-anchor="middle" font-size="9" fill="var(--text2)">' + icon + '</text>'
@@ -3099,6 +3101,17 @@
         return '<div style="font-size:.74rem;color:var(--text2);">Hex ' + (Number(node.id) + 1) + ' · ' + sanitizeInlineText(String(node.label || 'Node'))
           + ' · <span style="color:' + (node.explored ? 'var(--green2)' : 'var(--teal)') + ';">' + (node.explored ? 'Cleared' : 'Unexplored') + '</span></div>';
       }).join('')
+      + '</div>'
+      + '<div style="margin-top:.24rem;padding:.22rem .26rem;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.2);">'
+      + (function () {
+          var active = (data.hexcrawl.nodes || []).find(function (n) { return Number(n.id) === Number(data.hexcrawl.activeNodeId || 0); }) || data.hexcrawl.nodes[0];
+          if (!active) return '<div style="font-size:.72rem;color:var(--muted2);">No active hex.</div>';
+          return '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Selected Hex ' + (Number(active.id || 0) + 1) + '</strong> · ' + sanitizeInlineText(String(active.label || 'Node')) + '</div>'
+            + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.12rem;">Status: ' + (active.explored ? 'Cleared' : 'Unexplored') + '</div>'
+            + (active.explored
+              ? '<span style="font-size:.72rem;color:var(--green2);">Already cleared.</span>'
+              : '<button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonHexNode(' + Number(active.id || 0) + ')">⚄ Resolve Selected Hex</button>');
+        })()
       + '</div>'
       + '</div>';
 
@@ -3383,6 +3396,18 @@
     }
     openModal(data.name, buildDungeonModal(data));
   }
+
+  function selectSeaDungeonHexNode(nodeId) {
+    if (!S.lastSea || !S.lastSea.activeDungeon) return;
+    const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
+    const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
+    if (!data || !data.hexcrawl || !Array.isArray(data.hexcrawl.nodes)) return;
+    const node = data.hexcrawl.nodes.find(function (entry) { return Number(entry.id) === Number(nodeId); });
+    if (!node) return;
+    data.hexcrawl.activeNodeId = Number(node.id || 0);
+    openModal(data.name, buildDungeonModal(data));
+  }
+
   function exploreSeaDungeonHexNode(nodeId) {
     if (!S.lastSea || !S.lastSea.activeDungeon) return;
     const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
@@ -3394,6 +3419,7 @@
     node.explored = true;
     exploreSeaDungeonRoom(roomIndex);
   }
+  window.selectSeaDungeonHexNode = selectSeaDungeonHexNode;
   window.exploreSeaDungeonHexNode = exploreSeaDungeonHexNode;
   window.exploreSeaDungeonRoom = exploreSeaDungeonRoom;
   window.checkSeaDungeonPuzzle = checkSeaDungeonPuzzle;

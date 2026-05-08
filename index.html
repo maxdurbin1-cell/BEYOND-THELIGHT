@@ -9552,6 +9552,8 @@ function useBackpackItem(index) {
       decryptDataCache(index);
     } else if (customAction === 'stabilizeRelicShard') {
       stabilizeRelicShard(index);
+    } else if (customAction === 'phoenixFlash') {
+      usePhoenixFlashBackpackItem(index);
     } else if (customAction === 'useBackpackAction') {
       // Custom-use relics/sigils are handled by runtime systems (e.g. New Sun hooks).
     }
@@ -9846,6 +9848,26 @@ function useCustomItem(text, index){
   // Custom items are infinite use — no removal
 }
 
+function usePhoenixFlashBackpackItem(index){
+  if(!Array.isArray(S.backpack))return;
+  var slot=parseBackpackStack(S.backpack[index]);
+  if(!slot.name)return;
+  var heal=explodingRoll(6).total;
+  if(typeof changeHealth==='function')changeHealth(-heal);
+  else if(typeof changeStress==='function')changeStress(-heal);
+  if(S.conditions){
+    S.conditions.shaken=false;
+    S.conditions.weakened=false;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+  }
+  if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+  if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+  S.rollMod.advDice.push((S.stats&&S.stats.adventure)?S.stats.adventure:4);
+  if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+  removeBackpackItem(index);
+  showNotif('Phoenix Flash ignites: restored '+heal+' Health, cleared Shaken/Weakened, and queued +A.D. to next roll.','good');
+}
+
 function ensureExplorationEffectState() {
   S.explorationEffects = S.explorationEffects || { revealTraps: 0 };
 }
@@ -9890,6 +9912,7 @@ function getCustomBackpackAction(text) {
   if (clean === 'builder\'s letter') return 'readBuildersLetter';
   if (clean === 'data cache') return 'decryptDataCache';
   if (clean === 'relic shard') return 'stabilizeRelicShard';
+  if (clean === 'phoenix flash' || clean === 'phoenix flask') return 'phoenixFlash';
   if (clean === "autarch's signet") return 'useBackpackAction';
   if (clean === 'claw of the conciliator') return 'useBackpackAction';
   if (clean === 'book of the new sun') return 'useBackpackAction';
@@ -14301,58 +14324,100 @@ function openLostCityBuildingHexcrawl(col,row){
     const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
     if(!hex)return;
     hex.data=hex.data||{};
-    // Initialize hexcrawl state for this Lost City
     if(!hex.data.hexcrawl){
       const LC_TRAPS=['Pressure plate triggers a sealed gas vent (Body vs DD8 or Irradiated).','Tripwire releases a wall panel — roll Control vs DD6 or take 3 damage.','Magnetic mine array — metallic armor wearers check Defend vs DD10.','Rigged door detonates a charge: AD vs DD8 or Weakened.','Automated seeker turret activates — first action costs 1 extra AP.','Weight-sensitive floor panel collapses: Body vs DD8 or fall 1 floor (4 damage + Irradiated).'];
       const LC_LOOT_ITEMS=['Lost City Fuel Rod (poisonous rods, sell for 200₵)','Radiothermal Canister (powers caravan drive cells)','Pre-fall Currency Cache (roll 3d6 × 10 credits)','Builder\'s Blueprint (rare schematic)','Irradiated Power Cell (functions as a grenade equivalent)','Sealed Medkit (heals 6 HP, removes Irradiated)','Pre-fall Comms Unit (repair to active use)','Salvage Circuit Board (sell 150₵)'];
-      const roomCount=4;
+      const roomCount=6;
       const types=['Entrance Hall','Residential Block','Utility Crawl','Archive Shelf','Irradiated Core','Basement Vault'];
+      const coords=[{q:0,r:0},{q:1,r:0},{q:0,r:1},{q:-1,r:1},{q:-1,r:0},{q:0,r:-1}];
+      const rooms=Array.from({length:roomCount},function(_,i){
+        var kind=types[i]||types[types.length-1];
+        return{idx:i+1,kind:kind,cleared:false,result:'',trap:pick(LC_TRAPS),loot:pick(LC_LOOT_ITEMS)};
+      });
       hex.data.hexcrawl={
         currentBuilding:pick(LC_BUILDINGS),
         unlockedRooms:1,
         hiddenSearched:false,
-        rooms:Array.from({length:roomCount},function(_,i){
-          var kind=types[i]||types[types.length-1];
-          return{idx:i+1,kind:kind,cleared:false,result:'',trap:pick(LC_TRAPS),loot:pick(LC_LOOT_ITEMS)};
-        })
+        activeNodeId:0,
+        rooms:rooms,
+        nodes:rooms.map(function(room,i){
+          return { id:i, roomIndex:i, label:room.kind, q:coords[i].q, r:coords[i].r, revealed:i===0 };
+        }),
+        history:[]
       };
       hex.data._lcTraps=LC_TRAPS;
       hex.data._lcLoot=LC_LOOT_ITEMS;
     }
     const crawl=hex.data.hexcrawl;
-    const LC_TRAPS=hex.data._lcTraps||[];
-    const LC_LOOT_ITEMS=hex.data._lcLoot||[];
-    function roomCard(r,idx){
-      if(idx>=crawl.unlockedRooms)return '';
-      var cleared=r.cleared;
-      var result=r.result?`<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">${r.result}</div>`:'';
-      var btn=cleared?`<span style="font-size:.74rem;color:var(--green2);">✓ Cleared</span>`
-        :`<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;">
-            <button class="btn btn-xs btn-teal" onclick="lcResolveRoom(${col},${row},${idx})">⚄ Resolve Room (AD vs DD6)</button>
-            <button class="btn btn-xs btn-warn" onclick="lcTriggerTrap(${col},${row},${idx})">🜸 Check for Trap</button>
-          </div>`;
-      return `<div class="lc-block" style="border-color:rgba(224,128,192,.35);margin-top:.3rem;">
-        <div class="lb-label" style="color:#d090c0;">Room ${r.idx}: ${r.kind}</div>
-        ${result}${btn}
-      </div>`;
+    if(typeof crawl.activeNodeId!=='number')crawl.activeNodeId=0;
+    const activeNode=(crawl.nodes||[]).find(function(n){return Number(n.id)===Number(crawl.activeNodeId);})||crawl.nodes[0];
+    const activeRoom=activeNode&&crawl.rooms?crawl.rooms[Number(activeNode.roomIndex||0)]:null;
+    const size=26,ox=210,oy=130;
+    function toXY(q,r){return{x:Math.round((Math.sqrt(3)*size*(q+r/2))+ox),y:Math.round(((3/2)*size*r)+oy)};}
+    function hexPoints(cx,cy){
+      var pts=[];
+      for(var i=0;i<6;i++){var a=(Math.PI/180)*(60*i-30);pts.push((cx+size*Math.cos(a)).toFixed(1)+','+(cy+size*Math.sin(a)).toFixed(1));}
+      return pts.join(' ');
     }
-    var roomsHtml=crawl.rooms.map(function(r,i){ return roomCard(r,i); }).join('');
-    var searchBtn=(!crawl.hiddenSearched&&crawl.unlockedRooms>0)?
-      `<button class="btn btn-xs btn-primary" onclick="lcSearchHiddenRoom(${col},${row})">🔎 Search for Hidden Room (AD vs DD6)</button>`:'';
-    var hiddenResult=crawl.hiddenResult?`<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">${crawl.hiddenResult}</div>`:'';
+    var lines='';
+    [[0,1],[0,2],[0,3],[0,4],[0,5],[1,2],[3,4]].forEach(function(edge){
+      var a=(crawl.nodes||[]).find(function(n){return n.id===edge[0];});
+      var b=(crawl.nodes||[]).find(function(n){return n.id===edge[1];});
+      if(!a||!b)return;
+      var pa=toXY(a.q,a.r),pb=toXY(b.q,b.r);
+      lines+='<line x1="'+pa.x+'" y1="'+pa.y+'" x2="'+pb.x+'" y2="'+pb.y+'" stroke="rgba(126,215,255,.28)" stroke-width="2" />';
+    });
+    var nodeSvg=(crawl.nodes||[]).map(function(node){
+      var room=crawl.rooms[Number(node.roomIndex||0)]||{};
+      var revealed=Number(node.id)<Number(crawl.unlockedRooms||1);
+      if(!revealed)return '';
+      var p=toXY(node.q,node.r);
+      var selected=Number(node.id)===Number(crawl.activeNodeId);
+      var cleared=!!room.cleared;
+      var stroke=selected?'#f0d070':(cleared?'rgba(76,175,116,.92)':'rgba(126,215,255,.78)');
+      var fill=selected?'rgba(240,208,112,.14)':(cleared?'rgba(76,175,116,.18)':'rgba(16,24,34,.92)');
+      var icon=cleared?'✓':'◆';
+      return '<g style="cursor:pointer;" onclick="lcSelectHexNode('+col+','+row+','+Number(node.id||0)+')">'
+        +'<polygon points="'+hexPoints(p.x,p.y)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="2"></polygon>'
+        +'<text x="'+p.x+'" y="'+(p.y-2)+'" text-anchor="middle" font-size="10" fill="var(--gold2)">#'+(Number(node.id||0)+1)+'</text>'
+        +'<text x="'+p.x+'" y="'+(p.y+10)+'" text-anchor="middle" font-size="10" fill="var(--text2)">'+icon+'</text>'
+        +'</g>';
+    }).join('');
+    var actionHtml='';
+    if(activeRoom){
+      actionHtml=activeRoom.cleared
+        ? '<span style="font-size:.74rem;color:var(--green2);">✓ Cleared</span>'
+        : '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="lcResolveRoom('+col+','+row+','+Number(activeRoom.idx-1)+')">⚄ Resolve Room (AD vs DD6)</button><button class="btn btn-xs btn-warn" onclick="lcTriggerTrap('+col+','+row+','+Number(activeRoom.idx-1)+')">🜸 Check for Trap</button></div>';
+    }
+    var hiddenBtn=(!crawl.hiddenSearched&&crawl.unlockedRooms>0)?'<button class="btn btn-xs btn-primary" onclick="lcSearchHiddenRoom('+col+','+row+')">🔎 Search for Hidden Room (AD vs DD6)</button>':'';
+    var hiddenResult=crawl.hiddenResult?'<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">'+crawl.hiddenResult+'</div>':'';
     openModal('Lost City Building: '+hex.name,
-      `<div style="font-size:.83rem;color:var(--text2);line-height:1.65;">
-        <div style="font-family:'Cinzel',serif;color:#e080c0;font-size:.86rem;margin-bottom:.35rem;">⬡ ${hex.data.hexcrawl.currentBuilding}</div>
-        <div style="font-size:.78rem;color:var(--red2);margin-bottom:.3rem;">☢ Irradiated Ones patrol all floors. Stay quiet or roll Body vs DD8 on fail.</div>
-        ${roomsHtml}
-        <div style="margin-top:.5rem;border-top:1px solid var(--border2);padding-top:.4rem;">
-          ${searchBtn}${hiddenResult}
-        </div>
-        <div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap;">
-          <button class="btn btn-xs" onclick="hex_lc_reset(${col},${row})">🗘 New Building</button>
-        </div>
-      </div>`
+      '<div style="font-size:.83rem;color:var(--text2);line-height:1.65;">'
+      +'<div style="font-family:\'Cinzel\',serif;color:#e080c0;font-size:.86rem;margin-bottom:.35rem;">⬡ '+String(crawl.currentBuilding||'Lost City District')+'</div>'
+      +'<div style="font-size:.78rem;color:var(--red2);margin-bottom:.3rem;">☢ Irradiated Ones patrol all floors. Stay quiet or roll Body vs DD8 on fail.</div>'
+      +'<div class="lc-block" style="border-color:rgba(224,128,192,.35);margin-top:.3rem;">'
+      +'<div class="lb-label" style="color:#d090c0;">Lost City District Hexcrawl</div>'
+      +'<svg viewBox="0 0 420 260" style="width:100%;height:auto;display:block;border:1px solid var(--border2);background:linear-gradient(180deg,rgba(20,10,26,.92),rgba(8,8,14,.96));margin-top:.2rem;">'+lines+nodeSvg+'</svg>'
+      +'<div style="font-size:.74rem;color:var(--muted2);margin-top:.24rem;">Click a hex to inspect it, then resolve room actions below.</div>'
+      +'</div>'
+      +(activeRoom?('<div class="lc-block" style="border-color:rgba(224,128,192,.35);margin-top:.3rem;">'
+        +'<div class="lb-label" style="color:#d090c0;">Hex '+String(Number(crawl.activeNodeId)+1)+' — '+String(activeRoom.kind||'Room')+'</div>'
+        +(activeRoom.result?('<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">'+activeRoom.result+'</div>'):'')
+        +actionHtml
+        +'</div>'):'')
+      +'<div style="margin-top:.5rem;border-top:1px solid var(--border2);padding-top:.4rem;">'+hiddenBtn+hiddenResult+'</div>'
+      +'<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-xs" onclick="hex_lc_reset('+col+','+row+')">🗘 New Building</button></div>'
+      +'</div>'
     );
+}
+
+function lcSelectHexNode(col,row,nodeId){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data||!hex.data.hexcrawl||!Array.isArray(hex.data.hexcrawl.nodes))return;
+    const node=hex.data.hexcrawl.nodes.find(function(n){return Number(n.id)===Number(nodeId);});
+    if(!node)return;
+    hex.data.hexcrawl.activeNodeId=Number(node.id||0);
+    openLostCityBuildingHexcrawl(col,row);
 }
 
 function lcResolveRoom(col,row,idx){

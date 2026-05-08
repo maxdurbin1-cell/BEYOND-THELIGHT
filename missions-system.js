@@ -1848,7 +1848,7 @@
       + '</div>'
       + '<div style="border:1px solid rgba(126,215,255,.22);background:linear-gradient(150deg, rgba(14,22,30,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
       + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Storage Overflow</strong></div>'
-      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.42;max-height:120px;overflow:auto;">'
+      + '<div style="font-size:.69rem;color:var(--muted2);line-height:1.46;max-height:260px;overflow:auto;padding-right:.15rem;">'
       + (overflow.length ? overflowRows : 'No overflow loot.')
       + '</div>'
       + '<div style="margin-top:.16rem;">'
@@ -10072,7 +10072,7 @@
       if (!explored) {
         actionBtn='<button class="btn btn-xs btn-teal" onclick="exploreRoom('+missionId+','+idx+')" style="margin-top:.2rem;">Investigate</button>';
       } else if (room.find&&room.find.type==='enemy'&&!room.find.resolved) {
-        actionBtn='<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u2694 '+room.find.count+' enemies \u00b7 DD'+room.find.dd+' \u00b7 '+room.find.hp+' HP each</div><button class="btn btn-xs" onclick="switchTab(\'combat\',document.querySelector(\".tab-btn[onclick*=\\\"combat\\\"]\"))">Open Combat</button><button class="btn btn-xs btn-red" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',false)">Failure</button><button class="btn btn-xs btn-primary" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',true)">Success</button></div>';
+        actionBtn='<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u2694 '+room.find.count+' enemies \u00b7 DD'+room.find.dd+' \u00b7 '+room.find.hp+' HP each</div><button class="btn btn-xs" onclick="openMissionRoomCombat('+missionId+','+idx+')">Open Combat</button><button class="btn btn-xs btn-red" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',false)">Failure</button><button class="btn btn-xs btn-primary" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',true)">Success</button></div>';
       } else if (room.find&&room.find.type==='trap'&&!room.find.resolved) {
         actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="resolveMissionRoomTrap('+missionId+','+idx+')">'+(isMissionManualRollMode()?'Resolve Trap (Success/Failure)':'Resolve Trap (Action vs DD'+(room.find.dd||6)+')')+'</button></div>';
       } else if (room.find&&room.find.type==='puzzle'&&!room.find.resolved) {
@@ -10261,6 +10261,37 @@
         renderSiteModal(missionId);
       }
     });
+  }
+
+  function openMissionRoomCombat(missionId, roomIdx) {
+    var mission=getMission(missionId); if (!mission) return;
+    var room=mission.rooms[roomIdx];
+    if (!room || !room.find || room.find.type!=='enemy' || room.find.resolved) return;
+    if (typeof S === 'undefined' || !S) return;
+    if (!Array.isArray(S.enemies)) S.enemies = [];
+    S.enemies = [];
+    var count = Math.max(1, Number(room.find.count || 1));
+    var dd = Math.max(4, Number(room.find.dd || 6));
+    var hp = Math.max(4, Number(room.find.hp || (dd * 2)));
+    for (var i = 0; i < count; i++) {
+      S.enemies.push({
+        id: Date.now() + i,
+        name: 'Site Hostile ' + (i + 1),
+        dread: dd,
+        stress: 0,
+        maxStress: hp,
+        ally: false
+      });
+    }
+    S.combat = S.combat || {};
+    S.combat.enemyDread = dd;
+    if (typeof switchTab === 'function') {
+      var combatBtn = document.querySelector(".tab-btn[onclick*=\"combat\"]");
+      switchTab('combat', combatBtn || null);
+    }
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+    if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof showNotif === 'function') showNotif('Combat loaded: ' + count + ' hostiles (DD' + dd + ', ' + hp + ' HP each).', 'warn');
   }
 
   function resolveMissionRoomEnemy(missionId,roomIdx,success) {
@@ -11307,7 +11338,7 @@
   window.startMissionStep1=startMissionStep1; window.skipMissionStep1=skipMissionStep1; window.completeMissionInfoStep=completeMissionInfoStep;
   window.startMissionStep2=startMissionStep2; window.renderSiteModal=renderSiteModal; window.exploreRoom=exploreRoom;
   window.resolveRoomConfrontation=resolveRoomConfrontation; window.completeMissionSiteStep=completeMissionSiteStep;
-  window.resolveMissionRoomTrap=resolveMissionRoomTrap; window.startMissionRoomPuzzle=startMissionRoomPuzzle; window.resolveMissionRoomEnemy=resolveMissionRoomEnemy;
+  window.resolveMissionRoomTrap=resolveMissionRoomTrap; window.startMissionRoomPuzzle=startMissionRoomPuzzle; window.resolveMissionRoomEnemy=resolveMissionRoomEnemy; window.openMissionRoomCombat=openMissionRoomCombat;
   window.startMissionStep3=startMissionStep3; window.resolveMission=resolveMission;
   window.resolveMissionOutcome=resolveMissionOutcome;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;

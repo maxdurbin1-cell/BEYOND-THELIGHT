@@ -19,6 +19,9 @@
     masterVolume: 0.7,
     currentMusic: null,
     currentMusicId: "",
+    currentMusicBaseId: "",
+    currentMusicPool: [],
+    currentMusicRotationTimer: null,
     currentScenario: "",
     currentAmbiences: [],
     musicVolume: 0.5,
@@ -38,8 +41,10 @@
     audioCache: {},
     musicPlayers: {},
     musicProfiles: {},
+    musicVariantGroups: {},
     ambienceProfiles: {},
     scenarioProfiles: {},
+    recentMusicIds: [],
     initialized: false,
 
     // Initialize Web Audio API
@@ -102,6 +107,63 @@
         return this.audioCache[id];
       }
       return null;
+    },
+
+    rememberRecentMusic(id) {
+      const next = String(id || '').trim();
+      if (!next) return;
+      this.recentMusicIds = [next].concat((this.recentMusicIds || []).filter(function (entry) {
+        return String(entry || '') !== next;
+      })).slice(0, 6);
+    },
+
+    clearMusicRotationTimer() {
+      if (this.currentMusicRotationTimer) {
+        clearTimeout(this.currentMusicRotationTimer);
+        this.currentMusicRotationTimer = null;
+      }
+    },
+
+    getMusicVariantPool(musicId) {
+      const baseId = String(musicId || '').trim();
+      const group = this.musicVariantGroups[baseId];
+      if (Array.isArray(group) && group.length) return group.slice();
+      return baseId ? [baseId] : [];
+    },
+
+    pickMusicVariant(musicId, excludeId) {
+      const pool = this.getMusicVariantPool(musicId).filter(Boolean);
+      if (!pool.length) return { baseId: String(musicId || ''), chosenId: String(musicId || ''), pool: [] };
+      const recent = Array.isArray(this.recentMusicIds) ? this.recentMusicIds.slice(0, 3) : [];
+      let candidates = pool.filter((id) => id !== excludeId && recent.indexOf(id) === -1);
+      if (!candidates.length) candidates = pool.filter((id) => id !== excludeId);
+      if (!candidates.length) candidates = pool.slice();
+      const chosenId = candidates[Math.floor(Math.random() * candidates.length)] || pool[0];
+      return { baseId: String(musicId || ''), chosenId, pool };
+    },
+
+    scheduleMusicRotation(baseId, chosenId, bufferDuration) {
+      this.clearMusicRotationTimer();
+      const pool = this.getMusicVariantPool(baseId);
+      if (!baseId || pool.length < 2 || !this.musicConsent || !this.enabled) return;
+      const seconds = Math.max(45, Math.min(110, Math.round((Number(bufferDuration || 18) || 18) * 3.5)));
+      const self = this;
+      this.currentMusicRotationTimer = setTimeout(function () {
+        if (!self.musicConsent || !self.enabled) return;
+        if (String(self.currentMusicBaseId || '') !== String(baseId || '')) return;
+        self.playMusic(baseId, true, { forceVariantChange: true, excludeId: chosenId, preserveScenario: true });
+      }, seconds * 1000);
+    },
+
+    registerMusicVariants(baseId, variantProfiles) {
+      const group = [baseId];
+      const entries = Array.isArray(variantProfiles) ? variantProfiles : [];
+      entries.forEach((profile, index) => {
+        const variantId = String(baseId || '') + '-v' + String(index + 1);
+        this.musicProfiles[variantId] = Object.assign({}, this.musicProfiles[baseId] || {}, profile || {});
+        group.push(variantId);
+      });
+      this.musicVariantGroups[baseId] = group;
     },
 
     async decodeAudioArrayBuffer(arrayBuffer) {
@@ -313,7 +375,7 @@
      * Play background music for a page (loops)
      * @param {string} musicId - ID of the music to play
      */
-    playMusic(musicId, fadeIn = true) {
+    playMusic(musicId, fadeIn = true, options = {}) {
       this.ensureInitialized();
       if (!this.enabled || !this.audioContext) {
         console.warn('🔊 Audio system disabled or no audio context');
@@ -324,11 +386,19 @@
         return;
       }
 
+      const baseId = String(musicId || '').trim();
+      if (!baseId) return;
+      if (this.currentMusic && !options.forceVariantChange && String(this.currentMusicBaseId || '') === baseId) {
+        const currentBuffer = this.getBuffer(String(this.currentMusicId || ''));
+        this.scheduleMusicRotation(baseId, String(this.currentMusicId || ''), currentBuffer && currentBuffer.duration);
+        return;
+      }
+
       // Resume audio context if needed (browser autoplay policy)
       if (this.audioContext.state === 'suspended') {
         this.audioContext.resume().then(() => {
           console.log('🔊 Audio context resumed by playMusic');
-          this.playMusic(musicId, fadeIn);
+          this.playMusic(musicId, fadeIn, options);
         }).catch((err) => {
           console.warn('🔊 Unable to resume audio for music:', err);
         });
@@ -341,9 +411,11 @@
       }
 
       try {
-        const musicData = this.getBuffer(musicId);
+        const selection = this.pickMusicVariant(baseId, options.excludeId);
+        const chosenId = selection.chosenId;
+        const musicData = this.getBuffer(chosenId);
         if (!musicData) {
-          console.warn(`🔊 Music not found: ${musicId}`);
+          console.warn(`🔊 Music not found: ${chosenId}`);
           return;
         }
 
@@ -359,8 +431,11 @@
         source.start(0);
 
         this.currentMusic = { source, gainNode };
-        this.currentMusicId = String(musicId || '');
-        console.log(`🔊 Now playing: ${musicId} (Context state: ${this.audioContext.state})`);
+        this.currentMusicId = chosenId;
+        this.currentMusicBaseId = baseId;
+        this.currentMusicPool = selection.pool.slice();
+        this.rememberRecentMusic(chosenId);
+        console.log(`🔊 Now playing: ${chosenId} (base ${baseId}) (Context state: ${this.audioContext.state})`);
 
         // Fade in if requested
         if (fadeIn) {
@@ -373,8 +448,9 @@
             );
           }
         }
+        this.scheduleMusicRotation(baseId, chosenId, musicData.duration);
       } catch (e) {
-        console.warn(`🔊 Error playing music ${musicId}:`, e);
+        console.warn(`🔊 Error playing music ${baseId}:`, e);
       }
     },
 
@@ -383,6 +459,7 @@
      */
     stopMusic(fadeOut = true) {
       if (!this.currentMusic) return;
+      this.clearMusicRotationTimer();
 
       if (fadeOut) {
         const startTime = this.audioContext.currentTime;
@@ -399,6 +476,8 @@
               this.currentMusic.source.stop();
               this.currentMusic = null;
               this.currentMusicId = '';
+              this.currentMusicBaseId = '';
+              this.currentMusicPool = [];
             }
           } catch (e) {
             console.warn('🔊 Error stopping music:', e);
@@ -409,6 +488,8 @@
           this.currentMusic.source.stop();
           this.currentMusic = null;
           this.currentMusicId = '';
+          this.currentMusicBaseId = '';
+          this.currentMusicPool = [];
         } catch (e) {
           console.warn('🔊 Error stopping music:', e);
         }
@@ -626,6 +707,111 @@
         'music-ritual': { root: 103.83, bpm: 60, mode: 'minor', energy: 0.48, shimmer: 0.58 },
         'music-relic': { root: 185, bpm: 72, mode: 'major', energy: 0.4, shimmer: 0.72 }
       };
+
+      this.registerMusicVariants('music-character', [
+        { root: 98, bpm: 58, shimmer: 0.44, waveformPad: 'triangle' },
+        { root: 123.47, bpm: 66, energy: 0.36, leadMix: 0.24 }
+      ]);
+      this.registerMusicVariants('music-map', [
+        { root: 164.81, bpm: 72, shimmer: 0.62, waveformLead: 'sine' },
+        { root: 138.59, bpm: 64, energy: 0.28, noiseMix: 0.08 }
+      ]);
+      this.registerMusicVariants('music-combat', [
+        { root: 220, bpm: 124, energy: 1, pulseMix: 0.46 },
+        { root: 174.61, bpm: 110, bassMix: 0.4, waveformLead: 'saw' }
+      ]);
+      this.registerMusicVariants('music-caravan', [
+        { root: 174.61, bpm: 84, mode: 'major', shimmer: 0.48 },
+        { root: 146.83, bpm: 76, energy: 0.42, waveformPad: 'triangle' }
+      ]);
+      this.registerMusicVariants('music-missions', [
+        { root: 138.59, bpm: 98, energy: 0.72 },
+        { root: 123.47, bpm: 86, shimmer: 0.24, bassMix: 0.34 }
+      ]);
+      this.registerMusicVariants('music-town', [
+        { root: 207.65, bpm: 88, mode: 'major', shimmer: 0.4 },
+        { root: 174.61, bpm: 78, energy: 0.44, waveformLead: 'sine' }
+      ]);
+      this.registerMusicVariants('music-city', [
+        { root: 246.94, bpm: 100, shimmer: 0.38 },
+        { root: 196, bpm: 90, energy: 0.58, bassMix: 0.3 }
+      ]);
+      this.registerMusicVariants('music-village', [
+        { root: 155.56, bpm: 70, mode: 'major', shimmer: 0.42 },
+        { root: 185, bpm: 76, energy: 0.4, waveformPad: 'triangle' }
+      ]);
+      this.registerMusicVariants('music-tavern', [
+        { root: 174.61, bpm: 110, mode: 'major', pulseMix: 0.34 },
+        { root: 146.83, bpm: 96, shimmer: 0.2, bassMix: 0.34 }
+      ]);
+      this.registerMusicVariants('music-dark-streets', [
+        { root: 138.59, bpm: 82, shimmer: 0.16, noiseMix: 0.08 },
+        { root: 164.81, bpm: 90, energy: 0.62, waveformLead: 'saw' }
+      ]);
+      this.registerMusicVariants('music-wilderness', [
+        { root: 155.56, bpm: 74, shimmer: 0.52 },
+        { root: 130.81, bpm: 68, energy: 0.42, waveformPad: 'triangle' }
+      ]);
+      this.registerMusicVariants('music-dungeon', [
+        { root: 92.5, bpm: 62, shimmer: 0.12, noiseMix: 0.1 },
+        { root: 110, bpm: 76, energy: 0.64, bassMix: 0.38 }
+      ]);
+      this.registerMusicVariants('music-sacred', [
+        { root: 146.83, bpm: 54, shimmer: 0.8, leadMix: 0.22 },
+        { root: 116.54, bpm: 62, mode: 'major', shimmer: 0.72 }
+      ]);
+      this.registerMusicVariants('music-space', [
+        { root: 92.5, bpm: 58, shimmer: 0.92, noiseMix: 0.18 },
+        { root: 138.59, bpm: 70, energy: 0.5, waveformPad: 'triangle' }
+      ]);
+      this.registerMusicVariants('music-star-birth', [
+        { root: 261.63, bpm: 56, shimmer: 1, noiseMix: 0.22 },
+        { root: 220, bpm: 48, mode: 'major', leadMix: 0.28 }
+      ]);
+      this.registerMusicVariants('music-starship', [
+        { root: 185, bpm: 92, energy: 0.74, pulseMix: 0.32 },
+        { root: 155.56, bpm: 84, shimmer: 0.56, waveformLead: 'saw' }
+      ]);
+      this.registerMusicVariants('music-command', [
+        { root: 233.08, bpm: 100, energy: 0.76 },
+        { root: 185, bpm: 90, shimmer: 0.22, bassMix: 0.36 }
+      ]);
+      this.registerMusicVariants('music-derelict', [
+        { root: 82.41, bpm: 50, noiseMix: 0.24, shimmer: 0.16 },
+        { root: 98, bpm: 60, energy: 0.44, waveformPad: 'triangle' }
+      ]);
+      this.registerMusicVariants('music-sea', [
+        { root: 174.61, bpm: 70, shimmer: 0.66 },
+        { root: 146.83, bpm: 62, energy: 0.38, waveformLead: 'sine' }
+      ]);
+      this.registerMusicVariants('music-storm-sea', [
+        { root: 116.54, bpm: 118, energy: 0.98, noiseMix: 0.2 },
+        { root: 138.59, bpm: 104, bassMix: 0.42, pulseMix: 0.44 }
+      ]);
+      this.registerMusicVariants('music-desert', [
+        { root: 146.83, bpm: 82, shimmer: 0.28 },
+        { root: 123.47, bpm: 74, energy: 0.46, waveformPad: 'triangle' }
+      ]);
+      this.registerMusicVariants('music-bazaar', [
+        { root: 261.63, bpm: 112, energy: 0.76 },
+        { root: 207.65, bpm: 104, shimmer: 0.36, pulseMix: 0.36 }
+      ]);
+      this.registerMusicVariants('music-ice', [
+        { root: 123.47, bpm: 74, shimmer: 0.82, leadMix: 0.22 },
+        { root: 103.83, bpm: 66, energy: 0.4, noiseMix: 0.1 }
+      ]);
+      this.registerMusicVariants('music-industrial', [
+        { root: 87.31, bpm: 108, pulseMix: 0.5, bassMix: 0.4 },
+        { root: 73.42, bpm: 96, shimmer: 0.1, waveformLead: 'square' }
+      ]);
+      this.registerMusicVariants('music-ritual', [
+        { root: 92.5, bpm: 56, shimmer: 0.7, noiseMix: 0.08 },
+        { root: 116.54, bpm: 64, energy: 0.54, leadMix: 0.24 }
+      ]);
+      this.registerMusicVariants('music-relic', [
+        { root: 196, bpm: 78, mode: 'major', shimmer: 0.84 },
+        { root: 164.81, bpm: 68, energy: 0.34, waveformLead: 'sine' }
+      ]);
 
       this.ambienceProfiles = {
         'amb-wind': { noiseColor: 'brown', lowCut: 0.992, motionHz: 0.08, hiss: 0.2 },

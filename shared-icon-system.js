@@ -237,8 +237,9 @@
       + '<span style="font-size:.58rem;padding:.08rem .22rem;border:1px solid ' + accent + '44;color:' + accent + ';text-transform:uppercase;letter-spacing:.08em;">Omen</span>'
       + '<span style="font-size:.6rem;color:var(--muted2);">' + escHtml(omen) + '</span>'
       + '</div>'
-        + '<div style="margin-top:.28rem;">'
-        + '<a href="' + perchanceUrl + '" target="_blank" rel="noopener noreferrer" class="btn btn-xs" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">Generate AI Portrait (Perchance)</a>'
+        + '<div style="margin-top:.28rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">'
+        + '<button class="btn btn-xs btn-primary" data-wayfarer-portrait-gen onclick="if(window.PortraitGenerator){var traitState={physique:(window.S && window.S.traits && window.S.traits.physique),skin:(window.S && window.S.traits && window.S.traits.skin),hair:(window.S && window.S.traits && window.S.traits.hair),face:(window.S && window.S.traits && window.S.traits.face),clothing:(window.S && window.S.traits && window.S.traits.clothing),virtue:(window.S && window.S.traits && window.S.traits.virtue),vice:(window.S && window.S.traits && window.S.traits.vice),reputation:(window.S && window.S.traits && window.S.traits.reputation),misfortune:(window.S && window.S.traits && window.S.traits.misfortune),name:window.S && window.S.name};window.PortraitGenerator.renderGeneratedPortrait(\"wayfarerVisualPanel\",traitState);}else{alert(\"Portrait generator not loaded. Ensure portrait-generator.js is included.\");}" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">⚡ Generate Portrait</button>'
+        + '<a href="' + perchanceUrl + '" target="_blank" rel="noopener noreferrer" class="btn btn-xs" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">📖 Perchance</a>'
         + '</div>'
       + '</div>'
       + '</div>';

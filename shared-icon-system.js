@@ -226,29 +226,9 @@
     });
   }
 
-  function ensurePortraitGeneratorApiKey() {
-    if (!window.PortraitGenerator || typeof window.PortraitGenerator.setConfig !== 'function') return false;
-    var currentKey = String((window.PortraitGenerator.CONFIG && window.PortraitGenerator.CONFIG.apiKey) || '').trim();
-    if (currentKey) return true;
-
-    var enteredKey = prompt('Enter your AI image API key to enable character generation.\nThis key is saved in local storage for this browser.');
-    if (!enteredKey) return false;
-    enteredKey = String(enteredKey).trim();
-    if (!enteredKey) return false;
-
-    window.PortraitGenerator.setConfig({ apiKey: enteredKey });
-    return true;
-  }
-
   function launchAiCharacterGenerator(targetId, state) {
     if (!window.PortraitGenerator || typeof window.PortraitGenerator.renderGeneratedPortrait !== 'function') {
       alert('AI character generator not loaded. Ensure portrait-generator.js is included.');
-      return false;
-    }
-    if (!ensurePortraitGeneratorApiKey()) {
-      if (typeof window.showNotif === 'function') {
-        window.showNotif('AI portrait generation cancelled: API key is required.', 'warn');
-      }
       return false;
     }
     var baseState = state || {};

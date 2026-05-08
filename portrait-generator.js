@@ -17,6 +17,69 @@
   // Portrait cache (key: traitHash, value: dataURL)
   const portraitCache = new Map();
 
+  function escSvgText(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function hueFromString(value) {
+    let hash = 0;
+    const input = String(value || '');
+    for (let i = 0; i < input.length; i++) {
+      hash = ((hash << 5) - hash) + input.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash) % 360;
+  }
+
+  function buildLocalTraitPortraitDataUrl(state) {
+    const safe = state || {};
+    const traits = (safe.traits && typeof safe.traits === 'object') ? safe.traits : safe;
+    const seed = [
+      traits.physique || '',
+      traits.skin || '',
+      traits.hair || '',
+      traits.face || '',
+      traits.clothing || '',
+      traits.virtue || '',
+      traits.vice || '',
+      traits.reputation || '',
+      traits.misfortune || ''
+    ].join('|');
+    const h1 = hueFromString(seed);
+    const h2 = (h1 + 38) % 360;
+    const h3 = (h1 + 210) % 360;
+
+    const initials = [traits.virtue, traits.vice]
+      .filter(Boolean)
+      .map((v) => String(v).trim().charAt(0).toUpperCase())
+      .join('')
+      .slice(0, 2) || 'AI';
+
+    const svg = ''
+      + '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">'
+      + '<defs>'
+      + '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">'
+      + '<stop offset="0%" stop-color="hsl(' + h1 + ',54%,28%)"/>'
+      + '<stop offset="100%" stop-color="hsl(' + h2 + ',62%,16%)"/>'
+      + '</linearGradient>'
+      + '</defs>'
+      + '<rect width="512" height="512" fill="url(#bg)"/>'
+      + '<circle cx="256" cy="194" r="120" fill="hsl(' + h3 + ',34%,78%)" opacity="0.95"/>'
+      + '<path d="M112 470c18-118 96-176 144-176s126 58 144 176" fill="hsl(' + h2 + ',40%,30%)"/>'
+      + '<circle cx="208" cy="188" r="13" fill="#121620"/>'
+      + '<circle cx="304" cy="188" r="13" fill="#121620"/>'
+      + '<path d="M210 252c28 24 64 24 92 0" fill="none" stroke="#141a24" stroke-width="9" stroke-linecap="round"/>'
+      + '<text x="256" y="472" text-anchor="middle" font-family="Cinzel,serif" font-size="56" fill="rgba(255,255,255,.9)">' + escSvgText(initials) + '</text>'
+      + '</svg>';
+
+    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  }
+
   /**
    * Extract character traits and build AI prompt
    */
@@ -195,13 +258,17 @@
     const apiKey = options.apiKey || CONFIG.apiKey;
     const provider = options.provider || CONFIG.provider;
 
-    if (!apiKey) {
-      throw new Error('Portrait generator API key not configured. Set it via setPortraitGeneratorConfig()');
-    }
-
     const traitHash = hashTraits(state);
     if (CONFIG.cachePortraits && portraitCache.has(traitHash)) {
       return portraitCache.get(traitHash);
+    }
+
+    if (!apiKey) {
+      const localPortrait = buildLocalTraitPortraitDataUrl(state);
+      if (CONFIG.cachePortraits) {
+        portraitCache.set(traitHash, localPortrait);
+      }
+      return localPortrait;
     }
 
     const prompt = buildPortraitPrompt(state);
@@ -255,12 +322,13 @@
 
     try {
       const imageUrl = await generatePortrait(state);
+      const sourceLabel = CONFIG.apiKey ? 'AI portrait from character traits' : 'Trait portrait (local fallback, no API key)';
       
       // Display generated portrait
       el.innerHTML = '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:.5rem;">'
         + '<img src="' + imageUrl + '" alt="Generated Portrait" style="width:100%;height:auto;display:block;"/>'
         + '</div>'
-        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.3rem;">Generated portrait from character traits</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.3rem;">' + sourceLabel + '</div>'
         + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
         + '<button class="btn btn-xs" onclick="window.PortraitGenerator.clearCache();document.getElementById(\'' + elementId + '\').innerHTML=\''
         + originalContent.replace(/'/g, '\\\'').replace(/"/g, '\\"').replace(/\n/g, '\\n')

@@ -45,13 +45,6 @@
       if (value) traits.push(label + ': ' + String(value));
     }
 
-    // Fallback traits
-    if (!traits.length) {
-      if (safe.career) traits.push('Career: ' + String(safe.career));
-      if (safe.background) traits.push('Background: ' + String(safe.background));
-      if (safe.omen) traits.push('Omen: ' + String(safe.omen));
-    }
-
     // Build final prompt with style guide
     const stylePrefix = 'dark fantasy character portrait, painterly RPG style, centered head-and-shoulders, neutral background, atmospheric lighting';
     return stylePrefix + (traits.length ? ', ' + traits.join(', ') : '');
@@ -68,7 +61,9 @@
       (state && state.face) || '',
       (state && state.clothing) || '',
       (state && state.virtue) || '',
-      (state && state.vice) || ''
+      (state && state.vice) || '',
+      (state && state.reputation) || '',
+      (state && state.misfortune) || ''
     ].join('|');
     
     let hash = 0;

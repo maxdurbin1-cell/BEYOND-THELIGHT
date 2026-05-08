@@ -594,7 +594,7 @@
 
     generateProceduralMusic(profile) {
       const cfg = Object.assign({
-        duration: 18,
+        duration: 56,
         root: 146.83,
         bpm: 72,
         mode: 'minor',
@@ -606,14 +606,24 @@
         padMix: 0.37,
         leadMix: 0.18,
         noiseMix: 0.05,
+        waveformBass: 'triangle',
         waveformPad: 'sine',
-        waveformLead: 'triangle'
+        waveformLead: 'triangle',
+        progression: [0, 3, 5, 4],
+        melodyPattern: [0, 2, 4, 2, 5, 4, 2, 0],
+        pulsePattern: [1, 0.45, 0.75, 0.4, 1, 0.45, 0.8, 0.45],
+        sectionBeats: 12,
+        swing: 0
       }, profile || {});
       const sampleRate = this.audioContext.sampleRate;
       const total = Math.floor(cfg.duration * sampleRate);
       const buffer = this.audioContext.createBuffer(2, total, sampleRate);
       const modeIntervals = cfg.mode === 'major' ? [0, 2, 4, 5, 7, 9, 11, 12] : [0, 2, 3, 5, 7, 8, 10, 12];
       const beatDur = 60 / Math.max(40, Number(cfg.bpm || 72));
+      const sectionBeats = Math.max(4, Number(cfg.sectionBeats || 12));
+      const progression = Array.isArray(cfg.progression) && cfg.progression.length ? cfg.progression : [0, 3, 5, 4];
+      const melodyPattern = Array.isArray(cfg.melodyPattern) && cfg.melodyPattern.length ? cfg.melodyPattern : [0, 2, 4, 2, 5, 4, 2, 0];
+      const pulsePattern = Array.isArray(cfg.pulsePattern) && cfg.pulsePattern.length ? cfg.pulsePattern : [1, 0.45, 0.75, 0.4, 1, 0.45, 0.8, 0.45];
       const scaleFreq = (step) => cfg.root * Math.pow(2, modeIntervals[(step % modeIntervals.length + modeIntervals.length) % modeIntervals.length] / 12);
       const chL = buffer.getChannelData(0);
       const chR = buffer.getChannelData(1);
@@ -622,16 +632,18 @@
 
       for (let i = 0; i < total; i++) {
         const t = i / sampleRate;
-        const section = Math.floor((t / beatDur) / 8) % 4;
-        const chordRoot = section === 0 ? 0 : (section === 1 ? 3 : (section === 2 ? 5 : 4));
+        const section = Math.floor((t / beatDur) / sectionBeats) % progression.length;
+        const chordRoot = progression[section];
         const freqRoot = scaleFreq(chordRoot);
         const freqThird = scaleFreq(chordRoot + 2);
         const freqFifth = scaleFreq(chordRoot + 4);
         const bassFreq = freqRoot / 2;
-        const leadStep = Math.floor(t / (beatDur / 2)) % 8;
-        const leadFreq = scaleFreq(chordRoot + [0, 2, 4, 2, 5, 4, 2, 0][leadStep]);
+        const leadStep = Math.floor(t / (beatDur / 2)) % melodyPattern.length;
+        const swingOffset = (leadStep % 2 === 1) ? (beatDur * 0.5 * Math.max(0, Math.min(0.35, Number(cfg.swing || 0)))) : 0;
+        const leadFreq = scaleFreq(chordRoot + melodyPattern[leadStep]);
         const beatPos = (t / beatDur) % 1;
-        const pulseGate = beatPos < 0.22 ? 1 : 0.35;
+        const pulseIdx = Math.floor((t / (beatDur / 2))) % pulsePattern.length;
+        const pulseGate = (beatPos < 0.22 ? 0.95 : 0.35) * Math.max(0.15, Math.min(1.1, Number(pulsePattern[pulseIdx] || 0.5)));
         const padDrift = 1 + Math.sin(2 * Math.PI * cfg.drift * i) * 0.012;
         const shimmerLfo = 0.6 + 0.4 * Math.sin(2 * Math.PI * 0.11 * t);
 
@@ -640,9 +652,9 @@
           + this.sampleWave(cfg.waveformPad, 2 * Math.PI * freqThird * padDrift * t)
           + this.sampleWave(cfg.waveformPad, 2 * Math.PI * freqFifth * padDrift * t)
         ) / 3;
-        const bass = this.sampleWave('triangle', 2 * Math.PI * bassFreq * t) * (0.85 + 0.15 * Math.sin(2 * Math.PI * 0.03 * t));
+        const bass = this.sampleWave(cfg.waveformBass, 2 * Math.PI * bassFreq * t) * (0.85 + 0.15 * Math.sin(2 * Math.PI * 0.03 * t));
         const pulse = this.sampleWave('saw', 2 * Math.PI * (freqRoot * 2) * t) * pulseGate;
-        const lead = this.sampleWave(cfg.waveformLead, 2 * Math.PI * leadFreq * t) * (0.4 + 0.6 * shimmerLfo);
+        const lead = this.sampleWave(cfg.waveformLead, 2 * Math.PI * leadFreq * (t + swingOffset)) * (0.4 + 0.6 * shimmerLfo);
 
         // Simple pink-ish noise source for texture.
         const white = (Math.random() * 2 - 1);
@@ -657,7 +669,7 @@
         sample += lead * cfg.leadMix * cfg.shimmer;
         sample += noise * cfg.noiseMix;
 
-        const env = Math.min(1, t / 1.8) * Math.min(1, (cfg.duration - t) / 1.2);
+        const env = Math.min(1, t / 2.4) * Math.min(1, (cfg.duration - t) / 2.8);
         sample *= env * 0.65;
         const pan = Math.sin(2 * Math.PI * 0.04 * t) * 0.25;
         chL[i] = Math.max(-1, Math.min(1, sample * (1 - pan)));
@@ -861,6 +873,78 @@
         { root: 164.81, bpm: 68, energy: 0.34, waveformLead: 'sine' }
       ]);
 
+      // Build larger, style-diverse suites (10 tracks each) for major tabs/contexts.
+      var stylePresets = [
+        { mode: 'major', bpmShift: -10, energyMul: 0.78, shimmerMul: 1.2, waveformLead: 'sine', waveformPad: 'triangle', waveformBass: 'triangle', progression: [0, 4, 5, 3], melodyPattern: [0, 2, 4, 7, 5, 4, 2, 0], pulsePattern: [1, 0.4, 0.72, 0.34, 1, 0.48, 0.8, 0.4], sectionBeats: 10, swing: 0.05, duration: 58 },
+        { mode: 'minor', bpmShift: -4, energyMul: 0.92, shimmerMul: 1.05, waveformLead: 'triangle', waveformPad: 'sine', waveformBass: 'triangle', progression: [0, 3, 6, 4], melodyPattern: [0, 2, 3, 5, 7, 5, 3, 2], pulsePattern: [1, 0.5, 0.76, 0.44, 1, 0.5, 0.76, 0.4], sectionBeats: 12, swing: 0.02, duration: 62 },
+        { mode: 'major', bpmShift: 6, energyMul: 1.08, shimmerMul: 0.88, waveformLead: 'saw', waveformPad: 'triangle', waveformBass: 'square', progression: [0, 5, 3, 4], melodyPattern: [0, 4, 7, 9, 7, 5, 4, 2], pulsePattern: [1, 0.62, 0.88, 0.56, 1, 0.64, 0.9, 0.6], sectionBeats: 8, swing: 0.08, duration: 52 },
+        { mode: 'minor', bpmShift: 12, energyMul: 1.18, shimmerMul: 0.72, waveformLead: 'square', waveformPad: 'saw', waveformBass: 'triangle', progression: [0, 2, 5, 1], melodyPattern: [0, 2, 5, 7, 8, 7, 5, 2], pulsePattern: [1, 0.75, 0.95, 0.68, 1, 0.78, 0.94, 0.7], sectionBeats: 8, swing: 0.14, duration: 48 },
+        { mode: 'minor', bpmShift: -14, energyMul: 0.68, shimmerMul: 1.35, waveformLead: 'sine', waveformPad: 'sine', waveformBass: 'triangle', progression: [0, 3, 4, 6], melodyPattern: [0, 1, 3, 5, 6, 5, 3, 1], pulsePattern: [0.82, 0.28, 0.62, 0.22, 0.84, 0.3, 0.64, 0.24], sectionBeats: 14, swing: 0.01, duration: 70 },
+        { mode: 'major', bpmShift: 0, energyMul: 0.96, shimmerMul: 1.12, waveformLead: 'triangle', waveformPad: 'triangle', waveformBass: 'saw', progression: [0, 5, 4, 3], melodyPattern: [0, 2, 4, 5, 7, 5, 4, 2], pulsePattern: [1, 0.56, 0.86, 0.52, 1, 0.56, 0.86, 0.52], sectionBeats: 12, swing: 0.07, duration: 60 },
+        { mode: 'minor', bpmShift: 8, energyMul: 1.15, shimmerMul: 0.9, waveformLead: 'saw', waveformPad: 'square', waveformBass: 'square', progression: [0, 1, 5, 4], melodyPattern: [0, 3, 5, 8, 7, 5, 3, 2], pulsePattern: [1, 0.7, 0.92, 0.66, 1, 0.7, 0.92, 0.66], sectionBeats: 10, swing: 0.16, duration: 50 },
+        { mode: 'major', bpmShift: -6, energyMul: 0.86, shimmerMul: 1.3, waveformLead: 'sine', waveformPad: 'saw', waveformBass: 'triangle', progression: [0, 4, 2, 5], melodyPattern: [0, 4, 5, 7, 9, 7, 5, 4], pulsePattern: [0.95, 0.4, 0.72, 0.34, 0.95, 0.42, 0.74, 0.36], sectionBeats: 11, swing: 0.04, duration: 64 },
+        { mode: 'minor', bpmShift: 3, energyMul: 1.02, shimmerMul: 0.98, waveformLead: 'triangle', waveformPad: 'square', waveformBass: 'triangle', progression: [0, 6, 3, 4], melodyPattern: [0, 2, 3, 6, 7, 6, 3, 2], pulsePattern: [1, 0.52, 0.8, 0.5, 1, 0.52, 0.8, 0.5], sectionBeats: 9, swing: 0.1, duration: 54 },
+        { mode: 'major', bpmShift: 14, energyMul: 1.22, shimmerMul: 0.82, waveformLead: 'square', waveformPad: 'sine', waveformBass: 'saw', progression: [0, 5, 1, 4], melodyPattern: [0, 2, 4, 7, 11, 7, 4, 2], pulsePattern: [1, 0.82, 1, 0.76, 1, 0.84, 1, 0.76], sectionBeats: 8, swing: 0.18, duration: 46 }
+      ];
+
+      var transposeSteps = [0, 2, -2, 5, -5, 7, -7, 3, -3, 9];
+      function rotatePattern(arr, shift) {
+        var list = Array.isArray(arr) ? arr.slice() : [];
+        if (!list.length) return list;
+        var n = ((shift % list.length) + list.length) % list.length;
+        return list.slice(n).concat(list.slice(0, n));
+      }
+      var makeSuiteTrackProfile = function (seedProfile, suiteBias, idx) {
+        var style = stylePresets[idx % stylePresets.length] || stylePresets[0];
+        var transpose = transposeSteps[idx % transposeSteps.length] + Number(suiteBias || 0);
+        var rootScale = Math.pow(2, transpose / 12);
+        var base = Object.assign({}, seedProfile || {});
+        var mode = style.mode || base.mode || 'minor';
+        var bpm = Math.max(44, Math.min(168, Math.round(Number(base.bpm || 72) + Number(style.bpmShift || 0) + ((idx % 3) - 1) * 2)));
+        var energy = Math.max(0.2, Math.min(1.4, Number(base.energy || 0.45) * Number(style.energyMul || 1)));
+        var shimmer = Math.max(0.1, Math.min(1.6, Number(base.shimmer || 0.35) * Number(style.shimmerMul || 1)));
+        return Object.assign({}, base, {
+          root: Math.max(60, Math.min(520, Number(base.root || 146.83) * rootScale)),
+          mode: mode,
+          bpm: bpm,
+          energy: energy,
+          shimmer: shimmer,
+          waveformLead: style.waveformLead || base.waveformLead || 'triangle',
+          waveformPad: style.waveformPad || base.waveformPad || 'sine',
+          waveformBass: style.waveformBass || base.waveformBass || 'triangle',
+          progression: rotatePattern(style.progression || [0, 3, 5, 4], idx % 4),
+          melodyPattern: rotatePattern(style.melodyPattern || [0, 2, 4, 2, 5, 4, 2, 0], idx % 8),
+          pulsePattern: rotatePattern(style.pulsePattern || [1, 0.45, 0.75, 0.4, 1, 0.45, 0.8, 0.45], idx % 8),
+          sectionBeats: Math.max(8, Number(style.sectionBeats || 12) + ((idx % 2) ? 1 : 0)),
+          swing: Math.max(0, Math.min(0.24, Number(style.swing || 0))),
+          duration: Math.max(44, Number(style.duration || 56))
+        });
+      };
+
+      var suiteDefinitions = [
+        { baseId: 'music-suite-character', seed: 'music-character', bias: 0 },
+        { baseId: 'music-suite-map', seed: 'music-map', bias: -2 },
+        { baseId: 'music-suite-combat', seed: 'music-combat', bias: 3 },
+        { baseId: 'music-suite-caravan', seed: 'music-caravan', bias: 1 },
+        { baseId: 'music-suite-holding', seed: 'music-caravan', bias: -1 },
+        { baseId: 'music-suite-missions', seed: 'music-missions', bias: 2 },
+        { baseId: 'music-suite-jobs', seed: 'music-missions', bias: 4 },
+        { baseId: 'music-suite-province', seed: 'music-wilderness', bias: -3 },
+        { baseId: 'music-suite-merchant', seed: 'music-bazaar', bias: 5 },
+        { baseId: 'music-suite-sea', seed: 'music-sea', bias: -4 },
+        { baseId: 'music-suite-space', seed: 'music-space', bias: 6 },
+        { baseId: 'music-suite-planet', seed: 'music-starship', bias: 2 }
+      ];
+      suiteDefinitions.forEach((entry, suiteIndex) => {
+        var seedProfile = this.musicProfiles[entry.seed] || this.musicProfiles['music-character'];
+        this.musicProfiles[entry.baseId] = makeSuiteTrackProfile(seedProfile, Number(entry.bias || 0), suiteIndex);
+        var suiteVariants = [];
+        for (var si = 1; si < 10; si++) {
+          suiteVariants.push(makeSuiteTrackProfile(seedProfile, Number(entry.bias || 0), suiteIndex + si * 2));
+        }
+        this.registerMusicVariants(entry.baseId, suiteVariants);
+      });
+
       this.ambienceProfiles = {
         'amb-wind': { noiseColor: 'brown', lowCut: 0.992, motionHz: 0.08, hiss: 0.2 },
         'amb-rain': { noiseColor: 'white', highCut: 0.86, motionHz: 0.3, crackle: 140, hiss: 0.5 },
@@ -944,6 +1028,30 @@
         'ice crevasse': { music: 'music-ice', ambiences: ['amb-icecracking', 'amb-whispers'] },
         'ancestral rite': { music: 'music-ritual', ambiences: ['amb-fire', 'amb-whispers'] }
       };
+
+      var scenarioSuiteOverrides = {
+        'mountains': 'music-suite-province',
+        'plains': 'music-suite-province',
+        'forest': 'music-suite-province',
+        'wilds': 'music-suite-province',
+        'merchant': 'music-suite-merchant',
+        'bazaar': 'music-suite-merchant',
+        'setting sail': 'music-suite-sea',
+        'maelstrom': 'music-suite-sea',
+        'shipwreck cove': 'music-suite-sea',
+        'beach': 'music-suite-sea',
+        'island paths': 'music-suite-sea',
+        'deep space': 'music-suite-space',
+        'starship': 'music-suite-space',
+        'space hub': 'music-suite-space',
+        'command center': 'music-suite-space',
+        'unknown world': 'music-suite-planet',
+        'enemy base': 'music-suite-combat',
+        'dungeon lair': 'music-suite-combat'
+      };
+      Object.keys(scenarioSuiteOverrides).forEach((key) => {
+        if (this.scenarioProfiles[key]) this.scenarioProfiles[key].music = scenarioSuiteOverrides[key];
+      });
 
       // MUSIC TRACKS
       this.audioCache['music-character'] = this.generateProceduralMusic(this.musicProfiles['music-character']);
@@ -1047,16 +1155,16 @@
       }
       
       const musicMap = {
-        'character': 'music-character',
-        'map': 'music-map',
-        'combat': 'music-combat',
-        'caravan': 'music-caravan',
-        'holding': 'music-caravan',
-        'missions': 'music-missions',
-        'jobs': 'music-missions',
+        'character': 'music-suite-character',
+        'map': 'music-suite-map',
+        'combat': 'music-suite-combat',
+        'caravan': 'music-suite-caravan',
+        'holding': 'music-suite-holding',
+        'missions': 'music-suite-missions',
+        'jobs': 'music-suite-jobs',
       };
 
-      const musicId = musicMap[tabId] || 'music-character';
+      const musicId = musicMap[tabId] || 'music-suite-character';
       this.playMusic(musicId, true);
 
       // Keep ambiences in sync with major tabs when explicit scenario context is not set.

@@ -3842,7 +3842,7 @@
         : Math.max(1, Number(S.combat.actionsLeft || 3));
       S.combat.actionsLeft = Math.max(armorActionCap, Number(S.combat.actionsLeft || 0));
       if (typeof startCombat === 'function') startCombat();
-      setLegacyRaidCombatFlowActive(true);
+      setLegacyRaidCombatFlowActive(true, missionId, wingNum);
       if (S.combat && S.combat.raidFlow) {
         S.combat.raidFlow.hostileRangeById = S.combat.raidFlow.hostileRangeById || {};
         var firstHostile = Array.isArray(S.enemies) ? S.enemies.find(function (enemy) { return enemy && !enemy.ally; }) : null;
@@ -4068,7 +4068,7 @@
     return renderLegacyRaidCombatModal(missionId, wingNum);
   };
 
-  function setLegacyRaidCombatFlowActive(active) {
+  function setLegacyRaidCombatFlowActive(active, missionId, wingNum) {
     if (typeof S === 'undefined' || !S) return;
     S.combat = S.combat || {};
     if (!active) {
@@ -4080,6 +4080,8 @@
       : 0;
     S.combat.raidFlow = {
       active: true,
+      missionId: Number(missionId || 0),
+      wingNum: Number(wingNum || 1),
       sceneStarted: false,
       stage: 'player',
       turn: 1,

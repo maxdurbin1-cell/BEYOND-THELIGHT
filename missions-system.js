@@ -3761,28 +3761,6 @@
       mission.legacyRaidBossEncounter = encounter;
     }
 
-    function ensureLegacyRaidCombatHostiles(mission, wingNum, encounter) {
-      if (typeof S === 'undefined' || !S) return;
-      if (!Array.isArray(S.enemies)) S.enemies = [];
-      var activeHostiles = S.enemies.filter(function (enemy) { return enemy && !enemy.ally; });
-      if (activeHostiles.length) return;
-      var bossName = String(mission && mission.legacyRaidBoss || 'Raid Hostile');
-      var primaryDread = Math.max(4, Number(encounter && encounter.dreadDie || 6));
-      var hostileCount = Math.max(1, Number(wingNum || 1));
-      for (var i = 0; i < hostileCount; i++) {
-        var hostileName = (i === 0) ? bossName : (bossName + ' Add ' + i);
-        S.enemies.push({
-          id: Date.now() + i + 1,
-          name: hostileName,
-          dread: Math.max(4, primaryDread - (i > 0 ? 1 : 0)),
-          stress: 0,
-          maxStress: Math.max(8, Number(encounter && encounter.maxPhaseHp || 16) - (i > 0 ? 4 : 0)),
-          ally: false,
-          temporarySceneAlly: false,
-          faction: 'Raid Hostile'
-        });
-      }
-    }
     if (!encounter.partyHp) encounter.partyHp = { player: 999, allies: {} };
     if (!encounter.partyHp.allies) encounter.partyHp.allies = {};
     var allies = getRaidWayfarersForWing(mission, wingNum).filter(function (w) { return w && w.status !== 'failed'; });
@@ -3798,6 +3776,29 @@
       }
     });
     return encounter;
+  }
+
+  function ensureLegacyRaidCombatHostiles(mission, wingNum, encounter) {
+    if (typeof S === 'undefined' || !S) return;
+    if (!Array.isArray(S.enemies)) S.enemies = [];
+    var activeHostiles = S.enemies.filter(function (enemy) { return enemy && !enemy.ally; });
+    if (activeHostiles.length) return;
+    var bossName = String(mission && mission.legacyRaidBoss || 'Raid Hostile');
+    var primaryDread = Math.max(4, Number(encounter && encounter.dreadDie || 6));
+    var hostileCount = Math.max(1, Number(wingNum || 1));
+    for (var i = 0; i < hostileCount; i++) {
+      var hostileName = (i === 0) ? bossName : (bossName + ' Add ' + i);
+      S.enemies.push({
+        id: Date.now() + i + 1,
+        name: hostileName,
+        dread: Math.max(4, primaryDread - (i > 0 ? 1 : 0)),
+        stress: 0,
+        maxStress: Math.max(8, Number(encounter && encounter.maxPhaseHp || 16) - (i > 0 ? 4 : 0)),
+        ally: false,
+        temporarySceneAlly: false,
+        faction: 'Raid Hostile'
+      });
+    }
   }
 
   function openRaidCombatModal(missionId, wingNum) {

@@ -369,6 +369,9 @@ function updateAllStatDisplays() {
   updateDieDisplay("adventure");
   updateMaxStressDisplay();
   updateStressUI();
+  if (typeof window !== 'undefined' && window.SharedIconSystem && typeof window.SharedIconSystem.renderWayfarerSheetPanel === 'function') {
+    window.SharedIconSystem.renderWayfarerSheetPanel('wayfarerVisualPanel', S || {});
+  }
 }
 
 function buildStatRows() {

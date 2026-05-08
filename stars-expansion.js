@@ -8560,12 +8560,16 @@ function applySpaceNavalPresentation() {
   const navalTab = document.getElementById('tab-naval');
   if (!navalTab) return;
   const inSpace = (window._activeContext || S._navalContext) === 'space';
+  const iconApi = window.SharedIconSystem;
+  const tabIcon = (kind, label) => iconApi && typeof iconApi.iconVehicle === 'function'
+    ? (iconApi.iconVehicle(kind, { size: 18, title: label }) + '<span style="margin-left:.3rem;vertical-align:middle;">' + label + '</span>')
+    : label;
   const tabBtn = document.querySelector('.tab-btn.ctx-space[onclick*="naval"]');
-  if (tabBtn) tabBtn.textContent = inSpace ? 'Starship' : 'Naval Ship';
+  if (tabBtn) tabBtn.innerHTML = inSpace ? tabIcon('starship', 'Starship') : tabIcon('naval', 'Naval Ship');
   if (!inSpace) {
     const bannerTitle = navalTab.querySelector('.ship-banner h3');
     const bannerBody = navalTab.querySelector('.ship-banner p');
-    if (bannerTitle) bannerTitle.textContent = 'Naval System';
+    if (bannerTitle) bannerTitle.innerHTML = tabIcon('naval', 'Naval System');
     if (bannerBody) {
       bannerBody.textContent = 'Buy a ship, hire and train crew, then run ship combat with captain, gunner, navigator, and engineer actions. Hull Stress is always twice the ship\'s current Defend die.';
     }
@@ -8618,7 +8622,7 @@ function applySpaceNavalPresentation() {
 
   const bannerTitle = navalTab.querySelector('.ship-banner h3');
   const bannerBody = navalTab.querySelector('.ship-banner p');
-  if (bannerTitle) bannerTitle.textContent = 'Starship System';
+  if (bannerTitle) bannerTitle.innerHTML = tabIcon('starship', 'Starship System');
   if (bannerBody) {
     bannerBody.textContent = 'Acquire a starship, crew its bridge, and run void combat with captain, gunner, navigator, and engineer actions. Hull Stress matches the Starship shields track and fuel reserves stay synced to the Space panels.';
   }
@@ -19551,9 +19555,12 @@ function renderExocraftPanel() {
 function buildStarshipPanel() {
   const target = document.getElementById('starsStarshipPanel');
   if (!target) return;
+  const starshipTitle = (window.SharedIconSystem && typeof window.SharedIconSystem.iconVehicle === 'function')
+    ? (window.SharedIconSystem.iconVehicle('starship', { size: 24, title: 'Starship' }) + '<span style="margin-left:.42rem;vertical-align:middle;">Starship Systems</span>')
+    : 'Starship Systems';
   target.innerHTML = `
 <div class="card" style="max-width:700px;">
-  <div class="section-title">⚡ Starship Systems</div>
+  <div class="section-title">${starshipTitle}</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
     <div>
       <div class="sub-label">Ship Shields</div>

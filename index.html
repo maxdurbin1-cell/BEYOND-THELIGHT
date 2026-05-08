@@ -450,6 +450,7 @@ select option{background:#0f1020;}
   <div class="char-grid">
     <div class="card">
       <div class="section-title">Identity</div>
+      <div id="wayfarerVisualPanel" style="margin-bottom:.6rem;"></div>
       <div class="form-row"><span class="sub-label">Name</span>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charName" placeholder="Wayfarer name…" onchange="S.name=this.value"><button class="btn btn-icon btn-sm" onclick="rollName()">⚄</button></div>
       </div>
@@ -14811,7 +14812,7 @@ function showCodexCat(cat,btn){
       <div style="margin-bottom:.65rem;"><button class="btn btn-primary" onclick="rollWayfarer()">⚄ Roll Random Wayfarer</button></div>
       <div id="wayfarerResult" style="margin-bottom:.6rem;"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.3rem;">
-        ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card"><div style="display:flex;justify-content:space-between;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.7rem;color:var(--muted2);">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div>`).join('')}
+        ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:54}):''}<div><div style="display:flex;justify-content:space-between;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.7rem;color:var(--muted2);">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`).join('')}
       </div>
     </div>`;
   }else if(cat==='flavors'){
@@ -14868,8 +14869,8 @@ function showCodexCat(cat,btn){
     c.innerHTML=`<div class="card"><div class="section-title">Enemy Bestiary</div>
       <div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">Death Number is listed as half Health, rounded up. Use it as the quick threshold for when a creature is entering its kill window.</div>
       <div class="codex-grid">
-        ${Object.keys(CODEX_BESTIARY).map(region=>`<div class="card"><div class="section-title">${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</div>
-          ${CODEX_BESTIARY[region].map(entry=>`<div class="hist-entry"><div class="hist-num">${Math.ceil(entry.hp/2)}</div><div class="hist-text"><strong>${entry.name}</strong><br>${entry.desc}<br><span style="color:var(--gold2);">Health ${entry.hp} · Death Number ${Math.ceil(entry.hp/2)}</span></div></div>`).join('')}
+        ${Object.keys(CODEX_BESTIARY).map(region=>`<div class="card"><div class="section-title" style="display:flex;align-items:center;gap:.45rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,{name:region==='wtw'?'World That Was':'Bestiary Region'},{size:26}):''}<span>${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</span></div>
+          ${CODEX_BESTIARY[region].map(entry=>`<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">${Math.ceil(entry.hp/2)}</div><div class="hist-text"><strong>${entry.name}</strong><br>${entry.desc}<br><span style="color:var(--gold2);">Health ${entry.hp} · Death Number ${Math.ceil(entry.hp/2)}</span></div></div>`).join('')}
         </div>`).join('')}
       </div>
     </div>`;
@@ -14897,7 +14898,7 @@ function showCodexCat(cat,btn){
   }
 }
 
-function rollWayfarer(){const w=pick(TRAVELING_WAYFARERS);const el=document.getElementById('wayfarerResult');if(el)el.innerHTML=`<div class="wayfarer-card"><div class="wf-name">${w[1]} ${w[2]}</div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div>`;}
+function rollWayfarer(){const w=pick(TRAVELING_WAYFARERS);const el=document.getElementById('wayfarerResult');if(el)el.innerHTML=`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:58}):''}<div><div class="wf-name">${w[1]} ${w[2]}</div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`;}
 const CODEX_BESTIARY={
   province:[
     {name:'Mutated Wolves',hp:8,desc:'Pack predators that test the edge of torchlight before rushing a weak flank.'},
@@ -15059,6 +15060,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 <script defer src="./audio-manager.js"></script>
 <script defer src="./settings-system.js"></script>
+<script defer src="./shared-icon-system.js"></script>
 <script defer src="./beyond-light-missing-functions.js"></script>
 <script defer src="./beyond-light-expansion.js"></script>
 <script defer src="./missions-system.js"></script>
@@ -15371,6 +15373,19 @@ document.addEventListener('DOMContentLoaded',()=>{
     window.openRaidWingPopup(Number(raidFlow.missionId || 0), Number(raidFlow.wingNum || 1));
     renderQP('combat');
   };
+  window.qpCombatTabWayfarerAction=function(){
+    var src=document.getElementById('wayfarerActionSel');
+    var qpSel=document.getElementById('qpCombatTabActionSelect');
+    if(!src||!qpSel||typeof executeWayfarerAction!=='function')return;
+    src.value=String(qpSel.value||'');
+    if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
+    executeWayfarerAction();
+    S.quickPanel.lastCombatRoll=(document.getElementById('wayfarerActionResult')||{}).innerHTML
+      || (document.getElementById('attackResult')||{}).innerHTML
+      || (document.getElementById('defendResult')||{}).innerHTML
+      || S.quickPanel.lastCombatRoll;
+    renderQP('combat');
+  };
   window.qpSetHackGuess=function(guess){if(!S.hackRoller)S.hackRoller={dreadDie:6,guess:null,selectedHack:null};S.hackRoller.guess=guess;renderQP('combat');};
   window.qpCombatHack=function(){
     var sel=document.getElementById('qpHackSelect');
@@ -15643,6 +15658,14 @@ document.addEventListener('DOMContentLoaded',()=>{
             + '</div>';
           }).join('')
         : '<div style="font-size:.78rem;color:var(--muted2);">No hostiles in this scene.</div>';
+      if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
+      var combatTabSel = document.getElementById('wayfarerActionSel');
+      var combatTabActionOptions = combatTabSel
+        ? Array.prototype.map.call(combatTabSel.options, function(opt){
+            if(!opt || !opt.value) return '';
+            return '<option value="'+opt.value.replace(/"/g,'&quot;')+'">'+opt.textContent+'</option>';
+          }).join('')
+        : '';
       var raidWayfarerOptions = ['strike','shoot','defend'].concat(moveTargets.map(function(zone){ return 'move:'+zone; }));
       return '<div style="margin-bottom:.5rem;">'
         + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'
@@ -15656,7 +15679,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.42rem;">'
         + '<button class="btn btn-xs btn-teal" onclick="qpRaidReturnToWing()">Return to Wing</button>'
         + (sceneStarted ? '' : '<button class="btn btn-xs btn-primary" onclick="qpRaidStartScene()">Start Scene</button>')
-        + '<button class="btn btn-xs" onclick="if(typeof endCombat===\'function\')endCombat();renderQP(\'combat\')">End Scene</button>'
+        + '<button class="btn btn-xs" onclick="if(typeof window.finishLegacyRaidCombatScene===\'function\')window.finishLegacyRaidCombatScene('+Number(raidFlow.missionId || 0)+','+Number(raidFlow.wingNum || 1)+');renderQP(\'combat\')">End Scene</button>'
         + '</div>'
         + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Hostiles</div>'
         + raidEnemyRows
@@ -15677,6 +15700,13 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '</select></label>'
         + '<button class="btn btn-xs btn-primary" ' + (sceneStarted && stage === 'player' && playerRaidActions > 0 ? '' : 'disabled') + ' onclick="qpRaidActionFromSelect()">Do Action</button>'
         + '</div>'
+        + (combatTabActionOptions
+          ? ('<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-top:.22rem;">'
+            + '<label style="font-size:.63rem;color:var(--muted2);">Combat Tab Wayfarer Action'
+            + '<select id="qpCombatTabActionSelect" style="width:100%;margin-top:.08rem;">'+combatTabActionOptions+'</select></label>'
+            + '<button class="btn btn-xs btn-teal" ' + (sceneStarted && stage === 'player' && playerRaidActions > 0 ? '' : 'disabled') + ' onclick="qpCombatTabWayfarerAction()">Use Combat Action</button>'
+            + '</div>')
+          : '<div style="font-size:.64rem;color:var(--muted2);margin-top:.22rem;">Combat tab Wayfarer actions unavailable.</div>')
         + '<div style="margin-top:.35rem;background:var(--surface);border:1px solid var(--border);padding:.35rem .45rem;font-size:.78rem;line-height:1.4;min-height:2rem;" id="qpCombatRollResult">'
           + (S.quickPanel.lastCombatRoll||'No combat roll yet.')
         + '</div>'

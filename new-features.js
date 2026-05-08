@@ -305,9 +305,12 @@
 
   // ── CARAVAN HTML ──────────────────────────────────────────────────────────────
   function buildCaravanHTML() {
+    var caravanTitle = (window.SharedIconSystem && typeof window.SharedIconSystem.iconVehicle === 'function')
+      ? (window.SharedIconSystem.iconVehicle('caravan', { size: 24, title: 'Caravan' }) + '<span style="margin-left:.42rem;vertical-align:middle;">Caravan Management</span>')
+      : 'Caravan Management';
     return [
       '<div class="ship-banner">',
-        '<h3>Caravan Management</h3>',
+        '<h3>' + caravanTitle + '</h3>',
         '<p>Your Transporter — vehicle, crew, cargo, and chase combat. The Driver rolls Control vs Enemy Dread to shift zones during a chase. Other Wayfarers act on their own turns.</p>',
       '</div>',
       '<div id="caravanGate"></div>',

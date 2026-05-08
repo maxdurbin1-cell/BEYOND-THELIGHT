@@ -1763,6 +1763,7 @@
     var medalCount = Math.max(0, Number(profile.raidMedals || 0));
     var pointCount = Math.max(0, Number(profile.raidPoints || 0));
     var keyState = profile.raidKeys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    var iconApi = typeof window !== 'undefined' ? window.SharedIconSystem : null;
     var overflow = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
     var overflowStart = Math.max(0, overflow.length - 48);
     var overflowRows = overflow.length
@@ -1778,6 +1779,14 @@
     var keyRow = ['bronze', 'silver', 'gold', 'platinum'].map(function (tier) {
       return '<span style="font-size:.68rem;color:var(--gold2);">' + tier.charAt(0).toUpperCase() + tier.slice(1) + ' Key x' + Math.max(0, Number(keyState[tier] || 0)) + '</span>';
     }).join(' · ');
+    var medalSummaryHtml = iconApi && typeof iconApi.getRaidMedalStripHtml === 'function'
+      ? iconApi.getRaidMedalStripHtml(medalCount, { size: 20, label: 'Raid Medals' })
+      : ('Medals: ' + medalCount);
+    function chestLabelHtml(tier, label) {
+      return iconApi && typeof iconApi.getRaidChestLabelHtml === 'function'
+        ? iconApi.getRaidChestLabelHtml(tier, label, { size: 20 })
+        : label;
+    }
     var raidNodeAccents = {
       action_die_training: '#7ed7ff',
       strike_mastery: '#f08b6c',
@@ -1838,7 +1847,7 @@
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(103,214,179,.35);color:#67d6b3;">Teamwork</span>'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(195,156,255,.35);color:#c39cff;">Lore</span>'
       + '</div>'
-      + '<div style="font-size:.7rem;color:var(--teal);line-height:1.45;margin-top:.2rem;">Medals: ' + medalCount + ' · Raid Points: ' + pointCount + '</div>'
+      + '<div style="font-size:.7rem;color:var(--teal);line-height:1.45;margin-top:.2rem;display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;">' + medalSummaryHtml + '<span>Raid Points: ' + pointCount + '</span></div>'
       + '</div>'
       + '<div style="border:1px dashed rgba(126,215,255,.25);padding:.28rem;background:rgba(10,14,20,.55);display:grid;grid-template-columns:repeat(2,minmax(210px,1fr));gap:.3rem;">' + nodeHtml + '</div>'
       + '</div>'
@@ -1847,18 +1856,20 @@
       + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Vault Keys</strong></div>'
       + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin-bottom:.18rem;">' + keyRow + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:.24rem;">'
-      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'bronze\')">Open Bronze Chest</button>'
-      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'silver\')">Open Silver Chest</button>'
-      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'gold\')">Open Gold Chest</button>'
-      + '<button class="btn btn-xs btn-teal" onclick="openLegacyRaidChest(\'platinum\')">Open Platinum Chest</button>'
+      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'bronze\')">' + chestLabelHtml('bronze', 'Open Bronze Chest') + '</button>'
+      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'silver\')">' + chestLabelHtml('silver', 'Open Silver Chest') + '</button>'
+      + '<button class="btn btn-xs" onclick="openLegacyRaidChest(\'gold\')">' + chestLabelHtml('gold', 'Open Gold Chest') + '</button>'
+      + '<button class="btn btn-xs btn-teal" onclick="openLegacyRaidChest(\'platinum\')">' + chestLabelHtml('platinum', 'Open Platinum Chest') + '</button>'
       + '</div>'
       + '</div>'
       + '<div style="border:1px solid rgba(126,215,255,.22);background:linear-gradient(150deg, rgba(14,22,30,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
       + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Trophy Shelf</strong></div>'
       + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.42;max-height:180px;overflow:auto;">'
       + (profile.raidTrophies.length
-        ? profile.raidTrophies.slice(-12).reverse().map(function (trophy, idx) {
-            return '<div style="padding:.06rem 0;border-bottom:1px solid rgba(255,255,255,.06);">' + (idx + 1) + '. ' + String(trophy || 'Unknown Trophy') + '</div>';
+        ? profile.raidTrophies.slice(-12).reverse().map(function (trophy) {
+            return iconApi && typeof iconApi.getTrophyEntryHtml === 'function'
+              ? iconApi.getTrophyEntryHtml(String(trophy || 'Unknown Trophy'), { size: 22 })
+              : ('<div style="padding:.06rem 0;border-bottom:1px solid rgba(255,255,255,.06);">' + String(trophy || 'Unknown Trophy') + '</div>');
           }).join('')
         : 'No raid trophies recorded yet. Clear legacy raids to fill this wall.')
       + '</div>'

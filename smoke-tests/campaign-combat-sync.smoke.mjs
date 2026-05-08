@@ -174,6 +174,31 @@ async function waitForCombatSummary(page, expected, label) {
   }
 }
 
+async function syncSharedSilentRetry(page, reason, attempts = 6) {
+  let lastResult = { ok: false, error: 'No sync attempts made.' };
+  for (let i = 0; i < attempts; i += 1) {
+    const syncReason = `${String(reason || "smoke-sync")}-attempt-${i + 1}`;
+    const result = await page.evaluate(async (why) => {
+      if (!window.campaignSystem || typeof window.campaignSystem.syncSharedSilent !== "function") {
+        return { ok: false, error: "campaignSystem.syncSharedSilent unavailable" };
+      }
+      return window.campaignSystem.syncSharedSilent(why);
+    }, syncReason);
+
+    lastResult = result || { ok: false, error: 'No sync response.' };
+    if (result && result.ok && !result.queued && !result.coalesced) return result;
+
+    const msg = String(result && result.error || "");
+    if (msg !== "Sync already in flight." && !result.queued && !result.coalesced) {
+      return result;
+    }
+
+    await wait(120 + (i * 80));
+  }
+  if (lastResult && lastResult.ok && !lastResult.queued && !lastResult.coalesced) return lastResult;
+  return { ok: false, error: "Sync retry exhausted." };
+}
+
 async function runScenario(browser) {
   const gmPage = await browser.newPage();
   const playerPage = await browser.newPage();
@@ -218,7 +243,7 @@ async function runScenario(browser) {
     { timeout: STEP_TIMEOUT_MS }
   );
 
-  const seeded = await gmPage.evaluate(async () => {
+  await gmPage.evaluate(() => {
     window.S.combat = {
       active: true,
       enemyDread: 8,
@@ -252,8 +277,8 @@ async function runScenario(browser) {
     if (typeof window.renderCombatMap === "function") {
       try { window.renderCombatMap(); } catch (_err) {}
     }
-    return window.campaignSystem.syncSharedSilent("smoke-combat-seed");
   });
+  const seeded = await syncSharedSilentRetry(gmPage, "smoke-combat-seed");
 
   if (!seeded || !seeded.ok) {
     throw new Error(`Combat smoke failed to seed combat scene: ${JSON.stringify(seeded)}`);
@@ -271,7 +296,7 @@ async function runScenario(browser) {
   };
   await waitForCombatSummary(playerPage, expectedSeed, "Player seeded state");
 
-  const mutated = await gmPage.evaluate(async () => {
+  await gmPage.evaluate(() => {
     window.S.combat.enemyDread = 12;
     if (Array.isArray(window.S.enemies) && window.S.enemies[0]) {
       window.S.enemies[0].stress = 3;
@@ -302,8 +327,8 @@ async function runScenario(browser) {
     if (typeof window.renderCombatMap === "function") {
       try { window.renderCombatMap(); } catch (_err) {}
     }
-    return window.campaignSystem.syncSharedSilent("smoke-combat-mutate");
   });
+  const mutated = await syncSharedSilentRetry(gmPage, "smoke-combat-mutate");
 
   if (!mutated || !mutated.ok) {
     throw new Error(`Combat smoke failed to sync mutated combat scene: ${JSON.stringify(mutated)}`);

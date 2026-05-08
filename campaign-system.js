@@ -1759,13 +1759,14 @@
       return { ok: false };
     }
     if (state.syncInFlight) {
+      // Queue behind the active sync and push this caller's snapshot once clear.
       var waited = 0;
-      while (state.syncInFlight && waited < 2000) {
+      while (state.syncInFlight && waited < 20000) {
         await new Promise(function (resolve) { setTimeout(resolve, 40); });
         waited += 40;
       }
       if (state.syncInFlight) {
-        return { ok: false, error: "Sync already in flight." };
+        return { ok: false, error: "Sync queue timeout." };
       }
     }
     state.syncInFlight = true;

@@ -4007,7 +4007,7 @@
       + '<button class="btn btn-sm btn-primary" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'shoot\',' + missionId + ',' + wingNum + ')">Shoot</button>'
       + '<button class="btn btn-sm" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'defend\',' + missionId + ',' + wingNum + ')">Defend</button>'
       + moveButtons
-      + '<button class="btn btn-sm" onclick="if(typeof endCombat===\'function\'){endCombat();}window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">End Scene</button>'
+      + '<button class="btn btn-sm" onclick="window.finishLegacyRaidCombatScene(' + missionId + ',' + wingNum + ')">End Scene</button>'
       + '<button class="btn btn-sm btn-teal" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof openRaidWingPopup===\'function\')openRaidWingPopup(' + missionId + ',' + wingNum + ');">Return to Wing</button>'
       + (sceneStarted ? '' : ('<button class="btn btn-sm btn-primary" onclick="window.startLegacyRaidCombatScene(' + missionId + ',' + wingNum + ')">Start Scene</button>'))
       + '</div>'
@@ -4672,6 +4672,22 @@
     // Compatibility shim: execution happens in Combat tab actions now.
     if (typeof showNotif === 'function') showNotif('Use Combat tab actions (Strike/Shoot/Defend). Raid combat no longer resolves from this popup.', 'info');
     openRaidCombatModal(missionId, wingNum);
+  };
+
+  window.finishLegacyRaidCombatScene = function (missionId, wingNum) {
+    var mId = Number(missionId || 0);
+    var wNum = Number(wingNum || 1);
+    if (typeof endCombat === 'function') endCombat();
+    // If finalize hook did not route to a destination, offer explicit return control.
+    if (getLegacyRaidPendingHexCombat()) {
+      if (typeof window.finalizeLegacyRaidHexCombatOutcome === 'function') {
+        try { window.finalizeLegacyRaidHexCombatOutcome('retreat'); } catch (_err) {}
+      } else if (typeof openRaidWingPopup === 'function') {
+        openRaidWingPopup(mId, wNum);
+      }
+      return true;
+    }
+    return true;
   };
 
   window.retreatRaidCombat = function (missionId, wingNum) {
@@ -7399,23 +7415,23 @@
             });
           }
         }
+        state.pendingCombat = {
+          active: true,
+          wing: Number(wingNum || 1),
+          cellId: String(cell.id || ''),
+          enemyCount: Number(enemyCount || 1),
+          startedAt: Date.now()
+        };
+        state.lastLog = 'Hex ' + cell.id + ' combat engaged. Resolve combat to finalize this hex.';
+        if (typeof showNotif === 'function') showNotif('Enemy encounter in hex ' + cell.id + '. Combat opened.', 'warn');
+
+        var isRaid = mission && mission.missionType === 'legacy_raid';
+        if (isRaid && typeof window.openRaidCombatModal === 'function') {
+          window.openRaidCombatModal(mission.id, wingNum);
+          return true;
+        }
         if (typeof startCombat === 'function') {
-          state.pendingCombat = {
-            active: true,
-            wing: Number(wingNum || 1),
-            cellId: String(cell.id || ''),
-            enemyCount: Number(enemyCount || 1),
-            startedAt: Date.now()
-          };
-          state.lastLog = 'Hex ' + cell.id + ' combat engaged. Resolve combat to finalize this hex.';
-          if (typeof showNotif === 'function') showNotif('Enemy encounter in hex ' + cell.id + '. Combat opened.', 'warn');
-          
-          var isRaid = mission && mission.missionType === 'legacy_raid';
-          if (isRaid && typeof window.openRaidCombatModal === 'function') {
-            window.openRaidCombatModal(mission.id, wingNum);
-          } else {
-            startCombat();
-          }
+          startCombat();
           return true;
         }
         result = resolveLegacyRaidHexContest('adventure', getLegacyRaidHexDreadDie(wingNum, eventType));
@@ -7482,6 +7498,32 @@
     return openRaidWingPopup(mission.id, wingNum);
   };
 
+  function openLegacyRaidCombatReturnPrompt(missionId, wingNum, outcome, detail) {
+    var mId = Number(missionId || 0);
+    var wNum = Number(wingNum || 1);
+    var label = String(outcome || 'resolved').toLowerCase();
+    var title = label === 'win' ? 'Combat Won' : (label === 'retreat' ? 'Combat Ended' : 'Combat Resolved');
+    var detailText = String(detail || (label === 'win'
+      ? 'The enemy squad is broken. Return to the wing route.'
+      : 'You disengaged from the encounter. Return to the wing route to continue.'));
+    if (typeof openModal !== 'function') {
+      if (typeof openRaidWingPopup === 'function') return openRaidWingPopup(mId, wNum);
+      return false;
+    }
+    openModal(
+      'Raid Combat Complete',
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="font-size:.84rem;color:var(--gold2);font-family:\'Cinzel\',serif;margin-bottom:.2rem;"><strong>' + title + '</strong></div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.34rem;">' + detailText + '</div>'
+        + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-sm btn-teal" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof openRaidWingPopup===\'function\')openRaidWingPopup(' + mId + ',' + wNum + ');">Return to Wing ' + wNum + '</button>'
+        + '<button class="btn btn-sm" onclick="if(typeof closeModal===\'function\')closeModal();">Stay Here</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
   window.finalizeLegacyRaidHexCombatOutcome = function (outcome) {
     var ctx = getLegacyRaidPendingHexCombat();
     if (!ctx || !ctx.mission || !ctx.state || !ctx.pending) return false;
@@ -7527,7 +7569,14 @@
       if (run) markLegacyRaidWingOutcome(mission, wingNum, true);
       return openLegacyRaidWingLootChoice(mission.id, wingNum, 'advance');
     }
-    return openRaidWingPopup(mission.id, wingNum);
+    return openLegacyRaidCombatReturnPrompt(
+      mission.id,
+      wingNum,
+      result,
+      result === 'win'
+        ? ('Hex ' + cell.id + ' secured. You can return to Wing ' + wingNum + ' and continue the route.')
+        : ('Hex ' + cell.id + ' unresolved. Return to Wing ' + wingNum + ' to choose your next move.')
+    );
   };
 
   function buildRaidHexMapSvg(mission, wingNum) {

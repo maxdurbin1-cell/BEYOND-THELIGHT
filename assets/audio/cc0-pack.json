@@ -1,0 +1,139 @@
+{
+  "name": "Beyond The Light External Music Pack",
+  "license": "Mixed (CC-BY via Incompetech; keep attribution)",
+  "notes": "These tracks are fetched through /api/audio-proxy to avoid CORS failures. Add attribution in your credits screen when distributing.",
+  "entries": [
+    {
+      "id": "music-suite-character",
+      "title": "Long Note Two",
+      "style": "Campfire Chronicle",
+      "suiteLabel": "Character Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Long%20Note%20Two.mp3"
+    },
+    {
+      "id": "music-suite-map",
+      "title": "Echoes of Time v2",
+      "style": "Road Atlas",
+      "suiteLabel": "Map Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Echoes%20of%20Time%20v2.mp3"
+    },
+    {
+      "id": "music-suite-combat",
+      "title": "Thunder Dreams",
+      "style": "Iron Clash",
+      "suiteLabel": "Combat Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Thunder%20Dreams.mp3"
+    },
+    {
+      "id": "music-suite-caravan",
+      "title": "Dark Walk",
+      "style": "Folk Caravan",
+      "suiteLabel": "Caravan Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Dark%20Walk.mp3"
+    },
+    {
+      "id": "music-suite-holding",
+      "title": "Gnarled Situation",
+      "style": "Council Hall",
+      "suiteLabel": "Holding Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Gnarled%20Situation.mp3"
+    },
+    {
+      "id": "music-suite-missions",
+      "title": "Unnatural Situation",
+      "style": "Contract Pulse",
+      "suiteLabel": "Missions Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Unnatural%20Situation.mp3"
+    },
+    {
+      "id": "music-suite-jobs",
+      "title": "Decline",
+      "style": "Clockwork Errand",
+      "suiteLabel": "Jobs Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Decline.mp3"
+    },
+    {
+      "id": "music-suite-province",
+      "title": "The House of Leaves",
+      "style": "Province Marches",
+      "suiteLabel": "Province Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/The%20House%20of%20Leaves.mp3"
+    },
+    {
+      "id": "music-suite-merchant",
+      "title": "Long Note Two",
+      "style": "Court Merchant",
+      "suiteLabel": "Merchant Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Long%20Note%20Two.mp3"
+    },
+    {
+      "id": "music-suite-sea",
+      "title": "Night Cave",
+      "style": "Abyssal Sea",
+      "suiteLabel": "Sea Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Night%20Cave.mp3"
+    },
+    {
+      "id": "music-suite-space",
+      "title": "Anguish",
+      "style": "Orbital Noir",
+      "suiteLabel": "Space Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Anguish.mp3"
+    },
+    {
+      "id": "music-suite-planet",
+      "title": "Decline",
+      "style": "Planetfall Frontier",
+      "suiteLabel": "Planet Suite",
+      "source": "Incompetech",
+      "artist": "Kevin MacLeod",
+      "license": "CC-BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "src": "/api/audio-proxy?src=https://incompetech.com/music/royalty-free/mp3-royaltyfree/Decline.mp3"
+    }
+  ]
+}

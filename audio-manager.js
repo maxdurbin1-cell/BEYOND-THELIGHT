@@ -57,7 +57,8 @@
         detail: {
           id: String(this.currentMusicId || ''),
           baseId: String(this.currentMusicBaseId || ''),
-          label: this.getNowPlayingLabel()
+          label: this.getNowPlayingLabel(),
+          attribution: this.getNowPlayingAttribution()
         }
       }));
     },
@@ -81,6 +82,19 @@
       if (!this.musicConsent) return 'Music disabled';
       if (!this.currentMusicId) return 'No track active';
       return this.formatMusicLabel(this.currentMusicId);
+    },
+
+    getNowPlayingAttribution() {
+      var id = String(this.currentMusicId || '').trim();
+      if (!id) return '';
+      var meta = this.musicTrackMeta && this.musicTrackMeta[id] ? this.musicTrackMeta[id] : null;
+      if (!meta) return '';
+      var bits = [];
+      if (meta.source) bits.push('Source: ' + String(meta.source));
+      if (meta.artist) bits.push('Artist: ' + String(meta.artist));
+      if (meta.license) bits.push('License: ' + String(meta.license));
+      if (meta.licenseUrl) bits.push(String(meta.licenseUrl));
+      return bits.join(' | ');
     },
 
     // Initialize Web Audio API
@@ -107,7 +121,7 @@
         
         this.createSoundLibrary();
         this.initialized = true;
-        this.loadOptionalAssetPack();
+        if (this.musicConsent) this.loadOptionalAssetPack();
         console.log('🔊 Audio Manager initialized');
         console.log('🔊 Audio Context State:', this.audioContext.state);
       } catch (e) {
@@ -271,6 +285,18 @@
             if (!buffer) continue;
             this.audioCache[id] = buffer;
             this.assetPack.loadedIds.push(id);
+            if (entry && typeof entry === 'object') {
+              var existingMeta = this.musicTrackMeta && this.musicTrackMeta[id] ? this.musicTrackMeta[id] : {};
+              this.musicTrackMeta[id] = Object.assign({}, existingMeta, {
+                title: String(entry.title || existingMeta.title || '').trim() || existingMeta.title,
+                style: String(entry.style || existingMeta.style || '').trim() || existingMeta.style,
+                suiteLabel: String(entry.suiteLabel || existingMeta.suiteLabel || '').trim() || existingMeta.suiteLabel,
+                source: String(entry.source || existingMeta.source || '').trim() || existingMeta.source,
+                artist: String(entry.artist || existingMeta.artist || '').trim() || existingMeta.artist,
+                license: String(entry.license || existingMeta.license || '').trim() || existingMeta.license,
+                licenseUrl: String(entry.licenseUrl || existingMeta.licenseUrl || '').trim() || existingMeta.licenseUrl
+              });
+            }
           } catch (_entryErr) {
             // Keep procedural fallback for missing/blocked assets.
           }
@@ -291,6 +317,10 @@
     },
 
     loadOptionalAssetPack() {
+      if (!this.musicConsent) {
+        this.assetPack.status = 'idle';
+        return;
+      }
       if (!this.isAssetPackEnabled()) {
         this.assetPack.status = 'disabled';
         return;
@@ -1333,6 +1363,7 @@
         return;
       }
       this.ensureInitialized();
+      this.loadOptionalAssetPack();
       this.switchTabMusic(this.currentTab || 'character');
     },
 

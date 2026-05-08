@@ -709,7 +709,11 @@
     const label = audio && typeof audio.getNowPlayingLabel === 'function'
       ? audio.getNowPlayingLabel()
       : (Settings.musicConsent ? 'No track active' : 'Music disabled');
+    const attribution = audio && typeof audio.getNowPlayingAttribution === 'function'
+      ? String(audio.getNowPlayingAttribution() || '').trim()
+      : '';
     el.textContent = label;
+    el.title = attribution || label;
     el.style.color = Settings.musicConsent ? 'var(--text2)' : 'var(--muted2)';
   }
 

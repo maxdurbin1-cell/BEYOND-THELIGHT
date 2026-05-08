@@ -68,6 +68,15 @@ const PLAYER_PATCH_ALLOWED_KEYS = {
   readyCheck: true,
   combatScene: true
 };
+const AUDIO_PROXY_ALLOWED_HOSTS = new Set([
+  "incompetech.com",
+  "www.incompetech.com",
+  "opengameart.org",
+  "www.opengameart.org",
+  "freesound.org",
+  "www.freesound.org",
+  "cdn.freesound.org"
+]);
 
 const campaigns = new Map();
 let persistTimer = null;
@@ -836,6 +845,72 @@ function detachSocket(socket, opts) {
 
   emitCampaignState(campaign.code);
 }
+
+function isAllowedAudioProxyHost(hostname) {
+  const host = String(hostname || "").toLowerCase().trim();
+  if (!host) return false;
+  if (AUDIO_PROXY_ALLOWED_HOSTS.has(host)) return true;
+  if (host.endsWith(".incompetech.com")) return true;
+  if (host.endsWith(".opengameart.org")) return true;
+  if (host.endsWith(".freesound.org")) return true;
+  return false;
+}
+
+function hasSupportedAudioExtension(pathname) {
+  const pathOnly = String(pathname || "").toLowerCase();
+  return pathOnly.endsWith(".mp3") || pathOnly.endsWith(".ogg") || pathOnly.endsWith(".wav");
+}
+
+app.get("/api/audio-proxy", async (req, res) => {
+  const src = String((req.query && req.query.src) || "").trim();
+  if (!src) {
+    res.status(400).json({ ok: false, error: "Missing src query parameter." });
+    return;
+  }
+
+  let target;
+  try {
+    target = new URL(src);
+  } catch (_err) {
+    res.status(400).json({ ok: false, error: "Invalid src URL." });
+    return;
+  }
+
+  if (target.protocol !== "https:" && target.protocol !== "http:") {
+    res.status(400).json({ ok: false, error: "Only http/https URLs are allowed." });
+    return;
+  }
+
+  if (!isAllowedAudioProxyHost(target.hostname)) {
+    res.status(403).json({ ok: false, error: "Source host is not allowlisted." });
+    return;
+  }
+
+  if (!hasSupportedAudioExtension(target.pathname)) {
+    res.status(400).json({ ok: false, error: "Only .mp3, .ogg, and .wav files are allowed." });
+    return;
+  }
+
+  try {
+    const upstream = await fetch(target.toString(), { redirect: "follow" });
+    if (!upstream.ok) {
+      res.status(upstream.status).json({ ok: false, error: "Upstream audio fetch failed." });
+      return;
+    }
+
+    const contentType = String(upstream.headers.get("content-type") || "application/octet-stream");
+    const audioType = contentType.startsWith("audio/") ? contentType : "audio/mpeg";
+    const cacheControl = String(upstream.headers.get("cache-control") || "public, max-age=86400");
+    const body = Buffer.from(await upstream.arrayBuffer());
+
+    res.setHeader("Content-Type", audioType);
+    res.setHeader("Cache-Control", cacheControl);
+    res.setHeader("Accept-Ranges", "bytes");
+    res.send(body);
+  } catch (_err) {
+    res.status(502).json({ ok: false, error: "Audio proxy request failed." });
+  }
+});
 
 app.use(express.static(path.join(__dirname)));
 

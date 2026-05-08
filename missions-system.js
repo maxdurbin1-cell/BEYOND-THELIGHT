@@ -7018,12 +7018,11 @@
             startedAt: Date.now()
           };
           state.lastLog = 'Hex ' + cell.id + ' combat engaged. Resolve combat to finalize this hex.';
+          if (typeof showNotif === 'function') showNotif('Enemy encounter in hex ' + cell.id + '. Combat opened.', 'warn');
           
           var isRaid = mission && mission.missionType === 'legacy_raid';
           if (isRaid && typeof window.openRaidCombatModal === 'function') {
-            setTimeout(function () {
-              window.openRaidCombatModal(mission.id, wingNum);
-            }, 200);
+            window.openRaidCombatModal(mission.id, wingNum);
           } else {
             startCombat();
           }
@@ -7045,6 +7044,7 @@
         state.lastLog = eventType === 'empty'
           ? ('Hex ' + cell.id + ' is empty. No encounter present. +2 ticks earned for a fast sweep.')
           : ('Hex ' + cell.id + ' cleared (' + eventType + '). +2 ticks earned.');
+        if (eventType === 'empty' && typeof showNotif === 'function') showNotif('Hex ' + cell.id + ' is empty.', 'info');
         if (cell.lorePiece) state.objectives.loreCollected = Math.min(Number(state.objectives.loreRequired || 3), Number(state.objectives.loreCollected || 0) + 1);
         if (cell.waypoint && !cell.waypointActivated) {
           cell.waypointActivated = true;
@@ -7349,9 +7349,25 @@
       : room.type === 'WayfarerPost' ? 'var(--gold2)'
       : 'var(--text2)';
 
+    var briefByType = {
+      Entry: 'Move in and establish position.',
+      Puzzle: 'Solve the mechanism to open the route.',
+      Combat: 'Enemy contact in this room.',
+      Hazard: 'Environmental danger, keep formation tight.',
+      Peril: 'High pressure lane; survive the push.',
+      Trap: 'Disarm before the lane punishes movement.',
+      Loot: 'Secure supplies and move on.',
+      LoreReading: 'Recover lore clues for later wings.',
+      WayfarerPost: 'Staging post: support and assignments.',
+      Approach: 'Final approach lane to the chamber.',
+      TrophyCache: 'Claim tactical reserve rewards.'
+    };
+    var roomType = String(room.type || 'Room');
+    var brief = briefByType[roomType] || 'Resolve this room and advance.';
     var html = '<div id="raidRoom-' + mission.id + '-' + wingNum + '-' + roomIdx + '" class="room-block" style="border-left:3px solid ' + typeColor + ';padding-left:.5rem;margin-bottom:.4rem;">'
       + '<div class="rb-title" style="color:' + typeColor + ';">' + room.icon + ' Room ' + (roomIdx + 1) + ' — ' + room.label + '</div>'
-      + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;margin-bottom:.28rem;">' + room.description + '</div>';
+      + '<div class="rb-text" style="font-size:.84rem;line-height:1.6;margin-bottom:.18rem;"><strong style="color:var(--text2);">Brief:</strong> ' + brief + '</div>'
+      + '<div class="rb-text" style="font-size:.76rem;line-height:1.55;margin-bottom:.28rem;color:var(--muted2);">' + room.description + '</div>';
 
     if (room.result) {
       html += '<div style="padding:.22rem .35rem;background:rgba(255,255,255,.04);border-radius:3px;font-size:.76rem;color:var(--gold2);margin-bottom:.28rem;">' + room.result + '</div>';
@@ -9231,6 +9247,7 @@
       + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.1rem;">Attempt Log</div>'
       + '<div style="max-height:120px;overflow:auto;border:1px solid var(--border2);padding:.24rem .28rem;background:rgba(0,0,0,.16);margin-bottom:.24rem;">' + logHtml + '</div>'
       + '<div style="display:flex;justify-content:space-between;gap:.24rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-warn" onclick="resolveLegacyRaidPuzzleBypass(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Bypass Puzzle (AD vs DD6)</button>'
       + '<button class="btn btn-xs" onclick="resetLegacyRaidPuzzleRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Reconfigure Puzzle</button>'
       + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
       + '</div>'
@@ -9401,6 +9418,21 @@
       }
     }
     return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
+  };
+
+  window.resolveLegacyRaidPuzzleBypass = function (missionId, wingNum, roomIdx) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var map = ensureRaidHexMap(mission);
+    var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
+    if (!room || room.type !== 'Puzzle') return false;
+    var check = resolveLegacyRaidContest(6, 6, 0);
+    if (check.success) {
+      room.result = '🧩 Bypass success (AD d' + check.actionDie + ' ' + check.actionRoll + ' vs DD6 ' + check.dreadRoll + '). Route forced open.';
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
+    }
+    room.result = '🧩 Bypass failed (AD d' + check.actionDie + ' ' + check.actionRoll + ' vs DD6 ' + check.dreadRoll + '). Pressure spikes.';
+    return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
   };
 
   window.submitLegacyRaidPuzzleRoleAction = function (missionId, wingNum, roomIdx, role, move) {

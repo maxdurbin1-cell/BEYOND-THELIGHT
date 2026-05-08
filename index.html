@@ -14591,12 +14591,12 @@ function openLostCityBuildingHexcrawl(col,row){
     }).join('');
     var actionHtml='';
     if(activeRoom){
-      actionHtml=activeRoom.cleared
-        ? '<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;margin-top:.3rem;"><span style="font-size:.74rem;color:var(--green2);">✓ Cleared</span></div>'
-        : '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;">'
-          + '<button class="btn btn-xs btn-teal" onclick="lcResolveRoom('+col+','+row+','+Number(activeRoom.idx-1)+')">🔍 Search Building</button>'
-          + '<button class="btn btn-xs btn-warn" onclick="lcTriggerTrap('+col+','+row+','+Number(activeRoom.idx-1)+')">🜸 Search for Trap</button>'
-          + '</div>';
+      actionHtml='<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;margin-top:.3rem;">'
+        + '<button class="btn btn-xs btn-teal" '+(activeRoom.cleared?'disabled style="opacity:.6;cursor:default;"':'')+' onclick="lcResolveRoom('+col+','+row+','+Number(activeRoom.idx-1)+')">🔍 Search Building</button>'
+        + '<button class="btn btn-xs btn-warn" onclick="lcTriggerTrap('+col+','+row+','+Number(activeRoom.idx-1)+')">🜸 Search for Trap</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="lcPressOn('+col+','+row+','+Number(activeRoom.idx-1)+')">➜ Press On</button>'
+        + (activeRoom.cleared?'<span style="font-size:.74rem;color:var(--green2);">✓ Building searched</span>':'')
+        + '</div>';
     }
     // Build navigation buttons for all currently unlocked hex nodes
     var navHtml='';
@@ -14649,6 +14649,7 @@ function lcMoveToHexNode(col,row,nodeId){
   const node=hex.data.hexcrawl.nodes.find(function(n){return Number(n.id)===Number(nodeId);});
   if(!node)return;
   hex.data.hexcrawl.activeNodeId=Number(node.id||0);
+  lcRollEncounter(col,row,Number(node.roomIndex||0),true);
   openLostCityBuildingHexcrawl(col,row);
 }
 
@@ -14680,9 +14681,23 @@ function lcResolveRoom(col,row,idx){
     }else{
       r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Failure. +2 Radiation Stress.';
       r.cleared=true;
+      crawl.unlockedRooms=Math.min(crawl.rooms.length,Number(crawl.unlockedRooms||1)+1);
       if(typeof changeStress==='function')changeStress(2);
       else if(typeof changeMentalStress==='function')changeMentalStress(2);
     }
+    openLostCityBuildingHexcrawl(col,row);
+}
+
+function lcPressOn(col,row,idx){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data||!hex.data.hexcrawl)return;
+    const crawl=hex.data.hexcrawl;
+    const room=crawl.rooms[idx];
+    crawl.unlockedRooms=Math.min(crawl.rooms.length,Number(crawl.unlockedRooms||1)+1);
+    if(room){
+      room.result=(room.result?room.result+' ':'')+'Press On: route expanded to another hex.';
+    }
+    if(typeof showNotif==='function')showNotif('Press On opened another hex route.','good');
     openLostCityBuildingHexcrawl(col,row);
 }
 

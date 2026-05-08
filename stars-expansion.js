@@ -13497,10 +13497,8 @@ function buildPlanetHoldingInfoHtml(state, selected) {
     <div class="wild-panel"><div class="wp-label">Settlement Status</div><div class="wp-text">${h.structure} · ${h.terrain} terrain</div></div>
     <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs" onclick="createPlanetTask()">⚄ Generate Task</button>
-      <button class="btn btn-xs btn-teal" onclick="rollPlanetCelebrationEvent()">⚄ Roll Celebration Event</button>
       <button class="btn btn-xs btn-primary" onclick="if(typeof openRegionalSettlementHexcrawl==='function')openRegionalSettlementHexcrawl('space','${String(h.title || 'Merchant Colony').replace(/'/g, "\\'")}');else if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();">◫ Enter Settlement</button>
-    </div>
-    <div id="planetCelebrationResult" style="margin-top:.35rem;font-size:.78rem;"></div>`;
+    </div>`;
 }
 
 function planetCelebrationEventPool() {
@@ -15245,7 +15243,7 @@ function renderPlanetExplorationPanel() {
 
           ${canRollWildernessActions ? `<div class="hex-primary-actions" style="margin-top:.45rem;"><button class="btn btn-sm btn-gold" onclick="observeAdjacentPlanetHexes()">🔍 Observe Adjacent (Lead vs DD6)</button><button class="btn btn-sm btn-teal" onclick="rollPlanetHexEncounter()">⚄ Roll Encounter</button></div>` : ''}
           <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
-            ${canGenerateTask && !(selected && selected.tradeRoute) ? '<button class="btn btn-sm" onclick="createPlanetTask()">⚄ Generate Task</button>' : ''}
+            ${canGenerateTask && !(selected && selected.tradeRoute) && !(selected && selected.marker === 'merchant_colony') ? '<button class="btn btn-sm" onclick="createPlanetTask()">⚄ Generate Task</button>' : ''}
             ${(selected && selected.tradeRoute) ? '<button class="btn btn-sm" onclick="rollPlanetTradeRouteEncounter()">⚄ Trade Route Encounter</button><button class="btn btn-sm" onclick="showPlanetTradeGoods()">📦 Trade Goods</button>' : ''}
             ${canTravelThroughGate && !(selected && selected.tradeRoute) ? '<button class="btn btn-sm btn-teal" onclick="travelThroughPlanetGate()">◆ Travel Through Gate (Spirit vs Dread d12)</button>' : ''}
             ${(selected && selected.marker === 'wayfarer' && !(selected && selected.tradeRoute)) ? '<button class="btn btn-sm" onclick="createPlanetTask({ source: \'wayfarer\', preferredCellId: ' + selected.id + ' })">⚄ Generate Task (Wayfarer)</button>' : ''}

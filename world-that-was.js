@@ -3265,7 +3265,6 @@
     const holdingsHtml = selectedDistrictHoldings.map(function (entry, idx) {
       const holdingName = String((entry && entry.name) || ("District Holding " + (idx + 1)));
       const holdingDesc = String((entry && entry.desc) || "A fortified district node with active contracts.");
-      const safeHoldingName = holdingName.replace(/'/g, "\\'");
       const linkedHolding = zoneHoldings[idx] || null;
       const taskButton = linkedHolding
         ? ("<button class='btn btn-xs' onclick='wtwTakeHoldingTask(\"" + String(linkedHolding.id || "") + "\")'>Take Task</button>")
@@ -3275,18 +3274,12 @@
         + "<div class='title'>" + holdingName + " <span style='font-size:.62rem;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;'>Holding</span></div>"
         + "<div class='meta'>" + holdingDesc + "<br>Controller: " + hex.controller + "</div>"
         + "<div class='actions'>"
-        + "<button class='btn btn-xs btn-primary' onclick='if(typeof openRegionalSettlementHexcrawl===\"function\")openRegionalSettlementHexcrawl(\"ruins\",\"" + safeHoldingName + "\");else if(typeof openHoldingSettlementHexcrawl===\"function\")openHoldingSettlementHexcrawl(\"" + safeHoldingName + "\")'>◫ Enter Holding</button>"
         + taskButton
         + "</div>"
         + "</div>";
     }).join("");
-
-    const celebration = hex.pendingServiceCelebration || null;
-    const celebrationControls = celebration
-      ? "<div class='wtw-card' style='margin-bottom:.35rem;'><div class='wtw-card-title'>Downtime Event: " + celebration.name + "</div><div class='wtw-card-text'>Choose a stat to resolve vs DD" + celebration.dd + ".</div><div class='wtw-card-actions'>"
-        + ["lead","mind","body","spirit","control","strike","shoot","defend"].map(function(key){ return "<button class='btn btn-xs btn-teal' onclick='wtwResolveCelebration(\"" + hex.id + "\",\"" + key + "\")'>" + key.charAt(0).toUpperCase() + key.slice(1) + "</button>"; }).join("")
-        + "</div></div>"
-      : "<div class='wtw-card' style='margin-bottom:.35rem;'><div class='wtw-card-title'>District Downtime</div><div class='wtw-card-text'>Roll a celebratory district event and resolve with an Action Die.</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwRollCelebration(\"" + hex.id + "\")'>⚄ Roll Celebration Event</button></div></div>";
+    const holdingEntryName = String((selectedDistrictHoldings[0] && selectedDistrictHoldings[0].name) || (hex.zone + " Holding")).replace(/'/g, "\\'");
+    const singleHoldingEntryHtml = "<div style='display:flex;justify-content:flex-end;margin-bottom:.35rem;'><button class='btn btn-xs btn-primary' onclick='if(typeof openRegionalSettlementHexcrawl===\"function\")openRegionalSettlementHexcrawl(\"ruins\",\"" + holdingEntryName + "\");else if(typeof openHoldingSettlementHexcrawl===\"function\")openHoldingSettlementHexcrawl(\"" + holdingEntryName + "\")'>◫ Enter Holding</button></div>";
 
     const hazardHtml = hex.hazard
       ? (hex.hazard.type === 'barrier'
@@ -3411,7 +3404,7 @@
       + eventCard
         + buildWtwAccordionStateful("Encounter & Markers", activityHtml + encounterHtml + markerHtml + wtwWorldStateHtml + backstoryAnchorHtml, true, "encounter")
         + buildWtwAccordionStateful("Hazards, Wayfarers, Exploration & Travel", worldSystems, false, "worldsystems")
-        + buildWtwAccordionStateful("Cyberpunk Holdings", celebrationControls + (holdingsHtml || "<div class='wtw-muted'>No holdings discovered in this district.</div>"), false, "holdings")
+        + buildWtwAccordionStateful("Cyberpunk Holdings", singleHoldingEntryHtml + (holdingsHtml || "<div class='wtw-muted'>No holdings discovered in this district.</div>"), false, "holdings")
         + buildWtwAccordionStateful("Zone Power & Tasks", powerSection, false, "powertasks")
       + "</div>";
   }

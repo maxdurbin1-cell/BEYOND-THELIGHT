@@ -116,6 +116,13 @@
     return 'blade';
   }
 
+  function looksLikeWeapon(name) {
+    var n = String(name || '').toLowerCase();
+    if (!n) return false;
+    return /(sword|axe|mace|hammer|maul|club|rapier|dagger|spear|halberd|pike|lance|staff|scythe|bow|crossbow|sling|pistol|rifle|musket|blunderbuss|carbine|gun|whip|katana|gladius|sabre|blade|weapon)/.test(n)
+      || /\bstrike\b|\bshoot\b/.test(n);
+  }
+
   function iconWeapon(name, opts) {
     var kind = weaponKindFromName(name);
     var accent = String(opts && opts.accent || resolveAccent(String(name || kind)));
@@ -128,6 +135,15 @@
       arcane: '<path d="M31 10h2v34h-2z" fill="#d8dee7"/><circle cx="32" cy="18" r="8" fill="' + accent + '" opacity=".9"/><circle cx="32" cy="18" r="3" fill="#f9f4df"/><path d="M24 42h16l-3 10H27z" fill="#6f7f95"/>'
     };
     return frameSvg(glyphs[kind] || glyphs.blade, Object.assign({}, opts || {}, { accent: accent, title: String(opts && opts.title || name || 'Weapon') }));
+  }
+
+  function getWeaponIconLabelHtml(name, opts) {
+    var label = String(name || 'Weapon');
+    var includeWhenUnknown = !!(opts && opts.includeWhenUnknown);
+    if (!includeWhenUnknown && !looksLikeWeapon(label)) return escHtml(label);
+    return '<span style="display:inline-flex;align-items:center;gap:.34rem;">'
+      + iconWeapon(label, { size: opts && opts.size || 20, title: label, accent: opts && opts.accent })
+      + '<span>' + escHtml(label) + '</span></span>';
   }
 
   function buildPerchanceCharacterPrompt(state) {
@@ -244,6 +260,8 @@
     iconTrophy: iconTrophy,
     iconVehicle: iconVehicle,
     iconWeapon: iconWeapon,
+    looksLikeWeapon: looksLikeWeapon,
+    getWeaponIconLabelHtml: getWeaponIconLabelHtml,
     getRaidChestLabelHtml: getRaidChestLabelHtml,
     getRaidMedalStripHtml: getRaidMedalStripHtml,
     getTrophyEntryHtml: getTrophyEntryHtml,

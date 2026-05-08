@@ -641,8 +641,8 @@ select option{background:#0f1020;}
     </div>
     <div class="card">
       <div class="section-title">Equipment</div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip">✕</button></div></div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon1Icon" aria-hidden="true"></span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon2Icon" aria-hidden="true"></span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip">✕</button></div></div>
       <div class="form-row"><span class="sub-label">Armor</span>
         <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button><button class="bp-info-btn" onclick="showEquippedItem('armor')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('armor')" title="Unequip">✕</button></div>
       </div>
@@ -1529,6 +1529,56 @@ function loadDiceVisualSettings(){
   }catch(_err){
     return Object.assign({},DICE_VISUAL_DEFAULTS);
   }
+}
+
+function _escapeUiText(v){
+  return String(v==null?'':v)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function isWeaponLikeText(text){
+  var raw = String(text || '');
+  var stack = parseBackpackStack(raw);
+  var base = String(stack && stack.name ? stack.name : raw).trim();
+  var found = (typeof findShopItem==='function') ? findShopItem(base) : null;
+  if (found && (found.cat === 'weapons' || found.cat === 'melee_exp' || found.cat === 'ranged_exp')) return true;
+  var iconApi = (typeof window!=='undefined') ? window.SharedIconSystem : null;
+  if (iconApi && typeof iconApi.looksLikeWeapon === 'function') return !!iconApi.looksLikeWeapon(base);
+  return /(sword|axe|mace|hammer|maul|club|rapier|dagger|spear|halberd|pike|lance|staff|scythe|bow|crossbow|sling|pistol|rifle|musket|blunderbuss|carbine|gun|whip|katana|gladius|sabre|blade|weapon)/i.test(base) || /\bstrike\b|\bshoot\b/i.test(base);
+}
+
+function weaponIconHtmlForText(text,size){
+  var raw = String(text || '');
+  var stack = parseBackpackStack(raw);
+  var base = String(stack && stack.name ? stack.name : raw).trim();
+  if (!isWeaponLikeText(base)) return '';
+  var iconApi = (typeof window!=='undefined') ? window.SharedIconSystem : null;
+  if (!iconApi || typeof iconApi.iconWeapon !== 'function') return '';
+  return iconApi.iconWeapon(base,{size:Number(size||20),title:base,accent:iconApi.resolveAccent?iconApi.resolveAccent(base):undefined});
+}
+
+function weaponLabelHtml(text,size){
+  var raw = String(text || '');
+  var stack = parseBackpackStack(raw);
+  var base = String(stack && stack.name ? stack.name : raw).trim();
+  var icon = weaponIconHtmlForText(base,size||20);
+  if (!icon) return _escapeUiText(base || raw);
+  return '<span style="display:inline-flex;align-items:center;gap:.34rem;">'+icon+'<span>'+_escapeUiText(base || raw)+'</span></span>';
+}
+
+function renderEquippedSlotIcons(){
+  if (typeof document === 'undefined' || typeof S === 'undefined' || !S || !S.equipment) return;
+  var slotMap=[['weapon1','eqWeapon1Icon'],['weapon2','eqWeapon2Icon']];
+  slotMap.forEach(function(pair){
+    var text=String(S.equipment[pair[0]]||'');
+    var el=document.getElementById(pair[1]);
+    if(!el)return;
+    el.innerHTML = weaponIconHtmlForText(text,20);
+  });
 }
 const DICE_VISUAL=loadDiceVisualSettings();
 window._diceRollContext=null;
@@ -9204,14 +9254,14 @@ function showBackpackItem(index) {
     var solarInfo = (typeof window.getSolarCycleItemDescription === 'function') ? window.getSolarCycleItemDescription(text) : null;
     var loreInfo = isLoreBook ? getLoreBookEntryByItem(parseBackpackStack(text).name) : null;
     var itemTitleHtml = solarInfo
-      ? '<div style="font-size:.9rem;color:var(--gold2);font-weight:600;">' + text + '</div>'
+      ? '<div style="font-size:.9rem;color:var(--gold2);font-weight:600;">' + weaponLabelHtml(text,22) + '</div>'
         + '<div style="font-size:.72rem;color:var(--teal);margin:.1rem 0 .2rem;">' + (solarInfo.kind || 'New Sun Item') + (solarInfo.stat ? ' &nbsp;·&nbsp; ' + solarInfo.stat : '') + '</div>'
         + '<div style="font-size:.8rem;color:var(--text2);line-height:1.52;margin-bottom:.3rem;">' + solarInfo.summary + '</div>'
       : (loreInfo
-        ? '<div style="font-size:.9rem;color:var(--gold2);font-weight:600;">' + text + '</div>'
+        ? '<div style="font-size:.9rem;color:var(--gold2);font-weight:600;">' + weaponLabelHtml(text,22) + '</div>'
           + '<div style="font-size:.72rem;color:var(--teal);margin:.1rem 0 .2rem;">' + String(loreInfo.genre || 'Lore Book') + '</div>'
           + '<div style="font-size:.8rem;color:var(--text2);line-height:1.52;margin-bottom:.3rem;">' + String(loreInfo.lore || 'A recovered record from the fading world.') + '</div>'
-        : '<div style="font-size:.9rem;color:var(--text2);">' + text + '</div>');
+        : '<div style="font-size:.9rem;color:var(--text2);">' + weaponLabelHtml(text,22) + '</div>');
     openModal('Backpack Item', itemTitleHtml + buildAffixEffectsHtml(text) + '<div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>');
     return;
   }
@@ -9248,7 +9298,7 @@ function showBackpackItem(index) {
   storOpts += '</div></div>';
   btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
   var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
-    + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+weaponLabelHtml(item.name,22)+'</div>'
     + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
     + '<div>'+item.desc+'</div>'
     + buildAffixEffectsHtml(text)
@@ -9506,7 +9556,7 @@ function showEquippedItem(slot) {
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
     btnHtml += storageOptions;
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
-      + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+weaponLabelHtml(item.name,22)+'</div>'
       + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
       + '<div>'+item.desc+'</div>'
       + buildAffixEffectsHtml(text)
@@ -9531,7 +9581,7 @@ function showEquippedItem(slot) {
     }
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
     btnHtml += storageOptions;
-    var html = '<div style="font-size:.9rem;color:var(--text2);">'+text+'</div>'+buildAffixEffectsHtml(text)+'<div style="margin-top:.5rem;">'+btnHtml+'</div>';
+    var html = '<div style="font-size:.9rem;color:var(--text2);">'+weaponLabelHtml(text,22)+'</div>'+buildAffixEffectsHtml(text)+'<div style="margin-top:.5rem;">'+btnHtml+'</div>';
     openModal('Equipped Item', html);
   }
 }

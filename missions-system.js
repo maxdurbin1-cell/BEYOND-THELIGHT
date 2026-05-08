@@ -11862,11 +11862,17 @@
         }
         var loot = Array.isArray(mission.loot) ? mission.loot : [];
         var reward = Number(mission.reward || 0);
+        var lootLabel = loot.map(function(item){
+          if (typeof weaponLabelHtml === 'function') {
+            return weaponLabelHtml(item, 16);
+          }
+          return String(item || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }).join(', ');
         var factionLine = mission.success
           ? '<div style="font-size:.68rem;color:var(--teal);margin-top:.08rem;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
           : '';
         var lootLine=(mission.success&&loot.length)
-          ?'<div style="font-size:.7rem;color:var(--gold2);margin-top:.1rem;">Loot: '+loot.join(', ')+' \u00B7 +'+reward+'\u20B5 \u00B7 +1 Renown</div>'
+          ?'<div style="font-size:.7rem;color:var(--gold2);margin-top:.1rem;">Loot: '+lootLabel+' \u00B7 +'+reward+'\u20B5 \u00B7 +1 Renown</div>'
           :'<div style="font-size:.7rem;color:var(--red2);margin-top:.1rem;">\u22121 Renown</div>';
         var featureBits=[];
         if (mission.infoFeature && mission.infoFeature.icon && mission.infoFeature.name) {

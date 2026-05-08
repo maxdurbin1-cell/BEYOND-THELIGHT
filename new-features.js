@@ -654,8 +654,11 @@
         if (!item) {
           return '<input class="bp-input" placeholder="Slot ' + (i + 1) + '" value="" onchange="updateCaravanCargo(' + i + ',this.value)">';
         }
+        var itemLabel = (typeof weaponLabelHtml === 'function')
+          ? weaponLabelHtml(item, 18)
+          : String(item).replace(/</g, '&lt;').replace(/>/g, '&gt;');
         return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.28rem .35rem;border-radius:4px;cursor:pointer;" onclick="openCaravanCargoItem(' + i + ')">'
-          + '<div style="font-size:.72rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + String(item).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>'
+          + '<div style="font-size:.72rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + itemLabel + '</div>'
           + '<div style="font-size:.62rem;color:var(--muted2);margin-top:.12rem;">Click: use / equip / move</div>'
           + '</div>';
       }).join("");
@@ -937,8 +940,11 @@
     ensureNewFeatureState();
     var item = (S.caravan.cargo || [])[i] || '';
     if (!item) { return; }
+    var itemLabel = (typeof weaponLabelHtml === 'function')
+      ? weaponLabelHtml(item, 22)
+      : String(item).replace(/</g, '&lt;').replace(/>/g, '&gt;');
     if (!Array.isArray(S.backpack)) { S.backpack = Array(10).fill(''); }
-    var slotIdx = S.backpack.indexOf('');
+      + '<div style="margin-bottom:.45rem;">' + itemLabel + '</div>'
     if (slotIdx < 0) {
       showNotif('Backpack full! Free one slot to use cargo item.', 'warn'); return;
     }
@@ -976,8 +982,11 @@
     ensureNewFeatureState();
     var item = (S.caravan.cargo || [])[i] || '';
     if (!item) { return; }
+    var itemLabel = (typeof weaponLabelHtml === 'function')
+      ? weaponLabelHtml(item, 22)
+      : String(item).replace(/</g, '&lt;').replace(/>/g, '&gt;');
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.6;">'
-      + '<div style="margin-bottom:.45rem;">' + item + '</div>'
+      + '<div style="margin-bottom:.45rem;">' + itemLabel + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-teal" onclick="useCaravanCargoItem(' + i + ');closeModal();">⚑ Use</button>'
       + '<button class="btn btn-xs" onclick="moveCaravanCargoToBackpack(' + i + ');closeModal();">↙ Backpack</button>'
@@ -1142,8 +1151,11 @@
         if (questActive) {
           var gateSteps = ['Gather Information', 'Go To Site', 'Establish Holding'];
           var gateLoc = '';
+            var itemLabel = (typeof weaponLabelHtml === 'function')
+              ? weaponLabelHtml(item, 18)
+              : String(item).replace(/</g, '&lt;').replace(/>/g, '&gt;');
           if (q.infoHex && q.step <= 0) {
-            gateLoc += '<div style="font-size:.72rem;color:var(--gold2);margin-top:.18rem;">👁 Gather Information: Hex [' + (q.infoHex.col + 1) + ',' + (q.infoHex.row + 1) + ']</div>';
+              + '<div style="word-wrap:break-word;overflow:hidden;text-overflow:ellipsis;">' + itemLabel + '</div>'
           }
           if (q.siteHex && q.step <= 1) {
             gateLoc += '<div style="font-size:.72rem;color:var(--red2);margin-top:.12rem;">⚔ Go To Site: Hex [' + (q.siteHex.col + 1) + ',' + (q.siteHex.row + 1) + ']</div>';
@@ -1291,8 +1303,11 @@
       } else {
         vaultEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:.4rem;">'
           + h.vault.map(function(item, i) {
+            var itemLabel = (typeof weaponLabelHtml === 'function')
+              ? weaponLabelHtml(item, 18)
+              : String(item).replace(/</g, '&lt;').replace(/>/g, '&gt;');
             return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.3rem;text-align:center;border-radius:3px;font-size:.75rem;color:var(--text2);cursor:pointer;" onclick="moveVaultItemToBackpack(' + i + ');">'
-              + '<div style="word-wrap:break-word;overflow:hidden;text-overflow:ellipsis;">' + item + '</div>'
+              + '<div style="word-wrap:break-word;overflow:hidden;text-overflow:ellipsis;">' + itemLabel + '</div>'
               + '<div style="font-size:.65rem;color:var(--muted);margin-top:.15rem;">Click → Backpack</div>'
               + '</div>';
           }).join('') + '</div>';

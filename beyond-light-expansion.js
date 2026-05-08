@@ -3099,6 +3099,8 @@
     }
     var seaNodes = seaPlaced.map(function (entry) {
       var node = entry.node || {};
+      // Only show nodes that are unlocked (Province/LC parity)
+      if (Number(node.id || 0) >= Number(data.unlockedRooms || 1)) return '';
       var explored = !!node.explored;
       var selected = Number(data.hexcrawl.activeNodeId || 0) === Number(node.id || 0);
       var stroke = selected ? 'rgba(240,208,112,.95)' : (explored ? 'rgba(76,175,116,.85)' : 'rgba(126,215,255,.62)');
@@ -3123,7 +3125,7 @@
       + seaNodes
       + '</svg>'
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.24rem;margin-top:.28rem;">'
-      + data.hexcrawl.nodes.map(function (node) {
+      + data.hexcrawl.nodes.filter(function (node) { return Number(node.id) < Number(data.unlockedRooms || 1); }).map(function (node) {
         return '<div style="font-size:.74rem;color:var(--text2);">Hex ' + (Number(node.id) + 1) + ' · ' + sanitizeInlineText(String(node.label || 'Node'))
           + ' · <span style="color:' + (node.explored ? 'var(--green2)' : 'var(--teal)') + ';">' + (node.explored ? 'Cleared' : 'Unexplored') + '</span></div>';
       }).join('')

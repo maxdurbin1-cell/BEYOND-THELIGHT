@@ -16433,7 +16433,6 @@ function updateStarSystemReadouts() {
         ? getHexPersistentState(current, 'hub', function() { return createSpaceHubState(current.ring); })
         : null;
       if (current.type === 'hub') {
-        actionButtons.push('<button class="btn btn-xs btn-teal" onclick="var h=getCurrentStarHex();S.starSystem.activeHub=getHexPersistentState(h,\'hub\',function(){return createSpaceHubState(h.ring);});renderSpaceHubPanel();">Open Space Hub</button>');
         actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(typeof openSpaceHubHexcrawl===\'function\')openSpaceHubHexcrawl(\'' + String(current.label || current.name || 'Orbital Hub').replace(/'/g, "\\'") + '\');else if(typeof openHoldingSettlementHexcrawl===\'function\')openHoldingSettlementHexcrawl();">◫ Enter Space Hub</button>');
       }
       if (current.type === 'planet' && current.scanned) {

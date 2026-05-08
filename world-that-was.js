@@ -143,8 +143,8 @@
     { type: "hazard", name: "Toxic Vent Burst", stat: "body", dread: 8, condition: "weakened", desc: "A pressure vent floods the district with chemical steam." },
     { type: "hazard", name: "Signal Overload", stat: "mind", dread: 8, condition: "distracted", desc: "Interference storms fragment concentration and guidance systems." },
     { type: "peril", name: "Riot Swell", stat: "spirit", dread: 8, condition: "shaken", desc: "Panic cascades through alleys and escalates into violence." },
-    { type: "barrier", name: "Collapsed Transit Wall", stat: "body", dread: 10, condition: "vulnerable", desc: "Route collapse blocks movement and exposes travelers." },
-    { type: "barrier", name: "Checkpoint Blackout", stat: "control", dread: 10, condition: "distracted", desc: "Locked systems seal exits and scramble route data." },
+    { type: "barrier", name: "Collapsed Transit Wall", stat: "body", dread: 6, condition: "vulnerable", desc: "Route collapse blocks movement and exposes travelers." },
+    { type: "barrier", name: "Checkpoint Blackout", stat: "body", dread: 6, condition: "distracted", desc: "Locked systems seal exits and scramble route data." },
     { type: "peril", name: "Drone Hunt Zone", stat: "defend", dread: 10, condition: "vulnerable", desc: "Hunter drones sweep for movement across open lines." }
   ];
 
@@ -1975,6 +1975,24 @@
     }
   }
 
+  function resolveWtwBarrierCrossing(hexId) {
+    const hex = hexById(hexId);
+    if (!hex || !hex.hazard || hex.hazard.type !== 'barrier') return;
+    const check = rollAgainstDread("body", 6);
+    if (check.success) {
+      hex.hazard = null;
+      if (typeof showNotif === "function") showNotif("Barrier crossed: route cleared (Body " + check.actionTotal + " vs DD6 " + check.dreadTotal + ").", "good");
+    } else {
+      applyNegativeCondition("weakened");
+      if (typeof showNotif === "function") showNotif("Crossing failed (Body " + check.actionTotal + " vs DD6 " + check.dreadTotal + ") — Weakened. Barrier holds.", "warn");
+    }
+    syncWorldMarkers();
+    advanceWorldTime("barrier crossing");
+    if (registerWorldAction("barrier")) return;
+    renderWorldThatWas();
+  }
+  window.resolveWtwBarrierCrossing = resolveWtwBarrierCrossing;
+
   function resolveDistrictHazard(hexId) {
     const hex = hexById(hexId);
     if (!hex || !hex.hazard) return;
@@ -3271,7 +3289,9 @@
       : "<div class='wtw-card' style='margin-bottom:.35rem;'><div class='wtw-card-title'>District Downtime</div><div class='wtw-card-text'>Roll a celebratory district event and resolve with an Action Die.</div><div class='wtw-card-actions'><button class='btn btn-xs btn-primary' onclick='wtwRollCelebration(\"" + hex.id + "\")'>⚄ Roll Celebration Event</button></div></div>";
 
     const hazardHtml = hex.hazard
-      ? ("<div class='wtw-card'><div class='wtw-card-title' style='color:#ff8a72;'>" + (hex.hazard.type || "hazard").toUpperCase() + ": " + hex.hazard.name + "</div><div class='wtw-card-text'><strong>Risk:</strong> " + hex.hazard.desc + "<br><strong>Check:</strong> " + statLabel(hex.hazard.stat || "body") + " vs DD" + (hex.hazard.dread || 8) + "<br><strong>On fail:</strong> gain " + (hex.hazard.condition || "weakened") + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-red' onclick='wtwResolveHazard(\"" + hex.id + "\")'>Face Hazard</button></div></div>")
+      ? (hex.hazard.type === 'barrier'
+        ? ("<div class='wtw-card' style='border-color:#ff9066;'><div class='wtw-card-title' style='color:#ff8a72;'>⛔ BARRIER: " + hex.hazard.name + "</div><div class='wtw-card-text'><strong>Description:</strong> " + hex.hazard.desc + "<br><strong>To Cross:</strong> Body vs DD6<br><strong>On fail:</strong> gain Weakened and cannot cross this phase</div><div class='wtw-card-actions'><button class='btn btn-xs btn-warn' onclick='resolveWtwBarrierCrossing(\"" + hex.id + "\")'>⚄ Attempt Crossing (Body vs DD6)</button></div></div>")
+        : ("<div class='wtw-card'><div class='wtw-card-title' style='color:#ff8a72;'>" + (hex.hazard.type || "hazard").toUpperCase() + ": " + hex.hazard.name + "</div><div class='wtw-card-text'><strong>Risk:</strong> " + hex.hazard.desc + "<br><strong>Check:</strong> " + statLabel(hex.hazard.stat || "body") + " vs DD" + (hex.hazard.dread || 8) + "<br><strong>On fail:</strong> gain " + (hex.hazard.condition || "weakened") + "</div><div class='wtw-card-actions'><button class='btn btn-xs btn-red' onclick='wtwResolveHazard(\"" + hex.id + "\")'>Face Hazard</button></div></div>"))
       : "<div class='wtw-muted'>No active district hazard in this hex.</div>";
 
     const wayfarerHtml = hex.wayfarer

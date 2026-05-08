@@ -7214,12 +7214,24 @@ function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
   var type = String(quest.challengeType || 'social');
   var manualMode = !!(rollResult && rollResult.manual);
   if (type === 'combat') {
+    var regionKey = String(quest.region || '').toLowerCase();
+    var profile = (typeof window !== 'undefined' && typeof window.pickNamedEnemyProfile === 'function')
+      ? window.pickNamedEnemyProfile(regionKey === 'galaxy' ? 'galaxy' : (regionKey === 'planet' ? 'planet' : 'world'))
+      : { name: 'Sunless Warden', desc: 'A void-armored sentinel with a blade of folded dusk.', dread: 8, health: 12 };
+    var foeName = String(profile && profile.name || 'Sunless Warden');
+    var foeDesc = String(profile && profile.desc || 'A void-armored sentinel with a blade of folded dusk.');
+    var foeDread = Math.max(6, Number((profile && profile.dread) || (rollResult && rollResult.dreadDie) || 8));
+    var foeHealth = Math.max(8, Number((profile && profile.health) || 12));
+    var deathNumber = Math.max(1, Math.ceil(foeHealth / 2));
     if (typeof clearEnemies === 'function') clearEnemies();
-    if (typeof addEnemy === 'function') addEnemy('New Sun Enforcer', Math.max(6, Number(rollResult && rollResult.dreadDie || 8)));
-    if (typeof addEnemy === 'function') addEnemy('Fracture Hound', 6);
+    if (typeof addEnemy === 'function') addEnemy(foeName, foeDread);
+    if (typeof addEnemy === 'function') addEnemy('Fracture Hound', Math.max(6, foeDread - 2));
     if (typeof startCombat === 'function') startCombat();
     var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
     if (typeof switchTab === 'function') switchTab('combat', btn || null);
+    if (typeof showNotif === 'function') {
+      showNotif(foeName + ' engages: DD' + foeDread + ' | ' + foeHealth + ' Health | Death Number ' + deathNumber + '. ' + foeDesc, 'warn');
+    }
     if (misled) {
       if (typeof changeHealth === 'function') changeHealth(-1);
       if (typeof changeMentalStress === 'function') changeMentalStress(1);

@@ -2124,14 +2124,29 @@
     const evt = hex.narrative.event;
 
     if (evt.mode === "combat") {
-      const encounterDread = normalizeDreadDie(evt.dread || 8, 8);
+      const profile = getWorldNamedEnemyProfile({
+        name: evt.enemyName,
+        desc: evt.enemyDesc,
+        dread: evt.dread,
+        enemyHealth: evt.enemyHealth
+      });
+      const encounterDread = normalizeDreadDie(evt.dread || profile.dread || 8, 8);
+      const enemyHealth = Math.max(4, Number(evt.enemyHealth || profile.health || (encounterDread * 2)));
+      const enemyName = String(evt.enemyName || profile.name || 'Ash Revenant');
+      const deathNumber = Math.max(1, Math.ceil(enemyHealth / 2));
+      evt.enemyName = enemyName;
+      evt.enemyDesc = evt.enemyDesc || profile.desc || '';
+      evt.enemyHealth = enemyHealth;
+      evt.deathNumber = deathNumber;
       if (typeof showNotif === "function") {
-        showNotif("Combat event: " + evt.enemies + " enemies (DD" + encounterDread + " | " + (evt.enemyHealth || (encounterDread * 2)) + " HP each).", "warn");
+        showNotif("Combat event: " + (evt.enemies || 2) + " " + enemyName + (Number(evt.enemies || 2) > 1 ? "s" : "") + " (DD" + encounterDread + " | " + enemyHealth + " HP each | Death Number " + deathNumber + ").", "warn");
       }
       openWorldSkirmishCombat({
         enemies: evt.enemies || 2,
         dread: encounterDread,
-        enemyHealth: evt.enemyHealth || (encounterDread * 2),
+        enemyHealth: enemyHealth,
+        enemyName: enemyName,
+        enemyDesc: evt.enemyDesc,
         sourceHexId: hex.id,
       });
       return;
@@ -2309,14 +2324,29 @@
       return;
     }
     if (hex.encounter.mode === "combat") {
-      const encounterDread = normalizeDreadDie(hex.encounter.dread || 8, 8);
+      const profile = getWorldNamedEnemyProfile({
+        name: hex.encounter.enemyName,
+        desc: hex.encounter.enemyDesc,
+        dread: hex.encounter.dread,
+        enemyHealth: hex.encounter.enemyHealth
+      });
+      const encounterDread = normalizeDreadDie(hex.encounter.dread || profile.dread || 8, 8);
+      const enemyHealth = Math.max(4, Number(hex.encounter.enemyHealth || profile.health || (encounterDread * 2)));
+      const enemyName = String(hex.encounter.enemyName || profile.name || 'Ash Revenant');
+      const deathNumber = Math.max(1, Math.ceil(enemyHealth / 2));
+      hex.encounter.enemyName = enemyName;
+      hex.encounter.enemyDesc = hex.encounter.enemyDesc || profile.desc || '';
+      hex.encounter.enemyHealth = enemyHealth;
+      hex.encounter.deathNumber = deathNumber;
       if (typeof showNotif === "function") {
-        showNotif("Encounter combat: " + hex.encounter.enemies + " enemies (DD" + encounterDread + " | " + (hex.encounter.enemyHealth || (encounterDread * 2)) + " HP each).", "warn");
+        showNotif("Encounter combat: " + (hex.encounter.enemies || 2) + " " + enemyName + (Number(hex.encounter.enemies || 2) > 1 ? "s" : "") + " (DD" + encounterDread + " | " + enemyHealth + " HP each | Death Number " + deathNumber + ").", "warn");
       }
       openWorldSkirmishCombat({
         enemies: hex.encounter.enemies || 2,
         dread: encounterDread,
-        enemyHealth: hex.encounter.enemyHealth || (encounterDread * 2),
+        enemyHealth: enemyHealth,
+        enemyName: enemyName,
+        enemyDesc: hex.encounter.enemyDesc,
         sourceHexId: hex.id,
       });
       return;
@@ -2578,18 +2608,55 @@
     finishSkirmishOutcome(a >= d);
   }
 
+  function getWorldNamedEnemyProfile(fallback) {
+    const base = fallback || {};
+    const health = Math.max(4, Number(base.health || base.enemyHealth || 10));
+    const seeded = {
+      name: base.name || base.enemyName || 'Ash Revenant',
+      desc: base.desc || base.enemyDesc || 'A dusk-forged hunter draped in static and old oath-runes.',
+      dread: normalizeDreadDie(base.dread || 8, 8),
+      health: health,
+      deathNumber: Math.max(1, Math.ceil(health / 2))
+    };
+    if (typeof window !== 'undefined' && typeof window.pickNamedEnemyProfile === 'function') {
+      const picked = window.pickNamedEnemyProfile('world') || {};
+      const pickedHealth = Math.max(4, Number(base.health || base.enemyHealth || picked.health || seeded.health));
+      return {
+        name: base.name || base.enemyName || picked.name || seeded.name,
+        desc: base.desc || base.enemyDesc || picked.desc || seeded.desc,
+        dread: normalizeDreadDie(base.dread || picked.dread || seeded.dread, 8),
+        health: pickedHealth,
+        deathNumber: Math.max(1, Math.ceil(pickedHealth / 2))
+      };
+    }
+    return seeded;
+  }
+
   function buildWorldCombatEnemies(config) {
     const cfg = config || {};
     const count = Math.max(1, Number(cfg.enemies || 2));
-    const dd = normalizeDreadDie(cfg.dread || 8, 8);
-    const hp = Math.max(4, Number(cfg.enemyHealth || (dd * 2)));
-    const names = ['Warden Unit', 'Cipher Raider', 'Dust Stalker', 'Veil Operative', 'Cartel Enforcer', 'Titan Guard'];
+    const profile = getWorldNamedEnemyProfile({
+      name: cfg.enemyName,
+      desc: cfg.enemyDesc,
+      dread: cfg.dread,
+      enemyHealth: cfg.enemyHealth
+    });
+    const dd = normalizeDreadDie(cfg.dread || profile.dread || 8, 8);
+    const hp = Math.max(4, Number(cfg.enemyHealth || profile.health || (dd * 2)));
+    const enemyName = String(cfg.enemyName || profile.name || 'Ash Revenant');
     const list = [];
     for (let i = 0; i < count; i++) {
-      const base = names[i % names.length];
-      list.push(base + (count > 1 ? (' ' + (i + 1)) : ''));
+      list.push(enemyName + (count > 1 ? (' ' + (i + 1)) : ''));
     }
-    return { count: count, dd: dd, hp: hp, names: list };
+    return {
+      count: count,
+      dd: dd,
+      hp: hp,
+      names: list,
+      enemyName: enemyName,
+      enemyDesc: String(cfg.enemyDesc || profile.desc || ''),
+      deathNumber: Math.max(1, Math.ceil(hp / 2))
+    };
   }
 
   function seedCombatFromWorldEncounter(config, sourceHexId) {
@@ -2606,6 +2673,7 @@
         stress: 0,
         maxStress: seeded.hp,
         health: seeded.hp,
+        deathNumber: seeded.deathNumber,
         conditions: []
       };
     });
@@ -2616,6 +2684,9 @@
         enemies: seeded.count,
         dread: seeded.dd,
         enemyHealth: seeded.hp,
+        enemyName: seeded.enemyName,
+        enemyDesc: seeded.enemyDesc,
+        deathNumber: seeded.deathNumber,
       };
     }
     return seeded;
@@ -3074,8 +3145,11 @@
     const evt = n.event || {};
     const markerTypeLabel = marker && WTW_MARKER_STYLE[marker.type] ? WTW_MARKER_STYLE[marker.type].title : "District Marker";
     const eventDread = normalizeDreadDie(evt.dread || 8, 8);
+    const eventEnemyName = String(evt.enemyName || 'Ash Revenant');
+    const eventEnemyHealth = Math.max(4, Number(evt.enemyHealth || (eventDread * 2)));
+    const eventDeathNumber = Math.max(1, Math.ceil(eventEnemyHealth / 2));
     const eventCheck = evt.mode === "combat"
-      ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " enemies (DD" + eventDread + " | " + (evt.enemyHealth || (eventDread * 2)) + " HP each)")
+      ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " " + eventEnemyName + ((evt.enemies || 2) > 1 ? "s" : "") + " (DD" + eventDread + " | " + eventEnemyHealth + " HP each | Death Number " + eventDeathNumber + ")")
       : ("<strong>Check:</strong> Adventure d" + getActionDie("adventure") + " vs DD" + eventDread);
 
     const gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === "function" && window.settingsSystem.isGMMode());
@@ -3084,7 +3158,7 @@
       : "";
     const encounterSummary = hex.encounter
       ? (hex.encounter.mode === "combat"
-        ? ((hex.encounter.enemies || 2) + " enemies (DD" + normalizeDreadDie(hex.encounter.dread || 8, 8) + " | " + (hex.encounter.enemyHealth || 16) + " HP each)")
+        ? ((hex.encounter.enemies || 2) + " " + String(hex.encounter.enemyName || 'Ash Revenant') + ((hex.encounter.enemies || 2) > 1 ? "s" : "") + " (DD" + normalizeDreadDie(hex.encounter.dread || 8, 8) + " | " + (hex.encounter.enemyHealth || 16) + " HP each | Death Number " + Math.max(1, Math.ceil(Number(hex.encounter.enemyHealth || 16) / 2)) + ")" + (hex.encounter.enemyDesc ? "<br><em>" + hex.encounter.enemyDesc + "</em>" : ""))
         : (hex.encounter.mode === "wayfarer"
           ? "Social encounter (no action check required)."
           : (statLabel(hex.encounter.stat || "adventure") + " vs DD" + normalizeDreadDie(hex.encounter.dread || 8, 8))))

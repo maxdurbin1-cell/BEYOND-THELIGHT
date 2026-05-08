@@ -1479,6 +1479,27 @@
     return `${pick(ARMADA_ACTIONS)} ${pick(ARMADA_TARGETS)}`;
   }
 
+  function getSeaNamedEnemyProfile(kind) {
+    if (typeof window !== 'undefined' && typeof window.pickNamedEnemyProfile === 'function') {
+      var picked = window.pickNamedEnemyProfile('sea');
+      if (kind === 'pirate') {
+        return {
+          name: 'Iron Marauder',
+          desc: 'A tide-raider in riveted armor and stolen naval sigils.',
+          dread: Math.max(4, Number(picked && picked.dread || 4)),
+          health: Math.max(8, Number(picked && picked.health || 8)),
+          deathNumber: Math.max(1, Math.ceil(Math.max(8, Number(picked && picked.health || 8)) / 2))
+        };
+      }
+      return picked;
+    }
+    var base = kind === 'pirate'
+      ? { name: 'Iron Marauder', desc: 'A tide-raider in riveted armor and stolen naval sigils.', dread: 4, health: 8 }
+      : { name: 'Drowned Hunter', desc: 'A salt-black predator that rises between swells with hooked hands.', dread: 4, health: 8 };
+    base.deathNumber = Math.max(1, Math.ceil(base.health / 2));
+    return base;
+  }
+
   function seedSeaEncounterCombat(targetName, enemyCount, dreadDie, hpEach) {
     if (typeof S === 'undefined' || !S) return null;
     var count = Math.max(1, Number(enemyCount || 1));
@@ -1510,10 +1531,13 @@
   function startSeaLandBeastCombat(col, row, count) {
     var hex = seaHexByCoord(col, row);
     if (!hex) return;
-    var seeded = seedSeaEncounterCombat('Hostile Beast', count, 4, 8);
+    var foe = getSeaNamedEnemyProfile('beast');
+    var seeded = seedSeaEncounterCombat(foe.name, count, foe.dread || 4, foe.health || 8);
     var n = seeded ? seeded.count : Math.max(1, Number(count || 1));
-    hex.resultHtml = '<div class="sea-result-title">Land Encounter - Hostile Beasts</div>'
-      + '<div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">' + n + ' hostile beast' + (n > 1 ? 's' : '') + ' now populate Combat. DD4 | 8 Health each.</div>'
+    var death = Math.max(1, Math.ceil(Number((foe && foe.health) || 8) / 2));
+    hex.resultHtml = '<div class="sea-result-title">Land Encounter - ' + foe.name + '</div>'
+      + '<div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">' + n + ' ' + foe.name + (n > 1 ? 's' : '') + ' now populate Combat. '
+      + String(foe.desc || '') + ' DD' + Number((foe && foe.dread) || 4) + ' | ' + Number((foe && foe.health) || 8) + ' Health each · Death Number ' + death + '.</div>'
       + '<div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-warn" onclick="if(typeof switchTab===\'function\'){const b=document.querySelector(\"nav .tab-btn[onclick*=\\\"switchTab(\\\'combat\\\'\\\"]\");switchTab(\'combat\',b||null);}">Open Combat Tab</button>'
       + '<button class="btn btn-xs btn-success" onclick="resolveSeaLandBeastOutcome(' + col + ',' + row + ',true)">✓ Success</button>'
@@ -1891,10 +1915,12 @@
   function startSeaPirateLandEncounter(col, row) {
     var hex = seaHexByCoord(col, row);
     if (!hex) return;
-    seedSeaEncounterCombat('Pirate', 2, 4, 8);
-    hex.resultHtml = `<div class="sea-result-title">Land Encounter - Pirates</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">2 pirates haunt the path inland. DD4 | 8 Health each. Combat roster seeded.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"nav .tab-btn[onclick*=\\\"switchTab('combat'\\\"]\");switchTab('combat',b||null);}">Open Combat Tab</button><button class="btn btn-xs btn-primary" onclick="resolveSeaPirateLandOutcome(${col},${row},true)">✓ Success</button><button class="btn btn-xs btn-red" onclick="resolveSeaPirateLandOutcome(${col},${row},false)">✗ Failure</button></div>`;
+    var foe = getSeaNamedEnemyProfile('pirate');
+    seedSeaEncounterCombat(foe.name, 2, foe.dread || 4, foe.health || 8);
+    var death = Math.max(1, Math.ceil(Number((foe && foe.health) || 8) / 2));
+    hex.resultHtml = `<div class="sea-result-title">Land Encounter - ${foe.name}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">2 ${foe.name}s haunt the path inland. ${foe.desc || ''} DD${Number((foe && foe.dread) || 4)} | ${Number((foe && foe.health) || 8)} Health each · Death Number ${death}. Combat roster seeded.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"nav .tab-btn[onclick*=\\\"switchTab('combat'\\\"]\");switchTab('combat',b||null);}">Open Combat Tab</button><button class="btn btn-xs btn-primary" onclick="resolveSeaPirateLandOutcome(${col},${row},true)">✓ Success</button><button class="btn btn-xs btn-red" onclick="resolveSeaPirateLandOutcome(${col},${row},false)">✗ Failure</button></div>`;
     renderLastSeaInfo(hex);
-    showNotif('Pirate encounter staged: 2 pirates seeded in Combat tab.', 'warn');
+    showNotif('Pirate encounter staged: 2 foes seeded in Combat tab.', 'warn');
   }
 
   function resolveSeaPirateLandOutcome(col, row, success) {

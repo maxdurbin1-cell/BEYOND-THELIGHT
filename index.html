@@ -5460,6 +5460,66 @@ function refreshArmorSlotMeta() {
   if (S.equipmentLayers.suit) bits.push('Suit: ' + normalizeItemName(S.equipmentLayers.suit));
   armorEl.title = bits.length ? bits.join(' | ') : 'Armor slot';
 }
+
+const NAMED_ENEMY_BESTIARY = {
+  province: [
+    { name: 'Vine Horror', desc: 'A knot of thorned roots wearing antlers and old bones.', dread: 4, health: 8 },
+    { name: 'Wailing Mummy', desc: 'Bandages whisper with trapped voices from forgotten tomb roads.', dread: 6, health: 12 },
+    { name: 'Bigmouth Imp', desc: 'Bigmouth Imps resemble living stone statues with wide, jar-like mouths.', dread: 4, health: 8 },
+    { name: 'Griffin Marauder', desc: 'A scarred sky-predator that stoops low and tears through pack lines.', dread: 6, health: 12 }
+  ],
+  lostcity: [
+    { name: 'Umbral Shifter', desc: 'A silhouette that blinks between angles where light should hold.', dread: 8, health: 16 },
+    { name: 'Wraith Hunter', desc: 'A long-limbed stalker that listens before it kills.', dread: 8, health: 16 },
+    { name: 'Ash Slime', desc: 'A tar-black ooze that remembers the heat of the old city.', dread: 6, health: 12 },
+    { name: 'Ruin Marauder', desc: 'An armored scavenger-knight with a jaw of welded scrap.', dread: 6, health: 12 }
+  ],
+  sea: [
+    { name: 'Drowned Hunter', desc: 'A salt-black predator that rises between swells with hooked hands.', dread: 4, health: 8 },
+    { name: 'Keel Wraith', desc: 'A drowned revenant clinging to barnacled timbers.', dread: 6, health: 12 },
+    { name: 'Reef Griffin', desc: 'A storm-winged behemoth that nests in broken lighthouse crowns.', dread: 8, health: 16 },
+    { name: 'Maelstrom Slime', desc: 'A translucent tide-ooze that strips metal to lace.', dread: 6, health: 12 }
+  ],
+  world: [
+    { name: 'Neon Wraith', desc: 'A city-haunt stitched from static and old surveillance light.', dread: 8, health: 16 },
+    { name: 'Iron Marauder', desc: 'A war-born brute in broken riot plating.', dread: 8, health: 16 },
+    { name: 'Grave Hunter', desc: 'A rail-side tracker with a mask of polished bone.', dread: 6, health: 12 },
+    { name: 'Tunnel Slime', desc: 'A chemical ooze that pulses beneath undercity grates.', dread: 6, health: 12 }
+  ],
+  planet: [
+    { name: 'Umbral Griffin', desc: 'A six-eyed apex flier that hunts by echo and heat.', dread: 8, health: 16 },
+    { name: 'Spore Wraith', desc: 'A drifting fungal specter that seeps through cracked visors.', dread: 8, health: 16 },
+    { name: 'Crater Hunter', desc: 'A low-slung predator armored in obsidian ridges.', dread: 6, health: 12 },
+    { name: 'Glass Slime', desc: 'A mirror-slick organism that reflects false terrain.', dread: 6, health: 12 }
+  ],
+  galaxy: [
+    { name: 'Void Wraith', desc: 'A pressureless ghost-form that boards through sealed hulls.', dread: 10, health: 20 },
+    { name: 'Star Marauder', desc: 'A boarding reaver wrapped in insulated war-cloth.', dread: 8, health: 16 },
+    { name: 'Signal Hunter', desc: 'A predatory drone-pack keyed to distress frequencies.', dread: 8, health: 16 },
+    { name: 'Nebula Slime', desc: 'An ionized ooze that nests in dead conduits.', dread: 6, health: 12 }
+  ]
+};
+
+function pickNamedEnemyProfile(regionKey){
+  var key=String(regionKey||'province').toLowerCase();
+  var pool=NAMED_ENEMY_BESTIARY[key]||NAMED_ENEMY_BESTIARY.province;
+  var base=pick(pool)||pool[0];
+  var hp=Math.max(4,Number(base&&base.health||8));
+  var dd=Math.max(4,Number(base&&base.dread||4));
+  var death=Math.max(1,Math.ceil(hp/2));
+  return {name:String(base&&base.name||'Wraith'),desc:String(base&&base.desc||'An old hunger prowls this route.'),dread:dd,health:hp,deathNumber:death};
+}
+
+function formatNamedEncounterLine(profile,count){
+  var n=Math.max(1,Number(count||1));
+  var p=profile||pickNamedEnemyProfile('province');
+  return n+' '+p.name+(n===1?'':'s')+' — '+p.desc+' DD'+p.dread+' | '+p.health+' Health each · Death Number '+p.deathNumber+'.';
+}
+
+if(typeof window!=='undefined'){
+  window.pickNamedEnemyProfile=pickNamedEnemyProfile;
+  window.formatNamedEncounterLine=formatNamedEncounterLine;
+}
 // ── WILDERNESS FULL (continued) ──────────────────────────────────────────────
 function rollWildernessFull(){
   const terrain=pick(TERRAIN_TYPES);
@@ -5481,7 +5541,7 @@ function rollWildernessFull(){
     if(enc===1){const n=roll(4)+3;title=`${n} Bandits`;desc=`${pick(['A ragged band of scavengers','Desperate ex-soldiers in mismatched kit','Hard-eyed outlaws','A well-organized caravan raider unit'])} blocks the road. DD4 | 8 Stress per enemy.`;}
     else if(enc===2){title='Merchant Caravan';desc=`Trade caravan with ${rollMulti(6,2)*10}₵ worth of goods. Roll Haggle (Spirit vs DD8). They are: ${pick(['nervous and over-armed','friendly and looking for gossip','heavily loaded','accompanied by an unusual bodyguard'])}.`;}
     else if(enc===3){const na=roll(4)+4,nb=roll(4)+4;title='Warband vs Army';desc=`${na} ${pick(['cavalry in worn plate','spearmen in dyed leather','crossbow skirmishers','banner-bearers'])} vs ${nb} ${pick(['mounted raiders','hooded irregulars','shield-wall soldiers','desert fighters'])}. <strong>Skirmish</strong> — +1 Renown or 2d10×20₵ for winning side.`;}
-    else if(enc===4){const n=roll(4)+3;title=`${n} Hostile Beasts`;desc=`${pick(['Mutated wolves, pale-eyed and coordinated','Irradiated boars, tusks glowing faintly','Blade-winged birds hunting as one','A creature unlike anything in any record'])}. DD4 | 8 Stress per enemy.`;}
+    else if(enc===4){const n=roll(4)+2;const foe=pickNamedEnemyProfile('province');title=`${n} ${foe.name}${n===1?'':'s'}`;desc=formatNamedEncounterLine(foe,n);}
     else if(enc===5){title='Royal Caravan';desc=`Pay <strong>50₵ tax</strong> OR complete a TASK: <em style="color:var(--gold2);">${pick(TASK_VERBS)} ${pick(TASK_TARGETS)}, ${roll(4)+1} hexes ${pick(TASK_DIRS)}.</em>`;}
     else{const w=pick(TRAVELING_WAYFARERS);title=`Traveling Wayfarer: ${w[1]} ${w[2]}`;desc=`${w[0]} — ${w[3]} <strong>Drive:</strong> ${w[4]}`;}
     encounterHTML=`<div class="encounter-block" style="margin-top:.4rem;"><strong style="color:var(--teal);">${title}</strong><br>${desc}</div>`;
@@ -14533,14 +14593,9 @@ function openLostCityBuildingHexcrawl(col,row){
         ? '<span style="font-size:.74rem;color:var(--green2);">✓ Cleared</span>'
         : '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;">'
           + '<button class="btn btn-xs btn-teal" onclick="lcResolveRoom('+col+','+row+','+Number(activeRoom.idx-1)+')">🔍 Search Building</button>'
-          + '<button class="btn btn-xs btn-warn" onclick="lcTriggerTrap('+col+','+row+','+Number(activeRoom.idx-1)+')">🜸 Check for Trap</button>'
-          + '<button class="btn btn-xs" onclick="lcRollEncounter('+col+','+row+','+Number(activeRoom.idx-1)+')">⚔ Random Encounter</button>'
-          + '<button class="btn btn-xs btn-primary" onclick="lcFindStrangeItem('+col+','+row+','+Number(activeRoom.idx-1)+')">✦ Strange Item</button>'
-          + '<button class="btn btn-xs btn-gold" onclick="lcClaimLoot('+col+','+row+','+Number(activeRoom.idx-1)+')">💰 Loot</button>'
+          + '<button class="btn btn-xs btn-warn" onclick="lcTriggerTrap('+col+','+row+','+Number(activeRoom.idx-1)+')">🜸 Search for Trap</button>'
           + '</div>';
     }
-    var hiddenBtn=(!crawl.hiddenSearched&&crawl.unlockedRooms>0)?'<button class="btn btn-xs btn-primary" onclick="lcSearchHiddenRoom('+col+','+row+')">🔎 Search for Hidden Room (AD vs DD6)</button>':'';
-    var hiddenResult=crawl.hiddenResult?'<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">'+crawl.hiddenResult+'</div>':'';
     openModal('Lost City Building: '+hex.name,
       '<div style="font-size:.83rem;color:var(--text2);line-height:1.65;">'
       +'<div style="font-family:\'Cinzel\',serif;color:#e080c0;font-size:.86rem;margin-bottom:.35rem;">⬡ '+String(crawl.currentBuilding||'Lost City District')+'</div>'
@@ -14556,8 +14611,6 @@ function openLostCityBuildingHexcrawl(col,row){
         +(activeRoom.result?('<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">'+activeRoom.result+'</div>'):'')
         +actionHtml
         +'</div>'):'')
-      +'<div style="margin-top:.5rem;border-top:1px solid var(--border2);padding-top:.4rem;">'+hiddenBtn+hiddenResult+'</div>'
-      +'<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-xs" onclick="hex_lc_reset('+col+','+row+')">🗘 New Building</button></div>'
       +'</div>'
     );
 }
@@ -14568,7 +14621,7 @@ function lcSelectHexNode(col,row,nodeId){
     const node=hex.data.hexcrawl.nodes.find(function(n){return Number(n.id)===Number(nodeId);});
     if(!node)return;
     hex.data.hexcrawl.activeNodeId=Number(node.id||0);
-    openLostCityBuildingHexcrawl(col,row);
+  lcRollEncounter(col,row,Number(node.roomIndex||0),true);
 }
 
 function lcResolveRoom(col,row,idx){
@@ -14577,17 +14630,25 @@ function lcResolveRoom(col,row,idx){
     const crawl=hex.data.hexcrawl;
     const r=crawl.rooms[idx];
     if(!r||r.cleared)return;
-    const ad=(S.stats&&S.stats.action)||4;
+    const ad=(S.stats&&S.stats.adventure)||4;
     const a=explodingRoll(ad),d=explodingRoll(6);
     const success=a.total>=d.total;
     if(success){
-      r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Search success. '+r.searchFind+' Loot secured: '+r.loot+'.';
+      const resultRoll=roll(6);
+      if(resultRoll<=3){
+        const profile=pickNamedEnemyProfile('lostcity');
+        const count=Math.max(1,roll(3));
+        seedLostCityEncounterCombat(profile,count);
+        r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Search success. '+r.searchFind+' Enemy contact: '+formatNamedEncounterLine(profile,count)+' Combat roster seeded.';
+      }else{
+        const loot=drawLostCityMerchantLoot();
+        if(typeof addToBackpack==='function')try{addToBackpack(loot);}catch(_){ }
+        r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Search success. '+r.searchFind+' Merchant cache recovered: '+loot+'.';
+      }
       r.cleared=true;
       // Unlock next 2 rooms
       crawl.unlockedRooms=Math.min(crawl.rooms.length,crawl.unlockedRooms+2);
-      if(!r.lootClaimed&&typeof addToBackpack==='function')try{addToBackpack(r.loot);}catch(_){}
-      r.lootClaimed=true;
-      if(typeof showNotif==='function')showNotif('Room cleared. Loot: '+r.loot+'.','good');
+      if(typeof showNotif==='function')showNotif('Room cleared.','good');
     }else{
       r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Failure. +2 Radiation Stress.';
       r.cleared=true;
@@ -14597,15 +14658,57 @@ function lcResolveRoom(col,row,idx){
     openLostCityBuildingHexcrawl(col,row);
 }
 
-  function lcRollEncounter(col,row,idx){
+  function lcRollEncounter(col,row,idx,quiet){
     const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
     if(!hex||!hex.data||!hex.data.hexcrawl)return;
     const room=hex.data.hexcrawl.rooms[idx];
-    if(!room||room.encounterResolved)return;
+    if(!room)return;
+    const profile=pickNamedEnemyProfile('lostcity');
+    const count=Math.max(1,roll(3));
+    seedLostCityEncounterCombat(profile,count);
     room.encounterResolved=true;
-    room.result=(room.result?room.result+' ':'')+'Encounter: '+room.encounter;
-    if(typeof showNotif==='function')showNotif('Lost City encounter: '+room.encounter,'warn');
+    room.result=(room.result?room.result+' ':'')+'Encounter triggered: '+formatNamedEncounterLine(profile,count)+' Combat roster seeded.';
+    if(!quiet&&typeof showNotif==='function')showNotif('Lost City encounter: '+profile.name+' ambush.','warn');
     openLostCityBuildingHexcrawl(col,row);
+  }
+
+  function drawLostCityMerchantLoot(){
+    var pools=[];
+    if(typeof SHOP_DATA==='object'&&SHOP_DATA){
+      ['tradegoods','items','toolkits','remedies'].forEach(function(cat){
+        if(Array.isArray(SHOP_DATA[cat]))pools=pools.concat(SHOP_DATA[cat]);
+      });
+    }
+    if(!pools.length)return 'District Supply Cache';
+    var item=pick(pools)||pools[0]||{};
+    return String(item.name||'District Supply Cache');
+  }
+
+  function seedLostCityEncounterCombat(profile,count){
+    if(typeof S==='undefined'||!S)return;
+    var foe=profile||pickNamedEnemyProfile('lostcity');
+    var n=Math.max(1,Number(count||1));
+    var dd=Math.max(4,Number(foe.dread||4));
+    var hp=Math.max(4,Number(foe.health||8));
+    var stamp=Date.now();
+    S.combat=S.combat||{};
+    S.combat.enemyDread=dd;
+    S.enemies=[];
+    for(var i=0;i<n;i++){
+      S.enemies.push({
+        id:stamp+i,
+        name:n===1?foe.name:(foe.name+' '+(i+1)),
+        dread:dd,
+        stress:0,
+        maxStress:hp,
+        health:hp,
+        deathNumber:Math.max(1,Math.ceil(hp/2)),
+        conditions:[]
+      });
+    }
+    if(typeof setEnemyDread==='function')setEnemyDread(dd);
+    if(typeof renderEnemies==='function')renderEnemies();
+    if(typeof renderQP==='function')renderQP('combat');
   }
 
   function lcFindStrangeItem(col,row,idx){

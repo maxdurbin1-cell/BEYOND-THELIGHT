@@ -115,6 +115,7 @@
           artist: String(meta.artist || '').trim(),
           license: String(meta.license || '').trim(),
           licenseUrl: String(meta.licenseUrl || '').trim(),
+          sourceUrl: String(meta.sourceUrl || '').trim(),
           src: String(meta.src || '').trim()
         });
       }
@@ -338,6 +339,7 @@
                 artist: String(entry.artist || existingMeta.artist || '').trim() || existingMeta.artist,
                 license: String(entry.license || existingMeta.license || '').trim() || existingMeta.license,
                 licenseUrl: String(entry.licenseUrl || existingMeta.licenseUrl || '').trim() || existingMeta.licenseUrl,
+                sourceUrl: String(entry.sourceUrl || existingMeta.sourceUrl || '').trim() || existingMeta.sourceUrl,
                 src: src
               });
             }

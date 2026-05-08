@@ -754,14 +754,18 @@
       const artist = escapeHtml(entry.artist || 'Unknown artist');
       const license = escapeHtml(entry.license || 'Unspecified license');
       const licenseUrl = String(entry.licenseUrl || '').trim();
+      const sourceUrl = String(entry.sourceUrl || '').trim();
       const id = escapeHtml(entry.id || '');
       const licenseHtml = licenseUrl
         ? '<a href="' + escapeHtml(licenseUrl) + '" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:underline;">' + license + '</a>'
         : license;
+      const sourceHtml = sourceUrl
+        ? '<a href="' + escapeHtml(sourceUrl) + '" target="_blank" rel="noopener noreferrer" style="color:var(--gold2);text-decoration:underline;">Source Page</a>'
+        : '';
       return '<div style="padding:.34rem 0;border-bottom:1px solid var(--border2);">'
         + '<div style="font-size:.78rem;color:var(--text2);font-weight:700;">' + title + '</div>'
         + '<div style="font-size:.67rem;color:var(--muted2);">' + suite + ' · ' + style + ' · ' + id + '</div>'
-        + '<div style="font-size:.67rem;color:var(--muted2);">' + source + ' · ' + artist + ' · ' + licenseHtml + '</div>'
+        + '<div style="font-size:.67rem;color:var(--muted2);">' + source + ' · ' + artist + ' · ' + licenseHtml + (sourceHtml ? (' · ' + sourceHtml) : '') + '</div>'
         + '</div>';
     }).join('');
     el.innerHTML = rows;

@@ -367,19 +367,25 @@
 
   const POWER_SERVICES = {
     "Axiom Cartel": [
-      { name: "Corporate Blackline", cost: 90, desc: "Temporary clearance and legal cover." }
+      { name: "Corporate Blackline", cost: 90, desc: "Temporary clearance and legal cover." },
+      { name: "Axiom Arms Dealer", cost: 0, desc: "Axiom Cartel operatives sell weapons and weapon modifications only. No armor. No charity.", shopCat: "weapons", vendorName: "Axiom Arms Dealer", vendorFlavor: "Corp-stamped and lethal. They only deal in firepower." },
+      { name: "Axiom Mod Exchange", cost: 0, desc: "Exclusive access to Cartel-certified weapon mods and upgrades.", shopCat: "weapon_mods", vendorName: "Axiom Mod Exchange", vendorFlavor: "Upgrade your edge. Axiom marks every piece." }
     ],
     "Helix Union": [
-      { name: "Bio-Loop Recovery", cost: 80, desc: "Remove one harmful condition." }
+      { name: "Bio-Loop Recovery", cost: 80, desc: "Remove one harmful condition." },
+      { name: "Helix Armory", cost: 0, desc: "The Helix Union supplies only body armor and defensive plating. Form, function, survive.", shopCat: "armor", vendorName: "Helix Armory", vendorFlavor: "Union-tested protection. They only sell what keeps you alive." }
     ],
     "Titan Crown": [
-      { name: "Militia Contract", cost: 75, desc: "Call district security reinforcement." }
+      { name: "Militia Contract", cost: 75, desc: "Call district security reinforcement." },
+      { name: "Crown Combat Depot", cost: 0, desc: "Heavy combat kits and military-grade gear only. The Crown supplies soldiers, not civilians.", shopCat: "combat_kits", vendorName: "Crown Combat Depot", vendorFlavor: "Military surplus. They only outfit those ready to fight." }
     ],
     "Veil Runners": [
-      { name: "Ghost Courier", cost: 45, desc: "Fast covert delivery and route intel." }
+      { name: "Ghost Courier", cost: 45, desc: "Fast covert delivery and route intel." },
+      { name: "Veil Hack Stall", cost: 0, desc: "Off-the-books OS hacks, intrusion tools, and electronic gadgets. Veil Runners don't touch weapons.", shopCat: "hacks", vendorName: "Veil Hack Stall", vendorFlavor: "No hardware. Only code and cunning." }
     ],
     "Dust Saints": [
-      { name: "Ash Ward", cost: 35, desc: "Protect against one hazard this day." }
+      { name: "Ash Ward", cost: 35, desc: "Protect against one hazard this day." },
+      { name: "Pilgrim Supply Post", cost: 0, desc: "Essential supplies, rations, and curios blessed by the Saints. They refuse to touch weapons or armor.", shopCat: "supplies", vendorName: "Pilgrim Supply Post", vendorFlavor: "Survival goods only. The Saints provide what the land does not." }
     ]
   };
 
@@ -1900,6 +1906,7 @@
       setCredits(getCredits() + svc.cost);
       return;
     }
+    if (window.TrophySystem) window.TrophySystem.check('first_service');
 
     if (hex.serviceRefresh && safeRoll(100) <= 25) {
       hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
@@ -2217,6 +2224,7 @@
     hex.skirmish = false;
     hex.encounter = null;
     if (typeof showNotif === "function") showNotif("Encounter combat victory: +80 Credits, +2 Scrap, loot, and Skirmish Trophy.", "good");
+    if (window.TrophySystem) window.TrophySystem.check('first_combat');
     advanceWorldTime("combat encounter victory");
     updateZoneControl();
     syncWorldMarkers();
@@ -3092,6 +3100,14 @@
     const activityHtml = "<div class='wtw-card'><div class='wtw-card-title'>Living World Activity</div><div class='wtw-card-text'>Activity clock: <strong>" + String(w.activityClicks || 0) + "/10</strong>. Random encounters and services push this toward the next control-cycle shift.</div></div>";
 
     const servicesHtml = services.map(function (svc, idx) {
+      if (svc.shopCat) {
+        return ""
+          + "<div class='wtw-list-card' style='border-color:rgba(120,220,200,.3);'>"
+          + "<div class='title'>" + (svc.vendorName || svc.name) + " <span style='font-size:.6rem;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;'>Merchant</span></div>"
+          + "<div class='meta'>" + (svc.vendorFlavor || svc.desc) + "</div>"
+          + "<div class='actions'><button class='btn btn-xs btn-teal' onclick='(function(){if(typeof switchTab===\'function\'){var b=document.querySelector(\'nav .tab-btn[onclick*=\'shop\'\']');switchTab(\'shop\',b||null);}if(typeof showShopCat===\'function\')try{showShopCat(\"" + svc.shopCat + "\",null);}catch(e){}})()'>Browse " + (svc.shopCat === 'weapon_mods' ? 'Weapon Mods' : svc.shopCat === 'combat_kits' ? 'Combat Kits' : svc.shopCat.charAt(0).toUpperCase() + svc.shopCat.slice(1)) + "</button></div>"
+          + "</div>";
+      }
       return ""
         + "<div class='wtw-list-card'>"
         + "<div class='title'>" + svc.name + "</div>"

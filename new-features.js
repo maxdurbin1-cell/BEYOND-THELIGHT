@@ -3402,6 +3402,7 @@
     if (typeof window.AudioManager !== 'undefined') {
       window.AudioManager.missionComplete();
     }
+    if (window.TrophySystem) window.TrophySystem.check('first_mission');
 
     if (!S.holding.name) {
       rollHoldingName();
@@ -4587,6 +4588,7 @@
       var shopCatBtn = document.querySelector('.shop-cats .scat.on');
       if (typeof showShopCat === 'function') { showShopCat('augmentations', shopCatBtn); }
       showNotif('Augmentation installed: ' + name + ' (−5 Path Tokens, −' + cost + '₵)', 'good');
+      if (window.TrophySystem) window.TrophySystem.check('first_shop_purchase');
       return;
     }
 
@@ -4596,7 +4598,11 @@
     }
 
     if (_baseBuyItem) {
+      var beforeCredits = Number(S.credits || 0);
       _baseBuyItem(cost, name, cat);
+      if (Number(S.credits || 0) < beforeCredits && window.TrophySystem) {
+        window.TrophySystem.check('first_shop_purchase');
+      }
       return;
     }
 
@@ -5000,4 +5006,105 @@
   window.setHackDreadDie        = setHackDreadDie;
   window.castHack               = castHack;
   window.getAvailableWeaponModSlots = getAvailableWeaponModSlots;
+}());
+
+// ── TROPHY SYSTEM ─────────────────────────────────────────────────────────────
+(function () {
+  'use strict';
+
+  var TROPHY_DEFS = [
+    { id: 'first_combat',        icon: '⚔',  title: 'Bloodied Hands',      desc: 'Win your first combat.' },
+    { id: 'first_mission',       icon: '✦',  title: 'Sworn In',            desc: 'Complete your first mission.' },
+    { id: 'first_galaxy_hex',    icon: '🌌', title: 'Star Walker',         desc: 'Explore your first Galaxy hex.' },
+    { id: 'first_planet',        icon: '🪐', title: 'Planetfall',          desc: 'Land on and scan your first planet.' },
+    { id: 'first_faction_renown',icon: '🤝', title: 'Faction Favor',       desc: 'Earn your first point of faction renown.' },
+    { id: 'first_shop_purchase', icon: '🛒', title: 'Market Runner',       desc: 'Make your first purchase from the shop.' },
+    { id: 'first_service',       icon: '🔧', title: 'District Regular',    desc: 'Use a district service for the first time.' },
+    { id: 'first_wayfarer',      icon: '🧭', title: 'Fellow Traveler',     desc: 'Encounter your first Wayfarer.' },
+    { id: 'first_raid',          icon: '💀', title: 'Raid Ready',          desc: 'Complete a raid.' },
+    { id: 'first_derelict',      icon: '🛸', title: 'Ghost Diver',         desc: 'Board and explore a derelict ship.' },
+    { id: 'first_planet_task',   icon: '📍', title: 'Boots On Ground',     desc: 'Complete a task on a planet surface.' },
+    { id: 'reach_1000_credits',  icon: '💰', title: 'Flush',               desc: 'Accumulate 1,000 Credits at once.' },
+    { id: 'survive_max_stress',  icon: '🧠', title: 'Edge of Breaking',    desc: 'Reach maximum Stress and survive the scene.' },
+    { id: 'first_space_encounter',icon:'🚀', title: 'Open Skies',          desc: 'Resolve your first Space Encounter.' },
+    { id: 'first_hack',          icon: '💻', title: 'The Code Speaks',     desc: 'Successfully cast an OS Hack.' },
+    { id: 'explore_all_zones',   icon: '🗺', title: 'Cartographer',        desc: 'Reveal all district zones in the World map.' },
+    { id: 'first_starship_upgrade',icon:'⚙', title: 'Shipwright',          desc: 'Install your first starship upgrade.' },
+    { id: 'first_dead_moon',     icon: '🌑', title: 'Void Walker',         desc: 'Explore a Dead Moon.' },
+    { id: 'first_mystery_contact',icon:'❓', title: 'Hail Stranger',       desc: 'Make first contact with a Mystery vessel.' },
+    { id: 'complete_storyline',  icon: '📖', title: 'The Path Walked',     desc: 'Complete your first storyline arc.' },
+  ];
+
+  function ensureTrophyState() {
+    if (typeof S === 'undefined') return;
+    if (!S.trophies || typeof S.trophies !== 'object') S.trophies = {};
+  }
+
+  function awardTrophy(id) {
+    if (typeof S === 'undefined') return;
+    ensureTrophyState();
+    if (S.trophies[id]) return;
+    var def = TROPHY_DEFS.find(function (t) { return t.id === id; });
+    if (!def) return;
+    S.trophies[id] = { earned: true, timestamp: Date.now() };
+    var msg = def.icon + ' Trophy Unlocked: \u201c' + def.title + '\u201d \u2014 ' + def.desc;
+    if (typeof showNotif === 'function') showNotif(msg, 'good');
+    // Render a persistent banner for 4 seconds
+    var banner = document.getElementById('trophyBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'trophyBanner';
+      banner.style.cssText = 'position:fixed;bottom:4.5rem;left:50%;transform:translateX(-50%);background:rgba(30,26,18,.96);border:1px solid rgba(232,192,80,.65);border-radius:.5rem;padding:.55rem 1.1rem;font-family:Rajdhani,sans-serif;font-size:.96rem;color:#f0d070;z-index:9999;pointer-events:none;transition:opacity .4s;max-width:90vw;text-align:center;';
+      document.body.appendChild(banner);
+    }
+    banner.innerHTML = def.icon + ' <strong>Trophy Unlocked</strong> &mdash; &ldquo;' + def.title + '&rdquo;';
+    banner.style.opacity = '1';
+    clearTimeout(banner._hideTimer);
+    banner._hideTimer = setTimeout(function () { banner.style.opacity = '0'; }, 3800);
+  }
+
+  function checkTrophy(id) {
+    if (typeof S === 'undefined') return;
+    ensureTrophyState();
+    if (S.trophies[id]) return;
+    // Dynamic check conditions for trophies that depend on current state
+    if (id === 'reach_1000_credits') {
+      if (typeof getCredits === 'function' && getCredits() < 1000) return;
+    }
+    if (id === 'explore_all_zones') {
+      var w = S && S.worldThatWas;
+      if (!w || !Array.isArray(w.zones)) return;
+      var allExplored = w.zones.every(function (z) { return z.explored || z.hexIds && z.hexIds.some(function (hid) { return (w.hexes || []).find(function (h) { return h.id === hid && h.explored; }); }); });
+      if (!allExplored) return;
+    }
+    awardTrophy(id);
+  }
+
+  function buildTrophyPanelHtml() {
+    ensureTrophyState();
+    var trophies = (typeof S !== 'undefined' && S.trophies) ? S.trophies : {};
+    var earned = TROPHY_DEFS.filter(function (t) { return trophies[t.id]; });
+    var locked = TROPHY_DEFS.filter(function (t) { return !trophies[t.id]; });
+    var html = '<div class="card"><div class="section-title">Trophies &mdash; ' + earned.length + ' / ' + TROPHY_DEFS.length + '</div>';
+    html += '<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">Unlock trophies by completing milestones. Aim for 100%.</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.4rem;">';
+    TROPHY_DEFS.forEach(function (def) {
+      var isEarned = !!trophies[def.id];
+      html += '<div style="padding:.45rem .55rem;border:1px solid ' + (isEarned ? 'rgba(232,192,80,.55)' : 'var(--border2)') + ';background:' + (isEarned ? 'rgba(232,192,80,.07)' : 'rgba(255,255,255,.02)') + ';border-radius:.35rem;">';
+      html += '<div style="font-size:1.35rem;line-height:1;">' + def.icon + '</div>';
+      html += '<div style="font-size:.88rem;font-weight:700;color:' + (isEarned ? 'var(--gold2)' : 'var(--muted2)') + ';margin-top:.18rem;">' + def.title + '</div>';
+      html += '<div style="font-size:.76rem;color:var(--muted2);margin-top:.1rem;">' + (isEarned ? def.desc : '???') + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  // Public interface
+  window.TrophySystem = {
+    award: awardTrophy,
+    check: checkTrophy,
+    buildPanelHtml: buildTrophyPanelHtml,
+    defs: TROPHY_DEFS
+  };
 }());

@@ -10168,6 +10168,49 @@ const STAR_SPACE_ENCOUNTERS = [
       { id: 'intel-black-market', label: 'Gather Intel', type: 'check-or-combat', stat: 'lead', dd: 6, success: { renown: 'corporations', revealHex: true, task: true }, failure: { combat: 'Fight 12 Pirates DD4|8 HP.' } },
     ],
   },
+  // ── Starship-internal encounters ──────────────────────────────────────────
+  {
+    title: 'Engine Room Malfunction',
+    text: 'A coolant line ruptures in the engine bay. Alarms blare and smoke fills the lower decks. Fix it fast or lose hull integrity mid-transit.',
+    options: [
+      { id: 'patch-coolant', label: 'Emergency Patch', type: 'check', stat: 'control', dd: 8, success: { text: 'Coolant sealed. No hull loss. +1 Stress from the scramble.', loot: ['Repair Kit'] }, failure: { text: 'Explosion risk forces emergency stop. Lose 1 Phase and take +2 Stress.' } },
+      { id: 'reroute-power', label: 'Reroute Power Grid', type: 'check', stat: 'mind', dd: 6, success: { renown: 'corporations', text: 'Clever reroute stabilizes the system. Ship engineering now slightly more efficient for the leg.' }, failure: { text: 'Reroute fails. Power fluctuation drains weapons for one encounter.' } },
+    ],
+  },
+  {
+    title: 'Stowaway Discovered',
+    text: 'A frightened refugee is found hiding in the cargo bay. They claim to have information about a black-site facility nearby — but the faction they fled from has a bounty on them.',
+    options: [
+      { id: 'shelter-stowaway', label: 'Shelter Them', type: 'check', stat: 'lead', dd: 6, success: { renown: 'rebels', task: true, text: 'The stowaway reveals the facility\'s location. New task marker placed.' }, failure: { text: 'Faction patrol pings your transponder. +1 Tension.' } },
+      { id: 'turn-stowaway', label: 'Hand Them Over', type: 'cost', credits: 0, success: { renown: 'corporations', credits: 200, text: 'Bounty paid. 200 Credits deposited. Crew morale -1.' } },
+      { id: 'question-stowaway', label: 'Interrogate', type: 'check', stat: 'spirit', dd: 8, success: { revealHex: true, text: 'You learn enough to avoid a patrol arc entirely.' }, failure: { text: 'They shut down. No intel. They slip away at next dock.' } },
+    ],
+  },
+  {
+    title: 'Crew Conflict Aboard',
+    text: 'Two crew members have come to blows over a disputed log entry. The argument is about a decision made in the last mission — and it\'s about to turn into a fracture.',
+    options: [
+      { id: 'mediate-conflict', label: 'Mediate', type: 'check', stat: 'lead', dd: 6, success: { text: 'Conflict resolved. Crew cohesion strengthened. +1 Teamwork for next scene.' }, failure: { text: 'Mediation fails. One crew section goes quiet. -1 die to one action next encounter.' } },
+      { id: 'take-sides-conflict', label: 'Take a Side', type: 'check', stat: 'spirit', dd: 8, success: { renown: 'political', text: 'The chosen crew member rallies strongly. +1 to Lead checks for this transit leg.' }, failure: { text: 'The other faction of the crew resents it. +1 Stress.' } },
+    ],
+  },
+  {
+    title: 'Distress Signal — Ship to Ship',
+    text: 'A vessel broadcasting a red-band distress signal is drifting on a parallel heading. Their life support is failing. No weapons detected. But something about the hull registry looks forged.',
+    options: [
+      { id: 'board-distress', label: 'Dock and Assist', type: 'check', stat: 'body', dd: 8, success: { renown: 'rebels', loot: ['Medical Satchel', 'Navigation Chart'], text: 'Genuine distress — you save three crew members who owe you a contact.' }, failure: { combat: 'Fight Ambush Crew DD8|16 HP — the distress was a trap.' } },
+      { id: 'ping-distress', label: 'Respond by Comm Only', type: 'check', stat: 'mind', dd: 6, success: { text: 'You identify the forgery. Avoid the trap and log the vessel signature.' }, failure: { text: 'They triangulate your coordinates. Lose surprise on next Space Encounter.' } },
+      { id: 'ignore-distress', label: 'Hold Course', type: 'cost', credits: 0, success: { text: 'You disengage. If it was real, someone may remember.' } },
+    ],
+  },
+  {
+    title: 'Sensor Ghost',
+    text: 'Internal sensors detect movement in an unpressurized bay that is listed as sealed and empty. The ship\'s nav log shows no docking in the past 6 weeks.',
+    options: [
+      { id: 'investigate-ghost', label: 'Send a Scout', type: 'check', stat: 'body', dd: 8, success: { loot: ['Fragmented Map Core', 'Data Drives'], text: 'A derelict drone was locked inside — its cargo manifest points to a hidden cache.' }, failure: { text: 'The bay depressurizes unexpectedly. Scout takes +2 Health damage.' } },
+      { id: 'lock-ghost', label: 'Seal the Bay and Press On', type: 'check', stat: 'control', dd: 4, success: { text: 'Bay contains the anomaly. You arrive on schedule.' }, failure: { text: 'Seal fails. The ghost signal bleeds into navigation. -1 hex of travel range this week.' } },
+    ],
+  },
 ];
 
 function applyEncounterRewards(reward) {
@@ -15171,7 +15214,7 @@ function renderPlanetExplorationPanel() {
 
           ${(selected && typeof window.buildBackstoryAnchorActionPanelHtml === 'function') ? window.buildBackstoryAnchorActionPanelHtml('planet', String(planetHex.id) + ':' + String(selected.id)) : ''}
 
-          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Planet Intel</span>${isWildernessIntel ? `${narrative.land} ${narrative.floraFauna} ${narrative.wonder}` : 'Location dossier active. Land, Flora/Fauna, and Wonder intel populate in Wilderness hexes.'}</div>
+          <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Planet Intel</span>${isWildernessIntel ? `${narrative.wonder}` : 'Location dossier active. Wonder intel populates in Wilderness hexes.'}</div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Terrain Effect</span>${narrative.terrainEffect || state.profile.terrainEffect}<div style="margin-top:.22rem;"><button class="btn btn-xs btn-warn" onclick="rollPlanetTerrainEffectCheck()">⚄ Roll Terrain Effect</button></div></div>
           <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Status</span>${selected && selected.explored ? 'Explored' : 'Unexplored'}</div>
           <div class="hex-desc" style="margin-bottom:.4rem;">${selected && selected.note ? selected.note : 'No report yet. Click a hex to explore and reveal outcomes.'}</div>
@@ -15785,6 +15828,7 @@ function buildStarExplorationDetail(ring, outcome) {
     const e = JSON.parse(JSON.stringify(STAR_SPACE_ENCOUNTERS[roll(10) - 1]));
     e.options = (e.options || []).map(opt => Object.assign({ resolved: false }, opt));
     S.starSystem.activeSpaceEncounter = e;
+    if (window.TrophySystem) window.TrophySystem.check('first_space_encounter');
     setTimeout(renderSpaceEncounterPanel, 0);
     return 'Space encounter lock acquired. Choose an option below to resolve checks, combat cues, and rewards.';
   }
@@ -15817,6 +15861,7 @@ function buildStarExplorationDetail(ring, outcome) {
     const hex = getCurrentStarHex();
     const ds = getHexPersistentState(hex, 'derelict', createDerelictShipState);
     S.starSystem.activeDerelict = ds;
+    if (window.TrophySystem) window.TrophySystem.check('first_derelict');
     setTimeout(renderDerelictPanel, 0);
     return `Derelict contact acquired. Survivors: ${ds.survivorCount}. Rooms can now be explored.`;
   }
@@ -15991,6 +16036,16 @@ function renderStarSystemMap() {
   const host = document.getElementById('starSystemMap');
   if (!host) return;
   ensureStarsState();
+  // Reconcile resolved taskMarkers array entries back onto hex objects so
+  // markers completed via any code path are hidden from the map.
+  (S.starSystem.taskMarkers || []).forEach(function (task) {
+    if (task && task.resolved && task.hexId != null) {
+      var matchHex = (S.starSystem.hexes || []).find(function (h) { return h && h.id === task.hexId; });
+      if (matchHex && matchHex.taskMarker && !matchHex.taskMarker.resolved) {
+        matchHex.taskMarker.resolved = true;
+      }
+    }
+  });
   if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
   const mapFx = (typeof window.getMapVisualSettings === 'function')
     ? window.getMapVisualSettings()
@@ -16420,17 +16475,8 @@ function updateStarSystemReadouts() {
             ${S.starSystem.currentWeather.dd > 0 ? '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;"><button class="btn btn-xs" onclick="resolveGalaxyWeatherCheck()">Traverse Weather</button></div>' : ''}
           </div>` : ''}
           ${current.type === 'radio_task' && !current.radioTaskResolved ? `<div style="padding:.42rem;border:1px solid rgba(80,200,255,.7);background:rgba(80,200,255,.08);font-size:.84rem;color:#dff8ff;line-height:1.55;">Radio event marker active in this hex. Resolve it here before it goes cold.</div>` : ''}
-          <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
-            <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Land</div>
-            <div style="font-size:.96rem;color:var(--text);margin-top:.08rem;">${current.land || 'Unknown'}</div>
-          </div>
-          <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
-            <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Flora / Fauna</div>
-            <div style="font-size:.96rem;color:var(--text);margin-top:.08rem;">${current.flora || 'Unknown'}</div>
-          </div>
-          <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
-            <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Wonder</div>
-            <div style="font-size:.96rem;color:var(--text);margin-top:.08rem;">${current.wonder || 'Unknown'}</div>
+          <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">            <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Wonder</div>
+            <div style="font-size:.88rem;color:var(--text2);line-height:1.55;margin-top:.08rem;">${current.wonder ? current.wonder + '.' : 'No notable marvel detected in this hex.'}</div>
           </div>
           ${(current.type === 'planet' && current.scanned) ? `<div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.82rem;color:var(--muted2);line-height:1.55;">Detailed planet surface data is available in the Planet Exploration tab.</div>` : ''}
           <div style="padding:.4rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--muted2);line-height:1.7;">
@@ -16488,7 +16534,9 @@ function runSystemAnalysisCheck() {
   if (success) {
     hex.scanned = true;
     hex.explored = true;
+    if (window.TrophySystem) window.TrophySystem.check('first_galaxy_hex');
     if (hex.type === 'planet') {
+      if (window.TrophySystem) window.TrophySystem.check('first_planet');
       const profile = ensurePlanetProfile(hex);
       hex.detail = `Planet ${profile.planetName} catalogued. ${profile.planetType} world with ${profile.biome} biome signatures.`;
     } else if (hex.hiddenOutcome) {

@@ -3152,12 +3152,16 @@
           ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : puzzleAction}
         </div>`;
       } else {
+        const dreadForRoom = getSeaDungeonRoomDread(type);
+        const bossAction = type === 'Boss Chamber'
+          ? `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-warn" onclick="exploreSeaDungeonRoom(${index - 1})">💀 Resolve Boss Chamber</button></div>`
+          : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Resolve Room (AD vs DD${dreadForRoom})</button></div>`;
         html += `
           <div class="room-block">
             <div class="rb-title">Room ${index} — ${type}</div>
             <div class="rb-text">${text}</div>
             ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : ''}
-            ${room.cleared ? '<div style="font-size:.74rem;color:var(--green2);margin-top:.2rem;">✓ Cleared</div>' : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Resolve Room (AD vs DD6)</button></div>`}
+            ${room.cleared ? '<div style="font-size:.74rem;color:var(--green2);margin-top:.2rem;">✓ Cleared</div>' : bossAction}
           </div>
         `;
       }
@@ -3291,6 +3295,15 @@
     }
     const room = data.generatedRooms[roomIndex];
     if (room.cleared) return;
+    if (room.type === 'Boss Chamber') {
+      room.result = 'The sea ruin warden rises to challenge you. Win the battle, then mark the outcome below. '
+        + '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-xs btn-warn" onclick="startSeaDungeonBossCombat(' + Number(roomIndex || 0) + ')">⚔ Start Boss Combat</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="resolveSeaDungeonBossOutcome(' + Number(roomIndex || 0) + ',true)">Success</button>'
+        + '<button class="btn btn-xs btn-red" onclick="resolveSeaDungeonBossOutcome(' + Number(roomIndex || 0) + ',false)">Failure</button>'
+        + '</div>';
+      return openModal(data.name, buildDungeonModal(data));
+    }
     if (room.type === 'Puzzle') return startSeaDungeonPuzzle(roomIndex);
     const actionDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
     const dreadDie = getSeaDungeonRoomDread(room.type);
@@ -3342,6 +3355,60 @@
     room.cleared = true;
     syncSeaDungeonState('sea-dungeon-room-explored');
     openModal(data.name, buildDungeonModal(data));
+  }
+
+  function startSeaDungeonBossCombat(roomIndex) {
+    if (!S.lastSea || !S.lastSea.activeDungeon) return false;
+    const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
+    const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
+    if (!data || !Array.isArray(data.generatedRooms) || !data.generatedRooms[roomIndex]) return false;
+    var room = data.generatedRooms[roomIndex];
+    if (!room || room.cleared || room.type !== 'Boss Chamber') return false;
+    seedSeaEncounterCombat('Sea Ruin Warden', 1, 8, 8);
+    room.result = 'Boss combat seeded in Combat tab (DD8 | 8 Health). Mark success/failure after resolving the fight.'
+      + '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-warn" onclick="if(typeof switchTab===\'function\'){const b=document.querySelector(\"nav .tab-btn[onclick*=\\\"switchTab(\\\'combat\\\'\\\"]\");switchTab(\'combat\',b||null);}">Open Combat Tab</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="resolveSeaDungeonBossOutcome(' + Number(roomIndex || 0) + ',true)">Success</button>'
+      + '<button class="btn btn-xs btn-red" onclick="resolveSeaDungeonBossOutcome(' + Number(roomIndex || 0) + ',false)">Failure</button>'
+      + '</div>';
+    showNotif('Sea Ruin boss combat seeded.', 'warn');
+    return openModal(data.name, buildDungeonModal(data));
+  }
+
+  function resolveSeaDungeonBossOutcome(roomIndex, success) {
+    if (!S.lastSea || !S.lastSea.activeDungeon) return false;
+    const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
+    const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
+    if (!data || !Array.isArray(data.generatedRooms) || !data.generatedRooms[roomIndex]) return false;
+    var room = data.generatedRooms[roomIndex];
+    if (!room || room.cleared || room.type !== 'Boss Chamber') return false;
+    if (success) {
+      var reward;
+      if (typeof rollProvinceRuinLoot === 'function') reward = rollProvinceRuinLoot('boss');
+      else reward = rollSeaDungeonLoot();
+      var rewardText = '';
+      if (typeof applyProvinceRuinReward === 'function') rewardText = applyProvinceRuinReward(reward);
+      else {
+        rewardText = String(reward || 'Boss Cache');
+        if (typeof addToBackpack === 'function' && reward) {
+          try { addToBackpack(reward); } catch (_err) {}
+        }
+      }
+      room.result = '✓ Boss defeated — ' + rewardText;
+      room.cleared = true;
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      S.renown = (S.renown || 0) + 1;
+      if (typeof updateRenown === 'function') updateRenown();
+      showNotif('Boss defeated: named weapon drop secured.', 'good');
+    } else {
+      if (typeof changeStress === 'function') changeStress(2);
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      room.result = '✕ Boss encounter failed — take 2 Stress and regroup.';
+      room.cleared = true;
+      showNotif('Boss outcome marked as failure.', 'warn');
+    }
+    syncSeaDungeonState('sea-dungeon-boss-outcome');
+    return openModal(data.name, buildDungeonModal(data));
   }
 
   function startSeaDungeonPuzzle(roomIndex) {
@@ -3486,6 +3553,8 @@
   window.exploreSeaDungeonHexNode = exploreSeaDungeonHexNode;
   window.exploreSeaDungeonRoom = exploreSeaDungeonRoom;
   window.startSeaDungeonPuzzle = startSeaDungeonPuzzle;
+  window.startSeaDungeonBossCombat = startSeaDungeonBossCombat;
+  window.resolveSeaDungeonBossOutcome = resolveSeaDungeonBossOutcome;
   window.checkSeaDungeonPuzzle = checkSeaDungeonPuzzle;
   window.seaDungeonSearchHidden = seaDungeonSearchHidden;
 

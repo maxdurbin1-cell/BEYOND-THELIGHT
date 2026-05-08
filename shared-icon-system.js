@@ -181,19 +181,49 @@
     return 'https://perchance.org/ai-character-generator?prompt=' + encodeURIComponent(prompt);
   }
 
-  function collectCurrentWayfarerTraits() {
-    return {
-      physique: (window.S && window.S.traits && window.S.traits.physique),
-      skin: (window.S && window.S.traits && window.S.traits.skin),
-      hair: (window.S && window.S.traits && window.S.traits.hair),
-      face: (window.S && window.S.traits && window.S.traits.face),
-      clothing: (window.S && window.S.traits && window.S.traits.clothing),
-      virtue: (window.S && window.S.traits && window.S.traits.virtue),
-      vice: (window.S && window.S.traits && window.S.traits.vice),
-      reputation: (window.S && window.S.traits && window.S.traits.reputation),
-      misfortune: (window.S && window.S.traits && window.S.traits.misfortune),
-      name: window.S && window.S.name
+  function getTraitsFromTraitsCard() {
+    if (typeof document === 'undefined') return {};
+    var container = document.getElementById('traitsDisplay');
+    if (!container) return {};
+    var rows = container.querySelectorAll('.stat-row');
+    if (!rows || !rows.length) return {};
+
+    var keyByLabel = {
+      physique: 'physique',
+      skin: 'skin',
+      hair: 'hair',
+      face: 'face',
+      clothing: 'clothing',
+      virtue: 'virtue',
+      vice: 'vice',
+      reputation: 'reputation',
+      misfortune: 'misfortune'
     };
+    var traits = {};
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!row || !row.children || row.children.length < 2) continue;
+      var labelText = String((row.children[0] && row.children[0].textContent) || '').toLowerCase().trim();
+      var valueText = String((row.children[1] && row.children[1].textContent) || '').trim();
+      var key = keyByLabel[labelText];
+      if (key && valueText && valueText !== '-') {
+        traits[key] = valueText;
+      }
+    }
+    return traits;
+  }
+
+  function collectCurrentWayfarerTraits() {
+    var stateTraits = (window.S && window.S.traits && typeof window.S.traits === 'object') ? window.S.traits : {};
+    var cardTraits = getTraitsFromTraitsCard();
+    var mergedTraits = Object.assign({}, stateTraits, cardTraits);
+    return Object.assign({}, mergedTraits, {
+      traits: mergedTraits,
+      name: window.S && window.S.name,
+      career: window.S && window.S.career,
+      background: window.S && window.S.background,
+      omen: window.S && window.S.omen
+    });
   }
 
   function launchAiCharacterGenerator(targetId, state) {
@@ -201,7 +231,11 @@
       alert('AI character generator not loaded. Ensure portrait-generator.js is included.');
       return false;
     }
-    var traitState = Object.assign({}, state || {}, collectCurrentWayfarerTraits());
+    var baseState = state || {};
+    var liveTraits = collectCurrentWayfarerTraits();
+    var traitState = Object.assign({}, baseState, liveTraits, {
+      traits: Object.assign({}, (baseState && baseState.traits) || {}, liveTraits.traits || {})
+    });
     window.PortraitGenerator.renderGeneratedPortrait(targetId || 'wayfarerVisualPanel', traitState);
     return true;
   }

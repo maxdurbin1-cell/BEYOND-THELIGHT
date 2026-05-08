@@ -583,6 +583,259 @@
       + '</div>';
   }
 
+  var WORDLE_ARCANE_POOLS = {
+    common: [
+      { w: 'glyph', cat: 'Magic Term', hint: 'A carved rune-sign used in spells.' },
+      { w: 'mages', cat: 'Class', hint: 'Arcane scholars who shape raw magic.' },
+      { w: 'rogue', cat: 'Class', hint: 'A stealth specialist who thrives in shadows.' },
+      { w: 'elder', cat: 'Fantasy Noun', hint: 'Ancient one, keeper of old memory.' },
+      { w: 'druid', cat: 'Class', hint: 'Warden of roots, beasts, and seasons.' },
+      { w: 'runes', cat: 'Magic Term', hint: 'Symbols etched to bind power.' },
+      { w: 'crown', cat: 'Artifact', hint: 'A sovereign relic worn by rulers.' },
+      { w: 'tower', cat: 'Location', hint: 'A high lonely bastion of study.' },
+      { w: 'fiend', cat: 'Monster', hint: 'A malicious creature of infernal planes.' },
+      { w: 'quest', cat: 'Dungeon Term', hint: 'A sworn journey toward danger and reward.' },
+      { w: 'relic', cat: 'Artifact', hint: 'An old sacred object of power.' },
+      { w: 'crypt', cat: 'Location', hint: 'A sealed chamber beneath old stone.' },
+      { w: 'altar', cat: 'Dungeon Term', hint: 'A ritual focus where vows are made.' },
+      { w: 'spell', cat: 'Magic Term', hint: 'A spoken formula that shapes power.' },
+      { w: 'cloak', cat: 'Artifact', hint: 'A garment favored by travelers and assassins.' }
+    ],
+    medium: [
+      { w: 'wight', cat: 'Monster', hint: 'An undead spirit that lingers with malice.' },
+      { w: 'shade', cat: 'Monster', hint: 'A dim spirit that haunts old halls.' },
+      { w: 'cairn', cat: 'Location', hint: 'A stone marker over forgotten dead.' },
+      { w: 'sigil', cat: 'Magic Term', hint: 'A focused symbol used for binding.' },
+      { w: 'spire', cat: 'Location', hint: 'Needle-like tower piercing the sky.' },
+      { w: 'vault', cat: 'Dungeon Term', hint: 'A fortified chamber guarding treasure.' },
+      { w: 'wards', cat: 'Magic Term', hint: 'Protective barriers woven from spellcraft.' },
+      { w: 'golem', cat: 'Monster', hint: 'An animated construct of stone or clay.' },
+      { w: 'faery', cat: 'Monster', hint: 'A capricious being of the old courts.' }
+    ],
+    rare: [
+      { w: 'wyrms', cat: 'Monster', hint: 'Ancient serpents of sky and flame.' },
+      { w: 'phial', cat: 'Artifact', hint: 'A small vessel for rare elixirs.' },
+      { w: 'djinn', cat: 'Monster', hint: 'A bound spirit of wind and wish.' },
+      { w: 'nymph', cat: 'Monster', hint: 'A fey being tied to place and season.' },
+      { w: 'ghoul', cat: 'Monster', hint: 'A grave-feeding horror from moonless crypts.' }
+    ]
+  };
+
+  function _pickWordleArcaneEntry() {
+    var rollPct = safeRoll(100);
+    var tier = rollPct <= 55 ? 'common' : (rollPct <= 85 ? 'medium' : 'rare');
+    var pool = WORDLE_ARCANE_POOLS[tier] || WORDLE_ARCANE_POOLS.common;
+    var chosen = safePick(pool, pool[0]) || pool[0];
+    return {
+      word: String(chosen.w || 'glyph').toLowerCase(),
+      category: String(chosen.cat || 'Fantasy Noun'),
+      loreHint: String(chosen.hint || 'The codex whispers this name in old ink.'),
+      tier: tier
+    };
+  }
+
+  function _wordleRankColor(existing, next) {
+    var order = { '': 0, absent: 1, present: 2, correct: 3 };
+    return order[String(next || '')] >= order[String(existing || '')] ? next : existing;
+  }
+
+  function _scoreWordleGuess(guess, answer) {
+    var g = String(guess || '').toLowerCase();
+    var a = String(answer || '').toLowerCase();
+    var out = [];
+    for (var i = 0; i < g.length; i++) out.push('absent');
+    var counts = {};
+    for (var c = 0; c < a.length; c++) {
+      var ch = a.charAt(c);
+      counts[ch] = Number(counts[ch] || 0) + 1;
+    }
+
+    // Pass 1: exact matches first.
+    for (var j = 0; j < g.length; j++) {
+      if (g.charAt(j) === a.charAt(j)) {
+        out[j] = 'correct';
+        counts[g.charAt(j)] = Math.max(0, Number(counts[g.charAt(j)] || 0) - 1);
+      }
+    }
+
+    // Pass 2: present but misplaced using remaining unmatched letters only.
+    for (var k = 0; k < g.length; k++) {
+      if (out[k] === 'correct') continue;
+      var gc = g.charAt(k);
+      if (Number(counts[gc] || 0) > 0) {
+        out[k] = 'present';
+        counts[gc] = Math.max(0, Number(counts[gc] || 0) - 1);
+      } else {
+        out[k] = 'absent';
+      }
+    }
+    return out;
+  }
+
+  function _initWordleArcane() {
+    var pick = _pickWordleArcaneEntry();
+    var all = [];
+    ['common', 'medium', 'rare'].forEach(function (tier) {
+      var arr = WORDLE_ARCANE_POOLS[tier] || [];
+      arr.forEach(function (entry) {
+        var w = String(entry && entry.w || '').toLowerCase();
+        if (w && w.length === 5) all.push(w);
+      });
+    });
+    var extraAllowed = ['spell', 'wraith', 'faery', 'demon', 'blade', 'torch', 'stave', 'potion', 'coven', 'golem', 'fable', 'chant'];
+    extraAllowed.forEach(function (w) { if (all.indexOf(w) < 0) all.push(w); });
+    return {
+      answer: pick.word,
+      category: pick.category,
+      loreHint: pick.loreHint,
+      tier: pick.tier,
+      attempts: [],
+      current: '',
+      maxAttempts: 6,
+      wordLength: 5,
+      keyboard: {},
+      allowedWords: all,
+      animating: false,
+      status: 'playing',
+      revealHintAt: 4,
+      timeoutIds: []
+    };
+  }
+
+  function _wordleGetHintHtml(state) {
+    var attemptCount = Array.isArray(state.attempts) ? state.attempts.length : 0;
+    var revealFirst = attemptCount >= Number(state.revealHintAt || 4) && state.status === 'playing';
+    return '<div style="border:1px solid rgba(212,175,110,.32);background:rgba(29,24,18,.72);padding:.22rem .28rem;margin-bottom:.14rem;">'
+      + '<div style="font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;color:#d7b475;">Codex Hint</div>'
+      + '<div style="font-size:.66rem;color:var(--text2);line-height:1.45;">'
+      + '<strong>Category:</strong> ' + String(state.category || 'Fantasy Noun') + '<br>'
+      + '<strong>Lore:</strong> ' + String(state.loreHint || 'A dust-keeper mutters this in candlelight.')
+      + (revealFirst ? ('<br><strong>Keeper\'s Nudge:</strong> First letter is <span style="color:#e9c97f;">' + String(state.answer || '').charAt(0).toUpperCase() + '</span>.') : '')
+      + '</div>'
+      + '</div>';
+  }
+
+  function _renderWordleArcane(state, title, prompt) {
+    var rows = [];
+    var maxRows = Math.max(6, Number(state.maxAttempts || 6));
+    for (var r = 0; r < maxRows; r++) {
+      var row = state.attempts[r] || null;
+      var rowLetters = [];
+      var rowGuess = row ? String(row.guess || '') : (r === state.attempts.length ? String(state.current || '') : '');
+      for (var c = 0; c < Number(state.wordLength || 5); c++) {
+        var ch = rowGuess.charAt(c) || '';
+        var status = '';
+        var revealed = true;
+        if (row && Array.isArray(row.result) && c < row.result.length) {
+          status = String(row.result[c] || '');
+          if (Array.isArray(row.revealed)) revealed = !!row.revealed[c];
+        }
+        var tileClass = 'arc-wordle-tile';
+        if (row && revealed) tileClass += ' ' + status;
+        else if (ch) tileClass += ' filled';
+        var delayStyle = row ? ('animation-delay:' + (c * 90) + 'ms;') : '';
+        rowLetters.push('<div class="' + tileClass + '" style="' + delayStyle + '">' + (ch ? ch.toUpperCase() : '&nbsp;') + '</div>');
+      }
+      rows.push('<div class="arc-wordle-row">' + rowLetters.join('') + '</div>');
+    }
+
+    var kRows = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+    var keyboard = kRows.map(function (line) {
+      return '<div class="arc-wordle-keyrow">' + line.split('').map(function (k) {
+        var st = String(state.keyboard && state.keyboard[k] || '');
+        return '<button class="btn btn-xs arc-wordle-key ' + st + '" onclick="window._cpAction(\'wordle_key\',\'' + k + '\')">' + k.toUpperCase() + '</button>';
+      }).join('') + '</div>';
+    }).join('');
+
+    var canSubmit = state.status === 'playing' && !state.animating && String(state.current || '').length === Number(state.wordLength || 5);
+    var statusLine = state.status === 'win'
+      ? '<div class="arc-wordle-status win">Runeboard solved. The codex yields.</div>'
+      : (state.status === 'lose'
+        ? '<div class="arc-wordle-status lose">The archive seals. Word was <strong>' + String(state.answer || '').toUpperCase() + '</strong>.</div>'
+        : '<div class="arc-wordle-status">Attempts: ' + Number(state.attempts.length || 0) + '/' + Number(state.maxAttempts || 6) + '</div>');
+
+    return '<style>'
+      + '.arc-wordle-shell{background:linear-gradient(165deg, rgba(20,16,12,.94), rgba(11,11,14,.96));border:1px solid rgba(215,180,117,.28);padding:.34rem .38rem;box-shadow:0 0 0 1px rgba(102,74,28,.2) inset;}'
+      + '.arc-wordle-title{font-size:.78rem;color:#e6c98a;letter-spacing:.04em;margin-bottom:.1rem;}'
+      + '.arc-wordle-sub{font-size:.64rem;color:var(--muted2);margin-bottom:.16rem;line-height:1.5;}'
+      + '.arc-wordle-board{display:grid;gap:.12rem;justify-content:center;margin:.12rem 0 .16rem;}'
+      + '.arc-wordle-row{display:grid;grid-template-columns:repeat(5,44px);gap:.12rem;justify-content:center;}'
+      + '.arc-wordle-tile{height:44px;border:1px solid rgba(199,171,117,.35);background:rgba(26,23,20,.9);display:flex;align-items:center;justify-content:center;font-size:1.02rem;color:#f6eed8;font-weight:700;text-transform:uppercase;}'
+      + '.arc-wordle-tile.filled{border-color:rgba(215,180,117,.65);}'
+      + '.arc-wordle-tile.correct{background:#2e7448;border-color:#3fa765;animation:arcTileFlip .24s ease both;}'
+      + '.arc-wordle-tile.present{background:#9b7a2e;border-color:#c49b3f;animation:arcTileFlip .24s ease both;}'
+      + '.arc-wordle-tile.absent{background:#47484f;border-color:#666874;animation:arcTileFlip .24s ease both;}'
+      + '.arc-wordle-keyrow{display:flex;gap:.1rem;justify-content:center;margin-bottom:.1rem;}'
+      + '.arc-wordle-key{min-width:28px;padding:.22rem .2rem;font-size:.62rem;background:rgba(34,33,36,.9);border-color:rgba(255,255,255,.18);}'
+      + '.arc-wordle-key.correct{background:#2e7448;border-color:#3fa765;color:#f7fff9;}'
+      + '.arc-wordle-key.present{background:#9b7a2e;border-color:#c49b3f;color:#fff8e8;}'
+      + '.arc-wordle-key.absent{background:#4b4d57;border-color:#707482;color:#d8dbe5;}'
+      + '.arc-wordle-status{font-size:.64rem;color:var(--muted2);text-align:center;margin:.12rem 0 .08rem;}'
+      + '.arc-wordle-status.win{color:var(--teal);font-weight:600;}'
+      + '.arc-wordle-status.lose{color:#f2a78a;font-weight:600;}'
+      + '.arc-wordle-flourish{height:4px;border:1px solid rgba(215,180,117,.35);background:linear-gradient(90deg, rgba(32,22,8,.2), rgba(225,188,112,.92), rgba(32,22,8,.2));opacity:.86;margin:.12rem 0;animation:arcFlourish .55s ease both;}'
+      + '@keyframes arcTileFlip{0%{transform:rotateX(90deg);opacity:.2;}100%{transform:rotateX(0deg);opacity:1;}}'
+      + '@keyframes arcFlourish{0%{transform:scaleX(.45);opacity:.2;}100%{transform:scaleX(1);opacity:.95;}}'
+      + '</style>'
+      + '<div class="arc-wordle-shell">'
+      + '<div class="arc-wordle-title"><strong>' + String(title || 'Arcane Lexicon') + '</strong></div>'
+      + '<div class="arc-wordle-sub">' + String(prompt || 'Decode the five-letter runeword hidden in the codex.') + '</div>'
+      + _wordleGetHintHtml(state)
+      + '<div class="arc-wordle-board">' + rows.join('') + '</div>'
+      + statusLine
+      + (state.status === 'win' ? '<div class="arc-wordle-flourish"></div>' : '')
+      + keyboard
+      + '<div style="display:flex;gap:.2rem;justify-content:center;flex-wrap:wrap;margin-top:.12rem;">'
+      + '<button class="btn btn-xs" ' + (state.status === 'playing' && !state.animating ? '' : 'disabled') + ' onclick="window._cpAction(\'wordle_backspace\')">⌫</button>'
+      + '<button class="btn btn-xs btn-primary" ' + (canSubmit ? '' : 'disabled') + ' onclick="window._cpAction(\'wordle_submit_guess\')">Enter</button>'
+      + '<button class="btn btn-xs" onclick="window._cpAction(\'give_up\')">Give Up</button>'
+      + '<button class="btn btn-xs btn-primary" ' + (state.status === 'win' || state.status === 'lose' ? '' : 'disabled') + ' onclick="window._cpAction(\'submit\')">Finish</button>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function _wordleClearTimers(state) {
+    if (!state || !Array.isArray(state.timeoutIds)) return;
+    while (state.timeoutIds.length) {
+      var tid = state.timeoutIds.pop();
+      try { clearTimeout(tid); } catch (_err) {}
+    }
+  }
+
+  function _wordleBindKeys(enable) {
+    if (typeof window === 'undefined') return;
+    if (!window.__arcWordleKeyHandler) {
+      window.__arcWordleKeyHandler = function (evt) {
+        if (!_cp || _cp.mode !== 'wordle_arcane' || !_cp.state) return;
+        var key = String(evt && evt.key || '').toLowerCase();
+        if (!key) return;
+        if (key === 'enter') {
+          evt.preventDefault();
+          window._cpAction('wordle_submit_guess');
+          return;
+        }
+        if (key === 'backspace') {
+          evt.preventDefault();
+          window._cpAction('wordle_backspace');
+          return;
+        }
+        if (/^[a-z]$/.test(key)) {
+          evt.preventDefault();
+          window._cpAction('wordle_key', key);
+        }
+      };
+    }
+    if (enable) {
+      if (!window.__arcWordleKeyBound) {
+        window.addEventListener('keydown', window.__arcWordleKeyHandler);
+        window.__arcWordleKeyBound = true;
+      }
+    } else if (window.__arcWordleKeyBound) {
+      window.removeEventListener('keydown', window.__arcWordleKeyHandler);
+      window.__arcWordleKeyBound = false;
+    }
+  }
+
   function _renderCustomPuzzle() {
     if (!_cp) return;
     var s = _cp.state;
@@ -594,6 +847,8 @@
     else if (_cp.mode === 'sliding_tile')  html = _renderSliding(s, t, p);
     else if (_cp.mode === 'math_grid')     html = _renderMathGrid(s, t, p);
     else if (_cp.mode === 'rotating_image') html = _renderRotatingImage(s, t, p);
+    else if (_cp.mode === 'wordle_arcane') html = _renderWordleArcane(s, t, p);
+    _wordleBindKeys(_cp.mode === 'wordle_arcane');
     if (typeof openModal === 'function') openModal(t, html);
   }
 
@@ -601,12 +856,16 @@
     if (!_cp) return;
     var s = _cp.state;
     if (action === 'give_up') {
+      if (_cp && _cp.mode === 'wordle_arcane' && _cp.state) _wordleClearTimers(_cp.state);
+      _wordleBindKeys(false);
       _cp = null;
       if (typeof closeModal === 'function') closeModal();
       finishSharedPuzzle(false);
       return;
     }
     if (action === 'submit') {
+      if (_cp && _cp.mode === 'wordle_arcane' && _cp.state) _wordleClearTimers(_cp.state);
+      _wordleBindKeys(false);
       _cp = null;
       if (typeof closeModal === 'function') closeModal();
       finishSharedPuzzle(true);
@@ -645,9 +904,66 @@
       s.segments[Number(arg1)].rot = (s.segments[Number(arg1)].rot + 1) % 4;
       _renderCustomPuzzle(); return;
     }
+    if (action === 'wordle_key') {
+      if (s.status !== 'playing' || s.animating) return;
+      var key = String(arg1 || '').toLowerCase();
+      if (!/^[a-z]$/.test(key)) return;
+      if (String(s.current || '').length >= Number(s.wordLength || 5)) return;
+      s.current = String(s.current || '') + key;
+      _renderCustomPuzzle(); return;
+    }
+    if (action === 'wordle_backspace') {
+      if (s.status !== 'playing' || s.animating) return;
+      var cur = String(s.current || '');
+      s.current = cur.length ? cur.slice(0, -1) : '';
+      _renderCustomPuzzle(); return;
+    }
+    if (action === 'wordle_submit_guess') {
+      if (s.status !== 'playing' || s.animating) return;
+      var guess = String(s.current || '').toLowerCase();
+      if (guess.length !== Number(s.wordLength || 5)) {
+        if (typeof showNotif === 'function') showNotif('Enter a full 5-letter runeword.', 'warn');
+        return;
+      }
+      if (Array.isArray(s.allowedWords) && s.allowedWords.indexOf(guess) < 0) {
+        if (typeof showNotif === 'function') showNotif('That word is not in the codex lexicon.', 'warn');
+        return;
+      }
+      var result = _scoreWordleGuess(guess, s.answer);
+      var row = { guess: guess, result: result, revealed: [false, false, false, false, false] };
+      s.attempts.push(row);
+      s.current = '';
+      s.animating = true;
+      _wordleClearTimers(s);
+      for (var i = 0; i < result.length; i++) {
+        (function (idx) {
+          var tid = setTimeout(function () {
+            row.revealed[idx] = true;
+            var letter = guess.charAt(idx);
+            s.keyboard[letter] = _wordleRankColor(s.keyboard[letter], result[idx]);
+            _renderCustomPuzzle();
+          }, idx * 120);
+          s.timeoutIds.push(tid);
+        })(i);
+      }
+      var doneId = setTimeout(function () {
+        s.animating = false;
+        if (guess === s.answer) {
+          s.status = 'win';
+          if (typeof showNotif === 'function') showNotif('Arcane word solved.', 'good');
+        } else if (s.attempts.length >= Number(s.maxAttempts || 6)) {
+          s.status = 'lose';
+          if (typeof showNotif === 'function') showNotif('The codex seals shut. Word was ' + String(s.answer || '').toUpperCase() + '.', 'warn');
+        }
+        _renderCustomPuzzle();
+      }, (result.length * 120) + 40);
+      s.timeoutIds.push(doneId);
+      _renderCustomPuzzle();
+      return;
+    }
   };
 
-  var CUSTOM_PUZZLE_MODES = ['pipe_flow', 'chess_puzzle', 'sliding_tile', 'math_grid', 'rotating_image'];
+  var CUSTOM_PUZZLE_MODES = ['pipe_flow', 'chess_puzzle', 'sliding_tile', 'math_grid', 'rotating_image', 'wordle_arcane'];
 
   function openSharedPuzzleChallenge(config) {
     const st = ensurePuzzleState();
@@ -703,6 +1019,7 @@
             ? (presetChess || _initChess(chessPreferred))
           : chosen.mode === 'sliding_tile' ? _initSliding()
           : chosen.mode === 'math_grid' ? _initMathGrid()
+          : chosen.mode === 'wordle_arcane' ? _initWordleArcane()
           : _initRotatingImage()
       };
       _renderCustomPuzzle();

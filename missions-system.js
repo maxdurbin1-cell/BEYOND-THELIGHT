@@ -7293,14 +7293,17 @@
           var loreConfig = {};
           var waypointPreset = null;
           if (cell.lorePiece) {
-            loreMode = Math.random() < 0.5 ? 'crossword' : 'sudoku';
+            var loreRoll = Math.random();
+            loreMode = loreRoll < 0.4 ? 'crossword' : (loreRoll < 0.75 ? 'sudoku' : 'wordle_arcane');
             if (loreMode === 'crossword') {
               var cwConfig = createLegacyRaidLoreCrosswordConfig(mission, wingNum, cell);
               loreConfig.clues = cwConfig.clues;
             } else {
-              var sdkConfig = createLegacyRaidLoreSudokuConfig(mission, wingNum, cell);
-              loreConfig.sudokuPuzzle = sdkConfig.sudokuPuzzle;
-              loreConfig.sudokuSolution = sdkConfig.sudokuSolution;
+              if (loreMode === 'sudoku') {
+                var sdkConfig = createLegacyRaidLoreSudokuConfig(mission, wingNum, cell);
+                loreConfig.sudokuPuzzle = sdkConfig.sudokuPuzzle;
+                loreConfig.sudokuSolution = sdkConfig.sudokuSolution;
+              }
             }
           } else if (cell.waypoint) {
             loreMode = 'maze';

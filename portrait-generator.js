@@ -26,6 +26,15 @@
       .replace(/'/g, '&#39;');
   }
 
+  function escJsString(value) {
+    return String(value || '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/</g, '\\x3c');
+  }
+
   function hueFromString(value) {
     let hash = 0;
     const input = String(value || '');
@@ -78,6 +87,28 @@
       + '</svg>';
 
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  }
+
+  function openPortraitPreview(imageUrl, label, sourceLabel) {
+    if (typeof document === 'undefined') return false;
+    var modal = document.getElementById('rollModal');
+    var titleEl = document.getElementById('modalTitle');
+    var contentEl = document.getElementById('modalContent');
+    if (!modal || !titleEl || !contentEl) return false;
+
+    titleEl.textContent = label || 'Portrait Preview';
+    contentEl.innerHTML = ''
+      + '<div style="display:grid;gap:.65rem;">'
+      + '<div style="font-size:.75rem;color:var(--muted2);">' + escSvgText(sourceLabel || 'Portrait preview') + '</div>'
+      + '<div style="border:1px solid var(--border2);border-radius:12px;overflow:hidden;background:var(--surface);max-width:100%;">'
+      + '<img src="' + imageUrl + '" alt="Portrait preview" style="display:block;width:100%;height:auto;max-height:78vh;object-fit:contain;"/>'
+      + '</div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
+      + '<button class="btn btn-sm btn-primary" onclick="window.PortraitGenerator.downloadPortrait(' + JSON.stringify(String(imageUrl || '')) + ',' + JSON.stringify(String(label || 'portrait')) + ');">Download</button>'
+      + '</div>'
+      + '</div>';
+    modal.style.display = 'flex';
+    return true;
   }
 
   /**
@@ -319,21 +350,25 @@
     // Add loading state
     const originalContent = el.innerHTML;
     el.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--muted2);">⟳ Generating portrait...</div>';
+      try {
+        const imageUrl = await generatePortrait(state);
+        const sourceLabel = CONFIG.apiKey ? 'AI portrait from character traits' : 'Trait portrait (local fallback, no API key)';
+        const previewTitle = (state && state.name) || 'Portrait Preview';
 
-    try {
-      const imageUrl = await generatePortrait(state);
-      const sourceLabel = CONFIG.apiKey ? 'AI portrait from character traits' : 'Trait portrait (local fallback, no API key)';
-      
-      // Display generated portrait
-      el.innerHTML = '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:.5rem;">'
-        + '<img src="' + imageUrl + '" alt="Generated Portrait" style="width:100%;height:auto;display:block;"/>'
-        + '</div>'
-        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.3rem;">' + sourceLabel + '</div>'
+        el.innerHTML = ''
+        + '<div style="display:grid;grid-template-columns:88px 1fr;gap:.55rem;align-items:start;">'
+        + '<button type="button" class="btn btn-xs" onclick="window.PortraitGenerator.openPortraitPreview(' + JSON.stringify(String(imageUrl || '')) + ',' + JSON.stringify(String(previewTitle)) + ',' + JSON.stringify(String(sourceLabel)) + ');" style="padding:0;border:none;background:transparent;line-height:0;cursor:pointer;">'
+        + '<img src="' + imageUrl + '" alt="Generated Portrait" style="width:88px;height:88px;object-fit:cover;display:block;border:1px solid var(--border2);border-radius:12px;box-shadow:0 8px 18px rgba(0,0,0,.22);"/>'
+        + '</button>'
+        + '<div style="min-width:0;">'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.25rem;">' + sourceLabel + '</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.45;margin-bottom:.35rem;">Click the portrait to open a larger preview.</div>'
         + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
-        + '<button class="btn btn-xs" onclick="window.PortraitGenerator.clearCache();document.getElementById(\'' + elementId + '\').innerHTML=\''
-        + originalContent.replace(/'/g, '\\\'').replace(/"/g, '\\"').replace(/\n/g, '\\n')
-        + '\';">Regenerate</button>'
-        + '<button class="btn btn-xs btn-primary" onclick="window.PortraitGenerator.downloadPortrait(\'' + imageUrl + '\',\'' + (state && state.name || 'portrait') + '\');">Download</button>'
+        + '<button class="btn btn-xs" onclick="window.PortraitGenerator.clearCache();document.getElementById(' + JSON.stringify(String(elementId)) + ').innerHTML=' + JSON.stringify(originalContent) + ';">Regenerate</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="window.PortraitGenerator.openPortraitPreview(' + JSON.stringify(String(imageUrl || '')) + ',' + JSON.stringify(String(previewTitle)) + ',' + JSON.stringify(String(sourceLabel)) + ');">View Larger</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="window.PortraitGenerator.downloadPortrait(' + JSON.stringify(String(imageUrl || '')) + ',' + JSON.stringify(String((state && state.name) || 'portrait')) + ');">Download</button>'
+        + '</div>'
+        + '</div>'
         + '</div>';
 
       return true;
@@ -378,6 +413,7 @@
     generatePortrait: generatePortrait,
     renderGeneratedPortrait: renderGeneratedPortrait,
     buildPortraitPrompt: buildPortraitPrompt,
+    openPortraitPreview: openPortraitPreview,
     setConfig: setConfig,
     clearCache: clearCache,
     downloadPortrait: downloadPortrait,

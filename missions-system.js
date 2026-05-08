@@ -2821,7 +2821,10 @@
           actions: [
             'Roadshear Crash: Province lanes collapse in sequence from left to right.',
             'Tithe Bell: A raidwide toll pulse punishes any lane not covered by Support.',
-            'Burrow Verdict: Mechanics must read the false road before the chamber loops.'
+            'Burrow Verdict: Mechanics must read the false road before the chamber loops.',
+            'Excavation Claim: The front lane loses 1 Action unless an ally braces the collapse.',
+            'Debtor\'s Mark: The highest-pressure role takes +2 damage and gains Shaken.',
+            'Maw Lantern: Summons burrow-thralls into any lane left uncovered twice in a row.'
           ]
         },
         {
@@ -2836,7 +2839,10 @@
           actions: [
             'Foundry Verdict: Heat bands sweep every lane and leave the center unstable.',
             'Cinder Census: A raidwide flame-count punishes missing role coverage.',
-            'Tax Furnace: Front must hold the blast gate while Mechanics decodes the release order.'
+            'Tax Furnace: Front must hold the blast gate while Mechanics decodes the release order.',
+            'Ash Writ: Burns 1 AP from every exposed target in the active lane.',
+            'King\'s Reprisal: Revives a slag guard unless Support interrupts the furnace hymn.',
+            'Molten Audit: Every uncovered role gains Weakened until the next successful beat.'
           ]
         }
       ],
@@ -2853,7 +2859,10 @@
           actions: [
             'Lane Reap: The left and right lanes blink out, then return in the wrong order.',
             'Gravitic Audit: A raidwide pull drags every role toward the dead lane unless Support stabilizes.',
-            'Event Horizon Ledger: Mechanics must decode the surviving route before the chamber harvests a second time.'
+            'Event Horizon Ledger: Mechanics must decode the surviving route before the chamber harvests a second time.',
+            'Blackout Tax: The farthest target loses its next turn to null-light shock.',
+            'Convoy Ghosts: Summons wreck echoes that must be cleared before damage can stick again.',
+            'Orbit Collapse: All lanes take pressure damage unless the team splits correctly.'
           ]
         },
         {
@@ -2868,7 +2877,10 @@
           actions: [
             'Rail Sever: A branch beat cuts the center lane and spikes Dread.',
             'Vacuum Census: Raidwide pressure strips momentum from uncovered roles.',
-            'Deletion Stamp: Front must hold the surviving ring while Mechanics chooses the true rail.'
+            'Deletion Stamp: Front must hold the surviving ring while Mechanics chooses the true rail.',
+            'Erasure Pulse: One random ally is removed from the next action step unless revived or shielded.',
+            'Static Sentence: Applies Distracted to the current player lane and doubles hazard pressure there.',
+            'Null Invoice: Each failed response feeds the Executor 4 phase HP.'
           ]
         }
       ],
@@ -2885,7 +2897,10 @@
           actions: [
             'Tide Audit: Current-shear crosses two lanes and floods the third.',
             'Brine Broadcast: A raidwide pulse soaks every uncovered lane in static pressure.',
-            'Drowned Index: Mechanics must read the true channel before the tide closes again.'
+            'Drowned Index: Mechanics must read the true channel before the tide closes again.',
+            'Undertow Sentence: Drags the closest target out of position and strips 1 AP.',
+            'Foam Revenants: Raises drowned deckhands unless the team cleanses the channel.',
+            'Pressure Archive: Any lane left unresolved gains +1 permanent Dread for the fight.'
           ]
         }
       ]
@@ -2920,7 +2935,10 @@
           actions: [
             'Telegraphed wipe: warning appears one round early, then the zone turns lethal.',
             'Escalation chain: two failed turns in a row raise boss pressure and Dread.',
-            'Immunity gate: boss ignores damage unless three distinct prep actions succeed.'
+            'Immunity gate: boss ignores damage unless three distinct prep actions succeed.',
+            'AP Break: One exposed target loses its next action.',
+            'Summon Pressure: Calls in adds or revives a broken mechanic unless interrupted.',
+            'Darkened Chamber: Applies Shaken or Vulnerable to every uncovered lane.'
           ]
         });
       }
@@ -2937,7 +2955,10 @@
       actions: [
         'Shatter Pulse: Raidwide pressure breaks across every lane.',
         'Pattern Debt: Mechanics must answer the shift before the room loops.',
-        'Overrun Ledger: Front and Support must cover the same beat or lose the line.'
+        'Overrun Ledger: Front and Support must cover the same beat or lose the line.',
+        'Black Seal: Removes 1 AP from the nearest target.',
+        'Soul Recall: Revives a fallen add at half Health.',
+        'Night Tax: Uncovered targets gain Vulnerable until the next successful round.'
       ]
     };
     var chosenBoss = pickLegacyRaidEntry(bossCatalog[region], seed, fallbackBoss);
@@ -3032,6 +3053,41 @@
       + '</div>'
     );
     return true;
+  }
+
+  function normalizeLegacyRaidBossPhaseState(mission, encounter, options) {
+    if (!mission || !encounter) return '';
+    if (Number(encounter.phaseHp || 0) > 0) return '';
+    var phase = Math.max(1, Number(encounter.phase || 1));
+    if (phase >= 3) {
+      window.resolveRaidBossRoom(mission.id, true);
+      return 'victory';
+    }
+    var skipPhaseTwo = phase === 1 && (encounter.skipPhaseTwoPending || mission.legacyRaidSkipPhase2 || (options && options.forceSkipPhaseTwo));
+    if (skipPhaseTwo) {
+      encounter.phase = 3;
+      encounter.skipPhaseTwoPending = false;
+      mission.legacyRaidSkipPhase2 = false;
+      encounter.log = encounter.log || [];
+      encounter.log.push('Breach override engaged: Phase 2 skipped. Jumping directly to Phase 3.');
+    } else {
+      encounter.phase = phase + 1;
+    }
+    var nextProfile = encounter.phaseProfiles && encounter.phaseProfiles[Math.max(0, Number(encounter.phase || 1) - 1)] || null;
+    encounter.phaseHp = Math.max(1, Number(nextProfile && nextProfile.hp || 20));
+    encounter.maxPhaseHp = Math.max(1, Number(nextProfile && nextProfile.hp || encounter.maxPhaseHp || 20));
+    encounter.dreadDie = Math.max(4, Number(nextProfile && nextProfile.dread || encounter.dreadDie || 10));
+    encounter.phaseFlavor = String(nextProfile && nextProfile.text || encounter.phaseFlavor || 'Boss pattern escalating.');
+    encounter.turnStage = 'player';
+    encounter.allyActionsUsed = 0;
+    resetLegacyRaidAllyActionBudget(mission, encounter);
+    encounter.log = encounter.log || [];
+    encounter.log.push('Boss phase shifted to Phase ' + Number(encounter.phase || 1) + '.');
+    if (skipPhaseTwo && (!options || options.openCinematic !== false) && !mission.legacyRaidBossCinematicSeen) {
+      openLegacyRaidBossCinematic(mission.id);
+      return 'cinematic';
+    }
+    return 'phase';
   }
 
   function buildLegacyRaidRecommendedCallouts(mission, encounter) {
@@ -4413,6 +4469,8 @@
       encounter.phaseHp = Math.max(0, Number(encounter.phaseHp || 0) - allyDamage);
       encounter.log.push('Allies dealt ' + allyDamage + ' total HP this round.');
     }
+    var modalPhaseState = normalizeLegacyRaidBossPhaseState(mission, encounter, { openCinematic: true });
+    if (modalPhaseState === 'victory' || modalPhaseState === 'cinematic') return;
     
     if (encounter.log.length > 5) encounter.log.shift();
     
@@ -7513,6 +7571,10 @@
     }
 
     ensureLegacyRaidMissionConfig(mission);
+    if (Number(wingNum || 0) === 3) {
+      var openPhaseState = normalizeLegacyRaidBossPhaseState(mission, ensureLegacyRaidBossEncounter(mission), { openCinematic: true });
+      if (openPhaseState === 'victory' || openPhaseState === 'cinematic') return true;
+    }
 
     var map = ensureRaidHexMap(mission);
     var rooms = map.wings[wingNum];
@@ -8139,6 +8201,7 @@
           if (enc) enc.skipPhaseTwoPending = true;
           room.result = 'Optional breach puzzle solved. Boss Phase 2 will be skipped.';
           if (typeof showNotif === 'function') showNotif('Breach override secured: boss Phase 2 skip armed.', 'good');
+          if (openLegacyRaidBossCinematic(mission.id)) return true;
           return openRaidWingPopup(mission.id, wingNum, roomIdx);
         },
         onFail: function () {
@@ -8468,6 +8531,8 @@
     }
     encounter.playerActionLabel = label;
     resolveLegacyRaidBossPlayerActionRoll(encounter, mission, label);
+    var playerPhaseState = normalizeLegacyRaidBossPhaseState(mission, encounter, { openCinematic: true });
+    if (playerPhaseState === 'victory' || playerPhaseState === 'cinematic') return true;
     var playerActionsRemaining = 0;
     if (turnNode && Number(turnNode.playerActionsLeft || 0) > 0) {
       encounter.turnStage = 'player';
@@ -8549,6 +8614,8 @@
     encounter.allyActionBudget.byAlly[ally] = Math.max(0, remainingForAlly - 1);
     encounter.allyActionBudget.used = Number(encounter.allyActionBudget.used || 0) + 1;
     encounter.allyActionsUsed = Number(encounter.allyActionsUsed || 0) + 1;
+    var allyPhaseState = normalizeLegacyRaidBossPhaseState(mission, encounter, { openCinematic: true });
+    if (allyPhaseState === 'victory' || allyPhaseState === 'cinematic') return true;
     var leftTotal = Math.max(0, Number(encounter.allyActionBudget.total || 0) - Number(encounter.allyActionBudget.used || 0));
     encounter.log.push('Ally action ' + encounter.allyActionsUsed + '/6: ' + summary + ' Remaining ally actions: ' + leftTotal + '.');
     if (leftTotal <= 0) {
@@ -8691,23 +8758,8 @@
         encounter.strikes = Number(encounter.strikes || 0) + 1;
         encounter.log.push(pressureState.note + ' Strike +1.');
       }
-      if (Number(encounter.phaseHp || 0) <= 0) {
-        if (Number(encounter.phase || 1) >= 3) {
-          window.resolveRaidBossRoom(missionId, true);
-          return;
-        }
-        if (Number(encounter.phase || 1) === 1 && (encounter.skipPhaseTwoPending || mission.legacyRaidSkipPhase2)) {
-          encounter.phase = 3;
-          encounter.skipPhaseTwoPending = false;
-          mission.legacyRaidSkipPhase2 = false;
-          encounter.log.push('Breach override engaged: Phase 2 skipped. Jumping directly to Phase 3.');
-        } else {
-          encounter.phase = Number(encounter.phase || 1) + 1;
-        }
-        var nextProfile = encounter.phaseProfiles && encounter.phaseProfiles[encounter.phase - 1];
-        encounter.phaseHp = Math.max(1, Number(nextProfile && nextProfile.hp || 20));
-        encounter.log.push('Boss phase shifted to Phase ' + Number(encounter.phase || 1) + '.');
-      }
+      var resolvedPhase = normalizeLegacyRaidBossPhaseState(mission, encounter, { openCinematic: true });
+      if (resolvedPhase === 'victory' || resolvedPhase === 'cinematic') return;
       if (typeof showNotif === 'function') showNotif('Boss turn cleared. Prepare next assignment.', 'good');
       tickLegacyRaidBossRoleCooldowns(encounter);
       tickLegacyRaidTeamUtilityCooldowns(mission);
@@ -10886,9 +10938,9 @@
         try { showNotif('Added to backpack: ' + stored.join(', '), 'good'); } catch (err) {}
       }
       if (dropped.length && mission.missionType === 'legacy_raid') {
-        var overflowVault = ensureLegacyRaidLootVault(mission);
-        if (overflowVault && Array.isArray(overflowVault.loot)) {
-          overflowVault.loot = overflowVault.loot.concat(dropped.map(function (item) { return String(item || ''); }).filter(Boolean));
+        var raidProfileOverflow = ensureLegacyRaidProfile();
+        if (raidProfileOverflow && Array.isArray(raidProfileOverflow.raidOverflowLoot)) {
+          raidProfileOverflow.raidOverflowLoot = raidProfileOverflow.raidOverflowLoot.concat(dropped.map(function (item) { return String(item || ''); }).filter(Boolean)).slice(-120);
           try { showNotif('Backpack full. Stored raid overflow in Raid Storage: ' + dropped.join(', '), 'warn'); } catch (err) {}
           dropped = [];
         }

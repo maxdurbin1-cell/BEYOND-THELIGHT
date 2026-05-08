@@ -47,6 +47,33 @@
     recentMusicIds: [],
     initialized: false,
 
+    emitNowPlayingChanged() {
+      if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+      window.dispatchEvent(new CustomEvent('beyond:now-playing-changed', {
+        detail: {
+          id: String(this.currentMusicId || ''),
+          baseId: String(this.currentMusicBaseId || ''),
+          label: this.getNowPlayingLabel()
+        }
+      }));
+    },
+
+    formatMusicLabel(musicId) {
+      var raw = String(musicId || '').trim();
+      if (!raw) return 'No track active';
+      return raw
+        .replace(/^music[-_]?/i, '')
+        .replace(/-v(\d+)$/i, ' · Variant $1')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b\w/g, function (chr) { return chr.toUpperCase(); });
+    },
+
+    getNowPlayingLabel() {
+      if (!this.musicConsent) return 'Music disabled';
+      if (!this.currentMusicId) return 'No track active';
+      return this.formatMusicLabel(this.currentMusicId);
+    },
+
     // Initialize Web Audio API
     init() {
       if (this.initialized) return;
@@ -435,6 +462,7 @@
         this.currentMusicBaseId = baseId;
         this.currentMusicPool = selection.pool.slice();
         this.rememberRecentMusic(chosenId);
+        this.emitNowPlayingChanged();
         console.log(`🔊 Now playing: ${chosenId} (base ${baseId}) (Context state: ${this.audioContext.state})`);
 
         // Fade in if requested
@@ -478,6 +506,7 @@
               this.currentMusicId = '';
               this.currentMusicBaseId = '';
               this.currentMusicPool = [];
+              this.emitNowPlayingChanged();
             }
           } catch (e) {
             console.warn('🔊 Error stopping music:', e);
@@ -490,6 +519,7 @@
           this.currentMusicId = '';
           this.currentMusicBaseId = '';
           this.currentMusicPool = [];
+          this.emitNowPlayingChanged();
         } catch (e) {
           console.warn('🔊 Error stopping music:', e);
         }

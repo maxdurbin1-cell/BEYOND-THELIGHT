@@ -338,6 +338,10 @@
               </div>
             </div>
             <div class="setting-row">
+              <label>Now Playing</label>
+              <div id="settingsNowPlaying" class="campaign-muted">No track active</div>
+            </div>
+            <div class="setting-row">
               <label for="sfxVol">SFX Volume</label>
               <div class="volume-control">
                 <input type="range" id="sfxVol" min="0" max="100" value="${Settings.sfxVolume * 100}" 
@@ -691,9 +695,22 @@
       musicConsentBtn.style.color = Settings.musicConsent ? 'var(--teal)' : 'var(--muted2)';
     }
 
+    refreshNowPlayingLabel();
+
     applySettingsTabVisibility();
     refreshRecoveryPanel();
     syncNightModeRateUI();
+  }
+
+  function refreshNowPlayingLabel() {
+    const el = document.getElementById('settingsNowPlaying');
+    if (!el) return;
+    const audio = typeof window !== 'undefined' ? window.AudioManager : null;
+    const label = audio && typeof audio.getNowPlayingLabel === 'function'
+      ? audio.getNowPlayingLabel()
+      : (Settings.musicConsent ? 'No track active' : 'Music disabled');
+    el.textContent = label;
+    el.style.color = Settings.musicConsent ? 'var(--text2)' : 'var(--muted2)';
   }
 
   function toggleGMReveal(kind) {
@@ -826,6 +843,7 @@
     Settings.applyAudioSettings();
     Settings.save();
     document.getElementById('musicVolLabel').textContent = value + '%';
+    refreshNowPlayingLabel();
   }
   
   function setSFXVolume(value) {
@@ -977,8 +995,11 @@
     setNightModeRate,
     resetNightModeRates,
     refreshRecoveryPanel,
+    refreshNowPlayingLabel,
     initSettings // Expose for manual initialization if needed
   };
+
+  window.addEventListener('beyond:now-playing-changed', refreshNowPlayingLabel);
   
   // Ensure it's initialized immediately
   if (document.readyState !== 'loading') {

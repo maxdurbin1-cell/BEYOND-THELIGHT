@@ -646,7 +646,10 @@ select option{background:#0f1020;}
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
           <span id="backpackSlotsLabel" class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
-          <button class="btn btn-sm" onclick="rollBackpack()">⚄ Roll Backpack</button>
+          <div style="display:flex;gap:.25rem;align-items:center;">
+            <button class="btn btn-sm" onclick="openBackpackBulkSellModal()">Sell Multiple</button>
+            <button class="btn btn-sm" onclick="rollBackpack()">⚄ Roll Backpack</button>
+          </div>
         </div>
         <div class="backpack-grid">
           <div class="bp-cell"><input class="bp-input" id="bp0" placeholder="Slot 1" onchange="S.backpack[0]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(0)" title="Item info">?</button></div>
@@ -1282,6 +1285,7 @@ select option{background:#0f1020;}
     <button class="scat" onclick="showCodexCat('trade',this)">🏛 Trade Routes</button>
     <button class="scat" onclick="showCodexCat('gates',this)">◈ Gates</button>
     <button class="scat" onclick="showCodexCat('lostcities',this)">🌆 Lost Cities</button>
+    <button class="scat" onclick="showCodexCat('bestiary',this)">☠ Bestiary</button>
     <button class="scat" onclick="showCodexCat('maplegend',this)">🗺 Map Legend</button>
     <button class="scat" onclick="showCodexCat('trophies',this)">🏆 Trophies</button>
   </div>
@@ -5319,7 +5323,18 @@ function ensureAdvancedGearState() {
 }
 
 function normalizeItemName(text) {
-  return normalizeLegacyLootAlias(String(text || '').split('(')[0].trim());
+  return normalizeLegacyLootAlias(cleanInventoryItemName(text));
+}
+
+function cleanInventoryItemName(text) {
+  var clean = parseBackpackStack(text).name || String(text || '').trim();
+  clean = clean.replace(/\s+[|·]\s*Affixes?:.*$/i, '').trim();
+  clean = clean.split('|')[0].trim();
+  clean = clean.replace(/\s+\[[^\]]+\]/g, '').trim();
+  clean = clean.replace(/\s*\([^\)]*\)\s*$/, '').trim();
+  clean = clean.replace(/\s+\+\d+\s+[A-Za-z].*$/i, '').trim();
+  clean = clean.replace(/\s+Ad\d+\s+.*$/i, '').trim();
+  return clean;
 }
 
 function normalizeLegacyLootAlias(text) {
@@ -6813,6 +6828,68 @@ function hasEquippedAffix(name){
   var blob=getEquippedAffixTextBlob();
   if(!needle||!blob)return false;
   return blob.indexOf(needle)>=0;
+}
+
+var AFFIX_EFFECT_DESCRIPTIONS={
+  keen:'+1 Strike.',
+  swift:'+1 Action.',
+  sturdy:'+1 Defend.',
+  brutal:'+2 Strike, but -1 Action.',
+  agile:'+2 Actions, but -1 Strike.',
+  reinforce:'+2 Defend, but -1 Strike.',
+  fierce:'+3 Strike, +3 Defend, but -2 Actions.',
+  nimble:'+3 Actions, but -2 Strike and -2 Defend.',
+  resilient:'+3 Defend, but -2 Strike and -2 Actions.',
+  balanced:'+1 Strike, Shoot, Defend, and Action.',
+  accuracy:'+1 crit shift.',
+  range:'Enables far shooting and close striking flexibility.',
+  stealth:'+1 Control.',
+  piercing:'+1 Dread pierce step.',
+  lethal:'+2 crit shift, but -1 Action.',
+  vicious:'Adds Body to strike damage.',
+  silent:'+2 Control, but -1 Action.',
+  distance:'+1 bonus to close-range shooting.',
+  stormcaller:'+3 damage on hit and enemies can lose their next turn.',
+  frostheart:'+1 damage on hit and can freeze an enemy turn.',
+  lifedrinker:'Heals from successful life-draining hits.',
+  doombringer:'+5 attack power.',
+  griffin:'Knocks targets back 1 zone.',
+  valkyrie:'Steps Spirit up by 1.',
+  leviathan:'Steps Body up by 1.',
+  djinn:'Steps Mind up by 1.',
+  "gorgon's glare":'+2 Actions on a successful strike hit.',
+  "sphinx's riddle":'Steps Lead up by 1.',
+  "minotaur's strength":'Steps Strike up by 1.',
+  "pegasus' flight":'+5 Actions.',
+  "roc's wind":'+2 Actions and enables far shooting.',
+  "eternity's edge":'20% auto-crit chance.',
+  void:'5% execute chance against enemies.',
+  celestial:'+5 attack and double damage vs demons.',
+  abyssal:'+5 attack and double damage vs celestials.',
+  primal:'+5 attack.',
+  ancestral:'Adds Spirit to damage.',
+  "soul eater":'Heal 3 on kill.',
+  "golem's fist":'Knocks targets back 2 zones.',
+  "basilisk's stare":'Can make enemies lose their next turn.'
+};
+
+function getItemAffixList(text){
+  var match=String(text||'').match(/Affixes?:\s*([^|]+)/i);
+  if(!match)return [];
+  return match[1].split(',').map(function(entry){return String(entry||'').trim();}).filter(Boolean);
+}
+
+function buildAffixEffectsHtml(text){
+  var affixes=getItemAffixList(text);
+  if(!affixes.length)return '';
+  return '<div style="margin-top:.45rem;padding:.35rem .45rem;border:1px solid rgba(201,162,39,.25);background:rgba(201,162,39,.06);">'
+    + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;"><strong>Affix Effects</strong></div>'
+    + affixes.map(function(name){
+      var key=normalizeAffixLabel(name);
+      var effect=AFFIX_EFFECT_DESCRIPTIONS[key]||'Special effect active while this item is equipped.';
+      return '<div style="font-size:.76rem;color:var(--text2);line-height:1.46;"><strong style="color:var(--teal);">'+name+'</strong> — '+effect+'</div>';
+    }).join('')
+    + '</div>';
 }
 
 function getEquippedAffixCombatBonuses(){
@@ -8675,7 +8752,7 @@ function addToBackpack(text) {
 function findShopItem(nameText) {
   if (!nameText) return null;
   var stackParts = parseBackpackStack(nameText);
-  var cleanName = normalizeLegacyLootAlias(stackParts.name.split('(')[0].trim().replace(/\s+[-–]\s+.*/, '').trim());
+  var cleanName = normalizeLegacyLootAlias(cleanInventoryItemName(stackParts.name).replace(/\s+[-–]\s+.*/, '').trim());
   var allCats = Object.keys(SHOP_DATA);
   for (var ci = 0; ci < allCats.length; ci++) {
     var items = SHOP_DATA[allCats[ci]];
@@ -9054,7 +9131,7 @@ function showBackpackItem(index) {
           + '<div style="font-size:.72rem;color:var(--teal);margin:.1rem 0 .2rem;">' + String(loreInfo.genre || 'Lore Book') + '</div>'
           + '<div style="font-size:.8rem;color:var(--text2);line-height:1.52;margin-bottom:.3rem;">' + String(loreInfo.lore || 'A recovered record from the fading world.') + '</div>'
         : '<div style="font-size:.9rem;color:var(--text2);">' + text + '</div>');
-    openModal('Backpack Item', itemTitleHtml + '<div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>');
+    openModal('Backpack Item', itemTitleHtml + buildAffixEffectsHtml(text) + '<div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>');
     return;
   }
   var item = found.item;
@@ -9093,6 +9170,7 @@ function showBackpackItem(index) {
     + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
     + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
     + '<div>'+item.desc+'</div>'
+    + buildAffixEffectsHtml(text)
     + usesHtml
     + '<div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>'
     + '</div>';
@@ -9349,6 +9427,7 @@ function showEquippedItem(slot) {
       + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+item.name+'</div>'
       + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
       + '<div>'+item.desc+'</div>'
+      + buildAffixEffectsHtml(text)
       + (slot === 'armor' ? '<div style="margin-top:.45rem;font-size:.76rem;color:var(--muted2);">Under: '+(S.equipmentLayers.under || 'None')+'<br>Over: '+(S.equipmentLayers.over || 'None')+'<br>Suit: '+(S.equipmentLayers.suit || 'None')+'</div>' : '')
       + '<div style="margin-top:.5rem;">'+btnHtml+'</div>'
       + '</div>';
@@ -9370,7 +9449,7 @@ function showEquippedItem(slot) {
     }
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
     btnHtml += storageOptions;
-    var html = '<div style="font-size:.9rem;color:var(--text2);">'+text+'</div><div style="margin-top:.5rem;">'+btnHtml+'</div>';
+    var html = '<div style="font-size:.9rem;color:var(--text2);">'+text+'</div>'+buildAffixEffectsHtml(text)+'<div style="margin-top:.5rem;">'+btnHtml+'</div>';
     openModal('Equipped Item', html);
   }
 }
@@ -11838,8 +11917,7 @@ function renderHexInfo(hex){
         <div class="wp-text">Irradiated Ones patrol in packs (DD4 | <strong style="color:var(--red);">8 Radiation Stress</strong> on hit). Staying quiet avoids detection. On failure: gain Irradiated condition (+1 Stress per Phase until cleansed).</div>
       </div>`;
       html+=`<div style="margin:.4rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
-        <button class="btn btn-sm btn-primary" onclick="rollLostCityTravel(${hex.col},${hex.row})">⚄ Travel Roll (d6)</button>
-        <button class="btn btn-sm btn-teal" onclick="openLostCityBuildingHexcrawl(${hex.col},${hex.row})">🔍 Search Buildings</button>
+        <button class="btn btn-sm btn-primary" onclick="openLostCityBuildingHexcrawl(${hex.col},${hex.row})">⬡ Enter Lost City</button>
       </div>`;
       html+=`<div style="margin:.32rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
         <button class="btn btn-sm" onclick="travelToWorldThatWas()">Descend To World That Was</button>
@@ -12239,6 +12317,57 @@ function openSellBackpackModal(col,row){
       +'</div>';
   });
   openModal('Sell to Caravan ['+(col+1)+','+(row+1)+']',html);
+}
+
+function openBackpackBulkSellModal(){
+  const slots=(S.backpack||[]).map((item,idx)=>({item,idx,stack:parseBackpackStack(item)})).filter(x=>x.stack&&x.stack.name);
+  let html='<div style="font-size:.82rem;color:var(--text2);margin-bottom:.35rem;">Choose how many items to sell from each backpack slot.</div>';
+  if(!slots.length){
+    openModal('Sell Multiple',html+'<div style="font-size:.78rem;color:var(--muted2);">Backpack is empty.</div>');
+    return;
+  }
+  slots.forEach(function(entry){
+    const unitPrice=getBackpackSalePrice(entry.stack.name);
+    const maxCount=Math.max(1,Number(entry.stack.count||1));
+    html+='<div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:.35rem;align-items:center;margin-bottom:.28rem;">'
+      +'<div style="font-size:.78rem;color:var(--text2);">'+entry.stack.name+(maxCount>1?(' <span style="color:var(--muted2);">x'+maxCount+'</span>'):'')+'</div>'
+      +'<div style="font-size:.72rem;color:var(--gold2);">'+unitPrice+'₵ each</div>'
+      +'<input id="bulkSellQty-'+entry.idx+'" type="number" min="0" max="'+maxCount+'" value="0" style="width:72px;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .28rem;border-radius:3px;">'
+      +'</div>';
+  });
+  html+='<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.45rem;">'
+    +'<button class="btn btn-sm btn-gold" onclick="confirmBackpackBulkSell()">Sell Selected</button>'
+    +'</div>';
+  openModal('Sell Multiple',html);
+}
+
+function confirmBackpackBulkSell(){
+  if(!Array.isArray(S.backpack)){showNotif('Backpack unavailable.','warn');return;}
+  var soldItems=[];
+  var totalCredits=0;
+  for(var i=0;i<S.backpack.length;i++){
+    var current=S.backpack[i]||'';
+    if(!current)continue;
+    var stack=parseBackpackStack(current);
+    if(!stack.name)continue;
+    var input=document.getElementById('bulkSellQty-'+i);
+    var qty=Math.max(0,Math.min(Number(stack.count||1),parseInt(input&&input.value,10)||0));
+    if(!qty)continue;
+    var unitPrice=getBackpackSalePrice(stack.name);
+    if(unitPrice<=0)continue;
+    totalCredits+=unitPrice*qty;
+    soldItems.push(stack.name+(qty>1?(' x'+qty):''));
+    var remaining=Math.max(0,Number(stack.count||1)-qty);
+    S.backpack[i]=remaining>0?buildBackpackStack(stack.name,remaining):'';
+    var el=document.getElementById('bp'+i);
+    if(el)el.value=S.backpack[i]||'';
+  }
+  if(!soldItems.length){showNotif('Select at least one sellable item.','warn');return;}
+  S.credits=(S.credits||0)+totalCredits;
+  if(typeof updateCreditsUI==='function')updateCreditsUI();
+  appendQuickPanelNote('[Trade] Bulk sold '+soldItems.join(', ')+' for '+totalCredits+'₵');
+  showNotif('Sold '+soldItems.join(', ')+' for '+totalCredits+'₵','good');
+  closeModal();
 }
 
 function sellBackpackItem(index,price,col,row){
@@ -14327,12 +14456,16 @@ function openLostCityBuildingHexcrawl(col,row){
     if(!hex.data.hexcrawl){
       const LC_TRAPS=['Pressure plate triggers a sealed gas vent (Body vs DD8 or Irradiated).','Tripwire releases a wall panel — roll Control vs DD6 or take 3 damage.','Magnetic mine array — metallic armor wearers check Defend vs DD10.','Rigged door detonates a charge: AD vs DD8 or Weakened.','Automated seeker turret activates — first action costs 1 extra AP.','Weight-sensitive floor panel collapses: Body vs DD8 or fall 1 floor (4 damage + Irradiated).'];
       const LC_LOOT_ITEMS=['Lost City Fuel Rod (poisonous rods, sell for 200₵)','Radiothermal Canister (powers caravan drive cells)','Pre-fall Currency Cache (roll 3d6 × 10 credits)','Builder\'s Blueprint (rare schematic)','Irradiated Power Cell (functions as a grenade equivalent)','Sealed Medkit (heals 6 HP, removes Irradiated)','Pre-fall Comms Unit (repair to active use)','Salvage Circuit Board (sell 150₵)'];
+      const LC_ENTRY_TEXTS=['An avenue of broken tram-lines vanishes into pink dust. A cracked station map still glows beneath your boots.','This hex smells of hot copper and flooded concrete. Somewhere below, pumps are still trying to work.','An apartment block leans over the street like a watchtower. Curtains fossilized in ash sway without wind.','A public archive has burst open here. Wet pages cling to shattered terminals and half-melted statues.','This district was once a market court. Glass canopies glitter under soot while old coin-dispensers click in the dark.','Collapsed skybridges choke this hex. The sound of your steps comes back a beat too late.'];
+      const LC_STRANGE_ITEMS=['A humming transit sigil cut from black glass.','A memory wafer labeled only with a child\'s initials.','A prayer coin stamped with a city that no longer exists.','A bent signal key that still opens something nearby.','A voice-locked brass capsule repeating one broken sentence.','A sealed ration tin filled with luminous seeds instead of food.'];
+      const LC_ENCOUNTERS=['A scouting pack of Irradiated Ones slinks between storefronts.','Stitched rat horrors burst from a collapsed vent.','A static-haunted security drone wakes and sweeps the lane.','A scavenger crew shadows you from a high walkway.','A blind tunnel beast drags chains through the underpass.','A civic defense turret starts reacquiring old target data.'];
+      const LC_SEARCH_FINDS=['You uncover an intact builder locker behind collapsed masonry.','A collapsed office reveals a dead courier and a usable route badge.','A maintenance crawlspace leads into a dry safe spot for one phase.','An upper-floor apartment still holds sealed travel papers and a map fragment.','A storefront false wall hides a stash wrapped in municipal cloth.','You find a survivor\'s cache with notes about nearby traps and patrol timing.'];
       const roomCount=6;
       const types=['Entrance Hall','Residential Block','Utility Crawl','Archive Shelf','Irradiated Core','Basement Vault'];
       const coords=[{q:0,r:0},{q:1,r:0},{q:0,r:1},{q:-1,r:1},{q:-1,r:0},{q:0,r:-1}];
       const rooms=Array.from({length:roomCount},function(_,i){
         var kind=types[i]||types[types.length-1];
-        return{idx:i+1,kind:kind,cleared:false,result:'',trap:pick(LC_TRAPS),loot:pick(LC_LOOT_ITEMS)};
+        return{idx:i+1,kind:kind,cleared:false,result:'',entryText:pick(LC_ENTRY_TEXTS),trap:pick(LC_TRAPS),loot:pick(LC_LOOT_ITEMS),strangeItem:pick(LC_STRANGE_ITEMS),encounter:pick(LC_ENCOUNTERS),searchFind:pick(LC_SEARCH_FINDS),lootClaimed:false,strangeClaimed:false,encounterResolved:false};
       });
       hex.data.hexcrawl={
         currentBuilding:pick(LC_BUILDINGS),
@@ -14387,7 +14520,13 @@ function openLostCityBuildingHexcrawl(col,row){
     if(activeRoom){
       actionHtml=activeRoom.cleared
         ? '<span style="font-size:.74rem;color:var(--green2);">✓ Cleared</span>'
-        : '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="lcResolveRoom('+col+','+row+','+Number(activeRoom.idx-1)+')">⚄ Resolve Room (AD vs DD6)</button><button class="btn btn-xs btn-warn" onclick="lcTriggerTrap('+col+','+row+','+Number(activeRoom.idx-1)+')">🜸 Check for Trap</button></div>';
+        : '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;">'
+          + '<button class="btn btn-xs btn-teal" onclick="lcResolveRoom('+col+','+row+','+Number(activeRoom.idx-1)+')">🔍 Search Building</button>'
+          + '<button class="btn btn-xs btn-warn" onclick="lcTriggerTrap('+col+','+row+','+Number(activeRoom.idx-1)+')">🜸 Check for Trap</button>'
+          + '<button class="btn btn-xs" onclick="lcRollEncounter('+col+','+row+','+Number(activeRoom.idx-1)+')">⚔ Random Encounter</button>'
+          + '<button class="btn btn-xs btn-primary" onclick="lcFindStrangeItem('+col+','+row+','+Number(activeRoom.idx-1)+')">✦ Strange Item</button>'
+          + '<button class="btn btn-xs btn-gold" onclick="lcClaimLoot('+col+','+row+','+Number(activeRoom.idx-1)+')">💰 Loot</button>'
+          + '</div>';
     }
     var hiddenBtn=(!crawl.hiddenSearched&&crawl.unlockedRooms>0)?'<button class="btn btn-xs btn-primary" onclick="lcSearchHiddenRoom('+col+','+row+')">🔎 Search for Hidden Room (AD vs DD6)</button>':'';
     var hiddenResult=crawl.hiddenResult?'<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">'+crawl.hiddenResult+'</div>':'';
@@ -14402,6 +14541,7 @@ function openLostCityBuildingHexcrawl(col,row){
       +'</div>'
       +(activeRoom?('<div class="lc-block" style="border-color:rgba(224,128,192,.35);margin-top:.3rem;">'
         +'<div class="lb-label" style="color:#d090c0;">Hex '+String(Number(crawl.activeNodeId)+1)+' — '+String(activeRoom.kind||'Room')+'</div>'
+        +'<div style="font-size:.78rem;color:var(--text2);line-height:1.52;margin-top:.18rem;">'+String(activeRoom.entryText||'A dead district opens around you.')+'</div>'
         +(activeRoom.result?('<div style="font-size:.78rem;color:var(--gold2);margin-top:.25rem;">'+activeRoom.result+'</div>'):'')
         +actionHtml
         +'</div>'):'')
@@ -14430,11 +14570,12 @@ function lcResolveRoom(col,row,idx){
     const a=explodingRoll(ad),d=explodingRoll(6);
     const success=a.total>=d.total;
     if(success){
-      r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Success! Loot found: '+r.loot+'.';
+      r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Search success. '+r.searchFind+' Loot secured: '+r.loot+'.';
       r.cleared=true;
       // Unlock next 2 rooms
       crawl.unlockedRooms=Math.min(crawl.rooms.length,crawl.unlockedRooms+2);
-      if(typeof addToBackpack==='function')try{addToBackpack(r.loot);}catch(_){}
+      if(!r.lootClaimed&&typeof addToBackpack==='function')try{addToBackpack(r.loot);}catch(_){}
+      r.lootClaimed=true;
       if(typeof showNotif==='function')showNotif('Room cleared. Loot: '+r.loot+'.','good');
     }else{
       r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Failure. +2 Radiation Stress.';
@@ -14444,6 +14585,41 @@ function lcResolveRoom(col,row,idx){
     }
     openLostCityBuildingHexcrawl(col,row);
 }
+
+  function lcRollEncounter(col,row,idx){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data||!hex.data.hexcrawl)return;
+    const room=hex.data.hexcrawl.rooms[idx];
+    if(!room||room.encounterResolved)return;
+    room.encounterResolved=true;
+    room.result=(room.result?room.result+' ':'')+'Encounter: '+room.encounter;
+    if(typeof showNotif==='function')showNotif('Lost City encounter: '+room.encounter,'warn');
+    openLostCityBuildingHexcrawl(col,row);
+  }
+
+  function lcFindStrangeItem(col,row,idx){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data||!hex.data.hexcrawl)return;
+    const room=hex.data.hexcrawl.rooms[idx];
+    if(!room||room.strangeClaimed)return;
+    room.strangeClaimed=true;
+    if(typeof addToBackpack==='function')try{addToBackpack(room.strangeItem);}catch(_){}
+    room.result=(room.result?room.result+' ':'')+'Strange item recovered: '+room.strangeItem;
+    if(typeof showNotif==='function')showNotif('Recovered strange item: '+room.strangeItem,'good');
+    openLostCityBuildingHexcrawl(col,row);
+  }
+
+  function lcClaimLoot(col,row,idx){
+    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+    if(!hex||!hex.data||!hex.data.hexcrawl)return;
+    const room=hex.data.hexcrawl.rooms[idx];
+    if(!room||room.lootClaimed)return;
+    room.lootClaimed=true;
+    if(typeof addToBackpack==='function')try{addToBackpack(room.loot);}catch(_){}
+    room.result=(room.result?room.result+' ':'')+'Loot claimed: '+room.loot;
+    if(typeof showNotif==='function')showNotif('Lost City loot: '+room.loot,'good');
+    openLostCityBuildingHexcrawl(col,row);
+  }
 
 function lcTriggerTrap(col,row,idx){
     const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
@@ -14579,6 +14755,15 @@ function showCodexCat(cat,btn){
         ${LC_DISCOVERIES.map((d,i)=>`<div class="lc-block"><div class="lb-label">#${i+1} ${d.shape} — ${d.appearance}</div><div class="lb-text">Function: ${d.fn}<br>Creator: ${d.creator} · Now: ${d.current}</div></div>`).join('')}
       </div>
     </div>`;
+  }else if(cat==='bestiary'){
+    c.innerHTML=`<div class="card"><div class="section-title">Enemy Bestiary</div>
+      <div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">Death Number is listed as half Health, rounded up. Use it as the quick threshold for when a creature is entering its kill window.</div>
+      <div class="codex-grid">
+        ${Object.keys(CODEX_BESTIARY).map(region=>`<div class="card"><div class="section-title">${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</div>
+          ${CODEX_BESTIARY[region].map(entry=>`<div class="hist-entry"><div class="hist-num">${Math.ceil(entry.hp/2)}</div><div class="hist-text"><strong>${entry.name}</strong><br>${entry.desc}<br><span style="color:var(--gold2);">Health ${entry.hp} · Death Number ${Math.ceil(entry.hp/2)}</span></div></div>`).join('')}
+        </div>`).join('')}
+      </div>
+    </div>`;
   }else if(cat==='maplegend'){
     c.innerHTML=`<div class="card"><div class="section-title">Map Legend — Hex &amp; Icon Index</div>
       <div style="font-size:.82rem;color:var(--muted2);margin-bottom:.75rem;">Every hex and map icon across the Province, Sea Region, and Galaxy tabs is listed here.</div>
@@ -14604,6 +14789,38 @@ function showCodexCat(cat,btn){
 }
 
 function rollWayfarer(){const w=pick(TRAVELING_WAYFARERS);const el=document.getElementById('wayfarerResult');if(el)el.innerHTML=`<div class="wayfarer-card"><div class="wf-name">${w[1]} ${w[2]}</div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div>`;}
+const CODEX_BESTIARY={
+  province:[
+    {name:'Mutated Wolves',hp:8,desc:'Pack predators that test the edge of torchlight before rushing a weak flank.'},
+    {name:'Twisted Guard',hp:12,desc:'Former sentries wrapped in rusted duty and spite, often found holding ruined thresholds.'},
+    {name:'Stitched Rat Horror',hp:16,desc:'A nest-creature sewn from vermin and field surgery; fast in vents, louder on open stone.'},
+    {name:'Red Harvest Horror',hp:24,desc:'A province tyrant grown from famine rituals, threshing whole lanes with hooked limbs.'}
+  ],
+  sea:[
+    {name:'Irradiated Corsair',hp:10,desc:'Sea-raiders hardened by salt, glow, and black-market tide medicine.'},
+    {name:'Brine Eel Swarm',hp:12,desc:'Needle-fast predators that strike in sheets from flooded cracks.'},
+    {name:'Undertow Archivist',hp:24,desc:'A drowned route-keeper that remembers every port it buried and fights like the tide itself.'},
+    {name:'Whalebone Regent',hp:28,desc:'A reef-throne sovereign armored in cathedral-sized remains and barnacle plate.'}
+  ],
+  wtw:[
+    {name:'District Mneme Hound',hp:10,desc:'Memory-fed trackers that hunt by grief signatures instead of scent.'},
+    {name:'Cathedral Rail Warden',hp:22,desc:'A transit executioner built to police impossible districts and punish wrong routes.'},
+    {name:'Mirror Docket Oracle',hp:20,desc:'A clerk-prophet that weaponizes perfect records and mirrored identity.'},
+    {name:'Ashcourt Colossus',hp:32,desc:'A court-furnace giant that turns verdicts into crushing thermal waves.'}
+  ],
+  planet:[
+    {name:'Dustspine Stalker',hp:9,desc:'A low-slung ambush beast that vanishes completely in bad weather.'},
+    {name:'Crater Widow Empress',hp:18,desc:'A colony-mother that rules crater nests with silk, poison, and patient geometry.'},
+    {name:'Sunslag Gorgon',hp:20,desc:'A heat-soaked ruin guardian whose stare locks joints before the killing blow.'},
+    {name:'Archive Devourer',hp:26,desc:'A bunker apex predator that eats records, maps, and then the people carrying them.'}
+  ],
+  galaxy:[
+    {name:'Voidwing Dragon',hp:20,desc:'A lane-hunting vacuum predator that folds around rail-light and broken satellites.'},
+    {name:'Plasma Hydra Prime',hp:24,desc:'A storm-breeding warform that multiplies pressure faster than crews can reposition.'},
+    {name:'Eclipse Harvester',hp:24,desc:'A star-lane execution engine that harvests light, routes, and civilian convoys.'},
+    {name:'Null Rail Executor',hp:24,desc:'A transit erasure weapon that deletes the wrong answer and everyone standing on it.'}
+  ]
+};
 function rollTradeRouteCodex(){const r=roll(10);let result='',title='';if(r<=2){title='Safe Route';result=pick(TRADE_SAFE_EVENTS);}else if(r<=4){title='Profitable Route';result=pick(TRADE_PROFITABLE_EVENTS);}else if(r<=6){title='Aggressive/Illegal Route';result=pick(TRADE_AGGRESSIVE_EVENTS);}else if(r<=8){title='Trade Obstacle';result=pick(TRADE_OBSTACLES);}else{title='Traveling Wayfarer';const w=pick(TRAVELING_WAYFARERS);result=`<strong>${w[1]} ${w[2]}</strong> (${w[0]}) — ${w[3]}`;}const el=document.getElementById('tradeResult');if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">d10 = ${r}: ${title}</div>${result}</div>`;}
 function rollTradeObstacle(){const r=roll(12),obs=TRADE_OBSTACLES[r-1]||TRADE_OBSTACLES[0];const el=document.getElementById('tradeResult');if(el)el.innerHTML=`<div class="peril-block"><strong style="color:var(--red2);">Trade Obstacle d12=${r}</strong><br>${obs}</div>`;}
 function rollGate(){const el=document.getElementById('gateResult');if(!el)return;el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;">${[['Gate Name',pick(GATE_NAME_FIRST)+' '+pick(GATE_NAME_LAST)],['Where',pick(GATE_WHERE)],['Made Of',pick(GATE_MATERIAL)],['Made By',pick(GATE_MAKER)],['What Happened',pick(GATE_HAPPENED)],['Leads To',pick(GATE_LEADS)],['Condition',pick(GATE_CONDITIONS)],['Function',pick(GATE_FUNCTIONS)],['Symptom on Entry',pick(GATE_SYMPTOMS)]].map(([l,v])=>`<div class="gate-block"><div class="gb-label">${l}</div><div class="gb-text">${v}</div></div>`).join('')}</div>`;}

@@ -3110,7 +3110,7 @@
             + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.12rem;">Status: ' + (active.explored ? 'Cleared' : 'Unexplored') + '</div>'
             + (active.explored
               ? '<span style="font-size:.72rem;color:var(--green2);">Already cleared.</span>'
-              : '<button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonHexNode(' + Number(active.id || 0) + ')">⚄ Resolve Selected Hex</button>');
+              : '<button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonHexNode(' + Number(active.id || 0) + ')">⚄ Explore Selected Hex (AD vs DD6)</button>');
         })()
       + '</div>'
       + '</div>';
@@ -3171,7 +3171,7 @@
           <div class="rb-title">Room ${index} — Puzzle</div>
           <div class="rb-text">${text}</div>
           ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : puzzleHtml}
-          ${!room.result ? `<div style="margin-top:.28rem;font-size:.72rem;color:var(--muted2);"><em>Alternatively, force the lock: </em><button class="btn btn-xs" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Force Lock (AD vs DD8)</button></div>` : ''}
+          ${!room.result ? `<div style="margin-top:.28rem;font-size:.72rem;color:var(--muted2);"><em>Alternatively, force the lock: </em><button class="btn btn-xs" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Force Lock (AD vs DD6)</button></div>` : ''}
         </div>`;
       } else {
         html += `
@@ -3179,7 +3179,7 @@
             <div class="rb-title">Room ${index} — ${type}</div>
             <div class="rb-text">${text}</div>
             ${room.result ? `<div class="rb-text" style="margin-top:.3rem;color:var(--gold2);">${room.result}</div>` : ''}
-            ${room.cleared ? '<div style="font-size:.74rem;color:var(--green2);margin-top:.2rem;">✓ Cleared</div>' : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Resolve Room (AD vs DD8)</button></div>`}
+            ${room.cleared ? '<div style="font-size:.74rem;color:var(--green2);margin-top:.2rem;">✓ Cleared</div>' : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Resolve Room (AD vs DD6)</button></div>`}
           </div>
         `;
       }
@@ -3285,9 +3285,9 @@
     if (room.cleared) return;
     const actionDie = (S.stats && S.stats.action) ? S.stats.action : 4;
     const actionRoll = explodingRoll(actionDie);
-    const dreadRoll = explodingRoll(8);
+    const dreadRoll = explodingRoll(6);
     const success = actionRoll.total >= dreadRoll.total;
-    let result = `AD${actionDie} ${actionRoll.total} vs DD8 ${dreadRoll.total}. `;
+    let result = `AD${actionDie} ${actionRoll.total} vs DD6 ${dreadRoll.total}. `;
     if (success) {
       const loot = rollSeaDungeonLoot();
       data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };

@@ -14592,11 +14592,27 @@ function openLostCityBuildingHexcrawl(col,row){
     var actionHtml='';
     if(activeRoom){
       actionHtml=activeRoom.cleared
-        ? '<span style="font-size:.74rem;color:var(--green2);">✓ Cleared</span>'
+        ? '<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;margin-top:.3rem;"><span style="font-size:.74rem;color:var(--green2);">✓ Cleared</span></div>'
         : '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem;">'
           + '<button class="btn btn-xs btn-teal" onclick="lcResolveRoom('+col+','+row+','+Number(activeRoom.idx-1)+')">🔍 Search Building</button>'
           + '<button class="btn btn-xs btn-warn" onclick="lcTriggerTrap('+col+','+row+','+Number(activeRoom.idx-1)+')">🜸 Search for Trap</button>'
           + '</div>';
+    }
+    // Build navigation buttons for all currently unlocked hex nodes
+    var navHtml='';
+    var unlockedCount=Number(crawl.unlockedRooms||1);
+    var navItems=(crawl.nodes||[]).filter(function(n){return Number(n.id)<unlockedCount;}).map(function(n){
+      var r2=crawl.rooms[Number(n.roomIndex||0)]||{};
+      var isActive=Number(n.id)===Number(crawl.activeNodeId);
+      var btnCls=isActive?'btn btn-xs btn-gold':(r2.cleared?'btn btn-xs':'btn btn-xs btn-primary');
+      var label='Hex '+(Number(n.id)+1)+': '+(r2.kind||'Area')+(r2.cleared?' ✓':'');
+      return '<button class="'+btnCls+'" onclick="lcMoveToHexNode('+col+','+row+','+Number(n.id)+')">'+label+'</button>';
+    });
+    if(navItems.length>1){
+      navHtml='<div class="lc-block" style="border-color:rgba(224,128,192,.25);margin-top:.3rem;">'
+        +'<div class="lb-label" style="color:#d090c0;">Unlocked Hexes — Move to Area</div>'
+        +'<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.25rem;">'+navItems.join('')+'</div>'
+        +'</div>';
     }
     openModal('Lost City Building: '+hex.name,
       '<div style="font-size:.83rem;color:var(--text2);line-height:1.65;">'
@@ -14605,8 +14621,9 @@ function openLostCityBuildingHexcrawl(col,row){
       +'<div class="lc-block" style="border-color:rgba(224,128,192,.35);margin-top:.3rem;">'
       +'<div class="lb-label" style="color:#d090c0;">Lost City District Hexcrawl</div>'
       +'<svg viewBox="0 0 420 260" style="width:100%;height:auto;display:block;border:1px solid var(--border2);background:linear-gradient(180deg,rgba(20,10,26,.92),rgba(8,8,14,.96));margin-top:.2rem;">'+lines+nodeSvg+'</svg>'
-      +'<div style="font-size:.74rem;color:var(--muted2);margin-top:.24rem;">Click a hex to inspect it, then resolve room actions below.</div>'
+      +'<div style="font-size:.74rem;color:var(--muted2);margin-top:.24rem;">Click a hex on the map or use the buttons below to move between unlocked areas.</div>'
       +'</div>'
+      +navHtml
       +(activeRoom?('<div class="lc-block" style="border-color:rgba(224,128,192,.35);margin-top:.3rem;">'
         +'<div class="lb-label" style="color:#d090c0;">Hex '+String(Number(crawl.activeNodeId)+1)+' — '+String(activeRoom.kind||'Room')+'</div>'
         +'<div style="font-size:.78rem;color:var(--text2);line-height:1.52;margin-top:.18rem;">'+String(activeRoom.entryText||'A dead district opens around you.')+'</div>'
@@ -14624,6 +14641,15 @@ function lcSelectHexNode(col,row,nodeId){
     if(!node)return;
     hex.data.hexcrawl.activeNodeId=Number(node.id||0);
   lcRollEncounter(col,row,Number(node.roomIndex||0),true);
+}
+
+function lcMoveToHexNode(col,row,nodeId){
+  const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
+  if(!hex||!hex.data||!hex.data.hexcrawl||!Array.isArray(hex.data.hexcrawl.nodes))return;
+  const node=hex.data.hexcrawl.nodes.find(function(n){return Number(n.id)===Number(nodeId);});
+  if(!node)return;
+  hex.data.hexcrawl.activeNodeId=Number(node.id||0);
+  openLostCityBuildingHexcrawl(col,row);
 }
 
 function lcResolveRoom(col,row,idx){

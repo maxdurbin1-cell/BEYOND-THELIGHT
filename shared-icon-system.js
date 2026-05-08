@@ -321,8 +321,8 @@
       + '<span style="font-size:.6rem;color:var(--muted2);">' + escHtml(omen) + '</span>'
       + '</div>'
         + '<div style="margin-top:.28rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">'
-        + '<button class="btn btn-xs btn-primary" data-wayfarer-portrait-gen onclick="window.SharedIconSystem.launchAiCharacterGenerator(\"wayfarerVisualPanel\");" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">⚡ Generate Portrait</button>'
-        + '<button class="btn btn-xs" data-wayfarer-ai-character-gen onclick="window.SharedIconSystem.launchAiCharacterGenerator(\"wayfarerVisualPanel\",window.S||{});" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">🤖 AI Character</button>'
+        + '<button class="btn btn-xs btn-primary" data-wayfarer-portrait-gen onclick="window.SharedIconSystem.launchAiCharacterGenerator(\'wayfarerVisualPanel\');" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">⚡ Generate Portrait</button>'
+        + '<button class="btn btn-xs" data-wayfarer-ai-character-gen onclick="window.SharedIconSystem.launchAiCharacterGenerator(\'wayfarerVisualPanel\',window.S||{});" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">🤖 AI Character</button>'
         + '</div>'
       + '</div>'
       + '</div>';

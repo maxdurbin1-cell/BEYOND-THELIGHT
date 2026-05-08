@@ -25,6 +25,13 @@
     sfxVolume: 0.6,
     ambienceVolume: 0.45,
     currentTab: 'character',
+    assetPack: {
+      enabled: true,
+      manifestUrl: '/assets/audio/cc0-pack.json',
+      status: 'idle',
+      loadedCount: 0,
+      loadedIds: []
+    },
 
     // Audio cache
     audioContext: null,
@@ -59,6 +66,7 @@
         
         this.createSoundLibrary();
         this.initialized = true;
+        this.loadOptionalAssetPack();
         console.log('🔊 Audio Manager initialized');
         console.log('🔊 Audio Context State:', this.audioContext.state);
       } catch (e) {
@@ -94,6 +102,127 @@
         return this.audioCache[id];
       }
       return null;
+    },
+
+    async decodeAudioArrayBuffer(arrayBuffer) {
+      if (!this.audioContext || !arrayBuffer) return null;
+      try {
+        return await this.audioContext.decodeAudioData(arrayBuffer.slice(0));
+      } catch (_err) {
+        return null;
+      }
+    },
+
+    async fetchAudioBuffer(url) {
+      if (!url || !this.audioContext) return null;
+      const res = await fetch(String(url), { cache: 'force-cache' });
+      if (!res.ok) throw new Error('Audio fetch failed: ' + String(url));
+      const ab = await res.arrayBuffer();
+      const decoded = await this.decodeAudioArrayBuffer(ab);
+      if (!decoded) throw new Error('Audio decode failed: ' + String(url));
+      return decoded;
+    },
+
+    getConfiguredAssetPackUrl() {
+      var fromGlobal = '';
+      if (typeof window !== 'undefined' && window.AUDIO_ASSET_PACK_URL) {
+        fromGlobal = String(window.AUDIO_ASSET_PACK_URL || '').trim();
+      }
+      var fromStorage = '';
+      try {
+        fromStorage = String(localStorage.getItem('beyond-light-audio-asset-pack-url') || '').trim();
+      } catch (_err) {}
+      return fromStorage || fromGlobal || this.assetPack.manifestUrl;
+    },
+
+    isAssetPackEnabled() {
+      if (!this.assetPack || this.assetPack.enabled === false) return false;
+      try {
+        var flag = localStorage.getItem('beyond-light-audio-asset-pack-enabled');
+        if (flag === '0' || flag === 'false') return false;
+      } catch (_err) {}
+      return true;
+    },
+
+    async loadAssetPack(manifestUrl) {
+      if (!this.audioContext) return { ok: false, error: 'Audio context unavailable.' };
+      var url = String(manifestUrl || '').trim();
+      if (!url) return { ok: false, error: 'Missing manifest URL.' };
+      this.assetPack.status = 'loading';
+      this.assetPack.loadedCount = 0;
+      this.assetPack.loadedIds = [];
+      try {
+        var res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Manifest fetch failed (' + String(res.status) + ')');
+        var manifest = await res.json();
+        var entries = Array.isArray(manifest && manifest.entries) ? manifest.entries : [];
+        for (var i = 0; i < entries.length; i++) {
+          var entry = entries[i] || {};
+          var id = String(entry.id || '').trim();
+          var src = String(entry.src || '').trim();
+          if (!id || !src) continue;
+          try {
+            var buffer = await this.fetchAudioBuffer(src);
+            if (!buffer) continue;
+            this.audioCache[id] = buffer;
+            this.assetPack.loadedIds.push(id);
+          } catch (_entryErr) {
+            // Keep procedural fallback for missing/blocked assets.
+          }
+        }
+        this.assetPack.status = 'ready';
+        this.assetPack.loadedCount = this.assetPack.loadedIds.length;
+        this.assetPack.manifestUrl = url;
+        if (this.assetPack.loadedCount > 0) {
+          console.log('🔊 Loaded optional asset pack tracks:', this.assetPack.loadedCount);
+        } else {
+          console.log('🔊 Asset pack manifest loaded with 0 decoded tracks; using procedural fallback.');
+        }
+        return { ok: true, loaded: this.assetPack.loadedCount, manifestUrl: url };
+      } catch (err) {
+        this.assetPack.status = 'error';
+        return { ok: false, error: String(err && err.message ? err.message : err) };
+      }
+    },
+
+    loadOptionalAssetPack() {
+      if (!this.isAssetPackEnabled()) {
+        this.assetPack.status = 'disabled';
+        return;
+      }
+      var url = this.getConfiguredAssetPackUrl();
+      if (!url) {
+        this.assetPack.status = 'idle';
+        return;
+      }
+      var self = this;
+      setTimeout(function () {
+        self.loadAssetPack(url).then(function (out) {
+          if (!out || !out.ok) {
+            console.log('🔊 Optional asset pack unavailable; procedural audio active.');
+          }
+        }).catch(function () {
+          console.log('🔊 Optional asset pack failed; procedural audio active.');
+        });
+      }, 20);
+    },
+
+    setAssetPackEnabled(enabled) {
+      this.assetPack.enabled = !!enabled;
+      try {
+        localStorage.setItem('beyond-light-audio-asset-pack-enabled', this.assetPack.enabled ? '1' : '0');
+      } catch (_err) {}
+      if (this.assetPack.enabled) this.loadOptionalAssetPack();
+    },
+
+    setAssetPackManifestUrl(url) {
+      var next = String(url || '').trim();
+      if (!next) return;
+      this.assetPack.manifestUrl = next;
+      try {
+        localStorage.setItem('beyond-light-audio-asset-pack-url', next);
+      } catch (_err) {}
+      this.loadOptionalAssetPack();
     },
 
     stopAmbience(fadeOut = true) {
@@ -727,6 +856,16 @@
 
     setSFXVolume(value) {
       this.sfxVolume = Math.max(0, Math.min(1, value));
+    },
+
+    setAmbienceVolume(value) {
+      this.ambienceVolume = Math.max(0, Math.min(1, value));
+      if (Array.isArray(this.currentAmbiences)) {
+        this.currentAmbiences.forEach((entry) => {
+          if (!entry || !entry.gainNode) return;
+          entry.gainNode.gain.value = this.masterVolume * this.ambienceVolume;
+        });
+      }
     },
 
     toggleAudio(enabled) {

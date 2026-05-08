@@ -42,6 +42,10 @@
     musicPlayers: {},
     musicProfiles: {},
     musicVariantGroups: {},
+    musicTrackMeta: {},
+    musicSuiteStyles: {},
+    scenarioSubstyleRules: [],
+    tabAlbumStyles: {},
     ambienceProfiles: {},
     scenarioProfiles: {},
     recentMusicIds: [],
@@ -61,6 +65,11 @@
     formatMusicLabel(musicId) {
       var raw = String(musicId || '').trim();
       if (!raw) return 'No track active';
+      var meta = this.musicTrackMeta && this.musicTrackMeta[raw] ? this.musicTrackMeta[raw] : null;
+      if (meta && meta.title) {
+        var suite = meta.suiteLabel ? String(meta.suiteLabel) + ' · ' : '';
+        return suite + String(meta.title);
+      }
       return raw
         .replace(/^music[-_]?/i, '')
         .replace(/-v(\d+)$/i, ' · Variant $1')
@@ -158,8 +167,8 @@
       return baseId ? [baseId] : [];
     },
 
-    pickMusicVariant(musicId, excludeId) {
-      const pool = this.getMusicVariantPool(musicId).filter(Boolean);
+    pickMusicVariant(musicId, excludeId, preferredPool) {
+      const pool = (Array.isArray(preferredPool) && preferredPool.length ? preferredPool.slice() : this.getMusicVariantPool(musicId)).filter(Boolean);
       if (!pool.length) return { baseId: String(musicId || ''), chosenId: String(musicId || ''), pool: [] };
       const recent = Array.isArray(this.recentMusicIds) ? this.recentMusicIds.slice(0, 3) : [];
       let candidates = pool.filter((id) => id !== excludeId && recent.indexOf(id) === -1);
@@ -171,14 +180,21 @@
 
     scheduleMusicRotation(baseId, chosenId, bufferDuration) {
       this.clearMusicRotationTimer();
-      const pool = this.getMusicVariantPool(baseId);
+      const pool = Array.isArray(this.currentMusicPool) && this.currentMusicPool.length
+        ? this.currentMusicPool.slice()
+        : this.getMusicVariantPool(baseId);
       if (!baseId || pool.length < 2 || !this.musicConsent || !this.enabled) return;
       const seconds = Math.max(20, Math.round(Number(bufferDuration || 18) + 1));
       const self = this;
       this.currentMusicRotationTimer = setTimeout(function () {
         if (!self.musicConsent || !self.enabled) return;
         if (String(self.currentMusicBaseId || '') !== String(baseId || '')) return;
-        self.playMusic(baseId, true, { forceVariantChange: true, excludeId: chosenId, preserveScenario: true });
+        self.playMusic(baseId, true, {
+          forceVariantChange: true,
+          excludeId: chosenId,
+          preserveScenario: true,
+          variantPool: pool.slice()
+        });
       }, seconds * 1000);
     },
 
@@ -436,7 +452,7 @@
       }
 
       try {
-        const selection = this.pickMusicVariant(baseId, options.excludeId);
+        const selection = this.pickMusicVariant(baseId, options.excludeId, options.variantPool);
         const chosenId = selection.chosenId;
         const musicData = this.getBuffer(chosenId);
         if (!musicData) {
@@ -465,7 +481,12 @@
             return;
           }
           self.currentMusic = null;
-          self.playMusic(baseId, true, { forceVariantChange: true, excludeId: chosenId, preserveScenario: true });
+          self.playMusic(baseId, true, {
+            forceVariantChange: true,
+            excludeId: chosenId,
+            preserveScenario: true,
+            variantPool: Array.isArray(self.currentMusicPool) ? self.currentMusicPool.slice() : undefined
+          });
         };
         source.start(0);
 
@@ -921,19 +942,22 @@
         });
       };
 
+      this.musicTrackMeta = {};
+      this.musicSuiteStyles = {};
+
       var suiteDefinitions = [
-        { baseId: 'music-suite-character', seed: 'music-character', bias: 0 },
-        { baseId: 'music-suite-map', seed: 'music-map', bias: -2 },
-        { baseId: 'music-suite-combat', seed: 'music-combat', bias: 3 },
-        { baseId: 'music-suite-caravan', seed: 'music-caravan', bias: 1 },
-        { baseId: 'music-suite-holding', seed: 'music-caravan', bias: -1 },
-        { baseId: 'music-suite-missions', seed: 'music-missions', bias: 2 },
-        { baseId: 'music-suite-jobs', seed: 'music-missions', bias: 4 },
-        { baseId: 'music-suite-province', seed: 'music-wilderness', bias: -3 },
-        { baseId: 'music-suite-merchant', seed: 'music-bazaar', bias: 5 },
-        { baseId: 'music-suite-sea', seed: 'music-sea', bias: -4 },
-        { baseId: 'music-suite-space', seed: 'music-space', bias: 6 },
-        { baseId: 'music-suite-planet', seed: 'music-starship', bias: 2 }
+        { baseId: 'music-suite-character', seed: 'music-character', bias: 0, suiteLabel: 'Character Suite', styles: ['Campfire Chronicle', 'Quiet Resolve', 'Dreaming Relic', 'Heroic Thread', 'Velvet Memory'] },
+        { baseId: 'music-suite-map', seed: 'music-map', bias: -2, suiteLabel: 'Map Suite', styles: ['Road Atlas', 'Frontier Cartography', 'Fog Of Routes', 'Landmark Echo', 'Surveyor Dawn'] },
+        { baseId: 'music-suite-combat', seed: 'music-combat', bias: 3, suiteLabel: 'Combat Suite', styles: ['Iron Clash', 'Bloodclock March', 'Breakline Surge', 'Ashen Counter', 'No Mercy Cadence'] },
+        { baseId: 'music-suite-caravan', seed: 'music-caravan', bias: 1, suiteLabel: 'Caravan Suite', styles: ['Folk Caravan', 'Dustroad Waltz', 'Wheelfire Ballad', 'Camp Lantern Reel', 'Nomad Overture'] },
+        { baseId: 'music-suite-holding', seed: 'music-caravan', bias: -1, suiteLabel: 'Holding Suite', styles: ['Council Hall', 'Hearth Ledger', 'Banner Court', 'Foundry Noon', 'Steward Dawn'] },
+        { baseId: 'music-suite-missions', seed: 'music-missions', bias: 2, suiteLabel: 'Missions Suite', styles: ['Contract Pulse', 'Silent Objective', 'Pressure Window', 'Final Brief', 'After Action'] },
+        { baseId: 'music-suite-jobs', seed: 'music-missions', bias: 4, suiteLabel: 'Jobs Suite', styles: ['Clockwork Errand', 'Street Contract', 'Late Shift Steel', 'Deadline Alley', 'Cargo Neon'] },
+        { baseId: 'music-suite-province', seed: 'music-wilderness', bias: -3, suiteLabel: 'Province Suite', styles: ['Province Marches', 'Thornwood Patrol', 'Stonepath Ballad', 'Harvest Horizon', 'Old Road Anthem'] },
+        { baseId: 'music-suite-merchant', seed: 'music-bazaar', bias: 5, suiteLabel: 'Merchant Suite', styles: ['Court Merchant', 'Silk Ledger', 'Market Intrigue', 'Coinhouse Parade', 'Broker Twilight'] },
+        { baseId: 'music-suite-sea', seed: 'music-sea', bias: -4, suiteLabel: 'Sea Suite', styles: ['Abyssal Sea', 'Saltwake Hymn', 'Harbor Moon', 'Stormglass Voyage', 'Keelfire Drift'] },
+        { baseId: 'music-suite-space', seed: 'music-space', bias: 6, suiteLabel: 'Space Suite', styles: ['Orbital Noir', 'Voidline Pulse', 'Docking Shadow', 'Starlane Velvet', 'Signal Dust'] },
+        { baseId: 'music-suite-planet', seed: 'music-starship', bias: 2, suiteLabel: 'Planet Suite', styles: ['Planetfall Frontier', 'Red Horizon Relay', 'Crater Wind', 'Survey Moonlight', 'Dust Orbit'] }
       ];
       suiteDefinitions.forEach((entry, suiteIndex) => {
         var seedProfile = this.musicProfiles[entry.seed] || this.musicProfiles['music-character'];
@@ -943,7 +967,48 @@
           suiteVariants.push(makeSuiteTrackProfile(seedProfile, Number(entry.bias || 0), suiteIndex + si * 2));
         }
         this.registerMusicVariants(entry.baseId, suiteVariants);
+
+        var ids = this.getMusicVariantPool(entry.baseId);
+        var styleMap = {};
+        var styleCounter = {};
+        ids.forEach((trackId, ti) => {
+          var styleName = entry.styles[Math.floor(ti / 2) % entry.styles.length] || entry.styles[0] || 'Suite Core';
+          styleMap[styleName] = styleMap[styleName] || [];
+          styleMap[styleName].push(trackId);
+          styleCounter[styleName] = (styleCounter[styleName] || 0) + 1;
+          this.musicTrackMeta[trackId] = {
+            suite: entry.baseId,
+            suiteLabel: entry.suiteLabel,
+            style: styleName,
+            title: styleName + ' · Cue ' + styleCounter[styleName]
+          };
+        });
+        this.musicSuiteStyles[entry.baseId] = styleMap;
       });
+
+      this.tabAlbumStyles = {
+        character: 'Campfire Chronicle',
+        map: 'Province Marches',
+        combat: 'Iron Clash',
+        caravan: 'Folk Caravan',
+        holding: 'Council Hall',
+        missions: 'Contract Pulse',
+        jobs: 'Clockwork Errand'
+      };
+
+      this.scenarioSubstyleRules = [
+        { keywords: ['merchant', 'market', 'bazaar', 'trade', 'vendor'], suite: 'music-suite-merchant', style: 'Court Merchant' },
+        { keywords: ['court', 'noble', 'palace', 'council'], suite: 'music-suite-merchant', style: 'Silk Ledger' },
+        { keywords: ['caravan', 'wagon', 'road'], suite: 'music-suite-caravan', style: 'Folk Caravan' },
+        { keywords: ['province', 'plains', 'forest', 'mountain', 'wilds'], suite: 'music-suite-province', style: 'Province Marches' },
+        { keywords: ['harbor', 'port', 'dock'], suite: 'music-suite-sea', style: 'Harbor Moon' },
+        { keywords: ['sea', 'ocean', 'island', 'reef', 'sail'], suite: 'music-suite-sea', style: 'Abyssal Sea' },
+        { keywords: ['storm', 'maelstrom', 'tempest'], suite: 'music-suite-sea', style: 'Stormglass Voyage' },
+        { keywords: ['space', 'void', 'station', 'orbit'], suite: 'music-suite-space', style: 'Orbital Noir' },
+        { keywords: ['starship', 'command', 'bridge', 'hub'], suite: 'music-suite-space', style: 'Docking Shadow' },
+        { keywords: ['planet', 'surface', 'biome', 'frontier', 'unknown world'], suite: 'music-suite-planet', style: 'Planetfall Frontier' },
+        { keywords: ['combat', 'battle', 'enemy', 'lair'], suite: 'music-suite-combat', style: 'Iron Clash' }
+      ];
 
       this.ambienceProfiles = {
         'amb-wind': { noiseColor: 'brown', lowCut: 0.992, motionHz: 0.08, hiss: 0.2 },
@@ -1121,9 +1186,44 @@
       if (key.includes('desert') || key.includes('oasis') || key.includes('bazaar') || key.includes('sand')) return this.scenarioProfiles['desert'];
       if (key.includes('dungeon') || key.includes('tomb') || key.includes('lair') || key.includes('undercity')) return this.scenarioProfiles['dungeon corridors'];
       if (key.includes('ritual') || key.includes('chapel') || key.includes('tower') || key.includes('haunted')) return this.scenarioProfiles['ritual'];
-      if (key.includes('combat') || key.includes('enemy')) return { music: 'music-combat', ambiences: ['amb-weapon-fighting'] };
+      if (key.includes('combat') || key.includes('enemy')) return { music: 'music-suite-combat', ambiences: ['amb-weapon-fighting'] };
       if (key.includes('city') || key.includes('metropolis') || key.includes('town') || key.includes('village')) return this.scenarioProfiles['city'];
       return this.scenarioProfiles['wilds'];
+    },
+
+    resolveSuiteStylePool(suiteId, styleName) {
+      const suite = String(suiteId || '').trim();
+      if (!suite) return [];
+      const styleMap = this.musicSuiteStyles && this.musicSuiteStyles[suite] ? this.musicSuiteStyles[suite] : null;
+      if (!styleMap) return this.getMusicVariantPool(suite);
+      const style = String(styleName || '').trim();
+      if (style && Array.isArray(styleMap[style]) && styleMap[style].length) return styleMap[style].slice();
+      const firstKey = Object.keys(styleMap)[0];
+      return firstKey && Array.isArray(styleMap[firstKey]) ? styleMap[firstKey].slice() : this.getMusicVariantPool(suite);
+    },
+
+    resolveScenarioMusicSelection(profileMusic, scenarioName) {
+      const key = normalizeScenarioKey(scenarioName || '');
+      var suite = String(profileMusic || '').trim();
+      var style = '';
+      const rules = Array.isArray(this.scenarioSubstyleRules) ? this.scenarioSubstyleRules : [];
+      for (var i = 0; i < rules.length; i++) {
+        const rule = rules[i] || {};
+        const words = Array.isArray(rule.keywords) ? rule.keywords : [];
+        const matched = words.some(function (word) {
+          const needle = String(word || '').trim();
+          return needle && key.indexOf(needle) >= 0;
+        });
+        if (!matched) continue;
+        if (rule.suite) suite = String(rule.suite);
+        if (rule.style) style = String(rule.style);
+        break;
+      }
+      if (!suite) return { musicId: '', variantPool: [] };
+      return {
+        musicId: suite,
+        variantPool: this.resolveSuiteStylePool(suite, style)
+      };
     },
 
     playScenarioAudio(name, options = {}) {
@@ -1132,7 +1232,10 @@
       const profile = this.resolveScenarioProfile(name);
       if (!profile) return;
       this.currentScenario = String(name || '');
-      if (profile.music) this.playMusic(profile.music, options.fadeIn !== false);
+      if (profile.music) {
+        const selection = this.resolveScenarioMusicSelection(profile.music, name);
+        this.playMusic(selection.musicId || profile.music, options.fadeIn !== false, { variantPool: selection.variantPool });
+      }
       this.stopAmbience(options.fadeOut !== false);
       const ambienceIds = Array.isArray(options.ambiences) && options.ambiences.length
         ? options.ambiences
@@ -1165,7 +1268,9 @@
       };
 
       const musicId = musicMap[tabId] || 'music-suite-character';
-      this.playMusic(musicId, true);
+      const styleName = this.tabAlbumStyles && this.tabAlbumStyles[tabId] ? this.tabAlbumStyles[tabId] : '';
+      const variantPool = this.resolveSuiteStylePool(musicId, styleName);
+      this.playMusic(musicId, true, { variantPool: variantPool });
 
       // Keep ambiences in sync with major tabs when explicit scenario context is not set.
       if (!this.currentScenario) {

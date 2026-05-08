@@ -14530,7 +14530,6 @@ function openLostCityBuildingHexcrawl(col,row){
       const LC_TRAPS=['Pressure plate triggers a sealed gas vent (Body vs DD8 or Irradiated).','Tripwire releases a wall panel — roll Control vs DD6 or take 3 damage.','Magnetic mine array — metallic armor wearers check Defend vs DD10.','Rigged door detonates a charge: AD vs DD8 or Weakened.','Automated seeker turret activates — first action costs 1 extra AP.','Weight-sensitive floor panel collapses: Body vs DD8 or fall 1 floor (4 damage + Irradiated).'];
       const LC_LOOT_ITEMS=['Lost City Fuel Rod (poisonous rods, sell for 200₵)','Radiothermal Canister (powers caravan drive cells)','Pre-fall Currency Cache (roll 3d6 × 10 credits)','Builder\'s Blueprint (rare schematic)','Irradiated Power Cell (functions as a grenade equivalent)','Sealed Medkit (heals 6 HP, removes Irradiated)','Pre-fall Comms Unit (repair to active use)','Salvage Circuit Board (sell 150₵)'];
       const LC_ENTRY_TEXTS=['An avenue of broken tram-lines vanishes into pink dust. A cracked station map still glows beneath your boots.','This hex smells of hot copper and flooded concrete. Somewhere below, pumps are still trying to work.','An apartment block leans over the street like a watchtower. Curtains fossilized in ash sway without wind.','A public archive has burst open here. Wet pages cling to shattered terminals and half-melted statues.','This district was once a market court. Glass canopies glitter under soot while old coin-dispensers click in the dark.','Collapsed skybridges choke this hex. The sound of your steps comes back a beat too late.'];
-      const LC_STRANGE_ITEMS=['A humming transit sigil cut from black glass.','A memory wafer labeled only with a child\'s initials.','A prayer coin stamped with a city that no longer exists.','A bent signal key that still opens something nearby.','A voice-locked brass capsule repeating one broken sentence.','A sealed ration tin filled with luminous seeds instead of food.'];
       const LC_ENCOUNTERS=['A scouting pack of Irradiated Ones slinks between storefronts.','Stitched rat horrors burst from a collapsed vent.','A static-haunted security drone wakes and sweeps the lane.','A scavenger crew shadows you from a high walkway.','A blind tunnel beast drags chains through the underpass.','A civic defense turret starts reacquiring old target data.'];
       const LC_SEARCH_FINDS=['You uncover an intact builder locker behind collapsed masonry.','A collapsed office reveals a dead courier and a usable route badge.','A maintenance crawlspace leads into a dry safe spot for one phase.','An upper-floor apartment still holds sealed travel papers and a map fragment.','A storefront false wall hides a stash wrapped in municipal cloth.','You find a survivor\'s cache with notes about nearby traps and patrol timing.'];
       const roomCount=6;
@@ -14538,7 +14537,7 @@ function openLostCityBuildingHexcrawl(col,row){
       const coords=[{q:0,r:0},{q:1,r:0},{q:0,r:1},{q:-1,r:1},{q:-1,r:0},{q:0,r:-1}];
       const rooms=Array.from({length:roomCount},function(_,i){
         var kind=types[i]||types[types.length-1];
-        return{idx:i+1,kind:kind,cleared:false,result:'',entryText:pick(LC_ENTRY_TEXTS),trap:pick(LC_TRAPS),loot:pick(LC_LOOT_ITEMS),strangeItem:pick(LC_STRANGE_ITEMS),encounter:pick(LC_ENCOUNTERS),searchFind:pick(LC_SEARCH_FINDS),lootClaimed:false,strangeClaimed:false,encounterResolved:false};
+        return{idx:i+1,kind:kind,cleared:false,result:'',entryText:pick(LC_ENTRY_TEXTS),trap:pick(LC_TRAPS),encounter:pick(LC_ENCOUNTERS),searchFind:pick(LC_SEARCH_FINDS)};
       });
       hex.data.hexcrawl={
         currentBuilding:pick(LC_BUILDINGS),
@@ -14754,30 +14753,6 @@ function lcPressOn(col,row,idx){
     if(typeof renderQP==='function')renderQP('combat');
   }
 
-  function lcFindStrangeItem(col,row,idx){
-    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
-    if(!hex||!hex.data||!hex.data.hexcrawl)return;
-    const room=hex.data.hexcrawl.rooms[idx];
-    if(!room||room.strangeClaimed)return;
-    room.strangeClaimed=true;
-    if(typeof addToBackpack==='function')try{addToBackpack(room.strangeItem);}catch(_){}
-    room.result=(room.result?room.result+' ':'')+'Strange item recovered: '+room.strangeItem;
-    if(typeof showNotif==='function')showNotif('Recovered strange item: '+room.strangeItem,'good');
-    openLostCityBuildingHexcrawl(col,row);
-  }
-
-  function lcClaimLoot(col,row,idx){
-    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
-    if(!hex||!hex.data||!hex.data.hexcrawl)return;
-    const room=hex.data.hexcrawl.rooms[idx];
-    if(!room||room.lootClaimed)return;
-    room.lootClaimed=true;
-    if(typeof addToBackpack==='function')try{addToBackpack(room.loot);}catch(_){}
-    room.result=(room.result?room.result+' ':'')+'Loot claimed: '+room.loot;
-    if(typeof showNotif==='function')showNotif('Lost City loot: '+room.loot,'good');
-    openLostCityBuildingHexcrawl(col,row);
-  }
-
 function lcTriggerTrap(col,row,idx){
     const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
     if(!hex||!hex.data||!hex.data.hexcrawl)return;
@@ -14792,32 +14767,6 @@ function lcTriggerTrap(col,row,idx){
       if(typeof showNotif==='function')showNotif('Trap triggered!','warn');
     }
     openModal('Trap Check',`<div style="font-size:.83rem;color:var(--text2);">AD${ad} ${a.total} vs DD8 ${d.total} — <strong style="color:${success?'var(--green2)':'var(--red2)'};">${resultMsg}</strong></div>`);
-}
-
-function lcSearchHiddenRoom(col,row){
-    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
-    if(!hex||!hex.data||!hex.data.hexcrawl)return;
-    const crawl=hex.data.hexcrawl;
-    const ad=(S.stats&&S.stats.adventure||S.stats&&S.stats.action)||4;
-    const a=explodingRoll(ad),d=explodingRoll(6);
-    const success=a.total>=d.total;
-    crawl.hiddenSearched=true;
-    if(success){
-      const hiddenLoot=(hex.data._lcLoot||['Sealed Cache'])[Math.floor(Math.random()*(hex.data._lcLoot||['Sealed Cache']).length)];
-      crawl.hiddenResult='Hidden room found! '+hiddenLoot+' recovered.';
-      if(typeof addToBackpack==='function')try{addToBackpack(hiddenLoot);}catch(_){}
-      if(typeof showNotif==='function')showNotif('Hidden room revealed: '+hiddenLoot+'.','good');
-    }else{
-      crawl.hiddenResult='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — No hidden rooms found.';
-    }
-    openLostCityBuildingHexcrawl(col,row);
-}
-
-function hex_lc_reset(col,row){
-    const hex=mapData.find(function(h){ return h&&h.col===col&&h.row===row&&h.type==='lostcity'; });
-    if(!hex||!hex.data)return;
-    delete hex.data.hexcrawl;
-    openLostCityBuildingHexcrawl(col,row);
 }
 
 function generateTask(){

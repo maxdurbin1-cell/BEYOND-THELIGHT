@@ -4475,6 +4475,10 @@
       } else if (tabId === "holding") {
         mountHoldingPanel();
         renderHoldingUI();
+      } else if (tabId === "trophies") {
+        if (window.TrophySystem && typeof window.TrophySystem.renderTab === 'function') {
+          window.TrophySystem.renderTab();
+        }
       }
       return out;
     };
@@ -4485,6 +4489,9 @@
     mountNewFeaturePanels();
     renderCaravanUI();
     renderHoldingUI();
+    if (window.TrophySystem && typeof window.TrophySystem.renderTab === 'function') {
+      window.TrophySystem.renderTab();
+    }
     renderExtraTraits();
     renderCombatMap();
     renderCombatOptions();
@@ -5164,6 +5171,7 @@
     banner.style.opacity = '1';
     clearTimeout(banner._hideTimer);
     banner._hideTimer = setTimeout(function () { banner.style.opacity = '0'; }, 3800);
+    renderTrophyTab();
   }
 
   function checkTrophy(id) {
@@ -5203,11 +5211,24 @@
     return html;
   }
 
+  function renderTrophyTab() {
+    var host = document.getElementById('trophyTabPanel');
+    if (!host) return;
+    host.innerHTML = buildTrophyPanelHtml();
+  }
+
   // Public interface
   window.TrophySystem = {
     award: awardTrophy,
     check: checkTrophy,
     buildPanelHtml: buildTrophyPanelHtml,
+    renderTab: renderTrophyTab,
     defs: TROPHY_DEFS
   };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderTrophyTab);
+  } else {
+    renderTrophyTab();
+  }
 }());

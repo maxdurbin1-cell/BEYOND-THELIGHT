@@ -341,6 +341,15 @@
               <label>Now Playing</label>
               <div id="settingsNowPlaying" class="campaign-muted">No track active</div>
             </div>
+            <div class="setting-row" style="align-items:flex-start;">
+              <label>Audio Credits</label>
+              <div style="display:flex;flex-direction:column;gap:.25rem;min-width:0;">
+                <div class="campaign-muted" style="font-size:.72rem;">Auto-generated from the active audio manifest.</div>
+                <div id="settingsAudioCredits" class="campaign-muted" style="max-height:10.5rem;overflow:auto;border:1px solid var(--border2);background:var(--surface);padding:.45rem .5rem;min-width:16rem;">
+                  No external tracks loaded.
+                </div>
+              </div>
+            </div>
             <div class="setting-row">
               <label for="sfxVol">SFX Volume</label>
               <div class="volume-control">
@@ -717,6 +726,47 @@
     el.style.color = Settings.musicConsent ? 'var(--text2)' : 'var(--muted2)';
   }
 
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function refreshAudioCreditsPanel() {
+    const el = document.getElementById('settingsAudioCredits');
+    if (!el) return;
+    const audio = typeof window !== 'undefined' ? window.AudioManager : null;
+    const entries = audio && typeof audio.getAssetPackAttributionEntries === 'function'
+      ? audio.getAssetPackAttributionEntries()
+      : [];
+    if (!Array.isArray(entries) || !entries.length) {
+      el.innerHTML = '<div style="font-size:.74rem;color:var(--muted2);">No external tracks loaded.</div>';
+      return;
+    }
+    const rows = entries.map((entry) => {
+      const title = escapeHtml(entry.title || entry.id || 'Untitled');
+      const suite = escapeHtml(entry.suiteLabel || 'External');
+      const style = escapeHtml(entry.style || 'Unspecified');
+      const source = escapeHtml(entry.source || 'Unknown source');
+      const artist = escapeHtml(entry.artist || 'Unknown artist');
+      const license = escapeHtml(entry.license || 'Unspecified license');
+      const licenseUrl = String(entry.licenseUrl || '').trim();
+      const id = escapeHtml(entry.id || '');
+      const licenseHtml = licenseUrl
+        ? '<a href="' + escapeHtml(licenseUrl) + '" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:underline;">' + license + '</a>'
+        : license;
+      return '<div style="padding:.34rem 0;border-bottom:1px solid var(--border2);">'
+        + '<div style="font-size:.78rem;color:var(--text2);font-weight:700;">' + title + '</div>'
+        + '<div style="font-size:.67rem;color:var(--muted2);">' + suite + ' · ' + style + ' · ' + id + '</div>'
+        + '<div style="font-size:.67rem;color:var(--muted2);">' + source + ' · ' + artist + ' · ' + licenseHtml + '</div>'
+        + '</div>';
+    }).join('');
+    el.innerHTML = rows;
+  }
+
   function toggleGMReveal(kind) {
     if (kind === 'dc') {
       Settings.gmRevealDC = !Settings.gmRevealDC;
@@ -848,6 +898,7 @@
     Settings.save();
     document.getElementById('musicVolLabel').textContent = value + '%';
     refreshNowPlayingLabel();
+    refreshAudioCreditsPanel();
   }
   
   function setSFXVolume(value) {
@@ -1004,6 +1055,7 @@
   };
 
   window.addEventListener('beyond:now-playing-changed', refreshNowPlayingLabel);
+  window.addEventListener('beyond:audio-asset-pack-changed', refreshAudioCreditsPanel);
   
   // Ensure it's initialized immediately
   if (document.readyState !== 'loading') {

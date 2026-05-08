@@ -386,6 +386,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" onclick="switchTab('oracle',this)">Oracle</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" onclick="switchTab('storyline',this)">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" onclick="switchTab('factions',this)">Factions</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-trophies" id="tabnav-trophies" onclick="switchTab('trophies',this)">Trophies</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('raidtree',this)">Raid</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
@@ -1481,6 +1482,16 @@ select option{background:#0f1020;}
           <div style="font-size:.8rem;color:var(--muted2);">No completed missions yet.</div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- TROPHIES TAB -->
+<div class="tab-panel" id="tab-trophies">
+  <div id="trophyTabPanel" style="display:grid;grid-template-columns:1fr;gap:.65rem;">
+    <div class="card">
+      <div class="section-title">Trophies</div>
+      <div style="font-size:.82rem;color:var(--muted2);">Loading trophy progression…</div>
     </div>
   </div>
 </div>

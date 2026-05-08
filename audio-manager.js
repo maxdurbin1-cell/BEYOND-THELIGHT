@@ -97,6 +97,44 @@
       return bits.join(' | ');
     },
 
+    getAssetPackAttributionEntries() {
+      var ids = Array.isArray(this.assetPack && this.assetPack.loadedIds) ? this.assetPack.loadedIds.slice() : [];
+      var seen = Object.create(null);
+      var out = [];
+      for (var i = 0; i < ids.length; i++) {
+        var id = String(ids[i] || '').trim();
+        if (!id || seen[id]) continue;
+        seen[id] = true;
+        var meta = this.musicTrackMeta && this.musicTrackMeta[id] ? this.musicTrackMeta[id] : {};
+        out.push({
+          id: id,
+          title: String(meta.title || this.formatMusicLabel(id) || id),
+          suiteLabel: String(meta.suiteLabel || '').trim(),
+          style: String(meta.style || '').trim(),
+          source: String(meta.source || '').trim(),
+          artist: String(meta.artist || '').trim(),
+          license: String(meta.license || '').trim(),
+          licenseUrl: String(meta.licenseUrl || '').trim(),
+          src: String(meta.src || '').trim()
+        });
+      }
+      out.sort(function (a, b) {
+        return String(a.title || '').localeCompare(String(b.title || ''));
+      });
+      return out;
+    },
+
+    emitAssetPackChanged() {
+      if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+      window.dispatchEvent(new CustomEvent('beyond:audio-asset-pack-changed', {
+        detail: {
+          status: String(this.assetPack && this.assetPack.status || 'idle'),
+          manifestUrl: String(this.assetPack && this.assetPack.manifestUrl || ''),
+          loadedCount: Number(this.assetPack && this.assetPack.loadedCount || 0)
+        }
+      }));
+    },
+
     // Initialize Web Audio API
     init() {
       if (this.initialized) return;
@@ -275,13 +313,18 @@
         if (!res.ok) throw new Error('Manifest fetch failed (' + String(res.status) + ')');
         var manifest = await res.json();
         var entries = Array.isArray(manifest && manifest.entries) ? manifest.entries : [];
+        var decodedBySrc = Object.create(null);
         for (var i = 0; i < entries.length; i++) {
           var entry = entries[i] || {};
           var id = String(entry.id || '').trim();
           var src = String(entry.src || '').trim();
           if (!id || !src) continue;
           try {
-            var buffer = await this.fetchAudioBuffer(src);
+            var buffer = decodedBySrc[src] || null;
+            if (!buffer) {
+              buffer = await this.fetchAudioBuffer(src);
+              if (buffer) decodedBySrc[src] = buffer;
+            }
             if (!buffer) continue;
             this.audioCache[id] = buffer;
             this.assetPack.loadedIds.push(id);
@@ -294,7 +337,8 @@
                 source: String(entry.source || existingMeta.source || '').trim() || existingMeta.source,
                 artist: String(entry.artist || existingMeta.artist || '').trim() || existingMeta.artist,
                 license: String(entry.license || existingMeta.license || '').trim() || existingMeta.license,
-                licenseUrl: String(entry.licenseUrl || existingMeta.licenseUrl || '').trim() || existingMeta.licenseUrl
+                licenseUrl: String(entry.licenseUrl || existingMeta.licenseUrl || '').trim() || existingMeta.licenseUrl,
+                src: src
               });
             }
           } catch (_entryErr) {
@@ -309,9 +353,11 @@
         } else {
           console.log('🔊 Asset pack manifest loaded with 0 decoded tracks; using procedural fallback.');
         }
+        this.emitAssetPackChanged();
         return { ok: true, loaded: this.assetPack.loadedCount, manifestUrl: url };
       } catch (err) {
         this.assetPack.status = 'error';
+        this.emitAssetPackChanged();
         return { ok: false, error: String(err && err.message ? err.message : err) };
       }
     },
@@ -319,15 +365,18 @@
     loadOptionalAssetPack() {
       if (!this.musicConsent) {
         this.assetPack.status = 'idle';
+        this.emitAssetPackChanged();
         return;
       }
       if (!this.isAssetPackEnabled()) {
         this.assetPack.status = 'disabled';
+        this.emitAssetPackChanged();
         return;
       }
       var url = this.getConfiguredAssetPackUrl();
       if (!url) {
         this.assetPack.status = 'idle';
+        this.emitAssetPackChanged();
         return;
       }
       var self = this;

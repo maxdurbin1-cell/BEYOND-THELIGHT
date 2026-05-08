@@ -3173,20 +3173,93 @@
       : "<div class='wtw-muted'>No rolled encounter in this district.</div>";
     const activityHtml = "<div class='wtw-card'><div class='wtw-card-title'>Living World Activity</div><div class='wtw-card-text'>Activity clock: <strong>" + String(w.activityClicks || 0) + "/10</strong>. Random encounters and services push this toward the next control-cycle shift.</div></div>";
 
-    const servicesHtml = services.map(function (svc, idx) {
-      if (svc.shopCat) {
-        return ""
-          + "<div class='wtw-list-card' style='border-color:rgba(120,220,200,.3);'>"
-          + "<div class='title'>" + (svc.vendorName || svc.name) + " <span style='font-size:.6rem;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;'>Merchant</span></div>"
-          + "<div class='meta'>" + (svc.vendorFlavor || svc.desc) + "</div>"
-          + "<div class='actions'><button class='btn btn-xs btn-teal' onclick='(function(){if(typeof switchTab===\'function\'){var b=document.querySelector(\'nav .tab-btn[onclick*=\'shop\'\']');switchTab(\'shop\',b||null);}if(typeof showShopCat===\'function\')try{showShopCat(\"" + svc.shopCat + "\",null);}catch(e){}})()'>Browse " + (svc.shopCat === 'weapon_mods' ? 'Weapon Mods' : svc.shopCat === 'combat_kits' ? 'Combat Kits' : svc.shopCat.charAt(0).toUpperCase() + svc.shopCat.slice(1)) + "</button></div>"
-          + "</div>";
-      }
+    const cyberpunkHoldingCatalog = {
+      "Cyber Hub": [
+        { name: "Ghostline Exchange", desc: "Broker hub for stolen route keys and cracked authority tokens." },
+        { name: "Null Signal Atrium", desc: "A high-band relay vault where syndicates trade live surveillance access." },
+        { name: "Prism Coil Annex", desc: "Augment technicians run covert tune-ups behind mirrored terminals." },
+        { name: "Cinderstack Node", desc: "Encrypted market node dealing in blackline logistics and courier contracts." }
+      ],
+      "Green House": [
+        { name: "Verdant Cipher Nursery", desc: "Biohackers cultivate engineered flora masking contraband circuits." },
+        { name: "Chlorowire Conservatory", desc: "A fogged greenhouse ring where med-tech guilds hide prototypes." },
+        { name: "Pollen Gate Foundry", desc: "Hybrid botany-forge retrofitting tools for expedition crews." },
+        { name: "Mycel Vault Arcade", desc: "Underground data fungi archives coded in living tissue." }
+      ],
+      "Industrial Sector": [
+        { name: "Iron Pulse Junction", desc: "Shift foremen and smugglers cut deals beside live heat pipes." },
+        { name: "Blastline Kiln Yard", desc: "Weapon parts and salvage contracts move through rolling furnace tracks." },
+        { name: "Rivet Court Terminal", desc: "A fortified dispatch tower routing militia and freight claims." },
+        { name: "Smogglass Forgebank", desc: "Credit lenders and blacksmith crews operate under armored skylights." }
+      ],
+      "Neon City": [
+        { name: "Afterglow Parlour", desc: "Influence brokers host encrypted parties for district elites." },
+        { name: "Mirage Spine Loft", desc: "VR tacticians stage rehearsed heists inside mirrored sims." },
+        { name: "Pulse District Arcade", desc: "Street crews settle turf pacts through rigged holo games." },
+        { name: "Nightwire Embassy", desc: "Neutral venue where rival crews negotiate ceasefires and raids." }
+      ],
+      "Outskirts": [
+        { name: "Scrap Crown Depot", desc: "Nomad scouts swap hazard maps and reinforced convoy plates." },
+        { name: "Dust Circuit Yard", desc: "Broken transit shells repurposed into mobile operations bays." },
+        { name: "Dryline Signal Barn", desc: "A low-profile relay clearing storms and route blackout alerts." },
+        { name: "Hardpan Refuel Ring", desc: "Fuel brokers and scouts stabilize long-haul corridor runs." }
+      ],
+      "Residential Blocks": [
+        { name: "Skybridge Commons", desc: "Tenant councils broker security contracts and utility rights." },
+        { name: "Waterline Forum", desc: "Civic fixers run mutual aid ledgers with hidden intelligence trails." },
+        { name: "Lantern Block Hub", desc: "Neighborhood captains coordinate rapid-response district patrols." },
+        { name: "Towerside Circuit Hall", desc: "Community engineers maintain defense grids and emergency comms." }
+      ],
+      "The Undercity": [
+        { name: "Black Echo Bastion", desc: "Subsurface sentries control hidden choke points and supply locks." },
+        { name: "Phantom Rail Sanctum", desc: "Tunnel guides and couriers route covert movement below scanner nets." },
+        { name: "Coalglass Reliquary", desc: "Relic wardens protect high-value artifacts from raider crews." },
+        { name: "Depthline Market Cell", desc: "Silent auction chamber for contraband biotech and rail intel." }
+      ],
+      "The Wastes": [
+        { name: "Sunscar Haven", desc: "Expedition crews stage long-range salvage runs beyond safe lanes." },
+        { name: "Ashline Relay Camp", desc: "Signal experts maintain weather pings across dead radio fields." },
+        { name: "Shatter Basin Lodge", desc: "Hardened refuge where hunters and medics trade survival kits." },
+        { name: "Obsidian Drift Post", desc: "A roving command point for tracking relic storms and raider packs." }
+      ],
+      "The Ports": [
+        { name: "Harbor Nocturne Yard", desc: "Dock syndicates process night cargo and covert passenger routes." },
+        { name: "Tidelock Customs Den", desc: "Border fixers falsify manifests and reroute surveillance sweeps." },
+        { name: "Anchorline Switchhouse", desc: "Signal operators control berth priority and blackout windows." },
+        { name: "Brine Circuit Exchange", desc: "Smugglers and brokers settle maritime debts under coded beacons." }
+      ],
+      default: [
+        { name: "Greyline Commons", desc: "A contested district holding balancing trade, intel, and security." },
+        { name: "Static Vault", desc: "Encrypted operations center for local crews." },
+        { name: "Dawnshift Annex", desc: "Staging hall for teams running city-edge contracts." },
+        { name: "Hexwire Court", desc: "Neutral hall where claim disputes and pacts are brokered." }
+      ]
+    };
+
+    const districtHoldings = cyberpunkHoldingCatalog[hex.zone] || cyberpunkHoldingCatalog.default;
+    const zoneHoldings = Array.isArray(w.holdings) ? w.holdings.filter(function (h) { return h && h.zone === hex.zone; }) : [];
+    const startIndex = districtHoldings.length ? ((Number(hex.col || 0) * 3 + Number(hex.row || 0)) % districtHoldings.length) : 0;
+    const selectedDistrictHoldings = [];
+    for (let i = 0; i < Math.min(3, districtHoldings.length); i += 1) {
+      selectedDistrictHoldings.push(districtHoldings[(startIndex + i) % districtHoldings.length]);
+    }
+
+    const holdingsHtml = selectedDistrictHoldings.map(function (entry, idx) {
+      const holdingName = String((entry && entry.name) || ("District Holding " + (idx + 1)));
+      const holdingDesc = String((entry && entry.desc) || "A fortified district node with active contracts.");
+      const safeHoldingName = holdingName.replace(/'/g, "\\'");
+      const linkedHolding = zoneHoldings[idx] || null;
+      const taskButton = linkedHolding
+        ? ("<button class='btn btn-xs' onclick='wtwTakeHoldingTask(\"" + String(linkedHolding.id || "") + "\")'>Take Task</button>")
+        : "";
       return ""
-        + "<div class='wtw-list-card'>"
-        + "<div class='title'>" + svc.name + "</div>"
-        + "<div class='meta'>Cost: " + svc.cost + " Credits<br>" + svc.desc + "</div>"
-        + "<div class='actions'><button class='btn btn-xs btn-teal' onclick='wtwBuyService(\"" + hex.id + "\"," + idx + ")'>Use Service</button></div>"
+        + "<div class='wtw-list-card' style='border-color:rgba(120,220,200,.3);'>"
+        + "<div class='title'>" + holdingName + " <span style='font-size:.62rem;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;'>Holding</span></div>"
+        + "<div class='meta'>" + holdingDesc + "<br>Controller: " + hex.controller + "</div>"
+        + "<div class='actions'>"
+        + "<button class='btn btn-xs btn-primary' onclick='if(typeof openRegionalSettlementHexcrawl===\"function\")openRegionalSettlementHexcrawl(\"ruins\",\"" + safeHoldingName + "\");else if(typeof openHoldingSettlementHexcrawl===\"function\")openHoldingSettlementHexcrawl(\"" + safeHoldingName + "\")'>◫ Enter Holding</button>"
+        + taskButton
+        + "</div>"
         + "</div>";
     }).join("");
 
@@ -3318,7 +3391,7 @@
       + eventCard
         + buildWtwAccordionStateful("Encounter & Markers", activityHtml + encounterHtml + markerHtml + wtwWorldStateHtml + backstoryAnchorHtml, true, "encounter")
         + buildWtwAccordionStateful("Hazards, Wayfarers, Exploration & Travel", worldSystems, false, "worldsystems")
-        + buildWtwAccordionStateful("District Services", celebrationControls + (servicesHtml || "<div class='wtw-muted'>No services available here.</div>"), false, "services")
+        + buildWtwAccordionStateful("Cyberpunk Holdings", celebrationControls + (holdingsHtml || "<div class='wtw-muted'>No holdings discovered in this district.</div>"), false, "holdings")
         + buildWtwAccordionStateful("Zone Power & Tasks", powerSection, false, "powertasks")
       + "</div>";
   }

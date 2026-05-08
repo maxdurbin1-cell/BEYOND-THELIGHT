@@ -7644,14 +7644,14 @@
         var objComp = wingNum === 1
           ? 'Lore Fragments: ' + Number(gridState.objectives.loreCollected || 0) + '/' + Number(gridState.objectives.loreRequired || 3) + ' — All recovered.'
           : 'Door Waypoints: ' + Number(gridState.objectives.waypointsActivated || 0) + '/' + Number(gridState.objectives.waypointsRequired || 3) + ' — All activated.';
-        var compHtml = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:600px;">'
+        var compHtml = '<div style="font-size:.9rem;color:var(--text);line-height:1.62;max-width:640px;">'
           + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;margin-bottom:.32rem;">'
-          + '<div style="font-size:.88rem;color:var(--green2);font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitlesComp[wingNum] + ' — Completed ✓</strong></div>'
+          + '<div style="font-size:.98rem;color:var(--green2);font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitlesComp[wingNum] + ' — Completed ✓</strong></div>'
           + '<div style="display:flex;gap:.2rem;">' + wingNavComp + '</div>'
           + '</div>'
           + '<div style="border:1px solid rgba(60,180,90,.24);background:rgba(60,180,90,.06);padding:.42rem .5rem;margin-bottom:.28rem;border-radius:.2rem;">'
-          + '<div style="font-size:.72rem;color:var(--green2);margin-bottom:.1rem;"><strong>' + objComp + '</strong></div>'
-          + '<div style="font-size:.66rem;color:var(--muted2);">This wing has been cleared. Loot was collected at the wing exit. Advance to the next wing from the Raid Overview.</div>'
+          + '<div style="font-size:.8rem;color:var(--green2);margin-bottom:.1rem;"><strong>' + objComp + '</strong></div>'
+          + '<div style="font-size:.74rem;color:var(--text2);">This wing has been cleared. Loot was collected at the wing exit. Advance to the next wing from the Raid Overview.</div>'
           + '</div>'
           + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;justify-content:flex-end;">'
           + backBtnComp
@@ -7689,10 +7689,10 @@
       var keyLine = vault ? ('Keys B/S/G/P: ' + Number(vault.keys.bronze || 0) + '/' + Number(vault.keys.silver || 0) + '/' + Number(vault.keys.gold || 0) + '/' + Number(vault.keys.platinum || 0)) : '';
       var vaultCardHtml = buildLegacyRaidVaultCardHtml(mission);
 
-      var htmlGrid = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:1100px;">'
+      var htmlGrid = '<div style="font-size:.9rem;color:var(--text);line-height:1.62;max-width:1100px;">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;margin-bottom:.32rem;">'
-        + '<div><div style="font-size:.88rem;color:' + theme.tc + ';font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + '</strong></div>'
-        + '<div style="font-size:.68rem;color:' + theme.muted + ';text-transform:uppercase;letter-spacing:.07em;">' + wingThemesGrid[wingNum] + ' · 12x12 Tactical Branch Grid · Time ' + Number(gridState.ticks || 0) + ' ticks</div></div>'
+        + '<div><div style="font-size:1rem;color:' + theme.tc + ';font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitlesGrid[wingNum] + '</strong></div>'
+        + '<div style="font-size:.75rem;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;">' + wingThemesGrid[wingNum] + ' · 12x12 Tactical Branch Grid · Time ' + Number(gridState.ticks || 0) + ' ticks</div></div>'
         + '<div style="display:flex;gap:.2rem;">' + wingNavGrid + '</div>'
         + '</div>'
         + '<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:.35rem;align-items:start;">'
@@ -7700,21 +7700,21 @@
         + wingGridHtml
         + '</div>'
         + '<div style="display:flex;flex-direction:column;gap:.24rem;">'
-        + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);font-size:.67rem;color:var(--muted2);">'
-        + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Wing Objective</strong></div>'
-        + '<div style="margin-bottom:.08rem;font-size:.7rem;color:var(--text2);"><strong>' + objectiveLine + '</strong></div>'
-        + '<div style="margin-bottom:.06rem;">Legend: S = Entrance · E = Exit · 📜 = Lore · 🧭 = Waypoint</div>'
-        + '<div style="font-size:.62rem;color:var(--muted3);margin-top:.1rem;padding-top:.1rem;border-top:1px solid rgba(255,255,255,.05);">Other wings: W1 ' + (w1Obj ? (Number(w1Obj.loreCollected || 0) + '/' + Number(w1Obj.loreRequired || 3)) : '0/3') + ' · W2 ' + (w2Obj ? (Number(w2Obj.waypointsActivated || 0) + '/' + Number(w2Obj.waypointsRequired || 3)) : '0/3') + '</div>'
+        + '<div style="border:1px solid var(--border2);padding:.32rem;background:rgba(255,255,255,.03);font-size:.74rem;color:var(--text2);">'
+        + '<div style="font-size:.8rem;color:var(--gold2);margin-bottom:.1rem;"><strong>Wing Objective</strong></div>'
+        + '<div style="margin-bottom:.1rem;font-size:.78rem;color:var(--text);"><strong>' + objectiveLine + '</strong></div>'
+        + '<div style="margin-bottom:.08rem;">Legend: S = Entrance · E = Exit · 📜 = Lore · 🧭 = Waypoint</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.12rem;padding-top:.12rem;border-top:1px solid rgba(255,255,255,.05);">Other wings: W1 ' + (w1Obj ? (Number(w1Obj.loreCollected || 0) + '/' + Number(w1Obj.loreRequired || 3)) : '0/3') + ' · W2 ' + (w2Obj ? (Number(w2Obj.waypointsActivated || 0) + '/' + Number(w2Obj.waypointsRequired || 3)) : '0/3') + '</div>'
         + '</div>'
-        + '<div style="border:1px solid var(--border2);padding:.28rem;background:rgba(255,255,255,.03);font-size:.67rem;color:var(--muted2);">'
-        + '<div style="font-size:.71rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Vault Status</strong></div>'
+        + '<div style="border:1px solid var(--border2);padding:.32rem;background:rgba(255,255,255,.03);font-size:.74rem;color:var(--text2);">'
+        + '<div style="font-size:.8rem;color:var(--gold2);margin-bottom:.1rem;"><strong>Vault Status</strong></div>'
         + '<div style="margin-bottom:.06rem;">Loot: ' + vaultLootCount + ' item(s)</div>'
         + '<div style="margin-bottom:.06rem;">Keys: B=' + Number(vault?.keys?.bronze || 0) + ' · S=' + Number(vault?.keys?.silver || 0) + ' · G=' + Number(vault?.keys?.gold || 0) + ' · P=' + Number(vault?.keys?.platinum || 0) + '</div>'
-        + '<div style="font-size:.62rem;color:var(--muted3);">Resolved at raid end.</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);">Resolved at raid end.</div>'
         + '</div>'
         + vaultCardHtml
         + detailHtml
-        + '<div style="border:1px solid var(--border2);padding:.22rem .28rem;background:rgba(0,0,0,.18);font-size:.64rem;color:var(--teal);">'
+        + '<div style="border:1px solid var(--border2);padding:.24rem .3rem;background:rgba(0,0,0,.18);font-size:.72rem;color:var(--teal);">'
         + String(gridState.lastLog || 'Select a revealed adjacent hex to act.')
         + '</div>'
         + '</div>'
@@ -7769,10 +7769,10 @@
       return '<button class="btn btn-xs' + (w === wingNum ? ' btn-teal' : '') + '" onclick="openRaidWingPopup(' + missionId + ',' + w + ')" ' + (w > 1 && !(mission.steps[w - 1] && mission.steps[w - 1].completed) && w !== wingNum ? 'disabled' : '') + '>Wing ' + w + (done ? ' ✓' : '') + '</button>';
     }).join('');
 
-    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;max-width:760px;">'
+    var html = '<div style="font-size:.9rem;color:var(--text);line-height:1.62;max-width:780px;">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;margin-bottom:.35rem;">'
-      + '<div><div style="font-size:.88rem;color:' + theme.tc + ';font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitles[wingNum] + '</strong></div>'
-      + '<div style="font-size:.68rem;color:' + theme.muted + ';text-transform:uppercase;letter-spacing:.07em;">' + wingThemes[wingNum] + ' · ' + cleared + '/' + total + ' rooms cleared · Time ' + Number(run && run.clockRemaining || 0) + ' ticks' + loreSummary + '</div></div>'
+      + '<div><div style="font-size:1rem;color:' + theme.tc + ';font-family:\'Cinzel\',serif;"><strong>Wing ' + wingNum + ': ' + wingTitles[wingNum] + '</strong></div>'
+      + '<div style="font-size:.75rem;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;">' + wingThemes[wingNum] + ' · ' + cleared + '/' + total + ' rooms cleared · Time ' + Number(run && run.clockRemaining || 0) + ' ticks' + loreSummary + '</div></div>'
       + '<div style="display:flex;gap:.2rem;">' + wingNav + '</div>'
       + '</div>'
       + progressBar
@@ -11292,7 +11292,7 @@
       + '</div>';
     }
     if (!S.activeMissions.length && !holdingTrackerHtml && !pactCardHtml) {
-      container.innerHTML='<div style="font-size:.83rem;color:var(--muted2);padding:.3rem 0;">No active missions. Accept a mission from the board above.</div>';
+      container.innerHTML='<div style="font-size:.9rem;color:var(--text2);padding:.35rem 0;line-height:1.5;">No active missions. Accept a mission from the board above.</div>';
       return;
     }
     container.innerHTML=holdingTrackerHtml + pactCardHtml + S.activeMissions.map(function(mission){
@@ -11311,12 +11311,12 @@
         var step=mission.steps[n];
         var isActive=(n===1&&!s1.completed)||(n===2&&s1.completed&&!s2.completed)||(n===3&&s2.completed&&!s3.completed);
         var color=step.completed?'var(--green2)':isActive?'var(--teal)':'var(--border2)';
-        var textCol=step.completed?'var(--muted2)':isActive?'var(--text)':'var(--muted)';
+        var textCol=step.completed?'var(--text2)':isActive?'var(--text)':'var(--muted2)';
         var strike=step.completed?'text-decoration:line-through;':'';
         var marker=step.completed?(step.skipped?'\u2014':'\u2713'):String(n);
-        return '<div style="display:flex;align-items:center;gap:.3rem;padding:.15rem .2rem;">'
-          +'<div style="width:1.3rem;height:1.3rem;border-radius:50%;border:1.5px solid '+color+';display:flex;align-items:center;justify-content:center;font-size:.65rem;color:'+color+';flex-shrink:0;">'+marker+'</div>'
-          +'<div style="font-size:.75rem;color:'+textCol+';'+strike+'">'+stepLabels[n]+(n===1?' <span style="color:var(--muted);font-size:.62rem;">[optional]</span>':'')+'</div>'
+        return '<div style="display:flex;align-items:center;gap:.34rem;padding:.18rem .24rem;">'
+          +'<div style="width:1.45rem;height:1.45rem;border-radius:50%;border:1.5px solid '+color+';display:flex;align-items:center;justify-content:center;font-size:.72rem;color:'+color+';flex-shrink:0;">'+marker+'</div>'
+          +'<div style="font-size:.82rem;color:'+textCol+';line-height:1.45;'+strike+'">'+stepLabels[n]+(n===1?' <span style="color:var(--muted2);font-size:.68rem;">[optional]</span>':'')+'</div>'
         +'</div>';
       }).join('');
 
@@ -11333,21 +11333,21 @@
       var btn2=s2.completed?'<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Site</button>':'<button class="btn btn-xs btn-teal" onclick="startMissionStep2('+mission.id+')"'+(!s1.completed?' disabled style="opacity:.45;"':'')+'>\u25B6 Site</button>';
       var btn3=s3.completed?'<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Confront</button>':'<button class="btn btn-xs btn-primary" onclick="startMissionStep3('+mission.id+')"'+(!s2.completed?' disabled style="opacity:.45;"':'')+'>\u25B6 Confront</button>';
 
-      return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.6rem;margin-bottom:.5rem;">'
-        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.3rem;">'
+      return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.7rem .72rem;margin-bottom:.56rem;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.38rem;">'
           +'<div>'
-            +'<div style="font-family:\'Cinzel\',serif;font-size:.8rem;color:var(--gold2);margin-bottom:.1rem;">'+mission.title+'</div>'
-            +'<div style="font-size:.7rem;color:'+dc+';">'+diff.name+' \u00B7 '+ddSummary+' \u00B7 '+mission.location+'</div>'
-            +(mission.region==='galaxy'&&mission.planetName?'<div style="font-size:.66rem;color:var(--gold2);margin-top:.08rem;">🌍 Planet Route: '+mission.planetName+'</div>':'')
-            +'<div style="font-size:.66rem;color:var(--teal);margin-top:.12rem;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
-            +'<div style="font-size:.66rem;color:'+deadlineTone+';margin-top:.08rem;">Deadline: '+(daysLeft >= 0 ? (daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left') : 'Expired')+'</div>'
-            +(badges?'<div style="margin-top:.2rem;">'+badges+'</div>':'')
-            +(Array.isArray(mission.checkpoints)&&mission.checkpoints.length&&shouldRevealHiddenInfo()?('<div style="margin-top:.18rem;font-size:.66rem;color:var(--muted2);">Checkpoints: '+mission.checkpoints.join(' \u00B7 ')+'</div>'):'')
+            +'<div style="font-family:\'Cinzel\',serif;font-size:.92rem;color:var(--gold2);margin-bottom:.12rem;line-height:1.35;">'+mission.title+'</div>'
+            +'<div style="font-size:.78rem;color:'+dc+';line-height:1.45;">'+diff.name+' \u00B7 '+ddSummary+' \u00B7 '+mission.location+'</div>'
+            +(mission.region==='galaxy'&&mission.planetName?'<div style="font-size:.74rem;color:var(--gold2);margin-top:.1rem;line-height:1.45;">🌍 Planet Route: '+mission.planetName+'</div>':'')
+            +'<div style="font-size:.74rem;color:var(--teal);margin-top:.14rem;line-height:1.45;">'+(mission.factionGainName||'Faction')+' +1 \u00B7 '+(mission.factionLoseName||'Faction')+' -1</div>'
+            +'<div style="font-size:.74rem;color:'+deadlineTone+';margin-top:.1rem;line-height:1.45;">Deadline: '+(daysLeft >= 0 ? (daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left') : 'Expired')+'</div>'
+            +(badges?'<div style="margin-top:.24rem;">'+badges+'</div>':'')
+            +(Array.isArray(mission.checkpoints)&&mission.checkpoints.length&&shouldRevealHiddenInfo()?('<div style="margin-top:.2rem;font-size:.72rem;color:var(--text2);line-height:1.5;">Checkpoints: '+mission.checkpoints.join(' \u00B7 ')+'</div>'):'')
           +'</div>'
           +'<button class="btn btn-xs btn-red" onclick="abandonMission('+mission.id+')">Abandon</button>'
         +'</div>'
-        +'<div style="border:1px solid var(--border);padding:.2rem .3rem;margin-bottom:.3rem;">'+stepsHTML+'</div>'
-        +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+raidBtn+btn1+btn2+btn3+'</div>'
+        +'<div style="border:1px solid var(--border);padding:.24rem .34rem;margin-bottom:.35rem;background:rgba(255,255,255,.02);">'+stepsHTML+'</div>'
+        +'<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'+raidBtn+btn1+btn2+btn3+'</div>'
       +'</div>';
     }).join('');
   }

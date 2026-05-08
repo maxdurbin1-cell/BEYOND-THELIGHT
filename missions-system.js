@@ -4057,8 +4057,114 @@
       enemyActionBudget: 0,
       allyDefendBonus: {},
       allyAttackBonus: 0,
-      supportBonusByName: {}
+      supportBonusByName: {},
+      allyTacticalFlags: {},
+      enemyRecentTargets: {},
+      lastEnemyFocusTarget: ''
     };
+  }
+
+  function getLegacyRaidBossPersonalityProfile(name) {
+    var n = String(name || '').toLowerCase();
+    if (/oracle|sphinx|null|void|harvester|executor|warden|architect|seer|crypt/.test(n)) {
+      return { id: 'strategist', label: 'Strategist', preferPlayer: 0.35, focusFire: 0.85, healerHunt: 1.2, antiSupport: 1.15, spreadBias: 0.2 };
+    }
+    if (/leviathan|behemoth|titan|colossus|golem|juggernaut|kraken/.test(n)) {
+      return { id: 'juggernaut', label: 'Juggernaut', preferPlayer: 0.55, focusFire: 0.65, healerHunt: 0.45, antiSupport: 0.5, spreadBias: 0.55 };
+    }
+    if (/wyrm|serpent|hydra|stalker|hunter|fang|razor|assassin|shade|phantom/.test(n)) {
+      return { id: 'hunter', label: 'Hunter', preferPlayer: 0.75, focusFire: 1.05, healerHunt: 0.85, antiSupport: 0.7, spreadBias: 0.15 };
+    }
+    return { id: 'executioner', label: 'Executioner', preferPlayer: 0.5, focusFire: 0.9, healerHunt: 0.75, antiSupport: 0.8, spreadBias: 0.3 };
+  }
+
+  function getLegacyRaidEnemyPersonalityFromContext(mission, enemy) {
+    var key = String(
+      (mission && mission.legacyRaidBoss) ||
+      (mission && mission.title) ||
+      (enemy && enemy.name) ||
+      'Raid Hostile'
+    );
+    return getLegacyRaidBossPersonalityProfile(key);
+  }
+
+  function isLegacyRaidHealerLikeTarget(name, flow) {
+    var nm = String(name || '');
+    if (/healer|medic|saint|doc|surgeon|support|anchor|oracle/i.test(nm)) return true;
+    var flags = flow && flow.allyTacticalFlags && flow.allyTacticalFlags[nm];
+    if (!flags) return false;
+    return Number(flags.supports || 0) >= 1 || Number(flags.defends || 0) >= 2;
+  }
+
+  function getLegacyRaidTargetScore(candidate, personality, flow) {
+    if (!candidate) return -999;
+    var hp = Math.max(0, Number(candidate.hp || 0));
+    var maxHp = Math.max(1, Number(candidate.maxHp || 1));
+    var ratio = hp / maxHp;
+    var score = 10;
+    if (ratio <= 0.25) score += 7 * Number(personality.focusFire || 1);
+    else if (ratio <= 0.5) score += 4.5 * Number(personality.focusFire || 1);
+    if (candidate.type === 'player') score += 6 * Number(personality.preferPlayer || 0.5);
+    if (candidate.type === 'ally' && candidate.isHealerLike) score += 5 * Number(personality.healerHunt || 0.75);
+    if (candidate.defendBonus > 0) score -= Math.min(4, 1 + (candidate.defendBonus / 3));
+    if (flow && String(flow.lastEnemyFocusTarget || '') === String(candidate.name || '')) score += 4.5 * Number(personality.focusFire || 1);
+    var recentHits = flow && flow.enemyRecentTargets ? Number(flow.enemyRecentTargets[candidate.name] || 0) : 0;
+    score += recentHits * (1.8 * Number(personality.focusFire || 1) - Number(personality.spreadBias || 0.25));
+    score += (Math.random() * 0.5);
+    return score;
+  }
+
+  function chooseLegacyRaidEnemyTarget(hostiles, aliveAllies, flow, encounter, mission, actingEnemy, forcedType, forcedName) {
+    var playerName = String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer');
+    var personality = getLegacyRaidEnemyPersonalityFromContext(mission, actingEnemy);
+    if (forcedType === 'player') {
+      return { type: 'player', name: playerName, personality: personality };
+    }
+    if (forcedType === 'ally' && forcedName) {
+      var namedAlly = (aliveAllies || []).find(function (ally) { return String(ally && ally.name || '') === String(forcedName || ''); });
+      if (namedAlly) return { type: 'ally', name: String(namedAlly.name || 'Wayfarer'), ref: namedAlly, personality: personality };
+    }
+
+    var playerHp = Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0));
+    var defendMap = flow && flow.allyDefendBonus ? flow.allyDefendBonus : {};
+    var candidates = [];
+    if (playerHp > 0) {
+      candidates.push({
+        type: 'player',
+        name: playerName,
+        hp: playerHp,
+        maxHp: Math.max(1, Number(typeof S !== 'undefined' && S && S.maxHealth || playerHp || 12)),
+        defendBonus: Number(defendMap[playerName] || 0),
+        isHealerLike: false
+      });
+    }
+    (aliveAllies || []).forEach(function (ally) {
+      if (!ally) return;
+      var name = String(ally.name || 'Wayfarer');
+      var hp = Math.max(0, Number(ally.maxStress || 12) - Number(ally.stress || 0));
+      if (hp <= 0) return;
+      candidates.push({
+        type: 'ally',
+        name: name,
+        ref: ally,
+        hp: hp,
+        maxHp: Math.max(1, Number(ally.maxStress || 12)),
+        defendBonus: Number(defendMap[name] || 0),
+        isHealerLike: isLegacyRaidHealerLikeTarget(name, flow)
+      });
+    });
+    if (!candidates.length) return null;
+    var best = candidates[0];
+    var bestScore = getLegacyRaidTargetScore(best, personality, flow);
+    for (var i = 1; i < candidates.length; i++) {
+      var score = getLegacyRaidTargetScore(candidates[i], personality, flow);
+      if (score > bestScore) {
+        best = candidates[i];
+        bestScore = score;
+      }
+    }
+    best.personality = personality;
+    return best;
   }
 
   function runLegacyRaidAutoAllyPhase() {
@@ -4066,18 +4172,26 @@
     var allies = S.enemies.filter(function (enemy) { return enemy && enemy.ally && enemy.temporarySceneAlly; });
     var hostiles = S.enemies.filter(function (enemy) { return enemy && !enemy.ally; });
     if (!allies.length || !hostiles.length) return;
+    var focusHostile = hostiles.slice().sort(function (a, b) {
+      var aHp = Math.max(0, Number(a && a.maxStress || 8) - Number(a && a.stress || 0));
+      var bHp = Math.max(0, Number(b && b.maxStress || 8) - Number(b && b.stress || 0));
+      return aHp - bHp;
+    })[0] || hostiles[0];
     allies.forEach(function (ally) {
+      var allyHp = Math.max(0, Number(ally && ally.maxStress || 12) - Number(ally && ally.stress || 0));
       for (var i = 0; i < 2; i++) {
-        var target = hostiles.find(function (enemy) {
+        var target = focusHostile || hostiles.find(function (enemy) {
           return enemy && Number(enemy.stress || 0) < Number(enemy.maxStress || 8);
         });
         if (!target) return;
+        if (allyHp <= 4 && i === 0) continue;
         var allyRoll = typeof roll === 'function' ? roll(6) : (Math.floor(Math.random() * 6) + 1);
         var targetDd = Math.max(4, Number(target.dread || 6));
         var enemyRoll = typeof roll === 'function' ? roll(targetDd) : (Math.floor(Math.random() * targetDd) + 1);
         if (allyRoll >= enemyRoll) {
           var dmg = Math.max(1, allyRoll - enemyRoll + 1);
           target.stress = Math.min(Number(target.maxStress || 8), Number(target.stress || 0) + dmg);
+          focusHostile = target;
         }
       }
     });
@@ -4238,6 +4352,8 @@
     var encounter = initializeRaidCombatIfNeeded();
     var act = String(action || 'attack').toLowerCase();
     var target = String(targetName || '');
+    flow.allyTacticalFlags = flow.allyTacticalFlags || {};
+    if (!flow.allyTacticalFlags[allyName]) flow.allyTacticalFlags[allyName] = { attacks: 0, supports: 0, defends: 0, moves: 0 };
     var hostiles = getLegacyRaidSceneHostiles();
     if (act === 'attack') {
       var preferredHostile = flow && Number(flow.selectedHostileId || 0) > 0
@@ -4254,18 +4370,22 @@
         hostile.stress = Math.min(Number(hostile.maxStress || 8), Number(hostile.stress || 0) + dmg);
         flow.allyAttackBonus = 0;
         flow.supportBonusByName[allyName] = 0;
+        flow.allyTacticalFlags[allyName].attacks = Number(flow.allyTacticalFlags[allyName].attacks || 0) + 1;
       }
     } else if (act === 'defend') {
       flow.allyDefendBonus = flow.allyDefendBonus || {};
       var defendTarget = target || allyName;
       flow.allyDefendBonus[defendTarget] = Number(flow.allyDefendBonus[defendTarget] || 0) + 3;
+      flow.allyTacticalFlags[allyName].defends = Number(flow.allyTacticalFlags[allyName].defends || 0) + 1;
     } else if (act === 'support') {
       flow.supportBonusByName = flow.supportBonusByName || {};
       var supportTarget = target || allyName;
       flow.supportBonusByName[supportTarget] = Number(flow.supportBonusByName[supportTarget] || 0) + 3;
+      flow.allyTacticalFlags[allyName].supports = Number(flow.allyTacticalFlags[allyName].supports || 0) + 1;
     } else if (act === 'move') {
       flow.allyRange = flow.allyRange || {};
       flow.allyRange[allyName] = target || 'Close';
+      flow.allyTacticalFlags[allyName].moves = Number(flow.allyTacticalFlags[allyName].moves || 0) + 1;
     }
     flow.currentAllyActionsLeft = Math.max(0, Number(flow.currentAllyActionsLeft || 0) - 1);
     if (flow.currentAllyActionsLeft <= 0) {
@@ -4316,26 +4436,23 @@
     }
     var requestedType = String(targetType || (flow && flow.selectedEnemyTargetType) || 'ally').toLowerCase();
     var requestedName = String(targetName || (flow && flow.selectedAllyName) || '');
+    var manualTarget = arguments.length > 0;
     var aliveAllies = getLegacyRaidSceneAllies();
     var cursor = Math.max(0, Number(flow.enemyActionCursor || 0));
     var enemy = hostiles[cursor % hostiles.length];
     flow.enemyActionCursor = cursor + 1;
     var dreadDie = Math.max(4, Number(enemy && enemy.dread || 6));
-    var target = null;
-    if (requestedType === 'player') {
-      target = { type: 'player', name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer') };
-    } else if (requestedName) {
-      var named = aliveAllies.find(function (ally) { return String(ally.name || '') === requestedName; });
-      if (named) target = { type: 'ally', name: requestedName, ref: named };
-    }
-    if (!target) {
-      var fallback = aliveAllies[0] || null;
-      target = fallback
-        ? { type: 'ally', name: String(fallback.name || 'Wayfarer'), ref: fallback }
-        : { type: 'player', name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer') };
-    }
+    var pendingCtx = getLegacyRaidPendingHexCombat();
+    var mission = pendingCtx && pendingCtx.mission ? pendingCtx.mission : null;
+    var forcedType = manualTarget ? requestedType : '';
+    var forcedName = manualTarget ? requestedName : '';
+    var target = chooseLegacyRaidEnemyTarget(hostiles, aliveAllies, flow, encounter, mission, enemy, forcedType, forcedName);
+    if (!target) return false;
     flow.selectedEnemyTargetType = target.type;
     flow.selectedAllyName = target.type === 'ally' ? String(target.name || '') : '';
+    flow.lastEnemyFocusTarget = String(target.name || '');
+    flow.enemyRecentTargets = flow.enemyRecentTargets || {};
+    flow.enemyRecentTargets[flow.lastEnemyFocusTarget] = Number(flow.enemyRecentTargets[flow.lastEnemyFocusTarget] || 0) + 1;
     var hit = typeof roll === 'function' ? roll(dreadDie) : (Math.floor(Math.random() * dreadDie) + 1);
     var defendDie = target.type === 'player' ? getLegacyRaidCombatActionDie('defend') : 6;
     var defend = typeof roll === 'function' ? roll(defendDie) : (Math.floor(Math.random() * defendDie) + 1);
@@ -4363,7 +4480,8 @@
       }
     }
     if (encounter && Array.isArray(encounter.log)) {
-      encounter.log.push('Enemy action: ' + String(enemy && enemy.name || 'Hostile') + ' rolled ' + hit + ' vs ' + target.name + ' defend ' + defend + ' for ' + dmg + ' damage.');
+      var persona = target.personality && target.personality.label ? String(target.personality.label) : 'Hostile';
+      encounter.log.push('Enemy action [' + persona + ']: ' + String(enemy && enemy.name || 'Hostile') + ' rolled ' + hit + ' vs ' + target.name + ' defend ' + defend + ' for ' + dmg + ' damage.');
     }
     if (typeof showNotif === 'function') {
       if (dmg > 0) {
@@ -4387,6 +4505,7 @@
       flow.allyDefendBonus = {};
       flow.allyAttackBonus = 0;
       flow.enemyActionCursor = 0;
+      flow.enemyRecentTargets = {};
       if (typeof showNotif === 'function') showNotif('Enemy turn complete. Your actions are refreshed.', 'good');
     }
     if (typeof renderEnemies === 'function') renderEnemies();
@@ -4500,6 +4619,7 @@
     }
     var encounter = initializeBossPhases(mission, 3) || ensureLegacyRaidBossEncounter(mission);
     var bossName = String(mission.legacyRaidBoss || 'The Boss');
+    var personality = getLegacyRaidBossPersonalityProfile(bossName);
     var phase = Number(encounter.phase || 1);
     var phaseHp = Number(encounter.phaseHp || 20);
     var maxPhaseHp = Number(encounter.maxPhaseHp || 20);
@@ -4535,7 +4655,7 @@
       + '<div style="background:rgba(200,50,50,.08);border:1px solid rgba(200,50,50,.24);padding:.28rem .32rem;margin-bottom:.24rem;border-radius:4px;">'
       + '<div style="font-size:.72rem;color:var(--red2);margin-bottom:.08rem;"><strong>⚔ ' + bossName + ' · Phase ' + phase + '/3</strong></div>'
       + '<div style="font-size:.63rem;color:var(--muted2);line-height:1.42;margin-bottom:.12rem;font-style:italic;">' + phaseFlavor + '</div>'
-      + '<div style="font-size:.64rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Dread Die: d' + dreadDie + '</strong></div>'
+      + '<div style="font-size:.64rem;color:var(--gold2);margin-bottom:.08rem;"><strong>Dread Die: d' + dreadDie + '</strong> · <strong>Boss AI: ' + String(personality.label || 'Executioner') + '</strong></div>'
       + phaseBar
       + '</div>'
       
@@ -4639,9 +4759,34 @@
           targets.push({ kind: 'ally', name: allyName });
         }
       });
+      var bossPersonality = getLegacyRaidBossPersonalityProfile(String(mission && mission.legacyRaidBoss || 'Raid Boss'));
+      var bossFocusTarget = String(encounter.bossFocusTarget || '');
       for (var ai = 0; ai < 2; ai++) {
         if (!targets.length) break;
-        var target = targets[Math.floor(Math.random() * targets.length)];
+        var scored = targets.map(function (entry) {
+          var hp = entry.kind === 'player'
+            ? Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0))
+            : Math.max(0, Number(encounter.partyHp && encounter.partyHp.allies ? encounter.partyHp.allies[entry.name] : 0));
+          var maxHp = entry.kind === 'player'
+            ? Math.max(1, Number(typeof S !== 'undefined' && S && S.maxHealth || 12))
+            : 12;
+          var ratio = hp / Math.max(1, maxHp);
+          var score = 10;
+          if (ratio <= 0.25) score += 6 * Number(bossPersonality.focusFire || 1);
+          else if (ratio <= 0.5) score += 3.5 * Number(bossPersonality.focusFire || 1);
+          if (entry.kind === 'player') score += 5 * Number(bossPersonality.preferPlayer || 0.5);
+          if (entry.kind === 'ally' && isLegacyRaidHealerLikeTarget(entry.name, S && S.combat ? S.combat.raidFlow : null)) {
+            score += 4 * Number(bossPersonality.healerHunt || 0.75);
+          }
+          if (bossFocusTarget && String(entry.name || '') === bossFocusTarget) {
+            score += 3 * Number(bossPersonality.focusFire || 1);
+          }
+          score += Math.random() * 0.5;
+          return { target: entry, score: score };
+        }).sort(function (a, b) { return Number(b.score || 0) - Number(a.score || 0); });
+        var target = scored.length ? scored[0].target : targets[Math.floor(Math.random() * targets.length)];
+        bossFocusTarget = String(target.name || '');
+        encounter.bossFocusTarget = bossFocusTarget;
         var bossHit = rollFn(bossDie);
         var defendDie = target.kind === 'player' ? getLegacyRaidCombatActionDie('defend') : 6;
         var targetDefend = rollFn(defendDie);

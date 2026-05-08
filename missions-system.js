@@ -3875,6 +3875,9 @@
       if (typeof updateCombatUI === 'function') updateCombatUI();
       if (typeof renderEnemies === 'function') renderEnemies();
       if (typeof renderCombatOptions === 'function') renderCombatOptions();
+      if (typeof window.refreshQuickPanelSection === 'function') {
+        try { window.refreshQuickPanelSection('combat'); } catch (_err) {}
+      }
       renderLegacyRaidCombatModal(missionId, wingNum);
     }
   }

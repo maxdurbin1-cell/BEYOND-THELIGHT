@@ -3818,12 +3818,16 @@
     if (!ship) {
       return `<div class="ship-copy">No ship purchased yet.</div>`;
     }
+    const iconApi = (typeof window !== "undefined") ? window.SharedIconSystem : null;
+    const shipIcon = iconApi && typeof iconApi.iconVehicle === "function"
+      ? iconApi.iconVehicle("naval", { size: 30, title: ship.name || ship.className || "Ship" })
+      : "⛵";
     const hull = getEffectiveShipDie(ship, "hull", isPlayer);
     const strike = getEffectiveShipDie(ship, "strike", isPlayer);
     const shoot = getEffectiveShipDie(ship, "shoot", isPlayer);
     const threshold = getShipThreshold(ship, isPlayer);
     return `
-      <div class="ship-name">${ship.name}</div>
+      <div class="ship-name" style="display:flex;align-items:center;gap:.45rem;">${shipIcon}<span>${ship.name}</span></div>
       <div class="ship-class">${ship.className}</div>
       <div class="ship-copy">${ship.look}</div>
       <div class="ship-stats">

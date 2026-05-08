@@ -14076,7 +14076,11 @@ function rollPlanetHexEncounter() {
     title = 'Merchant Caravan';
     text = 'Traveling convoy: Haggle, Buy, or Steal.';
     if (typeof openModal === 'function') {
-      openModal('Merchant Caravan', `<div style="font-size:.84rem;color:var(--text2);line-height:1.55;"><strong style="color:var(--gold2);">Merchant Caravan</strong><br>Haggle, buy, or steal from the passing convoy.<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;"><button class='btn btn-sm btn-teal' onclick='rollPlanetCaravanHaggle()'>Haggle</button><button class='btn btn-sm btn-primary' onclick='openPlanetCaravanMarket()'>Buy</button><button class='btn btn-sm btn-warn' onclick='attemptPlanetCaravanSteal()'>Steal</button></div></div>`);
+      const iconApi = (typeof window !== 'undefined') ? window.SharedIconSystem : null;
+      const bannerIcon = iconApi && typeof iconApi.iconVehicle === 'function'
+        ? iconApi.iconVehicle('caravan', { size: 30, title: 'Merchant Caravan' })
+        : '🃏';
+      openModal('Merchant Caravan', `<div style="font-size:.84rem;color:var(--text2);line-height:1.55;"><strong style="color:var(--gold2);display:inline-flex;align-items:center;gap:.4rem;">${bannerIcon} Merchant Caravan</strong><br>Haggle, buy, or steal from the passing convoy.<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;"><button class='btn btn-sm btn-teal' onclick='rollPlanetCaravanHaggle()'>Haggle</button><button class='btn btn-sm btn-primary' onclick='openPlanetCaravanMarket()'>Buy</button><button class='btn btn-sm btn-warn' onclick='attemptPlanetCaravanSteal()'>Steal</button></div></div>`);
     }
   } else if (d10 === 7) {
     title = 'Exocraft Envoy';
@@ -14137,12 +14141,19 @@ function openPlanetCaravanMarket() {
   if (!state) return;
   const discountRate = Math.max(0.15, Number(state.activeMerchantDiscountRate || 0));
   const offers = buildGalaxyMerchantOffers('Merchant Ship');
+  const iconApi = (typeof window !== 'undefined') ? window.SharedIconSystem : null;
   state.activeMerchantOffers = offers;
   state.activeMerchantDiscountRate = discountRate;
   if (typeof openModal === 'function') {
-    openModal('Merchant Caravan Market', `<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">${offers.map((offer, idx) => {
+    const marketBanner = iconApi && typeof iconApi.iconVehicle === 'function'
+      ? iconApi.iconVehicle('caravan', { size: 30, title: 'Merchant Caravan Market' })
+      : '🃏';
+    openModal('Merchant Caravan Market', `<div style="font-size:.82rem;color:var(--text2);line-height:1.6;"><div style="display:flex;align-items:center;gap:.44rem;margin-bottom:.34rem;"><strong style="color:var(--gold2);">${marketBanner} Merchant Caravan Market</strong></div>${offers.map((offer, idx) => {
       const cost = getOfferPrice(offer, discountRate);
-      return `<div style="padding:.26rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;"><strong style="color:var(--gold2);">${offer.name}</strong> <span style="color:var(--muted2);">(${offer.cat})</span><br>${offer.desc || 'No description.'}<br><strong>Cost:</strong> ${cost}₵<br><button class='btn btn-xs btn-teal' onclick='buyPlanetMerchantOffer(${idx})'>Buy</button></div>`;
+      const offerIcon = iconApi && typeof iconApi.iconChest === 'function'
+        ? iconApi.iconChest({ size: 20, accent: (iconApi.resolveAccent ? iconApi.resolveAccent((offer.cat || '') + '|' + (offer.name || '')) : '#c98d44'), title: offer.name || 'Offer' })
+        : '◈';
+      return `<div style="padding:.26rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;display:grid;grid-template-columns:auto 1fr auto;gap:.38rem;align-items:start;"><span style="display:inline-flex;align-items:center;">${offerIcon}</span><div><strong style="color:var(--gold2);">${offer.name}</strong> <span style="color:var(--muted2);">(${offer.cat})</span><br>${offer.desc || 'No description.'}<br><strong>Cost:</strong> ${cost}₵</div><div><button class='btn btn-xs btn-teal' onclick='buyPlanetMerchantOffer(${idx})'>Buy</button></div></div>`;
     }).join('')}</div>`);
   }
 }

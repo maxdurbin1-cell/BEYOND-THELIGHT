@@ -5197,6 +5197,7 @@
   function buildTrophyPanelHtml() {
     ensureTrophyState();
     var trophies = (typeof S !== 'undefined' && S.trophies) ? S.trophies : {};
+    var iconApi = (typeof window !== 'undefined') ? window.SharedIconSystem : null;
     var earned = TROPHY_DEFS.filter(function (t) { return trophies[t.id]; });
     var locked = TROPHY_DEFS.filter(function (t) { return !trophies[t.id]; });
     var html = '<div class="card"><div class="section-title">Trophies &mdash; ' + earned.length + ' / ' + TROPHY_DEFS.length + '</div>';
@@ -5204,8 +5205,11 @@
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.4rem;">';
     TROPHY_DEFS.forEach(function (def) {
       var isEarned = !!trophies[def.id];
+      var trophyIcon = iconApi && typeof iconApi.iconTrophy === 'function'
+        ? iconApi.iconTrophy({ size: 24, accent: isEarned ? iconApi.resolveAccent(def.id) : '#6f7d8f', title: def.title })
+        : def.icon;
       html += '<div style="padding:.45rem .55rem;border:1px solid ' + (isEarned ? 'rgba(232,192,80,.55)' : 'var(--border2)') + ';background:' + (isEarned ? 'rgba(232,192,80,.07)' : 'rgba(255,255,255,.02)') + ';border-radius:.35rem;">';
-      html += '<div style="font-size:1.35rem;line-height:1;">' + def.icon + '</div>';
+      html += '<div style="font-size:1.35rem;line-height:1;">' + trophyIcon + '</div>';
       html += '<div style="font-size:.88rem;font-weight:700;color:' + (isEarned ? 'var(--gold2)' : 'var(--muted2)') + ';margin-top:.18rem;">' + def.title + '</div>';
       html += '<div style="font-size:.76rem;color:var(--muted2);margin-top:.1rem;">' + (isEarned ? def.desc : '???') + '</div>';
       html += '</div>';

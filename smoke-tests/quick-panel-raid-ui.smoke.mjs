@@ -75,10 +75,9 @@ async function runScenario(browser) {
   await page.waitForFunction(
     () => {
       return !!(
-        window.createMission &&
-        window.openRaidWingPopup &&
-        window.resolveLegacyRaidHexEncounter &&
-        window.finishLegacyRaidCombatScene
+        typeof window.createMission === "function" &&
+        typeof window.openRaidWingPopup === "function" &&
+        typeof window.toggleQuickPanel === "function"
       );
     },
     null,
@@ -86,17 +85,28 @@ async function runScenario(browser) {
   );
 
   const setup = await page.evaluate(() => {
+    if (typeof window.switchQP !== "function") {
+      throw new Error("switchQP is unavailable.");
+    }
+    if (typeof window.resolveLegacyRaidHexEncounter !== "function") {
+      throw new Error("resolveLegacyRaidHexEncounter is unavailable.");
+    }
+
     if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
       window.settingsSystem.setGameMode("solo", { silent: true });
     }
-    if (window.S && typeof window.S === "object") {
-      window.S.health = Math.max(8, Number(window.S.health || 0));
-      window.S.mentalStress = Math.max(0, Number(window.S.mentalStress || 0));
+
+    if (typeof window.toggleQuickPanel === "function") {
+      const qp = document.getElementById("quickPanel");
+      if (!qp || !qp.classList.contains("open")) window.toggleQuickPanel();
+    }
+    if (typeof window.switchQP === "function") {
+      window.switchQP("combat");
     }
 
     const mission = window.createMission(
       "Raid Signal",
-      "Smoke Raid Combat Return",
+      "Smoke Quick Panel Raid UI",
       "hard",
       "Province",
       "province",
@@ -140,71 +150,42 @@ async function runScenario(browser) {
   });
 
   await page.waitForFunction(() => {
-    const overlay = document.getElementById("rollModal");
-    const title = document.getElementById("modalTitle");
-    const content = document.getElementById("modalContent");
-    const qp = document.getElementById("qpContent");
+    const qp = document.getElementById("quickPanel");
+    const content = document.getElementById("qpContent");
     const text = String(content && content.textContent ? content.textContent : "");
-    const titleText = String(title && title.textContent ? title.textContent : "");
-    const qpText = String(qp && qp.textContent ? qp.textContent : "");
-    const raidFlowActive = !!(
-      window.S &&
-      window.S.combat &&
-      window.S.combat.raidFlow &&
-      window.S.combat.raidFlow.active
-    );
-    const hasRaidModal = !!(
-      overlay &&
-      overlay.classList.contains("open") &&
-      /Raid Combat/i.test(titleText) &&
-      /Combat Engaged/i.test(text)
-    );
-    const hasRaidQuickPanel = /Return to Wing/i.test(qpText) && /Stage:/i.test(qpText);
     return !!(
-      raidFlowActive &&
-      (hasRaidModal || hasRaidQuickPanel)
+      qp &&
+      qp.classList.contains("open") &&
+      content &&
+      /Stage:/i.test(text) &&
+      /Round:/i.test(text) &&
+      /Return to Wing/i.test(text) &&
+      /Start Scene/i.test(text) &&
+      /Combat Tab Wayfarer Action/i.test(text) &&
+      !/Trauma Check/i.test(text)
     );
   }, null, { timeout: STEP_TIMEOUT_MS });
 
-  const combatSummary = await page.evaluate(({ missionId, wingNum }) => {
-    if (window.S && typeof window.S === "object") {
-      window.S.health = Math.max(8, Number(window.S.health || 0));
-    }
-    if (window.S && Array.isArray(window.S.enemies)) {
-      window.S.enemies = window.S.enemies.filter((enemy) => enemy && enemy.ally);
-    }
-    if (typeof window.finishLegacyRaidCombatScene !== "function") {
-      throw new Error("finishLegacyRaidCombatScene is unavailable.");
-    }
-    window.finishLegacyRaidCombatScene(missionId, wingNum);
+  const qpSummary = await page.evaluate(() => {
+    const content = document.getElementById("qpContent");
+    const text = String(content && content.textContent ? content.textContent : "");
     return {
-      enemiesLeft: Array.isArray(window.S && window.S.enemies)
-        ? window.S.enemies.filter((enemy) => enemy && !enemy.ally).length
-        : -1
+      hasRaidStage: /Stage:/i.test(text),
+      hasRound: /Round:/i.test(text),
+      hasReturn: /Return to Wing/i.test(text),
+      hasStart: /Start Scene/i.test(text),
+      hasWayfarerSelect: !!document.getElementById("qpCombatTabActionSelect"),
+      hasTrauma: /Trauma Check/i.test(text)
     };
-  }, setup);
-
-  await page.waitForFunction(() => {
-    const overlay = document.getElementById("rollModal");
-    const title = document.getElementById("modalTitle");
-    const content = document.getElementById("modalContent");
-    const text = String(content && content.textContent ? content.textContent : "");
-    return !!(
-      overlay &&
-      overlay.classList.contains("open") &&
-      title &&
-      /Raid Combat Complete/i.test(String(title.textContent || "")) &&
-      /Return to Wing 2/i.test(text)
-    );
-  }, null, { timeout: STEP_TIMEOUT_MS });
+  });
 
   await page.close();
 
   if (pageErrors.length) {
-    throw new Error(`Raid combat return smoke saw page errors: ${pageErrors.join(" | ")}`);
+    throw new Error(`Quick panel raid UI smoke saw page errors: ${pageErrors.join(" | ")}`);
   }
-  if (combatSummary.enemiesLeft !== 0) {
-    throw new Error(`Expected no hostiles before ending combat, got: ${JSON.stringify(combatSummary)}`);
+  if (!qpSummary.hasRaidStage || !qpSummary.hasRound || !qpSummary.hasReturn || !qpSummary.hasStart || !qpSummary.hasWayfarerSelect || qpSummary.hasTrauma) {
+    throw new Error(`Quick panel raid UI assertions failed: ${JSON.stringify(qpSummary)}`);
   }
 
   return setup;
@@ -218,7 +199,7 @@ try {
   await waitForServer(BASE_URL, START_TIMEOUT_MS);
   browser = await chromium.launch({ headless: true });
   const result = await runScenario(browser);
-  console.log(`raid combat return smoke passed: mission=${result.missionId} wing=${result.wingNum} cell=${result.cellId}`);
+  console.log(`quick panel raid ui smoke passed: mission=${result.missionId} wing=${result.wingNum} cell=${result.cellId}`);
 } catch (err) {
   console.error(err && err.stack ? err.stack : err);
   process.exitCode = 1;

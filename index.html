@@ -12356,13 +12356,21 @@ function showMerchantCaravan(col,row){
   const hex=mapData.find(h=>h.col===col&&h.row===row);
   if(!hex)return;
   const caravan=initMerchantCaravanHex(hex);
-  let html='<div style="font-size:.82rem;color:var(--gold);margin-bottom:.3rem;"><strong>\ud83c\udccf Merchant Caravan</strong></div>';
+  const iconApi=(typeof window!=='undefined')?window.SharedIconSystem:null;
+  const caravanIcon=iconApi&&typeof iconApi.iconVehicle==='function'
+    ? iconApi.iconVehicle('caravan',{size:28,title:'Merchant Caravan'})
+    : '🃏';
+  let html='<div style="display:flex;align-items:center;gap:.42rem;font-size:.82rem;color:var(--gold);margin-bottom:.3rem;"><strong>'+caravanIcon+' Merchant Caravan</strong></div>';
   html+='<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.4rem;">'+caravan.items.length+' items available. Prices negotiable.</div>';
   html+='<div style="margin-bottom:.35rem;"><button class="btn btn-xs btn-teal" onclick="openSellBackpackModal('+col+','+row+');">Sell Backpack Items</button></div>';
   caravan.items.forEach((item,idx)=>{
-    html+='<div style="display:flex;gap:.3rem;margin-bottom:.2rem;align-items:center;">';
+    const itemIcon=iconApi&&typeof iconApi.iconChest==='function'
+      ? iconApi.iconChest({size:20,accent:(iconApi.resolveAccent?iconApi.resolveAccent(item.name):'#c98d44'),title:item.name})
+      : '◈';
+    html+='<div style="display:flex;gap:.3rem;margin-bottom:.22rem;align-items:center;padding:.2rem .28rem;border:1px solid var(--border2);border-radius:6px;background:rgba(255,255,255,.02);">';
+    html+='<span style="display:inline-flex;align-items:center;">'+itemIcon+'</span>';
     html+='<span style="flex:1;font-size:.78rem;color:var(--text2);">'+item.name+'</span>';
-    html+='<span style="font-size:.72rem;color:var(--gold);">'+item.cost+'\u20b5</span>';
+    html+='<span style="font-size:.72rem;color:var(--gold);">'+item.cost+'₵</span>';
     html+='<button class="btn btn-xs btn-primary" onclick="buyFromCaravan('+col+','+row+','+idx+');">Buy</button>';
     html+='</div>';
   });
@@ -14191,12 +14199,11 @@ function rollHexEncounter(col,row){
       const hexObj2=mapData.find(h=>h.col===col&&h.row===row);
       const locLabel=hexObj2&&hexObj2.terrain&&hexObj2.terrain.name?hexObj2.terrain.name:'Wilderness';
       let encounterSummary;
-      if(vr===1){encounterSummary='d6=1 — Shift in Weather at '+locLabel;}
-      else if(vr===2){encounterSummary='d6=2 — Overland Encounter ('+locLabel+'): '+(typeof title!=='undefined'?title:'Unknown');}
+      if(vr===1||vr===2){encounterSummary='d6='+vr+' — Overland Encounter ('+locLabel+'): '+(typeof title!=='undefined'?title:'Unknown');}
       else{encounterSummary='d6='+vr+' — All Clear in '+locLabel+'.';}
       if(worldAddon)encounterSummary+=' + World Event: '+worldAddon.title;
       if(siteMemoryAddon)encounterSummary+=' + Site Memory: '+siteMemoryAddon.title;
-      encounterSummary+=nightAddonSummary;
+      if(nightAddonSummary)encounterSummary+=nightAddonSummary;
       window.campaignSystem.broadcastRollResult('Province Encounter',encounterSummary);
     }
   }catch(err){

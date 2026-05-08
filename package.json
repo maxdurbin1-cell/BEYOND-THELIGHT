@@ -13,6 +13,7 @@
     "smoke:scenario": "node smoke-tests/campaign-scenario.e2e.mjs",
     "smoke:legacy-raid": "node smoke-tests/legacy-raid.smoke.mjs",
     "smoke:raid-combat-return": "node smoke-tests/raid-combat-return.smoke.mjs",
+    "smoke:quick-panel-raid-ui": "node smoke-tests/quick-panel-raid-ui.smoke.mjs",
     "smoke:raid-teleport-choice": "node smoke-tests/raid-teleport-choice.smoke.mjs",
     "smoke:solo-library": "node smoke-tests/solo-library.smoke.mjs",
     "smoke:bone-oracle": "node smoke-tests/bone-oracle.smoke.mjs",
@@ -21,7 +22,7 @@
     "smoke:authority-travel": "node smoke-tests/campaign-authority-travel.smoke.mjs",
     "smoke:reconnect": "node smoke-tests/reconnect-churn.smoke.mjs",
     "smoke:maybe-reconnect": "node -e \"const run=['1','true','yes','on'].includes(String(process.env.SMOKE_RECONNECT||'').toLowerCase()); if(!run){console.log('Skipping reconnect soak (set SMOKE_RECONNECT=1 to enable).'); process.exit(0);} const {spawnSync}=require('node:child_process'); const cmd=process.platform==='win32'?'npm.cmd':'npm'; const r=spawnSync(cmd,['run','smoke:reconnect'],{stdio:'inherit'}); process.exit(r.status||0);\"",
-    "smoke:test": "npm run smoke:clicks && npm run smoke:solo-library && npm run smoke:bone-oracle && npm run smoke:combat-sync && npm run smoke:combat-turns && npm run smoke:scenario && npm run smoke:newsun-scheduler && npm run smoke:legacy-raid && npm run smoke:raid-combat-return && npm run smoke:raid-teleport-choice && npm run smoke:open-world && npm run smoke:maybe-reconnect"
+    "smoke:test": "npm run smoke:clicks && npm run smoke:solo-library && npm run smoke:bone-oracle && npm run smoke:combat-sync && npm run smoke:combat-turns && npm run smoke:scenario && npm run smoke:newsun-scheduler && npm run smoke:legacy-raid && npm run smoke:raid-combat-return && npm run smoke:quick-panel-raid-ui && npm run smoke:raid-teleport-choice && npm run smoke:open-world && npm run smoke:maybe-reconnect"
   },
   "dependencies": {
     "express": "^4.21.2",

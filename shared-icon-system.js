@@ -181,6 +181,31 @@
     return 'https://perchance.org/ai-character-generator?prompt=' + encodeURIComponent(prompt);
   }
 
+  function collectCurrentWayfarerTraits() {
+    return {
+      physique: (window.S && window.S.traits && window.S.traits.physique),
+      skin: (window.S && window.S.traits && window.S.traits.skin),
+      hair: (window.S && window.S.traits && window.S.traits.hair),
+      face: (window.S && window.S.traits && window.S.traits.face),
+      clothing: (window.S && window.S.traits && window.S.traits.clothing),
+      virtue: (window.S && window.S.traits && window.S.traits.virtue),
+      vice: (window.S && window.S.traits && window.S.traits.vice),
+      reputation: (window.S && window.S.traits && window.S.traits.reputation),
+      misfortune: (window.S && window.S.traits && window.S.traits.misfortune),
+      name: window.S && window.S.name
+    };
+  }
+
+  function launchAiCharacterGenerator(targetId, state) {
+    if (!window.PortraitGenerator || typeof window.PortraitGenerator.renderGeneratedPortrait !== 'function') {
+      alert('AI character generator not loaded. Ensure portrait-generator.js is included.');
+      return false;
+    }
+    var traitState = Object.assign({}, state || {}, collectCurrentWayfarerTraits());
+    window.PortraitGenerator.renderGeneratedPortrait(targetId || 'wayfarerVisualPanel', traitState);
+    return true;
+  }
+
   function getChestAccent(tier) {
     return {
       bronze: '#c98d44',
@@ -226,7 +251,6 @@
     var omen = safeState.omen || 'No omen chosen';
     var accent = resolveAccent([name, career, background, omen].join('|'));
     var portrait = iconWayfarer([name, career].join('|'), { size: opts && opts.size || 92, accent: accent, title: name });
-    var perchanceUrl = getPerchanceCharacterGeneratorUrl(safeState);
     return '<div style="display:grid;grid-template-columns:auto 1fr;gap:.65rem;align-items:center;padding:.58rem .62rem;border:1px solid ' + accent + '55;background:linear-gradient(155deg, ' + accent + '16, rgba(9,13,18,.92));">'
       + portrait
       + '<div>'
@@ -238,8 +262,8 @@
       + '<span style="font-size:.6rem;color:var(--muted2);">' + escHtml(omen) + '</span>'
       + '</div>'
         + '<div style="margin-top:.28rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">'
-        + '<button class="btn btn-xs btn-primary" data-wayfarer-portrait-gen onclick="if(window.PortraitGenerator){var traitState={physique:(window.S && window.S.traits && window.S.traits.physique),skin:(window.S && window.S.traits && window.S.traits.skin),hair:(window.S && window.S.traits && window.S.traits.hair),face:(window.S && window.S.traits && window.S.traits.face),clothing:(window.S && window.S.traits && window.S.traits.clothing),virtue:(window.S && window.S.traits && window.S.traits.virtue),vice:(window.S && window.S.traits && window.S.traits.vice),reputation:(window.S && window.S.traits && window.S.traits.reputation),misfortune:(window.S && window.S.traits && window.S.traits.misfortune),name:window.S && window.S.name};window.PortraitGenerator.renderGeneratedPortrait(\"wayfarerVisualPanel\",traitState);}else{alert(\"Portrait generator not loaded. Ensure portrait-generator.js is included.\");}" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">⚡ Generate Portrait</button>'
-        + '<a href="' + perchanceUrl + '" target="_blank" rel="noopener noreferrer" class="btn btn-xs" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">📖 Perchance</a>'
+        + '<button class="btn btn-xs btn-primary" data-wayfarer-portrait-gen onclick="window.SharedIconSystem.launchAiCharacterGenerator(\"wayfarerVisualPanel\");" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">⚡ Generate Portrait</button>'
+        + '<button class="btn btn-xs" data-wayfarer-ai-character-gen onclick="window.SharedIconSystem.launchAiCharacterGenerator(\"wayfarerVisualPanel\",window.S||{});" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">🤖 AI Character</button>'
         + '</div>'
       + '</div>'
       + '</div>';
@@ -268,6 +292,7 @@
     getTrophyEntryHtml: getTrophyEntryHtml,
     getBestiaryEntryIconHtml: getBestiaryEntryIconHtml,
     getPerchanceCharacterGeneratorUrl: getPerchanceCharacterGeneratorUrl,
+    launchAiCharacterGenerator: launchAiCharacterGenerator,
     getWayfarerPortraitHtml: getWayfarerPortraitHtml,
     renderWayfarerSheetPanel: renderWayfarerSheetPanel,
     resolveAccent: resolveAccent

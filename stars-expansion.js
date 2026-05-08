@@ -3136,13 +3136,13 @@ function openLegacyRaidBriefing(raidId) {
   if (!raid || typeof openModal !== 'function') return false;
   openModal(
     'Legacy Raid Briefing',
-    '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
-      + '<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.25rem;"><strong>' + escapeSolarCycleHtml(raid.title || 'Raid Event') + '</strong></div>'
-      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">' + escapeSolarCycleHtml(raid.flavor || '') + '</div>'
-      + '<div style="font-size:.75rem;color:var(--teal);margin-bottom:.3rem;">Boss actions: ' + escapeSolarCycleHtml((raid.bossActions || []).join(' | ')) + '</div>'
-      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">Puzzle wing: ' + escapeSolarCycleHtml(raid.puzzleText || '') + '</div>'
-      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">Allies: ' + escapeSolarCycleHtml(raid.allyText || '') + '</div>'
-      + '<div style="font-size:.75rem;color:var(--gold2);">Rewards: +' + Number(raid.medalReward || 1) + ' medal, +' + Number(raid.pointReward || 1) + ' raid point, ' + escapeSolarCycleHtml(raid.uniqueLoot || 'unique trophy') + '.</div>'
+    '<div style="font-size:.9rem;color:var(--text);line-height:1.66;">'
+      + '<div style="font-size:1rem;color:var(--gold2);margin-bottom:.32rem;"><strong>' + escapeSolarCycleHtml(raid.title || 'Raid Event') + '</strong></div>'
+      + '<div style="font-size:.85rem;color:var(--text2);margin-bottom:.34rem;">' + escapeSolarCycleHtml(raid.flavor || '') + '</div>'
+      + '<div style="font-size:.84rem;color:var(--teal2);margin-bottom:.32rem;">Boss actions: ' + escapeSolarCycleHtml((raid.bossActions || []).join(' | ')) + '</div>'
+      + '<div style="font-size:.84rem;color:var(--text2);margin-bottom:.3rem;">Puzzle wing: ' + escapeSolarCycleHtml(raid.puzzleText || '') + '</div>'
+      + '<div style="font-size:.84rem;color:var(--text2);margin-bottom:.3rem;">Allies: ' + escapeSolarCycleHtml(raid.allyText || '') + '</div>'
+      + '<div style="font-size:.84rem;color:var(--gold2);">Rewards: +' + Number(raid.medalReward || 1) + ' medal, +' + Number(raid.pointReward || 1) + ' raid point, ' + escapeSolarCycleHtml(raid.uniqueLoot || 'unique trophy') + '.</div>'
       + '</div>'
   );
   return true;
@@ -3162,13 +3162,13 @@ function buildLegacyRaidPanelHtml() {
             : ('Start by Day ' + Number(raid.availableUntilStamp || 0) + ' (' + Number(raid.openDays || LEGACY_RAID_OPEN_DAYS) + '-day raid window) or it vanishes for a month.');
         return '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;">'
           + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;margin-bottom:.2rem;">'
-          + '<div style="font-size:.78rem;color:var(--text2);"><strong>' + escapeSolarCycleHtml(raid.title || 'Raid Event') + '</strong></div>'
-          + '<div style="font-size:.68rem;color:' + statusTone + ';text-transform:uppercase;letter-spacing:.08em;">' + escapeSolarCycleHtml(String(raid.status || 'posted').replace(/_/g, ' ')) + '</div>'
+          + '<div style="font-size:.86rem;color:var(--text);"><strong>' + escapeSolarCycleHtml(raid.title || 'Raid Event') + '</strong></div>'
+          + '<div style="font-size:.74rem;color:' + statusTone + ';text-transform:uppercase;letter-spacing:.08em;">' + escapeSolarCycleHtml(String(raid.status || 'posted').replace(/_/g, ' ')) + '</div>'
           + '</div>'
-          + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;margin-bottom:.22rem;">' + escapeSolarCycleHtml(raid.flavor || '') + '</div>'
-          + '<div style="font-size:.7rem;color:var(--gold2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(getLegacyRaidRegionLabel(raid.region)) + ' | Boss: ' + escapeSolarCycleHtml(raid.bossName || 'Unknown') + '</div>'
-          + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.18rem;">' + escapeSolarCycleHtml(windowText) + '</div>'
-          + '<div style="font-size:.69rem;color:var(--teal);line-height:1.45;margin-bottom:.24rem;">Puzzle: ' + escapeSolarCycleHtml(raid.puzzleText || '') + '</div>'
+          + '<div style="font-size:.79rem;color:var(--text2);line-height:1.56;margin-bottom:.24rem;">' + escapeSolarCycleHtml(raid.flavor || '') + '</div>'
+          + '<div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">' + escapeSolarCycleHtml(getLegacyRaidRegionLabel(raid.region)) + ' | Boss: ' + escapeSolarCycleHtml(raid.bossName || 'Unknown') + '</div>'
+          + '<div style="font-size:.76rem;color:var(--text2);margin-bottom:.2rem;">' + escapeSolarCycleHtml(windowText) + '</div>'
+          + '<div style="font-size:.76rem;color:var(--teal2);line-height:1.5;margin-bottom:.26rem;">Puzzle: ' + escapeSolarCycleHtml(raid.puzzleText || '') + '</div>'
           + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
           + '<button class="btn btn-xs btn-teal" onclick="window.openLegacyRaidBriefing(\'' + String(raid.id) + '\')">Briefing</button>'
           + '<button class="btn btn-xs" onclick="window.renderMissionTracker && window.renderMissionTracker()">Mission Tracker</button>'
@@ -3200,9 +3200,9 @@ function buildLegacyRaidPanelHtml() {
   }).join('');
 
   return '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
-    + '<div style="font-size:.9rem;color:var(--text2);margin-bottom:.2rem;"><strong>Legacy Raid Board</strong></div>'
-    + '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;margin-bottom:.35rem;">In Legacy Mode, world-boss raid events can surface across the Province, Sea Region, Galaxy, and planet routes. Each one is a three-step mission with lore, intricate puzzles, and a mythic boss. If Step 1 is not started within 3 in-game days, the marker withdraws and only reappears after one in-game month.</div>'
-    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.28rem;">Allied support: three Traveling Wayfarers (DD6 | 12 Stress) join every raid.</div>'
+    + '<div style="font-size:1rem;color:var(--text);margin-bottom:.24rem;"><strong>Legacy Raid Board</strong></div>'
+    + '<div style="font-size:.82rem;color:var(--text2);line-height:1.62;margin-bottom:.38rem;">In Legacy Mode, world-boss raid events can surface across the Province, Sea Region, Galaxy, and planet routes. Each one is a three-step mission with lore, intricate puzzles, and a mythic boss. If Step 1 is not started within 3 in-game days, the marker withdraws and only reappears after one in-game month.</div>'
+    + '<div style="font-size:.8rem;color:var(--gold2);margin-bottom:.32rem;">Allied support: three Traveling Wayfarers (DD6 | 12 Stress) join every raid.</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.3rem;margin-bottom:.38rem;">'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Medals</div><div style="font-size:.9rem;color:var(--gold2);">' + Number(legacy.medals || 0) + '</div></div>'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Raid Points</div><div style="font-size:.9rem;color:var(--teal);">' + Number(legacy.raidPoints || 0) + '</div></div>'

@@ -8996,9 +8996,17 @@
     if (!room) return null;
     if (!room.raidPuzzle || typeof room.raidPuzzle !== 'object') {
       var mode = getLegacyRaidBossPuzzleMode(mission, wingNum);
+      var attemptBudget = 6;
+      if (mode === 'pipe_flow') attemptBudget = 16;
+      else if (mode === 'weight_balance') attemptBudget = 14;
+      else if (mode === 'food_chain') attemptBudget = 10;
+      else if (mode === 'constellation') attemptBudget = 8;
+      else if (mode === 'limited_move') attemptBudget = 10;
+      else if (mode === 'shape_route') attemptBudget = 8;
+      else if (mode === 'symbol_match') attemptBudget = 6;
       room.raidPuzzle = {
         mode: mode,
-        attemptsLeft: mode === 'pipe_flow' ? 10 : mode === 'weight_balance' ? 12 : mode === 'food_chain' ? 5 : 3,
+        attemptsLeft: attemptBudget,
         solved: false,
         log: [],
         state: {}
@@ -9013,6 +9021,22 @@
       else if (mode === 'shape_route') room.raidPuzzle.state.target = 'ABCD';
     }
     return room.raidPuzzle;
+  }
+
+  function reseedLegacyRaidPuzzleState(mission, puzzle) {
+    if (!puzzle || typeof puzzle !== 'object') return;
+    var mode = String(puzzle.mode || 'lock_dials');
+    puzzle.solved = false;
+    puzzle.log = ['Puzzle matrix reconfigured.'];
+    puzzle.state = {};
+    if (mode === 'lock_dials') puzzle.state = createLegacyRaidTumblerState(mission);
+    else if (mode === 'symbol_match') puzzle.state.target = ['☀', '☾', '✶', '⬡'][Math.floor(Math.random() * 4)];
+    else if (mode === 'constellation') puzzle.state.target = '135';
+    else if (mode === 'pipe_flow') puzzle.state = createLegacyRaidPipeFlowState();
+    else if (mode === 'weight_balance') puzzle.state = createLegacyRaidWeightBalanceState();
+    else if (mode === 'food_chain') puzzle.state = createLegacyRaidFoodChainState(mission);
+    else if (mode === 'limited_move') puzzle.state.path = 'LURRD';
+    else if (mode === 'shape_route') puzzle.state.target = 'ABCD';
   }
 
   function buildLegacyRaidPuzzleHints(mission, wingNum, roomIdx) {
@@ -9197,19 +9221,40 @@
       ? puzzle.log.slice(-4).map(function (line) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + line + '</div>'; }).join('')
       : '<div style="font-size:.67rem;color:var(--muted2);">No attempts yet.</div>';
     openModal('Puzzle Room — ' + room.label,
-      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
-      + '<div style="margin-bottom:.2rem;"><strong style="color:var(--gold2);">Puzzle Type:</strong> ' + (puzzle.mode === 'symbol_match' ? 'symbol match' : String(puzzle.mode).replace(/_/g, ' ')) + ' · Attempts left: ' + Number(puzzle.attemptsLeft || 0) + '</div>'
-      + '<div style="margin-bottom:.2rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);">'
-      + hints.map(function (h) { return '<div style="font-size:.69rem;color:var(--muted2);">• ' + h + '</div>'; }).join('') + '</div>'
+      '<div style="font-size:.9rem;color:var(--text);line-height:1.62;">'
+      + '<div style="margin-bottom:.24rem;"><strong style="color:var(--gold2);">Puzzle Type:</strong> ' + (puzzle.mode === 'symbol_match' ? 'symbol match' : String(puzzle.mode).replace(/_/g, ' ')) + ' · Attempts left: <strong style="color:var(--teal2);">' + Number(puzzle.attemptsLeft || 0) + '</strong></div>'
+      + '<div style="margin-bottom:.24rem;padding:.24rem .3rem;border:1px solid rgba(232,192,80,.28);background:rgba(255,255,255,.04);">'
+      + hints.map(function (h) { return '<div style="font-size:.76rem;color:var(--text2);margin-bottom:.08rem;">• ' + h + '</div>'; }).join('') + '</div>'
       + roleStatus
       + roleControls
       + controls
-      + '<div style="font-size:.67rem;color:var(--gold2);margin-bottom:.08rem;">Attempt Log</div>'
-      + '<div style="max-height:100px;overflow:auto;border:1px solid var(--border2);padding:.2rem .26rem;background:rgba(0,0,0,.16);margin-bottom:.2rem;">' + logHtml + '</div>'
-      + '<div style="display:flex;justify-content:flex-end;"><button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button></div>'
+      + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.1rem;">Attempt Log</div>'
+      + '<div style="max-height:120px;overflow:auto;border:1px solid var(--border2);padding:.24rem .28rem;background:rgba(0,0,0,.16);margin-bottom:.24rem;">' + logHtml + '</div>'
+      + '<div style="display:flex;justify-content:space-between;gap:.24rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs" onclick="resetLegacyRaidPuzzleRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Reconfigure Puzzle</button>'
+      + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
+      + '</div>'
       + '</div>');
     return true;
   }
+
+  window.resetLegacyRaidPuzzleRoom = function (missionId, wingNum, roomIdx) {
+    var mission = getMission(missionId);
+    if (!mission) return false;
+    var map = ensureRaidHexMap(mission);
+    var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
+    if (!room || room.type !== 'Puzzle') return false;
+    var puzzle = ensureLegacyRaidLockDialState(mission, wingNum, roomIdx);
+    if (!puzzle || puzzle.solved) return false;
+    puzzle.attemptsLeft = Math.max(1, Number(puzzle.attemptsLeft || 0) - 1);
+    reseedLegacyRaidPuzzleState(mission, puzzle);
+    if (typeof showNotif === 'function') showNotif('Puzzle matrix reconfigured (-1 attempt).', 'info');
+    if (Number(puzzle.attemptsLeft || 0) <= 0) {
+      room.result = '🧩 Puzzle lockout triggered after too many resets.';
+      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
+    }
+    return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
+  };
 
   window.consumeLegacyRaidPuzzleAutoSuccess = function (missionId, wingNum, roomIdx) {
     var mission = getMission(missionId);
@@ -9229,12 +9274,18 @@
 
     var mode = String(puzzle.mode || 'lock_dials');
     var ok = false;
+    var consumeAttempt = false;
     if (mode === 'symbol_match' && action === 'symbol') {
       ok = String(payload || '') === String(puzzle.state.target || '☀');
+      consumeAttempt = !ok;
       puzzle.log.push('Symbol pick: ' + String(payload || '?') + (ok ? ' ✓' : ' ✗'));
     } else if (mode === 'constellation' && action === 'constellation') {
       puzzle.state.seq = String((puzzle.state.seq || '') + String(payload || '')).split(',').join('');
-      ok = String(puzzle.state.seq || '').slice(-3) === '135';
+      if (String(puzzle.state.seq || '').length >= 3) {
+        ok = String(puzzle.state.seq || '').slice(-3) === '135';
+        consumeAttempt = !ok;
+        if (!ok) puzzle.state.seq = '';
+      }
       puzzle.log.push('Constellation sequence: ' + String(puzzle.state.seq || ''));
     } else if (mode === 'pipe_flow' && action === 'pipe_rotate') {
       var tileIndex = Math.max(0, Number(payload || 0));
@@ -9280,11 +9331,21 @@
       puzzle.log.push(ok ? 'Food-chain topology locked. Predator loop resolved.' : ('Marked ' + puzzle.state.selected.length + '/' + (Array.isArray(puzzle.state.targetCells) ? puzzle.state.targetCells.length : 0) + ' required cells.'));
     } else if (mode === 'limited_move' && action === 'maze') {
       puzzle.state.pathTaken = String((puzzle.state.pathTaken || '') + String(payload || ''));
-      ok = String(puzzle.state.pathTaken || '') === String(puzzle.state.path || 'LURRD');
+      var targetPath = String(puzzle.state.path || 'LURRD');
+      if (String(puzzle.state.pathTaken || '').length >= targetPath.length) {
+        ok = String(puzzle.state.pathTaken || '') === targetPath;
+        consumeAttempt = !ok;
+        if (!ok) puzzle.state.pathTaken = '';
+      }
       puzzle.log.push('Path: ' + String(puzzle.state.pathTaken || ''));
     } else if (mode === 'shape_route' && action === 'shape') {
       puzzle.state.route = String((puzzle.state.route || '') + String(payload || ''));
-      ok = String(puzzle.state.route || '') === String(puzzle.state.target || 'ABCD');
+      var targetRoute = String(puzzle.state.target || 'ABCD');
+      if (String(puzzle.state.route || '').length >= targetRoute.length) {
+        ok = String(puzzle.state.route || '') === targetRoute;
+        consumeAttempt = !ok;
+        if (!ok) puzzle.state.route = '';
+      }
       puzzle.log.push('Shape route: ' + String(puzzle.state.route || ''));
     } else if (mode === 'lock_dials' && action === 'tumbler_push') {
       // Push pin at index up by 1 (wraps 5→1)
@@ -9331,11 +9392,13 @@
       room.result = '🧩 Puzzle solved: route unlocked with coherent patterning.';
       return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
     }
-    puzzle.attemptsLeft = Math.max(0, Number(puzzle.attemptsLeft || 0) - 1);
-    if (Number(puzzle.attemptsLeft || 0) <= 0) {
-      if (typeof closeModal === 'function') closeModal();
-      room.result = '🧩 Puzzle lockout triggered after failed sequence.';
-      return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
+    if (consumeAttempt) {
+      puzzle.attemptsLeft = Math.max(0, Number(puzzle.attemptsLeft || 0) - 1);
+      if (Number(puzzle.attemptsLeft || 0) <= 0) {
+        if (typeof closeModal === 'function') closeModal();
+        room.result = '🧩 Puzzle lockout triggered after failed sequence.';
+        return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
+      }
     }
     return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
   };

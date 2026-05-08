@@ -235,19 +235,109 @@
         { type: 'sink', rotation: 0, locked: true }
       ]
     ];
-    var baseTiles = templates[Math.floor(Math.random() * templates.length)] || templates[0];
-    var shuffled = baseTiles.map(function (tile) {
-      var next = { type: tile.type, rotation: tile.rotation, locked: tile.locked };
+    var order = [];
+    for (var oi = 0; oi < templates.length; oi++) order.push(oi);
+    for (var s = order.length - 1; s > 0; s--) {
+      var j = Math.floor(Math.random() * (s + 1));
+      var tmp = order[s];
+      order[s] = order[j];
+      order[j] = tmp;
+    }
+
+    var solvedTiles = null;
+    for (var k = 0; k < order.length; k++) {
+      var attemptBase = templates[order[k]].map(function (tile) {
+        return { type: tile.type, rotation: Number(tile.rotation || 0), locked: !!tile.locked };
+      });
+      solvedTiles = _pipeFlowFindSolvedTemplate(attemptBase, size);
+      if (solvedTiles) break;
+    }
+    if (!solvedTiles) {
+      solvedTiles = templates[0].map(function (tile) {
+        return { type: tile.type, rotation: Number(tile.rotation || 0), locked: !!tile.locked };
+      });
+    }
+
+    var shuffled = solvedTiles.map(function (tile) {
+      var next = { type: tile.type, rotation: Number(tile.rotation || 0), locked: !!tile.locked };
       if (!next.locked) {
-        var tries = 0;
-        do {
-          next.rotation = Math.floor(Math.random() * 4);
-          tries += 1;
-        } while (next.rotation === tile.rotation && tries < 6);
+        var opts = _pipeFlowRotationOptions(next);
+        if (opts.length > 1) {
+          var pick = opts[Math.floor(Math.random() * opts.length)];
+          var guard = 0;
+          while (pick === next.rotation && guard < 8) {
+            pick = opts[Math.floor(Math.random() * opts.length)];
+            guard += 1;
+          }
+          next.rotation = pick;
+        }
       }
       return next;
     });
+
+    // Avoid serving an already-solved board unless every unlocked tile is effectively fixed.
+    if (_pipeFlowSolved(shuffled)) {
+      for (var ti = 0; ti < shuffled.length; ti++) {
+        var t = shuffled[ti];
+        if (t.locked) continue;
+        var opts2 = _pipeFlowRotationOptions(t);
+        if (opts2.length > 1) {
+          for (var oi2 = 0; oi2 < opts2.length; oi2++) {
+            if (opts2[oi2] !== t.rotation) {
+              t.rotation = opts2[oi2];
+              break;
+            }
+          }
+          if (!_pipeFlowSolved(shuffled)) break;
+        }
+      }
+    }
+
     return { tiles: shuffled, size: size };
+  }
+
+  function _pipeFlowRotationOptions(tile) {
+    var type = String(tile && tile.type || '').toLowerCase();
+    if (type === 'source' || type === 'sink' || type === 'block' || type === 'cross') {
+      return [Number(tile && tile.rotation || 0) % 4];
+    }
+    if (type === 'straight') return [0, 1];
+    return [0, 1, 2, 3];
+  }
+
+  function _pipeFlowFindSolvedTemplate(baseTiles, size) {
+    if (!Array.isArray(baseTiles) || !baseTiles.length) return null;
+    var work = baseTiles.map(function (tile) {
+      return { type: tile.type, rotation: Number(tile.rotation || 0), locked: !!tile.locked };
+    });
+
+    var variable = [];
+    for (var i = 0; i < work.length; i++) {
+      var opts = _pipeFlowRotationOptions(work[i]);
+      if (work[i].locked || opts.length <= 1) continue;
+      variable.push(i);
+    }
+
+    var nodes = 0;
+    var maxNodes = 220000;
+
+    function dfs(pos) {
+      nodes += 1;
+      if (nodes > maxNodes) return false;
+      if (pos >= variable.length) {
+        return _pipeFlowSolved(work);
+      }
+      var idx = variable[pos];
+      var opts = _pipeFlowRotationOptions(work[idx]);
+      for (var oi = 0; oi < opts.length; oi++) {
+        work[idx].rotation = opts[oi];
+        if (dfs(pos + 1)) return true;
+      }
+      return false;
+    }
+
+    if (!dfs(0)) return null;
+    return work;
   }
 
   function _cpTileExits(tile) {

@@ -226,23 +226,99 @@
     });
   }
 
-  function launchAiCharacterGenerator(targetId, state) {
-    if (!window.PortraitGenerator || typeof window.PortraitGenerator.renderGeneratedPortrait !== 'function') {
-      alert('AI character generator not loaded. Ensure portrait-generator.js is included.');
-      return false;
-    }
-    var baseState = state || {};
-    var liveTraits = collectCurrentWayfarerTraits();
-    var traitState = Object.assign({}, baseState, liveTraits, {
-      traits: Object.assign({}, (baseState && baseState.traits) || {}, liveTraits.traits || {})
-    });
-    Promise.resolve(window.PortraitGenerator.renderGeneratedPortrait(targetId || 'wayfarerVisualPanel', traitState)).then(function(ok) {
-      if (ok) return;
-      if (typeof window.showNotif === 'function') {
-        window.showNotif('AI portrait generation failed. Check API key/provider in portrait settings.', 'warn');
-      }
-    });
+  function openWayfarerPortraitPreview(imageUrl, label, sourceLabel) {
+    if (typeof document === 'undefined') return false;
+    var modal = document.getElementById('rollModal');
+    var titleEl = document.getElementById('modalTitle');
+    var contentEl = document.getElementById('modalContent');
+    if (!modal || !titleEl || !contentEl) return false;
+
+    titleEl.textContent = label || 'Portrait Preview';
+    contentEl.innerHTML = ''
+      + '<div style="display:grid;gap:.65rem;">'
+      + '<div style="font-size:.75rem;color:var(--muted2);">' + escHtml(sourceLabel || 'Custom portrait') + '</div>'
+      + '<div style="border:1px solid var(--border2);border-radius:12px;overflow:hidden;background:var(--surface);max-width:100%;">'
+      + '<img src="' + escHtml(imageUrl || '') + '" alt="Portrait preview" style="display:block;width:100%;height:auto;max-height:78vh;object-fit:contain;"/>'
+      + '</div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
+      + '<button class="btn btn-sm btn-primary" onclick="window.SharedIconSystem.clearWayfarerPortraitImage();closeModal();">Clear Portrait</button>'
+      + '<button class="btn btn-sm" onclick="closeModal();">Close</button>'
+      + '</div>'
+      + '</div>';
+    modal.style.display = 'flex';
     return true;
+  }
+
+  function rerenderWayfarerPortrait() {
+    if (typeof window !== 'undefined' && window.SharedIconSystem && typeof window.SharedIconSystem.renderWayfarerSheetPanel === 'function') {
+      window.SharedIconSystem.renderWayfarerSheetPanel('wayfarerVisualPanel', window.S || {});
+      return true;
+    }
+    return false;
+  }
+
+  function setWayfarerPortraitImage(imageUrl, sourceLabel) {
+    if (typeof window === 'undefined') return false;
+    var next = String(imageUrl || '').trim();
+    if (!next) return false;
+    if (!window.S || typeof window.S !== 'object') window.S = {};
+    window.S.portraitImage = next;
+    window.S.portraitSource = String(sourceLabel || 'Custom portrait');
+    rerenderWayfarerPortrait();
+    if (typeof window.showNotif === 'function') {
+      window.showNotif('Portrait image updated', 'good');
+    }
+    return true;
+  }
+
+  function clearWayfarerPortraitImage() {
+    if (typeof window === 'undefined' || !window.S || typeof window.S !== 'object') return false;
+    delete window.S.portraitImage;
+    delete window.S.portraitSource;
+    rerenderWayfarerPortrait();
+    if (typeof window.showNotif === 'function') {
+      window.showNotif('Portrait cleared', 'good');
+    }
+    return true;
+  }
+
+  function promptWayfarerPortraitImageUrl() {
+    if (typeof window === 'undefined') return false;
+    var current = window.S && window.S.portraitImage ? String(window.S.portraitImage) : '';
+    var entered = window.prompt('Paste an image URL or data URL for the portrait slot:', current);
+    if (!entered) return false;
+    return setWayfarerPortraitImage(entered, 'Image URL');
+  }
+
+  function pickWayfarerPortraitImage() {
+    if (typeof document === 'undefined') return false;
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        setWayfarerPortraitImage(String(reader.result || ''), 'Uploaded image');
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+    return true;
+  }
+
+  function launchAiCharacterGenerator(targetId, state) {
+    var perchanceUrl = getPerchanceCharacterGeneratorUrl(state || collectCurrentWayfarerTraits());
+    if (typeof window !== 'undefined' && window.open) {
+      window.open(perchanceUrl, '_blank', 'noopener,noreferrer');
+      return true;
+    }
+    if (typeof window !== 'undefined' && window.location) {
+      window.location.href = perchanceUrl;
+      return true;
+    }
+    return false;
   }
 
   function getChestAccent(tier) {
@@ -288,11 +364,18 @@
     var career = safeState.career || 'Wanderer';
     var background = safeState.background || 'Unwritten origin';
     var omen = safeState.omen || 'No omen chosen';
+    var portraitImage = safeState.portraitImage || '';
+    var portraitSource = safeState.portraitSource || 'Custom portrait';
+    var perchanceUrl = getPerchanceCharacterGeneratorUrl(safeState);
     var accent = resolveAccent([name, career, background, omen].join('|'));
-    var portrait = iconWayfarer([name, career].join('|'), { size: opts && opts.size || 92, accent: accent, title: name });
+    var portrait = portraitImage
+      ? '<button type="button" class="btn btn-xs" onclick="window.SharedIconSystem.openWayfarerPortraitPreview(' + JSON.stringify(String(portraitImage)) + ',' + JSON.stringify(String(name)) + ',' + JSON.stringify(String(portraitSource)) + ');" style="padding:0;border:none;background:transparent;line-height:0;cursor:pointer;">'
+        + '<img src="' + escHtml(portraitImage) + '" alt="' + escHtml(name) + ' portrait" style="width:' + (opts && opts.size || 92) + 'px;height:' + (opts && opts.size || 92) + 'px;object-fit:cover;border-radius:14px;border:1px solid ' + accent + ';box-shadow:0 8px 18px rgba(0,0,0,.22);display:block;"/>'
+        + '</button>'
+      : iconWayfarer([name, career].join('|'), { size: opts && opts.size || 92, accent: accent, title: name });
     return '<div style="display:grid;grid-template-columns:auto 1fr;gap:.65rem;align-items:center;padding:.58rem .62rem;border:1px solid ' + accent + '55;background:linear-gradient(155deg, ' + accent + '16, rgba(9,13,18,.92));">'
       + portrait
-      + '<div>'
+      + '<div style="min-width:0;">'
       + '<div style="font-size:.8rem;color:var(--text2);font-family:Cinzel,serif;line-height:1.2;">' + escHtml(name) + '</div>'
       + '<div style="font-size:.7rem;color:' + accent + ';text-transform:uppercase;letter-spacing:.1em;margin-top:.08rem;">' + escHtml(career) + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-top:.18rem;">' + escHtml(background) + '</div>'
@@ -300,10 +383,13 @@
       + '<span style="font-size:.58rem;padding:.08rem .22rem;border:1px solid ' + accent + '44;color:' + accent + ';text-transform:uppercase;letter-spacing:.08em;">Omen</span>'
       + '<span style="font-size:.6rem;color:var(--muted2);">' + escHtml(omen) + '</span>'
       + '</div>'
-        + '<div style="margin-top:.28rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">'
-        + '<button class="btn btn-xs btn-primary" data-wayfarer-portrait-gen onclick="window.SharedIconSystem.launchAiCharacterGenerator(\'wayfarerVisualPanel\');" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">⚡ Generate Portrait</button>'
-        + '<button class="btn btn-xs" data-wayfarer-ai-character-gen onclick="window.SharedIconSystem.launchAiCharacterGenerator(\'wayfarerVisualPanel\',window.S||{});" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">🤖 AI Character</button>'
-        + '</div>'
+      + '<div style="margin-top:.28rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">'
+      + '<a class="btn btn-xs btn-primary" href="' + perchanceUrl + '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">📖 Open Perchance</a>'
+      + '<button class="btn btn-xs" onclick="window.SharedIconSystem.promptWayfarerPortraitImageUrl();" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">🔗 Image URL</button>'
+      + '<button class="btn btn-xs" onclick="window.SharedIconSystem.pickWayfarerPortraitImage();" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">📁 Upload Image</button>'
+      + (portraitImage ? '<button class="btn btn-xs btn-red" onclick="window.SharedIconSystem.clearWayfarerPortraitImage();" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">✕ Clear Image</button>' : '')
+      + '</div>'
+      + (portraitImage ? '<div style="font-size:.62rem;color:var(--muted);margin-top:.2rem;">Click the portrait to open a larger preview. Source: ' + escHtml(portraitSource) + '</div>' : '<div style="font-size:.62rem;color:var(--muted);margin-top:.2rem;">Open Perchance, then paste or upload the resulting image into this slot.</div>')
       + '</div>'
       + '</div>';
   }
@@ -332,6 +418,11 @@
     getBestiaryEntryIconHtml: getBestiaryEntryIconHtml,
     getPerchanceCharacterGeneratorUrl: getPerchanceCharacterGeneratorUrl,
     launchAiCharacterGenerator: launchAiCharacterGenerator,
+    openWayfarerPortraitPreview: openWayfarerPortraitPreview,
+    setWayfarerPortraitImage: setWayfarerPortraitImage,
+    clearWayfarerPortraitImage: clearWayfarerPortraitImage,
+    promptWayfarerPortraitImageUrl: promptWayfarerPortraitImageUrl,
+    pickWayfarerPortraitImage: pickWayfarerPortraitImage,
     getWayfarerPortraitHtml: getWayfarerPortraitHtml,
     renderWayfarerSheetPanel: renderWayfarerSheetPanel,
     resolveAccent: resolveAccent

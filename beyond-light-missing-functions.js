@@ -1337,9 +1337,6 @@ function generateCharacter() {
   changeCounter("pathTokens", 0);
   changeCounter("successRolls", 0);
   showNotif("Wayfarer generated", "good");
-  if (window.SharedIconSystem && typeof window.SharedIconSystem.launchAiCharacterGenerator === 'function') {
-    window.SharedIconSystem.launchAiCharacterGenerator('wayfarerVisualPanel', S || {});
-  }
   // Auto-generate backstory after character state is fully initialized
   if (typeof generateBackstory === 'function') {
     try {
@@ -1386,6 +1383,8 @@ function clearCharacter(options) {
   S.flavor = "";
   S.mutation = "";
   S.randomItem = "";
+  S.portraitImage = "";
+  S.portraitSource = "";
   S.equipment = { weapon1: "", weapon2: "", armor: "", readied: "" };
   S.backpack = ["", "", "", "", "", ""];
   S.soulArray = [];

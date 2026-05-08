@@ -28,6 +28,10 @@
     sfxVolume: 0.6,
     ambienceVolume: 0.45,
     currentTab: 'character',
+    lastMusicSwitchAt: 0,
+    musicSwitchCooldownMs: 900,
+    sfxCooldownMs: 70,
+    sfxRecentPlayedAt: {},
     assetPack: {
       enabled: true,
       manifestUrl: '/assets/audio/cc0-pack.json',
@@ -157,6 +161,18 @@
         document.addEventListener('click', resumeAudio, { once: true });
         document.addEventListener('keydown', resumeAudio, { once: true });
         document.addEventListener('touchstart', resumeAudio, { once: true });
+        document.addEventListener('visibilitychange', () => {
+          if (!this.musicConsent || !this.enabled) return;
+          if (document.hidden) {
+            this.stopAmbience(true);
+          } else {
+            if (this.currentScenario) {
+              this.playScenarioAudio(this.currentScenario, { fadeIn: true, fadeOut: false });
+            } else {
+              this.switchTabMusic(this.currentTab || 'character');
+            }
+          }
+        });
         
         this.createSoundLibrary();
         this.initialized = true;
@@ -461,6 +477,21 @@
     playSFX(soundId, volume = 1) {
       this.ensureInitialized();
       if (!this.enabled || !this.audioContext) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const sid = String(soundId || '');
+      if (!sid) return;
+      const now = Date.now();
+      const prev = Number(this.sfxRecentPlayedAt[sid] || 0);
+      if (prev > 0 && (now - prev) < Math.max(20, Number(this.sfxCooldownMs || 70))) return;
+      this.sfxRecentPlayedAt[sid] = now;
+      if (Object.keys(this.sfxRecentPlayedAt).length > 80) {
+        var cutoff = now - 2500;
+        var nextMap = {};
+        Object.keys(this.sfxRecentPlayedAt).forEach((key) => {
+          if (Number(this.sfxRecentPlayedAt[key] || 0) >= cutoff) nextMap[key] = this.sfxRecentPlayedAt[key];
+        });
+        this.sfxRecentPlayedAt = nextMap;
+      }
 
       // Resume audio context if needed
       if (this.audioContext.state === 'suspended') {
@@ -512,6 +543,12 @@
 
       const baseId = String(musicId || '').trim();
       if (!baseId) return;
+      const now = Date.now();
+      if (!options.forceVariantChange && this.lastMusicSwitchAt > 0
+        && (now - this.lastMusicSwitchAt) < Math.max(200, Number(this.musicSwitchCooldownMs || 900))) {
+        return;
+      }
+      this.lastMusicSwitchAt = now;
       if (this.currentMusic && !options.forceVariantChange && String(this.currentMusicBaseId || '') === baseId) {
         return;
       }

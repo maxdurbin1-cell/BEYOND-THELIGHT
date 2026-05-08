@@ -1687,6 +1687,19 @@
       }
 
       g.addEventListener("click", function () {
+        const currentHex = w.selectedHexId ? hexById(w.selectedHexId) : null;
+        const crossingIntoBarrier = !!(hex && hex.hazard && hex.hazard.type === "barrier" && (!currentHex || currentHex.id !== hex.id));
+        if (crossingIntoBarrier) {
+          if (typeof openModal === "function") {
+            openModal(
+              "Barrier Check Required",
+              "<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'><strong>⛔ " + String(hex.hazard.name || "Barrier") + "</strong><br>Crossing this boundary requires <strong>Body vs DD6</strong>.<br><br><button class='btn btn-xs btn-warn' onclick='resolveWtwBarrierCrossing(\"" + String(hex.id) + "\");if(typeof closeModal===\"function\")closeModal();'>⚄ Attempt Crossing</button></div>"
+            );
+          } else if (typeof showNotif === "function") {
+            showNotif("Barrier check required before crossing.", "warn");
+          }
+          return;
+        }
         w.selectedHexId = hex.id;
         if (typeof window.rollRivalEncounterForMap === "function") {
           window.rollRivalEncounterForMap("wtw", {
@@ -1976,11 +1989,13 @@
   }
 
   function resolveWtwBarrierCrossing(hexId) {
+    const w = ensureWorldState();
     const hex = hexById(hexId);
     if (!hex || !hex.hazard || hex.hazard.type !== 'barrier') return;
     const check = rollAgainstDread("body", 6);
     if (check.success) {
       hex.hazard = null;
+      if (w) w.selectedHexId = hex.id;
       if (typeof showNotif === "function") showNotif("Barrier crossed: route cleared (Body " + check.actionTotal + " vs DD6 " + check.dreadTotal + ").", "good");
     } else {
       applyNegativeCondition("weakened");

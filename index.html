@@ -15636,6 +15636,111 @@ document.addEventListener('DOMContentLoaded',()=>{
       || S.quickPanel.lastCombatRoll;
     renderQP('combat');
   };
+  window.qpQuickAddAlly=function(){
+    var allyName=(document.getElementById('qpAllyName')||{}).value||'';
+    var resolved=String(allyName||'').trim();
+    if(typeof addTrackedCombatantFromMap==='function'){
+      addTrackedCombatantFromMap('ally',resolved||undefined,'Close');
+    }else{
+      if(!Array.isArray(S.enemies))S.enemies=[];
+      var id=Date.now()+Math.floor(Math.random()*100000);
+      S.enemies.push({id:id,name:resolved||('Ally '+(S.enemies.filter(function(e){return e&&e.ally;}).length+1)),dread:6,stress:0,maxStress:12,health:0,conditions:[],ally:true,temporarySceneAlly:true});
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof updateCombatUI==='function')updateCombatUI();
+    }
+    renderQP('combat');
+  };
+  window.qpCombatTabWayfarerActionWithTarget=function(){
+    var targetSel=document.getElementById('qpCombatTabTargetEnemy');
+    var targetId=targetSel?Number(targetSel.value||0):0;
+    if(targetId>0&&typeof setCombatFocusEnemy==='function')setCombatFocusEnemy(targetId);
+    window.qpCombatTabWayfarerAction();
+  };
+  window.qpExecuteStandardAllyAction=function(){
+    var actionSel=document.getElementById('qpStdAllyActionSel');
+    var actorSel=document.getElementById('qpStdAllyActorSel');
+    var targetSel=document.getElementById('qpStdAllyTargetSel');
+    var moveSel=document.getElementById('qpStdAllyMoveSel');
+    var action=actionSel?String(actionSel.value||'attack'):'attack';
+    var actorId=actorSel?Number(actorSel.value||0):0;
+    var target=targetSel?String(targetSel.value||'self'):'self';
+    var allies=Array.isArray(S.enemies)?S.enemies.filter(function(e){return e&&e.ally;}):[];
+    var ally=allies.find(function(e){return Number(e.id)===actorId;})||allies[0]||null;
+    if(!ally){showNotif('No ally is available.','warn');return;}
+    if(action==='move'){
+      var zone=moveSel?String(moveSel.value||'Close'):'Close';
+      if(typeof addTrackedCombatantFromMap==='function'){
+        var u=(S.combatMap&&Array.isArray(S.combatMap.units))?S.combatMap.units.find(function(unit){
+          return unit&&unit.side==='ally'&&unit.fromTracker&&unit.trackerKey===('ally:'+String(ally.id));
+        }):null;
+        if(u){u.zone=zone;}
+      }
+      if(typeof renderCombatMap==='function')renderCombatMap();
+      showNotif(ally.name+' moves to '+zone+'.','good');
+      renderQP('combat');
+      return;
+    }
+    if(action==='attack'){
+      if(target.indexOf('enemy:')===0&&typeof setCombatFocusEnemy==='function')setCombatFocusEnemy(Number(target.split(':')[1]||0));
+      if(typeof enemyAttack==='function')enemyAttack(ally.id);
+      S.quickPanel.lastCombatRoll=ally.name+' executed Attack '+(target.indexOf('enemy:')===0?('on enemy #'+target.split(':')[1]):'on current hostile focus')+'.';
+      renderQP('combat');
+      return;
+    }
+    if(action==='defend'){
+      if(target==='self'){applyEnemyCombatCondition(ally,'Protected',1);showNotif(ally.name+' takes a defensive stance.','good');}
+      else if(target==='player'&&typeof toggleCond==='function'){if(!S.conditions.protected)toggleCond('protected');showNotif(ally.name+' protects you.','good');}
+      else if(target.indexOf('ally:')===0){
+        var trgId=Number(target.split(':')[1]||0);
+        var trg=allies.find(function(e){return Number(e.id)===trgId;});
+        if(trg){applyEnemyCombatCondition(trg,'Protected',1);showNotif(ally.name+' protects '+trg.name+'.','good');}
+      }
+      S.quickPanel.lastCombatRoll=ally.name+' executed Defend.';
+      renderQP('combat');
+      return;
+    }
+    if(action==='support'){
+      if(target==='player'&&S&&S.combat){S.combat.actionsLeft=Math.max(0,Number(S.combat.actionsLeft||0))+1;updateCombatUI();}
+      showNotif(ally.name+' provides support'+(target==='player'?' (+1 Action).':'.'),'good');
+      S.quickPanel.lastCombatRoll=ally.name+' executed Support.';
+      renderQP('combat');
+      return;
+    }
+  };
+  window.qpExecuteStandardEnemyAction=function(){
+    var actorSel=document.getElementById('qpStdEnemyActorSel');
+    var targetSel=document.getElementById('qpStdEnemyTargetSel');
+    var hostileId=actorSel?Number(actorSel.value||0):0;
+    var target=targetSel?String(targetSel.value||'player'):'player';
+    var hostiles=Array.isArray(S.enemies)?S.enemies.filter(function(e){return e&&!e.ally;}):[];
+    var hostile=hostiles.find(function(e){return Number(e.id)===hostileId;})||hostiles[0]||null;
+    if(!hostile){showNotif('No hostile enemy is available.','warn');return;}
+    if(target==='player'){
+      if(typeof enemyAttack==='function')enemyAttack(hostile.id);
+      S.quickPanel.lastCombatRoll=hostile.name+' attacked you.';
+      renderQP('combat');
+      return;
+    }
+    if(target.indexOf('ally:')===0){
+      var allyId=Number(target.split(':')[1]||0);
+      var allies=Array.isArray(S.enemies)?S.enemies.filter(function(e){return e&&e.ally;}):[];
+      var ally=allies.find(function(e){return Number(e.id)===allyId;});
+      if(!ally){showNotif('Selected ally is unavailable.','warn');return;}
+      var atk=rollEnemyDreadWithEffects(hostile,hostile.name+' DD');
+      var def=rollEnemyDreadWithEffects(ally,ally.name+' DD');
+      var hit=atk.total>def.total;
+      var dmg=Math.max(1,atk.total-def.total);
+      if(hit){
+        ally.stress=Math.min(Number(ally.maxStress||0),Number(ally.stress||0)+dmg);
+        if(ally.stress>=Number(ally.maxStress||0))showNotif(ally.name+' is down!','warn');
+      }
+      S.quickPanel.lastCombatRoll=hostile.name+' vs '+ally.name+': '+atk.total+' vs '+def.total+' — '+(hit?('Hit '+dmg+' Stress'):'Blocked');
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof updateCombatUI==='function')updateCombatUI();
+      showNotif(S.quickPanel.lastCombatRoll,hit?'warn':'good');
+      renderQP('combat');
+    }
+  };
   window.qpSetHackGuess=function(guess){if(!S.hackRoller)S.hackRoller={dreadDie:6,guess:null,selectedHack:null};S.hackRoller.guess=guess;renderQP('combat');};
   window.qpCombatHack=function(){
     var sel=document.getElementById('qpHackSelect');
@@ -15984,20 +16089,60 @@ document.addEventListener('DOMContentLoaded',()=>{
       ? getEnemyActionsRemaining()
       : ((typeof getEnemyActionsPerCycle === 'function') ? getEnemyActionsPerCycle() : 0);
     var enemyActionsMax = (typeof getEnemyActionsPerCycle === 'function') ? Math.max(1,getEnemyActionsPerCycle()) : Math.max(1,enemyActions);
-    var enemies = S.enemies || [];
-    var eneHtml = enemies.length
-      ? enemies.map(function(e,idx){ 
-          var healthBar = (e.health||0) > 0 ? ' · ' + (e.health||0) + ' Health' : '';
-          var condText = (e.conditions && e.conditions.length) ? ' [' + e.conditions.join(', ') + ']' : '';
-          return '<div style="display:flex;flex-direction:column;padding:.3rem 0;margin-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.04);">'
-            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
-              + '<span style="font-size:.78rem;color:'+(e.ally?'var(--teal)':'var(--text)')+';flex:1;">'+e.name+(e.ally?' (Ally)':'')+'</span>'
-              + '<span style="font-family:Rajdhani,sans-serif;font-size:.78rem;color:'+(e.ally?'var(--teal)':'var(--red)')+';">'+e.stress+'/'+e.maxStress+' Stress · '+getEnemyDisplayDread(e)+healthBar+'</span>'
-            + '</div>'
-            + (condText ? '<div style="font-size:.7rem;color:var(--orange);margin-top:.1rem;">'+condText+'</div>' : '')
-          + '</div>';
+    var hostiles = (S.enemies || []).filter(function(e){ return e && !e.ally; });
+    var allies = (S.enemies || []).filter(function(e){ return e && e.ally; });
+    var allyActions = allies.length * 2;
+    var round = Math.max(1, Number((S.combat && S.combat.round) || 1));
+    var stageLabel = (S.combat && S.combat.active) ? 'You -> Ally -> Enemy' : 'Scene Not Started';
+    if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
+    var combatTabSel = document.getElementById('wayfarerActionSel');
+    var combatTabActionOptions = combatTabSel
+      ? Array.prototype.map.call(combatTabSel.options, function(opt){
+          if(!opt || !opt.value) return '';
+          return '<option value="'+opt.value.replace(/"/g,'&quot;')+'">'+opt.textContent+'</option>';
         }).join('')
-      : '<div style="font-size:.78rem;color:var(--muted2);">No enemies set.</div>';
+      : '';
+    function relationForEntry(entry){
+      try{
+        var u=null;
+        if(entry&&entry.ally&&S.combatMap&&Array.isArray(S.combatMap.units)){
+          u=S.combatMap.units.find(function(unit){return unit&&unit.side==='ally'&&unit.fromTracker&&unit.trackerKey===('ally:'+String(entry.id));});
+        }
+        if(entry&&!entry.ally&&typeof getCombatMapUnitForEnemy==='function')u=getCombatMapUnitForEnemy(entry);
+        if(u&&u.zone)return String(u.zone);
+      }catch(_err){}
+      if(entry&&!entry.ally&&S&&S.combat&&S.combat.spacing){
+        var label=String(S.combat.spacing||'Close');
+        if(label.indexOf('Engaged')===0)return 'Engaged';
+        if(label.indexOf('Close')===0)return 'Close';
+        if(label.indexOf('Nearby')===0)return 'Nearby';
+        if(label.indexOf('Far')===0)return 'Far';
+      }
+      return entry&&entry.ally?'Close':'Engaged';
+    }
+    var unitRows = hostiles.concat(allies).map(function(e,idx){
+      var relation = relationForEntry(e);
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;padding:.18rem 0;border-bottom:1px solid rgba(255,255,255,.04);">'
+        + '<span style="font-size:.76rem;color:'+(e.ally?'var(--teal)':'var(--text2)')+';">'+(e.name||('Unit '+(idx+1)))+' ('+relation+')</span>'
+        + '<span style="font-family:Rajdhani,sans-serif;font-size:.76rem;color:'+(e.ally?'var(--teal)':'var(--red2)')+';">'+Number(e.stress||0)+'/'+Number(e.maxStress||0)+' Stress • d'+Number((e&&e.dread)||dread)+'</span>'
+      + '</div>';
+    }).join('') || '<div style="font-size:.78rem;color:var(--muted2);">No allies or enemies in scene.</div>';
+    var enemyTargetOptions = ['<option value="">Closest hostile</option>']
+      .concat(hostiles.map(function(e){ return '<option value="'+Number(e.id)+'">'+String(e.name||('Enemy '+e.id))+'</option>'; }))
+      .join('');
+    var allyActorOptions = allies.length
+      ? allies.map(function(e){ return '<option value="'+Number(e.id)+'">'+String(e.name||('Ally '+e.id))+'</option>'; }).join('')
+      : '<option value="">No Ally</option>';
+    var allyTargetOptions = ['<option value="self">Self</option>','<option value="player">You</option>']
+      .concat(allies.map(function(e){ return '<option value="ally:'+Number(e.id)+'">'+String(e.name||('Ally '+e.id))+'</option>'; }))
+      .concat(hostiles.map(function(e){ return '<option value="enemy:'+Number(e.id)+'">'+String(e.name||('Enemy '+e.id))+'</option>'; }))
+      .join('');
+    var enemyActorOptions = hostiles.length
+      ? hostiles.map(function(e){ return '<option value="'+Number(e.id)+'">'+String(e.name||('Enemy '+e.id))+'</option>'; }).join('')
+      : '<option value="">No Enemy</option>';
+    var enemyActionTargets = ['<option value="player">You</option>']
+      .concat(allies.map(function(e){ return '<option value="ally:'+Number(e.id)+'">'+String(e.name||('Ally '+e.id))+'</option>'; }))
+      .join('');
     var hackHtml='';
     var passiveCombatBadges=(typeof getFlavorPassiveBadgesHtml==='function')?getFlavorPassiveBadgesHtml(S.flavor,{compact:true,context:'quick-combat'}):'';
     if(Array.isArray(S.ownedHacks)&&S.ownedHacks.length){
@@ -16021,29 +16166,49 @@ document.addEventListener('DOMContentLoaded',()=>{
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerActions+'/'+playerMaxActions+'</strong></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Ally Actions: <strong style="color:var(--teal);">'+allyActions+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Actions: <strong style="color:var(--red2);">'+enemyActions+'/'+enemyActionsMax+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'
       + '</div>'
-      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.45rem;">'
-      + '<input id="qpEnemyName" type="text" placeholder="Enemy name" style="flex:1;min-width:7rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/>'
-      + '<select id="qpEnemyDreadSel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===dread?' selected':'')+'>d'+d+'</option>';}).join('')+'</select>'
-      + '<button class="btn btn-xs btn-teal" onclick="qpQuickAddEnemy()">+ Enemy</button>'
+      + '<div style="display:grid;grid-template-columns:minmax(0,1fr) 7rem auto auto auto auto;gap:.2rem;align-items:end;margin-bottom:.28rem;">'
+      + '<label style="font-size:.63rem;color:var(--muted2);">Enemy Name<input id="qpEnemyName" type="text" placeholder="Enemy name" style="width:100%;margin-top:.08rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/></label>'
+      + '<label style="font-size:.63rem;color:var(--muted2);">Dread Die<select id="qpEnemyDreadSel" style="width:100%;margin-top:.08rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===dread?' selected':'')+'>d'+d+'</option>';}).join('')+'</select></label>'
+      + '<button class="btn btn-xs btn-teal" onclick="qpQuickAddEnemy()">Add Enemy</button>'
+      + '<button class="btn btn-xs" onclick="qpQuickAddAlly()">Add Ally</button>'
       + '<button class="btn btn-xs" onclick="if(typeof clearEnemies===\'function\')clearEnemies();renderQP(\'combat\')">Clear</button>'
-      + '<button class="btn btn-xs" onclick="qpMoveRange(\'Engaged (Strike)\')">Move: Engaged</button>'
-      + '<button class="btn btn-xs" onclick="qpMoveRange(\'Close (Scrolls)\')">Move: Close</button>'
-      + '<button class="btn btn-xs" onclick="qpMoveRange(\'Nearby (Shoot)\')">Move: Nearby</button>'
+      + '<input id="qpAllyName" type="text" placeholder="Ally name" style="display:none;"/>'
       + '</div>'
-      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Enemies</div>'
-      + eneHtml + '</div>'
-      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Quick Actions</div>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;">'
-        + '<button class="btn btn-xs btn-primary" onclick="qpCombatAction(\'strike\')">⚔ Strike</button>'
-        + '<button class="btn btn-xs btn-primary" onclick="qpCombatAction(\'shoot\')">🔫 Shoot</button>'
-        + '<button class="btn btn-xs btn-teal" onclick="qpCombatAction(\'defend\')">🛡 Defend</button>'
-        + '<button class="btn btn-xs" onclick="qpCombatAction(\'trauma\')">💀 Trauma</button>'
-        + '<button class="btn btn-xs btn-red" onclick="qpEnemyAction()">☠ Enemy Action</button>'
-        + (Array.isArray(S.weaponMods)&&S.weaponMods.indexOf('Auto Reloader')>=0?'<button class="btn btn-xs btn-teal" onclick="activateAutoReloader()">🔩 Auto Reloader</button>':'')
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem;">'
+      + '<button class="btn btn-xs btn-primary" onclick="if(typeof startCombat===\'function\')startCombat();renderQP(\'combat\')">Start Scene</button>'
+      + '<span style="font-size:.72rem;color:var(--muted2);">Round <strong style="color:var(--gold2);">'+round+'</strong></span>'
+      + '<span style="font-size:.72rem;color:var(--muted2);">'+stageLabel+'</span>'
       + '</div>'
+      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">You - Ally - Enemy</div>'
+      + unitRows
+      + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin:.42rem 0 .3rem;">Quick Actions</div>'
+      + (combatTabActionOptions
+        ? ('<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.28rem;">'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Wayfarer Action<select id="qpCombatTabActionSelect" style="width:100%;margin-top:.08rem;">'+combatTabActionOptions+'</select></label>'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Target Enemy<select id="qpCombatTabTargetEnemy" style="width:100%;margin-top:.08rem;">'+enemyTargetOptions+'</select></label>'
+          + '<button class="btn btn-xs btn-teal" onclick="qpCombatTabWayfarerActionWithTarget()">Execute</button>'
+          + '</div>')
+        : '<div style="font-size:.64rem;color:var(--muted2);margin-bottom:.22rem;">Combat tab Wayfarer actions unavailable.</div>')
+      + (allies.length
+        ? ('<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.28rem;">'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Ally<select id="qpStdAllyActorSel" style="width:100%;margin-top:.08rem;">'+allyActorOptions+'</select></label>'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Action<select id="qpStdAllyActionSel" style="width:100%;margin-top:.08rem;"><option value="defend">Defend</option><option value="support">Support</option><option value="move">Move</option><option value="attack">Attack</option></select></label>'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Target<select id="qpStdAllyTargetSel" style="width:100%;margin-top:.08rem;">'+allyTargetOptions+'</select></label>'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Move Band<select id="qpStdAllyMoveSel" style="width:100%;margin-top:.08rem;"><option value="Engaged">Engaged</option><option value="Close" selected>Close</option><option value="Nearby">Nearby</option><option value="Far">Far</option></select></label>'
+          + '<button class="btn btn-xs btn-primary" onclick="qpExecuteStandardAllyAction()">Execute</button>'
+          + '</div>')
+        : '')
+      + (hostiles.length
+        ? ('<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.12rem;">'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Enemy<select id="qpStdEnemyActorSel" style="width:100%;margin-top:.08rem;">'+enemyActorOptions+'</select></label>'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Target<select id="qpStdEnemyTargetSel" style="width:100%;margin-top:.08rem;">'+enemyActionTargets+'</select></label>'
+          + '<button class="btn btn-xs btn-warn" onclick="qpExecuteStandardEnemyAction()">Enemy Action</button>'
+          + '</div>')
+        : '')
       + (passiveCombatBadges?('<div class="flavor-passive-strip" style="margin-top:.28rem;">'+passiveCombatBadges+'</div>'):'')
       + ((S.combat&&S.combat.autoReloaderShots>0)?'<div style="font-size:.68rem;color:var(--teal);margin-top:.22rem;">Auto Reloader active: '+S.combat.autoReloaderShots+' Shoot action'+(S.combat.autoReloaderShots===1?'':'s')+' left in burst.</div>':'')
       + hackHtml

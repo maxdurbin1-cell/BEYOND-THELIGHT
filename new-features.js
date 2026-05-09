@@ -5110,7 +5110,20 @@
         + malwareHtml
         + '</div>';
     }
-    if (success && typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+    if (success) {
+      var hackMargin = 1;
+      if (actual === 'below') hackMargin = Math.max(1, low - ctrlVal);
+      else if (actual === 'above') hackMargin = Math.max(1, ctrlVal - high);
+      else hackMargin = Math.max(1, Math.min(ctrlVal - low, high - ctrlVal) + 1);
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome('spell', hackMargin, {
+          actionTotal: ctrlVal,
+          dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
+          context: 'Hack cast: ' + hackName
+        });
+      }
+      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+    }
     if (typeof renderQP === 'function' && S.quickPanel) {
       S.quickPanel.lastCombatRoll = (resultEl && resultEl.innerHTML) ? resultEl.innerHTML : S.quickPanel.lastCombatRoll;
       renderQP('combat');

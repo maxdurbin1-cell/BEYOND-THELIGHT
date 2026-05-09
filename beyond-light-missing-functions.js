@@ -2645,6 +2645,115 @@ function consumeVisibleManualRollValue(kind, sides) {
   return readManualCheckValue(kind, true);
 }
 
+const DCC_FLAVOR_TEMPLATES = [
+  'A narrow {style} lands; your {focus} shifts the moment by a hair.',
+  'Your {focus} clips the opening and leaves a measured advantage.',
+  'A quick {style} connects; the target gives ground by instinct.',
+  'You commit to the {focus} and force a small but real gain.',
+  'The {focus} bites at just the right time; pressure starts to turn.',
+  'A precise {style} catches them off-balance for a heartbeat.',
+  'Your {focus} drives through resistance and controls the exchange.',
+  'The {style} lands cleanly; confidence rises with the follow-through.',
+  'You thread the {focus} through chaos and seize initiative.',
+  'A disciplined {style} creates a clear opening for the next move.',
+  'Your {focus} breaks their rhythm and tilts the scene your way.',
+  'The {style} carries momentum; the lane ahead suddenly clears.',
+  'A strong {focus} crashes through their setup and resets tempo.',
+  'Your {style} lands with force; the opposition staggers.',
+  'You turn the {focus} into decisive control over the exchange.',
+  'The {style} is undeniable; your advantage now dictates pace.',
+  'A committed {focus} cuts deep into their options.',
+  'Your {style} echoes across the field; allies can read the shift.',
+  'The {focus} detonates into a dominant swing of momentum.',
+  'A brutal {style} leaves no doubt about who owns this beat.',
+  'You chain the {focus} into a powerful sequence with no pause.',
+  'The {style} overwhelms their response and locks in control.',
+  'Your {focus} cracks their guard and exposes everything behind it.',
+  'A relentless {style} turns defense into collapse.',
+  'The {focus} lands like a verdict; the board changes instantly.',
+  'Your {style} is catastrophic precision; they cannot recover in time.',
+  'You command the {focus} with absolute authority and devastating clarity.',
+  'A mythic {style} shatters resistance and rewrites the moment.',
+  'Your {focus} surges beyond expectation; victory is now inevitable.',
+  'The {style} becomes a finishing statement etched into the scene.'
+];
+
+const DCC_ACTION_STYLES = {
+  strike: { label: 'Strike', style: 'blade line', focus: 'strike' },
+  shoot: { label: 'Shoot', style: 'shot pattern', focus: 'shot' },
+  body: { label: 'Body', style: 'physical surge', focus: 'body check' },
+  lead: { label: 'Lead', style: 'command call', focus: 'lead check' },
+  mind: { label: 'Mind', style: 'insight spike', focus: 'mind check' },
+  spirit: { label: 'Spirit', style: 'willful push', focus: 'spirit check' },
+  defend: { label: 'Defend', style: 'defensive turn', focus: 'defense' },
+  control: { label: 'Control', style: 'precision override', focus: 'control check' },
+  spell: { label: 'Spell', style: 'arcane weave', focus: 'spellcraft' }
+};
+
+function normalizeDccActionKey(actionKey) {
+  var key = String(actionKey || '').toLowerCase().trim();
+  if (!key) return 'spell';
+  if (key === 'hack') return 'spell';
+  if (key in DCC_ACTION_STYLES) return key;
+  return 'spell';
+}
+
+function getDccTierInfo(diff) {
+  var margin = Math.max(1, Number(diff || 1));
+  if (margin <= 1) return { tier: 0, label: 'Narrow Success' };
+  if (margin <= 3) return { tier: 1, label: 'Minor Success' };
+  if (margin <= 5) return { tier: 2, label: 'Solid Success' };
+  if (margin <= 8) return { tier: 3, label: 'Strong Success' };
+  return { tier: 4, label: 'Critical Success' };
+}
+
+function getDccFlavorLine(actionKey, diff) {
+  var key = normalizeDccActionKey(actionKey);
+  var style = DCC_ACTION_STYLES[key] || DCC_ACTION_STYLES.spell;
+  var tier = getDccTierInfo(diff).tier;
+  var start = tier * 6;
+  var pickOffset = Math.floor(Math.random() * 6);
+  var template = DCC_FLAVOR_TEMPLATES[start + pickOffset] || DCC_FLAVOR_TEMPLATES[start] || DCC_FLAVOR_TEMPLATES[0];
+  return template
+    .replace('{style}', style.style)
+    .replace('{focus}', style.focus);
+}
+
+function showDccSuccessOutcome(actionKey, diff, meta) {
+  var key = normalizeDccActionKey(actionKey);
+  var style = DCC_ACTION_STYLES[key] || DCC_ACTION_STYLES.spell;
+  var margin = Math.max(1, Number(diff || 1));
+  var tierInfo = getDccTierInfo(margin);
+  var line = getDccFlavorLine(key, margin);
+  var context = meta && meta.context ? String(meta.context) : '';
+  var rollLine = (meta && Number.isFinite(meta.actionTotal) && Number.isFinite(meta.dreadTotal))
+    ? ('<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.35rem;">'
+        + style.label + ' margin ' + margin + ' (' + meta.actionTotal + ' vs ' + meta.dreadTotal + ')</div>')
+    : ('<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.35rem;">'
+        + style.label + ' margin ' + margin + '</div>');
+  var contextLine = context
+    ? ('<div style="font-size:.72rem;color:var(--muted2);margin-top:.35rem;">' + context + '</div>')
+    : '';
+
+  if (typeof openModal === 'function') {
+    openModal(
+      'DCC Outcome - ' + style.label,
+      '<div style="font-size:.9rem;color:var(--text2);line-height:1.65;">'
+        + rollLine
+        + '<div style="font-size:.82rem;color:var(--gold2);margin-bottom:.24rem;">' + tierInfo.label + '</div>'
+        + '<div>' + line + '</div>'
+        + contextLine
+        + '</div>'
+    );
+  }
+  if (typeof showNotif === 'function') {
+    showNotif(style.label + ' success: ' + line, 'good');
+  }
+  return { action: key, margin: margin, tier: tierInfo.label, text: line };
+}
+
+window.showDccSuccessOutcome = showDccSuccessOutcome;
+
 function finalizeCheckResult(actionDie, dreadDie, actionTotal, dreadTotal, success) {
   renderCheckResult(
     actionDie,
@@ -2657,6 +2766,13 @@ function finalizeCheckResult(actionDie, dreadDie, actionTotal, dreadTotal, succe
     addTMWOnFail();
     changeHealth(Math.max(1, dreadTotal - actionTotal));
   } else {
+    if (typeof showDccSuccessOutcome === 'function') {
+      showDccSuccessOutcome('spell', Math.max(1, actionTotal - dreadTotal), {
+        actionTotal: actionTotal,
+        dreadTotal: dreadTotal,
+        context: 'Action vs Dread check'
+      });
+    }
     addSuccessRoll();
   }
 }
@@ -2756,6 +2872,13 @@ function rollCheck() {
     addTMWOnFail();
     changeHealth(Math.max(1, dreadRoll.total - actionRoll.total));
   } else {
+    if (typeof showDccSuccessOutcome === 'function') {
+      showDccSuccessOutcome('spell', Math.max(1, actionRoll.total - dreadRoll.total), {
+        actionTotal: actionRoll.total,
+        dreadTotal: dreadRoll.total,
+        context: 'Action vs Dread check'
+      });
+    }
     addSuccessRoll();
   }
 }

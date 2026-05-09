@@ -7940,7 +7940,16 @@ function rollAttack(type) {
 
   if(!success){
     addTMWOnFail('general-failure');
-  } else { addSuccessRoll(); }
+  } else {
+    if(typeof showDccSuccessOutcome==='function'){
+      showDccSuccessOutcome(type,Math.max(1,effectiveTotal-targetDreadTotal),{
+        actionTotal:effectiveTotal,
+        dreadTotal:targetDreadTotal,
+        context:(type==='strike'?'Strike':'Shoot')+' vs Enemy Dread'
+      });
+    }
+    addSuccessRoll();
+  }
   clearConditionOnUse(type);
 }
 
@@ -8014,7 +8023,16 @@ function rollDefend(skipEnemyTurnTick) {
   if(!success){
     changeStress(diff);
     addTMWOnFail('general-failure');
-  } else { addSuccessRoll(); }
+  } else {
+    if(typeof showDccSuccessOutcome==='function'){
+      showDccSuccessOutcome('defend',Math.max(1,effectiveTotal-d.total),{
+        actionTotal:effectiveTotal,
+        dreadTotal:d.total,
+        context:'Defend vs Enemy Dread'
+      });
+    }
+    addSuccessRoll();
+  }
   clearConditionOnUse('defend');
 }
 function rollTraumaCheck(){
@@ -10375,6 +10393,13 @@ function castScrollFromBackpack(index) {
   openModal(scrollName, html);
 
   if (castSuccess) {
+    if (typeof showDccSuccessOutcome === 'function') {
+      showDccSuccessOutcome('spell', Math.max(1, mR.total - aR.total), {
+        actionTotal: mR.total,
+        dreadTotal: aR.total,
+        context: 'Scroll cast: ' + scrollName
+      });
+    }
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
   } else {
     if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
@@ -10403,7 +10428,7 @@ function useToolkit(statKey, backpackIndex) {
   removeBackpackItem(backpackIndex);
   clearConditionOnUse(statKey);
 }
-function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){addSuccessRoll();}else{addTMWOnFail('general-failure');}}
+function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){if(typeof showDccSuccessOutcome==='function'){showDccSuccessOutcome('spirit',Math.max(1,diff),{actionTotal:a.total,dreadTotal:d.total,context:'Haggle check'});}addSuccessRoll();}else{addTMWOnFail('general-failure');}}
 
 // ── MAP GENERATION ────────────────────────────────────────────────────────────
 // FIX: 12×12 grid
@@ -10554,6 +10579,7 @@ window.resolveProvinceEdgeBarrierCheck=function(fromKey,toKey){
     const success=player.total>=dread.total;
     if(success){
       edge.passToken=getCurrentTravelPhaseToken();
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(statKey,Math.max(1,player.total-dread.total),{actionTotal:player.total,dreadTotal:dread.total,context:'Edge barrier crossing'});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       if(S&&S.provinceTraversalLock)S.provinceTraversalLock.active=false;
       if(S&&S.provinceTraversalBlockedEdge)S.provinceTraversalBlockedEdge=null;

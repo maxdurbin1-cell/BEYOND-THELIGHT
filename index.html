@@ -8613,6 +8613,58 @@ function showShopCat(cat,btn){
   if(!c)return;
   let rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';
 
+  function getMerchantItemImageHtml(kind,name){
+    const category=String(kind||'items');
+    const itemName=String(name||'Item');
+    const iconSize=20;
+    const emojiByCategory={
+      weapons:'⚔',
+      melee_exp:'🗡',
+      ranged_exp:'🔫',
+      armor:'🛡',
+      armor_exp:'🦺',
+      essentials:'🧴',
+      toolkits:'🔧',
+      items:'🎒',
+      scrolls:'📜',
+      services:'🤝',
+      remedies:'⚗',
+      strange:'✦',
+      tradegoods:'🏛',
+      augmentations:'🦾',
+      os_hacks:'💻',
+      weapon_mods:'🔩'
+    };
+    const accentByCategory={
+      weapons:'#e8c050',
+      melee_exp:'#e59a56',
+      ranged_exp:'#9ad7ff',
+      armor:'#7fd07f',
+      armor_exp:'#6cbfa4',
+      essentials:'#c5ccd6',
+      toolkits:'#46c4b6',
+      items:'#d9be86',
+      scrolls:'#c39cff',
+      services:'#7fd07f',
+      remedies:'#73c58d',
+      strange:'#c39cff',
+      tradegoods:'#c98d44',
+      augmentations:'#9ad7ff',
+      os_hacks:'#46c4b6',
+      weapon_mods:'#ff8450'
+    };
+
+    const isWeaponCategory=category==='weapons'||category==='melee_exp'||category==='ranged_exp';
+    if(iconApi&&isWeaponCategory&&typeof iconApi.iconWeapon==='function'){
+      return iconApi.iconWeapon(itemName,{size:iconSize,title:itemName,accent:iconApi.resolveAccent?iconApi.resolveAccent(itemName):undefined});
+    }
+    if(iconApi&&typeof iconApi.iconChest==='function'){
+      return iconApi.iconChest({size:iconSize,title:itemName,accent:accentByCategory[category]||'#e8c050',bg:'rgba(11,16,22,.86)'});
+    }
+    const emoji=emojiByCategory[category]||'🛒';
+    return `<span aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:${iconSize}px;height:${iconSize}px;border-radius:6px;border:1px solid rgba(232,192,80,.25);background:rgba(11,16,22,.78);font-size:.78rem;line-height:1;">${emoji}</span>`;
+  }
+
   if(cat==='augmentations'){
     const installedAugs=Array.isArray(S.augmentations)?S.augmentations:[];
     const bodyDie=S.stats&&S.stats.body?S.stats.body:4;
@@ -8630,10 +8682,7 @@ function showShopCat(cat,btn){
     rule+=`<div class="shop-rule-box" style="margin-top:.25rem;"><span class="srb-title">🌐 Local Market Pressure</span>${marketHint.notices.length?marketHint.notices.join(' '):'Local control flags currently affect pricing and stock.'}</div>`;
   }
   let cardsHtml=items.map(item=>{
-    const isWeaponCat=(cat==='weapons'||cat==='melee_exp'||cat==='ranged_exp');
-    const weaponIcon=isWeaponCat&&iconApi&&typeof iconApi.iconWeapon==='function'
-      ? iconApi.iconWeapon(item.name,{size:20,title:item.name,accent:iconApi.resolveAccent?iconApi.resolveAccent(item.name):undefined})
-      : '';
+    const itemImage=getMerchantItemImageHtml(cat,item.name);
     const isInstalled=(cat==='augmentations')?installedAugs.indexOf(item.name)>=0:false;
     const baseCost=typeof item.cost==='number'?item.cost:0;
     const market=getShopMarketSnapshot(cat,item.name,baseCost);
@@ -8645,16 +8694,17 @@ function showShopCat(cat,btn){
     const augBadge=isInstalled?' <span style="font-size:.6rem;color:var(--green);font-family:Cinzel,serif;letter-spacing:.08em;">✓ INSTALLED</span>':'';
     const costHtml=market.finalCost!==baseCost?`<span class="s-cost"><s style="opacity:.65;">${baseCost} ₵</s> ${market.finalCost} ₵</span>`:`<span class="s-cost">${baseCost} ₵</span>`;
     const pressureNote=!market.available?`<div style="font-size:.68rem;color:var(--red2);margin-top:.2rem;line-height:1.4;">${market.blockedReason}</div>`:'';
-    return `<div class="shop-card"><div class="s-name" style="display:flex;align-items:center;gap:.35rem;">${weaponIcon}${item.name}${augBadge}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div>${pressureNote}<div class="s-foot">${costHtml}${buyBtn}</div></div>`;
+    return `<div class="shop-card"><div class="s-name" style="display:flex;align-items:center;gap:.35rem;">${itemImage}${item.name}${augBadge}</div><div class="s-stat">${item.stat}</div><div class="s-desc">${item.desc}</div>${pressureNote}<div class="s-foot">${costHtml}${buyBtn}</div></div>`;
   }).join('');
 
   if(cat==='services'){
+    const retainerImage=getMerchantItemImageHtml('services','Retainer Contract');
     const retainerMarket=getShopMarketSnapshot('services','Retainer Contract',200);
     const retainerBtn=!retainerMarket.available
       ? `<button class="btn btn-xs" disabled title="${retainerMarket.blockedReason.replace(/"/g,'&quot;')}" style="opacity:.55;cursor:default;">No Stock</button>`
       : `<button class="btn btn-xs btn-primary" onclick="buyItem(${retainerMarket.finalCost},'Retainer Contract','services',200)">Buy</button>`;
     const retainerCost=retainerMarket.finalCost!==200?`<span class="s-cost"><s style="opacity:.65;">200 ₵</s> ${retainerMarket.finalCost} ₵</span>`:`<span class="s-cost">200 ₵</span>`;
-    cardsHtml += `<div class="shop-card"><div class="s-name">Retainer Contract</div><div class="s-stat">+1 Hire Token</div><div class="s-desc">Grants one Retainer hire for any Councilor in your Holding.</div>${!retainerMarket.available?`<div style="font-size:.68rem;color:var(--red2);margin-top:.2rem;line-height:1.4;">${retainerMarket.blockedReason}</div>`:''}<div class="s-foot">${retainerCost}${retainerBtn}</div></div>`;
+    cardsHtml += `<div class="shop-card"><div class="s-name" style="display:flex;align-items:center;gap:.35rem;">${retainerImage}Retainer Contract</div><div class="s-stat">+1 Hire Token</div><div class="s-desc">Grants one Retainer hire for any Councilor in your Holding.</div>${!retainerMarket.available?`<div style="font-size:.68rem;color:var(--red2);margin-top:.2rem;line-height:1.4;">${retainerMarket.blockedReason}</div>`:''}<div class="s-foot">${retainerCost}${retainerBtn}</div></div>`;
   }
 
   c.innerHTML=rule+cardsHtml;

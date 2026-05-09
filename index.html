@@ -657,7 +657,7 @@ select option{background:#0f1020;}
             <button class="btn btn-sm" onclick="rollBackpack()">⚄ Roll Backpack</button>
           </div>
         </div>
-        <div class="backpack-grid">
+        <div class="backpack-grid" id="backpackGrid">
           <div class="bp-cell"><input class="bp-input" id="bp0" placeholder="Slot 1" onchange="S.backpack[0]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(0)" title="Item info">?</button></div>
           <div class="bp-cell"><input class="bp-input" id="bp1" placeholder="Slot 2" onchange="S.backpack[1]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(1)" title="Item info">?</button></div>
           <div class="bp-cell"><input class="bp-input" id="bp2" placeholder="Slot 3" onchange="S.backpack[2]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(2)" title="Item info">?</button></div>
@@ -3125,6 +3125,25 @@ function ensureBackpackCapacity(){
   var cap=getBackpackCapacity();
   if(!Array.isArray(S.backpack))S.backpack=[];
   while(S.backpack.length<cap)S.backpack.push('');
+  updateBackpackCapacityLabel();
+}
+function setBackpackSlotValue(index,value){
+  ensureBackpackCapacity();
+  var idx=Math.max(0,Number(index||0));
+  if(idx>=S.backpack.length)return;
+  S.backpack[idx]=String(value||'');
+}
+function renderBackpackUI(){
+  ensureBackpackCapacity();
+  var host=document.getElementById('backpackGrid');
+  if(!host)return;
+  var cap=getBackpackCapacity();
+  var html=[];
+  for(var i=0;i<cap;i++){
+    var val=escapeHtmlLite(S.backpack[i]||'');
+    html.push('<div class="bp-cell"><input class="bp-input" id="bp'+i+'" placeholder="Slot '+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" title="Item info">?</button></div>');
+  }
+  host.innerHTML=html.join('');
   updateBackpackCapacityLabel();
 }
 function getDateStampKey(){

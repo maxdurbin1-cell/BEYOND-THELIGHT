@@ -266,6 +266,83 @@
     return renown >= 8 || completed >= 12 || raidPower >= 3;
   }
 
+  function spawnRandomSoulForgeMissionEvent(seedHint, force) {
+    ensureState();
+    var isForced = !!force;
+    if (!isForced && !shouldOfferSoulMission()) return null;
+    if (Array.isArray(S.activeMissions) && S.activeMissions.some(function (mission) {
+      return mission && mission.missionType === 'soul_mission' && mission.steps && mission.steps[3] && !mission.steps[3].completed;
+    })) return null;
+
+    S.missionDirector = S.missionDirector || {};
+    if (!S.missionDirector.soulForgeSpawner || typeof S.missionDirector.soulForgeSpawner !== 'object') {
+      S.missionDirector.soulForgeSpawner = {
+        lastRollDayStamp: -1,
+        nextEligibleDayStamp: 0,
+        counter: 0
+      };
+    }
+
+    var spawner = S.missionDirector.soulForgeSpawner;
+    var dayStamp = getCurrentGameDayStamp();
+    if (!isForced && dayStamp <= Number(spawner.lastRollDayStamp || -1)) return null;
+    spawner.lastRollDayStamp = dayStamp;
+    if (!isForced && dayStamp < Number(spawner.nextEligibleDayStamp || 0)) return null;
+
+    var seed = Number(seedHint || 0) + dayStamp + (Number(spawner.counter || 0) * 37) + (Math.max(0, Number(S.renown || 0)) * 11);
+    var chanceRoll = Math.abs(seed) % 100;
+    if (!isForced && chanceRoll > 26) return null;
+
+    var boss = SOUL_MISSION_BOSSES[Math.abs(seed + 29) % SOUL_MISSION_BOSSES.length] || 'The Hollow Saint';
+    var regionPool = getAvailableMissionRegions();
+    var region = regionPool[Math.abs(seed + 13) % Math.max(1, regionPool.length)] || 'province';
+    var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
+    var location = planetTarget ? planetTarget.location : getMissionLocationForRegion(region);
+    var conflict = pickFactionConflict();
+    var mission = createMission(
+      'Soul Echo',
+      'Soul Mission: ' + boss,
+      'very_hard',
+      location,
+      region,
+      {
+        gain: conflict.gain,
+        lose: conflict.lose,
+        gainName: conflict.gainName,
+        loseName: conflict.loseName
+      },
+      {
+        missionType: 'soul_mission',
+        templateId: 'soul_mission',
+        templateLabel: 'Soul Mission',
+        stepNames: { 1: 'Track Soul Echo', 2: 'Breach the Hollow Site', 3: 'Take the Soul' },
+        lore: 'Endgame hunt for ' + boss + '. Taking its soul unlocks the Soul Forge.',
+        soulBoss: boss,
+        soulMission: true,
+        planetHexId: planetTarget ? planetTarget.planetHexId : null,
+        planetName: planetTarget ? planetTarget.planetName : ''
+      }
+    );
+    if (!mission) return null;
+
+    spawner.counter = Number(spawner.counter || 0) + 1;
+    spawner.nextEligibleDayStamp = dayStamp + 4;
+    if (typeof showNotif === 'function') {
+      showNotif('Soul Forge signal detected: ' + mission.title + ' has appeared.', 'warn');
+    }
+    recordMissionConsequence({
+      system: 'missions',
+      title: 'Soul mission surfaced',
+      detail: String(mission.title || 'Soul Mission') + ' in ' + String(region || 'province') + '.',
+      region: String(region || 'province'),
+      locationKey: getMissionLocationKey(mission),
+      severity: 'medium',
+      deltas: { rumor: 1, witness: 1, factionHeat: 1 },
+      tags: ['soul-mission', 'endgame', 'mission-spawn']
+    });
+    return mission;
+  }
+
   function pickRegionalArcId(bias) {
     var b = bias || {};
     var verbs = Array.isArray(b.preferredVerbs) ? b.preferredVerbs.join('|').toLowerCase() : '';
@@ -12118,6 +12195,7 @@
   window.resolveMissionOutcome=resolveMissionOutcome;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;
   window.createMission=createMission;
+  window.spawnRandomSoulForgeMissionEvent=spawnRandomSoulForgeMissionEvent;
   window.autoFailExpiredMissions=autoFailExpiredMissions;
   window.adjustMissionDread=adjustMissionDread;
   window.createOriginMissionFromReason=createOriginMissionFromReason;

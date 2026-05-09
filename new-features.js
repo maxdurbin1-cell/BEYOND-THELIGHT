@@ -1099,6 +1099,13 @@
     renderCaravanUI();
     showNotif(success ? "Drive success! " + zoneMsg : "Drive failed — " + zoneMsg, success ? "good" : "warn");
     if (success) {
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome(driverStat, Math.max(1, a.total - d.total), {
+          actionTotal: a.total,
+          dreadTotal: d.total,
+          context: 'Caravan chase control'
+        });
+      }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
@@ -2979,6 +2986,13 @@
         crawl.stats.wealth = Math.min(10, Number(crawl.stats.wealth || 0) + 1);
         crawl.stats.security = Math.min(10, Number(crawl.stats.security || 0) + 1);
       }
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome('lead', Math.max(1, action.total - dread.total), {
+          actionTotal: action.total,
+          dreadTotal: dread.total,
+          context: 'Holding district stabilization'
+        });
+      }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
       line += 'District stabilized. +' + cGain + ' Credits, +1 Teamwork, Fear reduced.';
     } else {
@@ -3042,6 +3056,13 @@
     var success = a.total >= d.total;
     if (success) {
       applyHoldingDowntimeEffect(evt.successEffect);
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome(key, Math.max(1, a.total - d.total), {
+          actionTotal: a.total,
+          dreadTotal: d.total,
+          context: 'Holding downtime: ' + evt.name
+        });
+      }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       applyHoldingDowntimeEffect(evt.failEffect);
@@ -3850,6 +3871,13 @@
     }
 
     if (success) {
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome('spell', Math.max(1, a.total - d.total), {
+          actionTotal: a.total,
+          dreadTotal: d.total,
+          context: 'Council task: ' + role
+        });
+      }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }

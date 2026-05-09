@@ -5626,6 +5626,7 @@ window.resolveProvinceShiftWeatherDanger = function(){
     el.innerHTML = '<div style="font-size:.78rem;color:'+(success?'var(--green2)':'var(--red2)')+';">Lead '+leadRoll.total+' vs DD8 '+dreadRoll.total+' — '+(success?'Safe passage secured.':'Dangerous shift: remain in this hex, lose 1 Phase, gain +1 Mental Stress.')+'</div>';
   }
   if(success){
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('lead',Math.max(1,leadRoll.total-dreadRoll.total),{actionTotal:leadRoll.total,dreadTotal:dreadRoll.total,context:'Sudden weather shift'});
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     showNotif('You weathered the sudden storm shift.', 'good');
   }else{
@@ -12362,7 +12363,10 @@ function resolveEventAction(col,row){
   }
   appendHexNote(col,row,`[${hex.name}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
   appendQuickPanelNote(`[${hex.name}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
-  if(success&&typeof addSuccessRoll==='function')addSuccessRoll();
+  if(success){
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(statKey,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Event action: '+hex.name});
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+  }
   if(!success&&typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
   if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
   if(prog.completed>=6){completeEventChallenge(hex,'direct action');}
@@ -12716,6 +12720,7 @@ function attemptBlackMarketAccess(col,row){
     (success?'<strong style="color:var(--green2);">Success</strong>':'<strong style="color:var(--red2);">Failure</strong>')+'</div>';
 
   if(success){
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Black market access'});
     const bm=initBlackMarketHex(hex);
     const hackNames=(bm.hacks||[]).slice(0,2).map(h=>h.name).join(' • ');
     const osItem=(SHOP_DATA.augmentations||[]).find(a=>a.name==='OPERATING SYSTEM');
@@ -12781,6 +12786,7 @@ function attemptEncounterThievery(source,col,row){
   const dreadRoll=explodingRoll(12);
   const success=playerTotal>=dreadRoll.total;
   if(success){
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadRoll.total),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Encounter thievery: '+source});
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     if(reward.kind==='credits'){
       S.credits=(S.credits||0)+reward.amount;
@@ -12837,6 +12843,7 @@ function haggleMerchantCaravan(col,row){
   const roll2=explodingRoll('d8');
   const success=roll1.total>=roll2.total;
   if(success){
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('spirit',Math.max(1,roll1.total-roll2.total),{actionTotal:roll1.total,dreadTotal:roll2.total,context:'Caravan haggle'});
     S.data=S.data||{};
     S.data.haggleDiscount=true;
     showNotif(`Haggle Success! (${roll1.total} vs DD8=${roll2.total}) 20% Discount Granted!`,'good');
@@ -12857,6 +12864,7 @@ function attemptThievery(targetName){
   const dreadRoll=explodingRoll(12);
   const success=playerTotal>=dreadRoll.total;
   if(success){
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadRoll.total),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Direct thievery: '+targetName});
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     if(typeof addToBackpack==='function'){
       const stored=addToBackpack(targetName);
@@ -13007,7 +13015,10 @@ function resolveEventLeadAction(col,row){
   if(leadEl)leadEl.innerHTML=html;
   appendHexNote(col,row,`[Lead ${lead.eventName}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
   appendQuickPanelNote(`[Lead ${lead.eventName}] ${getApproachForStat(statKey)}/${statKey}: ${a.total} vs ${d.total} => ${success?'success':'failure'} (dread ${ch.dread}).`);
-  if(success&&typeof addSuccessRoll==='function')addSuccessRoll();
+  if(success){
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(statKey,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Event lead action: '+lead.eventName});
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+  }
   if(!success&&typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
   if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
   if(getEventMysteryProgress(eventHex).completed>=6){completeEventChallenge(eventHex,'lead action');}
@@ -13135,7 +13146,7 @@ function resolveProvinceHoldingDowntime(col,row,statKey){
   const a=explodingRoll(die),d=explodingRoll(evt.dd||6);
   const success=a.total>=d.total;
   let effectExtra='';
-  if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof addSuccessRoll==='function')addSuccessRoll();}
+  if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(key,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name});if(typeof addSuccessRoll==='function')addSuccessRoll();}
   else{effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');}
   hex.data.downtimeLastResult={
     success:success,
@@ -17527,6 +17538,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(S&&S.provinceTraversalLock)S.provinceTraversalLock.active=false;
       if(S&&S.provinceTraversalBlockedEdge)S.provinceTraversalBlockedEdge=null;
       if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(statKey,Math.max(1,player.total-dread.total),{actionTotal:player.total,dreadTotal:dread.total,context:'Province traversal'});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       showNotif(itemFlags.factionItem?'Traversal successful. Faction credentials: +1 Renown.':'Traversal successful. Passage gained.', 'good');
     }else{
@@ -17586,6 +17598,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="font-size:.75rem; color:var(--text2);">' + outcomeText + '</div>'
       + '</div>';
     if (success) {
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('lead',Math.max(1,leadRoll.total-dreadRoll.total),{actionTotal:leadRoll.total,dreadTotal:dreadRoll.total,context:'Province rough weather'});
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
       if (typeof toggleCond === 'function') toggleCond('empowered');
       if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);

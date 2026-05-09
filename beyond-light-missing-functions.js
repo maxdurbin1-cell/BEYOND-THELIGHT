@@ -1142,6 +1142,13 @@ function workJobDay() {
       var sr = document.getElementById('successRollsVal');
       if (sr) sr.textContent = S.successRolls;
     }
+    if (typeof showDccSuccessOutcome === 'function') {
+      showDccSuccessOutcome('body', Math.max(1, bodyRoll.total - dreadRoll.total), {
+        actionTotal: bodyRoll.total,
+        dreadTotal: dreadRoll.total,
+        context: 'Work day check'
+      });
+    }
 
     var successAfter = S.successRolls || 0;
     var pathAfter = S.pathTokens || 0;

@@ -171,8 +171,9 @@ select option{background:#0f1020;}
 .overlay.open{opacity:1;pointer-events:all;}
 .modal{background:var(--card);border:1px solid var(--border2);max-width:600px;width:100%;padding:1.1rem;max-height:88vh;overflow-y:auto;}
 .modal-header{font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.12em;color:var(--gold);margin-bottom:.85rem;padding-bottom:.55rem;border-bottom:1px solid var(--border);}
-.notif{position:fixed;bottom:1.2rem;left:1.2rem;background:var(--card2);border:1px solid var(--gold);color:var(--text);padding:.6rem .9rem;font-size:.85rem;max-width:320px;z-index:1200;transform:translateX(-120%);transition:transform .3s ease;line-height:1.4;}
-.notif.show{transform:translateX(0);}.notif.warn{border-color:var(--red);}.notif.good{border-color:var(--green);}
+.notif-stack{position:fixed;bottom:1.2rem;left:1.2rem;z-index:1200;display:flex;flex-direction:column-reverse;gap:.35rem;pointer-events:none;max-width:360px;}
+.notif{background:var(--card2);border:1px solid var(--gold);color:var(--text);padding:.6rem .9rem;font-size:.85rem;max-width:360px;line-height:1.4;opacity:0;transform:translateX(-120%);transition:transform .24s ease,opacity .24s ease;box-shadow:0 10px 24px rgba(0,0,0,.35);}
+.notif.show{transform:translateX(0);opacity:1;}.notif.warn{border-color:var(--red);}.notif.good{border-color:var(--green);}
 .dice-roll-layer{position:fixed;right:1.2rem;top:4rem;z-index:1300;display:flex;flex-direction:column;gap:.35rem;pointer-events:none;max-width:240px;}
 .dice-roll-cinematic-layer{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:1350;}
 .dice-roll-pop{background:rgba(11,12,26,.94);border:1px solid rgba(201,162,39,.45);padding:.35rem .5rem;border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:space-between;gap:.6rem;min-width:150px;transform:translateX(18px) scale(.92);opacity:0;animation:dice-pop-in .18s ease forwards,dice-pop-out .24s ease forwards 1.18s;}
@@ -1291,7 +1292,7 @@ select option{background:#0f1020;}
     <button class="scat" onclick="showCodexCat('lostcities',this)">🌆 Lost Cities</button>
     <button class="scat" onclick="showCodexCat('bestiary',this)">☠ Bestiary</button>
     <button class="scat" onclick="showCodexCat('maplegend',this)">🗺 Map Legend</button>
-    <button class="scat" onclick="showCodexCat('trophies',this)">🏆 Trophies</button>
+    <button class="scat" onclick="showCodexCat('notifications',this)">🔔 Notifications</button>
   </div>
   <div id="codexContent"></div>
 </div>
@@ -1513,7 +1514,7 @@ select option{background:#0f1020;}
 <div id="settingsPanel" class="settings-panel"></div>
 <div id="soloReference"></div>
 <div id="gmDashboard"></div>
-<div class="notif" id="notif" role="status" aria-live="polite" aria-atomic="true"></div>
+<div class="notif-stack" id="notifStack" aria-live="polite" aria-atomic="false"></div>
 <div id="diceRollLayer" class="dice-roll-layer" aria-live="polite"></div>
 <div id="diceRollCinematicLayer" class="dice-roll-cinematic-layer" aria-live="polite"></div>
 
@@ -15042,9 +15043,23 @@ function showCodexCat(cat,btn){
         ].map(([icon,desc])=>`<div style="padding:.4rem .5rem;border:1px solid var(--border2);background:rgba(255,255,255,.025);border-radius:.35rem;"><div style="font-size:.95rem;font-weight:700;color:var(--text);">${icon}</div><div style="font-size:.77rem;color:var(--muted2);margin-top:.12rem;">${desc}</div></div>`).join('')}
       </div>
     </div>`;
-  }else if(cat==='trophies'){
-    c.innerHTML=window.TrophySystem ? window.TrophySystem.buildPanelHtml() : '<div class="card"><div class="section-title">Trophies</div><div style="color:var(--muted2);font-size:.85rem;">Trophy system not loaded.</div></div>';
+  }else if(cat==='notifications'){
+    var items=Array.isArray(window.NOTIF_HISTORY)?window.NOTIF_HISTORY.slice().reverse():[];
+    c.innerHTML=`<div class="card"><div class="section-title">Recent Notifications</div>
+      <div style="font-size:.82rem;color:var(--muted2);margin-bottom:.55rem;">Latest in-app notifications. New messages stack in the lower-left and appear here for reference.</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.45rem;"><button class="btn btn-xs" onclick="clearNotifHistory();showCodexCat('notifications',document.querySelector('.codex-cats .scat.on'));">Clear Log</button></div>
+      <div style="display:grid;gap:.28rem;max-height:52vh;overflow:auto;">
+        ${items.length?items.map((n,i)=>`<div style="border:1px solid ${n.type==='warn'?'rgba(201,64,64,.35)':n.type==='good'?'rgba(76,175,116,.35)':'var(--border2)'};background:rgba(255,255,255,.02);padding:.34rem .45rem;">
+          <div style="display:flex;justify-content:space-between;gap:.5rem;align-items:center;"><span style="font-size:.68rem;color:var(--muted2);">#${items.length-i} · ${n.time}</span><span style="font-size:.65rem;color:${n.type==='warn'?'var(--red2)':n.type==='good'?'var(--green2)':'var(--gold2)'};text-transform:uppercase;">${n.type||'info'}</span></div>
+          <div style="font-size:.8rem;color:var(--text2);line-height:1.45;margin-top:.12rem;">${n.msg}</div>
+        </div>`).join(''):'<div style="font-size:.82rem;color:var(--muted2);">No notifications yet in this session.</div>'}
+      </div>
+    </div>`;
   }
+}
+
+function clearNotifHistory(){
+  window.NOTIF_HISTORY=[];
 }
 
 function rollWayfarer(){const w=pick(TRAVELING_WAYFARERS);const el=document.getElementById('wayfarerResult');if(el)el.innerHTML=`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:58}):''}<div><div class="wf-name">${w[1]} ${w[2]}</div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`;}
@@ -15164,8 +15179,29 @@ document.getElementById('rollModal').addEventListener('keydown', function(e) {
     (e.shiftKey ? last : first).focus();
   }
 });
-let notifTimer=null;
-function showNotif(msg,type=''){const n=document.getElementById('notif');n.textContent=msg;n.className='notif'+(type?' '+type:'');n.classList.add('show');clearTimeout(notifTimer);notifTimer=setTimeout(()=>n.classList.remove('show'),3200);}
+window.NOTIF_HISTORY=Array.isArray(window.NOTIF_HISTORY)?window.NOTIF_HISTORY:[];
+function showNotif(msg,type=''){
+  const stack=document.getElementById('notifStack');
+  const text=String(msg||'').trim();
+  if(!stack||!text)return;
+  const time=new Date();
+  const stamp=time.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  window.NOTIF_HISTORY.push({msg:text,type:String(type||''),time:stamp,at:Date.now()});
+  if(window.NOTIF_HISTORY.length>250)window.NOTIF_HISTORY.splice(0,window.NOTIF_HISTORY.length-250);
+
+  const n=document.createElement('div');
+  n.className='notif'+(type?' '+type:'');
+  n.setAttribute('role','status');
+  n.setAttribute('aria-live','polite');
+  n.textContent=text;
+  stack.appendChild(n);
+
+  requestAnimationFrame(function(){n.classList.add('show');});
+  setTimeout(function(){
+    n.classList.remove('show');
+    setTimeout(function(){if(n&&n.parentNode)n.parentNode.removeChild(n);},260);
+  },3200);
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function runWhenIdle(fn, timeoutMs){
@@ -16876,6 +16912,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           room.result=(result==='success'?'🧩 Solved':'🧩 Partial success')+' — '+rewardText+(result==='partial'?' · Take 1 Stress from backlash.':'');
           room.cleared=true;
           room.failed=false;
+          if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('mind',1,{context:'Province ruin puzzle: '+(room.puzzle&&room.puzzle.title?room.puzzle.title:'Runic lock')});
           if(typeof addSuccessRoll==='function')addSuccessRoll();
         }else{
           if(typeof changeStress==='function')changeStress(2);
@@ -17056,6 +17093,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       consumeProvinceRuinTrapCharge();
       room.result='Reveal Traps exposes the mechanism before it fires. The trap is safely disarmed.';
       room.cleared=true;
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('mind',1,{context:'Province ruin trap disarm'});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       syncProvinceRuinStateSoon('province-ruin-room');
       openProvinceRuinPopup(col,row);
@@ -17080,6 +17118,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✓ Success — '+rewardText;
       }
       room.cleared=true;
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('body',Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province ruin room: '+room.type});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
       const diff=Math.max(1,d.total-a.total);
@@ -17111,6 +17150,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const reward=rollProvinceRuinLoot('boss');
       const rewardText=applyProvinceRuinReward(reward);
       room.result='✓ Boss defeated — '+rewardText;
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('body',1,{context:'Province ruin boss chamber'});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       S.renown=(S.renown||0)+1;
       if(typeof updateRenown==='function')updateRenown();
@@ -17266,6 +17306,7 @@ document.addEventListener('DOMContentLoaded',()=>{
             if(result==='partial'&&typeof changeStress==='function')changeStress(1);
             segment.result=(result==='success'?'Seal broken':'Seal partially broken')+' — '+rewardText+(result==='partial'?' · Take 1 Stress from the backlash.':'')+advanceProvinceDepthsTask(floorState,segment);
             segment.cleared=true;
+            if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('mind',1,{context:'Province depths seal: floor '+state.currentFloor});
             if(typeof addSuccessRoll==='function')addSuccessRoll();
           }else{
             if(typeof changeStress==='function')changeStress(2);
@@ -17304,6 +17345,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(segment.kind==='Shrine Niche'&&typeof toggleCond==='function'&&!S.conditions.focused){toggleCond('focused');}
       segment.result='AD'+actionDie+' '+a.total+' vs DD'+dreadDie+' '+d.total+'. ✓ Success — '+rewardText+'.'+advanceProvinceDepthsTask(floorState,segment);
       segment.cleared=true;
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('body',Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province depths segment: '+segment.kind});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
       const diff=Math.max(1,d.total-a.total);
@@ -17328,6 +17370,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const rewardText=applyProvinceRuinReward(reward);
       segment.result='✓ Hostiles cleared — '+rewardText+'.'+advanceProvinceDepthsTask(floorState,segment);
       segment.cleared=true;
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('body',1,{context:'Province depths combat: floor '+state.currentFloor});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
       if(typeof changeStress==='function')changeStress(2);

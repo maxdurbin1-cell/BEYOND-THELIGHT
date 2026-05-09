@@ -2733,28 +2733,11 @@ function showDccSuccessOutcome(actionKey, diff, meta) {
   var tierInfo = getDccTierInfo(margin);
   var line = getDccFlavorLine(key, margin);
   var context = meta && meta.context ? String(meta.context) : '';
-  var rollLine = (meta && Number.isFinite(meta.actionTotal) && Number.isFinite(meta.dreadTotal))
-    ? ('<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.35rem;">'
-        + style.label + ' margin ' + margin + ' (' + meta.actionTotal + ' vs ' + meta.dreadTotal + ')</div>')
-    : ('<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.35rem;">'
-        + style.label + ' margin ' + margin + '</div>');
-  var contextLine = context
-    ? ('<div style="font-size:.72rem;color:var(--muted2);margin-top:.35rem;">' + context + '</div>')
-    : '';
-
-  if (typeof openModal === 'function') {
-    openModal(
-      'DCC Outcome - ' + style.label,
-      '<div style="font-size:.9rem;color:var(--text2);line-height:1.65;">'
-        + rollLine
-        + '<div style="font-size:.82rem;color:var(--gold2);margin-bottom:.24rem;">' + tierInfo.label + '</div>'
-        + '<div>' + line + '</div>'
-        + contextLine
-        + '</div>'
-    );
-  }
+  var rollText = (meta && Number.isFinite(meta.actionTotal) && Number.isFinite(meta.dreadTotal))
+    ? (style.label + ' margin ' + margin + ' (' + meta.actionTotal + ' vs ' + meta.dreadTotal + ')')
+    : (style.label + ' margin ' + margin);
   if (typeof showNotif === 'function') {
-    showNotif(style.label + ' success: ' + line, 'good');
+    showNotif(rollText + ' - ' + tierInfo.label + ': ' + line + (context ? (' [' + context + ']') : ''), 'good');
   }
   return { action: key, margin: margin, tier: tierInfo.label, text: line };
 }

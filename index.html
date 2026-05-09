@@ -384,6 +384,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-backstory" id="tabnav-backstory" onclick="switchTab('backstory',this)">Backstory</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" onclick="switchTab('codex',this)">Codex</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-soulforge" id="tabnav-soulforge" onclick="switchTab('soulforge',this)">Soul Forge</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" onclick="switchTab('rules',this)">Rules</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" onclick="switchTab('combat',this)">Combat</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" onclick="switchTab('oracle',this)">Oracle</button>
@@ -1448,6 +1449,11 @@ select option{background:#0f1020;}
   <div id="raidTreePanel"></div>
 </div>
 
+<!-- SOUL FORGE TAB -->
+<div class="tab-panel" id="tab-soulforge">
+  <div id="soulForgeTabPanel"></div>
+</div>
+
 <!-- MISSIONS TAB -->
 <div class="tab-panel" id="tab-missions">
   <div>
@@ -1742,7 +1748,7 @@ const CAREERS=['Anthropologist','Hunter','Soldier','Merchant','Investigator','Pr
 const OMENS=['Spring — Nurturing','Spring — Joyful','Spring — Quick-to-Act','Harvest — Hot-headed','Harvest — Bold','Harvest — Adventurous','Winter — Cold','Winter — Harsh','Winter — Resilient'];
 const REASONS=['Sent by a corporation to steal a sacred object','Sheer greed drives you toward comfort and luxury','Tracking a missing ledger — the only clue points to the Last Sea','Seeking new converts for your belief','Found a clue to the secret of immortality','Seeking a cure for a plague that claimed your child','Seeking vengeance for an ancient wrong','A loved one was stolen away by a horror in the night','Stories of a healing fruit draw you onward','Delivering a letter of inheritance to a distant Lord','A disembodied voice told you of a child destined to restore the world','Repaying an old debt — to a Lover, a Criminal, a Noble, or a Bank',"Searching for your Grandmother's lost Transporter",'Keeping a close eye on a dangerous rival','Seeking allies for a coming revolution','Looking for new lands for a displaced and lost tribe','Visions of glory and rebirth haunt your every sleep','You found a map to a Lost City in the wastes','A burning need to become famous drives every step','Pursued by the law for a crime — rightful or not'];
 const TRAITS={physique:['Athletic','Brawny','Flabby','Lanky','Chiseled','Scraggly','Short','Dashing','Stout','Enormous'],skin:['Birthmarked','Scarred','Dark','Rosy','Pockmarked','Soft','Tanned','Weathered','Hairy','Tattooed'],hair:['Bald','Long','Braided','Mohawked','Frizzy','Curled','Wavy','Oily','Luxurious','Dreadlocked'],face:['Elongated','Bony','Broken','Pale','Rugged','Chiseled','Squatty','Sunken','Square','Round'],clothing:['Antique','Bloody','Elegant','Soiled','Exotic','Royal','Eclectic','Topless','Plain','Tattered'],virtue:['Respect','Justice','Wisdom','Resolution','Mercy','Reliable','Hope','Courage','Moderation','Helpful'],vice:['Angry','Arrogant','Envious','Glutton','Greedy','Lustful','Lazy','Drunk','Coward','Vain'],reputation:['Leader','Loafer','Dangerous','Honest','Wise','Hardworking','Entertaining','Brash','Goofy','Repulsive'],misfortune:['Addicted','Defrauded','Exiled','Cursed','In Debt','Abandoned','Blackmailed','Betrayed','Condemned','Scarred']};
-const PERSONAL_FLAVORS_BASE=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: Lead rolls step up in fear scenes','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Recover Adventure Die Health each phase and combat round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana, Mutants, and unstable mutations','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity becomes 20 slots','Deity Pact: Request a patron favor or minor miracle once per day','Vampire: Blood hunger grants nocturnal power and daylight vulnerability','Werewolf: Bestial strength surges at night with lunar instincts'];
+const PERSONAL_FLAVORS_BASE=['Animal Companion: DD6 | 12 Stress','Holy Shield: Add Spirit Die to Defend Rolls','Emit blinding light — all Engaged Targets are Distracted','Infernal Eyes: Lead rolls step up in fear scenes','Leader: Faction becomes Empowered for the Scene','Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8','Communicate telepathically with anyone you have met','Weaken an object or enemy armor by a Step for a Round','Plastic bones — readjust the shape and size of your bones','Illusionist: Create minor visual illusions — Enemies are Distracted','Regenerator: Recover Adventure Die Health each phase and combat round','Emit burst of electricity — Ad8 to Shoot in Close range','Stone Skin: Ad4 to Defend','Mimic: Copy successful actions of another without rolling','In water: breathe, gain +1 Action, all Action Dice step up','Void Gazer: See invisibility and hidden things','After a Successful Defend, gain a Free Strike','Trickshot: Ad10 to Shoot rolls','Create a psychic dome — up to 4 people, cannot be attacked within','New Senses: vibration, echolocation, or magnetic','Tinkerer: Repair broken things — 1 hour','Scaled Skin: +3 to Defend rolls','Source Attuned: Sense nearby Arcana, Mutants, and unstable mutations','Failed rolls grant +2 Teamwork Points instead of +1','Moves like the Wind: +1 Action during Combat Scenes','Feats of Strength: Ad10 to Body and Power checks','Phase Walker: Pass through walls','Teleportation: Teleport to any location you can see','Mindshield: Ad8 to Trauma checks','Healer: Restore Adventure Die roll in Stress with a Touch','Mule: Backpack capacity doubles again','Deity Pact: Request a patron favor or minor miracle once per day','Vampire: Blood hunger grants nocturnal power and daylight vulnerability','Werewolf: Bestial strength surges at night with lunar instincts'];
 const PERSONAL_FLAVORS_EXTRAS=['Echo Step: After a successful Defend, reposition 1 range band and gain +Adventure Die on next Strike','Battle Cantor: Ally gains +Adventure Die bonus on their next Action roll','Glasswalker: Ignore first peril terrain penalty each phase','Iron Lungs: Ignore smoke and ash penalties','Runesmith: Your weapon carries the rune — +Adventure Die bonus damage on next Strike or Shoot this scene','Scavenger Memory: First loot roll each day may be rerolled — keep the better result, +Adventure Die queued','Hex Cartographer: Reveal one adjacent hex detail for free','Solar Needle: One ranged attack per scene gains +Adventure Die bonus to Shoot','Grave Whisper: Commune with the recent dead for a clue, lore shard, or grave omen','Storm Veins: Glimpse one possible future and negate the first forced Trauma this scene','Ruin Scholar: +Adventure Die bonus on all checks inside Ruins or the Lost City this phase','Blessed Appetite: Food use heals +1 extra Stress','Duelist Footwork: On hit, step to Nearby without cost','Pathfinder: Add Adventure Die as a bonus when encountering Barriers during traversal','Dust Prophet: Reveal the next weather shift — reroll and choose which result applies','Mirror Nerves: Immune to first Distracted per scene','Moon Listener: During Evening or Night phase, gain Adventure Die bonus to any roll','Chain Breaker: Ignore one restraint effect per scene','Warding Palm: Adjacent ally gains Protected for one roll','Quick Draw: First Strike or Shoot each combat gains +Adventure Die bonus','Bone Oracle: Read omen from remains once per day','Black Salt Ward: Negate the first Horror, fear, or psychic enemy effect each day','Field Surgeon: Stabilize ally for +1 Health recovery','Signal Caller: +Adventure Die bonus to Lead checks on caravan and trade routes','Scrap Alchemist: Choose an Item from your backpack and transform it into a remedy','Silent Knife: +Adventure Die bonus to Strike when no ally is Engaged','Ash Runner: In Planetary Exploration, ignore the first difficult terrain movement cost','Beacon Heart: Allies in Close range gain +Adventure Die bonus to Trauma checks','Clockmind: +Adventure Die bonus to Control on trap or lock interactions','Wild Empathy: Beast enemies are Distracted on their first action — they do not attack you first','Grim Resolve: At half Health or below, gain +Adventure Die bonus to Defend checks','Bloodhound: Track a target across two hexes automatically','Cold Reader: +Adventure Die bonus to Spirit checks in social or deception scenes','Iron Stomach: Consume any backpack item — roll Adventure Die, reduce Health by that amount for an unpredictable boon','Stormglass Eye: See hidden movement in rain/fog','Banner Oath: +Adventure Die bonus to Lead while carrying a mission objective','Trophy Keeper: First enemy defeat each scene gives +Adventure Die queued and +1 Teamwork','Quick Stitch: Remove one Injury or negative condition from self or nearby ally per scene','Lantern Scholar: +Adventure Die bonus to Mind checks in darkness or ruins','Faultline Sense: Safely pass through one Peril encounter this phase without Stress','Arc Shot: Ranged attacks can ignore one cover source','Mercy Hand: Spare a defeated enemy — +1 Renown for the act of mercy','Rune Tongue: Read unknown glyphs with Mind check','Night Courier: During Evening or Night, travel 2 hexes per click — phase clock does not tick until second move','Chain Tactician: First ally action after yours gains +Adventure Die bonus','Cinder Skin: Ignore heat and ember hazards — travel Hot planets without damage or Coolant Layer','Vault Memory: Returning to a visited route grants +Adventure Die bonus and +1 Path Token','Hunt Rhythm: After a successful Defend, next Strike gains +Adventure Die bonus','Vowkeeper: +Adventure Die bonus on checks tied to your current active task','Steel Prayer: Once per day, negate one Trauma gain','Ghoststride: Movement does not trigger simple traps','Iridescent Blood: Recover +Adventure Die additional Stress when using any remedy','Field Quartermaster: Backpack stack cap effectively doubles','Cave Ears: +Adventure Die bonus to Notice and Lead checks in enclosed spaces','Apex Calm: Cannot be Shaken by minor foes','Shard Focus: +Adventure Die bonus to Control when using hacks or relics','Ashen Halo: First reveal steals 1 enemy Action this round','Dawnbreaker: First Morning action gains +Adventure Die bonus','Duskcaller: First Evening action gains +Adventure Die bonus','Gale Step: Gain free reposition on crit success','Sable Ward: Reduce first incoming Mental Stress each scene by your Adventure Die roll','Fracture Sight: Spot weak points — +Adventure Die bonus to next Shoot check','Torchbearer: Allies ignore first darkness penalty','Oathbound Medic: Long Rest heals +1 Trauma','Circuit Saint: +Adventure Die bonus to Hack and old-world device checks','Feral Grace: +Adventure Die bonus to Defend checks against beasts','Pact Witness: +Adventure Die bonus to Spirit on deity pact outcomes','Reverse Time: Rewind up to 2 rounds worth of momentum; take Mental Stress equal to rounds reversed','Enhance Abilities: Step up the next allied action with an elevated bonus die','Shed Skin: Roll a new appearance and count as disguised for the current scene','Time Traveler: Glimpse 1 hour into the past or future and gain a concrete clue','Undying: If struck down, regenerate into a newly generated Wayfarer shell','Beast Call: Summon 4 beasts, each DD4 with 8 Stress','Monk: Bonus Adventure Die to Strike when unarmed','Siphon Energy: Heal equal to the damage you deal','Stop Time: Freeze the field for a round; gain Adventure Die as Mental Stress each round time is stopped','Lucky: Reroll 1s on your Action Die','Tremor Pulse: All in your Zone must Save vs your Adventure Die or lose 1 Action','Cloning: Create clones equal to your current remaining Health, each DD4 with 1 Stress','Increase Gravity: A target’s actions cost +1 Action this round','Slow Time: One target only gets 1 Action on their turn this round','Relive Last Moments: Touch a corpse to replay its recent memories for clues, routes, or warnings'];
 function normalizePersonalFlavorWording(text){
   var t=String(text||'');
@@ -3106,7 +3112,10 @@ window.rerollBackstoryAnchorLocation=rerollBackstoryAnchorLocation;
 window.renderBackstoryTab=renderBackstoryTab;
 
 function getBackpackCapacity(){
-  return String(S.flavor||'').toLowerCase().indexOf('mule')>=0?20:6;
+  var body=Number((S&&S.stats&&S.stats.body)||4);
+  var cap=Math.max(1,body*2);
+  if(String(S.flavor||'').toLowerCase().indexOf('mule')>=0)cap+=Math.max(1,body*2);
+  return cap;
 }
 function updateBackpackCapacityLabel(){
   var label=document.getElementById('backpackSlotsLabel');
@@ -5379,6 +5388,9 @@ function ensureAdvancedGearState() {
   if (!S.equipmentLayers || typeof S.equipmentLayers !== 'object') S.equipmentLayers = { under:'', over:'', suit:'' };
   if (!S.gearState || typeof S.gearState !== 'object') S.gearState = { oxygenHours:0, radAbsorbUsed:0, radAbsorbCap:0 };
   if (!S.environmentContext || typeof S.environmentContext !== 'object') S.environmentContext = { temperature:'', vacuum:false, irradiated:false };
+  if (!S.soulForge || typeof S.soulForge !== 'object') S.soulForge = { unlocked:false, inventory:[] };
+  if (!Array.isArray(S.soulForge.inventory)) S.soulForge.inventory = [];
+  if (typeof S.soulForge.unlocked !== 'boolean') S.soulForge.unlocked = false;
   ensureNightModeState();
   ensureFullPhaseClockState();
   ensureDarkAfflictionState();
@@ -6939,6 +6951,53 @@ function normalizeAffixLabel(text){
   return String(text||'').toLowerCase().replace(/[’`]/g,"'");
 }
 
+function getItemAffixRootText(text){
+  var clean=parseBackpackStack(text).name || String(text||'').trim();
+  clean=clean.replace(/\s+[|·]\s*Affixes?:.*$/i,'').trim();
+  clean=clean.replace(/\s+[|·]\s*Affix:\s*.*$/i,'').trim();
+  return clean;
+}
+
+function getItemAffixList(text){
+  var match=String(text||'').match(/Affixes?:\s*(.+)$/i);
+  if(!match)return [];
+  return match[1].split(',').map(function(entry){return String(entry||'').trim();}).filter(Boolean);
+}
+
+function getItemAffixCategory(text){
+  var raw=String(text||'');
+  var clean=getItemAffixRootText(raw);
+  var lower=normalizeAffixLabel(raw+' '+clean);
+  if(/\b(platinum|gold|silver|bronze)\s+weapon\b/i.test(raw) || /\bweapon\b/i.test(lower) || /\bstrike\b/i.test(lower) || /\bshoot\b/i.test(lower)) return 'weapon';
+  if(/\b(platinum|gold|silver|bronze)\s+armor\b/i.test(raw) || /\barmor\b/i.test(lower) || /\barmour\b/i.test(lower) || /\bdefend\b/i.test(lower)) return 'armor';
+  if(getItemAffixList(text).length) return 'item';
+  return '';
+}
+
+function getItemAffixSlotLimit(text){
+  var category=getItemAffixCategory(text);
+  if(category==='weapon')return 2;
+  if(category==='armor')return 1;
+  if(category==='item')return 1;
+  return 0;
+}
+
+function setItemAffixList(text, affixes){
+  var root=getItemAffixRootText(text);
+  var cleanAffixes=(Array.isArray(affixes)?affixes:[]).map(function(entry){return String(entry||'').trim();}).filter(Boolean);
+  if(!cleanAffixes.length)return root;
+  return root + ' · Affixes: ' + cleanAffixes.join(', ');
+}
+
+function buildAffixSlotSummaryHtml(text){
+  var limit=getItemAffixSlotLimit(text);
+  if(!limit)return '';
+  var used=getItemAffixList(text).length;
+  var category=getItemAffixCategory(text);
+  var label=category==='weapon'?'Weapon':category==='armor'?'Armor':'Item';
+  return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.22rem;">'+label+' affix slots: <strong style="color:var(--gold2);">'+used+'/'+limit+'</strong></div>';
+}
+
 function getEquippedAffixTextBlob(){
   var chunks=[];
   if(S&&S.equipment&&typeof S.equipment==='object'){
@@ -7000,23 +7059,20 @@ var AFFIX_EFFECT_DESCRIPTIONS={
   "basilisk's stare":'Can make enemies lose their next turn.'
 };
 
-function getItemAffixList(text){
-  var match=String(text||'').match(/Affixes?:\s*([^|]+)/i);
-  if(!match)return [];
-  return match[1].split(',').map(function(entry){return String(entry||'').trim();}).filter(Boolean);
-}
-
 function buildAffixEffectsHtml(text){
   var affixes=getItemAffixList(text);
-  if(!affixes.length)return '';
-  return '<div style="margin-top:.45rem;padding:.35rem .45rem;border:1px solid rgba(201,162,39,.25);background:rgba(201,162,39,.06);">'
-    + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;"><strong>Affix Effects</strong></div>'
-    + affixes.map(function(name){
-      var key=normalizeAffixLabel(name);
-      var effect=AFFIX_EFFECT_DESCRIPTIONS[key]||'Special effect active while this item is equipped.';
-      return '<div style="font-size:.76rem;color:var(--text2);line-height:1.46;"><strong style="color:var(--teal);">'+name+'</strong> — '+effect+'</div>';
-    }).join('')
-    + '</div>';
+  var slotSummary=buildAffixSlotSummaryHtml(text);
+  if(!affixes.length && !slotSummary)return '';
+  var body=slotSummary;
+  if(affixes.length){
+    body += '<div style="font-size:.72rem;color:var(--gold2);margin:'+(slotSummary?'.28rem 0 .18rem':'.18rem 0 .18rem')+';"><strong>Affix Effects</strong></div>'
+      + affixes.map(function(name){
+        var key=normalizeAffixLabel(name);
+        var effect=AFFIX_EFFECT_DESCRIPTIONS[key]||'Special effect active while this item is equipped.';
+        return '<div style="font-size:.76rem;color:var(--text2);line-height:1.46;"><strong style="color:var(--teal);">'+name+'</strong> — '+effect+'</div>';
+      }).join('');
+  }
+  return '<div style="margin-top:.45rem;padding:.35rem .45rem;border:1px solid rgba(201,162,39,.25);background:rgba(201,162,39,.06);">'+body+'</div>';
 }
 
 function getEquippedAffixCombatBonuses(){
@@ -7096,6 +7152,274 @@ function getEquippedAffixCombatBonuses(){
 
   return out;
 }
+
+function ensureSoulForgeState(){
+  ensureAdvancedGearState();
+  if(!S.soulForge || typeof S.soulForge !== 'object') S.soulForge = { unlocked:false, inventory:[] };
+  if(!Array.isArray(S.soulForge.inventory)) S.soulForge.inventory = [];
+  if (typeof S.soulForge.unlocked !== 'boolean') S.soulForge.unlocked = false;
+  return S.soulForge;
+}
+
+function normalizeSoulForgeAffixEntry(entry, sourceFallback){
+  if (!entry) return { name:'', source: sourceFallback || 'Soul Forge' };
+  if (typeof entry === 'string') return { name:String(entry || '').trim(), source: sourceFallback || 'Soul Forge' };
+  return {
+    name: String(entry.name || entry.affix || '').trim(),
+    source: String(entry.source || sourceFallback || 'Soul Forge').trim()
+  };
+}
+
+function getSoulForgeAffixInventory(){
+  var forge = ensureSoulForgeState();
+  forge.inventory = Array.isArray(forge.inventory) ? forge.inventory.map(function (entry) {
+    return normalizeSoulForgeAffixEntry(entry, 'Soul Forge');
+  }).filter(function (entry) { return !!entry.name; }) : [];
+  return forge.inventory;
+}
+
+function getSoulForgeGearEntries(){
+  ensureAdvancedGearState();
+  var entries = [];
+  var addEntry = function (key, label, text, sourceType, stackCount) {
+    var raw = String(text || '').trim();
+    if (!raw) return;
+    var slotLimit = getItemAffixSlotLimit(raw);
+    var category = getItemAffixCategory(raw);
+    if (!slotLimit && !category) return;
+    entries.push({
+      key: key,
+      label: label,
+      text: raw,
+      sourceType: sourceType,
+      stackCount: Math.max(1, Number(stackCount || 1)),
+      affixCount: getItemAffixList(raw).length,
+      slotLimit: slotLimit,
+      category: category,
+      displayName: cleanInventoryItemName(raw)
+    });
+  };
+
+  addEntry('weapon1', 'Weapon 1', S.equipment.weapon1 || '', 'equipment', 1);
+  addEntry('weapon2', 'Weapon 2', S.equipment.weapon2 || '', 'equipment', 1);
+  addEntry('armor', 'Armor', S.equipment.armor || '', 'equipment', 1);
+
+  if (Array.isArray(S.backpack)) {
+    for (var i = 0; i < S.backpack.length; i++) {
+      var item = S.backpack[i];
+      if (!item) continue;
+      var stack = parseBackpackStack(item);
+      addEntry('backpack:' + i, 'Backpack Slot ' + (i + 1), stack.name || item, 'backpack', stack.count || 1);
+    }
+  }
+
+  return entries;
+}
+
+function getSoulForgeEntryText(entry){
+  if (!entry) return '';
+  if (entry.sourceType === 'equipment') {
+    return String(S.equipment && S.equipment[entry.key] || '').trim();
+  }
+  if (entry.sourceType === 'backpack') {
+    var index = Number(String(entry.key || '').split(':')[1] || -1);
+    if (index < 0 || !Array.isArray(S.backpack)) return '';
+    return String(S.backpack[index] || '').trim();
+  }
+  return '';
+}
+
+function setSoulForgeEntryText(entry, nextText){
+  if (!entry) return false;
+  var updatedText = String(nextText || '').trim();
+  if (entry.sourceType === 'equipment') {
+    if (!S.equipment) S.equipment = { weapon1:'', weapon2:'', armor:'', readied:'' };
+    S.equipment[entry.key] = updatedText;
+    var equipInputId = entry.key === 'weapon1' ? 'eqWeapon1' : entry.key === 'weapon2' ? 'eqWeapon2' : entry.key === 'armor' ? 'eqArmor' : 'eqReadied';
+    var equipInput = document.getElementById(equipInputId);
+    if (equipInput) equipInput.value = updatedText;
+    return true;
+  }
+  if (entry.sourceType === 'backpack') {
+    if (!Array.isArray(S.backpack)) return false;
+    var index = Number(String(entry.key || '').split(':')[1] || -1);
+    if (index < 0 || index >= S.backpack.length) return false;
+    var stack = parseBackpackStack(S.backpack[index] || '');
+    S.backpack[index] = stack.count > 1 ? buildBackpackStack(updatedText, stack.count) : updatedText;
+    var bpInput = document.getElementById('bp' + index);
+    if (bpInput) bpInput.value = S.backpack[index] || '';
+    return true;
+  }
+  return false;
+}
+
+function buildSoulForgeVendorHtml(){
+  var forge = ensureSoulForgeState();
+  var inventory = getSoulForgeAffixInventory();
+  var gearEntries = getSoulForgeGearEntries();
+  var inventoryHtml = inventory.length ? inventory.map(function (entry, idx) {
+    return '<div style="border:1px solid var(--border2);padding:.38rem .42rem;margin-bottom:.28rem;background:rgba(255,255,255,.02);">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.35rem;flex-wrap:wrap;">'
+      + '<div style="font-size:.78rem;color:var(--text2);"><strong style="color:var(--teal);">' + entry.name + '</strong>' + (entry.source ? ' <span style="color:var(--muted2);">from ' + entry.source + '</span>' : '') + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-primary" onclick="openSoulForgeInstallTargetPicker(' + idx + ')">Install (100₵)</button>'
+      + '<button class="btn btn-xs btn-gold" onclick="sellSoulForgeAffix(' + idx + ')">Sell (200₵)</button>'
+      + '</div>'
+      + '</div>'
+    + '</div>';
+  }).join('') : '<div style="font-size:.75rem;color:var(--muted2);">No stored affixes yet. Complete a Soul Mission or extract one from gear.</div>';
+  var gearHtml = gearEntries.length ? gearEntries.map(function (entry) {
+    var affixSummary = entry.affixCount + '/' + entry.slotLimit;
+    return '<div style="border:1px solid var(--border2);padding:.38rem .42rem;margin-bottom:.28rem;background:rgba(255,255,255,.02);">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.35rem;flex-wrap:wrap;">'
+      + '<div style="font-size:.78rem;color:var(--text2);line-height:1.45;">'
+      + '<strong style="color:var(--gold2);">' + entry.label + '</strong> · ' + entry.displayName
+      + '<span style="color:var(--muted2);"> · ' + affixSummary + ' affix slots</span>'
+      + '</div>'
+      + '<button class="btn btn-xs btn-teal" onclick="extractSoulForgeAffix(' + JSON.stringify(entry.key) + ')">Extract (50₵)</button>'
+      + '</div>'
+      + (buildAffixEffectsHtml(entry.text) || '')
+    + '</div>';
+  }).join('') : '<div style="font-size:.75rem;color:var(--muted2);">No valid weapons or armor found to manage.</div>';
+  return '<div style="font-size:.8rem;color:var(--text2);line-height:1.55;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.82rem;color:var(--gold2);margin-bottom:.25rem;">Soul Forge</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.45rem;">Remove, move, or sell captured affixes. Soul Missions unlock this vendor and add new affixes to the forge inventory.</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.45rem;align-items:start;">'
+    + '<div style="border:1px solid var(--border);padding:.45rem;background:rgba(255,255,255,.02);"><div style="font-size:.76rem;color:var(--gold2);margin-bottom:.22rem;"><strong>Stored Affixes</strong></div>' + inventoryHtml + '</div>'
+    + '<div style="border:1px solid var(--border);padding:.45rem;background:rgba(255,255,255,.02);"><div style="font-size:.76rem;color:var(--gold2);margin-bottom:.22rem;"><strong>Gear</strong></div>' + gearHtml + '</div>'
+    + '</div>'
+    + '<div style="margin-top:.45rem;font-size:.7rem;color:var(--muted2);">Vault: ' + inventory.length + ' affix' + (inventory.length === 1 ? '' : 'es') + ' · ' + (forge.unlocked ? 'Unlocked' : 'Locked') + '</div>'
+    + '</div>';
+}
+
+function openSoulForgeVendor(){
+  var forge = ensureSoulForgeState();
+  if (!forge.unlocked && !forge.inventory.length) {
+    if (typeof showNotif === 'function') showNotif('Soul Forge is not unlocked yet. Complete a Soul Mission first.', 'warn');
+    return false;
+  }
+  if (typeof openModal === 'function') openModal('Soul Forge', buildSoulForgeVendorHtml());
+  return true;
+}
+
+function awardSoulMissionAffixReward(mission){
+  var forge = ensureSoulForgeState();
+  forge.unlocked = true;
+  var pools = [
+    ['keen','swift','sturdy','brutal','agile','reinforce','fierce','nimble','resilient','balanced','accuracy','range','stealth','piercing','lethal','vicious','silent','distance'],
+    ["dragon's breath",'stormcaller','frostheart','lifedrinker','doombringer','griffin','valkyrie','leviathan','djinn',"gorgon's glare","sphinx's riddle","minotaur's strength","pegasus' flight","roc's wind","eternity's edge",'void','celestial','abyssal','primal','ancestral',"soul eater","golem's fist","basilisk's stare"]
+  ];
+  var pool = Math.random() < 0.55 ? pools[0] : pools[1];
+  var affix = String(pool[Math.floor(Math.random() * pool.length)] || 'Keen');
+  forge.inventory.push({ name: affix, source: String((mission && mission.soulBoss) || mission && mission.title || 'Soul Mission') });
+  if (typeof showNotif === 'function') showNotif('Soul captured: ' + affix + ' added to the Soul Forge.', 'good');
+  return 'Captured Soul: ' + affix;
+}
+
+function extractSoulForgeAffix(entryKey){
+  ensureSoulForgeState();
+  var gearEntries = getSoulForgeGearEntries();
+  var entry = null;
+  for (var i = 0; i < gearEntries.length; i++) {
+    if (String(gearEntries[i].key) === String(entryKey || '')) { entry = gearEntries[i]; break; }
+  }
+  if (!entry) return false;
+  var affixes = getItemAffixList(entry.text);
+  if (!affixes.length) {
+    if (typeof showNotif === 'function') showNotif('No affixes are installed on this item.', 'warn');
+    return false;
+  }
+  var cost = 50;
+  if ((Number(S.credits || 0)) < cost) {
+    if (typeof showNotif === 'function') showNotif('You need 50 Credits to extract an affix.', 'warn');
+    return false;
+  }
+  var extracted = affixes.pop();
+  if (!setSoulForgeEntryText(entry, setItemAffixList(entry.text, affixes))) return false;
+  if (typeof changeCredits === 'function') changeCredits(-cost);
+  else S.credits = Number(S.credits || 0) - cost;
+  getSoulForgeAffixInventory().push({ name: extracted, source: entry.displayName });
+  if (typeof showNotif === 'function') showNotif('Extracted ' + extracted + ' from ' + entry.displayName + ' and stored it in the Soul Forge.', 'good');
+  if (typeof renderBackpackUI === 'function') renderBackpackUI();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof openSoulForgeVendor === 'function') openSoulForgeVendor();
+  return true;
+}
+
+function openSoulForgeInstallTargetPicker(affixIndex){
+  var inventory = getSoulForgeAffixInventory();
+  var entry = normalizeSoulForgeAffixEntry(inventory[Number(affixIndex || 0)], 'Soul Forge');
+  if (!entry.name) return false;
+  var gearEntries = getSoulForgeGearEntries();
+  var html = '<div style="font-size:.8rem;color:var(--text2);line-height:1.55;">'
+    + '<div style="margin-bottom:.35rem;">Choose a target for <strong style="color:var(--teal);">' + entry.name + '</strong>. Cost: 100 Credits.</div>'
+    + gearEntries.map(function (gear) {
+        var slotsLeft = Math.max(0, Number(gear.slotLimit || 0) - Number(gear.affixCount || 0));
+        var disabled = slotsLeft <= 0 ? 'disabled style="opacity:.45;cursor:not-allowed;"' : '';
+        return '<div style="border:1px solid var(--border2);padding:.35rem .4rem;margin-bottom:.25rem;background:rgba(255,255,255,.02);display:flex;justify-content:space-between;align-items:center;gap:.35rem;flex-wrap:wrap;">'
+          + '<div><strong style="color:var(--gold2);">' + gear.label + '</strong> · ' + gear.displayName + ' <span style="color:var(--muted2);">(' + gear.affixCount + '/' + gear.slotLimit + ')</span></div>'
+          + '<button class="btn btn-xs btn-primary" ' + disabled + ' onclick="installSoulForgeAffixToEntry(' + Number(affixIndex || 0) + ',' + JSON.stringify(gear.key) + ')">Install</button>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+  if (typeof openModal === 'function') openModal('Install Affix', html);
+  return true;
+}
+
+function installSoulForgeAffixToEntry(affixIndex, entryKey){
+  ensureSoulForgeState();
+  var inventory = getSoulForgeAffixInventory();
+  var idx = Number(affixIndex || 0);
+  if (idx < 0 || idx >= inventory.length) return false;
+  var entry = normalizeSoulForgeAffixEntry(inventory[idx], 'Soul Forge');
+  var gearEntries = getSoulForgeGearEntries();
+  var target = null;
+  for (var i = 0; i < gearEntries.length; i++) {
+    if (String(gearEntries[i].key) === String(entryKey || '')) { target = gearEntries[i]; break; }
+  }
+  if (!target) return false;
+  if ((Number(S.credits || 0)) < 100) {
+    if (typeof showNotif === 'function') showNotif('You need 100 Credits to install an affix.', 'warn');
+    return false;
+  }
+  if (Number(target.affixCount || 0) >= Number(target.slotLimit || 0)) {
+    if (typeof showNotif === 'function') showNotif('That item has no free affix slots left.', 'warn');
+    return false;
+  }
+  var currentAffixes = getItemAffixList(target.text);
+  currentAffixes.push(entry.name);
+  if (!setSoulForgeEntryText(target, setItemAffixList(target.text, currentAffixes))) return false;
+  inventory.splice(idx, 1);
+  if (typeof changeCredits === 'function') changeCredits(-100);
+  else S.credits = Number(S.credits || 0) - 100;
+  if (typeof showNotif === 'function') showNotif('Installed ' + entry.name + ' onto ' + target.displayName + '.', 'good');
+  if (typeof renderBackpackUI === 'function') renderBackpackUI();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof openSoulForgeVendor === 'function') openSoulForgeVendor();
+  return true;
+}
+
+function sellSoulForgeAffix(affixIndex){
+  ensureSoulForgeState();
+  var inventory = getSoulForgeAffixInventory();
+  var idx = Number(affixIndex || 0);
+  if (idx < 0 || idx >= inventory.length) return false;
+  var entry = inventory[idx];
+  inventory.splice(idx, 1);
+  if (typeof changeCredits === 'function') changeCredits(200);
+  else S.credits = Number(S.credits || 0) + 200;
+  if (typeof showNotif === 'function') showNotif('Sold ' + entry.name + ' for 200 Credits.', 'good');
+  if (typeof openSoulForgeVendor === 'function') openSoulForgeVendor();
+  return true;
+}
+
+window.ensureSoulForgeState = ensureSoulForgeState;
+window.openSoulForgeVendor = openSoulForgeVendor;
+window.awardSoulMissionAffixReward = awardSoulMissionAffixReward;
+window.extractSoulForgeAffix = extractSoulForgeAffix;
+window.openSoulForgeInstallTargetPicker = openSoulForgeInstallTargetPicker;
+window.installSoulForgeAffixToEntry = installSoulForgeAffixToEntry;
+window.sellSoulForgeAffix = sellSoulForgeAffix;
 
 function getMaxActions(){
   return getCombatActionBreakdown().total;

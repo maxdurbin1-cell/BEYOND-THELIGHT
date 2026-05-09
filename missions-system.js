@@ -182,8 +182,12 @@
     { id:'infiltration',         label:'Infiltration',        missionType:'infiltration',          stepNames:{1:'Acquire Access',2:'Infiltrate Site',3:'Exfiltrate'},          verbs:['Infiltrate','Sabotage','Steal','Bypass'] },
     { id:'settlement',           label:'Settlement Support',  missionType:'settlement_management', stepNames:{1:'Assess Settlement',2:'Secure Supplies',3:'Stabilize Zone'},   verbs:['Rebuild','Supply','Stabilize','Fortify'] },
     { id:'escort_chain',         label:'Escort Chain',        missionType:'escort_chain',          stepNames:{1:'Prepare Convoy',2:'Escort Route',3:'Safe Delivery'},          verbs:['Escort','Guard','Deliver','Protect'] },
-    { id:'faction_politics',     label:'Faction Politics',    missionType:'faction_politics',      stepNames:{1:'Map Allegiances',2:'Apply Leverage',3:'Settle Power Shift'}, verbs:['Leverage','Influence','Arbitrate','Pressure'] }
+    { id:'faction_politics',     label:'Faction Politics',    missionType:'faction_politics',      stepNames:{1:'Map Allegiances',2:'Apply Leverage',3:'Settle Power Shift'}, verbs:['Leverage','Influence','Arbitrate','Pressure'] },
+    { id:'soul_mission',         label:'Soul Mission',        missionType:'soul_mission',          stepNames:{1:'Track Soul Echo',2:'Breach the Hollow Site',3:'Take the Soul'}, verbs:['Track','Hunt','Purge','Sever'] }
   ];
+
+  var SOUL_MISSION_BOSSES = ['The Hollow Saint', 'The Cinder Warden', 'The Bone Regent', 'The Echo Maw', 'The Pale Engine', 'The Wailing Herald', 'The Starved Oracle', 'The Ash Crown', 'The Gilded Parasite', 'The Grave Choir', 'The Rift Shepherd', 'The Blackened Throne'];
+  var SOUL_MISSION_LOCS = ['Shattered Reliquary', 'Catacomb Blacksite', 'Fallen Temple Vault', 'Hollow Observatory', 'Cinder Crypt', 'Ruin Gate Sanctum', 'Ashen Ossuary', 'Silent Sepulcher', 'Warden Crypt', 'Echo Vault'];
 
   var REGIONAL_ARC_TEMPLATES = {
     escalation: {
@@ -246,6 +250,20 @@
     }
     if (!Array.isArray(S.missionDirector.arcState.history)) S.missionDirector.arcState.history = [];
     return S.missionDirector.arcState;
+  }
+
+  function shouldOfferSoulMission() {
+    ensureState();
+    var renown = Math.max(0, Number(S.renown || 0));
+    var completed = Array.isArray(S.completedMissions) ? S.completedMissions.length : 0;
+    var raidProfile = null;
+    try {
+      if (typeof ensureLegacyRaidProfile === 'function') raidProfile = ensureLegacyRaidProfile();
+    } catch (_err) {
+      raidProfile = null;
+    }
+    var raidPower = raidProfile ? (Number(raidProfile.raidMedals || 0) + Number(raidProfile.raidPoints || 0)) : 0;
+    return renown >= 8 || completed >= 12 || raidPower >= 3;
   }
 
   function pickRegionalArcId(bias) {
@@ -1088,7 +1106,10 @@
         return MISSION_TEMPLATES.find(function(t){ return t.id === 'survival'; }) || MISSION_TEMPLATES[0];
       }
     }
-    return pick(MISSION_TEMPLATES);
+    var templates = shouldOfferSoulMission()
+      ? MISSION_TEMPLATES.slice()
+      : MISSION_TEMPLATES.filter(function (template) { return template && template.id !== 'soul_mission'; });
+    return pick(templates);
   }
 
   function getMissionLocationKey(mission) {
@@ -1168,6 +1189,8 @@
       templateLabel: opts.templateLabel || '',
       lore: opts.lore || '',
       arcChain: opts.arcChain || null,
+      soulBoss: opts.soulBoss || '',
+      soulMission: !!opts.soulMission,
       factionContract: opts.factionContract || null,
       checkpoints: Array.isArray(opts.checkpoints) ? opts.checkpoints.slice() : [],
       step1Intro: opts.step1Intro || '',
@@ -1293,7 +1316,7 @@
       var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
       var templateVerbs = (tpl && Array.isArray(tpl.verbs) && tpl.verbs.length) ? tpl.verbs : MISSION_VERBS;
       var verbPool = Array.isArray(bias.preferredVerbs) && bias.preferredVerbs.length ? bias.preferredVerbs.concat(templateVerbs) : templateVerbs;
-      var useArcSlot = i === 0 || (Math.random() < 0.35);
+      var useArcSlot = (tpl && tpl.id === 'soul_mission') ? false : (i === 0 || (Math.random() < 0.35));
       if (useArcSlot) {
         if (!arcState.activeArcId) {
           arcState.activeArcId = pickRegionalArcId(bias);
@@ -1304,6 +1327,32 @@
           S.availableJobs.push(arcJob);
           continue;
         }
+      }
+      if (tpl && tpl.id === 'soul_mission') {
+        var soulBoss = pick(SOUL_MISSION_BOSSES);
+        var soulLocation = pick(SOUL_MISSION_LOCS);
+        S.availableJobs.push({
+          id:seed + i + 1,
+          title:'Soul Mission: ' + soulBoss,
+          difficulty:'very_hard',
+          dread:(DIFFICULTIES.very_hard || DIFFICULTIES.hard).dread,
+          location:soulLocation,
+          planetHexId:planetTarget ? planetTarget.planetHexId : null,
+          planetName:planetTarget ? planetTarget.planetName : '',
+          reward:Math.max(350, Number(DIFFICULTIES.very_hard.credits || 400) + Number(bias.rewardBonus || 0)),
+          region:region,
+          missionType:'soul_mission',
+          templateId:'soul_mission',
+          templateLabel:'Soul Mission',
+          stepNames:(tpl && tpl.stepNames) || null,
+          factionGain:f.gain,
+          factionLose:f.lose,
+          factionGainName:f.gainName,
+          factionLoseName:f.loseName,
+          lore:'Endgame hunt for ' + soulBoss + '. Taking its soul unlocks the Soul Forge.',
+          soulBoss:soulBoss
+        });
+        continue;
       }
       S.availableJobs.push({
         id:seed + i + 1,
@@ -1344,7 +1393,9 @@
       templateId: job.templateId || 'standard',
       stepNames: job.stepNames || null,
       lore: job.lore || '',
-      arcChain: job.arcChain || null
+      arcChain: job.arcChain || null,
+      soulBoss: job.soulBoss || '',
+      soulMission: job.missionType === 'soul_mission' ? true : false
     });
     if (job.region === 'galaxy') {
       mission.planetHexId = job.planetHexId || null;
@@ -1889,6 +1940,26 @@
     return true;
   }
 
+  function renderSoulForgeTabPanel() {
+    var panel = typeof document !== 'undefined' ? document.getElementById('soulForgeTabPanel') : null;
+    if (!panel) return false;
+    var forge = null;
+    try {
+      forge = typeof ensureSoulForgeState === 'function' ? ensureSoulForgeState() : (S.soulForge = S.soulForge || { unlocked:false, inventory:[] });
+    } catch (_err) {
+      forge = S.soulForge = S.soulForge || { unlocked:false, inventory:[] };
+    }
+    if (!Array.isArray(forge.inventory)) forge.inventory = [];
+    if (!forge.unlocked && !forge.inventory.length) {
+      panel.innerHTML = '<div class="card"><div class="section-title">Soul Forge</div><div style="font-size:.82rem;color:var(--muted2);line-height:1.5;">Complete a Soul Mission to unlock the forge. Once opened, this page lets you remove, move, and sell affixes.</div></div>';
+      return true;
+    }
+    panel.innerHTML = typeof buildSoulForgeVendorHtml === 'function'
+      ? buildSoulForgeVendorHtml()
+      : '<div class="card"><div class="section-title">Soul Forge</div><div style="font-size:.82rem;color:var(--muted2);">Forge content unavailable.</div></div>';
+    return true;
+  }
+
   window.buyLegacyRaidTreeNode = function (nodeId) {
     var profile = ensureLegacyRaidProfile();
     var node = getLegacyRaidTreeNode(nodeId);
@@ -1914,7 +1985,8 @@
     return true;
   };
 
-  function rollLegacyRaidPlatinumSignatureLoot() {
+  function rollLegacyRaidSignatureLoot(tier) {
+    var tierKey = String(tier || 'gold').toLowerCase();
     var weaponNames = ['Limbsplit', 'Dyadus', 'Ashpiercer', 'Nullbrand', 'Ruinwake', 'Stormsunder', 'Godsbite', 'Widowlane', 'Hexspike', 'Starrender', 'Emberlash', 'Voidharrow', 'Cinderlaw', 'Relicfang', 'Mooncleaver', 'Nightlance', 'Dreadshard', 'Aegisbreaker', 'Skylacer', 'Gravequill'];
     var armorNames = ['Axiom Plate', 'Riftguard Harness', 'Emberward Bastion', 'Nullweave Carapace', 'Oathshell Cuirass', 'Iron Psalm Mail', 'Skydread Mantle', 'Ash Covenant Suit', 'Vaultbone Plate', 'Stormglass Frame', 'Leviathan Aegis', 'Sunforged Ward', 'Thornbound Shell', 'Dawnkeeper Plate', 'Nightwarden Mail', 'Gilded Exuvia', 'Frostwall Harness', 'Wyrmproof Plate', 'Starbound Bulwark', 'Obsidian Promise'];
     var itemNames = ['Heartcoil Injector', 'Aether Compass', 'Crown of Echoes', 'Chrono Lantern', 'Warden Sigil', 'Mirror Key', 'Abyss Beacon', 'Soul Relay', 'Void Map', 'Oracle Thread', 'Rune Battery', 'Titan Lens', 'Phoenix Flask', 'Gorgon Prism', 'Sphinx Coin', 'Hydra Capsule', 'Thunder Seal', 'Basilisk Ampoule', 'Griffin Banner', 'Minotaur Totem'];
@@ -1928,20 +2000,54 @@
       return String(list[Math.floor(Math.random() * list.length)] || '');
     }
 
+    function drawAffix(pool, used) {
+      if (!Array.isArray(pool) || !pool.length) return '';
+      var list = pool.slice();
+      if (Array.isArray(used)) {
+        list = list.filter(function (entry) { return used.indexOf(entry) < 0; });
+      }
+      if (!list.length) list = pool.slice();
+      return pickOne(list);
+    }
+
+    function drawAffixBundle(count, allowUnique) {
+      var available = regularAffixes.slice().concat(legendaryAffixes.slice());
+      if (allowUnique) available = available.concat(uniqueAffixes.slice());
+      var bundle = [];
+      while (bundle.length < count && available.length) {
+        var picked = drawAffix(available, bundle);
+        if (!picked) break;
+        bundle.push(picked);
+        available = available.filter(function (entry) { return entry !== picked; });
+      }
+      return bundle;
+    }
+
     var weaponName = pickOne(weaponNames);
     var armorName = pickOne(armorNames);
     var itemName = pickOne(itemNames);
-    var weaponAffix = Math.random() < 0.5 ? pickOne(legendaryAffixes) : pickOne(uniqueAffixes);
-    var armorAffix = Math.random() < 0.6 ? pickOne(legendaryAffixes) : pickOne(uniqueAffixes);
-    var utilityAffix = pickOne(uniqueAffixes);
-    var regularWeaponAffix = pickOne(regularAffixes);
-    var regularArmorAffix = pickOne(regularAffixes);
+    var weaponAffixes = drawAffixBundle(tierKey === 'platinum' ? 2 : 1, tierKey === 'platinum');
+    var armorAffixes = drawAffixBundle(1, tierKey === 'platinum');
+    var utilityAffix = drawAffixBundle(1, true)[0] || drawAffixBundle(1, false)[0];
 
-    return [
-      weaponName + ' [Platinum Weapon] +4 Strike | Engaged · Affixes: ' + regularWeaponAffix + ', ' + weaponAffix,
-      armorName + ' [Platinum Armor] Ad10 Defend | 1 Action · Affixes: ' + regularArmorAffix + ', ' + armorAffix,
-      itemName + ' [Platinum Item] Utility Relic · Affix: ' + utilityAffix
+    var loot = [
+      weaponName + ' [' + (tierKey === 'platinum' ? 'Platinum' : 'Gold') + ' Weapon] ' + (tierKey === 'platinum' ? '+4 Strike' : '+3 Strike') + ' | Engaged · Affixes: ' + weaponAffixes.join(', '),
+      armorName + ' [' + (tierKey === 'platinum' ? 'Platinum' : 'Gold') + ' Armor] ' + (tierKey === 'platinum' ? 'Ad10 Defend | 1 Action' : 'Ad8 Defend | 1 Action') + ' · Affixes: ' + armorAffixes.join(', ')
     ];
+
+    if (tierKey === 'platinum') {
+      loot.push(itemName + ' [Platinum Item] Utility Relic · Affix: ' + utilityAffix);
+    }
+
+    return loot;
+  }
+
+  function rollLegacyRaidGoldSignatureLoot() {
+    return rollLegacyRaidSignatureLoot('gold');
+  }
+
+  function rollLegacyRaidPlatinumSignatureLoot() {
+    return rollLegacyRaidSignatureLoot('platinum');
   }
 
   window.openLegacyRaidChest = function (tier) {
@@ -1980,6 +2086,9 @@
         var rolled = rollShopLoot(lootTier) || [];
         rolled.forEach(function (item) { if (item) chestLoot.push(String(item)); });
       } catch (_err) {}
+    }
+    if (keyTier === 'gold') {
+      chestLoot = chestLoot.concat(rollLegacyRaidGoldSignatureLoot());
     }
     if (keyTier === 'platinum') {
       chestLoot = chestLoot.concat(rollLegacyRaidPlatinumSignatureLoot());
@@ -11395,6 +11504,12 @@
         newLoot = newLoot.concat(mission.legacyRaidVaultPayout.loot.slice());
       }
       mission.loot=mission.loot.concat(newLoot);
+      if (mission.missionType === 'soul_mission' && typeof window.awardSoulMissionAffixReward === 'function') {
+        try {
+          var soulReward = window.awardSoulMissionAffixReward(mission);
+          if (soulReward) mission.loot.push(soulReward);
+        } catch (_soulRewardErr) {}
+      }
       S.credits=(S.credits||0)+(mission.reward||100); S.renown=(S.renown||0)+1;
 
       if (typeof getWayfarerHomeBonuses === 'function') {
@@ -11777,11 +11892,26 @@
         + (pact.endingText ? '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;line-height:1.45;">'+pact.endingText+'</div>' : '')
       + '</div>';
     }
-    if (!S.activeMissions.length && !holdingTrackerHtml && !pactCardHtml) {
+    var soulForgeState = null;
+    try {
+      soulForgeState = typeof ensureSoulForgeState === 'function' ? ensureSoulForgeState() : (S.soulForge = S.soulForge || { unlocked:false, inventory:[] });
+    } catch (_forgeErr) {
+      soulForgeState = S.soulForge = S.soulForge || { unlocked:false, inventory:[] };
+    }
+    if (!Array.isArray(soulForgeState.inventory)) soulForgeState.inventory = [];
+    var soulForgeCardHtml = (soulForgeState.unlocked || soulForgeState.inventory.length)
+      ? '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--teal);padding:.55rem .6rem;margin-bottom:.5rem;">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:var(--teal);margin-bottom:.15rem;">Soul Forge</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.15rem;">Stored affixes: <strong style="color:var(--gold2);">' + soulForgeState.inventory.length + '</strong> · ' + (soulForgeState.unlocked ? 'Unlocked' : 'Locked') + '</div>'
+        + '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;">Soul Missions capture affixes from endgame bosses. Open the forge to remove, move, or sell them.</div>'
+        + '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="openSoulForgeVendor()">Open Soul Forge</button></div>'
+      + '</div>'
+      : '';
+    if (!S.activeMissions.length && !holdingTrackerHtml && !pactCardHtml && !soulForgeCardHtml) {
       container.innerHTML='<div style="font-size:.9rem;color:var(--text2);padding:.35rem 0;line-height:1.5;">No active missions. Accept a mission from the board above.</div>';
       return;
     }
-    container.innerHTML=holdingTrackerHtml + pactCardHtml + S.activeMissions.map(function(mission){
+    container.innerHTML=holdingTrackerHtml + pactCardHtml + soulForgeCardHtml + S.activeMissions.map(function(mission){
       if (mission && mission.missionType === 'legacy_raid') ensureLegacyRaidMissionConfig(mission);
       ensureMissionDeadline(mission);
       var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);
@@ -11902,6 +12032,7 @@
     renderMissionTracker();
     renderCompletedMissions();
     renderLegacyRaidTreePanel();
+    renderSoulForgeTabPanel();
   }
 
   function patchRaidTreeTabRefresh() {
@@ -11911,9 +12042,14 @@
     window.switchTab = function (tabId, btn) {
       var out = baseSwitch.apply(this, arguments);
       if (String(tabId || '') === 'raidtree') renderLegacyRaidTreePanel();
+      if (String(tabId || '') === 'soulforge') {
+        renderSoulForgeTabPanel();
+      }
       return out;
     };
   }
+
+  window.renderSoulForgeTabPanel = renderSoulForgeTabPanel;
 
   // Initialize on page ready
   function initMissions() {

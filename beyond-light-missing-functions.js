@@ -1164,6 +1164,13 @@ function workJobDay() {
     if (resultEl) {
       resultEl.innerHTML = '<span style="color:var(--red2);font-weight:700;">FAILED ✗</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + '. No pay.';
     }
+    if (typeof showDccFailureOutcome === 'function') {
+      showDccFailureOutcome('body', Math.max(1, dreadRoll.total - bodyRoll.total), {
+        actionTotal: bodyRoll.total,
+        dreadTotal: dreadRoll.total,
+        context: 'Work day check'
+      });
+    }
     showNotif('Work failed: no Credits earned.', 'warn');
     if (typeof addTMWOnFail === 'function') addTMWOnFail();
   }
@@ -2685,6 +2692,39 @@ const DCC_FLAVOR_TEMPLATES = [
   'The {style} becomes a finishing statement etched into the scene.'
 ];
 
+const DCC_FAILURE_FLAVOR_TEMPLATES = [
+  'Your {focus} slips at the last heartbeat and hands them the initiative.',
+  'A fractured {style} opens just enough space for a punishing counter.',
+  'The {focus} falters and your rhythm breaks under pressure.',
+  'Your {style} meets hard resistance and the moment turns against you.',
+  'A strained {focus} leaves your position exposed.',
+  'The {style} loses cohesion and momentum bleeds away.',
+  'Your {focus} misreads the field and the cost is immediate.',
+  'A rushed {style} invites a sharp reversal.',
+  'The {focus} lands weak and fails to shift control.',
+  'Your {style} stutters while they seize the tempo.',
+  'A brittle {focus} cracks under sustained pressure.',
+  'The {style} overextends and gives them clean leverage.',
+  'Your {focus} buckles and the exchange tilts hard.',
+  'A collapsing {style} leaves allies scrambling to recover.',
+  'The {focus} is broken mid-motion by brutal timing.',
+  'Your {style} unravels and cedes the lane completely.',
+  'A heavy {focus} miss turns control into chaos.',
+  'The {style} is denied and your options narrow fast.',
+  'Your {focus} is forced off-line and punished immediately.',
+  'A severe {style} breakdown opens every seam in your defense.',
+  'The {focus} is crushed and drives the scene into peril.',
+  'Your {style} collapses into a dangerous chain of errors.',
+  'A disastrous {focus} invites relentless pressure.',
+  'The {style} caves and the field belongs to them now.',
+  'Your {focus} fails catastrophically and leaves no cover.',
+  'A ruinous {style} tears apart your plan in seconds.',
+  'The {focus} is shattered, forcing a desperate fallback.',
+  'Your {style} implodes and escalates the threat immediately.',
+  'A catastrophic {focus} gives them total command of the moment.',
+  'The {style} breaks beyond recovery and the setback is absolute.'
+];
+
 const DCC_ACTION_STYLES = {
   strike: { label: 'Strike', style: 'blade line', focus: 'strike' },
   shoot: { label: 'Shoot', style: 'shot pattern', focus: 'shot' },
@@ -2714,6 +2754,15 @@ function getDccTierInfo(diff) {
   return { tier: 4, label: 'Critical Success' };
 }
 
+function getDccFailureTierInfo(diff) {
+  var margin = Math.max(1, Number(diff || 1));
+  if (margin <= 1) return { tier: 0, label: 'Narrow Failure' };
+  if (margin <= 3) return { tier: 1, label: 'Minor Failure' };
+  if (margin <= 5) return { tier: 2, label: 'Solid Failure' };
+  if (margin <= 8) return { tier: 3, label: 'Strong Failure' };
+  return { tier: 4, label: 'Critical Failure' };
+}
+
 function getDccFlavorLine(actionKey, diff) {
   var key = normalizeDccActionKey(actionKey);
   var style = DCC_ACTION_STYLES[key] || DCC_ACTION_STYLES.spell;
@@ -2721,6 +2770,18 @@ function getDccFlavorLine(actionKey, diff) {
   var start = tier * 6;
   var pickOffset = Math.floor(Math.random() * 6);
   var template = DCC_FLAVOR_TEMPLATES[start + pickOffset] || DCC_FLAVOR_TEMPLATES[start] || DCC_FLAVOR_TEMPLATES[0];
+  return template
+    .replace('{style}', style.style)
+    .replace('{focus}', style.focus);
+}
+
+function getDccFailureFlavorLine(actionKey, diff) {
+  var key = normalizeDccActionKey(actionKey);
+  var style = DCC_ACTION_STYLES[key] || DCC_ACTION_STYLES.spell;
+  var tier = getDccFailureTierInfo(diff).tier;
+  var start = tier * 6;
+  var pickOffset = Math.floor(Math.random() * 6);
+  var template = DCC_FAILURE_FLAVOR_TEMPLATES[start + pickOffset] || DCC_FAILURE_FLAVOR_TEMPLATES[start] || DCC_FAILURE_FLAVOR_TEMPLATES[0];
   return template
     .replace('{style}', style.style)
     .replace('{focus}', style.focus);
@@ -2742,7 +2803,24 @@ function showDccSuccessOutcome(actionKey, diff, meta) {
   return { action: key, margin: margin, tier: tierInfo.label, text: line };
 }
 
+function showDccFailureOutcome(actionKey, diff, meta) {
+  var key = normalizeDccActionKey(actionKey);
+  var style = DCC_ACTION_STYLES[key] || DCC_ACTION_STYLES.spell;
+  var margin = Math.max(1, Number(diff || 1));
+  var tierInfo = getDccFailureTierInfo(margin);
+  var line = getDccFailureFlavorLine(key, margin);
+  var context = meta && meta.context ? String(meta.context) : '';
+  var rollText = (meta && Number.isFinite(meta.actionTotal) && Number.isFinite(meta.dreadTotal))
+    ? (style.label + ' miss ' + margin + ' (' + meta.actionTotal + ' vs ' + meta.dreadTotal + ')')
+    : (style.label + ' miss ' + margin);
+  if (typeof showNotif === 'function') {
+    showNotif(rollText + ' - ' + tierInfo.label + ': ' + line + (context ? (' [' + context + ']') : ''), 'warn');
+  }
+  return { action: key, margin: margin, tier: tierInfo.label, text: line };
+}
+
 window.showDccSuccessOutcome = showDccSuccessOutcome;
+window.showDccFailureOutcome = showDccFailureOutcome;
 
 function finalizeCheckResult(actionDie, dreadDie, actionTotal, dreadTotal, success) {
   renderCheckResult(
@@ -2753,6 +2831,13 @@ function finalizeCheckResult(actionDie, dreadDie, actionTotal, dreadTotal, succe
     success
   );
   if (!success) {
+    if (typeof showDccFailureOutcome === 'function') {
+      showDccFailureOutcome('spell', Math.max(1, dreadTotal - actionTotal), {
+        actionTotal: actionTotal,
+        dreadTotal: dreadTotal,
+        context: 'Action vs Dread check'
+      });
+    }
     addTMWOnFail();
     changeHealth(Math.max(1, dreadTotal - actionTotal));
   } else {
@@ -2859,6 +2944,13 @@ function rollCheck() {
 
   renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success);
   if (!success) {
+    if (typeof showDccFailureOutcome === 'function') {
+      showDccFailureOutcome('spell', Math.max(1, dreadRoll.total - actionRoll.total), {
+        actionTotal: actionRoll.total,
+        dreadTotal: dreadRoll.total,
+        context: 'Action vs Dread check'
+      });
+    }
     addTMWOnFail();
     changeHealth(Math.max(1, dreadRoll.total - actionRoll.total));
   } else {

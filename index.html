@@ -5631,6 +5631,7 @@ window.resolveProvinceShiftWeatherDanger = function(){
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     showNotif('You weathered the sudden storm shift.', 'good');
   }else{
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('lead',Math.max(1,dreadRoll.total-leadRoll.total),{actionTotal:leadRoll.total,dreadTotal:dreadRoll.total,context:'Sudden weather shift'});
     if(typeof changeMentalStress==='function')changeMentalStress(1);
     if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
     advanceProvincePhasePenalty(1);
@@ -7941,6 +7942,13 @@ function rollAttack(type) {
   }
 
   if(!success){
+    if(typeof showDccFailureOutcome==='function'){
+      showDccFailureOutcome(type,Math.max(1,targetDreadTotal-effectiveTotal),{
+        actionTotal:effectiveTotal,
+        dreadTotal:targetDreadTotal,
+        context:(type==='strike'?'Strike':'Shoot')+' vs Enemy Dread'
+      });
+    }
     addTMWOnFail('general-failure');
   } else {
     if(typeof showDccSuccessOutcome==='function'){
@@ -8023,6 +8031,13 @@ function rollDefend(skipEnemyTurnTick) {
     +(ra.exploded ? ' ✦ Perfect!' : '')+defNoteHtml;
 
   if(!success){
+    if(typeof showDccFailureOutcome==='function'){
+      showDccFailureOutcome('defend',Math.max(1,d.total-effectiveTotal),{
+        actionTotal:effectiveTotal,
+        dreadTotal:d.total,
+        context:'Defend vs Enemy Dread'
+      });
+    }
     changeStress(diff);
     addTMWOnFail('general-failure');
   } else {
@@ -10404,6 +10419,13 @@ function castScrollFromBackpack(index) {
     }
     if (typeof addSuccessRoll === 'function') addSuccessRoll();
   } else {
+    if (typeof showDccFailureOutcome === 'function') {
+      showDccFailureOutcome('spell', Math.max(1, aR.total - mR.total), {
+        actionTotal: mR.total,
+        dreadTotal: aR.total,
+        context: 'Scroll cast: ' + scrollName
+      });
+    }
     if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
   }
   // Scroll is never removed — indefinite use
@@ -10430,7 +10452,7 @@ function useToolkit(statKey, backpackIndex) {
   removeBackpackItem(backpackIndex);
   clearConditionOnUse(statKey);
 }
-function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){if(typeof showDccSuccessOutcome==='function'){showDccSuccessOutcome('spirit',Math.max(1,diff),{actionTotal:a.total,dreadTotal:d.total,context:'Haggle check'});}addSuccessRoll();}else{addTMWOnFail('general-failure');}}
+function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){if(typeof showDccSuccessOutcome==='function'){showDccSuccessOutcome('spirit',Math.max(1,diff),{actionTotal:a.total,dreadTotal:d.total,context:'Haggle check'});}addSuccessRoll();}else{if(typeof showDccFailureOutcome==='function'){showDccFailureOutcome('spirit',Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Haggle check'});}addTMWOnFail('general-failure');}}
 
 // ── MAP GENERATION ────────────────────────────────────────────────────────────
 // FIX: 12×12 grid
@@ -10589,6 +10611,7 @@ window.resolveProvinceEdgeBarrierCheck=function(fromKey,toKey){
       renderHexMap();
       showNotif('Edge crossing unlocked this phase ('+statKey.toUpperCase()+' '+player.total+' vs '+dread.total+').'+(bonusNotes.length?(' '+bonusNotes.join(' · ')):''),'good');
     }else{
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(statKey,Math.max(1,dread.total-player.total),{actionTotal:player.total,dreadTotal:dread.total,context:'Edge barrier crossing'});
       if(typeof toggleCond==='function')toggleCond('weakened');
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       S.provinceTraversalBlockedEdge={
@@ -12368,7 +12391,10 @@ function resolveEventAction(col,row){
     if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(statKey,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Event action: '+hex.name});
     if(typeof addSuccessRoll==='function')addSuccessRoll();
   }
-  if(!success&&typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+  if(!success){
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(statKey,Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Event action: '+hex.name});
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+  }
   if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
   if(prog.completed>=6){completeEventChallenge(hex,'direct action');}
 }
@@ -12736,6 +12762,7 @@ function attemptBlackMarketAccess(col,row){
     showNotif('You gain access to the Black Market.','good');
     if(typeof addSuccessRoll==='function')addSuccessRoll();
   }else{
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Black market access'});
     html+=`<div style="margin-top:.35rem;font-size:.8rem;color:var(--muted2);">Lookouts clock you immediately and throw you out before any deal starts.</div>`;
     showNotif('Black Market access failed. You were thrown out.','warn');
     if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
@@ -12800,6 +12827,7 @@ function attemptEncounterThievery(source,col,row){
       appendQuickPanelNote('[Thievery] Stole '+reward.label+' ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')');
     }
   }else{
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,dreadRoll.total-playerTotal),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Encounter thievery: '+source});
     showNotif('Thievery failed! Caught! ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')','warn');
     if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
     appendQuickPanelNote('[Thievery] Caught while stealing from '+source+'. +1 TMW');
@@ -12850,6 +12878,7 @@ function haggleMerchantCaravan(col,row){
     showNotif(`Haggle Success! (${roll1.total} vs DD8=${roll2.total}) 20% Discount Granted!`,'good');
     appendQuickPanelNote(`[Merchant Haggle] Negotiated 20% discount with caravan at [${col+1},${row+1}]`);
   }else{
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('spirit',Math.max(1,roll2.total-roll1.total),{actionTotal:roll1.total,dreadTotal:roll2.total,context:'Caravan haggle'});
     showNotif(`Haggle Failed (${roll1.total} vs DD8=${roll2.total}). Regular pricing.`,'warn');
   }
 }
@@ -12875,6 +12904,7 @@ function attemptThievery(targetName){
     }
     appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`);
   }else{
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,dreadRoll.total-playerTotal),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Direct thievery: '+targetName});
     showNotif(`Thievery failed! Caught! (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`, 'warn');
     if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
     appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
@@ -13020,7 +13050,10 @@ function resolveEventLeadAction(col,row){
     if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(statKey,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Event lead action: '+lead.eventName});
     if(typeof addSuccessRoll==='function')addSuccessRoll();
   }
-  if(!success&&typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+  if(!success){
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(statKey,Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Event lead action: '+lead.eventName});
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+  }
   if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
   if(getEventMysteryProgress(eventHex).completed>=6){completeEventChallenge(eventHex,'lead action');}
   renderHexMap();
@@ -13148,7 +13181,7 @@ function resolveProvinceHoldingDowntime(col,row,statKey){
   const success=a.total>=d.total;
   let effectExtra='';
   if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(key,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name});if(typeof addSuccessRoll==='function')addSuccessRoll();}
-  else{effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');}
+  else{if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(key,Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name});effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');}
   hex.data.downtimeLastResult={
     success:success,
     check:key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+(evt.dd||6)+'='+d.total,
@@ -16915,6 +16948,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('mind',1,{context:'Province ruin puzzle: '+(room.puzzle&&room.puzzle.title?room.puzzle.title:'Runic lock')});
           if(typeof addSuccessRoll==='function')addSuccessRoll();
         }else{
+          if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('mind',2,{context:'Province ruin puzzle: '+(room.puzzle&&room.puzzle.title?room.puzzle.title:'Runic lock')});
           if(typeof changeStress==='function')changeStress(2);
           if(S.conditions)S.conditions.distracted=true;
           if(typeof updateConditionButtons==='function')updateConditionButtons();
@@ -17122,6 +17156,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
       const diff=Math.max(1,d.total-a.total);
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('body',diff,{actionTotal:a.total,dreadTotal:d.total,context:'Province ruin room: '+room.type});
       if(typeof changeStress==='function')changeStress(diff);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       if(room.type==='Lair'){
@@ -17156,6 +17191,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(typeof updateRenown==='function')updateRenown();
       showNotif('Boss defeated: named weapon drop secured.','good');
     }else{
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('body',2,{context:'Province ruin boss chamber'});
       if(typeof changeStress==='function')changeStress(2);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       room.result='✕ Boss encounter failed — take 2 Stress and regroup.';
@@ -17309,6 +17345,7 @@ document.addEventListener('DOMContentLoaded',()=>{
             if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('mind',1,{context:'Province depths seal: floor '+state.currentFloor});
             if(typeof addSuccessRoll==='function')addSuccessRoll();
           }else{
+            if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('mind',2,{context:'Province depths seal: floor '+state.currentFloor});
             if(typeof changeStress==='function')changeStress(2);
             if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
             segment.result='Seal holds. Take 2 Stress and try again later.';
@@ -17349,6 +17386,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
       const diff=Math.max(1,d.total-a.total);
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('body',diff,{actionTotal:a.total,dreadTotal:d.total,context:'Province depths segment: '+segment.kind});
       if(typeof changeStress==='function')changeStress(diff);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       segment.result='AD'+actionDie+' '+a.total+' vs DD'+dreadDie+' '+d.total+'. ✕ Failure — take '+diff+' Stress.';
@@ -17373,6 +17411,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('body',1,{context:'Province depths combat: floor '+state.currentFloor});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('body',2,{context:'Province depths combat: floor '+state.currentFloor});
       if(typeof changeStress==='function')changeStress(2);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       segment.result='✕ Forced back by the floor defenders. Take 2 Stress and regroup.';
@@ -17585,6 +17624,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       showNotif(itemFlags.factionItem?'Traversal successful. Faction credentials: +1 Renown.':'Traversal successful. Passage gained.', 'good');
     }else{
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(statKey,Math.max(1,dread.total-player.total),{actionTotal:player.total,dreadTotal:dread.total,context:'Province traversal'});
       if(typeof toggleCond==='function')toggleCond('weakened');
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       const fromKey=selectedHex?(String(selectedHex.col)+','+String(selectedHex.row)):'';
@@ -17647,6 +17687,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
       showNotif('Weather check passed: Lead '+leadRoll.total+' vs DD8 '+dreadRoll.total+'. Safe passage secured.', 'good');
     } else {
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('lead',Math.max(1,dreadRoll.total-leadRoll.total),{actionTotal:leadRoll.total,dreadTotal:dreadRoll.total,context:'Province rough weather'});
       const weatherStress=itemFlags.torch?0:1;
       const beforeDate=S&&S.gameDate?JSON.parse(JSON.stringify(S.gameDate)):null;
       if (weatherStress && typeof changeMentalStress === 'function') changeMentalStress(weatherStress);

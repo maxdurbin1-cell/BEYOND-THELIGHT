@@ -1108,6 +1108,13 @@
       }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome(driverStat, Math.max(1, d.total - a.total), {
+          actionTotal: a.total,
+          dreadTotal: d.total,
+          context: 'Caravan chase control'
+        });
+      }
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
   }
@@ -2996,6 +3003,13 @@
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
       line += 'District stabilized. +' + cGain + ' Credits, +1 Teamwork, Fear reduced.';
     } else {
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome('lead', Math.max(1, dread.total - action.total), {
+          actionTotal: action.total,
+          dreadTotal: dread.total,
+          context: 'Holding district stabilization'
+        });
+      }
       if (typeof changeMentalStress === 'function') { changeMentalStress(1); }
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
       crawl.stats.fear = Math.min(10, Number(crawl.stats.fear || 0) + 1 + (holdingType === 'Spire' ? 1 : 0));
@@ -3065,6 +3079,13 @@
       }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome(key, Math.max(1, d.total - a.total), {
+          actionTotal: a.total,
+          dreadTotal: d.total,
+          context: 'Holding downtime: ' + evt.name
+        });
+      }
       applyHoldingDowntimeEffect(evt.failEffect);
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
@@ -3880,6 +3901,13 @@
       }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome('spell', Math.max(1, d.total - a.total), {
+          actionTotal: a.total,
+          dreadTotal: d.total,
+          context: 'Council task: ' + role
+        });
+      }
       if (typeof addTMWOnFail === 'function') { addTMWOnFail(); }
     }
   }
@@ -5151,6 +5179,14 @@
         });
       }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
+    } else {
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome('spell', Math.max(1, malwareBy || (high - low) || 1), {
+          actionTotal: ctrlVal,
+          dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
+          context: 'Hack cast: ' + hackName
+        });
+      }
     }
     if (typeof renderQP === 'function' && S.quickPanel) {
       S.quickPanel.lastCombatRoll = (resultEl && resultEl.innerHTML) ? resultEl.innerHTML : S.quickPanel.lastCombatRoll;

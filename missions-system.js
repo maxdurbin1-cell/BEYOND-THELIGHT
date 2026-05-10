@@ -5154,6 +5154,7 @@
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.14rem;">'
           + '<button class="btn btn-sm btn-primary" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'strike\',' + missionId + ',' + wingNum + ')">Strike</button>'
           + '<button class="btn btn-sm btn-primary" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'shoot\',' + missionId + ',' + wingNum + ')">Shoot</button>'
+          + '<button class="btn btn-sm" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'defend\',' + missionId + ',' + wingNum + ')">Defend</button>'
           + compactMoveButtons
         + '</div>'
         + (combatTabActionOptions

@@ -170,12 +170,33 @@
     }).length;
   }
 
+  function fallbackOpenCombatTab(message) {
+    if (typeof window.switchTab === 'function') {
+      var combatBtn = document.getElementById('tabnav-combat');
+      window.switchTab('combat', combatBtn || null);
+    }
+    if (typeof showNotif === 'function') {
+      showNotif(String(message || 'Combat scene prepared in Combat tab.'), 'warn');
+    }
+  }
+
   function openSeaColosseumArena(mode, hexKey) {
-    if (typeof window.seedArenaCombat !== 'function' || typeof window.openArenaCombatPopup !== 'function') return false;
     var arenaMode = String(mode || 'challenge');
     var title = arenaMode === 'endless' ? 'Sea Colosseum - Endless Mode' : 'Sea Colosseum - Challenge Mode';
-    window.seedArenaCombat(arenaMode, { hexKey: String(hexKey || ''), title: title });
-    window.openArenaCombatPopup({ mode: arenaMode, hexKey: String(hexKey || ''), title: title });
+    if (typeof window.seedArenaCombat === 'function') {
+      try {
+        window.seedArenaCombat(arenaMode, { hexKey: String(hexKey || ''), title: title });
+      } catch (_seedErr) {}
+    }
+    if (typeof window.openArenaCombatPopup === 'function') {
+      try {
+        window.openArenaCombatPopup({ mode: arenaMode, hexKey: String(hexKey || ''), title: title });
+      } catch (_popupErr) {
+        fallbackOpenCombatTab('Colosseum combat prepared in Combat tab.');
+      }
+    } else {
+      fallbackOpenCombatTab('Colosseum combat prepared in Combat tab.');
+    }
     if (typeof showNotif === 'function') {
       showNotif('Arena opened: ' + (arenaMode === 'endless' ? 'Endless Mode' : 'Challenge Mode') + '.', 'good');
     }
@@ -239,7 +260,7 @@
   }
 
   function openEndgameGatePortal(scope, key, allKeys) {
-    if (typeof window.seedArenaCombat !== 'function' || typeof window.openArenaCombatPopup !== 'function') return false;
+    if (typeof window.seedArenaCombat !== 'function') return false;
     var portal = getPortalMarker(scope, key, allKeys);
     if (!portal) {
       if (typeof showNotif === 'function') showNotif('No active endgame gate at this hex today.', 'info');
@@ -258,11 +279,19 @@
     flow.gatePortal.closed = false;
     seedGateEnemies(portal.gateType, flow);
 
-    window.openArenaCombatPopup({
-      mode: 'gate',
-      hexKey: String(key || ''),
-      title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
-    });
+    if (typeof window.openArenaCombatPopup === 'function') {
+      try {
+        window.openArenaCombatPopup({
+          mode: 'gate',
+          hexKey: String(key || ''),
+          title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
+        });
+      } catch (_gatePopupErr) {
+        fallbackOpenCombatTab('Gate battle prepared in Combat tab.');
+      }
+    } else {
+      fallbackOpenCombatTab('Gate battle prepared in Combat tab.');
+    }
     if (typeof showNotif === 'function') showNotif('Gate portal opened. Defeat hostiles, then solve the seal puzzle.', 'warn');
     return true;
   }

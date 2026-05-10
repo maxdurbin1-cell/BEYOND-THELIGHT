@@ -188,6 +188,7 @@
 
   var SOUL_MISSION_BOSSES = ['The Hollow Saint', 'The Cinder Warden', 'The Bone Regent', 'The Echo Maw', 'The Pale Engine', 'The Wailing Herald', 'The Starved Oracle', 'The Ash Crown', 'The Gilded Parasite', 'The Grave Choir', 'The Rift Shepherd', 'The Blackened Throne'];
   var SOUL_MISSION_LOCS = ['Shattered Reliquary', 'Catacomb Blacksite', 'Fallen Temple Vault', 'Hollow Observatory', 'Cinder Crypt', 'Ruin Gate Sanctum', 'Ashen Ossuary', 'Silent Sepulcher', 'Warden Crypt', 'Echo Vault'];
+  var SOUL_MISSION_ICONS = ['☠', '🜂', '✶', '🜏', '⛧'];
 
   var REGIONAL_ARC_TEMPLATES = {
     escalation: {
@@ -547,6 +548,7 @@
     if (!isForced && chanceRoll > 42) return null;
 
     var boss = SOUL_MISSION_BOSSES[Math.abs(seed + 29) % SOUL_MISSION_BOSSES.length] || 'The Hollow Saint';
+    var soulIcon = SOUL_MISSION_ICONS[Math.abs(seed + 17) % SOUL_MISSION_ICONS.length] || '☠';
     var regionPool = getAvailableMissionRegions();
     var region = regionPool[Math.abs(seed + 13) % Math.max(1, regionPool.length)] || 'province';
     var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
@@ -571,6 +573,7 @@
         stepNames: { 1: 'Track Soul Echo', 2: 'Breach the Hollow Site', 3: 'Take the Soul' },
         lore: 'Endgame hunt for ' + boss + '. Taking its soul unlocks the Soul Forge.',
         soulBoss: boss,
+        soulIcon: soulIcon,
         soulMission: true,
         planetHexId: planetTarget ? planetTarget.planetHexId : null,
         planetName: planetTarget ? planetTarget.planetName : ''
@@ -1519,10 +1522,22 @@
         var siteHex = seaCandidates[Math.floor(Math.random() * seaCandidates.length)];
         var informerPool = seaCandidates.filter(function(hex) { return hex.key !== siteHex.key; });
         var informerHex = informerPool.length ? informerPool[Math.floor(Math.random() * informerPool.length)] : null;
-        S.lastSea.missionTokens[siteHex.key] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'standard' };
+        S.lastSea.missionTokens[siteHex.key] = {
+          missionId: mission.id,
+          title: mission.title,
+          type: 'site',
+          missionType: mission.missionType || 'standard',
+          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+        };
         mission.seaSiteKey = siteHex.key;
         if (informerHex) {
-          S.lastSea.missionTokens[informerHex.key] = { missionId: mission.id, title: mission.title, type: 'informer', missionType: mission.missionType || 'standard' };
+          S.lastSea.missionTokens[informerHex.key] = {
+            missionId: mission.id,
+            title: mission.title,
+            type: 'informer',
+            missionType: mission.missionType || 'standard',
+            icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+          };
           mission.seaInformerKey = informerHex.key;
         }
         if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
@@ -1541,24 +1556,48 @@
         var shuffled = candidates.slice().sort(function(){ return Math.random()-0.5; });
         var informerHex = shuffled[0];
         var siteHex = shuffled[1];
-        S.missionTokens[informerHex.col + ',' + informerHex.row] = { missionId: mission.id, title: mission.title, type: 'informer', missionType: mission.missionType || 'standard' };
+        S.missionTokens[informerHex.col + ',' + informerHex.row] = {
+          missionId: mission.id,
+          title: mission.title,
+          type: 'informer',
+          missionType: mission.missionType || 'standard',
+          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+        };
         mission.informerHex = { col: informerHex.col, row: informerHex.row };
         mission.siteHex     = { col: siteHex.col,     row: siteHex.row };
         if (mission.missionType === 'legacy_raid') {
           var mapPrompt = ensureLegacyRaidMapPromptState(mission);
           if (mapPrompt && mapPrompt.siteRevealed) {
-            S.missionTokens[siteHex.col + ',' + siteHex.row] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'legacy_raid' };
+            S.missionTokens[siteHex.col + ',' + siteHex.row] = {
+              missionId: mission.id,
+              title: mission.title,
+              type: 'site',
+              missionType: mission.missionType || 'legacy_raid',
+              icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+            };
           } else {
             delete S.missionTokens[siteHex.col + ',' + siteHex.row];
           }
         } else {
-          S.missionTokens[siteHex.col + ',' + siteHex.row] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'standard' };
+            S.missionTokens[siteHex.col + ',' + siteHex.row] = {
+              missionId: mission.id,
+              title: mission.title,
+              type: 'site',
+              missionType: mission.missionType || 'standard',
+              icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+            };
         }
         // Keep mapHex pointing to site for backwards compatibility
         mission.mapHex = mission.siteHex;
       } else if (candidates.length === 1) {
         var hex = candidates[0];
-        S.missionTokens[hex.col + ',' + hex.row] = { missionId: mission.id, title: mission.title, type: 'site', missionType: mission.missionType || 'standard' };
+        S.missionTokens[hex.col + ',' + hex.row] = {
+          missionId: mission.id,
+          title: mission.title,
+          type: 'site',
+          missionType: mission.missionType || 'standard',
+          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+        };
         mission.siteHex = { col: hex.col, row: hex.row };
         mission.mapHex  = mission.siteHex;
       }
@@ -4786,6 +4825,48 @@
         return String(flow.selectedEnemyTargetType || '') === 'ally' && String(flow.selectedAllyName || '') === String(unit.name || '');
       }
     });
+
+    var compactWingMode = Number(wingNum || 1) <= 2;
+    if (compactWingMode) {
+      var compactEnemyRows = hostiles.map(function (e) {
+        return '<div style="display:flex;justify-content:space-between;gap:.3rem;padding:.16rem 0;border-bottom:1px solid rgba(255,255,255,.05);">'
+          + '<span style="font-size:.76rem;color:var(--text2);">' + String(e.name || 'Hostile') + '</span>'
+          + '<span style="font-size:.74rem;color:var(--red2);">d' + Number(e.dread || 6) + ' • ' + Math.max(0, Number(e.maxStress || 8) - Number(e.stress || 0)) + ' HP</span>'
+        + '</div>';
+      }).join('') || '<div style="font-size:.74rem;color:var(--muted2);">No hostiles active.</div>';
+      var compactAllies = allies.map(function (e) {
+        return '<div style="font-size:.72rem;color:var(--teal);padding:.08rem 0;">• ' + String(e.name || 'Wayfarer') + ' (' + Math.max(0, Number(e.maxStress || 12) - Number(e.stress || 0)) + ' HP)</div>';
+      }).join('') || '<div style="font-size:.72rem;color:var(--muted2);">No temporary allies.</div>';
+      var compactHtml = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.12rem;">Raid Combat - Wing ' + wingNum + ' (Quick Panel)</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.18rem;">Refined combat flow: use the same action rhythm as the Combat Quick Panel.</div>'
+        + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-bottom:.24rem;">'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Stage: <strong style="color:var(--gold2);">' + stageLabel + '</strong></div>'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Actions Left: <strong style="color:var(--gold2);">' + actionsLeft + '</strong></div>'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Range: <strong style="color:var(--teal);">' + playerRange + '</strong></div>'
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.3rem;margin-bottom:.24rem;">'
+          + '<div style="border:1px solid var(--border2);padding:.3rem .36rem;background:rgba(255,255,255,.02);"><div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;">Allies</div>' + compactAllies + '</div>'
+          + '<div style="border:1px solid var(--border2);padding:.3rem .36rem;background:rgba(255,255,255,.02);"><div style="font-size:.7rem;color:var(--red2);margin-bottom:.08rem;">Hostiles</div>' + compactEnemyRows + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.14rem;">'
+          + '<button class="btn btn-sm btn-primary" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'strike\',' + missionId + ',' + wingNum + ')">Strike</button>'
+          + '<button class="btn btn-sm btn-primary" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'shoot\',' + missionId + ',' + wingNum + ')">Shoot</button>'
+          + '<button class="btn btn-sm" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'defend\',' + missionId + ',' + wingNum + ')">Defend</button>'
+          + '<button class="btn btn-sm" onclick="if(typeof switchTab===\'function\'){var b=document.getElementById(\'tabnav-combat\');switchTab(\'combat\',b||null);}">Open Combat Tab</button>'
+        + '</div>'
+        + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.14rem;">'
+          + '<button class="btn btn-sm btn-teal" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof openRaidWingPopup===\'function\')openRaidWingPopup(' + missionId + ',' + wingNum + ');">Return to Wing</button>'
+          + '<button class="btn btn-sm" onclick="window.finishLegacyRaidCombatScene(' + missionId + ',' + wingNum + ')">End Scene</button>'
+          + (sceneStarted ? '' : ('<button class="btn btn-sm btn-primary" onclick="window.startLegacyRaidCombatScene(' + missionId + ',' + wingNum + ')">Start Scene</button>'))
+        + '</div>'
+        + '<div style="background:var(--surface);border:1px solid var(--border);padding:.35rem .45rem;font-size:.78rem;line-height:1.4;min-height:2rem;">'
+          + String((S.quickPanel && S.quickPanel.lastCombatRoll) || 'No combat roll yet.')
+        + '</div>'
+      + '</div>';
+      openModal('Raid Combat — Wing ' + wingNum, compactHtml);
+      return true;
+    }
 
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
       + '<div style="font-size:.86rem;color:var(--red2);font-family:\'Cinzel\',serif;margin-bottom:.14rem;"><strong>⚔ Combat Engaged — Wing ' + wingNum + '</strong></div>'

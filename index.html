@@ -216,10 +216,14 @@ select option{background:#0f1020;}
 .wild-panel .wp-text{font-size:.92rem;color:var(--text2);line-height:1.62;}
 .venture-result{background:var(--card);border-left:3px solid var(--gold2);padding:.5rem .7rem;margin-top:.3rem;}
 .venture-result .vr-type{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;margin-bottom:.2rem;}
-.wayfarer-card{background:var(--surface);border:1px solid var(--border2);padding:.6rem;margin-bottom:.4rem;}
+.wayfarer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.55rem;align-items:stretch;}
+.wayfarer-card{background:var(--surface);border:1px solid var(--border2);padding:.68rem;margin-bottom:0;min-height:100%;overflow:hidden;}
+.wayfarer-card .wf-top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.55rem;align-items:center;}
+.wayfarer-card .wf-meta{min-width:0;}
 .wf-name{font-family:'Cinzel',serif;font-size:.78rem;color:var(--gold2);}.wf-bg{font-size:.7rem;color:var(--teal);}
 .wf-story{font-size:.83rem;color:var(--muted3);line-height:1.5;margin-top:.2rem;font-style:italic;}
 .wf-drive{font-size:.68rem;color:var(--green);font-family:'Cinzel',serif;letter-spacing:.06em;margin-top:.2rem;}
+@media(max-width:760px){.wayfarer-grid{grid-template-columns:1fr;}}
 .trade-block{background:var(--surface);border:1px solid var(--border2);padding:.65rem;margin-bottom:.4rem;}
 .trade-block .tb-label{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;}
 .hist-entry{display:grid;grid-template-columns:2rem 1fr;gap:.4rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.03);}
@@ -7330,8 +7334,82 @@ function awardSoulMissionAffixReward(mission){
   var pool = Math.random() < 0.55 ? pools[0] : pools[1];
   var affix = String(pool[Math.floor(Math.random() * pool.length)] || 'Keen');
   forge.inventory.push({ name: affix, source: String((mission && mission.soulBoss) || mission && mission.title || 'Soul Mission') });
-  if (typeof showNotif === 'function') showNotif('Soul captured: ' + affix + ' added to the Soul Forge.', 'good');
-  return 'Captured Soul: ' + affix;
+  if (typeof openSoulMissionRewardChoice === 'function') {
+    openSoulMissionRewardChoice(mission, affix);
+  } else if (typeof showNotif === 'function') {
+    showNotif('Soul captured: ' + affix + ' added to the Soul Forge.', 'good');
+  }
+  return 'Captured Soul: ' + affix + ' (choose Weapon or Armor upgrade).';
+}
+
+function getCurrentWeaponTextForSoulReward(){
+  if (!S || !S.equipment) return '';
+  return String(S.equipment.readied || S.equipment.weapon1 || S.equipment.weapon2 || '');
+}
+
+function applySoulMissionAffixUpgrade(targetType, affix, sourceName){
+  var itemKey = targetType === 'armor' ? 'armor' : 'weapon1';
+  if (!S.equipment) S.equipment = {};
+  if (itemKey === 'weapon1' && !S.equipment.weapon1 && S.equipment.readied) {
+    S.equipment.weapon1 = String(S.equipment.readied || '');
+  }
+  var text = itemKey === 'armor' ? String(S.equipment.armor || '') : String(S.equipment.weapon1 || '');
+  if (!text) return false;
+  var affixes = typeof getItemAffixList === 'function' ? getItemAffixList(text) : [];
+  affixes.push(String(affix || 'Keen'));
+  var updated = typeof setItemAffixList === 'function' ? setItemAffixList(text, affixes) : (text + ' · Affixes: ' + affixes.join(', '));
+  if (itemKey === 'armor') S.equipment.armor = updated;
+  else {
+    S.equipment.weapon1 = updated;
+    S.equipment.readied = updated;
+  }
+  var inputId = itemKey === 'armor' ? 'eqArmor' : 'eqWeapon1';
+  var inputEl = document.getElementById(inputId);
+  if (inputEl) inputEl.value = updated;
+  if (typeof showNotif === 'function') showNotif((sourceName || 'Soul reward') + ': ' + affix + ' applied to ' + (itemKey === 'armor' ? 'Armor' : 'Weapon') + '.', 'good');
+  if (typeof renderBackpackUI === 'function') renderBackpackUI();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  return true;
+}
+
+function claimSoulMissionRewardChoice(targetType, affix, sourceName){
+  var choice = String(targetType || 'weapon').toLowerCase() === 'armor' ? 'armor' : 'weapon';
+  var ok = applySoulMissionAffixUpgrade(choice, affix, sourceName);
+  if (!ok) {
+    if (typeof showNotif === 'function') showNotif('No valid ' + (choice === 'armor' ? 'armor' : 'weapon') + ' equipped for this reward.', 'warn');
+    return false;
+  }
+  if (typeof closeModal === 'function') closeModal();
+  if (typeof switchTab === 'function') {
+    var shopBtn = document.getElementById('tabnav-shop');
+    switchTab('shop', shopBtn || null);
+  }
+  return true;
+}
+
+function openSoulMissionRewardChoice(mission, affix){
+  var sourceName = String((mission && mission.soulBoss) || (mission && mission.title) || 'Soul Mission');
+  var weaponText = getCurrentWeaponTextForSoulReward();
+  var armorText = String(S && S.equipment && S.equipment.armor || '');
+  var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
+    + '<div style="margin-bottom:.28rem;">Unique kill reward from <strong style="color:var(--gold2);">' + sourceName + '</strong>.</div>'
+    + '<div style="margin-bottom:.2rem;">Random affix rolled: <strong style="color:var(--teal);">' + String(affix || 'Keen') + '</strong></div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Choose where to apply it, then you are routed to Merchants.</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;">'
+    + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;"><strong>Weapon Upgrade</strong></div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;margin-bottom:.22rem;">' + (weaponText || 'No readied weapon found.') + '</div>'
+    + '<button class="btn btn-xs btn-primary" ' + (weaponText ? '' : 'disabled') + ' onclick="claimSoulMissionRewardChoice(\'weapon\',' + JSON.stringify(String(affix || 'Keen')) + ',' + JSON.stringify(sourceName) + ')">Apply To Weapon</button>'
+    + '</div>'
+    + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+    + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;"><strong>Armor Upgrade</strong></div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;margin-bottom:.22rem;">' + (armorText || 'No armor equipped.') + '</div>'
+    + '<button class="btn btn-xs btn-teal" ' + (armorText ? '' : 'disabled') + ' onclick="claimSoulMissionRewardChoice(\'armor\',' + JSON.stringify(String(affix || 'Keen')) + ',' + JSON.stringify(sourceName) + ')">Apply To Armor</button>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+  if (typeof openModal === 'function') openModal('Soul Forge - Unique Kill Reward', html);
+  return true;
 }
 
 function extractSoulForgeAffix(entryKey){
@@ -7434,6 +7512,8 @@ function sellSoulForgeAffix(affixIndex){
 window.ensureSoulForgeState = ensureSoulForgeState;
 window.openSoulForgeVendor = openSoulForgeVendor;
 window.awardSoulMissionAffixReward = awardSoulMissionAffixReward;
+window.openSoulMissionRewardChoice = openSoulMissionRewardChoice;
+window.claimSoulMissionRewardChoice = claimSoulMissionRewardChoice;
 window.extractSoulForgeAffix = extractSoulForgeAffix;
 window.openSoulForgeInstallTargetPicker = openSoulForgeInstallTargetPicker;
 window.installSoulForgeAffixToEntry = installSoulForgeAffixToEntry;
@@ -11773,9 +11853,12 @@ function renderHexMap(){
       const mt=S.missionTokens[markerKey];
       const mtMission=(S&&Array.isArray(S.activeMissions))?S.activeMissions.find(m=>m&&String(m.id||'')===String(mt.missionId||'')):null;
       const isLegacyRaidToken=mt.missionType==='legacy_raid'||(mtMission&&mtMission.missionType==='legacy_raid');
+      const isSoulToken=mt.missionType==='soul_mission'||(mtMission&&mtMission.missionType==='soul_mission');
       let icon='⚔',color='#e05050',label='SITE',fill='rgba(224,80,80,.18)';
       if(isLegacyRaidToken){icon='🐉';color='#ff8450';label=(mt.type==='informer'?'RAID AVAILABLE':'RAID');fill='rgba(255,132,80,.2)';}
+      if(isSoulToken){icon=mt.icon||'☠';color='#ff6f91';label=(mt.type==='informer'?'SOUL LEAD':'SOUL HUNT');fill='rgba(255,111,145,.2)';}
       if(mt.type==='informer'||mt.type==='holding_info'){icon='👁';color='#e8c050';label='INFORMER';fill='rgba(232,192,80,.18)';}
+      if(isSoulToken&&mt.type==='informer'){icon=mt.icon||'☠';color='#ff6f91';label='SOUL LEAD';fill='rgba(255,111,145,.2)';}
       if(isLegacyRaidToken&&(mt.type==='informer'||mt.type==='holding_info')){icon='🐉';color='#ff8450';label='RAID AVAILABLE';fill='rgba(255,132,80,.2)';}
       if(mt.type==='holding_site'){icon='🧭';color='#ff8450';label='HOLDING SITE';fill='rgba(255,132,80,.18)';}
       if(mt.type==='holding_home'){icon='🏛';color='#46c4b6';label='HOLDING';fill='rgba(70,196,182,.2)';}
@@ -12181,7 +12264,10 @@ function renderHexInfo(hex){
     const mt=S.missionTokens[nk];
     const mtMission=(S&&Array.isArray(S.activeMissions))?S.activeMissions.find(m=>m&&String(m.id||'')===String(mt.missionId||'')):null;
     const isLegacyRaidToken=mt.missionType==='legacy_raid'||(mtMission&&mtMission.missionType==='legacy_raid');
+    const isSoulToken=mt.missionType==='soul_mission'||(mtMission&&mtMission.missionType==='soul_mission');
     const markerTitle=(mt.missionId==='holding_quest'&&mt.type==='informer')?'Holding Quest: Gather Information'
+      :(isSoulToken&&mt.type==='informer')?'Soul Hunt Lead'
+      :(isSoulToken)?'Soul Hunt Site'
       :(isLegacyRaidToken&&mt.type==='informer')?'Raid Mission Available'
       :(isLegacyRaidToken)?'Raid Confrontation Wing'
       :(mt.missionId==='holding_quest'&&mt.type==='site')?'Holding Quest: Go To Site'
@@ -15371,8 +15457,8 @@ function showCodexCat(cat,btn){
     c.innerHTML=`<div class="card"><div class="section-title">Traveling Wayfarers</div>
       <div style="margin-bottom:.65rem;"><button class="btn btn-primary" onclick="rollWayfarer()">⚄ Roll Random Wayfarer</button></div>
       <div id="wayfarerResult" style="margin-bottom:.6rem;"></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.3rem;">
-        ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:54}):''}<div><div style="display:flex;justify-content:space-between;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.7rem;color:var(--muted2);">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`).join('')}
+      <div class="wayfarer-grid">
+        ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card"><div class="wf-top">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:56}):''}<div class="wf-meta"><div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted2);flex-shrink:0;">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`).join('')}
       </div>
     </div>`;
   }else if(cat==='flavors'){
@@ -16552,9 +16638,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Actions: <strong style="color:var(--red2);">'+enemyActions+'/'+enemyActionsMax+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:minmax(0,1fr) 7rem auto auto auto auto;gap:.2rem;align-items:end;margin-bottom:.28rem;">'
-      + '<label style="font-size:.63rem;color:var(--muted2);">Combatant Name<input id="qpEnemyName" type="text" placeholder="Combatant name" style="width:100%;margin-top:.08rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/></label>'
-      + '<label style="font-size:.63rem;color:var(--muted2);">Dread Die<select id="qpEnemyDreadSel" style="width:100%;margin-top:.08rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===dread?' selected':'')+'>d'+d+'</option>';}).join('')+'</select></label>'
+      + '<div style="display:grid;grid-template-columns:minmax(180px,1.35fr) minmax(120px,.75fr) auto auto auto auto;gap:.24rem;align-items:end;margin-bottom:.32rem;">'
+      + '<label style="font-size:.69rem;color:var(--muted2);">Combatant Name<input id="qpEnemyName" type="text" placeholder="Combatant name" style="width:100%;margin-top:.09rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.34rem .48rem;font-size:.84rem;line-height:1.2;"/></label>'
+      + '<label style="font-size:.69rem;color:var(--muted2);">Dread Die<select id="qpEnemyDreadSel" style="width:100%;margin-top:.09rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.34rem .48rem;font-size:.82rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===dread?' selected':'')+'>d'+d+'</option>';}).join('')+'</select></label>'
       + '<button class="btn btn-xs btn-teal" onclick="qpQuickAddEnemy()">Add Enemy</button>'
       + '<button class="btn btn-xs" onclick="qpQuickAddAlly()">Add Ally</button>'
       + '<button class="btn btn-xs" onclick="if(typeof clearEnemies===\'function\')clearEnemies();renderQP(\'combat\')">Clear</button>'

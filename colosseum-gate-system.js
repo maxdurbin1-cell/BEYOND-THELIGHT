@@ -46,25 +46,33 @@
   }
 
   function openArenaPopupSafe(payload, fallbackMessage) {
-    var opened = false;
-    if (typeof window.openArenaCombatPopup === 'function') {
+    function tryOpenPopup() {
+      if (typeof window.openArenaCombatPopup !== 'function') return false;
       try {
         window.openArenaCombatPopup(payload || {});
-        opened = true;
-      } catch (_popupErr) {}
+        return true;
+      } catch (_popupErr) {
+        return false;
+      }
     }
-    if (!opened && typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+
+    var opened = tryOpenPopup();
+    if (opened) return true;
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       window.requestAnimationFrame(function () {
-        if (typeof window.openArenaCombatPopup === 'function') {
-          try { window.openArenaCombatPopup(payload || {}); } catch (_rafErr) {}
+        var retried = tryOpenPopup();
+        if (!retried) {
+          forceArenaFallbackSurface(payload || {});
+          notifyArenaPopupUnavailable(fallbackMessage || 'Combat popup was blocked. Routed to Combat tab as fallback.');
         }
       });
+      return true;
     }
-    if (!opened) {
-      forceArenaFallbackSurface(payload || {});
-      notifyArenaPopupUnavailable(fallbackMessage || 'Combat popup was blocked. Routed to Combat tab as fallback.');
-    }
-    return opened;
+
+    forceArenaFallbackSurface(payload || {});
+    notifyArenaPopupUnavailable(fallbackMessage || 'Combat popup was blocked. Routed to Combat tab as fallback.');
+    return false;
   }
 
   function withArenaRuntimeReady(runFn, unavailableMessage, attempt) {

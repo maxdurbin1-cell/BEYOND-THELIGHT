@@ -40,7 +40,7 @@
     { id: "crossbolts",  name: "Mounted Crossbolts", base: "Add +1d4 to Shoot Rolls made from the Transporter." },
     { id: "chains",      name: "Chains",             base: "Draw an enemy Transporter from Close to Engaged during combat." },
     { id: "techroom",    name: "Tech Room",          base: "With a Control, Tinker check, craft items worth 100₵ of resources." },
-    { id: "merchant",    name: "Merchant Stall",     base: "Modifies buying/selling prices by ±50%." },
+    { id: "browse",      name: "Browse",             base: "Compares local stock, prices, and settlement supplies." },
     { id: "stealth",     name: "Stealth Coating",    base: "Grants +d4 to Control, Stealth Rolls to avoid detection." },
     { id: "jammer",      name: "Signal Jammer",      base: "Interferes with enemy communications within a Zone." }
   ];
@@ -148,6 +148,13 @@
       regentFailures: 0,
       crises: [],
       taxLog: [],
+      bank: {
+        invested: 0,
+        accrued: 0,
+        risk: 'low',
+        lastTickAt: 0,
+        history: []
+      },
       crucible: {
         wins: 0,
         losses: 0,
@@ -174,6 +181,19 @@
       if (!Array.isArray(S.holding.vault))          { S.holding.vault = []; }
     if (!Array.isArray(S.holding.councilTasks))    { S.holding.councilTasks = []; }
     if (!Array.isArray(S.holding.taxLog))         { S.holding.taxLog = []; }
+    if (!S.holding.bank || typeof S.holding.bank !== 'object') {
+      S.holding.bank = {
+        invested: 0,
+        accrued: 0,
+        risk: 'low',
+        lastTickAt: 0,
+        history: []
+      };
+    }
+    S.holding.bank.invested = Math.max(0, Number(S.holding.bank.invested || 0));
+    S.holding.bank.accrued = Math.max(0, Number(S.holding.bank.accrued || 0));
+    S.holding.bank.risk = String(S.holding.bank.risk || 'low');
+    if (!Array.isArray(S.holding.bank.history)) { S.holding.bank.history = []; }
     if (!S.holding.crucible || typeof S.holding.crucible !== 'object') {
       S.holding.crucible = {
         wins: 0,
@@ -527,6 +547,14 @@
           '<div class="section-title">Crucible 6v6 Tactical Simulator</div>',
           '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Training scenario launched from Holdings. Test your Wayfarer against a full 6v6 tactical engagement with hex-zone positioning and round-by-round combat pressure.</div>',
           '<div id="holdingCruciblePanel"></div>',
+        '</div>',
+        '<div class="card">',
+          '<div class="section-title">Holding Treasury</div>',
+          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Prompt an amount, pick a care tier, and let the bank handle the credits.</div>',
+          '<div id="holdingBankPanel"></div>',
+          '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.4rem;">',
+            '<button class="btn btn-sm btn-teal" onclick="openHoldingBankingModal();">Open Treasury</button>',
+          '</div>',
         '</div>',
         // Perils of Leadership — full width
         '<div class="card">',
@@ -1337,6 +1365,11 @@
     var crucibleEl = document.getElementById('holdingCruciblePanel');
     if (crucibleEl) {
       crucibleEl.innerHTML = buildHoldingCruciblePanelHtml();
+    }
+
+    var bankEl = document.getElementById('holdingBankPanel');
+    if (bankEl) {
+      bankEl.innerHTML = buildHoldingBankPanelHtml();
     }
 
     renderHoldingCrises();
@@ -2550,7 +2583,171 @@
     rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
+  function getHoldingBankState() {
+    ensureNewFeatureState();
+    if (!S.holding.bank || typeof S.holding.bank !== 'object') {
+      S.holding.bank = {
+        invested: 0,
+        accrued: 0,
+        risk: 'low',
+        lastTickAt: 0,
+        history: []
+      };
+    }
+    if (!Array.isArray(S.holding.bank.history)) { S.holding.bank.history = []; }
+    return S.holding.bank;
+  }
+
+  function getHoldingBankRiskText(risk) {
+    if (risk === 'medium') return 'Medium Risk';
+    if (risk === 'high') return 'High Risk';
+    return 'Low Risk';
+  }
+
+  function getHoldingBankRiskDetails(risk) {
+    if (risk === 'medium') {
+      return '15-20% risk · Moderate · Consistent growth can gain 20-50 Credits, but can also lose 10 Credits.';
+    }
+    if (risk === 'high') {
+      return '50-55% risk · Aggressive · Can swing +/− about half the deposit each day.';
+    }
+    return '0-2% risk · Minimal · Passive income with 20 Credits per in-game day, no management needed.';
+  }
+
+  function tickHoldingBankInvestments(days) {
+    var bank = getHoldingBankState();
+    var stepCount = Math.max(1, Number(days || 1));
+    if (Number(bank.invested || 0) <= 0 && Number(bank.accrued || 0) <= 0) { return false; }
+    for (var i = 0; i < stepCount; i++) {
+      var risk = String(bank.risk || 'low');
+      var note = '';
+      if (risk === 'medium') {
+        if (Math.random() < 0.2) {
+          bank.invested = Math.max(0, Number(bank.invested || 0) - 10);
+          note = 'Medium Risk drift: -10 Credits.';
+        } else {
+          var gain = 20 + (Math.floor(Math.random() * 4) * 10);
+          bank.invested = Number(bank.invested || 0) + gain;
+          note = 'Medium Risk growth: +' + gain + ' Credits.';
+        }
+      } else if (risk === 'high') {
+        var base = Math.max(0, Number(bank.invested || 0));
+        if (base > 0 && Math.random() < 0.55) {
+          var highGain = Math.max(1, Math.round(base * (0.50 + (Math.random() * 0.05))));
+          bank.invested = base + highGain;
+          note = 'High Risk surge: +' + highGain + ' Credits.';
+        } else {
+          var highLoss = Math.max(1, Math.round(base * (0.50 + (Math.random() * 0.05))));
+          bank.invested = Math.max(0, base - highLoss);
+          note = 'High Risk loss: -' + highLoss + ' Credits.';
+        }
+      } else {
+        bank.accrued = Number(bank.accrued || 0) + 20;
+        note = 'Low Risk care payment: +20 Credits.';
+      }
+      bank.history.unshift(note);
+    }
+    bank.history = bank.history.slice(0, 8);
+    bank.lastTickAt = Date.now();
+    return true;
+  }
+
+  function buildHoldingBankPanelHtml() {
+    var bank = getHoldingBankState();
+    var total = Math.max(0, Number(bank.invested || 0) + Number(bank.accrued || 0));
+    var note = bank.history && bank.history.length ? String(bank.history[0]) : 'No active treasury position.';
+    return '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem;margin-bottom:.35rem;">'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);">Invested</div><div style="font-size:.9rem;color:var(--gold2);">' + Number(bank.invested || 0) + '₵</div></div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);">Accrued</div><div style="font-size:.9rem;color:var(--teal);">' + Number(bank.accrued || 0) + '₵</div></div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);">Total</div><div style="font-size:.9rem;color:var(--green2);">' + total + '₵</div></div>'
+      + '</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Risk: <strong style="color:var(--gold2);">' + getHoldingBankRiskText(bank.risk) + '</strong></div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;">' + getHoldingBankRiskDetails(bank.risk) + '</div>'
+      + '<div style="font-size:.68rem;color:var(--text2);margin-top:.25rem;">Latest: ' + String(note || 'No active treasury position.') + '</div>';
+  }
+
+  function openHoldingBankingModal() {
+    ensureNewFeatureState();
+    var bank = getHoldingBankState();
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
+      + '<div style="margin-bottom:.3rem;">Deposit credits into the Holdings Treasury, then pick how carefully the bank should manage them.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem;margin-bottom:.35rem;">'
+      + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);"><div style="font-size:.66rem;color:var(--muted2);">Invested</div><div style="font-size:.92rem;color:var(--gold2);">' + Number(bank.invested || 0) + '₵</div></div>'
+      + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);"><div style="font-size:.66rem;color:var(--muted2);">Accrued</div><div style="font-size:.92rem;color:var(--teal);">' + Number(bank.accrued || 0) + '₵</div></div>'
+      + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);"><div style="font-size:.66rem;color:var(--muted2);">Total</div><div style="font-size:.92rem;color:var(--green2);">' + (Number(bank.invested || 0) + Number(bank.accrued || 0)) + '₵</div></div>'
+      + '</div>'
+      + '<div style="margin-bottom:.25rem;font-size:.72rem;color:var(--muted2);">Current care tier: <strong style="color:var(--gold2);">' + getHoldingBankRiskText(bank.risk) + '</strong></div>'
+      + '<div style="margin-bottom:.25rem;font-size:.7rem;color:var(--muted2);">' + getHoldingBankRiskDetails(bank.risk) + '</div>'
+      + '<div style="margin-bottom:.35rem;display:flex;gap:.3rem;align-items:center;flex-wrap:wrap;">'
+      + '<input id="holdingBankAmount" class="bp-input" type="number" min="1" step="1" value="100" placeholder="Amount to deposit" style="max-width:180px;">'
+      + '<span style="font-size:.7rem;color:var(--muted2);">Choose a risk tier to commit the deposit.</span>'
+      + '</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+      + '<button class="btn btn-sm btn-teal" onclick="commitHoldingBankInvestmentFromModal(\'low\');">Low Risk</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="commitHoldingBankInvestmentFromModal(\'medium\');">Medium Risk</button>'
+      + '<button class="btn btn-sm btn-red" onclick="commitHoldingBankInvestmentFromModal(\'high\');">High Risk</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm" onclick="withdrawHoldingBankInvestment();">Withdraw All</button>'
+      + '<button class="btn btn-sm" onclick="closeModal();">Close</button>'
+      + '</div>'
+      + '<div style="margin-top:.35rem;font-size:.68rem;color:var(--muted2);">Recent ledger</div>'
+      + ((Array.isArray(bank.history) && bank.history.length) ? bank.history.slice(0, 5).map(function (entry) {
+          return '<div style="font-size:.7rem;color:var(--text2);margin-top:.12rem;">• ' + String(entry) + '</div>';
+        }).join('') : '<div style="font-size:.7rem;color:var(--muted2);margin-top:.12rem;">No deposits yet.</div>')
+      + '</div>';
+    if (typeof openModal === 'function') openModal('Holdings Treasury', html);
+    return true;
+  }
+
+  function commitHoldingBankInvestmentFromModal(risk) {
+    var amountInput = document.getElementById('holdingBankAmount');
+    var amount = Math.max(1, Math.floor(Number(amountInput ? amountInput.value : 0) || 0));
+    return commitHoldingBankInvestment(amount, risk);
+  }
+
+  function commitHoldingBankInvestment(amount, risk) {
+    ensureNewFeatureState();
+    var bank = getHoldingBankState();
+    var value = Math.max(1, Math.floor(Number(amount || 0)));
+    if ((S.credits || 0) < value) {
+      if (typeof showNotif === 'function') showNotif('Not enough Credits to deposit that amount.', 'warn');
+      return false;
+    }
+    S.credits = Math.max(0, Number(S.credits || 0) - value);
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    bank.invested = Number(bank.invested || 0) + value;
+    bank.risk = String(risk || bank.risk || 'low');
+    bank.history.unshift('Deposited ' + value + ' Credits into ' + getHoldingBankRiskText(bank.risk) + '.');
+    bank.history = bank.history.slice(0, 8);
+    renderHoldingUI();
+    if (typeof showNotif === 'function') showNotif('Deposited ' + value + ' Credits into the Holdings Treasury.', 'good');
+    return true;
+  }
+
+  function withdrawHoldingBankInvestment() {
+    var bank = getHoldingBankState();
+    var total = Math.max(0, Number(bank.invested || 0) + Number(bank.accrued || 0));
+    if (total <= 0) {
+      if (typeof showNotif === 'function') showNotif('Nothing is currently in the treasury.', 'warn');
+      return false;
+    }
+    S.credits = Number(S.credits || 0) + total;
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    bank.invested = 0;
+    bank.accrued = 0;
+    bank.risk = 'low';
+    bank.history.unshift('Withdrew ' + total + ' Credits from the treasury.');
+    bank.history = bank.history.slice(0, 8);
+    renderHoldingUI();
+    if (typeof showNotif === 'function') showNotif('Withdrawn ' + total + ' Credits from the Holdings Treasury.', 'good');
+    return true;
+  }
+
   function advanceHoldingOneDay() {
+    if (typeof tickHoldingBankInvestments === 'function') {
+      try { tickHoldingBankInvestments(1); } catch (_bankErr) {}
+    }
     if (typeof advanceDay === 'function') {
       advanceDay(1);
       return;
@@ -2627,12 +2824,12 @@
     if (!node) return;
     var services = node.services || {};
     if (!services.merchant) {
-      if (typeof showNotif === 'function') showNotif('No active merchant stalls in this district right now.', 'warn');
+      if (typeof showNotif === 'function') showNotif('No active browse stalls in this district right now.', 'warn');
       return;
     }
     var cat = String(services.merchantCategory || 'items');
     if (cat === 'weapons') cat = 'weapon_mods';
-    node.result = 'Merchant stalls are active. Redirecting to Merchants (' + cat + ').';
+    node.result = 'Browse stalls are active. Redirecting to Browse (' + cat + ').';
     if (typeof switchTab === 'function') {
       var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
       switchTab('shop', btn || null);
@@ -2640,7 +2837,7 @@
     if (typeof showShopCat === 'function') {
       try { showShopCat(cat, null); } catch (_err) {}
     }
-    if (typeof showNotif === 'function') showNotif('Merchant access opened in ' + node.label + ' (' + cat + ').', 'info');
+    if (typeof showNotif === 'function') showNotif('Browse access opened in ' + node.label + ' (' + cat + ').', 'info');
   }
 
   function buildHoldingMerchantBrowsePreview() {
@@ -3127,7 +3324,7 @@
       var services = active.services || {};
       if (services.missionBoard) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Mission Board</button>';
       if (services.localWork) districtButtons += '<button type="button" class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Local Shift</button>';
-      if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchant</button>';
+      if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Browse</button>';
       if (active.kind === 'inn') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
       if (active.kind === 'lord') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
       if (services.inn) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop</button>';
@@ -3321,10 +3518,11 @@
       var rumorLine = String(node.rumor || (crawl.ambient && crawl.ambient.rumor) || 'No clear rumor tonight.');
       msg = 'Bar loop complete: +1 Teamwork. Rumor: ' + rumorLine + ' Gambling table opened.';
     } else if (action === 'banking') {
-      S.credits = Number(S.credits || 0) + 25;
-      if (typeof updateCreditsUI === 'function') updateCreditsUI();
       crawl.stats.wealth = Math.min(10, Number((crawl.stats && crawl.stats.wealth) || 0) + 1);
-      msg = 'Banking loop complete: letters of credit settle and +25 Credits are secured.';
+      if (typeof openHoldingBankingModal === 'function') {
+        openHoldingBankingModal();
+      }
+      msg = 'Banking loop opened the treasury management prompt.';
     } else if (action === 'legal') {
       var legalCost = 20;
       if (Number(S.credits || 0) < legalCost) {
@@ -5272,6 +5470,12 @@
   window.holdingCrucibleAdvanceRound = holdingCrucibleAdvanceRound;
   window.holdingCrucibleAutoResolve = holdingCrucibleAutoResolve;
   window.holdingCrucibleResetMatch = holdingCrucibleResetMatch;
+  window.openHoldingBankingModal = openHoldingBankingModal;
+  window.commitHoldingBankInvestment = commitHoldingBankInvestment;
+  window.commitHoldingBankInvestmentFromModal = commitHoldingBankInvestmentFromModal;
+  window.withdrawHoldingBankInvestment = withdrawHoldingBankInvestment;
+  window.tickHoldingBankInvestments = tickHoldingBankInvestments;
+  window.buildHoldingBankPanelHtml = buildHoldingBankPanelHtml;
   window.buyCaravan           = buyCaravan;
   window.rollCaravanName      = rollCaravanName;
   window.clearCaravanName     = clearCaravanName;

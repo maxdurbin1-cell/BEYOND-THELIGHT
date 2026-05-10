@@ -60,7 +60,7 @@
         }
       });
     }
-    if (!opened) fallbackOpenCombatTab(fallbackMessage || 'Combat scene prepared in Combat tab.');
+    if (!opened) notifyArenaPopupUnavailable(fallbackMessage || 'Combat popup was blocked. Re-open the encounter from the map marker.');
     return opened;
   }
 
@@ -265,13 +265,9 @@
     }).length;
   }
 
-  function fallbackOpenCombatTab(message) {
-    if (typeof window.switchTab === 'function') {
-      var combatBtn = document.getElementById('tabnav-combat');
-      window.switchTab('combat', combatBtn || null);
-    }
+  function notifyArenaPopupUnavailable(message) {
     if (typeof showNotif === 'function') {
-      showNotif(String(message || 'Combat scene prepared in Combat tab.'), 'warn');
+      showNotif(String(message || 'Unable to open popup combat right now. Try again.'), 'warn');
     }
   }
 
@@ -283,7 +279,7 @@
         window.seedArenaCombat(arenaMode, { hexKey: String(hexKey || ''), title: title });
       } catch (_seedErr) {}
     }
-    openArenaPopupSafe({ mode: arenaMode, hexKey: String(hexKey || ''), title: title }, 'Colosseum combat prepared in Combat tab.');
+    openArenaPopupSafe({ mode: arenaMode, hexKey: String(hexKey || ''), title: title }, 'Colosseum combat popup was blocked. Re-open from the sea marker.');
     if (typeof showNotif === 'function') {
       showNotif('Arena opened: ' + (arenaMode === 'endless' ? 'Endless Mode' : 'Challenge Mode') + '.', 'good');
     }
@@ -370,7 +366,7 @@
       mode: 'gate',
       hexKey: String(key || ''),
       title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
-    }, 'Gate battle prepared in Combat tab.');
+    }, 'Gate battle popup was blocked. Re-open the gate marker.');
     if (typeof showNotif === 'function') showNotif('Gate portal opened. Defeat hostiles, then solve the seal puzzle.', 'warn');
     return true;
   }
@@ -385,20 +381,13 @@
 
     var state = ensureState();
     var gateType = String(flow.gatePortal.type || 'hellscape').toLowerCase();
-    var puzzleSpec = gateType === 'celestial'
-      ? {
-          mode: 'sequence',
-          title: 'Celestial Seal Lattice',
-          prompt: 'Re-align the ward order to shut Heaven\'s breach.',
-          sequence: ['SUN', 'HALO', 'SPEAR', 'CROWN']
-        }
-      : {
-          mode: 'rearrange',
-          title: 'Hellscape Chain-Rune Lock',
-          prompt: 'Rebuild the anti-abyss command phrase to collapse the rift.',
-          bank: ['SEAL', 'THE', 'RIFT', 'NOW'],
-          answer: 'seal the rift now'
-        };
+    var puzzleSpec = {
+      mode: 'pipe_flow',
+      title: gateType === 'celestial' ? 'Celestial Seal Conduit' : 'Hellscape Rift Conduit',
+      prompt: gateType === 'celestial'
+        ? 'Repair the seal conduit and route radiant flow to close Heaven\'s breach.'
+        : 'Reconnect the anti-abyss conduit and route the purge flow to collapse the rift.'
+    };
 
     var finalize = function (result) {
       var success = result === 'success';

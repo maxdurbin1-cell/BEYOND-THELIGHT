@@ -188,7 +188,7 @@
 
   var SOUL_MISSION_BOSSES = ['The Hollow Saint', 'The Cinder Warden', 'The Bone Regent', 'The Echo Maw', 'The Pale Engine', 'The Wailing Herald', 'The Starved Oracle', 'The Ash Crown', 'The Gilded Parasite', 'The Grave Choir', 'The Rift Shepherd', 'The Blackened Throne'];
   var SOUL_MISSION_LOCS = ['Shattered Reliquary', 'Catacomb Blacksite', 'Fallen Temple Vault', 'Hollow Observatory', 'Cinder Crypt', 'Ruin Gate Sanctum', 'Ashen Ossuary', 'Silent Sepulcher', 'Warden Crypt', 'Echo Vault'];
-  var SOUL_MISSION_ICONS = ['☠', '🜂', '✶', '🜏', '⛧'];
+  var SOUL_MISSION_ICONS = ['⚒'];
 
   var REGIONAL_ARC_TEMPLATES = {
     escalation: {
@@ -520,6 +520,60 @@
     + '</div>';
   }
 
+  function renderEndgameTabPanel() {
+    var container = document.getElementById('endgameTrackerTabContainer');
+    if (!container) return;
+    ensureState();
+    var endgame = ensureEndgameDirectorState();
+    var col = endgame.colosseum || { clears: 0, bestClearDie: 0 };
+    var gate = endgame.gateWar || { closedHellscape: 0, closedCelestial: 0, pinnacleUnlocked: false, pinnacleCleared: false };
+    var crucible = (S.holding && S.holding.crucible) ? S.holding.crucible : { wins: 0, losses: 0, bestWinStreak: 0, currentWinStreak: 0 };
+    var soulForge = (typeof ensureSoulForgeState === 'function')
+      ? ensureSoulForgeState()
+      : (S.soulForge = S.soulForge || { unlocked: false, inventory: [] });
+    if (!Array.isArray(soulForge.inventory)) soulForge.inventory = [];
+
+    var soulActive = Array.isArray(S.activeMissions)
+      ? S.activeMissions.filter(function (mission) {
+          return mission && mission.missionType === 'soul_mission' && mission.steps && mission.steps[3] && !mission.steps[3].completed;
+        }).length
+      : 0;
+
+    var topSummary = '<div style="margin-bottom:.45rem;font-size:.74rem;color:var(--muted2);line-height:1.45;">'
+      + 'Track all endgame progression here: Crucible 6v6, Gate War seals, Colosseum clears, and Soul Forge hunts.'
+      + '</div>';
+
+    var grid = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.42rem;margin-bottom:.5rem;">'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.4rem .45rem;">'
+        + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;">Crucible 6v6</div>'
+        + '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;">Wins: <strong style="color:var(--green2);">' + Number(crucible.wins || 0) + '</strong> · Losses: <strong style="color:var(--red2);">' + Number(crucible.losses || 0) + '</strong></div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.1rem;">Best streak: ' + Number(crucible.bestWinStreak || 0) + ' · Current: ' + Number(crucible.currentWinStreak || 0) + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.4rem .45rem;">'
+        + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;">Gate War</div>'
+        + '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;">Hellscape seals: <strong style="color:var(--red2);">' + Number(gate.closedHellscape || 0) + '/10</strong></div>'
+        + '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;">Celestial seals: <strong style="color:var(--gold2);">' + Number(gate.closedCelestial || 0) + '/10</strong></div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.4rem .45rem;">'
+        + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;">Colosseum</div>'
+        + '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;">Clears: <strong style="color:var(--gold2);">' + Number(col.clears || 0) + '</strong></div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.1rem;">Best clear die: ' + (Number(col.bestClearDie || 0) > 0 ? ('d' + Number(col.bestClearDie || 0)) : 'none') + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.4rem .45rem;">'
+        + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;">Soul Forge</div>'
+        + '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;">Forge: <strong style="color:' + (soulForge.unlocked ? 'var(--green2)' : 'var(--muted2)') + ';">' + (soulForge.unlocked ? 'Unlocked' : 'Locked') + '</strong></div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.1rem;">Affixes stored: ' + soulForge.inventory.length + ' · Active hunts: ' + soulActive + '</div>'
+      + '</div>'
+    + '</div>';
+
+    var operationsCard = buildEndgameTrackerCardHtml() || '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .6rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;">Endgame Operations</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.45;">No endgame progression recorded yet. Defeat endgame encounters to populate this board.</div>'
+    + '</div>';
+
+    container.innerHTML = topSummary + grid + operationsCard;
+  }
+
   function spawnRandomSoulForgeMissionEvent(seedHint, force) {
     ensureState();
     var isForced = !!force;
@@ -548,9 +602,14 @@
     if (!isForced && chanceRoll > 42) return null;
 
     var boss = SOUL_MISSION_BOSSES[Math.abs(seed + 29) % SOUL_MISSION_BOSSES.length] || 'The Hollow Saint';
-    var soulIcon = SOUL_MISSION_ICONS[Math.abs(seed + 17) % SOUL_MISSION_ICONS.length] || '☠';
+    var soulIcon = SOUL_MISSION_ICONS[Math.abs(seed + 17) % SOUL_MISSION_ICONS.length] || '⚒';
     var regionPool = getAvailableMissionRegions();
-    var region = regionPool[Math.abs(seed + 13) % Math.max(1, regionPool.length)] || 'province';
+    var soulRegionPool = regionPool.filter(function (entry) {
+      var key = String(entry || '').toLowerCase();
+      return key === 'province' || key === 'sea';
+    });
+    var regionSource = soulRegionPool.length ? soulRegionPool : regionPool;
+    var region = regionSource[Math.abs(seed + 13) % Math.max(1, regionSource.length)] || 'province';
     var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
     var location = planetTarget ? planetTarget.location : getMissionLocationForRegion(region);
     var conflict = pickFactionConflict(getMissionConsequenceBias());
@@ -1542,7 +1601,7 @@
           title: mission.title,
           type: 'site',
           missionType: mission.missionType || 'standard',
-          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
         };
         mission.seaSiteKey = siteHex.key;
         if (informerHex) {
@@ -1551,7 +1610,7 @@
             title: mission.title,
             type: 'informer',
             missionType: mission.missionType || 'standard',
-            icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+            icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
           };
           mission.seaInformerKey = informerHex.key;
         }
@@ -1576,7 +1635,7 @@
           title: mission.title,
           type: 'informer',
           missionType: mission.missionType || 'standard',
-          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
         };
         mission.informerHex = { col: informerHex.col, row: informerHex.row };
         mission.siteHex     = { col: siteHex.col,     row: siteHex.row };
@@ -1588,7 +1647,7 @@
               title: mission.title,
               type: 'site',
               missionType: mission.missionType || 'legacy_raid',
-              icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+              icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
             };
           } else {
             delete S.missionTokens[siteHex.col + ',' + siteHex.row];
@@ -1599,7 +1658,7 @@
               title: mission.title,
               type: 'site',
               missionType: mission.missionType || 'standard',
-              icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+              icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
             };
         }
         // Keep mapHex pointing to site for backwards compatibility
@@ -1611,7 +1670,7 @@
           title: mission.title,
           type: 'site',
           missionType: mission.missionType || 'standard',
-          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '☠') : undefined
+          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
         };
         mission.siteHex = { col: hex.col, row: hex.row };
         mission.mapHex  = mission.siteHex;
@@ -2174,6 +2233,119 @@
     return true;
   }
 
+  function openSoulForgeTokenEncounter(missionId, regionTag) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'soul_mission') return false;
+    if (!mission.steps || !mission.steps[2] || !mission.steps[2].completed) {
+      startMissionStep2(mission.id);
+      return true;
+    }
+    if (mission.steps[3] && mission.steps[3].completed) {
+      if (typeof showNotif === 'function') showNotif('This Soul Forge target has already been defeated.', 'info');
+      return false;
+    }
+
+    var boss = String(mission.soulBoss || 'Soul Creature');
+    var regionLabel = String(regionTag || mission.region || 'province').toLowerCase();
+    openModal(
+      'Soul Forge Encounter',
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.9rem;color:var(--gold2);margin-bottom:.14rem;">⚒ ' + boss + '</div>'
+        + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.26rem;">'
+          + 'Region: ' + regionLabel + ' · Profile: d12 | 24 HP · Unique abilities enabled.'
+        + '</div>'
+        + '<div style="border:1px solid rgba(255,255,255,.12);padding:.3rem .38rem;background:rgba(255,255,255,.03);margin-bottom:.28rem;">'
+          + '<div style="font-size:.72rem;color:var(--teal);margin-bottom:.12rem;">Fight Rules</div>'
+          + '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;">'
+            + 'Win the popup battle to take the creature\'s affix and complete Step 3. '
+            + 'The fight remains in the 🌌 Stars Combat hex map popup.'
+          + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:.3rem;justify-content:flex-end;flex-wrap:wrap;">'
+          + '<button class="btn btn-sm" onclick="closeModal()">Not Now</button>'
+          + '<button class="btn btn-sm btn-primary" onclick="window.startSoulForgeEncounterFromToken(' + mission.id + ',\'' + regionLabel + '\')">Fight</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
+  function startSoulForgeEncounterFromToken(missionId, regionTag) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'soul_mission') return false;
+    if (!mission.steps || !mission.steps[2] || !mission.steps[2].completed) {
+      startMissionStep2(mission.id);
+      return true;
+    }
+    if (typeof closeModal === 'function') closeModal();
+    var title = 'Soul Forge Mission - ' + String(mission.soulBoss || 'Soul Creature');
+    var hexKey = String(regionTag || mission.region || 'province') + '-soul-' + String(mission.id || '0');
+    var flow = null;
+    if (typeof window.seedArenaCombat === 'function') {
+      flow = window.seedArenaCombat('soul', {
+        hexKey: hexKey,
+        title: title,
+        bossName: String(mission.soulBoss || 'Soul Creature')
+      });
+    }
+    if (flow && typeof flow === 'object') {
+      flow.mode = 'soul';
+      flow.soulMissionId = mission.id;
+      if (flow.enemy) {
+        flow.enemy.dread = 12;
+        flow.enemy.maxStress = 24;
+        flow.enemy.stress = 0;
+      }
+    }
+    if (S && Array.isArray(S.enemies)) {
+      for (var i = 0; i < S.enemies.length; i++) {
+        var enemy = S.enemies[i];
+        if (!enemy || enemy.ally) continue;
+        enemy.name = String(mission.soulBoss || enemy.name || 'Soul Creature');
+        enemy.dread = 12;
+        enemy.maxStress = 24;
+        enemy.health = 24;
+        enemy.stress = Math.max(0, Number(enemy.stress || 0));
+        enemy.specialAction = {
+          name: 'Soul Rend',
+          text: 'The creature tears through your aura and tries to bind an affix brand.'
+        };
+      }
+    }
+    if (typeof window.openArenaCombatPopup === 'function') {
+      window.openArenaCombatPopup({ mode: 'soul', hexKey: hexKey, title: title });
+      if (typeof showNotif === 'function') showNotif('Soul Forge combat opened in popup mode.', 'good');
+      return true;
+    }
+    if (typeof showNotif === 'function') showNotif('Unable to open Soul Forge popup combat.', 'warn');
+    return false;
+  }
+
+  function resolveSoulForgeEncounter() {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow || String(flow.mode || '') !== 'soul') return false;
+    var hasHostiles = Array.isArray(S.enemies) && S.enemies.some(function (enemy) {
+      return enemy && !enemy.ally && Number(enemy.stress || 0) < Number(enemy.maxStress || 0);
+    });
+    if (hasHostiles) {
+      if (typeof showNotif === 'function') showNotif('Defeat the Soul Creature before claiming its affix.', 'warn');
+      return false;
+    }
+    var mission = getMission(flow.soulMissionId || flow.missionId);
+    if (!mission || mission.missionType !== 'soul_mission') {
+      if (typeof showNotif === 'function') showNotif('Soul mission record was not found.', 'warn');
+      return false;
+    }
+    if (typeof closeModal === 'function') closeModal();
+    resolveMission(mission.id, true, { soulPopup: true });
+    if (S && S.combat && S.combat.arenaFlow) {
+      S.combat.arenaFlow.active = false;
+      S.combat.arenaFlow.completed = true;
+    }
+    if (typeof showNotif === 'function') showNotif('Soul Creature defeated. Affix claimed.', 'good');
+    return true;
+  }
+
   function autoAdvanceMissionByToken(missionId, tokenType, regionTag) {
     var mission = getMission(missionId);
     if (!mission) return false;
@@ -2189,6 +2361,9 @@
     if ((type === 'site' || type === 'holding_site') && mission.steps[2] && !mission.steps[2].completed) {
       startMissionStep2(mission.id);
       return true;
+    }
+    if ((type === 'site' || type === 'holding_site') && mission.missionType === 'soul_mission' && mission.steps[2] && mission.steps[2].completed && mission.steps[3] && !mission.steps[3].completed) {
+      return openSoulForgeTokenEncounter(mission.id, regionTag || mission.region || 'region');
     }
     if ((type === 'site' || type === 'holding_site') && mission.steps[2] && mission.steps[2].completed && mission.steps[3] && !mission.steps[3].completed) {
       startMissionStep3(mission.id);
@@ -12862,6 +13037,7 @@
     renderCompletedMissions();
     renderLegacyRaidTreePanel();
     renderSoulForgeTabPanel();
+    renderEndgameTabPanel();
   }
 
   function patchRaidTreeTabRefresh() {
@@ -12962,6 +13138,10 @@
   window.createDeityPactMission=createDeityPactMission;
   window.autoAdvanceMissionFromProvinceHex=autoAdvanceMissionFromProvinceHex;
   window.autoAdvanceMissionFromSeaHex=autoAdvanceMissionFromSeaHex;
+  window.openSoulForgeTokenEncounter=openSoulForgeTokenEncounter;
+  window.startSoulForgeEncounterFromToken=startSoulForgeEncounterFromToken;
+  window.resolveSoulForgeEncounter=resolveSoulForgeEncounter;
+  window.renderEndgameTabPanel=renderEndgameTabPanel;
   window.handleLegacyRaidMarkerInteraction=handleLegacyRaidMarkerInteraction;
   window.openLegacyRaidMissionPopup=openLegacyRaidMissionPopup;
   window.openLegacyRaidPreludeModal=openLegacyRaidPreludeModal;

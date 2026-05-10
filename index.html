@@ -396,6 +396,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-trophies" id="tabnav-trophies" onclick="switchTab('trophies',this)">Trophies</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('raidtree',this)">Raid</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" onclick="switchTab('missions',this)">Missions</button>
+    <button class="tab-btn ctx-traveling ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-endgame" id="tabnav-endgame" onclick="switchTab('endgame',this)">Endgame</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-galaxy" id="tabnav-galaxy" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
@@ -404,7 +405,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-planet" id="tabnav-planet" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-exocrafts" id="tabnav-exocrafts" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-naval" id="tabnav-naval" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-shop" id="tabnav-shop" onclick="switchTab('shop',this)">Merchants</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-shop" id="tabnav-shop" onclick="switchTab('shop',this)">Browse</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
@@ -5652,11 +5653,15 @@ function rollWildernessFull(){
     </div>
     <div class="wild-section" style="border-bottom:none;"><div class="wild-section-label">Venture (d6=${vr})</div><div class="wild-section-text">${ventureText}</div>${encounterHTML}</div>
   </div>`;
+
+  <div class="tab-panel" id="tab-endgame">
+    <div id="endgameTrackerTabContainer" style="padding:.5rem;"></div>
+  </div>
 }
 
 window.resolveProvinceShiftWeatherDanger = function(){
   const leadRoll = rollProvinceLeadCheck();
-  const dreadRoll = explodingRoll(8,{type:'dread',major:true,label:'Shift Weather DD8'});
+      <div style="font-family:'Cinzel',serif;font-size:.65rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;">Settlement Holdings — Browse Stalls</div>
   const success = leadRoll.total >= dreadRoll.total;
   const el = document.getElementById('wildShiftWeatherResult');
   if(el){
@@ -16738,6 +16743,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     var key = String(mode || 'challenge');
     if (key === 'endless') return 'Endless Mode';
     if (key === 'pinnacle') return 'Pinnacle Megadungeon';
+    if (key === 'gate') return 'Gate War';
+    if (key === 'soul') return 'Soul Forge Hunt';
     return 'Challenge Mode';
   }
 
@@ -16747,13 +16754,18 @@ document.addEventListener('DOMContentLoaded',()=>{
     var name = String(bossName || pool[Math.floor(Math.random() * pool.length)] || 'Arena Combatant');
     var bossMode = String(mode || '') === 'pinnacle';
     var hp = bossMode ? 40 : Math.max(8, die * 2);
-    var actionNames = bossMode
+    var soulMode = String(mode || '') === 'soul';
+    var actionNames = soulMode
+      ? ['Soul Rend', 'Affix Surge', 'Echo Lunge']
+      : (bossMode
       ? ['Judgment Bolt', 'Grave Exhale', 'Void Seal']
-      : (die >= 20 ? ['Cataclysmic Strike', 'Halo Break', 'Final Pulse'] : die >= 12 ? ['Searing Sweep', 'Winged Lunge', 'Signal Flare'] : ['Bite', 'Charge', 'Feint']);
+      : (die >= 20 ? ['Cataclysmic Strike', 'Halo Break', 'Final Pulse'] : die >= 12 ? ['Searing Sweep', 'Winged Lunge', 'Signal Flare'] : ['Bite', 'Charge', 'Feint']));
     var actionName = actionNames[index % actionNames.length];
-    var actionText = bossMode
+    var actionText = soulMode
+      ? (name + ' shreds reality and attempts to brand your gear with a cursed echo.')
+      : (bossMode
       ? (name + ' unleashes a celestial inferno, then forces a reposition check.')
-      : (name + ' uses ' + actionName + ' to change the shape of the fight.');
+      : (name + ' uses ' + actionName + ' to change the shape of the fight.'));
     return {
       id: 'arena-' + String(mode || 'challenge') + '-' + String(index + 1),
       name: name,
@@ -16784,7 +16796,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     var arenaMode = String(mode || 'challenge');
     var queue = arenaMode === 'endless'
       ? [4, 6, 8, 10, 12, 20]
-      : (arenaMode === 'challenge' ? [6, 8, 10] : [ARENA_DICE[Math.floor(Math.random() * ARENA_DICE.length)]]);
+      : (arenaMode === 'challenge'
+        ? [6, 8, 10]
+        : (arenaMode === 'soul' ? [12] : [ARENA_DICE[Math.floor(Math.random() * ARENA_DICE.length)]]));
     var bossName = context && context.bossName ? String(context.bossName) : '';
     flow.active = true;
     flow.mode = arenaMode;
@@ -16868,8 +16882,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       boardUnits.push({ id: Number(currentEnemy.id || 0), name: enemyName, side: 'enemy', hp: enemyHp, dread: enemyDie, range: 'Engaged' });
     }
     var boardHtml = buildLegacyRaidHexCombatBoard(boardUnits, {
-      title: 'ARENA COMBAT - HEX ZONE MAP',
-      subtitle: 'A battle map for the colosseum or the pinnacle gate. Click a token to focus it.',
+      title: '🌌 STARS COMBAT - HEX ZONE MAP',
+      subtitle: 'Use Quick Panel combat actions below. Click a token to focus it.',
       seed: String(mode || 'challenge') + '-' + String(hexKey || 'arena'),
       mode: 'boss',
       missionId: 0,
@@ -16884,21 +16898,25 @@ document.addEventListener('DOMContentLoaded',()=>{
     var specialName = currentEnemy && currentEnemy.specialAction ? String(currentEnemy.specialAction.name || 'Special') : 'Special';
     var currentReward = mode === 'pinnacle'
       ? 'Victory rewards are drawn from the megadungeon salvage table.'
+      : (mode === 'soul'
+        ? 'Defeat the Soul Creature to claim its affix and finish the Soul Forge mission.'
       : (mode === 'gate'
         ? 'Defeat all hostiles, then pass a seal puzzle to close this portal.'
       : (mode === 'endless'
         ? 'Clear the full chain for bonus credits, renown, and loot.'
-        : 'Challenge bracket: win all bouts to claim full colosseum rewards.'));
+        : 'Challenge bracket: win all bouts to claim full colosseum rewards.')));
     var actionButtons = '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'strike\');">Strike</button>'
       + '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'shoot\');">Shoot</button>'
       + '<button class="btn btn-sm" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'defend\');">Defend</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="executeArenaSpecialAction();">' + specialName + '</button>'
-      + '<button class="btn btn-sm" onclick="if(typeof switchTab===\'function\'){var b=document.getElementById(\'tabnav-combat\');switchTab(\'combat\',b||null);}">Open Combat Tab</button>';
+      + '<button class="btn btn-sm btn-teal" onclick="executeArenaSpecialAction();">' + specialName + '</button>';
     var extraButtons = '';
     if ((mode === 'endless' || mode === 'challenge') && flow && Array.isArray(flow.queue) && Number(flow.index || 0) < flow.queue.length - 1 && !arenaCombatHasAliveHostiles()) {
       extraButtons += '<button class="btn btn-sm btn-warn" onclick="advanceArenaCombatWave();">Next Combatant</button>';
     }
-    if (!arenaCombatHasAliveHostiles() && mode !== 'gate') {
+    if (!arenaCombatHasAliveHostiles() && mode === 'soul') {
+      extraButtons += '<button class="btn btn-sm btn-primary" onclick="if(typeof window.resolveSoulForgeEncounter===\'function\')window.resolveSoulForgeEncounter();">Claim Soul Affix</button>';
+    }
+    if (!arenaCombatHasAliveHostiles() && mode !== 'gate' && mode !== 'soul') {
       extraButtons += '<button class="btn btn-sm btn-primary" onclick="claimArenaCombatRewards();">Claim Rewards</button>';
     }
     extraButtons += '<button class="btn btn-sm btn-teal" onclick="closeModal();">Close</button>';

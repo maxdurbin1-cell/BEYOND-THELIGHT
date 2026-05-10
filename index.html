@@ -5291,6 +5291,54 @@ function usePersonalFlavorAction(){
     return;
   }
   if(!S.flavorActionState||typeof S.flavorActionState!=='object')S.flavorActionState={};
+  var normalizedFlavorKey=normalizeFlavorBase(flavor);
+  if(normalizedFlavorKey==='bone oracle'){
+    var boneStamp=getFlavorCooldownStamp('day');
+    var boneState=S.flavorActionState['bone oracle'];
+    if(boneState&&boneState.stamp===boneStamp){
+      showNotif('Flavor action on day cooldown.','info');
+      refreshPersonalFlavorInteractionUI();
+      return;
+    }
+    var omenText='';
+    var omenSource='Bone fragments';
+    if(typeof window.getSolarCycleStatus==='function'){
+      try{
+        var scStatus=window.getSolarCycleStatus()||null;
+        if(scStatus&&String(scStatus.currentOmen||'').trim()){
+          omenText=String(scStatus.currentOmen||'').trim();
+          omenSource='Omen Tab';
+        }
+      }catch(_boneErr2){}
+    }
+    if(!omenText){
+      var boneOmens=[
+        'Ash in the marrow points toward a road that will close unless you move first.',
+        'A cracked femur hums with warning: trust the witness who arrives late, not the loud one first.',
+        'The jawbone clicks three times. Something sealed beneath stone is ready to answer a true name.',
+        'Char on old bone maps a spiral route; one detour now prevents a larger ruin later.',
+        'Dust patterns in the remains spell a bargain: take the hard path and keep your allies intact.'
+      ];
+      omenText=pick(boneOmens);
+    }
+    if(S&&S.storyline){
+      if(!Array.isArray(S.storyline.omenLog))S.storyline.omenLog=[];
+      S.storyline.omenLog.unshift('Bone Oracle: '+omenText);
+      if(S.storyline.omenLog.length>30)S.storyline.omenLog.length=30;
+    }
+    if(typeof changeCounter==='function')changeCounter('pathTokens',1);
+    else S.pathTokens=Math.max(0,Number(S.pathTokens||0)+1);
+    if(typeof window.switchTab==='function'){
+      try{window.switchTab('newsun',document.getElementById('tabnav-newsun'));}catch(_e0b){}
+    }
+    if(typeof window.renderNewSunModePanel==='function'){
+      try{window.renderNewSunModePanel();}catch(_e1b){}
+    }
+    openModal('Bone Oracle','<div style="font-size:.9rem;color:var(--text2);line-height:1.7;"><em style="color:var(--muted2);">You cast the remains and read the omen traces...</em><div style="margin-top:.45rem;color:var(--gold2);font-style:italic;">'+omenText+'</div><div style="margin-top:.45rem;font-size:.76rem;color:var(--muted2);">Source: '+omenSource+'. Omen Tab opened for follow-up interpretation. +1 Path Token.</div></div>');
+    S.flavorActionState['bone oracle']={stamp:boneStamp,lastUsedAt:Date.now(),archetype:'scholar',cooldownType:'day'};
+    refreshPersonalFlavorInteractionUI();
+    return;
+  }
   var entry=getBespokeFlavorEntry(flavor);
   if(!entry){showNotif('Flavor entry unavailable.','warn');return;}
   var profile=getPersonalFlavorMechanicProfile(flavor);
@@ -9190,6 +9238,21 @@ function getShopMarketSnapshot(cat,name,baseCost){
 function showShopCat(cat,btn){
   document.querySelectorAll('.shop-cats .scat').forEach(b=>b.classList.remove('on'));
   if(btn)btn.classList.add('on');
+  var forgePanel=document.getElementById('shopSoulForgePanel');
+  if(forgePanel){
+    var unlocked=!!(S&&S.soulForge&&S.soulForge.unlocked);
+    var inventoryCount=(S&&S.soulForge&&Array.isArray(S.soulForge.inventory))?S.soulForge.inventory.length:0;
+    forgePanel.innerHTML=unlocked
+      ? ('<div style="border:1px solid rgba(201,162,39,.35);background:rgba(201,162,39,.08);padding:.42rem .48rem;display:flex;justify-content:space-between;align-items:center;gap:.45rem;flex-wrap:wrap;">'
+        + '<div><div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;">Soul Forge Vendor</div>'
+        + '<div style="font-size:.72rem;color:var(--text2);margin-top:.12rem;">Captured affixes: <strong style="color:var(--teal);">'+inventoryCount+'</strong>. Consume soul rewards and apply upgrades from this vendor.</div></div>'
+        + '<button class="btn btn-sm btn-teal" onclick="openSoulForgeVendor()">Open Soul Forge</button>'
+      + '</div>')
+      : ('<div style="border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);padding:.38rem .44rem;font-size:.72rem;color:var(--muted2);line-height:1.45;">'
+        + '<strong style="color:var(--gold2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;">Soul Forge Vendor Locked</strong>'
+        + '<div style="margin-top:.14rem;">Endgame Soul Forge world events drop soul enemies. Defeat one and consume the soul to unlock this merchant vendor.</div>'
+      + '</div>');
+  }
   const items=SHOP_DATA[cat]||[];
   const c=document.getElementById('shopGrid');
   if(!c)return;
@@ -16271,7 +16334,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     renderQP('combat');
   };
   window.qpQuickAddAlly=function(){
-    var allyName=(document.getElementById('qpAllyName')||{}).value||'';
+    var allyName=((document.getElementById('qpAllyName')||{}).value||'') || ((document.getElementById('qpRaidAddAllyName')||{}).value||'');
     var resolved=String(allyName||'').trim();
     if(typeof addTrackedCombatantFromMap==='function'){
       addTrackedCombatantFromMap('ally',resolved||undefined,'Close');
@@ -16683,7 +16746,10 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.3rem;">Selected hostile: <strong style="color:var(--red2);">'+selectedHostileTxt+'</strong> · Enemy target: <strong style="color:var(--teal);">'+selectedEnemyTargetTxt+'</strong> · Allies: '+raidAllies.length+'</div>'
         + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.42rem;">'
         + (sceneStarted ? '' : '<button class="btn btn-xs btn-primary" onclick="qpRaidStartScene()">Start Scene</button>')
+        + '<input id="qpRaidAddAllyName" type="text" placeholder="Ally name" style="min-width:8.4rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .28rem;font-size:.72rem;"/>'
+        + '<button class="btn btn-xs" onclick="var n=(document.getElementById(\'qpRaidAddAllyName\')||{}).value||\'\';var a=document.getElementById(\'qpAllyName\');if(a)a.value=n;qpQuickAddAlly();">Add Ally</button>'
         + '<button class="btn btn-xs" onclick="if(typeof window.finishLegacyRaidCombatScene===\'function\')window.finishLegacyRaidCombatScene('+Number(raidFlow.missionId || 0)+','+Number(raidFlow.wingNum || 1)+');renderQP(\'combat\')">End Scene</button>'
+        + '<button class="btn btn-xs" onclick="if(typeof clearEnemies===\'function\')clearEnemies();renderQP(\'combat\')">Clear</button>'
         + '</div>'
         + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Hostiles</div>'
         + raidEnemyRows
@@ -16818,6 +16884,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem;">'
       + '<button class="btn btn-xs btn-primary" onclick="if(typeof startCombat===\'function\')startCombat();renderQP(\'combat\')">Start Scene</button>'
+      + '<button class="btn btn-xs" onclick="if(typeof endCombat===\'function\')endCombat();renderQP(\'combat\')">End Scene</button>'
       + '<span style="font-size:.72rem;color:var(--muted2);">Round <strong style="color:var(--gold2);">'+round+'</strong></span>'
       + '<span style="font-size:.72rem;color:var(--muted2);">'+stageLabel+'</span>'
       + '</div>'

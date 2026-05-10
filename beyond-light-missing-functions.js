@@ -367,6 +367,8 @@ function updateMaxStressDisplay() {
 function updateAllStatDisplays() {
   STAT_KEYS.forEach(updateDieDisplay);
   updateDieDisplay("adventure");
+  if (typeof ensureBackpackCapacity === 'function') ensureBackpackCapacity();
+  if (typeof renderBackpackUI === 'function') renderBackpackUI();
   updateMaxStressDisplay();
   updateStressUI();
   if (typeof renderEquippedSlotIcons === 'function') {

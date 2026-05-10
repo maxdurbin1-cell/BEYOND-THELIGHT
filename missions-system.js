@@ -257,6 +257,7 @@
 
   function shouldOfferSoulMission() {
     ensureState();
+    if (isStorylinePostEnding()) return true;
     var renown = Math.max(0, Number(S.renown || 0));
     var completed = Array.isArray(S.completedMissions) ? S.completedMissions.length : 0;
     var raidProfile = null;
@@ -266,7 +267,7 @@
       raidProfile = null;
     }
     var raidPower = raidProfile ? (Number(raidProfile.raidMedals || 0) + Number(raidProfile.raidPoints || 0)) : 0;
-    return renown >= 6 || completed >= 8 || raidPower >= 1;
+    return renown >= 4 || completed >= 5 || raidPower >= 1;
   }
 
   function isStorylinePostEnding() {
@@ -601,7 +602,9 @@
 
     var seed = Number(seedHint || 0) + dayStamp + (Number(spawner.counter || 0) * 37) + (Math.max(0, Number(S.renown || 0)) * 11);
     var chanceRoll = Math.abs(seed) % 100;
-    if (!isForced && chanceRoll > 65) return null;
+    var postEnding = isStorylinePostEnding();
+    var maxRoll = postEnding ? 90 : 75;
+    if (!isForced && chanceRoll > maxRoll) return null;
 
     var boss = SOUL_MISSION_BOSSES[Math.abs(seed + 29) % SOUL_MISSION_BOSSES.length] || 'The Hollow Saint';
     var soulIcon = SOUL_MISSION_ICONS[Math.abs(seed + 17) % SOUL_MISSION_ICONS.length] || '⚒';
@@ -13299,6 +13302,7 @@
     }
     patchLegacyRaidCombatStageHooks();
     patchRaidTreeTabRefresh();
+    try { syncRandomEndgameMissionSpawns(false); } catch (_spawnInitErr) {}
     syncMissionUIs();
   }
   
@@ -13320,6 +13324,7 @@
           console.warn('Error creating origin mission on load:', err);
         }
       }
+      try { syncRandomEndgameMissionSpawns(false); } catch (_spawnLoadErr) {}
       syncMissionUIs();
     };
   }

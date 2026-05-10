@@ -68,28 +68,41 @@ async function runAssertions(page) {
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await dismissBlockingOverlays(page);
   await page.waitForFunction(
-    () => !!window.S && typeof window.usePersonalFlavorAction === "function",
+    () => {
+      let st = null;
+      try { st = window.eval("S"); } catch (_err) { st = window.S; }
+      return !!st && typeof window.usePersonalFlavorAction === "function";
+    },
     null,
     { timeout: 15000 }
   );
 
   const result = await page.evaluate(() => {
-    if (!window.S || typeof window.usePersonalFlavorAction !== "function") {
+    let state = null;
+    try { state = window.eval("S"); } catch (_err) { state = window.S; }
+    if (!state || typeof window.usePersonalFlavorAction !== "function") {
       return { ok: false, error: "Flavor system unavailable" };
     }
 
     try {
       if (typeof window.setFlavor === "function") window.setFlavor("Bone Oracle");
-      else window.S.flavor = "Bone Oracle";
+      else state.flavor = "Bone Oracle";
     } catch (_err) {
-      window.S.flavor = "Bone Oracle";
+      state.flavor = "Bone Oracle";
     }
 
-    window.S.storyline = window.S.storyline || {};
-    if (!Array.isArray(window.S.storyline.omenLog)) window.S.storyline.omenLog = [];
+    state.storyline = state.storyline || {};
+    if (!Array.isArray(state.storyline.omenLog)) state.storyline.omenLog = [];
+    state.combat = state.combat || {};
+    state.combat.active = false;
+    state.combat.raidFlow = null;
+    state.combat.personalFlavorSuppressedRounds = 0;
+    state.flavorActionState = state.flavorActionState || {};
+    delete state.flavorActionState["bone oracle"];
+    state.flavor = "bone oracle";
 
-    const beforeTokens = Number(window.S.pathTokens || 0);
-    const beforeLogLen = Number(window.S.storyline.omenLog.length || 0);
+    const beforeTokens = Number(state.pathTokens || 0);
+    const beforeLogLen = Number(state.storyline.omenLog.length || 0);
 
     window.usePersonalFlavorAction();
 
@@ -105,9 +118,9 @@ async function runAssertions(page) {
       };
     })();
 
-    const afterFirstTokens = Number(window.S.pathTokens || 0);
-    const afterFirstLogLen = Number(window.S.storyline.omenLog.length || 0);
-    const firstLogEntry = String((window.S.storyline.omenLog[0] || ""));
+    const afterFirstTokens = Number(state.pathTokens || 0);
+    const afterFirstLogLen = Number(state.storyline.omenLog.length || 0);
+    const firstLogEntry = String((state.storyline.omenLog[0] || ""));
 
     try {
       if (typeof window.closeModal === "function") window.closeModal();
@@ -115,8 +128,8 @@ async function runAssertions(page) {
 
     window.usePersonalFlavorAction();
 
-    const afterSecondTokens = Number(window.S.pathTokens || 0);
-    const afterSecondLogLen = Number(window.S.storyline.omenLog.length || 0);
+    const afterSecondTokens = Number(state.pathTokens || 0);
+    const afterSecondLogLen = Number(state.storyline.omenLog.length || 0);
 
     return {
       ok: true,
@@ -130,8 +143,8 @@ async function runAssertions(page) {
         tokenGain: afterSecondTokens - afterFirstTokens,
         logGain: afterSecondLogLen - afterFirstLogLen
       },
-      cooldownStamp: window.S.flavorActionState && window.S.flavorActionState["bone oracle"]
-        ? window.S.flavorActionState["bone oracle"].stamp
+      cooldownStamp: state.flavorActionState && state.flavorActionState["bone oracle"]
+        ? state.flavorActionState["bone oracle"].stamp
         : ""
     };
   });

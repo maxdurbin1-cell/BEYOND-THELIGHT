@@ -432,7 +432,7 @@
     var state = ensureState();
     var gateType = String(flow.gatePortal.type || 'hellscape').toLowerCase();
     var puzzleSpec = {
-      mode: 'pipe_flow',
+      mode: gateType === 'celestial' ? 'pipe_flow' : '',
       title: gateType === 'celestial' ? 'Celestial Seal Conduit' : 'Hellscape Rift Conduit',
       prompt: gateType === 'celestial'
         ? 'Repair the seal conduit and route radiant flow to close Heaven\'s breach.'
@@ -477,6 +477,18 @@
       if (typeof window.renderArenaCombatPopup === 'function') window.renderArenaCombatPopup();
       return false;
     };
+
+    if (gateType !== 'celestial' && typeof window.openSharedPuzzleChallenge === 'function') {
+      window.openSharedPuzzleChallenge({
+        source: 'event',
+        title: puzzleSpec.title,
+        prompt: puzzleSpec.prompt,
+        reward: { credits: 0, renown: 0, item: '' },
+        onSuccess: function () { finalize('success'); },
+        onFail: function () { finalize('failure'); }
+      });
+      return true;
+    }
 
     if (typeof window.openStandaloneStoryPuzzle === 'function') {
       window.openStandaloneStoryPuzzle({

@@ -355,7 +355,7 @@ function triggerHexTerrainEffects(unit, hex, map, log) {
 function executeDefendAction(unit, targetUnit, log) {
   if (!unit || !targetUnit) return false;
   
-  unit.defendBuff = Math.max(0, Number(unit.defendBuff || 0) + 3);
+  targetUnit.defendBuff = Math.max(0, Number(targetUnit.defendBuff || 0) + 3);
   if (log) log.push('🛡 ' + unit.name + ' defended ' + targetUnit.name + ' (+3 to next defend roll).');
   
   return true;
@@ -523,9 +523,8 @@ function assignZonePuzzle(map, zoneId, puzzleType) {
 function renderCrucibleHexMap(map, units, selectedUnitId) {
   if (!map || !map.hexes) return '<div>No map data.</div>';
 
-  var maxRadius = 5;
-  var hexSize = 32;
-  var hexHTML = '<svg width="600" height="600" viewBox="0 0 600 600" style="border:1px solid var(--border2);background:rgba(0,0,0,.3);border-radius:4px;margin-bottom:.25rem;">';
+  var hexSize = 28;
+  var hexHTML = '<svg width="640" height="620" viewBox="0 0 640 620" style="border:1px solid var(--border2);background:radial-gradient(circle at 50% 45%, rgba(70,196,182,.12), rgba(6,8,12,.95));border-radius:8px;margin-bottom:.2rem;">';
   
   function pixelCoord(hex, size, originX, originY) {
     var x = size * (3/2 * hex.q);
@@ -536,8 +535,19 @@ function renderCrucibleHexMap(map, units, selectedUnitId) {
     };
   }
 
-  var originX = 300;
-  var originY = 300;
+  function hexPolygonPoints(cx, cy, size) {
+    var pts = [];
+    for (var i = 0; i < 6; i++) {
+      var angle = Math.PI / 180 * (60 * i - 30);
+      var px = cx + size * Math.cos(angle);
+      var py = cy + size * Math.sin(angle);
+      pts.push(px.toFixed(2) + ',' + py.toFixed(2));
+    }
+    return pts.join(' ');
+  }
+
+  var originX = 320;
+  var originY = 305;
 
   // Draw hexagon backgrounds
   Object.keys(map.hexes).forEach(function(key) {
@@ -545,38 +555,41 @@ function renderCrucibleHexMap(map, units, selectedUnitId) {
     if (!cell) return;
 
     var pix = pixelCoord(cell, hexSize, originX, originY);
-    var color = 'var(--surface)';
-    var opacity = 0.5;
+    var color = '#1c2430';
+    var opacity = 0.9;
+    var strokeColor = 'rgba(255,255,255,.26)';
+    var strokeWidth = 1.1;
 
     if (cell.obstacle) {
-      color = 'var(--red2)';
-      opacity = 0.7;
+      color = 'rgba(200,80,80,.55)';
+      strokeColor = 'rgba(255,130,130,.8)';
+      strokeWidth = 1.4;
     } else if (cell.trap) {
-      color = 'var(--orange)';
-      opacity = 0.6;
+      color = 'rgba(232,153,64,.45)';
+      strokeColor = 'rgba(255,204,120,.8)';
     } else if (cell.loot) {
-      color = 'var(--gold2)';
-      opacity = 0.6;
+      color = 'rgba(220,184,74,.45)';
+      strokeColor = 'rgba(255,230,150,.8)';
     } else if (cell.zone) {
-      color = 'var(--teal)';
-      opacity = 0.5;
+      color = 'rgba(70,196,182,.38)';
+      strokeColor = 'rgba(112,235,215,.8)';
     } else if (cell.terrain === 'spawn') {
-      color = 'var(--green2)';
-      opacity = 0.4;
+      color = 'rgba(86,189,109,.35)';
+      strokeColor = 'rgba(145,240,170,.75)';
     }
 
-    // Simple hex outline
-    hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.6) + '" fill="' + color + '" opacity="' + opacity + '" stroke="var(--border)" stroke-width="1"/>';
+    hexHTML += '<polygon points="' + hexPolygonPoints(pix.x, pix.y, hexSize * 0.64) + '" fill="' + color + '" opacity="' + opacity + '" stroke="' + strokeColor + '" stroke-width="' + strokeWidth + '"/>';
+    hexHTML += '<text x="' + pix.x + '" y="' + (pix.y + hexSize * 0.5) + '" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.45)">' + cell.q + ',' + cell.r + '</text>';
     
     // Terrain icon
     if (cell.obstacle) {
-      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="14" fill="var(--text)">■</text>';
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="14" fill="rgba(255,255,255,.95)">■</text>';
     } else if (cell.trap) {
-      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="14" fill="var(--text)">⚠</text>';
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="14" fill="rgba(255,238,182,.95)">⚠</text>';
     } else if (cell.loot) {
-      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="var(--text)">' + (cell.loot.type === 'weapon' ? '⚔' : (cell.loot.type === 'armor' ? '🛡' : '❤')) + '</text>';
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(255,255,230,.95)">' + (cell.loot.type === 'weapon' ? '⚔' : (cell.loot.type === 'armor' ? '🛡' : '❤')) + '</text>';
     } else if (cell.zone) {
-      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="var(--text)" font-weight="bold">' + cell.zone.id.charAt(5) + '</text>';
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(210,255,247,.95)" font-weight="bold">' + cell.zone.id.charAt(5) + '</text>';
     }
   });
 
@@ -586,16 +599,29 @@ function renderCrucibleHexMap(map, units, selectedUnitId) {
       if (!unit || !unit.position) return;
 
       var pix = pixelCoord(unit.position, hexSize, originX, originY);
-      var unitColor = unit.side === 'ally' ? 'var(--green2)' : 'var(--red2)';
+      var unitColor = unit.side === 'ally' ? 'rgba(78,222,150,.95)' : 'rgba(235,98,110,.95)';
       var isSelected = String(unit.id) === String(selectedUnitId);
-      var stroke = isSelected ? 2 : 1;
+      var stroke = isSelected ? 3 : 1.2;
 
-      hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.4) + '" fill="' + unitColor + '" stroke="' + (isSelected ? 'var(--gold2)' : 'var(--text)') + '" stroke-width="' + stroke + '"/>';
-      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="10" fill="var(--surface)" font-weight="bold">' + (unit.name.charAt(0) || 'U') + '</text>';
+      hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.38) + '" fill="' + unitColor + '" stroke="' + (isSelected ? 'rgba(255,220,120,.95)' : 'rgba(255,255,255,.82)') + '" stroke-width="' + stroke + '"/>';
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="10" fill="#111822" font-weight="bold">' + (unit.name.charAt(0) || 'U') + '</text>';
+      if (isSelected) {
+        hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.5) + '" fill="none" stroke="rgba(255,220,120,.45)" stroke-width="2"/>';
+      }
     });
   }
 
   hexHTML += '</svg>';
+  hexHTML += '<div style="display:flex;gap:.16rem;flex-wrap:wrap;font-size:.66rem;color:var(--muted2);line-height:1.35;margin-top:.04rem;">'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Green token = Ally</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Red token = Enemy</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Token letter = unit initial</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">■ Obstacle (blocked)</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚠ Trap</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚔/🛡/❤ Loot</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">A/B/C Objective zones</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Gold ring = selected unit</span>'
+  + '</div>';
   
   return hexHTML;
 }

@@ -1805,7 +1805,7 @@
     if (!attacker || !defender || !attacker.position || !defender.position) return false;
     if (typeof getUnitDistance === 'function') {
       var dist = getUnitDistance(attacker, defender);
-      return dist > 0 && dist <= 1; // Engaged range
+      return dist > 0 && dist <= 3; // Engaged/Close/Nearby range
     }
     return false;
   }
@@ -1936,6 +1936,11 @@
     
     var a = (typeof explodingRoll === 'function') ? explodingRoll(ad) : { total: (Math.floor(Math.random() * ad) + 1) };
     var d = (typeof explodingRoll === 'function') ? explodingRoll(dd) : { total: (Math.floor(Math.random() * dd) + 1) };
+    var attackBonus = Math.max(0, Number(attacker.strikeBonus || 0));
+    if (attackBonus > 0) {
+      a.total = Number(a.total || 0) + attackBonus;
+      if (log) log.push(attacker.name + ' consumed support bonus (+' + attackBonus + ').');
+    }
     
     var damage = Math.max(0, Number(a.total || 0) - Number(d.total || 0));
     
@@ -1951,6 +1956,7 @@
     } else {
       if (log) log.push(attacker.name + ' attacked ' + defender.name + ' but dealt no damage.');
     }
+    attacker.strikeBonus = 0;
     attacker.defendBuff = 0;
     return damage > 0;
   }
@@ -2157,8 +2163,9 @@
     var selectedTarget = getSelectedCrucibleTarget(match);
     var allyRows = getLivingTeamUnits(match.allies).map(function (u) {
       var on = selectedAlly && String(selectedAlly.id) === String(u.id);
+      var flavor = (u.personalFlavor && u.personalFlavor.name) ? (' · PF:' + String(u.personalFlavor.name)) : '';
       return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="selectHoldingCrucibleUnit(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">'
-        + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] AP' + Number(u.ap || 0) + ' HP' + Number(u.hp || 0)
+        + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] AP' + Number(u.ap || 0) + ' HP' + Number(u.hp || 0) + flavor
       + '</button>';
     }).join('');
     var targetRows = getLivingTeamUnits(match.enemies).map(function (u) {
@@ -2169,11 +2176,12 @@
       + '</button>';
     }).join('');
     var canAct = !!(match.turnSide === 'ally' && selectedAlly && Number(selectedAlly.hp || 0) > 0 && Number(selectedAlly.ap || 0) > 0);
-    var canAttack = !!(canAct && selectedTarget && canCrucibleUnitAttack(selectedAlly, selectedTarget));
     var currentTurn = String(match.turnSide || 'ally') === 'ally' ? 'Your Team Turn' : 'Enemy Turn';
     var scoreLine = mode.id === 'elimination'
       ? ('Round Wins ' + Number(match.roundWins && match.roundWins.ally || 0) + ' - ' + Number(match.roundWins && match.roundWins.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 5) + ')')
       : ('Score ' + Number(match.score && match.score.ally || 0) + ' - ' + Number(match.score && match.score.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 0) + ')');
+    var wayfarerOptions = getCrucibleWayfarerActionOptionsHtml();
+    var teamTargetOptions = buildCrucibleTeamTargetOptions(match, 'attack', selectedAlly);
     var logLines = (match.log || []).slice(-8).reverse().map(function (line) {
       return '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
     }).join('');
@@ -2181,15 +2189,24 @@
       + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">Crucible 6v6 Tactical Simulator</div>'
       + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.15rem;">Round ' + Number(match.round || 1) + ' · ' + currentTurn + ' · Allies ' + alliesAlive + '/' + Number((match.allies||[]).length || 0) + ' · Enemies ' + enemiesAlive + '/' + Number((match.enemies||[]).length || 0) + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.28rem;">Mode: ' + mode.label + ' · Objective: ' + mode.objective + ' · ' + scoreLine + '</div>'
-      + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-bottom:.3rem;">'
-      + '<button class="btn btn-xs ' + (mode.id === 'control' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'control\');">Control</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'clash' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'clash\');">Clash</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'elimination' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'elimination\');">Elimination</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'rumble' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'rumble\');">Rumble</button>'
+      + '<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Wayfarer Actions'
+      + '<select id="crucibleWayfarerActionSelect" style="width:100%;margin-top:.08rem;">' + wayfarerOptions + '</select></label>'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteWayfarerAction();" ' + (canAct ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Execute</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.3rem;">'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Team Action'
+      + '<select id="crucibleTeamActionSelect" onchange="refreshCrucibleTeamActionOptions();" style="width:100%;margin-top:.08rem;">'
+      + '<option value="personal-flavor">Personal Flavor</option>'
+      + '<option value="defend">Defend (+3 next defend)</option>'
+      + '<option value="attack" selected>Attack (Strike/Shoot)</option>'
+      + '<option value="support">Support (+3 next attack)</option>'
+      + '</select></label>'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Target'
+      + '<select id="crucibleTeamTargetSelect" style="width:100%;margin-top:.08rem;">' + teamTargetOptions + '</select></label>'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteTeamAction();" ' + (canAct ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Execute</button>'
       + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.35rem;">'
-      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleAttackSelected();" ' + (canAttack ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Attack Target</button>'
-      + '<button class="btn btn-sm" onclick="holdingCrucibleGuardSelected();" ' + (canAct ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Guard (+Defend)</button>'
       + '<button class="btn btn-sm" onclick="holdingCrucibleEndSelectedUnit();" ' + (canAct ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>End Unit</button>'
       + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAdvanceRound();">End Team Turn</button>'
       + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>'
@@ -2296,6 +2313,208 @@
     return true;
   }
 
+  function getCrucibleWayfarerActionOptionsHtml() {
+    if (typeof document !== 'undefined') {
+      var select = document.getElementById('wayfarerActionSel');
+      if (select && select.options && select.options.length) {
+        return Array.prototype.map.call(select.options, function (opt) {
+          if (!opt || !opt.value) return '';
+          return '<option value="' + String(opt.value).replace(/"/g, '&quot;') + '">' + String(opt.textContent || opt.value) + '</option>';
+        }).join('');
+      }
+    }
+    return '<option value="strike">Strike</option>'
+      + '<option value="shoot">Shoot</option>'
+      + '<option value="defend">Defend</option>'
+      + '<option value="support">Support</option>'
+      + '<option value="personal-flavor">Personal Flavor</option>';
+  }
+
+  function buildCrucibleTeamTargetOptions(match, action, actor) {
+    if (!match) return '';
+    var act = String(action || 'attack').toLowerCase();
+    var livingAllies = getLivingTeamUnits(match.allies || []);
+    var livingEnemies = getLivingTeamUnits(match.enemies || []);
+    if (act === 'defend' || act === 'support') {
+      return livingAllies.map(function (unit) {
+        return '<option value="ally:' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Ally') + '</option>';
+      }).join('');
+    }
+    if (act === 'attack') {
+      var targets = livingEnemies.filter(function (enemy) {
+        if (!actor || !actor.position || !enemy || !enemy.position || typeof getUnitDistance !== 'function') return false;
+        var dist = getUnitDistance(actor, enemy);
+        return dist > 0 && dist <= 3;
+      });
+      return targets.map(function (unit) {
+        var distTxt = (actor && typeof getUnitDistance === 'function') ? (' d:' + Number(getUnitDistance(actor, unit) || 0)) : '';
+        return '<option value="enemy:' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Enemy') + distTxt + '</option>';
+      }).join('') || '<option value="">No engaged/nearby targets</option>';
+    }
+    if (act === 'personal-flavor') {
+      var closeEnemies = livingEnemies.filter(function (enemy) {
+        if (!actor || !actor.position || !enemy || !enemy.position || typeof getUnitDistance !== 'function') return false;
+        return Number(getUnitDistance(actor, enemy) || 99) <= 2;
+      });
+      return closeEnemies.map(function (unit) {
+        var distTxt = (actor && typeof getUnitDistance === 'function') ? (' d:' + Number(getUnitDistance(actor, unit) || 0)) : '';
+        return '<option value="enemy:' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Enemy') + distTxt + '</option>';
+      }).join('') || '<option value="">No close target for Personal Flavor</option>';
+    }
+    return '<option value="">Select action first</option>';
+  }
+
+  function refreshCrucibleTeamActionOptions() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || typeof document === 'undefined') return false;
+    var actionEl = document.getElementById('crucibleTeamActionSelect');
+    var targetEl = document.getElementById('crucibleTeamTargetSelect');
+    if (!actionEl || !targetEl) return false;
+    var actor = getSelectedCrucibleAlly(match);
+    targetEl.innerHTML = buildCrucibleTeamTargetOptions(match, String(actionEl.value || 'attack'), actor);
+    return true;
+  }
+
+  function holdingCrucibleExecuteWayfarerAction() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.turnSide || 'ally') !== 'ally') return false;
+    if (typeof document === 'undefined') return false;
+    var actionEl = document.getElementById('crucibleWayfarerActionSelect');
+    if (!actionEl) return false;
+    var action = String(actionEl.value || '').toLowerCase();
+    var actor = (match.allies || []).find(function (u) { return u && u.isPlayer && Number(u.hp || 0) > 0; }) || null;
+    if (!actor) {
+      if (typeof showNotif === 'function') showNotif('Wayfarer is down and cannot act.', 'warn');
+      return false;
+    }
+    match.selectedAllyId = String(actor.id || '');
+    if (Number(actor.ap || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif(actor.name + ' has no AP left.', 'warn');
+      return false;
+    }
+
+    var target = getSelectedCrucibleTarget(match);
+    var logs = [];
+    if (action.indexOf('move') === 0) {
+      if (typeof showNotif === 'function') showNotif('Use the movement chips below the board to move one hex at a time.', 'info');
+      return false;
+    }
+    if (action.indexOf('defend') >= 0) {
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      actor.defendBuff = Math.max(0, Number(actor.defendBuff || 0) + 3);
+      logs.push(actor.name + ' defended (+3 to next Defend roll).');
+    } else if (action.indexOf('support') >= 0) {
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      actor.strikeBonus = Math.max(0, Number(actor.strikeBonus || 0) + 3);
+      logs.push(actor.name + ' prepared a support setup (+3 to next attack).');
+    } else if (action.indexOf('flavor') >= 0) {
+      if (!target || typeof getUnitDistance !== 'function' || Number(getUnitDistance(actor, target) || 99) > 2) {
+        if (typeof showNotif === 'function') showNotif('Personal Flavor needs a close target (Engaged or Close).', 'warn');
+        return false;
+      }
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      if (typeof executePersonalFlavor === 'function') {
+        executePersonalFlavor(actor, 'crucible-' + Number(match.round || 1), match.hexMap, logs);
+      } else {
+        logs.push(actor.name + ' used Personal Flavor.');
+      }
+    } else {
+      if (!target || !canCrucibleUnitAttack(actor, target)) {
+        if (typeof showNotif === 'function') showNotif('Select an engaged/nearby enemy target first.', 'warn');
+        return false;
+      }
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      var dist = (typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, target) || 0) : 0;
+      logs.push(actor.name + ' used ' + (dist <= 1 ? 'Strike' : 'Shoot') + '.');
+      runCrucibleAttack(actor, target, logs, match);
+    }
+
+    match.log = (match.log || []).concat(logs).slice(-120);
+    maybeSyncCrucibleSelection(match);
+    finalizeHoldingCrucibleMatch(match);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
+  function holdingCrucibleExecuteTeamAction() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.turnSide || 'ally') !== 'ally') return false;
+    if (typeof document === 'undefined') return false;
+    var actionEl = document.getElementById('crucibleTeamActionSelect');
+    var targetEl = document.getElementById('crucibleTeamTargetSelect');
+    if (!actionEl || !targetEl) return false;
+
+    var actor = getSelectedCrucibleAlly(match);
+    if (!actor || Number(actor.hp || 0) <= 0) return false;
+    if (actor.isPlayer) {
+      if (typeof showNotif === 'function') showNotif('Select a teammate for Team Action, or use Wayfarer Action for yourself.', 'warn');
+      return false;
+    }
+    if (Number(actor.ap || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif(actor.name + ' has no AP left.', 'warn');
+      return false;
+    }
+
+    var action = String(actionEl.value || 'attack').toLowerCase();
+    var targetRef = String(targetEl.value || '');
+    var logs = [];
+
+    if (action === 'attack') {
+      if (!targetRef || targetRef.indexOf('enemy:') !== 0) {
+        if (typeof showNotif === 'function') showNotif('Pick an engaged/nearby enemy target.', 'warn');
+        return false;
+      }
+      var targetEnemy = findCrucibleUnit(match, 'enemy', targetRef.split(':')[1]);
+      if (!targetEnemy || !canCrucibleUnitAttack(actor, targetEnemy)) {
+        if (typeof showNotif === 'function') showNotif('Target out of range for Attack.', 'warn');
+        return false;
+      }
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      var dist = (typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, targetEnemy) || 0) : 0;
+      logs.push(actor.name + ' used ' + (dist <= 1 ? 'Strike' : 'Shoot') + '.');
+      runCrucibleAttack(actor, targetEnemy, logs, match);
+    } else if (action === 'defend') {
+      if (!targetRef || targetRef.indexOf('ally:') !== 0) {
+        if (typeof showNotif === 'function') showNotif('Pick an ally to defend.', 'warn');
+        return false;
+      }
+      var defendTarget = findCrucibleUnit(match, 'ally', targetRef.split(':')[1]);
+      if (!defendTarget) return false;
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      executeDefendAction(actor, defendTarget, logs);
+    } else if (action === 'support') {
+      if (!targetRef || targetRef.indexOf('ally:') !== 0) {
+        if (typeof showNotif === 'function') showNotif('Pick an ally to support.', 'warn');
+        return false;
+      }
+      var supportTarget = findCrucibleUnit(match, 'ally', targetRef.split(':')[1]);
+      if (!supportTarget) return false;
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      executeSupportAction(actor, supportTarget, logs);
+    } else if (action === 'personal-flavor') {
+      if (!targetRef || targetRef.indexOf('enemy:') !== 0) {
+        if (typeof showNotif === 'function') showNotif('Personal Flavor requires a close enemy target.', 'warn');
+        return false;
+      }
+      var flavorTarget = findCrucibleUnit(match, 'enemy', targetRef.split(':')[1]);
+      if (!flavorTarget || typeof getUnitDistance !== 'function' || Number(getUnitDistance(actor, flavorTarget) || 99) > 2) {
+        if (typeof showNotif === 'function') showNotif('Personal Flavor only works at Close range or Engaged.', 'warn');
+        return false;
+      }
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      if (typeof executePersonalFlavor === 'function') executePersonalFlavor(actor, 'crucible-' + Number(match.round || 1), match.hexMap, logs);
+      else logs.push(actor.name + ' used Personal Flavor.');
+    }
+
+    match.log = (match.log || []).concat(logs).slice(-120);
+    maybeSyncCrucibleSelection(match);
+    finalizeHoldingCrucibleMatch(match);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
   function holdingCrucibleMoveSelected(nextQ, nextR) {
     var match = getHoldingCrucibleMatch();
     if (!match || String(match.turnSide || 'ally') !== 'ally' || !match.hexMap) return false;
@@ -2314,7 +2533,7 @@
         var dx = Math.abs(ally.position.q - nextQ);
         var dr = Math.abs(ally.position.r - nextR);
         if ((dx + dr + Math.abs(ally.position.q + ally.position.r - nextQ - nextR)) / 2 === 1) {
-          if (!getUnitsInHex(match.allies.concat(match.enemies), targetHex)) {
+          if (getUnitsInHex(match.allies.concat(match.enemies), targetHex).length === 0) {
             ally.ap = Math.max(0, Number(ally.ap) - 1);
             ally.position = { q: Number(nextQ), r: Number(nextR) };
             match.log = (match.log || []).concat([ally.name + ' moved to [' + nextQ + ',' + nextR + '].']).slice(-120);
@@ -5902,6 +6121,9 @@
   window.selectHoldingCrucibleUnit = selectHoldingCrucibleUnit;
   window.selectHoldingCrucibleTarget = selectHoldingCrucibleTarget;
   window.holdingCrucibleMoveSelected = holdingCrucibleMoveSelected;
+  window.refreshCrucibleTeamActionOptions = refreshCrucibleTeamActionOptions;
+  window.holdingCrucibleExecuteWayfarerAction = holdingCrucibleExecuteWayfarerAction;
+  window.holdingCrucibleExecuteTeamAction = holdingCrucibleExecuteTeamAction;
   window.holdingCrucibleAttackSelected = holdingCrucibleAttackSelected;
   window.holdingCrucibleGuardSelected = holdingCrucibleGuardSelected;
   window.holdingCrucibleEndSelectedUnit = holdingCrucibleEndSelectedUnit;

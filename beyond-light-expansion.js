@@ -828,11 +828,44 @@
       }
     }
 
+    // Bias terrain/ecology picks toward the active Theos province's climateBand.
+    const _theosDNA = (typeof window.getActiveTheosProvinceDNA === 'function') ? window.getActiveTheosProvinceDNA() : null;
+    const _theosClimate = _theosDNA ? (_theosDNA.climateBand || '') : '';
+    const THEOS_CLIMATE_TERRAIN_BIAS = {
+      cold:      ['Snow','Tundra','Mountain'],
+      temperate: ['Grassland','Forest'],
+      highland:  ['Mountain','Grassland'],
+      arid:      ['Desert','Badlands'],
+      coastal:   ['Jungle','Grassland'],
+      storm:     ['Jungle','Forest'],
+      forest:    ['Forest','Jungle'],
+      marsh:     ['Swamp','Forest'],
+      tropical:  ['Jungle']
+    };
+    const THEOS_CLIMATE_ECOLOGY_BIAS = {
+      cold:    ['tundra','arctic'],
+      arid:    ['desert','scrub'],
+      coastal: ['coral','mangrove'],
+      marsh:   ['wetland','bog'],
+      forest:  ['old-growth','canopy'],
+      tropical:['jungle','reef']
+    };
+    function _pickBiasedTerrain() {
+      const preferred = THEOS_CLIMATE_TERRAIN_BIAS[_theosClimate] || [];
+      const candidates = preferred.length ? LAST_SEA_TERRAINS.filter(t => preferred.some(p => t.name.toLowerCase().includes(p.toLowerCase()))) : [];
+      return (candidates.length && Math.random() < 0.6) ? candidates[Math.floor(Math.random() * candidates.length)] : pick(LAST_SEA_TERRAINS);
+    }
+    function _pickBiasedEcology() {
+      const preferred = THEOS_CLIMATE_ECOLOGY_BIAS[_theosClimate] || [];
+      const candidates = preferred.length ? LAST_SEA_ECOLOGY.filter(e => preferred.some(p => (typeof e === 'string' ? e : e.name || '').toLowerCase().includes(p.toLowerCase()))) : [];
+      return (candidates.length && Math.random() < 0.6) ? candidates[Math.floor(Math.random() * candidates.length)] : pick(LAST_SEA_ECOLOGY);
+    }
+
     const layouts = getLastSeaLayout();
     let colosseumPlaced = false;
     layouts.forEach((layout, index) => {
-      const terrain = pick(LAST_SEA_TERRAINS);
-      const ecology = pick(LAST_SEA_ECOLOGY);
+      const terrain = _pickBiasedTerrain();
+      const ecology = _pickBiasedEcology();
       const cluster = createSeaCluster(layout.hexes, index);
       const name = layouts.length === 1 ? "Island Prime" : `Island ${index + 1}`;
 

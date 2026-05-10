@@ -39,22 +39,24 @@
     }
   ];
 
+  // x/y are % of atlas image (width/height). Calibrated to city-text anchors on the
+  // "Known Realms of Theos" cartography image (Fida Wildheart, c.2578 P.A.).
   var THEOS_PROVINCES = [
-    { id: "dyn", name: "Dyn Province", continent: "mythriel", x: 16.3, y: 20.2, threat: 2, climateBand: "cold" },
-    { id: "rosegrove", name: "Rosegrove Reach", continent: "mythriel", x: 11.7, y: 49.1, threat: 3, climateBand: "temperate" },
-    { id: "raenor", name: "Raenor March", continent: "mythriel", x: 32.7, y: 72.0, threat: 4, climateBand: "highland" },
-    { id: "sunsgrave", name: "Sunsgrave Expanse", continent: "mythriel", x: 9.5, y: 81.4, threat: 5, climateBand: "arid" },
-    { id: "freyreign", name: "Freyreign", continent: "ioniir", x: 47.8, y: 22.5, threat: 3, climateBand: "coastal" },
-    { id: "lordteak", name: "Lord Teak", continent: "ioniir", x: 55.7, y: 17.6, threat: 4, climateBand: "temperate" },
-    { id: "watchcairn", name: "Watchcairn", continent: "ioniir", x: 44.7, y: 33.6, threat: 5, climateBand: "storm" },
-    { id: "dewt", name: "Dewt Crown", continent: "nominion", x: 68.5, y: 43.9, threat: 3, climateBand: "temperate" },
-    { id: "lynridge", name: "Lynridge", continent: "nominion", x: 71.4, y: 55.6, threat: 4, climateBand: "forest" },
-    { id: "wrathwatch", name: "Wrathwatch", continent: "nominion", x: 76.0, y: 28.3, threat: 5, climateBand: "storm" },
-    { id: "vosshollow", name: "Voss Hollow", continent: "nominion", x: 82.0, y: 45.6, threat: 6, climateBand: "marsh" },
-    { id: "bazaarun", name: "Bazaarun", continent: "cyphyyr", x: 55.2, y: 75.4, threat: 4, climateBand: "coastal" },
-    { id: "krovan", name: "Krovan Vale", continent: "cyphyyr", x: 75.0, y: 74.8, threat: 5, climateBand: "tropical" },
-    { id: "thousandpeaks", name: "Thousand Peaks", continent: "cyphyyr", x: 76.0, y: 86.1, threat: 6, climateBand: "highland" },
-    { id: "cityofbliss", name: "City of Bliss", continent: "cyphyyr", x: 90.0, y: 91.5, threat: 7, climateBand: "coastal" }
+    { id: "dyn",          name: "Dyn's Well",        continent: "mythriel",  x: 16.0, y: 18.5, threat: 2, climateBand: "cold"      },
+    { id: "rosegrove",    name: "Rosegrove Reach",   continent: "mythriel",  x:  8.0, y: 47.0, threat: 3, climateBand: "temperate" },
+    { id: "raenor",       name: "Raenor March",      continent: "mythriel",  x: 31.5, y: 70.0, threat: 4, climateBand: "highland"  },
+    { id: "sunsgrave",    name: "Sunsgrave Expanse",  continent: "mythriel",  x:  9.0, y: 79.5, threat: 5, climateBand: "arid"      },
+    { id: "freyreign",    name: "Freyreign",          continent: "ioniir",    x: 43.5, y: 22.0, threat: 3, climateBand: "coastal"   },
+    { id: "lordteak",     name: "Kord's Teak",        continent: "ioniir",    x: 60.0, y: 13.5, threat: 4, climateBand: "temperate" },
+    { id: "watchcairn",   name: "Watchcairn",         continent: "ioniir",    x: 46.0, y: 33.5, threat: 5, climateBand: "storm"     },
+    { id: "dewt",         name: "Dewt Crown",         continent: "nominion",  x: 68.0, y: 42.5, threat: 3, climateBand: "temperate" },
+    { id: "lynridge",     name: "Lynridge",            continent: "nominion",  x: 71.5, y: 55.0, threat: 4, climateBand: "forest"    },
+    { id: "wrathwatch",   name: "Wraithwatch",         continent: "nominion",  x: 80.0, y: 20.5, threat: 5, climateBand: "storm"     },
+    { id: "vosshollow",   name: "Voss Hollow",         continent: "nominion",  x: 83.0, y: 44.5, threat: 6, climateBand: "marsh"     },
+    { id: "bazaarun",     name: "Baazarun",            continent: "cyphyyr",   x: 56.0, y: 74.0, threat: 4, climateBand: "coastal"   },
+    { id: "krovan",       name: "Krovan Vale",         continent: "cyphyyr",   x: 76.0, y: 73.5, threat: 5, climateBand: "tropical"  },
+    { id: "thousandpeaks",name: "Thousand Peaks",      continent: "cyphyyr",   x: 77.0, y: 85.5, threat: 6, climateBand: "highland"  },
+    { id: "cityofbliss",  name: "City of Bliss",       continent: "cyphyyr",   x: 91.0, y: 88.5, threat: 7, climateBand: "coastal"   }
   ];
 
   var LAND_CONNECTIONS = [

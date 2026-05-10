@@ -1365,7 +1365,34 @@
     if (!S.starSystem || !Array.isArray(S.starSystem.hexes) || !S.starSystem.hexes.length) { return null; }
     var planets = S.starSystem.hexes.filter(function(hex) { return hex && hex.type === 'planet'; });
     if (!planets.length) { return null; }
-    var chosen = planets[Math.floor(Math.random() * planets.length)];
+
+    // Bias planet selection toward Theos province DNA — prefer planets whose
+    // environment tag matches the active province's climateBand/terrain/enemies.
+    var theosDNA = (typeof window.getActiveTheosProvinceDNA === 'function') ? window.getActiveTheosProvinceDNA() : null;
+    var chosen;
+    if (theosDNA) {
+      var climate = (theosDNA.climateBand || '').toLowerCase();
+      var THEOS_GALAXY_PLANET_TAGS = {
+        cold:      ['ice','frost','frozen','tundra','cryo'],
+        arid:      ['desert','dune','arid','sand','wasteland'],
+        tropical:  ['jungle','lush','verdant','bio'],
+        storm:     ['storm','gas','tempest','cyclone'],
+        marsh:     ['swamp','bog','humid','wetland'],
+        coastal:   ['ocean','aqua','water','tidal'],
+        highland:  ['mountain','rock','ridge','crater'],
+        forest:    ['forest','arboreal','garden','canopy'],
+        temperate: [] // no strong preference — random
+      };
+      var preferred = THEOS_GALAXY_PLANET_TAGS[climate] || [];
+      var biased = preferred.length ? planets.filter(function(p) {
+        var tags = ((p.envTag || '') + ' ' + (p.name || '') + ' ' + (p.type2 || '')).toLowerCase();
+        return preferred.some(function(t) { return tags.indexOf(t) >= 0; });
+      }) : [];
+      chosen = (biased.length && Math.random() < 0.6) ? biased[Math.floor(Math.random() * biased.length)] : planets[Math.floor(Math.random() * planets.length)];
+    } else {
+      chosen = planets[Math.floor(Math.random() * planets.length)];
+    }
+
     var profile = null;
     if (typeof ensurePlanetProfile === 'function') {
       try {
@@ -1375,8 +1402,9 @@
       }
     }
     var planetName = (profile && profile.planetName) || chosen.name || ('Planet Hex ' + chosen.id);
+    var locationSuffix = theosDNA ? (' – ' + (theosDNA.terrain || 'surface corridor')) : ' surface corridor';
     return {
-      location: planetName + ' surface corridor',
+      location: planetName + locationSuffix,
       planetHexId: chosen.id,
       planetName: planetName
     };

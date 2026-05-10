@@ -384,7 +384,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-backstory" id="tabnav-backstory" onclick="switchTab('backstory',this)">Backstory</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" onclick="switchTab('codex',this)">Codex</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-soulforge" id="tabnav-soulforge" onclick="switchTab('soulforge',this)">Soul Forge</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-soulforge" id="tabnav-soulforge" onclick="switchTab('soulforge',this)" style="display:none;">Soul Forge</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" onclick="switchTab('rules',this)">Rules</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" onclick="switchTab('combat',this)">Combat</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" onclick="switchTab('oracle',this)">Oracle</button>
@@ -1155,6 +1155,7 @@ select option{background:#0f1020;}
     <button class="scat" onclick="showShopCat('os_hacks',this)">💻 OS Hacks</button>
     <button class="scat" onclick="showShopCat('weapon_mods',this)">🔩 Weapon Mods</button>
   </div>
+  <div id="shopSoulForgePanel" style="margin:.38rem 0 .62rem 0;"></div>
   <div class="shop-grid" id="shopGrid"></div>
 </div>
 

@@ -327,6 +327,120 @@
     });
   }
 
+  function canShowEndgameDebugControls() {
+    try {
+      if (typeof window === 'undefined' || !window.campaignSystem || typeof window.campaignSystem.getState !== 'function') return true;
+      var state = window.campaignSystem.getState() || {};
+      if (state && state.code && String(state.role || '') !== 'gm') return false;
+      return true;
+    } catch (_err) {
+      return true;
+    }
+  }
+
+  function removeActivePinnacleMissionsForDebug() {
+    if (!Array.isArray(S.activeMissions)) return 0;
+    var removed = 0;
+    for (var i = S.activeMissions.length - 1; i >= 0; i--) {
+      var mission = S.activeMissions[i];
+      if (!mission || mission.missionType !== 'pinnacle_megadungeon') continue;
+      try { removeMissionToken(mission); } catch (_err) {}
+      S.activeMissions.splice(i, 1);
+      removed += 1;
+    }
+    return removed;
+  }
+
+  function endgameDebugAdjustGates(hellDelta, celestialDelta) {
+    ensureState();
+    var endgame = ensureEndgameDirectorState();
+    var gate = endgame.gateWar;
+    gate.closedHellscape = Math.max(0, Math.min(10, Number(gate.closedHellscape || 0) + Number(hellDelta || 0)));
+    gate.closedCelestial = Math.max(0, Math.min(10, Number(gate.closedCelestial || 0) + Number(celestialDelta || 0)));
+    if (gate.closedHellscape < 10 || gate.closedCelestial < 10) {
+      gate.pinnacleUnlocked = false;
+      gate.pinnacleBoss = '';
+    }
+    if (gate.closedHellscape >= 10 && gate.closedCelestial >= 10 && !gate.pinnacleUnlocked) {
+      maybeUnlockPinnacleMegadungeonFromGateWar(gate, 'celestial');
+    }
+    renderMissionTracker();
+    if (typeof showNotif === 'function') showNotif('Endgame debug: gate counters updated.', 'info');
+    return true;
+  }
+
+  function endgameDebugSetPortalState(mode) {
+    ensureState();
+    var endgame = ensureEndgameDirectorState();
+    var gate = endgame.gateWar;
+    var key = String(mode || '').toLowerCase();
+    if (key === 'ready') {
+      gate.closedHellscape = 10;
+      gate.closedCelestial = 10;
+      gate.pinnacleCleared = false;
+      gate.kickoutPending = false;
+      if (!gate.pinnacleUnlocked) maybeUnlockPinnacleMegadungeonFromGateWar(gate, 'celestial');
+    } else if (key === 'kickout') {
+      removeActivePinnacleMissionsForDebug();
+      gate.pinnacleRetries = Math.max(0, Number(gate.pinnacleRetries || 0) + 1);
+      gate.kickoutPending = true;
+      gate.pinnacleUnlocked = false;
+      gate.pinnacleBoss = '';
+      gate.closedHellscape = 0;
+      gate.closedCelestial = 0;
+      gate.pinnacleCleared = false;
+      gate.lastKickoutAt = new Date().toISOString();
+    } else if (key === 'clear') {
+      gate.closedHellscape = 10;
+      gate.closedCelestial = 10;
+      gate.pinnacleUnlocked = true;
+      if (!gate.pinnacleBoss) gate.pinnacleBoss = 'Azrael';
+      gate.pinnacleCleared = true;
+      gate.kickoutPending = false;
+    } else if (key === 'reset') {
+      removeActivePinnacleMissionsForDebug();
+      gate.closedHellscape = 0;
+      gate.closedCelestial = 0;
+      gate.pinnacleUnlocked = false;
+      gate.pinnacleBoss = '';
+      gate.pinnacleRetries = 0;
+      gate.kickoutPending = false;
+      gate.pinnacleCleared = false;
+      gate.lastKickoutAt = '';
+      gate.portalAttempts = 0;
+    }
+    renderMissionTracker();
+    if (typeof showNotif === 'function') showNotif('Endgame debug: portal state set to ' + key + '.', 'info');
+    return true;
+  }
+
+  function endgameDebugAddColosseumRecord(tierDie, success) {
+    ensureState();
+    var col = ensureEndgameDirectorState().colosseum;
+    var die = Math.max(4, Number(tierDie || 4));
+    var ok = !!success;
+    if (ok) {
+      col.clears = Math.max(0, Number(col.clears || 0) + 1);
+      col.bestClearDie = Math.max(Number(col.bestClearDie || 0), die);
+    }
+    col.history.unshift({ at: new Date().toISOString(), tierDie: die, enemy: 'Debug Arena Echo', success: ok });
+    col.history = col.history.slice(0, 12);
+    renderMissionTracker();
+    if (typeof showNotif === 'function') showNotif('Endgame debug: colosseum record added (d' + die + ', ' + (ok ? 'success' : 'fail') + ').', 'info');
+    return true;
+  }
+
+  function endgameDebugResetColosseum() {
+    ensureState();
+    var col = ensureEndgameDirectorState().colosseum;
+    col.history = [];
+    col.bestClearDie = 0;
+    col.clears = 0;
+    renderMissionTracker();
+    if (typeof showNotif === 'function') showNotif('Endgame debug: colosseum history reset.', 'info');
+    return true;
+  }
+
   function buildEndgameTrackerCardHtml() {
     var postStory = isStorylinePostEnding();
     var endgame = ensureEndgameDirectorState();
@@ -356,6 +470,24 @@
           + '</div>';
         }).join('')
       : '<div style="font-size:.68rem;color:var(--muted2);line-height:1.4;">No colosseum records yet.</div>';
+    var debugHtml = canShowEndgameDebugControls()
+      ? '<div style="margin-top:.35rem;border-top:1px solid var(--border2);padding-top:.28rem;">'
+        + '<div style="font-size:.65rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.16rem;">GM Debug Controls</div>'
+        + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugAdjustGates(1,0)">+1 Hell</button>'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugAdjustGates(0,1)">+1 Celestial</button>'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugAdjustGates(-1,0)">-1 Hell</button>'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugAdjustGates(0,-1)">-1 Celestial</button>'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugSetPortalState(\'ready\')">Portal Ready</button>'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugSetPortalState(\'kickout\')">Sim Kickout</button>'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugSetPortalState(\'clear\')">Mark Cleared</button>'
+          + '<button class="btn btn-xs btn-red" onclick="window.endgameDebugSetPortalState(\'reset\')">Reset Portal</button>'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugAddColosseumRecord(20,true)">Add d20 Clear</button>'
+          + '<button class="btn btn-xs" onclick="window.endgameDebugAddColosseumRecord(12,false)">Add d12 Fail</button>'
+          + '<button class="btn btn-xs btn-red" onclick="window.endgameDebugResetColosseum()">Reset Colosseum</button>'
+        + '</div>'
+      + '</div>'
+      : '';
 
     return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--gold2);padding:.55rem .6rem;margin-bottom:.5rem;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;">Endgame Operations</div>'
@@ -383,6 +515,7 @@
       + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;line-height:1.4;">Attempts: ' + Number(gate.portalAttempts || 0) + ' · Rule: fail/death kicks you out and resets gate closures.</div>'
       + '</div>'
       + '</div>'
+      + debugHtml
     + '</div>';
   }
 
@@ -2300,8 +2433,14 @@
   }
 
   function renderSoulForgeTabPanel() {
-    var panel = typeof document !== 'undefined' ? document.getElementById('soulForgeTabPanel') : null;
-    if (!panel) return false;
+    var hosts = [];
+    if (typeof document !== 'undefined') {
+      var soulPanel = document.getElementById('soulForgeTabPanel');
+      var shopPanel = document.getElementById('shopSoulForgePanel');
+      if (soulPanel) hosts.push(soulPanel);
+      if (shopPanel) hosts.push(shopPanel);
+    }
+    if (!hosts.length) return false;
     var forge = null;
     try {
       forge = typeof ensureSoulForgeState === 'function' ? ensureSoulForgeState() : (S.soulForge = S.soulForge || { unlocked:false, inventory:[] });
@@ -2310,12 +2449,14 @@
     }
     if (!Array.isArray(forge.inventory)) forge.inventory = [];
     if (!forge.unlocked && !forge.inventory.length) {
-      panel.innerHTML = '<div class="card"><div class="section-title">Soul Forge</div><div style="font-size:.82rem;color:var(--muted2);line-height:1.5;">Complete a Soul Mission to unlock the forge. Once opened, this page lets you remove, move, and sell affixes.</div></div>';
+      var lockedHtml = '<div class="card"><div class="section-title">Soul Forge</div><div style="font-size:.82rem;color:var(--muted2);line-height:1.5;">Complete a Soul Mission to unlock the forge. Once opened, this page lets you remove, move, and sell affixes.</div></div>';
+      hosts.forEach(function (panel) { panel.innerHTML = lockedHtml; });
       return true;
     }
-    panel.innerHTML = typeof buildSoulForgeVendorHtml === 'function'
+    var openHtml = typeof buildSoulForgeVendorHtml === 'function'
       ? buildSoulForgeVendorHtml()
       : '<div class="card"><div class="section-title">Soul Forge</div><div style="font-size:.82rem;color:var(--muted2);">Forge content unavailable.</div></div>';
+    hosts.forEach(function (panel) { panel.innerHTML = openHtml; });
     return true;
   }
 
@@ -12457,7 +12598,7 @@
     window.switchTab = function (tabId, btn) {
       var out = baseSwitch.apply(this, arguments);
       if (String(tabId || '') === 'raidtree') renderLegacyRaidTreePanel();
-      if (String(tabId || '') === 'soulforge') {
+      if (String(tabId || '') === 'soulforge' || String(tabId || '') === 'shop') {
         renderSoulForgeTabPanel();
       }
       return out;
@@ -12465,6 +12606,10 @@
   }
 
   window.renderSoulForgeTabPanel = renderSoulForgeTabPanel;
+  window.endgameDebugAdjustGates = endgameDebugAdjustGates;
+  window.endgameDebugSetPortalState = endgameDebugSetPortalState;
+  window.endgameDebugAddColosseumRecord = endgameDebugAddColosseumRecord;
+  window.endgameDebugResetColosseum = endgameDebugResetColosseum;
 
   // Initialize on page ready
   function initMissions() {

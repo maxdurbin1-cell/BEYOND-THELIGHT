@@ -291,7 +291,7 @@
       };
     }
     if (!S.missionDirector.endgame.colosseum || typeof S.missionDirector.endgame.colosseum !== 'object') {
-      S.missionDirector.endgame.colosseum = { lastRollDayStamp: -1, nextEligibleDayStamp: 0, counter: 0 };
+      S.missionDirector.endgame.colosseum = { lastRollDayStamp: -1, nextEligibleDayStamp: 0, counter: 0, history: [], bestClearDie: 0, clears: 0 };
     }
     if (!S.missionDirector.endgame.gateWar || typeof S.missionDirector.endgame.gateWar !== 'object') {
       S.missionDirector.endgame.gateWar = {
@@ -301,10 +301,89 @@
         closedHellscape: 0,
         closedCelestial: 0,
         pinnacleUnlocked: false,
-        pinnacleBoss: ''
+        pinnacleBoss: '',
+        pinnacleRetries: 0,
+        kickoutPending: false,
+        pinnacleCleared: false,
+        lastKickoutAt: '',
+        portalAttempts: 0
       };
     }
+    if (!Array.isArray(S.missionDirector.endgame.colosseum.history)) S.missionDirector.endgame.colosseum.history = [];
+    if (typeof S.missionDirector.endgame.colosseum.bestClearDie !== 'number') S.missionDirector.endgame.colosseum.bestClearDie = 0;
+    if (typeof S.missionDirector.endgame.colosseum.clears !== 'number') S.missionDirector.endgame.colosseum.clears = 0;
+    if (typeof S.missionDirector.endgame.gateWar.pinnacleRetries !== 'number') S.missionDirector.endgame.gateWar.pinnacleRetries = 0;
+    if (typeof S.missionDirector.endgame.gateWar.kickoutPending !== 'boolean') S.missionDirector.endgame.gateWar.kickoutPending = false;
+    if (typeof S.missionDirector.endgame.gateWar.pinnacleCleared !== 'boolean') S.missionDirector.endgame.gateWar.pinnacleCleared = false;
+    if (typeof S.missionDirector.endgame.gateWar.lastKickoutAt !== 'string') S.missionDirector.endgame.gateWar.lastKickoutAt = '';
+    if (typeof S.missionDirector.endgame.gateWar.portalAttempts !== 'number') S.missionDirector.endgame.gateWar.portalAttempts = 0;
     return S.missionDirector.endgame;
+  }
+
+  function getEndgamePortalMissionActive() {
+    if (!Array.isArray(S.activeMissions)) return false;
+    return S.activeMissions.some(function (mission) {
+      return mission && mission.missionType === 'pinnacle_megadungeon' && mission.steps && mission.steps[3] && !mission.steps[3].completed;
+    });
+  }
+
+  function buildEndgameTrackerCardHtml() {
+    var postStory = isStorylinePostEnding();
+    var endgame = ensureEndgameDirectorState();
+    var col = endgame.colosseum || { history: [], bestClearDie: 0, clears: 0 };
+    var gate = endgame.gateWar || { closedHellscape: 0, closedCelestial: 0, pinnacleUnlocked: false, pinnacleBoss: '', pinnacleRetries: 0, kickoutPending: false, pinnacleCleared: false, lastKickoutAt: '', portalAttempts: 0 };
+    var touched = Number(col.counter || 0) > 0 || Number(gate.counter || 0) > 0 || Number(gate.closedHellscape || 0) > 0 || Number(gate.closedCelestial || 0) > 0 || Number(gate.pinnacleRetries || 0) > 0 || !!gate.pinnacleUnlocked;
+    if (!postStory && !touched) return '';
+
+    var hClosed = Math.max(0, Number(gate.closedHellscape || 0));
+    var cClosed = Math.max(0, Number(gate.closedCelestial || 0));
+    var portalProgress = Math.min(100, Math.floor(((Math.min(10, hClosed) + Math.min(10, cClosed)) / 20) * 100));
+    var activePortal = getEndgamePortalMissionActive();
+    var portalReady = hClosed >= 10 && cClosed >= 10;
+    var portalStatus = gate.pinnacleCleared
+      ? 'Cleared'
+      : (activePortal ? 'Active' : (portalReady || gate.pinnacleUnlocked ? 'Ready' : 'Locked'));
+    var retryText = gate.kickoutPending
+      ? ('Kickout pending reset • retries: ' + Number(gate.pinnacleRetries || 0))
+      : ('Retries: ' + Number(gate.pinnacleRetries || 0));
+    var bestDie = Math.max(0, Number(col.bestClearDie || 0));
+    var history = Array.isArray(col.history) ? col.history.slice(0, 4) : [];
+    var historyHtml = history.length
+      ? history.map(function (entry) {
+          var ok = !!entry.success;
+          return '<div style="font-size:.68rem;color:' + (ok ? 'var(--green2)' : 'var(--red2)') + ';line-height:1.4;">'
+            + (ok ? '✓ ' : '✗ ') + 'd' + Number(entry.tierDie || 4) + ' · ' + String(entry.enemy || 'Arena Enemy')
+          + '</div>';
+        }).join('')
+      : '<div style="font-size:.68rem;color:var(--muted2);line-height:1.4;">No colosseum records yet.</div>';
+
+    return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--gold2);padding:.55rem .6rem;margin-bottom:.5rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;">Endgame Operations</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">'
+      + (postStory ? 'Storyline complete. Endgame systems active.' : 'Endgame systems discovered before final storyline lock.')
+      + '</div>'
+
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.4rem;align-items:start;">'
+      + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;">Gate Closures</div>'
+      + '<div style="font-size:.68rem;color:var(--text2);line-height:1.45;">Hellscape: <strong style="color:var(--red2);">' + hClosed + '/10</strong> · Celestial: <strong style="color:var(--gold2);">' + cClosed + '/10</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.12rem;">Portal readiness: ' + portalProgress + '%</div>'
+      + '</div>'
+
+      + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;">Colosseum Record</div>'
+      + '<div style="font-size:.68rem;color:var(--text2);line-height:1.45;">Best clear: <strong style="color:var(--gold2);">' + (bestDie ? ('d' + bestDie) : 'none') + '</strong> · Total clears: <strong style="color:var(--teal);">' + Number(col.clears || 0) + '</strong></div>'
+      + '<div style="margin-top:.12rem;">' + historyHtml + '</div>'
+      + '</div>'
+
+      + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;">Pinnacle Portal</div>'
+      + '<div style="font-size:.68rem;color:var(--text2);line-height:1.45;">Status: <strong style="color:' + (portalStatus === 'Cleared' ? 'var(--green2)' : (portalStatus === 'Ready' || portalStatus === 'Active' ? 'var(--gold2)' : 'var(--muted2)')) + ';">' + portalStatus + '</strong>' + (gate.pinnacleBoss ? (' · Boss: ' + gate.pinnacleBoss) : '') + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.12rem;line-height:1.4;">' + retryText + (gate.lastKickoutAt ? (' · last: ' + gate.lastKickoutAt.slice(0, 10)) : '') + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;line-height:1.4;">Attempts: ' + Number(gate.portalAttempts || 0) + ' · Rule: fail/death kicks you out and resets gate closures.</div>'
+      + '</div>'
+      + '</div>'
+    + '</div>';
   }
 
   function spawnRandomSoulForgeMissionEvent(seedHint, force) {
@@ -538,6 +617,8 @@
     if (!mission) return null;
     state.pinnacleUnlocked = true;
     state.pinnacleBoss = boss;
+    state.kickoutPending = false;
+    state.portalAttempts = Math.max(0, Number(state.portalAttempts || 0) + 1);
     if (typeof showNotif === 'function') {
       showNotif('Portal opened: Pinnacle Megadungeon against ' + boss + ' is now active.', 'good');
     }
@@ -11835,6 +11916,24 @@
         var unlockMission = maybeUnlockPinnacleMegadungeonFromGateWar(gateState, gateType);
         if (unlockMission && typeof renderMissionTracker === 'function') renderMissionTracker();
       }
+      if (mission.missionType === 'colosseum_endless') {
+        var cState = ensureEndgameDirectorState().colosseum;
+        var tier = Math.max(4, Number(mission.colosseumTierDie || 4));
+        cState.clears = Math.max(0, Number(cState.clears || 0) + 1);
+        cState.bestClearDie = Math.max(Number(cState.bestClearDie || 0), tier);
+        cState.history.unshift({
+          at: new Date().toISOString(),
+          tierDie: tier,
+          enemy: String(mission.colosseumEnemyName || 'Arena Enemy'),
+          success: true
+        });
+        cState.history = cState.history.slice(0, 12);
+      }
+      if (mission.missionType === 'pinnacle_megadungeon') {
+        var pState = ensureEndgameDirectorState().gateWar;
+        pState.pinnacleCleared = true;
+        pState.kickoutPending = false;
+      }
       if (mission.missionType === 'colosseum_endless' && mission.colosseumUniqueReward) {
         mission.loot.push(String(mission.colosseumUniqueReward));
         newLoot.push(String(mission.colosseumUniqueReward));
@@ -11853,6 +11952,30 @@
         dropped = newLoot.slice();
       }
     } else {
+      if (mission.missionType === 'colosseum_endless') {
+        var cFailState = ensureEndgameDirectorState().colosseum;
+        cFailState.history.unshift({
+          at: new Date().toISOString(),
+          tierDie: Math.max(4, Number(mission.colosseumTierDie || 4)),
+          enemy: String(mission.colosseumEnemyName || 'Arena Enemy'),
+          success: false
+        });
+        cFailState.history = cFailState.history.slice(0, 12);
+      }
+      if (mission.missionType === 'pinnacle_megadungeon') {
+        var gFailState = ensureEndgameDirectorState().gateWar;
+        gFailState.pinnacleRetries = Math.max(0, Number(gFailState.pinnacleRetries || 0) + 1);
+        gFailState.kickoutPending = true;
+        gFailState.pinnacleUnlocked = false;
+        gFailState.pinnacleBoss = '';
+        gFailState.closedHellscape = 0;
+        gFailState.closedCelestial = 0;
+        gFailState.lastKickoutAt = new Date().toISOString();
+        gFailState.pinnacleCleared = false;
+        if (typeof showNotif === 'function') {
+          showNotif('Pinnacle run failed: kicked out. Gate closures reset to 0/10 and must be rebuilt.', 'warn');
+        }
+      }
       if (mission.missionType === 'legacy_raid' && !options.preserveVaultOnFail) {
         var runState = ensureLegacyRaidRunState(mission);
         if (runState && runState.raidVault) {
@@ -12198,11 +12321,12 @@
         + '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="openSoulForgeVendor()">Open Soul Forge</button></div>'
       + '</div>'
       : '';
-    if (!S.activeMissions.length && !holdingTrackerHtml && !pactCardHtml && !soulForgeCardHtml) {
+    var endgameCardHtml = buildEndgameTrackerCardHtml();
+    if (!S.activeMissions.length && !holdingTrackerHtml && !pactCardHtml && !soulForgeCardHtml && !endgameCardHtml) {
       container.innerHTML='<div style="font-size:.9rem;color:var(--text2);padding:.35rem 0;line-height:1.5;">No active missions. Accept a mission from the board above.</div>';
       return;
     }
-    container.innerHTML=holdingTrackerHtml + pactCardHtml + soulForgeCardHtml + S.activeMissions.map(function(mission){
+    container.innerHTML=holdingTrackerHtml + pactCardHtml + soulForgeCardHtml + endgameCardHtml + S.activeMissions.map(function(mission){
       if (mission && mission.missionType === 'legacy_raid') ensureLegacyRaidMissionConfig(mission);
       ensureMissionDeadline(mission);
       var diff=DIFFICULTIES[mission.difficulty]||DIFFICULTIES.easy, dc=dreadColor(diff.dread);

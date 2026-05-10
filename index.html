@@ -815,6 +815,7 @@ select option{background:#0f1020;}
     <button class="btn btn-sm" id="fullPhaseClockToggleBtn" onclick="toggleFullPhaseClock()">Full Clock: Off</button>
     <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Click: Travel</button>
     <button class="btn btn-sm btn-teal" id="mapHex3dBtn" onclick="toggleMapHex3d()">Hex 3D: On</button>
+    <button class="btn btn-sm" id="mapAtlasBtn" style="display:none;" onclick="if(typeof switchTab==='function'){var b=document.getElementById('tabnav-theos');switchTab('theos',b||null);}">Atlas</button>
     <select id="mapOverlaySel" onchange="setMapOverlay(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="none">Overlay: None</option>
       <option value="contour">Overlay: Contour</option>
@@ -823,6 +824,7 @@ select option{background:#0f1020;}
     </select>
     <button class="btn btn-sm" onclick="randomizeMapOverlay()">Random Overlay</button>
     <span id="mapTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Month 1, Day 1, Year 1 — Morning</span>
+    <span id="currentProvinceIndicator" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--teal);margin-left:.4rem;"></span>
     <span id="hexCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
   </div>
   <div class="map-legend">
@@ -11755,6 +11757,34 @@ function renderProvinceMarkerLegend(markers){
     }).join('');
 }
 
+function getActiveTheosProvinceContext(){
+  if(typeof window.getActiveTheosProvinceSummary==='function'){
+    try{return window.getActiveTheosProvinceSummary()||null;}catch(_err){}
+  }
+  return null;
+}
+
+function isKnownRealmModeActive(){
+  return !!(typeof S!=='undefined'&&S&&String(S.realmEntryMode||'').toLowerCase()==='known_realm');
+}
+
+function updateProvinceContextUi(){
+  const provinceBadge=document.getElementById('currentProvinceIndicator');
+  const atlasBtn=document.getElementById('mapAtlasBtn');
+  const activeCtx=getActiveTheosProvinceContext();
+  if(provinceBadge){
+    if(activeCtx&&activeCtx.name){
+      const climate=activeCtx.climateBand?(' · '+String(activeCtx.climateBand)):' '; 
+      provinceBadge.textContent='Province: '+String(activeCtx.name)+' (Threat '+Number(activeCtx.threat||0)+')'+climate;
+    }else{
+      provinceBadge.textContent='';
+    }
+  }
+  if(atlasBtn){
+    atlasBtn.style.display=isKnownRealmModeActive()?'':'none';
+  }
+}
+
 function renderHexMap(){
   ensureProvinceLibraryHex();
   ensureProvinceConflictFronts(false);
@@ -11771,6 +11801,7 @@ function renderHexMap(){
     markersByHex[k].push(m);
   });
   renderProvinceMarkerLegend(liveMarkers);
+  updateProvinceContextUi();
   const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20;
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';
@@ -12243,6 +12274,7 @@ function renderHexInfo(hex){
   const provincePadProgress=getSecretPadClueProgress('province');
   const provincePadUnlocked=isSecretPadUnlocked('province');
   const season=S.currentSeason||'spring';
+  const activeProvinceCtx=getActiveTheosProvinceContext();
   // Store weather roll in hex data so it persists across renders (fixes Province tab rerolling in campaign mode)
   const wr=d.weatherRoll || roll(6);if(!d.weatherRoll)d.weatherRoll=wr;
   const weatherResult=WEATHER[season][wr-1];
@@ -12251,7 +12283,14 @@ function renderHexInfo(hex){
   let html='<div class="hex-info-inner">';
   html+=`<div class="hex-type-tag ${hex.type}">${hex.type.toUpperCase()}</div>`;
   html+=`<div class="hex-name">${hex.name||hex.terrain.name}</div>`;
-  html+=`<div class="hex-desc" style="margin-bottom:.4rem;">${hex.terrain.name} terrain</div>`;
+  html+=`<div class="hex-desc" style="margin-bottom:.4rem;">${hex.terrain.name} terrain${activeProvinceCtx&&activeProvinceCtx.name?` · ${activeProvinceCtx.name}`:''}</div>`;
+
+  if(d.theosFlavor&&d.theosFlavor.detail){
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.06);">
+      <div class="nb-label" style="color:#7ed7ff;">✶ ${escapeHtmlLite(d.theosFlavor.label||'Province Flavor')}</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.55;">${escapeHtmlLite(d.theosFlavor.detail||'')}</div>
+    </div>`;
+  }
 
   if (d.gmMarker && ((window.Settings && window.Settings.gameMode === 'gm') || (document.body && document.body.classList.contains('gm-mode')))) {
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(176,96,208,.55);background:rgba(176,96,208,.08);">
@@ -16743,7 +16782,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     var flow = ensureArenaFlowState();
     var key = String((context && context.hexKey) || '');
     var arenaMode = String(mode || 'challenge');
-    var queue = arenaMode === 'endless' ? [4, 6, 8, 10, 12, 20] : [ARENA_DICE[Math.floor(Math.random() * ARENA_DICE.length)]];
+    var queue = arenaMode === 'endless'
+      ? [4, 6, 8, 10, 12, 20]
+      : (arenaMode === 'challenge' ? [6, 8, 10] : [ARENA_DICE[Math.floor(Math.random() * ARENA_DICE.length)]]);
     var bossName = context && context.bossName ? String(context.bossName) : '';
     flow.active = true;
     flow.mode = arenaMode;
@@ -16846,14 +16887,14 @@ document.addEventListener('DOMContentLoaded',()=>{
         ? 'Defeat all hostiles, then pass a seal puzzle to close this portal.'
       : (mode === 'endless'
         ? 'Clear the full chain for bonus credits, renown, and loot.'
-        : 'Challenge rewards are granted when the enemy is defeated.'));
+        : 'Challenge bracket: win all bouts to claim full colosseum rewards.'));
     var actionButtons = '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'strike\');">Strike</button>'
       + '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'shoot\');">Shoot</button>'
       + '<button class="btn btn-sm" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'defend\');">Defend</button>'
       + '<button class="btn btn-sm btn-teal" onclick="executeArenaSpecialAction();">' + specialName + '</button>'
       + '<button class="btn btn-sm" onclick="if(typeof switchTab===\'function\'){var b=document.getElementById(\'tabnav-combat\');switchTab(\'combat\',b||null);}">Open Combat Tab</button>';
     var extraButtons = '';
-    if (mode === 'endless' && flow && Array.isArray(flow.queue) && Number(flow.index || 0) < flow.queue.length - 1 && !arenaCombatHasAliveHostiles()) {
+    if ((mode === 'endless' || mode === 'challenge') && flow && Array.isArray(flow.queue) && Number(flow.index || 0) < flow.queue.length - 1 && !arenaCombatHasAliveHostiles()) {
       extraButtons += '<button class="btn btn-sm btn-warn" onclick="advanceArenaCombatWave();">Next Combatant</button>';
     }
     if (!arenaCombatHasAliveHostiles() && mode !== 'gate') {
@@ -16993,7 +17034,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       }
       flow.completed = true;
       if (typeof showNotif === 'function') showNotif('Pinnacle cleared. ' + rewardCredits + ' Credits and ' + rewardRenown + ' Renown awarded.', 'good');
-    } else if (flow.mode === 'endless' && Number(flow.index || 0) < queue.length - 1) {
+    } else if ((flow.mode === 'endless' || flow.mode === 'challenge') && Number(flow.index || 0) < queue.length - 1) {
       return advanceArenaCombatWave();
     } else {
       flow.completed = true;

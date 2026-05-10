@@ -299,7 +299,22 @@ Enter the game.
     window.switchTab(String(tabId || ''), btn || null);
   }
 
+  function ensureRunState() {
+    if (typeof window === 'undefined') return null;
+    window.S = window.S || {};
+    return window.S;
+  }
+
+  function shouldBootstrapKnownRealmCharacter(state) {
+    if (!state) return false;
+    var hasName = !!String(state.name || '').trim();
+    var hasBackstory = !!(state.backstory && (state.backstory.origin || state.backstory.notes || state.backstory.hometown));
+    return !hasName || !hasBackstory;
+  }
+
   function enterLegacyMode() {
+    var state = ensureRunState();
+    if (state) state.realmEntryMode = 'legacy';
     switchToTabSafe('character');
     if (typeof showNotif === 'function') {
       showNotif('Legacy Mode initialized.', 'good');
@@ -307,8 +322,20 @@ Enter the game.
   }
 
   function enterKnownRealmMode() {
+    var state = ensureRunState();
+    if (state) state.realmEntryMode = 'known_realm';
     if (window.settingsSystem && typeof window.settingsSystem.setGameMode === 'function') {
       try { window.settingsSystem.setGameMode('solo'); } catch (_err) {}
+    }
+    if (shouldBootstrapKnownRealmCharacter(state) && typeof window.generateCharacter === 'function') {
+      try {
+        window.generateCharacter();
+      } catch (_err2) {
+        // Keep mode switch resilient even if character bootstrap fails.
+      }
+    }
+    if (typeof window.theosPrimeStartingProvince === 'function') {
+      try { window.theosPrimeStartingProvince(); } catch (_err3) {}
     }
     switchToTabSafe('theos');
     if (typeof showNotif === 'function') {

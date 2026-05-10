@@ -584,7 +584,17 @@
     spawner.counter = Number(spawner.counter || 0) + 1;
     spawner.nextEligibleDayStamp = dayStamp + 2;
     if (typeof showNotif === 'function') {
-      showNotif('Soul Forge signal detected: ' + mission.title + ' has appeared.', 'warn');
+      var regionLabelMap = {
+        province: 'Province Map',
+        sea: 'Sea Region',
+        galaxy: 'Galaxy Routes',
+        planet: 'Planet Surface',
+        wtw: 'World That Was'
+      };
+      var missionRegion = String(mission.region || region || 'province').toLowerCase();
+      var missionRegionLabel = regionLabelMap[missionRegion] || missionRegion;
+      var missionSite = String(mission.location || location || 'Unknown location');
+      showNotif('Soul Forge mission detected: ' + mission.title + ' at ' + missionSite + ' (' + missionRegionLabel + ').', 'warn');
     }
     recordMissionConsequence({
       system: 'missions',

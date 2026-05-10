@@ -76,9 +76,56 @@
     state.portalsByScope[scopeKey] = {
       dayStamp: dayStamp,
       signature: signature,
+      keys: keys.slice(),
       portals: portals
     };
     return portals;
+  }
+
+  function getScopeHexKeys(scope, fallbackKeys) {
+    var scoped = String(scope || 'province').toLowerCase();
+    if (Array.isArray(fallbackKeys) && fallbackKeys.length) {
+      return fallbackKeys.map(function (k) { return String(k || ''); }).filter(Boolean);
+    }
+    if (scoped === 'sea' && S && S.lastSea && Array.isArray(S.lastSea.map)) {
+      return S.lastSea.map.filter(function (hex) { return !!hex; }).map(function (hex) { return String(hex.key || (String(hex.col) + ',' + String(hex.row))); });
+    }
+    if (scoped === 'province' && Array.isArray(window.mapData)) {
+      return window.mapData.filter(function (hex) { return !!hex; }).map(function (hex) { return String(hex.col) + ',' + String(hex.row); });
+    }
+    return [];
+  }
+
+  function spawnReplacementPortal(flow) {
+    var state = ensureState();
+    if (!state || !state.portalsByScope) return null;
+    var scope = String(flow && flow.gatePortal && flow.gatePortal.scope || 'province');
+    var cache = state.portalsByScope[scope];
+    if (!cache || !Array.isArray(cache.portals)) return null;
+
+    var knownKeys = getScopeHexKeys(scope, cache.keys || []);
+    if (!knownKeys.length) return null;
+    var occupied = {};
+    cache.portals.forEach(function (p) {
+      if (!p) return;
+      occupied[String(p.key || '')] = true;
+    });
+
+    var available = knownKeys.filter(function (k) {
+      return !!k && !occupied[String(k)];
+    });
+    if (!available.length) return null;
+    var roll = hashString(String(scope) + '|' + String(Date.now()) + '|' + String(state.gatesClosed || 0));
+    var nextKey = available[roll % available.length];
+    var gateType = pickPortalGateType(scope, nextKey, cache.portals.length + 1);
+    var portal = {
+      key: nextKey,
+      gateType: gateType,
+      closed: false,
+      puzzleAttempts: 0
+    };
+    cache.portals.push(portal);
+    return portal;
   }
 
   function getPortalMarker(scope, key, allKeys) {
@@ -326,13 +373,17 @@
       if (success) {
         state.gatesClosed = Math.max(0, Number(state.gatesClosed || 0) + 1);
         closeGatePortalOnMap(flow);
+        var replacement = spawnReplacementPortal(flow);
         var credits = 80;
         var renown = 1;
         S.credits = Math.max(0, Number(S.credits || 0) + credits);
         S.renown = Math.max(0, Number(S.renown || 0) + renown);
         if (typeof updateCreditsUI === 'function') updateCreditsUI();
         if (typeof updateRenown === 'function') updateRenown();
-        if (typeof showNotif === 'function') showNotif('Portal sealed. +' + credits + ' Credits, +' + renown + ' Renown. Gates sealed: ' + state.gatesClosed + '/10.', 'good');
+        if (typeof showNotif === 'function') {
+          var nextGateText = replacement ? (' New gate detected at hex ' + String(replacement.key || '') + '.') : '';
+          showNotif('Portal sealed. +' + credits + ' Credits, +' + renown + ' Renown. Gates sealed: ' + state.gatesClosed + '/10.' + nextGateText, 'good');
+        }
         if (flow.gatePortal && typeof flow.gatePortal.onSealed === 'function') {
           try { flow.gatePortal.onSealed(); } catch (_sealErr) {}
         }

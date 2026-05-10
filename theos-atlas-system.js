@@ -1049,6 +1049,81 @@
     });
   }
 
+  function buildProvinceFlavorPool(provinceId) {
+    var lore = getProvinceLore(provinceId);
+    var dna = buildRegionalDNA(provinceId) || {};
+    var tables = buildProvinceContentTables(provinceId) || { settlements: [], dungeons: [], quests: [] };
+    var seeded = [];
+
+    (lore.places || []).forEach(function (item) {
+      seeded.push({ kind: 'notable', label: String(item), detail: 'Notable location tied to provincial annals.' });
+    });
+    (lore.fractures || []).forEach(function (item) {
+      seeded.push({ kind: 'fracture', label: 'Fracture Line', detail: String(item) });
+    });
+    (dna.scars || []).forEach(function (item) {
+      seeded.push({ kind: 'scar', label: 'Historical Scar', detail: String(item) });
+    });
+    (dna.myths || []).forEach(function (item) {
+      seeded.push({ kind: 'myth', label: 'Local Myth', detail: String(item) });
+    });
+    (tables.settlements || []).forEach(function (row) {
+      if (!row) return;
+      seeded.push({ kind: 'settlement', label: 'Settlement', detail: String(row.kind || 'Settlement') + ' · ' + String(row.districtTrait || 'district') });
+    });
+    (tables.dungeons || []).forEach(function (row) {
+      if (!row) return;
+      seeded.push({ kind: 'dungeon', label: 'Dungeon Theme', detail: String(row.theme || 'Ruin') + ' · Boss: ' + String(row.boss || 'Unknown') });
+    });
+    (tables.quests || []).slice(0, 6).forEach(function (row) {
+      if (!row) return;
+      seeded.push({ kind: 'quest', label: 'Quest Hook', detail: String(row.hook || 'Regional contract') + ' · ' + String(row.tension || '') });
+    });
+    if (lore.chronicle) {
+      seeded.push({ kind: 'chronicle', label: 'Chronicle', detail: String(lore.chronicle) });
+    }
+    return seeded;
+  }
+
+  function injectProvinceFlavorSites(provinceId) {
+    if (!Array.isArray(window.mapData) || !window.mapData.length) return;
+    var pool = buildProvinceFlavorPool(provinceId);
+    if (!pool.length) return;
+
+    var candidates = window.mapData.filter(function (hex) {
+      if (!hex) return false;
+      var t = String(hex.type || '');
+      return t === 'wilderness' || t === 'trade' || t === 'ruins' || t === 'monument' || t === 'lostcity';
+    });
+    if (!candidates.length) candidates = window.mapData.slice();
+    if (!candidates.length) return;
+
+    var used = {};
+    var picks = Math.min(pool.length, Math.max(12, Math.floor(candidates.length * 0.22)));
+    for (var i = 0; i < picks; i++) {
+      var flavor = pool[i % pool.length];
+      var idx = hashString(String(provinceId || '') + '|flavor|' + i) % candidates.length;
+      var guard = 0;
+      while (used[idx] && guard < candidates.length) {
+        idx = (idx + 5) % candidates.length;
+        guard += 1;
+      }
+      if (used[idx]) continue;
+      used[idx] = true;
+      var hex = candidates[idx];
+      if (!hex.data || typeof hex.data !== 'object') hex.data = {};
+      hex.data.theosFlavor = {
+        kind: String(flavor.kind || 'flavor'),
+        label: String(flavor.label || 'Province Flavor'),
+        detail: String(flavor.detail || ''),
+        provinceId: String(provinceId || '')
+      };
+      if ((flavor.kind === 'notable' || flavor.kind === 'settlement') && !hex.name) {
+        hex.name = String(flavor.detail || flavor.label || 'Notable Site');
+      }
+    }
+  }
+
   function enterProvince(provinceId) {
     var st = ensureState();
     var targetProvince = provinceById(provinceId);
@@ -1079,6 +1154,7 @@
 
     st.activeProvinceId = targetProvince.id;
     st.selectedProvinceId = targetProvince.id;
+    window.S.realmEntryMode = 'known_realm';
     st.unlocked[targetProvince.id] = true;
     markDiscovered(targetProvince.id);
 
@@ -1092,6 +1168,7 @@
     }
 
     applyProvinceTopography(targetProvince.id);
+    injectProvinceFlavorSites(targetProvince.id);
     if (typeof window.renderHexMap === "function") {
       try { window.renderHexMap(); } catch (_rhErr) {}
     }
@@ -1167,6 +1244,22 @@
     switchToTab(tabId);
   }
 
+  function primeStartingProvinceIfNeeded() {
+    var st = ensureState();
+    if (!st || st.activeProvinceId !== 'rosegrove') return false;
+    if (st.provinceSnapshots && st.provinceSnapshots.rosegrove && Array.isArray(st.provinceSnapshots.rosegrove.mapData)) return true;
+    if (typeof window.generateMap !== 'function') return false;
+    try {
+      window.generateMap();
+      applyProvinceTopography('rosegrove');
+      injectProvinceFlavorSites('rosegrove');
+      saveProvinceSnapshot();
+      return true;
+    } catch (_primeErr) {
+      return false;
+    }
+  }
+
   function getActiveProvinceDNA() {
     var st = ensureState();
     if (!st.activeProvinceId) return null;
@@ -1177,6 +1270,23 @@
     var st = ensureState();
     if (!st.activeProvinceId) return null;
     return buildProvinceContentTables(st.activeProvinceId);
+  }
+
+  function getActiveProvinceSummary() {
+    var st = ensureState();
+    var id = st.activeProvinceId;
+    if (!id) return null;
+    var province = provinceById(id);
+    if (!province) return null;
+    return {
+      id: String(province.id || ''),
+      name: String(province.name || ''),
+      continent: String(province.continent || ''),
+      threat: Number(province.threat || 0),
+      climateBand: String(province.climateBand || ''),
+      lore: getProvinceLore(id),
+      dna: buildRegionalDNA(id)
+    };
   }
 
   function patchSwitchTab() {
@@ -1195,6 +1305,7 @@
   function bootstrap() {
     ensureState();
     patchSwitchTab();
+    primeStartingProvinceIfNeeded();
     if (byId("tab-theos")) {
       renderAtlas();
     }
@@ -1215,6 +1326,8 @@
   window.getTheosMissionBias = getTheosMissionBias;
   window.getTheosFactionFlavor = getTheosFactionFlavor;
   window.getTheosStorylineModifier = getTheosStorylineModifier;
+  window.getActiveTheosProvinceSummary = getActiveProvinceSummary;
+  window.theosPrimeStartingProvince = primeStartingProvinceIfNeeded;
 
   document.addEventListener("DOMContentLoaded", bootstrap);
 })();

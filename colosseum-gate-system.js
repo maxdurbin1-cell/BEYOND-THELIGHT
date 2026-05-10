@@ -60,7 +60,10 @@
         }
       });
     }
-    if (!opened) notifyArenaPopupUnavailable(fallbackMessage || 'Combat popup was blocked. Re-open the encounter from the map marker.');
+    if (!opened) {
+      forceArenaFallbackSurface(payload || {});
+      notifyArenaPopupUnavailable(fallbackMessage || 'Combat popup was blocked. Routed to Combat tab as fallback.');
+    }
     return opened;
   }
 
@@ -294,6 +297,21 @@
     if (typeof showNotif === 'function') {
       showNotif(String(message || 'Unable to open popup combat right now. Try again.'), 'warn');
     }
+  }
+
+  function forceArenaFallbackSurface(payload) {
+    try {
+      if (typeof switchTab === 'function') {
+        var combatBtn = document.querySelector(".tab-btn[onclick*=\"switchTab('combat'\"]");
+        switchTab('combat', combatBtn || null);
+      }
+      if (typeof updateCombatUI === 'function') updateCombatUI();
+      if (typeof renderEnemies === 'function') renderEnemies();
+      if (typeof renderQP === 'function') renderQP('combat');
+      if (payload && typeof payload.title === 'string' && typeof showNotif === 'function') {
+        showNotif(String(payload.title) + ' active in Combat tab.', 'info');
+      }
+    } catch (_err) {}
   }
 
   function openSeaColosseumArena(mode, hexKey) {

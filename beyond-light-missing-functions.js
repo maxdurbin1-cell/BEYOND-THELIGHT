@@ -742,6 +742,15 @@ var _tmwFailGuard = { key: '', at: 0 };
 var _tmwFailPromptGuard = { at: 0 };
 var _failedRollContext = null;
 
+function isModalCurrentlyOpen() {
+  try {
+    var overlay = document.getElementById('rollModal');
+    return !!(overlay && overlay.classList && overlay.classList.contains('open'));
+  } catch (_err) {
+    return false;
+  }
+}
+
 function inferFailedRollContextFromCore(reason, cfg) {
   try {
     if (typeof window.getRecentExplodingRollPair !== 'function') return null;
@@ -796,6 +805,12 @@ function awardTeamworkOnFailure(reason, opts) {
 function openFailedRollFollowup(reason) {
   if (typeof openModal !== 'function' || typeof S === 'undefined' || !S) return;
   if (window._pendingStoryRoll || window._pendingWtwTaskRoll) return;
+  if (isModalCurrentlyOpen()) {
+    if (typeof showNotif === 'function') {
+      showNotif('Failed roll: +Teamwork applied. Use the next failure prompt to convert or reroll.', 'info');
+    }
+    return;
+  }
   var now = Date.now();
   if ((now - Number(_tmwFailPromptGuard.at || 0)) < 500) return;
   _tmwFailPromptGuard.at = now;

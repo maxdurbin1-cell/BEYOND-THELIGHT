@@ -431,7 +431,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-planet" id="tabnav-planet" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-exocrafts" id="tabnav-exocrafts" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-naval" id="tabnav-naval" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-shop" id="tabnav-shop" onclick="switchTab('shop',this)">Browse</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-shop" id="tabnav-shop" onclick="switchTab('shop',this)">Merchant</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
@@ -11100,9 +11100,9 @@ function setContext(ctx,btn){
   // Store active context for expansion scripts
   window._activeContext = ctx;
 
-  // Holding context uses a merchants-facing label, while other contexts keep Browse.
+  // Keep the shop tab label consistent across all contexts.
   var shopTabBtn=document.getElementById('tabnav-shop');
-  if(shopTabBtn) shopTabBtn.textContent=(ctx==='holding'?'Merchants':'Browse');
+  if(shopTabBtn) shopTabBtn.textContent='Merchant';
 
   // Jump to the primary tab for each location mode.
   const defaultTabByContext={

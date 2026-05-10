@@ -188,7 +188,9 @@
 
   var SOUL_MISSION_BOSSES = ['The Hollow Saint', 'The Cinder Warden', 'The Bone Regent', 'The Echo Maw', 'The Pale Engine', 'The Wailing Herald', 'The Starved Oracle', 'The Ash Crown', 'The Gilded Parasite', 'The Grave Choir', 'The Rift Shepherd', 'The Blackened Throne'];
   var SOUL_MISSION_LOCS = ['Shattered Reliquary', 'Catacomb Blacksite', 'Fallen Temple Vault', 'Hollow Observatory', 'Cinder Crypt', 'Ruin Gate Sanctum', 'Ashen Ossuary', 'Silent Sepulcher', 'Warden Crypt', 'Echo Vault'];
-  var SOUL_MISSION_ICONS = ['⚒'];
+  var SOUL_MISSION_ICONS = ['⚒', '☠'];
+  var COLOSSEUM_MISSION_ICONS = ['🏟', '⚔'];
+  var GATE_WAR_MISSION_ICONS = ['🌀', '🚪'];
 
   var REGIONAL_ARC_TEMPLATES = {
     escalation: {
@@ -726,6 +728,7 @@
     mission.colosseumEnemyName = enemyName;
     mission.colosseumEnemySkill = enemySkill;
     mission.colosseumUniqueReward = uniqueReward;
+    mission.colosseumIcon = COLOSSEUM_MISSION_ICONS[Math.abs(seed + 59) % COLOSSEUM_MISSION_ICONS.length] || '🏟';
     state.counter = Number(state.counter || 0) + 1;
     state.nextEligibleDayStamp = dayStamp + 3;
     if (typeof showNotif === 'function') showNotif('Endgame signal: Colosseum Trial posted in the Endless Sea.', 'warn');
@@ -895,10 +898,33 @@
     mission.gateWarType = gateType;
     mission.gateWarEnemyBrief = enemyBrief;
     mission.gateWarPuzzle = puzzle;
+    mission.gateWarIcon = GATE_WAR_MISSION_ICONS[Math.abs(seed + 67) % GATE_WAR_MISSION_ICONS.length] || '🌀';
     state.counter = Number(state.counter || 0) + 1;
     state.nextEligibleDayStamp = dayStamp + 2;
     if (typeof showNotif === 'function') showNotif('Gate War alert: ' + title + ' has appeared.', 'warn');
     return mission;
+  }
+
+  function syncRandomEndgameMissionSpawns(force) {
+    ensureState();
+    var isForced = !!force;
+    var stamp = getCurrentGameDayStamp();
+    if (!stamp && !isForced) return null;
+    var seed = Number(stamp || 0) + Number(Date.now() % 100000);
+    var created = [];
+    try {
+      var soul = spawnRandomSoulForgeMissionEvent(seed + 11, isForced);
+      if (soul) created.push(soul);
+    } catch (_soulErr) {}
+    try {
+      var colosseum = spawnRandomColosseumMissionEvent(seed + 23, isForced);
+      if (colosseum) created.push(colosseum);
+    } catch (_colErr) {}
+    try {
+      var gate = spawnRandomGateWarMissionEvent(seed + 37, isForced);
+      if (gate) created.push(gate);
+    } catch (_gateErr) {}
+    return created;
   }
 
   function maybeUnlockPinnacleMegadungeonFromGateWar(state, sourceGateType) {
@@ -1510,6 +1536,15 @@
     return steps[dread] || dread;
   }
 
+  function getMissionTokenIcon(mission) {
+    if (!mission || typeof mission !== 'object') return undefined;
+    var type = String(mission.missionType || '').toLowerCase();
+    if (type === 'soul_mission') return String(mission.soulIcon || SOUL_MISSION_ICONS[0] || '⚒');
+    if (type === 'colosseum_endless') return String(mission.colosseumIcon || COLOSSEUM_MISSION_ICONS[0] || '🏟');
+    if (type === 'gate_war') return String(mission.gateWarIcon || GATE_WAR_MISSION_ICONS[0] || '🌀');
+    return undefined;
+  }
+
   function assignMissionToken(mission) {
     ensureState();
     if (mission.region === 'wtw' && S.worldThatWas && Array.isArray(S.worldThatWas.hexes) && S.worldThatWas.hexes.length) {
@@ -1590,6 +1625,7 @@
     }
     if (mission.region === 'sea' && S.lastSea && Array.isArray(S.lastSea.map) && S.lastSea.map.length) {
       S.lastSea.missionTokens = S.lastSea.missionTokens || {};
+      var seaTokenIcon = getMissionTokenIcon(mission);
       var seaCandidates = S.lastSea.map.filter(function(hex) { return hex.type === 'island' || hex.siteType; });
       if (!seaCandidates.length) { seaCandidates = S.lastSea.map.slice(); }
       if (seaCandidates.length) {
@@ -1601,7 +1637,7 @@
           title: mission.title,
           type: 'site',
           missionType: mission.missionType || 'standard',
-          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
+          icon: seaTokenIcon
         };
         mission.seaSiteKey = siteHex.key;
         if (informerHex) {
@@ -1610,7 +1646,7 @@
             title: mission.title,
             type: 'informer',
             missionType: mission.missionType || 'standard',
-            icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
+            icon: seaTokenIcon
           };
           mission.seaInformerKey = informerHex.key;
         }
@@ -1624,6 +1660,7 @@
       }
     }
     if (typeof mapData !== 'undefined' && mapData.length) {
+      var provinceTokenIcon = getMissionTokenIcon(mission);
       var candidates = mapData.filter(function(h) { return h.type === 'wilderness'; });
       if (candidates.length >= 2) {
         // Pick two distinct hexes: one for the Informer (step 1), one for the Site (steps 2-3)
@@ -1635,7 +1672,7 @@
           title: mission.title,
           type: 'informer',
           missionType: mission.missionType || 'standard',
-          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
+          icon: provinceTokenIcon
         };
         mission.informerHex = { col: informerHex.col, row: informerHex.row };
         mission.siteHex     = { col: siteHex.col,     row: siteHex.row };
@@ -1647,7 +1684,7 @@
               title: mission.title,
               type: 'site',
               missionType: mission.missionType || 'legacy_raid',
-              icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
+              icon: provinceTokenIcon
             };
           } else {
             delete S.missionTokens[siteHex.col + ',' + siteHex.row];
@@ -1658,7 +1695,7 @@
               title: mission.title,
               type: 'site',
               missionType: mission.missionType || 'standard',
-              icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
+              icon: provinceTokenIcon
             };
         }
         // Keep mapHex pointing to site for backwards compatibility
@@ -1670,7 +1707,7 @@
           title: mission.title,
           type: 'site',
           missionType: mission.missionType || 'standard',
-          icon: mission.missionType === 'soul_mission' ? String(mission.soulIcon || '⚒') : undefined
+          icon: provinceTokenIcon
         };
         mission.siteHex = { col: hex.col, row: hex.row };
         mission.mapHex  = mission.siteHex;
@@ -2034,6 +2071,7 @@
 
   function generateMissions() {
     ensureState();
+    try { syncRandomEndgameMissionSpawns(false); } catch (_spawnErr) {}
     S.availableJobs = [];
     var seed = Date.now();
     var count = Math.max(1, Math.min(4, roll(4)));
@@ -13130,6 +13168,7 @@
   window.spawnRandomSoulForgeMissionEvent=spawnRandomSoulForgeMissionEvent;
   window.spawnRandomColosseumMissionEvent=spawnRandomColosseumMissionEvent;
   window.spawnRandomGateWarMissionEvent=spawnRandomGateWarMissionEvent;
+  window.syncRandomEndgameMissionSpawns=syncRandomEndgameMissionSpawns;
   window.openSeaColosseumFromHex=openSeaColosseumFromHex;
   window.resolveSeaColosseumBout=resolveSeaColosseumBout;
   window.autoFailExpiredMissions=autoFailExpiredMissions;

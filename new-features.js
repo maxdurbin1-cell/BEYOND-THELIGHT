@@ -147,7 +147,17 @@
       retainerContracts: 0,
       regentFailures: 0,
       crises: [],
-      taxLog: []
+      taxLog: [],
+      crucible: {
+        wins: 0,
+        losses: 0,
+        roundsPlayed: 0,
+        lastResult: '',
+        bestWinStreak: 0,
+        currentWinStreak: 0,
+        lastAt: 0,
+        match: null
+      }
     }, prevHolding);
     S.holding.wayfarerHome = Object.assign({
       decorLevel: 0,
@@ -164,6 +174,18 @@
       if (!Array.isArray(S.holding.vault))          { S.holding.vault = []; }
     if (!Array.isArray(S.holding.councilTasks))    { S.holding.councilTasks = []; }
     if (!Array.isArray(S.holding.taxLog))         { S.holding.taxLog = []; }
+    if (!S.holding.crucible || typeof S.holding.crucible !== 'object') {
+      S.holding.crucible = {
+        wins: 0,
+        losses: 0,
+        roundsPlayed: 0,
+        lastResult: '',
+        bestWinStreak: 0,
+        currentWinStreak: 0,
+        lastAt: 0,
+        match: null
+      };
+    }
     if (!S.holding.governance || typeof S.holding.governance !== 'object') {
       S.holding.governance = {
         patrolStance: 'balanced',
@@ -500,6 +522,11 @@
           '<div class="section-title">Regional Governance</div>',
           '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Late-game policy loop (Renown 12+). Set patrol, tariff, and route priorities to shape consequence spread, mission bias, and market pressure.</div>',
           '<div id="holdingGovernancePanel"></div>',
+        '</div>',
+        '<div class="card">',
+          '<div class="section-title">Crucible 6v6 Tactical Simulator</div>',
+          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Training scenario launched from Holdings. Test your Wayfarer against a full 6v6 tactical engagement with hex-zone positioning and round-by-round combat pressure.</div>',
+          '<div id="holdingCruciblePanel"></div>',
         '</div>',
         // Perils of Leadership — full width
         '<div class="card">',
@@ -1307,6 +1334,11 @@
         + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">Current Policy: Patrol <strong>' + gov.patrolStance + '</strong> · Tariff <strong>' + gov.tariffStance + '</strong> · Route <strong>' + gov.routePriority + '</strong></div>';
     }
 
+    var crucibleEl = document.getElementById('holdingCruciblePanel');
+    if (crucibleEl) {
+      crucibleEl.innerHTML = buildHoldingCruciblePanelHtml();
+    }
+
     renderHoldingCrises();
 
     // Holding Vault
@@ -1413,6 +1445,281 @@
     };
     var start = base[key] || 400;
     return start + (Number(level || 0) * 250);
+  }
+
+  function getCrucibleStatDie(key, fallback) {
+    if (typeof getEffectiveDie === 'function') {
+      try {
+        return Math.max(4, Number(getEffectiveDie(String(key || '')) || fallback || 6));
+      } catch (_err) {}
+    }
+    return Math.max(4, Number((S && S.stats && S.stats[key]) || fallback || 6));
+  }
+
+  function buildCrucibleUnit(name, side, role, idx) {
+    var safeRole = String(role || 'assault').toLowerCase();
+    var range = safeRole === 'sniper' ? 'Nearby' : (safeRole === 'support' ? 'Close' : 'Engaged');
+    var baseAttack = safeRole === 'sniper' ? 10 : (safeRole === 'support' ? 8 : 8);
+    var baseDefend = safeRole === 'tank' ? 10 : 8;
+    var hp = safeRole === 'tank' ? 16 : (safeRole === 'support' ? 12 : 10);
+    return {
+      id: String(side) + '-' + String(idx + 1) + '-' + String(Date.now()),
+      name: String(name || 'Unit'),
+      side: String(side || 'ally'),
+      role: safeRole,
+      range: range,
+      hp: hp,
+      maxHp: hp,
+      attackDie: baseAttack,
+      defendDie: baseDefend,
+      ap: 2
+    };
+  }
+
+  function createHoldingCrucibleMatch() {
+    ensureNewFeatureState();
+    var crucible = S.holding.crucible;
+    var playerName = String((S && S.name) || 'Wayfarer');
+    var allies = [
+      {
+        id: 'ally-player-' + String(Date.now()),
+        name: playerName,
+        side: 'ally',
+        role: 'player',
+        range: 'Engaged',
+        hp: Math.max(8, Number((S && S.health) || 12)),
+        maxHp: Math.max(8, Number((S && S.health) || 12)),
+        attackDie: Math.max(getCrucibleStatDie('strike', 8), getCrucibleStatDie('shoot', 8)),
+        defendDie: getCrucibleStatDie('defend', 8),
+        ap: 2,
+        isPlayer: true
+      },
+      buildCrucibleUnit('Vanguard Sel', 'ally', 'tank', 1),
+      buildCrucibleUnit('Scout Arix', 'ally', 'sniper', 2),
+      buildCrucibleUnit('Binder Kori', 'ally', 'support', 3),
+      buildCrucibleUnit('Ravager Nyx', 'ally', 'assault', 4),
+      buildCrucibleUnit('Sentry Vale', 'ally', 'tank', 5)
+    ];
+    var enemies = [
+      buildCrucibleUnit('Red Team Captain', 'enemy', 'tank', 0),
+      buildCrucibleUnit('Red Team Lancer', 'enemy', 'assault', 1),
+      buildCrucibleUnit('Red Team Marksman', 'enemy', 'sniper', 2),
+      buildCrucibleUnit('Red Team Warden', 'enemy', 'tank', 3),
+      buildCrucibleUnit('Red Team Hexer', 'enemy', 'support', 4),
+      buildCrucibleUnit('Red Team Stalker', 'enemy', 'assault', 5)
+    ];
+    crucible.match = {
+      active: true,
+      round: 1,
+      allies: allies,
+      enemies: enemies,
+      log: ['Crucible match opened: 6v6 tactical simulation.'],
+      startedAt: Date.now(),
+      finishedAt: 0,
+      winner: ''
+    };
+    return crucible.match;
+  }
+
+  function getHoldingCrucibleMatch() {
+    ensureNewFeatureState();
+    var c = S.holding.crucible;
+    return c && c.match && c.match.active ? c.match : null;
+  }
+
+  function getLivingTeamUnits(units) {
+    return (Array.isArray(units) ? units : []).filter(function (u) { return u && Number(u.hp || 0) > 0; });
+  }
+
+  function getRandomTeamTarget(units) {
+    var living = getLivingTeamUnits(units);
+    if (!living.length) return null;
+    return living[Math.floor(Math.random() * living.length)] || null;
+  }
+
+  function runCrucibleAttack(attacker, defender, log) {
+    if (!attacker || !defender || Number(attacker.hp || 0) <= 0 || Number(defender.hp || 0) <= 0) return;
+    var ad = Math.max(4, Number(attacker.attackDie || 6));
+    var dd = Math.max(4, Number(defender.defendDie || 6));
+    var a = (typeof explodingRoll === 'function') ? explodingRoll(ad) : { total: (Math.floor(Math.random() * ad) + 1) };
+    var d = (typeof explodingRoll === 'function') ? explodingRoll(dd) : { total: (Math.floor(Math.random() * dd) + 1) };
+    var damage = Math.max(0, Number(a.total || 0) - Number(d.total || 0));
+    if (damage > 0) {
+      defender.hp = Math.max(0, Number(defender.hp || 0) - damage);
+      log.push(attacker.name + ' hit ' + defender.name + ' for ' + damage + ' (' + defender.hp + ' HP left).');
+      if (defender.hp <= 0) log.push('☠ ' + defender.name + ' is down.');
+    } else {
+      log.push(attacker.name + ' pressed ' + defender.name + ' but dealt no damage.');
+    }
+  }
+
+  function finalizeHoldingCrucibleMatch(match) {
+    if (!match || !match.active) return false;
+    var alliesAlive = getLivingTeamUnits(match.allies).length;
+    var enemiesAlive = getLivingTeamUnits(match.enemies).length;
+    if (alliesAlive > 0 && enemiesAlive > 0) return false;
+    var crucible = S.holding.crucible;
+    match.active = false;
+    match.finishedAt = Date.now();
+    match.winner = alliesAlive > 0 ? 'allies' : 'enemies';
+    crucible.roundsPlayed = Math.max(0, Number(crucible.roundsPlayed || 0) + Number(match.round || 1));
+    crucible.lastAt = Date.now();
+    if (match.winner === 'allies') {
+      crucible.wins = Math.max(0, Number(crucible.wins || 0) + 1);
+      crucible.currentWinStreak = Math.max(0, Number(crucible.currentWinStreak || 0) + 1);
+      crucible.bestWinStreak = Math.max(Number(crucible.bestWinStreak || 0), Number(crucible.currentWinStreak || 0));
+      crucible.lastResult = 'Victory in ' + Number(match.round || 1) + ' rounds';
+      if (typeof showNotif === 'function') showNotif('Crucible victory. Your 6v6 squad held the tactical map.', 'good');
+    } else {
+      crucible.losses = Math.max(0, Number(crucible.losses || 0) + 1);
+      crucible.currentWinStreak = 0;
+      crucible.lastResult = 'Defeat in ' + Number(match.round || 1) + ' rounds';
+      if (typeof showNotif === 'function') showNotif('Crucible defeat. Tune build and try another 6v6 run.', 'warn');
+    }
+    return true;
+  }
+
+  function buildHoldingCrucibleBoardHtml(match) {
+    if (!match) return '<div style="font-size:.74rem;color:var(--muted2);">No active simulation.</div>';
+    var units = [];
+    getLivingTeamUnits(match.allies).forEach(function (u) {
+      units.push({ name: u.name, side: 'ally', isPlayer: !!u.isPlayer, hp: Number(u.hp || 0), range: String(u.range || 'Engaged') });
+    });
+    getLivingTeamUnits(match.enemies).forEach(function (u) {
+      units.push({ name: u.name, side: 'enemy', isPlayer: false, hp: Number(u.hp || 0), range: String(u.range || 'Engaged') });
+    });
+    if (typeof buildLegacyRaidHexCombatBoard === 'function') {
+      try {
+        return buildLegacyRaidHexCombatBoard(units, {
+          title: 'CRUCIBLE 6V6 - TACTICAL MAP',
+          subtitle: 'Blue = your squad, red = opponents. Run rounds to pressure-test your build.',
+          seed: 'holding-crucible-' + String(match.round || 1),
+          mode: 'boss',
+          missionId: 0,
+          wingNum: 0
+        });
+      } catch (_err) {}
+    }
+    return '<div style="font-size:.74rem;color:var(--muted2);">Tactical map helper unavailable in this runtime.</div>';
+  }
+
+  function buildHoldingCruciblePopupHtml() {
+    var match = getHoldingCrucibleMatch();
+    if (!match) {
+      return '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
+        + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">Crucible 6v6 Tactical Simulator</div>'
+        + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">No active match. Start one from Holdings.</div>'
+      + '</div>';
+    }
+    var alliesAlive = getLivingTeamUnits(match.allies).length;
+    var enemiesAlive = getLivingTeamUnits(match.enemies).length;
+    var logLines = (match.log || []).slice(-8).reverse().map(function (line) {
+      return '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
+    }).join('');
+    return '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">Crucible 6v6 Tactical Simulator</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">Round ' + Number(match.round || 1) + ' · Allies ' + alliesAlive + '/6 · Enemies ' + enemiesAlive + '/6</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleAdvanceRound();">Play Round</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>'
+      + '<button class="btn btn-sm" onclick="holdingCrucibleResetMatch();">Reset Match</button>'
+      + '<button class="btn btn-sm" onclick="closeModal();">Close</button>'
+      + '</div>'
+      + buildHoldingCrucibleBoardHtml(match)
+      + '<div style="margin-top:.35rem;border:1px solid var(--border2);padding:.28rem .34rem;max-height:180px;overflow:auto;background:rgba(255,255,255,.02);">' + (logLines || '<div style="font-size:.72rem;color:var(--muted2);">No events yet.</div>') + '</div>'
+    + '</div>';
+  }
+
+  function renderHoldingCruciblePopup() {
+    var content = document.getElementById('modalContent');
+    if (!content) return false;
+    content.innerHTML = buildHoldingCruciblePopupHtml();
+    return true;
+  }
+
+  function openHoldingCrucibleMatch() {
+    ensureNewFeatureState();
+    var match = getHoldingCrucibleMatch() || createHoldingCrucibleMatch();
+    if (typeof openModal === 'function') {
+      openModal('Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
+    }
+    if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
+      showNotif('Crucible opened: 6v6 tactical training scenario ready.', 'good');
+    }
+    renderHoldingUI();
+    return true;
+  }
+
+  function holdingCrucibleAdvanceRound() {
+    ensureNewFeatureState();
+    var match = getHoldingCrucibleMatch();
+    if (!match) return false;
+    var logs = [];
+    var allyTurn = getLivingTeamUnits(match.allies);
+    for (var i = 0; i < allyTurn.length; i++) {
+      var foe = getRandomTeamTarget(match.enemies);
+      if (!foe) break;
+      runCrucibleAttack(allyTurn[i], foe, logs);
+    }
+    var enemyTurn = getLivingTeamUnits(match.enemies);
+    for (var j = 0; j < enemyTurn.length; j++) {
+      var ally = getRandomTeamTarget(match.allies);
+      if (!ally) break;
+      runCrucibleAttack(enemyTurn[j], ally, logs);
+    }
+    if (!logs.length) logs.push('Round stalled: no valid attackers remained.');
+    match.log = (match.log || []).concat(logs).slice(-80);
+    match.round = Math.max(1, Number(match.round || 1) + 1);
+    finalizeHoldingCrucibleMatch(match);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
+  function holdingCrucibleAutoResolve() {
+    var safety = 0;
+    while (getHoldingCrucibleMatch() && safety < 24) {
+      holdingCrucibleAdvanceRound();
+      safety += 1;
+      var match = getHoldingCrucibleMatch();
+      if (!match || !match.active) break;
+    }
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
+  function holdingCrucibleResetMatch() {
+    ensureNewFeatureState();
+    S.holding.crucible.match = null;
+    createHoldingCrucibleMatch();
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    if (typeof showNotif === 'function') showNotif('Crucible match reset. New 6v6 scenario generated.', 'info');
+    return true;
+  }
+
+  function buildHoldingCruciblePanelHtml() {
+    ensureNewFeatureState();
+    var c = S.holding.crucible || {};
+    var match = getHoldingCrucibleMatch();
+    var total = Math.max(1, Number(c.wins || 0) + Number(c.losses || 0));
+    var winRate = Math.round((Math.max(0, Number(c.wins || 0)) / total) * 100);
+    var status = match
+      ? ('Active match · Round ' + Number(match.round || 1))
+      : (c.lastResult ? ('Last: ' + String(c.lastResult)) : 'No simulation run yet.');
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.35rem;margin-bottom:.4rem;">'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .38rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Wins</div><div style="font-size:.92rem;color:var(--green2);">' + Number(c.wins || 0) + '</div></div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .38rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Losses</div><div style="font-size:.92rem;color:var(--red2);">' + Number(c.losses || 0) + '</div></div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .38rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Win Rate</div><div style="font-size:.92rem;color:var(--gold2);">' + winRate + '%</div></div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .38rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Best Streak</div><div style="font-size:.92rem;color:var(--teal);">' + Number(c.bestWinStreak || 0) + '</div></div>'
+      + '</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">' + status + '</div>'
+      + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch();">Enter Crucible 6v6</button>'
+      + (match ? '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAdvanceRound();">Play Next Round</button>' : '')
+      + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>' : '')
+      + '</div>';
   }
 
   function buyWayfarerHomeUpgrade(key) {
@@ -4696,6 +5003,10 @@
   window.advanceHoldingSettlementTime = advanceHoldingSettlementTime;
   window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;
   window.openHoldingSettlementSewerRoute = openHoldingSettlementSewerRoute;
+  window.openHoldingCrucibleMatch = openHoldingCrucibleMatch;
+  window.holdingCrucibleAdvanceRound = holdingCrucibleAdvanceRound;
+  window.holdingCrucibleAutoResolve = holdingCrucibleAutoResolve;
+  window.holdingCrucibleResetMatch = holdingCrucibleResetMatch;
   window.buyCaravan           = buyCaravan;
   window.rollCaravanName      = rollCaravanName;
   window.clearCaravanName     = clearCaravanName;

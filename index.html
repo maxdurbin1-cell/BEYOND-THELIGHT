@@ -5284,6 +5284,12 @@ function applySpecificFlavorActionOverride(entry){
 function usePersonalFlavorAction(){
   var flavor=String(S.flavor||'').trim();
   if(!flavor){showNotif('Set a Personal Flavor first.','info');return;}
+  if(S&&S.combat&&Number(S.combat.personalFlavorSuppressedRounds||0)>0){
+    S.combat.personalFlavorSuppressedRounds=Math.max(0,Number(S.combat.personalFlavorSuppressedRounds||0)-1);
+    showNotif('Personal Flavor is suppressed by enemy pressure this round.','warn');
+    refreshPersonalFlavorInteractionUI();
+    return;
+  }
   if(!S.flavorActionState||typeof S.flavorActionState!=='object')S.flavorActionState={};
   var entry=getBespokeFlavorEntry(flavor);
   if(!entry){showNotif('Flavor entry unavailable.','warn');return;}
@@ -8728,6 +8734,46 @@ function rollPlayerReactionTotal(statKey,label){
     augRoll:augRoll,
     radPenalty:radPenalty
   };
+}
+function applyEnemySpecialEffectsToWayfarer(action, sourceName){
+  if(!S || !action || !action.effects) return [];
+  var effects = action.effects || {};
+  var applied = [];
+  if(effects.condition && S.conditions && Object.prototype.hasOwnProperty.call(S.conditions, String(effects.condition))){
+    S.conditions[String(effects.condition)] = true;
+    if(typeof updateConditionButtons==='function')updateConditionButtons();
+    if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+    applied.push('Condition: '+String(effects.condition));
+  }
+  if(Number(effects.mentalStress||0) > 0){
+    var ms = Math.max(1, Number(effects.mentalStress||0));
+    if(typeof changeMentalStress==='function')changeMentalStress(ms);
+    else S.mentalStress = Math.max(0, Number(S.mentalStress||0) + ms);
+    applied.push('Mental Stress +'+ms);
+  }
+  if(Number(effects.radiation||0) > 0){
+    var rad = Math.max(1, Number(effects.radiation||0));
+    if(typeof changeRads==='function')changeRads(rad);
+    else S.rads = Math.max(0, Number(S.rads||0) + rad);
+    applied.push('Radiation +'+rad);
+  }
+  if(Number(effects.actionDrain||0) > 0){
+    var drain = Math.max(1, Number(effects.actionDrain||0));
+    if(!S.combat || typeof S.combat!=='object')S.combat={};
+    S.combat.actionsLeft = Math.max(0, Number(S.combat.actionsLeft||0) - drain);
+    if(typeof updateCombatUI==='function')updateCombatUI();
+    applied.push('Actions -'+drain);
+  }
+  if(Number(effects.suppressFlavorRounds||0) > 0){
+    var rounds = Math.max(1, Number(effects.suppressFlavorRounds||0));
+    if(!S.combat || typeof S.combat!=='object')S.combat={};
+    S.combat.personalFlavorSuppressedRounds = Math.max(Number(S.combat.personalFlavorSuppressedRounds||0), rounds);
+    applied.push('Personal Flavor suppressed ('+rounds+' round'+(rounds===1?'':'s')+')');
+  }
+  if(applied.length && typeof showNotif==='function'){
+    showNotif((sourceName||'Enemy special')+': '+applied.join(' · '), 'warn');
+  }
+  return applied;
 }
 function enemyAttack(id){
   const e=S.enemies.find(x=>x.id===id);
@@ -16841,6 +16887,53 @@ document.addEventListener('DOMContentLoaded',()=>{
       ? ['Judgment Bolt', 'Grave Exhale', 'Void Seal']
       : (die >= 20 ? ['Cataclysmic Strike', 'Halo Break', 'Final Pulse'] : die >= 12 ? ['Searing Sweep', 'Winged Lunge', 'Signal Flare'] : ['Bite', 'Charge', 'Feint']));
     var actionName = actionNames[index % actionNames.length];
+    var actionProfile = { saveStat: 'defend', effects: {} };
+    if (actionName === 'Soul Rend') {
+      actionProfile.saveStat = 'spirit';
+      actionProfile.effects = { mentalStress: 1, suppressFlavorRounds: 1 };
+    } else if (actionName === 'Affix Surge') {
+      actionProfile.saveStat = 'control';
+      actionProfile.effects = { condition: 'distracted', actionDrain: 1 };
+    } else if (actionName === 'Echo Lunge') {
+      actionProfile.saveStat = 'defend';
+      actionProfile.effects = { condition: 'vulnerable' };
+    } else if (actionName === 'Judgment Bolt') {
+      actionProfile.saveStat = 'spirit';
+      actionProfile.effects = { radiation: 10, suppressFlavorRounds: 1 };
+    } else if (actionName === 'Grave Exhale') {
+      actionProfile.saveStat = 'mind';
+      actionProfile.effects = { mentalStress: 2, condition: 'shaken' };
+    } else if (actionName === 'Void Seal') {
+      actionProfile.saveStat = 'lead';
+      actionProfile.effects = { actionDrain: 1, condition: 'distracted' };
+    } else if (actionName === 'Cataclysmic Strike') {
+      actionProfile.saveStat = 'body';
+      actionProfile.effects = { condition: 'weakened' };
+    } else if (actionName === 'Halo Break') {
+      actionProfile.saveStat = 'defend';
+      actionProfile.effects = { condition: 'vulnerable' };
+    } else if (actionName === 'Final Pulse') {
+      actionProfile.saveStat = 'control';
+      actionProfile.effects = { mentalStress: 1, actionDrain: 1 };
+    } else if (actionName === 'Searing Sweep') {
+      actionProfile.saveStat = 'defend';
+      actionProfile.effects = { condition: 'weakened' };
+    } else if (actionName === 'Winged Lunge') {
+      actionProfile.saveStat = 'body';
+      actionProfile.effects = { condition: 'vulnerable' };
+    } else if (actionName === 'Signal Flare') {
+      actionProfile.saveStat = 'mind';
+      actionProfile.effects = { radiation: 8, condition: 'distracted' };
+    } else if (actionName === 'Bite') {
+      actionProfile.saveStat = 'defend';
+      actionProfile.effects = { condition: 'weakened' };
+    } else if (actionName === 'Charge') {
+      actionProfile.saveStat = 'body';
+      actionProfile.effects = { actionDrain: 1 };
+    } else if (actionName === 'Feint') {
+      actionProfile.saveStat = 'mind';
+      actionProfile.effects = { condition: 'distracted' };
+    }
     var actionText = soulMode
       ? (name + ' shreds reality and attempts to brand your gear with a cursed echo.')
       : (bossMode
@@ -16856,7 +16949,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       temporarySceneAlly: false,
       specialAction: {
         name: actionName,
-        text: actionText
+        text: actionText,
+        saveStat: actionProfile.saveStat,
+        effects: actionProfile.effects
       },
       arenaDie: die,
       arenaMode: String(mode || 'challenge')
@@ -17074,6 +17169,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     flow.specialUses = Number(flow.specialUses || 0) + 1;
     var hitDie = Math.max(4, Number(enemy.dread || 4));
     var hit = (typeof explodingRoll === 'function') ? explodingRoll(hitDie) : { total: roll(hitDie) };
+    var specialEffects = enemy.specialAction && enemy.specialAction.effects ? enemy.specialAction.effects : null;
     var reactionStat = String((enemy.specialAction && enemy.specialAction.saveStat) || 'defend').toLowerCase();
     var reactionLabel = reactionStat === 'defend' ? 'Defend' : (reactionStat.charAt(0).toUpperCase() + reactionStat.slice(1) + ' Save');
     var reaction = rollPlayerReactionTotal(reactionStat, reactionLabel);
@@ -17081,6 +17177,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var landed = Number(hit.total || 0) > Number(reaction.total || 0);
     if (landed) {
       S.health = Math.max(0, Number(S.health || 0) - dmg);
+      applyEnemySpecialEffectsToWayfarer({ effects: specialEffects }, String(enemy.name || 'Enemy') + ' ' + String(enemy.specialAction && enemy.specialAction.name || 'Special'));
     }
     S.quickPanel.lastCombatRoll = enemy.name + ' used ' + String(enemy.specialAction && enemy.specialAction.name || 'Special')
       + ': d' + hitDie + '=' + Number(hit.total || 0)

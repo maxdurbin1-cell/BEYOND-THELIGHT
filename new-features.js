@@ -1496,32 +1496,32 @@
     control: {
       id: 'control',
       label: 'Control',
-      objective: 'Hold center lane and secure control points.',
-      scoreToWin: 12,
+      objective: 'Three zones (A/B/C). Holding zones gives 1 point each round; kills give 1 point. First to 20 wins.',
+      scoreToWin: 20,
       killPoints: 1,
-      zonePoints: 2
+      zonePoints: 1
     },
     clash: {
       id: 'clash',
       label: 'Clash',
-      objective: 'Team deathmatch. First side to 15 points wins.',
-      scoreToWin: 15,
+      objective: 'Team deathmatch. First to 25 kills wins.',
+      scoreToWin: 25,
       killPoints: 1,
       zonePoints: 0
     },
     elimination: {
       id: 'elimination',
       label: 'Elimination',
-      objective: 'No respawns. First side to wipe the enemy team wins.',
-      scoreToWin: 6,
+      objective: '3v3, no respawns. First to 5 rounds wins.',
+      scoreToWin: 5,
       killPoints: 1,
       zonePoints: 0
     },
     rumble: {
       id: 'rumble',
       label: 'Rumble',
-      objective: 'High-tempo brawl with bonus points for player takedowns.',
-      scoreToWin: 20,
+      objective: 'Free-for-all inspired brawl pacing. First side to 15 kills wins in this simulation.',
+      scoreToWin: 15,
       killPoints: 1,
       zonePoints: 0,
       playerKillBonus: 1
@@ -1537,6 +1537,125 @@
     ensureNewFeatureState();
     var preferred = S && S.holding && S.holding.crucible ? S.holding.crucible.preferredMode : 'control';
     return getCrucibleModeSpec(preferred).id;
+  }
+
+  function buildCrucibleTacticalLayout(mode, seedRound) {
+    var spec = getCrucibleModeSpec(mode);
+    var rollSeed = Math.max(1, Number(seedRound || 1));
+    var centerLane = (rollSeed % 2 === 0) ? 'Close' : 'Nearby';
+    var highGroundLane = (rollSeed % 3 === 0) ? 'Far' : 'Nearby';
+    var flankA = (rollSeed % 2 === 0) ? 'Engaged' : 'Far';
+    var flankB = flankA === 'Engaged' ? 'Far' : 'Engaged';
+    var lootLane = (rollSeed % 4 === 0) ? 'Engaged' : 'Close';
+    var ammoLane = (rollSeed % 5 === 0) ? 'Far' : 'Nearby';
+    var puzzleLane = (rollSeed % 3 === 0) ? 'Close' : 'Far';
+    return {
+      footprint: '60x60 ft',
+      lanes: {
+        short: 'Engaged',
+        mid: 'Close',
+        long: 'Nearby',
+        deep: 'Far'
+      },
+      controlZones: {
+        A: 'Engaged',
+        B: centerLane,
+        C: 'Far'
+      },
+      centerZone: centerLane,
+      highGround: highGroundLane,
+      flanks: [flankA, flankB],
+      coverByRange: {
+        Engaged: 1,
+        Close: 2,
+        Nearby: 2,
+        Far: 1
+      },
+      pickups: {
+        loot: { lane: lootLane, available: true, type: 'loot' },
+        ammo: { lane: ammoLane, available: true, type: 'power-ammo' },
+        puzzle: { lane: puzzleLane, available: true, type: 'puzzle' }
+      },
+      brief: spec.label + ': lanes short/mid/long + vertical platforms, cover objects, and power-ammo spawns.'
+    };
+  }
+
+  function getCrucibleSpecialForUnit(unit) {
+    if (!unit) return { name: 'Pressure Strike', saveStat: 'defend', effects: {} };
+    var role = String(unit.role || '').toLowerCase();
+    if (role === 'sniper') return { name: 'Suppressive Beam', saveStat: 'control', effects: { actionDrain: 1, condition: 'distracted' } };
+    if (role === 'support') return { name: 'Null Hymn', saveStat: 'spirit', effects: { suppressFlavorRounds: 1, mentalStress: 1 } };
+    if (role === 'tank') return { name: 'Shock Ram', saveStat: 'body', effects: { condition: 'shaken' } };
+    if (role === 'assault') return { name: 'Hemorrhage Dash', saveStat: 'defend', effects: { condition: 'vulnerable' } };
+    if (role === 'player') return { name: 'Wayfarer Gambit', saveStat: 'lead', effects: { actionDrain: 1 } };
+    return { name: 'Pressure Strike', saveStat: 'defend', effects: {} };
+  }
+
+  function applyCrucibleSpecialEffectsToPlayer(special, log) {
+    if (!special || !special.effects || !S) return [];
+    var effects = special.effects;
+    var applied = [];
+    if (effects.condition && S.conditions && Object.prototype.hasOwnProperty.call(S.conditions, String(effects.condition))) {
+      S.conditions[String(effects.condition)] = true;
+      if (typeof updateConditionButtons === 'function') updateConditionButtons();
+      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+      applied.push('Condition ' + String(effects.condition));
+    }
+    if (Number(effects.mentalStress || 0) > 0) {
+      var ms = Math.max(1, Number(effects.mentalStress || 0));
+      if (typeof changeMentalStress === 'function') changeMentalStress(ms);
+      else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + ms);
+      applied.push('Mental Stress +' + ms);
+    }
+    if (Number(effects.radiation || 0) > 0) {
+      var rad = Math.max(1, Number(effects.radiation || 0));
+      if (typeof changeRads === 'function') changeRads(rad);
+      else S.rads = Math.max(0, Number(S.rads || 0) + rad);
+      applied.push('Radiation +' + rad);
+    }
+    if (Number(effects.actionDrain || 0) > 0) {
+      var drain = Math.max(1, Number(effects.actionDrain || 0));
+      if (!S.combat || typeof S.combat !== 'object') S.combat = {};
+      S.combat.actionsLeft = Math.max(0, Number(S.combat.actionsLeft || 0) - drain);
+      if (typeof updateCombatUI === 'function') updateCombatUI();
+      applied.push('Actions -' + drain);
+    }
+    if (Number(effects.suppressFlavorRounds || 0) > 0) {
+      var rounds = Math.max(1, Number(effects.suppressFlavorRounds || 0));
+      if (!S.combat || typeof S.combat !== 'object') S.combat = {};
+      S.combat.personalFlavorSuppressedRounds = Math.max(Number(S.combat.personalFlavorSuppressedRounds || 0), rounds);
+      applied.push('Personal Flavor suppressed');
+    }
+    if (applied.length && log) log.push('Special effects on Wayfarer: ' + applied.join(', ') + '.');
+    return applied;
+  }
+
+  function resolveCrucibleMapPickup(match, unit, log) {
+    if (!match || !unit || !match.tacticalLayout || !match.tacticalLayout.pickups) return false;
+    var pickups = match.tacticalLayout.pickups;
+    var lane = String(unit.range || 'Close');
+    var hit = false;
+    Object.keys(pickups).forEach(function (key) {
+      var node = pickups[key];
+      if (!node || !node.available || String(node.lane || '') !== lane) return;
+      node.available = false;
+      hit = true;
+      if (node.type === 'loot') {
+        unit.attackDie = Math.max(4, Number(unit.attackDie || 6) + 2);
+        log.push(unit.name + ' looted a weapon cache (+2 attack die).');
+      } else if (node.type === 'power-ammo') {
+        unit.powerAmmoBonus = Math.max(0, Number(unit.powerAmmoBonus || 0) + 2);
+        log.push(unit.name + ' grabbed power ammo (+2 damage on next hit).');
+      } else if (node.type === 'puzzle') {
+        unit.defendBuff = Math.max(0, Number(unit.defendBuff || 0) + 2);
+        if (unit.isPlayer && S.conditions && !S.conditions.focused) {
+          S.conditions.focused = true;
+          if (typeof updateConditionButtons === 'function') updateConditionButtons();
+        }
+        log.push(unit.name + ' solved a tactical puzzle (+2 defend, Focused if player).');
+      }
+    });
+    return hit;
   }
 
   function buildCrucibleUnit(name, side, role, idx) {
@@ -1563,6 +1682,7 @@
     ensureNewFeatureState();
     var crucible = S.holding.crucible;
     var modeSpec = getCrucibleModeSpec(crucible.preferredMode || 'control');
+    var squadSize = modeSpec.id === 'elimination' ? 3 : 6;
     var playerName = String((S && S.name) || 'Wayfarer');
     var allies = [
       {
@@ -1583,7 +1703,7 @@
       buildCrucibleUnit('Binder Kori', 'ally', 'support', 3),
       buildCrucibleUnit('Ravager Nyx', 'ally', 'assault', 4),
       buildCrucibleUnit('Sentry Vale', 'ally', 'tank', 5)
-    ];
+    ].slice(0, squadSize);
     var enemies = [
       buildCrucibleUnit('Red Team Captain', 'enemy', 'tank', 0),
       buildCrucibleUnit('Red Team Lancer', 'enemy', 'assault', 1),
@@ -1591,7 +1711,8 @@
       buildCrucibleUnit('Red Team Warden', 'enemy', 'tank', 3),
       buildCrucibleUnit('Red Team Hexer', 'enemy', 'support', 4),
       buildCrucibleUnit('Red Team Stalker', 'enemy', 'assault', 5)
-    ];
+    ].slice(0, squadSize);
+    var tacticalLayout = buildCrucibleTacticalLayout(modeSpec.id, 1);
     resetCrucibleTeamForTurn(allies);
     enemies.forEach(function (u) {
       if (!u) return;
@@ -1608,8 +1729,10 @@
       selectedAllyId: allies[0] ? allies[0].id : '',
       selectedTargetId: enemies[0] ? enemies[0].id : '',
       score: { ally: 0, enemy: 0 },
-      controlLane: 'Nearby',
-      mapBrief: '3 lanes, elevated platforms, center high ground, flank cover, and power-ammo chokepoints (60x60 tactical footprint).',
+      controlLane: String(tacticalLayout.centerZone || 'Nearby'),
+      mapBrief: String(tacticalLayout.brief || 'Three lanes with vertical platforms and cover.'),
+      tacticalLayout: tacticalLayout,
+      roundWins: { ally: 0, enemy: 0 },
       log: ['Crucible match opened: 6v6 tactical simulation (' + modeSpec.label + ').'],
       startedAt: Date.now(),
       finishedAt: 0,
@@ -1715,24 +1838,42 @@
     if (!match || !match.active) return;
     var mode = getCrucibleModeSpec(match.mode);
     if (mode.id !== 'control') return;
-    var lane = String(match.controlLane || 'Nearby');
-    var allyOnLane = getLivingTeamUnits(match.allies).filter(function (u) { return String(u.range || '') === lane; }).length;
-    var enemyOnLane = getLivingTeamUnits(match.enemies).filter(function (u) { return String(u.range || '') === lane; }).length;
-    if (allyOnLane > enemyOnLane) {
-      awardCruciblePoints(match, 'ally', mode.zonePoints, 'Control lane secured');
-    } else if (enemyOnLane > allyOnLane) {
-      awardCruciblePoints(match, 'enemy', mode.zonePoints, 'Control lane secured');
-    }
+    var zones = (match.tacticalLayout && match.tacticalLayout.controlZones) || { A: 'Engaged', B: 'Close', C: 'Far' };
+    Object.keys(zones).forEach(function (zoneKey) {
+      var lane = String(zones[zoneKey] || 'Close');
+      var allyOnLane = getLivingTeamUnits(match.allies).filter(function (u) { return String(u.range || '') === lane; }).length;
+      var enemyOnLane = getLivingTeamUnits(match.enemies).filter(function (u) { return String(u.range || '') === lane; }).length;
+      if (allyOnLane > enemyOnLane) {
+        awardCruciblePoints(match, 'ally', mode.zonePoints, 'Zone ' + zoneKey + ' secured');
+      } else if (enemyOnLane > allyOnLane) {
+        awardCruciblePoints(match, 'enemy', mode.zonePoints, 'Zone ' + zoneKey + ' secured');
+      }
+    });
   }
 
   function determineCrucibleWinner(match) {
     if (!match || !match.active) return '';
+    var mode = getCrucibleModeSpec(match.mode);
     var alliesAlive = getLivingTeamUnits(match.allies).length;
     var enemiesAlive = getLivingTeamUnits(match.enemies).length;
     if (alliesAlive <= 0 && enemiesAlive <= 0) return 'enemies';
-    if (enemiesAlive <= 0) return 'allies';
-    if (alliesAlive <= 0) return 'enemies';
-    var mode = getCrucibleModeSpec(match.mode);
+    if (mode.id === 'elimination') {
+      if (enemiesAlive <= 0) {
+        match.roundWins = match.roundWins || { ally: 0, enemy: 0 };
+        match.roundWins.ally = Math.max(0, Number(match.roundWins.ally || 0) + 1);
+        if (match.roundWins.ally >= Number(mode.scoreToWin || 5)) return 'allies';
+        return '';
+      }
+      if (alliesAlive <= 0) {
+        match.roundWins = match.roundWins || { ally: 0, enemy: 0 };
+        match.roundWins.enemy = Math.max(0, Number(match.roundWins.enemy || 0) + 1);
+        if (match.roundWins.enemy >= Number(mode.scoreToWin || 5)) return 'enemies';
+        return '';
+      }
+    } else {
+      if (enemiesAlive <= 0) return 'allies';
+      if (alliesAlive <= 0) return 'enemies';
+    }
     var allyScore = Math.max(0, Number(match.score && match.score.ally || 0));
     var enemyScore = Math.max(0, Number(match.score && match.score.enemy || 0));
     if (allyScore >= Number(mode.scoreToWin || 0)) return 'allies';
@@ -1749,10 +1890,17 @@
   function runCrucibleAttack(attacker, defender, log, match) {
     if (!attacker || !defender || Number(attacker.hp || 0) <= 0 || Number(defender.hp || 0) <= 0) return false;
     var ad = Math.max(4, Number(attacker.attackDie || 6));
-    var dd = Math.max(4, Number(defender.defendDie || 6) + Number(defender.defendBuff || 0));
+    var coverBonus = 0;
+    if (match && match.tacticalLayout && match.tacticalLayout.coverByRange) {
+      coverBonus = Math.max(0, Number(match.tacticalLayout.coverByRange[String(defender.range || 'Close')] || 0));
+    }
+    var dd = Math.max(4, Number(defender.defendDie || 6) + Number(defender.defendBuff || 0) + coverBonus);
     var a = (typeof explodingRoll === 'function') ? explodingRoll(ad) : { total: (Math.floor(Math.random() * ad) + 1) };
     var d = (typeof explodingRoll === 'function') ? explodingRoll(dd) : { total: (Math.floor(Math.random() * dd) + 1) };
-    var damage = Math.max(0, Number(a.total || 0) - Number(d.total || 0));
+    var highGroundBonus = (match && match.tacticalLayout && String(attacker.range || '') === String(match.tacticalLayout.highGround || '')) ? 1 : 0;
+    var powerAmmoBonus = Math.max(0, Number(attacker.powerAmmoBonus || 0));
+    var damage = Math.max(0, Number(a.total || 0) + highGroundBonus - Number(d.total || 0)) + powerAmmoBonus;
+    attacker.powerAmmoBonus = 0;
     if (damage > 0) {
       defender.hp = Math.max(0, Number(defender.hp || 0) - damage);
       log.push(attacker.name + ' hit ' + defender.name + ' for ' + damage + ' (' + defender.hp + ' HP left).');
@@ -1778,6 +1926,26 @@
       while (Number(enemy.ap || 0) > 0) {
         var allyTarget = getRandomTeamTarget(match.allies);
         if (!allyTarget) break;
+        var special = getCrucibleSpecialForUnit(enemy);
+        var useSpecial = Number(enemy.ap || 0) > 0 && Math.random() < 0.35;
+        if (useSpecial && canCrucibleUnitAttack(enemy, allyTarget)) {
+          spendCrucibleUnitAp(enemy, 1);
+          var saveDie = Math.max(4, Number((typeof getEffectiveDie === 'function' && allyTarget.isPlayer)
+            ? getEffectiveDie(String(special.saveStat || 'defend'))
+            : (special.saveStat === 'body' ? 8 : 6)));
+          var enemyRoll = (typeof explodingRoll === 'function') ? explodingRoll(Math.max(4, Number(enemy.attackDie || enemy.dread || 6))) : { total: (Math.floor(Math.random() * Math.max(4, Number(enemy.attackDie || enemy.dread || 6))) + 1) };
+          var saveRoll = (typeof explodingRoll === 'function') ? explodingRoll(saveDie) : { total: (Math.floor(Math.random() * saveDie) + 1) };
+          var dmgSpecial = Math.max(0, Number(enemyRoll.total || 0) - Number(saveRoll.total || 0));
+          if (dmgSpecial > 0) {
+            allyTarget.hp = Math.max(0, Number(allyTarget.hp || 0) - dmgSpecial);
+            if (allyTarget.isPlayer) {
+              S.health = Math.max(0, Number(S.health || 0) - dmgSpecial);
+              applyCrucibleSpecialEffectsToPlayer(special, logs);
+            }
+          }
+          logs.push(enemy.name + ' used ' + special.name + ' (' + String(special.saveStat || 'defend') + ' save): ' + Number(enemyRoll.total || 0) + ' vs ' + Number(saveRoll.total || 0) + (dmgSpecial > 0 ? (' for ' + dmgSpecial + ' dmg.') : ' blocked.'));
+          continue;
+        }
         if (canCrucibleUnitAttack(enemy, allyTarget)) {
           if (!spendCrucibleUnitAp(enemy, 1)) break;
           runCrucibleAttack(enemy, allyTarget, logs, match);
@@ -1789,6 +1957,7 @@
           if (!spendCrucibleUnitAp(enemy, 1)) break;
           enemy.range = getCrucibleRangeOrder()[nextIdx];
           logs.push(enemy.name + ' repositioned to ' + enemy.range + '.');
+          resolveCrucibleMapPickup(match, enemy, logs);
         }
       }
     }
@@ -1831,7 +2000,35 @@
 
   function finalizeHoldingCrucibleMatch(match) {
     if (!match || !match.active) return false;
+    var mode = getCrucibleModeSpec(match.mode);
     var winner = determineCrucibleWinner(match);
+    if (!winner && mode.id === 'elimination') {
+      var alliesAlive = getLivingTeamUnits(match.allies).length;
+      var enemiesAlive = getLivingTeamUnits(match.enemies).length;
+      if (alliesAlive <= 0 || enemiesAlive <= 0) {
+        match.round = Math.max(1, Number(match.round || 1) + 1);
+        match.log = (match.log || []).concat([
+          'Elimination round reset. Score ' + Number(match.roundWins && match.roundWins.ally || 0) + ' - ' + Number(match.roundWins && match.roundWins.enemy || 0) + '.'
+        ]).slice(-120);
+        match.allies = (match.allies || []).map(function (unit) {
+          if (!unit) return unit;
+          unit.hp = Number(unit.maxHp || unit.hp || 10);
+          unit.ap = 2;
+          unit.defendBuff = 0;
+          return unit;
+        });
+        match.enemies = (match.enemies || []).map(function (unit) {
+          if (!unit) return unit;
+          unit.hp = Number(unit.maxHp || unit.hp || 10);
+          unit.ap = 2;
+          unit.defendBuff = 0;
+          return unit;
+        });
+        match.turnSide = 'ally';
+        maybeSyncCrucibleSelection(match);
+      }
+      return false;
+    }
     if (!winner) return false;
     var crucible = S.holding.crucible;
     match.active = false;
@@ -1857,6 +2054,8 @@
   function buildHoldingCrucibleBoardHtml(match) {
     if (!match) return '<div style="font-size:.74rem;color:var(--muted2);">No active simulation.</div>';
     var mode = getCrucibleModeSpec(match.mode);
+    var layout = match.tacticalLayout || buildCrucibleTacticalLayout(mode.id, match.round);
+    match.tacticalLayout = layout;
     var units = [];
     getLivingTeamUnits(match.allies).forEach(function (u) {
       units.push({ name: u.name, side: 'ally', isPlayer: !!u.isPlayer, hp: Number(u.hp || 0), range: String(u.range || 'Engaged') });
@@ -1869,14 +2068,25 @@
       : null;
     if (boardRenderer) {
       try {
-        return boardRenderer(units, {
+        var board = boardRenderer(units, {
           title: 'CRUCIBLE 6V6 - TACTICAL MAP (' + mode.label.toUpperCase() + ')',
-          subtitle: String(match.mapBrief || '3 lanes, platforms, cover, power ammo, and center high ground.'),
+          subtitle: String(match.mapBrief || layout.brief || '3 lanes, platforms, cover, power ammo, and center high ground.'),
           seed: 'holding-crucible-' + String(match.round || 1),
           mode: String(mode.id || 'control'),
           missionId: 0,
           wingNum: 0
         });
+        var mapMeta = '<div style="margin-bottom:.25rem;padding:.24rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.7rem;color:var(--muted2);line-height:1.45;">'
+          + '<strong style="color:var(--gold2);">Map:</strong> ' + String(layout.footprint || '60x60 ft') + ' · '
+          + '<strong style="color:var(--teal);">Lanes:</strong> short/mid/long + deep flank · '
+          + '<strong style="color:var(--teal);">High Ground:</strong> ' + String(layout.highGround || 'Nearby') + ' · '
+          + '<strong style="color:var(--teal);">Center:</strong> ' + String(layout.centerZone || 'Close') + '<br>'
+          + '<strong style="color:var(--gold2);">Cover:</strong> objects in every lane · '
+          + '<strong style="color:var(--gold2);">Power Ammo:</strong> ' + String(layout.pickups && layout.pickups.ammo ? layout.pickups.ammo.lane : 'Nearby') + ' · '
+          + '<strong style="color:var(--gold2);">Loot:</strong> ' + String(layout.pickups && layout.pickups.loot ? layout.pickups.loot.lane : 'Close') + ' · '
+          + '<strong style="color:var(--gold2);">Puzzle:</strong> ' + String(layout.pickups && layout.pickups.puzzle ? layout.pickups.puzzle.lane : 'Far')
+          + '</div>';
+        return mapMeta + board;
       } catch (_err) {}
     }
     return '<div style="font-size:.74rem;color:var(--muted2);">Tactical map helper unavailable in this runtime.</div>';
@@ -1911,13 +2121,16 @@
     var canAct = !!(match.turnSide === 'ally' && selectedAlly && Number(selectedAlly.hp || 0) > 0 && Number(selectedAlly.ap || 0) > 0);
     var canAttack = !!(canAct && selectedTarget && canCrucibleUnitAttack(selectedAlly, selectedTarget));
     var currentTurn = String(match.turnSide || 'ally') === 'ally' ? 'Your Team Turn' : 'Enemy Turn';
+    var scoreLine = mode.id === 'elimination'
+      ? ('Round Wins ' + Number(match.roundWins && match.roundWins.ally || 0) + ' - ' + Number(match.roundWins && match.roundWins.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 5) + ')')
+      : ('Score ' + Number(match.score && match.score.ally || 0) + ' - ' + Number(match.score && match.score.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 0) + ')');
     var logLines = (match.log || []).slice(-8).reverse().map(function (line) {
       return '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
     }).join('');
     return '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
       + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">Crucible 6v6 Tactical Simulator</div>'
-      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.15rem;">Round ' + Number(match.round || 1) + ' · ' + currentTurn + ' · Allies ' + alliesAlive + '/6 · Enemies ' + enemiesAlive + '/6</div>'
-      + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.28rem;">Mode: ' + mode.label + ' · Objective: ' + mode.objective + ' · Score ' + Number(match.score && match.score.ally || 0) + ' - ' + Number(match.score && match.score.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 0) + ')</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.15rem;">Round ' + Number(match.round || 1) + ' · ' + currentTurn + ' · Allies ' + alliesAlive + '/' + Number((match.allies||[]).length || 0) + ' · Enemies ' + enemiesAlive + '/' + Number((match.enemies||[]).length || 0) + '</div>'
+      + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.28rem;">Mode: ' + mode.label + ' · Objective: ' + mode.objective + ' · ' + scoreLine + '</div>'
       + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-bottom:.3rem;">'
       + '<button class="btn btn-xs ' + (mode.id === 'control' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'control\');">Control</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'clash' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'clash\');">Clash</button>'
@@ -1961,8 +2174,34 @@
     return true;
   }
 
-  function openHoldingCrucibleMatch() {
+  function openHoldingCrucibleModePrompt() {
     ensureNewFeatureState();
+    var specs = ['control', 'clash', 'elimination', 'rumble'].map(function (key) { return getCrucibleModeSpec(key); });
+    var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.2rem;">Select Crucible Game Mode</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Arena footprint 60x60 ft · three lanes · vertical platforms · cover objects · power ammo spawns · central contested zone + two flanking routes.</div>'
+      + specs.map(function (spec) {
+        return '<div style="border:1px solid var(--border2);padding:.32rem .38rem;margin-bottom:.22rem;background:rgba(255,255,255,.02);">'
+          + '<div style="font-size:.76rem;color:var(--gold2);"><strong>' + spec.label + '</strong></div>'
+          + '<div style="font-size:.7rem;color:var(--muted2);margin:.1rem 0 .2rem;">' + spec.objective + '</div>'
+          + '<button class="btn btn-xs btn-primary" onclick="holdingCrucibleSetMode(\'' + spec.id + '\');openHoldingCrucibleMatch(\'' + spec.id + '\');">Enter ' + spec.label + '</button>'
+          + '</div>';
+      }).join('')
+      + '</div>';
+    if (typeof openModal === 'function') openModal('Crucible Mode Select', html);
+    return true;
+  }
+
+  function openHoldingCrucibleMatch(modeOverride) {
+    ensureNewFeatureState();
+    if (!modeOverride && !getHoldingCrucibleMatch()) {
+      return openHoldingCrucibleModePrompt();
+    }
+    if (modeOverride) {
+      var modeSpec = getCrucibleModeSpec(modeOverride);
+      S.holding.crucible.preferredMode = modeSpec.id;
+      S.holding.crucible.match = null;
+    }
     var match = getHoldingCrucibleMatch() || createHoldingCrucibleMatch();
     if (typeof openModal === 'function') {
       openModal('Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
@@ -2021,6 +2260,7 @@
     if (!spendCrucibleUnitAp(ally, 1)) return false;
     ally.range = targetRange;
     match.log = (match.log || []).concat([ally.name + ' moved to ' + ally.range + '.']).slice(-120);
+    resolveCrucibleMapPickup(match, ally, match.log);
     renderHoldingCruciblePopup();
     return true;
   }

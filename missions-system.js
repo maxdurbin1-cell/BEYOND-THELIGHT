@@ -5633,6 +5633,81 @@
     return window.executeLegacyRaidSceneAllyAction(action, target);
   };
 
+  function getLegacyRaidEnemySpecialAction(enemy, target) {
+    var name = String(enemy && enemy.name || 'Hostile');
+    var lower = name.toLowerCase();
+    if (/mephisto/.test(lower)) {
+      return { name: 'Hellfire Lunge', saveStat: 'defend', effects: { condition: 'vulnerable', mentalStress: 1, suppressFlavorRounds: 1 } };
+    }
+    if (/azrael/.test(lower)) {
+      return { name: 'Judgment Spear', saveStat: 'spirit', effects: { actionDrain: 1, suppressFlavorRounds: 1 } };
+    }
+    if (/imp|abyss/.test(lower)) {
+      return { name: 'Hellfire Lunge', saveStat: 'defend', effects: { condition: 'weakened' } };
+    }
+    if (/oracle|seer|hexer/.test(lower)) {
+      return { name: 'Mindbreak Pulse', saveStat: 'mind', effects: { mentalStress: 1, condition: 'distracted' } };
+    }
+    if (/warden|captain|knight/.test(lower)) {
+      return { name: 'Shield Crush', saveStat: 'body', effects: { condition: 'vulnerable', actionDrain: 1 } };
+    }
+    var dd = Math.max(4, Number(enemy && enemy.dread || 6));
+    if (dd >= 12) return { name: 'Radiant Burst', saveStat: 'lead', effects: { radiation: 10, condition: 'shaken' } };
+    if (dd >= 8) return { name: 'Overload Shot', saveStat: 'control', effects: { actionDrain: 1 } };
+    return { name: 'Raking Strike', saveStat: 'defend', effects: { condition: 'weakened' } };
+  }
+
+  function rollLegacyRaidPlayerSaveTotal(statKey, defendBonus) {
+    var key = String(statKey || 'defend').toLowerCase();
+    var die = (typeof getEffectiveDie === 'function')
+      ? Math.max(4, Number(getEffectiveDie(key) || 4))
+      : Math.max(4, Number((S && S.stats && S.stats[key]) || 4));
+    var rolled = (typeof explodingRoll === 'function')
+      ? explodingRoll(die)
+      : { total: (typeof roll === 'function' ? roll(die) : (Math.floor(Math.random() * die) + 1)) };
+    var total = Number(rolled.total || 0);
+    if (key === 'defend') total += Math.max(0, Number(defendBonus || 0));
+    return { stat: key, die: die, total: total };
+  }
+
+  function applyLegacyRaidPlayerSpecialEffects(action, flow) {
+    if (!action || !action.effects || !S) return [];
+    var effects = action.effects;
+    var applied = [];
+    if (effects.condition && S.conditions && Object.prototype.hasOwnProperty.call(S.conditions, String(effects.condition))) {
+      S.conditions[String(effects.condition)] = true;
+      if (typeof updateConditionButtons === 'function') updateConditionButtons();
+      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+      applied.push('Condition: ' + String(effects.condition));
+    }
+    if (Number(effects.mentalStress || 0) > 0) {
+      var ms = Math.max(1, Number(effects.mentalStress || 0));
+      if (typeof changeMentalStress === 'function') changeMentalStress(ms);
+      else S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + ms);
+      applied.push('Mental Stress +' + ms);
+    }
+    if (Number(effects.radiation || 0) > 0) {
+      var rad = Math.max(1, Number(effects.radiation || 0));
+      if (typeof changeRads === 'function') changeRads(rad);
+      else S.rads = Math.max(0, Number(S.rads || 0) + rad);
+      applied.push('Radiation +' + rad);
+    }
+    if (Number(effects.actionDrain || 0) > 0) {
+      var drain = Math.max(1, Number(effects.actionDrain || 0));
+      S.combat.actionsLeft = Math.max(0, Number(S.combat.actionsLeft || 0) - drain);
+      applied.push('Actions -' + drain);
+    }
+    if (Number(effects.suppressFlavorRounds || 0) > 0) {
+      var rounds = Math.max(1, Number(effects.suppressFlavorRounds || 0));
+      S.combat.personalFlavorSuppressedRounds = Math.max(Number(S.combat.personalFlavorSuppressedRounds || 0), rounds);
+      applied.push('Personal Flavor suppressed (' + rounds + ' round' + (rounds === 1 ? '' : 's') + ')');
+    }
+    if (applied.length && typeof showNotif === 'function') {
+      showNotif('Raid Special: ' + applied.join(' · '), 'warn');
+    }
+    return applied;
+  }
+
   window.executeLegacyRaidSceneEnemyAction = function (targetType, targetName) {
     if (typeof S === 'undefined' || !S || !S.combat || !S.combat.raidFlow || !S.combat.raidFlow.active) return false;
     var flow = S.combat.raidFlow;
@@ -5681,9 +5756,18 @@
       flow.allyDefendBonus[defendBonusTarget] = 0;
     }
     defend = defend + defendBonus;
+    var special = getLegacyRaidEnemySpecialAction(enemy, target);
+    var actionLabel = String(special && special.name || 'Enemy Action');
+    var actionSaveStat = String(special && special.saveStat || 'defend').toLowerCase();
+    var saveInfo = null;
+    if (target.type === 'player') {
+      saveInfo = rollLegacyRaidPlayerSaveTotal(actionSaveStat, defendBonus);
+      defend = Number(saveInfo.total || 0);
+    }
     var dmg = Math.max(0, hit - defend);
     if (target.type === 'player') {
       if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - dmg);
+      if (dmg > 0) applyLegacyRaidPlayerSpecialEffects(special, flow);
     } else {
       if (!encounter.partyHp) encounter.partyHp = { allies: {} };
       if (!encounter.partyHp.allies) encounter.partyHp.allies = {};
@@ -5697,13 +5781,13 @@
     }
     if (encounter && Array.isArray(encounter.log)) {
       var persona = target.personality && target.personality.label ? String(target.personality.label) : 'Hostile';
-      encounter.log.push('Enemy action [' + persona + ']: ' + String(enemy && enemy.name || 'Hostile') + ' rolled ' + hit + ' vs ' + target.name + ' defend ' + defend + ' for ' + dmg + ' damage.');
+      encounter.log.push('Enemy action [' + persona + ']: ' + String(enemy && enemy.name || 'Hostile') + ' used ' + actionLabel + ' (save ' + (saveInfo ? String(saveInfo.stat || 'defend') : 'defend') + ') rolled ' + hit + ' vs ' + target.name + ' ' + defend + ' for ' + dmg + ' damage.');
     }
     if (typeof showNotif === 'function') {
       if (dmg > 0) {
-        showNotif('Enemy action: ' + String(enemy && enemy.name || 'Hostile') + ' hit ' + target.name + ' for ' + dmg + ' (' + hit + ' vs ' + defend + ').', 'warn');
+        showNotif('Enemy action: ' + String(enemy && enemy.name || 'Hostile') + ' used ' + actionLabel + ' and hit ' + target.name + ' for ' + dmg + ' (' + hit + ' vs ' + defend + ').', 'warn');
       } else {
-        showNotif('Enemy action defended: ' + target.name + ' held (' + hit + ' vs ' + defend + ').', 'good');
+        showNotif('Enemy action defended: ' + target.name + ' held against ' + actionLabel + ' (' + hit + ' vs ' + defend + ').', 'good');
       }
     }
     flow.enemyActionBudget = Math.max(0, Number(flow.enemyActionBudget || 0) - 1);

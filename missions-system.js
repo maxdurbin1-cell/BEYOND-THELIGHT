@@ -3293,6 +3293,42 @@
     return 'Close';
   }
 
+  function getLegacyRaidRangeIndex(range) {
+    var normalized = normalizeLegacyRaidRange(range);
+    var order = { Engaged: 0, Close: 1, Nearby: 2, Far: 3 };
+    return Object.prototype.hasOwnProperty.call(order, normalized) ? order[normalized] : 1;
+  }
+
+  function getLegacyRaidPlayerHealthState() {
+    var defendDie = (typeof getEffectiveDie === 'function')
+      ? Math.max(4, Number(getEffectiveDie('defend') || 4))
+      : Math.max(4, Number((S && S.stats && S.stats.defend) || 4));
+    var maxHealth = Math.max(1, defendDie * 2);
+    var current = (typeof S !== 'undefined' && S && typeof S.health === 'number')
+      ? Number(S.health)
+      : ((typeof S !== 'undefined' && S && typeof S.stress === 'number') ? Number(S.stress) : maxHealth);
+    current = Math.max(0, Math.min(maxHealth, current));
+    return { current: current, max: maxHealth };
+  }
+
+  function getLegacyRaidNearestHostileForAlly(flow, hostiles, allyName) {
+    if (!Array.isArray(hostiles) || !hostiles.length) return null;
+    var allyRange = flow && flow.allyRange ? normalizeLegacyRaidRange(flow.allyRange[allyName] || flow.playerRange || 'Close') : 'Close';
+    var allyRangeIndex = getLegacyRaidRangeIndex(allyRange);
+    var sorted = hostiles.slice().sort(function (a, b) {
+      var aRange = getLegacyRaidHostileRange(flow, a && a.id);
+      var bRange = getLegacyRaidHostileRange(flow, b && b.id);
+      var aDelta = Math.abs(getLegacyRaidRangeIndex(aRange) - allyRangeIndex);
+      var bDelta = Math.abs(getLegacyRaidRangeIndex(bRange) - allyRangeIndex);
+      if (aDelta !== bDelta) return aDelta - bDelta;
+      var aHp = Math.max(0, Number(a && a.maxStress || 8) - Number(a && a.stress || 0));
+      var bHp = Math.max(0, Number(b && b.maxStress || 8) - Number(b && b.stress || 0));
+      if (aHp !== bHp) return aHp - bHp;
+      return Number(a && a.id || 0) - Number(b && b.id || 0);
+    });
+    return sorted[0] || null;
+  }
+
   function getLegacyRaidHexDistance(q, r) {
     return (Math.abs(Number(q || 0)) + Math.abs(Number(r || 0)) + Math.abs(Number(q || 0) + Number(r || 0))) / 2;
   }
@@ -4966,11 +5002,34 @@
     var selectedEnemyTargetTxt = (flow && String(flow.selectedEnemyTargetType || '') === 'player')
       ? 'Wayfarer'
       : ((flow && flow.selectedAllyName) ? String(flow.selectedAllyName) : 'First alive ally');
+    var hpState = getLegacyRaidPlayerHealthState();
+    var playerMaxHealth = Math.max(1, Number(hpState.max || 1));
+    var playerHealth = Math.max(0, Number(hpState.current || 0));
+    var roundNum = Math.max(1, Number(flow && flow.turn || 1));
+    var allyBudget = stage === 'ally'
+      ? Math.max(0, Number(flow && flow.currentAllyActionsLeft || 0))
+      : Math.max(0, allies.length * Math.max(1, Number(flow && flow.allyActionsPerTurn || 2)));
+    var enemyBudgetMax = Math.max(0, hostiles.length * Math.max(1, Number(flow && flow.enemyActionsPerTurn || 2)));
+    var turnOwner = !sceneStarted ? 'You' : (stage === 'player' ? 'You' : (stage === 'ally' ? 'Allies' : 'Enemies'));
+    var combatTabSel = (typeof document !== 'undefined') ? document.getElementById('wayfarerActionSel') : null;
+    var combatTabActionOptions = combatTabSel
+      ? Array.prototype.map.call(combatTabSel.options, function (opt) {
+          if (!opt || !opt.value) return '';
+          return '<option value="' + String(opt.value).replace(/"/g, '&quot;') + '">' + String(opt.textContent || opt.value) + '</option>';
+        }).join('')
+      : '';
+    var enemyTargetSelectOptions = '<option value="player"' + ((flow && String(flow.selectedEnemyTargetType || '') === 'player') ? ' selected' : '') + '>You</option>'
+      + allies.map(function (ally) {
+          var allyName = String(ally && ally.name || 'Wayfarer');
+          var safeName = allyName.replace(/"/g, '&quot;');
+          var selected = (flow && String(flow.selectedEnemyTargetType || '') === 'ally' && String(flow.selectedAllyName || '') === allyName) ? ' selected' : '';
+          return '<option value="' + safeName + '"' + selected + '>' + safeName + '</option>';
+        }).join('');
     var moveAdjacency = {
       Engaged: ['Close'],
-      Close: ['Engaged', 'Far'],
+      Close: ['Engaged', 'Nearby'],
       Nearby: ['Close', 'Far'],
-      Far: ['Close']
+      Far: ['Nearby']
     };
     var moveTargets = moveAdjacency[String(playerRange || 'Close')] || ['Close'];
     var moveButtons = moveTargets.map(function (zone) {
@@ -5065,14 +5124,26 @@
       var compactAllies = allies.map(function (e) {
         return '<div style="font-size:.72rem;color:var(--teal);padding:.08rem 0;">• ' + String(e.name || 'Wayfarer') + ' (' + Math.max(0, Number(e.maxStress || 12) - Number(e.stress || 0)) + ' HP)</div>';
       }).join('') || '<div style="font-size:.72rem;color:var(--muted2);">No temporary allies.</div>';
+      var compactMoveButtons = ['Engaged', 'Nearby'].map(function (zone) {
+        return '<button class="btn btn-sm" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'move:' + zone + '\',' + missionId + ',' + wingNum + ')">Move: ' + zone + '</button>';
+      }).join('');
       var compactHtml = '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
         + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.12rem;">Raid Combat - Wing ' + wingNum + ' (Quick Panel)</div>'
         + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.18rem;">Refined combat flow: use the same action rhythm as the Combat Quick Panel.</div>'
         + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-bottom:.24rem;">'
           + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Stage: <strong style="color:var(--gold2);">' + stageLabel + '</strong></div>'
-          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Actions Left: <strong style="color:var(--gold2);">' + actionsLeft + '</strong></div>'
-          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Range: <strong style="color:var(--teal);">' + playerRange + '</strong></div>'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Round: <strong style="color:var(--gold2);">' + roundNum + '</strong></div>'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Your Actions: <strong style="color:var(--gold2);">' + actionsLeft + '/' + Math.max(1, Number((typeof getMaxActions==='function')?getMaxActions():3)) + '</strong></div>'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Health: <strong style="color:var(--teal);">' + playerHealth + '/' + playerMaxHealth + '</strong></div>'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Ally Budget: <strong style="color:var(--teal);">' + allyBudget + '</strong></div>'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Enemy Budget: <strong style="color:var(--red2);">' + enemyBudget + '/' + enemyBudgetMax + '</strong></div>'
+          + '<div style="background:var(--surface);border:1px solid var(--border);padding:.28rem .42rem;font-size:.74rem;">Turn: <strong style="color:var(--teal);">' + turnOwner + '</strong></div>'
         + '</div>'
+        + '<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-bottom:.18rem;">'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Enemy Target<select id="raidEnemyTargetSelect" style="width:100%;margin-top:.08rem;">' + enemyTargetSelectOptions + '</select></label>'
+          + '<button class="btn btn-sm btn-warn" ' + (sceneStarted && stage === 'enemy' && enemyBudget > 0 ? '' : 'disabled') + ' onclick="var sel=document.getElementById(\'raidEnemyTargetSelect\');var val=sel?String(sel.value||\'player\'):\'player\';if(val===\'player\'){window.executeLegacyRaidSceneEnemyAction(\'player\');}else{window.executeLegacyRaidSceneEnemyAction(\'ally\',val);}window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ');">Enemy Action</button>'
+        + '</div>'
+        + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin:.12rem 0 .22rem;">Your Actions</div>'
         + '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.3rem;margin-bottom:.24rem;">'
           + '<div style="border:1px solid var(--border2);padding:.3rem .36rem;background:rgba(255,255,255,.02);"><div style="font-size:.7rem;color:var(--teal);margin-bottom:.08rem;">Allies</div>' + compactAllies + '</div>'
           + '<div style="border:1px solid var(--border2);padding:.3rem .36rem;background:rgba(255,255,255,.02);"><div style="font-size:.7rem;color:var(--red2);margin-bottom:.08rem;">Hostiles</div>' + compactEnemyRows + '</div>'
@@ -5080,8 +5151,20 @@
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.14rem;">'
           + '<button class="btn btn-sm btn-primary" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'strike\',' + missionId + ',' + wingNum + ')">Strike</button>'
           + '<button class="btn btn-sm btn-primary" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'shoot\',' + missionId + ',' + wingNum + ')">Shoot</button>'
-          + '<button class="btn btn-sm" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'defend\',' + missionId + ',' + wingNum + ')">Defend</button>'
-          + '<button class="btn btn-sm" onclick="if(typeof switchTab===\'function\'){var b=document.getElementById(\'tabnav-combat\');switchTab(\'combat\',b||null);}">Open Combat Tab</button>'
+          + compactMoveButtons
+        + '</div>'
+        + (combatTabActionOptions
+          ? ('<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-bottom:.14rem;">'
+            + '<label style="font-size:.63rem;color:var(--muted2);">Combat Tab Wayfarer Action<select id="raidCombatTabActionSelect" style="width:100%;margin-top:.08rem;">' + combatTabActionOptions + '</select></label>'
+            + '<button class="btn btn-xs btn-teal" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidCombatTabActionFromModal(' + missionId + ',' + wingNum + ')">Use Combat Action</button>'
+            + '</div>')
+          : '')
+        + '<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin:.12rem 0 .2rem;">Allies</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.18rem;">'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Action<select id="raidAllyActionSelect" style="width:100%;margin-top:.08rem;"><option value="attack">Attack</option><option value="defend">Defend</option><option value="support">Support</option><option value="move">Move</option></select></label>'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Target<select id="raidAllyTargetSelect" style="width:100%;margin-top:.08rem;">' + allyTargetOptions + '</select></label>'
+          + '<label style="font-size:.63rem;color:var(--muted2);">Move Band<select id="raidAllyMoveBandSelect" style="width:100%;margin-top:.08rem;"><option value="Engaged">Engaged</option><option value="Close" selected>Close</option><option value="Nearby">Nearby</option><option value="Far">Far</option></select></label>'
+          + '<button class="btn btn-xs btn-primary" ' + (sceneStarted && stage === 'ally' && allyBudget > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidSceneAllyQueuedAction();window.refreshLegacyRaidCombatModal(' + missionId + ',' + wingNum + ')">Execute</button>'
         + '</div>'
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.14rem;">'
           + '<button class="btn btn-sm btn-teal" onclick="if(typeof closeModal===\'function\')closeModal();if(typeof openRaidWingPopup===\'function\')openRaidWingPopup(' + missionId + ',' + wingNum + ');">Return to Wing</button>'
@@ -5278,6 +5361,21 @@
     }
     if (typeof window.refreshLegacyRaidCombatModal === 'function') window.refreshLegacyRaidCombatModal(missionId, wingNum);
     return true;
+  };
+
+  window.executeLegacyRaidCombatTabActionFromModal = function (missionId, wingNum) {
+    if (typeof document === 'undefined') return false;
+    var sel = document.getElementById('raidCombatTabActionSelect');
+    if (!sel) {
+      if (typeof showNotif === 'function') showNotif('Combat action list is unavailable in this view.', 'warn');
+      return false;
+    }
+    var action = String(sel.value || '').trim();
+    if (!action) {
+      if (typeof showNotif === 'function') showNotif('Pick a Combat tab action first.', 'warn');
+      return false;
+    }
+    return window.executeLegacyRaidPlayerActionFromPanel(action, missionId, wingNum);
   };
 
   function getLegacyRaidBossPersonalityProfile(name) {
@@ -5572,10 +5670,7 @@
     if (!flow.allyTacticalFlags[allyName]) flow.allyTacticalFlags[allyName] = { attacks: 0, supports: 0, defends: 0, moves: 0 };
     var hostiles = getLegacyRaidSceneHostiles();
     if (act === 'attack') {
-      var preferredHostile = flow && Number(flow.selectedHostileId || 0) > 0
-        ? hostiles.find(function (h) { return Number(h && h.id || 0) === Number(flow.selectedHostileId || 0); })
-        : null;
-      var hostile = preferredHostile || hostiles[0];
+      var hostile = getLegacyRaidNearestHostileForAlly(flow, hostiles, allyName);
       if (hostile) {
         var allyRoll = typeof roll === 'function' ? roll(6) : (Math.floor(Math.random() * 6) + 1);
         var enemyRoll = typeof roll === 'function' ? roll(Math.max(4, Number(hostile.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(hostile.dread || 6))) + 1);
@@ -5766,7 +5861,10 @@
     }
     var dmg = Math.max(0, hit - defend);
     if (target.type === 'player') {
-      if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - dmg);
+      if (typeof S !== 'undefined' && S) {
+        var hpBefore = getLegacyRaidPlayerHealthState();
+        S.health = Math.max(0, Number(hpBefore.current || 0) - dmg);
+      }
       if (dmg > 0) applyLegacyRaidPlayerSpecialEffects(special, flow);
     } else {
       if (!encounter.partyHp) encounter.partyHp = { allies: {} };
@@ -5791,10 +5889,15 @@
       }
     }
     flow.enemyActionBudget = Math.max(0, Number(flow.enemyActionBudget || 0) - 1);
-    if (Number(S.health || 0) <= 0) {
-      if (typeof showNotif === 'function') showNotif('Wayfarer down. Raid encounter failed.', 'warn');
+    var postHitAllies = getLegacyRaidSceneAllies();
+    var playerDown = getLegacyRaidPlayerHealthState().current <= 0;
+    if (playerDown && !postHitAllies.length) {
+      if (typeof showNotif === 'function') showNotif('Wayfarer down and no allies remain. Raid encounter failed.', 'warn');
       window.finalizeLegacyRaidHexCombatOutcome('wipe');
       return true;
+    }
+    if (playerDown && postHitAllies.length && typeof showNotif === 'function') {
+      showNotif('Wayfarer is down, but allies are still fighting.', 'warn');
     }
     if (flow.enemyActionBudget <= 0) {
       flow.stage = 'player';

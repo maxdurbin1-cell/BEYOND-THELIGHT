@@ -676,6 +676,12 @@
     ensureState();
     if (!S.lastSea || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return null;
 
+    if (typeof window.openSeaColosseumArena === 'function') {
+      try {
+        window.openSeaColosseumArena('challenge', String(hexKey || ''));
+      } catch (_arenaErr) {}
+    }
+
     var dayStamp = getCurrentGameDayStamp();
     var seed = Number(dayStamp || 0) + Number(Date.now() % 100000);
     var mission = spawnRandomColosseumMissionEvent(seed, true);

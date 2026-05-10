@@ -34,6 +34,61 @@
       chronicle: "Sunsgrave Expanse is a contested mirror between Eldaran memory and kith expansion. Glass towers, moving sanctums, and beastfolk hierarchies sustain a province where every treaty is temporary and every border mythologized.",
       places: ["Sungrave", "Veiled Sanctum", "Petrified Forest", "Ikri route", "Akarian frontier"],
       fractures: ["Achamerian courts vs imperial envoys", "Great Ape title houses vs kith enclaves", "Relic preservation vs strategic militarization"]
+    },
+    freyreign: {
+      chronicle: "Freyreign survives by balancing maritime clans, shard-coast magistrates, and memory cults that claim the drowned towers still issue lawful decrees from beneath the tide.",
+      places: ["Freyreign Harbor", "Whitecliff Bastion", "Shardwake Quays", "Mirror Inlet", "Old Tide Court"],
+      fractures: ["Port guilds vs storm-levy collectors", "Tide oracles vs military chart houses", "Refugee enclaves vs hereditary dock lineages"]
+    },
+    lordteak: {
+      chronicle: "Lord's Teak is an arboreal fortress-state where timber kings, oath militias, and ritual surveyors govern roads that double as tribute lines to older powers offshore.",
+      places: ["Kord's Teak", "Banner Root Keep", "Pilgrim Switchbacks", "Needlewood Span", "Iron Resin Yards"],
+      fractures: ["House timber monopolies vs commons claimants", "Road-wardens vs free caravans", "Dynastic oaths vs merit captains"]
+    },
+    watchcairn: {
+      chronicle: "Watchcairn is a weather-forged warning province where fortress beacons, stormwatch monasteries, and signal-breaker engineers hold a frontier against both sea raids and sky anomalies.",
+      places: ["Watchcairn Spire", "Black Beacon Line", "Tempest Chapel", "Salt Relay Trenches", "Lantern Causeway"],
+      fractures: ["Monastic signal keepers vs paid private fleets", "Emergency rule councils vs civil charters", "Storm cult militias vs imperial auditors"]
+    },
+    dewt: {
+      chronicle: "Dewt Crown presents itself as lawful center, but its river courts, debt syndicates, and crown-appointed envoys all rewrite law in real time depending on who controls grain and ferries.",
+      places: ["Dewt Crown", "Sunwell Court", "Meridian Locks", "Crown Ferry Chain", "Old Revenue Hall"],
+      fractures: ["Crown magistrates vs charter cities", "Debt houses vs peasant leagues", "Canal armies vs provincial militias"]
+    },
+    lynridge: {
+      chronicle: "Lynridge is a forest mandate of wardens and shrine-keepers where treaties are carved into living trunks and enforcement depends on who can read the oldest bark-law.",
+      places: ["Lynridge", "Canopy Tribunal", "Green Mile Posts", "Ashbark Cloister", "River Lantern Groves"],
+      fractures: ["Shrine law vs crown statute", "Ranger companies vs logging concessions", "Ancestral pacts vs expansion settlers"]
+    },
+    wrathwatch: {
+      chronicle: "Wraithwatch thrives on fear administration: cliff citadels, oathbound inquisitors, and monster-tax economies keep order by proving every threat is real and profitable.",
+      places: ["Wraithwatch", "Cliff Inquest Hall", "Storm Gallows", "Greyfeather Rampart", "Solemn Watchline"],
+      fractures: ["Inquisitors vs provincial nobility", "Threat-tithe brokers vs frontier farmers", "State terror doctrine vs civilian amnesty blocs"]
+    },
+    vosshollow: {
+      chronicle: "Voss Hollow is marsh sovereignty in practice: ferry princes, eel-market assemblies, and hidden saint cults govern by route access rather than by maps drawn in capitals.",
+      places: ["Voss Hollow", "Fenmarket Steps", "Deep Reed Crossings", "Blackwater Chapels", "Saltbone Ferries"],
+      fractures: ["Ferry guilds vs military bridge works", "Marsh saints vs state clergy", "Smuggler compacts vs tax marshals"]
+    },
+    bazaarun: {
+      chronicle: "Baazarun is the hinge of Cyphyyr trade: serpent courts, forge emissaries, and desert convoy confederations bargain in public while conducting succession wars in private.",
+      places: ["Baazarun", "Serpent King's Arcade", "Forge Exchange", "Sunken Gate Bazaar", "Saffron Caravan Ring"],
+      fractures: ["Celevari throne agents vs merchant princes", "Dwemer factors vs local artificers", "Caravan unions vs palace tariffs"]
+    },
+    krovan: {
+      chronicle: "Krovan Vale is lush but militarized, where rain-fed estates finance expedition armies and every harvest season doubles as recruitment for foreign campaigns.",
+      places: ["Krovan Vale", "Monsoon Citadel", "Vale Muster Fields", "Copper Rain Docks", "Torchvine Estates"],
+      fractures: ["Estate militias vs crown legions", "Water-right councils vs export barons", "Local pacifists vs expansion generals"]
+    },
+    thousandpeaks: {
+      chronicle: "Thousand Peaks is vertical politics: monastery fortresses, mine republics, and avalanche roads force alliance cycles where betrayal is often just delayed logistics.",
+      places: ["Thousand Peaks", "Cloud Tribunal", "High Spur Bastions", "Echo Mines", "Pass of Broken Bells"],
+      fractures: ["Peak monasteries vs mine syndicates", "Pass toll lords vs free climber clans", "Highland isolationists vs lowland treaty bloc"]
+    },
+    cityofbliss: {
+      chronicle: "City of Bliss is equal parts paradise myth and intelligence capital: art courts, vice wards, and diplomacy theaters conceal one of the most efficient espionage networks in Theos.",
+      places: ["City of Bliss", "Veil Promenade", "Joyous Court", "Pearl Knife Quarter", "South Lantern Docks"],
+      fractures: ["Pleasure houses vs moral reform councils", "Diplomatic theater guilds vs spy ministries", "Outer port workers vs inner ring aristocrats"]
     }
   };
 
@@ -104,7 +159,7 @@
     ["sunsgrave", "cityofbliss"]
   ];
 
-  var START_UNLOCKED = ["dyn", "rosegrove", "freyreign"];
+  var START_UNLOCKED = ["rosegrove"];
 
   var LAYERS = {
     terrain: ["broken highlands", "obsidian marsh", "tidal steppe", "cedar lowlands", "ash dunes", "storm cliffs", "glass forest", "salt canyons"],
@@ -221,7 +276,72 @@
       st.unlocked[id] = true;
     });
 
+    if (!st._theosStartInitialized) {
+      // New runs start in Rosegrove as the canonical opening province.
+      if (!st.activeProvinceId && !Object.keys(st.discovered).length) {
+        st.activeProvinceId = "rosegrove";
+        st.unlocked.rosegrove = true;
+        st.discovered.rosegrove = true;
+      }
+      st._theosStartInitialized = true;
+    }
+
     return st;
+  }
+
+  function areLandConnected(fromId, toId) {
+    return LAND_CONNECTIONS.some(function (edge) {
+      return (edge[0] === fromId && edge[1] === toId) || (edge[1] === fromId && edge[0] === toId);
+    });
+  }
+
+  function selectDirectionalEntryHex(targetProvinceId, fromProvinceId) {
+    if (!Array.isArray(window.mapData) || !window.mapData.length || typeof window.setProvinceSelectedKey !== "function") return false;
+    var target = provinceById(targetProvinceId);
+    var from = provinceById(fromProvinceId);
+    if (!target || !from) return false;
+
+    var minCol = Infinity, maxCol = -Infinity, minRow = Infinity, maxRow = -Infinity;
+    window.mapData.forEach(function (hex) {
+      if (!hex) return;
+      minCol = Math.min(minCol, Number(hex.col || 0));
+      maxCol = Math.max(maxCol, Number(hex.col || 0));
+      minRow = Math.min(minRow, Number(hex.row || 0));
+      maxRow = Math.max(maxRow, Number(hex.row || 0));
+    });
+    if (!Number.isFinite(minCol) || !Number.isFinite(maxCol) || !Number.isFinite(minRow) || !Number.isFinite(maxRow)) return false;
+
+    var width = Math.max(1, maxCol - minCol + 1);
+    var height = Math.max(1, maxRow - minRow + 1);
+    var bandX = Math.max(1, Math.floor(width * 0.25));
+    var bandY = Math.max(1, Math.floor(height * 0.25));
+    var dx = Number(target.x || 0) - Number(from.x || 0);
+    var dy = Number(target.y || 0) - Number(from.y || 0);
+    var horizontal = Math.abs(dx) >= Math.abs(dy);
+
+    var edgeCells = window.mapData.filter(function (hex) {
+      if (!hex) return false;
+      if (horizontal) {
+        if (dx >= 0) return Number(hex.col) <= minCol + bandX;
+        return Number(hex.col) >= maxCol - bandX;
+      }
+      if (dy >= 0) return Number(hex.row) <= minRow + bandY;
+      return Number(hex.row) >= maxRow - bandY;
+    });
+
+    var preferredTypes = ["trade", "holding", "dwelling", "wilderness", "seat"];
+    var candidates = [];
+    preferredTypes.forEach(function (kind) {
+      edgeCells.forEach(function (hex) {
+        if (hex && String(hex.type || "") === kind) candidates.push(hex);
+      });
+    });
+    if (!candidates.length) candidates = edgeCells.length ? edgeCells.slice() : window.mapData.slice();
+    if (!candidates.length) return false;
+
+    var idx = hashString(String(targetProvinceId || "") + "|" + String(fromProvinceId || "") + "|entry") % candidates.length;
+    var pick = candidates[idx];
+    return !!window.setProvinceSelectedKey(String(pick.col) + "," + String(pick.row));
   }
 
   function getAtlasImageUrl() {
@@ -539,8 +659,9 @@
 
       html += ''
         + '<g class="' + cls + '" data-province="' + esc(province.id) + '" tabindex="0" role="button" aria-label="' + esc(province.name) + '">'
+        + '<circle class="theos-node-backdrop" cx="' + province.x + '%" cy="' + province.y + '%" r="2.55%" />'
         + '<circle class="theos-node-core" cx="' + province.x + '%" cy="' + province.y + '%" r="1.35%" />'
-        + '<circle class="theos-node-aura" cx="' + province.x + '%" cy="' + province.y + '%" r="2.2%" />'
+        + '<circle class="theos-node-aura" cx="' + province.x + '%" cy="' + province.y + '%" r="2.65%" />'
         + '<text class="theos-node-label" x="' + province.x + '%" y="' + (province.y - 2.5) + '%">' + esc(province.name) + '</text>'
         + '</g>';
     });
@@ -580,12 +701,28 @@
     var tables = buildProvinceContentTables(p.id) || { settlements: [], dungeons: [], quests: [] };
     var powerColor = FACTION_COLORS[summary.power] || "#bda57a";
     var stTrain = ensureState();
+    var activeProvince = provinceById(stTrain.activeProvinceId);
+    var sameProvince = !!(activeProvince && activeProvince.id === p.id);
+    var crossContinent = !!(activeProvince && activeProvince.continent !== p.continent);
+    var canRailHop = !!(activeProvince && !sameProvince && !crossContinent && areLandConnected(activeProvince.id, p.id));
     var credits = Math.max(0, Number(window.S && window.S.credits || 0));
     var canBuyTrain = !stTrain.trainOwned && credits >= TRAIN_COST;
     var trainLabel = stTrain.trainOwned ? "Train Ready" : ("Train Required (" + TRAIN_COST + " \u20B5)");
-    var travelAction = stTrain.trainOwned
-      ? ('<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Board Train to Province</button>')
-      : ('<button class="btn btn-sm ' + (canBuyTrain ? 'btn-teal' : '') + '" onclick="window.theosBuyTrain()"' + (canBuyTrain ? '' : ' disabled title="Need more credits"') + '>Purchase Train (' + TRAIN_COST + ' \u20B5)</button>');
+    var routeHint = sameProvince
+      ? 'Current province.'
+      : (crossContinent
+        ? 'Cross-continent travel requires Last Sea routing.'
+        : (canRailHop ? 'Connected by rail corridor.' : 'Train movement follows neighboring land links only.'));
+    var travelAction = '';
+    if (!stTrain.trainOwned) {
+      travelAction = '<button class="btn btn-sm ' + (canBuyTrain ? 'btn-teal' : '') + '" onclick="window.theosBuyTrain()"' + (canBuyTrain ? '' : ' disabled title="Need more credits"') + '>Purchase Train (' + TRAIN_COST + ' \u20B5)</button>';
+    } else if (sameProvince) {
+      travelAction = '<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Resume Province</button>';
+    } else if (crossContinent) {
+      travelAction = '<button class="btn btn-sm" onclick="window.theosTravelTo(\'lastsea\')">Route via Last Sea</button>';
+    } else {
+      travelAction = '<button class="btn btn-sm btn-primary" ' + (canRailHop ? '' : 'disabled title="Rail only reaches connected neighboring provinces"') + ' onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Board Train to Province</button>';
+    }
 
     root.innerHTML = ''
       + '<div class="theos-region-kicker">' + esc(p.name) + ' · Threat ' + esc(p.threat) + '</div>'
@@ -595,6 +732,7 @@
       + '<span class="theos-chip">Climate: ' + esc(d.climate) + '</span>'
       + '<span class="theos-chip">Architecture: ' + esc(d.architecture) + '</span>'
       + '<span class="theos-chip">Rail Access: ' + esc(trainLabel) + '</span>'
+      + '<span class="theos-chip">Route: ' + esc(routeHint) + '</span>'
       + '</div>'
       + '<div class="theos-kv-grid">'
       + '<div><strong>Dominant Power</strong><span style="color:' + esc(powerColor) + ';">' + esc(summary.power) + '</span></div>'
@@ -796,19 +934,35 @@
 
   function enterProvince(provinceId) {
     var st = ensureState();
-    if (!provinceById(provinceId)) return;
+    var targetProvince = provinceById(provinceId);
+    if (!targetProvince) return;
     if (!st.trainOwned) {
       notify("Province travel requires a train. Purchase one for " + TRAIN_COST + " \u20B5 in the Atlas panel.", "warn");
       return;
     }
 
+    var fromId = st.activeProvinceId;
+    var fromProvince = provinceById(fromId);
+    if (fromProvince && fromProvince.id !== targetProvince.id) {
+      if (fromProvince.continent !== targetProvince.continent) {
+        st.pendingSeaDestinationId = targetProvince.id;
+        switchToTab("lastsea");
+        notify("Cross-continent travel requires the Sea Region map. Sail from Last Sea to reach " + targetProvince.name + ".", "info");
+        return;
+      }
+      if (!areLandConnected(fromProvince.id, targetProvince.id)) {
+        notify("Train routes follow direct neighboring province links. Move through connected provinces first.", "warn");
+        return;
+      }
+    }
+
     saveProvinceSnapshot();
 
-    st.activeProvinceId = provinceId;
-    st.unlocked[provinceId] = true;
-    markDiscovered(provinceId);
+    st.activeProvinceId = targetProvince.id;
+    st.unlocked[targetProvince.id] = true;
+    markDiscovered(targetProvince.id);
 
-    var restored = restoreProvinceSnapshot(provinceId);
+    var restored = restoreProvinceSnapshot(targetProvince.id);
     if (!restored && typeof window.generateMap === "function") {
       try {
         window.generateMap();
@@ -817,13 +971,17 @@
       }
     }
 
+    if (fromProvince && fromProvince.id !== targetProvince.id) {
+      selectDirectionalEntryHex(targetProvince.id, fromProvince.id);
+    }
+
     if (typeof window.setContext === "function") {
       var holdingBtn = document.querySelector('.ctx-btn[data-ctx="holding"]');
       window.setContext("holding", holdingBtn || null);
     }
 
     switchToTab("map");
-    notify("Entered " + provinceById(provinceId).name + ". Regional DNA applied and codex updated.", "good");
+    notify("Entered " + targetProvince.name + ". Train arrival placed you near the connected border corridor.", "good");
   }
 
   function buyTrain() {
@@ -877,6 +1035,9 @@
   }
 
   function travelTo(tabId) {
+    if (String(tabId || '') === 'lastsea') {
+      notify('Last Sea routes can lead beyond Mythriel to additional continental fronts and island chains.', 'info');
+    }
     switchToTab(tabId);
   }
 

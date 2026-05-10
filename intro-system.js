@@ -267,13 +267,74 @@ Enter the game.
   }
 
   function startGame() {
+    hideIntroOverlay();
+    if (isSoloModeEnabled()) {
+      promptSoloEntryMode();
+      return;
+    }
+    enterLegacyMode();
+  }
+
+  function hideIntroOverlay() {
     const introContainer = document.getElementById(INTRO_ID);
     if (introContainer) {
       introContainer.style.display = "none";
     }
-    // Activate the character creation tab
-    const charTab = document.querySelector(".tab-btn[data-tab='character']");
-    if (charTab) charTab.click();
+  }
+
+  function isSoloModeEnabled() {
+    if (window.settingsSystem && typeof window.settingsSystem.isSoloMode === 'function') {
+      try { return !!window.settingsSystem.isSoloMode(); } catch (_err) {}
+    }
+    if (window.settingsSystem && window.settingsSystem.Settings) {
+      var gm = String(window.settingsSystem.Settings.gameMode || 'solo');
+      return gm === 'solo';
+    }
+    return true;
+  }
+
+  function switchToTabSafe(tabId) {
+    if (typeof window.switchTab !== 'function') return;
+    var btn = document.getElementById('tabnav-' + String(tabId || ''));
+    window.switchTab(String(tabId || ''), btn || null);
+  }
+
+  function enterLegacyMode() {
+    switchToTabSafe('character');
+    if (typeof showNotif === 'function') {
+      showNotif('Legacy Mode initialized.', 'good');
+    }
+  }
+
+  function enterKnownRealmMode() {
+    if (window.settingsSystem && typeof window.settingsSystem.setGameMode === 'function') {
+      try { window.settingsSystem.setGameMode('solo'); } catch (_err) {}
+    }
+    switchToTabSafe('theos');
+    if (typeof showNotif === 'function') {
+      showNotif('The Known Realm initialized. Use Last Sea routes to reach additional continents.', 'good');
+    }
+  }
+
+  function promptSoloEntryMode() {
+    if (typeof openModal !== 'function') {
+      enterLegacyMode();
+      return;
+    }
+
+    var html = ''
+      + '<div style="font-size:.86rem;color:var(--text2);line-height:1.58;">'
+      + 'Solo Mode detected. Choose your starting campaign frame.'
+      + '<div style="margin-top:.42rem;font-size:.76rem;color:var(--muted2);">'
+      + '<strong>Legacy Mode:</strong> classic character-first loop and mission progression.<br>'
+      + '<strong>The Known Realm:</strong> start in Theos Atlas and branch to outer continents through the Last Sea.'
+      + '</div>'
+      + '<div style="margin-top:.65rem;display:flex;gap:.4rem;justify-content:flex-end;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm" onclick="if(typeof closeModal===\'function\')closeModal();if(window.introSystem&&typeof window.introSystem.enterLegacyMode===\'function\')window.introSystem.enterLegacyMode();">Legacy Mode</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="if(typeof closeModal===\'function\')closeModal();if(window.introSystem&&typeof window.introSystem.enterKnownRealmMode===\'function\')window.introSystem.enterKnownRealmMode();">The Known Realm</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Choose Solo Entry', html);
   }
 
   function skipIntro() {
@@ -288,7 +349,9 @@ Enter the game.
     nextScreen,
     prevScreen,
     startGame,
-    skipIntro
+    skipIntro,
+    enterLegacyMode,
+    enterKnownRealmMode
   };
 
   // Auto-setup

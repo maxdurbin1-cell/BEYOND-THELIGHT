@@ -16672,13 +16672,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     flow.specialLog = [];
     flow.bossName = bossName;
     flow.enemy = getArenaEnemyProfile(queue[0], 0, arenaMode, bossName || (arenaMode === 'pinnacle' ? (String(context && context.sourceGateType || '').toLowerCase() === 'hellscape' ? 'Mephisto' : 'Azrael') : ''));
-    if (typeof startCombat === 'function') {
-      try { startCombat(); } catch (_err) {}
-    } else {
-      S.combat = S.combat || {};
-      S.combat.active = true;
-      S.combat.actionsLeft = Math.max(1, Number(S.combat.actionsLeft || 3));
-    }
+    S.combat = S.combat || {};
+    S.combat.active = true;
+    S.combat.actionsLeft = Math.max(1, Number(S.combat.actionsLeft || 3));
+    S.combat.round = Math.max(1, Number(S.combat.round || 1));
     S.combat.enemyDread = Math.max(4, Number(flow.enemy.dread || 4));
     if (!Array.isArray(S.enemies)) S.enemies = [];
     S.enemies = S.enemies.filter(function (enemy) { return !enemy || !!enemy.ally; });
@@ -16767,7 +16764,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     var actionButtons = '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'strike\');">Strike</button>'
       + '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'shoot\');">Shoot</button>'
       + '<button class="btn btn-sm" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'defend\');">Defend</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="executeArenaSpecialAction();">' + specialName + '</button>';
+      + '<button class="btn btn-sm btn-teal" onclick="executeArenaSpecialAction();">' + specialName + '</button>'
+      + '<button class="btn btn-sm" onclick="if(typeof switchTab===\'function\'){var b=document.getElementById(\'tabnav-combat\');switchTab(\'combat\',b||null);}">Open Combat Tab</button>';
     var extraButtons = '';
     if (mode === 'endless' && flow && Array.isArray(flow.queue) && Number(flow.index || 0) < flow.queue.length - 1 && !arenaCombatHasAliveHostiles()) {
       extraButtons += '<button class="btn btn-sm btn-warn" onclick="advanceArenaCombatWave();">Next Combatant</button>';
@@ -16800,7 +16798,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">' + gateEnemyLine + '<br>After enemies are defeated, solve the puzzle to close the portal. Failure spawns 2 more enemies.</div>'
         + '<div style="margin-top:.25rem;font-size:.72rem;color:var(--muted2);">Puzzle attempts: ' + Number(flow.gatePortal.puzzleAttempts || 0) + '</div>'
         + '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
-        + '<button class="btn btn-xs btn-primary" ' + (arenaCombatHasAliveHostiles() ? 'disabled' : '') + ' onclick="if(typeof window.resolveEndgameGatePuzzle===\'function\')window.resolveEndgameGatePuzzle();">Solve Seal Puzzle (AD vs d8)</button>'
+        + '<button class="btn btn-xs btn-primary" ' + (arenaCombatHasAliveHostiles() ? 'disabled' : '') + ' onclick="if(typeof window.resolveEndgameGatePuzzle===\'function\')window.resolveEndgameGatePuzzle();">Solve Seal Puzzle</button>'
         + '</div>'
       + '</div>';
     }

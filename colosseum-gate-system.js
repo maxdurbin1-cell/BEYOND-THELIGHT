@@ -182,6 +182,62 @@
     return true;
   }
 
+  function appendGateReinforcements(count, gateType, flow) {
+    var wave = Math.max(1, Number(count || 1));
+    var type = String(gateType || 'hellscape').toLowerCase();
+    if (!Array.isArray(S.enemies)) S.enemies = [];
+    var baseName = type === 'celestial' ? 'Gate Warden' : 'Rift Demon';
+    var dread = type === 'celestial' ? 8 : 4;
+    var hp = type === 'celestial' ? 16 : 8;
+    for (var i = 0; i < wave; i++) {
+      S.enemies.push({
+        id: 'gate-reinforce-' + String(Date.now()) + '-' + String(i + 1),
+        name: baseName + ' Reinforcement #' + String(i + 1),
+        dread: dread,
+        stress: 0,
+        maxStress: hp,
+        health: hp,
+        arena: true,
+        arenaMode: 'gate',
+        specialAction: {
+          name: type === 'celestial' ? 'Radiant Lance' : 'Hellfire Lunge',
+          text: type === 'celestial' ? 'A gate warden descends in a column of light.' : 'A demon rips through the unstable seal.'
+        }
+      });
+    }
+    S.combat = S.combat || {};
+    S.combat.enemyDread = dread;
+    if (flow) {
+      flow.mode = 'gate';
+      flow.enemy = {
+        id: 'gate-reinforce-primary',
+        name: baseName + ' Reinforcement',
+        dread: dread,
+        maxStress: hp,
+        stress: 0,
+        specialAction: {
+          name: type === 'celestial' ? 'Radiant Lance' : 'Hellfire Lunge',
+          text: type === 'celestial' ? 'A gate warden descends in a column of light.' : 'A demon rips through the unstable seal.'
+        }
+      };
+    }
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+    if (typeof renderEnemies === 'function') renderEnemies();
+  }
+
+  function closeGatePortalOnMap(flow) {
+    var state = ensureState();
+    var scopeCache = state && state.portalsByScope
+      ? state.portalsByScope[String(flow && flow.gatePortal && flow.gatePortal.scope || 'province')]
+      : null;
+    if (!scopeCache || !Array.isArray(scopeCache.portals)) return;
+    for (var i = 0; i < scopeCache.portals.length; i++) {
+      if (String(scopeCache.portals[i].key) === String(flow && flow.gatePortal && flow.gatePortal.key || '')) {
+        scopeCache.portals[i].closed = true;
+      }
+    }
+  }
+
   function openEndgameGatePortal(scope, key, allKeys) {
     if (typeof window.seedArenaCombat !== 'function' || typeof window.openArenaCombatPopup !== 'function') return false;
     var portal = getPortalMarker(scope, key, allKeys);
@@ -220,42 +276,73 @@
     }
 
     var state = ensureState();
-    var portal = getPortalMarker(flow.gatePortal.scope, flow.gatePortal.key, []);
-    var actionDie = typeof getEffectiveDie === 'function' ? Math.max(4, Number(getEffectiveDie('mind') || 4)) : 4;
-    var ad = typeof explodingRoll === 'function' ? explodingRoll(actionDie) : { total: 1 + Math.floor(Math.random() * actionDie) };
-    var dd = typeof explodingRoll === 'function' ? explodingRoll(8) : { total: 1 + Math.floor(Math.random() * 8) };
-    var success = Number(ad.total || 0) >= Number(dd.total || 0);
-
-    if (success) {
-      state.gatesClosed = Math.max(0, Number(state.gatesClosed || 0) + 1);
-      var scopeCache = state.portalsByScope[String(flow.gatePortal.scope || 'province')];
-      if (scopeCache && Array.isArray(scopeCache.portals)) {
-        for (var i = 0; i < scopeCache.portals.length; i++) {
-          if (String(scopeCache.portals[i].key) === String(flow.gatePortal.key || '')) {
-            scopeCache.portals[i].closed = true;
-          }
+    var gateType = String(flow.gatePortal.type || 'hellscape').toLowerCase();
+    var puzzleSpec = gateType === 'celestial'
+      ? {
+          mode: 'sequence',
+          title: 'Celestial Seal Lattice',
+          prompt: 'Re-align the ward order to shut Heaven\'s breach.',
+          sequence: ['SUN', 'HALO', 'SPEAR', 'CROWN']
         }
+      : {
+          mode: 'rearrange',
+          title: 'Hellscape Chain-Rune Lock',
+          prompt: 'Rebuild the anti-abyss command phrase to collapse the rift.',
+          bank: ['SEAL', 'THE', 'RIFT', 'NOW'],
+          answer: 'seal the rift now'
+        };
+
+    var finalize = function (result) {
+      var success = result === 'success';
+      if (success) {
+        state.gatesClosed = Math.max(0, Number(state.gatesClosed || 0) + 1);
+        closeGatePortalOnMap(flow);
+        var credits = 80;
+        var renown = 1;
+        S.credits = Math.max(0, Number(S.credits || 0) + credits);
+        S.renown = Math.max(0, Number(S.renown || 0) + renown);
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        if (typeof updateRenown === 'function') updateRenown();
+        if (typeof showNotif === 'function') showNotif('Portal sealed. +' + credits + ' Credits, +' + renown + ' Renown. Gates sealed: ' + state.gatesClosed + '/10.', 'good');
+        if (flow.gatePortal && typeof flow.gatePortal.onSealed === 'function') {
+          try { flow.gatePortal.onSealed(); } catch (_sealErr) {}
+        }
+        if (state.gatesClosed >= 10) {
+          openPinnacleMegadungeonPopup();
+        } else if (typeof window.renderArenaCombatPopup === 'function') {
+          window.renderArenaCombatPopup();
+        }
+        return true;
       }
-      var credits = 80;
-      var renown = 1;
-      S.credits = Math.max(0, Number(S.credits || 0) + credits);
-      S.renown = Math.max(0, Number(S.renown || 0) + renown);
-      if (typeof updateCreditsUI === 'function') updateCreditsUI();
-      if (typeof updateRenown === 'function') updateRenown();
-      if (typeof showNotif === 'function') showNotif('Portal sealed. +' + credits + ' Credits, +' + renown + ' Renown. Gates sealed: ' + state.gatesClosed + '/10.', 'good');
-      if (state.gatesClosed >= 10) {
-        openPinnacleMegadungeonPopup();
-      } else if (typeof window.renderArenaCombatPopup === 'function') {
-        window.renderArenaCombatPopup();
-      }
+
+      flow.gatePortal.puzzleAttempts = Math.max(0, Number(flow.gatePortal.puzzleAttempts || 0) + 1);
+      appendGateReinforcements(2, gateType, flow);
+      if (typeof showNotif === 'function') showNotif('Puzzle failed: two more enemies breach the gate.', 'warn');
+      if (typeof window.renderArenaCombatPopup === 'function') window.renderArenaCombatPopup();
+      return false;
+    };
+
+    if (typeof window.openStandaloneStoryPuzzle === 'function') {
+      window.openStandaloneStoryPuzzle({
+        mode: puzzleSpec.mode,
+        title: puzzleSpec.title,
+        prompt: puzzleSpec.prompt,
+        sequence: puzzleSpec.sequence,
+        bank: puzzleSpec.bank,
+        answer: puzzleSpec.answer,
+        thresholdLabel: 'Gate Seal Puzzle',
+        successThreshold: 0.72,
+        partialThreshold: 0.5,
+        onResolve: finalize
+      });
       return true;
     }
 
-    flow.gatePortal.puzzleAttempts = Math.max(0, Number(flow.gatePortal.puzzleAttempts || 0) + 1);
-    seedGateEnemies(flow.gatePortal.type, flow);
-    if (typeof showNotif === 'function') showNotif('Puzzle failed: two more enemies breach the gate.', 'warn');
-    if (typeof window.renderArenaCombatPopup === 'function') window.renderArenaCombatPopup();
-    return false;
+    // Fallback when puzzle system is unavailable.
+    var actionDie = typeof getEffectiveDie === 'function' ? Math.max(4, Number(getEffectiveDie('mind') || 4)) : 4;
+    var ad = typeof explodingRoll === 'function' ? explodingRoll(actionDie) : { total: 1 + Math.floor(Math.random() * actionDie) };
+    var dd = typeof explodingRoll === 'function' ? explodingRoll(8) : { total: 1 + Math.floor(Math.random() * 8) };
+    return finalize(Number(ad.total || 0) >= Number(dd.total || 0) ? 'success' : 'failure');
   }
 
   function openPinnacleMegadungeonPopup() {

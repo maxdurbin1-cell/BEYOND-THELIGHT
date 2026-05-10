@@ -8685,6 +8685,50 @@ function executeMimicAttack(sourceEnemyId){
   if(hit)applyStressToEnemy(target,dmg,'Mimic('+info.name+')');
   showNotif(`🎭 Mimic: Copied ${info.name}'s technique — ${mirrorRoll} vs ${target.name} ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'good':'warn');
 }
+function rollPlayerReactionTotal(statKey,label){
+  var key=String(statKey||'defend').toLowerCase();
+  var baseDie=(typeof getEffectiveDie==='function')?getEffectiveDie(key):((S&&S.stats&&S.stats[key])?S.stats[key]:4);
+  var wpBonus=(key==='defend'||key==='strike'||key==='shoot')?parseWeaponBonuses(key):{flat:0,advDie:0,addAdvDie:false};
+  var flBonus=getFlavorBonus(key);
+  var mtBonus=getMutationBonus(key);
+  var augDie=getAugBonus(key);
+  var gearBonus=typeof getGearRollBonuses==='function'?getGearRollBonuses(key,baseDie):{advDice:[],flat:0,addDice:[],notes:[]};
+  var advDiceArr=[];
+  if(key==='defend'){
+    var armorAdv=parseArmorAdvDie();
+    if(armorAdv>0)advDiceArr.push(armorAdv);
+  }
+  if(wpBonus.advDie>0)advDiceArr.push(wpBonus.advDie);
+  advDiceArr=advDiceArr.concat(flBonus.advDice||[]).concat(mtBonus.advDice||[]).concat(gearBonus.advDice||[]);
+  if(S&&S.rollMod&&Array.isArray(S.rollMod.advDice))advDiceArr=advDiceArr.concat(S.rollMod.advDice);
+
+  var ra=rollWithAdvantage(baseDie,advDiceArr,{type:'action',major:true,label:label||'Reaction'});
+  var flatTotal=Number(wpBonus.flat||0)+Number(flBonus.flat||0)+Number(mtBonus.flat||0)+Number(gearBonus.flat||0)+((S&&S.rollMod)?Number(S.rollMod.flat||0):0);
+  var total=Number(ra.total||0)+flatTotal;
+  var adBonus=wpBonus.addAdvDie?explodingRoll((S&&S.stats&&S.stats.adventure)||4,{type:'action',major:true,label:(label||'Reaction')+' Adventure Bonus'}):null;
+  if(adBonus)total+=Number(adBonus.total||0);
+  var holyShieldRoll=(key==='defend'&&flBonus.holyShield)?explodingRoll((S&&S.stats&&S.stats.spirit)||4,{type:'action',major:true,label:'Holy Shield'}):null;
+  if(holyShieldRoll)total+=Number(holyShieldRoll.total||0);
+  var relicRolls=getPermanentAdventureBonusRolls(key,(label||'Reaction')+' Relic');
+  total+=sumAdventureBonusRolls(relicRolls);
+  var gearAddRolls=(gearBonus.addDice||[]).map(function(dieSize){return explodingRoll(dieSize,{type:'action',major:true,label:(label||'Reaction')+' Gear Bonus'});});
+  gearAddRolls.forEach(function(rollObj){total+=Number((rollObj&&rollObj.total)||0);});
+  var augRoll=augDie>0?explodingRoll(augDie,{type:'action',major:true,label:(label||'Reaction')+' Augment'}):null;
+  if(augRoll)total+=Number(augRoll.total||0);
+  if(key==='defend'&&S&&S.combat&&S.combat.sceneDefendBonus)total+=Number(S.combat.sceneDefendBonus||0);
+  var radPenalty=(typeof getRadPenaltyForStat==='function')?getRadPenaltyForStat(key):0;
+  total=Math.max(0,total-radPenalty);
+  return {
+    stat:key,
+    die:baseDie,
+    total:total,
+    rollObj:ra,
+    adBonus:adBonus,
+    holyShieldRoll:holyShieldRoll,
+    augRoll:augRoll,
+    radPenalty:radPenalty
+  };
+}
 function enemyAttack(id){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;
@@ -8711,9 +8755,9 @@ function enemyAttack(id){
     return;
   }
   const atk=rollEnemyDreadWithEffects(e,e.name+' DD');
-  const def=explodingRoll(S.stats.defend);
-  const hit=atk.total>def.total;
-  const dmg=Math.max(1,atk.total-def.total);
+  const reaction=rollPlayerReactionTotal('defend','Defend');
+  const hit=atk.total>reaction.total;
+  const dmg=Math.max(1,atk.total-reaction.total);
   
   // AUDIO: Hit or blocked
   if (typeof window.AudioManager !== 'undefined') {
@@ -8724,7 +8768,9 @@ function enemyAttack(id){
     }
   }
   
-  showNotif(`${e.name}: ${atk.total} vs your ${def.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`,hit?'warn':'good');
+  var enemyResultText=`${e.name}: ${atk.total} vs your Defend d${reaction.die}=${reaction.total} — ${hit?`Hit! ${dmg} Stress`:'Blocked!'}`;
+  showNotif(enemyResultText,hit?'warn':'good');
+  if(S&&S.quickPanel)S.quickPanel.lastCombatRoll=enemyResultText;
   if(hit){
     changeStress(dmg);
     attemptDarkAfflictionInfection(e.name, e.dread || S.combat.enemyDread || 6);
@@ -16259,7 +16305,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!hostile){showNotif('No hostile enemy is available.','warn');return;}
     if(target==='player'){
       if(typeof enemyAttack==='function')enemyAttack(hostile.id);
-      S.quickPanel.lastCombatRoll=hostile.name+' attacked you.';
       renderQP('combat');
       return;
     }
@@ -16504,6 +16549,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   function buildQPCombat() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
+    var qpDefendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : ((S.stats && S.stats.defend) ? S.stats.defend : 4);
+    var qpPlayerHealth = Math.max(0, Number((typeof S.health === 'number') ? S.health : (S.stress || 0)));
+    var qpPlayerMaxHealth = Math.max(1, Number(qpDefendDie || 4) * 2);
     var raidFlow = S.combat && S.combat.raidFlow && S.combat.raidFlow.active ? S.combat.raidFlow : null;
     if (raidFlow) {
       var raidHostiles = (S.enemies || []).filter(function(e){ return e && !e.ally; });
@@ -16581,6 +16629,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Stage: <strong style="color:var(--gold2);">'+stageLabel+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Round: <strong style="color:var(--gold2);">'+Math.max(1, Number(raidFlow.turn || 1))+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerRaidActions+'/'+playerMaxRaidActions+'</strong></div>'
+        + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Health: <strong style="color:var(--teal);">'+qpPlayerHealth+'/'+qpPlayerMaxHealth+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Ally Budget: <strong style="color:var(--teal);">'+allyBudget+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Budget: <strong style="color:var(--red2);">'+enemyBudget+'/'+enemyBudgetMax+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Turn: <strong style="color:var(--teal);">'+turnOwner+'</strong></div>'
@@ -16708,6 +16757,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     return '<div style="margin-bottom:.5rem;">'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerActions+'/'+playerMaxActions+'</strong></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Health: <strong style="color:var(--teal);">'+qpPlayerHealth+'/'+qpPlayerMaxHealth+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Ally Actions: <strong style="color:var(--teal);">'+allyActions+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Actions: <strong style="color:var(--red2);">'+enemyActions+'/'+enemyActionsMax+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'
@@ -17024,10 +17074,18 @@ document.addEventListener('DOMContentLoaded',()=>{
     flow.specialUses = Number(flow.specialUses || 0) + 1;
     var hitDie = Math.max(4, Number(enemy.dread || 4));
     var hit = (typeof explodingRoll === 'function') ? explodingRoll(hitDie) : { total: roll(hitDie) };
-    var defend = (typeof explodingRoll === 'function') ? explodingRoll(Math.max(4, Number((S.combat && S.combat.enemyDread) || 4))) : { total: roll(Math.max(4, Number((S.combat && S.combat.enemyDread) || 4))) };
-    var dmg = Math.max(1, Number(hit.total || 0) - Number(defend.total || 0));
-    S.health = Math.max(0, Number(S.health || 0) - dmg);
-    S.quickPanel.lastCombatRoll = enemy.name + ' used ' + String(enemy.specialAction && enemy.specialAction.name || 'Special') + ' for ' + dmg + ' damage.';
+    var reactionStat = String((enemy.specialAction && enemy.specialAction.saveStat) || 'defend').toLowerCase();
+    var reactionLabel = reactionStat === 'defend' ? 'Defend' : (reactionStat.charAt(0).toUpperCase() + reactionStat.slice(1) + ' Save');
+    var reaction = rollPlayerReactionTotal(reactionStat, reactionLabel);
+    var dmg = Math.max(1, Number(hit.total || 0) - Number(reaction.total || 0));
+    var landed = Number(hit.total || 0) > Number(reaction.total || 0);
+    if (landed) {
+      S.health = Math.max(0, Number(S.health || 0) - dmg);
+    }
+    S.quickPanel.lastCombatRoll = enemy.name + ' used ' + String(enemy.specialAction && enemy.specialAction.name || 'Special')
+      + ': d' + hitDie + '=' + Number(hit.total || 0)
+      + ' vs your ' + reactionLabel + ' d' + Number(reaction.die || 4) + '=' + Number(reaction.total || 0)
+      + ' — ' + (landed ? ('Hit for ' + dmg + ' damage.') : 'Blocked.');
     if (typeof showNotif === 'function') showNotif(S.quickPanel.lastCombatRoll, 'warn');
     if (typeof updateCombatUI === 'function') updateCombatUI();
     renderArenaCombatPopup();

@@ -16798,6 +16798,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     flow.specialUses = 0;
     flow.specialLog = [];
     flow.bossName = bossName;
+    flow.previewLoot = '';
     flow.enemy = getArenaEnemyProfile(queue[0], 0, arenaMode, bossName || (arenaMode === 'pinnacle' ? (String(context && context.sourceGateType || '').toLowerCase() === 'hellscape' ? 'Mephisto' : 'Azrael') : ''));
     S.combat = S.combat || {};
     S.combat.active = true;
@@ -16906,13 +16907,18 @@ document.addEventListener('DOMContentLoaded',()=>{
       var trapPreview = (typeof RUIN_TRAP_DESC !== 'undefined' && Array.isArray(RUIN_TRAP_DESC)) ? RUIN_TRAP_DESC.slice(0, 3).join('<br>') : 'Pressure glyphs, void snares, and collapsing floors.';
       var puzzlePreview = (typeof RUIN_PUZZLE_DESC !== 'undefined' && Array.isArray(RUIN_PUZZLE_DESC)) ? RUIN_PUZZLE_DESC.slice(0, 3).join('<br>') : 'Rune locks, clockwork switches, and seal logic.';
       var roomPreview = (typeof RUIN_ROOM_TYPES !== 'undefined' && Array.isArray(RUIN_ROOM_TYPES)) ? RUIN_ROOM_TYPES.slice(0, 5).join(' · ') : 'Lair · Trap · Puzzle · Cache · Boss Chamber';
+      var previewLoot = String(flow && flow.previewLoot || '');
+      if (!previewLoot) {
+        previewLoot = String((typeof rollShopLoot === 'function') ? (rollShopLoot('impossible') || []).slice(0, 3).join(', ') : 'Legendary salvage');
+        if (flow) flow.previewLoot = previewLoot;
+      }
       dungeonPreview = '<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.05);">'
         + '<div class="nb-label" style="color:#7ed7ff;">🗺 Megadungeon Preview</div>'
         + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">'
           + '<div><strong>Rooms:</strong> ' + roomPreview + '</div>'
           + '<div style="margin-top:.2rem;"><strong>Traps:</strong><br>' + trapPreview + '</div>'
           + '<div style="margin-top:.2rem;"><strong>Puzzles:</strong><br>' + puzzlePreview + '</div>'
-          + '<div style="margin-top:.2rem;"><strong>Loot:</strong> ' + String((typeof rollShopLoot === 'function') ? (rollShopLoot('impossible') || []).slice(0, 3).join(', ') : 'Legendary salvage') + '</div>'
+          + '<div style="margin-top:.2rem;"><strong>Loot:</strong> ' + previewLoot + '</div>'
         + '</div>'
       + '</div>';
     }
@@ -16942,7 +16948,6 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.24rem;">' + actionButtons + extraButtons + '</div>'
       + '</div>'
       + boardHtml
-      + buildQPCombat()
       + '<div id="arenaCombatFooter" style="margin-top:.28rem;font-size:.72rem;color:var(--muted2);">'
         + 'Wave ' + String((flow && Number(flow.index || 0)) + 1 || 1) + ' of ' + Math.max(1, queue.length || 1)
         + (flow && Number(flow.clears || 0) ? ' · Clears ' + Number(flow.clears || 0) : '')
@@ -17032,8 +17037,20 @@ document.addEventListener('DOMContentLoaded',()=>{
       if (salvage.length && typeof addToBackpack === 'function') {
         try { addToBackpack(String(salvage[0])); } catch (_err) {}
       }
+      try {
+        if (!S.solarCycleLegacy || typeof S.solarCycleLegacy !== 'object') {
+          S.solarCycleLegacy = { raidMedals: 0, raidPoints: 0, raidTrophies: [] };
+        }
+        S.solarCycleLegacy.raidPoints = Math.max(0, Number(S.solarCycleLegacy.raidPoints || 0) + 3);
+        S.solarCycleLegacy.raidTrophies = Array.isArray(S.solarCycleLegacy.raidTrophies) ? S.solarCycleLegacy.raidTrophies : [];
+        if (flow.bossName) S.solarCycleLegacy.raidTrophies.push(String(flow.bossName));
+        flow.raidPointGain = 3;
+      } catch (_raidErr) {}
       flow.completed = true;
-      if (typeof showNotif === 'function') showNotif('Pinnacle cleared. ' + rewardCredits + ' Credits and ' + rewardRenown + ' Renown awarded.', 'good');
+      if (typeof showNotif === 'function') {
+        var rpLine = Number(flow.raidPointGain || 0) > 0 ? (' · +' + Number(flow.raidPointGain || 0) + ' Raid Points') : '';
+        showNotif('Pinnacle cleared. ' + rewardCredits + ' Credits and ' + rewardRenown + ' Renown awarded' + rpLine + '.', 'good');
+      }
     } else if ((flow.mode === 'endless' || flow.mode === 'challenge') && Number(flow.index || 0) < queue.length - 1) {
       return advanceArenaCombatWave();
     } else {

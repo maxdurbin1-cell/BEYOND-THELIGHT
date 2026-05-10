@@ -358,12 +358,12 @@
     var gate = endgame.gateWar;
     gate.closedHellscape = Math.max(0, Math.min(10, Number(gate.closedHellscape || 0) + Number(hellDelta || 0)));
     gate.closedCelestial = Math.max(0, Math.min(10, Number(gate.closedCelestial || 0) + Number(celestialDelta || 0)));
-    if (gate.closedHellscape < 10 || gate.closedCelestial < 10) {
+    if (gate.closedHellscape < 10 && gate.closedCelestial < 10) {
       gate.pinnacleUnlocked = false;
       gate.pinnacleBoss = '';
     }
-    if (gate.closedHellscape >= 10 && gate.closedCelestial >= 10 && !gate.pinnacleUnlocked) {
-      maybeUnlockPinnacleMegadungeonFromGateWar(gate, 'celestial');
+    if ((gate.closedHellscape >= 10 || gate.closedCelestial >= 10) && !gate.pinnacleUnlocked) {
+      maybeUnlockPinnacleMegadungeonFromGateWar(gate, gate.closedCelestial >= 10 ? 'celestial' : 'hellscape');
     }
     renderMissionTracker();
     if (typeof showNotif === 'function') showNotif('Endgame debug: gate counters updated.', 'info');
@@ -377,10 +377,10 @@
     var key = String(mode || '').toLowerCase();
     if (key === 'ready') {
       gate.closedHellscape = 10;
-      gate.closedCelestial = 10;
+      gate.closedCelestial = 0;
       gate.pinnacleCleared = false;
       gate.kickoutPending = false;
-      if (!gate.pinnacleUnlocked) maybeUnlockPinnacleMegadungeonFromGateWar(gate, 'celestial');
+      if (!gate.pinnacleUnlocked) maybeUnlockPinnacleMegadungeonFromGateWar(gate, 'hellscape');
     } else if (key === 'kickout') {
       removeActivePinnacleMissionsForDebug();
       gate.pinnacleRetries = Math.max(0, Number(gate.pinnacleRetries || 0) + 1);
@@ -392,7 +392,7 @@
       gate.pinnacleCleared = false;
       gate.lastKickoutAt = new Date().toISOString();
     } else if (key === 'clear') {
-      gate.closedHellscape = 10;
+      gate.closedHellscape = 0;
       gate.closedCelestial = 10;
       gate.pinnacleUnlocked = true;
       if (!gate.pinnacleBoss) gate.pinnacleBoss = 'Azrael';
@@ -452,9 +452,9 @@
 
     var hClosed = Math.max(0, Number(gate.closedHellscape || 0));
     var cClosed = Math.max(0, Number(gate.closedCelestial || 0));
-    var portalProgress = Math.min(100, Math.floor(((Math.min(10, hClosed) + Math.min(10, cClosed)) / 20) * 100));
+    var portalProgress = Math.min(100, Math.floor((Math.max(Math.min(10, hClosed), Math.min(10, cClosed)) / 10) * 100));
     var activePortal = getEndgamePortalMissionActive();
-    var portalReady = hClosed >= 10 && cClosed >= 10;
+    var portalReady = hClosed >= 10 || cClosed >= 10;
     var portalStatus = gate.pinnacleCleared
       ? 'Cleared'
       : (activePortal ? 'Active' : (portalReady || gate.pinnacleUnlocked ? 'Ready' : 'Locked'));
@@ -500,7 +500,7 @@
       + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
       + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;">Gate Closures</div>'
       + '<div style="font-size:.68rem;color:var(--text2);line-height:1.45;">Hellscape: <strong style="color:var(--red2);">' + hClosed + '/10</strong> · Celestial: <strong style="color:var(--gold2);">' + cClosed + '/10</strong></div>'
-      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.12rem;">Portal readiness: ' + portalProgress + '%</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.12rem;">Portal readiness (best side): ' + portalProgress + '%</div>'
       + '</div>'
 
       + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
@@ -827,7 +827,7 @@
         templateId: 'gate_war',
         templateLabel: 'Endgame · War of Gods',
         stepNames: { 1: 'Locate Warring Gate', 2: 'Defeat Gate Hostiles', 3: 'Solve Gate Seal Puzzle' },
-        checkpoints: [enemyBrief, puzzle, 'Close 10 Hellscape and 10 Celestial gates to open a Pinnacle Megadungeon portal.'],
+        checkpoints: [enemyBrief, puzzle, 'Close 10 gates of either side (Heaven or Hell) to open a themed Pinnacle Megadungeon portal.'],
         lore: 'After storyline completion, Heaven and Hell spill into the Beyond. ' + enemyBrief + '. '
       }
     );
@@ -846,11 +846,16 @@
     if (!state || state.pinnacleUnlocked) return null;
     var closedHell = Math.max(0, Number(state.closedHellscape || 0));
     var closedCel = Math.max(0, Number(state.closedCelestial || 0));
-    if (closedHell < 10 || closedCel < 10) return null;
-    var boss = sourceGateType === 'hellscape' ? 'Mephisto' : 'Azrael';
+    if (closedHell < 10 && closedCel < 10) return null;
+    var normalized = String(sourceGateType || '').toLowerCase();
+    var gateType = (normalized === 'hellscape' || normalized === 'celestial')
+      ? normalized
+      : (closedCel >= 10 ? 'celestial' : 'hellscape');
+    var boss = gateType === 'hellscape' ? 'Mephisto' : 'Azrael';
+    var dungeonTitle = gateType === 'celestial' ? 'Heaven Megadungeon' : 'Hell Megadungeon';
     var mission = createMission(
       'Pinnacle Portal',
-      'Pinnacle Megadungeon: ' + boss,
+      dungeonTitle + ': ' + boss,
       'impossible',
       'Pinnacle Gate Nexus',
       'province',
@@ -861,11 +866,11 @@
         templateLabel: 'Endgame · Pinnacle Dungeon',
         stepNames: { 1: 'Enter Mega-Dungeon', 2: 'Survive Deep Wing', 3: 'Defeat ' + boss },
         checkpoints: [
-          'Portal opened by sealing 10 Hellscape and 10 Celestial gates.',
+          'Portal opened by sealing 10 ' + (gateType === 'celestial' ? 'Celestial' : 'Hellscape') + ' gates.',
           'Failure ejects you from the dungeon and requires gate sealing to return.',
           'Pinnacle boss: ' + boss + '.'
         ],
-        lore: 'A mega-dungeon opens after the warfront gates are sealed. Failures eject you until the warfront is stabilized again.'
+        lore: 'A themed mega-dungeon opens after one side of the warfront reaches 10 sealed gates. Failures eject you until the warfront is stabilized again.'
       }
     );
     if (!mission) return null;
@@ -12382,7 +12387,7 @@
         gFailState.lastKickoutAt = new Date().toISOString();
         gFailState.pinnacleCleared = false;
         if (typeof showNotif === 'function') {
-          showNotif('Pinnacle run failed: kicked out. Gate closures reset to 0/10 and must be rebuilt.', 'warn');
+          showNotif('Pinnacle run failed: kicked out. Gate closures reset and a side must be rebuilt to 10/10.', 'warn');
         }
       }
       if (mission.missionType === 'legacy_raid' && !options.preserveVaultOnFail) {

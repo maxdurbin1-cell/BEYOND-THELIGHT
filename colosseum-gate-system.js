@@ -6,14 +6,62 @@
         dayStamp: '',
         portalsByScope: {},
         gatesClosed: 0,
-        lastBoss: ''
+        lastBoss: '',
+        closedByType: {
+          hellscape: 0,
+          celestial: 0
+        },
+        pinnacleOpenedByType: {
+          hellscape: false,
+          celestial: false
+        }
       };
     }
     if (!S.endgameArena.portalsByScope || typeof S.endgameArena.portalsByScope !== 'object') {
       S.endgameArena.portalsByScope = {};
     }
+    if (!S.endgameArena.closedByType || typeof S.endgameArena.closedByType !== 'object') {
+      S.endgameArena.closedByType = { hellscape: 0, celestial: 0 };
+    }
+    S.endgameArena.closedByType.hellscape = Math.max(0, Number(S.endgameArena.closedByType.hellscape || 0));
+    S.endgameArena.closedByType.celestial = Math.max(0, Number(S.endgameArena.closedByType.celestial || 0));
+    if (!S.endgameArena.pinnacleOpenedByType || typeof S.endgameArena.pinnacleOpenedByType !== 'object') {
+      S.endgameArena.pinnacleOpenedByType = { hellscape: false, celestial: false };
+    }
+    S.endgameArena.pinnacleOpenedByType.hellscape = !!S.endgameArena.pinnacleOpenedByType.hellscape;
+    S.endgameArena.pinnacleOpenedByType.celestial = !!S.endgameArena.pinnacleOpenedByType.celestial;
     S.endgameArena.gatesClosed = Math.max(0, Number(S.endgameArena.gatesClosed || 0));
     return S.endgameArena;
+  }
+
+  function normalizeGateType(type) {
+    return String(type || '').toLowerCase() === 'celestial' ? 'celestial' : 'hellscape';
+  }
+
+  function syncGateCountsToMissionDirector(closedType, nextCount) {
+    if (!S || !S.missionDirector || !S.missionDirector.endgame || !S.missionDirector.endgame.gateWar) return;
+    var gateWar = S.missionDirector.endgame.gateWar;
+    if (closedType === 'celestial') gateWar.closedCelestial = Math.max(0, Number(nextCount || 0));
+    else gateWar.closedHellscape = Math.max(0, Number(nextCount || 0));
+  }
+
+  function openArenaPopupSafe(payload, fallbackMessage) {
+    var opened = false;
+    if (typeof window.openArenaCombatPopup === 'function') {
+      try {
+        window.openArenaCombatPopup(payload || {});
+        opened = true;
+      } catch (_popupErr) {}
+    }
+    if (!opened && typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(function () {
+        if (typeof window.openArenaCombatPopup === 'function') {
+          try { window.openArenaCombatPopup(payload || {}); } catch (_rafErr) {}
+        }
+      });
+    }
+    if (!opened) fallbackOpenCombatTab(fallbackMessage || 'Combat scene prepared in Combat tab.');
+    return opened;
   }
 
   function getDayStamp() {
@@ -235,15 +283,7 @@
         window.seedArenaCombat(arenaMode, { hexKey: String(hexKey || ''), title: title });
       } catch (_seedErr) {}
     }
-    if (typeof window.openArenaCombatPopup === 'function') {
-      try {
-        window.openArenaCombatPopup({ mode: arenaMode, hexKey: String(hexKey || ''), title: title });
-      } catch (_popupErr) {
-        fallbackOpenCombatTab('Colosseum combat prepared in Combat tab.');
-      }
-    } else {
-      fallbackOpenCombatTab('Colosseum combat prepared in Combat tab.');
-    }
+    openArenaPopupSafe({ mode: arenaMode, hexKey: String(hexKey || ''), title: title }, 'Colosseum combat prepared in Combat tab.');
     if (typeof showNotif === 'function') {
       showNotif('Arena opened: ' + (arenaMode === 'endless' ? 'Endless Mode' : 'Challenge Mode') + '.', 'good');
     }
@@ -326,19 +366,11 @@
     flow.gatePortal.closed = false;
     seedGateEnemies(portal.gateType, flow);
 
-    if (typeof window.openArenaCombatPopup === 'function') {
-      try {
-        window.openArenaCombatPopup({
-          mode: 'gate',
-          hexKey: String(key || ''),
-          title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
-        });
-      } catch (_gatePopupErr) {
-        fallbackOpenCombatTab('Gate battle prepared in Combat tab.');
-      }
-    } else {
-      fallbackOpenCombatTab('Gate battle prepared in Combat tab.');
-    }
+    openArenaPopupSafe({
+      mode: 'gate',
+      hexKey: String(key || ''),
+      title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
+    }, 'Gate battle prepared in Combat tab.');
     if (typeof showNotif === 'function') showNotif('Gate portal opened. Defeat hostiles, then solve the seal puzzle.', 'warn');
     return true;
   }
@@ -371,7 +403,11 @@
     var finalize = function (result) {
       var success = result === 'success';
       if (success) {
+        var closedType = normalizeGateType(gateType);
+        var sideClosed = Math.max(0, Number(state.closedByType[closedType] || 0) + 1);
+        state.closedByType[closedType] = sideClosed;
         state.gatesClosed = Math.max(0, Number(state.gatesClosed || 0) + 1);
+        syncGateCountsToMissionDirector(closedType, sideClosed);
         closeGatePortalOnMap(flow);
         var replacement = spawnReplacementPortal(flow);
         var credits = 80;
@@ -382,13 +418,14 @@
         if (typeof updateRenown === 'function') updateRenown();
         if (typeof showNotif === 'function') {
           var nextGateText = replacement ? (' New gate detected at hex ' + String(replacement.key || '') + '.') : '';
-          showNotif('Portal sealed. +' + credits + ' Credits, +' + renown + ' Renown. Gates sealed: ' + state.gatesClosed + '/10.' + nextGateText, 'good');
+          showNotif('Portal sealed. +' + credits + ' Credits, +' + renown + ' Renown. ' + (closedType === 'celestial' ? 'Heaven' : 'Hell') + ' seals: ' + sideClosed + '/10.' + nextGateText, 'good');
         }
         if (flow.gatePortal && typeof flow.gatePortal.onSealed === 'function') {
           try { flow.gatePortal.onSealed(); } catch (_sealErr) {}
         }
-        if (state.gatesClosed >= 10) {
-          openPinnacleMegadungeonPopup();
+        if (sideClosed >= 10 && !state.pinnacleOpenedByType[closedType]) {
+          state.pinnacleOpenedByType[closedType] = true;
+          openPinnacleMegadungeonPopup(closedType);
         } else if (typeof window.renderArenaCombatPopup === 'function') {
           window.renderArenaCombatPopup();
         }
@@ -425,14 +462,18 @@
     return finalize(Number(ad.total || 0) >= Number(dd.total || 0) ? 'success' : 'failure');
   }
 
-  function openPinnacleMegadungeonPopup() {
+  function openPinnacleMegadungeonPopup(sourceGateType) {
     if (typeof window.seedArenaCombat !== 'function' || typeof window.openArenaCombatPopup !== 'function') return false;
-    var boss = Math.random() < 0.5 ? 'Azrael' : 'Mephisto';
+    var sourceType = normalizeGateType(sourceGateType);
+    var boss = sourceType === 'celestial' ? 'Azrael' : 'Mephisto';
+    var title = sourceType === 'celestial'
+      ? 'Heaven Megadungeon - Azrael'
+      : 'Hell Megadungeon - Mephisto';
     var state = ensureState();
     if (state) state.lastBoss = boss;
-    window.seedArenaCombat('pinnacle', { hexKey: 'megadungeon', bossName: boss, title: 'Pinnacle Megadungeon - ' + boss });
-    window.openArenaCombatPopup({ mode: 'pinnacle', hexKey: 'megadungeon', title: 'Pinnacle Megadungeon - ' + boss });
-    if (typeof showNotif === 'function') showNotif('Pinnacle Megadungeon unlocked: final encounter with ' + boss + '.', 'warn');
+    window.seedArenaCombat('pinnacle', { hexKey: 'megadungeon', bossName: boss, title: title, sourceGateType: sourceType });
+    window.openArenaCombatPopup({ mode: 'pinnacle', hexKey: 'megadungeon', title: title, sourceGateType: sourceType });
+    if (typeof showNotif === 'function') showNotif('Themed Megadungeon unlocked: ' + title + '.', 'warn');
     return true;
   }
 

@@ -219,11 +219,29 @@
 
   function applyFailureConsequence(statKey) {
     if (typeof S === 'undefined' || !S) return;
-    if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    var prevHealth = Number(S.health || 0);
+    var prevMental = Number(S.mentalStress || 0);
     if (String(statKey || '') === 'mind' || String(statKey || '') === 'spirit') {
       S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + 2);
     } else {
       S.health = Math.max(0, Number(S.health || 0) - 1);
+    }
+    if (typeof addTMWOnFail === 'function') {
+      addTMWOnFail('solo-gm-failure', {
+        onConvert: function () {
+          S.health = Math.max(0, prevHealth);
+          S.mentalStress = Math.max(0, prevMental);
+          if (typeof updateHealthUI === 'function') updateHealthUI();
+          if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+          if (typeof updateStressUI === 'function') updateStressUI();
+          var st = ensureSoloGMState();
+          if (st) {
+            st.lastResolution = 'Teamwork converted the failed check into a success. Failure penalties removed.';
+            openSoloGMConsole();
+          }
+          return true;
+        }
+      });
     }
   }
 

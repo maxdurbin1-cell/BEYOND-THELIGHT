@@ -360,7 +360,17 @@ select option{background:#0f1020;}
   #qpContent{padding:.52rem;}
 }
 @media(max-width:980px){header{grid-template-columns:1fr auto;align-items:start;}.logo{grid-column:1 / 2;}.ctx-bar{grid-column:1 / -1;}.header-credits{grid-column:2 / 3;align-self:start;}.tab-btn{font-size:.68rem;padding:.4rem .72rem;}}
-@media(max-width:680px){header{grid-template-columns:1fr;}.header-credits{grid-column:1 / -1;justify-self:stretch;margin-left:0;}.ctx-bar{padding:.3rem .34rem;}nav{padding:.4rem;gap:.24rem;}#main-content{padding:1rem .7rem 2rem;}}
+@media(max-width:680px){
+header{grid-template-columns:1fr;padding:.58rem .62rem .72rem;gap:.5rem;}
+.logo{font-size:.98rem;letter-spacing:.08em;}
+.logo::after{font-size:.55rem;letter-spacing:.2em;}
+.header-credits{grid-column:1 / -1;justify-self:stretch;margin-left:0;min-width:0;}
+.ctx-bar{padding:.26rem .3rem;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
+.ctx-btn{flex:0 0 auto;font-size:.58rem;padding:.24rem .5rem;}
+nav{padding:.34rem;gap:.2rem;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
+.tab-btn{flex:0 0 auto;font-size:.62rem;letter-spacing:.08em;padding:.34rem .6rem;min-height:2rem;}
+#main-content{padding:.78rem .55rem 1.7rem;}
+}
 @media(max-width:980px){.hero-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.openworld-proof-header,.openworld-proof-grid{grid-template-columns:1fr;}.onboarding-grid{grid-template-columns:1fr;}}
 @media(max-width:600px){.hero-title{font-size:1.05rem;}.hero-subheading{font-size:.86rem;}.hero-meta-grid{grid-template-columns:1fr;}}
 .job-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
@@ -396,7 +406,7 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-trophies" id="tabnav-trophies" onclick="switchTab('trophies',this)">Trophies</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('raidtree',this)">Raid</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" onclick="switchTab('missions',this)">Missions</button>
-    <button class="tab-btn ctx-traveling ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-endgame" id="tabnav-endgame" onclick="switchTab('endgame',this)">Endgame</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-endgame" id="tabnav-endgame" onclick="switchTab('endgame',this)">Endgame</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-galaxy" id="tabnav-galaxy" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>

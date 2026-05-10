@@ -2824,7 +2824,7 @@
     if (!node) return;
     var services = node.services || {};
     if (!services.merchant) {
-      if (typeof showNotif === 'function') showNotif('No active browse stalls in this district right now.', 'warn');
+      if (typeof showNotif === 'function') showNotif('No active merchant stalls in this district right now.', 'warn');
       return;
     }
     var cat = String(services.merchantCategory || 'items');
@@ -3382,7 +3382,7 @@
         + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">'
         + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_talk\')">Talk to Locals</button>'
         + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'rumor\')">Hear Rumors</button>'
-        + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Browse</button>'
+        + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'browse\')">Merchants</button>'
         + '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'event\')">Random Encounter</button>'
         + '</div>'
         + '<div id="holdingDowntimeResult" style="margin-top:.12rem;">' + buildHoldingPendingEventHtml() + '</div>'
@@ -3399,7 +3399,7 @@
           : '')
         + (active && active.browsePreview && Array.isArray(active.browsePreview.offers)
           ? ('<div style="margin-top:.1rem;padding:.2rem .28rem;border:1px solid rgba(126,215,255,.28);background:rgba(126,215,255,.06);">'
-            + '<div style="font-size:.67rem;color:var(--teal);margin-bottom:.08rem;"><strong>Browse Offers</strong> · ' + String(active.browsePreview.category || 'mixed') + '</div>'
+            + '<div style="font-size:.67rem;color:var(--teal);margin-bottom:.08rem;"><strong>Merchants Offers</strong> · ' + String(active.browsePreview.category || 'mixed') + '</div>'
             + active.browsePreview.offers.map(function (offer) {
                 var itemName = String(offer || 'Item');
                 var itemCost = getHoldingBrowseOfferCost(itemName);

@@ -55,6 +55,43 @@ function getRangeCategory(distance) {
   return 'Out of Reach';
 }
 
+function getCrucibleOpenHexes(unit, match, maxDistance) {
+  if (!unit || !unit.position || !match || !match.hexMap || !match.hexMap.hexes) return [];
+  var apLimit = Math.max(0, Number(maxDistance != null ? maxDistance : unit.ap || 0));
+  if (apLimit <= 0) return [];
+  var occupied = {};
+  (match.allies || []).concat(match.enemies || []).forEach(function (other) {
+    if (other && other.position && String(other.id || '') !== String(unit.id || '')) {
+      occupied[hexToKey(other.position)] = true;
+    }
+  });
+  return Object.keys(match.hexMap.hexes).map(function (key) {
+    var cell = match.hexMap.hexes[key];
+    var hex = keyToHex(key);
+    return { key: key, cell: cell, hex: hex };
+  }).filter(function (entry) {
+    if (!entry || !entry.hex || !entry.cell) return false;
+    if (entry.cell.obstacle || entry.cell.door) return false;
+    if (occupied[entry.key]) return false;
+    return hexDistance(unit.position, entry.hex) <= apLimit;
+  }).map(function (entry) {
+    return {
+      q: entry.hex.q,
+      r: entry.hex.r,
+      cell: entry.cell,
+      distance: hexDistance(unit.position, entry.hex)
+    };
+  });
+}
+
+function getCrucibleRandomOpenHex(unit, match, maxDistance) {
+  var options = getCrucibleOpenHexes(unit, match, maxDistance).filter(function (hex) {
+    return !unit || !unit.position || hex.q !== unit.position.q || hex.r !== unit.position.r;
+  });
+  if (!options.length) return null;
+  return options[Math.floor(Math.random() * options.length)] || null;
+}
+
 // ============================================================================
 // HEX MAP GENERATION
 // ============================================================================
@@ -282,22 +319,20 @@ function moveUnitToHex(unit, hex, map, log) {
     return false;
   }
 
-  var oldDist = getUnitDistance(unit, { position: hex });
-  if (oldDist !== 1) {
-    if (log) log.push(unit.name + ' is too far away.');
+  var cost = getUnitDistance(unit, { position: hex });
+  if (cost <= 0) {
+    if (log) log.push(unit.name + ' is already there.');
     return false;
   }
-
-  var cost = 1; // 1 AP per hex
   if (Number(unit.ap || 0) < cost) {
-    if (log) log.push(unit.name + ' has no AP remaining.');
+    if (log) log.push(unit.name + ' is too far away.');
     return false;
   }
 
   unit.ap = Math.max(0, Number(unit.ap) - cost);
   unit.position = { q: hex.q, r: hex.r };
 
-  if (log) log.push(unit.name + ' moved to [' + hex.q + ',' + hex.r + '].');
+  if (log) log.push(unit.name + ' moved to [' + hex.q + ',' + hex.r + '] (' + cost + ' AP).');
 
   // Trigger terrain effects
   triggerHexTerrainEffects(unit, hex, map, log);
@@ -635,50 +670,19 @@ function getHexMovementButtonsHtml(unit, match) {
     return '<div style="font-size:.7rem;color:var(--muted2);">No AP remaining.</div>';
   }
 
-  var reachable = [];
-  
-  // Generate adjacent hexes (1 hex away = 1 AP cost)
-  var adjacentOffsets = [
-    { q: 1, r: 0 }, { q: -1, r: 0 },
-    { q: 0, r: 1 }, { q: 0, r: -1 },
-    { q: 1, r: -1 }, { q: -1, r: 1 }
-  ];
-
-  adjacentOffsets.forEach(function(offset) {
-    var hexKey = (unit.position.q + offset.q) + ',' + (unit.position.r + offset.r);
-    var cell = match.hexMap.hexes[hexKey];
-    
-    if (cell && !cell.obstacle && !cell.door) {
-      // Check if hex is occupied
-      var occupied = false;
-      (match.allies || []).concat(match.enemies || []).forEach(function(u) {
-        if (u && u.position && u.position.q === (unit.position.q + offset.q) && 
-            u.position.r === (unit.position.r + offset.r) && u.id !== unit.id) {
-          occupied = true;
-        }
-      });
-      
-      if (!occupied) {
-        reachable.push({
-          q: unit.position.q + offset.q,
-          r: unit.position.r + offset.r,
-          cell: cell
-        });
-      }
-    }
-  });
+  var reachable = getCrucibleOpenHexes(unit, match, Number(unit.ap || 0));
 
   if (reachable.length === 0) {
-    return '<div style="font-size:.7rem;color:var(--muted2);">No adjacent movement options.</div>';
+    return '<div style="font-size:.7rem;color:var(--muted2);">No reachable movement options.</div>';
   }
 
-  var buttons = reachable.map(function(hex) {
+  var buttons = reachable.sort(function (a, b) { return Number(a.distance || 0) - Number(b.distance || 0); }).map(function(hex) {
     var label = '[' + hex.q + ',' + hex.r + ']';
     var terrain = hex.cell.terrain || 'open';
     var icon = terrain === 'trap' ? '⚠' : (terrain === 'loot' ? '⚔' : (terrain === 'cover' ? '🛡' : '⬡'));
     
     return '<button class="btn btn-xs" onclick="holdingCrucibleMoveSelected(' + hex.q + ',' + hex.r + ');" style="font-size:.7rem;">' 
-      + icon + ' ' + label 
+      + icon + ' ' + label + ' · ' + Number(hex.distance || 0)
       + '</button>';
   }).join('');
 

@@ -2240,7 +2240,7 @@
       + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.35rem;">'
       + (canAct && typeof getHexMovementButtonsHtml === 'function' 
-        ? ('<div style="width:100%;margin-bottom:.15rem;font-size:.7rem;"><strong style="color:var(--gold);">Movement:</strong></div>' + getHexMovementButtonsHtml(selectedAlly, match))
+        ? ('<div style="width:100%;margin-bottom:.15rem;font-size:.7rem;"><strong style="color:var(--gold);">Movement:</strong></div>' + getHexMovementButtonsHtml(selectedAlly, match) + '<button class="btn btn-sm btn-teal" style="margin-top:.2rem;" onclick="holdingCrucibleTeleportSelected();">Teleport Random Hex</button>')
         : '<div style="font-size:.7rem;color:var(--muted2);">No movement available.</div>')
       + '</div>'
       + buildHoldingCrucibleBoardHtml(match)
@@ -2559,6 +2559,32 @@
       }
     }
     return false;
+  }
+
+  function holdingCrucibleTeleportSelected() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.turnSide || 'ally') !== 'ally' || !match.hexMap) return false;
+    var ally = getSelectedCrucibleAlly(match);
+    if (!ally || Number(ally.hp || 0) <= 0 || Number(ally.ap || 0) <= 0) return false;
+    var target = null;
+    if (typeof getCrucibleRandomOpenHex === 'function') {
+      target = getCrucibleRandomOpenHex(ally, match, 999);
+    }
+    if (!target) {
+      if (typeof showNotif === 'function') showNotif('No open hexes are available to teleport to.', 'warn');
+      return false;
+    }
+    ally.ap = Math.max(0, Number(ally.ap || 0) - 1);
+    ally.position = { q: Number(target.q), r: Number(target.r) };
+    if (typeof triggerHexTerrainEffects === 'function') {
+      triggerHexTerrainEffects(ally, target, match.hexMap, match.log || []);
+    }
+    match.log = (match.log || []).concat([ally.name + ' teleported to [' + target.q + ',' + target.r + '].']).slice(-120);
+    maybeSyncCrucibleSelection(match);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    if (typeof showNotif === 'function') showNotif(ally.name + ' teleported to [' + target.q + ',' + target.r + '].', 'good');
+    return true;
   }
 
   function holdingCrucibleAttackSelected() {
@@ -6136,6 +6162,7 @@
   window.selectHoldingCrucibleUnit = selectHoldingCrucibleUnit;
   window.selectHoldingCrucibleTarget = selectHoldingCrucibleTarget;
   window.holdingCrucibleMoveSelected = holdingCrucibleMoveSelected;
+  window.holdingCrucibleTeleportSelected = holdingCrucibleTeleportSelected;
   window.refreshCrucibleTeamActionOptions = refreshCrucibleTeamActionOptions;
   window.holdingCrucibleExecuteWayfarerAction = holdingCrucibleExecuteWayfarerAction;
   window.holdingCrucibleExecuteTeamAction = holdingCrucibleExecuteTeamAction;

@@ -10,7 +10,32 @@
     ThornCompact: "#6d9a57"
   };
 
-  var DEFAULT_ATLAS_IMAGE = "./assets/maps/theos-known-realms-of-theos.jpg";
+  var DEFAULT_ATLAS_IMAGE = "https://i.redd.it/l61xqn4ojhc81.jpg";
+  var FALLBACK_ATLAS_IMAGE = "./assets/maps/theos-known-realms-of-theos.jpg";
+  var TRAIN_COST = 100;
+
+  var PROVINCE_LORE = {
+    dyn: {
+      chronicle: "Dyn's Well was forged by succession wars, Ysari restorations, and Nominion incursions. Port Thunder and Rynefrost anchor a province where pilgrimage roads, mine corridors, and imperial nostalgia collide under Frostmourne's shadow.",
+      places: ["Port Thunder", "Rocfeather Mine", "Rynefrost", "Frostmourne Mountain", "Crystal Tower"],
+      fractures: ["Silverquill revelers vs civic law", "Ysari imperialists vs dynastic claimants", "Pilgrims vs mine monopolists"]
+    },
+    rosegrove: {
+      chronicle: "Rose Grove is splendor built on compromise: Syndaario's jeweled authority, marshy bay trade, and frontier roads where imperial pageantry masks intelligence wars, class resentment, and uneasy western legions.",
+      places: ["Syndaario", "Mount Thane", "Farharbor", "Port Kiraan", "Gleaning Wilds"],
+      fractures: ["Triarchic court factions vs provincial houses", "Bay merchants vs inland guild tariffs", "Imperial patrols vs local smuggler routes"]
+    },
+    raenor: {
+      chronicle: "Raenor March sits on border-memory and sacred extraction. Old Akarian tribute, canyon routes, and Planeshifter ore economics produce fragile peace where sanctity, commerce, and black-market ritual all claim legitimacy.",
+      places: ["Raenor", "Planeshifter Mine", "Nymoth routes", "Dawnwood margins", "Dralen crossings"],
+      fractures: ["Lorefiend councils vs extraction syndicates", "Tidestar tribute law vs imperial tax writs", "Sanctum custodians vs mercenary prospectors"]
+    },
+    sunsgrave: {
+      chronicle: "Sunsgrave Expanse is a contested mirror between Eldaran memory and kith expansion. Glass towers, moving sanctums, and beastfolk hierarchies sustain a province where every treaty is temporary and every border mythologized.",
+      places: ["Sungrave", "Veiled Sanctum", "Petrified Forest", "Ikri route", "Akarian frontier"],
+      fractures: ["Achamerian courts vs imperial envoys", "Great Ape title houses vs kith enclaves", "Relic preservation vs strategic militarization"]
+    }
+  };
 
   var THEOS_CONTINENTS = [
     {
@@ -190,6 +215,7 @@
     if (typeof st.politicalTick !== "number") st.politicalTick = 0;
     if (!st.activeProvinceId) st.activeProvinceId = null;
     if (!st.hoverProvinceId) st.hoverProvinceId = null;
+    if (typeof st.trainOwned !== "boolean") st.trainOwned = false;
 
     START_UNLOCKED.forEach(function (id) {
       st.unlocked[id] = true;
@@ -203,6 +229,16 @@
       return window.THEOS_ATLAS_IMAGE.trim();
     }
     return DEFAULT_ATLAS_IMAGE;
+  }
+
+  function getProvinceLore(provinceId) {
+    var lore = PROVINCE_LORE[provinceId];
+    if (lore) return lore;
+    return {
+      chronicle: "Regional annals are fragmentary: dynastic pacts, failed reforms, and opportunistic alliances keep this province unstable and politically rich.",
+      places: ["Old roadwatch", "Harbor quarter", "Pilgrim track", "Frontier keep"],
+      fractures: ["Noble blocs vs civic councils", "Merchant compacts vs militia contracts", "Temple authority vs provincial bureaucracy"]
+    };
   }
 
   function getNeighbors(provinceId) {
@@ -540,19 +576,30 @@
 
     var p = summary.province;
     var d = summary.dna;
+    var lore = getProvinceLore(p.id);
     var tables = buildProvinceContentTables(p.id) || { settlements: [], dungeons: [], quests: [] };
     var powerColor = FACTION_COLORS[summary.power] || "#bda57a";
+    var stTrain = ensureState();
+    var credits = Math.max(0, Number(window.S && window.S.credits || 0));
+    var canBuyTrain = !stTrain.trainOwned && credits >= TRAIN_COST;
+    var trainLabel = stTrain.trainOwned ? "Train Ready" : ("Train Required (" + TRAIN_COST + " \u20B5)");
+    var travelAction = stTrain.trainOwned
+      ? ('<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Board Train to Province</button>')
+      : ('<button class="btn btn-sm ' + (canBuyTrain ? 'btn-teal' : '') + '" onclick="window.theosBuyTrain()"' + (canBuyTrain ? '' : ' disabled title="Need more credits"') + '>Purchase Train (' + TRAIN_COST + ' \u20B5)</button>');
 
     root.innerHTML = ''
       + '<div class="theos-region-kicker">' + esc(p.name) + ' · Threat ' + esc(p.threat) + '</div>'
-      + '<p class="theos-region-copy">' + esc(d.historicalSummary) + '</p>'
+      + '<p class="theos-region-copy">' + esc(lore.chronicle) + '</p>'
       + '<div class="theos-chip-row">'
       + '<span class="theos-chip">Terrain: ' + esc(d.terrain) + '</span>'
       + '<span class="theos-chip">Climate: ' + esc(d.climate) + '</span>'
       + '<span class="theos-chip">Architecture: ' + esc(d.architecture) + '</span>'
+      + '<span class="theos-chip">Rail Access: ' + esc(trainLabel) + '</span>'
       + '</div>'
       + '<div class="theos-kv-grid">'
       + '<div><strong>Dominant Power</strong><span style="color:' + esc(powerColor) + ';">' + esc(summary.power) + '</span></div>'
+      + '<div><strong>Notable Places</strong><span>' + esc(lore.places.join(', ')) + '</span></div>'
+      + '<div><strong>Fracture Lines</strong><span>' + esc(lore.fractures.join('; ')) + '</span></div>'
       + '<div><strong>Religions</strong><span>' + esc(d.religions.join(', ')) + '</span></div>'
       + '<div><strong>Historical Scars</strong><span>' + esc(d.scars.join('; ')) + '</span></div>'
       + '<div><strong>Tensions</strong><span>' + esc(d.tensions.join('; ')) + '</span></div>'
@@ -562,7 +609,7 @@
       + '</div>'
       + '<div class="theos-region-actions">'
       + '<button class="btn btn-sm btn-teal" onclick="window.theosSelectProvince(\'' + esc(p.id) + '\', true)">Survey Region</button>'
-      + '<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Province</button>'
+      + travelAction
       + '</div>';
   }
 
@@ -662,6 +709,7 @@
       + '    <div><strong>Discovered</strong><span>' + esc(discoveredCount) + ' / ' + esc(THEOS_PROVINCES.length) + '</span></div>'
       + '    <div><strong>Unlocked</strong><span>' + esc(unlockedCount) + '</span></div>'
       + '    <div><strong>Political Tick</strong><span>' + esc(st.politicalTick) + '</span></div>'
+      + '    <div><strong>Train</strong><span>' + (st.trainOwned ? 'Owned' : ('Not Owned (' + TRAIN_COST + ' \u20B5)')) + '</span></div>'
       + '    <div><strong>Zoom</strong><span>' + esc(zoomPct) + '%</span></div>'
       + '  </div>'
       + '  <div class="theos-layout">'
@@ -673,7 +721,7 @@
       + '      <div class="theos-atlas-viewport">'
       + '        <div id="theosAtlasStage" class="theos-atlas-stage" style="transform:scale(' + esc(st.zoom) + ');">'
       + (atlasImage
-        ? '          <img src="' + esc(atlasImage) + '" class="theos-atlas-image" alt="Theos world map" onerror="this.style.display=\'none\'; this.parentElement.classList.add(\'no-image\');">'
+        ? '          <img src="' + esc(atlasImage) + '" data-fallback-src="' + esc(FALLBACK_ATLAS_IMAGE) + '" class="theos-atlas-image" alt="Theos world map" onerror="if(this.dataset.fallbackSrc){this.src=this.dataset.fallbackSrc;this.dataset.fallbackSrc=\'\';return;} this.style.display=\'none\'; this.parentElement.classList.add(\'no-image\');">'
         : '          <div class="theos-atlas-fallback">Attach your custom map by setting window.THEOS_ATLAS_IMAGE to a local asset path.</div>')
       + '          <svg class="theos-atlas-svg" viewBox="0 0 100 100" preserveAspectRatio="none">'
       + drawRoutes(st)
@@ -749,6 +797,10 @@
   function enterProvince(provinceId) {
     var st = ensureState();
     if (!provinceById(provinceId)) return;
+    if (!st.trainOwned) {
+      notify("Province travel requires a train. Purchase one for " + TRAIN_COST + " \u20B5 in the Atlas panel.", "warn");
+      return;
+    }
 
     saveProvinceSnapshot();
 
@@ -772,6 +824,32 @@
 
     switchToTab("map");
     notify("Entered " + provinceById(provinceId).name + ". Regional DNA applied and codex updated.", "good");
+  }
+
+  function buyTrain() {
+    var st = ensureState();
+    if (st.trainOwned) {
+      notify("Your rail transport is already secured.", "good");
+      return;
+    }
+    var credits = Math.max(0, Number(window.S && window.S.credits || 0));
+    if (credits < TRAIN_COST) {
+      notify("Insufficient credits. Need " + TRAIN_COST + " \u20B5 for a train.", "warn");
+      return;
+    }
+
+    if (typeof window.changeCredits === "function") {
+      window.changeCredits(-TRAIN_COST);
+    } else {
+      window.S.credits = Math.max(0, credits - TRAIN_COST);
+      if (typeof window.updateCreditsUI === "function") {
+        try { window.updateCreditsUI(); } catch (_creditErr) {}
+      }
+    }
+
+    st.trainOwned = true;
+    renderAtlas();
+    notify("Train purchased. Province routes are now traversable by rail.", "good");
   }
 
   function unlockConnected() {
@@ -838,6 +916,7 @@
   window.theosSetZoom = setTheosZoom;
   window.theosSelectProvince = selectProvince;
   window.theosEnterProvince = enterProvince;
+  window.theosBuyTrain = buyTrain;
   window.theosUnlockConnected = unlockConnected;
   window.theosAdvancePolitics = advancePolitics;
   window.theosTravelTo = travelTo;

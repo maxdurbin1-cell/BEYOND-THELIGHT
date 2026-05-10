@@ -1864,9 +1864,12 @@
     getLivingTeamUnits(match.enemies).forEach(function (u) {
       units.push({ name: u.name, side: 'enemy', isPlayer: false, hp: Number(u.hp || 0), range: String(u.range || 'Engaged') });
     });
-    if (typeof buildLegacyRaidHexCombatBoard === 'function') {
+    var boardRenderer = (typeof window !== 'undefined' && typeof window.buildLegacyRaidHexCombatBoard === 'function')
+      ? window.buildLegacyRaidHexCombatBoard
+      : null;
+    if (boardRenderer) {
       try {
-        return buildLegacyRaidHexCombatBoard(units, {
+        return boardRenderer(units, {
           title: 'CRUCIBLE 6V6 - TACTICAL MAP (' + mode.label.toUpperCase() + ')',
           subtitle: String(match.mapBrief || '3 lanes, platforms, cover, power ammo, and center high ground.'),
           seed: 'holding-crucible-' + String(match.round || 1),

@@ -13169,6 +13169,7 @@
   window.spawnRandomColosseumMissionEvent=spawnRandomColosseumMissionEvent;
   window.spawnRandomGateWarMissionEvent=spawnRandomGateWarMissionEvent;
   window.syncRandomEndgameMissionSpawns=syncRandomEndgameMissionSpawns;
+  window.buildLegacyRaidHexCombatBoard=buildLegacyRaidHexCombatBoard;
   window.openSeaColosseumFromHex=openSeaColosseumFromHex;
   window.resolveSeaColosseumBout=resolveSeaColosseumBout;
   window.autoFailExpiredMissions=autoFailExpiredMissions;

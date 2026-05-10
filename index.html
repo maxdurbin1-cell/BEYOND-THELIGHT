@@ -7243,7 +7243,7 @@ function getEquippedAffixCombatBonuses(){
   if(hasEquippedAffix('lethal')){out.critShift+=2;out.actionBonus-=1;}
   if(hasEquippedAffix('vicious'))out.addBodyToStrikeDamage=true;
   if(hasEquippedAffix('silent')){out.controlFlat+=2;out.actionBonus-=1;}
-  if(hasEquippedAffix('distance'))out.shootCloseBonus+=1;
+  if(hasEquippedAffix('distance')){out.shootCloseBonus+=1;out.strikeCloseEnabled=true;}
 
   if(hasEquippedAffix("dragon's breath"))out.onHitFlatDamage+=3;
   if(hasEquippedAffix('stormcaller')){out.onHitFlatDamage+=3;out.enemySkipTurnsOnHit=Math.max(out.enemySkipTurnsOnHit,1);}
@@ -7835,7 +7835,7 @@ function weaponTextAllowsShootRange(range){
   if(!hasShoot)return range==='nearby';
   if(range==='nearby')return true;
   if(range==='far'&&affix.shootFarEnabled)return true;
-  if(range==='close')return joined.indexOf('close')>=0||hasShootRangeOverride('close');
+  if(range==='close')return affix.shootCloseBonus>0||joined.indexOf('close')>=0||hasShootRangeOverride('close');
   if(range==='far')return joined.indexOf('far')>=0||hasShootRangeOverride('far');
   return false;
 }
@@ -10100,14 +10100,15 @@ function equipBackpackItem(index, slot) {
     found = findShopItem(itemName);
   }
   var cat = found ? found.cat : null;
+  var itemBlob = [itemForEquip, itemName, item, (found && found.item && found.item.stat) || ''].join(' ');
   var isWeapon = (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp');
-  if (!isWeapon && /\bstrike\s*\||\bshoot\s*\||\[.*weapon\]|platinum weapon|gold weapon|silver weapon|bronze weapon/i.test(String(itemForEquip || item))) isWeapon = true;
+  if (!isWeapon && /\bstrike\s*\||\bshoot\s*\||\[.*weapon\]|platinum weapon|gold weapon|silver weapon|bronze weapon|\bweapon\b/i.test(String(itemBlob))) isWeapon = true;
   var isArmor = (cat === 'armor' || cat === 'armor_exp');
   var isSpaceArmor = (cat === 'space_armor');
-  if (!(isArmor || isSpaceArmor) && /armor|armour|cloak|mantle|radsuit|vaccsuit|hydrosuit|suit/i.test(String(itemName || item))) {
+  if (!(isArmor || isSpaceArmor) && /armor|armour|cloak|mantle|radsuit|vaccsuit|hydrosuit|suit|\[armor\]|\barmour\b/i.test(String(itemBlob))) {
     isArmor = true;
   }
-  if (!isArmor && /fuligin cloak/i.test(String(itemName || itemForEquip || item))) isArmor = true;
+  if (!isArmor && /fuligin cloak/i.test(String(itemBlob))) isArmor = true;
   var isLayer = isSpaceArmor && isSpaceArmorLayerName(itemName);
   var isSuit = isSpaceArmor && isSpaceSuitName(itemName);
   
@@ -17166,6 +17167,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     var actionsMax = Math.max(1, Number(typeof getMaxActions === 'function' ? getMaxActions() : 3));
     var enemyActionsPerTurn = 2;
     var enemiesAlive = arenaAliveHostileCount();
+    var activeHostiles = Array.isArray(S && S.enemies)
+      ? S.enemies.filter(function (enemy) {
+          return enemy && !enemy.ally && Number(enemy.stress || 0) < Number(enemy.maxStress || 8);
+        })
+      : [];
+    var enemyRosterStrip = activeHostiles.map(function (enemy) {
+      var hpNow = Math.max(0, Number(enemy.maxStress || 8) - Number(enemy.stress || 0));
+      return '<div style="display:inline-flex;align-items:center;gap:.2rem;padding:.12rem .3rem;border:1px solid rgba(200,80,80,.35);background:rgba(200,80,80,.12);font-size:.68rem;color:var(--red2);white-space:nowrap;">'
+        + '<span>✕</span><strong>' + String(enemy.name || 'Hostile') + '</strong><span style="color:var(--muted2);">d' + Number(enemy.dread || 4) + ' · ' + hpNow + ' HP</span>'
+      + '</div>';
+    }).join('');
     var player = { name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer'), side: 'ally', isPlayer: true, hp: Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0)), range: 'Engaged' };
     var boardUnits = [player];
     if (currentEnemy) {
@@ -17247,10 +17259,13 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.1rem;">' + title + '</div>'
       + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">' + modeLabel + ' · ' + (hexKey ? ('Hex ' + hexKey) : 'No hex anchor') + ' · ' + currentReward + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.25rem;">'
-        + '<div style="padding:.16rem .28rem;border:1px solid var(--border2);background:rgba(70,196,182,.08);font-size:.72rem;color:var(--teal);">Your Actions: <strong>' + actionsLeft + '/' + actionsMax + '</strong></div>'
-        + '<div style="padding:.16rem .28rem;border:1px solid var(--border2);background:rgba(200,80,80,.08);font-size:.72rem;color:var(--red2);">Enemy Actions/Turn: <strong>' + enemyActionsPerTurn + '</strong></div>'
-        + '<div style="padding:.16rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);font-size:.72rem;color:var(--text2);">Enemies Alive: <strong>' + enemiesAlive + '</strong></div>'
-        + '<div style="padding:.16rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);font-size:.72rem;color:var(--gold2);">Wave: <strong>' + String((flow && Number(flow.index || 0)) + 1 || 1) + '/' + Math.max(1, queue.length || 1) + '</strong></div>'
+        + '<div style="padding:.26rem .5rem;border:1px solid rgba(70,196,182,.35);background:rgba(70,196,182,.12);font-size:.8rem;color:var(--teal);">Your Actions: <strong>' + actionsLeft + '/' + actionsMax + '</strong></div>'
+        + '<div style="padding:.26rem .5rem;border:1px solid rgba(200,80,80,.35);background:rgba(200,80,80,.12);font-size:.8rem;color:var(--red2);">Enemy Actions/Turn: <strong>' + enemyActionsPerTurn + '</strong></div>'
+        + '<div style="padding:.26rem .5rem;border:1px solid var(--border2);background:rgba(255,255,255,.05);font-size:.8rem;color:var(--text2);">Enemies Alive: <strong>' + enemiesAlive + '</strong></div>'
+        + '<div style="padding:.26rem .5rem;border:1px solid var(--border2);background:rgba(255,255,255,.05);font-size:.8rem;color:var(--gold2);">Wave: <strong>' + String((flow && Number(flow.index || 0)) + 1 || 1) + '/' + Math.max(1, queue.length || 1) + '</strong></div>'
+      + '</div>'
+      + '<div style="margin:-.08rem 0 .28rem;padding:.16rem .2rem;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.02);display:flex;gap:.18rem;flex-wrap:wrap;">'
+        + (enemyRosterStrip || '<div style="font-size:.7rem;color:var(--muted2);">No active hostiles in this wave.</div>')
       + '</div>'
       + dungeonPreview
       + gatePuzzleHtml

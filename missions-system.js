@@ -5179,6 +5179,7 @@
           + '<button class="btn btn-sm" onclick="window.finishLegacyRaidCombatScene(' + missionId + ',' + wingNum + ')">End Scene</button>'
           + (sceneStarted ? '' : ('<button class="btn btn-sm btn-primary" onclick="window.startLegacyRaidCombatScene(' + missionId + ',' + wingNum + ')">Start Scene</button>'))
         + '</div>'
+        + '<div style="margin:.14rem 0 .2rem;">' + hexBoardHtml + '</div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.35rem .45rem;font-size:.78rem;line-height:1.4;min-height:2rem;">'
           + String((S.quickPanel && S.quickPanel.lastCombatRoll) || 'No combat roll yet.')
         + '</div>'
@@ -5345,6 +5346,20 @@
       return false;
     }
     var act = String(action || '').toLowerCase();
+    var aliasMap = {
+      standard_strike: 'strike',
+      focused_strike: 'strike',
+      strike_combo: 'strike',
+      strike: 'strike',
+      steady_shot: 'shoot',
+      shoot: 'shoot',
+      defend_stance: 'defend',
+      safeguard: 'defend',
+      defend: 'defend',
+      team_support: 'support',
+      support: 'support'
+    };
+    if (aliasMap[act]) act = aliasMap[act];
     if (!act) return false;
     var hostiles = getLegacyRaidSceneHostiles();
     var selected = hostiles.find(function (h) { return Number(h && h.id || 0) === Number(flow.selectedHostileId || 0); }) || hostiles[0] || null;
@@ -5363,9 +5378,15 @@
       if (typeof rollAttack === 'function') rollAttack('shoot');
     } else if (act === 'defend') {
       if (typeof rollDefend === 'function') rollDefend();
+    } else if (act === 'support') {
+      if (typeof rollSupport === 'function') rollSupport();
+      else if (typeof showNotif === 'function') showNotif('Support action is unavailable right now.', 'warn');
     } else if (act.indexOf('move:') === 0) {
       var zone = act.split(':')[1] || 'Close';
       window.setLegacyRaidPlayerRange(zone);
+    } else {
+      if (typeof showNotif === 'function') showNotif('Unknown raid action: ' + act + '.', 'warn');
+      return false;
     }
     if (typeof window.refreshLegacyRaidCombatModal === 'function') window.refreshLegacyRaidCombatModal(missionId, wingNum);
     return true;
@@ -5652,6 +5673,12 @@
       S.combat.actionsLeft = left - 1;
     }
     flow.playerRange = nextRange;
+    if (typeof S !== 'undefined' && S && S.combat) {
+      S.combat.playerRange = nextRange;
+      if (typeof S.combat.currentRange === 'undefined' || S.combat.currentRange === null || S.combat.currentRange === '') {
+        S.combat.currentRange = nextRange;
+      }
+    }
     if (typeof showNotif === 'function') showNotif('Repositioned to ' + flow.playerRange + '.', 'info');
     if (typeof updateCombatUI === 'function') updateCombatUI();
     if (typeof renderEnemies === 'function') renderEnemies();
@@ -5982,11 +6009,17 @@
   window.finishLegacyRaidCombatScene = function (missionId, wingNum) {
     var mId = Number(missionId || 0);
     var wNum = Number(wingNum || 1);
+    var hostilesRemaining = getLegacyRaidSceneHostiles();
+    var hpState = getLegacyRaidPlayerHealthState();
+    var playerAlive = Number(hpState && hpState.current || 0) > 0;
+    var outcome = hostilesRemaining.length === 0
+      ? 'win'
+      : (playerAlive ? 'retreat' : 'wipe');
     if (typeof endCombat === 'function') endCombat();
     // If finalize hook did not route to a destination, offer explicit return control.
     if (getLegacyRaidPendingHexCombat()) {
       if (typeof window.finalizeLegacyRaidHexCombatOutcome === 'function') {
-        try { window.finalizeLegacyRaidHexCombatOutcome('retreat'); } catch (_err) {}
+        try { window.finalizeLegacyRaidHexCombatOutcome(outcome); } catch (_err) {}
       } else if (typeof openRaidWingPopup === 'function') {
         openRaidWingPopup(mId, wNum);
       }

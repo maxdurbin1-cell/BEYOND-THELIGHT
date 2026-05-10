@@ -11074,6 +11074,10 @@ function setContext(ctx,btn){
   // Store active context for expansion scripts
   window._activeContext = ctx;
 
+  // Holding context uses a merchants-facing label, while other contexts keep Browse.
+  var shopTabBtn=document.getElementById('tabnav-shop');
+  if(shopTabBtn) shopTabBtn.textContent=(ctx==='holding'?'Merchants':'Browse');
+
   // Jump to the primary tab for each location mode.
   const defaultTabByContext={
     traveling:'character',

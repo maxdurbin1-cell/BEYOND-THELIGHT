@@ -2829,7 +2829,7 @@
     }
     var cat = String(services.merchantCategory || 'items');
     if (cat === 'weapons') cat = 'weapon_mods';
-    node.result = 'Browse stalls are active. Redirecting to Browse (' + cat + ').';
+    node.result = 'Merchant stalls are active. Redirecting to Merchants (' + cat + ').';
     if (typeof switchTab === 'function') {
       var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
       switchTab('shop', btn || null);
@@ -2837,7 +2837,7 @@
     if (typeof showShopCat === 'function') {
       try { showShopCat(cat, null); } catch (_err) {}
     }
-    if (typeof showNotif === 'function') showNotif('Browse access opened in ' + node.label + ' (' + cat + ').', 'info');
+    if (typeof showNotif === 'function') showNotif('Merchants access opened in ' + node.label + ' (' + cat + ').', 'info');
   }
 
   function buildHoldingMerchantBrowsePreview() {
@@ -3099,7 +3099,7 @@
       recordHoldingNpcInteraction(node, 'neutral', 'Collected district rumors.');
     } else if (action === 'browse') {
       node.browsePreview = buildHoldingMerchantBrowsePreview();
-      msg = 'Browse loaded local merchant stock (' + String(node.browsePreview.category || 'mixed') + ').';
+      msg = 'Merchants loaded local stock (' + String(node.browsePreview.category || 'mixed') + ').';
     } else if (action === 'event') {
       msg = 'Random encounter: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
       recordHoldingNpcInteraction(node, 'neutral', 'Handled a district random encounter.');
@@ -3324,7 +3324,8 @@
       var services = active.services || {};
       if (services.missionBoard) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Mission Board</button>';
       if (services.localWork) districtButtons += '<button type="button" class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Local Shift</button>';
-      if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Browse</button>';
+      if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchants</button>';
+      if (typeof window.openHoldingCrucibleMatch === 'function') districtButtons += '<button type="button" class="btn btn-xs btn-primary" onclick="window.openHoldingCrucibleMatch()">Crucible</button>';
       if (active.kind === 'inn') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
       if (active.kind === 'lord') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
       if (services.inn) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop</button>';

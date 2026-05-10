@@ -64,6 +64,31 @@
     return opened;
   }
 
+  function withArenaRuntimeReady(runFn, unavailableMessage, attempt) {
+    var tries = Math.max(0, Number(attempt || 0));
+    var hasSeed = typeof window.seedArenaCombat === 'function';
+    var hasPopup = typeof window.openArenaCombatPopup === 'function';
+    if (hasSeed && hasPopup) {
+      try {
+        return runFn();
+      } catch (_err) {
+        notifyArenaPopupUnavailable(unavailableMessage || 'Arena runtime failed to open. Try again.');
+        return false;
+      }
+    }
+    if (tries < 8 && typeof window.setTimeout === 'function') {
+      if (tries === 0 && typeof showNotif === 'function') {
+        showNotif('Arena systems are initializing. Re-trying popup launch...', 'info');
+      }
+      window.setTimeout(function () {
+        withArenaRuntimeReady(runFn, unavailableMessage, tries + 1);
+      }, 120);
+      return true;
+    }
+    notifyArenaPopupUnavailable(unavailableMessage || 'Arena systems are unavailable right now.');
+    return false;
+  }
+
   function getDayStamp() {
     var d = new Date();
     return String(d.getUTCFullYear()) + '-' + String(d.getUTCMonth() + 1) + '-' + String(d.getUTCDate());
@@ -274,16 +299,14 @@
   function openSeaColosseumArena(mode, hexKey) {
     var arenaMode = String(mode || 'challenge');
     var title = arenaMode === 'endless' ? 'Sea Colosseum - Endless Mode' : 'Sea Colosseum - Challenge Mode';
-    if (typeof window.seedArenaCombat === 'function') {
-      try {
-        window.seedArenaCombat(arenaMode, { hexKey: String(hexKey || ''), title: title });
-      } catch (_seedErr) {}
-    }
-    openArenaPopupSafe({ mode: arenaMode, hexKey: String(hexKey || ''), title: title }, 'Colosseum combat popup was blocked. Re-open from the sea marker.');
-    if (typeof showNotif === 'function') {
-      showNotif('Arena opened: ' + (arenaMode === 'endless' ? 'Endless Mode' : 'Challenge Mode') + '.', 'good');
-    }
-    return true;
+    return withArenaRuntimeReady(function () {
+      window.seedArenaCombat(arenaMode, { hexKey: String(hexKey || ''), title: title });
+      openArenaPopupSafe({ mode: arenaMode, hexKey: String(hexKey || ''), title: title }, 'Colosseum combat popup was blocked. Re-open from the sea marker.');
+      if (typeof showNotif === 'function') {
+        showNotif('Arena opened: ' + (arenaMode === 'endless' ? 'Endless Mode' : 'Challenge Mode') + '.', 'good');
+      }
+      return true;
+    }, 'Colosseum popup could not open. Re-open from the sea marker.');
   }
 
   function appendGateReinforcements(count, gateType, flow) {
@@ -343,32 +366,33 @@
   }
 
   function openEndgameGatePortal(scope, key, allKeys) {
-    if (typeof window.seedArenaCombat !== 'function') return false;
     var portal = getPortalMarker(scope, key, allKeys);
     if (!portal) {
       if (typeof showNotif === 'function') showNotif('No active endgame gate at this hex today.', 'info');
       return false;
     }
 
-    var flow = window.seedArenaCombat('challenge', {
-      hexKey: String(key || ''),
-      title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
-    });
-    flow.gatePortal = flow.gatePortal || {};
-    flow.gatePortal.scope = String(scope || 'province');
-    flow.gatePortal.key = String(key || '');
-    flow.gatePortal.type = String(portal.gateType || 'hellscape');
-    flow.gatePortal.puzzleAttempts = Number(portal.puzzleAttempts || 0);
-    flow.gatePortal.closed = false;
-    seedGateEnemies(portal.gateType, flow);
+    return withArenaRuntimeReady(function () {
+      var flow = window.seedArenaCombat('challenge', {
+        hexKey: String(key || ''),
+        title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
+      });
+      flow.gatePortal = flow.gatePortal || {};
+      flow.gatePortal.scope = String(scope || 'province');
+      flow.gatePortal.key = String(key || '');
+      flow.gatePortal.type = String(portal.gateType || 'hellscape');
+      flow.gatePortal.puzzleAttempts = Number(portal.puzzleAttempts || 0);
+      flow.gatePortal.closed = false;
+      seedGateEnemies(portal.gateType, flow);
 
-    openArenaPopupSafe({
-      mode: 'gate',
-      hexKey: String(key || ''),
-      title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
-    }, 'Gate battle popup was blocked. Re-open the gate marker.');
-    if (typeof showNotif === 'function') showNotif('Gate portal opened. Defeat hostiles, then solve the seal puzzle.', 'warn');
-    return true;
+      openArenaPopupSafe({
+        mode: 'gate',
+        hexKey: String(key || ''),
+        title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
+      }, 'Gate battle popup was blocked. Re-open the gate marker.');
+      if (typeof showNotif === 'function') showNotif('Gate portal opened. Defeat hostiles, then solve the seal puzzle.', 'warn');
+      return true;
+    }, 'Gate popup could not open. Re-open the gate marker.');
   }
 
   function resolveEndgameGatePuzzle() {
@@ -452,7 +476,6 @@
   }
 
   function openPinnacleMegadungeonPopup(sourceGateType) {
-    if (typeof window.seedArenaCombat !== 'function' || typeof window.openArenaCombatPopup !== 'function') return false;
     var sourceType = normalizeGateType(sourceGateType);
     var boss = sourceType === 'celestial' ? 'Azrael' : 'Mephisto';
     var title = sourceType === 'celestial'
@@ -460,10 +483,12 @@
       : 'Hell Megadungeon - Mephisto';
     var state = ensureState();
     if (state) state.lastBoss = boss;
-    window.seedArenaCombat('pinnacle', { hexKey: 'megadungeon', bossName: boss, title: title, sourceGateType: sourceType });
-    window.openArenaCombatPopup({ mode: 'pinnacle', hexKey: 'megadungeon', title: title, sourceGateType: sourceType });
-    if (typeof showNotif === 'function') showNotif('Themed Megadungeon unlocked: ' + title + '.', 'warn');
-    return true;
+    return withArenaRuntimeReady(function () {
+      window.seedArenaCombat('pinnacle', { hexKey: 'megadungeon', bossName: boss, title: title, sourceGateType: sourceType });
+      window.openArenaCombatPopup({ mode: 'pinnacle', hexKey: 'megadungeon', title: title, sourceGateType: sourceType });
+      if (typeof showNotif === 'function') showNotif('Themed Megadungeon unlocked: ' + title + '.', 'warn');
+      return true;
+    }, 'Pinnacle megadungeon popup could not open.');
   }
 
   window.getEndgamePortalMarker = function (scope, key, allKeys) {

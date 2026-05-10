@@ -264,7 +264,7 @@
       raidProfile = null;
     }
     var raidPower = raidProfile ? (Number(raidProfile.raidMedals || 0) + Number(raidProfile.raidPoints || 0)) : 0;
-    return renown >= 8 || completed >= 12 || raidPower >= 3;
+    return renown >= 6 || completed >= 8 || raidPower >= 1;
   }
 
   function isStorylinePostEnding() {
@@ -599,7 +599,7 @@
 
     var seed = Number(seedHint || 0) + dayStamp + (Number(spawner.counter || 0) * 37) + (Math.max(0, Number(S.renown || 0)) * 11);
     var chanceRoll = Math.abs(seed) % 100;
-    if (!isForced && chanceRoll > 42) return null;
+    if (!isForced && chanceRoll > 65) return null;
 
     var boss = SOUL_MISSION_BOSSES[Math.abs(seed + 29) % SOUL_MISSION_BOSSES.length] || 'The Hollow Saint';
     var soulIcon = SOUL_MISSION_ICONS[Math.abs(seed + 17) % SOUL_MISSION_ICONS.length] || '⚒';
@@ -641,7 +641,7 @@
     if (!mission) return null;
 
     spawner.counter = Number(spawner.counter || 0) + 1;
-    spawner.nextEligibleDayStamp = dayStamp + 2;
+    spawner.nextEligibleDayStamp = dayStamp + 1;
     if (typeof showNotif === 'function') {
       var regionLabelMap = {
         province: 'Province Map',

@@ -11682,6 +11682,7 @@ function renderHexMap(){
   const secretPadKey=getProvinceSecretPadKey();
   const mapFx=getMapVisualSettings();
   const liveMarkers=getProvinceSelectionMarkers();
+  const provinceHexKeys=mapData.map(function(h){return String(h.col)+','+String(h.row);});
   const markersByHex={};
   liveMarkers.forEach(function(m){
     const k=String(m&&m.key||'');
@@ -11863,6 +11864,25 @@ function renderHexMap(){
       pIcon.setAttribute('text-anchor','middle');pIcon.setAttribute('font-size','11');
       pIcon.setAttribute('fill','#7ed7ff');pIcon.setAttribute('pointer-events','none');
       pIcon.textContent='🚀';g.appendChild(pIcon);
+    }
+    if(typeof window.getEndgamePortalMarker==='function'){
+      const gatePortal=window.getEndgamePortalMarker('province',markerKey,provinceHexKeys);
+      if(gatePortal){
+        const gGlow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+        gGlow.setAttribute('cx',x+HEX_SIZE*.56);gGlow.setAttribute('cy',y-HEX_SIZE*.02);
+        gGlow.setAttribute('r','9.5');gGlow.setAttribute('fill','rgba(224,80,80,.18)');
+        gGlow.setAttribute('stroke',gatePortal.gateType==='celestial'?'#f0d070':'#ff8450');
+        gGlow.setAttribute('stroke-width','1.35');gGlow.setAttribute('pointer-events','none');
+        g.appendChild(gGlow);
+
+        const gIcon=document.createElementNS('http://www.w3.org/2000/svg','text');
+        gIcon.setAttribute('x',x+HEX_SIZE*.56);gIcon.setAttribute('y',y+HEX_SIZE*.06);
+        gIcon.setAttribute('text-anchor','middle');gIcon.setAttribute('font-size','10.8');
+        gIcon.setAttribute('fill',gatePortal.gateType==='celestial'?'#f0d070':'#ff8450');
+        gIcon.setAttribute('pointer-events','none');
+        gIcon.textContent='🌀';
+        g.appendChild(gIcon);
+      }
     }
     const markerList=(markersByHex[markerKey]||[]).slice().sort(function(a,b){
       return Number(b&&b.at||0)-Number(a&&a.at||0);
@@ -12187,6 +12207,21 @@ function renderHexInfo(hex){
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}</div>
       ${markerActions}
     </div>`;
+  }
+
+  if(typeof window.getEndgamePortalMarker==='function'){
+    const provinceKeys=Array.isArray(mapData)?mapData.map(function(h){return String(h.col)+','+String(h.row);}):[];
+    const gatePortal=window.getEndgamePortalMarker('province',nk,provinceKeys);
+    if(gatePortal){
+      const gateEnemyLine=gatePortal.gateType==='celestial'
+        ? 'Celestial: 1 Seraphim (d12 | 24 HP)'
+        : 'Hellscape: 2-4 Demons (d4 | 8 HP each)';
+      html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:${gatePortal.gateType==='celestial'?'rgba(240,208,112,.55)':'rgba(255,132,80,.55)'};background:${gatePortal.gateType==='celestial'?'rgba(240,208,112,.08)':'rgba(255,132,80,.08)'};">
+        <div class="nb-label" style="color:${gatePortal.gateType==='celestial'?'#f0d070':'#ff8450'};">🌀 Endgame Gate Portal</div>
+        <div style="font-size:.8rem;color:var(--text2);line-height:1.55;">${gateEnemyLine}<br>Defeat gate enemies, then solve the seal puzzle. On puzzle failure, two more enemies spawn.</div>
+        <div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="if(typeof window.openEndgameGatePortal==='function')window.openEndgameGatePortal('province','${nk}',(Array.isArray(mapData)?mapData.map(function(h){return String(h.col)+','+String(h.row);}):[]));">Enter Gate Battle</button></div>
+      </div>`;
+    }
   }
 
   const bsMeta=getBackstoryMapMarkerMeta('province',nk);
@@ -15531,6 +15566,7 @@ function openModal(title, content) {
   });
 }
 function closeModal() {
+  if (typeof window !== 'undefined') window._arenaCombatPopupOpen = false;
   document.getElementById('rollModal').classList.remove('open');
   if (_modalPrevFocus) { _modalPrevFocus.focus(); _modalPrevFocus = null; }
 }
@@ -15722,6 +15758,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     else if (tab === 'campaign') body = buildQPCampaign();
     else if (tab === 'notes') body = buildQPNotes();
     c.innerHTML = body;
+    if (tab === 'combat' && window._arenaCombatPopupOpen && typeof window.renderArenaCombatPopup === 'function') {
+      try { window.renderArenaCombatPopup(); } catch (_err) {}
+    }
   }
 
   window.refreshQuickPanelSection = function(tab) {
@@ -16559,6 +16598,331 @@ document.addEventListener('DOMContentLoaded',()=>{
         + (S.quickPanel.lastCombatRoll||'No combat roll yet.')
       + '</div>';
   }
+
+  var ARENA_DICE = [4, 6, 8, 10, 12, 20];
+  var ARENA_NAME_POOLS = {
+    4: ['Saltcut Pup', 'Ash Whelp', 'Marrow Runner', 'Tide Fang'],
+    6: ['Brine Reaver', 'Arena Brute', 'Lantern Stalker', 'Crowd Breaker'],
+    8: ['Storm Gladiator', 'Reef Duelist', 'Hollow Captain', 'Chain Enforcer'],
+    10: ['Iron Champion', 'Sunken Praetor', 'Null Harrier', 'Rift Herald'],
+    12: ['Seraph Guard', 'Abyss Knight', 'Vault Oracle', 'Wardbreaker'],
+    20: ['Azrael', 'Mephisto', 'Dread Sovereign', 'The Last Duelist']
+  };
+
+  function getArenaModeLabel(mode) {
+    var key = String(mode || 'challenge');
+    if (key === 'endless') return 'Endless Mode';
+    if (key === 'pinnacle') return 'Pinnacle Megadungeon';
+    return 'Challenge Mode';
+  }
+
+  function getArenaEnemyProfile(tierDie, index, mode, bossName) {
+    var die = ARENA_DICE.indexOf(Number(tierDie || 4)) >= 0 ? Number(tierDie || 4) : 4;
+    var pool = ARENA_NAME_POOLS[die] || ARENA_NAME_POOLS[4];
+    var name = String(bossName || pool[Math.floor(Math.random() * pool.length)] || 'Arena Combatant');
+    var bossMode = String(mode || '') === 'pinnacle';
+    var hp = bossMode ? 40 : Math.max(8, die * 2);
+    var actionNames = bossMode
+      ? ['Judgment Bolt', 'Grave Exhale', 'Void Seal']
+      : (die >= 20 ? ['Cataclysmic Strike', 'Halo Break', 'Final Pulse'] : die >= 12 ? ['Searing Sweep', 'Winged Lunge', 'Signal Flare'] : ['Bite', 'Charge', 'Feint']);
+    var actionName = actionNames[index % actionNames.length];
+    var actionText = bossMode
+      ? (name + ' unleashes a celestial inferno, then forces a reposition check.')
+      : (name + ' uses ' + actionName + ' to change the shape of the fight.');
+    return {
+      id: 'arena-' + String(mode || 'challenge') + '-' + String(index + 1),
+      name: name,
+      dread: bossMode ? 20 : die,
+      maxStress: hp,
+      stress: 0,
+      arena: true,
+      temporarySceneAlly: false,
+      specialAction: {
+        name: actionName,
+        text: actionText
+      },
+      arenaDie: die,
+      arenaMode: String(mode || 'challenge')
+    };
+  }
+
+  function ensureArenaFlowState() {
+    ensureQPState();
+    S.combat = S.combat || {};
+    S.combat.arenaFlow = S.combat.arenaFlow || {};
+    return S.combat.arenaFlow;
+  }
+
+  function seedArenaCombat(mode, context) {
+    var flow = ensureArenaFlowState();
+    var key = String((context && context.hexKey) || '');
+    var arenaMode = String(mode || 'challenge');
+    var queue = arenaMode === 'endless' ? [4, 6, 8, 10, 12, 20] : [ARENA_DICE[Math.floor(Math.random() * ARENA_DICE.length)]];
+    var bossName = context && context.bossName ? String(context.bossName) : '';
+    flow.active = true;
+    flow.mode = arenaMode;
+    flow.hexKey = key;
+    flow.queue = queue.slice();
+    flow.index = 0;
+    flow.clears = 0;
+    flow.rewardCredits = 0;
+    flow.rewardRenown = 0;
+    flow.completed = false;
+    flow.specialUses = 0;
+    flow.specialLog = [];
+    flow.bossName = bossName;
+    flow.enemy = getArenaEnemyProfile(queue[0], 0, arenaMode, bossName || (arenaMode === 'pinnacle' ? (String(context && context.sourceGateType || '').toLowerCase() === 'hellscape' ? 'Mephisto' : 'Azrael') : ''));
+    if (typeof startCombat === 'function') {
+      try { startCombat(); } catch (_err) {}
+    } else {
+      S.combat = S.combat || {};
+      S.combat.active = true;
+      S.combat.actionsLeft = Math.max(1, Number(S.combat.actionsLeft || 3));
+    }
+    S.combat.enemyDread = Math.max(4, Number(flow.enemy.dread || 4));
+    if (!Array.isArray(S.enemies)) S.enemies = [];
+    S.enemies = S.enemies.filter(function (enemy) { return !enemy || !!enemy.ally; });
+    S.enemies.push({
+      id: flow.enemy.id,
+      name: flow.enemy.name,
+      dread: flow.enemy.dread,
+      stress: 0,
+      maxStress: flow.enemy.maxStress,
+      health: flow.enemy.maxStress,
+      conditions: [],
+      arena: true,
+      arenaMode: arenaMode,
+      specialAction: flow.enemy.specialAction
+    });
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+    if (typeof renderEnemies === 'function') renderEnemies();
+    return flow;
+  }
+
+  function arenaCombatHasAliveHostiles() {
+    return Array.isArray(S.enemies) && S.enemies.some(function (enemy) { return enemy && !enemy.ally && Number(enemy.stress || 0) < Number(enemy.maxStress || 0); });
+  }
+
+  function getArenaCurrentEnemy() {
+    return Array.isArray(S.enemies)
+      ? S.enemies.find(function (enemy) { return enemy && !enemy.ally; })
+      : null;
+  }
+
+  function renderArenaCombatPopup() {
+    if (!window._arenaCombatPopupOpen) return false;
+    var overlay = document.getElementById('rollModal');
+    var content = document.getElementById('modalContent');
+    if (!overlay || !content) return false;
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    content.innerHTML = buildArenaCombatPopupHtml(flow || {});
+    return true;
+  }
+
+  function openArenaCombatPopup(context) {
+    window._arenaCombatPopupOpen = true;
+    window._arenaCombatPopupContext = context || {};
+    openModal(String((context && context.title) || 'Arena Combat'), buildArenaCombatPopupHtml(context || {}));
+  }
+
+  function buildArenaCombatPopupHtml(context) {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    var title = String((context && context.title) || 'Arena Combat');
+    var mode = String((flow && flow.mode) || (context && context.mode) || 'challenge');
+    var hexKey = String((flow && flow.hexKey) || (context && context.hexKey) || '');
+    var currentEnemy = getArenaCurrentEnemy();
+    var enemyName = currentEnemy ? String(currentEnemy.name || 'Arena Combatant') : 'No enemy active';
+    var enemyDie = currentEnemy ? Number(currentEnemy.dread || 4) : 4;
+    var enemyHp = currentEnemy ? Math.max(0, Number(currentEnemy.maxStress || 0) - Number(currentEnemy.stress || 0)) : 0;
+    var enemyMaxHp = currentEnemy ? Math.max(1, Number(currentEnemy.maxStress || 1)) : 1;
+    var queue = flow && Array.isArray(flow.queue) ? flow.queue : [];
+    var remaining = Math.max(0, queue.length - Math.max(1, Number(flow && flow.index || 0)));
+    var player = { name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer'), side: 'ally', isPlayer: true, hp: Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0)), range: 'Engaged' };
+    var boardUnits = [player];
+    if (currentEnemy) {
+      boardUnits.push({ id: Number(currentEnemy.id || 0), name: enemyName, side: 'enemy', hp: enemyHp, dread: enemyDie, range: 'Engaged' });
+    }
+    var boardHtml = buildLegacyRaidHexCombatBoard(boardUnits, {
+      title: 'ARENA COMBAT - HEX ZONE MAP',
+      subtitle: 'A battle map for the colosseum or the pinnacle gate. Click a token to focus it.',
+      seed: String(mode || 'challenge') + '-' + String(hexKey || 'arena'),
+      mode: 'boss',
+      missionId: 0,
+      wingNum: 0,
+      clickHandler: 'window.selectArenaCombatTarget',
+      isSelected: function (unit) {
+        return !!(unit && currentEnemy && unit.side === 'enemy' && Number(unit.id || 0) === Number(currentEnemy.id || 0));
+      }
+    });
+    var modeLabel = getArenaModeLabel(mode);
+    var specialText = currentEnemy && currentEnemy.specialAction ? String(currentEnemy.specialAction.text || '') : 'No special action loaded.';
+    var specialName = currentEnemy && currentEnemy.specialAction ? String(currentEnemy.specialAction.name || 'Special') : 'Special';
+    var currentReward = mode === 'pinnacle'
+      ? 'Victory rewards are drawn from the megadungeon salvage table.'
+      : (mode === 'gate'
+        ? 'Defeat all hostiles, then pass a seal puzzle to close this portal.'
+      : (mode === 'endless'
+        ? 'Clear the full chain for bonus credits, renown, and loot.'
+        : 'Challenge rewards are granted when the enemy is defeated.'));
+    var actionButtons = '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'strike\');">Strike</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'shoot\');">Shoot</button>'
+      + '<button class="btn btn-sm" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'defend\');">Defend</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="executeArenaSpecialAction();">' + specialName + '</button>';
+    var extraButtons = '';
+    if (mode === 'endless' && flow && Array.isArray(flow.queue) && Number(flow.index || 0) < flow.queue.length - 1 && !arenaCombatHasAliveHostiles()) {
+      extraButtons += '<button class="btn btn-sm btn-warn" onclick="advanceArenaCombatWave();">Next Combatant</button>';
+    }
+    if (!arenaCombatHasAliveHostiles() && mode !== 'gate') {
+      extraButtons += '<button class="btn btn-sm btn-primary" onclick="claimArenaCombatRewards();">Claim Rewards</button>';
+    }
+    extraButtons += '<button class="btn btn-sm btn-teal" onclick="closeModal();">Close</button>';
+    var dungeonPreview = '';
+    if (mode === 'pinnacle') {
+      var trapPreview = (typeof RUIN_TRAP_DESC !== 'undefined' && Array.isArray(RUIN_TRAP_DESC)) ? RUIN_TRAP_DESC.slice(0, 3).join('<br>') : 'Pressure glyphs, void snares, and collapsing floors.';
+      var puzzlePreview = (typeof RUIN_PUZZLE_DESC !== 'undefined' && Array.isArray(RUIN_PUZZLE_DESC)) ? RUIN_PUZZLE_DESC.slice(0, 3).join('<br>') : 'Rune locks, clockwork switches, and seal logic.';
+      var roomPreview = (typeof RUIN_ROOM_TYPES !== 'undefined' && Array.isArray(RUIN_ROOM_TYPES)) ? RUIN_ROOM_TYPES.slice(0, 5).join(' · ') : 'Lair · Trap · Puzzle · Cache · Boss Chamber';
+      dungeonPreview = '<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.05);">'
+        + '<div class="nb-label" style="color:#7ed7ff;">🗺 Megadungeon Preview</div>'
+        + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">'
+          + '<div><strong>Rooms:</strong> ' + roomPreview + '</div>'
+          + '<div style="margin-top:.2rem;"><strong>Traps:</strong><br>' + trapPreview + '</div>'
+          + '<div style="margin-top:.2rem;"><strong>Puzzles:</strong><br>' + puzzlePreview + '</div>'
+          + '<div style="margin-top:.2rem;"><strong>Loot:</strong> ' + String((typeof rollShopLoot === 'function') ? (rollShopLoot('impossible') || []).slice(0, 3).join(', ') : 'Legendary salvage') + '</div>'
+        + '</div>'
+      + '</div>';
+    }
+    var gatePuzzleHtml = '';
+    if (mode === 'gate' && flow && flow.gatePortal) {
+      var gateType = String(flow.gatePortal.type || 'hellscape');
+      var gateEnemyLine = gateType === 'celestial' ? 'Celestial: 1 Seraphim (d12 | 24 HP)' : 'Hellscape: 2-4 Demons (d4 | 8 HP each)';
+      gatePuzzleHtml = '<div class="npc-block" style="margin-bottom:.35rem;border-color:' + (gateType === 'celestial' ? 'rgba(240,208,112,.55)' : 'rgba(255,132,80,.55)') + ';background:' + (gateType === 'celestial' ? 'rgba(240,208,112,.08)' : 'rgba(255,132,80,.08)') + ';">'
+        + '<div class="nb-label" style="color:' + (gateType === 'celestial' ? '#f0d070' : '#ff8450') + ';">🌀 Gate Seal</div>'
+        + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">' + gateEnemyLine + '<br>After enemies are defeated, solve the puzzle to close the portal. Failure spawns 2 more enemies.</div>'
+        + '<div style="margin-top:.25rem;font-size:.72rem;color:var(--muted2);">Puzzle attempts: ' + Number(flow.gatePortal.puzzleAttempts || 0) + '</div>'
+        + '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-xs btn-primary" ' + (arenaCombatHasAliveHostiles() ? 'disabled' : '') + ' onclick="if(typeof window.resolveEndgameGatePuzzle===\'function\')window.resolveEndgameGatePuzzle();">Solve Seal Puzzle (AD vs d8)</button>'
+        + '</div>'
+      + '</div>';
+    }
+    return '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.1rem;">' + title + '</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">' + modeLabel + ' · ' + (hexKey ? ('Hex ' + hexKey) : 'No hex anchor') + ' · ' + currentReward + '</div>'
+      + dungeonPreview
+      + gatePuzzleHtml
+      + '<div style="border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);padding:.28rem .34rem;margin-bottom:.32rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.3rem;flex-wrap:wrap;align-items:center;">'
+          + '<div style="font-size:.78rem;color:var(--text2);">Enemy: <strong style="color:var(--red2);">' + enemyName + '</strong> · Dread d' + enemyDie + ' · HP ' + enemyHp + '/' + enemyMaxHp + '</div>'
+          + '<div style="font-size:.72rem;color:var(--muted2);">' + specialName + ': ' + specialText + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.24rem;">' + actionButtons + extraButtons + '</div>'
+      + '</div>'
+      + boardHtml
+      + buildQPCombat()
+      + '<div id="arenaCombatFooter" style="margin-top:.28rem;font-size:.72rem;color:var(--muted2);">'
+        + 'Wave ' + String((flow && Number(flow.index || 0)) + 1 || 1) + ' of ' + Math.max(1, queue.length || 1)
+        + (flow && Number(flow.clears || 0) ? ' · Clears ' + Number(flow.clears || 0) : '')
+        + (flow && Number(flow.specialUses || 0) ? ' · Special Uses ' + Number(flow.specialUses || 0) : '')
+      + '</div>'
+    + '</div>';
+  }
+
+  window.selectArenaCombatTarget = function (mode, missionId, wingNum, side, unitId, unitName, isPlayer) {
+    if (!S || !S.combat || !S.combat.arenaFlow) return false;
+    var flow = S.combat.arenaFlow;
+    if (String(side || '') === 'enemy') {
+      flow.selectedEnemyId = Number(unitId || 0);
+      flow.selectedEnemyName = String(unitName || 'Arena Combatant');
+      if (typeof setCombatFocusEnemy === 'function') setCombatFocusEnemy(Number(unitId || 0));
+      if (typeof showNotif === 'function') showNotif('Arena target locked: ' + flow.selectedEnemyName + '.', 'good');
+    }
+    renderArenaCombatPopup();
+    return true;
+  };
+
+  window.executeArenaSpecialAction = function () {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    var enemy = getArenaCurrentEnemy();
+    if (!flow || !enemy) return false;
+    flow.specialUses = Number(flow.specialUses || 0) + 1;
+    var hitDie = Math.max(4, Number(enemy.dread || 4));
+    var hit = (typeof explodingRoll === 'function') ? explodingRoll(hitDie) : { total: roll(hitDie) };
+    var defend = (typeof explodingRoll === 'function') ? explodingRoll(Math.max(4, Number((S.combat && S.combat.enemyDread) || 4))) : { total: roll(Math.max(4, Number((S.combat && S.combat.enemyDread) || 4))) };
+    var dmg = Math.max(1, Number(hit.total || 0) - Number(defend.total || 0));
+    S.health = Math.max(0, Number(S.health || 0) - dmg);
+    S.quickPanel.lastCombatRoll = enemy.name + ' used ' + String(enemy.specialAction && enemy.specialAction.name || 'Special') + ' for ' + dmg + ' damage.';
+    if (typeof showNotif === 'function') showNotif(S.quickPanel.lastCombatRoll, 'warn');
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+    renderArenaCombatPopup();
+    return true;
+  };
+
+  window.advanceArenaCombatWave = function () {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow || !Array.isArray(flow.queue) || !flow.queue.length) return false;
+    if (arenaCombatHasAliveHostiles()) {
+      if (typeof showNotif === 'function') showNotif('Defeat the current combatant before advancing.', 'warn');
+      return false;
+    }
+    if (Number(flow.index || 0) >= flow.queue.length - 1) return false;
+    flow.index = Number(flow.index || 0) + 1;
+    flow.enemy = getArenaEnemyProfile(flow.queue[flow.index], flow.index, flow.mode, flow.bossName);
+    S.enemies = (Array.isArray(S.enemies) ? S.enemies.filter(function (enemy) { return !enemy || !!enemy.ally; }) : []);
+    S.enemies.push({
+      id: flow.enemy.id,
+      name: flow.enemy.name,
+      dread: flow.enemy.dread,
+      stress: 0,
+      maxStress: flow.enemy.maxStress,
+      health: flow.enemy.maxStress,
+      conditions: [],
+      arena: true,
+      arenaMode: flow.mode,
+      specialAction: flow.enemy.specialAction
+    });
+    S.combat.enemyDread = Math.max(4, Number(flow.enemy.dread || 4));
+    S.quickPanel.lastCombatRoll = 'Next combatant enters the arena: ' + flow.enemy.name + '.';
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+    if (typeof renderEnemies === 'function') renderEnemies();
+    renderArenaCombatPopup();
+    return true;
+  };
+
+  window.claimArenaCombatRewards = function () {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow) return false;
+    if (arenaCombatHasAliveHostiles()) {
+      if (typeof showNotif === 'function') showNotif('The current combatant is still standing.', 'warn');
+      return false;
+    }
+    var queue = Array.isArray(flow.queue) ? flow.queue.slice() : [];
+    var waveCount = Math.max(1, queue.length || 1);
+    var rewardCredits = flow.mode === 'pinnacle' ? 250 + (waveCount * 25) : flow.mode === 'endless' ? 100 + (waveCount * 20) : 75 + (Number(queue[0] || 4) * 18);
+    var rewardRenown = flow.mode === 'endless' ? 2 : 1;
+    S.credits = Math.max(0, Number(S.credits || 0) + rewardCredits);
+    S.renown = Math.max(0, Number(S.renown || 0) + rewardRenown);
+    if (typeof updateCreditsUI === 'function') updateCreditsUI();
+    if (typeof updateRenown === 'function') updateRenown();
+    if (flow.mode === 'pinnacle') {
+      var salvage = (typeof rollShopLoot === 'function') ? (rollShopLoot('impossible') || []) : [];
+      if (salvage.length && typeof addToBackpack === 'function') {
+        try { addToBackpack(String(salvage[0])); } catch (_err) {}
+      }
+      flow.completed = true;
+      if (typeof showNotif === 'function') showNotif('Pinnacle cleared. ' + rewardCredits + ' Credits and ' + rewardRenown + ' Renown awarded.', 'good');
+    } else if (flow.mode === 'endless' && Number(flow.index || 0) < queue.length - 1) {
+      return advanceArenaCombatWave();
+    } else {
+      flow.completed = true;
+      if (typeof showNotif === 'function') showNotif('Arena victory: +' + rewardCredits + ' Credits and +' + rewardRenown + ' Renown.', 'good');
+    }
+    window._arenaCombatPopupOpen = false;
+    if (typeof closeModal === 'function') closeModal();
+    return true;
+  };
+
+  window.openArenaCombatPopup = openArenaCombatPopup;
+  window.renderArenaCombatPopup = renderArenaCombatPopup;
+  window.seedArenaCombat = seedArenaCombat;
 
   function buildQPMissions() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
@@ -18766,6 +19130,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script defer src="./solo-reference.js"></script>
 <script defer src="./gm-dashboard.js"></script>
 <script defer src="./portrait-generator.js"></script>
+<script defer src="./colosseum-gate-system.js"></script>
 <script defer src="/socket.io/socket.io.js"></script>
 <script defer src="./campaign-system.js"></script>
 

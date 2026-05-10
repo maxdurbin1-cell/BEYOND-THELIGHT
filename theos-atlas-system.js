@@ -269,6 +269,7 @@
     if (typeof st.zoom !== "number") st.zoom = 1;
     if (typeof st.politicalTick !== "number") st.politicalTick = 0;
     if (!st.activeProvinceId) st.activeProvinceId = null;
+    if (!st.selectedProvinceId) st.selectedProvinceId = null;
     if (!st.hoverProvinceId) st.hoverProvinceId = null;
     if (typeof st.trainOwned !== "boolean") st.trainOwned = false;
 
@@ -280,6 +281,7 @@
       // New runs start in Rosegrove as the canonical opening province.
       if (!st.activeProvinceId && !Object.keys(st.discovered).length) {
         st.activeProvinceId = "rosegrove";
+        st.selectedProvinceId = "rosegrove";
         st.unlocked.rosegrove = true;
         st.discovered.rosegrove = true;
       }
@@ -743,7 +745,7 @@
       if (isUnlocked) cls += " unlocked";
       if (unlockable) cls += " unlockable";
       if (!isUnlocked && !isKnown) cls += " fogged";
-      if (st.activeProvinceId === province.id) cls += " active";
+      if ((st.selectedProvinceId || st.activeProvinceId) === province.id) cls += " active";
 
       html += ''
         + '<g class="' + cls + '" data-province="' + esc(province.id) + '" tabindex="0" role="button" aria-label="' + esc(province.name) + '">'
@@ -776,7 +778,7 @@
     var root = byId("theosProvinceDetail");
     if (!root) return;
 
-    var targetId = st.hoverProvinceId || st.activeProvinceId;
+    var targetId = st.hoverProvinceId || st.selectedProvinceId || st.activeProvinceId;
     var summary = summarizeProvince(targetId);
     if (!summary) {
       root.innerHTML = '<div class="theos-empty">Hover a province node to read its archive entry.</div>';
@@ -794,22 +796,25 @@
     var crossContinent = !!(activeProvince && activeProvince.continent !== p.continent);
     var canRailHop = !!(activeProvince && !sameProvince && !crossContinent && areLandConnected(activeProvince.id, p.id));
     var credits = Math.max(0, Number(window.S && window.S.credits || 0));
+    var isFreeEntryProvince = p.id === "rosegrove";
     var canBuyTrain = !stTrain.trainOwned && credits >= TRAIN_COST;
-    var trainLabel = stTrain.trainOwned ? "Train Ready" : ("Train Required (" + TRAIN_COST + " \u20B5)");
+    var trainLabel = isFreeEntryProvince
+      ? (stTrain.trainOwned ? "Train Ready (Rosegrove still free)" : "Rosegrove has free local access")
+      : (stTrain.trainOwned ? "Train Ready" : ("Train Required (" + TRAIN_COST + " \u20B5)"));
     var routeHint = sameProvince
       ? 'Current province.'
       : (crossContinent
         ? 'Cross-continent travel requires Last Sea routing.'
         : (canRailHop ? 'Connected by rail corridor.' : 'Train movement follows neighboring land links only.'));
     var travelAction = '';
-    if (!stTrain.trainOwned) {
+    if (!stTrain.trainOwned && !isFreeEntryProvince) {
       travelAction = '<button class="btn btn-sm ' + (canBuyTrain ? 'btn-teal' : '') + '" onclick="window.theosBuyTrain()"' + (canBuyTrain ? '' : ' disabled title="Need more credits"') + '>Purchase Train (' + TRAIN_COST + ' \u20B5)</button>';
     } else if (sameProvince) {
-      travelAction = '<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Resume Province</button>';
+      travelAction = '<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>';
     } else if (crossContinent) {
       travelAction = '<button class="btn btn-sm" onclick="window.theosTravelTo(\'lastsea\')">Route via Last Sea</button>';
     } else {
-      travelAction = '<button class="btn btn-sm btn-primary" ' + (canRailHop ? '' : 'disabled title="Rail only reaches connected neighboring provinces"') + ' onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Board Train to Province</button>';
+      travelAction = '<button class="btn btn-sm btn-primary" ' + (canRailHop ? '' : 'disabled title="Rail only reaches connected neighboring provinces"') + ' onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>';
     }
 
     root.innerHTML = ''
@@ -832,9 +837,10 @@
       + '<div><strong>Dungeon Themes</strong><span>' + esc(d.dungeonThemes.join(', ')) + '</span></div>'
       + '<div><strong>Resources</strong><span>' + esc(d.resources.join(', ')) + '</span></div>'
       + '<div><strong>Settlements / Dungeons / Quests</strong><span>' + esc(tables.settlements.length) + ' / ' + esc(tables.dungeons.length) + ' / ' + esc(tables.quests.length) + '</span></div>'
+        + '<div><strong>Exploration</strong><span>Open node browsing is enabled. You can inspect any province first, then choose when to enter.</span></div>'
       + '</div>'
       + '<div class="theos-region-actions">'
-      + '<button class="btn btn-sm btn-teal" onclick="window.theosSelectProvince(\'' + esc(p.id) + '\', true)">Survey Region</button>'
+        + '<button class="btn btn-sm btn-teal" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>'
       + travelAction
       + '</div>';
   }
@@ -1006,25 +1012,48 @@
   function selectProvince(provinceId, forceDiscover) {
     var st = ensureState();
     if (!provinceById(provinceId)) return;
-    if (!st.unlocked[provinceId] && !isUnlockable(provinceId, st)) {
-      notify("That route is still hidden by fog and warding sigils.", "warn");
-      return;
-    }
-
-    st.unlocked[provinceId] = true;
-    st.activeProvinceId = provinceId;
-    if (forceDiscover || !st.discovered[provinceId]) {
-      markDiscovered(provinceId);
-    }
+    // Atlas exploration is free: selecting a node only updates detail focus.
+    st.selectedProvinceId = provinceId;
+    if (forceDiscover && !st.discovered[provinceId]) markDiscovered(provinceId);
 
     renderAtlas();
+  }
+
+  function applyProvinceTopography(provinceId) {
+    var province = provinceById(provinceId);
+    if (!province || !Array.isArray(window.mapData) || !window.mapData.length) return;
+    var paletteByClimate = {
+      cold:      [{ name: "Frost Tundra", color: "#9fb5c6" }, { name: "Glacial Uplands", color: "#7f9bad" }],
+      temperate: [{ name: "Grove Lowlands", color: "#6f8e53" }, { name: "Riverfarms", color: "#7ea367" }],
+      highland:  [{ name: "Jagged Highlands", color: "#8f7c69" }, { name: "Windplateaus", color: "#9a8f78" }],
+      arid:      [{ name: "Ash Dunes", color: "#ad8b56" }, { name: "Salt Flats", color: "#b49a72" }],
+      coastal:   [{ name: "Storm Coast", color: "#4f7f8d" }, { name: "Tide Marsh", color: "#5f8f95" }],
+      storm:     [{ name: "Tempest Cliffs", color: "#5f667a" }, { name: "Lightning Fen", color: "#646f78" }],
+      forest:    [{ name: "Ancient Canopy", color: "#4f7b48" }, { name: "Cedar Depths", color: "#3f6a42" }],
+      marsh:     [{ name: "Blackwater Marsh", color: "#556b5a" }, { name: "Reed Mire", color: "#647a63" }],
+      tropical:  [{ name: "Monsoon Wilds", color: "#4b865e" }, { name: "Sun-Jungle", color: "#5f9569" }]
+    };
+    var palette = paletteByClimate[String(province.climateBand || "")] || [{ name: province.name + " Wilds", color: "#667b5a" }];
+    var token = String(province.id || "") + ":topography";
+    window.mapData.forEach(function (hex, idx) {
+      if (!hex) return;
+      var terrain = (hex.terrain && typeof hex.terrain === "object") ? hex.terrain : { name: "Wilderness", color: "#6a7f5e" };
+      if (String(hex.type || "") === "wilderness" || String(hex.type || "") === "trade") {
+        var pick = palette[hashString(token + ":" + idx) % palette.length];
+        terrain = Object.assign({}, terrain, { name: pick.name, color: pick.color, topographyTag: province.id });
+        hex.terrain = terrain;
+      }
+      if (!hex.data || typeof hex.data !== "object") hex.data = {};
+      hex.data.provinceTag = province.id;
+      hex.data.provinceTopography = terrain.name;
+    });
   }
 
   function enterProvince(provinceId) {
     var st = ensureState();
     var targetProvince = provinceById(provinceId);
     if (!targetProvince) return;
-    if (!st.trainOwned) {
+    if (!st.trainOwned && targetProvince.id !== "rosegrove") {
       notify("Province travel requires a train. Purchase one for " + TRAIN_COST + " \u20B5 in the Atlas panel.", "warn");
       return;
     }
@@ -1049,6 +1078,7 @@
     saveProvinceSnapshot();
 
     st.activeProvinceId = targetProvince.id;
+    st.selectedProvinceId = targetProvince.id;
     st.unlocked[targetProvince.id] = true;
     markDiscovered(targetProvince.id);
 
@@ -1059,6 +1089,11 @@
       } catch (_err) {
         // Keep travel flow alive even if map generation is unavailable.
       }
+    }
+
+    applyProvinceTopography(targetProvince.id);
+    if (typeof window.renderHexMap === "function") {
+      try { window.renderHexMap(); } catch (_rhErr) {}
     }
 
     if (fromProvince && fromProvince.id !== targetProvince.id) {
@@ -1096,6 +1131,7 @@
     }
 
     st.trainOwned = true;
+    st.unlocked.rosegrove = true;
     renderAtlas();
     notify("Train purchased. Province routes are now traversable by rail.", "good");
   }

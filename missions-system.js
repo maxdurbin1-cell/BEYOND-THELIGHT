@@ -266,6 +266,47 @@
     return renown >= 8 || completed >= 12 || raidPower >= 3;
   }
 
+  function isStorylinePostEnding() {
+    ensureState();
+    var story = S.storyline || {};
+    var sceneId = String(story.sceneId || '');
+    return sceneId.indexOf('ending_') === 0;
+  }
+
+  function ensureEndgameDirectorState() {
+    ensureState();
+    S.missionDirector = S.missionDirector || {};
+    if (!S.missionDirector.endgame || typeof S.missionDirector.endgame !== 'object') {
+      S.missionDirector.endgame = {
+        colosseum: { lastRollDayStamp: -1, nextEligibleDayStamp: 0, counter: 0 },
+        gateWar: {
+          lastRollDayStamp: -1,
+          nextEligibleDayStamp: 0,
+          counter: 0,
+          closedHellscape: 0,
+          closedCelestial: 0,
+          pinnacleUnlocked: false,
+          pinnacleBoss: ''
+        }
+      };
+    }
+    if (!S.missionDirector.endgame.colosseum || typeof S.missionDirector.endgame.colosseum !== 'object') {
+      S.missionDirector.endgame.colosseum = { lastRollDayStamp: -1, nextEligibleDayStamp: 0, counter: 0 };
+    }
+    if (!S.missionDirector.endgame.gateWar || typeof S.missionDirector.endgame.gateWar !== 'object') {
+      S.missionDirector.endgame.gateWar = {
+        lastRollDayStamp: -1,
+        nextEligibleDayStamp: 0,
+        counter: 0,
+        closedHellscape: 0,
+        closedCelestial: 0,
+        pinnacleUnlocked: false,
+        pinnacleBoss: ''
+      };
+    }
+    return S.missionDirector.endgame;
+  }
+
   function spawnRandomSoulForgeMissionEvent(seedHint, force) {
     ensureState();
     var isForced = !!force;
@@ -340,6 +381,166 @@
       deltas: { rumor: 1, witness: 1, factionHeat: 1 },
       tags: ['soul-mission', 'endgame', 'mission-spawn']
     });
+    return mission;
+  }
+
+  function spawnRandomColosseumMissionEvent(seedHint, force) {
+    ensureState();
+    if (!isStorylinePostEnding() && !force) return null;
+    if (Array.isArray(S.activeMissions) && S.activeMissions.some(function (mission) {
+      return mission && mission.missionType === 'colosseum_endless' && mission.steps && mission.steps[3] && !mission.steps[3].completed;
+    })) return null;
+
+    var endgame = ensureEndgameDirectorState();
+    var state = endgame.colosseum;
+    var dayStamp = getCurrentGameDayStamp();
+    var isForced = !!force;
+    if (!isForced && dayStamp <= Number(state.lastRollDayStamp || -1)) return null;
+    state.lastRollDayStamp = dayStamp;
+    if (!isForced && dayStamp < Number(state.nextEligibleDayStamp || 0)) return null;
+
+    var seed = Number(seedHint || 0) + dayStamp + (Number(state.counter || 0) * 43);
+    if (!isForced && (Math.abs(seed) % 100) > 30) return null;
+
+    var tiers = [4, 6, 8, 10, 12, 20];
+    var tierDie = tiers[Math.abs(seed + 7) % tiers.length] || 4;
+    var difficultyByDie = { 4: 'easy', 6: 'medium', 8: 'hard', 10: 'hard', 12: 'very_hard', 20: 'impossible' };
+    var rankByDie = { 4: 'Easy', 6: 'Rising', 8: 'Veteran', 10: 'Brutal', 12: 'Apex', 20: 'Mythic' };
+    var enemyNames = ['Saltbrand Duelist', 'Abyss Marauder', 'Iron Harpoon Saint', 'Red Wake Matron', 'Oathless Leviathan', 'Mirror Gladiator'];
+    var enemySkills = ['Riptide Lunge', 'Crowdbreaker Shout', 'Bloodwake Parry', 'Abyssal Coil', 'Tideglass Counter', 'Bone Arena Sigil'];
+    var rewardAffixes = ['Stormbound', 'Sea-Reaver', 'Lionheart', 'Kingsbane', 'Astral', 'Relentless', 'Ruinforged'];
+    var enemyName = enemyNames[Math.abs(seed + 19) % enemyNames.length] || 'Arena Champion';
+    var enemySkill = enemySkills[Math.abs(seed + 31) % enemySkills.length] || 'Arena Technique';
+    var affix = rewardAffixes[Math.abs(seed + 47) % rewardAffixes.length] || 'Stormbound';
+    var uniqueReward = rankByDie[tierDie] + ' Colosseum Relic of ' + affix;
+    var regionPool = getAvailableMissionRegions();
+    var region = regionPool.indexOf('sea') >= 0 ? 'sea' : (regionPool[Math.abs(seed + 13) % Math.max(1, regionPool.length)] || 'province');
+
+    var mission = createMission(
+      'Arena Herald',
+      'Colosseum Trial [' + rankByDie[tierDie] + '] - d' + tierDie + ' Enemy',
+      difficultyByDie[tierDie] || 'hard',
+      'Endless Sea Colosseum Ring',
+      region,
+      { gain: 'military', lose: 'underworld', gainName: 'Military Orders', loseName: 'The Underworld' },
+      {
+        missionType: 'colosseum_endless',
+        templateId: 'colosseum_endless',
+        templateLabel: 'Endgame · Colosseum',
+        stepNames: { 1: 'Accept Arena Contract', 2: 'Survive Wave Bracket', 3: 'Defeat Arena Champion' },
+        checkpoints: [
+          'Bracket tier starts at d' + tierDie + '.',
+          enemyName + ' enters with signature move: ' + enemySkill + '.',
+          'Claim unique reward: ' + uniqueReward + '.'
+        ],
+        lore: 'Endless mode escalation in the sea colosseum. Enemy tier: d' + tierDie + '. Champion: ' + enemyName + ' (' + enemySkill + ').'
+      }
+    );
+    if (!mission) return null;
+
+    mission.colosseumTierDie = tierDie;
+    mission.colosseumEnemyName = enemyName;
+    mission.colosseumEnemySkill = enemySkill;
+    mission.colosseumUniqueReward = uniqueReward;
+    state.counter = Number(state.counter || 0) + 1;
+    state.nextEligibleDayStamp = dayStamp + 3;
+    if (typeof showNotif === 'function') showNotif('Endgame signal: Colosseum Trial posted in the Endless Sea.', 'warn');
+    return mission;
+  }
+
+  function spawnRandomGateWarMissionEvent(seedHint, force) {
+    ensureState();
+    if (!isStorylinePostEnding() && !force) return null;
+    if (Array.isArray(S.activeMissions) && S.activeMissions.some(function (mission) {
+      return mission && mission.missionType === 'gate_war' && mission.steps && mission.steps[3] && !mission.steps[3].completed;
+    })) return null;
+
+    var endgame = ensureEndgameDirectorState();
+    var state = endgame.gateWar;
+    var dayStamp = getCurrentGameDayStamp();
+    var isForced = !!force;
+    if (!isForced && dayStamp <= Number(state.lastRollDayStamp || -1)) return null;
+    state.lastRollDayStamp = dayStamp;
+    if (!isForced && dayStamp < Number(state.nextEligibleDayStamp || 0)) return null;
+
+    var seed = Number(seedHint || 0) + dayStamp + (Number(state.counter || 0) * 53);
+    if (!isForced && (Math.abs(seed) % 100) > 24) return null;
+
+    var remainingHell = Math.max(0, 10 - Number(state.closedHellscape || 0));
+    var remainingCelestial = Math.max(0, 10 - Number(state.closedCelestial || 0));
+    var gateType = (remainingHell > remainingCelestial)
+      ? 'hellscape'
+      : (remainingCelestial > remainingHell ? 'celestial' : ((Math.abs(seed + 9) % 2) ? 'hellscape' : 'celestial'));
+
+    var enemyBrief = gateType === 'celestial'
+      ? 'Celestial Gate defense: 1 Angel (DD12, 24 HP)'
+      : 'Hellscape Gate defense: 3 Demons (DD4, 8 HP each)';
+    var puzzle = gateType === 'celestial'
+      ? 'Seal the Celestial sigil lattice before Heaven reinforcements break through.'
+      : 'Collapse the Hellscape chain-runes before abyssal fire overruns the route.';
+    var regionPool = getAvailableMissionRegions();
+    var region = regionPool[Math.abs(seed + 13) % Math.max(1, regionPool.length)] || 'province';
+    var title = (gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach');
+
+    var mission = createMission(
+      'Warfront Watcher',
+      title,
+      gateType === 'celestial' ? 'very_hard' : 'hard',
+      (gateType === 'celestial' ? 'Skyward Rift' : 'Abyssal Rift') + ' - ' + getMissionLocationForRegion(region),
+      region,
+      { gain: 'rebels', lose: 'underworld', gainName: 'Rebel Faction', loseName: 'The Underworld' },
+      {
+        missionType: 'gate_war',
+        templateId: 'gate_war',
+        templateLabel: 'Endgame · War of Gods',
+        stepNames: { 1: 'Locate Warring Gate', 2: 'Defeat Gate Hostiles', 3: 'Solve Gate Seal Puzzle' },
+        checkpoints: [enemyBrief, puzzle, 'Close 10 Hellscape and 10 Celestial gates to open a Pinnacle Megadungeon portal.'],
+        lore: 'After storyline completion, Heaven and Hell spill into the Beyond. ' + enemyBrief + '. '
+      }
+    );
+    if (!mission) return null;
+
+    mission.gateWarType = gateType;
+    mission.gateWarEnemyBrief = enemyBrief;
+    mission.gateWarPuzzle = puzzle;
+    state.counter = Number(state.counter || 0) + 1;
+    state.nextEligibleDayStamp = dayStamp + 2;
+    if (typeof showNotif === 'function') showNotif('Gate War alert: ' + title + ' has appeared.', 'warn');
+    return mission;
+  }
+
+  function maybeUnlockPinnacleMegadungeonFromGateWar(state, sourceGateType) {
+    if (!state || state.pinnacleUnlocked) return null;
+    var closedHell = Math.max(0, Number(state.closedHellscape || 0));
+    var closedCel = Math.max(0, Number(state.closedCelestial || 0));
+    if (closedHell < 10 || closedCel < 10) return null;
+    var boss = sourceGateType === 'hellscape' ? 'Mephisto' : 'Azrael';
+    var mission = createMission(
+      'Pinnacle Portal',
+      'Pinnacle Megadungeon: ' + boss,
+      'impossible',
+      'Pinnacle Gate Nexus',
+      'province',
+      { gain: 'religious', lose: 'underworld', gainName: 'Religious Entities', loseName: 'The Underworld' },
+      {
+        missionType: 'pinnacle_megadungeon',
+        templateId: 'pinnacle_megadungeon',
+        templateLabel: 'Endgame · Pinnacle Dungeon',
+        stepNames: { 1: 'Enter Mega-Dungeon', 2: 'Survive Deep Wing', 3: 'Defeat ' + boss },
+        checkpoints: [
+          'Portal opened by sealing 10 Hellscape and 10 Celestial gates.',
+          'Failure ejects you from the dungeon and requires gate sealing to return.',
+          'Pinnacle boss: ' + boss + '.'
+        ],
+        lore: 'A mega-dungeon opens after the warfront gates are sealed. Failures eject you until the warfront is stabilized again.'
+      }
+    );
+    if (!mission) return null;
+    state.pinnacleUnlocked = true;
+    state.pinnacleBoss = boss;
+    if (typeof showNotif === 'function') {
+      showNotif('Portal opened: Pinnacle Megadungeon against ' + boss + ' is now active.', 'good');
+    }
     return mission;
   }
 
@@ -11625,6 +11826,19 @@
           mission.legacyRaidRewarded = { medals: raidMedalGain, points: raidPointGain };
         }
       }
+      if (mission.missionType === 'gate_war') {
+        var endgame = ensureEndgameDirectorState();
+        var gateState = endgame.gateWar;
+        var gateType = String(mission.gateWarType || '').toLowerCase();
+        if (gateType === 'hellscape') gateState.closedHellscape = Math.max(0, Number(gateState.closedHellscape || 0) + 1);
+        else gateState.closedCelestial = Math.max(0, Number(gateState.closedCelestial || 0) + 1);
+        var unlockMission = maybeUnlockPinnacleMegadungeonFromGateWar(gateState, gateType);
+        if (unlockMission && typeof renderMissionTracker === 'function') renderMissionTracker();
+      }
+      if (mission.missionType === 'colosseum_endless' && mission.colosseumUniqueReward) {
+        mission.loot.push(String(mission.colosseumUniqueReward));
+        newLoot.push(String(mission.colosseumUniqueReward));
+      }
       // Add mission loot directly to backpack slots when possible.
       if (typeof addToBackpack === 'function') {
         for (var li=0; li<newLoot.length; li++) {
@@ -12196,6 +12410,8 @@
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;
   window.createMission=createMission;
   window.spawnRandomSoulForgeMissionEvent=spawnRandomSoulForgeMissionEvent;
+  window.spawnRandomColosseumMissionEvent=spawnRandomColosseumMissionEvent;
+  window.spawnRandomGateWarMissionEvent=spawnRandomGateWarMissionEvent;
   window.autoFailExpiredMissions=autoFailExpiredMissions;
   window.adjustMissionDread=adjustMissionDread;
   window.createOriginMissionFromReason=createOriginMissionFromReason;

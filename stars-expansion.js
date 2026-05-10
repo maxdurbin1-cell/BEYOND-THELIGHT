@@ -3095,6 +3095,34 @@ function maybeSpawnSoulForgeMissionEvent(force) {
   }
 }
 
+function maybeSpawnColosseumMissionEvent(force) {
+  var sc = ensureSolarCycleState();
+  var legacy = ensureSolarCycleLegacyState();
+  if (!sc || !legacy || !!sc.storyModeEnabled) return null;
+  if (typeof window.spawnRandomColosseumMissionEvent !== 'function') return null;
+  var dayStamp = getLegacyRaidDayStamp();
+  var seed = seedSolarCycleMix(sc, (dayStamp * 59) + (Number(legacy.raidCounter || 0) * 17) + 303);
+  try {
+    return window.spawnRandomColosseumMissionEvent(seed, !!force);
+  } catch (_err) {
+    return null;
+  }
+}
+
+function maybeSpawnGateWarMissionEvent(force) {
+  var sc = ensureSolarCycleState();
+  var legacy = ensureSolarCycleLegacyState();
+  if (!sc || !legacy || !!sc.storyModeEnabled) return null;
+  if (typeof window.spawnRandomGateWarMissionEvent !== 'function') return null;
+  var dayStamp = getLegacyRaidDayStamp();
+  var seed = seedSolarCycleMix(sc, (dayStamp * 67) + (Number(legacy.raidCounter || 0) * 19) + 707);
+  try {
+    return window.spawnRandomGateWarMissionEvent(seed, !!force);
+  } catch (_err) {
+    return null;
+  }
+}
+
 function syncLegacyRaidBoard(force) {
   var sc = ensureSolarCycleState();
   var legacy = ensureSolarCycleLegacyState();
@@ -3106,6 +3134,8 @@ function syncLegacyRaidBoard(force) {
   if (!sc.storyModeEnabled) {
     maybeSpawnLegacyRaidEvent(!!force);
     maybeSpawnSoulForgeMissionEvent(!!force);
+    maybeSpawnColosseumMissionEvent(!!force);
+    maybeSpawnGateWarMissionEvent(!!force);
   }
   legacy.lastRaidSyncStamp = dayStamp;
   return legacy;

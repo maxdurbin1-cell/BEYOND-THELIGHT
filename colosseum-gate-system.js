@@ -431,9 +431,18 @@
 
     var state = ensureState();
     var gateType = String(flow.gatePortal.type || 'hellscape').toLowerCase();
+    var raidPuzzleModes = ['pipe_flow', 'food_chain', 'weight_balance', 'lock_dials'];
+    var puzzleSeed = hashString(String(flow.gatePortal.key || '') + '|' + String(gateType) + '|' + String(flow.gatePortal.puzzleAttempts || 0));
+    var selectedMode = raidPuzzleModes[puzzleSeed % raidPuzzleModes.length] || 'pipe_flow';
+    var modeLabelMap = {
+      pipe_flow: 'Pipe Flow Seal',
+      food_chain: 'Food Chain Seal',
+      weight_balance: 'Weight Balance Seal',
+      lock_dials: 'Tumbler Lock Seal'
+    };
     var puzzleSpec = {
-      mode: gateType === 'celestial' ? 'pipe_flow' : '',
-      title: gateType === 'celestial' ? 'Celestial Seal Conduit' : 'Hellscape Rift Conduit',
+      mode: selectedMode,
+      title: (gateType === 'celestial' ? 'Celestial Seal Conduit' : 'Hellscape Rift Conduit') + ' · ' + String(modeLabelMap[selectedMode] || 'Raid Puzzle'),
       prompt: gateType === 'celestial'
         ? 'Repair the seal conduit and route radiant flow to close Heaven\'s breach.'
         : 'Reconnect the anti-abyss conduit and route the purge flow to collapse the rift.'
@@ -477,18 +486,6 @@
       if (typeof window.renderArenaCombatPopup === 'function') window.renderArenaCombatPopup();
       return false;
     };
-
-    if (gateType !== 'celestial' && typeof window.openSharedPuzzleChallenge === 'function') {
-      window.openSharedPuzzleChallenge({
-        source: 'event',
-        title: puzzleSpec.title,
-        prompt: puzzleSpec.prompt,
-        reward: { credits: 0, renown: 0, item: '' },
-        onSuccess: function () { finalize('success'); },
-        onFail: function () { finalize('failure'); }
-      });
-      return true;
-    }
 
     if (typeof window.openStandaloneStoryPuzzle === 'function') {
       window.openStandaloneStoryPuzzle({

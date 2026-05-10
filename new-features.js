@@ -2182,6 +2182,14 @@
       : ('Score ' + Number(match.score && match.score.ally || 0) + ' - ' + Number(match.score && match.score.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 0) + ')');
     var wayfarerOptions = getCrucibleWayfarerActionOptionsHtml();
     var teamTargetOptions = buildCrucibleTeamTargetOptions(match, 'attack', selectedAlly);
+    var railMine = String(match.turnSide || 'ally') === 'ally';
+    var turnRail = '<div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:.16rem;align-items:center;margin-bottom:.3rem;">'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid ' + (railMine ? 'rgba(70,196,182,.45)' : 'var(--border2)') + ';background:' + (railMine ? 'rgba(70,196,182,.12)' : 'rgba(255,255,255,.02)') + ';font-size:.68rem;color:' + (railMine ? 'var(--teal)' : 'var(--muted2)') + ';">Your Team</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.68rem;color:var(--gold2);">Execute</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid ' + (!railMine ? 'rgba(200,80,80,.45)' : 'var(--border2)') + ';background:' + (!railMine ? 'rgba(200,80,80,.12)' : 'rgba(255,255,255,.02)') + ';font-size:.68rem;color:' + (!railMine ? 'var(--red2)' : 'var(--muted2)') + ';">Enemy Team</div>'
+    + '</div>';
     var logLines = (match.log || []).slice(-8).reverse().map(function (line) {
       return '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
     }).join('');
@@ -2189,6 +2197,7 @@
       + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">Crucible 6v6 Tactical Simulator</div>'
       + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.15rem;">Round ' + Number(match.round || 1) + ' · ' + currentTurn + ' · Allies ' + alliesAlive + '/' + Number((match.allies||[]).length || 0) + ' · Enemies ' + enemiesAlive + '/' + Number((match.enemies||[]).length || 0) + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.28rem;">Mode: ' + mode.label + ' · Objective: ' + mode.objective + ' · ' + scoreLine + '</div>'
+      + turnRail
       + '<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
       + '<label style="font-size:.66rem;color:var(--muted2);">Wayfarer Actions'
       + '<select id="crucibleWayfarerActionSelect" style="width:100%;margin-top:.08rem;">' + wayfarerOptions + '</select></label>'
@@ -2214,13 +2223,19 @@
       + '<button class="btn btn-sm" onclick="closeModal();">Close</button>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.35rem;">'
-      + '<div style="border:1px solid var(--border2);padding:.28rem .34rem;background:rgba(255,255,255,.02);">'
-      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.2rem;">Your Units</div>'
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">' + (allyRows || '<div style="font-size:.72rem;color:var(--muted2);">No allies standing.</div>') + '</div>'
+      + '<div style="border:1px solid rgba(70,196,182,.35);padding:.28rem .34rem;background:linear-gradient(180deg,rgba(70,196,182,.08),rgba(255,255,255,.02));">'
+      + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;margin-bottom:.2rem;">'
+      + '<div style="font-size:.7rem;color:var(--teal);">Blue Side</div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);">AP / HP / PF</div>'
       + '</div>'
-      + '<div style="border:1px solid var(--border2);padding:.28rem .34rem;background:rgba(255,255,255,.02);">'
-      + '<div style="font-size:.7rem;color:var(--red2);margin-bottom:.2rem;">Enemy Targets</div>'
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">' + (targetRows || '<div style="font-size:.72rem;color:var(--muted2);">No enemies standing.</div>') + '</div>'
+      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;max-height:7.5rem;overflow:auto;">' + (allyRows || '<div style="font-size:.72rem;color:var(--muted2);">No allies standing.</div>') + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid rgba(200,80,80,.35);padding:.28rem .34rem;background:linear-gradient(180deg,rgba(200,80,80,.08),rgba(255,255,255,.02));">'
+      + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;margin-bottom:.2rem;">'
+      + '<div style="font-size:.7rem;color:var(--red2);">Red Side</div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);">Distance / HP</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;max-height:7.5rem;overflow:auto;">' + (targetRows || '<div style="font-size:.72rem;color:var(--muted2);">No enemies standing.</div>') + '</div>'
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.35rem;">'

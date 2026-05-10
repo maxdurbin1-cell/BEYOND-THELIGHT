@@ -188,7 +188,7 @@
 
   var SOUL_MISSION_BOSSES = ['The Hollow Saint', 'The Cinder Warden', 'The Bone Regent', 'The Echo Maw', 'The Pale Engine', 'The Wailing Herald', 'The Starved Oracle', 'The Ash Crown', 'The Gilded Parasite', 'The Grave Choir', 'The Rift Shepherd', 'The Blackened Throne'];
   var SOUL_MISSION_LOCS = ['Shattered Reliquary', 'Catacomb Blacksite', 'Fallen Temple Vault', 'Hollow Observatory', 'Cinder Crypt', 'Ruin Gate Sanctum', 'Ashen Ossuary', 'Silent Sepulcher', 'Warden Crypt', 'Echo Vault'];
-  var SOUL_MISSION_ICONS = ['⚒', '☠'];
+  var SOUL_MISSION_ICONS = ['⚒', '🔨'];
   var COLOSSEUM_MISSION_ICONS = ['🏟', '⚔'];
   var GATE_WAR_MISSION_ICONS = ['🌀', '🚪'];
 
@@ -658,7 +658,11 @@
       var missionRegion = String(mission.region || region || 'province').toLowerCase();
       var missionRegionLabel = regionLabelMap[missionRegion] || missionRegion;
       var missionSite = String(mission.location || location || 'Unknown location');
-      showNotif('Soul Forge mission detected: ' + mission.title + ' at ' + missionSite + ' (' + missionRegionLabel + ').', 'warn');
+      showNotif('Soul Forge monster detected ' + soulIcon + ': ' + mission.title + ' at ' + missionSite + ' (' + missionRegionLabel + ').', 'warn');
+      showNotif('Find the forge marker ' + soulIcon + ' on the map and click it to start the Soul Creature fight prompt.', 'info');
+    }
+    if (String(mission.region || '').toLowerCase() === 'province' && typeof renderHexMap === 'function') {
+      try { renderHexMap(); } catch (_mapErr) {}
     }
     recordMissionConsequence({
       system: 'missions',

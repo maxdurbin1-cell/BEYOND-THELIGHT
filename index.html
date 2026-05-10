@@ -5945,6 +5945,7 @@ function applyPassiveDefendSuccessEffects(){
 function startCombat(){
   S.combat.active=true;
   S.combat.round=1;
+  S.combat.fastAttackUsedEncounter=false;
   prepareCombatTurnStart();
   S.combat.sceneDefendBonus=0;
   S.combat.enemyDefendsThisTurn=0;
@@ -6091,6 +6092,7 @@ function endCombat(){
   S.combat.weaponLockRounds=0;
   S.combat.autoReloaderShots=0;
   S.combat.autoReloaderActionSpent=false;
+  S.combat.fastAttackUsedEncounter=false;
   S.combat.flavorResistUsed={};
   if(Array.isArray(S.enemies)){
     S.enemies=S.enemies.filter(function(e){
@@ -6193,13 +6195,14 @@ function updateWayfarerActionBtn(){
   var canHelp=(typeof getAdjacentCombatAllies==='function'?getAdjacentCombatAllies().length>0:(range!=='far'));
   var canStrike=(range==='engaged');
   var moveCost=(typeof getCombatMoveActionCost==='function')?getCombatMoveActionCost():1;
+  var fastUsed=!!(S&&S.combat&&S.combat.fastAttackUsedEncounter);
   var allow={
     standard_strike:(actions>=1&&canStrike),
     standard_shoot:(actions>=1&&canShoot),
     heavy_strike:(actions>=2&&canStrike),
     heavy_shoot:(actions>=2&&canShoot),
-    fast_strike:canStrike,
-    fast_shoot:canShoot,
+    fast_strike:(canStrike&&!fastUsed),
+    fast_shoot:(canShoot&&!fastUsed),
     stance_agg:(actions>=1),
     stance_def:(actions>=1),
     switch:(actions>=1),
@@ -6234,8 +6237,9 @@ function updateWayfarerActionBtn(){
     else if(v==='stand_help')hint='Help requires not being in Far zone and 1 Action.';
     else if(v==='move_out')hint='Already at Far. Move Inward to close distance.';
     else if(v==='move_in')hint='Already at Engaged. Move Outward to open distance.';
-    else if(v==='fast_strike'||v==='standard_strike'||v==='heavy_strike')hint='Strike requires Engaged zone.';
-    else if(v==='fast_shoot'||v==='standard_shoot'||v==='heavy_shoot')hint='Shoot requires valid weapon/range.';
+    else if(v==='fast_strike'||v==='fast_shoot')hint='Fast Attack can only be used once per combat encounter.';
+    else if(v==='standard_strike'||v==='heavy_strike')hint='Strike requires Engaged zone.';
+    else if(v==='standard_shoot'||v==='heavy_shoot')hint='Shoot requires valid weapon/range.';
     else hint='Not available with current spacing/actions.';
   }
   btn.disabled=blocked;
@@ -6274,6 +6278,11 @@ function executeWayfarerAction(){
     return;
   }
   if(v==='fast_strike'||v==='fast_shoot'){
+    if(S&&S.combat&&S.combat.fastAttackUsedEncounter){
+      setRes('<span style="color:var(--red2);">Fast Attack already used this encounter.</span>');
+      showNotif('Fast Attack can only be used once per encounter.','warn');
+      return;
+    }
     var type3=v==='fast_strike'?'strike':'shoot';
     var advDie3=S&&S.stats&&S.stats.adventure?S.stats.adventure:4;
     var aRoll3=explodingRoll(S.stats[type3]||6,{type:'action',major:true,label:'Fast '+type3});
@@ -6286,6 +6295,8 @@ function executeWayfarerAction(){
     setRes('<span style="color:'+(hit3?'var(--teal)':'var(--red2)')+';">Fast Attack (Free): '+aRoll3.total+'-'+penRoll.total+'='+total3+' vs Dread '+dread3.total+' \u2014 '+(hit3?'HIT! '+dmg3+' Health damage':'MISS')+' - You are Vulnerable next enemy action.</span>');
     if(hit3&&enem3)applyStressToEnemy(enem3,dmg3,'Fast Attack');
     if(S&&S.combat)S.combat.fastAttackVulnerable=1;
+    if(S&&S.combat)S.combat.fastAttackUsedEncounter=true;
+    updateWayfarerActionBtn();
     return;
   }
   if(v==='stance_agg'||v==='stance_def'){
@@ -17085,6 +17096,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     return Array.isArray(S.enemies) && S.enemies.some(function (enemy) { return enemy && !enemy.ally && Number(enemy.stress || 0) < Number(enemy.maxStress || 0); });
   }
 
+  function arenaAliveHostileCount() {
+    if (!Array.isArray(S.enemies)) return 0;
+    return S.enemies.filter(function (enemy) {
+      return enemy && !enemy.ally && Number(enemy.stress || 0) < Number(enemy.maxStress || 0);
+    }).length;
+  }
+
   function getArenaCurrentEnemy() {
     return Array.isArray(S.enemies)
       ? S.enemies.find(function (enemy) { return enemy && !enemy.ally; })
@@ -17107,6 +17125,31 @@ document.addEventListener('DOMContentLoaded',()=>{
     openModal(String((context && context.title) || 'Arena Combat'), buildArenaCombatPopupHtml(context || {}));
   }
 
+  function executeArenaPlayerAction(kind) {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow || !flow.active) return false;
+    if (flow.playerActionBusy) return false;
+    flow.playerActionBusy = true;
+    var act = String(kind || '').toLowerCase();
+    if (act === 'strike' || act === 'shoot') {
+      if (typeof rollAttack === 'function') rollAttack(act);
+    } else if (act === 'defend') {
+      if (typeof rollDefend === 'function') rollDefend();
+    }
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+    if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof setTimeout === 'function') {
+      setTimeout(function () {
+        flow.playerActionBusy = false;
+        renderArenaCombatPopup();
+      }, 0);
+    } else {
+      flow.playerActionBusy = false;
+      renderArenaCombatPopup();
+    }
+    return true;
+  }
+
   function buildArenaCombatPopupHtml(context) {
     var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
     var title = String((context && context.title) || 'Arena Combat');
@@ -17119,6 +17162,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     var enemyMaxHp = currentEnemy ? Math.max(1, Number(currentEnemy.maxStress || 1)) : 1;
     var queue = flow && Array.isArray(flow.queue) ? flow.queue : [];
     var remaining = Math.max(0, queue.length - Math.max(1, Number(flow && flow.index || 0)));
+    var actionsLeft = Math.max(0, Number(S && S.combat && S.combat.actionsLeft || 0));
+    var actionsMax = Math.max(1, Number(typeof getMaxActions === 'function' ? getMaxActions() : 3));
+    var enemyActionsPerTurn = 2;
+    var enemiesAlive = arenaAliveHostileCount();
     var player = { name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer'), side: 'ally', isPlayer: true, hp: Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0)), range: 'Engaged' };
     var boardUnits = [player];
     if (currentEnemy) {
@@ -17148,9 +17195,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       : (mode === 'endless'
         ? 'Clear the full chain for bonus credits, renown, and loot.'
         : 'Challenge bracket: win all bouts to claim full colosseum rewards.')));
-    var actionButtons = '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'strike\');">Strike</button>'
-      + '<button class="btn btn-sm btn-primary" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'shoot\');">Shoot</button>'
-      + '<button class="btn btn-sm" onclick="if(typeof qpCombatAction===\'function\')qpCombatAction(\'defend\');">Defend</button>'
+    var actionButtons = '<button class="btn btn-sm btn-primary" onclick="executeArenaPlayerAction(\'strike\');">Strike</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="executeArenaPlayerAction(\'shoot\');">Shoot</button>'
+      + '<button class="btn btn-sm" onclick="executeArenaPlayerAction(\'defend\');">Defend</button>'
       + '<button class="btn btn-sm btn-teal" onclick="executeArenaSpecialAction();">' + specialName + '</button>';
     var extraButtons = '';
     if ((mode === 'endless' || mode === 'challenge') && flow && Array.isArray(flow.queue) && Number(flow.index || 0) < flow.queue.length - 1 && !arenaCombatHasAliveHostiles()) {
@@ -17199,6 +17246,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     return '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
       + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.1rem;">' + title + '</div>'
       + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">' + modeLabel + ' · ' + (hexKey ? ('Hex ' + hexKey) : 'No hex anchor') + ' · ' + currentReward + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.25rem;">'
+        + '<div style="padding:.16rem .28rem;border:1px solid var(--border2);background:rgba(70,196,182,.08);font-size:.72rem;color:var(--teal);">Your Actions: <strong>' + actionsLeft + '/' + actionsMax + '</strong></div>'
+        + '<div style="padding:.16rem .28rem;border:1px solid var(--border2);background:rgba(200,80,80,.08);font-size:.72rem;color:var(--red2);">Enemy Actions/Turn: <strong>' + enemyActionsPerTurn + '</strong></div>'
+        + '<div style="padding:.16rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);font-size:.72rem;color:var(--text2);">Enemies Alive: <strong>' + enemiesAlive + '</strong></div>'
+        + '<div style="padding:.16rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);font-size:.72rem;color:var(--gold2);">Wave: <strong>' + String((flow && Number(flow.index || 0)) + 1 || 1) + '/' + Math.max(1, queue.length || 1) + '</strong></div>'
+      + '</div>'
       + dungeonPreview
       + gatePuzzleHtml
       + '<div style="border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);padding:.28rem .34rem;margin-bottom:.32rem;">'
@@ -17335,6 +17388,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   window.openArenaCombatPopup = openArenaCombatPopup;
   window.renderArenaCombatPopup = renderArenaCombatPopup;
+  window.executeArenaPlayerAction = executeArenaPlayerAction;
   window.seedArenaCombat = seedArenaCombat;
 
   function buildQPMissions() {

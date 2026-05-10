@@ -657,6 +657,8 @@
         ? "Something ceremonial stands inland."
         : siteType === "settlement"
           ? "Smoke, sound, or tool-work suggests habitation."
+          : siteType === "colosseum"
+            ? "A war-ring rises from the surf, roaring with crowd-noise and wagers."
           : siteType === "dungeon"
             ? "Broken stone and shadow hint at buried chambers."
             : "The shoreline looks mostly untouched.";
@@ -726,12 +728,24 @@
     };
   }
 
+  function makeColosseumData() {
+    return {
+      name: pick(["Leviathan Ring", "Salt Crown Arena", "Brasswake Colosseum", "Abyss Court Pit"]),
+      host: pick(["Arena Herald", "Tide Magistrate", "Iron Bookmaker", "Harbor Priest"]),
+      style: pick(["bloodsport bracket", "ritual duel ladder", "crew-versus-crew melee", "champion gauntlet"]),
+      crowd: pick(["raider captains", "mercenary crews", "pilgrim gamblers", "city exiles"])
+    };
+  }
+
   function createSeaSite(type) {
     if (type === "settlement") {
       return makeSettlementData();
     }
     if (type === "landmark") {
       return makeLandmarkData();
+    }
+    if (type === "colosseum") {
+      return makeColosseumData();
     }
     return makeDungeonData();
   }
@@ -815,6 +829,7 @@
     }
 
     const layouts = getLastSeaLayout();
+    let colosseumPlaced = false;
     layouts.forEach((layout, index) => {
       const terrain = pick(LAST_SEA_TERRAINS);
       const ecology = pick(LAST_SEA_ECOLOGY);
@@ -833,6 +848,10 @@
       S.lastSea.islands.push(islandMeta);
 
       const siteTypes = layout.hexes >= 9 ? ["settlement", "landmark", "dungeon"] : layout.hexes >= 6 ? pickN(["settlement", "landmark", "dungeon"], 2) : [pick(["settlement", "landmark", "dungeon"])];
+      if (!colosseumPlaced && (layout.hexes >= 6 || index === layouts.length - 1)) {
+        siteTypes.push("colosseum");
+        colosseumPlaced = true;
+      }
       const siteCells = pickN(cluster, siteTypes.length);
 
       cluster.forEach((cell, position) => {
@@ -850,7 +869,7 @@
         hex.ecology = ecology;
         hex.siteType = siteType;
         hex.siteData = siteType ? createSeaSite(siteType) : null;
-        hex.icon = siteType === "settlement" ? "⌂" : siteType === "landmark" ? "◈" : siteType === "dungeon" ? "◫" : "•";
+        hex.icon = siteType === "settlement" ? "⌂" : siteType === "landmark" ? "◈" : siteType === "dungeon" ? "◫" : siteType === "colosseum" ? "⚔" : "•";
         hex.desc = describeIslandHex(terrain, ecology, siteType);
         hex.title = siteType && hex.siteData && hex.siteData.name ? hex.siteData.name : `${terrain.name} Shore ${position + 1}`;
       });
@@ -1380,6 +1399,7 @@
                  <div class="ss-text">${describeSeaSite(hex.siteType, hex.siteData)}</div>
                  ${hex.siteType === 'settlement' ? `<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="generateTaskForSeaHex(${hex.col},${hex.row})">⚄ Generate Task</button><button class="btn btn-xs btn-teal" onclick="if(typeof openSeaSettlementHexcrawl==='function')openSeaSettlementHexcrawl('${String(hex.title||hex.islandName||'Sea Settlement').replace(/'/g,"\\'")}');else if(typeof openHoldingSettlementHexcrawl==='function')openHoldingSettlementHexcrawl();">◫ Enter Settlement</button></div>` : ''}
                  ${hex.siteType === 'dungeon' ? `<div class="rest-boon" style="margin-top:.28rem;background:rgba(160,152,112,.06);border-color:rgba(160,152,112,.4);"><div class="rb-label" style="color:#a09870;">◫ Rest Boon</div><div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Empowered</strong> (Body/Strike/Shoot ↑).</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="if(typeof advanceDay==='function')advanceDay(1);if(typeof toggleCond==='function'&&S.conditions&&!S.conditions.empowered)toggleCond('empowered');showNotif('Sea ruin camp complete. +1 day, Empowered applied.','good');">Accept Boon Rest (Long Rest +1 Day)</button></div></div><div class="ruin-room" style="margin-top:.32rem;"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);line-height:1.55;"><strong>Built by:</strong> ${hex.siteData.builder || 'Unknown'}<br><strong>Purpose:</strong> ${hex.siteData.builtFor || 'Unknown'}<br><strong>Construction:</strong> ${hex.siteData.construction || 'Stone'}<br><strong>Entrance:</strong> ${hex.siteData.entrance || 'Collapsed arch'}<br><strong>Rooms:</strong> ${hex.siteData.rooms || 4} total<br><strong>Novelty:</strong> ${hex.siteData.novelty || 'None'}</div></div><div style="margin-top:.32rem;display:flex;gap:.24rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="openSeaDungeon(${hex.col},${hex.row})">Enter Sea Ruins Hexcrawl</button></div>` : ''}
+                 ${hex.siteType === 'colosseum' ? `<div class="rest-boon" style="margin-top:.28rem;background:rgba(224,128,70,.07);border-color:rgba(224,128,70,.45);"><div class="rb-label" style="color:#f0a870;">⚔ Sea Colosseum</div><div style="font-size:.82rem;color:var(--text2);line-height:1.55;">Host: <strong>${hex.siteData.host || 'Arena Herald'}</strong> · Bracket: <strong>${hex.siteData.style || 'champion gauntlet'}</strong><br>Crowd: ${hex.siteData.crowd || 'wagering crews'} · Win bouts for credits and loot.</div><div style="margin-top:.3rem;display:flex;gap:.24rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="if(typeof window.openSeaColosseumFromHex==='function')window.openSeaColosseumFromHex('${hex.key}');">Post Colosseum Contract</button><button class="btn btn-xs btn-teal" onclick="if(typeof window.resolveSeaColosseumBout==='function')window.resolveSeaColosseumBout('${hex.key}');">Fight Quick Bout</button></div></div>` : ''}
                </div>`
             : ""
         }
@@ -1462,6 +1482,9 @@
     }
     if (type === "landmark") {
       return `${data.name}. Effect: ${data.effect}. ${data.detail}`;
+    }
+    if (type === "colosseum") {
+      return `${data.name}. ${data.style} hosted by ${data.host}. The stands are packed with ${data.crowd}.`;
     }
     return `${data.name}. Built by ${data.builder}. Entrance: ${data.entrance}. ${data.novelty}.`;
   }

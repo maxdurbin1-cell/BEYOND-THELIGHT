@@ -544,14 +544,14 @@
 
     var seed = Number(seedHint || 0) + dayStamp + (Number(spawner.counter || 0) * 37) + (Math.max(0, Number(S.renown || 0)) * 11);
     var chanceRoll = Math.abs(seed) % 100;
-    if (!isForced && chanceRoll > 26) return null;
+    if (!isForced && chanceRoll > 42) return null;
 
     var boss = SOUL_MISSION_BOSSES[Math.abs(seed + 29) % SOUL_MISSION_BOSSES.length] || 'The Hollow Saint';
     var regionPool = getAvailableMissionRegions();
     var region = regionPool[Math.abs(seed + 13) % Math.max(1, regionPool.length)] || 'province';
     var planetTarget = region === 'galaxy' ? getGalaxyPlanetMissionTarget() : null;
     var location = planetTarget ? planetTarget.location : getMissionLocationForRegion(region);
-    var conflict = pickFactionConflict();
+    var conflict = pickFactionConflict(getMissionConsequenceBias());
     var mission = createMission(
       'Soul Echo',
       'Soul Mission: ' + boss,
@@ -579,7 +579,7 @@
     if (!mission) return null;
 
     spawner.counter = Number(spawner.counter || 0) + 1;
-    spawner.nextEligibleDayStamp = dayStamp + 4;
+    spawner.nextEligibleDayStamp = dayStamp + 2;
     if (typeof showNotif === 'function') {
       showNotif('Soul Forge signal detected: ' + mission.title + ' has appeared.', 'warn');
     }
@@ -658,6 +658,108 @@
     state.nextEligibleDayStamp = dayStamp + 3;
     if (typeof showNotif === 'function') showNotif('Endgame signal: Colosseum Trial posted in the Endless Sea.', 'warn');
     return mission;
+  }
+
+  function getSeaColosseumTierDie() {
+    var endgame = ensureEndgameDirectorState();
+    var col = endgame.colosseum || { clears: 0, bestClearDie: 0 };
+    var clears = Math.max(0, Number(col.clears || 0));
+    var best = Math.max(0, Number(col.bestClearDie || 0));
+    if (best >= 20 || clears >= 12) return 20;
+    if (best >= 12 || clears >= 8) return 12;
+    if (best >= 10 || clears >= 5) return 10;
+    if (best >= 8 || clears >= 3) return 8;
+    return 6;
+  }
+
+  function openSeaColosseumFromHex(hexKey) {
+    ensureState();
+    if (!S.lastSea || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return null;
+
+    var dayStamp = getCurrentGameDayStamp();
+    var seed = Number(dayStamp || 0) + Number(Date.now() % 100000);
+    var mission = spawnRandomColosseumMissionEvent(seed, true);
+    if (!mission) {
+      mission = Array.isArray(S.activeMissions)
+        ? S.activeMissions.find(function (m) {
+            return m && m.missionType === 'colosseum_endless' && m.steps && m.steps[3] && !m.steps[3].completed;
+          })
+        : null;
+    }
+
+    if (mission && S.lastSea && S.lastSea.missionTokens && hexKey) {
+      var key = String(hexKey || '');
+      mission.region = 'sea';
+      mission.seaSiteKey = key;
+      S.lastSea.missionTokens[key] = {
+        missionId: mission.id,
+        title: mission.title || 'Colosseum Trial',
+        type: 'site',
+        missionType: mission.missionType || 'colosseum_endless'
+      };
+      if (typeof renderLastSeaMap === 'function') {
+        try { renderLastSeaMap(); } catch (_seaMapErr) {}
+      }
+    }
+
+    if (typeof switchTab === 'function') {
+      var btn = document.querySelector(".tab-btn[onclick*=\"switchTab('missions'\"]");
+      switchTab('missions', btn || null);
+    }
+    if (typeof showNotif === 'function') {
+      showNotif('Colosseum contract routed through this sea hex.', 'good');
+    }
+    return mission;
+  }
+
+  function resolveSeaColosseumBout(hexKey) {
+    ensureState();
+    var tierDie = getSeaColosseumTierDie();
+    var actionDie = Math.max(4, Number((S && S.adventure) || 6));
+    var a = (typeof explodingRoll === 'function') ? explodingRoll(actionDie) : { total: roll(actionDie), exploded: false };
+    var d = (typeof explodingRoll === 'function') ? explodingRoll(tierDie) : { total: roll(tierDie), exploded: false };
+    var success = Number(a.total || 0) >= Number(d.total || 0);
+    var endgame = ensureEndgameDirectorState();
+    var col = endgame.colosseum;
+
+    var rewardCredits = 0;
+    var rewardLoot = null;
+    if (success) {
+      rewardCredits = 50 + (tierDie * 15);
+      S.credits = Math.max(0, Number(S.credits || 0) + rewardCredits);
+      col.clears = Math.max(0, Number(col.clears || 0) + 1);
+      col.bestClearDie = Math.max(Number(col.bestClearDie || 0), tierDie);
+      var diff = tierDie >= 20 ? 'impossible' : tierDie >= 12 ? 'very_hard' : tierDie >= 10 ? 'hard' : 'medium';
+      var rolled = rollShopLoot(diff) || [];
+      if (rolled.length) {
+        rewardLoot = String(rolled[0]);
+        if (typeof addToBackpack === 'function') {
+          try { addToBackpack(rewardLoot); } catch (_bpErr) {}
+        }
+      }
+    }
+
+    col.history.unshift({
+      at: new Date().toISOString(),
+      tierDie: tierDie,
+      enemy: 'Sea Colosseum Bracket',
+      success: success,
+      hexKey: String(hexKey || '')
+    });
+    col.history = col.history.slice(0, 12);
+
+    if (typeof updateCreditsUI === 'function') {
+      try { updateCreditsUI(); } catch (_cErr) {}
+    }
+
+    if (typeof showNotif === 'function') {
+      if (success) {
+        showNotif('Colosseum win: +' + rewardCredits + ' Credits' + (rewardLoot ? ' and ' + rewardLoot + '.' : '.'), 'good');
+      } else {
+        showNotif('Colosseum loss: AD d' + actionDie + ' (' + a.total + ') vs d' + tierDie + ' (' + d.total + ').', 'warn');
+      }
+    }
+    return { success: success, tierDie: tierDie, actionTotal: Number(a.total || 0), dreadTotal: Number(d.total || 0), credits: rewardCredits, loot: rewardLoot };
   }
 
   function spawnRandomGateWarMissionEvent(seedHint, force) {
@@ -1535,18 +1637,59 @@
     return guards;
   }
 
-  function pickFactionConflict() {
+  function pickFactionConflict(bias) {
+    var b = bias || {};
+    if (b.factionConflictOverride && typeof b.factionConflictOverride === 'object') {
+      return {
+        gain: String(b.factionConflictOverride.gain || 'political'),
+        lose: String(b.factionConflictOverride.lose || 'underworld'),
+        gainName: String(b.factionConflictOverride.gainName || 'Political Groups'),
+        loseName: String(b.factionConflictOverride.loseName || 'The Underworld')
+      };
+    }
     return pick(MISSION_FACTION_CONFLICTS);
   }
 
+  function mergeMissionBias(baseBias, addonBias) {
+    var base = baseBias || { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+    var addon = addonBias || {};
+    var merged = {
+      focusRegion: String(base.focusRegion || ''),
+      difficultyShift: Number(base.difficultyShift || 0),
+      rewardBonus: Number(base.rewardBonus || 0),
+      preferredVerbs: Array.isArray(base.preferredVerbs) ? base.preferredVerbs.slice() : [],
+      factionConflictOverride: base.factionConflictOverride || null
+    };
+    if (addon.focusRegion) merged.focusRegion = String(addon.focusRegion);
+    merged.difficultyShift += Number(addon.difficultyShift || 0);
+    merged.rewardBonus += Number(addon.rewardBonus || 0);
+    if (Array.isArray(addon.preferredVerbs) && addon.preferredVerbs.length) {
+      merged.preferredVerbs = merged.preferredVerbs.concat(addon.preferredVerbs);
+    }
+    if (addon.factionConflictOverride && typeof addon.factionConflictOverride === 'object') {
+      merged.factionConflictOverride = addon.factionConflictOverride;
+    }
+    return merged;
+  }
+
   function getMissionConsequenceBias() {
+    var base = { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
     if (typeof window === 'undefined' || typeof window.getConsequenceMissionBias !== 'function') {
-      return { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+      if (typeof window !== 'undefined' && typeof window.getTheosMissionBias === 'function') {
+        try {
+          return mergeMissionBias(base, window.getTheosMissionBias() || {});
+        } catch (_theosErr0) {
+          return base;
+        }
+      }
+      return base;
     }
     try {
-      return window.getConsequenceMissionBias() || { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+      var consequence = window.getConsequenceMissionBias() || base;
+      var theosBias = (typeof window.getTheosMissionBias === 'function') ? (window.getTheosMissionBias() || {}) : {};
+      return mergeMissionBias(consequence, theosBias);
     } catch (_err) {
-      return { focusRegion: '', difficultyShift: 0, rewardBonus: 0, preferredVerbs: [] };
+      return base;
     }
   }
 
@@ -1655,7 +1798,7 @@
 
   function makeMission(title, difficulty, location, region, factionData, missionOptions) {
     var diff = DIFFICULTIES[difficulty] || DIFFICULTIES.easy;
-    var f = factionData || pickFactionConflict();
+    var f = factionData || pickFactionConflict(getMissionConsequenceBias());
     var opts = missionOptions || {};
     var stepNames = opts.stepNames || {};
     var currentDayStamp = getCurrentGameDayStamp();
@@ -1799,7 +1942,7 @@
       diffIdx = Math.max(0, Math.min(DIFF_KEYS.length - 1, diffIdx + Number(bias.difficultyShift || 0)));
       diffKey = DIFF_KEYS[diffIdx] || diffKey;
       var diff    = DIFFICULTIES[diffKey];
-      var f = pickFactionConflict();
+      var f = pickFactionConflict(bias);
       var regionPool = getAvailableMissionRegions();
       var region = forceRegion || pick(regionPool);
       if (!forceRegion && bias.focusRegion && regionPool.indexOf(bias.focusRegion) >= 0 && Math.random() < 0.45) {
@@ -12681,6 +12824,8 @@
   window.spawnRandomSoulForgeMissionEvent=spawnRandomSoulForgeMissionEvent;
   window.spawnRandomColosseumMissionEvent=spawnRandomColosseumMissionEvent;
   window.spawnRandomGateWarMissionEvent=spawnRandomGateWarMissionEvent;
+  window.openSeaColosseumFromHex=openSeaColosseumFromHex;
+  window.resolveSeaColosseumBout=resolveSeaColosseumBout;
   window.autoFailExpiredMissions=autoFailExpiredMissions;
   window.adjustMissionDread=adjustMissionDread;
   window.createOriginMissionFromReason=createOriginMissionFromReason;

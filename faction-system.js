@@ -494,19 +494,31 @@
 
   const MONSTER_NAMES = ["Irradiated Ones", "Rift Hounds", "Ash Stalkers", "Void Leeches", "Crypt Drifters"];
 
+  function getActiveTheosFlavor() {
+    if (typeof window === "undefined" || typeof window.getTheosFactionFlavor !== "function") return null;
+    try {
+      return window.getTheosFactionFlavor() || null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
   function generateFactionBaseMission(factionId) {
     const theme = BASE_FLAVOR[factionId] || BASE_FLAVOR.scholars;
     const renown = getFactionRenown(factionId);
+    const theos = getActiveTheosFlavor();
     const tier = renown >= 6 ? "High Stakes" : renown >= 3 ? "Trusted Operative" : "Initiate";
+    const flavorTag = theos && theos.tension ? " - " + String(theos.tension) : "";
     return {
-      title: toTitle(tier) + ": " + toTitle(pick(theme.missionHooks)),
+      title: toTitle(tier) + ": " + toTitle(pick(theme.missionHooks)) + flavorTag,
       difficulty: renown >= 6 ? "very_hard" : renown >= 3 ? "hard" : "medium",
-      payout: (120 + Math.max(0, renown) * 45) + " Credits",
+      payout: (120 + Math.max(0, renown) * 45 + (theos ? 30 : 0)) + " Credits",
     };
   }
 
   function generateFactionBaseEvents(factionId) {
     const factionName = FACTIONS[factionId] ? FACTIONS[factionId].name : "the faction";
+    const theos = getActiveTheosFlavor();
     const pool = [
       "A Wayfarer arrives with rumors about a forgotten route tied to " + factionName + ".",
       "A hazard alarm blares: toxic seepage floods one corridor and everyone scrambles.",
@@ -517,6 +529,12 @@
       "A courier returns from the frontier carrying contradictory reports of an incoming raid.",
       "A secret chamber is found under the base, containing names no one wants spoken aloud.",
     ];
+    if (theos && theos.scar) {
+      pool.push("Scouts report regional fallout from the province scar: " + String(theos.scar) + ".");
+    }
+    if (theos && theos.dungeonTheme) {
+      pool.push("Faction handlers request a strike team for a nearby site tied to " + String(theos.dungeonTheme) + ".");
+    }
     const events = [];
     while (events.length < 3 && pool.length) {
       const idx = Math.floor(Math.random() * pool.length);

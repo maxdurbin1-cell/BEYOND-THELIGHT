@@ -4306,12 +4306,40 @@
     }
   }
 
+  function nearestStoryDread(raw) {
+    var allowed = [4, 6, 8, 10, 12, 20];
+    var value = Math.max(4, Number(raw || 8));
+    var best = allowed[0];
+    var delta = Math.abs(allowed[0] - value);
+    allowed.forEach(function (die) {
+      var d = Math.abs(die - value);
+      if (d < delta) {
+        best = die;
+        delta = d;
+      }
+    });
+    return best;
+  }
+
+  function getTheosStorylineModifierSafe() {
+    if (typeof window === "undefined" || typeof window.getTheosStorylineModifier !== "function") {
+      return { dreadShift: 0, rollBonus: 0, tone: "" };
+    }
+    try {
+      return window.getTheosStorylineModifier() || { dreadShift: 0, rollBonus: 0, tone: "" };
+    } catch (_err) {
+      return { dreadShift: 0, rollBonus: 0, tone: "" };
+    }
+  }
+
   function getOptionDread(sceneId, option) {
     const st = ensureStoryState();
     const key = sceneId + ":" + option.id;
     const stored = Number(st.optionDread[key] || 0);
     const base = Number(option.baseDread || 0);
-    return stored || base || 8;
+    var theos = getTheosStorylineModifierSafe();
+    var raw = stored || base || 8;
+    return nearestStoryDread(raw + Number(theos.dreadShift || 0));
   }
 
   function setOptionDread(sceneId, optionId, die) {
@@ -4366,7 +4394,9 @@
         }
       }
     } catch (_err) {}
-    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus) + relicTotal + campaignBonus + Math.max(0, flavorBonus);
+    var theos = getTheosStorylineModifierSafe();
+    var regionBonus = Math.max(0, Number(theos.rollBonus || 0));
+    const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus) + relicTotal + campaignBonus + Math.max(0, flavorBonus) + regionBonus;
     return {
       success: effectiveTotal >= d.total,
       actionDie: actionDie,
@@ -4377,6 +4407,8 @@
       factionBonus: Math.max(0, bonus),
       campaignBonus: campaignBonus,
       flavorBonus: Math.max(0, flavorBonus),
+      regionalBonus: regionBonus,
+      regionalTone: String(theos.tone || ""),
       effectiveTotal: effectiveTotal,
       assigneeName: decisionMeta && decisionMeta.assigneeName ? String(decisionMeta.assigneeName) : 'Wayfarer',
       rollSource: decisionMeta && decisionMeta.assigneeId ? String(decisionMeta.assigneeId) : 'local:self',

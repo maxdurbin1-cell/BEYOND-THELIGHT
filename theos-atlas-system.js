@@ -10,6 +10,8 @@
     ThornCompact: "#6d9a57"
   };
 
+  var DEFAULT_ATLAS_IMAGE = "./assets/maps/theos-known-realms-of-theos.jpg";
+
   var THEOS_CONTINENTS = [
     {
       id: "mythriel",
@@ -38,21 +40,21 @@
   ];
 
   var THEOS_PROVINCES = [
-    { id: "dyn", name: "Dyn Province", continent: "mythriel", x: 20, y: 23, threat: 2, climateBand: "cold" },
-    { id: "rosegrove", name: "Rosegrove Reach", continent: "mythriel", x: 14, y: 43, threat: 3, climateBand: "temperate" },
-    { id: "raenor", name: "Raenor March", continent: "mythriel", x: 31, y: 63, threat: 4, climateBand: "highland" },
-    { id: "sunsgrave", name: "Sunsgrave Expanse", continent: "mythriel", x: 10, y: 79, threat: 5, climateBand: "arid" },
-    { id: "freyreign", name: "Freyreign", continent: "ioniir", x: 47, y: 16, threat: 3, climateBand: "coastal" },
-    { id: "lordteak", name: "Lord Teak", continent: "ioniir", x: 55, y: 12, threat: 4, climateBand: "temperate" },
-    { id: "watchcairn", name: "Watchcairn", continent: "ioniir", x: 51, y: 27, threat: 5, climateBand: "storm" },
-    { id: "dewt", name: "Dewt Crown", continent: "nominion", x: 73, y: 41, threat: 3, climateBand: "temperate" },
-    { id: "lynridge", name: "Lynridge", continent: "nominion", x: 82, y: 47, threat: 4, climateBand: "forest" },
-    { id: "wrathwatch", name: "Wrathwatch", continent: "nominion", x: 76, y: 33, threat: 5, climateBand: "storm" },
-    { id: "vosshollow", name: "Voss Hollow", continent: "nominion", x: 88, y: 38, threat: 6, climateBand: "marsh" },
-    { id: "bazaarun", name: "Bazaarun", continent: "cyphyyr", x: 58, y: 71, threat: 4, climateBand: "coastal" },
-    { id: "krovan", name: "Krovan Vale", continent: "cyphyyr", x: 78, y: 70, threat: 5, climateBand: "tropical" },
-    { id: "thousandpeaks", name: "Thousand Peaks", continent: "cyphyyr", x: 83, y: 82, threat: 6, climateBand: "highland" },
-    { id: "cityofbliss", name: "City of Bliss", continent: "cyphyyr", x: 92, y: 90, threat: 7, climateBand: "coastal" }
+    { id: "dyn", name: "Dyn Province", continent: "mythriel", x: 16.3, y: 20.2, threat: 2, climateBand: "cold" },
+    { id: "rosegrove", name: "Rosegrove Reach", continent: "mythriel", x: 11.7, y: 49.1, threat: 3, climateBand: "temperate" },
+    { id: "raenor", name: "Raenor March", continent: "mythriel", x: 32.7, y: 72.0, threat: 4, climateBand: "highland" },
+    { id: "sunsgrave", name: "Sunsgrave Expanse", continent: "mythriel", x: 9.5, y: 81.4, threat: 5, climateBand: "arid" },
+    { id: "freyreign", name: "Freyreign", continent: "ioniir", x: 47.8, y: 22.5, threat: 3, climateBand: "coastal" },
+    { id: "lordteak", name: "Lord Teak", continent: "ioniir", x: 55.7, y: 17.6, threat: 4, climateBand: "temperate" },
+    { id: "watchcairn", name: "Watchcairn", continent: "ioniir", x: 44.7, y: 33.6, threat: 5, climateBand: "storm" },
+    { id: "dewt", name: "Dewt Crown", continent: "nominion", x: 68.5, y: 43.9, threat: 3, climateBand: "temperate" },
+    { id: "lynridge", name: "Lynridge", continent: "nominion", x: 71.4, y: 55.6, threat: 4, climateBand: "forest" },
+    { id: "wrathwatch", name: "Wrathwatch", continent: "nominion", x: 76.0, y: 28.3, threat: 5, climateBand: "storm" },
+    { id: "vosshollow", name: "Voss Hollow", continent: "nominion", x: 82.0, y: 45.6, threat: 6, climateBand: "marsh" },
+    { id: "bazaarun", name: "Bazaarun", continent: "cyphyyr", x: 55.2, y: 75.4, threat: 4, climateBand: "coastal" },
+    { id: "krovan", name: "Krovan Vale", continent: "cyphyyr", x: 75.0, y: 74.8, threat: 5, climateBand: "tropical" },
+    { id: "thousandpeaks", name: "Thousand Peaks", continent: "cyphyyr", x: 76.0, y: 86.1, threat: 6, climateBand: "highland" },
+    { id: "cityofbliss", name: "City of Bliss", continent: "cyphyyr", x: 90.0, y: 91.5, threat: 7, climateBand: "coastal" }
   ];
 
   var LAND_CONNECTIONS = [
@@ -91,7 +93,30 @@
     weather: ["ember rain", "ash fog", "salt storms", "violet lightning", "dead calm haze"],
     scars: ["abandoned titan road", "plague trenchfields", "ghost signal corridor", "collapsed skybridge network", "burned pilgrimage route", "flooded siegeworks"],
     myths: ["the crown that ate a dynasty", "the sea that remembers names", "saints chained beneath railstone", "the city that blinks once per century"],
-    tensions: ["trade monopoly collapse", "succession crisis", "pilgrimage schism", "privateer embargo", "mercenary mutiny", "resource famine"]
+    tensions: ["trade monopoly collapse", "succession crisis", "pilgrimage schism", "privateer embargo", "mercenary mutiny", "resource famine"],
+    settlements: ["major city", "fortress town", "river market", "pilgrim village", "frontier port", "ridge mine commune"],
+    districtTraits: ["oracle quarter", "blacksmith ward", "salt bazaar", "cathedral ring", "dock labyrinth", "clocktower precinct"],
+    dungeonBosses: ["the drowned adjudicator", "obsidian saint", "iron marrow giant", "mirror archivist", "bone chorister"],
+    questHooks: ["escort a relic caravan", "settle a blood debt", "hunt a mythic beast", "broker a faction ceasefire", "recover a pre-fall charter", "break an embargo siege"],
+    encounterTags: ["religious schism patrol", "rail ambush", "ruin scavengers", "stormfront beast pack", "tax militia checkpoint", "smuggler convoy"]
+  };
+
+  var THEOS_TO_FACTION_KEY = {
+    MeridianSynod: "religious",
+    IronChoir: "military",
+    TideCartel: "underworld",
+    AshConclave: "rebels",
+    GlassCourt: "corporations",
+    ThornCompact: "political"
+  };
+
+  var THEOS_MISSION_VERB_BY_TENSION = {
+    "trade monopoly collapse": ["Escort", "Supply", "Smuggle", "Secure"],
+    "succession crisis": ["Negotiate", "Broker", "Arbitrate", "Protect"],
+    "pilgrimage schism": ["Investigate", "Mediate", "Guard", "Recover"],
+    "privateer embargo": ["Intercept", "Escort", "Sabotage", "Rescue"],
+    "mercenary mutiny": ["Suppress", "Track", "Infiltrate", "Stabilize"],
+    "resource famine": ["Deliver", "Rebuild", "Protect", "Retrieve"]
   };
 
   function byId(id) {
@@ -156,6 +181,7 @@
     if (!st.discovered) st.discovered = {};
     if (!st.dnaByProvince) st.dnaByProvince = {};
     if (!st.codex) st.codex = { entries: {}, timeline: [], bestiary: {}, factions: {} };
+    if (!st.contentByProvince) st.contentByProvince = {};
     if (!st.provinceSnapshots) st.provinceSnapshots = {};
     if (!Array.isArray(st.historyLog)) st.historyLog = [];
     if (typeof st.zoom !== "number") st.zoom = 1;
@@ -174,7 +200,7 @@
     if (typeof window.THEOS_ATLAS_IMAGE === "string" && window.THEOS_ATLAS_IMAGE.trim()) {
       return window.THEOS_ATLAS_IMAGE.trim();
     }
-    return "";
+    return DEFAULT_ATLAS_IMAGE;
   }
 
   function getNeighbors(provinceId) {
@@ -231,6 +257,120 @@
 
     st.dnaByProvince[provinceId] = dna;
     return dna;
+  }
+
+  function buildProvinceContentTables(provinceId) {
+    var st = ensureState();
+    if (st.contentByProvince[provinceId]) return st.contentByProvince[provinceId];
+    var dna = buildRegionalDNA(provinceId);
+    var province = provinceById(provinceId);
+    if (!dna || !province) return null;
+
+    var token = st.seed + ":tables:" + provinceId;
+    var settlements = seededPick(LAYERS.settlements, token + ":settlements", 5).map(function (kind, idx) {
+      return {
+        id: provinceId + "-settlement-" + (idx + 1),
+        kind: kind,
+        districtTrait: pickOne(LAYERS.districtTraits, token + ":district:" + idx),
+        economyRole: pickOne(["trade hub", "resource extraction", "religious taxation", "mercenary logistics", "artisan guild"], token + ":eco:" + idx)
+      };
+    });
+
+    var dungeons = dna.dungeonThemes.map(function (theme, idx) {
+      return {
+        id: provinceId + "-dungeon-" + (idx + 1),
+        theme: theme,
+        boss: pickOne(LAYERS.dungeonBosses, token + ":boss:" + idx),
+        threatDie: [8, 10, 12, 20][Math.min(3, Math.max(0, province.threat - 2 + idx))]
+      };
+    });
+
+    var quests = seededPick(LAYERS.questHooks, token + ":quests", 6).map(function (hook, idx) {
+      var tension = dna.tensions[idx % dna.tensions.length] || pickOne(LAYERS.tensions, token + ":qtension:" + idx);
+      return {
+        id: provinceId + "-quest-" + (idx + 1),
+        hook: hook,
+        tension: tension,
+        enemyTag: pickOne(LAYERS.encounterTags, token + ":enemy:" + idx),
+        rewardFocus: pickOne(["credits", "renown", "faction influence", "rare loot", "lore codex"], token + ":reward:" + idx)
+      };
+    });
+
+    var table = {
+      settlements: settlements,
+      dungeons: dungeons,
+      quests: quests,
+      bestiary: dna.enemyTypes.slice(),
+      travelHazards: [dna.weather].concat(dna.scars.slice(0, 2)),
+      tradeRoutes: dna.resources.map(function (resource, idx) {
+        return {
+          good: resource,
+          route: "Route " + (idx + 1) + ": " + resource + " caravans guarded by " + (dna.factions[idx % dna.factions.length] || "local houses")
+        };
+      })
+    };
+
+    st.contentByProvince[provinceId] = table;
+    return table;
+  }
+
+  function getTheosMissionBias() {
+    var st = ensureState();
+    if (!st.activeProvinceId) {
+      return {
+        focusRegion: "",
+        difficultyShift: 0,
+        rewardBonus: 0,
+        preferredVerbs: [],
+        factionConflictOverride: null
+      };
+    }
+    var dna = buildRegionalDNA(st.activeProvinceId);
+    var province = provinceById(st.activeProvinceId);
+    var primaryTension = dna && dna.tensions && dna.tensions.length ? dna.tensions[0] : "";
+    var preferredVerbs = THEOS_MISSION_VERB_BY_TENSION[primaryTension] || ["Investigate", "Escort", "Recover", "Stabilize"];
+    var primaryFaction = dna && dna.factions && dna.factions.length ? dna.factions[0] : "MeridianSynod";
+    var gainKey = THEOS_TO_FACTION_KEY[primaryFaction] || "political";
+    var loseKey = gainKey === "underworld" ? "military" : "underworld";
+    return {
+      focusRegion: "province",
+      difficultyShift: province && province.threat >= 6 ? 1 : 0,
+      rewardBonus: province ? Math.max(0, Number(province.threat || 0) * 15) : 0,
+      preferredVerbs: preferredVerbs.slice(),
+      factionConflictOverride: {
+        gain: gainKey,
+        lose: loseKey,
+        gainName: primaryFaction,
+        loseName: loseKey === "underworld" ? "The Underworld" : "Military Orders"
+      }
+    };
+  }
+
+  function getTheosFactionFlavor() {
+    var st = ensureState();
+    if (!st.activeProvinceId) return null;
+    var dna = buildRegionalDNA(st.activeProvinceId);
+    var tables = buildProvinceContentTables(st.activeProvinceId);
+    return {
+      provinceId: st.activeProvinceId,
+      tension: dna && dna.tensions ? dna.tensions[0] : "",
+      scar: dna && dna.scars ? dna.scars[0] : "",
+      settlementTrait: tables && tables.settlements && tables.settlements[0] ? tables.settlements[0].districtTrait : "",
+      dungeonTheme: dna && dna.dungeonThemes ? dna.dungeonThemes[0] : ""
+    };
+  }
+
+  function getTheosStorylineModifier() {
+    var st = ensureState();
+    if (!st.activeProvinceId) return { dreadShift: 0, rollBonus: 0, tone: "neutral" };
+    var province = provinceById(st.activeProvinceId);
+    var dna = buildRegionalDNA(st.activeProvinceId);
+    var threat = province ? Number(province.threat || 0) : 0;
+    return {
+      dreadShift: threat >= 6 ? 2 : threat >= 4 ? 1 : 0,
+      rollBonus: threat >= 6 ? 1 : 0,
+      tone: dna && dna.tensions && dna.tensions.length ? dna.tensions[0] : "regional pressure"
+    };
   }
 
   function getProvincePower(provinceId) {
@@ -398,6 +538,7 @@
 
     var p = summary.province;
     var d = summary.dna;
+    var tables = buildProvinceContentTables(p.id) || { settlements: [], dungeons: [], quests: [] };
     var powerColor = FACTION_COLORS[summary.power] || "#bda57a";
 
     root.innerHTML = ''
@@ -415,6 +556,7 @@
       + '<div><strong>Tensions</strong><span>' + esc(d.tensions.join('; ')) + '</span></div>'
       + '<div><strong>Dungeon Themes</strong><span>' + esc(d.dungeonThemes.join(', ')) + '</span></div>'
       + '<div><strong>Resources</strong><span>' + esc(d.resources.join(', ')) + '</span></div>'
+      + '<div><strong>Settlements / Dungeons / Quests</strong><span>' + esc(tables.settlements.length) + ' / ' + esc(tables.dungeons.length) + ' / ' + esc(tables.quests.length) + '</span></div>'
       + '</div>'
       + '<div class="theos-region-actions">'
       + '<button class="btn btn-sm btn-teal" onclick="window.theosSelectProvince(\'' + esc(p.id) + '\', true)">Survey Region</button>'
@@ -664,6 +806,12 @@
     return buildRegionalDNA(st.activeProvinceId);
   }
 
+  function getActiveProvinceContentTables() {
+    var st = ensureState();
+    if (!st.activeProvinceId) return null;
+    return buildProvinceContentTables(st.activeProvinceId);
+  }
+
   function patchSwitchTab() {
     if (typeof window.switchTab !== "function" || window._theosSwitchPatched) return;
     window._theosSwitchPatched = true;
@@ -693,6 +841,11 @@
   window.theosTravelTo = travelTo;
   window.getActiveTheosProvinceDNA = getActiveProvinceDNA;
   window.getTheosProvinceDNA = buildRegionalDNA;
+  window.getTheosProvinceContentTables = buildProvinceContentTables;
+  window.getActiveTheosProvinceContentTables = getActiveProvinceContentTables;
+  window.getTheosMissionBias = getTheosMissionBias;
+  window.getTheosFactionFlavor = getTheosFactionFlavor;
+  window.getTheosStorylineModifier = getTheosStorylineModifier;
 
   document.addEventListener("DOMContentLoaded", bootstrap);
 })();

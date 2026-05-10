@@ -12598,7 +12598,7 @@
     window.switchTab = function (tabId, btn) {
       var out = baseSwitch.apply(this, arguments);
       if (String(tabId || '') === 'raidtree') renderLegacyRaidTreePanel();
-      if (String(tabId || '') === 'soulforge' || String(tabId || '') === 'shop') {
+      if (String(tabId || '') === 'shop') {
         renderSoulForgeTabPanel();
       }
       return out;

@@ -384,7 +384,6 @@ select option{background:#0f1020;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-backstory" id="tabnav-backstory" onclick="switchTab('backstory',this)">Backstory</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" onclick="switchTab('dice',this)">Dice</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" onclick="switchTab('codex',this)">Codex</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-soulforge" id="tabnav-soulforge" onclick="switchTab('soulforge',this)" style="display:none;">Soul Forge</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" onclick="switchTab('rules',this)">Rules</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" onclick="switchTab('combat',this)">Combat</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" onclick="switchTab('oracle',this)">Oracle</button>
@@ -1448,11 +1447,6 @@ select option{background:#0f1020;}
 <!-- RAID TREE TAB -->
 <div class="tab-panel" id="tab-raidtree">
   <div id="raidTreePanel"></div>
-</div>
-
-<!-- SOUL FORGE TAB -->
-<div class="tab-panel" id="tab-soulforge">
-  <div id="soulForgeTabPanel"></div>
 </div>
 
 <!-- MISSIONS TAB -->
@@ -16515,7 +16509,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:minmax(0,1fr) 7rem auto auto auto auto;gap:.2rem;align-items:end;margin-bottom:.28rem;">'
-      + '<label style="font-size:.63rem;color:var(--muted2);">Enemy Name<input id="qpEnemyName" type="text" placeholder="Enemy name" style="width:100%;margin-top:.08rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/></label>'
+      + '<label style="font-size:.63rem;color:var(--muted2);">Combatant Name<input id="qpEnemyName" type="text" placeholder="Combatant name" style="width:100%;margin-top:.08rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/></label>'
       + '<label style="font-size:.63rem;color:var(--muted2);">Dread Die<select id="qpEnemyDreadSel" style="width:100%;margin-top:.08rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===dread?' selected':'')+'>d'+d+'</option>';}).join('')+'</select></label>'
       + '<button class="btn btn-xs btn-teal" onclick="qpQuickAddEnemy()">Add Enemy</button>'
       + '<button class="btn btn-xs" onclick="qpQuickAddAlly()">Add Ally</button>'

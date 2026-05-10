@@ -1231,6 +1231,12 @@
             terrain: String(hex.type || "sea")
           });
         }
+        if (moved && typeof window.theosHandleLastSeaTravelProgress === "function") {
+          window.theosHandleLastSeaTravelProgress({
+            key: String(hex.key || ""),
+            type: String(hex.type || "sea")
+          });
+        }
         if (moved && typeof window.autoAdvanceMissionFromSeaHex === "function") {
           window.autoAdvanceMissionFromSeaHex(hex.key);
         }

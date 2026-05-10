@@ -272,6 +272,12 @@
     if (!st.selectedProvinceId) st.selectedProvinceId = null;
     if (!st.hoverProvinceId) st.hoverProvinceId = null;
     if (typeof st.trainOwned !== "boolean") st.trainOwned = false;
+    if (typeof st.pendingSeaDestinationId !== "string") st.pendingSeaDestinationId = "";
+    if (typeof st.pendingSeaOriginId !== "string") st.pendingSeaOriginId = "";
+    if (typeof st.pendingSeaDestinationHexKey !== "string") st.pendingSeaDestinationHexKey = "";
+    if (!st.seaVoyageState || typeof st.seaVoyageState !== "object") {
+      st.seaVoyageState = { ticks: 0, prompted: false, startedAt: 0 };
+    }
 
     START_UNLOCKED.forEach(function (id) {
       st.unlocked[id] = true;
@@ -385,6 +391,10 @@
     }
 
     var suggested = suggestSeaHexForProvince(targetProvinceId);
+    st.seaVoyageState = st.seaVoyageState || { ticks: 0, prompted: false, startedAt: 0 };
+    st.seaVoyageState.ticks = 0;
+    st.seaVoyageState.prompted = false;
+    st.seaVoyageState.startedAt = Date.now();
     if (suggested) {
       st.pendingSeaDestinationHexKey = String(suggested.key || "");
       if (typeof window.focusLastSeaHexByKey === "function") {
@@ -427,11 +437,68 @@
       return false;
     }
     if (typeof window.focusLastSeaHexByKey === "function" && window.focusLastSeaHexByKey(targetHexKey)) {
+      st.seaVoyageState = st.seaVoyageState || { ticks: 0, prompted: false, startedAt: 0 };
+      st.seaVoyageState.ticks = 0;
+      st.seaVoyageState.prompted = false;
+      st.seaVoyageState.startedAt = Date.now();
       notify("Course set to sea hex " + targetHexKey + ". Reach landfall, then continue to " + targetName + ".", "good");
       return true;
     }
     notify("Could not set course on Last Sea map yet. Chart the sea first.", "warn");
     return false;
+  }
+
+  function beginSeaVoyage(targetProvinceId) {
+    var st = ensureState();
+    var targetProvince = provinceById(targetProvinceId);
+    if (!targetProvince) return false;
+    st.pendingSeaDestinationId = String(targetProvince.id || "");
+    st.pendingSeaOriginId = String(st.activeProvinceId || "");
+    switchToTab("lastsea");
+    openSeaVoyagePrompt(targetProvince.id);
+    notify("Set sail through the Last Sea toward " + targetProvince.name + ".", "info");
+    return true;
+  }
+
+  function openSeaArrivalPrompt(targetProvince) {
+    if (!targetProvince || typeof window.openModal !== "function") return false;
+    var html = ''
+      + '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;">'
+      + 'Your voyage lanes now align with <strong>' + esc(targetProvince.name) + '</strong>. Enter this region now, or keep sailing.'
+      + '<div style="margin-top:.55rem;display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm" onclick="if(typeof closeModal===\'function\')closeModal();">Keep Sailing</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="if(typeof closeModal===\'function\')closeModal();if(window.theosEnterProvince)window.theosEnterProvince(\'' + esc(targetProvince.id) + '\');">Enter Region</button>'
+      + '</div>'
+      + '</div>';
+    window.openModal('Landfall Opportunity', html);
+    return true;
+  }
+
+  function maybePromptSeaArrival(currentHexKey) {
+    var st = ensureState();
+    if (!st.pendingSeaDestinationId) return false;
+    var targetProvince = provinceById(st.pendingSeaDestinationId);
+    if (!targetProvince) return false;
+    st.seaVoyageState = st.seaVoyageState || { ticks: 0, prompted: false, startedAt: 0 };
+    if (st.seaVoyageState.prompted) return false;
+
+    var targetHexKey = String(st.pendingSeaDestinationHexKey || "");
+    var clickedHexKey = String(currentHexKey || "");
+    var reachedTargetHex = !!targetHexKey && !!clickedHexKey && targetHexKey === clickedHexKey;
+    var waitedLongEnough = Number(st.seaVoyageState.ticks || 0) >= 3;
+    if (!reachedTargetHex && !waitedLongEnough) return false;
+
+    st.seaVoyageState.prompted = true;
+    return openSeaArrivalPrompt(targetProvince);
+  }
+
+  function handleLastSeaTravelProgress(payload) {
+    var st = ensureState();
+    if (!st.pendingSeaDestinationId) return false;
+    st.seaVoyageState = st.seaVoyageState || { ticks: 0, prompted: false, startedAt: 0 };
+    st.seaVoyageState.ticks = Math.max(0, Number(st.seaVoyageState.ticks || 0) + 1);
+    var key = payload && payload.key ? String(payload.key) : "";
+    return maybePromptSeaArrival(key);
   }
 
   function getAtlasImageUrl() {
@@ -473,22 +540,90 @@
     var province = provinceById(provinceId);
     if (!province) return null;
 
+    var climateBandProfiles = {
+      cold: {
+        climate: ["iron winter", "polar squall belt", "frost inversion cycle"],
+        weather: ["whiteout blizzard", "ice-fog front", "knife-wind corridor"],
+        terrain: ["frozen escarpments", "glacial trenchlands", "snowbound ridges"],
+        resources: ["cathedral ice", "frost-silver veins", "winter resin"],
+        scars: ["collapsed iceway causeways", "frozen siege graves", "avalanche-buried watchroads"]
+      },
+      highland: {
+        climate: ["thin-air highland fronts", "wind-shear plateau cycle", "cold upland dry season"],
+        weather: ["mountain crosswinds", "ridge snowburst", "needle rain squalls"],
+        terrain: ["jagged highlands", "windplateaus", "cliff stair valleys"],
+        resources: ["ridge iron", "echo quartz", "goatfire coal"],
+        scars: ["broken pass roads", "collapsed ropeways", "ruined summit bastions"]
+      },
+      arid: {
+        climate: ["amber dry season", "dust-front inversion", "saltwind cycle"],
+        weather: ["sandburst gusts", "heat mirage calms", "ash-dry squalls"],
+        terrain: ["ash dunes", "salt flats", "sun-split badlands"],
+        resources: ["black salt", "sunstone shale", "dune amber"],
+        scars: ["buried caravan roads", "evaporated canal beds", "burned oasis walls"]
+      },
+      coastal: {
+        climate: ["tidal fog season", "coastal storm cycle", "brine-heavy monsoon front"],
+        weather: ["salt storms", "cross-tide squalls", "reef lightning"],
+        terrain: ["storm coast", "tide marsh", "broken sea bluffs"],
+        resources: ["hullwood", "reef pearl slag", "brine amber"],
+        scars: ["flooded siegeworks", "drowned quay wards", "wreck-strewn breakwaters"]
+      },
+      storm: {
+        climate: ["permanent storm shelf", "violet lightning season", "pressure-front churn"],
+        weather: ["violet lightning", "thunder gales", "hard hail fronts"],
+        terrain: ["tempest cliffs", "lightning fen", "storm-cut ravines"],
+        resources: ["stormglass", "charged copper", "thunder salt"],
+        scars: ["shattered beacon lines", "collapsed signal towers", "charred ridge roads"]
+      },
+      forest: {
+        climate: ["deep-canopy humidity", "moss rain season", "cool shade fronts"],
+        weather: ["green mist showers", "canopy thunder", "quiet cold rain"],
+        terrain: ["ancient canopy", "cedar depths", "rootbound valleys"],
+        resources: ["starflower resin", "black bark oil", "living hardwood"],
+        scars: ["burned pilgrimage route", "blight-cut clearings", "hollowed watch groves"]
+      },
+      marsh: {
+        climate: ["bog-haze cycle", "marsh dew inversion", "flood pulse season"],
+        weather: ["stagnant rain sheets", "reed fog", "marsh squalls"],
+        terrain: ["blackwater marsh", "reed mire", "silt sink plains"],
+        resources: ["bog iron", "eelglass", "fen bloom salts"],
+        scars: ["sunken causeways", "collapsed ferry posts", "plague trenchfields"]
+      },
+      tropical: {
+        climate: ["monsoon front", "steam-heavy wet season", "cyclone shoulder season"],
+        weather: ["warm wall rain", "monsoon thunder", "reef heat squalls"],
+        terrain: ["monsoon wilds", "sun-jungle", "rain-cut river shelves"],
+        resources: ["spice resin", "bright cane fiber", "stormfruit oils"],
+        scars: ["flood-torn terrace roads", "swallowed temple routes", "storm-broken rail bridges"]
+      },
+      temperate: {
+        climate: ["clear continental flow", "fog-choked spring", "soft rain cycle"],
+        weather: ["dead calm haze", "cold drizzle", "silver cloudbreak"],
+        terrain: ["cedar lowlands", "river steppe", "green ridge plains"],
+        resources: ["cathedral iron", "grain amber", "riverglass"],
+        scars: ["abandoned titan road", "ghost signal corridor", "collapsed skybridge network"]
+      }
+    };
+    var band = String(province.climateBand || "temperate");
+    var bandProfile = climateBandProfiles[band] || climateBandProfiles.temperate;
+
     var token = st.seed + ":" + provinceId;
     var factions = seededPick(LAYERS.factions, token + ":factions", 3);
     var dna = {
       provinceId: provinceId,
-      terrain: pickOne(LAYERS.terrain, token + ":terrain"),
-      climate: pickOne(LAYERS.climate, token + ":climate"),
+      terrain: pickOne(bandProfile.terrain, token + ":terrain") || pickOne(LAYERS.terrain, token + ":terrain"),
+      climate: pickOne(bandProfile.climate, token + ":climate") || pickOne(LAYERS.climate, token + ":climate"),
       architecture: pickOne(LAYERS.architecture, token + ":architecture"),
       religions: seededPick(LAYERS.religions, token + ":religions", 2),
       factions: factions,
       enemyTypes: seededPick(LAYERS.enemies, token + ":enemies", 3),
       dungeonThemes: seededPick(LAYERS.dungeons, token + ":dungeons", 2),
-      resources: seededPick(LAYERS.resources, token + ":resources", 3),
+      resources: seededPick((bandProfile.resources || []).concat(LAYERS.resources), token + ":resources", 3),
       cityStyles: seededPick(LAYERS.cityStyles, token + ":cities", 2),
       musicMood: pickOne(LAYERS.music, token + ":music"),
-      weather: pickOne(LAYERS.weather, token + ":weather"),
-      scars: seededPick(LAYERS.scars, token + ":scars", 3),
+      weather: pickOne((bandProfile.weather || []).concat(LAYERS.weather), token + ":weather"),
+      scars: seededPick((bandProfile.scars || []).concat(LAYERS.scars), token + ":scars", 3),
       myths: seededPick(LAYERS.myths, token + ":myths", 2),
       tensions: seededPick(LAYERS.tensions, token + ":tensions", 2),
       namingConvention: pickOne([
@@ -808,11 +943,11 @@
         : (canRailHop ? 'Connected by rail corridor.' : 'Train movement follows neighboring land links only.'));
     var travelAction = '';
     if (!stTrain.trainOwned && !isFreeEntryProvince) {
-      travelAction = '<button class="btn btn-sm ' + (canBuyTrain ? 'btn-teal' : '') + '" onclick="window.theosBuyTrain()"' + (canBuyTrain ? '' : ' disabled title="Need more credits"') + '>Purchase Train (' + TRAIN_COST + ' \u20B5)</button>';
+      travelAction = '<button class="btn btn-sm ' + (canBuyTrain ? 'btn-teal' : '') + '" onclick="window.theosBuyTrain()"' + (canBuyTrain ? '' : ' disabled title="Need more credits"') + '>Purchase Train Ticket (' + TRAIN_COST + ' \u20B5)</button>';
     } else if (sameProvince) {
       travelAction = '<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>';
     } else if (crossContinent) {
-      travelAction = '<button class="btn btn-sm" onclick="window.theosTravelTo(\'lastsea\')">Route via Last Sea</button>';
+      travelAction = '<button class="btn btn-sm" onclick="if(window.theosBeginSeaVoyage)window.theosBeginSeaVoyage(\'' + esc(p.id) + '\');">Sail the Last Sea</button>';
     } else {
       travelAction = '<button class="btn btn-sm btn-primary" ' + (canRailHop ? '' : 'disabled title="Rail only reaches connected neighboring provinces"') + ' onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>';
     }
@@ -840,7 +975,6 @@
         + '<div><strong>Exploration</strong><span>Open node browsing is enabled. You can inspect any province first, then choose when to enter.</span></div>'
       + '</div>'
       + '<div class="theos-region-actions">'
-        + '<button class="btn btn-sm btn-teal" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>'
       + travelAction
       + '</div>';
   }
@@ -1023,15 +1157,60 @@
     var province = provinceById(provinceId);
     if (!province || !Array.isArray(window.mapData) || !window.mapData.length) return;
     var paletteByClimate = {
-      cold:      [{ name: "Frost Tundra", color: "#9fb5c6" }, { name: "Glacial Uplands", color: "#7f9bad" }],
-      temperate: [{ name: "Grove Lowlands", color: "#6f8e53" }, { name: "Riverfarms", color: "#7ea367" }],
-      highland:  [{ name: "Jagged Highlands", color: "#8f7c69" }, { name: "Windplateaus", color: "#9a8f78" }],
-      arid:      [{ name: "Ash Dunes", color: "#ad8b56" }, { name: "Salt Flats", color: "#b49a72" }],
-      coastal:   [{ name: "Storm Coast", color: "#4f7f8d" }, { name: "Tide Marsh", color: "#5f8f95" }],
-      storm:     [{ name: "Tempest Cliffs", color: "#5f667a" }, { name: "Lightning Fen", color: "#646f78" }],
-      forest:    [{ name: "Ancient Canopy", color: "#4f7b48" }, { name: "Cedar Depths", color: "#3f6a42" }],
-      marsh:     [{ name: "Blackwater Marsh", color: "#556b5a" }, { name: "Reed Mire", color: "#647a63" }],
-      tropical:  [{ name: "Monsoon Wilds", color: "#4b865e" }, { name: "Sun-Jungle", color: "#5f9569" }]
+      cold:      [
+        { name: "Winter-Frost Tundra", color: "#9fb5c6" },
+        { name: "Snowbound Glacial Uplands", color: "#7f9bad" },
+        { name: "Icewind Shelf", color: "#8ba6b8" },
+        { name: "Rimebreak Pass", color: "#93afbf" }
+      ],
+      temperate: [
+        { name: "Grove Lowlands", color: "#6f8e53" },
+        { name: "Riverfarms", color: "#7ea367" },
+        { name: "Oak-Steppe Verge", color: "#6f9362" },
+        { name: "Meadowridge", color: "#7a9b68" }
+      ],
+      highland:  [
+        { name: "Jagged Highlands", color: "#8f7c69" },
+        { name: "Windplateaus", color: "#9a8f78" },
+        { name: "Ridgefall Escarpment", color: "#8a7a6b" },
+        { name: "Cloudstep Basin", color: "#988a74" }
+      ],
+      arid:      [
+        { name: "Ash Dunes", color: "#ad8b56" },
+        { name: "Salt Flats", color: "#b49a72" },
+        { name: "Sun-Scoured Barrens", color: "#b08f5d" },
+        { name: "Glass Sand Reach", color: "#be9f6f" }
+      ],
+      coastal:   [
+        { name: "Storm Coast", color: "#4f7f8d" },
+        { name: "Tide Marsh", color: "#5f8f95" },
+        { name: "Saltcliff Shelf", color: "#5a8793" },
+        { name: "Breaker Fen", color: "#678f98" }
+      ],
+      storm:     [
+        { name: "Tempest Cliffs", color: "#5f667a" },
+        { name: "Lightning Fen", color: "#646f78" },
+        { name: "Thunderstep Ravine", color: "#596276" },
+        { name: "Static Moor", color: "#69717c" }
+      ],
+      forest:    [
+        { name: "Ancient Canopy", color: "#4f7b48" },
+        { name: "Cedar Depths", color: "#3f6a42" },
+        { name: "Rootbound Hollow", color: "#4a7346" },
+        { name: "Mossdark Verge", color: "#3f6941" }
+      ],
+      marsh:     [
+        { name: "Blackwater Marsh", color: "#556b5a" },
+        { name: "Reed Mire", color: "#647a63" },
+        { name: "Fen-Drowned Flats", color: "#5f725f" },
+        { name: "Siltwater Bog", color: "#6b7f68" }
+      ],
+      tropical:  [
+        { name: "Monsoon Wilds", color: "#4b865e" },
+        { name: "Sun-Jungle", color: "#5f9569" },
+        { name: "Rainvine Basin", color: "#4f8a61" },
+        { name: "Cyclone Canopy", color: "#5d986d" }
+      ]
     };
     var palette = paletteByClimate[String(province.climateBand || "")] || [{ name: province.name + " Wilds", color: "#667b5a" }];
     var token = String(province.id || "") + ":topography";
@@ -1154,6 +1333,12 @@
 
     st.activeProvinceId = targetProvince.id;
     st.selectedProvinceId = targetProvince.id;
+    if (String(st.pendingSeaDestinationId || "") === String(targetProvince.id || "")) {
+      st.pendingSeaDestinationId = "";
+      st.pendingSeaOriginId = "";
+      st.pendingSeaDestinationHexKey = "";
+      st.seaVoyageState = { ticks: 0, prompted: false, startedAt: 0 };
+    }
     window.S.realmEntryMode = 'known_realm';
     st.unlocked[targetProvince.id] = true;
     markDiscovered(targetProvince.id);
@@ -1318,7 +1503,9 @@
   window.theosUnlockConnected = unlockConnected;
   window.theosAdvancePolitics = advancePolitics;
   window.theosTravelTo = travelTo;
+  window.theosBeginSeaVoyage = beginSeaVoyage;
   window.theosSetSeaCourseToPending = setSeaCourseToPending;
+  window.theosHandleLastSeaTravelProgress = handleLastSeaTravelProgress;
   window.getActiveTheosProvinceDNA = getActiveProvinceDNA;
   window.getTheosProvinceDNA = buildRegionalDNA;
   window.getTheosProvinceContentTables = buildProvinceContentTables;

@@ -344,6 +344,94 @@
     return !!window.setProvinceSelectedKey(String(pick.col) + "," + String(pick.row));
   }
 
+  function suggestSeaHexForProvince(provinceId) {
+    var province = provinceById(provinceId);
+    if (!province || !window.S || !window.S.lastSea || !Array.isArray(window.S.lastSea.map) || !window.S.lastSea.map.length) return null;
+    var seaMap = window.S.lastSea.map.filter(function (hex) { return !!hex; });
+    if (!seaMap.length) return null;
+    var maxCol = seaMap.reduce(function (acc, hex) { return Math.max(acc, Number(hex.col || 0)); }, 0);
+    var maxRow = seaMap.reduce(function (acc, hex) { return Math.max(acc, Number(hex.row || 0)); }, 0);
+    var targetCol = Math.max(0, Math.min(maxCol, Math.round((Number(province.x || 0) / 100) * maxCol)));
+    var targetRow = Math.max(0, Math.min(maxRow, Math.round((Number(province.y || 0) / 100) * maxRow)));
+    var candidates = seaMap.filter(function (hex) {
+      return String(hex.type || "") === "sea" || String(hex.type || "") === "island";
+    });
+    if (!candidates.length) candidates = seaMap;
+    var best = null;
+    var bestScore = Number.POSITIVE_INFINITY;
+    candidates.forEach(function (hex) {
+      var dx = Number(hex.col || 0) - targetCol;
+      var dy = Number(hex.row || 0) - targetRow;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var coastalBias = String(hex.type || "") === "island" ? 0.25 : 0;
+      var score = dist + coastalBias;
+      if (score < bestScore) {
+        bestScore = score;
+        best = hex;
+      }
+    });
+    return best;
+  }
+
+  function openSeaVoyagePrompt(targetProvinceId) {
+    var st = ensureState();
+    var targetProvince = provinceById(targetProvinceId);
+    if (!targetProvince) return;
+
+    if (typeof window.generateLastSea === "function" && (!window.S || !window.S.lastSea || !Array.isArray(window.S.lastSea.map) || !window.S.lastSea.map.length)) {
+      try { window.generateLastSea(); } catch (_genErr) {}
+    }
+
+    var suggested = suggestSeaHexForProvince(targetProvinceId);
+    if (suggested) {
+      st.pendingSeaDestinationHexKey = String(suggested.key || "");
+      if (typeof window.focusLastSeaHexByKey === "function") {
+        try { window.focusLastSeaHexByKey(st.pendingSeaDestinationHexKey); } catch (_focusErr) {}
+      }
+    } else {
+      st.pendingSeaDestinationHexKey = "";
+    }
+
+    if (typeof window.openModal !== "function") {
+      notify("Set course through Last Sea toward " + targetProvince.name + (suggested ? (" (suggested hex " + suggested.key + ").") : "."), "info");
+      return;
+    }
+
+    var suggestedText = suggested
+      ? ("Suggested destination hex: <strong>" + esc(String(suggested.key || "")) + "</strong> (" + (Number(suggested.col || 0) + 1) + "," + (Number(suggested.row || 0) + 1) + ").")
+      : "No suggested sea hex yet. Chart the Last Sea and select a route hex.";
+
+    var html = ''
+      + '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;">'
+      + 'Cross-continent travel to <strong>' + esc(targetProvince.name) + '</strong> requires a Last Sea voyage.'
+      + '<div style="margin-top:.45rem;color:var(--muted2);">' + suggestedText + '</div>'
+      + '<div style="margin-top:.55rem;display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
+      + (suggested
+          ? '<button class="btn btn-sm btn-teal" onclick="if(window.theosSetSeaCourseToPending)window.theosSetSeaCourseToPending();if(typeof closeModal===\'function\')closeModal();">Set Course</button>'
+          : '')
+      + '<button class="btn btn-sm" onclick="if(typeof closeModal===\'function\')closeModal();">Close</button>'
+      + '</div>'
+      + '</div>';
+    window.openModal("Sea Voyage Required", html);
+  }
+
+  function setSeaCourseToPending() {
+    var st = ensureState();
+    var targetHexKey = String(st.pendingSeaDestinationHexKey || "");
+    var targetProvince = provinceById(st.pendingSeaDestinationId);
+    var targetName = targetProvince ? targetProvince.name : "target province";
+    if (!targetHexKey) {
+      notify("No pending sea destination to set course for.", "warn");
+      return false;
+    }
+    if (typeof window.focusLastSeaHexByKey === "function" && window.focusLastSeaHexByKey(targetHexKey)) {
+      notify("Course set to sea hex " + targetHexKey + ". Reach landfall, then continue to " + targetName + ".", "good");
+      return true;
+    }
+    notify("Could not set course on Last Sea map yet. Chart the sea first.", "warn");
+    return false;
+  }
+
   function getAtlasImageUrl() {
     if (typeof window.THEOS_ATLAS_IMAGE === "string" && window.THEOS_ATLAS_IMAGE.trim()) {
       return window.THEOS_ATLAS_IMAGE.trim();
@@ -946,7 +1034,9 @@
     if (fromProvince && fromProvince.id !== targetProvince.id) {
       if (fromProvince.continent !== targetProvince.continent) {
         st.pendingSeaDestinationId = targetProvince.id;
+        st.pendingSeaOriginId = fromProvince.id;
         switchToTab("lastsea");
+        openSeaVoyagePrompt(targetProvince.id);
         notify("Cross-continent travel requires the Sea Region map. Sail from Last Sea to reach " + targetProvince.name + ".", "info");
         return;
       }
@@ -1081,6 +1171,7 @@
   window.theosUnlockConnected = unlockConnected;
   window.theosAdvancePolitics = advancePolitics;
   window.theosTravelTo = travelTo;
+  window.theosSetSeaCourseToPending = setSeaCourseToPending;
   window.getActiveTheosProvinceDNA = getActiveProvinceDNA;
   window.getTheosProvinceDNA = buildRegionalDNA;
   window.getTheosProvinceContentTables = buildProvinceContentTables;

@@ -3053,6 +3053,18 @@
     renderLastSeaMap();
   }
 
+  function focusLastSeaHexByKey(key) {
+    ensureExpansionState();
+    var targetKey = String(key || "");
+    if (!targetKey || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return false;
+    var hex = S.lastSea.map.find(function (item) { return item && String(item.key || "") === targetKey; });
+    if (!hex) return false;
+    S.lastSea.selectedKey = hex.key;
+    renderLastSeaMap();
+    renderLastSeaInfo(hex);
+    return true;
+  }
+
   // Sea-specific puzzle pool (self-contained in beyond-light-expansion.js)
   var SEA_RUIN_PUZZLES = SEA_RUIN_PUZZLES || [
     { mode: 'code', title: 'Tidal Cipher', prompt: 'The basin inscription reads: WAVE → ? The sea builders reversed words to seal their vaults. Enter the reversed word.', answer: 'evaw' },
@@ -4693,6 +4705,7 @@
   window.generateTaskForSeaHex = generateTaskForSeaHex;
   window.acceptSeaTask = acceptSeaTask;
   window.completeSeaTask = completeSeaTask;
+  window.focusLastSeaHexByKey = focusLastSeaHexByKey;
   window.setLastSeaNote = setLastSeaNote;
   window.openSeaDungeon = openSeaDungeon;
   window.generateShipIdentity = generateShipIdentity;

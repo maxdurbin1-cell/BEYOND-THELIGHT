@@ -1511,6 +1511,11 @@ select option{background:#0f1020;}
     </div>
   </div>
 </div>
+
+<!-- ENDGAME TAB -->
+<div class="tab-panel" id="tab-endgame">
+  <div id="endgameTrackerTabContainer" style="padding:.5rem;"></div>
+</div>
 </main>
 
 <!-- MODAL -->
@@ -5653,15 +5658,10 @@ function rollWildernessFull(){
     </div>
     <div class="wild-section" style="border-bottom:none;"><div class="wild-section-label">Venture (d6=${vr})</div><div class="wild-section-text">${ventureText}</div>${encounterHTML}</div>
   </div>`;
-
-  <div class="tab-panel" id="tab-endgame">
-    <div id="endgameTrackerTabContainer" style="padding:.5rem;"></div>
-  </div>
 }
 
 window.resolveProvinceShiftWeatherDanger = function(){
   const leadRoll = rollProvinceLeadCheck();
-      <div style="font-family:'Cinzel',serif;font-size:.65rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;">Settlement Holdings — Browse Stalls</div>
   const success = leadRoll.total >= dreadRoll.total;
   const el = document.getElementById('wildShiftWeatherResult');
   if(el){

@@ -3806,9 +3806,9 @@
         && Math.abs(Number(view.x || 0) - 36) < 2
         && Math.abs(Number(view.y || 0) - 20) < 2;
       if (isLegacyDefault) {
-        var startZoom = 0.78;
-        var focusX = 1920;
-        var focusY = 560;
+        var startZoom = 0.74;
+        var focusX = 2060;
+        var focusY = 700;
         view.zoom = startZoom;
         view.x = (Number(viewportEl.clientWidth || 0) * 0.5) - (focusX * startZoom);
         view.y = (Number(viewportEl.clientHeight || 0) * 0.5) - (focusY * startZoom);
@@ -3957,9 +3957,9 @@
       var st = ensureRaidTreeViewState();
       if (!st) return;
       if (sceneWidth >= 3000) {
-        st.zoom = 0.68;
-        var focusX = 2280;
-        var focusY = 760;
+        st.zoom = 0.66;
+        var focusX = 2060;
+        var focusY = 720;
         st.x = (Number(viewportEl.clientWidth || 0) * 0.5) - (focusX * st.zoom);
         st.y = (Number(viewportEl.clientHeight || 0) * 0.5) - (focusY * st.zoom);
       } else {
@@ -3972,25 +3972,25 @@
       applyRaidTreeTransform(st, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpLegacy = function () {
-      jumpRaidTreeToWorld(260, 340, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(780, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpTitan = function () {
-      jumpRaidTreeToWorld(1200, 980, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(1480, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpGodbound = function () {
-      jumpRaidTreeToWorld(2280, 980, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(2260, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpVoice = function () {
-      jumpRaidTreeToWorld(1580, 440, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(1960, 430, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpJustice = function () {
-      jumpRaidTreeToWorld(1880, 330, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(2260, 320, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpKeeper = function () {
-      jumpRaidTreeToWorld(2180, 440, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(2560, 430, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpExile = function () {
-      jumpRaidTreeToWorld(3380, 980, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(3040, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
   }
 
@@ -4244,15 +4244,15 @@
         }).join('')
       : '<div style="font-size:.64rem;color:var(--muted2);">No path actions unlocked yet.</div>';
 
-    var legacyCenter = { x: 286, y: 382 };
+    var legacyCenter = { x: 780, y: 760 };
     var legacyPolar = [
       { r: 0, a: 0 },
-      { r: 124, a: -108 },
-      { r: 124, a: -36 },
-      { r: 124, a: 36 },
-      { r: 124, a: 108 },
-      { r: 238, a: -74 },
-      { r: 238, a: 74 }
+      { r: 162, a: -114 },
+      { r: 162, a: -40 },
+      { r: 162, a: 40 },
+      { r: 162, a: 114 },
+      { r: 304, a: -78 },
+      { r: 304, a: 78 }
     ];
     var legacyNodeMeta = LEGACY_RAID_TREE_NODES.map(function (node, idx) {
       var rank = getLegacyRaidTalentRank(node.id);
@@ -4283,24 +4283,24 @@
     });
 
     var titanCenters = {
-      Titan:      { x: 1200, y: 980 },
-      Tactician:  { x: 560,  y: 520 },
-      Fury:       { x: 1200, y: 360 },
-      Seeker:     { x: 1840, y: 520 },
-      Godbound:   { x: 2280, y: 980 },
-      Voice:      { x: 1940, y: 520 },
-      Justice:    { x: 2280, y: 360 },
-      Keeper:     { x: 2620, y: 520 },
-      Exile:      { x: 3380, y: 980 },
-      Breeze:     { x: 3040, y: 520 },
-      Stalker:    { x: 3380, y: 360 },
-      Muse:       { x: 3720, y: 520 }
+      Titan:      { x: 1480, y: 760 },
+      Tactician:  { x: 1160, y: 430 },
+      Fury:       { x: 1480, y: 320 },
+      Seeker:     { x: 1800, y: 430 },
+      Godbound:   { x: 2260, y: 760 },
+      Voice:      { x: 1960, y: 430 },
+      Justice:    { x: 2260, y: 320 },
+      Keeper:     { x: 2560, y: 430 },
+      Exile:      { x: 3040, y: 760 },
+      Breeze:     { x: 2740, y: 430 },
+      Stalker:    { x: 3040, y: 320 },
+      Muse:       { x: 3340, y: 430 }
     };
     var titanStartingAreas = [
-      { id: 'legacy_start', label: 'Starting Area: Legacy', x: 286, y: 382, accent: '#7ed7ff' },
-      { id: 'titan_start', label: 'Starting Area: Titan', x: 1200, y: 980, accent: '#ff9f63' },
-      { id: 'godbound_start', label: 'Starting Area: Godbound', x: 2280, y: 980, accent: '#f0d87a' },
-      { id: 'exile_start', label: 'Starting Area: Exile', x: 3380, y: 980, accent: '#7de2c4' }
+      { id: 'legacy_start', label: 'START HERE: Legacy', x: 780, y: 760, accent: '#7ed7ff' },
+      { id: 'titan_start', label: 'START HERE: Titan', x: 1480, y: 760, accent: '#ff9f63' },
+      { id: 'godbound_start', label: 'START HERE: Godbound', x: 2260, y: 760, accent: '#f0d87a' },
+      { id: 'exile_start', label: 'START HERE: Exile', x: 3040, y: 760, accent: '#7de2c4' }
     ];
     function getTitanNodeRadius(node) {
       var rarity = String(node && node.rarity || 'normal');
@@ -4309,18 +4309,21 @@
       return 16;
     }
     // Ring radii per node group for non-Titan subclasses
-    var groupRingMap     = { root: 78, passive: 182, action: 300, teamwork: 430 };
-    var groupRingTitan   = { root: 56, passive: 116, action: 186, teamwork: 260 };
+    var groupRingMap     = { root: 110, passive: 265, action: 430, teamwork: 610 };
+    var groupRingTitan   = { root: 88, passive: 180, action: 290, teamwork: 410 };
     var subclassRingScale = {
-      Titan: 1.08,
-      Godbound: 1.2,
-      Exile: 1.24,
-      Voice: 1.1,
-      Justice: 1.08,
-      Keeper: 1.1,
-      Breeze: 1.08,
-      Stalker: 1.12,
-      Muse: 1.12
+      Titan: 1.16,
+      Tactician: 1.18,
+      Fury: 1.18,
+      Seeker: 1.18,
+      Godbound: 1.24,
+      Exile: 1.28,
+      Voice: 1.2,
+      Justice: 1.2,
+      Keeper: 1.2,
+      Breeze: 1.2,
+      Stalker: 1.2,
+      Muse: 1.2
     };
     // Arc center direction (degrees) pointing AWAY from Titan core
     var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340, Godbound: 270, Voice: 200, Justice: 270, Keeper: 340, Exile: 270, Breeze: 200, Stalker: 270, Muse: 340 };
@@ -4346,7 +4349,7 @@
       var count    = bcCount[bucket] || 1;
       if (ring === 0 || (ring < 50 && count > 1)) ring = Math.max(ring, 44);
       var arcDir   = subclassArcDir[subclass] !== undefined ? subclassArcDir[subclass] : 0;
-      var spread   = count <= 1 ? 0 : Math.min(isTitan ? 390 : 600, count * (isTitan ? 46 : 58));
+      var spread   = count <= 1 ? 0 : Math.min(isTitan ? 560 : 760, count * (isTitan ? 64 : 72));
       var angle    = arcDir + (count <= 1 ? 0 : ((slot / Math.max(1, count - 1)) * spread - spread / 2));
       var a        = (angle * Math.PI) / 180;
       var cx       = Math.round(center.x + Math.cos(a) * ring);
@@ -4356,7 +4359,7 @@
       node.__centerX = center.x;
       node.__centerY = center.y;
       node.__targetRing = ring;
-      node.__ringSlack = isTitan ? 72 : 104;
+      node.__ringSlack = isTitan ? 120 : 156;
       node.__radius = getTitanNodeRadius(node);
       node.x = cx - node.__radius;
       node.y = cy - node.__radius;
@@ -4367,7 +4370,7 @@
     });
 
     // Relax dense rings so nodes do not overlap while preserving each subclass cluster.
-    for (var relaxIter = 0; relaxIter < 34; relaxIter++) {
+    for (var relaxIter = 0; relaxIter < 56; relaxIter++) {
       for (var ai = 0; ai < titanNodeMeta.length; ai++) {
         var na = titanNodeMeta[ai];
         for (var bi = ai + 1; bi < titanNodeMeta.length; bi++) {
@@ -4383,7 +4386,7 @@
             dy = Math.sin(seedR);
             dist = 1;
           }
-          var minGap = Number(na.__radius || 16) + Number(nb.__radius || 16) + 10;
+          var minGap = Number(na.__radius || 16) + Number(nb.__radius || 16) + 18;
           if (dist >= minGap) continue;
           var push = (minGap - dist) * 0.5;
           var ux = dx / dist;
@@ -4444,6 +4447,24 @@
     titanStartingAreas.forEach(function (area) {
       edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="86" fill="none" stroke="' + area.accent + '" stroke-opacity=".35" stroke-width="1.8" />';
       edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="124" fill="none" stroke="' + area.accent + '" stroke-opacity=".18" stroke-width="1.4" stroke-dasharray="6 6" />';
+      edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="44" fill="none" stroke="' + area.accent + '" stroke-opacity=".62" stroke-width="2.4" />';
+      edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="20" fill="none" stroke="' + area.accent + '" stroke-opacity=".75" stroke-width="1.8" />';
+    });
+    // Major class spine and branch trunks to keep start flow obvious.
+    edgeHtml += '<line x1="780" y1="760" x2="1480" y2="760" stroke="rgba(126,215,255,.42)" stroke-width="4.2" />';
+    edgeHtml += '<line x1="1480" y1="760" x2="2260" y2="760" stroke="rgba(255,196,120,.4)" stroke-width="4.2" />';
+    edgeHtml += '<line x1="2260" y1="760" x2="3040" y2="760" stroke="rgba(125,226,196,.4)" stroke-width="4.2" />';
+    ['Tactician', 'Fury', 'Seeker'].forEach(function (sub) {
+      var c = titanCenters[sub];
+      edgeHtml += '<line x1="' + titanCenters.Titan.x + '" y1="' + titanCenters.Titan.y + '" x2="' + c.x + '" y2="' + c.y + '" stroke="rgba(255,159,99,.34)" stroke-width="2.8" />';
+    });
+    ['Voice', 'Justice', 'Keeper'].forEach(function (sub) {
+      var c = titanCenters[sub];
+      edgeHtml += '<line x1="' + titanCenters.Godbound.x + '" y1="' + titanCenters.Godbound.y + '" x2="' + c.x + '" y2="' + c.y + '" stroke="rgba(240,216,122,.34)" stroke-width="2.8" />';
+    });
+    ['Breeze', 'Stalker', 'Muse'].forEach(function (sub) {
+      var c = titanCenters[sub];
+      edgeHtml += '<line x1="' + titanCenters.Exile.x + '" y1="' + titanCenters.Exile.y + '" x2="' + c.x + '" y2="' + c.y + '" stroke="rgba(125,226,196,.34)" stroke-width="2.8" />';
     });
     legacyNodeMeta.forEach(function (n, idx) {
       if (idx <= 0) return;
@@ -4461,12 +4482,12 @@
       reqs.forEach(function (id) {
         var p = graphLookup[id];
         if (!p) return;
-        edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="rgba(103,214,179,.28)" stroke-width="2.2" />';
+        edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="' + (n.canBuy ? 'rgba(126,215,255,.72)' : 'rgba(103,214,179,.28)') + '" stroke-width="' + (n.canBuy ? '3' : '2.2') + '" />';
       });
       reqAny.forEach(function (id) {
         var p = graphLookup[id];
         if (!p) return;
-        edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="rgba(255,213,106,.25)" stroke-width="2" stroke-dasharray="5 4" />';
+        edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="' + (n.canBuy ? 'rgba(255,227,138,.7)' : 'rgba(255,213,106,.25)') + '" stroke-width="' + (n.canBuy ? '2.8' : '2') + '" stroke-dasharray="5 4" />';
       });
     });
     ['Tactician', 'Fury', 'Seeker', 'Titan', 'Voice', 'Justice', 'Keeper', 'Godbound', 'Breeze', 'Stalker', 'Muse', 'Exile'].forEach(function (subclass) {
@@ -4491,6 +4512,18 @@
     var startingAreaLabelsHtml = titanStartingAreas.map(function (area) {
       return '<div style="position:absolute;left:' + (area.x - 82) + 'px;top:' + (area.y - 132) + 'px;font-size:.54rem;color:' + area.accent + ';letter-spacing:.1em;text-transform:uppercase;text-shadow:0 0 10px ' + area.accent + ';opacity:.88;pointer-events:none;">' + area.label + '</div>';
     }).join('');
+    var subclassLabelsHtml = ['Tactician', 'Fury', 'Seeker', 'Voice', 'Justice', 'Keeper', 'Breeze', 'Stalker', 'Muse'].map(function (subclass) {
+      var c = titanCenters[subclass];
+      return '<div style="position:absolute;left:' + (Math.round(c.x - 62)) + 'px;top:' + (Math.round(c.y - 182)) + 'px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;pointer-events:none;">' + subclass + '</div>';
+    }).join('');
+    var coreLabelsHtml = [
+      { txt: 'Titan Core', c: titanCenters.Titan },
+      { txt: 'Godbound Core', c: titanCenters.Godbound },
+      { txt: 'Exile Core', c: titanCenters.Exile }
+    ].map(function (entry) {
+      return '<div style="position:absolute;left:' + (Math.round(entry.c.x - 70)) + 'px;top:' + (Math.round(entry.c.y + 66)) + 'px;font-size:.54rem;color:rgba(201,162,39,.7);text-transform:uppercase;letter-spacing:.1em;pointer-events:none;">' + entry.txt + '</div>';
+    }).join('');
+    var startHintHtml = '<div style="position:absolute;left:1120px;top:60px;font-size:.58rem;color:#cde4f8;letter-spacing:.05em;text-transform:uppercase;background:rgba(7,12,18,.74);border:1px solid rgba(126,215,255,.38);padding:.18rem .36rem;box-shadow:0 0 16px rgba(126,215,255,.16);pointer-events:none;">Start at a glowing class ring, then spend points on pulsing connected nodes.</div>';
 
     window.__raidTip = function (evt, label) {
       var vp = document.getElementById('raidSkillTreeViewport');
@@ -4540,7 +4573,9 @@
         ? '<div style="width:' + Math.round(r * .44) + 'px;height:' + Math.round(r * .44) + 'px;border-radius:50%;background:radial-gradient(circle, rgba(145,235,190,.95), rgba(80,200,140,.7));box-shadow:0 0 6px rgba(103,214,179,.6);pointer-events:none;"></div>'
         : (node.rarity !== 'normal' ? '<div style="width:' + Math.round(r * .30) + 'px;height:' + Math.round(r * .30) + 'px;border-radius:50%;background:' + (node.rarity === 'keystone' ? 'rgba(255,170,88,.5)' : 'rgba(126,215,255,.38)') + ';pointer-events:none;"></div>' : '');
       var labelEsc = String(node.label || '').replace(/'/g, "\\'");
+      var legacySpendClass = (!purchased && node.affordable) ? 'raid-node-spendable' : '';
       return '<button data-raid-node="1" type="button"'
+        + ' class="' + legacySpendClass + '"'
         + ' onclick="openRaidTreeNodeInspector(\'legacy\',\'' + node.id + '\')"'
         + ' onmouseenter="window.__raidTip&&window.__raidTip(event,\'' + labelEsc + '\')"'
         + ' onmouseleave="window.__raidTipHide&&window.__raidTipHide()"'
@@ -4584,7 +4619,9 @@
         ? '<div style="width:' + Math.round(r * .44) + 'px;height:' + Math.round(r * .44) + 'px;border-radius:50%;background:radial-gradient(circle, rgba(145,235,190,.95), rgba(80,200,140,.7));box-shadow:0 0 6px rgba(103,214,179,.6);pointer-events:none;"></div>'
         : (node.rarity !== 'normal' ? ('<div style="width:' + Math.round(r * .30) + 'px;height:' + Math.round(r * .30) + 'px;border-radius:50%;background:' + accent + ';opacity:.45;pointer-events:none;"></div>') : '');
       var labelEsc = String(node.label || '').replace(/'/g, "\\'");
+      var titanSpendClass = (!purchased && node.canBuy) ? 'raid-node-spendable' : '';
       return '<button data-raid-node="1" type="button"'
+        + ' class="' + titanSpendClass + '"'
         + ' onclick="openRaidTreeNodeInspector(\'titan\',\'' + node.id + '\')"'
         + ' onmouseenter="window.__raidTip&&window.__raidTip(event,\'' + labelEsc + '\')"'
         + ' onmouseleave="window.__raidTipHide&&window.__raidTipHide()"'
@@ -4594,12 +4631,13 @@
         + '</button>';
     }).join('');
 
-    panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(150% 140% at 0% 0%, rgba(126,215,255,.12), rgba(16,28,42,.88) 35%, rgba(9,12,20,.98));">'
+    panel.innerHTML = '<style id="raidTreeSpendableStyles">@keyframes raidSpendPulse{0%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}50%{box-shadow:0 0 18px rgba(156,232,255,.86),0 0 34px rgba(126,215,255,.34)}100%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}} .raid-node-spendable{animation:raidSpendPulse 1.4s ease-in-out infinite;}</style>'
+      + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(150% 140% at 0% 0%, rgba(126,215,255,.12), rgba(16,28,42,.88) 35%, rgba(9,12,20,.98));">'
       + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.14), rgba(12,18,26,.94));padding:.52rem .6rem;box-shadow:inset 0 0 24px rgba(126,215,255,.08);">'
       + '<div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;flex-wrap:wrap;">'
       + '<div>'
       + '<div style="font-size:.92rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Progression: Atlas Skill Web</strong></div>'
-      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;max-width:960px;">A dense passive web with circular clusters, chained lanes, and tighter node spacing. Path through the ringed hubs to build your raid identity.</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;max-width:960px;">Start from one of the glowing class hubs in the middle, then branch outward through connected rings. Pulsing nodes are purchasable right now.</div>'
       + '</div>'
       + '<div style="font-size:.7rem;color:var(--teal);display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;">' + medalSummaryHtml + '<span>Raid Points: ' + pointCount + '</span></div>'
       + '</div>'
@@ -4611,6 +4649,7 @@
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,255,255,.3);color:var(--muted2);">Normal</span>'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(126,215,255,.5);color:#8dd9ff;">Notable</span>'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,170,88,.62);color:#ffb16a;">Keystone</span>'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(126,215,255,.75);color:#d2f1ff;box-shadow:0 0 10px rgba(126,215,255,.25);">Spendable Now (Pulse)</span>'
       + '</div>'
       + '</div>'
       + '<div style="margin-top:.34rem;border:1px solid rgba(126,215,255,.28);background:linear-gradient(160deg, rgba(8,14,24,.97), rgba(10,16,22,.92));padding:.34rem;box-shadow:0 14px 34px rgba(0,0,0,.36), inset 0 0 28px rgba(126,215,255,.05);">'
@@ -4632,24 +4671,15 @@
       + '<div id="raidSkillTreeViewport" style="position:relative;overflow:hidden;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(180% 150% at 10% 4%, rgba(34,52,78,.56), rgba(7,12,18,.98) 55%),repeating-linear-gradient(118deg, rgba(255,255,255,.03) 0 1px, transparent 1px 24px);cursor:grab;touch-action:none;">'
       + '<div id="raidSkillTreeScene" data-scene-width="' + sceneWidth + '" data-scene-height="' + sceneHeight + '" style="position:relative;width:' + sceneWidth + 'px;height:' + sceneHeight + 'px;will-change:transform;">'
       + '<div style="position:absolute;left:120px;top:80px;width:380px;height:250px;border-radius:50%;background:radial-gradient(circle, rgba(126,215,255,.18), rgba(126,215,255,0));filter:blur(14px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:980px;top:780px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(255,159,99,.2), rgba(255,159,99,0));filter:blur(18px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:2060px;top:780px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(240,216,122,.2), rgba(240,216,122,0));filter:blur(18px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:3140px;top:780px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.2), rgba(125,226,196,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:1160px;top:560px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(255,159,99,.2), rgba(255,159,99,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:1940px;top:560px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(240,216,122,.2), rgba(240,216,122,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:2720px;top:560px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.2), rgba(125,226,196,0));filter:blur(18px);pointer-events:none;"></div>'
       + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
       + startingAreaLabelsHtml
+      + startHintHtml
       + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
-      + '<div style="position:absolute;left:460px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Tactician</div>'
-      + '<div style="position:absolute;left:1130px;top:145px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Fury</div>'
-      + '<div style="position:absolute;left:1760px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Seeker</div>'
-      + '<div style="position:absolute;left:1860px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Voice</div>'
-      + '<div style="position:absolute;left:2220px;top:145px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Justice</div>'
-      + '<div style="position:absolute;left:2540px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Keeper</div>'
-      + '<div style="position:absolute;left:2980px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Breeze</div>'
-      + '<div style="position:absolute;left:3320px;top:145px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Stalker</div>'
-      + '<div style="position:absolute;left:3650px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Muse</div>'
-      + '<div style="position:absolute;left:1120px;top:1040px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Titan Core</div>'
-      + '<div style="position:absolute;left:2200px;top:1040px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Godbound Core</div>'
-      + '<div style="position:absolute;left:3300px;top:1040px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Exile Core</div>'
+      + subclassLabelsHtml
+      + coreLabelsHtml
       + legacyNodesHtml
       + titanNodesHtml
       + '<div id="raidNodeTip" style="position:absolute;z-index:220;display:none;background:rgba(7,11,18,.97);border:1px solid rgba(126,215,255,.5);color:#c8dff2;font-size:.62rem;padding:.22rem .46rem;white-space:nowrap;pointer-events:none;border-radius:3px;letter-spacing:.03em;"></div>'

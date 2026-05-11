@@ -603,7 +603,7 @@
     var seed = Number(seedHint || 0) + dayStamp + (Number(spawner.counter || 0) * 37) + (Math.max(0, Number(S.renown || 0)) * 11);
     var chanceRoll = Math.abs(seed) % 100;
     var postEnding = isStorylinePostEnding();
-    var maxRoll = postEnding ? 90 : 75;
+    var maxRoll = postEnding ? 97 : 92;
     if (!isForced && chanceRoll > maxRoll) return null;
 
     var boss = SOUL_MISSION_BOSSES[Math.abs(seed + 29) % SOUL_MISSION_BOSSES.length] || 'The Hollow Saint';
@@ -646,7 +646,7 @@
     if (!mission) return null;
 
     spawner.counter = Number(spawner.counter || 0) + 1;
-    spawner.nextEligibleDayStamp = dayStamp + 1;
+    spawner.nextEligibleDayStamp = dayStamp;
     if (typeof showNotif === 'function') {
       var regionLabelMap = {
         province: 'Province Map',
@@ -658,8 +658,8 @@
       var missionRegion = String(mission.region || region || 'province').toLowerCase();
       var missionRegionLabel = regionLabelMap[missionRegion] || missionRegion;
       var missionSite = String(mission.location || location || 'Unknown location');
-      showNotif('Soul Forge monster detected ' + soulIcon + ': ' + mission.title + ' at ' + missionSite + ' (' + missionRegionLabel + ').', 'warn');
-      showNotif('Find the forge marker ' + soulIcon + ' on the map and click it to start the Soul Creature fight prompt.', 'info');
+      showNotif('Soul Forge boss detected ' + soulIcon + ': ' + mission.title + ' at ' + missionSite + ' (' + missionRegionLabel + ').', 'warn');
+      showNotif('Find the forge marker ' + soulIcon + ' on the map and click it to challenge the endgame boss for a weapon or armor affix reward.', 'info');
     }
     if (String(mission.region || '').toLowerCase() === 'province' && typeof renderHexMap === 'function') {
       try { renderHexMap(); } catch (_mapErr) {}
@@ -2298,6 +2298,12 @@
         + '<div style="font-family:\'Cinzel\',serif;font-size:.9rem;color:var(--gold2);margin-bottom:.14rem;">⚒ ' + boss + '</div>'
         + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.26rem;">'
           + 'Region: ' + regionLabel + ' · Profile: d12 | 24 HP · Unique abilities enabled.'
+        + '</div>'
+        + '<div style="border:1px solid rgba(255,132,80,.28);padding:.32rem .4rem;background:rgba(255,132,80,.08);margin-bottom:.28rem;">'
+          + '<div style="font-size:.72rem;color:#ffb27a;margin-bottom:.12rem;">Endgame Boss</div>'
+          + '<div style="font-size:.72rem;color:var(--text2);line-height:1.48;">'
+            + 'This Soul Forge hunt is an endgame boss encounter. Defeat it to capture a rare affix, choose whether to enhance your weapon or armor, then continue in the Merchant tab at the Soul Forge vendor to remove, equip, or sell affixes.'
+          + '</div>'
         + '</div>'
         + '<div style="border:1px solid rgba(255,255,255,.12);padding:.3rem .38rem;background:rgba(255,255,255,.03);margin-bottom:.28rem;">'
           + '<div style="font-size:.72rem;color:var(--teal);margin-bottom:.12rem;">Fight Rules</div>'

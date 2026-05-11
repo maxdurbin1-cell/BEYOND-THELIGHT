@@ -7418,7 +7418,7 @@ function openSoulForgeVendor(){
     if (typeof showNotif === 'function') showNotif('Soul Forge is not unlocked yet. Complete a Soul Mission first.', 'warn');
     return false;
   }
-  if (typeof openModal === 'function') openModal('Soul Forge', buildSoulForgeVendorHtml());
+  if (typeof openModal === 'function') openModal('Soul Forge Vendor', buildSoulForgeVendorHtml());
   return true;
 }
 
@@ -7482,6 +7482,8 @@ function claimSoulMissionRewardChoice(targetType, affix, sourceName){
     var shopBtn = document.getElementById('tabnav-shop');
     switchTab('shop', shopBtn || null);
   }
+  if (typeof showNotif === 'function') showNotif('Merchant tab opened. Use the Soul Forge vendor to remove, equip, or sell affixes.', 'info');
+  if (typeof openSoulForgeVendor === 'function') openSoulForgeVendor();
   return true;
 }
 
@@ -7490,9 +7492,9 @@ function openSoulMissionRewardChoice(mission, affix){
   var weaponText = getCurrentWeaponTextForSoulReward();
   var armorText = String(S && S.equipment && S.equipment.armor || '');
   var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
-    + '<div style="margin-bottom:.28rem;">Unique kill reward from <strong style="color:var(--gold2);">' + sourceName + '</strong>.</div>'
+    + '<div style="margin-bottom:.28rem;">Endgame boss reward from <strong style="color:var(--gold2);">' + sourceName + '</strong>.</div>'
     + '<div style="margin-bottom:.2rem;">Random affix rolled: <strong style="color:var(--teal);">' + String(affix || 'Keen') + '</strong></div>'
-    + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Choose where to apply it, then you are routed to Merchants.</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Choose whether to enhance your weapon or armor. After the upgrade, the Merchant tab opens the Soul Forge vendor so you can remove, equip, or sell affixes.</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;">'
     + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
     + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;"><strong>Weapon Upgrade</strong></div>'
@@ -12089,9 +12091,9 @@ function renderHexMap(){
       const isSoulToken=mt.missionType==='soul_mission'||(mtMission&&mtMission.missionType==='soul_mission');
       let icon='⚔',color='#e05050',label='SITE',fill='rgba(224,80,80,.18)';
       if(isLegacyRaidToken){icon='🐉';color='#ff8450';label=(mt.type==='informer'?'RAID AVAILABLE':'RAID');fill='rgba(255,132,80,.2)';}
-      if(isSoulToken){icon=mt.icon||'☠';color='#ff6f91';label=(mt.type==='informer'?'SOUL LEAD':'SOUL HUNT');fill='rgba(255,111,145,.2)';}
+      if(isSoulToken){icon=mt.icon||'⚒';color='#ff6f91';label=(mt.type==='informer'?'SOUL LEAD':'SOUL FORGE');fill='rgba(255,111,145,.2)';}
       if(mt.type==='informer'||mt.type==='holding_info'){icon='👁';color='#e8c050';label='INFORMER';fill='rgba(232,192,80,.18)';}
-      if(isSoulToken&&mt.type==='informer'){icon=mt.icon||'☠';color='#ff6f91';label='SOUL LEAD';fill='rgba(255,111,145,.2)';}
+      if(isSoulToken&&mt.type==='informer'){icon=mt.icon||'⚒';color='#ff6f91';label='SOUL LEAD';fill='rgba(255,111,145,.2)';}
       if(isLegacyRaidToken&&(mt.type==='informer'||mt.type==='holding_info')){icon='🐉';color='#ff8450';label='RAID AVAILABLE';fill='rgba(255,132,80,.2)';}
       if(mt.type==='holding_site'){icon='🧭';color='#ff8450';label='HOLDING SITE';fill='rgba(255,132,80,.18)';}
       if(mt.type==='holding_home'){icon='🏛';color='#46c4b6';label='HOLDING';fill='rgba(70,196,182,.2)';}
@@ -12507,8 +12509,8 @@ function renderHexInfo(hex){
     const isLegacyRaidToken=mt.missionType==='legacy_raid'||(mtMission&&mtMission.missionType==='legacy_raid');
     const isSoulToken=mt.missionType==='soul_mission'||(mtMission&&mtMission.missionType==='soul_mission');
     const markerTitle=(mt.missionId==='holding_quest'&&mt.type==='informer')?'Holding Quest: Gather Information'
-      :(isSoulToken&&mt.type==='informer')?'Soul Hunt Lead'
-      :(isSoulToken)?'Soul Hunt Site'
+      :(isSoulToken&&mt.type==='informer')?'Soul Forge Lead'
+      :(isSoulToken)?'Soul Forge Boss'
       :(isLegacyRaidToken&&mt.type==='informer')?'Raid Mission Available'
       :(isLegacyRaidToken)?'Raid Confrontation Wing'
       :(mt.missionId==='holding_quest'&&mt.type==='site')?'Holding Quest: Go To Site'
@@ -12529,9 +12531,9 @@ function renderHexInfo(hex){
       :mt.type==='backstory_contract'
       ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="completeTrustedContractTask('${nk}')">Resolve Trusted Contract</button></div>`
       :'';
-    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
-      <div class="nb-label" style="color:var(--gold2);">📍 ${markerTitle}</div>
-      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}</div>
+    html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:${isSoulToken?'rgba(255,111,145,.45)':'rgba(201,162,39,.45)'};background:${isSoulToken?'rgba(255,111,145,.08)':'rgba(201,162,39,.06)'};">
+      <div class="nb-label" style="color:${isSoulToken?'#ff6f91':'var(--gold2)'};">${isSoulToken?'⚒':'📍'} ${markerTitle}</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title||'Quest objective marker in this hex.'}${isSoulToken?'<br><span style="color:var(--muted2);">Endgame boss encounter. Defeat it to capture an affix, choose weapon or armor enhancement, then continue in the Merchant tab at the Soul Forge vendor.</span>':''}</div>
       ${markerActions}
     </div>`;
   }

@@ -1054,14 +1054,15 @@
           ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(missionToken.missionId || ''); })
           : null;
         const isLegacyRaid = missionToken.missionType === 'legacy_raid' || !!(missionRef && missionRef.missionType === 'legacy_raid');
-        const tokenIcon = missionToken.type === 'site' ? '🧭' : missionToken.type === 'informer' ? '👁' : missionToken.type === 'story' ? '➤'
+        const isSoulMission = missionToken.missionType === 'soul_mission' || !!(missionRef && missionRef.missionType === 'soul_mission');
+        const tokenIcon = isSoulMission ? (missionToken.icon || '⚒') : missionToken.type === 'site' ? '🧭' : missionToken.type === 'informer' ? '👁' : missionToken.type === 'story' ? '➤'
           : missionToken.type === 'solar_cycle_marker' ? '☄'
           : missionToken.type === 'solar_cycle_side' ? '🌍'
           : (missionToken.type === 'solar_cycle_story' && missionToken.storyType === 'stage') ? '🌑'
           : (missionToken.type === 'solar_cycle_story' && (missionToken.storyType === 'quest' || missionToken.storyType === 'investigation' || missionToken.nsSubtype === 'investigation')) ? '⏳'
           : '📍';
         const raidIcon = isLegacyRaid ? '🐉' : tokenIcon;
-        const tokenColor = missionToken.type === 'site' ? '#ff8450' : missionToken.type === 'informer' ? '#e8c050' : missionToken.type === 'story' ? '#f0d070'
+        const tokenColor = isSoulMission ? '#ff6f91' : missionToken.type === 'site' ? '#ff8450' : missionToken.type === 'informer' ? '#e8c050' : missionToken.type === 'story' ? '#f0d070'
           : missionToken.type === 'solar_cycle_marker' ? '#f0a050'
           : missionToken.type === 'solar_cycle_side' ? '#9ad37b'
           : (missionToken.type === 'solar_cycle_story' && missionToken.storyType === 'stage') ? '#f5d76e'
@@ -1444,9 +1445,9 @@
         }
         ${
           S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key]
-            ? (() => { const mt = S.lastSea.missionTokens[hex.key]; const missionRef = (S && Array.isArray(S.activeMissions)) ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(mt.missionId || ''); }) : null; const isRaid = mt.missionType === 'legacy_raid' || !!(missionRef && missionRef.missionType === 'legacy_raid'); const raidLabel = isRaid ? (mt.type === 'informer' ? 'Raid Lore Wing' : 'Raid Confrontation Wing') : ''; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.45);background:rgba(201,162,39,.06);">
-                <div class="nb-label" style="color:var(--gold2);">${isRaid ? '🐉' : '📍'} ${raidLabel || (mt.type === 'site' ? 'Sea Mission Site' : mt.type === 'story' ? 'Story Objective' : 'Sea Informer')}</div>
-                <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}</div>
+            ? (() => { const mt = S.lastSea.missionTokens[hex.key]; const missionRef = (S && Array.isArray(S.activeMissions)) ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(mt.missionId || ''); }) : null; const isRaid = mt.missionType === 'legacy_raid' || !!(missionRef && missionRef.missionType === 'legacy_raid'); const isSoul = mt.missionType === 'soul_mission' || !!(missionRef && missionRef.missionType === 'soul_mission'); const raidLabel = isRaid ? (mt.type === 'informer' ? 'Raid Lore Wing' : 'Raid Confrontation Wing') : ''; const tokenLabel = isSoul ? (mt.type === 'informer' ? 'Soul Forge Lead' : 'Soul Forge Boss') : (raidLabel || (mt.type === 'site' ? 'Sea Mission Site' : mt.type === 'story' ? 'Story Objective' : 'Sea Informer')); const tokenIcon = isRaid ? '🐉' : isSoul ? (mt.icon || '⚒') : '📍'; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:${isSoul ? 'rgba(255,111,145,.45)' : 'rgba(201,162,39,.45)'};background:${isSoul ? 'rgba(255,111,145,.08)' : 'rgba(201,162,39,.06)'};">
+                <div class="nb-label" style="color:${isSoul ? '#ff6f91' : 'var(--gold2)'};">${tokenIcon} ${tokenLabel}</div>
+                <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}${isSoul ? '<br><span style="color:var(--muted2);">Endgame boss encounter. Defeat it to capture an affix, choose weapon or armor enhancement, then continue in the Merchant tab at the Soul Forge vendor.</span>' : ''}</div>
                 ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Resolve Task (AD vs DD8)</button></div>` : ''}
                 ${mt.type === 'story' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div>` : ''}
               </div>`; })()

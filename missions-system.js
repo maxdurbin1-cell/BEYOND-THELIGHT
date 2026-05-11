@@ -4512,6 +4512,24 @@
     var startingAreaLabelsHtml = titanStartingAreas.map(function (area) {
       return '<div style="position:absolute;left:' + (area.x - 82) + 'px;top:' + (area.y - 132) + 'px;font-size:.54rem;color:' + area.accent + ';letter-spacing:.1em;text-transform:uppercase;text-shadow:0 0 10px ' + area.accent + ';opacity:.88;pointer-events:none;">' + area.label + '</div>';
     }).join('');
+    var startHubMeta = {
+      legacy_start: { emblem: 'LG', title: 'Legacy', identity: 'Balanced all-rounder pathing and utility.' },
+      titan_start: { emblem: 'TT', title: 'Titan', identity: 'Frontline force, defense, and pressure control.' },
+      godbound_start: { emblem: 'GB', title: 'Godbound', identity: 'Faith-fueled defense, judgment, and support.' },
+      exile_start: { emblem: 'EX', title: 'Exile', identity: 'Precision, stealth, and opportunistic burst.' }
+    };
+    var startHubBadgesHtml = titanStartingAreas.map(function (area) {
+      var meta = startHubMeta[String(area.id || '')] || { emblem: '??', title: 'Path', identity: 'Choose this path to begin.' };
+      var badgeLeft = Math.round(area.x - 19);
+      var badgeTop = Math.round(area.y - 94);
+      var titleLeft = Math.round(area.x - 66);
+      var titleTop = Math.round(area.y - 42);
+      var identLeft = Math.round(area.x - 154);
+      var identTop = Math.round(area.y + 80);
+      return '<div class="raid-start-badge" style="position:absolute;left:' + badgeLeft + 'px;top:' + badgeTop + 'px;width:38px;height:38px;border-radius:50%;border:1px solid ' + area.accent + ';background:radial-gradient(circle at 32% 30%, rgba(255,255,255,.22), rgba(8,12,18,.96));color:' + area.accent + ';font-size:.54rem;font-weight:700;letter-spacing:.1em;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px ' + area.accent + ';pointer-events:none;">' + meta.emblem + '</div>'
+        + '<div style="position:absolute;left:' + titleLeft + 'px;top:' + titleTop + 'px;min-width:132px;text-align:center;font-size:.58rem;color:' + area.accent + ';letter-spacing:.11em;text-transform:uppercase;text-shadow:0 0 8px ' + area.accent + ';pointer-events:none;">' + meta.title + '</div>'
+        + '<div class="raid-start-identity" style="position:absolute;left:' + identLeft + 'px;top:' + identTop + 'px;width:308px;text-align:center;font-size:.54rem;color:rgba(216,230,244,.88);letter-spacing:.03em;line-height:1.35;text-shadow:0 0 8px rgba(0,0,0,.5);pointer-events:none;">' + meta.identity + '</div>';
+    }).join('');
     var subclassLabelsHtml = ['Tactician', 'Fury', 'Seeker', 'Voice', 'Justice', 'Keeper', 'Breeze', 'Stalker', 'Muse'].map(function (subclass) {
       var c = titanCenters[subclass];
       return '<div style="position:absolute;left:' + (Math.round(c.x - 62)) + 'px;top:' + (Math.round(c.y - 182)) + 'px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;pointer-events:none;">' + subclass + '</div>';
@@ -4631,7 +4649,7 @@
         + '</button>';
     }).join('');
 
-    panel.innerHTML = '<style id="raidTreeSpendableStyles">@keyframes raidSpendPulse{0%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}50%{box-shadow:0 0 18px rgba(156,232,255,.86),0 0 34px rgba(126,215,255,.34)}100%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}} .raid-node-spendable{animation:raidSpendPulse 1.4s ease-in-out infinite;}</style>'
+    panel.innerHTML = '<style id="raidTreeSpendableStyles">@keyframes raidSpendPulse{0%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}50%{box-shadow:0 0 18px rgba(156,232,255,.86),0 0 34px rgba(126,215,255,.34)}100%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}}@keyframes raidStartBadgeGlow{0%{filter:brightness(1);transform:translateY(0)}50%{filter:brightness(1.2);transform:translateY(-1px)}100%{filter:brightness(1);transform:translateY(0)}} .raid-node-spendable{animation:raidSpendPulse 1.4s ease-in-out infinite;} .raid-start-badge{animation:raidStartBadgeGlow 2.2s ease-in-out infinite;} .raid-start-identity{opacity:.96;}</style>'
       + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(150% 140% at 0% 0%, rgba(126,215,255,.12), rgba(16,28,42,.88) 35%, rgba(9,12,20,.98));">'
       + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.14), rgba(12,18,26,.94));padding:.52rem .6rem;box-shadow:inset 0 0 24px rgba(126,215,255,.08);">'
       + '<div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;flex-wrap:wrap;">'
@@ -4676,6 +4694,7 @@
       + '<div style="position:absolute;left:2720px;top:560px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.2), rgba(125,226,196,0));filter:blur(18px);pointer-events:none;"></div>'
       + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
       + startingAreaLabelsHtml
+      + startHubBadgesHtml
       + startHintHtml
       + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
       + subclassLabelsHtml

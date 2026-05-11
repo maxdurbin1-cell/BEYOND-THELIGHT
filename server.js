@@ -20,6 +20,7 @@ const TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
 const STORE_PATH = path.resolve(process.env.CAMPAIGN_STORE_PATH || path.join(__dirname, "campaign-data.json"));
 const LICENSE_STORE_PATH = path.resolve(process.env.LICENSE_STORE_PATH || path.join(__dirname, "license-data.json"));
 const ACCESS_PAGE_PATH = path.join(__dirname, "access.html");
+const LICENSE_ADMIN_PAGE_PATH = path.join(__dirname, "license-admin.html");
 const PAYWALL_SESSION_COOKIE = "btl_access_session";
 const PAYWALL_SESSION_TTL_MS = Math.max(24 * 60 * 60 * 1000, Number(process.env.PAYWALL_SESSION_TTL_MS) || (90 * 24 * 60 * 60 * 1000));
 const LICENSE_CODE_LENGTH = Math.max(6, Number(process.env.LICENSE_CODE_LENGTH) || 10);
@@ -390,8 +391,38 @@ function isPaywallPublicPath(pathname) {
   const p = String(pathname || "").trim();
   if (!p) return false;
   if (p === "/access" || p === "/access.html" || p === "/paywall-gate.js") return true;
+  if (p === "/admin/licenses" || p === "/license-admin.html" || p === "/license-admin.js") return true;
   if (p.startsWith("/api/license/")) return true;
   return false;
+}
+
+function validateAdminKey(req) {
+  if (!PAYWALL_ADMIN_KEY) {
+    return { ok: false, status: 503, error: "PAYWALL_ADMIN_KEY is not configured on the server." };
+  }
+  const providedKey = String(req.get("x-admin-key") || "").trim();
+  if (!providedKey || providedKey !== PAYWALL_ADMIN_KEY) {
+    return { ok: false, status: 403, error: "Admin key is invalid." };
+  }
+  return { ok: true };
+}
+
+function getSortedLicenses() {
+  return Object.keys(licenseStore.licenses || {})
+    .map((code) => {
+      const entry = licenseStore.licenses[code] || {};
+      return {
+        code: normalizeLicenseCode(entry.code || code),
+        email: normalizeEmail(entry.email),
+        issuedAt: Number(entry.issuedAt || 0),
+        priceCents: Math.max(0, Number(entry.priceCents || 0)),
+        bundleSize: Math.max(1, Number(entry.bundleSize || 1)),
+        redeemedByEmail: normalizeEmail(entry.redeemedByEmail),
+        redeemedAt: Number(entry.redeemedAt || 0),
+        disabled: !!entry.disabled
+      };
+    })
+    .sort((a, b) => Number(b.issuedAt || 0) - Number(a.issuedAt || 0));
 }
 
 function requirePaywallAccess(req, res, next) {
@@ -1070,6 +1101,10 @@ app.get("/access", (_req, res) => {
   res.sendFile(ACCESS_PAGE_PATH);
 });
 
+app.get("/admin/licenses", (_req, res) => {
+  res.sendFile(LICENSE_ADMIN_PAGE_PATH);
+});
+
 app.get("/api/license/status", (req, res) => {
   const session = getSessionFromRequest(req);
   if (!session) {
@@ -1092,13 +1127,9 @@ app.post("/api/license/logout", (req, res) => {
 });
 
 app.post("/api/license/issue", (req, res) => {
-  if (!PAYWALL_ADMIN_KEY) {
-    res.status(503).json({ ok: false, error: "PAYWALL_ADMIN_KEY is not configured on the server." });
-    return;
-  }
-  const providedKey = String(req.get("x-admin-key") || "").trim();
-  if (!providedKey || providedKey !== PAYWALL_ADMIN_KEY) {
-    res.status(403).json({ ok: false, error: "Admin key is invalid." });
+  const adminCheck = validateAdminKey(req);
+  if (!adminCheck.ok) {
+    res.status(adminCheck.status).json({ ok: false, error: adminCheck.error });
     return;
   }
 
@@ -1145,6 +1176,64 @@ app.post("/api/license/issue", (req, res) => {
     totalPriceCents: pricePerPack,
     totalPriceUsd: (pricePerPack / 100).toFixed(2),
     codes: issued
+  });
+});
+
+app.post("/api/license/admin/list", (req, res) => {
+  const adminCheck = validateAdminKey(req);
+  if (!adminCheck.ok) {
+    res.status(adminCheck.status).json({ ok: false, error: adminCheck.error });
+    return;
+  }
+
+  const email = normalizeEmail(req.body && req.body.email);
+  const code = normalizeLicenseCode(req.body && req.body.code);
+  const includeDisabled = !!(req.body && req.body.includeDisabled);
+  const licenses = getSortedLicenses()
+    .filter((item) => {
+      if (!includeDisabled && item.disabled) return false;
+      if (email && item.email !== email && item.redeemedByEmail !== email) return false;
+      if (code && item.code !== code) return false;
+      return true;
+    })
+    .slice(0, 300);
+
+  res.json({ ok: true, count: licenses.length, licenses });
+});
+
+app.post("/api/license/admin/revoke", (req, res) => {
+  const adminCheck = validateAdminKey(req);
+  if (!adminCheck.ok) {
+    res.status(adminCheck.status).json({ ok: false, error: adminCheck.error });
+    return;
+  }
+
+  const code = normalizeLicenseCode(req.body && req.body.code);
+  const disabled = typeof (req.body && req.body.disabled) === "boolean" ? !!req.body.disabled : true;
+  if (!code) {
+    res.status(400).json({ ok: false, error: "License code is required." });
+    return;
+  }
+  const license = licenseStore.licenses[code];
+  if (!license || typeof license !== "object") {
+    res.status(404).json({ ok: false, error: "License code was not found." });
+    return;
+  }
+
+  license.disabled = disabled;
+  licenseStore.updatedAt = Date.now();
+  persistLicenseStoreSafe();
+
+  res.json({
+    ok: true,
+    license: {
+      code,
+      email: normalizeEmail(license.email),
+      redeemedByEmail: normalizeEmail(license.redeemedByEmail),
+      disabled: !!license.disabled,
+      issuedAt: Number(license.issuedAt || 0),
+      redeemedAt: Number(license.redeemedAt || 0)
+    }
   });
 });
 

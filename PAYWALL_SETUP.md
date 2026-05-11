@@ -9,6 +9,7 @@ This project now includes a built-in paywall gate.
 - Remembers access in the same browser using a secure cookie session.
 - Redirects unauthenticated visitors to `/access`.
 - Supports a God Key override.
+- Includes an admin UI at `/admin/licenses` for issuing, searching, revoking, and restoring codes.
 
 ## Pricing Rules Implemented
 
@@ -53,6 +54,29 @@ curl -X POST http://localhost:3000/api/license/issue \
 ```
 
 Response includes generated codes.
+
+## Admin UI (No API Tools Needed)
+
+Open:
+
+- `/admin/licenses`
+
+From that page you can:
+
+- issue `1` or `4` codes to an email,
+- search by email or code,
+- revoke a code,
+- restore a revoked code.
+
+You must enter `PAYWALL_ADMIN_KEY` in the admin UI.
+
+## Payments (Stripe, PayPal, Venmo)
+
+- Stripe was just one option for payment automation.
+- You can absolutely use PayPal instead of Stripe.
+- Venmo support is typically done through PayPal/Braintree flows.
+
+The paywall itself is payment-provider agnostic: any payment method works as long as your payment-success step calls the code-issue endpoint (or you issue codes manually in the admin UI).
 
 ## Buyer Login
 

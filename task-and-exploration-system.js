@@ -44,10 +44,20 @@ function promiseWildernessExploration(col,row){
 
 function performWildernessObservation(col,row,directionKey){
   const leadDie=typeof getEffectiveDie==='function'?getEffectiveDie('lead'):(S.stats.lead||4);
+  const target=getAdjacentHexByDirection(col,row,directionKey);
+  
+  // Check if manual roll mode is enabled
+  if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+    // Set up dice selection and show manual roll prompt
+    window.selectedDice={action:leadDie,dread:6};
+    performWildernessObservationManualRoll(col,row,directionKey,target);
+    return;
+  }
+  
+  // Automatic roll (existing behavior)
   const leadRoll=explodingRoll(leadDie);
   const dreadRoll=explodingRoll(6);
   const success=leadRoll.total>=dreadRoll.total;
-  const target=getAdjacentHexByDirection(col,row,directionKey);
   
   let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
     +'<div style="text-align:center;"><div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Lead Die</div>'
@@ -116,6 +126,89 @@ function getAdjacentHexes(col,row){
     if(h)out.push(h);
   });
   return out;
+
+function performWildernessObservationManualRoll(col,row,directionKey,target){
+  const leadDie=window.selectedDice.action||4;
+  const dreadDie=window.selectedDice.dread||6;
+  
+  let html='<div style="font-size:.85rem;color:var(--text2);line-height:1.6;">'
+    +'<div style="background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.25);padding:.35rem .45rem;margin-bottom:.4rem;border-radius:3px;">'
+    +'<div style="font-size:.75rem;color:var(--teal);margin-bottom:.1rem;"><strong>Manual Observation</strong></div>'
+    +'<div><strong style="color:var(--text2);">Lead d'+leadDie+'</strong> <span style="color:var(--muted2);">vs</span> <strong style="color:var(--red);">Dread d'+dreadDie+'</strong></div>'
+    +'</div>'
+    +'<div style="background:rgba(232,192,80,.04);border:1px solid rgba(232,192,80,.3);padding:.35rem .45rem;margin-bottom:.4rem;border-radius:3px;">'
+    +'<div id="wildernessManualCheckPrompt" style="font-size:.78rem;color:var(--text2);">Roll your physical dice and enter the results below.</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.4rem;">'
+    +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Lead d'+leadDie+'</label><input type="number" id="wildcardActionValue" min="1" max="'+leadDie+'" placeholder="1-'+leadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
+    +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d'+dreadDie+'</label><input type="number" id="wildcardDreadValue" min="1" max="'+dreadDie+'" placeholder="1-'+dreadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
+    +'</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:.35rem;justify-content:flex-end;">'
+    +'<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-sm btn-gold" onclick="finalizeWildernessManualRoll('+col+','+row+',' + "'" + directionKey + "'" + ')">✓ Compare Results</button>'
+    +'</div>';
+  
+  openModal('Observation — Manual Roll',html);
+}
+
+function finalizeWildernessManualRoll(col,row,directionKey){
+  closeModal();
+  const actionInput=document.getElementById('wildcardActionValue');
+  const dreadInput=document.getElementById('wildcardDreadValue');
+  if(!actionInput||!dreadInput){
+    if(typeof showNotif==='function')showNotif('Inputs not found','warn');
+    return;
+  }
+  const actionValue=parseInt(actionInput.value,10);
+  const dreadValue=parseInt(dreadInput.value,10);
+  if(!Number.isFinite(actionValue)||!Number.isFinite(dreadValue)){
+    if(typeof showNotif==='function')showNotif('Invalid dice entry','warn');
+    return;
+  }
+  const leadDie=window.selectedDice.action||4;
+  const dreadDie=window.selectedDice.dread||6;
+  if(actionValue<1||actionValue>leadDie||dreadValue<1||dreadValue>dreadDie){
+    if(typeof showNotif==='function')showNotif('Dice values out of range','warn');
+    return;
+  }
+  
+  // Process the result
+  const target=getAdjacentHexByDirection(col,row,directionKey);
+  const success=actionValue>=dreadValue;
+  
+  let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
+    +'<div style="text-align:center;"><div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Lead Die</div>'
+    +'<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--teal);">'+actionValue+'</div></div>'
+    +'<div style="text-align:center;"><div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Dread Die</div>'
+    +'<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--red);">'+dreadValue+'</div></div>'
+    +'</div>';
+  
+  if(success){
+    if(typeof window.registerSecretPadClue==='function')window.registerSecretPadClue('province','intel');
+    if(typeof awardPathToken==='function')awardPathToken('observation-success');
+    else if(typeof addSuccessRoll==='function')addSuccessRoll();
+    if(!target){
+      html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No Adjacent Hex</div>There is no mapped hex in that direction.</div>`;
+    }else{
+      // Assign a wonder to the target hex if it doesn't have one yet
+      if(target.hex.type==='wilderness'&&!target.hex.data.wonder&&target.hex.terrain&&typeof pick==='function'){
+        const terrainData=TERRAIN_DESC[target.hex.terrain.name];
+        if(terrainData&&terrainData.wonder&&Array.isArray(terrainData.wonder)){
+          if(!target.hex.data)target.hex.data={};
+          target.hex.data.wonder=pick(terrainData.wonder);
+        }
+      }
+      html+=`<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Successful Observation (${target.label})</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);">${formatObservedHexSummary(target.hex)}</div></div>`;
+    }
+  }else{
+    if(typeof addTMWOnFail==='function')addTMWOnFail('observation-failure');
+    html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">✗ Observation Failed</div>The horizon is obscured. No details visible.</div>`;
+  }
+  
+  openModal('Observation — Adjacent Hexes',html);
+  appendHexNote(col,row,`[Observation] Lead d${leadDie} vs DD${dreadDie} (${directionKey||'adjacent'}): ${actionValue} vs ${dreadValue} => ${success?'success':'failure'}`);
+}
 }
 
 function formatObservedHexSummary(hex){

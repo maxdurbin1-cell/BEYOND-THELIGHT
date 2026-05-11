@@ -6294,6 +6294,17 @@ function executeWayfarerAction(){
     var type2=v==='heavy_strike'?'strike':'shoot';
     if(!consumeCombatAction('Heavy Attack (first action)'))return;
     if(!consumeCombatAction('Heavy Attack (second action)'))return;
+    
+    // Check if manual roll mode is enabled
+    if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+      var baseDie=getEffectiveCombatDie(type2);
+      var enemyDie=S.combat&&S.combat.enemyDread?S.combat.enemyDread:6;
+      window.selectedDice={action:baseDie,dread:enemyDie};
+      window.heavyAttackData={type:type2,advDie:S&&S.stats&&S.stats.adventure?S.stats.adventure:4};
+      performCombatActionManualRoll(type2);
+      return;
+    }
+    
     var advDie=S&&S.stats&&S.stats.adventure?S.stats.adventure:4;
     var affixBonus=getEquippedAffixCombatBonuses();
     var die = getEffectiveCombatDie(type2);
@@ -6328,8 +6339,20 @@ function executeWayfarerAction(){
       showNotif('Fast Attack can only be used once per encounter.','warn');
       return;
     }
+    
     var type3=v==='fast_strike'?'strike':'shoot';
     var advDie3=S&&S.stats&&S.stats.adventure?S.stats.adventure:4;
+    
+    // Check if manual roll mode is enabled
+    if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+      var baseDie3=getEffectiveCombatDie(type3);
+      var enemyDie3=S.combat&&S.combat.enemyDread?S.combat.enemyDread:8;
+      window.selectedDice={action:baseDie3,dread:enemyDie3};
+      window.fastAttackData={type:type3,advDie:advDie3};
+      performCombatActionManualRoll(type3);
+      return;
+    }
+    
     var die3 = getEffectiveCombatDie(type3);
     var aRoll3=explodingRoll(die3,{type:'action',major:true,label:'Fast '+type3});
     var penRoll=explodingRoll(advDie3,{type:'dread',label:'Fast Penalty Die'});
@@ -8426,6 +8449,16 @@ function rollAttack(type) {
     S.combat.autoReloaderShots=Math.max(0,(S.combat.autoReloaderShots||0)-1);
     if(S.combat.autoReloaderShots<=0)S.combat.autoReloaderActionSpent=false;
   }else if(!consumeCombatAction(type==='strike'?'Strike action':'Shoot action'))return;
+
+  // Check if manual roll mode is enabled
+  if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+    // Set up dice selection and show manual roll prompt
+    var baseDie=type==='strike'?getEffectiveCombatDie('strike'):getEffectiveCombatDie('shoot');
+    var enemyDie=S.combat&&S.combat.enemyDread?S.combat.enemyDread:6;
+    window.selectedDice={action:baseDie,dread:enemyDie};
+    performCombatActionManualRoll(type);
+    return;
+  }
 
   var affixBonus=getEquippedAffixCombatBonuses();
   var die = getEffectiveCombatDie(type);

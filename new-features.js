@@ -7468,6 +7468,96 @@
 
   window.showEnhancedManualRollPrompt = showEnhancedManualRollPrompt;
   window.awardPathToken = awardPathToken;
+  
+  // ── COMBAT MANUAL ROLL HANDLER ──────────────────────────────────────────────
+  window.performCombatActionManualRoll = function(type) {
+    if (!type || (type !== 'strike' && type !== 'shoot')) return;
+    
+    var actionDie = window.selectedDice.action || 4;
+    var dreadDie = window.selectedDice.dread || 6;
+    var skillLabel = type === 'strike' ? 'Strike' : 'Shoot';
+    
+    var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.7;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);margin-bottom:.4rem;">'
+      + skillLabel + ' vs Dread d' + dreadDie
+      + '</div>'
+      + '<div style="background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.25);padding:.35rem .45rem;margin-bottom:.4rem;border-radius:3px;">'
+      + '<div style="font-size:.75rem;color:var(--teal);margin-bottom:.15rem;"><strong>Roll Against:</strong></div>'
+      + '<div><strong style="color:var(--text2);">' + skillLabel + ' d' + actionDie + '</strong> <span style="color:var(--muted2);">vs</span> <strong style="color:var(--red);">Dread d' + dreadDie + '</strong></div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.4rem;">'
+      + '<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">' + skillLabel + ' d' + actionDie + '</label><input type="number" id="combatManualActionValue" min="1" max="' + actionDie + '" placeholder="1-' + actionDie + '" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
+      + '<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d' + dreadDie + '</label><input type="number" id="combatManualDreadValue" min="1" max="' + dreadDie + '" placeholder="1-' + dreadDie + '" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.35rem;justify-content:flex-end;">'
+      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="finalizeCombatManualRoll(\'' + type + '\')">⚄ Resolve</button>'
+      + '</div>';
+    
+    openModal('Manual ' + skillLabel + ' Roll', html);
+  };
+  
+  window.finalizeCombatManualRoll = function(type) {
+    closeModal();
+    var actionInput = document.getElementById('combatManualActionValue');
+    var dreadInput = document.getElementById('combatManualDreadValue');
+    
+    if (!actionInput || !dreadInput) {
+      if (typeof showNotif === 'function') showNotif('Inputs not found', 'warn');
+      return;
+    }
+    
+    var actionValue = parseInt(actionInput.value, 10);
+    var dreadValue = parseInt(dreadInput.value, 10);
+    
+    if (!Number.isFinite(actionValue) || !Number.isFinite(dreadValue)) {
+      if (typeof showNotif === 'function') showNotif('Invalid dice entry', 'warn');
+      return;
+    }
+    
+    var actionDie = window.selectedDice.action || 4;
+    var dreadDie = window.selectedDice.dread || 6;
+    
+    if (actionValue < 1 || actionValue > actionDie || dreadValue < 1 || dreadValue > dreadDie) {
+      if (typeof showNotif === 'function') showNotif('Dice values out of range', 'warn');
+      return;
+    }
+    
+    // Store manual roll results in a temporary state for rollAttack/executeWayfarerAction to use
+    window.manualRollData = {
+      type: type,
+      actionRoll: actionValue,
+      dreadRoll: dreadValue,
+      actionDie: actionDie,
+      dreadDie: dreadDie
+    };
+    
+    if (typeof showDccSuccessOutcome === 'function') {
+      var success = actionValue >= dreadValue;
+      var diff = Math.max(1, success ? actionValue - dreadValue : dreadValue - actionValue);
+      
+      if (success) {
+        if (typeof awardPathToken === 'function') awardPathToken('manual-combat-success');
+        if (typeof addSuccessRoll === 'function') addSuccessRoll();
+        showDccSuccessOutcome(type, diff, {
+          actionTotal: actionValue,
+          dreadTotal: dreadValue,
+          context: (type === 'strike' ? 'Strike' : 'Shoot') + ' vs Enemy Dread (manual roll)'
+        });
+      } else {
+        addTMWOnFail('manual-combat-failure');
+        showDccFailureOutcome(type, diff, {
+          actionTotal: actionValue,
+          dreadTotal: dreadValue,
+          context: (type === 'strike' ? 'Strike' : 'Shoot') + ' vs Enemy Dread (manual roll)'
+        });
+      }
+    }
+    
+    // Clear manual roll data after a delay to allow for any follow-up actions
+    setTimeout(function() { window.manualRollData = null; }, 1000);
+  };
   window.manualRollOutcomeFailure = manualRollOutcomeFailure;
   window.handleManualRollFailure = handleManualRollFailure;
   window.awardFailureTeamwork = awardFailureTeamwork;

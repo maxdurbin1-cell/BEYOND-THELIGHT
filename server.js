@@ -18,6 +18,16 @@ const PORT = Number(process.env.PORT || 3000);
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
 const STORE_PATH = path.resolve(process.env.CAMPAIGN_STORE_PATH || path.join(__dirname, "campaign-data.json"));
+const LICENSE_STORE_PATH = path.resolve(process.env.LICENSE_STORE_PATH || path.join(__dirname, "license-data.json"));
+const ACCESS_PAGE_PATH = path.join(__dirname, "access.html");
+const PAYWALL_SESSION_COOKIE = "btl_access_session";
+const PAYWALL_SESSION_TTL_MS = Math.max(24 * 60 * 60 * 1000, Number(process.env.PAYWALL_SESSION_TTL_MS) || (90 * 24 * 60 * 60 * 1000));
+const LICENSE_CODE_LENGTH = Math.max(6, Number(process.env.LICENSE_CODE_LENGTH) || 10);
+const GOD_KEY_HASH = String(process.env.PAYWALL_GOD_KEY_HASH || "").trim().toLowerCase();
+const GOD_KEY_PLAINTEXT = String(process.env.PAYWALL_GOD_KEY || "").trim();
+const PAYWALL_ADMIN_KEY = String(process.env.PAYWALL_ADMIN_KEY || "").trim();
+const PRICE_SINGLE_CENTS = 1000;
+const PRICE_BUNDLE4_CENTS = 2500;
 const GM_ONLY_EVENTS = {
   "campaign:archive": true,
   "campaign:unarchive": true,
@@ -81,6 +91,14 @@ const AUDIO_PROXY_ALLOWED_HOSTS = new Set([
 const campaigns = new Map();
 let persistTimer = null;
 let persistQueued = false;
+const licenseStore = {
+  version: 1,
+  updatedAt: Date.now(),
+  licenses: {},
+  sessions: {}
+};
+
+app.use(express.json({ limit: "256kb" }));
 
 function safeClone(value) {
   if (value === null || value === undefined) return value;
@@ -190,6 +208,208 @@ function randomCode(length) {
 
 function randomToken(length) {
   return randomFromChars(length, TOKEN_CHARS);
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeLicenseCode(value) {
+  return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function hashString(value) {
+  return crypto.createHash("sha256").update(String(value || "")).digest("hex");
+}
+
+function computeGodKeyHash() {
+  if (GOD_KEY_HASH) return GOD_KEY_HASH;
+  if (!GOD_KEY_PLAINTEXT) return "";
+  return hashString(normalizeLicenseCode(GOD_KEY_PLAINTEXT));
+}
+
+function isGodKey(inputCode) {
+  const hash = computeGodKeyHash();
+  const normalized = normalizeLicenseCode(inputCode);
+  if (!hash || !normalized) return false;
+  return hashString(normalized).toLowerCase() === hash;
+}
+
+function parseCookies(req) {
+  const header = String((req && req.headers && req.headers.cookie) || "");
+  const out = {};
+  if (!header) return out;
+  const parts = header.split(";");
+  for (let i = 0; i < parts.length; i += 1) {
+    const pair = parts[i] || "";
+    const eq = pair.indexOf("=");
+    if (eq <= 0) continue;
+    const key = pair.slice(0, eq).trim();
+    const value = pair.slice(eq + 1).trim();
+    if (!key) continue;
+    out[key] = decodeURIComponent(value || "");
+  }
+  return out;
+}
+
+function makeCookie(name, value, opts) {
+  const options = opts || {};
+  const parts = [`${name}=${encodeURIComponent(String(value || ""))}`];
+  parts.push(`Path=${options.path || "/"}`);
+  if (typeof options.maxAgeSeconds === "number") parts.push(`Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`);
+  if (options.httpOnly !== false) parts.push("HttpOnly");
+  if (options.sameSite) parts.push(`SameSite=${options.sameSite}`);
+  if (options.secure) parts.push("Secure");
+  return parts.join("; ");
+}
+
+function safeSessionForResponse(session) {
+  if (!session) return null;
+  return {
+    email: String(session.email || ""),
+    isGod: !!session.isGod,
+    expiresAt: Number(session.expiresAt || 0)
+  };
+}
+
+function persistLicenseStoreNow() {
+  const data = {
+    version: 1,
+    updatedAt: Date.now(),
+    licenses: licenseStore.licenses && typeof licenseStore.licenses === "object" ? licenseStore.licenses : {},
+    sessions: licenseStore.sessions && typeof licenseStore.sessions === "object" ? licenseStore.sessions : {}
+  };
+  fs.mkdirSync(path.dirname(LICENSE_STORE_PATH), { recursive: true });
+  fs.writeFileSync(LICENSE_STORE_PATH, JSON.stringify(data, null, 2), "utf8");
+}
+
+function persistLicenseStoreSafe() {
+  try {
+    persistLicenseStoreNow();
+  } catch (err) {
+    console.warn("Could not persist license store:", err && err.message ? err.message : err);
+  }
+}
+
+function loadLicenseStoreFromDisk() {
+  try {
+    if (!fs.existsSync(LICENSE_STORE_PATH)) return;
+    const raw = fs.readFileSync(LICENSE_STORE_PATH, "utf8");
+    if (!raw.trim()) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.licenses && typeof parsed.licenses === "object") {
+      licenseStore.licenses = parsed.licenses;
+    }
+    if (parsed && parsed.sessions && typeof parsed.sessions === "object") {
+      licenseStore.sessions = parsed.sessions;
+    }
+    licenseStore.updatedAt = Number(parsed && parsed.updatedAt) || Date.now();
+  } catch (err) {
+    console.warn("Could not load license store:", err && err.message ? err.message : err);
+  }
+}
+
+function createLicenseCode() {
+  let tries = 0;
+  while (tries < 4000) {
+    const raw = randomCode(LICENSE_CODE_LENGTH);
+    const code = normalizeLicenseCode(raw);
+    if (!code) {
+      tries += 1;
+      continue;
+    }
+    if (!Object.prototype.hasOwnProperty.call(licenseStore.licenses, code)) return code;
+    tries += 1;
+  }
+  throw new Error("Could not allocate license code");
+}
+
+function createAccessSession(email, code, isGodUser) {
+  let tries = 0;
+  while (tries < 3000) {
+    const token = randomToken(32);
+    if (Object.prototype.hasOwnProperty.call(licenseStore.sessions, token)) {
+      tries += 1;
+      continue;
+    }
+    const now = Date.now();
+    const session = {
+      token,
+      email: normalizeEmail(email),
+      code: normalizeLicenseCode(code),
+      isGod: !!isGodUser,
+      createdAt: now,
+      lastSeenAt: now,
+      expiresAt: now + PAYWALL_SESSION_TTL_MS
+    };
+    licenseStore.sessions[token] = session;
+    licenseStore.updatedAt = now;
+    persistLicenseStoreSafe();
+    return session;
+  }
+  throw new Error("Could not create access session");
+}
+
+function getSessionFromRequest(req) {
+  const cookies = parseCookies(req);
+  const token = String(cookies[PAYWALL_SESSION_COOKIE] || "").trim();
+  if (!token) return null;
+  const session = licenseStore.sessions[token];
+  if (!session || typeof session !== "object") return null;
+  const now = Date.now();
+  if (Number(session.expiresAt || 0) <= now) {
+    delete licenseStore.sessions[token];
+    licenseStore.updatedAt = now;
+    persistLicenseStoreSafe();
+    return null;
+  }
+  if ((now - Number(session.lastSeenAt || 0)) > 60 * 1000) {
+    session.lastSeenAt = now;
+    persistLicenseStoreSafe();
+  }
+  return session;
+}
+
+function clearSessionByRequest(req) {
+  const cookies = parseCookies(req);
+  const token = String(cookies[PAYWALL_SESSION_COOKIE] || "").trim();
+  if (!token) return;
+  if (Object.prototype.hasOwnProperty.call(licenseStore.sessions, token)) {
+    delete licenseStore.sessions[token];
+    licenseStore.updatedAt = Date.now();
+    persistLicenseStoreSafe();
+  }
+}
+
+function isHtmlRequest(req) {
+  const accept = String((req && req.headers && req.headers.accept) || "").toLowerCase();
+  return accept.includes("text/html") || accept.includes("application/xhtml+xml");
+}
+
+function isPaywallPublicPath(pathname) {
+  const p = String(pathname || "").trim();
+  if (!p) return false;
+  if (p === "/access" || p === "/access.html" || p === "/paywall-gate.js") return true;
+  if (p.startsWith("/api/license/")) return true;
+  return false;
+}
+
+function requirePaywallAccess(req, res, next) {
+  if (isPaywallPublicPath(req.path)) {
+    next();
+    return;
+  }
+  const session = getSessionFromRequest(req);
+  if (session) {
+    req.accessSession = session;
+    next();
+    return;
+  }
+  if (isHtmlRequest(req)) {
+    res.redirect(302, "/access");
+    return;
+  }
+  res.status(401).json({ ok: false, error: "Access code required." });
 }
 
 function hashPassword(password, salt) {
@@ -846,6 +1066,145 @@ function detachSocket(socket, opts) {
   emitCampaignState(campaign.code);
 }
 
+app.get("/access", (_req, res) => {
+  res.sendFile(ACCESS_PAGE_PATH);
+});
+
+app.get("/api/license/status", (req, res) => {
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    res.json({ ok: true, authorized: false });
+    return;
+  }
+  res.json({ ok: true, authorized: true, session: safeSessionForResponse(session) });
+});
+
+app.post("/api/license/logout", (req, res) => {
+  clearSessionByRequest(req);
+  res.setHeader("Set-Cookie", makeCookie(PAYWALL_SESSION_COOKIE, "", {
+    path: "/",
+    maxAgeSeconds: 0,
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: !!req.secure
+  }));
+  res.json({ ok: true });
+});
+
+app.post("/api/license/issue", (req, res) => {
+  if (!PAYWALL_ADMIN_KEY) {
+    res.status(503).json({ ok: false, error: "PAYWALL_ADMIN_KEY is not configured on the server." });
+    return;
+  }
+  const providedKey = String(req.get("x-admin-key") || "").trim();
+  if (!providedKey || providedKey !== PAYWALL_ADMIN_KEY) {
+    res.status(403).json({ ok: false, error: "Admin key is invalid." });
+    return;
+  }
+
+  const email = normalizeEmail(req.body && req.body.email);
+  const quantity = Number(req.body && req.body.quantity);
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    res.status(400).json({ ok: false, error: "A valid buyer email is required." });
+    return;
+  }
+  if (quantity !== 1 && quantity !== 4) {
+    res.status(400).json({ ok: false, error: "Quantity must be 1 or 4." });
+    return;
+  }
+
+  const pricePerPack = quantity === 4 ? PRICE_BUNDLE4_CENTS : PRICE_SINGLE_CENTS;
+  const issued = [];
+  const now = Date.now();
+  try {
+    for (let i = 0; i < quantity; i += 1) {
+      const code = createLicenseCode();
+      licenseStore.licenses[code] = {
+        code,
+        email,
+        issuedAt: now,
+        priceCents: pricePerPack,
+        bundleSize: quantity,
+        redeemedByEmail: "",
+        redeemedAt: 0,
+        disabled: false
+      };
+      issued.push(code);
+    }
+    licenseStore.updatedAt = now;
+    persistLicenseStoreSafe();
+  } catch (err) {
+    res.status(500).json({ ok: false, error: "Could not issue license codes." });
+    return;
+  }
+
+  res.json({
+    ok: true,
+    email,
+    quantity,
+    totalPriceCents: pricePerPack,
+    totalPriceUsd: (pricePerPack / 100).toFixed(2),
+    codes: issued
+  });
+});
+
+app.post("/api/license/login", (req, res) => {
+  const email = normalizeEmail(req.body && req.body.email);
+  const submittedCode = normalizeLicenseCode(req.body && req.body.code);
+  if (!email || !submittedCode) {
+    res.status(400).json({ ok: false, error: "Email and access code are required." });
+    return;
+  }
+
+  const now = Date.now();
+  const isGod = isGodKey(submittedCode);
+  if (!isGod) {
+    const license = licenseStore.licenses[submittedCode];
+    if (!license || typeof license !== "object") {
+      res.status(403).json({ ok: false, error: "That access code is not recognized." });
+      return;
+    }
+    if (license.disabled) {
+      res.status(403).json({ ok: false, error: "That access code has been disabled." });
+      return;
+    }
+    if (normalizeEmail(license.email) !== email) {
+      res.status(403).json({ ok: false, error: "This code does not belong to that email." });
+      return;
+    }
+    const redeemedByEmail = normalizeEmail(license.redeemedByEmail);
+    if (redeemedByEmail && redeemedByEmail !== email) {
+      res.status(403).json({ ok: false, error: "This code has already been redeemed by a different email." });
+      return;
+    }
+    if (!redeemedByEmail) {
+      license.redeemedByEmail = email;
+      license.redeemedAt = now;
+      licenseStore.updatedAt = now;
+      persistLicenseStoreSafe();
+    }
+  }
+
+  let session;
+  try {
+    session = createAccessSession(email, submittedCode, isGod);
+  } catch (_err) {
+    res.status(500).json({ ok: false, error: "Could not create access session." });
+    return;
+  }
+
+  res.setHeader("Set-Cookie", makeCookie(PAYWALL_SESSION_COOKIE, session.token, {
+    path: "/",
+    maxAgeSeconds: Math.floor(PAYWALL_SESSION_TTL_MS / 1000),
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: !!req.secure
+  }));
+  res.json({ ok: true, authorized: true, session: safeSessionForResponse(session) });
+});
+
+app.use(requirePaywallAccess);
+
 function isAllowedAudioProxyHost(hostname) {
   const host = String(hostname || "").toLowerCase().trim();
   if (!host) return false;
@@ -914,6 +1273,7 @@ app.get("/api/audio-proxy", async (req, res) => {
 
 app.use(express.static(path.join(__dirname)));
 
+loadLicenseStoreFromDisk();
 loadCampaignsFromDisk();
 
 io.on("connection", (socket) => {
@@ -1753,12 +2113,18 @@ io.on("connection", (socket) => {
 
 process.on("SIGINT", () => {
   try {
+    persistLicenseStoreNow();
+  } catch (_err) {}
+  try {
     persistCampaignsNow();
   } catch (_err) {}
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
+  try {
+    persistLicenseStoreNow();
+  } catch (_err) {}
   try {
     persistCampaignsNow();
   } catch (_err) {}

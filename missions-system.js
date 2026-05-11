@@ -3350,6 +3350,34 @@
     { id: 'exile_assassins_strike', label: "Assassin's Strike", group: 'action', subclass: 'Exile', detail: 'Reaction · 1 AP. If an enemy is not engaged with you and you attack from behind or cover, make Strike or Shoot with +2.', cost: 1, requires: ['exile_master_of_deception', 'exile_slippery_target'], requiresAny: [], actionId: 'exile_assassins_strike' },
     { id: 'exile_teamwork_sync_strike', label: 'Synchronized Strike', group: 'teamwork', subclass: 'Exile', detail: 'Teamwork. After 7 Teamwork Points are accrued, spend all remaining AP to deal bonus damage equal to your Strike die and impose Disadvantage d8 on the enemy\'s next roll.', cost: 1, requires: ['exile_assassins_strike', 'exile_evasive_maneuvers'], requiresAny: [] },
 
+    // ── GODBOUND CORE ───────────────────────────────────────────────────────
+    { id: 'godbound_root_defend_d20', label: 'Godbound Core: Defend d20', group: 'root', subclass: 'Godbound', detail: 'Set your Defend die to d20. Foundational Godbound resolve and divine fortitude.', cost: 1, requires: [], requiresAny: [] },
+    { id: 'godbound_religious_knowledge', label: 'Religious Knowledge', group: 'passive', subclass: 'Godbound', detail: 'Gain Advantage d8 on checks to recall doctrine, rites, and sacred scripture.', cost: 1, requires: ['godbound_root_defend_d20'], requiresAny: [] },
+    { id: 'godbound_medicine_check', label: 'Medicine Check', group: 'passive', subclass: 'Godbound', detail: 'Gain Advantage d8 on medicine checks to diagnose, stabilize, and treat injuries.', cost: 1, requires: ['godbound_root_defend_d20'], requiresAny: [] },
+    { id: 'godbound_purifying_strike', label: 'Purifying Strike', group: 'passive', subclass: 'Godbound', detail: 'Your attacks can cleanse corruption and dispel magical effects. Gain Advantage d8 on attack rolls made to disrupt ongoing magic or harm demonic and undead foes.', cost: 1, requires: ['godbound_religious_knowledge'], requiresAny: [] },
+    { id: 'godbound_martyrs_sacrifice_passive', label: "Martyr's Sacrifice", group: 'passive', subclass: 'Godbound', detail: 'Your devotion is profound. Gain Advantage d8 on checks made to resist conditions.', cost: 1, requires: ['godbound_medicine_check'], requiresAny: [] },
+    { id: 'godbound_divine_guidance', label: 'Divine Guidance', group: 'passive', subclass: 'Godbound', detail: 'Gain Advantage d8 on checks to navigate unfamiliar territory, recall religious teachings, or make critical decisions aligned with your faith.', cost: 1, requires: ['godbound_religious_knowledge'], requiresAny: [] },
+    { id: 'godbound_shield_of_faith', label: 'Shield of Faith', group: 'passive', subclass: 'Godbound', detail: 'Add a d8 to Defend rolls while standing against overwhelming odds (Mental Stress 10+ or surrounded by 4 or more enemies).', cost: 1, requires: ['godbound_martyrs_sacrifice_passive', 'godbound_divine_guidance'], requiresAny: [] },
+    { id: 'godbound_divine_protection', label: 'Divine Protection', group: 'passive', subclass: 'Godbound', detail: 'Once per encounter, when you would take damage, you may reduce that damage by 1.', cost: 1, requires: ['godbound_shield_of_faith'], requiresAny: [] },
+    { id: 'godbound_unyielding_belief', label: 'Unyielding Belief', group: 'passive', subclass: 'Godbound', detail: 'Gain advantage on checks against negative conditions, reflecting unwavering faith.', cost: 1, requires: ['godbound_divine_protection'], requiresAny: [] },
+    { id: 'godbound_sacred_armor', label: 'Sacred Armor', group: 'passive', subclass: 'Godbound', detail: 'Gain +1 to Defend while wearing armor or wielding a shield.', cost: 1, requires: ['godbound_unyielding_belief'], requiresAny: [] },
+    { id: 'godbound_zealous_strike', label: 'Zealous Strike', group: 'passive', subclass: 'Godbound', detail: 'When you successfully hit a creature that opposes your faith, add an extra d4 damage.', cost: 1, requires: ['godbound_sacred_armor'], requiresAny: [] },
+    { id: 'godbound_faith_healing', label: 'Faith Healing', group: 'passive', subclass: 'Godbound', detail: 'Once per day, heal Injuries and Scars through divine restoration.', cost: 1, requires: ['godbound_zealous_strike'], requiresAny: [] },
+    { id: 'godbound_divine_retribution', label: 'Divine Retribution', group: 'action', subclass: 'Godbound', detail: 'Reaction · 1 AP. When hit by an enemy attack, immediately make a Strike or Shoot roll against the attacker with +2.', cost: 1, requires: ['godbound_purifying_strike'], requiresAny: [], actionId: 'godbound_divine_retribution' },
+    { id: 'godbound_faithful_shield', label: 'Faithful Shield', group: 'action', subclass: 'Godbound', detail: 'Reaction · 1 AP. When an ally within your reach is targeted by an enemy, impose step-down disadvantage on the enemy\'s attack roll.', cost: 1, requires: ['godbound_shield_of_faith'], requiresAny: [], actionId: 'godbound_faithful_shield' },
+    { id: 'godbound_martyrs_sacrifice_reaction', label: "Martyr's Sacrifice (Reaction)", group: 'action', subclass: 'Godbound', detail: 'Reaction · 1 AP. When you take damage, transfer half of that damage (rounded up) to the enemy that damaged you.', cost: 1, requires: ['godbound_martyrs_sacrifice_passive'], requiresAny: [], actionId: 'godbound_martyrs_sacrifice_reaction' },
+    { id: 'godbound_divine_intervention', label: 'Divine Intervention', group: 'action', subclass: 'Godbound', detail: '2 AP. Until the start of your next turn, damage you receive is halved (rounded down). If an enemy attack fails to beat your Defend die, that enemy loses 1 AP.', cost: 1, requires: ['godbound_divine_retribution'], requiresAny: [], actionId: 'godbound_divine_intervention' },
+    { id: 'godbound_smite_unworthy', label: 'Smite the Unworthy', group: 'action', subclass: 'Godbound', detail: '1 AP. Charge your weapon with divine energy. Roll your Body die plus your Defend for the attack.', cost: 1, requires: ['godbound_divine_intervention'], requiresAny: [], actionId: 'godbound_smite_unworthy' },
+    { id: 'godbound_radiant_shield', label: 'Radiant Shield', group: 'action', subclass: 'Godbound', detail: '1 AP. Project radiant protection around an ally. Until start of your next turn, damage they take is reduced by a roll of your Spirit die.', cost: 1, requires: ['godbound_smite_unworthy'], requiresAny: [], actionId: 'godbound_radiant_shield' },
+    { id: 'godbound_sacred_ground', label: 'Sacred Ground', group: 'action', subclass: 'Godbound', detail: '2 AP. Sanctify the area around you for 1 round. Allies engaged with you gain a Defend bonus equal to half your Defend die (d8 = +4).', cost: 1, requires: ['godbound_radiant_shield'], requiresAny: [], actionId: 'godbound_sacred_ground' },
+    { id: 'godbound_judgment_strike', label: 'Judgment Strike', group: 'action', subclass: 'Godbound', detail: '2 AP. Roll your Spirit die for the attack. On success, step down the enemy Dread die by one step (for example d6 to d4).', cost: 1, requires: ['godbound_sacred_ground'], requiresAny: [], actionId: 'godbound_judgment_strike' },
+    { id: 'godbound_teamwork_divine_convergence', label: 'Divine Convergence', group: 'teamwork', subclass: 'Godbound', detail: 'Teamwork. Requires 7 Teamwork Points. Spend all remaining AP to call divine intervention: allies gain +2 to their next attack roll and remove all Damage; enemies in your zone must make a Mind roll vs your Defend die or become Dazed and lose their next turn.', cost: 1, requires: ['godbound_judgment_strike'], requiresAny: [] },
+
+    // ── GODBOUND SUBCLASSES ────────────────────────────────────────────────
+    { id: 'voice_root', label: 'Voice Mastery', group: 'root', subclass: 'Voice', detail: 'Godbound subclass unlocked. The Voice channels divine command through conviction, proclamation, and battlefield leadership.', cost: 1, requires: ['godbound_teamwork_divine_convergence'], requiresAny: [] },
+    { id: 'justice_root', label: 'Justice Mastery', group: 'root', subclass: 'Justice', detail: 'Godbound subclass unlocked. Justice embodies righteous punishment and unwavering judgment against corruption.', cost: 1, requires: ['godbound_teamwork_divine_convergence'], requiresAny: [] },
+    { id: 'keeper_root', label: 'Keeper Mastery', group: 'root', subclass: 'Keeper', detail: 'Godbound subclass unlocked. The Keeper protects allies, preserves sacred order, and stands as a living bulwark.', cost: 1, requires: ['godbound_teamwork_divine_convergence'], requiresAny: [] },
+
     // ── BREEZE ─────────────────────────────────────────────────────────────
     // ── BREEZE ─────────────────────────────────────────────────────────────
     { id: 'breeze_root', label: 'Breeze Mastery', group: 'root', subclass: 'Breeze', detail: '1 RP. Breeze unlocked. Breezes are Rogues as elusive as the wind — stealth and evasion masters, nearly impossible to pin down. Gain Ad10 against traps, hazards, and barriers.', cost: 1, requires: ['exile_teamwork_sync_strike'], requiresAny: [] },
@@ -3411,6 +3439,7 @@
     if (hasTitanRaidNode('titan_root_defend_plus3')) bonus += 3;
     if (hasTitanRaidNode('titan_passive_armored_defense')) bonus += 1;
     if (hasTitanRaidNode('exile_passive_feature')) bonus += 1;
+    if (hasTitanRaidNode('godbound_sacred_armor')) bonus += 1;
     return bonus;
   }
 
@@ -4093,8 +4122,8 @@
 
     var titanPathHeader = '<div style="border:1px solid rgba(126,215,255,.28);background:linear-gradient(145deg, rgba(9,16,24,.96), rgba(12,18,30,.9));padding:.55rem .62rem;margin-top:.42rem;">'
       + '<div style="font-size:.78rem;color:#7ed7ff;margin-bottom:.1rem;"><strong>Raid Skill Paths</strong></div>'
-      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;">Path web framework: Titan, Exile, Godbound, Weaver. Titan and Exile are active with full subclass branches.</div>'
-      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Active subclasses: Titan (Tactician, Fury, Seeker) · Exile (Breeze, Stalker, Muse). Planned: Godbound (Voice, Justice, Keeper) · Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;">Path web framework: Titan, Exile, Godbound, Weaver. Titan, Exile, and Godbound are active with subclass branches.</div>'
+      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Active subclasses: Titan (Tactician, Fury, Seeker) · Exile (Breeze, Stalker, Muse) · Godbound (Voice, Justice, Keeper). Planned: Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
       + '</div>';
 
     var titanNodeMeta = TITAN_RAID_WEB_NODES.map(function (node) {
@@ -4126,6 +4155,10 @@
       Tactician: '#66d7ff',
       Fury: '#ff6e5f',
       Seeker: '#f5cf6a',
+      Godbound: '#f0d87a',
+      Voice: '#ffdca8',
+      Justice: '#f0a76e',
+      Keeper: '#b8dba2',
       Exile: '#7de2c4',
       Breeze: '#8bf1ff',
       Stalker: '#7bb8ff',
@@ -4186,6 +4219,10 @@
       Tactician:  { x: 420,  y: 440 },
       Fury:       { x: 1150, y: 330 },
       Seeker:     { x: 1880, y: 440 },
+      Godbound:   { x: 1880, y: 700 },
+      Voice:      { x: 1580, y: 440 },
+      Justice:    { x: 1880, y: 330 },
+      Keeper:     { x: 2180, y: 440 },
       Exile:      { x: 2620, y: 700 },
       Breeze:     { x: 2320, y: 440 },
       Stalker:    { x: 2620, y: 330 },
@@ -4195,7 +4232,7 @@
     var groupRingMap     = { root: 62, passive: 122, action: 195, teamwork: 272 };
     var groupRingTitan   = { root: 45, passive: 85,  action: 130, teamwork: 175 };
     // Arc center direction (degrees) pointing AWAY from Titan core
-    var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340, Exile: 270, Breeze: 200, Stalker: 270, Muse: 340 };
+    var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340, Godbound: 270, Voice: 200, Justice: 270, Keeper: 340, Exile: 270, Breeze: 200, Stalker: 270, Muse: 340 };
     // First pass: count per (subclass, group) bucket for dynamic spread
     var bcCount = {};
     titanNodeMeta.forEach(function (n) {
@@ -4272,7 +4309,7 @@
         edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="rgba(255,213,106,.25)" stroke-width="2" stroke-dasharray="5 4" />';
       });
     });
-    ['Tactician', 'Fury', 'Seeker', 'Titan', 'Breeze', 'Stalker', 'Muse', 'Exile'].forEach(function (subclass) {
+    ['Tactician', 'Fury', 'Seeker', 'Titan', 'Voice', 'Justice', 'Keeper', 'Godbound', 'Breeze', 'Stalker', 'Muse', 'Exile'].forEach(function (subclass) {
       var chain = titanNodeMeta.filter(function (n) { return n.subclass === subclass; }).sort(function (a, b) {
         if (a.tier !== b.tier) return a.tier - b.tier;
         return a.y - b.y;
@@ -4529,6 +4566,10 @@
         tStats.control = Math.max(20, Number(tStats.control || 4));
         if (typeof updateDieDisplay === 'function') updateDieDisplay('control');
       }
+      if (String(node.id) === 'godbound_root_defend_d20') {
+        tStats.defend = Math.max(20, Number(tStats.defend || 4));
+        if (typeof updateDieDisplay === 'function') updateDieDisplay('defend');
+      }
       if (String(node.id) === 'exile_passive_feature') {
         tStats.exileDefendBonus = Math.max(1, Number(tStats.exileDefendBonus || 0) + 1);
         tStats.exileControlBonus = Math.max(1, Number(tStats.exileControlBonus || 0) + 1);
@@ -4537,6 +4578,10 @@
       if (String(node.id) === 'tact_root') { profile.tactRootUnlocked = true; }
       if (String(node.id) === 'fury_root')  { profile.furyRootUnlocked = true; profile.furyBodyD10 = true; }
       if (String(node.id) === 'seek_root')  { profile.seekRootUnlocked = true; }
+      if (String(node.id) === 'godbound_root_defend_d20') { profile.godboundRootUnlocked = true; }
+      if (String(node.id) === 'voice_root') { profile.voiceRootUnlocked = true; }
+      if (String(node.id) === 'justice_root') { profile.justiceRootUnlocked = true; }
+      if (String(node.id) === 'keeper_root') { profile.keeperRootUnlocked = true; }
       if (String(node.id) === 'exile_root_control_d20') { profile.exileRootUnlocked = true; }
       if (String(node.id) === 'breeze_root') { profile.breezeRootUnlocked = true; }
       // Breeze passive bonuses

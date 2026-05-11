@@ -1282,6 +1282,112 @@
     `;
   }
 
+  function isSeaManualRollMode() {
+    if (!window.settingsSystem || typeof window.settingsSystem.isManualRollMode !== 'function') return false;
+    return !!window.settingsSystem.isManualRollMode();
+  }
+
+  function stepSeaManualDreadDie(current) {
+    var chain = [4, 6, 8, 10, 12, 20];
+    var die = Math.max(4, Number(current || 6));
+    var idx = chain.indexOf(die);
+    if (idx < 0) idx = 1;
+    return chain[Math.min(chain.length - 1, idx + 1)];
+  }
+
+  function buildSeaManualModifierSummary(statKey) {
+    var key = String(statKey || 'lead').toLowerCase();
+    var parts = [];
+    if (typeof collectInventoryBonusesForStat === 'function') {
+      var inv = collectInventoryBonusesForStat(key) || { advDice: [], flat: 0, addAdventure: 0 };
+      if (Array.isArray(inv.advDice) && inv.advDice.length) parts.push('Advantage dice: ' + inv.advDice.map(function(d) { return 'd' + Number(d); }).join(', '));
+      if (Number(inv.flat || 0) !== 0) parts.push('Flat modifier: ' + (Number(inv.flat) > 0 ? '+' : '') + Number(inv.flat));
+      if (Number(inv.addAdventure || 0) > 0) parts.push('Bonus Adventure rolls: +' + Number(inv.addAdventure));
+    }
+    if (S && S.conditions && typeof S.conditions === 'object') {
+      var active = Object.keys(S.conditions).filter(function(c) { return !!S.conditions[c]; });
+      if (active.length) parts.push('Conditions: ' + active.map(function(c) { return c.charAt(0).toUpperCase() + c.slice(1); }).join(', '));
+    }
+    if (!parts.length) return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">No active modifiers detected.</div>';
+    return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;line-height:1.5;">'
+      + parts.map(function(p) { return '<div>• ' + p + '</div>'; }).join('')
+      + '</div>';
+  }
+
+  function openSeaManualActionDreadPrompt(config) {
+    if (typeof openModal !== 'function') return false;
+    var cfg = config || {};
+    var statKey = String(cfg.statKey || 'lead').toLowerCase();
+    var statLabel = String(cfg.statLabel || (statKey.charAt(0).toUpperCase() + statKey.slice(1)));
+    var title = String(cfg.title || 'Manual Roll');
+    var actionDie = Math.max(4, Number(cfg.actionDie || ((typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : 6) || 6));
+    var dreadDie = Math.max(4, Number(cfg.dreadDie || 6));
+    var context = String(cfg.context || title);
+    var currentTMW = Math.max(0, Number((S && S.tmw) || 0));
+    var pushDread = stepSeaManualDreadDie(dreadDie);
+    var modifiersHtml = buildSeaManualModifierSummary(statKey);
+
+    window._pendingSeaManualActionCheck = {
+      statKey: statKey,
+      statLabel: statLabel,
+      actionDie: actionDie,
+      dreadDie: dreadDie,
+      resolver: (typeof cfg.onResolve === 'function') ? cfg.onResolve : null
+    };
+
+    var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.78rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.28rem;">' + context + '</div>'
+      + '<div><strong>' + statLabel + ' d' + actionDie + '</strong> vs <strong style="color:var(--red2);">Dread d' + dreadDie + '</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Roll manually, then choose outcome.</div>'
+      + modifiersHtml
+      + '<div style="margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);">'
+      + '<div style="font-size:.74rem;color:var(--gold2);"><strong>Teamwork:</strong> ' + currentTMW + ' TMW</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.1rem;">Push Luck costs 2 TMW and raises Dread to d' + pushDread + '.</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.45rem;">'
+      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="resolveSeaManualActionCheck(true,false)">Success</button>'
+      + '<button class="btn btn-sm btn-red" onclick="resolveSeaManualActionCheck(false,false)">Failure</button>'
+      + '<button class="btn btn-sm btn-teal" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveSeaManualActionCheck(true,true)">Push Luck + Success</button>'
+      + '<button class="btn btn-sm btn-warn" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveSeaManualActionCheck(false,true)">Push Luck + Failure</button>'
+      + '</div>'
+      + '</div>';
+    openModal(title, html);
+    return true;
+  }
+
+  function resolveSeaManualActionCheck(success, pushLuck) {
+    var pending = window._pendingSeaManualActionCheck || null;
+    if (!pending) return;
+    var wantsPush = !!pushLuck;
+    var usedPush = false;
+    var finalDread = Number(pending.dreadDie || 6);
+    if (wantsPush) {
+      var tmw = Math.max(0, Number((S && S.tmw) || 0));
+      if (tmw < 2) {
+        if (typeof showNotif === 'function') showNotif('Need 2 Teamwork to Push Luck.', 'warn');
+        return;
+      }
+      if (typeof changeCounter === 'function') changeCounter('tmw', -2);
+      else S.tmw = Math.max(0, tmw - 2);
+      usedPush = true;
+      finalDread = stepSeaManualDreadDie(finalDread);
+    }
+    window._pendingSeaManualActionCheck = null;
+    if (typeof closeModal === 'function') closeModal();
+    if (typeof pending.resolver === 'function') {
+      pending.resolver({
+        success: !!success,
+        pushLuck: usedPush,
+        actionDie: Number(pending.actionDie || 4),
+        dreadDie: Number(finalDread || pending.dreadDie || 6),
+        statKey: pending.statKey,
+        manual: true
+      });
+    }
+  }
+  window.resolveSeaManualActionCheck = resolveSeaManualActionCheck;
+
   function resolveLastSeaWeatherCheck(stat) {
     if (!S.lastSea || !S.lastSea.weather) {
       showNotif('No weather check required right now.', 'warn');
@@ -1302,6 +1408,42 @@
     const checkStat = allowed.indexOf(chosen) >= 0 ? chosen : allowed[0];
     const statDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie(checkStat) : ((S.stats && S.stats[checkStat]) || 4);
     const dd = Number(weather.check.dd) || 8;
+    if (isSeaManualRollMode()) {
+      openSeaManualActionDreadPrompt({
+        title: 'Manual Roll - Sea Weather Check',
+        context: String(weather.label || 'Sea Weather') + ' weather pressure',
+        statKey: checkStat,
+        statLabel: capitalize(checkStat),
+        actionDie: statDie,
+        dreadDie: dd,
+        onResolve: function(outcome) {
+          const success = !!(outcome && outcome.success);
+          weather.checkResolved = true;
+          weather.checkLast = {
+            stat: checkStat,
+            statDie,
+            statRoll: 'manual',
+            dd: Number((outcome && outcome.dreadDie) || dd),
+            dreadRoll: 'manual',
+            success
+          };
+          if (!success) {
+            if (typeof changeMentalStress === 'function') changeMentalStress(1);
+            else {
+              S.mentalStress = (S.mentalStress || 0) + 1;
+              if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+            }
+          }
+          showNotif(
+            `${capitalize(checkStat)} d${statDie} vs Dread d${Number((outcome && outcome.dreadDie) || dd)} (manual). ${success ? 'Sea lane stabilized.' : 'You push through under strain (+1 Mental Stress).'}`,
+            success ? 'good' : 'warn'
+          );
+          renderLastSeaMap();
+          renderLastSeaInfo();
+        }
+      });
+      return;
+    }
     const statRoll = explodingRoll(statDie).total;
     const dreadRoll = explodingRoll(dd).total;
     const success = statRoll >= dreadRoll;
@@ -1899,37 +2041,57 @@
       checkBonus += 1;
       checkBonusNotes.push('Torchlight +1 while exploring');
     }
+    var finishDowntime = function(success, checkText) {
+      var outcomeBonusNotes = [];
+      if (success) {
+        applySeaDowntimeEffect(evt.successEffect);
+        updateSeaNpcMemory(hex, 'positive', 'Downtime success in ' + String(evt.activity || 'activity') + '.');
+        if (itemFlags.compass && evt.activity === 'explore') {
+          S.credits = (S.credits || 0) + 20;
+          if (typeof updateCreditsUI === 'function') updateCreditsUI();
+          outcomeBonusNotes.push('Compass route intel +20 credits');
+        }
+        if (itemFlags.factionItem && evt.activity === 'talk') {
+          if (typeof changeCounter === 'function') changeCounter('renown', 1);
+          outcomeBonusNotes.push('Faction token leverage +1 Renown');
+        }
+        if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      } else {
+        applySeaDowntimeEffect(evt.failEffect);
+        updateSeaNpcMemory(hex, 'negative', 'Downtime failure in ' + String(evt.activity || 'activity') + '.');
+        if (typeof addTMWOnFail === 'function') addTMWOnFail();
+      }
+      hex.downtimeLastResult = {
+        success: success,
+        check: checkText,
+        text: (success ? evt.success : evt.failure) + seaNarrativeBonusLine(checkBonusNotes.concat(outcomeBonusNotes))
+      };
+      hex.pendingDowntimeEvent = null;
+      renderLastSeaInfo(hex);
+      showNotif(hex.downtimeLastResult.text, success ? 'good' : 'warn');
+    };
+
+    if (isSeaManualRollMode()) {
+      openSeaManualActionDreadPrompt({
+        title: 'Manual Roll - Sea Downtime',
+        context: String(evt.name || 'Sea Downtime Activity'),
+        statKey: key,
+        statLabel: key.charAt(0).toUpperCase() + key.slice(1),
+        actionDie: die,
+        dreadDie: evt.dd || 6,
+        onResolve: function(outcome) {
+          var usedDd = Number((outcome && outcome.dreadDie) || (evt.dd || 6));
+          finishDowntime(!!(outcome && outcome.success), key.toUpperCase() + ' d' + die + ' vs DD' + usedDd + ' (manual' + (outcome && outcome.pushLuck ? ', Push Luck' : '') + ')');
+        }
+      });
+      return;
+    }
+
     var a = explodingRoll(die);
     var d = explodingRoll(evt.dd || 6);
     if (checkBonus) a.total += checkBonus;
     var success = a.total >= d.total;
-    var outcomeBonusNotes = [];
-    if (success) {
-      applySeaDowntimeEffect(evt.successEffect);
-      updateSeaNpcMemory(hex, 'positive', 'Downtime success in ' + String(evt.activity || 'activity') + '.');
-      if (itemFlags.compass && evt.activity === 'explore') {
-        S.credits = (S.credits || 0) + 20;
-        if (typeof updateCreditsUI === 'function') updateCreditsUI();
-        outcomeBonusNotes.push('Compass route intel +20 credits');
-      }
-      if (itemFlags.factionItem && evt.activity === 'talk') {
-        if (typeof changeCounter === 'function') changeCounter('renown', 1);
-        outcomeBonusNotes.push('Faction token leverage +1 Renown');
-      }
-      if (typeof addSuccessRoll === 'function') addSuccessRoll();
-    } else {
-      applySeaDowntimeEffect(evt.failEffect);
-      updateSeaNpcMemory(hex, 'negative', 'Downtime failure in ' + String(evt.activity || 'activity') + '.');
-      if (typeof addTMWOnFail === 'function') addTMWOnFail();
-    }
-    hex.downtimeLastResult = {
-      success: success,
-      check: key.toUpperCase() + ' d' + die + '=' + a.total + ' vs DD' + (evt.dd || 6) + '=' + d.total,
-      text: (success ? evt.success : evt.failure) + seaNarrativeBonusLine(checkBonusNotes.concat(outcomeBonusNotes))
-    };
-    hex.pendingDowntimeEvent = null;
-    renderLastSeaInfo(hex);
-    showNotif(hex.downtimeLastResult.text, success ? 'good' : 'warn');
+    finishDowntime(success, key.toUpperCase() + ' d' + die + '=' + a.total + ' vs DD' + (evt.dd || 6) + '=' + d.total);
   }
 
   function resolveSeaIslandPerilCheck(col, row) {
@@ -1943,6 +2105,34 @@
       leadRoll += 2;
       bonusNotes.push('Compass +2 Lead');
     }
+    var finalizeFog = function(success, checkLine) {
+      var stress = success ? 0 : 1;
+      if (!success && itemFlags.torch) {
+        stress = Math.max(0, stress - 1);
+        bonusNotes.push('Torch reduces fog stress by 1');
+      }
+      if (stress) ensureMentalStress(stress);
+      hex.resultHtml = `<div class="sea-result-title">Island Peril - Fog</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${checkLine} ${success ? 'You guide everyone through the fog.' : '+' + stress + ' Mental Stress from disorientation and panic.'}</div>${seaNarrativeBonusLine(bonusNotes)}`;
+      renderLastSeaInfo(hex);
+      showNotif(success ? 'Fog route secured.' : 'Fog peril hit the crew.', success ? 'good' : 'warn');
+    };
+
+    if (isSeaManualRollMode()) {
+      openSeaManualActionDreadPrompt({
+        title: 'Manual Roll - Island Peril',
+        context: 'Island Peril - Fog',
+        statKey: 'lead',
+        statLabel: 'Lead',
+        actionDie: leadDie,
+        dreadDie: 6,
+        onResolve: function(outcome) {
+          var dd = Number((outcome && outcome.dreadDie) || 6);
+          finalizeFog(!!(outcome && outcome.success), 'Lead d' + leadDie + ' vs DD' + dd + ' (manual' + (outcome && outcome.pushLuck ? ', Push Luck' : '') + ').');
+        }
+      });
+      return;
+    }
+
     var dreadRoll = explodingRoll(6).total;
     var success = leadRoll >= dreadRoll;
     var stress = success ? 0 : Math.max(1, dreadRoll - leadRoll);
@@ -1967,6 +2157,26 @@
       spiritRoll += 1;
       bonusNotes.push('Torch steadies the march (+1)');
     }
+    if (isSeaManualRollMode()) {
+      openSeaManualActionDreadPrompt({
+        title: 'Manual Roll - Exhaustion Check',
+        context: 'Island Exhaustion',
+        statKey: 'spirit',
+        statLabel: 'Spirit',
+        actionDie: spiritDie,
+        dreadDie: 6,
+        onResolve: function(outcome) {
+          var success = !!(outcome && outcome.success);
+          var usedDd = Number((outcome && outcome.dreadDie) || 6);
+          if (!success) ensureTrauma(1);
+          hex.resultHtml = `<div class="sea-result-title">Exhaustion</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Trauma Check: Spirit d${spiritDie} vs DD${usedDd} (manual${outcome && outcome.pushLuck ? ', Push Luck' : ''}). ${success ? 'You keep pressing inland without long-term harm.' : '+1 Trauma before pressing farther inland.'}</div>${seaNarrativeBonusLine(bonusNotes)}`;
+          renderLastSeaInfo(hex);
+          showNotif(success ? 'Exhaustion check passed.' : 'Exhaustion causes trauma.', success ? 'good' : 'warn');
+        }
+      });
+      return;
+    }
+
     var dreadRoll = explodingRoll(6).total;
     var success = spiritRoll >= dreadRoll;
     if (!success) ensureTrauma(1);
@@ -2327,6 +2537,30 @@
     if (!hex) return;
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
     var dreadDie = Math.max(1, Number(dd || 6));
+    var finalizePeril = function(success, checkLine) {
+      var diff = success ? 0 : 1;
+      if (diff) ensureMentalStress(diff);
+      hex.resultHtml = `<div class="sea-result-title">Peril - ${sanitizeInlineText(perilName || 'Open Sea Hazard')}</div><div style="font-size:.82rem;color:${success?'var(--green2)':'var(--red2)'};line-height:1.55;font-weight:700;">${success?'PASS':'FAIL'}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">${checkLine} ${success ? 'You hold course through the hazard.' : '+' + diff + ' Mental Stress from the stormfront impact.'}</div>`;
+      renderLastSeaInfo(hex);
+      showNotif(success ? 'Peril check passed.' : 'Peril hit the crew.', success ? 'good' : 'warn');
+    };
+
+    if (isSeaManualRollMode()) {
+      openSeaManualActionDreadPrompt({
+        title: 'Manual Roll - Open Sea Peril',
+        context: String(perilName || 'Open Sea Hazard'),
+        statKey: 'control',
+        statLabel: 'Control',
+        actionDie: die,
+        dreadDie: dreadDie,
+        onResolve: function(outcome) {
+          var usedDd = Number((outcome && outcome.dreadDie) || dreadDie);
+          finalizePeril(!!(outcome && outcome.success), 'Control d' + die + ' vs DD' + usedDd + ' (manual' + (outcome && outcome.pushLuck ? ', Push Luck' : '') + ').');
+        }
+      });
+      return;
+    }
+
     var controlRoll = explodingRoll(die).total;
     var dreadRoll = explodingRoll(dreadDie).total;
     var success = controlRoll >= dreadRoll;
@@ -2418,34 +2652,53 @@
     if (!node || node.explored) return;
     node.explored = true;
     const ad = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S && S.stats && S.stats.control) || 4);
+    var resolveNode = function(success, checkLine) {
+      var line = checkLine + ' ';
+      if (success) {
+        if (node.kind === 'salvage') {
+          const gain = Math.max(10, Number(crawl.salvageCredits || 40));
+          if (typeof resolveSeaEncounter === 'function') resolveSeaEncounter('salvage', String(crawl.salvageItem || 'Derelict Salvage'), { credits: gain, item: String(crawl.salvageItem || 'Derelict Salvage') });
+          line += 'Salvage secured.';
+        } else if (node.kind === 'task') {
+          if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+          line += 'Ship logs decrypted. +1 Teamwork.';
+        } else if (node.kind === 'lore') {
+          if (typeof window.tryAwardLoreBookDrop === 'function') window.tryAwardLoreBookDrop('derelict ship', 22);
+          line += 'Recovered lore fragments.';
+        } else if (node.kind === 'vampire') {
+          seedSeaEncounterCombat('Derelict Vampire', Math.max(1, Number(crawl.vampires || 1)), 10, 14);
+          line += 'Vampire nest stirred. Combat seeded.';
+        } else {
+          line += 'Hazard bypassed cleanly.';
+        }
+      } else {
+        if (typeof changeMentalStress === 'function') changeMentalStress(1);
+        line += 'You take +1 Mental Stress.';
+      }
+      if (typeof showNotif === 'function') showNotif(line, success ? 'good' : 'warn');
+      openModal('Derelict Ship Hexcrawl', buildSeaDerelictHexcrawlModal(col, row));
+      renderLastSeaInfo(hex);
+    };
+
+    if (isSeaManualRollMode()) {
+      openSeaManualActionDreadPrompt({
+        title: 'Manual Roll - Derelict Node',
+        context: String(node.label || 'Derelict Node'),
+        statKey: 'control',
+        statLabel: 'Control',
+        actionDie: ad,
+        dreadDie: Number(node.dd || 8),
+        onResolve: function(outcome) {
+          var usedDd = Number((outcome && outcome.dreadDie) || Number(node.dd || 8));
+          resolveNode(!!(outcome && outcome.success), 'Control d' + ad + ' vs DD' + usedDd + ' (manual' + (outcome && outcome.pushLuck ? ', Push Luck' : '') + ').');
+        }
+      });
+      return;
+    }
+
     const action = explodingRoll(ad, { type: 'action', label: 'Derelict Crawl' });
     const dread = explodingRoll(Number(node.dd || 8), { type: 'dread', label: 'Derelict Threat' });
-    const success = action.total >= dread.total;
-    let line = 'Control d' + ad + ' ' + action.total + ' vs DD' + Number(node.dd || 8) + ' ' + dread.total + '. ';
-    if (success) {
-      if (node.kind === 'salvage') {
-        const gain = Math.max(10, Number(crawl.salvageCredits || 40));
-        if (typeof resolveSeaEncounter === 'function') resolveSeaEncounter('salvage', String(crawl.salvageItem || 'Derelict Salvage'), { credits: gain, item: String(crawl.salvageItem || 'Derelict Salvage') });
-        line += 'Salvage secured.';
-      } else if (node.kind === 'task') {
-        if (typeof changeCounter === 'function') changeCounter('tmw', 1);
-        line += 'Ship logs decrypted. +1 Teamwork.';
-      } else if (node.kind === 'lore') {
-        if (typeof window.tryAwardLoreBookDrop === 'function') window.tryAwardLoreBookDrop('derelict ship', 22);
-        line += 'Recovered lore fragments.';
-      } else if (node.kind === 'vampire') {
-        seedSeaEncounterCombat('Derelict Vampire', Math.max(1, Number(crawl.vampires || 1)), 10, 14);
-        line += 'Vampire nest stirred. Combat seeded.';
-      } else {
-        line += 'Hazard bypassed cleanly.';
-      }
-    } else {
-      if (typeof changeMentalStress === 'function') changeMentalStress(1);
-      line += 'You take +1 Mental Stress.';
-    }
-    if (typeof showNotif === 'function') showNotif(line, success ? 'good' : 'warn');
-    openModal('Derelict Ship Hexcrawl', buildSeaDerelictHexcrawlModal(col, row));
-    renderLastSeaInfo(hex);
+    resolveNode(action.total >= dread.total, 'Control d' + ad + ' ' + action.total + ' vs DD' + Number(node.dd || 8) + ' ' + dread.total + '.');
   }
   window.resolveSeaDerelictHexNode = resolveSeaDerelictHexNode;
 
@@ -2632,6 +2885,38 @@
       if (effects.controlRoll) {
         const controlDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
         const dreadDie = effects.dread || 8;
+        if (isSeaManualRollMode()) {
+          openSeaManualActionDreadPrompt({
+            title: 'Manual Roll - Flee Encounter',
+            context: 'Flee from ' + String(target || 'threat'),
+            statKey: 'control',
+            statLabel: 'Control',
+            actionDie: controlDie,
+            dreadDie: dreadDie,
+            onResolve: function(outcome) {
+              var success = !!(outcome && outcome.success);
+              if (!success && effects.requireFightOnFail) {
+                const failStress = Math.max(1, effects.mentalStress || 1);
+                addMentalStress(failStress);
+                const escapedTarget = String(target).replace(/'/g, "&#39;");
+                const hexKey = S.lastSea && S.lastSea.selectedKey;
+                if (hexKey && S.lastSea && S.lastSea.map) {
+                  const hex = S.lastSea.map.find(h => h.key === hexKey);
+                  if (hex) {
+                    hex.resultHtml = `<div class="sea-result-title">Flee Failed</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Control d${controlDie} vs Dread d${Number((outcome && outcome.dreadDie) || dreadDie)} (manual${outcome && outcome.pushLuck ? ', Push Luck' : ''}). You fail to escape and take +${failStress} Mental Stress. You must fight ${target}.</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="resolveSeaEncounter('fight','${escapedTarget}',{mentalStress:${failStress},requireOutcome:true,dread:${Number((outcome && outcome.dreadDie) || dreadDie)}})">⚔ Fight ${target}</button><button class="btn btn-xs btn-gold" onclick="resolveSeaEncounter('negotiate','${escapedTarget}',{})">💬 Negotiate</button></div>`;
+                  }
+                }
+                renderLastSeaInfo();
+                showNotif(`Flee failed against ${target}. You must fight.`, 'warn');
+                return;
+              }
+              msg = `Escaped ${target}. Control d${controlDie} vs Dread d${Number((outcome && outcome.dreadDie) || dreadDie)} (manual${outcome && outcome.pushLuck ? ', Push Luck' : ''}).`;
+              if (bonusNotes.length) msg += ' [' + bonusNotes.join(' | ') + ']';
+              concludeSeaEncounter(msg || 'Action resolved.', 'good');
+            }
+          });
+          return;
+        }
         const actionRoll = explodingRoll(controlDie);
         if (itemFlags.compass) {
           actionRoll.total += 2;
@@ -2686,6 +2971,30 @@
     } else if (action === 'crewCalm') {
       var leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
       var calmDD = Math.max(4, Number(effects.dd || 8));
+      if (isSeaManualRollMode()) {
+        openSeaManualActionDreadPrompt({
+          title: 'Manual Roll - Crew Calm',
+          context: 'Crew Calm',
+          statKey: 'lead',
+          statLabel: 'Lead',
+          actionDie: leadDie,
+          dreadDie: calmDD,
+          onResolve: function(outcome) {
+            var calmSuccess = !!(outcome && outcome.success);
+            if (calmSuccess) {
+              if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+              msg = `Crew stabilized. Lead d${leadDie} vs DD${Number((outcome && outcome.dreadDie) || calmDD)} (manual${outcome && outcome.pushLuck ? ', Push Luck' : ''}). +1 Teamwork.`;
+            } else {
+              addMentalStress(1);
+              if (typeof addTMWOnFail === 'function') addTMWOnFail('sea-crew-calm-fail');
+              msg = `Crew panic escalated. Lead d${leadDie} vs DD${Number((outcome && outcome.dreadDie) || calmDD)} (manual${outcome && outcome.pushLuck ? ', Push Luck' : ''}). +1 Mental Stress.`;
+            }
+            if (bonusNotes.length) msg += ' [' + bonusNotes.join(' | ') + ']';
+            concludeSeaEncounter(msg || 'Action resolved.', 'good');
+          }
+        });
+        return;
+      }
       var calmRoll = explodingRoll(leadDie);
       var calmDread = explodingRoll(calmDD);
       var calmSuccess = calmRoll.total >= calmDread.total;
@@ -2701,6 +3010,36 @@
       var statKey = String(effects.stat || 'mind').toLowerCase();
       var dieSize = (typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) || 4);
       var invDD = Math.max(4, Number(effects.dd || 8));
+      if (isSeaManualRollMode()) {
+        openSeaManualActionDreadPrompt({
+          title: 'Manual Roll - Crew Investigate',
+          context: 'Crew Investigate',
+          statKey: statKey,
+          statLabel: statKey.charAt(0).toUpperCase() + statKey.slice(1),
+          actionDie: dieSize,
+          dreadDie: invDD,
+          onResolve: function(outcome) {
+            var invSuccess = !!(outcome && outcome.success);
+            if (invSuccess) {
+              if (typeof addToBackpack === 'function') addToBackpack('Crew Log Cache');
+              else if (Array.isArray(S.backpack)) {
+                var idx = S.backpack.indexOf('');
+                if (idx >= 0) S.backpack[idx] = 'Crew Log Cache';
+              }
+              if (typeof renderBackpackUI === 'function') renderBackpackUI();
+              if (typeof addSuccessRoll === 'function') addSuccessRoll();
+              msg = `Investigation succeeded: ${statKey} d${dieSize} vs DD${Number((outcome && outcome.dreadDie) || invDD)} (manual${outcome && outcome.pushLuck ? ', Push Luck' : ''}). Found Crew Log Cache.`;
+            } else {
+              addMentalStress(1);
+              if (typeof addTMWOnFail === 'function') addTMWOnFail('sea-crew-investigate-fail');
+              msg = `Investigation failed: ${statKey} d${dieSize} vs DD${Number((outcome && outcome.dreadDie) || invDD)} (manual${outcome && outcome.pushLuck ? ', Push Luck' : ''}). +1 Mental Stress.`;
+            }
+            if (bonusNotes.length) msg += ' [' + bonusNotes.join(' | ') + ']';
+            concludeSeaEncounter(msg || 'Action resolved.', 'good');
+          }
+        });
+        return;
+      }
       var invRoll = explodingRoll(dieSize);
       var invDread = explodingRoll(invDD);
       var invSuccess = invRoll.total >= invDread.total;
@@ -2831,28 +3170,48 @@
     if (!S.lastSea || !S.lastSea.missionTokens || !S.lastSea.missionTokens[hexKey]) return;
     const task = S.lastSea.missionTokens[hexKey];
     const adDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+    var finishSeaTask = function(success, checkText) {
+      delete S.lastSea.missionTokens[hexKey];
+      let msg = `Task failed: ${task.title}. ${checkText}.`;
+      if (success) {
+        const reward = task.reward || { renown: 1 };
+        if (reward.renown) {
+          S.renown = (S.renown || 0) + reward.renown;
+          if (typeof updateRenownUI === 'function') updateRenownUI();
+        }
+        if (reward.credits) {
+          S.credits = (S.credits || 0) + reward.credits;
+          if (typeof updateCreditsUI === 'function') updateCreditsUI();
+        }
+        msg = `Task completed: ${task.title}. ${checkText} — success.${reward.renown ? ` +${reward.renown} Renown.` : ''}${reward.credits ? ` +${reward.credits}₵.` : ''}`;
+      } else if (typeof addTMWOnFail === 'function') {
+        addTMWOnFail();
+      }
+      if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+      showNotif(msg, success ? 'good' : 'warn');
+      renderLastSeaInfo();
+    };
+
+    if (isSeaManualRollMode()) {
+      openSeaManualActionDreadPrompt({
+        title: 'Manual Roll - Sea Task',
+        context: String(task.title || 'Sea Task'),
+        statKey: 'adventure',
+        statLabel: 'Adventure',
+        actionDie: adDie,
+        dreadDie: task.dread || 8,
+        onResolve: function(outcome) {
+          var usedDd = Number((outcome && outcome.dreadDie) || (task.dread || 8));
+          finishSeaTask(!!(outcome && outcome.success), 'AD' + adDie + ' vs DD' + usedDd + ' (manual' + (outcome && outcome.pushLuck ? ', Push Luck' : '') + ')');
+        }
+      });
+      return;
+    }
+
     const actionRoll = explodingRoll(adDie);
     const dreadRoll = explodingRoll(task.dread || 8);
     const success = actionRoll.total >= dreadRoll.total;
-    delete S.lastSea.missionTokens[hexKey];
-    let msg = `Task failed: ${task.title}. AD${adDie} ${actionRoll.total} vs DD${task.dread || 8} ${dreadRoll.total}.`;
-    if (success) {
-      const reward = task.reward || { renown: 1 };
-      if (reward.renown) {
-        S.renown = (S.renown || 0) + reward.renown;
-        if (typeof updateRenownUI === 'function') updateRenownUI();
-      }
-      if (reward.credits) {
-        S.credits = (S.credits || 0) + reward.credits;
-        if (typeof updateCreditsUI === 'function') updateCreditsUI();
-      }
-      msg = `Task completed: ${task.title}. AD${adDie} ${actionRoll.total} vs DD${task.dread || 8} ${dreadRoll.total} — success.${reward.renown ? ` +${reward.renown} Renown.` : ''}${reward.credits ? ` +${reward.credits}₵.` : ''}`;
-    } else if (typeof addTMWOnFail === 'function') {
-      addTMWOnFail();
-    }
-    if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
-    showNotif(msg, success ? 'good' : 'warn');
-    renderLastSeaInfo();
+    finishSeaTask(success, 'AD' + adDie + ' ' + actionRoll.total + ' vs DD' + (task.dread || 8) + ' ' + dreadRoll.total);
   }
   window.completeSeaTask = completeSeaTask;
 

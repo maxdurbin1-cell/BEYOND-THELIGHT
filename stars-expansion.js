@@ -11644,36 +11644,66 @@ function resolveMysteryContactOption(optionId) {
     return;
   }
 
-  const check = option.check ? resolveGalaxySkillCheck(option.check, option.check === 'lead' ? 'mind' : 'lead', option.dd, option.label) : { success: true, text: option.label, delta: 1 };
-  if (check.success) {
-    let summary = `${check.text}. Success.`;
-    if (option.reveal) {
-      const hidden = (S.starSystem.hexes || []).find(h => h.hiddenOutcome && !h.scanned);
-      if (hidden) {
-        hidden.scanned = true;
-        hidden.explored = true;
-        hidden.type = convertOutcomeToHexType(hidden.hiddenOutcome);
-        hidden.detail = `${hidden.hiddenOutcome} signature revealed through black market intelligence.`;
+  const handleMysteryCheck = function(check) {
+    if (check.success) {
+      let summary = `${check.text}. Success.`;
+      if (option.reveal) {
+        const hidden = (S.starSystem.hexes || []).find(h => h.hiddenOutcome && !h.scanned);
+        if (hidden) {
+          hidden.scanned = true;
+          hidden.explored = true;
+          hidden.type = convertOutcomeToHexType(hidden.hiddenOutcome);
+          hidden.detail = `${hidden.hiddenOutcome} signature revealed through black market intelligence.`;
+        }
+        const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
+        const bonus = awardMysteryResolveBonus();
+        summary = `${check.text}. Hidden signature revealed.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}${bonus ? ` ${bonus}.` : ''}`;
+      } else {
+        const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
+        if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
+          pushRoyalShipLogEntry('charter', `${check.text}. Royal task issued.${task ? ` Marker at Hex ${task.hexId}.` : ''}`);
+        }
+        const bonus = awardMysteryResolveBonus();
+        summary = `${check.text}. Success.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}${bonus ? ` ${bonus}.` : ''}`;
       }
-      const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
-      const bonus = awardMysteryResolveBonus();
-      summary = `${check.text}. Hidden signature revealed.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}${bonus ? ` ${bonus}.` : ''}`;
-    } else {
-      const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
-      if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
-        pushRoyalShipLogEntry('charter', `${check.text}. Royal task issued.${task ? ` Marker at Hex ${task.hexId}.` : ''}`);
-      }
-      const bonus = awardMysteryResolveBonus();
-      summary = `${check.text}. Success.${task ? ` Galaxy task marker placed at Hex ${task.hexId}.` : ''}${bonus ? ` ${bonus}.` : ''}`;
+      finishMysteryResolution(summary, 'good');
+      return;
     }
-    finishMysteryResolution(summary, 'good');
+
+    if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
+      pushRoyalShipLogEntry('charter-fail', `${check.text}. Charter request refused.`);
+    }
+    finishMysteryResolution(`${check.text}. Failure. ${option.steal ? 'Hostiles respond; go to Combat/Ship pages to resolve.' : 'Negotiation collapses this phase.'}`, 'warn');
+  };
+
+  if (option.check && isGlobalManualRollMode()) {
+    const primary = option.check;
+    const secondary = option.check === 'lead' ? 'mind' : 'lead';
+    const actionDie = Math.max(
+      (typeof getEffectiveDie === 'function') ? getEffectiveDie(primary) : ((S.stats && S.stats[primary]) || 4),
+      (typeof getEffectiveDie === 'function') ? getEffectiveDie(secondary) : ((S.stats && S.stats[secondary]) || 4),
+      4
+    );
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Space Mystery Contact',
+      context: option.label,
+      statKey: primary,
+      statLabel: String(primary).charAt(0).toUpperCase() + String(primary).slice(1),
+      actionDie,
+      dreadDie: option.dd || 6,
+      onResolve: function(outcome) {
+        handleMysteryCheck({
+          success: !!(outcome && outcome.success),
+          text: option.label + ' (manual): ' + String(primary).toUpperCase() + ' d' + actionDie + ' vs DD' + (option.dd || 6) + (outcome && outcome.pushLuck ? ' [Push Luck]' : ''),
+          delta: 1
+        });
+      }
+    });
     return;
   }
 
-  if (mystery.archetype === 'Royal Ship' && option.id === 'charter') {
-    pushRoyalShipLogEntry('charter-fail', `${check.text}. Charter request refused.`);
-  }
-  finishMysteryResolution(`${check.text}. Failure. ${option.steal ? 'Hostiles respond; go to Combat/Ship pages to resolve.' : 'Negotiation collapses this phase.'}`, 'warn');
+  const check = option.check ? resolveGalaxySkillCheck(option.check, option.check === 'lead' ? 'mind' : 'lead', option.dd, option.label) : { success: true, text: option.label, delta: 1 };
+  handleMysteryCheck(check);
 }
 
 function resolveSpaceEncounterOption(optionId) {
@@ -11752,41 +11782,71 @@ function resolveSpaceEncounterOption(optionId) {
     return;
   }
 
-  const check = resolveGalaxySkillCheck(option.stat || 'lead', option.stat === 'lead' ? 'mind' : 'lead', option.dd || 6, option.label);
-  if (check.success) {
-    option.resolved = true;
-    encounter.resolved = true;
-    S.starSystem.activeSpaceEncounter = null;
-    let rewardText = '';
-    try {
-      rewardText = applyEncounterRewards(option.success);
-    } catch (err) {
-      rewardText = 'Encounter resolved, but reward text could not be fully rendered.';
+  const completeSpaceCheck = function(check) {
+    if (check.success) {
+      option.resolved = true;
+      encounter.resolved = true;
+      S.starSystem.activeSpaceEncounter = null;
+      let rewardText = '';
+      try {
+        rewardText = applyEncounterRewards(option.success);
+      } catch (err) {
+        rewardText = 'Encounter resolved, but reward text could not be fully rendered.';
+      }
+      const bonusText = grantResolveOptionSuccessBonus();
+      if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}${bonusText ? ` ${bonusText}.` : ''}</div>`;
+      renderStarSystemMap();
+      updateStarSystemReadouts();
+      syncCampaignSharedWorldSoon('resolve-space-encounter');
+      showNotif(`Encounter resolved: ${encounter.title}`, 'good');
+      return;
     }
-    const bonusText = grantResolveOptionSuccessBonus();
-    if (out) out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Encounter Resolved: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Success. ${rewardText}${bonusText ? ` ${bonusText}.` : ''}</div>`;
-    renderStarSystemMap();
-    updateStarSystemReadouts();
+
+    if (option.failure && option.failure.text) {
+      applyGalaxyFailureText(option.failure.text);
+    }
+
+    if (out) {
+      option.resolved = true;
+      encounter.resolved = true;
+      S.starSystem.activeSpaceEncounter = null;
+      out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div>
+        <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${(option.failure && option.failure.combat) ? option.failure.combat + ' Resolve on Combat/Ship pages.' : (option.failure && option.failure.text) ? option.failure.text : 'The window closes.'}</div>`;
+      renderStarSystemMap();
+      updateStarSystemReadouts();
+    }
     syncCampaignSharedWorldSoon('resolve-space-encounter');
-    showNotif(`Encounter resolved: ${encounter.title}`, 'good');
+    showNotif(`Encounter failed: ${encounter.title}`, 'warn');
+  };
+
+  if (isGlobalManualRollMode()) {
+    const primary = option.stat || 'lead';
+    const secondary = option.stat === 'lead' ? 'mind' : 'lead';
+    const actionDie = Math.max(
+      (typeof getEffectiveDie === 'function') ? getEffectiveDie(primary) : ((S.stats && S.stats[primary]) || 4),
+      (typeof getEffectiveDie === 'function') ? getEffectiveDie(secondary) : ((S.stats && S.stats[secondary]) || 4),
+      4
+    );
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Space Encounter',
+      context: option.label,
+      statKey: primary,
+      statLabel: String(primary).charAt(0).toUpperCase() + String(primary).slice(1),
+      actionDie,
+      dreadDie: option.dd || 6,
+      onResolve: function(outcome) {
+        completeSpaceCheck({
+          success: !!(outcome && outcome.success),
+          text: option.label + ' (manual): ' + String(primary).toUpperCase() + ' d' + actionDie + ' vs DD' + (option.dd || 6) + (outcome && outcome.pushLuck ? ' [Push Luck]' : ''),
+          delta: 1
+        });
+      }
+    });
     return;
   }
 
-  if (option.failure && option.failure.text) {
-    applyGalaxyFailureText(option.failure.text);
-  }
-
-  if (out) {
-    option.resolved = true;
-    encounter.resolved = true;
-    S.starSystem.activeSpaceEncounter = null;
-    out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Space Encounter: ${encounter.title}</div>
-      <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">${check.text}. Failure. ${(option.failure && option.failure.combat) ? option.failure.combat + ' Resolve on Combat/Ship pages.' : (option.failure && option.failure.text) ? option.failure.text : 'The window closes.'}</div>`;
-    renderStarSystemMap();
-    updateStarSystemReadouts();
-  }
-  syncCampaignSharedWorldSoon('resolve-space-encounter');
-  showNotif(`Encounter failed: ${encounter.title}`, 'warn');
+  const check = resolveGalaxySkillCheck(option.stat || 'lead', option.stat === 'lead' ? 'mind' : 'lead', option.dd || 6, option.label);
+  completeSpaceCheck(check);
 }
 
 function renderSpaceEncounterPanel() {
@@ -14359,6 +14419,28 @@ function rollPlanetHexEncounter() {
 
 function rollPlanetCaravanHaggle() {
   const spiritDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('spirit') : ((S.stats && S.stats.spirit) || 4);
+  if (isGlobalManualRollMode()) {
+    const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Caravan Haggle',
+      context: 'Caravan Haggle',
+      statKey: 'spirit',
+      statLabel: 'Spirit',
+      actionDie: Math.max(spiritDie, leadDie, 4),
+      dreadDie: 8,
+      onResolve: function(outcome) {
+        if (outcome && outcome.success) {
+          const hex = getActivePlanetHex();
+          const state = ensurePlanetSurfaceState(hex);
+          if (state) state.activeMerchantDiscountRate = Math.max(0.2, Number(state.activeMerchantDiscountRate || 0));
+          showNotif('Haggle success: 20% caravan discount.', 'good');
+        } else {
+          showNotif('Haggle failed (manual result).', 'warn');
+        }
+      }
+    });
+    return;
+  }
   const result = resolveGalaxySkillCheck('spirit', 'lead', 8, 'Caravan Haggle');
   if (result.success) {
     const hex = getActivePlanetHex();
@@ -14394,6 +14476,30 @@ function openPlanetCaravanMarket() {
 }
 
 function attemptPlanetCaravanSteal() {
+  if (isGlobalManualRollMode()) {
+    const controlDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
+    const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Caravan Steal',
+      context: 'Caravan Steal',
+      statKey: 'control',
+      statLabel: 'Control',
+      actionDie: Math.max(controlDie, leadDie, 4),
+      dreadDie: 8,
+      onResolve: function(outcome) {
+        if (outcome && outcome.success) {
+          const loot = rollGalaxyMerchantLootFromCategories(['items', 'toolkits', 'tradegoods', 'weapon_mods', 'armor']);
+          takeGalaxyLoot(loot, 'pack');
+          showNotif(`Caravan theft succeeded: ${loot}.`, 'good');
+        } else {
+          if (typeof changeStress === 'function') changeStress(1);
+          changeFactionRenown('underworld', -1);
+          showNotif('Caught stealing from caravan. +1 Stress, -1 Underworld Renown.', 'warn');
+        }
+      }
+    });
+    return;
+  }
   const check = resolveGalaxySkillCheck('control', 'lead', 8, 'Caravan Steal');
   if (check.success) {
     const loot = rollGalaxyMerchantLootFromCategories(['items', 'toolkits', 'tradegoods', 'weapon_mods', 'armor']);

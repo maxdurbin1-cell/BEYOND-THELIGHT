@@ -4296,9 +4296,32 @@
       Stalker:    { x: 3380, y: 360 },
       Muse:       { x: 3720, y: 520 }
     };
+    var titanStartingAreas = [
+      { id: 'legacy_start', label: 'Starting Area: Legacy', x: 286, y: 382, accent: '#7ed7ff' },
+      { id: 'titan_start', label: 'Starting Area: Titan', x: 1200, y: 980, accent: '#ff9f63' },
+      { id: 'godbound_start', label: 'Starting Area: Godbound', x: 2280, y: 980, accent: '#f0d87a' },
+      { id: 'exile_start', label: 'Starting Area: Exile', x: 3380, y: 980, accent: '#7de2c4' }
+    ];
+    function getTitanNodeRadius(node) {
+      var rarity = String(node && node.rarity || 'normal');
+      if (rarity === 'keystone') return 30;
+      if (rarity === 'notable') return 22;
+      return 16;
+    }
     // Ring radii per node group for non-Titan subclasses
     var groupRingMap     = { root: 78, passive: 182, action: 300, teamwork: 430 };
     var groupRingTitan   = { root: 56, passive: 116, action: 186, teamwork: 260 };
+    var subclassRingScale = {
+      Titan: 1.08,
+      Godbound: 1.2,
+      Exile: 1.24,
+      Voice: 1.1,
+      Justice: 1.08,
+      Keeper: 1.1,
+      Breeze: 1.08,
+      Stalker: 1.12,
+      Muse: 1.12
+    };
     // Arc center direction (degrees) pointing AWAY from Titan core
     var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340, Godbound: 270, Voice: 200, Justice: 270, Keeper: 340, Exile: 270, Breeze: 200, Stalker: 270, Muse: 340 };
     // First pass: count per (subclass, group) bucket for dynamic spread
@@ -4317,21 +4340,86 @@
       var isTitan  = subclass === 'Titan';
       var rings    = isTitan ? groupRingTitan : groupRingMap;
       var ring     = rings[group] !== undefined ? rings[group] : 150;
+      var ringScale = Number(subclassRingScale[subclass] || 1);
+      ring = Math.round(ring * ringScale);
       var center   = titanCenters[subclass] || titanCenters.Titan;
       var count    = bcCount[bucket] || 1;
       if (ring === 0 || (ring < 50 && count > 1)) ring = Math.max(ring, 44);
       var arcDir   = subclassArcDir[subclass] !== undefined ? subclassArcDir[subclass] : 0;
-      var spread   = count <= 1 ? 0 : Math.min(420, count * 42);
+      var spread   = count <= 1 ? 0 : Math.min(isTitan ? 390 : 600, count * (isTitan ? 46 : 58));
       var angle    = arcDir + (count <= 1 ? 0 : ((slot / Math.max(1, count - 1)) * spread - spread / 2));
       var a        = (angle * Math.PI) / 180;
       var cx       = Math.round(center.x + Math.cos(a) * ring);
       var cy       = Math.round(center.y + Math.sin(a) * ring);
-      node.x = cx - 30;
-      node.y = cy - 30;
-      node.w = 60;
-      node.h = 60;
+      node.__cx = cx;
+      node.__cy = cy;
+      node.__centerX = center.x;
+      node.__centerY = center.y;
+      node.__targetRing = ring;
+      node.__ringSlack = isTitan ? 72 : 104;
+      node.__radius = getTitanNodeRadius(node);
+      node.x = cx - node.__radius;
+      node.y = cy - node.__radius;
+      node.w = node.__radius * 2;
+      node.h = node.__radius * 2;
       node.tier = ['root', 'passive', 'action', 'teamwork'].indexOf(group);
       if (node.tier < 0) node.tier = 1;
+    });
+
+    // Relax dense rings so nodes do not overlap while preserving each subclass cluster.
+    for (var relaxIter = 0; relaxIter < 34; relaxIter++) {
+      for (var ai = 0; ai < titanNodeMeta.length; ai++) {
+        var na = titanNodeMeta[ai];
+        for (var bi = ai + 1; bi < titanNodeMeta.length; bi++) {
+          var nb = titanNodeMeta[bi];
+          if (!na || !nb || na.subclass !== nb.subclass) continue;
+          var dx = Number(nb.__cx || 0) - Number(na.__cx || 0);
+          var dy = Number(nb.__cy || 0) - Number(na.__cy || 0);
+          var dist = Math.sqrt(dx * dx + dy * dy);
+          if (!Number.isFinite(dist) || dist < 0.001) {
+            var seedA = (String(na.id || '').length * 13 + ai * 7 + relaxIter * 5) % 360;
+            var seedR = (seedA * Math.PI) / 180;
+            dx = Math.cos(seedR);
+            dy = Math.sin(seedR);
+            dist = 1;
+          }
+          var minGap = Number(na.__radius || 16) + Number(nb.__radius || 16) + 10;
+          if (dist >= minGap) continue;
+          var push = (minGap - dist) * 0.5;
+          var ux = dx / dist;
+          var uy = dy / dist;
+          na.__cx -= ux * push;
+          na.__cy -= uy * push;
+          nb.__cx += ux * push;
+          nb.__cy += uy * push;
+        }
+      }
+      titanNodeMeta.forEach(function (node) {
+        var cxr = Number(node.__cx || 0) - Number(node.__centerX || 0);
+        var cyr = Number(node.__cy || 0) - Number(node.__centerY || 0);
+        var ringDist = Math.sqrt(cxr * cxr + cyr * cyr);
+        if (!Number.isFinite(ringDist) || ringDist < 0.001) {
+          ringDist = 1;
+          cxr = 1;
+          cyr = 0;
+        }
+        var targetRing = Number(node.__targetRing || 120);
+        var slack = Number(node.__ringSlack || 80);
+        var minRing = Math.max(34, targetRing - slack);
+        var maxRing = targetRing + slack;
+        if (ringDist < minRing || ringDist > maxRing) {
+          var clamped = Math.max(minRing, Math.min(maxRing, ringDist));
+          var scale = clamped / ringDist;
+          node.__cx = Number(node.__centerX || 0) + (cxr * scale);
+          node.__cy = Number(node.__centerY || 0) + (cyr * scale);
+        }
+      });
+    }
+    titanNodeMeta.forEach(function (node) {
+      node.x = Math.round(Number(node.__cx || 0) - Number(node.__radius || 16));
+      node.y = Math.round(Number(node.__cy || 0) - Number(node.__radius || 16));
+      node.w = Number(node.__radius || 16) * 2;
+      node.h = Number(node.__radius || 16) * 2;
     });
 
     var graphNodes = legacyNodeMeta.concat(titanNodeMeta);
@@ -4352,6 +4440,10 @@
       rs.forEach(function (r, ri) {
         edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + r + '" fill="none" stroke="' + accent + '" stroke-opacity="' + alphas[ri] + '" stroke-width="1" ' + (ri > 0 ? 'stroke-dasharray="4 5"' : '') + ' />';
       });
+    });
+    titanStartingAreas.forEach(function (area) {
+      edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="86" fill="none" stroke="' + area.accent + '" stroke-opacity=".35" stroke-width="1.8" />';
+      edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="124" fill="none" stroke="' + area.accent + '" stroke-opacity=".18" stroke-width="1.4" stroke-dasharray="6 6" />';
     });
     legacyNodeMeta.forEach(function (n, idx) {
       if (idx <= 0) return;
@@ -4396,6 +4488,9 @@
       var fill = rarity === 'keystone' ? 'rgba(255,177,106,.95)' : (rarity === 'notable' ? 'rgba(141,217,255,.9)' : 'rgba(188,202,220,.78)');
       return '<circle cx="' + cx + '" cy="' + cy + '" r="' + radius + '" fill="' + fill + '" />';
     }).join('');
+    var startingAreaLabelsHtml = titanStartingAreas.map(function (area) {
+      return '<div style="position:absolute;left:' + (area.x - 82) + 'px;top:' + (area.y - 132) + 'px;font-size:.54rem;color:' + area.accent + ';letter-spacing:.1em;text-transform:uppercase;text-shadow:0 0 10px ' + area.accent + ';opacity:.88;pointer-events:none;">' + area.label + '</div>';
+    }).join('');
 
     window.__raidTip = function (evt, label) {
       var vp = document.getElementById('raidSkillTreeViewport');
@@ -4420,17 +4515,27 @@
       var purchased = node.rank > 0;
       var borderColor = purchased
         ? 'rgba(103,214,179,.95)'
-        : (node.rarity === 'keystone' ? 'rgba(255,170,88,.72)' : (node.rarity === 'notable' ? 'rgba(126,215,255,.55)' : 'rgba(255,255,255,.3)'));
+        : (node.affordable
+          ? 'rgba(134,214,255,.78)'
+          : (node.rarity === 'keystone' ? 'rgba(255,170,88,.72)' : (node.rarity === 'notable' ? 'rgba(126,215,255,.55)' : 'rgba(255,255,255,.3)')));
+      var baseBg = node.rarity === 'keystone'
+        ? 'radial-gradient(circle at 38% 36%, rgba(52,22,8,.92), rgba(10,12,18,.94))'
+        : node.rarity === 'notable'
+          ? 'radial-gradient(circle at 38% 36%, rgba(10,26,42,.92), rgba(8,12,18,.94))'
+          : 'radial-gradient(circle at 38% 36%, rgba(14,18,30,.93), rgba(8,12,18,.94))';
       var bg = purchased
         ? 'radial-gradient(circle at 40% 38%, rgba(72,210,152,.34), rgba(8,26,20,.92))'
-        : (node.rarity === 'keystone'
-          ? 'radial-gradient(circle at 38% 36%, rgba(52,22,8,.92), rgba(10,12,18,.94))'
-          : node.rarity === 'notable'
-            ? 'radial-gradient(circle at 38% 36%, rgba(10,26,42,.92), rgba(8,12,18,.94))'
-            : 'radial-gradient(circle at 38% 36%, rgba(14,18,30,.93), rgba(8,12,18,.94))');
+        : (node.affordable
+          ? 'radial-gradient(circle at 40% 36%, rgba(46,122,168,.56), rgba(8,12,18,.94))'
+          : baseBg);
       var glow = purchased
         ? '0 0 14px rgba(103,214,179,.65), 0 0 30px rgba(103,214,179,.22), inset 0 0 8px rgba(103,214,179,.14)'
-        : (node.rarity === 'keystone' ? '0 0 16px rgba(255,170,88,.32), inset 0 0 6px rgba(255,120,40,.08)' : (node.rarity === 'notable' ? '0 0 11px rgba(126,215,255,.22)' : 'none'));
+        : (node.affordable
+          ? '0 0 12px rgba(126,215,255,.48), 0 0 24px rgba(126,215,255,.18), inset 0 0 6px rgba(126,215,255,.12)'
+          : (node.rarity === 'keystone' ? '0 0 16px rgba(255,170,88,.32), inset 0 0 6px rgba(255,120,40,.08)' : (node.rarity === 'notable' ? '0 0 11px rgba(126,215,255,.22)' : 'none')));
+      var affordDot = (!purchased && node.affordable)
+        ? '<div style="position:absolute;right:' + Math.round(r * .14) + 'px;bottom:' + Math.round(r * .12) + 'px;width:' + Math.max(6, Math.round(r * .24)) + 'px;height:' + Math.max(6, Math.round(r * .24)) + 'px;border-radius:50%;background:rgba(145,220,255,.9);box-shadow:0 0 6px rgba(126,215,255,.8);pointer-events:none;"></div>'
+        : '';
       var innerDot = purchased
         ? '<div style="width:' + Math.round(r * .44) + 'px;height:' + Math.round(r * .44) + 'px;border-radius:50%;background:radial-gradient(circle, rgba(145,235,190,.95), rgba(80,200,140,.7));box-shadow:0 0 6px rgba(103,214,179,.6);pointer-events:none;"></div>'
         : (node.rarity !== 'normal' ? '<div style="width:' + Math.round(r * .30) + 'px;height:' + Math.round(r * .30) + 'px;border-radius:50%;background:' + (node.rarity === 'keystone' ? 'rgba(255,170,88,.5)' : 'rgba(126,215,255,.38)') + ';pointer-events:none;"></div>' : '');
@@ -4441,6 +4546,7 @@
         + ' onmouseleave="window.__raidTipHide&&window.__raidTipHide()"'
         + ' style="position:absolute;left:' + (cx - r) + 'px;top:' + (cy - r) + 'px;width:' + d + 'px;height:' + d + 'px;border-radius:50%;border:2px solid ' + borderColor + ';background:' + bg + ';box-shadow:' + glow + ';display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:box-shadow .15s,filter .15s;">'
         + innerDot
+        + affordDot
         + '</button>';
     }).join('');
 
@@ -4454,18 +4560,26 @@
       var borderColor = purchased
         ? 'rgba(103,214,179,.95)'
         : (node.canBuy
-          ? (node.rarity === 'keystone' ? accent : (node.rarity === 'notable' ? accent : 'rgba(255,255,255,.3)'))
+          ? accent
           : 'rgba(255,255,255,.18)');
+      var canBuyRing = node.canBuy ? accent : 'rgba(255,255,255,.08)';
       var bg = purchased
         ? 'radial-gradient(circle at 40% 38%, rgba(72,210,152,.34), rgba(8,26,20,.92))'
-        : (node.rarity === 'keystone'
+        : (node.canBuy
+          ? ('radial-gradient(circle at 40% 36%, ' + accent + '4f, rgba(8,12,18,.94))')
+          : (node.rarity === 'keystone'
           ? ('radial-gradient(circle at 38% 36%, ' + accent + '44, rgba(10,12,18,.94))')
           : node.rarity === 'notable'
             ? ('radial-gradient(circle at 38% 36%, ' + accent + '33, rgba(8,12,18,.94))')
-            : 'radial-gradient(circle at 38% 36%, rgba(14,18,30,.93), rgba(8,12,18,.94))');
+            : 'radial-gradient(circle at 38% 36%, rgba(14,18,30,.93), rgba(8,12,18,.94))'));
       var glow = purchased
         ? '0 0 14px rgba(103,214,179,.65), 0 0 30px rgba(103,214,179,.22), inset 0 0 8px rgba(103,214,179,.14)'
-        : (node.rarity === 'keystone' ? ('0 0 18px ' + accent + '88') : (node.rarity === 'notable' ? ('0 0 12px ' + accent + '66') : 'none'));
+        : (node.canBuy
+          ? ('0 0 14px ' + accent + 'aa, 0 0 28px ' + accent + '44, inset 0 0 6px ' + accent + '33')
+          : (node.rarity === 'keystone' ? ('0 0 18px ' + accent + '88') : (node.rarity === 'notable' ? ('0 0 12px ' + accent + '66') : 'none')));
+      var buyDot = (!purchased && node.canBuy)
+        ? '<div style="position:absolute;right:' + Math.round(r * .12) + 'px;bottom:' + Math.round(r * .12) + 'px;width:' + Math.max(6, Math.round(r * .24)) + 'px;height:' + Math.max(6, Math.round(r * .24)) + 'px;border-radius:50%;background:' + accent + ';box-shadow:0 0 8px ' + accent + ';pointer-events:none;"></div>'
+        : '';
       var innerDot = purchased
         ? '<div style="width:' + Math.round(r * .44) + 'px;height:' + Math.round(r * .44) + 'px;border-radius:50%;background:radial-gradient(circle, rgba(145,235,190,.95), rgba(80,200,140,.7));box-shadow:0 0 6px rgba(103,214,179,.6);pointer-events:none;"></div>'
         : (node.rarity !== 'normal' ? ('<div style="width:' + Math.round(r * .30) + 'px;height:' + Math.round(r * .30) + 'px;border-radius:50%;background:' + accent + ';opacity:.45;pointer-events:none;"></div>') : '');
@@ -4474,8 +4588,9 @@
         + ' onclick="openRaidTreeNodeInspector(\'titan\',\'' + node.id + '\')"'
         + ' onmouseenter="window.__raidTip&&window.__raidTip(event,\'' + labelEsc + '\')"'
         + ' onmouseleave="window.__raidTipHide&&window.__raidTipHide()"'
-        + ' style="position:absolute;left:' + (cx - r) + 'px;top:' + (cy - r) + 'px;width:' + d + 'px;height:' + d + 'px;border-radius:50%;border:2px solid ' + borderColor + ';background:' + bg + ';box-shadow:' + glow + ';display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:box-shadow .15s,filter .15s;">'
+        + ' style="position:absolute;left:' + (cx - r) + 'px;top:' + (cy - r) + 'px;width:' + d + 'px;height:' + d + 'px;border-radius:50%;border:2px solid ' + borderColor + ';outline:1px solid ' + canBuyRing + ';outline-offset:-5px;background:' + bg + ';box-shadow:' + glow + ';display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:box-shadow .15s,filter .15s;">'
         + innerDot
+        + buyDot
         + '</button>';
     }).join('');
 
@@ -4521,6 +4636,7 @@
       + '<div style="position:absolute;left:2060px;top:780px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(240,216,122,.2), rgba(240,216,122,0));filter:blur(18px);pointer-events:none;"></div>'
       + '<div style="position:absolute;left:3140px;top:780px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.2), rgba(125,226,196,0));filter:blur(18px);pointer-events:none;"></div>'
       + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
+      + startingAreaLabelsHtml
       + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
       + '<div style="position:absolute;left:460px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Tactician</div>'
       + '<div style="position:absolute;left:1130px;top:145px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Fury</div>'

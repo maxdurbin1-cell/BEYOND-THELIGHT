@@ -60,9 +60,10 @@ nav .solo-reference-btn:hover {
 
 .solo-ref-title {
   font-family: 'Cinzel', serif;
-  font-size: .86rem;
+  font-size: .94rem;
   letter-spacing: .06em;
   color: var(--teal2);
+  font-weight: 700;
 }
 
 .solo-ref-close {
@@ -98,11 +99,12 @@ nav .solo-reference-btn:hover {
   cursor: pointer;
   list-style: none;
   font-family: 'Cinzel', serif;
-  font-size: .76rem;
+  font-size: .84rem;
   letter-spacing: .04em;
   color: var(--teal2);
-  padding: .42rem .58rem;
+  padding: .48rem .64rem;
   background: rgba(46, 196, 182, .06);
+  font-weight: 600;
 }
 
 .solo-ref-section > summary::-webkit-details-marker {
@@ -110,8 +112,8 @@ nav .solo-reference-btn:hover {
 }
 
 .solo-ref-content {
-  padding: .48rem .6rem;
-  font-size: .8rem;
+  padding: .54rem .68rem;
+  font-size: .88rem;
   line-height: 1.6;
   color: var(--text2);
 }

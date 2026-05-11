@@ -74,13 +74,14 @@ nav {
 #settingsPanel .settings-tab-btn {
   border: 1px solid var(--border2);
   background: var(--surface);
-  color: var(--muted2);
+  color: var(--text2);
   font-family: 'Cinzel', serif;
-  font-size: 0.6rem;
+  font-size: 0.66rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.4rem 0.24rem;
+  padding: 0.44rem 0.28rem;
   cursor: pointer;
+  font-weight: 600;
 }
 
 #settingsPanel .settings-tab-btn:hover {
@@ -118,11 +119,12 @@ nav {
 
 .settings-header h3 {
   font-family: 'Cinzel', serif;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   letter-spacing: 0.15em;
-  color: var(--gold);
+  color: var(--gold2);
   text-transform: uppercase;
   margin: 0;
+  font-weight: 700;
 }
 
 .settings-header .btn-icon {
@@ -137,11 +139,12 @@ nav {
 
 .settings-section h4 {
   font-family: 'Cinzel', serif;
-  font-size: 0.72rem;
+  font-size: 0.80rem;
   letter-spacing: 0.14em;
   color: var(--gold2);
   text-transform: uppercase;
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.6rem 0;
+  font-weight: 700;
 }
 
 .settings-recovery-summary {

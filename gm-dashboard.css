@@ -71,9 +71,10 @@ body.gm-mode nav .gm-dashboard-btn:hover {
 }
 .gmd-title {
   font-family: 'Cinzel', serif;
-  font-size: 1rem;
+  font-size: 1.08rem;
   color: #c084e8;
   letter-spacing: .06em;
+  font-weight: 700;
 }
 .gmd-close {
   background: transparent;

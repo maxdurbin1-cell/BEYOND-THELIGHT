@@ -180,11 +180,12 @@
 
 .faction-intro h2 {
   font-family: 'Cinzel', serif;
-  font-size: 0.75rem;
+  font-size: 0.82rem;
   letter-spacing: 0.2em;
-  color: var(--gold);
+  color: var(--gold2);
   text-transform: uppercase;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.6rem;
+  font-weight: 700;
 }
 
 .faction-intro p {
@@ -229,36 +230,39 @@
 
 .faction-header h3 {
   font-family: 'Cinzel', serif;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   letter-spacing: 0.12em;
-  color: var(--gold);
+  color: var(--gold2);
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .faction-essence {
   font-family: 'Cinzel', serif;
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   color: var(--teal);
   letter-spacing: 0.1em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.6rem;
   text-transform: uppercase;
+  font-weight: 600;
 }
 
 .faction-lore {
-  font-size: 0.85rem;
-  line-height: 1.6;
+  font-size: 0.92rem;
+  line-height: 1.65;
   color: var(--text2);
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
 }
 
 .faction-motto {
-  font-size: 0.78rem;
-  color: var(--muted2);
-  margin-bottom: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(46, 196, 182, 0.04);
+  font-size: 0.86rem;
+  color: var(--text2);
+  margin-bottom: 0.85rem;
+  padding: 0.6rem 0.85rem;
+  background: rgba(46, 196, 182, .04);
   border-left: 2px solid var(--teal);
   border-radius: 2px;
+  line-height: 1.55;
 }
 
 .faction-stats {

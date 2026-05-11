@@ -27,6 +27,7 @@ const LICENSE_CODE_LENGTH = Math.max(6, Number(process.env.LICENSE_CODE_LENGTH) 
 const GOD_KEY_HASH = String(process.env.PAYWALL_GOD_KEY_HASH || "").trim().toLowerCase();
 const GOD_KEY_PLAINTEXT = String(process.env.PAYWALL_GOD_KEY || "").trim();
 const PAYWALL_ADMIN_KEY = String(process.env.PAYWALL_ADMIN_KEY || "").trim();
+const PAYWALL_ADMIN_EMAIL = normalizeEmail(process.env.PAYWALL_ADMIN_EMAIL || "maxadurbin@gmail.com");
 const PRICE_SINGLE_CENTS = 1000;
 const PRICE_BUNDLE4_CENTS = 2500;
 const GM_ONLY_EVENTS = {
@@ -269,6 +270,7 @@ function safeSessionForResponse(session) {
   return {
     email: String(session.email || ""),
     isGod: !!session.isGod,
+    isAdmin: !!session.isAdmin,
     expiresAt: Number(session.expiresAt || 0)
   };
 }
@@ -325,7 +327,8 @@ function createLicenseCode() {
   throw new Error("Could not allocate license code");
 }
 
-function createAccessSession(email, code, isGodUser) {
+function createAccessSession(email, code, flags) {
+  const opts = flags && typeof flags === "object" ? flags : {};
   let tries = 0;
   while (tries < 3000) {
     const token = randomToken(32);
@@ -338,7 +341,8 @@ function createAccessSession(email, code, isGodUser) {
       token,
       email: normalizeEmail(email),
       code: normalizeLicenseCode(code),
-      isGod: !!isGodUser,
+      isGod: !!opts.isGod,
+      isAdmin: !!opts.isAdmin,
       createdAt: now,
       lastSeenAt: now,
       expiresAt: now + PAYWALL_SESSION_TTL_MS
@@ -401,10 +405,14 @@ function validateAdminKey(req) {
     return { ok: false, status: 503, error: "PAYWALL_ADMIN_KEY is not configured on the server." };
   }
   const providedKey = String(req.get("x-admin-key") || "").trim();
-  if (!providedKey || providedKey !== PAYWALL_ADMIN_KEY) {
-    return { ok: false, status: 403, error: "Admin key is invalid." };
+  if (providedKey && providedKey === PAYWALL_ADMIN_KEY) {
+    return { ok: true };
   }
-  return { ok: true };
+  const session = getSessionFromRequest(req);
+  if (session && session.isAdmin) {
+    return { ok: true };
+  }
+  return { ok: false, status: 403, error: "Admin key is invalid." };
 }
 
 function getSortedLicenses() {
@@ -1118,6 +1126,7 @@ app.get("/api/license/admin/config", (_req, res) => {
   res.json({
     ok: true,
     adminKeyConfigured: !!PAYWALL_ADMIN_KEY,
+    adminEmail: PAYWALL_ADMIN_EMAIL,
     adminPath: "/admin/licenses"
   });
 });
@@ -1255,7 +1264,17 @@ app.post("/api/license/login", (req, res) => {
 
   const now = Date.now();
   const isGod = isGodKey(submittedCode);
-  if (!isGod) {
+  const normalizedAdminCode = normalizeLicenseCode(PAYWALL_ADMIN_KEY);
+  const isAdminCode = !!(normalizedAdminCode && submittedCode === normalizedAdminCode);
+  const isAdminEmail = !!(PAYWALL_ADMIN_EMAIL && email === PAYWALL_ADMIN_EMAIL);
+  const isAdminLogin = isAdminCode && isAdminEmail;
+
+  if (isAdminCode && !isAdminEmail) {
+    res.status(403).json({ ok: false, error: "Admin key must be used with the configured admin email." });
+    return;
+  }
+
+  if (!isGod && !isAdminLogin) {
     const license = licenseStore.licenses[submittedCode];
     if (!license || typeof license !== "object") {
       res.status(403).json({ ok: false, error: "That access code is not recognized." });
@@ -1284,7 +1303,10 @@ app.post("/api/license/login", (req, res) => {
 
   let session;
   try {
-    session = createAccessSession(email, submittedCode, isGod);
+    session = createAccessSession(email, submittedCode, {
+      isGod,
+      isAdmin: isAdminLogin
+    });
   } catch (_err) {
     res.status(500).json({ ok: false, error: "Could not create access session." });
     return;

@@ -21,6 +21,7 @@ This project now includes a built-in paywall gate.
 Set these before running the server:
 
 - `PAYWALL_ADMIN_KEY`: required for issuing codes through the admin API.
+- `PAYWALL_ADMIN_EMAIL`: admin account email allowed to use the admin key as a website login code. Default: `maxadurbin@gmail.com`.
 - `PAYWALL_GOD_KEY`: optional plaintext God Key.
 - `PAYWALL_GOD_KEY_HASH`: optional SHA-256 hash of your God Key (recommended for production).
 - `LICENSE_STORE_PATH`: optional path for license/session data file.
@@ -66,7 +67,7 @@ If admin actions fail, verify server env var `PAYWALL_ADMIN_KEY` is set before s
 Example run command:
 
 ```bash
-PAYWALL_ADMIN_KEY="replace-with-your-secret" npm start
+PAYWALL_ADMIN_KEY="replace-with-your-secret" PAYWALL_ADMIN_EMAIL="maxadurbin@gmail.com" npm start
 ```
 
 From that page you can:
@@ -76,7 +77,10 @@ From that page you can:
 - revoke a code,
 - restore a revoked code.
 
-You must enter `PAYWALL_ADMIN_KEY` in the admin UI.
+You can either:
+
+- enter `PAYWALL_ADMIN_KEY` in the admin UI, or
+- log in at `/access` using `PAYWALL_ADMIN_EMAIL` + `PAYWALL_ADMIN_KEY` first, then open `/admin/licenses`.
 
 ## Payments (Stripe, PayPal, Venmo)
 
@@ -86,13 +90,21 @@ You must enter `PAYWALL_ADMIN_KEY` in the admin UI.
 
 The paywall itself is payment-provider agnostic: any payment method works as long as your payment-success step calls the code-issue endpoint (or you issue codes manually in the admin UI).
 
-## Venmo Flow In This Project
+## PayPal Flow In This Project
 
-- Buyer pays your Venmo handle and includes their email + quantity in payment note.
+- Buyer pays your PayPal (`paypal.me/madbookz`, handle `@madbookz`) and includes their email + quantity in payment note.
 - You issue code(s) from `/admin/licenses`.
 - Buyer signs in at `/access` using email + code.
 
-Note: direct personal Venmo does not provide the same simple webhook automation model as Stripe. This project uses manual issuance for Venmo unless you later integrate a provider/API with webhook support.
+Note: this project uses manual issuance for PayPal unless you later integrate a provider/API with webhook support.
+
+## Local Access URLs
+
+- Game: `http://localhost:3000/`
+- Access gate: `http://localhost:3000/access`
+- Admin: `http://localhost:3000/admin/licenses`
+
+If you see "site can't be reached", start the server first with `npm start`.
 
 ## Buyer Login
 

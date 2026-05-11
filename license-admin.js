@@ -63,17 +63,16 @@
 
   async function postJson(url, payload) {
     var key = getAdminKey();
-    if (!key) {
-      return { ok: false, body: { error: "Enter your admin key first." } };
-    }
-    saveAdminKeyPreference();
+    if (key) saveAdminKeyPreference();
+
+    var headers = {
+      "Content-Type": "application/json"
+    };
+    if (key) headers["x-admin-key"] = key;
 
     var response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-key": key
-      },
+      headers: headers,
       body: JSON.stringify(payload || {})
     });
 
@@ -112,7 +111,8 @@
       return;
     }
 
-    setStatus("admin-config-status", "Server admin key is configured. Enter it above to manage licenses.", "ok");
+    var adminEmail = String(body.adminEmail || "").trim();
+    setStatus("admin-config-status", "Server admin key is configured. Admin email is " + (adminEmail || "(not set)") + ". You can enter the key above, or first log in at /access with that admin email + admin key.", "ok");
   }
 
   function formatTime(ts) {

@@ -3806,9 +3806,9 @@
         && Math.abs(Number(view.x || 0) - 36) < 2
         && Math.abs(Number(view.y || 0) - 20) < 2;
       if (isLegacyDefault) {
-        var startZoom = 0.74;
-        var focusX = 2060;
-        var focusY = 700;
+        var startZoom = 0.56;
+        var focusX = 2580;
+        var focusY = 980;
         view.zoom = startZoom;
         view.x = (Number(viewportEl.clientWidth || 0) * 0.5) - (focusX * startZoom);
         view.y = (Number(viewportEl.clientHeight || 0) * 0.5) - (focusY * startZoom);
@@ -3957,9 +3957,9 @@
       var st = ensureRaidTreeViewState();
       if (!st) return;
       if (sceneWidth >= 3000) {
-        st.zoom = 0.66;
-        var focusX = 2060;
-        var focusY = 720;
+        st.zoom = 0.54;
+        var focusX = 2580;
+        var focusY = 980;
         st.x = (Number(viewportEl.clientWidth || 0) * 0.5) - (focusX * st.zoom);
         st.y = (Number(viewportEl.clientHeight || 0) * 0.5) - (focusY * st.zoom);
       } else {
@@ -3972,25 +3972,25 @@
       applyRaidTreeTransform(st, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpLegacy = function () {
-      jumpRaidTreeToWorld(780, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(1120, 980, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpTitan = function () {
-      jumpRaidTreeToWorld(1480, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(2280, 1480, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpGodbound = function () {
-      jumpRaidTreeToWorld(2260, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(3160, 1180, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpVoice = function () {
-      jumpRaidTreeToWorld(1960, 430, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(2940, 820, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpJustice = function () {
-      jumpRaidTreeToWorld(2260, 320, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(3340, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpKeeper = function () {
-      jumpRaidTreeToWorld(2560, 430, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(3560, 1060, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpExile = function () {
-      jumpRaidTreeToWorld(3040, 760, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(3160, 440, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
   }
 
@@ -4244,15 +4244,15 @@
         }).join('')
       : '<div style="font-size:.64rem;color:var(--muted2);">No path actions unlocked yet.</div>';
 
-    var legacyCenter = { x: 780, y: 760 };
+    var legacyCenter = { x: 1120, y: 980 };
     var legacyPolar = [
       { r: 0, a: 0 },
-      { r: 162, a: -114 },
-      { r: 162, a: -40 },
-      { r: 162, a: 40 },
-      { r: 162, a: 114 },
-      { r: 304, a: -78 },
-      { r: 304, a: 78 }
+      { r: 186, a: -118 },
+      { r: 186, a: -42 },
+      { r: 186, a: 42 },
+      { r: 186, a: 118 },
+      { r: 338, a: -78 },
+      { r: 338, a: 78 }
     ];
     var legacyNodeMeta = LEGACY_RAID_TREE_NODES.map(function (node, idx) {
       var rank = getLegacyRaidTalentRank(node.id);
@@ -4283,24 +4283,24 @@
     });
 
     var titanCenters = {
-      Titan:      { x: 1480, y: 760 },
-      Tactician:  { x: 1160, y: 430 },
-      Fury:       { x: 1480, y: 320 },
-      Seeker:     { x: 1800, y: 430 },
-      Godbound:   { x: 2260, y: 760 },
-      Voice:      { x: 1960, y: 430 },
-      Justice:    { x: 2260, y: 320 },
-      Keeper:     { x: 2560, y: 430 },
-      Exile:      { x: 3040, y: 760 },
-      Breeze:     { x: 2740, y: 430 },
-      Stalker:    { x: 3040, y: 320 },
-      Muse:       { x: 3340, y: 430 }
+      Titan:      { x: 2280, y: 1480 },
+      Tactician:  { x: 1940, y: 720 },
+      Fury:       { x: 2360, y: 620 },
+      Seeker:     { x: 2760, y: 790 },
+      Godbound:   { x: 3160, y: 1180 },
+      Voice:      { x: 2940, y: 820 },
+      Justice:    { x: 3340, y: 760 },
+      Keeper:     { x: 3560, y: 1060 },
+      Exile:      { x: 3160, y: 440 },
+      Breeze:     { x: 3420, y: 760 },
+      Stalker:    { x: 3700, y: 500 },
+      Muse:       { x: 3880, y: 900 }
     };
     var titanStartingAreas = [
-      { id: 'legacy_start', label: 'START HERE: Legacy', x: 780, y: 760, accent: '#7ed7ff' },
-      { id: 'titan_start', label: 'START HERE: Titan', x: 1480, y: 760, accent: '#ff9f63' },
-      { id: 'godbound_start', label: 'START HERE: Godbound', x: 2260, y: 760, accent: '#f0d87a' },
-      { id: 'exile_start', label: 'START HERE: Exile', x: 3040, y: 760, accent: '#7de2c4' }
+      { id: 'legacy_start', label: 'START HERE: Legacy', x: 1120, y: 980, accent: '#7ed7ff' },
+      { id: 'titan_start', label: 'START HERE: Titan', x: 2280, y: 1480, accent: '#ff9f63' },
+      { id: 'godbound_start', label: 'START HERE: Godbound', x: 3160, y: 1180, accent: '#f0d87a' },
+      { id: 'exile_start', label: 'START HERE: Exile', x: 3160, y: 440, accent: '#7de2c4' }
     ];
     function getTitanNodeRadius(node) {
       var rarity = String(node && node.rarity || 'normal');
@@ -4308,87 +4308,95 @@
       if (rarity === 'notable') return 22;
       return 16;
     }
-    // Ring radii per node group for non-Titan subclasses
-    var groupRingMap     = { root: 110, passive: 265, action: 430, teamwork: 610 };
-    var groupRingTitan   = { root: 88, passive: 180, action: 290, teamwork: 410 };
-    var subclassRingScale = {
-      Titan: 1.16,
-      Tactician: 1.18,
-      Fury: 1.18,
-      Seeker: 1.18,
-      Godbound: 1.24,
-      Exile: 1.28,
-      Voice: 1.2,
-      Justice: 1.2,
-      Keeper: 1.2,
-      Breeze: 1.2,
-      Stalker: 1.2,
-      Muse: 1.2
+    // Constellation neighborhoods: each (subclass + group) forms its own small cluster.
+    var groupOrbitRadius = { root: 74, passive: 224, action: 380, teamwork: 560 };
+    var groupAngleBySubclass = {
+      Titan:      { root: 230, passive: 196, action: 154, teamwork: 122 },
+      Tactician:  { root: 212, passive: 182, action: 146, teamwork: 112 },
+      Fury:       { root: 252, passive: 230, action: 196, teamwork: 156 },
+      Seeker:     { root: 310, passive: 334, action: 6, teamwork: 38 },
+      Godbound:   { root: 282, passive: 260, action: 226, teamwork: 190 },
+      Voice:      { root: 250, passive: 222, action: 192, teamwork: 162 },
+      Justice:    { root: 294, passive: 268, action: 236, teamwork: 204 },
+      Keeper:     { root: 14, passive: 40, action: 72, teamwork: 106 },
+      Exile:      { root: 356, passive: 18, action: 54, teamwork: 90 },
+      Breeze:     { root: 26, passive: 56, action: 92, teamwork: 124 },
+      Stalker:    { root: 340, passive: 6, action: 42, teamwork: 78 },
+      Muse:       { root: 42, passive: 74, action: 110, teamwork: 146 }
     };
-    // Arc center direction (degrees) pointing AWAY from Titan core
-    var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340, Godbound: 270, Voice: 200, Justice: 270, Keeper: 340, Exile: 270, Breeze: 200, Stalker: 270, Muse: 340 };
-    // First pass: count per (subclass, group) bucket for dynamic spread
-    var bcCount = {};
-    titanNodeMeta.forEach(function (n) {
-      var k = n.subclass + ':' + n.group;
-      bcCount[k] = (bcCount[k] || 0) + 1;
-    });
-    var bcSlot = {};
+    var clusterBuckets = {};
     titanNodeMeta.forEach(function (node) {
-      var subclass = node.subclass;
-      var group    = node.group;
-      var bucket   = subclass + ':' + group;
-      var slot     = bcSlot[bucket] || 0;
-      bcSlot[bucket] = slot + 1;
-      var isTitan  = subclass === 'Titan';
-      var rings    = isTitan ? groupRingTitan : groupRingMap;
-      var ring     = rings[group] !== undefined ? rings[group] : 150;
-      var ringScale = Number(subclassRingScale[subclass] || 1);
-      ring = Math.round(ring * ringScale);
-      var center   = titanCenters[subclass] || titanCenters.Titan;
-      var count    = bcCount[bucket] || 1;
-      if (ring === 0 || (ring < 50 && count > 1)) ring = Math.max(ring, 44);
-      var arcDir   = subclassArcDir[subclass] !== undefined ? subclassArcDir[subclass] : 0;
-      var spread   = count <= 1 ? 0 : Math.min(isTitan ? 560 : 760, count * (isTitan ? 64 : 72));
-      var angle    = arcDir + (count <= 1 ? 0 : ((slot / Math.max(1, count - 1)) * spread - spread / 2));
-      var a        = (angle * Math.PI) / 180;
-      var cx       = Math.round(center.x + Math.cos(a) * ring);
-      var cy       = Math.round(center.y + Math.sin(a) * ring);
-      node.__cx = cx;
-      node.__cy = cy;
-      node.__centerX = center.x;
-      node.__centerY = center.y;
-      node.__targetRing = ring;
-      node.__ringSlack = isTitan ? 120 : 156;
-      node.__radius = getTitanNodeRadius(node);
-      node.x = cx - node.__radius;
-      node.y = cy - node.__radius;
-      node.w = node.__radius * 2;
-      node.h = node.__radius * 2;
-      node.tier = ['root', 'passive', 'action', 'teamwork'].indexOf(group);
-      if (node.tier < 0) node.tier = 1;
+      var tier = ['root', 'passive', 'action', 'teamwork'].indexOf(String(node.group || ''));
+      node.tier = tier < 0 ? 1 : tier;
+      var key = String(node.subclass || 'Titan') + ':' + String(node.group || 'passive');
+      if (!clusterBuckets[key]) clusterBuckets[key] = [];
+      clusterBuckets[key].push(node);
+    });
+    Object.keys(clusterBuckets).forEach(function (bucketKey) {
+      var parts = bucketKey.split(':');
+      var subclass = parts[0] || 'Titan';
+      var group = parts[1] || 'passive';
+      var nodes = clusterBuckets[bucketKey] || [];
+      nodes.sort(function (a, b) {
+        var ar = (a.rarity === 'keystone' ? 3 : (a.rarity === 'notable' ? 2 : 1));
+        var br = (b.rarity === 'keystone' ? 3 : (b.rarity === 'notable' ? 2 : 1));
+        if (ar !== br) return br - ar;
+        return String(a.label || a.id).localeCompare(String(b.label || b.id));
+      });
+      var center = titanCenters[subclass] || titanCenters.Titan;
+      var baseAngle = (groupAngleBySubclass[subclass] && groupAngleBySubclass[subclass][group] !== undefined)
+        ? groupAngleBySubclass[subclass][group]
+        : (200 + (['root', 'passive', 'action', 'teamwork'].indexOf(group) * 42));
+      var orbit = Number(groupOrbitRadius[group] || 240);
+      var rad = (baseAngle * Math.PI) / 180;
+      var clusterX = Math.round(center.x + Math.cos(rad) * orbit);
+      var clusterY = Math.round(center.y + Math.sin(rad) * orbit);
+
+      if (!nodes.length) return;
+      var notableIdx = 0;
+      for (var ni = 0; ni < nodes.length; ni++) {
+        if (nodes[ni].rarity === 'keystone' || nodes[ni].rarity === 'notable') { notableIdx = ni; break; }
+      }
+      var notable = nodes[notableIdx];
+      notable.__cx = clusterX;
+      notable.__cy = clusterY;
+      notable.__radius = getTitanNodeRadius(notable);
+
+      var rest = nodes.filter(function (_n, idx) { return idx !== notableIdx; });
+      var ring1Radius = 62;
+      var ring2Radius = 118;
+      var ring3Radius = 168;
+      var perRing = [Math.min(8, rest.length), Math.min(10, Math.max(0, rest.length - 8)), Math.max(0, rest.length - 18)];
+      var placed = 0;
+      [ring1Radius, ring2Radius, ring3Radius].forEach(function (r, ringIndex) {
+        var count = perRing[ringIndex] || 0;
+        if (!count) return;
+        for (var i = 0; i < count; i++) {
+          var node = rest[placed + i];
+          if (!node) continue;
+          var a = ((360 / count) * i + (ringIndex * 14) + (baseAngle * 0.35)) * Math.PI / 180;
+          node.__radius = getTitanNodeRadius(node);
+          node.__cx = Math.round(clusterX + Math.cos(a) * r);
+          node.__cy = Math.round(clusterY + Math.sin(a) * r);
+        }
+        placed += count;
+      });
     });
 
-    // Relax dense rings so nodes do not overlap while preserving each subclass cluster.
-    for (var relaxIter = 0; relaxIter < 56; relaxIter++) {
+    // Light separation pass to prevent overlaps while keeping neighborhoods intact.
+    for (var repelIter = 0; repelIter < 20; repelIter++) {
       for (var ai = 0; ai < titanNodeMeta.length; ai++) {
         var na = titanNodeMeta[ai];
         for (var bi = ai + 1; bi < titanNodeMeta.length; bi++) {
           var nb = titanNodeMeta[bi];
-          if (!na || !nb || na.subclass !== nb.subclass) continue;
+          if (!na || !nb) continue;
           var dx = Number(nb.__cx || 0) - Number(na.__cx || 0);
           var dy = Number(nb.__cy || 0) - Number(na.__cy || 0);
           var dist = Math.sqrt(dx * dx + dy * dy);
-          if (!Number.isFinite(dist) || dist < 0.001) {
-            var seedA = (String(na.id || '').length * 13 + ai * 7 + relaxIter * 5) % 360;
-            var seedR = (seedA * Math.PI) / 180;
-            dx = Math.cos(seedR);
-            dy = Math.sin(seedR);
-            dist = 1;
-          }
-          var minGap = Number(na.__radius || 16) + Number(nb.__radius || 16) + 18;
+          if (!Number.isFinite(dist) || dist < 0.01) { dx = 1; dy = 0; dist = 1; }
+          var minGap = Number(na.__radius || 16) + Number(nb.__radius || 16) + 14;
           if (dist >= minGap) continue;
-          var push = (minGap - dist) * 0.5;
+          var push = (minGap - dist) * 0.42;
           var ux = dx / dist;
           var uy = dy / dist;
           na.__cx -= ux * push;
@@ -4397,39 +4405,21 @@
           nb.__cy += uy * push;
         }
       }
-      titanNodeMeta.forEach(function (node) {
-        var cxr = Number(node.__cx || 0) - Number(node.__centerX || 0);
-        var cyr = Number(node.__cy || 0) - Number(node.__centerY || 0);
-        var ringDist = Math.sqrt(cxr * cxr + cyr * cyr);
-        if (!Number.isFinite(ringDist) || ringDist < 0.001) {
-          ringDist = 1;
-          cxr = 1;
-          cyr = 0;
-        }
-        var targetRing = Number(node.__targetRing || 120);
-        var slack = Number(node.__ringSlack || 80);
-        var minRing = Math.max(34, targetRing - slack);
-        var maxRing = targetRing + slack;
-        if (ringDist < minRing || ringDist > maxRing) {
-          var clamped = Math.max(minRing, Math.min(maxRing, ringDist));
-          var scale = clamped / ringDist;
-          node.__cx = Number(node.__centerX || 0) + (cxr * scale);
-          node.__cy = Number(node.__centerY || 0) + (cyr * scale);
-        }
-      });
     }
+
     titanNodeMeta.forEach(function (node) {
-      node.x = Math.round(Number(node.__cx || 0) - Number(node.__radius || 16));
-      node.y = Math.round(Number(node.__cy || 0) - Number(node.__radius || 16));
-      node.w = Number(node.__radius || 16) * 2;
-      node.h = Number(node.__radius || 16) * 2;
+      node.__radius = Number(node.__radius || getTitanNodeRadius(node));
+      node.x = Math.round(Number(node.__cx || 0) - node.__radius);
+      node.y = Math.round(Number(node.__cy || 0) - node.__radius);
+      node.w = node.__radius * 2;
+      node.h = node.__radius * 2;
     });
 
     var graphNodes = legacyNodeMeta.concat(titanNodeMeta);
     var graphLookup = {};
     graphNodes.forEach(function (n) { graphLookup[n.id] = n; });
-    var sceneWidth = 4300;
-    var sceneHeight = 1460;
+    var sceneWidth = 5200;
+    var sceneHeight = 2200;
 
     function buildCurvePath(x1, y1, x2, y2, bend) {
       var dx = Number(x2 || 0) - Number(x1 || 0);
@@ -4473,8 +4463,8 @@
     Object.keys(titanCenters).forEach(function (key) {
       var isTCore = key === 'Titan';
       var c = titanCenters[key];
-      var rs = isTCore ? [56, 116, 186, 260] : [78, 182, 300, 430];
-      var alphas = ['.22', '.16', '.12', '.08'];
+      var rs = isTCore ? [74, 164, 286, 420] : [92, 228, 392, 570];
+      var alphas = ['.18', '.12', '.09', '.06'];
       var accent = getSubclassAccent(key);
       rs.forEach(function (r, ri) {
         edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + r + '" fill="none" stroke="' + accent + '" stroke-opacity="' + alphas[ri] + '" stroke-width="1" ' + (ri > 0 ? 'stroke-dasharray="4 5"' : '') + ' />';
@@ -4486,13 +4476,19 @@
       edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="44" fill="none" stroke="' + area.accent + '" stroke-opacity=".62" stroke-width="2.4" />';
       edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="20" fill="none" stroke="' + area.accent + '" stroke-opacity=".75" stroke-width="1.8" />';
     });
+    var startById = {};
+    titanStartingAreas.forEach(function (a) { startById[String(a.id || '')] = a; });
+    var legacyStart = startById.legacy_start || { x: legacyCenter.x, y: legacyCenter.y };
+    var titanStart = startById.titan_start || titanCenters.Titan;
+    var godboundStart = startById.godbound_start || titanCenters.Godbound;
+    var exileStart = startById.exile_start || titanCenters.Exile;
     // Major class spine and branch trunks to keep start flow obvious.
-    edgeHtml += '<path d="' + buildCurvePath(780, 760, 1480, 760, -18) + '" stroke="rgba(126,215,255,.62)" stroke-width="4.6" fill="none" filter="url(#raidEdgeGlow)" />';
-    edgeHtml += '<path d="' + buildCurvePath(1480, 760, 2260, 760, 14) + '" stroke="rgba(255,205,136,.6)" stroke-width="4.6" fill="none" filter="url(#raidEdgeGlow)" />';
-    edgeHtml += '<path d="' + buildCurvePath(2260, 760, 3040, 760, -16) + '" stroke="rgba(149,236,212,.6)" stroke-width="4.6" fill="none" filter="url(#raidEdgeGlow)" />';
-    edgeHtml += buildRoadDots(780, 760, 1480, 760, 9, 'rgba(170,227,255,.9)', 2.4, '.9');
-    edgeHtml += buildRoadDots(1480, 760, 2260, 760, 10, 'rgba(255,220,165,.9)', 2.4, '.9');
-    edgeHtml += buildRoadDots(2260, 760, 3040, 760, 10, 'rgba(171,244,224,.9)', 2.4, '.9');
+    edgeHtml += '<path d="' + buildCurvePath(legacyStart.x, legacyStart.y, titanStart.x, titanStart.y, -26) + '" stroke="rgba(126,215,255,.68)" stroke-width="4.8" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += '<path d="' + buildCurvePath(titanStart.x, titanStart.y, godboundStart.x, godboundStart.y, 24) + '" stroke="rgba(255,205,136,.64)" stroke-width="4.8" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += '<path d="' + buildCurvePath(godboundStart.x, godboundStart.y, exileStart.x, exileStart.y, -24) + '" stroke="rgba(149,236,212,.64)" stroke-width="4.8" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += buildRoadDots(legacyStart.x, legacyStart.y, titanStart.x, titanStart.y, 9, 'rgba(170,227,255,.92)', 2.4, '.92');
+    edgeHtml += buildRoadDots(titanStart.x, titanStart.y, godboundStart.x, godboundStart.y, 9, 'rgba(255,220,165,.92)', 2.4, '.92');
+    edgeHtml += buildRoadDots(godboundStart.x, godboundStart.y, exileStart.x, exileStart.y, 9, 'rgba(171,244,224,.92)', 2.4, '.92');
     ['Tactician', 'Fury', 'Seeker'].forEach(function (sub) {
       var c = titanCenters[sub];
       edgeHtml += '<path d="' + buildCurvePath(titanCenters.Titan.x, titanCenters.Titan.y, c.x, c.y, -14) + '" stroke="rgba(255,175,118,.46)" stroke-width="3.1" fill="none" filter="url(#raidEdgeGlow)" />';
@@ -4569,19 +4565,7 @@
       markNodeConnected(p.id);
       markNodeConnected(n.id);
     });
-    ['Tactician', 'Fury', 'Seeker', 'Titan', 'Voice', 'Justice', 'Keeper', 'Godbound', 'Breeze', 'Stalker', 'Muse', 'Exile'].forEach(function (subclass) {
-      var chain = titanNodeMeta.filter(function (n) { return n.subclass === subclass; }).sort(function (a, b) {
-        if (a.tier !== b.tier) return a.tier - b.tier;
-        return a.y - b.y;
-      });
-      for (var ci = 1; ci < chain.length; ci++) {
-        var pa = chain[ci - 1];
-        var pb = chain[ci];
-        edgeHtml += '<path d="' + buildCurvePath((pa.x + pa.w / 2), (pa.y + pa.h / 2), (pb.x + pb.w / 2), (pb.y + pb.h / 2), 6) + '" stroke="rgba(242,168,129,.34)" stroke-width="2" fill="none" stroke-dasharray="3 4" />';
-        markNodeConnected(pa.id);
-        markNodeConnected(pb.id);
-      }
-    });
+    // Intentionally omit dense subclass chain overlays to keep zoomed-out readability.
     var minimapNodesHtml = graphNodes.map(function (node) {
       var cx = Math.round(Number(node.x || 0) + (Number(node.w || 0) / 2));
       var cy = Math.round(Number(node.y || 0) + (Number(node.h || 0) / 2));
@@ -4640,7 +4624,7 @@
     ].map(function (entry) {
       return '<div style="position:absolute;left:' + (Math.round(entry.c.x - 70)) + 'px;top:' + (Math.round(entry.c.y + 66)) + 'px;font-size:.54rem;color:rgba(201,162,39,.7);text-transform:uppercase;letter-spacing:.1em;pointer-events:none;">' + entry.txt + '</div>';
     }).join('');
-    var startHintHtml = '<div style="position:absolute;left:1120px;top:60px;font-size:.58rem;color:#cde4f8;letter-spacing:.05em;text-transform:uppercase;background:rgba(7,12,18,.74);border:1px solid rgba(126,215,255,.38);padding:.18rem .36rem;box-shadow:0 0 16px rgba(126,215,255,.16);pointer-events:none;">Start at a glowing class ring, then spend points on pulsing connected nodes.</div>';
+    var startHintHtml = '<div style="position:absolute;left:2120px;top:86px;font-size:.58rem;color:#cde4f8;letter-spacing:.05em;text-transform:uppercase;background:rgba(7,12,18,.74);border:1px solid rgba(126,215,255,.38);padding:.18rem .36rem;box-shadow:0 0 16px rgba(126,215,255,.16);pointer-events:none;">Start at a glowing class ring, then follow bright roads into cluster neighborhoods.</div>';
 
     window.__raidTip = function (evt, label) {
       var vp = document.getElementById('raidSkillTreeViewport');
@@ -4787,15 +4771,15 @@
       + '<div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:.34rem;align-items:start;">'
       + '<div id="raidSkillTreeViewport" style="position:relative;overflow:hidden;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(180% 150% at 10% 4%, rgba(34,52,78,.56), rgba(7,12,18,.98) 55%),repeating-linear-gradient(118deg, rgba(255,255,255,.03) 0 1px, transparent 1px 24px);cursor:grab;touch-action:none;">'
       + '<div id="raidSkillTreeScene" data-scene-width="' + sceneWidth + '" data-scene-height="' + sceneHeight + '" style="position:relative;width:' + sceneWidth + 'px;height:' + sceneHeight + 'px;will-change:transform;">'
-      + '<div style="position:absolute;left:120px;top:80px;width:380px;height:250px;border-radius:50%;background:radial-gradient(circle, rgba(126,215,255,.18), rgba(126,215,255,0));filter:blur(14px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:1160px;top:560px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(255,159,99,.2), rgba(255,159,99,0));filter:blur(18px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:1940px;top:560px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(240,216,122,.2), rgba(240,216,122,0));filter:blur(18px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:2720px;top:560px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.2), rgba(125,226,196,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:820px;top:740px;width:620px;height:420px;border-radius:50%;background:radial-gradient(circle, rgba(126,215,255,.18), rgba(126,215,255,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:1960px;top:1240px;width:700px;height:430px;border-radius:50%;background:radial-gradient(circle, rgba(255,159,99,.22), rgba(255,159,99,0));filter:blur(20px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:2820px;top:980px;width:680px;height:420px;border-radius:50%;background:radial-gradient(circle, rgba(240,216,122,.22), rgba(240,216,122,0));filter:blur(20px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:2820px;top:250px;width:680px;height:420px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.22), rgba(125,226,196,0));filter:blur(20px);pointer-events:none;"></div>'
       + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
       + startingAreaLabelsHtml
       + startHubBadgesHtml
       + startHintHtml
-      + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
+      + '<div style="position:absolute;left:980px;top:620px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
       + subclassLabelsHtml
       + coreLabelsHtml
       + legacyNodesHtml

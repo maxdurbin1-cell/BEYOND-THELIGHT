@@ -7726,40 +7726,58 @@
     }
 
     if (typeof closeModal === 'function') closeModal();
-    
-    // Store manual roll results in a temporary state for rollAttack/executeWayfarerAction to use
-    window.manualRollData = {
-      type: type,
-      actionRoll: actionValue,
-      dreadRoll: dreadValue,
-      actionDie: actionDie,
-      dreadDie: dreadDie
-    };
-    
-    if (typeof showDccSuccessOutcome === 'function') {
-      var success = actionValue >= dreadValue;
-      var diff = Math.max(1, success ? actionValue - dreadValue : dreadValue - actionValue);
-      
-      if (success) {
-        if (typeof awardPathToken === 'function') awardPathToken('manual-combat-success');
-        if (typeof addSuccessRoll === 'function') addSuccessRoll();
+
+    var mode = 'standard';
+    if (window.heavyAttackData && window.heavyAttackData.type === type) mode = 'heavy';
+    else if (window.fastAttackData && window.fastAttackData.type === type) mode = 'fast';
+
+    var success = actionValue > dreadValue;
+    var diff = Math.max(1, success ? actionValue - dreadValue : dreadValue - actionValue);
+    var targetEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
+    var resultEl = (typeof document !== 'undefined') ? document.getElementById('wayfarerActionResult') : null;
+    var label = mode === 'heavy' ? 'Heavy Attack' : (mode === 'fast' ? 'Fast Attack' : (type === 'strike' ? 'Strike' : 'Shoot'));
+
+    if (success) {
+      var dmg = Math.max(1, diff) + (mode === 'heavy' ? 2 : 0);
+      if (targetEnemy && typeof applyStressToEnemy === 'function') {
+        applyStressToEnemy(targetEnemy, dmg, label + ' (Manual)');
+      }
+      if (mode === 'fast' && S && S.combat) {
+        S.combat.fastAttackVulnerable = 1;
+        S.combat.fastAttackUsedEncounter = true;
+      }
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      if (typeof showDccSuccessOutcome === 'function') {
         showDccSuccessOutcome(type, diff, {
           actionTotal: actionValue,
           dreadTotal: dreadValue,
-          context: (type === 'strike' ? 'Strike' : 'Shoot') + ' vs Enemy Dread (manual roll)'
+          context: label + ' vs Enemy Dread (manual roll)'
         });
-      } else {
-        addTMWOnFail('manual-combat-failure');
+      }
+      if (resultEl) {
+        resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - HIT! ' + dmg + ' Health damage.</span>';
+      }
+    } else {
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-combat-failure');
+      if (typeof showDccFailureOutcome === 'function') {
         showDccFailureOutcome(type, diff, {
           actionTotal: actionValue,
           dreadTotal: dreadValue,
-          context: (type === 'strike' ? 'Strike' : 'Shoot') + ' vs Enemy Dread (manual roll)'
+          context: label + ' vs Enemy Dread (manual roll)'
         });
+      }
+      if (resultEl) {
+        resultEl.innerHTML = '<span style="color:var(--red2);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - MISS.</span>';
       }
     }
 
-    // Clear manual roll data after a delay to allow for any follow-up actions
-    setTimeout(function() { window.manualRollData = null; }, 1000);
+    if (typeof clearConditionOnUse === 'function') clearConditionOnUse(type);
+    if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
+    if (typeof renderCombatOptions === 'function') renderCombatOptions();
+
+    window.manualRollData = null;
+    window.heavyAttackData = null;
+    window.fastAttackData = null;
   };
   window.manualRollOutcomeFailure = manualRollOutcomeFailure;
   window.handleManualRollFailure = handleManualRollFailure;

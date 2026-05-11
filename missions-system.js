@@ -3098,18 +3098,28 @@
     };
   }
 
-  function openRaidTreeNodeInspector(kind, nodeId) {
-    if (typeof openModal !== 'function') return false;
+  function renderRaidTreeInspectorPanel() {
+    if (typeof document === 'undefined') return false;
+    var host = document.getElementById('raidTreeInspectorPanel');
+    if (!host) return false;
     var profile = ensureLegacyRaidProfile();
-    if (!profile) return false;
-    var nodeType = String(kind || 'legacy').toLowerCase();
-    var id = String(nodeId || '');
+    var selected = (typeof window !== 'undefined') ? (window.__raidTreeInspector || null) : null;
+    if (!profile || !selected || !selected.kind || !selected.id) {
+      host.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);line-height:1.55;">Select a node to inspect details, requirements, and buy options.</div>';
+      return true;
+    }
+
+    var kind = String(selected.kind || 'legacy').toLowerCase();
+    var id = String(selected.id || '');
     var rp = Math.max(0, Number(profile.raidPoints || 0));
     var medals = Math.max(0, Number(profile.raidMedals || 0));
 
-    if (nodeType === 'legacy') {
+    if (kind === 'legacy') {
       var legacyNode = getLegacyRaidTreeNode(id);
-      if (!legacyNode) return false;
+      if (!legacyNode) {
+        host.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">Node unavailable.</div>';
+        return false;
+      }
       var rank = getLegacyRaidTalentRank(id);
       var maxRank = Math.max(1, Number(legacyNode.maxRank || 1));
       var capped = rank >= maxRank;
@@ -3118,7 +3128,7 @@
       var rarity = (id === 'teamwork_feedback' || id === 'flavor_boss_personal')
         ? 'Keystone'
         : ((id === 'action_die_training' || id === 'raid_tick_overclock' || id === 'strike_mastery') ? 'Notable' : 'Normal');
-      var legacyHtml = ''
+      host.innerHTML = ''
         + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;">'
         + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.18rem;">'
         + '<div style="font-size:.9rem;color:var(--gold2);"><strong>' + String(legacyNode.label || id) + '</strong></div>'
@@ -3129,18 +3139,20 @@
         + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">Cost: ' + Number(cost.points || 0) + ' Raid Points · ' + Number(cost.medals || 0) + ' Medals</div>'
         + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">You have: ' + rp + ' RP · ' + medals + ' Medals</div>'
         + '<div style="display:flex;justify-content:flex-end;gap:.25rem;">'
-        + '<button class="btn btn-xs" onclick="closeModal()">Close</button>'
+        + '<button class="btn btn-xs" onclick="clearRaidTreeInspector()">Clear</button>'
         + (capped
           ? '<button class="btn btn-xs" disabled>Unlocked</button>'
-          : '<button class="btn btn-xs ' + (canBuy ? 'btn-primary' : '') + '" ' + (canBuy ? '' : 'disabled') + ' onclick="if(window.buyLegacyRaidTreeNode(\'' + id + '\')){closeModal();}">Buy Rank</button>')
+          : '<button class="btn btn-xs ' + (canBuy ? 'btn-primary' : '') + '" ' + (canBuy ? '' : 'disabled') + ' onclick="window.buyLegacyRaidTreeNode(\'' + id + '\')">Buy Rank</button>')
         + '</div>'
         + '</div>';
-      openModal('Raid Node', legacyHtml);
       return true;
     }
 
     var titanNode = getTitanRaidNode(id);
-    if (!titanNode) return false;
+    if (!titanNode) {
+      host.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);">Node unavailable.</div>';
+      return false;
+    }
     var unlocked = hasTitanRaidNode(id);
     var canTitanBuy = canBuyTitanRaidNode(profile, titanNode);
     var reqs = Array.isArray(titanNode.requires) ? titanNode.requires : [];
@@ -3154,7 +3166,7 @@
     var rarityTitan = (String(titanNode.group || '') === 'teamwork' || String(titanNode.group || '') === 'root')
       ? 'Keystone'
       : ((String(titanNode.group || '') === 'action' || String(titanNode.group || '') === 'skill' || String(titanNode.group || '') === 'personal') ? 'Notable' : 'Normal');
-    var titanHtml = ''
+    host.innerHTML = ''
       + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;">'
       + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.18rem;">'
       + '<div style="font-size:.9rem;color:#7ed7ff;"><strong>' + String(titanNode.label || id) + '</strong></div>'
@@ -3166,14 +3178,25 @@
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">Cost: ' + Math.max(1, Number(titanNode.cost || 1)) + ' Raid Point</div>'
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">You have: ' + rp + ' RP</div>'
       + '<div style="display:flex;justify-content:flex-end;gap:.25rem;">'
-      + '<button class="btn btn-xs" onclick="closeModal()">Close</button>'
+      + '<button class="btn btn-xs" onclick="clearRaidTreeInspector()">Clear</button>'
       + (unlocked
         ? '<button class="btn btn-xs" disabled>Unlocked</button>'
-        : '<button class="btn btn-xs ' + (canTitanBuy ? 'btn-teal' : '') + '" ' + (canTitanBuy ? '' : 'disabled') + ' onclick="if(window.buyTitanRaidNode(\'' + id + '\')){closeModal();}">Buy Node</button>')
+        : '<button class="btn btn-xs ' + (canTitanBuy ? 'btn-teal' : '') + '" ' + (canTitanBuy ? '' : 'disabled') + ' onclick="window.buyTitanRaidNode(\'' + id + '\')">Buy Node</button>')
       + '</div>'
       + '</div>';
-    openModal('Raid Node', titanHtml);
     return true;
+  }
+
+  function openRaidTreeNodeInspector(kind, nodeId) {
+    if (typeof window !== 'undefined') {
+      window.__raidTreeInspector = { kind: String(kind || 'legacy'), id: String(nodeId || '') };
+    }
+    return renderRaidTreeInspectorPanel();
+  }
+
+  function clearRaidTreeInspector() {
+    if (typeof window !== 'undefined') window.__raidTreeInspector = null;
+    return renderRaidTreeInspectorPanel();
   }
 
   function renderLegacyRaidTreePanel() {
@@ -3498,6 +3521,7 @@
       + '<span id="raidTreeZoomLabel" style="font-size:.58rem;color:var(--muted2);min-width:40px;text-align:right;">100%</span>'
       + '</div>'
       + '</div>'
+      + '<div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:.34rem;align-items:start;">'
       + '<div id="raidSkillTreeViewport" style="position:relative;overflow:hidden;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(140% 120% at 30% 20%, rgba(19,30,45,.52), rgba(6,10,14,.96));cursor:grab;touch-action:none;">'
       + '<div id="raidSkillTreeScene" data-scene-width="' + sceneWidth + '" data-scene-height="' + sceneHeight + '" style="position:relative;width:' + sceneWidth + 'px;height:' + sceneHeight + 'px;will-change:transform;">'
       + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
@@ -3517,6 +3541,14 @@
       + '</svg>'
       + '<div id="raidTreeMinimapViewport" style="position:absolute;left:0;top:0;border:1px solid rgba(255,213,106,.95);background:rgba(255,213,106,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);pointer-events:none;"></div>'
       + '</div>'
+      + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid rgba(255,255,255,.14);background:linear-gradient(165deg, rgba(11,16,24,.95), rgba(8,12,18,.9));padding:.42rem .46rem;min-height:740px;">'
+      + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;margin-bottom:.22rem;">'
+      + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Node Inspector</div>'
+      + '<button class="btn btn-xs" onclick="clearRaidTreeInspector()">Clear</button>'
+      + '</div>'
+      + '<div id="raidTreeInspectorPanel" style="font-size:.84rem;color:var(--text2);line-height:1.56;">Select a node to inspect details, requirements, and buy options.</div>'
       + '</div>'
       + '</div>'
       + '<div style="margin-top:.24rem;border-top:1px solid rgba(255,255,255,.1);padding-top:.18rem;">'
@@ -3559,6 +3591,7 @@
       + '</div>'
       + '</div>';
     initRaidTreeViewportInteractions();
+    renderRaidTreeInspectorPanel();
     return true;
   }
 
@@ -3582,6 +3615,7 @@
   };
 
   window.openRaidTreeNodeInspector = openRaidTreeNodeInspector;
+  window.clearRaidTreeInspector = clearRaidTreeInspector;
 
   function renderSoulForgeTabPanel() {
     var hosts = [];

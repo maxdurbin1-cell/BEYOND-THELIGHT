@@ -4431,7 +4431,43 @@
     var sceneWidth = 4300;
     var sceneHeight = 1460;
 
+    function buildCurvePath(x1, y1, x2, y2, bend) {
+      var dx = Number(x2 || 0) - Number(x1 || 0);
+      var dy = Number(y2 || 0) - Number(y1 || 0);
+      var len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+      var mx = (Number(x1 || 0) + Number(x2 || 0)) / 2;
+      var my = (Number(y1 || 0) + Number(y2 || 0)) / 2;
+      var nx = -dy / len;
+      var ny = dx / len;
+      var curve = Number(bend || 0);
+      return 'M' + x1 + ' ' + y1 + ' Q ' + (mx + nx * curve) + ' ' + (my + ny * curve) + ' ' + x2 + ' ' + y2;
+    }
+
+    function buildRoadDots(x1, y1, x2, y2, count, color, radius, opacity) {
+      var c = Math.max(0, Number(count || 0));
+      if (!c) return '';
+      var html = '';
+      for (var i = 1; i <= c; i++) {
+        var t = i / (c + 1);
+        var cx = Number(x1 || 0) + (Number(x2 || 0) - Number(x1 || 0)) * t;
+        var cy = Number(y1 || 0) + (Number(y2 || 0) - Number(y1 || 0)) * t;
+        html += '<circle cx="' + Math.round(cx) + '" cy="' + Math.round(cy) + '" r="' + Number(radius || 2) + '" fill="' + String(color || 'rgba(220,230,245,.75)') + '" fill-opacity="' + String(opacity || '.7') + '" />';
+      }
+      return html;
+    }
+
+    var connectedNodeIds = {};
+    function markNodeConnected(nodeId) {
+      connectedNodeIds[String(nodeId || '')] = true;
+    }
+
     var edgeHtml = '';
+    edgeHtml += '<defs>'
+      + '<filter id="raidEdgeGlow" x="-60%" y="-60%" width="220%" height="220%">'
+      + '<feGaussianBlur stdDeviation="1.25" result="blur" />'
+      + '<feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>'
+      + '</filter>'
+      + '</defs>';
     edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="124" fill="none" stroke="rgba(126,215,255,.12)" stroke-width="1.2" />';
     edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="238" fill="none" stroke="rgba(126,215,255,.1)" stroke-width="1" stroke-dasharray="4 5" />';
     Object.keys(titanCenters).forEach(function (key) {
@@ -4451,20 +4487,26 @@
       edgeHtml += '<circle cx="' + area.x + '" cy="' + area.y + '" r="20" fill="none" stroke="' + area.accent + '" stroke-opacity=".75" stroke-width="1.8" />';
     });
     // Major class spine and branch trunks to keep start flow obvious.
-    edgeHtml += '<line x1="780" y1="760" x2="1480" y2="760" stroke="rgba(126,215,255,.42)" stroke-width="4.2" />';
-    edgeHtml += '<line x1="1480" y1="760" x2="2260" y2="760" stroke="rgba(255,196,120,.4)" stroke-width="4.2" />';
-    edgeHtml += '<line x1="2260" y1="760" x2="3040" y2="760" stroke="rgba(125,226,196,.4)" stroke-width="4.2" />';
+    edgeHtml += '<path d="' + buildCurvePath(780, 760, 1480, 760, -18) + '" stroke="rgba(126,215,255,.62)" stroke-width="4.6" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += '<path d="' + buildCurvePath(1480, 760, 2260, 760, 14) + '" stroke="rgba(255,205,136,.6)" stroke-width="4.6" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += '<path d="' + buildCurvePath(2260, 760, 3040, 760, -16) + '" stroke="rgba(149,236,212,.6)" stroke-width="4.6" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += buildRoadDots(780, 760, 1480, 760, 9, 'rgba(170,227,255,.9)', 2.4, '.9');
+    edgeHtml += buildRoadDots(1480, 760, 2260, 760, 10, 'rgba(255,220,165,.9)', 2.4, '.9');
+    edgeHtml += buildRoadDots(2260, 760, 3040, 760, 10, 'rgba(171,244,224,.9)', 2.4, '.9');
     ['Tactician', 'Fury', 'Seeker'].forEach(function (sub) {
       var c = titanCenters[sub];
-      edgeHtml += '<line x1="' + titanCenters.Titan.x + '" y1="' + titanCenters.Titan.y + '" x2="' + c.x + '" y2="' + c.y + '" stroke="rgba(255,159,99,.34)" stroke-width="2.8" />';
+      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Titan.x, titanCenters.Titan.y, c.x, c.y, -14) + '" stroke="rgba(255,175,118,.46)" stroke-width="3.1" fill="none" filter="url(#raidEdgeGlow)" />';
+      edgeHtml += buildRoadDots(titanCenters.Titan.x, titanCenters.Titan.y, c.x, c.y, 3, 'rgba(255,193,141,.88)', 1.9, '.86');
     });
     ['Voice', 'Justice', 'Keeper'].forEach(function (sub) {
       var c = titanCenters[sub];
-      edgeHtml += '<line x1="' + titanCenters.Godbound.x + '" y1="' + titanCenters.Godbound.y + '" x2="' + c.x + '" y2="' + c.y + '" stroke="rgba(240,216,122,.34)" stroke-width="2.8" />';
+      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Godbound.x, titanCenters.Godbound.y, c.x, c.y, 16) + '" stroke="rgba(243,224,148,.46)" stroke-width="3.1" fill="none" filter="url(#raidEdgeGlow)" />';
+      edgeHtml += buildRoadDots(titanCenters.Godbound.x, titanCenters.Godbound.y, c.x, c.y, 3, 'rgba(255,234,175,.88)', 1.9, '.86');
     });
     ['Breeze', 'Stalker', 'Muse'].forEach(function (sub) {
       var c = titanCenters[sub];
-      edgeHtml += '<line x1="' + titanCenters.Exile.x + '" y1="' + titanCenters.Exile.y + '" x2="' + c.x + '" y2="' + c.y + '" stroke="rgba(125,226,196,.34)" stroke-width="2.8" />';
+      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Exile.x, titanCenters.Exile.y, c.x, c.y, -16) + '" stroke="rgba(156,239,214,.46)" stroke-width="3.1" fill="none" filter="url(#raidEdgeGlow)" />';
+      edgeHtml += buildRoadDots(titanCenters.Exile.x, titanCenters.Exile.y, c.x, c.y, 3, 'rgba(181,247,229,.88)', 1.9, '.86');
     });
     legacyNodeMeta.forEach(function (n, idx) {
       if (idx <= 0) return;
@@ -4474,7 +4516,9 @@
       var y1 = parent.y + (parent.h / 2);
       var x2 = n.x + (n.w / 2);
       var y2 = n.y + (n.h / 2);
-      edgeHtml += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="rgba(126,215,255,.22)" stroke-width="2" />';
+      edgeHtml += '<path d="' + buildCurvePath(x1, y1, x2, y2, 10) + '" stroke="rgba(148,223,255,.5)" stroke-width="2.35" fill="none" />';
+      markNodeConnected(parent.id);
+      markNodeConnected(n.id);
     });
     titanNodeMeta.forEach(function (n) {
       var reqs = Array.isArray(n.requires) ? n.requires : [];
@@ -4482,13 +4526,48 @@
       reqs.forEach(function (id) {
         var p = graphLookup[id];
         if (!p) return;
-        edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="' + (n.canBuy ? 'rgba(126,215,255,.72)' : 'rgba(103,214,179,.28)') + '" stroke-width="' + (n.canBuy ? '3' : '2.2') + '" />';
+        edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), 10) + '" stroke="' + (n.canBuy ? 'rgba(164,233,255,.9)' : 'rgba(112,222,183,.46)') + '" stroke-width="' + (n.canBuy ? '3.2' : '2.4') + '" fill="none" filter="url(#raidEdgeGlow)" />';
+        markNodeConnected(p.id);
+        markNodeConnected(n.id);
       });
       reqAny.forEach(function (id) {
         var p = graphLookup[id];
         if (!p) return;
-        edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="' + (n.canBuy ? 'rgba(255,227,138,.7)' : 'rgba(255,213,106,.25)') + '" stroke-width="' + (n.canBuy ? '2.8' : '2') + '" stroke-dasharray="5 4" />';
+        edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), -12) + '" stroke="' + (n.canBuy ? 'rgba(255,236,164,.86)' : 'rgba(255,220,126,.44)') + '" stroke-width="' + (n.canBuy ? '3' : '2.15') + '" fill="none" stroke-dasharray="5 4" />';
+        markNodeConnected(p.id);
+        markNodeConnected(n.id);
       });
+    });
+    // Class roots should visibly connect to their start hubs.
+    titanNodeMeta.forEach(function (n) {
+      if (String(n.group || '') !== 'root') return;
+      var c = titanCenters[n.subclass] || titanCenters.Titan;
+      var nx = n.x + n.w / 2;
+      var ny = n.y + n.h / 2;
+      edgeHtml += '<path d="' + buildCurvePath(c.x, c.y, nx, ny, 12) + '" stroke="rgba(219,234,248,.48)" stroke-width="2.35" fill="none" stroke-dasharray="2 3" />';
+      markNodeConnected(n.id);
+    });
+    // Fallback: if a node still appears disconnected, road it to nearest same-class lower tier node.
+    titanNodeMeta.forEach(function (n) {
+      if (connectedNodeIds[String(n.id || '')]) return;
+      var candidates = titanNodeMeta.filter(function (p) {
+        return p && p.id !== n.id && p.subclass === n.subclass && Number(p.tier || 0) <= Number(n.tier || 0);
+      });
+      if (!candidates.length) return;
+      candidates.sort(function (a, b) {
+        var ax = (a.x + a.w / 2) - (n.x + n.w / 2);
+        var ay = (a.y + a.h / 2) - (n.y + n.h / 2);
+        var bx = (b.x + b.w / 2) - (n.x + n.w / 2);
+        var by = (b.y + b.h / 2) - (n.y + n.h / 2);
+        var ad = Math.sqrt(ax * ax + ay * ay) + (Math.abs((a.tier || 0) - (n.tier || 0)) * 22);
+        var bd = Math.sqrt(bx * bx + by * by) + (Math.abs((b.tier || 0) - (n.tier || 0)) * 22);
+        return ad - bd;
+      });
+      var p = candidates[0];
+      if (!p) return;
+      edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), 8) + '" stroke="rgba(188,206,226,.35)" stroke-width="1.9" fill="none" stroke-dasharray="3 4" />';
+      markNodeConnected(p.id);
+      markNodeConnected(n.id);
     });
     ['Tactician', 'Fury', 'Seeker', 'Titan', 'Voice', 'Justice', 'Keeper', 'Godbound', 'Breeze', 'Stalker', 'Muse', 'Exile'].forEach(function (subclass) {
       var chain = titanNodeMeta.filter(function (n) { return n.subclass === subclass; }).sort(function (a, b) {
@@ -4498,7 +4577,9 @@
       for (var ci = 1; ci < chain.length; ci++) {
         var pa = chain[ci - 1];
         var pb = chain[ci];
-        edgeHtml += '<line x1="' + (pa.x + pa.w / 2) + '" y1="' + (pa.y + pa.h / 2) + '" x2="' + (pb.x + pb.w / 2) + '" y2="' + (pb.y + pb.h / 2) + '" stroke="rgba(240,139,108,.22)" stroke-width="1.8" stroke-dasharray="3 4" />';
+        edgeHtml += '<path d="' + buildCurvePath((pa.x + pa.w / 2), (pa.y + pa.h / 2), (pb.x + pb.w / 2), (pb.y + pb.h / 2), 6) + '" stroke="rgba(242,168,129,.34)" stroke-width="2" fill="none" stroke-dasharray="3 4" />';
+        markNodeConnected(pa.id);
+        markNodeConnected(pb.id);
       }
     });
     var minimapNodesHtml = graphNodes.map(function (node) {
@@ -4512,21 +4593,39 @@
     var startingAreaLabelsHtml = titanStartingAreas.map(function (area) {
       return '<div style="position:absolute;left:' + (area.x - 82) + 'px;top:' + (area.y - 132) + 'px;font-size:.54rem;color:' + area.accent + ';letter-spacing:.1em;text-transform:uppercase;text-shadow:0 0 10px ' + area.accent + ';opacity:.88;pointer-events:none;">' + area.label + '</div>';
     }).join('');
+    function getStartHubGlyphSvg(areaId, accent) {
+      var id = String(areaId || '');
+      var stroke = String(accent || '#d6e8f9');
+      if (id === 'legacy_start') {
+        return '<svg viewBox="0 0 42 42" width="22" height="22" aria-hidden="true"><circle cx="21" cy="21" r="16" fill="none" stroke="' + stroke + '" stroke-width="1.8"/><path d="M21 10 L31 21 L21 32 L11 21 Z" fill="none" stroke="' + stroke + '" stroke-width="1.6"/><path d="M21 6 L21 36 M6 21 L36 21" stroke="' + stroke + '" stroke-width="1.2" opacity=".75"/></svg>';
+      }
+      if (id === 'titan_start') {
+        return '<svg viewBox="0 0 42 42" width="22" height="22" aria-hidden="true"><path d="M21 6 L34 12 L31 30 L21 36 L11 30 L8 12 Z" fill="none" stroke="' + stroke + '" stroke-width="1.9"/><path d="M14 19 L28 19 M16 25 L26 25" stroke="' + stroke + '" stroke-width="1.5"/><path d="M21 13 L21 29" stroke="' + stroke + '" stroke-width="1.3" opacity=".82"/></svg>';
+      }
+      if (id === 'godbound_start') {
+        return '<svg viewBox="0 0 42 42" width="22" height="22" aria-hidden="true"><circle cx="21" cy="21" r="7" fill="none" stroke="' + stroke + '" stroke-width="1.8"/><circle cx="21" cy="21" r="14" fill="none" stroke="' + stroke + '" stroke-width="1.2" opacity=".85"/><path d="M21 4 L21 12 M21 30 L21 38 M4 21 L12 21 M30 21 L38 21 M9 9 L14 14 M28 28 L33 33 M33 9 L28 14 M14 28 L9 33" stroke="' + stroke + '" stroke-width="1.2"/></svg>';
+      }
+      if (id === 'exile_start') {
+        return '<svg viewBox="0 0 42 42" width="22" height="22" aria-hidden="true"><path d="M28 8 L34 14 L22 26 L16 26 L16 20 Z" fill="none" stroke="' + stroke + '" stroke-width="1.7"/><path d="M16 20 L10 32 L22 26" fill="none" stroke="' + stroke + '" stroke-width="1.7"/><path d="M12 34 L22 34" stroke="' + stroke + '" stroke-width="1.3" opacity=".82"/></svg>';
+      }
+      return '<svg viewBox="0 0 42 42" width="22" height="22" aria-hidden="true"><circle cx="21" cy="21" r="12" fill="none" stroke="' + stroke + '" stroke-width="1.6"/></svg>';
+    }
     var startHubMeta = {
-      legacy_start: { emblem: 'LG', title: 'Legacy', identity: 'Balanced all-rounder pathing and utility.' },
-      titan_start: { emblem: 'TT', title: 'Titan', identity: 'Frontline force, defense, and pressure control.' },
-      godbound_start: { emblem: 'GB', title: 'Godbound', identity: 'Faith-fueled defense, judgment, and support.' },
-      exile_start: { emblem: 'EX', title: 'Exile', identity: 'Precision, stealth, and opportunistic burst.' }
+      legacy_start: { title: 'Legacy', identity: 'Balanced all-rounder pathing and utility.' },
+      titan_start: { title: 'Titan', identity: 'Frontline force, defense, and pressure control.' },
+      godbound_start: { title: 'Godbound', identity: 'Faith-fueled defense, judgment, and support.' },
+      exile_start: { title: 'Exile', identity: 'Precision, stealth, and opportunistic burst.' }
     };
     var startHubBadgesHtml = titanStartingAreas.map(function (area) {
-      var meta = startHubMeta[String(area.id || '')] || { emblem: '??', title: 'Path', identity: 'Choose this path to begin.' };
+      var meta = startHubMeta[String(area.id || '')] || { title: 'Path', identity: 'Choose this path to begin.' };
       var badgeLeft = Math.round(area.x - 19);
       var badgeTop = Math.round(area.y - 94);
       var titleLeft = Math.round(area.x - 66);
       var titleTop = Math.round(area.y - 42);
       var identLeft = Math.round(area.x - 154);
       var identTop = Math.round(area.y + 80);
-      return '<div class="raid-start-badge" style="position:absolute;left:' + badgeLeft + 'px;top:' + badgeTop + 'px;width:38px;height:38px;border-radius:50%;border:1px solid ' + area.accent + ';background:radial-gradient(circle at 32% 30%, rgba(255,255,255,.22), rgba(8,12,18,.96));color:' + area.accent + ';font-size:.54rem;font-weight:700;letter-spacing:.1em;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px ' + area.accent + ';pointer-events:none;">' + meta.emblem + '</div>'
+      var glyph = getStartHubGlyphSvg(area.id, area.accent);
+      return '<div class="raid-start-badge" style="position:absolute;left:' + badgeLeft + 'px;top:' + badgeTop + 'px;width:38px;height:38px;border-radius:50%;border:1px solid ' + area.accent + ';background:radial-gradient(circle at 32% 30%, rgba(255,255,255,.22), rgba(8,12,18,.96));display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px ' + area.accent + ';pointer-events:none;">' + glyph + '</div>'
         + '<div style="position:absolute;left:' + titleLeft + 'px;top:' + titleTop + 'px;min-width:132px;text-align:center;font-size:.58rem;color:' + area.accent + ';letter-spacing:.11em;text-transform:uppercase;text-shadow:0 0 8px ' + area.accent + ';pointer-events:none;">' + meta.title + '</div>'
         + '<div class="raid-start-identity" style="position:absolute;left:' + identLeft + 'px;top:' + identTop + 'px;width:308px;text-align:center;font-size:.54rem;color:rgba(216,230,244,.88);letter-spacing:.03em;line-height:1.35;text-shadow:0 0 8px rgba(0,0,0,.5);pointer-events:none;">' + meta.identity + '</div>';
     }).join('');

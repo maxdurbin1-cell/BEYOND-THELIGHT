@@ -2017,172 +2017,131 @@
     },
   };
 
-  Object.assign(SCENES, {
-    theos_atlas_brief: {
+  function getTheosProvinceCatalog() {
+    if (typeof window.getTheosProvinceList !== "function") return [];
+    try {
+      return (window.getTheosProvinceList() || []).filter(function (province) {
+        return province && province.id;
+      });
+    } catch (_err) {
+      return [];
+    }
+  }
+
+  function buildTheosProvinceScene(province) {
+    const id = String((province && province.id) || "");
+    if (!id) return null;
+    const summary = (typeof window.getTheosProvinceSummary === "function") ? window.getTheosProvinceSummary(id) : null;
+    const name = String((summary && summary.province && summary.province.name) || province.name || id);
+    const threat = Number((summary && summary.province && summary.province.threat) || province.threat || 0);
+    const chronicle = String((summary && summary.lore && summary.lore.chronicle) || "This province carries its own local archive and pressure points.");
+    const places = Array.isArray(summary && summary.lore && summary.lore.places) ? summary.lore.places.slice(0, 3) : [];
+    const fractures = Array.isArray(summary && summary.lore && summary.lore.fractures) ? summary.lore.fractures.slice(0, 2) : [];
+    const dreads = threat >= 6 ? 10 : threat >= 4 ? 8 : 6;
+    const leadText = places.length ? places.join(", ") : name + " routes";
+    const factionHint = (summary && summary.power) ? String(summary.power) : "local powers";
+    const sceneId = "theos_province_" + id;
+
+    return {
+      id: sceneId,
+      chapter: "c1",
+      title: name + ": Regional Contact",
+      location: name,
+      mood: "Province intrigue and local leverage",
+      text: name + " unfolds as a pressure point in the wider Theos archive. " + chronicle + " Local power currently bends toward " + factionHint + ", and the marked hexes around " + leadText + " can reveal who is hiding the larger route.",
+      sceneTypes: ["social", "exploration"],
+      options: [
+        {
+          id: "o1",
+          text: "Talk to the local contact and press the provincial lead",
+          req: { theosProvinceIs: id },
+          stat: threat >= 5 ? "mind" : "lead",
+          baseDread: dreads,
+          success: {
+            next: "mission_bridge",
+            text: "The local contact opens the next layer of the archive. The lead can now be folded back into mission work.",
+            effects: { renown: 1, flags: { ["theosProvince" + id + "Lead"]: true } },
+          },
+          fail: {
+            next: "mission_bridge",
+            text: "The contact shuts down, but the province is now mapped well enough to pursue later.",
+            effects: { tmw: 1, flags: { ["theosProvince" + id + "Lead"]: true } },
+          },
+        },
+        {
+          id: "o2",
+          text: "Search the province marker and recover hard evidence",
+          req: { theosProvinceIs: id },
+          stat: "adventure",
+          baseDread: Math.max(6, dreads - 1),
+          success: {
+            next: "mission_bridge",
+            text: "You recover the province marker and enough evidence to justify the route.",
+            effects: { flags: { ["theosProvince" + id + "Marker"]: true }, renown: 1 },
+          },
+          fail: {
+            next: "mission_bridge",
+            text: "The marker resists easy pickup, but the route is still flagged for later pursuit.",
+            effects: { mentalStress: 1, flags: { ["theosProvince" + id + "Marker"]: true } },
+          },
+        },
+        {
+          id: "o3",
+          text: "Return to the atlas and choose another province",
+          jump: { tab: "theos" },
+          success: { next: "theos_atlas_brief", text: "You reset the atlas overlays and choose the next province lead." },
+        },
+      ],
+    };
+  }
+
+  function buildTheosAtlasBriefScene() {
+    const catalog = getTheosProvinceCatalog();
+    const options = catalog.map(function (province) {
+      const summary = (typeof window.getTheosProvinceSummary === "function") ? window.getTheosProvinceSummary(province.id) : null;
+      const name = String((summary && summary.province && summary.province.name) || province.name || province.id);
+      const threat = Number((summary && summary.province && summary.province.threat) || province.threat || 0);
+      const moveText = threat >= 6 ? "High-pressure lead" : threat >= 4 ? "Active lead" : "Open lead";
+      return {
+        id: "province-" + province.id,
+        text: name + " - " + moveText,
+        jump: {
+          storySystem: "province",
+          tab: "map",
+          context: "traveling",
+          theosProvinceId: province.id,
+          hexFlavorKinds: ["notable", "fracture", "settlement", "scar", "quest", "dungeon"],
+          markerTitle: name + " Marker",
+        },
+        success: {
+          next: "theos_province_" + province.id,
+          text: "The atlas pins " + name + " as the active lead. Travel there to resolve the province-specific contact.",
+          effects: { flags: { ["theosProvince" + province.id + "Selected"]: true } },
+        },
+      };
+    });
+
+    return {
+      id: "theos_atlas_brief",
       chapter: "c1",
       title: "Atlas Nodes of Conspiracy",
       location: "Theos Atlas",
       mood: "Investigative travel noir",
-      text: "Lyra traces the sigil's stroke weight over a painted atlas while an atlas warden named Maelik leans in. 'Rosegrove handles the witness traffic. Raenor handles the ore ledgers. Break either and Karr loses cover. Break both and we see the whole machine.'",
+      text: "Lyra traces the sigil's stroke weight over a painted atlas while an atlas warden named Maelik leans in. 'The archive spans more than one province. Pick any lead on the board and we can route the evidence through the local power structure.'",
       sceneTypes: ["exploration", "social"],
-      options: [
-        {
-          id: "o1",
-          text: "Rosegrove Sweep: find the witness route marker in Syndaario's lanes",
-          req: { theosProvinceIs: "rosegrove" },
-          jump: {
-            storySystem: "province",
-            tab: "map",
-            context: "traveling",
-            theosProvinceId: "rosegrove",
-            hexFlavorKinds: ["notable", "fracture", "settlement"],
-            markerTitle: "Rosegrove Witness Marker"
-          },
-          success: {
-            next: "theos_rosegrove_dialogue",
-            text: "At the marked lane-stone, Maelik's contact steps out from incense fog with a sealed witness index.",
-            effects: { renown: 1, flags: { rosegroveMarkerCleared: true }, npc: { lyra: 1 } },
-          },
-        },
-        {
-          id: "o2",
-          text: "Open the atlas and shift province focus before committing",
-          jump: { tab: "theos" },
-          success: {
-            next: "theos_atlas_brief",
-            text: "You redraw your route overlays and confirm Rosegrove should break first.",
-          },
-        },
-      ],
-    },
+      options: options.length ? options : [{ id: "o1", text: "Atlas unavailable", success: { next: "mission_bridge", text: "No Theos province list is available yet." } }],
+    };
+  }
 
-    theos_rosegrove_dialogue: {
-      chapter: "c1",
-      title: "Rosegrove: The Broker Under Lantern Glass",
-      location: "Rosegrove Reach",
-      mood: "Dialogue pressure, urban intrigue",
-      text: "The broker Veyna Rell greets you in a lantern arcade with rain hissing on glass. 'Karr buys silence with grain futures,' she says. 'But Raenor keeps the true receipts in ore-script tablets. You want names? Earn them.'",
-      sceneTypes: ["social", "investigation"],
-      options: [
-        {
-          id: "o1",
-          text: "Parley with Veyna: offer protection for witness names",
-          stat: "lead",
-          baseDread: 8,
-          success: {
-            next: "theos_raenor_brief",
-            text: "Veyna slides you a stamped pass: 'Raenor's Planeshifter clerks answer to this crest.'",
-            effects: { flags: { rosegroveWitnessSecured: true }, npc: { lyra: 1 }, faction: { political: 1 } },
-          },
-          fail: {
-            next: "theos_raenor_brief",
-            text: "Veyna withholds names but leaks a single clue: 'Follow the blue ore-seals in Raenor.'",
-            effects: { tmw: 1, mentalStress: 1 },
-          },
-        },
-        {
-          id: "o2",
-          text: "Interrogate the courier ledger without speaking",
-          stat: "mind",
-          baseDread: 8,
-          success: {
-            next: "theos_raenor_brief",
-            text: "The ink matrix resolves into transit codes keyed to Raenor canyon relays.",
-            effects: { flags: { rosegroveWitnessSecured: true }, renown: 1 },
-          },
-          fail: {
-            next: "theos_raenor_brief",
-            text: "A false cipher trail burns time, but one depot reference survives: Raenor March.",
-            effects: { mentalStress: 1 },
-          },
-        },
-      ],
-    },
-
-    theos_raenor_brief: {
-      chapter: "c1",
-      title: "March Orders",
-      location: "Atlas Rail Hub",
-      mood: "Frontier prep",
-      text: "Lyra taps the rail map twice. 'Rosegrove gave us testimony. Raenor gives us proof. We need the ledger stone itself, not another rumor.'",
-      sceneTypes: ["exploration", "social"],
-      options: [
-        {
-          id: "o1",
-          text: "Raenor Sweep: recover the ore-ledger marker from canyon lanes",
-          req: {
-            flagEq: { key: "rosegroveWitnessSecured", value: true },
-            theosProvinceIs: "raenor"
-          },
-          jump: {
-            storySystem: "province",
-            tab: "map",
-            context: "traveling",
-            theosProvinceId: "raenor",
-            hexFlavorKinds: ["scar", "quest", "dungeon", "fracture"],
-            markerTitle: "Raenor Ledger Marker"
-          },
-          success: {
-            next: "theos_raenor_dialogue",
-            text: "The marked hex yields a basalt ledger tablet stamped with Karr's covert seal.",
-            effects: { flags: { raenorLedgerSecured: true }, faction: { scholars: 1 }, renown: 1 },
-          },
-        },
-        {
-          id: "o2",
-          text: "Open Atlas routing and move toward Raenor March",
-          jump: { tab: "theos" },
-          success: {
-            next: "theos_raenor_brief",
-            text: "Route updated. Enter Raenor March, then run the marker sweep.",
-          },
-        },
-      ],
-    },
-
-    theos_raenor_dialogue: {
-      chapter: "c1",
-      title: "Raenor: Ledger Under Oath",
-      location: "Raenor March",
-      mood: "Moral courtroom noir",
-      text: "At a wind-cut relay chapel, Sanctum clerk Osric Venn reads the tablet and exhales. 'These are execution quotas disguised as ore tax adjustments. Karr has been financing terror with legal forms.' Lyra asks one question: 'Do we publish or weaponize?'",
-      sceneTypes: ["social", "investigation"],
-      options: [
-        {
-          id: "o1",
-          text: "Publish the Raenor ledger through neutral channels",
-          stat: "spirit",
-          baseDread: 8,
-          success: {
-            next: "mission_bridge",
-            text: "The ledger detonates across guild courts. Voss Karr loses deniability and your mission board floods with retaliatory contracts.",
-            effects: { renown: 2, faction: { political: 1, rebels: 1 }, flags: { theosAtlasArcResolved: true } },
-          },
-          fail: {
-            next: "mission_bridge",
-            text: "The release is contested as forgery, but enough officials panic to open fresh leads.",
-            effects: { tmw: 1, flags: { theosAtlasArcResolved: true } },
-          },
-        },
-        {
-          id: "o2",
-          text: "Hold the ledger as blackmail and squeeze Karr's proxies",
-          stat: "control",
-          baseDread: 10,
-          success: {
-            next: "mission_bridge",
-            text: "Proxy houses fold one by one. You gain leverage, but enemies start moving first.",
-            effects: { credits: 120, faction: { underworld: 1, military: -1 }, flags: { theosAtlasArcResolved: true } },
-          },
-          fail: {
-            next: "mission_bridge",
-            text: "A proxy burns the evidence chain. You keep fragments and a list of paid killers.",
-            effects: { mentalStress: 1, flags: { theosAtlasArcResolved: true } },
-          },
-        },
-      ],
-    },
-  });
+  function ensureTheosProvinceScenes() {
+    const atlasScene = buildTheosAtlasBriefScene();
+    if (atlasScene) SCENES.theos_atlas_brief = atlasScene;
+    const catalog = getTheosProvinceCatalog();
+    catalog.forEach(function (province) {
+      const scene = buildTheosProvinceScene(province);
+      if (scene) SCENES[scene.id] = scene;
+    });
+  }
 
   function lc(value) {
     return String(value || "").trim().toLowerCase();
@@ -2190,6 +2149,7 @@
 
   function ensureStoryState() {
     if (typeof S === "undefined") return null;
+    if (typeof ensureTheosProvinceScenes === "function") ensureTheosProvinceScenes();
     S.storyline = S.storyline || {};
     const st = S.storyline;
     if (!st.sceneId || !SCENES[st.sceneId]) st.sceneId = "intro";
@@ -4382,6 +4342,7 @@
   }
 
   function resolveStoryOption(sceneId, option, forcedResult, decisionMeta) {
+    if (typeof ensureTheosProvinceScenes === "function") ensureTheosProvinceScenes();
     const st = ensureStoryState();
     if (!st || !option) return;
 
@@ -4816,6 +4777,7 @@
   }
 
   function runStoryOption(sceneId, optionId, approach) {
+    if (typeof ensureTheosProvinceScenes === "function") ensureTheosProvinceScenes();
     const scene = SCENES[sceneId];
     if (!scene) return;
 
@@ -5383,6 +5345,7 @@
   }
 
   function renderStorylinePanel() {
+    if (typeof ensureTheosProvinceScenes === "function") ensureTheosProvinceScenes();
     const st = ensureStoryState();
     const host = document.getElementById("tab-" + STORY_TAB_ID);
     if (!host || !st) return;

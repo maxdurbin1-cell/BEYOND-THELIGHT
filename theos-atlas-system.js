@@ -1474,6 +1474,24 @@
     };
   }
 
+  function getProvinceSummary(provinceId) {
+    return summarizeProvince(provinceId);
+  }
+
+  function getProvinceList() {
+    return THEOS_PROVINCES.map(function (province) {
+      return {
+        id: province.id,
+        name: province.name,
+        continent: province.continent,
+        threat: province.threat,
+        climateBand: province.climateBand,
+        x: province.x,
+        y: province.y,
+      };
+    });
+  }
+
   function getActiveProvinceId() {
     var st = ensureState();
     return String((st && st.activeProvinceId) || "");
@@ -1520,6 +1538,8 @@
   window.getTheosStorylineModifier = getTheosStorylineModifier;
   window.getActiveTheosProvinceSummary = getActiveProvinceSummary;
   window.getActiveTheosProvinceId = getActiveProvinceId;
+  window.getTheosProvinceSummary = getProvinceSummary;
+  window.getTheosProvinceList = getProvinceList;
   window.theosPrimeStartingProvince = primeStartingProvinceIfNeeded;
 
   document.addEventListener("DOMContentLoaded", bootstrap);

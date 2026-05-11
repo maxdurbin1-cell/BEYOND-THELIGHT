@@ -1803,9 +1803,10 @@
 
   function canCrucibleUnitAttack(attacker, defender) {
     if (!attacker || !defender || !attacker.position || !defender.position) return false;
+    if (typeof canUnitReach === 'function') return canUnitReach(attacker, defender);
     if (typeof getUnitDistance === 'function') {
-      var dist = getUnitDistance(attacker, defender);
-      return dist > 0 && dist <= 3; // Engaged/Close/Nearby range
+      var dist = Number(getUnitDistance(attacker, defender) || 0);
+      return dist > 0 && dist <= 2;
     }
     return false;
   }
@@ -1923,41 +1924,27 @@
 
   function runCrucibleAttack(attacker, defender, log, match) {
     if (!attacker || !defender || Number(attacker.hp || 0) <= 0 || Number(defender.hp || 0) <= 0) return false;
-    
-    var ad = Math.max(4, Number(attacker.attackDie || 6));
-    if (attacker.equipment && attacker.equipment.weapon) {
-      ad += Number(attacker.equipment.weapon.affinity || 0);
-    }
-    
-    var dd = Math.max(4, Number(defender.defendDie || 6) + Number(defender.defendBuff || 0));
-    if (defender.equipment && defender.equipment.armor) {
-      dd += Number(defender.equipment.armor.defense || 0);
-    }
-    
-    var a = (typeof explodingRoll === 'function') ? explodingRoll(ad) : { total: (Math.floor(Math.random() * ad) + 1) };
-    var d = (typeof explodingRoll === 'function') ? explodingRoll(dd) : { total: (Math.floor(Math.random() * dd) + 1) };
-    var attackBonus = Math.max(0, Number(attacker.strikeBonus || 0));
-    if (attackBonus > 0) {
-      a.total = Number(a.total || 0) + attackBonus;
-      if (log) log.push(attacker.name + ' consumed support bonus (+' + attackBonus + ').');
-    }
-    
-    var damage = Math.max(0, Number(a.total || 0) - Number(d.total || 0));
-    
+    var defenderHpBefore = Math.max(0, Number(defender.hp || 0));
+    var hit = (typeof executeAttackAction === 'function')
+      ? executeAttackAction(attacker, defender, match && match.hexMap, log)
+      : false;
+    var damage = Math.max(0, defenderHpBefore - Math.max(0, Number(defender.hp || 0)));
+    if (!hit && typeof executeAttackAction !== 'function') return false;
     if (damage > 0) {
-      defender.hp = Math.max(0, Number(defender.hp || 0) - damage);
-      if (log) log.push('💥 ' + attacker.name + ' hit ' + defender.name + ' [' + a.total + ' vs ' + d.total + '] = ' + damage + ' dmg.');
+      var lastIndex = Array.isArray(log) ? (log.length - 1) : -1;
+      if (lastIndex >= 0) {
+        log[lastIndex] = String(log[lastIndex] || '').replace(' attacked ', ' hit ').replace(' damage.', ' dmg.');
+      }
       if (defender.hp <= 0) {
         if (log) log.push('☠ ' + defender.name + ' is down.');
         var mode = getCrucibleModeSpec(match && match.mode);
         var bonus = (mode.id === 'rumble' && attacker.isPlayer) ? Number(mode.playerKillBonus || 0) : 0;
         awardCruciblePoints(match, String(attacker.side || 'ally'), Number(mode.killPoints || 1) + bonus, 'Takedown');
       }
-    } else {
-      if (log) log.push(attacker.name + ' attacked ' + defender.name + ' but dealt no damage.');
+    } else if (log && log.length) {
+      var noDamageIndex = log.length - 1;
+      log[noDamageIndex] = String(log[noDamageIndex] || '').replace(' attacked but ', ' attacked ').replace(' defended.', ' but dealt no damage.');
     }
-    attacker.strikeBonus = 0;
-    attacker.defendBuff = 0;
     return damage > 0;
   }
 
@@ -2208,7 +2195,7 @@
       + '<select id="crucibleTeamActionSelect" onchange="refreshCrucibleTeamActionOptions();" style="width:100%;margin-top:.08rem;">'
       + '<option value="personal-flavor">Personal Flavor</option>'
       + '<option value="defend">Defend (+3 next defend)</option>'
-      + '<option value="attack" selected>Attack (Strike/Shoot)</option>'
+      + '<option value="attack" selected>Attack (Engaged/Close)</option>'
       + '<option value="support">Support (+3 next attack)</option>'
       + '</select></label>'
       + '<label style="font-size:.66rem;color:var(--muted2);">Target'
@@ -2357,19 +2344,19 @@
     }
     if (act === 'attack') {
       var targets = livingEnemies.filter(function (enemy) {
-        if (!actor || !actor.position || !enemy || !enemy.position || typeof getUnitDistance !== 'function') return false;
-        var dist = getUnitDistance(actor, enemy);
-        return dist > 0 && dist <= 3;
+        return !!(actor && enemy && canCrucibleUnitAttack(actor, enemy));
       });
       return targets.map(function (unit) {
         var distTxt = (actor && typeof getUnitDistance === 'function') ? (' d:' + Number(getUnitDistance(actor, unit) || 0)) : '';
         return '<option value="enemy:' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Enemy') + distTxt + '</option>';
-      }).join('') || '<option value="">No engaged/nearby targets</option>';
+      }).join('') || '<option value="">No engaged/close targets</option>';
     }
     if (act === 'personal-flavor') {
       var closeEnemies = livingEnemies.filter(function (enemy) {
-        if (!actor || !actor.position || !enemy || !enemy.position || typeof getUnitDistance !== 'function') return false;
-        return Number(getUnitDistance(actor, enemy) || 99) <= 2;
+        if (!actor || !enemy || !actor.position || !enemy.position || typeof getUnitDistance !== 'function') return false;
+        var dist = Number(getUnitDistance(actor, enemy) || 99);
+        if (typeof canUseCruciblePersonalFlavorRange === 'function') return canUseCruciblePersonalFlavorRange(dist);
+        return dist > 0 && dist <= 2;
       });
       return closeEnemies.map(function (unit) {
         var distTxt = (actor && typeof getUnitDistance === 'function') ? (' d:' + Number(getUnitDistance(actor, unit) || 0)) : '';
@@ -2423,7 +2410,11 @@
       actor.strikeBonus = Math.max(0, Number(actor.strikeBonus || 0) + 3);
       logs.push(actor.name + ' prepared a support setup (+3 to next attack).');
     } else if (action.indexOf('flavor') >= 0) {
-      if (!target || typeof getUnitDistance !== 'function' || Number(getUnitDistance(actor, target) || 99) > 2) {
+      var flavorDist = (target && typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, target) || 99) : 99;
+      var flavorInRange = (typeof canUseCruciblePersonalFlavorRange === 'function')
+        ? canUseCruciblePersonalFlavorRange(flavorDist)
+        : (flavorDist > 0 && flavorDist <= 2);
+      if (!target || !flavorInRange) {
         if (typeof showNotif === 'function') showNotif('Personal Flavor needs a close target (Engaged or Close).', 'warn');
         return false;
       }
@@ -2435,7 +2426,7 @@
       }
     } else {
       if (!target || !canCrucibleUnitAttack(actor, target)) {
-        if (typeof showNotif === 'function') showNotif('Select an engaged/nearby enemy target first.', 'warn');
+        if (typeof showNotif === 'function') showNotif('Select an engaged/close enemy target first.', 'warn');
         return false;
       }
       if (!spendCrucibleUnitAp(actor, 1)) return false;
@@ -2477,7 +2468,7 @@
 
     if (action === 'attack') {
       if (!targetRef || targetRef.indexOf('enemy:') !== 0) {
-        if (typeof showNotif === 'function') showNotif('Pick an engaged/nearby enemy target.', 'warn');
+        if (typeof showNotif === 'function') showNotif('Pick an engaged/close enemy target.', 'warn');
         return false;
       }
       var targetEnemy = findCrucibleUnit(match, 'enemy', targetRef.split(':')[1]);
@@ -2513,7 +2504,11 @@
         return false;
       }
       var flavorTarget = findCrucibleUnit(match, 'enemy', targetRef.split(':')[1]);
-      if (!flavorTarget || typeof getUnitDistance !== 'function' || Number(getUnitDistance(actor, flavorTarget) || 99) > 2) {
+      var teamFlavorDist = (flavorTarget && typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, flavorTarget) || 99) : 99;
+      var teamFlavorInRange = (typeof canUseCruciblePersonalFlavorRange === 'function')
+        ? canUseCruciblePersonalFlavorRange(teamFlavorDist)
+        : (teamFlavorDist > 0 && teamFlavorDist <= 2);
+      if (!flavorTarget || !teamFlavorInRange) {
         if (typeof showNotif === 'function') showNotif('Personal Flavor only works at Close range or Engaged.', 'warn');
         return false;
       }

@@ -55,6 +55,14 @@ function getRangeCategory(distance) {
   return 'Out of Reach';
 }
 
+function canUseCrucibleAttackRange(distance) {
+  return Number(distance || 0) > 0 && Number(distance || 0) <= 2;
+}
+
+function canUseCruciblePersonalFlavorRange(distance) {
+  return Number(distance || 0) > 0 && Number(distance || 0) <= 2;
+}
+
 function getCrucibleOpenHexes(unit, match, maxDistance) {
   if (!unit || !unit.position || !match || !match.hexMap || !match.hexMap.hexes) return [];
   var apLimit = Math.max(0, Number(maxDistance != null ? maxDistance : unit.ap || 0));
@@ -261,7 +269,7 @@ function getUnitDistance(unit1, unit2) {
 
 function canUnitReach(attacker, defender) {
   var dist = getUnitDistance(attacker, defender);
-  return dist > 0 && dist <= 1; // Engaged or Close range
+  return canUseCrucibleAttackRange(dist);
 }
 
 function getUnitsInHex(team, hexCoord, map) {
@@ -412,31 +420,42 @@ function executeAttackAction(attacker, defender, map, log) {
   var range = getRangeCategory(dist);
 
   // Only Engaged and Close allowed for attack
-  if (dist > 2) {
+  if (!canUseCrucibleAttackRange(dist)) {
     if (log) log.push(attacker.name + ' cannot reach ' + defender.name + ' (' + range + ').');
     return false;
   }
 
-  var attackRoll = Math.floor(Math.random() * attacker.attackDie) + 1;
-  var defendRoll = Math.floor(Math.random() * defender.defendDie) + 1 + Number(defender.defendBuff || 0);
-  
-  // Add equipment bonuses
+  var attackDie = Math.max(4, Number(attacker.attackDie || 6));
   if (attacker.equipment && attacker.equipment.weapon) {
-    attackRoll += attacker.equipment.weapon.affinity || 0;
+    attackDie += Number(attacker.equipment.weapon.affinity || 0);
   }
+  var defendDie = Math.max(4, Number(defender.defendDie || 6) + Number(defender.defendBuff || 0));
   if (defender.equipment && defender.equipment.armor) {
-    defendRoll += defender.equipment.armor.defense || 0;
+    defendDie += Number(defender.equipment.armor.defense || 0);
   }
 
-  var damage = Math.max(0, attackRoll - defendRoll);
+  var attackRoll = (typeof explodingRoll === 'function')
+    ? explodingRoll(attackDie)
+    : { total: (Math.floor(Math.random() * attackDie) + 1) };
+  var defendRoll = (typeof explodingRoll === 'function')
+    ? explodingRoll(defendDie)
+    : { total: (Math.floor(Math.random() * defendDie) + 1) };
+  var strikeBonus = Math.max(0, Number(attacker.strikeBonus || 0));
+  if (strikeBonus > 0) {
+    attackRoll.total = Number(attackRoll.total || 0) + strikeBonus;
+    if (log) log.push(attacker.name + ' consumed support bonus (+' + strikeBonus + ').');
+  }
+
+  var damage = Math.max(0, Number(attackRoll.total || 0) - Number(defendRoll.total || 0));
   
   if (damage > 0) {
     defender.hp = Math.max(0, Number(defender.hp) - damage);
-    if (log) log.push('💥 ' + attacker.name + ' attacked ' + defender.name + ' [' + attackRoll + ' vs ' + defendRoll + '] = ' + damage + ' damage.');
+    if (log) log.push('💥 ' + attacker.name + ' attacked ' + defender.name + ' [' + Number(attackRoll.total || 0) + ' vs ' + Number(defendRoll.total || 0) + '] = ' + damage + ' damage.');
   } else {
     if (log) log.push(attacker.name + ' attacked but ' + defender.name + ' defended.');
   }
 
+  attacker.strikeBonus = 0;
   attacker.defendBuff = 0;
   return damage > 0;
 }

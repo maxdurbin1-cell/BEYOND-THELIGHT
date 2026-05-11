@@ -4107,6 +4107,19 @@
     var pointCount = Math.max(0, Number(profile.raidPoints || 0));
     var keyState = profile.raidKeys || { bronze: 0, silver: 0, gold: 0, platinum: 0 };
     var iconApi = typeof window !== 'undefined' ? window.SharedIconSystem : null;
+    if (typeof window !== 'undefined' && (!window.__raidTreeVisualPrefs || typeof window.__raidTreeVisualPrefs !== 'object')) {
+      window.__raidTreeVisualPrefs = { lineContrast: 'medium', roadDensity: 'full' };
+    }
+    var visualPrefs = (typeof window !== 'undefined' && window.__raidTreeVisualPrefs)
+      ? window.__raidTreeVisualPrefs
+      : { lineContrast: 'medium', roadDensity: 'full' };
+    var lineContrast = String(visualPrefs.lineContrast || 'medium').toLowerCase();
+    if (['low', 'medium', 'high'].indexOf(lineContrast) < 0) lineContrast = 'medium';
+    var roadDensity = String(visualPrefs.roadDensity || 'full').toLowerCase();
+    if (['minimal', 'full'].indexOf(roadDensity) < 0) roadDensity = 'full';
+    var contrastOpacity = lineContrast === 'low' ? 0.62 : (lineContrast === 'high' ? 1 : 0.82);
+    var contrastWidthScale = lineContrast === 'low' ? 0.86 : (lineContrast === 'high' ? 1.28 : 1);
+    var roadDotScale = roadDensity === 'minimal' ? 0 : 1;
     var overflow = Array.isArray(profile.raidOverflowLoot) ? profile.raidOverflowLoot : [];
     var overflowStart = Math.max(0, overflow.length - 48);
     var overflowRows = overflow.length
@@ -4433,8 +4446,14 @@
       return 'M' + x1 + ' ' + y1 + ' Q ' + (mx + nx * curve) + ' ' + (my + ny * curve) + ' ' + x2 + ' ' + y2;
     }
 
+    function scaledStrokeWidth(base) {
+      return Math.max(0.8, Number(base || 1) * contrastWidthScale);
+    }
+
     function buildRoadDots(x1, y1, x2, y2, count, color, radius, opacity) {
+      if (!roadDotScale) return '';
       var c = Math.max(0, Number(count || 0));
+      c = Math.max(0, Math.round(c * roadDotScale));
       if (!c) return '';
       var html = '';
       for (var i = 1; i <= c; i++) {
@@ -4458,6 +4477,7 @@
       + '<feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>'
       + '</filter>'
       + '</defs>';
+    edgeHtml += '<g id="raidEdgeLayer" opacity="' + contrastOpacity + '">';
     edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="124" fill="none" stroke="rgba(126,215,255,.12)" stroke-width="1.2" />';
     edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="238" fill="none" stroke="rgba(126,215,255,.1)" stroke-width="1" stroke-dasharray="4 5" />';
     Object.keys(titanCenters).forEach(function (key) {
@@ -4483,25 +4503,25 @@
     var godboundStart = startById.godbound_start || titanCenters.Godbound;
     var exileStart = startById.exile_start || titanCenters.Exile;
     // Major class spine and branch trunks to keep start flow obvious.
-    edgeHtml += '<path d="' + buildCurvePath(legacyStart.x, legacyStart.y, titanStart.x, titanStart.y, -26) + '" stroke="rgba(126,215,255,.68)" stroke-width="4.8" fill="none" filter="url(#raidEdgeGlow)" />';
-    edgeHtml += '<path d="' + buildCurvePath(titanStart.x, titanStart.y, godboundStart.x, godboundStart.y, 24) + '" stroke="rgba(255,205,136,.64)" stroke-width="4.8" fill="none" filter="url(#raidEdgeGlow)" />';
-    edgeHtml += '<path d="' + buildCurvePath(godboundStart.x, godboundStart.y, exileStart.x, exileStart.y, -24) + '" stroke="rgba(149,236,212,.64)" stroke-width="4.8" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += '<path d="' + buildCurvePath(legacyStart.x, legacyStart.y, titanStart.x, titanStart.y, -26) + '" stroke="rgba(126,215,255,.68)" stroke-width="' + scaledStrokeWidth(4.8) + '" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += '<path d="' + buildCurvePath(titanStart.x, titanStart.y, godboundStart.x, godboundStart.y, 24) + '" stroke="rgba(255,205,136,.64)" stroke-width="' + scaledStrokeWidth(4.8) + '" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += '<path d="' + buildCurvePath(godboundStart.x, godboundStart.y, exileStart.x, exileStart.y, -24) + '" stroke="rgba(149,236,212,.64)" stroke-width="' + scaledStrokeWidth(4.8) + '" fill="none" filter="url(#raidEdgeGlow)" />';
     edgeHtml += buildRoadDots(legacyStart.x, legacyStart.y, titanStart.x, titanStart.y, 9, 'rgba(170,227,255,.92)', 2.4, '.92');
     edgeHtml += buildRoadDots(titanStart.x, titanStart.y, godboundStart.x, godboundStart.y, 9, 'rgba(255,220,165,.92)', 2.4, '.92');
     edgeHtml += buildRoadDots(godboundStart.x, godboundStart.y, exileStart.x, exileStart.y, 9, 'rgba(171,244,224,.92)', 2.4, '.92');
     ['Tactician', 'Fury', 'Seeker'].forEach(function (sub) {
       var c = titanCenters[sub];
-      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Titan.x, titanCenters.Titan.y, c.x, c.y, -14) + '" stroke="rgba(255,175,118,.46)" stroke-width="3.1" fill="none" filter="url(#raidEdgeGlow)" />';
+      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Titan.x, titanCenters.Titan.y, c.x, c.y, -14) + '" stroke="rgba(255,175,118,.46)" stroke-width="' + scaledStrokeWidth(3.1) + '" fill="none" filter="url(#raidEdgeGlow)" />';
       edgeHtml += buildRoadDots(titanCenters.Titan.x, titanCenters.Titan.y, c.x, c.y, 3, 'rgba(255,193,141,.88)', 1.9, '.86');
     });
     ['Voice', 'Justice', 'Keeper'].forEach(function (sub) {
       var c = titanCenters[sub];
-      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Godbound.x, titanCenters.Godbound.y, c.x, c.y, 16) + '" stroke="rgba(243,224,148,.46)" stroke-width="3.1" fill="none" filter="url(#raidEdgeGlow)" />';
+      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Godbound.x, titanCenters.Godbound.y, c.x, c.y, 16) + '" stroke="rgba(243,224,148,.46)" stroke-width="' + scaledStrokeWidth(3.1) + '" fill="none" filter="url(#raidEdgeGlow)" />';
       edgeHtml += buildRoadDots(titanCenters.Godbound.x, titanCenters.Godbound.y, c.x, c.y, 3, 'rgba(255,234,175,.88)', 1.9, '.86');
     });
     ['Breeze', 'Stalker', 'Muse'].forEach(function (sub) {
       var c = titanCenters[sub];
-      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Exile.x, titanCenters.Exile.y, c.x, c.y, -16) + '" stroke="rgba(156,239,214,.46)" stroke-width="3.1" fill="none" filter="url(#raidEdgeGlow)" />';
+      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Exile.x, titanCenters.Exile.y, c.x, c.y, -16) + '" stroke="rgba(156,239,214,.46)" stroke-width="' + scaledStrokeWidth(3.1) + '" fill="none" filter="url(#raidEdgeGlow)" />';
       edgeHtml += buildRoadDots(titanCenters.Exile.x, titanCenters.Exile.y, c.x, c.y, 3, 'rgba(181,247,229,.88)', 1.9, '.86');
     });
     legacyNodeMeta.forEach(function (n, idx) {
@@ -4512,7 +4532,7 @@
       var y1 = parent.y + (parent.h / 2);
       var x2 = n.x + (n.w / 2);
       var y2 = n.y + (n.h / 2);
-      edgeHtml += '<path d="' + buildCurvePath(x1, y1, x2, y2, 10) + '" stroke="rgba(148,223,255,.5)" stroke-width="2.35" fill="none" />';
+      edgeHtml += '<path d="' + buildCurvePath(x1, y1, x2, y2, 10) + '" stroke="rgba(148,223,255,.5)" stroke-width="' + scaledStrokeWidth(2.35) + '" fill="none" />';
       markNodeConnected(parent.id);
       markNodeConnected(n.id);
     });
@@ -4522,14 +4542,14 @@
       reqs.forEach(function (id) {
         var p = graphLookup[id];
         if (!p) return;
-        edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), 10) + '" stroke="' + (n.canBuy ? 'rgba(164,233,255,.9)' : 'rgba(112,222,183,.46)') + '" stroke-width="' + (n.canBuy ? '3.2' : '2.4') + '" fill="none" filter="url(#raidEdgeGlow)" />';
+        edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), 10) + '" stroke="' + (n.canBuy ? 'rgba(164,233,255,.9)' : 'rgba(112,222,183,.46)') + '" stroke-width="' + scaledStrokeWidth(n.canBuy ? 3.2 : 2.4) + '" fill="none" filter="url(#raidEdgeGlow)" />';
         markNodeConnected(p.id);
         markNodeConnected(n.id);
       });
       reqAny.forEach(function (id) {
         var p = graphLookup[id];
         if (!p) return;
-        edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), -12) + '" stroke="' + (n.canBuy ? 'rgba(255,236,164,.86)' : 'rgba(255,220,126,.44)') + '" stroke-width="' + (n.canBuy ? '3' : '2.15') + '" fill="none" stroke-dasharray="5 4" />';
+        edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), -12) + '" stroke="' + (n.canBuy ? 'rgba(255,236,164,.86)' : 'rgba(255,220,126,.44)') + '" stroke-width="' + scaledStrokeWidth(n.canBuy ? 3 : 2.15) + '" fill="none" stroke-dasharray="5 4" />';
         markNodeConnected(p.id);
         markNodeConnected(n.id);
       });
@@ -4540,7 +4560,7 @@
       var c = titanCenters[n.subclass] || titanCenters.Titan;
       var nx = n.x + n.w / 2;
       var ny = n.y + n.h / 2;
-      edgeHtml += '<path d="' + buildCurvePath(c.x, c.y, nx, ny, 12) + '" stroke="rgba(219,234,248,.48)" stroke-width="2.35" fill="none" stroke-dasharray="2 3" />';
+      edgeHtml += '<path d="' + buildCurvePath(c.x, c.y, nx, ny, 12) + '" stroke="rgba(219,234,248,.48)" stroke-width="' + scaledStrokeWidth(2.35) + '" fill="none" stroke-dasharray="2 3" />';
       markNodeConnected(n.id);
     });
     // Fallback: if a node still appears disconnected, road it to nearest same-class lower tier node.
@@ -4561,11 +4581,12 @@
       });
       var p = candidates[0];
       if (!p) return;
-      edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), 8) + '" stroke="rgba(188,206,226,.35)" stroke-width="1.9" fill="none" stroke-dasharray="3 4" />';
+      edgeHtml += '<path d="' + buildCurvePath((p.x + p.w / 2), (p.y + p.h / 2), (n.x + n.w / 2), (n.y + n.h / 2), 8) + '" stroke="rgba(188,206,226,.35)" stroke-width="' + scaledStrokeWidth(1.9) + '" fill="none" stroke-dasharray="3 4" />';
       markNodeConnected(p.id);
       markNodeConnected(n.id);
     });
     // Intentionally omit dense subclass chain overlays to keep zoomed-out readability.
+    edgeHtml += '</g>';
     var minimapNodesHtml = graphNodes.map(function (node) {
       var cx = Math.round(Number(node.x || 0) + (Number(node.w || 0) / 2));
       var cy = Math.round(Number(node.y || 0) + (Number(node.h || 0) / 2));
@@ -4757,6 +4778,17 @@
       + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.22rem;">'
       + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Raid Skill Tree</div>'
       + '<div style="display:flex;align-items:center;gap:.2rem;">'
+      + '<label style="font-size:.56rem;color:var(--muted2);letter-spacing:.05em;text-transform:uppercase;">Line</label>'
+      + '<select id="raidTreeLineContrast" onchange="setRaidTreeLineContrast(this.value)" style="font-size:.6rem;background:rgba(10,16,22,.9);color:var(--text2);border:1px solid rgba(126,215,255,.35);padding:.06rem .18rem;">'
+      + '<option value="low"' + (lineContrast === 'low' ? ' selected' : '') + '>Low</option>'
+      + '<option value="medium"' + (lineContrast === 'medium' ? ' selected' : '') + '>Medium</option>'
+      + '<option value="high"' + (lineContrast === 'high' ? ' selected' : '') + '>High</option>'
+      + '</select>'
+      + '<label style="font-size:.56rem;color:var(--muted2);letter-spacing:.05em;text-transform:uppercase;">Roads</label>'
+      + '<select id="raidTreeRoadDensity" onchange="setRaidTreeRoadDensity(this.value)" style="font-size:.6rem;background:rgba(10,16,22,.9);color:var(--text2);border:1px solid rgba(126,215,255,.35);padding:.06rem .18rem;">'
+      + '<option value="minimal"' + (roadDensity === 'minimal' ? ' selected' : '') + '>Minimal</option>'
+      + '<option value="full"' + (roadDensity === 'full' ? ' selected' : '') + '>Full</option>'
+      + '</select>'
       + '<button class="btn btn-xs" onclick="raidTreeJumpLegacy()">Legacy</button>'
       + '<button class="btn btn-xs" onclick="raidTreeJumpTitan()">Titan</button>'
       + '<button class="btn btn-xs" onclick="raidTreeJumpGodbound()">Godbound</button>'
@@ -4862,6 +4894,22 @@
       + '</div>';
     initRaidTreeViewportInteractions();
     renderRaidTreeInspectorPanel();
+    window.setRaidTreeLineContrast = function (mode) {
+      if (typeof window === 'undefined') return;
+      window.__raidTreeVisualPrefs = window.__raidTreeVisualPrefs || { lineContrast: 'medium', roadDensity: 'full' };
+      var val = String(mode || 'medium').toLowerCase();
+      if (['low', 'medium', 'high'].indexOf(val) < 0) val = 'medium';
+      window.__raidTreeVisualPrefs.lineContrast = val;
+      renderLegacyRaidTreePanel();
+    };
+    window.setRaidTreeRoadDensity = function (mode) {
+      if (typeof window === 'undefined') return;
+      window.__raidTreeVisualPrefs = window.__raidTreeVisualPrefs || { lineContrast: 'medium', roadDensity: 'full' };
+      var val = String(mode || 'full').toLowerCase();
+      if (['minimal', 'full'].indexOf(val) < 0) val = 'full';
+      window.__raidTreeVisualPrefs.roadDensity = val;
+      renderLegacyRaidTreePanel();
+    };
     return true;
   }
 

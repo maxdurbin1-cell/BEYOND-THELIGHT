@@ -310,7 +310,9 @@
         kickoutPending: false,
         pinnacleCleared: false,
         lastKickoutAt: '',
-        portalAttempts: 0
+        portalAttempts: 0,
+        teleporterHexKey: '',
+        teleporterTheme: ''
       };
     }
     if (!Array.isArray(S.missionDirector.endgame.colosseum.history)) S.missionDirector.endgame.colosseum.history = [];
@@ -321,6 +323,8 @@
     if (typeof S.missionDirector.endgame.gateWar.pinnacleCleared !== 'boolean') S.missionDirector.endgame.gateWar.pinnacleCleared = false;
     if (typeof S.missionDirector.endgame.gateWar.lastKickoutAt !== 'string') S.missionDirector.endgame.gateWar.lastKickoutAt = '';
     if (typeof S.missionDirector.endgame.gateWar.portalAttempts !== 'number') S.missionDirector.endgame.gateWar.portalAttempts = 0;
+    if (typeof S.missionDirector.endgame.gateWar.teleporterHexKey !== 'string') S.missionDirector.endgame.gateWar.teleporterHexKey = '';
+    if (typeof S.missionDirector.endgame.gateWar.teleporterTheme !== 'string') S.missionDirector.endgame.gateWar.teleporterTheme = '';
     return S.missionDirector.endgame;
   }
 
@@ -394,6 +398,8 @@
       gate.closedCelestial = 0;
       gate.pinnacleCleared = false;
       gate.lastKickoutAt = new Date().toISOString();
+      gate.teleporterHexKey = '';
+      gate.teleporterTheme = '';
     } else if (key === 'clear') {
       gate.closedHellscape = 0;
       gate.closedCelestial = 10;
@@ -401,6 +407,7 @@
       if (!gate.pinnacleBoss) gate.pinnacleBoss = 'Azrael';
       gate.pinnacleCleared = true;
       gate.kickoutPending = false;
+      gate.teleporterTheme = gate.teleporterTheme || 'celestial';
     } else if (key === 'reset') {
       removeActivePinnacleMissionsForDebug();
       gate.closedHellscape = 0;
@@ -412,6 +419,8 @@
       gate.pinnacleCleared = false;
       gate.lastKickoutAt = '';
       gate.portalAttempts = 0;
+      gate.teleporterHexKey = '';
+      gate.teleporterTheme = '';
     }
     renderMissionTracker();
     if (typeof showNotif === 'function') showNotif('Endgame debug: portal state set to ' + key + '.', 'info');
@@ -944,34 +953,49 @@
       ? normalized
       : (closedCel >= 10 ? 'celestial' : 'hellscape');
     var boss = gateType === 'hellscape' ? 'Mephisto' : 'Azrael';
-    var dungeonTitle = gateType === 'celestial' ? 'Heaven Megadungeon' : 'Hell Megadungeon';
+    var dungeonTitle = gateType === 'celestial' ? 'Celestial Fall Megadungeon' : 'Hellfall Megadungeon';
+    var mapThemes = gateType === 'celestial'
+      ? ['Glass Choir Citadel', 'Judgment Pinnacle', 'Starforge Basilica']
+      : ['Infernal Maw Catacombs', 'Ashbone Crucible', 'Chainsmoke Labyrinth'];
+    var mapTheme = mapThemes[Math.floor(Math.random() * mapThemes.length)] || mapThemes[0];
     var mission = createMission(
       'Pinnacle Portal',
       dungeonTitle + ': ' + boss,
       'impossible',
-      'Pinnacle Gate Nexus',
+      'Random Province Teleporter',
       'province',
       { gain: 'religious', lose: 'underworld', gainName: 'Religious Entities', loseName: 'The Underworld' },
       {
         missionType: 'pinnacle_megadungeon',
         templateId: 'pinnacle_megadungeon',
-        templateLabel: 'Endgame · Pinnacle Dungeon',
-        stepNames: { 1: 'Enter Mega-Dungeon', 2: 'Survive Deep Wing', 3: 'Defeat ' + boss },
+        templateLabel: 'Endgame · Pinnacle Teleporter',
+        stepNames: { 1: 'Enter Teleporter', 2: 'Clear Phase 1', 3: 'Defeat ' + boss + ' Final Form' },
         checkpoints: [
-          'Portal opened by sealing 10 ' + (gateType === 'celestial' ? 'Celestial' : 'Hellscape') + ' gates.',
-          'Failure ejects you from the dungeon and requires gate sealing to return.',
-          'Pinnacle boss: ' + boss + '.'
+          'Portal opened by sealing 10 ' + (gateType === 'celestial' ? 'Celestial' : 'Hellscape') + ' gates. A single random province teleporter is now active.',
+          'Dungeon map signature: ' + mapTheme + '.',
+          'Boss profile: ' + boss + ' (d20, 40 HP) with two distinct phases.',
+          'Failure ejects you and resets both gate counters to 0/10.'
         ],
-        lore: 'A themed mega-dungeon opens after one side of the warfront reaches 10 sealed gates. Failures eject you until the warfront is stabilized again.'
+        lore: 'A random teleporter tears open in the province after one side reaches 10 sealed gates. Entering launches a dedicated pinnacle megadungeon run against ' + boss + ' across two lethal phases.'
       }
     );
     if (!mission) return null;
+    mission.pinnacleTheme = gateType;
+    mission.pinnacleMapTheme = mapTheme;
+    mission.pinnacleBoss = boss;
+    mission.pinnacleRun = {
+      phase: 1,
+      entered: false,
+      cleared: false,
+      lastRegionTag: 'province'
+    };
     state.pinnacleUnlocked = true;
     state.pinnacleBoss = boss;
     state.kickoutPending = false;
     state.portalAttempts = Math.max(0, Number(state.portalAttempts || 0) + 1);
+    state.teleporterTheme = gateType;
     if (typeof showNotif === 'function') {
-      showNotif('Portal opened: Pinnacle Megadungeon against ' + boss + ' is now active.', 'good');
+      showNotif('Pinnacle teleporter opened: one random province portal now leads to ' + boss + '.', 'good');
     }
     return mission;
   }
@@ -1549,6 +1573,7 @@
     if (type === 'soul_mission') return String(mission.soulIcon || SOUL_MISSION_ICONS[0] || '⚒');
     if (type === 'colosseum_endless') return String(mission.colosseumIcon || COLOSSEUM_MISSION_ICONS[0] || '🏟');
     if (type === 'gate_war') return String(mission.gateWarIcon || GATE_WAR_MISSION_ICONS[0] || '🌀');
+    if (type === 'pinnacle_megadungeon') return '🜂';
     return undefined;
   }
 
@@ -1669,6 +1694,30 @@
     if (typeof mapData !== 'undefined' && mapData.length) {
       var provinceTokenIcon = getMissionTokenIcon(mission);
       var candidates = mapData.filter(function(h) { return h.type === 'wilderness'; });
+      if (mission.missionType === 'pinnacle_megadungeon') {
+        if (!candidates.length) candidates = mapData.slice();
+        if (candidates.length) {
+          var portalHex = candidates[Math.floor(Math.random() * candidates.length)];
+          var portalKey = String(portalHex.col) + ',' + String(portalHex.row);
+          S.missionTokens[portalKey] = {
+            missionId: mission.id,
+            title: mission.title,
+            type: 'pinnacle_portal',
+            missionType: mission.missionType || 'pinnacle_megadungeon',
+            icon: provinceTokenIcon
+          };
+          mission.informerHex = null;
+          mission.siteHex = { col: portalHex.col, row: portalHex.row };
+          mission.mapHex = mission.siteHex;
+          mission.pinnacleTeleporterHexKey = portalKey;
+          try {
+            var gateState = ensureEndgameDirectorState().gateWar;
+            gateState.teleporterHexKey = portalKey;
+          } catch (_teleporterStateErr) {}
+        }
+        if (typeof renderHexMap === 'function') renderHexMap();
+        return;
+      }
       if (candidates.length >= 2) {
         // Pick two distinct hexes: one for the Informer (step 1), one for the Site (steps 2-3)
         var shuffled = candidates.slice().sort(function(){ return Math.random()-0.5; });
@@ -2397,6 +2446,245 @@
     return true;
   }
 
+  function ensurePinnacleMegadungeonRunState(mission) {
+    if (!mission || mission.missionType !== 'pinnacle_megadungeon') return null;
+    if (!mission.pinnacleRun || typeof mission.pinnacleRun !== 'object') {
+      mission.pinnacleRun = {
+        phase: 1,
+        entered: false,
+        cleared: false,
+        lastRegionTag: 'province'
+      };
+    }
+    mission.pinnacleRun.phase = Math.max(1, Math.min(2, Number(mission.pinnacleRun.phase || 1)));
+    mission.pinnacleRun.entered = !!mission.pinnacleRun.entered;
+    mission.pinnacleRun.cleared = !!mission.pinnacleRun.cleared;
+    mission.pinnacleRun.lastRegionTag = String(mission.pinnacleRun.lastRegionTag || 'province');
+    return mission.pinnacleRun;
+  }
+
+  function getPinnaclePhaseProfile(mission, phase) {
+    var boss = String(mission && (mission.pinnacleBoss || mission.title || 'Pinnacle Boss')).toLowerCase();
+    var bossName = String(mission && (mission.pinnacleBoss || 'Pinnacle Boss'));
+    var isMephisto = boss.indexOf('mephisto') >= 0;
+    if (isMephisto) {
+      if (Number(phase || 1) >= 2) {
+        return {
+          phase: 2,
+          name: bossName + ' - Crown of Ash',
+          map: 'The Furnace Crown',
+          action: 'Crownfall Cataclysm',
+          text: 'Ash-crowns erupt from the floor. Missed movement calls stack Vulnerable and burn AP.',
+          mechanics: [
+            'Crownfall Cataclysm: lane eruptions sweep left-to-right each enemy turn.',
+            'Brand of Debt: lowest-HP ally is marked; unbroken mark doubles next hit.',
+            'Infernal Audit: if two allies share a lane, both take pressure backlash.'
+          ]
+        };
+      }
+      return {
+        phase: 1,
+        name: bossName + ' - Chain Tyrant',
+        map: 'The Chain Pits',
+        action: 'Chainquake',
+        text: 'Hooked chains cross the arena and punish stationary targets with stackable stress.',
+        mechanics: [
+          'Chainquake: standing still two rounds in a row triggers bonus damage.',
+          'Hookstep: nearest target loses 1 AP unless guarded.',
+          'Molten Censers: periodic raidwide pulse applies Burned pressure.'
+        ]
+      };
+    }
+    if (Number(phase || 1) >= 2) {
+      return {
+        phase: 2,
+        name: bossName + ' - Last Adjudicator',
+        map: 'The Tribunal of Knives',
+        action: 'Sentence of Glass',
+        text: 'The floor fractures into mirrored verdict lanes. Wrong lane calls amplify dread spikes.',
+        mechanics: [
+          'Sentence of Glass: one safe lane rotates every round.',
+          'Wing Sever: strips 1 AP from any exposed frontliner.',
+          'Merciless Verdict: failed support action adds permanent +1 Dread pressure.'
+        ]
+      };
+    }
+    return {
+      phase: 1,
+      name: bossName + ' - Dawn Reaper',
+      map: 'The Choir Scaffold',
+      action: 'Radiant Guillotine',
+      text: 'Crossing beams carve the arena; delayed telegraphs become lethal one turn later.',
+      mechanics: [
+        'Radiant Guillotine: marked lanes detonate next round.',
+        'Halo Feint: boss clones fake telegraphs; only one lane remains stable.',
+        'Choir Collapse: unresolved mechanics trigger raidwide stress spike.'
+      ]
+    };
+  }
+
+  function launchPinnacleMegadungeonPhaseCombat(missionId, regionTag) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'pinnacle_megadungeon') return false;
+    var run = ensurePinnacleMegadungeonRunState(mission);
+    if (!run) return false;
+    var phase = Math.max(1, Math.min(2, Number(run.phase || 1)));
+    var profile = getPinnaclePhaseProfile(mission, phase);
+    if (typeof closeModal === 'function') closeModal();
+
+    var flow = null;
+    var title = 'Pinnacle Megadungeon - ' + profile.map + ' (Phase ' + phase + '/2)';
+    var hexKey = String(regionTag || run.lastRegionTag || 'province') + '-pinnacle-' + String(mission.id || '0') + '-p' + phase;
+    if (typeof window.seedArenaCombat === 'function') {
+      flow = window.seedArenaCombat('pinnacle', {
+        hexKey: hexKey,
+        title: title,
+        bossName: String(mission.pinnacleBoss || 'Pinnacle Boss')
+      });
+    }
+    if (flow && typeof flow === 'object') {
+      flow.mode = 'pinnacle';
+      flow.missionId = mission.id;
+      flow.pinnaclePhase = phase;
+      flow.pinnacleTheme = String(mission.pinnacleTheme || 'hellscape');
+      if (flow.enemy) {
+        flow.enemy.name = profile.name;
+        flow.enemy.dread = 20;
+        flow.enemy.maxStress = 40;
+        flow.enemy.health = 40;
+        flow.enemy.stress = Math.max(0, Number(flow.enemy.stress || 0));
+        flow.enemy.specialAction = { name: profile.action, text: profile.text };
+      }
+    }
+    if (S && Array.isArray(S.enemies)) {
+      for (var i = 0; i < S.enemies.length; i++) {
+        var enemy = S.enemies[i];
+        if (!enemy || enemy.ally) continue;
+        enemy.name = profile.name;
+        enemy.dread = 20;
+        enemy.maxStress = 40;
+        enemy.health = 40;
+        enemy.stress = Math.max(0, Number(enemy.stress || 0));
+        enemy.specialAction = { name: profile.action, text: profile.text };
+      }
+    }
+    if (typeof window.openArenaCombatPopup === 'function') {
+      window.openArenaCombatPopup({ mode: 'pinnacle', hexKey: hexKey, title: title });
+      if (typeof showNotif === 'function') {
+        showNotif('Pinnacle combat opened: ' + String(mission.pinnacleBoss || 'Boss') + ' Phase ' + phase + ' (d20, 40 HP).', 'warn');
+      }
+      return true;
+    }
+    if (typeof showNotif === 'function') showNotif('Unable to open pinnacle combat popup.', 'warn');
+    return false;
+  }
+
+  function openPinnacleTeleporterEncounter(missionId, regionTag) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'pinnacle_megadungeon') return false;
+    if (mission.steps && mission.steps[3] && mission.steps[3].completed) {
+      if (typeof showNotif === 'function') showNotif('This pinnacle run is already complete.', 'info');
+      return false;
+    }
+    var run = ensurePinnacleMegadungeonRunState(mission);
+    if (!run) return false;
+    run.entered = true;
+    run.lastRegionTag = String(regionTag || run.lastRegionTag || 'province');
+    if (mission.steps && mission.steps[1] && !mission.steps[1].completed) mission.steps[1].completed = true;
+    if (mission.steps && mission.steps[2] && Number(run.phase || 1) >= 2) mission.steps[2].completed = true;
+    var profile = getPinnaclePhaseProfile(mission, run.phase);
+    var teleporterHex = mission.siteHex ? ('Hex ' + String(Number(mission.siteHex.col || 0) + 1) + ',' + String(Number(mission.siteHex.row || 0) + 1)) : 'Unknown hex';
+
+    var mechanicsHtml = (profile.mechanics || []).map(function (line) {
+      return '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">• ' + String(line || '') + '</div>';
+    }).join('');
+
+    openModal(
+      'Pinnacle Teleporter - ' + String(mission.pinnacleBoss || 'Boss'),
+      '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.16rem;"><strong>' + profile.map + '</strong></div>'
+        + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.22rem;">Teleporter origin: ' + teleporterHex + ' · Theme: ' + String(mission.pinnacleTheme || 'hellscape') + '</div>'
+        + '<div style="border:1px solid rgba(255,140,80,.28);padding:.34rem .42rem;background:rgba(255,140,80,.08);margin-bottom:.24rem;">'
+          + '<div style="font-size:.72rem;color:#ffb27a;margin-bottom:.1rem;">Phase ' + Number(run.phase || 1) + '/2 - ' + profile.name + '</div>'
+          + '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;">Boss profile: <strong>d20 | 40 HP</strong>. ' + profile.text + '</div>'
+        + '</div>'
+        + '<div style="border:1px solid var(--border2);padding:.28rem .35rem;background:rgba(255,255,255,.03);margin-bottom:.24rem;">'
+          + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.1rem;">Encounter Mechanics</div>'
+          + mechanicsHtml
+        + '</div>'
+        + '<div style="display:flex;gap:.28rem;justify-content:flex-end;flex-wrap:wrap;">'
+          + '<button class="btn btn-sm" onclick="closeModal()">Leave</button>'
+          + '<button class="btn btn-sm" onclick="window.failPinnacleMegadungeonRun(' + mission.id + ')">Fail Run</button>'
+          + '<button class="btn btn-sm" onclick="window.resolvePinnacleMegadungeonEncounter()">Mark Boss Defeated</button>'
+          + '<button class="btn btn-sm btn-primary" onclick="window.launchPinnacleMegadungeonPhaseCombat(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\')">Open Combat Popup</button>'
+        + '</div>'
+      + '</div>'
+    );
+    return true;
+  }
+
+  function resolvePinnacleMegadungeonEncounter() {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow || String(flow.mode || '') !== 'pinnacle') {
+      if (typeof showNotif === 'function') showNotif('Open the pinnacle combat popup before resolving the phase.', 'warn');
+      return false;
+    }
+    var hasHostiles = Array.isArray(S.enemies) && S.enemies.some(function (enemy) {
+      return enemy && !enemy.ally && Number(enemy.stress || 0) < Number(enemy.maxStress || 0);
+    });
+    if (hasHostiles) {
+      if (typeof showNotif === 'function') showNotif('The pinnacle boss is still standing. Finish the fight first.', 'warn');
+      return false;
+    }
+    var mission = getMission(flow.missionId || flow.soulMissionId);
+    if (!mission || mission.missionType !== 'pinnacle_megadungeon') {
+      if (typeof showNotif === 'function') showNotif('Pinnacle mission record not found.', 'warn');
+      return false;
+    }
+    var run = ensurePinnacleMegadungeonRunState(mission);
+    if (!run) return false;
+    if (run.phase <= 1) {
+      run.phase = 2;
+      if (mission.steps && mission.steps[2]) mission.steps[2].completed = true;
+      if (S && S.combat && S.combat.arenaFlow) {
+        S.combat.arenaFlow.active = false;
+        S.combat.arenaFlow.completed = true;
+      }
+      if (typeof closeModal === 'function') closeModal();
+      openModal(
+        'Phase Transition - ' + String(mission.pinnacleBoss || 'Pinnacle Boss'),
+        '<div style="font-size:.82rem;color:var(--text2);line-height:1.56;">'
+          + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.16rem;"><strong>Phase 1 Cleared</strong></div>'
+          + '<div style="margin-bottom:.24rem;color:var(--muted2);">The arena mutates. ' + String(mission.pinnacleBoss || 'The boss') + ' enters the final phase at d20 | 40 HP.</div>'
+          + '<div style="display:flex;justify-content:flex-end;gap:.28rem;">'
+            + '<button class="btn btn-sm" onclick="closeModal()">Not Yet</button>'
+            + '<button class="btn btn-sm btn-primary" onclick="window.openPinnacleTeleporterEncounter(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\')">Enter Phase 2</button>'
+          + '</div>'
+        + '</div>'
+      );
+      if (typeof showNotif === 'function') showNotif('Pinnacle Phase 1 complete. Final phase unlocked.', 'good');
+      return true;
+    }
+    run.cleared = true;
+    if (mission.steps && mission.steps[3]) mission.steps[3].completed = true;
+    if (S && S.combat && S.combat.arenaFlow) {
+      S.combat.arenaFlow.active = false;
+      S.combat.arenaFlow.completed = true;
+    }
+    if (typeof closeModal === 'function') closeModal();
+    if (typeof showNotif === 'function') showNotif('Pinnacle boss defeated. Megadungeon cleared.', 'good');
+    resolveMission(mission.id, true);
+    return true;
+  }
+
+  function failPinnacleMegadungeonRun(missionId) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'pinnacle_megadungeon') return false;
+    if (typeof closeModal === 'function') closeModal();
+    resolveMission(mission.id, false);
+    return true;
+  }
+
   function autoAdvanceMissionByToken(missionId, tokenType, regionTag) {
     var mission = getMission(missionId);
     if (!mission) return false;
@@ -2404,6 +2692,10 @@
       return handleLegacyRaidMarkerInteraction(mission.id, tokenType, regionTag || mission.region || 'region');
     }
     var type = String(tokenType || '').toLowerCase();
+    if (mission.missionType === 'pinnacle_megadungeon' && (type === 'site' || type === 'holding_site' || type === 'pinnacle_portal')) {
+      if (!canAutoAdvanceMission(mission.id, type, regionTag || mission.region || 'region')) return false;
+      return openPinnacleTeleporterEncounter(mission.id, regionTag || mission.region || 'province');
+    }
     if (!canAutoAdvanceMission(mission.id, type, regionTag || mission.region || 'region')) return false;
     if ((type === 'informer' || type === 'holding_info') && mission.steps[1] && !mission.steps[1].completed) {
       startMissionStep1(mission.id);
@@ -14237,6 +14529,7 @@
         var pState = ensureEndgameDirectorState().gateWar;
         pState.pinnacleCleared = true;
         pState.kickoutPending = false;
+        pState.teleporterHexKey = '';
       }
       if (mission.missionType === 'colosseum_endless' && mission.colosseumUniqueReward) {
         mission.loot.push(String(mission.colosseumUniqueReward));
@@ -14276,6 +14569,8 @@
         gFailState.closedCelestial = 0;
         gFailState.lastKickoutAt = new Date().toISOString();
         gFailState.pinnacleCleared = false;
+        gFailState.teleporterHexKey = '';
+        gFailState.teleporterTheme = '';
         if (typeof showNotif === 'function') {
           showNotif('Pinnacle run failed: kicked out. Gate closures reset and a side must be rebuilt to 10/10.', 'warn');
         }
@@ -14864,6 +15159,10 @@
   window.openSoulForgeTokenEncounter=openSoulForgeTokenEncounter;
   window.startSoulForgeEncounterFromToken=startSoulForgeEncounterFromToken;
   window.resolveSoulForgeEncounter=resolveSoulForgeEncounter;
+  window.openPinnacleTeleporterEncounter=openPinnacleTeleporterEncounter;
+  window.launchPinnacleMegadungeonPhaseCombat=launchPinnacleMegadungeonPhaseCombat;
+  window.resolvePinnacleMegadungeonEncounter=resolvePinnacleMegadungeonEncounter;
+  window.failPinnacleMegadungeonRun=failPinnacleMegadungeonRun;
   window.renderEndgameTabPanel=renderEndgameTabPanel;
   window.handleLegacyRaidMarkerInteraction=handleLegacyRaidMarkerInteraction;
   window.openLegacyRaidMissionPopup=openLegacyRaidMissionPopup;

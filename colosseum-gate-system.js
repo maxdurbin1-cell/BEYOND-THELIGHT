@@ -291,6 +291,7 @@
     }
     if (typeof updateCombatUI === 'function') updateCombatUI();
     if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof renderCombatOptions === 'function') renderCombatOptions();
     return spec;
   }
 
@@ -316,6 +317,7 @@
       if (typeof updateCombatUI === 'function') updateCombatUI();
       if (typeof renderEnemies === 'function') renderEnemies();
       if (typeof renderQP === 'function') renderQP('combat');
+      if (typeof renderCombatOptions === 'function') renderCombatOptions();
       if (payload && typeof payload.title === 'string' && typeof showNotif === 'function') {
         showNotif(String(payload.title) + ' active in Combat tab.', 'info');
       }
@@ -376,6 +378,7 @@
     }
     if (typeof updateCombatUI === 'function') updateCombatUI();
     if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof renderCombatOptions === 'function') renderCombatOptions();
   }
 
   function closeGatePortalOnMap(flow) {
@@ -410,12 +413,14 @@
       flow.gatePortal.puzzleAttempts = Number(portal.puzzleAttempts || 0);
       flow.gatePortal.closed = false;
       seedGateEnemies(portal.gateType, flow);
+      if (typeof renderCombatOptions === 'function') renderCombatOptions();
 
       openArenaPopupSafe({
         mode: 'gate',
         hexKey: String(key || ''),
         title: String(portal.gateType === 'celestial' ? 'Celestial Gate Breach' : 'Hellscape Gate Breach')
       }, 'Gate battle popup was blocked. Re-open the gate marker.');
+      if (typeof renderCombatOptions === 'function') renderCombatOptions();
       if (typeof showNotif === 'function') showNotif('Gate portal opened. Defeat hostiles, then solve the seal puzzle.', 'warn');
       return true;
     }, 'Gate popup could not open. Re-open the gate marker.');

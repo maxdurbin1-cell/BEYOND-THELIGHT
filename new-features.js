@@ -2248,6 +2248,7 @@
       ? ('Round Wins ' + Number(match.roundWins && match.roundWins.ally || 0) + ' - ' + Number(match.roundWins && match.roundWins.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 5) + ')')
       : ('Score ' + Number(match.score && match.score.ally || 0) + ' - ' + Number(match.score && match.score.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 0) + ')');
     var wayfarerOptions = getCrucibleWayfarerActionOptionsHtml();
+    var wayfarerTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedAlly);
     var teamTargetOptions = buildCrucibleTeamTargetOptions(match, 'attack', selectedAlly);
     var enemyTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedEnemy);
     var railMine = !isEnemyTurn;
@@ -2271,9 +2272,11 @@
         + '<select id="crucibleEnemyTargetSelect" style="width:100%;margin-top:.08rem;">' + enemyTargetOptions + '</select></label>'
         + '<button class="btn btn-sm btn-red" onclick="holdingCrucibleExecuteEnemyAction();" ' + (canEnemyAct ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Execute</button>'
         + '</div>')
-      : ('<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
+      : ('<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
         + '<label style="font-size:.66rem;color:var(--muted2);">Wayfarer Actions'
-        + '<select id="crucibleWayfarerActionSelect" style="width:100%;margin-top:.08rem;">' + wayfarerOptions + '</select></label>'
+        + '<select id="crucibleWayfarerActionSelect" onchange="refreshCrucibleWayfarerActionOptions();" style="width:100%;margin-top:.08rem;">' + wayfarerOptions + '</select></label>'
+        + '<label style="font-size:.66rem;color:var(--muted2);">Target'
+        + '<select id="crucibleWayfarerTargetSelect" style="width:100%;margin-top:.08rem;">' + wayfarerTargetOptions + '</select></label>'
         + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteWayfarerAction();" ' + (canAct ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Execute</button>'
         + '</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.3rem;">'
@@ -2472,7 +2475,7 @@
         return '<option value="' + friendlySide + ':' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Unit') + '</option>';
       }).join('');
     }
-    if (act === 'attack') {
+    if (act === 'attack' || act === 'strike' || act === 'shoot') {
       var targets = opposingUnits.filter(function (enemy) {
         return !!(actor && enemy && canCrucibleUnitAttack(actor, enemy));
       });
@@ -2504,6 +2507,17 @@
     if (!actionEl || !targetEl) return false;
     var actor = getSelectedCrucibleAlly(match);
     targetEl.innerHTML = buildCrucibleTeamTargetOptions(match, String(actionEl.value || 'attack'), actor);
+    return true;
+  }
+
+  function refreshCrucibleWayfarerActionOptions() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || typeof document === 'undefined') return false;
+    var actionEl = document.getElementById('crucibleWayfarerActionSelect');
+    var targetEl = document.getElementById('crucibleWayfarerTargetSelect');
+    if (!actionEl || !targetEl) return false;
+    var actor = getSelectedCrucibleAlly(match);
+    targetEl.innerHTML = buildCrucibleEnemyTargetOptions(match, String(actionEl.value || 'attack'), actor);
     return true;
   }
 
@@ -2540,6 +2554,7 @@
     if (!match || String(match.turnSide || 'ally') !== 'ally') return false;
     if (typeof document === 'undefined') return false;
     var actionEl = document.getElementById('crucibleWayfarerActionSelect');
+    var targetEl = document.getElementById('crucibleWayfarerTargetSelect');
     if (!actionEl) return false;
     var action = String(actionEl.value || '').toLowerCase();
     var actor = (match.allies || []).find(function (u) { return u && u.isPlayer && Number(u.hp || 0) > 0; }) || null;
@@ -2553,7 +2568,14 @@
       return false;
     }
 
-    var target = getSelectedCrucibleTarget(match);
+    var targetRef = targetEl ? String(targetEl.value || '') : '';
+    var target = null;
+    if (targetRef.indexOf('enemy:') === 0) {
+      target = findCrucibleUnit(match, 'enemy', targetRef.split(':')[1]);
+    }
+    if (!target || Number(target.hp || 0) <= 0) {
+      target = getSelectedCrucibleTarget(match);
+    }
     var logs = [];
     if (action.indexOf('move') === 0) {
       if (typeof showNotif === 'function') showNotif('Use the movement chips below the board to move one hex at a time.', 'info');
@@ -6404,6 +6426,7 @@
   window.selectHoldingCrucibleAllyTarget = selectHoldingCrucibleAllyTarget;
   window.holdingCrucibleMoveSelected = holdingCrucibleMoveSelected;
   window.holdingCrucibleTeleportSelected = holdingCrucibleTeleportSelected;
+  window.refreshCrucibleWayfarerActionOptions = refreshCrucibleWayfarerActionOptions;
   window.refreshCrucibleTeamActionOptions = refreshCrucibleTeamActionOptions;
   window.refreshCrucibleEnemyActionOptions = refreshCrucibleEnemyActionOptions;
   window.holdingCrucibleExecuteWayfarerAction = holdingCrucibleExecuteWayfarerAction;

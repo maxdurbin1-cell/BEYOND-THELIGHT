@@ -15,6 +15,7 @@
     "smoke:raid-combat-return": "node smoke-tests/raid-combat-return.smoke.mjs",
     "smoke:quick-panel-raid-ui": "node smoke-tests/quick-panel-raid-ui.smoke.mjs",
     "smoke:raid-teleport-choice": "node smoke-tests/raid-teleport-choice.smoke.mjs",
+    "smoke:soulforge-crucible": "node smoke-tests/soulforge-crucible.smoke.mjs",
     "smoke:solo-library": "node smoke-tests/solo-library.smoke.mjs",
     "smoke:bone-oracle": "node smoke-tests/bone-oracle.smoke.mjs",
     "smoke:newsun-scheduler": "node smoke-tests/new-sun-scheduler.smoke.mjs",

@@ -5688,6 +5688,8 @@
     if (typeof showNotif === 'function') showNotif('Repositioned to ' + flow.playerRange + '.', 'info');
     if (typeof updateCombatUI === 'function') updateCombatUI();
     if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
+    if (typeof renderCombatOptions === 'function') renderCombatOptions();
     return true;
   };
 
@@ -7812,16 +7814,16 @@
     var baseEndCombat = window.endCombat;
     window.endCombat = function () {
       var pendingCtxBeforeEnd = getLegacyRaidPendingHexCombat();
-      var preEnemies = 0;
-      if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
-        preEnemies = S.enemies.filter(function (e) { return e && !e.ally; }).length;
-      }
       var out = baseEndCombat.apply(this, arguments);
       var pendingCtx = getLegacyRaidPendingHexCombat() || pendingCtxBeforeEnd;
       if (pendingCtx && typeof window.finalizeLegacyRaidHexCombatOutcome === 'function') {
         var remaining = 0;
-        if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
-          remaining = S.enemies.filter(function (e) { return e && !e.ally; }).length;
+        if (typeof getLegacyRaidSceneHostiles === 'function') {
+          remaining = getLegacyRaidSceneHostiles().length;
+        } else if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
+          remaining = S.enemies.filter(function (e) {
+            return e && !e.ally && Number(e.stress || 0) < Number(e.maxStress || 8);
+          }).length;
         }
         var health = typeof S !== 'undefined' && S ? Number(S.health || 0) : 1;
         var outcome = remaining <= 0 ? 'win' : (health <= 0 ? 'wipe' : 'retreat');

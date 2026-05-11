@@ -6295,14 +6295,29 @@ function executeWayfarerAction(){
     if(!consumeCombatAction('Heavy Attack (first action)'))return;
     if(!consumeCombatAction('Heavy Attack (second action)'))return;
     var advDie=S&&S.stats&&S.stats.adventure?S.stats.adventure:4;
-    var aRoll=explodingRoll(S.stats[type2]||6,{type:'action',major:true,label:'Heavy '+type2});
+    var affixBonus=getEquippedAffixCombatBonuses();
+    var die = type2 === 'strike' ? S.stats.strike : S.stats.shoot;
+    if(type2==='strike'&&Number(affixBonus.strikeDieSteps||0)!==0)die=applyDieSteps(die,Number(affixBonus.strikeDieSteps||0));
+    var augDie = getAugBonus(type2);
+    var wpBonus = parseWeaponBonuses(type2);
+    var flBonus = getFlavorBonus(type2);
+    var mtBonus = getMutationBonus(type2);
+    var mods = Array.isArray(S.weaponMods) ? S.weaponMods : [];
+    var advDiceArr = [];
+    if(wpBonus.advDie > 0) advDiceArr.push(wpBonus.advDie);
+    advDiceArr = advDiceArr.concat(flBonus.advDice||[]).concat(mtBonus.advDice||[]);
+    if(type2==='shoot'&&mods.indexOf('Smart Aim')>=0) advDiceArr.push(stepUp(die));
+    if(S.rollMod && Array.isArray(S.rollMod.advDice)) advDiceArr = advDiceArr.concat(S.rollMod.advDice);
+    var ra = rollWithAdvantage(die, advDiceArr, {type:'action',major:true,label:'Heavy '+(type2==='strike'?'Strike':'Shoot')});
     var advRoll=explodingRoll(advDie,{type:'action',label:'Heavy Adv Bonus'});
-    var total=aRoll.total+advRoll.total;
+    var flatTotal=ra.total+advRoll.total;
+    if(S.rollMod&&Number(S.rollMod.flat||0)!==0)flatTotal+=Number(S.rollMod.flat||0);
+    if(type2==='shoot'&&getPrimaryEnemyZoneRelative()==='close')flatTotal+=Number(affixBonus.shootCloseBonus||0);
     var enem=getPrimaryCombatEnemy();
     var dreadRoll=enem?rollEnemyDreadWithEffects(enem,'Enemy DD'):{total:explodingRoll(S.combat.enemyDread||8,{type:'dread',label:'Enemy DD'}).total};
-    var hit=total>dreadRoll.total;
-    var dmg=hit?Math.max(1,total-dreadRoll.total)+2:0;
-    setRes('<span style="color:'+(hit?'var(--teal)':'var(--red2)')+';">Heavy Attack: '+total+'(+'+advRoll.total+' Adv) vs Dread '+dreadRoll.total+' \u2014 '+(hit?'HIT! '+dmg+' Health damage (+2 Heavy bonus)':'MISS')+'</span>');
+    var hit=flatTotal>dreadRoll.total;
+    var dmg=hit?Math.max(1,flatTotal-dreadRoll.total)+2:0;
+    setRes('<span style="color:'+(hit?'var(--teal)':'var(--red2)')+';">Heavy Attack: '+flatTotal+' vs Dread '+dreadRoll.total+' \u2014 '+(hit?'HIT! '+dmg+' Health damage (+2 bonus)':'MISS')+'</span>');
     if(hit&&enem)applyStressToEnemy(enem,dmg,'Heavy Attack');
     return;
   }
@@ -7522,23 +7537,80 @@ function openSoulMissionRewardChoice(mission, affix){
   var armorText = String(S && S.equipment && S.equipment.armor || '');
   var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
     + '<div style="margin-bottom:.28rem;">Endgame boss reward from <strong style="color:var(--gold2);">' + sourceName + '</strong>.</div>'
-    + '<div style="margin-bottom:.2rem;">Random affix rolled: <strong style="color:var(--teal);">' + String(affix || 'Keen') + '</strong></div>'
+    + '<div style="margin-bottom:.2rem;">Random affix rolled: <strong style="color:var(--teal);">' + String(affix || 'Keen') + '</strong> <button class="btn-icon" style="padding:0;margin-left:.2rem;font-size:.8rem;background:rgba(100,180,200,.3);border:1px solid var(--teal);color:var(--teal);cursor:pointer;width:1.1rem;height:1.1rem;display:inline-flex;align-items:center;justify-content:center;border-radius:.15rem;" onclick="showAffixDetails(\'' + String(affix || 'Keen').replace(/'/g, "\\'") + '\')">?</button></div>'
     + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Choose whether to enhance your weapon or armor. After the upgrade, the Merchant tab opens the Soul Forge vendor so you can remove, equip, or sell affixes.</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;">'
     + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
     + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;"><strong>Weapon Upgrade</strong></div>'
     + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;margin-bottom:.22rem;">' + (weaponText || 'No readied weapon found.') + '</div>'
-    + '<button class="btn btn-xs btn-primary" ' + (weaponText ? '' : 'disabled') + ' onclick="claimSoulMissionRewardChoice(\'weapon\',' + JSON.stringify(String(affix || 'Keen')) + ',' + JSON.stringify(sourceName) + ')">Apply To Weapon</button>'
+    + '<button class="btn btn-xs btn-primary" ' + (weaponText ? '' : 'disabled') + ' data-affix="' + String(affix || 'Keen').replace(/"/g, '&quot;') + '" data-source="' + String(sourceName).replace(/"/g, '&quot;') + '" onclick="claimSoulMissionRewardChoice(\'weapon\', this.getAttribute(\'data-affix\'), this.getAttribute(\'data-source\'))">Apply To Weapon</button>'
     + '</div>'
     + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
     + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;"><strong>Armor Upgrade</strong></div>'
     + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;margin-bottom:.22rem;">' + (armorText || 'No armor equipped.') + '</div>'
-    + '<button class="btn btn-xs btn-teal" ' + (armorText ? '' : 'disabled') + ' onclick="claimSoulMissionRewardChoice(\'armor\',' + JSON.stringify(String(affix || 'Keen')) + ',' + JSON.stringify(sourceName) + ')">Apply To Armor</button>'
+    + '<button class="btn btn-xs btn-teal" ' + (armorText ? '' : 'disabled') + ' data-affix="' + String(affix || 'Keen').replace(/"/g, '&quot;') + '" data-source="' + String(sourceName).replace(/"/g, '&quot;') + '" onclick="claimSoulMissionRewardChoice(\'armor\', this.getAttribute(\'data-affix\'), this.getAttribute(\'data-source\'))">Apply To Armor</button>'
     + '</div>'
     + '</div>'
     + '</div>';
   if (typeof openModal === 'function') openModal('Soul Forge - Unique Kill Reward', html);
   return true;
+}
+
+function showAffixDetails(affixName){
+  var affix = String(affixName || 'Keen').toLowerCase();
+  var affixMap = {
+    'keen': { name: 'Keen', effect: '+1 Strike Flat', description: 'Your Strike attacks gain +1 flat damage.' },
+    'swift': { name: 'Swift', effect: '+1 Action', description: 'Gain +1 Action point per turn.' },
+    'sturdy': { name: 'Sturdy', effect: '+1 Defend Flat', description: 'Your Defend rolls gain +1 flat damage.' },
+    'brutal': { name: 'Brutal', effect: '+2 Strike Flat, -1 Action', description: 'Strike attacks gain +2 flat, but costs -1 action.' },
+    'agile': { name: 'Agile', effect: '+2 Actions, -1 Strike Flat', description: 'Gain +2 actions, but strike attacks lose 1 flat damage.' },
+    'reinforce': { name: 'Reinforce', effect: '+2 Defend, -1 Strike', description: 'Defense gains +2 flat, but strikes lose 1 flat damage.' },
+    'fierce': { name: 'Fierce', effect: '+3 Strike, +3 Defend, -2 Action', description: 'Attacks and defense both gain +3 flat, but costs -2 actions.' },
+    'nimble': { name: 'Nimble', effect: '+3 Action, -2 Strike, -2 Defend', description: 'Gain +3 actions, but lose 1 flat on strikes and defense.' },
+    'resilient': { name: 'Resilient', effect: '+3 Defend, -2 Strike, -2 Action', description: 'Defense gains +3 flat, but strikes lose 2 flat and cost -2 actions.' },
+    'balanced': { name: 'Balanced', effect: '+1 Strike, +1 Shoot, +1 Defend, +1 Action', description: 'Gain +1 flat to all attack types and +1 action.' },
+    'accuracy': { name: 'Accuracy', effect: '+1 Crit Shift', description: 'Critical hits become more likely.' },
+    'range': { name: 'Range', effect: 'Enable Close Strikes & Far Shoots', description: 'You can strike in close range and shoot at far range.' },
+    'stealth': { name: 'Stealth', effect: '+1 Control Flat', description: 'Control rolls gain +1 flat damage.' },
+    'piercing': { name: 'Piercing', effect: '+1 Pierce Dread Levels', description: 'Reduce enemy defenses more effectively.' },
+    'lethal': { name: 'Lethal', effect: '+2 Crit, -1 Action', description: 'Critical hits become more likely, but costs -1 action.' },
+    'vicious': { name: 'Vicious', effect: 'Add Body to Strike Damage', description: 'Your strikes gain bonus damage equal to your Body stat.' },
+    'silent': { name: 'Silent', effect: '+2 Control, -1 Action', description: 'Control gains +2 flat, but costs -1 action.' },
+    'distance': { name: 'Distance', effect: '+1 Shoot Close, Enable Close Strikes', description: 'Shoot attacks gain +1 at close range and strikes work at distance.' },
+    "dragon's breath": { name: "Dragon's Breath", effect: '+3 On-Hit Flat Damage', description: 'Each hit against enemies deals +3 flat damage.' },
+    'stormcaller': { name: 'Stormcaller', effect: '+3 On-Hit, Enemy Skip 1 Turn', description: 'Hits deal +3 flat damage and enemies skip a turn.' },
+    'frostheart': { name: 'Frostheart', effect: '+1 On-Hit, Enemy Skip 1 Turn', description: 'Hits deal +1 flat damage and enemies skip a turn.' },
+    'lifedrinker': { name: 'Lifedrinker', effect: 'Heal on Kill', description: 'Restore health when defeating enemies.' },
+    'doombringer': { name: 'Doombringer', effect: '+5 Attack Flat', description: 'All attacks gain +5 flat damage.' },
+    'griffin': { name: 'Griffin', effect: 'Knockback Enemies', description: 'Hits can push enemies back.' },
+    'valkyrie': { name: 'Valkyrie', effect: '+1 Spirit Die Step', description: 'Your Spirit die steps up by one size.' },
+    'leviathan': { name: 'Leviathan', effect: '+1 Body Die Step', description: 'Your Body die steps up by one size.' },
+    'djinn': { name: 'Djinn', effect: '+1 Mind Die Step', description: 'Your Mind die steps up by one size.' },
+    "gorgon's glare": { name: "Gorgon's Glare", effect: '+2 Action on Strike Hit', description: 'Gain +2 actions when your strikes land.' },
+    "sphinx's riddle": { name: "Sphinx's Riddle", effect: '+1 Lead Die Step', description: 'Your Lead die steps up by one size.' },
+    "minotaur's strength": { name: "Minotaur's Strength", effect: '+1 Strike Die Step', description: 'Your Strike die steps up by one size.' },
+    "pegasus' flight": { name: "Pegasus' Flight", effect: '+5 Action Points', description: 'Gain +5 actions per turn.' },
+    "roc's wind": { name: "Roc's Wind", effect: '+2 Action, Enable Far Shoots', description: 'Gain +2 actions and can shoot at far range.' },
+    "eternity's edge": { name: "Eternity's Edge", effect: '20% Auto Crit Chance', description: 'Your attacks have a 20% chance to automatically crit.' },
+    'void': { name: 'Void', effect: '5% Auto Kill Chance', description: 'Your attacks have a 5% chance to instantly defeat enemies.' },
+    'celestial': { name: 'Celestial', effect: '+5 Attack, Double vs Demonic', description: 'Attacks gain +5 flat; double damage against demon enemies.' },
+    'abyssal': { name: 'Abyssal', effect: '+5 Attack, Double vs Celestial', description: 'Attacks gain +5 flat; double damage against celestial enemies.' },
+    'primal': { name: 'Primal', effect: '+5 Attack Flat', description: 'All attacks gain +5 flat damage.' },
+    'ancestral': { name: 'Ancestral', effect: 'Add Spirit to Damage', description: 'Damage gains bonus equal to your Spirit stat.' },
+    'soul eater': { name: 'Soul Eater', effect: 'Heal 3 HP on Kill', description: 'Restore 3 health points when defeating enemies.' },
+    "golem's fist": { name: "Golem's Fist", effect: '2x Knockback', description: 'Hits have double knockback power against enemies.' },
+    "basilisk's stare": { name: "Basilisk's Stare", effect: 'Enemy Skip 1 Turn on Hit', description: 'Enemies skip a turn when hit.' }
+  };
+  var entry = affixMap[affix];
+  if (!entry) {
+    entry = { name: affixName, effect: 'Unknown', description: 'This affix is not yet documented.' };
+  }
+  var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.8;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.85rem;letter-spacing:.08em;color:var(--teal);margin-bottom:.25rem;">⚔ ' + entry.name + '</div>'
+    + '<div style="font-size:.8rem;color:var(--gold2);margin-bottom:.2rem;">' + entry.effect + '</div>'
+    + '<div style="font-size:.78rem;color:var(--muted2);">' + entry.description + '</div>'
+    + '</div>';
+  openModal('Affix Details', html);
 }
 
 function extractSoulForgeAffix(entryKey){

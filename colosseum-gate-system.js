@@ -436,21 +436,31 @@
 
     var state = ensureState();
     var gateType = String(flow.gatePortal.type || 'hellscape').toLowerCase();
-    var raidPuzzleModes = ['pipe_flow', 'food_chain', 'weight_balance', 'lock_dials'];
+    var raidPuzzleModes = gateType === 'hellscape'
+      ? ['pipe_flow', 'chess_puzzle']
+      : ['pipe_flow', 'chess_puzzle', 'sliding_tile'];
     var puzzleSeed = hashString(String(flow.gatePortal.key || '') + '|' + String(gateType) + '|' + String(flow.gatePortal.puzzleAttempts || 0));
     var selectedMode = raidPuzzleModes[puzzleSeed % raidPuzzleModes.length] || 'pipe_flow';
     var modeLabelMap = {
       pipe_flow: 'Pipe Flow Seal',
-      food_chain: 'Food Chain Seal',
-      weight_balance: 'Weight Balance Seal',
-      lock_dials: 'Tumbler Lock Seal'
+      chess_puzzle: 'Chess Relay Seal',
+      sliding_tile: 'Sigil Plate Seal'
+    };
+    var promptByMode = {
+      pipe_flow: gateType === 'celestial'
+        ? 'Repair the radiant conduit: rotate pipe segments until light reaches the heaven-lock terminal.'
+        : 'Repair the anti-abyss conduit: rotate pipe segments until purge flow reaches the rift core.',
+      chess_puzzle: gateType === 'celestial'
+        ? 'Seal lattice challenge: capture every marked sentry using legal chess movement to lock the gate.'
+        : 'Hellscape lockboard challenge: capture every marked sentry using legal chess movement to collapse the rift.',
+      sliding_tile: 'Shift sigil plates into proper alignment to complete the celestial lock sequence.'
     };
     var puzzleSpec = {
       mode: selectedMode,
       title: (gateType === 'celestial' ? 'Celestial Seal Conduit' : 'Hellscape Rift Conduit') + ' · ' + String(modeLabelMap[selectedMode] || 'Raid Puzzle'),
-      prompt: gateType === 'celestial'
+      prompt: String(promptByMode[selectedMode] || (gateType === 'celestial'
         ? 'Repair the seal conduit and route radiant flow to close Heaven\'s breach.'
-        : 'Reconnect the anti-abyss conduit and route the purge flow to collapse the rift.'
+        : 'Reconnect the anti-abyss conduit and route the purge flow to collapse the rift.'))
     };
 
     var finalize = function (result) {
@@ -492,18 +502,15 @@
       return false;
     };
 
-    if (typeof window.openStandaloneStoryPuzzle === 'function') {
-      window.openStandaloneStoryPuzzle({
+    if (typeof window.openSharedPuzzleChallenge === 'function') {
+      window.openSharedPuzzleChallenge({
+        source: gateType === 'celestial' ? 'galaxy' : 'event',
         mode: puzzleSpec.mode,
         title: puzzleSpec.title,
         prompt: puzzleSpec.prompt,
-        sequence: puzzleSpec.sequence,
-        bank: puzzleSpec.bank,
-        answer: puzzleSpec.answer,
-        thresholdLabel: 'Gate Seal Puzzle',
-        successThreshold: 0.72,
-        partialThreshold: 0.5,
-        onResolve: finalize
+        reward: { credits: 0, renown: 0, item: '' },
+        onSuccess: function () { finalize('success'); },
+        onFail: function () { finalize('failure'); }
       });
       return true;
     }

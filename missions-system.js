@@ -2926,7 +2926,7 @@
       + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Planned subclasses: Exile (Breeze, Muse, Stalker) · Godbound (Voice, Justice, Keeper) · Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
       + '</div>';
 
-    var titanNodeHtml = TITAN_RAID_WEB_NODES.map(function (node) {
+    var titanNodeMeta = TITAN_RAID_WEB_NODES.map(function (node) {
       var unlocked = hasTitanRaidNode(node.id);
       var canBuy = canBuyTitanRaidNode(profile, node);
       var reqs = Array.isArray(node.requires) ? node.requires : [];
@@ -2934,21 +2934,20 @@
       var needTxt = [];
       if (reqs.length) needTxt.push('Requires: ' + reqs.map(function (id) { var n = getTitanRaidNode(id); return n ? n.label : id; }).join(' + '));
       if (reqAny.length) needTxt.push('Requires one of: ' + reqAny.map(function (id) { var n2 = getTitanRaidNode(id); return n2 ? n2.label : id; }).join(' / '));
-      return '<div style="border:1px solid ' + (unlocked ? 'rgba(103,214,179,.45)' : 'rgba(255,255,255,.14)') + ';background:' + (unlocked ? 'rgba(103,214,179,.08)' : 'rgba(10,14,20,.78)') + ';padding:.34rem .4rem;">'
-        + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;">'
-        + '<div style="font-size:.71rem;color:' + (unlocked ? 'var(--teal)' : 'var(--text2)') + ';"><strong>' + String(node.label || '') + '</strong></div>'
-        + '<div style="font-size:.6rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + String(node.subclass || 'Titan') + '</div>'
-        + '</div>'
-        + '<div style="font-size:.64rem;color:var(--muted2);line-height:1.45;margin:.1rem 0 .16rem;">' + String(node.detail || '') + '</div>'
-        + (needTxt.length ? ('<div style="font-size:.6rem;color:' + (canBuy || unlocked ? 'var(--muted2)' : 'var(--red2)') + ';line-height:1.35;margin-bottom:.14rem;">' + needTxt.join(' · ') + '</div>') : '')
-        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
-        + '<span style="font-size:.6rem;color:var(--gold2);">Cost: 1 Raid Point</span>'
-        + (unlocked
-          ? '<button class="btn btn-xs" disabled>Unlocked</button>'
-          : '<button class="btn btn-xs ' + (canBuy ? 'btn-teal' : '') + '" ' + (canBuy ? '' : 'disabled') + ' onclick="buyTitanRaidNode(\'' + String(node.id || '') + '\')">Buy Node</button>')
-        + '</div>'
-        + '</div>';
-    }).join('');
+      return {
+        id: String(node.id || ''),
+        label: String(node.label || ''),
+        subclass: String(node.subclass || 'Titan'),
+        detail: String(node.detail || ''),
+        requires: reqs.slice(),
+        requiresAny: reqAny.slice(),
+        needText: needTxt.join(' · '),
+        unlocked: unlocked,
+        canBuy: canBuy,
+        cost: Math.max(1, Number(node.cost || 1)),
+        group: String(node.group || 'skill')
+      };
+    });
 
     var titanActions = getTitanRaidUnlockedActions();
     var titanActionsHtml = titanActions.length
@@ -2957,43 +2956,152 @@
         }).join('')
       : '<div style="font-size:.64rem;color:var(--muted2);">No Titan wayfarer actions unlocked yet.</div>';
 
-    var titanWebHtml = '<div style="margin-top:.42rem;border:1px solid rgba(126,215,255,.35);background:linear-gradient(155deg, rgba(8,14,24,.97), rgba(12,18,30,.9));padding:.5rem .56rem;">'
-      + '<div style="font-size:.76rem;color:#7ed7ff;margin-bottom:.14rem;"><strong>Titan Path Web (POE-style progression)</strong></div>'
-      + '<div style="font-size:.64rem;color:var(--muted2);line-height:1.45;margin-bottom:.2rem;">Each Titan node costs +1 Raid Point. Buying nodes unlocks persistent bonuses and raid-combat wayfarer actions.</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(3,minmax(190px,1fr));gap:.2rem;margin-bottom:.25rem;">'
-      + '<div style="font-size:.6rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;">Tactician</div>'
-      + '<div style="font-size:.6rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;">Fury</div>'
-      + '<div style="font-size:.6rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;">Seeker</div>'
+    var legacyNodeMeta = LEGACY_RAID_TREE_NODES.map(function (node, idx) {
+      var rank = getLegacyRaidTalentRank(node.id);
+      var maxRank = Math.max(1, Number(node.maxRank || 1));
+      var capped = rank >= maxRank;
+      var cost = getLegacyRaidTreeNodeCost(node, rank);
+      var affordable = !capped && pointCount >= Number(cost.points || 0) && medalCount >= Number(cost.medals || 0);
+      var basePos = [
+        { x: 38, y: 130 }, { x: 38, y: 282 }, { x: 38, y: 434 },
+        { x: 238, y: 202 }, { x: 238, y: 362 },
+        { x: 458, y: 154 }, { x: 458, y: 402 }
+      ];
+      var p = basePos[idx] || { x: 38 + ((idx % 3) * 200), y: 130 + (Math.floor(idx / 3) * 150) };
+      return {
+        id: String(node.id || ''),
+        label: String(node.label || ''),
+        detail: String(node.detail || ''),
+        rank: rank,
+        maxRank: maxRank,
+        capped: capped,
+        affordable: affordable,
+        costText: capped ? 'Maxed' : ('Cost ' + Number(cost.points || 0) + ' RP / ' + Number(cost.medals || 0) + ' Medals'),
+        x: p.x,
+        y: p.y,
+        w: 184,
+        h: 108,
+        border: raidNodeAccents[node.id] || '#7ed7ff'
+      };
+    });
+
+    var titanBaseX = { Titan: 736, Tactician: 904, Fury: 1138, Seeker: 1372 };
+    var titanBaseY = { root: 78, skill: 196, passive: 318, action: 446, personal: 566, teamwork: 686 };
+    var laneOffsets = { Titan: 0, Tactician: -32, Fury: 18, Seeker: 58 };
+    var titanSlotCount = {};
+    var titanNodeLookup = {};
+    titanNodeMeta.forEach(function (node) {
+      var subclass = node.subclass;
+      var group = node.group;
+      var bucket = subclass + ':' + group;
+      titanSlotCount[bucket] = Number(titanSlotCount[bucket] || 0);
+      var slot = titanSlotCount[bucket];
+      titanSlotCount[bucket] += 1;
+      var x = Number(titanBaseX[subclass] || 980) + ((slot % 2) * 122) + Number(laneOffsets[subclass] || 0);
+      var y = Number(titanBaseY[group] || 240) + (Math.floor(slot / 2) * 92);
+      node.x = x;
+      node.y = y;
+      node.w = 212;
+      node.h = 78;
+      titanNodeLookup[node.id] = node;
+    });
+
+    var graphNodes = legacyNodeMeta.concat(titanNodeMeta);
+    var graphLookup = {};
+    graphNodes.forEach(function (n) { graphLookup[n.id] = n; });
+
+    var edgeHtml = '';
+    legacyNodeMeta.forEach(function (n, idx) {
+      if (idx <= 0) return;
+      var parent = legacyNodeMeta[Math.max(0, idx - 1)];
+      if (!parent) return;
+      var x1 = parent.x + (parent.w / 2);
+      var y1 = parent.y + (parent.h / 2);
+      var x2 = n.x + (n.w / 2);
+      var y2 = n.y + (n.h / 2);
+      edgeHtml += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="rgba(126,215,255,.22)" stroke-width="2" />';
+    });
+    titanNodeMeta.forEach(function (n) {
+      var reqs = Array.isArray(n.requires) ? n.requires : [];
+      var reqAny = Array.isArray(n.requiresAny) ? n.requiresAny : [];
+      reqs.forEach(function (id) {
+        var p = graphLookup[id];
+        if (!p) return;
+        edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="rgba(103,214,179,.28)" stroke-width="2.2" />';
+      });
+      reqAny.forEach(function (id) {
+        var p = graphLookup[id];
+        if (!p) return;
+        edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="rgba(255,213,106,.25)" stroke-width="2" stroke-dasharray="5 4" />';
+      });
+    });
+
+    var legacyNodesHtml = legacyNodeMeta.map(function (node) {
+      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + (node.capped ? 'rgba(103,214,179,.55)' : 'rgba(255,255,255,.2)') + ';background:linear-gradient(160deg, rgba(14,20,30,.94), rgba(8,12,18,.92));box-shadow:0 0 0 1px rgba(0,0,0,.35), inset 0 0 18px rgba(255,255,255,.03);padding:.32rem .36rem .28rem .44rem;">'
+        + '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:' + node.border + ';opacity:.9;"></div>'
+        + '<div style="font-size:.69rem;color:var(--text2);line-height:1.25;"><strong>' + node.label + '</strong></div>'
+        + '<div style="font-size:.58rem;color:' + (node.capped ? 'var(--teal)' : 'var(--gold2)') + ';margin:.08rem 0;">Rank ' + node.rank + '/' + node.maxRank + '</div>'
+        + '<div style="font-size:.54rem;color:var(--muted2);line-height:1.32;height:34px;overflow:hidden;">' + node.detail + '</div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.14rem;gap:.12rem;">'
+        + '<span style="font-size:.52rem;color:var(--muted2);">' + node.costText + '</span>'
+        + '<button class="btn btn-xs ' + (node.affordable ? 'btn-primary' : '') + '" ' + (node.capped ? 'disabled' : '') + ' onclick="buyLegacyRaidTreeNode(\'' + node.id + '\')">' + (node.capped ? 'Max' : 'Buy') + '</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    var titanNodesHtml = titanNodeMeta.map(function (node) {
+      var frame = node.unlocked ? 'rgba(103,214,179,.6)' : (node.canBuy ? 'rgba(240,213,106,.42)' : 'rgba(255,255,255,.2)');
+      var bg = node.unlocked ? 'linear-gradient(155deg, rgba(14,46,38,.9), rgba(10,16,22,.93))' : 'linear-gradient(160deg, rgba(12,18,28,.94), rgba(8,12,18,.92))';
+      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + frame + ';background:' + bg + ';padding:.28rem .34rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
+        + '<div style="font-size:.64rem;color:' + (node.unlocked ? 'var(--teal)' : 'var(--text2)') + ';line-height:1.2;"><strong>' + node.label + '</strong></div>'
+        + '<div style="font-size:.5rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + node.subclass + '</div>'
+        + '</div>'
+        + '<div style="font-size:.54rem;color:var(--muted2);line-height:1.3;height:30px;overflow:hidden;margin-top:.08rem;">' + node.detail + '</div>'
+        + (node.needText ? ('<div style="font-size:.5rem;color:' + (node.canBuy || node.unlocked ? 'var(--muted2)' : 'var(--red2)') + ';line-height:1.2;height:12px;overflow:hidden;margin-top:.05rem;">' + node.needText + '</div>') : '<div style="height:12px;"></div>')
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.08rem;">'
+        + '<span style="font-size:.5rem;color:var(--gold2);">Cost: ' + node.cost + ' RP</span>'
+        + (node.unlocked
+          ? '<button class="btn btn-xs" disabled>Unlocked</button>'
+          : '<button class="btn btn-xs ' + (node.canBuy ? 'btn-teal' : '') + '" ' + (node.canBuy ? '' : 'disabled') + ' onclick="buyTitanRaidNode(\'' + node.id + '\')">Buy</button>')
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(135% 130% at 0% 0%, rgba(126,215,255,.08), rgba(10,12,18,.96));">'
+      + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.1), rgba(12,18,26,.94));padding:.52rem .6rem;">'
+      + '<div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;flex-wrap:wrap;">'
+      + '<div>'
+      + '<div style="font-size:.92rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Progression: Atlas Skill Web</strong></div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;max-width:940px;">A full-screen passive web. Buy connected nodes to scale raid power exactly like an ARPG atlas path: legacy raid perks on the left, Titan subclass branches on the right.</div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.22rem;">' + titanNodeHtml + '</div>'
-      + '<div style="margin-top:.3rem;border-top:1px solid rgba(255,255,255,.1);padding-top:.2rem;">'
+      + '<div style="font-size:.7rem;color:var(--teal);display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;">' + medalSummaryHtml + '<span>Raid Points: ' + pointCount + '</span></div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(126,215,255,.35);color:#7ed7ff;">Legacy Core</span>'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(103,214,179,.45);color:#67d6b3;">Titan Connected</span>'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,213,106,.4);color:#ffd56a;">One-of Prereqs</span>'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(240,139,108,.35);color:#f08b6c;">Combat Power</span>'
+      + '</div>'
+      + '</div>'
+      + '<div style="margin-top:.34rem;border:1px solid rgba(126,215,255,.28);background:linear-gradient(160deg, rgba(8,14,24,.97), rgba(10,16,22,.92));padding:.34rem;">'
+      + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.22rem;">Raid Skill Tree</div>'
+      + '<div style="position:relative;overflow:auto;min-height:770px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(140% 120% at 30% 20%, rgba(19,30,45,.52), rgba(6,10,14,.96));">'
+      + '<div style="position:relative;width:1640px;height:810px;">'
+      + '<svg width="1640" height="810" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
+      + '<div style="position:absolute;left:26px;top:56px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Path</div>'
+      + '<div style="position:absolute;left:904px;top:28px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Branches: Tactician / Fury / Seeker</div>'
+      + legacyNodesHtml
+      + titanNodesHtml
+      + '</div>'
+      + '</div>'
+      + '<div style="margin-top:.24rem;border-top:1px solid rgba(255,255,255,.1);padding-top:.18rem;">'
       + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;margin-bottom:.1rem;">Unlocked Titan Wayfarer Actions</div>'
       + titanActionsHtml
       + '</div>'
-      + '</div>';
-
-    panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;max-width:980px;padding:.35rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(120% 100% at 0% 0%, rgba(126,215,255,.08), rgba(10,12,18,.95));">'
-      + '<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:.45rem;">'
-      + '<div style="display:grid;gap:.35rem;">'
-      + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.12), rgba(14,18,26,.92));padding:.5rem .55rem;">'
-      + '<div style="font-size:.86rem;color:var(--gold2);margin-bottom:.14rem;"><strong>Raid Progression</strong></div>'
-      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">Medals and Raid Points from boss clears can be spent on persistent raid talents, then revisited through replay and lore logs.</div>'
-      + '<div style="font-size:.64rem;color:rgba(255,255,255,.52);line-height:1.45;margin-top:.12rem;">Lane colors hint at focus: combat pressure, raid tempo, and flavor branches.</div>'
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
-      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(126,215,255,.35);color:#7ed7ff;">Core</span>'
-      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(240,139,108,.35);color:#f08b6c;">Combat</span>'
-      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,213,106,.35);color:#ffd56a;">Tempo</span>'
-      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(103,214,179,.35);color:#67d6b3;">Teamwork</span>'
-      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(195,156,255,.35);color:#c39cff;">Lore</span>'
       + '</div>'
-      + '<div style="font-size:.7rem;color:var(--teal);line-height:1.45;margin-top:.2rem;display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;">' + medalSummaryHtml + '<span>Raid Points: ' + pointCount + '</span></div>'
-      + '</div>'
-      + '<div style="border:1px dashed rgba(126,215,255,.25);padding:.28rem;background:rgba(10,14,20,.55);display:grid;grid-template-columns:repeat(2,minmax(210px,1fr));gap:.3rem;">' + nodeHtml + '</div>'
-      + titanPathHeader
-      + titanWebHtml
-      + '</div>'
-      + '<div style="display:grid;gap:.35rem;">'
-      + '<div style="border:1px solid rgba(201,162,39,.2);background:linear-gradient(150deg, rgba(18,24,32,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
+      + '<div style="display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:.3rem;margin-top:.36rem;">'
+      + '<div style="border:1px solid rgba(201,162,39,.22);background:linear-gradient(150deg, rgba(18,24,32,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
       + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Vault Keys</strong></div>'
       + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin-bottom:.18rem;">' + keyRow + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:.24rem;">'
@@ -3004,25 +3112,24 @@
       + '</div>'
       + '</div>'
       + '<div style="border:1px solid rgba(126,215,255,.22);background:linear-gradient(150deg, rgba(14,22,30,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
-      + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Trophy Shelf</strong></div>'
-      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.42;max-height:180px;overflow:auto;">'
+      + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Treasure</strong></div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.42;max-height:220px;overflow:auto;">'
       + (profile.raidTrophies.length
-        ? profile.raidTrophies.slice(-12).reverse().map(function (trophy) {
+        ? profile.raidTrophies.slice(-18).reverse().map(function (trophy) {
             return iconApi && typeof iconApi.getTrophyEntryHtml === 'function'
               ? iconApi.getTrophyEntryHtml(String(trophy || 'Unknown Trophy'), { size: 22 })
               : ('<div style="padding:.06rem 0;border-bottom:1px solid rgba(255,255,255,.06);">' + String(trophy || 'Unknown Trophy') + '</div>');
           }).join('')
-        : 'No raid trophies recorded yet. Clear legacy raids to fill this wall.')
+        : 'No raid treasure recorded yet. Clear legacy raids to stock this stash.')
       + '</div>'
       + '</div>'
       + '<div style="border:1px solid rgba(126,215,255,.22);background:linear-gradient(150deg, rgba(14,22,30,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
-      + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Storage Overflow</strong></div>'
-      + '<div style="font-size:.69rem;color:var(--muted2);line-height:1.46;max-height:260px;overflow:auto;padding-right:.15rem;">'
+      + '<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Vault Storage</strong></div>'
+      + '<div style="font-size:.69rem;color:var(--muted2);line-height:1.46;max-height:220px;overflow:auto;padding-right:.15rem;">'
       + (overflow.length ? overflowRows : 'No overflow loot.')
       + '</div>'
       + '<div style="margin-top:.16rem;">'
       + '<button class="btn btn-xs btn-primary" onclick="claimLegacyRaidOverflowLoot()">Claim Overflow To Backpack</button>'
-      + '</div>'
       + '</div>'
       + '</div>'
       + '</div>'

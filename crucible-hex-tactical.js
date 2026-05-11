@@ -574,8 +574,13 @@ function assignZonePuzzle(map, zoneId, puzzleType) {
 // HEX MAP RENDERING
 // ============================================================================
 
-function renderCrucibleHexMap(map, units, selectedUnitId) {
+function renderCrucibleHexMap(map, units, selectedUnitId, options) {
   if (!map || !map.hexes) return '<div>No map data.</div>';
+  var opts = options || {};
+  var reachableLookup = {};
+  (Array.isArray(opts.reachableHexKeys) ? opts.reachableHexKeys : []).forEach(function (key) {
+    reachableLookup[String(key || '')] = true;
+  });
 
   var hexSize = 28;
   var hexHTML = '<svg width="640" height="620" viewBox="0 0 640 620" style="border:1px solid var(--border2);background:radial-gradient(circle at 50% 45%, rgba(70,196,182,.12), rgba(6,8,12,.95));border-radius:8px;margin-bottom:.2rem;">';
@@ -632,7 +637,17 @@ function renderCrucibleHexMap(map, units, selectedUnitId) {
       strokeColor = 'rgba(145,240,170,.75)';
     }
 
-    hexHTML += '<polygon points="' + hexPolygonPoints(pix.x, pix.y, hexSize * 0.64) + '" fill="' + color + '" opacity="' + opacity + '" stroke="' + strokeColor + '" stroke-width="' + strokeWidth + '"/>';
+    var cellKey = hexToKey(cell);
+    var isReachable = !!reachableLookup[cellKey];
+    var clickAttr = isReachable
+      ? ' style="cursor:pointer;" onclick="holdingCrucibleHandleBoardHexClick(' + Number(cell.q) + ',' + Number(cell.r) + ')"'
+      : '';
+    if (isReachable) {
+      strokeColor = 'rgba(255,220,120,.95)';
+      strokeWidth = 2.1;
+    }
+
+    hexHTML += '<polygon points="' + hexPolygonPoints(pix.x, pix.y, hexSize * 0.64) + '" fill="' + color + '" opacity="' + opacity + '" stroke="' + strokeColor + '" stroke-width="' + strokeWidth + '"' + clickAttr + '/>';
     hexHTML += '<text x="' + pix.x + '" y="' + (pix.y + hexSize * 0.5) + '" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.45)">' + cell.q + ',' + cell.r + '</text>';
     
     // Terrain icon
@@ -655,12 +670,16 @@ function renderCrucibleHexMap(map, units, selectedUnitId) {
       var pix = pixelCoord(unit.position, hexSize, originX, originY);
       var unitColor = unit.side === 'ally' ? 'rgba(78,222,150,.95)' : 'rgba(235,98,110,.95)';
       var isSelected = String(unit.id) === String(selectedUnitId);
+      var isTarget = String(unit.id) === String(opts.selectedTargetId || '');
       var stroke = isSelected ? 3 : 1.2;
+      var clickAttr = ' style="cursor:pointer;" onclick="holdingCrucibleHandleBoardUnitClick(\'' + String(unit.side || 'ally').replace(/'/g, '&#39;') + '\',\'' + String(unit.id || '').replace(/'/g, '&#39;') + '\')"';
 
-      hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.38) + '" fill="' + unitColor + '" stroke="' + (isSelected ? 'rgba(255,220,120,.95)' : 'rgba(255,255,255,.82)') + '" stroke-width="' + stroke + '"/>';
+      hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.38) + '" fill="' + unitColor + '" stroke="' + (isSelected ? 'rgba(255,220,120,.95)' : 'rgba(255,255,255,.82)') + '" stroke-width="' + stroke + '"' + clickAttr + '/>';
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="10" fill="#111822" font-weight="bold">' + (unit.name.charAt(0) || 'U') + '</text>';
       if (isSelected) {
         hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.5) + '" fill="none" stroke="rgba(255,220,120,.45)" stroke-width="2"/>';
+      } else if (isTarget) {
+        hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.47) + '" fill="none" stroke="rgba(255,255,255,.55)" stroke-dasharray="4 3" stroke-width="1.6"/>';
       }
     });
   }
@@ -689,7 +708,9 @@ function getHexMovementButtonsHtml(unit, match) {
     return '<div style="font-size:.7rem;color:var(--muted2);">No AP remaining.</div>';
   }
 
-  var reachable = getCrucibleOpenHexes(unit, match, Number(unit.ap || 0));
+  var reachable = getCrucibleOpenHexes(unit, match, Number(unit.ap || 0)).filter(function (hex) {
+    return !unit.position || hex.q !== unit.position.q || hex.r !== unit.position.r;
+  });
 
   if (reachable.length === 0) {
     return '<div style="font-size:.7rem;color:var(--muted2);">No reachable movement options.</div>';

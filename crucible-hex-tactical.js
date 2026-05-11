@@ -577,6 +577,7 @@ function assignZonePuzzle(map, zoneId, puzzleType) {
 function renderCrucibleHexMap(map, units, selectedUnitId, options) {
   if (!map || !map.hexes) return '<div>No map data.</div>';
   var opts = options || {};
+  var activeSide = String(opts.turnSide || 'ally');
   var reachableLookup = {};
   (Array.isArray(opts.reachableHexKeys) ? opts.reachableHexKeys : []).forEach(function (key) {
     reachableLookup[String(key || '')] = true;
@@ -640,7 +641,7 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     var cellKey = hexToKey(cell);
     var isReachable = !!reachableLookup[cellKey];
     var clickAttr = isReachable
-      ? ' style="cursor:pointer;" onclick="holdingCrucibleHandleBoardHexClick(' + Number(cell.q) + ',' + Number(cell.r) + ')"'
+      ? ' style="cursor:pointer;" onclick="holdingCrucibleHandleBoardHexClick(' + Number(cell.q) + ',' + Number(cell.r) + ')" ondragover="holdingCrucibleHandleHexDragOver(event,' + Number(cell.q) + ',' + Number(cell.r) + ')" ondrop="return holdingCrucibleDropOnHex(' + Number(cell.q) + ',' + Number(cell.r) + ')"'
       : '';
     if (isReachable) {
       strokeColor = 'rgba(255,220,120,.95)';
@@ -673,8 +674,12 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
       var isTarget = String(unit.id) === String(opts.selectedTargetId || '');
       var stroke = isSelected ? 3 : 1.2;
       var clickAttr = ' style="cursor:pointer;" onclick="holdingCrucibleHandleBoardUnitClick(\'' + String(unit.side || 'ally').replace(/'/g, '&#39;') + '\',\'' + String(unit.id || '').replace(/'/g, '&#39;') + '\')"';
+      var canDrag = String(unit.side || 'ally') === activeSide && Number(unit.ap || 0) > 0 && Number(unit.hp || 0) > 0;
+      var dragAttr = canDrag
+        ? (' draggable="true" ondragstart="return holdingCrucibleStartDrag(\'' + String(unit.side || 'ally').replace(/'/g, '&#39;') + '\',\'' + String(unit.id || '').replace(/'/g, '&#39;') + '\')" ondragend="holdingCrucibleEndDrag()"')
+        : '';
 
-      hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.38) + '" fill="' + unitColor + '" stroke="' + (isSelected ? 'rgba(255,220,120,.95)' : 'rgba(255,255,255,.82)') + '" stroke-width="' + stroke + '"' + clickAttr + '/>';
+      hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.38) + '" fill="' + unitColor + '" stroke="' + (isSelected ? 'rgba(255,220,120,.95)' : 'rgba(255,255,255,.82)') + '" stroke-width="' + stroke + '"' + clickAttr + dragAttr + '/>';
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="10" fill="#111822" font-weight="bold">' + (unit.name.charAt(0) || 'U') + '</text>';
       if (isSelected) {
         hexHTML += '<circle cx="' + pix.x + '" cy="' + pix.y + '" r="' + (hexSize * 0.5) + '" fill="none" stroke="rgba(255,220,120,.45)" stroke-width="2"/>';
@@ -694,6 +699,7 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚔/🛡/❤ Loot</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">A/B/C Objective zones</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Gold ring = selected unit</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Drag active-side token onto glowing hex to move</span>'
   + '</div>';
   
   return hexHTML;

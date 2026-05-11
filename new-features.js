@@ -2156,7 +2156,8 @@
         + guidance
         + renderCrucibleHexMap(match.hexMap, allUnits, selectedUnit ? selectedUnit.id : '', {
           selectedTargetId: selectedTarget ? selectedTarget.id : '',
-          reachableHexKeys: reachableKeys
+          reachableHexKeys: reachableKeys,
+          turnSide: String(match.turnSide || 'ally')
         })
         + details
         + '</div>';
@@ -2547,6 +2548,53 @@
 
   function holdingCrucibleHandleBoardHexClick(q, r) {
     return holdingCrucibleMoveSelected(q, r);
+  }
+
+  function holdingCrucibleStartDrag(side, unitId) {
+    var match = getHoldingCrucibleMatch();
+    if (!match) return false;
+    var activeSide = String(match.turnSide || 'ally');
+    var tokenSide = String(side || 'ally');
+    if (tokenSide !== activeSide) {
+      if (typeof showNotif === 'function') showNotif('Only the active side can be moved this turn.', 'warn');
+      return false;
+    }
+    var picker = tokenSide === 'enemy' ? selectHoldingCrucibleEnemy : selectHoldingCrucibleUnit;
+    if (typeof picker === 'function') picker(unitId);
+    var unit = findCrucibleUnit(match, tokenSide, unitId);
+    if (!unit || Number(unit.hp || 0) <= 0 || Number(unit.ap || 0) <= 0) return false;
+    window._holdingCrucibleDrag = { side: tokenSide, id: String(unitId || '') };
+    return true;
+  }
+
+  function holdingCrucibleEndDrag() {
+    window._holdingCrucibleDrag = null;
+    return true;
+  }
+
+  function holdingCrucibleHandleHexDragOver(evt, q, r) {
+    if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+    return false;
+  }
+
+  function holdingCrucibleDropOnHex(q, r) {
+    var drag = window._holdingCrucibleDrag || null;
+    if (!drag) return false;
+    var match = getHoldingCrucibleMatch();
+    if (!match) {
+      window._holdingCrucibleDrag = null;
+      return false;
+    }
+    var activeSide = String(match.turnSide || 'ally');
+    if (String(drag.side || 'ally') !== activeSide) {
+      window._holdingCrucibleDrag = null;
+      return false;
+    }
+    var picker = activeSide === 'enemy' ? selectHoldingCrucibleEnemy : selectHoldingCrucibleUnit;
+    if (typeof picker === 'function') picker(String(drag.id || ''));
+    var moved = holdingCrucibleMoveSelected(q, r);
+    window._holdingCrucibleDrag = null;
+    return moved;
   }
 
   function holdingCrucibleExecuteWayfarerAction() {
@@ -6440,6 +6488,10 @@
   window.holdingCrucibleRunEnemyAI = holdingCrucibleRunEnemyAI;
   window.holdingCrucibleHandleBoardUnitClick = holdingCrucibleHandleBoardUnitClick;
   window.holdingCrucibleHandleBoardHexClick = holdingCrucibleHandleBoardHexClick;
+  window.holdingCrucibleStartDrag = holdingCrucibleStartDrag;
+  window.holdingCrucibleEndDrag = holdingCrucibleEndDrag;
+  window.holdingCrucibleHandleHexDragOver = holdingCrucibleHandleHexDragOver;
+  window.holdingCrucibleDropOnHex = holdingCrucibleDropOnHex;
   window.holdingCrucibleResetMatch = holdingCrucibleResetMatch;
   window.openHoldingBankingModal = openHoldingBankingModal;
   window.commitHoldingBankInvestment = commitHoldingBankInvestment;

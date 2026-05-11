@@ -610,6 +610,153 @@
     };
   }
 
+  function normalizeWtwConditionByStat(statKey, positive) {
+    var key = String(statKey || 'body').toLowerCase();
+    if (positive) {
+      if (key === 'body' || key === 'strike' || key === 'shoot') return 'empowered';
+      if (key === 'defend' || key === 'control') return 'protected';
+      if (key === 'lead' || key === 'spirit') return 'bolstered';
+      return 'focused';
+    }
+    if (key === 'body' || key === 'strike' || key === 'shoot') return 'weakened';
+    if (key === 'defend') return 'vulnerable';
+    if (key === 'lead' || key === 'spirit') return 'shaken';
+    return 'distracted';
+  }
+
+  function applyWtwCondition(condKey) {
+    if (!condKey) return;
+    if (typeof toggleCond === 'function' && S && S.conditions && !S.conditions[condKey]) {
+      try { toggleCond(condKey); return; } catch (_err) {}
+    }
+    if (WTW_CONDITION_KEYS.indexOf(condKey) >= 0) {
+      applyNegativeCondition(condKey);
+      return;
+    }
+    applyPositiveCondition(condKey);
+  }
+
+  function addWtwRadiation(amount) {
+    var ticks = Math.max(1, Number(amount || 1));
+    if (S && S.radiationState && typeof S.radiationState === 'object') {
+      S.radiationState.gainTicks = Math.max(0, Number(S.radiationState.gainTicks || 0) + ticks);
+      return;
+    }
+    S.radiationExposure = Math.max(0, Number(S.radiationExposure || 0) + ticks);
+  }
+
+  function getWtwEncounterPressureSummary(hex) {
+    var weather = String(hex && hex.narrative && hex.narrative.weather ? hex.narrative.weather : '').toLowerCase();
+    var weatherHazard = /(ash|acid|storm|squall|toxic|static|sandstorm|blizzard|radiation|heat)/.test(weather);
+    var summary = {
+      weatherLabel: weather || 'clear lanes',
+      weatherHazard: weatherHazard,
+      rivalLabel: 'No rival pressure spike.',
+      rivalHostile: false,
+      rivalThreat: 0
+    };
+    if (typeof window.ensureRivalState === 'function') {
+      try {
+        var rival = window.ensureRivalState();
+        if (rival && rival.alive) {
+          summary.rivalThreat = Number(rival.threatTier || 0);
+          summary.rivalHostile = Number(rival.rapport || 0) <= -2 || Number(rival.threatTier || 0) >= 6 || /hostile|nemesis/i.test(String(rival.status || ''));
+          summary.rivalLabel = rival.name + ' · Threat ' + Number(rival.threatTier || 0) + ' · Rapport ' + Number(rival.rapport || 0) + (summary.rivalHostile ? ' (hostile)' : '');
+        }
+      } catch (_err) {}
+    }
+    return summary;
+  }
+
+  function applyWtwEncounterFailureConsequences(hex, encounter, check, options) {
+    var cfg = options || {};
+    var statKey = String((cfg.stat || (encounter && encounter.stat) || 'adventure')).toLowerCase();
+    var actionTotal = Number(check && check.actionTotal || 0);
+    var dreadTotal = Number(check && check.dreadTotal || 0);
+    var margin = Math.max(1, dreadTotal - actionTotal);
+    var pressure = getWtwEncounterPressureSummary(hex);
+    var notes = [];
+    var applyChanges = !cfg.preview;
+
+    if (/body|defend|control|strike|shoot/.test(statKey)) {
+      if (applyChanges) {
+        if (typeof changeHealth === 'function') changeHealth(margin);
+        else if (typeof changeStress === 'function') changeStress(margin);
+      }
+      notes.push((typeof changeHealth === 'function' ? 'Health +' : 'Stress +') + margin);
+    } else {
+      var ms = Math.max(1, Math.ceil(margin / 2));
+      if (applyChanges) {
+        if (typeof changeMentalStress === 'function') changeMentalStress(ms);
+        else if (typeof changeStress === 'function') changeStress(ms);
+      }
+      notes.push('Mental Stress +' + ms);
+    }
+
+    var negCond = normalizeWtwConditionByStat(statKey, false);
+    if (applyChanges) applyWtwCondition(negCond);
+    notes.push('Condition ' + negCond);
+
+    if (pressure.weatherHazard) {
+      if (applyChanges) addWtwRadiation(1);
+      notes.push('Radiation +1 (weather)');
+    }
+
+    if (pressure.rivalHostile) {
+      if (applyChanges && typeof changeMentalStress === 'function') changeMentalStress(1);
+      notes.push('Mental Stress +1 (rival pressure)');
+    }
+
+    if (hex && applyChanges) hex.skirmish = true;
+    if (applyChanges) {
+      if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+      else if (typeof S !== 'undefined') S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+    }
+    notes.push('+1 Teamwork · Skirmish triggered');
+
+    return {
+      stat: statKey,
+      margin: margin,
+      notes: notes,
+      pressure: pressure,
+      summary: notes.join(', ')
+    };
+  }
+
+  function openWtwEncounterFailureModal(hex, encounter, check, contextLabel) {
+    if (typeof openModal !== 'function') return false;
+    var pressure = getWtwEncounterPressureSummary(hex);
+    var consequence = applyWtwEncounterFailureConsequences(hex, encounter, check, { preview: true, stat: encounter && encounter.stat });
+    var pushDread = stepDreadDie(Number((encounter && encounter.dread) || (check && check.dd) || 8), 1);
+    var tmw = Number((S && S.tmw) || 0);
+    window._pendingWtwEncounterRoll = {
+      hexId: hex ? hex.id : '',
+      encounter: encounter || null,
+      check: check || null,
+      baseDread: Number((encounter && encounter.dread) || (check && check.dd) || 8),
+      pushDread: pushDread,
+      contextLabel: String(contextLabel || 'Failure')
+    };
+    var html = ''
+      + "<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'>"
+      + "<div style='font-family:Cinzel,serif;font-size:.92rem;color:#ff8a72;margin-bottom:.2rem;'>" + String(contextLabel || 'Encounter Failure') + "</div>"
+      + "<div style='margin-bottom:.28rem;'><strong>Roll:</strong> " + statLabel((encounter && encounter.stat) || 'adventure') + " d" + Number(check && check.ad || getActionDie((encounter && encounter.stat) || 'adventure')) + " " + Number(check && check.actionTotal || 0) + " vs Dread " + dreadLabel(Number(check && check.dd || (encounter && encounter.dread) || 8)) + " " + Number(check && check.dreadTotal || 0) + "</div>"
+      + "<div style='margin-bottom:.28rem;'><strong>Weather Pressure:</strong> " + pressure.weatherLabel + (pressure.weatherHazard ? " (hazardous)" : "") + "</div>"
+      + "<div style='margin-bottom:.35rem;'><strong>Rival Pressure:</strong> " + pressure.rivalLabel + "</div>"
+      + "<div style='background:rgba(255,96,96,.07);border:1px solid rgba(255,96,96,.3);padding:.42rem .55rem;border-radius:4px;margin-bottom:.45rem;'>"
+      + "<div style='font-size:.76rem;color:#ff8a72;margin-bottom:.16rem;'>If you take Failure now</div>"
+      + "<div style='font-size:.77rem;color:var(--text2);'>" + consequence.summary + "</div>"
+      + "</div>"
+      + "<div style='font-size:.77rem;color:var(--text2);margin-bottom:.4rem;'><strong>Push Luck:</strong> spend <strong>2 Teamwork</strong>, reroll at higher dread <strong>" + dreadLabel(pushDread) + "</strong>. Success grants a stat-based positive condition. Failure applies the consequence line above.</div>"
+      + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;'>"
+      + "<button class='btn btn-sm btn-warn' onclick='wtwAcceptEncounterFailure()'>Accept Failure</button>"
+      + "<button class='btn btn-sm btn-teal' " + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + " onclick='wtwPushEncounterLuck()'>Push Luck (2 Teamwork)</button>"
+      + "</div>"
+      + "</div>";
+    openModal('Encounter Failure', html);
+    return true;
+  }
+
   function putLootInBackpack(lootName) {
     const item = String(lootName || "Salvage Cache");
     if (typeof addItemToBackpack === "function") {
@@ -2331,7 +2478,8 @@
     }
   }
 
-  function resolveDistrictEncounter(forcedOutcome) {
+  function resolveDistrictEncounter(forcedOutcome, options) {
+    var opts = options || {};
     if (window.campaignSystem && typeof window.campaignSystem.guardSharedWorldMutation === 'function' && !window.campaignSystem.guardSharedWorldMutation('Only the GM can resolve shared district encounters in Campaign mode.')) return;
     const hex = getSelectedHex();
     if (!hex || !hex.encounter) return;
@@ -2385,22 +2533,40 @@
       return;
     }
     const forced = forcedOutcome === "success" || forcedOutcome === "failure" ? forcedOutcome : null;
-    const check = forced
-      ? { success: forced === "success" }
-      : rollAgainstDread(hex.encounter.stat || "body", hex.encounter.dread || 8);
+    var check = opts.checkOverride || null;
+    if (!check) {
+      check = forced
+        ? { success: forced === "success", ad: getActionDie(hex.encounter.stat || "body"), dd: normalizeDreadDie(hex.encounter.dread || 8, 8), actionTotal: 0, dreadTotal: 0 }
+        : rollAgainstDread(hex.encounter.stat || "body", hex.encounter.dread || 8);
+    }
     if (check.success) {
       addZoneReputation(hex.zone, 1);
       addWorldItem("water", 1);
       grantRandomLoot("easy");
       setCredits(getCredits() + 30);
+      if (opts.pushLuck) {
+        applyWtwCondition(normalizeWtwConditionByStat(hex.encounter.stat || 'adventure', true));
+      }
       applyWtwNightModeBonusRewards(hex.encounter, 'skill success');
       if (typeof showNotif === "function") {
-        showNotif(forced ? "GM override: encounter marked success." : "Encounter resolved successfully.", "good");
+        if (opts.pushLuck) {
+          showNotif('Push Luck succeeded. Condition gained: ' + normalizeWtwConditionByStat(hex.encounter.stat || 'adventure', true) + '. Encounter resolved successfully.', 'good');
+        } else {
+          showNotif(forced ? "GM override: encounter marked success." : "Encounter resolved successfully.", "good");
+        }
       }
     } else {
-      hex.skirmish = true;
+      if (!opts.skipPrompt) {
+        openWtwEncounterFailureModal(hex, hex.encounter, check, forced ? 'Manual Failure' : 'Encounter Failed');
+        return;
+      }
+      var consequence = applyWtwEncounterFailureConsequences(hex, hex.encounter, check, { stat: hex.encounter.stat || 'adventure' });
       if (typeof showNotif === "function") {
-        showNotif(forced ? "GM override: encounter marked failure. Skirmish triggered." : "Encounter failed. Skirmish triggered.", "warn");
+        if (opts.pushLuck) {
+          showNotif('Push Luck failed. ' + consequence.summary + '.', 'warn');
+        } else {
+          showNotif((forced ? 'Manual Failure: ' : 'Encounter failed: ') + consequence.summary + '.', 'warn');
+        }
       }
     }
     hex.encounter = null;
@@ -2418,13 +2584,8 @@
   }
 
   function resolveDistrictEncounterAs(outcome) {
-    const gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === "function" && window.settingsSystem.isGMMode());
-    if (!gmMode) {
-      if (typeof showNotif === "function") showNotif("GM controls are only available in GM mode.", "warn");
-      return;
-    }
     if (outcome !== "success" && outcome !== "failure") return;
-    resolveDistrictEncounter(outcome);
+    resolveDistrictEncounter(outcome, { skipPrompt: outcome === 'success' });
   }
 
   function collectMarkerJob(hexId) {
@@ -2892,13 +3053,13 @@
           + "<div style='font-size:.77rem;color:var(--text2);line-height:1.6;'>"
           + "<strong style='color:var(--teal);'>Accept Failure:</strong> Task removed, skirmish triggered, earn <strong style='color:var(--teal);'>+1 Teamwork Point</strong>.<br>"
           + "<strong style='color:#c9a227;'>Spend 3 Teamwork:</strong> Convert to success, keep task rewards. You have <strong style='color:var(--teal);'>" + ((typeof S !== "undefined" && S.tmw) || 0) + " Teamwork</strong>.<br>"
-          + "<strong style='color:#f0a050;'>Push Your Luck:</strong> Re-roll vs <strong style='color:#f0a050;'>Dread " + dreadLabel(stepDreadDie(dreadDie, 1)) + "</strong>. Win = full success. Lose = accept fail +1 Teamwork."
+          + "<strong style='color:#f0a050;'>Push Your Luck:</strong> Spend 2 Teamwork and re-roll vs <strong style='color:#f0a050;'>Dread " + dreadLabel(stepDreadDie(dreadDie, 1)) + "</strong>. Win = full success + stat condition. Lose = fail +1 Teamwork + negative condition."
           + "</div>"
           + "</div>"
           + "<div style='display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;'>"
           + "<button class='btn btn-sm' onclick='wtwAcceptTaskFail()'>Accept (+1 Teamwork)</button>"
           + "<button class='btn btn-sm btn-teal' " + (((typeof S !== "undefined" && S.tmw) || 0) >= 3 ? "" : "disabled title='Need 3 Teamwork'") + " onclick='wtwSpendTeamworkOnTask()'>Spend 3 Teamwork → Succeed</button>"
-          + "<button class='btn btn-sm' style='background:rgba(240,160,80,.18);border-color:rgba(240,160,80,.5);color:#f0a050;' onclick='wtwPushTaskLuck()'>Push Luck (" + dreadLabel(stepDreadDie(dreadDie, 1)) + ")</button>"
+          + "<button class='btn btn-sm' style='background:rgba(240,160,80,.18);border-color:rgba(240,160,80,.5);color:#f0a050;' " + (((typeof S !== "undefined" && S.tmw) || 0) >= 2 ? "" : "disabled title='Need 2 Teamwork'") + " onclick='wtwPushTaskLuck()'>Push Luck 2 TMW (" + dreadLabel(stepDreadDie(dreadDie, 1)) + ")</button>"
           + "</div>"))
     openModal("Task: " + task.title, html);
   }
@@ -3196,13 +3357,14 @@
           ? "Social encounter (no action check required)."
           : (statLabel(hex.encounter.stat || "adventure") + " vs DD" + normalizeDreadDie(hex.encounter.dread || 8, 8))))
       : "";
+    const encounterPressure = getWtwEncounterPressureSummary(hex);
     const encounterActions = hex.encounter
       ? (hex.encounter.mode === "combat"
         ? ("<button class='btn btn-xs btn-red' onclick='wtwResolveEncounter()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEncounter(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEncounter(\"" + hex.id + "\")'>Failure</button>")
-        : ("<button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button>" + gmEncounterControls))
+        : ("<button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button><button class='btn btn-xs btn-primary' onclick='wtwResolveEncounterAs(\"success\")'>Manual Success</button><button class='btn btn-xs btn-warn' onclick='wtwResolveEncounterAs(\"failure\")'>Manual Failure</button>" + gmEncounterControls))
       : "";
     const encounterHtml = hex.encounter
-      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + encounterSummary + "</div><div class='wtw-card-actions'>" + encounterActions + "</div></div>")
+      ? ("<div class='wtw-card'><div class='wtw-card-title'>Rolled Encounter" + (gmMode ? " <span style='font-size:.62rem;color:var(--purple);'>(GM)</span>" : "") + "</div><div class='wtw-card-text'><strong>" + hex.encounter.title + "</strong><br>" + hex.encounter.text + "<br>" + encounterSummary + "<br><strong>Weather Pressure:</strong> " + encounterPressure.weatherLabel + (encounterPressure.weatherHazard ? " (hazardous)" : "") + "<br><strong>Rival Pressure:</strong> " + encounterPressure.rivalLabel + "</div><div class='wtw-card-actions'>" + encounterActions + "</div></div>")
       : "<div class='wtw-muted'>No rolled encounter in this district.</div>";
     const activityHtml = "<div class='wtw-card'><div class='wtw-card-title'>Living World Activity</div><div class='wtw-card-text'>Activity clock: <strong>" + String(w.activityClicks || 0) + "/10</strong>. Random encounters and services push this toward the next control-cycle shift.</div></div>";
 
@@ -3686,6 +3848,13 @@
   window.wtwPushTaskLuck = function () {
     const p = window._pendingWtwTaskRoll;
     if (!p) { if (typeof closeModal === "function") closeModal(); return; }
+    var tmw = Number((S && S.tmw) || 0);
+    if (tmw < 2) {
+      if (typeof showNotif === 'function') showNotif('Need 2 Teamwork Points to Push Luck.', 'warn');
+      return;
+    }
+    if (typeof changeCounter === 'function') changeCounter('tmw', -2);
+    else if (typeof S !== 'undefined') S.tmw = Math.max(0, tmw - 2);
     const pushDread = stepDreadDie(p.dreadDie, 1);
     const adventureDie = getActionDie("adventure");
     const newCheck = rollAgainstDread("adventure", pushDread);
@@ -3702,8 +3871,9 @@
       grantRandomLoot(t.rewardTier || "medium");
       setCredits(getCredits() + (t.rewardCredits || 150));
       recordWtwSuccessRoll();
+      applyWtwCondition(normalizeWtwConditionByStat('adventure', true));
       if (p.dreadDie >= 10 && typeof changeCounter === "function") changeCounter("renown", 1);
-      if (typeof showNotif === "function") showNotif("Push Luck succeeded! " + newSummary + ". +" + (t.rewardCredits || 150) + "₵ + Loot.", "good");
+      if (typeof showNotif === "function") showNotif("Push Luck succeeded! " + newSummary + ". +" + (t.rewardCredits || 150) + "₵ + Loot. Condition: " + normalizeWtwConditionByStat('adventure', true) + ".", "good");
       if (w) {
         w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== p.taskId; });
         if (t.hexId) delete w.markers[t.hexId];
@@ -3713,7 +3883,8 @@
       if (hex) hex.skirmish = true;
       if (typeof changeCounter === "function") changeCounter("tmw", 1);
       else if (typeof S !== "undefined") S.tmw = Math.max(0, (S.tmw || 0) + 1);
-      if (typeof showNotif === "function") showNotif("Push Luck failed. " + newSummary + ". +1 Teamwork. Skirmish triggered.", "warn");
+      applyWtwCondition(normalizeWtwConditionByStat('adventure', false));
+      if (typeof showNotif === "function") showNotif("Push Luck failed. " + newSummary + ". Condition: " + normalizeWtwConditionByStat('adventure', false) + ". +1 Teamwork. Skirmish triggered.", "warn");
       if (w) {
         w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== p.taskId; });
         if (p.task.hexId) delete w.markers[p.task.hexId];
@@ -3754,6 +3925,40 @@
     syncWorldMarkers();
     advanceWorldTime("task teamwork spend");
     renderWorldThatWas();
+  };
+
+  window.wtwAcceptEncounterFailure = function () {
+    var p = window._pendingWtwEncounterRoll;
+    if (!p) { if (typeof closeModal === 'function') closeModal(); return; }
+    window._pendingWtwEncounterRoll = null;
+    if (typeof closeModal === 'function') closeModal();
+    resolveDistrictEncounter('failure', { skipPrompt: true, checkOverride: p.check, manual: true });
+  };
+
+  window.wtwPushEncounterLuck = function () {
+    var p = window._pendingWtwEncounterRoll;
+    if (!p) { if (typeof closeModal === 'function') closeModal(); return; }
+    var tmw = Number((S && S.tmw) || 0);
+    if (tmw < 2) {
+      if (typeof showNotif === 'function') showNotif('Need 2 Teamwork Points to Push Luck.', 'warn');
+      return;
+    }
+    if (typeof changeCounter === 'function') changeCounter('tmw', -2);
+    else if (typeof S !== 'undefined') S.tmw = Math.max(0, tmw - 2);
+    var hex = hexById(p.hexId);
+    if (!hex || !hex.encounter) {
+      window._pendingWtwEncounterRoll = null;
+      if (typeof closeModal === 'function') closeModal();
+      return;
+    }
+    var check = rollAgainstDread(hex.encounter.stat || 'adventure', p.pushDread || stepDreadDie(p.baseDread || 8, 1));
+    window._pendingWtwEncounterRoll = null;
+    if (typeof closeModal === 'function') closeModal();
+    resolveDistrictEncounter(check.success ? 'success' : 'failure', {
+      skipPrompt: !check.success,
+      pushLuck: true,
+      checkOverride: check
+    });
   };
 
   if (document.readyState === "loading") {

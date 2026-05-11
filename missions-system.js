@@ -3375,8 +3375,64 @@
 
     // ── GODBOUND SUBCLASSES ────────────────────────────────────────────────
     { id: 'voice_root', label: 'Voice Mastery', group: 'root', subclass: 'Voice', detail: 'Godbound subclass unlocked. The Voice channels divine command through conviction, proclamation, and battlefield leadership.', cost: 1, requires: ['godbound_teamwork_divine_convergence'], requiresAny: [] },
+    { id: 'voice_spirit_d20', label: 'Voice Core: Spirit d20', group: 'passive', subclass: 'Voice', detail: 'Your Spirit die increases to d20.', cost: 1, requires: ['voice_root'], requiresAny: [] },
+    { id: 'voice_deity_order', label: 'Deity Option: Order', group: 'passive', subclass: 'Voice', detail: 'Choose one deity path. Order: once per day, evenly distribute damage among your party.', cost: 1, requires: ['voice_spirit_d20'], requiresAny: [] },
+    { id: 'voice_deity_chaos', label: 'Deity Option: Chaos', group: 'passive', subclass: 'Voice', detail: 'Choose one deity path. Chaos: once per day, invoke a chaotic blessing and roll d6 for a random effect (luck, obstacle, backlash, confusion, teleportation, or unstable healing).', cost: 1, requires: ['voice_spirit_d20'], requiresAny: [] },
+    { id: 'voice_deity_creation', label: 'Deity Option: Creation', group: 'passive', subclass: 'Voice', detail: 'Choose one deity path. Creation: once per day as an action, bless an ally with a temporary encounter-long enhancement chosen by the player.', cost: 1, requires: ['voice_spirit_d20'], requiresAny: [] },
+    { id: 'voice_behold_my_lord', label: 'Behold My Lord!', group: 'action', subclass: 'Voice', detail: 'Alpha · 1 AP. Invoke your deity: all allies in your zone step up their Adventure die for the round.', cost: 1, requires: ['voice_deity_order'], requiresAny: [], actionId: 'voice_behold_my_lord' },
+    { id: 'voice_bless', label: 'Bless', group: 'passive', subclass: 'Voice', detail: 'Passive. When engaged with an ally, bless them with a d4 bonus to their next action.', cost: 1, requires: ['voice_deity_creation'], requiresAny: [] },
+    { id: 'voice_bow_sinners', label: 'Bow, Sinners', group: 'action', subclass: 'Voice', detail: '2 AP. Unleash divine force to stun all creatures in your zone for 1 round (unable to perform an action). Usable once per encounter.', cost: 1, requires: ['voice_deity_chaos'], requiresAny: [], actionId: 'voice_bow_sinners' },
+    { id: 'voice_compel', label: 'Compel', group: 'action', subclass: 'Voice', detail: '1 AP. Utter a divine truth and compel an enemy to believe it for 1d4 rounds.', cost: 1, requires: ['voice_behold_my_lord'], requiresAny: [], actionId: 'voice_compel' },
+    { id: 'voice_deliver_truth', label: 'Deliver Truth', group: 'passive', subclass: 'Voice', detail: 'Passive. When you speak with sincerity and honesty, others are compelled to believe you are truthful.', cost: 1, requires: ['voice_compel'], requiresAny: [] },
+    { id: 'voice_have_faith', label: 'Have Faith, My Child', group: 'passive', subclass: 'Voice', detail: 'Passive. Inspire an ally in your zone and remove one condition from them.', cost: 1, requires: ['voice_bless'], requiresAny: [] },
+    { id: 'voice_holy_fire_within', label: 'Holy Fire Within', group: 'action', subclass: 'Voice', detail: 'Free · once per encounter. Remove half your current Mental Stress and gain +1 Trauma.', cost: 1, requires: ['voice_deliver_truth'], requiresAny: [], actionId: 'voice_holy_fire_within' },
+    { id: 'voice_witness_divine_might', label: 'Witness Divine Might!', group: 'action', subclass: 'Voice', detail: '1 AP. Each ally within your vicinity steps up their Adventure die by 1 step for the round.', cost: 1, requires: ['voice_have_faith'], requiresAny: [], actionId: 'voice_witness_divine_might' },
+    { id: 'voice_shoulder_burden', label: 'Shoulder Your Burden', group: 'action', subclass: 'Voice', detail: '1 AP. Take up to 10 damage from another character and apply it to yourself instead.', cost: 1, requires: ['voice_holy_fire_within'], requiresAny: [], actionId: 'voice_shoulder_burden' },
+    { id: 'voice_bestow_blessing', label: 'Bestow Blessing', group: 'passive', subclass: 'Voice', detail: 'Passive. While engaged with an ally, grant an additional d4 for their next action.', cost: 1, requires: ['voice_shoulder_burden'], requiresAny: [] },
+    { id: 'voice_tw_divine_guidance', label: 'Divine Guidance (Teamwork)', group: 'teamwork', subclass: 'Voice', detail: 'Teamwork. If Behold My Lord! is used and an ally in your zone hits an enemy that turn, generate 1 Teamwork Point.', cost: 1, requires: ['voice_behold_my_lord'], requiresAny: [] },
+    { id: 'voice_tw_blessing_bond', label: 'Blessing Bond', group: 'teamwork', subclass: 'Voice', detail: 'Teamwork. When Bless is used and that ally succeeds on an action the same turn, generate 1 Teamwork Point.', cost: 1, requires: ['voice_bless'], requiresAny: [] },
+    { id: 'voice_tw_compelling_conviction', label: 'Compelling Conviction', group: 'teamwork', subclass: 'Voice', detail: 'Teamwork. If Compel succeeds and the enemy fails to take a harmful action against your party that turn, generate 1 Teamwork Point.', cost: 1, requires: ['voice_compel'], requiresAny: [] },
+    { id: 'voice_tw_faith_healer', label: 'Faith Healer (Teamwork)', group: 'teamwork', subclass: 'Voice', detail: 'Teamwork. If Have Faith, My Child removes an ally condition and that ally takes a successful beneficial action that turn, generate 1 Teamwork Point.', cost: 1, requires: ['voice_have_faith'], requiresAny: [] },
+    { id: 'voice_tw_shared_sacrifice', label: 'Shared Sacrifice', group: 'teamwork', subclass: 'Voice', detail: 'Teamwork. If Shoulder Your Burden protects another character and they succeed on a beneficial action that turn, generate 1 Teamwork Point.', cost: 1, requires: ['voice_shoulder_burden'], requiresAny: [] },
+
     { id: 'justice_root', label: 'Justice Mastery', group: 'root', subclass: 'Justice', detail: 'Godbound subclass unlocked. Justice embodies righteous punishment and unwavering judgment against corruption.', cost: 1, requires: ['godbound_teamwork_divine_convergence'], requiresAny: [] },
+    { id: 'justice_no_trauma', label: 'No Trauma', group: 'passive', subclass: 'Justice', detail: 'You cannot gain Trauma while this profession is active.', cost: 1, requires: ['justice_root'], requiresAny: [] },
+    { id: 'justice_face_sins', label: 'Face Your Sins for Forgiveness', group: 'action', subclass: 'Justice', detail: 'Alpha · 1 AP. An ally removes 2 damage from themselves but takes either Weakened or Shaken.', cost: 1, requires: ['justice_no_trauma'], requiresAny: [], actionId: 'justice_face_sins' },
+    { id: 'justice_face_wrath', label: 'Face Me and My Wrath!', group: 'action', subclass: 'Justice', detail: 'Alpha · 1 AP. If engaged with an enemy, allies gain Advantage d6 on Defend rolls against it. If it tries to move away, make an immediate +2 attack against it.', cost: 1, requires: ['justice_face_sins'], requiresAny: [], actionId: 'justice_face_wrath' },
+    { id: 'justice_holy_trance', label: 'Holy Trance', group: 'action', subclass: 'Justice', detail: 'Alpha · 1 AP. Choose +2 Attack or +2 Defend until the start of your next turn.', cost: 1, requires: ['justice_face_wrath'], requiresAny: [], actionId: 'justice_holy_trance' },
+    { id: 'justice_abide_lies', label: 'I Will Not Abide Your Lies', group: 'action', subclass: 'Justice', detail: 'Free. Force a target to either tell the truth immediately or refuse to answer.', cost: 1, requires: ['justice_holy_trance'], requiresAny: [], actionId: 'justice_abide_lies' },
+    { id: 'justice_decided_by_gods', label: 'Let This Be Decided by the Gods', group: 'action', subclass: 'Justice', detail: 'Alpha · 1 AP. No one can enter or leave the combat scene until after your next turn.', cost: 1, requires: ['justice_abide_lies'], requiresAny: [], actionId: 'justice_decided_by_gods' },
+    { id: 'justice_purify_them', label: 'Purify Them Through Me, Lord!', group: 'action', subclass: 'Justice', detail: '3 AP. You take 3 damage and deal 5 damage to everyone Nearby.', cost: 1, requires: ['justice_decided_by_gods'], requiresAny: [], actionId: 'justice_purify_them' },
+    { id: 'justice_trust_faith', label: 'Trust in My Faith!', group: 'action', subclass: 'Justice', detail: 'Free. An ally becomes Empowered or Protected, then becomes Confused when the effect ends.', cost: 1, requires: ['justice_purify_them'], requiresAny: [], actionId: 'justice_trust_faith' },
+    { id: 'justice_righteous_judgment', label: 'Righteous Judgment', group: 'action', subclass: 'Justice', detail: 'Alpha · 1 AP. Mark an enemy as Guilty: -2 to attack rolls and +2 damage taken from all sources until end of your next turn.', cost: 1, requires: ['justice_trust_faith'], requiresAny: [], actionId: 'justice_righteous_judgment' },
+    { id: 'justice_shield_righteousness', label: 'Shield of Righteousness', group: 'action', subclass: 'Justice', detail: '2 AP. Protect an ally: next incoming stress is reduced by 2, lasting until end of your next turn.', cost: 1, requires: ['justice_righteous_judgment'], requiresAny: [], actionId: 'justice_shield_righteousness' },
+    { id: 'justice_tw_righteous_stand', label: 'Righteous Stand', group: 'teamwork', subclass: 'Justice', detail: 'Teamwork. If Face Me and My Wrath! causes at least one ally to avoid an attack, generate 1 Teamwork Point.', cost: 1, requires: ['justice_face_wrath'], requiresAny: [] },
+    { id: 'justice_tw_guided_divine', label: 'Guided by the Divine', group: 'teamwork', subclass: 'Justice', detail: 'Teamwork. If you hit an enemy while Holy Trance is active, generate 1 Teamwork Point.', cost: 1, requires: ['justice_holy_trance'], requiresAny: [] },
+    { id: 'justice_tw_purge_sins', label: 'Purge of Sins', group: 'teamwork', subclass: 'Justice', detail: 'Teamwork. If Purify Them Through Me, Lord! eliminates an enemy, generate 1 Teamwork Point.', cost: 1, requires: ['justice_purify_them'], requiresAny: [] },
+    { id: 'justice_tw_unveiled_truth', label: 'Unveiled Truth', group: 'teamwork', subclass: 'Justice', detail: 'Teamwork. If I Will Not Abide Your Lies reveals a significant truth, generate 1 Teamwork Point.', cost: 1, requires: ['justice_abide_lies'], requiresAny: [] },
+    { id: 'justice_tw_divine_intervention', label: 'Divine Intervention (Teamwork)', group: 'teamwork', subclass: 'Justice', detail: 'Teamwork. If Let This Be Decided by the Gods prevents enemy escape or intervention, generate 1 Teamwork Point.', cost: 1, requires: ['justice_decided_by_gods'], requiresAny: [] },
+
     { id: 'keeper_root', label: 'Keeper Mastery', group: 'root', subclass: 'Keeper', detail: 'Godbound subclass unlocked. The Keeper protects allies, preserves sacred order, and stands as a living bulwark.', cost: 1, requires: ['godbound_teamwork_divine_convergence'], requiresAny: [] },
+    { id: 'keeper_mind_d20', label: 'Keeper Core: Mind d20', group: 'passive', subclass: 'Keeper', detail: 'Your Mind die increases to d20.', cost: 1, requires: ['keeper_root'], requiresAny: [] },
+    { id: 'keeper_bind_wickedness', label: 'I Shall Bind Your Wickedness', group: 'action', subclass: 'Keeper', detail: '1 AP. Bind two nearby enemies. For the encounter, when one takes damage the other takes equivalent damage.', cost: 1, requires: ['keeper_mind_d20'], requiresAny: [], actionId: 'keeper_bind_wickedness' },
+    { id: 'keeper_enemy_assessment', label: 'Enemy Assessment', group: 'action', subclass: 'Keeper', detail: '2 AP. Study a foe in your zone and reduce their Pressure/Dread presence by one step.', cost: 1, requires: ['keeper_mind_d20'], requiresAny: [], actionId: 'keeper_enemy_assessment' },
+    { id: 'keeper_knowledge_vault', label: 'Knowledge Vault', group: 'passive', subclass: 'Keeper', detail: 'Passive. Recall previously known information when needed.', cost: 1, requires: ['keeper_enemy_assessment'], requiresAny: [] },
+    { id: 'keeper_life_balance', label: 'Life Is a Balance', group: 'action', subclass: 'Keeper', detail: '1 AP. Remove a condition from one ally or enemy and place it on another ally or enemy within close range.', cost: 1, requires: ['keeper_knowledge_vault'], requiresAny: [], actionId: 'keeper_life_balance' },
+    { id: 'keeper_not_where_you_should_be', label: 'This Is Not Where You Should Be!', group: 'action', subclass: 'Keeper', detail: '1 AP. Inflict Confusion on all enemies in your zone (and effectively pressure their AP economy).', cost: 1, requires: ['keeper_life_balance'], requiresAny: [], actionId: 'keeper_not_where_you_should_be' },
+    { id: 'keeper_through_me_succeed', label: 'Through Me, You Shall Succeed', group: 'action', subclass: 'Keeper', detail: 'Free. For this round, one ally may use your Lead die in place of any one attribute die.', cost: 1, requires: ['keeper_not_where_you_should_be'], requiresAny: [], actionId: 'keeper_through_me_succeed' },
+    { id: 'keeper_guardians_rebuke', label: "Guardian's Rebuke", group: 'action', subclass: 'Keeper', detail: '3 AP. When an enemy in your zone acts against you or allies, reflect part of that damage back at them while reducing incoming harm.', cost: 1, requires: ['keeper_through_me_succeed'], requiresAny: [], actionId: 'keeper_guardians_rebuke' },
+    { id: 'keeper_ritual_heal', label: 'Ritual Heal', group: 'action', subclass: 'Keeper', detail: 'Variable AP. Perform a sacred ritual to restore ally vitality based on board context.', cost: 1, requires: ['keeper_guardians_rebuke'], requiresAny: [], actionId: 'keeper_ritual_heal' },
+    { id: 'keeper_sacred_bonds_ritual', label: 'Sacred Bonds Ritual', group: 'action', subclass: 'Keeper', detail: '2 AP. If engaged with an ally, heal them by 4 damage.', cost: 1, requires: ['keeper_ritual_heal'], requiresAny: [], actionId: 'keeper_sacred_bonds_ritual' },
+    { id: 'keeper_brothers_keeper_ritual', label: "Brother's Keeper Ritual", group: 'action', subclass: 'Keeper', detail: '2 AP. If nearby an ally, heal them by 3 damage from range.', cost: 1, requires: ['keeper_ritual_heal'], requiresAny: [], actionId: 'keeper_brothers_keeper_ritual' },
+    { id: 'keeper_martyrs_sacrifice_ritual', label: "Martyr's Sacrifice Ritual", group: 'action', subclass: 'Keeper', detail: '2 AP. While engaged with an enemy: +1 Trauma (self), heal an ally by 3 damage, and deal 3 damage to that enemy.', cost: 1, requires: ['keeper_sacred_bonds_ritual'], requiresAny: [], actionId: 'keeper_martyrs_sacrifice_ritual' },
+    { id: 'keeper_chorus_solitude_ritual', label: 'Chorus of Solitude Ritual', group: 'action', subclass: 'Keeper', detail: '3 AP. If allies are spread across different zones: +3 Trauma (self), heal all allies by 5 damage.', cost: 1, requires: ['keeper_brothers_keeper_ritual'], requiresAny: [], actionId: 'keeper_chorus_solitude_ritual' },
+    { id: 'keeper_carry_your_burden', label: 'I Shall Carry Your Burden', group: 'action', subclass: 'Keeper', detail: '1 AP. Take a negative condition from an ally and place it on yourself.', cost: 1, requires: ['keeper_life_balance'], requiresAny: [], actionId: 'keeper_carry_your_burden' },
+    { id: 'keeper_we_will_endure', label: 'We Will Endure', group: 'action', subclass: 'Keeper', detail: '1 AP. Absorb an ally stress burden into yourself to keep them fighting.', cost: 1, requires: ['keeper_carry_your_burden'], requiresAny: [], actionId: 'keeper_we_will_endure' },
+    { id: 'keeper_tw_bond_guardian', label: 'Bond of the Guardian', group: 'teamwork', subclass: 'Keeper', detail: 'Teamwork. If I Shall Carry Your Burden relieves at least one ally from a negative condition, generate 1 Teamwork Point.', cost: 1, requires: ['keeper_carry_your_burden'], requiresAny: [] },
+    { id: 'keeper_tw_shared_wisdom', label: 'Shared Wisdom', group: 'teamwork', subclass: 'Keeper', detail: 'Teamwork. If Through Me, You Shall Succeed lets an ally benefit from your Lead die, generate 1 Teamwork Point.', cost: 1, requires: ['keeper_through_me_succeed'], requiresAny: [] },
+    { id: 'keeper_tw_enduring_together', label: 'Enduring Together', group: 'teamwork', subclass: 'Keeper', detail: 'Teamwork. If We Will Endure successfully absorbs an ally stress burden, generate 1 Teamwork Point.', cost: 1, requires: ['keeper_we_will_endure'], requiresAny: [] },
+    { id: 'keeper_tw_intervention', label: "Keeper's Intervention", group: 'teamwork', subclass: 'Keeper', detail: 'Teamwork. If This Is Not Where You Should Be! confuses at least one enemy, generate 1 Teamwork Point.', cost: 1, requires: ['keeper_not_where_you_should_be'], requiresAny: [] },
+    { id: 'keeper_tw_ritual_restoration', label: 'Ritual of Restoration', group: 'teamwork', subclass: 'Keeper', detail: 'Teamwork. If Ritual Heal restores health to at least one ally, generate 1 Teamwork Point.', cost: 1, requires: ['keeper_ritual_heal'], requiresAny: [] },
 
     // ── BREEZE ─────────────────────────────────────────────────────────────
     // ── BREEZE ─────────────────────────────────────────────────────────────
@@ -4570,6 +4626,14 @@
         tStats.defend = Math.max(20, Number(tStats.defend || 4));
         if (typeof updateDieDisplay === 'function') updateDieDisplay('defend');
       }
+      if (String(node.id) === 'voice_root') {
+        tStats.spirit = Math.max(20, Number(tStats.spirit || 4));
+        if (typeof updateDieDisplay === 'function') updateDieDisplay('spirit');
+      }
+      if (String(node.id) === 'keeper_root') {
+        tStats.mind = Math.max(20, Number(tStats.mind || 4));
+        if (typeof updateDieDisplay === 'function') updateDieDisplay('mind');
+      }
       if (String(node.id) === 'exile_passive_feature') {
         tStats.exileDefendBonus = Math.max(1, Number(tStats.exileDefendBonus || 0) + 1);
         tStats.exileControlBonus = Math.max(1, Number(tStats.exileControlBonus || 0) + 1);
@@ -4580,8 +4644,9 @@
       if (String(node.id) === 'seek_root')  { profile.seekRootUnlocked = true; }
       if (String(node.id) === 'godbound_root_defend_d20') { profile.godboundRootUnlocked = true; }
       if (String(node.id) === 'voice_root') { profile.voiceRootUnlocked = true; }
-      if (String(node.id) === 'justice_root') { profile.justiceRootUnlocked = true; }
+      if (String(node.id) === 'justice_root') { profile.justiceRootUnlocked = true; profile.justiceNoTrauma = true; }
       if (String(node.id) === 'keeper_root') { profile.keeperRootUnlocked = true; }
+      if (String(node.id) === 'justice_no_trauma') { profile.justiceNoTrauma = true; }
       if (String(node.id) === 'exile_root_control_d20') { profile.exileRootUnlocked = true; }
       if (String(node.id) === 'breeze_root') { profile.breezeRootUnlocked = true; }
       // Breeze passive bonuses
@@ -8286,10 +8351,18 @@
           if (!gritUsed) {
             if (!flow.titanUsage.encounter) flow.titanUsage.encounter = {};
             flow.titanUsage.encounter.gritUsed = true;
-            if (typeof changeTrauma === 'function') changeTrauma(1);
-            else S.trauma = Math.max(0, Number(S.trauma || 0) + 1);
+            if (!hasTitanRaidNode('justice_no_trauma') && !hasTitanRaidNode('justice_root')) {
+              if (typeof changeTrauma === 'function') changeTrauma(1);
+              else S.trauma = Math.max(0, Number(S.trauma || 0) + 1);
+            }
             nextHp = 1;
-            if (typeof showNotif === 'function') showNotif('Grit triggered: you stay standing at 1 HP and take +1 Trauma.', 'warn');
+            if (typeof showNotif === 'function') {
+              if (hasTitanRaidNode('justice_no_trauma') || hasTitanRaidNode('justice_root')) {
+                showNotif('Grit triggered: you stay standing at 1 HP. Justice mastery prevented Trauma.', 'warn');
+              } else {
+                showNotif('Grit triggered: you stay standing at 1 HP and take +1 Trauma.', 'warn');
+              }
+            }
           }
         }
         S.health = nextHp;

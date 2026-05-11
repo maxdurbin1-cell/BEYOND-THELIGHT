@@ -3475,7 +3475,107 @@
     { id: 'muse_inspiring_performance', label: 'Inspiring Performance', group: 'teamwork', subclass: 'Muse', detail: 'Teamwork. If you successfully use Center of Attention and no allies in your Zone receive attacks that turn, generate 1 Teamwork Point — representing your ability to draw all enemy hostility onto yourself.', cost: 1, requires: ['muse_center_of_attention'], requiresAny: [] },
     { id: 'muse_motivational_insight', label: 'Motivational Insight', group: 'teamwork', subclass: 'Muse', detail: 'Teamwork. If an ally successfully completes a skill check while under the effects of I Know You Can Do This or Bolstering Inspiration, generate 1 Teamwork Point.', cost: 1, requires: ['muse_bolstering_inspiration'], requiresAny: [] },
     { id: 'muse_strategic_diversion', label: 'Strategic Diversion', group: 'teamwork', subclass: 'Muse', detail: "Teamwork. If you use What's That! and an ally uses the opportunity to move Zones without triggering Opportunity Attacks, generate 1 Teamwork Point.", cost: 1, requires: ['muse_whats_that'], requiresAny: [] },
-    { id: 'muse_shared_understanding', label: 'Shared Understanding', group: 'teamwork', subclass: 'Muse', detail: 'Teamwork. If you successfully use Effortless Communication and an ally benefits by performing a coordinated action in the same turn, generate 1 Teamwork Point.', cost: 1, requires: ['muse_effortless_communication'], requiresAny: [] }
+    { id: 'muse_shared_understanding', label: 'Shared Understanding', group: 'teamwork', subclass: 'Muse', detail: 'Teamwork. If you successfully use Effortless Communication and an ally benefits by performing a coordinated action in the same turn, generate 1 Teamwork Point.', cost: 1, requires: ['muse_effortless_communication'], requiresAny: [] },
+
+    // ── WEAVER CORE ───────────────────────────────────────────────────────
+    { id: 'weaver_root', label: 'Weaver Mastery', group: 'root', subclass: 'Weaver', detail: '1 RP. Talent renamed to Weaver. You are a vessel of arcane power shaped by study of the Source.', cost: 1, requires: [], requiresAny: [] },
+    { id: 'weaver_mind_d20', label: 'Weaver Core: Mind d20', group: 'passive', subclass: 'Weaver', detail: 'Your Mind die is now d20.', cost: 1, requires: ['weaver_root'], requiresAny: [] },
+    { id: 'weaver_magic_hack_advantage', label: 'Arcane Casting Edge', group: 'passive', subclass: 'Weaver', detail: 'Any magic or hack cast grants Advantage d10 on that roll.', cost: 1, requires: ['weaver_root'], requiresAny: [] },
+    { id: 'weaver_light_armor_proficiency', label: 'Light Armor Proficiency', group: 'passive', subclass: 'Weaver', detail: 'Gain +1 Mitigation and Advantage d8 on Stealth checks while using light armor.', cost: 1, requires: ['weaver_root'], requiresAny: [] },
+    { id: 'weaver_arcane_insight', label: 'Arcane Insight', group: 'passive', subclass: 'Weaver', detail: 'Gain Advantage d8 on checks to identify, understand, or disrupt magical effects.', cost: 1, requires: ['weaver_mind_d20'], requiresAny: [] },
+    { id: 'weaver_source_channeling', label: 'Source Channeling', group: 'passive', subclass: 'Weaver', detail: 'Gain Advantage d8 on checks to cast spells, especially large-energy or complex component casts.', cost: 1, requires: ['weaver_mind_d20'], requiresAny: [] },
+    { id: 'weaver_spell_weaving', label: 'Weaver', group: 'passive', subclass: 'Weaver', detail: 'Gain Advantage d8 on checks to modify spells in real-time or invent new spells.', cost: 1, requires: ['weaver_source_channeling'], requiresAny: [] },
+    { id: 'weaver_arcane_resilience', label: 'Arcane Resilience', group: 'passive', subclass: 'Weaver', detail: 'Gain Advantage d8 on Defend rolls to resist or reduce magical attacks and effects.', cost: 1, requires: ['weaver_arcane_insight'], requiresAny: [] },
+    { id: 'weaver_ethereal_connection', label: 'Ethereal Connection', group: 'passive', subclass: 'Weaver', detail: 'Gain Advantage d8 on checks to perceive invisible entities, magical presences, and illusions.', cost: 1, requires: ['weaver_arcane_resilience'], requiresAny: [] },
+    { id: 'weaver_arcane_aegis', label: 'Arcane Aegis', group: 'passive', subclass: 'Weaver', detail: 'Once per encounter, when taking damage from a magical source, reduce that damage by 1.', cost: 1, requires: ['weaver_arcane_resilience'], requiresAny: [] },
+    { id: 'weaver_flow_attunement', label: 'Flow Attunement', group: 'passive', subclass: 'Weaver', detail: 'Reroll one die on a check involving casting or controlling spells. Must keep the new roll.', cost: 1, requires: ['weaver_source_channeling'], requiresAny: [] },
+    { id: 'weaver_elemental_harmony', label: 'Elemental Harmony', group: 'passive', subclass: 'Weaver', detail: 'Elemental spells (fire, water, earth, air) deal +d4 Stress.', cost: 1, requires: ['weaver_flow_attunement'], requiresAny: [] },
+    { id: 'weaver_spell_recall', label: 'Spell Recall', group: 'action', subclass: 'Weaver', detail: '1 AP · once per encounter. Copy a spell cast in your presence and reproduce it on your next turn.', cost: 1, requires: ['weaver_arcane_insight'], requiresAny: [], actionId: 'weaver_spell_recall' },
+    { id: 'weaver_visions_tomorrow', label: 'Visions of Tomorrow', group: 'passive', subclass: 'Weaver', detail: 'Your critical success threshold improves by 1 (for example, Mind d8 crit 8 becomes 7).', cost: 1, requires: ['weaver_ethereal_connection'], requiresAny: [] },
+    { id: 'weaver_arcane_reservoir', label: 'Arcane Reservoir', group: 'action', subclass: 'Weaver', detail: 'Reaction · 1 AP. When casting a spell that would cause self-damage, take 1 less damage.', cost: 1, requires: ['weaver_arcane_aegis'], requiresAny: [], actionId: 'weaver_arcane_reservoir' },
+    { id: 'weaver_elemental_emissary', label: 'Elemental Emissary', group: 'action', subclass: 'Weaver', detail: 'Reaction · 1 AP. For your chosen element, add +1 damage to that elemental spell.', cost: 1, requires: ['weaver_elemental_harmony'], requiresAny: [], actionId: 'weaver_elemental_emissary' },
+    { id: 'weaver_source_whisperer', label: 'Source Whisperer', group: 'action', subclass: 'Weaver', detail: 'Reaction · 1 AP. On Mind or Spirit checks involving the Source or arcane knowledge, reroll the check.', cost: 1, requires: ['weaver_visions_tomorrow'], requiresAny: [], actionId: 'weaver_source_whisperer' },
+    { id: 'weaver_arcane_savant', label: 'Arcane Savant', group: 'action', subclass: 'Weaver', detail: 'Reaction · 1 AP. Gain +2 on a check to cast complex multi-component spells.', cost: 1, requires: ['weaver_spell_weaving'], requiresAny: [], actionId: 'weaver_arcane_savant' },
+    { id: 'weaver_ethereal_walker', label: 'Ethereal Walker', group: 'action', subclass: 'Weaver', detail: 'Reaction · 1 AP. When hit by an attack, impose step-down disadvantage on the attack roll.', cost: 1, requires: ['weaver_ethereal_connection'], requiresAny: [], actionId: 'weaver_ethereal_walker' },
+    { id: 'weaver_repulsion_surge', label: 'Repulsion Surge', group: 'action', subclass: 'Weaver', detail: 'Alpha · 2 AP. Burst of force pushes everyone out of your zone in their current direction. Optionally +1 self-damage to exclude chosen individuals.', cost: 1, requires: ['weaver_arcane_savant'], requiresAny: [], actionId: 'weaver_repulsion_surge' },
+    { id: 'weaver_winds_grasp', label: "Wind\'s Grasp", group: 'action', subclass: 'Weaver', detail: '1 AP. Hurl an ally or enemy to a nearby zone. Enemies take 3 Stress on landing. Cannot target foes with d10 Dread or higher.', cost: 1, requires: ['weaver_repulsion_surge'], requiresAny: [], actionId: 'weaver_winds_grasp' },
+    { id: 'weaver_electrical_invigoration', label: 'Electrical Invigoration', group: 'action', subclass: 'Weaver', detail: 'Free. Ally becomes Empowered and Focused and gains +1 AP this turn; they take 2 damage.', cost: 1, requires: ['weaver_winds_grasp'], requiresAny: [], actionId: 'weaver_electrical_invigoration' },
+    { id: 'weaver_storms_eye', label: "Storm\'s Eye", group: 'action', subclass: 'Weaver', detail: '2 AP. Deal 3 damage to all targets in your zone and raise enemy Dread die by one step.', cost: 1, requires: ['weaver_electrical_invigoration'], requiresAny: [], actionId: 'weaver_storms_eye' },
+    { id: 'weaver_lightning_leap', label: 'Lightning Leap', group: 'action', subclass: 'Weaver', detail: '1 AP. Leap from your zone to any zone in the encounter that is in range.', cost: 1, requires: ['weaver_storms_eye'], requiresAny: [], actionId: 'weaver_lightning_leap' },
+    { id: 'weaver_revitalizing_jolt', label: 'Revitalizing Jolt', group: 'action', subclass: 'Weaver', detail: 'Free. Revive an ally just knocked out (if you have not taken a turn since), restoring them to 1 damage.', cost: 1, requires: ['weaver_lightning_leap'], requiresAny: [], actionId: 'weaver_revitalizing_jolt' },
+    { id: 'weaver_lightning_strike', label: 'Lightning Strike', group: 'action', subclass: 'Weaver', detail: '2 AP. Bolt reaches Far. Shoot die is 2 steps higher than zone Dread. Allies engaged with target each take 2 damage. On failure, your zone Dread rises until your next turn.', cost: 1, requires: ['weaver_revitalizing_jolt'], requiresAny: [], actionId: 'weaver_lightning_strike' },
+    { id: 'weaver_charged_weapon', label: 'Charged Weapon', group: 'action', subclass: 'Weaver', detail: 'Free. Infuse a weapon with electricity; next attack deals +3 damage.', cost: 1, requires: ['weaver_lightning_strike'], requiresAny: [], actionId: 'weaver_charged_weapon' },
+    { id: 'weaver_flow_condenser', label: 'Flow Condenser', group: 'action', subclass: 'Weaver', detail: 'Free. Grant Protected to a target at Near or Close; target has Movement -1 AP until your next turn.', cost: 1, requires: ['weaver_arcane_insight'], requiresAny: [], actionId: 'weaver_flow_condenser' },
+    { id: 'weaver_fog_cube', label: 'Fog Cube', group: 'action', subclass: 'Weaver', detail: 'Alpha · 2 AP. Throw a cube into a zone, creating thick fog until end of your next turn. Enemies there suffer Disadvantage d6 on attacks.', cost: 1, requires: ['weaver_flow_condenser'], requiresAny: [], actionId: 'weaver_fog_cube' },
+    { id: 'weaver_flows_revelation', label: "Flow\'s Revelation", group: 'action', subclass: 'Weaver', detail: '1 AP. Read arcane flow to understand items or creatures; can alter local Dread behavior.', cost: 1, requires: ['weaver_fog_cube'], requiresAny: [], actionId: 'weaver_flows_revelation' },
+    { id: 'weaver_stasis_cube', label: 'Stasis Cube', group: 'action', subclass: 'Weaver', detail: 'Alpha · 2 AP. Immobilize everyone in the chosen zone until your next turn; enemies there cannot perform an action on their next turn.', cost: 1, requires: ['weaver_flows_revelation'], requiresAny: [], actionId: 'weaver_stasis_cube' },
+    { id: 'weaver_wand_transmutation', label: 'Wand Transmutation', group: 'action', subclass: 'Weaver', detail: 'Alpha. Transmute wand ammo type among Magnetism, Combustion, and Battery modes.', cost: 1, requires: ['weaver_stasis_cube'], requiresAny: [], actionId: 'weaver_wand_transmutation' },
+    { id: 'weaver_magnetism_pulse', label: 'Magnetism Pulse', group: 'action', subclass: 'Weaver', detail: '1 AP. Fire a magnetism ray; a second target within Close becomes Engaged with the first.', cost: 1, requires: ['weaver_wand_transmutation'], requiresAny: [], actionId: 'weaver_magnetism_pulse' },
+    { id: 'weaver_combustion_projectile', label: 'Combustion Projectile', group: 'action', subclass: 'Weaver', detail: '1 AP. Launch compressed-air projectile; on hit this attack deals a minimum of 3 damage (plus Teamwork bonus where applicable).', cost: 1, requires: ['weaver_wand_transmutation'], requiresAny: [], actionId: 'weaver_combustion_projectile' },
+    { id: 'weaver_the_battery', label: 'The Battery', group: 'action', subclass: 'Weaver', detail: '1 AP. Attack two enemies in same or adjacent zones with Shoot + Advantage d6. If first target is Close and you are also Close, take 2 Stress.', cost: 1, requires: ['weaver_wand_transmutation'], requiresAny: [], actionId: 'weaver_the_battery' },
+    { id: 'weaver_teamwork_arcane_fusion', label: 'Arcane Fusion', group: 'teamwork', subclass: 'Weaver', detail: 'Teamwork Power Attack. At 7 Teamwork Points, spend all remaining AP to release arcane explosion: deal damage equal to Mind die to all enemies in your zone and grant allies +1 Imagination next turn. Combine up to two spell effects.', cost: 1, requires: ['weaver_charged_weapon', 'weaver_the_battery'], requiresAny: [] },
+
+    // ── PILLAR OF VHEISSU (CREATION) ─────────────────────────────────────
+    { id: 'vheissu_root', label: 'Pillar of Vheissu Mastery', group: 'root', subclass: 'Pillar of Vheissu', detail: 'Weaver subclass unlocked. Creation pillar of nature, growth, and life.', cost: 1, requires: ['weaver_teamwork_arcane_fusion'], requiresAny: [] },
+    { id: 'vheissu_flames_embrace', label: "Flame\'s Embrace", group: 'passive', subclass: 'Pillar of Vheissu', detail: 'Inner Sphere fire shaping. Gain Advantage d8 when enhancing, intimidating, or using fire as Strike/Shoot attack.', cost: 1, requires: ['vheissu_root'], requiresAny: [] },
+    { id: 'vheissu_vital_surge', label: 'Vital Surge', group: 'action', subclass: 'Pillar of Vheissu', detail: '1 AP. Heal, bolster, or heighten senses. May also invoke darker life exchange through Trauma conversion effects.', cost: 1, requires: ['vheissu_root'], requiresAny: [], actionId: 'vheissu_vital_surge' },
+    { id: 'vheissu_natures_whisper', label: "Nature\'s Whisper", group: 'passive', subclass: 'Pillar of Vheissu', detail: 'Commune with flora. Gain Advantage d10 on related checks.', cost: 1, requires: ['vheissu_root'], requiresAny: [] },
+    { id: 'vheissu_earths_resilience', label: "Earth\'s Resilience", group: 'action', subclass: 'Pillar of Vheissu', detail: 'Reaction · 2 AP. You or an ally in your zone gains Sturdy until end of your next turn (damage from any source is halved).', cost: 1, requires: ['vheissu_flames_embrace'], requiresAny: [], actionId: 'vheissu_earths_resilience' },
+    { id: 'vheissu_elemental_emissary', label: 'Elemental Emissary', group: 'action', subclass: 'Pillar of Vheissu', detail: 'Alpha · 2 AP. Summon an elemental (fire/water/air/earth) to Strike or Shoot using your Spirit die, or provide a shield. Elemental health equals double your Spirit die value.', cost: 1, requires: ['vheissu_flames_embrace'], requiresAny: [], actionId: 'vheissu_elemental_emissary' },
+    { id: 'vheissu_gales_gust', label: "Gale\'s Gust", group: 'action', subclass: 'Pillar of Vheissu', detail: '3 AP. Knock back enemies and apply -1 AP on their next turn.', cost: 1, requires: ['vheissu_elemental_emissary'], requiresAny: [], actionId: 'vheissu_gales_gust' },
+    { id: 'vheissu_lifes_vigor', label: "Life\'s Vigor", group: 'action', subclass: 'Pillar of Vheissu', detail: '3 AP. Allies gain +1 AP on their next turn.', cost: 1, requires: ['vheissu_vital_surge'], requiresAny: [], actionId: 'vheissu_lifes_vigor' },
+    { id: 'vheissu_aetherial_bonds', label: 'Aetherial Bonds', group: 'passive', subclass: 'Pillar of Vheissu', detail: 'Passive. Gain Bonus d6 on Lead checks from elemental awareness of environmental changes.', cost: 1, requires: ['vheissu_natures_whisper'], requiresAny: [] },
+    { id: 'vheissu_natures_will', label: "Nature\'s Will", group: 'action', subclass: 'Pillar of Vheissu', detail: '2 AP. Create Difficult Terrain in a chosen zone. Those inside are reduced to 1 action unless they step out.', cost: 1, requires: ['vheissu_natures_whisper'], requiresAny: [], actionId: 'vheissu_natures_will' },
+    { id: 'vheissu_healing_blossom', label: 'Healing Blossom', group: 'action', subclass: 'Pillar of Vheissu', detail: '4 AP. Allies in the blossom zone heal 2 damage at the end of their turn.', cost: 1, requires: ['vheissu_lifes_vigor'], requiresAny: [], actionId: 'vheissu_healing_blossom' },
+    { id: 'vheissu_aqua_armor', label: 'Aqua Armor', group: 'action', subclass: 'Pillar of Vheissu', detail: '1 AP. Cloak a target in water, halving the next incoming fire damage (rounded down).', cost: 1, requires: ['vheissu_gales_gust'], requiresAny: [], actionId: 'vheissu_aqua_armor' },
+    { id: 'vheissu_floras_guidance', label: "Flora\'s Guidance", group: 'action', subclass: 'Pillar of Vheissu', detail: 'Alpha · 2 AP. Reveal hidden paths, objects, or individuals; grants Bonus d8 on related checks until end of your next turn.', cost: 1, requires: ['vheissu_aetherial_bonds'], requiresAny: [], actionId: 'vheissu_floras_guidance' },
+    { id: 'vheissu_inferno_strike', label: 'Inferno Strike', group: 'action', subclass: 'Pillar of Vheissu', detail: '3 AP. Fiery Shoot attack that applies Burn (1 Stress at start of enemy turn).', cost: 1, requires: ['vheissu_aqua_armor'], requiresAny: [], actionId: 'vheissu_inferno_strike' },
+    { id: 'vheissu_tw_symbiotic_surge', label: 'Symbiotic Surge', group: 'teamwork', subclass: 'Pillar of Vheissu', detail: 'Teamwork. When Vital Surge bolsters ally strength or senses, generate 1 Teamwork Point.', cost: 1, requires: ['vheissu_vital_surge'], requiresAny: [] },
+    { id: 'vheissu_tw_harmony_elements', label: 'Harmony of Elements', group: 'teamwork', subclass: 'Pillar of Vheissu', detail: 'Teamwork. When Flame\'s Embrace, Earth\'s Resilience, Gale\'s Gust, or Aqua Armor benefits allies or disadvantages enemies, generate 1 Teamwork Point.', cost: 1, requires: ['vheissu_earths_resilience'], requiresAny: [] },
+    { id: 'vheissu_tw_floral_network', label: 'Floral Network', group: 'teamwork', subclass: 'Pillar of Vheissu', detail: 'Teamwork. When Nature\'s Whisper gains significant intel or strategic flora manipulation, generate 1 Teamwork Point.', cost: 1, requires: ['vheissu_natures_whisper'], requiresAny: [] },
+    { id: 'vheissu_tw_elemental_symphony', label: 'Elemental Symphony', group: 'teamwork', subclass: 'Pillar of Vheissu', detail: 'Teamwork. Elemental manipulations that combo with another teammate action generate 1 Teamwork Point.', cost: 1, requires: ['vheissu_tw_harmony_elements', 'vheissu_tw_floral_network'], requiresAny: [] },
+    { id: 'vheissu_tw_life_energizer', label: 'Life Energizer', group: 'teamwork', subclass: 'Pillar of Vheissu', detail: 'Teamwork. If Vital Surge swings a critical moment in battle, generate 1 Teamwork Point.', cost: 1, requires: ['vheissu_tw_symbiotic_surge'], requiresAny: [] },
+
+    // ── PILLAR OF THE VOID (ORDER) ───────────────────────────────────────
+    { id: 'void_root', label: 'Pillar of the Void Mastery', group: 'root', subclass: 'Pillar of the Void', detail: 'Weaver subclass unlocked. Order pillar of balance, structure, and stability.', cost: 1, requires: ['weaver_teamwork_arcane_fusion'], requiresAny: [] },
+    { id: 'void_aether_manipulation', label: 'Aether Manipulation', group: 'passive', subclass: 'Pillar of the Void', detail: 'Gain Advantage d8 on checks manipulating space, time, or cosmic energies.', cost: 1, requires: ['void_root'], requiresAny: [] },
+    { id: 'void_illusion_crafting', label: 'Illusion Crafting', group: 'passive', subclass: 'Pillar of the Void', detail: 'Gain Advantage d8 on checks creating or dispelling illusions and altering perception.', cost: 1, requires: ['void_root'], requiresAny: [] },
+    { id: 'void_runic_inscription', label: 'Runic Inscription', group: 'passive', subclass: 'Pillar of the Void', detail: 'Gain Advantage d10 on checks using runes, wards, and enchantments.', cost: 1, requires: ['void_root'], requiresAny: [] },
+    { id: 'void_celestial_compass', label: 'Celestial Compass', group: 'passive', subclass: 'Pillar of the Void', detail: 'Passive. Gain Bonus d6 on navigation, tracking, and spatial anomaly checks.', cost: 1, requires: ['void_aether_manipulation'], requiresAny: [] },
+    { id: 'void_times_edge', label: "Time\'s Edge", group: 'action', subclass: 'Pillar of the Void', detail: 'Alpha · 2 AP. Enemies in target zone suffer -2 AP next turn, allies gain +2 AP, and initiative order flips fast/slow for the round.', cost: 1, requires: ['void_aether_manipulation'], requiresAny: [], actionId: 'void_times_edge' },
+    { id: 'void_illusion_veil', label: 'Illusion Veil', group: 'action', subclass: 'Pillar of the Void', detail: '3 AP. Camouflage self or ally as another form; grants Bonus d6 to Control rolls.', cost: 1, requires: ['void_illusion_crafting'], requiresAny: [], actionId: 'void_illusion_veil' },
+    { id: 'void_runic_barrier', label: 'Runic Barrier', group: 'action', subclass: 'Pillar of the Void', detail: '2 AP. Grant Protected to a target until your next turn.', cost: 1, requires: ['void_runic_inscription'], requiresAny: [], actionId: 'void_runic_barrier' },
+    { id: 'void_void_step', label: 'Void Step', group: 'action', subclass: 'Pillar of the Void', detail: 'Alpha · 2 AP. Teleport to any visible point within a Near zone.', cost: 1, requires: ['void_times_edge'], requiresAny: [], actionId: 'void_void_step' },
+    { id: 'void_spectral_chains', label: 'Spectral Chains', group: 'action', subclass: 'Pillar of the Void', detail: '3 AP. Launch 3 ethereal chains as Strike attacks using your Spirit die; successful hits apply Immobile (-1 AP).', cost: 1, requires: ['void_illusion_veil'], requiresAny: [], actionId: 'void_spectral_chains' },
+    { id: 'void_hallucinogenic_mirage', label: 'Hallucinogenic Mirage', group: 'action', subclass: 'Pillar of the Void', detail: '3 AP. Emotional illusion applies Bonus or Disadvantage d6 to attack and defend rolls.', cost: 1, requires: ['void_illusion_veil'], requiresAny: [], actionId: 'void_hallucinogenic_mirage' },
+    { id: 'void_cosmic_pulse', label: 'Cosmic Pulse', group: 'action', subclass: 'Pillar of the Void', detail: '3 AP. Shoot attack with Push condition that displaces target one range branch outward.', cost: 1, requires: ['void_times_edge'], requiresAny: [], actionId: 'void_cosmic_pulse' },
+    { id: 'void_aetheric_anchor', label: 'Aetheric Anchor', group: 'action', subclass: 'Pillar of the Void', detail: '4 AP. Stabilize anomalies or prevent teleportation in a zone.', cost: 1, requires: ['void_void_step'], requiresAny: [], actionId: 'void_aetheric_anchor' },
+    { id: 'void_rune_amplification', label: 'Rune of Amplification', group: 'action', subclass: 'Pillar of the Void', detail: '1 AP. Enchant a weapon or artifact; next action made with it gains Bonus d8.', cost: 1, requires: ['void_runic_barrier'], requiresAny: [], actionId: 'void_rune_amplification' },
+    { id: 'void_shadows_deceit', label: 'Shadows of Deceit', group: 'action', subclass: 'Pillar of the Void', detail: 'Alpha · 2 AP. Create illusion duplicates; gain Evasive condition (extra d4 to Defend) until next turn.', cost: 1, requires: ['void_hallucinogenic_mirage'], requiresAny: [], actionId: 'void_shadows_deceit' },
+    { id: 'void_aetheric_shift', label: 'Aetheric Shift', group: 'action', subclass: 'Pillar of the Void', detail: '3 AP. Bend space around you and gain Evasive condition (extra d4 to Defend) until next turn.', cost: 1, requires: ['void_aetheric_anchor'], requiresAny: [], actionId: 'void_aetheric_shift' },
+    { id: 'void_tw_aetheric_guardian', label: 'Aetheric Guardian', group: 'teamwork', subclass: 'Pillar of the Void', detail: 'Teamwork. If Aetheric Anchor blocks hostile movement/teleportation, generate 1 Teamwork Point.', cost: 1, requires: ['void_aetheric_anchor'], requiresAny: [] },
+    { id: 'void_tw_runic_blessing', label: 'Runic Blessing', group: 'teamwork', subclass: 'Pillar of the Void', detail: 'Teamwork. If Rune of Amplification empowers an ally item, generate 1 Teamwork Point.', cost: 1, requires: ['void_rune_amplification'], requiresAny: [] },
+    { id: 'void_tw_orders_guide', label: "Order\'s Guide", group: 'teamwork', subclass: 'Pillar of the Void', detail: 'Teamwork. If Celestial Compass leads your team through danger or complexity, generate 1 Teamwork Point.', cost: 1, requires: ['void_celestial_compass'], requiresAny: [] },
+    { id: 'void_tw_illusionists_trick', label: "Illusionist\'s Trick", group: 'teamwork', subclass: 'Pillar of the Void', detail: 'Teamwork. If Illusion Veil or Hallucinogenic Mirage creates major tactical advantage, generate 1 Teamwork Point.', cost: 1, requires: ['void_illusion_veil', 'void_hallucinogenic_mirage'], requiresAny: [] },
+    { id: 'void_tw_runic_protector', label: 'Runic Protector', group: 'teamwork', subclass: 'Pillar of the Void', detail: 'Teamwork. If Runic Barrier successfully shields an ally from a major attack, generate 1 Teamwork Point.', cost: 1, requires: ['void_runic_barrier'], requiresAny: [] },
+
+    // ── PILLAR OF THE ETAYALI (CHAOS) ────────────────────────────────────
+    { id: 'etayali_root', label: 'Pillar of the ETayali Mastery', group: 'root', subclass: 'Pillar of the ETayali', detail: 'Weaver subclass unlocked. Chaos pillar of entropy, destruction, and transformation.', cost: 1, requires: ['weaver_teamwork_arcane_fusion'], requiresAny: [] },
+    { id: 'etayali_necromantic_channeling', label: 'Necromantic Channeling', group: 'passive', subclass: 'Pillar of the ETayali', detail: 'Gain Advantage d8 on checks to sense the spectral realm and communicate with the dead.', cost: 1, requires: ['etayali_root'], requiresAny: [] },
+    { id: 'etayali_entropy_induction', label: 'Entropy Induction', group: 'passive', subclass: 'Pillar of the ETayali', detail: 'Gain Advantage d8 on checks to induce decay and disrupt opposing weaves.', cost: 1, requires: ['etayali_root'], requiresAny: [] },
+    { id: 'etayali_transmutation_practice', label: 'Transmutation Practice', group: 'passive', subclass: 'Pillar of the ETayali', detail: 'Gain Advantage d10 on checks altering object properties.', cost: 1, requires: ['etayali_root'], requiresAny: [] },
+    { id: 'etayali_reapers_call', label: "Reaper\'s Call", group: 'action', subclass: 'Pillar of the ETayali', detail: 'Alpha · 2 AP. Summon a spectral figure as Strike attack using your Spirit die; applies Bleed (1 damage at enemy turn start).', cost: 1, requires: ['etayali_necromantic_channeling'], requiresAny: [], actionId: 'etayali_reapers_call' },
+    { id: 'etayali_decay_touch', label: 'Decay Touch', group: 'action', subclass: 'Pillar of the ETayali', detail: '3 AP. Strike attack that applies Crumble, stepping down target Dread die by one step.', cost: 1, requires: ['etayali_entropy_induction'], requiresAny: [], actionId: 'etayali_decay_touch' },
+    { id: 'etayali_morphling_essence', label: 'Morphling Essence', group: 'action', subclass: 'Pillar of the ETayali', detail: 'Control · 2 AP · 2 IM/Stress. Alter your form to gain Bonus d6 on stealth, intimidation, or athletics checks.', cost: 1, requires: ['etayali_transmutation_practice'], requiresAny: [], actionId: 'etayali_morphling_essence' },
+    { id: 'etayali_entropy_field', label: 'Entropy Field', group: 'action', subclass: 'Pillar of the ETayali', detail: '1 AP. Surround a target with chaotic field; enemies attacking that target suffer Disadvantage d6.', cost: 1, requires: ['etayali_decay_touch'], requiresAny: [], actionId: 'etayali_entropy_field' },
+    { id: 'etayali_phantom_gauntlet', label: 'Phantom Gauntlet', group: 'action', subclass: 'Pillar of the ETayali', detail: '3 AP. Shoot attack with Grasp condition; target cannot move.', cost: 1, requires: ['etayali_reapers_call'], requiresAny: [], actionId: 'etayali_phantom_gauntlet' },
+    { id: 'etayali_grave_chill', label: 'Grave Chill', group: 'passive', subclass: 'Pillar of the ETayali', detail: 'Passive. Aura of unease grants Bonus d6 to Spirit checks.', cost: 1, requires: ['etayali_necromantic_channeling'], requiresAny: [] },
+    { id: 'etayali_matter_twist', label: 'Matter Twist', group: 'action', subclass: 'Pillar of the ETayali', detail: 'Alpha · 2 AP. Change object properties (weight, hardness, etc.) to grant Bonus or impose Disadvantage d6.', cost: 1, requires: ['etayali_transmutation_practice'], requiresAny: [], actionId: 'etayali_matter_twist' },
+    { id: 'etayali_spectral_chains', label: 'Spectral Chains (Underworld)', group: 'action', subclass: 'Pillar of the ETayali', detail: '3 AP. Necromantic Strike attack that applies Restrained; enemies cannot move.', cost: 1, requires: ['etayali_phantom_gauntlet'], requiresAny: [], actionId: 'etayali_spectral_chains' },
+    { id: 'etayali_transmutation_beam', label: 'Transmutation Beam', group: 'action', subclass: 'Pillar of the ETayali', detail: '3 AP. Beam alters struck matter (bridge, melted lock, hardened air shield) and grants Bonus d8 on relevant checks.', cost: 1, requires: ['etayali_matter_twist'], requiresAny: [], actionId: 'etayali_transmutation_beam' },
+    { id: 'etayali_tw_shape_shifter', label: "Shape-Shifter\'s Deception", group: 'teamwork', subclass: 'Pillar of the ETayali', detail: 'Teamwork. If Morphling Essence enables successful infiltration, scouting, or deception, generate 1 Teamwork Point.', cost: 1, requires: ['etayali_morphling_essence'], requiresAny: [] },
+    { id: 'etayali_tw_master_decay', label: 'Master of Decay', group: 'teamwork', subclass: 'Pillar of the ETayali', detail: 'Teamwork. If Decay Touch or Entropy Field weakens enemy offense/defense for team advantage, generate 1 Teamwork Point.', cost: 1, requires: ['etayali_decay_touch', 'etayali_entropy_field'], requiresAny: [] },
+    { id: 'etayali_tw_transmuters_craft', label: "Transmuter\'s Craft", group: 'teamwork', subclass: 'Pillar of the ETayali', detail: 'Teamwork. If Matter Twist or Transmutation Beam solves a crucial challenge or creates major advantage, generate 1 Teamwork Point.', cost: 1, requires: ['etayali_matter_twist', 'etayali_transmutation_beam'], requiresAny: [] }
   ];
 
   function getTitanRaidNode(nodeId) {
@@ -3992,6 +4092,9 @@
     window.raidTreeJumpExile = function () {
       jumpRaidTreeToWorld(3160, 440, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
+    window.raidTreeJumpWeaver = function () {
+      jumpRaidTreeToWorld(4160, 1360, viewportEl, sceneEl, sceneWidth, sceneHeight);
+    };
   }
 
   function renderRaidTreeInspectorPanel() {
@@ -4203,8 +4306,8 @@
 
     var titanPathHeader = '<div style="border:1px solid rgba(126,215,255,.28);background:linear-gradient(145deg, rgba(9,16,24,.96), rgba(12,18,30,.9));padding:.55rem .62rem;margin-top:.42rem;">'
       + '<div style="font-size:.78rem;color:#7ed7ff;margin-bottom:.1rem;"><strong>Raid Skill Paths</strong></div>'
-      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;">Path web framework: Titan, Exile, Godbound, Weaver. Titan, Exile, and Godbound are active with subclass branches.</div>'
-      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Active now: Legacy, Titan, Godbound, Exile. Godbound is the core class, with Voice, Justice, and Keeper as subclasses. Planned next: Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;">Path web framework: Titan, Exile, Godbound, Weaver with subclass branches and shared raid-point progression.</div>'
+      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Active now: Legacy, Titan, Godbound, Exile, Weaver. Weaver subclasses: Pillar of Vheissu, Pillar of the Void, Pillar of the ETayali.</div>'
       + '</div>';
 
     var titanNodeMeta = TITAN_RAID_WEB_NODES.map(function (node) {
@@ -4243,7 +4346,11 @@
       Exile: '#7de2c4',
       Breeze: '#8bf1ff',
       Stalker: '#7bb8ff',
-      Muse: '#d8a1ff'
+      Muse: '#d8a1ff',
+      Weaver: '#8b97ff',
+      'Pillar of Vheissu': '#9fe07b',
+      'Pillar of the Void': '#a8c3ff',
+      'Pillar of the ETayali': '#ff9eb6'
     };
     function getSubclassAccent(name) {
       var key = String(name || 'Titan');
@@ -4307,13 +4414,18 @@
       Exile:      { x: 3160, y: 440 },
       Breeze:     { x: 3420, y: 760 },
       Stalker:    { x: 3700, y: 500 },
-      Muse:       { x: 3880, y: 900 }
+      Muse:       { x: 3880, y: 900 },
+      Weaver:     { x: 4160, y: 1360 },
+      'Pillar of Vheissu': { x: 4520, y: 1080 },
+      'Pillar of the Void': { x: 4760, y: 1460 },
+      'Pillar of the ETayali': { x: 4460, y: 1720 }
     };
     var titanStartingAreas = [
       { id: 'legacy_start', label: 'START HERE: Legacy', x: 1120, y: 980, accent: '#7ed7ff' },
       { id: 'titan_start', label: 'START HERE: Titan', x: 2280, y: 1480, accent: '#ff9f63' },
       { id: 'godbound_start', label: 'START HERE: Godbound', x: 3160, y: 1180, accent: '#f0d87a' },
-      { id: 'exile_start', label: 'START HERE: Exile', x: 3160, y: 440, accent: '#7de2c4' }
+      { id: 'exile_start', label: 'START HERE: Exile', x: 3160, y: 440, accent: '#7de2c4' },
+      { id: 'weaver_start', label: 'START HERE: Weaver', x: 4160, y: 1360, accent: '#8b97ff' }
     ];
     function getTitanNodeRadius(node) {
       var rarity = String(node && node.rarity || 'normal');
@@ -4502,13 +4614,16 @@
     var titanStart = startById.titan_start || titanCenters.Titan;
     var godboundStart = startById.godbound_start || titanCenters.Godbound;
     var exileStart = startById.exile_start || titanCenters.Exile;
+    var weaverStart = startById.weaver_start || titanCenters.Weaver;
     // Major class spine and branch trunks to keep start flow obvious.
     edgeHtml += '<path d="' + buildCurvePath(legacyStart.x, legacyStart.y, titanStart.x, titanStart.y, -26) + '" stroke="rgba(126,215,255,.68)" stroke-width="' + scaledStrokeWidth(4.8) + '" fill="none" filter="url(#raidEdgeGlow)" />';
     edgeHtml += '<path d="' + buildCurvePath(titanStart.x, titanStart.y, godboundStart.x, godboundStart.y, 24) + '" stroke="rgba(255,205,136,.64)" stroke-width="' + scaledStrokeWidth(4.8) + '" fill="none" filter="url(#raidEdgeGlow)" />';
     edgeHtml += '<path d="' + buildCurvePath(godboundStart.x, godboundStart.y, exileStart.x, exileStart.y, -24) + '" stroke="rgba(149,236,212,.64)" stroke-width="' + scaledStrokeWidth(4.8) + '" fill="none" filter="url(#raidEdgeGlow)" />';
+    edgeHtml += '<path d="' + buildCurvePath(exileStart.x, exileStart.y, weaverStart.x, weaverStart.y, 24) + '" stroke="rgba(173,186,255,.64)" stroke-width="' + scaledStrokeWidth(4.8) + '" fill="none" filter="url(#raidEdgeGlow)" />';
     edgeHtml += buildRoadDots(legacyStart.x, legacyStart.y, titanStart.x, titanStart.y, 9, 'rgba(170,227,255,.92)', 2.4, '.92');
     edgeHtml += buildRoadDots(titanStart.x, titanStart.y, godboundStart.x, godboundStart.y, 9, 'rgba(255,220,165,.92)', 2.4, '.92');
     edgeHtml += buildRoadDots(godboundStart.x, godboundStart.y, exileStart.x, exileStart.y, 9, 'rgba(171,244,224,.92)', 2.4, '.92');
+    edgeHtml += buildRoadDots(exileStart.x, exileStart.y, weaverStart.x, weaverStart.y, 9, 'rgba(205,216,255,.92)', 2.4, '.92');
     ['Tactician', 'Fury', 'Seeker'].forEach(function (sub) {
       var c = titanCenters[sub];
       edgeHtml += '<path d="' + buildCurvePath(titanCenters.Titan.x, titanCenters.Titan.y, c.x, c.y, -14) + '" stroke="rgba(255,175,118,.46)" stroke-width="' + scaledStrokeWidth(3.1) + '" fill="none" filter="url(#raidEdgeGlow)" />';
@@ -4523,6 +4638,11 @@
       var c = titanCenters[sub];
       edgeHtml += '<path d="' + buildCurvePath(titanCenters.Exile.x, titanCenters.Exile.y, c.x, c.y, -16) + '" stroke="rgba(156,239,214,.46)" stroke-width="' + scaledStrokeWidth(3.1) + '" fill="none" filter="url(#raidEdgeGlow)" />';
       edgeHtml += buildRoadDots(titanCenters.Exile.x, titanCenters.Exile.y, c.x, c.y, 3, 'rgba(181,247,229,.88)', 1.9, '.86');
+    });
+    ['Pillar of Vheissu', 'Pillar of the Void', 'Pillar of the ETayali'].forEach(function (sub) {
+      var c = titanCenters[sub];
+      edgeHtml += '<path d="' + buildCurvePath(titanCenters.Weaver.x, titanCenters.Weaver.y, c.x, c.y, -16) + '" stroke="rgba(166,179,255,.52)" stroke-width="' + scaledStrokeWidth(3.1) + '" fill="none" filter="url(#raidEdgeGlow)" />';
+      edgeHtml += buildRoadDots(titanCenters.Weaver.x, titanCenters.Weaver.y, c.x, c.y, 3, 'rgba(204,214,255,.88)', 1.9, '.86');
     });
     legacyNodeMeta.forEach(function (n, idx) {
       if (idx <= 0) return;
@@ -4613,13 +4733,17 @@
       if (id === 'exile_start') {
         return '<svg viewBox="0 0 42 42" width="22" height="22" aria-hidden="true"><path d="M28 8 L34 14 L22 26 L16 26 L16 20 Z" fill="none" stroke="' + stroke + '" stroke-width="1.7"/><path d="M16 20 L10 32 L22 26" fill="none" stroke="' + stroke + '" stroke-width="1.7"/><path d="M12 34 L22 34" stroke="' + stroke + '" stroke-width="1.3" opacity=".82"/></svg>';
       }
+      if (id === 'weaver_start') {
+        return '<svg viewBox="0 0 42 42" width="22" height="22" aria-hidden="true"><circle cx="21" cy="21" r="13" fill="none" stroke="' + stroke + '" stroke-width="1.6"/><path d="M9 14 L21 8 L33 14 L21 20 Z" fill="none" stroke="' + stroke + '" stroke-width="1.4"/><path d="M9 28 L21 22 L33 28" fill="none" stroke="' + stroke + '" stroke-width="1.4"/><path d="M21 8 L21 34" stroke="' + stroke + '" stroke-width="1.1" opacity=".84"/></svg>';
+      }
       return '<svg viewBox="0 0 42 42" width="22" height="22" aria-hidden="true"><circle cx="21" cy="21" r="12" fill="none" stroke="' + stroke + '" stroke-width="1.6"/></svg>';
     }
     var startHubMeta = {
       legacy_start: { title: 'Legacy', identity: 'Balanced all-rounder pathing and utility.' },
       titan_start: { title: 'Titan', identity: 'Frontline force, defense, and pressure control.' },
       godbound_start: { title: 'Godbound', identity: 'Faith-fueled defense, judgment, and support.' },
-      exile_start: { title: 'Exile', identity: 'Precision, stealth, and opportunistic burst.' }
+      exile_start: { title: 'Exile', identity: 'Precision, stealth, and opportunistic burst.' },
+      weaver_start: { title: 'Weaver', identity: 'Arcane control, elemental shaping, and reality-bending utility.' }
     };
     var startHubBadgesHtml = titanStartingAreas.map(function (area) {
       var meta = startHubMeta[String(area.id || '')] || { title: 'Path', identity: 'Choose this path to begin.' };
@@ -4634,14 +4758,15 @@
         + '<div style="position:absolute;left:' + titleLeft + 'px;top:' + titleTop + 'px;min-width:132px;text-align:center;font-size:.58rem;color:' + area.accent + ';letter-spacing:.11em;text-transform:uppercase;text-shadow:0 0 8px ' + area.accent + ';pointer-events:none;">' + meta.title + '</div>'
         + '<div class="raid-start-identity" style="position:absolute;left:' + identLeft + 'px;top:' + identTop + 'px;width:308px;text-align:center;font-size:.54rem;color:rgba(216,230,244,.88);letter-spacing:.03em;line-height:1.35;text-shadow:0 0 8px rgba(0,0,0,.5);pointer-events:none;">' + meta.identity + '</div>';
     }).join('');
-    var subclassLabelsHtml = ['Tactician', 'Fury', 'Seeker', 'Voice', 'Justice', 'Keeper', 'Breeze', 'Stalker', 'Muse'].map(function (subclass) {
+    var subclassLabelsHtml = ['Tactician', 'Fury', 'Seeker', 'Voice', 'Justice', 'Keeper', 'Breeze', 'Stalker', 'Muse', 'Pillar of Vheissu', 'Pillar of the Void', 'Pillar of the ETayali'].map(function (subclass) {
       var c = titanCenters[subclass];
       return '<div style="position:absolute;left:' + (Math.round(c.x - 62)) + 'px;top:' + (Math.round(c.y - 182)) + 'px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;pointer-events:none;">' + subclass + '</div>';
     }).join('');
     var coreLabelsHtml = [
       { txt: 'Titan Core', c: titanCenters.Titan },
       { txt: 'Godbound Core', c: titanCenters.Godbound },
-      { txt: 'Exile Core', c: titanCenters.Exile }
+      { txt: 'Exile Core', c: titanCenters.Exile },
+      { txt: 'Weaver Core', c: titanCenters.Weaver }
     ].map(function (entry) {
       return '<div style="position:absolute;left:' + (Math.round(entry.c.x - 70)) + 'px;top:' + (Math.round(entry.c.y + 66)) + 'px;font-size:.54rem;color:rgba(201,162,39,.7);text-transform:uppercase;letter-spacing:.1em;pointer-events:none;">' + entry.txt + '</div>';
     }).join('');
@@ -4793,6 +4918,7 @@
       + '<button class="btn btn-xs" onclick="raidTreeJumpTitan()">Titan</button>'
       + '<button class="btn btn-xs" onclick="raidTreeJumpGodbound()">Godbound</button>'
       + '<button class="btn btn-xs" onclick="raidTreeJumpExile()">Exile</button>'
+      + '<button class="btn btn-xs" onclick="raidTreeJumpWeaver()">Weaver</button>'
       + '<button class="btn btn-xs" onclick="raidTreeZoomOut()">-</button>'
       + '<input id="raidTreeZoomInput" type="range" min="60" max="180" step="5" value="100" style="width:120px;accent-color:#7ed7ff;">'
       + '<button class="btn btn-xs" onclick="raidTreeZoomIn()">+</button>'

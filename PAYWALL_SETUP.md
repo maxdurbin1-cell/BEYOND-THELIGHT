@@ -61,6 +61,14 @@ Open:
 
 - `/admin/licenses`
 
+If admin actions fail, verify server env var `PAYWALL_ADMIN_KEY` is set before starting the server.
+
+Example run command:
+
+```bash
+PAYWALL_ADMIN_KEY="replace-with-your-secret" npm start
+```
+
 From that page you can:
 
 - issue `1` or `4` codes to an email,
@@ -77,6 +85,14 @@ You must enter `PAYWALL_ADMIN_KEY` in the admin UI.
 - Venmo support is typically done through PayPal/Braintree flows.
 
 The paywall itself is payment-provider agnostic: any payment method works as long as your payment-success step calls the code-issue endpoint (or you issue codes manually in the admin UI).
+
+## Venmo Flow In This Project
+
+- Buyer pays your Venmo handle and includes their email + quantity in payment note.
+- You issue code(s) from `/admin/licenses`.
+- Buyer signs in at `/access` using email + code.
+
+Note: direct personal Venmo does not provide the same simple webhook automation model as Stripe. This project uses manual issuance for Venmo unless you later integrate a provider/API with webhook support.
 
 ## Buyer Login
 

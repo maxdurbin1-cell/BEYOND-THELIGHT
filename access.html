@@ -126,6 +126,33 @@
     .status.ok {
       color: var(--ok);
     }
+
+    .buy-help {
+      margin-top: 0.95rem;
+      padding: 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.015);
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .buy-help strong {
+      color: var(--text);
+    }
+
+    .buy-link {
+      display: inline-block;
+      margin-top: 0.4rem;
+      color: var(--gold);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(225, 184, 94, 0.5);
+    }
+
+    .buy-link:hover {
+      color: #f3d38e;
+      border-bottom-color: rgba(243, 211, 142, 0.8);
+    }
   </style>
 </head>
 <body>
@@ -150,6 +177,16 @@
     </form>
 
     <div id="status" class="status" role="status"></div>
+
+    <div class="buy-help">
+      <strong>Need a code?</strong><br>
+      Pay via Venmo to <strong>@maxadamdurbin</strong>.<br>
+      Price: 1 code for $10, or 4 codes for $25.<br>
+      Include this in payment note: <strong>BTL | your-email@example.com | qty 1 or 4</strong><br>
+      After payment, your code(s) are issued by the admin panel.
+      <br>
+      <a class="buy-link" href="https://account.venmo.com/u/maxadamdurbin" target="_blank" rel="noopener noreferrer">Open Venmo Profile</a>
+    </div>
   </section>
 
   <script src="./paywall-gate.js" defer></script>

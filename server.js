@@ -1114,6 +1114,14 @@ app.get("/api/license/status", (req, res) => {
   res.json({ ok: true, authorized: true, session: safeSessionForResponse(session) });
 });
 
+app.get("/api/license/admin/config", (_req, res) => {
+  res.json({
+    ok: true,
+    adminKeyConfigured: !!PAYWALL_ADMIN_KEY,
+    adminPath: "/admin/licenses"
+  });
+});
+
 app.post("/api/license/logout", (req, res) => {
   clearSessionByRequest(req);
   res.setHeader("Set-Cookie", makeCookie(PAYWALL_SESSION_COOKIE, "", {

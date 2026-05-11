@@ -86,6 +86,35 @@
     return { ok: response.ok, status: response.status, body: body };
   }
 
+  async function loadAdminConfigStatus() {
+    var result;
+    try {
+      result = await fetch("/api/license/admin/config", { method: "GET" });
+    } catch (_err) {
+      setStatus("admin-config-status", "Could not reach admin config endpoint.", "error");
+      return;
+    }
+
+    var body = null;
+    try {
+      body = await result.json();
+    } catch (_err) {
+      body = null;
+    }
+
+    if (!result.ok || !body || !body.ok) {
+      setStatus("admin-config-status", "Admin config check failed.", "error");
+      return;
+    }
+
+    if (!body.adminKeyConfigured) {
+      setStatus("admin-config-status", "Server admin key is NOT configured. Set PAYWALL_ADMIN_KEY and restart server.", "warn");
+      return;
+    }
+
+    setStatus("admin-config-status", "Server admin key is configured. Enter it above to manage licenses.", "ok");
+  }
+
   function formatTime(ts) {
     var n = Number(ts || 0);
     if (!n) return "-";
@@ -213,6 +242,7 @@
 
   function init() {
     loadAdminKeyPreference();
+    loadAdminConfigStatus();
     initActions();
     doSearch();
   }

@@ -1711,6 +1711,11 @@ function handleEnhancedManualSuccess() {
     if (typeof showNotif === 'function') showNotif('Enter Action and Dread dice values first!', 'warn');
     return;
   }
+
+  if (typeof window.showEnhancedManualRollPrompt === 'function') {
+    window.showEnhancedManualRollPrompt('Manual Check', actionDie, dreadDie);
+    return;
+  }
   
   resolveManualCheckOverride(true);
 }
@@ -1723,6 +1728,11 @@ function handleEnhancedManualFailure() {
   
   if (!actionInput || !dreadInput || !actionInput.value || !dreadInput.value) {
     if (typeof showNotif === 'function') showNotif('Enter Action and Dread dice values first!', 'warn');
+    return;
+  }
+
+  if (typeof window.showEnhancedManualRollPrompt === 'function') {
+    window.showEnhancedManualRollPrompt('Manual Check', actionDie, dreadDie);
     return;
   }
   

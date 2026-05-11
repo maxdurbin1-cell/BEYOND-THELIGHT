@@ -14117,7 +14117,7 @@ function rollPlanetHexEncounter() {
     title = 'Skirmish';
     text = `${groupA} ${factionA} clash with ${groupB} ${factionB}. Gunfire and distress pings saturate the district.`;
     if (typeof openModal === 'function') {
-      openModal('Skirmish', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Skirmish</strong><br>${text}<br><br>Intervene for potential salvage, or avoid and keep moving.<div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-warn' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}")'>Intervene</button><button class='btn btn-xs' onclick='resolvePlanetSkirmishChoice("avoid",${groupA},${groupB},"${factionA}","${factionB}")'>Avoid</button></div></div>`);
+      openModal('Skirmish', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Skirmish</strong><br>${text}<br><br>Pick which side you back, then resolve combat in the Combat tab.<div style='display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-top:.45rem;'><button class='btn btn-xs btn-warn' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","A")'>Back ${factionA}</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","B")'>Back ${factionB}</button></div><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs' onclick='resolvePlanetSkirmishChoice("avoid",${groupA},${groupB},"${factionA}","${factionB}")'>Avoid</button></div></div>`);
     }
   } else if (d10 === 6) {
     title = 'Merchant Caravan';
@@ -14236,7 +14236,7 @@ function resolvePlanetWeatherCheck() {
   }
 }
 
-function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB) {
+function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB, joinedSide) {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
@@ -14276,6 +14276,9 @@ function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB)
     groupB: Number(groupB || 0),
     factionA: String(factionA || 'Faction A'),
     factionB: String(factionB || 'Faction B'),
+    joinedSide: String(joinedSide || 'A') === 'B' ? 'B' : 'A',
+    joinedFaction: String(joinedSide || 'A') === 'B' ? String(factionB || 'Faction B') : String(factionA || 'Faction A'),
+    opposingFaction: String(joinedSide || 'A') === 'B' ? String(factionA || 'Faction A') : String(factionB || 'Faction B'),
     enemyCount: enemyCount,
     dread: encounterDread,
     enemyHealth: enemyHealth,
@@ -14296,7 +14299,7 @@ function openPlanetSkirmishOutcomeModal() {
   const state = ensurePlanetSurfaceState(hex);
   const pending = state && state.pendingSkirmishCombat ? state.pendingSkirmishCombat : null;
   if (!pending || typeof openModal !== 'function') return;
-  openModal('Planet Skirmish Outcome', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Combat Outcome</strong><br>${pending.factionA} vs ${pending.factionB}.<br><em>After finishing the fight in Combat tab, record the result:</em><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-teal' onclick='resolvePlanetSkirmishCombatOutcome("success")'>Mark Victory</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishCombatOutcome("failure")'>Mark Failure</button></div></div>`);
+  openModal('Planet Skirmish Outcome', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Combat Outcome</strong><br>${pending.factionA} vs ${pending.factionB}.<br><strong style='color:var(--teal);'>You backed: ${pending.joinedFaction}</strong><br><em>After finishing the fight in Combat tab, record the result for your chosen side:</em><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-teal' onclick='resolvePlanetSkirmishCombatOutcome("success")'>${pending.joinedFaction} Won</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishCombatOutcome("failure")'>${pending.joinedFaction} Lost</button></div></div>`);
 }
 
 function resolvePlanetSkirmishCombatOutcome(outcome) {
@@ -14315,12 +14318,12 @@ function resolvePlanetSkirmishCombatOutcome(outcome) {
       timestamp: Date.now(),
       d10: 8,
       outcome: 'Skirmish Combat Victory',
-      detail: `${pending.groupA} ${pending.factionA} vs ${pending.groupB} ${pending.factionB}. Combat victory. Loot: ${loot}.`,
+      detail: `${pending.groupA} ${pending.factionA} vs ${pending.groupB} ${pending.factionB}. You backed ${pending.joinedFaction} and won. Loot: ${loot}.`,
       rewardItem: loot,
       cellId: pending.cellId,
       eventType: 'encounter'
     };
-    showNotif(`Skirmish won between ${pending.factionA} and ${pending.factionB}.`, 'good');
+    showNotif(`Skirmish result recorded: ${pending.joinedFaction} won.`, 'good');
   } else {
     if (typeof changeStress === 'function') changeStress(1);
     if (typeof changeHealth === 'function') changeHealth(1);
@@ -14328,12 +14331,12 @@ function resolvePlanetSkirmishCombatOutcome(outcome) {
       timestamp: Date.now(),
       d10: 8,
       outcome: 'Skirmish Combat Failed',
-      detail: `${pending.groupA} ${pending.factionA} vs ${pending.groupB} ${pending.factionB}. Combat setback. +1 Stress, +1 Health damage.`,
+      detail: `${pending.groupA} ${pending.factionA} vs ${pending.groupB} ${pending.factionB}. You backed ${pending.joinedFaction} and lost. +1 Stress, +1 Health damage.`,
       rewardItem: '',
       cellId: pending.cellId,
       eventType: 'encounter'
     };
-    showNotif(`Skirmish intervention failed against ${pending.factionA}/${pending.factionB}.`, 'warn');
+    showNotif(`Skirmish result recorded: ${pending.joinedFaction} lost.`, 'warn');
   }
   state.pendingSkirmishCombat = null;
   if (typeof closeModal === 'function') closeModal();

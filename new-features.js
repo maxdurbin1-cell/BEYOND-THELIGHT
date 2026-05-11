@@ -3845,7 +3845,74 @@
     if (typeof showNotif === 'function') showNotif('Merchants access opened in ' + node.label + ' (' + cat + ').', 'info');
   }
 
-  function buildHoldingMerchantBrowsePreview() {
+  var HOLDING_TRADE_GOODS = [
+    { name: 'Trade Goods: Grain Bales', baseValue: 40 },
+    { name: 'Trade Goods: Medicine Crates', baseValue: 60 },
+    { name: 'Trade Goods: Machine Parts', baseValue: 75 },
+    { name: 'Trade Goods: Textiles', baseValue: 45 },
+    { name: 'Trade Goods: Preserved Food', baseValue: 50 },
+    { name: 'Trade Goods: Fuel Cells', baseValue: 80 }
+  ];
+
+  var HOLDING_MARKET_STATE_TABLE = {
+    oversupplied: { label: 'Oversupplied', multiplier: 0.5 },
+    normal: { label: 'Normal', multiplier: 1 },
+    desired: { label: 'Desired', multiplier: 2 },
+    desperate: { label: 'Desperate', multiplier: 3 }
+  };
+
+  function normalizeTradeGoodName(name) {
+    return String(name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function isHoldingTradeGood(name) {
+    var norm = normalizeTradeGoodName(name);
+    return HOLDING_TRADE_GOODS.some(function (entry) {
+      return normalizeTradeGoodName(entry.name) === norm;
+    });
+  }
+
+  function getHoldingTradeGoodBaseValue(name) {
+    var norm = normalizeTradeGoodName(name);
+    for (var i = 0; i < HOLDING_TRADE_GOODS.length; i++) {
+      if (normalizeTradeGoodName(HOLDING_TRADE_GOODS[i].name) === norm) {
+        return Math.max(10, Number(HOLDING_TRADE_GOODS[i].baseValue || 40));
+      }
+    }
+    return 40;
+  }
+
+  function rollHoldingMarketState() {
+    var r = Math.max(1, Math.min(100, Number(roll(100) || 1)));
+    if (r <= 20) return 'oversupplied';
+    if (r <= 70) return 'normal';
+    if (r <= 90) return 'desired';
+    return 'desperate';
+  }
+
+  function ensureHoldingDistrictMarket(node) {
+    if (!node || typeof node !== 'object') {
+      return { state: 'normal', desiredItem: HOLDING_TRADE_GOODS[0].name };
+    }
+    var today = getCurrentGameDayStampLocal() || String(Date.now());
+    var trade = node.tradeMarket && typeof node.tradeMarket === 'object' ? node.tradeMarket : null;
+    if (!trade || String(trade.dayStamp || '') !== String(today)) {
+      var state = rollHoldingMarketState();
+      var desired = pick(HOLDING_TRADE_GOODS).name;
+      node.tradeMarket = {
+        dayStamp: String(today),
+        state: state,
+        desiredItem: desired,
+        salesToday: 0
+      };
+      trade = node.tradeMarket;
+    }
+    if (!trade.state || !HOLDING_MARKET_STATE_TABLE[trade.state]) trade.state = 'normal';
+    if (!trade.desiredItem) trade.desiredItem = pick(HOLDING_TRADE_GOODS).name;
+    return trade;
+  }
+
+  function buildHoldingMerchantBrowsePreview(market) {
     var offers = [
       'Ration Kit', 'Tool Kit', 'Medicine Satchel', 'Scrap Rifle',
       'Stimulant', 'Wound Salve', 'Signal Flare', 'Scope Lens',
@@ -3854,19 +3921,28 @@
     var categories = ['weapon_mods', 'supplies', 'curios', 'combat_kits'];
     var picked = [];
     var pool = offers.slice();
-    while (pool.length && picked.length < 4) {
+    while (pool.length && picked.length < 3) {
       var idx = Math.floor(Math.random() * pool.length);
       picked.push(pool.splice(idx, 1)[0]);
     }
+    var tradeGoodA = pick(HOLDING_TRADE_GOODS).name;
+    var tradeGoodB = market && market.desiredItem ? String(market.desiredItem) : pick(HOLDING_TRADE_GOODS).name;
+    if (picked.indexOf(tradeGoodA) < 0) picked.push(tradeGoodA);
+    if (picked.indexOf(tradeGoodB) < 0) picked.push(tradeGoodB);
     return {
       category: categories[Math.floor(Math.random() * categories.length)],
-      offers: picked
+      offers: picked,
+      marketState: market && market.state ? String(market.state) : 'normal',
+      desiredItem: market && market.desiredItem ? String(market.desiredItem) : tradeGoodB
     };
   }
 
   function getHoldingBrowseOfferCost(offerName) {
     var name = String(offerName || '').trim();
     if (!name) return 50;
+    if (isHoldingTradeGood(name)) {
+      return getHoldingTradeGoodBaseValue(name);
+    }
     var catalog = [
       (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && SHOP_DATA.items) ? SHOP_DATA.items : [],
       (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && SHOP_DATA.essentials) ? SHOP_DATA.essentials : [],
@@ -3928,13 +4004,33 @@
       return;
     }
     var unit = parseBackpackStack(entry);
-    var sale = Math.max(10, Math.floor(getHoldingBrowseOfferCost(unit.name || entry) * 0.5));
+    var itemName = String(unit.name || entry);
+    var sale = Math.max(10, Math.floor(getHoldingBrowseOfferCost(itemName) * 0.5));
+    var market = ensureHoldingDistrictMarket(node);
+    var marketMeta = HOLDING_MARKET_STATE_TABLE[String(market.state || 'normal')] || HOLDING_MARKET_STATE_TABLE.normal;
+    var desiredMatch = normalizeTradeGoodName(itemName) === normalizeTradeGoodName(market.desiredItem);
+    var renownAwarded = false;
+    if (isHoldingTradeGood(itemName)) {
+      var multiplier = Number(marketMeta.multiplier || 1);
+      if (!S.caravan || !S.caravan.owned) multiplier *= 0.75;
+      sale = Math.max(10, Math.floor(getHoldingTradeGoodBaseValue(itemName) * multiplier));
+      if (desiredMatch && (market.state === 'desired' || market.state === 'desperate')) {
+        renownAwarded = true;
+      }
+      market.salesToday = Number(market.salesToday || 0) + 1;
+    }
     if (typeof removeBackpackItem === 'function') removeBackpackItem(idx);
     else S.backpack[idx] = '';
     S.credits = Number(S.credits || 0) + sale;
+    if (renownAwarded) {
+      if (typeof changeCounter === 'function') changeCounter('renown', 1);
+      else S.renown = Math.max(0, Number(S.renown || 0) + 1);
+      market.desiredItem = pick(HOLDING_TRADE_GOODS).name;
+    }
     if (typeof updateCreditsUI === 'function') updateCreditsUI();
     if (typeof renderBackpackUI === 'function') renderBackpackUI();
-    node.result = 'Sold ' + (unit.name || entry) + ' for ' + sale + '₵.';
+    node.result = 'Sold ' + itemName + ' for ' + sale + '₵. Market: ' + marketMeta.label + ' x' + marketMeta.multiplier + '.'
+      + (renownAwarded ? ' Delivery stabilized demand: +1 Renown.' : '');
     rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
@@ -4103,8 +4199,11 @@
       msg = 'Rumor sweep: ' + String(node.rumor || ambient.rumor || 'The district is quiet for now.') + ' Opportunity: ' + String(ambient.opportunity || 'Nothing immediate.');
       recordHoldingNpcInteraction(node, 'neutral', 'Collected district rumors.');
     } else if (action === 'browse') {
-      node.browsePreview = buildHoldingMerchantBrowsePreview();
-      msg = 'Merchants loaded local stock (' + String(node.browsePreview.category || 'mixed') + ').';
+      var market = ensureHoldingDistrictMarket(node);
+      node.browsePreview = buildHoldingMerchantBrowsePreview(market);
+      var marketMeta = HOLDING_MARKET_STATE_TABLE[String(market.state || 'normal')] || HOLDING_MARKET_STATE_TABLE.normal;
+      msg = 'Merchants loaded local stock (' + String(node.browsePreview.category || 'mixed') + '). Market: '
+        + marketMeta.label + ' x' + marketMeta.multiplier + '. Desired: ' + String(market.desiredItem || 'Trade Goods');
     } else if (action === 'event') {
       msg = 'Random encounter: ' + String(ambient.scene || 'People surge through the lanes.') + ' ' + String(ambient.npcMovement || '');
       recordHoldingNpcInteraction(node, 'neutral', 'Handled a district random encounter.');
@@ -4405,6 +4504,17 @@
         + (active && active.browsePreview && Array.isArray(active.browsePreview.offers)
           ? ('<div style="margin-top:.1rem;padding:.2rem .28rem;border:1px solid rgba(126,215,255,.28);background:rgba(126,215,255,.06);">'
             + '<div style="font-size:.67rem;color:var(--teal);margin-bottom:.08rem;"><strong>Merchants Offers</strong> · ' + String(active.browsePreview.category || 'mixed') + '</div>'
+            + (function () {
+                var market = ensureHoldingDistrictMarket(active);
+                var marketMeta = HOLDING_MARKET_STATE_TABLE[String(market.state || 'normal')] || HOLDING_MARKET_STATE_TABLE.normal;
+                return '<div style="font-size:.66rem;color:var(--gold2);line-height:1.45;margin-bottom:.12rem;">'
+                  + 'Market State: <strong>' + marketMeta.label + '</strong> (x' + marketMeta.multiplier + ')'
+                  + '<br>Desired Trade Item: <strong>' + String(market.desiredItem || 'Trade Goods') + '</strong>'
+                  + '</div>';
+              })()
+            + '<div style="font-size:.64rem;color:var(--muted2);line-height:1.4;margin-bottom:.12rem;">'
+            + 'Sell Modifier Table: Oversupplied x0.5 · Normal x1 · Desired x2 · Desperate x3'
+            + '</div>'
             + active.browsePreview.offers.map(function (offer) {
                 var itemName = String(offer || 'Item');
                 var itemCost = getHoldingBrowseOfferCost(itemName);
@@ -7271,8 +7381,13 @@
     var actionDieNum = Math.max(4, Number(actionDie || 6));
     var dreadDieNum = Math.max(4, Number(dreadDie || 6));
     var currentTMW = Math.max(0, Number(S.tmw || 0));
+    var actionInput = document.getElementById('manualActionValue');
+    var dreadInput = document.getElementById('manualDreadValue');
+    var currentAction = Number(actionInput && actionInput.value);
+    var currentDread = Number(dreadInput && dreadInput.value);
 
     var modifiersHtml = buildManualRollModifiersHtml();
+    var pushDread = stepEnhancedManualDreadDie(dreadDieNum);
 
     var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.7;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);margin-bottom:.4rem;">'
@@ -7285,16 +7400,77 @@
       + '</div>'
       + modifiersHtml
       + '<div style="background:rgba(232,192,80,.04);border:1px solid rgba(232,192,80,.3);padding:.35rem .45rem;margin-top:.4rem;border-radius:3px;">'
-      + '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.2rem;"><strong>Teamwork Points Available:</strong> <span style="color:var(--teal);font-size:.82rem;">' + currentTMW + ' TMW</span></div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);">On failure, you can spend 1 TMW per point to increase your roll score.</div>'
+      + '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.2rem;"><strong>Teamwork Points:</strong> <span style="color:var(--teal);font-size:.82rem;">' + currentTMW + ' TMW</span></div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);">Push Luck costs 2 TMW and raises Dread to d' + pushDread + '.</div>'
+      + '</div>'
+      + '<div style="background:rgba(126,215,255,.06);border:1px solid rgba(126,215,255,.28);padding:.35rem .45rem;margin-top:.4rem;border-radius:3px;">'
+      + '<div style="font-size:.75rem;color:var(--teal);margin-bottom:.15rem;"><strong>Current Manual Dice Entry</strong></div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);">Action: <strong style="color:var(--text2);">' + (Number.isFinite(currentAction) ? currentAction : '-') + '</strong> | Dread: <strong style="color:var(--text2);">' + (Number.isFinite(currentDread) ? currentDread : '-') + '</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.12rem;">Use the Manual Check panel values, then choose the narrative outcome below.</div>'
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.6rem;">'
       + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
-      + '<button class="btn btn-sm btn-red" onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\')" style="flex:1;">🎲 Roll & Resolve</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\',true,false)">Success</button>'
+      + '<button class="btn btn-sm btn-red" onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\',false,false)">Failure</button>'
+      + '<button class="btn btn-sm btn-teal" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\',true,true)">Push Luck + Success</button>'
+      + '<button class="btn btn-sm btn-warn" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\',false,true)">Push Luck + Failure</button>'
       + '</div>';
 
     openModal('Manual Roll: ' + skillLabel + ' Check', html);
+  }
+
+  function stepEnhancedManualDreadDie(current) {
+    var dice = [4, 6, 8, 10, 12, 20];
+    var die = Number(current || 6);
+    var idx = dice.indexOf(die);
+    if (idx < 0) idx = 1;
+    return dice[Math.min(dice.length - 1, idx + 1)];
+  }
+
+  function normalizeEnhancedManualStat(skillLabel) {
+    var key = String(skillLabel || '').toLowerCase();
+    if (key.indexOf('body') >= 0 || key.indexOf('strike') >= 0 || key.indexOf('shoot') >= 0) return 'body';
+    if (key.indexOf('defend') >= 0) return 'defend';
+    if (key.indexOf('lead') >= 0 || key.indexOf('spirit') >= 0) return 'spirit';
+    if (key.indexOf('mind') >= 0 || key.indexOf('control') >= 0) return 'mind';
+    return 'adventure';
+  }
+
+  function applyEnhancedManualCondition(statKey, positive) {
+    var cond = normalizeHoldingQuestConditionByStat(statKey, !!positive);
+    if (typeof applyHoldingQuestCondition === 'function') {
+      applyHoldingQuestCondition(cond);
+      return cond;
+    }
+    S.conditions = S.conditions || {};
+    S.conditions[cond] = true;
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    return cond;
+  }
+
+  function applyEnhancedManualFailureConsequence(statKey, margin, skillLabel) {
+    var m = Math.max(1, Number(margin || 1));
+    if (statKey === 'mind') {
+      if (typeof changeMentalStress === 'function') changeMentalStress(m);
+      else if (typeof changeStress === 'function') changeStress(m);
+    } else if (statKey === 'defend') {
+      if (typeof changeStress === 'function') changeStress(m);
+      else if (typeof changeHealth === 'function') changeHealth(m);
+    } else {
+      if (typeof changeHealth === 'function') changeHealth(m);
+      else if (typeof changeStress === 'function') changeStress(m);
+    }
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-roll-failure', { skipPrompt: true });
+    else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+    if (typeof showDccFailureOutcome === 'function') {
+      showDccFailureOutcome('spell', m, {
+        actionTotal: 0,
+        dreadTotal: m,
+        context: String(skillLabel || 'Manual check') + ' (declared failure)'
+      });
+    }
   }
 
   function awardPathToken(reason) {
@@ -7308,11 +7484,8 @@
     return 1;
   }
 
-  function manualRollOutcomeFailure(actionDie, dreadDie, skillLabel) {
-    if (typeof closeModal !== 'function' || typeof S === 'undefined') { return; }
-    closeModal();
-
-    // Get the current rolls from manual input
+  function manualRollOutcomeFailure(actionDie, dreadDie, skillLabel, declaredSuccess, pushLuck) {
+    if (typeof S === 'undefined') { return; }
     var actionInput = document.getElementById('manualActionValue');
     var dreadInput = document.getElementById('manualDreadValue');
 
@@ -7329,25 +7502,52 @@
       return;
     }
 
-    var success = actionRoll >= dreadRoll;
+    var usePushLuck = !!pushLuck;
+    var effectiveDreadDie = Math.max(4, Number(dreadDie || 6));
+    if (usePushLuck) {
+      var tmw = Math.max(0, Number(S.tmw || 0));
+      if (tmw < 2) {
+        if (typeof showNotif === 'function') showNotif('Need 2 Teamwork to Push Luck.', 'warn');
+        return;
+      }
+      if (typeof changeCounter === 'function') changeCounter('tmw', -2);
+      else S.tmw = Math.max(0, tmw - 2);
+      effectiveDreadDie = stepEnhancedManualDreadDie(dreadDie);
+    }
+
+    var statKey = normalizeEnhancedManualStat(skillLabel);
+    var effectiveDreadRoll = usePushLuck ? Math.max(dreadRoll, Number(roll(effectiveDreadDie) || dreadRoll)) : dreadRoll;
+    var margin = Math.max(1, Math.abs(actionRoll - effectiveDreadRoll));
+    var success = !!declaredSuccess;
 
     if (success) {
-      // Success: Award +1 Path Token
       awardPathToken('manual-roll-success');
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      if (usePushLuck) {
+        var pos = applyEnhancedManualCondition(statKey, true);
+        if (typeof showNotif === 'function') showNotif('Push Luck success: gained ' + pos + '.', 'good');
+      }
       if (typeof showDccSuccessOutcome === 'function') {
-        showDccSuccessOutcome('spell', Math.max(1, actionRoll - dreadRoll), {
+        showDccSuccessOutcome('spell', margin, {
           actionTotal: actionRoll,
-          dreadTotal: dreadRoll,
+          dreadTotal: effectiveDreadRoll,
           context: skillLabel + ' check (manual roll)'
         });
       }
-      // Clear the inputs
-      actionInput.value = '';
-      dreadInput.value = '';
     } else {
-      // Failure: Show options to spend TMW
-      handleManualRollFailure(actionDie, dreadDie, skillLabel, actionRoll, dreadRoll);
+      if (usePushLuck) {
+        var neg = applyEnhancedManualCondition(statKey, false);
+        if (typeof showNotif === 'function') showNotif('Push Luck failure: gained ' + neg + '.', 'warn');
+      }
+      applyEnhancedManualFailureConsequence(statKey, margin, skillLabel);
+      if (typeof showNotif === 'function') {
+        showNotif('Failure consequences applied to character sheet.', 'warn');
+      }
     }
+
+    actionInput.value = '';
+    dreadInput.value = '';
+    if (typeof closeModal === 'function') closeModal();
   }
 
   function handleManualRollFailure(actionDie, dreadDie, skillLabel, actionRoll, dreadRoll) {

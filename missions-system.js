@@ -2605,34 +2605,70 @@
   ];
 
   var TITAN_RAID_WEB_NODES = [
+    // ── TITAN CORE ──────────────────────────────────────────────────────────
     { id: 'titan_root_lead_d20', label: 'Titan Core: Lead d20', group: 'root', subclass: 'Titan', detail: 'Set your Lead die to d20. Foundational Titan command presence.', cost: 1, requires: [], requiresAny: [] },
     { id: 'titan_root_defend_plus3', label: 'Titan Core: +3 Defend', group: 'root', subclass: 'Titan', detail: 'Gain +3 to Defend rolls in raid combat scenes.', cost: 1, requires: [], requiresAny: [] },
-
-    { id: 'titan_skill_shield_wall', label: 'Shield Wall', group: 'skill', subclass: 'Tactician', detail: '1 AP. Gain an Advantage d8 on your next Defend roll.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_shield_wall' },
-    { id: 'titan_skill_titans_grip', label: "Titan's Grip", group: 'skill', subclass: 'Fury', detail: '1 AP. Gain an Advantage d8 on your next melee strike.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_titans_grip' },
-    { id: 'titan_skill_warriors_roar', label: "Warrior's Roar", group: 'skill', subclass: 'Tactician', detail: '1 AP, once per encounter. Allies gain Advantage d8 on next roll; enemies roll next attack at disadvantage d8.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_warriors_roar' },
-    { id: 'titan_skill_bulwark', label: 'Bulwark', group: 'skill', subclass: 'Seeker', detail: '1 AP. Gain an Advantage d10 on next interception/defense for an ally.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_bulwark' },
-    { id: 'titan_skill_unyielding', label: 'Unyielding', group: 'skill', subclass: 'Fury', detail: '1 AP, once per scene. Roll Adventure die and heal that much HP.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_unyielding' },
-
     { id: 'titan_passive_grit', label: 'Grit', group: 'passive', subclass: 'Titan', detail: 'Once per combat encounter, if you would collapse at max Stress, you instead stay up with Trauma.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
-    { id: 'titan_passive_power_strike', label: 'Power Strike', group: 'passive', subclass: 'Fury', detail: '+1 to Strike rolls in raid combat.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
-    { id: 'titan_passive_threatening_presence', label: 'Threatening Presence', group: 'passive', subclass: 'Tactician', detail: 'Open action: apply Dread reduction pressure to a number of enemies equal to Spirit die tier.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_threatening_presence' },
-    { id: 'titan_passive_armored_defense', label: 'Armored Defense', group: 'passive', subclass: 'Seeker', detail: '+1 to Defend rolls in raid combat.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
     { id: 'titan_passive_unyielding_resolve', label: 'Unyielding Resolve', group: 'passive', subclass: 'Titan', detail: 'Twice per encounter, ignore a negative condition or trauma application.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
+    { id: 'titan_teamwork_earthquake_slam', label: 'Earthquake Slam', group: 'teamwork', subclass: 'Titan', detail: 'Open action. Spend 7 Teamwork and all current AP: same-zone enemies save vs Body or are knocked prone and lose 2 AP next turn.', cost: 1, requires: ['titan_passive_grit'], requiresAny: [], actionId: 'titan_earthquake_slam' },
 
-    { id: 'titan_personal_opportunist', label: 'Opportunist', group: 'personal', subclass: 'Fury', detail: 'Open action: reaction strike profile (+2 pressure).', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_opportunist' },
-    { id: 'titan_personal_off_hand', label: 'Off-hand', group: 'personal', subclass: 'Fury', detail: 'Open action: perform a follow-up attack without extra AP.', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_off_hand' },
-    { id: 'titan_personal_multi_attack', label: 'Multi-Attack', group: 'personal', subclass: 'Fury', detail: 'Open action: strike twice for 1 AP.', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_multi_attack' },
-    { id: 'titan_personal_unstoppable_charge', label: 'Unstoppable Charge', group: 'personal', subclass: 'Seeker', detail: 'Open action: charge from Close to Engaged with Advantage die.', cost: 1, requires: ['titan_skill_bulwark'], requiresAny: [], actionId: 'titan_unstoppable_charge' },
-    { id: 'titan_personal_titans_lunge', label: "Titan's Lunge", group: 'personal', subclass: 'Seeker', detail: 'Open action: lunge up to four zones; twice per encounter.', cost: 1, requires: ['titan_skill_bulwark'], requiresAny: [], actionId: 'titan_titans_lunge' },
+    // ── TACTICIAN ────────────────────────────────────────────────────────────
+    // Subclass root (required to enter tree)
+    { id: 'tact_root', label: 'Tactician Mastery', group: 'root', subclass: 'Tactician', detail: '1 RP. Tactician profession unlocked. Strike and Shoot rolls gain Advantage d10. The Tactician focuses on strategy, battlefield control, and outwitting the enemy.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
+    // Actions
+    { id: 'tact_combat_stances', label: 'Combat Stances', group: 'action', subclass: 'Tactician', detail: 'Alpha · 1 AP. Choose at start of your turn: Striker Stance (Ad6 Strike, Disadvantage d12 Defend), Defensive Stance (Ad6 Defend, Disadvantage d12 Strike), or Lead from the Front (allies use your Lead die as their Advantage die).', cost: 1, requires: ['tact_root'], requiresAny: [], actionId: 'tact_combat_stances' },
+    { id: 'tact_follow_me', label: 'Follow Me', group: 'action', subclass: 'Tactician', detail: 'Passive. Gain +1 Action Point each combat round.', cost: 1, requires: ['tact_root'], requiresAny: [], actionId: 'tact_follow_me' },
+    { id: 'tact_order', label: 'Order', group: 'action', subclass: 'Tactician', detail: '1 AP. You inspire those around you — all allies may Move this round without spending AP.', cost: 1, requires: ['tact_root'], requiresAny: [], actionId: 'tact_order' },
+    { id: 'tact_taunt', label: 'Taunt', group: 'action', subclass: 'Tactician', detail: 'Free · 2 IM/Stress. Defender mode: force an enemy in your zone to engage you immediately. Controller mode: force an enemy in another zone to move toward you; they lose 1 AP on their turn.', cost: 1, requires: ['tact_combat_stances'], requiresAny: [], actionId: 'tact_taunt' },
+    { id: 'tact_tactical_delay', label: 'Tactical Delay', group: 'action', subclass: 'Tactician', detail: 'No AP. Transfer your Action Points to an ally this round, granting them +2 AP on their turn.', cost: 1, requires: ['tact_follow_me'], requiresAny: [], actionId: 'tact_tactical_delay' },
+    { id: 'tact_rallying_cry', label: 'Rallying Cry', group: 'action', subclass: 'Tactician', detail: 'Leader · 2 AP · 1 IM/Stress. All allies in your zone gain a one-time Advantage d6 on their next Action roll. Does not stack with other Advantage bonuses.', cost: 1, requires: ['tact_order'], requiresAny: [], actionId: 'tact_rallying_cry' },
+    { id: 'tact_decoy_command', label: 'Decoy Command', group: 'action', subclass: 'Tactician', detail: 'Control · 4 AP · 2 IM/Stress. Until your next turn, all enemies in your zone attack you instead of allies, letting one chosen ally flee without Opportunity Attacks.', cost: 1, requires: ['tact_taunt'], requiresAny: [], actionId: 'tact_decoy_command' },
+    { id: 'tact_tactical_superiority', label: 'Tactical Superiority', group: 'action', subclass: 'Tactician', detail: '4 AP. Delay all your actions until end of round. All Combat Rolls gain a step-up die for that round; Action Points carry over doubled to your next turn. (e.g., 3 AP → 6 AP next turn with step-up dice.)', cost: 1, requires: ['tact_tactical_delay'], requiresAny: [], actionId: 'tact_tactical_superiority' },
+    { id: 'tact_strategic_withdrawal', label: 'Strategic Withdrawal', group: 'action', subclass: 'Tactician', detail: 'Lead · 3 AP · 1 IM/Stress. Command allies to retreat to an adjacent zone while maintaining order, ignoring the Cluster imperative.', cost: 1, requires: ['tact_rallying_cry'], requiresAny: [], actionId: 'tact_strategic_withdrawal' },
+    { id: 'tact_enveloping_strategy', label: 'Enveloping Strategy', group: 'action', subclass: 'Tactician', detail: 'Control · 3 AP · 2 IM/Stress. You surround the enemy with battlefield knowledge. All allies gain Advantage d6 on their next Strike roll against enemies in your zone.', cost: 1, requires: ['tact_tactical_superiority'], requiresAny: [], actionId: 'tact_enveloping_strategy' },
+    // Teamwork
+    { id: 'tact_tw_phalanx', label: 'Phalanx Advance', group: 'teamwork', subclass: 'Tactician', detail: 'Teamwork. If you and at least one ally move from the same zone to an adjacent zone (neither engaged at start), generate 1 Teamwork Point.', cost: 1, requires: ['tact_root'], requiresAny: [] },
+    { id: 'tact_tw_combined_assault', label: 'Combined Assault', group: 'teamwork', subclass: 'Tactician', detail: 'Teamwork. If you and an ally both target the same enemy with Strike actions this turn, generate 1 Teamwork Point.', cost: 1, requires: ['tact_root'], requiresAny: [] },
+    { id: 'tact_tw_withdrawal', label: 'Tactical Withdrawal', group: 'teamwork', subclass: 'Tactician', detail: 'Teamwork. If you and an ally both disengage from the same enemy and move to an adjacent zone, generate 1 Teamwork Point.', cost: 1, requires: ['tact_tw_phalanx'], requiresAny: [] },
+    { id: 'tact_tw_def_rally', label: 'Defensive Rally', group: 'teamwork', subclass: 'Tactician', detail: 'Teamwork. Using a Leadership action that benefits an ally in your zone who is not engaged generates 1 Teamwork Point.', cost: 1, requires: ['tact_tw_combined_assault'], requiresAny: [] },
+    { id: 'tact_tw_coord_control', label: 'Coordinated Control', group: 'teamwork', subclass: 'Tactician', detail: 'Teamwork. If you and an ally both use Control actions targeting the same enemy or the same zone, generate 1 Teamwork Point.', cost: 1, requires: ['tact_tw_withdrawal', 'tact_tw_def_rally'], requiresAny: [] },
 
-    { id: 'titan_action_stand_firm', label: 'Stand Firm', group: 'action', subclass: 'Tactician', detail: '1 AP. Enemies attempting to move in-zone must beat your Body die or lose 1 AP.', cost: 1, requires: ['titan_skill_shield_wall'], requiresAny: [], actionId: 'titan_stand_firm' },
-    { id: 'titan_action_battering_ram', label: 'Battering Ram', group: 'action', subclass: 'Fury', detail: '1 AP. Body vs Dread; on success push enemy one zone back.', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_battering_ram' },
-    { id: 'titan_action_shattering_roar', label: 'Shattering Roar', group: 'action', subclass: 'Tactician', detail: '1 AP. Enemies save vs Lead or suffer disadvantage on next attack; allies gain Advantage d8 next roll.', cost: 1, requires: ['titan_skill_warriors_roar'], requiresAny: [], actionId: 'titan_shattering_roar' },
-    { id: 'titan_action_titans_fury', label: "Titan's Fury", group: 'action', subclass: 'Fury', detail: '1 AP. Strike all enemies Engaged with you.', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_titans_fury' },
-    { id: 'titan_action_shield_slam', label: 'Shield Slam', group: 'action', subclass: 'Seeker', detail: '1 AP. Control vs Engaged target; on success enemy loses 1 AP.', cost: 1, requires: ['titan_skill_shield_wall'], requiresAny: [], actionId: 'titan_shield_slam' },
+    // ── FURY ─────────────────────────────────────────────────────────────────
+    // Subclass root
+    { id: 'fury_root', label: 'Fury Mastery', group: 'root', subclass: 'Fury', detail: '1 RP. Fury profession unlocked. Body die rolls gain a bonus Advantage d10. The Fury harnesses inner rage to become a whirlwind of destruction, hitting hard and fast.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
+    // Passives
+    { id: 'fury_last_stand', label: 'Last Stand', group: 'passive', subclass: 'Fury', detail: 'No AP · Once per encounter. If Mental Stress would push you over 20, you instead stay at 19.', cost: 1, requires: ['fury_root'], requiresAny: [] },
+    { id: 'fury_retribution', label: "Fury's Retribution", group: 'passive', subclass: 'Fury', detail: 'Passive. When you miss an attack, instead of adding 1 Teamwork Point, deal +2 damage on your next attack. This effect stacks with subsequent misses.', cost: 1, requires: ['fury_root'], requiresAny: [] },
+    { id: 'fury_bloodlust', label: 'Bloodlust', group: 'passive', subclass: 'Fury', detail: 'Passive. After killing an enemy, choose to become either Focused or Bolstered (your choice each time).', cost: 1, requires: ['fury_retribution'], requiresAny: [] },
+    // Actions
+    { id: 'fury_unyielding', label: 'Unyielding Resolve', group: 'action', subclass: 'Fury', detail: 'No AP. Immediately remove Shaken, Vulnerable, Weakened, or Confused. Each condition removed this way costs 1 Mental Stress.', cost: 1, requires: ['fury_root'], requiresAny: [], actionId: 'fury_unyielding' },
+    { id: 'fury_raging_assault', label: 'Raging Assault', group: 'action', subclass: 'Fury', detail: 'Alpha · 2 AP. Step up your Strike die by one and deal ×2 damage. Your Defense die is reduced to d4 until start of your next turn.', cost: 1, requires: ['fury_unyielding'], requiresAny: [], actionId: 'fury_raging_assault' },
+    { id: 'fury_burning_rage', label: 'Burning Rage', group: 'action', subclass: 'Fury', detail: 'No AP. Become Empowered. This condition lasts until you miss an attack. You may end it voluntarily on your turn to become Protected until start of your next turn.', cost: 1, requires: ['fury_unyielding'], requiresAny: [], actionId: 'fury_burning_rage' },
+    { id: 'fury_reckless_protector', label: 'Reckless Protector', group: 'action', subclass: 'Fury', detail: '1 AP. Adopt a reckless stance, drawing all enemy attacks to yourself. All allies in your zone gain +3 to Defend Rolls until start of your next turn.', cost: 1, requires: ['fury_raging_assault'], requiresAny: [], actionId: 'fury_reckless_protector' },
+    // Teamwork
+    { id: 'fury_tw_rage_echo', label: 'Rage Echo', group: 'teamwork', subclass: 'Fury', detail: 'Teamwork. If an ally in your zone successfully lands an attack, generate 1 Teamwork Point (feeds off their success to stoke your rage).', cost: 1, requires: ['fury_root'], requiresAny: [] },
+    { id: 'fury_tw_unleashed', label: 'Unleashed Fury', group: 'teamwork', subclass: 'Fury', detail: 'Teamwork +1 RP. If you take damage in a round, generate 1 Teamwork Point (pain becomes a rallying cry).', cost: 1, requires: ['fury_tw_rage_echo'], requiresAny: [] },
+    { id: 'fury_tw_bloodied', label: 'Bloodied but Unbroken', group: 'teamwork', subclass: 'Fury', detail: 'Teamwork. If you end your turn with a status effect (Shaken, Vulnerable, Weakened, or Confused), generate 1 Teamwork Point.', cost: 1, requires: ['fury_tw_rage_echo'], requiresAny: [] },
+    { id: 'fury_tw_brothers_keeper', label: "Brother's Keeper", group: 'teamwork', subclass: 'Fury', detail: 'Teamwork. If an ally in your zone would be incapacitated and you intervene to take the damage instead, generate 2 Teamwork Points.', cost: 1, requires: ['fury_tw_unleashed', 'fury_tw_bloodied'], requiresAny: [] },
 
-    { id: 'titan_teamwork_earthquake_slam', label: 'Earthquake Slam', group: 'teamwork', subclass: 'Titan', detail: 'Open action. Spend 7 Teamwork and all current AP: same-zone enemies save vs Body or are knocked prone and lose 2 AP next turn.', cost: 1, requires: ['titan_action_titans_fury', 'titan_action_shattering_roar'], requiresAny: [], actionId: 'titan_earthquake_slam' }
+    // ── SEEKER ───────────────────────────────────────────────────────────────
+    // Subclass root
+    { id: 'seek_root', label: 'Seeker Mastery', group: 'root', subclass: 'Seeker', detail: '1 RP. Seeker profession unlocked. Strike and Shoot rolls gain Advantage d10. The Seeker is dedicated to the pursuit of truth, using strength and resilience to uncover secrets and pick precise targets.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
+    // Actions
+    { id: 'seek_dodge_this', label: 'Dodge This...', group: 'action', subclass: 'Seeker', detail: '3 AP. You focus on accuracy over raw power. Gain +3 to your next attack roll.', cost: 1, requires: ['seek_root'], requiresAny: [], actionId: 'seek_dodge_this' },
+    { id: 'seek_exhale_fire', label: 'Exhale...Fire...', group: 'action', subclass: 'Seeker', detail: 'No AP. Your accurate shots exploit enemy weaknesses. On a successful ranged attack, decrease the target\'s Dread die by one step.', cost: 1, requires: ['seek_root'], requiresAny: [], actionId: 'seek_exhale_fire' },
+    { id: 'seek_quarry', label: 'I Hate You So Much', group: 'action', subclass: 'Seeker', detail: '0 AP. Single out any visible enemy and establish them as your Quarry. You gain Advantage when attacking your Quarry.', cost: 1, requires: ['seek_root'], requiresAny: [], actionId: 'seek_quarry' },
+    { id: 'seek_cover_fire', label: "I've Got Your Back", group: 'action', subclass: 'Seeker', detail: 'Alpha · 1 AP. Choose an ally — they gain Advantage d6 on Defend rolls until start of your next turn.', cost: 1, requires: ['seek_root'], requiresAny: [], actionId: 'seek_cover_fire' },
+    { id: 'seek_stick_around', label: 'Stick Around!', group: 'action', subclass: 'Seeker', detail: 'Alpha · 1 AP. Your shots hinder movement. Any enemies you shoot this round cannot move on their turn. Effect lasts until start of your next turn.', cost: 1, requires: ['seek_exhale_fire'], requiresAny: [], actionId: 'seek_stick_around' },
+    // Passives
+    { id: 'seek_rhythm_bow', label: 'Rhythm of the Bow', group: 'passive', subclass: 'Seeker', detail: 'Passive. You master the rhythm of drawing and firing. Make an extra ranged attack — striking twice counts as only 1 AP total.', cost: 1, requires: ['seek_dodge_this'], requiresAny: [] },
+    { id: 'seek_cant_escape', label: "You Can't Escape Me!", group: 'passive', subclass: 'Seeker', detail: 'Passive. You keep your Quarry within reach. When engaged with your Quarry, they cannot move away from you.', cost: 1, requires: ['seek_quarry'], requiresAny: [] },
+    // Teamwork
+    { id: 'seek_tw_eyes', label: 'Eyes on the Prize', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. If you and an ally both target the same enemy in a turn, generate 1 Teamwork Point (coordinated attacks on a single target).', cost: 1, requires: ['seek_root'], requiresAny: [] },
+    { id: 'seek_tw_pinpoint', label: 'Pinpoint Weakness', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. When you successfully hit your Quarry, generate 1 Teamwork Point (exposing weaknesses for the team to exploit).', cost: 1, requires: ['seek_quarry'], requiresAny: [] },
+    { id: 'seek_tw_covering_fire', label: 'Covering Fire', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. If your ranged attack prevents an enemy from moving or making Opportunity Attacks, generate 1 Teamwork Point.', cost: 1, requires: ['seek_stick_around'], requiresAny: [] },
+    { id: 'seek_tw_shared_quarry', label: 'Shared Quarry', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. When an ally attacks your Quarry, generate 1 Teamwork Point (guiding allies toward critical threats).', cost: 1, requires: ['seek_tw_pinpoint'], requiresAny: [] },
+    { id: 'seek_tw_guided_assault', label: 'Guided Assault', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. If you reposition an enemy (push/pull/manipulate) and an ally attacks that enemy on the same turn, generate 1 Teamwork Point.', cost: 1, requires: ['seek_tw_eyes', 'seek_tw_covering_fire'], requiresAny: [] }
   ];
 
   function getTitanRaidNode(nodeId) {
@@ -3165,7 +3201,7 @@
       : '';
     var rarityTitan = (String(titanNode.group || '') === 'teamwork' || String(titanNode.group || '') === 'root')
       ? 'Keystone'
-      : ((String(titanNode.group || '') === 'action' || String(titanNode.group || '') === 'skill' || String(titanNode.group || '') === 'personal') ? 'Notable' : 'Normal');
+      : ((String(titanNode.group || '') === 'action' || String(titanNode.group || '') === 'passive') ? 'Notable' : 'Normal');
     host.innerHTML = ''
       + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;">'
       + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.18rem;">'
@@ -3259,9 +3295,9 @@
       return 'normal';
     }
     function getTitanNodeRarity(node) {
-      var group = String(node && node.group || 'skill');
+      var group = String(node && node.group || 'passive');
       if (group === 'teamwork' || group === 'root') return 'keystone';
-      if (group === 'action' || group === 'skill' || group === 'personal') return 'notable';
+      if (group === 'action' || group === 'passive') return 'notable';
       return 'normal';
     }
     var nodeHtml = LEGACY_RAID_TREE_NODES.map(function (node) {
@@ -3368,49 +3404,66 @@
     });
 
     var titanCenters = {
-      Tactician: { x: 888, y: 272 },
-      Fury: { x: 1166, y: 272 },
-      Seeker: { x: 1442, y: 272 },
-      Titan: { x: 1166, y: 520 }
+      Titan:      { x: 1150, y: 700 },
+      Tactician:  { x: 420,  y: 440 },
+      Fury:       { x: 1150, y: 330 },
+      Seeker:     { x: 1880, y: 440 }
     };
-    var groupRank = { root: 0, skill: 1, passive: 2, action: 3, personal: 4, teamwork: 5 };
-    var titanSlotCount = {};
+    // Ring radii per node group for non-Titan subclasses
+    var groupRingMap     = { root: 62, passive: 122, action: 195, teamwork: 272 };
+    var groupRingTitan   = { root: 45, passive: 85,  action: 130, teamwork: 175 };
+    // Arc center direction (degrees) pointing AWAY from Titan core
+    var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340 };
+    // First pass: count per (subclass, group) bucket for dynamic spread
+    var bcCount = {};
+    titanNodeMeta.forEach(function (n) {
+      var k = n.subclass + ':' + n.group;
+      bcCount[k] = (bcCount[k] || 0) + 1;
+    });
+    var bcSlot = {};
     titanNodeMeta.forEach(function (node) {
       var subclass = node.subclass;
-      var group = node.group;
-      var bucket = subclass + ':' + group;
-      titanSlotCount[bucket] = Number(titanSlotCount[bucket] || 0);
-      var slot = titanSlotCount[bucket];
-      titanSlotCount[bucket] += 1;
-      var center = titanCenters[subclass] || titanCenters.Titan;
-      var tier = Number(groupRank[group] || 1);
-      var ring = 74 + (tier * 42);
-      if (subclass === 'Titan') ring = 52 + (tier * 34);
-      var angleStart = subclass === 'Tactician' ? -145 : (subclass === 'Fury' ? -90 : (subclass === 'Seeker' ? -35 : 165));
-      var angleStep = subclass === 'Titan' ? 58 : 44;
-      var angle = angleStart + (slot * angleStep);
-      var a = (angle * Math.PI) / 180;
-      node.x = Math.round(center.x + Math.cos(a) * ring);
-      node.y = Math.round(center.y + Math.sin(a) * ring);
-      node.w = 186;
-      node.h = 72;
-      node.tier = tier;
+      var group    = node.group;
+      var bucket   = subclass + ':' + group;
+      var slot     = bcSlot[bucket] || 0;
+      bcSlot[bucket] = slot + 1;
+      var isTitan  = subclass === 'Titan';
+      var rings    = isTitan ? groupRingTitan : groupRingMap;
+      var ring     = rings[group] !== undefined ? rings[group] : 150;
+      var center   = titanCenters[subclass] || titanCenters.Titan;
+      var count    = bcCount[bucket] || 1;
+      if (ring === 0 || (ring < 50 && count > 1)) ring = Math.max(ring, 44);
+      var arcDir   = subclassArcDir[subclass] !== undefined ? subclassArcDir[subclass] : 0;
+      var spread   = count <= 1 ? 0 : Math.min(300, count * 32);
+      var angle    = arcDir + (count <= 1 ? 0 : ((slot / Math.max(1, count - 1)) * spread - spread / 2));
+      var a        = (angle * Math.PI) / 180;
+      var cx       = Math.round(center.x + Math.cos(a) * ring);
+      var cy       = Math.round(center.y + Math.sin(a) * ring);
+      node.x = cx - 30;
+      node.y = cy - 30;
+      node.w = 60;
+      node.h = 60;
+      node.tier = ['root', 'passive', 'action', 'teamwork'].indexOf(group);
+      if (node.tier < 0) node.tier = 1;
     });
 
     var graphNodes = legacyNodeMeta.concat(titanNodeMeta);
     var graphLookup = {};
     graphNodes.forEach(function (n) { graphLookup[n.id] = n; });
-    var sceneWidth = 1560;
-    var sceneHeight = 770;
+    var sceneWidth = 2260;
+    var sceneHeight = 920;
 
     var edgeHtml = '';
     edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="124" fill="none" stroke="rgba(126,215,255,.12)" stroke-width="1.2" />';
     edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="238" fill="none" stroke="rgba(126,215,255,.1)" stroke-width="1" stroke-dasharray="4 5" />';
     Object.keys(titanCenters).forEach(function (key) {
+      var isTCore = key === 'Titan';
       var c = titanCenters[key];
-      edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="78" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1" />';
-      edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="118" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1" stroke-dasharray="4 5" />';
-      edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="158" fill="none" stroke="rgba(255,255,255,.04)" stroke-width="1" stroke-dasharray="3 6" />';
+      var rs = isTCore ? [45, 85, 130, 175] : [62, 122, 195, 272];
+      var alphas = ['.11', '.08', '.06', '.04'];
+      rs.forEach(function (r, ri) {
+        edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,' + alphas[ri] + ')" stroke-width="1" ' + (ri > 0 ? 'stroke-dasharray="4 5"' : '') + ' />';
+      });
     });
     legacyNodeMeta.forEach(function (n, idx) {
       if (idx <= 0) return;
@@ -3572,8 +3625,10 @@
       + '<div id="raidSkillTreeScene" data-scene-width="' + sceneWidth + '" data-scene-height="' + sceneHeight + '" style="position:relative;width:' + sceneWidth + 'px;height:' + sceneHeight + 'px;will-change:transform;">'
       + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
       + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
-      + '<div style="position:absolute;left:818px;top:38px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Branch Clusters: Tactician / Fury / Seeker</div>'
-      + '<div style="position:absolute;left:1086px;top:548px;font-size:.56rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Core Chain</div>'
+      + '<div style="position:absolute;left:330px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Tactician</div>'
+      + '<div style="position:absolute;left:1068px;top:54px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Fury</div>'
+      + '<div style="position:absolute;left:1810px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Seeker</div>'
+      + '<div style="position:absolute;left:1068px;top:730px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Titan Core</div>'
       + legacyNodesHtml
       + titanNodesHtml
       + '<div id="raidNodeTip" style="position:absolute;z-index:220;display:none;background:rgba(7,11,18,.97);border:1px solid rgba(126,215,255,.5);color:#c8dff2;font-size:.62rem;padding:.22rem .46rem;white-space:nowrap;pointer-events:none;border-radius:3px;letter-spacing:.03em;"></div>'
@@ -3676,12 +3731,10 @@
       if (String(node.id) === 'titan_root_defend_plus3') {
         tStats.titanDefendBonus = Math.max(3, Number(tStats.titanDefendBonus || 0) + 3);
       }
-      if (String(node.id) === 'titan_passive_power_strike') {
-        tStats.titanStrikeBonus = Math.max(1, Number(tStats.titanStrikeBonus || 0) + 1);
-      }
-      if (String(node.id) === 'titan_passive_armored_defense') {
-        tStats.titanDefendBonus = Number(tStats.titanDefendBonus || 0) + 1;
-      }
+      // Subclass profession roots — record unlock flags and passive bonuses
+      if (String(node.id) === 'tact_root') { profile.tactRootUnlocked = true; }
+      if (String(node.id) === 'fury_root')  { profile.furyRootUnlocked = true; profile.furyBodyD10 = true; }
+      if (String(node.id) === 'seek_root')  { profile.seekRootUnlocked = true; }
     }
     if (typeof showNotif === 'function') showNotif('Titan node unlocked: ' + String(node.label || node.id) + '. Effect active — see Active Raid Perks.', 'good');
     renderLegacyRaidTreePanel();

@@ -12383,10 +12383,189 @@
 
     var html=buildMissionStepDialogue(mission, 'confrontation')+compBanner+featureBadge+guardsSection+mercSection+targetRow+rollInstr+gmControls
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
-        +'<button class="btn btn-sm btn-red" onclick="resolveMissionOutcome('+missionId+',false)">\u2717 Failure \u2014 Roll Failed</button>'
+        +'<button class="btn btn-sm btn-red" onclick="openMissionFailureOutcomeModal('+missionId+')">\u2717 Failure \u2014 Roll Failed</button>'
         +'<button class="btn btn-sm btn-primary" onclick="'+successAction+'">\u2713 Success \u2014 Roll Succeeded</button>'
       +'</div>';
     openModal('Step 3 - '+((mission.steps[3] && mission.steps[3].name) || 'Confrontation'),html);
+  }
+
+  function normalizeMissionConditionByStat(statKey, positive) {
+    var key = String(statKey || 'adventure').toLowerCase();
+    if (positive) {
+      if (key === 'body' || key === 'strike' || key === 'shoot') return 'empowered';
+      if (key === 'defend' || key === 'control') return 'protected';
+      if (key === 'lead' || key === 'spirit') return 'bolstered';
+      return 'focused';
+    }
+    if (key === 'body' || key === 'strike' || key === 'shoot') return 'weakened';
+    if (key === 'defend') return 'vulnerable';
+    if (key === 'lead' || key === 'spirit') return 'shaken';
+    return 'distracted';
+  }
+
+  function applyMissionOutcomeCondition(condKey) {
+    if (!condKey || typeof S === 'undefined') return;
+    if (typeof toggleCond === 'function' && S.conditions && !S.conditions[condKey]) {
+      try { toggleCond(condKey); return; } catch (_err) {}
+    }
+    if (typeof applyNegativeCondition === 'function' && (condKey === 'weakened' || condKey === 'vulnerable' || condKey === 'shaken' || condKey === 'distracted')) {
+      try { applyNegativeCondition(condKey); return; } catch (_err2) {}
+    }
+    if (typeof applyPositiveCondition === 'function') {
+      try { applyPositiveCondition(condKey); return; } catch (_err3) {}
+    }
+    S.conditions = S.conditions || {};
+    S.conditions[condKey] = true;
+  }
+
+  function addMissionOutcomeRadiation(amount) {
+    var ticks = Math.max(1, Number(amount || 1));
+    if (typeof S === 'undefined') return;
+    if (S.radiationState && typeof S.radiationState === 'object') {
+      S.radiationState.gainTicks = Math.max(0, Number(S.radiationState.gainTicks || 0) + ticks);
+      return;
+    }
+    S.radiationExposure = Math.max(0, Number(S.radiationExposure || 0) + ticks);
+  }
+
+  function getMissionManualRollPair(defaultDread) {
+    var actionEl = document.getElementById('manualActionValue');
+    var dreadEl = document.getElementById('manualDreadValue');
+    var action = Number(actionEl && actionEl.value);
+    var dread = Number(dreadEl && dreadEl.value);
+    if (!Number.isFinite(action) || !Number.isFinite(dread)) {
+      return { action: 0, dread: Math.max(4, Number(defaultDread || 8)), inferred: true };
+    }
+    return { action: action, dread: Math.max(4, dread), inferred: false };
+  }
+
+  function applyMissionFailureConsequences(mission, check, options) {
+    var cfg = options || {};
+    var statKey = 'adventure';
+    var actionTotal = Number(check && check.actionTotal || 0);
+    var dreadTotal = Number(check && check.dreadTotal || mission && (mission.gmDreadOverride || mission.dread) || 8);
+    var margin = Math.max(1, dreadTotal - actionTotal);
+    var applyChanges = !cfg.preview;
+    var notes = [];
+    if (applyChanges) {
+      if (typeof changeHealth === 'function') changeHealth(margin);
+      else if (typeof changeStress === 'function') changeStress(margin);
+    }
+    notes.push((typeof changeHealth === 'function' ? 'Damage +' : 'Stress +') + margin + ' (difference)');
+
+    if (applyChanges) {
+      if (typeof changeMentalStress === 'function') changeMentalStress(1);
+      else if (typeof changeStress === 'function') changeStress(1);
+    }
+    notes.push('Mental Stress +1');
+
+    if (applyChanges) addMissionOutcomeRadiation(1);
+    notes.push('Radiation +1');
+
+    var negCond = normalizeMissionConditionByStat(statKey, false);
+    if (applyChanges) applyMissionOutcomeCondition(negCond);
+    notes.push('Condition ' + negCond);
+
+    if (applyChanges) {
+      if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+      else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+    }
+    notes.push('+1 Teamwork');
+
+    return {
+      margin: margin,
+      notes: notes,
+      summary: notes.join(', ')
+    };
+  }
+
+  function openMissionFailureOutcomeModal(missionId) {
+    var mission = getMission(missionId);
+    if (!mission || typeof openModal !== 'function') return false;
+    var baseDread = Number(mission.gmDreadOverride || mission.dread || 8);
+    var check = getMissionManualRollPair(baseDread);
+    var consequence = applyMissionFailureConsequences(mission, { actionTotal: check.action, dreadTotal: check.dread }, { preview: true });
+    var pushDread = stepMissionDreadDie(baseDread, 1);
+    var tmw = Number((S && S.tmw) || 0);
+    window._pendingMissionFailure = {
+      missionId: mission.id,
+      actionTotal: Number(check.action || 0),
+      dreadTotal: Number(check.dread || baseDread),
+      pushDread: pushDread
+    };
+    var html = ''
+      + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.9rem;color:#ff8a72;margin-bottom:.2rem;">Mission Failure</div>'
+      + '<div style="margin-bottom:.3rem;"><strong>Consequence Preview:</strong> ' + consequence.summary + '</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">'
+      + (check.inferred ? 'No manual dice values detected; difference defaults to at least 1.' : ('Manual roll seen: Action ' + check.action + ' vs Dread ' + check.dread + '.'))
+      + '</div>'
+      + '<div style="font-size:.77rem;color:var(--text2);margin-bottom:.4rem;"><strong>Push Luck:</strong> spend <strong>2 Teamwork</strong>, reroll at higher dread <strong>d' + pushDread + '</strong>. Success grants a positive condition; failure applies the consequence line above.</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
+      + '<button class="btn btn-sm btn-warn" onclick="acceptMissionFailureOutcome()">Accept Failure</button>'
+      + '<button class="btn btn-sm btn-teal" ' + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + ' onclick="pushMissionLuckOutcome()">Push Luck (2 Teamwork)</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Mission Confrontation Failure', html);
+    return true;
+  }
+
+  function acceptMissionFailureOutcome() {
+    var pending = window._pendingMissionFailure || {};
+    var mission = getMission(pending.missionId);
+    if (!mission) return;
+    applyMissionFailureConsequences(mission, {
+      actionTotal: Number(pending.actionTotal || 0),
+      dreadTotal: Number(pending.dreadTotal || mission.gmDreadOverride || mission.dread || 8)
+    }, { preview: false });
+    window._pendingMissionFailure = null;
+    resolveMissionOutcome(mission.id, false);
+  }
+
+  function pushMissionLuckOutcome() {
+    if (typeof S === 'undefined') return;
+    var tmw = Number(S.tmw || 0);
+    if (tmw < 2) {
+      if (typeof showNotif === 'function') showNotif('Need 2 Teamwork to Push Luck.', 'warn');
+      return;
+    }
+    if (typeof changeCounter === 'function') changeCounter('tmw', -2);
+    else S.tmw = Math.max(0, tmw - 2);
+
+    var pending = window._pendingMissionFailure || {};
+    var mission = getMission(pending.missionId);
+    if (!mission) return;
+    var pushDread = Number(pending.pushDread || stepMissionDreadDie(Number(mission.gmDreadOverride || mission.dread || 8), 1));
+    if (typeof openModal === 'function') {
+      openModal('Push Luck — Mission Confrontation',
+        '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
+          + '<div style="margin-bottom:.28rem;"><strong>Reroll now:</strong> Adventure vs <strong>Dread d' + pushDread + '</strong>.</div>'
+          + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.4rem;">Use your reroll result, then choose the matching outcome below.</div>'
+          + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
+            + '<button class="btn btn-sm btn-red" onclick="resolveMissionPushLuck(false)">Push Luck Failed</button>'
+            + '<button class="btn btn-sm btn-primary" onclick="resolveMissionPushLuck(true)">Push Luck Succeeded</button>'
+          + '</div>'
+        + '</div>'
+      );
+    }
+  }
+
+  function resolveMissionPushLuck(success) {
+    var pending = window._pendingMissionFailure || {};
+    var mission = getMission(pending.missionId);
+    if (!mission) return;
+    var reroll = getMissionManualRollPair(Number(pending.pushDread || stepMissionDreadDie(Number(mission.gmDreadOverride || mission.dread || 8), 1)));
+    window._pendingMissionFailure = null;
+    if (success) {
+      var posCond = normalizeMissionConditionByStat('adventure', true);
+      applyMissionOutcomeCondition(posCond);
+      if (typeof showNotif === 'function') showNotif('Push Luck succeeded. Condition gained: ' + posCond + '.', 'good');
+      resolveMissionOutcome(mission.id, true);
+      return;
+    }
+    applyMissionFailureConsequences(mission, { actionTotal: reroll.action, dreadTotal: reroll.dread }, { preview: false });
+    if (typeof showNotif === 'function') showNotif('Push Luck failed at higher dread. Failure consequences applied.', 'warn');
+    resolveMissionOutcome(mission.id, false);
   }
 
   function triggerOriginStorylineHandoff(mission) {
@@ -13401,6 +13580,10 @@
   window.resolveMissionRoomTrap=resolveMissionRoomTrap; window.startMissionRoomPuzzle=startMissionRoomPuzzle; window.resolveMissionRoomEnemy=resolveMissionRoomEnemy; window.openMissionRoomCombat=openMissionRoomCombat;
   window.startMissionStep3=startMissionStep3; window.resolveMission=resolveMission;
   window.resolveMissionOutcome=resolveMissionOutcome;
+  window.openMissionFailureOutcomeModal=openMissionFailureOutcomeModal;
+  window.acceptMissionFailureOutcome=acceptMissionFailureOutcome;
+  window.pushMissionLuckOutcome=pushMissionLuckOutcome;
+  window.resolveMissionPushLuck=resolveMissionPushLuck;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;
   window.createMission=createMission;
   window.spawnRandomSoulForgeMissionEvent=spawnRandomSoulForgeMissionEvent;

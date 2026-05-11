@@ -6296,7 +6296,7 @@ function executeWayfarerAction(){
     if(!consumeCombatAction('Heavy Attack (second action)'))return;
     var advDie=S&&S.stats&&S.stats.adventure?S.stats.adventure:4;
     var affixBonus=getEquippedAffixCombatBonuses();
-    var die = type2 === 'strike' ? S.stats.strike : S.stats.shoot;
+    var die = getEffectiveCombatDie(type2);
     if(type2==='strike'&&Number(affixBonus.strikeDieSteps||0)!==0)die=applyDieSteps(die,Number(affixBonus.strikeDieSteps||0));
     var augDie = getAugBonus(type2);
     var wpBonus = parseWeaponBonuses(type2);
@@ -6319,6 +6319,7 @@ function executeWayfarerAction(){
     var dmg=hit?Math.max(1,flatTotal-dreadRoll.total)+2:0;
     setRes('<span style="color:'+(hit?'var(--teal)':'var(--red2)')+';">Heavy Attack: '+flatTotal+' vs Dread '+dreadRoll.total+' \u2014 '+(hit?'HIT! '+dmg+' Health damage (+2 bonus)':'MISS')+'</span>');
     if(hit&&enem)applyStressToEnemy(enem,dmg,'Heavy Attack');
+    clearConditionOnUse(type2);
     return;
   }
   if(v==='fast_strike'||v==='fast_shoot'){
@@ -6329,7 +6330,8 @@ function executeWayfarerAction(){
     }
     var type3=v==='fast_strike'?'strike':'shoot';
     var advDie3=S&&S.stats&&S.stats.adventure?S.stats.adventure:4;
-    var aRoll3=explodingRoll(S.stats[type3]||6,{type:'action',major:true,label:'Fast '+type3});
+    var die3 = getEffectiveCombatDie(type3);
+    var aRoll3=explodingRoll(die3,{type:'action',major:true,label:'Fast '+type3});
     var penRoll=explodingRoll(advDie3,{type:'dread',label:'Fast Penalty Die'});
     var total3=Math.max(0,aRoll3.total-penRoll.total);
     var enem3=getPrimaryCombatEnemy();
@@ -6340,6 +6342,7 @@ function executeWayfarerAction(){
     if(hit3&&enem3)applyStressToEnemy(enem3,dmg3,'Fast Attack');
     if(S&&S.combat)S.combat.fastAttackVulnerable=1;
     if(S&&S.combat)S.combat.fastAttackUsedEncounter=true;
+    clearConditionOnUse(type3);
     updateWayfarerActionBtn();
     return;
   }
@@ -8391,6 +8394,20 @@ function clearConditionOnUse(key) {
   }
 }
 
+// Helper function to get effective die with condition modifiers applied
+function getEffectiveCombatDie(type) {
+  if (!S || !S.stats) return type === 'strike' ? 4 : 4;
+  var baseDie = type === 'strike' ? S.stats.strike : S.stats.shoot;
+  // Apply condition step modifiers
+  var conditionStep = 0;
+  if (type === 'strike' || type === 'shoot') {
+    if (S.conditions && S.conditions.empowered) conditionStep += 1;
+    if (S.conditions && S.conditions.weakened) conditionStep -= 1;
+    if (S.traumaConditions && S.traumaConditions.weakened) conditionStep -= 1;
+  }
+  return Math.max(2, applyDieSteps(baseDie, conditionStep));
+}
+
 function rollAttack(type) {
   if(!requireCampaignTurn('wayfarer'))return;
   if(type==='shoot'&&S.combat&&S.combat.weaponLockRounds>0){showNotif('Weapon Glitch: your weapons are locked this round.','warn');return;}
@@ -8411,7 +8428,7 @@ function rollAttack(type) {
   }else if(!consumeCombatAction(type==='strike'?'Strike action':'Shoot action'))return;
 
   var affixBonus=getEquippedAffixCombatBonuses();
-  var die = type === 'strike' ? S.stats.strike : S.stats.shoot;
+  var die = getEffectiveCombatDie(type);
   if(type==='strike'&&Number(affixBonus.strikeDieSteps||0)!==0)die=applyDieSteps(die,Number(affixBonus.strikeDieSteps||0));
   var augDie = getAugBonus(type);
   var wpBonus = parseWeaponBonuses(type);
@@ -8512,6 +8529,16 @@ function rollAttack(type) {
   if(coverBlocked) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(Target Full Cover)</span>';
   if(critBoost.triggered) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(Affix Crit +'+critBoost.added+')</span>';
   if(forcedAutoCrit) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(Eternity\'s Edge)</span>';
+  
+  // Add condition modifiers to breakdown
+  var conditionNotes = [];
+  if (type === 'strike' || type === 'shoot') {
+    if (S.conditions && S.conditions.empowered) conditionNotes.push('⚡ Empowered');
+    if (S.conditions && S.conditions.weakened) conditionNotes.push('⚠️ Weakened');
+    if (S.traumaConditions && S.traumaConditions.weakened) conditionNotes.push('🤕 Trauma Weakness');
+  }
+  if (conditionNotes.length > 0) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">('+conditionNotes.join(', ')+')</span>';
+  
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var modNotes = [];

@@ -2839,6 +2839,193 @@
     };
   }
 
+  function ensureRaidTreeViewState() {
+    if (typeof window === 'undefined') return null;
+    window.__raidTreeView = window.__raidTreeView || {
+      zoom: 1,
+      x: 36,
+      y: 20,
+      vx: 0,
+      vy: 0,
+      dragging: false,
+      lastX: 0,
+      lastY: 0,
+      inertiaId: 0
+    };
+    return window.__raidTreeView;
+  }
+
+  function clampRaidTreeView(view, viewportEl, sceneWidth, sceneHeight) {
+    if (!view || !viewportEl) return;
+    var zoom = Math.max(0.6, Math.min(1.8, Number(view.zoom || 1)));
+    view.zoom = zoom;
+    var vw = Math.max(100, Number(viewportEl.clientWidth || 0));
+    var vh = Math.max(100, Number(viewportEl.clientHeight || 0));
+    var contentW = Math.max(1, Number(sceneWidth || 1)) * zoom;
+    var contentH = Math.max(1, Number(sceneHeight || 1)) * zoom;
+    var padding = 180;
+    var minX = Math.min(padding, vw - contentW - padding);
+    var maxX = padding;
+    var minY = Math.min(padding, vh - contentH - padding);
+    var maxY = padding;
+    view.x = Math.max(minX, Math.min(maxX, Number(view.x || 0)));
+    view.y = Math.max(minY, Math.min(maxY, Number(view.y || 0)));
+  }
+
+  function applyRaidTreeTransform(view, viewportEl, sceneEl, sceneWidth, sceneHeight) {
+    if (!view || !viewportEl || !sceneEl) return;
+    clampRaidTreeView(view, viewportEl, sceneWidth, sceneHeight);
+    sceneEl.style.transformOrigin = '0 0';
+    sceneEl.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.zoom + ')';
+    var zoomInput = document.getElementById('raidTreeZoomInput');
+    var zoomLabel = document.getElementById('raidTreeZoomLabel');
+    if (zoomInput) zoomInput.value = String(Math.round(view.zoom * 100));
+    if (zoomLabel) zoomLabel.textContent = Math.round(view.zoom * 100) + '%';
+  }
+
+  function setRaidTreeZoom(nextZoom, viewportEl, sceneEl, sceneWidth, sceneHeight, anchorX, anchorY) {
+    var view = ensureRaidTreeViewState();
+    if (!view || !viewportEl || !sceneEl) return;
+    var oldZoom = Math.max(0.6, Math.min(1.8, Number(view.zoom || 1)));
+    var z = Math.max(0.6, Math.min(1.8, Number(nextZoom || oldZoom)));
+    var localX = Number(anchorX);
+    var localY = Number(anchorY);
+    if (!Number.isFinite(localX) || !Number.isFinite(localY)) {
+      localX = Number(viewportEl.clientWidth || 0) / 2;
+      localY = Number(viewportEl.clientHeight || 0) / 2;
+    }
+    var worldX = (localX - view.x) / oldZoom;
+    var worldY = (localY - view.y) / oldZoom;
+    view.zoom = z;
+    view.x = localX - worldX * z;
+    view.y = localY - worldY * z;
+    applyRaidTreeTransform(view, viewportEl, sceneEl, sceneWidth, sceneHeight);
+  }
+
+  function initRaidTreeViewportInteractions() {
+    if (typeof document === 'undefined') return;
+    var viewportEl = document.getElementById('raidSkillTreeViewport');
+    var sceneEl = document.getElementById('raidSkillTreeScene');
+    if (!viewportEl || !sceneEl) return;
+    var sceneWidth = Number(sceneEl.getAttribute('data-scene-width') || 1560);
+    var sceneHeight = Number(sceneEl.getAttribute('data-scene-height') || 770);
+    var view = ensureRaidTreeViewState();
+    if (!view) return;
+
+    applyRaidTreeTransform(view, viewportEl, sceneEl, sceneWidth, sceneHeight);
+
+    if (!viewportEl.__raidTreeBound) {
+      viewportEl.__raidTreeBound = true;
+
+      viewportEl.addEventListener('pointerdown', function (evt) {
+        var st = ensureRaidTreeViewState();
+        if (!st) return;
+        st.dragging = true;
+        st.lastX = Number(evt.clientX || 0);
+        st.lastY = Number(evt.clientY || 0);
+        st.vx = 0;
+        st.vy = 0;
+        if (st.inertiaId) {
+          cancelAnimationFrame(st.inertiaId);
+          st.inertiaId = 0;
+        }
+        viewportEl.style.cursor = 'grabbing';
+        try { viewportEl.setPointerCapture(evt.pointerId); } catch (_err) {}
+      });
+
+      viewportEl.addEventListener('pointermove', function (evt) {
+        var st = ensureRaidTreeViewState();
+        if (!st || !st.dragging) return;
+        var cx = Number(evt.clientX || 0);
+        var cy = Number(evt.clientY || 0);
+        var dx = cx - st.lastX;
+        var dy = cy - st.lastY;
+        st.lastX = cx;
+        st.lastY = cy;
+        st.x += dx;
+        st.y += dy;
+        st.vx = dx;
+        st.vy = dy;
+        applyRaidTreeTransform(st, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      });
+
+      function finishDrag(evt) {
+        var st = ensureRaidTreeViewState();
+        if (!st || !st.dragging) return;
+        st.dragging = false;
+        viewportEl.style.cursor = 'grab';
+        try { viewportEl.releasePointerCapture(evt.pointerId); } catch (_err) {}
+        var friction = 0.92;
+        var minVelocity = 0.18;
+        function glide() {
+          var state = ensureRaidTreeViewState();
+          if (!state || state.dragging) return;
+          state.x += state.vx;
+          state.y += state.vy;
+          state.vx *= friction;
+          state.vy *= friction;
+          applyRaidTreeTransform(state, viewportEl, sceneEl, sceneWidth, sceneHeight);
+          if (Math.abs(state.vx) < minVelocity && Math.abs(state.vy) < minVelocity) {
+            state.inertiaId = 0;
+            return;
+          }
+          state.inertiaId = requestAnimationFrame(glide);
+        }
+        if (Math.abs(st.vx) > minVelocity || Math.abs(st.vy) > minVelocity) {
+          st.inertiaId = requestAnimationFrame(glide);
+        }
+      }
+
+      viewportEl.addEventListener('pointerup', finishDrag);
+      viewportEl.addEventListener('pointercancel', finishDrag);
+      viewportEl.addEventListener('pointerleave', finishDrag);
+
+      viewportEl.addEventListener('wheel', function (evt) {
+        if (!evt) return;
+        evt.preventDefault();
+        var st = ensureRaidTreeViewState();
+        if (!st) return;
+        var rect = viewportEl.getBoundingClientRect();
+        var ax = Number(evt.clientX || 0) - Number(rect.left || 0);
+        var ay = Number(evt.clientY || 0) - Number(rect.top || 0);
+        var step = evt.deltaY > 0 ? -0.08 : 0.08;
+        setRaidTreeZoom(st.zoom + step, viewportEl, sceneEl, sceneWidth, sceneHeight, ax, ay);
+      }, { passive: false });
+
+      var zoomInput = document.getElementById('raidTreeZoomInput');
+      if (zoomInput && !zoomInput.__raidTreeBound) {
+        zoomInput.__raidTreeBound = true;
+        zoomInput.addEventListener('input', function () {
+          var st = ensureRaidTreeViewState();
+          if (!st) return;
+          var z = Number(zoomInput.value || 100) / 100;
+          setRaidTreeZoom(z, viewportEl, sceneEl, sceneWidth, sceneHeight);
+        });
+      }
+    }
+
+    window.raidTreeZoomIn = function () {
+      var st = ensureRaidTreeViewState();
+      if (!st) return;
+      setRaidTreeZoom(st.zoom + 0.12, viewportEl, sceneEl, sceneWidth, sceneHeight);
+    };
+    window.raidTreeZoomOut = function () {
+      var st = ensureRaidTreeViewState();
+      if (!st) return;
+      setRaidTreeZoom(st.zoom - 0.12, viewportEl, sceneEl, sceneWidth, sceneHeight);
+    };
+    window.raidTreeResetView = function () {
+      var st = ensureRaidTreeViewState();
+      if (!st) return;
+      st.zoom = 1;
+      st.x = 36;
+      st.y = 20;
+      st.vx = 0;
+      st.vy = 0;
+      applyRaidTreeTransform(st, viewportEl, sceneEl, sceneWidth, sceneHeight);
+    };
+  }
+
   function renderLegacyRaidTreePanel() {
     var panel = typeof document !== 'undefined' ? document.getElementById('raidTreePanel') : null;
     if (!panel) return false;
@@ -2892,6 +3079,18 @@
       flavor_glacial_tell: 'Lore',
       flavor_null_veil: 'Lore'
     };
+    function getLegacyNodeRarity(nodeId) {
+      var key = String(nodeId || '');
+      if (key === 'teamwork_feedback' || key === 'flavor_boss_personal') return 'keystone';
+      if (key === 'action_die_training' || key === 'raid_tick_overclock' || key === 'strike_mastery') return 'notable';
+      return 'normal';
+    }
+    function getTitanNodeRarity(node) {
+      var group = String(node && node.group || 'skill');
+      if (group === 'teamwork' || group === 'root') return 'keystone';
+      if (group === 'action' || group === 'skill' || group === 'personal') return 'notable';
+      return 'normal';
+    }
     var nodeHtml = LEGACY_RAID_TREE_NODES.map(function (node) {
       var rank = getLegacyRaidTalentRank(node.id);
       var maxRank = Math.max(1, Number(node.maxRank || 1));
@@ -2945,7 +3144,8 @@
         unlocked: unlocked,
         canBuy: canBuy,
         cost: Math.max(1, Number(node.cost || 1)),
-        group: String(node.group || 'skill')
+        group: String(node.group || 'skill'),
+        rarity: getTitanNodeRarity(node)
       };
     });
 
@@ -2989,7 +3189,8 @@
         y: py,
         w: 172,
         h: 96,
-        border: raidNodeAccents[node.id] || '#7ed7ff'
+        border: raidNodeAccents[node.id] || '#7ed7ff',
+        rarity: getLegacyNodeRarity(node.id)
       };
     });
 
@@ -3073,8 +3274,12 @@
     });
 
     var legacyNodesHtml = legacyNodeMeta.map(function (node) {
-      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + (node.capped ? 'rgba(103,214,179,.55)' : 'rgba(255,255,255,.2)') + ';background:linear-gradient(160deg, rgba(14,20,30,.94), rgba(8,12,18,.92));box-shadow:0 0 0 1px rgba(0,0,0,.35), inset 0 0 16px rgba(255,255,255,.03);padding:.26rem .3rem .24rem .4rem;">'
+      var rarityFrame = node.rarity === 'keystone' ? 'rgba(255,170,88,.62)' : (node.rarity === 'notable' ? 'rgba(126,215,255,.48)' : (node.capped ? 'rgba(103,214,179,.55)' : 'rgba(255,255,255,.2)'));
+      var rarityGlow = node.rarity === 'keystone' ? '0 0 18px rgba(255,170,88,.2)' : (node.rarity === 'notable' ? '0 0 14px rgba(126,215,255,.16)' : 'none');
+      var rarityTag = node.rarity === 'keystone' ? 'Keystone' : (node.rarity === 'notable' ? 'Notable' : 'Normal');
+      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + rarityFrame + ';background:linear-gradient(160deg, rgba(14,20,30,.94), rgba(8,12,18,.92));box-shadow:0 0 0 1px rgba(0,0,0,.35), inset 0 0 16px rgba(255,255,255,.03), ' + rarityGlow + ';padding:.26rem .3rem .24rem .4rem;">'
         + '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:' + node.border + ';opacity:.9;"></div>'
+        + '<div style="position:absolute;right:.24rem;top:.18rem;font-size:.42rem;color:' + (node.rarity === 'keystone' ? '#ffb16a' : (node.rarity === 'notable' ? '#8dd9ff' : 'var(--muted2)')) + ';letter-spacing:.08em;text-transform:uppercase;">' + rarityTag + '</div>'
         + '<div style="font-size:.64rem;color:var(--text2);line-height:1.2;"><strong>' + node.label + '</strong></div>'
         + '<div style="font-size:.54rem;color:' + (node.capped ? 'var(--teal)' : 'var(--gold2)') + ';margin:.06rem 0;">Rank ' + node.rank + '/' + node.maxRank + '</div>'
         + '<div style="font-size:.5rem;color:var(--muted2);line-height:1.28;height:28px;overflow:hidden;">' + node.detail + '</div>'
@@ -3086,13 +3291,20 @@
     }).join('');
 
     var titanNodesHtml = titanNodeMeta.map(function (node) {
-      var frame = node.unlocked ? 'rgba(103,214,179,.6)' : (node.canBuy ? 'rgba(240,213,106,.42)' : 'rgba(255,255,255,.2)');
-      var bg = node.unlocked ? 'linear-gradient(155deg, rgba(14,46,38,.9), rgba(10,16,22,.93))' : 'linear-gradient(160deg, rgba(12,18,28,.94), rgba(8,12,18,.92))';
+      var rarityFrame = node.rarity === 'keystone' ? 'rgba(255,170,88,.58)' : (node.rarity === 'notable' ? 'rgba(126,215,255,.46)' : 'rgba(255,255,255,.2)');
+      var frame = node.unlocked ? 'rgba(103,214,179,.6)' : (node.canBuy ? rarityFrame : 'rgba(255,255,255,.2)');
+      var bg = node.unlocked ? 'linear-gradient(155deg, rgba(14,46,38,.9), rgba(10,16,22,.93))' : (node.rarity === 'keystone'
+        ? 'linear-gradient(160deg, rgba(42,24,14,.92), rgba(10,12,18,.92))'
+        : node.rarity === 'notable'
+          ? 'linear-gradient(160deg, rgba(12,25,38,.92), rgba(8,12,18,.92))'
+          : 'linear-gradient(160deg, rgba(12,18,28,.94), rgba(8,12,18,.92))');
+      var rarityTag = node.rarity === 'keystone' ? 'Keystone' : (node.rarity === 'notable' ? 'Notable' : 'Normal');
       return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + frame + ';background:' + bg + ';padding:.22rem .26rem;">'
         + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
         + '<div style="font-size:.58rem;color:' + (node.unlocked ? 'var(--teal)' : 'var(--text2)') + ';line-height:1.18;"><strong>' + node.label + '</strong></div>'
-        + '<div style="font-size:.5rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + node.subclass + '</div>'
+        + '<div style="font-size:.46rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + node.subclass + '</div>'
         + '</div>'
+        + '<div style="font-size:.42rem;color:' + (node.rarity === 'keystone' ? '#ffb16a' : (node.rarity === 'notable' ? '#8dd9ff' : 'var(--muted2)')) + ';letter-spacing:.08em;text-transform:uppercase;">' + rarityTag + '</div>'
         + '<div style="font-size:.49rem;color:var(--muted2);line-height:1.26;height:24px;overflow:hidden;margin-top:.05rem;">' + node.detail + '</div>'
         + (node.needText ? ('<div style="font-size:.46rem;color:' + (node.canBuy || node.unlocked ? 'var(--muted2)' : 'var(--red2)') + ';line-height:1.2;height:10px;overflow:hidden;margin-top:.04rem;">' + node.needText + '</div>') : '<div style="height:10px;"></div>')
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.06rem;">'
@@ -3118,12 +3330,24 @@
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(103,214,179,.45);color:#67d6b3;">Titan Connected</span>'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,213,106,.4);color:#ffd56a;">One-of Prereqs</span>'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(240,139,108,.35);color:#f08b6c;">Combat Power</span>'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,255,255,.3);color:var(--muted2);">Normal</span>'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(126,215,255,.5);color:#8dd9ff;">Notable</span>'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,170,88,.62);color:#ffb16a;">Keystone</span>'
       + '</div>'
       + '</div>'
       + '<div style="margin-top:.34rem;border:1px solid rgba(126,215,255,.28);background:linear-gradient(160deg, rgba(8,14,24,.97), rgba(10,16,22,.92));padding:.34rem;">'
-      + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.22rem;">Raid Skill Tree</div>'
-      + '<div style="position:relative;overflow:auto;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(140% 120% at 30% 20%, rgba(19,30,45,.52), rgba(6,10,14,.96));">'
-      + '<div style="position:relative;width:1560px;height:770px;">'
+      + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.22rem;">'
+      + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Raid Skill Tree</div>'
+      + '<div style="display:flex;align-items:center;gap:.2rem;">'
+      + '<button class="btn btn-xs" onclick="raidTreeZoomOut()">-</button>'
+      + '<input id="raidTreeZoomInput" type="range" min="60" max="180" step="5" value="100" style="width:120px;accent-color:#7ed7ff;">'
+      + '<button class="btn btn-xs" onclick="raidTreeZoomIn()">+</button>'
+      + '<button class="btn btn-xs" onclick="raidTreeResetView()">Reset</button>'
+      + '<span id="raidTreeZoomLabel" style="font-size:.58rem;color:var(--muted2);min-width:40px;text-align:right;">100%</span>'
+      + '</div>'
+      + '</div>'
+      + '<div id="raidSkillTreeViewport" style="position:relative;overflow:hidden;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(140% 120% at 30% 20%, rgba(19,30,45,.52), rgba(6,10,14,.96));cursor:grab;touch-action:none;">'
+      + '<div id="raidSkillTreeScene" data-scene-width="1560" data-scene-height="770" style="position:relative;width:1560px;height:770px;will-change:transform;">'
       + '<svg width="1560" height="770" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
       + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
       + '<div style="position:absolute;left:818px;top:38px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Branch Clusters: Tactician / Fury / Seeker</div>'
@@ -3171,6 +3395,7 @@
       + '</div>'
       + '</div>'
       + '</div>';
+    initRaidTreeViewportInteractions();
     return true;
   }
 

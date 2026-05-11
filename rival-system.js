@@ -111,6 +111,102 @@
     };
   }
 
+  function isRivalManualRollMode(){
+    if(typeof window==='undefined'||!window.settingsSystem||typeof window.settingsSystem.isManualRollMode!=='function')return false;
+    return !!window.settingsSystem.isManualRollMode();
+  }
+
+  function buildRivalManualModifierSummary(stat){
+    var key=String(stat||'lead').toLowerCase();
+    var parts=[];
+    if(typeof collectInventoryBonusesForStat==='function'){
+      var inv=collectInventoryBonusesForStat(key)||{advDice:[],flat:0,addAdventure:0};
+      if(Array.isArray(inv.advDice)&&inv.advDice.length)parts.push('Advantage dice: '+inv.advDice.map(function(d){return 'd'+Number(d);}).join(', '));
+      if(Number(inv.flat||0)!==0)parts.push('Flat modifier: '+(Number(inv.flat)>0?'+':'')+Number(inv.flat));
+      if(Number(inv.addAdventure||0)>0)parts.push('Bonus Adventure rolls: +'+Number(inv.addAdventure));
+    }
+    if(S&&S.conditions&&typeof S.conditions==='object'){
+      var active=Object.keys(S.conditions).filter(function(c){return !!S.conditions[c];});
+      if(active.length)parts.push('Conditions: '+active.map(function(c){return c.charAt(0).toUpperCase()+c.slice(1);}).join(', '));
+    }
+    if(!parts.length)return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.18rem;">No active modifiers detected.</div>';
+    return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.18rem;line-height:1.5;">'
+      + parts.map(function(p){return '<div>• '+p+'</div>';}).join('')
+      + '</div>';
+  }
+
+  function openRivalManualDecision(action,stat,intent,mapKey,key,dreadDie){
+    if(typeof openModal!=='function')return false;
+    var die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'lead'):((S&&S.stats&&S.stats[stat])||4);
+    var dread=Number(dreadDie||8);
+    var tmw=Math.max(0,Number((S&&S.tmw)||0));
+    var pushDread=shiftRivalDread(dread,1);
+    window._pendingRivalManualDecision={
+      action:String(action||'interaction'),
+      stat:String(stat||'lead'),
+      intent:String(intent||'positive'),
+      mapKey:String(mapKey||'province'),
+      key:String(key||''),
+      dread:dread,
+      die:Number(die||4)
+    };
+    var html=''
+      + '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.86rem;color:var(--gold2);">Manual Rival Action</div>'
+      + '<div style="margin-top:.2rem;"><strong>'+String(stat||'lead').toUpperCase()+' d'+String(die||4)+'</strong> vs <strong style="color:var(--red2);">Dread d'+String(dread)+'</strong></div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Roll manually, then choose the outcome.</div>'
+      + buildRivalManualModifierSummary(stat)
+      + '<div style="margin-top:.35rem;padding:.28rem .35rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);">'
+      + '<div style="font-size:.74rem;color:var(--gold2);"><strong>Teamwork:</strong> '+String(tmw)+' TMW</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.08rem;">Push Luck costs 2 TMW and raises Dread to d'+String(pushDread)+'.</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;">'
+      + '<button class="btn btn-sm" onclick="if(typeof closeModal===\'function\')closeModal();">Cancel</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="resolveRivalManualDecision(true,false)">Success</button>'
+      + '<button class="btn btn-sm btn-red" onclick="resolveRivalManualDecision(false,false)">Failure</button>'
+      + '<button class="btn btn-sm btn-teal" '+(tmw>=2?'':'disabled')+' onclick="resolveRivalManualDecision(true,true)">Push Luck + Success</button>'
+      + '<button class="btn btn-sm btn-warn" '+(tmw>=2?'':'disabled')+' onclick="resolveRivalManualDecision(false,true)">Push Luck + Failure</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Rival Manual Roll',html);
+    return true;
+  }
+
+  function resolveRivalManualDecision(success,pushLuck){
+    var pending=window._pendingRivalManualDecision||null;
+    if(!pending)return;
+    var wantsPush=!!pushLuck;
+    var usedPush=false;
+    var finalDread=Number(pending.dread||8);
+    if(wantsPush){
+      var tmw=Math.max(0,Number((S&&S.tmw)||0));
+      if(tmw<2){
+        if(typeof showNotif==='function')showNotif('Need 2 Teamwork to Push Luck.', 'warn');
+        return;
+      }
+      if(typeof changeCounter==='function')changeCounter('tmw',-2);
+      else S.tmw=Math.max(0,tmw-2);
+      usedPush=true;
+      finalDread=shiftRivalDread(finalDread,1);
+    }
+    window._pendingRivalManualDecision=null;
+    if(typeof closeModal==='function')closeModal();
+    resolveRivalInteraction(
+      pending.action,
+      pending.stat,
+      pending.intent,
+      pending.mapKey,
+      pending.key,
+      {
+        success:!!success,
+        manual:true,
+        pushLuck:usedPush,
+        actionDie:Number(pending.die||4),
+        dreadDie:Number(finalDread||pending.dread||8)
+      }
+    );
+  }
+
   function addRivalHistory(text){
     var r=ensureRivalState();
     if(!r)return;
@@ -257,11 +353,25 @@
     else if(typeof alert==='function')alert('Rival encountered in '+where+'.');
   }
 
-  function resolveRivalInteraction(action,stat,intent,mapKey,key){
+  function resolveRivalInteraction(action,stat,intent,mapKey,key,manualOutcome){
     var r=ensureRivalState();
     if(!r||!r.alive)return;
     var dread=snapRivalDreadDie(r.dread + Math.max(0,Math.floor((r.threatTier-1)/2)));
-    var rollOut=rivalActionRoll(stat,dread);
+    if(isRivalManualRollMode()&&(!manualOutcome||typeof manualOutcome.success!=='boolean')){
+      openRivalManualDecision(action,stat,intent,mapKey,key,dread);
+      return;
+    }
+    var rollOut=(manualOutcome&&typeof manualOutcome.success==='boolean')
+      ? {
+          actorTotal:0,
+          dreadTotal:0,
+          success:!!manualOutcome.success,
+          die:Number((manualOutcome&&manualOutcome.actionDie)||((typeof getEffectiveDie==='function')?getEffectiveDie(stat||'lead'):4)||4),
+          dreadDie:Number((manualOutcome&&manualOutcome.dreadDie)||dread||8),
+          manual:true,
+          pushLuck:!!(manualOutcome&&manualOutcome.pushLuck)
+        }
+      : rivalActionRoll(stat,dread);
     var success=!!rollOut.success;
     var label=String(action||'interaction');
     var drift='';
@@ -292,13 +402,13 @@
     }
     r.encounters=(r.encounters||0)+1;
     r.lastMap=String(mapKey||'');
-    r.lastOutcome=(success?'Success':'Failure')+' - '+label;
-    addRivalHistory('['+String(mapKey||'province')+'] '+label+': '+(success?'success':'failure')+' ('+String(stat)+')');
+    r.lastOutcome=(success?'Success':'Failure')+' - '+label+(rollOut.manual?' (manual)':'');
+    addRivalHistory('['+String(mapKey||'province')+'] '+label+': '+(success?'success':'failure')+' ('+String(stat)+')'+(rollOut.manual?(rollOut.pushLuck?' [manual push-luck]':' [manual]'):'')+'.');
     syncRivalStatus();
     renderRivalCombatStatus();
     if(typeof closeModal==='function')closeModal();
     if(typeof showNotif==='function'){
-      showNotif('Rival '+label+': '+(success?'success':'failure')+'. '+drift,success?'good':'warn');
+      showNotif('Rival '+label+': '+(success?'success':'failure')+(rollOut.manual?' (manual)':'')+'. '+drift,success?'good':'warn');
     }
     if(typeof renderQP==='function')renderQP('combat');
   }
@@ -447,6 +557,7 @@
   window.ensureRivalState=ensureRivalState;
   window.rollRivalEncounterForMap=rollRivalEncounterForMap;
   window.resolveRivalInteraction=resolveRivalInteraction;
+  window.resolveRivalManualDecision=resolveRivalManualDecision;
   window.startRivalCombat=startRivalCombat;
   window.finalizeRivalCombat=finalizeRivalCombat;
   window.renderRivalCombatStatus=renderRivalCombatStatus;

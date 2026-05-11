@@ -13208,8 +13208,61 @@ function resolvePlanetRuinRoom(cellId, roomId) {
     return;
   }
   const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
-  const a = explodingRoll(adDie);
   const dread = roomType === 'Boss Chamber' ? 12 : ((roomType === 'Obstacle' || roomType === 'Trap') ? 6 : 8);
+
+  const finalizeRuinRoom = function (outcome) {
+    const success = !!(outcome && outcome.success);
+    if (success) {
+      const loot = rollGalaxyMerchantLoot();
+      room.cleared = true;
+      room.loot = room.loot || loot;
+      takeGalaxyLoot(room.loot, 'pack');
+      if (roomType === 'Shrine Room' && typeof setPositiveGalaxyCondition === 'function') {
+        setPositiveGalaxyCondition(pick(['focused', 'empowered', 'protected', 'bolstered']));
+      }
+      if (outcome && outcome.manual) {
+        room.result = 'Manual SUCCESS: Adventure d' + adDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Loot secured: ' + room.loot;
+      } else {
+        room.result = 'AD d' + adDie + ' success vs DD' + dread + '. Loot secured: ' + room.loot;
+      }
+      if (roomType === 'Boss Chamber' && typeof changeFactionRenown === 'function') {
+        changeFactionRenown('political', 1);
+      }
+      showNotif('Room ' + room.id + ' cleared. Loot secured: ' + room.loot, 'good');
+    } else {
+      const loss = 1;
+      if (typeof changeStress === 'function') changeStress(loss);
+      if (roomType === 'Trap' && S && S.conditions) {
+        S.conditions.distracted = true;
+        if (typeof updateConditionButtons === 'function') updateConditionButtons();
+      }
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (outcome && outcome.manual) {
+        room.result = 'Manual FAILURE: Adventure d' + adDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Take ' + loss + ' Stress.';
+      } else {
+        room.result = 'AD d' + adDie + ' failed vs DD' + dread + '. Take ' + loss + ' Stress.';
+      }
+      room.cleared = true;
+      showNotif('Room ' + room.id + ' failed.', 'warn');
+    }
+    syncCampaignSharedWorldSoon('planet-ruin-room');
+    openPlanetRuinPopup(cellId);
+  };
+
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Ruin Room',
+      context: 'Planet Ruins Room ' + Number(room.id) + ' (' + roomType + ')',
+      statKey: 'adventure',
+      statLabel: 'Adventure',
+      actionDie: adDie,
+      dreadDie: dread,
+      onResolve: finalizeRuinRoom
+    });
+    return;
+  }
+
+  const a = explodingRoll(adDie);
   const d = explodingRoll(dread);
   const success = a.total >= d.total;
   if (success) {
@@ -13920,6 +13973,124 @@ function buildPlanetNarrativeLines(state, selected) {
   };
 }
 
+function isGlobalManualRollMode() {
+  if (!window.settingsSystem || typeof window.settingsSystem.isManualRollMode !== 'function') return false;
+  return !!window.settingsSystem.isManualRollMode();
+}
+
+function stepGlobalManualDreadDie(current) {
+  const chain = [4, 6, 8, 10, 12, 20];
+  const die = Math.max(4, Number(current || 6));
+  let idx = chain.indexOf(die);
+  if (idx < 0) idx = 1;
+  return chain[Math.min(chain.length - 1, idx + 1)];
+}
+
+function buildGlobalManualRollModifierSummary(statKey) {
+  const key = String(statKey || 'adventure').toLowerCase();
+  const invBonus = (typeof collectInventoryBonusesForStat === 'function')
+    ? collectInventoryBonusesForStat(key)
+    : { advDice: [], flat: 0, addAdventure: 0 };
+  const parts = [];
+  if (invBonus && Array.isArray(invBonus.advDice) && invBonus.advDice.length) {
+    parts.push('Advantage dice: ' + invBonus.advDice.map((d) => 'd' + Number(d)).join(', '));
+  }
+  if (invBonus && Number(invBonus.flat || 0) !== 0) {
+    parts.push('Flat modifier: ' + (Number(invBonus.flat) > 0 ? '+' : '') + Number(invBonus.flat));
+  }
+  if (invBonus && Number(invBonus.addAdventure || 0) > 0) {
+    parts.push('Bonus Adventure rolls: +' + Number(invBonus.addAdventure));
+  }
+  if (S && S.conditions) {
+    const active = Object.keys(S.conditions).filter((c) => !!S.conditions[c]);
+    if (active.length) {
+      parts.push('Conditions: ' + active.map((c) => c.charAt(0).toUpperCase() + c.slice(1)).join(', '));
+    }
+  }
+  if (!parts.length) {
+    return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">No active modifiers detected.</div>';
+  }
+  return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;line-height:1.5;">'
+    + parts.map((p) => '<div>• ' + p + '</div>').join('')
+    + '</div>';
+}
+
+function openGlobalManualActionDreadPrompt(config) {
+  if (typeof openModal !== 'function') return false;
+  const cfg = config || {};
+  const statKey = String(cfg.statKey || 'adventure').toLowerCase();
+  const statLabel = String(cfg.statLabel || (statKey.charAt(0).toUpperCase() + statKey.slice(1)));
+  const title = String(cfg.title || 'Manual Roll');
+  const actionDie = Math.max(4, Number(cfg.actionDie || ((typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : 6) || 6));
+  const dreadDie = Math.max(4, Number(cfg.dreadDie || 6));
+  const context = String(cfg.context || title);
+  const currentTMW = Math.max(0, Number((S && S.tmw) || 0));
+  const pushDread = stepGlobalManualDreadDie(dreadDie);
+  const modifiersHtml = buildGlobalManualRollModifierSummary(statKey);
+
+  window._pendingGlobalManualActionCheck = {
+    statKey,
+    statLabel,
+    actionDie,
+    dreadDie,
+    resolver: (typeof cfg.onResolve === 'function') ? cfg.onResolve : null
+  };
+
+  const html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.78rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.28rem;">'
+    + context
+    + '</div>'
+    + '<div><strong>' + statLabel + ' d' + actionDie + '</strong> vs <strong style="color:var(--red2);">Dread d' + dreadDie + '</strong></div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Roll manually, then choose outcome.</div>'
+    + modifiersHtml
+    + '<div style="margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);">'
+    + '<div style="font-size:.74rem;color:var(--gold2);"><strong>Teamwork:</strong> ' + currentTMW + ' TMW</div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.1rem;">Push Luck costs 2 TMW and raises Dread to d' + pushDread + '.</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.45rem;">'
+    + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn btn-sm btn-primary" onclick="resolveGlobalManualActionCheck(true,false)">Success</button>'
+    + '<button class="btn btn-sm btn-red" onclick="resolveGlobalManualActionCheck(false,false)">Failure</button>'
+    + '<button class="btn btn-sm btn-teal" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveGlobalManualActionCheck(true,true)">Push Luck + Success</button>'
+    + '<button class="btn btn-sm btn-warn" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveGlobalManualActionCheck(false,true)">Push Luck + Failure</button>'
+    + '</div>'
+    + '</div>';
+  openModal(title, html);
+  return true;
+}
+
+function resolveGlobalManualActionCheck(success, pushLuck) {
+  const pending = window._pendingGlobalManualActionCheck || null;
+  if (!pending) return;
+  const wantsPush = !!pushLuck;
+  let usedPush = false;
+  let finalDread = Number(pending.dreadDie || 6);
+  if (wantsPush) {
+    const tmw = Math.max(0, Number((S && S.tmw) || 0));
+    if (tmw < 2) {
+      if (typeof showNotif === 'function') showNotif('Need 2 Teamwork to Push Luck.', 'warn');
+      return;
+    }
+    if (typeof changeCounter === 'function') changeCounter('tmw', -2);
+    else S.tmw = Math.max(0, tmw - 2);
+    usedPush = true;
+    finalDread = stepGlobalManualDreadDie(finalDread);
+  }
+  window._pendingGlobalManualActionCheck = null;
+  if (typeof closeModal === 'function') closeModal();
+  if (typeof pending.resolver === 'function') {
+    pending.resolver({
+      success: !!success,
+      pushLuck: usedPush,
+      statKey: pending.statKey,
+      statLabel: pending.statLabel,
+      actionDie: Number(pending.actionDie || 4),
+      dreadDie: Number(finalDread || pending.dreadDie || 6),
+      manual: true
+    });
+  }
+}
+
 function observeAdjacentPlanetHexes() {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
@@ -13974,23 +14145,40 @@ function observePlanetAdjacentDirection(directionKey) {
     return;
   }
   const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+  const completeObserve = (outcome) => {
+    const success = !!(outcome && outcome.success);
+    let body = '';
+    if (outcome && outcome.manual) {
+      body = `<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.35rem;">Manual result: ${success ? 'SUCCESS' : 'FAILURE'} (Lead d${leadDie} vs Dread d${Number(outcome.dreadDie || 6)}${outcome.pushLuck ? ', Push Luck' : ''}).</div>`;
+    }
+    if (success) {
+      body += `<div class="info-cell"><span class="ic-label">✓ ${dir.label}</span>${summarizePlanetCell(target)}</div>`;
+      selected.note = `[Observe Adjacent] Lead vs DD6 (${dir.label}): success.`;
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    } else {
+      body += `<div style="font-size:.8rem;color:var(--red2);">Observation failed. The horizon blurs and no clear routes are revealed.</div>`;
+      selected.note = `[Observe Adjacent] Lead vs DD6 (${dir.label}): failure.`;
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    }
+    if (typeof openModal === 'function') openModal('Observation — Adjacent Hex', body);
+  };
+
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Observe Adjacent',
+      context: dir.label + ' observation',
+      statKey: 'lead',
+      statLabel: 'Lead',
+      actionDie: leadDie,
+      dreadDie: 6,
+      onResolve: completeObserve
+    });
+    return;
+  }
+
   const leadRoll = explodingRoll(leadDie);
   const dreadRoll = explodingRoll(6);
-  const success = leadRoll.total >= dreadRoll.total;
-  let body = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-bottom:.35rem;">
-    <div class="info-cell"><span class="ic-label">Lead</span>d${leadDie} = ${leadRoll.total}</div>
-    <div class="info-cell"><span class="ic-label">DD6</span>${dreadRoll.total}</div>
-  </div>`;
-  if (success) {
-    body += `<div class="info-cell"><span class="ic-label">✓ ${dir.label}</span>${summarizePlanetCell(target)}</div>`;
-    selected.note = `[Observe Adjacent] Lead vs DD6 (${dir.label}): success.`;
-    if (typeof addSuccessRoll === 'function') addSuccessRoll();
-  } else {
-    body += `<div style="font-size:.8rem;color:var(--red2);">Observation failed. The horizon blurs and no clear routes are revealed.</div>`;
-    selected.note = `[Observe Adjacent] Lead vs DD6 (${dir.label}): failure.`;
-    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
-  }
-  if (typeof openModal === 'function') openModal('Observation — Adjacent Hex', body);
+  completeObserve({ success: leadRoll.total >= dreadRoll.total, manual: false });
 }
 
 function runPlanetLocationInteraction() {
@@ -14228,6 +14416,25 @@ function resolvePlanetWeatherCheck() {
   }
   const stat = state.currentWeather.check || 'lead';
   const dd = state.currentWeather.dd || 6;
+  if (isGlobalManualRollMode()) {
+    const die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(stat) : ((S.stats && S.stats[stat]) || 4);
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Planet Weather Check',
+      context: String(state.currentWeather.label || 'Weather') + ' weather pressure',
+      statKey: stat,
+      statLabel: String(stat).charAt(0).toUpperCase() + String(stat).slice(1),
+      actionDie: die,
+      dreadDie: dd,
+      onResolve: function (outcome) {
+        if (!outcome || !outcome.success) {
+          applyPlanetHazardFailure(state, 'Weather check failed (manual).');
+        } else {
+          showNotif('Weather check passed. Safe traversal window.', 'good');
+        }
+      }
+    });
+    return;
+  }
   const result = resolveGalaxySkillCheck('adventure', stat, dd, `Planet Weather: ${state.currentWeather.label}`);
   if (!result.success) {
     applyPlanetHazardFailure(state, 'Weather check failed.');

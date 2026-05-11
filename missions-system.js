@@ -2954,6 +2954,8 @@
       viewportEl.__raidTreeBound = true;
 
       viewportEl.addEventListener('pointerdown', function (evt) {
+        var target = evt && evt.target;
+        if (target && typeof target.closest === 'function' && target.closest('[data-raid-node="1"]')) return;
         var st = ensureRaidTreeViewState();
         if (!st) return;
         st.dragging = true;
@@ -3094,6 +3096,84 @@
       st.vy = 0;
       applyRaidTreeTransform(st, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
+  }
+
+  function openRaidTreeNodeInspector(kind, nodeId) {
+    if (typeof openModal !== 'function') return false;
+    var profile = ensureLegacyRaidProfile();
+    if (!profile) return false;
+    var nodeType = String(kind || 'legacy').toLowerCase();
+    var id = String(nodeId || '');
+    var rp = Math.max(0, Number(profile.raidPoints || 0));
+    var medals = Math.max(0, Number(profile.raidMedals || 0));
+
+    if (nodeType === 'legacy') {
+      var legacyNode = getLegacyRaidTreeNode(id);
+      if (!legacyNode) return false;
+      var rank = getLegacyRaidTalentRank(id);
+      var maxRank = Math.max(1, Number(legacyNode.maxRank || 1));
+      var capped = rank >= maxRank;
+      var cost = getLegacyRaidTreeNodeCost(legacyNode, rank);
+      var canBuy = !capped && rp >= Number(cost.points || 0) && medals >= Number(cost.medals || 0);
+      var rarity = (id === 'teamwork_feedback' || id === 'flavor_boss_personal')
+        ? 'Keystone'
+        : ((id === 'action_die_training' || id === 'raid_tick_overclock' || id === 'strike_mastery') ? 'Notable' : 'Normal');
+      var legacyHtml = ''
+        + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.18rem;">'
+        + '<div style="font-size:.9rem;color:var(--gold2);"><strong>' + String(legacyNode.label || id) + '</strong></div>'
+        + '<div style="font-size:.56rem;color:var(--muted2);letter-spacing:.1em;text-transform:uppercase;">' + rarity + '</div>'
+        + '</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">Rank ' + rank + '/' + maxRank + '</div>'
+        + '<div style="font-size:.76rem;color:var(--text2);line-height:1.52;margin-bottom:.24rem;">' + String(legacyNode.detail || '') + '</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">Cost: ' + Number(cost.points || 0) + ' Raid Points · ' + Number(cost.medals || 0) + ' Medals</div>'
+        + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">You have: ' + rp + ' RP · ' + medals + ' Medals</div>'
+        + '<div style="display:flex;justify-content:flex-end;gap:.25rem;">'
+        + '<button class="btn btn-xs" onclick="closeModal()">Close</button>'
+        + (capped
+          ? '<button class="btn btn-xs" disabled>Unlocked</button>'
+          : '<button class="btn btn-xs ' + (canBuy ? 'btn-primary' : '') + '" ' + (canBuy ? '' : 'disabled') + ' onclick="if(window.buyLegacyRaidTreeNode(\'' + id + '\')){closeModal();}">Buy Rank</button>')
+        + '</div>'
+        + '</div>';
+      openModal('Raid Node', legacyHtml);
+      return true;
+    }
+
+    var titanNode = getTitanRaidNode(id);
+    if (!titanNode) return false;
+    var unlocked = hasTitanRaidNode(id);
+    var canTitanBuy = canBuyTitanRaidNode(profile, titanNode);
+    var reqs = Array.isArray(titanNode.requires) ? titanNode.requires : [];
+    var reqAny = Array.isArray(titanNode.requiresAny) ? titanNode.requiresAny : [];
+    var reqsTxt = reqs.length
+      ? ('Requires: ' + reqs.map(function (rid) { var n = getTitanRaidNode(rid); return n ? n.label : rid; }).join(' + '))
+      : '';
+    var reqAnyTxt = reqAny.length
+      ? ('Requires one of: ' + reqAny.map(function (rid2) { var n2 = getTitanRaidNode(rid2); return n2 ? n2.label : rid2; }).join(' / '))
+      : '';
+    var rarityTitan = (String(titanNode.group || '') === 'teamwork' || String(titanNode.group || '') === 'root')
+      ? 'Keystone'
+      : ((String(titanNode.group || '') === 'action' || String(titanNode.group || '') === 'skill' || String(titanNode.group || '') === 'personal') ? 'Notable' : 'Normal');
+    var titanHtml = ''
+      + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;">'
+      + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.18rem;">'
+      + '<div style="font-size:.9rem;color:#7ed7ff;"><strong>' + String(titanNode.label || id) + '</strong></div>'
+      + '<div style="font-size:.56rem;color:var(--muted2);letter-spacing:.1em;text-transform:uppercase;">' + rarityTitan + ' · ' + String(titanNode.subclass || 'Titan') + '</div>'
+      + '</div>'
+      + '<div style="font-size:.76rem;color:var(--text2);line-height:1.52;margin-bottom:.24rem;">' + String(titanNode.detail || '') + '</div>'
+      + (reqsTxt ? ('<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.14rem;">' + reqsTxt + '</div>') : '')
+      + (reqAnyTxt ? ('<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.14rem;">' + reqAnyTxt + '</div>') : '')
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">Cost: ' + Math.max(1, Number(titanNode.cost || 1)) + ' Raid Point</div>'
+      + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">You have: ' + rp + ' RP</div>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.25rem;">'
+      + '<button class="btn btn-xs" onclick="closeModal()">Close</button>'
+      + (unlocked
+        ? '<button class="btn btn-xs" disabled>Unlocked</button>'
+        : '<button class="btn btn-xs ' + (canTitanBuy ? 'btn-teal' : '') + '" ' + (canTitanBuy ? '' : 'disabled') + ' onclick="if(window.buyTitanRaidNode(\'' + id + '\')){closeModal();}">Buy Node</button>')
+      + '</div>'
+      + '</div>';
+    openModal('Raid Node', titanHtml);
+    return true;
   }
 
   function renderLegacyRaidTreePanel() {
@@ -3357,17 +3437,14 @@
       var rarityFrame = node.rarity === 'keystone' ? 'rgba(255,170,88,.62)' : (node.rarity === 'notable' ? 'rgba(126,215,255,.48)' : (node.capped ? 'rgba(103,214,179,.55)' : 'rgba(255,255,255,.2)'));
       var rarityGlow = node.rarity === 'keystone' ? '0 0 18px rgba(255,170,88,.2)' : (node.rarity === 'notable' ? '0 0 14px rgba(126,215,255,.16)' : 'none');
       var rarityTag = node.rarity === 'keystone' ? 'Keystone' : (node.rarity === 'notable' ? 'Notable' : 'Normal');
-      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + rarityFrame + ';background:linear-gradient(160deg, rgba(14,20,30,.94), rgba(8,12,18,.92));box-shadow:0 0 0 1px rgba(0,0,0,.35), inset 0 0 16px rgba(255,255,255,.03), ' + rarityGlow + ';padding:.26rem .3rem .24rem .4rem;">'
+      return '<button data-raid-node="1" type="button" onclick="openRaidTreeNodeInspector(\'legacy\',\'' + node.id + '\')" style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + rarityFrame + ';background:linear-gradient(160deg, rgba(14,20,30,.94), rgba(8,12,18,.92));box-shadow:0 0 0 1px rgba(0,0,0,.35), inset 0 0 16px rgba(255,255,255,.03), ' + rarityGlow + ';padding:.24rem .32rem;text-align:left;cursor:pointer;">'
         + '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:' + node.border + ';opacity:.9;"></div>'
         + '<div style="position:absolute;right:.24rem;top:.18rem;font-size:.42rem;color:' + (node.rarity === 'keystone' ? '#ffb16a' : (node.rarity === 'notable' ? '#8dd9ff' : 'var(--muted2)')) + ';letter-spacing:.08em;text-transform:uppercase;">' + rarityTag + '</div>'
-        + '<div style="font-size:.64rem;color:var(--text2);line-height:1.2;"><strong>' + node.label + '</strong></div>'
-        + '<div style="font-size:.54rem;color:' + (node.capped ? 'var(--teal)' : 'var(--gold2)') + ';margin:.06rem 0;">Rank ' + node.rank + '/' + node.maxRank + '</div>'
-        + '<div style="font-size:.5rem;color:var(--muted2);line-height:1.28;height:28px;overflow:hidden;">' + node.detail + '</div>'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.1rem;gap:.1rem;">'
-        + '<span style="font-size:.48rem;color:var(--muted2);">' + node.costText + '</span>'
-        + '<button class="btn btn-xs ' + (node.affordable ? 'btn-primary' : '') + '" ' + (node.capped ? 'disabled' : '') + ' onclick="buyLegacyRaidTreeNode(\'' + node.id + '\')">' + (node.capped ? 'Max' : 'Buy') + '</button>'
+        + '<div style="font-size:.68rem;color:var(--text2);line-height:1.24;padding-right:2.8rem;"><strong>' + node.label + '</strong></div>'
+        + '<div style="font-size:.54rem;color:' + (node.capped ? 'var(--teal)' : (node.affordable ? 'var(--gold2)' : 'var(--muted2)')) + ';margin-top:.22rem;">'
+        + (node.capped ? 'Unlocked' : ('Rank ' + node.rank + '/' + node.maxRank))
         + '</div>'
-        + '</div>';
+        + '</button>';
     }).join('');
 
     var titanNodesHtml = titanNodeMeta.map(function (node) {
@@ -3379,21 +3456,16 @@
           ? 'linear-gradient(160deg, rgba(12,25,38,.92), rgba(8,12,18,.92))'
           : 'linear-gradient(160deg, rgba(12,18,28,.94), rgba(8,12,18,.92))');
       var rarityTag = node.rarity === 'keystone' ? 'Keystone' : (node.rarity === 'notable' ? 'Notable' : 'Normal');
-      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + frame + ';background:' + bg + ';padding:.22rem .26rem;">'
+      return '<button data-raid-node="1" type="button" onclick="openRaidTreeNodeInspector(\'titan\',\'' + node.id + '\')" style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + frame + ';background:' + bg + ';padding:.22rem .26rem;text-align:left;cursor:pointer;">'
         + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
-        + '<div style="font-size:.58rem;color:' + (node.unlocked ? 'var(--teal)' : 'var(--text2)') + ';line-height:1.18;"><strong>' + node.label + '</strong></div>'
-        + '<div style="font-size:.46rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + node.subclass + '</div>'
+        + '<div style="font-size:.6rem;color:' + (node.unlocked ? 'var(--teal)' : 'var(--text2)') + ';line-height:1.18;padding-right:.35rem;"><strong>' + node.label + '</strong></div>'
+        + '<div style="font-size:.42rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + node.subclass + '</div>'
         + '</div>'
-        + '<div style="font-size:.42rem;color:' + (node.rarity === 'keystone' ? '#ffb16a' : (node.rarity === 'notable' ? '#8dd9ff' : 'var(--muted2)')) + ';letter-spacing:.08em;text-transform:uppercase;">' + rarityTag + '</div>'
-        + '<div style="font-size:.49rem;color:var(--muted2);line-height:1.26;height:24px;overflow:hidden;margin-top:.05rem;">' + node.detail + '</div>'
-        + (node.needText ? ('<div style="font-size:.46rem;color:' + (node.canBuy || node.unlocked ? 'var(--muted2)' : 'var(--red2)') + ';line-height:1.2;height:10px;overflow:hidden;margin-top:.04rem;">' + node.needText + '</div>') : '<div style="height:10px;"></div>')
-        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.06rem;">'
-        + '<span style="font-size:.46rem;color:var(--gold2);">Cost: ' + node.cost + ' RP</span>'
-        + (node.unlocked
-          ? '<button class="btn btn-xs" disabled>Unlocked</button>'
-          : '<button class="btn btn-xs ' + (node.canBuy ? 'btn-teal' : '') + '" ' + (node.canBuy ? '' : 'disabled') + ' onclick="buyTitanRaidNode(\'' + node.id + '\')">Buy</button>')
+        + '<div style="font-size:.42rem;color:' + (node.rarity === 'keystone' ? '#ffb16a' : (node.rarity === 'notable' ? '#8dd9ff' : 'var(--muted2)')) + ';letter-spacing:.08em;text-transform:uppercase;margin-top:.05rem;">' + rarityTag + '</div>'
+        + '<div style="font-size:.5rem;color:' + (node.unlocked ? 'var(--teal)' : (node.canBuy ? 'var(--gold2)' : 'var(--muted2)')) + ';margin-top:.14rem;">'
+        + (node.unlocked ? 'Unlocked' : ('Cost: ' + node.cost + ' RP'))
         + '</div>'
-        + '</div>';
+        + '</button>';
     }).join('');
 
     panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(135% 130% at 0% 0%, rgba(126,215,255,.08), rgba(10,12,18,.96));">'
@@ -3508,6 +3580,8 @@
     renderLegacyRaidTreePanel();
     return true;
   };
+
+  window.openRaidTreeNodeInspector = openRaidTreeNodeInspector;
 
   function renderSoulForgeTabPanel() {
     var hosts = [];

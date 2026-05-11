@@ -2463,6 +2463,68 @@
     return mission.pinnacleRun;
   }
 
+  function buildPinnacleFloorMinimapHtml(run, mission, phase) {
+    var safeRun = run || { floors: {} };
+    if (!safeRun.floors || typeof safeRun.floors !== 'object') safeRun.floors = {};
+    var floorKey = 'p' + String(Number(phase || 1));
+    if (!safeRun.floors[floorKey] || !Array.isArray(safeRun.floors[floorKey].tiles)) {
+      var theme = String(mission && mission.pinnacleTheme || 'hellscape').toLowerCase();
+      var seed = Number(mission && mission.id || Date.now()) + (Number(phase || 1) * 97);
+      var width = 7;
+      var height = 5;
+      var state = Math.abs(seed || 1) % 2147483647;
+      var nextRand = function () {
+        state = (state * 48271) % 2147483647;
+        return state / 2147483647;
+      };
+      var tiles = [];
+      for (var r = 0; r < height; r++) {
+        var row = [];
+        for (var c = 0; c < width; c++) {
+          var type = 'path';
+          if (r === 0 && c === 0) type = 'start';
+          else if (r === height - 1 && c === width - 1) type = 'boss';
+          else {
+            var roll = nextRand();
+            if (roll < 0.18) type = 'hazard';
+            else if (roll < 0.32) type = 'void';
+            else if (roll < 0.62) type = 'path';
+            else type = 'lane';
+          }
+          row.push(type);
+        }
+        tiles.push(row);
+      }
+      safeRun.floors[floorKey] = { theme: theme, width: width, height: height, tiles: tiles };
+    }
+
+    var floor = safeRun.floors[floorKey];
+    var isHeaven = String(floor.theme || '').indexOf('celestial') >= 0;
+    var palette = isHeaven
+      ? { panel: 'rgba(180,220,255,.12)', border: 'rgba(168,214,255,.5)', start: '#7fd7ff', boss: '#f4d88c', hazard: '#ffb8b8', path: '#d9f3ff', lane: '#ffe8ad', void: '#63759a' }
+      : { panel: 'rgba(255,120,74,.1)', border: 'rgba(255,120,74,.45)', start: '#ffb36e', boss: '#ff5f54', hazard: '#ff8c7a', path: '#ffc4a3', lane: '#f29e6f', void: '#5b2a2a' };
+    var tileRows = floor.tiles.map(function (row) {
+      return '<div style="display:flex;gap:2px;">' + row.map(function (tile) {
+        var bg = palette.path;
+        var label = '&nbsp;';
+        if (tile === 'start') { bg = palette.start; label = 'S'; }
+        else if (tile === 'boss') { bg = palette.boss; label = 'B'; }
+        else if (tile === 'hazard') { bg = palette.hazard; label = '!'; }
+        else if (tile === 'lane') { bg = palette.lane; label = '='; }
+        else if (tile === 'void') { bg = palette.void; label = 'x'; }
+        return '<div style="width:18px;height:18px;border:1px solid rgba(0,0,0,.26);display:flex;align-items:center;justify-content:center;font-size:.58rem;color:#111;background:' + bg + ';">' + label + '</div>';
+      }).join('') + '</div>';
+    }).join('');
+
+    return '<div style="border:1px solid ' + palette.border + ';background:' + palette.panel + ';padding:.35rem .4rem;margin-bottom:.24rem;">'
+      + '<div style="font-size:.69rem;color:' + (isHeaven ? 'var(--teal)' : '#ffb27a') + ';margin-bottom:.16rem;">'
+      + (isHeaven ? 'Heaven Floor Minimap' : 'Hell Floor Minimap') + ' · Phase ' + Number(phase || 1)
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:2px;margin-bottom:.16rem;">' + tileRows + '</div>'
+      + '<div style="font-size:.62rem;color:var(--muted2);line-height:1.4;">S start · B boss gate · ! hazard tile · = movement lane · x collapse void</div>'
+      + '</div>';
+  }
+
   function getPinnaclePhaseProfile(mission, phase) {
     var boss = String(mission && (mission.pinnacleBoss || mission.title || 'Pinnacle Boss')).toLowerCase();
     var bossName = String(mission && (mission.pinnacleBoss || 'Pinnacle Boss'));
@@ -4035,6 +4097,263 @@
 
   window.openRaidTreeNodeInspector = openRaidTreeNodeInspector;
   window.clearRaidTreeInspector = clearRaidTreeInspector;
+
+  function escapeSoulForgeHtml(value) {
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function ensureSoulForgeState() {
+    if (typeof S === 'undefined' || !S) return { unlocked: false, inventory: [], equipped: { weapon: [], armor: [] }, lastRewardAt: '' };
+    if (!S.soulForge || typeof S.soulForge !== 'object') {
+      S.soulForge = { unlocked: false, inventory: [], equipped: { weapon: [], armor: [] }, lastRewardAt: '' };
+    }
+    if (!Array.isArray(S.soulForge.inventory)) S.soulForge.inventory = [];
+    if (!S.soulForge.equipped || typeof S.soulForge.equipped !== 'object') S.soulForge.equipped = { weapon: [], armor: [] };
+    if (!Array.isArray(S.soulForge.equipped.weapon)) S.soulForge.equipped.weapon = [];
+    if (!Array.isArray(S.soulForge.equipped.armor)) S.soulForge.equipped.armor = [];
+    S.soulForge.inventory = S.soulForge.inventory.map(function (entry, idx) {
+      if (!entry || typeof entry !== 'object') {
+        return {
+          id: 'sf-' + String(Date.now()) + '-' + String(idx),
+          name: String(entry || 'Unknown Affix'),
+          target: 'weapon',
+          tier: 'rare',
+          sourceBoss: 'Unknown',
+          saleValue: 80,
+          equipped: false,
+          slot: ''
+        };
+      }
+      entry.id = String(entry.id || ('sf-' + String(Date.now()) + '-' + String(idx)));
+      entry.name = String(entry.name || 'Unknown Affix');
+      entry.target = String(entry.target || 'weapon').toLowerCase();
+      if (entry.target !== 'weapon' && entry.target !== 'armor' && entry.target !== 'either') entry.target = 'weapon';
+      entry.tier = String(entry.tier || 'rare').toLowerCase();
+      entry.sourceBoss = String(entry.sourceBoss || 'Unknown');
+      entry.saleValue = Math.max(20, Number(entry.saleValue || 80));
+      entry.equipped = !!entry.equipped;
+      entry.slot = String(entry.slot || '');
+      return entry;
+    });
+    return S.soulForge;
+  }
+
+  function getSoulForgeAffixById(id) {
+    var forge = ensureSoulForgeState();
+    var want = String(id || '');
+    for (var i = 0; i < forge.inventory.length; i++) {
+      if (String(forge.inventory[i] && forge.inventory[i].id || '') === want) return forge.inventory[i];
+    }
+    return null;
+  }
+
+  function syncSoulForgeEquippedState() {
+    var forge = ensureSoulForgeState();
+    var equippedWeapon = [];
+    var equippedArmor = [];
+    forge.inventory.forEach(function (entry) {
+      if (!entry || !entry.equipped) return;
+      if (entry.slot === 'armor') equippedArmor.push(entry.id);
+      else equippedWeapon.push(entry.id);
+    });
+    forge.equipped.weapon = equippedWeapon;
+    forge.equipped.armor = equippedArmor;
+    return forge;
+  }
+
+  function refreshSoulForgeVendorUi(reopenModal) {
+    renderSoulForgeTabPanel();
+    if (typeof renderMissionTracker === 'function') renderMissionTracker();
+    if (reopenModal && typeof document !== 'undefined') {
+      var titleEl = document.getElementById('modalTitle');
+      var contentEl = document.getElementById('modalContent');
+      if (titleEl && contentEl && String(titleEl.textContent || '').toLowerCase().indexOf('soul forge') >= 0) {
+        contentEl.innerHTML = buildSoulForgeVendorHtml();
+      }
+    }
+  }
+
+  function buildSoulForgeVendorHtml() {
+    var forge = syncSoulForgeEquippedState();
+    var eq = (typeof S !== 'undefined' && S && S.equipment) ? S.equipment : { weapon1: '', weapon2: '', armor: '' };
+    var weaponReady = !!String(eq.weapon1 || '').trim() || !!String(eq.weapon2 || '').trim();
+    var armorReady = !!String(eq.armor || '').trim();
+    var entries = forge.inventory.map(function (entry) {
+      var target = entry.target === 'armor' ? 'Armor' : (entry.target === 'either' ? 'Weapon/Armor' : 'Weapon');
+      var tierColor = entry.tier === 'legendary' ? 'var(--gold2)' : (entry.tier === 'mythic' ? 'var(--red2)' : 'var(--teal)');
+      var status = entry.equipped ? ('Installed on ' + (entry.slot === 'armor' ? 'Armor' : 'Weapon')) : 'Stored';
+      var installButtons = '';
+      if (!entry.equipped) {
+        if (entry.target === 'armor') {
+          installButtons = '<button class="btn btn-xs btn-primary" ' + (armorReady ? '' : 'disabled') + ' onclick="installSoulForgeAffix(\'' + escapeSoulForgeHtml(entry.id) + '\',\'armor\')">Install</button>';
+        } else if (entry.target === 'either') {
+          installButtons = '<button class="btn btn-xs btn-primary" ' + (weaponReady ? '' : 'disabled') + ' onclick="installSoulForgeAffix(\'' + escapeSoulForgeHtml(entry.id) + '\',\'weapon\')">Install Weapon</button>'
+            + '<button class="btn btn-xs btn-primary" ' + (armorReady ? '' : 'disabled') + ' onclick="installSoulForgeAffix(\'' + escapeSoulForgeHtml(entry.id) + '\',\'armor\')">Install Armor</button>';
+        } else {
+          installButtons = '<button class="btn btn-xs btn-primary" ' + (weaponReady ? '' : 'disabled') + ' onclick="installSoulForgeAffix(\'' + escapeSoulForgeHtml(entry.id) + '\',\'weapon\')">Install</button>';
+        }
+      }
+      var removeBtn = entry.equipped
+        ? '<button class="btn btn-xs" onclick="removeSoulForgeAffix(\'' + escapeSoulForgeHtml(entry.id) + '\')">Remove</button>'
+        : '';
+      var sellBtn = '<button class="btn btn-xs btn-warn" onclick="sellSoulForgeAffix(\'' + escapeSoulForgeHtml(entry.id) + '\')">Sell ' + Number(entry.saleValue || 80) + 'C</button>';
+      return '<div style="border:1px solid var(--border2);padding:.35rem .4rem;margin-bottom:.22rem;background:rgba(255,255,255,.03);">'
+        + '<div style="display:flex;justify-content:space-between;gap:.3rem;flex-wrap:wrap;">'
+          + '<div style="font-size:.75rem;color:var(--text2);"><strong>' + escapeSoulForgeHtml(entry.name) + '</strong> <span style="color:' + tierColor + ';font-size:.64rem;text-transform:uppercase;">[' + escapeSoulForgeHtml(entry.tier) + ']</span></div>'
+          + '<div style="font-size:.67rem;color:var(--muted2);">' + escapeSoulForgeHtml(status) + '</div>'
+        + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.42;margin-top:.08rem;">Target: ' + target + ' · Source: ' + escapeSoulForgeHtml(entry.sourceBoss) + '</div>'
+        + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">' + installButtons + removeBtn + sellBtn + '</div>'
+      + '</div>';
+    }).join('');
+
+    var equippedWeaponNames = forge.inventory.filter(function (entry) { return entry && entry.equipped && entry.slot === 'weapon'; }).map(function (entry) { return entry.name; });
+    var equippedArmorNames = forge.inventory.filter(function (entry) { return entry && entry.equipped && entry.slot === 'armor'; }).map(function (entry) { return entry.name; });
+
+    return '<div class="card">'
+      + '<div class="section-title">Soul Forge</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.46;margin-bottom:.3rem;">Install captured affixes on your weapon or armor, remove them, or sell extras. Changes apply immediately.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(2,minmax(210px,1fr));gap:.26rem;margin-bottom:.26rem;">'
+        + '<div style="border:1px solid var(--border2);padding:.28rem .34rem;background:rgba(255,255,255,.02);">'
+          + '<div style="font-size:.66rem;color:var(--teal);text-transform:uppercase;letter-spacing:.07em;">Weapon Affixes</div>'
+          + '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;">' + (equippedWeaponNames.length ? escapeSoulForgeHtml(equippedWeaponNames.join(', ')) : 'None installed') + '</div>'
+        + '</div>'
+        + '<div style="border:1px solid var(--border2);padding:.28rem .34rem;background:rgba(255,255,255,.02);">'
+          + '<div style="font-size:.66rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.07em;">Armor Affixes</div>'
+          + '<div style="font-size:.7rem;color:var(--text2);line-height:1.45;">' + (equippedArmorNames.length ? escapeSoulForgeHtml(equippedArmorNames.join(', ')) : 'None installed') + '</div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.22rem;">Equipment check: Weapon ' + (weaponReady ? 'ready' : 'missing') + ' · Armor ' + (armorReady ? 'ready' : 'missing') + '</div>'
+      + '<div style="max-height:300px;overflow:auto;padding-right:.12rem;">' + (entries || '<div style="font-size:.74rem;color:var(--muted2);">No affixes captured yet.</div>') + '</div>'
+    + '</div>';
+  }
+
+  function installSoulForgeAffix(id, slot) {
+    var entry = getSoulForgeAffixById(id);
+    var desired = String(slot || '').toLowerCase() === 'armor' ? 'armor' : 'weapon';
+    if (!entry) {
+      if (typeof showNotif === 'function') showNotif('Affix record not found.', 'warn');
+      return false;
+    }
+    if (entry.target === 'armor' && desired !== 'armor') {
+      if (typeof showNotif === 'function') showNotif('This affix can only be installed on armor.', 'warn');
+      return false;
+    }
+    if (entry.target === 'weapon' && desired !== 'weapon') {
+      if (typeof showNotif === 'function') showNotif('This affix can only be installed on a weapon.', 'warn');
+      return false;
+    }
+    if (!S || !S.equipment) {
+      if (typeof showNotif === 'function') showNotif('Character equipment is not ready.', 'warn');
+      return false;
+    }
+    if (desired === 'armor' && !String(S.equipment.armor || '').trim()) {
+      if (typeof showNotif === 'function') showNotif('Equip armor first before installing an armor affix.', 'warn');
+      return false;
+    }
+    if (desired === 'weapon' && !String(S.equipment.weapon1 || '').trim() && !String(S.equipment.weapon2 || '').trim()) {
+      if (typeof showNotif === 'function') showNotif('Equip a weapon first before installing a weapon affix.', 'warn');
+      return false;
+    }
+    entry.equipped = true;
+    entry.slot = desired;
+    syncSoulForgeEquippedState();
+    if (typeof showNotif === 'function') showNotif('Affix installed: ' + entry.name + ' on ' + (desired === 'armor' ? 'armor' : 'weapon') + '.', 'good');
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    refreshSoulForgeVendorUi(true);
+    return true;
+  }
+
+  function removeSoulForgeAffix(id) {
+    var entry = getSoulForgeAffixById(id);
+    if (!entry) {
+      if (typeof showNotif === 'function') showNotif('Affix record not found.', 'warn');
+      return false;
+    }
+    if (!entry.equipped) {
+      if (typeof showNotif === 'function') showNotif('Affix is not currently installed.', 'info');
+      return false;
+    }
+    entry.equipped = false;
+    entry.slot = '';
+    syncSoulForgeEquippedState();
+    if (typeof showNotif === 'function') showNotif('Affix removed: ' + entry.name + '.', 'good');
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    refreshSoulForgeVendorUi(true);
+    return true;
+  }
+
+  function sellSoulForgeAffix(id) {
+    var forge = ensureSoulForgeState();
+    var want = String(id || '');
+    var idx = -1;
+    for (var i = 0; i < forge.inventory.length; i++) {
+      if (String(forge.inventory[i] && forge.inventory[i].id || '') === want) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      if (typeof showNotif === 'function') showNotif('Affix record not found.', 'warn');
+      return false;
+    }
+    var entry = forge.inventory[idx];
+    var sale = Math.max(20, Number(entry.saleValue || 80));
+    forge.inventory.splice(idx, 1);
+    syncSoulForgeEquippedState();
+    if (typeof changeCredits === 'function') changeCredits(sale);
+    else if (S) S.credits = Number(S.credits || 0) + sale;
+    if (typeof showNotif === 'function') showNotif('Sold affix ' + String(entry.name || 'Unknown') + ' for ' + sale + 'C.', 'good');
+    refreshSoulForgeVendorUi(true);
+    return true;
+  }
+
+  function openSoulForgeVendor() {
+    var forge = ensureSoulForgeState();
+    if (!forge.unlocked && !forge.inventory.length) {
+      if (typeof showNotif === 'function') showNotif('Soul Forge is locked. Complete a Soul Mission first.', 'warn');
+      return false;
+    }
+    if (typeof openModal === 'function') {
+      openModal('Soul Forge Vendor', buildSoulForgeVendorHtml());
+      return true;
+    }
+    refreshSoulForgeVendorUi(false);
+    return true;
+  }
+
+  function awardSoulMissionAffixReward(mission) {
+    var forge = ensureSoulForgeState();
+    var boss = String(mission && (mission.soulBoss || mission.title) || 'Soul Creature');
+    var affixPool = ['Stormbound', 'Voidmarked', 'Lionheart', 'Kingsbane', 'Astral', 'Relentless', 'Ruinforged', 'Soulthread', 'Oathcarved', 'Nightglass'];
+    var tierPool = ['rare', 'rare', 'rare', 'legendary', 'legendary', 'mythic'];
+    var hash = (String(mission && mission.id || Date.now()).length + boss.length + Number(mission && mission.reward || 0));
+    var target = (hash % 2 === 0) ? 'weapon' : 'armor';
+    var affixName = affixPool[Math.abs(hash + 17) % affixPool.length] || 'Stormbound';
+    var tier = tierPool[Math.abs(hash + 31) % tierPool.length] || 'rare';
+    var saleByTier = { rare: 80, legendary: 140, mythic: 220 };
+    var affixLabel = affixName + ' [' + tier + '] (' + target + ')';
+    var entry = {
+      id: 'sf-' + String(Date.now()) + '-' + String(Math.floor(Math.random() * 10000)),
+      name: affixName,
+      target: target,
+      tier: tier,
+      sourceBoss: boss,
+      saleValue: Number(saleByTier[tier] || 80),
+      equipped: false,
+      slot: '',
+      createdAt: new Date().toISOString()
+    };
+    forge.unlocked = true;
+    forge.lastRewardAt = entry.createdAt;
+    forge.inventory.push(entry);
+    syncSoulForgeEquippedState();
+    if (typeof showNotif === 'function') {
+      showNotif('Soul Forge reward: ' + affixLabel + '.', 'good');
+    }
+    refreshSoulForgeVendorUi(false);
+    return 'Soul Affix - ' + affixLabel;
+  }
 
   function renderSoulForgeTabPanel() {
     var hosts = [];
@@ -15065,6 +15384,13 @@
   }
 
   window.renderSoulForgeTabPanel = renderSoulForgeTabPanel;
+  window.ensureSoulForgeState = ensureSoulForgeState;
+  window.buildSoulForgeVendorHtml = buildSoulForgeVendorHtml;
+  window.openSoulForgeVendor = openSoulForgeVendor;
+  window.installSoulForgeAffix = installSoulForgeAffix;
+  window.removeSoulForgeAffix = removeSoulForgeAffix;
+  window.sellSoulForgeAffix = sellSoulForgeAffix;
+  window.awardSoulMissionAffixReward = awardSoulMissionAffixReward;
   window.endgameDebugAdjustGates = endgameDebugAdjustGates;
   window.endgameDebugSetPortalState = endgameDebugSetPortalState;
   window.endgameDebugAddColosseumRecord = endgameDebugAddColosseumRecord;

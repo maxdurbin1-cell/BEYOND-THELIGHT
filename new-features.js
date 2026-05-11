@@ -1813,6 +1813,143 @@
     return false;
   }
 
+  function canCrucibleUnitCastActionOnTarget(attacker, defender, kind) {
+    if (!attacker || !defender || !attacker.position || !defender.position) return false;
+    var actionKind = String(kind || 'spell').toLowerCase();
+    if (typeof getUnitDistance !== 'function') return canCrucibleUnitAttack(attacker, defender);
+    var dist = Number(getUnitDistance(attacker, defender) || 99);
+    if (!Number.isFinite(dist) || dist <= 0) return false;
+    if (actionKind === 'hack') return dist <= 2;
+    return dist <= 3;
+  }
+
+  function resolveCrucibleSpellHackAction(actor, target, kind, match, logs, manualTotals) {
+    if (!actor || !target || !match) return false;
+    var actionKind = String(kind || 'spell').toLowerCase();
+    var actionDie = actionKind === 'hack' ? getCrucibleStatDie('control', 8) : getCrucibleStatDie('spirit', 8);
+    var dreadDie = Math.max(4, Number(target.attackDie || target.defendDie || 8));
+    var actionTotal = 0;
+    var dreadTotal = 0;
+
+    if (manualTotals && Number.isFinite(manualTotals.action) && Number.isFinite(manualTotals.dread)) {
+      actionTotal = Math.max(1, Number(manualTotals.action));
+      dreadTotal = Math.max(1, Number(manualTotals.dread));
+    } else {
+      var actionRoll = (typeof explodingRoll === 'function') ? explodingRoll(actionDie) : { total: (Math.floor(Math.random() * actionDie) + 1) };
+      var dreadRoll = (typeof explodingRoll === 'function') ? explodingRoll(dreadDie) : { total: (Math.floor(Math.random() * dreadDie) + 1) };
+      actionTotal = Math.max(1, Number(actionRoll.total || 1));
+      dreadTotal = Math.max(1, Number(dreadRoll.total || 1));
+    }
+
+    var success = actionTotal >= dreadTotal;
+    var margin = Math.max(1, Math.abs(actionTotal - dreadTotal));
+    if (success) {
+      var dmg = Math.max(1, margin + (actionKind === 'spell' ? 1 : 0));
+      target.hp = Math.max(0, Number(target.hp || 0) - dmg);
+      logs.push(actor.name + ' ' + (actionKind === 'hack' ? 'hacked' : 'cast a spell on') + ' ' + target.name + ': ' + actionTotal + ' vs ' + dreadTotal + ' for ' + dmg + ' dmg.');
+      if (target.hp <= 0) {
+        logs.push('☠ ' + target.name + ' is down.');
+        var mode = getCrucibleModeSpec(match.mode);
+        awardCruciblePoints(match, String(actor.side || 'ally'), Number(mode.killPoints || 1), 'Takedown');
+      }
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome('spell', margin, {
+          actionTotal: actionTotal,
+          dreadTotal: dreadTotal,
+          context: (actionKind === 'hack' ? 'Hack' : 'Spell') + ' vs ' + target.name + ' (Crucible)'
+        });
+      }
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    } else {
+      logs.push(actor.name + ' ' + (actionKind === 'hack' ? 'hack attempt' : 'spell') + ' failed against ' + target.name + ': ' + actionTotal + ' vs ' + dreadTotal + '.');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('crucible-' + actionKind + '-fail', { skipPrompt: true });
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome('spell', margin, {
+          actionTotal: actionTotal,
+          dreadTotal: dreadTotal,
+          context: (actionKind === 'hack' ? 'Hack' : 'Spell') + ' vs ' + target.name + ' (Crucible)'
+        });
+      }
+    }
+    return true;
+  }
+
+  function openCrucibleManualSpellHackPrompt(actor, target, kind) {
+    if (typeof openModal !== 'function') return false;
+    ensureNewFeatureState();
+    var match = getHoldingCrucibleMatch();
+    if (!match) return false;
+    S.holding.crucible.manualActionPending = {
+      actorId: String(actor && actor.id || ''),
+      targetId: String(target && target.id || ''),
+      kind: String(kind || 'spell').toLowerCase()
+    };
+    var pendingKind = String(kind || 'spell').toLowerCase();
+    var actionDie = pendingKind === 'hack' ? getCrucibleStatDie('control', 8) : getCrucibleStatDie('spirit', 8);
+    var dreadDie = Math.max(4, Number(target && (target.attackDie || target.defendDie || 8)));
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.5;">'
+      + '<div style="margin-bottom:.2rem;">Manual ' + (pendingKind === 'hack' ? 'Hack' : 'Spell') + ': enter Action and Dread roll totals.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:.3rem;">'
+      + '<label style="font-size:.7rem;color:var(--muted2);">Action d' + actionDie + '<input id="crucibleManualAction" type="number" min="1" max="99" style="width:100%;margin-top:.08rem;"></label>'
+      + '<label style="font-size:.7rem;color:var(--muted2);">Dread d' + dreadDie + '<input id="crucibleManualDread" type="number" min="1" max="99" style="width:100%;margin-top:.08rem;"></label>'
+      + '</div>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.26rem;">'
+      + '<button class="btn btn-sm" onclick="cancelCrucibleManualActionRoll()">Cancel</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="resolveCrucibleManualActionRoll()">Resolve</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Manual ' + (pendingKind === 'hack' ? 'Hack' : 'Spell') + ' Roll', html);
+    return true;
+  }
+
+  window.cancelCrucibleManualActionRoll = function () {
+    ensureNewFeatureState();
+    if (S && S.holding && S.holding.crucible) S.holding.crucible.manualActionPending = null;
+    if (typeof closeModal === 'function') closeModal();
+    return true;
+  };
+
+  window.resolveCrucibleManualActionRoll = function () {
+    ensureNewFeatureState();
+    var match = getHoldingCrucibleMatch();
+    var pending = S && S.holding && S.holding.crucible ? S.holding.crucible.manualActionPending : null;
+    if (!match || !pending) {
+      if (typeof showNotif === 'function') showNotif('No pending manual action.', 'warn');
+      return false;
+    }
+    var actionInput = document.getElementById('crucibleManualAction');
+    var dreadInput = document.getElementById('crucibleManualDread');
+    var actionValue = Number(actionInput && actionInput.value);
+    var dreadValue = Number(dreadInput && dreadInput.value);
+    if (!Number.isFinite(actionValue) || !Number.isFinite(dreadValue)) {
+      if (typeof showNotif === 'function') showNotif('Enter valid action and dread totals first.', 'warn');
+      return false;
+    }
+    var actor = findCrucibleUnit(match, 'ally', pending.actorId);
+    var target = findCrucibleUnit(match, 'enemy', pending.targetId);
+    if (!actor || !target || Number(actor.hp || 0) <= 0 || Number(target.hp || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif('Actor or target is no longer valid.', 'warn');
+      return false;
+    }
+    if (!spendCrucibleUnitAp(actor, 1)) {
+      if (typeof showNotif === 'function') showNotif(actor.name + ' has no AP left.', 'warn');
+      return false;
+    }
+    var logs = [];
+    resolveCrucibleSpellHackAction(actor, target, pending.kind, match, logs, {
+      action: actionValue,
+      dread: dreadValue
+    });
+    match.log = (match.log || []).concat(logs).slice(-120);
+    S.holding.crucible.manualActionPending = null;
+    if (typeof closeModal === 'function') closeModal();
+    maybeSyncCrucibleSelection(match);
+    finalizeHoldingCrucibleMatch(match);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  };
+
   function findCrucibleUnit(match, side, id) {
     if (!match || !id) return null;
     var pool = String(side || '') === 'enemy' ? match.enemies : match.allies;
@@ -2443,14 +2580,20 @@
     if (typeof document !== 'undefined') {
       var select = document.getElementById('wayfarerActionSel');
       if (select && select.options && select.options.length) {
-        return Array.prototype.map.call(select.options, function (opt) {
+        var options = Array.prototype.map.call(select.options, function (opt) {
           if (!opt || !opt.value) return '';
           return '<option value="' + String(opt.value).replace(/"/g, '&quot;') + '">' + String(opt.textContent || opt.value) + '</option>';
-        }).join('');
+        }).filter(Boolean);
+        var lowerJoined = options.join(' ').toLowerCase();
+        if (lowerJoined.indexOf('value="spell"') < 0) options.push('<option value="spell">Spell</option>');
+        if (lowerJoined.indexOf('value="hack"') < 0) options.push('<option value="hack">Hack</option>');
+        return options.join('');
       }
     }
     return '<option value="strike">Strike</option>'
       + '<option value="shoot">Shoot</option>'
+      + '<option value="spell">Spell</option>'
+      + '<option value="hack">Hack</option>'
       + '<option value="defend">Defend</option>'
       + '<option value="support">Support</option>'
       + '<option value="personal-flavor">Personal Flavor</option>';
@@ -2486,6 +2629,15 @@
         var distTxt = (actor && typeof getUnitDistance === 'function') ? (' d:' + Number(getUnitDistance(actor, unit) || 0)) : '';
         return '<option value="' + opposingSide + ':' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Enemy') + distTxt + '</option>';
       }).join('') || '<option value="">No engaged/close targets</option>';
+    }
+    if (act === 'spell' || act === 'hack') {
+      var castTargets = opposingUnits.filter(function (enemy) {
+        return !!(actor && enemy && canCrucibleUnitCastActionOnTarget(actor, enemy, act));
+      });
+      return castTargets.map(function (unit) {
+        var distTxt = (actor && typeof getUnitDistance === 'function') ? (' d:' + Number(getUnitDistance(actor, unit) || 0)) : '';
+        return '<option value="' + opposingSide + ':' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Enemy') + distTxt + '</option>';
+      }).join('') || '<option value="">No valid targets for ' + (act === 'hack' ? 'Hack' : 'Spell') + '</option>';
     }
     if (act === 'personal-flavor') {
       var closeEnemies = opposingUnits.filter(function (enemy) {
@@ -2654,6 +2806,16 @@
       } else {
         logs.push(actor.name + ' used Personal Flavor.');
       }
+    } else if (action === 'spell' || action === 'hack') {
+      if (!target || !canCrucibleUnitCastActionOnTarget(actor, target, action)) {
+        if (typeof showNotif === 'function') showNotif('Select a valid target in spell/hack range first.', 'warn');
+        return false;
+      }
+      if (isNewFeaturesManualRollMode()) {
+        return openCrucibleManualSpellHackPrompt(actor, target, action);
+      }
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      resolveCrucibleSpellHackAction(actor, target, action, match, logs, null);
     } else {
       if (!target || !canCrucibleUnitAttack(actor, target)) {
         if (typeof showNotif === 'function') showNotif('Select an engaged/close enemy target first.', 'warn');
@@ -7165,65 +7327,30 @@
     });
   }
 
-  function castHack() {
-    ensureNewFeatureState();
+  function isNewFeaturesManualRollMode() {
+    return !!(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
+  }
 
-    // Sync selected hack from dropdown
-    var sel = document.getElementById('hackSelect');
-    if (sel && sel.value) { S.hackRoller.selectedHack = sel.value; }
-
-    var hackName = S.hackRoller.selectedHack;
-    if (!hackName && S.ownedHacks.length) { hackName = S.ownedHacks[0]; S.hackRoller.selectedHack = hackName; }
-
-    if (!hackName) {
-      showNotif('Select a Hack to cast first!', 'warn'); return;
-    }
-    if (!S.hackRoller.guess) {
-      showNotif('Select a guess first: Below, Between, or Above!', 'warn'); return;
-    }
-
-    // Get TMW cost
-    var hackData = HACK_EFFECTS[hackName];
-    var tmwCost = hackData ? hackData.tmw : 0;
-    if (tmwCost > 0 && typeof getScarTmwCostPenalty === 'function') {
-      tmwCost += Math.max(0, Number(getScarTmwCostPenalty() || 0));
-    }
-    if (tmwCost > 0 && (S.tmw || 0) < tmwCost) {
-      showNotif('Need ' + tmwCost + ' TMW to cast ' + hackName + '! (have ' + (S.tmw || 0) + ')', 'warn'); return;
-    }
-
-    // Deduct TMW (spent to activate)
-    if (tmwCost > 0) {
-      S.tmw = Math.max(0, (S.tmw || 0) - tmwCost);
-      updateTMWPool();
-    }
-
-    var combatEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
-    var dreadDie = (S.combat && S.combat.active && combatEnemy && typeof getEnemyEffectiveDread === 'function')
-      ? getEnemyEffectiveDread(combatEnemy)
-      : (S.hackRoller.dreadDie || 6);
-    S.hackRoller.dreadDie = dreadDie;
-    var d1 = roll(dreadDie);
-    var d2 = roll(dreadDie);
-    var low  = Math.min(d1, d2);
-    var high = Math.max(d1, d2);
-
-    // Control roll + optional NIGHTGUARD bonus (+d4)
-    var ctrlDie  = (typeof getAugBonus === 'function') ? null : null; // resolve below
-    ctrlDie = S.stats.control || 4;
-    var ctrlRoll = explodingRoll(ctrlDie);
-    var augBonusDie = (typeof getAugBonus === 'function') ? getAugBonus('control') : 0;
-    var augRoll  = augBonusDie > 0 ? explodingRoll(augBonusDie) : null;
-    var ctrlVal  = ctrlRoll.total + (augRoll ? augRoll.total : 0);
+  function applyHackCastOutcome(payload) {
+    var data = payload || {};
+    var hackName = String(data.hackName || 'Unknown Hack');
+    var hackData = data.hackData || HACK_EFFECTS[hackName] || null;
+    var dreadDie = Math.max(4, Number(data.dreadDie || 6));
+    var low = Math.max(1, Number(data.low || 1));
+    var high = Math.max(low, Number(data.high || low));
+    var ctrlDie = Math.max(4, Number(data.ctrlDie || 4));
+    var ctrlVal = Math.max(1, Number(data.ctrlVal || 1));
+    var guess = String(data.guess || S.hackRoller.guess || 'between');
+    var tmwCost = Math.max(0, Number(data.tmwCost || 0));
+    var manual = !!data.manual;
+    var combatEnemy = data.combatEnemy || ((typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null);
 
     var actual;
-    if      (ctrlVal < low)  { actual = 'below'; }
-    else if (ctrlVal > high) { actual = 'above'; }
-    else                     { actual = 'between'; }
+    if (ctrlVal < low) actual = 'below';
+    else if (ctrlVal > high) actual = 'above';
+    else actual = 'between';
 
-    var success = actual === S.hackRoller.guess;
-    var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.72rem;">(+d'+augBonusDie+'='+augRoll.total+')</span>' : '';
-
+    var success = actual === guess;
     var effectHtml = '';
     if (success && hackData && hackData.effect) {
       var effectText = (S.combat && S.combat.active && combatEnemy && typeof applyCombatHackEffect === 'function')
@@ -7232,40 +7359,39 @@
       effectHtml = '<br><span style="color:var(--teal);">' + effectText + '</span>';
     }
 
-    // Malware on failure: lose 1 TMW + take d6 Stress + Distracted
     var malwareHtml = '';
+    var malwareBy = Math.max(1, (high - low) || 1);
     if (!success) {
       var malwareDmg = roll(6);
+      malwareBy = Math.max(1, malwareBy + malwareDmg);
       S.tmw = Math.max(0, (S.tmw || 0) - 1);
-      updateTMWPool();
-      changeHealth(malwareDmg);
-      malwareHtml = '<br><span style="color:var(--red2);">⚠ Malware! Lost 1 TMW &amp; took <strong>' + malwareDmg + ' Stress</strong> (1d6). Distracted applied.</span>';
-      if (typeof updateConditionButtons === 'function') {
-        S.conditions.distracted = true;
-        updateConditionButtons();
-        if (typeof updateAllStatDisplays === 'function') { updateAllStatDisplays(); }
-      }
+      if (typeof updateTMWPool === 'function') updateTMWPool();
+      if (typeof changeHealth === 'function') changeHealth(malwareDmg);
+      malwareHtml = '<br><span style="color:var(--red2);">Malware! Lost 1 TMW and took <strong>' + malwareDmg + ' Stress</strong> (1d6). Distracted applied.</span>';
+      S.conditions = S.conditions || {};
+      S.conditions.distracted = true;
+      if (typeof updateConditionButtons === 'function') updateConditionButtons();
+      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
     }
 
     var resultEl = document.getElementById('hackRollResult');
     if (resultEl) {
-      resultEl.innerHTML =
-        '<div class="gamble-rolls">'
+      resultEl.innerHTML = '<div class="gamble-rolls">'
         + '<div class="gamble-die"><div class="gd-label">Dread Low</div><div class="gd-value" style="color:var(--red);">' + low + '</div></div>'
-        + '<div class="gamble-die"><div class="gd-label">Control d' + ctrlDie + (ctrlRoll.exploded ? '*' : '') + '</div><div class="gd-value" style="color:var(--teal);">' + ctrlVal + '</div></div>'
+        + '<div class="gamble-die"><div class="gd-label">Control d' + ctrlDie + '</div><div class="gd-value" style="color:var(--teal);">' + ctrlVal + '</div></div>'
         + '<div class="gamble-die"><div class="gd-label">Dread High</div><div class="gd-value" style="color:var(--red);">' + high + '</div></div>'
         + '</div>'
-        + (tmwCost > 0 ? '<div style="font-size:.72rem;color:var(--muted2);margin:.25rem 0;">−' + tmwCost + ' TMW spent · ' + (S.tmw || 0) + ' remaining</div>' : '')
-        + augNote
+        + (tmwCost > 0 ? '<div style="font-size:.72rem;color:var(--muted2);margin:.25rem 0;">-' + tmwCost + ' TMW spent · ' + (S.tmw || 0) + ' remaining</div>' : '')
         + '<div class="gamble-outcome ' + (success ? 'good' : 'warn') + '" style="margin-top:.4rem;">'
-        + '<strong style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? '✔ Hack Succeeded!' : '✘ Hack Failed — Malware!') + '</strong><br>'
-        + 'Dread d' + dreadDie + ': ' + low + '–' + high
-        + ' &nbsp;|&nbsp; Guess: <strong>' + capFirst(S.hackRoller.guess) + '</strong>'
-        + ' &nbsp;|&nbsp; Control: ' + ctrlVal + ' (<em>' + capFirst(actual) + '</em>)'
+        + '<strong style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? 'Hack Succeeded!' : 'Hack Failed - Malware!') + '</strong><br>'
+        + 'Dread d' + dreadDie + ': ' + low + '-' + high
+        + ' | Guess: <strong>' + capFirst(guess) + '</strong>'
+        + ' | Control: ' + ctrlVal + ' (<em>' + capFirst(actual) + (manual ? ', manual' : '') + '</em>)'
         + effectHtml
         + malwareHtml
         + '</div>';
     }
+
     if (success) {
       var hackMargin = 1;
       if (actual === 'below') hackMargin = Math.max(1, low - ctrlVal);
@@ -7278,20 +7404,165 @@
           context: 'Hack cast: ' + hackName
         });
       }
-      if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
-    } else {
-      if (typeof showDccFailureOutcome === 'function') {
-        showDccFailureOutcome('spell', Math.max(1, malwareBy || (high - low) || 1), {
-          actionTotal: ctrlVal,
-          dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
-          context: 'Hack cast: ' + hackName
-        });
-      }
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    } else if (typeof showDccFailureOutcome === 'function') {
+      showDccFailureOutcome('spell', Math.max(1, malwareBy), {
+        actionTotal: ctrlVal,
+        dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
+        context: 'Hack cast: ' + hackName
+      });
     }
+
     if (typeof renderQP === 'function' && S.quickPanel) {
       S.quickPanel.lastCombatRoll = (resultEl && resultEl.innerHTML) ? resultEl.innerHTML : S.quickPanel.lastCombatRoll;
       renderQP('combat');
     }
+    return success;
+  }
+
+  function openManualHackCastModal(payload) {
+    var data = payload || {};
+    S.hackRoller.pendingManual = {
+      hackName: String(data.hackName || ''),
+      tmwCost: Math.max(0, Number(data.tmwCost || 0)),
+      dreadDie: Math.max(4, Number(data.dreadDie || 6)),
+      combatEnemyId: String(data.combatEnemy && data.combatEnemy.id || '')
+    };
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.54;">'
+      + '<div style="margin-bottom:.22rem;">Manual Hack Roll: enter your rolled values and resolve against your guess <strong>' + capFirst(S.hackRoller.guess || 'between') + '</strong>.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:.3rem;">'
+      + '<label style="font-size:.7rem;color:var(--muted2);">Dread Low<input id="manualHackLow" type="number" min="1" max="' + Number(data.dreadDie || 6) + '" style="width:100%;margin-top:.08rem;"></label>'
+      + '<label style="font-size:.7rem;color:var(--muted2);">Dread High<input id="manualHackHigh" type="number" min="1" max="' + Number(data.dreadDie || 6) + '" style="width:100%;margin-top:.08rem;"></label>'
+      + '<label style="font-size:.7rem;color:var(--muted2);">Control Total<input id="manualHackControl" type="number" min="1" max="999" style="width:100%;margin-top:.08rem;"></label>'
+      + '</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Cost on resolve: ' + Number(data.tmwCost || 0) + ' TMW.</div>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.28rem;">'
+      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="resolveManualHackCast()">Resolve Manual Hack</button>'
+      + '</div>'
+      + '</div>';
+    if (typeof openModal === 'function') openModal('Manual Hack Cast', html);
+  }
+
+  function resolveManualHackCast() {
+    ensureNewFeatureState();
+    var pending = (S.hackRoller && S.hackRoller.pendingManual) ? S.hackRoller.pendingManual : null;
+    if (!pending) {
+      if (typeof showNotif === 'function') showNotif('No pending manual hack cast.', 'warn');
+      return false;
+    }
+    var lowEl = document.getElementById('manualHackLow');
+    var highEl = document.getElementById('manualHackHigh');
+    var controlEl = document.getElementById('manualHackControl');
+    var low = Number(lowEl && lowEl.value);
+    var high = Number(highEl && highEl.value);
+    var ctrl = Number(controlEl && controlEl.value);
+    if (!Number.isFinite(low) || !Number.isFinite(high) || !Number.isFinite(ctrl)) {
+      if (typeof showNotif === 'function') showNotif('Enter valid manual dice values first.', 'warn');
+      return false;
+    }
+    var tmwCost = Math.max(0, Number(pending.tmwCost || 0));
+    if (tmwCost > 0 && Number(S.tmw || 0) < tmwCost) {
+      if (typeof showNotif === 'function') showNotif('Need ' + tmwCost + ' TMW to resolve this hack.', 'warn');
+      return false;
+    }
+    if (tmwCost > 0) {
+      S.tmw = Math.max(0, Number(S.tmw || 0) - tmwCost);
+      if (typeof updateTMWPool === 'function') updateTMWPool();
+    }
+    var combatEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
+    applyHackCastOutcome({
+      hackName: pending.hackName,
+      tmwCost: tmwCost,
+      dreadDie: pending.dreadDie,
+      low: Math.min(low, high),
+      high: Math.max(low, high),
+      ctrlDie: Number(S.stats && S.stats.control || 4),
+      ctrlVal: ctrl,
+      guess: String(S.hackRoller.guess || 'between'),
+      combatEnemy: combatEnemy,
+      manual: true
+    });
+    S.hackRoller.pendingManual = null;
+    if (typeof closeModal === 'function') closeModal();
+    return true;
+  }
+
+  function castHack() {
+    ensureNewFeatureState();
+
+    var sel = document.getElementById('hackSelect');
+    if (sel && sel.value) S.hackRoller.selectedHack = sel.value;
+
+    var hackName = S.hackRoller.selectedHack;
+    if (!hackName && S.ownedHacks.length) {
+      hackName = S.ownedHacks[0];
+      S.hackRoller.selectedHack = hackName;
+    }
+
+    if (!hackName) {
+      showNotif('Select a Hack to cast first!', 'warn');
+      return;
+    }
+    if (!S.hackRoller.guess) {
+      showNotif('Select a guess first: Below, Between, or Above!', 'warn');
+      return;
+    }
+
+    var hackData = HACK_EFFECTS[hackName];
+    var tmwCost = hackData ? Number(hackData.tmw || 0) : 0;
+    if (tmwCost > 0 && typeof getScarTmwCostPenalty === 'function') {
+      tmwCost += Math.max(0, Number(getScarTmwCostPenalty() || 0));
+    }
+    if (tmwCost > 0 && Number(S.tmw || 0) < tmwCost) {
+      showNotif('Need ' + tmwCost + ' TMW to cast ' + hackName + '! (have ' + (S.tmw || 0) + ')', 'warn');
+      return;
+    }
+
+    var combatEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
+    var dreadDie = (S.combat && S.combat.active && combatEnemy && typeof getEnemyEffectiveDread === 'function')
+      ? getEnemyEffectiveDread(combatEnemy)
+      : (S.hackRoller.dreadDie || 6);
+    S.hackRoller.dreadDie = dreadDie;
+
+    if (isNewFeaturesManualRollMode()) {
+      openManualHackCastModal({
+        hackName: hackName,
+        tmwCost: tmwCost,
+        dreadDie: dreadDie,
+        combatEnemy: combatEnemy
+      });
+      return;
+    }
+
+    if (tmwCost > 0) {
+      S.tmw = Math.max(0, Number(S.tmw || 0) - tmwCost);
+      if (typeof updateTMWPool === 'function') updateTMWPool();
+    }
+
+    var d1 = roll(dreadDie);
+    var d2 = roll(dreadDie);
+    var low = Math.min(d1, d2);
+    var high = Math.max(d1, d2);
+    var ctrlDie = Math.max(4, Number(S.stats && S.stats.control || 4));
+    var ctrlRoll = explodingRoll(ctrlDie);
+    var augBonusDie = (typeof getAugBonus === 'function') ? getAugBonus('control') : 0;
+    var augRoll = augBonusDie > 0 ? explodingRoll(augBonusDie) : null;
+    var ctrlVal = Number(ctrlRoll.total || 0) + Number(augRoll ? augRoll.total : 0);
+
+    applyHackCastOutcome({
+      hackName: hackName,
+      hackData: hackData,
+      tmwCost: tmwCost,
+      dreadDie: dreadDie,
+      low: low,
+      high: high,
+      ctrlDie: ctrlDie,
+      ctrlVal: ctrlVal,
+      guess: String(S.hackRoller.guess || 'between'),
+      combatEnemy: combatEnemy,
+      manual: false
+    });
   }
 
   window.renderWeaponModsPanel  = renderWeaponModsPanel;
@@ -7308,6 +7579,7 @@
   window.setHackGuess           = setHackGuess;
   window.setHackDreadDie        = setHackDreadDie;
   window.castHack               = castHack;
+  window.resolveManualHackCast  = resolveManualHackCast;
   window.getAvailableWeaponModSlots = getAvailableWeaponModSlots;
   window.buyHoldingBrowseOffer = buyHoldingBrowseOffer;
   window.sellHoldingBrowseBackpackItem = sellHoldingBrowseBackpackItem;
@@ -7673,12 +7945,12 @@
   
   // ── COMBAT MANUAL ROLL HANDLER ──────────────────────────────────────────────
   window.performCombatActionManualRoll = function(type) {
-    if (!type || (type !== 'strike' && type !== 'shoot')) return;
+    if (!type || ['strike', 'shoot', 'spell', 'hack'].indexOf(type) < 0) return;
 
     var selected = (window.selectedDice && typeof window.selectedDice === 'object') ? window.selectedDice : { action: 4, dread: 6 };
     var actionDie = Number(selected.action || 4);
     var dreadDie = Number(selected.dread || 6);
-    var skillLabel = type === 'strike' ? 'Strike' : 'Shoot';
+    var skillLabel = type === 'strike' ? 'Strike' : (type === 'shoot' ? 'Shoot' : (type === 'hack' ? 'Hack' : 'Spell'));
     
     var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.7;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);margin-bottom:.4rem;">'
@@ -7737,10 +8009,11 @@
     var diff = Math.max(1, success ? actionValue - dreadValue : dreadValue - actionValue);
     var targetEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
     var resultEl = (typeof document !== 'undefined') ? document.getElementById('wayfarerActionResult') : null;
-    var label = mode === 'heavy' ? 'Heavy Attack' : (mode === 'fast' ? 'Fast Attack' : (type === 'strike' ? 'Strike' : 'Shoot'));
+    var label = mode === 'heavy' ? 'Heavy Attack' : (mode === 'fast' ? 'Fast Attack' : (type === 'strike' ? 'Strike' : (type === 'shoot' ? 'Shoot' : (type === 'hack' ? 'Hack' : 'Spell'))));
+    var dccType = (type === 'hack' || type === 'spell') ? 'spell' : type;
 
     if (success) {
-      var dmg = Math.max(1, diff) + (mode === 'heavy' ? 2 : 0);
+      var dmg = Math.max(1, diff) + (mode === 'heavy' ? 2 : 0) + ((type === 'spell') ? 1 : 0);
       if (targetEnemy && typeof applyStressToEnemy === 'function') {
         applyStressToEnemy(targetEnemy, dmg, label + ' (Manual)');
       }
@@ -7750,7 +8023,7 @@
       }
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
       if (typeof showDccSuccessOutcome === 'function') {
-        showDccSuccessOutcome(type, diff, {
+        showDccSuccessOutcome(dccType, diff, {
           actionTotal: actionValue,
           dreadTotal: dreadValue,
           context: label + ' vs Enemy Dread (manual roll)'
@@ -7762,7 +8035,7 @@
     } else {
       if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-combat-failure');
       if (typeof showDccFailureOutcome === 'function') {
-        showDccFailureOutcome(type, diff, {
+        showDccFailureOutcome(dccType, diff, {
           actionTotal: actionValue,
           dreadTotal: dreadValue,
           context: label + ' vs Enemy Dread (manual roll)'

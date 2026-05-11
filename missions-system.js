@@ -2881,6 +2881,42 @@
     var zoomLabel = document.getElementById('raidTreeZoomLabel');
     if (zoomInput) zoomInput.value = String(Math.round(view.zoom * 100));
     if (zoomLabel) zoomLabel.textContent = Math.round(view.zoom * 100) + '%';
+    updateRaidTreeMinimap(view, viewportEl, sceneWidth, sceneHeight);
+  }
+
+  function updateRaidTreeMinimap(view, viewportEl, sceneWidth, sceneHeight) {
+    if (!view || !viewportEl) return;
+    var minimapEl = document.getElementById('raidTreeMinimap');
+    var viewportRectEl = document.getElementById('raidTreeMinimapViewport');
+    if (!minimapEl || !viewportRectEl) return;
+    var mmW = Math.max(1, Number(minimapEl.clientWidth || 1));
+    var mmH = Math.max(1, Number(minimapEl.clientHeight || 1));
+    var sx = mmW / Math.max(1, Number(sceneWidth || 1));
+    var sy = mmH / Math.max(1, Number(sceneHeight || 1));
+    var worldLeft = -Number(view.x || 0) / Math.max(0.01, Number(view.zoom || 1));
+    var worldTop = -Number(view.y || 0) / Math.max(0.01, Number(view.zoom || 1));
+    var worldW = Math.max(1, Number(viewportEl.clientWidth || 1)) / Math.max(0.01, Number(view.zoom || 1));
+    var worldH = Math.max(1, Number(viewportEl.clientHeight || 1)) / Math.max(0.01, Number(view.zoom || 1));
+    var left = Math.max(0, Math.min(mmW, worldLeft * sx));
+    var top = Math.max(0, Math.min(mmH, worldTop * sy));
+    var width = Math.max(12, Math.min(mmW, worldW * sx));
+    var height = Math.max(10, Math.min(mmH, worldH * sy));
+    viewportRectEl.style.left = left + 'px';
+    viewportRectEl.style.top = top + 'px';
+    viewportRectEl.style.width = width + 'px';
+    viewportRectEl.style.height = height + 'px';
+  }
+
+  function jumpRaidTreeToWorld(worldX, worldY, viewportEl, sceneEl, sceneWidth, sceneHeight) {
+    var view = ensureRaidTreeViewState();
+    if (!view || !viewportEl || !sceneEl) return;
+    var wx = Number(worldX || 0);
+    var wy = Number(worldY || 0);
+    view.x = (Number(viewportEl.clientWidth || 0) * 0.5) - (wx * Number(view.zoom || 1));
+    view.y = (Number(viewportEl.clientHeight || 0) * 0.5) - (wy * Number(view.zoom || 1));
+    view.vx = 0;
+    view.vy = 0;
+    applyRaidTreeTransform(view, viewportEl, sceneEl, sceneWidth, sceneHeight);
   }
 
   function setRaidTreeZoom(nextZoom, viewportEl, sceneEl, sceneWidth, sceneHeight, anchorX, anchorY) {
@@ -3001,6 +3037,40 @@
           var z = Number(zoomInput.value || 100) / 100;
           setRaidTreeZoom(z, viewportEl, sceneEl, sceneWidth, sceneHeight);
         });
+      }
+
+      var minimapEl = document.getElementById('raidTreeMinimap');
+      if (minimapEl && !minimapEl.__raidTreeBound) {
+        minimapEl.__raidTreeBound = true;
+        var minimapDragging = false;
+        function handleMinimapNav(evt) {
+          if (!evt) return;
+          var rect = minimapEl.getBoundingClientRect();
+          var mx = Math.max(0, Math.min(Number(rect.width || 1), Number(evt.clientX || 0) - Number(rect.left || 0)));
+          var my = Math.max(0, Math.min(Number(rect.height || 1), Number(evt.clientY || 0) - Number(rect.top || 0)));
+          var worldX = (mx / Math.max(1, Number(rect.width || 1))) * sceneWidth;
+          var worldY = (my / Math.max(1, Number(rect.height || 1))) * sceneHeight;
+          jumpRaidTreeToWorld(worldX, worldY, viewportEl, sceneEl, sceneWidth, sceneHeight);
+        }
+        minimapEl.addEventListener('pointerdown', function (evt) {
+          minimapDragging = true;
+          evt.preventDefault();
+          evt.stopPropagation();
+          handleMinimapNav(evt);
+          try { minimapEl.setPointerCapture(evt.pointerId); } catch (_err) {}
+        });
+        minimapEl.addEventListener('pointermove', function (evt) {
+          if (!minimapDragging) return;
+          evt.preventDefault();
+          evt.stopPropagation();
+          handleMinimapNav(evt);
+        });
+        function finishMinimap(evt) {
+          minimapDragging = false;
+          try { minimapEl.releasePointerCapture(evt.pointerId); } catch (_err) {}
+        }
+        minimapEl.addEventListener('pointerup', finishMinimap);
+        minimapEl.addEventListener('pointercancel', finishMinimap);
       }
     }
 
@@ -3227,6 +3297,8 @@
     var graphNodes = legacyNodeMeta.concat(titanNodeMeta);
     var graphLookup = {};
     graphNodes.forEach(function (n) { graphLookup[n.id] = n; });
+    var sceneWidth = 1560;
+    var sceneHeight = 770;
 
     var edgeHtml = '';
     edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="124" fill="none" stroke="rgba(126,215,255,.12)" stroke-width="1.2" />';
@@ -3272,6 +3344,14 @@
         edgeHtml += '<line x1="' + (pa.x + pa.w / 2) + '" y1="' + (pa.y + pa.h / 2) + '" x2="' + (pb.x + pb.w / 2) + '" y2="' + (pb.y + pb.h / 2) + '" stroke="rgba(240,139,108,.22)" stroke-width="1.8" stroke-dasharray="3 4" />';
       }
     });
+    var minimapNodesHtml = graphNodes.map(function (node) {
+      var cx = Math.round(Number(node.x || 0) + (Number(node.w || 0) / 2));
+      var cy = Math.round(Number(node.y || 0) + (Number(node.h || 0) / 2));
+      var rarity = String(node.rarity || 'normal');
+      var radius = rarity === 'keystone' ? 4 : (rarity === 'notable' ? 3 : 2.2);
+      var fill = rarity === 'keystone' ? 'rgba(255,177,106,.95)' : (rarity === 'notable' ? 'rgba(141,217,255,.9)' : 'rgba(188,202,220,.78)');
+      return '<circle cx="' + cx + '" cy="' + cy + '" r="' + radius + '" fill="' + fill + '" />';
+    }).join('');
 
     var legacyNodesHtml = legacyNodeMeta.map(function (node) {
       var rarityFrame = node.rarity === 'keystone' ? 'rgba(255,170,88,.62)' : (node.rarity === 'notable' ? 'rgba(126,215,255,.48)' : (node.capped ? 'rgba(103,214,179,.55)' : 'rgba(255,255,255,.2)'));
@@ -3347,13 +3427,24 @@
       + '</div>'
       + '</div>'
       + '<div id="raidSkillTreeViewport" style="position:relative;overflow:hidden;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(140% 120% at 30% 20%, rgba(19,30,45,.52), rgba(6,10,14,.96));cursor:grab;touch-action:none;">'
-      + '<div id="raidSkillTreeScene" data-scene-width="1560" data-scene-height="770" style="position:relative;width:1560px;height:770px;will-change:transform;">'
-      + '<svg width="1560" height="770" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
+      + '<div id="raidSkillTreeScene" data-scene-width="' + sceneWidth + '" data-scene-height="' + sceneHeight + '" style="position:relative;width:' + sceneWidth + 'px;height:' + sceneHeight + 'px;will-change:transform;">'
+      + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
       + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
       + '<div style="position:absolute;left:818px;top:38px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Branch Clusters: Tactician / Fury / Seeker</div>'
       + '<div style="position:absolute;left:1086px;top:548px;font-size:.56rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Core Chain</div>'
       + legacyNodesHtml
       + titanNodesHtml
+      + '</div>'
+      + '<div style="position:absolute;right:.5rem;bottom:.48rem;z-index:4;display:grid;gap:.12rem;justify-items:end;">'
+      + '<div style="font-size:.5rem;color:var(--muted2);padding:.06rem .18rem;background:rgba(6,10,14,.7);border:1px solid rgba(255,255,255,.12);letter-spacing:.08em;text-transform:uppercase;">Minimap: click or drag to jump</div>'
+      + '<div id="raidTreeMinimap" style="position:relative;width:230px;height:118px;border:1px solid rgba(126,215,255,.4);background:rgba(7,12,18,.92);box-shadow:0 10px 24px rgba(0,0,0,.35);cursor:pointer;touch-action:none;">'
+      + '<svg width="230" height="118" viewBox="0 0 ' + sceneWidth + ' ' + sceneHeight + '" style="position:absolute;left:0;top:0;width:100%;height:100%;">'
+      + '<rect x="0" y="0" width="' + sceneWidth + '" height="' + sceneHeight + '" fill="rgba(8,14,22,.68)" />'
+      + '<g opacity=".56">' + edgeHtml + '</g>'
+      + minimapNodesHtml
+      + '</svg>'
+      + '<div id="raidTreeMinimapViewport" style="position:absolute;left:0;top:0;border:1px solid rgba(255,213,106,.95);background:rgba(255,213,106,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);pointer-events:none;"></div>'
+      + '</div>'
       + '</div>'
       + '</div>'
       + '<div style="margin-top:.24rem;border-top:1px solid rgba(255,255,255,.1);padding-top:.18rem;">'

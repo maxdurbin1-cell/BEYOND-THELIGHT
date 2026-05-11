@@ -3957,9 +3957,9 @@
       var st = ensureRaidTreeViewState();
       if (!st) return;
       if (sceneWidth >= 3000) {
-        st.zoom = 0.78;
-        var focusX = 1920;
-        var focusY = 560;
+        st.zoom = 0.68;
+        var focusX = 2280;
+        var focusY = 760;
         st.x = (Number(viewportEl.clientWidth || 0) * 0.5) - (focusX * st.zoom);
         st.y = (Number(viewportEl.clientHeight || 0) * 0.5) - (focusY * st.zoom);
       } else {
@@ -3975,10 +3975,10 @@
       jumpRaidTreeToWorld(260, 340, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpTitan = function () {
-      jumpRaidTreeToWorld(1150, 700, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(1200, 980, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpGodbound = function () {
-      jumpRaidTreeToWorld(1880, 700, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(2280, 980, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpVoice = function () {
       jumpRaidTreeToWorld(1580, 440, viewportEl, sceneEl, sceneWidth, sceneHeight);
@@ -3990,7 +3990,7 @@
       jumpRaidTreeToWorld(2180, 440, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
     window.raidTreeJumpExile = function () {
-      jumpRaidTreeToWorld(2620, 700, viewportEl, sceneEl, sceneWidth, sceneHeight);
+      jumpRaidTreeToWorld(3380, 980, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
   }
 
@@ -4191,7 +4191,7 @@
     var titanPathHeader = '<div style="border:1px solid rgba(126,215,255,.28);background:linear-gradient(145deg, rgba(9,16,24,.96), rgba(12,18,30,.9));padding:.55rem .62rem;margin-top:.42rem;">'
       + '<div style="font-size:.78rem;color:#7ed7ff;margin-bottom:.1rem;"><strong>Raid Skill Paths</strong></div>'
       + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;">Path web framework: Titan, Exile, Godbound, Weaver. Titan, Exile, and Godbound are active with subclass branches.</div>'
-      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Active subclasses: Titan (Tactician, Fury, Seeker) · Exile (Breeze, Stalker, Muse) · Godbound (Voice, Justice, Keeper). Planned: Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
+      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Active now: Legacy, Titan, Godbound, Exile. Godbound is the core class, with Voice, Justice, and Keeper as subclasses. Planned next: Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
       + '</div>';
 
     var titanNodeMeta = TITAN_RAID_WEB_NODES.map(function (node) {
@@ -4283,22 +4283,22 @@
     });
 
     var titanCenters = {
-      Titan:      { x: 1150, y: 700 },
-      Tactician:  { x: 420,  y: 440 },
-      Fury:       { x: 1150, y: 330 },
-      Seeker:     { x: 1880, y: 440 },
-      Godbound:   { x: 1880, y: 700 },
-      Voice:      { x: 1580, y: 440 },
-      Justice:    { x: 1880, y: 330 },
-      Keeper:     { x: 2180, y: 440 },
-      Exile:      { x: 2620, y: 700 },
-      Breeze:     { x: 2320, y: 440 },
-      Stalker:    { x: 2620, y: 330 },
-      Muse:       { x: 2920, y: 440 }
+      Titan:      { x: 1200, y: 980 },
+      Tactician:  { x: 560,  y: 520 },
+      Fury:       { x: 1200, y: 360 },
+      Seeker:     { x: 1840, y: 520 },
+      Godbound:   { x: 2280, y: 980 },
+      Voice:      { x: 1940, y: 520 },
+      Justice:    { x: 2280, y: 360 },
+      Keeper:     { x: 2620, y: 520 },
+      Exile:      { x: 3380, y: 980 },
+      Breeze:     { x: 3040, y: 520 },
+      Stalker:    { x: 3380, y: 360 },
+      Muse:       { x: 3720, y: 520 }
     };
     // Ring radii per node group for non-Titan subclasses
-    var groupRingMap     = { root: 62, passive: 122, action: 195, teamwork: 272 };
-    var groupRingTitan   = { root: 45, passive: 85,  action: 130, teamwork: 175 };
+    var groupRingMap     = { root: 78, passive: 182, action: 300, teamwork: 430 };
+    var groupRingTitan   = { root: 56, passive: 116, action: 186, teamwork: 260 };
     // Arc center direction (degrees) pointing AWAY from Titan core
     var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340, Godbound: 270, Voice: 200, Justice: 270, Keeper: 340, Exile: 270, Breeze: 200, Stalker: 270, Muse: 340 };
     // First pass: count per (subclass, group) bucket for dynamic spread
@@ -4321,7 +4321,7 @@
       var count    = bcCount[bucket] || 1;
       if (ring === 0 || (ring < 50 && count > 1)) ring = Math.max(ring, 44);
       var arcDir   = subclassArcDir[subclass] !== undefined ? subclassArcDir[subclass] : 0;
-      var spread   = count <= 1 ? 0 : Math.min(300, count * 32);
+      var spread   = count <= 1 ? 0 : Math.min(420, count * 42);
       var angle    = arcDir + (count <= 1 ? 0 : ((slot / Math.max(1, count - 1)) * spread - spread / 2));
       var a        = (angle * Math.PI) / 180;
       var cx       = Math.round(center.x + Math.cos(a) * ring);
@@ -4337,8 +4337,8 @@
     var graphNodes = legacyNodeMeta.concat(titanNodeMeta);
     var graphLookup = {};
     graphNodes.forEach(function (n) { graphLookup[n.id] = n; });
-    var sceneWidth = 3280;
-    var sceneHeight = 920;
+    var sceneWidth = 4300;
+    var sceneHeight = 1460;
 
     var edgeHtml = '';
     edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="124" fill="none" stroke="rgba(126,215,255,.12)" stroke-width="1.2" />';
@@ -4346,7 +4346,7 @@
     Object.keys(titanCenters).forEach(function (key) {
       var isTCore = key === 'Titan';
       var c = titanCenters[key];
-      var rs = isTCore ? [45, 85, 130, 175] : [62, 122, 195, 272];
+      var rs = isTCore ? [56, 116, 186, 260] : [78, 182, 300, 430];
       var alphas = ['.22', '.16', '.12', '.08'];
       var accent = getSubclassAccent(key);
       rs.forEach(function (r, ri) {
@@ -4505,9 +4505,6 @@
       + '<button class="btn btn-xs" onclick="raidTreeJumpLegacy()">Legacy</button>'
       + '<button class="btn btn-xs" onclick="raidTreeJumpTitan()">Titan</button>'
       + '<button class="btn btn-xs" onclick="raidTreeJumpGodbound()">Godbound</button>'
-      + '<button class="btn btn-xs" onclick="raidTreeJumpVoice()">Voice</button>'
-      + '<button class="btn btn-xs" onclick="raidTreeJumpJustice()">Justice</button>'
-      + '<button class="btn btn-xs" onclick="raidTreeJumpKeeper()">Keeper</button>'
       + '<button class="btn btn-xs" onclick="raidTreeJumpExile()">Exile</button>'
       + '<button class="btn btn-xs" onclick="raidTreeZoomOut()">-</button>'
       + '<input id="raidTreeZoomInput" type="range" min="60" max="180" step="5" value="100" style="width:120px;accent-color:#7ed7ff;">'
@@ -4520,23 +4517,23 @@
       + '<div id="raidSkillTreeViewport" style="position:relative;overflow:hidden;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(180% 150% at 10% 4%, rgba(34,52,78,.56), rgba(7,12,18,.98) 55%),repeating-linear-gradient(118deg, rgba(255,255,255,.03) 0 1px, transparent 1px 24px);cursor:grab;touch-action:none;">'
       + '<div id="raidSkillTreeScene" data-scene-width="' + sceneWidth + '" data-scene-height="' + sceneHeight + '" style="position:relative;width:' + sceneWidth + 'px;height:' + sceneHeight + 'px;will-change:transform;">'
       + '<div style="position:absolute;left:120px;top:80px;width:380px;height:250px;border-radius:50%;background:radial-gradient(circle, rgba(126,215,255,.18), rgba(126,215,255,0));filter:blur(14px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:980px;top:560px;width:520px;height:300px;border-radius:50%;background:radial-gradient(circle, rgba(255,159,99,.2), rgba(255,159,99,0));filter:blur(18px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:1680px;top:560px;width:520px;height:300px;border-radius:50%;background:radial-gradient(circle, rgba(240,216,122,.2), rgba(240,216,122,0));filter:blur(18px);pointer-events:none;"></div>'
-      + '<div style="position:absolute;left:2420px;top:560px;width:520px;height:300px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.2), rgba(125,226,196,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:980px;top:780px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(255,159,99,.2), rgba(255,159,99,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:2060px;top:780px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(240,216,122,.2), rgba(240,216,122,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:3140px;top:780px;width:620px;height:360px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.2), rgba(125,226,196,0));filter:blur(18px);pointer-events:none;"></div>'
       + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
       + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
-      + '<div style="position:absolute;left:330px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Tactician</div>'
-      + '<div style="position:absolute;left:1068px;top:54px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Fury</div>'
-      + '<div style="position:absolute;left:1810px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Seeker</div>'
-      + '<div style="position:absolute;left:1514px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Voice</div>'
-      + '<div style="position:absolute;left:1812px;top:54px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Justice</div>'
-      + '<div style="position:absolute;left:2108px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Keeper</div>'
-      + '<div style="position:absolute;left:2240px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Breeze</div>'
-      + '<div style="position:absolute;left:2538px;top:54px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Stalker</div>'
-      + '<div style="position:absolute;left:2860px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Muse</div>'
-      + '<div style="position:absolute;left:1068px;top:730px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Titan Core</div>'
-      + '<div style="position:absolute;left:1796px;top:730px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Godbound Core</div>'
-      + '<div style="position:absolute;left:2538px;top:730px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Exile Core</div>'
+      + '<div style="position:absolute;left:460px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Tactician</div>'
+      + '<div style="position:absolute;left:1130px;top:145px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Fury</div>'
+      + '<div style="position:absolute;left:1760px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Seeker</div>'
+      + '<div style="position:absolute;left:1860px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Voice</div>'
+      + '<div style="position:absolute;left:2220px;top:145px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Justice</div>'
+      + '<div style="position:absolute;left:2540px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Keeper</div>'
+      + '<div style="position:absolute;left:2980px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Breeze</div>'
+      + '<div style="position:absolute;left:3320px;top:145px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Stalker</div>'
+      + '<div style="position:absolute;left:3650px;top:230px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Muse</div>'
+      + '<div style="position:absolute;left:1120px;top:1040px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Titan Core</div>'
+      + '<div style="position:absolute;left:2200px;top:1040px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Godbound Core</div>'
+      + '<div style="position:absolute;left:3300px;top:1040px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Exile Core</div>'
       + legacyNodesHtml
       + titanNodesHtml
       + '<div id="raidNodeTip" style="position:absolute;z-index:220;display:none;background:rgba(7,11,18,.97);border:1px solid rgba(126,215,255,.5);color:#c8dff2;font-size:.62rem;padding:.22rem .46rem;white-space:nowrap;pointer-events:none;border-radius:3px;letter-spacing:.03em;"></div>'

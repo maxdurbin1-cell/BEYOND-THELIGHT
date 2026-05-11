@@ -6939,6 +6939,279 @@
   window.getAvailableWeaponModSlots = getAvailableWeaponModSlots;
   window.buyHoldingBrowseOffer = buyHoldingBrowseOffer;
   window.sellHoldingBrowseBackpackItem = sellHoldingBrowseBackpackItem;
+
+  // ── ENHANCED MANUAL ROLL SYSTEM ──────────────────────────────────────────────
+  // Comprehensive manual roll with prompt showing modifiers, conditions, skills, bonuses/advantages
+  // Success = +1 Path Token | Failure = +1 Teamwork Point (with option to spend TMW to increase roll)
+
+  function buildManualRollModifiersHtml() {
+    if (typeof S === 'undefined') { return ''; }
+    var modifiers = [];
+    var penalty = [];
+
+    // Check active conditions
+    if (S.conditions) {
+      if (S.conditions.focused) modifiers.push('🎯 Focused (+advantage)');
+      if (S.conditions.protected) modifiers.push('🛡️ Protected (+defense)');
+      if (S.conditions.inspired) modifiers.push('✨ Inspired (+rolls)');
+      if (S.conditions.distracted) penalty.push('⚠️ Distracted (−rolls)');
+      if (S.conditions.wounded) penalty.push('🩸 Wounded (−actions)');
+      if (S.conditions.afraid) penalty.push('😨 Afraid (−rolls)');
+    }
+
+    // Check equipped items/weapons for bonuses
+    if (S.equipment && S.equipment.weapon1) {
+      var w1 = String(S.equipment.weapon1).trim();
+      if (w1) modifiers.push('⚔️ ' + w1);
+    }
+    if (S.equipment && S.equipment.weapon2) {
+      var w2 = String(S.equipment.weapon2).trim();
+      if (w2 && w2 !== S.equipment.weapon1) modifiers.push('⚔️ ' + w2);
+    }
+
+    // Check for advantage die or flat bonus from roll modifiers
+    if (S.rollMod && typeof S.rollMod === 'object') {
+      if (Array.isArray(S.rollMod.advDice) && S.rollMod.advDice.length > 0) {
+        var advDice = S.rollMod.advDice.map(function(d) { return '+d' + d; }).join(', ');
+        modifiers.push('📈 Advantage: ' + advDice);
+      }
+      if (typeof S.rollMod.flat === 'number' && S.rollMod.flat > 0) {
+        modifiers.push('➕ Bonus: +' + S.rollMod.flat);
+      } else if (typeof S.rollMod.flat === 'number' && S.rollMod.flat < 0) {
+        penalty.push('➖ Penalty: ' + S.rollMod.flat);
+      }
+    }
+
+    // Check for skill/trait bonuses
+    if (S.personalFlavors && Array.isArray(S.personalFlavors) && S.personalFlavors.length > 0) {
+      var flavorStr = S.personalFlavors.slice(0, 2).join(' · ');
+      if (flavorStr) modifiers.push('✦ Flavor: ' + flavorStr.substring(0, 45));
+    }
+
+    var html = '<div style="margin-top:.4rem;font-size:.74rem;color:var(--text2);line-height:1.6;">';
+    if (modifiers.length > 0) {
+      html += '<div style="color:var(--teal);margin-bottom:.25rem;"><strong>Bonuses & Advantages:</strong></div>';
+      html += modifiers.map(function(m) { return '<div style="margin-left:.4rem;">• ' + m + '</div>'; }).join('');
+    }
+    if (penalty.length > 0) {
+      html += '<div style="color:var(--red2);margin-top:.25rem;"><strong>Penalties & Conditions:</strong></div>';
+      html += penalty.map(function(p) { return '<div style="margin-left:.4rem;">• ' + p + '</div>'; }).join('');
+    }
+    if (modifiers.length === 0 && penalty.length === 0) {
+      html += '<div style="color:var(--muted2);font-style:italic;">No active modifiers or conditions.</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function showEnhancedManualRollPrompt(skillName, actionDie, dreadDie) {
+    if (typeof openModal !== 'function' || typeof S === 'undefined') { return; }
+
+    var skillLabel = String(skillName || 'Unknown').trim();
+    var actionDieNum = Math.max(4, Number(actionDie || 6));
+    var dreadDieNum = Math.max(4, Number(dreadDie || 6));
+    var currentTMW = Math.max(0, Number(S.tmw || 0));
+
+    var modifiersHtml = buildManualRollModifiersHtml();
+
+    var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.7;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);margin-bottom:.4rem;">'
+      + skillLabel + ' vs Dread d' + dreadDieNum
+      + '</div>'
+      + '<div style="background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.25);padding:.35rem .45rem;margin-bottom:.4rem;border-radius:3px;">'
+      + '<div style="font-size:.75rem;color:var(--teal);margin-bottom:.15rem;"><strong>Roll Against:</strong></div>'
+      + '<div><strong style="color:var(--text2);">' + skillLabel + ' d' + actionDieNum + '</strong> <span style="color:var(--muted2);">vs</span> <strong style="color:var(--red);">Dread d' + dreadDieNum + '</strong></div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.1rem;">Beat the Dread die result to succeed.</div>'
+      + '</div>'
+      + modifiersHtml
+      + '<div style="background:rgba(232,192,80,.04);border:1px solid rgba(232,192,80,.3);padding:.35rem .45rem;margin-top:.4rem;border-radius:3px;">'
+      + '<div style="font-size:.75rem;color:var(--gold2);margin-bottom:.2rem;"><strong>Teamwork Points Available:</strong> <span style="color:var(--teal);font-size:.82rem;">' + currentTMW + ' TMW</span></div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);">On failure, you can spend 1 TMW per point to increase your roll score.</div>'
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.6rem;">'
+      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn btn-sm btn-red" onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\')" style="flex:1;">🎲 Roll & Resolve</button>'
+      + '</div>';
+
+    openModal('Manual Roll: ' + skillLabel + ' Check', html);
+  }
+
+  function awardPathToken(reason) {
+    if (typeof S === 'undefined') { return; }
+    if (!S.pathTokens) S.pathTokens = 0;
+    S.pathTokens = (S.pathTokens || 0) + 1;
+    var ptEl = document.getElementById('pathTokensVal');
+    if (ptEl) { ptEl.textContent = S.pathTokens; }
+    var msg = 'Success! +1 Path Token (now ' + S.pathTokens + ')';
+    if (typeof showNotif === 'function') showNotif(msg, 'good');
+    return 1;
+  }
+
+  function manualRollOutcomeFailure(actionDie, dreadDie, skillLabel) {
+    if (typeof closeModal !== 'function' || typeof S === 'undefined') { return; }
+    closeModal();
+
+    // Get the current rolls from manual input
+    var actionInput = document.getElementById('manualActionValue');
+    var dreadInput = document.getElementById('manualDreadValue');
+
+    if (!actionInput || !dreadInput) {
+      if (typeof showNotif === 'function') showNotif('Enter Action and Dread dice values first!', 'warn');
+      return;
+    }
+
+    var actionRoll = parseInt(actionInput.value, 10);
+    var dreadRoll = parseInt(dreadInput.value, 10);
+
+    if (!Number.isFinite(actionRoll) || !Number.isFinite(dreadRoll)) {
+      if (typeof showNotif === 'function') showNotif('Invalid dice entry. Please enter numeric values.', 'warn');
+      return;
+    }
+
+    var success = actionRoll >= dreadRoll;
+
+    if (success) {
+      // Success: Award +1 Path Token
+      awardPathToken('manual-roll-success');
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome('spell', Math.max(1, actionRoll - dreadRoll), {
+          actionTotal: actionRoll,
+          dreadTotal: dreadRoll,
+          context: skillLabel + ' check (manual roll)'
+        });
+      }
+      // Clear the inputs
+      actionInput.value = '';
+      dreadInput.value = '';
+    } else {
+      // Failure: Show options to spend TMW
+      handleManualRollFailure(actionDie, dreadDie, skillLabel, actionRoll, dreadRoll);
+    }
+  }
+
+  function handleManualRollFailure(actionDie, dreadDie, skillLabel, actionRoll, dreadRoll) {
+    if (typeof openModal !== 'function' || typeof S === 'undefined') { return; }
+
+    var currentTMW = Math.max(0, Number(S.tmw || 0));
+    var failedBy = Math.max(1, dreadRoll - actionRoll);
+    var needForSuccess = failedBy; // Need this much TMW to convert to success
+
+    var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.7;">'
+      + '<div style="background:rgba(201,64,64,.1);border:1px solid rgba(201,64,64,.35);padding:.4rem .55rem;margin-bottom:.4rem;border-radius:3px;">'
+      + '<div style="font-size:.82rem;color:var(--red2);margin-bottom:.15rem;"><strong>❌ Failed Roll</strong></div>'
+      + '<div style="font-size:.75rem;color:var(--red2);">'
+      + skillLabel + ' <strong style="color:var(--text2);">' + actionRoll + '</strong> vs Dread <strong style="color:var(--text2);">' + dreadRoll + '</strong>'
+      + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin-top:.1rem;font-weight:700;">Failed by: <span style="color:var(--red);">' + failedBy + '</span></div>'
+      + '</div>'
+      + '<div style="background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.25);padding:.4rem .55rem;margin-bottom:.4rem;border-radius:3px;">'
+      + '<div style="font-size:.82rem;color:var(--teal);margin-bottom:.2rem;"><strong>+1 Teamwork Point Awarded</strong></div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);">Failure grants experience in the form of Teamwork Points.</div>'
+      + '</div>'
+      + '<div style="background:rgba(232,192,80,.04);border:1px solid rgba(232,192,80,.3);padding:.4rem .55rem;margin-bottom:.4rem;border-radius:3px;">'
+      + '<div style="font-size:.82rem;color:var(--gold2);margin-bottom:.2rem;"><strong>Spend Teamwork Points?</strong></div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.3rem;">You have <strong style="color:var(--teal);">' + currentTMW + ' TMW</strong> available.</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);">Spend <strong style="color:var(--text2);">' + needForSuccess + ' TMW</strong> to convert this failure to a success.</div>';
+
+    // Input field to specify how much TMW to spend
+    html += '<label style="display:block;margin-top:.3rem;">'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.15rem;">TMW to Spend:</div>'
+      + '<input type="number" id="manualRollTMWSpend" min="0" max="' + currentTMW + '" value="0" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;">'
+      + '</label>'
+      + '</div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.6rem;">'
+      + '<button class="btn btn-sm" onclick="closeModal(); awardFailureTeamwork()">Keep Failure (+1 TMW)</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="applyManualRollTMWSpend(' + actionRoll + ',' + dreadRoll + ',' + needForSuccess + ',\'' + skillLabel.replace(/'/g, "\\'") + '\')">Spend TMW to Succeed</button>'
+      + '</div>';
+
+    html += '</div>';
+    openModal('Failed Roll: ' + skillLabel + ' Check', html);
+  }
+
+  function awardFailureTeamwork() {
+    if (typeof S === 'undefined') { return; }
+    if (typeof addTMWOnFail === 'function') {
+      addTMWOnFail('manual-roll-failure', { skipPrompt: true });
+    } else {
+      if (!S.tmw) S.tmw = 0;
+      S.tmw = (S.tmw || 0) + 1;
+      if (typeof updateTMWPool === 'function') { updateTMWPool(); }
+    }
+    if (typeof showNotif === 'function') showNotif('Failure noted. +1 Teamwork Point awarded.', 'info');
+  }
+
+  function applyManualRollTMWSpend(originalRoll, dreadRoll, needed, skillLabel) {
+    if (typeof S === 'undefined' || typeof getCounter !== 'function') { return; }
+
+    var spendInput = document.getElementById('manualRollTMWSpend');
+    if (!spendInput) { return; }
+
+    var spent = Math.max(0, parseInt(spendInput.value, 10) || 0);
+    var currentTMW = Math.max(0, Number(S.tmw || 0));
+
+    if (spent > currentTMW) {
+      if (typeof showNotif === 'function') showNotif('Not enough Teamwork Points!', 'warn');
+      return;
+    }
+
+    var newRoll = originalRoll + spent;
+    var success = newRoll >= dreadRoll;
+
+    // Deduct TMW
+    if (spent > 0) {
+      if (typeof changeCounter === 'function') {
+        changeCounter('tmw', -spent);
+      } else {
+        S.tmw = Math.max(0, (S.tmw || 0) - spent);
+      }
+    }
+
+    if (spent > 0 && typeof showNotif === 'function') {
+      showNotif('Spent ' + spent + ' Teamwork: roll increased from ' + originalRoll + ' to ' + newRoll, 'info');
+    }
+
+    if (typeof closeModal === 'function') closeModal();
+
+    // Award failure teamwork if still failed, or award success path token if now succeeded
+    if (success) {
+      if (typeof showNotif === 'function') showNotif('After spending TMW, you now succeed! +1 Path Token', 'good');
+      awardPathToken('manual-roll-tmw-convert');
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome('spell', Math.max(1, newRoll - dreadRoll), {
+          actionTotal: newRoll,
+          dreadTotal: dreadRoll,
+          context: skillLabel + ' check (TMW converted)'
+        });
+      }
+    } else {
+      // Still failed even with TMW
+      awardFailureTeamwork();
+      if (typeof showNotif === 'function') {
+        showNotif('After spending ' + spent + ' TMW, you still fail (need ' + (needed - spent) + ' more). But you earned +1 Teamwork!', 'warn');
+      }
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome('spell', Math.max(1, dreadRoll - newRoll), {
+          actionTotal: newRoll,
+          dreadTotal: dreadRoll,
+          context: skillLabel + ' check (TMW partial)'
+        });
+      }
+    }
+
+    // Clear the manual inputs
+    var actionInput = document.getElementById('manualActionValue');
+    var dreadInput = document.getElementById('manualDreadValue');
+    if (actionInput) actionInput.value = '';
+    if (dreadInput) dreadInput.value = '';
+  }
+
+  window.showEnhancedManualRollPrompt = showEnhancedManualRollPrompt;
+  window.awardPathToken = awardPathToken;
+  window.manualRollOutcomeFailure = manualRollOutcomeFailure;
+  window.handleManualRollFailure = handleManualRollFailure;
+  window.awardFailureTeamwork = awardFailureTeamwork;
+  window.applyManualRollTMWSpend = applyManualRollTMWSpend;
 }());
 
 // ── TROPHY SYSTEM ─────────────────────────────────────────────────────────────

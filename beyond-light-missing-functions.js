@@ -2855,7 +2855,7 @@ function finalizeCheckResult(actionDie, dreadDie, actionTotal, dreadTotal, succe
         context: 'Action vs Dread check'
       });
     }
-    addTMWOnFail();
+    addTMWOnFail('manual-check-failure', { skipPrompt: true });
     changeHealth(Math.max(1, dreadTotal - actionTotal));
   } else {
     if (typeof showDccSuccessOutcome === 'function') {
@@ -2865,7 +2865,12 @@ function finalizeCheckResult(actionDie, dreadDie, actionTotal, dreadTotal, succe
         context: 'Action vs Dread check'
       });
     }
-    addSuccessRoll();
+    // Award +1 Path Token on manual roll success
+    if (typeof awardPathToken === 'function') {
+      awardPathToken('manual-check-success');
+    } else if (typeof addSuccessRoll === 'function') {
+      addSuccessRoll();
+    }
   }
 }
 

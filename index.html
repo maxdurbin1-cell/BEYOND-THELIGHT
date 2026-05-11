@@ -1248,8 +1248,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
         </div>
         <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.5rem;">
           <button class="btn btn-sm" onclick="compareManualCheckValues()">Compare Entered Dice</button>
-          <button class="btn btn-sm btn-red" onclick="resolveManualCheckOverride(false)">Failure</button>
-          <button class="btn btn-sm btn-primary" onclick="resolveManualCheckOverride(true)">Success</button>
+          <button class="btn btn-sm btn-red" onclick="handleEnhancedManualFailure()">Failure</button>
+          <button class="btn btn-sm btn-primary" onclick="handleEnhancedManualSuccess()">Success</button>
         </div>
       </div>
       <div style="margin-top:.55rem;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;">
@@ -1700,6 +1700,35 @@ function isManualRollModeEnabled(){
     return false;
   }
 }
+
+function handleEnhancedManualSuccess() {
+  var actionDie = window.selectedDice && window.selectedDice.action ? window.selectedDice.action : 4;
+  var dreadDie = window.selectedDice && window.selectedDice.dread ? window.selectedDice.dread : 6;
+  var actionInput = document.getElementById('manualActionValue');
+  var dreadInput = document.getElementById('manualDreadValue');
+  
+  if (!actionInput || !dreadInput || !actionInput.value || !dreadInput.value) {
+    if (typeof showNotif === 'function') showNotif('Enter Action and Dread dice values first!', 'warn');
+    return;
+  }
+  
+  resolveManualCheckOverride(true);
+}
+
+function handleEnhancedManualFailure() {
+  var actionDie = window.selectedDice && window.selectedDice.action ? window.selectedDice.action : 4;
+  var dreadDie = window.selectedDice && window.selectedDice.dread ? window.selectedDice.dread : 6;
+  var actionInput = document.getElementById('manualActionValue');
+  var dreadInput = document.getElementById('manualDreadValue');
+  
+  if (!actionInput || !dreadInput || !actionInput.value || !dreadInput.value) {
+    if (typeof showNotif === 'function') showNotif('Enter Action and Dread dice values first!', 'warn');
+    return;
+  }
+  
+  resolveManualCheckOverride(false);
+}
+
 function getManualRollValue(sides,meta){
   const die=Math.max(1,parseInt(sides,10)||1);
   if(window&&typeof window.consumeVisibleManualRollValue==='function'){

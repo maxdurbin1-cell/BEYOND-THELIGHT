@@ -2525,6 +2525,292 @@
       + '</div>';
   }
 
+  function ensurePinnacleHexCrawlState(run, mission, phase) {
+    if (!run || !mission) return null;
+    var p = Math.max(1, Math.min(2, Number(phase || run.phase || 1)));
+    if (!run.floors || typeof run.floors !== 'object') run.floors = {};
+    buildPinnacleFloorMinimapHtml(run, mission, p);
+    if (!run.hexCrawl || typeof run.hexCrawl !== 'object') run.hexCrawl = {};
+    var key = 'p' + String(p);
+    if (!run.hexCrawl[key] || typeof run.hexCrawl[key] !== 'object') {
+      run.hexCrawl[key] = {
+        col: 0,
+        row: 0,
+        discovered: { '0,0': true },
+        cleared: {},
+        notables: {},
+        floorBoons: {},
+        floorFlags: {},
+        lastEncounterHtml: ''
+      };
+    }
+    var state = run.hexCrawl[key];
+    if (!state.discovered || typeof state.discovered !== 'object') state.discovered = { '0,0': true };
+    if (!state.cleared || typeof state.cleared !== 'object') state.cleared = {};
+    if (!state.notables || typeof state.notables !== 'object') state.notables = {};
+    if (!state.floorBoons || typeof state.floorBoons !== 'object') state.floorBoons = {};
+    if (!state.floorFlags || typeof state.floorFlags !== 'object') state.floorFlags = {};
+    if (typeof state.lastEncounterHtml !== 'string') state.lastEncounterHtml = '';
+    state.col = Math.max(0, Math.min(6, Number(state.col || 0)));
+    state.row = Math.max(0, Math.min(4, Number(state.row || 0)));
+    return state;
+  }
+
+  function getPinnacleFloorTileType(run, phase, col, row) {
+    var floor = run && run.floors ? run.floors['p' + String(Number(phase || 1))] : null;
+    if (!floor || !Array.isArray(floor.tiles)) return 'void';
+    var r = Math.max(0, Math.min((floor.height || 5) - 1, Number(row || 0)));
+    var c = Math.max(0, Math.min((floor.width || 7) - 1, Number(col || 0)));
+    if (!Array.isArray(floor.tiles[r])) return 'void';
+    return String(floor.tiles[r][c] || 'void');
+  }
+
+  function ensurePinnacleHexNotables(run, mission, phase) {
+    var state = ensurePinnacleHexCrawlState(run, mission, phase);
+    if (!state) return {};
+    if (Object.keys(state.notables || {}).length) return state.notables;
+    var floor = run.floors && run.floors['p' + String(Number(phase || 1))];
+    if (!floor || !Array.isArray(floor.tiles)) return state.notables;
+
+    var seed = Number(mission && mission.id || 1) * 131 + Number(phase || 1) * 97;
+    var rngState = Math.abs(seed || 1) % 2147483647;
+    var nextRand = function () {
+      rngState = (rngState * 48271) % 2147483647;
+      return rngState / 2147483647;
+    };
+
+    var hasTreasure = false;
+    var hasEnemy = false;
+    var hasPuzzle = false;
+
+    for (var r = 0; r < floor.height; r++) {
+      for (var c = 0; c < floor.width; c++) {
+        if ((c === 0 && r === 0) || (c === floor.width - 1 && r === floor.height - 1)) continue;
+        var tile = getPinnacleFloorTileType(run, phase, c, r);
+        var roll = nextRand();
+        var mark = null;
+        if ((tile === 'void' || tile === 'path') && roll < 0.14) {
+          mark = { kind: 'treasure', title: 'Forgotten Vault' };
+          hasTreasure = true;
+        } else if ((tile === 'lane' || tile === 'path') && roll < 0.24) {
+          mark = { kind: 'enemy', title: 'Rival Camp' };
+          hasEnemy = true;
+        } else if ((tile === 'hazard' || tile === 'lane') && roll < 0.33) {
+          mark = { kind: 'puzzle', title: 'Seal Puzzle' };
+          hasPuzzle = true;
+        }
+        if (mark) state.notables[c + ',' + r] = mark;
+      }
+    }
+
+    if (!hasTreasure) state.notables['2,1'] = { kind: 'treasure', title: 'Forgotten Vault' };
+    if (!hasEnemy) state.notables['3,2'] = { kind: 'enemy', title: 'Rival Camp' };
+    if (!hasPuzzle) state.notables['4,3'] = { kind: 'puzzle', title: 'Seal Puzzle' };
+    return state.notables;
+  }
+
+  function getPinnacleHexTileLabel(tileType, notable, isCursor) {
+    if (isCursor) return '@';
+    if (notable && notable.kind === 'treasure') return '$';
+    if (notable && notable.kind === 'enemy') return 'E';
+    if (notable && notable.kind === 'puzzle') return '?';
+    if (tileType === 'start') return 'S';
+    if (tileType === 'boss') return 'B';
+    if (tileType === 'hazard') return '!';
+    if (tileType === 'lane') return '=';
+    if (tileType === 'void') return 'x';
+    return '·';
+  }
+
+  function buildPinnacleHexCrawlMinimapHtml(run, mission, phase) {
+    var state = ensurePinnacleHexCrawlState(run, mission, phase);
+    if (!state) return '';
+    ensurePinnacleHexNotables(run, mission, phase);
+    var floor = run.floors && run.floors['p' + String(Number(phase || 1))];
+    if (!floor || !Array.isArray(floor.tiles)) return '';
+    var isHeaven = String(floor.theme || '').indexOf('celestial') >= 0;
+    var palette = isHeaven
+      ? { panel: 'rgba(180,220,255,.12)', border: 'rgba(168,214,255,.5)', start: '#7fd7ff', boss: '#f4d88c', hazard: '#ffb8b8', path: '#d9f3ff', lane: '#ffe8ad', void: '#63759a', cursor: '#7cff8f' }
+      : { panel: 'rgba(255,120,74,.1)', border: 'rgba(255,120,74,.45)', start: '#ffb36e', boss: '#ff5f54', hazard: '#ff8c7a', path: '#ffc4a3', lane: '#f29e6f', void: '#5b2a2a', cursor: '#b6ff6f' };
+
+    var tileRows = floor.tiles.map(function (row, rIdx) {
+      return '<div style="display:flex;gap:2px;">' + row.map(function (tile, cIdx) {
+        var key = cIdx + ',' + rIdx;
+        var notable = state.notables[key];
+        var discovered = !!state.discovered[key] || (cIdx === 0 && rIdx === 0);
+        var isCursor = (Number(state.col || 0) === cIdx && Number(state.row || 0) === rIdx);
+        var bg = palette.path;
+        if (tile === 'start') bg = palette.start;
+        else if (tile === 'boss') bg = palette.boss;
+        else if (tile === 'hazard') bg = palette.hazard;
+        else if (tile === 'lane') bg = palette.lane;
+        else if (tile === 'void') bg = palette.void;
+        if (!discovered && !isCursor) bg = 'rgba(0,0,0,.34)';
+        var border = isCursor ? ('2px solid ' + palette.cursor) : '1px solid rgba(0,0,0,.26)';
+        var label = discovered || isCursor ? getPinnacleHexTileLabel(tile, notable, isCursor) : '•';
+        return '<div style="width:19px;height:19px;border:' + border + ';display:flex;align-items:center;justify-content:center;font-size:.58rem;color:#111;background:' + bg + ';">' + label + '</div>';
+      }).join('') + '</div>';
+    }).join('');
+
+    var dist = Math.max(0, (floor.width - 1) - Number(state.col || 0));
+    return '<div style="border:1px solid ' + palette.border + ';background:' + palette.panel + ';padding:.35rem .4rem;margin-bottom:.24rem;">'
+      + '<div style="font-size:.69rem;color:' + (isHeaven ? 'var(--teal)' : '#ffb27a') + ';margin-bottom:.16rem;">'
+      + (isHeaven ? 'Heaven Hex Crawl' : 'Hell Hex Crawl') + ' · Phase ' + Number(phase || 1)
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:2px;margin-bottom:.16rem;">' + tileRows + '</div>'
+      + '<div style="font-size:.62rem;color:var(--muted2);line-height:1.45;">@ your team · $ vault · E enemy camp · ? puzzle · B boss tower · distance ' + dist + '</div>'
+      + '</div>';
+  }
+
+  function getPinnacleCrawlMovementButtonsHtml(mission, run, phase) {
+    var state = ensurePinnacleHexCrawlState(run, mission, phase);
+    if (!state) return '';
+    var atBoss = Number(state.col || 0) >= 6 && Number(state.row || 0) >= 4;
+    if (atBoss) {
+      return '<div style="display:flex;gap:.28rem;justify-content:flex-end;flex-wrap:wrap;margin-bottom:.24rem;">'
+        + '<button class="btn btn-sm btn-primary" onclick="window.launchPinnacleMegadungeonPhaseCombat(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\')">Enter Boss Tower</button>'
+        + '</div>';
+    }
+    return '<div style="display:flex;gap:.24rem;justify-content:flex-start;flex-wrap:wrap;margin-bottom:.24rem;">'
+      + '<button class="btn btn-sm" onclick="window.advancePinnacleHexCrawl(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\',\'up\',1)">Ascend 1</button>'
+      + '<button class="btn btn-sm" onclick="window.advancePinnacleHexCrawl(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\',\'forward\',1)">Advance 1</button>'
+      + '<button class="btn btn-sm" onclick="window.advancePinnacleHexCrawl(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\',\'down\',1)">Descend 1</button>'
+      + '<button class="btn btn-sm" onclick="window.advancePinnacleHexCrawl(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\',\'forward\',2)">Sprint 2</button>'
+      + '</div>';
+  }
+
+  function resolvePinnacleHexTileEncounter(mission, run, phase) {
+    var state = ensurePinnacleHexCrawlState(run, mission, phase);
+    if (!state) return '';
+    ensurePinnacleHexNotables(run, mission, phase);
+    var c = Number(state.col || 0);
+    var r = Number(state.row || 0);
+    var key = c + ',' + r;
+    var tile = getPinnacleFloorTileType(run, phase, c, r);
+    var notable = state.notables[key] || null;
+    if (state.cleared[key]) return state.lastEncounterHtml || '';
+
+    var cards = [];
+    if (tile === 'hazard') {
+      var dmg = 1 + Math.floor(Math.random() * 2);
+      if (typeof changeHealth === 'function') changeHealth(dmg);
+      state.floorFlags.hazardTouched = true;
+      cards.push('<div style="border:1px solid rgba(255,122,122,.5);background:rgba(255,122,122,.12);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Trap Field</strong>: infernal spikes hit for +' + dmg + ' Health pressure.</div>');
+    } else if (tile === 'lane') {
+      state.floorBoons.laneMomentum = Math.min(2, Number(state.floorBoons.laneMomentum || 0) + 1);
+      cards.push('<div style="border:1px solid rgba(255,214,122,.5);background:rgba(255,214,122,.12);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Wind Lane</strong>: momentum gathered. Boss Dread will drop on entry.</div>');
+    } else if (tile === 'void') {
+      state.floorFlags.voidTouched = true;
+      cards.push('<div style="border:1px solid rgba(140,150,255,.5);background:rgba(140,150,255,.12);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Collapse Void</strong>: unstable footing. Combat starts with extra pressure.</div>');
+    }
+
+    if (notable && !notable.resolved) {
+      if (notable.kind === 'treasure') {
+        var credits = 60 + Math.floor(Math.random() * 101);
+        if (typeof changeCredits === 'function') changeCredits(credits);
+        else S.credits = Math.max(0, Number(S.credits || 0) + credits);
+        var loot = null;
+        if (typeof rollShopLoot === 'function') {
+          var rolled = rollShopLoot('hard') || [];
+          if (rolled.length) {
+            loot = String(rolled[0]);
+            if (typeof addToBackpack === 'function') {
+              try { addToBackpack(loot); } catch (_vaultAddErr) {}
+            }
+          }
+        }
+        cards.push('<div style="border:1px solid rgba(250,219,94,.55);background:rgba(250,219,94,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Treasure Vault</strong>: +' + credits + ' Credits' + (loot ? ' and ' + loot : '') + '.</div>');
+      } else if (notable.kind === 'enemy') {
+        var campDie = 6 + Math.floor(Math.random() * 5);
+        var ad = Math.max(4, Number((S && S.adventure) || 6));
+        var aRoll = typeof explodingRoll === 'function' ? explodingRoll(ad) : { total: roll(ad) };
+        var dRoll = typeof explodingRoll === 'function' ? explodingRoll(campDie) : { total: roll(campDie) };
+        if (Number(aRoll.total || 0) >= Number(dRoll.total || 0)) {
+          state.floorBoons.campClears = Math.min(2, Number(state.floorBoons.campClears || 0) + 1);
+          cards.push('<div style="border:1px solid rgba(122,236,139,.55);background:rgba(122,236,139,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Enemy Camp Cleared</strong>: you rout a rival patrol and gain battle intel.</div>');
+        } else {
+          if (typeof changeHealth === 'function') changeHealth(1);
+          cards.push('<div style="border:1px solid rgba(255,122,122,.55);background:rgba(255,122,122,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Enemy Ambush</strong>: the camp wounds your squad (+1 Health pressure).</div>');
+        }
+      } else if (notable.kind === 'puzzle') {
+        var puzzleDie = 8 + Math.floor(Math.random() * 3);
+        var spirit = Math.max(4, Number((S && S.spirit) || 6));
+        var pRoll = typeof explodingRoll === 'function' ? explodingRoll(spirit) : { total: roll(spirit) };
+        var dread = typeof explodingRoll === 'function' ? explodingRoll(puzzleDie) : { total: roll(puzzleDie) };
+        if (Number(pRoll.total || 0) >= Number(dread.total || 0)) {
+          state.floorBoons.puzzleSolved = true;
+          cards.push('<div style="border:1px solid rgba(132,198,255,.55);background:rgba(132,198,255,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Solved</strong>: hazard pressure is dampened for this phase.</div>');
+        } else {
+          if (typeof changeHealth === 'function') changeHealth(1);
+          cards.push('<div style="border:1px solid rgba(255,122,122,.55);background:rgba(255,122,122,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Backlash</strong>: wrong sequence triggers a trap (+1 Health pressure).</div>');
+        }
+      }
+      notable.resolved = true;
+    }
+
+    state.cleared[key] = true;
+    state.lastEncounterHtml = cards.join('');
+    return state.lastEncounterHtml;
+  }
+
+  function advancePinnacleHexCrawl(missionId, regionTag, vector, steps) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'pinnacle_megadungeon') return false;
+    var run = ensurePinnacleMegadungeonRunState(mission);
+    if (!run) return false;
+    var phase = Math.max(1, Math.min(2, Number(run.phase || 1)));
+    var state = ensurePinnacleHexCrawlState(run, mission, phase);
+    ensurePinnacleHexNotables(run, mission, phase);
+    var stepCount = Math.max(1, Math.min(2, Number(steps || 1)));
+    var mode = String(vector || 'forward').toLowerCase();
+
+    for (var i = 0; i < stepCount; i++) {
+      var nextCol = Number(state.col || 0) + 1;
+      var nextRow = Number(state.row || 0);
+      if (mode === 'up') nextRow -= 1;
+      else if (mode === 'down') nextRow += 1;
+      nextCol = Math.max(0, Math.min(6, nextCol));
+      nextRow = Math.max(0, Math.min(4, nextRow));
+      if (nextCol === Number(state.col || 0) && nextRow === Number(state.row || 0)) break;
+      state.col = nextCol;
+      state.row = nextRow;
+      state.discovered[nextCol + ',' + nextRow] = true;
+    }
+
+    resolvePinnacleHexTileEncounter(mission, run, phase);
+    if (typeof showNotif === 'function') {
+      showNotif('Hex crawl: position ' + (Number(state.col || 0) + 1) + ',' + (Number(state.row || 0) + 1) + '.', 'info');
+    }
+    return openPinnacleTeleporterEncounter(mission.id, regionTag || run.lastRegionTag || 'province');
+  }
+
+  function getPinnacleHexCombatModifiers(run, mission, phase) {
+    var state = ensurePinnacleHexCrawlState(run, mission, phase);
+    if (!state) return { enemyDreadDelta: 0, enemyStressDelta: 0, heroPressure: 0, notes: [] };
+    var out = { enemyDreadDelta: 0, enemyStressDelta: 0, heroPressure: 0, notes: [] };
+    if (state.floorBoons.laneMomentum) {
+      out.enemyDreadDelta -= Math.min(2, Number(state.floorBoons.laneMomentum || 0));
+      out.notes.push('Momentum lanes reduce boss Dread.');
+    }
+    if (state.floorBoons.campClears) {
+      out.enemyStressDelta += Math.min(4, Number(state.floorBoons.campClears || 0) * 2);
+      out.notes.push('Cleared camps inflict opening boss stress.');
+    }
+    if (state.floorFlags.voidTouched && !state.floorBoons.puzzleSolved) {
+      out.heroPressure += 1;
+      out.notes.push('Void pressure harms the squad on combat entry.');
+    }
+    if (state.floorFlags.hazardTouched && !state.floorBoons.puzzleSolved) {
+      out.heroPressure += 1;
+      out.notes.push('Trap residue applies extra opening pressure.');
+    }
+    if (state.floorBoons.puzzleSolved) {
+      out.enemyStressDelta += 2;
+      out.notes.push('Solved puzzle destabilizes the boss arena.');
+    }
+    return out;
+  }
+
   function getPinnaclePhaseProfile(mission, phase) {
     var boss = String(mission && (mission.pinnacleBoss || mission.title || 'Pinnacle Boss')).toLowerCase();
     var bossName = String(mission && (mission.pinnacleBoss || 'Pinnacle Boss'));
@@ -2591,8 +2877,15 @@
     var run = ensurePinnacleMegadungeonRunState(mission);
     if (!run) return false;
     var phase = Math.max(1, Math.min(2, Number(run.phase || 1)));
+    var crawlState = ensurePinnacleHexCrawlState(run, mission, phase);
+    ensurePinnacleHexNotables(run, mission, phase);
+    if (!crawlState || Number(crawlState.col || 0) < 6 || Number(crawlState.row || 0) < 4) {
+      if (typeof showNotif === 'function') showNotif('Reach the boss tower on the hex crawl before starting combat.', 'warn');
+      return openPinnacleTeleporterEncounter(mission.id, regionTag || run.lastRegionTag || 'province');
+    }
     var profile = getPinnaclePhaseProfile(mission, phase);
     if (typeof closeModal === 'function') closeModal();
+    var crawlMods = getPinnacleHexCombatModifiers(run, mission, phase);
 
     var flow = null;
     var title = 'Pinnacle Megadungeon - ' + profile.map + ' (Phase ' + phase + '/2)';
@@ -2609,12 +2902,13 @@
       flow.missionId = mission.id;
       flow.pinnaclePhase = phase;
       flow.pinnacleTheme = String(mission.pinnacleTheme || 'hellscape');
+      flow.pinnacleHex = { col: Number(crawlState.col || 0), row: Number(crawlState.row || 0), notes: crawlMods.notes.slice(0) };
       if (flow.enemy) {
         flow.enemy.name = profile.name;
-        flow.enemy.dread = 20;
+        flow.enemy.dread = Math.max(8, 20 + Number(crawlMods.enemyDreadDelta || 0));
         flow.enemy.maxStress = 40;
         flow.enemy.health = 40;
-        flow.enemy.stress = Math.max(0, Number(flow.enemy.stress || 0));
+        flow.enemy.stress = Math.max(0, Number(flow.enemy.stress || 0) + Number(crawlMods.enemyStressDelta || 0));
         flow.enemy.specialAction = { name: profile.action, text: profile.text };
       }
     }
@@ -2623,17 +2917,21 @@
         var enemy = S.enemies[i];
         if (!enemy || enemy.ally) continue;
         enemy.name = profile.name;
-        enemy.dread = 20;
+        enemy.dread = Math.max(8, 20 + Number(crawlMods.enemyDreadDelta || 0));
         enemy.maxStress = 40;
         enemy.health = 40;
-        enemy.stress = Math.max(0, Number(enemy.stress || 0));
+        enemy.stress = Math.max(0, Number(enemy.stress || 0) + Number(crawlMods.enemyStressDelta || 0));
         enemy.specialAction = { name: profile.action, text: profile.text };
       }
+    }
+    if (Number(crawlMods.heroPressure || 0) > 0 && typeof changeHealth === 'function') {
+      changeHealth(Number(crawlMods.heroPressure || 0));
     }
     if (typeof window.openArenaCombatPopup === 'function') {
       window.openArenaCombatPopup({ mode: 'pinnacle', hexKey: hexKey, title: title });
       if (typeof showNotif === 'function') {
-        showNotif('Pinnacle combat opened: ' + String(mission.pinnacleBoss || 'Boss') + ' Phase ' + phase + ' (d20, 40 HP).', 'warn');
+        var modText = crawlMods.notes && crawlMods.notes.length ? (' Hex effects: ' + crawlMods.notes.join(' ')) : '';
+        showNotif('Pinnacle combat opened: ' + String(mission.pinnacleBoss || 'Boss') + ' Phase ' + phase + ' (d20, 40 HP).' + modText, 'warn');
       }
       return true;
     }
@@ -2655,11 +2953,19 @@
     if (mission.steps && mission.steps[1] && !mission.steps[1].completed) mission.steps[1].completed = true;
     if (mission.steps && mission.steps[2] && Number(run.phase || 1) >= 2) mission.steps[2].completed = true;
     var profile = getPinnaclePhaseProfile(mission, run.phase);
+    var crawlState = ensurePinnacleHexCrawlState(run, mission, run.phase);
+    ensurePinnacleHexNotables(run, mission, run.phase);
+    var crawlMapHtml = buildPinnacleHexCrawlMinimapHtml(run, mission, run.phase);
+    var crawlButtonsHtml = getPinnacleCrawlMovementButtonsHtml(mission, run, run.phase);
     var teleporterHex = mission.siteHex ? ('Hex ' + String(Number(mission.siteHex.col || 0) + 1) + ',' + String(Number(mission.siteHex.row || 0) + 1)) : 'Unknown hex';
 
     var mechanicsHtml = (profile.mechanics || []).map(function (line) {
       return '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;">• ' + String(line || '') + '</div>';
     }).join('');
+    var encounterHtml = crawlState && crawlState.lastEncounterHtml
+      ? ('<div style="margin-bottom:.24rem;">' + crawlState.lastEncounterHtml + '</div>')
+      : '';
+    var atBoss = crawlState && Number(crawlState.col || 0) >= 6 && Number(crawlState.row || 0) >= 4;
 
     openModal(
       'Pinnacle Teleporter - ' + String(mission.pinnacleBoss || 'Boss'),
@@ -2674,11 +2980,14 @@
           + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.1rem;">Encounter Mechanics</div>'
           + mechanicsHtml
         + '</div>'
+        + encounterHtml
+        + crawlMapHtml
+        + crawlButtonsHtml
         + '<div style="display:flex;gap:.28rem;justify-content:flex-end;flex-wrap:wrap;">'
           + '<button class="btn btn-sm" onclick="closeModal()">Leave</button>'
           + '<button class="btn btn-sm" onclick="window.failPinnacleMegadungeonRun(' + mission.id + ')">Fail Run</button>'
           + '<button class="btn btn-sm" onclick="window.resolvePinnacleMegadungeonEncounter()">Mark Boss Defeated</button>'
-          + '<button class="btn btn-sm btn-primary" onclick="window.launchPinnacleMegadungeonPhaseCombat(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\')">Open Combat Popup</button>'
+          + '<button class="btn btn-sm btn-primary" ' + (atBoss ? '' : 'disabled ') + 'onclick="window.launchPinnacleMegadungeonPhaseCombat(' + mission.id + ',\'' + String(run.lastRegionTag || 'province') + '\')">Open Combat Popup</button>'
         + '</div>'
       + '</div>'
     );
@@ -2707,6 +3016,7 @@
     if (!run) return false;
     if (run.phase <= 1) {
       run.phase = 2;
+      ensurePinnacleHexCrawlState(run, mission, 2);
       if (mission.steps && mission.steps[2]) mission.steps[2].completed = true;
       if (S && S.combat && S.combat.arenaFlow) {
         S.combat.arenaFlow.active = false;
@@ -15489,6 +15799,9 @@
   window.launchPinnacleMegadungeonPhaseCombat=launchPinnacleMegadungeonPhaseCombat;
   window.resolvePinnacleMegadungeonEncounter=resolvePinnacleMegadungeonEncounter;
   window.failPinnacleMegadungeonRun=failPinnacleMegadungeonRun;
+  window.ensurePinnacleHexCrawlState=ensurePinnacleHexCrawlState;
+  window.buildPinnacleHexCrawlMinimapHtml=buildPinnacleHexCrawlMinimapHtml;
+  window.advancePinnacleHexCrawl=advancePinnacleHexCrawl;
   window.renderEndgameTabPanel=renderEndgameTabPanel;
   window.handleLegacyRaidMarkerInteraction=handleLegacyRaidMarkerInteraction;
   window.openLegacyRaidMissionPopup=openLegacyRaidMissionPopup;

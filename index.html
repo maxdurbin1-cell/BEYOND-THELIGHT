@@ -10179,12 +10179,18 @@ function showBackpackItem(index) {
   }
   storOpts += '</div></div>';
   btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
+  var loreTabHtml = (typeof buildItemLoreTabHtml === 'function') ? buildItemLoreTabHtml(item.name) : '';
+  var flavorNameHtml = (typeof getItemFlavorName === 'function' && getItemFlavorName(item.name) !== item.name)
+    ? '<div style="font-size:.68rem;color:var(--muted2);font-style:italic;margin-bottom:.18rem;">' + _escapeUiText(getItemFlavorName(item.name)) + '</div>'
+    : '';
   var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
-    + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+weaponLabelHtml(item.name,22)+'</div>'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.15rem;">'+weaponLabelHtml(item.name,22)+'</div>'
+    + flavorNameHtml
     + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
     + '<div>'+item.desc+'</div>'
     + buildAffixEffectsHtml(text)
     + usesHtml
+    + loreTabHtml
     + '<div style="margin-top:.5rem;">'+btnHtml+storOpts+'</div>'
     + '</div>';
   openModal(item.name, html);
@@ -10438,12 +10444,18 @@ function showEquippedItem(slot) {
     }
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
     btnHtml += storageOptions;
+    var eqLoreTab = (typeof buildItemLoreTabHtml === 'function') ? buildItemLoreTabHtml(item.name) : '';
+    var eqFlavorName = (typeof getItemFlavorName === 'function' && getItemFlavorName(item.name) !== item.name)
+      ? '<div style="font-size:.68rem;color:var(--muted2);font-style:italic;margin-bottom:.18rem;">' + _escapeUiText(getItemFlavorName(item.name)) + '</div>'
+      : '';
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
-      + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">'+weaponLabelHtml(item.name,22)+'</div>'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.15rem;">'+weaponLabelHtml(item.name,22)+'</div>'
+      + eqFlavorName
       + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">'+item.stat+'</div>'
       + '<div>'+item.desc+'</div>'
       + buildAffixEffectsHtml(text)
       + (slot === 'armor' ? '<div style="margin-top:.45rem;font-size:.76rem;color:var(--muted2);">Under: '+(S.equipmentLayers.under || 'None')+'<br>Over: '+(S.equipmentLayers.over || 'None')+'<br>Suit: '+(S.equipmentLayers.suit || 'None')+'</div>' : '')
+      + eqLoreTab
       + '<div style="margin-top:.5rem;">'+btnHtml+'</div>'
       + '</div>';
     openModal(item.name, html);
@@ -16158,6 +16170,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 </script>
 <script defer src="./audio-manager.js"></script>
+<script defer src="./item-lore-system.js"></script>
 <script defer src="./settings-system.js"></script>
 <script defer src="./shared-icon-system.js"></script>
 <script defer src="./beyond-light-missing-functions.js"></script>

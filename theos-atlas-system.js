@@ -1474,6 +1474,11 @@
     };
   }
 
+  function getActiveProvinceId() {
+    var st = ensureState();
+    return String((st && st.activeProvinceId) || "");
+  }
+
   function patchSwitchTab() {
     if (typeof window.switchTab !== "function" || window._theosSwitchPatched) return;
     window._theosSwitchPatched = true;
@@ -1514,6 +1519,7 @@
   window.getTheosFactionFlavor = getTheosFactionFlavor;
   window.getTheosStorylineModifier = getTheosStorylineModifier;
   window.getActiveTheosProvinceSummary = getActiveProvinceSummary;
+  window.getActiveTheosProvinceId = getActiveProvinceId;
   window.theosPrimeStartingProvince = primeStartingProvinceIfNeeded;
 
   document.addEventListener("DOMContentLoaded", bootstrap);

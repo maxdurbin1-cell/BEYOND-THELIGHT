@@ -331,6 +331,16 @@
           jump: { context: "lastsea", tab: "lastsea" },
           success: { next: "sea_court", text: "Your ship enters stormlight waters where judges wear diver helmets." },
         },
+        {
+          id: "o3",
+          text: "Cross-reference the cipher against the Theos Atlas",
+          jump: { tab: "theos" },
+          success: {
+            next: "theos_atlas_brief",
+            text: "The atlas pins two hot zones in the same conspiracy chain: Rosegrove Reach and Raenor March.",
+            effects: { flags: { atlasChainOpened: true } },
+          },
+        },
       ],
     },
 
@@ -2007,6 +2017,173 @@
     },
   };
 
+  Object.assign(SCENES, {
+    theos_atlas_brief: {
+      chapter: "c1",
+      title: "Atlas Nodes of Conspiracy",
+      location: "Theos Atlas",
+      mood: "Investigative travel noir",
+      text: "Lyra traces the sigil's stroke weight over a painted atlas while an atlas warden named Maelik leans in. 'Rosegrove handles the witness traffic. Raenor handles the ore ledgers. Break either and Karr loses cover. Break both and we see the whole machine.'",
+      sceneTypes: ["exploration", "social"],
+      options: [
+        {
+          id: "o1",
+          text: "Rosegrove Sweep: find the witness route marker in Syndaario's lanes",
+          req: { theosProvinceIs: "rosegrove" },
+          jump: {
+            storySystem: "province",
+            tab: "map",
+            context: "traveling",
+            theosProvinceId: "rosegrove",
+            hexFlavorKinds: ["notable", "fracture", "settlement"],
+            markerTitle: "Rosegrove Witness Marker"
+          },
+          success: {
+            next: "theos_rosegrove_dialogue",
+            text: "At the marked lane-stone, Maelik's contact steps out from incense fog with a sealed witness index.",
+            effects: { renown: 1, flags: { rosegroveMarkerCleared: true }, npc: { lyra: 1 } },
+          },
+        },
+        {
+          id: "o2",
+          text: "Open the atlas and shift province focus before committing",
+          jump: { tab: "theos" },
+          success: {
+            next: "theos_atlas_brief",
+            text: "You redraw your route overlays and confirm Rosegrove should break first.",
+          },
+        },
+      ],
+    },
+
+    theos_rosegrove_dialogue: {
+      chapter: "c1",
+      title: "Rosegrove: The Broker Under Lantern Glass",
+      location: "Rosegrove Reach",
+      mood: "Dialogue pressure, urban intrigue",
+      text: "The broker Veyna Rell greets you in a lantern arcade with rain hissing on glass. 'Karr buys silence with grain futures,' she says. 'But Raenor keeps the true receipts in ore-script tablets. You want names? Earn them.'",
+      sceneTypes: ["social", "investigation"],
+      options: [
+        {
+          id: "o1",
+          text: "Parley with Veyna: offer protection for witness names",
+          stat: "lead",
+          baseDread: 8,
+          success: {
+            next: "theos_raenor_brief",
+            text: "Veyna slides you a stamped pass: 'Raenor's Planeshifter clerks answer to this crest.'",
+            effects: { flags: { rosegroveWitnessSecured: true }, npc: { lyra: 1 }, faction: { political: 1 } },
+          },
+          fail: {
+            next: "theos_raenor_brief",
+            text: "Veyna withholds names but leaks a single clue: 'Follow the blue ore-seals in Raenor.'",
+            effects: { tmw: 1, mentalStress: 1 },
+          },
+        },
+        {
+          id: "o2",
+          text: "Interrogate the courier ledger without speaking",
+          stat: "mind",
+          baseDread: 8,
+          success: {
+            next: "theos_raenor_brief",
+            text: "The ink matrix resolves into transit codes keyed to Raenor canyon relays.",
+            effects: { flags: { rosegroveWitnessSecured: true }, renown: 1 },
+          },
+          fail: {
+            next: "theos_raenor_brief",
+            text: "A false cipher trail burns time, but one depot reference survives: Raenor March.",
+            effects: { mentalStress: 1 },
+          },
+        },
+      ],
+    },
+
+    theos_raenor_brief: {
+      chapter: "c1",
+      title: "March Orders",
+      location: "Atlas Rail Hub",
+      mood: "Frontier prep",
+      text: "Lyra taps the rail map twice. 'Rosegrove gave us testimony. Raenor gives us proof. We need the ledger stone itself, not another rumor.'",
+      sceneTypes: ["exploration", "social"],
+      options: [
+        {
+          id: "o1",
+          text: "Raenor Sweep: recover the ore-ledger marker from canyon lanes",
+          req: {
+            flagEq: { key: "rosegroveWitnessSecured", value: true },
+            theosProvinceIs: "raenor"
+          },
+          jump: {
+            storySystem: "province",
+            tab: "map",
+            context: "traveling",
+            theosProvinceId: "raenor",
+            hexFlavorKinds: ["scar", "quest", "dungeon", "fracture"],
+            markerTitle: "Raenor Ledger Marker"
+          },
+          success: {
+            next: "theos_raenor_dialogue",
+            text: "The marked hex yields a basalt ledger tablet stamped with Karr's covert seal.",
+            effects: { flags: { raenorLedgerSecured: true }, faction: { scholars: 1 }, renown: 1 },
+          },
+        },
+        {
+          id: "o2",
+          text: "Open Atlas routing and move toward Raenor March",
+          jump: { tab: "theos" },
+          success: {
+            next: "theos_raenor_brief",
+            text: "Route updated. Enter Raenor March, then run the marker sweep.",
+          },
+        },
+      ],
+    },
+
+    theos_raenor_dialogue: {
+      chapter: "c1",
+      title: "Raenor: Ledger Under Oath",
+      location: "Raenor March",
+      mood: "Moral courtroom noir",
+      text: "At a wind-cut relay chapel, Sanctum clerk Osric Venn reads the tablet and exhales. 'These are execution quotas disguised as ore tax adjustments. Karr has been financing terror with legal forms.' Lyra asks one question: 'Do we publish or weaponize?'",
+      sceneTypes: ["social", "investigation"],
+      options: [
+        {
+          id: "o1",
+          text: "Publish the Raenor ledger through neutral channels",
+          stat: "spirit",
+          baseDread: 8,
+          success: {
+            next: "mission_bridge",
+            text: "The ledger detonates across guild courts. Voss Karr loses deniability and your mission board floods with retaliatory contracts.",
+            effects: { renown: 2, faction: { political: 1, rebels: 1 }, flags: { theosAtlasArcResolved: true } },
+          },
+          fail: {
+            next: "mission_bridge",
+            text: "The release is contested as forgery, but enough officials panic to open fresh leads.",
+            effects: { tmw: 1, flags: { theosAtlasArcResolved: true } },
+          },
+        },
+        {
+          id: "o2",
+          text: "Hold the ledger as blackmail and squeeze Karr's proxies",
+          stat: "control",
+          baseDread: 10,
+          success: {
+            next: "mission_bridge",
+            text: "Proxy houses fold one by one. You gain leverage, but enemies start moving first.",
+            effects: { credits: 120, faction: { underworld: 1, military: -1 }, flags: { theosAtlasArcResolved: true } },
+          },
+          fail: {
+            next: "mission_bridge",
+            text: "A proxy burns the evidence chain. You keep fragments and a list of paid killers.",
+            effects: { mentalStress: 1, flags: { theosAtlasArcResolved: true } },
+          },
+        },
+      ],
+    },
+  });
+
   function lc(value) {
     return String(value || "").trim().toLowerCase();
   }
@@ -2416,20 +2593,47 @@
 
     if (system === "province") {
       if (typeof mapData === "undefined" || !Array.isArray(mapData) || !mapData.length) return null;
-      const target = randomPick(mapData);
+      const jumpSpec = option.jump || {};
+      const provinceFilter = lc(jumpSpec.theosProvinceId || "");
+      const markerKinds = Array.isArray(jumpSpec.hexFlavorKinds)
+        ? jumpSpec.hexFlavorKinds.map(function (k) { return lc(k); }).filter(Boolean)
+        : [];
+      const markerTitle = String(jumpSpec.markerTitle || "Story Objective");
+      let candidates = mapData.slice();
+      if (provinceFilter) {
+        const byProvince = mapData.filter(function (hex) {
+          return lc(hex && hex.data && hex.data.provinceTag) === provinceFilter;
+        });
+        if (byProvince.length) candidates = byProvince;
+      }
+      if (markerKinds.length) {
+        const byFlavor = candidates.filter(function (hex) {
+          const kind = lc(hex && hex.data && hex.data.theosFlavor && hex.data.theosFlavor.kind);
+          return markerKinds.indexOf(kind) >= 0;
+        });
+        if (byFlavor.length) candidates = byFlavor;
+      }
+      const target = randomPick(candidates);
       if (!target) return null;
       S.missionTokens = S.missionTokens || {};
       const key = target.col + "," + target.row;
       S.missionTokens[key] = {
         missionId: "storyline",
-        title: "Story Objective",
+        title: markerTitle,
         type: "story_choice",
         sceneId: sceneId,
         optionId: option.id,
+        provinceTag: String((target && target.data && target.data.provinceTag) || ""),
+        flavorKind: String((target && target.data && target.data.theosFlavor && target.data.theosFlavor.kind) || ""),
       };
       st.travelMarkers.provinceKey = key;
       if (typeof renderHexMap === "function") renderHexMap();
-      return { system: system, targetValue: key, label: "Province Hex [" + (target.col + 1) + "," + (target.row + 1) + "]" };
+      const provinceTag = lc(target && target.data && target.data.provinceTag);
+      const flavorLabel = String((target && target.data && target.data.theosFlavor && target.data.theosFlavor.label) || "").trim();
+      const labelBits = [markerTitle + " [" + (target.col + 1) + "," + (target.row + 1) + "]"];
+      if (provinceTag) labelBits.push(provinceTag.charAt(0).toUpperCase() + provinceTag.slice(1));
+      if (flavorLabel) labelBits.push(flavorLabel);
+      return { system: system, targetValue: key, label: labelBits.join(" · ") };
     }
 
     if (system === "lastsea") {
@@ -2965,6 +3169,30 @@
         ? Number(getEffectiveDie(statKey) || 4)
         : Number((S && S.stats && S.stats[statKey]) || 4);
       if (myDie < minDie) return false;
+    }
+    if (req.theosProvinceIs) {
+      const currentProvince = lc(
+        (typeof window.getActiveTheosProvinceId === "function" && window.getActiveTheosProvinceId())
+          || (typeof window.getActiveTheosProvinceSummary === "function" && window.getActiveTheosProvinceSummary() && window.getActiveTheosProvinceSummary().id)
+          || (S && S.theos && S.theos.activeProvinceId)
+          || ""
+      );
+      if (currentProvince !== lc(req.theosProvinceIs)) return false;
+    }
+    if (Array.isArray(req.theosProvinceAny) && req.theosProvinceAny.length) {
+      const currentProvince = lc(
+        (typeof window.getActiveTheosProvinceId === "function" && window.getActiveTheosProvinceId())
+          || (typeof window.getActiveTheosProvinceSummary === "function" && window.getActiveTheosProvinceSummary() && window.getActiveTheosProvinceSummary().id)
+          || (S && S.theos && S.theos.activeProvinceId)
+          || ""
+      );
+      const ok = req.theosProvinceAny.some(function (id) { return currentProvince === lc(id); });
+      if (!ok) return false;
+    }
+    if (Array.isArray(req.theosDiscoveredAny) && req.theosDiscoveredAny.length) {
+      const discovered = (S && S.theos && S.theos.discovered && typeof S.theos.discovered === "object") ? S.theos.discovered : {};
+      const ok = req.theosDiscoveredAny.some(function (id) { return !!discovered[String(id || "").toLowerCase()]; });
+      if (!ok) return false;
     }
     return true;
   }
@@ -5122,6 +5350,9 @@
     if (Array.isArray(req.ownedHacksAny) && req.ownedHacksAny.length) bits.push("OS Hack: " + req.ownedHacksAny.join(" / "));
     if (Array.isArray(req.backpackAny) && req.backpackAny.length) bits.push("Loadout item: " + req.backpackAny.join(" / "));
     if (req.consumeRequiredItem) bits.push("Consumes one matching item");
+    if (req.theosProvinceIs) bits.push("Theos province: " + req.theosProvinceIs);
+    if (Array.isArray(req.theosProvinceAny) && req.theosProvinceAny.length) bits.push("Theos province: " + req.theosProvinceAny.join(" / "));
+    if (Array.isArray(req.theosDiscoveredAny) && req.theosDiscoveredAny.length) bits.push("Discovered province: " + req.theosDiscoveredAny.join(" / "));
     return bits.join("  |  ");
   }
 

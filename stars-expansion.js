@@ -12759,21 +12759,31 @@ function attemptPlanetHoldingSteal() {
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected || selected.marker !== 'merchant_colony') return;
   const controlDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
-  const check = resolveGalaxySkillCheck('control', 'lead', 8, `Steal at Hex ${selected.id}`);
-  if (check.success) {
-    const loot = rollGalaxyMerchantLootFromCategories(['items', 'toolkits', 'tradegoods', 'weapon_mods', 'armor']);
-    takeGalaxyLoot(loot, 'pack');
-    state.lastEvent = {
-      timestamp: Date.now(),
-      d10: 8,
-      outcome: 'Holding Theft Success',
-      detail: `${check.text}. You steal ${loot} without raising the alarm.`,
-      rewardItem: loot,
-      cellId: selected.id,
-      eventType: 'encounter',
-    };
-    showNotif(`Theft succeeded: ${loot}.`, 'good');
-  } else {
+  const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+  const actionDie = Math.max(4, Number(controlDie || 4), Number(leadDie || 0));
+
+  const finalizeHoldingSteal = function (outcome) {
+    const success = !!(outcome && outcome.success);
+    const rollText = (outcome && outcome.manual)
+      ? `Steal at Hex ${selected.id}: d${actionDie} vs DD${Number(outcome.dreadDie || 8)}` + (outcome.pushLuck ? ' (Push Luck)' : '')
+      : (outcome && outcome.text) || `Steal at Hex ${selected.id}: d${actionDie} vs DD8`;
+    if (success) {
+      const loot = rollGalaxyMerchantLootFromCategories(['items', 'toolkits', 'tradegoods', 'weapon_mods', 'armor']);
+      takeGalaxyLoot(loot, 'pack');
+      state.lastEvent = {
+        timestamp: Date.now(),
+        d10: 8,
+        outcome: 'Holding Theft Success',
+        detail: `${rollText}. You steal ${loot} without raising the alarm.`,
+        rewardItem: loot,
+        cellId: selected.id,
+        eventType: 'encounter',
+      };
+      showNotif(`Theft succeeded: ${loot}.`, 'good');
+      renderPlanetExplorationPanel();
+      return;
+    }
+
     const authority = state.rulingPower || 'Unknown Authority';
     const renownKey = getPlanetAuthorityFactionKey(authority);
     const hostilityLoss = 1 + Math.max(0, getPactHostilityDelta());
@@ -12783,14 +12793,30 @@ function attemptPlanetHoldingSteal() {
       timestamp: Date.now(),
       d10: 8,
       outcome: 'Holding Theft Failed',
-      detail: `${check.text}. You were caught stealing. -${hostilityLoss} ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown with ${authority}.`,
+      detail: `${rollText}. You were caught stealing. -${hostilityLoss} ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown with ${authority}.`,
       rewardItem: '',
       cellId: selected.id,
       eventType: 'encounter',
     };
     showNotif(`Caught stealing. -${hostilityLoss} ${(FACTION_NAMES && FACTION_NAMES[renownKey]) || renownKey} Renown.`, 'warn');
+    renderPlanetExplorationPanel();
+  };
+
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Holding Theft',
+      context: 'Steal at Hex ' + Number(selected.id),
+      statKey: 'control',
+      statLabel: 'Control/Lead',
+      actionDie: actionDie,
+      dreadDie: 8,
+      onResolve: finalizeHoldingSteal
+    });
+    return;
   }
-  renderPlanetExplorationPanel();
+
+  const check = resolveGalaxySkillCheck('control', 'lead', 8, `Steal at Hex ${selected.id}`);
+  finalizeHoldingSteal({ success: check.success, text: check.text, manual: false, dreadDie: 8 });
 }
 
 function rollPlanetObstacleTraversal() {
@@ -14248,7 +14274,9 @@ function runPlanetLocationInteraction() {
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected || !isPlanetLocationHex(selected)) return;
   const profile = getPlanetInteractionProfile(selected);
-  const check = resolveGalaxySkillCheck(profile.stat, null, profile.dd, `${profile.label} Interaction`);
+  const actionDie = (typeof getEffectiveDie === 'function')
+    ? getEffectiveDie(profile.stat)
+    : ((S.stats && S.stats[profile.stat]) || 4);
   let successText = 'You gain favorable leverage in this area.';
   let failText = 'Local conditions push back hard; progress stalls this phase.';
   if (selected.marker === 'dwelling') {
@@ -14264,26 +14292,48 @@ function runPlanetLocationInteraction() {
     successText = 'You read the route correctly and identify a safer crossing window.';
     failText = 'The route destabilizes; your crew must withdraw and regroup.';
   }
-  if (check.success) {
-    if (selected.marker === 'temple') setPositiveGalaxyCondition('focused');
-    else if (selected.marker === 'dwelling') setPositiveGalaxyCondition('bolstered');
-    else if (selected.marker === 'merchant_colony') setPositiveGalaxyCondition('protected');
-    selected.note = successText;
-  } else {
-    if (typeof changeStress === 'function') changeStress(1);
-    selected.note = failText;
-  }
-  state.lastEvent = {
-    timestamp: Date.now(),
-    d10: profile.dd,
-    outcome: `${profile.label} Interaction`,
-    detail: `${check.text}. ${check.success ? successText : failText}`,
-    rewardItem: '',
-    cellId: selected.id,
-    eventType: 'encounter',
+  const finalizeInteraction = function (outcome) {
+    const success = !!(outcome && outcome.success);
+    const checkText = (outcome && outcome.manual)
+      ? `${profile.label} Interaction: d${actionDie} vs DD${Number(outcome.dreadDie || profile.dd)}` + (outcome.pushLuck ? ' (Push Luck)' : '')
+      : (outcome && outcome.text) || `${profile.label} Interaction`;
+    if (success) {
+      if (selected.marker === 'temple') setPositiveGalaxyCondition('focused');
+      else if (selected.marker === 'dwelling') setPositiveGalaxyCondition('bolstered');
+      else if (selected.marker === 'merchant_colony') setPositiveGalaxyCondition('protected');
+      selected.note = successText;
+    } else {
+      if (typeof changeStress === 'function') changeStress(1);
+      selected.note = failText;
+    }
+    state.lastEvent = {
+      timestamp: Date.now(),
+      d10: profile.dd,
+      outcome: `${profile.label} Interaction`,
+      detail: `${checkText}. ${success ? successText : failText}`,
+      rewardItem: '',
+      cellId: selected.id,
+      eventType: 'encounter',
+    };
+    showNotif(success ? 'Interaction succeeded.' : 'Interaction failed.', success ? 'good' : 'warn');
+    renderPlanetExplorationPanel();
   };
-  showNotif(check.success ? 'Interaction succeeded.' : 'Interaction failed.', check.success ? 'good' : 'warn');
-  renderPlanetExplorationPanel();
+
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Location Interaction',
+      context: `${profile.label} Interaction`,
+      statKey: profile.stat,
+      statLabel: profile.stat.charAt(0).toUpperCase() + profile.stat.slice(1),
+      actionDie: actionDie,
+      dreadDie: profile.dd,
+      onResolve: finalizeInteraction
+    });
+    return;
+  }
+
+  const check = resolveGalaxySkillCheck(profile.stat, null, profile.dd, `${profile.label} Interaction`);
+  finalizeInteraction({ success: check.success, text: check.text, manual: false, dreadDie: profile.dd });
 }
 
 function interactPlanetExocraftConvoy() {
@@ -15387,68 +15437,93 @@ function explorePlanetCell(cellId) {
   const hazardCount = getPlanetHazardProfile(state.profile).length;
   const baseDd = bypass ? 6 : state.difficulty;
   const dd = Math.max(6, Math.min(12, baseDd + (bypass ? 0 : Math.min(2, Math.floor(hazardCount / 2)))));
-  const check = resolveGalaxySkillCheck('adventure', 'lead', dd, `Planet Hex ${cell.id}`);
-  if (check.success) {
-    cell.explored = true;
-    if (!cell.note) {
-      if (cell.marker === 'empty_colony') {
-        if (!cell.taskId && roll(10) >= 5) {
-          createPlanetTask();
+  const adventureDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+  const actionDie = Math.max(4, Number(adventureDie || 4), Number(leadDie || 0));
+
+  const finalizeExplore = function (outcome) {
+    const success = !!(outcome && outcome.success);
+    const checkText = (outcome && outcome.manual)
+      ? `Planet Hex ${cell.id}: d${actionDie} vs DD${Number(outcome.dreadDie || dd)}` + (outcome.pushLuck ? ' (Push Luck)' : '')
+      : (outcome && outcome.text) || `Planet Hex ${cell.id}`;
+    if (success) {
+      cell.explored = true;
+      if (!cell.note) {
+        if (cell.marker === 'empty_colony') {
+          if (!cell.taskId && roll(10) >= 5) {
+            createPlanetTask();
+          }
+          setPositiveGalaxyCondition('bolstered');
+          cell.note = `Lost city district charted in ${cell.province}. Building exploration and travel roll available.`;
+        } else if (cell.marker === 'merchant_colony') {
+          if (!cell.taskId && roll(10) >= 4) createPlanetTask();
+          setPositiveGalaxyCondition('protected');
+          cell.note = `Merchant colony in ${cell.province} functioning like a Holding-style trade node.`;
+        } else if (cell.marker === 'wayfarer') {
+          const wf = createPlanetWayfarer(state, cell, 'cell-explore');
+          const reqPenalty = applyPlanetWayfarerRequirementPenalty(state, `Wayfarer contact at Hex ${cell.id}`);
+          if (wf && !cell.taskId && roll(10) >= 4) createPlanetTask();
+          cell.note = `${wf ? wf.name : 'A wayfarer'} offers a contract thread tied to ${state.profile.planetType} routes.${reqPenalty ? ` ${reqPenalty}` : ''}`;
+        } else if (cell.marker === 'ruins') {
+          setPositiveGalaxyCondition('empowered');
+          cell.note = `Ruin site mapped in ${cell.province}. Generate Rooms to delve this dungeon complex.`;
+        } else if (cell.marker === 'seat') {
+          setPositiveGalaxyCondition('protected');
+          cell.note = `Seat stabilized in ${cell.province}. Command lanes and mission intelligence improve.`;
+        } else if (cell.marker === 'dwelling') {
+          setPositiveGalaxyCondition('bolstered');
+          cell.note = `Dwelling refuge established in ${cell.province}. Bolstered gained.`;
+        } else if (cell.marker === 'temple') {
+          setPositiveGalaxyCondition('focused');
+          cell.note = `Temple signals aligned in ${cell.province}. Focused gained.`;
+        } else if (cell.marker === 'monument') {
+          setPositiveGalaxyCondition('protected');
+          cell.note = `Wonder alignment stabilized. Protected gained from atmospheric readings.`;
+        } else if (cell.marker === 'peril') {
+          cell.note = `Peril route active: roll traversal check before crossing.`;
+        } else if (cell.marker === 'gate') {
+          cell.note = `Gate waypoint found. Unknown destination routes available.`;
+        } else if (cell.marker === 'barrier') {
+          cell.note = `Barrier blocks direct crossing. Roll Domain/Skill style check to pass.`;
+        } else if (cell.tradeRoute) {
+          cell.note = `Trade Route lane connected to nearby Merchant Colony.`;
+        } else {
+          cell.note = `Traversed ${cell.terrain} successfully.`;
         }
-        setPositiveGalaxyCondition('bolstered');
-        cell.note = `Lost city district charted in ${cell.province}. Building exploration and travel roll available.`;
-      } else if (cell.marker === 'merchant_colony') {
-        if (!cell.taskId && roll(10) >= 4) createPlanetTask();
-        setPositiveGalaxyCondition('protected');
-        cell.note = `Merchant colony in ${cell.province} functioning like a Holding-style trade node.`;
-      } else if (cell.marker === 'wayfarer') {
-        const wf = createPlanetWayfarer(state, cell, 'cell-explore');
-        const reqPenalty = applyPlanetWayfarerRequirementPenalty(state, `Wayfarer contact at Hex ${cell.id}`);
-        if (wf && !cell.taskId && roll(10) >= 4) createPlanetTask();
-        cell.note = `${wf ? wf.name : 'A wayfarer'} offers a contract thread tied to ${state.profile.planetType} routes.${reqPenalty ? ` ${reqPenalty}` : ''}`;
-      } else if (cell.marker === 'ruins') {
-        setPositiveGalaxyCondition('empowered');
-        cell.note = `Ruin site mapped in ${cell.province}. Generate Rooms to delve this dungeon complex.`;
-      } else if (cell.marker === 'seat') {
-        setPositiveGalaxyCondition('protected');
-        cell.note = `Seat stabilized in ${cell.province}. Command lanes and mission intelligence improve.`;
-      } else if (cell.marker === 'dwelling') {
-        setPositiveGalaxyCondition('bolstered');
-        cell.note = `Dwelling refuge established in ${cell.province}. Bolstered gained.`;
-      } else if (cell.marker === 'temple') {
-        setPositiveGalaxyCondition('focused');
-        cell.note = `Temple signals aligned in ${cell.province}. Focused gained.`;
-      } else if (cell.marker === 'monument') {
-        setPositiveGalaxyCondition('protected');
-        cell.note = `Wonder alignment stabilized. Protected gained from atmospheric readings.`;
-      } else if (cell.marker === 'peril') {
-        cell.note = `Peril route active: roll traversal check before crossing.`;
-      } else if (cell.marker === 'gate') {
-        cell.note = `Gate waypoint found. Unknown destination routes available.`;
-      } else if (cell.marker === 'barrier') {
-        cell.note = `Barrier blocks direct crossing. Roll Domain/Skill style check to pass.`;
-      } else if (cell.tradeRoute) {
-        cell.note = `Trade Route lane connected to nearby Merchant Colony.`;
-      } else {
-        cell.note = `Traversed ${cell.terrain} successfully.`;
       }
+      computePlanetTradeRoutes(state);
+      showNotif(`${checkText} Success.`, 'good');
+    } else {
+      cell.note = 'Failure — route remains dangerous.';
+      if (typeof changeStress === 'function') changeStress(1);
+      applyPlanetHazardFailure(state, checkText);
+      showNotif(`${checkText} Failure.`, 'warn');
     }
-    computePlanetTradeRoutes(state);
-    showNotif(`${check.text} Success.`, 'good');
-  } else {
-    cell.note = 'Failure — route remains dangerous.';
-    if (typeof changeStress === 'function') changeStress(1);
-    applyPlanetHazardFailure(state, check.text);
-    showNotif(`${check.text} Failure.`, 'warn');
-  }
-  if (typeof window.rollRivalEncounterForMap === 'function') {
-    window.rollRivalEncounterForMap('planet', {
-      key: String(state.hexId) + ':' + String(cell.id),
-      label: 'Planet Cell ' + String(cell.id),
-      terrain: String(cell.marker || cell.terrain || 'surface')
+    if (typeof window.rollRivalEncounterForMap === 'function') {
+      window.rollRivalEncounterForMap('planet', {
+        key: String(state.hexId) + ':' + String(cell.id),
+        label: 'Planet Cell ' + String(cell.id),
+        terrain: String(cell.marker || cell.terrain || 'surface')
+      });
+    }
+    renderPlanetExplorationPanel();
+  };
+
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Planet Exploration',
+      context: 'Planet Hex ' + Number(cell.id),
+      statKey: 'adventure',
+      statLabel: 'Adventure/Lead',
+      actionDie: actionDie,
+      dreadDie: dd,
+      onResolve: finalizeExplore
     });
+    return;
   }
-  renderPlanetExplorationPanel();
+
+  const check = resolveGalaxySkillCheck('adventure', 'lead', dd, `Planet Hex ${cell.id}`);
+  finalizeExplore({ success: check.success, text: check.text, manual: false, dreadDie: dd });
 }
 
 function renderPlanetExplorationPanel() {

@@ -7672,9 +7672,10 @@
   // ── COMBAT MANUAL ROLL HANDLER ──────────────────────────────────────────────
   window.performCombatActionManualRoll = function(type) {
     if (!type || (type !== 'strike' && type !== 'shoot')) return;
-    
-    var actionDie = window.selectedDice.action || 4;
-    var dreadDie = window.selectedDice.dread || 6;
+
+    var selected = (window.selectedDice && typeof window.selectedDice === 'object') ? window.selectedDice : { action: 4, dread: 6 };
+    var actionDie = Number(selected.action || 4);
+    var dreadDie = Number(selected.dread || 6);
     var skillLabel = type === 'strike' ? 'Strike' : 'Shoot';
     
     var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.7;">'
@@ -7699,30 +7700,32 @@
   };
   
   window.finalizeCombatManualRoll = function(type) {
-    closeModal();
     var actionInput = document.getElementById('combatManualActionValue');
     var dreadInput = document.getElementById('combatManualDreadValue');
-    
+
     if (!actionInput || !dreadInput) {
       if (typeof showNotif === 'function') showNotif('Inputs not found', 'warn');
       return;
     }
-    
+
     var actionValue = parseInt(actionInput.value, 10);
     var dreadValue = parseInt(dreadInput.value, 10);
-    
+
     if (!Number.isFinite(actionValue) || !Number.isFinite(dreadValue)) {
       if (typeof showNotif === 'function') showNotif('Invalid dice entry', 'warn');
       return;
     }
-    
-    var actionDie = window.selectedDice.action || 4;
-    var dreadDie = window.selectedDice.dread || 6;
-    
+
+    var selected = (window.selectedDice && typeof window.selectedDice === 'object') ? window.selectedDice : { action: 4, dread: 6 };
+    var actionDie = Number(selected.action || 4);
+    var dreadDie = Number(selected.dread || 6);
+
     if (actionValue < 1 || actionValue > actionDie || dreadValue < 1 || dreadValue > dreadDie) {
       if (typeof showNotif === 'function') showNotif('Dice values out of range', 'warn');
       return;
     }
+
+    if (typeof closeModal === 'function') closeModal();
     
     // Store manual roll results in a temporary state for rollAttack/executeWayfarerAction to use
     window.manualRollData = {
@@ -7754,7 +7757,7 @@
         });
       }
     }
-    
+
     // Clear manual roll data after a delay to allow for any follow-up actions
     setTimeout(function() { window.manualRollData = null; }, 1000);
   };

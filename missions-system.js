@@ -2956,18 +2956,26 @@
         }).join('')
       : '<div style="font-size:.64rem;color:var(--muted2);">No Titan wayfarer actions unlocked yet.</div>';
 
+    var legacyCenter = { x: 286, y: 382 };
+    var legacyPolar = [
+      { r: 0, a: 0 },
+      { r: 124, a: -108 },
+      { r: 124, a: -36 },
+      { r: 124, a: 36 },
+      { r: 124, a: 108 },
+      { r: 238, a: -74 },
+      { r: 238, a: 74 }
+    ];
     var legacyNodeMeta = LEGACY_RAID_TREE_NODES.map(function (node, idx) {
       var rank = getLegacyRaidTalentRank(node.id);
       var maxRank = Math.max(1, Number(node.maxRank || 1));
       var capped = rank >= maxRank;
       var cost = getLegacyRaidTreeNodeCost(node, rank);
       var affordable = !capped && pointCount >= Number(cost.points || 0) && medalCount >= Number(cost.medals || 0);
-      var basePos = [
-        { x: 38, y: 130 }, { x: 38, y: 282 }, { x: 38, y: 434 },
-        { x: 238, y: 202 }, { x: 238, y: 362 },
-        { x: 458, y: 154 }, { x: 458, y: 402 }
-      ];
-      var p = basePos[idx] || { x: 38 + ((idx % 3) * 200), y: 130 + (Math.floor(idx / 3) * 150) };
+      var polar = legacyPolar[idx] || { r: 200 + ((idx % 3) * 64), a: -90 + ((idx % 8) * 45) };
+      var rad = (Number(polar.a || 0) * Math.PI) / 180;
+      var px = Math.round(legacyCenter.x + Math.cos(rad) * Number(polar.r || 0));
+      var py = Math.round(legacyCenter.y + Math.sin(rad) * Number(polar.r || 0));
       return {
         id: String(node.id || ''),
         label: String(node.label || ''),
@@ -2977,19 +2985,22 @@
         capped: capped,
         affordable: affordable,
         costText: capped ? 'Maxed' : ('Cost ' + Number(cost.points || 0) + ' RP / ' + Number(cost.medals || 0) + ' Medals'),
-        x: p.x,
-        y: p.y,
-        w: 184,
-        h: 108,
+        x: px,
+        y: py,
+        w: 172,
+        h: 96,
         border: raidNodeAccents[node.id] || '#7ed7ff'
       };
     });
 
-    var titanBaseX = { Titan: 736, Tactician: 904, Fury: 1138, Seeker: 1372 };
-    var titanBaseY = { root: 78, skill: 196, passive: 318, action: 446, personal: 566, teamwork: 686 };
-    var laneOffsets = { Titan: 0, Tactician: -32, Fury: 18, Seeker: 58 };
+    var titanCenters = {
+      Tactician: { x: 888, y: 272 },
+      Fury: { x: 1166, y: 272 },
+      Seeker: { x: 1442, y: 272 },
+      Titan: { x: 1166, y: 520 }
+    };
+    var groupRank = { root: 0, skill: 1, passive: 2, action: 3, personal: 4, teamwork: 5 };
     var titanSlotCount = {};
-    var titanNodeLookup = {};
     titanNodeMeta.forEach(function (node) {
       var subclass = node.subclass;
       var group = node.group;
@@ -2997,13 +3008,19 @@
       titanSlotCount[bucket] = Number(titanSlotCount[bucket] || 0);
       var slot = titanSlotCount[bucket];
       titanSlotCount[bucket] += 1;
-      var x = Number(titanBaseX[subclass] || 980) + ((slot % 2) * 122) + Number(laneOffsets[subclass] || 0);
-      var y = Number(titanBaseY[group] || 240) + (Math.floor(slot / 2) * 92);
-      node.x = x;
-      node.y = y;
-      node.w = 212;
-      node.h = 78;
-      titanNodeLookup[node.id] = node;
+      var center = titanCenters[subclass] || titanCenters.Titan;
+      var tier = Number(groupRank[group] || 1);
+      var ring = 74 + (tier * 42);
+      if (subclass === 'Titan') ring = 52 + (tier * 34);
+      var angleStart = subclass === 'Tactician' ? -145 : (subclass === 'Fury' ? -90 : (subclass === 'Seeker' ? -35 : 165));
+      var angleStep = subclass === 'Titan' ? 58 : 44;
+      var angle = angleStart + (slot * angleStep);
+      var a = (angle * Math.PI) / 180;
+      node.x = Math.round(center.x + Math.cos(a) * ring);
+      node.y = Math.round(center.y + Math.sin(a) * ring);
+      node.w = 186;
+      node.h = 72;
+      node.tier = tier;
     });
 
     var graphNodes = legacyNodeMeta.concat(titanNodeMeta);
@@ -3011,6 +3028,14 @@
     graphNodes.forEach(function (n) { graphLookup[n.id] = n; });
 
     var edgeHtml = '';
+    edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="124" fill="none" stroke="rgba(126,215,255,.12)" stroke-width="1.2" />';
+    edgeHtml += '<circle cx="' + legacyCenter.x + '" cy="' + legacyCenter.y + '" r="238" fill="none" stroke="rgba(126,215,255,.1)" stroke-width="1" stroke-dasharray="4 5" />';
+    Object.keys(titanCenters).forEach(function (key) {
+      var c = titanCenters[key];
+      edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="78" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1" />';
+      edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="118" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1" stroke-dasharray="4 5" />';
+      edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="158" fill="none" stroke="rgba(255,255,255,.04)" stroke-width="1" stroke-dasharray="3 6" />';
+    });
     legacyNodeMeta.forEach(function (n, idx) {
       if (idx <= 0) return;
       var parent = legacyNodeMeta[Math.max(0, idx - 1)];
@@ -3035,15 +3060,26 @@
         edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="rgba(255,213,106,.25)" stroke-width="2" stroke-dasharray="5 4" />';
       });
     });
+    ['Tactician', 'Fury', 'Seeker', 'Titan'].forEach(function (subclass) {
+      var chain = titanNodeMeta.filter(function (n) { return n.subclass === subclass; }).sort(function (a, b) {
+        if (a.tier !== b.tier) return a.tier - b.tier;
+        return a.y - b.y;
+      });
+      for (var ci = 1; ci < chain.length; ci++) {
+        var pa = chain[ci - 1];
+        var pb = chain[ci];
+        edgeHtml += '<line x1="' + (pa.x + pa.w / 2) + '" y1="' + (pa.y + pa.h / 2) + '" x2="' + (pb.x + pb.w / 2) + '" y2="' + (pb.y + pb.h / 2) + '" stroke="rgba(240,139,108,.22)" stroke-width="1.8" stroke-dasharray="3 4" />';
+      }
+    });
 
     var legacyNodesHtml = legacyNodeMeta.map(function (node) {
-      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + (node.capped ? 'rgba(103,214,179,.55)' : 'rgba(255,255,255,.2)') + ';background:linear-gradient(160deg, rgba(14,20,30,.94), rgba(8,12,18,.92));box-shadow:0 0 0 1px rgba(0,0,0,.35), inset 0 0 18px rgba(255,255,255,.03);padding:.32rem .36rem .28rem .44rem;">'
+      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + (node.capped ? 'rgba(103,214,179,.55)' : 'rgba(255,255,255,.2)') + ';background:linear-gradient(160deg, rgba(14,20,30,.94), rgba(8,12,18,.92));box-shadow:0 0 0 1px rgba(0,0,0,.35), inset 0 0 16px rgba(255,255,255,.03);padding:.26rem .3rem .24rem .4rem;">'
         + '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:' + node.border + ';opacity:.9;"></div>'
-        + '<div style="font-size:.69rem;color:var(--text2);line-height:1.25;"><strong>' + node.label + '</strong></div>'
-        + '<div style="font-size:.58rem;color:' + (node.capped ? 'var(--teal)' : 'var(--gold2)') + ';margin:.08rem 0;">Rank ' + node.rank + '/' + node.maxRank + '</div>'
-        + '<div style="font-size:.54rem;color:var(--muted2);line-height:1.32;height:34px;overflow:hidden;">' + node.detail + '</div>'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.14rem;gap:.12rem;">'
-        + '<span style="font-size:.52rem;color:var(--muted2);">' + node.costText + '</span>'
+        + '<div style="font-size:.64rem;color:var(--text2);line-height:1.2;"><strong>' + node.label + '</strong></div>'
+        + '<div style="font-size:.54rem;color:' + (node.capped ? 'var(--teal)' : 'var(--gold2)') + ';margin:.06rem 0;">Rank ' + node.rank + '/' + node.maxRank + '</div>'
+        + '<div style="font-size:.5rem;color:var(--muted2);line-height:1.28;height:28px;overflow:hidden;">' + node.detail + '</div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.1rem;gap:.1rem;">'
+        + '<span style="font-size:.48rem;color:var(--muted2);">' + node.costText + '</span>'
         + '<button class="btn btn-xs ' + (node.affordable ? 'btn-primary' : '') + '" ' + (node.capped ? 'disabled' : '') + ' onclick="buyLegacyRaidTreeNode(\'' + node.id + '\')">' + (node.capped ? 'Max' : 'Buy') + '</button>'
         + '</div>'
         + '</div>';
@@ -3052,15 +3088,15 @@
     var titanNodesHtml = titanNodeMeta.map(function (node) {
       var frame = node.unlocked ? 'rgba(103,214,179,.6)' : (node.canBuy ? 'rgba(240,213,106,.42)' : 'rgba(255,255,255,.2)');
       var bg = node.unlocked ? 'linear-gradient(155deg, rgba(14,46,38,.9), rgba(10,16,22,.93))' : 'linear-gradient(160deg, rgba(12,18,28,.94), rgba(8,12,18,.92))';
-      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + frame + ';background:' + bg + ';padding:.28rem .34rem;">'
+      return '<div style="position:absolute;left:' + node.x + 'px;top:' + node.y + 'px;width:' + node.w + 'px;height:' + node.h + 'px;border:1px solid ' + frame + ';background:' + bg + ';padding:.22rem .26rem;">'
         + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
-        + '<div style="font-size:.64rem;color:' + (node.unlocked ? 'var(--teal)' : 'var(--text2)') + ';line-height:1.2;"><strong>' + node.label + '</strong></div>'
+        + '<div style="font-size:.58rem;color:' + (node.unlocked ? 'var(--teal)' : 'var(--text2)') + ';line-height:1.18;"><strong>' + node.label + '</strong></div>'
         + '<div style="font-size:.5rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + node.subclass + '</div>'
         + '</div>'
-        + '<div style="font-size:.54rem;color:var(--muted2);line-height:1.3;height:30px;overflow:hidden;margin-top:.08rem;">' + node.detail + '</div>'
-        + (node.needText ? ('<div style="font-size:.5rem;color:' + (node.canBuy || node.unlocked ? 'var(--muted2)' : 'var(--red2)') + ';line-height:1.2;height:12px;overflow:hidden;margin-top:.05rem;">' + node.needText + '</div>') : '<div style="height:12px;"></div>')
-        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.08rem;">'
-        + '<span style="font-size:.5rem;color:var(--gold2);">Cost: ' + node.cost + ' RP</span>'
+        + '<div style="font-size:.49rem;color:var(--muted2);line-height:1.26;height:24px;overflow:hidden;margin-top:.05rem;">' + node.detail + '</div>'
+        + (node.needText ? ('<div style="font-size:.46rem;color:' + (node.canBuy || node.unlocked ? 'var(--muted2)' : 'var(--red2)') + ';line-height:1.2;height:10px;overflow:hidden;margin-top:.04rem;">' + node.needText + '</div>') : '<div style="height:10px;"></div>')
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.06rem;">'
+        + '<span style="font-size:.46rem;color:var(--gold2);">Cost: ' + node.cost + ' RP</span>'
         + (node.unlocked
           ? '<button class="btn btn-xs" disabled>Unlocked</button>'
           : '<button class="btn btn-xs ' + (node.canBuy ? 'btn-teal' : '') + '" ' + (node.canBuy ? '' : 'disabled') + ' onclick="buyTitanRaidNode(\'' + node.id + '\')">Buy</button>')
@@ -3073,7 +3109,7 @@
       + '<div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;flex-wrap:wrap;">'
       + '<div>'
       + '<div style="font-size:.92rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Progression: Atlas Skill Web</strong></div>'
-      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;max-width:940px;">A full-screen passive web. Buy connected nodes to scale raid power exactly like an ARPG atlas path: legacy raid perks on the left, Titan subclass branches on the right.</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;max-width:960px;">A dense passive web with circular clusters, chained lanes, and tighter node spacing. Path through the ringed hubs to build your raid identity.</div>'
       + '</div>'
       + '<div style="font-size:.7rem;color:var(--teal);display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;">' + medalSummaryHtml + '<span>Raid Points: ' + pointCount + '</span></div>'
       + '</div>'
@@ -3086,11 +3122,12 @@
       + '</div>'
       + '<div style="margin-top:.34rem;border:1px solid rgba(126,215,255,.28);background:linear-gradient(160deg, rgba(8,14,24,.97), rgba(10,16,22,.92));padding:.34rem;">'
       + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.22rem;">Raid Skill Tree</div>'
-      + '<div style="position:relative;overflow:auto;min-height:770px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(140% 120% at 30% 20%, rgba(19,30,45,.52), rgba(6,10,14,.96));">'
-      + '<div style="position:relative;width:1640px;height:810px;">'
-      + '<svg width="1640" height="810" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
-      + '<div style="position:absolute;left:26px;top:56px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Path</div>'
-      + '<div style="position:absolute;left:904px;top:28px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Branches: Tactician / Fury / Seeker</div>'
+      + '<div style="position:relative;overflow:auto;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(140% 120% at 30% 20%, rgba(19,30,45,.52), rgba(6,10,14,.96));">'
+      + '<div style="position:relative;width:1560px;height:770px;">'
+      + '<svg width="1560" height="770" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
+      + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
+      + '<div style="position:absolute;left:818px;top:38px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Branch Clusters: Tactician / Fury / Seeker</div>'
+      + '<div style="position:absolute;left:1086px;top:548px;font-size:.56rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Titan Core Chain</div>'
       + legacyNodesHtml
       + titanNodesHtml
       + '</div>'
